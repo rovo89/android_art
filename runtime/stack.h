@@ -59,19 +59,7 @@ std::ostream& operator<<(std::ostream& os, const VRegKind& rhs);
 
 // A reference from the shadow stack to a MirrorType object within the Java heap.
 template<class MirrorType>
-class MANAGED StackReference : public mirror::ObjectReference<false, MirrorType> {
- public:
-  StackReference<MirrorType>() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : mirror::ObjectReference<false, MirrorType>(nullptr) {}
-
-  static StackReference<MirrorType> FromMirrorPtr(MirrorType* p)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return StackReference<MirrorType>(p);
-  }
-
- private:
-  StackReference<MirrorType>(MirrorType* p) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : mirror::ObjectReference<false, MirrorType>(p) {}
+class MANAGED StackReference : public mirror::CompressedReference<MirrorType> {
 };
 
 // ShadowFrame has 2 possible layouts:

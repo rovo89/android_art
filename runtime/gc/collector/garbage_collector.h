@@ -22,6 +22,7 @@
 #include "base/timing_logger.h"
 #include "gc/collector_type.h"
 #include "gc/gc_cause.h"
+#include "gc_root.h"
 #include "gc_type.h"
 #include <stdint.h>
 #include <vector>
@@ -112,7 +113,7 @@ class Iteration {
   DISALLOW_COPY_AND_ASSIGN(Iteration);
 };
 
-class GarbageCollector {
+class GarbageCollector : public RootVisitor {
  public:
   class SCOPED_LOCKABLE ScopedPause {
    public:

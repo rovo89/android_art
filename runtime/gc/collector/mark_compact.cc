@@ -309,18 +309,56 @@ void MarkCompact::DelayReferenceReferentCallback(mirror::Class* klass, mirror::R
   reinterpret_cast<MarkCompact*>(arg)->DelayReferenceReferent(klass, ref);
 }
 
-void MarkCompact::MarkRootCallback(Object** root, void* arg, const RootInfo& /*root_info*/) {
-  reinterpret_cast<MarkCompact*>(arg)->MarkObject(*root);
-}
-
-void MarkCompact::UpdateRootCallback(Object** root, void* arg, const RootInfo& /*root_info*/) {
-  mirror::Object* obj = *root;
-  mirror::Object* new_obj = reinterpret_cast<MarkCompact*>(arg)->GetMarkedForwardAddress(obj);
-  if (obj != new_obj) {
-    *root = new_obj;
-    DCHECK(new_obj != nullptr);
+void MarkCompact::VisitRoots(
+    mirror::Object*** roots, size_t count, const RootInfo& info ATTRIBUTE_UNUSED) {
+  for (size_t i = 0; i < count; ++i) {
+    MarkObject(*roots[i]);
   }
 }
+
+void MarkCompact::VisitRoots(
+    mirror::CompressedReference<mirror::Object>** roots, size_t count,
+    const RootInfo& info ATTRIBUTE_UNUSED) {
+  for (size_t i = 0; i < count; ++i) {
+    MarkObject(roots[i]->AsMirrorPtr());
+  }
+}
+
+class UpdateRootVisitor : public RootVisitor {
+ public:
+  explicit UpdateRootVisitor(MarkCompact* collector) : collector_(collector) {
+  }
+
+  void VisitRoots(mirror::Object*** roots, size_t count, const RootInfo& info ATTRIBUTE_UNUSED)
+      OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+    for (size_t i = 0; i < count; ++i) {
+      mirror::Object* obj = *roots[i];
+      mirror::Object* new_obj = collector_->GetMarkedForwardAddress(obj);
+      if (obj != new_obj) {
+        *roots[i] = new_obj;
+        DCHECK(new_obj != nullptr);
+      }
+    }
+  }
+
+  void VisitRoots(mirror::CompressedReference<mirror::Object>** roots, size_t count,
+                  const RootInfo& info ATTRIBUTE_UNUSED)
+      OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+    for (size_t i = 0; i < count; ++i) {
+      mirror::Object* obj = roots[i]->AsMirrorPtr();
+      mirror::Object* new_obj = collector_->GetMarkedForwardAddress(obj);
+      if (obj != new_obj) {
+        roots[i]->Assign(new_obj);
+        DCHECK(new_obj != nullptr);
+      }
+    }
+  }
+
+ private:
+  MarkCompact* const collector_;
+};
 
 class UpdateObjectReferencesVisitor {
  public:
@@ -339,7 +377,8 @@ void MarkCompact::UpdateReferences() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   Runtime* runtime = Runtime::Current();
   // Update roots.
-  runtime->VisitRoots(UpdateRootCallback, this);
+  UpdateRootVisitor update_root_visitor(this);
+  runtime->VisitRoots(&update_root_visitor);
   // Update object references in mod union tables and spaces.
   for (const auto& space : heap_->GetContinuousSpaces()) {
     // If the space is immune then we need to mark the references to other spaces.
@@ -396,7 +435,7 @@ void MarkCompact::Compact() {
 // Marks all objects in the root set.
 void MarkCompact::MarkRoots() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
-  Runtime::Current()->VisitRoots(MarkRootCallback, this);
+  Runtime::Current()->VisitRoots(this);
 }
 
 mirror::Object* MarkCompact::MarkedForwardingAddressCallback(mirror::Object* obj, void* arg) {

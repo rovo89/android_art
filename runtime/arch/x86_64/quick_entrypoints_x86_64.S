@@ -67,7 +67,7 @@ MACRO0(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME)
     movq %xmm15, 32(%rsp)
     // R10 := ArtMethod* for save all callee save frame method.
     THIS_LOAD_REQUIRES_READ_BARRIER
-    movq RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
+    movl RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10d
     // Store ArtMethod* to bottom of stack.
     movq %r10, 0(%rsp)
     // Store rsp as the top quick frame.
@@ -110,7 +110,7 @@ MACRO0(SETUP_REFS_ONLY_CALLEE_SAVE_FRAME)
     movq %xmm15, 32(%rsp)
     // R10 := ArtMethod* for refs only callee save frame method.
     THIS_LOAD_REQUIRES_READ_BARRIER
-    movq RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
+    movl RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10d
     // Store ArtMethod* to bottom of stack.
     movq %r10, 0(%rsp)
     // Store rsp as the stop quick frame.
@@ -170,7 +170,7 @@ MACRO0(SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME)
     CFI_ADJUST_CFA_OFFSET(80 + 4 * 8)
     // R10 := ArtMethod* for ref and args callee save frame method.
     THIS_LOAD_REQUIRES_READ_BARRIER
-    movq RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
+    movl RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10d
     // Save FPRs.
     movq %xmm0, 16(%rsp)
     movq %xmm1, 24(%rsp)

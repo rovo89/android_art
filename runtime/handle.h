@@ -70,6 +70,16 @@ class Handle : public ValueObject {
     return reinterpret_cast<jobject>(reference_);
   }
 
+  StackReference<mirror::Object>* GetReference() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      ALWAYS_INLINE {
+    return reference_;
+  }
+
+  ALWAYS_INLINE const StackReference<mirror::Object>* GetReference() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return reference_;
+  }
+
  protected:
   template<typename S>
   explicit Handle(StackReference<S>* reference)
@@ -78,14 +88,6 @@ class Handle : public ValueObject {
   template<typename S>
   explicit Handle(const Handle<S>& handle)
       : reference_(handle.reference_) {
-  }
-
-  StackReference<mirror::Object>* GetReference() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
-    return reference_;
-  }
-  ALWAYS_INLINE const StackReference<mirror::Object>* GetReference() const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return reference_;
   }
 
   StackReference<mirror::Object>* reference_;

@@ -19,12 +19,16 @@
 
 #include "base/macros.h"
 #include "base/mutex.h"       // For Locks::mutator_lock_.
+#include "mirror/object_reference.h"
 
 namespace art {
 
 namespace mirror {
 class Object;
 }  // namespace mirror
+
+template <size_t kBufferSize>
+class BufferedRootVisitor;
 
 enum RootType {
   kRootUnknown = 0,
@@ -43,6 +47,7 @@ enum RootType {
 };
 std::ostream& operator<<(std::ostream& os, const RootType& root_type);
 
+// Only used by hprof. tid and root_type are only used by hprof.
 class RootInfo {
  public:
   // Thread id 0 is for non thread roots.
@@ -60,15 +65,64 @@ class RootInfo {
   virtual void Describe(std::ostream& os) const {
     os << "Type=" << type_ << " thread_id=" << thread_id_;
   }
+  std::string ToString() const;
 
  private:
   const RootType type_;
   const uint32_t thread_id_;
 };
 
-// Returns the new address of the object, returns root if it has not moved. tid and root_type are
-// only used by hprof.
-typedef void (RootCallback)(mirror::Object** root, void* arg, const RootInfo& root_info);
+inline std::ostream& operator<<(std::ostream& os, const RootInfo& root_info) {
+  root_info.Describe(os);
+  return os;
+}
+
+class RootVisitor {
+ public:
+  virtual ~RootVisitor() { }
+
+  // Single root versions, not overridable.
+  ALWAYS_INLINE void VisitRoot(mirror::Object** roots, const RootInfo& info)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    VisitRoots(&roots, 1, info);
+  }
+
+  ALWAYS_INLINE void VisitRootIfNonNull(mirror::Object** roots, const RootInfo& info)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (*roots != nullptr) {
+      VisitRoot(roots, info);
+    }
+  }
+
+  virtual void VisitRoots(mirror::Object*** roots, size_t count, const RootInfo& info)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
+
+  virtual void VisitRoots(mirror::CompressedReference<mirror::Object>** roots, size_t count,
+                          const RootInfo& info)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
+};
+
+// Only visits roots one at a time, doesn't handle updating roots. Used when performance isn't
+// critical.
+class SingleRootVisitor : public RootVisitor {
+ private:
+  void VisitRoots(mirror::Object*** roots, size_t count, const RootInfo& info) OVERRIDE
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    for (size_t i = 0; i < count; ++i) {
+      VisitRoot(*roots[i], info);
+    }
+  }
+
+  void VisitRoots(mirror::CompressedReference<mirror::Object>** roots, size_t count,
+                          const RootInfo& info) OVERRIDE
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    for (size_t i = 0; i < count; ++i) {
+      VisitRoot(roots[i]->AsMirrorPtr(), info);
+    }
+  }
+
+  virtual void VisitRoot(mirror::Object* root, const RootInfo& info) = 0;
+};
 
 template<class MirrorType>
 class GcRoot {
@@ -76,37 +130,92 @@ class GcRoot {
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ALWAYS_INLINE MirrorType* Read() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void VisitRoot(RootCallback* callback, void* arg, const RootInfo& info) const {
+  void VisitRoot(RootVisitor* visitor, const RootInfo& info) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(!IsNull());
-    callback(reinterpret_cast<mirror::Object**>(&root_), arg, info);
+    mirror::CompressedReference<mirror::Object>* roots[1] = { &root_ };
+    visitor->VisitRoots(roots, 1u, info);
     DCHECK(!IsNull());
   }
 
-  void VisitRootIfNonNull(RootCallback* callback, void* arg, const RootInfo& info) const {
+  void VisitRootIfNonNull(RootVisitor* visitor, const RootInfo& info) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (!IsNull()) {
-      VisitRoot(callback, arg, info);
+      VisitRoot(visitor, info);
     }
   }
 
-  // This is only used by IrtIterator.
-  ALWAYS_INLINE MirrorType** AddressWithoutBarrier() {
+  ALWAYS_INLINE mirror::CompressedReference<mirror::Object>* AddressWithoutBarrier() {
     return &root_;
   }
 
-  bool IsNull() const {
+  ALWAYS_INLINE bool IsNull() const {
     // It's safe to null-check it without a read barrier.
-    return root_ == nullptr;
+    return root_.IsNull();
   }
 
-  ALWAYS_INLINE explicit GcRoot<MirrorType>() : root_(nullptr) {
+  ALWAYS_INLINE GcRoot(MirrorType* ref = nullptr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+ private:
+  mutable mirror::CompressedReference<mirror::Object> root_;
+
+  template <size_t kBufferSize> friend class BufferedRootVisitor;
+};
+
+// Simple data structure for buffered root visiting to avoid virtual dispatch overhead. Currently
+// only for CompressedReferences since these are more common than the Object** roots which are only
+// for thread local roots.
+template <size_t kBufferSize>
+class BufferedRootVisitor {
+ public:
+  BufferedRootVisitor(RootVisitor* visitor, const RootInfo& root_info)
+      : visitor_(visitor), root_info_(root_info), buffer_pos_(0) {
   }
 
-  ALWAYS_INLINE explicit GcRoot<MirrorType>(MirrorType* ref)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) : root_(ref) {
+  ~BufferedRootVisitor() {
+    Flush();
+  }
+
+  template <class MirrorType>
+  ALWAYS_INLINE void VisitRootIfNonNull(GcRoot<MirrorType>& root)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (!root.IsNull()) {
+      VisitRoot(root);
+    }
+  }
+
+  template <class MirrorType>
+  ALWAYS_INLINE void VisitRootIfNonNull(mirror::CompressedReference<MirrorType>* root)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (!root->IsNull()) {
+      VisitRoot(root);
+    }
+  }
+
+  template <class MirrorType>
+  void VisitRoot(GcRoot<MirrorType>& root) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    VisitRoot(root.AddressWithoutBarrier());
+  }
+
+  template <class MirrorType>
+  void VisitRoot(mirror::CompressedReference<MirrorType>* root)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (UNLIKELY(buffer_pos_ >= kBufferSize)) {
+      Flush();
+    }
+    roots_[buffer_pos_++] = root;
+  }
+
+  void Flush() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    visitor_->VisitRoots(roots_, buffer_pos_, root_info_);
+    buffer_pos_ = 0;
   }
 
  private:
-  mutable MirrorType* root_;
+  RootVisitor* const visitor_;
+  RootInfo root_info_;
+  mirror::CompressedReference<mirror::Object>* roots_[kBufferSize];
+  size_t buffer_pos_;
 };
 
 }  // namespace art

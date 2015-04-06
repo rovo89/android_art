@@ -53,14 +53,14 @@ void InternTable::DumpForSigQuit(std::ostream& os) const {
   os << "Intern table: " << StrongSize() << " strong; " << WeakSize() << " weak\n";
 }
 
-void InternTable::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags) {
+void InternTable::VisitRoots(RootVisitor* visitor, VisitRootFlags flags) {
   MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
   if ((flags & kVisitRootFlagAllRoots) != 0) {
-    strong_interns_.VisitRoots(callback, arg);
+    strong_interns_.VisitRoots(visitor);
   } else if ((flags & kVisitRootFlagNewRoots) != 0) {
     for (auto& root : new_strong_intern_roots_) {
       mirror::String* old_ref = root.Read<kWithoutReadBarrier>();
-      root.VisitRoot(callback, arg, RootInfo(kRootInternedString));
+      root.VisitRoot(visitor, RootInfo(kRootInternedString));
       mirror::String* new_ref = root.Read<kWithoutReadBarrier>();
       if (new_ref != old_ref) {
         // The GC moved a root in the log. Need to search the strong interns and update the
@@ -335,12 +335,13 @@ void InternTable::Table::Insert(mirror::String* s) {
   post_zygote_table_.Insert(GcRoot<mirror::String>(s));
 }
 
-void InternTable::Table::VisitRoots(RootCallback* callback, void* arg) {
+void InternTable::Table::VisitRoots(RootVisitor* visitor) {
+  BufferedRootVisitor<128> buffered_visitor(visitor, RootInfo(kRootInternedString));
   for (auto& intern : pre_zygote_table_) {
-    intern.VisitRoot(callback, arg, RootInfo(kRootInternedString));
+    buffered_visitor.VisitRoot(intern);
   }
   for (auto& intern : post_zygote_table_) {
-    intern.VisitRoot(callback, arg, RootInfo(kRootInternedString));
+    buffered_visitor.VisitRoot(intern);
   }
 }
 

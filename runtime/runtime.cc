@@ -1291,67 +1291,67 @@ mirror::Throwable* Runtime::GetPreAllocatedNoClassDefFoundError() {
   return ncdfe;
 }
 
-void Runtime::VisitConstantRoots(RootCallback* callback, void* arg) {
+void Runtime::VisitConstantRoots(RootVisitor* visitor) {
   // Visit the classes held as static in mirror classes, these can be visited concurrently and only
   // need to be visited once per GC since they never change.
-  mirror::ArtField::VisitRoots(callback, arg);
-  mirror::ArtMethod::VisitRoots(callback, arg);
-  mirror::Class::VisitRoots(callback, arg);
-  mirror::Reference::VisitRoots(callback, arg);
-  mirror::StackTraceElement::VisitRoots(callback, arg);
-  mirror::String::VisitRoots(callback, arg);
-  mirror::Throwable::VisitRoots(callback, arg);
-  mirror::Field::VisitRoots(callback, arg);
+  mirror::ArtField::VisitRoots(visitor);
+  mirror::ArtMethod::VisitRoots(visitor);
+  mirror::Class::VisitRoots(visitor);
+  mirror::Reference::VisitRoots(visitor);
+  mirror::StackTraceElement::VisitRoots(visitor);
+  mirror::String::VisitRoots(visitor);
+  mirror::Throwable::VisitRoots(visitor);
+  mirror::Field::VisitRoots(visitor);
   // Visit all the primitive array types classes.
-  mirror::PrimitiveArray<uint8_t>::VisitRoots(callback, arg);   // BooleanArray
-  mirror::PrimitiveArray<int8_t>::VisitRoots(callback, arg);    // ByteArray
-  mirror::PrimitiveArray<uint16_t>::VisitRoots(callback, arg);  // CharArray
-  mirror::PrimitiveArray<double>::VisitRoots(callback, arg);    // DoubleArray
-  mirror::PrimitiveArray<float>::VisitRoots(callback, arg);     // FloatArray
-  mirror::PrimitiveArray<int32_t>::VisitRoots(callback, arg);   // IntArray
-  mirror::PrimitiveArray<int64_t>::VisitRoots(callback, arg);   // LongArray
-  mirror::PrimitiveArray<int16_t>::VisitRoots(callback, arg);   // ShortArray
+  mirror::PrimitiveArray<uint8_t>::VisitRoots(visitor);   // BooleanArray
+  mirror::PrimitiveArray<int8_t>::VisitRoots(visitor);    // ByteArray
+  mirror::PrimitiveArray<uint16_t>::VisitRoots(visitor);  // CharArray
+  mirror::PrimitiveArray<double>::VisitRoots(visitor);    // DoubleArray
+  mirror::PrimitiveArray<float>::VisitRoots(visitor);     // FloatArray
+  mirror::PrimitiveArray<int32_t>::VisitRoots(visitor);   // IntArray
+  mirror::PrimitiveArray<int64_t>::VisitRoots(visitor);   // LongArray
+  mirror::PrimitiveArray<int16_t>::VisitRoots(visitor);   // ShortArray
 }
 
-void Runtime::VisitConcurrentRoots(RootCallback* callback, void* arg, VisitRootFlags flags) {
-  intern_table_->VisitRoots(callback, arg, flags);
-  class_linker_->VisitRoots(callback, arg, flags);
+void Runtime::VisitConcurrentRoots(RootVisitor* visitor, VisitRootFlags flags) {
+  intern_table_->VisitRoots(visitor, flags);
+  class_linker_->VisitRoots(visitor, flags);
   if ((flags & kVisitRootFlagNewRoots) == 0) {
     // Guaranteed to have no new roots in the constant roots.
-    VisitConstantRoots(callback, arg);
+    VisitConstantRoots(visitor);
   }
 }
 
-void Runtime::VisitTransactionRoots(RootCallback* callback, void* arg) {
+void Runtime::VisitTransactionRoots(RootVisitor* visitor) {
   if (preinitialization_transaction_ != nullptr) {
-    preinitialization_transaction_->VisitRoots(callback, arg);
+    preinitialization_transaction_->VisitRoots(visitor);
   }
 }
 
-void Runtime::VisitNonThreadRoots(RootCallback* callback, void* arg) {
-  java_vm_->VisitRoots(callback, arg);
-  sentinel_.VisitRootIfNonNull(callback, arg, RootInfo(kRootVMInternal));
-  pre_allocated_OutOfMemoryError_.VisitRootIfNonNull(callback, arg, RootInfo(kRootVMInternal));
-  resolution_method_.VisitRoot(callback, arg, RootInfo(kRootVMInternal));
-  pre_allocated_NoClassDefFoundError_.VisitRootIfNonNull(callback, arg, RootInfo(kRootVMInternal));
-  imt_conflict_method_.VisitRootIfNonNull(callback, arg, RootInfo(kRootVMInternal));
-  imt_unimplemented_method_.VisitRootIfNonNull(callback, arg, RootInfo(kRootVMInternal));
-  default_imt_.VisitRootIfNonNull(callback, arg, RootInfo(kRootVMInternal));
+void Runtime::VisitNonThreadRoots(RootVisitor* visitor) {
+  java_vm_->VisitRoots(visitor);
+  sentinel_.VisitRootIfNonNull(visitor, RootInfo(kRootVMInternal));
+  pre_allocated_OutOfMemoryError_.VisitRootIfNonNull(visitor, RootInfo(kRootVMInternal));
+  resolution_method_.VisitRoot(visitor, RootInfo(kRootVMInternal));
+  pre_allocated_NoClassDefFoundError_.VisitRootIfNonNull(visitor, RootInfo(kRootVMInternal));
+  imt_conflict_method_.VisitRootIfNonNull(visitor, RootInfo(kRootVMInternal));
+  imt_unimplemented_method_.VisitRootIfNonNull(visitor, RootInfo(kRootVMInternal));
+  default_imt_.VisitRootIfNonNull(visitor, RootInfo(kRootVMInternal));
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
-    callee_save_methods_[i].VisitRootIfNonNull(callback, arg, RootInfo(kRootVMInternal));
+    callee_save_methods_[i].VisitRootIfNonNull(visitor, RootInfo(kRootVMInternal));
   }
-  verifier::MethodVerifier::VisitStaticRoots(callback, arg);
-  VisitTransactionRoots(callback, arg);
-  instrumentation_.VisitRoots(callback, arg);
+  verifier::MethodVerifier::VisitStaticRoots(visitor);
+  VisitTransactionRoots(visitor);
+  instrumentation_.VisitRoots(visitor);
 }
 
-void Runtime::VisitNonConcurrentRoots(RootCallback* callback, void* arg) {
-  thread_list_->VisitRoots(callback, arg);
-  VisitNonThreadRoots(callback, arg);
+void Runtime::VisitNonConcurrentRoots(RootVisitor* visitor) {
+  thread_list_->VisitRoots(visitor);
+  VisitNonThreadRoots(visitor);
 }
 
-void Runtime::VisitThreadRoots(RootCallback* callback, void* arg) {
-  thread_list_->VisitRoots(callback, arg);
+void Runtime::VisitThreadRoots(RootVisitor* visitor) {
+  thread_list_->VisitRoots(visitor);
 }
 
 size_t Runtime::FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_callback,
@@ -1359,12 +1359,12 @@ size_t Runtime::FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_call
   return thread_list_->FlipThreadRoots(thread_flip_visitor, flip_callback, collector);
 }
 
-void Runtime::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags) {
-  VisitNonConcurrentRoots(callback, arg);
-  VisitConcurrentRoots(callback, arg, flags);
+void Runtime::VisitRoots(RootVisitor* visitor, VisitRootFlags flags) {
+  VisitNonConcurrentRoots(visitor);
+  VisitConcurrentRoots(visitor, flags);
 }
 
-void Runtime::VisitImageRoots(RootCallback* callback, void* arg) {
+void Runtime::VisitImageRoots(RootVisitor* visitor) {
   for (auto* space : GetHeap()->GetContinuousSpaces()) {
     if (space->IsImageSpace()) {
       auto* image_space = space->AsImageSpace();
@@ -1373,7 +1373,7 @@ void Runtime::VisitImageRoots(RootCallback* callback, void* arg) {
         auto* obj = image_header.GetImageRoot(static_cast<ImageHeader::ImageRoot>(i));
         if (obj != nullptr) {
           auto* after_obj = obj;
-          callback(&after_obj, arg, RootInfo(kRootStickyClass));
+          visitor->VisitRoot(&after_obj, RootInfo(kRootStickyClass));
           CHECK_EQ(after_obj, obj);
         }
       }
