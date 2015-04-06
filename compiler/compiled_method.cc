@@ -132,7 +132,7 @@ CompiledMethod::CompiledMethod(CompilerDriver* driver,
                                const ArrayRef<const uint8_t>& vmap_table,
                                const ArrayRef<const uint8_t>& native_gc_map,
                                const ArrayRef<const uint8_t>& cfi_info,
-                               const ArrayRef<LinkerPatch>& patches)
+                               const ArrayRef<const LinkerPatch>& patches)
     : CompiledCode(driver, instruction_set, quick_code, !driver->DedupeEnabled()),
       owns_arrays_(!driver->DedupeEnabled()),
       frame_size_in_bytes_(frame_size_in_bytes), core_spill_mask_(core_spill_mask),
@@ -179,7 +179,7 @@ CompiledMethod* CompiledMethod::SwapAllocCompiledMethod(
     const ArrayRef<const uint8_t>& vmap_table,
     const ArrayRef<const uint8_t>& native_gc_map,
     const ArrayRef<const uint8_t>& cfi_info,
-    const ArrayRef<LinkerPatch>& patches) {
+    const ArrayRef<const LinkerPatch>& patches) {
   SwapAllocator<CompiledMethod> alloc(driver->GetSwapSpaceAllocator());
   CompiledMethod* ret = alloc.allocate(1);
   alloc.construct(ret, driver, instruction_set, quick_code, frame_size_in_bytes, core_spill_mask,
@@ -200,7 +200,8 @@ CompiledMethod* CompiledMethod::SwapAllocCompiledMethodStackMap(
   CompiledMethod* ret = alloc.allocate(1);
   alloc.construct(ret, driver, instruction_set, quick_code, frame_size_in_bytes, core_spill_mask,
                   fp_spill_mask, nullptr, ArrayRef<const uint8_t>(), stack_map,
-                  ArrayRef<const uint8_t>(), ArrayRef<const uint8_t>(), ArrayRef<LinkerPatch>());
+                  ArrayRef<const uint8_t>(), ArrayRef<const uint8_t>(),
+                  ArrayRef<const LinkerPatch>());
   return ret;
 }
 
@@ -217,7 +218,7 @@ CompiledMethod* CompiledMethod::SwapAllocCompiledMethodCFI(
   alloc.construct(ret, driver, instruction_set, quick_code, frame_size_in_bytes, core_spill_mask,
                   fp_spill_mask, nullptr, ArrayRef<const uint8_t>(),
                   ArrayRef<const uint8_t>(), ArrayRef<const uint8_t>(),
-                  cfi_info, ArrayRef<LinkerPatch>());
+                  cfi_info, ArrayRef<const LinkerPatch>());
   return ret;
 }
 

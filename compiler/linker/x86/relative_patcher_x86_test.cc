@@ -45,7 +45,7 @@ TEST_F(X86RelativePatcherTest, CallSelf) {
   LinkerPatch patches[] = {
       LinkerPatch::RelativeCodePatch(kCallCode.size() - 4u, nullptr, 1u),
   };
-  AddCompiledMethod(MethodRef(1u), kCallCode, ArrayRef<LinkerPatch>(patches));
+  AddCompiledMethod(MethodRef(1u), kCallCode, ArrayRef<const LinkerPatch>(patches));
   Link();
 
   static const uint8_t expected_code[] = {
@@ -58,11 +58,11 @@ TEST_F(X86RelativePatcherTest, CallOther) {
   LinkerPatch method1_patches[] = {
       LinkerPatch::RelativeCodePatch(kCallCode.size() - 4u, nullptr, 2u),
   };
-  AddCompiledMethod(MethodRef(1u), kCallCode, ArrayRef<LinkerPatch>(method1_patches));
+  AddCompiledMethod(MethodRef(1u), kCallCode, ArrayRef<const LinkerPatch>(method1_patches));
   LinkerPatch method2_patches[] = {
       LinkerPatch::RelativeCodePatch(kCallCode.size() - 4u, nullptr, 1u),
   };
-  AddCompiledMethod(MethodRef(2u), kCallCode, ArrayRef<LinkerPatch>(method2_patches));
+  AddCompiledMethod(MethodRef(2u), kCallCode, ArrayRef<const LinkerPatch>(method2_patches));
   Link();
 
   uint32_t method1_offset = GetMethodOffset(1u);
@@ -87,7 +87,7 @@ TEST_F(X86RelativePatcherTest, CallTrampoline) {
   LinkerPatch patches[] = {
       LinkerPatch::RelativeCodePatch(kCallCode.size() - 4u, nullptr, 2u),
   };
-  AddCompiledMethod(MethodRef(1u), kCallCode, ArrayRef<LinkerPatch>(patches));
+  AddCompiledMethod(MethodRef(1u), kCallCode, ArrayRef<const LinkerPatch>(patches));
   Link();
 
   auto result = method_offset_map_.FindMethodOffset(MethodRef(1));
