@@ -133,6 +133,8 @@ class HandleWrapper : public MutableHandle<T> {
      : MutableHandle<T>(handle), obj_(obj) {
   }
 
+  HandleWrapper(const HandleWrapper&) = default;
+
   ~HandleWrapper() {
     *obj_ = MutableHandle<T>::Get();
   }

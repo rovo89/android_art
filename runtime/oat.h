@@ -156,6 +156,8 @@ class PACKED(4) OatMethodOffsets {
 
   ~OatMethodOffsets();
 
+  OatMethodOffsets& operator=(const OatMethodOffsets&) = default;
+
   uint32_t code_offset_;
 };
 
@@ -168,6 +170,8 @@ class PACKED(4) OatQuickMethodHeader {
                        uint32_t code_size = 0U);
 
   ~OatQuickMethodHeader();
+
+  OatQuickMethodHeader& operator=(const OatQuickMethodHeader&) = default;
 
   // The offset in bytes from the start of the mapping table to the end of the header.
   uint32_t mapping_table_offset_;
