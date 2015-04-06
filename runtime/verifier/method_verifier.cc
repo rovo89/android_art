@@ -1075,7 +1075,6 @@ bool MethodVerifier::GetBranchOffset(uint32_t cur_offset, int32_t* pOffset, bool
       break;
     default:
       return false;
-      break;
   }
   return true;
 }

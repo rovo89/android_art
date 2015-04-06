@@ -749,7 +749,6 @@ bool Thumb2Assembler::Is32BitDataProcessing(Condition cond ATTRIBUTE_UNUSED,
       break;
     case TEQ:
       return true;
-      break;
     case ADD:
     case SUB:
       break;

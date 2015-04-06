@@ -38,7 +38,7 @@ class QuickExceptionHandler {
   QuickExceptionHandler(Thread* self, bool is_deoptimization)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  ~QuickExceptionHandler() {
+  NO_RETURN ~QuickExceptionHandler() {
     LOG(FATAL) << "UNREACHABLE";  // Expected to take long jump.
     UNREACHABLE();
   }

@@ -804,6 +804,9 @@ class ConcurrentCopyingClearBlackPtrsVisitor {
  public:
   explicit ConcurrentCopyingClearBlackPtrsVisitor(ConcurrentCopying* cc)
       : collector_(cc) {}
+#ifndef USE_BAKER_OR_BROOKS_READ_BARRIER
+  NO_RETURN
+#endif
   void operator()(mirror::Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     DCHECK(obj != nullptr);
