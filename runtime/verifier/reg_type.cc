@@ -778,8 +778,8 @@ void RegType::CheckInvariants() const {
   }
 }
 
-void RegType::VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info) const {
-  klass_.VisitRootIfNonNull(callback, arg, root_info);
+void RegType::VisitRoots(RootVisitor* visitor, const RootInfo& root_info) const {
+  klass_.VisitRootIfNonNull(visitor, root_info);
 }
 
 void UninitializedThisReferenceType::CheckInvariants() const {

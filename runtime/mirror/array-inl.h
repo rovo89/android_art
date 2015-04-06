@@ -196,8 +196,8 @@ inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_c
 }
 
 template<class T>
-inline void PrimitiveArray<T>::VisitRoots(RootCallback* callback, void* arg) {
-  array_class_.VisitRootIfNonNull(callback, arg, RootInfo(kRootStickyClass));
+inline void PrimitiveArray<T>::VisitRoots(RootVisitor* visitor) {
+  array_class_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
 }
 
 template<typename T>

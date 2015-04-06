@@ -103,7 +103,7 @@ class JavaVMExt : public JavaVM {
 
   bool SetCheckJniEnabled(bool enabled);
 
-  void VisitRoots(RootCallback* callback, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void VisitRoots(RootVisitor* visitor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void DisallowNewWeakGlobals() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void AllowNewWeakGlobals() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

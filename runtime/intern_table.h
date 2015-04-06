@@ -80,7 +80,7 @@ class InternTable {
   // Total number of strongly live interned strings.
   size_t WeakSize() const LOCKS_EXCLUDED(Locks::intern_table_lock_);
 
-  void VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags)
+  void VisitRoots(RootVisitor* visitor, VisitRootFlags flags)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void DumpForSigQuit(std::ostream& os) const;
@@ -125,7 +125,7 @@ class InternTable {
     void Remove(mirror::String* s)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
         EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-    void VisitRoots(RootCallback* callback, void* arg)
+    void VisitRoots(RootVisitor* visitor)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
         EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
     void SweepWeaks(IsMarkedCallback* callback, void* arg)

@@ -1196,26 +1196,37 @@ void Thread::AssertNoPendingExceptionForNewException(const char* msg) const {
   }
 }
 
-static void MonitorExitVisitor(mirror::Object** object, void* arg, const RootInfo& /*root_info*/)
-    NO_THREAD_SAFETY_ANALYSIS {
-  Thread* self = reinterpret_cast<Thread*>(arg);
-  mirror::Object* entered_monitor = *object;
-  if (self->HoldsLock(entered_monitor)) {
-    LOG(WARNING) << "Calling MonitorExit on object "
-                 << object << " (" << PrettyTypeOf(entered_monitor) << ")"
-                 << " left locked by native thread "
-                 << *Thread::Current() << " which is detaching";
-    entered_monitor->MonitorExit(self);
+class MonitorExitVisitor : public SingleRootVisitor {
+ public:
+  explicit MonitorExitVisitor(Thread* self) : self_(self) { }
+
+  // NO_THREAD_SAFETY_ANALYSIS due to MonitorExit.
+  void VisitRoot(mirror::Object* entered_monitor, const RootInfo& info ATTRIBUTE_UNUSED)
+      OVERRIDE NO_THREAD_SAFETY_ANALYSIS {
+    if (self_->HoldsLock(entered_monitor)) {
+      LOG(WARNING) << "Calling MonitorExit on object "
+                   << entered_monitor << " (" << PrettyTypeOf(entered_monitor) << ")"
+                   << " left locked by native thread "
+                   << *Thread::Current() << " which is detaching";
+      entered_monitor->MonitorExit(self_);
+    }
   }
-}
+
+ private:
+  Thread* const self_;
+};
 
 void Thread::Destroy() {
   Thread* self = this;
   DCHECK_EQ(self, Thread::Current());
 
   if (tlsPtr_.jni_env != nullptr) {
-    // On thread detach, all monitors entered with JNI MonitorEnter are automatically exited.
-    tlsPtr_.jni_env->monitors.VisitRoots(MonitorExitVisitor, self, RootInfo(kRootVMInternal));
+    {
+      ScopedObjectAccess soa(self);
+      MonitorExitVisitor visitor(self);
+      // On thread detach, all monitors entered with JNI MonitorEnter are automatically exited.
+      tlsPtr_.jni_env->monitors.VisitRoots(&visitor, RootInfo(kRootVMInternal));
+    }
     // Release locally held global references which releasing may require the mutator lock.
     if (tlsPtr_.jpeer != nullptr) {
       // If pthread_create fails we don't have a jni env here.
@@ -1373,18 +1384,11 @@ bool Thread::HandleScopeContains(jobject obj) const {
   return tlsPtr_.managed_stack.ShadowFramesContain(hs_entry);
 }
 
-void Thread::HandleScopeVisitRoots(RootCallback* visitor, void* arg, uint32_t thread_id) {
+void Thread::HandleScopeVisitRoots(RootVisitor* visitor, uint32_t thread_id) {
+  BufferedRootVisitor<128> buffered_visitor(visitor, RootInfo(kRootNativeStack, thread_id));
   for (HandleScope* cur = tlsPtr_.top_handle_scope; cur; cur = cur->GetLink()) {
-    size_t num_refs = cur->NumberOfReferences();
-    for (size_t j = 0; j < num_refs; ++j) {
-      mirror::Object* object = cur->GetReference(j);
-      if (object != nullptr) {
-        mirror::Object* old_obj = object;
-        visitor(&object, arg, RootInfo(kRootNativeStack, thread_id));
-        if (old_obj != object) {
-          cur->SetReference(j, object);
-        }
-      }
+    for (size_t j = 0, count = cur->NumberOfReferences(); j < count; ++j) {
+      buffered_visitor.VisitRootIfNonNull(cur->GetHandle(j).GetReference());
     }
   }
 }
@@ -2084,7 +2088,7 @@ bool Thread::HoldsLock(mirror::Object* object) const {
 template <typename RootVisitor>
 class ReferenceMapVisitor : public StackVisitor {
  public:
-  ReferenceMapVisitor(Thread* thread, Context* context, const RootVisitor& visitor)
+  ReferenceMapVisitor(Thread* thread, Context* context, RootVisitor& visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(thread, context), visitor_(visitor) {}
 
@@ -2248,55 +2252,50 @@ class ReferenceMapVisitor : public StackVisitor {
   }
 
   // Visitor for when we visit a root.
-  const RootVisitor& visitor_;
+  RootVisitor& visitor_;
 };
 
 class RootCallbackVisitor {
  public:
-  RootCallbackVisitor(RootCallback* callback, void* arg, uint32_t tid)
-     : callback_(callback), arg_(arg), tid_(tid) {}
+  RootCallbackVisitor(RootVisitor* visitor, uint32_t tid) : visitor_(visitor), tid_(tid) {}
 
-  void operator()(mirror::Object** obj, size_t vreg, const StackVisitor* stack_visitor) const {
-    callback_(obj, arg_, JavaFrameRootInfo(tid_, stack_visitor, vreg));
+  void operator()(mirror::Object** obj, size_t vreg, const StackVisitor* stack_visitor) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    visitor_->VisitRoot(obj, JavaFrameRootInfo(tid_, stack_visitor, vreg));
   }
 
  private:
-  RootCallback* const callback_;
-  void* const arg_;
+  RootVisitor* const visitor_;
   const uint32_t tid_;
 };
 
-void Thread::VisitRoots(RootCallback* visitor, void* arg) {
-  uint32_t thread_id = GetThreadId();
-  if (tlsPtr_.opeer != nullptr) {
-    visitor(&tlsPtr_.opeer, arg, RootInfo(kRootThreadObject, thread_id));
-  }
+void Thread::VisitRoots(RootVisitor* visitor) {
+  const uint32_t thread_id = GetThreadId();
+  visitor->VisitRootIfNonNull(&tlsPtr_.opeer, RootInfo(kRootThreadObject, thread_id));
   if (tlsPtr_.exception != nullptr && tlsPtr_.exception != GetDeoptimizationException()) {
-    visitor(reinterpret_cast<mirror::Object**>(&tlsPtr_.exception), arg,
-            RootInfo(kRootNativeStack, thread_id));
+    visitor->VisitRoot(reinterpret_cast<mirror::Object**>(&tlsPtr_.exception),
+                   RootInfo(kRootNativeStack, thread_id));
   }
-  if (tlsPtr_.monitor_enter_object != nullptr) {
-    visitor(&tlsPtr_.monitor_enter_object, arg, RootInfo(kRootNativeStack, thread_id));
-  }
-  tlsPtr_.jni_env->locals.VisitRoots(visitor, arg, RootInfo(kRootJNILocal, thread_id));
-  tlsPtr_.jni_env->monitors.VisitRoots(visitor, arg, RootInfo(kRootJNIMonitor, thread_id));
-  HandleScopeVisitRoots(visitor, arg, thread_id);
+  visitor->VisitRootIfNonNull(&tlsPtr_.monitor_enter_object, RootInfo(kRootNativeStack, thread_id));
+  tlsPtr_.jni_env->locals.VisitRoots(visitor, RootInfo(kRootJNILocal, thread_id));
+  tlsPtr_.jni_env->monitors.VisitRoots(visitor, RootInfo(kRootJNIMonitor, thread_id));
+  HandleScopeVisitRoots(visitor, thread_id);
   if (tlsPtr_.debug_invoke_req != nullptr) {
-    tlsPtr_.debug_invoke_req->VisitRoots(visitor, arg, RootInfo(kRootDebugger, thread_id));
+    tlsPtr_.debug_invoke_req->VisitRoots(visitor, RootInfo(kRootDebugger, thread_id));
   }
   if (tlsPtr_.single_step_control != nullptr) {
-    tlsPtr_.single_step_control->VisitRoots(visitor, arg, RootInfo(kRootDebugger, thread_id));
+    tlsPtr_.single_step_control->VisitRoots(visitor, RootInfo(kRootDebugger, thread_id));
   }
   if (tlsPtr_.deoptimization_shadow_frame != nullptr) {
-    RootCallbackVisitor visitorToCallback(visitor, arg, thread_id);
-    ReferenceMapVisitor<RootCallbackVisitor> mapper(this, nullptr, visitorToCallback);
+    RootCallbackVisitor visitor_to_callback(visitor, thread_id);
+    ReferenceMapVisitor<RootCallbackVisitor> mapper(this, nullptr, visitor_to_callback);
     for (ShadowFrame* shadow_frame = tlsPtr_.deoptimization_shadow_frame; shadow_frame != nullptr;
         shadow_frame = shadow_frame->GetLink()) {
       mapper.VisitShadowFrame(shadow_frame);
     }
   }
   if (tlsPtr_.shadow_frame_under_construction != nullptr) {
-    RootCallbackVisitor visitor_to_callback(visitor, arg, thread_id);
+    RootCallbackVisitor visitor_to_callback(visitor, thread_id);
     ReferenceMapVisitor<RootCallbackVisitor> mapper(this, nullptr, visitor_to_callback);
     for (ShadowFrame* shadow_frame = tlsPtr_.shadow_frame_under_construction;
         shadow_frame != nullptr;
@@ -2305,33 +2304,34 @@ void Thread::VisitRoots(RootCallback* visitor, void* arg) {
     }
   }
   if (tlsPtr_.method_verifier != nullptr) {
-    tlsPtr_.method_verifier->VisitRoots(visitor, arg, RootInfo(kRootNativeStack, thread_id));
+    tlsPtr_.method_verifier->VisitRoots(visitor, RootInfo(kRootNativeStack, thread_id));
   }
   // Visit roots on this thread's stack
   Context* context = GetLongJumpContext();
-  RootCallbackVisitor visitor_to_callback(visitor, arg, thread_id);
+  RootCallbackVisitor visitor_to_callback(visitor, thread_id);
   ReferenceMapVisitor<RootCallbackVisitor> mapper(this, context, visitor_to_callback);
   mapper.WalkStack();
   ReleaseLongJumpContext(context);
   for (instrumentation::InstrumentationStackFrame& frame : *GetInstrumentationStack()) {
-    if (frame.this_object_ != nullptr) {
-      visitor(&frame.this_object_, arg, RootInfo(kRootVMInternal, thread_id));
-    }
-    DCHECK(frame.method_ != nullptr);
-    visitor(reinterpret_cast<mirror::Object**>(&frame.method_), arg,
-            RootInfo(kRootVMInternal, thread_id));
+    visitor->VisitRootIfNonNull(&frame.this_object_, RootInfo(kRootVMInternal, thread_id));
+    visitor->VisitRoot(reinterpret_cast<mirror::Object**>(&frame.method_),
+                       RootInfo(kRootVMInternal, thread_id));
   }
 }
 
-static void VerifyRoot(mirror::Object** root, void* /*arg*/, const RootInfo& /*root_info*/)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  VerifyObject(*root);
-}
+class VerifyRootVisitor : public SingleRootVisitor {
+ public:
+  void VisitRoot(mirror::Object* root, const RootInfo& info ATTRIBUTE_UNUSED)
+      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    VerifyObject(root);
+  }
+};
 
 void Thread::VerifyStackImpl() {
+  VerifyRootVisitor visitor;
   std::unique_ptr<Context> context(Context::Create());
-  RootCallbackVisitor visitorToCallback(VerifyRoot, Runtime::Current()->GetHeap(), GetThreadId());
-  ReferenceMapVisitor<RootCallbackVisitor> mapper(this, context.get(), visitorToCallback);
+  RootCallbackVisitor visitor_to_callback(&visitor, GetThreadId());
+  ReferenceMapVisitor<RootCallbackVisitor> mapper(this, context.get(), visitor_to_callback);
   mapper.WalkStack();
 }
 

@@ -98,7 +98,7 @@ class SemiSpace : public GarbageCollector {
   // Find the default mark bitmap.
   void FindDefaultMarkBitmap();
 
-  // Returns the new address of the object.
+  // Updates obj_ptr if the object has moved.
   template<bool kPoisonReferences>
   void MarkObject(mirror::ObjectReference<kPoisonReferences, mirror::Object>* obj_ptr)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
@@ -133,8 +133,12 @@ class SemiSpace : public GarbageCollector {
   void SweepSystemWeaks()
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
-  static void MarkRootCallback(mirror::Object** root, void* arg, const RootInfo& root_info)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+  virtual void VisitRoots(mirror::Object*** roots, size_t count, const RootInfo& info) OVERRIDE
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
+
+  virtual void VisitRoots(mirror::CompressedReference<mirror::Object>** roots, size_t count,
+                          const RootInfo& info) OVERRIDE
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
   static mirror::Object* MarkObjectCallback(mirror::Object* root, void* arg)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);

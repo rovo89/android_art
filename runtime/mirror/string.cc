@@ -253,8 +253,8 @@ int32_t String::CompareTo(String* rhs) {
   return countDiff;
 }
 
-void String::VisitRoots(RootCallback* callback, void* arg) {
-  java_lang_String_.VisitRootIfNonNull(callback, arg, RootInfo(kRootStickyClass));
+void String::VisitRoots(RootVisitor* visitor) {
+  java_lang_String_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
 }
 
 }  // namespace mirror

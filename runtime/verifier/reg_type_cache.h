@@ -137,9 +137,9 @@ class RegTypeCache {
   void Dump(std::ostream& os) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const RegType& RegTypeFromPrimitiveType(Primitive::Type) const;
 
-  void VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info)
+  void VisitRoots(RootVisitor* visitor, const RootInfo& root_info)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void VisitStaticRoots(RootCallback* callback, void* arg)
+  static void VisitStaticRoots(RootVisitor* visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:

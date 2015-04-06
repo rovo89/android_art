@@ -299,10 +299,10 @@ class ClassLinker {
   void VisitClassesWithoutClassesLock(ClassVisitor* visitor, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void VisitClassRoots(RootCallback* callback, void* arg, VisitRootFlags flags)
+  void VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags)
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags)
+  void VisitRoots(RootVisitor* visitor, VisitRootFlags flags)
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
