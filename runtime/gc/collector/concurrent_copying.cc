@@ -83,6 +83,9 @@ void ConcurrentCopying::RunPhases() {
       LOG(INFO) << "Verifying no from-space refs";
     }
     VerifyNoFromSpaceReferences();
+    if (kVerboseMode) {
+      LOG(INFO) << "Done verifying no from-space refs";
+    }
     CheckEmptyMarkQueue();
   }
   {
