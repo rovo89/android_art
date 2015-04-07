@@ -205,7 +205,7 @@ class Address : public Operand {
 
 class X86Assembler FINAL : public Assembler {
  public:
-  explicit X86Assembler() : cfi_cfa_offset_(0), cfi_pc_(0) {}
+  explicit X86Assembler() {}
   virtual ~X86Assembler() {}
 
   /*
@@ -599,12 +599,6 @@ class X86Assembler FINAL : public Assembler {
   // and branch to a ExceptionSlowPath if it is.
   void ExceptionPoll(ManagedRegister scratch, size_t stack_adjust) OVERRIDE;
 
-  void InitializeFrameDescriptionEntry() OVERRIDE;
-  void FinalizeFrameDescriptionEntry() OVERRIDE;
-  std::vector<uint8_t>* GetFrameDescriptionEntry() OVERRIDE {
-    return &cfi_info_;
-  }
-
  private:
   inline void EmitUint8(uint8_t value);
   inline void EmitInt32(int32_t value);
@@ -622,9 +616,6 @@ class X86Assembler FINAL : public Assembler {
 
   void EmitGenericShift(int rm, Register reg, const Immediate& imm);
   void EmitGenericShift(int rm, Register operand, Register shifter);
-
-  std::vector<uint8_t> cfi_info_;
-  uint32_t cfi_cfa_offset_, cfi_pc_;
 
   DISALLOW_COPY_AND_ASSIGN(X86Assembler);
 };
