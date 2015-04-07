@@ -29,6 +29,7 @@
 #include "mirror/object_array-inl.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "utils.h"
+#include "utils/dex_cache_arrays_layout-inl.h"
 
 namespace art {
 
@@ -571,12 +572,12 @@ static bool ArmUseRelativeCall(CompilationUnit* cu, const MethodReference& targe
  * Bit of a hack here - in the absence of a real scheduling pass,
  * emit the next instruction in static & direct invoke sequences.
  */
-static int ArmNextSDCallInsn(CompilationUnit* cu, CallInfo* info ATTRIBUTE_UNUSED,
-                             int state, const MethodReference& target_method,
-                             uint32_t unused_idx ATTRIBUTE_UNUSED,
-                             uintptr_t direct_code, uintptr_t direct_method,
-                             InvokeType type) {
-  Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
+int ArmMir2Lir::ArmNextSDCallInsn(CompilationUnit* cu, CallInfo* info ATTRIBUTE_UNUSED,
+                                  int state, const MethodReference& target_method,
+                                  uint32_t unused_idx ATTRIBUTE_UNUSED,
+                                  uintptr_t direct_code, uintptr_t direct_method,
+                                  InvokeType type) {
+  ArmMir2Lir* cg = static_cast<ArmMir2Lir*>(cu->cg.get());
   if (direct_code != 0 && direct_method != 0) {
     switch (state) {
     case 0:  // Get the current Method* [sets kArg0]
@@ -597,17 +598,24 @@ static int ArmNextSDCallInsn(CompilationUnit* cu, CallInfo* info ATTRIBUTE_UNUSE
       return -1;
     }
   } else {
+    bool use_pc_rel = cg->CanUseOpPcRelDexCacheArrayLoad();
     RegStorage arg0_ref = cg->TargetReg(kArg0, kRef);
     switch (state) {
     case 0:  // Get the current Method* [sets kArg0]
       // TUNING: we can save a reg copy if Method* has been promoted.
-      cg->LoadCurrMethodDirect(arg0_ref);
-      break;
+      if (!use_pc_rel) {
+        cg->LoadCurrMethodDirect(arg0_ref);
+        break;
+      }
+      ++state;
+      FALLTHROUGH_INTENDED;
     case 1:  // Get method->dex_cache_resolved_methods_
-      cg->LoadRefDisp(arg0_ref,
-                      mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(),
-                      arg0_ref,
-                      kNotVolatile);
+      if (!use_pc_rel) {
+        cg->LoadRefDisp(arg0_ref,
+                        mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(),
+                        arg0_ref,
+                        kNotVolatile);
+      }
       // Set up direct code if known.
       if (direct_code != 0) {
         if (direct_code != static_cast<uintptr_t>(-1)) {
@@ -619,14 +627,23 @@ static int ArmNextSDCallInsn(CompilationUnit* cu, CallInfo* info ATTRIBUTE_UNUSE
           cg->LoadCodeAddress(target_method, type, kInvokeTgt);
         }
       }
-      break;
+      if (!use_pc_rel || direct_code != 0) {
+        break;
+      }
+      ++state;
+      FALLTHROUGH_INTENDED;
     case 2:  // Grab target method*
       CHECK_EQ(cu->dex_file, target_method.dex_file);
-      cg->LoadRefDisp(arg0_ref,
-                      mirror::ObjectArray<mirror::Object>::OffsetOfElement(
-                          target_method.dex_method_index).Int32Value(),
-                      arg0_ref,
-                      kNotVolatile);
+      if (!use_pc_rel) {
+        cg->LoadRefDisp(arg0_ref,
+                        mirror::ObjectArray<mirror::Object>::OffsetOfElement(
+                            target_method.dex_method_index).Int32Value(),
+                        arg0_ref,
+                        kNotVolatile);
+      } else {
+        size_t offset = cg->dex_cache_arrays_layout_.MethodOffset(target_method.dex_method_index);
+        cg->OpPcRelDexCacheArrayLoad(cu->dex_file, offset, arg0_ref);
+      }
       break;
     case 3:  // Grab the code from the method*
       if (direct_code == 0) {

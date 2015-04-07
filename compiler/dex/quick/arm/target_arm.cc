@@ -575,7 +575,8 @@ RegisterClass ArmMir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatil
 
 ArmMir2Lir::ArmMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
     : Mir2Lir(cu, mir_graph, arena),
-      call_method_insns_(arena->Adapter()) {
+      call_method_insns_(arena->Adapter()),
+      dex_cache_access_insns_(arena->Adapter()) {
   call_method_insns_.reserve(100);
   // Sanity check - make sure encoding map lines up.
   for (int i = 0; i < kArmLast; i++) {
@@ -901,14 +902,28 @@ RegStorage ArmMir2Lir::AllocPreservedSingle(int s_reg) {
 }
 
 void ArmMir2Lir::InstallLiteralPools() {
+  patches_.reserve(call_method_insns_.size() + dex_cache_access_insns_.size());
+
   // PC-relative calls to methods.
-  patches_.reserve(call_method_insns_.size());
   for (LIR* p : call_method_insns_) {
-      DCHECK_EQ(p->opcode, kThumb2Bl);
-      uint32_t target_method_idx = p->operands[1];
-      const DexFile* target_dex_file = UnwrapPointer<DexFile>(p->operands[2]);
-      patches_.push_back(LinkerPatch::RelativeCodePatch(p->offset,
-                                                        target_dex_file, target_method_idx));
+    DCHECK_EQ(p->opcode, kThumb2Bl);
+    uint32_t target_method_idx = p->operands[1];
+    const DexFile* target_dex_file = UnwrapPointer<DexFile>(p->operands[2]);
+    patches_.push_back(LinkerPatch::RelativeCodePatch(p->offset,
+                                                      target_dex_file, target_method_idx));
+  }
+
+  // PC-relative dex cache array accesses.
+  for (LIR* p : dex_cache_access_insns_) {
+    DCHECK(p->opcode = kThumb2MovImm16 || p->opcode == kThumb2MovImm16H);
+    const LIR* add_pc = UnwrapPointer<LIR>(p->operands[4]);
+    DCHECK(add_pc->opcode == kThumbAddRRLH || add_pc->opcode == kThumbAddRRHH);
+    const DexFile* dex_file = UnwrapPointer<DexFile>(p->operands[2]);
+    uint32_t offset = p->operands[3];
+    DCHECK(!p->flags.is_nop);
+    DCHECK(!add_pc->flags.is_nop);
+    patches_.push_back(LinkerPatch::DexCacheArrayPatch(p->offset,
+                                                       dex_file, add_pc->offset, offset));
   }
 
   // And do the normal processing.
