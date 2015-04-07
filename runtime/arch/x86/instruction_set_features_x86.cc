@@ -25,20 +25,43 @@
 
 namespace art {
 
+// Feature-support arrays.
+
+static constexpr const char* x86_known_variants[] = {
+    "atom",
+    "silvermont",
+};
+
+static constexpr const char* x86_variants_with_ssse3[] = {
+    "atom",
+    "silvermont",
+};
+
+static constexpr const char* x86_variants_with_sse4_1[] = {
+    "silvermont",
+};
+
+static constexpr const char* x86_variants_with_sse4_2[] = {
+    "silvermont",
+};
+
 const X86InstructionSetFeatures* X86InstructionSetFeatures::FromVariant(
     const std::string& variant, std::string* error_msg ATTRIBUTE_UNUSED,
     bool x86_64) {
-  bool known_variant = false;
   bool smp = true;  // Conservative default.
-  static const char* x86_variants_with_ssse3[] = {
-      "atom"
-  };
   bool has_SSSE3 = FindVariantInArray(x86_variants_with_ssse3, arraysize(x86_variants_with_ssse3),
                                       variant);
-  bool has_SSE4_1 = false;
-  bool has_SSE4_2 = false;
+  bool has_SSE4_1 = FindVariantInArray(x86_variants_with_sse4_1,
+                                       arraysize(x86_variants_with_sse4_1),
+                                       variant);
+  bool has_SSE4_2 = FindVariantInArray(x86_variants_with_sse4_2,
+                                       arraysize(x86_variants_with_sse4_2),
+                                       variant);
   bool has_AVX = false;
   bool has_AVX2 = false;
+
+  bool known_variant = FindVariantInArray(x86_known_variants, arraysize(x86_known_variants),
+                                          variant);
   if (!known_variant && variant != "default") {
     std::ostringstream os;
     LOG(WARNING) << "Unexpected CPU variant for X86 using defaults: " << variant;

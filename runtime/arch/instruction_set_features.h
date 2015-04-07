@@ -103,7 +103,7 @@ class InstructionSetFeatures {
   explicit InstructionSetFeatures(bool smp) : smp_(smp) {}
 
   // Returns true if variant appears in the array variants.
-  static bool FindVariantInArray(const char* variants[], size_t num_variants,
+  static bool FindVariantInArray(const char* const variants[], size_t num_variants,
                                  const std::string& variant);
 
   // Add architecture specific features in sub-classes.
