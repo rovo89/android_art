@@ -960,6 +960,12 @@ class MIRGraph {
    */
   CompilerTemp* GetNewCompilerTemp(CompilerTempType ct_type, bool wide);
 
+  /**
+   * @brief Used to remove last created compiler temporary when it's not needed.
+   * @param temp the temporary to remove.
+   */
+  void RemoveLastCompilerTemp(CompilerTempType ct_type, bool wide, CompilerTemp* temp);
+
   bool MethodIsLeaf() {
     return attributes_ & METHOD_IS_LEAF;
   }
@@ -1183,6 +1189,12 @@ class MIRGraph {
    * @param bb the considered BasicBlock.
    */
   void DoConstantPropagation(BasicBlock* bb);
+
+  /**
+   * @brief Get use count weight for a given block.
+   * @param bb the BasicBlock.
+   */
+  uint32_t GetUseCountWeight(BasicBlock* bb) const;
 
   /**
    * @brief Count the uses in the BasicBlock

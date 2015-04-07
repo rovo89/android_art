@@ -135,6 +135,7 @@ class BasicBlock;
 class BitVector;
 struct CallInfo;
 struct CompilationUnit;
+struct CompilerTemp;
 struct InlineMethod;
 class MIR;
 struct LIR;
@@ -775,9 +776,10 @@ class Mir2Lir {
      */
     virtual RegLocation EvalLoc(RegLocation loc, int reg_class, bool update);
 
-    void CountRefs(RefCounts* core_counts, RefCounts* fp_counts, size_t num_regs);
+    void AnalyzeMIR(RefCounts* core_counts, MIR* mir, uint32_t weight);
+    virtual void CountRefs(RefCounts* core_counts, RefCounts* fp_counts, size_t num_regs);
     void DumpCounts(const RefCounts* arr, int size, const char* msg);
-    void DoPromotion();
+    virtual void DoPromotion();
     int VRegOffset(int v_reg);
     int SRegOffset(int s_reg);
     RegLocation GetReturnWide(RegisterClass reg_class);
@@ -1848,6 +1850,18 @@ class Mir2Lir {
 
     // The layout of the cu_->dex_file's dex cache arrays for PC-relative addressing.
     const DexCacheArraysLayout dex_cache_arrays_layout_;
+
+    // For architectures that don't have true PC-relative addressing, we can promote
+    // a PC of an instruction (or another PC-relative address such as a pointer to
+    // the dex cache arrays if supported) to a register. This is indicated to the
+    // register promotion by allocating a backend temp.
+    CompilerTemp* pc_rel_temp_;
+
+    // For architectures that don't have true PC-relative addressing (see pc_rel_temp_
+    // above) and also have a limited range of offsets for loads, it's be useful to
+    // know the minimum offset into the dex cache arrays, so we calculate that as well
+    // if pc_rel_temp_ isn't nullptr.
+    uint32_t dex_cache_arrays_min_offset_;
 
     // ABI support
     class ShortyArg {
