@@ -193,6 +193,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/driver/compiler_driver_test.cc \
   compiler/elf_writer_test.cc \
   compiler/image_test.cc \
+  compiler/jni/jni_cfi_test.cc \
   compiler/jni/jni_compiler_test.cc \
   compiler/linker/arm64/relative_patcher_arm64_test.cc \
   compiler/linker/arm/relative_patcher_thumb2_test.cc \

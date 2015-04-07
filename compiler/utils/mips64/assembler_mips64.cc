@@ -568,6 +568,10 @@ void Mips64Assembler::StoreFpuToOffset(StoreOperandType type, FpuRegister reg, G
   }
 }
 
+static dwarf::Reg DWARFReg(GpuRegister reg) {
+  return dwarf::Reg::Mips64Core(static_cast<int>(reg));
+}
+
 constexpr size_t kFramePointerSize = 8;
 
 void Mips64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
@@ -581,10 +585,12 @@ void Mips64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   // Push callee saves and return address
   int stack_offset = frame_size - kFramePointerSize;
   StoreToOffset(kStoreDoubleword, RA, SP, stack_offset);
+  cfi_.RelOffset(DWARFReg(RA), stack_offset);
   for (int i = callee_save_regs.size() - 1; i >= 0; --i) {
     stack_offset -= kFramePointerSize;
     GpuRegister reg = callee_save_regs.at(i).AsMips64().AsGpuRegister();
     StoreToOffset(kStoreDoubleword, reg, SP, stack_offset);
+    cfi_.RelOffset(DWARFReg(reg), stack_offset);
   }
 
   // Write out Method*.
@@ -612,31 +618,40 @@ void Mips64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 void Mips64Assembler::RemoveFrame(size_t frame_size,
                                   const std::vector<ManagedRegister>& callee_save_regs) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
+  cfi_.RememberState();
 
   // Pop callee saves and return address
   int stack_offset = frame_size - (callee_save_regs.size() * kFramePointerSize) - kFramePointerSize;
   for (size_t i = 0; i < callee_save_regs.size(); ++i) {
     GpuRegister reg = callee_save_regs.at(i).AsMips64().AsGpuRegister();
     LoadFromOffset(kLoadDoubleword, reg, SP, stack_offset);
+    cfi_.Restore(DWARFReg(reg));
     stack_offset += kFramePointerSize;
   }
   LoadFromOffset(kLoadDoubleword, RA, SP, stack_offset);
+  cfi_.Restore(DWARFReg(RA));
 
   // Decrease frame to required size.
   DecreaseFrameSize(frame_size);
 
   // Then jump to the return address.
   Jr(RA);
+
+  // The CFI should be restored for any code that follows the exit block.
+  cfi_.RestoreState();
+  cfi_.DefCFAOffset(frame_size);
 }
 
 void Mips64Assembler::IncreaseFrameSize(size_t adjust) {
   CHECK_ALIGNED(adjust, kStackAlignment);
   AddConstant64(SP, SP, -adjust);
+  cfi_.AdjustCFAOffset(adjust);
 }
 
 void Mips64Assembler::DecreaseFrameSize(size_t adjust) {
   CHECK_ALIGNED(adjust, kStackAlignment);
   AddConstant64(SP, SP, adjust);
+  cfi_.AdjustCFAOffset(-adjust);
 }
 
 void Mips64Assembler::Store(FrameOffset dest, ManagedRegister msrc, size_t size) {

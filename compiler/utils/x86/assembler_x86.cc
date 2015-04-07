@@ -1630,18 +1630,25 @@ void X86Assembler::EmitGenericShift(int reg_or_opcode,
   EmitOperand(reg_or_opcode, Operand(operand));
 }
 
+static dwarf::Reg DWARFReg(Register reg) {
+  return dwarf::Reg::X86Core(static_cast<int>(reg));
+}
+
 constexpr size_t kFramePointerSize = 4;
 
 void X86Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                               const std::vector<ManagedRegister>& spill_regs,
                               const ManagedRegisterEntrySpills& entry_spills) {
   DCHECK_EQ(buffer_.Size(), 0U);  // Nothing emitted yet.
+  cfi_.SetCurrentCFAOffset(4);  // Return address on stack.
   CHECK_ALIGNED(frame_size, kStackAlignment);
   int gpr_count = 0;
   for (int i = spill_regs.size() - 1; i >= 0; --i) {
     Register spill = spill_regs.at(i).AsX86().AsCpuRegister();
     pushl(spill);
     gpr_count++;
+    cfi_.AdjustCFAOffset(kFramePointerSize);
+    cfi_.RelOffset(DWARFReg(spill), 0);
   }
 
   // return address then method on stack.
@@ -1649,7 +1656,10 @@ void X86Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                    sizeof(StackReference<mirror::ArtMethod>) /*method*/ -
                    kFramePointerSize /*return address*/;
   addl(ESP, Immediate(-adjust));
+  cfi_.AdjustCFAOffset(adjust);
   pushl(method_reg.AsX86().AsCpuRegister());
+  cfi_.AdjustCFAOffset(kFramePointerSize);
+  DCHECK_EQ(static_cast<size_t>(cfi_.GetCurrentCFAOffset()), frame_size);
 
   for (size_t i = 0; i < entry_spills.size(); ++i) {
     ManagedRegisterSpill spill = entry_spills.at(i);
@@ -1671,25 +1681,33 @@ void X86Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 void X86Assembler::RemoveFrame(size_t frame_size,
                             const std::vector<ManagedRegister>& spill_regs) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
+  cfi_.RememberState();
   int adjust = frame_size - (spill_regs.size() * kFramePointerSize) -
                sizeof(StackReference<mirror::ArtMethod>);
   addl(ESP, Immediate(adjust));
+  cfi_.AdjustCFAOffset(-adjust);
   for (size_t i = 0; i < spill_regs.size(); ++i) {
-    x86::X86ManagedRegister spill = spill_regs.at(i).AsX86();
-    DCHECK(spill.IsCpuRegister());
-    popl(spill.AsCpuRegister());
+    Register spill = spill_regs.at(i).AsX86().AsCpuRegister();
+    popl(spill);
+    cfi_.AdjustCFAOffset(-static_cast<int>(kFramePointerSize));
+    cfi_.Restore(DWARFReg(spill));
   }
   ret();
+  // The CFI should be restored for any code that follows the exit block.
+  cfi_.RestoreState();
+  cfi_.DefCFAOffset(frame_size);
 }
 
 void X86Assembler::IncreaseFrameSize(size_t adjust) {
   CHECK_ALIGNED(adjust, kStackAlignment);
   addl(ESP, Immediate(-adjust));
+  cfi_.AdjustCFAOffset(adjust);
 }
 
 void X86Assembler::DecreaseFrameSize(size_t adjust) {
   CHECK_ALIGNED(adjust, kStackAlignment);
   addl(ESP, Immediate(adjust));
+  cfi_.AdjustCFAOffset(-adjust);
 }
 
 void X86Assembler::Store(FrameOffset offs, ManagedRegister msrc, size_t size) {

@@ -370,40 +370,46 @@ void ArmAssembler::Pad(uint32_t bytes) {
   }
 }
 
+static dwarf::Reg DWARFReg(Register reg) {
+  return dwarf::Reg::ArmCore(static_cast<int>(reg));
+}
+
+static dwarf::Reg DWARFReg(SRegister reg) {
+  return dwarf::Reg::ArmFp(static_cast<int>(reg));
+}
+
 constexpr size_t kFramePointerSize = 4;
 
 void ArmAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                               const std::vector<ManagedRegister>& callee_save_regs,
                               const ManagedRegisterEntrySpills& entry_spills) {
+  CHECK_EQ(buffer_.Size(), 0U);  // Nothing emitted yet
   CHECK_ALIGNED(frame_size, kStackAlignment);
   CHECK_EQ(R0, method_reg.AsArm().AsCoreRegister());
 
   // Push callee saves and link register.
-  RegList push_list = 1 << LR;
-  size_t pushed_values = 1;
-  int32_t min_s = kNumberOfSRegisters;
-  int32_t max_s = -1;
-  for (size_t i = 0; i < callee_save_regs.size(); i++) {
-    if (callee_save_regs.at(i).AsArm().IsCoreRegister()) {
-      Register reg = callee_save_regs.at(i).AsArm().AsCoreRegister();
-      push_list |= 1 << reg;
-      pushed_values++;
+  RegList core_spill_mask = 1 << LR;
+  uint32_t fp_spill_mask = 0;
+  for (const ManagedRegister& reg : callee_save_regs) {
+    if (reg.AsArm().IsCoreRegister()) {
+      core_spill_mask |= 1 << reg.AsArm().AsCoreRegister();
     } else {
-      CHECK(callee_save_regs.at(i).AsArm().IsSRegister());
-      min_s = std::min(static_cast<int>(callee_save_regs.at(i).AsArm().AsSRegister()), min_s);
-      max_s = std::max(static_cast<int>(callee_save_regs.at(i).AsArm().AsSRegister()), max_s);
+      fp_spill_mask |= 1 << reg.AsArm().AsSRegister();
     }
   }
-  PushList(push_list);
-  if (max_s != -1) {
-    pushed_values += 1 + max_s - min_s;
-    vpushs(static_cast<SRegister>(min_s), 1 + max_s - min_s);
+  PushList(core_spill_mask);
+  cfi_.AdjustCFAOffset(POPCOUNT(core_spill_mask) * kFramePointerSize);
+  cfi_.RelOffsetForMany(DWARFReg(Register(0)), 0, core_spill_mask, kFramePointerSize);
+  if (fp_spill_mask != 0) {
+    vpushs(SRegister(CTZ(fp_spill_mask)), POPCOUNT(fp_spill_mask));
+    cfi_.AdjustCFAOffset(POPCOUNT(fp_spill_mask) * kFramePointerSize);
+    cfi_.RelOffsetForMany(DWARFReg(SRegister(0)), 0, fp_spill_mask, kFramePointerSize);
   }
 
   // Increase frame to required size.
+  int pushed_values = POPCOUNT(core_spill_mask) + POPCOUNT(fp_spill_mask);
   CHECK_GT(frame_size, pushed_values * kFramePointerSize);  // Must at least have space for Method*.
-  size_t adjust = frame_size - (pushed_values * kFramePointerSize);
-  IncreaseFrameSize(adjust);
+  IncreaseFrameSize(frame_size - pushed_values * kFramePointerSize);  // handles CFI as well.
 
   // Write out Method*.
   StoreToOffset(kStoreWord, R0, SP, 0);
@@ -432,46 +438,46 @@ void ArmAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 void ArmAssembler::RemoveFrame(size_t frame_size,
                               const std::vector<ManagedRegister>& callee_save_regs) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
+  cfi_.RememberState();
+
   // Compute callee saves to pop and PC.
-  RegList pop_list = 1 << PC;
-  size_t pop_values = 1;
-  int32_t min_s = kNumberOfSRegisters;
-  int32_t max_s = -1;
-  for (size_t i = 0; i < callee_save_regs.size(); i++) {
-    if (callee_save_regs.at(i).AsArm().IsCoreRegister()) {
-      Register reg = callee_save_regs.at(i).AsArm().AsCoreRegister();
-      pop_list |= 1 << reg;
-      pop_values++;
+  RegList core_spill_mask = 1 << PC;
+  uint32_t fp_spill_mask = 0;
+  for (const ManagedRegister& reg : callee_save_regs) {
+    if (reg.AsArm().IsCoreRegister()) {
+      core_spill_mask |= 1 << reg.AsArm().AsCoreRegister();
     } else {
-      CHECK(callee_save_regs.at(i).AsArm().IsSRegister());
-      min_s = std::min(static_cast<int>(callee_save_regs.at(i).AsArm().AsSRegister()), min_s);
-      max_s = std::max(static_cast<int>(callee_save_regs.at(i).AsArm().AsSRegister()), max_s);
+      fp_spill_mask |= 1 << reg.AsArm().AsSRegister();
     }
   }
 
-  if (max_s != -1) {
-    pop_values += 1 + max_s - min_s;
-  }
-
   // Decrease frame to start of callee saves.
+  int pop_values = POPCOUNT(core_spill_mask) + POPCOUNT(fp_spill_mask);
   CHECK_GT(frame_size, pop_values * kFramePointerSize);
-  size_t adjust = frame_size - (pop_values * kFramePointerSize);
-  DecreaseFrameSize(adjust);
+  DecreaseFrameSize(frame_size - (pop_values * kFramePointerSize));  // handles CFI as well.
 
-  if (max_s != -1) {
-    vpops(static_cast<SRegister>(min_s), 1 + max_s - min_s);
+  if (fp_spill_mask != 0) {
+    vpops(SRegister(CTZ(fp_spill_mask)), POPCOUNT(fp_spill_mask));
+    cfi_.AdjustCFAOffset(-kFramePointerSize * POPCOUNT(fp_spill_mask));
+    cfi_.RestoreMany(DWARFReg(SRegister(0)), fp_spill_mask);
   }
 
   // Pop callee saves and PC.
-  PopList(pop_list);
+  PopList(core_spill_mask);
+
+  // The CFI should be restored for any code that follows the exit block.
+  cfi_.RestoreState();
+  cfi_.DefCFAOffset(frame_size);
 }
 
 void ArmAssembler::IncreaseFrameSize(size_t adjust) {
   AddConstant(SP, -adjust);
+  cfi_.AdjustCFAOffset(adjust);
 }
 
 void ArmAssembler::DecreaseFrameSize(size_t adjust) {
   AddConstant(SP, adjust);
+  cfi_.AdjustCFAOffset(-adjust);
 }
 
 void ArmAssembler::Store(FrameOffset dest, ManagedRegister msrc, size_t size) {
