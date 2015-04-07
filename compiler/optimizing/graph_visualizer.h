@@ -35,9 +35,9 @@ class HGraphVisualizer : public ValueObject {
  public:
   HGraphVisualizer(std::ostream* output,
                    HGraph* graph,
-                   const CodeGenerator& codegen,
-                   const char* method_name);
+                   const CodeGenerator& codegen);
 
+  void PrintHeader(const char* method_name) const;
   void DumpGraph(const char* pass_name, bool is_after_pass = true) const;
 
  private:
