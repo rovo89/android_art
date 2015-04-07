@@ -48,22 +48,30 @@ void Thumb2RelativePatcher::PatchCall(std::vector<uint8_t>* code, uint32_t liter
   uint32_t value = (signbit << 26) | (j1 << 13) | (j2 << 11) | (imm10 << 16) | imm11;
   value |= 0xf000d000;  // BL
 
-  uint8_t* addr = &(*code)[literal_offset];
   // Check that we're just overwriting an existing BL.
-  DCHECK_EQ(addr[1] & 0xf8, 0xf0);
-  DCHECK_EQ(addr[3] & 0xd0, 0xd0);
+  DCHECK_EQ(GetInsn32(code, literal_offset) & 0xf800d000, 0xf000d000);
   // Write the new BL.
-  addr[0] = (value >> 16) & 0xff;
-  addr[1] = (value >> 24) & 0xff;
-  addr[2] = (value >> 0) & 0xff;
-  addr[3] = (value >> 8) & 0xff;
+  SetInsn32(code, literal_offset, value);
 }
 
-void Thumb2RelativePatcher::PatchDexCacheReference(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
-                                                   const LinkerPatch& patch ATTRIBUTE_UNUSED,
-                                                   uint32_t patch_offset ATTRIBUTE_UNUSED,
-                                                   uint32_t target_offset ATTRIBUTE_UNUSED) {
-  LOG(FATAL) << "Unexpected relative dex cache array patch.";
+void Thumb2RelativePatcher::PatchDexCacheReference(std::vector<uint8_t>* code,
+                                                   const LinkerPatch& patch,
+                                                   uint32_t patch_offset,
+                                                   uint32_t target_offset) {
+  uint32_t literal_offset = patch.LiteralOffset();
+  uint32_t pc_literal_offset = patch.PcInsnOffset();
+  uint32_t pc_base = patch_offset + (pc_literal_offset - literal_offset) + 4u /* PC adjustment */;
+  uint32_t diff = target_offset - pc_base;
+
+  uint32_t insn = GetInsn32(code, literal_offset);
+  DCHECK_EQ(insn & 0xff7ff0ffu, 0xf2400000u);  // MOVW/MOVT, unpatched (imm16 == 0).
+  uint32_t diff16 = ((insn & 0x00800000u) != 0u) ? (diff >> 16) : (diff & 0xffffu);
+  uint32_t imm4 = (diff16 >> 12) & 0xfu;
+  uint32_t imm = (diff16 >> 11) & 0x1u;
+  uint32_t imm3 = (diff16 >> 8) & 0x7u;
+  uint32_t imm8 = diff16 & 0xffu;
+  insn = (insn & 0xfbf08f00u) | (imm << 26) | (imm4 << 16) | (imm3 << 12) | imm8;
+  SetInsn32(code, literal_offset, insn);
 }
 
 std::vector<uint8_t> Thumb2RelativePatcher::CompileThunkCode() {
@@ -78,6 +86,32 @@ std::vector<uint8_t> Thumb2RelativePatcher::CompileThunkCode() {
   MemoryRegion code(thunk_code.data(), thunk_code.size());
   assembler.FinalizeInstructions(code);
   return thunk_code;
+}
+
+void Thumb2RelativePatcher::SetInsn32(std::vector<uint8_t>* code, uint32_t offset, uint32_t value) {
+  DCHECK_LE(offset + 4u, code->size());
+  DCHECK_EQ(offset & 1u, 0u);
+  uint8_t* addr = &(*code)[offset];
+  addr[0] = (value >> 16) & 0xff;
+  addr[1] = (value >> 24) & 0xff;
+  addr[2] = (value >> 0) & 0xff;
+  addr[3] = (value >> 8) & 0xff;
+}
+
+uint32_t Thumb2RelativePatcher::GetInsn32(ArrayRef<const uint8_t> code, uint32_t offset) {
+  DCHECK_LE(offset + 4u, code.size());
+  DCHECK_EQ(offset & 1u, 0u);
+  const uint8_t* addr = &code[offset];
+  return
+      (static_cast<uint32_t>(addr[0]) << 16) +
+      (static_cast<uint32_t>(addr[1]) << 24) +
+      (static_cast<uint32_t>(addr[2]) << 0)+
+      (static_cast<uint32_t>(addr[3]) << 8);
+}
+
+template <typename Alloc>
+uint32_t Thumb2RelativePatcher::GetInsn32(std::vector<uint8_t, Alloc>* code, uint32_t offset) {
+  return GetInsn32(ArrayRef<const uint8_t>(*code), offset);
 }
 
 }  // namespace linker

@@ -1087,6 +1087,27 @@ void ArmMir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
   lir->target = target;
 }
 
+bool ArmMir2Lir::CanUseOpPcRelDexCacheArrayLoad() const {
+  return dex_cache_arrays_layout_.Valid();
+}
+
+void ArmMir2Lir::OpPcRelDexCacheArrayLoad(const DexFile* dex_file, int offset, RegStorage r_dest) {
+  LIR* movw = NewLIR2(kThumb2MovImm16, r_dest.GetReg(), 0);
+  LIR* movt = NewLIR2(kThumb2MovImm16H, r_dest.GetReg(), 0);
+  ArmOpcode add_pc_opcode = (r_dest.GetRegNum() < 8) ? kThumbAddRRLH : kThumbAddRRHH;
+  LIR* add_pc = NewLIR2(add_pc_opcode, r_dest.GetReg(), rs_rARM_PC.GetReg());
+  add_pc->flags.fixup = kFixupLabel;
+  movw->operands[2] = WrapPointer(dex_file);
+  movw->operands[3] = offset;
+  movw->operands[4] = WrapPointer(add_pc);
+  movt->operands[2] = movw->operands[2];
+  movt->operands[3] = movw->operands[3];
+  movt->operands[4] = movw->operands[4];
+  dex_cache_access_insns_.push_back(movw);
+  dex_cache_access_insns_.push_back(movt);
+  LoadRefDisp(r_dest, 0, r_dest, kNotVolatile);
+}
+
 LIR* ArmMir2Lir::OpVldm(RegStorage r_base, int count) {
   return NewLIR3(kThumb2Vldms, r_base.GetReg(), rs_fr0.GetReg(), count);
 }
