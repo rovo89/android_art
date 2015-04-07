@@ -41,6 +41,7 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/quick/gen_common.cc \
 	dex/quick/gen_invoke.cc \
 	dex/quick/gen_loadstore.cc \
+	dex/quick/lazy_debug_frame_opcode_writer.cc \
 	dex/quick/local_optimizations.cc \
 	dex/quick/mips/assemble_mips.cc \
 	dex/quick/mips/call_mips.cc \

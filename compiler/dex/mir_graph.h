@@ -1463,6 +1463,7 @@ class MIRGraph {
   friend class GvnDeadCodeEliminationTest;
   friend class LocalValueNumberingTest;
   friend class TopologicalSortOrderTest;
+  friend class QuickCFITest;
 };
 
 }  // namespace art

@@ -127,7 +127,8 @@ TEST_F(DwarfTest, DebugFrame) {
   CheckObjdumpOutput(is64bit, "-W");
 }
 
-TEST_F(DwarfTest, DebugFrame64) {
+// TODO: objdump seems to have trouble with 64bit CIE length.
+TEST_F(DwarfTest, DISABLED_DebugFrame64) {
   const bool is64bit = true;
   DebugFrameWriter<> eh_frame(&eh_frame_data_, is64bit);
   DebugFrameOpCodeWriter<> no_opcodes;

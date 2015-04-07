@@ -830,6 +830,10 @@ RegLocation X86Mir2Lir::GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
   return rl_result;
 }
 
+static dwarf::Reg DwarfCoreReg(bool is_x86_64, int num) {
+  return is_x86_64 ? dwarf::Reg::X86_64Core(num) : dwarf::Reg::X86Core(num);
+}
+
 bool X86Mir2Lir::GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long) {
   DCHECK(cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64);
 
@@ -928,6 +932,7 @@ bool X86Mir2Lir::GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long) {
 
     // Do we have a free register for intermediate calculations?
     RegStorage tmp = AllocTemp(false);
+    const int kRegSize = cu_->target64 ? 8 : 4;
     if (tmp == RegStorage::InvalidReg()) {
        /*
         * No, will use 'edi'.
@@ -946,6 +951,11 @@ bool X86Mir2Lir::GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long) {
               IsTemp(rl_result.reg.GetHigh()));
        tmp = rs_rDI;
        NewLIR1(kX86Push32R, tmp.GetReg());
+       cfi_.AdjustCFAOffset(kRegSize);
+       // Record cfi only if it is not already spilled.
+       if (!CoreSpillMaskContains(tmp.GetReg())) {
+         cfi_.RelOffset(DwarfCoreReg(cu_->target64, tmp.GetReg()), 0);
+       }
     }
 
     // Now we are ready to do calculations.
@@ -957,6 +967,10 @@ bool X86Mir2Lir::GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long) {
     // Let's put pop 'edi' here to break a bit the dependency chain.
     if (tmp == rs_rDI) {
       NewLIR1(kX86Pop32R, tmp.GetReg());
+      cfi_.AdjustCFAOffset(-kRegSize);
+      if (!CoreSpillMaskContains(tmp.GetReg())) {
+        cfi_.Restore(DwarfCoreReg(cu_->target64, tmp.GetReg()));
+      }
     } else {
       FreeTemp(tmp);
     }
@@ -1104,6 +1118,7 @@ bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   // If is_long, high half is in info->args[5]
   RegLocation rl_src_new_value = info->args[is_long ? 6 : 5];  // int, long or Object
   // If is_long, high half is in info->args[7]
+  const int kRegSize = cu_->target64 ? 8 : 4;
 
   if (is_long && cu_->target64) {
     // RAX must hold expected for CMPXCHG. Neither rl_new_value, nor r_ptr may be in RAX.
@@ -1125,7 +1140,6 @@ bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
     FreeTemp(rs_r0q);
   } else if (is_long) {
     // TODO: avoid unnecessary loads of SI and DI when the values are in registers.
-    // TODO: CFI support.
     FlushAllRegs();
     LockCallTemps();
     RegStorage r_tmp1 = RegStorage::MakeRegPair(rs_rAX, rs_rDX);
@@ -1148,11 +1162,21 @@ bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
       NewLIR1(kX86Push32R, rs_rDI.GetReg());
       MarkTemp(rs_rDI);
       LockTemp(rs_rDI);
+      cfi_.AdjustCFAOffset(kRegSize);
+      // Record cfi only if it is not already spilled.
+      if (!CoreSpillMaskContains(rs_rDI.GetReg())) {
+        cfi_.RelOffset(DwarfCoreReg(cu_->target64, rs_rDI.GetReg()), 0);
+      }
     }
     if (push_si) {
       NewLIR1(kX86Push32R, rs_rSI.GetReg());
       MarkTemp(rs_rSI);
       LockTemp(rs_rSI);
+      cfi_.AdjustCFAOffset(kRegSize);
+      // Record cfi only if it is not already spilled.
+      if (!CoreSpillMaskContains(rs_rSI.GetReg())) {
+        cfi_.RelOffset(DwarfCoreReg(cu_->target64, rs_rSI.GetReg()), 0);
+      }
     }
     ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
     const size_t push_offset = (push_si ? 4u : 0u) + (push_di ? 4u : 0u);
@@ -1183,11 +1207,19 @@ bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
       FreeTemp(rs_rSI);
       UnmarkTemp(rs_rSI);
       NewLIR1(kX86Pop32R, rs_rSI.GetReg());
+      cfi_.AdjustCFAOffset(-kRegSize);
+      if (!CoreSpillMaskContains(rs_rSI.GetReg())) {
+        cfi_.Restore(DwarfCoreReg(cu_->target64, rs_rSI.GetRegNum()));
+      }
     }
     if (push_di) {
       FreeTemp(rs_rDI);
       UnmarkTemp(rs_rDI);
       NewLIR1(kX86Pop32R, rs_rDI.GetReg());
+      cfi_.AdjustCFAOffset(-kRegSize);
+      if (!CoreSpillMaskContains(rs_rDI.GetReg())) {
+        cfi_.Restore(DwarfCoreReg(cu_->target64, rs_rDI.GetRegNum()));
+      }
     }
     FreeCallTemps();
   } else {
