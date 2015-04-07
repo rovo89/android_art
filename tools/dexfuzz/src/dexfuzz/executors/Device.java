@@ -17,6 +17,7 @@
 package dexfuzz.executors;
 
 import java.io.IOException;
+import java.io.File;
 import java.util.Map;
 
 import dexfuzz.ExecutionResult;
@@ -67,6 +68,10 @@ public class Device {
     return envVars.get(key);
   }
 
+  private String getHostCoreImagePath() {
+    return androidHostOut + "/framework/core.art";
+  }
+
   private void setup() {
     programPushed = false;
 
@@ -74,6 +79,13 @@ public class Device {
     androidProductOut = checkForEnvVar(envVars, "ANDROID_PRODUCT_OUT");
     androidHostOut = checkForEnvVar(envVars, "ANDROID_HOST_OUT");
 
+    if (Options.executeOnHost) {
+      File coreImage = new File(getHostCoreImagePath());
+      if (!coreImage.exists()) {
+        Log.errorAndQuit("Host core image not found at " + coreImage.getPath()
+            + ". Did you forget to build it?");
+      }
+    }
     if (!isHost) {
       // Create temporary consumers for the initial test.
       StreamConsumer outputConsumer = new StreamConsumer();
@@ -144,7 +156,7 @@ public class Device {
    * Get any extra flags required to execute ART on the host.
    */
   public String getHostExecutionFlags() {
-    return String.format("-Xnorelocate -Ximage:%s/framework/core.art", androidHostOut);
+    return String.format("-Xnorelocate -Ximage:%s", getHostCoreImagePath());
   }
 
   public String getAndroidHostOut() {
