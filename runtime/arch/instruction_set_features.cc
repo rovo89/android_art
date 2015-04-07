@@ -288,10 +288,10 @@ const X86_64InstructionSetFeatures* InstructionSetFeatures::AsX86_64InstructionS
   return down_cast<const X86_64InstructionSetFeatures*>(this);
 }
 
-bool InstructionSetFeatures::FindVariantInArray(const char* variants[], size_t num_variants,
+bool InstructionSetFeatures::FindVariantInArray(const char* const variants[], size_t num_variants,
                                                 const std::string& variant) {
-  const char** begin = variants;
-  const char** end = begin + num_variants;
+  const char* const * begin = variants;
+  const char* const * end = begin + num_variants;
   return std::find(begin, end, variant) != end;
 }
 
