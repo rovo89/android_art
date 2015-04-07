@@ -337,13 +337,11 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
 
 HGraphVisualizer::HGraphVisualizer(std::ostream* output,
                                    HGraph* graph,
-                                   const CodeGenerator& codegen,
-                                   const char* method_name)
-  : output_(output), graph_(graph), codegen_(codegen) {
-  if (output == nullptr) {
-    return;
-  }
+                                   const CodeGenerator& codegen)
+  : output_(output), graph_(graph), codegen_(codegen) {}
 
+void HGraphVisualizer::PrintHeader(const char* method_name) const {
+  DCHECK(output_ != nullptr);
   HGraphVisualizerPrinter printer(graph_, *output_, "", true, codegen_);
   printer.StartTag("compilation");
   printer.PrintProperty("name", method_name);
