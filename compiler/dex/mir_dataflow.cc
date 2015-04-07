@@ -1396,6 +1396,13 @@ void MIRGraph::CompilerInitializeSSAConversion() {
   InitializeBasicBlockDataFlow();
 }
 
+uint32_t MIRGraph::GetUseCountWeight(BasicBlock* bb) const {
+  // Each level of nesting adds *100 to count, up to 3 levels deep.
+  uint32_t depth = std::min(3U, static_cast<uint32_t>(bb->nesting_depth));
+  uint32_t weight = std::max(1U, depth * 100);
+  return weight;
+}
+
 /*
  * Count uses, weighting by loop nesting depth.  This code only
  * counts explicitly used s_regs.  A later phase will add implicit
@@ -1405,9 +1412,7 @@ void MIRGraph::CountUses(BasicBlock* bb) {
   if (bb->block_type != kDalvikByteCode) {
     return;
   }
-  // Each level of nesting adds *100 to count, up to 3 levels deep.
-  uint32_t depth = std::min(3U, static_cast<uint32_t>(bb->nesting_depth));
-  uint32_t weight = std::max(1U, depth * 100);
+  uint32_t weight = GetUseCountWeight(bb);
   for (MIR* mir = bb->first_mir_insn; (mir != NULL); mir = mir->next) {
     if (mir->ssa_rep == NULL) {
       continue;
@@ -1416,23 +1421,6 @@ void MIRGraph::CountUses(BasicBlock* bb) {
       int s_reg = mir->ssa_rep->uses[i];
       raw_use_counts_[s_reg] += 1u;
       use_counts_[s_reg] += weight;
-    }
-    if (!(cu_->disable_opt & (1 << kPromoteCompilerTemps))) {
-      uint64_t df_attributes = GetDataFlowAttributes(mir);
-      // Implicit use of Method* ? */
-      if (df_attributes & DF_UMS) {
-        /*
-         * Some invokes will not use Method* - need to perform test similar
-         * to that found in GenInvoke() to decide whether to count refs
-         * for Method* on invoke-class opcodes.  This is a relatively expensive
-         * operation, so should only be done once.
-         * TODO: refactor InvokeUsesMethodStar() to perform check at parse time,
-         * and save results for both here and GenInvoke.  For now, go ahead
-         * and assume all invokes use method*.
-         */
-        raw_use_counts_[method_sreg_] += 1u;
-        use_counts_[method_sreg_] += weight;
-      }
     }
   }
 }

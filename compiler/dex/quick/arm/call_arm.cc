@@ -491,6 +491,14 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
 
   FlushIns(ArgLocs, rl_method);
 
+  // We can promote a PC-relative reference to dex cache arrays to a register
+  // if it's used at least twice. Without investigating where we should lazily
+  // load the reference, we conveniently load it after flushing inputs.
+  if (dex_cache_arrays_base_reg_.Valid()) {
+    OpPcRelDexCacheArrayAddr(cu_->dex_file, dex_cache_arrays_min_offset_,
+                             dex_cache_arrays_base_reg_);
+  }
+
   FreeTemp(rs_r0);
   FreeTemp(rs_r1);
   FreeTemp(rs_r2);
