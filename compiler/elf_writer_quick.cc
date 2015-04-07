@@ -490,13 +490,10 @@ static void FillInCFIInformation(OatWriter* oat_writer,
     int code_factor_bits_ = 0;
     int isa = -1;
     switch (oat_writer->GetOatHeader().GetInstructionSet()) {
+      case kArm:  // arm actually means thumb2.
       case kThumb2:
         code_factor_bits_ = 1;  // 16-bit instuctions
         isa = 1;  // DW_ISA_ARM_thumb.
-        break;
-      case kArm:
-        code_factor_bits_ = 1;  // 16-bit instructions
-        isa = 2;  // DW_ISA_ARM_arm.
         break;
       case kArm64:
       case kMips:
