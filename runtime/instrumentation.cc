@@ -1082,7 +1082,7 @@ void Instrumentation::VisitRoots(RootVisitor* visitor) {
   if (IsDeoptimizedMethodsEmpty()) {
     return;
   }
-  BufferedRootVisitor<128> roots(visitor, RootInfo(kRootVMInternal));
+  BufferedRootVisitor<kDefaultBufferedRootCount> roots(visitor, RootInfo(kRootVMInternal));
   for (auto pair : deoptimized_methods_) {
     roots.VisitRoot(pair.second);
   }
