@@ -309,7 +309,13 @@ RegLocation MipsMir2Lir::GenDivRem(RegLocation rl_dest, RegStorage reg1, RegStor
 
 RegLocation MipsMir2Lir::GenDivRemLit(RegLocation rl_dest, RegStorage reg1, int lit, bool is_div) {
   RegStorage t_reg = AllocTemp();
-  NewLIR3(kMipsAddiu, t_reg.GetReg(), rZERO, lit);
+  // lit is guarantee to be a 16-bit constant
+  if (IsUint<16>(lit)) {
+      NewLIR3(kMipsOri, t_reg.GetReg(), rZERO, lit);
+  } else {
+      // Addiu will sign extend the entire width (32 or 64) of the register.
+      NewLIR3(kMipsAddiu, t_reg.GetReg(), rZERO, lit);
+  }
   RegLocation rl_result = GenDivRem(rl_dest, reg1, t_reg, is_div);
   FreeTemp(t_reg);
   return rl_result;
