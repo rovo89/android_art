@@ -81,6 +81,8 @@ define build-libart-disassembler
   endif
 
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime
+  LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)
+  LOCAL_MULTILIB := both
 
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
