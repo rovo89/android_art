@@ -34,6 +34,12 @@ class Thumb2RelativePatcher FINAL : public ArmBaseRelativePatcher {
  private:
   static std::vector<uint8_t> CompileThunkCode();
 
+  void SetInsn32(std::vector<uint8_t>* code, uint32_t offset, uint32_t value);
+  static uint32_t GetInsn32(ArrayRef<const uint8_t> code, uint32_t offset);
+
+  template <typename Alloc>
+  static uint32_t GetInsn32(std::vector<uint8_t, Alloc>* code, uint32_t offset);
+
   // PC displacement from patch location; Thumb2 PC is always at instruction address + 4.
   static constexpr int32_t kPcDisplacement = 4;
 
