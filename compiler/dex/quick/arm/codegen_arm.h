@@ -260,6 +260,9 @@ class ArmMir2Lir FINAL : public Mir2Lir {
      */
     LIR* GenCallInsn(const MirMethodLoweringInfo& method_info) OVERRIDE;
 
+    void CountRefs(RefCounts* core_counts, RefCounts* fp_counts, size_t num_regs) OVERRIDE;
+    void DoPromotion() OVERRIDE;
+
     /*
      * @brief Handle ARM specific literals.
      */
@@ -306,6 +309,10 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     // Instructions needing patching with PC relative code addresses.
     ArenaVector<LIR*> dex_cache_access_insns_;
 
+    // Register with a reference to the dex cache arrays at dex_cache_arrays_min_offset_,
+    // if promoted.
+    RegStorage dex_cache_arrays_base_reg_;
+
     /**
      * @brief Given float register pair, returns Solo64 float register.
      * @param reg #RegStorage containing a float register pair (e.g. @c s2 and @c s3).
@@ -341,6 +348,8 @@ class ArmMir2Lir FINAL : public Mir2Lir {
                                  uint32_t unused_idx ATTRIBUTE_UNUSED,
                                  uintptr_t direct_code, uintptr_t direct_method,
                                  InvokeType type);
+
+    void OpPcRelDexCacheArrayAddr(const DexFile* dex_file, int offset, RegStorage r_dest);
 };
 
 }  // namespace art
