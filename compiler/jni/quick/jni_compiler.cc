@@ -28,6 +28,7 @@
 #include "compiled_method.h"
 #include "dex_file-inl.h"
 #include "driver/compiler_driver.h"
+#include "driver/compiler_options.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "jni_env_ext.h"
 #include "mirror/art_method.h"
@@ -93,6 +94,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
 
   // Assembler that holds generated instructions
   std::unique_ptr<Assembler> jni_asm(Assembler::Create(instruction_set));
+  jni_asm->cfi().SetEnabled(driver->GetCompilerOptions().GetIncludeDebugSymbols());
 
   // Offsets into data structures
   // TODO: if cross compiling these offsets are for the host not the target
@@ -435,13 +437,18 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   MemoryRegion code(&managed_code[0], managed_code.size());
   __ FinalizeInstructions(code);
 
-  return CompiledMethod::SwapAllocCompiledMethodCFI(driver,
-                                                    instruction_set,
-                                                    ArrayRef<const uint8_t>(managed_code),
-                                                    frame_size,
-                                                    main_jni_conv->CoreSpillMask(),
-                                                    main_jni_conv->FpSpillMask(),
-                                                    ArrayRef<const uint8_t>(*jni_asm->cfi().data()));
+  return CompiledMethod::SwapAllocCompiledMethod(driver,
+                                                 instruction_set,
+                                                 ArrayRef<const uint8_t>(managed_code),
+                                                 frame_size,
+                                                 main_jni_conv->CoreSpillMask(),
+                                                 main_jni_conv->FpSpillMask(),
+                                                 nullptr,  // src_mapping_table.
+                                                 ArrayRef<const uint8_t>(),  // mapping_table.
+                                                 ArrayRef<const uint8_t>(),  // vmap_table.
+                                                 ArrayRef<const uint8_t>(),  // native_gc_map.
+                                                 ArrayRef<const uint8_t>(*jni_asm->cfi().data()),
+                                                 ArrayRef<const LinkerPatch>());
 }
 
 // Copy a single parameter from the managed to the JNI calling convention

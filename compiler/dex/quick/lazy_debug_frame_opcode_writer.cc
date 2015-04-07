@@ -21,7 +21,7 @@ namespace art {
 namespace dwarf {
 
 const ArenaVector<uint8_t>* LazyDebugFrameOpCodeWriter::Patch(size_t code_size) {
-  if (!enable_writes_) {
+  if (!this->enabled_) {
     DCHECK(this->data()->empty());
     return this->data();
   }

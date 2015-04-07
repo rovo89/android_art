@@ -459,7 +459,12 @@ InstructionCodeGeneratorX86::InstructionCodeGeneratorX86(HGraph* graph, CodeGene
         assembler_(codegen->GetAssembler()),
         codegen_(codegen) {}
 
+static dwarf::Reg DWARFReg(Register reg) {
+    return dwarf::Reg::X86Core(static_cast<int>(reg));
+}
+
 void CodeGeneratorX86::GenerateFrameEntry() {
+  __ cfi().SetCurrentCFAOffset(kX86WordSize);  // return address
   __ Bind(&frame_entry_label_);
   bool skip_overflow_check =
       IsLeafMethod() && !FrameNeedsStackCheck(GetFrameSize(), InstructionSet::kX86);
@@ -478,10 +483,14 @@ void CodeGeneratorX86::GenerateFrameEntry() {
     Register reg = kCoreCalleeSaves[i];
     if (allocated_registers_.ContainsCoreRegister(reg)) {
       __ pushl(reg);
+      __ cfi().AdjustCFAOffset(kX86WordSize);
+      __ cfi().RelOffset(DWARFReg(reg), 0);
     }
   }
 
-  __ subl(ESP, Immediate(GetFrameSize() - FrameEntrySpillSize()));
+  int adjust = GetFrameSize() - FrameEntrySpillSize();
+  __ subl(ESP, Immediate(adjust));
+  __ cfi().AdjustCFAOffset(adjust);
   __ movl(Address(ESP, kCurrentMethodStackOffset), EAX);
 }
 
@@ -490,12 +499,16 @@ void CodeGeneratorX86::GenerateFrameExit() {
     return;
   }
 
-  __ addl(ESP, Immediate(GetFrameSize() - FrameEntrySpillSize()));
+  int adjust = GetFrameSize() - FrameEntrySpillSize();
+  __ addl(ESP, Immediate(adjust));
+  __ cfi().AdjustCFAOffset(-adjust);
 
   for (size_t i = 0; i < arraysize(kCoreCalleeSaves); ++i) {
     Register reg = kCoreCalleeSaves[i];
     if (allocated_registers_.ContainsCoreRegister(reg)) {
       __ popl(reg);
+      __ cfi().AdjustCFAOffset(-static_cast<int>(kX86WordSize));
+      __ cfi().Restore(DWARFReg(reg));
     }
   }
 }
@@ -1102,8 +1115,11 @@ void LocationsBuilderX86::VisitReturnVoid(HReturnVoid* ret) {
 
 void InstructionCodeGeneratorX86::VisitReturnVoid(HReturnVoid* ret) {
   UNUSED(ret);
+  __ cfi().RememberState();
   codegen_->GenerateFrameExit();
   __ ret();
+  __ cfi().RestoreState();
+  __ cfi().DefCFAOffset(codegen_->GetFrameSize());
 }
 
 void LocationsBuilderX86::VisitReturn(HReturn* ret) {
@@ -1161,8 +1177,11 @@ void InstructionCodeGeneratorX86::VisitReturn(HReturn* ret) {
         LOG(FATAL) << "Unknown return type " << ret->InputAt(0)->GetType();
     }
   }
+  __ cfi().RememberState();
   codegen_->GenerateFrameExit();
   __ ret();
+  __ cfi().RestoreState();
+  __ cfi().DefCFAOffset(codegen_->GetFrameSize());
 }
 
 void LocationsBuilderX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {

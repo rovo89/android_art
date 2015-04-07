@@ -465,18 +465,65 @@ void CodeGeneratorARM64::GenerateFrameEntry() {
     //      ...                       : reserved frame space.
     //      sp[0]                     : current method.
     __ Str(kArtMethodRegister, MemOperand(sp, -frame_size, PreIndex));
-    __ PokeCPURegList(GetFramePreservedCoreRegisters(), frame_size - GetCoreSpillSize());
-    __ PokeCPURegList(GetFramePreservedFPRegisters(), frame_size - FrameEntrySpillSize());
+    GetAssembler()->cfi().AdjustCFAOffset(frame_size);
+    SpillRegisters(GetFramePreservedCoreRegisters(), frame_size - GetCoreSpillSize());
+    SpillRegisters(GetFramePreservedFPRegisters(), frame_size - FrameEntrySpillSize());
   }
 }
 
 void CodeGeneratorARM64::GenerateFrameExit() {
   if (!HasEmptyFrame()) {
     int frame_size = GetFrameSize();
-    __ PeekCPURegList(GetFramePreservedFPRegisters(), frame_size - FrameEntrySpillSize());
-    __ PeekCPURegList(GetFramePreservedCoreRegisters(), frame_size - GetCoreSpillSize());
+    UnspillRegisters(GetFramePreservedFPRegisters(), frame_size - FrameEntrySpillSize());
+    UnspillRegisters(GetFramePreservedCoreRegisters(), frame_size - GetCoreSpillSize());
     __ Drop(frame_size);
+    GetAssembler()->cfi().AdjustCFAOffset(-frame_size);
   }
+}
+
+static inline dwarf::Reg DWARFReg(CPURegister reg) {
+  if (reg.IsFPRegister()) {
+    return dwarf::Reg::Arm64Fp(reg.code());
+  } else {
+    DCHECK_LT(reg.code(), 31u);  // X0 - X30.
+    return dwarf::Reg::Arm64Core(reg.code());
+  }
+}
+
+void CodeGeneratorARM64::SpillRegisters(vixl::CPURegList registers, int offset) {
+  int size = registers.RegisterSizeInBytes();
+  while (registers.Count() >= 2) {
+    const CPURegister& dst0 = registers.PopLowestIndex();
+    const CPURegister& dst1 = registers.PopLowestIndex();
+    __ Stp(dst0, dst1, MemOperand(__ StackPointer(), offset));
+    GetAssembler()->cfi().RelOffset(DWARFReg(dst0), offset);
+    GetAssembler()->cfi().RelOffset(DWARFReg(dst1), offset + size);
+    offset += 2 * size;
+  }
+  if (!registers.IsEmpty()) {
+    const CPURegister& dst0 = registers.PopLowestIndex();
+    __ Str(dst0, MemOperand(__ StackPointer(), offset));
+    GetAssembler()->cfi().RelOffset(DWARFReg(dst0), offset);
+  }
+  DCHECK(registers.IsEmpty());
+}
+
+void CodeGeneratorARM64::UnspillRegisters(vixl::CPURegList registers, int offset) {
+  int size = registers.RegisterSizeInBytes();
+  while (registers.Count() >= 2) {
+    const CPURegister& dst0 = registers.PopLowestIndex();
+    const CPURegister& dst1 = registers.PopLowestIndex();
+    __ Ldp(dst0, dst1, MemOperand(__ StackPointer(), offset));
+    GetAssembler()->cfi().Restore(DWARFReg(dst0));
+    GetAssembler()->cfi().Restore(DWARFReg(dst1));
+    offset += 2 * size;
+  }
+  if (!registers.IsEmpty()) {
+    const CPURegister& dst0 = registers.PopLowestIndex();
+    __ Ldr(dst0, MemOperand(__ StackPointer(), offset));
+    GetAssembler()->cfi().Restore(DWARFReg(dst0));
+  }
+  DCHECK(registers.IsEmpty());
 }
 
 void CodeGeneratorARM64::Bind(HBasicBlock* block) {
@@ -2403,8 +2450,11 @@ void LocationsBuilderARM64::VisitReturn(HReturn* instruction) {
 
 void InstructionCodeGeneratorARM64::VisitReturn(HReturn* instruction) {
   UNUSED(instruction);
+  GetAssembler()->cfi().RememberState();
   codegen_->GenerateFrameExit();
   __ Ret();
+  GetAssembler()->cfi().RestoreState();
+  GetAssembler()->cfi().DefCFAOffset(codegen_->GetFrameSize());
 }
 
 void LocationsBuilderARM64::VisitReturnVoid(HReturnVoid* instruction) {
@@ -2413,8 +2463,11 @@ void LocationsBuilderARM64::VisitReturnVoid(HReturnVoid* instruction) {
 
 void InstructionCodeGeneratorARM64::VisitReturnVoid(HReturnVoid* instruction) {
   UNUSED(instruction);
+  GetAssembler()->cfi().RememberState();
   codegen_->GenerateFrameExit();
   __ Ret();
+  GetAssembler()->cfi().RestoreState();
+  GetAssembler()->cfi().DefCFAOffset(codegen_->GetFrameSize());
 }
 
 void LocationsBuilderARM64::VisitShl(HShl* shl) {

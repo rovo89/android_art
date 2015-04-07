@@ -481,7 +481,15 @@ void CodeGeneratorX86_64::SetupBlockedRegisters(bool is_baseline) const {
   }
 }
 
+static dwarf::Reg DWARFReg(Register reg) {
+    return dwarf::Reg::X86_64Core(static_cast<int>(reg));
+}
+static dwarf::Reg DWARFReg(FloatRegister reg) {
+    return dwarf::Reg::X86_64Fp(static_cast<int>(reg));
+}
+
 void CodeGeneratorX86_64::GenerateFrameEntry() {
+  __ cfi().SetCurrentCFAOffset(kX86_64WordSize);  // return address
   __ Bind(&frame_entry_label_);
   bool skip_overflow_check = IsLeafMethod()
       && !FrameNeedsStackCheck(GetFrameSize(), InstructionSet::kX86_64);
@@ -501,17 +509,22 @@ void CodeGeneratorX86_64::GenerateFrameEntry() {
     Register reg = kCoreCalleeSaves[i];
     if (allocated_registers_.ContainsCoreRegister(reg)) {
       __ pushq(CpuRegister(reg));
+      __ cfi().AdjustCFAOffset(kX86_64WordSize);
+      __ cfi().RelOffset(DWARFReg(reg), 0);
     }
   }
 
-  __ subq(CpuRegister(RSP), Immediate(GetFrameSize() - GetCoreSpillSize()));
+  int adjust = GetFrameSize() - GetCoreSpillSize();
+  __ subq(CpuRegister(RSP), Immediate(adjust));
+  __ cfi().AdjustCFAOffset(adjust);
   uint32_t xmm_spill_location = GetFpuSpillStart();
   size_t xmm_spill_slot_size = GetFloatingPointSpillSlotSize();
 
   for (int i = arraysize(kFpuCalleeSaves) - 1; i >= 0; --i) {
     if (allocated_registers_.ContainsFloatingPointRegister(kFpuCalleeSaves[i])) {
-      __ movsd(Address(CpuRegister(RSP), xmm_spill_location + (xmm_spill_slot_size * i)),
-               XmmRegister(kFpuCalleeSaves[i]));
+      int offset = xmm_spill_location + (xmm_spill_slot_size * i);
+      __ movsd(Address(CpuRegister(RSP), offset), XmmRegister(kFpuCalleeSaves[i]));
+      __ cfi().RelOffset(DWARFReg(kFpuCalleeSaves[i]), offset);
     }
   }
 
@@ -526,17 +539,22 @@ void CodeGeneratorX86_64::GenerateFrameExit() {
   size_t xmm_spill_slot_size = GetFloatingPointSpillSlotSize();
   for (size_t i = 0; i < arraysize(kFpuCalleeSaves); ++i) {
     if (allocated_registers_.ContainsFloatingPointRegister(kFpuCalleeSaves[i])) {
-      __ movsd(XmmRegister(kFpuCalleeSaves[i]),
-               Address(CpuRegister(RSP), xmm_spill_location + (xmm_spill_slot_size * i)));
+      int offset = xmm_spill_location + (xmm_spill_slot_size * i);
+      __ movsd(XmmRegister(kFpuCalleeSaves[i]), Address(CpuRegister(RSP), offset));
+      __ cfi().Restore(DWARFReg(kFpuCalleeSaves[i]));
     }
   }
 
-  __ addq(CpuRegister(RSP), Immediate(GetFrameSize() - GetCoreSpillSize()));
+  int adjust = GetFrameSize() - GetCoreSpillSize();
+  __ addq(CpuRegister(RSP), Immediate(adjust));
+  __ cfi().AdjustCFAOffset(-adjust);
 
   for (size_t i = 0; i < arraysize(kCoreCalleeSaves); ++i) {
     Register reg = kCoreCalleeSaves[i];
     if (allocated_registers_.ContainsCoreRegister(reg)) {
       __ popq(CpuRegister(reg));
+      __ cfi().AdjustCFAOffset(-static_cast<int>(kX86_64WordSize));
+      __ cfi().Restore(DWARFReg(reg));
     }
   }
 }
@@ -1123,8 +1141,11 @@ void LocationsBuilderX86_64::VisitReturnVoid(HReturnVoid* ret) {
 
 void InstructionCodeGeneratorX86_64::VisitReturnVoid(HReturnVoid* ret) {
   UNUSED(ret);
+  __ cfi().RememberState();
   codegen_->GenerateFrameExit();
   __ ret();
+  __ cfi().RestoreState();
+  __ cfi().DefCFAOffset(codegen_->GetFrameSize());
 }
 
 void LocationsBuilderX86_64::VisitReturn(HReturn* ret) {
@@ -1175,8 +1196,11 @@ void InstructionCodeGeneratorX86_64::VisitReturn(HReturn* ret) {
         LOG(FATAL) << "Unexpected return type " << ret->InputAt(0)->GetType();
     }
   }
+  __ cfi().RememberState();
   codegen_->GenerateFrameExit();
   __ ret();
+  __ cfi().RestoreState();
+  __ cfi().DefCFAOffset(codegen_->GetFrameSize());
 }
 
 Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type) {
