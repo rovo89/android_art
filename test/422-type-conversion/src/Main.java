@@ -321,6 +321,7 @@ public class Main {
     assertFloatEquals(9223372036854775807F, $opt$LongToFloat(9223372036854775807L));  // 2^63 - 1
     assertFloatEquals(-9223372036854775807F, $opt$LongToFloat(-9223372036854775807L));  // -(2^63 - 1)
     assertFloatEquals(-9223372036854775808F, $opt$LongToFloat(-9223372036854775808L));  // -(2^63)
+    assertFloatEquals(Float.intBitsToFloat(-555858671), $opt$LongToFloat(-8008112895877447681L));
   }
 
   private static void longToDouble() {
