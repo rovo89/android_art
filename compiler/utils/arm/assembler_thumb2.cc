@@ -373,24 +373,34 @@ void Thumb2Assembler::ldrsh(Register rd, const Address& ad, Condition cond) {
 
 
 void Thumb2Assembler::ldrd(Register rd, const Address& ad, Condition cond) {
+  ldrd(rd, Register(rd + 1), ad, cond);
+}
+
+
+void Thumb2Assembler::ldrd(Register rd, Register rd2, const Address& ad, Condition cond) {
   CheckCondition(cond);
-  CHECK_EQ(rd % 2, 0);
+  // Encoding T1.
   // This is different from other loads.  The encoding is like ARM.
   int32_t encoding = B31 | B30 | B29 | B27 | B22 | B20 |
       static_cast<int32_t>(rd) << 12 |
-      (static_cast<int32_t>(rd) + 1) << 8 |
+      static_cast<int32_t>(rd2) << 8 |
       ad.encodingThumbLdrdStrd();
   Emit32(encoding);
 }
 
 
 void Thumb2Assembler::strd(Register rd, const Address& ad, Condition cond) {
+  strd(rd, Register(rd + 1), ad, cond);
+}
+
+
+void Thumb2Assembler::strd(Register rd, Register rd2, const Address& ad, Condition cond) {
   CheckCondition(cond);
-  CHECK_EQ(rd % 2, 0);
+  // Encoding T1.
   // This is different from other loads.  The encoding is like ARM.
   int32_t encoding = B31 | B30 | B29 | B27 | B22 |
       static_cast<int32_t>(rd) << 12 |
-      (static_cast<int32_t>(rd) + 1) << 8 |
+      static_cast<int32_t>(rd2) << 8 |
       ad.encodingThumbLdrdStrd();
   Emit32(encoding);
 }
@@ -2614,14 +2624,16 @@ void Thumb2Assembler::StoreToOffset(StoreOperandType type,
   Register tmp_reg = kNoRegister;
   if (!Address::CanHoldStoreOffsetThumb(type, offset)) {
     CHECK_NE(base, IP);
-    if (reg != IP) {
+    if (reg != IP &&
+        (type != kStoreWordPair || reg + 1 != IP)) {
       tmp_reg = IP;
     } else {
-      // Be careful not to use IP twice (for `reg` and to build the
-      // Address object used by the store instruction(s) below).
-      // Instead, save R5 on the stack (or R6 if R5 is not available),
-      // use it as secondary temporary register, and restore it after
-      // the store instruction has been emitted.
+      // Be careful not to use IP twice (for `reg` (or `reg` + 1 in
+      // the case of a word-pair store)) and to build the Address
+      // object used by the store instruction(s) below).  Instead,
+      // save R5 on the stack (or R6 if R5 is not available), use it
+      // as secondary temporary register, and restore it after the
+      // store instruction has been emitted.
       tmp_reg = base != R5 ? R5 : R6;
       Push(tmp_reg);
       if (base == SP) {

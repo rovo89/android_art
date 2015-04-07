@@ -135,8 +135,16 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   void ldrsb(Register rd, const Address& ad, Condition cond = AL) OVERRIDE;
   void ldrsh(Register rd, const Address& ad, Condition cond = AL) OVERRIDE;
 
+  // Load/store register dual instructions using registers `rd` and `rd` + 1.
   void ldrd(Register rd, const Address& ad, Condition cond = AL) OVERRIDE;
   void strd(Register rd, const Address& ad, Condition cond = AL) OVERRIDE;
+
+  // Load/store register dual instructions using registers `rd` and `rd2`.
+  // Note that contrary to the ARM A1 encoding, the Thumb-2 T1 encoding
+  // does not require `rd` to be even, nor `rd2' to be equal to `rd` + 1.
+  void ldrd(Register rd, Register rd2, const Address& ad, Condition cond);
+  void strd(Register rd, Register rd2, const Address& ad, Condition cond);
+
 
   void ldm(BlockAddressMode am, Register base,
            RegList regs, Condition cond = AL) OVERRIDE;
