@@ -291,8 +291,12 @@ BasicBlock* MIRGraph::SplitBlock(DexOffset code_offset,
 BasicBlock* MIRGraph::FindBlock(DexOffset code_offset, bool create,
                                 BasicBlock** immed_pred_block_p,
                                 ScopedArenaVector<uint16_t>* dex_pc_to_block_map) {
-  if (code_offset >= current_code_item_->insns_size_in_code_units_) {
-    return nullptr;
+  if (UNLIKELY(code_offset >= current_code_item_->insns_size_in_code_units_)) {
+    // There can be a fall-through out of the method code. We shall record such a block
+    // here (assuming create==true) and check that it's dead at the end of InlineMethod().
+    // Though we're only aware of the cases where code_offset is exactly the same as
+    // insns_size_in_code_units_, treat greater code_offset the same just in case.
+    code_offset = current_code_item_->insns_size_in_code_units_;
   }
 
   int block_id = (*dex_pc_to_block_map)[code_offset];
@@ -483,6 +487,7 @@ BasicBlock* MIRGraph::ProcessCanBranch(BasicBlock* cur_block, MIR* insn, DexOffs
   BasicBlock* taken_block = FindBlock(target, /* create */ true,
                                       /* immed_pred_block_p */ &cur_block,
                                       dex_pc_to_block_map);
+  DCHECK(taken_block != nullptr);
   cur_block->taken = taken_block->id;
   taken_block->predecessors.push_back(cur_block->id);
 
@@ -494,6 +499,7 @@ BasicBlock* MIRGraph::ProcessCanBranch(BasicBlock* cur_block, MIR* insn, DexOffs
                                              /* immed_pred_block_p */
                                              &cur_block,
                                              dex_pc_to_block_map);
+    DCHECK(fallthrough_block != nullptr);
     cur_block->fall_through = fallthrough_block->id;
     fallthrough_block->predecessors.push_back(cur_block->id);
   } else if (code_ptr < code_end) {
@@ -508,7 +514,8 @@ BasicBlock* MIRGraph::ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, DexOffs
                                        ScopedArenaVector<uint16_t>* dex_pc_to_block_map) {
   UNUSED(flags);
   const uint16_t* switch_data =
-      reinterpret_cast<const uint16_t*>(GetCurrentInsns() + cur_offset + insn->dalvikInsn.vB);
+      reinterpret_cast<const uint16_t*>(GetCurrentInsns() + cur_offset +
+          static_cast<int32_t>(insn->dalvikInsn.vB));
   int size;
   const int* keyTable;
   const int* target_table;
@@ -561,6 +568,7 @@ BasicBlock* MIRGraph::ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, DexOffs
     BasicBlock* case_block = FindBlock(cur_offset + target_table[i],  /* create */ true,
                                        /* immed_pred_block_p */ &cur_block,
                                        dex_pc_to_block_map);
+    DCHECK(case_block != nullptr);
     SuccessorBlockInfo* successor_block_info =
         static_cast<SuccessorBlockInfo*>(arena_->Alloc(sizeof(SuccessorBlockInfo),
                                                        kArenaAllocSuccessor));
@@ -576,6 +584,7 @@ BasicBlock* MIRGraph::ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, DexOffs
   BasicBlock* fallthrough_block = FindBlock(cur_offset +  width, /* create */ true,
                                             /* immed_pred_block_p */ nullptr,
                                             dex_pc_to_block_map);
+  DCHECK(fallthrough_block != nullptr);
   cur_block->fall_through = fallthrough_block->id;
   fallthrough_block->predecessors.push_back(cur_block->id);
   return cur_block;
@@ -709,8 +718,8 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
   // FindBlock lookup cache.
   ScopedArenaAllocator allocator(&cu_->arena_stack);
   ScopedArenaVector<uint16_t> dex_pc_to_block_map(allocator.Adapter());
-  dex_pc_to_block_map.resize(dex_pc_to_block_map.size() +
-                             current_code_item_->insns_size_in_code_units_);
+  dex_pc_to_block_map.resize(current_code_item_->insns_size_in_code_units_ +
+                             1 /* Fall-through on last insn; dead or punt to interpreter. */);
 
   // TODO: replace with explicit resize routine.  Using automatic extension side effect for now.
   try_block_addr_->SetBit(current_code_item_->insns_size_in_code_units_);
@@ -875,6 +884,20 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
 
   if (cu_->verbose) {
     DumpMIRGraph();
+  }
+
+  // Check if there's been a fall-through out of the method code.
+  BasicBlockId out_bb_id = dex_pc_to_block_map[current_code_item_->insns_size_in_code_units_];
+  if (UNLIKELY(out_bb_id != NullBasicBlockId)) {
+    // Eagerly calculate DFS order to determine if the block is dead.
+    DCHECK(!DfsOrdersUpToDate());
+    ComputeDFSOrders();
+    BasicBlock* out_bb = GetBasicBlock(out_bb_id);
+    DCHECK(out_bb != nullptr);
+    if (out_bb->block_type != kDead) {
+      LOG(WARNING) << "Live fall-through out of method in " << PrettyMethod(method_idx, dex_file);
+      SetPuntToInterpreter(true);
+    }
   }
 }
 
