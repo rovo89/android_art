@@ -96,9 +96,12 @@ class PassInfoPrinter : public ValueObject {
         timing_logger_enabled_(compiler_driver->GetDumpPasses()),
         timing_logger_(method_name, true, true),
         visualizer_enabled_(!compiler_driver->GetDumpCfgFileName().empty()),
-        visualizer_(visualizer_output, graph, codegen, method_name_) {
+        visualizer_(visualizer_output, graph, codegen) {
     if (strstr(method_name, kStringFilter) == nullptr) {
       timing_logger_enabled_ = visualizer_enabled_ = false;
+    }
+    if (visualizer_enabled_) {
+      visualizer_.PrintHeader(method_name_);
     }
   }
 
