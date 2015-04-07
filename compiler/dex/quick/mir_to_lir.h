@@ -142,6 +142,7 @@ struct RegisterInfo;
 class DexFileMethodInliner;
 class MIRGraph;
 class MirMethodLoweringInfo;
+class MirSFieldLoweringInfo;
 
 typedef int (*NextCallInsn)(CompilationUnit*, CallInfo*, int,
                             const MethodReference& target_method,
@@ -1691,6 +1692,13 @@ class Mir2Lir {
      */
     void GenIfNullUseHelperImmMethod(
         RegStorage r_result, QuickEntrypointEnum trampoline, int imm, RegStorage r_method);
+
+    /**
+     * @brief Generate code to retrieve Class* for another type to be used by SGET/SPUT.
+     * @param field_info information about the field to be accessed.
+     * @param opt_flags the optimization flags of the MIR.
+     */
+    RegStorage GenGetOtherTypeForSgetSput(const MirSFieldLoweringInfo& field_info, int opt_flags);
 
     void AddDivZeroCheckSlowPath(LIR* branch);
 
