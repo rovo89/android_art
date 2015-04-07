@@ -17,16 +17,12 @@
 #ifndef ART_RUNTIME_ENTRYPOINTS_QUICK_QUICK_ALLOC_ENTRYPOINTS_H_
 #define ART_RUNTIME_ENTRYPOINTS_QUICK_QUICK_ALLOC_ENTRYPOINTS_H_
 
-#include "base/macros.h"
 #include "base/mutex.h"
 #include "gc/allocator_type.h"
 #include "quick_entrypoints.h"
 
 namespace art {
 
-#if defined(__APPLE__) && defined(__LP64__)
-NO_RETURN
-#endif
 void ResetQuickAllocEntryPoints(QuickEntryPoints* qpoints);
 
 // Runtime shutdown lock is necessary to prevent races in thread initialization. When the thread is
