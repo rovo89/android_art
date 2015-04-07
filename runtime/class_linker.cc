@@ -914,7 +914,8 @@ void ClassLinker::InitFromImage() {
 void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   if ((flags & kVisitRootFlagAllRoots) != 0) {
-    BufferedRootVisitor<128> buffered_visitor(visitor, RootInfo(kRootStickyClass));
+    BufferedRootVisitor<kDefaultBufferedRootCount> buffered_visitor(
+        visitor, RootInfo(kRootStickyClass));
     for (GcRoot<mirror::Class>& root : class_table_) {
       buffered_visitor.VisitRoot(root);
     }

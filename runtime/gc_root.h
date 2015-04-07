@@ -30,6 +30,9 @@ class Object;
 template <size_t kBufferSize>
 class BufferedRootVisitor;
 
+// Dependent on pointer size so that we don't have frames that are too big on 64 bit.
+static const size_t kDefaultBufferedRootCount = 1024 / sizeof(void*);
+
 enum RootType {
   kRootUnknown = 0,
   kRootJNIGlobal,

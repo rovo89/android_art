@@ -238,7 +238,7 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
 }
 
 void ReferenceTable::VisitRoots(RootVisitor* visitor, const RootInfo& root_info) {
-  BufferedRootVisitor<128> buffered_visitor(visitor, root_info);
+  BufferedRootVisitor<kDefaultBufferedRootCount> buffered_visitor(visitor, root_info);
   for (GcRoot<mirror::Object>& root : entries_) {
     buffered_visitor.VisitRoot(root);
   }

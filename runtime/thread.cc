@@ -1385,7 +1385,8 @@ bool Thread::HandleScopeContains(jobject obj) const {
 }
 
 void Thread::HandleScopeVisitRoots(RootVisitor* visitor, uint32_t thread_id) {
-  BufferedRootVisitor<128> buffered_visitor(visitor, RootInfo(kRootNativeStack, thread_id));
+  BufferedRootVisitor<kDefaultBufferedRootCount> buffered_visitor(
+      visitor, RootInfo(kRootNativeStack, thread_id));
   for (HandleScope* cur = tlsPtr_.top_handle_scope; cur; cur = cur->GetLink()) {
     for (size_t j = 0, count = cur->NumberOfReferences(); j < count; ++j) {
       buffered_visitor.VisitRootIfNonNull(cur->GetHandle(j).GetReference());

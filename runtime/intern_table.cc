@@ -336,7 +336,8 @@ void InternTable::Table::Insert(mirror::String* s) {
 }
 
 void InternTable::Table::VisitRoots(RootVisitor* visitor) {
-  BufferedRootVisitor<128> buffered_visitor(visitor, RootInfo(kRootInternedString));
+  BufferedRootVisitor<kDefaultBufferedRootCount> buffered_visitor(
+      visitor, RootInfo(kRootInternedString));
   for (auto& intern : pre_zygote_table_) {
     buffered_visitor.VisitRoot(intern);
   }
