@@ -19,9 +19,11 @@
 #include "mir_to_lir-inl.h"
 
 #include "dex/compiler_ir.h"
+#include "dex/dataflow_iterator-inl.h"
 #include "dex/mir_graph.h"
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
+#include "utils/dex_cache_arrays_layout-inl.h"
 
 namespace art {
 
@@ -1128,6 +1130,146 @@ RegLocation Mir2Lir::EvalLoc(RegLocation loc, int reg_class, bool update) {
   return loc;
 }
 
+void Mir2Lir::AnalyzeMIR(RefCounts* core_counts, MIR* mir, uint32_t weight) {
+  // NOTE: This should be in sync with functions that actually generate code for
+  // the opcodes below. However, if we get this wrong, the generated code will
+  // still be correct even if it may be sub-optimal.
+  int opcode = mir->dalvikInsn.opcode;
+  bool uses_method = false;
+  bool uses_pc_rel_load = false;
+  uint32_t dex_cache_array_offset = std::numeric_limits<uint32_t>::max();
+  switch (opcode) {
+    case Instruction::CHECK_CAST:
+    case Instruction::INSTANCE_OF: {
+      if ((opcode == Instruction::CHECK_CAST) &&
+          (mir->optimization_flags & MIR_IGNORE_CHECK_CAST) != 0) {
+        break;  // No code generated.
+      }
+      uint32_t type_idx =
+          (opcode == Instruction::CHECK_CAST) ? mir->dalvikInsn.vB : mir->dalvikInsn.vC;
+      bool type_known_final, type_known_abstract, use_declaring_class;
+      bool needs_access_check = !cu_->compiler_driver->CanAccessTypeWithoutChecks(
+          cu_->method_idx, *cu_->dex_file, type_idx,
+          &type_known_final, &type_known_abstract, &use_declaring_class);
+      if (opcode == Instruction::CHECK_CAST && !needs_access_check &&
+          cu_->compiler_driver->IsSafeCast(
+              mir_graph_->GetCurrentDexCompilationUnit(), mir->offset)) {
+        break;  // No code generated.
+      }
+      if (!needs_access_check && !use_declaring_class && pc_rel_temp_ != nullptr) {
+        uses_pc_rel_load = true;  // And ignore method use in slow path.
+        dex_cache_array_offset = dex_cache_arrays_layout_.TypeOffset(type_idx);
+      } else {
+        uses_method = true;
+      }
+      break;
+    }
+
+    case Instruction::CONST_CLASS:
+      if (pc_rel_temp_ != nullptr &&
+          cu_->compiler_driver->CanAccessTypeWithoutChecks(cu_->method_idx, *cu_->dex_file,
+                                                           mir->dalvikInsn.vB)) {
+        uses_pc_rel_load = true;  // And ignore method use in slow path.
+        dex_cache_array_offset = dex_cache_arrays_layout_.TypeOffset(mir->dalvikInsn.vB);
+      } else {
+        uses_method = true;
+      }
+      break;
+
+    case Instruction::CONST_STRING:
+    case Instruction::CONST_STRING_JUMBO:
+      if (pc_rel_temp_ != nullptr) {
+        uses_pc_rel_load = true;  // And ignore method use in slow path.
+        dex_cache_array_offset = dex_cache_arrays_layout_.StringOffset(mir->dalvikInsn.vB);
+      } else {
+        uses_method = true;
+      }
+      break;
+
+    case Instruction::INVOKE_VIRTUAL:
+    case Instruction::INVOKE_SUPER:
+    case Instruction::INVOKE_DIRECT:
+    case Instruction::INVOKE_STATIC:
+    case Instruction::INVOKE_INTERFACE:
+    case Instruction::INVOKE_VIRTUAL_RANGE:
+    case Instruction::INVOKE_SUPER_RANGE:
+    case Instruction::INVOKE_DIRECT_RANGE:
+    case Instruction::INVOKE_STATIC_RANGE:
+    case Instruction::INVOKE_INTERFACE_RANGE:
+    case Instruction::INVOKE_VIRTUAL_QUICK:
+    case Instruction::INVOKE_VIRTUAL_RANGE_QUICK: {
+      const MirMethodLoweringInfo& info = mir_graph_->GetMethodLoweringInfo(mir);
+      InvokeType sharp_type = info.GetSharpType();
+      if (!info.FastPath() || (sharp_type != kStatic && sharp_type != kDirect)) {
+        // Nothing to do, the generated code or entrypoint uses method from the stack.
+      } else if (info.DirectCode() != 0 && info.DirectMethod() != 0) {
+        // Nothing to do, the generated code uses method from the stack.
+      } else if (pc_rel_temp_ != nullptr) {
+        uses_pc_rel_load = true;
+        dex_cache_array_offset = dex_cache_arrays_layout_.MethodOffset(mir->dalvikInsn.vB);
+      } else {
+        uses_method = true;
+      }
+      break;
+    }
+
+    case Instruction::NEW_INSTANCE:
+    case Instruction::NEW_ARRAY:
+    case Instruction::FILLED_NEW_ARRAY:
+    case Instruction::FILLED_NEW_ARRAY_RANGE:
+      uses_method = true;
+      break;
+    case Instruction::FILL_ARRAY_DATA:
+      // Nothing to do, the entrypoint uses method from the stack.
+      break;
+    case Instruction::THROW:
+      // Nothing to do, the entrypoint uses method from the stack.
+      break;
+
+    case Instruction::SGET:
+    case Instruction::SGET_WIDE:
+    case Instruction::SGET_OBJECT:
+    case Instruction::SGET_BOOLEAN:
+    case Instruction::SGET_BYTE:
+    case Instruction::SGET_CHAR:
+    case Instruction::SGET_SHORT:
+    case Instruction::SPUT:
+    case Instruction::SPUT_WIDE:
+    case Instruction::SPUT_OBJECT:
+    case Instruction::SPUT_BOOLEAN:
+    case Instruction::SPUT_BYTE:
+    case Instruction::SPUT_CHAR:
+    case Instruction::SPUT_SHORT: {
+      const MirSFieldLoweringInfo& field_info = mir_graph_->GetSFieldLoweringInfo(mir);
+      bool fast = IsInstructionSGet(static_cast<Instruction::Code>(opcode))
+          ? field_info.FastGet()
+          : field_info.FastPut();
+      if (fast && (cu_->enable_debug & (1 << kDebugSlowFieldPath)) == 0) {
+        if (!field_info.IsReferrersClass() && pc_rel_temp_ != nullptr) {
+          uses_pc_rel_load = true;  // And ignore method use in slow path.
+          dex_cache_array_offset = dex_cache_arrays_layout_.TypeOffset(field_info.StorageIndex());
+        } else {
+          uses_method = true;
+        }
+      } else {
+        // Nothing to do, the entrypoint uses method from the stack.
+      }
+      break;
+    }
+
+    default:
+      break;
+  }
+  if (uses_method) {
+    core_counts[SRegToPMap(mir_graph_->GetMethodLoc().s_reg_low)].count += weight;
+  }
+  if (uses_pc_rel_load) {
+    core_counts[SRegToPMap(pc_rel_temp_->s_reg_low)].count += weight;
+    DCHECK_NE(dex_cache_array_offset, std::numeric_limits<uint32_t>::max());
+    dex_cache_arrays_min_offset_ = std::min(dex_cache_arrays_min_offset_, dex_cache_array_offset);
+  }
+}
+
 /* USE SSA names to count references of base Dalvik v_regs. */
 void Mir2Lir::CountRefs(RefCounts* core_counts, RefCounts* fp_counts, size_t num_regs) {
   for (int i = 0; i < mir_graph_->GetNumSSARegs(); i++) {
@@ -1155,6 +1297,22 @@ void Mir2Lir::CountRefs(RefCounts* core_counts, RefCounts* fp_counts, size_t num
       if (!IsInexpensiveConstant(loc)) {
         counts[p_map_idx].count += use_count;
       }
+    }
+  }
+
+  // Now analyze the ArtMethod* and pc_rel_temp_ uses.
+  DCHECK_EQ(core_counts[SRegToPMap(mir_graph_->GetMethodLoc().s_reg_low)].count, 0);
+  if (pc_rel_temp_ != nullptr) {
+    DCHECK_EQ(core_counts[SRegToPMap(pc_rel_temp_->s_reg_low)].count, 0);
+  }
+  PreOrderDfsIterator iter(mir_graph_);
+  for (BasicBlock* bb = iter.Next(); bb != nullptr; bb = iter.Next()) {
+    if (bb->block_type == kDead) {
+      continue;
+    }
+    uint32_t weight = mir_graph_->GetUseCountWeight(bb);
+    for (MIR* mir = bb->first_mir_insn; mir != nullptr; mir = mir->next) {
+      AnalyzeMIR(core_counts, mir, weight);
     }
   }
 }

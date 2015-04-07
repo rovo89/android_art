@@ -1091,7 +1091,7 @@ bool ArmMir2Lir::CanUseOpPcRelDexCacheArrayLoad() const {
   return dex_cache_arrays_layout_.Valid();
 }
 
-void ArmMir2Lir::OpPcRelDexCacheArrayLoad(const DexFile* dex_file, int offset, RegStorage r_dest) {
+void ArmMir2Lir::OpPcRelDexCacheArrayAddr(const DexFile* dex_file, int offset, RegStorage r_dest) {
   LIR* movw = NewLIR2(kThumb2MovImm16, r_dest.GetReg(), 0);
   LIR* movt = NewLIR2(kThumb2MovImm16H, r_dest.GetReg(), 0);
   ArmOpcode add_pc_opcode = (r_dest.GetRegNum() < 8) ? kThumbAddRRLH : kThumbAddRRHH;
@@ -1105,7 +1105,16 @@ void ArmMir2Lir::OpPcRelDexCacheArrayLoad(const DexFile* dex_file, int offset, R
   movt->operands[4] = movw->operands[4];
   dex_cache_access_insns_.push_back(movw);
   dex_cache_access_insns_.push_back(movt);
-  LoadRefDisp(r_dest, 0, r_dest, kNotVolatile);
+}
+
+void ArmMir2Lir::OpPcRelDexCacheArrayLoad(const DexFile* dex_file, int offset, RegStorage r_dest) {
+  if (dex_cache_arrays_base_reg_.Valid()) {
+    LoadRefDisp(dex_cache_arrays_base_reg_, offset - dex_cache_arrays_min_offset_,
+                r_dest, kNotVolatile);
+  } else {
+    OpPcRelDexCacheArrayAddr(dex_file, offset, r_dest);
+    LoadRefDisp(r_dest, 0, r_dest, kNotVolatile);
+  }
 }
 
 LIR* ArmMir2Lir::OpVldm(RegStorage r_base, int count) {

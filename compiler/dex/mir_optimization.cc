@@ -318,9 +318,11 @@ CompilerTemp* MIRGraph::GetNewCompilerTemp(CompilerTempType ct_type, bool wide) 
     // Since VR temps cannot be requested once the BE temps are requested, we
     // allow reservation of VR temps as well for BE. We
     size_t available_temps = reserved_temps_for_backend_ + GetNumAvailableVRTemps();
-    if (available_temps <= 0 || (available_temps <= 1 && wide)) {
+    size_t needed_temps = wide ? 2u : 1u;
+    if (available_temps < needed_temps) {
       if (verbose) {
-        LOG(INFO) << "CompilerTemps: Not enough temp(s) of type " << ct_type_str << " are available.";
+        LOG(INFO) << "CompilerTemps: Not enough temp(s) of type " << ct_type_str
+            << " are available.";
       }
       return nullptr;
     }
@@ -328,12 +330,8 @@ CompilerTemp* MIRGraph::GetNewCompilerTemp(CompilerTempType ct_type, bool wide) 
     // Update the remaining reserved temps since we have now used them.
     // Note that the code below is actually subtracting to remove them from reserve
     // once they have been claimed. It is careful to not go below zero.
-    if (reserved_temps_for_backend_ >= 1) {
-      reserved_temps_for_backend_--;
-    }
-    if (wide && reserved_temps_for_backend_ >= 1) {
-      reserved_temps_for_backend_--;
-    }
+    reserved_temps_for_backend_ =
+        std::max(reserved_temps_for_backend_, needed_temps) - needed_temps;
 
     // The new non-special compiler temp must receive a unique v_reg.
     compiler_temp->v_reg = GetFirstNonSpecialTempVR() + num_non_special_compiler_temps_;
@@ -405,6 +403,36 @@ CompilerTemp* MIRGraph::GetNewCompilerTemp(CompilerTempType ct_type, bool wide) 
   }
 
   return compiler_temp;
+}
+
+void MIRGraph::RemoveLastCompilerTemp(CompilerTempType ct_type, bool wide, CompilerTemp* temp) {
+  // Once the compiler temps have been committed, it's too late for any modifications.
+  DCHECK_EQ(compiler_temps_committed_, false);
+
+  size_t used_temps = wide ? 2u : 1u;
+
+  if (ct_type == kCompilerTempBackend) {
+    DCHECK(requested_backend_temp_);
+
+    // Make the temps available to backend again.
+    reserved_temps_for_backend_ += used_temps;
+  } else if (ct_type == kCompilerTempVR) {
+    DCHECK(!requested_backend_temp_);
+  } else {
+    UNIMPLEMENTED(FATAL) << "No handling for compiler temp type " << static_cast<int>(ct_type);
+  }
+
+  // Reduce the number of non-special compiler temps.
+  DCHECK_LE(used_temps, num_non_special_compiler_temps_);
+  num_non_special_compiler_temps_ -= used_temps;
+
+  // Check that this was really the last temp.
+  DCHECK_EQ(static_cast<size_t>(temp->v_reg),
+            GetFirstNonSpecialTempVR() + num_non_special_compiler_temps_);
+
+  if (cu_->verbose) {
+    LOG(INFO) << "Last temporary has been removed.";
+  }
 }
 
 static bool EvaluateBranch(Instruction::Code opcode, int32_t src1, int32_t src2) {

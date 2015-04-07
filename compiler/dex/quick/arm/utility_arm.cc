@@ -19,6 +19,7 @@
 #include "arch/arm/instruction_set_features_arm.h"
 #include "arm_lir.h"
 #include "base/logging.h"
+#include "dex/mir_graph.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "dex/reg_storage_eq.h"
 #include "driver/compiler_driver.h"
@@ -1264,6 +1265,40 @@ size_t ArmMir2Lir::GetInstructionOffset(LIR* lir) {
     offset = offset * 4;
   }
   return offset;
+}
+
+void ArmMir2Lir::CountRefs(RefCounts* core_counts, RefCounts* fp_counts, size_t num_regs) {
+  // Start with the default counts.
+  Mir2Lir::CountRefs(core_counts, fp_counts, num_regs);
+
+  if (pc_rel_temp_ != nullptr) {
+    // Now, if the dex cache array base temp is used only once outside any loops (weight = 1),
+    // avoid the promotion, otherwise boost the weight by factor 4 because the full PC-relative
+    // load sequence is 4 instructions long.
+    int p_map_idx = SRegToPMap(pc_rel_temp_->s_reg_low);
+    if (core_counts[p_map_idx].count == 1) {
+      core_counts[p_map_idx].count = 0;
+    } else {
+      core_counts[p_map_idx].count *= 4;
+    }
+  }
+}
+
+void ArmMir2Lir::DoPromotion() {
+  if (CanUseOpPcRelDexCacheArrayLoad()) {
+    pc_rel_temp_ = mir_graph_->GetNewCompilerTemp(kCompilerTempBackend, false);
+  }
+
+  Mir2Lir::DoPromotion();
+
+  if (pc_rel_temp_ != nullptr) {
+    // Now, if the dex cache array base temp is promoted, remember the register but
+    // always remove the temp's stack location to avoid unnecessarily bloating the stack.
+    dex_cache_arrays_base_reg_ = mir_graph_->reg_location_[pc_rel_temp_->s_reg_low].reg;
+    DCHECK(!dex_cache_arrays_base_reg_.Valid() || !dex_cache_arrays_base_reg_.IsFloat());
+    mir_graph_->RemoveLastCompilerTemp(kCompilerTempBackend, false, pc_rel_temp_);
+    pc_rel_temp_ = nullptr;
+  }
 }
 
 }  // namespace art
