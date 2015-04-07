@@ -63,7 +63,6 @@ const X86InstructionSetFeatures* X86InstructionSetFeatures::FromVariant(
   bool known_variant = FindVariantInArray(x86_known_variants, arraysize(x86_known_variants),
                                           variant);
   if (!known_variant && variant != "default") {
-    std::ostringstream os;
     LOG(WARNING) << "Unexpected CPU variant for X86 using defaults: " << variant;
   }
 
