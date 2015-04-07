@@ -1148,11 +1148,11 @@ void ConcurrentCopying::VisitRoots(
     mirror::Object** root = roots[i];
     mirror::Object* ref = *root;
     if (ref == nullptr || region_space_->IsInToSpace(ref)) {
-      return;
+      continue;
     }
     mirror::Object* to_ref = Mark(ref);
     if (to_ref == ref) {
-      return;
+      continue;
     }
     Atomic<mirror::Object*>* addr = reinterpret_cast<Atomic<mirror::Object*>*>(root);
     mirror::Object* expected_ref = ref;
@@ -1173,11 +1173,11 @@ void ConcurrentCopying::VisitRoots(
     mirror::CompressedReference<mirror::Object>* root = roots[i];
     mirror::Object* ref = root->AsMirrorPtr();
     if (ref == nullptr || region_space_->IsInToSpace(ref)) {
-      return;
+      continue;
     }
     mirror::Object* to_ref = Mark(ref);
     if (to_ref == ref) {
-      return;
+      continue;
     }
     auto* addr = reinterpret_cast<Atomic<mirror::CompressedReference<mirror::Object>>*>(root);
     auto expected_ref = mirror::CompressedReference<mirror::Object>::FromMirrorPtr(ref);
