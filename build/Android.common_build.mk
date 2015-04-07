@@ -141,8 +141,14 @@ art_clang_cflags += -Wused-but-marked-unused
 # Enable warning for deprecated language features.
 art_clang_cflags += -Wdeprecated
 
-# Enable warning for unreachable break & return, and missing NO_RETURN annotations.
-art_clang_cflags += -Wunreachable-code-break -Wunreachable-code-return -Wmissing-noreturn
+# Enable warning for unreachable break & return.
+art_clang_cflags += -Wunreachable-code-break -Wunreachable-code-return
+
+# Enable missing-noreturn only on non-Mac. As lots of things are not implemented for Apple, it's
+# a pain.
+ifneq ($(HOST_OS),darwin)
+  art_clang_cflags += -Wmissing-noreturn
+endif
 
 
 # GCC-only warnings.
