@@ -450,24 +450,18 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
 
       if (writer_->compiler_driver_->GetCompilerOptions().GetIncludeDebugSymbols()) {
         // Record debug information for this function if we are doing that.
-
-        std::string name = PrettyMethod(it.GetMemberIndex(), *dex_file_, true);
-        if (deduped) {
-          // TODO We should place the DEDUPED tag on the first instance of a deduplicated symbol
-          // so that it will show up in a debuggerd crash report.
-          name += " [ DEDUPED ]";
-        }
-
         const uint32_t quick_code_start = quick_code_offset -
             writer_->oat_header_->GetExecutableOffset() - thumb_offset;
-        const DexFile::CodeItem *code_item = it.GetMethodCodeItem();
-        const DexFile::ClassDef& class_def = dex_file_->GetClassDef(class_def_index_);
-        writer_->method_info_.push_back(DebugInfo(name, deduped,
-              dex_file_->GetClassDescriptor(class_def),
-              dex_file_->GetSourceFile(class_def),
-              quick_code_start, quick_code_start + code_size,
-              code_item == nullptr ? nullptr : dex_file_->GetDebugInfoStream(code_item),
-              compiled_method));
+        writer_->method_info_.push_back(DebugInfo {
+            dex_file_,
+            class_def_index_,
+            it.GetMemberIndex(),
+            it.GetMethodAccessFlags(),
+            it.GetMethodCodeItem(),
+            deduped,
+            quick_code_start,
+            quick_code_start + code_size,
+            compiled_method});
       }
 
       if (kIsDebugBuild) {
