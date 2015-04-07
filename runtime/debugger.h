@@ -313,12 +313,12 @@ class Dbg {
                                           JDWP::Request* request)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static JDWP::ObjectId CreateString(const std::string& str)
+  static JDWP::JdwpError CreateString(const std::string& str, JDWP::ObjectId* new_string_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError CreateObject(JDWP::RefTypeId class_id, JDWP::ObjectId* new_object)
+  static JDWP::JdwpError CreateObject(JDWP::RefTypeId class_id, JDWP::ObjectId* new_object_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError CreateArrayObject(JDWP::RefTypeId array_class_id, uint32_t length,
-                                           JDWP::ObjectId* new_array)
+                                           JDWP::ObjectId* new_array_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   //
