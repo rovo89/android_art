@@ -315,11 +315,12 @@ static JdwpError VM_Exit(JdwpState* state, Request* request, ExpandBuf*)
 static JdwpError VM_CreateString(JdwpState*, Request* request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   std::string str(request->ReadUtf8String());
-  ObjectId stringId = Dbg::CreateString(str);
-  if (stringId == 0) {
-    return ERR_OUT_OF_MEMORY;
+  ObjectId string_id;
+  JdwpError status = Dbg::CreateString(str, &string_id);
+  if (status != ERR_NONE) {
+    return status;
   }
-  expandBufAddObjectId(pReply, stringId);
+  expandBufAddObjectId(pReply, string_id);
   return ERR_NONE;
 }
 
@@ -711,9 +712,6 @@ static JdwpError CT_NewInstance(JdwpState* state, Request* request, ExpandBuf* p
   if (status != ERR_NONE) {
     return status;
   }
-  if (object_id == 0) {
-    return ERR_OUT_OF_MEMORY;
-  }
   return RequestInvoke(state, request, pReply, thread_id, object_id, class_id, method_id, true);
 }
 
@@ -729,9 +727,6 @@ static JdwpError AT_newInstance(JdwpState*, Request* request, ExpandBuf* pReply)
   JdwpError status = Dbg::CreateArrayObject(arrayTypeId, length, &object_id);
   if (status != ERR_NONE) {
     return status;
-  }
-  if (object_id == 0) {
-    return ERR_OUT_OF_MEMORY;
   }
   expandBufAdd1(pReply, JT_ARRAY);
   expandBufAddObjectId(pReply, object_id);
@@ -1657,6 +1652,7 @@ size_t JdwpState::ProcessRequest(Request* request, ExpandBuf* pReply) {
       if (result == ERR_NONE) {
         request->CheckConsumed();
       }
+      self->AssertNoPendingException();
       break;
     }
   }
