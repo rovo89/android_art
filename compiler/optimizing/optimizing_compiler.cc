@@ -201,8 +201,13 @@ class OptimizingCompiler FINAL : public Compiler {
                 const std::vector<const art::DexFile*>& dex_files,
                 const std::string& android_root,
                 bool is_host) const OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return art::ElfWriterQuick32::Create(file, oat_writer, dex_files, android_root, is_host,
-                                        *GetCompilerDriver());
+    if (kProduce64BitELFFiles && Is64BitInstructionSet(GetCompilerDriver()->GetInstructionSet())) {
+      return art::ElfWriterQuick64::Create(file, oat_writer, dex_files, android_root, is_host,
+                                           *GetCompilerDriver());
+    } else {
+      return art::ElfWriterQuick32::Create(file, oat_writer, dex_files, android_root, is_host,
+                                           *GetCompilerDriver());
+    }
   }
 
   void InitCompilationUnit(CompilationUnit& cu) const OVERRIDE;

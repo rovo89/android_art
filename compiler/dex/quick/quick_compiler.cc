@@ -798,8 +798,13 @@ bool QuickCompiler::WriteElf(art::File* file,
                              const std::vector<const art::DexFile*>& dex_files,
                              const std::string& android_root,
                              bool is_host) const {
-  return art::ElfWriterQuick32::Create(file, oat_writer, dex_files, android_root, is_host,
-                                       *GetCompilerDriver());
+  if (kProduce64BitELFFiles && Is64BitInstructionSet(GetCompilerDriver()->GetInstructionSet())) {
+    return art::ElfWriterQuick64::Create(file, oat_writer, dex_files, android_root, is_host,
+                                         *GetCompilerDriver());
+  } else {
+    return art::ElfWriterQuick32::Create(file, oat_writer, dex_files, android_root, is_host,
+                                         *GetCompilerDriver());
+  }
 }
 
 Mir2Lir* QuickCompiler::GetCodeGenerator(CompilationUnit* cu, void* compilation_unit) const {
