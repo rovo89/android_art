@@ -97,6 +97,7 @@ enum LockLevel {
   kAllocTrackerLock,
   kDeoptimizationLock,
   kProfilerLock,
+  kJdwpShutdownLock,
   kJdwpEventListLock,
   kJdwpAttachLock,
   kJdwpStartLock,
