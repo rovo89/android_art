@@ -19,6 +19,7 @@
 
 #include <map>
 #include <memory>
+#include <type_traits>
 #include <vector>
 
 // Explicitly include our own elf.h to avoid Linux and other dependencies.
@@ -102,13 +103,13 @@ class ElfFileImpl {
   // executable is true at run time, false at compile time.
   bool Load(bool executable, std::string* error_msg);
 
-  bool Fixup(uintptr_t base_address);
-  bool FixupDynamic(uintptr_t base_address);
-  bool FixupSectionHeaders(uintptr_t base_address);
-  bool FixupProgramHeaders(uintptr_t base_address);
-  bool FixupSymbols(uintptr_t base_address, bool dynamic);
-  bool FixupRelocations(uintptr_t base_address);
-  bool FixupDebugSections(off_t base_address_delta);
+  bool Fixup(Elf_Addr base_address);
+  bool FixupDynamic(Elf_Addr base_address);
+  bool FixupSectionHeaders(Elf_Addr base_address);
+  bool FixupProgramHeaders(Elf_Addr base_address);
+  bool FixupSymbols(Elf_Addr base_address, bool dynamic);
+  bool FixupRelocations(Elf_Addr base_address);
+  bool FixupDebugSections(typename std::make_signed<Elf_Off>::type base_address_delta);
 
   bool Strip(std::string* error_msg);
 

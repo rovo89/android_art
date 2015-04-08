@@ -1630,8 +1630,10 @@ static bool IsFDE(FDE64* frame) {
   return frame->CIE_pointer != 0;
 }
 
-static bool FixupEHFrame(off_t base_address_delta,
-                           uint8_t* eh_frame, size_t eh_frame_size) {
+template <typename Elf_SOff>
+static bool FixupEHFrame(Elf_SOff base_address_delta, uint8_t* eh_frame, size_t eh_frame_size) {
+  // TODO: Check the spec whether this is really data-dependent, or whether it's clear from the
+  //       ELF file whether we should expect 32-bit or 64-bit.
   if (*(reinterpret_cast<uint32_t*>(eh_frame)) == 0xffffffff) {
     FDE64* last_frame = reinterpret_cast<FDE64*>(eh_frame + eh_frame_size);
     FDE64* frame = NextFDE(reinterpret_cast<FDE64*>(eh_frame));
@@ -1643,6 +1645,7 @@ static bool FixupEHFrame(off_t base_address_delta,
     }
     return true;
   } else {
+    CHECK(IsInt<32>(base_address_delta));
     FDE32* last_frame = reinterpret_cast<FDE32*>(eh_frame + eh_frame_size);
     FDE32* frame = NextFDE(reinterpret_cast<FDE32*>(eh_frame));
     for (; frame < last_frame; frame = NextFDE(frame)) {
@@ -1772,7 +1775,9 @@ class DebugLineInstructionIterator FINAL {
   uint8_t* current_instruction_;
 };
 
-static bool FixupDebugLine(off_t base_offset_delta, DebugLineInstructionIterator* iter) {
+template <typename Elf_SOff>
+static bool FixupDebugLine(Elf_SOff base_offset_delta, DebugLineInstructionIterator* iter) {
+  CHECK(IsInt<32>(base_offset_delta));
   for (; iter->GetInstruction(); iter->Next()) {
     if (iter->IsExtendedOpcode() && iter->GetOpcode() == dwarf::DW_LNE_set_address) {
       *reinterpret_cast<uint32_t*>(iter->GetArguments()) += base_offset_delta;
@@ -2044,7 +2049,9 @@ class DebugInfoIterator {
   DebugTag* current_tag_;
 };
 
-static bool FixupDebugInfo(off_t base_address_delta, DebugInfoIterator* iter) {
+template <typename Elf_SOff>
+static bool FixupDebugInfo(Elf_SOff base_address_delta, DebugInfoIterator* iter) {
+  CHECK(IsInt<32>(base_address_delta));
   do {
     if (iter->GetCurrentTag()->GetAttrSize(dwarf::DW_AT_low_pc) != sizeof(int32_t) ||
         iter->GetCurrentTag()->GetAttrSize(dwarf::DW_AT_high_pc) != sizeof(int32_t)) {
@@ -2066,7 +2073,7 @@ template <typename Elf_Ehdr, typename Elf_Phdr, typename Elf_Shdr, typename Elf_
           typename Elf_Rela, typename Elf_Dyn, typename Elf_Off>
 bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel, Elf_Rela, Elf_Dyn, Elf_Off>
-    ::FixupDebugSections(off_t base_address_delta) {
+    ::FixupDebugSections(typename std::make_signed<Elf_Off>::type base_address_delta) {
   const Elf_Shdr* debug_info = FindSectionByName(".debug_info");
   const Elf_Shdr* debug_abbrev = FindSectionByName(".debug_abbrev");
   const Elf_Shdr* eh_frame = FindSectionByName(".eh_frame");
@@ -2280,7 +2287,7 @@ template <typename Elf_Ehdr, typename Elf_Phdr, typename Elf_Shdr, typename Elf_
           typename Elf_Rela, typename Elf_Dyn, typename Elf_Off>
 bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel, Elf_Rela, Elf_Dyn, Elf_Off>
-    ::Fixup(uintptr_t base_address) {
+    ::Fixup(Elf_Addr base_address) {
   if (!FixupDynamic(base_address)) {
     LOG(WARNING) << "Failed to fixup .dynamic in " << file_->GetPath();
     return false;
@@ -2305,7 +2312,8 @@ bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     LOG(WARNING) << "Failed to fixup .rel.dyn in " << file_->GetPath();
     return false;
   }
-  if (!FixupDebugSections(base_address)) {
+  static_assert(sizeof(Elf_Off) >= sizeof(base_address), "Potentially losing precision.");
+  if (!FixupDebugSections(static_cast<Elf_Off>(base_address))) {
     LOG(WARNING) << "Failed to fixup debug sections in " << file_->GetPath();
     return false;
   }
@@ -2317,7 +2325,7 @@ template <typename Elf_Ehdr, typename Elf_Phdr, typename Elf_Shdr, typename Elf_
           typename Elf_Rela, typename Elf_Dyn, typename Elf_Off>
 bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel, Elf_Rela, Elf_Dyn, Elf_Off>
-    ::FixupDynamic(uintptr_t base_address) {
+    ::FixupDynamic(Elf_Addr base_address) {
   for (Elf_Word i = 0; i < GetDynamicNum(); i++) {
     Elf_Dyn& elf_dyn = GetDynamic(i);
     Elf_Word d_tag = elf_dyn.d_tag;
@@ -2341,7 +2349,7 @@ template <typename Elf_Ehdr, typename Elf_Phdr, typename Elf_Shdr, typename Elf_
           typename Elf_Rela, typename Elf_Dyn, typename Elf_Off>
 bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel, Elf_Rela, Elf_Dyn, Elf_Off>
-    ::FixupSectionHeaders(uintptr_t base_address) {
+    ::FixupSectionHeaders(Elf_Addr base_address) {
   for (Elf_Word i = 0; i < GetSectionHeaderNum(); i++) {
     Elf_Shdr* sh = GetSectionHeader(i);
     CHECK(sh != nullptr);
@@ -2365,7 +2373,7 @@ template <typename Elf_Ehdr, typename Elf_Phdr, typename Elf_Shdr, typename Elf_
           typename Elf_Rela, typename Elf_Dyn, typename Elf_Off>
 bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel, Elf_Rela, Elf_Dyn, Elf_Off>
-    ::FixupProgramHeaders(uintptr_t base_address) {
+    ::FixupProgramHeaders(Elf_Addr base_address) {
   // TODO: ELFObjectFile doesn't have give to Elf_Phdr, so we do that ourselves for now.
   for (Elf_Word i = 0; i < GetProgramHeaderNum(); i++) {
     Elf_Phdr* ph = GetProgramHeader(i);
@@ -2392,7 +2400,7 @@ template <typename Elf_Ehdr, typename Elf_Phdr, typename Elf_Shdr, typename Elf_
           typename Elf_Rela, typename Elf_Dyn, typename Elf_Off>
 bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel, Elf_Rela, Elf_Dyn, Elf_Off>
-    ::FixupSymbols(uintptr_t base_address, bool dynamic) {
+    ::FixupSymbols(Elf_Addr base_address, bool dynamic) {
   Elf_Word section_type = dynamic ? SHT_DYNSYM : SHT_SYMTAB;
   // TODO: Unfortunate ELFObjectFile has protected symbol access, so use ElfFile
   Elf_Shdr* symbol_section = FindSectionByType(section_type);
@@ -2422,7 +2430,7 @@ template <typename Elf_Ehdr, typename Elf_Phdr, typename Elf_Shdr, typename Elf_
           typename Elf_Rela, typename Elf_Dyn, typename Elf_Off>
 bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel, Elf_Rela, Elf_Dyn, Elf_Off>
-    ::FixupRelocations(uintptr_t base_address) {
+    ::FixupRelocations(Elf_Addr base_address) {
   for (Elf_Word i = 0; i < GetSectionHeaderNum(); i++) {
     Elf_Shdr* sh = GetSectionHeader(i);
     CHECK(sh != nullptr);
@@ -2622,7 +2630,14 @@ bool ElfFile::Strip(File* file, std::string* error_msg) {
     return elf_file->elf32_->Strip(error_msg);
 }
 
-bool ElfFile::Fixup(uintptr_t base_address) {
+bool ElfFile::Fixup(uint64_t base_address) {
+  if (elf64_.get() != nullptr) {
+    return elf64_->Fixup(static_cast<Elf64_Addr>(base_address));
+  } else {
+    DCHECK(elf32_.get() != nullptr);
+    CHECK(IsUint<32>(base_address)) << std::hex << base_address;
+    return elf32_->Fixup(static_cast<Elf32_Addr>(base_address));
+  }
   DELEGATE_TO_IMPL(Fixup, base_address);
 }
 
