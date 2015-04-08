@@ -411,7 +411,7 @@ void DebugInvokeReq::VisitRoots(RootVisitor* visitor, const RootInfo& root_info)
 }
 
 void SingleStepControl::VisitRoots(RootVisitor* visitor, const RootInfo& root_info) {
-  visitor->VisitRootIfNonNull(reinterpret_cast<mirror::Object**>(&method_), root_info);
+  method_.VisitRootIfNonNull(visitor, root_info);
 }
 
 void SingleStepControl::AddDexPc(uint32_t dex_pc) {
@@ -2928,10 +2928,11 @@ void Dbg::PostException(mirror::Throwable* exception_object) {
   if (!IsDebuggerActive()) {
     return;
   }
-  StackHandleScope<1> handle_scope(Thread::Current());
+  Thread* const self = Thread::Current();
+  StackHandleScope<1> handle_scope(self);
   Handle<mirror::Throwable> h_exception(handle_scope.NewHandle(exception_object));
   std::unique_ptr<Context> context(Context::Create());
-  CatchLocationFinder clf(Thread::Current(), h_exception, context.get());
+  CatchLocationFinder clf(self, h_exception, context.get());
   clf.WalkStack(/* include_transitions */ false);
   JDWP::EventLocation exception_throw_location;
   SetEventLocation(&exception_throw_location, clf.GetThrowMethod(), clf.GetThrowDexPc());
@@ -3980,7 +3981,7 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   Handle<mirror::Object> object_result = hs.NewHandle(is_object_result ? result.GetL() : nullptr);
   Handle<mirror::Throwable> exception = hs.NewHandle(soa.Self()->GetException());
   soa.Self()->ClearException();
-  pReq->exception = gRegistry->Add(exception.Get());
+  pReq->exception = gRegistry->Add(exception);
   if (pReq->exception != 0) {
     VLOG(jdwp) << "  JDWP invocation returning with exception=" << exception.Get()
                << " " << exception->Dump();
