@@ -126,6 +126,7 @@ void JdwpNetStateBase::Close() {
  */
 ssize_t JdwpNetStateBase::WritePacket(ExpandBuf* pReply, size_t length) {
   MutexLock mu(Thread::Current(), socket_lock_);
+  DCHECK(IsConnected()) << "Connection with debugger is closed";
   DCHECK_LE(length, expandBufGetLength(pReply));
   return TEMP_FAILURE_RETRY(write(clientSock, expandBufGetBuffer(pReply), length));
 }
@@ -140,6 +141,7 @@ ssize_t JdwpNetStateBase::WriteBufferedPacket(const std::vector<iovec>& iov) {
 
 ssize_t JdwpNetStateBase::WriteBufferedPacketLocked(const std::vector<iovec>& iov) {
   socket_lock_.AssertHeld(Thread::Current());
+  DCHECK(IsConnected()) << "Connection with debugger is closed";
   return TEMP_FAILURE_RETRY(writev(clientSock, &iov[0], iov.size()));
 }
 
@@ -225,7 +227,10 @@ JdwpState::JdwpState(const JdwpOptions* options)
       jdwp_token_owner_thread_id_(0),
       ddm_is_active_(false),
       should_exit_(false),
-      exit_status_(0) {
+      exit_status_(0),
+      shutdown_lock_("JDWP shutdown lock", kJdwpShutdownLock),
+      shutdown_cond_("JDWP shutdown condition variable", shutdown_lock_),
+      processing_request_(false) {
 }
 
 /*
@@ -338,10 +343,20 @@ void JdwpState::ResetState() {
 JdwpState::~JdwpState() {
   if (netState != nullptr) {
     /*
-     * Close down the network to inspire the thread to halt.
+     * Close down the network to inspire the thread to halt. If a request is being processed,
+     * we need to wait for it to finish first.
      */
-    VLOG(jdwp) << "JDWP shutting down net...";
-    netState->Shutdown();
+    {
+      Thread* self = Thread::Current();
+      MutexLock mu(self, shutdown_lock_);
+      while (processing_request_) {
+        VLOG(jdwp) << "JDWP command in progress: wait for it to finish ...";
+        shutdown_cond_.Wait(self);
+      }
+
+      VLOG(jdwp) << "JDWP shutting down net...";
+      netState->Shutdown();
+    }
 
     if (debug_thread_started_) {
       run = false;
@@ -369,7 +384,13 @@ bool JdwpState::IsActive() {
 
 // Returns "false" if we encounter a connection-fatal error.
 bool JdwpState::HandlePacket() {
-  JdwpNetStateBase* netStateBase = reinterpret_cast<JdwpNetStateBase*>(netState);
+  Thread* const self = Thread::Current();
+  {
+    MutexLock mu(self, shutdown_lock_);
+    processing_request_ = true;
+  }
+  JdwpNetStateBase* netStateBase = netState;
+  CHECK(netStateBase != nullptr) << "Connection has been closed";
   JDWP::Request request(netStateBase->input_buffer_, netStateBase->input_count_);
 
   ExpandBuf* pReply = expandBufAlloc();
@@ -388,6 +409,11 @@ bool JdwpState::HandlePacket() {
   }
   expandBufFree(pReply);
   netStateBase->ConsumeBytes(request.GetLength());
+  {
+    MutexLock mu(self, shutdown_lock_);
+    processing_request_ = false;
+    shutdown_cond_.Broadcast(self);
+  }
   return true;
 }
 
