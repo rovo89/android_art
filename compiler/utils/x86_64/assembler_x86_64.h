@@ -517,6 +517,7 @@ class X86_64Assembler FINAL : public Assembler {
 
   X86_64Assembler* lock();
   void cmpxchgl(const Address& address, CpuRegister reg);
+  void cmpxchgq(const Address& address, CpuRegister reg);
 
   void mfence();
 
@@ -537,6 +538,10 @@ class X86_64Assembler FINAL : public Assembler {
 
   void LockCmpxchgl(const Address& address, CpuRegister reg) {
     lock()->cmpxchgl(address, reg);
+  }
+
+  void LockCmpxchgq(const Address& address, CpuRegister reg) {
+    lock()->cmpxchgq(address, reg);
   }
 
   //
