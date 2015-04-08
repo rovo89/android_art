@@ -3388,7 +3388,13 @@ void LocationsBuilderX86::VisitArraySet(HArraySet* instruction) {
       // Ensure the value is in a byte register.
       locations->SetInAt(2, Location::ByteRegisterOrConstant(EAX, instruction->InputAt(2)));
     } else {
-      locations->SetInAt(2, Location::RegisterOrConstant(instruction->InputAt(2)));
+      bool is_fp_type = (value_type == Primitive::kPrimFloat)
+          || (value_type == Primitive::kPrimDouble);
+      if (is_fp_type) {
+        locations->SetInAt(2, Location::RequiresFpuRegister());
+      } else {
+        locations->SetInAt(2, Location::RegisterOrConstant(instruction->InputAt(2)));
+      }
     }
     // Temporary registers for the write barrier.
     if (needs_write_barrier) {
