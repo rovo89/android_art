@@ -403,13 +403,6 @@ class SuspendCheckElimination : public PassME {
     DCHECK(bb != nullptr);
     return c_unit->mir_graph->EliminateSuspendChecks(bb);
   }
-
-  void End(PassDataHolder* data) const {
-    DCHECK(data != nullptr);
-    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
-    DCHECK(c_unit != nullptr);
-    c_unit->mir_graph->EliminateSuspendChecksEnd();
-  }
 };
 
 }  // namespace art

@@ -1517,7 +1517,7 @@ void MIRGraph::InlineSpecialMethods(BasicBlock* bb) {
       continue;
     }
     const MirMethodLoweringInfo& method_info = GetMethodLoweringInfo(mir);
-    if (!method_info.FastPath()) {
+    if (!method_info.FastPath() || !method_info.IsSpecial()) {
       continue;
     }
 
@@ -1659,10 +1659,6 @@ bool MIRGraph::EliminateSuspendChecksGate() {
       !HasInvokes()) {               // No invokes to actually eliminate any suspend checks.
     return false;
   }
-  if (cu_->compiler_driver != nullptr && cu_->compiler_driver->GetMethodInlinerMap() != nullptr) {
-    temp_.sce.inliner =
-        cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file);
-  }
   suspend_checks_in_loops_ = arena_->AllocArray<uint32_t>(GetNumBlocks(), kArenaAllocMisc);
   return true;
 }
@@ -1680,9 +1676,9 @@ bool MIRGraph::EliminateSuspendChecks(BasicBlock* bb) {
   uint32_t suspend_checks_in_loops = (1u << bb->nesting_depth) - 1u;  // Start with all loop heads.
   bool found_invoke = false;
   for (MIR* mir = bb->first_mir_insn; mir != nullptr; mir = mir->next) {
-    if (IsInstructionInvoke(mir->dalvikInsn.opcode) &&
-        (temp_.sce.inliner == nullptr ||
-         !temp_.sce.inliner->IsIntrinsic(mir->dalvikInsn.vB, nullptr))) {
+    if ((IsInstructionInvoke(mir->dalvikInsn.opcode) ||
+        IsInstructionQuickInvoke(mir->dalvikInsn.opcode)) &&
+        !GetMethodLoweringInfo(mir).IsIntrinsic()) {
       // Non-intrinsic invoke, rely on a suspend point in the invoked method.
       found_invoke = true;
       break;
@@ -1743,10 +1739,6 @@ bool MIRGraph::EliminateSuspendChecks(BasicBlock* bb) {
     std::swap(bb->fall_through, bb->taken);  // The fall-through has become taken.
   }
   return true;
-}
-
-void MIRGraph::EliminateSuspendChecksEnd() {
-  temp_.sce.inliner = nullptr;
 }
 
 bool MIRGraph::CanThrow(MIR* mir) const {

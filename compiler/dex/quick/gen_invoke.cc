@@ -1435,10 +1435,12 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
 
 void Mir2Lir::GenInvoke(CallInfo* info) {
   DCHECK(cu_->compiler_driver->GetMethodInlinerMap() != nullptr);
-  const DexFile* dex_file = info->method_ref.dex_file;
-  if (cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(dex_file)
-      ->GenIntrinsic(this, info)) {
-    return;
+  if (mir_graph_->GetMethodLoweringInfo(info->mir).IsIntrinsic()) {
+    const DexFile* dex_file = info->method_ref.dex_file;
+    auto* inliner = cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(dex_file);
+    if (inliner->GenIntrinsic(this, info)) {
+      return;
+    }
   }
   GenInvokeNoInline(info);
 }
