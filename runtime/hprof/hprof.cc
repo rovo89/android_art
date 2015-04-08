@@ -949,6 +949,10 @@ void Hprof::DumpHeapObject(mirror::Object* obj) {
 }
 
 void Hprof::DumpHeapClass(mirror::Class* klass) {
+  if (!klass->IsLoaded() && !klass->IsErroneous()) {
+    // Class is allocated but not yet loaded: we cannot access its fields or super class.
+    return;
+  }
   size_t sFieldCount = klass->NumStaticFields();
   if (sFieldCount != 0) {
     int byteLength = sFieldCount * sizeof(JValue);  // TODO bogus; fields are packed
