@@ -474,7 +474,6 @@ class SuspendCheckEliminationTest : public MirOptimizationTest {
     for (BasicBlock* bb = iterator.Next(change); bb != nullptr; bb = iterator.Next(change)) {
       change = cu_.mir_graph->EliminateSuspendChecks(bb);
     }
-    cu_.mir_graph->EliminateSuspendChecksEnd();
   }
 
   SuspendCheckEliminationTest()
