@@ -1853,10 +1853,21 @@ X86_64Assembler* X86_64Assembler::lock() {
 
 void X86_64Assembler::cmpxchgl(const Address& address, CpuRegister reg) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOptionalRex32(reg, address);
   EmitUint8(0x0F);
   EmitUint8(0xB1);
   EmitOperand(reg.LowBits(), address);
 }
+
+
+void X86_64Assembler::cmpxchgq(const Address& address, CpuRegister reg) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(reg, address);
+  EmitUint8(0x0F);
+  EmitUint8(0xB1);
+  EmitOperand(reg.LowBits(), address);
+}
+
 
 void X86_64Assembler::mfence() {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);

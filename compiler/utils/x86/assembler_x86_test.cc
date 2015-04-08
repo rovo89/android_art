@@ -127,4 +127,49 @@ TEST_F(AssemblerX86Test, LoadLongConstant) {
   DriverStr(expected, "LoadLongConstant");
 }
 
+TEST_F(AssemblerX86Test, LockCmpxchgl) {
+  GetAssembler()->LockCmpxchgl(x86::Address(
+        x86::Register(x86::EDI), x86::Register(x86::EBX), x86::TIMES_4, 12),
+      x86::Register(x86::ESI));
+  GetAssembler()->LockCmpxchgl(x86::Address(
+        x86::Register(x86::EDI), x86::Register(x86::ESI), x86::TIMES_4, 12),
+      x86::Register(x86::ESI));
+  GetAssembler()->LockCmpxchgl(x86::Address(
+        x86::Register(x86::EDI), x86::Register(x86::ESI), x86::TIMES_4, 12),
+      x86::Register(x86::EDI));
+  GetAssembler()->LockCmpxchgl(x86::Address(
+      x86::Register(x86::EBP), 0), x86::Register(x86::ESI));
+  GetAssembler()->LockCmpxchgl(x86::Address(
+        x86::Register(x86::EBP), x86::Register(x86::ESI), x86::TIMES_1, 0),
+      x86::Register(x86::ESI));
+  const char* expected =
+    "lock cmpxchgl %ESI, 0xc(%EDI,%EBX,4)\n"
+    "lock cmpxchgl %ESI, 0xc(%EDI,%ESI,4)\n"
+    "lock cmpxchgl %EDI, 0xc(%EDI,%ESI,4)\n"
+    "lock cmpxchgl %ESI, (%EBP)\n"
+    "lock cmpxchgl %ESI, (%EBP,%ESI,1)\n";
+
+  DriverStr(expected, "lock_cmpxchgl");
+}
+
+TEST_F(AssemblerX86Test, LockCmpxchg8b) {
+  GetAssembler()->LockCmpxchg8b(x86::Address(
+      x86::Register(x86::EDI), x86::Register(x86::EBX), x86::TIMES_4, 12));
+  GetAssembler()->LockCmpxchg8b(x86::Address(
+      x86::Register(x86::EDI), x86::Register(x86::ESI), x86::TIMES_4, 12));
+  GetAssembler()->LockCmpxchg8b(x86::Address(
+      x86::Register(x86::EDI), x86::Register(x86::ESI), x86::TIMES_4, 12));
+  GetAssembler()->LockCmpxchg8b(x86::Address(x86::Register(x86::EBP), 0));
+  GetAssembler()->LockCmpxchg8b(x86::Address(
+      x86::Register(x86::EBP), x86::Register(x86::ESI), x86::TIMES_1, 0));
+  const char* expected =
+    "lock cmpxchg8b 0xc(%EDI,%EBX,4)\n"
+    "lock cmpxchg8b 0xc(%EDI,%ESI,4)\n"
+    "lock cmpxchg8b 0xc(%EDI,%ESI,4)\n"
+    "lock cmpxchg8b (%EBP)\n"
+    "lock cmpxchg8b (%EBP,%ESI,1)\n";
+
+  DriverStr(expected, "lock_cmpxchg8b");
+}
+
 }  // namespace art
