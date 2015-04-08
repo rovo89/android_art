@@ -104,6 +104,16 @@ public class Main {
     if (!unsafe.compareAndSwapInt(t, intOffset, 0, 1)) {
         System.out.println("Unexpectedly not succeeding compareAndSwap...");
     }
+
+    if (unsafe.compareAndSwapLong(t, longOffset, 0, 1)) {
+        System.out.println("Unexpectedly succeeding compareAndSwapLong...");
+    }
+    if (!unsafe.compareAndSwapLong(t, longOffset, longValue, 0)) {
+        System.out.println("Unexpectedly not succeeding compareAndSwapLong...");
+    }
+    if (!unsafe.compareAndSwapLong(t, longOffset, 0, 1)) {
+        System.out.println("Unexpectedly not succeeding compareAndSwapLong...");
+    }
   }
 
   private static class TestClass {
