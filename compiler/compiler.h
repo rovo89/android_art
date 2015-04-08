@@ -107,6 +107,9 @@ class Compiler {
     return driver_;
   }
 
+  // Whether to produce 64-bit ELF files for 64-bit targets. Leave this off for now.
+  static constexpr bool kProduce64BitELFFiles = false;
+
  private:
   CompilerDriver* const driver_;
   const uint64_t maximum_compilation_time_before_warning_;
