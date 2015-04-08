@@ -65,6 +65,11 @@ class DexFileMethodInliner {
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(lock_);
 
     /**
+     * Check whether a particular method index corresponds to an intrinsic or special function.
+     */
+    InlineMethodFlags IsIntrinsicOrSpecial(uint32_t method_index) LOCKS_EXCLUDED(lock_);
+
+    /**
      * Check whether a particular method index corresponds to an intrinsic function.
      */
     bool IsIntrinsic(uint32_t method_index, InlineMethod* intrinsic) LOCKS_EXCLUDED(lock_);
