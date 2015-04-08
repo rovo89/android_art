@@ -127,6 +127,14 @@ class MirMethodLoweringInfo : public MirMethodInfo {
     return (flags_ & kFlagFastPath) != 0u;
   }
 
+  bool IsIntrinsic() const {
+    return (flags_ & kFlagIsIntrinsic) != 0u;
+  }
+
+  bool IsSpecial() const {
+    return (flags_ & kFlagIsSpecial) != 0u;
+  }
+
   bool IsReferrersClass() const {
     return (flags_ & kFlagIsReferrersClass) != 0;
   }
@@ -188,9 +196,11 @@ class MirMethodLoweringInfo : public MirMethodInfo {
  private:
   enum {
     kBitFastPath = kMethodInfoBitEnd,
+    kBitIsIntrinsic,
+    kBitIsSpecial,
     kBitInvokeTypeBegin,
     kBitInvokeTypeEnd = kBitInvokeTypeBegin + 3,  // 3 bits for invoke type.
-    kBitSharpTypeBegin,
+    kBitSharpTypeBegin = kBitInvokeTypeEnd,
     kBitSharpTypeEnd = kBitSharpTypeBegin + 3,  // 3 bits for sharp type.
     kBitIsReferrersClass = kBitSharpTypeEnd,
     kBitClassIsInitialized,
@@ -199,6 +209,8 @@ class MirMethodLoweringInfo : public MirMethodInfo {
   };
   static_assert(kMethodLoweringInfoBitEnd <= 16, "Too many flags");
   static constexpr uint16_t kFlagFastPath = 1u << kBitFastPath;
+  static constexpr uint16_t kFlagIsIntrinsic = 1u << kBitIsIntrinsic;
+  static constexpr uint16_t kFlagIsSpecial = 1u << kBitIsSpecial;
   static constexpr uint16_t kFlagIsReferrersClass = 1u << kBitIsReferrersClass;
   static constexpr uint16_t kFlagClassIsInitialized = 1u << kBitClassIsInitialized;
   static constexpr uint16_t kFlagQuickened = 1u << kBitQuickened;
