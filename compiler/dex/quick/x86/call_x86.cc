@@ -184,8 +184,7 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
   }
 
   /* Build frame, return address already on stack */
-  stack_decrement_ = OpRegImm(kOpSub, rs_rSP, frame_size_ -
-                              GetInstructionSetPointerSize(cu_->instruction_set));
+  OpRegImm(kOpSub, rs_rSP, frame_size_ - GetInstructionSetPointerSize(cu_->instruction_set));
 
   /* Spill core callee saves */
   SpillCoreRegs();
@@ -263,8 +262,8 @@ void X86Mir2Lir::GenExitSequence() {
   UnSpillFPRegs();
   /* Remove frame except for return address */
   const RegStorage rs_rSP = cu_->target64 ? rs_rX86_SP_64 : rs_rX86_SP_32;
-  stack_increment_ = OpRegImm(kOpAdd, rs_rSP,
-                              frame_size_ - GetInstructionSetPointerSize(cu_->instruction_set));
+  int adjust = frame_size_ - GetInstructionSetPointerSize(cu_->instruction_set);
+  OpRegImm(kOpAdd, rs_rSP, adjust);
   NewLIR0(kX86Ret);
 }
 
