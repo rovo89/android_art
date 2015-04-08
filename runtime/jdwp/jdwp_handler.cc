@@ -271,7 +271,7 @@ static JdwpError VM_IDSizes(JdwpState*, Request*, ExpandBuf* pReply)
 
 static JdwpError VM_Dispose(JdwpState*, Request*, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  Dbg::Disposed();
+  Dbg::Dispose();
   return ERR_NONE;
 }
 
