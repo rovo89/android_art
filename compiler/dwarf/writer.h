@@ -116,6 +116,11 @@ class Writer {
     data_->insert(data_->end(), p, p + size);
   }
 
+  template<typename Allocator2>
+  void PushData(const std::vector<uint8_t, Allocator2>* buffer) {
+    data_->insert(data_->end(), buffer->begin(), buffer->end());
+  }
+
   void UpdateUint32(size_t offset, uint32_t value) {
     DCHECK_LT(offset + 3, data_->size());
     (*data_)[offset + 0] = (value >> 0) & 0xFF;
@@ -134,6 +139,15 @@ class Writer {
     (*data_)[offset + 5] = (value >> 40) & 0xFF;
     (*data_)[offset + 6] = (value >> 48) & 0xFF;
     (*data_)[offset + 7] = (value >> 56) & 0xFF;
+  }
+
+  void UpdateUleb128(size_t offset, uint32_t value) {
+    DCHECK_LE(offset + UnsignedLeb128Size(value), data_->size());
+    UpdateUnsignedLeb128(data_->data() + offset, value);
+  }
+
+  void Pop() {
+    return data_->pop_back();
   }
 
   void Pad(int alignment) {
