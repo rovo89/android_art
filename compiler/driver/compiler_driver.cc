@@ -2370,44 +2370,6 @@ bool CompilerDriver::WriteElf(const std::string& android_root,
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return compiler_->WriteElf(file, oat_writer, dex_files, android_root, is_host);
 }
-void CompilerDriver::InstructionSetToLLVMTarget(InstructionSet instruction_set,
-                                                std::string* target_triple,
-                                                std::string* target_cpu,
-                                                std::string* target_attr) {
-  switch (instruction_set) {
-    case kThumb2:
-      *target_triple = "thumb-none-linux-gnueabi";
-      *target_cpu = "cortex-a9";
-      *target_attr = "+thumb2,+neon,+neonfp,+vfp3,+db";
-      break;
-
-    case kArm:
-      *target_triple = "armv7-none-linux-gnueabi";
-      // TODO: Fix for Nexus S.
-      *target_cpu = "cortex-a9";
-      // TODO: Fix for Xoom.
-      *target_attr = "+v7,+neon,+neonfp,+vfp3,+db";
-      break;
-
-    case kX86:
-      *target_triple = "i386-pc-linux-gnu";
-      *target_attr = "";
-      break;
-
-    case kX86_64:
-      *target_triple = "x86_64-pc-linux-gnu";
-      *target_attr = "";
-      break;
-
-    case kMips:
-      *target_triple = "mipsel-unknown-linux";
-      *target_attr = "mips32r2";
-      break;
-
-    default:
-      LOG(FATAL) << "Unknown instruction set: " << instruction_set;
-    }
-  }
 
 bool CompilerDriver::SkipCompilation(const std::string& method_name) {
   if (!profile_present_) {
