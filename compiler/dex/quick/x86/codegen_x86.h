@@ -380,12 +380,6 @@ class X86Mir2Lir : public Mir2Lir {
    */
   void InstallLiteralPools() OVERRIDE;
 
-  /*
-   * @brief Generate the debug_frame FDE information.
-   * @returns pointer to vector containing CFE information
-   */
-  std::vector<uint8_t>* ReturnFrameDescriptionEntry() OVERRIDE;
-
   LIR* InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) OVERRIDE;
 
  protected:
@@ -957,12 +951,6 @@ class X86Mir2Lir : public Mir2Lir {
 
   // Instructions needing patching with PC relative code addresses.
   ArenaVector<LIR*> dex_cache_access_insns_;
-
-  // Prologue decrement of stack pointer.
-  LIR* stack_decrement_;
-
-  // Epilogue increment of stack pointer.
-  LIR* stack_increment_;
 
   // The list of const vector literals.
   LIR* const_vectors_;
