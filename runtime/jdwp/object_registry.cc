@@ -36,17 +36,45 @@ ObjectRegistry::ObjectRegistry()
 }
 
 JDWP::RefTypeId ObjectRegistry::AddRefType(mirror::Class* c) {
-  return InternalAdd(c);
+  return Add(c);
+}
+
+JDWP::RefTypeId ObjectRegistry::AddRefType(Handle<mirror::Class> c_h) {
+  return Add(c_h);
 }
 
 JDWP::ObjectId ObjectRegistry::Add(mirror::Object* o) {
-  return InternalAdd(o);
-}
-
-JDWP::ObjectId ObjectRegistry::InternalAdd(mirror::Object* o) {
   if (o == nullptr) {
     return 0;
   }
+  Thread* const self = Thread::Current();
+  StackHandleScope<1> hs(self);
+  return InternalAdd(hs.NewHandle(o));
+}
+
+// Template instantiations must be declared below.
+template<class T>
+JDWP::ObjectId ObjectRegistry::Add(Handle<T> obj_h) {
+  if (obj_h.Get() == nullptr) {
+    return 0;
+  }
+  return InternalAdd(obj_h);
+}
+
+// Explicit template instantiation.
+template
+SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::thread_suspend_count_lock_)
+JDWP::ObjectId ObjectRegistry::Add(Handle<mirror::Object> obj_h);
+
+template
+SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::thread_suspend_count_lock_)
+JDWP::ObjectId ObjectRegistry::Add(Handle<mirror::Throwable> obj_h);
+
+template<class T>
+JDWP::ObjectId ObjectRegistry::InternalAdd(Handle<T> obj_h) {
+  CHECK(obj_h.Get() != nullptr);
 
   Thread* const self = Thread::Current();
   self->AssertNoPendingException();
@@ -54,9 +82,6 @@ JDWP::ObjectId ObjectRegistry::InternalAdd(mirror::Object* o) {
   // hold them.
   Locks::thread_list_lock_->AssertNotHeld(self);
   Locks::thread_suspend_count_lock_->AssertNotHeld(self);
-
-  StackHandleScope<1> hs(self);
-  Handle<mirror::Object> obj_h(hs.NewHandle(o));
 
   // Call IdentityHashCode here to avoid a lock level violation between lock_ and monitor_lock.
   int32_t identity_hash_code = obj_h->IdentityHashCode();
