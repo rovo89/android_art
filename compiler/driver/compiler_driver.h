@@ -385,12 +385,6 @@ class CompilerDriver {
                 OatWriter* oat_writer,
                 File* file);
 
-  // TODO: move to a common home for llvm helpers once quick/portable are merged.
-  static void InstructionSetToLLVMTarget(InstructionSet instruction_set,
-                                         std::string* target_triple,
-                                         std::string* target_cpu,
-                                         std::string* target_attr);
-
   void SetCompilerContext(void* compiler_context) {
     compiler_context_ = compiler_context;
   }

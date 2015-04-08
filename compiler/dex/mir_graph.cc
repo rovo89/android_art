@@ -1609,8 +1609,8 @@ void MIRGraph::ReplaceSpecialChars(std::string& str) {
 }
 
 std::string MIRGraph::GetSSAName(int ssa_reg) {
-  // TODO: This value is needed for LLVM and debugging. Currently, we compute this and then copy to
-  //       the arena. We should be smarter and just place straight into the arena, or compute the
+  // TODO: This value is needed for debugging. Currently, we compute this and then copy to the
+  //       arena. We should be smarter and just place straight into the arena, or compute the
   //       value more lazily.
   int vreg = SRegToVReg(ssa_reg);
   if (vreg >= static_cast<int>(GetFirstTempVR())) {
