@@ -307,7 +307,6 @@ static JDWP::JdwpOptions gJdwpOptions;
 // Runtime JDWP state.
 static JDWP::JdwpState* gJdwpState = nullptr;
 static bool gDebuggerConnected;  // debugger or DDMS is connected.
-static bool gDisposed;           // debugger called VirtualMachine.Dispose, so we should drop the connection.
 
 static bool gDdmThreadNotification = false;
 
@@ -319,6 +318,7 @@ static Dbg::HpsgWhen gDdmNhsgWhen = Dbg::HPSG_WHEN_NEVER;
 static Dbg::HpsgWhat gDdmNhsgWhat;
 
 bool Dbg::gDebuggerActive = false;
+bool Dbg::gDisposed = false;
 ObjectRegistry* Dbg::gRegistry = nullptr;
 
 // Recent allocation tracking.
@@ -551,7 +551,7 @@ void Dbg::StopJdwp() {
     gJdwpState->PostVMDeath();
   }
   // Prevent the JDWP thread from processing JDWP incoming packets after we close the connection.
-  Disposed();
+  Dispose();
   delete gJdwpState;
   gJdwpState = nullptr;
   delete gRegistry;
@@ -597,14 +597,6 @@ void Dbg::Connected() {
   VLOG(jdwp) << "JDWP has attached";
   gDebuggerConnected = true;
   gDisposed = false;
-}
-
-void Dbg::Disposed() {
-  gDisposed = true;
-}
-
-bool Dbg::IsDisposed() {
-  return gDisposed;
 }
 
 bool Dbg::RequiresDeoptimization() {

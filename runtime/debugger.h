@@ -239,7 +239,9 @@ class Dbg {
   static void GoActive()
       LOCKS_EXCLUDED(Locks::breakpoint_lock_, Locks::deoptimization_lock_, Locks::mutator_lock_);
   static void Disconnected() LOCKS_EXCLUDED(Locks::deoptimization_lock_, Locks::mutator_lock_);
-  static void Disposed();
+  static void Dispose() {
+    gDisposed = true;
+  }
 
   // Returns true if we're actually debugging with a real debugger, false if it's
   // just DDMS (or nothing at all).
@@ -255,9 +257,12 @@ class Dbg {
 
   // Returns true if a method has any breakpoints.
   static bool MethodHasAnyBreakpoints(mirror::ArtMethod* method)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(Locks::breakpoint_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::breakpoint_lock_);
 
-  static bool IsDisposed();
+  static bool IsDisposed() {
+    return gDisposed;
+  }
 
   /*
    * Time, in milliseconds, since the last debugger activity.  Does not
@@ -755,6 +760,10 @@ class Dbg {
 
   // Indicates whether the debugger is making requests.
   static bool gDebuggerActive;
+
+  // Indicates whether we should drop the JDWP connection because the runtime stops or the
+  // debugger called VirtualMachine.Dispose.
+  static bool gDisposed;
 
   // The registry mapping objects to JDWP ids.
   static ObjectRegistry* gRegistry;
