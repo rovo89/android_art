@@ -28,7 +28,7 @@
 
 namespace art {
 
-class X86Mir2Lir : public Mir2Lir {
+class X86Mir2Lir FINAL : public Mir2Lir {
  protected:
   class InToRegStorageX86_64Mapper : public InToRegStorageMapper {
    public:
@@ -375,6 +375,10 @@ class X86Mir2Lir : public Mir2Lir {
    */
   LIR* GenCallInsn(const MirMethodLoweringInfo& method_info) OVERRIDE;
 
+  void AnalyzeMIR(RefCounts* core_counts, MIR* mir, uint32_t weight) OVERRIDE;
+  void CountRefs(RefCounts* core_counts, RefCounts* fp_counts, size_t num_regs) OVERRIDE;
+  void DoPromotion() OVERRIDE;
+
   /*
    * @brief Handle x86 specific literals
    */
@@ -488,7 +492,6 @@ class X86Mir2Lir : public Mir2Lir {
   void EmitCallThread(const X86EncodingMap* entry, int32_t disp);
   void EmitPcRel(const X86EncodingMap* entry, int32_t raw_reg, int32_t raw_base_or_table,
                  int32_t raw_index, int scale, int32_t table_or_disp);
-  void EmitMacro(const X86EncodingMap* entry, int32_t raw_reg, int32_t offset);
   void EmitUnimplemented(const X86EncodingMap* entry, LIR* lir);
   void GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1,
                                 int64_t val, ConditionCode ccode);
@@ -859,12 +862,6 @@ class X86Mir2Lir : public Mir2Lir {
   void SpillFPRegs();
 
   /*
-   * @brief Perform MIR analysis before compiling method.
-   * @note Invokes Mir2LiR::Materialize after analysis.
-   */
-  void Materialize();
-
-  /*
    * Mir2Lir's UpdateLoc() looks to see if the Dalvik value is currently live in any temp register
    * without regard to data type.  In practice, this can result in UpdateLoc returning a
    * location record for a Dalvik float value in a core register, and vis-versa.  For targets
@@ -878,67 +875,39 @@ class X86Mir2Lir : public Mir2Lir {
   RegLocation UpdateLocWideTyped(RegLocation loc);
 
   /*
-   * @brief Analyze MIR before generating code, to prepare for the code generation.
-   */
-  void AnalyzeMIR();
-
-  /*
-   * @brief Analyze one basic block.
-   * @param bb Basic block to analyze.
-   */
-  void AnalyzeBB(BasicBlock* bb);
-
-  /*
-   * @brief Analyze one extended MIR instruction
-   * @param opcode MIR instruction opcode.
-   * @param bb Basic block containing instruction.
-   * @param mir Extended instruction to analyze.
-   */
-  void AnalyzeExtendedMIR(int opcode, BasicBlock* bb, MIR* mir);
-
-  /*
-   * @brief Analyze one MIR instruction
-   * @param opcode MIR instruction opcode.
-   * @param bb Basic block containing instruction.
-   * @param mir Instruction to analyze.
-   */
-  virtual void AnalyzeMIR(int opcode, BasicBlock* bb, MIR* mir);
-
-  /*
    * @brief Analyze one MIR float/double instruction
    * @param opcode MIR instruction opcode.
-   * @param bb Basic block containing instruction.
    * @param mir Instruction to analyze.
+   * @return true iff the instruction needs to load a literal using PC-relative addressing.
    */
-  virtual void AnalyzeFPInstruction(int opcode, BasicBlock* bb, MIR* mir);
+  bool AnalyzeFPInstruction(int opcode, MIR* mir);
 
   /*
    * @brief Analyze one use of a double operand.
    * @param rl_use Double RegLocation for the operand.
+   * @return true iff the instruction needs to load a literal using PC-relative addressing.
    */
-  void AnalyzeDoubleUse(RegLocation rl_use);
+  bool AnalyzeDoubleUse(RegLocation rl_use);
 
   /*
    * @brief Analyze one invoke-static MIR instruction
-   * @param opcode MIR instruction opcode.
-   * @param bb Basic block containing instruction.
    * @param mir Instruction to analyze.
+   * @return true iff the instruction needs to load a literal using PC-relative addressing.
    */
-  void AnalyzeInvokeStatic(int opcode, BasicBlock* bb, MIR* mir);
+  bool AnalyzeInvokeStaticIntrinsic(MIR* mir);
 
   // Information derived from analysis of MIR
 
-  // The compiler temporary for the code address of the method.
-  CompilerTemp *base_of_code_;
+  // The base register for PC-relative addressing if promoted (32-bit only).
+  RegStorage pc_rel_base_reg_;
 
-  // Have we decided to compute a ptr to code and store in temporary VR?
-  bool store_method_addr_;
+  // Have we actually used the pc_rel_base_reg_?
+  bool pc_rel_base_reg_used_;
 
-  // Have we used the stored method address?
-  bool store_method_addr_used_;
-
-  // Instructions to remove if we didn't use the stored method address.
-  LIR* setup_method_address_[2];
+  // Pointer to the "call +0" insn that sets up the promoted register for PC-relative addressing.
+  // The anchor "pop" insn is NEXT_LIR(setup_pc_rel_base_reg_). The whole "call +0; pop <reg>"
+  // sequence will be removed in AssembleLIR() if we do not actually use PC-relative addressing.
+  LIR* setup_pc_rel_base_reg_;  // There are 2 chained insns (no reordering allowed).
 
   // Instructions needing patching with Method* values.
   ArenaVector<LIR*> method_address_insns_;
@@ -991,6 +960,14 @@ class X86Mir2Lir : public Mir2Lir {
                                uint32_t,
                                uintptr_t direct_code, uintptr_t direct_method,
                                InvokeType type);
+
+  LIR* OpLoadPc(RegStorage r_dest);
+  RegStorage GetPcAndAnchor(LIR** anchor, RegStorage r_tmp = RegStorage::InvalidReg());
+
+  // When we don't know the proper offset for the value, pick one that will force
+  // 4 byte offset.  We will fix this up in the assembler or linker later to have
+  // the right value.
+  static constexpr int kDummy32BitOffset = 256;
 
   static const X86EncodingMap EncodingMap[kX86Last];
 

@@ -541,13 +541,11 @@ void Mir2Lir::InstallSwitchTables() {
         DCHECK(tab_rec->anchor->flags.fixup != kFixupNone);
         bx_offset = tab_rec->anchor->offset + 4;
         break;
-      case kX86:
-        bx_offset = 0;
-        break;
       case kX86_64:
         // RIP relative to switch table.
         bx_offset = tab_rec->offset;
         break;
+      case kX86:
       case kArm64:
       case kMips:
       case kMips64:

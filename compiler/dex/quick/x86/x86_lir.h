@@ -635,8 +635,6 @@ enum X86OpCode {
   kX86CallT,            // call fs:[disp]; fs: is equal to Thread::Current(); lir operands - 0: disp
   kX86CallI,            // call <relative> - 0: disp; Used for core.oat linking only
   kX86Ret,              // ret; no lir operands
-  kX86StartOfMethod,    // call 0; pop reg; sub reg, # - generate start of method into reg
-                        // lir operands - 0: reg
   kX86PcRelLoadRA,      // mov reg, [base + index * scale + PC relative displacement]
                         // lir operands - 0: reg, 1: base, 2: index, 3: scale, 4: table
   kX86PcRelAdr,         // mov reg, PC relative displacement; lir operands - 0: reg, 1: table
@@ -670,7 +668,6 @@ enum X86EncodingKind {
   kRegMemCond,                             // RM instruction kind followed by a condition.
   kJmp, kJcc, kCall,                       // Branch instruction kinds.
   kPcRel,                                  // Operation with displacement that is PC relative
-  kMacro,                                  // An instruction composing multiple others
   kUnimplemented                           // Encoding used when an instruction isn't yet implemented.
 };
 

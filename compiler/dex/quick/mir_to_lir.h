@@ -635,7 +635,7 @@ class Mir2Lir {
     RegisterClass ShortyToRegClass(char shorty_type);
     RegisterClass LocToRegClass(RegLocation loc);
     int ComputeFrameSize();
-    virtual void Materialize();
+    void Materialize();
     virtual CompiledMethod* GetCompiledMethod();
     void MarkSafepointPC(LIR* inst);
     void MarkSafepointPCAfter(LIR* after);
@@ -776,7 +776,7 @@ class Mir2Lir {
      */
     virtual RegLocation EvalLoc(RegLocation loc, int reg_class, bool update);
 
-    void AnalyzeMIR(RefCounts* core_counts, MIR* mir, uint32_t weight);
+    virtual void AnalyzeMIR(RefCounts* core_counts, MIR* mir, uint32_t weight);
     virtual void CountRefs(RefCounts* core_counts, RefCounts* fp_counts, size_t num_regs);
     void DumpCounts(const RefCounts* arr, int size, const char* msg);
     virtual void DoPromotion();
