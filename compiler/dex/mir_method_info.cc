@@ -16,6 +16,8 @@
 
 # include "mir_method_info.h"
 
+#include "dex/quick/dex_file_method_inliner.h"
+#include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/verified_method.h"
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
@@ -64,6 +66,9 @@ void MirMethodLoweringInfo::Resolve(CompilerDriver* compiler_driver,
   const DexFile* const dex_file = mUnit->GetDexFile();
   const bool use_jit = runtime->UseJit();
   const VerifiedMethod* const verified_method = mUnit->GetVerifiedMethod();
+  DexFileToMethodInlinerMap* inliner_map = compiler_driver->GetMethodInlinerMap();
+  DexFileMethodInliner* default_inliner =
+      (inliner_map != nullptr) ? inliner_map->GetMethodInliner(dex_file) : nullptr;
 
   for (auto it = method_infos, end = method_infos + count; it != end; ++it) {
     // For quickened invokes, the dex method idx is actually the mir offset.
@@ -122,6 +127,7 @@ void MirMethodLoweringInfo::Resolve(CompilerDriver* compiler_driver,
     if (UNLIKELY(resolved_method == nullptr)) {
       continue;
     }
+
     compiler_driver->GetResolvedMethodDexFileLocation(resolved_method,
         &it->declaring_dex_file_, &it->declaring_class_idx_, &it->declaring_method_idx_);
     if (!it->IsQuickened()) {
@@ -133,6 +139,7 @@ void MirMethodLoweringInfo::Resolve(CompilerDriver* compiler_driver,
       it->vtable_idx_ =
           compiler_driver->GetResolvedMethodVTableIndex(resolved_method, invoke_type);
     }
+
     MethodReference target_method(it->target_dex_file_, it->target_method_idx_);
     int fast_path_flags = compiler_driver->IsFastInvoke(
         soa, current_dex_cache, class_loader, mUnit, referrer_class.Get(), resolved_method,
@@ -140,10 +147,23 @@ void MirMethodLoweringInfo::Resolve(CompilerDriver* compiler_driver,
     const bool is_referrers_class = referrer_class.Get() == resolved_method->GetDeclaringClass();
     const bool is_class_initialized =
         compiler_driver->IsMethodsClassInitialized(referrer_class.Get(), resolved_method);
+
+    // Check if the target method is intrinsic or special.
+    InlineMethodFlags is_intrinsic_or_special = kNoInlineMethodFlags;
+    if (inliner_map != nullptr) {
+      auto* inliner = (target_method.dex_file == dex_file)
+          ? default_inliner
+          : inliner_map->GetMethodInliner(target_method.dex_file);
+      is_intrinsic_or_special = inliner->IsIntrinsicOrSpecial(target_method.dex_method_index);
+    }
+
     uint16_t other_flags = it->flags_ &
-        ~(kFlagFastPath | kFlagClassIsInitialized | (kInvokeTypeMask << kBitSharpTypeBegin));
+        ~(kFlagFastPath | kFlagIsIntrinsic | kFlagIsSpecial | kFlagClassIsInitialized |
+            (kInvokeTypeMask << kBitSharpTypeBegin));
     it->flags_ = other_flags |
         (fast_path_flags != 0 ? kFlagFastPath : 0u) |
+        ((is_intrinsic_or_special & kInlineIntrinsic) != 0 ? kFlagIsIntrinsic : 0u) |
+        ((is_intrinsic_or_special & kInlineSpecial) != 0 ? kFlagIsSpecial : 0u) |
         (static_cast<uint16_t>(invoke_type) << kBitSharpTypeBegin) |
         (is_referrers_class ? kFlagIsReferrersClass : 0u) |
         (is_class_initialized ? kFlagClassIsInitialized : 0u);

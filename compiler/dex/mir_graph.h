@@ -1085,7 +1085,6 @@ class MIRGraph {
   void EliminateDeadCodeEnd();
   bool EliminateSuspendChecksGate();
   bool EliminateSuspendChecks(BasicBlock* bb);
-  void EliminateSuspendChecksEnd();
 
   uint16_t GetGvnIFieldId(MIR* mir) const {
     DCHECK(IsInstructionIGetOrIPut(mir->dalvikInsn.opcode));
@@ -1408,10 +1407,6 @@ class MIRGraph {
       uint16_t* sfield_ids;  // Ditto.
       GvnDeadCodeElimination* dce;
     } gvn;
-    // Suspend check elimination.
-    struct {
-      DexFileMethodInliner* inliner;
-    } sce;
   } temp_;
   static const int kInvalidEntry = -1;
   ArenaVector<BasicBlock*> block_list_;

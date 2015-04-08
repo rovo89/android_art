@@ -1156,7 +1156,7 @@ void Mir2Lir::AnalyzeMIR(RefCounts* core_counts, MIR* mir, uint32_t weight) {
               mir_graph_->GetCurrentDexCompilationUnit(), mir->offset)) {
         break;  // No code generated.
       }
-      if (!needs_access_check && !use_declaring_class && pc_rel_temp_ != nullptr) {
+      if (!needs_access_check && !use_declaring_class && CanUseOpPcRelDexCacheArrayLoad()) {
         uses_pc_rel_load = true;  // And ignore method use in slow path.
         dex_cache_array_offset = dex_cache_arrays_layout_.TypeOffset(type_idx);
       } else {
@@ -1166,7 +1166,7 @@ void Mir2Lir::AnalyzeMIR(RefCounts* core_counts, MIR* mir, uint32_t weight) {
     }
 
     case Instruction::CONST_CLASS:
-      if (pc_rel_temp_ != nullptr &&
+      if (CanUseOpPcRelDexCacheArrayLoad() &&
           cu_->compiler_driver->CanAccessTypeWithoutChecks(cu_->method_idx, *cu_->dex_file,
                                                            mir->dalvikInsn.vB)) {
         uses_pc_rel_load = true;  // And ignore method use in slow path.
@@ -1178,7 +1178,7 @@ void Mir2Lir::AnalyzeMIR(RefCounts* core_counts, MIR* mir, uint32_t weight) {
 
     case Instruction::CONST_STRING:
     case Instruction::CONST_STRING_JUMBO:
-      if (pc_rel_temp_ != nullptr) {
+      if (CanUseOpPcRelDexCacheArrayLoad()) {
         uses_pc_rel_load = true;  // And ignore method use in slow path.
         dex_cache_array_offset = dex_cache_arrays_layout_.StringOffset(mir->dalvikInsn.vB);
       } else {
@@ -1200,11 +1200,13 @@ void Mir2Lir::AnalyzeMIR(RefCounts* core_counts, MIR* mir, uint32_t weight) {
     case Instruction::INVOKE_VIRTUAL_RANGE_QUICK: {
       const MirMethodLoweringInfo& info = mir_graph_->GetMethodLoweringInfo(mir);
       InvokeType sharp_type = info.GetSharpType();
-      if (!info.FastPath() || (sharp_type != kStatic && sharp_type != kDirect)) {
+      if (info.IsIntrinsic()) {
+        // Nothing to do, if an intrinsic uses ArtMethod* it's in the slow-path - don't count it.
+      } else if (!info.FastPath() || (sharp_type != kStatic && sharp_type != kDirect)) {
         // Nothing to do, the generated code or entrypoint uses method from the stack.
       } else if (info.DirectCode() != 0 && info.DirectMethod() != 0) {
         // Nothing to do, the generated code uses method from the stack.
-      } else if (pc_rel_temp_ != nullptr) {
+      } else if (CanUseOpPcRelDexCacheArrayLoad()) {
         uses_pc_rel_load = true;
         dex_cache_array_offset = dex_cache_arrays_layout_.MethodOffset(mir->dalvikInsn.vB);
       } else {
@@ -1245,7 +1247,7 @@ void Mir2Lir::AnalyzeMIR(RefCounts* core_counts, MIR* mir, uint32_t weight) {
           ? field_info.FastGet()
           : field_info.FastPut();
       if (fast && (cu_->enable_debug & (1 << kDebugSlowFieldPath)) == 0) {
-        if (!field_info.IsReferrersClass() && pc_rel_temp_ != nullptr) {
+        if (!field_info.IsReferrersClass() && CanUseOpPcRelDexCacheArrayLoad()) {
           uses_pc_rel_load = true;  // And ignore method use in slow path.
           dex_cache_array_offset = dex_cache_arrays_layout_.TypeOffset(field_info.StorageIndex());
         } else {
@@ -1264,9 +1266,13 @@ void Mir2Lir::AnalyzeMIR(RefCounts* core_counts, MIR* mir, uint32_t weight) {
     core_counts[SRegToPMap(mir_graph_->GetMethodLoc().s_reg_low)].count += weight;
   }
   if (uses_pc_rel_load) {
-    core_counts[SRegToPMap(pc_rel_temp_->s_reg_low)].count += weight;
-    DCHECK_NE(dex_cache_array_offset, std::numeric_limits<uint32_t>::max());
-    dex_cache_arrays_min_offset_ = std::min(dex_cache_arrays_min_offset_, dex_cache_array_offset);
+    if (pc_rel_temp_ != nullptr) {
+      core_counts[SRegToPMap(pc_rel_temp_->s_reg_low)].count += weight;
+      DCHECK_NE(dex_cache_array_offset, std::numeric_limits<uint32_t>::max());
+      dex_cache_arrays_min_offset_ = std::min(dex_cache_arrays_min_offset_, dex_cache_array_offset);
+    } else {
+      // Nothing to do, using PC-relative addressing without promoting base PC to register.
+    }
   }
 }
 
