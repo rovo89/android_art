@@ -1356,11 +1356,6 @@ bool X86Mir2Lir::GenInlinedReverseBits(CallInfo* info, OpSize size) {
   return true;
 }
 
-// When we don't know the proper offset for the value, pick one that will force
-// 4 byte offset.  We will fix this up in the assembler or linker later to have
-// the right value.
-static constexpr int kDummy32BitOffset = 256;
-
 void X86Mir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
   if (cu_->target64) {
     // We can do this directly using RIP addressing.
@@ -1371,27 +1366,48 @@ void X86Mir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
     return;
   }
 
-  CHECK(base_of_code_ != nullptr);
-
-  // Address the start of the method
-  RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
-  if (rl_method.wide) {
-    LoadValueDirectWideFixed(rl_method, reg);
-  } else {
-    LoadValueDirectFixed(rl_method, reg);
-  }
-  store_method_addr_used_ = true;
+  // Get the PC to a register and get the anchor.
+  LIR* anchor;
+  RegStorage r_pc = GetPcAndAnchor(&anchor);
 
   // Load the proper value from the literal area.
   ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
-  LIR* res = NewLIR3(kX86Mov32RM, reg.GetReg(), reg.GetReg(), kDummy32BitOffset);
+  LIR* res = NewLIR3(kX86Mov32RM, reg.GetReg(), r_pc.GetReg(), kDummy32BitOffset);
+  res->operands[4] = WrapPointer(anchor);
   res->target = target;
   res->flags.fixup = kFixupLoad;
 }
 
 bool X86Mir2Lir::CanUseOpPcRelDexCacheArrayLoad() const {
-  // TODO: Implement for 32-bit.
-  return cu_->target64 && dex_cache_arrays_layout_.Valid();
+  return dex_cache_arrays_layout_.Valid();
+}
+
+LIR* X86Mir2Lir::OpLoadPc(RegStorage r_dest) {
+  DCHECK(!cu_->target64);
+  LIR* call = NewLIR1(kX86CallI, 0);
+  call->flags.fixup = kFixupLabel;
+  LIR* pop = NewLIR1(kX86Pop32R, r_dest.GetReg());
+  pop->flags.fixup = kFixupLabel;
+  DCHECK(NEXT_LIR(call) == pop);
+  return call;
+}
+
+RegStorage X86Mir2Lir::GetPcAndAnchor(LIR** anchor, RegStorage r_tmp) {
+  if (pc_rel_base_reg_.Valid()) {
+    DCHECK(setup_pc_rel_base_reg_ != nullptr);
+    *anchor = NEXT_LIR(setup_pc_rel_base_reg_);
+    DCHECK(*anchor != nullptr);
+    DCHECK_EQ((*anchor)->opcode, kX86Pop32R);
+    pc_rel_base_reg_used_ = true;
+    return pc_rel_base_reg_;
+  } else {
+    RegStorage r_pc = r_tmp.Valid() ? r_tmp : AllocTempRef();
+    LIR* load_pc = OpLoadPc(r_pc);
+    *anchor = NEXT_LIR(load_pc);
+    DCHECK(*anchor != nullptr);
+    DCHECK_EQ((*anchor)->opcode, kX86Pop32R);
+    return r_pc;
+  }
 }
 
 void X86Mir2Lir::OpPcRelDexCacheArrayLoad(const DexFile* dex_file, int offset,
@@ -1401,11 +1417,18 @@ void X86Mir2Lir::OpPcRelDexCacheArrayLoad(const DexFile* dex_file, int offset,
     mov->flags.fixup = kFixupLabel;
     mov->operands[3] = WrapPointer(dex_file);
     mov->operands[4] = offset;
+    mov->target = mov;  // Used for pc_insn_offset (not used by x86-64 relative patcher).
     dex_cache_access_insns_.push_back(mov);
   } else {
-    // TODO: Implement for 32-bit.
-    LOG(FATAL) << "Unimplemented.";
-    UNREACHABLE();
+    // Get the PC to a register and get the anchor. Use r_dest for the temp if needed.
+    LIR* anchor;
+    RegStorage r_pc = GetPcAndAnchor(&anchor, r_dest);
+    LIR* mov = NewLIR3(kX86Mov32RM, r_dest.GetReg(), r_pc.GetReg(), kDummy32BitOffset);
+    mov->flags.fixup = kFixupLabel;
+    mov->operands[3] = WrapPointer(dex_file);
+    mov->operands[4] = offset;
+    mov->target = anchor;  // Used for pc_insn_offset.
+    dex_cache_access_insns_.push_back(mov);
   }
 }
 

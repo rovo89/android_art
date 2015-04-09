@@ -17,6 +17,7 @@
 #include "codegen_x86.h"
 
 #include "base/logging.h"
+#include "dex/mir_graph.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "dex/dataflow_iterator-inl.h"
 #include "dex/quick/dex_file_method_inliner.h"
@@ -574,7 +575,7 @@ LIR* X86Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
       DCHECK(r_dest.IsDouble());
       if (value == 0) {
         return NewLIR2(kX86XorpdRR, low_reg_val, low_reg_val);
-      } else if (base_of_code_ != nullptr || cu_->target64) {
+      } else if (pc_rel_base_reg_.Valid() || cu_->target64) {
         // We will load the value from the literal area.
         LIR* data_target = ScanLiteralPoolWide(literal_list_, val_lo, val_hi);
         if (data_target == NULL) {
@@ -589,17 +590,16 @@ LIR* X86Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
         if (cu_->target64) {
           res = NewLIR3(kX86MovsdRM, low_reg_val, kRIPReg, 256 /* bogus */);
         } else {
-          // Address the start of the method.
-          RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
-          if (rl_method.wide) {
-            rl_method = LoadValueWide(rl_method, kCoreReg);
-          } else {
-            rl_method = LoadValue(rl_method, kCoreReg);
-          }
+          // Get the PC to a register and get the anchor.
+          LIR* anchor;
+          RegStorage r_pc = GetPcAndAnchor(&anchor);
 
-          res = LoadBaseDisp(rl_method.reg, 256 /* bogus */, RegStorage::FloatSolo64(low_reg_val),
+          res = LoadBaseDisp(r_pc, kDummy32BitOffset, RegStorage::FloatSolo64(low_reg_val),
                              kDouble, kNotVolatile);
-          store_method_addr_used_ = true;
+          res->operands[4] = WrapPointer(anchor);
+          if (IsTemp(r_pc)) {
+            FreeTemp(r_pc);
+          }
         }
         res->target = data_target;
         res->flags.fixup = kFixupLoad;
@@ -954,82 +954,14 @@ LIR* X86Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg, RegS
   return branch;
 }
 
-void X86Mir2Lir::AnalyzeMIR() {
-  // Assume we don't need a pointer to the base of the code.
-  cu_->NewTimingSplit("X86 MIR Analysis");
-  store_method_addr_ = false;
-
-  // Walk the MIR looking for interesting items.
-  PreOrderDfsIterator iter(mir_graph_);
-  BasicBlock* curr_bb = iter.Next();
-  while (curr_bb != NULL) {
-    AnalyzeBB(curr_bb);
-    curr_bb = iter.Next();
-  }
-
-  // Did we need a pointer to the method code?  Not in 64 bit mode.
-  base_of_code_ = nullptr;
-
-  // store_method_addr_ must be false for x86_64, since RIP addressing is used.
-  CHECK(!(cu_->target64 && store_method_addr_));
-  if (store_method_addr_) {
-    base_of_code_ = mir_graph_->GetNewCompilerTemp(kCompilerTempBackend, false);
-    DCHECK(base_of_code_ != nullptr);
-  }
-}
-
-void X86Mir2Lir::AnalyzeBB(BasicBlock* bb) {
-  if (bb->block_type == kDead) {
-    // Ignore dead blocks
+void X86Mir2Lir::AnalyzeMIR(RefCounts* core_counts, MIR* mir, uint32_t weight) {
+  if (cu_->target64) {
+    Mir2Lir::AnalyzeMIR(core_counts, mir, weight);
     return;
   }
 
-  for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
-    int opcode = mir->dalvikInsn.opcode;
-    if (MIR::DecodedInstruction::IsPseudoMirOp(opcode)) {
-      AnalyzeExtendedMIR(opcode, bb, mir);
-    } else {
-      AnalyzeMIR(opcode, bb, mir);
-    }
-  }
-}
-
-
-void X86Mir2Lir::AnalyzeExtendedMIR(int opcode, BasicBlock* bb, MIR* mir) {
-  switch (opcode) {
-    // Instructions referencing doubles.
-    case kMirOpFusedCmplDouble:
-    case kMirOpFusedCmpgDouble:
-      AnalyzeFPInstruction(opcode, bb, mir);
-      break;
-    case kMirOpConstVector:
-      if (!cu_->target64) {
-        store_method_addr_ = true;
-      }
-      break;
-    case kMirOpPackedMultiply:
-    case kMirOpPackedShiftLeft:
-    case kMirOpPackedSignedShiftRight:
-    case kMirOpPackedUnsignedShiftRight:
-      if (!cu_->target64) {
-        // Byte emulation requires constants from the literal pool.
-        OpSize opsize = static_cast<OpSize>(mir->dalvikInsn.vC >> 16);
-        if (opsize == kSignedByte || opsize == kUnsignedByte) {
-          store_method_addr_ = true;
-        }
-      }
-      break;
-    default:
-      // Ignore the rest.
-      break;
-  }
-}
-
-void X86Mir2Lir::AnalyzeMIR(int opcode, BasicBlock* bb, MIR* mir) {
-  // Looking for
-  // - Do we need a pointer to the code (used for packed switches and double lits)?
-  // 64 bit uses RIP addressing instead.
-
+  int opcode = mir->dalvikInsn.opcode;
+  bool uses_pc_rel_load = false;
   switch (opcode) {
     // Instructions referencing doubles.
     case Instruction::CMPL_DOUBLE:
@@ -1045,34 +977,62 @@ void X86Mir2Lir::AnalyzeMIR(int opcode, BasicBlock* bb, MIR* mir) {
     case Instruction::MUL_DOUBLE_2ADDR:
     case Instruction::DIV_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE_2ADDR:
-      AnalyzeFPInstruction(opcode, bb, mir);
+    case kMirOpFusedCmplDouble:
+    case kMirOpFusedCmpgDouble:
+      uses_pc_rel_load = AnalyzeFPInstruction(opcode, mir);
       break;
 
-    // Packed switches and array fills need a pointer to the base of the method.
-    case Instruction::FILL_ARRAY_DATA:
+    // Packed switch needs the PC-relative pointer if it's large.
     case Instruction::PACKED_SWITCH:
-      if (!cu_->target64) {
-        store_method_addr_ = true;
+      if (mir_graph_->GetTable(mir, mir->dalvikInsn.vB)[1] > kSmallSwitchThreshold) {
+        uses_pc_rel_load = true;
       }
       break;
+
+    case kMirOpConstVector:
+      uses_pc_rel_load = true;
+      break;
+    case kMirOpPackedMultiply:
+    case kMirOpPackedShiftLeft:
+    case kMirOpPackedSignedShiftRight:
+    case kMirOpPackedUnsignedShiftRight:
+      {
+        // Byte emulation requires constants from the literal pool.
+        OpSize opsize = static_cast<OpSize>(mir->dalvikInsn.vC >> 16);
+        if (opsize == kSignedByte || opsize == kUnsignedByte) {
+          uses_pc_rel_load = true;
+        }
+      }
+      break;
+
     case Instruction::INVOKE_STATIC:
     case Instruction::INVOKE_STATIC_RANGE:
-      AnalyzeInvokeStatic(opcode, bb, mir);
-      break;
+      if (mir_graph_->GetMethodLoweringInfo(mir).IsIntrinsic()) {
+        uses_pc_rel_load = AnalyzeInvokeStaticIntrinsic(mir);
+        break;
+      }
+      FALLTHROUGH_INTENDED;
     default:
-      // Other instructions are not interesting yet.
+      Mir2Lir::AnalyzeMIR(core_counts, mir, weight);
       break;
+  }
+
+  if (uses_pc_rel_load) {
+    DCHECK(pc_rel_temp_ != nullptr);
+    core_counts[SRegToPMap(pc_rel_temp_->s_reg_low)].count += weight;
   }
 }
 
-void X86Mir2Lir::AnalyzeFPInstruction(int opcode, BasicBlock* bb, MIR* mir) {
-  UNUSED(bb);
+bool X86Mir2Lir::AnalyzeFPInstruction(int opcode, MIR* mir) {
+  DCHECK(!cu_->target64);
   // Look at all the uses, and see if they are double constants.
   uint64_t attrs = MIRGraph::GetDataFlowAttributes(static_cast<Instruction::Code>(opcode));
   int next_sreg = 0;
   if (attrs & DF_UA) {
     if (attrs & DF_A_WIDE) {
-      AnalyzeDoubleUse(mir_graph_->GetSrcWide(mir, next_sreg));
+      if (AnalyzeDoubleUse(mir_graph_->GetSrcWide(mir, next_sreg))) {
+        return true;
+      }
       next_sreg += 2;
     } else {
       next_sreg++;
@@ -1080,7 +1040,9 @@ void X86Mir2Lir::AnalyzeFPInstruction(int opcode, BasicBlock* bb, MIR* mir) {
   }
   if (attrs & DF_UB) {
     if (attrs & DF_B_WIDE) {
-      AnalyzeDoubleUse(mir_graph_->GetSrcWide(mir, next_sreg));
+      if (AnalyzeDoubleUse(mir_graph_->GetSrcWide(mir, next_sreg))) {
+        return true;
+      }
       next_sreg += 2;
     } else {
       next_sreg++;
@@ -1088,15 +1050,39 @@ void X86Mir2Lir::AnalyzeFPInstruction(int opcode, BasicBlock* bb, MIR* mir) {
   }
   if (attrs & DF_UC) {
     if (attrs & DF_C_WIDE) {
-      AnalyzeDoubleUse(mir_graph_->GetSrcWide(mir, next_sreg));
+      if (AnalyzeDoubleUse(mir_graph_->GetSrcWide(mir, next_sreg))) {
+        return true;
+      }
     }
   }
+  return false;
 }
 
-void X86Mir2Lir::AnalyzeDoubleUse(RegLocation use) {
+inline bool X86Mir2Lir::AnalyzeDoubleUse(RegLocation use) {
   // If this is a double literal, we will want it in the literal pool on 32b platforms.
-  if (use.is_const && !cu_->target64) {
-    store_method_addr_ = true;
+  DCHECK(!cu_->target64);
+  return use.is_const;
+}
+
+bool X86Mir2Lir::AnalyzeInvokeStaticIntrinsic(MIR* mir) {
+  // 64 bit RIP addressing doesn't need this analysis.
+  DCHECK(!cu_->target64);
+
+  // Retrieve the type of the intrinsic.
+  MethodReference method_ref = mir_graph_->GetMethodLoweringInfo(mir).GetTargetMethod();
+  DCHECK(cu_->compiler_driver->GetMethodInlinerMap() != nullptr);
+  DexFileMethodInliner* method_inliner =
+    cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(method_ref.dex_file);
+  InlineMethod method;
+  bool is_intrinsic = method_inliner->IsIntrinsic(method_ref.dex_method_index, &method);
+  DCHECK(is_intrinsic);
+
+  switch (method.opcode) {
+    case kIntrinsicAbsDouble:
+    case kIntrinsicMinMaxDouble:
+      return true;
+    default:
+      return false;
   }
 }
 
@@ -1128,37 +1114,47 @@ RegLocation X86Mir2Lir::UpdateLocWideTyped(RegLocation loc) {
   return loc;
 }
 
-void X86Mir2Lir::AnalyzeInvokeStatic(int opcode, BasicBlock* bb, MIR* mir) {
-  UNUSED(opcode, bb);
-
-  // 64 bit RIP addressing doesn't need store_method_addr_ set.
-  if (cu_->target64) {
-    return;
-  }
-
-  uint32_t index = mir->dalvikInsn.vB;
-  DCHECK(cu_->compiler_driver->GetMethodInlinerMap() != nullptr);
-  DexFileMethodInliner* method_inliner =
-    cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file);
-  InlineMethod method;
-  if (method_inliner->IsIntrinsic(index, &method)) {
-    switch (method.opcode) {
-      case kIntrinsicAbsDouble:
-      case kIntrinsicMinMaxDouble:
-        store_method_addr_ = true;
-        break;
-      default:
-        break;
-    }
-  }
-}
-
 LIR* X86Mir2Lir::InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) {
   UNUSED(r_tgt);  // Call to absolute memory location doesn't need a temporary target register.
   if (cu_->target64) {
     return OpThreadMem(op, GetThreadOffset<8>(trampoline));
   } else {
     return OpThreadMem(op, GetThreadOffset<4>(trampoline));
+  }
+}
+
+void X86Mir2Lir::CountRefs(RefCounts* core_counts, RefCounts* fp_counts, size_t num_regs) {
+  // Start with the default counts.
+  Mir2Lir::CountRefs(core_counts, fp_counts, num_regs);
+
+  if (pc_rel_temp_ != nullptr) {
+    // Now, if the dex cache array base temp is used only once outside any loops (weight = 1),
+    // avoid the promotion, otherwise boost the weight by factor 2 because the full PC-relative
+    // load sequence is 3 instructions long and by promoting the PC base we save 2 instructions
+    // per use.
+    int p_map_idx = SRegToPMap(pc_rel_temp_->s_reg_low);
+    if (core_counts[p_map_idx].count == 1) {
+      core_counts[p_map_idx].count = 0;
+    } else {
+      core_counts[p_map_idx].count *= 2;
+    }
+  }
+}
+
+void X86Mir2Lir::DoPromotion() {
+  if (!cu_->target64) {
+    pc_rel_temp_ = mir_graph_->GetNewCompilerTemp(kCompilerTempBackend, false);
+  }
+
+  Mir2Lir::DoPromotion();
+
+  if (pc_rel_temp_ != nullptr) {
+    // Now, if the dex cache array base temp is promoted, remember the register but
+    // always remove the temp's stack location to avoid unnecessarily bloating the stack.
+    pc_rel_base_reg_ = mir_graph_->reg_location_[pc_rel_temp_->s_reg_low].reg;
+    DCHECK(!pc_rel_base_reg_.Valid() || !pc_rel_base_reg_.IsFloat());
+    mir_graph_->RemoveLastCompilerTemp(kCompilerTempBackend, false, pc_rel_temp_);
+    pc_rel_temp_ = nullptr;
   }
 }
 
