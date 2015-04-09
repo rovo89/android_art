@@ -29,6 +29,7 @@
 #include "offsets.h"
 #include "x86/constants_x86.h"
 #include "x86_64/constants_x86_64.h"
+#include "dwarf/debug_frame_opcode_writer.h"
 
 namespace art {
 
@@ -354,6 +355,23 @@ class AssemblerBuffer {
   friend class AssemblerFixup;
 };
 
+// The purpose of this class is to ensure that we do not have to explicitly
+// call the AdvancePC method (which is good for convenience and correctness).
+class DebugFrameOpCodeWriterForAssembler FINAL
+    : public dwarf::DebugFrameOpCodeWriter<> {
+ public:
+  // This method is called the by the opcode writers.
+  virtual void ImplicitlyAdvancePC() FINAL;
+
+  explicit DebugFrameOpCodeWriterForAssembler(Assembler* buffer)
+      : dwarf::DebugFrameOpCodeWriter<>(),
+        assembler_(buffer) {
+  }
+
+ private:
+  Assembler* assembler_;
+};
+
 class Assembler {
  public:
   static Assembler* Create(InstructionSet instruction_set);
@@ -506,10 +524,18 @@ class Assembler {
 
   virtual ~Assembler() {}
 
+  /**
+   * @brief Buffer of DWARF's Call Frame Information opcodes.
+   * @details It is used by debuggers and other tools to unwind the call stack.
+   */
+  DebugFrameOpCodeWriterForAssembler& cfi() { return cfi_; }
+
  protected:
-  Assembler() : buffer_() {}
+  Assembler() : buffer_(), cfi_(this) {}
 
   AssemblerBuffer buffer_;
+
+  DebugFrameOpCodeWriterForAssembler cfi_;
 };
 
 }  // namespace art

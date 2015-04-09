@@ -536,6 +536,10 @@ void MipsAssembler::StoreDToOffset(DRegister reg, Register base, int32_t offset)
   Sdc1(reg, base, offset);
 }
 
+static dwarf::Reg DWARFReg(Register reg) {
+  return dwarf::Reg::MipsCore(static_cast<int>(reg));
+}
+
 constexpr size_t kFramePointerSize = 4;
 
 void MipsAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
@@ -549,10 +553,12 @@ void MipsAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   // Push callee saves and return address
   int stack_offset = frame_size - kFramePointerSize;
   StoreToOffset(kStoreWord, RA, SP, stack_offset);
+  cfi_.RelOffset(DWARFReg(RA), stack_offset);
   for (int i = callee_save_regs.size() - 1; i >= 0; --i) {
     stack_offset -= kFramePointerSize;
     Register reg = callee_save_regs.at(i).AsMips().AsCoreRegister();
     StoreToOffset(kStoreWord, reg, SP, stack_offset);
+    cfi_.RelOffset(DWARFReg(reg), stack_offset);
   }
 
   // Write out Method*.
@@ -568,31 +574,40 @@ void MipsAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 void MipsAssembler::RemoveFrame(size_t frame_size,
                                 const std::vector<ManagedRegister>& callee_save_regs) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
+  cfi_.RememberState();
 
   // Pop callee saves and return address
   int stack_offset = frame_size - (callee_save_regs.size() * kFramePointerSize) - kFramePointerSize;
   for (size_t i = 0; i < callee_save_regs.size(); ++i) {
     Register reg = callee_save_regs.at(i).AsMips().AsCoreRegister();
     LoadFromOffset(kLoadWord, reg, SP, stack_offset);
+    cfi_.Restore(DWARFReg(reg));
     stack_offset += kFramePointerSize;
   }
   LoadFromOffset(kLoadWord, RA, SP, stack_offset);
+  cfi_.Restore(DWARFReg(RA));
 
   // Decrease frame to required size.
   DecreaseFrameSize(frame_size);
 
   // Then jump to the return address.
   Jr(RA);
+
+  // The CFI should be restored for any code that follows the exit block.
+  cfi_.RestoreState();
+  cfi_.DefCFAOffset(frame_size);
 }
 
 void MipsAssembler::IncreaseFrameSize(size_t adjust) {
   CHECK_ALIGNED(adjust, kStackAlignment);
   AddConstant(SP, SP, -adjust);
+  cfi_.AdjustCFAOffset(adjust);
 }
 
 void MipsAssembler::DecreaseFrameSize(size_t adjust) {
   CHECK_ALIGNED(adjust, kStackAlignment);
   AddConstant(SP, SP, adjust);
+  cfi_.AdjustCFAOffset(-adjust);
 }
 
 void MipsAssembler::Store(FrameOffset dest, ManagedRegister msrc, size_t size) {
