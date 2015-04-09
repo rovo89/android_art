@@ -29,7 +29,9 @@
 #include "common_runtime_test.h"
 #include "compiler_callbacks.h"
 #include "mem_map.h"
+#include "mirror/art_field-inl.h"
 #include "os.h"
+#include "scoped_thread_state_change.h"
 #include "thread-inl.h"
 #include "utils.h"
 
@@ -946,6 +948,41 @@ TEST(OatFileAssistantUtilsTest, DexFilenameToOdexFilename) {
         "/foo/bar/baz_noext", kArm, &odex_file, &error_msg));
 }
 
+// Verify the dexopt status values from dalvik.system.DexFile
+// match the OatFileAssistant::DexOptStatus values.
+TEST_F(OatFileAssistantTest, DexOptStatusValues) {
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScope<1> hs(soa.Self());
+  ClassLinker* linker = Runtime::Current()->GetClassLinker();
+  Handle<mirror::Class> dexfile(
+      hs.NewHandle(linker->FindSystemClass(soa.Self(), "Ldalvik/system/DexFile;")));
+  ASSERT_FALSE(dexfile.Get() == nullptr);
+  linker->EnsureInitialized(soa.Self(), dexfile, true, true);
+
+  mirror::ArtField* no_dexopt_needed = mirror::Class::FindStaticField(
+      soa.Self(), dexfile, "NO_DEXOPT_NEEDED", "I");
+  ASSERT_FALSE(no_dexopt_needed == nullptr);
+  EXPECT_EQ(no_dexopt_needed->GetTypeAsPrimitiveType(), Primitive::kPrimInt);
+  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded, no_dexopt_needed->GetInt(dexfile.Get()));
+
+  mirror::ArtField* dex2oat_needed = mirror::Class::FindStaticField(
+      soa.Self(), dexfile, "DEX2OAT_NEEDED", "I");
+  ASSERT_FALSE(dex2oat_needed == nullptr);
+  EXPECT_EQ(dex2oat_needed->GetTypeAsPrimitiveType(), Primitive::kPrimInt);
+  EXPECT_EQ(OatFileAssistant::kDex2OatNeeded, dex2oat_needed->GetInt(dexfile.Get()));
+
+  mirror::ArtField* patchoat_needed = mirror::Class::FindStaticField(
+      soa.Self(), dexfile, "PATCHOAT_NEEDED", "I");
+  ASSERT_FALSE(patchoat_needed == nullptr);
+  EXPECT_EQ(patchoat_needed->GetTypeAsPrimitiveType(), Primitive::kPrimInt);
+  EXPECT_EQ(OatFileAssistant::kPatchOatNeeded, patchoat_needed->GetInt(dexfile.Get()));
+
+  mirror::ArtField* self_patchoat_needed = mirror::Class::FindStaticField(
+      soa.Self(), dexfile, "SELF_PATCHOAT_NEEDED", "I");
+  ASSERT_FALSE(self_patchoat_needed == nullptr);
+  EXPECT_EQ(self_patchoat_needed->GetTypeAsPrimitiveType(), Primitive::kPrimInt);
+  EXPECT_EQ(OatFileAssistant::kSelfPatchOatNeeded, self_patchoat_needed->GetInt(dexfile.Get()));
+}
 
 // TODO: More Tests:
 //  * Test class linker falls back to unquickened dex for DexNoOat
