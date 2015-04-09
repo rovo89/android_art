@@ -126,7 +126,7 @@ class OatWriter {
     CompiledMethod* compiled_method_;
   };
 
-  const std::vector<DebugInfo>& GetCFIMethodInfo() const {
+  const std::vector<DebugInfo>& GetMethodDebugInfo() const {
     return method_info_;
   }
 
