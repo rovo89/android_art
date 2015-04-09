@@ -1503,11 +1503,16 @@ class Dex2Oat FINAL {
     return failure_count;
   }
 
-  // Returns true if dex_files has a dex with the named location.
+  // Returns true if dex_files has a dex with the named location. We compare canonical locations,
+  // so that relative and absolute paths will match. Not caching for the dex_files isn't very
+  // efficient, but under normal circumstances the list is neither large nor is this part too
+  // sensitive.
   static bool DexFilesContains(const std::vector<const DexFile*>& dex_files,
                                const std::string& location) {
+    std::string canonical_location(DexFile::GetDexCanonicalLocation(location.c_str()));
     for (size_t i = 0; i < dex_files.size(); ++i) {
-      if (dex_files[i]->GetLocation() == location) {
+      if (DexFile::GetDexCanonicalLocation(dex_files[i]->GetLocation().c_str()) ==
+          canonical_location) {
         return true;
       }
     }
