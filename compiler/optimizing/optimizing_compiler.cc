@@ -371,6 +371,9 @@ static ArrayRef<const uint8_t> AlignVectorSize(std::vector<uint8_t>& vector) {
   return ArrayRef<const uint8_t>(vector);
 }
 
+// TODO: The function below uses too much stack space.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wframe-larger-than="
 
 CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
                                                      CodeGenerator* codegen,
@@ -424,6 +427,7 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
       ArrayRef<const LinkerPatch>());
 }
 
+#pragma GCC diagnostic pop
 
 CompiledMethod* OptimizingCompiler::CompileBaseline(
     CodeGenerator* codegen,
