@@ -309,6 +309,457 @@ public class Main {
     return arg ^ -1;
   }
 
+  /**
+   * Test that addition or subtraction operation with both inputs negated are
+   * optimized to use a single negation after the operation.
+   * The transformation tested is implemented in
+   * `InstructionSimplifierVisitor::TryMoveNegOnInputsAfterBinop`.
+   */
+
+  // CHECK-START: int Main.AddNegs1(int, int) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg1:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Arg2:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Neg1:i\d+]]     Neg [ [[Arg1]] ]
+  // CHECK-DAG:     [[Neg2:i\d+]]     Neg [ [[Arg2]] ]
+  // CHECK-DAG:     [[Add:i\d+]]      Add [ [[Neg1]] [[Neg2]] ]
+  // CHECK-DAG:                       Return [ [[Add]] ]
+
+  // CHECK-START: int Main.AddNegs1(int, int) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg1:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Arg2:i\d+]]     ParameterValue
+  // CHECK-NOT:                       Neg
+  // CHECK-DAG:     [[Add:i\d+]]      Add [ [[Arg1]] [[Arg2]] ]
+  // CHECK-DAG:     [[Neg:i\d+]]      Neg [ [[Add]] ]
+  // CHECK-DAG:                       Return [ [[Neg]] ]
+
+  public static int AddNegs1(int arg1, int arg2) {
+    return -arg1 + -arg2;
+  }
+
+  /**
+   * This is similar to the test-case AddNegs1, but the negations have
+   * multiple uses.
+   * The transformation tested is implemented in
+   * `InstructionSimplifierVisitor::TryMoveNegOnInputsAfterBinop`.
+   * The current code won't perform the previous optimization. The
+   * transformations do not look at other uses of their inputs. As they don't
+   * know what will happen with other uses, they do not take the risk of
+   * increasing the register pressure by creating or extending live ranges.
+   */
+
+  // CHECK-START: int Main.AddNegs2(int, int) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg1:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Arg2:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Neg1:i\d+]]     Neg [ [[Arg1]] ]
+  // CHECK-DAG:     [[Neg2:i\d+]]     Neg [ [[Arg2]] ]
+  // CHECK-DAG:     [[Add1:i\d+]]     Add [ [[Neg1]] [[Neg2]] ]
+  // CHECK-DAG:     [[Add2:i\d+]]     Add [ [[Neg1]] [[Neg2]] ]
+  // CHECK-DAG:     [[Or:i\d+]]       Or [ [[Add1]] [[Add2]] ]
+  // CHECK-DAG:                       Return [ [[Or]] ]
+
+  // CHECK-START: int Main.AddNegs2(int, int) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg1:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Arg2:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Neg1:i\d+]]     Neg [ [[Arg1]] ]
+  // CHECK-DAG:     [[Neg2:i\d+]]     Neg [ [[Arg2]] ]
+  // CHECK-DAG:     [[Add1:i\d+]]     Add [ [[Neg1]] [[Neg2]] ]
+  // CHECK-DAG:     [[Add2:i\d+]]     Add [ [[Neg1]] [[Neg2]] ]
+  // CHECK-NOT:                       Neg
+  // CHECK-DAG:     [[Or:i\d+]]       Or [ [[Add1]] [[Add2]] ]
+  // CHECK-DAG:                       Return [ [[Or]] ]
+
+  public static int AddNegs2(int arg1, int arg2) {
+    int temp1 = -arg1;
+    int temp2 = -arg2;
+    return (temp1 + temp2) | (temp1 + temp2);
+  }
+
+  /**
+   * This follows test-cases AddNegs1 and AddNegs2.
+   * The transformation tested is implemented in
+   * `InstructionSimplifierVisitor::TryMoveNegOnInputsAfterBinop`.
+   * The optimization should not happen if it moves an additional instruction in
+   * the loop.
+   */
+
+  // CHECK-START: long Main.AddNegs3(long, long) instruction_simplifier (before)
+  // -------------- Arguments and initial negation operations.
+  // CHECK-DAG:     [[Arg1:j\d+]]     ParameterValue
+  // CHECK-DAG:     [[Arg2:j\d+]]     ParameterValue
+  // CHECK-DAG:     [[Neg1:j\d+]]     Neg [ [[Arg1]] ]
+  // CHECK-DAG:     [[Neg2:j\d+]]     Neg [ [[Arg2]] ]
+  // CHECK:                           Goto
+  // -------------- Loop
+  // CHECK:                           SuspendCheck
+  // CHECK:         [[Add:j\d+]]      Add [ [[Neg1]] [[Neg2]] ]
+  // CHECK:                           Goto
+
+  // CHECK-START: long Main.AddNegs3(long, long) instruction_simplifier (after)
+  // -------------- Arguments and initial negation operations.
+  // CHECK-DAG:     [[Arg1:j\d+]]     ParameterValue
+  // CHECK-DAG:     [[Arg2:j\d+]]     ParameterValue
+  // CHECK-DAG:     [[Neg1:j\d+]]     Neg [ [[Arg1]] ]
+  // CHECK-DAG:     [[Neg2:j\d+]]     Neg [ [[Arg2]] ]
+  // CHECK:                           Goto
+  // -------------- Loop
+  // CHECK:                           SuspendCheck
+  // CHECK:         [[Add:j\d+]]      Add [ [[Neg1]] [[Neg2]] ]
+  // CHECK-NOT:                       Neg
+  // CHECK:                           Goto
+
+  public static long AddNegs3(long arg1, long arg2) {
+    long res = 0;
+    long n_arg1 = -arg1;
+    long n_arg2 = -arg2;
+    for (long i = 0; i < 1; i++) {
+      res += n_arg1 + n_arg2 + i;
+    }
+    return res;
+  }
+
+  /**
+   * Test the simplification of an addition with a negated argument into a
+   * subtraction.
+   * The transformation tested is implemented in `InstructionSimplifierVisitor::VisitAdd`.
+   */
+
+  // CHECK-START: long Main.AddNeg1(long, long) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg1:j\d+]]     ParameterValue
+  // CHECK-DAG:     [[Arg2:j\d+]]     ParameterValue
+  // CHECK-DAG:     [[Neg:j\d+]]      Neg [ [[Arg1]] ]
+  // CHECK-DAG:     [[Add:j\d+]]      Add [ [[Neg]] [[Arg2]] ]
+  // CHECK-DAG:                       Return [ [[Add]] ]
+
+  // CHECK-START: long Main.AddNeg1(long, long) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg1:j\d+]]     ParameterValue
+  // CHECK-DAG:     [[Arg2:j\d+]]     ParameterValue
+  // CHECK-DAG:     [[Sub:j\d+]]      Sub [ [[Arg2]] [[Arg1]] ]
+  // CHECK-DAG:                       Return [ [[Sub]] ]
+
+  // CHECK-START: long Main.AddNeg1(long, long) instruction_simplifier (after)
+  // CHECK-NOT:                       Neg
+  // CHECK-NOT:                       Add
+
+  public static long AddNeg1(long arg1, long arg2) {
+    return -arg1 + arg2;
+  }
+
+  /**
+   * This is similar to the test-case AddNeg1, but the negation has two uses.
+   * The transformation tested is implemented in `InstructionSimplifierVisitor::VisitAdd`.
+   * The current code won't perform the previous optimization. The
+   * transformations do not look at other uses of their inputs. As they don't
+   * know what will happen with other uses, they do not take the risk of
+   * increasing the register pressure by creating or extending live ranges.
+   */
+
+  // CHECK-START: long Main.AddNeg2(long, long) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg1:j\d+]]     ParameterValue
+  // CHECK-DAG:     [[Arg2:j\d+]]     ParameterValue
+  // CHECK-DAG:     [[Neg:j\d+]]      Neg [ [[Arg2]] ]
+  // CHECK-DAG:     [[Add1:j\d+]]     Add [ [[Arg1]] [[Neg]] ]
+  // CHECK-DAG:     [[Add2:j\d+]]     Add [ [[Arg1]] [[Neg]] ]
+  // CHECK-DAG:     [[Res:j\d+]]      Or [ [[Add1]] [[Add2]] ]
+  // CHECK-DAG:                       Return [ [[Res]] ]
+
+  // CHECK-START: long Main.AddNeg2(long, long) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg1:j\d+]]     ParameterValue
+  // CHECK-DAG:     [[Arg2:j\d+]]     ParameterValue
+  // CHECK-DAG:     [[Neg:j\d+]]      Neg [ [[Arg2]] ]
+  // CHECK-DAG:     [[Add1:j\d+]]     Add [ [[Arg1]] [[Neg]] ]
+  // CHECK-DAG:     [[Add2:j\d+]]     Add [ [[Arg1]] [[Neg]] ]
+  // CHECK-DAG:     [[Res:j\d+]]      Or [ [[Add1]] [[Add2]] ]
+  // CHECK-DAG:                       Return [ [[Res]] ]
+
+  // CHECK-START: long Main.AddNeg2(long, long) instruction_simplifier (after)
+  // CHECK-NOT:                       Sub
+
+  public static long AddNeg2(long arg1, long arg2) {
+    long temp = -arg2;
+    return (arg1 + temp) | (arg1 + temp);
+  }
+
+  /**
+   * Test simplification of the `-(-var)` pattern.
+   * The transformation tested is implemented in `InstructionSimplifierVisitor::VisitNeg`.
+   */
+
+  // CHECK-START: long Main.NegNeg1(long) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg:j\d+]]      ParameterValue
+  // CHECK-DAG:     [[Neg1:j\d+]]     Neg [ [[Arg]] ]
+  // CHECK-DAG:     [[Neg2:j\d+]]     Neg [ [[Neg1]] ]
+  // CHECK-DAG:                       Return [ [[Neg2]] ]
+
+  // CHECK-START: long Main.NegNeg1(long) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg:j\d+]]      ParameterValue
+  // CHECK-DAG:                       Return [ [[Arg]] ]
+
+  // CHECK-START: long Main.NegNeg1(long) instruction_simplifier (after)
+  // CHECK-NOT:                       Neg
+
+  public static long NegNeg1(long arg) {
+    return -(-arg);
+  }
+
+  /**
+   * Test 'multi-step' simplification, where a first transformation yields a
+   * new simplification possibility for the current instruction.
+   * The transformations tested are implemented in `InstructionSimplifierVisitor::VisitNeg`
+   * and in `InstructionSimplifierVisitor::VisitAdd`.
+   */
+
+  // CHECK-START: int Main.NegNeg2(int) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
+  // CHECK-DAG:     [[Neg1:i\d+]]     Neg [ [[Arg]] ]
+  // CHECK-DAG:     [[Neg2:i\d+]]     Neg [ [[Neg1]] ]
+  // CHECK-DAG:     [[Add:i\d+]]      Add [ [[Neg1]] [[Neg2]] ]
+  // CHECK-DAG:                       Return [ [[Add]] ]
+
+  // CHECK-START: int Main.NegNeg2(int) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
+  // CHECK-DAG:     [[Sub:i\d+]]      Sub [ [[Arg]] [[Arg]] ]
+  // CHECK-DAG:                       Return [ [[Sub]] ]
+
+  // CHECK-START: int Main.NegNeg2(int) instruction_simplifier (after)
+  // CHECK-NOT:                       Neg
+  // CHECK-NOT:                       Add
+
+  public static int NegNeg2(int arg) {
+    int temp = -arg;
+    return temp + -temp;
+  }
+
+  /**
+   * Test another 'multi-step' simplification, where a first transformation
+   * yields a new simplification possibility for the current instruction.
+   * The transformations tested are implemented in `InstructionSimplifierVisitor::VisitNeg`
+   * and in `InstructionSimplifierVisitor::VisitSub`.
+   */
+
+  // CHECK-START: long Main.NegNeg3(long) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg:j\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const0:j\d+]]   LongConstant 0
+  // CHECK-DAG:     [[Neg:j\d+]]      Neg [ [[Arg]] ]
+  // CHECK-DAG:     [[Sub:j\d+]]      Sub [ [[Const0]] [[Neg]] ]
+  // CHECK-DAG:                       Return [ [[Sub]] ]
+
+  // CHECK-START: long Main.NegNeg3(long) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg:j\d+]]      ParameterValue
+  // CHECK-DAG:                       Return [ [[Arg]] ]
+
+  // CHECK-START: long Main.NegNeg3(long) instruction_simplifier (after)
+  // CHECK-NOT:                       Neg
+  // CHECK-NOT:                       Sub
+
+  public static long NegNeg3(long arg) {
+    return 0 - -arg;
+  }
+
+  /**
+   * Test that a negated subtraction is simplified to a subtraction with its
+   * arguments reversed.
+   * The transformation tested is implemented in `InstructionSimplifierVisitor::VisitNeg`.
+   */
+
+  // CHECK-START: int Main.NegSub1(int, int) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg1:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Arg2:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Sub:i\d+]]      Sub [ [[Arg1]] [[Arg2]] ]
+  // CHECK-DAG:     [[Neg:i\d+]]      Neg [ [[Sub]] ]
+  // CHECK-DAG:                       Return [ [[Neg]] ]
+
+  // CHECK-START: int Main.NegSub1(int, int) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg1:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Arg2:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Sub:i\d+]]      Sub [ [[Arg2]] [[Arg1]] ]
+  // CHECK-DAG:                       Return [ [[Sub]] ]
+
+  // CHECK-START: int Main.NegSub1(int, int) instruction_simplifier (after)
+  // CHECK-NOT:                       Neg
+
+  public static int NegSub1(int arg1, int arg2) {
+    return -(arg1 - arg2);
+  }
+
+  /**
+   * This is similar to the test-case NegSub1, but the subtraction has
+   * multiple uses.
+   * The transformation tested is implemented in `InstructionSimplifierVisitor::VisitNeg`.
+   * The current code won't perform the previous optimization. The
+   * transformations do not look at other uses of their inputs. As they don't
+   * know what will happen with other uses, they do not take the risk of
+   * increasing the register pressure by creating or extending live ranges.
+   */
+
+  // CHECK-START: int Main.NegSub2(int, int) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg1:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Arg2:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Sub:i\d+]]      Sub [ [[Arg1]] [[Arg2]] ]
+  // CHECK-DAG:     [[Neg1:i\d+]]     Neg [ [[Sub]] ]
+  // CHECK-DAG:     [[Neg2:i\d+]]     Neg [ [[Sub]] ]
+  // CHECK-DAG:     [[Or:i\d+]]       Or [ [[Neg1]] [[Neg2]] ]
+  // CHECK-DAG:                       Return [ [[Or]] ]
+
+  // CHECK-START: int Main.NegSub2(int, int) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg1:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Arg2:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Sub:i\d+]]      Sub [ [[Arg1]] [[Arg2]] ]
+  // CHECK-DAG:     [[Neg1:i\d+]]     Neg [ [[Sub]] ]
+  // CHECK-DAG:     [[Neg2:i\d+]]     Neg [ [[Sub]] ]
+  // CHECK-DAG:     [[Or:i\d+]]       Or [ [[Neg1]] [[Neg2]] ]
+  // CHECK-DAG:                       Return [ [[Or]] ]
+
+  public static int NegSub2(int arg1, int arg2) {
+    int temp = arg1 - arg2;
+    return -temp | -temp;
+  }
+
+  /**
+   * Test simplification of the `~~var` pattern.
+   * The transformation tested is implemented in `InstructionSimplifierVisitor::VisitNot`.
+   */
+
+  // CHECK-START: long Main.NotNot1(long) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg:j\d+]]      ParameterValue
+  // CHECK-DAG:     [[ConstF1:j\d+]]  LongConstant -1
+  // CHECK-DAG:     [[Xor1:j\d+]]     Xor [ [[Arg]] [[ConstF1]] ]
+  // CHECK-DAG:     [[Xor2:j\d+]]     Xor [ [[Xor1]] [[ConstF1]] ]
+  // CHECK-DAG:                       Return [ [[Xor2]] ]
+
+  // CHECK-START: long Main.NotNot1(long) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg:j\d+]]      ParameterValue
+  // CHECK-DAG:                       Return [ [[Arg]] ]
+
+  // CHECK-START: long Main.NotNot1(long) instruction_simplifier (after)
+  // CHECK-NOT:                       Xor
+
+  public static long NotNot1(long arg) {
+    return ~~arg;
+  }
+
+  // CHECK-START: int Main.NotNot2(int) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
+  // CHECK-DAG:     [[ConstF1:i\d+]]  IntConstant -1
+  // CHECK-DAG:     [[Xor1:i\d+]]     Xor [ [[Arg]] [[ConstF1]] ]
+  // CHECK-DAG:     [[Xor2:i\d+]]     Xor [ [[Xor1]] [[ConstF1]] ]
+  // CHECK-DAG:     [[Add:i\d+]]      Add [ [[Xor1]] [[Xor2]] ]
+  // CHECK-DAG:                       Return [ [[Add]] ]
+
+  // CHECK-START: int Main.NotNot2(int) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
+  // CHECK-DAG:     [[Not:i\d+]]      Not [ [[Arg]] ]
+  // CHECK-DAG:     [[Add:i\d+]]      Add [ [[Not]] [[Arg]] ]
+  // CHECK-DAG:                       Return [ [[Add]] ]
+
+  // CHECK-START: int Main.NotNot2(int) instruction_simplifier (after)
+  // CHECK-NOT:                       Xor
+
+  public static int NotNot2(int arg) {
+    int temp = ~arg;
+    return temp + ~temp;
+  }
+
+  /**
+   * Test the simplification of a subtraction with a negated argument.
+   * The transformation tested is implemented in `InstructionSimplifierVisitor::VisitSub`.
+   */
+
+  // CHECK-START: int Main.SubNeg1(int, int) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg1:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Arg2:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Neg:i\d+]]      Neg [ [[Arg1]] ]
+  // CHECK-DAG:     [[Sub:i\d+]]      Sub [ [[Neg]] [[Arg2]] ]
+  // CHECK-DAG:                       Return [ [[Sub]] ]
+
+  // CHECK-START: int Main.SubNeg1(int, int) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg1:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Arg2:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Add:i\d+]]      Add [ [[Arg1]] [[Arg2]] ]
+  // CHECK-DAG:     [[Neg:i\d+]]      Neg [ [[Add]] ]
+  // CHECK-DAG:                       Return [ [[Neg]] ]
+
+  // CHECK-START: int Main.SubNeg1(int, int) instruction_simplifier (after)
+  // CHECK-NOT:                       Sub
+
+  public static int SubNeg1(int arg1, int arg2) {
+    return -arg1 - arg2;
+  }
+
+  /**
+   * This is similar to the test-case SubNeg1, but the negation has
+   * multiple uses.
+   * The transformation tested is implemented in `InstructionSimplifierVisitor::VisitSub`.
+   * The current code won't perform the previous optimization. The
+   * transformations do not look at other uses of their inputs. As they don't
+   * know what will happen with other uses, they do not take the risk of
+   * increasing the register pressure by creating or extending live ranges.
+   */
+
+  // CHECK-START: int Main.SubNeg2(int, int) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg1:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Arg2:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Neg:i\d+]]      Neg [ [[Arg1]] ]
+  // CHECK-DAG:     [[Sub1:i\d+]]     Sub [ [[Neg]] [[Arg2]] ]
+  // CHECK-DAG:     [[Sub2:i\d+]]     Sub [ [[Neg]] [[Arg2]] ]
+  // CHECK-DAG:     [[Or:i\d+]]       Or [ [[Sub1]] [[Sub2]] ]
+  // CHECK-DAG:                       Return [ [[Or]] ]
+
+  // CHECK-START: int Main.SubNeg2(int, int) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg1:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Arg2:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Neg:i\d+]]      Neg [ [[Arg1]] ]
+  // CHECK-DAG:     [[Sub1:i\d+]]     Sub [ [[Neg]] [[Arg2]] ]
+  // CHECK-DAG:     [[Sub2:i\d+]]     Sub [ [[Neg]] [[Arg2]] ]
+  // CHECK-DAG:     [[Or:i\d+]]       Or [ [[Sub1]] [[Sub2]] ]
+  // CHECK-DAG:                       Return [ [[Or]] ]
+
+  // CHECK-START: int Main.SubNeg2(int, int) instruction_simplifier (after)
+  // CHECK-NOT:                       Add
+
+  public static int SubNeg2(int arg1, int arg2) {
+    int temp = -arg1;
+    return (temp - arg2) | (temp - arg2);
+  }
+
+  /**
+   * This follows test-cases SubNeg1 and SubNeg2.
+   * The transformation tested is implemented in `InstructionSimplifierVisitor::VisitSub`.
+   * The optimization should not happen if it moves an additional instruction in
+   * the loop.
+   */
+
+  // CHECK-START: long Main.SubNeg3(long, long) instruction_simplifier (before)
+  // -------------- Arguments and initial negation operation.
+  // CHECK-DAG:     [[Arg1:j\d+]]     ParameterValue
+  // CHECK-DAG:     [[Arg2:j\d+]]     ParameterValue
+  // CHECK-DAG:     [[Neg:j\d+]]      Neg [ [[Arg1]] ]
+  // CHECK:                           Goto
+  // -------------- Loop
+  // CHECK:                           SuspendCheck
+  // CHECK:         [[Sub:j\d+]]      Sub [ [[Neg]] [[Arg2]] ]
+  // CHECK:                           Goto
+
+  // CHECK-START: long Main.SubNeg3(long, long) instruction_simplifier (after)
+  // -------------- Arguments and initial negation operation.
+  // CHECK-DAG:     [[Arg1:j\d+]]     ParameterValue
+  // CHECK-DAG:     [[Arg2:j\d+]]     ParameterValue
+  // CHECK-DAG:     [[Neg:j\d+]]      Neg [ [[Arg1]] ]
+  // CHECK-DAG:                       Goto
+  // -------------- Loop
+  // CHECK:                           SuspendCheck
+  // CHECK:         [[Sub:j\d+]]      Sub [ [[Neg]] [[Arg2]] ]
+  // CHECK-NOT:                       Neg
+  // CHECK:                           Goto
+
+  public static long SubNeg3(long arg1, long arg2) {
+    long res = 0;
+    long temp = -arg1;
+    for (long i = 0; i < 1; i++) {
+      res += temp - arg2 - i;
+    }
+    return res;
+  }
+
   public static void main(String[] args) {
     int arg = 123456;
 
@@ -328,5 +779,20 @@ public class Main {
     assertLongEquals(UShr0(arg), arg);
     assertIntEquals(Xor0(arg), arg);
     assertIntEquals(XorAllOnes(arg), ~arg);
+    assertIntEquals(AddNegs1(arg, arg + 1), -(arg + arg + 1));
+    assertIntEquals(AddNegs2(arg, arg + 1), -(arg + arg + 1));
+    assertLongEquals(AddNegs3(arg, arg + 1), -(2 * arg + 1));
+    assertLongEquals(AddNeg1(arg, arg + 1), 1);
+    assertLongEquals(AddNeg2(arg, arg + 1), -1);
+    assertLongEquals(NegNeg1(arg), arg);
+    assertIntEquals(NegNeg2(arg), 0);
+    assertLongEquals(NegNeg3(arg), arg);
+    assertIntEquals(NegSub1(arg, arg + 1), 1);
+    assertIntEquals(NegSub2(arg, arg + 1), 1);
+    assertLongEquals(NotNot1(arg), arg);
+    assertIntEquals(NotNot2(arg), -1);
+    assertIntEquals(SubNeg1(arg, arg + 1), -(arg + arg + 1));
+    assertIntEquals(SubNeg2(arg, arg + 1), -(arg + arg + 1));
+    assertLongEquals(SubNeg3(arg, arg + 1), -(2 * arg + 1));
   }
 }
