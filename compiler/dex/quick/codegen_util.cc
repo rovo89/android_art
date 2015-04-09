@@ -1072,6 +1072,9 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       dex_cache_arrays_layout_(cu->compiler_driver->GetDexCacheArraysLayout(cu->dex_file)),
       pc_rel_temp_(nullptr),
       dex_cache_arrays_min_offset_(std::numeric_limits<uint32_t>::max()),
+      cfi_(&last_lir_insn_,
+           cu->compiler_driver->GetCompilerOptions().GetGenerateGDBInformation(),
+           arena),
       in_to_reg_storage_mapping_(arena) {
   switch_tables_.reserve(4);
   fill_array_data_.reserve(4);
@@ -1164,7 +1167,7 @@ CompiledMethod* Mir2Lir::GetCompiledMethod() {
       ArrayRef<const uint8_t>(encoded_mapping_table_),
       ArrayRef<const uint8_t>(vmap_encoder.GetData()),
       ArrayRef<const uint8_t>(native_gc_map_),
-      ArrayRef<const uint8_t>(),
+      ArrayRef<const uint8_t>(*cfi_.Patch(code_buffer_.size())),
       ArrayRef<const LinkerPatch>(patches_));
 }
 

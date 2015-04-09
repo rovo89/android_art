@@ -1253,11 +1253,14 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
     AppendLIR(NewLIR0(kPseudoPrologueBegin));
     GenEntrySequence(&mir_graph_->reg_location_[start_vreg], mir_graph_->GetMethodLoc());
     AppendLIR(NewLIR0(kPseudoPrologueEnd));
+    DCHECK_EQ(cfi_.GetCurrentCFAOffset(), frame_size_);
   } else if (bb->block_type == kExitBlock) {
     ResetRegPool();
+    DCHECK_EQ(cfi_.GetCurrentCFAOffset(), frame_size_);
     AppendLIR(NewLIR0(kPseudoEpilogueBegin));
     GenExitSequence();
     AppendLIR(NewLIR0(kPseudoEpilogueEnd));
+    DCHECK_EQ(cfi_.GetCurrentCFAOffset(), frame_size_);
   }
 
   for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {

@@ -89,6 +89,128 @@ bool ElfWriterQuick<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
   return elf_writer.Write(oat_writer, dex_files, android_root, is_host);
 }
 
+void WriteCIE(dwarf::DebugFrameWriter<>* cfi, InstructionSet isa) {
+  // Scratch registers should be marked as undefined.  This tells the
+  // debugger that its value in the previous frame is not recoverable.
+  switch (isa) {
+    case kArm:
+    case kThumb2: {
+      dwarf::DebugFrameOpCodeWriter<> opcodes;
+      opcodes.DefCFA(dwarf::Reg::ArmCore(13), 0);  // R13(SP).
+      // core registers.
+      for (int reg = 0; reg < 13; reg++) {
+        if (reg < 4 || reg == 12) {
+          opcodes.Undefined(dwarf::Reg::ArmCore(reg));
+        } else {
+          opcodes.SameValue(dwarf::Reg::ArmCore(reg));
+        }
+      }
+      // fp registers.
+      for (int reg = 0; reg < 32; reg++) {
+        if (reg < 16) {
+          opcodes.Undefined(dwarf::Reg::ArmFp(reg));
+        } else {
+          opcodes.SameValue(dwarf::Reg::ArmFp(reg));
+        }
+      }
+      auto return_address_reg = dwarf::Reg::ArmCore(14);  // R14(LR).
+      cfi->WriteCIE(return_address_reg, opcodes);
+      return;
+    }
+    case kArm64: {
+      dwarf::DebugFrameOpCodeWriter<> opcodes;
+      opcodes.DefCFA(dwarf::Reg::Arm64Core(31), 0);  // R31(SP).
+      // core registers.
+      for (int reg = 0; reg < 30; reg++) {
+        if (reg < 8 || reg == 16 || reg == 17) {
+          opcodes.Undefined(dwarf::Reg::Arm64Core(reg));
+        } else {
+          opcodes.SameValue(dwarf::Reg::Arm64Core(reg));
+        }
+      }
+      // fp registers.
+      for (int reg = 0; reg < 32; reg++) {
+        if (reg < 8 || reg >= 16) {
+          opcodes.Undefined(dwarf::Reg::Arm64Fp(reg));
+        } else {
+          opcodes.SameValue(dwarf::Reg::Arm64Fp(reg));
+        }
+      }
+      auto return_address_reg = dwarf::Reg::Arm64Core(30);  // R30(LR).
+      cfi->WriteCIE(return_address_reg, opcodes);
+      return;
+    }
+    case kMips:
+    case kMips64: {
+      dwarf::DebugFrameOpCodeWriter<> opcodes;
+      opcodes.DefCFA(dwarf::Reg::MipsCore(29), 0);  // R29(SP).
+      // core registers.
+      for (int reg = 1; reg < 26; reg++) {
+        if (reg < 16 || reg == 24 || reg == 25) {  // AT, V*, A*, T*.
+          opcodes.Undefined(dwarf::Reg::MipsCore(reg));
+        } else {
+          opcodes.SameValue(dwarf::Reg::MipsCore(reg));
+        }
+      }
+      auto return_address_reg = dwarf::Reg::MipsCore(31);  // R31(RA).
+      cfi->WriteCIE(return_address_reg, opcodes);
+      return;
+    }
+    case kX86: {
+      dwarf::DebugFrameOpCodeWriter<> opcodes;
+      opcodes.DefCFA(dwarf::Reg::X86Core(4), 4);   // R4(ESP).
+      opcodes.Offset(dwarf::Reg::X86Core(8), -4);  // R8(EIP).
+      // core registers.
+      for (int reg = 0; reg < 8; reg++) {
+        if (reg <= 3) {
+          opcodes.Undefined(dwarf::Reg::X86Core(reg));
+        } else if (reg == 4) {
+          // Stack pointer.
+        } else {
+          opcodes.SameValue(dwarf::Reg::X86Core(reg));
+        }
+      }
+      // fp registers.
+      for (int reg = 0; reg < 8; reg++) {
+        opcodes.Undefined(dwarf::Reg::X86Fp(reg));
+      }
+      auto return_address_reg = dwarf::Reg::X86Core(8);  // R8(EIP).
+      cfi->WriteCIE(return_address_reg, opcodes);
+      return;
+    }
+    case kX86_64: {
+      dwarf::DebugFrameOpCodeWriter<> opcodes;
+      opcodes.DefCFA(dwarf::Reg::X86_64Core(4), 8);  // R4(RSP).
+      opcodes.Offset(dwarf::Reg::X86_64Core(16), -8);  // R16(RIP).
+      // core registers.
+      for (int reg = 0; reg < 16; reg++) {
+        if (reg == 4) {
+          // Stack pointer.
+        } else if (reg < 12 && reg != 3 && reg != 5) {  // except EBX and EBP.
+          opcodes.Undefined(dwarf::Reg::X86_64Core(reg));
+        } else {
+          opcodes.SameValue(dwarf::Reg::X86_64Core(reg));
+        }
+      }
+      // fp registers.
+      for (int reg = 0; reg < 16; reg++) {
+        if (reg < 12) {
+          opcodes.Undefined(dwarf::Reg::X86_64Fp(reg));
+        } else {
+          opcodes.SameValue(dwarf::Reg::X86_64Fp(reg));
+        }
+      }
+      auto return_address_reg = dwarf::Reg::X86_64Core(16);  // R16(RIP).
+      cfi->WriteCIE(return_address_reg, opcodes);
+      return;
+    }
+    case kNone:
+      break;
+  }
+  LOG(FATAL) << "Can not write CIE frame for ISA " << isa;
+  UNREACHABLE();
+}
+
 class OatWriterWrapper FINAL : public CodeOutput {
  public:
   explicit OatWriterWrapper(OatWriter* oat_writer) : oat_writer_(oat_writer) {}
@@ -511,7 +633,11 @@ static void WriteDebugSymbols(const CompilerDriver* compiler_driver,
                               ElfBuilder<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
                                          Elf_Sym, Elf_Ehdr, Elf_Phdr, Elf_Shdr>* builder,
                               OatWriter* oat_writer) {
-  UNUSED(compiler_driver);
+  std::vector<uint8_t> cfi_data;
+  bool is_64bit = Is64BitInstructionSet(compiler_driver->GetInstructionSet());
+  dwarf::DebugFrameWriter<> cfi(&cfi_data, is_64bit);
+  WriteCIE(&cfi, compiler_driver->GetInstructionSet());
+
   Elf_Addr text_section_address = builder->GetTextBuilder().GetSection()->sh_addr;
 
   // Iterate over the compiled methods.
@@ -531,6 +657,16 @@ static void WriteDebugSymbols(const CompilerDriver* compiler_driver,
       symtab->AddSymbol("$t", &builder->GetTextBuilder(), it->low_pc_ & ~1, true,
                         0, STB_LOCAL, STT_NOTYPE);
     }
+
+    // Include FDE for compiled method, if possible.
+    DCHECK(it->compiled_method_ != nullptr);
+    const SwapVector<uint8_t>* unwind_opcodes = it->compiled_method_->GetCFIInfo();
+    if (unwind_opcodes != nullptr) {
+      // TUNING: The headers take a lot of space. Can we have 1 FDE per file?
+      // TUNING: Some tools support compressed DWARF sections (.zdebug_*).
+      cfi.WriteFDE(text_section_address + it->low_pc_, it->high_pc_ - it->low_pc_,
+                   unwind_opcodes->data(), unwind_opcodes->size());
+    }
   }
 
   bool hasLineInfo = false;
@@ -542,7 +678,8 @@ static void WriteDebugSymbols(const CompilerDriver* compiler_driver,
     }
   }
 
-  if (hasLineInfo) {
+  if (!method_info.empty() &&
+      compiler_driver->GetCompilerOptions().GetGenerateGDBInformation()) {
     ElfRawSectionBuilder<Elf_Word, Elf_Sword, Elf_Shdr> debug_info(".debug_info",
                                                                    SHT_PROGBITS,
                                                                    0, nullptr, 0, 1, 0);
@@ -563,6 +700,13 @@ static void WriteDebugSymbols(const CompilerDriver* compiler_driver,
 
     builder->RegisterRawSection(debug_info);
     builder->RegisterRawSection(debug_abbrev);
+
+    ElfRawSectionBuilder<Elf_Word, Elf_Sword, Elf_Shdr> eh_frame(".eh_frame",
+                                                                 SHT_PROGBITS,
+                                                                 SHF_ALLOC,
+                                                                 nullptr, 0, 4, 0);
+    eh_frame.SetBuffer(std::move(cfi_data));
+    builder->RegisterRawSection(eh_frame);
 
     if (hasLineInfo) {
       builder->RegisterRawSection(debug_line);
