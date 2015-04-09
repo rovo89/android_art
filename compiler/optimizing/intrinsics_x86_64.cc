@@ -298,25 +298,23 @@ static void CreateFloatToFloatPlusTemps(ArenaAllocator* arena, HInvoke* invoke) 
   // TODO: Allow x86 to work with memory. This requires assembler support, see below.
   // locations->SetInAt(0, Location::Any());               // X86 can work on memory directly.
   locations->SetOut(Location::SameAsFirstInput());
-  locations->AddTemp(Location::RequiresRegister());     // Immediate constant.
-  locations->AddTemp(Location::RequiresFpuRegister());  // FP version of above.
+  locations->AddTemp(Location::RequiresFpuRegister());  // FP reg to hold mask.
 }
 
-static void MathAbsFP(LocationSummary* locations, bool is64bit, X86_64Assembler* assembler) {
+static void MathAbsFP(LocationSummary* locations, bool is64bit,
+                      X86_64Assembler* assembler, CodeGeneratorX86_64* codegen) {
   Location output = locations->Out();
-  CpuRegister cpu_temp = locations->GetTemp(0).AsRegister<CpuRegister>();
 
   if (output.IsFpuRegister()) {
     // In-register
-    XmmRegister xmm_temp = locations->GetTemp(1).AsFpuRegister<XmmRegister>();
+    XmmRegister xmm_temp = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
 
+    // TODO: Can mask directly with constant area if we align on 16 bytes.
     if (is64bit) {
-      __ movq(cpu_temp, Immediate(INT64_C(0x7FFFFFFFFFFFFFFF)));
-      __ movd(xmm_temp, cpu_temp);
+      __ movsd(xmm_temp, codegen->LiteralInt64Address(INT64_C(0x7FFFFFFFFFFFFFFF)));
       __ andpd(output.AsFpuRegister<XmmRegister>(), xmm_temp);
     } else {
-      __ movl(cpu_temp, Immediate(INT64_C(0x7FFFFFFF)));
-      __ movd(xmm_temp, cpu_temp);
+      __ movss(xmm_temp, codegen->LiteralInt32Address(INT32_C(0x7FFFFFFF)));
       __ andps(output.AsFpuRegister<XmmRegister>(), xmm_temp);
     }
   } else {
@@ -341,7 +339,7 @@ void IntrinsicLocationsBuilderX86_64::VisitMathAbsDouble(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitMathAbsDouble(HInvoke* invoke) {
-  MathAbsFP(invoke->GetLocations(), true, GetAssembler());
+  MathAbsFP(invoke->GetLocations(), true, GetAssembler(), codegen_);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitMathAbsFloat(HInvoke* invoke) {
@@ -349,7 +347,7 @@ void IntrinsicLocationsBuilderX86_64::VisitMathAbsFloat(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitMathAbsFloat(HInvoke* invoke) {
-  MathAbsFP(invoke->GetLocations(), false, GetAssembler());
+  MathAbsFP(invoke->GetLocations(), false, GetAssembler(), codegen_);
 }
 
 static void CreateIntToIntPlusTemp(ArenaAllocator* arena, HInvoke* invoke) {
@@ -400,7 +398,7 @@ void IntrinsicCodeGeneratorX86_64::VisitMathAbsLong(HInvoke* invoke) {
 }
 
 static void GenMinMaxFP(LocationSummary* locations, bool is_min, bool is_double,
-                        X86_64Assembler* assembler) {
+                        X86_64Assembler* assembler, CodeGeneratorX86_64* codegen) {
   Location op1_loc = locations->InAt(0);
   Location op2_loc = locations->InAt(1);
   Location out_loc = locations->Out();
@@ -427,7 +425,7 @@ static void GenMinMaxFP(LocationSummary* locations, bool is_min, bool is_double,
   //
   // This removes one jmp, but needs to copy one input (op1) to out.
   //
-  // TODO: This is straight from Quick (except literal pool). Make NaN an out-of-line slowpath?
+  // TODO: This is straight from Quick. Make NaN an out-of-line slowpath?
 
   XmmRegister op2 = op2_loc.AsFpuRegister<XmmRegister>();
 
@@ -461,14 +459,11 @@ static void GenMinMaxFP(LocationSummary* locations, bool is_min, bool is_double,
 
   // NaN handling.
   __ Bind(&nan);
-  CpuRegister cpu_temp = locations->GetTemp(0).AsRegister<CpuRegister>();
-  // TODO: Literal pool. Trades 64b immediate in CPU reg for direct memory access.
   if (is_double) {
-    __ movq(cpu_temp, Immediate(INT64_C(0x7FF8000000000000)));
+    __ movsd(out, codegen->LiteralInt64Address(INT64_C(0x7FF8000000000000)));
   } else {
-    __ movl(cpu_temp, Immediate(INT64_C(0x7FC00000)));
+    __ movss(out, codegen->LiteralInt32Address(INT32_C(0x7FC00000)));
   }
-  __ movd(out, cpu_temp, is_double);
   __ jmp(&done);
 
   // out := op2;
@@ -483,7 +478,7 @@ static void GenMinMaxFP(LocationSummary* locations, bool is_min, bool is_double,
   __ Bind(&done);
 }
 
-static void CreateFPFPToFPPlusTempLocations(ArenaAllocator* arena, HInvoke* invoke) {
+static void CreateFPFPToFP(ArenaAllocator* arena, HInvoke* invoke) {
   LocationSummary* locations = new (arena) LocationSummary(invoke,
                                                            LocationSummary::kNoCall,
                                                            kIntrinsified);
@@ -492,39 +487,38 @@ static void CreateFPFPToFPPlusTempLocations(ArenaAllocator* arena, HInvoke* invo
   // The following is sub-optimal, but all we can do for now. It would be fine to also accept
   // the second input to be the output (we can simply swap inputs).
   locations->SetOut(Location::SameAsFirstInput());
-  locations->AddTemp(Location::RequiresRegister());     // Immediate constant.
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitMathMinDoubleDouble(HInvoke* invoke) {
-  CreateFPFPToFPPlusTempLocations(arena_, invoke);
+  CreateFPFPToFP(arena_, invoke);
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitMathMinDoubleDouble(HInvoke* invoke) {
-  GenMinMaxFP(invoke->GetLocations(), true, true, GetAssembler());
+  GenMinMaxFP(invoke->GetLocations(), true, true, GetAssembler(), codegen_);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitMathMinFloatFloat(HInvoke* invoke) {
-  CreateFPFPToFPPlusTempLocations(arena_, invoke);
+  CreateFPFPToFP(arena_, invoke);
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitMathMinFloatFloat(HInvoke* invoke) {
-  GenMinMaxFP(invoke->GetLocations(), true, false, GetAssembler());
+  GenMinMaxFP(invoke->GetLocations(), true, false, GetAssembler(), codegen_);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitMathMaxDoubleDouble(HInvoke* invoke) {
-  CreateFPFPToFPPlusTempLocations(arena_, invoke);
+  CreateFPFPToFP(arena_, invoke);
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitMathMaxDoubleDouble(HInvoke* invoke) {
-  GenMinMaxFP(invoke->GetLocations(), false, true, GetAssembler());
+  GenMinMaxFP(invoke->GetLocations(), false, true, GetAssembler(), codegen_);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitMathMaxFloatFloat(HInvoke* invoke) {
-  CreateFPFPToFPPlusTempLocations(arena_, invoke);
+  CreateFPFPToFP(arena_, invoke);
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitMathMaxFloatFloat(HInvoke* invoke) {
-  GenMinMaxFP(invoke->GetLocations(), false, false, GetAssembler());
+  GenMinMaxFP(invoke->GetLocations(), false, false, GetAssembler(), codegen_);
 }
 
 static void GenMinMax(LocationSummary* locations, bool is_min, bool is_long,
