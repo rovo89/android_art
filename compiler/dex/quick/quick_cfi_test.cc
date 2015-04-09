@@ -84,7 +84,7 @@ class QuickCFITest : public CFITest {
     cu.mir_graph->current_code_item_ = &code_item;
 
     // Generate empty method with some spills.
-    Mir2Lir* m2l = QuickCompiler::GetCodeGenerator(&cu, NULL);
+    std::unique_ptr<Mir2Lir> m2l(QuickCompiler::GetCodeGenerator(&cu, nullptr));
     m2l->frame_size_ = 64u;
     m2l->CompilerInitializeRegAlloc();
     for (const auto& info : m2l->reg_pool_->core_regs_) {
