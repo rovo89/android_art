@@ -97,29 +97,23 @@ void X86Mir2Lir::GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocat
 
     // Add the offset from the table to the table base.
     OpRegReg(kOpAdd, addr_for_jump, table_base);
+    tab_rec->anchor = nullptr;  // Unused for x86-64.
   } else {
-    // Materialize a pointer to the switch table.
-    RegStorage start_of_method_reg;
-    if (base_of_code_ != nullptr) {
-      // We can use the saved value.
-      RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
-      rl_method = LoadValue(rl_method, kCoreReg);
-      start_of_method_reg = rl_method.reg;
-      store_method_addr_used_ = true;
-    } else {
-      start_of_method_reg = AllocTempRef();
-      NewLIR1(kX86StartOfMethod, start_of_method_reg.GetReg());
-    }
+    // Get the PC to a register and get the anchor.
+    LIR* anchor;
+    RegStorage r_pc = GetPcAndAnchor(&anchor);
+
     // Load the displacement from the switch table.
     addr_for_jump = AllocTemp();
-    NewLIR5(kX86PcRelLoadRA, addr_for_jump.GetReg(), start_of_method_reg.GetReg(), keyReg.GetReg(),
+    NewLIR5(kX86PcRelLoadRA, addr_for_jump.GetReg(), r_pc.GetReg(), keyReg.GetReg(),
             2, WrapPointer(tab_rec));
-    // Add displacement to start of method.
-    OpRegReg(kOpAdd, addr_for_jump, start_of_method_reg);
+    // Add displacement and r_pc to get the address.
+    OpRegReg(kOpAdd, addr_for_jump, r_pc);
+    tab_rec->anchor = anchor;
   }
 
   // ..and go!
-  tab_rec->anchor = NewLIR1(kX86JmpR, addr_for_jump.GetReg());
+  NewLIR1(kX86JmpR, addr_for_jump.GetReg());
 
   /* branch_over target here */
   LIR* target = NewLIR0(kPseudoTargetLabel);
@@ -243,14 +237,12 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
 
   FlushIns(ArgLocs, rl_method);
 
-  if (base_of_code_ != nullptr) {
-    RegStorage method_start = TargetPtrReg(kArg0);
-    // We have been asked to save the address of the method start for later use.
-    setup_method_address_[0] = NewLIR1(kX86StartOfMethod, method_start.GetReg());
-    int displacement = SRegOffset(base_of_code_->s_reg_low);
-    // Native pointer - must be natural word size.
-    setup_method_address_[1] = StoreBaseDisp(rs_rSP, displacement, method_start,
-                                             cu_->target64 ? k64 : k32, kNotVolatile);
+  // We can promote the PC of an anchor for PC-relative addressing to a register
+  // if it's used at least twice. Without investigating where we should lazily
+  // load the reference, we conveniently load it after flushing inputs.
+  if (pc_rel_base_reg_.Valid()) {
+    DCHECK(!cu_->target64);
+    setup_pc_rel_base_reg_ = OpLoadPc(pc_rel_base_reg_);
   }
 
   FreeTemp(arg0);
