@@ -379,7 +379,7 @@ class Main extends IntMathBase {
      */
     static int lit16Test(int x) {
 
-        int[] results = new int[8];
+        int[] results = new int[10];
 
         /* try to generate op-int/lit16" instructions */
         results[0] = x + 1000;
@@ -390,6 +390,9 @@ class Main extends IntMathBase {
         results[5] = x & 1000;
         results[6] = x | -1000;
         results[7] = x ^ -1000;
+        /* use an 16-bit constant that has its MSB (bit-15) set */
+        results[8] = x / 32769;
+        results[9] = x / -32769;
 
         if (results[0] != 78777) { return 1; }
         if (results[1] != -76777) { return 2; }
@@ -399,6 +402,8 @@ class Main extends IntMathBase {
         if (results[5] != 960) { return 6; }
         if (results[6] != -39) { return 7; }
         if (results[7] != -76855) { return 8; }
+        if (results[8] != 2) { return 9; }
+        if (results[9] != -2) { return 10; }
         return 0;
     }
 
