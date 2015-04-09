@@ -28,7 +28,7 @@ namespace dwarf {
 // When we are generating the CFI code, we do not know the instuction offsets,
 // this class stores the LIR references and patches the instruction stream later.
 class LazyDebugFrameOpCodeWriter FINAL
-    : private DebugFrameOpCodeWriter<ArenaAllocatorAdapter<uint8_t>> {
+    : public DebugFrameOpCodeWriter<ArenaAllocatorAdapter<uint8_t>> {
   typedef DebugFrameOpCodeWriter<ArenaAllocatorAdapter<uint8_t>> Base;
  public:
   // This method is implicitely called the by opcode writers.
@@ -38,72 +38,12 @@ class LazyDebugFrameOpCodeWriter FINAL
     advances_.push_back({this->data()->size(), *last_lir_insn_});
   }
 
-  // The register was unspilled.
-  void Restore(Reg reg) {
-    if (enable_writes_) {
-      Base::Restore(reg);
-    }
-  }
-
-  // Custom alias - unspill many registers based on bitmask.
-  void RestoreMany(Reg reg_base, uint32_t reg_mask) {
-    if (enable_writes_) {
-      Base::RestoreMany(reg_base, reg_mask);
-    }
-  }
-
-  // Remember the state of register spills.
-  void RememberState() {
-    if (enable_writes_) {
-      Base::RememberState();
-    }
-  }
-
-  // Restore the state of register spills.
-  void RestoreState() {
-    if (enable_writes_) {
-      Base::RestoreState();
-    }
-  }
-
-  // Set the frame pointer (CFA) to (stack_pointer + offset).
-  void DefCFAOffset(int offset) {
-    if (enable_writes_) {
-      Base::DefCFAOffset(offset);
-    }
-    this->current_cfa_offset_ = offset;
-  }
-
-  // The stack size was increased by given delta.
-  void AdjustCFAOffset(int delta) {
-    DefCFAOffset(this->current_cfa_offset_ + delta);
-  }
-
-  // The register was spilled to (stack_pointer + offset).
-  void RelOffset(Reg reg, int offset) {
-    if (enable_writes_) {
-      Base::RelOffset(reg, offset);
-    }
-  }
-
-  // Custom alias - spill many registers based on bitmask.
-  void RelOffsetForMany(Reg reg_base, int offset, uint32_t reg_mask, int reg_size) {
-    if (enable_writes_) {
-      Base::RelOffsetForMany(reg_base, offset, reg_mask, reg_size);
-    }
-  }
-
-  using Base::GetCurrentCFAOffset;
-  using Base::SetCurrentCFAOffset;
-  using Base::GetCurrentPC;
-
   const ArenaVector<uint8_t>* Patch(size_t code_size);
 
   explicit LazyDebugFrameOpCodeWriter(LIR** last_lir_insn, bool enable_writes,
                                       ArenaAllocator* allocator)
-    : Base(allocator->Adapter()),
+    : Base(enable_writes, allocator->Adapter()),
       last_lir_insn_(last_lir_insn),
-      enable_writes_(enable_writes),
       advances_(allocator->Adapter()),
       patched_(false) {
   }
@@ -114,8 +54,9 @@ class LazyDebugFrameOpCodeWriter FINAL
     LIR* last_lir_insn;
   } Advance;
 
+  using Base::data;  // Hidden. Use Patch method instead.
+
   LIR** last_lir_insn_;
-  bool enable_writes_;
   ArenaVector<Advance> advances_;
   bool patched_;
 

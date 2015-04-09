@@ -320,7 +320,7 @@ class CompiledMethod FINAL : public CompiledCode {
                  const ArrayRef<const uint8_t>& vmap_table,
                  const ArrayRef<const uint8_t>& native_gc_map,
                  const ArrayRef<const uint8_t>& cfi_info,
-                 const ArrayRef<const LinkerPatch>& patches = ArrayRef<const LinkerPatch>());
+                 const ArrayRef<const LinkerPatch>& patches);
 
   virtual ~CompiledMethod();
 
@@ -336,24 +336,7 @@ class CompiledMethod FINAL : public CompiledCode {
       const ArrayRef<const uint8_t>& vmap_table,
       const ArrayRef<const uint8_t>& native_gc_map,
       const ArrayRef<const uint8_t>& cfi_info,
-      const ArrayRef<const LinkerPatch>& patches = ArrayRef<const LinkerPatch>());
-
-  static CompiledMethod* SwapAllocCompiledMethodStackMap(
-      CompilerDriver* driver,
-      InstructionSet instruction_set,
-      const ArrayRef<const uint8_t>& quick_code,
-      const size_t frame_size_in_bytes,
-      const uint32_t core_spill_mask,
-      const uint32_t fp_spill_mask,
-      const ArrayRef<const uint8_t>& stack_map);
-
-  static CompiledMethod* SwapAllocCompiledMethodCFI(CompilerDriver* driver,
-                                                    InstructionSet instruction_set,
-                                                    const ArrayRef<const uint8_t>& quick_code,
-                                                    const size_t frame_size_in_bytes,
-                                                    const uint32_t core_spill_mask,
-                                                    const uint32_t fp_spill_mask,
-                                                    const ArrayRef<const uint8_t>& cfi_info);
+      const ArrayRef<const LinkerPatch>& patches);
 
   static void ReleaseSwapAllocatedCompiledMethod(CompilerDriver* driver, CompiledMethod* m);
 
