@@ -205,7 +205,8 @@ class CodeGenerator {
     slow_paths_.Add(slow_path);
   }
 
-  void BuildMappingTable(std::vector<uint8_t>* vector, DefaultSrcMap* src_map) const;
+  void BuildSourceMap(DefaultSrcMap* src_map) const;
+  void BuildMappingTable(std::vector<uint8_t>* vector) const;
   void BuildVMapTable(std::vector<uint8_t>* vector) const;
   void BuildNativeGCMap(
       std::vector<uint8_t>* vector, const DexCompilationUnit& dex_compilation_unit) const;
@@ -424,6 +425,8 @@ class CodeGenerator {
   bool requires_current_method_;
 
   StackMapStream stack_map_stream_;
+
+  friend class OptimizingCFITest;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGenerator);
 };

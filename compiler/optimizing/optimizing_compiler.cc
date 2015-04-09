@@ -50,6 +50,7 @@
 #include "ssa_builder.h"
 #include "ssa_phi_elimination.h"
 #include "ssa_liveness_analysis.h"
+#include "utils/assembler.h"
 #include "reference_type_propagation.h"
 
 namespace art {
@@ -395,12 +396,17 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
   CodeVectorAllocator allocator;
   codegen->CompileOptimized(&allocator);
 
+  DefaultSrcMap src_mapping_table;
+  if (compiler_driver->GetCompilerOptions().GetIncludeDebugSymbols()) {
+    codegen->BuildSourceMap(&src_mapping_table);
+  }
+
   std::vector<uint8_t> stack_map;
   codegen->BuildStackMaps(&stack_map);
 
   compilation_stats_.RecordStat(MethodCompilationStat::kCompiledOptimized);
 
-  return CompiledMethod::SwapAllocCompiledMethodStackMap(
+  return CompiledMethod::SwapAllocCompiledMethod(
       compiler_driver,
       codegen->GetInstructionSet(),
       ArrayRef<const uint8_t>(allocator.GetMemory()),
@@ -410,7 +416,12 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
       codegen->HasEmptyFrame() ? 0 : codegen->GetFrameSize(),
       codegen->GetCoreSpillMask(),
       codegen->GetFpuSpillMask(),
-      ArrayRef<const uint8_t>(stack_map));
+      &src_mapping_table,
+      ArrayRef<const uint8_t>(),  // mapping_table.
+      ArrayRef<const uint8_t>(stack_map),
+      ArrayRef<const uint8_t>(),  // native_gc_map.
+      ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data()),
+      ArrayRef<const LinkerPatch>());
 }
 
 
@@ -422,9 +433,11 @@ CompiledMethod* OptimizingCompiler::CompileBaseline(
   codegen->CompileBaseline(&allocator);
 
   std::vector<uint8_t> mapping_table;
+  codegen->BuildMappingTable(&mapping_table);
   DefaultSrcMap src_mapping_table;
-  bool include_debug_symbol = compiler_driver->GetCompilerOptions().GetIncludeDebugSymbols();
-  codegen->BuildMappingTable(&mapping_table, include_debug_symbol ? &src_mapping_table : nullptr);
+  if (compiler_driver->GetCompilerOptions().GetIncludeDebugSymbols()) {
+    codegen->BuildSourceMap(&src_mapping_table);
+  }
   std::vector<uint8_t> vmap_table;
   codegen->BuildVMapTable(&vmap_table);
   std::vector<uint8_t> gc_map;
@@ -445,7 +458,8 @@ CompiledMethod* OptimizingCompiler::CompileBaseline(
       AlignVectorSize(mapping_table),
       AlignVectorSize(vmap_table),
       AlignVectorSize(gc_map),
-      ArrayRef<const uint8_t>());
+      ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data()),
+      ArrayRef<const LinkerPatch>());
 }
 
 CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_item,
@@ -511,6 +525,8 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     compilation_stats_.RecordStat(MethodCompilationStat::kNotCompiledNoCodegen);
     return nullptr;
   }
+  codegen->GetAssembler()->cfi().SetEnabled(
+      compiler_driver->GetCompilerOptions().GetIncludeDebugSymbols());
 
   PassInfoPrinter pass_info_printer(graph,
                                     method_name.c_str(),
