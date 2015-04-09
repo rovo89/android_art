@@ -174,6 +174,40 @@ class AssemblerX86_64Test : public AssemblerTest<x86_64::X86_64Assembler, x86_64
       secondary_register_names_.emplace(x86_64::CpuRegister(x86_64::R14), "r14d");
       secondary_register_names_.emplace(x86_64::CpuRegister(x86_64::R15), "r15d");
 
+      tertiary_register_names_.emplace(x86_64::CpuRegister(x86_64::RAX), "ax");
+      tertiary_register_names_.emplace(x86_64::CpuRegister(x86_64::RBX), "bx");
+      tertiary_register_names_.emplace(x86_64::CpuRegister(x86_64::RCX), "cx");
+      tertiary_register_names_.emplace(x86_64::CpuRegister(x86_64::RDX), "dx");
+      tertiary_register_names_.emplace(x86_64::CpuRegister(x86_64::RBP), "bp");
+      tertiary_register_names_.emplace(x86_64::CpuRegister(x86_64::RSP), "sp");
+      tertiary_register_names_.emplace(x86_64::CpuRegister(x86_64::RSI), "si");
+      tertiary_register_names_.emplace(x86_64::CpuRegister(x86_64::RDI), "di");
+      tertiary_register_names_.emplace(x86_64::CpuRegister(x86_64::R8), "r8w");
+      tertiary_register_names_.emplace(x86_64::CpuRegister(x86_64::R9), "r9w");
+      tertiary_register_names_.emplace(x86_64::CpuRegister(x86_64::R10), "r10w");
+      tertiary_register_names_.emplace(x86_64::CpuRegister(x86_64::R11), "r11w");
+      tertiary_register_names_.emplace(x86_64::CpuRegister(x86_64::R12), "r12w");
+      tertiary_register_names_.emplace(x86_64::CpuRegister(x86_64::R13), "r13w");
+      tertiary_register_names_.emplace(x86_64::CpuRegister(x86_64::R14), "r14w");
+      tertiary_register_names_.emplace(x86_64::CpuRegister(x86_64::R15), "r15w");
+
+      quaternary_register_names_.emplace(x86_64::CpuRegister(x86_64::RAX), "al");
+      quaternary_register_names_.emplace(x86_64::CpuRegister(x86_64::RBX), "bl");
+      quaternary_register_names_.emplace(x86_64::CpuRegister(x86_64::RCX), "cl");
+      quaternary_register_names_.emplace(x86_64::CpuRegister(x86_64::RDX), "dl");
+      quaternary_register_names_.emplace(x86_64::CpuRegister(x86_64::RBP), "bpl");
+      quaternary_register_names_.emplace(x86_64::CpuRegister(x86_64::RSP), "spl");
+      quaternary_register_names_.emplace(x86_64::CpuRegister(x86_64::RSI), "sil");
+      quaternary_register_names_.emplace(x86_64::CpuRegister(x86_64::RDI), "dil");
+      quaternary_register_names_.emplace(x86_64::CpuRegister(x86_64::R8), "r8b");
+      quaternary_register_names_.emplace(x86_64::CpuRegister(x86_64::R9), "r9b");
+      quaternary_register_names_.emplace(x86_64::CpuRegister(x86_64::R10), "r10b");
+      quaternary_register_names_.emplace(x86_64::CpuRegister(x86_64::R11), "r11b");
+      quaternary_register_names_.emplace(x86_64::CpuRegister(x86_64::R12), "r12b");
+      quaternary_register_names_.emplace(x86_64::CpuRegister(x86_64::R13), "r13b");
+      quaternary_register_names_.emplace(x86_64::CpuRegister(x86_64::R14), "r14b");
+      quaternary_register_names_.emplace(x86_64::CpuRegister(x86_64::R15), "r15b");
+
       fp_registers_.push_back(new x86_64::XmmRegister(x86_64::XMM0));
       fp_registers_.push_back(new x86_64::XmmRegister(x86_64::XMM1));
       fp_registers_.push_back(new x86_64::XmmRegister(x86_64::XMM2));
@@ -216,9 +250,21 @@ class AssemblerX86_64Test : public AssemblerTest<x86_64::X86_64Assembler, x86_64
     return secondary_register_names_[reg];
   }
 
+  std::string GetTertiaryRegisterName(const x86_64::CpuRegister& reg) OVERRIDE {
+    CHECK(tertiary_register_names_.find(reg) != tertiary_register_names_.end());
+    return tertiary_register_names_[reg];
+  }
+
+  std::string GetQuaternaryRegisterName(const x86_64::CpuRegister& reg) OVERRIDE {
+    CHECK(quaternary_register_names_.find(reg) != quaternary_register_names_.end());
+    return quaternary_register_names_[reg];
+  }
+
  private:
   std::vector<x86_64::CpuRegister*> registers_;
   std::map<x86_64::CpuRegister, std::string, X86_64CpuRegisterCompare> secondary_register_names_;
+  std::map<x86_64::CpuRegister, std::string, X86_64CpuRegisterCompare> tertiary_register_names_;
+  std::map<x86_64::CpuRegister, std::string, X86_64CpuRegisterCompare> quaternary_register_names_;
 
   std::vector<x86_64::XmmRegister*> fp_registers_;
 };
@@ -878,31 +924,12 @@ std::string setcc_test_fn(AssemblerX86_64Test::Base* assembler_test,
                                "l", "ge", "le" };
 
   std::vector<x86_64::CpuRegister*> registers = assembler_test->GetRegisters();
-
-  std::string byte_regs[16];
-  byte_regs[x86_64::RAX] = "al";
-  byte_regs[x86_64::RBX] = "bl";
-  byte_regs[x86_64::RCX] = "cl";
-  byte_regs[x86_64::RDX] = "dl";
-  byte_regs[x86_64::RBP] = "bpl";
-  byte_regs[x86_64::RSP] = "spl";
-  byte_regs[x86_64::RSI] = "sil";
-  byte_regs[x86_64::RDI] = "dil";
-  byte_regs[x86_64::R8] = "r8b";
-  byte_regs[x86_64::R9] = "r9b";
-  byte_regs[x86_64::R10] = "r10b";
-  byte_regs[x86_64::R11] = "r11b";
-  byte_regs[x86_64::R12] = "r12b";
-  byte_regs[x86_64::R13] = "r13b";
-  byte_regs[x86_64::R14] = "r14b";
-  byte_regs[x86_64::R15] = "r15b";
-
   std::ostringstream str;
 
   for (auto reg : registers) {
     for (size_t i = 0; i < 15; ++i) {
       assembler->setcc(static_cast<x86_64::Condition>(i), *reg);
-      str << "set" << suffixes[i] << " %" << byte_regs[reg->AsRegister()] << "\n";
+      str << "set" << suffixes[i] << " %" << assembler_test->GetQuaternaryRegisterName(*reg) << "\n";
     }
   }
 
@@ -1031,6 +1058,14 @@ std::string decreaseframe_test_fn(AssemblerX86_64Test::Base* assembler_test ATTR
 
 TEST_F(AssemblerX86_64Test, DecreaseFrame) {
   DriverFn(&decreaseframe_test_fn, "DecreaseFrame");
+}
+
+TEST_F(AssemblerX86_64Test, MovzxbRegs) {
+  DriverStr(Repeatrb(&x86_64::X86_64Assembler::movzxb, "movzbl %{reg2}, %{reg1}"), "movzxb");
+}
+
+TEST_F(AssemblerX86_64Test, MovsxbRegs) {
+  DriverStr(Repeatrb(&x86_64::X86_64Assembler::movsxb, "movsbl %{reg2}, %{reg1}"), "movsxb");
 }
 
 }  // namespace art
