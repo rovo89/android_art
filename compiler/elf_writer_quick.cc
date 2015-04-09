@@ -679,7 +679,7 @@ static void WriteDebugSymbols(const CompilerDriver* compiler_driver,
   }
 
   if (!method_info.empty() &&
-      compiler_driver->GetCompilerOptions().GetGenerateGDBInformation()) {
+      compiler_driver->GetCompilerOptions().GetIncludeDebugSymbols()) {
     ElfRawSectionBuilder<Elf_Word, Elf_Sword, Elf_Shdr> debug_info(".debug_info",
                                                                    SHT_PROGBITS,
                                                                    0, nullptr, 0, 1, 0);

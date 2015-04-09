@@ -82,6 +82,7 @@ void CodeGenerator::CompileInternal(CodeAllocator* allocator, bool is_baseline) 
   HGraphVisitor* instruction_visitor = GetInstructionVisitor();
   DCHECK_EQ(current_block_index_, 0u);
   GenerateFrameEntry();
+  DCHECK_EQ(GetAssembler()->cfi().GetCurrentCFAOffset(), static_cast<int>(frame_size_));
   for (size_t e = block_order_->Size(); current_block_index_ < e; ++current_block_index_) {
     HBasicBlock* block = block_order_->Get(current_block_index_);
     // Don't generate code for an empty block. Its predecessors will branch to its successor
@@ -415,7 +416,16 @@ void CodeGenerator::BuildNativeGCMap(
   }
 }
 
-void CodeGenerator::BuildMappingTable(std::vector<uint8_t>* data, DefaultSrcMap* src_map) const {
+void CodeGenerator::BuildSourceMap(DefaultSrcMap* src_map) const {
+  for (size_t i = 0; i < pc_infos_.Size(); i++) {
+    struct PcInfo pc_info = pc_infos_.Get(i);
+    uint32_t pc2dex_offset = pc_info.native_pc;
+    int32_t pc2dex_dalvik_offset = pc_info.dex_pc;
+    src_map->push_back(SrcMapElem({pc2dex_offset, pc2dex_dalvik_offset}));
+  }
+}
+
+void CodeGenerator::BuildMappingTable(std::vector<uint8_t>* data) const {
   uint32_t pc2dex_data_size = 0u;
   uint32_t pc2dex_entries = pc_infos_.Size();
   uint32_t pc2dex_offset = 0u;
@@ -425,19 +435,12 @@ void CodeGenerator::BuildMappingTable(std::vector<uint8_t>* data, DefaultSrcMap*
   uint32_t dex2pc_offset = 0u;
   int32_t dex2pc_dalvik_offset = 0;
 
-  if (src_map != nullptr) {
-    src_map->reserve(pc2dex_entries);
-  }
-
   for (size_t i = 0; i < pc2dex_entries; i++) {
     struct PcInfo pc_info = pc_infos_.Get(i);
     pc2dex_data_size += UnsignedLeb128Size(pc_info.native_pc - pc2dex_offset);
     pc2dex_data_size += SignedLeb128Size(pc_info.dex_pc - pc2dex_dalvik_offset);
     pc2dex_offset = pc_info.native_pc;
     pc2dex_dalvik_offset = pc_info.dex_pc;
-    if (src_map != nullptr) {
-      src_map->push_back(SrcMapElem({pc2dex_offset, pc2dex_dalvik_offset}));
-    }
   }
 
   // Walk over the blocks and find which ones correspond to catch block entries.
