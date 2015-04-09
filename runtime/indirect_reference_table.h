@@ -258,9 +258,14 @@ bool inline operator!=(const IrtIterator& lhs, const IrtIterator& rhs) {
 
 class IndirectReferenceTable {
  public:
-  IndirectReferenceTable(size_t initialCount, size_t maxCount, IndirectRefKind kind);
+  // WARNING: When using with abort_on_error = false, the object may be in a partially
+  //          initialized state. Use IsValid() to check.
+  IndirectReferenceTable(size_t initialCount, size_t maxCount, IndirectRefKind kind,
+                         bool abort_on_error = true);
 
   ~IndirectReferenceTable();
+
+  bool IsValid() const;
 
   /*
    * Add a new entry.  "obj" must be a valid non-NULL object reference.
