@@ -22,6 +22,7 @@
 #include "base/unix_file/fd_file.h"
 #include "buffered_output_stream.h"
 #include "compiled_method.h"
+#include "dex_file-inl.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
 #include "dwarf.h"
@@ -289,68 +290,6 @@ bool ElfWriterQuick<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
   return builder->Write();
 }
 
-// TODO: rewriting it using DexFile::DecodeDebugInfo needs unneeded stuff.
-static void GetLineInfoForJava(const uint8_t* dbgstream, DefaultSrcMap* dex2line) {
-  if (dbgstream == nullptr) {
-    return;
-  }
-
-  int adjopcode;
-  uint32_t dex_offset = 0;
-  uint32_t java_line = DecodeUnsignedLeb128(&dbgstream);
-
-  // skip parameters
-  for (uint32_t param_count = DecodeUnsignedLeb128(&dbgstream); param_count != 0; --param_count) {
-    DecodeUnsignedLeb128(&dbgstream);
-  }
-
-  for (bool is_end = false; is_end == false; ) {
-    uint8_t opcode = *dbgstream;
-    dbgstream++;
-    switch (opcode) {
-    case DexFile::DBG_END_SEQUENCE:
-      is_end = true;
-      break;
-
-    case DexFile::DBG_ADVANCE_PC:
-      dex_offset += DecodeUnsignedLeb128(&dbgstream);
-      break;
-
-    case DexFile::DBG_ADVANCE_LINE:
-      java_line += DecodeSignedLeb128(&dbgstream);
-      break;
-
-    case DexFile::DBG_START_LOCAL:
-    case DexFile::DBG_START_LOCAL_EXTENDED:
-      DecodeUnsignedLeb128(&dbgstream);
-      DecodeUnsignedLeb128(&dbgstream);
-      DecodeUnsignedLeb128(&dbgstream);
-
-      if (opcode == DexFile::DBG_START_LOCAL_EXTENDED) {
-        DecodeUnsignedLeb128(&dbgstream);
-      }
-      break;
-
-    case DexFile::DBG_END_LOCAL:
-    case DexFile::DBG_RESTART_LOCAL:
-      DecodeUnsignedLeb128(&dbgstream);
-      break;
-
-    case DexFile::DBG_SET_PROLOGUE_END:
-    case DexFile::DBG_SET_EPILOGUE_BEGIN:
-    case DexFile::DBG_SET_FILE:
-      break;
-
-    default:
-      adjopcode = opcode - DexFile::DBG_FIRST_SPECIAL;
-      dex_offset += adjopcode / DexFile::DBG_LINE_RANGE;
-      java_line += DexFile::DBG_LINE_BASE + (adjopcode % DexFile::DBG_LINE_RANGE);
-      dex2line->push_back({dex_offset, static_cast<int32_t>(java_line)});
-      break;
-    }
-  }
-}
-
 /*
  * @brief Generate the DWARF debug_info and debug_abbrev sections
  * @param oat_writer The Oat file Writer.
@@ -477,11 +416,19 @@ static void FillInCFIInformation(OatWriter* oat_writer,
   }
 
   for (auto method_info : method_infos) {
+    std::string method_name = PrettyMethod(method_info.dex_method_index_,
+                                           *method_info.dex_file_, true);
+    if (method_info.deduped_) {
+      // TODO We should place the DEDUPED tag on the first instance of a deduplicated symbol
+      // so that it will show up in a debuggerd crash report.
+      method_name += " [ DEDUPED ]";
+    }
+
     // Start a new TAG: subroutine (2).
     PushByte(dbg_info, 2);
 
     // Enter name, low_pc, high_pc.
-    Push32(dbg_info, PushStr(dbg_str, method_info.method_name_));
+    Push32(dbg_info, PushStr(dbg_str, method_name));
     Push32(dbg_info, method_info.low_pc_ + text_section_offset);
     Push32(dbg_info, method_info.high_pc_ + text_section_offset);
   }
@@ -523,21 +470,40 @@ static void FillInCFIInformation(OatWriter* oat_writer,
     if (isa != -1) {
       opcodes.SetISA(isa);
     }
-    DefaultSrcMap dex2line_map;
-    for (size_t i = 0; i < method_infos.size(); i++) {
-      const OatWriter::DebugInfo& method_info = method_infos[i];
-
+    for (const OatWriter::DebugInfo& mi : method_infos) {
       // Addresses in the line table should be unique and increasing.
-      if (method_info.deduped_) {
+      if (mi.deduped_) {
         continue;
       }
 
+      struct DebugInfoCallbacks {
+        static bool NewPosition(void* ctx, uint32_t address, uint32_t line) {
+          auto* context = reinterpret_cast<DebugInfoCallbacks*>(ctx);
+          context->dex2line_.push_back({address, static_cast<int32_t>(line)});
+          return false;
+        }
+        DefaultSrcMap dex2line_;
+      } debug_info_callbacks;
+
+      const DexFile* dex = mi.dex_file_;
+      if (mi.code_item_ != nullptr) {
+        dex->DecodeDebugInfo(mi.code_item_,
+                             (mi.access_flags_ & kAccStatic) != 0,
+                             mi.dex_method_index_,
+                             DebugInfoCallbacks::NewPosition,
+                             nullptr,
+                             &debug_info_callbacks);
+      }
+
+
       // Get and deduplicate directory and filename.
       int file_index = 0;  // 0 - primary source file of the compilation.
-      if (method_info.src_file_name_ != nullptr) {
-        std::string file_name(method_info.src_file_name_);
+      auto& dex_class_def = dex->GetClassDef(mi.class_def_index_);
+      const char* source_file = dex->GetSourceFile(dex_class_def);
+      if (source_file != nullptr) {
+        std::string file_name(source_file);
         size_t file_name_slash = file_name.find_last_of('/');
-        std::string class_name(method_info.class_descriptor_);
+        std::string class_name(dex->GetClassDescriptor(dex_class_def));
         size_t class_name_slash = class_name.find_last_of('/');
         std::string full_path(file_name);
 
@@ -576,15 +542,14 @@ static void FillInCFIInformation(OatWriter* oat_writer,
       opcodes.SetFile(file_index);
 
       // Generate mapping opcodes from PC to Java lines.
-      dex2line_map.clear();
-      GetLineInfoForJava(method_info.dbgstream_, &dex2line_map);
-      uint32_t low_pc = text_section_offset + method_info.low_pc_;
+      const DefaultSrcMap& dex2line_map = debug_info_callbacks.dex2line_;
+      uint32_t low_pc = text_section_offset + mi.low_pc_;
       if (file_index != 0 && !dex2line_map.empty()) {
         bool first = true;
-        for (SrcMapElem pc2dex : method_info.compiled_method_->GetSrcMappingTable()) {
+        for (SrcMapElem pc2dex : mi.compiled_method_->GetSrcMappingTable()) {
           uint32_t pc = pc2dex.from_;
-          int dex = pc2dex.to_;
-          auto dex2line = dex2line_map.Find(static_cast<uint32_t>(dex));
+          int dex_pc = pc2dex.to_;
+          auto dex2line = dex2line_map.Find(static_cast<uint32_t>(dex_pc));
           if (dex2line.first) {
             int line = dex2line.second;
             if (first) {
@@ -645,10 +610,17 @@ static void WriteDebugSymbols(const CompilerDriver* compiler_driver,
   ElfSymtabBuilder<Elf_Word, Elf_Sword, Elf_Addr, Elf_Sym, Elf_Shdr>* symtab =
       builder->GetSymtabBuilder();
   for (auto it = method_info.begin(); it != method_info.end(); ++it) {
+    std::string name = PrettyMethod(it->dex_method_index_, *it->dex_file_, true);
+    if (it->deduped_) {
+      // TODO We should place the DEDUPED tag on the first instance of a deduplicated symbol
+      // so that it will show up in a debuggerd crash report.
+      name += " [ DEDUPED ]";
+    }
+
     uint32_t low_pc = it->low_pc_;
     // Add in code delta, e.g., thumb bit 0 for Thumb2 code.
     low_pc += it->compiled_method_->CodeDelta();
-    symtab->AddSymbol(it->method_name_, &builder->GetTextBuilder(), low_pc,
+    symtab->AddSymbol(name, &builder->GetTextBuilder(), low_pc,
                       true, it->high_pc_ - it->low_pc_, STB_GLOBAL, STT_FUNC);
 
     // Conforming to aaelf, add $t mapping symbol to indicate start of a sequence of thumb2
@@ -671,7 +643,8 @@ static void WriteDebugSymbols(const CompilerDriver* compiler_driver,
 
   bool hasLineInfo = false;
   for (auto& dbg_info : oat_writer->GetCFIMethodInfo()) {
-    if (dbg_info.dbgstream_ != nullptr &&
+    if (dbg_info.code_item_ != nullptr &&
+        dbg_info.dex_file_->GetDebugInfoStream(dbg_info.code_item_) != nullptr &&
         !dbg_info.compiled_method_->GetSrcMappingTable().empty()) {
       hasLineInfo = true;
       break;
