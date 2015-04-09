@@ -1273,13 +1273,14 @@ void ArmMir2Lir::CountRefs(RefCounts* core_counts, RefCounts* fp_counts, size_t 
 
   if (pc_rel_temp_ != nullptr) {
     // Now, if the dex cache array base temp is used only once outside any loops (weight = 1),
-    // avoid the promotion, otherwise boost the weight by factor 4 because the full PC-relative
-    // load sequence is 4 instructions long.
+    // avoid the promotion, otherwise boost the weight by factor 3 because the full PC-relative
+    // load sequence is 4 instructions long and by promoting the PC base we save up to 3
+    // instructions per use.
     int p_map_idx = SRegToPMap(pc_rel_temp_->s_reg_low);
     if (core_counts[p_map_idx].count == 1) {
       core_counts[p_map_idx].count = 0;
     } else {
-      core_counts[p_map_idx].count *= 4;
+      core_counts[p_map_idx].count *= 3;
     }
   }
 }

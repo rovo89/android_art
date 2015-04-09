@@ -544,7 +544,6 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86CallI, kCall, IS_UNARY_OP  | IS_BRANCH,                             { 0,             0, 0xE8, 0,    0, 0, 0, 4, false }, "CallI", "!0d" },
   { kX86Ret,   kNullary, NO_OPERAND | IS_BRANCH,                            { 0,             0, 0xC3, 0,    0, 0, 0, 0, false }, "Ret", "" },
 
-  { kX86StartOfMethod, kMacro,  IS_UNARY_OP | REG_DEF0 | SETS_CCODES,  { 0, 0, 0,    0, 0, 0, 0, 0, false }, "StartOfMethod", "!0r" },
   { kX86PcRelLoadRA,   kPcRel,  IS_LOAD | IS_QUIN_OP | REG_DEF0_USE12, { 0, 0, 0x8B, 0, 0, 0, 0, 0, false }, "PcRelLoadRA",   "!0r,[!1r+!2r<<!3d+!4p]" },
   { kX86PcRelAdr,      kPcRel,  IS_LOAD | IS_BINARY_OP | REG_DEF0,     { 0, 0, 0xB8, 0, 0, 0, 0, 4, false }, "PcRelAdr",      "!0r,!1p" },
   { kX86RepneScasw,    kNullary, NO_OPERAND | REG_USEA | REG_USEC | SETS_CCODES, { 0x66, 0xF2, 0xAF, 0, 0, 0, 0, 0, false }, "RepNE ScasW", "" },
@@ -865,13 +864,6 @@ size_t X86Mir2Lir::GetInsnSize(LIR* lir) {
         DCHECK_EQ(entry->opcode, kX86PcRelAdr);
         return 5;  // opcode with reg + 4 byte immediate
       }
-    case kMacro:  // lir operands - 0: reg
-      DCHECK_EQ(lir->opcode, static_cast<int>(kX86StartOfMethod));
-      return 5 /* call opcode + 4 byte displacement */ + 1 /* pop reg */ +
-          ComputeSize(&X86Mir2Lir::EncodingMap[cu_->target64 ? kX86Sub64RI : kX86Sub32RI],
-                      lir->operands[0], NO_REG, NO_REG, 0) -
-              // Shorter ax encoding.
-              (RegStorage::RegNum(lir->operands[0]) == rs_rAX.GetRegNum()  ? 1 : 0);
     case kUnimplemented:
       break;
   }
@@ -1586,8 +1578,8 @@ void X86Mir2Lir::EmitPcRel(const X86EncodingMap* entry, int32_t raw_reg, int32_t
                            int32_t raw_index, int scale, int32_t table_or_disp) {
   int disp;
   if (entry->opcode == kX86PcRelLoadRA) {
-    const EmbeddedData* tab_rec = UnwrapPointer<EmbeddedData>(table_or_disp);
-    disp = tab_rec->offset;
+    const SwitchTable* tab_rec = UnwrapPointer<SwitchTable>(table_or_disp);
+    disp = tab_rec->offset - tab_rec->anchor->offset;
   } else {
     DCHECK(entry->opcode == kX86PcRelAdr);
     const EmbeddedData* tab_rec = UnwrapPointer<EmbeddedData>(raw_base_or_table);
@@ -1619,23 +1611,6 @@ void X86Mir2Lir::EmitPcRel(const X86EncodingMap* entry, int32_t raw_reg, int32_t
   code_buffer_.push_back((disp >> 24) & 0xFF);
   DCHECK_EQ(0, entry->skeleton.modrm_opcode);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
-}
-
-void X86Mir2Lir::EmitMacro(const X86EncodingMap* entry, int32_t raw_reg, int32_t offset) {
-  DCHECK_EQ(entry->opcode, kX86StartOfMethod) << entry->name;
-  DCHECK_EQ(false, entry->skeleton.r8_form);
-  EmitPrefix(entry, raw_reg, NO_REG, NO_REG);
-  code_buffer_.push_back(0xE8);  // call +0
-  code_buffer_.push_back(0);
-  code_buffer_.push_back(0);
-  code_buffer_.push_back(0);
-  code_buffer_.push_back(0);
-
-  uint8_t low_reg = LowRegisterBits(raw_reg);
-  code_buffer_.push_back(0x58 + low_reg);  // pop reg
-
-  EmitRegImm(&X86Mir2Lir::EncodingMap[cu_->target64 ? kX86Sub64RI : kX86Sub32RI],
-             raw_reg, offset + 5 /* size of call +0 */);
 }
 
 void X86Mir2Lir::EmitUnimplemented(const X86EncodingMap* entry, LIR* lir) {
@@ -1780,7 +1755,8 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
               // Offset is relative to next instruction.
               lir->operands[2] = target - (lir->offset + lir->flags.size);
             } else {
-              lir->operands[2] = target;
+              const LIR* anchor = UnwrapPointer<LIR>(lir->operands[4]);
+              lir->operands[2] = target - anchor->offset;
               int newSize = GetInsnSize(lir);
               if (newSize != lir->flags.size) {
                 lir->flags.size = newSize;
@@ -1951,9 +1927,6 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
         EmitPcRel(entry, lir->operands[0], lir->operands[1], lir->operands[2],
                   lir->operands[3], lir->operands[4]);
         break;
-      case kMacro:  // lir operands - 0: reg
-        EmitMacro(entry, lir->operands[0], lir->offset);
-        break;
       case kNop:  // TODO: these instruction kinds are missing implementations.
       case kThreadReg:
       case kRegArrayImm:
@@ -2044,9 +2017,13 @@ void X86Mir2Lir::AssembleLIR() {
   cu_->NewTimingSplit("Assemble");
 
   // We will remove the method address if we never ended up using it
-  if (store_method_addr_ && !store_method_addr_used_) {
-    setup_method_address_[0]->flags.is_nop = true;
-    setup_method_address_[1]->flags.is_nop = true;
+  if (pc_rel_base_reg_.Valid() && !pc_rel_base_reg_used_) {
+    if (kIsDebugBuild) {
+      LOG(WARNING) << "PC-relative addressing base promoted but unused in "
+          << PrettyMethod(cu_->method_idx, *cu_->dex_file);
+    }
+    setup_pc_rel_base_reg_->flags.is_nop = true;
+    NEXT_LIR(setup_pc_rel_base_reg_)->flags.is_nop = true;
   }
 
   AssignOffsets();
