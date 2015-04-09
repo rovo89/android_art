@@ -724,6 +724,14 @@ int X86Mir2Lir::NumReservableVectorRegisters(bool long_or_fp) {
   return long_or_fp ? num_vector_temps - 2 : num_vector_temps - 1;
 }
 
+static dwarf::Reg DwarfCoreReg(bool is_x86_64, int num) {
+  return is_x86_64 ? dwarf::Reg::X86_64Core(num) : dwarf::Reg::X86Core(num);
+}
+
+static dwarf::Reg DwarfFpReg(bool is_x86_64, int num) {
+  return is_x86_64 ? dwarf::Reg::X86_64Fp(num) : dwarf::Reg::X86Fp(num);
+}
+
 void X86Mir2Lir::SpillCoreRegs() {
   if (num_core_spills_ == 0) {
     return;
@@ -734,11 +742,11 @@ void X86Mir2Lir::SpillCoreRegs() {
       frame_size_ - (GetInstructionSetPointerSize(cu_->instruction_set) * num_core_spills_);
   OpSize size = cu_->target64 ? k64 : k32;
   const RegStorage rs_rSP = cu_->target64 ? rs_rX86_SP_64 : rs_rX86_SP_32;
-  for (int reg = 0; mask; mask >>= 1, reg++) {
-    if (mask & 0x1) {
-      StoreBaseDisp(rs_rSP, offset,
-                    cu_->target64 ? RegStorage::Solo64(reg) :  RegStorage::Solo32(reg),
-                   size, kNotVolatile);
+  for (int reg = 0; mask != 0u; mask >>= 1, reg++) {
+    if ((mask & 0x1) != 0u) {
+      RegStorage r_src = cu_->target64 ? RegStorage::Solo64(reg) : RegStorage::Solo32(reg);
+      StoreBaseDisp(rs_rSP, offset, r_src, size, kNotVolatile);
+      cfi_.RelOffset(DwarfCoreReg(cu_->target64, reg), offset);
       offset += GetInstructionSetPointerSize(cu_->instruction_set);
     }
   }
@@ -753,10 +761,11 @@ void X86Mir2Lir::UnSpillCoreRegs() {
   int offset = frame_size_ - (GetInstructionSetPointerSize(cu_->instruction_set) * num_core_spills_);
   OpSize size = cu_->target64 ? k64 : k32;
   const RegStorage rs_rSP = cu_->target64 ? rs_rX86_SP_64 : rs_rX86_SP_32;
-  for (int reg = 0; mask; mask >>= 1, reg++) {
-    if (mask & 0x1) {
-      LoadBaseDisp(rs_rSP, offset, cu_->target64 ? RegStorage::Solo64(reg) :  RegStorage::Solo32(reg),
-                   size, kNotVolatile);
+  for (int reg = 0; mask != 0u; mask >>= 1, reg++) {
+    if ((mask & 0x1) != 0u) {
+      RegStorage r_dest = cu_->target64 ? RegStorage::Solo64(reg) : RegStorage::Solo32(reg);
+      LoadBaseDisp(rs_rSP, offset, r_dest, size, kNotVolatile);
+      cfi_.Restore(DwarfCoreReg(cu_->target64, reg));
       offset += GetInstructionSetPointerSize(cu_->instruction_set);
     }
   }
@@ -770,9 +779,10 @@ void X86Mir2Lir::SpillFPRegs() {
   int offset = frame_size_ -
       (GetInstructionSetPointerSize(cu_->instruction_set) * (num_fp_spills_ + num_core_spills_));
   const RegStorage rs_rSP = cu_->target64 ? rs_rX86_SP_64 : rs_rX86_SP_32;
-  for (int reg = 0; mask; mask >>= 1, reg++) {
-    if (mask & 0x1) {
+  for (int reg = 0; mask != 0u; mask >>= 1, reg++) {
+    if ((mask & 0x1) != 0u) {
       StoreBaseDisp(rs_rSP, offset, RegStorage::FloatSolo64(reg), k64, kNotVolatile);
+      cfi_.RelOffset(DwarfFpReg(cu_->target64, reg), offset);
       offset += sizeof(double);
     }
   }
@@ -785,10 +795,11 @@ void X86Mir2Lir::UnSpillFPRegs() {
   int offset = frame_size_ -
       (GetInstructionSetPointerSize(cu_->instruction_set) * (num_fp_spills_ + num_core_spills_));
   const RegStorage rs_rSP = cu_->target64 ? rs_rX86_SP_64 : rs_rX86_SP_32;
-  for (int reg = 0; mask; mask >>= 1, reg++) {
-    if (mask & 0x1) {
+  for (int reg = 0; mask != 0u; mask >>= 1, reg++) {
+    if ((mask & 0x1) != 0u) {
       LoadBaseDisp(rs_rSP, offset, RegStorage::FloatSolo64(reg),
                    k64, kNotVolatile);
+      cfi_.Restore(DwarfFpReg(cu_->target64, reg));
       offset += sizeof(double);
     }
   }
@@ -1315,6 +1326,11 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   if (!cu_->target64) {
     // EDI is promotable in 32-bit mode.
     NewLIR1(kX86Push32R, rs_rDI.GetReg());
+    cfi_.AdjustCFAOffset(4);
+    // Record cfi only if it is not already spilled.
+    if (!CoreSpillMaskContains(rs_rDI.GetReg())) {
+      cfi_.RelOffset(DwarfCoreReg(cu_->target64, rs_rDI.GetReg()), 0);
+    }
   }
 
   if (zero_based) {
@@ -1410,8 +1426,13 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   // And join up at the end.
   all_done->target = NewLIR0(kPseudoTargetLabel);
 
-  if (!cu_->target64)
+  if (!cu_->target64) {
     NewLIR1(kX86Pop32R, rs_rDI.GetReg());
+    cfi_.AdjustCFAOffset(-4);
+    if (!CoreSpillMaskContains(rs_rDI.GetReg())) {
+      cfi_.Restore(DwarfCoreReg(cu_->target64, rs_rDI.GetReg()));
+    }
+  }
 
   // Out of line code returns here.
   if (slowpath_branch != nullptr) {

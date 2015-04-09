@@ -150,7 +150,7 @@ class DebugFrameOpCodeWriter : private Writer<Allocator> {
   }
 
   void RememberState() {
-    // Note that we do not need to advance the PC.
+    ImplicitlyAdvancePC();
     this->PushUint8(DW_CFA_remember_state);
   }
 
@@ -234,6 +234,10 @@ class DebugFrameOpCodeWriter : private Writer<Allocator> {
     this->PushUleb128(reg.num());
     this->PushUleb128(expr_size);
     this->PushData(expr, expr_size);
+  }
+
+  int GetCurrentPC() const {
+    return current_pc_;
   }
 
   int GetCurrentCFAOffset() const {

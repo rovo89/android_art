@@ -188,6 +188,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/dex/local_value_numbering_test.cc \
   compiler/dex/mir_graph_test.cc \
   compiler/dex/mir_optimization_test.cc \
+  compiler/dex/quick/quick_cfi_test.cc \
   compiler/dwarf/dwarf_test.cc \
   compiler/driver/compiler_driver_test.cc \
   compiler/elf_writer_test.cc \
@@ -405,7 +406,7 @@ define define-art-gtest
   LOCAL_CPP_EXTENSION := $$(ART_CPP_EXTENSION)
   LOCAL_SRC_FILES := $$(art_gtest_filename)
   LOCAL_C_INCLUDES += $$(ART_C_INCLUDES) art/runtime $$(art_gtest_extra_c_includes)
-  LOCAL_SHARED_LIBRARIES += libartd $$(art_gtest_extra_shared_libraries) libart-gtest
+  LOCAL_SHARED_LIBRARIES += libartd $$(art_gtest_extra_shared_libraries) libart-gtest libart-disassembler
   LOCAL_WHOLE_STATIC_LIBRARIES += libsigchain
 
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
