@@ -282,7 +282,13 @@ void Arm64Mir2Lir::UnconditionallyMarkGCCard(RegStorage tgt_addr_reg) {
   FreeTemp(reg_card_no);
 }
 
+static dwarf::Reg DwarfCoreReg(int num) {
+  return dwarf::Reg::Arm64Core(num);
+}
+
 void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
+  DCHECK_EQ(cfi_.GetCurrentCFAOffset(), 0);  // empty stack.
+
   /*
    * On entry, x0 to x7 are live.  Let the register allocation
    * mechanism know so it doesn't try to use any of them when
@@ -345,6 +351,7 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
 
   if (spilled_already != frame_size_) {
     OpRegImm(kOpSub, rs_sp, frame_size_without_spills);
+    cfi_.AdjustCFAOffset(frame_size_without_spills);
   }
 
   if (!skip_overflow_check) {
@@ -361,12 +368,14 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
           GenerateTargetLabel(kPseudoThrowTarget);
           // Unwinds stack.
           m2l_->OpRegImm(kOpAdd, rs_sp, sp_displace_);
+          m2l_->cfi().AdjustCFAOffset(-sp_displace_);
           m2l_->ClobberCallerSave();
           ThreadOffset<8> func_offset = QUICK_ENTRYPOINT_OFFSET(8, pThrowStackOverflow);
           m2l_->LockTemp(rs_xIP0);
           m2l_->LoadWordDisp(rs_xSELF, func_offset.Int32Value(), rs_xIP0);
           m2l_->NewLIR1(kA64Br1x, rs_xIP0.GetReg());
           m2l_->FreeTemp(rs_xIP0);
+          m2l_->cfi().AdjustCFAOffset(sp_displace_);
         }
 
       private:
@@ -393,6 +402,7 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
 }
 
 void Arm64Mir2Lir::GenExitSequence() {
+  cfi_.RememberState();
   /*
    * In the exit path, r0/r1 are live - make sure they aren't
    * allocated by the register utilities as temps.
@@ -403,6 +413,9 @@ void Arm64Mir2Lir::GenExitSequence() {
 
   // Finally return.
   NewLIR0(kA64Ret);
+  // The CFI should be restored for any code that follows the exit block.
+  cfi_.RestoreState();
+  cfi_.DefCFAOffset(frame_size_);
 }
 
 void Arm64Mir2Lir::GenSpecialExitSequence() {
@@ -419,11 +432,16 @@ void Arm64Mir2Lir::GenSpecialEntryForSuspend() {
   core_vmap_table_.clear();
   fp_vmap_table_.clear();
   NewLIR4(WIDE(kA64StpPre4rrXD), rs_x0.GetReg(), rs_xLR.GetReg(), rs_sp.GetReg(), -frame_size_ / 8);
+  cfi_.AdjustCFAOffset(frame_size_);
+  // Do not generate CFI for scratch register x0.
+  cfi_.RelOffset(DwarfCoreReg(rxLR), 8);
 }
 
 void Arm64Mir2Lir::GenSpecialExitForSuspend() {
   // Pop the frame. (ArtMethod* no longer needed but restore it anyway.)
   NewLIR4(WIDE(kA64LdpPost4rrXD), rs_x0.GetReg(), rs_xLR.GetReg(), rs_sp.GetReg(), frame_size_ / 8);
+  cfi_.AdjustCFAOffset(-frame_size_);
+  cfi_.Restore(DwarfCoreReg(rxLR));
 }
 
 static bool Arm64UseRelativeCall(CompilationUnit* cu, const MethodReference& target_method) {

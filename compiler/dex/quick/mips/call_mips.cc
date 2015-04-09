@@ -238,7 +238,12 @@ void MipsMir2Lir::UnconditionallyMarkGCCard(RegStorage tgt_addr_reg) {
   FreeTemp(reg_card_no);
 }
 
+static dwarf::Reg DwarfCoreReg(int num) {
+  return dwarf::Reg::MipsCore(num);
+}
+
 void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
+  DCHECK_EQ(cfi_.GetCurrentCFAOffset(), 0);
   int spill_count = num_core_spills_ + num_fp_spills_;
   /*
    * On entry, A0, A1, A2 & A3 are live. On Mips64, A4, A5, A6 & A7 are also live.
@@ -304,10 +309,12 @@ void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) 
         // RA is offset 0 since we push in reverse order.
         m2l_->LoadWordDisp(m2l_->TargetPtrReg(kSp), 0, m2l_->TargetPtrReg(kLr));
         m2l_->OpRegImm(kOpAdd, m2l_->TargetPtrReg(kSp), sp_displace_);
+        m2l_->cfi().AdjustCFAOffset(-sp_displace_);
         m2l_->ClobberCallerSave();
         RegStorage r_tgt = m2l_->CallHelperSetup(kQuickThrowStackOverflow);  // Doesn't clobber LR.
         m2l_->CallHelper(r_tgt, kQuickThrowStackOverflow, false /* MarkSafepointPC */,
                          false /* UseLink */);
+        m2l_->cfi().AdjustCFAOffset(sp_displace_);
       }
 
      private:
@@ -318,8 +325,10 @@ void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) 
     AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch, spill_count * ptr_size));
     // TODO: avoid copy for small frame sizes.
     OpRegCopy(rs_sp, new_sp);  // Establish stack.
+    cfi_.AdjustCFAOffset(frame_sub);
   } else {
     OpRegImm(kOpSub, rs_sp, frame_sub);
+    cfi_.AdjustCFAOffset(frame_sub);
   }
 
   FlushIns(ArgLocs, rl_method);
@@ -337,6 +346,7 @@ void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) 
 }
 
 void MipsMir2Lir::GenExitSequence() {
+  cfi_.RememberState();
   /*
    * In the exit path, rMIPS_RET0/rMIPS_RET1 are live - make sure they aren't
    * allocated by the register utilities as temps.
@@ -346,6 +356,9 @@ void MipsMir2Lir::GenExitSequence() {
 
   UnSpillCoreRegs();
   OpReg(kOpBx, TargetPtrReg(kLr));
+  // The CFI should be restored for any code that follows the exit block.
+  cfi_.RestoreState();
+  cfi_.DefCFAOffset(frame_size_);
 }
 
 void MipsMir2Lir::GenSpecialExitSequence() {
@@ -364,15 +377,20 @@ void MipsMir2Lir::GenSpecialEntryForSuspend() {
   fp_vmap_table_.clear();
   const RegStorage rs_sp = TargetPtrReg(kSp);
   OpRegImm(kOpSub, rs_sp, frame_size_);
+  cfi_.AdjustCFAOffset(frame_size_);
   StoreWordDisp(rs_sp, frame_size_ - (cu_->target64 ? 8 : 4), TargetPtrReg(kLr));
+  cfi_.RelOffset(DwarfCoreReg(rRA), frame_size_ - (cu_->target64 ? 8 : 4));
   StoreWordDisp(rs_sp, 0, TargetPtrReg(kArg0));
+  // Do not generate CFI for scratch register A0.
 }
 
 void MipsMir2Lir::GenSpecialExitForSuspend() {
   // Pop the frame. Don't pop ArtMethod*, it's no longer needed.
   const RegStorage rs_sp = TargetPtrReg(kSp);
   LoadWordDisp(rs_sp, frame_size_ - (cu_->target64 ? 8 : 4), TargetPtrReg(kLr));
+  cfi_.Restore(DwarfCoreReg(rRA));
   OpRegImm(kOpAdd, rs_sp, frame_size_);
+  cfi_.AdjustCFAOffset(-frame_size_);
 }
 
 /*
