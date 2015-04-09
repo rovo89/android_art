@@ -173,6 +173,9 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
   void GenerateClassInitializationCheck(SlowPathCodeX86_64* slow_path, CpuRegister class_reg);
   void HandleBitwiseOperation(HBinaryOperation* operation);
   void GenerateRemFP(HRem *rem);
+  void DivRemOneOrMinusOne(HBinaryOperation* instruction);
+  void DivByPowerOfTwo(HBinaryOperation* instruction);
+  void GenerateDivRemWithAnyConstant(HBinaryOperation* instruction);
   void GenerateDivRemIntegral(HBinaryOperation* instruction);
   void HandleShift(HBinaryOperation* operation);
   void GenerateMemoryBarrier(MemBarrierKind kind);
