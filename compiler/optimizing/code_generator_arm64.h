@@ -227,6 +227,8 @@ class CodeGeneratorARM64 : public CodeGenerator {
 
   void GenerateFrameEntry() OVERRIDE;
   void GenerateFrameExit() OVERRIDE;
+  void SpillRegisters(vixl::CPURegList registers, int offset);
+  void UnspillRegisters(vixl::CPURegList registers, int offset);
 
   vixl::CPURegList GetFramePreservedCoreRegisters() const {
     return vixl::CPURegList(vixl::CPURegister::kRegister, vixl::kXRegSize,

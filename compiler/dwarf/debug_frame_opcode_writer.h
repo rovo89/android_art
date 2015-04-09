@@ -20,6 +20,7 @@
 #include "dwarf.h"
 #include "register.h"
 #include "writer.h"
+#include "utils.h"
 
 namespace art {
 namespace dwarf {
@@ -41,45 +42,51 @@ class DebugFrameOpCodeWriter : private Writer<Allocator> {
   static constexpr int kCodeAlignmentFactor = 1;
 
   // Explicitely advance the program counter to given location.
-  void AdvancePC(int absolute_pc) {
+  void ALWAYS_INLINE AdvancePC(int absolute_pc) {
     DCHECK_GE(absolute_pc, current_pc_);
-    int delta = FactorCodeOffset(absolute_pc - current_pc_);
-    if (delta != 0) {
-      if (delta <= 0x3F) {
-        this->PushUint8(DW_CFA_advance_loc | delta);
-      } else if (delta <= UINT8_MAX) {
-        this->PushUint8(DW_CFA_advance_loc1);
-        this->PushUint8(delta);
-      } else if (delta <= UINT16_MAX) {
-        this->PushUint8(DW_CFA_advance_loc2);
-        this->PushUint16(delta);
-      } else {
-        this->PushUint8(DW_CFA_advance_loc4);
-        this->PushUint32(delta);
+    if (UNLIKELY(enabled_)) {
+      int delta = FactorCodeOffset(absolute_pc - current_pc_);
+      if (delta != 0) {
+        if (delta <= 0x3F) {
+          this->PushUint8(DW_CFA_advance_loc | delta);
+        } else if (delta <= UINT8_MAX) {
+          this->PushUint8(DW_CFA_advance_loc1);
+          this->PushUint8(delta);
+        } else if (delta <= UINT16_MAX) {
+          this->PushUint8(DW_CFA_advance_loc2);
+          this->PushUint16(delta);
+        } else {
+          this->PushUint8(DW_CFA_advance_loc4);
+          this->PushUint32(delta);
+        }
       }
+      current_pc_ = absolute_pc;
     }
-    current_pc_ = absolute_pc;
   }
 
   // Override this method to automatically advance the PC before each opcode.
   virtual void ImplicitlyAdvancePC() { }
 
   // Common alias in assemblers - spill relative to current stack pointer.
-  void RelOffset(Reg reg, int offset) {
+  void ALWAYS_INLINE RelOffset(Reg reg, int offset) {
     Offset(reg, offset - current_cfa_offset_);
   }
 
   // Common alias in assemblers - increase stack frame size.
-  void AdjustCFAOffset(int delta) {
+  void ALWAYS_INLINE AdjustCFAOffset(int delta) {
     DefCFAOffset(current_cfa_offset_ + delta);
   }
 
   // Custom alias - spill many registers based on bitmask.
-  void RelOffsetForMany(Reg reg_base, int offset, uint32_t reg_mask,
-                        int reg_size) {
+  void ALWAYS_INLINE RelOffsetForMany(Reg reg_base, int offset,
+                                      uint32_t reg_mask, int reg_size) {
     DCHECK(reg_size == 4 || reg_size == 8);
-    for (int i = 0; reg_mask != 0u; reg_mask >>= 1, i++) {
-      if ((reg_mask & 1) != 0u) {
+    if (UNLIKELY(enabled_)) {
+      for (int i = 0; reg_mask != 0u; reg_mask >>= 1, i++) {
+        // Skip zero bits and go to the set bit.
+        int num_zeros = CTZ(reg_mask);
+        i += num_zeros;
+        reg_mask >>= num_zeros;
         RelOffset(Reg(reg_base.num() + i), offset);
         offset += reg_size;
       }
@@ -87,175 +94,214 @@ class DebugFrameOpCodeWriter : private Writer<Allocator> {
   }
 
   // Custom alias - unspill many registers based on bitmask.
-  void RestoreMany(Reg reg_base, uint32_t reg_mask) {
-    for (int i = 0; reg_mask != 0u; reg_mask >>= 1, i++) {
-      if ((reg_mask & 1) != 0u) {
+  void ALWAYS_INLINE RestoreMany(Reg reg_base, uint32_t reg_mask) {
+    if (UNLIKELY(enabled_)) {
+      for (int i = 0; reg_mask != 0u; reg_mask >>= 1, i++) {
+        // Skip zero bits and go to the set bit.
+        int num_zeros = CTZ(reg_mask);
+        i += num_zeros;
+        reg_mask >>= num_zeros;
         Restore(Reg(reg_base.num() + i));
       }
     }
   }
 
-  void Nop() {
-    this->PushUint8(DW_CFA_nop);
+  void ALWAYS_INLINE Nop() {
+    if (UNLIKELY(enabled_)) {
+      this->PushUint8(DW_CFA_nop);
+    }
   }
 
-  void Offset(Reg reg, int offset) {
-    ImplicitlyAdvancePC();
-    int factored_offset = FactorDataOffset(offset);  // May change sign.
-    if (factored_offset >= 0) {
-      if (0 <= reg.num() && reg.num() <= 0x3F) {
-        this->PushUint8(DW_CFA_offset | reg.num());
-        this->PushUleb128(factored_offset);
+  void ALWAYS_INLINE Offset(Reg reg, int offset) {
+    if (UNLIKELY(enabled_)) {
+      ImplicitlyAdvancePC();
+      int factored_offset = FactorDataOffset(offset);  // May change sign.
+      if (factored_offset >= 0) {
+        if (0 <= reg.num() && reg.num() <= 0x3F) {
+          this->PushUint8(DW_CFA_offset | reg.num());
+          this->PushUleb128(factored_offset);
+        } else {
+          this->PushUint8(DW_CFA_offset_extended);
+          this->PushUleb128(reg.num());
+          this->PushUleb128(factored_offset);
+        }
       } else {
-        this->PushUint8(DW_CFA_offset_extended);
+        uses_dwarf3_features_ = true;
+        this->PushUint8(DW_CFA_offset_extended_sf);
         this->PushUleb128(reg.num());
-        this->PushUleb128(factored_offset);
+        this->PushSleb128(factored_offset);
       }
-    } else {
-      uses_dwarf3_features_ = true;
-      this->PushUint8(DW_CFA_offset_extended_sf);
-      this->PushUleb128(reg.num());
-      this->PushSleb128(factored_offset);
     }
   }
 
-  void Restore(Reg reg) {
-    ImplicitlyAdvancePC();
-    if (0 <= reg.num() && reg.num() <= 0x3F) {
-      this->PushUint8(DW_CFA_restore | reg.num());
-    } else {
-      this->PushUint8(DW_CFA_restore_extended);
+  void ALWAYS_INLINE Restore(Reg reg) {
+    if (UNLIKELY(enabled_)) {
+      ImplicitlyAdvancePC();
+      if (0 <= reg.num() && reg.num() <= 0x3F) {
+        this->PushUint8(DW_CFA_restore | reg.num());
+      } else {
+        this->PushUint8(DW_CFA_restore_extended);
+        this->PushUleb128(reg.num());
+      }
+    }
+  }
+
+  void ALWAYS_INLINE Undefined(Reg reg) {
+    if (UNLIKELY(enabled_)) {
+      ImplicitlyAdvancePC();
+      this->PushUint8(DW_CFA_undefined);
       this->PushUleb128(reg.num());
     }
   }
 
-  void Undefined(Reg reg) {
-    ImplicitlyAdvancePC();
-    this->PushUint8(DW_CFA_undefined);
-    this->PushUleb128(reg.num());
-  }
-
-  void SameValue(Reg reg) {
-    ImplicitlyAdvancePC();
-    this->PushUint8(DW_CFA_same_value);
-    this->PushUleb128(reg.num());
+  void ALWAYS_INLINE SameValue(Reg reg) {
+    if (UNLIKELY(enabled_)) {
+      ImplicitlyAdvancePC();
+      this->PushUint8(DW_CFA_same_value);
+      this->PushUleb128(reg.num());
+    }
   }
 
   // The previous value of "reg" is stored in register "new_reg".
-  void Register(Reg reg, Reg new_reg) {
-    ImplicitlyAdvancePC();
-    this->PushUint8(DW_CFA_register);
-    this->PushUleb128(reg.num());
-    this->PushUleb128(new_reg.num());
-  }
-
-  void RememberState() {
-    ImplicitlyAdvancePC();
-    this->PushUint8(DW_CFA_remember_state);
-  }
-
-  void RestoreState() {
-    ImplicitlyAdvancePC();
-    this->PushUint8(DW_CFA_restore_state);
-  }
-
-  void DefCFA(Reg reg, int offset) {
-    ImplicitlyAdvancePC();
-    if (offset >= 0) {
-      this->PushUint8(DW_CFA_def_cfa);
+  void ALWAYS_INLINE Register(Reg reg, Reg new_reg) {
+    if (UNLIKELY(enabled_)) {
+      ImplicitlyAdvancePC();
+      this->PushUint8(DW_CFA_register);
       this->PushUleb128(reg.num());
-      this->PushUleb128(offset);  // Non-factored.
-    } else {
-      uses_dwarf3_features_ = true;
-      this->PushUint8(DW_CFA_def_cfa_sf);
-      this->PushUleb128(reg.num());
-      this->PushSleb128(FactorDataOffset(offset));
+      this->PushUleb128(new_reg.num());
     }
-    current_cfa_offset_ = offset;
   }
 
-  void DefCFARegister(Reg reg) {
-    ImplicitlyAdvancePC();
-    this->PushUint8(DW_CFA_def_cfa_register);
-    this->PushUleb128(reg.num());
+  void ALWAYS_INLINE RememberState() {
+    if (UNLIKELY(enabled_)) {
+      ImplicitlyAdvancePC();
+      this->PushUint8(DW_CFA_remember_state);
+    }
   }
 
-  void DefCFAOffset(int offset) {
-    if (current_cfa_offset_ != offset) {
+  void ALWAYS_INLINE RestoreState() {
+    if (UNLIKELY(enabled_)) {
+      ImplicitlyAdvancePC();
+      this->PushUint8(DW_CFA_restore_state);
+    }
+  }
+
+  void ALWAYS_INLINE DefCFA(Reg reg, int offset) {
+    if (UNLIKELY(enabled_)) {
       ImplicitlyAdvancePC();
       if (offset >= 0) {
-        this->PushUint8(DW_CFA_def_cfa_offset);
+        this->PushUint8(DW_CFA_def_cfa);
+        this->PushUleb128(reg.num());
         this->PushUleb128(offset);  // Non-factored.
       } else {
         uses_dwarf3_features_ = true;
-        this->PushUint8(DW_CFA_def_cfa_offset_sf);
+        this->PushUint8(DW_CFA_def_cfa_sf);
+        this->PushUleb128(reg.num());
         this->PushSleb128(FactorDataOffset(offset));
       }
-      current_cfa_offset_ = offset;
     }
-  }
-
-  void ValOffset(Reg reg, int offset) {
-    ImplicitlyAdvancePC();
-    uses_dwarf3_features_ = true;
-    int factored_offset = FactorDataOffset(offset);  // May change sign.
-    if (factored_offset >= 0) {
-      this->PushUint8(DW_CFA_val_offset);
-      this->PushUleb128(reg.num());
-      this->PushUleb128(factored_offset);
-    } else {
-      this->PushUint8(DW_CFA_val_offset_sf);
-      this->PushUleb128(reg.num());
-      this->PushSleb128(factored_offset);
-    }
-  }
-
-  void DefCFAExpression(void* expr, int expr_size) {
-    ImplicitlyAdvancePC();
-    uses_dwarf3_features_ = true;
-    this->PushUint8(DW_CFA_def_cfa_expression);
-    this->PushUleb128(expr_size);
-    this->PushData(expr, expr_size);
-  }
-
-  void Expression(Reg reg, void* expr, int expr_size) {
-    ImplicitlyAdvancePC();
-    uses_dwarf3_features_ = true;
-    this->PushUint8(DW_CFA_expression);
-    this->PushUleb128(reg.num());
-    this->PushUleb128(expr_size);
-    this->PushData(expr, expr_size);
-  }
-
-  void ValExpression(Reg reg, void* expr, int expr_size) {
-    ImplicitlyAdvancePC();
-    uses_dwarf3_features_ = true;
-    this->PushUint8(DW_CFA_val_expression);
-    this->PushUleb128(reg.num());
-    this->PushUleb128(expr_size);
-    this->PushData(expr, expr_size);
-  }
-
-  int GetCurrentPC() const {
-    return current_pc_;
-  }
-
-  int GetCurrentCFAOffset() const {
-    return current_cfa_offset_;
-  }
-
-  void SetCurrentCFAOffset(int offset) {
     current_cfa_offset_ = offset;
   }
 
+  void ALWAYS_INLINE DefCFARegister(Reg reg) {
+    if (UNLIKELY(enabled_)) {
+      ImplicitlyAdvancePC();
+      this->PushUint8(DW_CFA_def_cfa_register);
+      this->PushUleb128(reg.num());
+    }
+  }
+
+  void ALWAYS_INLINE DefCFAOffset(int offset) {
+    if (UNLIKELY(enabled_)) {
+      if (current_cfa_offset_ != offset) {
+        ImplicitlyAdvancePC();
+        if (offset >= 0) {
+          this->PushUint8(DW_CFA_def_cfa_offset);
+          this->PushUleb128(offset);  // Non-factored.
+        } else {
+          uses_dwarf3_features_ = true;
+          this->PushUint8(DW_CFA_def_cfa_offset_sf);
+          this->PushSleb128(FactorDataOffset(offset));
+        }
+      }
+    }
+    // Uncoditional so that the user can still get and check the value.
+    current_cfa_offset_ = offset;
+  }
+
+  void ALWAYS_INLINE ValOffset(Reg reg, int offset) {
+    if (UNLIKELY(enabled_)) {
+      ImplicitlyAdvancePC();
+      uses_dwarf3_features_ = true;
+      int factored_offset = FactorDataOffset(offset);  // May change sign.
+      if (factored_offset >= 0) {
+        this->PushUint8(DW_CFA_val_offset);
+        this->PushUleb128(reg.num());
+        this->PushUleb128(factored_offset);
+      } else {
+        this->PushUint8(DW_CFA_val_offset_sf);
+        this->PushUleb128(reg.num());
+        this->PushSleb128(factored_offset);
+      }
+    }
+  }
+
+  void ALWAYS_INLINE DefCFAExpression(void * expr, int expr_size) {
+    if (UNLIKELY(enabled_)) {
+      ImplicitlyAdvancePC();
+      uses_dwarf3_features_ = true;
+      this->PushUint8(DW_CFA_def_cfa_expression);
+      this->PushUleb128(expr_size);
+      this->PushData(expr, expr_size);
+    }
+  }
+
+  void ALWAYS_INLINE Expression(Reg reg, void * expr, int expr_size) {
+    if (UNLIKELY(enabled_)) {
+      ImplicitlyAdvancePC();
+      uses_dwarf3_features_ = true;
+      this->PushUint8(DW_CFA_expression);
+      this->PushUleb128(reg.num());
+      this->PushUleb128(expr_size);
+      this->PushData(expr, expr_size);
+    }
+  }
+
+  void ALWAYS_INLINE ValExpression(Reg reg, void * expr, int expr_size) {
+    if (UNLIKELY(enabled_)) {
+      ImplicitlyAdvancePC();
+      uses_dwarf3_features_ = true;
+      this->PushUint8(DW_CFA_val_expression);
+      this->PushUleb128(reg.num());
+      this->PushUleb128(expr_size);
+      this->PushData(expr, expr_size);
+    }
+  }
+
+  bool IsEnabled() const { return enabled_; }
+
+  void SetEnabled(bool value) { enabled_ = value; }
+
+  int GetCurrentPC() const { return current_pc_; }
+
+  int GetCurrentCFAOffset() const { return current_cfa_offset_; }
+
+  void SetCurrentCFAOffset(int offset) { current_cfa_offset_ = offset; }
+
   using Writer<Allocator>::data;
 
-  DebugFrameOpCodeWriter(const Allocator& alloc = Allocator())
+  DebugFrameOpCodeWriter(bool enabled = true,
+                         const Allocator& alloc = Allocator())
       : Writer<Allocator>(&opcodes_),
+        enabled_(enabled),
         opcodes_(alloc),
         current_cfa_offset_(0),
         current_pc_(0),
         uses_dwarf3_features_(false) {
+    if (enabled) {
+      // Best guess based on couple of observed outputs.
+      opcodes_.reserve(16);
+    }
   }
 
   virtual ~DebugFrameOpCodeWriter() { }
@@ -271,6 +317,7 @@ class DebugFrameOpCodeWriter : private Writer<Allocator> {
     return offset / kCodeAlignmentFactor;
   }
 
+  bool enabled_;  // If disabled all writes are no-ops.
   std::vector<uint8_t, Allocator> opcodes_;
   int current_cfa_offset_;
   int current_pc_;

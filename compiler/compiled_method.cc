@@ -188,39 +188,6 @@ CompiledMethod* CompiledMethod::SwapAllocCompiledMethod(
   return ret;
 }
 
-CompiledMethod* CompiledMethod::SwapAllocCompiledMethodStackMap(
-    CompilerDriver* driver,
-    InstructionSet instruction_set,
-    const ArrayRef<const uint8_t>& quick_code,
-    const size_t frame_size_in_bytes,
-    const uint32_t core_spill_mask,
-    const uint32_t fp_spill_mask,
-    const ArrayRef<const uint8_t>& stack_map) {
-  SwapAllocator<CompiledMethod> alloc(driver->GetSwapSpaceAllocator());
-  CompiledMethod* ret = alloc.allocate(1);
-  alloc.construct(ret, driver, instruction_set, quick_code, frame_size_in_bytes, core_spill_mask,
-                  fp_spill_mask, nullptr, ArrayRef<const uint8_t>(), stack_map,
-                  ArrayRef<const uint8_t>(), ArrayRef<const uint8_t>(),
-                  ArrayRef<const LinkerPatch>());
-  return ret;
-}
-
-CompiledMethod* CompiledMethod::SwapAllocCompiledMethodCFI(
-    CompilerDriver* driver,
-    InstructionSet instruction_set,
-    const ArrayRef<const uint8_t>& quick_code,
-    const size_t frame_size_in_bytes,
-    const uint32_t core_spill_mask,
-    const uint32_t fp_spill_mask,
-    const ArrayRef<const uint8_t>& cfi_info) {
-  SwapAllocator<CompiledMethod> alloc(driver->GetSwapSpaceAllocator());
-  CompiledMethod* ret = alloc.allocate(1);
-  alloc.construct(ret, driver, instruction_set, quick_code, frame_size_in_bytes, core_spill_mask,
-                  fp_spill_mask, nullptr, ArrayRef<const uint8_t>(),
-                  ArrayRef<const uint8_t>(), ArrayRef<const uint8_t>(),
-                  cfi_info, ArrayRef<const LinkerPatch>());
-  return ret;
-}
 
 
 void CompiledMethod::ReleaseSwapAllocatedCompiledMethod(CompilerDriver* driver, CompiledMethod* m) {
