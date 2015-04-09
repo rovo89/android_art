@@ -209,7 +209,9 @@ void X86_64Assembler::movzxb(CpuRegister dst, CpuRegister src) {
 
 void X86_64Assembler::movzxb(CpuRegister dst, const Address& src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  EmitOptionalByteRegNormalizingRex32(dst, src);
+  // Byte register is only in the source register form, so we don't use
+  // EmitOptionalByteRegNormalizingRex32(dst, src);
+  EmitOptionalRex32(dst, src);
   EmitUint8(0x0F);
   EmitUint8(0xB6);
   EmitOperand(dst.LowBits(), src);
@@ -227,7 +229,9 @@ void X86_64Assembler::movsxb(CpuRegister dst, CpuRegister src) {
 
 void X86_64Assembler::movsxb(CpuRegister dst, const Address& src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  EmitOptionalByteRegNormalizingRex32(dst, src);
+  // Byte register is only in the source register form, so we don't use
+  // EmitOptionalByteRegNormalizingRex32(dst, src);
+  EmitOptionalRex32(dst, src);
   EmitUint8(0x0F);
   EmitUint8(0xBE);
   EmitOperand(dst.LowBits(), src);
@@ -2173,11 +2177,18 @@ void X86_64Assembler::EmitRex64(CpuRegister dst, const Operand& operand) {
 }
 
 void X86_64Assembler::EmitOptionalByteRegNormalizingRex32(CpuRegister dst, CpuRegister src) {
-  EmitOptionalRex(true, false, dst.NeedsRex(), false, src.NeedsRex());
+  // For src, SPL, BPL, SIL, DIL need the rex prefix.
+  bool force = src.AsRegister() > 3;
+  EmitOptionalRex(force, false, dst.NeedsRex(), false, src.NeedsRex());
 }
 
 void X86_64Assembler::EmitOptionalByteRegNormalizingRex32(CpuRegister dst, const Operand& operand) {
-  uint8_t rex = 0x40 | operand.rex();  // REX.0000
+  uint8_t rex = operand.rex();
+  // For dst, SPL, BPL, SIL, DIL need the rex prefix.
+  bool force = dst.AsRegister() > 3;
+  if (force) {
+    rex |= 0x40;  // REX.0000
+  }
   if (dst.NeedsRex()) {
     rex |= 0x44;  // REX.0R00
   }
