@@ -377,7 +377,11 @@ bool Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm) {
 
   tls32_.thin_lock_thread_id = thread_list->AllocThreadId(this);
 
-  tlsPtr_.jni_env = new JNIEnvExt(this, java_vm);
+  tlsPtr_.jni_env = JNIEnvExt::Create(this, java_vm);
+  if (tlsPtr_.jni_env == nullptr) {
+    return false;
+  }
+
   thread_list->Register(this);
   return true;
 }

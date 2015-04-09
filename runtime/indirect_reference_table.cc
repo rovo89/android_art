@@ -64,7 +64,8 @@ void IndirectReferenceTable::AbortIfNoCheckJNI() {
 }
 
 IndirectReferenceTable::IndirectReferenceTable(size_t initialCount,
-                                               size_t maxCount, IndirectRefKind desiredKind)
+                                               size_t maxCount, IndirectRefKind desiredKind,
+                                               bool abort_on_error)
     : kind_(desiredKind),
       max_entries_(maxCount) {
   CHECK_GT(initialCount, 0U);
@@ -75,14 +76,26 @@ IndirectReferenceTable::IndirectReferenceTable(size_t initialCount,
   const size_t table_bytes = maxCount * sizeof(IrtEntry);
   table_mem_map_.reset(MemMap::MapAnonymous("indirect ref table", nullptr, table_bytes,
                                             PROT_READ | PROT_WRITE, false, false, &error_str));
-  CHECK(table_mem_map_.get() != nullptr) << error_str;
-  CHECK_EQ(table_mem_map_->Size(), table_bytes);
+  if (abort_on_error) {
+    CHECK(table_mem_map_.get() != nullptr) << error_str;
+    CHECK_EQ(table_mem_map_->Size(), table_bytes);
+    CHECK(table_mem_map_->Begin() != nullptr);
+  } else if (table_mem_map_.get() == nullptr ||
+             table_mem_map_->Size() != table_bytes ||
+             table_mem_map_->Begin() == nullptr) {
+    table_mem_map_.reset();
+    LOG(ERROR) << error_str;
+    return;
+  }
   table_ = reinterpret_cast<IrtEntry*>(table_mem_map_->Begin());
-  CHECK(table_ != nullptr);
   segment_state_.all = IRT_FIRST_SEGMENT;
 }
 
 IndirectReferenceTable::~IndirectReferenceTable() {
+}
+
+bool IndirectReferenceTable::IsValid() const {
+  return table_mem_map_.get() != nullptr;
 }
 
 IndirectRef IndirectReferenceTable::Add(uint32_t cookie, mirror::Object* obj) {

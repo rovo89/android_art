@@ -34,7 +34,8 @@ class JavaVMExt;
 static constexpr size_t kLocalsMax = 512;
 
 struct JNIEnvExt : public JNIEnv {
-  JNIEnvExt(Thread* self, JavaVMExt* vm);
+  static JNIEnvExt* Create(Thread* self, JavaVMExt* vm);
+
   ~JNIEnvExt();
 
   void DumpReferenceTables(std::ostream& os)
@@ -87,6 +88,11 @@ struct JNIEnvExt : public JNIEnv {
 
   // Used by -Xcheck:jni.
   const JNINativeInterface* unchecked_functions;
+
+ private:
+  // The constructor should not be called directly. It may leave the object in an erronuous state,
+  // and the result needs to be checked.
+  JNIEnvExt(Thread* self, JavaVMExt* vm);
 };
 
 // Used to save and restore the JNIEnvExt state when not going through code created by the JNI
