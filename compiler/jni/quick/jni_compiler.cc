@@ -104,6 +104,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   const size_t frame_size(main_jni_conv->FrameSize());
   const std::vector<ManagedRegister>& callee_save_regs = main_jni_conv->CalleeSaveRegisters();
   __ BuildFrame(frame_size, mr_conv->MethodRegister(), callee_save_regs, mr_conv->EntrySpills());
+  DCHECK_EQ(jni_asm->cfi().GetCurrentCFAOffset(), static_cast<int>(frame_size));
 
   // 2. Set up the HandleScope
   mr_conv->ResetIterator(FrameOffset(frame_size));
@@ -423,7 +424,9 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
 
   // 16. Remove activation - need to restore callee save registers since the GC may have changed
   //     them.
+  DCHECK_EQ(jni_asm->cfi().GetCurrentCFAOffset(), static_cast<int>(frame_size));
   __ RemoveFrame(frame_size, callee_save_regs);
+  DCHECK_EQ(jni_asm->cfi().GetCurrentCFAOffset(), static_cast<int>(frame_size));
 
   // 17. Finalize code generation
   __ EmitSlowPaths();
@@ -438,7 +441,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
                                                     frame_size,
                                                     main_jni_conv->CoreSpillMask(),
                                                     main_jni_conv->FpSpillMask(),
-                                                    ArrayRef<const uint8_t>());
+                                                    ArrayRef<const uint8_t>(*jni_asm->cfi().data()));
 }
 
 // Copy a single parameter from the managed to the JNI calling convention

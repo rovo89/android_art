@@ -63,12 +63,14 @@ void Arm64Assembler::GetCurrentThread(FrameOffset offset, ManagedRegister /* scr
 void Arm64Assembler::IncreaseFrameSize(size_t adjust) {
   CHECK_ALIGNED(adjust, kStackAlignment);
   AddConstant(SP, -adjust);
+  cfi().AdjustCFAOffset(adjust);
 }
 
 // See Arm64 PCS Section 5.2.2.1.
 void Arm64Assembler::DecreaseFrameSize(size_t adjust) {
   CHECK_ALIGNED(adjust, kStackAlignment);
   AddConstant(SP, adjust);
+  cfi().AdjustCFAOffset(-adjust);
 }
 
 void Arm64Assembler::AddConstant(XRegister rd, int32_t value, Condition cond) {
@@ -638,6 +640,14 @@ void Arm64Assembler::EmitExceptionPoll(Arm64Exception *exception) {
   ___ Brk();
 }
 
+static dwarf::Reg DWARFReg(XRegister reg) {
+  return dwarf::Reg::Arm64Core(static_cast<int>(reg));
+}
+
+static dwarf::Reg DWARFReg(DRegister reg) {
+  return dwarf::Reg::Arm64Fp(static_cast<int>(reg));
+}
+
 constexpr size_t kFramePointerSize = 8;
 constexpr unsigned int kJniRefSpillRegsSize = 11 + 8;
 
@@ -660,45 +670,20 @@ void Arm64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   // TUNING: Use stp.
   // Note: Must match Arm64JniCallingConvention::CoreSpillMask().
   size_t reg_offset = frame_size;
-  reg_offset -= 8;
-  StoreToOffset(LR, SP, reg_offset);
-  reg_offset -= 8;
-  StoreToOffset(X29, SP, reg_offset);
-  reg_offset -= 8;
-  StoreToOffset(X28, SP, reg_offset);
-  reg_offset -= 8;
-  StoreToOffset(X27, SP, reg_offset);
-  reg_offset -= 8;
-  StoreToOffset(X26, SP, reg_offset);
-  reg_offset -= 8;
-  StoreToOffset(X25, SP, reg_offset);
-  reg_offset -= 8;
-  StoreToOffset(X24, SP, reg_offset);
-  reg_offset -= 8;
-  StoreToOffset(X23, SP, reg_offset);
-  reg_offset -= 8;
-  StoreToOffset(X22, SP, reg_offset);
-  reg_offset -= 8;
-  StoreToOffset(X21, SP, reg_offset);
-  reg_offset -= 8;
-  StoreToOffset(X20, SP, reg_offset);
-
-  reg_offset -= 8;
-  StoreDToOffset(D15, SP, reg_offset);
-  reg_offset -= 8;
-  StoreDToOffset(D14, SP, reg_offset);
-  reg_offset -= 8;
-  StoreDToOffset(D13, SP, reg_offset);
-  reg_offset -= 8;
-  StoreDToOffset(D12, SP, reg_offset);
-  reg_offset -= 8;
-  StoreDToOffset(D11, SP, reg_offset);
-  reg_offset -= 8;
-  StoreDToOffset(D10, SP, reg_offset);
-  reg_offset -= 8;
-  StoreDToOffset(D9, SP, reg_offset);
-  reg_offset -= 8;
-  StoreDToOffset(D8, SP, reg_offset);
+  static constexpr XRegister x_spills[] = {
+      LR, X29, X28, X27, X26, X25, X24, X23, X22, X21, X20 };
+  for (size_t i = 0; i < arraysize(x_spills); i++) {
+    XRegister reg = x_spills[i];
+    reg_offset -= 8;
+    StoreToOffset(reg, SP, reg_offset);
+    cfi_.RelOffset(DWARFReg(reg), reg_offset);
+  }
+  for (int d = 15; d >= 8; d--) {
+    DRegister reg = static_cast<DRegister>(d);
+    reg_offset -= 8;
+    StoreDToOffset(reg, SP, reg_offset);
+    cfi_.RelOffset(DWARFReg(reg), reg_offset);
+  }
 
   // Move TR(Caller saved) to ETR(Callee saved). The original (ETR)X21 has been saved on stack.
   // This way we make sure that TR is not trashed by native code.
@@ -734,6 +719,7 @@ void Arm64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 
 void Arm64Assembler::RemoveFrame(size_t frame_size, const std::vector<ManagedRegister>& callee_save_regs) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
+  cfi_.RememberState();
 
   // For now we only check that the size of the frame is greater than the spill size.
   CHECK_EQ(callee_save_regs.size(), kJniRefSpillRegsSize);
@@ -748,51 +734,30 @@ void Arm64Assembler::RemoveFrame(size_t frame_size, const std::vector<ManagedReg
   // TUNING: Use ldp.
   // Note: Must match Arm64JniCallingConvention::CoreSpillMask().
   size_t reg_offset = frame_size;
-  reg_offset -= 8;
-  LoadFromOffset(LR, SP, reg_offset);
-  reg_offset -= 8;
-  LoadFromOffset(X29, SP, reg_offset);
-  reg_offset -= 8;
-  LoadFromOffset(X28, SP, reg_offset);
-  reg_offset -= 8;
-  LoadFromOffset(X27, SP, reg_offset);
-  reg_offset -= 8;
-  LoadFromOffset(X26, SP, reg_offset);
-  reg_offset -= 8;
-  LoadFromOffset(X25, SP, reg_offset);
-  reg_offset -= 8;
-  LoadFromOffset(X24, SP, reg_offset);
-  reg_offset -= 8;
-  LoadFromOffset(X23, SP, reg_offset);
-  reg_offset -= 8;
-  LoadFromOffset(X22, SP, reg_offset);
-  reg_offset -= 8;
-  LoadFromOffset(X21, SP, reg_offset);
-  reg_offset -= 8;
-  LoadFromOffset(X20, SP, reg_offset);
-
-  reg_offset -= 8;
-  LoadDFromOffset(D15, SP, reg_offset);
-  reg_offset -= 8;
-  LoadDFromOffset(D14, SP, reg_offset);
-  reg_offset -= 8;
-  LoadDFromOffset(D13, SP, reg_offset);
-  reg_offset -= 8;
-  LoadDFromOffset(D12, SP, reg_offset);
-  reg_offset -= 8;
-  LoadDFromOffset(D11, SP, reg_offset);
-  reg_offset -= 8;
-  LoadDFromOffset(D10, SP, reg_offset);
-  reg_offset -= 8;
-  LoadDFromOffset(D9, SP, reg_offset);
-  reg_offset -= 8;
-  LoadDFromOffset(D8, SP, reg_offset);
+  static constexpr XRegister x_spills[] = {
+      LR, X29, X28, X27, X26, X25, X24, X23, X22, X21, X20 };
+  for (size_t i = 0; i < arraysize(x_spills); i++) {
+    XRegister reg = x_spills[i];
+    reg_offset -= 8;
+    LoadFromOffset(reg, SP, reg_offset);
+    cfi_.Restore(DWARFReg(reg));
+  }
+  for (int d = 15; d >= 8; d--) {
+    DRegister reg = static_cast<DRegister>(d);
+    reg_offset -= 8;
+    LoadDFromOffset(reg, SP, reg_offset);
+    cfi_.Restore(DWARFReg(reg));
+  }
 
   // Decrease frame size to start of callee saved regs.
   DecreaseFrameSize(frame_size);
 
   // Pop callee saved and return to LR.
   ___ Ret();
+
+  // The CFI should be restored for any code that follows the exit block.
+  cfi_.RestoreState();
+  cfi_.DefCFAOffset(frame_size);
 }
 
 }  // namespace arm64
