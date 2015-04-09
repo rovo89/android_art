@@ -395,12 +395,12 @@ MethodVerifier::MethodVerifier(Thread* self,
       has_virtual_or_interface_invokes_(false),
       verify_to_dump_(verify_to_dump),
       allow_thread_suspension_(allow_thread_suspension) {
-  self->SetVerifier(this);
+  self->PushVerifier(this);
   DCHECK(class_def != nullptr);
 }
 
 MethodVerifier::~MethodVerifier() {
-  Thread::Current()->ClearVerifier(this);
+  Thread::Current()->PopVerifier(this);
   STLDeleteElements(&failure_messages_);
 }
 
