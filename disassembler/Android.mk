@@ -23,7 +23,6 @@ LIBART_DISASSEMBLER_SRC_FILES := \
 	disassembler_arm.cc \
 	disassembler_arm64.cc \
 	disassembler_mips.cc \
-	disassembler_mips64.cc \
 	disassembler_x86.cc
 
 # $(1): target or host
