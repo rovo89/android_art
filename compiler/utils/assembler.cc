@@ -105,6 +105,9 @@ void AssemblerBuffer::ExtendCapacity() {
   CHECK_EQ(Size(), old_size);
 }
 
+void DebugFrameOpCodeWriterForAssembler::ImplicitlyAdvancePC() {
+  this->AdvancePC(assembler_->CodeSize());
+}
 
 Assembler* Assembler::Create(InstructionSet instruction_set) {
   switch (instruction_set) {

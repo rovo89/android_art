@@ -19,6 +19,7 @@
 
 #include "base/logging.h"
 #include "constants_arm.h"
+#include "dwarf/register.h"
 #include "utils/managed_register.h"
 
 namespace art {
