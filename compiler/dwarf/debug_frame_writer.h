@@ -33,8 +33,15 @@ class DebugFrameWriter FINAL : private Writer<Allocator> {
                 int initial_opcodes_size) {
     DCHECK(cie_header_start_ == ~0u);
     cie_header_start_ = this->data()->size();
-    this->PushUint32(0);  // Length placeholder.
-    this->PushUint32(0);  // CIE id.
+    if (use_64bit_address_) {
+      // TODO: This is not related to being 64bit.
+      this->PushUint32(0xffffffff);
+      this->PushUint64(0);  // Length placeholder.
+      this->PushUint64(0);  // CIE id.
+    } else {
+      this->PushUint32(0);  // Length placeholder.
+      this->PushUint32(0);  // CIE id.
+    }
     this->PushUint8(1);   // Version.
     this->PushString("zR");
     this->PushUleb128(DebugFrameOpCodeWriter<Allocator>::kCodeAlignmentFactor);
@@ -48,7 +55,11 @@ class DebugFrameWriter FINAL : private Writer<Allocator> {
     }
     this->PushData(initial_opcodes, initial_opcodes_size);
     this->Pad(use_64bit_address_ ? 8 : 4);
-    this->UpdateUint32(cie_header_start_, this->data()->size() - cie_header_start_ - 4);
+    if (use_64bit_address_) {
+      this->UpdateUint64(cie_header_start_ + 4, this->data()->size() - cie_header_start_ - 12);
+    } else {
+      this->UpdateUint32(cie_header_start_, this->data()->size() - cie_header_start_ - 4);
+    }
   }
 
   void WriteCIE(Reg return_address_register,
@@ -62,8 +73,15 @@ class DebugFrameWriter FINAL : private Writer<Allocator> {
                 int unwind_opcodes_size) {
     DCHECK(cie_header_start_ != ~0u);
     size_t fde_header_start = this->data()->size();
-    this->PushUint32(0);  // Length placeholder.
-    this->PushUint32(this->data()->size() - cie_header_start_);  // 'CIE_pointer'
+    if (use_64bit_address_) {
+      // TODO: This is not related to being 64bit.
+      this->PushUint32(0xffffffff);
+      this->PushUint64(0);  // Length placeholder.
+      this->PushUint64(this->data()->size() - cie_header_start_);  // 'CIE_pointer'
+    } else {
+      this->PushUint32(0);  // Length placeholder.
+      this->PushUint32(this->data()->size() - cie_header_start_);  // 'CIE_pointer'
+    }
     if (use_64bit_address_) {
       this->PushUint64(initial_address);
       this->PushUint64(address_range);
@@ -74,7 +92,11 @@ class DebugFrameWriter FINAL : private Writer<Allocator> {
     this->PushUleb128(0);  // Augmentation data size.
     this->PushData(unwind_opcodes, unwind_opcodes_size);
     this->Pad(use_64bit_address_ ? 8 : 4);
-    this->UpdateUint32(fde_header_start, this->data()->size() - fde_header_start - 4);
+    if (use_64bit_address_) {
+      this->UpdateUint64(fde_header_start + 4, this->data()->size() - fde_header_start - 12);
+    } else {
+      this->UpdateUint32(fde_header_start, this->data()->size() - fde_header_start - 4);
+    }
   }
 
   DebugFrameWriter(std::vector<uint8_t, Allocator>* buffer, bool use_64bit_address)

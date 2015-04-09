@@ -60,7 +60,7 @@ class QuickCompiler : public Compiler {
     OVERRIDE
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Mir2Lir* GetCodeGenerator(CompilationUnit* cu, void* compilation_unit) const;
+  static Mir2Lir* GetCodeGenerator(CompilationUnit* cu, void* compilation_unit);
 
   void InitCompilationUnit(CompilationUnit& cu) const OVERRIDE;
 
