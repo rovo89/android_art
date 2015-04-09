@@ -47,7 +47,8 @@ class OptimizingCFITest  : public CFITest {
     isa_features.reset(InstructionSetFeatures::FromVariant(isa, "default", &error));
     HGraph graph(&allocator);
     // Generate simple frame with some spills.
-    auto code_gen = CodeGenerator::Create(&graph, isa, *isa_features.get(), opts);
+    std::unique_ptr<CodeGenerator> code_gen(
+        CodeGenerator::Create(&graph, isa, *isa_features.get(), opts));
     const int frame_size = 64;
     int core_reg = 0;
     int fp_reg = 0;
@@ -74,10 +75,10 @@ class OptimizingCFITest  : public CFITest {
     code_gen->GenerateFrameEntry();
     code_gen->GetInstructionVisitor()->VisitReturnVoid(new (&allocator) HReturnVoid());
     // Get the outputs.
+    InternalCodeAllocator code_allocator;
+    code_gen->Finalize(&code_allocator);
+    const std::vector<uint8_t>& actual_asm = code_allocator.GetMemory();
     Assembler* opt_asm = code_gen->GetAssembler();
-    std::vector<uint8_t> actual_asm(opt_asm->CodeSize());
-    MemoryRegion code(&actual_asm[0], actual_asm.size());
-    opt_asm->FinalizeInstructions(code);
     const std::vector<uint8_t>& actual_cfi = *(opt_asm->cfi().data());
 
     if (kGenerateExpected) {
@@ -87,6 +88,24 @@ class OptimizingCFITest  : public CFITest {
       EXPECT_EQ(expected_cfi, actual_cfi);
     }
   }
+
+ private:
+  class InternalCodeAllocator : public CodeAllocator {
+   public:
+    InternalCodeAllocator() {}
+
+    virtual uint8_t* Allocate(size_t size) {
+      memory_.resize(size);
+      return memory_.data();
+    }
+
+    const std::vector<uint8_t>& GetMemory() { return memory_; }
+
+   private:
+    std::vector<uint8_t> memory_;
+
+    DISALLOW_COPY_AND_ASSIGN(InternalCodeAllocator);
+  };
 };
 
 #define TEST_ISA(isa) \
