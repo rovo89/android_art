@@ -895,8 +895,8 @@ class Thread {
     return tls32_.suspended_at_suspend_check;
   }
 
-  void SetVerifier(verifier::MethodVerifier* verifier);
-  void ClearVerifier(verifier::MethodVerifier* verifier);
+  void PushVerifier(verifier::MethodVerifier* verifier);
+  void PopVerifier(verifier::MethodVerifier* verifier);
 
  private:
   explicit Thread(bool daemon);
