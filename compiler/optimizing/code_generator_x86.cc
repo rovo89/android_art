@@ -16,6 +16,7 @@
 
 #include "code_generator_x86.h"
 
+#include "code_generator_utils.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "gc/accounting/card_table.h"
@@ -2278,6 +2279,134 @@ void InstructionCodeGeneratorX86::GenerateRemFP(HRem *rem) {
   __ addl(ESP, Immediate(2 * elem_size));
 }
 
+
+void InstructionCodeGeneratorX86::DivRemOneOrMinusOne(HBinaryOperation* instruction) {
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+
+  LocationSummary* locations = instruction->GetLocations();
+  DCHECK(locations->InAt(1).IsConstant());
+
+  Register out_register = locations->Out().AsRegister<Register>();
+  Register input_register = locations->InAt(0).AsRegister<Register>();
+  int imm = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
+
+  DCHECK(imm == 1 || imm == -1);
+
+  if (instruction->IsRem()) {
+    __ xorl(out_register, out_register);
+  } else {
+    __ movl(out_register, input_register);
+    if (imm == -1) {
+      __ negl(out_register);
+    }
+  }
+}
+
+
+void InstructionCodeGeneratorX86::DivByPowerOfTwo(HBinaryOperation* instruction) {
+  DCHECK(instruction->IsDiv());
+
+  LocationSummary* locations = instruction->GetLocations();
+
+  Register out_register = locations->Out().AsRegister<Register>();
+  Register input_register = locations->InAt(0).AsRegister<Register>();
+  int imm = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
+
+  DCHECK(instruction->IsDiv() && IsPowerOfTwo(std::abs(imm)));
+  Register num = locations->GetTemp(0).AsRegister<Register>();
+
+  __ leal(num, Address(input_register, std::abs(imm) - 1));
+  __ testl(input_register, input_register);
+  __ cmovl(kGreaterEqual, num, input_register);
+  int shift = CTZ(imm);
+  __ sarl(num, Immediate(shift));
+
+  if (imm < 0) {
+    __ negl(num);
+  }
+
+  __ movl(out_register, num);
+}
+
+void InstructionCodeGeneratorX86::GenerateDivRemWithAnyConstant(HBinaryOperation* instruction) {
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+
+  LocationSummary* locations = instruction->GetLocations();
+  int imm = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
+
+  Register eax = locations->InAt(0).AsRegister<Register>();
+  Register out = locations->Out().AsRegister<Register>();
+  Register num;
+  Register edx;
+
+  if (instruction->IsDiv()) {
+    edx = locations->GetTemp(0).AsRegister<Register>();
+    num = locations->GetTemp(1).AsRegister<Register>();
+  } else {
+    edx = locations->Out().AsRegister<Register>();
+    num = locations->GetTemp(0).AsRegister<Register>();
+  }
+
+  DCHECK_EQ(EAX, eax);
+  DCHECK_EQ(EDX, edx);
+  if (instruction->IsDiv()) {
+    DCHECK_EQ(EAX, out);
+  } else {
+    DCHECK_EQ(EDX, out);
+  }
+
+  int64_t magic;
+  int shift;
+  CalculateMagicAndShiftForDivRem(imm, false /* is_long */, &magic, &shift);
+
+  Label ndiv;
+  Label end;
+  // If numerator is 0, the result is 0, no computation needed.
+  __ testl(eax, eax);
+  __ j(kNotEqual, &ndiv);
+
+  __ xorl(out, out);
+  __ jmp(&end);
+
+  __ Bind(&ndiv);
+
+  // Save the numerator.
+  __ movl(num, eax);
+
+  // EAX = magic
+  __ movl(eax, Immediate(magic));
+
+  // EDX:EAX = magic * numerator
+  __ imull(num);
+
+  if (imm > 0 && magic < 0) {
+    // EDX += num
+    __ addl(edx, num);
+  } else if (imm < 0 && magic > 0) {
+    __ subl(edx, num);
+  }
+
+  // Shift if needed.
+  if (shift != 0) {
+    __ sarl(edx, Immediate(shift));
+  }
+
+  // EDX += 1 if EDX < 0
+  __ movl(eax, edx);
+  __ shrl(edx, Immediate(31));
+  __ addl(edx, eax);
+
+  if (instruction->IsRem()) {
+    __ movl(eax, num);
+    __ imull(edx, Immediate(imm));
+    __ subl(eax, edx);
+    __ movl(edx, eax);
+  } else {
+    __ movl(eax, edx);
+  }
+  __ Bind(&end);
+}
+
 void InstructionCodeGeneratorX86::GenerateDivRemIntegral(HBinaryOperation* instruction) {
   DCHECK(instruction->IsDiv() || instruction->IsRem());
 
@@ -2289,28 +2418,42 @@ void InstructionCodeGeneratorX86::GenerateDivRemIntegral(HBinaryOperation* instr
 
   switch (instruction->GetResultType()) {
     case Primitive::kPrimInt: {
-      Register second_reg = second.AsRegister<Register>();
       DCHECK_EQ(EAX, first.AsRegister<Register>());
       DCHECK_EQ(is_div ? EAX : EDX, out.AsRegister<Register>());
 
-      SlowPathCodeX86* slow_path =
+      if (second.IsConstant()) {
+        int imm = second.GetConstant()->AsIntConstant()->GetValue();
+
+        if (imm == 0) {
+          // Do not generate anything for 0. DivZeroCheck would forbid any generated code.
+        } else if (imm == 1 || imm == -1) {
+          DivRemOneOrMinusOne(instruction);
+        } else if (is_div && IsPowerOfTwo(std::abs(imm))) {
+          DivByPowerOfTwo(instruction);
+        } else {
+          DCHECK(imm <= -2 || imm >= 2);
+          GenerateDivRemWithAnyConstant(instruction);
+        }
+      } else {
+        SlowPathCodeX86* slow_path =
           new (GetGraph()->GetArena()) DivRemMinusOneSlowPathX86(out.AsRegister<Register>(),
-                                                                 is_div);
-      codegen_->AddSlowPath(slow_path);
+              is_div);
+        codegen_->AddSlowPath(slow_path);
 
-      // 0x80000000/-1 triggers an arithmetic exception!
-      // Dividing by -1 is actually negation and -0x800000000 = 0x80000000 so
-      // it's safe to just use negl instead of more complex comparisons.
+        Register second_reg = second.AsRegister<Register>();
+        // 0x80000000/-1 triggers an arithmetic exception!
+        // Dividing by -1 is actually negation and -0x800000000 = 0x80000000 so
+        // it's safe to just use negl instead of more complex comparisons.
 
-      __ cmpl(second_reg, Immediate(-1));
-      __ j(kEqual, slow_path->GetEntryLabel());
+        __ cmpl(second_reg, Immediate(-1));
+        __ j(kEqual, slow_path->GetEntryLabel());
 
-      // edx:eax <- sign-extended of eax
-      __ cdq();
-      // eax = quotient, edx = remainder
-      __ idivl(second_reg);
-
-      __ Bind(slow_path->GetExitLabel());
+        // edx:eax <- sign-extended of eax
+        __ cdq();
+        // eax = quotient, edx = remainder
+        __ idivl(second_reg);
+        __ Bind(slow_path->GetExitLabel());
+      }
       break;
     }
 
@@ -2350,10 +2493,16 @@ void LocationsBuilderX86::VisitDiv(HDiv* div) {
   switch (div->GetResultType()) {
     case Primitive::kPrimInt: {
       locations->SetInAt(0, Location::RegisterLocation(EAX));
-      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(div->InputAt(1)));
       locations->SetOut(Location::SameAsFirstInput());
       // Intel uses edx:eax as the dividend.
       locations->AddTemp(Location::RegisterLocation(EDX));
+      // We need to save the numerator while we tweak eax and edx. As we are using imul in a way
+      // which enforces results to be in EAX and EDX, things are simpler if we use EAX also as
+      // output and request another temp.
+      if (div->InputAt(1)->IsConstant()) {
+        locations->AddTemp(Location::RequiresRegister());
+      }
       break;
     }
     case Primitive::kPrimLong: {
@@ -2411,6 +2560,7 @@ void InstructionCodeGeneratorX86::VisitDiv(HDiv* div) {
 
 void LocationsBuilderX86::VisitRem(HRem* rem) {
   Primitive::Type type = rem->GetResultType();
+
   LocationSummary::CallKind call_kind = (rem->GetResultType() == Primitive::kPrimLong)
       ? LocationSummary::kCall
       : LocationSummary::kNoCall;
@@ -2419,8 +2569,14 @@ void LocationsBuilderX86::VisitRem(HRem* rem) {
   switch (type) {
     case Primitive::kPrimInt: {
       locations->SetInAt(0, Location::RegisterLocation(EAX));
-      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(rem->InputAt(1)));
       locations->SetOut(Location::RegisterLocation(EDX));
+      // We need to save the numerator while we tweak eax and edx. As we are using imul in a way
+      // which enforces results to be in EAX and EDX, things are simpler if we use EDX also as
+      // output and request another temp.
+      if (rem->InputAt(1)->IsConstant()) {
+        locations->AddTemp(Location::RequiresRegister());
+      }
       break;
     }
     case Primitive::kPrimLong: {

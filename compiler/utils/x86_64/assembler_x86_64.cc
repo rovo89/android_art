@@ -1620,6 +1620,14 @@ void X86_64Assembler::imull(CpuRegister reg) {
 }
 
 
+void X86_64Assembler::imulq(CpuRegister reg) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(reg);
+  EmitUint8(0xF7);
+  EmitOperand(5, Operand(reg));
+}
+
+
 void X86_64Assembler::imull(const Address& address) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(address);
