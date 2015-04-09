@@ -1659,11 +1659,26 @@ void InstructionCodeGeneratorARM64::GenerateTestAndBranch(HInstruction* instruct
     Register lhs = InputRegisterAt(condition, 0);
     Operand rhs = InputOperandAt(condition, 1);
     Condition arm64_cond = ARM64Condition(condition->GetCondition());
-    if ((arm64_cond == eq || arm64_cond == ne) && rhs.IsImmediate() && (rhs.immediate() == 0)) {
-      if (arm64_cond == eq) {
-        __ Cbz(lhs, true_target);
-      } else {
-        __ Cbnz(lhs, true_target);
+    if ((arm64_cond != gt && arm64_cond != le) && rhs.IsImmediate() && (rhs.immediate() == 0)) {
+      switch (arm64_cond) {
+        case eq:
+          __ Cbz(lhs, true_target);
+          break;
+        case ne:
+          __ Cbnz(lhs, true_target);
+          break;
+        case lt:
+          // Test the sign bit and branch accordingly.
+          __ Tbnz(lhs, (lhs.IsX() ? kXRegSize : kWRegSize) - 1, true_target);
+          break;
+        case ge:
+          // Test the sign bit and branch accordingly.
+          __ Tbz(lhs, (lhs.IsX() ? kXRegSize : kWRegSize) - 1, true_target);
+          break;
+        default:
+          // Without the `static_cast` the compiler throws an error for
+          // `-Werror=sign-promo`.
+          LOG(FATAL) << "Unexpected condition: " << static_cast<int>(arm64_cond);
       }
     } else {
       __ Cmp(lhs, rhs);
