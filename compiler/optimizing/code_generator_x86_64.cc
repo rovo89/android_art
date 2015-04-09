@@ -429,7 +429,8 @@ CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph,
         location_builder_(graph, this),
         instruction_visitor_(graph, this),
         move_resolver_(graph->GetArena(), this),
-        isa_features_(isa_features) {
+        isa_features_(isa_features),
+        constant_area_start_(0) {
   AddAllocatedRegister(Location::RegisterLocation(kFakeReturnRegister));
 }
 
@@ -1952,7 +1953,7 @@ void LocationsBuilderX86_64::VisitAdd(HAdd* add) {
     case Primitive::kPrimDouble:
     case Primitive::kPrimFloat: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
-      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::Any());
       locations->SetOut(Location::SameAsFirstInput());
       break;
     }
@@ -2016,12 +2017,30 @@ void InstructionCodeGeneratorX86_64::VisitAdd(HAdd* add) {
     }
 
     case Primitive::kPrimFloat: {
-      __ addss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      if (second.IsFpuRegister()) {
+        __ addss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      } else if (second.IsConstant()) {
+        __ addss(first.AsFpuRegister<XmmRegister>(),
+                 codegen_->LiteralFloatAddress(second.GetConstant()->AsFloatConstant()->GetValue()));
+      } else {
+        DCHECK(second.IsStackSlot());
+        __ addss(first.AsFpuRegister<XmmRegister>(),
+                 Address(CpuRegister(RSP), second.GetStackIndex()));
+      }
       break;
     }
 
     case Primitive::kPrimDouble: {
-      __ addsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      if (second.IsFpuRegister()) {
+        __ addsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      } else if (second.IsConstant()) {
+        __ addsd(first.AsFpuRegister<XmmRegister>(),
+                 codegen_->LiteralDoubleAddress(second.GetConstant()->AsDoubleConstant()->GetValue()));
+      } else {
+        DCHECK(second.IsDoubleStackSlot());
+        __ addsd(first.AsFpuRegister<XmmRegister>(),
+                 Address(CpuRegister(RSP), second.GetStackIndex()));
+      }
       break;
     }
 
@@ -2049,7 +2068,7 @@ void LocationsBuilderX86_64::VisitSub(HSub* sub) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
-      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::Any());
       locations->SetOut(Location::SameAsFirstInput());
       break;
     }
@@ -2087,12 +2106,30 @@ void InstructionCodeGeneratorX86_64::VisitSub(HSub* sub) {
     }
 
     case Primitive::kPrimFloat: {
-      __ subss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      if (second.IsFpuRegister()) {
+        __ subss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      } else if (second.IsConstant()) {
+        __ subss(first.AsFpuRegister<XmmRegister>(),
+                 codegen_->LiteralFloatAddress(second.GetConstant()->AsFloatConstant()->GetValue()));
+      } else {
+        DCHECK(second.IsStackSlot());
+        __ subss(first.AsFpuRegister<XmmRegister>(),
+                 Address(CpuRegister(RSP), second.GetStackIndex()));
+      }
       break;
     }
 
     case Primitive::kPrimDouble: {
-      __ subsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      if (second.IsFpuRegister()) {
+        __ subsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      } else if (second.IsConstant()) {
+        __ subsd(first.AsFpuRegister<XmmRegister>(),
+                 codegen_->LiteralDoubleAddress(second.GetConstant()->AsDoubleConstant()->GetValue()));
+      } else {
+        DCHECK(second.IsDoubleStackSlot());
+        __ subsd(first.AsFpuRegister<XmmRegister>(),
+                 Address(CpuRegister(RSP), second.GetStackIndex()));
+      }
       break;
     }
 
@@ -2125,7 +2162,7 @@ void LocationsBuilderX86_64::VisitMul(HMul* mul) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
-      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::Any());
       locations->SetOut(Location::SameAsFirstInput());
       break;
     }
@@ -2170,13 +2207,31 @@ void InstructionCodeGeneratorX86_64::VisitMul(HMul* mul) {
 
     case Primitive::kPrimFloat: {
       DCHECK(first.Equals(locations->Out()));
-      __ mulss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      if (second.IsFpuRegister()) {
+        __ mulss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      } else if (second.IsConstant()) {
+        __ mulss(first.AsFpuRegister<XmmRegister>(),
+                 codegen_->LiteralFloatAddress(second.GetConstant()->AsFloatConstant()->GetValue()));
+      } else {
+        DCHECK(second.IsStackSlot());
+        __ mulss(first.AsFpuRegister<XmmRegister>(),
+                 Address(CpuRegister(RSP), second.GetStackIndex()));
+      }
       break;
     }
 
     case Primitive::kPrimDouble: {
       DCHECK(first.Equals(locations->Out()));
-      __ mulsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      if (second.IsFpuRegister()) {
+        __ mulsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      } else if (second.IsConstant()) {
+        __ mulsd(first.AsFpuRegister<XmmRegister>(),
+                 codegen_->LiteralDoubleAddress(second.GetConstant()->AsDoubleConstant()->GetValue()));
+      } else {
+        DCHECK(second.IsDoubleStackSlot());
+        __ mulsd(first.AsFpuRegister<XmmRegister>(),
+                 Address(CpuRegister(RSP), second.GetStackIndex()));
+      }
       break;
     }
 
@@ -2566,7 +2621,7 @@ void LocationsBuilderX86_64::VisitDiv(HDiv* div) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
-      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::Any());
       locations->SetOut(Location::SameAsFirstInput());
       break;
     }
@@ -2591,12 +2646,30 @@ void InstructionCodeGeneratorX86_64::VisitDiv(HDiv* div) {
     }
 
     case Primitive::kPrimFloat: {
-      __ divss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      if (second.IsFpuRegister()) {
+        __ divss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      } else if (second.IsConstant()) {
+        __ divss(first.AsFpuRegister<XmmRegister>(),
+                 codegen_->LiteralFloatAddress(second.GetConstant()->AsFloatConstant()->GetValue()));
+      } else {
+        DCHECK(second.IsStackSlot());
+        __ divss(first.AsFpuRegister<XmmRegister>(),
+                 Address(CpuRegister(RSP), second.GetStackIndex()));
+      }
       break;
     }
 
     case Primitive::kPrimDouble: {
-      __ divsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      if (second.IsFpuRegister()) {
+        __ divsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      } else if (second.IsConstant()) {
+        __ divsd(first.AsFpuRegister<XmmRegister>(),
+                 codegen_->LiteralDoubleAddress(second.GetConstant()->AsDoubleConstant()->GetValue()));
+      } else {
+        DCHECK(second.IsDoubleStackSlot());
+        __ divsd(first.AsFpuRegister<XmmRegister>(),
+                 Address(CpuRegister(RSP), second.GetStackIndex()));
+      }
       break;
     }
 
@@ -4133,6 +4206,66 @@ void InstructionCodeGeneratorX86_64::VisitBoundType(HBoundType* instruction) {
   // Nothing to do, this should be removed during prepare for register allocator.
   UNUSED(instruction);
   LOG(FATAL) << "Unreachable";
+}
+
+void CodeGeneratorX86_64::Finalize(CodeAllocator* allocator) {
+  // Generate the constant area if needed.
+  if (!__ IsConstantAreaEmpty()) {
+    // Align to 4 byte boundary to reduce cache misses, as the data is 4 and 8
+    // byte values.  If used for vectors at a later time, this will need to be
+    // updated to 16 bytes with the appropriate offset.
+    __ Align(4, 0);
+    constant_area_start_ = __ CodeSize();
+    __ AddConstantArea();
+  }
+
+  // And finish up.
+  CodeGenerator::Finalize(allocator);
+}
+
+/**
+ * Class to handle late fixup of offsets into constant area.
+ */
+class RIPFixup : public AssemblerFixup, public ArenaObject<kArenaAllocMisc> {
+  public:
+    RIPFixup(CodeGeneratorX86_64& codegen, int offset)
+      : codegen_(codegen), offset_into_constant_area_(offset) {}
+
+  private:
+    void Process(const MemoryRegion& region, int pos) OVERRIDE {
+      // Patch the correct offset for the instruction.  We use the address of the
+      // 'next' instruction, which is 'pos' (patch the 4 bytes before).
+      int constant_offset = codegen_.ConstantAreaStart() + offset_into_constant_area_;
+      int relative_position = constant_offset - pos;
+
+      // Patch in the right value.
+      region.StoreUnaligned<int32_t>(pos - 4, relative_position);
+    }
+
+    CodeGeneratorX86_64& codegen_;
+
+    // Location in constant area that the fixup refers to.
+    int offset_into_constant_area_;
+};
+
+Address CodeGeneratorX86_64::LiteralDoubleAddress(double v) {
+  AssemblerFixup* fixup = new (GetGraph()->GetArena()) RIPFixup(*this, __ AddDouble(v));
+  return Address::RIP(fixup);
+}
+
+Address CodeGeneratorX86_64::LiteralFloatAddress(float v) {
+  AssemblerFixup* fixup = new (GetGraph()->GetArena()) RIPFixup(*this, __ AddFloat(v));
+  return Address::RIP(fixup);
+}
+
+Address CodeGeneratorX86_64::LiteralInt32Address(int32_t v) {
+  AssemblerFixup* fixup = new (GetGraph()->GetArena()) RIPFixup(*this, __ AddInt32(v));
+  return Address::RIP(fixup);
+}
+
+Address CodeGeneratorX86_64::LiteralInt64Address(int64_t v) {
+  AssemblerFixup* fixup = new (GetGraph()->GetArena()) RIPFixup(*this, __ AddInt64(v));
+  return Address::RIP(fixup);
 }
 
 }  // namespace x86_64
