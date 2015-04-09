@@ -80,7 +80,7 @@ class DebugFrameWriter FINAL : private Writer<Allocator> {
       this->PushUint64(this->data()->size() - cie_header_start_);  // 'CIE_pointer'
     } else {
       this->PushUint32(0);  // Length placeholder.
-      this->PushUint32(this->data()->size() - cie_header_start_);  // 'CIE_pointer'
+      this->PushUint32(static_cast<uint32_t>(this->data()->size() - cie_header_start_));  // 'CIE_pointer'
     }
     if (use_64bit_address_) {
       this->PushUint64(initial_address);
