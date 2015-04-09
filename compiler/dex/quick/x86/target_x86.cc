@@ -835,7 +835,9 @@ RegisterClass X86Mir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatil
 X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
     : Mir2Lir(cu, mir_graph, arena),
       in_to_reg_storage_x86_64_mapper_(this), in_to_reg_storage_x86_mapper_(this),
-      base_of_code_(nullptr), store_method_addr_(false), store_method_addr_used_(false),
+      pc_rel_base_reg_(RegStorage::InvalidReg()),
+      pc_rel_base_reg_used_(false),
+      setup_pc_rel_base_reg_(nullptr),
       method_address_insns_(arena->Adapter()),
       class_type_address_insns_(arena->Adapter()),
       call_method_insns_(arena->Adapter()),
@@ -844,12 +846,11 @@ X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator*
   method_address_insns_.reserve(100);
   class_type_address_insns_.reserve(100);
   call_method_insns_.reserve(100);
-  store_method_addr_used_ = false;
-    for (int i = 0; i < kX86Last; i++) {
-      DCHECK_EQ(X86Mir2Lir::EncodingMap[i].opcode, i)
-          << "Encoding order for " << X86Mir2Lir::EncodingMap[i].name
-          << " is wrong: expecting " << i << ", seeing "
-          << static_cast<int>(X86Mir2Lir::EncodingMap[i].opcode);
+  for (int i = 0; i < kX86Last; i++) {
+    DCHECK_EQ(X86Mir2Lir::EncodingMap[i].opcode, i)
+        << "Encoding order for " << X86Mir2Lir::EncodingMap[i].name
+        << " is wrong: expecting " << i << ", seeing "
+        << static_cast<int>(X86Mir2Lir::EncodingMap[i].opcode);
   }
 }
 
@@ -932,14 +933,6 @@ void X86Mir2Lir::DumpRegLocation(RegLocation loc) {
              << ", high: " << static_cast<int>(loc.reg.GetHighReg())
              << ", s_reg: " << loc.s_reg_low
              << ", orig: " << loc.orig_sreg;
-}
-
-void X86Mir2Lir::Materialize() {
-  // A good place to put the analysis before starting.
-  AnalyzeMIR();
-
-  // Now continue with regular code generation.
-  Mir2Lir::Materialize();
 }
 
 void X86Mir2Lir::LoadMethodAddress(const MethodReference& target_method, InvokeType type,
@@ -1116,7 +1109,8 @@ void X86Mir2Lir::InstallLiteralPools() {
     // The offset to patch is the last 4 bytes of the instruction.
     int patch_offset = p->offset + p->flags.size - 4;
     DCHECK(!p->flags.is_nop);
-    patches_.push_back(LinkerPatch::DexCacheArrayPatch(patch_offset, dex_file, p->offset, offset));
+    patches_.push_back(LinkerPatch::DexCacheArrayPatch(patch_offset, dex_file,
+                                                       p->target->offset, offset));
   }
 
   // And do the normal processing.
@@ -1581,20 +1575,17 @@ void X86Mir2Lir::AppendOpcodeWithConst(X86OpCode opcode, int reg, MIR* mir) {
   LIR* load;
   ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
   if (cu_->target64) {
-    load = NewLIR3(opcode, reg, kRIPReg, 256 /* bogus */);
+    load = NewLIR3(opcode, reg, kRIPReg, kDummy32BitOffset);
   } else {
-    // Address the start of the method.
-    RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
-    if (rl_method.wide) {
-      rl_method = LoadValueWide(rl_method, kCoreReg);
-    } else {
-      rl_method = LoadValue(rl_method, kCoreReg);
+    // Get the PC to a register and get the anchor.
+    LIR* anchor;
+    RegStorage r_pc = GetPcAndAnchor(&anchor);
+
+    load = NewLIR3(opcode, reg, r_pc.GetReg(), kDummy32BitOffset);
+    load->operands[4] = WrapPointer(anchor);
+    if (IsTemp(r_pc)) {
+      FreeTemp(r_pc);
     }
-
-    load = NewLIR3(opcode, reg, rl_method.reg.GetReg(), 256 /* bogus */);
-
-    // The literal pool needs position independent logic.
-    store_method_addr_used_ = true;
   }
   load->flags.fixup = kFixupLoad;
   load->target = data_target;
