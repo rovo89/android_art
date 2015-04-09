@@ -297,22 +297,15 @@ static jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jobject cookie
   return result;
 }
 
-// Java: dalvik.system.DexFile.UP_TO_DATE
-static const jbyte kUpToDate = 0;
-// Java: dalvik.system.DexFile.DEXOPT_NEEDED
-static const jbyte kPatchoatNeeded = 1;
-// Java: dalvik.system.DexFile.PATCHOAT_NEEDED
-static const jbyte kDexoptNeeded = 2;
-
-static jbyte IsDexOptNeededInternal(JNIEnv* env, const char* filename,
+static jint GetDexOptNeeded(JNIEnv* env, const char* filename,
     const char* pkgname, const char* instruction_set, const jboolean defer) {
 
   if ((filename == nullptr) || !OS::FileExists(filename)) {
-    LOG(ERROR) << "DexFile_isDexOptNeeded file '" << filename << "' does not exist";
+    LOG(ERROR) << "DexFile_getDexOptNeeded file '" << filename << "' does not exist";
     ScopedLocalRef<jclass> fnfe(env, env->FindClass("java/io/FileNotFoundException"));
     const char* message = (filename == nullptr) ? "<empty file name>" : filename;
     env->ThrowNew(fnfe.get(), message);
-    return kUpToDate;
+    return OatFileAssistant::kNoDexOptNeeded;
   }
 
   const InstructionSet target_instruction_set = GetInstructionSetFromString(instruction_set);
@@ -330,7 +323,7 @@ static jbyte IsDexOptNeededInternal(JNIEnv* env, const char* filename,
 
   // Always treat elements of the bootclasspath as up-to-date.
   if (oat_file_assistant.IsInBootClassPath()) {
-    return kUpToDate;
+    return OatFileAssistant::kNoDexOptNeeded;
   }
 
   // TODO: Checking the profile should probably be done in the GetStatus()
@@ -343,7 +336,7 @@ static jbyte IsDexOptNeededInternal(JNIEnv* env, const char* filename,
         if (!defer) {
           oat_file_assistant.CopyProfileFile();
         }
-        return kDexoptNeeded;
+        return OatFileAssistant::kDex2OatNeeded;
       } else if (oat_file_assistant.ProfileExists()
           && !oat_file_assistant.OldProfileExists()) {
         if (!defer) {
@@ -353,16 +346,10 @@ static jbyte IsDexOptNeededInternal(JNIEnv* env, const char* filename,
     }
   }
 
-  OatFileAssistant::Status status = oat_file_assistant.GetStatus();
-  switch (status) {
-    case OatFileAssistant::kUpToDate: return kUpToDate;
-    case OatFileAssistant::kNeedsRelocation: return kPatchoatNeeded;
-    case OatFileAssistant::kOutOfDate: return kDexoptNeeded;
-  }
-  UNREACHABLE();
+  return oat_file_assistant.GetDexOptNeeded();
 }
 
-static jbyte DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring javaFilename,
+static jint DexFile_getDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename,
     jstring javaPkgname, jstring javaInstructionSet, jboolean defer) {
   ScopedUtfChars filename(env, javaFilename);
   if (env->ExceptionCheck()) {
@@ -376,25 +363,25 @@ static jbyte DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring javaFil
     return 0;
   }
 
-  return IsDexOptNeededInternal(env, filename.c_str(), pkgname.c_str(),
-                                instruction_set.c_str(), defer);
+  return GetDexOptNeeded(env, filename.c_str(), pkgname.c_str(),
+                         instruction_set.c_str(), defer);
 }
 
 // public API, NULL pkgname
 static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename) {
   const char* instruction_set = GetInstructionSetString(kRuntimeISA);
   ScopedUtfChars filename(env, javaFilename);
-  return kUpToDate != IsDexOptNeededInternal(env, filename.c_str(), nullptr /* pkgname */,
-                                             instruction_set, false /* defer */);
+  jint status = GetDexOptNeeded(env, filename.c_str(), nullptr /* pkgname */,
+                                instruction_set, false /* defer */);
+  return (status != OatFileAssistant::kNoDexOptNeeded) ? JNI_TRUE : JNI_FALSE;
 }
-
 
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(DexFile, closeDexFile, "(Ljava/lang/Object;)V"),
   NATIVE_METHOD(DexFile, defineClassNative, "(Ljava/lang/String;Ljava/lang/ClassLoader;Ljava/lang/Object;)Ljava/lang/Class;"),
   NATIVE_METHOD(DexFile, getClassNameList, "(Ljava/lang/Object;)[Ljava/lang/String;"),
   NATIVE_METHOD(DexFile, isDexOptNeeded, "(Ljava/lang/String;)Z"),
-  NATIVE_METHOD(DexFile, isDexOptNeededInternal, "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)B"),
+  NATIVE_METHOD(DexFile, getDexOptNeeded, "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)I"),
   NATIVE_METHOD(DexFile, openDexFileNative, "(Ljava/lang/String;Ljava/lang/String;I)Ljava/lang/Object;"),
 };
 
