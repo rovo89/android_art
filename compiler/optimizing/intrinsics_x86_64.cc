@@ -301,15 +301,19 @@ static void CreateFloatToFloatPlusTemps(ArenaAllocator* arena, HInvoke* invoke) 
   locations->AddTemp(Location::RequiresFpuRegister());  // FP reg to hold mask.
 }
 
-static void MathAbsFP(LocationSummary* locations, bool is64bit,
-                      X86_64Assembler* assembler, CodeGeneratorX86_64* codegen) {
+static void MathAbsFP(LocationSummary* locations,
+                      bool is64bit,
+                      X86_64Assembler* assembler,
+                      CodeGeneratorX86_64* codegen) {
   Location output = locations->Out();
 
   if (output.IsFpuRegister()) {
     // In-register
     XmmRegister xmm_temp = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
 
-    // TODO: Can mask directly with constant area if we align on 16 bytes.
+    // TODO: Can mask directly with constant area using pand if we can guarantee
+    // that the literal is aligned on a 16 byte boundary.  This will avoid a
+    // temporary.
     if (is64bit) {
       __ movsd(xmm_temp, codegen->LiteralInt64Address(INT64_C(0x7FFFFFFFFFFFFFFF)));
       __ andpd(output.AsFpuRegister<XmmRegister>(), xmm_temp);
@@ -397,8 +401,11 @@ void IntrinsicCodeGeneratorX86_64::VisitMathAbsLong(HInvoke* invoke) {
   GenAbsInteger(invoke->GetLocations(), true, GetAssembler());
 }
 
-static void GenMinMaxFP(LocationSummary* locations, bool is_min, bool is_double,
-                        X86_64Assembler* assembler, CodeGeneratorX86_64* codegen) {
+static void GenMinMaxFP(LocationSummary* locations,
+                        bool is_min,
+                        bool is_double,
+                        X86_64Assembler* assembler,
+                        CodeGeneratorX86_64* codegen) {
   Location op1_loc = locations->InAt(0);
   Location op2_loc = locations->InAt(1);
   Location out_loc = locations->Out();
