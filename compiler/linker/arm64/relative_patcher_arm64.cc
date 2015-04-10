@@ -258,12 +258,36 @@ bool Arm64RelativePatcher::NeedsErratum843419Thunk(ArrayRef<const uint8_t> code,
   if ((patch_offset & 0xff8) == 0xff8) {  // ...ff8 or ...ffc
     uint32_t adrp = GetInsn(code, literal_offset);
     DCHECK_EQ(adrp & 0xff000000, 0x90000000);
-    // TODO: Improve the check. For now, we're just checking if the next insn is
-    // the LDR using the result of the ADRP, otherwise we implement the workaround.
+    uint32_t next_offset = patch_offset + 4u;
     uint32_t next_insn = GetInsn(code, literal_offset + 4u);
-    bool ok = (next_insn & 0xffc00000) == 0xb9400000 &&  // LDR <Wt>, [<Xn>, #pimm]
-        (((next_insn >> 5) ^ adrp) & 0x1f) == 0;         // <Xn> == ADRP destination reg
-    return !ok;
+
+    // Below we avoid patching sequences where the adrp is followed by a load which can easily
+    // be proved to be aligned.
+
+    // First check if the next insn is the LDR using the result of the ADRP.
+    // LDR <Wt>, [<Xn>, #pimm], where <Xn> == ADRP destination reg.
+    if ((next_insn & 0xffc00000) == 0xb9400000 &&
+        (((next_insn >> 5) ^ adrp) & 0x1f) == 0) {
+      return false;
+    }
+
+    // LDR <Wt>, <label> is always aligned and thus it doesn't cause boundary crossing.
+    if ((next_insn & 0xff000000) == 0x18000000) {
+      return false;
+    }
+
+    // LDR <Xt>, <label> is aligned iff the pc + displacement is a multiple of 8.
+    if ((next_insn & 0xff000000) == 0x58000000) {
+      bool is_aligned_load = (((next_offset >> 2) ^ (next_insn >> 5)) & 1) == 0;
+      return !is_aligned_load;
+    }
+
+    // LDR <Wt>, [SP, #<pimm>] and LDR <Xt>, [SP, #<pimm>] are always aligned loads, as SP is
+    // guaranteed to be 128-bits aligned and <pimm> is multiple of the load size.
+    if ((next_insn & 0xbfc003e0) == 0xb94003e0) {
+      return false;
+    }
+    return true;
   }
   return false;
 }
