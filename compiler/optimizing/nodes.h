@@ -325,6 +325,10 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
     return invoke_type_;
   }
 
+  InstructionSet GetInstructionSet() const {
+    return instruction_set_;
+  }
+
  private:
   void VisitBlockForDominatorTree(HBasicBlock* block,
                                   HBasicBlock* predecessor,
@@ -1659,6 +1663,14 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
 
   virtual bool NeedsDexCache() const { return false; }
 
+  // Does this instruction have any use in an environment before
+  // control flow hits 'other'?
+  bool HasAnyEnvironmentUseBefore(HInstruction* other);
+
+  // Remove all references to environment uses of this instruction.
+  // The caller must ensure that this is safe to do.
+  void RemoveEnvironmentUsers();
+
  protected:
   virtual const HUserRecord<HInstruction*> InputRecordAt(size_t i) const = 0;
   virtual void SetRawInputRecordAt(size_t index, const HUserRecord<HInstruction*>& input) = 0;
@@ -2135,11 +2147,20 @@ class HBinaryOperation : public HExpression<2> {
   DISALLOW_COPY_AND_ASSIGN(HBinaryOperation);
 };
 
+// The comparison bias applies for floating point operations and indicates how NaN
+// comparisons are treated:
+enum ComparisonBias {
+  kNoBias,  // bias is not applicable (i.e. for long operation)
+  kGtBias,  // return 1 for NaN comparisons
+  kLtBias,  // return -1 for NaN comparisons
+};
+
 class HCondition : public HBinaryOperation {
  public:
   HCondition(HInstruction* first, HInstruction* second)
       : HBinaryOperation(Primitive::kPrimBoolean, first, second),
-        needs_materialization_(true) {}
+        needs_materialization_(true),
+        bias_(kNoBias) {}
 
   bool NeedsMaterialization() const { return needs_materialization_; }
   void ClearNeedsMaterialization() { needs_materialization_ = false; }
@@ -2152,10 +2173,23 @@ class HCondition : public HBinaryOperation {
 
   virtual IfCondition GetCondition() const = 0;
 
+  virtual IfCondition GetOppositeCondition() const = 0;
+
+  bool IsGtBias() { return bias_ == kGtBias; }
+
+  void SetBias(ComparisonBias bias) { bias_ = bias; }
+
+  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+    return bias_ == other->AsCondition()->bias_;
+  }
+
  private:
   // For register allocation purposes, returns whether this instruction needs to be
   // materialized (that is, not just be in the processor flags).
   bool needs_materialization_;
+
+  // Needed if we merge a HCompare into a HCondition.
+  ComparisonBias bias_;
 
   DISALLOW_COPY_AND_ASSIGN(HCondition);
 };
@@ -2179,6 +2213,10 @@ class HEqual : public HCondition {
 
   IfCondition GetCondition() const OVERRIDE {
     return kCondEQ;
+  }
+
+  IfCondition GetOppositeCondition() const OVERRIDE {
+    return kCondNE;
   }
 
  private:
@@ -2205,6 +2243,10 @@ class HNotEqual : public HCondition {
     return kCondNE;
   }
 
+  IfCondition GetOppositeCondition() const OVERRIDE {
+    return kCondEQ;
+  }
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HNotEqual);
 };
@@ -2225,6 +2267,10 @@ class HLessThan : public HCondition {
 
   IfCondition GetCondition() const OVERRIDE {
     return kCondLT;
+  }
+
+  IfCondition GetOppositeCondition() const OVERRIDE {
+    return kCondGE;
   }
 
  private:
@@ -2249,6 +2295,10 @@ class HLessThanOrEqual : public HCondition {
     return kCondLE;
   }
 
+  IfCondition GetOppositeCondition() const OVERRIDE {
+    return kCondGT;
+  }
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HLessThanOrEqual);
 };
@@ -2269,6 +2319,10 @@ class HGreaterThan : public HCondition {
 
   IfCondition GetCondition() const OVERRIDE {
     return kCondGT;
+  }
+
+  IfCondition GetOppositeCondition() const OVERRIDE {
+    return kCondLE;
   }
 
  private:
@@ -2293,6 +2347,10 @@ class HGreaterThanOrEqual : public HCondition {
     return kCondGE;
   }
 
+  IfCondition GetOppositeCondition() const OVERRIDE {
+    return kCondLT;
+  }
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HGreaterThanOrEqual);
 };
@@ -2302,18 +2360,10 @@ class HGreaterThanOrEqual : public HCondition {
 // Result is 0 if input0 == input1, 1 if input0 > input1, or -1 if input0 < input1.
 class HCompare : public HBinaryOperation {
  public:
-  // The bias applies for floating point operations and indicates how NaN
-  // comparisons are treated:
-  enum Bias {
-    kNoBias,  // bias is not applicable (i.e. for long operation)
-    kGtBias,  // return 1 for NaN comparisons
-    kLtBias,  // return -1 for NaN comparisons
-  };
-
   HCompare(Primitive::Type type,
            HInstruction* first,
            HInstruction* second,
-           Bias bias,
+           ComparisonBias bias,
            uint32_t dex_pc)
       : HBinaryOperation(Primitive::kPrimInt, first, second), bias_(bias), dex_pc_(dex_pc) {
     DCHECK_EQ(type, first->GetType());
@@ -2338,6 +2388,8 @@ class HCompare : public HBinaryOperation {
     return bias_ == other->AsCompare()->bias_;
   }
 
+  ComparisonBias GetBias() const { return bias_; }
+
   bool IsGtBias() { return bias_ == kGtBias; }
 
   uint32_t GetDexPc() const { return dex_pc_; }
@@ -2345,7 +2397,7 @@ class HCompare : public HBinaryOperation {
   DECLARE_INSTRUCTION(Compare);
 
  private:
-  const Bias bias_;
+  const ComparisonBias bias_;
   const uint32_t dex_pc_;
 
   DISALLOW_COPY_AND_ASSIGN(HCompare);
