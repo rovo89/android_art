@@ -2742,14 +2742,14 @@ void X86_64ExceptionSlowPath::Emit(Assembler *sasm) {
 
 void X86_64Assembler::AddConstantArea() {
   const std::vector<int32_t>& area = constant_area_.GetBuffer();
-  for (size_t i = 0, u = area.size(); i < u; i++) {
+  for (size_t i = 0, e = area.size(); i < e; i++) {
     AssemblerBuffer::EnsureCapacity ensured(&buffer_);
     EmitInt32(area[i]);
   }
 }
 
 int ConstantArea::AddInt32(int32_t v) {
-  for (size_t i = 0, u = buffer_.size(); i < u; i++) {
+  for (size_t i = 0, e = buffer_.size(); i < e; i++) {
     if (v == buffer_[i]) {
       return i * elem_size_;
     }
@@ -2766,8 +2766,8 @@ int ConstantArea::AddInt64(int64_t v) {
   int32_t v_high = v >> 32;
   if (buffer_.size() > 1) {
     // Ensure we don't pass the end of the buffer.
-    for (size_t i = 0, u = buffer_.size() - 1; i < u; i++) {
-      if (v_low == buffer_[i] && v_high == buffer_[i+1]) {
+    for (size_t i = 0, e = buffer_.size() - 1; i < e; i++) {
+      if (v_low == buffer_[i] && v_high == buffer_[i + 1]) {
         return i * elem_size_;
       }
     }
