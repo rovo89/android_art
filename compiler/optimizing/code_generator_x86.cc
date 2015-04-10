@@ -2304,10 +2304,11 @@ void InstructionCodeGeneratorX86::DivRemOneOrMinusOne(HBinaryOperation* instruct
 
   LocationSummary* locations = instruction->GetLocations();
   DCHECK(locations->InAt(1).IsConstant());
+  DCHECK(locations->InAt(1).GetConstant()->IsIntConstant());
 
   Register out_register = locations->Out().AsRegister<Register>();
   Register input_register = locations->InAt(0).AsRegister<Register>();
-  int imm = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
+  int32_t imm = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
 
   DCHECK(imm == 1 || imm == -1);
 
@@ -2322,16 +2323,14 @@ void InstructionCodeGeneratorX86::DivRemOneOrMinusOne(HBinaryOperation* instruct
 }
 
 
-void InstructionCodeGeneratorX86::DivByPowerOfTwo(HBinaryOperation* instruction) {
-  DCHECK(instruction->IsDiv());
-
+void InstructionCodeGeneratorX86::DivByPowerOfTwo(HDiv* instruction) {
   LocationSummary* locations = instruction->GetLocations();
 
   Register out_register = locations->Out().AsRegister<Register>();
   Register input_register = locations->InAt(0).AsRegister<Register>();
-  int imm = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
+  int32_t imm = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
 
-  DCHECK(instruction->IsDiv() && IsPowerOfTwo(std::abs(imm)));
+  DCHECK(IsPowerOfTwo(std::abs(imm)));
   Register num = locations->GetTemp(0).AsRegister<Register>();
 
   __ leal(num, Address(input_register, std::abs(imm) - 1));
@@ -2440,15 +2439,15 @@ void InstructionCodeGeneratorX86::GenerateDivRemIntegral(HBinaryOperation* instr
       DCHECK_EQ(EAX, first.AsRegister<Register>());
       DCHECK_EQ(is_div ? EAX : EDX, out.AsRegister<Register>());
 
-      if (second.IsConstant()) {
-        int imm = second.GetConstant()->AsIntConstant()->GetValue();
+      if (instruction->InputAt(1)->IsIntConstant()) {
+        int32_t imm = second.GetConstant()->AsIntConstant()->GetValue();
 
         if (imm == 0) {
           // Do not generate anything for 0. DivZeroCheck would forbid any generated code.
         } else if (imm == 1 || imm == -1) {
           DivRemOneOrMinusOne(instruction);
         } else if (is_div && IsPowerOfTwo(std::abs(imm))) {
-          DivByPowerOfTwo(instruction);
+          DivByPowerOfTwo(instruction->AsDiv());
         } else {
           DCHECK(imm <= -2 || imm >= 2);
           GenerateDivRemWithAnyConstant(instruction);
@@ -2519,7 +2518,7 @@ void LocationsBuilderX86::VisitDiv(HDiv* div) {
       // We need to save the numerator while we tweak eax and edx. As we are using imul in a way
       // which enforces results to be in EAX and EDX, things are simpler if we use EAX also as
       // output and request another temp.
-      if (div->InputAt(1)->IsConstant()) {
+      if (div->InputAt(1)->IsIntConstant()) {
         locations->AddTemp(Location::RequiresRegister());
       }
       break;
@@ -2593,7 +2592,7 @@ void LocationsBuilderX86::VisitRem(HRem* rem) {
       // We need to save the numerator while we tweak eax and edx. As we are using imul in a way
       // which enforces results to be in EAX and EDX, things are simpler if we use EDX also as
       // output and request another temp.
-      if (rem->InputAt(1)->IsConstant()) {
+      if (rem->InputAt(1)->IsIntConstant()) {
         locations->AddTemp(Location::RequiresRegister());
       }
       break;

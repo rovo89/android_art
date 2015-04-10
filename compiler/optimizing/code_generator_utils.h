@@ -19,7 +19,12 @@
 
 #include <cstdint>
 
-// Computes the magic number and the shift needed in the div/rem by constant algorithm
+namespace art {
+
+// Computes the magic number and the shift needed in the div/rem by constant algorithm, as out
+// arguments `magic` and `shift`
 void CalculateMagicAndShiftForDivRem(int64_t divisor, bool is_long, int64_t* magic, int* shift);
+
+}  // namespace art
 
 #endif  // ART_COMPILER_OPTIMIZING_CODE_GENERATOR_UTILS_H_

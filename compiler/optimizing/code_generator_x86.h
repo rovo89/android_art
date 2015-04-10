@@ -165,7 +165,7 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
   void HandleBitwiseOperation(HBinaryOperation* instruction);
   void GenerateDivRemIntegral(HBinaryOperation* instruction);
   void DivRemOneOrMinusOne(HBinaryOperation* instruction);
-  void DivByPowerOfTwo(HBinaryOperation* instruction);
+  void DivByPowerOfTwo(HDiv* instruction);
   void GenerateDivRemWithAnyConstant(HBinaryOperation* instruction);
   void GenerateRemFP(HRem *rem);
   void HandleShift(HBinaryOperation* instruction);
