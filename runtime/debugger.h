@@ -714,6 +714,10 @@ class Dbg {
 
   static JDWP::JdwpState* GetJdwpState();
 
+  static uint32_t GetInstrumentationEvents() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return instrumentation_events_;
+  }
+
  private:
   static JDWP::JdwpError GetLocalValue(const StackVisitor& visitor,
                                        ScopedObjectAccessUnchecked& soa, int slot,
