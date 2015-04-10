@@ -235,6 +235,8 @@ class Address : public Operand {
       result.SetSIB(TIMES_1, CpuRegister(RSP), CpuRegister(RBP));
       result.SetDisp32(addr);
     } else {
+      // RIP addressing is done using RBP as the base register.
+      // The value in RBP isn't used.  Instead the offset is added to RIP.
       result.SetModRM(0, CpuRegister(RBP));
       result.SetDisp32(addr);
     }
@@ -244,6 +246,8 @@ class Address : public Operand {
   // An RIP relative address that will be fixed up later.
   static Address RIP(AssemblerFixup* fixup) {
     Address result;
+    // RIP addressing is done using RBP as the base register.
+    // The value in RBP isn't used.  Instead the offset is added to RIP.
     result.SetModRM(0, CpuRegister(RBP));
     result.SetDisp32(0);
     result.SetFixup(fixup);
@@ -267,32 +271,20 @@ class ConstantArea {
   public:
     ConstantArea() {}
 
-    /**
-     * Add a double to the constant area.
-     * @param v literal to be added to the constant area.
-     * @returns the offset in the constant area where the literal resides.
-     */
+    // Add a double to the constant area, returning the offset into
+    // the constant area where the literal resides.
     int AddDouble(double v);
 
-    /**
-     * Add a float to the constant area.
-     * @param v literal to be added to the constant area.
-     * @returns the offset in the constant area where the literal resides.
-     */
+    // Add a float to the constant area, returning the offset into
+    // the constant area where the literal resides.
     int AddFloat(float v);
 
-    /**
-     * Add an int32_t to the constant area.
-     * @param v literal to be added to the constant area.
-     * @returns the offset in the constant area where the literal resides.
-     */
+    // Add an int32_t to the constant area, returning the offset into
+    // the constant area where the literal resides.
     int AddInt32(int32_t v);
 
-    /**
-     * Add an int64_t to the constant area.
-     * @param v literal to be added to the constant area.
-     * @returns the offset in the constant area where the literal resides.
-     */
+    // Add an int64_t to the constant area, returning the offset into
+    // the constant area where the literal resides.
     int AddInt64(int64_t v);
 
     int GetSize() const {
@@ -736,43 +728,26 @@ class X86_64Assembler FINAL : public Assembler {
   // and branch to a ExceptionSlowPath if it is.
   void ExceptionPoll(ManagedRegister scratch, size_t stack_adjust) OVERRIDE;
 
-  /**
-   * Add a double to the constant area.
-   * @param v literal to be added to the constant area.
-   * @returns the offset in the constant area where the literal resides.
-   */
+  // Add a double to the constant area, returning the offset into
+  // the constant area where the literal resides.
   int AddDouble(double v) { return constant_area_.AddDouble(v); }
 
-  /**
-   * Add a float to the constant area.
-   * @param v literal to be added to the constant area.
-   * @returns the offset in the constant area where the literal resides.
-   */
+  // Add a float to the constant area, returning the offset into
+  // the constant area where the literal resides.
   int AddFloat(float v)   { return constant_area_.AddFloat(v); }
 
-  /**
-   * Add an int32_t to the constant area.
-   * @param v literal to be added to the constant area.
-   * @returns the offset in the constant area where the literal resides.
-   */
+  // Add an int32_t to the constant area, returning the offset into
+  // the constant area where the literal resides.
   int AddInt32(int32_t v) { return constant_area_.AddInt32(v); }
 
-  /**
-   * Add an int64_t to the constant area.
-   * @param v literal to be added to the constant area.
-   * @returns the offset in the constant area where the literal resides.
-   */
+  // Add an int64_t to the constant area, returning the offset into
+  // the constant area where the literal resides.
   int AddInt64(int64_t v) { return constant_area_.AddInt64(v); }
 
-  /**
-   * Add the contents of the constant area to the assembler buffer.
-   */
+  // Add the contents of the constant area to the assembler buffer.
   void AddConstantArea();
 
-  /**
-   * Is the constant area empty?
-   * @returns 'true' if there are no literals in the constant area.
-   */
+  // Is the constant area empty? Return true if there are no literals in the constant area.
   bool IsConstantAreaEmpty() const { return constant_area_.GetSize() == 0; }
 
  private:
