@@ -2713,16 +2713,16 @@ void LocationsBuilderX86::HandleShift(HBinaryOperation* op) {
 
   switch (op->GetResultType()) {
     case Primitive::kPrimInt: {
-      locations->SetInAt(0, Location::Any());
-      // The shift count needs to be in CL or a constant.
+      locations->SetInAt(0, Location::RequiresRegister());
+      // The shift count needs to be in CL.
       locations->SetInAt(1, Location::ByteRegisterOrConstant(ECX, op->InputAt(1)));
       locations->SetOut(Location::SameAsFirstInput());
       break;
     }
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
-      // The shift count needs to be in CL or a constant.
-      locations->SetInAt(1, Location::ByteRegisterOrConstant(ECX, op->InputAt(1)));
+      // The shift count needs to be in CL.
+      locations->SetInAt(1, Location::RegisterLocation(ECX));
       locations->SetOut(Location::SameAsFirstInput());
       break;
     }
@@ -2741,112 +2741,43 @@ void InstructionCodeGeneratorX86::HandleShift(HBinaryOperation* op) {
 
   switch (op->GetResultType()) {
     case Primitive::kPrimInt: {
-      if (first.IsRegister()) {
-        Register first_reg = first.AsRegister<Register>();
-        if (second.IsRegister()) {
-          Register second_reg = second.AsRegister<Register>();
-          DCHECK_EQ(ECX, second_reg);
-          if (op->IsShl()) {
-            __ shll(first_reg, second_reg);
-          } else if (op->IsShr()) {
-            __ sarl(first_reg, second_reg);
-          } else {
-            __ shrl(first_reg, second_reg);
-          }
-        } else {
-          int32_t shift = second.GetConstant()->AsIntConstant()->GetValue() & kMaxIntShiftValue;
-          if (shift == 0) {
-            return;
-          }
-          Immediate imm(shift);
-          if (op->IsShl()) {
-            __ shll(first_reg, imm);
-          } else if (op->IsShr()) {
-            __ sarl(first_reg, imm);
-          } else {
-            __ shrl(first_reg, imm);
-          }
-        }
-      } else {
-        DCHECK(first.IsStackSlot()) << first;
-        Address addr(ESP, first.GetStackIndex());
-        if (second.IsRegister()) {
-          Register second_reg = second.AsRegister<Register>();
-          DCHECK_EQ(ECX, second_reg);
-          if (op->IsShl()) {
-            __ shll(addr, second_reg);
-          } else if (op->IsShr()) {
-            __ sarl(addr, second_reg);
-          } else {
-            __ shrl(addr, second_reg);
-          }
-        } else {
-          int32_t shift = second.GetConstant()->AsIntConstant()->GetValue() & kMaxIntShiftValue;
-          if (shift == 0) {
-            return;
-          }
-          Immediate imm(shift);
-          if (op->IsShl()) {
-            __ shll(addr, imm);
-          } else if (op->IsShr()) {
-            __ sarl(addr, imm);
-          } else {
-            __ shrl(addr, imm);
-          }
-        }
-      }
-
-      break;
-    }
-    case Primitive::kPrimLong: {
+      Register first_reg = first.AsRegister<Register>();
       if (second.IsRegister()) {
         Register second_reg = second.AsRegister<Register>();
         DCHECK_EQ(ECX, second_reg);
         if (op->IsShl()) {
-          GenerateShlLong(first, second_reg);
+          __ shll(first_reg, second_reg);
         } else if (op->IsShr()) {
-          GenerateShrLong(first, second_reg);
+          __ sarl(first_reg, second_reg);
         } else {
-          GenerateUShrLong(first, second_reg);
+          __ shrl(first_reg, second_reg);
         }
       } else {
-        // Shift by a constant.
-        int shift = second.GetConstant()->AsIntConstant()->GetValue() & kMaxLongShiftValue;
-        // Nothing to do if the shift is 0, as the input is already the output.
-        if (shift != 0) {
-          if (op->IsShl()) {
-            GenerateShlLong(first, shift);
-          } else if (op->IsShr()) {
-            GenerateShrLong(first, shift);
-          } else {
-            GenerateUShrLong(first, shift);
-          }
+        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxIntShiftValue);
+        if (op->IsShl()) {
+          __ shll(first_reg, imm);
+        } else if (op->IsShr()) {
+          __ sarl(first_reg, imm);
+        } else {
+          __ shrl(first_reg, imm);
         }
+      }
+      break;
+    }
+    case Primitive::kPrimLong: {
+      Register second_reg = second.AsRegister<Register>();
+      DCHECK_EQ(ECX, second_reg);
+      if (op->IsShl()) {
+        GenerateShlLong(first, second_reg);
+      } else if (op->IsShr()) {
+        GenerateShrLong(first, second_reg);
+      } else {
+        GenerateUShrLong(first, second_reg);
       }
       break;
     }
     default:
       LOG(FATAL) << "Unexpected op type " << op->GetResultType();
-  }
-}
-
-void InstructionCodeGeneratorX86::GenerateShlLong(const Location& loc, int shift) {
-  Register low = loc.AsRegisterPairLow<Register>();
-  Register high = loc.AsRegisterPairHigh<Register>();
-  if (shift == 32) {
-    // Shift by 32 is easy. High gets low, and low gets 0.
-    codegen_->EmitParallelMoves(
-        loc.ToLow(), loc.ToHigh(),
-        Location::ConstantLocation(GetGraph()->GetIntConstant(0)), loc.ToLow());
-  } else if (shift > 32) {
-    // Low part becomes 0.  High part is low part << (shift-32).
-    __ movl(high, low);
-    __ shll(high, Immediate(shift - 32));
-    __ xorl(low, low);
-  } else {
-    // Between 1 and 31.
-    __ shld(high, low, Immediate(shift));
-    __ shll(low, Immediate(shift));
   }
 }
 
@@ -2861,27 +2792,6 @@ void InstructionCodeGeneratorX86::GenerateShlLong(const Location& loc, Register 
   __ Bind(&done);
 }
 
-void InstructionCodeGeneratorX86::GenerateShrLong(const Location& loc, int shift) {
-  Register low = loc.AsRegisterPairLow<Register>();
-  Register high = loc.AsRegisterPairHigh<Register>();
-  if (shift == 32) {
-    // Need to copy the sign.
-    DCHECK_NE(low, high);
-    __ movl(low, high);
-    __ sarl(high, Immediate(31));
-  } else if (shift > 32) {
-    DCHECK_NE(low, high);
-    // High part becomes sign. Low part is shifted by shift - 32.
-    __ movl(low, high);
-    __ sarl(high, Immediate(31));
-    __ shrl(low, Immediate(shift - 32));
-  } else {
-    // Between 1 and 31.
-    __ shrd(low, high, Immediate(shift));
-    __ sarl(high, Immediate(shift));
-  }
-}
-
 void InstructionCodeGeneratorX86::GenerateShrLong(const Location& loc, Register shifter) {
   Label done;
   __ shrd(loc.AsRegisterPairLow<Register>(), loc.AsRegisterPairHigh<Register>(), shifter);
@@ -2891,26 +2801,6 @@ void InstructionCodeGeneratorX86::GenerateShrLong(const Location& loc, Register 
   __ movl(loc.AsRegisterPairLow<Register>(), loc.AsRegisterPairHigh<Register>());
   __ sarl(loc.AsRegisterPairHigh<Register>(), Immediate(31));
   __ Bind(&done);
-}
-
-void InstructionCodeGeneratorX86::GenerateUShrLong(const Location& loc, int shift) {
-  Register low = loc.AsRegisterPairLow<Register>();
-  Register high = loc.AsRegisterPairHigh<Register>();
-  if (shift == 32) {
-    // Shift by 32 is easy. Low gets high, and high gets 0.
-    codegen_->EmitParallelMoves(
-        loc.ToHigh(), loc.ToLow(),
-        Location::ConstantLocation(GetGraph()->GetIntConstant(0)), loc.ToHigh());
-  } else if (shift > 32) {
-    // Low part is high >> (shift - 32). High part becomes 0.
-    __ movl(low, high);
-    __ shrl(low, Immediate(shift - 32));
-    __ xorl(high, high);
-  } else {
-    // Between 1 and 31.
-    __ shrd(low, high, Immediate(shift));
-    __ shrl(high, Immediate(shift));
-  }
 }
 
 void InstructionCodeGeneratorX86::GenerateUShrLong(const Location& loc, Register shifter) {
