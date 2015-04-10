@@ -26,8 +26,7 @@
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
 #include "dwarf.h"
-#include "dwarf/debug_frame_writer.h"
-#include "dwarf/debug_line_writer.h"
+#include "dwarf/headers.h"
 #include "elf_builder.h"
 #include "elf_file.h"
 #include "elf_utils.h"
@@ -39,42 +38,6 @@
 #include "utils.h"
 
 namespace art {
-
-static void PushByte(std::vector<uint8_t>* buf, int data) {
-  buf->push_back(data & 0xff);
-}
-
-static uint32_t PushStr(std::vector<uint8_t>* buf, const char* str, const char* def = nullptr) {
-  if (str == nullptr) {
-    str = def;
-  }
-
-  uint32_t offset = buf->size();
-  for (size_t i = 0; str[i] != '\0'; ++i) {
-    buf->push_back(str[i]);
-  }
-  buf->push_back('\0');
-  return offset;
-}
-
-static uint32_t PushStr(std::vector<uint8_t>* buf, const std::string &str) {
-  uint32_t offset = buf->size();
-  buf->insert(buf->end(), str.begin(), str.end());
-  buf->push_back('\0');
-  return offset;
-}
-
-static void UpdateWord(std::vector<uint8_t>* buf, int offset, int data) {
-  (*buf)[offset+0] = data;
-  (*buf)[offset+1] = data >> 8;
-  (*buf)[offset+2] = data >> 16;
-  (*buf)[offset+3] = data >> 24;
-}
-
-static void PushHalf(std::vector<uint8_t>* buf, int data) {
-  buf->push_back(data & 0xff);
-  buf->push_back((data >> 8) & 0xff);
-}
 
 template <typename Elf_Word, typename Elf_Sword, typename Elf_Addr,
           typename Elf_Dyn, typename Elf_Sym, typename Elf_Ehdr,
@@ -90,7 +53,8 @@ bool ElfWriterQuick<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
   return elf_writer.Write(oat_writer, dex_files, android_root, is_host);
 }
 
-void WriteCIE(dwarf::DebugFrameWriter<>* cfi, InstructionSet isa) {
+void WriteCIE(InstructionSet isa, std::vector<uint8_t>* eh_frame) {
+  const bool is64bit = Is64BitInstructionSet(isa);
   // Scratch registers should be marked as undefined.  This tells the
   // debugger that its value in the previous frame is not recoverable.
   switch (isa) {
@@ -115,7 +79,7 @@ void WriteCIE(dwarf::DebugFrameWriter<>* cfi, InstructionSet isa) {
         }
       }
       auto return_address_reg = dwarf::Reg::ArmCore(14);  // R14(LR).
-      cfi->WriteCIE(return_address_reg, opcodes);
+      dwarf::WriteEhFrameCIE(is64bit, return_address_reg, opcodes, eh_frame);
       return;
     }
     case kArm64: {
@@ -138,7 +102,7 @@ void WriteCIE(dwarf::DebugFrameWriter<>* cfi, InstructionSet isa) {
         }
       }
       auto return_address_reg = dwarf::Reg::Arm64Core(30);  // R30(LR).
-      cfi->WriteCIE(return_address_reg, opcodes);
+      dwarf::WriteEhFrameCIE(is64bit, return_address_reg, opcodes, eh_frame);
       return;
     }
     case kMips:
@@ -154,7 +118,7 @@ void WriteCIE(dwarf::DebugFrameWriter<>* cfi, InstructionSet isa) {
         }
       }
       auto return_address_reg = dwarf::Reg::MipsCore(31);  // R31(RA).
-      cfi->WriteCIE(return_address_reg, opcodes);
+      dwarf::WriteEhFrameCIE(is64bit, return_address_reg, opcodes, eh_frame);
       return;
     }
     case kX86: {
@@ -176,7 +140,7 @@ void WriteCIE(dwarf::DebugFrameWriter<>* cfi, InstructionSet isa) {
         opcodes.Undefined(dwarf::Reg::X86Fp(reg));
       }
       auto return_address_reg = dwarf::Reg::X86Core(8);  // R8(EIP).
-      cfi->WriteCIE(return_address_reg, opcodes);
+      dwarf::WriteEhFrameCIE(is64bit, return_address_reg, opcodes, eh_frame);
       return;
     }
     case kX86_64: {
@@ -202,7 +166,7 @@ void WriteCIE(dwarf::DebugFrameWriter<>* cfi, InstructionSet isa) {
         }
       }
       auto return_address_reg = dwarf::Reg::X86_64Core(16);  // R16(RIP).
-      cfi->WriteCIE(return_address_reg, opcodes);
+      dwarf::WriteEhFrameCIE(is64bit, return_address_reg, opcodes, eh_frame);
       return;
     }
     case kNone:
@@ -298,123 +262,29 @@ bool ElfWriterQuick<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
  * @param dbg_str Debug strings.
  */
 static void FillInCFIInformation(OatWriter* oat_writer,
-                                 std::vector<uint8_t>* dbg_info,
-                                 std::vector<uint8_t>* dbg_abbrev,
-                                 std::vector<uint8_t>* dbg_str,
-                                 std::vector<uint8_t>* dbg_line,
+                                 std::vector<uint8_t>* debug_info_data,
+                                 std::vector<uint8_t>* debug_abbrev_data,
+                                 std::vector<uint8_t>* debug_str_data,
+                                 std::vector<uint8_t>* debug_line_data,
                                  uint32_t text_section_offset) {
   const std::vector<OatWriter::DebugInfo>& method_infos = oat_writer->GetCFIMethodInfo();
 
-  uint32_t producer_str_offset = PushStr(dbg_str, "Android dex2oat");
-
-  constexpr bool use_64bit_addresses = false;
-
-  // Create the debug_abbrev section with boilerplate information.
-  // We only care about low_pc and high_pc right now for the compilation
-  // unit and methods.
-
-  // Tag 1: Compilation unit: DW_TAG_compile_unit.
-  PushByte(dbg_abbrev, 1);
-  PushByte(dbg_abbrev, dwarf::DW_TAG_compile_unit);
-
-  // There are children (the methods).
-  PushByte(dbg_abbrev, dwarf::DW_CHILDREN_yes);
-
-  // DW_AT_producer DW_FORM_data1.
-  // REVIEW: we can get rid of dbg_str section if
-  // DW_FORM_string (immediate string) was used everywhere instead of
-  // DW_FORM_strp (ref to string from .debug_str section).
-  // DW_FORM_strp makes sense only if we reuse the strings.
-  PushByte(dbg_abbrev, dwarf::DW_AT_producer);
-  PushByte(dbg_abbrev, dwarf::DW_FORM_strp);
-
-  // DW_LANG_Java DW_FORM_data1.
-  PushByte(dbg_abbrev, dwarf::DW_AT_language);
-  PushByte(dbg_abbrev, dwarf::DW_FORM_data1);
-
-  // DW_AT_low_pc DW_FORM_addr.
-  PushByte(dbg_abbrev, dwarf::DW_AT_low_pc);
-  PushByte(dbg_abbrev, dwarf::DW_FORM_addr);
-
-  // DW_AT_high_pc DW_FORM_addr.
-  PushByte(dbg_abbrev, dwarf::DW_AT_high_pc);
-  PushByte(dbg_abbrev, dwarf::DW_FORM_addr);
-
-  if (dbg_line != nullptr) {
-    // DW_AT_stmt_list DW_FORM_sec_offset.
-    PushByte(dbg_abbrev, dwarf::DW_AT_stmt_list);
-    PushByte(dbg_abbrev, dwarf::DW_FORM_data4);
-  }
-
-  // End of DW_TAG_compile_unit.
-  PushByte(dbg_abbrev, 0);  // DW_AT.
-  PushByte(dbg_abbrev, 0);  // DW_FORM.
-
-  // Tag 2: Compilation unit: DW_TAG_subprogram.
-  PushByte(dbg_abbrev, 2);
-  PushByte(dbg_abbrev, dwarf::DW_TAG_subprogram);
-
-  // There are no children.
-  PushByte(dbg_abbrev, dwarf::DW_CHILDREN_no);
-
-  // Name of the method.
-  PushByte(dbg_abbrev, dwarf::DW_AT_name);
-  PushByte(dbg_abbrev, dwarf::DW_FORM_strp);
-
-  // DW_AT_low_pc DW_FORM_addr.
-  PushByte(dbg_abbrev, dwarf::DW_AT_low_pc);
-  PushByte(dbg_abbrev, dwarf::DW_FORM_addr);
-
-  // DW_AT_high_pc DW_FORM_addr.
-  PushByte(dbg_abbrev, dwarf::DW_AT_high_pc);
-  PushByte(dbg_abbrev, dwarf::DW_FORM_addr);
-
-  // End of DW_TAG_subprogram.
-  PushByte(dbg_abbrev, 0);  // DW_AT.
-  PushByte(dbg_abbrev, 0);  // DW_FORM.
-
-  // End of abbrevs for compilation unit
-  PushByte(dbg_abbrev, 0);
-
-  // Start the debug_info section with the header information
-  // 'unit_length' will be filled in later.
-  int cunit_length = dbg_info->size();
-  Push32(dbg_info, 0);
-
-  // 'version' - 3.
-  PushHalf(dbg_info, 3);
-
-  // Offset into .debug_abbrev section (always 0).
-  Push32(dbg_info, 0);
-
-  // Address size: 4 or 8.
-  PushByte(dbg_info, use_64bit_addresses ? 8 : 4);
-
-  // Start the description for the compilation unit.
-  // This uses tag 1.
-  PushByte(dbg_info, 1);
-
-  // The producer is Android dex2oat.
-  Push32(dbg_info, producer_str_offset);
-
-  // The language is Java.
-  PushByte(dbg_info, dwarf::DW_LANG_Java);
-
-  // low_pc and high_pc.
   uint32_t cunit_low_pc = static_cast<uint32_t>(-1);
   uint32_t cunit_high_pc = 0;
   for (auto method_info : method_infos) {
     cunit_low_pc = std::min(cunit_low_pc, method_info.low_pc_);
     cunit_high_pc = std::max(cunit_high_pc, method_info.high_pc_);
   }
-  Push32(dbg_info, cunit_low_pc + text_section_offset);
-  Push32(dbg_info, cunit_high_pc + text_section_offset);
 
-  if (dbg_line != nullptr) {
-    // Line number table offset.
-    Push32(dbg_info, dbg_line->size());
+  dwarf::DebugInfoEntryWriter<> info(false /* 32 bit */, debug_abbrev_data);
+  info.StartTag(dwarf::DW_TAG_compile_unit, dwarf::DW_CHILDREN_yes);
+  info.WriteStrp(dwarf::DW_AT_producer, "Android dex2oat", debug_str_data);
+  info.WriteData1(dwarf::DW_AT_language, dwarf::DW_LANG_Java);
+  info.WriteAddr(dwarf::DW_AT_low_pc, cunit_low_pc + text_section_offset);
+  info.WriteAddr(dwarf::DW_AT_high_pc, cunit_high_pc + text_section_offset);
+  if (debug_line_data != nullptr) {
+    info.WriteData4(dwarf::DW_AT_stmt_list, debug_line_data->size());
   }
-
   for (auto method_info : method_infos) {
     std::string method_name = PrettyMethod(method_info.dex_method_index_,
                                            *method_info.dex_file_, true);
@@ -423,17 +293,16 @@ static void FillInCFIInformation(OatWriter* oat_writer,
       // so that it will show up in a debuggerd crash report.
       method_name += " [ DEDUPED ]";
     }
-
-    // Start a new TAG: subroutine (2).
-    PushByte(dbg_info, 2);
-
-    // Enter name, low_pc, high_pc.
-    Push32(dbg_info, PushStr(dbg_str, method_name));
-    Push32(dbg_info, method_info.low_pc_ + text_section_offset);
-    Push32(dbg_info, method_info.high_pc_ + text_section_offset);
+    info.StartTag(dwarf::DW_TAG_subprogram, dwarf::DW_CHILDREN_no);
+    info.WriteStrp(dwarf::DW_AT_name, method_name.data(), debug_str_data);
+    info.WriteAddr(dwarf::DW_AT_low_pc, method_info.low_pc_ + text_section_offset);
+    info.WriteAddr(dwarf::DW_AT_high_pc, method_info.high_pc_ + text_section_offset);
+    info.EndTag();  // DW_TAG_subprogram
   }
+  info.EndTag();  // DW_TAG_compile_unit
+  dwarf::WriteDebugInfoCU(0 /* debug_abbrev_offset */, info, debug_info_data);
 
-  if (dbg_line != nullptr) {
+  if (debug_line_data != nullptr) {
     // TODO: in gdb info functions <regexp> - reports Java functions, but
     // source file is <unknown> because .debug_line is formed as one
     // compilation unit. To fix this it is possible to generate
@@ -441,7 +310,7 @@ static void FillInCFIInformation(OatWriter* oat_writer,
     // Each of the these compilation units can have several non-adjacent
     // method ranges.
 
-    std::vector<dwarf::DebugLineWriter<>::FileEntry> files;
+    std::vector<dwarf::FileEntry> files;
     std::unordered_map<std::string, size_t> files_map;
     std::vector<std::string> directories;
     std::unordered_map<std::string, size_t> directories_map;
@@ -465,7 +334,7 @@ static void FillInCFIInformation(OatWriter* oat_writer,
         break;
     }
 
-    dwarf::DebugLineOpCodeWriter<> opcodes(use_64bit_addresses, code_factor_bits_);
+    dwarf::DebugLineOpCodeWriter<> opcodes(false /* 32bit */, code_factor_bits_);
     opcodes.SetAddress(text_section_offset + cunit_low_pc);
     if (isa != -1) {
       opcodes.SetISA(isa);
@@ -529,7 +398,7 @@ static void FillInCFIInformation(OatWriter* oat_writer,
         if (it2 == files_map.end()) {
           file_index = 1 + files.size();
           files_map.emplace(full_path, file_index);
-          files.push_back(dwarf::DebugLineWriter<>::FileEntry {
+          files.push_back(dwarf::FileEntry {
             file_name,
             directory_index,
             0,  // Modification time - NA.
@@ -574,19 +443,10 @@ static void FillInCFIInformation(OatWriter* oat_writer,
         opcodes.AddRow(low_pc, 0);
       }
     }
-
     opcodes.AdvancePC(text_section_offset + cunit_high_pc);
     opcodes.EndSequence();
-
-    dwarf::DebugLineWriter<> dbg_line_writer(dbg_line);
-    dbg_line_writer.WriteTable(directories, files, opcodes);
+    dwarf::WriteDebugLineTable(directories, files, opcodes, debug_line_data);
   }
-
-  // One byte terminator.
-  PushByte(dbg_info, 0);
-
-  // We have now walked all the methods.  Fill in lengths.
-  UpdateWord(dbg_info, cunit_length, dbg_info->size() - cunit_length - 4);
 }
 
 template <typename Elf_Word, typename Elf_Sword, typename Elf_Addr,
@@ -599,9 +459,9 @@ static void WriteDebugSymbols(const CompilerDriver* compiler_driver,
                                          Elf_Sym, Elf_Ehdr, Elf_Phdr, Elf_Shdr>* builder,
                               OatWriter* oat_writer) {
   std::vector<uint8_t> cfi_data;
-  bool is_64bit = Is64BitInstructionSet(compiler_driver->GetInstructionSet());
-  dwarf::DebugFrameWriter<> cfi(&cfi_data, is_64bit);
-  WriteCIE(&cfi, compiler_driver->GetInstructionSet());
+  const int cie_offset = 0;
+  bool is64bit = Is64BitInstructionSet(compiler_driver->GetInstructionSet());
+  WriteCIE(compiler_driver->GetInstructionSet(), &cfi_data);
 
   Elf_Addr text_section_address = builder->GetTextBuilder().GetSection()->sh_addr;
 
@@ -632,12 +492,12 @@ static void WriteDebugSymbols(const CompilerDriver* compiler_driver,
 
     // Include FDE for compiled method, if possible.
     DCHECK(it->compiled_method_ != nullptr);
-    const SwapVector<uint8_t>* unwind_opcodes = it->compiled_method_->GetCFIInfo();
-    if (unwind_opcodes != nullptr) {
+    const SwapVector<uint8_t>* opcodes = it->compiled_method_->GetCFIInfo();
+    if (opcodes != nullptr) {
       // TUNING: The headers take a lot of space. Can we have 1 FDE per file?
       // TUNING: Some tools support compressed DWARF sections (.zdebug_*).
-      cfi.WriteFDE(text_section_address + it->low_pc_, it->high_pc_ - it->low_pc_,
-                   unwind_opcodes->data(), unwind_opcodes->size());
+      dwarf::WriteEhFrameFDE(is64bit, cie_offset, text_section_address + it->low_pc_,
+                             it->high_pc_ - it->low_pc_, opcodes, &cfi_data);
     }
   }
 

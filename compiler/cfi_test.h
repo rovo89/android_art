@@ -22,8 +22,8 @@
 #include <sstream>
 
 #include "arch/instruction_set.h"
-#include "dwarf/debug_frame_writer.h"
 #include "dwarf/dwarf_test.h"
+#include "dwarf/headers.h"
 #include "disassembler/disassembler.h"
 #include "gtest/gtest.h"
 
@@ -43,9 +43,10 @@ class CFITest : public dwarf::DwarfTest {
     HexDump(f, actual_cfi);
     fprintf(f, "\n};\n");
     // Pretty-print CFI opcodes.
-    dwarf::DebugFrameWriter<> eh_frame(&eh_frame_data_, false);
-    eh_frame.WriteCIE(dwarf::Reg(8), {});
-    eh_frame.WriteFDE(0, actual_asm.size(), actual_cfi.data(), actual_cfi.size());
+    constexpr bool is64bit = false;
+    dwarf::DebugFrameOpCodeWriter<> initial_opcodes;
+    dwarf::WriteEhFrameCIE(is64bit, dwarf::Reg(8), initial_opcodes, &eh_frame_data_);
+    dwarf::WriteEhFrameFDE(is64bit, 0, 0, actual_asm.size(), &actual_cfi, &eh_frame_data_);
     ReformatCfi(Objdump(false, "-W"), &lines);
     // Pretty-print assembly.
     auto* opts = new DisassemblerOptions(false, actual_asm.data(), true);

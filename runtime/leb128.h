@@ -136,6 +136,19 @@ static inline void EncodeUnsignedLeb128(std::vector<uint8_t, Allocator>* dest, u
   dest->push_back(out);
 }
 
+// Overwrite encoded Leb128 with a new value. The new value must be less than
+// or equal to the old value to ensure that it fits the allocated space.
+static inline void UpdateUnsignedLeb128(uint8_t* dest, uint32_t value) {
+  const uint8_t* old_end = dest;
+  uint32_t old_value = DecodeUnsignedLeb128(&old_end);
+  DCHECK_LE(value, old_value);
+  for (uint8_t* end = EncodeUnsignedLeb128(dest, value); end < old_end; end++) {
+    // Use longer encoding than necessary to fill the allocated space.
+    end[-1] |= 0x80;
+    end[0] = 0;
+  }
+}
+
 static inline uint8_t* EncodeSignedLeb128(uint8_t* dest, int32_t value) {
   uint32_t extra_bits = static_cast<uint32_t>(value ^ (value >> 31)) >> 6;
   uint8_t out = value & 0x7f;
