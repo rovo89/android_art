@@ -403,43 +403,7 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info ATTRIBUTE_UNUSED, 
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
   if (direct_code != 0 && direct_method != 0) {
     switch (state) {
-    case 0:  // Get the current Method* [sets kArg0]
-      if (direct_code != static_cast<uintptr_t>(-1)) {
-        if (cu->target64) {
-          cg->LoadConstantWide(cg->TargetPtrReg(kInvokeTgt), direct_code);
-        } else {
-          cg->LoadConstant(cg->TargetPtrReg(kInvokeTgt), direct_code);
-        }
-      } else {
-        cg->LoadCodeAddress(target_method, type, kInvokeTgt);
-      }
-      if (direct_method != static_cast<uintptr_t>(-1)) {
-        if (cu->target64) {
-          cg->LoadConstantWide(cg->TargetReg(kArg0, kRef), direct_method);
-        } else {
-          cg->LoadConstant(cg->TargetReg(kArg0, kRef), direct_method);
-        }
-      } else {
-        cg->LoadMethodAddress(target_method, type, kArg0);
-      }
-      break;
-    default:
-      return -1;
-    }
-  } else {
-    RegStorage arg0_ref = cg->TargetReg(kArg0, kRef);
-    switch (state) {
-    case 0:  // Get the current Method* [sets kArg0]
-      // TUNING: we can save a reg copy if Method* has been promoted.
-      cg->LoadCurrMethodDirect(arg0_ref);
-      break;
-    case 1:  // Get method->dex_cache_resolved_methods_
-      cg->LoadRefDisp(arg0_ref,
-                      mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(),
-                      arg0_ref,
-                      kNotVolatile);
-      // Set up direct code if known.
-      if (direct_code != 0) {
+      case 0:  // Get the current Method* [sets kArg0]
         if (direct_code != static_cast<uintptr_t>(-1)) {
           if (cu->target64) {
             cg->LoadConstantWide(cg->TargetPtrReg(kInvokeTgt), direct_code);
@@ -447,29 +411,65 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info ATTRIBUTE_UNUSED, 
             cg->LoadConstant(cg->TargetPtrReg(kInvokeTgt), direct_code);
           }
         } else {
-          CHECK_LT(target_method.dex_method_index, target_method.dex_file->NumMethodIds());
           cg->LoadCodeAddress(target_method, type, kInvokeTgt);
         }
-      }
-      break;
-    case 2:  // Grab target method*
-      CHECK_EQ(cu->dex_file, target_method.dex_file);
-      cg->LoadRefDisp(arg0_ref,
-                      mirror::ObjectArray<mirror::Object>::
-                          OffsetOfElement(target_method.dex_method_index).Int32Value(),
-                      arg0_ref,
-                      kNotVolatile);
-      break;
-    case 3:  // Grab the code from the method*
-      if (direct_code == 0) {
-        int32_t offset = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-            InstructionSetPointerSize(cu->instruction_set)).Int32Value();
-        // Get the compiled code address [use *alt_from or kArg0, set kInvokeTgt]
-        cg->LoadWordDisp(arg0_ref, offset, cg->TargetPtrReg(kInvokeTgt));
-      }
-      break;
-    default:
-      return -1;
+        if (direct_method != static_cast<uintptr_t>(-1)) {
+          if (cu->target64) {
+            cg->LoadConstantWide(cg->TargetReg(kArg0, kRef), direct_method);
+          } else {
+            cg->LoadConstant(cg->TargetReg(kArg0, kRef), direct_method);
+          }
+        } else {
+          cg->LoadMethodAddress(target_method, type, kArg0);
+        }
+        break;
+      default:
+        return -1;
+    }
+  } else {
+    RegStorage arg0_ref = cg->TargetReg(kArg0, kRef);
+    switch (state) {
+      case 0:  // Get the current Method* [sets kArg0]
+        // TUNING: we can save a reg copy if Method* has been promoted.
+        cg->LoadCurrMethodDirect(arg0_ref);
+        break;
+      case 1:  // Get method->dex_cache_resolved_methods_
+        cg->LoadRefDisp(arg0_ref,
+                        mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(),
+                        arg0_ref,
+                        kNotVolatile);
+        // Set up direct code if known.
+        if (direct_code != 0) {
+          if (direct_code != static_cast<uintptr_t>(-1)) {
+            if (cu->target64) {
+              cg->LoadConstantWide(cg->TargetPtrReg(kInvokeTgt), direct_code);
+            } else {
+              cg->LoadConstant(cg->TargetPtrReg(kInvokeTgt), direct_code);
+            }
+          } else {
+            CHECK_LT(target_method.dex_method_index, target_method.dex_file->NumMethodIds());
+            cg->LoadCodeAddress(target_method, type, kInvokeTgt);
+          }
+        }
+        break;
+      case 2:  // Grab target method*
+        CHECK_EQ(cu->dex_file, target_method.dex_file);
+        cg->LoadRefDisp(arg0_ref,
+                        mirror::ObjectArray<mirror::Object>::
+                        OffsetOfElement(target_method.dex_method_index).Int32Value(),
+                        arg0_ref,
+                        kNotVolatile);
+        break;
+      case 3:  // Grab the code from the method*
+        if (direct_code == 0) {
+          int32_t offset = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+              InstructionSetPointerSize(cu->instruction_set)).Int32Value();
+          // Get the compiled code address [use *alt_from or kArg0, set kInvokeTgt]
+          cg->LoadWordDisp(arg0_ref, offset, cg->TargetPtrReg(kInvokeTgt));
+        }
+        break;
+      default:
+        return -1;
     }
   }
   return state + 1;

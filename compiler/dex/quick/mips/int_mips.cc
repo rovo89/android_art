@@ -237,12 +237,12 @@ void MipsMir2Lir::OpRegCopyWide(RegStorage r_dest, RegStorage r_src) {
         // note the operands are swapped for the mtc1 and mthc1 instr.
         // Here if dest is fp reg and src is core reg.
         if (fpuIs32Bit_) {
-            NewLIR2(kMipsMtc1, r_src.GetLowReg(), r_dest.GetLowReg());
-            NewLIR2(kMipsMtc1, r_src.GetHighReg(), r_dest.GetHighReg());
+          NewLIR2(kMipsMtc1, r_src.GetLowReg(), r_dest.GetLowReg());
+          NewLIR2(kMipsMtc1, r_src.GetHighReg(), r_dest.GetHighReg());
         } else {
-            r_dest = Fp64ToSolo32(r_dest);
-            NewLIR2(kMipsMtc1, r_src.GetLowReg(), r_dest.GetReg());
-            NewLIR2(kMipsMthc1, r_src.GetHighReg(), r_dest.GetReg());
+          r_dest = Fp64ToSolo32(r_dest);
+          NewLIR2(kMipsMtc1, r_src.GetLowReg(), r_dest.GetReg());
+          NewLIR2(kMipsMthc1, r_src.GetHighReg(), r_dest.GetReg());
         }
       }
     } else {
@@ -311,10 +311,10 @@ RegLocation MipsMir2Lir::GenDivRemLit(RegLocation rl_dest, RegStorage reg1, int 
   RegStorage t_reg = AllocTemp();
   // lit is guarantee to be a 16-bit constant
   if (IsUint<16>(lit)) {
-      NewLIR3(kMipsOri, t_reg.GetReg(), rZERO, lit);
+    NewLIR3(kMipsOri, t_reg.GetReg(), rZERO, lit);
   } else {
-      // Addiu will sign extend the entire width (32 or 64) of the register.
-      NewLIR3(kMipsAddiu, t_reg.GetReg(), rZERO, lit);
+    // Addiu will sign extend the entire width (32 or 64) of the register.
+    NewLIR3(kMipsAddiu, t_reg.GetReg(), rZERO, lit);
   }
   RegLocation rl_result = GenDivRem(rl_dest, reg1, t_reg, is_div);
   FreeTemp(t_reg);
@@ -821,20 +821,20 @@ void MipsMir2Lir::GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest, 
   }
   OpKind op = kOpBkpt;
   switch (opcode) {
-  case Instruction::SHL_LONG:
-  case Instruction::SHL_LONG_2ADDR:
-    op = kOpLsl;
-    break;
-  case Instruction::SHR_LONG:
-  case Instruction::SHR_LONG_2ADDR:
-    op = kOpAsr;
-    break;
-  case Instruction::USHR_LONG:
-  case Instruction::USHR_LONG_2ADDR:
-    op = kOpLsr;
-    break;
-  default:
-    LOG(FATAL) << "Unexpected case: " << opcode;
+    case Instruction::SHL_LONG:
+    case Instruction::SHL_LONG_2ADDR:
+      op = kOpLsl;
+      break;
+    case Instruction::SHR_LONG:
+    case Instruction::SHR_LONG_2ADDR:
+      op = kOpAsr;
+      break;
+    case Instruction::USHR_LONG:
+    case Instruction::USHR_LONG_2ADDR:
+      op = kOpLsr;
+      break;
+    default:
+      LOG(FATAL) << "Unexpected case: " << opcode;
   }
   rl_shift = LoadValue(rl_shift, kCoreReg);
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
