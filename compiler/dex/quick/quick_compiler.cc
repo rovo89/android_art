@@ -793,20 +793,6 @@ uintptr_t QuickCompiler::GetEntryPointOf(mirror::ArtMethod* method) const {
       InstructionSetPointerSize(GetCompilerDriver()->GetInstructionSet())));
 }
 
-bool QuickCompiler::WriteElf(art::File* file,
-                             OatWriter* oat_writer,
-                             const std::vector<const art::DexFile*>& dex_files,
-                             const std::string& android_root,
-                             bool is_host) const {
-  if (kProduce64BitELFFiles && Is64BitInstructionSet(GetCompilerDriver()->GetInstructionSet())) {
-    return art::ElfWriterQuick64::Create(file, oat_writer, dex_files, android_root, is_host,
-                                         *GetCompilerDriver());
-  } else {
-    return art::ElfWriterQuick32::Create(file, oat_writer, dex_files, android_root, is_host,
-                                         *GetCompilerDriver());
-  }
-}
-
 Mir2Lir* QuickCompiler::GetCodeGenerator(CompilationUnit* cu, void* compilation_unit) {
   UNUSED(compilation_unit);
   Mir2Lir* mir_to_lir = nullptr;
