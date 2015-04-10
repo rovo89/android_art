@@ -48,8 +48,38 @@ static jobject DexCache_getDexNative(JNIEnv* env, jobject javaDexCache) {
                                       args);
 }
 
+static jobject DexCache_getResolvedType(JNIEnv* env, jobject javaDexCache, jint type_index) {
+  ScopedFastNativeObjectAccess soa(env);
+  mirror::DexCache* dex_cache = soa.Decode<mirror::DexCache*>(javaDexCache);
+  return soa.AddLocalReference<jobject>(dex_cache->GetResolvedType(type_index));
+}
+
+static jobject DexCache_getResolvedString(JNIEnv* env, jobject javaDexCache, jint string_index) {
+  ScopedFastNativeObjectAccess soa(env);
+  mirror::DexCache* dex_cache = soa.Decode<mirror::DexCache*>(javaDexCache);
+  return soa.AddLocalReference<jobject>(dex_cache->GetResolvedString(string_index));
+}
+
+static void DexCache_setResolvedType(JNIEnv* env, jobject javaDexCache, jint type_index,
+                                     jobject type) {
+  ScopedFastNativeObjectAccess soa(env);
+  mirror::DexCache* dex_cache = soa.Decode<mirror::DexCache*>(javaDexCache);
+  dex_cache->SetResolvedType(type_index, soa.Decode<mirror::Class*>(type));
+}
+
+static void DexCache_setResolvedString(JNIEnv* env, jobject javaDexCache, jint string_index,
+                                       jobject string) {
+  ScopedFastNativeObjectAccess soa(env);
+  mirror::DexCache* dex_cache = soa.Decode<mirror::DexCache*>(javaDexCache);
+  dex_cache->SetResolvedString(string_index, soa.Decode<mirror::String*>(string));
+}
+
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(DexCache, getDexNative, "!()Lcom/android/dex/Dex;"),
+  NATIVE_METHOD(DexCache, getResolvedType, "!(I)Ljava/lang/Class;"),
+  NATIVE_METHOD(DexCache, getResolvedString, "!(I)Ljava/lang/String;"),
+  NATIVE_METHOD(DexCache, setResolvedType, "!(ILjava/lang/Class;)V"),
+  NATIVE_METHOD(DexCache, setResolvedString, "!(ILjava/lang/String;)V"),
 };
 
 void register_java_lang_DexCache(JNIEnv* env) {
