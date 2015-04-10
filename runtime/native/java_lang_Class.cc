@@ -91,6 +91,18 @@ static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean
   return soa.AddLocalReference<jclass>(c.Get());
 }
 
+static jobject Class_findOverriddenMethodIfProxy(JNIEnv* env, jclass, jobject art_method) {
+  ScopedFastNativeObjectAccess soa(env);
+  mirror::ArtMethod* method = soa.Decode<mirror::ArtMethod*>(art_method);
+  mirror::Class* declaring_klass = method->GetDeclaringClass();
+  if (!declaring_klass->IsProxyClass()) {
+    return art_method;
+  }
+  uint32_t dex_method_index = method->GetDexMethodIndex();
+  mirror::ArtMethod* overriden_method = method->GetDexCacheResolvedMethods()->Get(dex_method_index);
+  return soa.AddLocalReference<jobject>(overriden_method);
+}
+
 static jstring Class_getNameNative(JNIEnv* env, jobject javaThis) {
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
@@ -264,6 +276,8 @@ static jobject Class_getDeclaredField(JNIEnv* env, jobject javaThis, jstring nam
 
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Class, classForName, "!(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;"),
+  NATIVE_METHOD(Class, findOverriddenMethodIfProxy,
+                "!(Ljava/lang/reflect/ArtMethod;)Ljava/lang/reflect/ArtMethod;"),
   NATIVE_METHOD(Class, getNameNative, "!()Ljava/lang/String;"),
   NATIVE_METHOD(Class, getProxyInterfaces, "!()[Ljava/lang/Class;"),
   NATIVE_METHOD(Class, getDeclaredFields, "!()[Ljava/lang/reflect/Field;"),
