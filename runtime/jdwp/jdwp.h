@@ -51,22 +51,24 @@ namespace JDWP {
  * Fundamental types.
  *
  * ObjectId and RefTypeId must be the same size.
+ * Its OK to change MethodId and FieldId sizes as long as the size is <= 8 bytes.
+ * Note that ArtFields are 64 bit pointers on 64 bit targets. So this one must remain 8 bytes.
  */
-typedef uint32_t FieldId;     /* static or instance field */
-typedef uint32_t MethodId;    /* any kind of method, including constructors */
+typedef uint64_t FieldId;     /* static or instance field */
+typedef uint64_t MethodId;    /* any kind of method, including constructors */
 typedef uint64_t ObjectId;    /* any object (threadID, stringID, arrayID, etc) */
 typedef uint64_t RefTypeId;   /* like ObjectID, but unique for Class objects */
 typedef uint64_t FrameId;     /* short-lived stack frame ID */
 
 ObjectId ReadObjectId(const uint8_t** pBuf);
 
-static inline void SetFieldId(uint8_t* buf, FieldId val) { return Set4BE(buf, val); }
-static inline void SetMethodId(uint8_t* buf, MethodId val) { return Set4BE(buf, val); }
+static inline void SetFieldId(uint8_t* buf, FieldId val) { return Set8BE(buf, val); }
+static inline void SetMethodId(uint8_t* buf, MethodId val) { return Set8BE(buf, val); }
 static inline void SetObjectId(uint8_t* buf, ObjectId val) { return Set8BE(buf, val); }
 static inline void SetRefTypeId(uint8_t* buf, RefTypeId val) { return Set8BE(buf, val); }
 static inline void SetFrameId(uint8_t* buf, FrameId val) { return Set8BE(buf, val); }
-static inline void expandBufAddFieldId(ExpandBuf* pReply, FieldId id) { expandBufAdd4BE(pReply, id); }
-static inline void expandBufAddMethodId(ExpandBuf* pReply, MethodId id) { expandBufAdd4BE(pReply, id); }
+static inline void expandBufAddFieldId(ExpandBuf* pReply, FieldId id) { expandBufAdd8BE(pReply, id); }
+static inline void expandBufAddMethodId(ExpandBuf* pReply, MethodId id) { expandBufAdd8BE(pReply, id); }
 static inline void expandBufAddObjectId(ExpandBuf* pReply, ObjectId id) { expandBufAdd8BE(pReply, id); }
 static inline void expandBufAddRefTypeId(ExpandBuf* pReply, RefTypeId id) { expandBufAdd8BE(pReply, id); }
 static inline void expandBufAddFrameId(ExpandBuf* pReply, FrameId id) { expandBufAdd8BE(pReply, id); }

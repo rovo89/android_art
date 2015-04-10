@@ -250,8 +250,7 @@ typedef std::map<std::string, mirror::String*> StringTable;
 
 class PreloadDexCachesStringsVisitor : public SingleRootVisitor {
  public:
-  explicit PreloadDexCachesStringsVisitor(StringTable* table) : table_(table) {
-  }
+  explicit PreloadDexCachesStringsVisitor(StringTable* table) : table_(table) { }
 
   void VisitRoot(mirror::Object* root, const RootInfo& info ATTRIBUTE_UNUSED)
       OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
