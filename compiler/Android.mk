@@ -152,6 +152,7 @@ LIBART_COMPILER_SRC_FILES := \
 	buffered_output_stream.cc \
 	compiler.cc \
 	elf_writer.cc \
+	elf_writer_debug.cc \
 	elf_writer_quick.cc \
 	file_output_stream.cc \
 	image_writer.cc \
