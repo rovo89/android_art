@@ -208,20 +208,22 @@ static void UnstartedClassGetDeclaredField(
   // going the reflective Dex way.
   mirror::Class* klass = shadow_frame->GetVRegReference(arg_offset)->AsClass();
   mirror::String* name2 = shadow_frame->GetVRegReference(arg_offset + 1)->AsString();
-  mirror::ArtField* found = nullptr;
-  mirror::ObjectArray<mirror::ArtField>* fields = klass->GetIFields();
-  for (int32_t i = 0; i < fields->GetLength() && found == nullptr; ++i) {
-    mirror::ArtField* f = fields->Get(i);
+  ArtField* found = nullptr;
+  ArtField* fields = klass->GetIFields();
+  for (int32_t i = 0, count = klass->NumInstanceFields(); i < count; ++i) {
+    ArtField* f = &fields[i];
     if (name2->Equals(f->GetName())) {
       found = f;
+      break;
     }
   }
   if (found == nullptr) {
     fields = klass->GetSFields();
-    for (int32_t i = 0; i < fields->GetLength() && found == nullptr; ++i) {
-      mirror::ArtField* f = fields->Get(i);
+    for (int32_t i = 0, count = klass->NumStaticFields(); i < count; ++i) {
+      ArtField* f = &fields[i];
       if (name2->Equals(f->GetName())) {
         found = f;
+        break;
       }
     }
   }

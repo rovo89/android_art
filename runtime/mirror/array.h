@@ -54,7 +54,7 @@ class MANAGED Array : public Object {
   }
 
   void SetLength(int32_t length) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    CHECK_GE(length, 0);
+    DCHECK_GE(length, 0);
     // We use non transactional version since we can't undo this write. We also disable checking
     // since it would fail during a transaction.
     SetField32<false, false, kVerifyNone>(OFFSET_OF_OBJECT_MEMBER(Array, length_), length);

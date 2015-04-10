@@ -398,7 +398,7 @@ std::vector<const DexFile*> CommonRuntimeTest::GetDexFiles(jobject jclass_loader
 
   ScopedObjectAccess soa(Thread::Current());
 
-  StackHandleScope<4> hs(Thread::Current());
+  StackHandleScope<2> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader = hs.NewHandle(
       soa.Decode<mirror::ClassLoader*>(jclass_loader));
 
@@ -409,16 +409,13 @@ std::vector<const DexFile*> CommonRuntimeTest::GetDexFiles(jobject jclass_loader
 
   // The class loader is a PathClassLoader which inherits from BaseDexClassLoader.
   // We need to get the DexPathList and loop through it.
-  Handle<mirror::ArtField> cookie_field =
-      hs.NewHandle(soa.DecodeField(WellKnownClasses::dalvik_system_DexFile_cookie));
-  Handle<mirror::ArtField> dex_file_field =
-      hs.NewHandle(
-          soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile));
+  ArtField* cookie_field = soa.DecodeField(WellKnownClasses::dalvik_system_DexFile_cookie);
+  ArtField* dex_file_field =
+      soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
   mirror::Object* dex_path_list =
       soa.DecodeField(WellKnownClasses::dalvik_system_PathClassLoader_pathList)->
       GetObject(class_loader.Get());
-  if (dex_path_list != nullptr && dex_file_field.Get() != nullptr &&
-      cookie_field.Get() != nullptr) {
+  if (dex_path_list != nullptr && dex_file_field!= nullptr && cookie_field != nullptr) {
     // DexPathList has an array dexElements of Elements[] which each contain a dex file.
     mirror::Object* dex_elements_obj =
         soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList_dexElements)->

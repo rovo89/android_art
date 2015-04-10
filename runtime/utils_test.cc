@@ -146,7 +146,7 @@ TEST_F(UtilsTest, PrettyField) {
   mirror::Class* java_lang_String = class_linker_->FindSystemClass(soa.Self(),
                                                                    "Ljava/lang/String;");
 
-  mirror::ArtField* f;
+  ArtField* f;
   f = java_lang_String->FindDeclaredInstanceField("count", "I");
   EXPECT_EQ("int java.lang.String.count", PrettyField(f));
   EXPECT_EQ("java.lang.String.count", PrettyField(f, false));

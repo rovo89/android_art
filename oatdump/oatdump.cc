@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "arch/instruction_set_features.h"
+#include "art_field-inl.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
@@ -40,7 +41,6 @@
 #include "image.h"
 #include "indenter.h"
 #include "mapping_table.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
@@ -1549,9 +1549,6 @@ class ImageDumper {
     } else if (type->IsClassClass()) {
       mirror::Class* klass = value->AsClass();
       os << StringPrintf("%p   Class: %s\n", klass, PrettyDescriptor(klass).c_str());
-    } else if (type->IsArtFieldClass()) {
-      mirror::ArtField* field = value->AsArtField();
-      os << StringPrintf("%p   Field: %s\n", field, PrettyField(field).c_str());
     } else if (type->IsArtMethodClass()) {
       mirror::ArtMethod* method = value->AsArtMethod();
       os << StringPrintf("%p   Method: %s\n", method, PrettyMethod(method).c_str());
@@ -1560,7 +1557,7 @@ class ImageDumper {
     }
   }
 
-  static void PrintField(std::ostream& os, mirror::ArtField* field, mirror::Object* obj)
+  static void PrintField(std::ostream& os, ArtField* field, mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     os << StringPrintf("%s: ", field->GetName());
     switch (field->GetTypeAsPrimitiveType()) {
@@ -1619,12 +1616,9 @@ class ImageDumper {
     if (super != nullptr) {
       DumpFields(os, obj, super);
     }
-    mirror::ObjectArray<mirror::ArtField>* fields = klass->GetIFields();
-    if (fields != nullptr) {
-      for (int32_t i = 0; i < fields->GetLength(); i++) {
-        mirror::ArtField* field = fields->Get(i);
-        PrintField(os, field, obj);
-      }
+    ArtField* fields = klass->GetIFields();
+    for (size_t i = 0, count = klass->NumInstanceFields(); i < count; i++) {
+      PrintField(os, &fields[i], obj);
     }
   }
 
@@ -1686,9 +1680,6 @@ class ImageDumper {
       mirror::Class* klass = obj->AsClass();
       os << StringPrintf("%p: java.lang.Class \"%s\" (", obj, PrettyDescriptor(klass).c_str())
          << klass->GetStatus() << ")\n";
-    } else if (obj->IsArtField()) {
-      os << StringPrintf("%p: java.lang.reflect.ArtField %s\n", obj,
-                         PrettyField(obj->AsArtField()).c_str());
     } else if (obj->IsArtMethod()) {
       os << StringPrintf("%p: java.lang.reflect.ArtMethod %s\n", obj,
                          PrettyMethod(obj->AsArtMethod()).c_str());
@@ -1725,14 +1716,15 @@ class ImageDumper {
         PrettyObjectValue(indent_os, value_class, value);
       }
     } else if (obj->IsClass()) {
-      mirror::ObjectArray<mirror::ArtField>* sfields = obj->AsClass()->GetSFields();
-      if (sfields != nullptr) {
+      mirror::Class* klass = obj->AsClass();
+      ArtField* sfields = klass->GetSFields();
+      const size_t num_fields = klass->NumStaticFields();
+      if (num_fields != 0) {
         indent_os << "STATICS:\n";
         Indenter indent2_filter(indent_os.rdbuf(), kIndentChar, kIndentBy1Count);
         std::ostream indent2_os(&indent2_filter);
-        for (int32_t i = 0; i < sfields->GetLength(); i++) {
-          mirror::ArtField* field = sfields->Get(i);
-          PrintField(indent2_os, field, field->GetDeclaringClass());
+        for (size_t i = 0; i < num_fields; i++) {
+          PrintField(indent2_os, &sfields[i], sfields[i].GetDeclaringClass());
         }
       }
     } else if (obj->IsArtMethod()) {

@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
+#include "art_field-inl.h"
 #include "base/logging.h"
 #include "base/mutex.h"
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"

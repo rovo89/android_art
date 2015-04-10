@@ -16,16 +16,15 @@
 
 #include "reflection-inl.h"
 
+#include "art_field-inl.h"
 #include "class_linker.h"
 #include "common_throws.h"
 #include "dex_file-inl.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "jni_internal.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
-#include "mirror/object_array.h"
 #include "nth_caller_visitor.h"
 #include "scoped_thread_state_change.h"
 #include "stack.h"
@@ -238,13 +237,13 @@ class ArgArray {
 
 #define DO_FIRST_ARG(match_descriptor, get_fn, append) { \
           if (LIKELY(arg != nullptr && arg->GetClass<>()->DescriptorEquals(match_descriptor))) { \
-            mirror::ArtField* primitive_field = arg->GetClass()->GetIFields()->Get(0); \
+            ArtField* primitive_field = arg->GetClass()->GetInstanceField(0); \
             append(primitive_field-> get_fn(arg));
 
 #define DO_ARG(match_descriptor, get_fn, append) \
           } else if (LIKELY(arg != nullptr && \
                             arg->GetClass<>()->DescriptorEquals(match_descriptor))) { \
-            mirror::ArtField* primitive_field = arg->GetClass()->GetIFields()->Get(0); \
+            ArtField* primitive_field = arg->GetClass()->GetInstanceField(0); \
             append(primitive_field-> get_fn(arg));
 
 #define DO_FAIL(expected) \
@@ -692,7 +691,7 @@ mirror::Object* BoxPrimitive(Primitive::Type src_class, const JValue& value) {
   return result.GetL();
 }
 
-static std::string UnboxingFailureKind(mirror::ArtField* f)
+static std::string UnboxingFailureKind(ArtField* f)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (f != nullptr) {
     return "field " + PrettyField(f, false);
@@ -701,7 +700,7 @@ static std::string UnboxingFailureKind(mirror::ArtField* f)
 }
 
 static bool UnboxPrimitive(mirror::Object* o,
-                           mirror::Class* dst_class, mirror::ArtField* f,
+                           mirror::Class* dst_class, ArtField* f,
                            JValue* unboxed_value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   bool unbox_for_result = (f == nullptr);
@@ -742,8 +741,8 @@ static bool UnboxPrimitive(mirror::Object* o,
   JValue boxed_value;
   mirror::Class* klass = o->GetClass();
   mirror::Class* src_class = nullptr;
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  mirror::ArtField* primitive_field = o->GetClass()->GetIFields()->Get(0);
+  ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
+  ArtField* primitive_field = &klass->GetIFields()[0];
   if (klass->DescriptorEquals("Ljava/lang/Boolean;")) {
     src_class = class_linker->FindPrimitiveClass('Z');
     boxed_value.SetZ(primitive_field->GetBoolean(o));
@@ -782,7 +781,7 @@ static bool UnboxPrimitive(mirror::Object* o,
                                boxed_value, unboxed_value);
 }
 
-bool UnboxPrimitiveForField(mirror::Object* o, mirror::Class* dst_class, mirror::ArtField* f,
+bool UnboxPrimitiveForField(mirror::Object* o, mirror::Class* dst_class, ArtField* f,
                             JValue* unboxed_value) {
   DCHECK(f != nullptr);
   return UnboxPrimitive(o, dst_class, f, unboxed_value);

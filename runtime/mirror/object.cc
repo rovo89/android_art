@@ -204,22 +204,19 @@ void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_val
     return;
   }
   for (Class* cur = c; cur != NULL; cur = cur->GetSuperClass()) {
-    ObjectArray<ArtField>* fields = cur->GetIFields();
-    if (fields != NULL) {
-      size_t num_ifields = fields->GetLength();
-      for (size_t i = 0; i < num_ifields; ++i) {
-        StackHandleScope<1> hs(Thread::Current());
-        Handle<Object> h_object(hs.NewHandle(new_value));
-        ArtField* field = fields->Get(i);
-        if (field->GetOffset().Int32Value() == field_offset.Int32Value()) {
-          CHECK_NE(field->GetTypeAsPrimitiveType(), Primitive::kPrimNot);
-          // TODO: resolve the field type for moving GC.
-          mirror::Class* field_type = field->GetType<!kMovingCollector>();
-          if (field_type != nullptr) {
-            CHECK(field_type->IsAssignableFrom(new_value->GetClass()));
-          }
-          return;
+    ArtField* fields = cur->GetIFields();
+    for (size_t i = 0, count = cur->NumInstanceFields(); i < count; ++i) {
+      StackHandleScope<1> hs(Thread::Current());
+      Handle<Object> h_object(hs.NewHandle(new_value));
+      ArtField* field = &fields[i];
+      if (field->GetOffset().Int32Value() == field_offset.Int32Value()) {
+        CHECK_NE(field->GetTypeAsPrimitiveType(), Primitive::kPrimNot);
+        // TODO: resolve the field type for moving GC.
+        mirror::Class* field_type = field->GetType<!kMovingCollector>();
+        if (field_type != nullptr) {
+          CHECK(field_type->IsAssignableFrom(new_value->GetClass()));
         }
+        return;
       }
     }
   }
@@ -228,20 +225,17 @@ void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_val
     return;
   }
   if (IsClass()) {
-    ObjectArray<ArtField>* fields = AsClass()->GetSFields();
-    if (fields != NULL) {
-      size_t num_sfields = fields->GetLength();
-      for (size_t i = 0; i < num_sfields; ++i) {
-        ArtField* field = fields->Get(i);
-        if (field->GetOffset().Int32Value() == field_offset.Int32Value()) {
-          CHECK_NE(field->GetTypeAsPrimitiveType(), Primitive::kPrimNot);
-          // TODO: resolve the field type for moving GC.
-          mirror::Class* field_type = field->GetType<!kMovingCollector>();
-          if (field_type != nullptr) {
-            CHECK(field_type->IsAssignableFrom(new_value->GetClass()));
-          }
-          return;
+    ArtField* fields = AsClass()->GetSFields();
+    for (size_t i = 0, count = AsClass()->NumStaticFields(); i < count; ++i) {
+      ArtField* field = &fields[i];
+      if (field->GetOffset().Int32Value() == field_offset.Int32Value()) {
+        CHECK_NE(field->GetTypeAsPrimitiveType(), Primitive::kPrimNot);
+        // TODO: resolve the field type for moving GC.
+        mirror::Class* field_type = field->GetType<!kMovingCollector>();
+        if (field_type != nullptr) {
+          CHECK(field_type->IsAssignableFrom(new_value->GetClass()));
         }
+        return;
       }
     }
   }

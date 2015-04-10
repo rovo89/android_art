@@ -25,10 +25,10 @@
 #include <unistd.h>
 #include <memory>
 
+#include "art_field-inl.h"
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "dex_file-inl.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
@@ -364,7 +364,7 @@ std::string PrettyDescriptor(const char* descriptor) {
   return result;
 }
 
-std::string PrettyField(mirror::ArtField* f, bool with_type) {
+std::string PrettyField(ArtField* f, bool with_type) {
   if (f == NULL) {
     return "null";
   }

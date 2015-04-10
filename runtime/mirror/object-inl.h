@@ -225,18 +225,6 @@ inline bool Object::IsArrayInstance() {
 }
 
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
-inline bool Object::IsArtField() {
-  return GetClass<kVerifyFlags, kReadBarrierOption>()->
-      template IsArtFieldClass<kReadBarrierOption>();
-}
-
-template<VerifyObjectFlags kVerifyFlags>
-inline ArtField* Object::AsArtField() {
-  DCHECK(IsArtField<kVerifyFlags>());
-  return down_cast<ArtField*>(this);
-}
-
-template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline bool Object::IsArtMethod() {
   return GetClass<kVerifyFlags, kReadBarrierOption>()->
       template IsArtMethodClass<kReadBarrierOption>();
@@ -318,8 +306,8 @@ inline ShortArray* Object::AsShortSizedArray() {
 template<VerifyObjectFlags kVerifyFlags>
 inline IntArray* Object::AsIntArray() {
   constexpr auto kNewFlags = static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis);
-  DCHECK(GetClass<kVerifyFlags>()->IsArrayClass());
-  DCHECK(GetClass<kNewFlags>()->template GetComponentType<kNewFlags>()->IsPrimitiveInt() ||
+  CHECK(GetClass<kVerifyFlags>()->IsArrayClass());
+  CHECK(GetClass<kNewFlags>()->template GetComponentType<kNewFlags>()->IsPrimitiveInt() ||
          GetClass<kNewFlags>()->template GetComponentType<kNewFlags>()->IsPrimitiveFloat());
   return down_cast<IntArray*>(this);
 }
@@ -327,8 +315,8 @@ inline IntArray* Object::AsIntArray() {
 template<VerifyObjectFlags kVerifyFlags>
 inline LongArray* Object::AsLongArray() {
   constexpr auto kNewFlags = static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis);
-  DCHECK(GetClass<kVerifyFlags>()->IsArrayClass());
-  DCHECK(GetClass<kNewFlags>()->template GetComponentType<kNewFlags>()->IsPrimitiveLong() ||
+  CHECK(GetClass<kVerifyFlags>()->IsArrayClass());
+  CHECK(GetClass<kNewFlags>()->template GetComponentType<kNewFlags>()->IsPrimitiveLong() ||
          GetClass<kNewFlags>()->template GetComponentType<kNewFlags>()->IsPrimitiveDouble());
   return down_cast<LongArray*>(this);
 }
@@ -403,7 +391,6 @@ inline size_t Object::SizeOf() {
   }
   DCHECK_GE(result, sizeof(Object))
       << " class=" << PrettyTypeOf(GetClass<kNewFlags, kReadBarrierOption>());
-  DCHECK(!(IsArtField<kNewFlags, kReadBarrierOption>()) || result == sizeof(ArtField));
   return result;
 }
 

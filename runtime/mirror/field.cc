@@ -55,7 +55,7 @@ void Field::VisitRoots(RootVisitor* visitor) {
 
 ArtField* Field::GetArtField() {
   mirror::DexCache* const dex_cache = GetDeclaringClass()->GetDexCache();
-  mirror::ArtField* const art_field = dex_cache->GetResolvedField(GetDexFieldIndex());
+  ArtField* const art_field = dex_cache->GetResolvedField(GetDexFieldIndex(), sizeof(void*));
   CHECK(art_field != nullptr);
   return art_field;
 }

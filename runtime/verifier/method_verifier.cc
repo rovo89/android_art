@@ -18,6 +18,7 @@
 
 #include <iostream>
 
+#include "art_field-inl.h"
 #include "base/logging.h"
 #include "base/mutex-inl.h"
 #include "class_linker.h"
@@ -30,7 +31,6 @@
 #include "indenter.h"
 #include "intern_table.h"
 #include "leb128.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
@@ -451,7 +451,7 @@ void MethodVerifier::FindLocksAtDexPc() {
   Verify();
 }
 
-mirror::ArtField* MethodVerifier::FindAccessedFieldAtDexPc(mirror::ArtMethod* m,
+ArtField* MethodVerifier::FindAccessedFieldAtDexPc(mirror::ArtMethod* m,
                                                            uint32_t dex_pc) {
   Thread* self = Thread::Current();
   StackHandleScope<3> hs(self);
@@ -464,7 +464,7 @@ mirror::ArtField* MethodVerifier::FindAccessedFieldAtDexPc(mirror::ArtMethod* m,
   return verifier.FindAccessedFieldAtDexPc(dex_pc);
 }
 
-mirror::ArtField* MethodVerifier::FindAccessedFieldAtDexPc(uint32_t dex_pc) {
+ArtField* MethodVerifier::FindAccessedFieldAtDexPc(uint32_t dex_pc) {
   CHECK(code_item_ != nullptr);  // This only makes sense for methods with code.
 
   // Strictly speaking, we ought to be able to get away with doing a subset of the full method
@@ -3788,7 +3788,7 @@ void MethodVerifier::VerifyAPut(const Instruction* inst,
   }
 }
 
-mirror::ArtField* MethodVerifier::GetStaticField(int field_idx) {
+ArtField* MethodVerifier::GetStaticField(int field_idx) {
   const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
   // Check access to class
   const RegType& klass_type = ResolveClassAndCheckAccess(field_id.class_idx_);
@@ -3802,8 +3802,8 @@ mirror::ArtField* MethodVerifier::GetStaticField(int field_idx) {
     return nullptr;  // Can't resolve Class so no more to do here, will do checking at runtime.
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  mirror::ArtField* field = class_linker->ResolveFieldJLS(*dex_file_, field_idx, dex_cache_,
-                                                          class_loader_);
+  ArtField* field = class_linker->ResolveFieldJLS(*dex_file_, field_idx, dex_cache_,
+                                                  class_loader_);
   if (field == nullptr) {
     VLOG(verifier) << "Unable to resolve static field " << field_idx << " ("
               << dex_file_->GetFieldName(field_id) << ") in "
@@ -3823,7 +3823,7 @@ mirror::ArtField* MethodVerifier::GetStaticField(int field_idx) {
   return field;
 }
 
-mirror::ArtField* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_idx) {
+ArtField* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_idx) {
   const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
   // Check access to class
   const RegType& klass_type = ResolveClassAndCheckAccess(field_id.class_idx_);
@@ -3837,8 +3837,8 @@ mirror::ArtField* MethodVerifier::GetInstanceField(const RegType& obj_type, int 
     return nullptr;  // Can't resolve Class so no more to do here
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  mirror::ArtField* field = class_linker->ResolveFieldJLS(*dex_file_, field_idx, dex_cache_,
-                                                          class_loader_);
+  ArtField* field = class_linker->ResolveFieldJLS(*dex_file_, field_idx, dex_cache_,
+                                                  class_loader_);
   if (field == nullptr) {
     VLOG(verifier) << "Unable to resolve instance field " << field_idx << " ("
               << dex_file_->GetFieldName(field_id) << ") in "
@@ -3894,7 +3894,7 @@ template <MethodVerifier::FieldAccessType kAccType>
 void MethodVerifier::VerifyISFieldAccess(const Instruction* inst, const RegType& insn_type,
                                          bool is_primitive, bool is_static) {
   uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
-  mirror::ArtField* field;
+  ArtField* field;
   if (is_static) {
     field = GetStaticField(field_idx);
   } else {
@@ -3914,12 +3914,8 @@ void MethodVerifier::VerifyISFieldAccess(const Instruction* inst, const RegType&
       }
     }
 
-    mirror::Class* field_type_class;
-    {
-      StackHandleScope<1> hs(self_);
-      HandleWrapper<mirror::ArtField> h_field(hs.NewHandleWrapper(&field));
-      field_type_class = can_load_classes_ ? h_field->GetType<true>() : h_field->GetType<false>();
-    }
+    mirror::Class* field_type_class =
+        can_load_classes_ ? field->GetType<true>() : field->GetType<false>();
     if (field_type_class != nullptr) {
       field_type = &reg_types_.FromClass(field->GetTypeDescriptor(), field_type_class,
                                          field_type_class->CannotBeAssignedFromOtherTypes());
@@ -3988,7 +3984,7 @@ void MethodVerifier::VerifyISFieldAccess(const Instruction* inst, const RegType&
   }
 }
 
-mirror::ArtField* MethodVerifier::GetQuickFieldAccess(const Instruction* inst,
+ArtField* MethodVerifier::GetQuickFieldAccess(const Instruction* inst,
                                                       RegisterLine* reg_line) {
   DCHECK(IsInstructionIGetQuickOrIPutQuick(inst->Opcode())) << inst->Opcode();
   const RegType& object_type = reg_line->GetRegisterType(this, inst->VRegB_22c());
@@ -3997,8 +3993,7 @@ mirror::ArtField* MethodVerifier::GetQuickFieldAccess(const Instruction* inst,
     return nullptr;
   }
   uint32_t field_offset = static_cast<uint32_t>(inst->VRegC_22c());
-  mirror::ArtField* const f = mirror::ArtField::FindInstanceFieldWithOffset(object_type.GetClass(),
-                                                                            field_offset);
+  ArtField* const f = ArtField::FindInstanceFieldWithOffset(object_type.GetClass(), field_offset);
   DCHECK_EQ(f->GetOffset().Uint32Value(), field_offset);
   if (f == nullptr) {
     VLOG(verifier) << "Failed to find instance field at offset '" << field_offset
@@ -4012,7 +4007,7 @@ void MethodVerifier::VerifyQuickFieldAccess(const Instruction* inst, const RegTy
                                             bool is_primitive) {
   DCHECK(Runtime::Current()->IsStarted() || verify_to_dump_);
 
-  mirror::ArtField* field = GetQuickFieldAccess(inst, work_line_.get());
+  ArtField* field = GetQuickFieldAccess(inst, work_line_.get());
   if (field == nullptr) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Cannot infer field from " << inst->Name();
     return;
@@ -4030,12 +4025,8 @@ void MethodVerifier::VerifyQuickFieldAccess(const Instruction* inst, const RegTy
   // Get the field type.
   const RegType* field_type;
   {
-    mirror::Class* field_type_class;
-    {
-      StackHandleScope<1> hs(Thread::Current());
-      HandleWrapper<mirror::ArtField> h_field(hs.NewHandleWrapper(&field));
-      field_type_class = can_load_classes_ ? h_field->GetType<true>() : h_field->GetType<false>();
-    }
+    mirror::Class* field_type_class = can_load_classes_ ? field->GetType<true>() :
+        field->GetType<false>();
 
     if (field_type_class != nullptr) {
       field_type = &reg_types_.FromClass(field->GetTypeDescriptor(), field_type_class,

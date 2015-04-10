@@ -24,6 +24,7 @@
 #include <iostream>
 #include <sstream>
 
+#include "art_field-inl.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "class_linker-inl.h"
@@ -32,7 +33,6 @@
 #include "dex_instruction-inl.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "handle_scope-inl.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
@@ -41,7 +41,6 @@
 #include "thread.h"
 #include "well_known_classes.h"
 
-using ::art::mirror::ArtField;
 using ::art::mirror::ArtMethod;
 using ::art::mirror::Array;
 using ::art::mirror::BooleanArray;

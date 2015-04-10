@@ -42,6 +42,7 @@ namespace art {
 
 class ArenaPool;
 class CompilerCallbacks;
+class LinearAlloc;
 
 namespace gc {
   class Heap;
@@ -549,6 +550,9 @@ class Runtime {
   const ArenaPool* GetArenaPool() const {
     return arena_pool_.get();
   }
+  LinearAlloc* GetLinearAlloc() {
+    return linear_alloc_.get();
+  }
 
   jit::JitOptions* GetJITOptions() {
     return jit_options_.get();
@@ -618,6 +622,13 @@ class Runtime {
   gc::Heap* heap_;
 
   std::unique_ptr<ArenaPool> arena_pool_;
+  // Special low 4gb pool for compiler linear alloc. We need ArtFields to be in low 4gb if we are
+  // compiling using a 32 bit image on a 64 bit compiler in case we resolve things in the image
+  // since the field arrays are int arrays in this case.
+  std::unique_ptr<ArenaPool> low_4gb_arena_pool_;
+
+  // Shared linear alloc for now.
+  std::unique_ptr<LinearAlloc> linear_alloc_;
 
   // The number of spins that are done before thread suspension is used to forcibly inflate.
   size_t max_spins_before_thin_lock_inflation_;

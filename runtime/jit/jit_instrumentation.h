@@ -31,12 +31,12 @@
 
 namespace art {
 namespace mirror {
-  class ArtField;
   class ArtMethod;
   class Class;
   class Object;
   class Throwable;
 }  // namespace mirror
+class ArtField;
 union JValue;
 class Thread;
 
@@ -77,10 +77,10 @@ class JitInstrumentationListener : public instrumentation::InstrumentationListen
                             mirror::ArtMethod* /*method*/, uint32_t /*dex_pc*/) OVERRIDE { }
   virtual void FieldRead(Thread* /*thread*/, mirror::Object* /*this_object*/,
                          mirror::ArtMethod* /*method*/, uint32_t /*dex_pc*/,
-                         mirror::ArtField* /*field*/) OVERRIDE { }
+                         ArtField* /*field*/) OVERRIDE { }
   virtual void FieldWritten(Thread* /*thread*/, mirror::Object* /*this_object*/,
                             mirror::ArtMethod* /*method*/, uint32_t /*dex_pc*/,
-                            mirror::ArtField* /*field*/, const JValue& /*field_value*/)
+                            ArtField* /*field*/, const JValue& /*field_value*/)
       OVERRIDE { }
   virtual void ExceptionCaught(Thread* /*thread*/,
                                mirror::Throwable* /*exception_object*/) OVERRIDE { }

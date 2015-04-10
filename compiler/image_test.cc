@@ -205,6 +205,7 @@ TEST_F(ImageTest, ImageHeaderIsValid) {
     uint32_t oat_file_end = ART_BASE_ADDRESS + (10 * KB);
     ImageHeader image_header(image_begin,
                              image_size_,
+                             0u, 0u,
                              image_bitmap_offset,
                              image_bitmap_size,
                              image_roots,

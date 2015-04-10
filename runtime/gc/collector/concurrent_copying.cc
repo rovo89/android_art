@@ -16,12 +16,12 @@
 
 #include "concurrent_copying.h"
 
+#include "art_field-inl.h"
 #include "gc/accounting/heap_bitmap-inl.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/space/image_space.h"
 #include "gc/space/space.h"
 #include "intern_table.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/object-inl.h"
 #include "scoped_thread_state_change.h"
 #include "thread-inl.h"

@@ -24,10 +24,12 @@
 namespace art {
 
 const uint8_t ImageHeader::kImageMagic[] = { 'a', 'r', 't', '\n' };
-const uint8_t ImageHeader::kImageVersion[] = { '0', '1', '4', '\0' };
+const uint8_t ImageHeader::kImageVersion[] = { '0', '1', '5', '\0' };
 
 ImageHeader::ImageHeader(uint32_t image_begin,
                          uint32_t image_size,
+                         uint32_t art_fields_offset,
+                         uint32_t art_fields_size,
                          uint32_t image_bitmap_offset,
                          uint32_t image_bitmap_size,
                          uint32_t image_roots,
@@ -39,6 +41,8 @@ ImageHeader::ImageHeader(uint32_t image_begin,
                          bool compile_pic)
   : image_begin_(image_begin),
     image_size_(image_size),
+    art_fields_offset_(art_fields_offset),
+    art_fields_size_(art_fields_size),
     image_bitmap_offset_(image_bitmap_offset),
     image_bitmap_size_(image_bitmap_size),
     oat_checksum_(oat_checksum),

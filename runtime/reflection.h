@@ -23,18 +23,18 @@
 
 namespace art {
 namespace mirror {
-  class ArtField;
   class ArtMethod;
   class Class;
   class Object;
 }  // namespace mirror
+class ArtField;
 union JValue;
 class ScopedObjectAccessAlreadyRunnable;
 class ShadowFrame;
 
 mirror::Object* BoxPrimitive(Primitive::Type src_class, const JValue& value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-bool UnboxPrimitiveForField(mirror::Object* o, mirror::Class* dst_class, mirror::ArtField* f,
+bool UnboxPrimitiveForField(mirror::Object* o, mirror::Class* dst_class, ArtField* f,
                             JValue* unboxed_value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 bool UnboxPrimitiveForResult(mirror::Object* o, mirror::Class* dst_class, JValue* unboxed_value)

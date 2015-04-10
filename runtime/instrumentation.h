@@ -30,12 +30,12 @@
 
 namespace art {
 namespace mirror {
-  class ArtField;
   class ArtMethod;
   class Class;
   class Object;
   class Throwable;
 }  // namespace mirror
+class ArtField;
 union JValue;
 class Thread;
 
@@ -82,11 +82,11 @@ struct InstrumentationListener {
 
   // Call-back for when we read from a field.
   virtual void FieldRead(Thread* thread, mirror::Object* this_object, mirror::ArtMethod* method,
-                         uint32_t dex_pc, mirror::ArtField* field) = 0;
+                         uint32_t dex_pc, ArtField* field) = 0;
 
   // Call-back for when we write into a field.
   virtual void FieldWritten(Thread* thread, mirror::Object* this_object, mirror::ArtMethod* method,
-                            uint32_t dex_pc, mirror::ArtField* field, const JValue& field_value) = 0;
+                            uint32_t dex_pc, ArtField* field, const JValue& field_value) = 0;
 
   // Call-back when an exception is caught.
   virtual void ExceptionCaught(Thread* thread, mirror::Throwable* exception_object)
@@ -301,7 +301,7 @@ class Instrumentation {
   // Inform listeners that we read a field (only supported by the interpreter).
   void FieldReadEvent(Thread* thread, mirror::Object* this_object,
                       mirror::ArtMethod* method, uint32_t dex_pc,
-                      mirror::ArtField* field) const
+                      ArtField* field) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (UNLIKELY(HasFieldReadListeners())) {
       FieldReadEventImpl(thread, this_object, method, dex_pc, field);
@@ -311,7 +311,7 @@ class Instrumentation {
   // Inform listeners that we write a field (only supported by the interpreter).
   void FieldWriteEvent(Thread* thread, mirror::Object* this_object,
                        mirror::ArtMethod* method, uint32_t dex_pc,
-                       mirror::ArtField* field, const JValue& field_value) const
+                       ArtField* field, const JValue& field_value) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (UNLIKELY(HasFieldWriteListeners())) {
       FieldWriteEventImpl(thread, this_object, method, dex_pc, field, field_value);
@@ -377,11 +377,11 @@ class Instrumentation {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void FieldReadEventImpl(Thread* thread, mirror::Object* this_object,
                            mirror::ArtMethod* method, uint32_t dex_pc,
-                           mirror::ArtField* field) const
+                           ArtField* field) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void FieldWriteEventImpl(Thread* thread, mirror::Object* this_object,
                            mirror::ArtMethod* method, uint32_t dex_pc,
-                           mirror::ArtField* field, const JValue& field_value) const
+                           ArtField* field, const JValue& field_value) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Read barrier-aware utility functions for accessing deoptimized_methods_

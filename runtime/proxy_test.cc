@@ -17,8 +17,8 @@
 #include <jni.h>
 #include <vector>
 
+#include "art_field-inl.h"
 #include "common_compiler_test.h"
-#include "mirror/art_field-inl.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {
@@ -165,14 +165,12 @@ TEST_F(ProxyTest, ProxyFieldHelper) {
   ASSERT_TRUE(proxyClass->IsProxyClass());
   ASSERT_TRUE(proxyClass->IsInitialized());
 
-  Handle<mirror::ObjectArray<mirror::ArtField>> instance_fields(
-      hs.NewHandle(proxyClass->GetIFields()));
-  EXPECT_TRUE(instance_fields.Get() == nullptr);
+  ArtField* instance_fields = proxyClass->GetIFields();
+  EXPECT_TRUE(instance_fields == nullptr);
 
-  Handle<mirror::ObjectArray<mirror::ArtField>> static_fields(
-      hs.NewHandle(proxyClass->GetSFields()));
-  ASSERT_TRUE(static_fields.Get() != nullptr);
-  ASSERT_EQ(2, static_fields->GetLength());
+  ArtField* static_fields = proxyClass->GetSFields();
+  ASSERT_TRUE(static_fields != nullptr);
+  ASSERT_EQ(2u, proxyClass->NumStaticFields());
 
   Handle<mirror::Class> interfacesFieldClass(
       hs.NewHandle(class_linker_->FindSystemClass(soa.Self(), "[Ljava/lang/Class;")));
@@ -182,21 +180,21 @@ TEST_F(ProxyTest, ProxyFieldHelper) {
   ASSERT_TRUE(throwsFieldClass.Get() != nullptr);
 
   // Test "Class[] interfaces" field.
-  MutableHandle<mirror::ArtField> fhandle = hs.NewHandle(static_fields->Get(0));
-  EXPECT_EQ("interfaces", std::string(fhandle->GetName()));
-  EXPECT_EQ("[Ljava/lang/Class;", std::string(fhandle->GetTypeDescriptor()));
-  EXPECT_EQ(interfacesFieldClass.Get(), fhandle->GetType<true>());
+  ArtField* field = &static_fields[0];
+  EXPECT_STREQ("interfaces", field->GetName());
+  EXPECT_STREQ("[Ljava/lang/Class;", field->GetTypeDescriptor());
+  EXPECT_EQ(interfacesFieldClass.Get(), field->GetType<true>());
   std::string temp;
-  EXPECT_EQ("L$Proxy1234;", std::string(fhandle->GetDeclaringClass()->GetDescriptor(&temp)));
-  EXPECT_FALSE(fhandle->IsPrimitiveType());
+  EXPECT_STREQ("L$Proxy1234;", field->GetDeclaringClass()->GetDescriptor(&temp));
+  EXPECT_FALSE(field->IsPrimitiveType());
 
   // Test "Class[][] throws" field.
-  fhandle.Assign(static_fields->Get(1));
-  EXPECT_EQ("throws", std::string(fhandle->GetName()));
-  EXPECT_EQ("[[Ljava/lang/Class;", std::string(fhandle->GetTypeDescriptor()));
-  EXPECT_EQ(throwsFieldClass.Get(), fhandle->GetType<true>());
-  EXPECT_EQ("L$Proxy1234;", std::string(fhandle->GetDeclaringClass()->GetDescriptor(&temp)));
-  EXPECT_FALSE(fhandle->IsPrimitiveType());
+  field = &static_fields[1];
+  EXPECT_STREQ("throws", field->GetName());
+  EXPECT_STREQ("[[Ljava/lang/Class;", field->GetTypeDescriptor());
+  EXPECT_EQ(throwsFieldClass.Get(), field->GetType<true>());
+  EXPECT_STREQ("L$Proxy1234;", field->GetDeclaringClass()->GetDescriptor(&temp));
+  EXPECT_FALSE(field->IsPrimitiveType());
 }
 
 }  // namespace art
