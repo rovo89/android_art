@@ -625,35 +625,6 @@ bool PatchOat::Patch(File* input_oat, off_t delta, File* output_oat, TimingLogge
   return true;
 }
 
-template <typename ElfFileImpl, typename ptr_t>
-bool PatchOat::CheckOatFile(ElfFileImpl* oat_file) {
-  auto patches_sec = oat_file->FindSectionByName(".oat_patches");
-  if (patches_sec->sh_type != SHT_OAT_PATCH) {
-    return false;
-  }
-  ptr_t* patches = reinterpret_cast<ptr_t*>(oat_file->Begin() + patches_sec->sh_offset);
-  ptr_t* patches_end = patches + (patches_sec->sh_size / sizeof(ptr_t));
-  auto oat_data_sec = oat_file->FindSectionByName(".rodata");
-  auto oat_text_sec = oat_file->FindSectionByName(".text");
-  if (oat_data_sec == nullptr) {
-    return false;
-  }
-  if (oat_text_sec == nullptr) {
-    return false;
-  }
-  if (oat_text_sec->sh_offset <= oat_data_sec->sh_offset) {
-    return false;
-  }
-
-  for (; patches < patches_end; patches++) {
-    if (oat_text_sec->sh_size <= *patches) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 template <typename ElfFileImpl>
 bool PatchOat::PatchOatHeader(ElfFileImpl* oat_file) {
   auto rodata_sec = oat_file->FindSectionByName(".rodata");
@@ -679,7 +650,7 @@ bool PatchOat::PatchElf() {
 template <typename ElfFileImpl>
 bool PatchOat::PatchElf(ElfFileImpl* oat_file) {
   TimingLogger::ScopedTiming t("Fixup Elf Text Section", timings_);
-  if (!PatchTextSection<ElfFileImpl>(oat_file)) {
+  if (!oat_file->ApplyOatPatchesTo(".text", delta_)) {
     return false;
   }
 
@@ -728,51 +699,6 @@ bool PatchOat::PatchElf(ElfFileImpl* oat_file) {
     return false;
   }
 
-  return true;
-}
-
-template <typename ElfFileImpl>
-bool PatchOat::PatchTextSection(ElfFileImpl* oat_file) {
-  auto patches_sec = oat_file->FindSectionByName(".oat_patches");
-  if (patches_sec == nullptr) {
-    LOG(ERROR) << ".oat_patches section not found. Aborting patch";
-    return false;
-  }
-  if (patches_sec->sh_type != SHT_OAT_PATCH) {
-    LOG(ERROR) << "Unexpected type of .oat_patches";
-    return false;
-  }
-
-  switch (patches_sec->sh_entsize) {
-    case sizeof(uint32_t):
-      return PatchTextSection<ElfFileImpl, uint32_t>(oat_file);
-    case sizeof(uint64_t):
-      return PatchTextSection<ElfFileImpl, uint64_t>(oat_file);
-    default:
-      LOG(ERROR) << ".oat_patches Entsize of " << patches_sec->sh_entsize << "bits "
-                 << "is not valid";
-      return false;
-  }
-}
-
-template <typename ElfFileImpl, typename patch_loc_t>
-bool PatchOat::PatchTextSection(ElfFileImpl* oat_file) {
-  bool oat_file_valid = CheckOatFile<ElfFileImpl, patch_loc_t>(oat_file);
-  CHECK(oat_file_valid) << "Oat file invalid";
-  auto patches_sec = oat_file->FindSectionByName(".oat_patches");
-  patch_loc_t* patches = reinterpret_cast<patch_loc_t*>(oat_file->Begin() + patches_sec->sh_offset);
-  patch_loc_t* patches_end = patches + (patches_sec->sh_size / sizeof(patch_loc_t));
-  auto oat_text_sec = oat_file->FindSectionByName(".text");
-  CHECK(oat_text_sec != nullptr);
-  uint8_t* to_patch = oat_file->Begin() + oat_text_sec->sh_offset;
-  uintptr_t to_patch_end = reinterpret_cast<uintptr_t>(to_patch) + oat_text_sec->sh_size;
-
-  for (; patches < patches_end; patches++) {
-    CHECK_LT(*patches, oat_text_sec->sh_size) << "Bad Patch";
-    uint32_t* patch_loc = reinterpret_cast<uint32_t*>(to_patch + *patches);
-    CHECK_LT(reinterpret_cast<uintptr_t>(patch_loc), to_patch_end);
-    *patch_loc += delta_;
-  }
   return true;
 }
 

@@ -25,7 +25,7 @@ namespace art {
 namespace dwarf {
 
 void WriteDebugSections(const CompilerDriver* compiler,
-                        const OatWriter* oat_writer,
+                        OatWriter* oat_writer,
                         uint32_t text_section_offset,
                         std::vector<uint8_t>* eh_frame_data,
                         std::vector<uint8_t>* debug_info_data,

@@ -17,6 +17,8 @@
 #ifndef ART_COMPILER_DWARF_DEBUG_LINE_OPCODE_WRITER_H_
 #define ART_COMPILER_DWARF_DEBUG_LINE_OPCODE_WRITER_H_
 
+#include <cstdint>
+
 #include "dwarf.h"
 #include "writer.h"
 
@@ -119,10 +121,12 @@ class DebugLineOpCodeWriter FINAL : private Writer<Allocator> {
     if (use_64bit_address_) {
       this->PushUleb128(1 + 8);
       this->PushUint8(DW_LNE_set_address);
+      patch_locations_.push_back(this->data()->size());
       this->PushUint64(absolute_address);
     } else {
       this->PushUleb128(1 + 4);
       this->PushUint8(DW_LNE_set_address);
+      patch_locations_.push_back(this->data()->size());
       this->PushUint32(absolute_address);
     }
     current_address_ = absolute_address;
@@ -204,6 +208,10 @@ class DebugLineOpCodeWriter FINAL : private Writer<Allocator> {
     return current_line_;
   }
 
+  const std::vector<uintptr_t>& GetPatchLocations() const {
+    return patch_locations_;
+  }
+
   using Writer<Allocator>::data;
 
   DebugLineOpCodeWriter(bool use64bitAddress,
@@ -233,6 +241,7 @@ class DebugLineOpCodeWriter FINAL : private Writer<Allocator> {
   uint64_t current_address_;
   int current_file_;
   int current_line_;
+  std::vector<uintptr_t> patch_locations_;
 
   DISALLOW_COPY_AND_ASSIGN(DebugLineOpCodeWriter);
 };

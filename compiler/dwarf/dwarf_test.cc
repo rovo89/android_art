@@ -120,19 +120,27 @@ TEST_F(DwarfTest, DebugFrame) {
 
   DebugFrameOpCodeWriter<> initial_opcodes;
   WriteEhFrameCIE(is64bit, Reg(is64bit ? 16 : 8), initial_opcodes, &eh_frame_data_);
-  WriteEhFrameFDE(is64bit, 0, 0x01000000, 0x01000000, opcodes.data(), &eh_frame_data_);
+  std::vector<uintptr_t> eh_frame_patches;
+  std::vector<uintptr_t> expected_patches { 28 };  // NOLINT
+  WriteEhFrameFDE(is64bit, 0, 0x01000000, 0x01000000, opcodes.data(),
+                  &eh_frame_data_, &eh_frame_patches);
+
+  EXPECT_EQ(expected_patches, eh_frame_patches);
   CheckObjdumpOutput(is64bit, "-W");
 }
 
-// TODO: objdump seems to have trouble with 64bit CIE length.
-TEST_F(DwarfTest, DISABLED_DebugFrame64) {
+TEST_F(DwarfTest, DebugFrame64) {
   constexpr bool is64bit = true;
   DebugFrameOpCodeWriter<> initial_opcodes;
   WriteEhFrameCIE(is64bit, Reg(16), initial_opcodes, &eh_frame_data_);
   DebugFrameOpCodeWriter<> opcodes;
+  std::vector<uintptr_t> eh_frame_patches;
+  std::vector<uintptr_t> expected_patches { 32 };  // NOLINT
   WriteEhFrameFDE(is64bit, 0, 0x0100000000000000, 0x0200000000000000,
-                  opcodes.data(), &eh_frame_data_);
+                  opcodes.data(), &eh_frame_data_, &eh_frame_patches);
   DW_CHECK("FDE cie=00000000 pc=100000000000000..300000000000000");
+
+  EXPECT_EQ(expected_patches, eh_frame_patches);
   CheckObjdumpOutput(is64bit, "-W");
 }
 
@@ -184,7 +192,12 @@ TEST_F(DwarfTest, DebugLine) {
   DW_CHECK_NEXT("Entry\tDir\tTime\tSize\tName");
   DW_CHECK_NEXT("1\t0\t1000\t2000\tfile.c");
 
-  WriteDebugLineTable(include_directories, files, opcodes, &debug_line_data_);
+  std::vector<uintptr_t> debug_line_patches;
+  std::vector<uintptr_t> expected_patches { 87 };  // NOLINT
+  WriteDebugLineTable(include_directories, files, opcodes,
+                      &debug_line_data_, &debug_line_patches);
+
+  EXPECT_EQ(expected_patches, debug_line_patches);
   CheckObjdumpOutput(is64bit, "-W");
 }
 
@@ -219,7 +232,10 @@ TEST_F(DwarfTest, DebugLineSpecialOpcodes) {
 
   std::vector<std::string> directories;
   std::vector<FileEntry> files { { "file.c", 0, 1000, 2000 } };  // NOLINT
-  WriteDebugLineTable(directories, files, opcodes, &debug_line_data_);
+  std::vector<uintptr_t> debug_line_patches;
+  WriteDebugLineTable(directories, files, opcodes,
+                      &debug_line_data_, &debug_line_patches);
+
   CheckObjdumpOutput(is64bit, "-W -WL");
 }
 
@@ -271,7 +287,12 @@ TEST_F(DwarfTest, DebugInfo) {
   DW_CHECK_NEXT("DW_AT_high_pc      DW_FORM_addr");
   DW_CHECK("3      DW_TAG_compile_unit    [has children]");
 
-  dwarf::WriteDebugInfoCU(0 /* debug_abbrev_offset */, info, &debug_info_data_);
+  std::vector<uintptr_t> debug_info_patches;
+  std::vector<uintptr_t> expected_patches { 16, 20, 29, 33, 42, 46 };  // NOLINT
+  dwarf::WriteDebugInfoCU(0 /* debug_abbrev_offset */, info,
+                          &debug_info_data_, &debug_info_patches);
+
+  EXPECT_EQ(expected_patches, debug_info_patches);
   CheckObjdumpOutput(is64bit, "-W");
 }
 

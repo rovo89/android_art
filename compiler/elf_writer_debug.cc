@@ -159,7 +159,7 @@ static void WriteEhFrameCIE(InstructionSet isa, std::vector<uint8_t>* eh_frame) 
  * @param debug_line Line number table.
  */
 void WriteDebugSections(const CompilerDriver* compiler,
-                        const OatWriter* oat_writer,
+                        OatWriter* oat_writer,
                         uint32_t text_section_offset,
                         std::vector<uint8_t>* eh_frame,
                         std::vector<uint8_t>* debug_info,
@@ -176,6 +176,7 @@ void WriteDebugSections(const CompilerDriver* compiler,
   }
 
   // Write .eh_frame section.
+  auto* eh_frame_patches = oat_writer->GetAbsolutePatchLocationsFor(".eh_frame");
   size_t cie_offset = eh_frame->size();
   WriteEhFrameCIE(isa, eh_frame);
   for (const OatWriter::DebugInfo& mi : method_infos) {
@@ -183,7 +184,7 @@ void WriteDebugSections(const CompilerDriver* compiler,
     if (opcodes != nullptr) {
       WriteEhFrameFDE(Is64BitInstructionSet(isa), cie_offset,
                       text_section_offset + mi.low_pc_, mi.high_pc_ - mi.low_pc_,
-                      opcodes, eh_frame);
+                      opcodes, eh_frame, eh_frame_patches);
     }
   }
 
@@ -211,7 +212,8 @@ void WriteDebugSections(const CompilerDriver* compiler,
     info.EndTag();  // DW_TAG_subprogram
   }
   info.EndTag();  // DW_TAG_compile_unit
-  WriteDebugInfoCU(debug_abbrev_offset, info, debug_info);
+  auto* debug_info_patches = oat_writer->GetAbsolutePatchLocationsFor(".debug_info");
+  WriteDebugInfoCU(debug_abbrev_offset, info, debug_info, debug_info_patches);
 
   // TODO: in gdb info functions <regexp> - reports Java functions, but
   // source file is <unknown> because .debug_line is formed as one
@@ -353,7 +355,8 @@ void WriteDebugSections(const CompilerDriver* compiler,
   }
   opcodes.AdvancePC(text_section_offset + cunit_high_pc);
   opcodes.EndSequence();
-  WriteDebugLineTable(directories, files, opcodes, debug_line);
+  auto* debug_line_patches = oat_writer->GetAbsolutePatchLocationsFor(".debug_line");
+  WriteDebugLineTable(directories, files, opcodes, debug_line, debug_line_patches);
 }
 
 }  // namespace dwarf

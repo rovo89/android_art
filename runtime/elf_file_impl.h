@@ -110,6 +110,12 @@ class ElfFileImpl {
   bool FixupSymbols(Elf_Addr base_address, bool dynamic);
   bool FixupRelocations(Elf_Addr base_address);
   bool FixupDebugSections(typename std::make_signed<Elf_Off>::type base_address_delta);
+  bool ApplyOatPatchesTo(const char* target_section_name,
+                         typename std::make_signed<Elf_Off>::type base_address_delta);
+  static bool ApplyOatPatches(const uint8_t* patches, const uint8_t* patches_end,
+                              const char* target_section_name,
+                              typename std::make_signed<Elf_Off>::type delta,
+                              uint8_t* to_patch, const uint8_t* to_patch_end);
 
   bool Strip(std::string* error_msg);
 

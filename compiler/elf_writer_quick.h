@@ -19,6 +19,7 @@
 
 #include "elf_utils.h"
 #include "elf_writer.h"
+#include "oat_writer.h"
 
 namespace art {
 
@@ -35,6 +36,9 @@ class ElfWriterQuick FINAL : public ElfWriter {
                      bool is_host,
                      const CompilerDriver& driver)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static void EncodeOatPatches(const OatWriter::PatchLocationsMap& sections,
+                               std::vector<uint8_t>* buffer);
 
  protected:
   bool Write(OatWriter* oat_writer,

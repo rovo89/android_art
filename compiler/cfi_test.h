@@ -46,7 +46,9 @@ class CFITest : public dwarf::DwarfTest {
     constexpr bool is64bit = false;
     dwarf::DebugFrameOpCodeWriter<> initial_opcodes;
     dwarf::WriteEhFrameCIE(is64bit, dwarf::Reg(8), initial_opcodes, &eh_frame_data_);
-    dwarf::WriteEhFrameFDE(is64bit, 0, 0, actual_asm.size(), &actual_cfi, &eh_frame_data_);
+    std::vector<uintptr_t> eh_frame_patches;
+    dwarf::WriteEhFrameFDE(is64bit, 0, 0, actual_asm.size(), &actual_cfi,
+                           &eh_frame_data_, &eh_frame_patches);
     ReformatCfi(Objdump(false, "-W"), &lines);
     // Pretty-print assembly.
     auto* opts = new DisassemblerOptions(false, actual_asm.data(), true);
