@@ -19,9 +19,9 @@
 public class Main extends TestCase {
   public static void main(String[] args) {
     $opt$testReads(new boolean[1], new byte[1], new char[1], new short[1],
-                   new int[1], new Object[1], new long[1], 0);
+                   new int[1], new Object[1], new long[1], new float[1], new double[1], 0);
     $opt$testWrites(new boolean[2], new byte[2], new char[2], new short[2],
-                    new int[2], new Object[2], new long[2], 1);
+                    new int[2], new Object[2], new long[2], new float[2], new double[2], 1);
     ensureThrows(new boolean[2], 2);
     ensureThrows(new boolean[2], 4);
     ensureThrows(new boolean[2], -1);
@@ -30,7 +30,8 @@ public class Main extends TestCase {
   }
 
   static void $opt$testReads(boolean[] bools, byte[] bytes, char[] chars, short[] shorts,
-                             int[] ints, Object[] objects, long[] longs, int index) {
+                             int[] ints, Object[] objects, long[] longs, float[] floats,
+                             double[] doubles, int index) {
     assertEquals(false, bools[0]);
     assertEquals(false, bools[index]);
 
@@ -51,10 +52,17 @@ public class Main extends TestCase {
 
     assertEquals(0, longs[0]);
     assertEquals(0, longs[index]);
+
+    assertEquals(0, floats[0]);
+    assertEquals(0, floats[index]);
+
+    assertEquals(0, doubles[0]);
+    assertEquals(0, doubles[index]);
   }
 
   static void $opt$testWrites(boolean[] bools, byte[] bytes, char[] chars, short[] shorts,
-                              int[] ints, Object[] objects, long[] longs, int index) {
+                              int[] ints, Object[] objects, long[] longs, float[] floats,
+                              double doubles[], int index) {
     bools[0] = true;
     assertEquals(true, bools[0]);
     bools[index] = true;
@@ -99,6 +107,18 @@ public class Main extends TestCase {
     // on 32bits. So we call out a long helper to ensure this method gets
     // optimized.
     $opt$testLongWrites(longs, index);
+
+    float f = 1.0F;
+    floats[0] = f / (1 | 0);
+    assertEquals(f, floats[0]);
+    floats[index] = f / (1 | 0);
+    assertEquals(f, floats[index]);
+
+    double d = 1.0F;
+    doubles[0] = d / (1 | 0);
+    assertEquals(d, doubles[0]);
+    doubles[index] = d / (1 | 0);
+    assertEquals(d, doubles[index]);
   }
 
   public static void $opt$testLongWrites(long[] longs, int index) {
