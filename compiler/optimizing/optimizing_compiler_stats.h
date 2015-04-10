@@ -47,6 +47,7 @@ enum MethodCompilationStat {
   kNotCompiledUnhandledInstruction,
   kRemovedCheckedCast,
   kRemovedNullCheck,
+  kInstructionSimplifications,
   kLastStat
 };
 
@@ -110,6 +111,7 @@ class OptimizingCompilerStats {
       case kNotCompiledUnhandledInstruction : return "kNotCompiledUnhandledInstruction";
       case kRemovedCheckedCast: return "kRemovedCheckedCast";
       case kRemovedNullCheck: return "kRemovedNullCheck";
+      case kInstructionSimplifications: return "kInstructionSimplifications";
       default: LOG(FATAL) << "invalid stat";
     }
     return "";

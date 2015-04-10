@@ -1177,6 +1177,9 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
   bool HasUses() const { return !uses_.IsEmpty() || !env_uses_.IsEmpty(); }
   bool HasEnvironmentUses() const { return !env_uses_.IsEmpty(); }
   bool HasNonEnvironmentUses() const { return !uses_.IsEmpty(); }
+  bool HasOnlyOneNonEnvironmentUse() const {
+    return !HasEnvironmentUses() && GetUses().HasOnlyOneUse();
+  }
 
   // Does this instruction strictly dominate `other_instruction`?
   // Returns false if this instruction and `other_instruction` are the same.
@@ -1213,6 +1216,13 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
 
   void ReplaceWith(HInstruction* instruction);
   void ReplaceInput(HInstruction* replacement, size_t index);
+
+  // This is almost the same as doing `ReplaceWith()`. But in this helper, the
+  // uses of this instruction by `other` are *not* updated.
+  void ReplaceWithExceptInReplacementAtIndex(HInstruction* other, size_t use_index) {
+    ReplaceWith(other);
+    other->ReplaceInput(this, use_index);
+  }
 
   // Move `this` instruction before `cursor`.
   void MoveBefore(HInstruction* cursor);
