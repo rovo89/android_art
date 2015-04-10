@@ -40,6 +40,7 @@
 #include "dex/verified_method.h"
 #include "dex/quick/dex_file_method_inliner.h"
 #include "driver/compiler_options.h"
+#include "elf_writer_quick.h"
 #include "jni_internal.h"
 #include "object_lock.h"
 #include "profiler.h"
@@ -71,6 +72,9 @@
 namespace art {
 
 static constexpr bool kTimeCompileMethod = !kIsDebugBuild;
+
+// Whether to produce 64-bit ELF files for 64-bit targets. Leave this off for now.
+static constexpr bool kProduce64BitELFFiles = false;
 
 static double Percentage(size_t x, size_t y) {
   return 100.0 * (static_cast<double>(x)) / (static_cast<double>(x + y));
@@ -2368,7 +2372,11 @@ bool CompilerDriver::WriteElf(const std::string& android_root,
                               OatWriter* oat_writer,
                               art::File* file)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return compiler_->WriteElf(file, oat_writer, dex_files, android_root, is_host);
+  if (kProduce64BitELFFiles && Is64BitInstructionSet(GetInstructionSet())) {
+    return art::ElfWriterQuick64::Create(file, oat_writer, dex_files, android_root, is_host, *this);
+  } else {
+    return art::ElfWriterQuick32::Create(file, oat_writer, dex_files, android_root, is_host, *this);
+  }
 }
 
 bool CompilerDriver::SkipCompilation(const std::string& method_name) {
