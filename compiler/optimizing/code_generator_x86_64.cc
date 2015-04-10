@@ -4234,13 +4234,14 @@ void InstructionCodeGeneratorX86_64::VisitBoundType(HBoundType* instruction) {
 
 void CodeGeneratorX86_64::Finalize(CodeAllocator* allocator) {
   // Generate the constant area if needed.
-  if (!__ IsConstantAreaEmpty()) {
+  X86_64Assembler* assembler = GetAssembler();
+  if (!assembler->IsConstantAreaEmpty()) {
     // Align to 4 byte boundary to reduce cache misses, as the data is 4 and 8
     // byte values.  If used for vectors at a later time, this will need to be
     // updated to 16 bytes with the appropriate offset.
-    __ Align(4, 0);
-    constant_area_start_ = __ CodeSize();
-    __ AddConstantArea();
+    assembler->Align(4, 0);
+    constant_area_start_ = assembler->CodeSize();
+    assembler->AddConstantArea();
   }
 
   // And finish up.
@@ -4252,7 +4253,7 @@ void CodeGeneratorX86_64::Finalize(CodeAllocator* allocator) {
  */
 class RIPFixup : public AssemblerFixup, public ArenaObject<kArenaAllocMisc> {
   public:
-    RIPFixup(CodeGeneratorX86_64& codegen, int offset)
+    RIPFixup(const CodeGeneratorX86_64& codegen, int offset)
       : codegen_(codegen), offset_into_constant_area_(offset) {}
 
   private:
@@ -4266,7 +4267,7 @@ class RIPFixup : public AssemblerFixup, public ArenaObject<kArenaAllocMisc> {
       region.StoreUnaligned<int32_t>(pos - 4, relative_position);
     }
 
-    CodeGeneratorX86_64& codegen_;
+    const CodeGeneratorX86_64& codegen_;
 
     // Location in constant area that the fixup refers to.
     int offset_into_constant_area_;

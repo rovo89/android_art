@@ -297,7 +297,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   X86_64Assembler assembler_;
   const X86_64InstructionSetFeatures& isa_features_;
 
-  // Offset to start of the constant area in the assembled code.
+  // Offset to the start of the constant area in the assembled code.
   // Used for fixups to the constant area.
   int constant_area_start_;
 
