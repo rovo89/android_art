@@ -25,7 +25,7 @@ import sys
 
 
 _CLASS_RE = re.compile(r'^L(.*);$')
-_ERROR_LINE_RE = re.compile(r'^java.lang.InternalError: (.*)')
+_ERROR_LINE_RE = re.compile(r'^dalvik.system.TransactionAbortError: (.*)')
 _STACK_LINE_RE = re.compile(r'^\s*at\s[^\s]*\s([^\s]*)')
 
 def Confused(filename, line_number, line):
