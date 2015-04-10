@@ -24,6 +24,7 @@
 
 namespace art {
 
+class ArtField;
 class ImageWriter;
 class LockWord;
 class Monitor;
@@ -33,7 +34,6 @@ class VoidFunctor;
 
 namespace mirror {
 
-class ArtField;
 class ArtMethod;
 class Array;
 class Class;
@@ -190,12 +190,6 @@ class MANAGED LOCKABLE Object {
   bool IsArtMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   ArtMethod* AsArtMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
-           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  bool IsArtField() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ArtField* AsArtField() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsReferenceInstance() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

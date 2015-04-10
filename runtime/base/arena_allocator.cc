@@ -132,11 +132,10 @@ MallocArena::~MallocArena() {
   free(reinterpret_cast<void*>(memory_));
 }
 
-MemMapArena::MemMapArena(size_t size) {
+MemMapArena::MemMapArena(size_t size, bool low_4gb) {
   std::string error_msg;
-  map_.reset(
-      MemMap::MapAnonymous("dalvik-LinearAlloc", nullptr, size, PROT_READ | PROT_WRITE, false,
-                           false, &error_msg));
+  map_.reset(MemMap::MapAnonymous(
+      "LinearAlloc", nullptr, size, PROT_READ | PROT_WRITE, low_4gb, false, &error_msg));
   CHECK(map_.get() != nullptr) << error_msg;
   memory_ = map_->Begin();
   size_ = map_->Size();
@@ -156,8 +155,12 @@ void Arena::Reset() {
   }
 }
 
-ArenaPool::ArenaPool(bool use_malloc)
-    : use_malloc_(use_malloc), lock_("Arena pool lock"), free_arenas_(nullptr) {
+ArenaPool::ArenaPool(bool use_malloc, bool low_4gb)
+    : use_malloc_(use_malloc), lock_("Arena pool lock", kArenaPoolLock), free_arenas_(nullptr),
+      low_4gb_(low_4gb) {
+  if (low_4gb) {
+    CHECK(!use_malloc) << "low4gb must use map implementation";
+  }
   if (!use_malloc) {
     MemMap::Init();
   }
@@ -182,7 +185,8 @@ Arena* ArenaPool::AllocArena(size_t size) {
     }
   }
   if (ret == nullptr) {
-    ret = use_malloc_ ? static_cast<Arena*>(new MallocArena(size)) : new MemMapArena(size);
+    ret = use_malloc_ ? static_cast<Arena*>(new MallocArena(size)) :
+        new MemMapArena(size, low_4gb_);
   }
   ret->Reset();
   return ret;
@@ -227,6 +231,17 @@ void ArenaPool::FreeArenaChain(Arena* first) {
 
 size_t ArenaAllocator::BytesAllocated() const {
   return ArenaAllocatorStats::BytesAllocated();
+}
+
+size_t ArenaAllocator::BytesUsed() const {
+  size_t total = ptr_ - begin_;
+  if (arena_head_ != nullptr) {
+    for (Arena* cur_arena = arena_head_->next_; cur_arena != nullptr;
+         cur_arena = cur_arena->next_) {
+     total += cur_arena->GetBytesAllocated();
+    }
+  }
+  return total;
 }
 
 ArenaAllocator::ArenaAllocator(ArenaPool* pool)

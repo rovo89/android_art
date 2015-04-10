@@ -33,10 +33,10 @@
 
 namespace art {
 
+class ArtField;
 class DexFile;
 
 namespace mirror {
-class ArtField;
 class ArtMethod;
 class Class;
 class Object;
@@ -343,7 +343,7 @@ std::string PrettyDescriptor(Primitive::Type type);
 
 // Returns a human-readable signature for 'f'. Something like "a.b.C.f" or
 // "int a.b.C.f" (depending on the value of 'with_type').
-std::string PrettyField(mirror::ArtField* f, bool with_type = true)
+std::string PrettyField(ArtField* f, bool with_type = true)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 std::string PrettyField(uint32_t field_idx, const DexFile& dex_file, bool with_type = true);
 

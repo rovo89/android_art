@@ -35,8 +35,6 @@
 #include "jni_internal.h"
 #include "mark_sweep-inl.h"
 #include "monitor.h"
-#include "mirror/art_field.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache.h"

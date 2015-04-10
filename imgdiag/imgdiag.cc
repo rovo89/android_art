@@ -168,7 +168,10 @@ class ImgDiagDumper {
        << "\n\n";
 
     const uint8_t* image_begin_unaligned = boot_image_header.GetImageBegin();
-    const uint8_t* image_end_unaligned = image_begin_unaligned + boot_image_header.GetImageSize();
+    const uint8_t* image_mirror_end_unaligned = image_begin_unaligned +
+        boot_image_header.GetImageSize();
+    const uint8_t* image_end_unaligned = image_mirror_end_unaligned +
+        boot_image_header.GetArtFieldsSize();
 
     // Adjust range to nearest page
     const uint8_t* image_begin = AlignDown(image_begin_unaligned, kPageSize);
@@ -350,7 +353,7 @@ class ImgDiagDumper {
     size_t dirty_object_bytes = 0;
     {
       const uint8_t* begin_image_ptr = image_begin_unaligned;
-      const uint8_t* end_image_ptr = image_end_unaligned;
+      const uint8_t* end_image_ptr = image_mirror_end_unaligned;
 
       const uint8_t* current = begin_image_ptr + RoundUp(sizeof(ImageHeader), kObjectAlignment);
       while (reinterpret_cast<const uintptr_t>(current)

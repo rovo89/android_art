@@ -117,12 +117,31 @@ class PatchOat {
   bool PatchOatHeader(ElfFileImpl* oat_file);
 
   bool PatchImage() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void PatchArtFields(const ImageHeader* image_header) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void PatchDexFileArrays(mirror::ObjectArray<mirror::Object>* img_roots)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool WriteElf(File* out);
   bool WriteImage(File* out);
 
-  mirror::Object* RelocatedCopyOf(mirror::Object*);
-  mirror::Object* RelocatedAddressOf(mirror::Object* obj);
+  template <typename T>
+  T* RelocatedCopyOf(T* obj) {
+    if (obj == nullptr) {
+      return nullptr;
+    }
+    DCHECK_GT(reinterpret_cast<uintptr_t>(obj), reinterpret_cast<uintptr_t>(heap_->Begin()));
+    DCHECK_LT(reinterpret_cast<uintptr_t>(obj), reinterpret_cast<uintptr_t>(heap_->End()));
+    uintptr_t heap_off =
+        reinterpret_cast<uintptr_t>(obj) - reinterpret_cast<uintptr_t>(heap_->Begin());
+    DCHECK_LT(heap_off, image_->Size());
+    return reinterpret_cast<T*>(image_->Begin() + heap_off);
+  }
+
+  template <typename T>
+  T* RelocatedAddressOfPointer(T* obj) {
+    return obj == nullptr ? nullptr :
+        reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(obj) + delta_);
+  }
 
   // Look up the oat header from any elf file.
   static const OatHeader* GetOatHeader(const ElfFile* elf_file);

@@ -32,6 +32,8 @@ class PACKED(4) ImageHeader {
 
   ImageHeader(uint32_t image_begin,
               uint32_t image_size_,
+              uint32_t art_fields_offset,
+              uint32_t art_fields_size,
               uint32_t image_bitmap_offset,
               uint32_t image_bitmap_size,
               uint32_t image_roots,
@@ -51,6 +53,14 @@ class PACKED(4) ImageHeader {
 
   size_t GetImageSize() const {
     return static_cast<uint32_t>(image_size_);
+  }
+
+  size_t GetArtFieldsOffset() const {
+    return art_fields_offset_;
+  }
+
+  size_t GetArtFieldsSize() const {
+    return art_fields_size_;
   }
 
   size_t GetImageBitmapOffset() const {
@@ -87,10 +97,6 @@ class PACKED(4) ImageHeader {
 
   off_t GetPatchDelta() const {
     return patch_delta_;
-  }
-
-  size_t GetBitmapOffset() const {
-    return RoundUp(image_size_, kPageSize);
   }
 
   static std::string GetOatLocationFromImageLocation(const std::string& image) {
@@ -139,6 +145,12 @@ class PACKED(4) ImageHeader {
 
   // Image size, not page aligned.
   uint32_t image_size_;
+
+  // ArtField array offset.
+  uint32_t art_fields_offset_;
+
+  // ArtField size in bytes.
+  uint32_t art_fields_size_;
 
   // Image bitmap offset in the file.
   uint32_t image_bitmap_offset_;

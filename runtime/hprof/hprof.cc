@@ -37,6 +37,7 @@
 
 #include <set>
 
+#include "art_field-inl.h"
 #include "base/logging.h"
 #include "base/stringprintf.h"
 #include "base/unix_file/fd_file.h"
@@ -51,7 +52,6 @@
 #include "globals.h"
 #include "jdwp/jdwp.h"
 #include "jdwp/jdwp_priv.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
@@ -999,7 +999,7 @@ void Hprof::DumpHeapClass(mirror::Class* klass) {
     __ AddClassStaticsId(klass);
 
     for (size_t i = 0; i < sFieldCount; ++i) {
-      mirror::ArtField* f = klass->GetStaticField(i);
+      ArtField* f = klass->GetStaticField(i);
 
       size_t size;
       HprofBasicType t = SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), &size);
@@ -1038,7 +1038,7 @@ void Hprof::DumpHeapClass(mirror::Class* klass) {
   int iFieldCount = klass->IsObjectClass() ? 0 : klass->NumInstanceFields();
   __ AddU2((uint16_t)iFieldCount);
   for (int i = 0; i < iFieldCount; ++i) {
-    mirror::ArtField* f = klass->GetInstanceField(i);
+    ArtField* f = klass->GetInstanceField(i);
     __ AddStringId(LookupStringId(f->GetName()));
     HprofBasicType t = SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), nullptr);
     __ AddU1(t);
@@ -1102,7 +1102,7 @@ void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass) {
   while (!klass->IsObjectClass()) {
     int ifieldCount = klass->NumInstanceFields();
     for (int i = 0; i < ifieldCount; ++i) {
-      mirror::ArtField* f = klass->GetInstanceField(i);
+      ArtField* f = klass->GetInstanceField(i);
       size_t size;
       auto t = SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), &size);
       switch (t) {

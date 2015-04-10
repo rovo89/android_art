@@ -29,6 +29,7 @@ class DexCacheArraysLayout {
   // Construct an invalid layout.
   DexCacheArraysLayout()
       : /* types_offset_ is always 0u */
+        pointer_size_(0u),
         methods_offset_(0u),
         strings_offset_(0u),
         fields_offset_(0u),
@@ -36,7 +37,7 @@ class DexCacheArraysLayout {
   }
 
   // Construct a layout for a particular dex file.
-  explicit DexCacheArraysLayout(const DexFile* dex_file);
+  explicit DexCacheArraysLayout(size_t pointer_size, const DexFile* dex_file);
 
   bool Valid() const {
     return Size() != 0u;
@@ -52,11 +53,15 @@ class DexCacheArraysLayout {
 
   size_t TypeOffset(uint32_t type_idx) const;
 
+  size_t TypesSize(size_t num_elements) const;
+
   size_t MethodsOffset() const {
     return methods_offset_;
   }
 
   size_t MethodOffset(uint32_t method_idx) const;
+
+  size_t MethodsSize(size_t num_elements) const;
 
   size_t StringsOffset() const {
     return strings_offset_;
@@ -64,24 +69,27 @@ class DexCacheArraysLayout {
 
   size_t StringOffset(uint32_t string_idx) const;
 
+  size_t StringsSize(size_t num_elements) const;
+
   size_t FieldsOffset() const {
     return fields_offset_;
   }
 
   size_t FieldOffset(uint32_t field_idx) const;
 
+  size_t FieldsSize(size_t num_elements) const;
+
  private:
   static constexpr size_t types_offset_ = 0u;
+  const size_t pointer_size_;  // Must be first for construction initialization order.
   const size_t methods_offset_;
   const size_t strings_offset_;
   const size_t fields_offset_;
   const size_t size_;
 
-  template <typename MirrorType>
-  static size_t ElementOffset(uint32_t idx);
+  static size_t ElementOffset(size_t element_size, uint32_t idx);
 
-  template <typename MirrorType>
-  static size_t ArraySize(uint32_t num_elements);
+  static size_t ArraySize(size_t element_size, uint32_t num_elements);
 };
 
 }  // namespace art

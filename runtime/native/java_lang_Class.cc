@@ -16,12 +16,12 @@
 
 #include "java_lang_Class.h"
 
+#include "art_field-inl.h"
 #include "class_linker.h"
 #include "common_throws.h"
 #include "dex_file-inl.h"
 #include "jni_internal.h"
 #include "nth_caller_visitor.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/field-inl.h"
@@ -119,33 +119,33 @@ static jobjectArray Class_getProxyInterfaces(JNIEnv* env, jobject javaThis) {
 static mirror::ObjectArray<mirror::Field>* GetDeclaredFields(
     Thread* self, mirror::Class* klass, bool public_only, bool force_resolve)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  StackHandleScope<3> hs(self);
-  auto h_ifields = hs.NewHandle(klass->GetIFields());
-  auto h_sfields = hs.NewHandle(klass->GetSFields());
-  const int32_t num_ifields = h_ifields.Get() != nullptr ? h_ifields->GetLength() : 0;
-  const int32_t num_sfields = h_sfields.Get() != nullptr ? h_sfields->GetLength() : 0;
-  int32_t array_size = num_ifields + num_sfields;
+  StackHandleScope<1> hs(self);
+  auto* ifields = klass->GetIFields();
+  auto* sfields = klass->GetSFields();
+  const auto num_ifields = klass->NumInstanceFields();
+  const auto num_sfields = klass->NumStaticFields();
+  size_t array_size = num_ifields + num_sfields;
   if (public_only) {
     // Lets go subtract all the non public fields.
-    for (int32_t i = 0; i < num_ifields; ++i) {
-      if (!h_ifields->GetWithoutChecks(i)->IsPublic()) {
+    for (size_t i = 0; i < num_ifields; ++i) {
+      if (!ifields[i].IsPublic()) {
         --array_size;
       }
     }
-    for (int32_t i = 0; i < num_sfields; ++i) {
-      if (!h_sfields->GetWithoutChecks(i)->IsPublic()) {
+    for (size_t i = 0; i < num_sfields; ++i) {
+      if (!sfields[i].IsPublic()) {
         --array_size;
       }
     }
   }
-  int32_t array_idx = 0;
+  size_t array_idx = 0;
   auto object_array = hs.NewHandle(mirror::ObjectArray<mirror::Field>::Alloc(
       self, mirror::Field::ArrayClass(), array_size));
   if (object_array.Get() == nullptr) {
     return nullptr;
   }
-  for (int32_t i = 0; i < num_ifields; ++i) {
-    auto* art_field = h_ifields->GetWithoutChecks(i);
+  for (size_t i = 0; i < num_ifields; ++i) {
+    auto* art_field = &ifields[i];
     if (!public_only || art_field->IsPublic()) {
       auto* field = mirror::Field::CreateFromArtField(self, art_field, force_resolve);
       if (field == nullptr) {
@@ -158,8 +158,8 @@ static mirror::ObjectArray<mirror::Field>* GetDeclaredFields(
       object_array->SetWithoutChecks<false>(array_idx++, field);
     }
   }
-  for (int32_t i = 0; i < num_sfields; ++i) {
-    auto* art_field = h_sfields->GetWithoutChecks(i);
+  for (size_t i = 0; i < num_sfields; ++i) {
+    auto* art_field = &sfields[i];
     if (!public_only || art_field->IsPublic()) {
       auto* field = mirror::Field::CreateFromArtField(self, art_field, force_resolve);
       if (field == nullptr) {
@@ -197,17 +197,16 @@ static jobjectArray Class_getPublicDeclaredFields(JNIEnv* env, jobject javaThis)
 // Performs a binary search through an array of fields, TODO: Is this fast enough if we don't use
 // the dex cache for lookups? I think CompareModifiedUtf8ToUtf16AsCodePointValues should be fairly
 // fast.
-ALWAYS_INLINE static inline mirror::ArtField* FindFieldByName(
-    Thread* self ATTRIBUTE_UNUSED, mirror::String* name,
-    mirror::ObjectArray<mirror::ArtField>* fields)
+ALWAYS_INLINE static inline ArtField* FindFieldByName(
+    Thread* self ATTRIBUTE_UNUSED, mirror::String* name, ArtField* fields, size_t num_fields)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  uint32_t low = 0;
-  uint32_t high = fields->GetLength();
+  size_t low = 0;
+  size_t high = num_fields;
   const uint16_t* const data = name->GetCharArray()->GetData() + name->GetOffset();
   const size_t length = name->GetLength();
   while (low < high) {
     auto mid = (low + high) / 2;
-    mirror::ArtField* const field = fields->GetWithoutChecks(mid);
+    ArtField* const field = &fields[mid];
     int result = CompareModifiedUtf8ToUtf16AsCodePointValues(field->GetName(), data, length);
     // Alternate approach, only a few % faster at the cost of more allocations.
     // int result = field->GetStringName(self, true)->CompareTo(name);
@@ -220,8 +219,8 @@ ALWAYS_INLINE static inline mirror::ArtField* FindFieldByName(
     }
   }
   if (kIsDebugBuild) {
-    for (int32_t i = 0; i < fields->GetLength(); ++i) {
-      CHECK_NE(fields->GetWithoutChecks(i)->GetName(), name->ToModifiedUtf8());
+    for (size_t i = 0; i < num_fields; ++i) {
+      CHECK_NE(fields[i].GetName(), name->ToModifiedUtf8());
     }
   }
   return nullptr;
@@ -231,18 +230,14 @@ ALWAYS_INLINE static inline mirror::Field* GetDeclaredField(
     Thread* self, mirror::Class* c, mirror::String* name)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   auto* instance_fields = c->GetIFields();
-  if (instance_fields != nullptr) {
-    auto* art_field = FindFieldByName(self, name, instance_fields);
-    if (art_field != nullptr) {
-      return mirror::Field::CreateFromArtField(self, art_field, true);
-    }
+  auto* art_field = FindFieldByName(self, name, instance_fields, c->NumInstanceFields());
+  if (art_field != nullptr) {
+    return mirror::Field::CreateFromArtField(self, art_field, true);
   }
   auto* static_fields = c->GetSFields();
-  if (static_fields != nullptr) {
-    auto* art_field = FindFieldByName(self, name, static_fields);
-    if (art_field != nullptr) {
-      return mirror::Field::CreateFromArtField(self, art_field, true);
-    }
+  art_field = FindFieldByName(self, name, static_fields, c->NumStaticFields());
+  if (art_field != nullptr) {
+    return mirror::Field::CreateFromArtField(self, art_field, true);
   }
   return nullptr;
 }

@@ -21,6 +21,7 @@
 #include <set>
 
 #include "arch/context.h"
+#include "art_field-inl.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
@@ -30,7 +31,6 @@
 #include "gc/space/space-inl.h"
 #include "handle_scope.h"
 #include "jdwp/object_registry.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
@@ -266,14 +266,14 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
   }
 
   void FieldRead(Thread* thread, mirror::Object* this_object, mirror::ArtMethod* method,
-                 uint32_t dex_pc, mirror::ArtField* field)
+                 uint32_t dex_pc, ArtField* field)
       OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     UNUSED(thread);
     Dbg::PostFieldAccessEvent(method, dex_pc, this_object, field);
   }
 
   void FieldWritten(Thread* thread ATTRIBUTE_UNUSED, mirror::Object* this_object,
-                    mirror::ArtMethod* method, uint32_t dex_pc, mirror::ArtField* field,
+                    mirror::ArtMethod* method, uint32_t dex_pc, ArtField* field,
                     const JValue& field_value)
       OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Dbg::PostFieldModificationEvent(method, dex_pc, this_object, field, &field_value);
@@ -1336,8 +1336,7 @@ JDWP::JdwpError Dbg::CreateArrayObject(JDWP::RefTypeId array_class_id, uint32_t 
   return JDWP::ERR_NONE;
 }
 
-JDWP::FieldId Dbg::ToFieldId(const mirror::ArtField* f) {
-  CHECK(!kMovingFields);
+JDWP::FieldId Dbg::ToFieldId(const ArtField* f) {
   return static_cast<JDWP::FieldId>(reinterpret_cast<uintptr_t>(f));
 }
 
@@ -1347,10 +1346,9 @@ static JDWP::MethodId ToMethodId(const mirror::ArtMethod* m)
   return static_cast<JDWP::MethodId>(reinterpret_cast<uintptr_t>(m));
 }
 
-static mirror::ArtField* FromFieldId(JDWP::FieldId fid)
+static ArtField* FromFieldId(JDWP::FieldId fid)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  CHECK(!kMovingFields);
-  return reinterpret_cast<mirror::ArtField*>(static_cast<uintptr_t>(fid));
+  return reinterpret_cast<ArtField*>(static_cast<uintptr_t>(fid));
 }
 
 static mirror::ArtMethod* FromMethodId(JDWP::MethodId mid)
@@ -1387,8 +1385,8 @@ bool Dbg::MatchType(mirror::Class* event_class, JDWP::RefTypeId class_id) {
 }
 
 bool Dbg::MatchField(JDWP::RefTypeId expected_type_id, JDWP::FieldId expected_field_id,
-                     mirror::ArtField* event_field) {
-  mirror::ArtField* expected_field = FromFieldId(expected_field_id);
+                     ArtField* event_field) {
+  ArtField* expected_field = FromFieldId(expected_field_id);
   if (expected_field != event_field) {
     return false;
   }
@@ -1423,7 +1421,7 @@ std::string Dbg::GetMethodName(JDWP::MethodId method_id) {
 }
 
 std::string Dbg::GetFieldName(JDWP::FieldId field_id) {
-  mirror::ArtField* f = FromFieldId(field_id);
+  ArtField* f = FromFieldId(field_id);
   if (f == nullptr) {
     return "NULL";
   }
@@ -1510,7 +1508,7 @@ JDWP::JdwpError Dbg::OutputDeclaredFields(JDWP::RefTypeId class_id, bool with_ge
   expandBufAdd4BE(pReply, instance_field_count + static_field_count);
 
   for (size_t i = 0; i < instance_field_count + static_field_count; ++i) {
-    mirror::ArtField* f = (i < instance_field_count) ? c->GetInstanceField(i) : c->GetStaticField(i - instance_field_count);
+    ArtField* f = (i < instance_field_count) ? c->GetInstanceField(i) : c->GetStaticField(i - instance_field_count);
     expandBufAddFieldId(pReply, ToFieldId(f));
     expandBufAddUtf8String(pReply, f->GetName());
     expandBufAddUtf8String(pReply, f->GetTypeDescriptor());
@@ -1680,7 +1678,7 @@ void Dbg::OutputMethodReturnValue(JDWP::MethodId method_id, const JValue* return
 
 void Dbg::OutputFieldValue(JDWP::FieldId field_id, const JValue* field_value,
                            JDWP::ExpandBuf* pReply) {
-  mirror::ArtField* f = FromFieldId(field_id);
+  ArtField* f = FromFieldId(field_id);
   JDWP::JdwpTag tag = BasicTagFromDescriptor(f->GetTypeDescriptor());
   OutputJValue(tag, field_value, pReply);
 }
@@ -1723,7 +1721,7 @@ static JDWP::JdwpError GetFieldValueImpl(JDWP::RefTypeId ref_type_id, JDWP::Obje
   if ((!is_static && o == nullptr) || error != JDWP::ERR_NONE) {
     return JDWP::ERR_INVALID_OBJECT;
   }
-  mirror::ArtField* f = FromFieldId(field_id);
+  ArtField* f = FromFieldId(field_id);
 
   mirror::Class* receiver_class = c;
   if (receiver_class == nullptr && o != nullptr) {
@@ -1785,7 +1783,7 @@ static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId object_id, JDWP::FieldId
   if ((!is_static && o == nullptr) || error != JDWP::ERR_NONE) {
     return JDWP::ERR_INVALID_OBJECT;
   }
-  mirror::ArtField* f = FromFieldId(field_id);
+  ArtField* f = FromFieldId(field_id);
 
   // The RI only enforces the static/non-static mismatch in one direction.
   // TODO: should we change the tests and check both?
@@ -1822,11 +1820,10 @@ static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId object_id, JDWP::FieldId
     if (v != nullptr) {
       mirror::Class* field_type;
       {
-        StackHandleScope<3> hs(Thread::Current());
+        StackHandleScope<2> hs(Thread::Current());
         HandleWrapper<mirror::Object> h_v(hs.NewHandleWrapper(&v));
-        HandleWrapper<mirror::ArtField> h_f(hs.NewHandleWrapper(&f));
         HandleWrapper<mirror::Object> h_o(hs.NewHandleWrapper(&o));
-        field_type = h_f->GetType<true>();
+        field_type = f->GetType<true>();
       }
       if (!field_type->IsAssignableFrom(v->GetClass())) {
         return JDWP::ERR_INVALID_OBJECT;
@@ -1904,7 +1901,7 @@ JDWP::JdwpError Dbg::GetThreadName(JDWP::ObjectId thread_id, std::string* name) 
   // We still need to report the zombie threads' names, so we can't just call Thread::GetThreadName.
   mirror::Object* thread_object = gRegistry->Get<mirror::Object*>(thread_id, &error);
   CHECK(thread_object != nullptr) << error;
-  mirror::ArtField* java_lang_Thread_name_field =
+  ArtField* java_lang_Thread_name_field =
       soa.DecodeField(WellKnownClasses::java_lang_Thread_name);
   mirror::String* s =
       reinterpret_cast<mirror::String*>(java_lang_Thread_name_field->GetObject(thread_object));
@@ -1935,7 +1932,7 @@ JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* p
   } else if (error == JDWP::ERR_NONE) {
     mirror::Class* c = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_Thread);
     CHECK(c != nullptr);
-    mirror::ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_group);
+    ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_group);
     CHECK(f != nullptr);
     mirror::Object* group = f->GetObject(thread_object);
     CHECK(group != nullptr);
@@ -1976,7 +1973,7 @@ JDWP::JdwpError Dbg::GetThreadGroupName(JDWP::ObjectId thread_group_id, JDWP::Ex
     return error;
   }
   ScopedAssertNoThreadSuspension ants(soa.Self(), "Debugger: GetThreadGroupName");
-  mirror::ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_name);
+  ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_name);
   CHECK(f != nullptr);
   mirror::String* s = reinterpret_cast<mirror::String*>(f->GetObject(thread_group));
 
@@ -1995,7 +1992,7 @@ JDWP::JdwpError Dbg::GetThreadGroupParent(JDWP::ObjectId thread_group_id, JDWP::
   mirror::Object* parent;
   {
     ScopedAssertNoThreadSuspension ants(soa.Self(), "Debugger: GetThreadGroupParent");
-    mirror::ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_parent);
+    ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_parent);
     CHECK(f != nullptr);
     parent = f->GetObject(thread_group);
   }
@@ -2010,7 +2007,7 @@ static void GetChildThreadGroups(ScopedObjectAccessUnchecked& soa, mirror::Objec
   CHECK(thread_group != nullptr);
 
   // Get the ArrayList<ThreadGroup> "groups" out of this thread group...
-  mirror::ArtField* groups_field = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_groups);
+  ArtField* groups_field = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_groups);
   mirror::Object* groups_array_list = groups_field->GetObject(thread_group);
   {
     // The "groups" field is declared as a java.util.List: check it really is
@@ -2022,8 +2019,8 @@ static void GetChildThreadGroups(ScopedObjectAccessUnchecked& soa, mirror::Objec
   }
 
   // Get the array and size out of the ArrayList<ThreadGroup>...
-  mirror::ArtField* array_field = soa.DecodeField(WellKnownClasses::java_util_ArrayList_array);
-  mirror::ArtField* size_field = soa.DecodeField(WellKnownClasses::java_util_ArrayList_size);
+  ArtField* array_field = soa.DecodeField(WellKnownClasses::java_util_ArrayList_array);
+  ArtField* size_field = soa.DecodeField(WellKnownClasses::java_util_ArrayList_size);
   mirror::ObjectArray<mirror::Object>* groups_array =
       array_field->GetObject(groups_array_list)->AsObjectArray<mirror::Object>();
   const int32_t size = size_field->GetInt(groups_array_list);
@@ -2069,7 +2066,7 @@ JDWP::JdwpError Dbg::GetThreadGroupChildren(JDWP::ObjectId thread_group_id,
 
 JDWP::ObjectId Dbg::GetSystemThreadGroupId() {
   ScopedObjectAccessUnchecked soa(Thread::Current());
-  mirror::ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup);
+  ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup);
   mirror::Object* group = f->GetObject(f->GetDeclaringClass());
   return gRegistry->Add(group);
 }
@@ -2166,7 +2163,7 @@ static bool IsInDesiredThreadGroup(ScopedObjectAccessUnchecked& soa,
   if (desired_thread_group == nullptr) {
     return true;
   }
-  mirror::ArtField* thread_group_field = soa.DecodeField(WellKnownClasses::java_lang_Thread_group);
+  ArtField* thread_group_field = soa.DecodeField(WellKnownClasses::java_lang_Thread_group);
   DCHECK(thread_group_field != nullptr);
   mirror::Object* group = thread_group_field->GetObject(peer);
   return (group == desired_thread_group);
@@ -2771,7 +2768,7 @@ void Dbg::PostLocationEvent(mirror::ArtMethod* m, int dex_pc, mirror::Object* th
 }
 
 void Dbg::PostFieldAccessEvent(mirror::ArtMethod* m, int dex_pc,
-                               mirror::Object* this_object, mirror::ArtField* f) {
+                               mirror::Object* this_object, ArtField* f) {
   if (!IsDebuggerActive()) {
     return;
   }
@@ -2784,7 +2781,7 @@ void Dbg::PostFieldAccessEvent(mirror::ArtMethod* m, int dex_pc,
 }
 
 void Dbg::PostFieldModificationEvent(mirror::ArtMethod* m, int dex_pc,
-                                     mirror::Object* this_object, mirror::ArtField* f,
+                                     mirror::Object* this_object, ArtField* f,
                                      const JValue* field_value) {
   if (!IsDebuggerActive()) {
     return;

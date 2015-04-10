@@ -27,21 +27,11 @@ namespace art {
 static constexpr size_t kObjectReferenceSize = 4;
 
 
-template<size_t kComponentSize>
-size_t ComponentSizeShiftWidth() {
-  switch (kComponentSize) {
-    case 1:
-      return 0U;
-    case 2:
-      return 1U;
-    case 4:
-      return 2U;
-    case 8:
-      return 3U;
-    default:
-      LOG(FATAL) << "Unexpected component size : " << kComponentSize;
-      return 0U;
-  }
+constexpr size_t ComponentSizeShiftWidth(size_t component_size) {
+  return component_size == 1u ? 0u :
+      component_size == 2u ? 1u :
+          component_size == 4u ? 2u :
+              component_size == 8u ? 3u : 0u;
 }
 
 class Primitive {
@@ -95,7 +85,7 @@ class Primitive {
       case kPrimFloat:   return 2;
       case kPrimLong:
       case kPrimDouble:  return 3;
-      case kPrimNot:     return ComponentSizeShiftWidth<kObjectReferenceSize>();
+      case kPrimNot:     return ComponentSizeShiftWidth(kObjectReferenceSize);
       default:
         LOG(FATAL) << "Invalid type " << static_cast<int>(type);
         return 0;

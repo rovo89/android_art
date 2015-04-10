@@ -17,10 +17,9 @@
 #ifndef ART_RUNTIME_GC_COLLECTOR_MARK_SWEEP_INL_H_
 #define ART_RUNTIME_GC_COLLECTOR_MARK_SWEEP_INL_H_
 
-#include "gc/collector/mark_sweep.h"
+#include "mark_sweep.h"
 
 #include "gc/heap.h"
-#include "mirror/art_field.h"
 #include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/reference.h"

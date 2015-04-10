@@ -16,16 +16,13 @@
 
 #include "builder.h"
 
+#include "art_field-inl.h"
 #include "base/logging.h"
 #include "class_linker.h"
-#include "dex_file.h"
 #include "dex_file-inl.h"
-#include "dex_instruction.h"
 #include "dex_instruction-inl.h"
 #include "driver/compiler_driver-inl.h"
 #include "driver/compiler_options.h"
-#include "mirror/art_field.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache.h"
 #include "nodes.h"
@@ -656,11 +653,10 @@ bool HGraphBuilder::BuildInstanceFieldAccess(const Instruction& instruction,
   uint16_t field_index = instruction.VRegC_22c();
 
   ScopedObjectAccess soa(Thread::Current());
-  StackHandleScope<1> hs(soa.Self());
-  Handle<mirror::ArtField> resolved_field(hs.NewHandle(
-      compiler_driver_->ComputeInstanceFieldInfo(field_index, dex_compilation_unit_, is_put, soa)));
+  ArtField* resolved_field =
+      compiler_driver_->ComputeInstanceFieldInfo(field_index, dex_compilation_unit_, is_put, soa);
 
-  if (resolved_field.Get() == nullptr) {
+  if (resolved_field == nullptr) {
     MaybeRecordStat(MethodCompilationStat::kNotCompiledUnresolvedField);
     return false;
   }
@@ -728,15 +724,15 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
   uint16_t field_index = instruction.VRegB_21c();
 
   ScopedObjectAccess soa(Thread::Current());
-  StackHandleScope<5> hs(soa.Self());
+  StackHandleScope<4> hs(soa.Self());
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(
       dex_compilation_unit_->GetClassLinker()->FindDexCache(*dex_compilation_unit_->GetDexFile())));
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
       soa.Decode<mirror::ClassLoader*>(dex_compilation_unit_->GetClassLoader())));
-  Handle<mirror::ArtField> resolved_field(hs.NewHandle(compiler_driver_->ResolveField(
-      soa, dex_cache, class_loader, dex_compilation_unit_, field_index, true)));
+  ArtField* resolved_field = compiler_driver_->ResolveField(
+      soa, dex_cache, class_loader, dex_compilation_unit_, field_index, true);
 
-  if (resolved_field.Get() == nullptr) {
+  if (resolved_field == nullptr) {
     MaybeRecordStat(MethodCompilationStat::kNotCompiledUnresolvedField);
     return false;
   }
@@ -758,7 +754,7 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
     std::pair<bool, bool> pair = compiler_driver_->IsFastStaticField(
         outer_dex_cache.Get(),
         referrer_class.Get(),
-        resolved_field.Get(),
+        resolved_field,
         field_index,
         &storage_index);
     bool can_easily_access = is_put ? pair.second : pair.first;
