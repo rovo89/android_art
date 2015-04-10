@@ -40,8 +40,10 @@ public class Main {
 
   // CHECK-START: long Main.Add0(long) instruction_simplifier (after)
   // CHECK-DAG:     [[Arg:j\d+]]     ParameterValue
-  // CHECK-NOT:                      Add
   // CHECK-DAG:                      Return [ [[Arg]] ]
+  //
+  // CHECK-START: long Main.Add0(long) instruction_simplifier (after)
+  // CHECK-NOT:                        Add
 
   public static long Add0(long arg) {
     return 0 + arg;
@@ -55,8 +57,10 @@ public class Main {
 
   // CHECK-START: int Main.AndAllOnes(int) instruction_simplifier (after)
   // CHECK-DAG:     [[Arg:i\d+]]     ParameterValue
-  // CHECK-NOT:                      And
   // CHECK-DAG:                      Return [ [[Arg]] ]
+
+  // CHECK-START: int Main.AndAllOnes(int) instruction_simplifier (after)
+  // CHECK-NOT:                      And
 
   public static int AndAllOnes(int arg) {
     return arg & -1;
@@ -70,8 +74,10 @@ public class Main {
 
   // CHECK-START: long Main.Div1(long) instruction_simplifier (after)
   // CHECK-DAG:     [[Arg:j\d+]]     ParameterValue
-  // CHECK-NOT:                      Div
   // CHECK-DAG:                      Return [ [[Arg]] ]
+
+  // CHECK-START: long Main.Div1(long) instruction_simplifier (after)
+  // CHECK-NOT:                      Div
 
   public static long Div1(long arg) {
     return arg / 1;
@@ -86,8 +92,10 @@ public class Main {
   // CHECK-START: int Main.DivN1(int) instruction_simplifier (after)
   // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
   // CHECK-DAG:     [[Neg:i\d+]]      Neg [ [[Arg]] ]
-  // CHECK-NOT:                       Div
   // CHECK-DAG:                       Return [ [[Neg]] ]
+
+  // CHECK-START: int Main.DivN1(int) instruction_simplifier (after)
+  // CHECK-NOT:                       Div
 
   public static int DivN1(int arg) {
     return arg / -1;
@@ -101,8 +109,10 @@ public class Main {
 
   // CHECK-START: long Main.Mul1(long) instruction_simplifier (after)
   // CHECK-DAG:     [[Arg:j\d+]]     ParameterValue
-  // CHECK-NOT:                      Mul
   // CHECK-DAG:                      Return [ [[Arg]] ]
+
+  // CHECK-START: long Main.Mul1(long) instruction_simplifier (after)
+  // CHECK-NOT:                       Mul
 
   public static long Mul1(long arg) {
     return arg * 1;
@@ -117,8 +127,10 @@ public class Main {
   // CHECK-START: int Main.MulN1(int) instruction_simplifier (after)
   // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
   // CHECK-DAG:     [[Neg:i\d+]]      Neg [ [[Arg]] ]
-  // CHECK-NOT:                       Mul
   // CHECK-DAG:                       Return [ [[Neg]] ]
+
+  // CHECK-START: int Main.MulN1(int) instruction_simplifier (after)
+  // CHECK-NOT:                       Mul
 
   public static int MulN1(int arg) {
     return arg * -1;
@@ -134,8 +146,10 @@ public class Main {
   // CHECK-DAG:     [[Arg:j\d+]]       ParameterValue
   // CHECK-DAG:     [[Const7:i\d+]]    IntConstant 7
   // CHECK-DAG:     [[Shl:j\d+]]       Shl [ [[Arg]] [[Const7]] ]
-  // CHECK-NOT:                        Mul
   // CHECK-DAG:                        Return [ [[Shl]] ]
+
+  // CHECK-START: long Main.MulPowerOfTwo128(long) instruction_simplifier (after)
+  // CHECK-NOT:                        Mul
 
   public static long MulPowerOfTwo128(long arg) {
     return arg * 128;
@@ -149,8 +163,10 @@ public class Main {
 
   // CHECK-START: int Main.Or0(int) instruction_simplifier (after)
   // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
-  // CHECK-NOT:                       Or
   // CHECK-DAG:                       Return [ [[Arg]] ]
+
+  // CHECK-START: int Main.Or0(int) instruction_simplifier (after)
+  // CHECK-NOT:                       Or
 
   public static int Or0(int arg) {
     return arg | 0;
@@ -163,8 +179,10 @@ public class Main {
 
   // CHECK-START: long Main.OrSame(long) instruction_simplifier (after)
   // CHECK-DAG:     [[Arg:j\d+]]       ParameterValue
-  // CHECK-NOT:                        Or
   // CHECK-DAG:                        Return [ [[Arg]] ]
+
+  // CHECK-START: long Main.OrSame(long) instruction_simplifier (after)
+  // CHECK-NOT:                        Or
 
   public static long OrSame(long arg) {
     return arg | arg;
@@ -178,8 +196,10 @@ public class Main {
 
   // CHECK-START: int Main.Shl0(int) instruction_simplifier (after)
   // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
-  // CHECK-NOT:                       Shl
   // CHECK-DAG:                       Return [ [[Arg]] ]
+
+  // CHECK-START: int Main.Shl0(int) instruction_simplifier (after)
+  // CHECK-NOT:                       Shl
 
   public static int Shl0(int arg) {
     return arg << 0;
@@ -193,8 +213,10 @@ public class Main {
 
   // CHECK-START: long Main.Shr0(long) instruction_simplifier (after)
   // CHECK-DAG:     [[Arg:j\d+]]      ParameterValue
-  // CHECK-NOT:                       Shr
   // CHECK-DAG:                       Return [ [[Arg]] ]
+
+  // CHECK-START: long Main.Shr0(long) instruction_simplifier (after)
+  // CHECK-NOT:                       Shr
 
   public static long Shr0(long arg) {
     return arg >> 0;
@@ -208,8 +230,10 @@ public class Main {
 
   // CHECK-START: long Main.Sub0(long) instruction_simplifier (after)
   // CHECK-DAG:     [[Arg:j\d+]]      ParameterValue
-  // CHECK-NOT:                       Sub
   // CHECK-DAG:                       Return [ [[Arg]] ]
+
+  // CHECK-START: long Main.Sub0(long) instruction_simplifier (after)
+  // CHECK-NOT:                       Sub
 
   public static long Sub0(long arg) {
     return arg - 0;
@@ -224,8 +248,10 @@ public class Main {
   // CHECK-START: int Main.SubAliasNeg(int) instruction_simplifier (after)
   // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
   // CHECK-DAG:     [[Neg:i\d+]]      Neg [ [[Arg]] ]
-  // CHECK-NOT:                       Sub
   // CHECK-DAG:                       Return [ [[Neg]] ]
+
+  // CHECK-START: int Main.SubAliasNeg(int) instruction_simplifier (after)
+  // CHECK-NOT:                       Sub
 
   public static int SubAliasNeg(int arg) {
     return 0 - arg;
@@ -239,8 +265,10 @@ public class Main {
 
   // CHECK-START: long Main.UShr0(long) instruction_simplifier (after)
   // CHECK-DAG:     [[Arg:j\d+]]      ParameterValue
-  // CHECK-NOT:                       UShr
   // CHECK-DAG:                       Return [ [[Arg]] ]
+
+  // CHECK-START: long Main.UShr0(long) instruction_simplifier (after)
+  // CHECK-NOT:                       UShr
 
   public static long UShr0(long arg) {
     return arg >>> 0;
@@ -254,8 +282,10 @@ public class Main {
 
   // CHECK-START: int Main.Xor0(int) instruction_simplifier (after)
   // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
-  // CHECK-NOT:                       Xor
   // CHECK-DAG:                       Return [ [[Arg]] ]
+
+  // CHECK-START: int Main.Xor0(int) instruction_simplifier (after)
+  // CHECK-NOT:                       Xor
 
   public static int Xor0(int arg) {
     return arg ^ 0;
@@ -270,8 +300,10 @@ public class Main {
   // CHECK-START: int Main.XorAllOnes(int) instruction_simplifier (after)
   // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
   // CHECK-DAG:     [[Not:i\d+]]      Not [ [[Arg]] ]
-  // CHECK-NOT:                       Xor
   // CHECK-DAG:                       Return [ [[Not]] ]
+
+  // CHECK-START: int Main.XorAllOnes(int) instruction_simplifier (after)
+  // CHECK-NOT:                       Xor
 
   public static int XorAllOnes(int arg) {
     return arg ^ -1;
