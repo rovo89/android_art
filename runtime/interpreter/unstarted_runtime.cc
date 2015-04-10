@@ -781,6 +781,31 @@ static void UnstartedJNIArrayCreateMultiArray(Thread* self,
   result->SetL(mirror::Array::CreateMultiArray(self, h_class, h_dimensions));
 }
 
+static void UnstartedJNIArrayCreateObjectArray(Thread* self,
+                                               mirror::ArtMethod* method ATTRIBUTE_UNUSED,
+                                               mirror::Object* receiver ATTRIBUTE_UNUSED,
+                                               uint32_t* args,
+                                               JValue* result)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  int32_t length = static_cast<int32_t>(args[1]);
+  if (length < 0) {
+    ThrowNegativeArraySizeException(length);
+    return;
+  }
+  mirror::Class* element_class = reinterpret_cast<mirror::Class*>(args[0])->AsClass();
+  Runtime* runtime = Runtime::Current();
+  ClassLinker* class_linker = runtime->GetClassLinker();
+  mirror::Class* array_class = class_linker->FindArrayClass(self, &element_class);
+  if (UNLIKELY(array_class == NULL)) {
+    CHECK(self->IsExceptionPending());
+    return;
+  }
+  DCHECK(array_class->IsObjectArrayClass());
+  mirror::Array* new_array = mirror::ObjectArray<mirror::Object*>::Alloc(
+      self, array_class, length, runtime->GetHeap()->GetCurrentAllocator());
+  result->SetL(new_array);
+}
+
 static void UnstartedJNIThrowableNativeFillInStackTrace(Thread* self,
                                                         mirror::ArtMethod* method ATTRIBUTE_UNUSED,
                                                         mirror::Object* receiver ATTRIBUTE_UNUSED,
@@ -975,6 +1000,8 @@ static void UnstartedRuntimeInitializeJNIHandlers() {
           &UnstartedJNIStringFastIndexOf },
       { "java.lang.Object java.lang.reflect.Array.createMultiArray(java.lang.Class, int[])",
           &UnstartedJNIArrayCreateMultiArray },
+      { "java.lang.Object java.lang.reflect.Array.createObjectArray(java.lang.Class, int)",
+          &UnstartedJNIArrayCreateObjectArray },
       { "java.lang.Object java.lang.Throwable.nativeFillInStackTrace()",
           &UnstartedJNIThrowableNativeFillInStackTrace },
       { "int java.lang.System.identityHashCode(java.lang.Object)",
