@@ -2348,12 +2348,7 @@ void InstructionCodeGeneratorX86_64::DivRemOneOrMinusOne(HBinaryOperation* instr
 
   CpuRegister output_register = locations->Out().AsRegister<CpuRegister>();
   CpuRegister input_register = locations->InAt(0).AsRegister<CpuRegister>();
-  int64_t imm;
-  if (second.GetConstant()->IsLongConstant()) {
-    imm = second.GetConstant()->AsLongConstant()->GetValue();
-  } else {
-    imm = second.GetConstant()->AsIntConstant()->GetValue();
-  }
+  int64_t imm = Int64FromConstant(second.GetConstant());
 
   DCHECK(imm == 1 || imm == -1);
 
@@ -2383,25 +2378,18 @@ void InstructionCodeGeneratorX86_64::DivRemOneOrMinusOne(HBinaryOperation* instr
     }
 
     default:
-      LOG(FATAL) << "Unreachable";
+      LOG(FATAL) << "Unexpected type for div by (-)1 " << instruction->GetResultType();
   }
 }
 
-void InstructionCodeGeneratorX86_64::DivByPowerOfTwo(HBinaryOperation* instruction) {
-  DCHECK(instruction->IsDiv());
-
+void InstructionCodeGeneratorX86_64::DivByPowerOfTwo(HDiv* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   Location second = locations->InAt(1);
 
   CpuRegister output_register = locations->Out().AsRegister<CpuRegister>();
   CpuRegister numerator = locations->InAt(0).AsRegister<CpuRegister>();
 
-  int64_t imm;
-  if (instruction->GetResultType() == Primitive::kPrimLong) {
-    imm = second.GetConstant()->AsLongConstant()->GetValue();
-  } else {
-    imm = second.GetConstant()->AsIntConstant()->GetValue();
-  }
+  int64_t imm = Int64FromConstant(second.GetConstant());
 
   DCHECK(IsPowerOfTwo(std::abs(imm)));
 
@@ -2462,7 +2450,7 @@ void InstructionCodeGeneratorX86_64::GenerateDivRemWithAnyConstant(HBinaryOperat
   int64_t magic;
   int shift;
 
-  // TODO: can these branch be written as one?
+  // TODO: can these branches be written as one?
   if (instruction->GetResultType() == Primitive::kPrimInt) {
     int imm = second.GetConstant()->AsIntConstant()->GetValue();
 
@@ -2526,7 +2514,7 @@ void InstructionCodeGeneratorX86_64::GenerateDivRemWithAnyConstant(HBinaryOperat
     __ imulq(numerator);
 
     if (imm > 0 && magic < 0) {
-      // RDX += numeratorerator
+      // RDX += numerator
       __ addq(rdx, numerator);
     } else if (imm < 0 && magic > 0) {
       // RDX -= numerator
@@ -2576,19 +2564,14 @@ void InstructionCodeGeneratorX86_64::GenerateDivRemIntegral(HBinaryOperation* in
   DCHECK_EQ(is_div ? RAX : RDX, out.AsRegister());
 
   if (second.IsConstant()) {
-    int64_t imm;
-    if (second.GetConstant()->AsLongConstant()) {
-      imm = second.GetConstant()->AsLongConstant()->GetValue();
-    } else {
-      imm = second.GetConstant()->AsIntConstant()->GetValue();
-    }
+    int64_t imm = Int64FromConstant(second.GetConstant());
 
     if (imm == 0) {
       // Do not generate anything. DivZeroCheck would prevent any code to be executed.
     } else if (imm == 1 || imm == -1) {
       DivRemOneOrMinusOne(instruction);
     } else if (instruction->IsDiv() && IsPowerOfTwo(std::abs(imm))) {
-      DivByPowerOfTwo(instruction);
+      DivByPowerOfTwo(instruction->AsDiv());
     } else {
       DCHECK(imm <= -2 || imm >= 2);
       GenerateDivRemWithAnyConstant(instruction);
