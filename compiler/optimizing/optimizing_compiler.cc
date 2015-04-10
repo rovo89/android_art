@@ -357,9 +357,20 @@ static ArrayRef<const uint8_t> AlignVectorSize(std::vector<uint8_t>& vector) {
   return ArrayRef<const uint8_t>(vector);
 }
 
-// TODO: The function below uses too much stack space.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wframe-larger-than="
+static void AllocateRegisters(HGraph* graph,
+                              CodeGenerator* codegen,
+                              PassInfoPrinter* pass_info_printer) {
+  PrepareForRegisterAllocation(graph).Run();
+  SsaLivenessAnalysis liveness(*graph, codegen);
+  {
+    PassInfo pass_info(SsaLivenessAnalysis::kLivenessPassName, pass_info_printer);
+    liveness.Analyze();
+  }
+  {
+    PassInfo pass_info(RegisterAllocator::kRegisterAllocatorPassName, pass_info_printer);
+    RegisterAllocator(graph->GetArena(), codegen, liveness).AllocateRegisters();
+  }
+}
 
 CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
                                                      CodeGenerator* codegen,
@@ -371,16 +382,7 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
   RunOptimizations(graph, compiler_driver, &compilation_stats_,
                    dex_file, dex_compilation_unit, pass_info_printer, &handles);
 
-  PrepareForRegisterAllocation(graph).Run();
-  SsaLivenessAnalysis liveness(*graph, codegen);
-  {
-    PassInfo pass_info(SsaLivenessAnalysis::kLivenessPassName, pass_info_printer);
-    liveness.Analyze();
-  }
-  {
-    PassInfo pass_info(RegisterAllocator::kRegisterAllocatorPassName, pass_info_printer);
-    RegisterAllocator(graph->GetArena(), codegen, liveness).AllocateRegisters();
-  }
+  AllocateRegisters(graph, codegen, pass_info_printer);
 
   CodeVectorAllocator allocator;
   codegen->CompileOptimized(&allocator);
@@ -412,8 +414,6 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
       ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data()),
       ArrayRef<const LinkerPatch>());
 }
-
-#pragma GCC diagnostic pop
 
 CompiledMethod* OptimizingCompiler::CompileBaseline(
     CodeGenerator* codegen,
