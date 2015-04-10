@@ -622,7 +622,7 @@ void MemMap::DumpMaps(std::ostream& os) {
 }
 
 void MemMap::DumpMapsLocked(std::ostream& os) {
-  os << maps_;
+  os << *maps_;
 }
 
 bool MemMap::HasMemMap(MemMap* map) {

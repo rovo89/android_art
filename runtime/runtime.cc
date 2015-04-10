@@ -48,6 +48,7 @@
 #include "arch/x86/registers_x86.h"
 #include "arch/x86_64/quick_method_frame_info_x86_64.h"
 #include "arch/x86_64/registers_x86_64.h"
+#include "art_field-inl.h"
 #include "asm_support.h"
 #include "atomic.h"
 #include "base/arena_allocator.h"
@@ -70,8 +71,8 @@
 #include "interpreter/interpreter.h"
 #include "jit/jit.h"
 #include "jni_internal.h"
+#include "linear_alloc.h"
 #include "mirror/array.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
@@ -257,7 +258,9 @@ Runtime::~Runtime() {
     VLOG(jit) << "Deleting jit";
     jit_.reset(nullptr);
   }
+  linear_alloc_.reset();
   arena_pool_.reset();
+  low_4gb_arena_pool_.reset();
 
   // Shutdown the fault manager if it was initialized.
   fault_manager.Shutdown();
@@ -441,7 +444,7 @@ static jobject CreateSystemClassLoader(Runtime* runtime) {
       hs.NewHandle(soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_Thread)));
   CHECK(cl->EnsureInitialized(soa.Self(), thread_class, true, true));
 
-  mirror::ArtField* contextClassLoader =
+  ArtField* contextClassLoader =
       thread_class->FindDeclaredInstanceField("contextClassLoader", "Ljava/lang/ClassLoader;");
   CHECK(contextClassLoader != NULL);
 
@@ -862,7 +865,14 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   // Use MemMap arena pool for jit, malloc otherwise. Malloc arenas are faster to allocate but
   // can't be trimmed as easily.
   const bool use_malloc = !use_jit;
-  arena_pool_.reset(new ArenaPool(use_malloc));
+  arena_pool_.reset(new ArenaPool(use_malloc, false));
+  if (IsCompiler() && Is64BitInstructionSet(kRuntimeISA)) {
+    // 4gb, no malloc. Explanation in header.
+    low_4gb_arena_pool_.reset(new ArenaPool(false, true));
+    linear_alloc_.reset(new LinearAlloc(low_4gb_arena_pool_.get()));
+  } else {
+    linear_alloc_.reset(new LinearAlloc(arena_pool_.get()));
+  }
 
   BlockSignals();
   InitPlatformSignalHandlers();
@@ -1294,7 +1304,6 @@ mirror::Throwable* Runtime::GetPreAllocatedNoClassDefFoundError() {
 void Runtime::VisitConstantRoots(RootVisitor* visitor) {
   // Visit the classes held as static in mirror classes, these can be visited concurrently and only
   // need to be visited once per GC since they never change.
-  mirror::ArtField::VisitRoots(visitor);
   mirror::ArtMethod::VisitRoots(visitor);
   mirror::Class::VisitRoots(visitor);
   mirror::Reference::VisitRoots(visitor);

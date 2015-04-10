@@ -27,6 +27,7 @@
 #include <memory>
 #include <sstream>
 
+#include "art_field-inl.h"
 #include "base/logging.h"
 #include "base/stringprintf.h"
 #include "class_linker.h"
@@ -34,7 +35,6 @@
 #include "dex_file_verifier.h"
 #include "globals.h"
 #include "leb128.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/string.h"
 #include "os.h"
@@ -1210,7 +1210,7 @@ void EncodedStaticFieldValueIterator::Next() {
 }
 
 template<bool kTransactionActive>
-void EncodedStaticFieldValueIterator::ReadValueToField(Handle<mirror::ArtField> field) const {
+void EncodedStaticFieldValueIterator::ReadValueToField(ArtField* field) const {
   switch (type_) {
     case kBoolean: field->SetBoolean<kTransactionActive>(field->GetDeclaringClass(), jval_.z); break;
     case kByte:    field->SetByte<kTransactionActive>(field->GetDeclaringClass(), jval_.b); break;
@@ -1222,13 +1222,11 @@ void EncodedStaticFieldValueIterator::ReadValueToField(Handle<mirror::ArtField> 
     case kDouble:  field->SetDouble<kTransactionActive>(field->GetDeclaringClass(), jval_.d); break;
     case kNull:    field->SetObject<kTransactionActive>(field->GetDeclaringClass(), NULL); break;
     case kString: {
-      CHECK(!kMovingFields);
       mirror::String* resolved = linker_->ResolveString(dex_file_, jval_.i, *dex_cache_);
       field->SetObject<kTransactionActive>(field->GetDeclaringClass(), resolved);
       break;
     }
     case kType: {
-      CHECK(!kMovingFields);
       mirror::Class* resolved = linker_->ResolveType(dex_file_, jval_.i, *dex_cache_,
                                                      *class_loader_);
       field->SetObject<kTransactionActive>(field->GetDeclaringClass(), resolved);
@@ -1237,8 +1235,8 @@ void EncodedStaticFieldValueIterator::ReadValueToField(Handle<mirror::ArtField> 
     default: UNIMPLEMENTED(FATAL) << ": type " << type_;
   }
 }
-template void EncodedStaticFieldValueIterator::ReadValueToField<true>(Handle<mirror::ArtField> field) const;
-template void EncodedStaticFieldValueIterator::ReadValueToField<false>(Handle<mirror::ArtField> field) const;
+template void EncodedStaticFieldValueIterator::ReadValueToField<true>(ArtField* field) const;
+template void EncodedStaticFieldValueIterator::ReadValueToField<false>(ArtField* field) const;
 
 CatchHandlerIterator::CatchHandlerIterator(const DexFile::CodeItem& code_item, uint32_t address) {
   handler_.address_ = -1;

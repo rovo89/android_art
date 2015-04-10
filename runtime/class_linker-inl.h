@@ -17,10 +17,10 @@
 #ifndef ART_RUNTIME_CLASS_LINKER_INL_H_
 #define ART_RUNTIME_CLASS_LINKER_INL_H_
 
+#include "art_field.h"
 #include "class_linker.h"
 #include "gc_root-inl.h"
 #include "gc/heap-inl.h"
-#include "mirror/art_field.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache-inl.h"
 #include "mirror/iftable.h"
@@ -88,7 +88,7 @@ inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx,
   return resolved_type;
 }
 
-inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx, mirror::ArtField* referrer) {
+inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx, ArtField* referrer) {
   mirror::Class* declaring_class = referrer->GetDeclaringClass();
   mirror::DexCache* dex_cache_ptr = declaring_class->GetDexCache();
   mirror::Class* resolved_type = dex_cache_ptr->GetResolvedType(type_idx);
@@ -133,15 +133,19 @@ inline mirror::ArtMethod* ClassLinker::ResolveMethod(Thread* self, uint32_t meth
   return resolved_method;
 }
 
-inline mirror::ArtField* ClassLinker::GetResolvedField(uint32_t field_idx,
-                                                       mirror::Class* field_declaring_class) {
-  return field_declaring_class->GetDexCache()->GetResolvedField(field_idx);
+inline ArtField* ClassLinker::GetResolvedField(uint32_t field_idx, mirror::DexCache* dex_cache) {
+  return dex_cache->GetResolvedField(field_idx, image_pointer_size_);
 }
 
-inline mirror::ArtField* ClassLinker::ResolveField(uint32_t field_idx, mirror::ArtMethod* referrer,
+inline ArtField* ClassLinker::GetResolvedField(
+    uint32_t field_idx, mirror::Class* field_declaring_class) {
+  return GetResolvedField(field_idx, field_declaring_class->GetDexCache());
+}
+
+inline ArtField* ClassLinker::ResolveField(uint32_t field_idx, mirror::ArtMethod* referrer,
                                                    bool is_static) {
   mirror::Class* declaring_class = referrer->GetDeclaringClass();
-  mirror::ArtField* resolved_field = GetResolvedField(field_idx, declaring_class);
+  ArtField* resolved_field = GetResolvedField(field_idx, declaring_class);
   if (UNLIKELY(resolved_field == NULL)) {
     StackHandleScope<2> hs(Thread::Current());
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
@@ -185,17 +189,6 @@ inline mirror::IfTable* ClassLinker::AllocIfTable(Thread* self, size_t ifcount) 
   return down_cast<mirror::IfTable*>(
       mirror::IfTable::Alloc(self, GetClassRoot(kObjectArrayClass),
                              ifcount * mirror::IfTable::kMax));
-}
-
-inline mirror::ObjectArray<mirror::ArtField>* ClassLinker::AllocArtFieldArray(Thread* self,
-                                                                              size_t length) {
-  gc::Heap* const heap = Runtime::Current()->GetHeap();
-  // Can't have movable field arrays for mark compact since we need these arrays to always be valid
-  // so that we can do Object::VisitReferences in the case where the fields don't fit in the
-  // reference offsets word.
-  return mirror::ObjectArray<mirror::ArtField>::Alloc(
-      self, GetClassRoot(kJavaLangReflectArtFieldArrayClass), length,
-      kMoveFieldArrays ? heap->GetCurrentAllocator() : heap->GetCurrentNonMovingAllocator());
 }
 
 inline mirror::Class* ClassLinker::GetClassRoot(ClassRoot class_root)

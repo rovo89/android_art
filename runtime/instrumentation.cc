@@ -929,7 +929,7 @@ void Instrumentation::BackwardBranchImpl(Thread* thread, mirror::ArtMethod* meth
 
 void Instrumentation::FieldReadEventImpl(Thread* thread, mirror::Object* this_object,
                                          mirror::ArtMethod* method, uint32_t dex_pc,
-                                         mirror::ArtField* field) const {
+                                         ArtField* field) const {
   if (HasFieldReadListeners()) {
     std::shared_ptr<std::list<InstrumentationListener*>> original(field_read_listeners_);
     for (InstrumentationListener* listener : *original.get()) {
@@ -940,7 +940,7 @@ void Instrumentation::FieldReadEventImpl(Thread* thread, mirror::Object* this_ob
 
 void Instrumentation::FieldWriteEventImpl(Thread* thread, mirror::Object* this_object,
                                          mirror::ArtMethod* method, uint32_t dex_pc,
-                                         mirror::ArtField* field, const JValue& field_value) const {
+                                         ArtField* field, const JValue& field_value) const {
   if (HasFieldWriteListeners()) {
     std::shared_ptr<std::list<InstrumentationListener*>> original(field_write_listeners_);
     for (InstrumentationListener* listener : *original.get()) {

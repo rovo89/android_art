@@ -57,8 +57,6 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
   bool movable = true;
   if (!kMovingMethods && c->IsArtMethodClass()) {
     movable = false;
-  } else if (!kMovingFields && c->IsArtFieldClass()) {
-    movable = false;
   } else if (!kMovingClasses && c->IsClassClass()) {
     movable = false;
   }

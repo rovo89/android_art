@@ -582,7 +582,7 @@ void Trace::DexPcMoved(Thread* thread, mirror::Object* this_object,
 }
 
 void Trace::FieldRead(Thread* thread, mirror::Object* this_object,
-                       mirror::ArtMethod* method, uint32_t dex_pc, mirror::ArtField* field)
+                       mirror::ArtMethod* method, uint32_t dex_pc, ArtField* field)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   UNUSED(thread, this_object, method, dex_pc, field);
   // We're not recorded to listen to this kind of event, so complain.
@@ -590,7 +590,7 @@ void Trace::FieldRead(Thread* thread, mirror::Object* this_object,
 }
 
 void Trace::FieldWritten(Thread* thread, mirror::Object* this_object,
-                          mirror::ArtMethod* method, uint32_t dex_pc, mirror::ArtField* field,
+                          mirror::ArtMethod* method, uint32_t dex_pc, ArtField* field,
                           const JValue& field_value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   UNUSED(thread, this_object, method, dex_pc, field, field_value);

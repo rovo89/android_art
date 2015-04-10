@@ -32,11 +32,11 @@
 #include <sstream>
 
 #include "arch/context.h"
+#include "art_field-inl.h"
 #include "base/mutex.h"
 #include "base/timing_logger.h"
 #include "base/to_str.h"
 #include "class_linker-inl.h"
-#include "class_linker.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
 #include "entrypoints/entrypoint_utils.h"
@@ -47,10 +47,8 @@
 #include "gc/heap.h"
 #include "gc/space/space.h"
 #include "handle_scope-inl.h"
-#include "handle_scope.h"
 #include "indirect_reference_table-inl.h"
 #include "jni_internal.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/class-inl.h"
@@ -173,7 +171,7 @@ void* Thread::CreateCallback(void* arg) {
     self->tlsPtr_.jpeer = nullptr;
     self->SetThreadName(self->GetThreadName(soa)->ToModifiedUtf8().c_str());
 
-    mirror::ArtField* priorityField = soa.DecodeField(WellKnownClasses::java_lang_Thread_priority);
+    ArtField* priorityField = soa.DecodeField(WellKnownClasses::java_lang_Thread_priority);
     self->SetNativePriority(priorityField->GetInt(self->tlsPtr_.opeer));
     Dbg::PostThreadStart(self);
 
@@ -190,7 +188,7 @@ void* Thread::CreateCallback(void* arg) {
 
 Thread* Thread::FromManagedThread(const ScopedObjectAccessAlreadyRunnable& soa,
                                   mirror::Object* thread_peer) {
-  mirror::ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_nativePeer);
+  ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_nativePeer);
   Thread* result = reinterpret_cast<Thread*>(static_cast<uintptr_t>(f->GetLong(thread_peer)));
   // Sanity check that if we have a result it is either suspended or we hold the thread_list_lock_
   // to stop it from going away.
@@ -589,7 +587,7 @@ void Thread::Dump(std::ostream& os) const {
 }
 
 mirror::String* Thread::GetThreadName(const ScopedObjectAccessAlreadyRunnable& soa) const {
-  mirror::ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_name);
+  ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_name);
   return (tlsPtr_.opeer != nullptr) ? reinterpret_cast<mirror::String*>(f->GetObject(tlsPtr_.opeer)) : nullptr;
 }
 
@@ -794,7 +792,7 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
         soa.DecodeField(WellKnownClasses::java_lang_Thread_group)->GetObject(thread->tlsPtr_.opeer);
 
     if (thread_group != nullptr) {
-      mirror::ArtField* group_name_field =
+      ArtField* group_name_field =
           soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_name);
       mirror::String* group_name_string =
           reinterpret_cast<mirror::String*>(group_name_field->GetObject(thread_group));

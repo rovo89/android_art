@@ -33,10 +33,10 @@
 namespace art {
 
 namespace mirror {
-  class ArtField;
   class ArtMethod;
 }  // namespace mirror
 
+class ArtField;
 class Thread;
 
 enum TracingMode {
@@ -99,10 +99,10 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
                   mirror::ArtMethod* method, uint32_t new_dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
   void FieldRead(Thread* thread, mirror::Object* this_object,
-                 mirror::ArtMethod* method, uint32_t dex_pc, mirror::ArtField* field)
+                 mirror::ArtMethod* method, uint32_t dex_pc, ArtField* field)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
   void FieldWritten(Thread* thread, mirror::Object* this_object,
-                    mirror::ArtMethod* method, uint32_t dex_pc, mirror::ArtField* field,
+                    mirror::ArtMethod* method, uint32_t dex_pc, ArtField* field,
                     const JValue& field_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
   void ExceptionCaught(Thread* thread, mirror::Throwable* exception_object)

@@ -25,11 +25,11 @@
 #include <backtrace/BacktraceMap.h>
 #include <gtest/gtest.h>
 
+#include "art_field-inl.h"
 #include "class_linker.h"
 #include "common_runtime_test.h"
 #include "compiler_callbacks.h"
 #include "mem_map.h"
-#include "mirror/art_field-inl.h"
 #include "os.h"
 #include "scoped_thread_state_change.h"
 #include "thread-inl.h"
@@ -959,25 +959,25 @@ TEST_F(OatFileAssistantTest, DexOptStatusValues) {
   ASSERT_FALSE(dexfile.Get() == nullptr);
   linker->EnsureInitialized(soa.Self(), dexfile, true, true);
 
-  mirror::ArtField* no_dexopt_needed = mirror::Class::FindStaticField(
+  ArtField* no_dexopt_needed = mirror::Class::FindStaticField(
       soa.Self(), dexfile, "NO_DEXOPT_NEEDED", "I");
   ASSERT_FALSE(no_dexopt_needed == nullptr);
   EXPECT_EQ(no_dexopt_needed->GetTypeAsPrimitiveType(), Primitive::kPrimInt);
   EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded, no_dexopt_needed->GetInt(dexfile.Get()));
 
-  mirror::ArtField* dex2oat_needed = mirror::Class::FindStaticField(
+  ArtField* dex2oat_needed = mirror::Class::FindStaticField(
       soa.Self(), dexfile, "DEX2OAT_NEEDED", "I");
   ASSERT_FALSE(dex2oat_needed == nullptr);
   EXPECT_EQ(dex2oat_needed->GetTypeAsPrimitiveType(), Primitive::kPrimInt);
   EXPECT_EQ(OatFileAssistant::kDex2OatNeeded, dex2oat_needed->GetInt(dexfile.Get()));
 
-  mirror::ArtField* patchoat_needed = mirror::Class::FindStaticField(
+  ArtField* patchoat_needed = mirror::Class::FindStaticField(
       soa.Self(), dexfile, "PATCHOAT_NEEDED", "I");
   ASSERT_FALSE(patchoat_needed == nullptr);
   EXPECT_EQ(patchoat_needed->GetTypeAsPrimitiveType(), Primitive::kPrimInt);
   EXPECT_EQ(OatFileAssistant::kPatchOatNeeded, patchoat_needed->GetInt(dexfile.Get()));
 
-  mirror::ArtField* self_patchoat_needed = mirror::Class::FindStaticField(
+  ArtField* self_patchoat_needed = mirror::Class::FindStaticField(
       soa.Self(), dexfile, "SELF_PATCHOAT_NEEDED", "I");
   ASSERT_FALSE(self_patchoat_needed == nullptr);
   EXPECT_EQ(self_patchoat_needed->GetTypeAsPrimitiveType(), Primitive::kPrimInt);

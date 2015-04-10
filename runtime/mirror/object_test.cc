@@ -722,14 +722,12 @@ TEST_F(ObjectTest, FindStaticField) {
                                      "Ljava/util/Comparator;") == NULL);
 
   // Right name and type.
-  Handle<ArtField> f1(hs.NewHandle(
-      c->FindDeclaredStaticField("CASE_INSENSITIVE_ORDER", "Ljava/util/Comparator;")));
-  Handle<ArtField> f2(hs.NewHandle(
-      mirror::Class::FindStaticField(soa.Self(), c, "CASE_INSENSITIVE_ORDER",
-                                     "Ljava/util/Comparator;")));
-  EXPECT_TRUE(f1.Get() != NULL);
-  EXPECT_TRUE(f2.Get() != NULL);
-  EXPECT_EQ(f1.Get(), f2.Get());
+  ArtField* f1 = c->FindDeclaredStaticField("CASE_INSENSITIVE_ORDER", "Ljava/util/Comparator;");
+  ArtField* f2 = mirror::Class::FindStaticField(soa.Self(), c, "CASE_INSENSITIVE_ORDER",
+                                                "Ljava/util/Comparator;");
+  EXPECT_TRUE(f1 != NULL);
+  EXPECT_TRUE(f2 != NULL);
+  EXPECT_EQ(f1, f2);
 
   // TODO: test static fields via superclasses.
   // TODO: test static fields via interfaces.

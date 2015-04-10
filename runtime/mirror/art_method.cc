@@ -53,7 +53,7 @@ GcRoot<Class> ArtMethod::java_lang_reflect_ArtMethod_;
 
 ArtMethod* ArtMethod::FromReflectedMethod(const ScopedObjectAccessAlreadyRunnable& soa,
                                           jobject jlr_method) {
-  mirror::ArtField* f =
+  ArtField* f =
       soa.DecodeField(WellKnownClasses::java_lang_reflect_AbstractMethod_artMethod);
   mirror::ArtMethod* method = f->GetObject(soa.Decode<mirror::Object*>(jlr_method))->AsArtMethod();
   DCHECK(method != nullptr);

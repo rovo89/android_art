@@ -20,7 +20,7 @@
 #include "base/casts.h"
 #include "java_vm_ext.h"
 #include "jni_env_ext-inl.h"
-#include "mirror/art_field.h"
+#include "art_field.h"
 #include "read_barrier.h"
 #include "thread-inl.h"
 #include "verify_object.h"
@@ -148,20 +148,16 @@ class ScopedObjectAccessAlreadyRunnable {
     return down_cast<T>(Self()->DecodeJObject(obj));
   }
 
-  mirror::ArtField* DecodeField(jfieldID fid) const
+  ArtField* DecodeField(jfieldID fid) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
-    CHECK(!kMovingFields);
-    mirror::ArtField* field = reinterpret_cast<mirror::ArtField*>(fid);
-    return ReadBarrier::BarrierForRoot<mirror::ArtField, kWithReadBarrier>(&field);
+    return reinterpret_cast<ArtField*>(fid);
   }
 
-  jfieldID EncodeField(mirror::ArtField* field) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  jfieldID EncodeField(ArtField* field) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
-    CHECK(!kMovingFields);
     return reinterpret_cast<jfieldID>(field);
   }
 

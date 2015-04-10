@@ -19,6 +19,7 @@
 
 #include "dex_cache.h"
 
+#include "art_field-inl.h"
 #include "base/logging.h"
 #include "mirror/class.h"
 #include "runtime.h"
@@ -35,18 +36,45 @@ inline ArtMethod* DexCache::GetResolvedMethod(uint32_t method_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ArtMethod* method = GetResolvedMethods()->Get(method_idx);
   // Hide resolution trampoline methods from the caller
-  if (method != NULL && method->IsRuntimeMethod()) {
-    DCHECK(method == Runtime::Current()->GetResolutionMethod());
-    return NULL;
-  } else {
-    return method;
+  if (method != nullptr && method->IsRuntimeMethod()) {
+    DCHECK_EQ(method, Runtime::Current()->GetResolutionMethod());
+    return nullptr;
   }
+  return method;
 }
 
 inline void DexCache::SetResolvedType(uint32_t type_idx, Class* resolved) {
   // TODO default transaction support.
   DCHECK(resolved == nullptr || !resolved->IsErroneous());
   GetResolvedTypes()->Set(type_idx, resolved);
+}
+
+inline ArtField* DexCache::GetResolvedField(uint32_t idx, size_t ptr_size) {
+  ArtField* field = nullptr;
+  if (ptr_size == 8) {
+    field = reinterpret_cast<ArtField*>(
+        static_cast<uintptr_t>(GetResolvedFields()->AsLongArray()->GetWithoutChecks(idx)));
+  } else {
+    DCHECK_EQ(ptr_size, 4u);
+    field = reinterpret_cast<ArtField*>(
+      static_cast<uintptr_t>(GetResolvedFields()->AsIntArray()->GetWithoutChecks(idx)));
+  }
+  if (field == nullptr || field->GetDeclaringClass()->IsErroneous()) {
+    return nullptr;
+  }
+  return field;
+}
+
+inline void DexCache::SetResolvedField(uint32_t idx, ArtField* field, size_t ptr_size) {
+  if (ptr_size == 8) {
+    GetResolvedFields()->AsLongArray()->Set(
+        idx, static_cast<uint64_t>(reinterpret_cast<uintptr_t>(field)));
+  } else {
+    DCHECK_EQ(ptr_size, 4u);
+    CHECK_LE(reinterpret_cast<uintptr_t>(field), 0xFFFFFFFF);
+    GetResolvedFields()->AsIntArray()->Set(
+        idx, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(field)));
+  }
 }
 
 }  // namespace mirror

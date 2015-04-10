@@ -14,57 +14,51 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_MIRROR_ART_FIELD_INL_H_
-#define ART_RUNTIME_MIRROR_ART_FIELD_INL_H_
+#ifndef ART_RUNTIME_ART_FIELD_INL_H_
+#define ART_RUNTIME_ART_FIELD_INL_H_
 
 #include "art_field.h"
 
 #include "base/logging.h"
 #include "class_linker.h"
-#include "dex_cache.h"
 #include "gc/accounting/card_table-inl.h"
 #include "jvalue.h"
-#include "object-inl.h"
+#include "mirror/dex_cache.h"
+#include "mirror/object-inl.h"
 #include "primitive.h"
 #include "thread-inl.h"
 #include "scoped_thread_state_change.h"
 #include "well_known_classes.h"
 
 namespace art {
-namespace mirror {
 
-inline uint32_t ArtField::ClassSize() {
-  uint32_t vtable_entries = Object::kVTableLength;
-  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0, 0, 0);
-}
-
-inline Class* ArtField::GetDeclaringClass() {
-  Class* result = GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(ArtField, declaring_class_));
-  DCHECK(result != NULL);
+inline mirror::Class* ArtField::GetDeclaringClass() {
+  mirror::Class* result = declaring_class_.Read();
+  DCHECK(result != nullptr);
   DCHECK(result->IsLoaded() || result->IsErroneous());
   return result;
 }
 
-inline void ArtField::SetDeclaringClass(Class *new_declaring_class) {
-  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(ArtField, declaring_class_), new_declaring_class);
+inline void ArtField::SetDeclaringClass(mirror::Class* new_declaring_class) {
+  declaring_class_ = GcRoot<mirror::Class>(new_declaring_class);
 }
 
 inline uint32_t ArtField::GetAccessFlags() {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
-  return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtField, access_flags_));
+  return access_flags_;
 }
 
 inline MemberOffset ArtField::GetOffset() {
   DCHECK(GetDeclaringClass()->IsResolved() || GetDeclaringClass()->IsErroneous());
-  return MemberOffset(GetField32(OFFSET_OF_OBJECT_MEMBER(ArtField, offset_)));
+  return MemberOffset(offset_);
 }
 
 inline MemberOffset ArtField::GetOffsetDuringLinking() {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
-  return MemberOffset(GetField32(OFFSET_OF_OBJECT_MEMBER(ArtField, offset_)));
+  return MemberOffset(offset_);
 }
 
-inline uint32_t ArtField::Get32(Object* object) {
+inline uint32_t ArtField::Get32(mirror::Object* object) {
   DCHECK(object != nullptr) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   if (UNLIKELY(IsVolatile())) {
@@ -74,7 +68,7 @@ inline uint32_t ArtField::Get32(Object* object) {
 }
 
 template<bool kTransactionActive>
-inline void ArtField::Set32(Object* object, uint32_t new_value) {
+inline void ArtField::Set32(mirror::Object* object, uint32_t new_value) {
   DCHECK(object != nullptr) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   if (UNLIKELY(IsVolatile())) {
@@ -84,7 +78,7 @@ inline void ArtField::Set32(Object* object, uint32_t new_value) {
   }
 }
 
-inline uint64_t ArtField::Get64(Object* object) {
+inline uint64_t ArtField::Get64(mirror::Object* object) {
   DCHECK(object != NULL) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   if (UNLIKELY(IsVolatile())) {
@@ -94,7 +88,7 @@ inline uint64_t ArtField::Get64(Object* object) {
 }
 
 template<bool kTransactionActive>
-inline void ArtField::Set64(Object* object, uint64_t new_value) {
+inline void ArtField::Set64(mirror::Object* object, uint64_t new_value) {
   DCHECK(object != NULL) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   if (UNLIKELY(IsVolatile())) {
@@ -104,17 +98,17 @@ inline void ArtField::Set64(Object* object, uint64_t new_value) {
   }
 }
 
-inline Object* ArtField::GetObj(Object* object) {
+inline mirror::Object* ArtField::GetObj(mirror::Object* object) {
   DCHECK(object != NULL) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   if (UNLIKELY(IsVolatile())) {
-    return object->GetFieldObjectVolatile<Object>(GetOffset());
+    return object->GetFieldObjectVolatile<mirror::Object>(GetOffset());
   }
-  return object->GetFieldObject<Object>(GetOffset());
+  return object->GetFieldObject<mirror::Object>(GetOffset());
 }
 
 template<bool kTransactionActive>
-inline void ArtField::SetObj(Object* object, Object* new_value) {
+inline void ArtField::SetObj(mirror::Object* object, mirror::Object* new_value) {
   DCHECK(object != NULL) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   if (UNLIKELY(IsVolatile())) {
@@ -143,46 +137,46 @@ inline void ArtField::SetObj(Object* object, Object* new_value) {
     object->SetField ## type<kTransactionActive>(GetOffset(), value); \
   }
 
-inline uint8_t ArtField::GetBoolean(Object* object) {
+inline uint8_t ArtField::GetBoolean(mirror::Object* object) {
   FIELD_GET(object, Boolean);
 }
 
 template<bool kTransactionActive>
-inline void ArtField::SetBoolean(Object* object, uint8_t z) {
+inline void ArtField::SetBoolean(mirror::Object* object, uint8_t z) {
   FIELD_SET(object, Boolean, z);
 }
 
-inline int8_t ArtField::GetByte(Object* object) {
+inline int8_t ArtField::GetByte(mirror::Object* object) {
   FIELD_GET(object, Byte);
 }
 
 template<bool kTransactionActive>
-inline void ArtField::SetByte(Object* object, int8_t b) {
+inline void ArtField::SetByte(mirror::Object* object, int8_t b) {
   FIELD_SET(object, Byte, b);
 }
 
-inline uint16_t ArtField::GetChar(Object* object) {
+inline uint16_t ArtField::GetChar(mirror::Object* object) {
   FIELD_GET(object, Char);
 }
 
 template<bool kTransactionActive>
-inline void ArtField::SetChar(Object* object, uint16_t c) {
+inline void ArtField::SetChar(mirror::Object* object, uint16_t c) {
   FIELD_SET(object, Char, c);
 }
 
-inline int16_t ArtField::GetShort(Object* object) {
+inline int16_t ArtField::GetShort(mirror::Object* object) {
   FIELD_GET(object, Short);
 }
 
 template<bool kTransactionActive>
-inline void ArtField::SetShort(Object* object, int16_t s) {
+inline void ArtField::SetShort(mirror::Object* object, int16_t s) {
   FIELD_SET(object, Short, s);
 }
 
 #undef FIELD_GET
 #undef FIELD_SET
 
-inline int32_t ArtField::GetInt(Object* object) {
+inline int32_t ArtField::GetInt(mirror::Object* object) {
   if (kIsDebugBuild) {
     Primitive::Type type = GetTypeAsPrimitiveType();
     CHECK(type == Primitive::kPrimInt || type == Primitive::kPrimFloat) << PrettyField(this);
@@ -191,7 +185,7 @@ inline int32_t ArtField::GetInt(Object* object) {
 }
 
 template<bool kTransactionActive>
-inline void ArtField::SetInt(Object* object, int32_t i) {
+inline void ArtField::SetInt(mirror::Object* object, int32_t i) {
   if (kIsDebugBuild) {
     Primitive::Type type = GetTypeAsPrimitiveType();
     CHECK(type == Primitive::kPrimInt || type == Primitive::kPrimFloat) << PrettyField(this);
@@ -199,7 +193,7 @@ inline void ArtField::SetInt(Object* object, int32_t i) {
   Set32<kTransactionActive>(object, i);
 }
 
-inline int64_t ArtField::GetLong(Object* object) {
+inline int64_t ArtField::GetLong(mirror::Object* object) {
   if (kIsDebugBuild) {
     Primitive::Type type = GetTypeAsPrimitiveType();
     CHECK(type == Primitive::kPrimLong || type == Primitive::kPrimDouble) << PrettyField(this);
@@ -208,7 +202,7 @@ inline int64_t ArtField::GetLong(Object* object) {
 }
 
 template<bool kTransactionActive>
-inline void ArtField::SetLong(Object* object, int64_t j) {
+inline void ArtField::SetLong(mirror::Object* object, int64_t j) {
   if (kIsDebugBuild) {
     Primitive::Type type = GetTypeAsPrimitiveType();
     CHECK(type == Primitive::kPrimLong || type == Primitive::kPrimDouble) << PrettyField(this);
@@ -216,7 +210,7 @@ inline void ArtField::SetLong(Object* object, int64_t j) {
   Set64<kTransactionActive>(object, j);
 }
 
-inline float ArtField::GetFloat(Object* object) {
+inline float ArtField::GetFloat(mirror::Object* object) {
   DCHECK_EQ(Primitive::kPrimFloat, GetTypeAsPrimitiveType()) << PrettyField(this);
   JValue bits;
   bits.SetI(Get32(object));
@@ -224,14 +218,14 @@ inline float ArtField::GetFloat(Object* object) {
 }
 
 template<bool kTransactionActive>
-inline void ArtField::SetFloat(Object* object, float f) {
+inline void ArtField::SetFloat(mirror::Object* object, float f) {
   DCHECK_EQ(Primitive::kPrimFloat, GetTypeAsPrimitiveType()) << PrettyField(this);
   JValue bits;
   bits.SetF(f);
   Set32<kTransactionActive>(object, bits.GetI());
 }
 
-inline double ArtField::GetDouble(Object* object) {
+inline double ArtField::GetDouble(mirror::Object* object) {
   DCHECK_EQ(Primitive::kPrimDouble, GetTypeAsPrimitiveType()) << PrettyField(this);
   JValue bits;
   bits.SetJ(Get64(object));
@@ -239,20 +233,20 @@ inline double ArtField::GetDouble(Object* object) {
 }
 
 template<bool kTransactionActive>
-inline void ArtField::SetDouble(Object* object, double d) {
+inline void ArtField::SetDouble(mirror::Object* object, double d) {
   DCHECK_EQ(Primitive::kPrimDouble, GetTypeAsPrimitiveType()) << PrettyField(this);
   JValue bits;
   bits.SetD(d);
   Set64<kTransactionActive>(object, bits.GetJ());
 }
 
-inline Object* ArtField::GetObject(Object* object) {
+inline mirror::Object* ArtField::GetObject(mirror::Object* object) {
   DCHECK_EQ(Primitive::kPrimNot, GetTypeAsPrimitiveType()) << PrettyField(this);
   return GetObj(object);
 }
 
 template<bool kTransactionActive>
-inline void ArtField::SetObject(Object* object, Object* l) {
+inline void ArtField::SetObject(mirror::Object* object, mirror::Object* l) {
   DCHECK_EQ(Primitive::kPrimNot, GetTypeAsPrimitiveType()) << PrettyField(this);
   SetObj<kTransactionActive>(object, l);
 }
@@ -291,7 +285,7 @@ inline bool ArtField::IsPrimitiveType() SHARED_LOCKS_REQUIRED(Locks::mutator_loc
 }
 
 template <bool kResolve>
-inline Class* ArtField::GetType() {
+inline mirror::Class* ArtField::GetType() {
   const uint32_t field_index = GetDexFieldIndex();
   auto* declaring_class = GetDeclaringClass();
   if (UNLIKELY(declaring_class->IsProxyClass())) {
@@ -321,7 +315,7 @@ inline const DexFile* ArtField::GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutato
   return GetDexCache()->GetDexFile();
 }
 
-inline String* ArtField::GetStringName(Thread* self, bool resolve) {
+inline mirror::String* ArtField::GetStringName(Thread* self, bool resolve) {
   auto dex_field_index = GetDexFieldIndex();
   CHECK_NE(dex_field_index, DexFile::kDexNoIndex);
   auto* dex_cache = GetDexCache();
@@ -336,7 +330,6 @@ inline String* ArtField::GetStringName(Thread* self, bool resolve) {
   return name;
 }
 
-}  // namespace mirror
 }  // namespace art
 
-#endif  // ART_RUNTIME_MIRROR_ART_FIELD_INL_H_
+#endif  // ART_RUNTIME_ART_FIELD_INL_H_

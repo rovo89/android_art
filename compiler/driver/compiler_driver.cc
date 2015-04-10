@@ -27,6 +27,7 @@
 #include <malloc.h>  // For mallinfo
 #endif
 
+#include "art_field-inl.h"
 #include "base/stl_util.h"
 #include "base/timing_logger.h"
 #include "class_linker.h"
@@ -48,7 +49,6 @@
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/heap_bitmap.h"
 #include "gc/space/space.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/class-inl.h"
@@ -1183,7 +1183,7 @@ uint32_t CompilerDriver::GetReferenceDisableFlagOffset() const {
 DexCacheArraysLayout CompilerDriver::GetDexCacheArraysLayout(const DexFile* dex_file) {
   // Currently only image dex caches have fixed array layout.
   return IsImage() && GetSupportBootImageFixup()
-      ? DexCacheArraysLayout(dex_file)
+      ? DexCacheArraysLayout(GetInstructionSetPointerSize(instruction_set_), dex_file)
       : DexCacheArraysLayout();
 }
 
@@ -1209,12 +1209,11 @@ void CompilerDriver::ProcessedInvoke(InvokeType invoke_type, int flags) {
   stats_->ProcessedInvoke(invoke_type, flags);
 }
 
-mirror::ArtField* CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx,
-                                                           const DexCompilationUnit* mUnit,
-                                                           bool is_put,
-                                                           const ScopedObjectAccess& soa) {
+ArtField* CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx,
+                                                   const DexCompilationUnit* mUnit, bool is_put,
+                                                   const ScopedObjectAccess& soa) {
   // Try to resolve the field and compiling method's class.
-  mirror::ArtField* resolved_field;
+  ArtField* resolved_field;
   mirror::Class* referrer_class;
   mirror::DexCache* dex_cache;
   {
@@ -1223,11 +1222,10 @@ mirror::ArtField* CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx,
         hs.NewHandle(mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile())));
     Handle<mirror::ClassLoader> class_loader_handle(
         hs.NewHandle(soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader())));
-    Handle<mirror::ArtField> resolved_field_handle(hs.NewHandle(
-        ResolveField(soa, dex_cache_handle, class_loader_handle, mUnit, field_idx, false)));
-    referrer_class = (resolved_field_handle.Get() != nullptr)
+    resolved_field =
+        ResolveField(soa, dex_cache_handle, class_loader_handle, mUnit, field_idx, false);
+    referrer_class = resolved_field != nullptr
         ? ResolveCompilingMethodsClass(soa, dex_cache_handle, class_loader_handle, mUnit) : nullptr;
-    resolved_field = resolved_field_handle.Get();
     dex_cache = dex_cache_handle.Get();
   }
   bool can_link = false;
@@ -1244,11 +1242,9 @@ bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompi
                                               bool is_put, MemberOffset* field_offset,
                                               bool* is_volatile) {
   ScopedObjectAccess soa(Thread::Current());
-  StackHandleScope<1> hs(soa.Self());
-  Handle<mirror::ArtField> resolved_field =
-      hs.NewHandle(ComputeInstanceFieldInfo(field_idx, mUnit, is_put, soa));
+  ArtField* resolved_field = ComputeInstanceFieldInfo(field_idx, mUnit, is_put, soa);
 
-  if (resolved_field.Get() == nullptr) {
+  if (resolved_field == nullptr) {
     // Conservative defaults.
     *is_volatile = true;
     *field_offset = MemberOffset(static_cast<size_t>(-1));
@@ -1267,20 +1263,19 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
                                             Primitive::Type* type) {
   ScopedObjectAccess soa(Thread::Current());
   // Try to resolve the field and compiling method's class.
-  mirror::ArtField* resolved_field;
+  ArtField* resolved_field;
   mirror::Class* referrer_class;
   mirror::DexCache* dex_cache;
   {
-    StackHandleScope<3> hs(soa.Self());
+    StackHandleScope<2> hs(soa.Self());
     Handle<mirror::DexCache> dex_cache_handle(
         hs.NewHandle(mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile())));
     Handle<mirror::ClassLoader> class_loader_handle(
         hs.NewHandle(soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader())));
-    Handle<mirror::ArtField> resolved_field_handle(hs.NewHandle(
-        ResolveField(soa, dex_cache_handle, class_loader_handle, mUnit, field_idx, true)));
-    referrer_class = (resolved_field_handle.Get() != nullptr)
+    resolved_field =
+        ResolveField(soa, dex_cache_handle, class_loader_handle, mUnit, field_idx, true);
+    referrer_class = resolved_field != nullptr
         ? ResolveCompilingMethodsClass(soa, dex_cache_handle, class_loader_handle, mUnit) : nullptr;
-    resolved_field = resolved_field_handle.Get();
     dex_cache = dex_cache_handle.Get();
   }
   bool result = false;
@@ -1728,7 +1723,7 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
     ClassDataItemIterator it(dex_file, class_data);
     while (it.HasNextStaticField()) {
       if (resolve_fields_and_methods) {
-        mirror::ArtField* field = class_linker->ResolveField(dex_file, it.GetMemberIndex(),
+        ArtField* field = class_linker->ResolveField(dex_file, it.GetMemberIndex(),
                                                              dex_cache, class_loader, true);
         if (field == nullptr) {
           CheckAndClearResolveException(soa.Self());
@@ -1743,7 +1738,7 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
         requires_constructor_barrier = true;
       }
       if (resolve_fields_and_methods) {
-        mirror::ArtField* field = class_linker->ResolveField(dex_file, it.GetMemberIndex(),
+        ArtField* field = class_linker->ResolveField(dex_file, it.GetMemberIndex(),
                                                              dex_cache, class_loader, false);
         if (field == nullptr) {
           CheckAndClearResolveException(soa.Self());

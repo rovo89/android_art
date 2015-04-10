@@ -15,18 +15,14 @@
  */
 
 #include "inline_method_analyser.h"
+
+#include "art_field-inl.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
 #include "dex_instruction-inl.h"
-#include "mirror/art_field.h"
-#include "mirror/art_field-inl.h"
-#include "mirror/art_method.h"
 #include "mirror/art_method-inl.h"
-#include "mirror/class.h"
 #include "mirror/class-inl.h"
-#include "mirror/dex_cache.h"
 #include "mirror/dex_cache-inl.h"
-#include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"
 
 /*
@@ -331,7 +327,7 @@ bool InlineMethodAnalyser::ComputeSpecialAccessorInfo(uint32_t field_idx, bool i
   mirror::DexCache* dex_cache = verifier->GetDexCache();
   uint32_t method_idx = verifier->GetMethodReference().dex_method_index;
   mirror::ArtMethod* method = dex_cache->GetResolvedMethod(method_idx);
-  mirror::ArtField* field = dex_cache->GetResolvedField(field_idx);
+  ArtField* field = Runtime::Current()->GetClassLinker()->GetResolvedField(field_idx, dex_cache);
   if (method == nullptr || field == nullptr || field->IsStatic()) {
     return false;
   }
