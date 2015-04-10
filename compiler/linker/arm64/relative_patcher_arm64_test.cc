@@ -42,6 +42,15 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
   // LDUR x2, [sp, #4], i.e. unaligned load crossing 64-bit boundary (assuming aligned sp).
   static constexpr uint32_t kLdurInsn = 0xf840405fu;
 
+  // LDR w12, <label> and LDR x12, <label>. Bits 5-23 contain label displacement in 4-byte units.
+  static constexpr uint32_t kLdrWPcRelInsn = 0x1800000cu;
+  static constexpr uint32_t kLdrXPcRelInsn = 0x5800000cu;
+
+  // LDR w13, [SP, #<pimm>] and LDR x13, [SP, #<pimm>]. Bits 10-21 contain displacement from SP
+  // in units of 4-bytes (for 32-bit load) or 8-bytes (for 64-bit load).
+  static constexpr uint32_t kLdrWSpRelInsn = 0xb94003edu;
+  static constexpr uint32_t kLdrXSpRelInsn = 0xf94003edu;
+
   uint32_t Create2MethodsWithGap(const ArrayRef<const uint8_t>& method1_code,
                                  const ArrayRef<const LinkerPatch>& method1_patches,
                                  const ArrayRef<const uint8_t>& last_method_code,
@@ -260,19 +269,42 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
     }
   }
 
-  void TestAdrpLdurLdr(uint32_t adrp_offset, bool has_thunk,
-                       uint32_t dex_cache_arrays_begin, uint32_t element_offset) {
+  void TestAdrpInsn2Ldr(uint32_t insn2, uint32_t adrp_offset, bool has_thunk,
+                        uint32_t dex_cache_arrays_begin, uint32_t element_offset) {
     uint32_t method1_offset =
         CompiledCode::AlignCode(kTrampolineSize, kArm64) + sizeof(OatQuickMethodHeader);
     ASSERT_LT(method1_offset, adrp_offset);
     ASSERT_EQ(adrp_offset & 3u, 0u);
     uint32_t num_nops = (adrp_offset - method1_offset) / 4u;
     if (has_thunk) {
-      TestNopsAdrpInsn2LdrHasThunk(num_nops, kLdurInsn, dex_cache_arrays_begin, element_offset);
+      TestNopsAdrpInsn2LdrHasThunk(num_nops, insn2, dex_cache_arrays_begin, element_offset);
     } else {
-      TestNopsAdrpInsn2Ldr(num_nops, kLdurInsn, dex_cache_arrays_begin, element_offset);
+      TestNopsAdrpInsn2Ldr(num_nops, insn2, dex_cache_arrays_begin, element_offset);
     }
     ASSERT_EQ(method1_offset, GetMethodOffset(1u));  // If this fails, num_nops is wrong.
+  }
+
+  void TestAdrpLdurLdr(uint32_t adrp_offset, bool has_thunk,
+                       uint32_t dex_cache_arrays_begin, uint32_t element_offset) {
+    TestAdrpInsn2Ldr(kLdurInsn, adrp_offset, has_thunk, dex_cache_arrays_begin, element_offset);
+  }
+
+  void TestAdrpLdrPcRelLdr(uint32_t pcrel_ldr_insn, int32_t pcrel_disp,
+                           uint32_t adrp_offset, bool has_thunk,
+                           uint32_t dex_cache_arrays_begin, uint32_t element_offset) {
+    ASSERT_LT(pcrel_disp, 0x100000);
+    ASSERT_GE(pcrel_disp, -0x100000);
+    ASSERT_EQ(pcrel_disp & 0x3, 0);
+    uint32_t insn2 = pcrel_ldr_insn | (((static_cast<uint32_t>(pcrel_disp) >> 2) & 0x7ffffu) << 5);
+    TestAdrpInsn2Ldr(insn2, adrp_offset, has_thunk, dex_cache_arrays_begin, element_offset);
+  }
+
+  void TestAdrpLdrSpRelLdr(uint32_t sprel_ldr_insn, uint32_t sprel_disp_in_load_units,
+                           uint32_t adrp_offset, bool has_thunk,
+                           uint32_t dex_cache_arrays_begin, uint32_t element_offset) {
+    ASSERT_LT(sprel_disp_in_load_units, 0x1000u);
+    uint32_t insn2 = sprel_ldr_insn | ((sprel_disp_in_load_units & 0xfffu) << 10);
+    TestAdrpInsn2Ldr(insn2, adrp_offset, has_thunk, dex_cache_arrays_begin, element_offset);
   }
 };
 
@@ -508,6 +540,43 @@ TEST_F(Arm64RelativePatcherTestDenver64, DexCacheReference0xffc) {
 TEST_F(Arm64RelativePatcherTestDenver64, DexCacheReference0x1000) {
   TestAdrpLdurLdr(0x1000u, false, 0x12345678u, 0x1234u);
 }
+
+#define TEST_FOR_OFFSETS(test, disp1, disp2) \
+  test(0xff4u, disp1) test(0xff8u, disp1) test(0xffcu, disp1) test(0x1000u, disp1) \
+  test(0xff4u, disp2) test(0xff8u, disp2) test(0xffcu, disp2) test(0x1000u, disp2)
+
+// LDR <Wt>, <label> is always aligned. We should never have to use a fixup.
+#define LDRW_PCREL_TEST(adrp_offset, disp) \
+  TEST_F(Arm64RelativePatcherTestDefault, DexCacheReference ## adrp_offset ## WPcRel ## disp) { \
+    TestAdrpLdrPcRelLdr(kLdrWPcRelInsn, disp, adrp_offset, false, 0x12345678u, 0x1234u); \
+  }
+
+TEST_FOR_OFFSETS(LDRW_PCREL_TEST, 0x1234, 0x1238)
+
+// LDR <Xt>, <label> is aligned when offset + displacement is a multiple of 8.
+#define LDRX_PCREL_TEST(adrp_offset, disp) \
+  TEST_F(Arm64RelativePatcherTestDefault, DexCacheReference ## adrp_offset ## XPcRel ## disp) { \
+    bool unaligned = ((adrp_offset + 4u + static_cast<uint32_t>(disp)) & 7u) != 0; \
+    bool has_thunk = (adrp_offset == 0xff8u || adrp_offset == 0xffcu) && unaligned; \
+    TestAdrpLdrPcRelLdr(kLdrXPcRelInsn, disp, adrp_offset, has_thunk, 0x12345678u, 0x1234u); \
+  }
+
+TEST_FOR_OFFSETS(LDRX_PCREL_TEST, 0x1234, 0x1238)
+
+// LDR <Wt>, [SP, #<pimm>] and LDR <Xt>, [SP, #<pimm>] are always aligned. No fixup needed.
+#define LDRW_SPREL_TEST(adrp_offset, disp) \
+  TEST_F(Arm64RelativePatcherTestDefault, DexCacheReference ## adrp_offset ## WSpRel ## disp) { \
+    TestAdrpLdrSpRelLdr(kLdrWSpRelInsn, disp >> 2, adrp_offset, false, 0x12345678u, 0x1234u); \
+  }
+
+TEST_FOR_OFFSETS(LDRW_SPREL_TEST, 0, 4)
+
+#define LDRX_SPREL_TEST(adrp_offset, disp) \
+  TEST_F(Arm64RelativePatcherTestDefault, DexCacheReference ## adrp_offset ## XSpRel ## disp) { \
+    TestAdrpLdrSpRelLdr(kLdrXSpRelInsn, disp >> 3, adrp_offset, false, 0x12345678u, 0x1234u); \
+  }
+
+TEST_FOR_OFFSETS(LDRX_SPREL_TEST, 0, 8)
 
 }  // namespace linker
 }  // namespace art
