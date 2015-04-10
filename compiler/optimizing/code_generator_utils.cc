@@ -18,13 +18,15 @@
 
 #include "base/logging.h"
 
+namespace art {
+
 void CalculateMagicAndShiftForDivRem(int64_t divisor, bool is_long,
                                      int64_t* magic, int* shift) {
   // It does not make sense to calculate magic and shift for zero divisor.
   DCHECK_NE(divisor, 0);
 
-  /* According to implementation from H.S.Warren's "Hacker's Delight" (Addison Wesley, 2002)
-   * Chapter 10 and T,Grablund, P.L.Montogomery's "Division by Invariant Integers Using
+  /* Implementation according to H.S.Warren's "Hacker's Delight" (Addison Wesley, 2002)
+   * Chapter 10 and T.Grablund, P.L.Montogomery's "Division by Invariant Integers Using
    * Multiplication" (PLDI 1994).
    * The magic number M and shift S can be calculated in the following way:
    * Let nc be the most positive value of numerator(n) such that nc = kd - 1,
@@ -39,11 +41,11 @@ void CalculateMagicAndShiftForDivRem(int64_t divisor, bool is_long,
    * 2^p > nc * (d - 2^p % d), where d >= 2
    * 2^p > nc * (d + 2^p % d), where d <= -2.
    *
-   * The magic number M is calcuated by
+   * The magic number M is calculated by
    * M = (2^p + d - 2^p % d) / d, where d >= 2
    * M = (2^p - d - 2^p % d) / d, where d <= -2.
    *
-   * Notice that p is always bigger than or equal to 32 (resp. 64), so we just return 32-p
+   * Notice that p is always bigger than or equal to 32 (resp. 64), so we just return 32 - p
    * (resp. 64 - p) as the shift number S.
    */
 
@@ -52,9 +54,10 @@ void CalculateMagicAndShiftForDivRem(int64_t divisor, bool is_long,
 
   // Initialize the computations.
   uint64_t abs_d = (divisor >= 0) ? divisor : -divisor;
-  uint64_t tmp = exp + (is_long ? static_cast<uint64_t>(divisor) >> 63 :
-                                    static_cast<uint32_t>(divisor) >> 31);
-  uint64_t abs_nc = tmp - 1 - tmp % abs_d;
+  uint64_t sign_bit = is_long ? static_cast<uint64_t>(divisor) >> 63 :
+                                static_cast<uint32_t>(divisor) >> 31;
+  uint64_t tmp = exp + sign_bit;
+  uint64_t abs_nc = tmp - 1 - (tmp % abs_d);
   uint64_t quotient1 = exp / abs_nc;
   uint64_t remainder1 = exp % abs_nc;
   uint64_t quotient2 = exp / abs_d;
@@ -91,3 +94,4 @@ void CalculateMagicAndShiftForDivRem(int64_t divisor, bool is_long,
   *shift = is_long ? p - 64 : p - 32;
 }
 
+}  // namespace art
