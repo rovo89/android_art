@@ -52,14 +52,6 @@ class QuickCompiler : public Compiler {
   uintptr_t GetEntryPointOf(mirror::ArtMethod* method) const OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool WriteElf(art::File* file,
-                OatWriter* oat_writer,
-                const std::vector<const art::DexFile*>& dex_files,
-                const std::string& android_root,
-                bool is_host) const
-    OVERRIDE
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   static Mir2Lir* GetCodeGenerator(CompilationUnit* cu, void* compilation_unit);
 
   void InitCompilationUnit(CompilationUnit& cu) const OVERRIDE;

@@ -63,13 +63,6 @@ class Compiler {
   virtual uintptr_t GetEntryPointOf(mirror::ArtMethod* method) const
      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
 
-  virtual bool WriteElf(art::File* file,
-                        OatWriter* oat_writer,
-                        const std::vector<const art::DexFile*>& dex_files,
-                        const std::string& android_root,
-                        bool is_host) const
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
-
   uint64_t GetMaximumCompilationTimeBeforeWarning() const {
     return maximum_compilation_time_before_warning_;
   }
@@ -106,9 +99,6 @@ class Compiler {
   CompilerDriver* GetCompilerDriver() const {
     return driver_;
   }
-
-  // Whether to produce 64-bit ELF files for 64-bit targets. Leave this off for now.
-  static constexpr bool kProduce64BitELFFiles = false;
 
  private:
   CompilerDriver* const driver_;
