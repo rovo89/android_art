@@ -252,6 +252,25 @@ TEST(Leb128Test, SignedStream) {
   EXPECT_EQ(data_size, static_cast<size_t>(encoded_data_ptr - encoded_data));
 }
 
+TEST(Leb128Test, UnsignedUpdate) {
+  for (size_t i = 0; i < arraysize(uleb128_tests); ++i) {
+    for (size_t j = 0; j < arraysize(uleb128_tests); ++j) {
+      uint32_t old_value = uleb128_tests[i].decoded;
+      uint32_t new_value = uleb128_tests[j].decoded;
+      // We can only make the encoded value smaller.
+      if (new_value <= old_value) {
+        uint8_t encoded_data[5];
+        uint8_t* old_end = EncodeUnsignedLeb128(encoded_data, old_value);
+        UpdateUnsignedLeb128(encoded_data, new_value);
+        const uint8_t* new_end = encoded_data;
+        EXPECT_EQ(DecodeUnsignedLeb128(&new_end), new_value);
+        // Even if the new value needs fewer bytes, we should fill the space.
+        EXPECT_EQ(new_end, old_end);
+      }
+    }
+  }
+}
+
 TEST(Leb128Test, Speed) {
   std::unique_ptr<Histogram<uint64_t>> enc_hist(new Histogram<uint64_t>("Leb128EncodeSpeedTest", 5));
   std::unique_ptr<Histogram<uint64_t>> dec_hist(new Histogram<uint64_t>("Leb128DecodeSpeedTest", 5));
