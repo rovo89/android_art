@@ -28,7 +28,6 @@
 #include "gc/heap.h"
 #include "gc/space/space.h"
 #include "gc/space/image_space.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"

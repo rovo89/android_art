@@ -281,11 +281,10 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
         // object in the destructor.
         Class* field_class;
         {
-          StackHandleScope<3> hs(self);
-          HandleWrapper<mirror::ArtField> h_f(hs.NewHandleWrapper(&f));
+          StackHandleScope<2> hs(self);
           HandleWrapper<mirror::Object> h_reg(hs.NewHandleWrapper(&reg));
           HandleWrapper<mirror::Object> h_obj(hs.NewHandleWrapper(&obj));
-          field_class = h_f->GetType<true>();
+          field_class = f->GetType<true>();
         }
         if (!reg->VerifierInstanceOf(field_class)) {
           // This should never happen.

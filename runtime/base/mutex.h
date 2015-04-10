@@ -73,6 +73,7 @@ enum LockLevel {
   kRosAllocBulkFreeLock,
   kAllocSpaceLock,
   kBumpPointerSpaceBlockLock,
+  kArenaPoolLock,
   kDexFileMethodInlinerLock,
   kDexFileToMethodInlinerMapLock,
   kMarkSweepMarkStackLock,

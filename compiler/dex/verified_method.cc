@@ -222,7 +222,7 @@ bool VerifiedMethod::GenerateDequickenMap(verifier::MethodVerifier* method_verif
     } else if (IsInstructionIGetQuickOrIPutQuick(inst->Opcode())) {
       uint32_t dex_pc = inst->GetDexPc(insns);
       verifier::RegisterLine* line = method_verifier->GetRegLine(dex_pc);
-      mirror::ArtField* field = method_verifier->GetQuickFieldAccess(inst, line);
+      ArtField* field = method_verifier->GetQuickFieldAccess(inst, line);
       if (field == nullptr) {
         // It can be null if the line wasn't verified since it was unreachable.
         return false;

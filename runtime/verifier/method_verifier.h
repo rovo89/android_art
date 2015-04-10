@@ -191,7 +191,7 @@ class MethodVerifier {
 
   // Returns the accessed field corresponding to the quick instruction's field
   // offset at 'dex_pc' in method 'm'.
-  static mirror::ArtField* FindAccessedFieldAtDexPc(mirror::ArtMethod* m, uint32_t dex_pc)
+  static ArtField* FindAccessedFieldAtDexPc(mirror::ArtMethod* m, uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns the invoked method corresponding to the quick instruction's vtable
@@ -250,7 +250,7 @@ class MethodVerifier {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Returns the access field of a quick field access (iget/iput-quick) or nullptr
   // if it cannot be found.
-  mirror::ArtField* GetQuickFieldAccess(const Instruction* inst, RegisterLine* reg_line)
+  ArtField* GetQuickFieldAccess(const Instruction* inst, RegisterLine* reg_line)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Is the method being verified a constructor?
@@ -301,7 +301,7 @@ class MethodVerifier {
 
   void FindLocksAtDexPc() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::ArtField* FindAccessedFieldAtDexPc(uint32_t dex_pc)
+  ArtField* FindAccessedFieldAtDexPc(uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::ArtMethod* FindInvokedMethodAtDexPc(uint32_t dex_pc)
@@ -525,11 +525,11 @@ class MethodVerifier {
                   bool is_primitive) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Lookup instance field and fail for resolution violations
-  mirror::ArtField* GetInstanceField(const RegType& obj_type, int field_idx)
+  ArtField* GetInstanceField(const RegType& obj_type, int field_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Lookup static field and fail for resolution violations
-  mirror::ArtField* GetStaticField(int field_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ArtField* GetStaticField(int field_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Perform verification of an iget/sget/iput/sput instruction.
   enum class FieldAccessType {  // private

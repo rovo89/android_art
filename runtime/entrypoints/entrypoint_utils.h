@@ -30,14 +30,14 @@
 namespace art {
 
 namespace mirror {
-  class Class;
   class Array;
-  class ArtField;
   class ArtMethod;
+  class Class;
   class Object;
   class String;
 }  // namespace mirror
 
+class ArtField;
 class ScopedObjectAccessAlreadyRunnable;
 class Thread;
 
@@ -132,7 +132,7 @@ enum FindFieldType {
 };
 
 template<FindFieldType type, bool access_check>
-inline mirror::ArtField* FindFieldFromCode(uint32_t field_idx, mirror::ArtMethod* referrer,
+inline ArtField* FindFieldFromCode(uint32_t field_idx, mirror::ArtMethod* referrer,
                                            Thread* self, size_t expected_size)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -143,7 +143,7 @@ inline mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx,
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Fast path field resolution that can't initialize classes or throw exceptions.
-inline mirror::ArtField* FindFieldFast(uint32_t field_idx,
+inline ArtField* FindFieldFast(uint32_t field_idx,
                                        mirror::ArtMethod* referrer,
                                        FindFieldType type, size_t expected_size)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

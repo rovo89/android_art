@@ -33,11 +33,11 @@ struct iovec;
 
 namespace art {
 
+class ArtField;
 union JValue;
 class Thread;
 
 namespace mirror {
-  class ArtField;
   class ArtMethod;
   class Class;
   class Object;
@@ -207,7 +207,7 @@ struct JdwpState {
    * "fieldValue" is non-null for field modification events only.
    * "is_modification" is true for field modification, false for field access.
    */
-  void PostFieldEvent(const EventLocation* pLoc, mirror::ArtField* field, mirror::Object* thisPtr,
+  void PostFieldEvent(const EventLocation* pLoc, ArtField* field, mirror::Object* thisPtr,
                       const JValue* fieldValue, bool is_modification)
       LOCKS_EXCLUDED(event_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

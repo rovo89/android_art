@@ -203,7 +203,7 @@ inline void PrimitiveArray<T>::VisitRoots(RootVisitor* visitor) {
 template<typename T>
 inline PrimitiveArray<T>* PrimitiveArray<T>::Alloc(Thread* self, size_t length) {
   Array* raw_array = Array::Alloc<true>(self, GetArrayClass(), length,
-                                        ComponentSizeShiftWidth<sizeof(T)>(),
+                                        ComponentSizeShiftWidth(sizeof(T)),
                                         Runtime::Current()->GetHeap()->GetCurrentAllocator());
   return down_cast<PrimitiveArray<T>*>(raw_array);
 }

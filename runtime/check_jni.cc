@@ -19,6 +19,7 @@
 #include <sys/mman.h>
 #include <zlib.h>
 
+#include "art_field-inl.h"
 #include "base/logging.h"
 #include "base/to_str.h"
 #include "class_linker.h"
@@ -27,7 +28,6 @@
 #include "gc/space/space.h"
 #include "java_vm_ext.h"
 #include "jni_internal.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
@@ -169,7 +169,7 @@ class ScopedCheck {
       return false;
     }
 
-    mirror::ArtField* f = CheckFieldID(soa, fid);
+    ArtField* f = CheckFieldID(soa, fid);
     if (f == nullptr) {
       return false;
     }
@@ -248,7 +248,7 @@ class ScopedCheck {
   bool CheckStaticFieldID(ScopedObjectAccess& soa, jclass java_class, jfieldID fid)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::Class* c = soa.Decode<mirror::Class*>(java_class);
-    mirror::ArtField* f = CheckFieldID(soa, fid);
+    ArtField* f = CheckFieldID(soa, fid);
     if (f == nullptr) {
       return false;
     }
@@ -565,7 +565,7 @@ class ScopedCheck {
     if (!is_static && !CheckInstanceFieldID(soa, obj, fid)) {
       return false;
     }
-    mirror::ArtField* field = soa.DecodeField(fid);
+    ArtField* field = soa.DecodeField(fid);
     DCHECK(field != nullptr);  // Already checked by Check.
     if (is_static != field->IsStatic()) {
       AbortF("attempt to access %s field %s: %p",
@@ -817,7 +817,7 @@ class ScopedCheck {
       }
       case 'f': {  // jfieldID
         jfieldID fid = arg.f;
-        mirror::ArtField* f = soa.DecodeField(fid);
+        ArtField* f = soa.DecodeField(fid);
         *msg += PrettyField(f);
         if (!entry) {
           StringAppendF(msg, " (%p)", fid);
@@ -986,14 +986,15 @@ class ScopedCheck {
     return true;
   }
 
-  mirror::ArtField* CheckFieldID(ScopedObjectAccess& soa, jfieldID fid)
+  ArtField* CheckFieldID(ScopedObjectAccess& soa, jfieldID fid)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (fid == nullptr) {
       AbortF("jfieldID was NULL");
       return nullptr;
     }
-    mirror::ArtField* f = soa.DecodeField(fid);
-    if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(f) || !f->IsArtField()) {
+    ArtField* f = soa.DecodeField(fid);
+    // TODO: Better check here.
+    if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(f->GetDeclaringClass())) {
       Runtime::Current()->GetHeap()->DumpSpaces(LOG(ERROR));
       AbortF("invalid jfieldID: %p", fid);
       return nullptr;

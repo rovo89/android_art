@@ -25,11 +25,11 @@
 
 namespace art {
 
+class ArtField;
 struct FieldOffsets;
 
 namespace mirror {
 
-class ArtField;
 class Class;
 class String;
 
@@ -93,10 +93,10 @@ class MANAGED Field : public AccessibleObject {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Slow, try to use only for PrettyField and such.
-  mirror::ArtField* GetArtField() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ArtField* GetArtField() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template <bool kTransactionActive = false>
-  static mirror::Field* CreateFromArtField(Thread* self, mirror::ArtField* field,
+  static mirror::Field* CreateFromArtField(Thread* self, ArtField* field,
                                            bool force_resolve)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

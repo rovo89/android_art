@@ -90,7 +90,7 @@ class ImageWriter FINAL {
   }
 
   uint8_t* GetOatFileBegin() const {
-    return image_begin_ + RoundUp(image_end_, kPageSize);
+    return image_begin_ + RoundUp(image_end_ + bin_slot_sizes_[kBinArtField], kPageSize);
   }
 
   bool Write(const std::string& image_filename,
@@ -127,12 +127,16 @@ class ImageWriter FINAL {
     kBinArtMethodNative,          // Art method that is actually native
     kBinArtMethodNotInitialized,  // Art method with a declaring class that wasn't initialized
     // Add more bins here if we add more segregation code.
+    // Non mirror fields must be below. ArtFields should be always clean.
+    kBinArtField,
     kBinSize,
+    // Number of bins which are for mirror objects.
+    kBinMirrorCount = kBinArtField,
   };
 
   friend std::ostream& operator<<(std::ostream& stream, const Bin& bin);
 
-  static constexpr size_t kBinBits = MinimumBitsToStore(kBinSize - 1);
+  static constexpr size_t kBinBits = MinimumBitsToStore(kBinMirrorCount - 1);
   // uint32 = typeof(lockword_)
   static constexpr size_t kBinShift = BitSizeOf<uint32_t>() - kBinBits;
   // 111000.....0
@@ -251,10 +255,17 @@ class ImageWriter FINAL {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Creates the contiguous image in memory and adjusts pointers.
+  void CopyAndFixupNativeData() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void CopyAndFixupObjects() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void CopyAndFixupObjectsCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void CopyAndFixupObject(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool CopyAndFixupIfDexCacheFieldArray(mirror::Object* dst, mirror::Object* obj,
+                                        mirror::Class* klass)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void FixupMethod(mirror::ArtMethod* orig, mirror::ArtMethod* copy)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void FixupClass(mirror::Class* orig, mirror::Class* copy)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void FixupObject(mirror::Object* orig, mirror::Object* copy)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -295,8 +306,13 @@ class ImageWriter FINAL {
   // Memory mapped for generating the image.
   std::unique_ptr<MemMap> image_;
 
-  // Indexes for dex cache arrays (objects are inside of the image so that they don't move).
-  SafeMap<mirror::Object*, size_t> dex_cache_array_indexes_;
+  // Indexes, lengths for dex cache arrays (objects are inside of the image so that they don't
+  // move).
+  struct DexCacheArrayLocation {
+    size_t offset_;
+    size_t length_;
+  };
+  SafeMap<mirror::Object*, DexCacheArrayLocation> dex_cache_array_indexes_;
 
   // The start offsets of the dex cache arrays.
   SafeMap<const DexFile*, size_t> dex_cache_array_starts_;
@@ -330,6 +346,11 @@ class ImageWriter FINAL {
   size_t bin_slot_sizes_[kBinSize];  // Number of bytes in a bin
   size_t bin_slot_previous_sizes_[kBinSize];  // Number of bytes in previous bins.
   size_t bin_slot_count_[kBinSize];  // Number of objects in a bin
+
+  // ArtField relocating map, ArtFields are allocated as array of structs but we want to have one
+  // entry per art field for convenience.
+  // ArtFields are placed right after the end of the image objects (aka sum of bin_slot_sizes_).
+  std::unordered_map<ArtField*, uintptr_t> art_field_reloc_;
 
   void* string_data_array_;  // The backing for the interned strings.
 

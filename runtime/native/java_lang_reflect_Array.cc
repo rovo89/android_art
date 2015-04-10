@@ -63,7 +63,7 @@ static jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementCl
   DCHECK(array_class->IsObjectArrayClass());
   mirror::Array* new_array = mirror::Array::Alloc<true>(
       soa.Self(), array_class, length,
-      ComponentSizeShiftWidth<sizeof(mirror::HeapReference<mirror::Object>)>(),
+      ComponentSizeShiftWidth(sizeof(mirror::HeapReference<mirror::Object>)),
       runtime->GetHeap()->GetCurrentAllocator());
   return soa.AddLocalReference<jobject>(new_array);
 }

@@ -252,7 +252,7 @@ inline mirror::Array* AllocArrayFromCodeResolved(mirror::Class* klass,
 }
 
 template<FindFieldType type, bool access_check>
-inline mirror::ArtField* FindFieldFromCode(uint32_t field_idx, mirror::ArtMethod* referrer,
+inline ArtField* FindFieldFromCode(uint32_t field_idx, mirror::ArtMethod* referrer,
                                            Thread* self, size_t expected_size) {
   bool is_primitive;
   bool is_set;
@@ -269,7 +269,7 @@ inline mirror::ArtField* FindFieldFromCode(uint32_t field_idx, mirror::ArtMethod
     default:                     is_primitive = true;  is_set = true;  is_static = true;  break;
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  mirror::ArtField* resolved_field = class_linker->ResolveField(field_idx, referrer, is_static);
+  ArtField* resolved_field = class_linker->ResolveField(field_idx, referrer, is_static);
   if (UNLIKELY(resolved_field == nullptr)) {
     DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
     return nullptr;  // Failure.
@@ -324,7 +324,7 @@ inline mirror::ArtField* FindFieldFromCode(uint32_t field_idx, mirror::ArtMethod
 // Explicit template declarations of FindFieldFromCode for all field access types.
 #define EXPLICIT_FIND_FIELD_FROM_CODE_TEMPLATE_DECL(_type, _access_check) \
 template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE \
-mirror::ArtField* FindFieldFromCode<_type, _access_check>(uint32_t field_idx, \
+ArtField* FindFieldFromCode<_type, _access_check>(uint32_t field_idx, \
                                                           mirror::ArtMethod* referrer, \
                                                           Thread* self, size_t expected_size) \
 
@@ -469,11 +469,11 @@ EXPLICIT_FIND_METHOD_FROM_CODE_TYPED_TEMPLATE_DECL(kInterface);
 #undef EXPLICIT_FIND_METHOD_FROM_CODE_TEMPLATE_DECL
 
 // Fast path field resolution that can't initialize classes or throw exceptions.
-inline mirror::ArtField* FindFieldFast(uint32_t field_idx,
+inline ArtField* FindFieldFast(uint32_t field_idx,
                                        mirror::ArtMethod* referrer,
                                        FindFieldType type, size_t expected_size) {
-  mirror::ArtField* resolved_field =
-      referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
+  ArtField* resolved_field =
+      referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx, sizeof(void*));
   if (UNLIKELY(resolved_field == nullptr)) {
     return nullptr;
   }

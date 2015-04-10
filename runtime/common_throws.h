@@ -22,11 +22,11 @@
 
 namespace art {
 namespace mirror {
-  class ArtField;
   class ArtMethod;
   class Class;
   class Object;
 }  // namespace mirror
+class ArtField;
 class Signature;
 class StringPiece;
 
@@ -81,10 +81,10 @@ void ThrowIllegalAccessErrorClassForMethodDispatch(mirror::Class* referrer, mirr
 void ThrowIllegalAccessErrorMethod(mirror::Class* referrer, mirror::ArtMethod* accessed)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowIllegalAccessErrorField(mirror::Class* referrer, mirror::ArtField* accessed)
+void ThrowIllegalAccessErrorField(mirror::Class* referrer, ArtField* accessed)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowIllegalAccessErrorFinalField(mirror::ArtMethod* referrer, mirror::ArtField* accessed)
+void ThrowIllegalAccessErrorFinalField(mirror::ArtMethod* referrer, ArtField* accessed)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
 void ThrowIllegalAccessError(mirror::Class* referrer, const char* fmt, ...)
@@ -112,7 +112,7 @@ void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(mirror::ArtMetho
                                                                 mirror::ArtMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowIncompatibleClassChangeErrorField(mirror::ArtField* resolved_field, bool is_static,
+void ThrowIncompatibleClassChangeErrorField(ArtField* resolved_field, bool is_static,
                                             mirror::ArtMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
@@ -160,7 +160,7 @@ void ThrowNoSuchMethodError(uint32_t method_idx)
 
 // NullPointerException
 
-void ThrowNullPointerExceptionForFieldAccess(mirror::ArtField* field,
+void ThrowNullPointerExceptionForFieldAccess(ArtField* field,
                                              bool is_read)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 

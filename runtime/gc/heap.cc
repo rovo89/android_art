@@ -23,6 +23,7 @@
 #include <memory>
 #include <vector>
 
+#include "art_field-inl.h"
 #include "base/allocator.h"
 #include "base/dumpable.h"
 #include "base/histogram-inl.h"
@@ -58,7 +59,6 @@
 #include "heap-inl.h"
 #include "image.h"
 #include "intern_table.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object.h"
 #include "mirror/object-inl.h"
@@ -233,7 +233,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       CHECK_GT(oat_file_end_addr, image_space->End());
       requested_alloc_space_begin = AlignUp(oat_file_end_addr, kPageSize);
     } else {
-      LOG(WARNING) << "Could not create image space with image file '" << image_file_name << "'. "
+      LOG(ERROR) << "Could not create image space with image file '" << image_file_name << "'. "
                    << "Attempting to fall back to imageless running. Error was: " << error_msg;
     }
   }
@@ -482,7 +482,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
                                       non_moving_space_->GetMemMap());
     if (!no_gap) {
       MemMap::DumpMaps(LOG(ERROR));
-      LOG(FATAL) << "There's a gap between the image space and the main space";
+      LOG(FATAL) << "There's a gap between the image space and the non-moving space";
     }
   }
   if (running_on_valgrind_) {
@@ -2708,12 +2708,12 @@ class VerifyReferenceCardVisitor {
           // Print which field of the object is dead.
           if (!obj->IsObjectArray()) {
             mirror::Class* klass = is_static ? obj->AsClass() : obj->GetClass();
-            CHECK(klass != NULL);
-            mirror::ObjectArray<mirror::ArtField>* fields = is_static ? klass->GetSFields()
-                                                                      : klass->GetIFields();
-            CHECK(fields != NULL);
-            for (int32_t i = 0; i < fields->GetLength(); ++i) {
-              mirror::ArtField* cur = fields->Get(i);
+            CHECK(klass != nullptr);
+            auto* fields = is_static ? klass->GetSFields() : klass->GetIFields();
+            auto num_fields = is_static ? klass->NumStaticFields() : klass->NumInstanceFields();
+            CHECK_EQ(fields == nullptr, num_fields == 0u);
+            for (size_t i = 0; i < num_fields; ++i) {
+              ArtField* cur = &fields[i];
               if (cur->GetOffset().Int32Value() == offset.Int32Value()) {
                 LOG(ERROR) << (is_static ? "Static " : "") << "field in the live stack is "
                           << PrettyField(cur);

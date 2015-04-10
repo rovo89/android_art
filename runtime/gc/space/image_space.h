@@ -145,7 +145,7 @@ class ImageSpace : public MemMapSpace {
   std::unique_ptr<accounting::ContinuousSpaceBitmap> live_bitmap_;
 
   ImageSpace(const std::string& name, const char* image_location,
-             MemMap* mem_map, accounting::ContinuousSpaceBitmap* live_bitmap);
+             MemMap* mem_map, accounting::ContinuousSpaceBitmap* live_bitmap, uint8_t* end);
 
   // The OatFile associated with the image during early startup to
   // reserve space contiguous to the image. It is later released to

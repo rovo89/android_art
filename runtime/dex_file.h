@@ -37,11 +37,11 @@ namespace art {
 // TODO: remove dependencies on mirror classes, primarily by moving
 // EncodedStaticFieldValueIterator to its own file.
 namespace mirror {
-  class ArtField;
   class ArtMethod;
   class ClassLoader;
   class DexCache;
 }  // namespace mirror
+class ArtField;
 class ClassLinker;
 class MemMap;
 class OatDexFile;
@@ -1298,7 +1298,7 @@ class EncodedStaticFieldValueIterator {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<bool kTransactionActive>
-  void ReadValueToField(Handle<mirror::ArtField> field) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void ReadValueToField(ArtField* field) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasNext() const { return pos_ < array_size_; }
 

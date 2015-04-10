@@ -27,9 +27,8 @@ namespace art {
 namespace mirror {
 
 template <bool kTransactionActive>
-inline mirror::Field* Field::CreateFromArtField(Thread* self, mirror::ArtField* field,
+inline mirror::Field* Field::CreateFromArtField(Thread* self, ArtField* field,
                                                 bool force_resolve) {
-  CHECK(!kMovingFields);
   // Try to resolve type before allocating since this is a thread suspension point.
   mirror::Class* type = field->GetType<true>();
 
@@ -57,13 +56,13 @@ inline mirror::Field* Field::CreateFromArtField(Thread* self, mirror::ArtField* 
     return nullptr;
   }
   auto dex_field_index = field->GetDexFieldIndex();
-  auto* resolved_field = field->GetDexCache()->GetResolvedField(dex_field_index);
+  auto* resolved_field = field->GetDexCache()->GetResolvedField(dex_field_index, sizeof(void*));
   if (resolved_field != nullptr) {
     DCHECK_EQ(resolved_field, field);
   } else {
     // We rely on the field being resolved so that we can back to the ArtField
     // (i.e. FromReflectedMethod).
-    field->GetDexCache()->SetResolvedField(dex_field_index, field);
+    field->GetDexCache()->SetResolvedField(dex_field_index, field, sizeof(void*));
   }
   ret->SetType<kTransactionActive>(type);
   ret->SetDeclaringClass<kTransactionActive>(field->GetDeclaringClass());
