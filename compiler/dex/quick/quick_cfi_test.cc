@@ -56,7 +56,6 @@ class QuickCFITest : public CFITest {
       CompilerOptions::kDefaultSmallMethodThreshold,
       CompilerOptions::kDefaultTinyMethodThreshold,
       CompilerOptions::kDefaultNumDexMethodsThreshold,
-      true,  // generate_gdb_information.
       false,
       CompilerOptions::kDefaultTopKProfileThreshold,
       false,

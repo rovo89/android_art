@@ -61,7 +61,6 @@ class CompilerOptions FINAL {
                   size_t small_method_threshold,
                   size_t tiny_method_threshold,
                   size_t num_dex_methods_threshold,
-                  bool generate_gdb_information,
                   bool include_patch_information,
                   double top_k_profile_threshold,
                   bool debuggable,
@@ -162,10 +161,6 @@ class CompilerOptions FINAL {
     return implicit_suspend_checks_;
   }
 
-  bool GetGenerateGDBInformation() const {
-    return generate_gdb_information_;
-  }
-
   bool GetIncludePatchInformation() const {
     return include_patch_information_;
   }
@@ -207,7 +202,6 @@ class CompilerOptions FINAL {
   const size_t small_method_threshold_;
   const size_t tiny_method_threshold_;
   const size_t num_dex_methods_threshold_;
-  const bool generate_gdb_information_;
   const bool include_patch_information_;
   // When using a profile file only the top K% of the profiled samples will be compiled.
   const double top_k_profile_threshold_;
