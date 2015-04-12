@@ -164,6 +164,7 @@ class JniCompilerTest : public CommonCompilerTest {
   void CheckParameterAlignImpl();
   void MaxParamNumberImpl();
   void WithoutImplementationImpl();
+  void WithoutImplementationRefReturnImpl();
   void StackArgsIntsFirstImpl();
   void StackArgsFloatsFirstImpl();
   void StackArgsMixedImpl();
@@ -1493,6 +1494,20 @@ void JniCompilerTest::WithoutImplementationImpl() {
 }
 
 JNI_TEST(WithoutImplementation)
+
+void JniCompilerTest::WithoutImplementationRefReturnImpl() {
+  // This will lead to error messages in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
+  SetUpForTest(false, "withoutImplementationRefReturn", "()Ljava/lang/Object;", nullptr);
+
+  env_->CallObjectMethod(jobj_, jmethod_);
+
+  EXPECT_TRUE(Thread::Current()->IsExceptionPending());
+  EXPECT_TRUE(env_->ExceptionCheck() == JNI_TRUE);
+}
+
+JNI_TEST(WithoutImplementationRefReturn)
 
 void Java_MyClassNatives_stackArgsIntsFirst(JNIEnv*, jclass, jint i1, jint i2, jint i3,
                                             jint i4, jint i5, jint i6, jint i7, jint i8, jint i9,
