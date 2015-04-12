@@ -68,7 +68,6 @@ extern void JniMethodEnd(uint32_t saved_local_ref_cookie, Thread* self) {
   PopLocalReferences(saved_local_ref_cookie, self);
 }
 
-
 extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie, jobject locked,
                                      Thread* self) {
   GoToRunnable(self);
@@ -76,38 +75,34 @@ extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie, jobject lo
   PopLocalReferences(saved_local_ref_cookie, self);
 }
 
-extern mirror::Object* JniMethodEndWithReference(jobject result, uint32_t saved_local_ref_cookie,
-                                                 Thread* self) {
-  GoToRunnable(self);
-  mirror::Object* o = self->DecodeJObject(result);  // Must decode before pop.
+// Common result handling for EndWithReference.
+static mirror::Object* JniMethodEndWithReferenceHandleResult(jobject result,
+                                                             uint32_t saved_local_ref_cookie,
+                                                             Thread* self)
+    NO_THREAD_SAFETY_ANALYSIS {
+  // Must decode before pop. The 'result' may not be valid in case of an exception, though.
+  mirror::Object* o = self->IsExceptionPending() ? nullptr : self->DecodeJObject(result);
   PopLocalReferences(saved_local_ref_cookie, self);
   // Process result.
   if (UNLIKELY(self->GetJniEnv()->check_jni)) {
-    if (self->IsExceptionPending()) {
-      return NULL;
-    }
     CheckReferenceResult(o, self);
   }
   VerifyObject(o);
   return o;
 }
 
+extern mirror::Object* JniMethodEndWithReference(jobject result, uint32_t saved_local_ref_cookie,
+                                                 Thread* self) {
+  GoToRunnable(self);
+  return JniMethodEndWithReferenceHandleResult(result, saved_local_ref_cookie, self);
+}
+
 extern mirror::Object* JniMethodEndWithReferenceSynchronized(jobject result,
                                                              uint32_t saved_local_ref_cookie,
                                                              jobject locked, Thread* self) {
   GoToRunnable(self);
-  UnlockJniSynchronizedMethod(locked, self);  // Must decode before pop.
-  mirror::Object* o = self->DecodeJObject(result);
-  PopLocalReferences(saved_local_ref_cookie, self);
-  // Process result.
-  if (UNLIKELY(self->GetJniEnv()->check_jni)) {
-    if (self->IsExceptionPending()) {
-      return NULL;
-    }
-    CheckReferenceResult(o, self);
-  }
-  VerifyObject(o);
-  return o;
+  UnlockJniSynchronizedMethod(locked, self);
+  return JniMethodEndWithReferenceHandleResult(result, saved_local_ref_cookie, self);
 }
 
 }  // namespace art
