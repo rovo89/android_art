@@ -496,22 +496,24 @@ void CodeGeneratorX86::GenerateFrameEntry() {
 }
 
 void CodeGeneratorX86::GenerateFrameExit() {
-  if (HasEmptyFrame()) {
-    return;
-  }
+  __ cfi().RememberState();
+  if (!HasEmptyFrame()) {
+    int adjust = GetFrameSize() - FrameEntrySpillSize();
+    __ addl(ESP, Immediate(adjust));
+    __ cfi().AdjustCFAOffset(-adjust);
 
-  int adjust = GetFrameSize() - FrameEntrySpillSize();
-  __ addl(ESP, Immediate(adjust));
-  __ cfi().AdjustCFAOffset(-adjust);
-
-  for (size_t i = 0; i < arraysize(kCoreCalleeSaves); ++i) {
-    Register reg = kCoreCalleeSaves[i];
-    if (allocated_registers_.ContainsCoreRegister(reg)) {
-      __ popl(reg);
-      __ cfi().AdjustCFAOffset(-static_cast<int>(kX86WordSize));
-      __ cfi().Restore(DWARFReg(reg));
+    for (size_t i = 0; i < arraysize(kCoreCalleeSaves); ++i) {
+      Register reg = kCoreCalleeSaves[i];
+      if (allocated_registers_.ContainsCoreRegister(reg)) {
+        __ popl(reg);
+        __ cfi().AdjustCFAOffset(-static_cast<int>(kX86WordSize));
+        __ cfi().Restore(DWARFReg(reg));
+      }
     }
   }
+  __ ret();
+  __ cfi().RestoreState();
+  __ cfi().DefCFAOffset(GetFrameSize());
 }
 
 void CodeGeneratorX86::Bind(HBasicBlock* block) {
@@ -1116,11 +1118,7 @@ void LocationsBuilderX86::VisitReturnVoid(HReturnVoid* ret) {
 
 void InstructionCodeGeneratorX86::VisitReturnVoid(HReturnVoid* ret) {
   UNUSED(ret);
-  __ cfi().RememberState();
   codegen_->GenerateFrameExit();
-  __ ret();
-  __ cfi().RestoreState();
-  __ cfi().DefCFAOffset(codegen_->GetFrameSize());
 }
 
 void LocationsBuilderX86::VisitReturn(HReturn* ret) {
@@ -1178,11 +1176,7 @@ void InstructionCodeGeneratorX86::VisitReturn(HReturn* ret) {
         LOG(FATAL) << "Unknown return type " << ret->InputAt(0)->GetType();
     }
   }
-  __ cfi().RememberState();
   codegen_->GenerateFrameExit();
-  __ ret();
-  __ cfi().RestoreState();
-  __ cfi().DefCFAOffset(codegen_->GetFrameSize());
 }
 
 void LocationsBuilderX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {

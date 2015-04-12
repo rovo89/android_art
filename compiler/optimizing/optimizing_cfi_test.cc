@@ -73,7 +73,7 @@ class OptimizingCFITest  : public CFITest {
     code_gen->ComputeSpillMask();
     code_gen->SetFrameSize(frame_size);
     code_gen->GenerateFrameEntry();
-    code_gen->GetInstructionVisitor()->VisitReturnVoid(new (&allocator) HReturnVoid());
+    code_gen->GenerateFrameExit();
     // Get the outputs.
     InternalCodeAllocator code_allocator;
     code_gen->Finalize(&code_allocator);

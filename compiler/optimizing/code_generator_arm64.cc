@@ -472,6 +472,7 @@ void CodeGeneratorARM64::GenerateFrameEntry() {
 }
 
 void CodeGeneratorARM64::GenerateFrameExit() {
+  GetAssembler()->cfi().RememberState();
   if (!HasEmptyFrame()) {
     int frame_size = GetFrameSize();
     UnspillRegisters(GetFramePreservedFPRegisters(), frame_size - FrameEntrySpillSize());
@@ -479,6 +480,9 @@ void CodeGeneratorARM64::GenerateFrameExit() {
     __ Drop(frame_size);
     GetAssembler()->cfi().AdjustCFAOffset(-frame_size);
   }
+  __ Ret();
+  GetAssembler()->cfi().RestoreState();
+  GetAssembler()->cfi().DefCFAOffset(GetFrameSize());
 }
 
 static inline dwarf::Reg DWARFReg(CPURegister reg) {
@@ -2465,11 +2469,7 @@ void LocationsBuilderARM64::VisitReturn(HReturn* instruction) {
 
 void InstructionCodeGeneratorARM64::VisitReturn(HReturn* instruction) {
   UNUSED(instruction);
-  GetAssembler()->cfi().RememberState();
   codegen_->GenerateFrameExit();
-  __ Ret();
-  GetAssembler()->cfi().RestoreState();
-  GetAssembler()->cfi().DefCFAOffset(codegen_->GetFrameSize());
 }
 
 void LocationsBuilderARM64::VisitReturnVoid(HReturnVoid* instruction) {
@@ -2478,11 +2478,7 @@ void LocationsBuilderARM64::VisitReturnVoid(HReturnVoid* instruction) {
 
 void InstructionCodeGeneratorARM64::VisitReturnVoid(HReturnVoid* instruction) {
   UNUSED(instruction);
-  GetAssembler()->cfi().RememberState();
   codegen_->GenerateFrameExit();
-  __ Ret();
-  GetAssembler()->cfi().RestoreState();
-  GetAssembler()->cfi().DefCFAOffset(codegen_->GetFrameSize());
 }
 
 void LocationsBuilderARM64::VisitShl(HShl* shl) {
