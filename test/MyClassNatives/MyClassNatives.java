@@ -80,6 +80,7 @@ class MyClassNatives {
         Object o248, Object o249, Object o250, Object o251, Object o252, Object o253);
 
     native void withoutImplementation();
+    native Object withoutImplementationRefReturn();
 
     native static void stackArgsIntsFirst(int i1, int i2, int i3, int i4, int i5, int i6, int i7,
         int i8, int i9, int i10, float f1, float f2, float f3, float f4, float f5, float f6,
