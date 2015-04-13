@@ -144,6 +144,40 @@ TEST_F(DwarfTest, DebugFrame64) {
   CheckObjdumpOutput(is64bit, "-W");
 }
 
+// Test x86_64 register mapping. It is the only non-trivial architecture.
+// ARM, X86, and Mips have: dwarf_reg = art_reg + constant.
+TEST_F(DwarfTest, x86_64_RegisterMapping) {
+  constexpr bool is64bit = true;
+  DebugFrameOpCodeWriter<> opcodes;
+  for (int i = 0; i < 16; i++) {
+    opcodes.RelOffset(Reg::X86_64Core(i), 0);
+  }
+  DW_CHECK("FDE");
+  DW_CHECK_NEXT("DW_CFA_offset: r0 (rax)");
+  DW_CHECK_NEXT("DW_CFA_offset: r2 (rcx)");
+  DW_CHECK_NEXT("DW_CFA_offset: r1 (rdx)");
+  DW_CHECK_NEXT("DW_CFA_offset: r3 (rbx)");
+  DW_CHECK_NEXT("DW_CFA_offset: r7 (rsp)");
+  DW_CHECK_NEXT("DW_CFA_offset: r6 (rbp)");
+  DW_CHECK_NEXT("DW_CFA_offset: r4 (rsi)");
+  DW_CHECK_NEXT("DW_CFA_offset: r5 (rdi)");
+  DW_CHECK_NEXT("DW_CFA_offset: r8 (r8)");
+  DW_CHECK_NEXT("DW_CFA_offset: r9 (r9)");
+  DW_CHECK_NEXT("DW_CFA_offset: r10 (r10)");
+  DW_CHECK_NEXT("DW_CFA_offset: r11 (r11)");
+  DW_CHECK_NEXT("DW_CFA_offset: r12 (r12)");
+  DW_CHECK_NEXT("DW_CFA_offset: r13 (r13)");
+  DW_CHECK_NEXT("DW_CFA_offset: r14 (r14)");
+  DW_CHECK_NEXT("DW_CFA_offset: r15 (r15)");
+  DebugFrameOpCodeWriter<> initial_opcodes;
+  WriteEhFrameCIE(is64bit, Reg(16), initial_opcodes, &eh_frame_data_);
+  std::vector<uintptr_t> eh_frame_patches;
+  WriteEhFrameFDE(is64bit, 0, 0x0100000000000000, 0x0200000000000000,
+                  opcodes.data(), &eh_frame_data_, &eh_frame_patches);
+
+  CheckObjdumpOutput(is64bit, "-W");
+}
+
 TEST_F(DwarfTest, DebugLine) {
   const bool is64bit = false;
   const int code_factor_bits = 1;
