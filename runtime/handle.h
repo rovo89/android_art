@@ -70,8 +70,8 @@ class Handle : public ValueObject {
     return reinterpret_cast<jobject>(reference_);
   }
 
-  StackReference<mirror::Object>* GetReference() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      ALWAYS_INLINE {
+  ALWAYS_INLINE StackReference<mirror::Object>* GetReference()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return reference_;
   }
 
