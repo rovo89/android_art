@@ -1007,6 +1007,10 @@ class HEnvironment : public ArenaObject<kArenaAllocMisc> {
   }
 
   void CopyFrom(HEnvironment* env);
+  // Copy from `env`. If it's a loop phi for `loop_header`, copy the first
+  // input to the loop phi instead. This is for inserting instructions that
+  // require an environment (like HDeoptimization) in the loop pre-header.
+  void CopyFromWithLoopPhiAdjustment(HEnvironment* env, HBasicBlock* loop_header);
 
   void SetRawEnvAt(size_t index, HInstruction* instruction) {
     vregs_.Put(index, HUserRecord<HEnvironment*>(instruction));
@@ -1240,6 +1244,13 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
     ArenaAllocator* allocator = GetBlock()->GetGraph()->GetArena();
     environment_ = new (allocator) HEnvironment(allocator, environment->Size());
     environment_->CopyFrom(environment);
+  }
+
+  void CopyEnvironmentFromWithLoopPhiAdjustment(HEnvironment* environment,
+                                                HBasicBlock* block) {
+    ArenaAllocator* allocator = GetBlock()->GetGraph()->GetArena();
+    environment_ = new (allocator) HEnvironment(allocator, environment->Size());
+    environment_->CopyFromWithLoopPhiAdjustment(environment, block);
   }
 
   // Returns the number of entries in the environment. Typically, that is the
