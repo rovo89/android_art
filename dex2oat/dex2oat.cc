@@ -497,7 +497,6 @@ class Dex2Oat FINAL {
     bool include_patch_information = CompilerOptions::kDefaultIncludePatchInformation;
     bool include_debug_symbols = kIsDebugBuild;
     bool watch_dog_enabled = true;
-    bool generate_gdb_information = kIsDebugBuild;
     bool abort_on_hard_verifier_error = false;
     bool requested_specific_compiler = false;
 
@@ -541,12 +540,6 @@ class Dex2Oat FINAL {
         watch_dog_enabled = true;
       } else if (option == "--no-watch-dog") {
         watch_dog_enabled = false;
-      } else if (option == "--gen-gdb-info") {
-        generate_gdb_information = true;
-        // Debug symbols are needed for gdb information.
-        include_debug_symbols = true;
-      } else if (option == "--no-gen-gdb-info") {
-        generate_gdb_information = false;
       } else if (option.starts_with("-j")) {
         const char* thread_count_str = option.substr(strlen("-j")).data();
         if (!ParseUint(thread_count_str, &thread_count_)) {
@@ -684,7 +677,6 @@ class Dex2Oat FINAL {
         include_debug_symbols = true;
       } else if (option == "--no-include-debug-symbols" || option == "--strip-symbols") {
         include_debug_symbols = false;
-        generate_gdb_information = false;  // Depends on debug symbols, see above.
       } else if (option == "--debuggable") {
         debuggable = true;
       } else if (option.starts_with("--profile-file=")) {
@@ -936,7 +928,6 @@ class Dex2Oat FINAL {
                                                 small_method_threshold,
                                                 tiny_method_threshold,
                                                 num_dex_methods_threshold,
-                                                generate_gdb_information,
                                                 include_patch_information,
                                                 top_k_profile_threshold,
                                                 debuggable,
