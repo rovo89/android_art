@@ -20,6 +20,7 @@
 
 #include "arena_allocator.h"
 #include "logging.h"
+#include "mem_map.h"
 #include "mutex.h"
 #include "thread-inl.h"
 #include <memcheck/memcheck.h>
@@ -139,6 +140,10 @@ MemMapArena::MemMapArena(size_t size, bool low_4gb) {
   CHECK(map_.get() != nullptr) << error_msg;
   memory_ = map_->Begin();
   size_ = map_->Size();
+}
+
+MemMapArena::~MemMapArena() {
+  // Destroys MemMap via std::unique_ptr<>.
 }
 
 void MemMapArena::Release() {

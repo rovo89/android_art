@@ -188,6 +188,13 @@ class ArtField {
   }
 
  private:
+  mirror::Class* ProxyFindSystemClass(const char* descriptor)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::Class* ResolveGetType(uint32_t type_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::String* ResolveGetStringName(Thread* self, const DexFile& dex_file, uint32_t string_idx,
+                                       mirror::DexCache* dex_cache)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   GcRoot<mirror::Class> declaring_class_;
 
   uint32_t access_flags_;

@@ -17,6 +17,7 @@
 #include "inline_method_analyser.h"
 
 #include "art_field-inl.h"
+#include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
 #include "dex_instruction-inl.h"
