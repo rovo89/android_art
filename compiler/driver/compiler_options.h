@@ -65,6 +65,7 @@ class CompilerOptions FINAL {
                   double top_k_profile_threshold,
                   bool debuggable,
                   bool include_debug_symbols,
+                  bool include_cfi,
                   bool implicit_null_checks,
                   bool implicit_so_checks,
                   bool implicit_suspend_checks,
@@ -149,6 +150,11 @@ class CompilerOptions FINAL {
     return include_debug_symbols_;
   }
 
+  bool GetIncludeCFI() const {
+    // include-debug-symbols implies include-cfi.
+    return include_cfi_ || include_debug_symbols_;
+  }
+
   bool GetImplicitNullChecks() const {
     return implicit_null_checks_;
   }
@@ -207,6 +213,7 @@ class CompilerOptions FINAL {
   const double top_k_profile_threshold_;
   const bool debuggable_;
   const bool include_debug_symbols_;
+  const bool include_cfi_;
   const bool implicit_null_checks_;
   const bool implicit_so_checks_;
   const bool implicit_suspend_checks_;

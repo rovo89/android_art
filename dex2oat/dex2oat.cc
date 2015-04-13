@@ -231,6 +231,11 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("");
   UsageError("  --no-include-debug-symbols: Do not include ELF symbols in this oat file");
   UsageError("");
+  UsageError("  --include-cfi: Include call frame information in the .eh_frame section.");
+  UsageError("      The --include-debug-symbols option implies --include-cfi.");
+  UsageError("");
+  UsageError("  --no-include-cfi: Do not include call frame information in the .eh_frame section.");
+  UsageError("");
   UsageError("  --runtime-arg <argument>: used to specify various arguments for the runtime,");
   UsageError("      such as initial heap size, maximum heap size, and verbose output.");
   UsageError("      Use a separate --runtime-arg switch for each argument.");
@@ -496,6 +501,7 @@ class Dex2Oat FINAL {
     bool debuggable = false;
     bool include_patch_information = CompilerOptions::kDefaultIncludePatchInformation;
     bool include_debug_symbols = kIsDebugBuild;
+    bool include_cfi = kIsDebugBuild;
     bool watch_dog_enabled = true;
     bool abort_on_hard_verifier_error = false;
     bool requested_specific_compiler = false;
@@ -677,6 +683,10 @@ class Dex2Oat FINAL {
         include_debug_symbols = true;
       } else if (option == "--no-include-debug-symbols" || option == "--strip-symbols") {
         include_debug_symbols = false;
+      } else if (option == "--include-cfi") {
+        include_cfi = true;
+      } else if (option == "--no-include-cfi") {
+        include_cfi = false;
       } else if (option == "--debuggable") {
         debuggable = true;
       } else if (option.starts_with("--profile-file=")) {
@@ -932,6 +942,7 @@ class Dex2Oat FINAL {
                                                 top_k_profile_threshold,
                                                 debuggable,
                                                 include_debug_symbols,
+                                                include_cfi,
                                                 implicit_null_checks,
                                                 implicit_so_checks,
                                                 implicit_suspend_checks,
