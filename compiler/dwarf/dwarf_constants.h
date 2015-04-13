@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_DWARF_H_
-#define ART_RUNTIME_DWARF_H_
+#ifndef ART_COMPILER_DWARF_DWARF_CONSTANTS_H_
+#define ART_COMPILER_DWARF_DWARF_CONSTANTS_H_
 
 namespace art {
 namespace dwarf {
@@ -661,4 +661,4 @@ enum CallFrameInstruction : uint8_t {
 }  // namespace dwarf
 }  // namespace art
 
-#endif  // ART_RUNTIME_DWARF_H_
+#endif  // ART_COMPILER_DWARF_DWARF_CONSTANTS_H_
