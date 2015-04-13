@@ -20,9 +20,9 @@
 #include <cstdint>
 #include <unordered_map>
 
-#include "dwarf.h"
+#include "dwarf/dwarf_constants.h"
+#include "dwarf/writer.h"
 #include "leb128.h"
-#include "writer.h"
 
 namespace art {
 namespace dwarf {
