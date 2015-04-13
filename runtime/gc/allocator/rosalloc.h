@@ -30,11 +30,13 @@
 #include "base/mutex.h"
 #include "base/logging.h"
 #include "globals.h"
-#include "mem_map.h"
 #include "thread.h"
 #include "utils.h"
 
 namespace art {
+
+class MemMap;
+
 namespace gc {
 namespace allocator {
 

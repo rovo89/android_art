@@ -20,6 +20,7 @@
 #include <string>
 
 #include "atomic.h"
+#include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "handle_scope-inl.h"
 #include "mirror/class-inl.h"

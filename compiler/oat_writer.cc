@@ -36,6 +36,7 @@
 #include "mirror/art_method-inl.h"
 #include "mirror/array.h"
 #include "mirror/class_loader.h"
+#include "mirror/dex_cache-inl.h"
 #include "mirror/object-inl.h"
 #include "os.h"
 #include "output_stream.h"

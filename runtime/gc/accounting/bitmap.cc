@@ -35,6 +35,10 @@ Bitmap::Bitmap(MemMap* mem_map, size_t bitmap_size)
   CHECK_NE(bitmap_size, 0U);
 }
 
+Bitmap::~Bitmap() {
+  // Destroys MemMap via std::unique_ptr<>.
+}
+
 MemMap* Bitmap::AllocateMemMap(const std::string& name, size_t num_bits) {
   const size_t bitmap_size = RoundUp(
       RoundUp(num_bits, kBitsPerBitmapWord) / kBitsPerBitmapWord * sizeof(uintptr_t), kPageSize);

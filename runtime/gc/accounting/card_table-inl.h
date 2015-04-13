@@ -20,6 +20,7 @@
 #include "atomic.h"
 #include "base/logging.h"
 #include "card_table.h"
+#include "mem_map.h"
 #include "space_bitmap.h"
 #include "utils.h"
 
@@ -221,6 +222,12 @@ inline uint8_t* CardTable::CardFromAddr(const void *addr) const {
   DCHECK(IsValidCard(card_addr)) << "addr: " << addr
       << " card_addr: " << reinterpret_cast<void*>(card_addr);
   return card_addr;
+}
+
+inline bool CardTable::IsValidCard(const uint8_t* card_addr) const {
+  uint8_t* begin = mem_map_->Begin() + offset_;
+  uint8_t* end = mem_map_->End();
+  return card_addr >= begin && card_addr < end;
 }
 
 inline void CardTable::CheckCardValid(uint8_t* card) const {
