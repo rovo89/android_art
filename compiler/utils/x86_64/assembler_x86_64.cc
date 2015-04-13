@@ -988,6 +988,13 @@ void X86_64Assembler::fildl(const Address& src) {
 }
 
 
+void X86_64Assembler::filds(const Address& src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0xDB);
+  EmitOperand(0, src);
+}
+
+
 void X86_64Assembler::fincstp() {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xD9);
