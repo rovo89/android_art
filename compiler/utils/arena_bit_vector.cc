@@ -16,6 +16,7 @@
 
 #include "arena_bit_vector.h"
 
+#include "base/allocator.h"
 #include "base/arena_allocator.h"
 
 namespace art {

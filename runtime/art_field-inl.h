@@ -21,6 +21,7 @@
 
 #include "base/logging.h"
 #include "class_linker.h"
+#include "gc_root-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "jvalue.h"
 #include "mirror/dex_cache.h"
@@ -289,15 +290,14 @@ inline mirror::Class* ArtField::GetType() {
   const uint32_t field_index = GetDexFieldIndex();
   auto* declaring_class = GetDeclaringClass();
   if (UNLIKELY(declaring_class->IsProxyClass())) {
-    return Runtime::Current()->GetClassLinker()->FindSystemClass(Thread::Current(),
-                                                                 GetTypeDescriptor());
+    return ProxyFindSystemClass(GetTypeDescriptor());
   }
   auto* dex_cache = declaring_class->GetDexCache();
   const DexFile* const dex_file = dex_cache->GetDexFile();
   const DexFile::FieldId& field_id = dex_file->GetFieldId(field_index);
   mirror::Class* type = dex_cache->GetResolvedType(field_id.type_idx_);
   if (kResolve && UNLIKELY(type == nullptr)) {
-    type = Runtime::Current()->GetClassLinker()->ResolveType(field_id.type_idx_, this);
+    type = ResolveGetType(field_id.type_idx_);
     CHECK(type != nullptr || Thread::Current()->IsExceptionPending());
   }
   return type;
@@ -323,9 +323,7 @@ inline mirror::String* ArtField::GetStringName(Thread* self, bool resolve) {
   const auto& field_id = dex_file->GetFieldId(dex_field_index);
   auto* name = dex_cache->GetResolvedString(field_id.name_idx_);
   if (resolve && name == nullptr) {
-    StackHandleScope<1> hs(self);
-    name = Runtime::Current()->GetClassLinker()->ResolveString(
-        *dex_file, field_id.name_idx_, hs.NewHandle(dex_cache));
+    name = ResolveGetStringName(self, *dex_file, field_id.name_idx_, dex_cache);
   }
   return name;
 }

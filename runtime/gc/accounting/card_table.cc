@@ -21,6 +21,7 @@
 #include "gc/heap.h"
 #include "gc/space/space.h"
 #include "heap_bitmap.h"
+#include "mem_map.h"
 #include "runtime.h"
 #include "utils.h"
 
@@ -88,6 +89,10 @@ CardTable* CardTable::Create(const uint8_t* heap_begin, size_t heap_capacity) {
 
 CardTable::CardTable(MemMap* mem_map, uint8_t* biased_begin, size_t offset)
     : mem_map_(mem_map), biased_begin_(biased_begin), offset_(offset) {
+}
+
+CardTable::~CardTable() {
+  // Destroys MemMap via std::unique_ptr<>.
 }
 
 void CardTable::ClearSpaceCards(space::ContinuousSpace* space) {

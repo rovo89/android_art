@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/space_bitmap-inl.h"

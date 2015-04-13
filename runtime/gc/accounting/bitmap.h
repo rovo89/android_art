@@ -103,6 +103,7 @@ class Bitmap {
   static constexpr size_t kBitsPerBitmapWord = sizeof(uintptr_t) * kBitsPerByte;
 
   Bitmap(MemMap* mem_map, size_t bitmap_size);
+  ~Bitmap();
 
   // Allocate the mem-map for a bitmap based on how many bits are required.
   static MemMap* AllocateMemMap(const std::string& name, size_t num_bits);
