@@ -70,6 +70,11 @@ class VerifiedMethod {
   // by using the check-cast elision peephole optimization in the verifier.
   bool IsSafeCast(uint32_t pc) const;
 
+  // Returns true if there were any errors during verification.
+  bool HasVerificationFailures() const {
+    return has_verification_failures_;
+  }
+
  private:
   VerifiedMethod() = default;
 
@@ -107,6 +112,8 @@ class VerifiedMethod {
   // dex PC to dex method index or dex field index based on the instruction.
   DequickenMap dequicken_map_;
   SafeCastSet safe_cast_set_;
+
+  bool has_verification_failures_;
 };
 
 }  // namespace art

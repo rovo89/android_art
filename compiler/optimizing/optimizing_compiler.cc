@@ -31,6 +31,8 @@
 #include "constant_folding.h"
 #include "dead_code_elimination.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
+#include "dex/verified_method.h"
+#include "dex/verification_results.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
 #include "driver/dex_compilation_unit.h"
@@ -45,13 +47,13 @@
 #include "mirror/art_method-inl.h"
 #include "nodes.h"
 #include "prepare_for_register_allocation.h"
+#include "reference_type_propagation.h"
 #include "register_allocator.h"
 #include "side_effects_analysis.h"
 #include "ssa_builder.h"
 #include "ssa_phi_elimination.h"
 #include "ssa_liveness_analysis.h"
 #include "utils/assembler.h"
-#include "reference_type_propagation.h"
 
 namespace art {
 
@@ -592,15 +594,26 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                                             InvokeType invoke_type,
                                             uint16_t class_def_idx,
                                             uint32_t method_idx,
-                                            jobject class_loader,
+                                            jobject jclass_loader,
                                             const DexFile& dex_file) const {
-  CompiledMethod* method = TryCompile(code_item, access_flags, invoke_type, class_def_idx,
-                                      method_idx, class_loader, dex_file);
+  CompilerDriver* compiler_driver = GetCompilerDriver();
+  CompiledMethod* method = nullptr;
+  if (compiler_driver->IsMethodVerifiedWithoutFailures(method_idx, class_def_idx, dex_file)) {
+     method = TryCompile(code_item, access_flags, invoke_type, class_def_idx,
+                         method_idx, jclass_loader, dex_file);
+  } else {
+    if (compiler_driver->GetCompilerOptions().VerifyAtRuntime()) {
+      compilation_stats_.RecordStat(MethodCompilationStat::kNotCompiledVerifyAtRuntime);
+    } else {
+      compilation_stats_.RecordStat(MethodCompilationStat::kNotCompiledClassNotVerified);
+    }
+  }
+
   if (method != nullptr) {
     return method;
   }
   method = delegate_->Compile(code_item, access_flags, invoke_type, class_def_idx, method_idx,
-                              class_loader, dex_file);
+                              jclass_loader, dex_file);
 
   if (method != nullptr) {
     compilation_stats_.RecordStat(MethodCompilationStat::kCompiledQuick);

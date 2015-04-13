@@ -45,6 +45,8 @@ enum MethodCompilationStat {
   kNotCompiledCantAccesType,
   kNotOptimizedRegisterAllocator,
   kNotCompiledUnhandledInstruction,
+  kNotCompiledVerifyAtRuntime,
+  kNotCompiledClassNotVerified,
   kRemovedCheckedCast,
   kRemovedNullCheck,
   kInstructionSimplifications,
@@ -109,6 +111,8 @@ class OptimizingCompilerStats {
       case kNotCompiledSpaceFilter : return "kNotCompiledSpaceFilter";
       case kNotOptimizedRegisterAllocator : return "kNotOptimizedRegisterAllocator";
       case kNotCompiledUnhandledInstruction : return "kNotCompiledUnhandledInstruction";
+      case kNotCompiledVerifyAtRuntime : return "kNotCompiledVerifyAtRuntime";
+      case kNotCompiledClassNotVerified : return "kNotCompiledClassNotVerified";
       case kRemovedCheckedCast: return "kRemovedCheckedCast";
       case kRemovedNullCheck: return "kRemovedNullCheck";
       case kInstructionSimplifications: return "kInstructionSimplifications";
