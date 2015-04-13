@@ -849,6 +849,24 @@ TEST_F(AssemblerX86_64Test, X87) {
   DriverFn(&x87_fn, "x87");
 }
 
+TEST_F(AssemblerX86_64Test, FPUIntegerLoad) {
+  GetAssembler()->filds(x86_64::Address(x86_64::CpuRegister(x86_64::RSP), 4));
+  GetAssembler()->fildl(x86_64::Address(x86_64::CpuRegister(x86_64::RSP), 12));
+  const char* expected =
+      "fildl 0x4(%RSP)\n"
+      "fildll 0xc(%RSP)\n";
+  DriverStr(expected, "FPUIntegerLoad");
+}
+
+TEST_F(AssemblerX86_64Test, FPUIntegerStore) {
+  GetAssembler()->fistps(x86_64::Address(x86_64::CpuRegister(x86_64::RSP), 16));
+  GetAssembler()->fistpl(x86_64::Address(x86_64::CpuRegister(x86_64::RSP), 24));
+  const char* expected =
+      "fistpl 0x10(%RSP)\n"
+      "fistpll 0x18(%RSP)\n";
+  DriverStr(expected, "FPUIntegerStore");
+}
+
 ////////////////
 // CALL / JMP //
 ////////////////
