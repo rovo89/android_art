@@ -461,7 +461,7 @@ InstructionCodeGeneratorX86::InstructionCodeGeneratorX86(HGraph* graph, CodeGene
         codegen_(codegen) {}
 
 static dwarf::Reg DWARFReg(Register reg) {
-    return dwarf::Reg::X86Core(static_cast<int>(reg));
+  return dwarf::Reg::X86Core(static_cast<int>(reg));
 }
 
 void CodeGeneratorX86::GenerateFrameEntry() {

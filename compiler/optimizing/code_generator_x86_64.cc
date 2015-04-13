@@ -484,10 +484,11 @@ void CodeGeneratorX86_64::SetupBlockedRegisters(bool is_baseline) const {
 }
 
 static dwarf::Reg DWARFReg(Register reg) {
-    return dwarf::Reg::X86_64Core(static_cast<int>(reg));
+  return dwarf::Reg::X86_64Core(static_cast<int>(reg));
 }
+
 static dwarf::Reg DWARFReg(FloatRegister reg) {
-    return dwarf::Reg::X86_64Fp(static_cast<int>(reg));
+  return dwarf::Reg::X86_64Fp(static_cast<int>(reg));
 }
 
 void CodeGeneratorX86_64::GenerateFrameEntry() {

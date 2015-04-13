@@ -514,11 +514,11 @@ void CodeGeneratorARM::ComputeSpillMask() {
 }
 
 static dwarf::Reg DWARFReg(Register reg) {
-    return dwarf::Reg::ArmCore(static_cast<int>(reg));
+  return dwarf::Reg::ArmCore(static_cast<int>(reg));
 }
 
 static dwarf::Reg DWARFReg(SRegister reg) {
-    return dwarf::Reg::ArmFp(static_cast<int>(reg));
+  return dwarf::Reg::ArmFp(static_cast<int>(reg));
 }
 
 void CodeGeneratorARM::GenerateFrameEntry() {
@@ -542,12 +542,12 @@ void CodeGeneratorARM::GenerateFrameEntry() {
   uint32_t push_mask = (core_spill_mask_ & (~(1 << PC))) | 1 << LR;
   __ PushList(push_mask);
   __ cfi().AdjustCFAOffset(kArmWordSize * POPCOUNT(push_mask));
-  __ cfi().RelOffsetForMany(DWARFReg(Register(0)), 0, push_mask, kArmWordSize);
+  __ cfi().RelOffsetForMany(DWARFReg(R0), 0, push_mask, kArmWordSize);
   if (fpu_spill_mask_ != 0) {
     SRegister start_register = SRegister(LeastSignificantBit(fpu_spill_mask_));
     __ vpushs(start_register, POPCOUNT(fpu_spill_mask_));
     __ cfi().AdjustCFAOffset(kArmWordSize * POPCOUNT(fpu_spill_mask_));
-    __ cfi().RelOffsetForMany(DWARFReg(SRegister(0)), 0, fpu_spill_mask_, kArmWordSize);
+    __ cfi().RelOffsetForMany(DWARFReg(S0), 0, fpu_spill_mask_, kArmWordSize);
   }
   int adjust = GetFrameSize() - FrameEntrySpillSize();
   __ AddConstant(SP, -adjust);
