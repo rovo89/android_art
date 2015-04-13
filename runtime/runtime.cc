@@ -54,7 +54,7 @@
 #include "base/arena_allocator.h"
 #include "base/dumpable.h"
 #include "base/unix_file/fd_file.h"
-#include "class_linker.h"
+#include "class_linker-inl.h"
 #include "compiler_callbacks.h"
 #include "debugger.h"
 #include "elf_file.h"

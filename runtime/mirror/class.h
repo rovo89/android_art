@@ -1095,6 +1095,8 @@ class MANAGED Class FINAL : public Object {
   ArtField* GetSFieldsUnchecked() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   ArtField* GetIFieldsUnchecked() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  bool ProxyDescriptorEquals(const char* match) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // defining class loader, or NULL for the "bootstrap" system loader
   HeapReference<ClassLoader> class_loader_;
 

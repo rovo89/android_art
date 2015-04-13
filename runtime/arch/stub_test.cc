@@ -17,6 +17,7 @@
 #include <cstdio>
 
 #include "art_field-inl.h"
+#include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "mirror/art_method-inl.h"

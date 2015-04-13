@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "art_field-inl.h"
+#include "class_linker-inl.h"
 #include "common_compiler_test.h"
 #include "scoped_thread_state_change.h"
 

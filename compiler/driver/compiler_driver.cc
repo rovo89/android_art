@@ -30,7 +30,7 @@
 #include "art_field-inl.h"
 #include "base/stl_util.h"
 #include "base/timing_logger.h"
-#include "class_linker.h"
+#include "class_linker-inl.h"
 #include "compiled_class.h"
 #include "compiled_method.h"
 #include "compiler.h"

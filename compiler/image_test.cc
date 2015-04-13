@@ -21,7 +21,7 @@
 #include <vector>
 
 #include "base/unix_file/fd_file.h"
-#include "class_linker.h"
+#include "class_linker-inl.h"
 #include "common_compiler_test.h"
 #include "elf_writer.h"
 #include "gc/space/image_space.h"

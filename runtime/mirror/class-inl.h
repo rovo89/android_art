@@ -21,7 +21,6 @@
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
-#include "class_linker-inl.h"
 #include "class_loader.h"
 #include "common_throws.h"
 #include "dex_cache.h"
@@ -39,12 +38,8 @@ namespace mirror {
 
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline uint32_t Class::GetObjectSize() {
-  if (kIsDebugBuild) {
-    // Use a local variable as (D)CHECK can't handle the space between
-    // the two template params.
-    bool is_variable_size = IsVariableSize<kVerifyFlags, kReadBarrierOption>();
-    CHECK(!is_variable_size) << " class=" << PrettyTypeOf(this);
-  }
+  // Note: Extra parentheses to avoid the comma being interpreted as macro parameter separator.
+  DCHECK((!IsVariableSize<kVerifyFlags, kReadBarrierOption>())) << " class=" << PrettyTypeOf(this);
   return GetField32(ObjectSizeOffset());
 }
 
@@ -706,7 +701,7 @@ inline bool Class::DescriptorEquals(const char* match) {
   } else if (IsPrimitive()) {
     return strcmp(Primitive::Descriptor(GetPrimitiveType()), match) == 0;
   } else if (IsProxyClass()) {
-    return Runtime::Current()->GetClassLinker()->GetDescriptorForProxy(this) == match;
+    return ProxyDescriptorEquals(match);
   } else {
     const DexFile& dex_file = GetDexFile();
     const DexFile::TypeId& type_id = dex_file.GetTypeId(GetClassDef()->class_idx_);

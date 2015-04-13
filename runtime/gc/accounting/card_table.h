@@ -21,9 +21,10 @@
 
 #include "base/mutex.h"
 #include "globals.h"
-#include "mem_map.h"
 
 namespace art {
+
+class MemMap;
 
 namespace mirror {
   class Object;
@@ -52,6 +53,7 @@ class CardTable {
   static constexpr uint8_t kCardDirty = 0x70;
 
   static CardTable* Create(const uint8_t* heap_begin, size_t heap_capacity);
+  ~CardTable();
 
   // Set the card associated with the given address to GC_CARD_DIRTY.
   ALWAYS_INLINE void MarkCard(const void *addr) {
@@ -130,11 +132,7 @@ class CardTable {
   CardTable(MemMap* begin, uint8_t* biased_begin, size_t offset);
 
   // Returns true iff the card table address is within the bounds of the card table.
-  bool IsValidCard(const uint8_t* card_addr) const {
-    uint8_t* begin = mem_map_->Begin() + offset_;
-    uint8_t* end = mem_map_->End();
-    return card_addr >= begin && card_addr < end;
-  }
+  bool IsValidCard(const uint8_t* card_addr) const ALWAYS_INLINE;
 
   void CheckCardValid(uint8_t* card) const ALWAYS_INLINE;
 
