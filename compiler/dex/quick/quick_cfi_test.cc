@@ -60,6 +60,7 @@ class QuickCFITest : public CFITest {
       CompilerOptions::kDefaultTopKProfileThreshold,
       false,
       true,  // include_debug_symbols.
+      true,  // include_cfi
       false,
       false,
       false,

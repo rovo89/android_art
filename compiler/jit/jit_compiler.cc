@@ -77,6 +77,7 @@ JitCompiler::JitCompiler() : total_time_(0) {
       false,
       false,
       false,
+      false,
       false,  // pic
       nullptr,
       pass_manager_options,
