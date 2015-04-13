@@ -109,11 +109,6 @@ class PatchOat {
   template <typename ElfFileImpl>
   bool PatchElf(ElfFileImpl* oat_file);
   template <typename ElfFileImpl>
-  bool PatchTextSection(ElfFileImpl* oat_file);
-  // Templatized version to actually do the patching with the right sized offsets.
-  template <typename ElfFileImpl, typename patch_loc_t> bool PatchTextSection(ElfFileImpl* oat_file);
-  template <typename ElfFileImpl, typename patch_loc_t> bool CheckOatFile(ElfFileImpl* oat_filec);
-  template <typename ElfFileImpl>
   bool PatchOatHeader(ElfFileImpl* oat_file);
 
   bool PatchImage() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
