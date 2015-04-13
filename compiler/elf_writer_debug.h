@@ -24,14 +24,18 @@
 namespace art {
 namespace dwarf {
 
+void WriteEhFrame(const CompilerDriver* compiler,
+                  OatWriter* oat_writer,
+                  uint32_t text_section_offset,
+                  std::vector<uint8_t>* eh_frame);
+
 void WriteDebugSections(const CompilerDriver* compiler,
                         OatWriter* oat_writer,
                         uint32_t text_section_offset,
-                        std::vector<uint8_t>* eh_frame_data,
-                        std::vector<uint8_t>* debug_info_data,
-                        std::vector<uint8_t>* debug_abbrev_data,
-                        std::vector<uint8_t>* debug_str_data,
-                        std::vector<uint8_t>* debug_line_data);
+                        std::vector<uint8_t>* debug_info,
+                        std::vector<uint8_t>* debug_abbrev,
+                        std::vector<uint8_t>* debug_str,
+                        std::vector<uint8_t>* debug_line);
 
 }  // namespace dwarf
 }  // namespace art
