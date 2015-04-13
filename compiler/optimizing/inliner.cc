@@ -31,6 +31,8 @@
 #include "ssa_phi_elimination.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
+#include "dex/verified_method.h"
+#include "dex/verification_results.h"
 
 namespace art {
 
@@ -114,9 +116,10 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
     return false;
   }
 
-  if (!resolved_method->GetDeclaringClass()->IsVerified()) {
+  if (compiler_driver_->IsMethodVerifiedWithoutFailures(
+        method_index, *resolved_method->GetDexFile())) {
     VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
-                   << " is not inlined because its class could not be verified";
+                   << " has verification failures, so it cannot be inlined";
     return false;
   }
 
