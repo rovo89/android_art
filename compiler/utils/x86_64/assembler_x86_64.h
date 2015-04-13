@@ -389,7 +389,6 @@ class X86_64Assembler FINAL : public Assembler {
   void fistpl(const Address& dst);
   void fistps(const Address& dst);
   void fildl(const Address& src);
-  void filds(const Address& src);
 
   void fincstp();
   void ffree(const Immediate& index);
