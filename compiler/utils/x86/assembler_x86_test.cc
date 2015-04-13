@@ -172,4 +172,22 @@ TEST_F(AssemblerX86Test, LockCmpxchg8b) {
   DriverStr(expected, "lock_cmpxchg8b");
 }
 
+TEST_F(AssemblerX86Test, FPUIntegerLoad) {
+  GetAssembler()->filds(x86::Address(x86::Register(x86::ESP), 4));
+  GetAssembler()->fildl(x86::Address(x86::Register(x86::ESP), 12));
+  const char* expected =
+      "fildl 0x4(%ESP)\n"
+      "fildll 0xc(%ESP)\n";
+  DriverStr(expected, "FPUIntegerLoad");
+}
+
+TEST_F(AssemblerX86Test, FPUIntegerStore) {
+  GetAssembler()->fistps(x86::Address(x86::Register(x86::ESP), 16));
+  GetAssembler()->fistpl(x86::Address(x86::Register(x86::ESP), 24));
+  const char* expected =
+      "fistpl 0x10(%ESP)\n"
+      "fistpll 0x18(%ESP)\n";
+  DriverStr(expected, "FPUIntegerStore");
+}
+
 }  // namespace art
