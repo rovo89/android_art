@@ -534,31 +534,34 @@ void CodeGeneratorX86_64::GenerateFrameEntry() {
 }
 
 void CodeGeneratorX86_64::GenerateFrameExit() {
-  if (HasEmptyFrame()) {
-    return;
-  }
-  uint32_t xmm_spill_location = GetFpuSpillStart();
-  size_t xmm_spill_slot_size = GetFloatingPointSpillSlotSize();
-  for (size_t i = 0; i < arraysize(kFpuCalleeSaves); ++i) {
-    if (allocated_registers_.ContainsFloatingPointRegister(kFpuCalleeSaves[i])) {
-      int offset = xmm_spill_location + (xmm_spill_slot_size * i);
-      __ movsd(XmmRegister(kFpuCalleeSaves[i]), Address(CpuRegister(RSP), offset));
-      __ cfi().Restore(DWARFReg(kFpuCalleeSaves[i]));
+  __ cfi().RememberState();
+  if (!HasEmptyFrame()) {
+    uint32_t xmm_spill_location = GetFpuSpillStart();
+    size_t xmm_spill_slot_size = GetFloatingPointSpillSlotSize();
+    for (size_t i = 0; i < arraysize(kFpuCalleeSaves); ++i) {
+      if (allocated_registers_.ContainsFloatingPointRegister(kFpuCalleeSaves[i])) {
+        int offset = xmm_spill_location + (xmm_spill_slot_size * i);
+        __ movsd(XmmRegister(kFpuCalleeSaves[i]), Address(CpuRegister(RSP), offset));
+        __ cfi().Restore(DWARFReg(kFpuCalleeSaves[i]));
+      }
+    }
+
+    int adjust = GetFrameSize() - GetCoreSpillSize();
+    __ addq(CpuRegister(RSP), Immediate(adjust));
+    __ cfi().AdjustCFAOffset(-adjust);
+
+    for (size_t i = 0; i < arraysize(kCoreCalleeSaves); ++i) {
+      Register reg = kCoreCalleeSaves[i];
+      if (allocated_registers_.ContainsCoreRegister(reg)) {
+        __ popq(CpuRegister(reg));
+        __ cfi().AdjustCFAOffset(-static_cast<int>(kX86_64WordSize));
+        __ cfi().Restore(DWARFReg(reg));
+      }
     }
   }
-
-  int adjust = GetFrameSize() - GetCoreSpillSize();
-  __ addq(CpuRegister(RSP), Immediate(adjust));
-  __ cfi().AdjustCFAOffset(-adjust);
-
-  for (size_t i = 0; i < arraysize(kCoreCalleeSaves); ++i) {
-    Register reg = kCoreCalleeSaves[i];
-    if (allocated_registers_.ContainsCoreRegister(reg)) {
-      __ popq(CpuRegister(reg));
-      __ cfi().AdjustCFAOffset(-static_cast<int>(kX86_64WordSize));
-      __ cfi().Restore(DWARFReg(reg));
-    }
-  }
+  __ ret();
+  __ cfi().RestoreState();
+  __ cfi().DefCFAOffset(GetFrameSize());
 }
 
 void CodeGeneratorX86_64::Bind(HBasicBlock* block) {
@@ -1143,11 +1146,7 @@ void LocationsBuilderX86_64::VisitReturnVoid(HReturnVoid* ret) {
 
 void InstructionCodeGeneratorX86_64::VisitReturnVoid(HReturnVoid* ret) {
   UNUSED(ret);
-  __ cfi().RememberState();
   codegen_->GenerateFrameExit();
-  __ ret();
-  __ cfi().RestoreState();
-  __ cfi().DefCFAOffset(codegen_->GetFrameSize());
 }
 
 void LocationsBuilderX86_64::VisitReturn(HReturn* ret) {
@@ -1198,11 +1197,7 @@ void InstructionCodeGeneratorX86_64::VisitReturn(HReturn* ret) {
         LOG(FATAL) << "Unexpected return type " << ret->InputAt(0)->GetType();
     }
   }
-  __ cfi().RememberState();
   codegen_->GenerateFrameExit();
-  __ ret();
-  __ cfi().RestoreState();
-  __ cfi().DefCFAOffset(codegen_->GetFrameSize());
 }
 
 Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type) {
