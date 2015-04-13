@@ -17,6 +17,8 @@
 #ifndef ART_COMPILER_DWARF_HEADERS_H_
 #define ART_COMPILER_DWARF_HEADERS_H_
 
+#include <cstdint>
+
 #include "debug_frame_opcode_writer.h"
 #include "debug_info_entry_writer.h"
 #include "debug_line_opcode_writer.h"
@@ -26,6 +28,12 @@
 namespace art {
 namespace dwarf {
 
+// Note that all headers start with 32-bit length.
+// DWARF also supports 64-bit lengths, but we never use that.
+// It is intended to support very large debug sections (>4GB),
+// and compilers are expected *not* to use it by default.
+// In particular, it is not related to machine architecture.
+
 // Write common information entry (CIE) to .eh_frame section.
 template<typename Allocator>
 void WriteEhFrameCIE(bool is64bit, Reg return_address_register,
@@ -33,15 +41,8 @@ void WriteEhFrameCIE(bool is64bit, Reg return_address_register,
                      std::vector<uint8_t>* eh_frame) {
   Writer<> writer(eh_frame);
   size_t cie_header_start_ = writer.data()->size();
-  if (is64bit) {
-    // TODO: This is not related to being 64bit.
-    writer.PushUint32(0xffffffff);
-    writer.PushUint64(0);  // Length placeholder.
-    writer.PushUint64(0);  // CIE id.
-  } else {
-    writer.PushUint32(0);  // Length placeholder.
-    writer.PushUint32(0);  // CIE id.
-  }
+  writer.PushUint32(0);  // Length placeholder.
+  writer.PushUint32(0);  // CIE id.
   writer.PushUint8(1);   // Version.
   writer.PushString("zR");
   writer.PushUleb128(DebugFrameOpCodeWriter<Allocator>::kCodeAlignmentFactor);
@@ -55,11 +56,7 @@ void WriteEhFrameCIE(bool is64bit, Reg return_address_register,
   }
   writer.PushData(opcodes.data());
   writer.Pad(is64bit ? 8 : 4);
-  if (is64bit) {
-    writer.UpdateUint64(cie_header_start_ + 4, writer.data()->size() - cie_header_start_ - 12);
-  } else {
-    writer.UpdateUint32(cie_header_start_, writer.data()->size() - cie_header_start_ - 4);
-  }
+  writer.UpdateUint32(cie_header_start_, writer.data()->size() - cie_header_start_ - 4);
 }
 
 // Write frame description entry (FDE) to .eh_frame section.
@@ -67,20 +64,15 @@ template<typename Allocator>
 void WriteEhFrameFDE(bool is64bit, size_t cie_offset,
                      uint64_t initial_address, uint64_t address_range,
                      const std::vector<uint8_t, Allocator>* opcodes,
-                     std::vector<uint8_t>* eh_frame) {
+                     std::vector<uint8_t>* eh_frame,
+                     std::vector<uintptr_t>* eh_frame_patches) {
   Writer<> writer(eh_frame);
   size_t fde_header_start = writer.data()->size();
-  if (is64bit) {
-    // TODO: This is not related to being 64bit.
-    writer.PushUint32(0xffffffff);
-    writer.PushUint64(0);  // Length placeholder.
-    uint64_t cie_pointer = writer.data()->size() - cie_offset;
-    writer.PushUint64(cie_pointer);
-  } else {
-    writer.PushUint32(0);  // Length placeholder.
-    uint32_t cie_pointer = writer.data()->size() - cie_offset;
-    writer.PushUint32(cie_pointer);
-  }
+  writer.PushUint32(0);  // Length placeholder.
+  uint32_t cie_pointer = writer.data()->size() - cie_offset;
+  writer.PushUint32(cie_pointer);
+  // Relocate initial_address, but not address_range (it is size).
+  eh_frame_patches->push_back(writer.data()->size());
   if (is64bit) {
     writer.PushUint64(initial_address);
     writer.PushUint64(address_range);
@@ -91,26 +83,28 @@ void WriteEhFrameFDE(bool is64bit, size_t cie_offset,
   writer.PushUleb128(0);  // Augmentation data size.
   writer.PushData(opcodes);
   writer.Pad(is64bit ? 8 : 4);
-  if (is64bit) {
-    writer.UpdateUint64(fde_header_start + 4, writer.data()->size() - fde_header_start - 12);
-  } else {
-    writer.UpdateUint32(fde_header_start, writer.data()->size() - fde_header_start - 4);
-  }
+  writer.UpdateUint32(fde_header_start, writer.data()->size() - fde_header_start - 4);
 }
 
 // Write compilation unit (CU) to .debug_info section.
 template<typename Allocator>
 void WriteDebugInfoCU(uint32_t debug_abbrev_offset,
                       const DebugInfoEntryWriter<Allocator>& entries,
-                      std::vector<uint8_t>* debug_info) {
+                      std::vector<uint8_t>* debug_info,
+                      std::vector<uintptr_t>* debug_info_patches) {
   Writer<> writer(debug_info);
   size_t start = writer.data()->size();
   writer.PushUint32(0);  // Length placeholder.
   writer.PushUint16(3);  // Version.
   writer.PushUint32(debug_abbrev_offset);
-  writer.PushUint8(entries.is64bit() ? 8 : 4);
+  writer.PushUint8(entries.Is64bit() ? 8 : 4);
+  size_t entries_offset = writer.data()->size();
   writer.PushData(entries.data());
   writer.UpdateUint32(start, writer.data()->size() - start - 4);
+  // Copy patch locations and make them relative to .debug_info section.
+  for (uintptr_t patch_location : entries.GetPatchLocations()) {
+    debug_info_patches->push_back(entries_offset + patch_location);
+  }
 }
 
 struct FileEntry {
@@ -125,7 +119,8 @@ template<typename Allocator>
 void WriteDebugLineTable(const std::vector<std::string>& include_directories,
                          const std::vector<FileEntry>& files,
                          const DebugLineOpCodeWriter<Allocator>& opcodes,
-                         std::vector<uint8_t>* debug_line) {
+                         std::vector<uint8_t>* debug_line,
+                         std::vector<uintptr_t>* debug_line_patches) {
   Writer<> writer(debug_line);
   size_t header_start = writer.data()->size();
   writer.PushUint32(0);  // Section-length placeholder.
@@ -157,8 +152,13 @@ void WriteDebugLineTable(const std::vector<std::string>& include_directories,
   }
   writer.PushUint8(0);  // Terminate file list.
   writer.UpdateUint32(header_length_pos, writer.data()->size() - header_length_pos - 4);
-  writer.PushData(opcodes.data()->data(), opcodes.data()->size());
+  size_t opcodes_offset = writer.data()->size();
+  writer.PushData(opcodes.data());
   writer.UpdateUint32(header_start, writer.data()->size() - header_start - 4);
+  // Copy patch locations and make them relative to .debug_line section.
+  for (uintptr_t patch_location : opcodes.GetPatchLocations()) {
+    debug_line_patches->push_back(opcodes_offset + patch_location);
+  }
 }
 
 }  // namespace dwarf

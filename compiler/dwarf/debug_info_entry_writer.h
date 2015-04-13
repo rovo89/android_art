@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_DWARF_DEBUG_INFO_ENTRY_WRITER_H_
 #define ART_COMPILER_DWARF_DEBUG_INFO_ENTRY_WRITER_H_
 
+#include <cstdint>
 #include <unordered_map>
 
 #include "dwarf.h"
@@ -88,6 +89,7 @@ class DebugInfoEntryWriter FINAL : private Writer<Allocator> {
 
   void WriteAddr(Attribute attrib, uint64_t value) {
     AddAbbrevAttribute(attrib, DW_FORM_addr);
+    patch_locations_.push_back(this->data()->size());
     if (is64bit_) {
       this->PushUint64(value);
     } else {
@@ -168,7 +170,11 @@ class DebugInfoEntryWriter FINAL : private Writer<Allocator> {
     this->PushUint32(address);
   }
 
-  bool is64bit() const { return is64bit_; }
+  bool Is64bit() const { return is64bit_; }
+
+  const std::vector<uintptr_t>& GetPatchLocations() const {
+    return patch_locations_;
+  }
 
   using Writer<Allocator>::data;
 
@@ -240,6 +246,7 @@ class DebugInfoEntryWriter FINAL : private Writer<Allocator> {
   size_t abbrev_code_offset_ = 0;  // Location to patch once we know the code.
   bool inside_entry_ = false;  // Entry ends at first child (if any).
   bool has_children = true;
+  std::vector<uintptr_t> patch_locations_;
 };
 
 }  // namespace dwarf
