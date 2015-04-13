@@ -17,6 +17,7 @@
 #include "elf_writer_quick.h"
 
 #include <unordered_map>
+#include <unordered_set>
 
 #include "base/logging.h"
 #include "base/unix_file/fd_file.h"
@@ -181,16 +182,23 @@ static void WriteDebugSymbols(const CompilerDriver* compiler_driver,
                               ElfBuilder<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
                                          Elf_Sym, Elf_Ehdr, Elf_Phdr, Elf_Shdr>* builder,
                               OatWriter* oat_writer) {
-  // Iterate over the compiled methods.
   const std::vector<OatWriter::DebugInfo>& method_info = oat_writer->GetMethodDebugInfo();
+
+  // Find all addresses (low_pc) which contain deduped methods.
+  // The first instance of method is not marked deduped_, but the rest is.
+  std::unordered_set<uint32_t> deduped_addresses;
+  for (auto it = method_info.begin(); it != method_info.end(); ++it) {
+    if (it->deduped_) {
+      deduped_addresses.insert(it->low_pc_);
+    }
+  }
+
   ElfSymtabBuilder<Elf_Word, Elf_Sword, Elf_Addr, Elf_Sym, Elf_Shdr>* symtab =
       builder->GetSymtabBuilder();
   for (auto it = method_info.begin(); it != method_info.end(); ++it) {
     std::string name = PrettyMethod(it->dex_method_index_, *it->dex_file_, true);
-    if (it->deduped_) {
-      // TODO We should place the DEDUPED tag on the first instance of a deduplicated symbol
-      // so that it will show up in a debuggerd crash report.
-      name += " [ DEDUPED ]";
+    if (deduped_addresses.find(it->low_pc_) != deduped_addresses.end()) {
+      name += " [DEDUPED]";
     }
 
     uint32_t low_pc = it->low_pc_;
