@@ -19,11 +19,11 @@
 
 #include <cstdint>
 
-#include "debug_frame_opcode_writer.h"
-#include "debug_info_entry_writer.h"
-#include "debug_line_opcode_writer.h"
-#include "register.h"
-#include "writer.h"
+#include "dwarf/debug_frame_opcode_writer.h"
+#include "dwarf/debug_info_entry_writer.h"
+#include "dwarf/debug_line_opcode_writer.h"
+#include "dwarf/register.h"
+#include "dwarf/writer.h"
 
 namespace art {
 namespace dwarf {
