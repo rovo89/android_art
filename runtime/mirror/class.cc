@@ -18,7 +18,7 @@
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
-#include "class_linker.h"
+#include "class_linker-inl.h"
 #include "class_loader.h"
 #include "class-inl.h"
 #include "dex_cache.h"
@@ -869,6 +869,11 @@ Class* Class::CopyOf(Thread* self, int32_t new_length,
     return nullptr;
   }
   return new_class->AsClass();
+}
+
+bool Class::ProxyDescriptorEquals(const char* match) {
+  DCHECK(IsProxyClass());
+  return Runtime::Current()->GetClassLinker()->GetDescriptorForProxy(this) == match;
 }
 
 }  // namespace mirror

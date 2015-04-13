@@ -22,7 +22,6 @@
 
 #include "debug_stack.h"
 #include "macros.h"
-#include "mem_map.h"
 #include "mutex.h"
 #include "utils.h"
 
@@ -33,6 +32,7 @@ class ArenaPool;
 class ArenaAllocator;
 class ArenaStack;
 class ScopedArenaAllocator;
+class MemMap;
 class MemStats;
 
 template <typename T>
@@ -166,7 +166,7 @@ class MallocArena FINAL : public Arena {
 class MemMapArena FINAL : public Arena {
  public:
   explicit MemMapArena(size_t size, bool low_4gb);
-  virtual ~MemMapArena() { }
+  virtual ~MemMapArena();
   void Release() OVERRIDE;
 
  private:

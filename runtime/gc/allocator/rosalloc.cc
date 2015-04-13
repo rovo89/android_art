@@ -18,6 +18,7 @@
 
 #include "base/mutex-inl.h"
 #include "gc/space/valgrind_settings.h"
+#include "mem_map.h"
 #include "mirror/class-inl.h"
 #include "mirror/object.h"
 #include "mirror/object-inl.h"

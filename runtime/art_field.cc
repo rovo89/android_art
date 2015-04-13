@@ -17,7 +17,9 @@
 #include "art_field.h"
 
 #include "art_field-inl.h"
+#include "class_linker-inl.h"
 #include "gc/accounting/card_table-inl.h"
+#include "handle_scope.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "runtime.h"
@@ -59,6 +61,22 @@ ArtField* ArtField::FindInstanceFieldWithOffset(mirror::Class* klass, uint32_t f
   // We did not find field in the class: look into superclass.
   return (klass->GetSuperClass() != nullptr) ?
       FindInstanceFieldWithOffset(klass->GetSuperClass(), field_offset) : nullptr;
+}
+
+mirror::Class* ArtField::ProxyFindSystemClass(const char* descriptor) {
+  DCHECK(GetDeclaringClass()->IsProxyClass());
+  return Runtime::Current()->GetClassLinker()->FindSystemClass(Thread::Current(), descriptor);
+}
+
+mirror::Class* ArtField::ResolveGetType(uint32_t type_idx) {
+  return Runtime::Current()->GetClassLinker()->ResolveType(type_idx, this);
+}
+
+mirror::String* ArtField::ResolveGetStringName(Thread* self, const DexFile& dex_file,
+                                               uint32_t string_idx, mirror::DexCache* dex_cache) {
+  StackHandleScope<1> hs(self);
+  return Runtime::Current()->GetClassLinker()->ResolveString(
+      dex_file, string_idx, hs.NewHandle(dex_cache));
 }
 
 }  // namespace art
