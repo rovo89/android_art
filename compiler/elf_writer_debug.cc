@@ -16,6 +16,8 @@
 
 #include "elf_writer_debug.h"
 
+#include <unordered_set>
+
 #include "compiled_method.h"
 #include "driver/compiler_driver.h"
 #include "dex_file-inl.h"
@@ -193,6 +195,15 @@ void WriteDebugSections(const CompilerDriver* compiler,
     cunit_high_pc = std::max(cunit_high_pc, method_info.high_pc_);
   }
 
+  // Find all addresses (low_pc) which contain deduped methods.
+  // The first instance of method is not marked deduped_, but the rest is.
+  std::unordered_set<uint32_t> deduped_addresses;
+  for (auto it = method_infos.begin(); it != method_infos.end(); ++it) {
+    if (it->deduped_) {
+      deduped_addresses.insert(it->low_pc_);
+    }
+  }
+
   // Write .debug_info section.
   size_t debug_abbrev_offset = debug_abbrev->size();
   DebugInfoEntryWriter<> info(false /* 32 bit */, debug_abbrev);
@@ -205,10 +216,8 @@ void WriteDebugSections(const CompilerDriver* compiler,
   for (auto method_info : method_infos) {
     std::string method_name = PrettyMethod(method_info.dex_method_index_,
                                            *method_info.dex_file_, true);
-    if (method_info.deduped_) {
-      // TODO We should place the DEDUPED tag on the first instance of a deduplicated symbol
-      // so that it will show up in a debuggerd crash report.
-      method_name += " [ DEDUPED ]";
+    if (deduped_addresses.find(method_info.low_pc_) != deduped_addresses.end()) {
+      method_name += " [DEDUPED]";
     }
     info.StartTag(DW_TAG_subprogram, DW_CHILDREN_no);
     info.WriteStrp(DW_AT_name, method_name.data(), debug_str);
