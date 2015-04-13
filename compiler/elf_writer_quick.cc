@@ -144,6 +144,16 @@ bool ElfWriterQuick<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
     return false;
   }
 
+  if (compiler_driver_->GetCompilerOptions().GetIncludeCFI() &&
+      !oat_writer->GetMethodDebugInfo().empty()) {
+    ElfRawSectionBuilder<Elf_Word, Elf_Sword, Elf_Shdr> eh_frame(
+        ".eh_frame", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, 4, 0);
+    dwarf::WriteEhFrame(compiler_driver_, oat_writer,
+                        builder->GetTextBuilder().GetSection()->sh_addr,
+                        eh_frame.GetBuffer());
+    builder->RegisterRawSection(eh_frame);
+  }
+
   if (compiler_driver_->GetCompilerOptions().GetIncludeDebugSymbols() &&
       !oat_writer->GetMethodDebugInfo().empty()) {
     WriteDebugSymbols(compiler_driver_, builder.get(), oat_writer);
@@ -198,7 +208,6 @@ static void WriteDebugSymbols(const CompilerDriver* compiler_driver,
   }
 
   typedef ElfRawSectionBuilder<Elf_Word, Elf_Sword, Elf_Shdr> Section;
-  Section eh_frame(".eh_frame", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, 4, 0);
   Section debug_info(".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
   Section debug_abbrev(".debug_abbrev", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
   Section debug_str(".debug_str", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
@@ -207,13 +216,11 @@ static void WriteDebugSymbols(const CompilerDriver* compiler_driver,
   dwarf::WriteDebugSections(compiler_driver,
                             oat_writer,
                             builder->GetTextBuilder().GetSection()->sh_addr,
-                            eh_frame.GetBuffer(),
                             debug_info.GetBuffer(),
                             debug_abbrev.GetBuffer(),
                             debug_str.GetBuffer(),
                             debug_line.GetBuffer());
 
-  builder->RegisterRawSection(eh_frame);
   builder->RegisterRawSection(debug_info);
   builder->RegisterRawSection(debug_abbrev);
   builder->RegisterRawSection(debug_str);
