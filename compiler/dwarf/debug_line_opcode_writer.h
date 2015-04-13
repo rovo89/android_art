@@ -19,8 +19,8 @@
 
 #include <cstdint>
 
-#include "dwarf.h"
-#include "writer.h"
+#include "dwarf/dwarf_constants.h"
+#include "dwarf/writer.h"
 
 namespace art {
 namespace dwarf {
