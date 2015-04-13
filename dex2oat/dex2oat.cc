@@ -182,11 +182,6 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("      Example: --compiler-filter=everything");
   UsageError("      Default: speed");
   UsageError("");
-  UsageError("  --huge-method-max=<method-instruction-count>: the threshold size for a huge");
-  UsageError("      method for compiler filter tuning.");
-  UsageError("      Example: --huge-method-max=%d", CompilerOptions::kDefaultHugeMethodThreshold);
-  UsageError("      Default: %d", CompilerOptions::kDefaultHugeMethodThreshold);
-  UsageError("");
   UsageError("  --huge-method-max=<method-instruction-count>: threshold size for a huge");
   UsageError("      method for compiler filter tuning.");
   UsageError("      Example: --huge-method-max=%d", CompilerOptions::kDefaultHugeMethodThreshold);
