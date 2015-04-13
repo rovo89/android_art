@@ -560,6 +560,7 @@ void CodeGeneratorARM::GenerateFrameExit() {
     __ bx(LR);
     return;
   }
+  __ cfi().RememberState();
   int adjust = GetFrameSize() - FrameEntrySpillSize();
   __ AddConstant(SP, adjust);
   __ cfi().AdjustCFAOffset(-adjust);
@@ -570,6 +571,8 @@ void CodeGeneratorARM::GenerateFrameExit() {
     __ cfi().RestoreMany(DWARFReg(SRegister(0)), fpu_spill_mask_);
   }
   __ PopList(core_spill_mask_);
+  __ cfi().RestoreState();
+  __ cfi().DefCFAOffset(GetFrameSize());
 }
 
 void CodeGeneratorARM::Bind(HBasicBlock* block) {
@@ -1209,10 +1212,7 @@ void LocationsBuilderARM::VisitReturnVoid(HReturnVoid* ret) {
 
 void InstructionCodeGeneratorARM::VisitReturnVoid(HReturnVoid* ret) {
   UNUSED(ret);
-  __ cfi().RememberState();
   codegen_->GenerateFrameExit();
-  __ cfi().RestoreState();
-  __ cfi().DefCFAOffset(codegen_->GetFrameSize());
 }
 
 void LocationsBuilderARM::VisitReturn(HReturn* ret) {
@@ -1223,10 +1223,7 @@ void LocationsBuilderARM::VisitReturn(HReturn* ret) {
 
 void InstructionCodeGeneratorARM::VisitReturn(HReturn* ret) {
   UNUSED(ret);
-  __ cfi().RememberState();
   codegen_->GenerateFrameExit();
-  __ cfi().RestoreState();
-  __ cfi().DefCFAOffset(codegen_->GetFrameSize());
 }
 
 void LocationsBuilderARM::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
