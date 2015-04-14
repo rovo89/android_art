@@ -1927,7 +1927,6 @@ void ClassLinker::LoadClassMembers(Thread* self, const DexFile& dex_file,
   ArtField* sfields = num_sfields != 0 ? AllocArtFieldArray(self, num_sfields) : nullptr;
   for (size_t i = 0; it.HasNextStaticField(); i++, it.Next()) {
     CHECK_LT(i, num_sfields);
-    self->AllowThreadSuspension();
     LoadField(it, klass, &sfields[i]);
   }
   klass->SetSFields(sfields);
@@ -1938,13 +1937,14 @@ void ClassLinker::LoadClassMembers(Thread* self, const DexFile& dex_file,
   ArtField* ifields = num_ifields != 0 ? AllocArtFieldArray(self, num_ifields) : nullptr;
   for (size_t i = 0; it.HasNextInstanceField(); i++, it.Next()) {
     CHECK_LT(i, num_ifields);
-    self->AllowThreadSuspension();
     LoadField(it, klass, &ifields[i]);
   }
   klass->SetIFields(ifields);
   klass->SetNumInstanceFields(num_ifields);
   DCHECK_EQ(klass->NumInstanceFields(), num_ifields);
-
+  // Note: We cannot have thread suspension until the field arrays are setup or else
+  // Class::VisitFieldRoots may miss some fields.
+  self->AllowThreadSuspension();
   // Load methods.
   if (it.NumDirectMethods() != 0) {
     // TODO: append direct methods to class object
