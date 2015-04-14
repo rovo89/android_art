@@ -33,7 +33,7 @@ class PrimitiveTypePropagation : public ValueObject {
   void VisitBasicBlock(HBasicBlock* block);
   void ProcessWorklist();
   void AddToWorklist(HPhi* phi);
-  void AddDependentInstructionsToWorklist(HPhi* phi);
+  void AddDependentInstructionsToWorklist(HInstruction* instruction);
   bool UpdateType(HPhi* phi);
 
   HGraph* const graph_;
