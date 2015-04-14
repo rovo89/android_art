@@ -1237,6 +1237,11 @@ class Dex2Oat FINAL {
       for (auto& class_path_file : class_path_files_) {
         class_path_files.push_back(class_path_file.get());
       }
+
+      // Store the classpath we have right now.
+      key_value_store_->Put(OatHeader::kClassPathKey,
+                            OatFile::EncodeDexFileDependencies(class_path_files));
+
       // Then the dex files we'll compile. Thus we'll resolve the class-path first.
       class_path_files.insert(class_path_files.end(), dex_files_.begin(), dex_files_.end());
 
