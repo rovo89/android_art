@@ -1380,7 +1380,7 @@ void LocationsBuilderARM64::VisitBoundsCheck(HBoundsCheck* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(1, ARM64EncodableConstantOrRegister(instruction->InputAt(1), instruction));
   if (instruction->HasUses()) {
     locations->SetOut(Location::SameAsFirstInput());
   }
