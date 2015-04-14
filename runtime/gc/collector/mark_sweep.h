@@ -248,9 +248,6 @@ class MarkSweep : public GarbageCollector {
   // whether or not we care about pauses.
   size_t GetThreadCount(bool paused) const;
 
-  void VerifyRoot(const mirror::Object* root, const RootInfo& root_info)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
-
   // Push a single reference on a mark stack.
   void PushOnMarkStack(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
