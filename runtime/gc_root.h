@@ -162,6 +162,9 @@ class GcRoot {
   ALWAYS_INLINE GcRoot(MirrorType* ref = nullptr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
+  // Root visitors take pointers to root_ and place the min CompressedReference** arrays. We use a
+  // CompressedReference<mirror::Object> here since it violates strict aliasing requirements to
+  // cast CompressedReference<MirrorType>* to CompressedReference<mirror::Object>*.
   mutable mirror::CompressedReference<mirror::Object> root_;
 
   template <size_t kBufferSize> friend class BufferedRootVisitor;
