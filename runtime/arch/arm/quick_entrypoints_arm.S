@@ -1468,3 +1468,18 @@ ENTRY art_quick_f2l
     vmov  r0, s0
     b     art_f2l
 END art_quick_f2l
+
+    /* float art_l2f(int64_t l) */
+    .extern art_l2f
+ENTRY art_quick_l2f
+    push  {lr}
+    .cfi_adjust_cfa_offset 4
+    .cfi_rel_offset lr, 0
+    sub   sp, #4
+    .cfi_adjust_cfa_offset 4
+    bl    art_l2f
+    vmov  s0, r0
+    add   sp, #4
+    .cfi_adjust_cfa_offset -4
+    pop   {pc}
+END art_quick_l2f

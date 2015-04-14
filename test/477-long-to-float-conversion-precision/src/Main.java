@@ -30,9 +30,8 @@ public class Main {
   }
 
   private static void longToFloat() {
-    // The result for this test case is slightly less accurate on ARM,
-    // due to the implementation of long-to-float type conversions for
-    // this architecture (both in Quick and Optimizing).
+    // The result for this test case used to be slightly less accurate
+    // on ARM (both in Quick and Optimizing).
     assertFloatEquals(Float.intBitsToFloat(-555858671), $opt$LongToFloat(-8008112895877447681L));
   }
 
