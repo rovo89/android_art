@@ -91,7 +91,7 @@ class MANAGED HeapReference : public ObjectReference<kPoisonHeapReferences, Mirr
       : ObjectReference<kPoisonHeapReferences, MirrorType>(mirror_ptr) {}
 };
 
-// Standard compressed reference used in the runtime. Used for StackRefernce and GC roots.
+// Standard compressed reference used in the runtime. Used for StackReference and GC roots.
 template<class MirrorType>
 class MANAGED CompressedReference : public mirror::ObjectReference<false, MirrorType> {
  public:

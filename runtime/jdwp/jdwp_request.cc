@@ -87,13 +87,13 @@ uint32_t Request::ReadUnsigned32(const char* what) {
 }
 
 FieldId Request::ReadFieldId() {
-  FieldId id = Read4BE();
+  FieldId id = Read8BE();
   VLOG(jdwp) << "    field id " << DescribeField(id);
   return id;
 }
 
 MethodId Request::ReadMethodId() {
-  MethodId id = Read4BE();
+  MethodId id = Read8BE();
   VLOG(jdwp) << "    method id " << DescribeMethod(id);
   return id;
 }
