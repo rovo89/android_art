@@ -165,6 +165,23 @@ inline void Histogram<Value>::PrintBins(std::ostream& os, const CumulativeData& 
 }
 
 template <class Value>
+inline void Histogram<Value>::DumpBins(std::ostream& os) const {
+  DCHECK_GT(sample_size_, 0ull);
+  bool dumped_one = false;
+  for (size_t bin_idx = 0; bin_idx < frequency_.size(); ++bin_idx) {
+    if (frequency_[bin_idx] != 0U) {
+      if (dumped_one) {
+        // Prepend a comma if not the first bin.
+        os << ",";
+      } else {
+        dumped_one = true;
+      }
+      os << GetRange(bin_idx) << ":" << frequency_[bin_idx];
+    }
+  }
+}
+
+template <class Value>
 inline void Histogram<Value>::PrintConfidenceIntervals(std::ostream &os, double interval,
                                                        const CumulativeData& data) const {
   static constexpr size_t kFractionalDigits = 3;
@@ -249,4 +266,3 @@ inline double Histogram<Value>::Percentile(double per, const CumulativeData& dat
 
 }  // namespace art
 #endif  // ART_RUNTIME_BASE_HISTOGRAM_INL_H_
-
