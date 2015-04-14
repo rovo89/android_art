@@ -38,11 +38,11 @@ namespace art {
 namespace JDWP {
 
 std::string DescribeField(const FieldId& field_id) {
-  return StringPrintf("%#x (%s)", field_id, Dbg::GetFieldName(field_id).c_str());
+  return StringPrintf("%#" PRIx64 " (%s)", field_id, Dbg::GetFieldName(field_id).c_str());
 }
 
 std::string DescribeMethod(const MethodId& method_id) {
-  return StringPrintf("%#x (%s)", method_id, Dbg::GetMethodName(method_id).c_str());
+  return StringPrintf("%#" PRIx64 " (%s)", method_id, Dbg::GetMethodName(method_id).c_str());
 }
 
 std::string DescribeRefTypeId(const RefTypeId& ref_type_id) {
@@ -101,8 +101,8 @@ static JdwpError RequestInvoke(JdwpState*, Request* request, ExpandBuf* pReply,
 
   VLOG(jdwp) << StringPrintf("    --> thread_id=%#" PRIx64 " object_id=%#" PRIx64,
                              thread_id, object_id);
-  VLOG(jdwp) << StringPrintf("        class_id=%#" PRIx64 " method_id=%x %s.%s", class_id,
-                             method_id, Dbg::GetClassName(class_id).c_str(),
+  VLOG(jdwp) << StringPrintf("        class_id=%#" PRIx64 " method_id=%#" PRIx64 " %s.%s",
+                             class_id, method_id, Dbg::GetClassName(class_id).c_str(),
                              Dbg::GetMethodName(method_id).c_str());
   VLOG(jdwp) << StringPrintf("        %d args:", arg_count);
 
@@ -256,8 +256,6 @@ static JdwpError VM_TopLevelThreadGroups(JdwpState*, Request*, ExpandBuf* pReply
 
 /*
  * Respond with the sizes of the basic debugger types.
- *
- * All IDs are 8 bytes.
  */
 static JdwpError VM_IDSizes(JdwpState*, Request*, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

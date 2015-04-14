@@ -957,7 +957,7 @@ void JdwpState::PostFieldEvent(const EventLocation* pLoc, ArtField* field,
     VLOG(jdwp) << StringPrintf("  this=%#" PRIx64, instance_id);
     VLOG(jdwp) << StringPrintf("  type=%#" PRIx64, field_type_id) << " "
         << Dbg::GetClassName(field_id);
-    VLOG(jdwp) << StringPrintf("  field=%#" PRIx32, field_id) << " "
+    VLOG(jdwp) << StringPrintf("  field=%#" PRIx64, field_id) << " "
         << Dbg::GetFieldName(field_id);
     VLOG(jdwp) << "  suspend_policy=" << suspend_policy;
   }

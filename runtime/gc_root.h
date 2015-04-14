@@ -50,7 +50,7 @@ enum RootType {
 };
 std::ostream& operator<<(std::ostream& os, const RootType& root_type);
 
-// Only used by hprof. tid and root_type are only used by hprof.
+// Only used by hprof. thread_id_ and type_ are only used by hprof.
 class RootInfo {
  public:
   // Thread id 0 is for non thread roots.
@@ -85,12 +85,13 @@ class RootVisitor {
  public:
   virtual ~RootVisitor() { }
 
-  // Single root versions, not overridable.
+  // Single root version, not overridable.
   ALWAYS_INLINE void VisitRoot(mirror::Object** roots, const RootInfo& info)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     VisitRoots(&roots, 1, info);
   }
 
+  // Single root version, not overridable.
   ALWAYS_INLINE void VisitRootIfNonNull(mirror::Object** roots, const RootInfo& info)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (*roots != nullptr) {
