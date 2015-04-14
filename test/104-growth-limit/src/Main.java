@@ -21,8 +21,14 @@ import java.util.List;
 public class Main {
 
     public static void main(String[] args) throws Exception {
-
         int alloc1 = 1;
+        // Setup reflection stuff before allocating to prevent OOME caused by allocations from
+        // Class.forName or getDeclaredMethod.
+        // Reflective equivalent of: dalvik.system.VMRuntime.getRuntime().clearGrowthLimit();
+        final Class<?> vm_runtime = Class.forName("dalvik.system.VMRuntime");
+        final Method get_runtime = vm_runtime.getDeclaredMethod("getRuntime");
+        final Object runtime = get_runtime.invoke(null);
+        final Method clear_growth_limit = vm_runtime.getDeclaredMethod("clearGrowthLimit");
         try {
             List<byte[]> l = new ArrayList<byte[]>();
             while (true) {
@@ -33,13 +39,7 @@ public class Main {
         } catch (OutOfMemoryError e) {
         }
         // Expand the heap to the maximum size.
-        // Reflective equivalent of: dalvik.system.VMRuntime.getRuntime().clearGrowthLimit();
-        Class<?> vm_runtime = Class.forName("dalvik.system.VMRuntime");
-        Method get_runtime = vm_runtime.getDeclaredMethod("getRuntime");
-        Object runtime = get_runtime.invoke(null);
-        Method clear_growth_limit = vm_runtime.getDeclaredMethod("clearGrowthLimit");
         clear_growth_limit.invoke(runtime);
-
         int alloc2 = 1;
         try {
             List<byte[]> l = new ArrayList<byte[]>();
