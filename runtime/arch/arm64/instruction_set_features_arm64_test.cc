@@ -31,7 +31,7 @@ TEST(Arm64InstructionSetFeaturesTest, Arm64Features) {
   EXPECT_STREQ("smp,a53", arm64_features->GetFeatureString().c_str());
   EXPECT_EQ(arm64_features->AsBitmap(), 3U);
   // See the comments in instruction_set_features_arm64.h.
-  EXPECT_FALSE(arm64_features->AsArm64InstructionSetFeatures()->PreferAcquireRelease());
+  EXPECT_TRUE(arm64_features->AsArm64InstructionSetFeatures()->PreferAcquireRelease());
 }
 
 }  // namespace art
