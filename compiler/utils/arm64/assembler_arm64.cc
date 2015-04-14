@@ -640,56 +640,89 @@ void Arm64Assembler::EmitExceptionPoll(Arm64Exception *exception) {
   ___ Brk();
 }
 
-static dwarf::Reg DWARFReg(XRegister reg) {
-  return dwarf::Reg::Arm64Core(static_cast<int>(reg));
+static inline dwarf::Reg DWARFReg(CPURegister reg) {
+  if (reg.IsFPRegister()) {
+    return dwarf::Reg::Arm64Fp(reg.code());
+  } else {
+    DCHECK_LT(reg.code(), 31u);  // X0 - X30.
+    return dwarf::Reg::Arm64Core(reg.code());
+  }
 }
 
-static dwarf::Reg DWARFReg(DRegister reg) {
-  return dwarf::Reg::Arm64Fp(static_cast<int>(reg));
+void Arm64Assembler::SpillRegisters(vixl::CPURegList registers, int offset) {
+  int size = registers.RegisterSizeInBytes();
+  const Register sp = vixl_masm_->StackPointer();
+  while (registers.Count() >= 2) {
+    const CPURegister& dst0 = registers.PopLowestIndex();
+    const CPURegister& dst1 = registers.PopLowestIndex();
+    ___ Stp(dst0, dst1, MemOperand(sp, offset));
+    cfi_.RelOffset(DWARFReg(dst0), offset);
+    cfi_.RelOffset(DWARFReg(dst1), offset + size);
+    offset += 2 * size;
+  }
+  if (!registers.IsEmpty()) {
+    const CPURegister& dst0 = registers.PopLowestIndex();
+    ___ Str(dst0, MemOperand(sp, offset));
+    cfi_.RelOffset(DWARFReg(dst0), offset);
+  }
+  DCHECK(registers.IsEmpty());
 }
 
-constexpr size_t kFramePointerSize = 8;
-constexpr unsigned int kJniRefSpillRegsSize = 11 + 8;
+void Arm64Assembler::UnspillRegisters(vixl::CPURegList registers, int offset) {
+  int size = registers.RegisterSizeInBytes();
+  const Register sp = vixl_masm_->StackPointer();
+  while (registers.Count() >= 2) {
+    const CPURegister& dst0 = registers.PopLowestIndex();
+    const CPURegister& dst1 = registers.PopLowestIndex();
+    ___ Ldp(dst0, dst1, MemOperand(sp, offset));
+    cfi_.Restore(DWARFReg(dst0));
+    cfi_.Restore(DWARFReg(dst1));
+    offset += 2 * size;
+  }
+  if (!registers.IsEmpty()) {
+    const CPURegister& dst0 = registers.PopLowestIndex();
+    ___ Ldr(dst0, MemOperand(sp, offset));
+    cfi_.Restore(DWARFReg(dst0));
+  }
+  DCHECK(registers.IsEmpty());
+}
 
 void Arm64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
-                        const std::vector<ManagedRegister>& callee_save_regs,
-                        const ManagedRegisterEntrySpills& entry_spills) {
-  CHECK_ALIGNED(frame_size, kStackAlignment);
-  CHECK(X0 == method_reg.AsArm64().AsXRegister());
+                                const std::vector<ManagedRegister>& callee_save_regs,
+                                const ManagedRegisterEntrySpills& entry_spills) {
+  // Setup VIXL CPURegList for callee-saves.
+  CPURegList core_reg_list(CPURegister::kRegister, kXRegSize, 0);
+  CPURegList fp_reg_list(CPURegister::kFPRegister, kDRegSize, 0);
+  for (auto r : callee_save_regs) {
+    Arm64ManagedRegister reg = r.AsArm64();
+    if (reg.IsXRegister()) {
+      core_reg_list.Combine(reg_x(reg.AsXRegister()).code());
+    } else {
+      DCHECK(reg.IsDRegister());
+      fp_reg_list.Combine(reg_d(reg.AsDRegister()).code());
+    }
+  }
+  size_t core_reg_size = core_reg_list.TotalSizeInBytes();
+  size_t fp_reg_size = fp_reg_list.TotalSizeInBytes();
 
-  // TODO: *create APCS FP - end of FP chain;
-  //       *add support for saving a different set of callee regs.
-  // For now we check that the size of callee regs vector is 11 core registers and 8 fp registers.
-  CHECK_EQ(callee_save_regs.size(), kJniRefSpillRegsSize);
-  // Increase frame to required size - must be at least space to push StackReference<Method>.
-  CHECK_GT(frame_size, kJniRefSpillRegsSize * kFramePointerSize);
+  // Increase frame to required size.
+  DCHECK_ALIGNED(frame_size, kStackAlignment);
+  DCHECK_GE(frame_size, core_reg_size + fp_reg_size + sizeof(StackReference<mirror::ArtMethod>));
   IncreaseFrameSize(frame_size);
 
-  // TODO: Ugly hard code...
-  // Should generate these according to the spill mask automatically.
-  // TUNING: Use stp.
-  // Note: Must match Arm64JniCallingConvention::CoreSpillMask().
-  size_t reg_offset = frame_size;
-  static constexpr XRegister x_spills[] = {
-      LR, X29, X28, X27, X26, X25, X24, X23, X22, X21, X20 };
-  for (size_t i = 0; i < arraysize(x_spills); i++) {
-    XRegister reg = x_spills[i];
-    reg_offset -= 8;
-    StoreToOffset(reg, SP, reg_offset);
-    cfi_.RelOffset(DWARFReg(reg), reg_offset);
-  }
-  for (int d = 15; d >= 8; d--) {
-    DRegister reg = static_cast<DRegister>(d);
-    reg_offset -= 8;
-    StoreDToOffset(reg, SP, reg_offset);
-    cfi_.RelOffset(DWARFReg(reg), reg_offset);
-  }
+  // Save callee-saves.
+  SpillRegisters(core_reg_list, frame_size - core_reg_size);
+  SpillRegisters(fp_reg_list, frame_size - core_reg_size - fp_reg_size);
 
-  // Move TR(Caller saved) to ETR(Callee saved). The original (ETR)X21 has been saved on stack.
-  // This way we make sure that TR is not trashed by native code.
+  // Note: This is specific to JNI method frame.
+  // We will need to move TR(Caller saved in AAPCS) to ETR(Callee saved in AAPCS). The original
+  // (ETR)X21 has been saved on stack. In this way, we can restore TR later.
+  DCHECK(!core_reg_list.IncludesAliasOf(reg_x(TR)));
+  DCHECK(core_reg_list.IncludesAliasOf(reg_x(ETR)));
   ___ Mov(reg_x(ETR), reg_x(TR));
 
   // Write StackReference<Method>.
+  DCHECK(X0 == method_reg.AsArm64().AsXRegister());
   DCHECK_EQ(4U, sizeof(StackReference<mirror::ArtMethod>));
   StoreWToOffset(StoreOperandType::kStoreWord, W0, SP, 0);
 
@@ -717,37 +750,39 @@ void Arm64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   }
 }
 
-void Arm64Assembler::RemoveFrame(size_t frame_size, const std::vector<ManagedRegister>& callee_save_regs) {
-  CHECK_ALIGNED(frame_size, kStackAlignment);
-  cfi_.RememberState();
+void Arm64Assembler::RemoveFrame(size_t frame_size,
+                                 const std::vector<ManagedRegister>& callee_save_regs) {
+  // Setup VIXL CPURegList for callee-saves.
+  CPURegList core_reg_list(CPURegister::kRegister, kXRegSize, 0);
+  CPURegList fp_reg_list(CPURegister::kFPRegister, kDRegSize, 0);
+  for (auto r : callee_save_regs) {
+    Arm64ManagedRegister reg = r.AsArm64();
+    if (reg.IsXRegister()) {
+      core_reg_list.Combine(reg_x(reg.AsXRegister()).code());
+    } else {
+      DCHECK(reg.IsDRegister());
+      fp_reg_list.Combine(reg_d(reg.AsDRegister()).code());
+    }
+  }
+  size_t core_reg_size = core_reg_list.TotalSizeInBytes();
+  size_t fp_reg_size = fp_reg_list.TotalSizeInBytes();
 
-  // For now we only check that the size of the frame is greater than the spill size.
-  CHECK_EQ(callee_save_regs.size(), kJniRefSpillRegsSize);
-  CHECK_GT(frame_size, kJniRefSpillRegsSize * kFramePointerSize);
+  // For now we only check that the size of the frame is large enough to hold spills and method
+  // reference.
+  DCHECK_GE(frame_size, core_reg_size + fp_reg_size + sizeof(StackReference<mirror::ArtMethod>));
+  DCHECK_ALIGNED(frame_size, kStackAlignment);
 
-  // We move ETR(aapcs64 callee saved) back to TR(aapcs64 caller saved) which might have
-  // been trashed in the native call. The original ETR(X21) is restored from stack.
+  // Note: This is specific to JNI method frame.
+  // Restore TR(Caller saved in AAPCS) from ETR(Callee saved in AAPCS).
+  DCHECK(!core_reg_list.IncludesAliasOf(reg_x(TR)));
+  DCHECK(core_reg_list.IncludesAliasOf(reg_x(ETR)));
   ___ Mov(reg_x(TR), reg_x(ETR));
 
-  // TODO: Ugly hard code...
-  // Should generate these according to the spill mask automatically.
-  // TUNING: Use ldp.
-  // Note: Must match Arm64JniCallingConvention::CoreSpillMask().
-  size_t reg_offset = frame_size;
-  static constexpr XRegister x_spills[] = {
-      LR, X29, X28, X27, X26, X25, X24, X23, X22, X21, X20 };
-  for (size_t i = 0; i < arraysize(x_spills); i++) {
-    XRegister reg = x_spills[i];
-    reg_offset -= 8;
-    LoadFromOffset(reg, SP, reg_offset);
-    cfi_.Restore(DWARFReg(reg));
-  }
-  for (int d = 15; d >= 8; d--) {
-    DRegister reg = static_cast<DRegister>(d);
-    reg_offset -= 8;
-    LoadDFromOffset(reg, SP, reg_offset);
-    cfi_.Restore(DWARFReg(reg));
-  }
+  cfi_.RememberState();
+
+  // Restore callee-saves.
+  UnspillRegisters(core_reg_list, frame_size - core_reg_size);
+  UnspillRegisters(fp_reg_list, frame_size - core_reg_size - fp_reg_size);
 
   // Decrease frame size to start of callee saved regs.
   DecreaseFrameSize(frame_size);
