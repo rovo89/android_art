@@ -490,29 +490,21 @@ void MarkSweep::VisitRoots(mirror::CompressedReference<mirror::Object>** roots, 
 
 class VerifyRootVisitor : public SingleRootVisitor {
  public:
-  explicit VerifyRootVisitor(MarkSweep* collector) : collector_(collector) { }
-
   void VisitRoot(mirror::Object* root, const RootInfo& info) OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
-    collector_->VerifyRoot(root, info);
-  }
-
- private:
-  MarkSweep* const collector_;
-};
-
-void MarkSweep::VerifyRoot(const Object* root, const RootInfo& root_info) {
-  // See if the root is on any space bitmap.
-  if (heap_->GetLiveBitmap()->GetContinuousSpaceBitmap(root) == nullptr) {
-    space::LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
-    if (large_object_space != nullptr && !large_object_space->Contains(root)) {
-      LOG(ERROR) << "Found invalid root: " << root << " " << root_info;
+    // See if the root is on any space bitmap.
+    auto* heap = Runtime::Current()->GetHeap();
+    if (heap->GetLiveBitmap()->GetContinuousSpaceBitmap(root) == nullptr) {
+      space::LargeObjectSpace* large_object_space = heap->GetLargeObjectsSpace();
+      if (large_object_space != nullptr && !large_object_space->Contains(root)) {
+        LOG(ERROR) << "Found invalid root: " << root << " " << info;
+      }
     }
   }
-}
+};
 
 void MarkSweep::VerifyRoots() {
-  VerifyRootVisitor visitor(this);
+  VerifyRootVisitor visitor;
   Runtime::Current()->GetThreadList()->VisitRoots(&visitor);
 }
 

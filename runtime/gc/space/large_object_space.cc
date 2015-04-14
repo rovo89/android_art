@@ -37,6 +37,15 @@ class ValgrindLargeObjectMapSpace FINAL : public LargeObjectMapSpace {
   explicit ValgrindLargeObjectMapSpace(const std::string& name) : LargeObjectMapSpace(name) {
   }
 
+  ~ValgrindLargeObjectMapSpace() OVERRIDE {
+    // Keep valgrind happy if there is any large objects such as dex cache arrays which aren't
+    // freed since they are held live by the class linker.
+    MutexLock mu(Thread::Current(), lock_);
+    for (auto& m : mem_maps_) {
+      delete m.second;
+    }
+  }
+
   virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
                                 size_t* usable_size, size_t* bytes_tl_bulk_allocated)
       OVERRIDE {
