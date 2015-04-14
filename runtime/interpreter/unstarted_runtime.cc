@@ -123,7 +123,12 @@ static void UnstartedClassForName(
 static void UnstartedClassForNameLong(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::String* class_name = shadow_frame->GetVRegReference(arg_offset)->AsString();
+  mirror::Object* param = shadow_frame->GetVRegReference(arg_offset);
+  if (param == nullptr) {
+    AbortTransactionOrFail(self, "Null-pointer in Class.forName.");
+    return;
+  }
+  mirror::String* class_name = param->AsString();
   bool initialize_class = shadow_frame->GetVReg(arg_offset + 1) != 0;
   mirror::ClassLoader* class_loader =
       down_cast<mirror::ClassLoader*>(shadow_frame->GetVRegReference(arg_offset + 2));
