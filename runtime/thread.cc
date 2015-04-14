@@ -1386,6 +1386,8 @@ void Thread::HandleScopeVisitRoots(RootVisitor* visitor, uint32_t thread_id) {
       visitor, RootInfo(kRootNativeStack, thread_id));
   for (HandleScope* cur = tlsPtr_.top_handle_scope; cur; cur = cur->GetLink()) {
     for (size_t j = 0, count = cur->NumberOfReferences(); j < count; ++j) {
+      // GetReference returns a pointer to the stack reference within the handle scope. If this
+      // needs to be updated, it will be done by the root visitor.
       buffered_visitor.VisitRootIfNonNull(cur->GetHandle(j).GetReference());
     }
   }
@@ -2312,6 +2314,7 @@ void Thread::VisitRoots(RootVisitor* visitor) {
   ReleaseLongJumpContext(context);
   for (instrumentation::InstrumentationStackFrame& frame : *GetInstrumentationStack()) {
     visitor->VisitRootIfNonNull(&frame.this_object_, RootInfo(kRootVMInternal, thread_id));
+    DCHECK(frame.method_ != nullptr);
     visitor->VisitRoot(reinterpret_cast<mirror::Object**>(&frame.method_),
                        RootInfo(kRootVMInternal, thread_id));
   }
