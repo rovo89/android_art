@@ -44,8 +44,8 @@ static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoa
   if (loader != nullptr) {
     // Try the common case.
     StackHandleScope<1> hs(soa.Self());
-    c = cl->FindClassInPathClassLoader(soa, soa.Self(), descriptor.c_str(), descriptor_hash,
-                                       hs.NewHandle(loader));
+    cl->FindClassInPathClassLoader(soa, soa.Self(), descriptor.c_str(), descriptor_hash,
+                                   hs.NewHandle(loader), &c);
     if (c != nullptr) {
       return soa.AddLocalReference<jclass>(c);
     }
