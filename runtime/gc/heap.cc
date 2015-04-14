@@ -195,7 +195,17 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       last_time_homogeneous_space_compaction_by_oom_(NanoTime()),
       pending_collector_transition_(nullptr),
       pending_heap_trim_(nullptr),
-      use_homogeneous_space_compaction_for_oom_(use_homogeneous_space_compaction_for_oom) {
+      use_homogeneous_space_compaction_for_oom_(use_homogeneous_space_compaction_for_oom),
+      running_collection_is_blocking_(false),
+      blocking_gc_count_(0U),
+      blocking_gc_time_(0U),
+      last_update_time_gc_count_rate_histograms_(  // Round down by the window duration.
+          (NanoTime() / kGcCountRateHistogramWindowDuration) * kGcCountRateHistogramWindowDuration),
+      gc_count_last_window_(0U),
+      blocking_gc_count_last_window_(0U),
+      gc_count_rate_histogram_("gc count rate histogram", 1U, kGcCountRateMaxBucketCount),
+      blocking_gc_count_rate_histogram_("blocking gc count rate histogram", 1U,
+                                        kGcCountRateMaxBucketCount) {
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() entering";
   }
@@ -926,7 +936,6 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
     total_duration += collector->GetCumulativeTimings().GetTotalNs();
     total_paused_time += collector->GetTotalPausedTimeNs();
     collector->DumpPerformanceInfo(os);
-    collector->ResetMeasurements();
   }
   uint64_t allocation_time =
       static_cast<uint64_t>(total_allocation_time_.LoadRelaxed()) * kTimeAdjust;
@@ -940,8 +949,8 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
   }
   uint64_t total_objects_allocated = GetObjectsAllocatedEver();
   os << "Total number of allocations " << total_objects_allocated << "\n";
-  uint64_t total_bytes_allocated = GetBytesAllocatedEver();
-  os << "Total bytes allocated " << PrettySize(total_bytes_allocated) << "\n";
+  os << "Total bytes allocated " << PrettySize(GetBytesAllocatedEver()) << "\n";
+  os << "Total bytes freed " << PrettySize(GetBytesFreedEver()) << "\n";
   os << "Free memory " << PrettySize(GetFreeMemory()) << "\n";
   os << "Free memory until GC " << PrettySize(GetFreeMemoryUntilGC()) << "\n";
   os << "Free memory until OOME " << PrettySize(GetFreeMemoryUntilOOME()) << "\n";
@@ -956,8 +965,66 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
     os << "Zygote space size " << PrettySize(zygote_space_->Size()) << "\n";
   }
   os << "Total mutator paused time: " << PrettyDuration(total_paused_time) << "\n";
-  os << "Total time waiting for GC to complete: " << PrettyDuration(total_wait_time_);
+  os << "Total time waiting for GC to complete: " << PrettyDuration(total_wait_time_) << "\n";
+  os << "Total GC count: " << GetGcCount() << "\n";
+  os << "Total GC time: " << PrettyDuration(GetGcTime()) << "\n";
+  os << "Total blocking GC count: " << GetBlockingGcCount() << "\n";
+  os << "Total blocking GC time: " << PrettyDuration(GetBlockingGcTime()) << "\n";
+
+  {
+    MutexLock mu(Thread::Current(), *gc_complete_lock_);
+    if (gc_count_rate_histogram_.SampleSize() > 0U) {
+      os << "Histogram of GC count per " << NsToMs(kGcCountRateHistogramWindowDuration) << " ms: ";
+      gc_count_rate_histogram_.DumpBins(os);
+      os << "\n";
+    }
+    if (blocking_gc_count_rate_histogram_.SampleSize() > 0U) {
+      os << "Histogram of blocking GC count per "
+         << NsToMs(kGcCountRateHistogramWindowDuration) << " ms: ";
+      blocking_gc_count_rate_histogram_.DumpBins(os);
+      os << "\n";
+    }
+  }
+
   BaseMutex::DumpAll(os);
+}
+
+uint64_t Heap::GetGcCount() const {
+  uint64_t gc_count = 0U;
+  for (auto& collector : garbage_collectors_) {
+    gc_count += collector->GetCumulativeTimings().GetIterations();
+  }
+  return gc_count;
+}
+
+uint64_t Heap::GetGcTime() const {
+  uint64_t gc_time = 0U;
+  for (auto& collector : garbage_collectors_) {
+    gc_time += collector->GetCumulativeTimings().GetTotalNs();
+  }
+  return gc_time;
+}
+
+uint64_t Heap::GetBlockingGcCount() const {
+  return blocking_gc_count_;
+}
+
+uint64_t Heap::GetBlockingGcTime() const {
+  return blocking_gc_time_;
+}
+
+void Heap::DumpGcCountRateHistogram(std::ostream& os) const {
+  MutexLock mu(Thread::Current(), *gc_complete_lock_);
+  if (gc_count_rate_histogram_.SampleSize() > 0U) {
+    gc_count_rate_histogram_.DumpBins(os);
+  }
+}
+
+void Heap::DumpBlockingGcCountRateHistogram(std::ostream& os) const {
+  MutexLock mu(Thread::Current(), *gc_complete_lock_);
+  if (blocking_gc_count_rate_histogram_.SampleSize() > 0U) {
+    blocking_gc_count_rate_histogram_.DumpBins(os);
+  }
 }
 
 Heap::~Heap() {
@@ -2274,7 +2341,6 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
     }
     collector_type_running_ = collector_type_;
   }
-
   if (gc_cause == kGcCauseForAlloc && runtime->HasStatsEnabled()) {
     ++runtime->GetStats()->gc_for_alloc_count;
     ++self->GetStats()->gc_for_alloc_count;
@@ -2389,9 +2455,53 @@ void Heap::FinishGC(Thread* self, collector::GcType gc_type) {
   collector_type_running_ = kCollectorTypeNone;
   if (gc_type != collector::kGcTypeNone) {
     last_gc_type_ = gc_type;
+
+    // Update stats.
+    ++gc_count_last_window_;
+    if (running_collection_is_blocking_) {
+      // If the currently running collection was a blocking one,
+      // increment the counters and reset the flag.
+      ++blocking_gc_count_;
+      blocking_gc_time_ += GetCurrentGcIteration()->GetDurationNs();
+      ++blocking_gc_count_last_window_;
+    }
+    // Update the gc count rate histograms if due.
+    UpdateGcCountRateHistograms();
   }
+  // Reset.
+  running_collection_is_blocking_ = false;
   // Wake anyone who may have been waiting for the GC to complete.
   gc_complete_cond_->Broadcast(self);
+}
+
+void Heap::UpdateGcCountRateHistograms() {
+  // Invariant: if the time since the last update includes more than
+  // one windows, all the GC runs (if > 0) must have happened in first
+  // window because otherwise the update must have already taken place
+  // at an earlier GC run. So, we report the non-first windows with
+  // zero counts to the histograms.
+  DCHECK_EQ(last_update_time_gc_count_rate_histograms_ % kGcCountRateHistogramWindowDuration, 0U);
+  uint64_t now = NanoTime();
+  DCHECK_GE(now, last_update_time_gc_count_rate_histograms_);
+  uint64_t time_since_last_update = now - last_update_time_gc_count_rate_histograms_;
+  uint64_t num_of_windows = time_since_last_update / kGcCountRateHistogramWindowDuration;
+  if (time_since_last_update >= kGcCountRateHistogramWindowDuration) {
+    // Record the first window.
+    gc_count_rate_histogram_.AddValue(gc_count_last_window_ - 1);  // Exclude the current run.
+    blocking_gc_count_rate_histogram_.AddValue(running_collection_is_blocking_ ?
+        blocking_gc_count_last_window_ - 1 : blocking_gc_count_last_window_);
+    // Record the other windows (with zero counts).
+    for (uint64_t i = 0; i < num_of_windows - 1; ++i) {
+      gc_count_rate_histogram_.AddValue(0);
+      blocking_gc_count_rate_histogram_.AddValue(0);
+    }
+    // Update the last update time and reset the counters.
+    last_update_time_gc_count_rate_histograms_ =
+        (now / kGcCountRateHistogramWindowDuration) * kGcCountRateHistogramWindowDuration;
+    gc_count_last_window_ = 1;  // Include the current run.
+    blocking_gc_count_last_window_ = running_collection_is_blocking_ ? 1 : 0;
+  }
+  DCHECK_EQ(last_update_time_gc_count_rate_histograms_ % kGcCountRateHistogramWindowDuration, 0U);
 }
 
 class RootMatchesObjectVisitor : public SingleRootVisitor {
@@ -3003,6 +3113,14 @@ collector::GcType Heap::WaitForGcToCompleteLocked(GcCause cause, Thread* self) {
   collector::GcType last_gc_type = collector::kGcTypeNone;
   uint64_t wait_start = NanoTime();
   while (collector_type_running_ != kCollectorTypeNone) {
+    if (self != task_processor_->GetRunningThread()) {
+      // The current thread is about to wait for a currently running
+      // collection to finish. If the waiting thread is not the heap
+      // task daemon thread, the currently running collection is
+      // considered as a blocking GC.
+      running_collection_is_blocking_ = true;
+      VLOG(gc) << "Waiting for a blocking GC " << cause;
+    }
     ATRACE_BEGIN("GC: Wait For Completion");
     // We must wait, change thread state then sleep on gc_complete_cond_;
     gc_complete_cond_->Wait(self);
@@ -3014,6 +3132,13 @@ collector::GcType Heap::WaitForGcToCompleteLocked(GcCause cause, Thread* self) {
   if (wait_time > long_pause_log_threshold_) {
     LOG(INFO) << "WaitForGcToComplete blocked for " << PrettyDuration(wait_time)
         << " for cause " << cause;
+  }
+  if (self != task_processor_->GetRunningThread()) {
+    // The current thread is about to run a collection. If the thread
+    // is not the heap task daemon thread, it's considered as a
+    // blocking GC (i.e., blocking itself).
+    running_collection_is_blocking_ = true;
+    VLOG(gc) << "Starting a blocking GC " << cause;
   }
   return last_gc_type;
 }
