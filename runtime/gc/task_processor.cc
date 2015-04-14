@@ -22,7 +22,8 @@ namespace art {
 namespace gc {
 
 TaskProcessor::TaskProcessor()
-    : lock_(new Mutex("Task processor lock", kReferenceProcessorLock)), is_running_(false) {
+    : lock_(new Mutex("Task processor lock", kReferenceProcessorLock)), is_running_(false),
+      running_thread_(nullptr) {
   // Piggyback off the reference processor lock level.
   cond_.reset(new ConditionVariable("Task processor condition", *lock_));
 }
@@ -96,15 +97,22 @@ bool TaskProcessor::IsRunning() const {
   return is_running_;
 }
 
+Thread* TaskProcessor::GetRunningThread() const {
+  MutexLock mu(Thread::Current(), *lock_);
+  return running_thread_;
+}
+
 void TaskProcessor::Stop(Thread* self) {
   MutexLock mu(self, *lock_);
   is_running_ = false;
+  running_thread_ = nullptr;
   cond_->Broadcast(self);
 }
 
 void TaskProcessor::Start(Thread* self) {
   MutexLock mu(self, *lock_);
   is_running_ = true;
+  running_thread_ = self;
 }
 
 void TaskProcessor::RunAllTasks(Thread* self) {

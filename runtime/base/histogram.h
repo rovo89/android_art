@@ -61,6 +61,7 @@ template <class Value> class Histogram {
   void PrintConfidenceIntervals(std::ostream& os, double interval,
                                 const CumulativeData& data) const;
   void PrintBins(std::ostream& os, const CumulativeData& data) const;
+  void DumpBins(std::ostream& os) const;
   Value GetRange(size_t bucket_idx) const;
   size_t GetBucketCount() const;
 
