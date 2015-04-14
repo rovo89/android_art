@@ -39,6 +39,7 @@
 #include "thread.h"
 #include "transaction.h"
 #include "well_known_classes.h"
+#include "zip_archive.h"
 
 namespace art {
 namespace interpreter {
@@ -641,6 +642,100 @@ static void UnstartedMemoryPeekArrayEntry(
   }
 }
 
+// This allows reading security.properties in an unstarted runtime and initialize Security.
+static void UnstartedSecurityGetSecurityPropertiesReader(
+    Thread* self,
+    ShadowFrame* shadow_frame ATTRIBUTE_UNUSED,
+    JValue* result,
+    size_t arg_offset ATTRIBUTE_UNUSED)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  Runtime* runtime = Runtime::Current();
+  const std::vector<const DexFile*>& path = runtime->GetClassLinker()->GetBootClassPath();
+  std::string canonical(DexFile::GetDexCanonicalLocation(path[0]->GetLocation().c_str()));
+  mirror::String* string_data;
+
+  // Use a block to enclose the I/O and MemMap code so buffers are released early.
+  {
+    std::string error_msg;
+    std::unique_ptr<ZipArchive> zip_archive(ZipArchive::Open(canonical.c_str(), &error_msg));
+    if (zip_archive.get() == nullptr) {
+      AbortTransactionOrFail(self, "Could not open zip file %s: %s", canonical.c_str(),
+                             error_msg.c_str());
+      return;
+    }
+    std::unique_ptr<ZipEntry> zip_entry(zip_archive->Find("java/security/security.properties",
+                                                          &error_msg));
+    if (zip_entry.get() == nullptr) {
+      AbortTransactionOrFail(self, "Could not find security.properties file in %s: %s",
+                             canonical.c_str(), error_msg.c_str());
+      return;
+    }
+    std::unique_ptr<MemMap> map(zip_entry->ExtractToMemMap(canonical.c_str(),
+                                                           "java/security/security.properties",
+                                                           &error_msg));
+    if (map.get() == nullptr) {
+      AbortTransactionOrFail(self, "Could not unzip security.properties file in %s: %s",
+                             canonical.c_str(), error_msg.c_str());
+      return;
+    }
+
+    uint32_t length = zip_entry->GetUncompressedLength();
+    std::unique_ptr<char[]> tmp(new char[length + 1]);
+    memcpy(tmp.get(), map->Begin(), length);
+    tmp.get()[length] = 0;  // null terminator
+
+    string_data = mirror::String::AllocFromModifiedUtf8(self, tmp.get());
+  }
+
+  if (string_data == nullptr) {
+    AbortTransactionOrFail(self, "Could not create string from file content of %s",
+                           canonical.c_str());
+    return;
+  }
+
+  // Create a StringReader.
+  StackHandleScope<3> hs(self);
+  Handle<mirror::String> h_string(hs.NewHandle(string_data));
+
+  Handle<mirror::Class> h_class(hs.NewHandle(
+      runtime->GetClassLinker()->FindClass(self,
+                                           "Ljava/io/StringReader;",
+                                           NullHandle<mirror::ClassLoader>())));
+  if (h_class.Get() == nullptr) {
+    AbortTransactionOrFail(self, "Could not find StringReader class");
+    return;
+  }
+
+  if (!runtime->GetClassLinker()->EnsureInitialized(self, h_class, true, true)) {
+    AbortTransactionOrFail(self, "Could not initialize StringReader class");
+    return;
+  }
+
+  Handle<mirror::Object> h_obj(hs.NewHandle(h_class->AllocObject(self)));
+  if (h_obj.Get() == nullptr) {
+    AbortTransactionOrFail(self, "Could not allocate StringReader object");
+    return;
+  }
+
+  mirror::ArtMethod* constructor = h_class->FindDeclaredDirectMethod("<init>",
+                                                                     "(Ljava/lang/String;)V");
+  if (constructor == nullptr) {
+    AbortTransactionOrFail(self, "Could not find StringReader constructor");
+    return;
+  }
+
+  uint32_t args[1];
+  args[0] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(h_string.Get()));
+  EnterInterpreterFromInvoke(self, constructor, h_obj.Get(), args, nullptr);
+
+  if (self->IsExceptionPending()) {
+    AbortTransactionOrFail(self, "Could not run StringReader constructor");
+    return;
+  }
+
+  result->SetL(h_obj.Get());
+}
+
 static void UnstartedJNIVMRuntimeNewUnpaddedArray(Thread* self,
                                                   mirror::ArtMethod* method ATTRIBUTE_UNUSED,
                                                   mirror::Object* receiver ATTRIBUTE_UNUSED,
@@ -963,6 +1058,8 @@ static void UnstartedRuntimeInitializeInvokeHandlers() {
           &UnstartedMemoryPeekEntry },
       { "void libcore.io.Memory.peekByteArray(long, byte[], int, int)",
           &UnstartedMemoryPeekArrayEntry },
+      { "java.io.Reader java.security.Security.getSecurityPropertiesReader()",
+          &UnstartedSecurityGetSecurityPropertiesReader },
   };
 
   for (auto& def : defs) {
