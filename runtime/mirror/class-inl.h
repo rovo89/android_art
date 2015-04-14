@@ -809,18 +809,24 @@ inline ObjectArray<String>* Class::GetDexCacheStrings() {
 template<class Visitor>
 void mirror::Class::VisitFieldRoots(Visitor& visitor) {
   ArtField* const sfields = GetSFieldsUnchecked();
-  for (size_t i = 0, count = NumStaticFields(); i < count; ++i) {
-    if (kIsDebugBuild && GetStatus() != kStatusRetired) {
-      CHECK_EQ(sfields[i].GetDeclaringClass(), this);
+  // Since we visit class roots while we may be writing these fields, check against null.
+  // TODO: Is this safe for concurrent compaction?
+  if (sfields != nullptr) {
+    for (size_t i = 0, count = NumStaticFields(); i < count; ++i) {
+      if (kIsDebugBuild && IsResolved()) {
+        CHECK_EQ(sfields[i].GetDeclaringClass(), this) << GetStatus();
+      }
+      visitor.VisitRoot(sfields[i].DeclaringClassRoot().AddressWithoutBarrier());
     }
-    visitor.VisitRoot(sfields[i].DeclaringClassRoot().AddressWithoutBarrier());
   }
   ArtField* const ifields = GetIFieldsUnchecked();
-  for (size_t i = 0, count = NumInstanceFields(); i < count; ++i) {
-    if (kIsDebugBuild && GetStatus() != kStatusRetired) {
-      CHECK_EQ(ifields[i].GetDeclaringClass(), this);
+  if (ifields != nullptr) {
+    for (size_t i = 0, count = NumInstanceFields(); i < count; ++i) {
+      if (kIsDebugBuild && IsResolved()) {
+        CHECK_EQ(ifields[i].GetDeclaringClass(), this) << GetStatus();
+      }
+      visitor.VisitRoot(ifields[i].DeclaringClassRoot().AddressWithoutBarrier());
     }
-    visitor.VisitRoot(ifields[i].DeclaringClassRoot().AddressWithoutBarrier());
   }
 }
 
