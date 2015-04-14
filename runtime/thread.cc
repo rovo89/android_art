@@ -1070,12 +1070,7 @@ void Thread::DumpStack(std::ostream& os) const {
     // If we're currently in native code, dump that stack before dumping the managed stack.
     if (dump_for_abort || ShouldShowNativeStack(this)) {
       DumpKernelStack(os, GetTid(), "  kernel: ", false);
-      // b/20040863. Temporary workaround for x86 libunwind issue.
-#if defined(__i386__) && defined(HAVE_ANDROID_OS)
-      os << "Cannot dump native stack. b/20040863.\n";
-#else
       DumpNativeStack(os, GetTid(), "  native: ", GetCurrentMethod(nullptr, !dump_for_abort));
-#endif
     }
     DumpJavaStack(os);
   } else {
