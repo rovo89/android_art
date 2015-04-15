@@ -253,7 +253,7 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
                               ArenaBitVector* visited,
                               ArenaBitVector* visiting);
   void RemoveInstructionsAsUsersFromDeadBlocks(const ArenaBitVector& visited) const;
-  void RemoveDeadBlocks(const ArenaBitVector& visited) const;
+  void RemoveDeadBlocks(const ArenaBitVector& visited);
 
   template <class InstType, typename ValueType>
   InstType* CreateConstant(ValueType value, ArenaSafeMap<ValueType, InstType*>* cache);
