@@ -149,6 +149,39 @@ class UsePosition : public ArenaObject<kArenaAllocMisc> {
   DISALLOW_COPY_AND_ASSIGN(UsePosition);
 };
 
+class SafepointPosition : public ArenaObject<kArenaAllocMisc> {
+ public:
+  explicit SafepointPosition(HInstruction* instruction)
+      : instruction_(instruction),
+        next_(nullptr) {}
+
+  void SetNext(SafepointPosition* next) {
+    next_ = next;
+  }
+
+  size_t GetPosition() const {
+    return instruction_->GetLifetimePosition();
+  }
+
+  SafepointPosition* GetNext() const {
+    return next_;
+  }
+
+  LocationSummary* GetLocations() const {
+    return instruction_->GetLocations();
+  }
+
+  HInstruction* GetInstruction() const {
+    return instruction_;
+  }
+
+ private:
+  HInstruction* const instruction_;
+  SafepointPosition* next_;
+
+  DISALLOW_COPY_AND_ASSIGN(SafepointPosition);
+};
+
 /**
  * An interval is a list of disjoint live ranges where an instruction is live.
  * Each instruction that has uses gets an interval.
@@ -703,6 +736,22 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
     UNREACHABLE();
   }
 
+  void AddSafepoint(HInstruction* instruction) {
+    SafepointPosition* safepoint = new (allocator_) SafepointPosition(instruction);
+    if (first_safepoint_ == nullptr) {
+      first_safepoint_ = last_safepoint_ = safepoint;
+    } else {
+      DCHECK_LT(last_safepoint_->GetPosition(), safepoint->GetPosition());
+      last_safepoint_->SetNext(safepoint);
+      last_safepoint_ = safepoint;
+    }
+  }
+
+  SafepointPosition* GetFirstSafepoint() const {
+    DCHECK_EQ(GetParent(), this) << "Only the first sibling lists safepoints";
+    return first_safepoint_;
+  }
+
  private:
   LiveInterval(ArenaAllocator* allocator,
                Primitive::Type type,
@@ -715,6 +764,8 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
       : allocator_(allocator),
         first_range_(nullptr),
         last_range_(nullptr),
+        first_safepoint_(nullptr),
+        last_safepoint_(nullptr),
         last_visited_range_(nullptr),
         first_use_(nullptr),
         type_(type),
@@ -770,6 +821,10 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
   // for liveness (see `IsDeadAt`).
   LiveRange* first_range_;
   LiveRange* last_range_;
+
+  // Safepoints where this interval is live. Only set in the parent interval.
+  SafepointPosition* first_safepoint_;
+  SafepointPosition* last_safepoint_;
 
   // Last visited range. This is a range search optimization leveraging the fact
   // that the register allocator does a linear scan through the intervals.
