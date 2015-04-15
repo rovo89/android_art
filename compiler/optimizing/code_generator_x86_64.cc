@@ -2986,7 +2986,6 @@ void LocationsBuilderX86_64::VisitBooleanNot(HBooleanNot* bool_not) {
 }
 
 void InstructionCodeGeneratorX86_64::VisitBooleanNot(HBooleanNot* bool_not) {
-  DCHECK_EQ(bool_not->InputAt(0)->GetType(), Primitive::kPrimBoolean);
   LocationSummary* locations = bool_not->GetLocations();
   DCHECK_EQ(locations->InAt(0).AsRegister<CpuRegister>().AsRegister(),
             locations->Out().AsRegister<CpuRegister>().AsRegister());
