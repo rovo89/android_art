@@ -1130,6 +1130,81 @@ void LocationsBuilderARM64::HandleBinaryOp(HBinaryOperation* instr) {
   }
 }
 
+void LocationsBuilderARM64::HandleFieldGet(HInstruction* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+  if (Primitive::IsFloatingPointType(instruction->GetType())) {
+    locations->SetOut(Location::RequiresFpuRegister());
+  } else {
+    locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+  }
+}
+
+void InstructionCodeGeneratorARM64::HandleFieldGet(HInstruction* instruction,
+                                                   const FieldInfo& field_info) {
+  DCHECK(instruction->IsInstanceFieldGet() || instruction->IsStaticFieldGet());
+
+  MemOperand field = HeapOperand(InputRegisterAt(instruction, 0), field_info.GetFieldOffset());
+  bool use_acquire_release = codegen_->GetInstructionSetFeatures().PreferAcquireRelease();
+
+  if (field_info.IsVolatile()) {
+    if (use_acquire_release) {
+      // NB: LoadAcquire will record the pc info if needed.
+      codegen_->LoadAcquire(instruction, OutputCPURegister(instruction), field);
+    } else {
+      codegen_->Load(field_info.GetFieldType(), OutputCPURegister(instruction), field);
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
+      // For IRIW sequential consistency kLoadAny is not sufficient.
+      GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
+    }
+  } else {
+    codegen_->Load(field_info.GetFieldType(), OutputCPURegister(instruction), field);
+    codegen_->MaybeRecordImplicitNullCheck(instruction);
+  }
+}
+
+void LocationsBuilderARM64::HandleFieldSet(HInstruction* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+  if (Primitive::IsFloatingPointType(instruction->InputAt(1)->GetType())) {
+    locations->SetInAt(1, Location::RequiresFpuRegister());
+  } else {
+    locations->SetInAt(1, Location::RequiresRegister());
+  }
+}
+
+void InstructionCodeGeneratorARM64::HandleFieldSet(HInstruction* instruction,
+                                                   const FieldInfo& field_info) {
+  DCHECK(instruction->IsInstanceFieldSet() || instruction->IsStaticFieldSet());
+
+  Register obj = InputRegisterAt(instruction, 0);
+  CPURegister value = InputCPURegisterAt(instruction, 1);
+  Offset offset = field_info.GetFieldOffset();
+  Primitive::Type field_type = field_info.GetFieldType();
+  bool use_acquire_release = codegen_->GetInstructionSetFeatures().PreferAcquireRelease();
+
+  if (field_info.IsVolatile()) {
+    if (use_acquire_release) {
+      codegen_->StoreRelease(field_type, value, HeapOperand(obj, offset));
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
+    } else {
+      GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
+      codegen_->Store(field_type, value, HeapOperand(obj, offset));
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
+      GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
+    }
+  } else {
+    codegen_->Store(field_type, value, HeapOperand(obj, offset));
+    codegen_->MaybeRecordImplicitNullCheck(instruction);
+  }
+
+  if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->InputAt(1))) {
+    codegen_->MarkGCCard(obj, Register(value));
+  }
+}
+
 void InstructionCodeGeneratorARM64::HandleBinaryOp(HBinaryOperation* instr) {
   Primitive::Type type = instr->GetType();
 
@@ -1750,72 +1825,19 @@ void InstructionCodeGeneratorARM64::VisitDeoptimize(HDeoptimize* deoptimize) {
 }
 
 void LocationsBuilderARM64::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
-  if (Primitive::IsFloatingPointType(instruction->GetType())) {
-    locations->SetOut(Location::RequiresFpuRegister());
-  } else {
-    locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
-  }
+  HandleFieldGet(instruction);
 }
 
 void InstructionCodeGeneratorARM64::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
-  MemOperand field = HeapOperand(InputRegisterAt(instruction, 0), instruction->GetFieldOffset());
-  bool use_acquire_release = codegen_->GetInstructionSetFeatures().PreferAcquireRelease();
-
-  if (instruction->IsVolatile()) {
-    if (use_acquire_release) {
-      // NB: LoadAcquire will record the pc info if needed.
-      codegen_->LoadAcquire(instruction, OutputCPURegister(instruction), field);
-    } else {
-      codegen_->Load(instruction->GetType(), OutputCPURegister(instruction), field);
-      codegen_->MaybeRecordImplicitNullCheck(instruction);
-      // For IRIW sequential consistency kLoadAny is not sufficient.
-      GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
-    }
-  } else {
-    codegen_->Load(instruction->GetType(), OutputCPURegister(instruction), field);
-    codegen_->MaybeRecordImplicitNullCheck(instruction);
-  }
+  HandleFieldGet(instruction, instruction->GetFieldInfo());
 }
 
 void LocationsBuilderARM64::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
-  if (Primitive::IsFloatingPointType(instruction->InputAt(1)->GetType())) {
-    locations->SetInAt(1, Location::RequiresFpuRegister());
-  } else {
-    locations->SetInAt(1, Location::RequiresRegister());
-  }
+  HandleFieldSet(instruction);
 }
 
 void InstructionCodeGeneratorARM64::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
-  Register obj = InputRegisterAt(instruction, 0);
-  CPURegister value = InputCPURegisterAt(instruction, 1);
-  Offset offset = instruction->GetFieldOffset();
-  Primitive::Type field_type = instruction->GetFieldType();
-  bool use_acquire_release = codegen_->GetInstructionSetFeatures().PreferAcquireRelease();
-
-  if (instruction->IsVolatile()) {
-    if (use_acquire_release) {
-      codegen_->StoreRelease(field_type, value, HeapOperand(obj, offset));
-      codegen_->MaybeRecordImplicitNullCheck(instruction);
-    } else {
-      GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
-      codegen_->Store(field_type, value, HeapOperand(obj, offset));
-      codegen_->MaybeRecordImplicitNullCheck(instruction);
-      GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
-    }
-  } else {
-    codegen_->Store(field_type, value, HeapOperand(obj, offset));
-    codegen_->MaybeRecordImplicitNullCheck(instruction);
-  }
-
-  if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->InputAt(1))) {
-    codegen_->MarkGCCard(obj, Register(value));
-  }
+  HandleFieldSet(instruction, instruction->GetFieldInfo());
 }
 
 void LocationsBuilderARM64::VisitInstanceOf(HInstanceOf* instruction) {
@@ -2519,67 +2541,19 @@ void InstructionCodeGeneratorARM64::VisitSub(HSub* instruction) {
 }
 
 void LocationsBuilderARM64::VisitStaticFieldGet(HStaticFieldGet* instruction) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
-  if (Primitive::IsFloatingPointType(instruction->GetType())) {
-    locations->SetOut(Location::RequiresFpuRegister());
-  } else {
-    locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
-  }
+  HandleFieldGet(instruction);
 }
 
 void InstructionCodeGeneratorARM64::VisitStaticFieldGet(HStaticFieldGet* instruction) {
-  MemOperand field = HeapOperand(InputRegisterAt(instruction, 0), instruction->GetFieldOffset());
-  bool use_acquire_release = codegen_->GetInstructionSetFeatures().PreferAcquireRelease();
-
-  if (instruction->IsVolatile()) {
-    if (use_acquire_release) {
-      // NB: LoadAcquire will record the pc info if needed.
-      codegen_->LoadAcquire(instruction, OutputCPURegister(instruction), field);
-    } else {
-      codegen_->Load(instruction->GetType(), OutputCPURegister(instruction), field);
-      // For IRIW sequential consistency kLoadAny is not sufficient.
-      GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
-    }
-  } else {
-    codegen_->Load(instruction->GetType(), OutputCPURegister(instruction), field);
-  }
+  HandleFieldGet(instruction, instruction->GetFieldInfo());
 }
 
 void LocationsBuilderARM64::VisitStaticFieldSet(HStaticFieldSet* instruction) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
-  if (Primitive::IsFloatingPointType(instruction->InputAt(1)->GetType())) {
-    locations->SetInAt(1, Location::RequiresFpuRegister());
-  } else {
-    locations->SetInAt(1, Location::RequiresRegister());
-  }
+  HandleFieldSet(instruction);
 }
 
 void InstructionCodeGeneratorARM64::VisitStaticFieldSet(HStaticFieldSet* instruction) {
-  Register cls = InputRegisterAt(instruction, 0);
-  CPURegister value = InputCPURegisterAt(instruction, 1);
-  Offset offset = instruction->GetFieldOffset();
-  Primitive::Type field_type = instruction->GetFieldType();
-  bool use_acquire_release = codegen_->GetInstructionSetFeatures().PreferAcquireRelease();
-
-  if (instruction->IsVolatile()) {
-    if (use_acquire_release) {
-      codegen_->StoreRelease(field_type, value, HeapOperand(cls, offset));
-    } else {
-      GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
-      codegen_->Store(field_type, value, HeapOperand(cls, offset));
-      GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
-    }
-  } else {
-    codegen_->Store(field_type, value, HeapOperand(cls, offset));
-  }
-
-  if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->InputAt(1))) {
-    codegen_->MarkGCCard(cls, Register(value));
-  }
+  HandleFieldSet(instruction, instruction->GetFieldInfo());
 }
 
 void LocationsBuilderARM64::VisitSuspendCheck(HSuspendCheck* instruction) {
