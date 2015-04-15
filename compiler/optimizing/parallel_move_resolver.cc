@@ -189,9 +189,9 @@ MoveOperands* ParallelMoveResolver::PerformMove(size_t index) {
       const MoveOperands& other_move = *moves_.Get(i);
       if (other_move.Blocks(destination)) {
         DCHECK(other_move.IsPending());
-        if (!destination.IsPair() && other_move.GetSource().IsPair()) {
-          // We swap pairs before swapping non-pairs. Go back from the
-          // cycle by returning the pair that must be swapped.
+        if (!move->Is64BitMove() && other_move.Is64BitMove()) {
+          // We swap 64bits moves before swapping 32bits moves. Go back from the
+          // cycle by returning the move that must be swapped.
           return moves_.Get(i);
         }
         do_swap = true;
@@ -216,7 +216,7 @@ MoveOperands* ParallelMoveResolver::PerformMove(size_t index) {
         UpdateSourceOf(moves_.Get(i), swap_destination, source);
       }
     }
-    // If the swap was required because of a pair in the middle of a cycle,
+    // If the swap was required because of a 64bits move in the middle of a cycle,
     // we return the swapped move, so that the caller knows it needs to re-iterate
     // its dependency loop.
     return required_swap;

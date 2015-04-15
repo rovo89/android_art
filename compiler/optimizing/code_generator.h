@@ -244,7 +244,12 @@ class CodeGenerator {
   // of the architecture.
   static size_t GetCacheOffset(uint32_t index);
 
-  void EmitParallelMoves(Location from1, Location to1, Location from2, Location to2);
+  void EmitParallelMoves(Location from1,
+                         Location to1,
+                         Primitive::Type type1,
+                         Location from2,
+                         Location to2,
+                         Primitive::Type type2);
 
   static bool StoreNeedsWriteBarrier(Primitive::Type type, HInstruction* value) {
     // Check that null value is not represented as an integer constant.
