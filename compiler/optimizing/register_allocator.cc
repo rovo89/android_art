@@ -224,7 +224,7 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
           temp_intervals_.Add(interval);
           interval->AddTempUse(instruction, i);
           if (codegen_->NeedsTwoRegisters(Primitive::kPrimDouble)) {
-            interval->AddHighInterval(true);
+            interval->AddHighInterval(/* is_temp */ true);
             LiveInterval* high = interval->GetHighInterval();
             temp_intervals_.Add(high);
             unhandled_fp_intervals_.Add(high);
@@ -308,6 +308,29 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
 
   if (codegen_->NeedsTwoRegisters(current->GetType())) {
     current->AddHighInterval();
+  }
+
+  for (size_t safepoint_index = safepoints_.Size(); safepoint_index > 0; --safepoint_index) {
+    HInstruction* safepoint = safepoints_.Get(safepoint_index - 1);
+    size_t safepoint_position = safepoint->GetLifetimePosition();
+
+    // Test that safepoints are ordered in the optimal way.
+    DCHECK(safepoint_index == safepoints_.Size()
+           || safepoints_.Get(safepoint_index)->GetLifetimePosition() < safepoint_position);
+
+    if (safepoint_position == current->GetStart()) {
+      // The safepoint is for this instruction, so the location of the instruction
+      // does not need to be saved.
+      DCHECK_EQ(safepoint_index, safepoints_.Size());
+      DCHECK_EQ(safepoint, instruction);
+      continue;
+    } else if (current->IsDeadAt(safepoint_position)) {
+      break;
+    } else if (!current->Covers(safepoint_position)) {
+      // Hole in the interval.
+      continue;
+    }
+    current->AddSafepoint(safepoint);
   }
 
   // Some instructions define their output in fixed register/stack slot. We need
@@ -1399,7 +1422,7 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
                         : Location::StackSlot(interval->GetParent()->GetSpillSlot()));
   }
   UsePosition* use = current->GetFirstUse();
-  size_t safepoint_index = safepoints_.Size();
+  SafepointPosition* safepoint_position = interval->GetFirstSafepoint();
 
   // Walk over all siblings, updating locations of use positions, and
   // connecting them when they are adjacent.
@@ -1450,28 +1473,13 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
       InsertParallelMoveAt(current->GetEnd(), interval->GetDefinedBy(), source, destination);
     }
 
-    // At each safepoint, we record stack and register information.
-    // We iterate backwards to test safepoints in ascending order of positions,
-    // which is what LiveInterval::Covers is optimized for.
-    for (; safepoint_index > 0; --safepoint_index) {
-      HInstruction* safepoint = safepoints_.Get(safepoint_index - 1);
-      size_t position = safepoint->GetLifetimePosition();
-
-      // Test that safepoints are ordered in the optimal way.
-      DCHECK(safepoint_index == safepoints_.Size()
-             || safepoints_.Get(safepoint_index)->GetLifetimePosition() <= position);
-
-      if (current->IsDeadAt(position)) {
+    for (; safepoint_position != nullptr; safepoint_position = safepoint_position->GetNext()) {
+      if (!current->Covers(safepoint_position->GetPosition())) {
+        DCHECK(next_sibling != nullptr);
         break;
-      } else if (!current->Covers(position)) {
-        continue;
-      } else if (interval->GetStart() == position) {
-        // The safepoint is for this instruction, so the location of the instruction
-        // does not need to be saved.
-        continue;
       }
 
-      LocationSummary* locations = safepoint->GetLocations();
+      LocationSummary* locations = safepoint_position->GetLocations();
       if ((current->GetType() == Primitive::kPrimNot) && current->GetParent()->HasSpillSlot()) {
         locations->SetStackBit(current->GetParent()->GetSpillSlot() / kVRegSize);
       }
@@ -1515,6 +1523,7 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
   } while (current != nullptr);
 
   if (kIsDebugBuild) {
+    DCHECK(safepoint_position == nullptr);
     // Following uses can only be environment uses. The location for
     // these environments will be none.
     while (use != nullptr) {
