@@ -104,6 +104,7 @@ class CompilerDriver {
                           const InstructionSetFeatures* instruction_set_features,
                           bool image, std::unordered_set<std::string>* image_classes,
                           std::unordered_set<std::string>* compiled_classes,
+                          std::unordered_set<std::string>* compiled_methods,
                           size_t thread_count, bool dump_stats, bool dump_passes,
                           const std::string& dump_cfg_file_name,
                           CumulativeLogger* timer, int swap_fd,
@@ -428,6 +429,9 @@ class CompilerDriver {
   // Checks whether the provided class should be compiled, i.e., is in classes_to_compile_.
   bool IsClassToCompile(const char* descriptor) const;
 
+  // Checks whether the provided method should be compiled, i.e., is in method_to_compile_.
+  bool IsMethodToCompile(const MethodReference& method_ref) const;
+
   void RecordClassStatus(ClassReference ref, mirror::Class::Status status)
       LOCKS_EXCLUDED(compiled_classes_lock_);
 
@@ -596,6 +600,11 @@ class CompilerDriver {
   // all classes are eligible for compilation (duplication filters etc. will still apply).
   // This option may be restricted to the boot image, depending on a flag in the implementation.
   std::unique_ptr<std::unordered_set<std::string>> classes_to_compile_;
+
+  // Specifies the methods that will be compiled. Note that if methods_to_compile_ is nullptr,
+  // all methods are eligible for compilation (compilation filters etc. will still apply).
+  // This option may be restricted to the boot image, depending on a flag in the implementation.
+  std::unique_ptr<std::unordered_set<std::string>> methods_to_compile_;
 
   bool had_hard_verifier_failure_;
 
