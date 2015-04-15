@@ -2974,6 +2974,22 @@ void InstructionCodeGeneratorX86_64::VisitNot(HNot* not_) {
   }
 }
 
+void LocationsBuilderX86_64::VisitBooleanNot(HBooleanNot* bool_not) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(bool_not, LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::SameAsFirstInput());
+}
+
+void InstructionCodeGeneratorX86_64::VisitBooleanNot(HBooleanNot* bool_not) {
+  DCHECK_EQ(bool_not->InputAt(0)->GetType(), Primitive::kPrimBoolean);
+  LocationSummary* locations = bool_not->GetLocations();
+  DCHECK_EQ(locations->InAt(0).AsRegister<CpuRegister>().AsRegister(),
+            locations->Out().AsRegister<CpuRegister>().AsRegister());
+  Location out = locations->Out();
+  __ xorl(out.AsRegister<CpuRegister>(), Immediate(1));
+}
+
 void LocationsBuilderX86_64::VisitPhi(HPhi* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);

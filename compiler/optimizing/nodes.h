@@ -676,6 +676,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(ArrayGet, Instruction)                                              \
   M(ArrayLength, Instruction)                                           \
   M(ArraySet, Instruction)                                              \
+  M(BooleanNot, UnaryOperation)                                         \
   M(BoundsCheck, Instruction)                                           \
   M(BoundType, Instruction)                                             \
   M(CheckCast, Instruction)                                             \
@@ -2641,6 +2642,33 @@ class HNot : public HUnaryOperation {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HNot);
+};
+
+class HBooleanNot : public HUnaryOperation {
+ public:
+  explicit HBooleanNot(HInstruction* input)
+      : HUnaryOperation(Primitive::Type::kPrimBoolean, input) {}
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+    UNUSED(other);
+    return true;
+  }
+
+  int32_t Evaluate(int32_t x) const OVERRIDE {
+    DCHECK(IsUint<1>(x));
+    return !x;
+  }
+
+  int64_t Evaluate(int64_t x ATTRIBUTE_UNUSED) const OVERRIDE {
+    LOG(FATAL) << DebugName() << " cannot be used with 64-bit values";
+    UNREACHABLE();
+  }
+
+  DECLARE_INSTRUCTION(BooleanNot);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HBooleanNot);
 };
 
 class HTypeConversion : public HExpression<1> {
