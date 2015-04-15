@@ -350,8 +350,9 @@ class OatWriter::InitOatClassesMethodVisitor : public DexMethodVisitor {
 class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
  public:
   InitCodeMethodVisitor(OatWriter* writer, size_t offset)
-    : OatDexMethodVisitor(writer, offset) {
-    text_absolute_patch_locations_ = writer->GetAbsolutePatchLocationsFor(".text");
+    : OatDexMethodVisitor(writer, offset),
+      text_absolute_patch_locations_(writer->GetAbsolutePatchLocationsFor(".text")),
+      debuggable_(writer->GetCompilerDriver()->GetCompilerOptions().GetDebuggable()) {
     text_absolute_patch_locations_->reserve(
         writer_->compiler_driver_->GetNonRelativeLinkerPatchCount());
   }
@@ -379,20 +380,19 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
       CHECK_NE(code_size, 0U);
       uint32_t thumb_offset = compiled_method->CodeDelta();
 
-      // Deduplicate code arrays.
+      // Deduplicate code arrays if we are not producing debuggable code.
       bool deduped = false;
-      auto lb = dedupe_map_.lower_bound(compiled_method);
-      if (lb != dedupe_map_.end() && !dedupe_map_.key_comp()(compiled_method, lb->first)) {
-        quick_code_offset = lb->second;
-        deduped = true;
+      if (debuggable_) {
+        quick_code_offset = NewQuickCodeOffset(compiled_method, it, thumb_offset);
       } else {
-        offset_ = writer_->relative_patcher_->ReserveSpace(
-            offset_, compiled_method, MethodReference(dex_file_, it.GetMemberIndex()));
-        offset_ = compiled_method->AlignCode(offset_);
-        DCHECK_ALIGNED_PARAM(offset_,
-                             GetInstructionSetAlignment(compiled_method->GetInstructionSet()));
-        quick_code_offset = offset_ + sizeof(OatQuickMethodHeader) + thumb_offset;
-        dedupe_map_.PutBefore(lb, compiled_method, quick_code_offset);
+        auto lb = dedupe_map_.lower_bound(compiled_method);
+        if (lb != dedupe_map_.end() && !dedupe_map_.key_comp()(compiled_method, lb->first)) {
+          quick_code_offset = lb->second;
+          deduped = true;
+        } else {
+          quick_code_offset = NewQuickCodeOffset(compiled_method, it, thumb_offset);
+          dedupe_map_.PutBefore(lb, compiled_method, quick_code_offset);
+        }
       }
 
       MethodReference method_ref(dex_file_, it.GetMemberIndex());
@@ -532,12 +532,26 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
     }
   };
 
+  uint32_t NewQuickCodeOffset(CompiledMethod* compiled_method,
+                              const ClassDataItemIterator& it,
+                              uint32_t thumb_offset) {
+    offset_ = writer_->relative_patcher_->ReserveSpace(
+              offset_, compiled_method, MethodReference(dex_file_, it.GetMemberIndex()));
+    offset_ = compiled_method->AlignCode(offset_);
+    DCHECK_ALIGNED_PARAM(offset_,
+                         GetInstructionSetAlignment(compiled_method->GetInstructionSet()));
+    return offset_ + sizeof(OatQuickMethodHeader) + thumb_offset;
+  }
+
   // Deduplication is already done on a pointer basis by the compiler driver,
   // so we can simply compare the pointers to find out if things are duplicated.
   SafeMap<const CompiledMethod*, uint32_t, CodeOffsetsKeyComparator> dedupe_map_;
 
   // Patch locations for the .text section.
-  std::vector<uintptr_t>* text_absolute_patch_locations_;
+  std::vector<uintptr_t>* const text_absolute_patch_locations_;
+
+  // Cache of compiler's --debuggable option.
+  const bool debuggable_;
 };
 
 template <typename DataAccess>
