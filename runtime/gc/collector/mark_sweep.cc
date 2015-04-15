@@ -16,6 +16,7 @@
 
 #include "mark_sweep.h"
 
+#include <atomic>
 #include <functional>
 #include <numeric>
 #include <climits>
@@ -600,7 +601,7 @@ class MarkStackTask : public Task {
       mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset);
       if (ref != nullptr && mark_sweep_->MarkObjectParallel(ref)) {
         if (kUseFinger) {
-          android_memory_barrier();
+          std::atomic_thread_fence(std::memory_order_seq_cst);
           if (reinterpret_cast<uintptr_t>(ref) >=
               static_cast<uintptr_t>(mark_sweep_->atomic_finger_.LoadRelaxed())) {
             return;
