@@ -46,7 +46,7 @@ static bool Check(const uint16_t* data) {
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-  SsaLivenessAnalysis liveness(*graph, &codegen);
+  SsaLivenessAnalysis liveness(graph, &codegen);
   liveness.Analyze();
   RegisterAllocator register_allocator(&allocator, &codegen, liveness);
   register_allocator.AllocateRegisters();
@@ -306,7 +306,7 @@ TEST(RegisterAllocatorTest, Loop3) {
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-  SsaLivenessAnalysis liveness(*graph, &codegen);
+  SsaLivenessAnalysis liveness(graph, &codegen);
   liveness.Analyze();
   RegisterAllocator register_allocator(&allocator, &codegen, liveness);
   register_allocator.AllocateRegisters();
@@ -340,7 +340,7 @@ TEST(RegisterAllocatorTest, FirstRegisterUse) {
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-  SsaLivenessAnalysis liveness(*graph, &codegen);
+  SsaLivenessAnalysis liveness(graph, &codegen);
   liveness.Analyze();
 
   HXor* first_xor = graph->GetBlocks().Get(1)->GetFirstInstruction()->AsXor();
@@ -395,7 +395,7 @@ TEST(RegisterAllocatorTest, DeadPhi) {
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-  SsaLivenessAnalysis liveness(*graph, &codegen);
+  SsaLivenessAnalysis liveness(graph, &codegen);
   liveness.Analyze();
   RegisterAllocator register_allocator(&allocator, &codegen, liveness);
   register_allocator.AllocateRegisters();
@@ -419,7 +419,7 @@ TEST(RegisterAllocatorTest, FreeUntil) {
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-  SsaLivenessAnalysis liveness(*graph, &codegen);
+  SsaLivenessAnalysis liveness(graph, &codegen);
   liveness.Analyze();
   RegisterAllocator register_allocator(&allocator, &codegen, liveness);
 
@@ -523,7 +523,7 @@ TEST(RegisterAllocatorTest, PhiHint) {
     std::unique_ptr<const X86InstructionSetFeatures> features_x86(
         X86InstructionSetFeatures::FromCppDefines());
     x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-    SsaLivenessAnalysis liveness(*graph, &codegen);
+    SsaLivenessAnalysis liveness(graph, &codegen);
     liveness.Analyze();
 
     // Check that the register allocator is deterministic.
@@ -540,7 +540,7 @@ TEST(RegisterAllocatorTest, PhiHint) {
     std::unique_ptr<const X86InstructionSetFeatures> features_x86(
         X86InstructionSetFeatures::FromCppDefines());
     x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-    SsaLivenessAnalysis liveness(*graph, &codegen);
+    SsaLivenessAnalysis liveness(graph, &codegen);
     liveness.Analyze();
 
     // Set the phi to a specific register, and check that the inputs get allocated
@@ -559,7 +559,7 @@ TEST(RegisterAllocatorTest, PhiHint) {
     std::unique_ptr<const X86InstructionSetFeatures> features_x86(
         X86InstructionSetFeatures::FromCppDefines());
     x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-    SsaLivenessAnalysis liveness(*graph, &codegen);
+    SsaLivenessAnalysis liveness(graph, &codegen);
     liveness.Analyze();
 
     // Set input1 to a specific register, and check that the phi and other input get allocated
@@ -578,7 +578,7 @@ TEST(RegisterAllocatorTest, PhiHint) {
     std::unique_ptr<const X86InstructionSetFeatures> features_x86(
         X86InstructionSetFeatures::FromCppDefines());
     x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-    SsaLivenessAnalysis liveness(*graph, &codegen);
+    SsaLivenessAnalysis liveness(graph, &codegen);
     liveness.Analyze();
 
     // Set input2 to a specific register, and check that the phi and other input get allocated
@@ -632,7 +632,7 @@ TEST(RegisterAllocatorTest, ExpectedInRegisterHint) {
     std::unique_ptr<const X86InstructionSetFeatures> features_x86(
         X86InstructionSetFeatures::FromCppDefines());
     x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-    SsaLivenessAnalysis liveness(*graph, &codegen);
+    SsaLivenessAnalysis liveness(graph, &codegen);
     liveness.Analyze();
 
     RegisterAllocator register_allocator(&allocator, &codegen, liveness);
@@ -647,7 +647,7 @@ TEST(RegisterAllocatorTest, ExpectedInRegisterHint) {
     std::unique_ptr<const X86InstructionSetFeatures> features_x86(
         X86InstructionSetFeatures::FromCppDefines());
     x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-    SsaLivenessAnalysis liveness(*graph, &codegen);
+    SsaLivenessAnalysis liveness(graph, &codegen);
     liveness.Analyze();
 
     // Check that the field gets put in the register expected by its use.
@@ -699,7 +699,7 @@ TEST(RegisterAllocatorTest, SameAsFirstInputHint) {
     std::unique_ptr<const X86InstructionSetFeatures> features_x86(
         X86InstructionSetFeatures::FromCppDefines());
     x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-    SsaLivenessAnalysis liveness(*graph, &codegen);
+    SsaLivenessAnalysis liveness(graph, &codegen);
     liveness.Analyze();
 
     RegisterAllocator register_allocator(&allocator, &codegen, liveness);
@@ -715,7 +715,7 @@ TEST(RegisterAllocatorTest, SameAsFirstInputHint) {
     std::unique_ptr<const X86InstructionSetFeatures> features_x86(
         X86InstructionSetFeatures::FromCppDefines());
     x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-    SsaLivenessAnalysis liveness(*graph, &codegen);
+    SsaLivenessAnalysis liveness(graph, &codegen);
     liveness.Analyze();
 
     // check that both adds get the same register.
@@ -766,7 +766,7 @@ TEST(RegisterAllocatorTest, ExpectedExactInRegisterAndSameOutputHint) {
     std::unique_ptr<const X86InstructionSetFeatures> features_x86(
         X86InstructionSetFeatures::FromCppDefines());
     x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-    SsaLivenessAnalysis liveness(*graph, &codegen);
+    SsaLivenessAnalysis liveness(graph, &codegen);
     liveness.Analyze();
 
     RegisterAllocator register_allocator(&allocator, &codegen, liveness);
@@ -856,7 +856,7 @@ TEST(RegisterAllocatorTest, SpillInactive) {
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-  SsaLivenessAnalysis liveness(*graph, &codegen);
+  SsaLivenessAnalysis liveness(graph, &codegen);
 
   RegisterAllocator register_allocator(&allocator, &codegen, liveness);
   register_allocator.unhandled_core_intervals_.Add(fourth);

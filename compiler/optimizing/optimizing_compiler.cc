@@ -361,7 +361,7 @@ static void AllocateRegisters(HGraph* graph,
                               CodeGenerator* codegen,
                               PassInfoPrinter* pass_info_printer) {
   PrepareForRegisterAllocation(graph).Run();
-  SsaLivenessAnalysis liveness(*graph, codegen);
+  SsaLivenessAnalysis liveness(graph, codegen);
   {
     PassInfo pass_info(SsaLivenessAnalysis::kLivenessPassName, pass_info_printer);
     liveness.Analyze();

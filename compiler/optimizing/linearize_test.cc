@@ -50,12 +50,12 @@ static void TestCode(const uint16_t* data, const int* expected_order, size_t num
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-  SsaLivenessAnalysis liveness(*graph, &codegen);
+  SsaLivenessAnalysis liveness(graph, &codegen);
   liveness.Analyze();
 
-  ASSERT_EQ(liveness.GetLinearOrder().Size(), number_of_blocks);
+  ASSERT_EQ(graph->GetLinearOrder().Size(), number_of_blocks);
   for (size_t i = 0; i < number_of_blocks; ++i) {
-    ASSERT_EQ(liveness.GetLinearOrder().Get(i)->GetBlockId(), expected_order[i]);
+    ASSERT_EQ(graph->GetLinearOrder().Get(i)->GetBlockId(), expected_order[i]);
   }
 }
 
