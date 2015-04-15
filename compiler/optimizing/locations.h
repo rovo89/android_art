@@ -486,11 +486,17 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
 
   void SetOut(Location location, Location::OutputOverlap overlaps = Location::kOutputOverlap) {
     DCHECK(output_.IsInvalid());
+    if (kIsDebugBuild && location.IsUnallocated()) {
+      if ((location.GetPolicy() == Location::kSameAsFirstInput) && InAt(0).IsUnallocated()) {
+        DCHECK_NE(InAt(0).GetPolicy(), Location::kAny);
+      }
+    }
     output_overlaps_ = overlaps;
     output_ = location;
   }
 
   void UpdateOut(Location location) {
+    DCHECK(!location.IsUnallocated());
     // There are two reasons for updating an output:
     // 1) Parameters, where we only know the exact stack slot after
     //    doing full register allocation.
