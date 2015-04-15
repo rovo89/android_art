@@ -48,8 +48,8 @@
     stp d12, d13, [sp, #40]
     stp d14, d15, [sp, #56]
 
-    // Reserved registers
-    stp xSELF, xSUSPEND, [sp, #72]
+    // Thread register and x19 (callee-save)
+    stp xSELF, x19, [sp, #72]
     .cfi_rel_offset x18, 72
     .cfi_rel_offset x19, 80
 
@@ -99,38 +99,39 @@
     THIS_LOAD_REQUIRES_READ_BARRIER
     ldr wIP0, [xIP0, RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET ]
 
-    sub sp, sp, #96
-    .cfi_adjust_cfa_offset 96
+    sub sp, sp, #112
+    .cfi_adjust_cfa_offset 112
 
     // Ugly compile-time check, but we only have the preprocessor.
-#if (FRAME_SIZE_REFS_ONLY_CALLEE_SAVE != 96)
+#if (FRAME_SIZE_REFS_ONLY_CALLEE_SAVE != 112)
 #error "REFS_ONLY_CALLEE_SAVE_FRAME(ARM64) size not as expected."
 #endif
 
     // Callee-saves
-    stp x20, x21,  [sp, #8]
-    .cfi_rel_offset x20, 8
-    .cfi_rel_offset x21, 16
+    stp x19, x20,  [sp, #16]
+    .cfi_rel_offset x19, 16
+    .cfi_rel_offset x20, 24
 
-    stp x22, x23, [sp, #24]
-    .cfi_rel_offset x22, 24
-    .cfi_rel_offset x23, 32
+    stp x21, x22, [sp, #32]
+    .cfi_rel_offset x21, 32
+    .cfi_rel_offset x22, 40
 
-    stp x24, x25, [sp, #40]
-    .cfi_rel_offset x24, 40
-    .cfi_rel_offset x25, 48
+    stp x23, x24, [sp, #48]
+    .cfi_rel_offset x23, 48
+    .cfi_rel_offset x24, 56
 
-    stp x26, x27, [sp, #56]
-    .cfi_rel_offset x26, 56
-    .cfi_rel_offset x27, 64
+    stp x25, x26, [sp, #64]
+    .cfi_rel_offset x25, 64
+    .cfi_rel_offset x26, 72
 
-    stp x28, x29, [sp, #72]
-    .cfi_rel_offset x28, 72
-    .cfi_rel_offset x29, 80
+    stp x27, x28, [sp, #80]
+    .cfi_rel_offset x27, 80
+    .cfi_rel_offset x28, 88
 
-    // LR
-    str xLR, [sp, #88]
-    .cfi_rel_offset x30, 88
+    // x29(callee-save) and LR
+    stp x29, xLR, [sp, #96]
+    .cfi_rel_offset x29, 96
+    .cfi_rel_offset x30, 104
 
     // Save xSELF to xETR.
     mov xETR, xSELF
@@ -148,32 +149,33 @@
     mov xSELF, xETR
 
     // Callee-saves
-    ldp x20, x21,  [sp, #8]
+    ldp x19, x20,  [sp, #16]
+    .cfi_restore x19
     .cfi_restore x20
+
+    ldp x21, x22, [sp, #32]
     .cfi_restore x21
-
-    ldp x22, x23, [sp, #24]
     .cfi_restore x22
+
+    ldp x23, x24, [sp, #48]
     .cfi_restore x23
-
-    ldp x24, x25, [sp, #40]
     .cfi_restore x24
+
+    ldp x25, x26, [sp, #64]
     .cfi_restore x25
-
-    ldp x26, x27, [sp, #56]
     .cfi_restore x26
+
+    ldp x27, x28, [sp, #80]
     .cfi_restore x27
-
-    ldp x28, x29, [sp, #72]
     .cfi_restore x28
-    .cfi_restore x29
 
-    // LR
-    ldr xLR, [sp, #88]
+    // x29(callee-save) and LR
+    ldp x29, xLR, [sp, #96]
+    .cfi_restore x29
     .cfi_restore x30
 
-    add sp, sp, #96
-    .cfi_adjust_cfa_offset -96
+    add sp, sp, #112
+    .cfi_adjust_cfa_offset -112
 .endm
 
 .macro POP_REFS_ONLY_CALLEE_SAVE_FRAME
@@ -183,8 +185,8 @@
     ldr xETR, [sp, #16]
     .cfi_restore x21
 
-    add sp, sp, #96
-    .cfi_adjust_cfa_offset -96
+    add sp, sp, #112
+    .cfi_adjust_cfa_offset -112
 .endm
 
 .macro RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
@@ -202,30 +204,33 @@
 #error "REFS_AND_ARGS_CALLEE_SAVE_FRAME(ARM64) size not as expected."
 #endif
 
-    // FP args
-    stp d0, d1, [sp, #16]
-    stp d2, d3, [sp, #32]
-    stp d4, d5, [sp, #48]
-    stp d6, d7, [sp, #64]
+    // FP args.
+    stp d0, d1, [sp, #8]
+    stp d2, d3, [sp, #24]
+    stp d4, d5, [sp, #40]
+    stp d6, d7, [sp, #56]
 
-    // args and x20(callee-save)
-    stp x1,  x2, [sp, #80]
-    .cfi_rel_offset x1, 80
-    .cfi_rel_offset x2, 88
+    // Core args.
+    str x1, [sp, 72]
+    .cfi_rel_offset x1, 72
 
-    stp x3,  x4, [sp, #96]
-    .cfi_rel_offset x3, 96
-    .cfi_rel_offset x4, 104
+    stp x2,  x3, [sp, #80]
+    .cfi_rel_offset x2, 80
+    .cfi_rel_offset x3, 88
 
-    stp x5,  x6, [sp, #112]
-    .cfi_rel_offset x5, 112
-    .cfi_rel_offset x6, 120
+    stp x4,  x5, [sp, #96]
+    .cfi_rel_offset x4, 96
+    .cfi_rel_offset x5, 104
 
-    stp x7, x20, [sp, #128]
-    .cfi_rel_offset x7, 128
-    .cfi_rel_offset x20, 136
+    stp x6,  x7, [sp, #112]
+    .cfi_rel_offset x6, 112
+    .cfi_rel_offset x7, 120
 
     // Callee-saves.
+    stp x19, x20, [sp, #128]
+    .cfi_rel_offset x19, 128
+    .cfi_rel_offset x20, 136
+
     stp x21, x22, [sp, #144]
     .cfi_rel_offset x21, 144
     .cfi_rel_offset x22, 152
@@ -289,30 +294,33 @@
     // Restore xSELF.
     mov xSELF, xETR
 
-    // FP args
-    ldp d0, d1, [sp, #16]
-    ldp d2, d3, [sp, #32]
-    ldp d4, d5, [sp, #48]
-    ldp d6, d7, [sp, #64]
+    // FP args.
+    ldp d0, d1, [sp, #8]
+    ldp d2, d3, [sp, #24]
+    ldp d4, d5, [sp, #40]
+    ldp d6, d7, [sp, #56]
 
-    // args and x20(callee-save)
-    ldp x1,  x2, [sp, #80]
+    // Core args.
+    ldr x1, [sp, 72]
     .cfi_restore x1
+
+    ldp x2,  x3, [sp, #80]
     .cfi_restore x2
-
-    ldp x3,  x4, [sp, #96]
     .cfi_restore x3
+
+    ldp x4,  x5, [sp, #96]
     .cfi_restore x4
-
-    ldp x5,  x6, [sp, #112]
     .cfi_restore x5
-    .cfi_restore x6
 
-    ldp x7, x20, [sp, #128]
+    ldp x6,  x7, [sp, #112]
+    .cfi_restore x6
     .cfi_restore x7
-    .cfi_restore x20
 
     // Callee-saves.
+    ldp x19, x20, [sp, #128]
+    .cfi_restore x19
+    .cfi_restore x20
+
     ldp x21, x22, [sp, #144]
     .cfi_restore x21
     .cfi_restore x22
@@ -499,7 +507,7 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
 
 .macro INVOKE_STUB_CREATE_FRAME
 
-SAVE_SIZE=15*8   // x4, x5, x20, x21, x22, x23, x24, x25, x26, x27, x28, xSUSPEND, SP, LR, FP saved.
+SAVE_SIZE=15*8   // x4, x5, x19, x20, x21, x22, x23, x24, x25, x26, x27, x28, SP, LR, FP saved.
 SAVE_SIZE_AND_METHOD=SAVE_SIZE+STACK_REFERENCE_SIZE
 
 
@@ -534,7 +542,7 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+STACK_REFERENCE_SIZE
     .cfi_rel_offset x20, 48
     .cfi_rel_offset x21, 56
 
-    stp x9, xSUSPEND, [x10, #32]           // Save old stack pointer and xSUSPEND
+    stp x9, x19, [x10, #32]                // Save old stack pointer and x19.
     .cfi_rel_offset sp, 32
     .cfi_rel_offset x19, 40
 
@@ -549,7 +557,6 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+STACK_REFERENCE_SIZE
     mov xFP, x10                           // Use xFP now, as it's callee-saved.
     .cfi_def_cfa_register x29
     mov xSELF, x3                          // Move thread pointer into SELF register.
-    mov wSUSPEND, #SUSPEND_CHECK_INTERVAL  // reset wSUSPEND to suspend check interval
 
     // Copy arguments into stack frame.
     // Use simple copy routine for now.
@@ -634,7 +641,7 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+STACK_REFERENCE_SIZE
     str x0, [x4]
 
 .Lexit_art_quick_invoke_stub\@:
-    ldp x2, xSUSPEND, [xFP, #32]   // Restore stack pointer and xSUSPEND.
+    ldp x2, x19, [xFP, #32]   // Restore stack pointer and x19.
     .cfi_restore x19
     mov sp, x2
     .cfi_restore sp
@@ -662,7 +669,9 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+STACK_REFERENCE_SIZE
  *  |       FP''           | <- SP'
  *  +----------------------+
  *  +----------------------+
- *  |        x19           | <- Used as wSUSPEND, won't be restored by managed code.
+ *  |        x28           | <- TODO: Remove callee-saves.
+ *  |         :            |
+ *  |        x19           |
  *  |        SP'           |
  *  |        X5            |
  *  |        X4            |        Saved registers
@@ -680,7 +689,6 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+STACK_REFERENCE_SIZE
  *  x1-x7 - integer parameters.
  *  d0-d7 - Floating point parameters.
  *  xSELF = self
- *  wSUSPEND = suspend count
  *  SP = & of ArtMethod*
  *  x1 = "this" pointer.
  *
@@ -1388,12 +1396,11 @@ TWO_ARG_DOWNCALL art_quick_resolve_string, artResolveStringFromCode, RETURN_IF_R
 GENERATE_ALL_ALLOC_ENTRYPOINTS
 
     /*
-     * Called by managed code when the value in wSUSPEND has been decremented to 0.
+     * Called by managed code when the thread has been asked to suspend.
      */
     .extern artTestSuspendFromCode
 ENTRY art_quick_test_suspend
     ldrh   w0, [xSELF, #THREAD_FLAGS_OFFSET]  // get xSELF->state_and_flags.as_struct.flags
-    mov    wSUSPEND, #SUSPEND_CHECK_INTERVAL  // reset wSUSPEND to SUSPEND_CHECK_INTERVAL
     cbnz   w0, .Lneed_suspend                 // check flags == 0
     ret                                       // return if flags == 0
 .Lneed_suspend:
@@ -1477,6 +1484,7 @@ END art_quick_resolution_trampoline
  * | X22               |    callee save
  * | X21               |    callee save
  * | X20               |    callee save
+ * | X19               |    callee save
  * | X7                |    arg7
  * | X6                |    arg6
  * | X5                |    arg5
