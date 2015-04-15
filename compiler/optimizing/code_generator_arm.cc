@@ -141,8 +141,10 @@ class BoundsCheckSlowPathARM : public SlowPathCodeARM {
     codegen->EmitParallelMoves(
         index_location_,
         Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
+        Primitive::kPrimInt,
         length_location_,
-        Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+        Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
+        Primitive::kPrimInt);
     arm_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pThrowArrayBounds), instruction_, instruction_->GetDexPc(), this);
   }
@@ -262,8 +264,10 @@ class TypeCheckSlowPathARM : public SlowPathCodeARM {
     codegen->EmitParallelMoves(
         class_to_check_,
         Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
+        Primitive::kPrimNot,
         object_class_,
-        Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+        Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
+        Primitive::kPrimNot);
 
     if (instruction_->IsInstanceOf()) {
       arm_codegen->InvokeRuntime(
@@ -750,8 +754,10 @@ void CodeGeneratorARM::Move64(Location destination, Location source) {
       EmitParallelMoves(
           Location::RegisterLocation(source.AsRegisterPairHigh<Register>()),
           Location::RegisterLocation(destination.AsRegisterPairHigh<Register>()),
+          Primitive::kPrimInt,
           Location::RegisterLocation(source.AsRegisterPairLow<Register>()),
-          Location::RegisterLocation(destination.AsRegisterPairLow<Register>()));
+          Location::RegisterLocation(destination.AsRegisterPairLow<Register>()),
+          Primitive::kPrimInt);
     } else if (source.IsFpuRegister()) {
       UNIMPLEMENTED(FATAL);
     } else {
@@ -789,8 +795,10 @@ void CodeGeneratorARM::Move64(Location destination, Location source) {
       EmitParallelMoves(
           Location::StackSlot(source.GetStackIndex()),
           Location::StackSlot(destination.GetStackIndex()),
+          Primitive::kPrimInt,
           Location::StackSlot(source.GetHighStackIndex(kArmWordSize)),
-          Location::StackSlot(destination.GetHighStackIndex(kArmWordSize)));
+          Location::StackSlot(destination.GetHighStackIndex(kArmWordSize)),
+          Primitive::kPrimInt);
     }
   }
 }

@@ -1227,10 +1227,10 @@ void RegisterAllocator::AddMove(HParallelMove* move,
       && codegen_->ShouldSplitLongMoves()
       // The parallel move resolver knows how to deal with long constants.
       && !source.IsConstant()) {
-    move->AddMove(source.ToLow(), destination.ToLow(), instruction);
-    move->AddMove(source.ToHigh(), destination.ToHigh(), nullptr);
+    move->AddMove(source.ToLow(), destination.ToLow(), Primitive::kPrimInt, instruction);
+    move->AddMove(source.ToHigh(), destination.ToHigh(), Primitive::kPrimInt, nullptr);
   } else {
-    move->AddMove(source, destination, instruction);
+    move->AddMove(source, destination, type, instruction);
   }
 }
 
