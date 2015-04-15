@@ -69,7 +69,7 @@ TEST(LiveRangesTest, CFG1) {
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-  SsaLivenessAnalysis liveness(*graph, &codegen);
+  SsaLivenessAnalysis liveness(graph, &codegen);
   liveness.Analyze();
 
   LiveInterval* interval = liveness.GetInstructionFromSsaIndex(0)->GetLiveInterval();
@@ -117,7 +117,7 @@ TEST(LiveRangesTest, CFG2) {
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-  SsaLivenessAnalysis liveness(*graph, &codegen);
+  SsaLivenessAnalysis liveness(graph, &codegen);
   liveness.Analyze();
 
   LiveInterval* interval = liveness.GetInstructionFromSsaIndex(0)->GetLiveInterval();
@@ -168,7 +168,7 @@ TEST(LiveRangesTest, CFG3) {
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-  SsaLivenessAnalysis liveness(*graph, &codegen);
+  SsaLivenessAnalysis liveness(graph, &codegen);
   liveness.Analyze();
 
   // Test for the 4 constant.
@@ -247,7 +247,7 @@ TEST(LiveRangesTest, Loop1) {
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-  SsaLivenessAnalysis liveness(*graph, &codegen);
+  SsaLivenessAnalysis liveness(graph, &codegen);
   liveness.Analyze();
 
   // Test for the 0 constant.
@@ -327,7 +327,7 @@ TEST(LiveRangesTest, Loop2) {
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-  SsaLivenessAnalysis liveness(*graph, &codegen);
+  SsaLivenessAnalysis liveness(graph, &codegen);
   liveness.Analyze();
 
   // Test for the 0 constant.
@@ -405,7 +405,7 @@ TEST(LiveRangesTest, CFG4) {
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-  SsaLivenessAnalysis liveness(*graph, &codegen);
+  SsaLivenessAnalysis liveness(graph, &codegen);
   liveness.Analyze();
 
   // Test for the 0 constant.
