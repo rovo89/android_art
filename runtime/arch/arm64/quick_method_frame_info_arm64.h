@@ -33,10 +33,10 @@ static constexpr uint32_t kArm64CalleeSaveAlwaysSpills =
     (1 << art::arm64::LR);
 // Callee saved registers
 static constexpr uint32_t kArm64CalleeSaveRefSpills =
-    (1 << art::arm64::X20) | (1 << art::arm64::X21) | (1 << art::arm64::X22) |
-    (1 << art::arm64::X23) | (1 << art::arm64::X24) | (1 << art::arm64::X25) |
-    (1 << art::arm64::X26) | (1 << art::arm64::X27) | (1 << art::arm64::X28) |
-    (1 << art::arm64::X29);
+    (1 << art::arm64::X19) | (1 << art::arm64::X20) | (1 << art::arm64::X21) |
+    (1 << art::arm64::X22) | (1 << art::arm64::X23) | (1 << art::arm64::X24) |
+    (1 << art::arm64::X25) | (1 << art::arm64::X26) | (1 << art::arm64::X27) |
+    (1 << art::arm64::X28) | (1 << art::arm64::X29);
 // X0 is the method pointer. Not saved.
 static constexpr uint32_t kArm64CalleeSaveArgSpills =
     (1 << art::arm64::X1) | (1 << art::arm64::X2) | (1 << art::arm64::X3) |
@@ -44,9 +44,7 @@ static constexpr uint32_t kArm64CalleeSaveArgSpills =
     (1 << art::arm64::X7);
 static constexpr uint32_t kArm64CalleeSaveAllSpills =
     // Thread register.
-    (1 << art::arm64::X18) |
-    // Suspend register.
-    1 << art::arm64::X19;
+    (1 << art::arm64::X18);
 
 static constexpr uint32_t kArm64CalleeSaveFpAlwaysSpills = 0;
 static constexpr uint32_t kArm64CalleeSaveFpRefSpills = 0;
