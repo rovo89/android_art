@@ -122,8 +122,8 @@ class BoundsCheckSlowPathARM64 : public SlowPathCodeARM64 {
     // move resolver.
     InvokeRuntimeCallingConvention calling_convention;
     codegen->EmitParallelMoves(
-        index_location_, LocationFrom(calling_convention.GetRegisterAt(0)),
-        length_location_, LocationFrom(calling_convention.GetRegisterAt(1)));
+        index_location_, LocationFrom(calling_convention.GetRegisterAt(0)), Primitive::kPrimInt,
+        length_location_, LocationFrom(calling_convention.GetRegisterAt(1)), Primitive::kPrimInt);
     arm64_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pThrowArrayBounds), instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickThrowArrayBounds, void, int32_t, int32_t>();
@@ -322,8 +322,8 @@ class TypeCheckSlowPathARM64 : public SlowPathCodeARM64 {
     // move resolver.
     InvokeRuntimeCallingConvention calling_convention;
     codegen->EmitParallelMoves(
-        class_to_check_, LocationFrom(calling_convention.GetRegisterAt(0)),
-        object_class_, LocationFrom(calling_convention.GetRegisterAt(1)));
+        class_to_check_, LocationFrom(calling_convention.GetRegisterAt(0)), Primitive::kPrimNot,
+        object_class_, LocationFrom(calling_convention.GetRegisterAt(1)), Primitive::kPrimNot);
 
     if (instruction_->IsInstanceOf()) {
       arm64_codegen->InvokeRuntime(
