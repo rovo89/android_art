@@ -28,8 +28,8 @@
 
 #include "read_barrier_c.h"
 
-#if defined(__arm__) ||  defined(__aarch64__) || defined(__mips__)
-// In quick code for ARM, ARM64 and MIPS we make poor use of registers and perform frequent suspend
+#if defined(__arm__) || defined(__mips__)
+// In quick code for ARM and MIPS we make poor use of registers and perform frequent suspend
 // checks in the event of loop back edges. The SUSPEND_CHECK_INTERVAL constant is loaded into a
 // register at the point of an up-call or after handling a suspend check. It reduces the number of
 // loads of the TLS suspend check value by the given amount (turning it into a decrement and compare
