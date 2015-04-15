@@ -110,10 +110,23 @@ static void CheckExceptionGenerateClassNotFound(Thread* self)
   }
 }
 
+static mirror::String* GetClassName(Thread* self, ShadowFrame* shadow_frame, size_t arg_offset)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::Object* param = shadow_frame->GetVRegReference(arg_offset);
+  if (param == nullptr) {
+    AbortTransactionOrFail(self, "Null-pointer in Class.forName.");
+    return nullptr;
+  }
+  return param->AsString();
+}
+
 static void UnstartedClassForName(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::String* class_name = shadow_frame->GetVRegReference(arg_offset)->AsString();
+  mirror::String* class_name = GetClassName(self, shadow_frame, arg_offset);
+  if (class_name == nullptr) {
+    return;
+  }
   StackHandleScope<1> hs(self);
   Handle<mirror::String> h_class_name(hs.NewHandle(class_name));
   UnstartedRuntimeFindClass(self, h_class_name, NullHandle<mirror::ClassLoader>(), result,
@@ -124,12 +137,10 @@ static void UnstartedClassForName(
 static void UnstartedClassForNameLong(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Object* param = shadow_frame->GetVRegReference(arg_offset);
-  if (param == nullptr) {
-    AbortTransactionOrFail(self, "Null-pointer in Class.forName.");
+  mirror::String* class_name = GetClassName(self, shadow_frame, arg_offset);
+  if (class_name == nullptr) {
     return;
   }
-  mirror::String* class_name = param->AsString();
   bool initialize_class = shadow_frame->GetVReg(arg_offset + 1) != 0;
   mirror::ClassLoader* class_loader =
       down_cast<mirror::ClassLoader*>(shadow_frame->GetVRegReference(arg_offset + 2));
@@ -144,7 +155,10 @@ static void UnstartedClassForNameLong(
 static void UnstartedClassClassForName(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::String* class_name = shadow_frame->GetVRegReference(arg_offset)->AsString();
+  mirror::String* class_name = GetClassName(self, shadow_frame, arg_offset);
+  if (class_name == nullptr) {
+    return;
+  }
   bool initialize_class = shadow_frame->GetVReg(arg_offset + 1) != 0;
   mirror::ClassLoader* class_loader =
       down_cast<mirror::ClassLoader*>(shadow_frame->GetVRegReference(arg_offset + 2));
@@ -160,7 +174,12 @@ static void UnstartedClassNewInstance(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   StackHandleScope<3> hs(self);  // Class, constructor, object.
-  mirror::Class* klass = shadow_frame->GetVRegReference(arg_offset)->AsClass();
+  mirror::Object* param = shadow_frame->GetVRegReference(arg_offset);
+  if (param == nullptr) {
+    AbortTransactionOrFail(self, "Null-pointer in Class.newInstance.");
+    return;
+  }
+  mirror::Class* klass = param->AsClass();
   Handle<mirror::Class> h_klass(hs.NewHandle(klass));
 
   // Check that it's not null.
