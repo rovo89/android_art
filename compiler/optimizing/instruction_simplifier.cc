@@ -39,6 +39,7 @@ class InstructionSimplifierVisitor : public HGraphVisitor {
   }
 
   bool TryMoveNegOnInputsAfterBinop(HBinaryOperation* binop);
+  bool IsExactFPPowerOfTwo(HConstant* constant);
   void VisitShift(HBinaryOperation* shift);
 
   void VisitSuspendCheck(HSuspendCheck* check) OVERRIDE;
@@ -380,6 +381,72 @@ void InstructionSimplifierVisitor::VisitDiv(HDiv* instruction) {
         instruction, (new (GetGraph()->GetArena()) HNeg(type, input_other)));
     RecordSimplification();
   }
+
+  // FP Handle division by powers of 2.
+  if ((input_cst != nullptr) && Primitive::IsFloatingPointType(type) &&
+        IsExactFPPowerOfTwo(input_cst)) {
+    // We can replace this by a multiplication by the reciprocal.
+    // We know that since the value is an exact power of 2, there is no precision lost.
+    HConstant *recip;
+    if (type == Primitive::Primitive::kPrimDouble) {
+      double recip_value = 1.0 / input_cst->AsDoubleConstant()->GetValue();
+      recip = GetGraph()->GetDoubleConstant(recip_value);
+    } else {
+      DCHECK_EQ(type, Primitive::kPrimFloat);
+      float recip_value = 1.0f / input_cst->AsFloatConstant()->GetValue();
+      recip = GetGraph()->GetFloatConstant(recip_value);
+    }
+    instruction->GetBlock()->ReplaceAndRemoveInstructionWith(
+        instruction, (new (GetGraph()->GetArena()) HMul(type, input_other, recip)));
+    RecordSimplification();
+  }
+}
+
+
+bool InstructionSimplifierVisitor::IsExactFPPowerOfTwo(HConstant* constant) {
+  if (constant->IsDoubleConstant()) {
+    // We will examine the value as an unsigned value.
+    uint64_t value = bit_cast<uint64_t, double>(constant->AsDoubleConstant()->GetValue());
+
+    // Make sure the double constant is power of 2.0, so that we can have the
+    // exact result after converting value to 1.0/value.
+    // The uint64_t value is 0 from bit 51 to bit 0.
+    if ((value & INT64_C(0x000FFFFFFFFFFFFF)) != 0) {
+      return false;
+    }
+
+    // For the double constant, we support the range 2.0^-1022 to 2.0^1022
+    // or -(2.0^-1022) to -(2.0^1022)
+    // The uint64_t value is from 0x0010000000000000 to 0x7FD0000000000000 or
+    // from 0x8010000000000000 to 0xFFD0000000000000.
+    if ((value < INT64_C(0x0010000000000000) || value > INT64_C(0x7FD0000000000000)) &&
+        (value < INT64_C(0x8010000000000000) || value > INT64_C(0xFFD0000000000000))) {
+      return false;
+    }
+  } else {
+    DCHECK(constant->IsFloatConstant());
+    // We will examine the value as an unsigned value.
+    uint32_t value = bit_cast<uint32_t, float>(constant->AsFloatConstant()->GetValue());
+
+    // Make sure the float constant is power of 2.0, so that we can have the
+    // exact result after converting value to 1.0/value.
+    // The uint32_t value is 0 from bit 22 to bit 0.
+    if ((value & 0x007FFFFF) != 0) {
+      return false;
+    }
+
+    // For the float constant, we support the range 2.0^-126 to 2.0^126
+    // or -(2.0^-126) to -(2.0^126)
+    // The uint32_t value is from 0x00800000 to 0x7E800000 or
+    // from 0x80800000 to 0xFE800000.
+    if ((value < 0x00800000 || value > 0x7E800000) &&
+        (value < 0x80800000 || value > 0xFE800000)) {
+      return false;
+    }
+  }
+
+  // This is a proper FP power of two.
+  return true;
 }
 
 void InstructionSimplifierVisitor::VisitMul(HMul* instruction) {

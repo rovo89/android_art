@@ -34,6 +34,18 @@ public class Main {
     }
   }
 
+  public static void assertFloatEquals(float expected, float result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
+  public static void assertDoubleEquals(double expected, double result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
   /**
    * Tiny programs exercising optimizations of arithmetic identities.
    */
@@ -907,6 +919,43 @@ public class Main {
     return !(!arg);
   }
 
+  // CHECK-START: float Main.Div2(float) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg:f\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const2:f\d+]]   FloatConstant 2
+  // CHECK-DAG:     [[Div:f\d+]]      Div [ [[Arg]] [[Const2]] ]
+  // CHECK-DAG:                       Return [ [[Div]] ]
+
+  // CHECK-START: float Main.Div2(float) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg:f\d+]]      ParameterValue
+  // CHECK-DAG:     [[ConstP5:f\d+]]  FloatConstant 0.5
+  // CHECK-DAG:     [[Mul:f\d+]]      Mul [ [[Arg]] [[ConstP5]] ]
+  // CHECK-DAG:                       Return [ [[Mul]] ]
+
+  // CHECK-START: float Main.Div2(float) instruction_simplifier (after)
+  // CHECK-NOT:                       Div
+
+  public static float Div2(float arg) {
+    return arg / 2.0f;
+  }
+
+  // CHECK-START: double Main.Div2(double) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg:d\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const2:d\d+]]   DoubleConstant 2
+  // CHECK-DAG:     [[Div:d\d+]]      Div [ [[Arg]] [[Const2]] ]
+  // CHECK-DAG:                       Return [ [[Div]] ]
+
+  // CHECK-START: double Main.Div2(double) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg:d\d+]]      ParameterValue
+  // CHECK-DAG:     [[ConstP5:d\d+]]  DoubleConstant 0.5
+  // CHECK-DAG:     [[Mul:d\d+]]      Mul [ [[Arg]] [[ConstP5]] ]
+  // CHECK-DAG:                       Return [ [[Mul]] ]
+
+  // CHECK-START: double Main.Div2(double) instruction_simplifier (after)
+  // CHECK-NOT:                       Div
+  public static double Div2(double arg) {
+    return arg / 2.0;
+  }
+
   public static void main(String[] args) {
     int arg = 123456;
 
@@ -941,7 +990,6 @@ public class Main {
     assertIntEquals(SubNeg1(arg, arg + 1), -(arg + arg + 1));
     assertIntEquals(SubNeg2(arg, arg + 1), -(arg + arg + 1));
     assertLongEquals(SubNeg3(arg, arg + 1), -(2 * arg + 1));
-
     assertIntEquals(EqualTrueRhs(true), 5);
     assertIntEquals(EqualTrueLhs(true), 5);
     assertIntEquals(EqualFalseRhs(true), 3);
@@ -952,5 +1000,7 @@ public class Main {
     assertIntEquals(NotEqualFalseLhs(true), 5);
     assertBooleanEquals(NotNotBool(true), true);
     assertBooleanEquals(NotNotBool(false), false);
+    assertFloatEquals(Div2(100.0f), 50.0f);
+    assertDoubleEquals(Div2(150.0), 75.0);
   }
 }
