@@ -57,7 +57,7 @@ static void TestCode(const uint16_t* data, const char* expected) {
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
-  SsaLivenessAnalysis liveness(*graph, &codegen);
+  SsaLivenessAnalysis liveness(graph, &codegen);
   liveness.Analyze();
 
   std::ostringstream buffer;

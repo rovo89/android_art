@@ -152,7 +152,7 @@ static void RunCodeOptimized(CodeGenerator* codegen,
                              bool has_result,
                              Expected expected) {
   graph->BuildDominatorTree();
-  SsaLivenessAnalysis liveness(*graph, codegen);
+  SsaLivenessAnalysis liveness(graph, codegen);
   liveness.Analyze();
 
   RegisterAllocator register_allocator(graph->GetArena(), codegen, liveness);
