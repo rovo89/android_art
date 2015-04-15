@@ -103,7 +103,7 @@ static void MoveArguments(HInvoke* invoke, ArenaAllocator* arena, CodeGeneratorA
     Location cc_loc = calling_convention_visitor.GetNextLocation(input->GetType());
     Location actual_loc = locations->InAt(i);
 
-    parallel_move.AddMove(actual_loc, cc_loc, nullptr);
+    parallel_move.AddMove(actual_loc, cc_loc, input->GetType(), nullptr);
   }
 
   codegen->GetMoveResolver()->EmitNativeCode(&parallel_move);
