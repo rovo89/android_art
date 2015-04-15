@@ -103,7 +103,7 @@ void RegisterAllocator::AllocateRegisters() {
     // Since only parallel moves have been inserted during the register allocation,
     // these checks are mostly for making sure these moves have been added correctly.
     size_t current_liveness = 0;
-    for (HLinearOrderIterator it(liveness_); !it.Done(); it.Advance()) {
+    for (HLinearOrderIterator it(*codegen_->GetGraph()); !it.Done(); it.Advance()) {
       HBasicBlock* block = it.Current();
       for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
         HInstruction* instruction = inst_it.Current();
@@ -147,7 +147,7 @@ void RegisterAllocator::BlockRegister(Location location,
 void RegisterAllocator::AllocateRegistersInternal() {
   // Iterate post-order, to ensure the list is sorted, and the last added interval
   // is the one with the lowest start position.
-  for (HLinearPostOrderIterator it(liveness_); !it.Done(); it.Advance()) {
+  for (HLinearPostOrderIterator it(*codegen_->GetGraph()); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     for (HBackwardInstructionIterator back_it(block->GetInstructions()); !back_it.Done();
          back_it.Advance()) {
@@ -1598,7 +1598,7 @@ void RegisterAllocator::Resolve() {
                                      maximum_number_of_live_core_registers_,
                                      maximum_number_of_live_fp_registers_,
                                      reserved_out_slots_,
-                                     liveness_.GetLinearOrder());
+                                     codegen_->GetGraph()->GetLinearOrder());
 
   // Adjust the Out Location of instructions.
   // TODO: Use pointers of Location inside LiveInterval to avoid doing another iteration.
@@ -1678,7 +1678,7 @@ void RegisterAllocator::Resolve() {
   }
 
   // Resolve non-linear control flow across branches. Order does not matter.
-  for (HLinearOrderIterator it(liveness_); !it.Done(); it.Advance()) {
+  for (HLinearOrderIterator it(*codegen_->GetGraph()); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     BitVector* live = liveness_.GetLiveInSet(*block);
     for (uint32_t idx : live->Indexes()) {
@@ -1691,7 +1691,7 @@ void RegisterAllocator::Resolve() {
   }
 
   // Resolve phi inputs. Order does not matter.
-  for (HLinearOrderIterator it(liveness_); !it.Done(); it.Advance()) {
+  for (HLinearOrderIterator it(*codegen_->GetGraph()); !it.Done(); it.Advance()) {
     HBasicBlock* current = it.Current();
     for (HInstructionIterator inst_it(current->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
       HInstruction* phi = inst_it.Current();
