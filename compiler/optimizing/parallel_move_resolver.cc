@@ -269,20 +269,6 @@ int ParallelMoveResolver::AllocateScratchRegister(int blocked,
 }
 
 
-int ParallelMoveResolver::AllocateScratchRegister(int blocked,
-                                                  int register_count) {
-  int scratch = -1;
-  for (int reg = 0; reg < register_count; ++reg) {
-    if ((blocked != reg) && IsScratchLocation(Location::RegisterLocation(reg))) {
-      scratch = reg;
-      break;
-    }
-  }
-
-  return scratch;
-}
-
-
 ParallelMoveResolver::ScratchRegisterScope::ScratchRegisterScope(
     ParallelMoveResolver* resolver, int blocked, int if_scratch, int number_of_registers)
     : resolver_(resolver),
@@ -293,16 +279,6 @@ ParallelMoveResolver::ScratchRegisterScope::ScratchRegisterScope(
   if (spilled_) {
     resolver->SpillScratch(reg_);
   }
-}
-
-
-ParallelMoveResolver::ScratchRegisterScope::ScratchRegisterScope(
-    ParallelMoveResolver* resolver, int blocked, int number_of_registers)
-    : resolver_(resolver),
-      reg_(kNoRegister),
-      spilled_(false) {
-  // We don't want to spill a register if none are free.
-  reg_ = resolver_->AllocateScratchRegister(blocked, number_of_registers);
 }
 
 
