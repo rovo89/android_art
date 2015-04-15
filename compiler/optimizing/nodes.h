@@ -112,6 +112,7 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
       : arena_(arena),
         blocks_(arena, kDefaultNumberOfBlocks),
         reverse_post_order_(arena, kDefaultNumberOfBlocks),
+        linear_order_(arena, kDefaultNumberOfBlocks),
         entry_block_(nullptr),
         exit_block_(nullptr),
         maximum_number_of_out_vregs_(0),
@@ -216,6 +217,10 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
     return reverse_post_order_;
   }
 
+  const GrowableArray<HBasicBlock*>& GetLinearOrder() const {
+    return linear_order_;
+  }
+
   bool HasArrayAccesses() const {
     return has_array_accesses_;
   }
@@ -262,6 +267,9 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   // List of blocks to perform a reverse post order tree traversal.
   GrowableArray<HBasicBlock*> reverse_post_order_;
 
+  // List of blocks to perform a linear order tree traversal.
+  GrowableArray<HBasicBlock*> linear_order_;
+
   HBasicBlock* entry_block_;
   HBasicBlock* exit_block_;
 
@@ -293,6 +301,7 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   ArenaSafeMap<int32_t, HIntConstant*> cached_int_constants_;
   ArenaSafeMap<int64_t, HLongConstant*> cached_long_constants_;
 
+  friend class SsaLivenessAnalysis;  // For the linear order.
   ART_FRIEND_TEST(GraphTest, IfSuccessorSimpleJoinBlock1);
   DISALLOW_COPY_AND_ASSIGN(HGraph);
 };
@@ -3626,6 +3635,43 @@ class HPostOrderIterator : public ValueObject {
   size_t index_;
 
   DISALLOW_COPY_AND_ASSIGN(HPostOrderIterator);
+};
+
+class HLinearPostOrderIterator : public ValueObject {
+ public:
+  explicit HLinearPostOrderIterator(const HGraph& graph)
+      : order_(graph.GetLinearOrder()), index_(graph.GetLinearOrder().Size()) {}
+
+  bool Done() const { return index_ == 0; }
+
+  HBasicBlock* Current() const { return order_.Get(index_ -1); }
+
+  void Advance() {
+    --index_;
+    DCHECK_GE(index_, 0U);
+  }
+
+ private:
+  const GrowableArray<HBasicBlock*>& order_;
+  size_t index_;
+
+  DISALLOW_COPY_AND_ASSIGN(HLinearPostOrderIterator);
+};
+
+class HLinearOrderIterator : public ValueObject {
+ public:
+  explicit HLinearOrderIterator(const HGraph& graph)
+      : order_(graph.GetLinearOrder()), index_(0) {}
+
+  bool Done() const { return index_ == order_.Size(); }
+  HBasicBlock* Current() const { return order_.Get(index_); }
+  void Advance() { ++index_; }
+
+ private:
+  const GrowableArray<HBasicBlock*>& order_;
+  size_t index_;
+
+  DISALLOW_COPY_AND_ASSIGN(HLinearOrderIterator);
 };
 
 // Iterator over the blocks that art part of the loop. Includes blocks part
