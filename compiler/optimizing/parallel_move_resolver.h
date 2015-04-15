@@ -92,12 +92,18 @@ class ParallelMoveResolver : public ValueObject {
   // other moves to satisfy dependencies).
   //
   // Return whether another move in the dependency cycle needs to swap. This
-  // is to handle pair swaps, where we want the pair to swap first to avoid
-  // building pairs that are unexpected by the code generator. For example, if
-  // we were to swap R1 with R2, we would need to update all locations using
-  // R2 to R1. So a (R2,R3) pair register could become (R1,R3). We could make
-  // the code generator understand such pairs, but it's easier and cleaner to
-  // just not create such pairs and exchange pairs in priority.
+  // is to handle 64bits swaps:
+  // 1) In the case of register pairs, where we want the pair to swap first to avoid
+  //    building pairs that are unexpected by the code generator. For example, if
+  //    we were to swap R1 with R2, we would need to update all locations using
+  //    R2 to R1. So a (R2,R3) pair register could become (R1,R3). We could make
+  //    the code generator understand such pairs, but it's easier and cleaner to
+  //    just not create such pairs and exchange pairs in priority.
+  // 2) Even when the architecture does not have pairs, we must handle 64bits swaps
+  //    first. Consider the case: (R0->R1) (R1->S) (S->R0), where 'S' is a single
+  //    stack slot. If we end up swapping S and R0, S will only contain the low bits
+  //    of R0. If R0->R1 is for a 64bits instruction, R1 will therefore not contain
+  //    the right value.
   MoveOperands* PerformMove(size_t index);
 
   DISALLOW_COPY_AND_ASSIGN(ParallelMoveResolver);

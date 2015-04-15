@@ -3418,8 +3418,11 @@ class HMonitorOperation : public HTemplateInstruction<1> {
 
 class MoveOperands : public ArenaObject<kArenaAllocMisc> {
  public:
-  MoveOperands(Location source, Location destination, HInstruction* instruction)
-      : source_(source), destination_(destination), instruction_(instruction) {}
+  MoveOperands(Location source,
+               Location destination,
+               Primitive::Type type,
+               HInstruction* instruction)
+      : source_(source), destination_(destination), type_(type), instruction_(instruction) {}
 
   Location GetSource() const { return source_; }
   Location GetDestination() const { return destination_; }
@@ -3467,11 +3470,17 @@ class MoveOperands : public ArenaObject<kArenaAllocMisc> {
     return source_.IsInvalid();
   }
 
+  bool Is64BitMove() const {
+    return Primitive::Is64BitType(type_);
+  }
+
   HInstruction* GetInstruction() const { return instruction_; }
 
  private:
   Location source_;
   Location destination_;
+  // The type this move is for.
+  Primitive::Type type_;
   // The instruction this move is assocatied with. Null when this move is
   // for moving an input in the expected locations of user (including a phi user).
   // This is only used in debug mode, to ensure we do not connect interval siblings
@@ -3486,7 +3495,10 @@ class HParallelMove : public HTemplateInstruction<0> {
   explicit HParallelMove(ArenaAllocator* arena)
       : HTemplateInstruction(SideEffects::None()), moves_(arena, kDefaultNumberOfMoves) {}
 
-  void AddMove(Location source, Location destination, HInstruction* instruction) {
+  void AddMove(Location source,
+               Location destination,
+               Primitive::Type type,
+               HInstruction* instruction) {
     DCHECK(source.IsValid());
     DCHECK(destination.IsValid());
     if (kIsDebugBuild) {
@@ -3512,7 +3524,7 @@ class HParallelMove : public HTemplateInstruction<0> {
             << "Same destination for two moves in a parallel move.";
       }
     }
-    moves_.Add(MoveOperands(source, destination, instruction));
+    moves_.Add(MoveOperands(source, destination, type, instruction));
   }
 
   MoveOperands* MoveOperandsAt(size_t index) const {
