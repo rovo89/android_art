@@ -208,6 +208,7 @@ void WriteDebugSections(const CompilerDriver* compiler,
                         std::vector<uintptr_t>* debug_line_patches) {
   const std::vector<OatWriter::DebugInfo>& method_infos = oat_writer->GetMethodDebugInfo();
   const InstructionSet isa = compiler->GetInstructionSet();
+  const bool is64bit = Is64BitInstructionSet(isa);
 
   // Find all addresses (low_pc) which contain deduped methods.
   // The first instance of method is not marked deduped_, but the rest is.
@@ -245,7 +246,7 @@ void WriteDebugSections(const CompilerDriver* compiler,
     }
 
     size_t debug_abbrev_offset = debug_abbrev->size();
-    DebugInfoEntryWriter<> info(false /* 32 bit */, debug_abbrev);
+    DebugInfoEntryWriter<> info(is64bit, debug_abbrev);
     info.StartTag(DW_TAG_compile_unit, DW_CHILDREN_yes);
     info.WriteStrp(DW_AT_producer, "Android dex2oat", debug_str);
     info.WriteData1(DW_AT_language, DW_LANG_Java);
@@ -290,7 +291,7 @@ void WriteDebugSections(const CompilerDriver* compiler,
       case kX86_64:
         break;
     }
-    DebugLineOpCodeWriter<> opcodes(false /* 32bit */, code_factor_bits_);
+    DebugLineOpCodeWriter<> opcodes(is64bit, code_factor_bits_);
     opcodes.SetAddress(cunit_low_pc);
     if (dwarf_isa != -1) {
       opcodes.SetISA(dwarf_isa);
