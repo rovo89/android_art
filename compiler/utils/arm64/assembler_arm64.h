@@ -83,6 +83,9 @@ class Arm64Assembler FINAL : public Assembler {
   // Copy instructions out of assembly buffer into the given region of memory.
   void FinalizeInstructions(const MemoryRegion& region);
 
+  void SpillRegisters(vixl::CPURegList registers, int offset);
+  void UnspillRegisters(vixl::CPURegList registers, int offset);
+
   // Emit code that will create an activation on the stack.
   void BuildFrame(size_t frame_size, ManagedRegister method_reg,
                   const std::vector<ManagedRegister>& callee_save_regs,

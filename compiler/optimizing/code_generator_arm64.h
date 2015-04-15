@@ -46,14 +46,11 @@ static constexpr size_t kParameterFPRegistersLength = arraysize(kParameterFPRegi
 
 const vixl::Register tr = vixl::x18;                        // Thread Register
 static const vixl::Register kArtMethodRegister = vixl::w0;  // Method register on invoke.
-const vixl::Register kQuickSuspendRegister = vixl::x19;
 
 const vixl::CPURegList vixl_reserved_core_registers(vixl::ip0, vixl::ip1);
 const vixl::CPURegList vixl_reserved_fp_registers(vixl::d31);
 
-// TODO: When the runtime does not use kQuickSuspendRegister as a suspend
-// counter remove it from the reserved registers list.
-const vixl::CPURegList runtime_reserved_core_registers(tr, kQuickSuspendRegister, vixl::lr);
+const vixl::CPURegList runtime_reserved_core_registers(tr, vixl::lr);
 
 // Callee-saved registers defined by AAPCS64.
 const vixl::CPURegList callee_saved_core_registers(vixl::CPURegister::kRegister,
@@ -227,8 +224,6 @@ class CodeGeneratorARM64 : public CodeGenerator {
 
   void GenerateFrameEntry() OVERRIDE;
   void GenerateFrameExit() OVERRIDE;
-  void SpillRegisters(vixl::CPURegList registers, int offset);
-  void UnspillRegisters(vixl::CPURegList registers, int offset);
 
   vixl::CPURegList GetFramePreservedCoreRegisters() const {
     return vixl::CPURegList(vixl::CPURegister::kRegister, vixl::kXRegSize,
