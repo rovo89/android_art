@@ -3865,43 +3865,23 @@ X86Assembler* ParallelMoveResolverX86::GetAssembler() const {
 }
 
 void ParallelMoveResolverX86::MoveMemoryToMemory32(int dst, int src) {
-  ScratchRegisterScope possible_scratch(
-      this, kNoRegister, codegen_->GetNumberOfCoreRegisters());
-  int temp = possible_scratch.GetRegister();
-  if (temp == kNoRegister) {
-    // Use the stack.
-    __ pushl(Address(ESP, src));
-    __ popl(Address(ESP, dst));
-  } else {
-    Register temp_reg = static_cast<Register>(temp);
-    __ movl(temp_reg, Address(ESP, src));
-    __ movl(Address(ESP, dst), temp_reg);
-  }
+  ScratchRegisterScope ensure_scratch(
+      this, kNoRegister, EAX, codegen_->GetNumberOfCoreRegisters());
+  Register temp_reg = static_cast<Register>(ensure_scratch.GetRegister());
+  int stack_offset = ensure_scratch.IsSpilled() ? kX86WordSize : 0;
+  __ movl(temp_reg, Address(ESP, src + stack_offset));
+  __ movl(Address(ESP, dst + stack_offset), temp_reg);
 }
 
 void ParallelMoveResolverX86::MoveMemoryToMemory64(int dst, int src) {
-  ScratchRegisterScope possible_scratch(
-      this, kNoRegister, codegen_->GetNumberOfCoreRegisters());
-  int temp = possible_scratch.GetRegister();
-  if (temp == kNoRegister) {
-    // Use the stack instead.
-    // Push src low word.
-    __ pushl(Address(ESP, src));
-    // Push src high word. Stack offset = 4.
-    __ pushl(Address(ESP, src + 4 /* offset */ + kX86WordSize /* high */));
-
-    // Pop into dst high word. Stack offset = 8.
-    // Pop with ESP address uses the 'after increment' value of ESP.
-    __ popl(Address(ESP, dst + 4 /* offset */ + kX86WordSize /* high */));
-    // Finally dst low word. Stack offset = 4.
-    __ popl(Address(ESP, dst));
-  } else {
-    Register temp_reg = static_cast<Register>(temp);
-    __ movl(temp_reg, Address(ESP, src));
-    __ movl(Address(ESP, dst), temp_reg);
-    __ movl(temp_reg, Address(ESP, src + kX86WordSize));
-    __ movl(Address(ESP, dst + kX86WordSize), temp_reg);
-  }
+  ScratchRegisterScope ensure_scratch(
+      this, kNoRegister, EAX, codegen_->GetNumberOfCoreRegisters());
+  Register temp_reg = static_cast<Register>(ensure_scratch.GetRegister());
+  int stack_offset = ensure_scratch.IsSpilled() ? kX86WordSize : 0;
+  __ movl(temp_reg, Address(ESP, src + stack_offset));
+  __ movl(Address(ESP, dst + stack_offset), temp_reg);
+  __ movl(temp_reg, Address(ESP, src + stack_offset + kX86WordSize));
+  __ movl(Address(ESP, dst + stack_offset + kX86WordSize), temp_reg);
 }
 
 void ParallelMoveResolverX86::EmitMove(size_t index) {
@@ -3966,18 +3946,10 @@ void ParallelMoveResolverX86::EmitMove(size_t index) {
           __ xorps(dest, dest);
         } else {
           ScratchRegisterScope ensure_scratch(
-              this, kNoRegister, codegen_->GetNumberOfCoreRegisters());
-          int temp_reg = ensure_scratch.GetRegister();
-          if (temp_reg == kNoRegister) {
-            // Avoid spilling/restoring a scratch register by using the stack.
-            __ pushl(Immediate(value));
-            __ movss(dest, Address(ESP, 0));
-            __ addl(ESP, Immediate(4));
-          } else {
-            Register temp = static_cast<Register>(temp_reg);
-            __ movl(temp, Immediate(value));
-            __ movd(dest, temp);
-          }
+              this, kNoRegister, EAX, codegen_->GetNumberOfCoreRegisters());
+          Register temp = static_cast<Register>(ensure_scratch.GetRegister());
+          __ movl(temp, Immediate(value));
+          __ movd(dest, temp);
         }
       } else {
         DCHECK(destination.IsStackSlot()) << destination;
@@ -4026,96 +3998,42 @@ void ParallelMoveResolverX86::EmitMove(size_t index) {
   }
 }
 
-void ParallelMoveResolverX86::Exchange(Register reg1, Register reg2) {
-  // Prefer to avoid xchg as it isn't speedy on smaller processors.
-  ScratchRegisterScope possible_scratch(
-      this, reg1, codegen_->GetNumberOfCoreRegisters());
-  int temp_reg = possible_scratch.GetRegister();
-  if (temp_reg == kNoRegister || temp_reg == reg2) {
-    __ pushl(reg1);
-    __ movl(reg1, reg2);
-    __ popl(reg2);
-  } else {
-    Register temp = static_cast<Register>(temp_reg);
-    __ movl(temp, reg1);
-    __ movl(reg1, reg2);
-    __ movl(reg2, temp);
-  }
-}
-
 void ParallelMoveResolverX86::Exchange(Register reg, int mem) {
-  ScratchRegisterScope possible_scratch(
-      this, reg, codegen_->GetNumberOfCoreRegisters());
-  int temp_reg = possible_scratch.GetRegister();
-  if (temp_reg == kNoRegister) {
-    __ pushl(Address(ESP, mem));
-    __ movl(Address(ESP, mem + kX86WordSize), reg);
-    __ popl(reg);
-  } else {
-    Register temp = static_cast<Register>(temp_reg);
-    __ movl(temp, Address(ESP, mem));
-    __ movl(Address(ESP, mem), reg);
-    __ movl(reg, temp);
-  }
+  Register suggested_scratch = reg == EAX ? EBX : EAX;
+  ScratchRegisterScope ensure_scratch(
+      this, reg, suggested_scratch, codegen_->GetNumberOfCoreRegisters());
+
+  int stack_offset = ensure_scratch.IsSpilled() ? kX86WordSize : 0;
+  __ movl(static_cast<Register>(ensure_scratch.GetRegister()), Address(ESP, mem + stack_offset));
+  __ movl(Address(ESP, mem + stack_offset), reg);
+  __ movl(reg, static_cast<Register>(ensure_scratch.GetRegister()));
 }
 
 void ParallelMoveResolverX86::Exchange32(XmmRegister reg, int mem) {
-  ScratchRegisterScope possible_scratch(
-      this, kNoRegister, codegen_->GetNumberOfCoreRegisters());
-  int temp_reg = possible_scratch.GetRegister();
-  if (temp_reg == kNoRegister) {
-    __ pushl(Address(ESP, mem));
-    __ movss(Address(ESP, mem + kX86WordSize), reg);
-    __ movss(reg, Address(ESP, 0));
-    __ addl(ESP, Immediate(kX86WordSize));
-  } else {
-    Register temp = static_cast<Register>(temp_reg);
-    __ movl(temp, Address(ESP, mem));
-    __ movss(Address(ESP, mem), reg);
-    __ movd(reg, temp);
-  }
+  ScratchRegisterScope ensure_scratch(
+      this, kNoRegister, EAX, codegen_->GetNumberOfCoreRegisters());
+
+  Register temp_reg = static_cast<Register>(ensure_scratch.GetRegister());
+  int stack_offset = ensure_scratch.IsSpilled() ? kX86WordSize : 0;
+  __ movl(temp_reg, Address(ESP, mem + stack_offset));
+  __ movss(Address(ESP, mem + stack_offset), reg);
+  __ movd(reg, temp_reg);
 }
 
 void ParallelMoveResolverX86::Exchange(int mem1, int mem2) {
-  ScratchRegisterScope possible_scratch1(
-      this, kNoRegister, codegen_->GetNumberOfCoreRegisters());
-  int temp_reg1 = possible_scratch1.GetRegister();
-  if (temp_reg1 == kNoRegister) {
-    // No free registers.  Use the stack.
-    __ pushl(Address(ESP, mem1));
-    __ pushl(Address(ESP, mem2 + kX86WordSize));
-    // Pop with ESP address uses the 'after increment' value of ESP.
-    __ popl(Address(ESP, mem1 + kX86WordSize));
-    __ popl(Address(ESP, mem2));
-  } else {
-    // Got the first one.  Try for a second.
-    ScratchRegisterScope possible_scratch2(
-        this, temp_reg1, codegen_->GetNumberOfCoreRegisters());
-    int temp_reg2 = possible_scratch2.GetRegister();
-    if (temp_reg2 == kNoRegister) {
-      Register temp = static_cast<Register>(temp_reg1);
-      // Bummer.  Only have one free register to use.
-      // Save mem1 on the stack.
-      __ pushl(Address(ESP, mem1));
+  ScratchRegisterScope ensure_scratch1(
+      this, kNoRegister, EAX, codegen_->GetNumberOfCoreRegisters());
 
-      // Copy mem2 into mem1.
-      __ movl(temp, Address(ESP, mem2 + kX86WordSize));
-      __ movl(Address(ESP, mem1 + kX86WordSize), temp);
+  Register suggested_scratch = ensure_scratch1.GetRegister() == EAX ? EBX : EAX;
+  ScratchRegisterScope ensure_scratch2(
+      this, ensure_scratch1.GetRegister(), suggested_scratch, codegen_->GetNumberOfCoreRegisters());
 
-      // Now pop mem1 into mem2.
-      // Pop with ESP address uses the 'after increment' value of ESP.
-      __ popl(Address(ESP, mem2));
-    } else {
-      // Great.  We have 2 registers to play with.
-      Register temp1 = static_cast<Register>(temp_reg1);
-      Register temp2 = static_cast<Register>(temp_reg2);
-      DCHECK_NE(temp1, temp2);
-      __ movl(temp1, Address(ESP, mem1));
-      __ movl(temp2, Address(ESP, mem2));
-      __ movl(Address(ESP, mem2), temp1);
-      __ movl(Address(ESP, mem1), temp2);
-    }
-  }
+  int stack_offset = ensure_scratch1.IsSpilled() ? kX86WordSize : 0;
+  stack_offset += ensure_scratch2.IsSpilled() ? kX86WordSize : 0;
+  __ movl(static_cast<Register>(ensure_scratch1.GetRegister()), Address(ESP, mem1 + stack_offset));
+  __ movl(static_cast<Register>(ensure_scratch2.GetRegister()), Address(ESP, mem2 + stack_offset));
+  __ movl(Address(ESP, mem2 + stack_offset), static_cast<Register>(ensure_scratch1.GetRegister()));
+  __ movl(Address(ESP, mem1 + stack_offset), static_cast<Register>(ensure_scratch2.GetRegister()));
 }
 
 void ParallelMoveResolverX86::EmitSwap(size_t index) {
@@ -4124,7 +4042,7 @@ void ParallelMoveResolverX86::EmitSwap(size_t index) {
   Location destination = move->GetDestination();
 
   if (source.IsRegister() && destination.IsRegister()) {
-    Exchange(destination.AsRegister<Register>(), source.AsRegister<Register>());
+    __ xchgl(destination.AsRegister<Register>(), source.AsRegister<Register>());
   } else if (source.IsRegister() && destination.IsStackSlot()) {
     Exchange(source.AsRegister<Register>(), destination.GetStackIndex());
   } else if (source.IsStackSlot() && destination.IsRegister()) {
