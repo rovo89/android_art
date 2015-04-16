@@ -36,7 +36,13 @@ static void TestCode(const uint16_t* data, const int* blocks, size_t blocks_leng
   ASSERT_EQ(graph->GetBlocks().Size(), blocks_length);
   for (size_t i = 0, e = blocks_length; i < e; ++i) {
     if (blocks[i] == -1) {
-      ASSERT_EQ(nullptr, graph->GetBlocks().Get(i)->GetDominator());
+      if (graph->GetBlocks().Get(i) == nullptr) {
+        // Dead block.
+      } else {
+        // Only the entry block has no dominator.
+        ASSERT_EQ(nullptr, graph->GetBlocks().Get(i)->GetDominator());
+        ASSERT_TRUE(graph->GetBlocks().Get(i)->IsEntryBlock());
+      }
     } else {
       ASSERT_NE(nullptr, graph->GetBlocks().Get(i)->GetDominator());
       ASSERT_EQ(blocks[i], graph->GetBlocks().Get(i)->GetDominator()->GetBlockId());
