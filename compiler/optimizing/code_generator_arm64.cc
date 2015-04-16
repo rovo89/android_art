@@ -444,11 +444,13 @@ void ParallelMoveResolverARM64::SpillScratch(int reg) {
 }
 
 void CodeGeneratorARM64::GenerateFrameEntry() {
+  MacroAssembler* masm = GetVIXLAssembler();
+  BlockPoolsScope block_pools(masm);
   __ Bind(&frame_entry_label_);
 
   bool do_overflow_check = FrameNeedsStackCheck(GetFrameSize(), kArm64) || !IsLeafMethod();
   if (do_overflow_check) {
-    UseScratchRegisterScope temps(GetVIXLAssembler());
+    UseScratchRegisterScope temps(masm);
     Register temp = temps.AcquireX();
     DCHECK(GetCompilerOptions().GetImplicitStackOverflowChecks());
     __ Sub(temp, sp, static_cast<int32_t>(GetStackOverflowReservedBytes(kArm64)));
@@ -474,6 +476,7 @@ void CodeGeneratorARM64::GenerateFrameEntry() {
 }
 
 void CodeGeneratorARM64::GenerateFrameExit() {
+  BlockPoolsScope block_pools(GetVIXLAssembler());
   GetAssembler()->cfi().RememberState();
   if (!HasEmptyFrame()) {
     int frame_size = GetFrameSize();
@@ -865,7 +868,9 @@ void CodeGeneratorARM64::Load(Primitive::Type type,
 void CodeGeneratorARM64::LoadAcquire(HInstruction* instruction,
                                      CPURegister dst,
                                      const MemOperand& src) {
-  UseScratchRegisterScope temps(GetVIXLAssembler());
+  MacroAssembler* masm = GetVIXLAssembler();
+  BlockPoolsScope block_pools(masm);
+  UseScratchRegisterScope temps(masm);
   Register temp_base = temps.AcquireX();
   Primitive::Type type = instruction->GetType();
 
@@ -995,6 +1000,7 @@ void CodeGeneratorARM64::InvokeRuntime(int32_t entry_point_offset,
                                        HInstruction* instruction,
                                        uint32_t dex_pc,
                                        SlowPathCode* slow_path) {
+  BlockPoolsScope block_pools(GetVIXLAssembler());
   __ Ldr(lr, MemOperand(tr, entry_point_offset));
   __ Blr(lr);
   if (instruction != nullptr) {
@@ -1144,6 +1150,7 @@ void LocationsBuilderARM64::HandleFieldGet(HInstruction* instruction) {
 void InstructionCodeGeneratorARM64::HandleFieldGet(HInstruction* instruction,
                                                    const FieldInfo& field_info) {
   DCHECK(instruction->IsInstanceFieldGet() || instruction->IsStaticFieldGet());
+  BlockPoolsScope block_pools(GetVIXLAssembler());
 
   MemOperand field = HeapOperand(InputRegisterAt(instruction, 0), field_info.GetFieldOffset());
   bool use_acquire_release = codegen_->GetInstructionSetFeatures().PreferAcquireRelease();
@@ -1178,6 +1185,7 @@ void LocationsBuilderARM64::HandleFieldSet(HInstruction* instruction) {
 void InstructionCodeGeneratorARM64::HandleFieldSet(HInstruction* instruction,
                                                    const FieldInfo& field_info) {
   DCHECK(instruction->IsInstanceFieldSet() || instruction->IsStaticFieldSet());
+  BlockPoolsScope block_pools(GetVIXLAssembler());
 
   Register obj = InputRegisterAt(instruction, 0);
   CPURegister value = InputCPURegisterAt(instruction, 1);
@@ -1339,7 +1347,9 @@ void InstructionCodeGeneratorARM64::VisitArrayGet(HArrayGet* instruction) {
   Location index = locations->InAt(1);
   size_t offset = mirror::Array::DataOffset(Primitive::ComponentSize(type)).Uint32Value();
   MemOperand source = HeapOperand(obj);
-  UseScratchRegisterScope temps(GetVIXLAssembler());
+  MacroAssembler* masm = GetVIXLAssembler();
+  UseScratchRegisterScope temps(masm);
+  BlockPoolsScope block_pools(masm);
 
   if (index.IsConstant()) {
     offset += Int64ConstantFrom(index) << Primitive::ComponentSizeShift(type);
@@ -1362,6 +1372,7 @@ void LocationsBuilderARM64::VisitArrayLength(HArrayLength* instruction) {
 }
 
 void InstructionCodeGeneratorARM64::VisitArrayLength(HArrayLength* instruction) {
+  BlockPoolsScope block_pools(GetVIXLAssembler());
   __ Ldr(OutputRegister(instruction),
          HeapOperand(InputRegisterAt(instruction, 0), mirror::Array::LengthOffset()));
   codegen_->MaybeRecordImplicitNullCheck(instruction);
@@ -1401,7 +1412,9 @@ void InstructionCodeGeneratorARM64::VisitArraySet(HArraySet* instruction) {
     Location index = locations->InAt(1);
     size_t offset = mirror::Array::DataOffset(Primitive::ComponentSize(value_type)).Uint32Value();
     MemOperand destination = HeapOperand(obj);
-    UseScratchRegisterScope temps(GetVIXLAssembler());
+    MacroAssembler* masm = GetVIXLAssembler();
+    UseScratchRegisterScope temps(masm);
+    BlockPoolsScope block_pools(masm);
 
     if (index.IsConstant()) {
       offset += Int64ConstantFrom(index) << Primitive::ComponentSizeShift(value_type);
@@ -1936,7 +1949,9 @@ void InstructionCodeGeneratorARM64::VisitInvokeInterface(HInvokeInterface* invok
 
   // The register ip1 is required to be used for the hidden argument in
   // art_quick_imt_conflict_trampoline, so prevent VIXL from using it.
-  UseScratchRegisterScope scratch_scope(GetVIXLAssembler());
+  MacroAssembler* masm = GetVIXLAssembler();
+  UseScratchRegisterScope scratch_scope(masm);
+  BlockPoolsScope block_pools(masm);
   scratch_scope.Exclude(ip1);
   __ Mov(ip1, invoke->GetDexMethodIndex());
 
@@ -2022,6 +2037,7 @@ void InstructionCodeGeneratorARM64::VisitInvokeStaticOrDirect(HInvokeStaticOrDir
     return;
   }
 
+  BlockPoolsScope block_pools(GetVIXLAssembler());
   Register temp = WRegisterFrom(invoke->GetLocations()->GetTemp(0));
   codegen_->GenerateStaticOrDirectCall(invoke, temp);
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
@@ -2039,6 +2055,8 @@ void InstructionCodeGeneratorARM64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
     invoke->GetVTableIndex() * sizeof(mirror::Class::VTableEntry);
   Offset class_offset = mirror::Object::ClassOffset();
   Offset entry_point = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64WordSize);
+
+  BlockPoolsScope block_pools(GetVIXLAssembler());
 
   // temp = object->GetClass();
   if (receiver.IsStackSlot()) {
@@ -2340,8 +2358,9 @@ void InstructionCodeGeneratorARM64::GenerateImplicitNullCheck(HNullCheck* instru
   if (codegen_->CanMoveNullCheckToUser(instruction)) {
     return;
   }
-  Location obj = instruction->GetLocations()->InAt(0);
 
+  BlockPoolsScope block_pools(GetVIXLAssembler());
+  Location obj = instruction->GetLocations()->InAt(0);
   __ Ldr(wzr, HeapOperandFrom(obj, Offset(0)));
   codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
 }
