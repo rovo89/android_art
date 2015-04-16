@@ -70,6 +70,7 @@ namespace art {
 
 // Separate objects into multiple bins to optimize dirty memory use.
 static constexpr bool kBinObjects = true;
+static constexpr bool kComputeEagerResolvedStrings = false;
 
 static void CheckNoDexObjectsCallback(Object* obj, void* arg ATTRIBUTE_UNUSED)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -645,7 +646,11 @@ void ImageWriter::ProcessStrings() {
     LOG(INFO) << "Total # image strings=" << total_strings << " combined length="
         << num_chars << " prefix saved chars=" << prefix_saved_chars;
   }
-  ComputeEagerResolvedStrings();
+  // Calling this can in theory fill in some resolved strings. However, in practice it seems to
+  // never resolve any.
+  if (kComputeEagerResolvedStrings) {
+    ComputeEagerResolvedStrings();
+  }
 }
 
 void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg ATTRIBUTE_UNUSED) {
