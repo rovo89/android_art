@@ -89,13 +89,13 @@ class QuickCFITest : public CFITest {
     m2l->CompilerInitializeRegAlloc();
     for (const auto& info : m2l->reg_pool_->core_regs_) {
       if (m2l->num_core_spills_ < 2 && !info->IsTemp() && !info->InUse()) {
-        m2l->core_spill_mask_ |= 1 << info->GetReg().GetReg();
+        m2l->core_spill_mask_ |= 1 << info->GetReg().GetRegNum();
         m2l->num_core_spills_++;
       }
     }
     for (const auto& info : m2l->reg_pool_->sp_regs_) {
       if (m2l->num_fp_spills_ < 2 && !info->IsTemp() && !info->InUse()) {
-        m2l->fp_spill_mask_ |= 1 << info->GetReg().GetReg();
+        m2l->fp_spill_mask_ |= 1 << info->GetReg().GetRegNum();
         m2l->num_fp_spills_++;
       }
     }
