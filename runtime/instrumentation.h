@@ -49,6 +49,11 @@ enum InterpreterHandlerTable {
   kNumHandlerTables
 };
 
+// Do we want to deoptimize for method entry and exit listeners or just try to intercept
+// invocations? Deoptimization forces all code to run in the interpreter and considerably hurts the
+// application's performance.
+static constexpr bool kDeoptimizeForAccurateMethodEntryExitListeners = true;
+
 // Instrumentation event listener API. Registered listeners will get the appropriate call back for
 // the events they are listening for. The call backs supply the thread, method and dex_pc the event
 // occurred upon. The thread may or may not be Thread::Current().
@@ -170,7 +175,8 @@ class Instrumentation {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Enable method tracing by installing instrumentation entry/exit stubs.
-  void EnableMethodTracing()
+  void EnableMethodTracing(
+      bool require_interpreter = kDeoptimizeForAccurateMethodEntryExitListeners)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::classlinker_classes_lock_);
 

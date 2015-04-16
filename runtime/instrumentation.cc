@@ -50,11 +50,6 @@ namespace instrumentation {
 
 const bool kVerboseInstrumentation = false;
 
-// Do we want to deoptimize for method entry and exit listeners or just try to intercept
-// invocations? Deoptimization forces all code to run in the interpreter and considerably hurts the
-// application's performance.
-static constexpr bool kDeoptimizeForAccurateMethodEntryExitListeners = true;
-
 static bool InstallStubsClassVisitor(mirror::Class* klass, void* arg)
     EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Instrumentation* instrumentation = reinterpret_cast<Instrumentation*>(arg);
@@ -846,8 +841,7 @@ void Instrumentation::UndeoptimizeEverything() {
   ConfigureStubs(false, false);
 }
 
-void Instrumentation::EnableMethodTracing() {
-  bool require_interpreter = kDeoptimizeForAccurateMethodEntryExitListeners;
+void Instrumentation::EnableMethodTracing(bool require_interpreter) {
   ConfigureStubs(!require_interpreter, require_interpreter);
 }
 
