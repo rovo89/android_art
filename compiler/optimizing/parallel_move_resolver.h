@@ -42,14 +42,9 @@ class ParallelMoveResolver : public ValueObject {
  protected:
   class ScratchRegisterScope : public ValueObject {
    public:
-    // Spill a scratch register if no regs are free.
     ScratchRegisterScope(ParallelMoveResolver* resolver,
                          int blocked,
                          int if_scratch,
-                         int number_of_registers);
-    // Grab a scratch register only if available.
-    ScratchRegisterScope(ParallelMoveResolver* resolver,
-                         int blocked,
                          int number_of_registers);
     ~ScratchRegisterScope();
 
@@ -67,8 +62,6 @@ class ParallelMoveResolver : public ValueObject {
   // Allocate a scratch register for performing a move. The method will try to use
   // a register that is the destination of a move, but that move has not been emitted yet.
   int AllocateScratchRegister(int blocked, int if_scratch, int register_count, bool* spilled);
-  // As above, but return -1 if no free register.
-  int AllocateScratchRegister(int blocked, int register_count);
 
   // Emit a move.
   virtual void EmitMove(size_t index) = 0;
