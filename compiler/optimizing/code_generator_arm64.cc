@@ -2286,7 +2286,6 @@ void LocationsBuilderARM64::VisitBooleanNot(HBooleanNot* instruction) {
 }
 
 void InstructionCodeGeneratorARM64::VisitBooleanNot(HBooleanNot* instruction) {
-  DCHECK_EQ(instruction->InputAt(0)->GetType(), Primitive::kPrimBoolean);
   __ Eor(OutputRegister(instruction), InputRegisterAt(instruction, 0), vixl::Operand(1));
 }
 
