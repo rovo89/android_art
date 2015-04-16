@@ -17,7 +17,7 @@
 import java.lang.reflect.*;
 
 public class Main {
-  
+
   // CHECK-START: boolean TestCase.testCase() boolean_simplifier (before)
   // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
   // CHECK-DAG:     [[Const1:i\d+]]   IntConstant 1
@@ -30,7 +30,7 @@ public class Main {
   // CHECK-DAG:     [[Value:z\d+]]    StaticFieldGet
   // CHECK-DAG:     [[Not:z\d+]]      BooleanNot [ [[Value]] ]
   // CHECK-DAG:                       Return [ [[Not]] ]
-  
+
   public static boolean runTest(boolean input) throws Exception {
     Class<?> c = Class.forName("TestCase");
     Method m = c.getMethod("testCase");
