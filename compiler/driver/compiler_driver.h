@@ -425,6 +425,12 @@ class CompilerDriver {
   void RecordClassStatus(ClassReference ref, mirror::Class::Status status)
       LOCKS_EXCLUDED(compiled_classes_lock_);
 
+  // Checks if the specified method has been verified without failures. Returns
+  // false if the method is not in the verification results (GetVerificationResults).
+  bool IsMethodVerifiedWithoutFailures(uint32_t method_idx,
+                                       uint16_t class_def_idx,
+                                       const DexFile& dex_file) const;
+
   SwapVector<uint8_t>* DeduplicateCode(const ArrayRef<const uint8_t>& code);
   SwapSrcMap* DeduplicateSrcMappingTable(const ArrayRef<SrcMapElem>& src_map);
   SwapVector<uint8_t>* DeduplicateMappingTable(const ArrayRef<const uint8_t>& code);
