@@ -971,7 +971,14 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
   int parameter_index = 0;
   for (HInstructionIterator it(entry_block_->GetInstructions()); !it.Done(); it.Advance()) {
     HInstruction* current = it.Current();
-    if (current->IsConstant()) {
+    if (current->IsNullConstant()) {
+      current->ReplaceWith(outer_graph->GetNullConstant());
+    } else if (current->IsIntConstant()) {
+      current->ReplaceWith(outer_graph->GetIntConstant(current->AsIntConstant()->GetValue()));
+    } else if (current->IsLongConstant()) {
+      current->ReplaceWith(outer_graph->GetLongConstant(current->AsLongConstant()->GetValue()));
+    } else if (current->IsFloatConstant() || current->IsDoubleConstant()) {
+      // TODO: Don't duplicate floating-point constants.
       current->MoveBefore(outer_graph->GetEntryBlock()->GetLastInstruction());
     } else if (current->IsParameterValue()) {
       current->ReplaceWith(invoke->InputAt(parameter_index++));
