@@ -145,6 +145,8 @@ class Heap {
   static constexpr double kDefaultHeapGrowthMultiplier = 2.0;
   // Primitive arrays larger than this size are put in the large object space.
   static constexpr size_t kDefaultLargeObjectThreshold = 3 * kPageSize;
+  // Whether or not parallel GC is enabled. If not, then we never create the thread pool.
+  static constexpr bool kDefaultEnableParallelGC = false;
 
   // Whether or not we use the free list large object space. Only use it if USE_ART_LOW_4G_ALLOCATOR
   // since this means that we have to use the slow msync loop in MemMap::MapAnonymous.

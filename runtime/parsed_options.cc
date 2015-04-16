@@ -442,8 +442,8 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
   }
 
   // Default to number of processors minus one since the main GC thread also does work.
-  args.SetIfMissing(M::ParallelGCThreads,
-                    static_cast<unsigned int>(sysconf(_SC_NPROCESSORS_CONF) - 1u));
+  args.SetIfMissing(M::ParallelGCThreads, gc::Heap::kDefaultEnableParallelGC ?
+      static_cast<unsigned int>(sysconf(_SC_NPROCESSORS_CONF) - 1u) : 0u);
 
   // -Xverbose:
   {
