@@ -1422,7 +1422,6 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
                         : Location::StackSlot(interval->GetParent()->GetSpillSlot()));
   }
   UsePosition* use = current->GetFirstUse();
-  SafepointPosition* safepoint_position = interval->GetFirstSafepoint();
 
   // Walk over all siblings, updating locations of use positions, and
   // connecting them when they are adjacent.
@@ -1473,11 +1472,10 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
       InsertParallelMoveAt(current->GetEnd(), interval->GetDefinedBy(), source, destination);
     }
 
-    for (; safepoint_position != nullptr; safepoint_position = safepoint_position->GetNext()) {
-      if (!current->Covers(safepoint_position->GetPosition())) {
-        DCHECK(next_sibling != nullptr);
-        break;
-      }
+    for (SafepointPosition* safepoint_position = current->GetFirstSafepoint();
+         safepoint_position != nullptr;
+         safepoint_position = safepoint_position->GetNext()) {
+      DCHECK(current->Covers(safepoint_position->GetPosition()));
 
       LocationSummary* locations = safepoint_position->GetLocations();
       if ((current->GetType() == Primitive::kPrimNot) && current->GetParent()->HasSpillSlot()) {
@@ -1523,7 +1521,6 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
   } while (current != nullptr);
 
   if (kIsDebugBuild) {
-    DCHECK(safepoint_position == nullptr);
     // Following uses can only be environment uses. The location for
     // these environments will be none.
     while (use != nullptr) {

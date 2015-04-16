@@ -492,6 +492,15 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
     return defined_by_;
   }
 
+  SafepointPosition* FindSafepointJustBefore(size_t position) const {
+    for (SafepointPosition* safepoint = first_safepoint_, *previous = nullptr;
+         safepoint != nullptr;
+         previous = safepoint, safepoint = safepoint->GetNext()) {
+      if (safepoint->GetPosition() >= position) return previous;
+    }
+    return last_safepoint_;
+  }
+
   /**
    * Split this interval at `position`. This interval is changed to:
    * [start ... position).
@@ -510,6 +519,19 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
     }
 
     LiveInterval* new_interval = new (allocator_) LiveInterval(allocator_, type_);
+    SafepointPosition* new_last_safepoint = FindSafepointJustBefore(position);
+    if (new_last_safepoint == nullptr) {
+      new_interval->first_safepoint_ = first_safepoint_;
+      new_interval->last_safepoint_ = last_safepoint_;
+      first_safepoint_ = last_safepoint_ = nullptr;
+    } else if (last_safepoint_ != new_last_safepoint) {
+      new_interval->last_safepoint_ = last_safepoint_;
+      new_interval->first_safepoint_ = new_last_safepoint->GetNext();
+      DCHECK(new_interval->first_safepoint_ != nullptr);
+      last_safepoint_ = new_last_safepoint;
+      last_safepoint_->SetNext(nullptr);
+    }
+
     new_interval->next_sibling_ = next_sibling_;
     next_sibling_ = new_interval;
     new_interval->parent_ = parent_;
@@ -748,7 +770,6 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
   }
 
   SafepointPosition* GetFirstSafepoint() const {
-    DCHECK_EQ(GetParent(), this) << "Only the first sibling lists safepoints";
     return first_safepoint_;
   }
 
@@ -822,7 +843,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
   LiveRange* first_range_;
   LiveRange* last_range_;
 
-  // Safepoints where this interval is live. Only set in the parent interval.
+  // Safepoints where this interval is live.
   SafepointPosition* first_safepoint_;
   SafepointPosition* last_safepoint_;
 
