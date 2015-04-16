@@ -740,11 +740,7 @@ size_t MarkSweep::GetThreadCount(bool paused) const {
   if (heap_->GetThreadPool() == nullptr || !heap_->CareAboutPauseTimes()) {
     return 1;
   }
-  if (paused) {
-    return heap_->GetParallelGCThreadCount() + 1;
-  } else {
-    return heap_->GetConcGCThreadCount() + 1;
-  }
+  return (paused ? heap_->GetParallelGCThreadCount() : heap_->GetConcGCThreadCount()) + 1;
 }
 
 void MarkSweep::ScanGrayObjects(bool paused, uint8_t minimum_age) {
