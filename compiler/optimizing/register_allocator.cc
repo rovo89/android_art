@@ -1538,35 +1538,14 @@ void RegisterAllocator::ConnectSplitSiblings(LiveInterval* interval,
     return;
   }
 
-  // Intervals end at the lifetime end of a block. The decrement by one
-  // ensures the `Cover` call will return true.
-  size_t from_position = from->GetLifetimeEnd() - 1;
-  size_t to_position = to->GetLifetimeStart();
-
-  LiveInterval* destination = nullptr;
-  LiveInterval* source = nullptr;
-
-  LiveInterval* current = interval;
-
-  // Check the intervals that cover `from` and `to`.
-  while ((current != nullptr) && (source == nullptr || destination == nullptr)) {
-    if (current->Covers(from_position)) {
-      DCHECK(source == nullptr);
-      source = current;
-    }
-    if (current->Covers(to_position)) {
-      DCHECK(destination == nullptr);
-      destination = current;
-    }
-
-    current = current->GetNextSibling();
-  }
+  // Find the intervals that cover `from` and `to`.
+  LiveInterval* destination = interval->GetSiblingAt(to->GetLifetimeStart());
+  LiveInterval* source = interval->GetSiblingAt(from->GetLifetimeEnd() - 1);
 
   if (destination == source) {
     // Interval was not split.
     return;
   }
-
   DCHECK(destination != nullptr && source != nullptr);
 
   if (!destination->HasRegister()) {
