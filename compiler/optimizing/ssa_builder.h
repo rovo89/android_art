@@ -85,6 +85,9 @@ class SsaBuilder : public HGraphVisitor {
   static constexpr const char* kSsaBuilderPassName = "ssa_builder";
 
  private:
+  void FixNullConstantType();
+  void EquivalentPhisCleanup();
+
   static HFloatConstant* GetFloatEquivalent(HIntConstant* constant);
   static HDoubleConstant* GetDoubleEquivalent(HLongConstant* constant);
   static HPhi* GetFloatDoubleOrReferenceEquivalentOfPhi(HPhi* phi, Primitive::Type type);
