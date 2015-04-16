@@ -552,6 +552,17 @@ bool Runtime::Start() {
     StartProfiler(profile_output_filename_.c_str());
   }
 
+  if (trace_config_.get() != nullptr && trace_config_->trace_file != "") {
+    ScopedThreadStateChange tsc(self, kWaitingForMethodTracingStart);
+    Trace::Start(trace_config_->trace_file.c_str(),
+                 -1,
+                 static_cast<int>(trace_config_->trace_file_size),
+                 0,
+                 trace_config_->trace_output_mode,
+                 trace_config_->trace_mode,
+                 0);
+  }
+
   return true;
 }
 
@@ -1000,7 +1011,9 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
     trace_config_->trace_file = runtime_options.ReleaseOrDefault(Opt::MethodTraceFile);
     trace_config_->trace_file_size = runtime_options.ReleaseOrDefault(Opt::MethodTraceFileSize);
     trace_config_->trace_mode = Trace::TraceMode::kMethodTracing;
-    trace_config_->trace_output_mode = Trace::TraceOutputMode::kFile;
+    trace_config_->trace_output_mode = runtime_options.Exists(Opt::MethodTraceStreaming) ?
+        Trace::TraceOutputMode::kStreaming :
+        Trace::TraceOutputMode::kFile;
   }
 
   {
@@ -1025,17 +1038,6 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
 
   // TODO: move this to just be an Trace::Start argument
   Trace::SetDefaultClockSource(runtime_options.GetOrDefault(Opt::ProfileClock));
-
-  if (trace_config_.get() != nullptr) {
-    ScopedThreadStateChange tsc(self, kWaitingForMethodTracingStart);
-    Trace::Start(trace_config_->trace_file.c_str(),
-                 -1,
-                 static_cast<int>(trace_config_->trace_file_size),
-                 0,
-                 trace_config_->trace_output_mode,
-                 trace_config_->trace_mode,
-                 0);
-  }
 
   // Pre-allocate an OutOfMemoryError for the double-OOME case.
   self->ThrowNewException("Ljava/lang/OutOfMemoryError;",

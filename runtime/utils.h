@@ -511,6 +511,9 @@ const char* GetAndroidData();
 // Find $ANDROID_DATA, /data, or return nullptr.
 const char* GetAndroidDataSafe(std::string* error_msg);
 
+// Returns the dalvik-cache location, with subdir appended. Returns the empty string if the cache
+// could not be found (or created).
+std::string GetDalvikCache(const char* subdir, bool create_if_absent = true);
 // Returns the dalvik-cache location, or dies trying. subdir will be
 // appended to the cache location.
 std::string GetDalvikCacheOrDie(const char* subdir, bool create_if_absent = true);
