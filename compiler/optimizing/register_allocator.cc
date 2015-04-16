@@ -332,6 +332,7 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
     }
     current->AddSafepoint(safepoint);
   }
+  current->ResetSearchCache();
 
   // Some instructions define their output in fixed register/stack slot. We need
   // to ensure we know these locations before doing register allocation. For a
@@ -666,6 +667,7 @@ static void FreeIfNotCoverAt(LiveInterval* interval, size_t position, size_t* fr
   DCHECK(!interval->IsHighInterval());
   // Note that the same instruction may occur multiple times in the input list,
   // so `free_until` may have changed already.
+  // Since `position` is not the current scan position, we need to use CoversSlow.
   if (interval->IsDeadAt(position)) {
     // Set the register to be free. Note that inactive intervals might later
     // update this.
@@ -674,12 +676,12 @@ static void FreeIfNotCoverAt(LiveInterval* interval, size_t position, size_t* fr
       DCHECK(interval->GetHighInterval()->IsDeadAt(position));
       free_until[interval->GetHighInterval()->GetRegister()] = kMaxLifetimePosition;
     }
-  } else if (!interval->Covers(position)) {
+  } else if (!interval->CoversSlow(position)) {
     // The interval becomes inactive at `defined_by`. We make its register
     // available only until the next use strictly after `defined_by`.
     free_until[interval->GetRegister()] = interval->FirstUseAfter(position);
     if (interval->HasHighInterval()) {
-      DCHECK(!interval->GetHighInterval()->Covers(position));
+      DCHECK(!interval->GetHighInterval()->CoversSlow(position));
       free_until[interval->GetHighInterval()->GetRegister()] = free_until[interval->GetRegister()];
     }
   }
@@ -720,7 +722,7 @@ bool RegisterAllocator::TryAllocateFreeReg(LiveInterval* current) {
           // the linear scan algorithm. So we use `defined_by`'s end lifetime
           // position to check whether the input is dead or is inactive after
           // `defined_by`.
-          DCHECK(interval->Covers(defined_by->GetLifetimePosition()));
+          DCHECK(interval->CoversSlow(defined_by->GetLifetimePosition()));
           size_t position = defined_by->GetLifetimePosition() + 1;
           FreeIfNotCoverAt(interval, position, free_until);
         }
@@ -1438,7 +1440,7 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
         use = use->GetNext();
       }
       while (use != nullptr && use->GetPosition() <= range->GetEnd()) {
-        DCHECK(current->Covers(use->GetPosition()) || (use->GetPosition() == range->GetEnd()));
+        DCHECK(current->CoversSlow(use->GetPosition()) || (use->GetPosition() == range->GetEnd()));
         LocationSummary* locations = use->GetUser()->GetLocations();
         if (use->GetIsEnvironment()) {
           locations->SetEnvironmentAt(use->GetInputIndex(), source);
@@ -1475,7 +1477,7 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
     for (SafepointPosition* safepoint_position = current->GetFirstSafepoint();
          safepoint_position != nullptr;
          safepoint_position = safepoint_position->GetNext()) {
-      DCHECK(current->Covers(safepoint_position->GetPosition()));
+      DCHECK(current->CoversSlow(safepoint_position->GetPosition()));
 
       LocationSummary* locations = safepoint_position->GetLocations();
       if ((current->GetType() == Primitive::kPrimNot) && current->GetParent()->HasSpillSlot()) {
