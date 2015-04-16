@@ -372,7 +372,11 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
   bool HasRegister() const { return register_ != kNoRegister; }
 
   bool IsDeadAt(size_t position) const {
-    return last_range_->GetEnd() <= position;
+    return GetEnd() <= position;
+  }
+
+  bool IsDefinedAt(size_t position) const {
+    return GetStart() <= position && !IsDeadAt(position);
   }
 
   bool Covers(size_t position) {
@@ -513,7 +517,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
     DCHECK(!is_fixed_);
     DCHECK_GT(position, GetStart());
 
-    if (last_range_->GetEnd() <= position) {
+    if (GetEnd() <= position) {
       // This range dies before `position`, no need to split.
       return nullptr;
     }
@@ -643,8 +647,8 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
   // Returns the location of the interval following its siblings at `position`.
   Location GetLocationAt(size_t position);
 
-  // Finds the interval that covers `position`.
-  const LiveInterval& GetIntervalAt(size_t position);
+  // Finds the sibling that is defined at `position`.
+  LiveInterval* GetSiblingAt(size_t position);
 
   // Returns whether `other` and `this` share the same kind of register.
   bool SameRegisterKind(Location other) const;
