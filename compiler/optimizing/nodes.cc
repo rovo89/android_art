@@ -962,30 +962,6 @@ static void MakeRoomFor(GrowableArray<HBasicBlock*>* blocks,
 }
 
 void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
-  // Walk over the entry block and:
-  // - Move constants from the entry block to the outer_graph's entry block,
-  // - Replace HParameterValue instructions with their real value.
-  // - Remove suspend checks, that hold an environment.
-  int parameter_index = 0;
-  for (HInstructionIterator it(entry_block_->GetInstructions()); !it.Done(); it.Advance()) {
-    HInstruction* current = it.Current();
-    if (current->IsNullConstant()) {
-      current->ReplaceWith(outer_graph->GetNullConstant());
-    } else if (current->IsIntConstant()) {
-      current->ReplaceWith(outer_graph->GetIntConstant(current->AsIntConstant()->GetValue()));
-    } else if (current->IsLongConstant()) {
-      current->ReplaceWith(outer_graph->GetLongConstant(current->AsLongConstant()->GetValue()));
-    } else if (current->IsFloatConstant() || current->IsDoubleConstant()) {
-      // TODO: Don't duplicate floating-point constants.
-      current->MoveBefore(outer_graph->GetEntryBlock()->GetLastInstruction());
-    } else if (current->IsParameterValue()) {
-      current->ReplaceWith(invoke->InputAt(parameter_index++));
-    } else {
-      DCHECK(current->IsGoto() || current->IsSuspendCheck());
-      entry_block_->RemoveInstruction(current);
-    }
-  }
-
   if (GetBlocks().Size() == 3) {
     // Simple case of an entry block, a body block, and an exit block.
     // Put the body block's instruction into `invoke`'s block.
@@ -1108,6 +1084,36 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
         info->ClearBackEdges();
         info->AddBackEdge(to);
       }
+    }
+  }
+
+  // Update the next instruction id of the outer graph, so that instructions
+  // added later get bigger ids than those in the inner graph.
+  outer_graph->SetCurrentInstructionId(GetNextInstructionId());
+
+  // Walk over the entry block and:
+  // - Move constants from the entry block to the outer_graph's entry block,
+  // - Replace HParameterValue instructions with their real value.
+  // - Remove suspend checks, that hold an environment.
+  // We must do this after the other blocks have been inlined, otherwise ids of
+  // constants could overlap with the inner graph.
+  int parameter_index = 0;
+  for (HInstructionIterator it(entry_block_->GetInstructions()); !it.Done(); it.Advance()) {
+    HInstruction* current = it.Current();
+    if (current->IsNullConstant()) {
+      current->ReplaceWith(outer_graph->GetNullConstant());
+    } else if (current->IsIntConstant()) {
+      current->ReplaceWith(outer_graph->GetIntConstant(current->AsIntConstant()->GetValue()));
+    } else if (current->IsLongConstant()) {
+      current->ReplaceWith(outer_graph->GetLongConstant(current->AsLongConstant()->GetValue()));
+    } else if (current->IsFloatConstant() || current->IsDoubleConstant()) {
+      // TODO: Don't duplicate floating-point constants.
+      current->MoveBefore(outer_graph->GetEntryBlock()->GetLastInstruction());
+    } else if (current->IsParameterValue()) {
+      current->ReplaceWith(invoke->InputAt(parameter_index++));
+    } else {
+      DCHECK(current->IsGoto() || current->IsSuspendCheck());
+      entry_block_->RemoveInstruction(current);
     }
   }
 
