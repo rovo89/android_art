@@ -2673,7 +2673,6 @@ void LocationsBuilderARM::VisitBooleanNot(HBooleanNot* bool_not) {
 }
 
 void InstructionCodeGeneratorARM::VisitBooleanNot(HBooleanNot* bool_not) {
-  DCHECK_EQ(bool_not->InputAt(0)->GetType(), Primitive::kPrimBoolean);
   LocationSummary* locations = bool_not->GetLocations();
   Location out = locations->Out();
   Location in = locations->InAt(0);
