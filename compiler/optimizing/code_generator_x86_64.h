@@ -118,7 +118,6 @@ class ParallelMoveResolverX86_64 : public ParallelMoveResolver {
   void Exchange32(CpuRegister reg, int mem);
   void Exchange32(XmmRegister reg, int mem);
   void Exchange32(int mem1, int mem2);
-  void Exchange64(CpuRegister reg1, CpuRegister reg2);
   void Exchange64(CpuRegister reg, int mem);
   void Exchange64(XmmRegister reg, int mem);
   void Exchange64(int mem1, int mem2);
