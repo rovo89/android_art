@@ -85,6 +85,7 @@ class SSAChecker : public GraphChecker {
  public:
   typedef GraphChecker super_type;
 
+  // TODO: There's no need to pass a separate allocator as we could get it from the graph.
   SSAChecker(ArenaAllocator* allocator, HGraph* graph)
     : GraphChecker(allocator, graph, "art::SSAChecker: ") {}
 

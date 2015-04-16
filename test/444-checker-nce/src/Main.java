@@ -251,3 +251,27 @@ public class Main {
   }
 
 }
+
+// Regression for when we created and kept equivalent phis with the same type.
+// The phi used in comparison would be different then the one used for access
+// so we could not safely discard it.
+class ListElement {
+  private ListElement next;
+
+  // CHECK-START: boolean ListElement.isShorter(ListElement, ListElement) instruction_simplifier_after_types (before)
+  // CHECK:         NullCheck
+  // CHECK:         NullCheck
+
+  // CHECK-START: boolean ListElement.isShorter(ListElement, ListElement) instruction_simplifier_after_types (after)
+  // CHECK-NOT:     NullCheck
+  static boolean isShorter(ListElement x, ListElement y) {
+    ListElement xTail = x;
+    ListElement yTail = y;
+    while (yTail != null) {
+      if (xTail == null) return true;
+      xTail = xTail.next;
+      yTail = yTail.next;
+    }
+    return false;
+  }
+}
