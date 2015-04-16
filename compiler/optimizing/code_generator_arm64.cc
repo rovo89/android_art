@@ -1379,16 +1379,16 @@ void InstructionCodeGeneratorARM64::VisitArrayLength(HArrayLength* instruction) 
 }
 
 void LocationsBuilderARM64::VisitArraySet(HArraySet* instruction) {
-  Primitive::Type value_type = instruction->GetComponentType();
-  bool is_object = value_type == Primitive::kPrimNot;
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(
-      instruction, is_object ? LocationSummary::kCall : LocationSummary::kNoCall);
-  if (is_object) {
+  if (instruction->NeedsTypeCheck()) {
+    LocationSummary* locations =
+        new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
     InvokeRuntimeCallingConvention calling_convention;
     locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
     locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
     locations->SetInAt(2, LocationFrom(calling_convention.GetRegisterAt(2)));
   } else {
+    LocationSummary* locations =
+        new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
     locations->SetInAt(0, Location::RequiresRegister());
     locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
     if (Primitive::IsFloatingPointType(instruction->InputAt(2)->GetType())) {
@@ -1401,33 +1401,42 @@ void LocationsBuilderARM64::VisitArraySet(HArraySet* instruction) {
 
 void InstructionCodeGeneratorARM64::VisitArraySet(HArraySet* instruction) {
   Primitive::Type value_type = instruction->GetComponentType();
-  if (value_type == Primitive::kPrimNot) {
+  LocationSummary* locations = instruction->GetLocations();
+  bool needs_runtime_call = locations->WillCall();
+
+  if (needs_runtime_call) {
     codegen_->InvokeRuntime(
         QUICK_ENTRY_POINT(pAputObject), instruction, instruction->GetDexPc(), nullptr);
     CheckEntrypointTypes<kQuickAputObject, void, mirror::Array*, int32_t, mirror::Object*>();
   } else {
-    LocationSummary* locations = instruction->GetLocations();
     Register obj = InputRegisterAt(instruction, 0);
     CPURegister value = InputCPURegisterAt(instruction, 2);
     Location index = locations->InAt(1);
     size_t offset = mirror::Array::DataOffset(Primitive::ComponentSize(value_type)).Uint32Value();
     MemOperand destination = HeapOperand(obj);
     MacroAssembler* masm = GetVIXLAssembler();
-    UseScratchRegisterScope temps(masm);
     BlockPoolsScope block_pools(masm);
+    {
+      // We use a block to end the scratch scope before the write barrier, thus
+      // freeing the temporary registers so they can be used in `MarkGCCard`.
+      UseScratchRegisterScope temps(masm);
 
-    if (index.IsConstant()) {
-      offset += Int64ConstantFrom(index) << Primitive::ComponentSizeShift(value_type);
-      destination = HeapOperand(obj, offset);
-    } else {
-      Register temp = temps.AcquireSameSizeAs(obj);
-      Register index_reg = InputRegisterAt(instruction, 1);
-      __ Add(temp, obj, Operand(index_reg, LSL, Primitive::ComponentSizeShift(value_type)));
-      destination = HeapOperand(temp, offset);
+      if (index.IsConstant()) {
+        offset += Int64ConstantFrom(index) << Primitive::ComponentSizeShift(value_type);
+        destination = HeapOperand(obj, offset);
+      } else {
+        Register temp = temps.AcquireSameSizeAs(obj);
+        Register index_reg = InputRegisterAt(instruction, 1);
+        __ Add(temp, obj, Operand(index_reg, LSL, Primitive::ComponentSizeShift(value_type)));
+        destination = HeapOperand(temp, offset);
+      }
+
+      codegen_->Store(value_type, value, destination);
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
     }
-
-    codegen_->Store(value_type, value, destination);
-    codegen_->MaybeRecordImplicitNullCheck(instruction);
+    if (CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue())) {
+      codegen_->MarkGCCard(obj, value.W());
+    }
   }
 }
 
