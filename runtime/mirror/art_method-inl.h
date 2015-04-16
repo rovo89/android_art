@@ -21,7 +21,7 @@
 
 #include "art_field.h"
 #include "class.h"
-#include "class_linker.h"
+#include "class_linker-inl.h"
 #include "dex_cache.h"
 #include "dex_file.h"
 #include "dex_file-inl.h"
