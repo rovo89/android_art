@@ -258,10 +258,6 @@ bool HInliner::TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
     graph_->SetHasArrayAccesses(true);
   }
 
-  // Now that we have inlined the callee, we need to update the next
-  // instruction id of the caller, so that new instructions added
-  // after optimizations get a unique id.
-  graph_->SetCurrentInstructionId(callee_graph->GetNextInstructionId());
   return true;
 }
 
