@@ -18,6 +18,7 @@
 
 #include <map>
 #include <string>
+#include <sstream>
 
 #include "base/bit_vector-inl.h"
 #include "base/stringprintf.h"
@@ -191,6 +192,17 @@ void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
                               block->GetBlockId(),
                               successor->GetBlockId()));
       }
+    }
+  }
+
+  // Check Phi uniqueness (no two Phis with the same type refer to the same register).
+  for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+    HPhi* phi = it.Current()->AsPhi();
+    if (phi->GetNextEquivalentPhiWithSameType() != nullptr) {
+      std::stringstream type_str;
+      type_str << phi->GetType();
+      AddError(StringPrintf("Equivalent phi (%d) found for VReg %d with type: %s",
+          phi->GetId(), phi->GetRegNumber(), type_str.str().c_str()));
     }
   }
 
@@ -399,37 +411,23 @@ void SSAChecker::VisitCondition(HCondition* op) {
   }
   HInstruction* lhs = op->InputAt(0);
   HInstruction* rhs = op->InputAt(1);
-  if (lhs->GetType() == Primitive::kPrimNot) {
-    if (!op->IsEqual() && !op->IsNotEqual()) {
+  if (PrimitiveKind(lhs->GetType()) != PrimitiveKind(rhs->GetType())) {
+    AddError(StringPrintf(
+        "Condition %s %d has inputs of different types: %s, and %s.",
+        op->DebugName(), op->GetId(),
+        Primitive::PrettyDescriptor(lhs->GetType()),
+        Primitive::PrettyDescriptor(rhs->GetType())));
+  }
+  if (!op->IsEqual() && !op->IsNotEqual()) {
+    if ((lhs->GetType() == Primitive::kPrimNot)) {
       AddError(StringPrintf(
           "Condition %s %d uses an object as left-hand side input.",
           op->DebugName(), op->GetId()));
-    }
-    if (rhs->IsIntConstant() && rhs->AsIntConstant()->GetValue() != 0) {
-      AddError(StringPrintf(
-          "Condition %s %d compares an object with a non-zero integer: %d.",
-          op->DebugName(), op->GetId(),
-          rhs->AsIntConstant()->GetValue()));
-    }
-  } else if (rhs->GetType() == Primitive::kPrimNot) {
-    if (!op->IsEqual() && !op->IsNotEqual()) {
+    } else if (rhs->GetType() == Primitive::kPrimNot) {
       AddError(StringPrintf(
           "Condition %s %d uses an object as right-hand side input.",
           op->DebugName(), op->GetId()));
     }
-    if (lhs->IsIntConstant() && lhs->AsIntConstant()->GetValue() != 0) {
-      AddError(StringPrintf(
-          "Condition %s %d compares a non-zero integer with an object: %d.",
-          op->DebugName(), op->GetId(),
-          lhs->AsIntConstant()->GetValue()));
-    }
-  } else if (PrimitiveKind(lhs->GetType()) != PrimitiveKind(rhs->GetType())) {
-      AddError(StringPrintf(
-          "Condition %s %d has inputs of different types: "
-          "%s, and %s.",
-          op->DebugName(), op->GetId(),
-          Primitive::PrettyDescriptor(lhs->GetType()),
-          Primitive::PrettyDescriptor(rhs->GetType())));
   }
 }
 

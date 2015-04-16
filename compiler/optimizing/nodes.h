@@ -2715,6 +2715,20 @@ class HPhi : public HInstruction {
   bool IsDead() const { return !is_live_; }
   bool IsLive() const { return is_live_; }
 
+  // Returns the next equivalent phi (starting from the current one) or null if there is none.
+  // An equivalent phi is a phi having the same dex register and type.
+  // It assumes that phis with the same dex register are adjacent.
+  HPhi* GetNextEquivalentPhiWithSameType() {
+    HInstruction* next = GetNext();
+    while (next != nullptr && next->AsPhi()->GetRegNumber() == reg_number_) {
+      if (next->GetType() == GetType()) {
+        return next->AsPhi();
+      }
+      next = next->GetNext();
+    }
+    return nullptr;
+  }
+
   DECLARE_INSTRUCTION(Phi);
 
  protected:
