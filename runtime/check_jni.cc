@@ -742,7 +742,6 @@ class ScopedCheck {
 
   bool CheckNonHeapValue(char fmt, JniValueType arg) {
     switch (fmt) {
-      case '.':  // ...
       case 'p':  // TODO: pointer - null or readable?
       case 'v':  // JavaVM*
       case 'B':  // jbyte
@@ -936,9 +935,6 @@ class ScopedCheck {
             *msg += "unknown ref type";
             break;
         }
-        break;
-      case '.':
-        *msg += "...";
         break;
       default:
         LOG(FATAL) << function_name_ << ": unknown trace format specifier: '" << fmt << "'";
@@ -1635,7 +1631,7 @@ class CheckJNI {
   static jint ThrowNew(JNIEnv* env, jclass c, const char* message) {
     ScopedObjectAccess soa(env);
     ScopedCheck sc(kFlag_NullableUtf, __FUNCTION__);
-    JniValueType args[5] = {{.E = env}, {.c = c}, {.u = message}};
+    JniValueType args[3] = {{.E = env}, {.c = c}, {.u = message}};
     if (sc.Check(soa, true, "Ecu", args) && sc.CheckThrowableClass(soa, c)) {
       JniValueType result;
       result.i = baseEnv(env)->ThrowNew(env, c, message);
@@ -1811,7 +1807,7 @@ class CheckJNI {
     ScopedObjectAccess soa(env);
     ScopedCheck sc(kFlag_Default, __FUNCTION__);
     JniValueType args[3] = {{.E = env}, {.c = c}, {.m = mid}};
-    if (sc.Check(soa, true, "Ecm.", args) && sc.CheckInstantiableNonArray(soa, c) &&
+    if (sc.Check(soa, true, "Ecm", args) && sc.CheckInstantiableNonArray(soa, c) &&
         sc.CheckConstructor(soa, mid)) {
       JniValueType result;
       result.L = baseEnv(env)->NewObjectV(env, c, mid, vargs);
@@ -1834,7 +1830,7 @@ class CheckJNI {
     ScopedObjectAccess soa(env);
     ScopedCheck sc(kFlag_Default, __FUNCTION__);
     JniValueType args[3] = {{.E = env}, {.c = c}, {.m = mid}};
-    if (sc.Check(soa, true, "Ecm.", args) && sc.CheckInstantiableNonArray(soa, c) &&
+    if (sc.Check(soa, true, "Ecm", args) && sc.CheckInstantiableNonArray(soa, c) &&
         sc.CheckConstructor(soa, mid)) {
       JniValueType result;
       result.L = baseEnv(env)->NewObjectA(env, c, mid, vargs);
@@ -2669,18 +2665,18 @@ class CheckJNI {
       case kVirtual: {
         DCHECK(c == nullptr);
         JniValueType args[3] = {{.E = env}, {.L = obj}, {.m = mid}};
-        checked = sc.Check(soa, true, "ELm.", args);
+        checked = sc.Check(soa, true, "ELm", args);
         break;
       }
       case kDirect: {
         JniValueType args[4] = {{.E = env}, {.L = obj}, {.c = c}, {.m = mid}};
-        checked = sc.Check(soa, true, "ELcm.", args);
+        checked = sc.Check(soa, true, "ELcm", args);
         break;
       }
       case kStatic: {
         DCHECK(obj == nullptr);
         JniValueType args[3] = {{.E = env}, {.c = c}, {.m = mid}};
-        checked = sc.Check(soa, true, "Ecm.", args);
+        checked = sc.Check(soa, true, "Ecm", args);
         break;
       }
       default:
