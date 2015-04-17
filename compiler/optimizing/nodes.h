@@ -2105,7 +2105,7 @@ class HIntConstant : public HConstant {
 
   friend class HGraph;
   ART_FRIEND_TEST(GraphTest, InsertInstructionBefore);
-  ART_FRIEND_TEST(ParallelMoveTest, ConstantLast);
+  ART_FRIEND_TYPED_TEST(ParallelMoveTest, ConstantLast);
   DISALLOW_COPY_AND_ASSIGN(HIntConstant);
 };
 
@@ -3502,7 +3502,7 @@ class MoveOperands : public ArenaObject<kArenaAllocMisc> {
 
   // True if this blocks a move from the given location.
   bool Blocks(Location loc) const {
-    return !IsEliminated() && (source_.Contains(loc) || loc.Contains(source_));
+    return !IsEliminated() && source_.OverlapsWith(loc);
   }
 
   // A move is redundant if it's been eliminated, if its source and
@@ -3571,8 +3571,8 @@ class HParallelMove : public HTemplateInstruction<0> {
         }
       }
       for (size_t i = 0, e = moves_.Size(); i < e; ++i) {
-        DCHECK(!destination.Equals(moves_.Get(i).GetDestination()))
-            << "Same destination for two moves in a parallel move.";
+        DCHECK(!destination.OverlapsWith(moves_.Get(i).GetDestination()))
+            << "Overlapped destination for two moves in a parallel move.";
       }
     }
     moves_.Add(MoveOperands(source, destination, type, instruction));

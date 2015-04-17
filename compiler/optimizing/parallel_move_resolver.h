@@ -19,30 +19,47 @@
 
 #include "base/value_object.h"
 #include "utils/growable_array.h"
+#include "locations.h"
 
 namespace art {
 
 class HParallelMove;
-class Location;
 class MoveOperands;
 
-/**
- * Helper class to resolve a set of parallel moves. Architecture dependent code
- * generator must have their own subclass that implements the `EmitMove` and `EmitSwap`
- * operations.
- */
+// Helper classes to resolve a set of parallel moves. Architecture dependent code generator must
+// have their own subclass that implements corresponding virtual functions.
 class ParallelMoveResolver : public ValueObject {
  public:
   explicit ParallelMoveResolver(ArenaAllocator* allocator) : moves_(allocator, 32) {}
   virtual ~ParallelMoveResolver() {}
 
   // Resolve a set of parallel moves, emitting assembler instructions.
-  void EmitNativeCode(HParallelMove* parallel_move);
+  virtual void EmitNativeCode(HParallelMove* parallel_move) = 0;
+
+ protected:
+  // Build the initial list of moves.
+  void BuildInitialMoveList(HParallelMove* parallel_move);
+
+  GrowableArray<MoveOperands*> moves_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ParallelMoveResolver);
+};
+
+// This helper class uses swap to resolve dependencies and may emit swap.
+class ParallelMoveResolverWithSwap : public ParallelMoveResolver {
+ public:
+  explicit ParallelMoveResolverWithSwap(ArenaAllocator* allocator)
+      : ParallelMoveResolver(allocator) {}
+  virtual ~ParallelMoveResolverWithSwap() {}
+
+  // Resolve a set of parallel moves, emitting assembler instructions.
+  void EmitNativeCode(HParallelMove* parallel_move) OVERRIDE;
 
  protected:
   class ScratchRegisterScope : public ValueObject {
    public:
-    ScratchRegisterScope(ParallelMoveResolver* resolver,
+    ScratchRegisterScope(ParallelMoveResolverWithSwap* resolver,
                          int blocked,
                          int if_scratch,
                          int number_of_registers);
@@ -52,11 +69,12 @@ class ParallelMoveResolver : public ValueObject {
     bool IsSpilled() const { return spilled_; }
 
    private:
-    ParallelMoveResolver* resolver_;
+    ParallelMoveResolverWithSwap* resolver_;
     int reg_;
     bool spilled_;
   };
 
+  // Return true if the location can be scratched.
   bool IsScratchLocation(Location loc);
 
   // Allocate a scratch register for performing a move. The method will try to use
@@ -72,15 +90,9 @@ class ParallelMoveResolver : public ValueObject {
   virtual void SpillScratch(int reg) = 0;
   virtual void RestoreScratch(int reg) = 0;
 
-  // List of moves not yet resolved.
-  GrowableArray<MoveOperands*> moves_;
-
   static constexpr int kNoRegister = -1;
 
  private:
-  // Build the initial list of moves.
-  void BuildInitialMoveList(HParallelMove* parallel_move);
-
   // Perform the move at the moves_ index in question (possibly requiring
   // other moves to satisfy dependencies).
   //
@@ -99,7 +111,83 @@ class ParallelMoveResolver : public ValueObject {
   //    the right value.
   MoveOperands* PerformMove(size_t index);
 
-  DISALLOW_COPY_AND_ASSIGN(ParallelMoveResolver);
+  DISALLOW_COPY_AND_ASSIGN(ParallelMoveResolverWithSwap);
+};
+
+// This helper class uses additional scratch registers to resolve dependencies. It supports all kind
+// of dependency cycles and does not care about the register layout.
+class ParallelMoveResolverNoSwap : public ParallelMoveResolver {
+ public:
+  explicit ParallelMoveResolverNoSwap(ArenaAllocator* allocator)
+      : ParallelMoveResolver(allocator), scratches_(allocator, 32),
+        pending_moves_(allocator, 8), allocator_(allocator) {}
+  virtual ~ParallelMoveResolverNoSwap() {}
+
+  // Resolve a set of parallel moves, emitting assembler instructions.
+  void EmitNativeCode(HParallelMove* parallel_move) OVERRIDE;
+
+ protected:
+  // Called at the beginning of EmitNativeCode(). A subclass may put some architecture dependent
+  // initialization here.
+  virtual void PrepareForEmitNativeCode() = 0;
+
+  // Called at the end of EmitNativeCode(). A subclass may put some architecture dependent cleanup
+  // here. All scratch locations will be removed after this call.
+  virtual void FinishEmitNativeCode() = 0;
+
+  // Allocate a scratch location to perform a move from input kind of location. A subclass should
+  // implement this to get the best fit location. If there is no suitable physical register, it can
+  // also return a stack slot.
+  virtual Location AllocateScratchLocationFor(Location::Kind kind) = 0;
+
+  // Called after a move which takes a scratch location as source. A subclass can defer the cleanup
+  // to FinishEmitNativeCode().
+  virtual void FreeScratchLocation(Location loc) = 0;
+
+  // Emit a move.
+  virtual void EmitMove(size_t index) = 0;
+
+  // Return a scratch location from the moves which exactly matches the kind.
+  // Return Location::NoLocation() if no matching scratch location can be found.
+  Location GetScratchLocation(Location::Kind kind);
+
+  // Add a location to the scratch list which can be returned from GetScratchLocation() to resolve
+  // dependency cycles.
+  void AddScratchLocation(Location loc);
+
+  // Remove a location from the scratch list.
+  void RemoveScratchLocation(Location loc);
+
+  // List of scratch locations.
+  GrowableArray<Location> scratches_;
+
+ private:
+  // Perform the move at the given index in `moves_` (possibly requiring other moves to satisfy
+  // dependencies).
+  void PerformMove(size_t index);
+
+  void UpdateMoveSource(Location from, Location to);
+
+  void AddPendingMove(Location source, Location destination, Primitive::Type type);
+
+  void DeletePendingMove(MoveOperands* move);
+
+  // Find a move that may be unblocked after (loc -> XXX) is performed.
+  MoveOperands* GetUnblockedPendingMove(Location loc);
+
+  // Return true if the location is blocked by outstanding moves.
+  bool IsBlockedByMoves(Location loc);
+
+  // Return the number of pending moves.
+  size_t GetNumberOfPendingMoves();
+
+  // Additional pending moves which might be added to resolve dependency cycle.
+  GrowableArray<MoveOperands*> pending_moves_;
+
+  // Used to allocate pending MoveOperands.
+  ArenaAllocator* const allocator_;
+
+  DISALLOW_COPY_AND_ASSIGN(ParallelMoveResolverNoSwap);
 };
 
 }  // namespace art

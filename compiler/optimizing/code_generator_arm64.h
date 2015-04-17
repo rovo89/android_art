@@ -194,15 +194,17 @@ class LocationsBuilderARM64 : public HGraphVisitor {
   DISALLOW_COPY_AND_ASSIGN(LocationsBuilderARM64);
 };
 
-class ParallelMoveResolverARM64 : public ParallelMoveResolver {
+class ParallelMoveResolverARM64 : public ParallelMoveResolverNoSwap {
  public:
   ParallelMoveResolverARM64(ArenaAllocator* allocator, CodeGeneratorARM64* codegen)
-      : ParallelMoveResolver(allocator), codegen_(codegen) {}
+      : ParallelMoveResolverNoSwap(allocator), codegen_(codegen), vixl_temps_() {}
 
+ protected:
+  void PrepareForEmitNativeCode() OVERRIDE;
+  void FinishEmitNativeCode() OVERRIDE;
+  Location AllocateScratchLocationFor(Location::Kind kind) OVERRIDE;
+  void FreeScratchLocation(Location loc) OVERRIDE;
   void EmitMove(size_t index) OVERRIDE;
-  void EmitSwap(size_t index) OVERRIDE;
-  void RestoreScratch(int reg) OVERRIDE;
-  void SpillScratch(int reg) OVERRIDE;
 
  private:
   Arm64Assembler* GetAssembler() const;
@@ -211,6 +213,7 @@ class ParallelMoveResolverARM64 : public ParallelMoveResolver {
   }
 
   CodeGeneratorARM64* const codegen_;
+  vixl::UseScratchRegisterScope vixl_temps_;
 
   DISALLOW_COPY_AND_ASSIGN(ParallelMoveResolverARM64);
 };
@@ -318,7 +321,6 @@ class CodeGeneratorARM64 : public CodeGenerator {
   // locations, and is used for optimisation and debugging.
   void MoveLocation(Location destination, Location source,
                     Primitive::Type type = Primitive::kPrimVoid);
-  void SwapLocations(Location loc_1, Location loc_2);
   void Load(Primitive::Type type, vixl::CPURegister dst, const vixl::MemOperand& src);
   void Store(Primitive::Type type, vixl::CPURegister rt, const vixl::MemOperand& dst);
   void LoadCurrentMethod(vixl::Register current_method);
