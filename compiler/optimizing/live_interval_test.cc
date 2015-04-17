@@ -84,13 +84,13 @@ TEST(LiveInterval, Covers) {
   {
     static constexpr size_t ranges[][2] = {{4, 12}, {14, 16}};
     LiveInterval* interval = BuildInterval(ranges, arraysize(ranges), &allocator);
+    ASSERT_FALSE(interval->Covers(0));
     ASSERT_TRUE(interval->Covers(4));
     ASSERT_TRUE(interval->Covers(11));
-    ASSERT_TRUE(interval->Covers(14));
-    ASSERT_TRUE(interval->Covers(15));
-    ASSERT_FALSE(interval->Covers(0));
     ASSERT_FALSE(interval->Covers(12));
     ASSERT_FALSE(interval->Covers(13));
+    ASSERT_TRUE(interval->Covers(14));
+    ASSERT_TRUE(interval->Covers(15));
     ASSERT_FALSE(interval->Covers(16));
   }
 }
