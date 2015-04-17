@@ -1120,6 +1120,14 @@ void InstructionCodeGeneratorX86::VisitDoubleConstant(HDoubleConstant* constant)
   UNUSED(constant);
 }
 
+void LocationsBuilderX86::VisitMemoryBarrier(HMemoryBarrier* memory_barrier) {
+  memory_barrier->SetLocations(nullptr);
+}
+
+void InstructionCodeGeneratorX86::VisitMemoryBarrier(HMemoryBarrier* memory_barrier) {
+  GenerateMemoryBarrier(memory_barrier->GetBarrierKind());
+}
+
 void LocationsBuilderX86::VisitReturnVoid(HReturnVoid* ret) {
   ret->SetLocations(nullptr);
 }

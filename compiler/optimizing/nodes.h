@@ -19,6 +19,7 @@
 
 #include "base/arena_containers.h"
 #include "base/arena_object.h"
+#include "dex/compiler_enums.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "handle.h"
 #include "handle_scope.h"
@@ -718,6 +719,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(LoadString, Instruction)                                            \
   M(Local, Instruction)                                                 \
   M(LongConstant, Constant)                                             \
+  M(MemoryBarrier, Instruction)                                         \
   M(MonitorOperation, Instruction)                                      \
   M(Mul, BinaryOperation)                                               \
   M(Neg, UnaryOperation)                                                \
@@ -908,6 +910,12 @@ class HUserRecord : public ValueObject {
   HUseListNode<T>* use_node_;
 };
 
+// TODO: Add better documentation to this class and maybe refactor with more suggestive names.
+// - Has(All)SideEffects suggests that all the side effects are present but only ChangesSomething
+//   flag is consider.
+// - DependsOn suggests that there is a real dependency between side effects but it only
+//   checks DependendsOnSomething flag.
+//
 // Represents the side effects an instruction may have.
 class SideEffects : public ValueObject {
  public:
@@ -3435,6 +3443,22 @@ class HCheckCast : public HTemplateInstruction<2> {
   const uint32_t dex_pc_;
 
   DISALLOW_COPY_AND_ASSIGN(HCheckCast);
+};
+
+class HMemoryBarrier : public HTemplateInstruction<0> {
+ public:
+  explicit HMemoryBarrier(MemBarrierKind barrier_kind)
+      : HTemplateInstruction(SideEffects::None()),
+        barrier_kind_(barrier_kind) {}
+
+  MemBarrierKind GetBarrierKind() { return barrier_kind_; }
+
+  DECLARE_INSTRUCTION(MemoryBarrier);
+
+ private:
+  const MemBarrierKind barrier_kind_;
+
+  DISALLOW_COPY_AND_ASSIGN(HMemoryBarrier);
 };
 
 class HMonitorOperation : public HTemplateInstruction<1> {
