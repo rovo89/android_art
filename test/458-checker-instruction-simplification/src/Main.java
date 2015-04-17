@@ -368,6 +368,15 @@ public class Main {
   // CHECK-DAG:     [[Or:i\d+]]       Or [ [[Add1]] [[Add2]] ]
   // CHECK-DAG:                       Return [ [[Or]] ]
 
+  // CHECK-START: int Main.AddNegs2(int, int) GVN (after)
+  // CHECK-DAG:     [[Arg1:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Arg2:i\d+]]     ParameterValue
+  // CHECK-DAG:     [[Neg1:i\d+]]     Neg [ [[Arg1]] ]
+  // CHECK-DAG:     [[Neg2:i\d+]]     Neg [ [[Arg2]] ]
+  // CHECK-DAG:     [[Add:i\d+]]      Add [ [[Neg1]] [[Neg2]] ]
+  // CHECK-DAG:     [[Or:i\d+]]       Or [ [[Add]] [[Add]] ]
+  // CHECK-DAG:                       Return [ [[Or]] ]
+
   public static int AddNegs2(int arg1, int arg2) {
     int temp1 = -arg1;
     int temp2 = -arg2;
@@ -523,6 +532,12 @@ public class Main {
   // CHECK-START: int Main.NegNeg2(int) instruction_simplifier (after)
   // CHECK-NOT:                       Neg
   // CHECK-NOT:                       Add
+
+  // CHECK-START: int Main.NegNeg2(int) constant_folding_after_inlining (after)
+  // CHECK:         [[Const0:i\d+]]   IntConstant 0
+  // CHECK-NOT:                       Neg
+  // CHECK-NOT:                       Add
+  // CHECK:                           Return [ [[Const0]] ]
 
   public static int NegNeg2(int arg) {
     int temp = -arg;

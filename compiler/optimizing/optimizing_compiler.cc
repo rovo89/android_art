@@ -317,7 +317,7 @@ static void RunOptimizations(HGraph* graph,
 
   HInliner inliner(graph, dex_compilation_unit, dex_compilation_unit, driver, stats);
 
-  HConstantFolding fold2(graph);
+  HConstantFolding fold2(graph, "constant_folding_after_inlining");
   SideEffectsAnalysis side_effects(graph);
   GVNOptimization gvn(graph, side_effects);
   LICM licm(graph, side_effects);
