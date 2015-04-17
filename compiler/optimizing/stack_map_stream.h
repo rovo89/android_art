@@ -386,7 +386,8 @@ class StackMapStream : public ValueObject {
       }
 
       entry.live_dex_registers_mask->SetBit(dex_register);
-      entry.dex_register_map_hash += (1 << dex_register);
+      entry.dex_register_map_hash +=
+        (1 << (dex_register % (sizeof(entry.dex_register_map_hash) * kBitsPerByte)));
       entry.dex_register_map_hash += static_cast<uint32_t>(value);
       entry.dex_register_map_hash += static_cast<uint32_t>(kind);
       stack_maps_.Put(stack_maps_.Size() - 1, entry);
