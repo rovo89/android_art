@@ -701,7 +701,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
     high_or_low_interval_->high_or_low_interval_ = this;
     if (first_range_ != nullptr) {
       high_or_low_interval_->first_range_ = first_range_->Dup(allocator_);
-      high_or_low_interval_->last_range_ = first_range_->GetLastRange();
+      high_or_low_interval_->last_range_ = high_or_low_interval_->first_range_->GetLastRange();
     }
     if (first_use_ != nullptr) {
       high_or_low_interval_->first_use_ = first_use_->Dup(allocator_);
