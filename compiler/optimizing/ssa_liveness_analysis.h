@@ -542,6 +542,15 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
     return defined_by_;
   }
 
+  bool HasWillCallSafepoint() const {
+    for (SafepointPosition* safepoint = first_safepoint_;
+         safepoint != nullptr;
+         safepoint = safepoint->GetNext()) {
+      if (safepoint->GetLocations()->WillCall()) return true;
+    }
+    return false;
+  }
+
   SafepointPosition* FindSafepointJustBefore(size_t position) const {
     for (SafepointPosition* safepoint = first_safepoint_, *previous = nullptr;
          safepoint != nullptr;
