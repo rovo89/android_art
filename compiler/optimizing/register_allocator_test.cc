@@ -433,18 +433,15 @@ TEST(RegisterAllocatorTest, FreeUntil) {
   // Add three temps holding the same register, and starting at different positions.
   // Put the one that should be picked in the middle of the inactive list to ensure
   // we do not depend on an order.
-  LiveInterval* interval = LiveInterval::MakeInterval(&allocator, Primitive::kPrimInt);
-  interval->SetRegister(0);
+  LiveInterval* interval = LiveInterval::MakeFixedInterval(&allocator, 0, Primitive::kPrimInt);
   interval->AddRange(40, 50);
   register_allocator.inactive_.Add(interval);
 
-  interval = LiveInterval::MakeInterval(&allocator, Primitive::kPrimInt);
-  interval->SetRegister(0);
+  interval = LiveInterval::MakeFixedInterval(&allocator, 0, Primitive::kPrimInt);
   interval->AddRange(20, 30);
   register_allocator.inactive_.Add(interval);
 
-  interval = LiveInterval::MakeInterval(&allocator, Primitive::kPrimInt);
-  interval->SetRegister(0);
+  interval = LiveInterval::MakeFixedInterval(&allocator, 0, Primitive::kPrimInt);
   interval->AddRange(60, 70);
   register_allocator.inactive_.Add(interval);
 
