@@ -186,11 +186,9 @@ void SsaBuilder::FixNullConstantType() {
       HInstruction* right = equality_instr->InputAt(1);
       HInstruction* null_instr = nullptr;
 
-      if ((left->GetType() == Primitive::kPrimNot)
-          && (right->IsNullConstant() || right->IsIntConstant())) {
+      if ((left->GetType() == Primitive::kPrimNot) && right->IsIntConstant()) {
         null_instr = right;
-      } else if ((right->GetType() == Primitive::kPrimNot)
-              && (left->IsNullConstant() || left->IsIntConstant())) {
+      } else if ((right->GetType() == Primitive::kPrimNot) && left->IsIntConstant()) {
         null_instr = left;
       } else {
         continue;
