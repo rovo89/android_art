@@ -100,30 +100,30 @@ class DwarfTest : public CommonRuntimeTest {
                Elf_Sym, Elf_Ehdr, Elf_Phdr, Elf_Shdr> builder(
         &code, file.GetFile(), isa, 0, 0, 0, 0, 0, 0, false, false);
     typedef ElfRawSectionBuilder<Elf_Word, Elf_Sword, Elf_Shdr> Section;
+    Section debug_info(".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
+    Section debug_abbrev(".debug_abbrev", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
+    Section debug_str(".debug_str", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
+    Section debug_line(".debug_line", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
+    Section eh_frame(".eh_frame", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, 4, 0);
     if (!debug_info_data_.empty()) {
-      Section debug_info(".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
       debug_info.SetBuffer(debug_info_data_);
-      builder.RegisterRawSection(debug_info);
+      builder.RegisterRawSection(&debug_info);
     }
     if (!debug_abbrev_data_.empty()) {
-      Section debug_abbrev(".debug_abbrev", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
       debug_abbrev.SetBuffer(debug_abbrev_data_);
-      builder.RegisterRawSection(debug_abbrev);
+      builder.RegisterRawSection(&debug_abbrev);
     }
     if (!debug_str_data_.empty()) {
-      Section debug_str(".debug_str", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
       debug_str.SetBuffer(debug_str_data_);
-      builder.RegisterRawSection(debug_str);
+      builder.RegisterRawSection(&debug_str);
     }
     if (!debug_line_data_.empty()) {
-      Section debug_line(".debug_line", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
       debug_line.SetBuffer(debug_line_data_);
-      builder.RegisterRawSection(debug_line);
+      builder.RegisterRawSection(&debug_line);
     }
     if (!eh_frame_data_.empty()) {
-      Section eh_frame(".eh_frame", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, 4, 0);
       eh_frame.SetBuffer(eh_frame_data_);
-      builder.RegisterRawSection(eh_frame);
+      builder.RegisterRawSection(&eh_frame);
     }
     builder.Init();
     builder.Write();

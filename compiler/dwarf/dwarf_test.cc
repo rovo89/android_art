@@ -16,6 +16,7 @@
 
 #include "dwarf_test.h"
 
+#include "dwarf/dwarf_constants.h"
 #include "dwarf/debug_frame_opcode_writer.h"
 #include "dwarf/debug_info_entry_writer.h"
 #include "dwarf/debug_line_opcode_writer.h"
@@ -119,7 +120,8 @@ TEST_F(DwarfTest, DebugFrame) {
   DW_CHECK_NEXT("DW_CFA_restore: r5 (ebp)");
 
   DebugFrameOpCodeWriter<> initial_opcodes;
-  WriteEhFrameCIE(is64bit, Reg(is64bit ? 16 : 8), initial_opcodes, &eh_frame_data_);
+  WriteEhFrameCIE(is64bit, DW_EH_PE_absptr, Reg(is64bit ? 16 : 8),
+                  initial_opcodes, &eh_frame_data_);
   std::vector<uintptr_t> eh_frame_patches;
   std::vector<uintptr_t> expected_patches { 28 };  // NOLINT
   WriteEhFrameFDE(is64bit, 0, 0x01000000, 0x01000000, opcodes.data(),
@@ -132,7 +134,8 @@ TEST_F(DwarfTest, DebugFrame) {
 TEST_F(DwarfTest, DebugFrame64) {
   constexpr bool is64bit = true;
   DebugFrameOpCodeWriter<> initial_opcodes;
-  WriteEhFrameCIE(is64bit, Reg(16), initial_opcodes, &eh_frame_data_);
+  WriteEhFrameCIE(is64bit, DW_EH_PE_absptr, Reg(16),
+                  initial_opcodes, &eh_frame_data_);
   DebugFrameOpCodeWriter<> opcodes;
   std::vector<uintptr_t> eh_frame_patches;
   std::vector<uintptr_t> expected_patches { 32 };  // NOLINT
@@ -170,7 +173,8 @@ TEST_F(DwarfTest, x86_64_RegisterMapping) {
   DW_CHECK_NEXT("DW_CFA_offset: r14 (r14)");
   DW_CHECK_NEXT("DW_CFA_offset: r15 (r15)");
   DebugFrameOpCodeWriter<> initial_opcodes;
-  WriteEhFrameCIE(is64bit, Reg(16), initial_opcodes, &eh_frame_data_);
+  WriteEhFrameCIE(is64bit, DW_EH_PE_absptr, Reg(16),
+                  initial_opcodes, &eh_frame_data_);
   std::vector<uintptr_t> eh_frame_patches;
   WriteEhFrameFDE(is64bit, 0, 0x0100000000000000, 0x0200000000000000,
                   opcodes.data(), &eh_frame_data_, &eh_frame_patches);
