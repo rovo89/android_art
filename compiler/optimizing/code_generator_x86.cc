@@ -19,6 +19,7 @@
 #include "art_method.h"
 #include "code_generator_utils.h"
 #include "compiled_method.h"
+#include "constant_area_fixups_x86.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "gc/accounting/card_table.h"
@@ -2213,7 +2214,7 @@ void LocationsBuilderX86::VisitAdd(HAdd* add) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
-      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::Any());
       locations->SetOut(Location::SameAsFirstInput());
       break;
     }
@@ -2275,6 +2276,16 @@ void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
     case Primitive::kPrimFloat: {
       if (second.IsFpuRegister()) {
         __ addss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      } else if (add->InputAt(1)->IsX86LoadFromConstantTable()) {
+        HX86LoadFromConstantTable* const_area = add->InputAt(1)->AsX86LoadFromConstantTable();
+        DCHECK(!const_area->NeedsMaterialization());
+        __ addss(first.AsFpuRegister<XmmRegister>(),
+                 codegen_->LiteralFloatAddress(
+                   const_area->GetConstant()->AsFloatConstant()->GetValue(),
+                   const_area->GetLocations()->InAt(0).AsRegister<Register>()));
+      } else {
+        DCHECK(second.IsStackSlot());
+        __ addss(first.AsFpuRegister<XmmRegister>(), Address(ESP, second.GetStackIndex()));
       }
       break;
     }
@@ -2282,6 +2293,16 @@ void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
     case Primitive::kPrimDouble: {
       if (second.IsFpuRegister()) {
         __ addsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      } else if (add->InputAt(1)->IsX86LoadFromConstantTable()) {
+        HX86LoadFromConstantTable* const_area = add->InputAt(1)->AsX86LoadFromConstantTable();
+        DCHECK(!const_area->NeedsMaterialization());
+        __ addsd(first.AsFpuRegister<XmmRegister>(),
+                 codegen_->LiteralDoubleAddress(
+                   const_area->GetConstant()->AsDoubleConstant()->GetValue(),
+                   const_area->GetLocations()->InAt(0).AsRegister<Register>()));
+      } else {
+        DCHECK(second.IsDoubleStackSlot());
+        __ addsd(first.AsFpuRegister<XmmRegister>(), Address(ESP, second.GetStackIndex()));
       }
       break;
     }
@@ -2305,7 +2326,7 @@ void LocationsBuilderX86::VisitSub(HSub* sub) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
-      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::Any());
       locations->SetOut(Location::SameAsFirstInput());
       break;
     }
@@ -2351,12 +2372,36 @@ void InstructionCodeGeneratorX86::VisitSub(HSub* sub) {
     }
 
     case Primitive::kPrimFloat: {
-      __ subss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      if (second.IsFpuRegister()) {
+        __ subss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      } else if (sub->InputAt(1)->IsX86LoadFromConstantTable()) {
+        HX86LoadFromConstantTable* const_area = sub->InputAt(1)->AsX86LoadFromConstantTable();
+        DCHECK(!const_area->NeedsMaterialization());
+        __ subss(first.AsFpuRegister<XmmRegister>(),
+                 codegen_->LiteralFloatAddress(
+                   const_area->GetConstant()->AsFloatConstant()->GetValue(),
+                   const_area->GetLocations()->InAt(0).AsRegister<Register>()));
+      } else {
+        DCHECK(second.IsStackSlot());
+        __ subss(first.AsFpuRegister<XmmRegister>(), Address(ESP, second.GetStackIndex()));
+      }
       break;
     }
 
     case Primitive::kPrimDouble: {
-      __ subsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      if (second.IsFpuRegister()) {
+        __ subsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      } else if (sub->InputAt(1)->IsX86LoadFromConstantTable()) {
+        HX86LoadFromConstantTable* const_area = sub->InputAt(1)->AsX86LoadFromConstantTable();
+        DCHECK(!const_area->NeedsMaterialization());
+        __ subsd(first.AsFpuRegister<XmmRegister>(),
+                 codegen_->LiteralDoubleAddress(
+                     const_area->GetConstant()->AsDoubleConstant()->GetValue(),
+                     const_area->GetLocations()->InAt(0).AsRegister<Register>()));
+      } else {
+        DCHECK(second.IsDoubleStackSlot());
+        __ subsd(first.AsFpuRegister<XmmRegister>(), Address(ESP, second.GetStackIndex()));
+      }
       break;
     }
 
@@ -2391,7 +2436,7 @@ void LocationsBuilderX86::VisitMul(HMul* mul) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
-      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::Any());
       locations->SetOut(Location::SameAsFirstInput());
       break;
     }
@@ -2507,12 +2552,38 @@ void InstructionCodeGeneratorX86::VisitMul(HMul* mul) {
     }
 
     case Primitive::kPrimFloat: {
-      __ mulss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      DCHECK(first.Equals(locations->Out()));
+      if (second.IsFpuRegister()) {
+        __ mulss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      } else if (mul->InputAt(1)->IsX86LoadFromConstantTable()) {
+        HX86LoadFromConstantTable* const_area = mul->InputAt(1)->AsX86LoadFromConstantTable();
+        DCHECK(!const_area->NeedsMaterialization());
+        __ mulss(first.AsFpuRegister<XmmRegister>(),
+                 codegen_->LiteralFloatAddress(
+                     const_area->GetConstant()->AsFloatConstant()->GetValue(),
+                     const_area->GetLocations()->InAt(0).AsRegister<Register>()));
+      } else {
+        DCHECK(second.IsStackSlot());
+        __ mulss(first.AsFpuRegister<XmmRegister>(), Address(ESP, second.GetStackIndex()));
+      }
       break;
     }
 
     case Primitive::kPrimDouble: {
-      __ mulsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      DCHECK(first.Equals(locations->Out()));
+      if (second.IsFpuRegister()) {
+        __ mulsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      } else if (mul->InputAt(1)->IsX86LoadFromConstantTable()) {
+        HX86LoadFromConstantTable* const_area = mul->InputAt(1)->AsX86LoadFromConstantTable();
+        DCHECK(!const_area->NeedsMaterialization());
+        __ mulsd(first.AsFpuRegister<XmmRegister>(),
+                 codegen_->LiteralDoubleAddress(
+                     const_area->GetConstant()->AsDoubleConstant()->GetValue(),
+                     const_area->GetLocations()->InAt(0).AsRegister<Register>()));
+      } else {
+        DCHECK(second.IsDoubleStackSlot());
+        __ mulsd(first.AsFpuRegister<XmmRegister>(), Address(ESP, second.GetStackIndex()));
+      }
       break;
     }
 
@@ -2855,7 +2926,7 @@ void LocationsBuilderX86::VisitDiv(HDiv* div) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
-      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::Any());
       locations->SetOut(Location::SameAsFirstInput());
       break;
     }
@@ -2867,7 +2938,6 @@ void LocationsBuilderX86::VisitDiv(HDiv* div) {
 
 void InstructionCodeGeneratorX86::VisitDiv(HDiv* div) {
   LocationSummary* locations = div->GetLocations();
-  Location out = locations->Out();
   Location first = locations->InAt(0);
   Location second = locations->InAt(1);
 
@@ -2879,14 +2949,36 @@ void InstructionCodeGeneratorX86::VisitDiv(HDiv* div) {
     }
 
     case Primitive::kPrimFloat: {
-      DCHECK(first.Equals(out));
-      __ divss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      if (second.IsFpuRegister()) {
+        __ divss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      } else if (div->InputAt(1)->IsX86LoadFromConstantTable()) {
+        HX86LoadFromConstantTable* const_area = div->InputAt(1)->AsX86LoadFromConstantTable();
+        DCHECK(!const_area->NeedsMaterialization());
+        __ divss(first.AsFpuRegister<XmmRegister>(),
+                 codegen_->LiteralFloatAddress(
+                   const_area->GetConstant()->AsFloatConstant()->GetValue(),
+                   const_area->GetLocations()->InAt(0).AsRegister<Register>()));
+      } else {
+        DCHECK(second.IsStackSlot());
+        __ divss(first.AsFpuRegister<XmmRegister>(), Address(ESP, second.GetStackIndex()));
+      }
       break;
     }
 
     case Primitive::kPrimDouble: {
-      DCHECK(first.Equals(out));
-      __ divsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      if (second.IsFpuRegister()) {
+        __ divsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
+      } else if (div->InputAt(1)->IsX86LoadFromConstantTable()) {
+        HX86LoadFromConstantTable* const_area = div->InputAt(1)->AsX86LoadFromConstantTable();
+        DCHECK(!const_area->NeedsMaterialization());
+        __ divsd(first.AsFpuRegister<XmmRegister>(),
+                 codegen_->LiteralDoubleAddress(
+                   const_area->GetConstant()->AsDoubleConstant()->GetValue(),
+                   const_area->GetLocations()->InAt(0).AsRegister<Register>()));
+      } else {
+        DCHECK(second.IsDoubleStackSlot());
+        __ divsd(first.AsFpuRegister<XmmRegister>(), Address(ESP, second.GetStackIndex()));
+      }
       break;
     }
 
@@ -5083,6 +5175,245 @@ void LocationsBuilderX86::VisitFakeString(HFakeString* instruction) {
 void InstructionCodeGeneratorX86::VisitFakeString(HFakeString* instruction ATTRIBUTE_UNUSED) {
   DCHECK(codegen_->IsBaseline());
   // Will be generated at use site.
+}
+
+void LocationsBuilderX86::VisitX86ComputeBaseMethodAddress(
+    HX86ComputeBaseMethodAddress* insn) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(insn, LocationSummary::kNoCall);
+  locations->SetOut(Location::RequiresRegister());
+}
+
+void InstructionCodeGeneratorX86::VisitX86ComputeBaseMethodAddress(
+    HX86ComputeBaseMethodAddress* insn) {
+  LocationSummary* locations = insn->GetLocations();
+  Register reg = locations->Out().AsRegister<Register>();
+
+  // Generate call to next instruction.
+  Label next_instruction;
+  __ call(&next_instruction);
+  __ Bind(&next_instruction);
+
+  // Remember this offset for later use with constant area.
+  codegen_->SetMethodAddressOffset(GetAssembler()->CodeSize());
+
+  // Grab the return address off the stack.
+  __ popl(reg);
+}
+
+void LocationsBuilderX86::VisitX86LoadFromConstantTable(
+    HX86LoadFromConstantTable* insn) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(insn, LocationSummary::kNoCall);
+
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::ConstantLocation(insn->GetConstant()));
+
+  // If we don't need to be materialized, we only need the inputs to be set.
+  if (!insn->NeedsMaterialization()) {
+    return;
+  }
+
+  switch (insn->GetType()) {
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+      locations->SetOut(Location::RequiresFpuRegister());
+      break;
+
+    case Primitive::kPrimInt:
+      locations->SetOut(Location::RequiresRegister());
+      break;
+
+    default:
+      LOG(FATAL) << "Unsupported x86 constant area type " << insn->GetType();
+  }
+}
+
+void InstructionCodeGeneratorX86::VisitX86LoadFromConstantTable(HX86LoadFromConstantTable* insn) {
+  if (!insn->NeedsMaterialization()) {
+    return;
+  }
+
+  LocationSummary* locations = insn->GetLocations();
+  Location out = locations->Out();
+  Register const_area = locations->InAt(0).AsRegister<Register>();
+  HConstant *value = insn->GetConstant();
+
+  switch (insn->GetType()) {
+    case Primitive::kPrimFloat:
+      __ movss(out.AsFpuRegister<XmmRegister>(),
+               codegen_->LiteralFloatAddress(value->AsFloatConstant()->GetValue(), const_area));
+      break;
+
+    case Primitive::kPrimDouble:
+      __ movsd(out.AsFpuRegister<XmmRegister>(),
+               codegen_->LiteralDoubleAddress(value->AsDoubleConstant()->GetValue(), const_area));
+      break;
+
+    case Primitive::kPrimInt:
+      __ movl(out.AsRegister<Register>(),
+              codegen_->LiteralInt32Address(value->AsIntConstant()->GetValue(), const_area));
+      break;
+
+    default:
+      LOG(FATAL) << "Unsupported x86 constant area type " << insn->GetType();
+  }
+}
+
+void CodeGeneratorX86::Finalize(CodeAllocator* allocator) {
+  // Generate the constant area if needed.
+  X86Assembler* assembler = GetAssembler();
+  if (!assembler->IsConstantAreaEmpty()) {
+    // Align to 4 byte boundary to reduce cache misses, as the data is 4 and 8
+    // byte values.
+    assembler->Align(4, 0);
+    constant_area_start_ = assembler->CodeSize();
+    assembler->AddConstantArea();
+  }
+
+  // And finish up.
+  CodeGenerator::Finalize(allocator);
+}
+
+/**
+ * Class to handle late fixup of offsets into constant area.
+ */
+class RIPFixup : public AssemblerFixup, public ArenaObject<kArenaAllocMisc> {
+ public:
+  RIPFixup(const CodeGeneratorX86& codegen, int offset)
+      : codegen_(codegen), offset_into_constant_area_(offset) {}
+
+ private:
+  void Process(const MemoryRegion& region, int pos) OVERRIDE {
+    // Patch the correct offset for the instruction.  The place to patch is the
+    // last 4 bytes of the instruction.
+    // The value to patch is the distance from the offset in the constant area
+    // from the address computed by the HX86ComputeBaseMethodAddress instruction.
+    int32_t constant_offset = codegen_.ConstantAreaStart() + offset_into_constant_area_;
+    int32_t relative_position = constant_offset - codegen_.GetMethodAddressOffset();;
+
+    // Patch in the right value.
+    region.StoreUnaligned<int32_t>(pos - 4, relative_position);
+  }
+
+  const CodeGeneratorX86& codegen_;
+
+  // Location in constant area that the fixup refers to.
+  int offset_into_constant_area_;
+};
+
+Address CodeGeneratorX86::LiteralDoubleAddress(double v, Register reg) {
+  AssemblerFixup* fixup = new (GetGraph()->GetArena()) RIPFixup(*this, __ AddDouble(v));
+  return Address(reg, kDummy32BitOffset, fixup);
+}
+
+Address CodeGeneratorX86::LiteralFloatAddress(float v, Register reg) {
+  AssemblerFixup* fixup = new (GetGraph()->GetArena()) RIPFixup(*this, __ AddFloat(v));
+  return Address(reg, kDummy32BitOffset, fixup);
+}
+
+Address CodeGeneratorX86::LiteralInt32Address(int32_t v, Register reg) {
+  AssemblerFixup* fixup = new (GetGraph()->GetArena()) RIPFixup(*this, __ AddInt32(v));
+  return Address(reg, kDummy32BitOffset, fixup);
+}
+
+Address CodeGeneratorX86::LiteralInt64Address(int64_t v, Register reg) {
+  AssemblerFixup* fixup = new (GetGraph()->GetArena()) RIPFixup(*this, __ AddInt64(v));
+  return Address(reg, kDummy32BitOffset, fixup);
+}
+
+/**
+ * Finds instructions that need the constant area base as an input.
+ */
+class ConstantHandlerVisitor : public HGraphVisitor {
+ public:
+  explicit ConstantHandlerVisitor(HGraph* graph) : HGraphVisitor(graph), base_(nullptr) {}
+
+ private:
+  void VisitAdd(HAdd* add) OVERRIDE {
+    BinaryFP(add);
+  }
+
+  void VisitSub(HSub* sub) OVERRIDE {
+    BinaryFP(sub);
+  }
+
+  void VisitMul(HMul* mul) OVERRIDE {
+    BinaryFP(mul);
+  }
+
+  void VisitDiv(HDiv* div) OVERRIDE {
+    BinaryFP(div);
+  }
+
+  void VisitReturn(HReturn* ret) OVERRIDE {
+    HConstant* value = ret->InputAt(0)->AsConstant();
+    if ((value != nullptr && Primitive::IsFloatingPointType(value->GetType()))) {
+      ReplaceInput(ret, value, 0, true);
+    }
+  }
+
+  void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE {
+    HandleInvoke(invoke);
+  }
+
+  void VisitInvokeVirtual(HInvokeVirtual* invoke) OVERRIDE {
+    HandleInvoke(invoke);
+  }
+
+  void VisitInvokeInterface(HInvokeInterface* invoke) OVERRIDE {
+    HandleInvoke(invoke);
+  }
+
+  void BinaryFP(HBinaryOperation* bin) {
+    HConstant* rhs = bin->InputAt(1)->AsConstant();
+    if (rhs != nullptr && Primitive::IsFloatingPointType(bin->GetResultType())) {
+      ReplaceInput(bin, rhs, 1, false);
+    }
+  }
+
+  void InitializeConstantAreaPointer(HInstruction* user) {
+    // Ensure we only initialize the pointer once.
+    if (base_ != nullptr) {
+      return;
+    }
+
+    HGraph* graph = GetGraph();
+    HBasicBlock* entry = graph->GetEntryBlock();
+    base_ = new (graph->GetArena()) HX86ComputeBaseMethodAddress();
+    HInstruction* insert_pos = (user->GetBlock() == entry) ? user : entry->GetLastInstruction();
+    entry->InsertInstructionBefore(base_, insert_pos);
+    DCHECK(base_ != nullptr);
+  }
+
+  void ReplaceInput(HInstruction* insn, HConstant* value, int input_index, bool materialize) {
+    InitializeConstantAreaPointer(insn);
+    HGraph* graph = GetGraph();
+    HBasicBlock* block = insn->GetBlock();
+    HX86LoadFromConstantTable* load_constant =
+        new (graph->GetArena()) HX86LoadFromConstantTable(base_, value, materialize);
+    block->InsertInstructionBefore(load_constant, insn);
+    insn->ReplaceInput(load_constant, input_index);
+  }
+
+  void HandleInvoke(HInvoke* invoke) {
+    // Ensure that we can load FP arguments from the constant area.
+    for (size_t i = 0, e = invoke->InputCount(); i < e; i++) {
+      HConstant* input = invoke->InputAt(i)->AsConstant();
+      if (input != nullptr && Primitive::IsFloatingPointType(input->GetType())) {
+        ReplaceInput(invoke, input, i, true);
+      }
+    }
+  }
+
+  // The generated HX86ComputeBaseMethodAddress in the entry block needed as an
+  // input to the HX86LoadFromConstantTable instructions.
+  HX86ComputeBaseMethodAddress* base_;
+};
+
+void ConstantAreaFixups::Run() {
+  ConstantHandlerVisitor visitor(graph_);
+  visitor.VisitInsertionOrder();
 }
 
 #undef __
