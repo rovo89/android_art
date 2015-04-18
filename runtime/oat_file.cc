@@ -23,6 +23,11 @@
 #include <cstdlib>
 #include <sstream>
 
+// dlopen_ext support from bionic.
+#ifdef HAVE_ANDROID_OS
+#include "android/dlext.h"
+#endif
+
 #include "base/bit_vector.h"
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
@@ -39,6 +44,18 @@
 #include "vmap_table.h"
 
 namespace art {
+
+// Whether OatFile::Open will try DlOpen() first. Fallback is our own ELF loader.
+static constexpr bool kUseDlopen = false;
+
+// Whether OatFile::Open will try DlOpen() on the host. On the host we're not linking against
+// bionic, so cannot take advantage of the support for changed semantics (loading the same soname
+// multiple times). However, if/when we switch the above, we likely want to switch this, too,
+// to get test coverage of the code paths.
+static constexpr bool kUseDlopenOnHost = false;
+
+// For debugging, Open will print DlOpen error message if set to true.
+static constexpr bool kPrintDlOpenErrorMessage = false;
 
 std::string OatFile::ResolveRelativeEncodedDexLocation(
       const char* abs_dex_location, const std::string& rel_dex_location) {
@@ -89,6 +106,23 @@ OatFile* OatFile::Open(const std::string& filename,
   CHECK(!filename.empty()) << location;
   CheckLocation(location);
   std::unique_ptr<OatFile> ret;
+
+  // Use dlopen only when flagged to do so, and when it's OK to load things executable.
+  // TODO: Also try when not executable? The issue here could be re-mapping as writable (as
+  //       !executable is a sign that we may want to patch), which may not be allowed for
+  //       various reasons.
+  if (kUseDlopen && (kIsTargetBuild || kUseDlopenOnHost) && executable) {
+    // Try to use dlopen. This may fail for various reasons, outlined below. We try dlopen, as
+    // this will register the oat file with the linker and allows libunwind to find our info.
+    ret.reset(OpenDlopen(filename, location, requested_base, abs_dex_location, error_msg));
+    if (ret.get() != nullptr) {
+      return ret.release();
+    }
+    if (kPrintDlOpenErrorMessage) {
+      LOG(ERROR) << "Failed to dlopen: " << *error_msg;
+    }
+  }
+
   // If we aren't trying to execute, we just use our own ElfFile loader for a couple reasons:
   //
   // On target, dlopen may fail when compiling due to selinux restrictions on installd.
@@ -98,8 +132,12 @@ OatFile* OatFile::Open(const std::string& filename,
   // another generated dex file with the same name. http://b/10614658
   //
   // On host, dlopen is expected to fail when cross compiling, so fall back to OpenElfFile.
+  //
+  //
+  // Another independent reason is the absolute placement of boot.oat. dlopen on the host usually
+  // does honor the virtual address encoded in the ELF file only for ET_EXEC files, not ET_DYN.
   std::unique_ptr<File> file(OS::OpenFileForReading(filename.c_str()));
-  if (file.get() == NULL) {
+  if (file == nullptr) {
     *error_msg = StringPrintf("Failed to open oat filename for reading: %s", strerror(errno));
     return nullptr;
   }
@@ -126,6 +164,19 @@ OatFile* OatFile::OpenReadable(File* file, const std::string& location,
   return OpenElfFile(file, location, nullptr, nullptr, false, false, abs_dex_location, error_msg);
 }
 
+OatFile* OatFile::OpenDlopen(const std::string& elf_filename,
+                             const std::string& location,
+                             uint8_t* requested_base,
+                             const char* abs_dex_location,
+                             std::string* error_msg) {
+  std::unique_ptr<OatFile> oat_file(new OatFile(location, true));
+  bool success = oat_file->Dlopen(elf_filename, requested_base, abs_dex_location, error_msg);
+  if (!success) {
+    return nullptr;
+  }
+  return oat_file.release();
+}
+
 OatFile* OatFile::OpenElfFile(File* file,
                               const std::string& location,
                               uint8_t* requested_base,
@@ -145,17 +196,76 @@ OatFile* OatFile::OpenElfFile(File* file,
 }
 
 OatFile::OatFile(const std::string& location, bool is_executable)
-    : location_(location), begin_(NULL), end_(NULL), bss_begin_(nullptr), bss_end_(nullptr),
-      is_executable_(is_executable), dlopen_handle_(NULL),
+    : location_(location), begin_(nullptr), end_(nullptr), bss_begin_(nullptr), bss_end_(nullptr),
+      is_executable_(is_executable), dlopen_handle_(nullptr),
       secondary_lookup_lock_("OatFile secondary lookup lock", kOatFileSecondaryLookupLock) {
   CHECK(!location_.empty());
 }
 
 OatFile::~OatFile() {
   STLDeleteElements(&oat_dex_files_storage_);
-  if (dlopen_handle_ != NULL) {
+  if (dlopen_handle_ != nullptr) {
     dlclose(dlopen_handle_);
   }
+}
+
+bool OatFile::Dlopen(const std::string& elf_filename, uint8_t* requested_base,
+                     const char* abs_dex_location, std::string* error_msg) {
+  std::unique_ptr<char> absolute_path(realpath(elf_filename.c_str(), nullptr));
+  if (absolute_path == nullptr) {
+    *error_msg = StringPrintf("Failed to find absolute path for '%s'", elf_filename.c_str());
+    return false;
+  }
+#ifdef HAVE_ANDROID_OS
+  android_dlextinfo extinfo;
+  extinfo.flags = ANDROID_DLEXT_FORCE_LOAD;
+  dlopen_handle_ = android_dlopen_ext(absolute_path.get(), RTLD_NOW, &extinfo);
+#else
+  dlopen_handle_ = dlopen(absolute_path.get(), RTLD_NOW);
+#endif
+  if (dlopen_handle_ == nullptr) {
+    *error_msg = StringPrintf("Failed to dlopen '%s': %s", elf_filename.c_str(), dlerror());
+    return false;
+  }
+  begin_ = reinterpret_cast<uint8_t*>(dlsym(dlopen_handle_, "oatdata"));
+  if (begin_ == nullptr) {
+    *error_msg = StringPrintf("Failed to find oatdata symbol in '%s': %s", elf_filename.c_str(),
+                              dlerror());
+    return false;
+  }
+  if (requested_base != nullptr && begin_ != requested_base) {
+    PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
+    *error_msg = StringPrintf("Failed to find oatdata symbol at expected address: "
+                              "oatdata=%p != expected=%p, %s. See process maps in the log.",
+                              begin_, requested_base, elf_filename.c_str());
+    return false;
+  }
+  end_ = reinterpret_cast<uint8_t*>(dlsym(dlopen_handle_, "oatlastword"));
+  if (end_ == nullptr) {
+    *error_msg = StringPrintf("Failed to find oatlastword symbol in '%s': %s", elf_filename.c_str(),
+                              dlerror());
+    return false;
+  }
+  // Readjust to be non-inclusive upper bound.
+  end_ += sizeof(uint32_t);
+
+  bss_begin_ = reinterpret_cast<uint8_t*>(dlsym(dlopen_handle_, "oatbss"));
+  if (bss_begin_ == nullptr) {
+    // No .bss section. Clear dlerror().
+    bss_end_ = nullptr;
+    dlerror();
+  } else {
+    bss_end_ = reinterpret_cast<uint8_t*>(dlsym(dlopen_handle_, "oatbsslastword"));
+    if (bss_end_ == nullptr) {
+      *error_msg = StringPrintf("Failed to find oatbasslastword symbol in '%s'",
+                                elf_filename.c_str());
+      return false;
+    }
+    // Readjust to be non-inclusive upper bound.
+    bss_end_ += sizeof(uint32_t);
+  }
+
+  return Setup(abs_dex_location, error_msg);
 }
 
 bool OatFile::ElfFileOpen(File* file, uint8_t* requested_base, uint8_t* oat_file_begin,
@@ -165,7 +275,7 @@ bool OatFile::ElfFileOpen(File* file, uint8_t* requested_base, uint8_t* oat_file
   // TODO: rename requested_base to oat_data_begin
   elf_file_.reset(ElfFile::Open(file, writable, /*program_header_only*/true, error_msg,
                                 oat_file_begin));
-  if (elf_file_.get() == nullptr) {
+  if (elf_file_ == nullptr) {
     DCHECK(!error_msg->empty());
     return false;
   }
@@ -175,11 +285,11 @@ bool OatFile::ElfFileOpen(File* file, uint8_t* requested_base, uint8_t* oat_file
     return false;
   }
   begin_ = elf_file_->FindDynamicSymbolAddress("oatdata");
-  if (begin_ == NULL) {
+  if (begin_ == nullptr) {
     *error_msg = StringPrintf("Failed to find oatdata symbol in '%s'", file->GetPath().c_str());
     return false;
   }
-  if (requested_base != NULL && begin_ != requested_base) {
+  if (requested_base != nullptr && begin_ != requested_base) {
     PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
     *error_msg = StringPrintf("Failed to find oatdata symbol at expected address: "
                               "oatdata=%p != expected=%p. See process maps in the log.",
@@ -187,7 +297,7 @@ bool OatFile::ElfFileOpen(File* file, uint8_t* requested_base, uint8_t* oat_file
     return false;
   }
   end_ = elf_file_->FindDynamicSymbolAddress("oatlastword");
-  if (end_ == NULL) {
+  if (end_ == nullptr) {
     *error_msg = StringPrintf("Failed to find oatlastword symbol in '%s'", file->GetPath().c_str());
     return false;
   }
@@ -344,12 +454,12 @@ const OatHeader& OatFile::GetOatHeader() const {
 }
 
 const uint8_t* OatFile::Begin() const {
-  CHECK(begin_ != NULL);
+  CHECK(begin_ != nullptr);
   return begin_;
 }
 
 const uint8_t* OatFile::End() const {
-  CHECK(end_ != NULL);
+  CHECK(end_ != nullptr);
   return end_;
 }
 
@@ -414,7 +524,7 @@ const OatFile::OatDexFile* OatFile::GetOatDexFile(const char* dex_location,
   if (warn_if_not_found) {
     std::string dex_canonical_location = DexFile::GetDexCanonicalLocation(dex_location);
     std::string checksum("<unspecified>");
-    if (dex_location_checksum != NULL) {
+    if (dex_location_checksum != nullptr) {
       checksum = StringPrintf("0x%08x", *dex_location_checksum);
     }
     LOG(WARNING) << "Failed to find OatDexFile for DexFile " << dex_location
@@ -430,7 +540,7 @@ const OatFile::OatDexFile* OatFile::GetOatDexFile(const char* dex_location,
     }
   }
 
-  return NULL;
+  return nullptr;
 }
 
 OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
@@ -584,7 +694,7 @@ const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) 
 }
 
 void OatFile::OatMethod::LinkMethod(mirror::ArtMethod* method) const {
-  CHECK(method != NULL);
+  CHECK(method != nullptr);
   method->SetEntryPointFromQuickCompiledCode(GetQuickCode());
 }
 
