@@ -18,6 +18,7 @@
 
 #include <memory>
 
+#include "gc/accounting/heap_bitmap-inl.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "base/logging.h"
 #include "base/mutex-inl.h"
@@ -127,8 +128,18 @@ mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes,
     LOG(WARNING) << "Large object allocation failed: " << error_msg;
     return NULL;
   }
+  mirror::Object* const obj = reinterpret_cast<mirror::Object*>(mem_map->Begin());
+  if (kIsDebugBuild) {
+    ReaderMutexLock mu2(Thread::Current(), *Locks::heap_bitmap_lock_);
+    auto* heap = Runtime::Current()->GetHeap();
+    auto* live_bitmap = heap->GetLiveBitmap();
+    auto* space_bitmap = live_bitmap->GetContinuousSpaceBitmap(obj);
+    CHECK(space_bitmap == nullptr) << obj << " overlaps with bitmap " << *space_bitmap;
+    auto* obj_end = reinterpret_cast<mirror::Object*>(mem_map->End());
+    space_bitmap = live_bitmap->GetContinuousSpaceBitmap(obj_end - 1);
+    CHECK(space_bitmap == nullptr) << obj_end << " overlaps with bitmap " << *space_bitmap;
+  }
   MutexLock mu(self, lock_);
-  mirror::Object* obj = reinterpret_cast<mirror::Object*>(mem_map->Begin());
   large_objects_.push_back(obj);
   mem_maps_.Put(obj, mem_map);
   const size_t allocation_size = mem_map->BaseSize();
