@@ -347,6 +347,21 @@ bool GvnDeadCodeElimination::VRegChains::IsSRegUsed(uint16_t first_change, uint1
   return false;
 }
 
+bool GvnDeadCodeElimination::VRegChains::IsVRegUsed(uint16_t first_change, uint16_t last_change,
+                                                    int v_reg, MIRGraph* mir_graph) const {
+  DCHECK_LE(first_change, last_change);
+  DCHECK_LE(last_change, mir_data_.size());
+  for (size_t c = first_change; c != last_change; ++c) {
+    SSARepresentation* ssa_rep = mir_data_[c].mir->ssa_rep;
+    for (int i = 0; i != ssa_rep->num_uses; ++i) {
+      if (mir_graph->SRegToVReg(ssa_rep->uses[i]) == v_reg) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 void GvnDeadCodeElimination::VRegChains::RenameSRegUses(uint16_t first_change, uint16_t last_change,
                                                         int old_s_reg, int new_s_reg, bool wide) {
   for (size_t c = first_change; c != last_change; ++c) {
@@ -672,8 +687,14 @@ void GvnDeadCodeElimination::RecordPassTryToKillOverwrittenMoveOrMoveSrc(uint16_
         uint16_t src_name =
             (d->wide_def ? lvn_->GetSregValueWide(src_s_reg) : lvn_->GetSregValue(src_s_reg));
         if (value_name == src_name) {
-          RecordPassKillMoveByRenamingSrcDef(check_change, c);
-          return;
+          // Check if the move's destination vreg is unused between check_change and the move.
+          uint32_t new_dest_v_reg = mir_graph_->SRegToVReg(d->mir->ssa_rep->defs[0]);
+          if (!vreg_chains_.IsVRegUsed(check_change + 1u, c, new_dest_v_reg, mir_graph_) &&
+              (!d->wide_def ||
+               !vreg_chains_.IsVRegUsed(check_change + 1u, c, new_dest_v_reg + 1, mir_graph_))) {
+            RecordPassKillMoveByRenamingSrcDef(check_change, c);
+            return;
+          }
         }
       }
     }
