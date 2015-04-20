@@ -393,8 +393,10 @@ void SSAChecker::HandleBooleanInput(HInstruction* instruction, size_t input_inde
           static_cast<int>(input_index),
           value));
     }
-  } else if (input->GetType() == Primitive::kPrimInt && input->IsPhi()) {
-    // TODO: We need a data-flow analysis which determines if the Phi is boolean.
+  } else if (input->GetType() == Primitive::kPrimInt
+             && (input->IsPhi() || input->IsAnd() || input->IsOr() || input->IsXor())) {
+    // TODO: We need a data-flow analysis to determine if the Phi or
+    //       binary operation is actually Boolean. Allow for now.
   } else if (input->GetType() != Primitive::kPrimBoolean) {
     AddError(StringPrintf(
         "%s instruction %d has a non-Boolean input %d whose type is: %s.",
