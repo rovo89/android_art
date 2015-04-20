@@ -192,6 +192,10 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
     output_ << " " << phi->GetRegNumber();
   }
 
+  void VisitMemoryBarrier(HMemoryBarrier* barrier) OVERRIDE {
+    output_ << " " << barrier->GetBarrierKind();
+  }
+
   bool IsPass(const char* name) {
     return strcmp(pass_name_, name) == 0;
   }
