@@ -159,6 +159,8 @@ class InstructionCodeGeneratorARM64 : public HGraphVisitor {
   void GenerateMemoryBarrier(MemBarrierKind kind);
   void GenerateSuspendCheck(HSuspendCheck* instruction, HBasicBlock* successor);
   void HandleBinaryOp(HBinaryOperation* instr);
+  void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
+  void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
   void HandleShift(HBinaryOperation* instr);
   void GenerateImplicitNullCheck(HNullCheck* instruction);
   void GenerateExplicitNullCheck(HNullCheck* instruction);
@@ -185,8 +187,10 @@ class LocationsBuilderARM64 : public HGraphVisitor {
 
  private:
   void HandleBinaryOp(HBinaryOperation* instr);
-  void HandleShift(HBinaryOperation* instr);
+  void HandleFieldSet(HInstruction* instruction);
+  void HandleFieldGet(HInstruction* instruction);
   void HandleInvoke(HInvoke* instr);
+  void HandleShift(HBinaryOperation* instr);
 
   CodeGeneratorARM64* const codegen_;
   InvokeDexCallingConventionVisitor parameter_visitor_;
