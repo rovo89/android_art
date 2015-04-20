@@ -285,15 +285,24 @@ class Location : public ValueObject {
   bool Contains(Location other) const {
     if (Equals(other)) {
       return true;
-    } else if (IsFpuRegisterPair() && other.IsFpuRegister()) {
-      return other.reg() == low() || other.reg() == high();
-    } else if (IsRegisterPair() && other.IsRegister()) {
-      return other.reg() == low() || other.reg() == high();
-    } else if (IsDoubleStackSlot() && other.IsStackSlot()) {
-      return (GetStackIndex() == other.GetStackIndex())
-          || (GetStackIndex() + 4 == other.GetStackIndex());
+    } else if (IsPair() || IsDoubleStackSlot()) {
+      return ToLow().Equals(other) || ToHigh().Equals(other);
     }
     return false;
+  }
+
+  bool OverlapsWith(Location other) const {
+    // Only check the overlapping case that can happen with our register allocation algorithm.
+    bool overlap = Contains(other) || other.Contains(*this);
+    if (kIsDebugBuild && !overlap) {
+      // Note: These are also overlapping cases. But we are not able to handle them in
+      // ParallelMoveResolverWithSwap. Make sure that we do not meet such case with our compiler.
+      if ((IsPair() && other.IsPair()) || (IsDoubleStackSlot() && other.IsDoubleStackSlot())) {
+        DCHECK(!Contains(other.ToLow()));
+        DCHECK(!Contains(other.ToHigh()));
+      }
+    }
+    return overlap;
   }
 
   const char* DebugString() const {

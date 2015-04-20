@@ -102,10 +102,10 @@ class SlowPathCodeX86_64 : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(SlowPathCodeX86_64);
 };
 
-class ParallelMoveResolverX86_64 : public ParallelMoveResolver {
+class ParallelMoveResolverX86_64 : public ParallelMoveResolverWithSwap {
  public:
   ParallelMoveResolverX86_64(ArenaAllocator* allocator, CodeGeneratorX86_64* codegen)
-      : ParallelMoveResolver(allocator), codegen_(codegen) {}
+      : ParallelMoveResolverWithSwap(allocator), codegen_(codegen) {}
 
   void EmitMove(size_t index) OVERRIDE;
   void EmitSwap(size_t index) OVERRIDE;
