@@ -3119,11 +3119,15 @@ void LocationsBuilderX86::HandleFieldGet(HInstruction* instruction, const FieldI
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
 
-  // The output overlaps in case of long: we don't want the low move to overwrite
-  // the object's location.
-  locations->SetOut(Location::RequiresRegister(),
-      (instruction->GetType() == Primitive::kPrimLong) ? Location::kOutputOverlap
-                                                       : Location::kNoOutputOverlap);
+  if (Primitive::IsFloatingPointType(instruction->GetType())) {
+    locations->SetOut(Location::RequiresFpuRegister());
+  } else {
+    // The output overlaps in case of long: we don't want the low move to overwrite
+    // the object's location.
+    locations->SetOut(Location::RequiresRegister(),
+        (instruction->GetType() == Primitive::kPrimLong) ? Location::kOutputOverlap
+                                                         : Location::kNoOutputOverlap);
+  }
 
   if (field_info.IsVolatile() && (field_info.GetFieldType() == Primitive::kPrimLong)) {
     // Long values can be loaded atomically into an XMM using movsd.
@@ -3229,6 +3233,8 @@ void LocationsBuilderX86::HandleFieldSet(HInstruction* instruction, const FieldI
   if (is_byte_type) {
     // Ensure the value is in a byte register.
     locations->SetInAt(1, Location::RegisterLocation(EAX));
+  } else if (Primitive::IsFloatingPointType(field_type)) {
+    locations->SetInAt(1, Location::RequiresFpuRegister());
   } else {
     locations->SetInAt(1, Location::RequiresRegister());
   }
@@ -3418,11 +3424,15 @@ void LocationsBuilderX86::VisitArrayGet(HArrayGet* instruction) {
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
-  // The output overlaps in case of long: we don't want the low move to overwrite
-  // the array's location.
-  locations->SetOut(Location::RequiresRegister(),
-      (instruction->GetType() == Primitive::kPrimLong) ? Location::kOutputOverlap
-                                                       : Location::kNoOutputOverlap);
+  if (Primitive::IsFloatingPointType(instruction->GetType())) {
+    locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+  } else {
+    // The output overlaps in case of long: we don't want the low move to overwrite
+    // the array's location.
+    locations->SetOut(Location::RequiresRegister(),
+        (instruction->GetType() == Primitive::kPrimLong) ? Location::kOutputOverlap
+                                                         : Location::kNoOutputOverlap);
+  }
 }
 
 void InstructionCodeGeneratorX86::VisitArrayGet(HArrayGet* instruction) {
@@ -3578,14 +3588,10 @@ void LocationsBuilderX86::VisitArraySet(HArraySet* instruction) {
     if (is_byte_type) {
       // Ensure the value is in a byte register.
       locations->SetInAt(2, Location::ByteRegisterOrConstant(EAX, instruction->InputAt(2)));
+    } else if (Primitive::IsFloatingPointType(value_type)) {
+      locations->SetInAt(2, Location::RequiresFpuRegister());
     } else {
-      bool is_fp_type = (value_type == Primitive::kPrimFloat)
-          || (value_type == Primitive::kPrimDouble);
-      if (is_fp_type) {
-        locations->SetInAt(2, Location::RequiresFpuRegister());
-      } else {
-        locations->SetInAt(2, Location::RegisterOrConstant(instruction->InputAt(2)));
-      }
+      locations->SetInAt(2, Location::RegisterOrConstant(instruction->InputAt(2)));
     }
     // Temporary registers for the write barrier.
     if (needs_write_barrier) {
