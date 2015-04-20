@@ -27,16 +27,15 @@ public class Main {
   }
 
   /*
-   * Elementary test negating a boolean. Verifies that the condition is replaced,
-   * blocks merged and empty branches removed.
+   * Elementary test negating a boolean. Verifies that blocks are merged and
+   * empty branches removed.
    */
 
   // CHECK-START: boolean Main.BooleanNot(boolean) boolean_simplifier (before)
   // CHECK-DAG:     [[Param:z\d+]]    ParameterValue
   // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
   // CHECK-DAG:     [[Const1:i\d+]]   IntConstant 1
-  // CHECK-DAG:     [[NotEq:z\d+]]    NotEqual [ [[Param]] [[Const0]] ]
-  // CHECK-DAG:                       If [ [[NotEq]] ]
+  // CHECK-DAG:                       If [ [[Param]] ]
   // CHECK-DAG:     [[Phi:i\d+]]      Phi [ [[Const1]] [[Const0]] ]
   // CHECK-DAG:                       Return [ [[Phi]] ]
 
@@ -49,11 +48,10 @@ public class Main {
   // CHECK-START: boolean Main.BooleanNot(boolean) boolean_simplifier (after)
   // CHECK-DAG:     [[Param:z\d+]]    ParameterValue
   // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
-  // CHECK-DAG:     [[Eq:z\d+]]       Equal [ [[Param]] [[Const0]] ]
-  // CHECK-DAG:                       Return [ [[Eq]] ]
+  // CHECK-DAG:     [[NotParam:z\d+]] BooleanNot [ [[Param]] ]
+  // CHECK-DAG:                       Return [ [[NotParam]] ]
 
   // CHECK-START: boolean Main.BooleanNot(boolean) boolean_simplifier (after)
-  // CHECK-NOT:                       NotEqual
   // CHECK-NOT:                       If
   // CHECK-NOT:                       Phi
 
@@ -114,6 +112,9 @@ public class Main {
   // CHECK-DAG:     [[Const1:i\d+]]   IntConstant 1
   // CHECK-DAG:     [[Cond:z\d+]]     LessThan [ [[ParamX]] [[ParamY]] ]
   // CHECK-DAG:                       Return [ [[Cond]] ]
+
+  // CHECK-START: boolean Main.LessThan(int, int) boolean_simplifier (after)
+  // CHECK-NOT:                       GreaterThanOrEqual
 
   public static boolean LessThan(int x, int y) {
     return (x < y) ? true : false;
