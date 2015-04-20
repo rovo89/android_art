@@ -187,7 +187,8 @@ class CompilerDriver {
 
   void AddRequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
                                      uint16_t class_def_index);
-  bool RequiresConstructorBarrier(Thread* self, const DexFile* dex_file, uint16_t class_def_index);
+  bool RequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
+                                  uint16_t class_def_index) const;
 
   // Callbacks from compiler to see what runtime checks must be generated.
 
