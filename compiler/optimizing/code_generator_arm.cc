@@ -2969,7 +2969,7 @@ void LocationsBuilderARM::HandleFieldGet(HInstruction* instruction, const FieldI
       && (field_info.GetFieldType() == Primitive::kPrimDouble)
       && !codegen_->GetInstructionSetFeatures().HasAtomicLdrdAndStrd();
   bool overlap = field_info.IsVolatile() && (field_info.GetFieldType() == Primitive::kPrimLong);
- 
+
   if (Primitive::IsFloatingPointType(instruction->GetType())) {
     locations->SetOut(Location::RequiresFpuRegister());
   } else {
