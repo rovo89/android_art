@@ -19,11 +19,6 @@ if [ ! -d libcore ]; then
   exit 1
 fi
 
-if [[ $ANDROID_SERIAL == 03a79ae90ae5889b ]] || [[ $ANDROID_SERIAL == HT4CTJT03670 ]] || [[ $ANDROID_SERIAL == HT49CJT00070 ]]; then
-  echo "Not run because of localhost failures. Investigating."
-  exit 0
-fi
-
 # Jar containing all the tests.
 test_jar=out/host/linux-x86/framework/apache-harmony-jdwp-tests-hostdex.jar
 junit_jar=out/host/linux-x86/framework/junit.jar
