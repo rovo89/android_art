@@ -16,6 +16,12 @@
 
 public class Main {
 
+  public static void assertBooleanEquals(boolean expected, boolean result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
   public static void assertIntEquals(int expected, int result) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
@@ -41,7 +47,7 @@ public class Main {
   // CHECK-START: long Main.Add0(long) instruction_simplifier (after)
   // CHECK-DAG:     [[Arg:j\d+]]     ParameterValue
   // CHECK-DAG:                      Return [ [[Arg]] ]
-  //
+
   // CHECK-START: long Main.Add0(long) instruction_simplifier (after)
   // CHECK-NOT:                        Add
 
@@ -760,6 +766,147 @@ public class Main {
     return res;
   }
 
+  // CHECK-START: int Main.EqualTrueRhs(boolean) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg:z\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const1:i\d+]]   IntConstant 1
+  // CHECK-DAG:     [[Cond:z\d+]]     Equal [ [[Arg]] [[Const1]] ]
+  // CHECK-DAG:                       If [ [[Cond]] ]
+
+  // CHECK-START: int Main.EqualTrueRhs(boolean) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg:z\d+]]      ParameterValue
+  // CHECK-DAG:                       If [ [[Arg]] ]
+
+  public static int EqualTrueRhs(boolean arg) {
+    return (arg != true) ? 3 : 5;
+  }
+
+  // CHECK-START: int Main.EqualTrueLhs(boolean) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg:z\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const1:i\d+]]   IntConstant 1
+  // CHECK-DAG:     [[Cond:z\d+]]     Equal [ [[Const1]] [[Arg]] ]
+  // CHECK-DAG:                       If [ [[Cond]] ]
+
+  // CHECK-START: int Main.EqualTrueLhs(boolean) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg:z\d+]]      ParameterValue
+  // CHECK-DAG:                       If [ [[Arg]] ]
+
+  public static int EqualTrueLhs(boolean arg) {
+    return (true != arg) ? 3 : 5;
+  }
+
+  // CHECK-START: int Main.EqualFalseRhs(boolean) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg:z\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
+  // CHECK-DAG:     [[Cond:z\d+]]     Equal [ [[Arg]] [[Const0]] ]
+  // CHECK-DAG:                       If [ [[Cond]] ]
+
+  // CHECK-START: int Main.EqualFalseRhs(boolean) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg:z\d+]]      ParameterValue
+  // CHECK-DAG:     [[NotArg:z\d+]]   BooleanNot [ [[Arg]] ]
+  // CHECK-DAG:                       If [ [[NotArg]] ]
+
+  public static int EqualFalseRhs(boolean arg) {
+    return (arg != false) ? 3 : 5;
+  }
+
+  // CHECK-START: int Main.EqualFalseLhs(boolean) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg:z\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
+  // CHECK-DAG:     [[Cond:z\d+]]     Equal [ [[Const0]] [[Arg]] ]
+  // CHECK-DAG:                       If [ [[Cond]] ]
+
+  // CHECK-START: int Main.EqualFalseLhs(boolean) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg:z\d+]]      ParameterValue
+  // CHECK-DAG:     [[NotArg:z\d+]]   BooleanNot [ [[Arg]] ]
+  // CHECK-DAG:                       If [ [[NotArg]] ]
+
+  public static int EqualFalseLhs(boolean arg) {
+    return (false != arg) ? 3 : 5;
+  }
+
+  // CHECK-START: int Main.NotEqualTrueRhs(boolean) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg:z\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const1:i\d+]]   IntConstant 1
+  // CHECK-DAG:     [[Cond:z\d+]]     NotEqual [ [[Arg]] [[Const1]] ]
+  // CHECK-DAG:                       If [ [[Cond]] ]
+
+  // CHECK-START: int Main.NotEqualTrueRhs(boolean) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg:z\d+]]      ParameterValue
+  // CHECK-DAG:     [[NotArg:z\d+]]   BooleanNot [ [[Arg]] ]
+  // CHECK-DAG:                       If [ [[NotArg]] ]
+
+  public static int NotEqualTrueRhs(boolean arg) {
+    return (arg == true) ? 3 : 5;
+  }
+
+  // CHECK-START: int Main.NotEqualTrueLhs(boolean) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg:z\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const1:i\d+]]   IntConstant 1
+  // CHECK-DAG:     [[Cond:z\d+]]     NotEqual [ [[Const1]] [[Arg]] ]
+  // CHECK-DAG:                       If [ [[Cond]] ]
+
+  // CHECK-START: int Main.NotEqualTrueLhs(boolean) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg:z\d+]]      ParameterValue
+  // CHECK-DAG:     [[NotArg:z\d+]]   BooleanNot [ [[Arg]] ]
+  // CHECK-DAG:                       If [ [[NotArg]] ]
+
+  public static int NotEqualTrueLhs(boolean arg) {
+    return (true == arg) ? 3 : 5;
+  }
+
+  // CHECK-START: int Main.NotEqualFalseRhs(boolean) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg:z\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
+  // CHECK-DAG:     [[Cond:z\d+]]     NotEqual [ [[Arg]] [[Const0]] ]
+  // CHECK-DAG:                       If [ [[Cond]] ]
+
+  // CHECK-START: int Main.NotEqualFalseRhs(boolean) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg:z\d+]]      ParameterValue
+  // CHECK-DAG:                       If [ [[Arg]] ]
+
+  public static int NotEqualFalseRhs(boolean arg) {
+    return (arg == false) ? 3 : 5;
+  }
+
+  // CHECK-START: int Main.NotEqualFalseLhs(boolean) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg:z\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
+  // CHECK-DAG:     [[Cond:z\d+]]     NotEqual [ [[Const0]] [[Arg]] ]
+  // CHECK-DAG:                       If [ [[Cond]] ]
+
+  // CHECK-START: int Main.NotEqualFalseLhs(boolean) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg:z\d+]]      ParameterValue
+  // CHECK-DAG:                       If [ [[Arg]] ]
+
+  public static int NotEqualFalseLhs(boolean arg) {
+    return (false == arg) ? 3 : 5;
+  }
+
+  /*
+   * Test simplification of double Boolean negation. Note that sometimes
+   * both negations can be removed but we only expect the simplifier to
+   * remove the second.
+   */
+
+  // CHECK-START: boolean Main.NotNotBool(boolean) instruction_simplifier_after_types (before)
+  // CHECK-DAG:     [[Arg:z\d+]]       ParameterValue
+  // CHECK-DAG:     [[NotArg:z\d+]]    BooleanNot [ [[Arg]] ]
+  // CHECK-DAG:     [[NotNotArg:z\d+]] BooleanNot [ [[NotArg]] ]
+  // CHECK-DAG:                        Return [ [[NotNotArg]] ]
+
+  // CHECK-START: boolean Main.NotNotBool(boolean) instruction_simplifier_after_types (after)
+  // CHECK-DAG:     [[Arg:z\d+]]       ParameterValue
+  // CHECK-DAG:                        BooleanNot [ [[Arg]] ]
+  // CHECK-DAG:                        Return [ [[Arg]] ]
+
+  // CHECK-START: boolean Main.NotNotBool(boolean) instruction_simplifier_after_types (after)
+  // CHECK:                            BooleanNot
+  // CHECK-NOT:                        BooleanNot
+
+  public static boolean NotNotBool(boolean arg) {
+    return !(!arg);
+  }
+
   public static void main(String[] args) {
     int arg = 123456;
 
@@ -794,5 +941,16 @@ public class Main {
     assertIntEquals(SubNeg1(arg, arg + 1), -(arg + arg + 1));
     assertIntEquals(SubNeg2(arg, arg + 1), -(arg + arg + 1));
     assertLongEquals(SubNeg3(arg, arg + 1), -(2 * arg + 1));
+
+    assertIntEquals(EqualTrueRhs(true), 5);
+    assertIntEquals(EqualTrueLhs(true), 5);
+    assertIntEquals(EqualFalseRhs(true), 3);
+    assertIntEquals(EqualFalseLhs(true), 3);
+    assertIntEquals(NotEqualTrueRhs(true), 3);
+    assertIntEquals(NotEqualTrueLhs(true), 3);
+    assertIntEquals(NotEqualFalseRhs(true), 5);
+    assertIntEquals(NotEqualFalseLhs(true), 5);
+    assertBooleanEquals(NotNotBool(true), true);
+    assertBooleanEquals(NotNotBool(false), false);
   }
 }
