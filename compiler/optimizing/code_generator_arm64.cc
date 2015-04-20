@@ -1373,8 +1373,10 @@ void InstructionCodeGeneratorARM64::VisitCheckCast(HCheckCast* instruction) {
       instruction, locations->InAt(1), LocationFrom(obj_cls), instruction->GetDexPc());
   codegen_->AddSlowPath(slow_path);
 
-  // TODO: avoid this check if we know obj is not null.
-  __ Cbz(obj, slow_path->GetExitLabel());
+  // Avoid null check if we know obj is not null.
+  if (instruction->MustDoNullCheck()) {
+    __ Cbz(obj, slow_path->GetExitLabel());
+  }
   // Compare the class of `obj` with `cls`.
   __ Ldr(obj_cls, HeapOperand(obj, mirror::Object::ClassOffset()));
   __ Cmp(obj_cls, cls);
@@ -1821,9 +1823,11 @@ void InstructionCodeGeneratorARM64::VisitInstanceOf(HInstanceOf* instruction) {
   vixl::Label done;
 
   // Return 0 if `obj` is null.
-  // TODO: Avoid this check if we know `obj` is not null.
-  __ Mov(out, 0);
-  __ Cbz(obj, &done);
+  // Avoid null check if we know `obj` is not null.
+  if (instruction->MustDoNullCheck()) {
+    __ Mov(out, 0);
+    __ Cbz(obj, &done);
+  }
 
   // Compare the class of `obj` with `cls`.
   __ Ldr(out, HeapOperand(obj, mirror::Object::ClassOffset()));

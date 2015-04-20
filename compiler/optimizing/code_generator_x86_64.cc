@@ -4033,9 +4033,11 @@ void InstructionCodeGeneratorX86_64::VisitInstanceOf(HInstanceOf* instruction) {
   SlowPathCodeX86_64* slow_path = nullptr;
 
   // Return 0 if `obj` is null.
-  // TODO: avoid this check if we know obj is not null.
-  __ testl(obj, obj);
-  __ j(kEqual, &zero);
+  // Avoid null check if we know obj is not null.
+  if (instruction->MustDoNullCheck()) {
+    __ testl(obj, obj);
+    __ j(kEqual, &zero);
+  }
   // Compare the class of `obj` with `cls`.
   __ movl(out, Address(obj, class_offset));
   if (cls.IsRegister()) {
@@ -4059,8 +4061,12 @@ void InstructionCodeGeneratorX86_64::VisitInstanceOf(HInstanceOf* instruction) {
     __ movl(out, Immediate(1));
     __ jmp(&done);
   }
-  __ Bind(&zero);
-  __ movl(out, Immediate(0));
+
+  if (instruction->MustDoNullCheck() || instruction->IsClassFinal()) {
+    __ Bind(&zero);
+    __ movl(out, Immediate(0));
+  }
+
   if (slow_path != nullptr) {
     __ Bind(slow_path->GetExitLabel());
   }
@@ -4085,9 +4091,11 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
       instruction, locations->InAt(1), locations->GetTemp(0), instruction->GetDexPc());
   codegen_->AddSlowPath(slow_path);
 
-  // TODO: avoid this check if we know obj is not null.
-  __ testl(obj, obj);
-  __ j(kEqual, slow_path->GetExitLabel());
+  // Avoid null check if we know obj is not null.
+  if (instruction->MustDoNullCheck()) {
+    __ testl(obj, obj);
+    __ j(kEqual, slow_path->GetExitLabel());
+  }
   // Compare the class of `obj` with `cls`.
   __ movl(temp, Address(obj, class_offset));
   if (cls.IsRegister()) {

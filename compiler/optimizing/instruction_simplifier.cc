@@ -60,6 +60,7 @@ class InstructionSimplifierVisitor : public HGraphVisitor {
   void VisitSub(HSub* instruction) OVERRIDE;
   void VisitUShr(HUShr* instruction) OVERRIDE;
   void VisitXor(HXor* instruction) OVERRIDE;
+  void VisitInstanceOf(HInstanceOf* instruction) OVERRIDE;
 
   OptimizingCompilerStats* stats_;
   bool simplification_occurred_ = false;
@@ -161,6 +162,10 @@ void InstructionSimplifierVisitor::VisitNullCheck(HNullCheck* null_check) {
 
 void InstructionSimplifierVisitor::VisitCheckCast(HCheckCast* check_cast) {
   HLoadClass* load_class = check_cast->InputAt(1)->AsLoadClass();
+  if (!check_cast->InputAt(0)->CanBeNull()) {
+    check_cast->ClearMustDoNullCheck();
+  }
+
   if (!load_class->IsResolved()) {
     // If the class couldn't be resolve it's not safe to compare against it. It's
     // default type would be Top which might be wider that the actual class type
@@ -175,6 +180,12 @@ void InstructionSimplifierVisitor::VisitCheckCast(HCheckCast* check_cast) {
     if (stats_ != nullptr) {
       stats_->RecordStat(MethodCompilationStat::kRemovedCheckedCast);
     }
+  }
+}
+
+void InstructionSimplifierVisitor::VisitInstanceOf(HInstanceOf* instruction) {
+  if (!instruction->InputAt(0)->CanBeNull()) {
+    instruction->ClearMustDoNullCheck();
   }
 }
 
