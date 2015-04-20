@@ -18,8 +18,10 @@
 
 #include "arch/instruction_set.h"
 #include "arch/arm/instruction_set_features_arm.h"
+#include "arch/arm/registers_arm.h"
 #include "arch/arm64/instruction_set_features_arm64.h"
 #include "arch/x86/instruction_set_features_x86.h"
+#include "arch/x86/registers_x86.h"
 #include "arch/x86_64/instruction_set_features_x86_64.h"
 #include "base/macros.h"
 #include "builder.h"
@@ -37,6 +39,8 @@
 #include "register_allocator.h"
 #include "ssa_liveness_analysis.h"
 #include "utils.h"
+#include "utils/arm/managed_register_arm.h"
+#include "utils/x86/managed_register_x86.h"
 
 #include "gtest/gtest.h"
 
@@ -53,17 +57,42 @@ class TestCodeGeneratorARM : public arm::CodeGeneratorARM {
                        const ArmInstructionSetFeatures& isa_features,
                        const CompilerOptions& compiler_options)
       : arm::CodeGeneratorARM(graph, isa_features, compiler_options) {
-    AddAllocatedRegister(Location::RegisterLocation(6));
-    AddAllocatedRegister(Location::RegisterLocation(7));
+    AddAllocatedRegister(Location::RegisterLocation(arm::R6));
+    AddAllocatedRegister(Location::RegisterLocation(arm::R7));
   }
 
   void SetupBlockedRegisters(bool is_baseline) const OVERRIDE {
     arm::CodeGeneratorARM::SetupBlockedRegisters(is_baseline);
-    blocked_core_registers_[4] = true;
-    blocked_core_registers_[6] = false;
-    blocked_core_registers_[7] = false;
+    blocked_core_registers_[arm::R4] = true;
+    blocked_core_registers_[arm::R6] = false;
+    blocked_core_registers_[arm::R7] = false;
     // Makes pair R6-R7 available.
-    blocked_register_pairs_[6 >> 1] = false;
+    blocked_register_pairs_[arm::R6_R7] = false;
+  }
+};
+
+class TestCodeGeneratorX86 : public x86::CodeGeneratorX86 {
+ public:
+  TestCodeGeneratorX86(HGraph* graph,
+                       const X86InstructionSetFeatures& isa_features,
+                       const CompilerOptions& compiler_options)
+      : x86::CodeGeneratorX86(graph, isa_features, compiler_options) {
+    // Save edi, we need it for getting enough registers for long multiplication.
+    AddAllocatedRegister(Location::RegisterLocation(x86::EDI));
+  }
+
+  void SetupBlockedRegisters(bool is_baseline) const OVERRIDE {
+    x86::CodeGeneratorX86::SetupBlockedRegisters(is_baseline);
+    // ebx is a callee-save register in C, but caller-save for ART.
+    blocked_core_registers_[x86::EBX] = true;
+    blocked_register_pairs_[x86::EAX_EBX] = true;
+    blocked_register_pairs_[x86::EDX_EBX] = true;
+    blocked_register_pairs_[x86::ECX_EBX] = true;
+    blocked_register_pairs_[x86::EBX_EDI] = true;
+
+    // Make edi available.
+    blocked_core_registers_[x86::EDI] = false;
+    blocked_register_pairs_[x86::ECX_EDI] = false;
   }
 };
 
@@ -101,7 +130,7 @@ static void Run(const InternalCodeAllocator& allocator,
   }
   Expected result = f();
   if (has_result) {
-    ASSERT_EQ(result, expected);
+    ASSERT_EQ(expected, result);
   }
 }
 
@@ -112,7 +141,7 @@ static void RunCodeBaseline(HGraph* graph, bool has_result, Expected expected) {
   CompilerOptions compiler_options;
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
-  x86::CodeGeneratorX86 codegenX86(graph, *features_x86.get(), compiler_options);
+  TestCodeGeneratorX86 codegenX86(graph, *features_x86.get(), compiler_options);
   // We avoid doing a stack overflow check that requires the runtime being setup,
   // by making sure the compiler knows the methods we are running are leaf methods.
   codegenX86.CompileBaseline(&allocator, true);
@@ -520,29 +549,49 @@ TEST(CodegenTest, NonMaterializedCondition) {
   RunCodeOptimized(graph, hook_before_codegen, true, 0);
 }
 
-#define MUL_TEST(TYPE, TEST_NAME)                     \
-  TEST(CodegenTest, Return ## TEST_NAME) {            \
-    const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(  \
-      Instruction::CONST_4 | 3 << 12 | 0,             \
-      Instruction::CONST_4 | 4 << 12 | 1 << 8,        \
-      Instruction::MUL_ ## TYPE, 1 << 8 | 0,          \
-      Instruction::RETURN);                           \
-                                                      \
-    TestCode(data, true, 12);                         \
-  }                                                   \
-                                                      \
-  TEST(CodegenTest, Return ## TEST_NAME ## 2addr) {   \
-    const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(  \
-      Instruction::CONST_4 | 3 << 12 | 0,             \
-      Instruction::CONST_4 | 4 << 12 | 1 << 8,        \
-      Instruction::MUL_ ## TYPE ## _2ADDR | 1 << 12,  \
-      Instruction::RETURN);                           \
-                                                      \
-    TestCode(data, true, 12);                         \
-  }
+TEST(CodegenTest, ReturnMulInt) {
+  const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
+    Instruction::CONST_4 | 3 << 12 | 0,
+    Instruction::CONST_4 | 4 << 12 | 1 << 8,
+    Instruction::MUL_INT, 1 << 8 | 0,
+    Instruction::RETURN);
 
-MUL_TEST(INT, MulInt);
-MUL_TEST(LONG, MulLong);
+  TestCode(data, true, 12);
+}
+
+TEST(CodegenTest, ReturnMulInt2addr) {
+  const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
+    Instruction::CONST_4 | 3 << 12 | 0,
+    Instruction::CONST_4 | 4 << 12 | 1 << 8,
+    Instruction::MUL_INT_2ADDR | 1 << 12,
+    Instruction::RETURN);
+
+  TestCode(data, true, 12);
+}
+
+TEST(CodegenTest, ReturnMulLong) {
+  const uint16_t data[] = FOUR_REGISTERS_CODE_ITEM(
+    Instruction::CONST_4 | 3 << 12 | 0,
+    Instruction::CONST_4 | 0 << 12 | 1 << 8,
+    Instruction::CONST_4 | 4 << 12 | 2 << 8,
+    Instruction::CONST_4 | 0 << 12 | 3 << 8,
+    Instruction::MUL_LONG, 2 << 8 | 0,
+    Instruction::RETURN_WIDE);
+
+  TestCodeLong(data, true, 12);
+}
+
+TEST(CodegenTest, ReturnMulLong2addr) {
+  const uint16_t data[] = FOUR_REGISTERS_CODE_ITEM(
+    Instruction::CONST_4 | 3 << 12 | 0 << 8,
+    Instruction::CONST_4 | 0 << 12 | 1 << 8,
+    Instruction::CONST_4 | 4 << 12 | 2 << 8,
+    Instruction::CONST_4 | 0 << 12 | 3 << 8,
+    Instruction::MUL_LONG_2ADDR | 2 << 12,
+    Instruction::RETURN_WIDE);
+
+  TestCodeLong(data, true, 12);
+}
 
 TEST(CodegenTest, ReturnMulIntLit8) {
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
