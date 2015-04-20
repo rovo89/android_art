@@ -38,6 +38,7 @@ void HDeadCodeElimination::Run() {
       if (!inst->HasSideEffects()
           && !inst->CanThrow()
           && !inst->IsSuspendCheck()
+          && !inst->IsMemoryBarrier()  // If we added an explicit barrier then we should keep it.
           && !inst->HasUses()) {
         block->RemoveInstruction(inst);
       }
