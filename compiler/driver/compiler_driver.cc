@@ -2381,7 +2381,7 @@ void CompilerDriver::AddRequiresConstructorBarrier(Thread* self, const DexFile* 
 }
 
 bool CompilerDriver::RequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
-                                                uint16_t class_def_index) {
+                                                uint16_t class_def_index) const {
   ReaderMutexLock mu(self, freezing_constructor_lock_);
   return freezing_constructor_classes_.count(ClassReference(dex_file, class_def_index)) != 0;
 }
