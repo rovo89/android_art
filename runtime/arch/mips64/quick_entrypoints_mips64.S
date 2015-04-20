@@ -945,45 +945,6 @@ ENTRY art_quick_aput_obj
 END art_quick_aput_obj
 
     /*
-     * Entry from managed code when uninitialized static storage, this stub will run the class
-     * initializer and deliver the exception on error. On success the static storage base is
-     * returned.
-     */
-    .extern artInitializeStaticStorageFromCode
-ENTRY art_quick_initialize_static_storage
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME           # save callee saves in case of GC
-    # artInitializeStaticStorageFromCode(uint32_t type_idx, Method* referrer, Thread*)
-    jal     artInitializeStaticStorageFromCode
-    move    $a2, rSELF                          # pass Thread::Current
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
-END art_quick_initialize_static_storage
-
-    /*
-     * Entry from managed code when dex cache misses for a type_idx.
-     */
-    .extern artInitializeTypeFromCode
-ENTRY art_quick_initialize_type
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME          # save callee saves in case of GC
-    # artInitializeTypeFromCode(uint32_t type_idx, Method* referrer, Thread*)
-    jal     artInitializeTypeFromCode
-    move    $a2, rSELF                         # pass Thread::Current
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
-END art_quick_initialize_type
-
-    /*
-     * Entry from managed code when type_idx needs to be checked for access and dex cache may also
-     * miss.
-     */
-    .extern artInitializeTypeAndVerifyAccessFromCode
-ENTRY art_quick_initialize_type_and_verify_access
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME          # save callee saves in case of GC
-    # artInitializeTypeFromCode(uint32_t type_idx, Method* referrer, Thread*)
-    jal     artInitializeTypeAndVerifyAccessFromCode
-    move    $a2, rSELF                         # pass Thread::Current
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
-END art_quick_initialize_type_and_verify_access
-
-    /*
      * Called by managed code to resolve a static field and load a boolean primitive value.
      */
     .extern artGetBooleanStaticFromCode
@@ -1272,20 +1233,16 @@ ENTRY art_quick_set_obj_instance
     RETURN_IF_ZERO
 END art_quick_set_obj_instance
 
-    /*
-     * Entry from managed code to resolve a string, this stub will allocate a String and deliver an
-     * exception on error. On success the String is returned. R0 holds the referring method,
-     * R1 holds the string index. The fast path check for hit in strings cache has already been
-     * performed.
-     */
-    .extern artResolveStringFromCode
-ENTRY art_quick_resolve_string
+// Macro to facilitate adding new allocation entrypoints.
+.macro ONE_ARG_DOWNCALL name, entrypoint, return
+    .extern \entrypoint
+ENTRY \name
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
-    # artResolveStringFromCode(Method* referrer, uint32_t string_idx, Thread*, $sp)
-    jal     artResolveStringFromCode
-    move    $a2, rSELF                 # pass Thread::Current
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
-END art_quick_resolve_string
+    jal     \entrypoint
+    move    $a1, rSELF                 # pass Thread::Current
+    \return
+END \name
+.endm
 
 // Macro to facilitate adding new allocation entrypoints.
 .macro TWO_ARG_DOWNCALL name, entrypoint, return
@@ -1310,6 +1267,31 @@ END \name
 
 // Generate the allocation entrypoints for each allocator.
 GENERATE_ALL_ALLOC_ENTRYPOINTS
+
+    /*
+     * Entry from managed code to resolve a string, this stub will allocate a String and deliver an
+     * exception on error. On success the String is returned. A0 holds the string index. The fast
+     * path check for hit in strings cache has already been performed.
+     */
+ONE_ARG_DOWNCALL art_quick_resolve_string, artResolveStringFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+
+    /*
+     * Entry from managed code when uninitialized static storage, this stub will run the class
+     * initializer and deliver the exception on error. On success the static storage base is
+     * returned.
+     */
+ONE_ARG_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+
+    /*
+     * Entry from managed code when dex cache misses for a type_idx.
+     */
+ONE_ARG_DOWNCALL art_quick_initialize_type, artInitializeTypeFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+
+    /*
+     * Entry from managed code when type_idx needs to be checked for access and dex cache may also
+     * miss.
+     */
+ONE_ARG_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeAndVerifyAccessFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 
     /*
      * Called by managed code when the value in rSUSPEND has been decremented to 0.

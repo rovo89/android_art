@@ -176,7 +176,6 @@ class LoadClassSlowPathARM : public SlowPathCodeARM {
 
     InvokeRuntimeCallingConvention calling_convention;
     __ LoadImmediate(calling_convention.GetRegisterAt(0), cls_->GetTypeIndex());
-    arm_codegen->LoadCurrentMethod(calling_convention.GetRegisterAt(1));
     int32_t entry_point_offset = do_clinit_
         ? QUICK_ENTRY_POINT(pInitializeStaticStorage)
         : QUICK_ENTRY_POINT(pInitializeType);
@@ -222,7 +221,6 @@ class LoadStringSlowPathARM : public SlowPathCodeARM {
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
-    arm_codegen->LoadCurrentMethod(calling_convention.GetRegisterAt(1));
     __ LoadImmediate(calling_convention.GetRegisterAt(0), instruction_->GetStringIndex());
     arm_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pResolveString), instruction_, instruction_->GetDexPc(), this);
