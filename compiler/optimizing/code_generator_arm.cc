@@ -2826,10 +2826,14 @@ void LocationsBuilderARM::HandleFieldSet(HInstruction* instruction, const FieldI
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
-
 
   Primitive::Type field_type = field_info.GetFieldType();
+  if (Primitive::IsFloatingPointType(field_type)) {
+    locations->SetInAt(1, Location::RequiresFpuRegister());
+  } else {
+    locations->SetInAt(1, Location::RequiresRegister());
+  }
+
   bool is_wide = field_type == Primitive::kPrimLong || field_type == Primitive::kPrimDouble;
   bool generate_volatile = field_info.IsVolatile()
       && is_wide
@@ -2965,8 +2969,13 @@ void LocationsBuilderARM::HandleFieldGet(HInstruction* instruction, const FieldI
       && (field_info.GetFieldType() == Primitive::kPrimDouble)
       && !codegen_->GetInstructionSetFeatures().HasAtomicLdrdAndStrd();
   bool overlap = field_info.IsVolatile() && (field_info.GetFieldType() == Primitive::kPrimLong);
-  locations->SetOut(Location::RequiresRegister(),
-                    (overlap ? Location::kOutputOverlap : Location::kNoOutputOverlap));
+ 
+  if (Primitive::IsFloatingPointType(instruction->GetType())) {
+    locations->SetOut(Location::RequiresFpuRegister());
+  } else {
+    locations->SetOut(Location::RequiresRegister(),
+                      (overlap ? Location::kOutputOverlap : Location::kNoOutputOverlap));
+  }
   if (volatile_for_double) {
     // Arm encoding have some additional constraints for ldrexd/strexd:
     // - registers need to be consecutive
@@ -3139,7 +3148,11 @@ void LocationsBuilderARM::VisitArrayGet(HArrayGet* instruction) {
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+  if (Primitive::IsFloatingPointType(instruction->GetType())) {
+    locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+  } else {
+    locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+  }
 }
 
 void InstructionCodeGeneratorARM::VisitArrayGet(HArrayGet* instruction) {
@@ -3286,7 +3299,11 @@ void LocationsBuilderARM::VisitArraySet(HArraySet* instruction) {
   } else {
     locations->SetInAt(0, Location::RequiresRegister());
     locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
-    locations->SetInAt(2, Location::RequiresRegister());
+    if (Primitive::IsFloatingPointType(value_type)) {
+      locations->SetInAt(2, Location::RequiresFpuRegister());
+    } else {
+      locations->SetInAt(2, Location::RequiresRegister());
+    }
 
     if (needs_write_barrier) {
       // Temporary registers for the write barrier.
