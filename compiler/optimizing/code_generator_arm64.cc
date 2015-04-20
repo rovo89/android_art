@@ -425,22 +425,57 @@ void CodeGeneratorARM64::Finalize(CodeAllocator* allocator) {
   CodeGenerator::Finalize(allocator);
 }
 
+void ParallelMoveResolverARM64::PrepareForEmitNativeCode() {
+  // Note: There are 6 kinds of moves:
+  // 1. constant -> GPR/FPR (non-cycle)
+  // 2. constant -> stack (non-cycle)
+  // 3. GPR/FPR -> GPR/FPR
+  // 4. GPR/FPR -> stack
+  // 5. stack -> GPR/FPR
+  // 6. stack -> stack (non-cycle)
+  // Case 1, 2 and 6 should never be included in a dependency cycle on ARM64. For case 3, 4, and 5
+  // VIXL uses at most 1 GPR. VIXL has 2 GPR and 1 FPR temps, and there should be no intersecting
+  // cycles on ARM64, so we always have 1 GPR and 1 FPR available VIXL temps to resolve the
+  // dependency.
+  vixl_temps_.Open(GetVIXLAssembler());
+}
+
+void ParallelMoveResolverARM64::FinishEmitNativeCode() {
+  vixl_temps_.Close();
+}
+
+Location ParallelMoveResolverARM64::AllocateScratchLocationFor(Location::Kind kind) {
+  DCHECK(kind == Location::kRegister || kind == Location::kFpuRegister ||
+         kind == Location::kStackSlot || kind == Location::kDoubleStackSlot);
+  kind = (kind == Location::kFpuRegister) ? Location::kFpuRegister : Location::kRegister;
+  Location scratch = GetScratchLocation(kind);
+  if (!scratch.Equals(Location::NoLocation())) {
+    return scratch;
+  }
+  // Allocate from VIXL temp registers.
+  if (kind == Location::kRegister) {
+    scratch = LocationFrom(vixl_temps_.AcquireX());
+  } else {
+    DCHECK(kind == Location::kFpuRegister);
+    scratch = LocationFrom(vixl_temps_.AcquireD());
+  }
+  AddScratchLocation(scratch);
+  return scratch;
+}
+
+void ParallelMoveResolverARM64::FreeScratchLocation(Location loc) {
+  if (loc.IsRegister()) {
+    vixl_temps_.Release(XRegisterFrom(loc));
+  } else {
+    DCHECK(loc.IsFpuRegister());
+    vixl_temps_.Release(DRegisterFrom(loc));
+  }
+  RemoveScratchLocation(loc);
+}
+
 void ParallelMoveResolverARM64::EmitMove(size_t index) {
   MoveOperands* move = moves_.Get(index);
   codegen_->MoveLocation(move->GetDestination(), move->GetSource());
-}
-
-void ParallelMoveResolverARM64::EmitSwap(size_t index) {
-  MoveOperands* move = moves_.Get(index);
-  codegen_->SwapLocations(move->GetDestination(), move->GetSource());
-}
-
-void ParallelMoveResolverARM64::RestoreScratch(int reg) {
-  __ Pop(Register(VIXLRegCodeFromART(reg), kXRegSize));
-}
-
-void ParallelMoveResolverARM64::SpillScratch(int reg) {
-  __ Push(Register(VIXLRegCodeFromART(reg), kXRegSize));
 }
 
 void CodeGeneratorARM64::GenerateFrameEntry() {
@@ -729,10 +764,10 @@ void CodeGeneratorARM64::MoveLocation(Location destination, Location source, Pri
       if (destination.IsRegister()) {
         __ Mov(Register(dst), RegisterFrom(source, type));
       } else {
+        DCHECK(destination.IsFpuRegister());
         __ Fmov(FPRegister(dst), FPRegisterFrom(source, type));
       }
     }
-
   } else {  // The destination is not a register. It must be a stack slot.
     DCHECK(destination.IsStackSlot() || destination.IsDoubleStackSlot());
     if (source.IsRegister() || source.IsFpuRegister()) {
@@ -772,67 +807,6 @@ void CodeGeneratorARM64::MoveLocation(Location destination, Location source, Pri
       __ Ldr(temp, StackOperandFrom(source));
       __ Str(temp, StackOperandFrom(destination));
     }
-  }
-}
-
-void CodeGeneratorARM64::SwapLocations(Location loc1, Location loc2) {
-  DCHECK(!loc1.IsConstant());
-  DCHECK(!loc2.IsConstant());
-
-  if (loc1.Equals(loc2)) {
-    return;
-  }
-
-  UseScratchRegisterScope temps(GetAssembler()->vixl_masm_);
-
-  bool is_slot1 = loc1.IsStackSlot() || loc1.IsDoubleStackSlot();
-  bool is_slot2 = loc2.IsStackSlot() || loc2.IsDoubleStackSlot();
-  bool is_fp_reg1 = loc1.IsFpuRegister();
-  bool is_fp_reg2 = loc2.IsFpuRegister();
-
-  if (loc2.IsRegister() && loc1.IsRegister()) {
-    Register r1 = XRegisterFrom(loc1);
-    Register r2 = XRegisterFrom(loc2);
-    Register tmp = temps.AcquireSameSizeAs(r1);
-    __ Mov(tmp, r2);
-    __ Mov(r2, r1);
-    __ Mov(r1, tmp);
-  } else if (is_fp_reg2 && is_fp_reg1) {
-    FPRegister r1 = DRegisterFrom(loc1);
-    FPRegister r2 = DRegisterFrom(loc2);
-    FPRegister tmp = temps.AcquireSameSizeAs(r1);
-    __ Fmov(tmp, r2);
-    __ Fmov(r2, r1);
-    __ Fmov(r1, tmp);
-  } else if (is_slot1 != is_slot2) {
-    MemOperand mem = StackOperandFrom(is_slot1 ? loc1 : loc2);
-    Location reg_loc = is_slot1 ? loc2 : loc1;
-    CPURegister reg, tmp;
-    if (reg_loc.IsFpuRegister()) {
-      reg = DRegisterFrom(reg_loc);
-      tmp = temps.AcquireD();
-    } else {
-      reg = XRegisterFrom(reg_loc);
-      tmp = temps.AcquireX();
-    }
-    __ Ldr(tmp, mem);
-    __ Str(reg, mem);
-    if (reg_loc.IsFpuRegister()) {
-      __ Fmov(FPRegister(reg), FPRegister(tmp));
-    } else {
-      __ Mov(Register(reg), Register(tmp));
-    }
-  } else if (is_slot1 && is_slot2) {
-    MemOperand mem1 = StackOperandFrom(loc1);
-    MemOperand mem2 = StackOperandFrom(loc2);
-    Register tmp1 = loc1.IsStackSlot() ? temps.AcquireW() : temps.AcquireX();
-    Register tmp2 = temps.AcquireSameSizeAs(tmp1);
-    __ Ldr(tmp1, mem1);
-    __ Ldr(tmp2, mem2);
-    __ Str(tmp1, mem2);
-    __ Str(tmp2, mem1);
-  } else {
-    LOG(FATAL) << "Unimplemented";
   }
 }
 

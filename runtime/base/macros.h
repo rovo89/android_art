@@ -46,6 +46,11 @@
 #define ART_FRIEND_TEST(test_set_name, individual_test)\
 friend class test_set_name##_##individual_test##_Test
 
+// Declare a friend relationship in a class with a typed test.
+#define ART_FRIEND_TYPED_TEST(test_set_name, individual_test)\
+template<typename T> ART_FRIEND_TEST(test_set_name, individual_test)
+
+
 // DISALLOW_COPY_AND_ASSIGN disallows the copy and operator= functions. It goes in the private:
 // declarations in a class.
 #if !defined(DISALLOW_COPY_AND_ASSIGN)
