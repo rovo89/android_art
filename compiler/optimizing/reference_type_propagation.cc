@@ -102,14 +102,17 @@ void ReferenceTypePropagation::BoundTypeForIfInstanceOf(HBasicBlock* block) {
   if (!lastInstruction->IsIf()) {
     return;
   }
+
   HInstruction* ifInput = lastInstruction->InputAt(0);
-  // TODO: Handle more patterns here: HIf(bool) HIf(HNotEqual).
-  if (!ifInput->IsEqual()) {
-    return;
-  }
-  HInstruction* instanceOf = ifInput->InputAt(0);
-  HInstruction* comp_value = ifInput->InputAt(1);
-  if (!instanceOf->IsInstanceOf() || !comp_value->IsIntConstant()) {
+  HInstruction* instanceOf;
+  HBasicBlock* instanceOfTrueBlock;
+  if (ifInput->IsInstanceOf()) {
+    instanceOf = ifInput;
+    instanceOfTrueBlock = lastInstruction->AsIf()->IfTrueSuccessor();
+  } else if (ifInput->IsBooleanNot() && ifInput->InputAt(0)->IsInstanceOf()) {
+    instanceOf = ifInput->InputAt(0);
+    instanceOfTrueBlock = lastInstruction->AsIf()->IfFalseSuccessor();
+  } else {
     return;
   }
 
@@ -132,11 +135,6 @@ void ReferenceTypePropagation::BoundTypeForIfInstanceOf(HBasicBlock* block) {
   }
 
   block->InsertInstructionBefore(bound_type, lastInstruction);
-  // Pick the right successor based on the value we compare against.
-  HIntConstant* comp_value_int = comp_value->AsIntConstant();
-  HBasicBlock* instanceOfTrueBlock = comp_value_int->GetValue() == 0
-      ? lastInstruction->AsIf()->IfFalseSuccessor()
-      : lastInstruction->AsIf()->IfTrueSuccessor();
 
   for (HUseIterator<HInstruction*> it(obj->GetUses()); !it.Done(); it.Advance()) {
     HInstruction* user = it.Current()->GetUser();
