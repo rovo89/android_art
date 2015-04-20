@@ -48,7 +48,7 @@ class HOptimization : public ValueObject {
   void Check();
 
  protected:
-  void MaybeRecordStat(MethodCompilationStat compilation_stat) const;
+  void MaybeRecordStat(MethodCompilationStat compilation_stat, size_t count = 1) const;
 
   HGraph* const graph_;
   // Used to record stats about the optimization.
