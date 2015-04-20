@@ -1547,10 +1547,8 @@ void LocationsBuilderX86::VisitTypeConversion(HTypeConversion* conversion) {
 
         case Primitive::kPrimLong:
           // Processing a Dex `long-to-float' instruction.
-          locations->SetInAt(0, Location::RequiresRegister());
-          locations->SetOut(Location::RequiresFpuRegister());
-          locations->AddTemp(Location::RequiresFpuRegister());
-          locations->AddTemp(Location::RequiresFpuRegister());
+          locations->SetInAt(0, Location::Any());
+          locations->SetOut(Location::Any());
           break;
 
         case Primitive::kPrimDouble:
@@ -1580,10 +1578,8 @@ void LocationsBuilderX86::VisitTypeConversion(HTypeConversion* conversion) {
 
         case Primitive::kPrimLong:
           // Processing a Dex `long-to-double' instruction.
-          locations->SetInAt(0, Location::RequiresRegister());
-          locations->SetOut(Location::RequiresFpuRegister());
-          locations->AddTemp(Location::RequiresFpuRegister());
-          locations->AddTemp(Location::RequiresFpuRegister());
+          locations->SetInAt(0, Location::Any());
+          locations->SetOut(Location::Any());
           break;
 
         case Primitive::kPrimFloat:
@@ -1804,37 +1800,31 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
 
         case Primitive::kPrimLong: {
           // Processing a Dex `long-to-float' instruction.
-          Register low = in.AsRegisterPairLow<Register>();
-          Register high = in.AsRegisterPairHigh<Register>();
-          XmmRegister result = out.AsFpuRegister<XmmRegister>();
-          XmmRegister temp = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
-          XmmRegister constant = locations->GetTemp(1).AsFpuRegister<XmmRegister>();
+          size_t adjustment = 0;
 
-          // Operations use doubles for precision reasons (each 32-bit
-          // half of a long fits in the 53-bit mantissa of a double,
-          // but not in the 24-bit mantissa of a float).  This is
-          // especially important for the low bits.  The result is
-          // eventually converted to float.
+          // Create stack space for the call to
+          // InstructionCodeGeneratorX86::PushOntoFPStack and/or X86Assembler::fstps below.
+          // TODO: enhance register allocator to ask for stack temporaries.
+          if (!in.IsDoubleStackSlot() || !out.IsStackSlot()) {
+            adjustment = Primitive::ComponentSize(Primitive::kPrimLong);
+            __ subl(ESP, Immediate(adjustment));
+          }
 
-          // low = low - 2^31 (to prevent bit 31 of `low` to be
-          // interpreted as a sign bit)
-          __ subl(low, Immediate(0x80000000));
-          // temp = int-to-double(high)
-          __ cvtsi2sd(temp, high);
-          // temp = temp * 2^32
-          __ LoadLongConstant(constant, k2Pow32EncodingForDouble);
-          __ mulsd(temp, constant);
-          // result = int-to-double(low)
-          __ cvtsi2sd(result, low);
-          // result = result + 2^31 (restore the original value of `low`)
-          __ LoadLongConstant(constant, k2Pow31EncodingForDouble);
-          __ addsd(result, constant);
-          // result = result + temp
-          __ addsd(result, temp);
-          // result = double-to-float(result)
-          __ cvtsd2ss(result, result);
-          // Restore low.
-          __ addl(low, Immediate(0x80000000));
+          // Load the value to the FP stack, using temporaries if needed.
+          PushOntoFPStack(in, 0, adjustment, false, true);
+
+          if (out.IsStackSlot()) {
+            __ fstps(Address(ESP, out.GetStackIndex() + adjustment));
+          } else {
+            __ fstps(Address(ESP, 0));
+            Location stack_temp = Location::StackSlot(0);
+            codegen_->Move32(out, stack_temp);
+          }
+
+          // Remove the temporary stack space we allocated.
+          if (adjustment != 0) {
+            __ addl(ESP, Immediate(adjustment));
+          }
           break;
         }
 
@@ -1863,29 +1853,31 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
 
         case Primitive::kPrimLong: {
           // Processing a Dex `long-to-double' instruction.
-          Register low = in.AsRegisterPairLow<Register>();
-          Register high = in.AsRegisterPairHigh<Register>();
-          XmmRegister result = out.AsFpuRegister<XmmRegister>();
-          XmmRegister temp = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
-          XmmRegister constant = locations->GetTemp(1).AsFpuRegister<XmmRegister>();
+          size_t adjustment = 0;
 
-          // low = low - 2^31 (to prevent bit 31 of `low` to be
-          // interpreted as a sign bit)
-          __ subl(low, Immediate(0x80000000));
-          // temp = int-to-double(high)
-          __ cvtsi2sd(temp, high);
-          // temp = temp * 2^32
-          __ LoadLongConstant(constant, k2Pow32EncodingForDouble);
-          __ mulsd(temp, constant);
-          // result = int-to-double(low)
-          __ cvtsi2sd(result, low);
-          // result = result + 2^31 (restore the original value of `low`)
-          __ LoadLongConstant(constant, k2Pow31EncodingForDouble);
-          __ addsd(result, constant);
-          // result = result + temp
-          __ addsd(result, temp);
-          // Restore low.
-          __ addl(low, Immediate(0x80000000));
+          // Create stack space for the call to
+          // InstructionCodeGeneratorX86::PushOntoFPStack and/or X86Assembler::fstpl below.
+          // TODO: enhance register allocator to ask for stack temporaries.
+          if (!in.IsDoubleStackSlot() || !out.IsDoubleStackSlot()) {
+            adjustment = Primitive::ComponentSize(Primitive::kPrimLong);
+            __ subl(ESP, Immediate(adjustment));
+          }
+
+          // Load the value to the FP stack, using temporaries if needed.
+          PushOntoFPStack(in, 0, adjustment, false, true);
+
+          if (out.IsDoubleStackSlot()) {
+            __ fstpl(Address(ESP, out.GetStackIndex() + adjustment));
+          } else {
+            __ fstpl(Address(ESP, 0));
+            Location stack_temp = Location::DoubleStackSlot(0);
+            codegen_->Move64(out, stack_temp);
+          }
+
+          // Remove the temporary stack space we allocated.
+          if (adjustment != 0) {
+            __ addl(ESP, Immediate(adjustment));
+          }
           break;
         }
 
@@ -2225,24 +2217,43 @@ void InstructionCodeGeneratorX86::VisitMul(HMul* mul) {
   }
 }
 
-void InstructionCodeGeneratorX86::PushOntoFPStack(Location source, uint32_t temp_offset,
-                                                  uint32_t stack_adjustment, bool is_float) {
+void InstructionCodeGeneratorX86::PushOntoFPStack(Location source,
+                                                  uint32_t temp_offset,
+                                                  uint32_t stack_adjustment,
+                                                  bool is_fp,
+                                                  bool is_wide) {
   if (source.IsStackSlot()) {
-    DCHECK(is_float);
-    __ flds(Address(ESP, source.GetStackIndex() + stack_adjustment));
+    DCHECK(!is_wide);
+    if (is_fp) {
+      __ flds(Address(ESP, source.GetStackIndex() + stack_adjustment));
+    } else {
+      __ filds(Address(ESP, source.GetStackIndex() + stack_adjustment));
+    }
   } else if (source.IsDoubleStackSlot()) {
-    DCHECK(!is_float);
-    __ fldl(Address(ESP, source.GetStackIndex() + stack_adjustment));
+    DCHECK(is_wide);
+    if (is_fp) {
+      __ fldl(Address(ESP, source.GetStackIndex() + stack_adjustment));
+    } else {
+      __ fildl(Address(ESP, source.GetStackIndex() + stack_adjustment));
+    }
   } else {
     // Write the value to the temporary location on the stack and load to FP stack.
-    if (is_float) {
+    if (!is_wide) {
       Location stack_temp = Location::StackSlot(temp_offset);
       codegen_->Move32(stack_temp, source);
-      __ flds(Address(ESP, temp_offset));
+      if (is_fp) {
+        __ flds(Address(ESP, temp_offset));
+      } else {
+        __ filds(Address(ESP, temp_offset));
+      }
     } else {
       Location stack_temp = Location::DoubleStackSlot(temp_offset);
       codegen_->Move64(stack_temp, source);
-      __ fldl(Address(ESP, temp_offset));
+      if (is_fp) {
+        __ fldl(Address(ESP, temp_offset));
+      } else {
+        __ fildl(Address(ESP, temp_offset));
+      }
     }
   }
 }
@@ -2261,8 +2272,9 @@ void InstructionCodeGeneratorX86::GenerateRemFP(HRem *rem) {
   __ subl(ESP, Immediate(2 * elem_size));
 
   // Load the values to the FP stack in reverse order, using temporaries if needed.
-  PushOntoFPStack(second, elem_size, 2 * elem_size, is_float);
-  PushOntoFPStack(first, 0, 2 * elem_size, is_float);
+  const bool is_wide = !is_float;
+  PushOntoFPStack(second, elem_size, 2 * elem_size, /* is_fp */ true, is_wide);
+  PushOntoFPStack(first, 0, 2 * elem_size, /* is_fp */ true, is_wide);
 
   // Loop doing FPREM until we stabilize.
   Label retry;
