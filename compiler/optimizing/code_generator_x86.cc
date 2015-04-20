@@ -1220,6 +1220,7 @@ void InstructionCodeGeneratorX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirec
 
   codegen_->GenerateStaticOrDirectCall(
       invoke, invoke->GetLocations()->GetTemp(0).AsRegister<Register>());
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
 void LocationsBuilderX86::VisitInvokeVirtual(HInvokeVirtual* invoke) {
@@ -3106,7 +3107,6 @@ void CodeGeneratorX86::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
   }
 
   DCHECK(!IsLeafMethod());
-  RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
 void CodeGeneratorX86::MarkGCCard(Register temp, Register card, Register object, Register value) {
