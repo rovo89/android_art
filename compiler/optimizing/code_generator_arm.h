@@ -96,10 +96,10 @@ class InvokeDexCallingConventionVisitor {
   DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitor);
 };
 
-class ParallelMoveResolverARM : public ParallelMoveResolver {
+class ParallelMoveResolverARM : public ParallelMoveResolverWithSwap {
  public:
   ParallelMoveResolverARM(ArenaAllocator* allocator, CodeGeneratorARM* codegen)
-      : ParallelMoveResolver(allocator), codegen_(codegen) {}
+      : ParallelMoveResolverWithSwap(allocator), codegen_(codegen) {}
 
   void EmitMove(size_t index) OVERRIDE;
   void EmitSwap(size_t index) OVERRIDE;
