@@ -23,14 +23,14 @@ public class Main {
   }
 
   /*
-   * Test that zero/one constants are accepted as boolean inputs.
+   * Test that zero/one constants are accepted as Boolean inputs.
    */
 
-  // CHECK-START: boolean Main.TestIntAsBoolean() inliner (before)
+  // CHECK-START: boolean Main.TestConstAsBoolean() inliner (before)
   // CHECK-DAG:     [[Invoke:z\d+]]  InvokeStaticOrDirect
   // CHECK-DAG:                      BooleanNot [ [[Invoke]] ]
 
-  // CHECK-START: boolean Main.TestIntAsBoolean() inliner (after)
+  // CHECK-START: boolean Main.TestConstAsBoolean() inliner (after)
   // CHECK-DAG:     [[Const:i\d+]]   IntConstant 1
   // CHECK-DAG:                      BooleanNot [ [[Const]] ]
 
@@ -38,13 +38,13 @@ public class Main {
     return true;
   }
 
-  public static boolean TestIntAsBoolean() {
+  public static boolean TestConstAsBoolean() {
     return InlineConst() != true ? true : false;
   }
 
   /*
-   * Test that integer Phis are accepted as boolean inputs until we implement
-   * a suitable type analysis.
+   * Test that integer Phis are accepted as Boolean inputs until
+   * we implement a suitable type analysis.
    */
 
   // CHECK-START: boolean Main.TestPhiAsBoolean(int) inliner (before)
@@ -66,10 +66,80 @@ public class Main {
     return InlinePhi(x) != true ? true : false;
   }
 
+  /*
+   * Test that integer And is accepted as a Boolean input until
+   * we implement a suitable type analysis.
+   */
+
+  // CHECK-START: boolean Main.TestAndAsBoolean(boolean, boolean) inliner (before)
+  // CHECK-DAG:     [[Invoke:z\d+]]  InvokeStaticOrDirect
+  // CHECK-DAG:                      BooleanNot [ [[Invoke]] ]
+
+  // CHECK-START: boolean Main.TestAndAsBoolean(boolean, boolean) inliner (after)
+  // CHECK-DAG:     [[And:i\d+]]     And
+  // CHECK-DAG:                      BooleanNot [ [[And]] ]
+
+  public static boolean InlineAnd(boolean x, boolean y) {
+    return x & y;
+  }
+
+  public static boolean TestAndAsBoolean(boolean x, boolean y) {
+    return InlineAnd(x, y) != true ? true : false;
+  }
+
+  /*
+   * Test that integer Or is accepted as a Boolean input until
+   * we implement a suitable type analysis.
+   */
+
+  // CHECK-START: boolean Main.TestOrAsBoolean(boolean, boolean) inliner (before)
+  // CHECK-DAG:     [[Invoke:z\d+]]  InvokeStaticOrDirect
+  // CHECK-DAG:                      BooleanNot [ [[Invoke]] ]
+
+  // CHECK-START: boolean Main.TestOrAsBoolean(boolean, boolean) inliner (after)
+  // CHECK-DAG:     [[Or:i\d+]]      Or
+  // CHECK-DAG:                      BooleanNot [ [[Or]] ]
+
+  public static boolean InlineOr(boolean x, boolean y) {
+    return x | y;
+  }
+
+  public static boolean TestOrAsBoolean(boolean x, boolean y) {
+    return InlineOr(x, y) != true ? true : false;
+  }
+
+  /*
+   * Test that integer Xor is accepted as a Boolean input until
+   * we implement a suitable type analysis.
+   */
+
+  // CHECK-START: boolean Main.TestXorAsBoolean(boolean, boolean) inliner (before)
+  // CHECK-DAG:     [[Invoke:z\d+]]  InvokeStaticOrDirect
+  // CHECK-DAG:                      BooleanNot [ [[Invoke]] ]
+
+  // CHECK-START: boolean Main.TestXorAsBoolean(boolean, boolean) inliner (after)
+  // CHECK-DAG:     [[Xor:i\d+]]     Xor
+  // CHECK-DAG:                      BooleanNot [ [[Xor]] ]
+
+  public static boolean InlineXor(boolean x, boolean y) {
+    return x ^ y;
+  }
+
+  public static boolean TestXorAsBoolean(boolean x, boolean y) {
+    return InlineXor(x, y) != true ? true : false;
+  }
+
   public static void main(String[] args) {
     f1 = true;
     f2 = false;
+    assertBoolEquals(false, TestConstAsBoolean());
     assertBoolEquals(true, TestPhiAsBoolean(0));
     assertBoolEquals(false, TestPhiAsBoolean(42));
+    assertBoolEquals(true, TestAndAsBoolean(true, false));
+    assertBoolEquals(false, TestAndAsBoolean(true, true));
+    assertBoolEquals(true, TestOrAsBoolean(false, false));
+    assertBoolEquals(false, TestOrAsBoolean(true, true));
+    assertBoolEquals(true, TestXorAsBoolean(true, true));
+    assertBoolEquals(false, TestXorAsBoolean(true, false));
   }
 }
