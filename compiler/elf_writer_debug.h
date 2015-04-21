@@ -19,23 +19,27 @@
 
 #include <vector>
 
+#include "dwarf/dwarf_constants.h"
 #include "oat_writer.h"
 
 namespace art {
 namespace dwarf {
 
 void WriteEhFrame(const CompilerDriver* compiler,
-                  OatWriter* oat_writer,
-                  uint32_t text_section_offset,
-                  std::vector<uint8_t>* eh_frame);
+                  const OatWriter* oat_writer,
+                  ExceptionHeaderValueApplication address_type,
+                  std::vector<uint8_t>* eh_frame,
+                  std::vector<uintptr_t>* eh_frame_patches,
+                  std::vector<uint8_t>* eh_frame_hdr);
 
 void WriteDebugSections(const CompilerDriver* compiler,
-                        OatWriter* oat_writer,
-                        uint32_t text_section_offset,
+                        const OatWriter* oat_writer,
                         std::vector<uint8_t>* debug_info,
+                        std::vector<uintptr_t>* debug_info_patches,
                         std::vector<uint8_t>* debug_abbrev,
                         std::vector<uint8_t>* debug_str,
-                        std::vector<uint8_t>* debug_line);
+                        std::vector<uint8_t>* debug_line,
+                        std::vector<uintptr_t>* debug_line_patches);
 
 }  // namespace dwarf
 }  // namespace art

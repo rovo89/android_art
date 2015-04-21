@@ -70,8 +70,7 @@ class OatWriterWrapper FINAL : public CodeOutput {
 template <typename Elf_Word, typename Elf_Sword, typename Elf_Addr,
           typename Elf_Dyn, typename Elf_Sym, typename Elf_Ehdr,
           typename Elf_Phdr, typename Elf_Shdr>
-static void WriteDebugSymbols(const CompilerDriver* compiler_driver,
-                              ElfBuilder<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
+static void WriteDebugSymbols(ElfBuilder<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
                                          Elf_Sym, Elf_Ehdr, Elf_Phdr, Elf_Shdr>* builder,
                               OatWriter* oat_writer);
 
@@ -109,6 +108,19 @@ void ElfWriterQuick<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn, Elf_Sym, Elf_Ehdr,
   buffer->push_back(0);  // End of sections.
 }
 
+template<typename AddressType, bool SubtractPatchLocation = false>
+static void PatchAddresses(const std::vector<uintptr_t>* patch_locations,
+                           AddressType delta, std::vector<uint8_t>* buffer) {
+  // Addresses in .debug_* sections are unaligned.
+  typedef __attribute__((__aligned__(1))) AddressType UnalignedAddressType;
+  if (patch_locations != nullptr) {
+    for (uintptr_t patch_location : *patch_locations) {
+      *reinterpret_cast<UnalignedAddressType*>(buffer->data() + patch_location) +=
+          delta - (SubtractPatchLocation ? patch_location : 0);
+    }
+  }
+}
+
 template <typename Elf_Word, typename Elf_Sword, typename Elf_Addr,
           typename Elf_Dyn, typename Elf_Sym, typename Elf_Ehdr,
           typename Elf_Phdr, typename Elf_Shdr>
@@ -141,33 +153,77 @@ bool ElfWriterQuick<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
           compiler_driver_->GetCompilerOptions().GetIncludeDebugSymbols(),
           debug));
 
+  InstructionSet isa = compiler_driver_->GetInstructionSet();
+  int alignment = GetInstructionSetPointerSize(isa);
+  typedef ElfRawSectionBuilder<Elf_Word, Elf_Sword, Elf_Shdr> RawSection;
+  RawSection eh_frame(".eh_frame", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, alignment, 0);
+  RawSection eh_frame_hdr(".eh_frame_hdr", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, 4, 0);
+  RawSection debug_info(".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
+  RawSection debug_abbrev(".debug_abbrev", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
+  RawSection debug_str(".debug_str", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
+  RawSection debug_line(".debug_line", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
+  RawSection oat_patches(".oat_patches", SHT_OAT_PATCH, 0, NULL, 0, 1, 0);
+
+  // Do not add to .oat_patches since we will make the addresses relative.
+  std::vector<uintptr_t> eh_frame_patches;
+  if (compiler_driver_->GetCompilerOptions().GetIncludeCFI() &&
+      !oat_writer->GetMethodDebugInfo().empty()) {
+    dwarf::WriteEhFrame(compiler_driver_, oat_writer,
+                        dwarf::DW_EH_PE_pcrel,
+                        eh_frame.GetBuffer(), &eh_frame_patches,
+                        eh_frame_hdr.GetBuffer());
+    builder->RegisterRawSection(&eh_frame);
+    builder->RegisterRawSection(&eh_frame_hdr);
+  }
+
+  // Must be done after .eh_frame is created since it is used in the Elf layout.
   if (!builder->Init()) {
     return false;
   }
 
-  if (compiler_driver_->GetCompilerOptions().GetIncludeCFI() &&
-      !oat_writer->GetMethodDebugInfo().empty()) {
-    ElfRawSectionBuilder<Elf_Word, Elf_Sword, Elf_Shdr> eh_frame(
-        ".eh_frame", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, 4, 0);
-    dwarf::WriteEhFrame(compiler_driver_, oat_writer,
-                        builder->GetTextBuilder().GetSection()->sh_addr,
-                        eh_frame.GetBuffer());
-    builder->RegisterRawSection(eh_frame);
-  }
-
+  std::vector<uintptr_t>* debug_info_patches = nullptr;
+  std::vector<uintptr_t>* debug_line_patches = nullptr;
   if (compiler_driver_->GetCompilerOptions().GetIncludeDebugSymbols() &&
       !oat_writer->GetMethodDebugInfo().empty()) {
-    WriteDebugSymbols(compiler_driver_, builder.get(), oat_writer);
+    // Add methods to .symtab.
+    WriteDebugSymbols(builder.get(), oat_writer);
+    // Generate DWARF .debug_* sections.
+    debug_info_patches = oat_writer->GetAbsolutePatchLocationsFor(".debug_info");
+    debug_line_patches = oat_writer->GetAbsolutePatchLocationsFor(".debug_line");
+    dwarf::WriteDebugSections(compiler_driver_, oat_writer,
+                              debug_info.GetBuffer(), debug_info_patches,
+                              debug_abbrev.GetBuffer(),
+                              debug_str.GetBuffer(),
+                              debug_line.GetBuffer(), debug_line_patches);
+    builder->RegisterRawSection(&debug_info);
+    builder->RegisterRawSection(&debug_abbrev);
+    builder->RegisterRawSection(&debug_str);
+    builder->RegisterRawSection(&debug_line);
   }
 
   if (compiler_driver_->GetCompilerOptions().GetIncludePatchInformation() ||
       // ElfWriter::Fixup will be called regardless and it needs to be able
       // to patch debug sections so we have to include patches for them.
       compiler_driver_->GetCompilerOptions().GetIncludeDebugSymbols()) {
-    ElfRawSectionBuilder<Elf_Word, Elf_Sword, Elf_Shdr> oat_patches(
-        ".oat_patches", SHT_OAT_PATCH, 0, NULL, 0, 1, 0);
     EncodeOatPatches(oat_writer->GetAbsolutePatchLocations(), oat_patches.GetBuffer());
-    builder->RegisterRawSection(oat_patches);
+    builder->RegisterRawSection(&oat_patches);
+  }
+
+  // We know where .text and .eh_frame will be located, so patch the addresses.
+  Elf_Addr text_addr = builder->GetTextBuilder().GetSection()->sh_addr;
+  // TODO: Simplify once we use Elf64 - we can use Elf_Addr instead of branching.
+  if (Is64BitInstructionSet(compiler_driver_->GetInstructionSet())) {
+    // relative_address = (text_addr + address) - (eh_frame_addr + patch_location);
+    PatchAddresses<uint64_t, true>(&eh_frame_patches,
+        text_addr - eh_frame.GetSection()->sh_addr, eh_frame.GetBuffer());
+    PatchAddresses<uint64_t>(debug_info_patches, text_addr, debug_info.GetBuffer());
+    PatchAddresses<uint64_t>(debug_line_patches, text_addr, debug_line.GetBuffer());
+  } else {
+    // relative_address = (text_addr + address) - (eh_frame_addr + patch_location);
+    PatchAddresses<uint32_t, true>(&eh_frame_patches,
+        text_addr - eh_frame.GetSection()->sh_addr, eh_frame.GetBuffer());
+    PatchAddresses<uint32_t>(debug_info_patches, text_addr, debug_info.GetBuffer());
+    PatchAddresses<uint32_t>(debug_line_patches, text_addr, debug_line.GetBuffer());
   }
 
   return builder->Write();
@@ -178,8 +234,7 @@ template <typename Elf_Word, typename Elf_Sword, typename Elf_Addr,
           typename Elf_Phdr, typename Elf_Shdr>
 // Do not inline to avoid Clang stack frame problems. b/18738594
 NO_INLINE
-static void WriteDebugSymbols(const CompilerDriver* compiler_driver,
-                              ElfBuilder<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
+static void WriteDebugSymbols(ElfBuilder<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
                                          Elf_Sym, Elf_Ehdr, Elf_Phdr, Elf_Shdr>* builder,
                               OatWriter* oat_writer) {
   const std::vector<OatWriter::DebugInfo>& method_info = oat_writer->GetMethodDebugInfo();
@@ -214,25 +269,6 @@ static void WriteDebugSymbols(const CompilerDriver* compiler_driver,
                         0, STB_LOCAL, STT_NOTYPE);
     }
   }
-
-  typedef ElfRawSectionBuilder<Elf_Word, Elf_Sword, Elf_Shdr> Section;
-  Section debug_info(".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
-  Section debug_abbrev(".debug_abbrev", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
-  Section debug_str(".debug_str", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
-  Section debug_line(".debug_line", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
-
-  dwarf::WriteDebugSections(compiler_driver,
-                            oat_writer,
-                            builder->GetTextBuilder().GetSection()->sh_addr,
-                            debug_info.GetBuffer(),
-                            debug_abbrev.GetBuffer(),
-                            debug_str.GetBuffer(),
-                            debug_line.GetBuffer());
-
-  builder->RegisterRawSection(debug_info);
-  builder->RegisterRawSection(debug_abbrev);
-  builder->RegisterRawSection(debug_str);
-  builder->RegisterRawSection(debug_line);
 }
 
 // Explicit instantiations
