@@ -19,6 +19,7 @@
 
 #include "nodes.h"
 #include "optimization.h"
+#include "optimizing_compiler_stats.h"
 
 namespace art {
 
@@ -28,8 +29,8 @@ namespace art {
  */
 class HDeadCodeElimination : public HOptimization {
  public:
-  explicit HDeadCodeElimination(HGraph* graph)
-      : HOptimization(graph, true, kDeadCodeEliminationPassName) {}
+  HDeadCodeElimination(HGraph* graph, OptimizingCompilerStats* stats)
+      : HOptimization(graph, true, kDeadCodeEliminationPassName, stats) {}
 
   void Run() OVERRIDE;
 
