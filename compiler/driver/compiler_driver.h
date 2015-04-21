@@ -19,6 +19,7 @@
 
 #include <set>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "arch/instruction_set.h"
@@ -101,8 +102,8 @@ class CompilerDriver {
                           Compiler::Kind compiler_kind,
                           InstructionSet instruction_set,
                           const InstructionSetFeatures* instruction_set_features,
-                          bool image, std::set<std::string>* image_classes,
-                          std::set<std::string>* compiled_classes,
+                          bool image, std::unordered_set<std::string>* image_classes,
+                          std::unordered_set<std::string>* compiled_classes,
                           size_t thread_count, bool dump_stats, bool dump_passes,
                           const std::string& dump_cfg_file_name,
                           CumulativeLogger* timer, int swap_fd,
@@ -154,7 +155,7 @@ class CompilerDriver {
     return image_;
   }
 
-  const std::set<std::string>* GetImageClasses() const {
+  const std::unordered_set<std::string>* GetImageClasses() const {
     return image_classes_.get();
   }
 
@@ -420,7 +421,7 @@ class CompilerDriver {
   // Checks if class specified by type_idx is one of the image_classes_
   bool IsImageClass(const char* descriptor) const;
 
-  // Checks if the provided class should be compiled, i.e., is in classes_to_compile_.
+  // Checks whether the provided class should be compiled, i.e., is in classes_to_compile_.
   bool IsClassToCompile(const char* descriptor) const;
 
   void RecordClassStatus(ClassReference ref, mirror::Class::Status status)
@@ -585,12 +586,12 @@ class CompilerDriver {
   // If image_ is true, specifies the classes that will be included in
   // the image. Note if image_classes_ is nullptr, all classes are
   // included in the image.
-  std::unique_ptr<std::set<std::string>> image_classes_;
+  std::unique_ptr<std::unordered_set<std::string>> image_classes_;
 
-  // If image_ is true, specifies the classes that will be compiled in
-  // the image. Note if classes_to_compile_ is nullptr, all classes are
-  // included in the image.
-  std::unique_ptr<std::set<std::string>> classes_to_compile_;
+  // Specifies the classes that will be compiled. Note that if classes_to_compile_ is nullptr,
+  // all classes are eligible for compilation (duplication filters etc. will still apply).
+  // This option may be restricted to the boot image, depending on a flag in the implementation.
+  std::unique_ptr<std::unordered_set<std::string>> classes_to_compile_;
 
   bool had_hard_verifier_failure_;
 
