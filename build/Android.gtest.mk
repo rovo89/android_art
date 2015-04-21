@@ -171,6 +171,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/oat_file_test.cc \
   runtime/oat_file_assistant_test.cc \
   runtime/parsed_options_test.cc \
+  runtime/prebuilt_tools_test.cc \
   runtime/reference_table_test.cc \
   runtime/thread_pool_test.cc \
   runtime/transaction_test.cc \

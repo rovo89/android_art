@@ -22,6 +22,7 @@
 
 #include <string>
 
+#include "arch/instruction_set.h"
 #include "base/mutex.h"
 #include "globals.h"
 #include "os.h"
@@ -78,6 +79,12 @@ class CommonRuntimeTest : public testing::Test {
 
   // Gets the path of the libcore dex file.
   static std::string GetLibCoreDexFileName();
+
+  // Returns bin directory which contains host's prebuild tools.
+  static std::string GetAndroidHostToolsDir();
+
+  // Returns bin directory which contains target's prebuild tools.
+  static std::string GetAndroidTargetToolsDir(InstructionSet isa);
 
  protected:
   static bool IsHost() {
