@@ -76,6 +76,10 @@ static constexpr bool kTimeCompileMethod = !kIsDebugBuild;
 // Whether to produce 64-bit ELF files for 64-bit targets. Leave this off for now.
 static constexpr bool kProduce64BitELFFiles = false;
 
+// Whether classes-to-compile is only applied to the boot image, or, when given, too all
+// compilations.
+static constexpr bool kRestrictCompilationFiltersToImage = true;
+
 static double Percentage(size_t x, size_t y) {
   return 100.0 * (static_cast<double>(x)) / (static_cast<double>(x + y));
 }
@@ -343,9 +347,9 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
                                Compiler::Kind compiler_kind,
                                InstructionSet instruction_set,
                                const InstructionSetFeatures* instruction_set_features,
-                               bool image, std::set<std::string>* image_classes,
-                               std::set<std::string>* compiled_classes, size_t thread_count,
-                               bool dump_stats, bool dump_passes,
+                               bool image, std::unordered_set<std::string>* image_classes,
+                               std::unordered_set<std::string>* compiled_classes,
+                               size_t thread_count, bool dump_stats, bool dump_passes,
                                const std::string& dump_cfg_file_name, CumulativeLogger* timer,
                                int swap_fd, const std::string& profile_file)
     : swap_space_(swap_fd == -1 ? nullptr : new SwapSpace(swap_fd, 10 * MB)),
@@ -656,14 +660,14 @@ bool CompilerDriver::IsImageClass(const char* descriptor) const {
 }
 
 bool CompilerDriver::IsClassToCompile(const char* descriptor) const {
-  if (!IsImage()) {
+  if (kRestrictCompilationFiltersToImage && !IsImage()) {
     return true;
-  } else {
-    if (classes_to_compile_ == nullptr) {
-      return true;
-    }
-    return classes_to_compile_->find(descriptor) != classes_to_compile_->end();
   }
+
+  if (classes_to_compile_ == nullptr) {
+    return true;
+  }
+  return classes_to_compile_->find(descriptor) != classes_to_compile_->end();
 }
 
 static void ResolveExceptionsForMethod(MutableHandle<mirror::ArtMethod> method_handle,
@@ -723,7 +727,8 @@ static bool ResolveCatchBlockExceptionsClassVisitor(mirror::Class* c, void* arg)
 
 static bool RecordImageClassesVisitor(mirror::Class* klass, void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  std::set<std::string>* image_classes = reinterpret_cast<std::set<std::string>*>(arg);
+  std::unordered_set<std::string>* image_classes =
+      reinterpret_cast<std::unordered_set<std::string>*>(arg);
   std::string temp;
   image_classes->insert(klass->GetDescriptor(&temp));
   return true;
@@ -795,7 +800,8 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings)
   CHECK_NE(image_classes_->size(), 0U);
 }
 
-static void MaybeAddToImageClasses(Handle<mirror::Class> c, std::set<std::string>* image_classes)
+static void MaybeAddToImageClasses(Handle<mirror::Class> c,
+                                   std::unordered_set<std::string>* image_classes)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread* self = Thread::Current();
   StackHandleScope<1> hs(self);
@@ -804,7 +810,8 @@ static void MaybeAddToImageClasses(Handle<mirror::Class> c, std::set<std::string
   std::string temp;
   while (!klass->IsObjectClass()) {
     const char* descriptor = klass->GetDescriptor(&temp);
-    std::pair<std::set<std::string>::iterator, bool> result = image_classes->insert(descriptor);
+    std::pair<std::unordered_set<std::string>::iterator, bool> result =
+        image_classes->insert(descriptor);
     if (!result.second) {  // Previously inserted.
       break;
     }
@@ -826,8 +833,8 @@ static void MaybeAddToImageClasses(Handle<mirror::Class> c, std::set<std::string
 // Note: we can use object pointers because we suspend all threads.
 class ClinitImageUpdate {
  public:
-  static ClinitImageUpdate* Create(std::set<std::string>* image_class_descriptors, Thread* self,
-                                   ClassLinker* linker, std::string* error_msg) {
+  static ClinitImageUpdate* Create(std::unordered_set<std::string>* image_class_descriptors,
+                                   Thread* self, ClassLinker* linker, std::string* error_msg) {
     std::unique_ptr<ClinitImageUpdate> res(new ClinitImageUpdate(image_class_descriptors, self,
                                                                  linker));
     if (res->art_method_class_ == nullptr) {
@@ -867,7 +874,7 @@ class ClinitImageUpdate {
   }
 
  private:
-  ClinitImageUpdate(std::set<std::string>* image_class_descriptors, Thread* self,
+  ClinitImageUpdate(std::unordered_set<std::string>* image_class_descriptors, Thread* self,
                     ClassLinker* linker)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) :
       image_class_descriptors_(image_class_descriptors), self_(self) {
@@ -933,7 +940,7 @@ class ClinitImageUpdate {
   }
 
   mutable std::unordered_set<mirror::Object*> marked_objects_;
-  std::set<std::string>* const image_class_descriptors_;
+  std::unordered_set<std::string>* const image_class_descriptors_;
   std::vector<mirror::Class*> image_classes_;
   const mirror::Class* art_method_class_;
   const mirror::Class* dex_cache_class_;
