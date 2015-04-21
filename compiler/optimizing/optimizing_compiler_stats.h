@@ -29,6 +29,7 @@ enum MethodCompilationStat {
   kCompiledBaseline,
   kCompiledOptimized,
   kCompiledQuick,
+  kInstructionSimplifications,
   kInlinedInvoke,
   kNotCompiledUnsupportedIsa,
   kNotCompiledPathological,
@@ -48,8 +49,8 @@ enum MethodCompilationStat {
   kNotCompiledVerifyAtRuntime,
   kNotCompiledClassNotVerified,
   kRemovedCheckedCast,
+  kRemovedDeadInstruction,
   kRemovedNullCheck,
-  kInstructionSimplifications,
   kLastStat
 };
 
@@ -96,6 +97,7 @@ class OptimizingCompilerStats {
       case kCompiledOptimized : return "kCompiledOptimized";
       case kCompiledQuick : return "kCompiledQuick";
       case kInlinedInvoke : return "kInlinedInvoke";
+      case kInstructionSimplifications: return "kInstructionSimplifications";
       case kNotCompiledUnsupportedIsa : return "kNotCompiledUnsupportedIsa";
       case kNotCompiledPathological : return "kNotCompiledPathological";
       case kNotCompiledHugeMethod : return "kNotCompiledHugeMethod";
@@ -114,8 +116,8 @@ class OptimizingCompilerStats {
       case kNotCompiledVerifyAtRuntime : return "kNotCompiledVerifyAtRuntime";
       case kNotCompiledClassNotVerified : return "kNotCompiledClassNotVerified";
       case kRemovedCheckedCast: return "kRemovedCheckedCast";
+      case kRemovedDeadInstruction: return "kRemovedDeadInstruction";
       case kRemovedNullCheck: return "kRemovedNullCheck";
-      case kInstructionSimplifications: return "kInstructionSimplifications";
       default: LOG(FATAL) << "invalid stat";
     }
     return "";
