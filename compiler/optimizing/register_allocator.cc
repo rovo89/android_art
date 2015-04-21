@@ -903,6 +903,10 @@ bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
     return false;
   }
 
+  // We use the first use to compare with other intervals. If this interval
+  // is used after any active intervals, we will spill this interval.
+  size_t first_use = current->FirstUseAfter(current->GetStart());
+
   // First set all registers as not being used.
   size_t* next_use = registers_array_;
   for (size_t i = 0; i < number_of_registers_; ++i) {
@@ -917,7 +921,7 @@ bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
     if (active->IsFixed()) {
       next_use[active->GetRegister()] = current->GetStart();
     } else {
-      size_t use = active->FirstRegisterUseAfter(current->GetStart());
+      size_t use = active->FirstUseAfter(current->GetStart());
       if (use != kNoLifetime) {
         next_use[active->GetRegister()] = use;
       }
@@ -945,7 +949,7 @@ bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
         next_use[inactive->GetRegister()] =
             std::min(next_intersection, next_use[inactive->GetRegister()]);
       } else {
-        size_t use = inactive->FirstRegisterUseAfter(current->GetStart());
+        size_t use = inactive->FirstUseAfter(current->GetStart());
         if (use != kNoLifetime) {
           next_use[inactive->GetRegister()] = std::min(use, next_use[inactive->GetRegister()]);
         }
@@ -959,16 +963,16 @@ bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
     DCHECK(current->IsHighInterval());
     reg = current->GetRegister();
     // When allocating the low part, we made sure the high register was available.
-    DCHECK_LT(first_register_use, next_use[reg]);
+    DCHECK_LT(first_use, next_use[reg]);
   } else if (current->IsLowInterval()) {
     reg = FindAvailableRegisterPair(next_use, first_register_use);
     // We should spill if both registers are not available.
-    should_spill = (first_register_use >= next_use[reg])
-      || (first_register_use >= next_use[GetHighForLowRegister(reg)]);
+    should_spill = (first_use >= next_use[reg])
+      || (first_use >= next_use[GetHighForLowRegister(reg)]);
   } else {
     DCHECK(!current->IsHighInterval());
     reg = FindAvailableRegister(next_use);
-    should_spill = (first_register_use >= next_use[reg]);
+    should_spill = (first_use >= next_use[reg]);
   }
 
   DCHECK_NE(reg, kNoRegister);
@@ -998,10 +1002,12 @@ bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
         DumpInterval(std::cerr, current);
         DumpAllIntervals(std::cerr);
         // This situation has the potential to infinite loop, so we make it a non-debug CHECK.
+        HInstruction* at = liveness_.GetInstructionFromPosition(first_register_use / 2);
         CHECK(false) << "There is not enough registers available for "
           << split->GetParent()->GetDefinedBy()->DebugName() << " "
           << split->GetParent()->GetDefinedBy()->GetId()
-          << " at " << first_register_use - 1;
+          << " at " << first_register_use - 1 << " "
+          << (at == nullptr ? "" : at->DebugName());
       }
       AddSorted(unhandled_, split);
     }
