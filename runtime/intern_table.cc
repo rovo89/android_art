@@ -236,11 +236,6 @@ mirror::String* InternTable::Insert(mirror::String* s, bool is_strong) {
   if (strong != nullptr) {
     return strong;
   }
-  // Check the image for a match.
-  mirror::String* image = LookupStringFromImage(s);
-  if (image != nullptr) {
-    return is_strong ? InsertStrong(image) : InsertWeak(image);
-  }
   // There is no match in the strong table, check the weak table.
   mirror::String* weak = LookupWeak(s);
   if (weak != nullptr) {
@@ -250,6 +245,11 @@ mirror::String* InternTable::Insert(mirror::String* s, bool is_strong) {
       return InsertStrong(weak);
     }
     return weak;
+  }
+  // Check the image for a match.
+  mirror::String* image = LookupStringFromImage(s);
+  if (image != nullptr) {
+    return is_strong ? InsertStrong(image) : InsertWeak(image);
   }
   // No match in the strong table or the weak table. Insert into the strong / weak table.
   return is_strong ? InsertStrong(s) : InsertWeak(s);
