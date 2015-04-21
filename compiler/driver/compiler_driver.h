@@ -398,6 +398,10 @@ class CompilerDriver {
     return thread_count_;
   }
 
+  bool GetDumpStats() const {
+    return dump_stats_;
+  }
+
   bool GetDumpPasses() const {
     return dump_passes_;
   }
