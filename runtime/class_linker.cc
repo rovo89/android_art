@@ -59,6 +59,7 @@
 #include "mirror/dex_cache-inl.h"
 #include "mirror/field.h"
 #include "mirror/iftable-inl.h"
+#include "mirror/method.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/proxy.h"
@@ -258,8 +259,8 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   CHECK(!init_done_);
 
   // java_lang_Class comes first, it's needed for AllocClass
-  Thread* self = Thread::Current();
-  gc::Heap* heap = Runtime::Current()->GetHeap();
+  Thread* const self = Thread::Current();
+  gc::Heap* const heap = Runtime::Current()->GetHeap();
   // The GC can't handle an object with a null class since we can't get the size of this object.
   heap->IncrementDisableMovingGC(self);
   StackHandleScope<64> hs(self);  // 64 is picked arbitrarily.
@@ -436,20 +437,19 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
 
   // Object, String and DexCache need to be rerun through FindSystemClass to finish init
   mirror::Class::SetStatus(java_lang_Object, mirror::Class::kStatusNotReady, self);
-  mirror::Class* Object_class = FindSystemClass(self, "Ljava/lang/Object;");
-  CHECK_EQ(java_lang_Object.Get(), Object_class);
+  CHECK_EQ(java_lang_Object.Get(), FindSystemClass(self, "Ljava/lang/Object;"));
   CHECK_EQ(java_lang_Object->GetObjectSize(), mirror::Object::InstanceSize());
   mirror::Class::SetStatus(java_lang_String, mirror::Class::kStatusNotReady, self);
   mirror::Class* String_class = FindSystemClass(self, "Ljava/lang/String;");
-  std::ostringstream os1, os2;
-  java_lang_String->DumpClass(os1, mirror::Class::kDumpClassFullDetail);
-  String_class->DumpClass(os2, mirror::Class::kDumpClassFullDetail);
-  CHECK_EQ(java_lang_String.Get(), String_class) << os1.str() << "\n\n" << os2.str();
+  if (java_lang_String.Get() != String_class) {
+    std::ostringstream os1, os2;
+    java_lang_String->DumpClass(os1, mirror::Class::kDumpClassFullDetail);
+    String_class->DumpClass(os2, mirror::Class::kDumpClassFullDetail);
+    LOG(FATAL) << os1.str() << "\n\n" << os2.str();
+  }
   CHECK_EQ(java_lang_String->GetObjectSize(), mirror::String::InstanceSize());
   mirror::Class::SetStatus(java_lang_DexCache, mirror::Class::kStatusNotReady, self);
-  mirror::Class* DexCache_class = FindSystemClass(self, "Ljava/lang/DexCache;");
-  CHECK_EQ(java_lang_String.Get(), String_class);
-  CHECK_EQ(java_lang_DexCache.Get(), DexCache_class);
+  CHECK_EQ(java_lang_DexCache.Get(), FindSystemClass(self, "Ljava/lang/DexCache;"));
   CHECK_EQ(java_lang_DexCache->GetObjectSize(), mirror::DexCache::InstanceSize());
 
   // Setup the primitive array type classes - can't be done until Object has a vtable.
@@ -459,17 +459,14 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   SetClassRoot(kByteArrayClass, FindSystemClass(self, "[B"));
   mirror::ByteArray::SetArrayClass(GetClassRoot(kByteArrayClass));
 
-  mirror::Class* found_char_array_class = FindSystemClass(self, "[C");
-  CHECK_EQ(char_array_class.Get(), found_char_array_class);
+  CHECK_EQ(char_array_class.Get(), FindSystemClass(self, "[C"));
 
   SetClassRoot(kShortArrayClass, FindSystemClass(self, "[S"));
   mirror::ShortArray::SetArrayClass(GetClassRoot(kShortArrayClass));
 
-  mirror::Class* found_int_array_class = FindSystemClass(self, "[I");
-  CHECK_EQ(int_array_class.Get(), found_int_array_class);
+  CHECK_EQ(int_array_class.Get(), FindSystemClass(self, "[I"));
 
-  mirror::Class* found_long_array_class = FindSystemClass(self, "[J");
-  CHECK_EQ(long_array_class.Get(), found_long_array_class);
+  CHECK_EQ(long_array_class.Get(), FindSystemClass(self, "[J"));
 
   SetClassRoot(kFloatArrayClass, FindSystemClass(self, "[F"));
   mirror::FloatArray::SetArrayClass(GetClassRoot(kFloatArrayClass));
@@ -477,97 +474,101 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   SetClassRoot(kDoubleArrayClass, FindSystemClass(self, "[D"));
   mirror::DoubleArray::SetArrayClass(GetClassRoot(kDoubleArrayClass));
 
-  mirror::Class* found_class_array_class = FindSystemClass(self, "[Ljava/lang/Class;");
-  CHECK_EQ(class_array_class.Get(), found_class_array_class);
+  CHECK_EQ(class_array_class.Get(), FindSystemClass(self, "[Ljava/lang/Class;"));
 
-  mirror::Class* found_object_array_class = FindSystemClass(self, "[Ljava/lang/Object;");
-  CHECK_EQ(object_array_class.Get(), found_object_array_class);
+  CHECK_EQ(object_array_class.Get(), FindSystemClass(self, "[Ljava/lang/Object;"));
 
   // Setup the single, global copy of "iftable".
-  mirror::Class* java_lang_Cloneable = FindSystemClass(self, "Ljava/lang/Cloneable;");
-  CHECK(java_lang_Cloneable != nullptr);
-  mirror::Class* java_io_Serializable = FindSystemClass(self, "Ljava/io/Serializable;");
-  CHECK(java_io_Serializable != nullptr);
+  auto java_lang_Cloneable = hs.NewHandle(FindSystemClass(self, "Ljava/lang/Cloneable;"));
+  CHECK(java_lang_Cloneable.Get() != nullptr);
+  auto java_io_Serializable = hs.NewHandle(FindSystemClass(self, "Ljava/io/Serializable;"));
+  CHECK(java_io_Serializable.Get() != nullptr);
   // We assume that Cloneable/Serializable don't have superinterfaces -- normally we'd have to
   // crawl up and explicitly list all of the supers as well.
-  {
-    mirror::IfTable* array_iftable = array_iftable_.Read();
-    array_iftable->SetInterface(0, java_lang_Cloneable);
-    array_iftable->SetInterface(1, java_io_Serializable);
-  }
+  array_iftable_.Read()->SetInterface(0, java_lang_Cloneable.Get());
+  array_iftable_.Read()->SetInterface(1, java_io_Serializable.Get());
 
-  // Sanity check Class[] and Object[]'s interfaces.
-  CHECK_EQ(java_lang_Cloneable, mirror::Class::GetDirectInterface(self, class_array_class, 0));
-  CHECK_EQ(java_io_Serializable, mirror::Class::GetDirectInterface(self, class_array_class, 1));
-  CHECK_EQ(java_lang_Cloneable, mirror::Class::GetDirectInterface(self, object_array_class, 0));
-  CHECK_EQ(java_io_Serializable, mirror::Class::GetDirectInterface(self, object_array_class, 1));
+  // Sanity check Class[] and Object[]'s interfaces. GetDirectInterface may cause thread
+  // suspension.
+  CHECK_EQ(java_lang_Cloneable.Get(),
+           mirror::Class::GetDirectInterface(self, class_array_class, 0));
+  CHECK_EQ(java_io_Serializable.Get(),
+           mirror::Class::GetDirectInterface(self, class_array_class, 1));
+  CHECK_EQ(java_lang_Cloneable.Get(),
+           mirror::Class::GetDirectInterface(self, object_array_class, 0));
+  CHECK_EQ(java_io_Serializable.Get(),
+           mirror::Class::GetDirectInterface(self, object_array_class, 1));
   // Run Class, ArtField, and ArtMethod through FindSystemClass. This initializes their
   // dex_cache_ fields and register them in class_table_.
-  mirror::Class* Class_class = FindSystemClass(self, "Ljava/lang/Class;");
-  CHECK_EQ(java_lang_Class.Get(), Class_class);
+  CHECK_EQ(java_lang_Class.Get(), FindSystemClass(self, "Ljava/lang/Class;"));
 
   mirror::Class::SetStatus(java_lang_reflect_ArtMethod, mirror::Class::kStatusNotReady, self);
-  mirror::Class* Art_method_class = FindSystemClass(self, "Ljava/lang/reflect/ArtMethod;");
-  CHECK_EQ(java_lang_reflect_ArtMethod.Get(), Art_method_class);
-
-  mirror::Class* String_array_class =
-      FindSystemClass(self, GetClassRootDescriptor(kJavaLangStringArrayClass));
-  CHECK_EQ(object_array_string.Get(), String_array_class);
-
-  mirror::Class* Art_method_array_class =
-      FindSystemClass(self, GetClassRootDescriptor(kJavaLangReflectArtMethodArrayClass));
-  CHECK_EQ(object_array_art_method.Get(), Art_method_array_class);
+  CHECK_EQ(java_lang_reflect_ArtMethod.Get(),
+           FindSystemClass(self, "Ljava/lang/reflect/ArtMethod;"));
+  CHECK_EQ(object_array_string.Get(),
+           FindSystemClass(self, GetClassRootDescriptor(kJavaLangStringArrayClass)));
+  CHECK_EQ(object_array_art_method.Get(),
+           FindSystemClass(self, GetClassRootDescriptor(kJavaLangReflectArtMethodArrayClass)));
 
   // End of special init trickery, subsequent classes may be loaded via FindSystemClass.
 
   // Create java.lang.reflect.Proxy root.
-  mirror::Class* java_lang_reflect_Proxy = FindSystemClass(self, "Ljava/lang/reflect/Proxy;");
-  SetClassRoot(kJavaLangReflectProxy, java_lang_reflect_Proxy);
+  SetClassRoot(kJavaLangReflectProxy, FindSystemClass(self, "Ljava/lang/reflect/Proxy;"));
 
   // Create java.lang.reflect.Field.class root.
-  mirror::Class* java_lang_reflect_Field = FindSystemClass(self, "Ljava/lang/reflect/Field;");
-  CHECK(java_lang_reflect_Field != nullptr);
-  SetClassRoot(kJavaLangReflectField, java_lang_reflect_Field);
-  mirror::Field::SetClass(java_lang_reflect_Field);
+  auto* class_root = FindSystemClass(self, "Ljava/lang/reflect/Field;");
+  CHECK(class_root != nullptr);
+  SetClassRoot(kJavaLangReflectField, class_root);
+  mirror::Field::SetClass(class_root);
 
   // Create java.lang.reflect.Field array root.
-  mirror::Class* java_lang_reflect_Field_array =
-      FindSystemClass(self, "[Ljava/lang/reflect/Field;");
-  CHECK(java_lang_reflect_Field_array != nullptr);
-  SetClassRoot(kJavaLangReflectFieldArrayClass, java_lang_reflect_Field_array);
-  mirror::Field::SetArrayClass(java_lang_reflect_Field_array);
+  class_root = FindSystemClass(self, "[Ljava/lang/reflect/Field;");
+  CHECK(class_root != nullptr);
+  SetClassRoot(kJavaLangReflectFieldArrayClass, class_root);
+  mirror::Field::SetArrayClass(class_root);
+
+  // Create java.lang.reflect.Constructor.class root and array root.
+  class_root = FindSystemClass(self, "Ljava/lang/reflect/Constructor;");
+  CHECK(class_root != nullptr);
+  SetClassRoot(kJavaLangReflectConstructor, class_root);
+  mirror::Constructor::SetClass(class_root);
+  class_root = FindSystemClass(self, "[Ljava/lang/reflect/Constructor;");
+  CHECK(class_root != nullptr);
+  SetClassRoot(kJavaLangReflectConstructorArrayClass, class_root);
+  mirror::Constructor::SetArrayClass(class_root);
+
+  // Create java.lang.reflect.Method.class root and array root.
+  class_root = FindSystemClass(self, "Ljava/lang/reflect/Method;");
+  CHECK(class_root != nullptr);
+  SetClassRoot(kJavaLangReflectMethod, class_root);
+  mirror::Method::SetClass(class_root);
+  class_root = FindSystemClass(self, "[Ljava/lang/reflect/Method;");
+  CHECK(class_root != nullptr);
+  SetClassRoot(kJavaLangReflectMethodArrayClass, class_root);
+  mirror::Method::SetArrayClass(class_root);
 
   // java.lang.ref classes need to be specially flagged, but otherwise are normal classes
   // finish initializing Reference class
   mirror::Class::SetStatus(java_lang_ref_Reference, mirror::Class::kStatusNotReady, self);
-  mirror::Class* Reference_class = FindSystemClass(self, "Ljava/lang/ref/Reference;");
-  CHECK_EQ(java_lang_ref_Reference.Get(), Reference_class);
+  CHECK_EQ(java_lang_ref_Reference.Get(), FindSystemClass(self, "Ljava/lang/ref/Reference;"));
   CHECK_EQ(java_lang_ref_Reference->GetObjectSize(), mirror::Reference::InstanceSize());
   CHECK_EQ(java_lang_ref_Reference->GetClassSize(), mirror::Reference::ClassSize());
-  mirror::Class* java_lang_ref_FinalizerReference =
-      FindSystemClass(self, "Ljava/lang/ref/FinalizerReference;");
-  java_lang_ref_FinalizerReference->SetAccessFlags(
-      java_lang_ref_FinalizerReference->GetAccessFlags() |
-          kAccClassIsReference | kAccClassIsFinalizerReference);
-  mirror::Class* java_lang_ref_PhantomReference =
-      FindSystemClass(self, "Ljava/lang/ref/PhantomReference;");
-  java_lang_ref_PhantomReference->SetAccessFlags(
-      java_lang_ref_PhantomReference->GetAccessFlags() |
-          kAccClassIsReference | kAccClassIsPhantomReference);
-  mirror::Class* java_lang_ref_SoftReference =
-      FindSystemClass(self, "Ljava/lang/ref/SoftReference;");
-  java_lang_ref_SoftReference->SetAccessFlags(
-      java_lang_ref_SoftReference->GetAccessFlags() | kAccClassIsReference);
-  mirror::Class* java_lang_ref_WeakReference =
-      FindSystemClass(self, "Ljava/lang/ref/WeakReference;");
-  java_lang_ref_WeakReference->SetAccessFlags(
-      java_lang_ref_WeakReference->GetAccessFlags() |
-          kAccClassIsReference | kAccClassIsWeakReference);
+  class_root = FindSystemClass(self, "Ljava/lang/ref/FinalizerReference;");
+  class_root->SetAccessFlags(class_root->GetAccessFlags() |
+                             kAccClassIsReference | kAccClassIsFinalizerReference);
+  class_root = FindSystemClass(self, "Ljava/lang/ref/PhantomReference;");
+  class_root->SetAccessFlags(class_root->GetAccessFlags() | kAccClassIsReference |
+                             kAccClassIsPhantomReference);
+  class_root = FindSystemClass(self, "Ljava/lang/ref/SoftReference;");
+  class_root->SetAccessFlags(class_root->GetAccessFlags() | kAccClassIsReference);
+  class_root = FindSystemClass(self, "Ljava/lang/ref/WeakReference;");
+  class_root->SetAccessFlags(class_root->GetAccessFlags() | kAccClassIsReference |
+                             kAccClassIsWeakReference);
 
   // Setup the ClassLoader, verifying the object_size_.
-  mirror::Class* java_lang_ClassLoader = FindSystemClass(self, "Ljava/lang/ClassLoader;");
-  CHECK_EQ(java_lang_ClassLoader->GetObjectSize(), mirror::ClassLoader::InstanceSize());
-  SetClassRoot(kJavaLangClassLoader, java_lang_ClassLoader);
+  class_root = FindSystemClass(self, "Ljava/lang/ClassLoader;");
+  CHECK_EQ(class_root->GetObjectSize(), mirror::ClassLoader::InstanceSize());
+  SetClassRoot(kJavaLangClassLoader, class_root);
 
   // Set up java.lang.Throwable, java.lang.ClassNotFoundException, and
   // java.lang.StackTraceElement as a convenience.
@@ -911,6 +912,10 @@ void ClassLinker::InitFromImage() {
   // String class root was set above
   mirror::Field::SetClass(GetClassRoot(kJavaLangReflectField));
   mirror::Field::SetArrayClass(GetClassRoot(kJavaLangReflectFieldArrayClass));
+  mirror::Constructor::SetClass(GetClassRoot(kJavaLangReflectConstructor));
+  mirror::Constructor::SetArrayClass(GetClassRoot(kJavaLangReflectConstructorArrayClass));
+  mirror::Method::SetClass(GetClassRoot(kJavaLangReflectMethod));
+  mirror::Method::SetArrayClass(GetClassRoot(kJavaLangReflectMethodArrayClass));
   mirror::Reference::SetClass(GetClassRoot(kJavaLangRefReference));
   mirror::BooleanArray::SetArrayClass(GetClassRoot(kBooleanArrayClass));
   mirror::ByteArray::SetArrayClass(GetClassRoot(kByteArrayClass));
@@ -1096,22 +1101,26 @@ void ClassLinker::VisitClassesWithoutClassesLock(ClassVisitor* visitor, void* ar
 }
 
 ClassLinker::~ClassLinker() {
-  mirror::Class::ResetClass();
-  mirror::String::ResetClass();
-  mirror::Reference::ResetClass();
   mirror::ArtMethod::ResetClass();
+  mirror::Class::ResetClass();
+  mirror::Constructor::ResetClass();
   mirror::Field::ResetClass();
-  mirror::Field::ResetArrayClass();
+  mirror::Method::ResetClass();
+  mirror::Reference::ResetClass();
+  mirror::StackTraceElement::ResetClass();
+  mirror::String::ResetClass();
+  mirror::Throwable::ResetClass();
   mirror::BooleanArray::ResetArrayClass();
   mirror::ByteArray::ResetArrayClass();
   mirror::CharArray::ResetArrayClass();
+  mirror::Constructor::ResetArrayClass();
   mirror::DoubleArray::ResetArrayClass();
+  mirror::Field::ResetArrayClass();
   mirror::FloatArray::ResetArrayClass();
+  mirror::Method::ResetArrayClass();
   mirror::IntArray::ResetArrayClass();
   mirror::LongArray::ResetArrayClass();
   mirror::ShortArray::ResetArrayClass();
-  mirror::Throwable::ResetClass();
-  mirror::StackTraceElement::ResetClass();
   STLDeleteElements(&oat_files_);
 }
 
@@ -2947,7 +2956,7 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
                                              jobjectArray interfaces, jobject loader,
                                              jobjectArray methods, jobjectArray throws) {
   Thread* self = soa.Self();
-  StackHandleScope<8> hs(self);
+  StackHandleScope<9> hs(self);
   MutableHandle<mirror::Class> klass(hs.NewHandle(
       AllocClass(self, GetClassRoot(kJavaLangClass), sizeof(mirror::Class))));
   if (klass.Get() == nullptr) {
@@ -3001,8 +3010,10 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   }
 
   // Create virtual method using specified prototypes.
-  size_t num_virtual_methods =
-      soa.Decode<mirror::ObjectArray<mirror::ArtMethod>*>(methods)->GetLength();
+  auto h_methods = hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Method>*>(methods));
+  DCHECK_EQ(h_methods->GetClass(), mirror::Method::ArrayClass())
+    << PrettyClass(h_methods->GetClass());
+  const size_t num_virtual_methods = h_methods->GetLength();
   {
     mirror::ObjectArray<mirror::ArtMethod>* virtuals = AllocArtMethodArray(self,
                                                                            num_virtual_methods);
@@ -3014,9 +3025,7 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   }
   for (size_t i = 0; i < num_virtual_methods; ++i) {
     StackHandleScope<1> hs2(self);
-    mirror::ObjectArray<mirror::ArtMethod>* decoded_methods =
-        soa.Decode<mirror::ObjectArray<mirror::ArtMethod>*>(methods);
-    Handle<mirror::ArtMethod> prototype(hs2.NewHandle(decoded_methods->Get(i)));
+    Handle<mirror::ArtMethod> prototype(hs2.NewHandle(h_methods->Get(i)->GetArtMethod()));
     mirror::ArtMethod* clone = CreateProxyMethod(self, klass, prototype);
     if (UNLIKELY(clone == nullptr)) {
       CHECK(self->IsExceptionPending());  // OOME.
@@ -3066,9 +3075,7 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
     CheckProxyConstructor(klass->GetDirectMethod(0));
     for (size_t i = 0; i < num_virtual_methods; ++i) {
       StackHandleScope<2> hs2(self);
-      mirror::ObjectArray<mirror::ArtMethod>* decoded_methods =
-          soa.Decode<mirror::ObjectArray<mirror::ArtMethod>*>(methods);
-      Handle<mirror::ArtMethod> prototype(hs2.NewHandle(decoded_methods->Get(i)));
+      Handle<mirror::ArtMethod> prototype(hs2.NewHandle(h_methods->Get(i)->GetArtMethod()));
       Handle<mirror::ArtMethod> virtual_method(hs2.NewHandle(klass->GetVirtualMethod(i)));
       CheckProxyMethod(virtual_method, prototype);
     }
@@ -3104,23 +3111,22 @@ mirror::ArtMethod* ClassLinker::FindMethodForProxy(mirror::Class* proxy_class,
                                                    mirror::ArtMethod* proxy_method) {
   DCHECK(proxy_class->IsProxyClass());
   DCHECK(proxy_method->IsProxyMethod());
-  // Locate the dex cache of the original interface/Object
-  mirror::DexCache* dex_cache = nullptr;
   {
     ReaderMutexLock mu(Thread::Current(), dex_lock_);
-    for (size_t i = 0; i != dex_caches_.size(); ++i) {
-      mirror::DexCache* a_dex_cache = GetDexCache(i);
-      if (proxy_method->HasSameDexCacheResolvedTypes(a_dex_cache->GetResolvedTypes())) {
-        dex_cache = a_dex_cache;
-        break;
+    // Locate the dex cache of the original interface/Object
+    for (const GcRoot<mirror::DexCache>& root : dex_caches_) {
+      auto* dex_cache = root.Read();
+      if (proxy_method->HasSameDexCacheResolvedTypes(dex_cache->GetResolvedTypes())) {
+        mirror::ArtMethod* resolved_method = dex_cache->GetResolvedMethod(
+            proxy_method->GetDexMethodIndex());
+        CHECK(resolved_method != nullptr);
+        return resolved_method;
       }
     }
   }
-  CHECK(dex_cache != nullptr);
-  uint32_t method_idx = proxy_method->GetDexMethodIndex();
-  mirror::ArtMethod* resolved_method = dex_cache->GetResolvedMethod(method_idx);
-  CHECK(resolved_method != nullptr);
-  return resolved_method;
+  LOG(FATAL) << "Didn't find dex cache for " << PrettyClass(proxy_class) << " "
+      << PrettyMethod(proxy_method);
+  UNREACHABLE();
 }
 
 
@@ -3163,8 +3169,11 @@ mirror::ArtMethod* ClassLinker::CreateProxyMethod(Thread* self,
                                                   Handle<mirror::ArtMethod> prototype) {
   // Ensure prototype is in dex cache so that we can use the dex cache to look up the overridden
   // prototype method
-  prototype->GetDeclaringClass()->GetDexCache()->SetResolvedMethod(prototype->GetDexMethodIndex(),
-                                                                   prototype.Get());
+  auto* dex_cache = prototype->GetDeclaringClass()->GetDexCache();
+  // Avoid dirtying the dex cache unless we need to.
+  if (dex_cache->GetResolvedMethod(prototype->GetDexMethodIndex()) != prototype.Get()) {
+    dex_cache->SetResolvedMethod(prototype->GetDexMethodIndex(), prototype.Get());
+  }
   // We steal everything from the prototype (such as DexCache, invoke stub, etc.) then specialize
   // as necessary
   mirror::ArtMethod* method = down_cast<mirror::ArtMethod*>(prototype->Clone(self));
@@ -3198,6 +3207,7 @@ static void CheckProxyMethod(Handle<mirror::ArtMethod> method,
   // interface prototype. The exception to this are Constructors and the Class of the Proxy itself.
   CHECK(prototype->HasSameDexCacheResolvedMethods(method.Get()));
   CHECK(prototype->HasSameDexCacheResolvedTypes(method.Get()));
+  CHECK_EQ(prototype->GetDeclaringClass()->GetDexCache(), method->GetDexCache());
   CHECK_EQ(prototype->GetDexMethodIndex(), method->GetDexMethodIndex());
 
   CHECK_STREQ(method->GetName(), prototype->GetName());
@@ -5210,11 +5220,15 @@ const char* ClassLinker::GetClassRootDescriptor(ClassRoot class_root) {
     "Ljava/lang/DexCache;",
     "Ljava/lang/ref/Reference;",
     "Ljava/lang/reflect/ArtMethod;",
+    "Ljava/lang/reflect/Constructor;",
     "Ljava/lang/reflect/Field;",
+    "Ljava/lang/reflect/Method;",
     "Ljava/lang/reflect/Proxy;",
     "[Ljava/lang/String;",
     "[Ljava/lang/reflect/ArtMethod;",
+    "[Ljava/lang/reflect/Constructor;",
     "[Ljava/lang/reflect/Field;",
+    "[Ljava/lang/reflect/Method;",
     "Ljava/lang/ClassLoader;",
     "Ljava/lang/Throwable;",
     "Ljava/lang/ClassNotFoundException;",

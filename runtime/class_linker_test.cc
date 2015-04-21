@@ -25,6 +25,7 @@
 #include "dex_file.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "gc/heap.h"
+#include "mirror/abstract_method.h"
 #include "mirror/accessible_object.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
@@ -463,6 +464,10 @@ struct CheckOffsets {
     return !error;
   };
 
+  void addOffset(size_t offset, const char* name) {
+    offsets.push_back(CheckOffset(offset, name));
+  }
+
  private:
   DISALLOW_IMPLICIT_CONSTRUCTORS(CheckOffsets);
 };
@@ -472,142 +477,162 @@ struct CheckOffsets {
 
 struct ObjectOffsets : public CheckOffsets<mirror::Object> {
   ObjectOffsets() : CheckOffsets<mirror::Object>(false, "Ljava/lang/Object;") {
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Object, klass_),   "shadow$_klass_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Object, monitor_), "shadow$_monitor_"));
+    addOffset(OFFSETOF_MEMBER(mirror::Object, klass_), "shadow$_klass_");
+    addOffset(OFFSETOF_MEMBER(mirror::Object, monitor_), "shadow$_monitor_");
 #ifdef USE_BAKER_OR_BROOKS_READ_BARRIER
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Object, x_rb_ptr_), "shadow$_x_rb_ptr_"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Object, x_xpadding_), "shadow$_x_xpadding_"));
+    addOffset(OFFSETOF_MEMBER(mirror::Object, x_rb_ptr_), "shadow$_x_rb_ptr_");
+    addOffset(OFFSETOF_MEMBER(mirror::Object, x_xpadding_), "shadow$_x_xpadding_");
 #endif
   };
 };
 
 struct ArtMethodOffsets : public CheckOffsets<mirror::ArtMethod> {
   ArtMethodOffsets() : CheckOffsets<mirror::ArtMethod>(false, "Ljava/lang/reflect/ArtMethod;") {
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, access_flags_),                   "accessFlags"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, declaring_class_),                      "declaringClass"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_cache_resolved_methods_),           "dexCacheResolvedMethods"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_cache_resolved_types_),             "dexCacheResolvedTypes"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_code_item_offset_),           "dexCodeItemOffset"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_method_index_),               "dexMethodIndex"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, method_index_),                   "methodIndex"));
+    addOffset(OFFSETOF_MEMBER(mirror::ArtMethod, access_flags_), "accessFlags");
+    addOffset(OFFSETOF_MEMBER(mirror::ArtMethod, declaring_class_), "declaringClass");
+    addOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_cache_resolved_methods_),
+              "dexCacheResolvedMethods");
+    addOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_cache_resolved_types_),
+              "dexCacheResolvedTypes");
+    addOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_code_item_offset_), "dexCodeItemOffset");
+    addOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_method_index_), "dexMethodIndex");
+    addOffset(OFFSETOF_MEMBER(mirror::ArtMethod, method_index_), "methodIndex");
   };
 };
 
 struct ClassOffsets : public CheckOffsets<mirror::Class> {
   ClassOffsets() : CheckOffsets<mirror::Class>(false, "Ljava/lang/Class;") {
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, access_flags_),                  "accessFlags"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, class_loader_),                  "classLoader"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, class_size_),                    "classSize"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, clinit_thread_id_),              "clinitThreadId"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, component_type_),                "componentType"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, dex_cache_),                     "dexCache"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, dex_cache_strings_),             "dexCacheStrings"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, dex_class_def_idx_),             "dexClassDefIndex"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, dex_type_idx_),                  "dexTypeIndex"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, direct_methods_),                "directMethods"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, ifields_),                       "iFields"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, iftable_),                       "ifTable"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, name_),                          "name"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, num_instance_fields_),           "numInstanceFields"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, num_reference_instance_fields_), "numReferenceInstanceFields"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, num_reference_static_fields_),   "numReferenceStaticFields"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, num_static_fields_),             "numStaticFields"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, object_size_),                   "objectSize"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, primitive_type_),                "primitiveType"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, reference_instance_offsets_),    "referenceInstanceOffsets"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, sfields_),                       "sFields"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, status_),                        "status"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, super_class_),                   "superClass"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, verify_error_class_),            "verifyErrorClass"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, virtual_methods_),               "virtualMethods"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, vtable_),                        "vtable"));
+    addOffset(OFFSETOF_MEMBER(mirror::Class, access_flags_), "accessFlags");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, class_loader_), "classLoader");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, class_size_), "classSize");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, clinit_thread_id_), "clinitThreadId");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, component_type_), "componentType");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, dex_cache_), "dexCache");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, dex_cache_strings_), "dexCacheStrings");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, dex_class_def_idx_), "dexClassDefIndex");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, dex_type_idx_), "dexTypeIndex");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, direct_methods_), "directMethods");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, ifields_), "iFields");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, iftable_), "ifTable");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, name_), "name");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, num_instance_fields_), "numInstanceFields");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, num_reference_instance_fields_),
+              "numReferenceInstanceFields");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, num_reference_static_fields_),
+              "numReferenceStaticFields");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, num_static_fields_), "numStaticFields");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, object_size_), "objectSize");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, primitive_type_), "primitiveType");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, reference_instance_offsets_),
+              "referenceInstanceOffsets");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, sfields_), "sFields");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, status_), "status");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, super_class_), "superClass");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, verify_error_class_), "verifyErrorClass");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, virtual_methods_), "virtualMethods");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, vtable_), "vtable");
   };
 };
 
 struct StringOffsets : public CheckOffsets<mirror::String> {
   StringOffsets() : CheckOffsets<mirror::String>(false, "Ljava/lang/String;") {
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::String, count_),     "count"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::String, hash_code_), "hashCode"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::String, offset_),    "offset"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::String, array_),     "value"));
+    addOffset(OFFSETOF_MEMBER(mirror::String, count_), "count");
+    addOffset(OFFSETOF_MEMBER(mirror::String, hash_code_), "hashCode");
+    addOffset(OFFSETOF_MEMBER(mirror::String, offset_), "offset");
+    addOffset(OFFSETOF_MEMBER(mirror::String, array_), "value");
   };
 };
 
 struct ThrowableOffsets : public CheckOffsets<mirror::Throwable> {
   ThrowableOffsets() : CheckOffsets<mirror::Throwable>(false, "Ljava/lang/Throwable;") {
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Throwable, cause_),                 "cause"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Throwable, detail_message_),        "detailMessage"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Throwable, stack_state_),           "stackState"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Throwable, stack_trace_),           "stackTrace"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Throwable, suppressed_exceptions_), "suppressedExceptions"));
+    addOffset(OFFSETOF_MEMBER(mirror::Throwable, cause_), "cause");
+    addOffset(OFFSETOF_MEMBER(mirror::Throwable, detail_message_), "detailMessage");
+    addOffset(OFFSETOF_MEMBER(mirror::Throwable, stack_state_), "stackState");
+    addOffset(OFFSETOF_MEMBER(mirror::Throwable, stack_trace_), "stackTrace");
+    addOffset(OFFSETOF_MEMBER(mirror::Throwable, suppressed_exceptions_), "suppressedExceptions");
   };
 };
 
 struct StackTraceElementOffsets : public CheckOffsets<mirror::StackTraceElement> {
-  StackTraceElementOffsets() : CheckOffsets<mirror::StackTraceElement>(false, "Ljava/lang/StackTraceElement;") {
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StackTraceElement, declaring_class_), "declaringClass"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StackTraceElement, file_name_),       "fileName"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StackTraceElement, line_number_),     "lineNumber"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StackTraceElement, method_name_),     "methodName"));
+  StackTraceElementOffsets() : CheckOffsets<mirror::StackTraceElement>(
+      false, "Ljava/lang/StackTraceElement;") {
+    addOffset(OFFSETOF_MEMBER(mirror::StackTraceElement, declaring_class_), "declaringClass");
+    addOffset(OFFSETOF_MEMBER(mirror::StackTraceElement, file_name_), "fileName");
+    addOffset(OFFSETOF_MEMBER(mirror::StackTraceElement, line_number_), "lineNumber");
+    addOffset(OFFSETOF_MEMBER(mirror::StackTraceElement, method_name_), "methodName");
   };
 };
 
 struct ClassLoaderOffsets : public CheckOffsets<mirror::ClassLoader> {
   ClassLoaderOffsets() : CheckOffsets<mirror::ClassLoader>(false, "Ljava/lang/ClassLoader;") {
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ClassLoader, packages_),   "packages"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ClassLoader, parent_),     "parent"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ClassLoader, proxyCache_), "proxyCache"));
+    addOffset(OFFSETOF_MEMBER(mirror::ClassLoader, packages_), "packages");
+    addOffset(OFFSETOF_MEMBER(mirror::ClassLoader, parent_), "parent");
+    addOffset(OFFSETOF_MEMBER(mirror::ClassLoader, proxyCache_), "proxyCache");
   };
 };
 
 struct ProxyOffsets : public CheckOffsets<mirror::Proxy> {
   ProxyOffsets() : CheckOffsets<mirror::Proxy>(false, "Ljava/lang/reflect/Proxy;") {
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Proxy, h_), "h"));
+    addOffset(OFFSETOF_MEMBER(mirror::Proxy, h_), "h");
   };
 };
 
 struct DexCacheOffsets : public CheckOffsets<mirror::DexCache> {
   DexCacheOffsets() : CheckOffsets<mirror::DexCache>(false, "Ljava/lang/DexCache;") {
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, dex_),                        "dex"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, dex_file_),                   "dexFile"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, location_),                   "location"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_fields_),            "resolvedFields"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_methods_),           "resolvedMethods"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_types_),             "resolvedTypes"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, strings_),                    "strings"));
+    addOffset(OFFSETOF_MEMBER(mirror::DexCache, dex_), "dex");
+    addOffset(OFFSETOF_MEMBER(mirror::DexCache, dex_file_), "dexFile");
+    addOffset(OFFSETOF_MEMBER(mirror::DexCache, location_), "location");
+    addOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_fields_), "resolvedFields");
+    addOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_methods_), "resolvedMethods");
+    addOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_types_), "resolvedTypes");
+    addOffset(OFFSETOF_MEMBER(mirror::DexCache, strings_), "strings");
   };
 };
 
 struct ReferenceOffsets : public CheckOffsets<mirror::Reference> {
   ReferenceOffsets() : CheckOffsets<mirror::Reference>(false, "Ljava/lang/ref/Reference;") {
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Reference, pending_next_),  "pendingNext"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Reference, queue_),         "queue"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Reference, queue_next_),    "queueNext"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Reference, referent_),      "referent"));
+    addOffset(OFFSETOF_MEMBER(mirror::Reference, pending_next_), "pendingNext");
+    addOffset(OFFSETOF_MEMBER(mirror::Reference, queue_), "queue");
+    addOffset(OFFSETOF_MEMBER(mirror::Reference, queue_next_), "queueNext");
+    addOffset(OFFSETOF_MEMBER(mirror::Reference, referent_), "referent");
   };
 };
 
 struct FinalizerReferenceOffsets : public CheckOffsets<mirror::FinalizerReference> {
-  FinalizerReferenceOffsets() : CheckOffsets<mirror::FinalizerReference>(false, "Ljava/lang/ref/FinalizerReference;") {
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::FinalizerReference, next_),   "next"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::FinalizerReference, prev_),   "prev"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::FinalizerReference, zombie_), "zombie"));
+  FinalizerReferenceOffsets() : CheckOffsets<mirror::FinalizerReference>(
+      false, "Ljava/lang/ref/FinalizerReference;") {
+    addOffset(OFFSETOF_MEMBER(mirror::FinalizerReference, next_), "next");
+    addOffset(OFFSETOF_MEMBER(mirror::FinalizerReference, prev_), "prev");
+    addOffset(OFFSETOF_MEMBER(mirror::FinalizerReference, zombie_), "zombie");
   };
 };
 
 struct AccessibleObjectOffsets : public CheckOffsets<mirror::AccessibleObject> {
-  AccessibleObjectOffsets() : CheckOffsets<mirror::AccessibleObject>(false, "Ljava/lang/reflect/AccessibleObject;") {
-    offsets.push_back(CheckOffset(mirror::AccessibleObject::FlagOffset().Uint32Value(),   "flag"));
+  AccessibleObjectOffsets() : CheckOffsets<mirror::AccessibleObject>(
+      false, "Ljava/lang/reflect/AccessibleObject;") {
+    addOffset(mirror::AccessibleObject::FlagOffset().Uint32Value(), "flag");
   };
 };
 
 struct FieldOffsets : public CheckOffsets<mirror::Field> {
   FieldOffsets() : CheckOffsets<mirror::Field>(false, "Ljava/lang/reflect/Field;") {
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Field, access_flags_),     "accessFlags"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Field, declaring_class_),  "declaringClass"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Field, dex_field_index_),  "dexFieldIndex"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Field, offset_),           "offset"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Field, type_),             "type"));
+    addOffset(OFFSETOF_MEMBER(mirror::Field, access_flags_), "accessFlags");
+    addOffset(OFFSETOF_MEMBER(mirror::Field, declaring_class_), "declaringClass");
+    addOffset(OFFSETOF_MEMBER(mirror::Field, dex_field_index_), "dexFieldIndex");
+    addOffset(OFFSETOF_MEMBER(mirror::Field, offset_), "offset");
+    addOffset(OFFSETOF_MEMBER(mirror::Field, type_), "type");
+  };
+};
+
+struct AbstractMethodOffsets : public CheckOffsets<mirror::AbstractMethod> {
+  AbstractMethodOffsets() : CheckOffsets<mirror::AbstractMethod>(
+      false, "Ljava/lang/reflect/AbstractMethod;") {
+    addOffset(OFFSETOF_MEMBER(mirror::AbstractMethod, access_flags_), "accessFlags");
+    addOffset(OFFSETOF_MEMBER(mirror::AbstractMethod, art_method_), "artMethod");
+    addOffset(OFFSETOF_MEMBER(mirror::AbstractMethod, declaring_class_), "declaringClass");
+    addOffset(OFFSETOF_MEMBER(mirror::AbstractMethod, declaring_class_of_overridden_method_),
+              "declaringClassOfOverriddenMethod");
+    addOffset(OFFSETOF_MEMBER(mirror::AbstractMethod, dex_method_index_), "dexMethodIndex");
   };
 };
 
@@ -629,6 +654,7 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(FinalizerReferenceOffsets().Check());
   EXPECT_TRUE(AccessibleObjectOffsets().Check());
   EXPECT_TRUE(FieldOffsets().Check());
+  EXPECT_TRUE(AbstractMethodOffsets().Check());
 }
 
 TEST_F(ClassLinkerTest, FindClassNonexistent) {
