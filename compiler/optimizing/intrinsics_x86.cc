@@ -828,7 +828,7 @@ void IntrinsicLocationsBuilderX86::VisitMathRoundFloat(HInvoke* invoke) {
                                                               LocationSummary::kNoCall,
                                                               kIntrinsified);
     locations->SetInAt(0, Location::RequiresFpuRegister());
-    locations->SetOut(Location::RequiresFpuRegister());
+    locations->SetOut(Location::RequiresRegister());
     locations->AddTemp(Location::RequiresFpuRegister());
     locations->AddTemp(Location::RequiresFpuRegister());
     return;
