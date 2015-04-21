@@ -1064,8 +1064,10 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
         outer_graph->AddBlock(current);
         outer_graph->reverse_post_order_.Put(++index_of_at, current);
         if (info != nullptr) {
-          info->Add(current);
           current->SetLoopInformation(info);
+          for (HLoopInformationOutwardIterator loop_it(*at); !loop_it.Done(); loop_it.Advance()) {
+            loop_it.Current()->Add(current);
+          }
         }
       }
     }
@@ -1075,8 +1077,10 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     outer_graph->AddBlock(to);
     outer_graph->reverse_post_order_.Put(++index_of_at, to);
     if (info != nullptr) {
-      info->Add(to);
       to->SetLoopInformation(info);
+      for (HLoopInformationOutwardIterator loop_it(*at); !loop_it.Done(); loop_it.Advance()) {
+        loop_it.Current()->Add(to);
+      }
       if (info->IsBackEdge(*at)) {
         // Only `at` can become a back edge, as the inlined blocks
         // are predecessors of `at`.

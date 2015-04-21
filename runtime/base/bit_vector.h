@@ -173,6 +173,8 @@ class BitVector {
    */
   bool SameBitsSet(const BitVector *src) const;
 
+  bool IsSubsetOf(const BitVector *other) const;
+
   // Count the number of bits that are set.
   uint32_t NumSetBits() const;
 
