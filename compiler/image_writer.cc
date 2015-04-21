@@ -776,7 +776,7 @@ void ImageWriter::CheckNonImageClassesRemovedCallback(Object* obj, void* arg) {
 }
 
 void ImageWriter::DumpImageClasses() {
-  const std::set<std::string>* image_classes = compiler_driver_.GetImageClasses();
+  auto image_classes = compiler_driver_.GetImageClasses();
   CHECK(image_classes != NULL);
   for (const std::string& image_class : *image_classes) {
     LOG(INFO) << " " << image_class;

@@ -23,6 +23,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #if defined(__linux__) && defined(__arm__)
@@ -1102,7 +1103,7 @@ class Dex2Oat FINAL {
         return false;
       }
     } else if (image_) {
-      image_classes_.reset(new std::set<std::string>);
+      image_classes_.reset(new std::unordered_set<std::string>);
     }
     // If --compiled-classes was specified, calculate the full list of classes to compile in the
     // image.
@@ -1615,20 +1616,22 @@ class Dex2Oat FINAL {
   }
 
   // Reads the class names (java.lang.Object) and returns a set of descriptors (Ljava/lang/Object;)
-  static std::set<std::string>* ReadImageClassesFromFile(const char* image_classes_filename) {
+  static std::unordered_set<std::string>* ReadImageClassesFromFile(
+      const char* image_classes_filename) {
     std::unique_ptr<std::ifstream> image_classes_file(new std::ifstream(image_classes_filename,
                                                                         std::ifstream::in));
     if (image_classes_file.get() == nullptr) {
       LOG(ERROR) << "Failed to open image classes file " << image_classes_filename;
       return nullptr;
     }
-    std::unique_ptr<std::set<std::string>> result(ReadImageClasses(*image_classes_file));
+    std::unique_ptr<std::unordered_set<std::string>> result(ReadImageClasses(*image_classes_file));
     image_classes_file->close();
     return result.release();
   }
 
-  static std::set<std::string>* ReadImageClasses(std::istream& image_classes_stream) {
-    std::unique_ptr<std::set<std::string>> image_classes(new std::set<std::string>);
+  static std::unordered_set<std::string>* ReadImageClasses(std::istream& image_classes_stream) {
+    std::unique_ptr<std::unordered_set<std::string>> image_classes(
+        new std::unordered_set<std::string>);
     while (image_classes_stream.good()) {
       std::string dot;
       std::getline(image_classes_stream, dot);
@@ -1642,9 +1645,10 @@ class Dex2Oat FINAL {
   }
 
   // Reads the class names (java.lang.Object) and returns a set of descriptors (Ljava/lang/Object;)
-  static std::set<std::string>* ReadImageClassesFromZip(const char* zip_filename,
-                                                        const char* image_classes_filename,
-                                                        std::string* error_msg) {
+  static std::unordered_set<std::string>* ReadImageClassesFromZip(
+      const char* zip_filename,
+      const char* image_classes_filename,
+      std::string* error_msg) {
     std::unique_ptr<ZipArchive> zip_archive(ZipArchive::Open(zip_filename, error_msg));
     if (zip_archive.get() == nullptr) {
       return nullptr;
@@ -1720,8 +1724,8 @@ class Dex2Oat FINAL {
   const char* image_classes_filename_;
   const char* compiled_classes_zip_filename_;
   const char* compiled_classes_filename_;
-  std::unique_ptr<std::set<std::string>> image_classes_;
-  std::unique_ptr<std::set<std::string>> compiled_classes_;
+  std::unique_ptr<std::unordered_set<std::string>> image_classes_;
+  std::unique_ptr<std::unordered_set<std::string>> compiled_classes_;
   bool image_;
   std::unique_ptr<ImageWriter> image_writer_;
   bool is_host_;
