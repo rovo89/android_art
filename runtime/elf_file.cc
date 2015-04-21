@@ -1606,9 +1606,6 @@ bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
   if (base_address_delta == 0) {
     return true;
   }
-  if (!ApplyOatPatchesTo(".eh_frame", base_address_delta)) {
-    return false;
-  }
   if (!ApplyOatPatchesTo(".debug_info", base_address_delta)) {
     return false;
   }
