@@ -79,6 +79,32 @@ bool BitVector::SameBitsSet(const BitVector *src) const {
   return (memcmp(storage_, src->GetRawStorage(), our_highest_index * kWordBytes) == 0);
 }
 
+bool BitVector::IsSubsetOf(const BitVector *other) const {
+  int this_highest = GetHighestBitSet();
+  int other_highest = other->GetHighestBitSet();
+
+  // If the highest bit set is -1, this is empty and a trivial subset.
+  if (this_highest < 0) {
+    return true;
+  }
+
+  // If the highest bit set is higher, this cannot be a subset.
+  if (this_highest > other_highest) {
+    return false;
+  }
+
+  // Compare each 32-bit word.
+  size_t this_highest_index = BitsToWords(this_highest + 1);
+  for (size_t i = 0; i < this_highest_index; ++i) {
+    uint32_t this_storage = storage_[i];
+    uint32_t other_storage = other->storage_[i];
+    if ((this_storage | other_storage) != other_storage) {
+      return false;
+    }
+  }
+  return true;
+}
+
 void BitVector::Intersect(const BitVector* src) {
   uint32_t src_storage_size = src->storage_size_;
 

@@ -167,4 +167,48 @@ TEST(BitVector, UnionIfNotIn) {
   }
 }
 
+TEST(BitVector, Subset) {
+  {
+    BitVector first(2, true, Allocator::GetMallocAllocator());
+    BitVector second(5, true, Allocator::GetMallocAllocator());
+
+    EXPECT_TRUE(first.IsSubsetOf(&second));
+    second.SetBit(4);
+    EXPECT_TRUE(first.IsSubsetOf(&second));
+  }
+
+  {
+    BitVector first(5, true, Allocator::GetMallocAllocator());
+    BitVector second(5, true, Allocator::GetMallocAllocator());
+
+    first.SetBit(5);
+    EXPECT_FALSE(first.IsSubsetOf(&second));
+    second.SetBit(4);
+    EXPECT_FALSE(first.IsSubsetOf(&second));
+  }
+
+  {
+    BitVector first(5, true, Allocator::GetMallocAllocator());
+    BitVector second(5, true, Allocator::GetMallocAllocator());
+
+    first.SetBit(16);
+    first.SetBit(32);
+    first.SetBit(48);
+    second.SetBit(16);
+    second.SetBit(32);
+    second.SetBit(48);
+
+    EXPECT_TRUE(first.IsSubsetOf(&second));
+    second.SetBit(8);
+    EXPECT_TRUE(first.IsSubsetOf(&second));
+    second.SetBit(40);
+    EXPECT_TRUE(first.IsSubsetOf(&second));
+    second.SetBit(52);
+    EXPECT_TRUE(first.IsSubsetOf(&second));
+
+    first.SetBit(9);
+    EXPECT_FALSE(first.IsSubsetOf(&second));
+  }
+}
+
 }  // namespace art
