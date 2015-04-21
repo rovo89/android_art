@@ -62,7 +62,7 @@ static void TestCode(const uint16_t* data,
 
   check_after_cf(graph);
 
-  HDeadCodeElimination(graph, nullptr).Run();
+  HDeadCodeElimination(graph).Run();
   SSAChecker ssa_checker_dce(&allocator, graph);
   ssa_checker_dce.Run();
   ASSERT_TRUE(ssa_checker_dce.IsValid());
