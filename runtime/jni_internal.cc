@@ -42,6 +42,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/field-inl.h"
+#include "mirror/method.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
@@ -361,19 +362,13 @@ class JNI {
     ScopedObjectAccess soa(env);
     mirror::ArtMethod* m = soa.DecodeMethod(mid);
     CHECK(!kMovingMethods);
-    ScopedLocalRef<jobject> art_method(env, soa.AddLocalReference<jobject>(m));
-    jobject reflect_method;
+    mirror::AbstractMethod* method;
     if (m->IsConstructor()) {
-      reflect_method = env->AllocObject(WellKnownClasses::java_lang_reflect_Constructor);
+      method = mirror::Constructor::CreateFromArtMethod(soa.Self(), m);
     } else {
-      reflect_method = env->AllocObject(WellKnownClasses::java_lang_reflect_Method);
+      method = mirror::Method::CreateFromArtMethod(soa.Self(), m);
     }
-    if (env->ExceptionCheck()) {
-      return nullptr;
-    }
-    SetObjectField(env, reflect_method,
-                   WellKnownClasses::java_lang_reflect_AbstractMethod_artMethod, art_method.get());
-    return reflect_method;
+    return soa.AddLocalReference<jobject>(method);
   }
 
   static jobject ToReflectedField(JNIEnv* env, jclass, jfieldID fid, jboolean) {

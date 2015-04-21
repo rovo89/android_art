@@ -50,6 +50,7 @@ static bool IsMethodPublic(JNIEnv* env, jclass c, jmethodID method_id) {
   int modifiers = env->CallIntMethod(reflected.get(), mid);
   static const int PUBLIC = 0x0001;  // java.lang.reflect.Modifiers.PUBLIC
   if ((modifiers & PUBLIC) == 0) {
+    fprintf(stderr, "Modifiers mismatch\n");
     return false;
   }
   return true;

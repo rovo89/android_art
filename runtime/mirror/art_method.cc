@@ -16,6 +16,7 @@
 
 #include "art_method.h"
 
+#include "abstract_method.h"
 #include "arch/context.h"
 #include "art_field-inl.h"
 #include "art_method-inl.h"
@@ -53,13 +54,10 @@ GcRoot<Class> ArtMethod::java_lang_reflect_ArtMethod_;
 
 ArtMethod* ArtMethod::FromReflectedMethod(const ScopedObjectAccessAlreadyRunnable& soa,
                                           jobject jlr_method) {
-  ArtField* f =
-      soa.DecodeField(WellKnownClasses::java_lang_reflect_AbstractMethod_artMethod);
-  mirror::ArtMethod* method = f->GetObject(soa.Decode<mirror::Object*>(jlr_method))->AsArtMethod();
-  DCHECK(method != nullptr);
-  return method;
+  auto* abstract_method = soa.Decode<mirror::AbstractMethod*>(jlr_method);
+  DCHECK(abstract_method != nullptr);
+  return abstract_method->GetArtMethod();
 }
-
 
 void ArtMethod::VisitRoots(RootVisitor* visitor) {
   java_lang_reflect_ArtMethod_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
@@ -545,6 +543,32 @@ void ArtMethod::UnregisterNative() {
   CHECK(IsNative() && !IsFastNative()) << PrettyMethod(this);
   // restore stub to lookup native pointer via dlsym
   RegisterNative(GetJniDlsymLookupStub(), false);
+}
+
+bool ArtMethod::EqualParameters(Handle<mirror::ObjectArray<mirror::Class>> params) {
+  auto* dex_cache = GetDexCache();
+  auto* dex_file = dex_cache->GetDexFile();
+  const auto& method_id = dex_file->GetMethodId(GetDexMethodIndex());
+  const auto& proto_id = dex_file->GetMethodPrototype(method_id);
+  const DexFile::TypeList* proto_params = dex_file->GetProtoParameters(proto_id);
+  auto count = proto_params != nullptr ? proto_params->Size() : 0u;
+  auto param_len = params.Get() != nullptr ? params->GetLength() : 0u;
+  if (param_len != count) {
+    return false;
+  }
+  auto* cl = Runtime::Current()->GetClassLinker();
+  for (size_t i = 0; i < count; ++i) {
+    auto type_idx = proto_params->GetTypeItem(i).type_idx_;
+    auto* type = cl->ResolveType(type_idx, this);
+    if (type == nullptr) {
+      Thread::Current()->AssertPendingException();
+      return false;
+    }
+    if (type != params->GetWithoutChecks(i)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 }  // namespace mirror

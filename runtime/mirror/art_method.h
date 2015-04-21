@@ -541,6 +541,10 @@ class MANAGED ArtMethod FINAL : public Object {
 
   ALWAYS_INLINE ArtMethod* GetInterfaceMethodIfProxy() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // May cause thread suspension due to class resolution.
+  bool EqualParameters(Handle<mirror::ObjectArray<mirror::Class>> params)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   static size_t SizeWithoutPointerFields(size_t pointer_size) {
     size_t total = sizeof(ArtMethod) - sizeof(PtrSizedFields);
 #ifdef ART_METHOD_HAS_PADDING_FIELD_ON_64_BIT
