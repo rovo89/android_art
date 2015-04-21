@@ -341,7 +341,7 @@ int LiveInterval::FindFirstRegisterHint(size_t* free_until) const {
   size_t end = GetEnd();
   while (use != nullptr && use->GetPosition() <= end) {
     size_t use_position = use->GetPosition();
-    if (use_position >= start) {
+    if (use_position >= start && !use->IsSynthesized()) {
       HInstruction* user = use->GetUser();
       size_t input_index = use->GetInputIndex();
       if (user->IsPhi()) {
