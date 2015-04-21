@@ -28,7 +28,9 @@
 namespace art {
 namespace dwarf {
 
-static void WriteEhFrameCIE(InstructionSet isa, std::vector<uint8_t>* eh_frame) {
+static void WriteEhFrameCIE(InstructionSet isa,
+                            ExceptionHeaderValueApplication addr_type,
+                            std::vector<uint8_t>* eh_frame) {
   // Scratch registers should be marked as undefined.  This tells the
   // debugger that its value in the previous frame is not recoverable.
   bool is64bit = Is64BitInstructionSet(isa);
@@ -53,8 +55,8 @@ static void WriteEhFrameCIE(InstructionSet isa, std::vector<uint8_t>* eh_frame) 
           opcodes.SameValue(Reg::ArmFp(reg));
         }
       }
-      auto return_address_reg = Reg::ArmCore(14);  // R14(LR).
-      WriteEhFrameCIE(is64bit, return_address_reg, opcodes, eh_frame);
+      auto return_reg = Reg::ArmCore(14);  // R14(LR).
+      WriteEhFrameCIE(is64bit, addr_type, return_reg, opcodes, eh_frame);
       return;
     }
     case kArm64: {
@@ -76,8 +78,8 @@ static void WriteEhFrameCIE(InstructionSet isa, std::vector<uint8_t>* eh_frame) 
           opcodes.SameValue(Reg::Arm64Fp(reg));
         }
       }
-      auto return_address_reg = Reg::Arm64Core(30);  // R30(LR).
-      WriteEhFrameCIE(is64bit, return_address_reg, opcodes, eh_frame);
+      auto return_reg = Reg::Arm64Core(30);  // R30(LR).
+      WriteEhFrameCIE(is64bit, addr_type, return_reg, opcodes, eh_frame);
       return;
     }
     case kMips:
@@ -92,8 +94,8 @@ static void WriteEhFrameCIE(InstructionSet isa, std::vector<uint8_t>* eh_frame) 
           opcodes.SameValue(Reg::MipsCore(reg));
         }
       }
-      auto return_address_reg = Reg::MipsCore(31);  // R31(RA).
-      WriteEhFrameCIE(is64bit, return_address_reg, opcodes, eh_frame);
+      auto return_reg = Reg::MipsCore(31);  // R31(RA).
+      WriteEhFrameCIE(is64bit, addr_type, return_reg, opcodes, eh_frame);
       return;
     }
     case kX86: {
@@ -114,8 +116,8 @@ static void WriteEhFrameCIE(InstructionSet isa, std::vector<uint8_t>* eh_frame) 
       for (int reg = 0; reg < 8; reg++) {
         opcodes.Undefined(Reg::X86Fp(reg));
       }
-      auto return_address_reg = Reg::X86Core(8);  // R8(EIP).
-      WriteEhFrameCIE(is64bit, return_address_reg, opcodes, eh_frame);
+      auto return_reg = Reg::X86Core(8);  // R8(EIP).
+      WriteEhFrameCIE(is64bit, addr_type, return_reg, opcodes, eh_frame);
       return;
     }
     case kX86_64: {
@@ -140,8 +142,8 @@ static void WriteEhFrameCIE(InstructionSet isa, std::vector<uint8_t>* eh_frame) 
           opcodes.SameValue(Reg::X86_64Fp(reg));
         }
       }
-      auto return_address_reg = Reg::X86_64Core(16);  // R16(RIP).
-      WriteEhFrameCIE(is64bit, return_address_reg, opcodes, eh_frame);
+      auto return_reg = Reg::X86_64Core(16);  // R16(RIP).
+      WriteEhFrameCIE(is64bit, addr_type, return_reg, opcodes, eh_frame);
       return;
     }
     case kNone:
@@ -152,22 +154,37 @@ static void WriteEhFrameCIE(InstructionSet isa, std::vector<uint8_t>* eh_frame) 
 }
 
 void WriteEhFrame(const CompilerDriver* compiler,
-                  OatWriter* oat_writer,
-                  uint32_t text_section_offset,
-                  std::vector<uint8_t>* eh_frame) {
+                  const OatWriter* oat_writer,
+                  ExceptionHeaderValueApplication address_type,
+                  std::vector<uint8_t>* eh_frame,
+                  std::vector<uintptr_t>* eh_frame_patches,
+                  std::vector<uint8_t>* eh_frame_hdr) {
   const auto& method_infos = oat_writer->GetMethodDebugInfo();
   const InstructionSet isa = compiler->GetInstructionSet();
+
+  // Write .eh_frame section.
   size_t cie_offset = eh_frame->size();
-  auto* eh_frame_patches = oat_writer->GetAbsolutePatchLocationsFor(".eh_frame");
-  WriteEhFrameCIE(isa, eh_frame);
+  WriteEhFrameCIE(isa, address_type, eh_frame);
   for (const OatWriter::DebugInfo& mi : method_infos) {
     const SwapVector<uint8_t>* opcodes = mi.compiled_method_->GetCFIInfo();
     if (opcodes != nullptr) {
       WriteEhFrameFDE(Is64BitInstructionSet(isa), cie_offset,
-                      text_section_offset + mi.low_pc_, mi.high_pc_ - mi.low_pc_,
+                      mi.low_pc_, mi.high_pc_ - mi.low_pc_,
                       opcodes, eh_frame, eh_frame_patches);
     }
   }
+
+  // Write .eh_frame_hdr section.
+  Writer<> header(eh_frame_hdr);
+  header.PushUint8(1);  // Version.
+  header.PushUint8(DW_EH_PE_pcrel | DW_EH_PE_sdata4);  // Encoding of .eh_frame pointer.
+  header.PushUint8(DW_EH_PE_omit);  // Encoding of binary search table size.
+  header.PushUint8(DW_EH_PE_omit);  // Encoding of binary search table addresses.
+  // .eh_frame pointer - .eh_frame_hdr section is after .eh_frame section, and need to encode
+  // relative to this location as libunwind doesn't honor datarel for eh_frame_hdr correctly.
+  header.PushInt32(-static_cast<int32_t>(eh_frame->size() + 4U));
+  // Omit binary search table size (number of entries).
+  // Omit binary search table.
 }
 
 /*
@@ -175,17 +192,20 @@ void WriteEhFrame(const CompilerDriver* compiler,
  * @param oat_writer The Oat file Writer.
  * @param eh_frame Call Frame Information.
  * @param debug_info Compilation unit information.
+ * @param debug_info_patches Address locations to be patched.
  * @param debug_abbrev Abbreviations used to generate dbg_info.
  * @param debug_str Debug strings.
  * @param debug_line Line number table.
+ * @param debug_line_patches Address locations to be patched.
  */
 void WriteDebugSections(const CompilerDriver* compiler,
-                        OatWriter* oat_writer,
-                        uint32_t text_section_offset,
+                        const OatWriter* oat_writer,
                         std::vector<uint8_t>* debug_info,
+                        std::vector<uintptr_t>* debug_info_patches,
                         std::vector<uint8_t>* debug_abbrev,
                         std::vector<uint8_t>* debug_str,
-                        std::vector<uint8_t>* debug_line) {
+                        std::vector<uint8_t>* debug_line,
+                        std::vector<uintptr_t>* debug_line_patches) {
   const std::vector<OatWriter::DebugInfo>& method_infos = oat_writer->GetMethodDebugInfo();
   const InstructionSet isa = compiler->GetInstructionSet();
 
@@ -229,8 +249,8 @@ void WriteDebugSections(const CompilerDriver* compiler,
     info.StartTag(DW_TAG_compile_unit, DW_CHILDREN_yes);
     info.WriteStrp(DW_AT_producer, "Android dex2oat", debug_str);
     info.WriteData1(DW_AT_language, DW_LANG_Java);
-    info.WriteAddr(DW_AT_low_pc, cunit_low_pc + text_section_offset);
-    info.WriteAddr(DW_AT_high_pc, cunit_high_pc + text_section_offset);
+    info.WriteAddr(DW_AT_low_pc, cunit_low_pc);
+    info.WriteAddr(DW_AT_high_pc, cunit_high_pc);
     info.WriteData4(DW_AT_stmt_list, debug_line->size());
     for (auto method_info : compilation_unit) {
       std::string method_name = PrettyMethod(method_info->dex_method_index_,
@@ -240,12 +260,11 @@ void WriteDebugSections(const CompilerDriver* compiler,
       }
       info.StartTag(DW_TAG_subprogram, DW_CHILDREN_no);
       info.WriteStrp(DW_AT_name, method_name.data(), debug_str);
-      info.WriteAddr(DW_AT_low_pc, method_info->low_pc_ + text_section_offset);
-      info.WriteAddr(DW_AT_high_pc, method_info->high_pc_ + text_section_offset);
+      info.WriteAddr(DW_AT_low_pc, method_info->low_pc_);
+      info.WriteAddr(DW_AT_high_pc, method_info->high_pc_);
       info.EndTag();  // DW_TAG_subprogram
     }
     info.EndTag();  // DW_TAG_compile_unit
-    auto* debug_info_patches = oat_writer->GetAbsolutePatchLocationsFor(".debug_info");
     WriteDebugInfoCU(debug_abbrev_offset, info, debug_info, debug_info_patches);
 
     // Write .debug_line section.
@@ -272,7 +291,7 @@ void WriteDebugSections(const CompilerDriver* compiler,
         break;
     }
     DebugLineOpCodeWriter<> opcodes(false /* 32bit */, code_factor_bits_);
-    opcodes.SetAddress(text_section_offset + cunit_low_pc);
+    opcodes.SetAddress(cunit_low_pc);
     if (dwarf_isa != -1) {
       opcodes.SetISA(dwarf_isa);
     }
@@ -343,7 +362,6 @@ void WriteDebugSections(const CompilerDriver* compiler,
 
       // Generate mapping opcodes from PC to Java lines.
       const DefaultSrcMap& dex2line_map = debug_info_callbacks.dex2line_;
-      uint32_t low_pc = text_section_offset + mi->low_pc_;
       if (file_index != 0 && !dex2line_map.empty()) {
         bool first = true;
         for (SrcMapElem pc2dex : mi->compiled_method_->GetSrcMappingTable()) {
@@ -359,24 +377,23 @@ void WriteDebugSections(const CompilerDriver* compiler,
                 int first_line = dex2line_map.front().to_;
                 // Prologue is not a sensible place for a breakpoint.
                 opcodes.NegateStmt();
-                opcodes.AddRow(low_pc, first_line);
+                opcodes.AddRow(mi->low_pc_, first_line);
                 opcodes.NegateStmt();
                 opcodes.SetPrologueEnd();
               }
-              opcodes.AddRow(low_pc + pc, line);
+              opcodes.AddRow(mi->low_pc_ + pc, line);
             } else if (line != opcodes.CurrentLine()) {
-              opcodes.AddRow(low_pc + pc, line);
+              opcodes.AddRow(mi->low_pc_ + pc, line);
             }
           }
         }
       } else {
         // line 0 - instruction cannot be attributed to any source line.
-        opcodes.AddRow(low_pc, 0);
+        opcodes.AddRow(mi->low_pc_, 0);
       }
     }
-    opcodes.AdvancePC(text_section_offset + cunit_high_pc);
+    opcodes.AdvancePC(cunit_high_pc);
     opcodes.EndSequence();
-    auto* debug_line_patches = oat_writer->GetAbsolutePatchLocationsFor(".debug_line");
     WriteDebugLineTable(directories, files, opcodes, debug_line, debug_line_patches);
   }
 }
