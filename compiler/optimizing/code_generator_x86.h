@@ -174,8 +174,10 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
   void GenerateMemoryBarrier(MemBarrierKind kind);
   void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
+  // Push value to FPU stack. `is_fp` specifies whether the value is floating point or not.
+  // `is_wide` specifies whether it is long/double or not.
   void PushOntoFPStack(Location source, uint32_t temp_offset,
-                       uint32_t stack_adjustment, bool is_float);
+                       uint32_t stack_adjustment, bool is_fp, bool is_wide);
 
   void GenerateImplicitNullCheck(HNullCheck* instruction);
   void GenerateExplicitNullCheck(HNullCheck* instruction);
