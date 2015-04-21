@@ -1007,7 +1007,7 @@ void IntrinsicCodeGeneratorARM64::VisitStringCompareTo(HInvoke* invoke) {
   LocationSummary* locations = invoke->GetLocations();
 
   // Note that the null check must have been done earlier.
-  DCHECK(!invoke->CanDoImplicitNullCheck());
+  DCHECK(!invoke->CanDoImplicitNullCheckOn(invoke->InputAt(0)));
 
   Register argument = WRegisterFrom(locations->InAt(1));
   __ Cmp(argument, 0);
