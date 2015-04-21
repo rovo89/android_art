@@ -704,7 +704,6 @@ static void CreateSSE41FPToIntLocations(ArenaAllocator* arena,
     locations->SetInAt(0, Location::RequiresFpuRegister());
     locations->SetOut(Location::RequiresFpuRegister());
     locations->AddTemp(Location::RequiresFpuRegister());
-    locations->AddTemp(Location::RequiresFpuRegister());
     return;
   }
 
@@ -732,14 +731,12 @@ void IntrinsicCodeGeneratorX86_64::VisitMathRoundFloat(HInvoke* invoke) {
   // Implement RoundFloat as t1 = floor(input + 0.5f);  convert to int.
   XmmRegister in = locations->InAt(0).AsFpuRegister<XmmRegister>();
   CpuRegister out = locations->Out().AsRegister<CpuRegister>();
-  XmmRegister maxInt = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
-  XmmRegister inPlusPointFive = locations->GetTemp(1).AsFpuRegister<XmmRegister>();
+  XmmRegister inPlusPointFive = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
   Label done, nan;
   X86_64Assembler* assembler = GetAssembler();
 
-  // Generate 0.5 into inPlusPointFive.
-  __ movl(out, Immediate(bit_cast<int32_t, float>(0.5f)));
-  __ movd(inPlusPointFive, out, false);
+  // Load 0.5 into inPlusPointFive.
+  __ movss(inPlusPointFive, codegen_->LiteralFloatAddress(0.5f));
 
   // Add in the input.
   __ addss(inPlusPointFive, in);
@@ -747,12 +744,8 @@ void IntrinsicCodeGeneratorX86_64::VisitMathRoundFloat(HInvoke* invoke) {
   // And truncate to an integer.
   __ roundss(inPlusPointFive, inPlusPointFive, Immediate(1));
 
-  __ movl(out, Immediate(kPrimIntMax));
-  // maxInt = int-to-float(out)
-  __ cvtsi2ss(maxInt, out);
-
   // if inPlusPointFive >= maxInt goto done
-  __ comiss(inPlusPointFive, maxInt);
+  __ comiss(inPlusPointFive, codegen_->LiteralFloatAddress(static_cast<float>(kPrimIntMax)));
   __ j(kAboveEqual, &done);
 
   // if input == NaN goto nan
@@ -782,14 +775,12 @@ void IntrinsicCodeGeneratorX86_64::VisitMathRoundDouble(HInvoke* invoke) {
   // Implement RoundDouble as t1 = floor(input + 0.5);  convert to long.
   XmmRegister in = locations->InAt(0).AsFpuRegister<XmmRegister>();
   CpuRegister out = locations->Out().AsRegister<CpuRegister>();
-  XmmRegister maxLong = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
-  XmmRegister inPlusPointFive = locations->GetTemp(1).AsFpuRegister<XmmRegister>();
+  XmmRegister inPlusPointFive = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
   Label done, nan;
   X86_64Assembler* assembler = GetAssembler();
 
-  // Generate 0.5 into inPlusPointFive.
-  __ movq(out, Immediate(bit_cast<int64_t, double>(0.5)));
-  __ movd(inPlusPointFive, out, true);
+  // Load 0.5 into inPlusPointFive.
+  __ movsd(inPlusPointFive, codegen_->LiteralDoubleAddress(0.5));
 
   // Add in the input.
   __ addsd(inPlusPointFive, in);
@@ -797,12 +788,8 @@ void IntrinsicCodeGeneratorX86_64::VisitMathRoundDouble(HInvoke* invoke) {
   // And truncate to an integer.
   __ roundsd(inPlusPointFive, inPlusPointFive, Immediate(1));
 
-  __ movq(out, Immediate(kPrimLongMax));
-  // maxLong = long-to-double(out)
-  __ cvtsi2sd(maxLong, out, true);
-
   // if inPlusPointFive >= maxLong goto done
-  __ comisd(inPlusPointFive, maxLong);
+  __ comisd(inPlusPointFive, codegen_->LiteralDoubleAddress(static_cast<double>(kPrimLongMax)));
   __ j(kAboveEqual, &done);
 
   // if input == NaN goto nan
@@ -960,26 +947,48 @@ static void CreateIntIntToVoidLocations(ArenaAllocator* arena, HInvoke* invoke) 
                                                            LocationSummary::kNoCall,
                                                            kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrInt32LongConstant(invoke->InputAt(1)));
 }
 
 static void GenPoke(LocationSummary* locations, Primitive::Type size, X86_64Assembler* assembler) {
   CpuRegister address = locations->InAt(0).AsRegister<CpuRegister>();
-  CpuRegister value = locations->InAt(1).AsRegister<CpuRegister>();
+  Location value = locations->InAt(1);
   // x86 allows unaligned access. We do not have to check the input or use specific instructions
   // to avoid a SIGBUS.
   switch (size) {
     case Primitive::kPrimByte:
-      __ movb(Address(address, 0), value);
+      if (value.IsConstant()) {
+        __ movb(Address(address, 0),
+                Immediate(CodeGenerator::GetInt32ValueOf(value.GetConstant())));
+      } else {
+        __ movb(Address(address, 0), value.AsRegister<CpuRegister>());
+      }
       break;
     case Primitive::kPrimShort:
-      __ movw(Address(address, 0), value);
+      if (value.IsConstant()) {
+        __ movw(Address(address, 0),
+                Immediate(CodeGenerator::GetInt32ValueOf(value.GetConstant())));
+      } else {
+        __ movw(Address(address, 0), value.AsRegister<CpuRegister>());
+      }
       break;
     case Primitive::kPrimInt:
-      __ movl(Address(address, 0), value);
+      if (value.IsConstant()) {
+        __ movl(Address(address, 0),
+                Immediate(CodeGenerator::GetInt32ValueOf(value.GetConstant())));
+      } else {
+        __ movl(Address(address, 0), value.AsRegister<CpuRegister>());
+      }
       break;
     case Primitive::kPrimLong:
-      __ movq(Address(address, 0), value);
+      if (value.IsConstant()) {
+        int64_t v = value.GetConstant()->AsLongConstant()->GetValue();
+        DCHECK(IsInt<32>(v));
+        int32_t v_32 = v;
+        __ movq(Address(address, 0), Immediate(v_32));
+      } else {
+        __ movq(Address(address, 0), value.AsRegister<CpuRegister>());
+      }
       break;
     default:
       LOG(FATAL) << "Type not recognized for poke: " << size;
