@@ -16,6 +16,7 @@
 
 #include "common_runtime_test.h"
 
+#include <cstdio>
 #include <dirent.h>
 #include <dlfcn.h>
 #include <fcntl.h>
@@ -186,6 +187,82 @@ void CommonRuntimeTest::TearDownAndroidData(const std::string& android_data, boo
   } else {
     rmdir(android_data.c_str());
   }
+}
+
+// Helper - find directory with the following format:
+// ${ANDROID_BUILD_TOP}/${subdir1}/${subdir2}-${version}/${subdir3}/bin/
+static std::string GetAndroidToolsDir(const std::string& subdir1,
+                                      const std::string& subdir2,
+                                      const std::string& subdir3) {
+  std::string root;
+  const char* android_build_top = getenv("ANDROID_BUILD_TOP");
+  if (android_build_top != nullptr) {
+    root = android_build_top;
+  } else {
+    // Not set by build server, so default to current directory
+    char* cwd = getcwd(nullptr, 0);
+    setenv("ANDROID_BUILD_TOP", cwd, 1);
+    root = cwd;
+    free(cwd);
+  }
+
+  std::string toolsdir = root + "/" + subdir1;
+  std::string founddir;
+  DIR* dir;
+  if ((dir = opendir(toolsdir.c_str())) != nullptr) {
+    float maxversion = 0;
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+      std::string format = subdir2 + "-%f";
+      float version;
+      if (std::sscanf(entry->d_name, format.c_str(), &version) == 1) {
+        if (version > maxversion) {
+          maxversion = version;
+          founddir = toolsdir + "/" + entry->d_name + "/" + subdir3 + "/bin/";
+        }
+      }
+    }
+    closedir(dir);
+  }
+
+  if (founddir.empty()) {
+    ADD_FAILURE() << "Can not find Android tools directory.";
+  }
+  return founddir;
+}
+
+std::string CommonRuntimeTest::GetAndroidHostToolsDir() {
+  return GetAndroidToolsDir("prebuilts/gcc/linux-x86/host",
+                            "x86_64-linux-glibc2.15",
+                            "x86_64-linux");
+}
+
+std::string CommonRuntimeTest::GetAndroidTargetToolsDir(InstructionSet isa) {
+  switch (isa) {
+    case kArm:
+    case kThumb2:
+      return GetAndroidToolsDir("prebuilts/gcc/linux-x86/arm",
+                                "arm-linux-androideabi",
+                                "arm-linux-androideabi");
+    case kArm64:
+      return GetAndroidToolsDir("prebuilts/gcc/linux-x86/aarch64",
+                                "aarch64-linux-android",
+                                "aarch64-linux-android");
+    case kX86:
+    case kX86_64:
+      return GetAndroidToolsDir("prebuilts/gcc/linux-x86/x86",
+                                "x86_64-linux-android",
+                                "x86_64-linux-android");
+    case kMips:
+    case kMips64:
+      return GetAndroidToolsDir("prebuilts/gcc/linux-x86/mips",
+                                "mips64el-linux-android",
+                                "mips64el-linux-android");
+    case kNone:
+      break;
+  }
+  ADD_FAILURE() << "Invalid isa " << isa;
+  return "";
 }
 
 std::string CommonRuntimeTest::GetCoreArtLocation() {

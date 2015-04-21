@@ -55,36 +55,6 @@ class DwarfTest : public CommonRuntimeTest {
     expected_lines_.push_back(ExpectedLine {substr, next, at_file, at_line});
   }
 
-  static std::string GetObjdumpPath() {
-    const char* android_build_top = getenv("ANDROID_BUILD_TOP");
-    if (android_build_top != nullptr) {
-      std::string host_prebuilts = std::string(android_build_top) +
-                                   "/prebuilts/gcc/linux-x86/host/";
-      // Read the content of the directory.
-      std::set<std::string> entries;
-      DIR* dir = opendir(host_prebuilts.c_str());
-      if (dir != nullptr) {
-        struct dirent* entry;
-        while ((entry = readdir(dir)) != nullptr) {
-          if (strstr(entry->d_name, "linux-glibc")) {
-            entries.insert(host_prebuilts + entry->d_name);
-          }
-        }
-        closedir(dir);
-      }
-      // Strings are sorted so the last one should be the most recent version.
-      if (!entries.empty()) {
-        std::string path = *entries.rbegin() + "/x86_64-linux/bin/objdump";
-        struct stat st;
-        if (stat(path.c_str(), &st) == 0) {
-          return path;  // File exists.
-        }
-      }
-    }
-    ADD_FAILURE() << "Can not find prebuild objdump.";
-    return "objdump";  // Use the system objdump as fallback.
-  }
-
   // Pretty-print the generated DWARF data using objdump.
   template<typename Elf_Word, typename Elf_Sword, typename Elf_Addr, typename Elf_Dyn,
            typename Elf_Sym, typename Elf_Ehdr, typename Elf_Phdr, typename Elf_Shdr>
@@ -130,8 +100,8 @@ class DwarfTest : public CommonRuntimeTest {
 
     // Read the elf file back using objdump.
     std::vector<std::string> lines;
-    std::string cmd = GetObjdumpPath();
-    cmd = cmd + " " + args + " " + file.GetFilename() + " 2>&1";
+    std::string cmd = GetAndroidHostToolsDir();
+    cmd = cmd + "objdump " + args + " " + file.GetFilename() + " 2>&1";
     FILE* output = popen(cmd.data(), "r");
     char buffer[1024];
     const char* line;
