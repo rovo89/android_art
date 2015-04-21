@@ -25,6 +25,7 @@
 #include "dex_file-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "handle_scope-inl.h"
+#include "method.h"
 #include "object_array-inl.h"
 #include "object-inl.h"
 #include "runtime.h"
@@ -874,6 +875,27 @@ Class* Class::CopyOf(Thread* self, int32_t new_length,
 bool Class::ProxyDescriptorEquals(const char* match) {
   DCHECK(IsProxyClass());
   return Runtime::Current()->GetClassLinker()->GetDescriptorForProxy(this) == match;
+}
+
+mirror::ArtMethod* Class::GetDeclaredConstructor(
+    Thread* self, Handle<mirror::ObjectArray<mirror::Class>> args) {
+  auto* direct_methods = GetDirectMethods();
+  size_t count = direct_methods != nullptr ? direct_methods->GetLength() : 0u;
+  for (size_t i = 0; i < count; ++i) {
+    auto* m = direct_methods->GetWithoutChecks(i);
+    // Skip <clinit> which is a static constructor, as well as non constructors.
+    if (m->IsStatic() || !m->IsConstructor()) {
+      continue;
+    }
+    // May cause thread suspension and exceptions.
+    if (m->EqualParameters(args)) {
+      return m;
+    }
+    if (self->IsExceptionPending()) {
+      return nullptr;
+    }
+  }
+  return nullptr;
 }
 
 }  // namespace mirror

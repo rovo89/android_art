@@ -65,8 +65,9 @@ void InvokeWithShadowFrame(Thread* self, ShadowFrame* shadow_frame, uint16_t arg
                            JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+// num_frames is number of frames we look up for access check.
 jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject method, jobject receiver,
-                     jobject args, bool accessible)
+                     jobject args, size_t num_frames = 1)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 ALWAYS_INLINE bool VerifyObjectIsClass(mirror::Object* o, mirror::Class* c)

@@ -26,6 +26,7 @@
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
+#include "mirror/method.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "runtime.h"
@@ -760,11 +761,12 @@ extern "C" uint64_t artQuickProxyInvokeHandler(mirror::ArtMethod* proxy_method,
   mirror::ArtMethod* interface_method = proxy_method->FindOverriddenMethod();
   DCHECK(interface_method != nullptr) << PrettyMethod(proxy_method);
   DCHECK(!interface_method->IsProxyMethod()) << PrettyMethod(interface_method);
-  jobject interface_method_jobj = soa.AddLocalReference<jobject>(interface_method);
+  self->EndAssertNoThreadSuspension(old_cause);
+  jobject interface_method_jobj = soa.AddLocalReference<jobject>(
+      mirror::Method::CreateFromArtMethod(soa.Self(), interface_method));
 
   // All naked Object*s should now be in jobjects, so its safe to go into the main invoke code
   // that performs allocations.
-  self->EndAssertNoThreadSuspension(old_cause);
   JValue result = InvokeProxyInvocationHandler(soa, shorty, rcvr_jobj, interface_method_jobj, args);
   // Restore references which might have moved.
   local_ref_visitor.FixupReferences();

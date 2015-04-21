@@ -77,6 +77,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/field.h"
+#include "mirror/method.h"
 #include "mirror/stack_trace_element.h"
 #include "mirror/throwable.h"
 #include "monitor.h"
@@ -1308,7 +1309,9 @@ void Runtime::VisitConstantRoots(RootVisitor* visitor) {
   // need to be visited once per GC since they never change.
   mirror::ArtMethod::VisitRoots(visitor);
   mirror::Class::VisitRoots(visitor);
+  mirror::Constructor::VisitRoots(visitor);
   mirror::Reference::VisitRoots(visitor);
+  mirror::Method::VisitRoots(visitor);
   mirror::StackTraceElement::VisitRoots(visitor);
   mirror::String::VisitRoots(visitor);
   mirror::Throwable::VisitRoots(visitor);

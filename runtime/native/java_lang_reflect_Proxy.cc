@@ -30,13 +30,12 @@ static jclass Proxy_generateProxy(JNIEnv* env, jclass, jstring name, jobjectArra
                                   jobject loader, jobjectArray methods, jobjectArray throws) {
   ScopedFastNativeObjectAccess soa(env);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  mirror::Class* result = class_linker->CreateProxyClass(soa, name, interfaces, loader, methods,
-                                                         throws);
-  return soa.AddLocalReference<jclass>(result);
+  return soa.AddLocalReference<jclass>(class_linker->CreateProxyClass(
+      soa, name, interfaces, loader, methods, throws));
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Proxy, generateProxy, "!(Ljava/lang/String;[Ljava/lang/Class;Ljava/lang/ClassLoader;[Ljava/lang/reflect/ArtMethod;[[Ljava/lang/Class;)Ljava/lang/Class;"),
+  NATIVE_METHOD(Proxy, generateProxy, "!(Ljava/lang/String;[Ljava/lang/Class;Ljava/lang/ClassLoader;[Ljava/lang/reflect/Method;[[Ljava/lang/Class;)Ljava/lang/Class;"),
 };
 
 void register_java_lang_reflect_Proxy(JNIEnv* env) {

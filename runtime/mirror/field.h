@@ -82,15 +82,12 @@ class MANAGED Field : public AccessibleObject {
   }
 
   static void SetClass(Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  static void SetArrayClass(Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   static void ResetClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  static void SetArrayClass(Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void ResetArrayClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static void VisitRoots(RootVisitor* visitor)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static void VisitRoots(RootVisitor* visitor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Slow, try to use only for PrettyField and such.
   ArtField* GetArtField() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
