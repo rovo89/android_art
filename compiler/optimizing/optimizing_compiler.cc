@@ -320,7 +320,8 @@ static void RunOptimizations(HGraph* graph,
                              const DexCompilationUnit& dex_compilation_unit,
                              PassInfoPrinter* pass_info_printer,
                              StackHandleScopeCollection* handles) {
-  HDeadCodeElimination dce(graph);
+  HDeadCodeElimination dce1(graph, stats);
+  HDeadCodeElimination dce2(graph, stats);
   HConstantFolding fold1(graph);
   InstructionSimplifier simplify1(graph, stats);
   HBooleanSimplifier boolean_not(graph);
@@ -339,7 +340,7 @@ static void RunOptimizations(HGraph* graph,
 
   HOptimization* optimizations[] = {
     &intrinsics,
-    &dce,
+    &dce1,
     &fold1,
     &simplify1,
     // BooleanSimplifier depends on the InstructionSimplifier removing redundant
@@ -352,7 +353,8 @@ static void RunOptimizations(HGraph* graph,
     &licm,
     &bce,
     &type_propagation,
-    &simplify2
+    &simplify2,
+    &dce2,
   };
 
   RunOptimizations(optimizations, arraysize(optimizations), pass_info_printer);
