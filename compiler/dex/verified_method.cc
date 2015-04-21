@@ -166,7 +166,7 @@ void VerifiedMethod::VerifyGcMap(verifier::MethodVerifier* method_verifier,
         }
       }
     } else {
-      DCHECK(i >= 65536 || reg_bitmap == NULL);
+      DCHECK(i >= 65536 || reg_bitmap == nullptr);
     }
   }
 }
@@ -283,7 +283,7 @@ void VerifiedMethod::GenerateDevirtMap(verifier::MethodVerifier* method_verifier
     }
     mirror::ArtMethod* abstract_method = method_verifier->GetDexCache()->GetResolvedMethod(
         is_range ? inst->VRegB_3rc() : inst->VRegB_35c());
-    if (abstract_method == NULL) {
+    if (abstract_method == nullptr) {
       // If the method is not found in the cache this means that it was never found
       // by ResolveMethodAndCheckAccess() called when verifying invoke_*.
       continue;

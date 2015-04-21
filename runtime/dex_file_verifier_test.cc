@@ -105,14 +105,14 @@ static std::unique_ptr<const DexFile> OpenDexFileBase64(const char* base64,
                                                         const char* location,
                                                         std::string* error_msg) {
   // decode base64
-  CHECK(base64 != NULL);
+  CHECK(base64 != nullptr);
   size_t length;
   std::unique_ptr<uint8_t[]> dex_bytes(DecodeBase64(base64, &length));
-  CHECK(dex_bytes.get() != NULL);
+  CHECK(dex_bytes.get() != nullptr);
 
   // write to provided file
   std::unique_ptr<File> file(OS::CreateEmptyFile(location));
-  CHECK(file.get() != NULL);
+  CHECK(file.get() != nullptr);
   if (!file->WriteFully(dex_bytes.get(), length)) {
     PLOG(FATAL) << "Failed to write base64 as dex file";
   }
@@ -178,7 +178,7 @@ static std::unique_ptr<const DexFile> FixChecksumAndOpen(uint8_t* bytes, size_t 
 
   // write to provided file
   std::unique_ptr<File> file(OS::CreateEmptyFile(location));
-  CHECK(file.get() != NULL);
+  CHECK(file.get() != nullptr);
   if (!file->WriteFully(bytes, length)) {
     PLOG(FATAL) << "Failed to write base64 as dex file";
   }
@@ -205,7 +205,7 @@ static bool ModifyAndLoad(const char* location, size_t offset, uint8_t new_val,
   // Decode base64.
   size_t length;
   std::unique_ptr<uint8_t[]> dex_bytes(DecodeBase64(kGoodTestDex, &length));
-  CHECK(dex_bytes.get() != NULL);
+  CHECK(dex_bytes.get() != nullptr);
 
   // Make modifications.
   dex_bytes.get()[offset] = new_val;

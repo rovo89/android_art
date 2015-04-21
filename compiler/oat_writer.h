@@ -235,13 +235,13 @@ class OatWriter {
     // used to validate file position when writing.
     size_t offset_;
 
-    // CompiledMethods for each class_def_method_index, or NULL if no method is available.
+    // CompiledMethods for each class_def_method_index, or null if no method is available.
     std::vector<CompiledMethod*> compiled_methods_;
 
     // Offset from OatClass::offset_ to the OatMethodOffsets for the
     // class_def_method_index. If 0, it means the corresponding
     // CompiledMethod entry in OatClass::compiled_methods_ should be
-    // NULL and that the OatClass::type_ should be kOatClassBitmap.
+    // null and that the OatClass::type_ should be kOatClassBitmap.
     std::vector<uint32_t> oat_method_offsets_offsets_from_oat_class_;
 
     // data to write
@@ -258,12 +258,12 @@ class OatWriter {
     // OatClassType::type_ is kOatClassBitmap, a set bit indicates the
     // method has an OatMethodOffsets in methods_offsets_, otherwise
     // the entry was ommited to save space. If OatClassType::type_ is
-    // not is kOatClassBitmap, the bitmap will be NULL.
+    // not is kOatClassBitmap, the bitmap will be null.
     BitVector* method_bitmap_;
 
     // OatMethodOffsets and OatMethodHeaders for each CompiledMethod
     // present in the OatClass. Note that some may be missing if
-    // OatClass::compiled_methods_ contains NULL values (and
+    // OatClass::compiled_methods_ contains null values (and
     // oat_method_offsets_offsets_from_oat_class_ should contain 0
     // values in this case).
     std::vector<OatMethodOffsets> method_offsets_;

@@ -31,7 +31,7 @@ bool ScopedFlock::Init(const char* filename, std::string* error_msg) {
       UNUSED(file_->FlushCloseOrErase());  // Ignore result.
     }
     file_.reset(OS::OpenFileWithFlags(filename, O_CREAT | O_RDWR));
-    if (file_.get() == NULL) {
+    if (file_.get() == nullptr) {
       *error_msg = StringPrintf("Failed to open file '%s': %s", filename, strerror(errno));
       return false;
     }
@@ -71,14 +71,15 @@ bool ScopedFlock::Init(File* file, std::string* error_msg) {
   }
   if (0 != TEMP_FAILURE_RETRY(flock(file_->Fd(), LOCK_EX))) {
     file_.reset();
-    *error_msg = StringPrintf("Failed to lock file '%s': %s", file->GetPath().c_str(), strerror(errno));
+    *error_msg = StringPrintf(
+        "Failed to lock file '%s': %s", file->GetPath().c_str(), strerror(errno));
     return false;
   }
   return true;
 }
 
 File* ScopedFlock::GetFile() {
-  CHECK(file_.get() != NULL);
+  CHECK(file_.get() != nullptr);
   return file_.get();
 }
 
@@ -89,7 +90,7 @@ bool ScopedFlock::HasFile() {
 ScopedFlock::ScopedFlock() { }
 
 ScopedFlock::~ScopedFlock() {
-  if (file_.get() != NULL) {
+  if (file_.get() != nullptr) {
     int flock_result = TEMP_FAILURE_RETRY(flock(file_->Fd(), LOCK_UN));
     CHECK_EQ(0, flock_result);
     if (file_->FlushCloseOrErase() != 0) {

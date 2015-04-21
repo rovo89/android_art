@@ -566,7 +566,7 @@ LIR* MipsMir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
 /* Load value from base + scaled index. */
 LIR* MipsMir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest,
                                   int scale, OpSize size) {
-  LIR *first = NULL;
+  LIR *first = nullptr;
   LIR *res;
   MipsOpCode opcode = kMipsNop;
   bool is64bit = cu_->target64 && r_dest.Is64Bit();
@@ -640,7 +640,7 @@ LIR* MipsMir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStor
 // Store value base base + scaled index.
 LIR* MipsMir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
                                    int scale, OpSize size) {
-  LIR *first = NULL;
+  LIR *first = nullptr;
   MipsOpCode opcode = kMipsNop;
   RegStorage t_reg = AllocTemp();
 
@@ -696,8 +696,8 @@ LIR* MipsMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStora
  * rlp and then restore.
  */
   LIR *res;
-  LIR *load = NULL;
-  LIR *load2 = NULL;
+  LIR *load = nullptr;
+  LIR *load2 = nullptr;
   MipsOpCode opcode = kMipsNop;
   bool short_form = IS_SIMM16(displacement);
   bool is64bit = false;
@@ -857,8 +857,8 @@ LIR* MipsMir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r
 LIR* MipsMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStorage r_src,
                                     OpSize size) {
   LIR *res;
-  LIR *store = NULL;
-  LIR *store2 = NULL;
+  LIR *store = nullptr;
+  LIR *store2 = nullptr;
   MipsOpCode opcode = kMipsNop;
   bool short_form = IS_SIMM16(displacement);
   bool is64bit = false;

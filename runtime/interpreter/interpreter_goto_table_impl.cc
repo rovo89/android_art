@@ -55,7 +55,8 @@ namespace interpreter {
   } while (false)
 
 #define UPDATE_HANDLER_TABLE() \
-  currentHandlersTable = handlersTable[Runtime::Current()->GetInstrumentation()->GetInterpreterHandlerTable()]
+  currentHandlersTable = handlersTable[ \
+      Runtime::Current()->GetInstrumentation()->GetInterpreterHandlerTable()]
 
 #define BACKWARD_BRANCH_INSTRUMENTATION(offset) \
   do { \
@@ -328,10 +329,10 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
     self->AllowThreadSuspension();
     const uint8_t vreg_index = inst->VRegA_11x(inst_data);
     Object* obj_result = shadow_frame.GetVRegReference(vreg_index);
-    if (do_assignability_check && obj_result != NULL) {
+    if (do_assignability_check && obj_result != nullptr) {
       Class* return_type = shadow_frame.GetMethod()->GetReturnType();
       obj_result = shadow_frame.GetVRegReference(vreg_index);
-      if (return_type == NULL) {
+      if (return_type == nullptr) {
         // Return the pending exception.
         HANDLE_PENDING_EXCEPTION();
       }
@@ -364,7 +365,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
     int32_t val = inst->VRegB_11n(inst_data);
     shadow_frame.SetVReg(dst, val);
     if (val == 0) {
-      shadow_frame.SetVRegReference(dst, NULL);
+      shadow_frame.SetVRegReference(dst, nullptr);
     }
     ADVANCE(1);
   }
@@ -375,7 +376,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
     int32_t val = inst->VRegB_21s();
     shadow_frame.SetVReg(dst, val);
     if (val == 0) {
-      shadow_frame.SetVRegReference(dst, NULL);
+      shadow_frame.SetVRegReference(dst, nullptr);
     }
     ADVANCE(2);
   }
@@ -386,7 +387,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
     int32_t val = inst->VRegB_31i();
     shadow_frame.SetVReg(dst, val);
     if (val == 0) {
-      shadow_frame.SetVRegReference(dst, NULL);
+      shadow_frame.SetVRegReference(dst, nullptr);
     }
     ADVANCE(3);
   }
@@ -397,7 +398,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
     int32_t val = static_cast<int32_t>(inst->VRegB_21h() << 16);
     shadow_frame.SetVReg(dst, val);
     if (val == 0) {
-      shadow_frame.SetVRegReference(dst, NULL);
+      shadow_frame.SetVRegReference(dst, nullptr);
     }
     ADVANCE(2);
   }
@@ -426,7 +427,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 
   HANDLE_INSTRUCTION_START(CONST_STRING) {
     String* s = ResolveString(self, shadow_frame, inst->VRegB_21c());
-    if (UNLIKELY(s == NULL)) {
+    if (UNLIKELY(s == nullptr)) {
       HANDLE_PENDING_EXCEPTION();
     } else {
       shadow_frame.SetVRegReference(inst->VRegA_21c(inst_data), s);
@@ -437,7 +438,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 
   HANDLE_INSTRUCTION_START(CONST_STRING_JUMBO) {
     String* s = ResolveString(self, shadow_frame, inst->VRegB_31c());
-    if (UNLIKELY(s == NULL)) {
+    if (UNLIKELY(s == nullptr)) {
       HANDLE_PENDING_EXCEPTION();
     } else {
       shadow_frame.SetVRegReference(inst->VRegA_31c(inst_data), s);
@@ -449,7 +450,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   HANDLE_INSTRUCTION_START(CONST_CLASS) {
     Class* c = ResolveVerifyAndClinit(inst->VRegB_21c(), shadow_frame.GetMethod(),
                                       self, false, do_access_check);
-    if (UNLIKELY(c == NULL)) {
+    if (UNLIKELY(c == nullptr)) {
       HANDLE_PENDING_EXCEPTION();
     } else {
       shadow_frame.SetVRegReference(inst->VRegA_21c(inst_data), c);
@@ -460,7 +461,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 
   HANDLE_INSTRUCTION_START(MONITOR_ENTER) {
     Object* obj = shadow_frame.GetVRegReference(inst->VRegA_11x(inst_data));
-    if (UNLIKELY(obj == NULL)) {
+    if (UNLIKELY(obj == nullptr)) {
       ThrowNullPointerExceptionFromInterpreter();
       HANDLE_PENDING_EXCEPTION();
     } else {
@@ -472,7 +473,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 
   HANDLE_INSTRUCTION_START(MONITOR_EXIT) {
     Object* obj = shadow_frame.GetVRegReference(inst->VRegA_11x(inst_data));
-    if (UNLIKELY(obj == NULL)) {
+    if (UNLIKELY(obj == nullptr)) {
       ThrowNullPointerExceptionFromInterpreter();
       HANDLE_PENDING_EXCEPTION();
     } else {
@@ -485,11 +486,11 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   HANDLE_INSTRUCTION_START(CHECK_CAST) {
     Class* c = ResolveVerifyAndClinit(inst->VRegB_21c(), shadow_frame.GetMethod(),
                                       self, false, do_access_check);
-    if (UNLIKELY(c == NULL)) {
+    if (UNLIKELY(c == nullptr)) {
       HANDLE_PENDING_EXCEPTION();
     } else {
       Object* obj = shadow_frame.GetVRegReference(inst->VRegA_21c(inst_data));
-      if (UNLIKELY(obj != NULL && !obj->InstanceOf(c))) {
+      if (UNLIKELY(obj != nullptr && !obj->InstanceOf(c))) {
         ThrowClassCastException(c, obj->GetClass());
         HANDLE_PENDING_EXCEPTION();
       } else {
@@ -502,11 +503,11 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   HANDLE_INSTRUCTION_START(INSTANCE_OF) {
     Class* c = ResolveVerifyAndClinit(inst->VRegC_22c(), shadow_frame.GetMethod(),
                                       self, false, do_access_check);
-    if (UNLIKELY(c == NULL)) {
+    if (UNLIKELY(c == nullptr)) {
       HANDLE_PENDING_EXCEPTION();
     } else {
       Object* obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
-      shadow_frame.SetVReg(inst->VRegA_22c(inst_data), (obj != NULL && obj->InstanceOf(c)) ? 1 : 0);
+      shadow_frame.SetVReg(inst->VRegA_22c(inst_data), (obj != nullptr && obj->InstanceOf(c)) ? 1 : 0);
       ADVANCE(2);
     }
   }
@@ -514,7 +515,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 
   HANDLE_INSTRUCTION_START(ARRAY_LENGTH) {
     Object* array = shadow_frame.GetVRegReference(inst->VRegB_12x(inst_data));
-    if (UNLIKELY(array == NULL)) {
+    if (UNLIKELY(array == nullptr)) {
       ThrowNullPointerExceptionFromInterpreter();
       HANDLE_PENDING_EXCEPTION();
     } else {
@@ -529,7 +530,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
     Object* obj = AllocObjectFromCode<do_access_check, true>(
         inst->VRegB_21c(), shadow_frame.GetMethod(), self,
         runtime->GetHeap()->GetCurrentAllocator());
-    if (UNLIKELY(obj == NULL)) {
+    if (UNLIKELY(obj == nullptr)) {
       HANDLE_PENDING_EXCEPTION();
     } else {
       obj->GetClass()->AssertInitializedOrInitializingInThread(self);
@@ -551,7 +552,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
     Object* obj = AllocArrayFromCode<do_access_check, true>(
         inst->VRegC_22c(), length, shadow_frame.GetMethod(), self,
         Runtime::Current()->GetHeap()->GetCurrentAllocator());
-    if (UNLIKELY(obj == NULL)) {
+    if (UNLIKELY(obj == nullptr)) {
       HANDLE_PENDING_EXCEPTION();
     } else {
       shadow_frame.SetVRegReference(inst->VRegA_22c(inst_data), obj);
@@ -591,7 +592,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 
   HANDLE_INSTRUCTION_START(THROW) {
     Object* exception = shadow_frame.GetVRegReference(inst->VRegA_11x(inst_data));
-    if (UNLIKELY(exception == NULL)) {
+    if (UNLIKELY(exception == nullptr)) {
       ThrowNullPointerException("throw with null exception");
     } else if (do_assignability_check && !exception->GetClass()->IsThrowableClass()) {
       // This should never happen.
@@ -778,7 +779,8 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IF_NE) {
-    if (shadow_frame.GetVReg(inst->VRegA_22t(inst_data)) != shadow_frame.GetVReg(inst->VRegB_22t(inst_data))) {
+    if (shadow_frame.GetVReg(inst->VRegA_22t(inst_data)) !=
+        shadow_frame.GetVReg(inst->VRegB_22t(inst_data))) {
       int16_t offset = inst->VRegC_22t();
       if (IsBackwardBranch(offset)) {
         BACKWARD_BRANCH_INSTRUMENTATION(offset);
@@ -795,7 +797,8 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IF_LT) {
-    if (shadow_frame.GetVReg(inst->VRegA_22t(inst_data)) < shadow_frame.GetVReg(inst->VRegB_22t(inst_data))) {
+    if (shadow_frame.GetVReg(inst->VRegA_22t(inst_data)) <
+        shadow_frame.GetVReg(inst->VRegB_22t(inst_data))) {
       int16_t offset = inst->VRegC_22t();
       if (IsBackwardBranch(offset)) {
         BACKWARD_BRANCH_INSTRUMENTATION(offset);
@@ -812,7 +815,8 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IF_GE) {
-    if (shadow_frame.GetVReg(inst->VRegA_22t(inst_data)) >= shadow_frame.GetVReg(inst->VRegB_22t(inst_data))) {
+    if (shadow_frame.GetVReg(inst->VRegA_22t(inst_data)) >=
+        shadow_frame.GetVReg(inst->VRegB_22t(inst_data))) {
       int16_t offset = inst->VRegC_22t();
       if (IsBackwardBranch(offset)) {
         BACKWARD_BRANCH_INSTRUMENTATION(offset);
@@ -829,7 +833,8 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IF_GT) {
-    if (shadow_frame.GetVReg(inst->VRegA_22t(inst_data)) > shadow_frame.GetVReg(inst->VRegB_22t(inst_data))) {
+    if (shadow_frame.GetVReg(inst->VRegA_22t(inst_data)) >
+    shadow_frame.GetVReg(inst->VRegB_22t(inst_data))) {
       int16_t offset = inst->VRegC_22t();
       if (IsBackwardBranch(offset)) {
         BACKWARD_BRANCH_INSTRUMENTATION(offset);
@@ -846,7 +851,8 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IF_LE) {
-    if (shadow_frame.GetVReg(inst->VRegA_22t(inst_data)) <= shadow_frame.GetVReg(inst->VRegB_22t(inst_data))) {
+    if (shadow_frame.GetVReg(inst->VRegA_22t(inst_data)) <=
+        shadow_frame.GetVReg(inst->VRegB_22t(inst_data))) {
       int16_t offset = inst->VRegC_22t();
       if (IsBackwardBranch(offset)) {
         BACKWARD_BRANCH_INSTRUMENTATION(offset);
@@ -966,7 +972,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 
   HANDLE_INSTRUCTION_START(AGET_BOOLEAN) {
     Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
-    if (UNLIKELY(a == NULL)) {
+    if (UNLIKELY(a == nullptr)) {
       ThrowNullPointerExceptionFromInterpreter();
       HANDLE_PENDING_EXCEPTION();
     } else {
@@ -984,7 +990,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 
   HANDLE_INSTRUCTION_START(AGET_BYTE) {
     Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
-    if (UNLIKELY(a == NULL)) {
+    if (UNLIKELY(a == nullptr)) {
       ThrowNullPointerExceptionFromInterpreter();
       HANDLE_PENDING_EXCEPTION();
     } else {
@@ -1002,7 +1008,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 
   HANDLE_INSTRUCTION_START(AGET_CHAR) {
     Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
-    if (UNLIKELY(a == NULL)) {
+    if (UNLIKELY(a == nullptr)) {
       ThrowNullPointerExceptionFromInterpreter();
       HANDLE_PENDING_EXCEPTION();
     } else {
@@ -1020,7 +1026,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 
   HANDLE_INSTRUCTION_START(AGET_SHORT) {
     Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
-    if (UNLIKELY(a == NULL)) {
+    if (UNLIKELY(a == nullptr)) {
       ThrowNullPointerExceptionFromInterpreter();
       HANDLE_PENDING_EXCEPTION();
     } else {
@@ -1038,7 +1044,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 
   HANDLE_INSTRUCTION_START(AGET) {
     Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
-    if (UNLIKELY(a == NULL)) {
+    if (UNLIKELY(a == nullptr)) {
       ThrowNullPointerExceptionFromInterpreter();
       HANDLE_PENDING_EXCEPTION();
     } else {
@@ -1056,7 +1062,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 
   HANDLE_INSTRUCTION_START(AGET_WIDE)  {
     Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
-    if (UNLIKELY(a == NULL)) {
+    if (UNLIKELY(a == nullptr)) {
       ThrowNullPointerExceptionFromInterpreter();
       HANDLE_PENDING_EXCEPTION();
     } else {
@@ -1074,7 +1080,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 
   HANDLE_INSTRUCTION_START(AGET_OBJECT) {
     Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
-    if (UNLIKELY(a == NULL)) {
+    if (UNLIKELY(a == nullptr)) {
       ThrowNullPointerExceptionFromInterpreter();
       HANDLE_PENDING_EXCEPTION();
     } else {
@@ -1092,7 +1098,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 
   HANDLE_INSTRUCTION_START(APUT_BOOLEAN) {
     Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
-    if (UNLIKELY(a == NULL)) {
+    if (UNLIKELY(a == nullptr)) {
       ThrowNullPointerExceptionFromInterpreter();
       HANDLE_PENDING_EXCEPTION();
     } else {
@@ -1111,7 +1117,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 
   HANDLE_INSTRUCTION_START(APUT_BYTE) {
     Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
-    if (UNLIKELY(a == NULL)) {
+    if (UNLIKELY(a == nullptr)) {
       ThrowNullPointerExceptionFromInterpreter();
       HANDLE_PENDING_EXCEPTION();
     } else {
@@ -1130,7 +1136,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 
   HANDLE_INSTRUCTION_START(APUT_CHAR) {
     Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
-    if (UNLIKELY(a == NULL)) {
+    if (UNLIKELY(a == nullptr)) {
       ThrowNullPointerExceptionFromInterpreter();
       HANDLE_PENDING_EXCEPTION();
     } else {
@@ -1149,7 +1155,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 
   HANDLE_INSTRUCTION_START(APUT_SHORT) {
     Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
-    if (UNLIKELY(a == NULL)) {
+    if (UNLIKELY(a == nullptr)) {
       ThrowNullPointerExceptionFromInterpreter();
       HANDLE_PENDING_EXCEPTION();
     } else {
@@ -1168,7 +1174,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 
   HANDLE_INSTRUCTION_START(APUT) {
     Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
-    if (UNLIKELY(a == NULL)) {
+    if (UNLIKELY(a == nullptr)) {
       ThrowNullPointerExceptionFromInterpreter();
       HANDLE_PENDING_EXCEPTION();
     } else {
@@ -1187,7 +1193,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 
   HANDLE_INSTRUCTION_START(APUT_WIDE) {
     Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
-    if (UNLIKELY(a == NULL)) {
+    if (UNLIKELY(a == nullptr)) {
       ThrowNullPointerExceptionFromInterpreter();
       HANDLE_PENDING_EXCEPTION();
     } else {
@@ -1206,7 +1212,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 
   HANDLE_INSTRUCTION_START(APUT_OBJECT) {
     Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
-    if (UNLIKELY(a == NULL)) {
+    if (UNLIKELY(a == nullptr)) {
       ThrowNullPointerExceptionFromInterpreter();
       HANDLE_PENDING_EXCEPTION();
     } else {
@@ -1224,43 +1230,50 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IGET_BOOLEAN) {
-    bool success = DoFieldGet<InstancePrimitiveRead, Primitive::kPrimBoolean, do_access_check>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldGet<InstancePrimitiveRead, Primitive::kPrimBoolean, do_access_check>(
+        self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IGET_BYTE) {
-    bool success = DoFieldGet<InstancePrimitiveRead, Primitive::kPrimByte, do_access_check>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldGet<InstancePrimitiveRead, Primitive::kPrimByte, do_access_check>(
+        self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IGET_CHAR) {
-    bool success = DoFieldGet<InstancePrimitiveRead, Primitive::kPrimChar, do_access_check>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldGet<InstancePrimitiveRead, Primitive::kPrimChar, do_access_check>(
+        self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IGET_SHORT) {
-    bool success = DoFieldGet<InstancePrimitiveRead, Primitive::kPrimShort, do_access_check>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldGet<InstancePrimitiveRead, Primitive::kPrimShort, do_access_check>(
+        self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IGET) {
-    bool success = DoFieldGet<InstancePrimitiveRead, Primitive::kPrimInt, do_access_check>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldGet<InstancePrimitiveRead, Primitive::kPrimInt, do_access_check>(
+        self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IGET_WIDE) {
-    bool success = DoFieldGet<InstancePrimitiveRead, Primitive::kPrimLong, do_access_check>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldGet<InstancePrimitiveRead, Primitive::kPrimLong, do_access_check>(
+        self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IGET_OBJECT) {
-    bool success = DoFieldGet<InstanceObjectRead, Primitive::kPrimNot, do_access_check>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldGet<InstanceObjectRead, Primitive::kPrimNot, do_access_check>(
+        self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
@@ -1308,314 +1321,366 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(SGET_BOOLEAN) {
-    bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimBoolean, do_access_check>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimBoolean, do_access_check>(
+        self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(SGET_BYTE) {
-    bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimByte, do_access_check>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimByte, do_access_check>(
+        self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(SGET_CHAR) {
-    bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimChar, do_access_check>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimChar, do_access_check>(
+        self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(SGET_SHORT) {
-    bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimShort, do_access_check>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimShort, do_access_check>(
+        self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(SGET) {
-    bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimInt, do_access_check>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimInt, do_access_check>(
+        self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(SGET_WIDE) {
-    bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimLong, do_access_check>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimLong, do_access_check>(
+        self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(SGET_OBJECT) {
-    bool success = DoFieldGet<StaticObjectRead, Primitive::kPrimNot, do_access_check>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldGet<StaticObjectRead, Primitive::kPrimNot, do_access_check>(
+        self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IPUT_BOOLEAN) {
-    bool success = DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimBoolean, do_access_check, transaction_active>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimBoolean, do_access_check,
+        transaction_active>(self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IPUT_BYTE) {
-    bool success = DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimByte, do_access_check, transaction_active>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimByte, do_access_check,
+        transaction_active>(self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IPUT_CHAR) {
-    bool success = DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimChar, do_access_check, transaction_active>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimChar, do_access_check,
+        transaction_active>(self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IPUT_SHORT) {
-    bool success = DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimShort, do_access_check, transaction_active>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimShort, do_access_check,
+        transaction_active>(self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IPUT) {
-    bool success = DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimInt, do_access_check, transaction_active>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimInt, do_access_check,
+        transaction_active>(self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IPUT_WIDE) {
-    bool success = DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimLong, do_access_check, transaction_active>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimLong, do_access_check,
+        transaction_active>(self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IPUT_OBJECT) {
-    bool success = DoFieldPut<InstanceObjectWrite, Primitive::kPrimNot, do_access_check, transaction_active>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldPut<InstanceObjectWrite, Primitive::kPrimNot, do_access_check,
+        transaction_active>(self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IPUT_QUICK) {
-    bool success = DoIPutQuick<Primitive::kPrimInt, transaction_active>(shadow_frame, inst, inst_data);
+    bool success = DoIPutQuick<Primitive::kPrimInt, transaction_active>(
+        shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IPUT_BOOLEAN_QUICK) {
-    bool success = DoIPutQuick<Primitive::kPrimBoolean, transaction_active>(shadow_frame, inst, inst_data);
+    bool success = DoIPutQuick<Primitive::kPrimBoolean, transaction_active>(
+        shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IPUT_BYTE_QUICK) {
-    bool success = DoIPutQuick<Primitive::kPrimByte, transaction_active>(shadow_frame, inst, inst_data);
+    bool success = DoIPutQuick<Primitive::kPrimByte, transaction_active>(
+        shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IPUT_CHAR_QUICK) {
-    bool success = DoIPutQuick<Primitive::kPrimChar, transaction_active>(shadow_frame, inst, inst_data);
+    bool success = DoIPutQuick<Primitive::kPrimChar, transaction_active>(
+        shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IPUT_SHORT_QUICK) {
-    bool success = DoIPutQuick<Primitive::kPrimShort, transaction_active>(shadow_frame, inst, inst_data);
+    bool success = DoIPutQuick<Primitive::kPrimShort, transaction_active>(
+        shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IPUT_WIDE_QUICK) {
-    bool success = DoIPutQuick<Primitive::kPrimLong, transaction_active>(shadow_frame, inst, inst_data);
+    bool success = DoIPutQuick<Primitive::kPrimLong, transaction_active>(
+        shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(IPUT_OBJECT_QUICK) {
-    bool success = DoIPutQuick<Primitive::kPrimNot, transaction_active>(shadow_frame, inst, inst_data);
+    bool success = DoIPutQuick<Primitive::kPrimNot, transaction_active>(
+        shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(SPUT_BOOLEAN) {
-    bool success = DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimBoolean, do_access_check, transaction_active>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimBoolean, do_access_check,
+        transaction_active>(self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(SPUT_BYTE) {
-    bool success = DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimByte, do_access_check, transaction_active>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimByte, do_access_check,
+        transaction_active>(self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(SPUT_CHAR) {
-    bool success = DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimChar, do_access_check, transaction_active>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimChar, do_access_check,
+        transaction_active>(self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(SPUT_SHORT) {
-    bool success = DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimShort, do_access_check, transaction_active>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimShort, do_access_check,
+        transaction_active>(self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(SPUT) {
-    bool success = DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimInt, do_access_check, transaction_active>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimInt, do_access_check,
+        transaction_active>(self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(SPUT_WIDE) {
-    bool success = DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimLong, do_access_check, transaction_active>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimLong, do_access_check,
+        transaction_active>(self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(SPUT_OBJECT) {
-    bool success = DoFieldPut<StaticObjectWrite, Primitive::kPrimNot, do_access_check, transaction_active>(self, shadow_frame, inst, inst_data);
+    bool success = DoFieldPut<StaticObjectWrite, Primitive::kPrimNot, do_access_check,
+        transaction_active>(self, shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_VIRTUAL) {
-    bool success = DoInvoke<kVirtual, false, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
+    bool success = DoInvoke<kVirtual, false, do_access_check>(
+        self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_VIRTUAL_RANGE) {
-    bool success = DoInvoke<kVirtual, true, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
+    bool success = DoInvoke<kVirtual, true, do_access_check>(
+        self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_SUPER) {
-    bool success = DoInvoke<kSuper, false, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
+    bool success = DoInvoke<kSuper, false, do_access_check>(
+        self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_SUPER_RANGE) {
-    bool success = DoInvoke<kSuper, true, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
+    bool success = DoInvoke<kSuper, true, do_access_check>(
+        self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_DIRECT) {
-    bool success = DoInvoke<kDirect, false, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
+    bool success = DoInvoke<kDirect, false, do_access_check>(
+        self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_DIRECT_RANGE) {
-    bool success = DoInvoke<kDirect, true, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
+    bool success = DoInvoke<kDirect, true, do_access_check>(
+        self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_INTERFACE) {
-    bool success = DoInvoke<kInterface, false, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
+    bool success = DoInvoke<kInterface, false, do_access_check>(
+        self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_INTERFACE_RANGE) {
-    bool success = DoInvoke<kInterface, true, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
+    bool success = DoInvoke<kInterface, true, do_access_check>(
+        self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_STATIC) {
-    bool success = DoInvoke<kStatic, false, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
+    bool success = DoInvoke<kStatic, false, do_access_check>(
+        self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_STATIC_RANGE) {
-    bool success = DoInvoke<kStatic, true, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
+    bool success = DoInvoke<kStatic, true, do_access_check>(
+        self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_VIRTUAL_QUICK) {
-    bool success = DoInvokeVirtualQuick<false>(self, shadow_frame, inst, inst_data, &result_register);
+    bool success = DoInvokeVirtualQuick<false>(
+        self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_VIRTUAL_RANGE_QUICK) {
-    bool success = DoInvokeVirtualQuick<true>(self, shadow_frame, inst, inst_data, &result_register);
+    bool success = DoInvokeVirtualQuick<true>(
+        self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(NEG_INT)
-    shadow_frame.SetVReg(inst->VRegA_12x(inst_data), -shadow_frame.GetVReg(inst->VRegB_12x(inst_data)));
+    shadow_frame.SetVReg(
+        inst->VRegA_12x(inst_data), -shadow_frame.GetVReg(inst->VRegB_12x(inst_data)));
     ADVANCE(1);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(NOT_INT)
-    shadow_frame.SetVReg(inst->VRegA_12x(inst_data), ~shadow_frame.GetVReg(inst->VRegB_12x(inst_data)));
+    shadow_frame.SetVReg(
+        inst->VRegA_12x(inst_data), ~shadow_frame.GetVReg(inst->VRegB_12x(inst_data)));
     ADVANCE(1);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(NEG_LONG)
-    shadow_frame.SetVRegLong(inst->VRegA_12x(inst_data), -shadow_frame.GetVRegLong(inst->VRegB_12x(inst_data)));
+    shadow_frame.SetVRegLong(
+        inst->VRegA_12x(inst_data), -shadow_frame.GetVRegLong(inst->VRegB_12x(inst_data)));
     ADVANCE(1);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(NOT_LONG)
-    shadow_frame.SetVRegLong(inst->VRegA_12x(inst_data), ~shadow_frame.GetVRegLong(inst->VRegB_12x(inst_data)));
+    shadow_frame.SetVRegLong(
+        inst->VRegA_12x(inst_data), ~shadow_frame.GetVRegLong(inst->VRegB_12x(inst_data)));
     ADVANCE(1);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(NEG_FLOAT)
-    shadow_frame.SetVRegFloat(inst->VRegA_12x(inst_data), -shadow_frame.GetVRegFloat(inst->VRegB_12x(inst_data)));
+    shadow_frame.SetVRegFloat(
+        inst->VRegA_12x(inst_data), -shadow_frame.GetVRegFloat(inst->VRegB_12x(inst_data)));
     ADVANCE(1);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(NEG_DOUBLE)
-    shadow_frame.SetVRegDouble(inst->VRegA_12x(inst_data), -shadow_frame.GetVRegDouble(inst->VRegB_12x(inst_data)));
+    shadow_frame.SetVRegDouble(
+        inst->VRegA_12x(inst_data), -shadow_frame.GetVRegDouble(inst->VRegB_12x(inst_data)));
     ADVANCE(1);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INT_TO_LONG)
-    shadow_frame.SetVRegLong(inst->VRegA_12x(inst_data), shadow_frame.GetVReg(inst->VRegB_12x(inst_data)));
+    shadow_frame.SetVRegLong(
+        inst->VRegA_12x(inst_data), shadow_frame.GetVReg(inst->VRegB_12x(inst_data)));
     ADVANCE(1);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INT_TO_FLOAT)
-    shadow_frame.SetVRegFloat(inst->VRegA_12x(inst_data), shadow_frame.GetVReg(inst->VRegB_12x(inst_data)));
+    shadow_frame.SetVRegFloat(
+        inst->VRegA_12x(inst_data), shadow_frame.GetVReg(inst->VRegB_12x(inst_data)));
     ADVANCE(1);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INT_TO_DOUBLE)
-    shadow_frame.SetVRegDouble(inst->VRegA_12x(inst_data), shadow_frame.GetVReg(inst->VRegB_12x(inst_data)));
+    shadow_frame.SetVRegDouble(
+        inst->VRegA_12x(inst_data), shadow_frame.GetVReg(inst->VRegB_12x(inst_data)));
     ADVANCE(1);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(LONG_TO_INT)
-    shadow_frame.SetVReg(inst->VRegA_12x(inst_data), shadow_frame.GetVRegLong(inst->VRegB_12x(inst_data)));
+    shadow_frame.SetVReg(
+        inst->VRegA_12x(inst_data), shadow_frame.GetVRegLong(inst->VRegB_12x(inst_data)));
     ADVANCE(1);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(LONG_TO_FLOAT)
-    shadow_frame.SetVRegFloat(inst->VRegA_12x(inst_data), shadow_frame.GetVRegLong(inst->VRegB_12x(inst_data)));
+    shadow_frame.SetVRegFloat(
+        inst->VRegA_12x(inst_data), shadow_frame.GetVRegLong(inst->VRegB_12x(inst_data)));
     ADVANCE(1);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(LONG_TO_DOUBLE)
-    shadow_frame.SetVRegDouble(inst->VRegA_12x(inst_data), shadow_frame.GetVRegLong(inst->VRegB_12x(inst_data)));
+    shadow_frame.SetVRegDouble(
+        inst->VRegA_12x(inst_data), shadow_frame.GetVRegLong(inst->VRegB_12x(inst_data)));
     ADVANCE(1);
   HANDLE_INSTRUCTION_END();
 
@@ -1636,7 +1701,8 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(FLOAT_TO_DOUBLE)
-    shadow_frame.SetVRegDouble(inst->VRegA_12x(inst_data), shadow_frame.GetVRegFloat(inst->VRegB_12x(inst_data)));
+    shadow_frame.SetVRegDouble(
+        inst->VRegA_12x(inst_data), shadow_frame.GetVRegFloat(inst->VRegB_12x(inst_data)));
     ADVANCE(1);
   HANDLE_INSTRUCTION_END();
 
@@ -1657,7 +1723,8 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(DOUBLE_TO_FLOAT)
-    shadow_frame.SetVRegFloat(inst->VRegA_12x(inst_data), shadow_frame.GetVRegDouble(inst->VRegB_12x(inst_data)));
+    shadow_frame.SetVRegFloat(
+        inst->VRegA_12x(inst_data), shadow_frame.GetVRegDouble(inst->VRegB_12x(inst_data)));
     ADVANCE(1);
   HANDLE_INSTRUCTION_END();
 
@@ -2213,15 +2280,17 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(DIV_INT_LIT16) {
-    bool success = DoIntDivide(shadow_frame, inst->VRegA_22s(inst_data),
-                               shadow_frame.GetVReg(inst->VRegB_22s(inst_data)), inst->VRegC_22s());
+    bool success = DoIntDivide(
+        shadow_frame, inst->VRegA_22s(inst_data), shadow_frame.GetVReg(inst->VRegB_22s(inst_data)),
+        inst->VRegC_22s());
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(REM_INT_LIT16) {
-    bool success = DoIntRemainder(shadow_frame, inst->VRegA_22s(inst_data),
-                                  shadow_frame.GetVReg(inst->VRegB_22s(inst_data)), inst->VRegC_22s());
+    bool success = DoIntRemainder(
+        shadow_frame, inst->VRegA_22s(inst_data), shadow_frame.GetVReg(inst->VRegB_22s(inst_data)),
+        inst->VRegC_22s());
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_INSTRUCTION_END();

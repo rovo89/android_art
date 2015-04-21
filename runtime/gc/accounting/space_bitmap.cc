@@ -104,8 +104,8 @@ void SpaceBitmap<kAlignment>::CopyFrom(SpaceBitmap* source_bitmap) {
 
 template<size_t kAlignment>
 void SpaceBitmap<kAlignment>::Walk(ObjectCallback* callback, void* arg) {
-  CHECK(bitmap_begin_ != NULL);
-  CHECK(callback != NULL);
+  CHECK(bitmap_begin_ != nullptr);
+  CHECK(callback != nullptr);
 
   uintptr_t end = OffsetToIndex(HeapLimit() - heap_begin_ - 1);
   uintptr_t* bitmap_begin = bitmap_begin_;
@@ -132,7 +132,7 @@ void SpaceBitmap<kAlignment>::SweepWalk(const SpaceBitmap<kAlignment>& live_bitm
   CHECK(mark_bitmap.bitmap_begin_ != nullptr);
   CHECK_EQ(live_bitmap.heap_begin_, mark_bitmap.heap_begin_);
   CHECK_EQ(live_bitmap.bitmap_size_, mark_bitmap.bitmap_size_);
-  CHECK(callback != NULL);
+  CHECK(callback != nullptr);
   CHECK_LE(sweep_begin, sweep_end);
   CHECK_GE(sweep_begin, live_bitmap.heap_begin_);
 
@@ -186,7 +186,7 @@ void SpaceBitmap<kAlignment>::WalkInstanceFields(SpaceBitmap<kAlignment>* visite
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Visit fields of parent classes first.
   mirror::Class* super = klass->GetSuperClass();
-  if (super != NULL) {
+  if (super != nullptr) {
     WalkInstanceFields(visited, callback, obj, super, arg);
   }
   // Walk instance fields
@@ -233,7 +233,7 @@ void SpaceBitmap<kAlignment>::WalkFieldsInOrder(SpaceBitmap<kAlignment>* visited
     int32_t length = obj_array->GetLength();
     for (int32_t i = 0; i < length; i++) {
       mirror::Object* value = obj_array->Get(i);
-      if (value != NULL) {
+      if (value != nullptr) {
         WalkFieldsInOrder(visited, callback, value, arg);
       }
     }

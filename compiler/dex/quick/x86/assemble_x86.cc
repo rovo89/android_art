@@ -1633,7 +1633,7 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
   AssemblerStatus res = kSuccess;  // Assume success
 
   const bool kVerbosePcFixup = false;
-  for (lir = first_lir_insn_; lir != NULL; lir = NEXT_LIR(lir)) {
+  for (lir = first_lir_insn_; lir != nullptr; lir = NEXT_LIR(lir)) {
     if (IsPseudoLirOp(lir->opcode)) {
       continue;
     }
@@ -1646,7 +1646,7 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
       switch (lir->opcode) {
         case kX86Jcc8: {
           LIR *target_lir = lir->target;
-          DCHECK(target_lir != NULL);
+          DCHECK(target_lir != nullptr);
           int delta = 0;
           CodeOffset pc;
           if (IS_SIMM8(lir->operands[0])) {
@@ -1679,7 +1679,7 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
         }
         case kX86Jcc32: {
           LIR *target_lir = lir->target;
-          DCHECK(target_lir != NULL);
+          DCHECK(target_lir != nullptr);
           CodeOffset pc = lir->offset + 6 /* 2 byte opcode + rel32 */;
           CodeOffset target = target_lir->offset;
           int delta = target - pc;
@@ -1695,7 +1695,7 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
         }
         case kX86Jecxz8: {
           LIR *target_lir = lir->target;
-          DCHECK(target_lir != NULL);
+          DCHECK(target_lir != nullptr);
           CodeOffset pc;
           pc = lir->offset + 2;  // opcode + rel8
           CodeOffset target = target_lir->offset;
@@ -1706,7 +1706,7 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
         }
         case kX86Jmp8: {
           LIR *target_lir = lir->target;
-          DCHECK(target_lir != NULL);
+          DCHECK(target_lir != nullptr);
           int delta = 0;
           CodeOffset pc;
           if (IS_SIMM8(lir->operands[0])) {
@@ -1738,7 +1738,7 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
         }
         case kX86Jmp32: {
           LIR *target_lir = lir->target;
-          DCHECK(target_lir != NULL);
+          DCHECK(target_lir != nullptr);
           CodeOffset pc = lir->offset + 5 /* opcode + rel32 */;
           CodeOffset target = target_lir->offset;
           int delta = target - pc;
@@ -1748,7 +1748,7 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
         default:
           if (lir->flags.fixup == kFixupLoad) {
             LIR *target_lir = lir->target;
-            DCHECK(target_lir != NULL);
+            DCHECK(target_lir != nullptr);
             CodeOffset target = target_lir->offset;
             // Handle 64 bit RIP addressing.
             if (lir->operands[1] == kRIPReg) {
@@ -1950,7 +1950,7 @@ int X86Mir2Lir::AssignInsnOffsets() {
   LIR* lir;
   int offset = 0;
 
-  for (lir = first_lir_insn_; lir != NULL; lir = NEXT_LIR(lir)) {
+  for (lir = first_lir_insn_; lir != nullptr; lir = NEXT_LIR(lir)) {
     lir->offset = offset;
     if (LIKELY(!IsPseudoLirOp(lir->opcode))) {
       if (!lir->flags.is_nop) {

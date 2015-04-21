@@ -25,7 +25,7 @@
 #error test code compiled without NDEBUG
 #endif
 
-static JavaVM* jvm = NULL;
+static JavaVM* jvm = nullptr;
 
 extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *) {
   assert(vm != nullptr);
@@ -38,7 +38,7 @@ static void* AttachHelper(void* arg) {
   assert(jvm != nullptr);
 
   JNIEnv* env = nullptr;
-  JavaVMAttachArgs args = { JNI_VERSION_1_6, __FUNCTION__, NULL };
+  JavaVMAttachArgs args = { JNI_VERSION_1_6, __FUNCTION__, nullptr };
   int attach_result = jvm->AttachCurrentThread(&env, &args);
   assert(attach_result == 0);
 

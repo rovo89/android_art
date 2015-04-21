@@ -333,7 +333,8 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
     }
     if (after_loop == nullptr) {
       // Uses are only in the loop.
-      first_range_ = last_range_ = range_search_start_ = new (allocator_) LiveRange(start, end, nullptr);
+      first_range_ = last_range_ = range_search_start_ =
+          new (allocator_) LiveRange(start, end, nullptr);
     } else if (after_loop->GetStart() <= end) {
       first_range_ = range_search_start_ = after_loop;
       // There are uses after the loop.
@@ -596,7 +597,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
         previous->next_ = nullptr;
         new_interval->first_range_ = current;
         if (range_search_start_ != nullptr && range_search_start_->GetEnd() >= current->GetEnd()) {
-          // Search start point is inside `new_interval`. Change it to nullptr
+          // Search start point is inside `new_interval`. Change it to null
           // (i.e. the end of the interval) in the original interval.
           range_search_start_ = nullptr;
         }
@@ -863,7 +864,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
         defined_by_(defined_by) {}
 
   // Searches for a LiveRange that either covers the given position or is the
-  // first next LiveRange. Returns nullptr if no such LiveRange exists. Ranges
+  // first next LiveRange. Returns null if no such LiveRange exists. Ranges
   // known to end before `position` can be skipped with `search_start`.
   LiveRange* FindRangeAtOrAfter(size_t position, LiveRange* search_start) const {
     if (kIsDebugBuild) {

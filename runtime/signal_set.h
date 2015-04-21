@@ -38,7 +38,7 @@ class SignalSet {
   }
 
   void Block() {
-    if (sigprocmask(SIG_BLOCK, &set_, NULL) == -1) {
+    if (sigprocmask(SIG_BLOCK, &set_, nullptr) == -1) {
       PLOG(FATAL) << "sigprocmask failed";
     }
   }

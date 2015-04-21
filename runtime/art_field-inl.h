@@ -80,7 +80,7 @@ inline void ArtField::Set32(mirror::Object* object, uint32_t new_value) {
 }
 
 inline uint64_t ArtField::Get64(mirror::Object* object) {
-  DCHECK(object != NULL) << PrettyField(this);
+  DCHECK(object != nullptr) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   if (UNLIKELY(IsVolatile())) {
     return object->GetField64Volatile(GetOffset());
@@ -90,7 +90,7 @@ inline uint64_t ArtField::Get64(mirror::Object* object) {
 
 template<bool kTransactionActive>
 inline void ArtField::Set64(mirror::Object* object, uint64_t new_value) {
-  DCHECK(object != NULL) << PrettyField(this);
+  DCHECK(object != nullptr) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   if (UNLIKELY(IsVolatile())) {
     object->SetField64Volatile<kTransactionActive>(GetOffset(), new_value);
@@ -100,7 +100,7 @@ inline void ArtField::Set64(mirror::Object* object, uint64_t new_value) {
 }
 
 inline mirror::Object* ArtField::GetObj(mirror::Object* object) {
-  DCHECK(object != NULL) << PrettyField(this);
+  DCHECK(object != nullptr) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   if (UNLIKELY(IsVolatile())) {
     return object->GetFieldObjectVolatile<mirror::Object>(GetOffset());
@@ -110,7 +110,7 @@ inline mirror::Object* ArtField::GetObj(mirror::Object* object) {
 
 template<bool kTransactionActive>
 inline void ArtField::SetObj(mirror::Object* object, mirror::Object* new_value) {
-  DCHECK(object != NULL) << PrettyField(this);
+  DCHECK(object != nullptr) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   if (UNLIKELY(IsVolatile())) {
     object->SetFieldObjectVolatile<kTransactionActive>(GetOffset(), new_value);

@@ -27,13 +27,14 @@
 
 namespace art {
 
-static jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementClass, jobject javaDimArray) {
+static jobject Array_createMultiArray(
+    JNIEnv* env, jclass, jclass javaElementClass, jobject javaDimArray) {
   ScopedFastNativeObjectAccess soa(env);
-  DCHECK(javaElementClass != NULL);
+  DCHECK(javaElementClass != nullptr);
   StackHandleScope<2> hs(soa.Self());
   Handle<mirror::Class> element_class(hs.NewHandle(soa.Decode<mirror::Class*>(javaElementClass)));
   DCHECK(element_class->IsClass());
-  DCHECK(javaDimArray != NULL);
+  DCHECK(javaDimArray != nullptr);
   mirror::Object* dimensions_obj = soa.Decode<mirror::Object*>(javaDimArray);
   DCHECK(dimensions_obj->IsArrayInstance());
   DCHECK_EQ(dimensions_obj->GetClass()->GetComponentType()->GetPrimitiveType(),
@@ -47,18 +48,18 @@ static jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementCla
 
 static jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementClass, jint length) {
   ScopedFastNativeObjectAccess soa(env);
-  DCHECK(javaElementClass != NULL);
+  DCHECK(javaElementClass != nullptr);
   if (UNLIKELY(length < 0)) {
     ThrowNegativeArraySizeException(length);
-    return NULL;
+    return nullptr;
   }
   mirror::Class* element_class = soa.Decode<mirror::Class*>(javaElementClass);
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
   mirror::Class* array_class = class_linker->FindArrayClass(soa.Self(), &element_class);
-  if (UNLIKELY(array_class == NULL)) {
+  if (UNLIKELY(array_class == nullptr)) {
     CHECK(soa.Self()->IsExceptionPending());
-    return NULL;
+    return nullptr;
   }
   DCHECK(array_class->IsObjectArrayClass());
   mirror::Array* new_array = mirror::ObjectArray<mirror::Object*>::Alloc(

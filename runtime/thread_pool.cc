@@ -158,7 +158,7 @@ Task* ThreadPool::GetTask(Thread* self) {
     --waiting_count_;
   }
 
-  // We are shutting down, return nullptr to tell the worker thread to stop looping.
+  // We are shutting down, return null to tell the worker thread to stop looping.
   return nullptr;
 }
 

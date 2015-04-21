@@ -138,7 +138,8 @@ class MonitorPool {
     for (size_t index = 0; index < num_chunks_; ++index) {
       uintptr_t chunk_addr = *(monitor_chunks_.LoadRelaxed() + index);
       if (IsInChunk(chunk_addr, mon)) {
-        return OffsetToMonitorId(reinterpret_cast<uintptr_t>(mon) - chunk_addr + index * kChunkSize);
+        return OffsetToMonitorId(
+            reinterpret_cast<uintptr_t>(mon) - chunk_addr + index * kChunkSize);
       }
     }
     LOG(FATAL) << "Did not find chunk that contains monitor.";

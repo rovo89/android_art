@@ -466,7 +466,7 @@ ONE_ARG_RUNTIME_EXCEPTION art_quick_throw_no_such_method, artThrowNoSuchMethodFr
      * The helper will attempt to locate the target and return a 128-bit result in x0/x1 consisting
      * of the target Method* in x0 and method->code_ in x1.
      *
-     * If unsuccessful, the helper will return NULL/????. There will be a pending exception in the
+     * If unsuccessful, the helper will return null/????. There will be a pending exception in the
      * thread and we branch to another stub to deliver it.
      *
      * On success this wrapper will restore arguments and *jump* to the target, leaving the lr
@@ -565,7 +565,7 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+STACK_REFERENCE_SIZE
     // W2 - args length
     // X9 - destination address.
     // W10 - temporary
-    add x9, sp, #4                         // Destination address is bottom of stack + NULL.
+    add x9, sp, #4                         // Destination address is bottom of stack + null.
 
     // Use \@ to differentiate between macro invocations.
 .LcopyParams\@:
@@ -579,7 +579,7 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+STACK_REFERENCE_SIZE
 
 .LendCopyParams\@:
 
-    // Store NULL into StackReference<Method>* at bottom of frame.
+    // Store null into StackReference<Method>* at bottom of frame.
     str wzr, [sp]
 
 #if (STACK_REFERENCE_SIZE != 4)

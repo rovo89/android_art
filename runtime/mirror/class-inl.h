@@ -66,7 +66,7 @@ inline ObjectArray<ArtMethod>* Class::GetDirectMethods() {
 
 inline void Class::SetDirectMethods(ObjectArray<ArtMethod>* new_direct_methods)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  DCHECK(NULL == GetFieldObject<ObjectArray<ArtMethod>>(
+  DCHECK(nullptr == GetFieldObject<ObjectArray<ArtMethod>>(
       OFFSET_OF_OBJECT_MEMBER(Class, direct_methods_)));
   DCHECK_NE(0, new_direct_methods->GetLength());
   SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, direct_methods_), new_direct_methods);
@@ -85,7 +85,7 @@ inline void Class::SetDirectMethod(uint32_t i, ArtMethod* f)  // TODO: uint16_t
 
 // Returns the number of static, private, and constructor methods.
 inline uint32_t Class::NumDirectMethods() {
-  return (GetDirectMethods() != NULL) ? GetDirectMethods()->GetLength() : 0;
+  return (GetDirectMethods() != nullptr) ? GetDirectMethods()->GetLength() : 0;
 }
 
 template<VerifyObjectFlags kVerifyFlags>
@@ -102,7 +102,7 @@ inline void Class::SetVirtualMethods(ObjectArray<ArtMethod>* new_virtual_methods
 }
 
 inline uint32_t Class::NumVirtualMethods() {
-  return (GetVirtualMethods() != NULL) ? GetVirtualMethods()->GetLength() : 0;
+  return (GetVirtualMethods() != nullptr) ? GetVirtualMethods()->GetLength() : 0;
 }
 
 template<VerifyObjectFlags kVerifyFlags>
@@ -186,7 +186,7 @@ inline void Class::SetEmbeddedVTableEntry(uint32_t i, ArtMethod* method) {
 }
 
 inline bool Class::Implements(Class* klass) {
-  DCHECK(klass != NULL);
+  DCHECK(klass != nullptr);
   DCHECK(klass->IsInterface()) << PrettyClass(this);
   // All interfaces implemented directly and by our superclass, and
   // recursively all super-interfaces of those interfaces, are listed
@@ -233,8 +233,8 @@ inline bool Class::IsAssignableFromArray(Class* src) {
     // If "this" is not also an array, it must be Object.
     // src's super should be java_lang_Object, since it is an array.
     Class* java_lang_Object = src->GetSuperClass();
-    DCHECK(java_lang_Object != NULL) << PrettyClass(src);
-    DCHECK(java_lang_Object->GetSuperClass() == NULL) << PrettyClass(src);
+    DCHECK(java_lang_Object != nullptr) << PrettyClass(src);
+    DCHECK(java_lang_Object->GetSuperClass() == nullptr) << PrettyClass(src);
     return this == java_lang_Object;
   }
   return IsArrayAssignableFromArray(src);
@@ -335,13 +335,13 @@ inline bool Class::IsSubClass(Class* klass) {
       return true;
     }
     current = current->GetSuperClass();
-  } while (current != NULL);
+  } while (current != nullptr);
   return false;
 }
 
 inline ArtMethod* Class::FindVirtualMethodForInterface(ArtMethod* method) {
   Class* declaring_class = method->GetDeclaringClass();
-  DCHECK(declaring_class != NULL) << PrettyClass(this);
+  DCHECK(declaring_class != nullptr) << PrettyClass(this);
   DCHECK(declaring_class->IsInterface()) << PrettyMethod(method);
   // TODO cache to improve lookup speed
   int32_t iftable_count = GetIfTableCount();
@@ -351,7 +351,7 @@ inline ArtMethod* Class::FindVirtualMethodForInterface(ArtMethod* method) {
       return iftable->GetMethodArray(i)->Get(method->GetMethodIndex());
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 inline ArtMethod* Class::FindVirtualMethodForVirtual(ArtMethod* method) {
@@ -382,7 +382,7 @@ inline IfTable* Class::GetIfTable() {
 
 inline int32_t Class::GetIfTableCount() {
   IfTable* iftable = GetIfTable();
-  if (iftable == NULL) {
+  if (iftable == nullptr) {
     return 0;
   }
   return iftable->Count();
@@ -484,7 +484,7 @@ inline void Class::SetClinitThreadId(pid_t new_clinit_thread_id) {
 }
 
 inline void Class::SetVerifyErrorClass(Class* klass) {
-  CHECK(klass != NULL) << PrettyClass(this);
+  CHECK(klass != nullptr) << PrettyClass(this);
   if (Runtime::Current()->IsActiveTransaction()) {
     SetFieldObject<true>(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_class_), klass);
   } else {

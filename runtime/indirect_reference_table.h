@@ -268,9 +268,9 @@ class IndirectReferenceTable {
   bool IsValid() const;
 
   /*
-   * Add a new entry.  "obj" must be a valid non-NULL object reference.
+   * Add a new entry.  "obj" must be a valid non-nullptr object reference.
    *
-   * Returns NULL if the table is full (max entries reached, or alloc
+   * Returns nullptr if the table is full (max entries reached, or alloc
    * failed during expansion).
    */
   IndirectRef Add(uint32_t cookie, mirror::Object* obj)

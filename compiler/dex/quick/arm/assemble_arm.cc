@@ -1055,7 +1055,7 @@ const ArmEncodingMap ArmMir2Lir::EncodingMap[kArmLast] = {
 // new_lir replaces orig_lir in the pcrel_fixup list.
 void ArmMir2Lir::ReplaceFixup(LIR* prev_lir, LIR* orig_lir, LIR* new_lir) {
   new_lir->u.a.pcrel_next = orig_lir->u.a.pcrel_next;
-  if (UNLIKELY(prev_lir == NULL)) {
+  if (UNLIKELY(prev_lir == nullptr)) {
     first_fixup_ = new_lir;
   } else {
     prev_lir->u.a.pcrel_next = new_lir;
@@ -1066,7 +1066,7 @@ void ArmMir2Lir::ReplaceFixup(LIR* prev_lir, LIR* orig_lir, LIR* new_lir) {
 // new_lir is inserted before orig_lir in the pcrel_fixup list.
 void ArmMir2Lir::InsertFixupBefore(LIR* prev_lir, LIR* orig_lir, LIR* new_lir) {
   new_lir->u.a.pcrel_next = orig_lir;
-  if (UNLIKELY(prev_lir == NULL)) {
+  if (UNLIKELY(prev_lir == nullptr)) {
     first_fixup_ = new_lir;
   } else {
     DCHECK(prev_lir->u.a.pcrel_next == orig_lir);
@@ -1084,7 +1084,7 @@ void ArmMir2Lir::InsertFixupBefore(LIR* prev_lir, LIR* orig_lir, LIR* new_lir) {
 
 uint8_t* ArmMir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
   uint8_t* const write_buffer = write_pos;
-  for (; lir != NULL; lir = NEXT_LIR(lir)) {
+  for (; lir != nullptr; lir = NEXT_LIR(lir)) {
     lir->offset = (write_pos - write_buffer);
     if (!lir->flags.is_nop) {
       int opcode = lir->opcode;
@@ -1258,8 +1258,8 @@ void ArmMir2Lir::AssembleLIR() {
     generation ^= 1;
     // Note: nodes requring possible fixup linked in ascending order.
     lir = first_fixup_;
-    prev_lir = NULL;
-    while (lir != NULL) {
+    prev_lir = nullptr;
+    while (lir != nullptr) {
       /*
        * NOTE: the lir being considered here will be encoded following the switch (so long as
        * we're not in a retry situation).  However, any new non-pc_rel instructions inserted
@@ -1506,7 +1506,7 @@ void ArmMir2Lir::AssembleLIR() {
         case kFixupAdr: {
           const EmbeddedData* tab_rec = UnwrapPointer<EmbeddedData>(lir->operands[2]);
           LIR* target = lir->target;
-          int32_t target_disp = (tab_rec != NULL) ?  tab_rec->offset + offset_adjustment
+          int32_t target_disp = (tab_rec != nullptr) ?  tab_rec->offset + offset_adjustment
               : target->offset + ((target->flags.generation == lir->flags.generation) ? 0 :
               offset_adjustment);
           int32_t disp = target_disp - ((lir->offset + 4) & ~3);
@@ -1642,7 +1642,7 @@ size_t ArmMir2Lir::GetInsnSize(LIR* lir) {
 uint32_t ArmMir2Lir::LinkFixupInsns(LIR* head_lir, LIR* tail_lir, uint32_t offset) {
   LIR* end_lir = tail_lir->next;
 
-  LIR* last_fixup = NULL;
+  LIR* last_fixup = nullptr;
   for (LIR* lir = head_lir; lir != end_lir; lir = NEXT_LIR(lir)) {
     if (!lir->flags.is_nop) {
       if (lir->flags.fixup != kFixupNone) {
@@ -1658,8 +1658,8 @@ uint32_t ArmMir2Lir::LinkFixupInsns(LIR* head_lir, LIR* tail_lir, uint32_t offse
         }
         // Link into the fixup chain.
         lir->flags.use_def_invalid = true;
-        lir->u.a.pcrel_next = NULL;
-        if (first_fixup_ == NULL) {
+        lir->u.a.pcrel_next = nullptr;
+        if (first_fixup_ == nullptr) {
           first_fixup_ = lir;
         } else {
           last_fixup->u.a.pcrel_next = lir;

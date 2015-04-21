@@ -43,7 +43,7 @@ namespace accounting {
 template<size_t kAlignment> class SpaceBitmap;
 
 // Maintain a card table from the the write barrier. All writes of
-// non-NULL values to heap addresses should go through an entry in
+// non-null values to heap addresses should go through an entry in
 // WriteBarrier, and from there to here.
 class CardTable {
  public:

@@ -81,7 +81,7 @@ ScratchFile::ScratchFile(const ScratchFile& other, const char* suffix) {
 }
 
 ScratchFile::ScratchFile(File* file) {
-  CHECK(file != NULL);
+  CHECK(file != nullptr);
   filename_ = file->GetPath();
   file_.reset(file);
 }
@@ -559,7 +559,7 @@ std::string CommonRuntimeTest::GetCoreFileLocation(const char* suffix) {
   std::string location;
   if (IsHost()) {
     const char* host_dir = getenv("ANDROID_HOST_OUT");
-    CHECK(host_dir != NULL);
+    CHECK(host_dir != nullptr);
     location = StringPrintf("%s/framework/core.%s", host_dir, suffix);
   } else {
     location = StringPrintf("/data/art-test/core.%s", suffix);

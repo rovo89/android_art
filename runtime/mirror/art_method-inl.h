@@ -48,7 +48,7 @@ inline Class* ArtMethod::GetJavaLangReflectArtMethod() {
 
 inline Class* ArtMethod::GetDeclaringClass() {
   Class* result = GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, declaring_class_));
-  DCHECK(result != NULL) << this;
+  DCHECK(result != nullptr) << this;
   DCHECK(result->IsIdxLoaded() || result->IsErroneous()) << this;
   return result;
 }

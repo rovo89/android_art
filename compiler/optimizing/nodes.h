@@ -1634,7 +1634,7 @@ class HUnaryOperation : public HExpression<1> {
 
   // Try to statically evaluate `operation` and return a HConstant
   // containing the result of this evaluation.  If `operation` cannot
-  // be evaluated as a constant, return nullptr.
+  // be evaluated as a constant, return null.
   HConstant* TryStaticEvaluation() const;
 
   // Apply this operation to `x`.
@@ -1702,7 +1702,7 @@ class HBinaryOperation : public HExpression<2> {
 
   // Try to statically evaluate `operation` and return a HConstant
   // containing the result of this evaluation.  If `operation` cannot
-  // be evaluated as a constant, return nullptr.
+  // be evaluated as a constant, return null.
   HConstant* TryStaticEvaluation() const;
 
   // Apply this operation to `x` and `y`.
@@ -1710,11 +1710,11 @@ class HBinaryOperation : public HExpression<2> {
   virtual int64_t Evaluate(int64_t x, int64_t y) const = 0;
 
   // Returns an input that can legally be used as the right input and is
-  // constant, or nullptr.
+  // constant, or null.
   HConstant* GetConstantRight() const;
 
   // If `GetConstantRight()` returns one of the input, this returns the other
-  // one. Otherwise it returns nullptr.
+  // one. Otherwise it returns null.
   HInstruction* GetLeastConstantLeft() const;
 
   DECLARE_INSTRUCTION(BinaryOperation);

@@ -1080,7 +1080,7 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
   reginfo_map_.reserve(RegStorage::kMaxRegs);
   pointer_storage_.reserve(128);
   slow_paths_.reserve(32);
-  // Reserve pointer id 0 for nullptr.
+  // Reserve pointer id 0 for null.
   size_t null_idx = WrapPointer<void>(nullptr);
   DCHECK_EQ(null_idx, 0U);
 }

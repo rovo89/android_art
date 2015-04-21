@@ -508,7 +508,7 @@ const char* GetAndroidRoot();
 
 // Find $ANDROID_DATA, /data, or abort.
 const char* GetAndroidData();
-// Find $ANDROID_DATA, /data, or return nullptr.
+// Find $ANDROID_DATA, /data, or return null.
 const char* GetAndroidDataSafe(std::string* error_msg);
 
 // Returns the dalvik-cache location, with subdir appended. Returns the empty string if the cache

@@ -60,7 +60,7 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
   // Allocate num_bytes without allowing the underlying space to grow.
   virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
                                 size_t* usable_size, size_t* bytes_tl_bulk_allocated) = 0;
-  // Return the storage space required by obj. If usable_size isn't nullptr then it is set to the
+  // Return the storage space required by obj. If usable_size isn't null then it is set to the
   // amount of the storage space that may be used by obj.
   virtual size_t AllocationSize(mirror::Object* obj, size_t* usable_size) = 0;
   virtual size_t Free(Thread* self, mirror::Object* ptr)

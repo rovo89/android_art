@@ -91,7 +91,7 @@ void InitLogging(char* argv[]) {
     gProgramInvocationShortName.reset(new std::string((last_slash != nullptr) ? last_slash + 1
                                                                            : argv[0]));
   } else {
-    // TODO: fall back to /proc/self/cmdline when argv is NULL on Linux.
+    // TODO: fall back to /proc/self/cmdline when argv is null on Linux.
     gCmdLine.reset(new std::string("<unset>"));
   }
   const char* tags = getenv("ANDROID_LOG_TAGS");

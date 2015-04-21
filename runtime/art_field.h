@@ -158,7 +158,7 @@ class ArtField {
     return (GetAccessFlags() & kAccVolatile) != 0;
   }
 
-  // Returns an instance field with this offset in the given class or nullptr if not found.
+  // Returns an instance field with this offset in the given class or null if not found.
   static ArtField* FindInstanceFieldWithOffset(mirror::Class* klass, uint32_t field_offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

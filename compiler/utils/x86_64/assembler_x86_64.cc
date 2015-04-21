@@ -2751,7 +2751,7 @@ void X86_64Assembler::CreateHandleScopeEntry(ManagedRegister mout_reg,
   X86_64ManagedRegister out_reg = mout_reg.AsX86_64();
   X86_64ManagedRegister in_reg = min_reg.AsX86_64();
   if (in_reg.IsNoRegister()) {  // TODO(64): && null_allowed
-    // Use out_reg as indicator of NULL
+    // Use out_reg as indicator of null.
     in_reg = out_reg;
     // TODO: movzwl
     movl(in_reg.AsCpuRegister(), Address(CpuRegister(RSP), handle_scope_offset));

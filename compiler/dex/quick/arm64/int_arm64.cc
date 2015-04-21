@@ -803,7 +803,7 @@ bool Arm64Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   NewLIR2(kA64Ldaxr2rX | wide, r_tmp_stored.GetReg(), r_ptr.GetReg());
   OpRegReg(kOpCmp, r_tmp, rl_expected.reg);
   DCHECK(last_lir_insn_->u.m.def_mask->HasBit(ResourceMask::kCCode));
-  LIR* early_exit = OpCondBranch(kCondNe, NULL);
+  LIR* early_exit = OpCondBranch(kCondNe, nullptr);
   NewLIR3(kA64Stlxr3wrX | wide, r_tmp32.GetReg(), rl_new_value_stored.GetReg(), r_ptr.GetReg());
   NewLIR3(kA64Cmp3RdT, r_tmp32.GetReg(), 0, ENCODE_NO_SHIFT);
   DCHECK(last_lir_insn_->u.m.def_mask->HasBit(ResourceMask::kCCode));

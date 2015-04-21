@@ -989,7 +989,7 @@ bool MIRGraph::FindLocalLiveIn(BasicBlock* bb) {
   MIR* mir;
   ArenaBitVector *use_v, *def_v, *live_in_v;
 
-  if (bb->data_flow_info == NULL) return false;
+  if (bb->data_flow_info == nullptr) return false;
 
   use_v = bb->data_flow_info->use_v =
       new (arena_) ArenaBitVector(arena_, GetNumOfCodeAndTempVRs(), false, kBitMapUse);
@@ -998,7 +998,7 @@ bool MIRGraph::FindLocalLiveIn(BasicBlock* bb) {
   live_in_v = bb->data_flow_info->live_in_v =
       new (arena_) ArenaBitVector(arena_, GetNumOfCodeAndTempVRs(), false, kBitMapLiveIn);
 
-  for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
+  for (mir = bb->first_mir_insn; mir != nullptr; mir = mir->next) {
     uint64_t df_attributes = GetDataFlowAttributes(mir);
     MIR::DecodedInstruction* d_insn = &mir->dalvikInsn;
 
@@ -1188,7 +1188,7 @@ void MIRGraph::DataFlowSSAFormatExtended(MIR* mir) {
 
 /* Entry function to convert a block into SSA representation */
 bool MIRGraph::DoSSAConversion(BasicBlock* bb) {
-  if (bb->data_flow_info == NULL) return false;
+  if (bb->data_flow_info == nullptr) return false;
 
   /*
    * Pruned SSA form: Insert phi nodes for each dalvik register marked in phi_node_blocks
@@ -1211,7 +1211,7 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb) {
     }
   }
 
-  for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
+  for (MIR* mir = bb->first_mir_insn; mir != nullptr; mir = mir->next) {
     mir->ssa_rep =
         static_cast<struct SSARepresentation *>(arena_->Alloc(sizeof(SSARepresentation),
                                                               kArenaAllocDFInfo));
@@ -1402,8 +1402,8 @@ void MIRGraph::CountUses(BasicBlock* bb) {
     return;
   }
   uint32_t weight = GetUseCountWeight(bb);
-  for (MIR* mir = bb->first_mir_insn; (mir != NULL); mir = mir->next) {
-    if (mir->ssa_rep == NULL) {
+  for (MIR* mir = bb->first_mir_insn; (mir != nullptr); mir = mir->next) {
+    if (mir->ssa_rep == nullptr) {
       continue;
     }
     for (int i = 0; i < mir->ssa_rep->num_uses; i++) {
@@ -1448,7 +1448,7 @@ bool MIRGraph::VerifyPredInfo(BasicBlock* bb) {
 void MIRGraph::VerifyDataflow() {
     /* Verify if all blocks are connected as claimed */
   AllNodesIterator iter(this);
-  for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
+  for (BasicBlock* bb = iter.Next(); bb != nullptr; bb = iter.Next()) {
     VerifyPredInfo(bb);
   }
 }

@@ -127,7 +127,7 @@ struct JdwpState {
    * Among other things, this binds to a port to listen for a connection from
    * the debugger.
    *
-   * Returns a newly-allocated JdwpState struct on success, or NULL on failure.
+   * Returns a newly-allocated JdwpState struct on success, or nullptr on failure.
    */
   static JdwpState* Create(const JdwpOptions* options)
       LOCKS_EXCLUDED(Locks::mutator_lock_);

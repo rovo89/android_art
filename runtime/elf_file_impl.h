@@ -94,8 +94,7 @@ class ElfFileImpl {
                              const std::string& symbol_name,
                              bool build_map);
 
-  // Lookup a string given string section and offset. Returns nullptr for
-  // special 0 offset.
+  // Lookup a string given string section and offset. Returns null for special 0 offset.
   const char* GetString(Elf_Shdr&, Elf_Word) const;
 
   Elf_Word GetDynamicNum() const;
@@ -167,7 +166,7 @@ class ElfFileImpl {
   // Check whether the offset is in range, and set to target to Begin() + offset if OK.
   bool CheckAndSet(Elf32_Off offset, const char* label, uint8_t** target, std::string* error_msg);
 
-  // Find symbol in specified table, returning nullptr if it is not found.
+  // Find symbol in specified table, returning null if it is not found.
   //
   // If build_map is true, builds a map to speed repeated access. The
   // map does not included untyped symbol values (aka STT_NOTYPE)
@@ -184,7 +183,7 @@ class ElfFileImpl {
   Elf_Dyn* FindDynamicByType(Elf_Sword type) const;
   Elf_Word FindDynamicValueByType(Elf_Sword type) const;
 
-  // Lookup a string by section type. Returns nullptr for special 0 offset.
+  // Lookup a string by section type. Returns null for special 0 offset.
   const char* GetString(Elf_Word section_type, Elf_Word) const;
 
   const File* const file_;

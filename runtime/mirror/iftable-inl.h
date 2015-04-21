@@ -23,7 +23,7 @@ namespace art {
 namespace mirror {
 
 inline void IfTable::SetInterface(int32_t i, Class* interface) {
-  DCHECK(interface != NULL);
+  DCHECK(interface != nullptr);
   DCHECK(interface->IsInterface());
   const size_t idx = i * kMax + kInterface;
   DCHECK_EQ(Get(idx), static_cast<Object*>(nullptr));

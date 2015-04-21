@@ -121,7 +121,7 @@ LIR* Arm64Mir2Lir::LoadFPConstantValue(RegStorage r_dest, int32_t value) {
   }
 
   LIR* data_target = ScanLiteralPool(literal_list_, value, 0);
-  if (data_target == NULL) {
+  if (data_target == nullptr) {
     // Wide, as we need 8B alignment.
     data_target = AddWideData(&literal_list_, value, 0);
   }
@@ -148,7 +148,7 @@ LIR* Arm64Mir2Lir::LoadFPConstantValueWide(RegStorage r_dest, int64_t value) {
   int32_t val_lo = Low32Bits(value);
   int32_t val_hi = High32Bits(value);
   LIR* data_target = ScanLiteralPoolWide(literal_list_, val_lo, val_hi);
-  if (data_target == NULL) {
+  if (data_target == nullptr) {
     data_target = AddWideData(&literal_list_, val_lo, val_hi);
   }
 
@@ -525,7 +525,7 @@ LIR* Arm64Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
   int32_t val_lo = Low32Bits(value);
   int32_t val_hi = High32Bits(value);
   LIR* data_target = ScanLiteralPoolWide(literal_list_, val_lo, val_hi);
-  if (data_target == NULL) {
+  if (data_target == nullptr) {
     data_target = AddWideData(&literal_list_, val_lo, val_hi);
   }
 
@@ -624,7 +624,7 @@ LIR* Arm64Mir2Lir::OpRegRegShift(OpKind op, RegStorage r_dest_src1, RegStorage r
   }
 
   LOG(FATAL) << "Unexpected encoding operand count";
-  return NULL;
+  return nullptr;
 }
 
 LIR* Arm64Mir2Lir::OpRegRegExtend(OpKind op, RegStorage r_dest_src1, RegStorage r_src2,
@@ -658,7 +658,7 @@ LIR* Arm64Mir2Lir::OpRegRegExtend(OpKind op, RegStorage r_dest_src1, RegStorage 
   }
 
   LOG(FATAL) << "Unexpected encoding operand count";
-  return NULL;
+  return nullptr;
 }
 
 LIR* Arm64Mir2Lir::OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2) {
@@ -1190,7 +1190,7 @@ LIR* Arm64Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegSt
  */
 LIR* Arm64Mir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStorage r_dest,
                                     OpSize size) {
-  LIR* load = NULL;
+  LIR* load = nullptr;
   A64Opcode opcode = kA64Brk1d;
   A64Opcode alt_opcode = kA64Brk1d;
   int scale = 0;
@@ -1286,7 +1286,7 @@ LIR* Arm64Mir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage 
 
 LIR* Arm64Mir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStorage r_src,
                                      OpSize size) {
-  LIR* store = NULL;
+  LIR* store = nullptr;
   A64Opcode opcode = kA64Brk1d;
   A64Opcode alt_opcode = kA64Brk1d;
   int scale = 0;

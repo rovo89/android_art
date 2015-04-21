@@ -28,7 +28,7 @@ namespace art {
 
 static jint String_compareTo(JNIEnv* env, jobject javaThis, jobject javaRhs) {
   ScopedFastNativeObjectAccess soa(env);
-  if (UNLIKELY(javaRhs == NULL)) {
+  if (UNLIKELY(javaRhs == nullptr)) {
     ThrowNullPointerException("rhs == null");
     return -1;
   } else {

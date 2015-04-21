@@ -602,7 +602,7 @@ class MIRGraph {
 
   BasicBlock* GetBasicBlock(unsigned int block_id) const {
     DCHECK_LT(block_id, block_list_.size());  // NOTE: NullBasicBlockId is 0.
-    return (block_id == NullBasicBlockId) ? NULL : block_list_[block_id];
+    return (block_id == NullBasicBlockId) ? nullptr : block_list_[block_id];
   }
 
   size_t GetBasicBlockListCount() const {

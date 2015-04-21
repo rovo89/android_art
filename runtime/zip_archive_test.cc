@@ -42,11 +42,11 @@ TEST_F(ZipArchiveTest, FindAndExtract) {
   ScratchFile tmp;
   ASSERT_NE(-1, tmp.GetFd());
   std::unique_ptr<File> file(new File(tmp.GetFd(), tmp.GetFilename(), false));
-  ASSERT_TRUE(file.get() != NULL);
+  ASSERT_TRUE(file.get() != nullptr);
   bool success = zip_entry->ExtractToFile(*file, &error_msg);
   ASSERT_TRUE(success) << error_msg;
   ASSERT_TRUE(error_msg.empty());
-  file.reset(NULL);
+  file.reset(nullptr);
 
   uint32_t computed_crc = crc32(0L, Z_NULL, 0);
   int fd = open(tmp.GetFilename().c_str(), O_RDONLY);
