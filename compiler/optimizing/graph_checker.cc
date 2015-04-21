@@ -276,6 +276,17 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
                             id));
     }
   }
+
+  // If this is a nested loop, ensure the outer loops contain a superset of the blocks.
+  for (HLoopInformationOutwardIterator it(*loop_header); !it.Done(); it.Advance()) {
+    HLoopInformation* outer_info = it.Current();
+    if (!loop_blocks.IsSubsetOf(&outer_info->GetBlocks())) {
+      AddError(StringPrintf("Blocks of loop defined by header %d are not a subset of blocks of "
+                            "an outer loop defined by header %d.",
+                            loop_header->GetBlockId(),
+                            outer_info->GetHeader()->GetBlockId()));
+    }
+  }
 }
 
 void SSAChecker::VisitInstruction(HInstruction* instruction) {
