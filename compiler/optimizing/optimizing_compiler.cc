@@ -208,6 +208,12 @@ class OptimizingCompiler FINAL : public Compiler {
 
   void UnInit() const OVERRIDE;
 
+  void MaybeRecordStat(MethodCompilationStat compilation_stat) const {
+    if (compilation_stats_.get() != nullptr) {
+      compilation_stats_->RecordStat(compilation_stat);
+    }
+  }
+
  private:
   // Whether we should run any optimization or register allocation. If false, will
   // just run the code generation after the graph was built.
@@ -226,7 +232,7 @@ class OptimizingCompiler FINAL : public Compiler {
                                   CompilerDriver* driver,
                                   const DexCompilationUnit& dex_compilation_unit) const;
 
-  mutable OptimizingCompilerStats compilation_stats_;
+  std::unique_ptr<OptimizingCompilerStats> compilation_stats_;
 
   std::unique_ptr<std::ostream> visualizer_output_;
 
@@ -243,7 +249,6 @@ OptimizingCompiler::OptimizingCompiler(CompilerDriver* driver)
       run_optimizations_(
           (driver->GetCompilerOptions().GetCompilerFilter() != CompilerOptions::kTime)
           && !driver->GetCompilerOptions().GetDebuggable()),
-      compilation_stats_(),
       delegate_(Create(driver, Compiler::Kind::kQuick)) {}
 
 void OptimizingCompiler::Init() {
@@ -258,6 +263,9 @@ void OptimizingCompiler::Init() {
       << "Invoke the compiler with '-j1'.";
     visualizer_output_.reset(new std::ofstream(cfg_file_name));
   }
+  if (driver->GetDumpStats()) {
+    compilation_stats_.reset(new OptimizingCompilerStats());
+  }
 }
 
 void OptimizingCompiler::UnInit() const {
@@ -265,7 +273,9 @@ void OptimizingCompiler::UnInit() const {
 }
 
 OptimizingCompiler::~OptimizingCompiler() {
-  compilation_stats_.Log();
+  if (compilation_stats_.get() != nullptr) {
+    compilation_stats_->Log();
+  }
 }
 
 void OptimizingCompiler::InitCompilationUnit(CompilationUnit& cu) const {
@@ -381,7 +391,7 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
                                                      const DexCompilationUnit& dex_compilation_unit,
                                                      PassInfoPrinter* pass_info_printer) const {
   StackHandleScopeCollection handles(Thread::Current());
-  RunOptimizations(graph, compiler_driver, &compilation_stats_,
+  RunOptimizations(graph, compiler_driver, compilation_stats_.get(),
                    dex_file, dex_compilation_unit, pass_info_printer, &handles);
 
   AllocateRegisters(graph, codegen, pass_info_printer);
@@ -397,7 +407,7 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
   std::vector<uint8_t> stack_map;
   codegen->BuildStackMaps(&stack_map);
 
-  compilation_stats_.RecordStat(MethodCompilationStat::kCompiledOptimized);
+  MaybeRecordStat(MethodCompilationStat::kCompiledOptimized);
 
   return CompiledMethod::SwapAllocCompiledMethod(
       compiler_driver,
@@ -435,7 +445,7 @@ CompiledMethod* OptimizingCompiler::CompileBaseline(
   std::vector<uint8_t> gc_map;
   codegen->BuildNativeGCMap(&gc_map, dex_compilation_unit);
 
-  compilation_stats_.RecordStat(MethodCompilationStat::kCompiledBaseline);
+  MaybeRecordStat(MethodCompilationStat::kCompiledBaseline);
   return CompiledMethod::SwapAllocCompiledMethod(
       compiler_driver,
       codegen->GetInstructionSet(),
@@ -463,7 +473,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
                                                const DexFile& dex_file) const {
   UNUSED(invoke_type);
   std::string method_name = PrettyMethod(method_idx, dex_file);
-  compilation_stats_.RecordStat(MethodCompilationStat::kAttemptCompilation);
+  MaybeRecordStat(MethodCompilationStat::kAttemptCompilation);
   CompilerDriver* compiler_driver = GetCompilerDriver();
   InstructionSet instruction_set = compiler_driver->GetInstructionSet();
   // Always use the thumb2 assembler: some runtime functionality (like implicit stack
@@ -474,12 +484,12 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
 
   // Do not attempt to compile on architectures we do not support.
   if (!IsInstructionSetSupported(instruction_set)) {
-    compilation_stats_.RecordStat(MethodCompilationStat::kNotCompiledUnsupportedIsa);
+    MaybeRecordStat(MethodCompilationStat::kNotCompiledUnsupportedIsa);
     return nullptr;
   }
 
   if (Compiler::IsPathologicalCase(*code_item, method_idx, dex_file)) {
-    compilation_stats_.RecordStat(MethodCompilationStat::kNotCompiledPathological);
+    MaybeRecordStat(MethodCompilationStat::kNotCompiledPathological);
     return nullptr;
   }
 
@@ -489,7 +499,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   const CompilerOptions& compiler_options = compiler_driver->GetCompilerOptions();
   if ((compiler_options.GetCompilerFilter() == CompilerOptions::kSpace)
       && (code_item->insns_size_in_code_units_ > kSpaceFilterOptimizingThreshold)) {
-    compilation_stats_.RecordStat(MethodCompilationStat::kNotCompiledSpaceFilter);
+    MaybeRecordStat(MethodCompilationStat::kNotCompiledSpaceFilter);
     return nullptr;
   }
 
@@ -514,7 +524,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
                             compiler_driver->GetCompilerOptions()));
   if (codegen.get() == nullptr) {
     CHECK(!shouldCompile) << "Could not find code generator for optimizing compiler";
-    compilation_stats_.RecordStat(MethodCompilationStat::kNotCompiledNoCodegen);
+    MaybeRecordStat(MethodCompilationStat::kNotCompiledNoCodegen);
     return nullptr;
   }
   codegen->GetAssembler()->cfi().SetEnabled(
@@ -531,7 +541,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
                         &dex_compilation_unit,
                         &dex_file,
                         compiler_driver,
-                        &compilation_stats_);
+                        compilation_stats_.get());
 
   VLOG(compiler) << "Building " << method_name;
 
@@ -558,7 +568,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
       if (!graph->TryBuildingSsa()) {
         // We could not transform the graph to SSA, bailout.
         LOG(INFO) << "Skipping compilation of " << method_name << ": it contains a non natural loop";
-        compilation_stats_.RecordStat(MethodCompilationStat::kNotCompiledCannotBuildSSA);
+        MaybeRecordStat(MethodCompilationStat::kNotCompiledCannotBuildSSA);
         return nullptr;
       }
     }
@@ -576,11 +586,11 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     VLOG(compiler) << "Compile baseline " << method_name;
 
     if (!run_optimizations_) {
-      compilation_stats_.RecordStat(MethodCompilationStat::kNotOptimizedDisabled);
+      MaybeRecordStat(MethodCompilationStat::kNotOptimizedDisabled);
     } else if (!can_optimize) {
-      compilation_stats_.RecordStat(MethodCompilationStat::kNotOptimizedTryCatch);
+      MaybeRecordStat(MethodCompilationStat::kNotOptimizedTryCatch);
     } else if (!can_allocate_registers) {
-      compilation_stats_.RecordStat(MethodCompilationStat::kNotOptimizedRegisterAllocator);
+      MaybeRecordStat(MethodCompilationStat::kNotOptimizedRegisterAllocator);
     }
 
     return CompileBaseline(codegen.get(), compiler_driver, dex_compilation_unit);
@@ -603,9 +613,9 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                          method_idx, jclass_loader, dex_file);
   } else {
     if (compiler_driver->GetCompilerOptions().VerifyAtRuntime()) {
-      compilation_stats_.RecordStat(MethodCompilationStat::kNotCompiledVerifyAtRuntime);
+      MaybeRecordStat(MethodCompilationStat::kNotCompiledVerifyAtRuntime);
     } else {
-      compilation_stats_.RecordStat(MethodCompilationStat::kNotCompiledClassNotVerified);
+      MaybeRecordStat(MethodCompilationStat::kNotCompiledClassNotVerified);
     }
   }
 
@@ -616,7 +626,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                               jclass_loader, dex_file);
 
   if (method != nullptr) {
-    compilation_stats_.RecordStat(MethodCompilationStat::kCompiledQuick);
+    MaybeRecordStat(MethodCompilationStat::kCompiledQuick);
   }
   return method;
 }
