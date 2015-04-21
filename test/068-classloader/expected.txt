@@ -11,3 +11,5 @@ Ctor: doubled implement, type 1
 DoubledImplement one
 Got LinkageError on DI (early)
 Got LinkageError on IDI (early)
+class Main
+Got expected ClassNotFoundException
