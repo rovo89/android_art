@@ -467,7 +467,8 @@ void InstructionSimplifierVisitor::VisitNeg(HNeg* instruction) {
     return;
   }
 
-  if (input->IsSub() && input->HasOnlyOneNonEnvironmentUse()) {
+  if (input->IsSub() && input->HasOnlyOneNonEnvironmentUse() &&
+      !Primitive::IsFloatingPointType(input->GetType())) {
     // Replace code looking like
     //    SUB tmp, a, b
     //    NEG dst, tmp
@@ -478,6 +479,7 @@ void InstructionSimplifierVisitor::VisitNeg(HNeg* instruction) {
     // worse code. In particular, we do not want the live ranges of `a` and `b`
     // to be extended if we are not sure the initial 'SUB' instruction can be
     // removed.
+    // We do not perform optimization for fp because we could lose the sign of zero.
     HSub* sub = input->AsSub();
     HSub* new_sub =
         new (GetGraph()->GetArena()) HSub(instruction->GetType(), sub->GetRight(), sub->GetLeft());
