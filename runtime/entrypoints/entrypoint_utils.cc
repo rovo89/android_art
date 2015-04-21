@@ -23,6 +23,7 @@
 #include "gc/accounting/card_table-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
+#include "mirror/method.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "reflection.h"
@@ -257,7 +258,7 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
     }
   }
 
-  // Call Proxy.invoke(Proxy proxy, ArtMethod method, Object[] args).
+  // Call Proxy.invoke(Proxy proxy, Method method, Object[] args).
   jvalue invocation_args[3];
   invocation_args[0].l = rcvr_jobj;
   invocation_args[1].l = interface_method_jobj;
@@ -274,10 +275,9 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
       return zero;
     } else {
       StackHandleScope<1> hs(soa.Self());
-      Handle<mirror::ArtMethod> h_interface_method(
-          hs.NewHandle(soa.Decode<mirror::ArtMethod*>(interface_method_jobj)));
+      auto h_interface_method(hs.NewHandle(soa.Decode<mirror::Method*>(interface_method_jobj)));
       // This can cause thread suspension.
-      mirror::Class* result_type = h_interface_method->GetReturnType();
+      mirror::Class* result_type = h_interface_method->GetArtMethod()->GetReturnType();
       mirror::Object* result_ref = soa.Decode<mirror::Object*>(result);
       JValue result_unboxed;
       if (!UnboxPrimitiveForResult(result_ref, result_type, &result_unboxed)) {
@@ -293,10 +293,9 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
     if (exception->IsCheckedException()) {
       mirror::Object* rcvr = soa.Decode<mirror::Object*>(rcvr_jobj);
       mirror::Class* proxy_class = rcvr->GetClass();
-      mirror::ArtMethod* interface_method =
-          soa.Decode<mirror::ArtMethod*>(interface_method_jobj);
+      mirror::Method* interface_method = soa.Decode<mirror::Method*>(interface_method_jobj);
       mirror::ArtMethod* proxy_method =
-          rcvr->GetClass()->FindVirtualMethodForInterface(interface_method);
+          rcvr->GetClass()->FindVirtualMethodForInterface(interface_method->GetArtMethod());
       int throws_index = -1;
       size_t num_virt_methods = proxy_class->NumVirtualMethods();
       for (size_t i = 0; i < num_virt_methods; i++) {

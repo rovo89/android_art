@@ -20,6 +20,7 @@
 #include "art_field-inl.h"
 #include "class_linker-inl.h"
 #include "common_compiler_test.h"
+#include "mirror/method.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {
@@ -53,41 +54,34 @@ class ProxyTest : public CommonCompilerTest {
       mirror::ObjectArray<mirror::ArtMethod>* virtual_methods = interface->GetVirtualMethods();
       methods_count += (virtual_methods == nullptr) ? 0 : virtual_methods->GetLength();
     }
-    jclass javaLangReflectArtMethod =
-        soa.AddLocalReference<jclass>(mirror::ArtMethod::GetJavaLangReflectArtMethod());
-    jobjectArray proxyClassMethods = soa.Env()->NewObjectArray(methods_count,
-                                                               javaLangReflectArtMethod, nullptr);
+    jobjectArray proxyClassMethods = soa.Env()->NewObjectArray(
+        methods_count, soa.AddLocalReference<jclass>(mirror::Method::StaticClass()), nullptr);
     soa.Self()->AssertNoPendingException();
 
-    // Fill the method array
-    mirror::ArtMethod* equalsMethod = javaLangObject->FindDeclaredVirtualMethod("equals",
-                                                                                "(Ljava/lang/Object;)Z");
-    mirror::ArtMethod* hashCodeMethod = javaLangObject->FindDeclaredVirtualMethod("hashCode",
-                                                                                  "()I");
-    mirror::ArtMethod* toStringMethod = javaLangObject->FindDeclaredVirtualMethod("toString",
-                                                                                  "()Ljava/lang/String;");
-    CHECK(equalsMethod != nullptr);
-    CHECK(hashCodeMethod != nullptr);
-    CHECK(toStringMethod != nullptr);
-
     jsize array_index = 0;
-    // Adds Object methods.
-    soa.Env()->SetObjectArrayElement(proxyClassMethods, array_index++,
-                                     soa.AddLocalReference<jobject>(equalsMethod));
-    soa.Env()->SetObjectArrayElement(proxyClassMethods, array_index++,
-                                     soa.AddLocalReference<jobject>(hashCodeMethod));
-    soa.Env()->SetObjectArrayElement(proxyClassMethods, array_index++,
-                                     soa.AddLocalReference<jobject>(toStringMethod));
-
+    // Fill the method array
+    mirror::ArtMethod* method = javaLangObject->FindDeclaredVirtualMethod(
+        "equals", "(Ljava/lang/Object;)Z");
+    CHECK(method != nullptr);
+    soa.Env()->SetObjectArrayElement(
+        proxyClassMethods, array_index++, soa.AddLocalReference<jobject>(
+            mirror::Method::CreateFromArtMethod(soa.Self(), method)));
+    method = javaLangObject->FindDeclaredVirtualMethod("hashCode", "()I");
+    CHECK(method != nullptr);
+    soa.Env()->SetObjectArrayElement(
+        proxyClassMethods, array_index++, soa.AddLocalReference<jobject>(
+            mirror::Method::CreateFromArtMethod(soa.Self(), method)));
+    method = javaLangObject->FindDeclaredVirtualMethod("toString", "()Ljava/lang/String;");
+    CHECK(method != nullptr);
+    soa.Env()->SetObjectArrayElement(
+        proxyClassMethods, array_index++, soa.AddLocalReference<jobject>(
+            mirror::Method::CreateFromArtMethod(soa.Self(), method)));
     // Now adds all interfaces virtual methods.
     for (mirror::Class* interface : interfaces) {
-      mirror::ObjectArray<mirror::ArtMethod>* virtual_methods = interface->GetVirtualMethods();
-      if (virtual_methods != nullptr) {
-        for (int32_t mth_index = 0; mth_index < virtual_methods->GetLength(); ++mth_index) {
-          mirror::ArtMethod* method = virtual_methods->Get(mth_index);
-          soa.Env()->SetObjectArrayElement(proxyClassMethods, array_index++,
-                                           soa.AddLocalReference<jobject>(method));
-        }
+      for (int32_t i = 0, count = interface->NumVirtualMethods(); i < count; ++i) {
+        soa.Env()->SetObjectArrayElement(
+            proxyClassMethods, array_index++, soa.AddLocalReference<jobject>(
+                mirror::Method::CreateFromArtMethod(soa.Self(), interface->GetVirtualMethod(i))));
       }
     }
     CHECK_EQ(array_index, methods_count);
@@ -96,10 +90,9 @@ class ProxyTest : public CommonCompilerTest {
     jobjectArray proxyClassThrows = soa.Env()->NewObjectArray(0, javaLangClass, nullptr);
     soa.Self()->AssertNoPendingException();
 
-    mirror::Class* proxyClass = class_linker_->CreateProxyClass(soa,
-                                                                soa.Env()->NewStringUTF(className),
-                                                                proxyClassInterfaces, jclass_loader,
-                                                                proxyClassMethods, proxyClassThrows);
+    mirror::Class* proxyClass = class_linker_->CreateProxyClass(
+        soa, soa.Env()->NewStringUTF(className), proxyClassInterfaces, jclass_loader,
+        proxyClassMethods, proxyClassThrows);
     soa.Self()->AssertNoPendingException();
     return proxyClass;
   }

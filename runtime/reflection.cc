@@ -22,6 +22,7 @@
 #include "dex_file-inl.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "jni_internal.h"
+#include "mirror/abstract_method.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
@@ -537,7 +538,7 @@ void InvokeWithShadowFrame(Thread* self, ShadowFrame* shadow_frame, uint16_t arg
 }
 
 jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaMethod,
-                     jobject javaReceiver, jobject javaArgs, bool accessible) {
+                     jobject javaReceiver, jobject javaArgs, size_t num_frames) {
   // We want to make sure that the stack is not within a small distance from the
   // protected region in case we are calling into a leaf function whose stack
   // check has been elided.
@@ -547,7 +548,9 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
     return nullptr;
   }
 
-  mirror::ArtMethod* m = mirror::ArtMethod::FromReflectedMethod(soa, javaMethod);
+  auto* abstract_method = soa.Decode<mirror::AbstractMethod*>(javaMethod);
+  const bool accessible = abstract_method->IsAccessible();
+  mirror::ArtMethod* m = abstract_method->GetArtMethod();
 
   mirror::Class* declaring_class = m->GetDeclaringClass();
   if (UNLIKELY(!declaring_class->IsInitialized())) {
@@ -572,8 +575,7 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
   }
 
   // Get our arrays of arguments and their types, and check they're the same size.
-  mirror::ObjectArray<mirror::Object>* objects =
-      soa.Decode<mirror::ObjectArray<mirror::Object>*>(javaArgs);
+  auto* objects = soa.Decode<mirror::ObjectArray<mirror::Object>*>(javaArgs);
   const DexFile::TypeList* classes = m->GetParameterTypeList();
   uint32_t classes_size = (classes == nullptr) ? 0 : classes->Size();
   uint32_t arg_count = (objects != nullptr) ? objects->GetLength() : 0;
@@ -586,7 +588,7 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
   // If method is not set to be accessible, verify it can be accessed by the caller.
   mirror::Class* calling_class = nullptr;
   if (!accessible && !VerifyAccess(soa.Self(), receiver, declaring_class, m->GetAccessFlags(),
-                                   &calling_class, 2)) {
+                                   &calling_class, num_frames)) {
     ThrowIllegalAccessException(
         StringPrintf("Class %s cannot access %s method %s of class %s",
             calling_class == nullptr ? "null" : PrettyClass(calling_class).c_str(),

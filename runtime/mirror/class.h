@@ -47,6 +47,7 @@ namespace mirror {
 
 class ArtMethod;
 class ClassLoader;
+class Constructor;
 class DexCache;
 class IfTable;
 
@@ -1051,6 +1052,11 @@ class MANAGED Class FINAL : public Object {
   static MemberOffset DexCacheStringsOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_strings_);
   }
+
+  // May cause thread suspension due to EqualParameters.
+  mirror::ArtMethod* GetDeclaredConstructor(
+      Thread* self, Handle<mirror::ObjectArray<mirror::Class>> args)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Used to initialize a class in the allocation code path to ensure it is guarded by a StoreStore
   // fence.
