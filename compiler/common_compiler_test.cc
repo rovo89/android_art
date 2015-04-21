@@ -165,7 +165,7 @@ void CommonCompilerTest::SetUp() {
                                               method_inliner_map_.get(),
                                               compiler_kind, instruction_set,
                                               instruction_set_features_.get(),
-                                              true, new std::set<std::string>, nullptr,
+                                              true, new std::unordered_set<std::string>, nullptr,
                                               2, true, true, "", timer_.get(), -1, ""));
   }
   // We typically don't generate an image in unit tests, disable this optimization by default.
