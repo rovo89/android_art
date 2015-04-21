@@ -82,7 +82,7 @@ class OptimizingCompilerStats {
 
       for (int i = 0; i < kLastStat; i++) {
         if (compile_stats_[i] != 0) {
-          VLOG(compiler) << PrintMethodCompilationStat(i) << ": " << compile_stats_[i];
+          LOG(INFO) << PrintMethodCompilationStat(i) << ": " << compile_stats_[i];
         }
       }
     }
