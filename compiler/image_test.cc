@@ -124,7 +124,7 @@ TEST_F(ImageTest, WriteRead) {
   }
 
   ASSERT_TRUE(compiler_driver_->GetImageClasses() != NULL);
-  std::set<std::string> image_classes(*compiler_driver_->GetImageClasses());
+  std::unordered_set<std::string> image_classes(*compiler_driver_->GetImageClasses());
 
   // Need to delete the compiler since it has worker threads which are attached to runtime.
   compiler_driver_.reset();
