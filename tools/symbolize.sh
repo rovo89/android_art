@@ -37,30 +37,23 @@ function one() {
       exit 0
     fi
   fi
-  adb pull /data/dalvik-cache/$1/$2 /tmp || exit 1
-  mkdir -p $OUT/symbols/data/dalvik-cache/$1
-  oatdump --symbolize=/tmp/$2 --output=$OUT/symbols/data/dalvik-cache/$1/$2
+  adb pull $1/$2 /tmp || exit 1
+  mkdir -p $OUT/symbols/$1
+  oatdump --symbolize=/tmp/$2 --output=$OUT/symbols/$1/$2
 }
 
-# adb shell ls seems to output in DOS format (CRLF), which messes up scripting
-function adbls() {
-  adb shell ls $@ | sed 's/\r$//'
+# adb shell find seems to output in DOS format (CRLF), which messes up scripting
+function adbshellstrip() {
+  adb shell $@ | sed 's/\r$//'
 }
 
-# Check for all ISA directories on device.
+# Search in all of /data on device.
 function all() {
-  DIRS=$(adbls /data/dalvik-cache/)
-  for DIR in $DIRS ; do
-    case $DIR in
-      arm|arm64|mips|mips64|x86|x86_64)
-        FILES=$(adbls /data/dalvik-cache/$DIR/*.oat /data/dalvik-cache/$DIR/*.dex)
-        for FILE in $FILES ; do
-          # Cannot use basename as the file doesn't exist.
-          NAME=$(echo $FILE | sed -e 's/.*\///')
-          one $DIR $NAME
-        done
-        ;;
-    esac
+  FILES=$(adbshellstrip find /data -name "'*.oat'" -o -name "'*.dex'" -o -name "'*.odex'")
+  for FILE in $FILES ; do
+    DIR=$(dirname $FILE)
+    NAME=$(basename $FILE)
+    one $DIR $NAME
   done
 }
 
