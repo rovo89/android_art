@@ -2162,7 +2162,7 @@ class HInvoke : public HInstruction {
 
   uint32_t GetDexMethodIndex() const { return dex_method_index_; }
 
-  Intrinsics GetIntrinsic() {
+  Intrinsics GetIntrinsic() const {
     return intrinsic_;
   }
 

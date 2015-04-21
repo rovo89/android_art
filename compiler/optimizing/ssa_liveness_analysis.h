@@ -131,6 +131,9 @@ class UsePosition : public ArenaObject<kArenaAllocMisc> {
 
   void Dump(std::ostream& stream) const {
     stream << position_;
+    if (is_environment_) {
+      stream << " (env)";
+    }
   }
 
   UsePosition* Dup(ArenaAllocator* allocator) const {
@@ -363,6 +366,10 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
 
   LiveInterval* GetParent() const { return parent_; }
 
+  // Returns whether this interval is the parent interval, that is, the interval
+  // that starts where the HInstruction is defined.
+  bool IsParent() const { return parent_ == this; }
+
   LiveRange* GetFirstRange() const { return first_range_; }
   LiveRange* GetLastRange() const { return last_range_; }
 
@@ -421,7 +428,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
     if (is_temp_) {
       return position == GetStart() ? position : kNoLifetime;
     }
-    if (position == GetStart() && defined_by_ != nullptr) {
+    if (position == GetStart() && IsParent()) {
       LocationSummary* locations = defined_by_->GetLocations();
       Location location = locations->Out();
       // This interval is the first interval of the instruction. If the output
@@ -470,12 +477,19 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
       return position == GetStart() ? position : kNoLifetime;
     }
 
+    if (position == GetStart() && IsParent()) {
+      if (defined_by_->GetLocations()->Out().IsValid()) {
+        return position;
+      }
+    }
+
     UsePosition* use = first_use_;
     size_t end = GetEnd();
     while (use != nullptr && use->GetPosition() <= end) {
       if (!use->GetIsEnvironment()) {
+        Location location = use->GetUser()->GetLocations()->InAt(use->GetInputIndex());
         size_t use_position = use->GetPosition();
-        if (use_position > position) {
+        if (use_position > position && location.IsValid()) {
           return use_position;
         }
       }
@@ -693,7 +707,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
   }
 
   void AddHighInterval(bool is_temp = false) {
-    DCHECK_EQ(GetParent(), this);
+    DCHECK(IsParent());
     DCHECK(!HasHighInterval());
     DCHECK(!HasLowInterval());
     high_or_low_interval_ = new (allocator_) LiveInterval(
