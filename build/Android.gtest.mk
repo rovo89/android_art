@@ -191,6 +191,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/dex/mir_graph_test.cc \
   compiler/dex/mir_optimization_test.cc \
   compiler/dex/quick/quick_cfi_test.cc \
+  compiler/dex/type_inference_test.cc \
   compiler/dwarf/dwarf_test.cc \
   compiler/driver/compiler_driver_test.cc \
   compiler/elf_writer_test.cc \
@@ -227,6 +228,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/utils/arena_allocator_test.cc \
   compiler/utils/dedupe_set_test.cc \
   compiler/utils/swap_space_test.cc \
+  compiler/utils/test_dex_file_builder_test.cc \
   compiler/utils/arm/managed_register_arm_test.cc \
   compiler/utils/arm64/managed_register_arm64_test.cc \
   compiler/utils/x86/managed_register_x86_test.cc \

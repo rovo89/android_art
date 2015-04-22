@@ -128,7 +128,7 @@ class GvnDeadCodeElimination : public DeletableArenaObject<kArenaAllocMisc> {
   void KillMIR(MIRData* data);
   static void KillMIR(MIR* mir);
   static void ChangeBinOp2AddrToPlainBinOp(MIR* mir);
-  MIR* CreatePhi(int s_reg, bool fp);
+  MIR* CreatePhi(int s_reg);
   MIR* RenameSRegDefOrCreatePhi(uint16_t def_change, uint16_t last_change, MIR* mir_to_kill);
 
   // Update state variables going backwards through a MIR.
