@@ -667,6 +667,107 @@ TEST_F(AssemblerX86_64Test, Movw) {
   DriverStr(expected, "movw");
 }
 
+TEST_F(AssemblerX86_64Test, MovqAddrImm) {
+  GetAssembler()->movq(x86_64::Address(x86_64::CpuRegister(x86_64::RAX), 0),
+                       x86_64::Immediate(-5));
+  const char* expected = "movq $-5, 0(%RAX)\n";
+  DriverStr(expected, "movq");
+}
+
+TEST_F(AssemblerX86_64Test, Cvtsi2ssAddr) {
+  GetAssembler()->cvtsi2ss(x86_64::XmmRegister(x86_64::XMM0),
+                           x86_64::Address(x86_64::CpuRegister(x86_64::RAX), 0),
+                           false);
+  GetAssembler()->cvtsi2ss(x86_64::XmmRegister(x86_64::XMM0),
+                           x86_64::Address(x86_64::CpuRegister(x86_64::RAX), 0),
+                           true);
+  const char* expected = "cvtsi2ss 0(%RAX), %xmm0\n"
+                         "cvtsi2ssq 0(%RAX), %xmm0\n";
+  DriverStr(expected, "cvtsi2ss");
+}
+
+TEST_F(AssemblerX86_64Test, Cvtsi2sdAddr) {
+  GetAssembler()->cvtsi2sd(x86_64::XmmRegister(x86_64::XMM0),
+                           x86_64::Address(x86_64::CpuRegister(x86_64::RAX), 0),
+                           false);
+  GetAssembler()->cvtsi2sd(x86_64::XmmRegister(x86_64::XMM0),
+                           x86_64::Address(x86_64::CpuRegister(x86_64::RAX), 0),
+                           true);
+  const char* expected = "cvtsi2sd 0(%RAX), %xmm0\n"
+                         "cvtsi2sdq 0(%RAX), %xmm0\n";
+  DriverStr(expected, "cvtsi2sd");
+}
+
+TEST_F(AssemblerX86_64Test, CmpqAddr) {
+  GetAssembler()->cmpq(x86_64::CpuRegister(x86_64::R12),
+                       x86_64::Address(x86_64::CpuRegister(x86_64::R9), 0));
+  const char* expected = "cmpq 0(%R9), %R12\n";
+  DriverStr(expected, "cmpq");
+}
+
+TEST_F(AssemblerX86_64Test, Cvtss2sdAddr) {
+  GetAssembler()->cvtss2sd(x86_64::XmmRegister(x86_64::XMM0),
+                           x86_64::Address(x86_64::CpuRegister(x86_64::RAX), 0));
+  const char* expected = "cvtss2sd 0(%RAX), %xmm0\n";
+  DriverStr(expected, "cvtss2sd");
+}
+
+TEST_F(AssemblerX86_64Test, Cvtsd2ssAddr) {
+  GetAssembler()->cvtsd2ss(x86_64::XmmRegister(x86_64::XMM0),
+                           x86_64::Address(x86_64::CpuRegister(x86_64::RAX), 0));
+  const char* expected = "cvtsd2ss 0(%RAX), %xmm0\n";
+  DriverStr(expected, "cvtsd2ss");
+}
+
+TEST_F(AssemblerX86_64Test, ComissAddr) {
+  GetAssembler()->comiss(x86_64::XmmRegister(x86_64::XMM14),
+                           x86_64::Address(x86_64::CpuRegister(x86_64::RAX), 0));
+  const char* expected = "comiss 0(%RAX), %xmm14\n";
+  DriverStr(expected, "comiss");
+}
+
+TEST_F(AssemblerX86_64Test, ComisdAddr) {
+  GetAssembler()->comisd(x86_64::XmmRegister(x86_64::XMM0),
+                           x86_64::Address(x86_64::CpuRegister(x86_64::R9), 0));
+  const char* expected = "comisd 0(%R9), %xmm0\n";
+  DriverStr(expected, "comisd");
+}
+
+TEST_F(AssemblerX86_64Test, UComissAddr) {
+  GetAssembler()->ucomiss(x86_64::XmmRegister(x86_64::XMM0),
+                           x86_64::Address(x86_64::CpuRegister(x86_64::RAX), 0));
+  const char* expected = "ucomiss 0(%RAX), %xmm0\n";
+  DriverStr(expected, "ucomiss");
+}
+
+TEST_F(AssemblerX86_64Test, UComisdAddr) {
+  GetAssembler()->ucomisd(x86_64::XmmRegister(x86_64::XMM0),
+                           x86_64::Address(x86_64::CpuRegister(x86_64::RAX), 0));
+  const char* expected = "ucomisd 0(%RAX), %xmm0\n";
+  DriverStr(expected, "ucomisd");
+}
+
+TEST_F(AssemblerX86_64Test, Andq) {
+  GetAssembler()->andq(x86_64::CpuRegister(x86_64::R9),
+                           x86_64::Address(x86_64::CpuRegister(x86_64::RAX), 0));
+  const char* expected = "andq 0(%RAX), %r9\n";
+  DriverStr(expected, "andq");
+}
+
+TEST_F(AssemblerX86_64Test, Orq) {
+  GetAssembler()->orq(x86_64::CpuRegister(x86_64::R9),
+                           x86_64::Address(x86_64::CpuRegister(x86_64::RAX), 0));
+  const char* expected = "orq 0(%RAX), %r9\n";
+  DriverStr(expected, "orq");
+}
+
+TEST_F(AssemblerX86_64Test, Xorq) {
+  GetAssembler()->xorq(x86_64::CpuRegister(x86_64::R9),
+                           x86_64::Address(x86_64::CpuRegister(x86_64::RAX), 0));
+  const char* expected = "xorq 0(%RAX), %r9\n";
+  DriverStr(expected, "xorq");
+}
+
 TEST_F(AssemblerX86_64Test, Movsxd) {
   DriverStr(RepeatRr(&x86_64::X86_64Assembler::movsxd, "movsxd %{reg2}, %{reg1}"), "movsxd");
 }

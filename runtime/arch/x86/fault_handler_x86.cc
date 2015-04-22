@@ -191,6 +191,7 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
         break;
 
       case 0x81:        // group 1, word immediate.
+      case 0xc7:        // mov
         modrm = *pc++;
         has_modrm = true;
         immediate_size = operand_size_prefix ? 2 : 4;
