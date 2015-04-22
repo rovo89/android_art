@@ -26,16 +26,12 @@
 #include "os.h"
 
 namespace art {
-template <typename Elf_Ehdr, typename Elf_Phdr, typename Elf_Shdr, typename Elf_Word,
-          typename Elf_Sword, typename Elf_Addr, typename Elf_Sym, typename Elf_Rel,
-          typename Elf_Rela, typename Elf_Dyn, typename Elf_Off>
+template <typename ElfTypes>
 class ElfFileImpl;
 
 // Explicitly instantiated in elf_file.cc
-typedef ElfFileImpl<Elf32_Ehdr, Elf32_Phdr, Elf32_Shdr, Elf32_Word, Elf32_Sword,
-                    Elf32_Addr, Elf32_Sym, Elf32_Rel, Elf32_Rela, Elf32_Dyn, Elf32_Off> ElfFileImpl32;
-typedef ElfFileImpl<Elf64_Ehdr, Elf64_Phdr, Elf64_Shdr, Elf64_Word, Elf64_Sword,
-                    Elf64_Addr, Elf64_Sym, Elf64_Rel, Elf64_Rela, Elf64_Dyn, Elf64_Off> ElfFileImpl64;
+typedef ElfFileImpl<ElfTypes32> ElfFileImpl32;
+typedef ElfFileImpl<ElfTypes64> ElfFileImpl64;
 
 // Used for compile time and runtime for ElfFile access. Because of
 // the need for use at runtime, cannot directly use LLVM classes such as
