@@ -94,7 +94,7 @@ JitCompiler::JitCompiler() : total_time_(0) {
   compiler_driver_.reset(new CompilerDriver(
       compiler_options_.get(), verification_results_.get(), method_inliner_map_.get(),
       Compiler::kQuick, instruction_set, instruction_set_features_.get(), false,
-      nullptr, nullptr, 1, false, true,
+      nullptr, nullptr, nullptr, 1, false, true,
       std::string(), cumulative_logger_.get(), -1, std::string()));
   // Disable dedupe so we can remove compiled methods.
   compiler_driver_->SetDedupeEnabled(false);

@@ -61,7 +61,7 @@ $(ART_TEST_TARGET_GTEST_MainStripped_DEX): $(ART_TEST_TARGET_GTEST_Main_DEX)
 
 # Dex file dependencies for each gtest.
 ART_GTEST_class_linker_test_DEX_DEPS := Interfaces MultiDex MyClass Nested Statics StaticsFromCode
-ART_GTEST_compiler_driver_test_DEX_DEPS := AbstractMethod
+ART_GTEST_compiler_driver_test_DEX_DEPS := AbstractMethod StaticLeafMethods
 ART_GTEST_dex_file_test_DEX_DEPS := GetMethodSignature Main Nested
 ART_GTEST_exception_test_DEX_DEPS := ExceptionHandle
 ART_GTEST_jni_compiler_test_DEX_DEPS := MyClassNatives

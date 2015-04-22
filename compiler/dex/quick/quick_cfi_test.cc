@@ -76,7 +76,7 @@ class QuickCFITest : public CFITest {
     isa_features.reset(InstructionSetFeatures::FromVariant(isa, "default", &error));
     CompilerDriver driver(&compiler_options, &verification_results, &method_inliner_map,
                           Compiler::kQuick, isa, isa_features.get(),
-                          false, 0, 0, 0, false, false, "", 0, -1, "");
+                          false, nullptr, nullptr, nullptr, 0, false, false, "", 0, -1, "");
     ClassLinker* linker = nullptr;
     CompilationUnit cu(&pool, isa, &driver, linker);
     DexFile::CodeItem code_item { 0, 0, 0, 0, 0, 0, { 0 } };  // NOLINT

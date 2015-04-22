@@ -140,6 +140,27 @@ void CommonCompilerTest::MakeExecutable(mirror::ClassLoader* class_loader, const
   }
 }
 
+// Get the set of image classes given to the compiler-driver in SetUp. Note: the compiler
+// driver assumes ownership of the set, so the test should properly release the set.
+std::unordered_set<std::string>* CommonCompilerTest::GetImageClasses() {
+  // Empty set: by default no classes are retained in the image.
+  return new std::unordered_set<std::string>();
+}
+
+// Get the set of compiled classes given to the compiler-driver in SetUp. Note: the compiler
+// driver assumes ownership of the set, so the test should properly release the set.
+std::unordered_set<std::string>* CommonCompilerTest::GetCompiledClasses() {
+  // Null, no selection of compiled-classes.
+  return nullptr;
+}
+
+// Get the set of compiled methods given to the compiler-driver in SetUp. Note: the compiler
+// driver assumes ownership of the set, so the test should properly release the set.
+std::unordered_set<std::string>* CommonCompilerTest::GetCompiledMethods() {
+  // Null, no selection of compiled-methods.
+  return nullptr;
+}
+
 void CommonCompilerTest::SetUp() {
   CommonRuntimeTest::SetUp();
   {
@@ -165,7 +186,10 @@ void CommonCompilerTest::SetUp() {
                                               method_inliner_map_.get(),
                                               compiler_kind, instruction_set,
                                               instruction_set_features_.get(),
-                                              true, new std::unordered_set<std::string>, nullptr,
+                                              true,
+                                              GetImageClasses(),
+                                              GetCompiledClasses(),
+                                              GetCompiledMethods(),
                                               2, true, true, "", timer_.get(), -1, ""));
   }
   // We typically don't generate an image in unit tests, disable this optimization by default.
