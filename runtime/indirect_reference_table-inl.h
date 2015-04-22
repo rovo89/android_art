@@ -31,7 +31,7 @@ class Object;
 // Returns "false" if something looks bad.
 inline bool IndirectReferenceTable::GetChecked(IndirectRef iref) const {
   if (UNLIKELY(iref == nullptr)) {
-    LOG(WARNING) << "Attempt to look up NULL " << kind_;
+    LOG(WARNING) << "Attempt to look up nullptr " << kind_;
     return false;
   }
   if (UNLIKELY(GetIndirectRefKind(iref) == kHandleScopeOrInvalid)) {

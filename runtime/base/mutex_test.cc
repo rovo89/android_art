@@ -106,7 +106,7 @@ struct RecursiveLockWait {
     state->mu.Lock(Thread::Current());
     state->cv.Signal(Thread::Current());
     state->mu.Unlock(Thread::Current());
-    return NULL;
+    return nullptr;
   }
 
   Mutex mu;
@@ -120,14 +120,15 @@ static void RecursiveLockWaitTest() NO_THREAD_SAFETY_ANALYSIS {
   state.mu.Lock(Thread::Current());
 
   pthread_t pthread;
-  int pthread_create_result = pthread_create(&pthread, NULL, RecursiveLockWait::Callback, &state);
+  int pthread_create_result = pthread_create(&pthread, nullptr, RecursiveLockWait::Callback,
+                                             &state);
   ASSERT_EQ(0, pthread_create_result);
 
   state.cv.Wait(Thread::Current());
 
   state.mu.Unlock(Thread::Current());
   state.mu.Unlock(Thread::Current());
-  EXPECT_EQ(pthread_join(pthread, NULL), 0);
+  EXPECT_EQ(pthread_join(pthread, nullptr), 0);
 }
 
 // This ensures we don't hang when waiting on a recursively locked mutex,

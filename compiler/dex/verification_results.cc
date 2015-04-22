@@ -46,7 +46,7 @@ VerificationResults::~VerificationResults() {
 }
 
 bool VerificationResults::ProcessVerifiedMethod(verifier::MethodVerifier* method_verifier) {
-  DCHECK(method_verifier != NULL);
+  DCHECK(method_verifier != nullptr);
   MethodReference ref = method_verifier->GetMethodReference();
   bool compile = IsCandidateForCompilation(ref, method_verifier->GetAccessFlags());
   const VerifiedMethod* verified_method = VerifiedMethod::Create(method_verifier, compile);

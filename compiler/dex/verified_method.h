@@ -59,7 +59,7 @@ class VerifiedMethod {
     return safe_cast_set_;
   }
 
-  // Returns the devirtualization target method, or nullptr if none.
+  // Returns the devirtualization target method, or null if none.
   const MethodReference* GetDevirtTarget(uint32_t dex_pc) const;
 
   // Returns the dequicken field / method for a quick invoke / field get. Returns null if there is

@@ -68,7 +68,7 @@ struct DebugInvokeReq {
   GcRoot<mirror::Class> klass;
   GcRoot<mirror::ArtMethod> method;
   const uint32_t arg_count;
-  uint64_t* const arg_values;   // will be NULL if arg_count_ == 0
+  uint64_t* const arg_values;   // will be null if arg_count_ == 0
   const uint32_t options;
 
   /* result */

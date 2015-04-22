@@ -40,10 +40,10 @@ File* OS::CreateEmptyFile(const char* name) {
 }
 
 File* OS::OpenFileWithFlags(const char* name, int flags) {
-  CHECK(name != NULL);
+  CHECK(name != nullptr);
   std::unique_ptr<File> file(new File);
   if (!file->Open(name, flags, 0666)) {
-    return NULL;
+    return nullptr;
   }
   return file.release();
 }

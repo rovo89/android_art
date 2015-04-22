@@ -30,8 +30,8 @@ class DexMethodIterator {
         found_next_(false),
         dex_file_index_(0),
         class_def_index_(0),
-        class_def_(NULL),
-        class_data_(NULL),
+        class_def_(nullptr),
+        class_data_(nullptr),
         direct_method_(false) {
     CHECK_NE(0U, dex_files_.size());
   }
@@ -51,20 +51,20 @@ class DexMethodIterator {
         dex_file_index_++;
         continue;
       }
-      if (class_def_ == NULL) {
+      if (class_def_ == nullptr) {
         class_def_ = &GetDexFileInternal().GetClassDef(class_def_index_);
       }
-      if (class_data_ == NULL) {
+      if (class_data_ == nullptr) {
         class_data_ = GetDexFileInternal().GetClassData(*class_def_);
-        if (class_data_ == NULL) {
+        if (class_data_ == nullptr) {
           // empty class, such as a marker interface
           // End of this class, advance and retry.
-          class_def_ = NULL;
+          class_def_ = nullptr;
           class_def_index_++;
           continue;
         }
       }
-      if (it_.get() == NULL) {
+      if (it_.get() == nullptr) {
         it_.reset(new ClassDataItemIterator(GetDexFileInternal(), class_data_));
         // Skip fields
         while (GetIterator().HasNextStaticField()) {
@@ -88,16 +88,16 @@ class DexMethodIterator {
       }
       // End of this class, advance and retry.
       DCHECK(!GetIterator().HasNext());
-      it_.reset(NULL);
-      class_data_ = NULL;
-      class_def_ = NULL;
+      it_.reset(nullptr);
+      class_data_ = nullptr;
+      class_def_ = nullptr;
       class_def_index_++;
     }
   }
 
   void Next() {
     found_next_ = false;
-    if (it_.get() != NULL) {
+    if (it_.get() != nullptr) {
       // Advance to next method if we currently are looking at a class.
       GetIterator().Next();
     }
@@ -115,20 +115,20 @@ class DexMethodIterator {
 
   InvokeType GetInvokeType() {
     CHECK(HasNext());
-    CHECK(class_def_ != NULL);
+    CHECK(class_def_ != nullptr);
     return GetIterator().GetMethodInvokeType(*class_def_);
   }
 
  private:
   ClassDataItemIterator& GetIterator() const {
-    CHECK(it_.get() != NULL);
+    CHECK(it_.get() != nullptr);
     return *it_.get();
   }
 
   const DexFile& GetDexFileInternal() const {
     CHECK_LT(dex_file_index_, dex_files_.size());
     const DexFile* dex_file = dex_files_[dex_file_index_];
-    CHECK(dex_file != NULL);
+    CHECK(dex_file != nullptr);
     return *dex_file;
   }
 

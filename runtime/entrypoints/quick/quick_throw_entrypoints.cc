@@ -34,10 +34,10 @@ extern "C" NO_RETURN void artDeliverPendingExceptionFromCode(Thread* self)
 extern "C" NO_RETURN void artDeliverExceptionFromCode(mirror::Throwable* exception, Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   /*
-   * exception may be NULL, in which case this routine should
+   * exception may be null, in which case this routine should
    * throw NPE.  NOTE: this is a convenience for generated code,
    * which previously did the null check inline and constructed
-   * and threw a NPE if NULL.  This routine responsible for setting
+   * and threw a NPE if null.  This routine responsible for setting
    * exception_ in thread and delivering the exception.
    */
   ScopedQuickEntrypointChecks sqec(self);

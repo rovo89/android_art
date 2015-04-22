@@ -53,7 +53,7 @@ int32_t String::FastIndexOf(int32_t ch, int32_t start) {
 
 void String::SetClass(Class* java_lang_String) {
   CHECK(java_lang_String_.IsNull());
-  CHECK(java_lang_String != NULL);
+  CHECK(java_lang_String != nullptr);
   java_lang_String_ = GcRoot<Class>(java_lang_String);
 }
 
@@ -137,7 +137,7 @@ bool String::Equals(String* that) {
   if (this == that) {
     // Quick reference equality test
     return true;
-  } else if (that == NULL) {
+  } else if (that == nullptr) {
     // Null isn't an instanceof anything
     return false;
   } else if (this->GetLength() != that->GetLength()) {

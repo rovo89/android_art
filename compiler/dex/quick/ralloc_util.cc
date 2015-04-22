@@ -935,7 +935,7 @@ bool Mir2Lir::CheckCorePoolSanity() {
       RegStorage my_reg = info->GetReg();
       RegStorage partner_reg = info->Partner();
       RegisterInfo* partner = GetRegInfo(partner_reg);
-      DCHECK(partner != NULL);
+      DCHECK(partner != nullptr);
       DCHECK(partner->IsWide());
       DCHECK_EQ(my_reg.GetReg(), partner->Partner().GetReg());
       DCHECK(partner->IsLive());

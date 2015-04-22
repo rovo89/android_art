@@ -484,13 +484,13 @@ void X86Mir2Lir::GenCmpFP(Instruction::Code code, RegLocation rl_dest,
   } else {
     NewLIR2(kX86UcomisdRR, rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
   }
-  LIR* branch = NULL;
+  LIR* branch = nullptr;
   if (unordered_gt) {
     branch = NewLIR2(kX86Jcc8, 0, kX86CondPE);
   }
   // If the result reg can't be byte accessed, use a jump and move instead of a set.
   if (!IsByteRegister(rl_result.reg)) {
-    LIR* branch2 = NULL;
+    LIR* branch2 = nullptr;
     if (unordered_gt) {
       branch2 = NewLIR2(kX86Jcc8, 0, kX86CondA);
       NewLIR2(kX86Mov32RI, rl_result.reg.GetReg(), 0x0);
@@ -513,7 +513,7 @@ void X86Mir2Lir::GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias,
                                      bool is_double) {
   LIR* taken = &block_label_list_[bb->taken];
   LIR* not_taken = &block_label_list_[bb->fall_through];
-  LIR* branch = NULL;
+  LIR* branch = nullptr;
   RegLocation rl_src1;
   RegLocation rl_src2;
   if (is_double) {

@@ -148,7 +148,7 @@ bool ElfWriterQuick<ElfTypes>::Write(
   RawSection debug_abbrev(".debug_abbrev", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
   RawSection debug_str(".debug_str", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
   RawSection debug_line(".debug_line", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
-  RawSection oat_patches(".oat_patches", SHT_OAT_PATCH, 0, NULL, 0, 1, 0);
+  RawSection oat_patches(".oat_patches", SHT_OAT_PATCH, 0, nullptr, 0, 1, 0);
 
   // Do not add to .oat_patches since we will make the addresses relative.
   std::vector<uintptr_t> eh_frame_patches;

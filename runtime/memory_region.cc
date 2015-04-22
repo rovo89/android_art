@@ -25,7 +25,7 @@
 namespace art {
 
 void MemoryRegion::CopyFrom(size_t offset, const MemoryRegion& from) const {
-  CHECK(from.pointer() != NULL);
+  CHECK(from.pointer() != nullptr);
   CHECK_GT(from.size(), 0U);
   CHECK_GE(this->size(), from.size());
   CHECK_LE(offset, this->size() - from.size());

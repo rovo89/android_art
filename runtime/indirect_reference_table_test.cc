@@ -216,7 +216,7 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
   ASSERT_EQ(0U, irt.Capacity()) << "temporal del not empty";
   CheckDump(&irt, 0, 0);
 
-  // nullptr isn't a valid iref.
+  // null isn't a valid iref.
   ASSERT_TRUE(irt.Get(nullptr) == nullptr);
 
   // Stale lookup.

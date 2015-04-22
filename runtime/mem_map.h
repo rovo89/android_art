@@ -53,24 +53,25 @@ static constexpr bool kMadviseZeroes = false;
 class MemMap {
  public:
   // Request an anonymous region of length 'byte_count' and a requested base address.
-  // Use NULL as the requested base address if you don't care.
+  // Use null as the requested base address if you don't care.
   // "reuse" allows re-mapping an address range from an existing mapping.
   //
   // The word "anonymous" in this context means "not backed by a file". The supplied
   // 'ashmem_name' will be used -- on systems that support it -- to give the mapping
   // a name.
   //
-  // On success, returns returns a MemMap instance.  On failure, returns a NULL;
+  // On success, returns returns a MemMap instance.  On failure, returns null.
   static MemMap* MapAnonymous(const char* ashmem_name, uint8_t* addr, size_t byte_count, int prot,
                               bool low_4gb, bool reuse, std::string* error_msg);
 
   // Map part of a file, taking care of non-page aligned offsets.  The
   // "start" offset is absolute, not relative.
   //
-  // On success, returns returns a MemMap instance.  On failure, returns a NULL;
+  // On success, returns returns a MemMap instance.  On failure, returns null.
   static MemMap* MapFile(size_t byte_count, int prot, int flags, int fd, off_t start,
                          const char* filename, std::string* error_msg) {
-    return MapFileAtAddress(NULL, byte_count, prot, flags, fd, start, false, filename, error_msg);
+    return MapFileAtAddress(
+        nullptr, byte_count, prot, flags, fd, start, false, filename, error_msg);
   }
 
   // Map part of a file, taking care of non-page aligned offsets.  The
@@ -79,13 +80,12 @@ class MemMap {
   // mapping. "reuse" allows us to create a view into an existing
   // mapping where we do not take ownership of the memory.
   //
-  // On success, returns returns a MemMap instance.  On failure, returns a
-  // nullptr;
+  // On success, returns returns a MemMap instance.  On failure, returns null.
   static MemMap* MapFileAtAddress(uint8_t* addr, size_t byte_count, int prot, int flags, int fd,
                                   off_t start, bool reuse, const char* filename,
                                   std::string* error_msg);
 
-  // Releases the memory mapping
+  // Releases the memory mapping.
   ~MemMap() LOCKS_EXCLUDED(Locks::mem_maps_lock_);
 
   const std::string& GetName() const {

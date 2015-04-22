@@ -497,7 +497,7 @@ const OatFile::OatDexFile* OatFile::GetOatDexFile(const char* dex_location,
     MutexLock mu(Thread::Current(), secondary_lookup_lock_);
     auto secondary_lb = secondary_oat_dex_files_.lower_bound(key);
     if (secondary_lb != secondary_oat_dex_files_.end() && key == secondary_lb->first) {
-      oat_dex_file = secondary_lb->second;  // May be nullptr.
+      oat_dex_file = secondary_lb->second;  // May be null.
     } else {
       // We haven't seen this dex_location before, we must check the canonical location.
       std::string dex_canonical_location = DexFile::GetDexCanonicalLocation(dex_location);
@@ -506,8 +506,8 @@ const OatFile::OatDexFile* OatFile::GetOatDexFile(const char* dex_location,
         auto canonical_it = oat_dex_files_.find(canonical_key);
         if (canonical_it != oat_dex_files_.end()) {
           oat_dex_file = canonical_it->second;
-        }  // else keep nullptr.
-      }  // else keep nullptr.
+        }  // else keep null.
+      }  // else keep null.
 
       // Copy the key to the string_cache_ and store the result in secondary map.
       string_cache_.emplace_back(key.data(), key.length());

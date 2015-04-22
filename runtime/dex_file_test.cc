@@ -33,7 +33,7 @@ class DexFileTest : public CommonRuntimeTest {};
 TEST_F(DexFileTest, Open) {
   ScopedObjectAccess soa(Thread::Current());
   std::unique_ptr<const DexFile> dex(OpenTestDexFile("Nested"));
-  ASSERT_TRUE(dex.get() != NULL);
+  ASSERT_TRUE(dex.get() != nullptr);
 }
 
 static const uint8_t kBase64Map[256] = {
@@ -136,14 +136,14 @@ static const char kRawDex[] =
 static std::unique_ptr<const DexFile> OpenDexFileBase64(const char* base64,
                                                         const char* location) {
   // decode base64
-  CHECK(base64 != NULL);
+  CHECK(base64 != nullptr);
   size_t length;
   std::unique_ptr<uint8_t[]> dex_bytes(DecodeBase64(base64, &length));
-  CHECK(dex_bytes.get() != NULL);
+  CHECK(dex_bytes.get() != nullptr);
 
   // write to provided file
   std::unique_ptr<File> file(OS::CreateEmptyFile(location));
-  CHECK(file.get() != NULL);
+  CHECK(file.get() != nullptr);
   if (!file->WriteFully(dex_bytes.get(), length)) {
     PLOG(FATAL) << "Failed to write base64 as dex file";
   }
@@ -168,7 +168,7 @@ static std::unique_ptr<const DexFile> OpenDexFileBase64(const char* base64,
 TEST_F(DexFileTest, Header) {
   ScratchFile tmp;
   std::unique_ptr<const DexFile> raw(OpenDexFileBase64(kRawDex, tmp.GetFilename().c_str()));
-  ASSERT_TRUE(raw.get() != NULL);
+  ASSERT_TRUE(raw.get() != nullptr);
 
   const DexFile::Header& header = raw->GetHeader();
   // TODO: header.magic_
@@ -234,7 +234,7 @@ TEST_F(DexFileTest, GetMethodSignature) {
   ASSERT_STREQ("LGetMethodSignature;", raw->GetClassDescriptor(class_def));
 
   const uint8_t* class_data = raw->GetClassData(class_def);
-  ASSERT_TRUE(class_data != NULL);
+  ASSERT_TRUE(class_data != nullptr);
   ClassDataItemIterator it(*raw, class_data);
 
   EXPECT_EQ(1u, it.NumDirectMethods());
@@ -281,8 +281,8 @@ TEST_F(DexFileTest, FindStringId) {
   EXPECT_EQ(1U, raw->NumClassDefs());
 
   const char* strings[] = { "LGetMethodSignature;", "Ljava/lang/Float;", "Ljava/lang/Object;",
-      "D", "I", "J", NULL };
-  for (size_t i = 0; strings[i] != NULL; i++) {
+      "D", "I", "J", nullptr };
+  for (size_t i = 0; strings[i] != nullptr; i++) {
     const char* str = strings[i];
     const DexFile::StringId* str_id = raw->FindStringId(str);
     const char* dex_str = raw->GetStringData(*str_id);
@@ -294,10 +294,10 @@ TEST_F(DexFileTest, FindTypeId) {
   for (size_t i = 0; i < java_lang_dex_file_->NumTypeIds(); i++) {
     const char* type_str = java_lang_dex_file_->StringByTypeIdx(i);
     const DexFile::StringId* type_str_id = java_lang_dex_file_->FindStringId(type_str);
-    ASSERT_TRUE(type_str_id != NULL);
+    ASSERT_TRUE(type_str_id != nullptr);
     uint32_t type_str_idx = java_lang_dex_file_->GetIndexForStringId(*type_str_id);
     const DexFile::TypeId* type_id = java_lang_dex_file_->FindTypeId(type_str_idx);
-    ASSERT_TRUE(type_id != NULL);
+    ASSERT_TRUE(type_id != nullptr);
     EXPECT_EQ(java_lang_dex_file_->GetIndexForTypeId(*type_id), i);
   }
 }
@@ -307,14 +307,14 @@ TEST_F(DexFileTest, FindProtoId) {
     const DexFile::ProtoId& to_find = java_lang_dex_file_->GetProtoId(i);
     const DexFile::TypeList* to_find_tl = java_lang_dex_file_->GetProtoParameters(to_find);
     std::vector<uint16_t> to_find_types;
-    if (to_find_tl != NULL) {
+    if (to_find_tl != nullptr) {
       for (size_t j = 0; j < to_find_tl->Size(); j++) {
         to_find_types.push_back(to_find_tl->GetTypeItem(j).type_idx_);
       }
     }
     const DexFile::ProtoId* found =
         java_lang_dex_file_->FindProtoId(to_find.return_type_idx_, to_find_types);
-    ASSERT_TRUE(found != NULL);
+    ASSERT_TRUE(found != nullptr);
     EXPECT_EQ(java_lang_dex_file_->GetIndexForProtoId(*found), i);
   }
 }
@@ -326,7 +326,7 @@ TEST_F(DexFileTest, FindMethodId) {
     const DexFile::StringId& name = java_lang_dex_file_->GetStringId(to_find.name_idx_);
     const DexFile::ProtoId& signature = java_lang_dex_file_->GetProtoId(to_find.proto_idx_);
     const DexFile::MethodId* found = java_lang_dex_file_->FindMethodId(klass, name, signature);
-    ASSERT_TRUE(found != NULL) << "Didn't find method " << i << ": "
+    ASSERT_TRUE(found != nullptr) << "Didn't find method " << i << ": "
         << java_lang_dex_file_->StringByTypeIdx(to_find.class_idx_) << "."
         << java_lang_dex_file_->GetStringData(name)
         << java_lang_dex_file_->GetMethodSignature(to_find);
@@ -341,7 +341,7 @@ TEST_F(DexFileTest, FindFieldId) {
     const DexFile::StringId& name = java_lang_dex_file_->GetStringId(to_find.name_idx_);
     const DexFile::TypeId& type = java_lang_dex_file_->GetTypeId(to_find.type_idx_);
     const DexFile::FieldId* found = java_lang_dex_file_->FindFieldId(klass, name, type);
-    ASSERT_TRUE(found != NULL) << "Didn't find field " << i << ": "
+    ASSERT_TRUE(found != nullptr) << "Didn't find field " << i << ": "
         << java_lang_dex_file_->StringByTypeIdx(to_find.type_idx_) << " "
         << java_lang_dex_file_->StringByTypeIdx(to_find.class_idx_) << "."
         << java_lang_dex_file_->GetStringData(name);

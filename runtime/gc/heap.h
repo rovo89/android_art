@@ -396,7 +396,7 @@ class Heap {
   void RecordFreeRevoke();
 
   // Must be called if a field of an Object in the heap changes, and before any GC safe-point.
-  // The call is not needed if NULL is stored in the field.
+  // The call is not needed if null is stored in the field.
   ALWAYS_INLINE void WriteBarrierField(const mirror::Object* dst, MemberOffset /*offset*/,
                                        const mirror::Object* /*new_value*/) {
     card_table_->MarkCard(dst);
@@ -991,7 +991,7 @@ class Heap {
   // programs it is "cleared" making it the same as capacity.
   size_t growth_limit_;
 
-  // When the number of bytes allocated exceeds the footprint TryAllocate returns NULL indicating
+  // When the number of bytes allocated exceeds the footprint TryAllocate returns null indicating
   // a GC should be triggered.
   size_t max_allowed_footprint_;
 

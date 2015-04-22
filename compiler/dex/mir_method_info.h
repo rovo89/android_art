@@ -88,7 +88,7 @@ class MirMethodInfo {
   // The type index of the class declaring the method, 0 if unresolved.
   uint16_t declaring_class_idx_;
   // The dex file that defines the class containing the method and the method,
-  // nullptr if unresolved.
+  // null if unresolved.
   const DexFile* declaring_dex_file_;
 };
 
@@ -223,7 +223,7 @@ class MirMethodLoweringInfo : public MirMethodInfo {
   uintptr_t direct_code_;
   uintptr_t direct_method_;
   // Before Resolve(), target_dex_file_ and target_method_idx_ hold the verification-based
-  // devirtualized invoke target if available, nullptr and 0u otherwise.
+  // devirtualized invoke target if available, null and 0u otherwise.
   // After Resolve() they hold the actual target method that will be called; it will be either
   // a devirtualized target method or the compilation's unit's dex file and MethodIndex().
   const DexFile* target_dex_file_;

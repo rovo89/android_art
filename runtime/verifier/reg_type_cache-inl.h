@@ -30,7 +30,7 @@ namespace verifier {
 inline const art::verifier::RegType& RegTypeCache::GetFromId(uint16_t id) const {
   DCHECK_LT(id, entries_.size());
   const RegType* result = entries_[id];
-  DCHECK(result != NULL);
+  DCHECK(result != nullptr);
   return *result;
 }
 

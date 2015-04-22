@@ -289,7 +289,7 @@ struct AbortState {
     }
     gAborting++;
     os << "Runtime aborting...\n";
-    if (Runtime::Current() == NULL) {
+    if (Runtime::Current() == nullptr) {
       os << "(Runtime does not yet exist!)\n";
       return;
     }
@@ -350,7 +350,7 @@ void Runtime::Abort() {
   MutexLock mu(Thread::Current(), *Locks::abort_lock_);
 
   // Get any pending output out of the way.
-  fflush(NULL);
+  fflush(nullptr);
 
   // Many people have difficulty distinguish aborts from crashes,
   // so be explicit.
@@ -358,7 +358,7 @@ void Runtime::Abort() {
   LOG(INTERNAL_FATAL) << Dumpable<AbortState>(state);
 
   // Call the abort hook if we have one.
-  if (Runtime::Current() != NULL && Runtime::Current()->abort_ != NULL) {
+  if (Runtime::Current() != nullptr && Runtime::Current()->abort_ != nullptr) {
     LOG(INTERNAL_FATAL) << "Calling abort hook...";
     Runtime::Current()->abort_();
     // notreached
@@ -386,7 +386,7 @@ void Runtime::PreZygoteFork() {
 }
 
 void Runtime::CallExitHook(jint status) {
-  if (exit_ != NULL) {
+  if (exit_ != nullptr) {
     ScopedThreadStateChange tsc(Thread::Current(), kNative);
     exit_(status);
     LOG(WARNING) << "Exit hook returned instead of exiting!";
@@ -401,16 +401,16 @@ void Runtime::SweepSystemWeaks(IsMarkedCallback* visitor, void* arg) {
 
 bool Runtime::Create(const RuntimeOptions& options, bool ignore_unrecognized) {
   // TODO: acquire a static mutex on Runtime to avoid racing.
-  if (Runtime::instance_ != NULL) {
+  if (Runtime::instance_ != nullptr) {
     return false;
   }
-  InitLogging(NULL);  // Calls Locks::Init() as a side effect.
+  InitLogging(nullptr);  // Calls Locks::Init() as a side effect.
   instance_ = new Runtime;
   if (!instance_->Init(options, ignore_unrecognized)) {
     // TODO: Currently deleting the instance will abort the runtime on destruction. Now This will
     // leak memory, instead. Fix the destructor. b/19100793.
     // delete instance_;
-    instance_ = NULL;
+    instance_ = nullptr;
     return false;
   }
   return true;
@@ -431,7 +431,7 @@ static jobject CreateSystemClassLoader(Runtime* runtime) {
 
   mirror::ArtMethod* getSystemClassLoader =
       class_loader_class->FindDirectMethod("getSystemClassLoader", "()Ljava/lang/ClassLoader;");
-  CHECK(getSystemClassLoader != NULL);
+  CHECK(getSystemClassLoader != nullptr);
 
   JValue result = InvokeWithJValues(soa, nullptr, soa.EncodeMethod(getSystemClassLoader), nullptr);
   JNIEnv* env = soa.Self()->GetJniEnv();
@@ -447,7 +447,7 @@ static jobject CreateSystemClassLoader(Runtime* runtime) {
 
   ArtField* contextClassLoader =
       thread_class->FindDeclaredInstanceField("contextClassLoader", "Ljava/lang/ClassLoader;");
-  CHECK(contextClassLoader != NULL);
+  CHECK(contextClassLoader != nullptr);
 
   // We can't run in a transaction yet.
   contextClassLoader->SetObject<false>(soa.Self()->GetPeer(),
@@ -590,7 +590,7 @@ bool Runtime::InitZygote() {
 
   // Mark rootfs as being a slave so that changes from default
   // namespace only flow into our children.
-  if (mount("rootfs", "/", NULL, (MS_SLAVE | MS_REC), NULL) == -1) {
+  if (mount("rootfs", "/", nullptr, (MS_SLAVE | MS_REC), nullptr) == -1) {
     PLOG(WARNING) << "Failed to mount() rootfs as MS_SLAVE";
     return false;
   }
@@ -599,7 +599,7 @@ bool Runtime::InitZygote() {
   // bind mount storage into their respective private namespaces, which
   // are isolated from each other.
   const char* target_base = getenv("EMULATED_STORAGE_TARGET");
-  if (target_base != NULL) {
+  if (target_base != nullptr) {
     if (mount("tmpfs", target_base, "tmpfs", MS_NOSUID | MS_NODEV,
               "uid=0,gid=1028,mode=0751") == -1) {
       LOG(WARNING) << "Failed to mount tmpfs to " << target_base;
@@ -677,7 +677,7 @@ void Runtime::StartDaemonThreads() {
 static bool OpenDexFilesFromImage(const std::string& image_location,
                                   std::vector<std::unique_ptr<const DexFile>>* dex_files,
                                   size_t* failures) {
-  DCHECK(dex_files != nullptr) << "OpenDexFilesFromImage: out-param is NULL";
+  DCHECK(dex_files != nullptr) << "OpenDexFilesFromImage: out-param is nullptr";
   std::string system_filename;
   bool has_system = false;
   std::string cache_filename_unused;
@@ -737,7 +737,7 @@ static size_t OpenDexFiles(const std::vector<std::string>& dex_filenames,
                            const std::vector<std::string>& dex_locations,
                            const std::string& image_location,
                            std::vector<std::unique_ptr<const DexFile>>* dex_files) {
-  DCHECK(dex_files != nullptr) << "OpenDexFiles: out-param is NULL";
+  DCHECK(dex_files != nullptr) << "OpenDexFiles: out-param is nullptr";
   size_t failure_count = 0;
   if (!image_location.empty() && OpenDexFilesFromImage(image_location, dex_files, &failure_count)) {
     return failure_count;
@@ -870,7 +870,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
     // If we are already the compiler at this point, we must be dex2oat. Don't create the jit in
     // this case.
     // If runtime_options doesn't have UseJIT set to true then CreateFromRuntimeArguments returns
-    // nullptr and we don't create the jit.
+    // null and we don't create the jit.
     use_jit = false;
   }
 
@@ -1129,26 +1129,26 @@ void Runtime::InitThreadGroups(Thread* self) {
       env->NewGlobalRef(env->GetStaticObjectField(
           WellKnownClasses::java_lang_ThreadGroup,
           WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup));
-  CHECK(main_thread_group_ != NULL || IsAotCompiler());
+  CHECK(main_thread_group_ != nullptr || IsAotCompiler());
   system_thread_group_ =
       env->NewGlobalRef(env->GetStaticObjectField(
           WellKnownClasses::java_lang_ThreadGroup,
           WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup));
-  CHECK(system_thread_group_ != NULL || IsAotCompiler());
+  CHECK(system_thread_group_ != nullptr || IsAotCompiler());
 }
 
 jobject Runtime::GetMainThreadGroup() const {
-  CHECK(main_thread_group_ != NULL || IsAotCompiler());
+  CHECK(main_thread_group_ != nullptr || IsAotCompiler());
   return main_thread_group_;
 }
 
 jobject Runtime::GetSystemThreadGroup() const {
-  CHECK(system_thread_group_ != NULL || IsAotCompiler());
+  CHECK(system_thread_group_ != nullptr || IsAotCompiler());
   return system_thread_group_;
 }
 
 jobject Runtime::GetSystemClassLoader() const {
-  CHECK(system_class_loader_ != NULL || IsAotCompiler());
+  CHECK(system_class_loader_ != nullptr || IsAotCompiler());
   return system_class_loader_;
 }
 
@@ -1274,12 +1274,12 @@ void Runtime::BlockSignals() {
 
 bool Runtime::AttachCurrentThread(const char* thread_name, bool as_daemon, jobject thread_group,
                                   bool create_peer) {
-  return Thread::Attach(thread_name, as_daemon, thread_group, create_peer) != NULL;
+  return Thread::Attach(thread_name, as_daemon, thread_group, create_peer) != nullptr;
 }
 
 void Runtime::DetachCurrentThread() {
   Thread* self = Thread::Current();
-  if (self == NULL) {
+  if (self == nullptr) {
     LOG(FATAL) << "attempting to detach thread that is not attached";
   }
   if (self->HasManagedStack()) {

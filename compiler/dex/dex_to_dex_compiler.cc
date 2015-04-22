@@ -301,7 +301,7 @@ extern "C" void ArtCompileDEX(art::CompilerDriver& driver, const art::DexFile::C
                               art::DexToDexCompilationLevel dex_to_dex_compilation_level) {
   UNUSED(invoke_type);
   if (dex_to_dex_compilation_level != art::kDontDexToDexCompile) {
-    art::DexCompilationUnit unit(NULL, class_loader, art::Runtime::Current()->GetClassLinker(),
+    art::DexCompilationUnit unit(nullptr, class_loader, art::Runtime::Current()->GetClassLinker(),
                                  dex_file, code_item, class_def_idx, method_idx, access_flags,
                                  driver.GetVerifiedMethod(&dex_file, method_idx));
     art::optimizer::DexCompiler dex_compiler(driver, unit, dex_to_dex_compilation_level);

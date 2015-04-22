@@ -85,7 +85,7 @@ class OatFileAssistant {
   // Constructs an OatFileAssistant object to assist the oat file
   // corresponding to the given dex location with the target instruction set.
   //
-  // The dex_location must not be NULL and should remain available and
+  // The dex_location must not be null and should remain available and
   // unchanged for the duration of the lifetime of the OatFileAssistant object.
   // Typically the dex_location is the absolute path to the original,
   // un-optimized dex file.
@@ -152,11 +152,11 @@ class OatFileAssistant {
   // Returns true on success.
   //
   // If there is a failure, the value of error_msg will be set to a string
-  // describing why there was failure. error_msg must not be nullptr.
+  // describing why there was failure. error_msg must not be null.
   bool MakeUpToDate(std::string* error_msg);
 
   // Returns an oat file that can be used for loading dex files.
-  // Returns nullptr if no suitable oat file was found.
+  // Returns null if no suitable oat file was found.
   //
   // After this call, no other methods of the OatFileAssistant should be
   // called, because access to the loaded oat file has been taken away from
@@ -244,7 +244,7 @@ class OatFileAssistant {
   // This will fail if dex2oat is not enabled in the current runtime.
   //
   // If there is a failure, the value of error_msg will be set to a string
-  // describing why there was failure. error_msg must not be nullptr.
+  // describing why there was failure. error_msg must not be null.
   bool RelocateOatFile(const std::string* input_file, std::string* error_msg);
 
   // Generate the oat file from the dex file.
@@ -254,7 +254,7 @@ class OatFileAssistant {
   // This will fail if dex2oat is not enabled in the current runtime.
   //
   // If there is a failure, the value of error_msg will be set to a string
-  // describing why there was failure. error_msg must not be nullptr.
+  // describing why there was failure. error_msg must not be null.
   bool GenerateOatFile(std::string* error_msg);
 
   // Executes dex2oat using the current runtime configuration overridden with
@@ -263,7 +263,7 @@ class OatFileAssistant {
   // Returns true on success.
   //
   // If there is a failure, the value of error_msg will be set to a string
-  // describing why there was failure. error_msg must not be nullptr.
+  // describing why there was failure. error_msg must not be null.
   //
   // TODO: The OatFileAssistant probably isn't the right place to have this
   // function.
@@ -310,12 +310,12 @@ class OatFileAssistant {
 
   // Gets the dex checksum required for an up-to-date oat file.
   // Returns dex_checksum if a required checksum was located. Returns
-  // nullptr if the required checksum was not found.
+  // null if the required checksum was not found.
   // The caller shouldn't clean up or free the returned pointer.
   const uint32_t* GetRequiredDexChecksum();
 
   // Returns the loaded odex file.
-  // Loads the file if needed. Returns nullptr if the file failed to load.
+  // Loads the file if needed. Returns null if the file failed to load.
   // The caller shouldn't clean up or free the returned pointer.
   const OatFile* GetOdexFile();
 
@@ -324,7 +324,7 @@ class OatFileAssistant {
   void ClearOdexFileCache();
 
   // Returns the loaded oat file.
-  // Loads the file if needed. Returns nullptr if the file failed to load.
+  // Loads the file if needed. Returns null if the file failed to load.
   // The caller shouldn't clean up or free the returned pointer.
   const OatFile* GetOatFile();
 
@@ -333,19 +333,19 @@ class OatFileAssistant {
   void ClearOatFileCache();
 
   // Returns the loaded image info.
-  // Loads the image info if needed. Returns nullptr if the image info failed
+  // Loads the image info if needed. Returns null if the image info failed
   // to load.
   // The caller shouldn't clean up or free the returned pointer.
   const ImageInfo* GetImageInfo();
 
   // Returns the loaded profile.
-  // Loads the profile if needed. Returns nullptr if the profile failed
+  // Loads the profile if needed. Returns null if the profile failed
   // to load.
   // The caller shouldn't clean up or free the returned pointer.
   ProfileFile* GetProfile();
 
   // Returns the loaded old profile.
-  // Loads the old profile if needed. Returns nullptr if the old profile
+  // Loads the old profile if needed. Returns null if the old profile
   // failed to load.
   // The caller shouldn't clean up or free the returned pointer.
   ProfileFile* GetOldProfile();
@@ -357,7 +357,7 @@ class OatFileAssistant {
   ScopedFlock flock_;
 
   // In a properly constructed OatFileAssistant object, dex_location_ should
-  // never be nullptr.
+  // never be null.
   const char* dex_location_ = nullptr;
 
   // In a properly constructed OatFileAssistant object, isa_ should be either
@@ -365,7 +365,7 @@ class OatFileAssistant {
   const InstructionSet isa_ = kNone;
 
   // The package name, used solely to find the profile file.
-  // This may be nullptr in a properly constructed object. In this case,
+  // This may be null in a properly constructed object. In this case,
   // profile_load_attempted_ and old_profile_load_attempted_ will be true, and
   // profile_load_succeeded_ and old_profile_load_succeeded_ will be false.
   const char* package_name_ = nullptr;

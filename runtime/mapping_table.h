@@ -106,7 +106,7 @@ class MappingTable {
     const MappingTable* const table_;  // The original table.
     uint32_t element_;  // A value in the range 0 to end_.
     const uint32_t end_;  // Equal to table_->DexToPcSize().
-    const uint8_t* encoded_table_ptr_;  // Either nullptr or points to encoded data after this entry.
+    const uint8_t* encoded_table_ptr_;  // Either null or points to encoded data after this entry.
     uint32_t native_pc_offset_;  // The current value of native pc offset.
     uint32_t dex_pc_;  // The current value of dex pc.
   };

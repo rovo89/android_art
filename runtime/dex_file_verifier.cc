@@ -1473,7 +1473,7 @@ bool DexFileVerifier::CheckInterStringIdItem() {
   }
 
   // Check ordering between items.
-  if (previous_item_ != NULL) {
+  if (previous_item_ != nullptr) {
     const DexFile::StringId* prev_item = reinterpret_cast<const DexFile::StringId*>(previous_item_);
     const char* prev_str = dex_file_->GetStringData(*prev_item);
     const char* str = dex_file_->GetStringData(*item);
@@ -1499,7 +1499,7 @@ bool DexFileVerifier::CheckInterTypeIdItem() {
   }
 
   // Check ordering between items.
-  if (previous_item_ != NULL) {
+  if (previous_item_ != nullptr) {
     const DexFile::TypeId* prev_item = reinterpret_cast<const DexFile::TypeId*>(previous_item_);
     if (UNLIKELY(prev_item->descriptor_idx_ >= item->descriptor_idx_)) {
       ErrorStringPrintf("Out-of-order type_ids: %x then %x",
@@ -1548,7 +1548,7 @@ bool DexFileVerifier::CheckInterProtoIdItem() {
   }
 
   // Check ordering between items. This relies on type_ids being in order.
-  if (previous_item_ != NULL) {
+  if (previous_item_ != nullptr) {
     const DexFile::ProtoId* prev = reinterpret_cast<const DexFile::ProtoId*>(previous_item_);
     if (UNLIKELY(prev->return_type_idx_ > item->return_type_idx_)) {
       ErrorStringPrintf("Out-of-order proto_id return types");
@@ -1610,7 +1610,7 @@ bool DexFileVerifier::CheckInterFieldIdItem() {
   }
 
   // Check ordering between items. This relies on the other sections being in order.
-  if (previous_item_ != NULL) {
+  if (previous_item_ != nullptr) {
     const DexFile::FieldId* prev_item = reinterpret_cast<const DexFile::FieldId*>(previous_item_);
     if (UNLIKELY(prev_item->class_idx_ > item->class_idx_)) {
       ErrorStringPrintf("Out-of-order field_ids");
@@ -1657,7 +1657,7 @@ bool DexFileVerifier::CheckInterMethodIdItem() {
   }
 
   // Check ordering between items. This relies on the other sections being in order.
-  if (previous_item_ != NULL) {
+  if (previous_item_ != nullptr) {
     const DexFile::MethodId* prev_item = reinterpret_cast<const DexFile::MethodId*>(previous_item_);
     if (UNLIKELY(prev_item->class_idx_ > item->class_idx_)) {
       ErrorStringPrintf("Out-of-order method_ids");
@@ -1728,7 +1728,7 @@ bool DexFileVerifier::CheckInterClassDefItem() {
   }
 
   const DexFile::TypeList* interfaces = dex_file_->GetInterfacesList(*item);
-  if (interfaces != NULL) {
+  if (interfaces != nullptr) {
     uint32_t size = interfaces->Size();
 
     // Ensure that all interfaces refer to classes (not arrays or primitives).
@@ -1952,7 +1952,7 @@ bool DexFileVerifier::CheckInterSectionIterate(size_t offset, uint32_t count, ui
   }
 
   // Iterate through the items in the section.
-  previous_item_ = NULL;
+  previous_item_ = nullptr;
   for (uint32_t i = 0; i < count; i++) {
     uint32_t new_offset = (offset + alignment_mask) & ~alignment_mask;
     ptr_ = begin_ + new_offset;

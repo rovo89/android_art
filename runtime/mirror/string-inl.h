@@ -50,7 +50,7 @@ inline int32_t String::GetLength() {
 inline void String::SetArray(CharArray* new_array) {
   // Array is invariant so use non-transactional mode. Also disable check as we may run inside
   // a transaction.
-  DCHECK(new_array != NULL);
+  DCHECK(new_array != nullptr);
   SetFieldObject<false, false>(OFFSET_OF_OBJECT_MEMBER(String, array_), new_array);
 }
 

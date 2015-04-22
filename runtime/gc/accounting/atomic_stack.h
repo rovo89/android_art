@@ -238,9 +238,9 @@ class AtomicStack {
     std::string error_msg;
     mem_map_.reset(MemMap::MapAnonymous(name_.c_str(), nullptr, capacity_ * sizeof(begin_[0]),
                                         PROT_READ | PROT_WRITE, false, false, &error_msg));
-    CHECK(mem_map_.get() != NULL) << "couldn't allocate mark stack.\n" << error_msg;
+    CHECK(mem_map_.get() != nullptr) << "couldn't allocate mark stack.\n" << error_msg;
     uint8_t* addr = mem_map_->Begin();
-    CHECK(addr != NULL);
+    CHECK(addr != nullptr);
     debug_is_sorted_ = true;
     begin_ = reinterpret_cast<StackReference<T>*>(addr);
     Reset();

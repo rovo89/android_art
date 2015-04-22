@@ -45,7 +45,7 @@ class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
   static BumpPointerSpace* Create(const std::string& name, size_t capacity, uint8_t* requested_begin);
   static BumpPointerSpace* CreateFromMemMap(const std::string& name, MemMap* mem_map);
 
-  // Allocate num_bytes, returns nullptr if the space is full.
+  // Allocate num_bytes, returns null if the space is full.
   mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
                         size_t* usable_size, size_t* bytes_tl_bulk_allocated) OVERRIDE;
   // Thread-unsafe allocation for when mutators are suspended, used by the semispace collector.

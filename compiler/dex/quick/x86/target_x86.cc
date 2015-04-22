@@ -1281,7 +1281,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   RegLocation rl_return = GetReturn(kCoreReg);
   RegLocation rl_dest = InlineTarget(info);
 
-  // Is the string non-NULL?
+  // Is the string non-null?
   LoadValueDirectFixed(rl_obj, rs_rDX);
   GenNullCheck(rs_rDX, info->opt_flags);
   info->opt_flags |= MIR_IGNORE_NULL_CHECK;  // Record that we've null checked.

@@ -882,7 +882,7 @@ TEST_F(JniInternalTest, FromReflectedMethod_ToReflectedMethod) {
 }
 
 static void BogusMethod() {
-  // You can't pass nullptr function pointers to RegisterNatives.
+  // You can't pass null function pointers to RegisterNatives.
 }
 
 TEST_F(JniInternalTest, RegisterAndUnregisterNatives) {
@@ -1025,13 +1025,13 @@ TEST_F(JniInternalTest, RegisterAndUnregisterNatives) {
   env_->set_region_fn(a, size - 1, size, nullptr); \
   ExpectException(aioobe_); \
   \
-  /* It's okay for the buffer to be nullptr as long as the length is 0. */ \
+  /* It's okay for the buffer to be null as long as the length is 0. */ \
   env_->get_region_fn(a, 2, 0, nullptr); \
   /* Even if the offset is invalid... */ \
   env_->get_region_fn(a, 123, 0, nullptr); \
   ExpectException(aioobe_); \
   \
-  /* It's okay for the buffer to be nullptr as long as the length is 0. */ \
+  /* It's okay for the buffer to be null as long as the length is 0. */ \
   env_->set_region_fn(a, 2, 0, nullptr); \
   /* Even if the offset is invalid... */ \
   env_->set_region_fn(a, 123, 0, nullptr); \
@@ -1200,7 +1200,7 @@ TEST_F(JniInternalTest, NewObjectArrayWithInitialValue) {
 }
 
 TEST_F(JniInternalTest, GetArrayLength) {
-  // Already tested in NewObjectArray/NewPrimitiveArray except for NULL.
+  // Already tested in NewObjectArray/NewPrimitiveArray except for null.
   CheckJniAbortCatcher jni_abort_catcher;
   bool old_check_jni = vm_->SetCheckJniEnabled(false);
   EXPECT_EQ(0, env_->GetArrayLength(nullptr));
@@ -1463,7 +1463,7 @@ TEST_F(JniInternalTest, GetStringRegion_GetStringUTFRegion) {
   EXPECT_EQ('l', chars[2]);
   EXPECT_EQ('x', chars[3]);
 
-  // It's okay for the buffer to be nullptr as long as the length is 0.
+  // It's okay for the buffer to be null as long as the length is 0.
   env_->GetStringRegion(s, 2, 0, nullptr);
   // Even if the offset is invalid...
   env_->GetStringRegion(s, 123, 0, nullptr);
@@ -1485,7 +1485,7 @@ TEST_F(JniInternalTest, GetStringRegion_GetStringUTFRegion) {
   EXPECT_EQ('l', bytes[2]);
   EXPECT_EQ('x', bytes[3]);
 
-  // It's okay for the buffer to be nullptr as long as the length is 0.
+  // It's okay for the buffer to be null as long as the length is 0.
   env_->GetStringUTFRegion(s, 2, 0, nullptr);
   // Even if the offset is invalid...
   env_->GetStringUTFRegion(s, 123, 0, nullptr);
@@ -1493,7 +1493,7 @@ TEST_F(JniInternalTest, GetStringRegion_GetStringUTFRegion) {
 }
 
 TEST_F(JniInternalTest, GetStringUTFChars_ReleaseStringUTFChars) {
-  // Passing in a nullptr jstring is ignored normally, but caught by -Xcheck:jni.
+  // Passing in a null jstring is ignored normally, but caught by -Xcheck:jni.
   bool old_check_jni = vm_->SetCheckJniEnabled(false);
   {
     CheckJniAbortCatcher check_jni_abort_catcher;
@@ -2102,7 +2102,7 @@ TEST_F(JniInternalTest, MonitorEnterExit) {
   env_->ExceptionClear();
   EXPECT_TRUE(env_->IsInstanceOf(thrown_exception, imse_class));
 
-  // It's an error to call MonitorEnter or MonitorExit on nullptr.
+  // It's an error to call MonitorEnter or MonitorExit on null.
   {
     CheckJniAbortCatcher check_jni_abort_catcher;
     env_->MonitorEnter(nullptr);

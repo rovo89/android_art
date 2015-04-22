@@ -48,7 +48,7 @@ class OatFile FINAL {
   static OatFile* OpenWithElfFile(ElfFile* elf_file, const std::string& location,
                                   const char* abs_dex_location,
                                   std::string* error_msg);
-  // Open an oat file. Returns NULL on failure.  Requested base can
+  // Open an oat file. Returns null on failure.  Requested base can
   // optionally be used to request where the file should be loaded.
   // See the ResolveRelativeEncodedDexLocation for a description of how the
   // abs_dex_location argument is used.
@@ -149,7 +149,7 @@ class OatFile FINAL {
     template<class T>
     T GetOatPointer(uint32_t offset) const {
       if (offset == 0) {
-        return NULL;
+        return nullptr;
       }
       return reinterpret_cast<T>(begin_ + offset);
     }
@@ -177,7 +177,7 @@ class OatFile FINAL {
     const OatMethod GetOatMethod(uint32_t method_index) const;
 
     // Return a pointer to the OatMethodOffsets for the requested
-    // method_index, or nullptr if none is present. Note that most
+    // method_index, or null if none is present. Note that most
     // callers should use GetOatMethod.
     const OatMethodOffsets* GetOatMethodOffsets(uint32_t method_index) const;
 
@@ -238,7 +238,7 @@ class OatFile FINAL {
 
   // Returns the absolute dex location for the encoded relative dex location.
   //
-  // If not nullptr, abs_dex_location is used to resolve the absolute dex
+  // If not null, abs_dex_location is used to resolve the absolute dex
   // location of relative dex locations encoded in the oat file.
   // For example, given absolute location "/data/app/foo/base.apk", encoded
   // dex locations "base.apk", "base.apk:classes2.dex", etc. would be resolved
@@ -300,10 +300,10 @@ class OatFile FINAL {
   // Pointer to end of oat region for bounds checking.
   const uint8_t* end_;
 
-  // Pointer to the .bss section, if present, otherwise nullptr.
+  // Pointer to the .bss section, if present, otherwise null.
   const uint8_t* bss_begin_;
 
-  // Pointer to the end of the .bss section, if present, otherwise nullptr.
+  // Pointer to the end of the .bss section, if present, otherwise null.
   const uint8_t* bss_end_;
 
   // Was this oat_file loaded executable?
@@ -331,7 +331,7 @@ class OatFile FINAL {
   // Map each location and canonical location (if different) retrieved from the
   // oat file to its OatDexFile. This map doesn't change after it's constructed in Setup()
   // and therefore doesn't need any locking and provides the cheapest dex file lookup
-  // for GetOatDexFile() for a very frequent use case. Never contains a nullptr value.
+  // for GetOatDexFile() for a very frequent use case. Never contains a null value.
   Table oat_dex_files_;
 
   // Lock guarding all members needed for secondary lookup in GetOatDexFile().

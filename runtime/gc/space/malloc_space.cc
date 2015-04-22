@@ -75,13 +75,13 @@ MemMap* MallocSpace::CreateMemMap(const std::string& name, size_t starting_size,
     LOG(ERROR) << "Failed to create alloc space (" << name << ") where the initial size ("
         << PrettySize(*initial_size) << ") is larger than its capacity ("
         << PrettySize(*growth_limit) << ")";
-    return NULL;
+    return nullptr;
   }
   if (*growth_limit > *capacity) {
     LOG(ERROR) << "Failed to create alloc space (" << name << ") where the growth limit capacity ("
         << PrettySize(*growth_limit) << ") is larger than the capacity ("
         << PrettySize(*capacity) << ")";
-    return NULL;
+    return nullptr;
   }
 
   // Page align growth limit and capacity which will be used to manage mmapped storage

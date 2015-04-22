@@ -200,7 +200,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
   fake_stack.push_back(0);
   fake_stack.push_back(0xEBAD6070);  // return pc
 
-  // Push Method* of NULL to terminate the trace
+  // Push Method* of null to terminate the trace
   fake_stack.push_back(0);
 
   // Push null values which will become null incoming arguments.

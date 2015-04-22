@@ -60,7 +60,7 @@ static constexpr bool kUseAddr2line = !kIsTargetBuild;
 pid_t GetTid() {
 #if defined(__APPLE__)
   uint64_t owner;
-  CHECK_PTHREAD_CALL(pthread_threadid_np, (NULL, &owner), __FUNCTION__);  // Requires Mac OS 10.6
+  CHECK_PTHREAD_CALL(pthread_threadid_np, (nullptr, &owner), __FUNCTION__);  // Requires Mac OS 10.6
   return owner;
 #elif defined(__BIONIC__)
   return gettid();
@@ -205,7 +205,7 @@ bool PrintFileToLog(const std::string& file_name, LogSeverity level) {
 }
 
 std::string GetIsoDate() {
-  time_t now = time(NULL);
+  time_t now = time(nullptr);
   tm tmbuf;
   tm* ptm = localtime_r(&now, &tmbuf);
   return StringPrintf("%04d-%02d-%02d %02d:%02d:%02d",
@@ -220,7 +220,7 @@ uint64_t MilliTime() {
   return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000) + now.tv_nsec / UINT64_C(1000000);
 #else  // __APPLE__
   timeval now;
-  gettimeofday(&now, NULL);
+  gettimeofday(&now, nullptr);
   return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000) + now.tv_usec / UINT64_C(1000);
 #endif
 }
@@ -232,7 +232,7 @@ uint64_t MicroTime() {
   return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000) + now.tv_nsec / UINT64_C(1000);
 #else  // __APPLE__
   timeval now;
-  gettimeofday(&now, NULL);
+  gettimeofday(&now, nullptr);
   return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000) + now.tv_usec;
 #endif
 }
@@ -244,7 +244,7 @@ uint64_t NanoTime() {
   return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000000) + now.tv_nsec;
 #else  // __APPLE__
   timeval now;
-  gettimeofday(&now, NULL);
+  gettimeofday(&now, nullptr);
   return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000000) + now.tv_usec * UINT64_C(1000);
 #endif
 }
@@ -264,7 +264,7 @@ void NanoSleep(uint64_t ns) {
   timespec tm;
   tm.tv_sec = 0;
   tm.tv_nsec = ns;
-  nanosleep(&tm, NULL);
+  nanosleep(&tm, nullptr);
 }
 
 void InitTimeSpec(bool absolute, int clock, int64_t ms, int32_t ns, timespec* ts) {
@@ -276,7 +276,7 @@ void InitTimeSpec(bool absolute, int clock, int64_t ms, int32_t ns, timespec* ts
 #else
     UNUSED(clock);
     timeval tv;
-    gettimeofday(&tv, NULL);
+    gettimeofday(&tv, nullptr);
     ts->tv_sec = tv.tv_sec;
     ts->tv_nsec = tv.tv_usec * 1000;
 #endif
@@ -301,14 +301,14 @@ void InitTimeSpec(bool absolute, int clock, int64_t ms, int32_t ns, timespec* ts
 }
 
 std::string PrettyDescriptor(mirror::String* java_descriptor) {
-  if (java_descriptor == NULL) {
+  if (java_descriptor == nullptr) {
     return "null";
   }
   return PrettyDescriptor(java_descriptor->ToModifiedUtf8().c_str());
 }
 
 std::string PrettyDescriptor(mirror::Class* klass) {
-  if (klass == NULL) {
+  if (klass == nullptr) {
     return "null";
   }
   std::string temp;
@@ -365,7 +365,7 @@ std::string PrettyDescriptor(const char* descriptor) {
 }
 
 std::string PrettyField(ArtField* f, bool with_type) {
-  if (f == NULL) {
+  if (f == nullptr) {
     return "null";
   }
   std::string result;
@@ -436,7 +436,7 @@ std::string PrettyArguments(const char* signature) {
 
 std::string PrettyReturnType(const char* signature) {
   const char* return_type = strchr(signature, ')');
-  CHECK(return_type != NULL);
+  CHECK(return_type != nullptr);
   ++return_type;  // Skip ')'.
   return PrettyDescriptor(return_type);
 }
@@ -484,10 +484,10 @@ std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with
 }
 
 std::string PrettyTypeOf(mirror::Object* obj) {
-  if (obj == NULL) {
+  if (obj == nullptr) {
     return "null";
   }
-  if (obj->GetClass() == NULL) {
+  if (obj->GetClass() == nullptr) {
     return "(raw)";
   }
   std::string temp;
@@ -499,7 +499,7 @@ std::string PrettyTypeOf(mirror::Object* obj) {
 }
 
 std::string PrettyClass(mirror::Class* c) {
-  if (c == NULL) {
+  if (c == nullptr) {
     return "null";
   }
   std::string result;
@@ -510,7 +510,7 @@ std::string PrettyClass(mirror::Class* c) {
 }
 
 std::string PrettyClassAndClassLoader(mirror::Class* c) {
-  if (c == NULL) {
+  if (c == nullptr) {
     return "null";
   }
   std::string result;
@@ -1158,9 +1158,9 @@ void GetTaskStats(pid_t tid, char* state, int* utime, int* stime, int* task_cpu)
   std::vector<std::string> fields;
   Split(stats, ' ', &fields);
   *state = fields[0][0];
-  *utime = strtoull(fields[11].c_str(), NULL, 10);
-  *stime = strtoull(fields[12].c_str(), NULL, 10);
-  *task_cpu = strtoull(fields[36].c_str(), NULL, 10);
+  *utime = strtoull(fields[11].c_str(), nullptr, 10);
+  *stime = strtoull(fields[12].c_str(), nullptr, 10);
+  *task_cpu = strtoull(fields[36].c_str(), nullptr, 10);
 }
 
 std::string GetSchedulerGroupName(pid_t tid) {
@@ -1358,7 +1358,7 @@ void DumpKernelStack(std::ostream& os, pid_t tid, const char* prefix, bool inclu
     // into "futex_wait_queue_me+0xcd/0x110".
     const char* text = kernel_stack_frames[i].c_str();
     const char* close_bracket = strchr(text, ']');
-    if (close_bracket != NULL) {
+    if (close_bracket != nullptr) {
       text = close_bracket + 2;
     }
     os << prefix;
@@ -1373,7 +1373,7 @@ void DumpKernelStack(std::ostream& os, pid_t tid, const char* prefix, bool inclu
 
 const char* GetAndroidRoot() {
   const char* android_root = getenv("ANDROID_ROOT");
-  if (android_root == NULL) {
+  if (android_root == nullptr) {
     if (OS::DirectoryExists("/system")) {
       android_root = "/system";
     } else {
@@ -1401,7 +1401,7 @@ const char* GetAndroidData() {
 
 const char* GetAndroidDataSafe(std::string* error_msg) {
   const char* android_data = getenv("ANDROID_DATA");
-  if (android_data == NULL) {
+  if (android_data == nullptr) {
     if (OS::DirectoryExists("/data")) {
       android_data = "/data";
     } else {
@@ -1563,7 +1563,7 @@ bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg) {
     CHECK(arg_str != nullptr) << i;
     args.push_back(arg_str);
   }
-  args.push_back(NULL);
+  args.push_back(nullptr);
 
   // fork and exec
   pid_t pid = fork();

@@ -1518,7 +1518,7 @@ class Dex2Oat FINAL {
   static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
                              const std::vector<const char*>& dex_locations,
                              std::vector<std::unique_ptr<const DexFile>>* dex_files) {
-    DCHECK(dex_files != nullptr) << "OpenDexFiles out-param is NULL";
+    DCHECK(dex_files != nullptr) << "OpenDexFiles out-param is nullptr";
     size_t failure_count = 0;
     for (size_t i = 0; i < dex_filenames.size(); i++) {
       const char* dex_filename = dex_filenames[i];
@@ -1559,7 +1559,7 @@ class Dex2Oat FINAL {
   static void OpenClassPathFiles(const std::string& class_path,
                                  std::vector<const DexFile*> dex_files,
                                  std::vector<std::unique_ptr<const DexFile>>* opened_dex_files) {
-    DCHECK(opened_dex_files != nullptr) << "OpenClassPathFiles out-param is NULL";
+    DCHECK(opened_dex_files != nullptr) << "OpenClassPathFiles out-param is nullptr";
     std::vector<std::string> parsed;
     Split(class_path, ':', &parsed);
     // Take Locks::mutator_lock_ so that lock ordering on the ClassLinker::dex_lock_ is maintained.

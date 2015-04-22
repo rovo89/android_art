@@ -489,7 +489,7 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
   const DexFile::CodeItem* code_item = called_method->GetCodeItem();
   const uint16_t num_ins = (is_range) ? inst->VRegA_3rc(inst_data) : inst->VRegA_35c(inst_data);
   uint16_t num_regs;
-  if (LIKELY(code_item != NULL)) {
+  if (LIKELY(code_item != nullptr)) {
     num_regs = code_item->registers_size_;
     DCHECK_EQ(num_ins, code_item->ins_size_);
   } else {
@@ -543,11 +543,11 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
       switch (shorty[shorty_pos + 1]) {
         case 'L': {
           Object* o = shadow_frame.GetVRegReference(src_reg);
-          if (do_assignability_check && o != NULL) {
+          if (do_assignability_check && o != nullptr) {
             Class* arg_type =
                 new_shadow_frame->GetMethod()->GetClassFromTypeIndex(
                     params->GetTypeItem(shorty_pos).type_idx_, true);
-            if (arg_type == NULL) {
+            if (arg_type == nullptr) {
               CHECK(self->IsExceptionPending());
               return false;
             }
@@ -651,7 +651,7 @@ bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
   uint16_t type_idx = is_range ? inst->VRegB_3rc() : inst->VRegB_35c();
   Class* arrayClass = ResolveVerifyAndClinit(type_idx, shadow_frame.GetMethod(),
                                              self, false, do_access_check);
-  if (UNLIKELY(arrayClass == NULL)) {
+  if (UNLIKELY(arrayClass == nullptr)) {
     DCHECK(self->IsExceptionPending());
     return false;
   }
@@ -671,7 +671,7 @@ bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
   Object* newArray = Array::Alloc<true>(self, arrayClass, length,
                                         arrayClass->GetComponentSizeShift(),
                                         Runtime::Current()->GetHeap()->GetCurrentAllocator());
-  if (UNLIKELY(newArray == NULL)) {
+  if (UNLIKELY(newArray == nullptr)) {
     DCHECK(self->IsExceptionPending());
     return false;
   }

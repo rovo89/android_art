@@ -190,7 +190,7 @@ static bool CheckNonOverlapping(uintptr_t begin,
 // the expected value, calling munmap if validation fails, giving the
 // reason in error_msg.
 //
-// If the expected_ptr is nullptr, nothing is checked beyond the fact
+// If the expected_ptr is null, nothing is checked beyond the fact
 // that the actual_ptr is not MAP_FAILED. However, if expected_ptr is
 // non-null, we check that pointer is the actual_ptr == expected_ptr,
 // and if not, report in error_msg what the conflict mapping was if
@@ -398,8 +398,8 @@ MemMap* MemMap::MapAnonymous(const char* name, uint8_t* expected_ptr, size_t byt
                     page_aligned_byte_count, prot, false);
 }
 
-MemMap* MemMap::MapFileAtAddress(uint8_t* expected_ptr, size_t byte_count, int prot, int flags, int fd,
-                                 off_t start, bool reuse, const char* filename,
+MemMap* MemMap::MapFileAtAddress(uint8_t* expected_ptr, size_t byte_count, int prot, int flags,
+                                 int fd, off_t start, bool reuse, const char* filename,
                                  std::string* error_msg) {
   CHECK_NE(0, prot);
   CHECK_NE(0, flags & (MAP_SHARED | MAP_PRIVATE));
@@ -429,7 +429,8 @@ MemMap* MemMap::MapFileAtAddress(uint8_t* expected_ptr, size_t byte_count, int p
   size_t page_aligned_byte_count = RoundUp(byte_count + page_offset, kPageSize);
   // The 'expected_ptr' is modified (if specified, ie non-null) to be page aligned to the file but
   // not necessarily to virtual memory. mmap will page align 'expected' for us.
-  uint8_t* page_aligned_expected = (expected_ptr == nullptr) ? nullptr : (expected_ptr - page_offset);
+  uint8_t* page_aligned_expected =
+      (expected_ptr == nullptr) ? nullptr : (expected_ptr - page_offset);
 
   uint8_t* actual = reinterpret_cast<uint8_t*>(mmap(page_aligned_expected,
                                               page_aligned_byte_count,

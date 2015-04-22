@@ -144,7 +144,7 @@ class OatSymbolizer FINAL : public CodeOutput {
     std::vector<const OatFile::OatDexFile*> oat_dex_files = oat_file_->GetOatDexFiles();
     for (size_t i = 0; i < oat_dex_files.size(); i++) {
       const OatFile::OatDexFile* oat_dex_file = oat_dex_files[i];
-      CHECK(oat_dex_file != NULL);
+      CHECK(oat_dex_file != nullptr);
       WalkOatDexFile(oat_dex_file, callback);
     }
   }

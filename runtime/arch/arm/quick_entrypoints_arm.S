@@ -320,7 +320,7 @@ ONE_ARG_RUNTIME_EXCEPTION art_quick_throw_no_such_method, artThrowNoSuchMethodFr
      * The helper will attempt to locate the target and return a 64-bit result in r0/r1 consisting
      * of the target Method* in r0 and method->code_ in r1.
      *
-     * If unsuccessful, the helper will return NULL/NULL. There will bea pending exception in the
+     * If unsuccessful, the helper will return null/null. There will bea pending exception in the
      * thread and we branch to another stub to deliver it.
      *
      * On success this wrapper will restore arguments and *jump* to the target, leaving the lr
@@ -359,7 +359,7 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
      * Quick invocation stub internal.
      * On entry:
      *   r0 = method pointer
-     *   r1 = argument array or NULL for no argument methods
+     *   r1 = argument array or null for no argument methods
      *   r2 = size of argument array in bytes
      *   r3 = (managed) thread pointer
      *   [sp] = JValue* result
@@ -409,7 +409,7 @@ ENTRY art_quick_invoke_stub_internal
     add    r0, sp, #4                      @ pass stack pointer + method ptr as dest for memcpy
     bl     memcpy                          @ memcpy (dest, src, bytes)
     mov    ip, #0                          @ set ip to 0
-    str    ip, [sp]                        @ store NULL for method* at bottom of frame
+    str    ip, [sp]                        @ store null for method* at bottom of frame
 
     ldr    ip, [r11, #48]                  @ load fp register argument array pointer
     vldm   ip, {s0-s15}                    @ copy s0 - s15

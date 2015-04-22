@@ -86,10 +86,10 @@ class JitCodeCache {
   // Return true if the code cache contains a code ptr.
   bool ContainsCodePtr(const void* ptr) const;
 
-  // Reserve a region of code of size at least "size". Returns nullptr if there is no more room.
+  // Reserve a region of code of size at least "size". Returns null if there is no more room.
   uint8_t* ReserveCode(Thread* self, size_t size) LOCKS_EXCLUDED(lock_);
 
-  // Add a data array of size (end - begin) with the associated contents, returns nullptr if there
+  // Add a data array of size (end - begin) with the associated contents, returns null if there
   // is no more room.
   uint8_t* AddDataArray(Thread* self, const uint8_t* begin, const uint8_t* end)
       LOCKS_EXCLUDED(lock_);

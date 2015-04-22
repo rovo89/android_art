@@ -57,14 +57,14 @@ template<class T>
 inline T* ObjectArray<T>::Get(int32_t i) {
   if (!CheckIsValidIndex(i)) {
     DCHECK(Thread::Current()->IsExceptionPending());
-    return NULL;
+    return nullptr;
   }
   return GetFieldObject<T>(OffsetOfElement(i));
 }
 
 template<class T> template<VerifyObjectFlags kVerifyFlags>
 inline bool ObjectArray<T>::CheckAssignable(T* object) {
-  if (object != NULL) {
+  if (object != nullptr) {
     Class* element_class = GetClass<kVerifyFlags>()->GetComponentType();
     if (UNLIKELY(!object->InstanceOf(element_class))) {
       ThrowArrayStoreException(object);

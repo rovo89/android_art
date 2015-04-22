@@ -374,7 +374,7 @@ class ElfSymtabBuilder FINAL : public ElfSectionBuilder<ElfTypes> {
   }
 
   Elf_Word GetSize() const {
-    // 1 is for the implicit NULL symbol.
+    // 1 is for the implicit null symbol.
     return symbols_.size() + 1;
   }
 
@@ -578,7 +578,7 @@ class ElfBuilder FINAL {
       hash_builder_(".hash", SHT_HASH, SHF_ALLOC, &dynsym_builder_, 0, sizeof(Elf_Word),
                     sizeof(Elf_Word)),
       dynamic_builder_(".dynamic", &dynsym_builder_),
-      shstrtab_builder_(".shstrtab", SHT_STRTAB, 0, NULL, 0, 1, 1) {
+      shstrtab_builder_(".shstrtab", SHT_STRTAB, 0, nullptr, 0, 1, 1) {
     SetupEhdr();
     SetupDynamic();
     SetupRequiredSymbols();
@@ -689,7 +689,7 @@ class ElfBuilder FINAL {
     // +-------------------------+  (Optional)
     // | .debug_line             |  (Optional)
     // +-------------------------+  (Optional)
-    // | Elf_Shdr NULL           |
+    // | Elf_Shdr null           |
     // | Elf_Shdr .dynsym        |
     // | Elf_Shdr .dynstr        |
     // | Elf_Shdr .hash          |

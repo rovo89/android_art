@@ -68,7 +68,7 @@ void MipsMir2Lir::GenCmpLong(RegLocation rl_dest, RegLocation rl_src1, RegLocati
     NewLIR3(kMipsSlt, t0.GetReg(), rl_src1.reg.GetHighReg(), rl_src2.reg.GetHighReg());
     NewLIR3(kMipsSlt, t1.GetReg(), rl_src2.reg.GetHighReg(), rl_src1.reg.GetHighReg());
     NewLIR3(kMipsSubu, rl_result.reg.GetReg(), t1.GetReg(), t0.GetReg());
-    LIR* branch = OpCmpImmBranch(kCondNe, rl_result.reg, 0, NULL);
+    LIR* branch = OpCmpImmBranch(kCondNe, rl_result.reg, 0, nullptr);
     NewLIR3(kMipsSltu, t0.GetReg(), rl_src1.reg.GetLowReg(), rl_src2.reg.GetLowReg());
     NewLIR3(kMipsSltu, t1.GetReg(), rl_src2.reg.GetLowReg(), rl_src1.reg.GetLowReg());
     NewLIR3(kMipsSubu, rl_result.reg.GetReg(), t1.GetReg(), t0.GetReg());
@@ -128,7 +128,7 @@ LIR* MipsMir2Lir::OpCmpBranch(ConditionCode cond, RegStorage src1, RegStorage sr
       break;
     default:
       LOG(FATAL) << "No support for ConditionCode: " << cond;
-      return NULL;
+      return nullptr;
   }
   if (cmp_zero) {
     branch = NewLIR2(br_op, src1.GetReg(), src2.GetReg());
@@ -278,7 +278,7 @@ void MipsMir2Lir::GenSelectConst32(RegStorage left_op, RegStorage right_op, Cond
   // Implement as a branch-over.
   // TODO: Conditional move?
   LoadConstant(rs_dest, true_val);
-  LIR* ne_branchover = OpCmpBranch(code, left_op, right_op, NULL);
+  LIR* ne_branchover = OpCmpBranch(code, left_op, right_op, nullptr);
   LoadConstant(rs_dest, false_val);
   LIR* target_label = NewLIR0(kPseudoTargetLabel);
   ne_branchover->target = target_label;
@@ -447,7 +447,7 @@ void MipsMir2Lir::GenDivZeroCheckWide(RegStorage reg) {
 // Test suspend flag, return target of taken suspend branch.
 LIR* MipsMir2Lir::OpTestSuspend(LIR* target) {
   OpRegImm(kOpSub, TargetPtrReg(kSuspend), 1);
-  return OpCmpImmBranch((target == NULL) ? kCondEq : kCondNe, TargetPtrReg(kSuspend), 0, target);
+  return OpCmpImmBranch((target == nullptr) ? kCondEq : kCondNe, TargetPtrReg(kSuspend), 0, target);
 }
 
 // Decrement register and branch on condition.

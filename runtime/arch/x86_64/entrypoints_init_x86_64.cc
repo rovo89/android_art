@@ -101,17 +101,6 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pUnlockObject = art_quick_unlock_object;
 
   // Math
-  // points->pCmpgDouble = NULL;  // Not needed on x86.
-  // points->pCmpgFloat = NULL;  // Not needed on x86.
-  // points->pCmplDouble = NULL;  // Not needed on x86.
-  // points->pCmplFloat = NULL;  // Not needed on x86.
-  // qpoints->pFmod = NULL;  // Not needed on x86.
-  // qpoints->pL2d = NULL;  // Not needed on x86.
-  // qpoints->pFmodf = NULL;  // Not needed on x86.
-  // qpoints->pL2f = NULL;  // Not needed on x86.
-  // points->pD2iz = NULL;  // Not needed on x86.
-  // points->pF2iz = NULL;  // Not needed on x86.
-  // qpoints->pIdivmod = NULL;  // Not needed on x86.
   qpoints->pD2l = art_d2l;
   qpoints->pF2l = art_f2l;
   qpoints->pLdiv = art_quick_ldiv;
@@ -122,7 +111,6 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pUshrLong = art_quick_lushr;
 
   // Intrinsics
-  // qpoints->pIndexOf = NULL;  // Not needed on x86.
   qpoints->pStringCompareTo = art_quick_string_compareto;
   qpoints->pMemcpy = art_quick_memcpy;
 
@@ -130,11 +118,16 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pQuickImtConflictTrampoline = art_quick_imt_conflict_trampoline;
   qpoints->pQuickResolutionTrampoline = art_quick_resolution_trampoline;
   qpoints->pQuickToInterpreterBridge = art_quick_to_interpreter_bridge;
-  qpoints->pInvokeDirectTrampolineWithAccessCheck = art_quick_invoke_direct_trampoline_with_access_check;
-  qpoints->pInvokeInterfaceTrampolineWithAccessCheck = art_quick_invoke_interface_trampoline_with_access_check;
-  qpoints->pInvokeStaticTrampolineWithAccessCheck = art_quick_invoke_static_trampoline_with_access_check;
-  qpoints->pInvokeSuperTrampolineWithAccessCheck = art_quick_invoke_super_trampoline_with_access_check;
-  qpoints->pInvokeVirtualTrampolineWithAccessCheck = art_quick_invoke_virtual_trampoline_with_access_check;
+  qpoints->pInvokeDirectTrampolineWithAccessCheck =
+      art_quick_invoke_direct_trampoline_with_access_check;
+  qpoints->pInvokeInterfaceTrampolineWithAccessCheck =
+      art_quick_invoke_interface_trampoline_with_access_check;
+  qpoints->pInvokeStaticTrampolineWithAccessCheck =
+      art_quick_invoke_static_trampoline_with_access_check;
+  qpoints->pInvokeSuperTrampolineWithAccessCheck =
+      art_quick_invoke_super_trampoline_with_access_check;
+  qpoints->pInvokeVirtualTrampolineWithAccessCheck =
+      art_quick_invoke_virtual_trampoline_with_access_check;
 
   // Thread
   qpoints->pTestSuspend = art_quick_test_suspend;

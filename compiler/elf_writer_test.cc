@@ -55,12 +55,12 @@ TEST_F(ElfWriterTest, dlsym) {
   LOG(INFO) << "elf_filename=" << elf_filename;
 
   UnreserveImageSpace();
-  void* dl_oatdata = NULL;
-  void* dl_oatexec = NULL;
-  void* dl_oatlastword = NULL;
+  void* dl_oatdata = nullptr;
+  void* dl_oatexec = nullptr;
+  void* dl_oatlastword = nullptr;
 
   std::unique_ptr<File> file(OS::OpenFileForReading(elf_filename.c_str()));
-  ASSERT_TRUE(file.get() != NULL);
+  ASSERT_TRUE(file.get() != nullptr);
   {
     std::string error_msg;
     std::unique_ptr<ElfFile> ef(ElfFile::Open(file.get(), false, false, &error_msg));

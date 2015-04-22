@@ -56,7 +56,7 @@ void FaultManager::HandleNestedSignal(int sig ATTRIBUTE_UNUSED, siginfo_t* info 
   struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
   struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
   Thread* self = Thread::Current();
-  CHECK(self != nullptr);       // This will cause a SIGABRT if self is nullptr.
+  CHECK(self != nullptr);  // This will cause a SIGABRT if self is null.
 
   sc->arm_r0 = reinterpret_cast<uintptr_t>(*self->GetNestedSignalState());
   sc->arm_r1 = 1;

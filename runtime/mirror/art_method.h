@@ -341,10 +341,10 @@ class MANAGED ArtMethod FINAL : public Object {
     return reinterpret_cast<const void*>(code);
   }
 
-  // Actual entry point pointer to compiled oat code or nullptr.
+  // Actual entry point pointer to compiled oat code or null.
   const void* GetQuickOatEntryPoint(size_t pointer_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  // Actual pointer to compiled oat code or nullptr.
+  // Actual pointer to compiled oat code or null.
   const void* GetQuickOatCodePointer(size_t pointer_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return EntryPointToCodePointer(GetQuickOatEntryPoint(pointer_size));

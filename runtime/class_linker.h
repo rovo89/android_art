@@ -152,7 +152,7 @@ class ClassLinker {
                              const DexFile& dex_file, const DexFile::ClassDef& dex_class_def)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Finds a class by its descriptor, returning NULL if it isn't wasn't loaded
+  // Finds a class by its descriptor, returning null if it isn't wasn't loaded
   // by the given 'class_loader'.
   mirror::Class* LookupClass(Thread* self, const char* descriptor, size_t hash,
                              mirror::ClassLoader* class_loader)
@@ -432,7 +432,7 @@ class ClassLinker {
   void SetEntryPointsToInterpreter(mirror::ArtMethod* method) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Attempts to insert a class into a class table.  Returns NULL if
+  // Attempts to insert a class into a class table.  Returns null if
   // the class was inserted, otherwise returns an existing class with
   // the same descriptor and ClassLoader.
   mirror::Class* InsertClass(const char* descriptor, mirror::Class* klass, size_t hash)
@@ -444,7 +444,7 @@ class ClassLinker {
 
   mirror::ObjectArray<mirror::Class>* GetClassRoots() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::ObjectArray<mirror::Class>* class_roots = class_roots_.Read();
-    DCHECK(class_roots != NULL);
+    DCHECK(class_roots != nullptr);
     return class_roots;
   }
 

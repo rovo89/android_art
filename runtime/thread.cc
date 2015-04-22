@@ -588,7 +588,8 @@ void Thread::Dump(std::ostream& os) const {
 
 mirror::String* Thread::GetThreadName(const ScopedObjectAccessAlreadyRunnable& soa) const {
   ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_name);
-  return (tlsPtr_.opeer != nullptr) ? reinterpret_cast<mirror::String*>(f->GetObject(tlsPtr_.opeer)) : nullptr;
+  return (tlsPtr_.opeer != nullptr) ?
+      reinterpret_cast<mirror::String*>(f->GetObject(tlsPtr_.opeer)) : nullptr;
 }
 
 void Thread::GetThreadName(std::string& name) const {
@@ -713,9 +714,8 @@ bool Thread::RequestCheckpoint(Closure* function) {
   union StateAndFlags new_state_and_flags;
   new_state_and_flags.as_int = old_state_and_flags.as_int;
   new_state_and_flags.as_struct.flags |= kCheckpointRequest;
-  bool success =
-      tls32_.state_and_flags.as_atomic_int.CompareExchangeStrongSequentiallyConsistent(old_state_and_flags.as_int,
-                                                                                       new_state_and_flags.as_int);
+  bool success =tls32_.state_and_flags.as_atomic_int.CompareExchangeStrongSequentiallyConsistent(
+      old_state_and_flags.as_int, new_state_and_flags.as_int);
   if (UNLIKELY(!success)) {
     // The thread changed state before the checkpoint was installed.
     CHECK_EQ(tlsPtr_.checkpoint_functions[available_checkpoint], function);
@@ -1005,8 +1005,8 @@ static bool ShouldShowNativeStack(const Thread* thread)
 
   // Threads with no managed stack frames should be shown.
   const ManagedStack* managed_stack = thread->GetManagedStack();
-  if (managed_stack == NULL || (managed_stack->GetTopQuickFrame() == NULL &&
-      managed_stack->GetTopShadowFrame() == NULL)) {
+  if (managed_stack == nullptr || (managed_stack->GetTopQuickFrame() == nullptr &&
+      managed_stack->GetTopShadowFrame() == nullptr)) {
     return true;
   }
 
@@ -1097,7 +1097,7 @@ void Thread::Startup() {
   {
     // MutexLock to keep annotalysis happy.
     //
-    // Note we use nullptr for the thread because Thread::Current can
+    // Note we use null for the thread because Thread::Current can
     // return garbage since (is_started_ == true) and
     // Thread::pthread_key_self_ is not yet initialized.
     // This was seen on glibc.
@@ -1162,7 +1162,7 @@ Thread::Thread(bool daemon) : tls32_(daemon), wait_monitor_(nullptr), interrupte
 bool Thread::IsStillStarting() const {
   // You might think you can check whether the state is kStarting, but for much of thread startup,
   // the thread is in kNative; it might also be in kVmWait.
-  // You might think you can check whether the peer is nullptr, but the peer is actually created and
+  // You might think you can check whether the peer is null, but the peer is actually created and
   // assigned fairly early on, and needs to be.
   // It turns out that the last thing to change is the thread name; that's a good proxy for "has
   // this thread _ever_ entered kRunnable".
@@ -1424,7 +1424,7 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
     DCHECK_EQ(kind, kWeakGlobal);
     result = tlsPtr_.jni_env->vm->DecodeWeakGlobal(const_cast<Thread*>(this), ref);
     if (Runtime::Current()->IsClearedJniWeakGlobal(result)) {
-      // This is a special case where it's okay to return nullptr.
+      // This is a special case where it's okay to return null.
       expect_null = true;
       result = nullptr;
     }
@@ -2197,7 +2197,7 @@ class ReferenceMapVisitor : public StackVisitor {
         const uint8_t* native_gc_map = m->GetNativeGcMap(sizeof(void*));
         CHECK(native_gc_map != nullptr) << PrettyMethod(m);
         const DexFile::CodeItem* code_item = m->GetCodeItem();
-        // Can't be nullptr or how would we compile its instructions?
+        // Can't be null or how would we compile its instructions?
         DCHECK(code_item != nullptr) << PrettyMethod(m);
         NativePcOffsetToReferenceMap map(native_gc_map);
         size_t num_regs = std::min(map.RegWidth() * 8,

@@ -42,7 +42,7 @@ ALWAYS_INLINE static inline mirror::Class* DecodeClass(
     const ScopedFastNativeObjectAccess& soa, jobject java_class)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Class* c = soa.Decode<mirror::Class*>(java_class);
-  DCHECK(c != NULL);
+  DCHECK(c != nullptr);
   DCHECK(c->IsClass());
   // TODO: we could EnsureInitialized here, rather than on every reflective get/set or invoke .
   // For now, we conservatively preserve the old dalvik behavior. A quick "IsInitialized" check
