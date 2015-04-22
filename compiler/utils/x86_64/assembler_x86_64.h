@@ -328,6 +328,7 @@ class X86_64Assembler FINAL : public Assembler {
   void movq(CpuRegister dst, const Address& src);
   void movl(CpuRegister dst, const Address& src);
   void movq(const Address& dst, CpuRegister src);
+  void movq(const Address& dst, const Immediate& src);
   void movl(const Address& dst, CpuRegister src);
   void movl(const Address& dst, const Immediate& imm);
 
@@ -391,14 +392,18 @@ class X86_64Assembler FINAL : public Assembler {
 
   void cvtsi2ss(XmmRegister dst, CpuRegister src);  // Note: this is the r/m32 version.
   void cvtsi2ss(XmmRegister dst, CpuRegister src, bool is64bit);
+  void cvtsi2ss(XmmRegister dst, const Address& src, bool is64bit);
   void cvtsi2sd(XmmRegister dst, CpuRegister src);  // Note: this is the r/m32 version.
   void cvtsi2sd(XmmRegister dst, CpuRegister src, bool is64bit);
+  void cvtsi2sd(XmmRegister dst, const Address& src, bool is64bit);
 
   void cvtss2si(CpuRegister dst, XmmRegister src);  // Note: this is the r32 version.
   void cvtss2sd(XmmRegister dst, XmmRegister src);
+  void cvtss2sd(XmmRegister dst, const Address& src);
 
   void cvtsd2si(CpuRegister dst, XmmRegister src);  // Note: this is the r32 version.
   void cvtsd2ss(XmmRegister dst, XmmRegister src);
+  void cvtsd2ss(XmmRegister dst, const Address& src);
 
   void cvttss2si(CpuRegister dst, XmmRegister src);  // Note: this is the r32 version.
   void cvttss2si(CpuRegister dst, XmmRegister src, bool is64bit);
@@ -408,9 +413,13 @@ class X86_64Assembler FINAL : public Assembler {
   void cvtdq2pd(XmmRegister dst, XmmRegister src);
 
   void comiss(XmmRegister a, XmmRegister b);
+  void comiss(XmmRegister a, const Address& b);
   void comisd(XmmRegister a, XmmRegister b);
+  void comisd(XmmRegister a, const Address& b);
   void ucomiss(XmmRegister a, XmmRegister b);
+  void ucomiss(XmmRegister a, const Address& b);
   void ucomisd(XmmRegister a, XmmRegister b);
+  void ucomisd(XmmRegister a, const Address& b);
 
   void roundsd(XmmRegister dst, XmmRegister src, const Immediate& imm);
   void roundss(XmmRegister dst, XmmRegister src, const Immediate& imm);
@@ -487,18 +496,21 @@ class X86_64Assembler FINAL : public Assembler {
   void andl(CpuRegister reg, const Address& address);
   void andq(CpuRegister dst, const Immediate& imm);
   void andq(CpuRegister dst, CpuRegister src);
+  void andq(CpuRegister reg, const Address& address);
 
   void orl(CpuRegister dst, const Immediate& imm);
   void orl(CpuRegister dst, CpuRegister src);
   void orl(CpuRegister reg, const Address& address);
   void orq(CpuRegister dst, CpuRegister src);
   void orq(CpuRegister dst, const Immediate& imm);
+  void orq(CpuRegister reg, const Address& address);
 
   void xorl(CpuRegister dst, CpuRegister src);
   void xorl(CpuRegister dst, const Immediate& imm);
   void xorl(CpuRegister reg, const Address& address);
   void xorq(CpuRegister dst, const Immediate& imm);
   void xorq(CpuRegister dst, CpuRegister src);
+  void xorq(CpuRegister reg, const Address& address);
 
   void addl(CpuRegister dst, CpuRegister src);
   void addl(CpuRegister reg, const Immediate& imm);
@@ -789,6 +801,7 @@ class X86_64Assembler FINAL : public Assembler {
   void EmitRex64(const Operand& operand);
   void EmitRex64(CpuRegister dst, CpuRegister src);
   void EmitRex64(CpuRegister dst, const Operand& operand);
+  void EmitRex64(XmmRegister dst, const Operand& operand);
   void EmitRex64(XmmRegister dst, CpuRegister src);
   void EmitRex64(CpuRegister dst, XmmRegister src);
 
