@@ -81,33 +81,26 @@ static jobject VMStack_getCallingClassLoader(JNIEnv* env, jclass) {
   return soa.AddLocalReference<jobject>(visitor.caller->GetDeclaringClass()->GetClassLoader());
 }
 
-static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject javaBootstrap,
-                                                 jobject javaSystem) {
+static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass) {
   struct ClosestUserClassLoaderVisitor : public StackVisitor {
-    ClosestUserClassLoaderVisitor(Thread* thread, mirror::Object* bootstrap_in,
-                                  mirror::Object* system_in)
-      : StackVisitor(thread, NULL), bootstrap(bootstrap_in), system(system_in),
-        class_loader(NULL) {}
+    explicit ClosestUserClassLoaderVisitor(Thread* thread)
+      : StackVisitor(thread, nullptr), class_loader(nullptr) {}
 
     bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-      DCHECK(class_loader == NULL);
+      DCHECK(class_loader == nullptr);
       mirror::Class* c = GetMethod()->GetDeclaringClass();
       mirror::Object* cl = c->GetClassLoader();
-      if (cl != NULL && cl != bootstrap && cl != system) {
+      if (cl != nullptr) {
         class_loader = cl;
         return false;
       }
       return true;
     }
 
-    mirror::Object* bootstrap;
-    mirror::Object* system;
     mirror::Object* class_loader;
   };
   ScopedFastNativeObjectAccess soa(env);
-  mirror::Object* bootstrap = soa.Decode<mirror::Object*>(javaBootstrap);
-  mirror::Object* system = soa.Decode<mirror::Object*>(javaSystem);
-  ClosestUserClassLoaderVisitor visitor(soa.Self(), bootstrap, system);
+  ClosestUserClassLoaderVisitor visitor(soa.Self());
   visitor.WalkStack();
   return soa.AddLocalReference<jobject>(visitor.class_loader);
 }
@@ -136,7 +129,7 @@ static jobjectArray VMStack_getThreadStackTrace(JNIEnv* env, jclass, jobject jav
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMStack, fillStackTraceElements, "!(Ljava/lang/Thread;[Ljava/lang/StackTraceElement;)I"),
   NATIVE_METHOD(VMStack, getCallingClassLoader, "!()Ljava/lang/ClassLoader;"),
-  NATIVE_METHOD(VMStack, getClosestUserClassLoader, "!(Ljava/lang/ClassLoader;Ljava/lang/ClassLoader;)Ljava/lang/ClassLoader;"),
+  NATIVE_METHOD(VMStack, getClosestUserClassLoader, "!()Ljava/lang/ClassLoader;"),
   NATIVE_METHOD(VMStack, getStackClass2, "!()Ljava/lang/Class;"),
   NATIVE_METHOD(VMStack, getThreadStackTrace, "!(Ljava/lang/Thread;)[Ljava/lang/StackTraceElement;"),
 };

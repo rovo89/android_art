@@ -21,7 +21,7 @@ public class Main {
     /**
      * Main entry point.
      */
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         FancyLoader loader;
 
         loader = new FancyLoader(ClassLoader.getSystemClassLoader());
@@ -60,6 +60,8 @@ public class Main {
         testIfaceImplement(loader);
 
         testSeparation();
+
+        testClassForName();
     }
 
     static void testSeparation() {
@@ -478,5 +480,14 @@ public class Main {
         IfaceSuper ifaceSuper = (IfaceSuper) obj;
         DoubledImplement2 di2 = ifaceSuper.getDoubledInstance2();
         di2.one();
+    }
+
+    static void testClassForName() throws Exception {
+        System.out.println(Class.forName("Main").toString());
+        try {
+            System.out.println(Class.forName("Main", false, null).toString());
+        } catch (ClassNotFoundException expected) {
+            System.out.println("Got expected ClassNotFoundException");
+        }
     }
 }
