@@ -44,7 +44,7 @@ static void TestCode(const uint16_t* data,
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegenX86(graph, *features_x86.get(), CompilerOptions());
-  HDeadCodeElimination(graph, nullptr).Run();
+  HDeadCodeElimination(graph).Run();
   SSAChecker ssa_checker(&allocator, graph);
   ssa_checker.Run();
   ASSERT_TRUE(ssa_checker.IsValid());

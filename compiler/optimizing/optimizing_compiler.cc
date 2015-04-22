@@ -321,7 +321,7 @@ static void RunOptimizations(HGraph* graph,
                              PassInfoPrinter* pass_info_printer,
                              StackHandleScopeCollection* handles) {
   HDeadCodeElimination dce1(graph, stats);
-  HDeadCodeElimination dce2(graph, stats);
+  HDeadCodeElimination dce2(graph, stats, "dead_code_elimination_final");
   HConstantFolding fold1(graph);
   InstructionSimplifier simplify1(graph, stats);
   HBooleanSimplifier boolean_not(graph);
