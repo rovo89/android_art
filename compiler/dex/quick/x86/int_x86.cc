@@ -18,11 +18,11 @@
 
 #include "codegen_x86.h"
 
+#include "art_method.h"
 #include "base/bit_utils.h"
 #include "base/logging.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "dex/reg_storage_eq.h"
-#include "mirror/art_method.h"
 #include "mirror/array-inl.h"
 #include "x86_lir.h"
 
@@ -1410,16 +1410,18 @@ RegStorage X86Mir2Lir::GetPcAndAnchor(LIR** anchor, RegStorage r_tmp) {
   }
 }
 
-void X86Mir2Lir::OpPcRelDexCacheArrayLoad(const DexFile* dex_file, int offset,
-                                          RegStorage r_dest) {
+void X86Mir2Lir::OpPcRelDexCacheArrayLoad(const DexFile* dex_file, int offset, RegStorage r_dest,
+                                          bool wide) {
   if (cu_->target64) {
-    LIR* mov = NewLIR3(kX86Mov32RM, r_dest.GetReg(), kRIPReg, kDummy32BitOffset);
+    LIR* mov = NewLIR3(wide ? kX86Mov64RM : kX86Mov32RM, r_dest.GetReg(), kRIPReg,
+        kDummy32BitOffset);
     mov->flags.fixup = kFixupLabel;
     mov->operands[3] = WrapPointer(dex_file);
     mov->operands[4] = offset;
     mov->target = mov;  // Used for pc_insn_offset (not used by x86-64 relative patcher).
     dex_cache_access_insns_.push_back(mov);
   } else {
+    CHECK(!wide) << "Unsupported";
     // Get the PC to a register and get the anchor. Use r_dest for the temp if needed.
     LIR* anchor;
     RegStorage r_pc = GetPcAndAnchor(&anchor, r_dest);
@@ -3022,20 +3024,20 @@ void X86Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx,
 
   if (rl_method.location == kLocPhysReg) {
     if (use_declaring_class) {
-      LoadRefDisp(rl_method.reg, mirror::ArtMethod::DeclaringClassOffset().Int32Value(),
+      LoadRefDisp(rl_method.reg, ArtMethod::DeclaringClassOffset().Int32Value(),
                   check_class, kNotVolatile);
     } else {
-      LoadRefDisp(rl_method.reg, mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
+      LoadRefDisp(rl_method.reg, ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
                   check_class, kNotVolatile);
       LoadRefDisp(check_class, offset_of_type, check_class, kNotVolatile);
     }
   } else {
     LoadCurrMethodDirect(check_class);
     if (use_declaring_class) {
-      LoadRefDisp(check_class, mirror::ArtMethod::DeclaringClassOffset().Int32Value(),
+      LoadRefDisp(check_class, ArtMethod::DeclaringClassOffset().Int32Value(),
                   check_class, kNotVolatile);
     } else {
-      LoadRefDisp(check_class, mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
+      LoadRefDisp(check_class, ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
                   check_class, kNotVolatile);
       LoadRefDisp(check_class, offset_of_type, check_class, kNotVolatile);
     }
@@ -3059,7 +3061,7 @@ void X86Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx,
 }
 
 void X86Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
-                            RegLocation rl_lhs, RegLocation rl_rhs, int flags) {
+                               RegLocation rl_lhs, RegLocation rl_rhs, int flags) {
   OpKind op = kOpBkpt;
   bool is_div_rem = false;
   bool unary = false;

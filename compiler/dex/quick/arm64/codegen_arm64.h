@@ -79,7 +79,8 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
   void UnconditionallyMarkGCCard(RegStorage tgt_addr_reg) OVERRIDE;
 
   bool CanUseOpPcRelDexCacheArrayLoad() const OVERRIDE;
-  void OpPcRelDexCacheArrayLoad(const DexFile* dex_file, int offset, RegStorage r_dest) OVERRIDE;
+  void OpPcRelDexCacheArrayLoad(const DexFile* dex_file, int offset, RegStorage r_dest, bool wide)
+      OVERRIDE;
 
   LIR* OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg, RegStorage base_reg,
                          int offset, int check_value, LIR* target, LIR** compare) OVERRIDE;

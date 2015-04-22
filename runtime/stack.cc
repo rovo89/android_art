@@ -17,12 +17,14 @@
 #include "stack.h"
 
 #include "arch/context.h"
+#include "art_method-inl.h"
 #include "base/hex_dump.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc_map.h"
-#include "mirror/art_method-inl.h"
+#include "gc/space/image_space.h"
+#include "gc/space/space-inl.h"
+#include "linear_alloc.h"
 #include "mirror/class-inl.h"
-#include "mirror/object.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "quick/quick_method_frame_info.h"
@@ -34,8 +36,10 @@
 
 namespace art {
 
+static constexpr bool kDebugStackWalk = false;
+
 mirror::Object* ShadowFrame::GetThisObject() const {
-  mirror::ArtMethod* m = GetMethod();
+  ArtMethod* m = GetMethod();
   if (m->IsStatic()) {
     return nullptr;
   } else if (m->IsNative()) {
@@ -49,7 +53,7 @@ mirror::Object* ShadowFrame::GetThisObject() const {
 }
 
 mirror::Object* ShadowFrame::GetThisObject(uint16_t num_ins) const {
-  mirror::ArtMethod* m = GetMethod();
+  ArtMethod* m = GetMethod();
   if (m->IsStatic()) {
     return nullptr;
   } else {
@@ -113,11 +117,12 @@ uint32_t StackVisitor::GetDexPc(bool abort_on_failure) const {
   }
 }
 
-extern "C" mirror::Object* artQuickGetProxyThisObject(StackReference<mirror::ArtMethod>* sp)
+extern "C" mirror::Object* artQuickGetProxyThisObject(ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 mirror::Object* StackVisitor::GetThisObject() const {
-  mirror::ArtMethod* m = GetMethod();
+  DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), sizeof(void*));
+  ArtMethod* m = GetMethod();
   if (m->IsStatic()) {
     return nullptr;
   } else if (m->IsNative()) {
@@ -156,7 +161,7 @@ size_t StackVisitor::GetNativePcOffset() const {
   return GetMethod()->NativeQuickPcOffset(cur_quick_frame_pc_);
 }
 
-bool StackVisitor::IsReferenceVReg(mirror::ArtMethod* m, uint16_t vreg) {
+bool StackVisitor::IsReferenceVReg(ArtMethod* m, uint16_t vreg) {
   // Process register map (which native and runtime methods don't have)
   if (m->IsNative() || m->IsRuntimeMethod() || m->IsProxyMethod()) {
     return false;
@@ -183,8 +188,7 @@ bool StackVisitor::IsReferenceVReg(mirror::ArtMethod* m, uint16_t vreg) {
   return vreg < num_regs && TestBitmap(vreg, reg_bitmap);
 }
 
-bool StackVisitor::GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind,
-                           uint32_t* val) const {
+bool StackVisitor::GetVReg(ArtMethod* m, uint16_t vreg, VRegKind kind, uint32_t* val) const {
   if (cur_quick_frame_ != nullptr) {
     DCHECK(context_ != nullptr);  // You can't reliably read registers without a context.
     DCHECK(m == GetMethod());
@@ -200,7 +204,7 @@ bool StackVisitor::GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind,
   }
 }
 
-bool StackVisitor::GetVRegFromQuickCode(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind,
+bool StackVisitor::GetVRegFromQuickCode(ArtMethod* m, uint16_t vreg, VRegKind kind,
                                         uint32_t* val) const {
   const void* code_pointer = m->GetQuickOatCodePointer(sizeof(void*));
   DCHECK(code_pointer != nullptr);
@@ -223,7 +227,7 @@ bool StackVisitor::GetVRegFromQuickCode(mirror::ArtMethod* m, uint16_t vreg, VRe
   }
 }
 
-bool StackVisitor::GetVRegFromOptimizedCode(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind,
+bool StackVisitor::GetVRegFromOptimizedCode(ArtMethod* m, uint16_t vreg, VRegKind kind,
                                             uint32_t* val) const {
   const void* code_pointer = m->GetQuickOatCodePointer(sizeof(void*));
   DCHECK(code_pointer != nullptr);
@@ -287,7 +291,7 @@ bool StackVisitor::GetRegisterIfAccessible(uint32_t reg, VRegKind kind, uint32_t
   return true;
 }
 
-bool StackVisitor::GetVRegPair(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind_lo,
+bool StackVisitor::GetVRegPair(ArtMethod* m, uint16_t vreg, VRegKind kind_lo,
                                VRegKind kind_hi, uint64_t* val) const {
   if (kind_lo == kLongLoVReg) {
     DCHECK_EQ(kind_hi, kLongHiVReg);
@@ -312,7 +316,7 @@ bool StackVisitor::GetVRegPair(mirror::ArtMethod* m, uint16_t vreg, VRegKind kin
   }
 }
 
-bool StackVisitor::GetVRegPairFromQuickCode(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind_lo,
+bool StackVisitor::GetVRegPairFromQuickCode(ArtMethod* m, uint16_t vreg, VRegKind kind_lo,
                                             VRegKind kind_hi, uint64_t* val) const {
   const void* code_pointer = m->GetQuickOatCodePointer(sizeof(void*));
   DCHECK(code_pointer != nullptr);
@@ -339,7 +343,7 @@ bool StackVisitor::GetVRegPairFromQuickCode(mirror::ArtMethod* m, uint16_t vreg,
   }
 }
 
-bool StackVisitor::GetVRegPairFromOptimizedCode(mirror::ArtMethod* m, uint16_t vreg,
+bool StackVisitor::GetVRegPairFromOptimizedCode(ArtMethod* m, uint16_t vreg,
                                                 VRegKind kind_lo, VRegKind kind_hi,
                                                 uint64_t* val) const {
   uint32_t low_32bits;
@@ -371,7 +375,7 @@ bool StackVisitor::GetRegisterPairIfAccessible(uint32_t reg_lo, uint32_t reg_hi,
   return true;
 }
 
-bool StackVisitor::SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_value,
+bool StackVisitor::SetVReg(ArtMethod* m, uint16_t vreg, uint32_t new_value,
                            VRegKind kind) {
   if (cur_quick_frame_ != nullptr) {
       DCHECK(context_ != nullptr);  // You can't reliably write registers without a context.
@@ -387,7 +391,7 @@ bool StackVisitor::SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_val
     }
 }
 
-bool StackVisitor::SetVRegFromQuickCode(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_value,
+bool StackVisitor::SetVRegFromQuickCode(ArtMethod* m, uint16_t vreg, uint32_t new_value,
                                         VRegKind kind) {
   DCHECK(context_ != nullptr);  // You can't reliably write registers without a context.
   DCHECK(m == GetMethod());
@@ -445,7 +449,7 @@ bool StackVisitor::SetRegisterIfAccessible(uint32_t reg, uint32_t new_value, VRe
   return true;
 }
 
-bool StackVisitor::SetVRegPair(mirror::ArtMethod* m, uint16_t vreg, uint64_t new_value,
+bool StackVisitor::SetVRegPair(ArtMethod* m, uint16_t vreg, uint64_t new_value,
                                VRegKind kind_lo, VRegKind kind_hi) {
   if (kind_lo == kLongLoVReg) {
     DCHECK_EQ(kind_hi, kLongHiVReg);
@@ -470,7 +474,7 @@ bool StackVisitor::SetVRegPair(mirror::ArtMethod* m, uint16_t vreg, uint64_t new
 }
 
 bool StackVisitor::SetVRegPairFromQuickCode(
-    mirror::ArtMethod* m, uint16_t vreg, uint64_t new_value, VRegKind kind_lo, VRegKind kind_hi) {
+    ArtMethod* m, uint16_t vreg, uint64_t new_value, VRegKind kind_lo, VRegKind kind_hi) {
   const void* code_pointer = m->GetQuickOatCodePointer(sizeof(void*));
   DCHECK(code_pointer != nullptr);
   const VmapTable vmap_table(m->GetVmapTable(code_pointer, sizeof(void*)));
@@ -586,7 +590,7 @@ size_t StackVisitor::ComputeNumFrames(Thread* thread, StackWalkKind walk_kind) {
   return visitor.frames;
 }
 
-bool StackVisitor::GetNextMethodAndDexPc(mirror::ArtMethod** next_method, uint32_t* next_dex_pc) {
+bool StackVisitor::GetNextMethodAndDexPc(ArtMethod** next_method, uint32_t* next_dex_pc) {
   struct HasMoreFramesVisitor : public StackVisitor {
     HasMoreFramesVisitor(Thread* thread,
                          StackWalkKind walk_kind,
@@ -602,7 +606,7 @@ bool StackVisitor::GetNextMethodAndDexPc(mirror::ArtMethod** next_method, uint32
 
     bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       if (found_frame_) {
-        mirror::ArtMethod* method = GetMethod();
+        ArtMethod* method = GetMethod();
         if (method != nullptr && !method->IsRuntimeMethod()) {
           has_more_frames_ = true;
           next_method_ = method;
@@ -618,7 +622,7 @@ bool StackVisitor::GetNextMethodAndDexPc(mirror::ArtMethod** next_method, uint32
     size_t frame_height_;
     bool found_frame_;
     bool has_more_frames_;
-    mirror::ArtMethod* next_method_;
+    ArtMethod* next_method_;
     uint32_t next_dex_pc_;
   };
   HasMoreFramesVisitor visitor(thread_, walk_kind_, GetNumFrames(), GetFrameHeight());
@@ -644,7 +648,7 @@ void StackVisitor::DescribeStack(Thread* thread) {
 
 std::string StackVisitor::DescribeLocation() const {
   std::string result("Visiting method '");
-  mirror::ArtMethod* m = GetMethod();
+  ArtMethod* m = GetMethod();
   if (m == nullptr) {
     return "upcall";
   }
@@ -664,8 +668,34 @@ static instrumentation::InstrumentationStackFrame& GetInstrumentationStackFrame(
 
 void StackVisitor::SanityCheckFrame() const {
   if (kIsDebugBuild) {
-    mirror::ArtMethod* method = GetMethod();
-    CHECK_EQ(method->GetClass(), mirror::ArtMethod::GetJavaLangReflectArtMethod());
+    ArtMethod* method = GetMethod();
+    auto* declaring_class = method->GetDeclaringClass();
+    // Runtime methods have null declaring class.
+    if (!method->IsRuntimeMethod()) {
+      CHECK(declaring_class != nullptr);
+      CHECK_EQ(declaring_class->GetClass(), declaring_class->GetClass()->GetClass())
+          << declaring_class;
+    } else {
+      CHECK(declaring_class == nullptr);
+    }
+    auto* runtime = Runtime::Current();
+    auto* la = runtime->GetLinearAlloc();
+    if (!la->Contains(method)) {
+      // Check image space.
+      bool in_image = false;
+      for (auto& space : runtime->GetHeap()->GetContinuousSpaces()) {
+        if (space->IsImageSpace()) {
+          auto* image_space = space->AsImageSpace();
+          const auto& header = image_space->GetImageHeader();
+          const auto* methods = &header.GetMethodsSection();
+          if (methods->Contains(reinterpret_cast<const uint8_t*>(method) - image_space->Begin())) {
+            in_image = true;
+            break;
+          }
+        }
+      }
+      CHECK(in_image) << PrettyMethod(method) << " not in linear alloc or image";
+    }
     if (cur_quick_frame_ != nullptr) {
       method->AssertPcIsWithinQuickCode(cur_quick_frame_pc_);
       // Frame sanity.
@@ -701,7 +731,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
     if (cur_quick_frame_ != nullptr) {  // Handle quick stack frames.
       // Can't be both a shadow and a quick fragment.
       DCHECK(current_fragment->GetTopShadowFrame() == nullptr);
-      mirror::ArtMethod* method = cur_quick_frame_->AsMirrorPtr();
+      ArtMethod* method = *cur_quick_frame_;
       while (method != nullptr) {
         SanityCheckFrame();
         bool should_continue = VisitFrame();
@@ -727,8 +757,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
             if (GetMethod() == Runtime::Current()->GetCalleeSaveMethod(Runtime::kSaveAll)) {
               // Skip runtime save all callee frames which are used to deliver exceptions.
             } else if (instrumentation_frame.interpreter_entry_) {
-              mirror::ArtMethod* callee =
-                  Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs);
+              ArtMethod* callee = Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs);
               CHECK_EQ(GetMethod(), callee) << "Expected: " << PrettyMethod(callee) << " Found: "
                                             << PrettyMethod(GetMethod());
             } else if (instrumentation_frame.method_ != GetMethod()) {
@@ -747,9 +776,20 @@ void StackVisitor::WalkStack(bool include_transitions) {
         }
         cur_quick_frame_pc_ = return_pc;
         uint8_t* next_frame = reinterpret_cast<uint8_t*>(cur_quick_frame_) + frame_size;
-        cur_quick_frame_ = reinterpret_cast<StackReference<mirror::ArtMethod>*>(next_frame);
+        cur_quick_frame_ = reinterpret_cast<ArtMethod**>(next_frame);
+
+        if (kDebugStackWalk) {
+          LOG(INFO) << PrettyMethod(method) << "@" << method << " size=" << frame_size
+              << " optimized=" << method->IsOptimized(sizeof(void*))
+              << " native=" << method->IsNative()
+              << " entrypoints=" << method->GetEntryPointFromQuickCompiledCode()
+              << "," << method->GetEntryPointFromJni()
+              << "," << method->GetEntryPointFromInterpreter()
+              << " next=" << *cur_quick_frame_;
+        }
+
         cur_depth_++;
-        method = cur_quick_frame_->AsMirrorPtr();
+        method = *cur_quick_frame_;
       }
     } else if (cur_shadow_frame_ != nullptr) {
       do {
@@ -780,6 +820,44 @@ void JavaFrameRootInfo::Describe(std::ostream& os) const {
   CHECK(visitor != nullptr);
   os << "Type=" << GetType() << " thread_id=" << GetThreadId() << " location=" <<
       visitor->DescribeLocation() << " vreg=" << vreg_;
+}
+
+int StackVisitor::GetVRegOffsetFromQuickCode(const DexFile::CodeItem* code_item,
+                                             uint32_t core_spills, uint32_t fp_spills,
+                                             size_t frame_size, int reg, InstructionSet isa) {
+  size_t pointer_size = InstructionSetPointerSize(isa);
+  if (kIsDebugBuild) {
+    auto* runtime = Runtime::Current();
+    if (runtime != nullptr) {
+      CHECK_EQ(runtime->GetClassLinker()->GetImagePointerSize(), pointer_size);
+    }
+  }
+  DCHECK_EQ(frame_size & (kStackAlignment - 1), 0U);
+  DCHECK_NE(reg, -1);
+  int spill_size = POPCOUNT(core_spills) * GetBytesPerGprSpillLocation(isa)
+      + POPCOUNT(fp_spills) * GetBytesPerFprSpillLocation(isa)
+      + sizeof(uint32_t);  // Filler.
+  int num_regs = code_item->registers_size_ - code_item->ins_size_;
+  int temp_threshold = code_item->registers_size_;
+  const int max_num_special_temps = 1;
+  if (reg == temp_threshold) {
+    // The current method pointer corresponds to special location on stack.
+    return 0;
+  } else if (reg >= temp_threshold + max_num_special_temps) {
+    /*
+     * Special temporaries may have custom locations and the logic above deals with that.
+     * However, non-special temporaries are placed relative to the outs.
+     */
+    int temps_start = code_item->outs_size_ * sizeof(uint32_t) + pointer_size /* art method */;
+    int relative_offset = (reg - (temp_threshold + max_num_special_temps)) * sizeof(uint32_t);
+    return temps_start + relative_offset;
+  }  else if (reg < num_regs) {
+    int locals_start = frame_size - spill_size - num_regs * sizeof(uint32_t);
+    return locals_start + (reg * sizeof(uint32_t));
+  } else {
+    // Handle ins.
+    return frame_size + ((reg - num_regs) * sizeof(uint32_t)) + pointer_size /* art method */;
+  }
 }
 
 }  // namespace art

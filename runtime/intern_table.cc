@@ -18,6 +18,7 @@
 
 #include <memory>
 
+#include "gc_root-inl.h"
 #include "gc/space/image_space.h"
 #include "mirror/dex_cache.h"
 #include "mirror/object_array-inl.h"

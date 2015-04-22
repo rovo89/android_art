@@ -16,6 +16,7 @@
 
 #include "inliner.h"
 
+#include "art_method-inl.h"
 #include "builder.h"
 #include "class_linker.h"
 #include "constant_folding.h"
@@ -23,7 +24,6 @@
 #include "driver/compiler_driver-inl.h"
 #include "driver/dex_compilation_unit.h"
 #include "instruction_simplifier.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache.h"
 #include "nodes.h"
@@ -81,11 +81,10 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
       hs.NewHandle(caller_compilation_unit_.GetClassLinker()->FindDexCache(caller_dex_file)));
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
       soa.Decode<mirror::ClassLoader*>(caller_compilation_unit_.GetClassLoader())));
-  Handle<mirror::ArtMethod> resolved_method(hs.NewHandle(
-      compiler_driver_->ResolveMethod(
-          soa, dex_cache, class_loader, &caller_compilation_unit_, method_index, invoke_type)));
+  ArtMethod* resolved_method(compiler_driver_->ResolveMethod(
+      soa, dex_cache, class_loader, &caller_compilation_unit_, method_index, invoke_type));
 
-  if (resolved_method.Get() == nullptr) {
+  if (resolved_method == nullptr) {
     VLOG(compiler) << "Method cannot be resolved " << PrettyMethod(method_index, caller_dex_file);
     return false;
   }
@@ -149,7 +148,7 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
   return true;
 }
 
-bool HInliner::TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
+bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
                                  HInvoke* invoke_instruction,
                                  uint32_t method_index,
                                  bool can_use_dex_cache) const {
@@ -172,6 +171,7 @@ bool HInliner::TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
       graph_->GetArena(),
       caller_dex_file,
       method_index,
+      compiler_driver_->GetInstructionSet(),
       graph_->IsDebuggable(),
       graph_->GetCurrentInstructionId());
 

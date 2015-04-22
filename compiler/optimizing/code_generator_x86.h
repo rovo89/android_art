@@ -52,7 +52,8 @@ class InvokeRuntimeCallingConvention : public CallingConvention<Register, XmmReg
       : CallingConvention(kRuntimeParameterCoreRegisters,
                           kRuntimeParameterCoreRegistersLength,
                           kRuntimeParameterFpuRegisters,
-                          kRuntimeParameterFpuRegistersLength) {}
+                          kRuntimeParameterFpuRegistersLength,
+                          kX86PointerSize) {}
 
  private:
   DISALLOW_COPY_AND_ASSIGN(InvokeRuntimeCallingConvention);
@@ -64,7 +65,8 @@ class InvokeDexCallingConvention : public CallingConvention<Register, XmmRegiste
       kParameterCoreRegisters,
       kParameterCoreRegistersLength,
       kParameterFpuRegisters,
-      kParameterFpuRegistersLength) {}
+      kParameterFpuRegistersLength,
+      kX86PointerSize) {}
 
   RegisterPair GetRegisterPairAt(size_t argument_index) {
     DCHECK_LT(argument_index + 1, GetNumberOfRegisters());

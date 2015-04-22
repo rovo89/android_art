@@ -48,7 +48,7 @@ class HInliner : public HOptimization {
 
  private:
   bool TryInline(HInvoke* invoke_instruction, uint32_t method_index, InvokeType invoke_type) const;
-  bool TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
+  bool TryBuildAndInline(ArtMethod* resolved_method,
                          HInvoke* invoke_instruction,
                          uint32_t method_index,
                          bool can_use_dex_cache) const;

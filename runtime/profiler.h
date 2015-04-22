@@ -36,12 +36,12 @@
 namespace art {
 
 namespace mirror {
-  class ArtMethod;
   class Class;
 }  // namespace mirror
+class ArtMethod;
 class Thread;
 
-typedef std::pair<mirror::ArtMethod*, uint32_t> InstructionLocation;
+typedef std::pair<ArtMethod*, uint32_t> InstructionLocation;
 
 // This class stores the sampled bounded stacks in a trie structure. A path of the trie represents
 // a particular context with the method on top of the stack being a leaf or an internal node of the
@@ -104,7 +104,7 @@ class ProfileSampleResults {
   explicit ProfileSampleResults(Mutex& lock);
   ~ProfileSampleResults();
 
-  void Put(mirror::ArtMethod* method);
+  void Put(ArtMethod* method);
   void PutStack(const std::vector<InstructionLocation>& stack_dump);
   uint32_t Write(std::ostream &os, ProfileDataType type);
   void ReadPrevious(int fd, ProfileDataType type);
@@ -114,14 +114,14 @@ class ProfileSampleResults {
   void BootMethod() { ++num_boot_methods_; }
 
  private:
-  uint32_t Hash(mirror::ArtMethod* method);
+  uint32_t Hash(ArtMethod* method);
   static constexpr int kHashSize = 17;
   Mutex& lock_;                  // Reference to the main profiler lock - we don't need two of them.
   uint32_t num_samples_;         // Total number of samples taken.
   uint32_t num_null_methods_;    // Number of samples where can don't know the method.
   uint32_t num_boot_methods_;    // Number of samples in the boot path.
 
-  typedef std::map<mirror::ArtMethod*, uint32_t> Map;  // Map of method vs its count.
+  typedef std::map<ArtMethod*, uint32_t> Map;  // Map of method vs its count.
   Map *table[kHashSize];
 
   typedef std::set<StackTrieNode*> TrieNodeSet;
@@ -176,9 +176,9 @@ class BackgroundMethodSamplingProfiler {
   static void Stop() LOCKS_EXCLUDED(Locks::profiler_lock_, wait_lock_);
   static void Shutdown() LOCKS_EXCLUDED(Locks::profiler_lock_);
 
-  void RecordMethod(mirror::ArtMethod *method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void RecordMethod(ArtMethod *method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void RecordStack(const std::vector<InstructionLocation>& stack) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool ProcessMethod(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool ProcessMethod(ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const ProfilerOptions& GetProfilerOptions() const { return options_; }
 
   Barrier& GetBarrier() {

@@ -423,7 +423,7 @@ ENTRY art_quick_invoke_stub_internal
     mov    r4, #SUSPEND_CHECK_INTERVAL     @ reset r4 to suspend check interval
 #endif
 
-    ldr    ip, [r0, #MIRROR_ART_METHOD_QUICK_CODE_OFFSET_32]  @ get pointer to the code
+    ldr    ip, [r0, #ART_METHOD_QUICK_CODE_OFFSET_32]  @ get pointer to the code
     blx    ip                              @ call the method
 
     mov    sp, r11                         @ restore the stack pointer
@@ -895,7 +895,7 @@ END art_quick_proxy_invoke_handler
      */
 ENTRY art_quick_imt_conflict_trampoline
     ldr    r0, [sp, #0]            @ load caller Method*
-    ldr    r0, [r0, #MIRROR_ART_METHOD_DEX_CACHE_METHODS_OFFSET]  @ load dex_cache_resolved_methods
+    ldr    r0, [r0, #ART_METHOD_DEX_CACHE_METHODS_OFFSET]  @ load dex_cache_resolved_methods
     add    r0, #MIRROR_OBJECT_ARRAY_DATA_OFFSET  @ get starting address of data
     ldr    r0, [r0, r12, lsl 2]    @ load the target method
     b art_quick_invoke_interface_trampoline

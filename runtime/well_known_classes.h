@@ -53,7 +53,6 @@ struct WellKnownClasses {
   static jclass java_lang_Object;
   static jclass java_lang_OutOfMemoryError;
   static jclass java_lang_reflect_AbstractMethod;
-  static jclass java_lang_reflect_ArtMethod;
   static jclass java_lang_reflect_Constructor;
   static jclass java_lang_reflect_Field;
   static jclass java_lang_reflect_Method;

@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
+#include "art_method-inl.h"
 #include "callee_save_frame.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "gc/accounting/card_table-inl.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 

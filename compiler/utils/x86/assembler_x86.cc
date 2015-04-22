@@ -1724,9 +1724,9 @@ void X86Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   }
 
   // return address then method on stack.
-  int32_t adjust = frame_size - (gpr_count * kFramePointerSize) -
-                   sizeof(StackReference<mirror::ArtMethod>) /*method*/ -
-                   kFramePointerSize /*return address*/;
+  int32_t adjust = frame_size - gpr_count * kFramePointerSize -
+      kFramePointerSize /*method*/ -
+      kFramePointerSize /*return address*/;
   addl(ESP, Immediate(-adjust));
   cfi_.AdjustCFAOffset(adjust);
   pushl(method_reg.AsX86().AsCpuRegister());
@@ -1750,12 +1750,11 @@ void X86Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   }
 }
 
-void X86Assembler::RemoveFrame(size_t frame_size,
-                            const std::vector<ManagedRegister>& spill_regs) {
+void X86Assembler::RemoveFrame(size_t frame_size, const std::vector<ManagedRegister>& spill_regs) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
   cfi_.RememberState();
-  int adjust = frame_size - (spill_regs.size() * kFramePointerSize) -
-               sizeof(StackReference<mirror::ArtMethod>);
+  // -kFramePointerSize for ArtMethod*.
+  int adjust = frame_size - spill_regs.size() * kFramePointerSize - kFramePointerSize;
   addl(ESP, Immediate(adjust));
   cfi_.AdjustCFAOffset(-adjust);
   for (size_t i = 0; i < spill_regs.size(); ++i) {
@@ -1904,18 +1903,18 @@ void X86Assembler::LoadFromThread32(ManagedRegister mdest, ThreadOffset<4> src, 
   }
 }
 
-void X86Assembler::LoadRef(ManagedRegister mdest, FrameOffset  src) {
+void X86Assembler::LoadRef(ManagedRegister mdest, FrameOffset src) {
   X86ManagedRegister dest = mdest.AsX86();
   CHECK(dest.IsCpuRegister());
   movl(dest.AsCpuRegister(), Address(ESP, src));
 }
 
-void X86Assembler::LoadRef(ManagedRegister mdest, ManagedRegister base,
-                           MemberOffset offs) {
+void X86Assembler::LoadRef(ManagedRegister mdest, ManagedRegister base, MemberOffset offs,
+                           bool poison_reference) {
   X86ManagedRegister dest = mdest.AsX86();
   CHECK(dest.IsCpuRegister() && dest.IsCpuRegister());
   movl(dest.AsCpuRegister(), Address(base.AsX86().AsCpuRegister(), offs));
-  if (kPoisonHeapReferences) {
+  if (kPoisonHeapReferences && poison_reference) {
     negl(dest.AsCpuRegister());
   }
 }

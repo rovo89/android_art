@@ -142,6 +142,11 @@ class Arena {
     return bytes_allocated_;
   }
 
+  // Return true if ptr is contained in the arena.
+  bool Contains(const void* ptr) const {
+    return memory_ <= ptr && ptr < memory_ + bytes_allocated_;
+  }
+
  protected:
   size_t bytes_allocated_;
   uint8_t* memory_;
@@ -219,18 +224,51 @@ class ArenaAllocator : private DebugStackRefCounter, private ArenaAllocatorStats
     return ret;
   }
 
+  // Realloc never frees the input pointer, it is the caller's job to do this if necessary.
+  void* Realloc(void* ptr, size_t ptr_size, size_t new_size,
+                ArenaAllocKind kind = kArenaAllocMisc) ALWAYS_INLINE {
+    DCHECK_GE(new_size, ptr_size);
+    DCHECK_EQ(ptr == nullptr, ptr_size == 0u);
+    auto* end = reinterpret_cast<uint8_t*>(ptr) + ptr_size;
+    // If we haven't allocated anything else, we can safely extend.
+    if (end == ptr_) {
+      const size_t size_delta = new_size - ptr_size;
+      // Check remain space.
+      const size_t remain = end_ - ptr_;
+      if (remain >= size_delta) {
+        ptr_ += size_delta;
+        ArenaAllocatorStats::RecordAlloc(size_delta, kind);
+        return ptr;
+      }
+    }
+    auto* new_ptr = Alloc(new_size, kind);
+    memcpy(new_ptr, ptr, ptr_size);
+    // TODO: Call free on ptr if linear alloc supports free.
+    return new_ptr;
+  }
+
   template <typename T>
   T* AllocArray(size_t length, ArenaAllocKind kind = kArenaAllocMisc) {
     return static_cast<T*>(Alloc(length * sizeof(T), kind));
   }
 
   void* AllocValgrind(size_t bytes, ArenaAllocKind kind);
+
   void ObtainNewArenaForAllocation(size_t allocation_size);
+
   size_t BytesAllocated() const;
+
   MemStats GetMemStats() const;
+
   // The BytesUsed method sums up bytes allocated from arenas in arena_head_ and nodes.
   // TODO: Change BytesAllocated to this behavior?
   size_t BytesUsed() const;
+
+  ArenaPool* GetArenaPool() const {
+    return pool_;
+  }
+
+  bool Contains(const void* ptr) const;
 
  private:
   static constexpr size_t kAlignment = 8;

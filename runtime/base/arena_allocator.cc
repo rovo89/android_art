@@ -302,6 +302,18 @@ void ArenaAllocator::ObtainNewArenaForAllocation(size_t allocation_size) {
   end_ = new_arena->End();
 }
 
+bool ArenaAllocator::Contains(const void* ptr) const {
+  if (ptr >= begin_ && ptr < end_) {
+    return true;
+  }
+  for (const Arena* cur_arena = arena_head_; cur_arena != nullptr; cur_arena = cur_arena->next_) {
+    if (cur_arena->Contains(ptr)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 MemStats::MemStats(const char* name, const ArenaAllocatorStats* stats, const Arena* first_arena,
                    ssize_t lost_bytes_adjustment)
     : name_(name),

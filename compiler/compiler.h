@@ -22,15 +22,12 @@
 
 namespace art {
 
+class ArtMethod;
 class Backend;
 struct CompilationUnit;
 class CompilerDriver;
 class CompiledMethod;
 class OatWriter;
-
-namespace mirror {
-  class ArtMethod;
-}
 
 class Compiler {
  public:
@@ -60,7 +57,7 @@ class Compiler {
                                      uint32_t method_idx,
                                      const DexFile& dex_file) const = 0;
 
-  virtual uintptr_t GetEntryPointOf(mirror::ArtMethod* method) const
+  virtual uintptr_t GetEntryPointOf(ArtMethod* method) const
      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
 
   uint64_t GetMaximumCompilationTimeBeforeWarning() const {

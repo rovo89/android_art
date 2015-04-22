@@ -19,11 +19,11 @@
 #include <limits>
 
 #include "arch/x86/instruction_set_features_x86.h"
+#include "art_method.h"
 #include "code_generator_x86.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "intrinsics.h"
 #include "mirror/array-inl.h"
-#include "mirror/art_method.h"
 #include "mirror/string.h"
 #include "thread.h"
 #include "utils/x86/assembler_x86.h"

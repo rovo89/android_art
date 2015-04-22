@@ -22,6 +22,7 @@
 #include <unistd.h>
 
 #include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "base/logging.h"
 #include "base/stringprintf.h"
 #include "debugger.h"

@@ -27,6 +27,7 @@ extern "C" void android_set_application_target_sdk_version(uint32_t version);
 #include "toStringArray.h"
 #pragma GCC diagnostic pop
 
+#include "art_method-inl.h"
 #include "arch/instruction_set.h"
 #include "class_linker-inl.h"
 #include "common_throws.h"
@@ -40,7 +41,6 @@ extern "C" void android_set_application_target_sdk_version(uint32_t version);
 #include "gc/task_processor.h"
 #include "intern_table.h"
 #include "jni_internal.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
 #include "mirror/object-inl.h"
@@ -350,7 +350,7 @@ static void PreloadDexCachesResolveField(Handle<mirror::DexCache> dex_cache, uin
 static void PreloadDexCachesResolveMethod(Handle<mirror::DexCache> dex_cache, uint32_t method_idx,
                                           InvokeType invoke_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::ArtMethod* method = dex_cache->GetResolvedMethod(method_idx);
+  ArtMethod* method = dex_cache->GetResolvedMethod(method_idx, sizeof(void*));
   if (method != nullptr) {
     return;
   }
@@ -363,14 +363,14 @@ static void PreloadDexCachesResolveMethod(Handle<mirror::DexCache> dex_cache, ui
   switch (invoke_type) {
     case kDirect:
     case kStatic:
-      method = klass->FindDirectMethod(dex_cache.Get(), method_idx);
+      method = klass->FindDirectMethod(dex_cache.Get(), method_idx, sizeof(void*));
       break;
     case kInterface:
-      method = klass->FindInterfaceMethod(dex_cache.Get(), method_idx);
+      method = klass->FindInterfaceMethod(dex_cache.Get(), method_idx, sizeof(void*));
       break;
     case kSuper:
     case kVirtual:
-      method = klass->FindVirtualMethod(dex_cache.Get(), method_idx);
+      method = klass->FindVirtualMethod(dex_cache.Get(), method_idx, sizeof(void*));
       break;
     default:
       LOG(FATAL) << "Unreachable - invocation type: " << invoke_type;
@@ -380,7 +380,7 @@ static void PreloadDexCachesResolveMethod(Handle<mirror::DexCache> dex_cache, ui
     return;
   }
   // LOG(INFO) << "VMRuntime.preloadDexCaches resolved method " << PrettyMethod(method);
-  dex_cache->SetResolvedMethod(method_idx, method);
+  dex_cache->SetResolvedMethod(method_idx, method, sizeof(void*));
 }
 
 struct DexCacheStats {
@@ -452,7 +452,7 @@ static void PreloadDexCachesStatsFilled(DexCacheStats* filled)
       }
     }
     for (size_t j = 0; j < dex_cache->NumResolvedMethods(); j++) {
-      mirror::ArtMethod* method = dex_cache->GetResolvedMethod(j);
+      ArtMethod* method = dex_cache->GetResolvedMethod(j, sizeof(void*));
       if (method != nullptr) {
         filled->num_methods++;
       }

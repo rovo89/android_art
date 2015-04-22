@@ -398,7 +398,7 @@ void Mir2Lir::CallRuntimeHelperRegLocationRegLocationRegLocationRegLocation(
 // TODO: Support 64-bit argument registers.
 void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
   /*
-   * Dummy up a RegLocation for the incoming StackReference<mirror::ArtMethod>
+   * Dummy up a RegLocation for the incoming ArtMethod*
    * It will attempt to keep kArg0 live (or copy it to home location
    * if promoted).
    */
@@ -407,10 +407,15 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
   rl_src.reg = TargetReg(kArg0, kRef);
   rl_src.home = false;
   MarkLive(rl_src);
-  StoreValue(rl_method, rl_src);
+  if (cu_->target64) {
+    DCHECK(rl_method.wide);
+    StoreValueWide(rl_method, rl_src);
+  } else {
+    StoreValue(rl_method, rl_src);
+  }
   // If Method* has been promoted, explicitly flush
   if (rl_method.location == kLocPhysReg) {
-    StoreRefDisp(TargetPtrReg(kSp), 0, rl_src.reg, kNotVolatile);
+    StoreBaseDisp(TargetPtrReg(kSp), 0, rl_src.reg, kWord, kNotVolatile);
   }
 
   if (mir_graph_->GetNumOfInVRs() == 0) {
@@ -498,7 +503,7 @@ static void CommonCallCodeLoadClassIntoArg0(const CallInfo* info, Mir2Lir* cg) {
 static bool CommonCallCodeLoadCodePointerIntoInvokeTgt(const RegStorage* alt_from,
                                                        const CompilationUnit* cu, Mir2Lir* cg) {
   if (cu->instruction_set != kX86 && cu->instruction_set != kX86_64) {
-    int32_t offset = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+    int32_t offset = ArtMethod::EntryPointFromQuickCompiledCodeOffset(
         InstructionSetPointerSize(cu->instruction_set)).Int32Value();
     // Get the compiled code address [use *alt_from or kArg0, set kInvokeTgt]
     cg->LoadWordDisp(alt_from == nullptr ? cg->TargetReg(kArg0, kRef) : *alt_from, offset,
@@ -535,10 +540,12 @@ static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
       break;
     case 2: {
       // Get this->klass_.embedded_vtable[method_idx] [usr kArg0, set kArg0]
-      int32_t offset = mirror::Class::EmbeddedVTableOffset().Uint32Value() +
-          method_idx * sizeof(mirror::Class::VTableEntry);
+      const size_t pointer_size = InstructionSetPointerSize(
+          cu->compiler_driver->GetInstructionSet());
+      int32_t offset = mirror::Class::EmbeddedVTableEntryOffset(
+          method_idx, pointer_size).Uint32Value();
       // Load target method from embedded vtable to kArg0 [use kArg0, set kArg0]
-      cg->LoadRefDisp(cg->TargetReg(kArg0, kRef), offset, cg->TargetReg(kArg0, kRef), kNotVolatile);
+      cg->LoadWordDisp(cg->TargetPtrReg(kArg0), offset, cg->TargetPtrReg(kArg0));
       break;
     }
     case 3:
@@ -580,10 +587,12 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
                                                   // Includes a null-check.
       break;
     case 3: {  // Get target method [use kInvokeTgt, set kArg0]
-      int32_t offset = mirror::Class::EmbeddedImTableOffset().Uint32Value() +
-          (method_idx % mirror::Class::kImtSize) * sizeof(mirror::Class::ImTableEntry);
+      const size_t pointer_size = InstructionSetPointerSize(
+          cu->compiler_driver->GetInstructionSet());
+      int32_t offset = mirror::Class::EmbeddedImTableEntryOffset(
+          method_idx % mirror::Class::kImtSize, pointer_size).Uint32Value();
       // Load target method from embedded imtable to kArg0 [use kArg0, set kArg0]
-      cg->LoadRefDisp(cg->TargetReg(kArg0, kRef), offset, cg->TargetReg(kArg0, kRef), kNotVolatile);
+      cg->LoadWordDisp(cg->TargetPtrReg(kArg0), offset, cg->TargetPtrReg(kArg0));
       break;
     }
     case 4:
@@ -967,7 +976,7 @@ bool Mir2Lir::GenInlinedReferenceGetReferent(CallInfo* info) {
   RegLocation rl_result = EvalLoc(rl_dest, kRefReg, true);
   GenNullCheck(rl_obj.reg, info->opt_flags);
   LoadRefDisp(rl_obj.reg, mirror::Reference::ReferentOffset().Int32Value(), rl_result.reg,
-      kNotVolatile);
+              kNotVolatile);
   MarkPossibleNullPointerException(info->opt_flags);
   StoreValue(rl_dest, rl_result);
 
@@ -1418,7 +1427,7 @@ bool Mir2Lir::GenInlinedCurrentThread(CallInfo* info) {
 
   RegLocation rl_result = EvalLoc(rl_dest, kRefReg, true);
 
-  if (Is64BitInstructionSet(cu_->instruction_set)) {
+  if (cu_->target64) {
     LoadRefDisp(TargetPtrReg(kSelf), Thread::PeerOffset<8>().Int32Value(), rl_result.reg,
                 kNotVolatile);
   } else {

@@ -20,6 +20,7 @@
 #include "base/logging.h"
 #include "gc/accounting/card_table-inl.h"
 #include "intern_table.h"
+#include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 

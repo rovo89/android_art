@@ -37,11 +37,11 @@ namespace art {
 // TODO: remove dependencies on mirror classes, primarily by moving
 // EncodedStaticFieldValueIterator to its own file.
 namespace mirror {
-  class ArtMethod;
   class ClassLoader;
   class DexCache;
 }  // namespace mirror
 class ArtField;
+class ArtMethod;
 class ClassLinker;
 class MemMap;
 class OatDexFile;
@@ -861,7 +861,7 @@ class DexFile {
   // Returns -2 for native methods (as expected in exception traces).
   //
   // This is used by runtime; therefore use art::Method not art::DexFile::Method.
-  int32_t GetLineNumFromPC(mirror::ArtMethod* method, uint32_t rel_pc) const
+  int32_t GetLineNumFromPC(ArtMethod* method, uint32_t rel_pc) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void DecodeDebugInfo(const CodeItem* code_item, bool is_static, uint32_t method_idx,

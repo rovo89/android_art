@@ -20,6 +20,7 @@
 #include <string>
 
 #include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "dex_file.h"
@@ -27,7 +28,6 @@
 #include "gc/heap.h"
 #include "mirror/abstract_method.h"
 #include "mirror/accessible_object.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
 #include "mirror/field.h"
@@ -159,9 +159,9 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_EQ(class_linker_->FindArrayClass(self, &array_ptr), array.Get());
   }
 
-  void AssertMethod(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void AssertMethod(ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     EXPECT_TRUE(method != nullptr);
-    EXPECT_TRUE(method->GetClass() != nullptr);
+    EXPECT_TRUE(method->GetDeclaringClass() != nullptr);
     EXPECT_TRUE(method->GetName() != nullptr);
     EXPECT_TRUE(method->GetSignature() != Signature::NoSignature());
 
@@ -208,8 +208,8 @@ class ClassLinkerTest : public CommonRuntimeTest {
     if (klass->IsInterface()) {
       EXPECT_TRUE(klass->IsAbstract());
       if (klass->NumDirectMethods() == 1) {
-        EXPECT_TRUE(klass->GetDirectMethod(0)->IsClassInitializer());
-        EXPECT_TRUE(klass->GetDirectMethod(0)->IsDirect());
+        EXPECT_TRUE(klass->GetDirectMethod(0, sizeof(void*))->IsClassInitializer());
+        EXPECT_TRUE(klass->GetDirectMethod(0, sizeof(void*))->IsDirect());
       } else {
         EXPECT_EQ(0U, klass->NumDirectMethods());
       }
@@ -246,18 +246,16 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_FALSE(klass->IsPrimitive());
     EXPECT_TRUE(klass->CanAccess(klass.Get()));
 
-    for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
-      mirror::ArtMethod* method = klass->GetDirectMethod(i);
-      AssertMethod(method);
-      EXPECT_TRUE(method->IsDirect());
-      EXPECT_EQ(klass.Get(), method->GetDeclaringClass());
+    for (ArtMethod& method : klass->GetDirectMethods(sizeof(void*))) {
+      AssertMethod(&method);
+      EXPECT_TRUE(method.IsDirect());
+      EXPECT_EQ(klass.Get(), method.GetDeclaringClass());
     }
 
-    for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
-      mirror::ArtMethod* method = klass->GetVirtualMethod(i);
-      AssertMethod(method);
-      EXPECT_FALSE(method->IsDirect());
-      EXPECT_TRUE(method->GetDeclaringClass()->IsAssignableFrom(klass.Get()));
+    for (ArtMethod& method : klass->GetVirtualMethods(sizeof(void*))) {
+      AssertMethod(&method);
+      EXPECT_FALSE(method.IsDirect());
+      EXPECT_TRUE(method.GetDeclaringClass()->IsAssignableFrom(klass.Get()));
     }
 
     for (size_t i = 0; i < klass->NumInstanceFields(); i++) {
@@ -358,9 +356,10 @@ class ClassLinkerTest : public CommonRuntimeTest {
     class_linker_->VisitRoots(&visitor, kVisitRootFlagAllRoots);
     // Verify the dex cache has resolution methods in all resolved method slots
     mirror::DexCache* dex_cache = class_linker_->FindDexCache(dex);
-    mirror::ObjectArray<mirror::ArtMethod>* resolved_methods = dex_cache->GetResolvedMethods();
+    auto* resolved_methods = dex_cache->GetResolvedMethods();
     for (size_t i = 0; i < static_cast<size_t>(resolved_methods->GetLength()); i++) {
-      EXPECT_TRUE(resolved_methods->Get(i) != nullptr) << dex.GetLocation() << " i=" << i;
+      EXPECT_TRUE(resolved_methods->GetElementPtrSize<ArtMethod*>(i, sizeof(void*)) != nullptr)
+          << dex.GetLocation() << " i=" << i;
     }
   }
 
@@ -394,9 +393,8 @@ struct CheckOffsets {
 
     bool error = false;
 
-    // Methods and classes have a different size due to padding field. Strings are variable length.
-    if (!klass->IsArtMethodClass() && !klass->IsClassClass() && !klass->IsStringClass() &&
-        !is_static) {
+    // Classes have a different size due to padding field. Strings are variable length.
+    if (!klass->IsClassClass() && !klass->IsStringClass() && !is_static) {
       // Currently only required for AccessibleObject since of the padding fields. The class linker
       // says AccessibleObject is 9 bytes but sizeof(AccessibleObject) is 12 bytes due to padding.
       // The RoundUp is to get around this case.
@@ -487,20 +485,6 @@ struct ObjectOffsets : public CheckOffsets<mirror::Object> {
   };
 };
 
-struct ArtMethodOffsets : public CheckOffsets<mirror::ArtMethod> {
-  ArtMethodOffsets() : CheckOffsets<mirror::ArtMethod>(false, "Ljava/lang/reflect/ArtMethod;") {
-    addOffset(OFFSETOF_MEMBER(mirror::ArtMethod, access_flags_), "accessFlags");
-    addOffset(OFFSETOF_MEMBER(mirror::ArtMethod, declaring_class_), "declaringClass");
-    addOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_cache_resolved_methods_),
-              "dexCacheResolvedMethods");
-    addOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_cache_resolved_types_),
-              "dexCacheResolvedTypes");
-    addOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_code_item_offset_), "dexCodeItemOffset");
-    addOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_method_index_), "dexMethodIndex");
-    addOffset(OFFSETOF_MEMBER(mirror::ArtMethod, method_index_), "methodIndex");
-  };
-};
-
 struct ClassOffsets : public CheckOffsets<mirror::Class> {
   ClassOffsets() : CheckOffsets<mirror::Class>(false, "Ljava/lang/Class;") {
     addOffset(OFFSETOF_MEMBER(mirror::Class, access_flags_), "accessFlags");
@@ -516,12 +500,14 @@ struct ClassOffsets : public CheckOffsets<mirror::Class> {
     addOffset(OFFSETOF_MEMBER(mirror::Class, ifields_), "iFields");
     addOffset(OFFSETOF_MEMBER(mirror::Class, iftable_), "ifTable");
     addOffset(OFFSETOF_MEMBER(mirror::Class, name_), "name");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, num_direct_methods_), "numDirectMethods");
     addOffset(OFFSETOF_MEMBER(mirror::Class, num_instance_fields_), "numInstanceFields");
     addOffset(OFFSETOF_MEMBER(mirror::Class, num_reference_instance_fields_),
               "numReferenceInstanceFields");
     addOffset(OFFSETOF_MEMBER(mirror::Class, num_reference_static_fields_),
               "numReferenceStaticFields");
     addOffset(OFFSETOF_MEMBER(mirror::Class, num_static_fields_), "numStaticFields");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, num_virtual_methods_), "numVirtualMethods");
     addOffset(OFFSETOF_MEMBER(mirror::Class, object_size_), "objectSize");
     addOffset(OFFSETOF_MEMBER(mirror::Class, primitive_type_), "primitiveType");
     addOffset(OFFSETOF_MEMBER(mirror::Class, reference_instance_offsets_),
@@ -641,7 +627,6 @@ struct AbstractMethodOffsets : public CheckOffsets<mirror::AbstractMethod> {
 TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   ScopedObjectAccess soa(Thread::Current());
   EXPECT_TRUE(ObjectOffsets().Check());
-  EXPECT_TRUE(ArtMethodOffsets().Check());
   EXPECT_TRUE(ClassOffsets().Check());
   EXPECT_TRUE(StringOffsets().Check());
   EXPECT_TRUE(ThrowableOffsets().Check());
@@ -899,7 +884,7 @@ TEST_F(ClassLinkerTest, StaticFields) {
   // Static final primitives that are initialized by a compile-time constant
   // expression resolve to a copy of a constant value from the constant pool.
   // So <clinit> should be null.
-  mirror::ArtMethod* clinit = statics->FindDirectMethod("<clinit>", "()V");
+  ArtMethod* clinit = statics->FindDirectMethod("<clinit>", "()V", sizeof(void*));
   EXPECT_TRUE(clinit == nullptr);
 
   EXPECT_EQ(9U, statics->NumStaticFields());
@@ -986,15 +971,15 @@ TEST_F(ClassLinkerTest, Interfaces) {
   EXPECT_TRUE(J->IsAssignableFrom(B.Get()));
 
   const Signature void_sig = I->GetDexCache()->GetDexFile()->CreateSignature("()V");
-  mirror::ArtMethod* Ii = I->FindVirtualMethod("i", void_sig);
-  mirror::ArtMethod* Jj1 = J->FindVirtualMethod("j1", void_sig);
-  mirror::ArtMethod* Jj2 = J->FindVirtualMethod("j2", void_sig);
-  mirror::ArtMethod* Kj1 = K->FindInterfaceMethod("j1", void_sig);
-  mirror::ArtMethod* Kj2 = K->FindInterfaceMethod("j2", void_sig);
-  mirror::ArtMethod* Kk = K->FindInterfaceMethod("k", void_sig);
-  mirror::ArtMethod* Ai = A->FindVirtualMethod("i", void_sig);
-  mirror::ArtMethod* Aj1 = A->FindVirtualMethod("j1", void_sig);
-  mirror::ArtMethod* Aj2 = A->FindVirtualMethod("j2", void_sig);
+  ArtMethod* Ii = I->FindVirtualMethod("i", void_sig, sizeof(void*));
+  ArtMethod* Jj1 = J->FindVirtualMethod("j1", void_sig, sizeof(void*));
+  ArtMethod* Jj2 = J->FindVirtualMethod("j2", void_sig, sizeof(void*));
+  ArtMethod* Kj1 = K->FindInterfaceMethod("j1", void_sig, sizeof(void*));
+  ArtMethod* Kj2 = K->FindInterfaceMethod("j2", void_sig, sizeof(void*));
+  ArtMethod* Kk = K->FindInterfaceMethod("k", void_sig, sizeof(void*));
+  ArtMethod* Ai = A->FindVirtualMethod("i", void_sig, sizeof(void*));
+  ArtMethod* Aj1 = A->FindVirtualMethod("j1", void_sig, sizeof(void*));
+  ArtMethod* Aj2 = A->FindVirtualMethod("j2", void_sig, sizeof(void*));
   ASSERT_TRUE(Ii != nullptr);
   ASSERT_TRUE(Jj1 != nullptr);
   ASSERT_TRUE(Jj2 != nullptr);
@@ -1009,21 +994,17 @@ TEST_F(ClassLinkerTest, Interfaces) {
   EXPECT_NE(Jj2, Aj2);
   EXPECT_EQ(Kj1, Jj1);
   EXPECT_EQ(Kj2, Jj2);
-  EXPECT_EQ(Ai, A->FindVirtualMethodForInterface(Ii));
-  EXPECT_EQ(Aj1, A->FindVirtualMethodForInterface(Jj1));
-  EXPECT_EQ(Aj2, A->FindVirtualMethodForInterface(Jj2));
-  EXPECT_EQ(Ai, A->FindVirtualMethodForVirtualOrInterface(Ii));
-  EXPECT_EQ(Aj1, A->FindVirtualMethodForVirtualOrInterface(Jj1));
-  EXPECT_EQ(Aj2, A->FindVirtualMethodForVirtualOrInterface(Jj2));
+  EXPECT_EQ(Ai, A->FindVirtualMethodForInterface(Ii, sizeof(void*)));
+  EXPECT_EQ(Aj1, A->FindVirtualMethodForInterface(Jj1, sizeof(void*)));
+  EXPECT_EQ(Aj2, A->FindVirtualMethodForInterface(Jj2, sizeof(void*)));
+  EXPECT_EQ(Ai, A->FindVirtualMethodForVirtualOrInterface(Ii, sizeof(void*)));
+  EXPECT_EQ(Aj1, A->FindVirtualMethodForVirtualOrInterface(Jj1, sizeof(void*)));
+  EXPECT_EQ(Aj2, A->FindVirtualMethodForVirtualOrInterface(Jj2, sizeof(void*)));
 
-  ArtField* Afoo = mirror::Class::FindStaticField(soa.Self(), A, "foo",
-                                                          "Ljava/lang/String;");
-  ArtField* Bfoo = mirror::Class::FindStaticField(soa.Self(), B, "foo",
-                                                          "Ljava/lang/String;");
-  ArtField* Jfoo = mirror::Class::FindStaticField(soa.Self(), J, "foo",
-                                                          "Ljava/lang/String;");
-  ArtField* Kfoo = mirror::Class::FindStaticField(soa.Self(), K, "foo",
-                                                          "Ljava/lang/String;");
+  ArtField* Afoo = mirror::Class::FindStaticField(soa.Self(), A, "foo", "Ljava/lang/String;");
+  ArtField* Bfoo = mirror::Class::FindStaticField(soa.Self(), B, "foo", "Ljava/lang/String;");
+  ArtField* Jfoo = mirror::Class::FindStaticField(soa.Self(), J, "foo", "Ljava/lang/String;");
+  ArtField* Kfoo = mirror::Class::FindStaticField(soa.Self(), K, "foo", "Ljava/lang/String;");
   ASSERT_TRUE(Afoo != nullptr);
   EXPECT_EQ(Afoo, Bfoo);
   EXPECT_EQ(Afoo, Jfoo);
@@ -1043,17 +1024,17 @@ TEST_F(ClassLinkerTest, ResolveVerifyAndClinit) {
   Handle<mirror::ClassLoader> class_loader(
       hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
   mirror::Class* klass = class_linker_->FindClass(soa.Self(), "LStaticsFromCode;", class_loader);
-  mirror::ArtMethod* clinit = klass->FindClassInitializer();
-  mirror::ArtMethod* getS0 = klass->FindDirectMethod("getS0", "()Ljava/lang/Object;");
+  ArtMethod* clinit = klass->FindClassInitializer(sizeof(void*));
+  ArtMethod* getS0 = klass->FindDirectMethod("getS0", "()Ljava/lang/Object;", sizeof(void*));
   const DexFile::StringId* string_id = dex_file->FindStringId("LStaticsFromCode;");
   ASSERT_TRUE(string_id != nullptr);
   const DexFile::TypeId* type_id = dex_file->FindTypeId(dex_file->GetIndexForStringId(*string_id));
   ASSERT_TRUE(type_id != nullptr);
   uint32_t type_idx = dex_file->GetIndexForTypeId(*type_id);
-  mirror::Class* uninit = ResolveVerifyAndClinit(type_idx, clinit, Thread::Current(), true, false);
+  mirror::Class* uninit = ResolveVerifyAndClinit(type_idx, clinit, soa.Self(), true, false);
   EXPECT_TRUE(uninit != nullptr);
   EXPECT_FALSE(uninit->IsInitialized());
-  mirror::Class* init = ResolveVerifyAndClinit(type_idx, getS0, Thread::Current(), true, false);
+  mirror::Class* init = ResolveVerifyAndClinit(type_idx, getS0, soa.Self(), true, false);
   EXPECT_TRUE(init != nullptr);
   EXPECT_TRUE(init->IsInitialized());
 }
@@ -1109,22 +1090,23 @@ TEST_F(ClassLinkerTest, ValidatePredefinedClassSizes) {
   mirror::Class* c;
 
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Class;", class_loader);
-  EXPECT_EQ(c->GetClassSize(), mirror::Class::ClassClassSize());
+  ASSERT_TRUE(c != nullptr);
+  EXPECT_EQ(c->GetClassSize(), mirror::Class::ClassClassSize(sizeof(void*)));
 
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Object;", class_loader);
-  EXPECT_EQ(c->GetClassSize(), mirror::Object::ClassSize());
+  ASSERT_TRUE(c != nullptr);
+  EXPECT_EQ(c->GetClassSize(), mirror::Object::ClassSize(sizeof(void*)));
 
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/String;", class_loader);
-  EXPECT_EQ(c->GetClassSize(), mirror::String::ClassSize());
+  ASSERT_TRUE(c != nullptr);
+  EXPECT_EQ(c->GetClassSize(), mirror::String::ClassSize(sizeof(void*)));
 
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/DexCache;", class_loader);
-  EXPECT_EQ(c->GetClassSize(), mirror::DexCache::ClassSize());
-
-  c = class_linker_->FindClass(soa.Self(), "Ljava/lang/reflect/ArtMethod;", class_loader);
-  EXPECT_EQ(c->GetClassSize(), mirror::ArtMethod::ClassSize());
+  ASSERT_TRUE(c != nullptr);
+  EXPECT_EQ(c->GetClassSize(), mirror::DexCache::ClassSize(sizeof(void*)));
 }
 
-static void CheckMethod(mirror::ArtMethod* method, bool verified)
+static void CheckMethod(ArtMethod* method, bool verified)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (!method->IsNative() && !method->IsAbstract()) {
     EXPECT_EQ((method->GetAccessFlags() & kAccPreverified) != 0U, verified)
@@ -1136,11 +1118,11 @@ static void CheckPreverified(mirror::Class* c, bool preverified)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   EXPECT_EQ((c->GetAccessFlags() & kAccPreverified) != 0U, preverified)
       << "Class " << PrettyClass(c) << " not as expected";
-  for (uint32_t i = 0; i < c->NumDirectMethods(); ++i) {
-    CheckMethod(c->GetDirectMethod(i), preverified);
+  for (auto& m : c->GetDirectMethods(sizeof(void*))) {
+    CheckMethod(&m, preverified);
   }
-  for (uint32_t i = 0; i < c->NumVirtualMethods(); ++i) {
-    CheckMethod(c->GetVirtualMethod(i), preverified);
+  for (auto& m : c->GetVirtualMethods(sizeof(void*))) {
+    CheckMethod(&m, preverified);
   }
 }
 

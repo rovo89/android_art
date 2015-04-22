@@ -25,6 +25,7 @@
 namespace art {
 
 class ArtField;
+class ArtMethod;
 class ImageWriter;
 class LockWord;
 class Monitor;
@@ -34,7 +35,6 @@ class VoidFunctor;
 
 namespace mirror {
 
-class ArtMethod;
 class Array;
 class Class;
 class FinalizerReference;
@@ -71,7 +71,7 @@ class MANAGED LOCKABLE Object {
   static constexpr size_t kVTableLength = 11;
 
   // The size of the java.lang.Class representing a java.lang.Object.
-  static uint32_t ClassSize();
+  static uint32_t ClassSize(size_t pointer_size);
 
   // Size of an instance of java.lang.Object.
   static constexpr uint32_t InstanceSize() {
@@ -176,12 +176,22 @@ class MANAGED LOCKABLE Object {
   ShortArray* AsShortSizedArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  bool IsIntArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   IntArray* AsIntArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  bool IsLongArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   LongArray* AsLongArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  bool IsFloatArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   FloatArray* AsFloatArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  bool IsDoubleArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   DoubleArray* AsDoubleArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -195,12 +205,6 @@ class MANAGED LOCKABLE Object {
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   Throwable* AsThrowable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
-           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  bool IsArtMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ArtMethod* AsArtMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsReferenceInstance() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -429,7 +433,7 @@ class MANAGED LOCKABLE Object {
           field_offset, static_cast<int32_t>(ptr));
     } else {
       SetField64<kTransactionActive, kCheckTransaction, kVerifyFlags>(
-          field_offset, static_cast<int64_t>(reinterpret_cast<intptr_t>(new_value)));
+          field_offset, static_cast<int64_t>(reinterpret_cast<uintptr_t>(new_value)));
     }
   }
   // TODO fix thread safety analysis broken by the use of template. This should be
@@ -463,8 +467,8 @@ class MANAGED LOCKABLE Object {
     } else {
       int64_t v = GetField64<kVerifyFlags, kIsVolatile>(field_offset);
       // Check that we dont lose any non 0 bits.
-      DCHECK_EQ(reinterpret_cast<int64_t>(reinterpret_cast<T>(v)), v);
-      return reinterpret_cast<T>(v);
+      DCHECK_EQ(static_cast<int64_t>(static_cast<uintptr_t>(v)), v);
+      return reinterpret_cast<T>(static_cast<uintptr_t>(v));
     }
   }
 

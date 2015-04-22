@@ -42,7 +42,7 @@ namespace mirror {
 class MANAGED Reference : public Object {
  public:
   // Size of java.lang.ref.Reference.class.
-  static uint32_t ClassSize();
+  static uint32_t ClassSize(size_t pointer_size);
 
   // Size of an instance of java.lang.ref.Reference.
   static constexpr uint32_t InstanceSize() {

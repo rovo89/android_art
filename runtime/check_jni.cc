@@ -20,6 +20,7 @@
 #include <zlib.h>
 
 #include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "base/logging.h"
 #include "base/to_str.h"
 #include "class_linker.h"
@@ -28,7 +29,6 @@
 #include "gc/space/space.h"
 #include "java_vm_ext.h"
 #include "jni_internal.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
@@ -200,7 +200,7 @@ class ScopedCheck {
   bool CheckMethodAndSig(ScopedObjectAccess& soa, jobject jobj, jclass jc,
                          jmethodID mid, Primitive::Type type, InvokeType invoke)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ArtMethod* m = CheckMethodID(soa, mid);
+    ArtMethod* m = CheckMethodID(soa, mid);
     if (m == nullptr) {
       return false;
     }
@@ -270,7 +270,7 @@ class ScopedCheck {
    */
   bool CheckStaticMethod(ScopedObjectAccess& soa, jclass java_class, jmethodID mid)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ArtMethod* m = CheckMethodID(soa, mid);
+    ArtMethod* m = CheckMethodID(soa, mid);
     if (m == nullptr) {
       return false;
     }
@@ -291,7 +291,7 @@ class ScopedCheck {
    */
   bool CheckVirtualMethod(ScopedObjectAccess& soa, jobject java_object, jmethodID mid)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ArtMethod* m = CheckMethodID(soa, mid);
+    ArtMethod* m = CheckMethodID(soa, mid);
     if (m == nullptr) {
       return false;
     }
@@ -344,7 +344,7 @@ class ScopedCheck {
    */
   bool Check(ScopedObjectAccess& soa, bool entry, const char* fmt, JniValueType* args)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ArtMethod* traceMethod = nullptr;
+    ArtMethod* traceMethod = nullptr;
     if (has_method_ && soa.Vm()->IsTracingEnabled()) {
       // We need to guard some of the invocation interface's calls: a bad caller might
       // use DetachCurrentThread or GetEnv on a thread that's not yet attached.
@@ -399,7 +399,7 @@ class ScopedCheck {
       Thread* self = Thread::Current();
       if ((flags_ & kFlag_Invocation) == 0 || self != nullptr) {
         ScopedObjectAccess soa(self);
-        mirror::ArtMethod* traceMethod = self->GetCurrentMethod(nullptr);
+        ArtMethod* traceMethod = self->GetCurrentMethod(nullptr);
         should_trace = (traceMethod != nullptr && vm->ShouldTrace(traceMethod));
       }
     }
@@ -418,7 +418,7 @@ class ScopedCheck {
         if (has_method_) {
           Thread* self = Thread::Current();
           ScopedObjectAccess soa(self);
-          mirror::ArtMethod* traceMethod = self->GetCurrentMethod(nullptr);
+          ArtMethod* traceMethod = self->GetCurrentMethod(nullptr);
           std::string methodName(PrettyMethod(traceMethod, false));
           LOG(INFO) << "JNI: " << methodName << " -> " << function_name_ << "(" << msg << ")";
           indent_ = methodName.size() + 1;
@@ -462,13 +462,13 @@ class ScopedCheck {
 
   bool CheckConstructor(ScopedObjectAccess& soa, jmethodID mid)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ArtMethod* method = soa.DecodeMethod(mid);
+    ArtMethod* method = soa.DecodeMethod(mid);
     if (method == nullptr) {
       AbortF("expected non-null constructor");
       return false;
     }
     if (!method->IsConstructor() || method->IsStatic()) {
-      AbortF("expected a constructor but %s: %p", PrettyTypeOf(method).c_str(), mid);
+      AbortF("expected a constructor but %s: %p", PrettyMethod(method).c_str(), mid);
       return false;
     }
     return true;
@@ -825,7 +825,7 @@ class ScopedCheck {
       }
       case 'm': {  // jmethodID
         jmethodID mid = arg.m;
-        mirror::ArtMethod* m = soa.DecodeMethod(mid);
+        ArtMethod* m = soa.DecodeMethod(mid);
         *msg += PrettyMethod(m);
         if (!entry) {
           StringAppendF(msg, " (%p)", mid);
@@ -998,14 +998,15 @@ class ScopedCheck {
     return f;
   }
 
-  mirror::ArtMethod* CheckMethodID(ScopedObjectAccess& soa, jmethodID mid)
+  ArtMethod* CheckMethodID(ScopedObjectAccess& soa, jmethodID mid)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (mid == nullptr) {
       AbortF("jmethodID was NULL");
       return nullptr;
     }
-    mirror::ArtMethod* m = soa.DecodeMethod(mid);
-    if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(m) || !m->IsArtMethod()) {
+    ArtMethod* m = soa.DecodeMethod(mid);
+    // TODO: Better check here.
+    if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(m->GetDeclaringClass())) {
       Runtime::Current()->GetHeap()->DumpSpaces(LOG(ERROR));
       AbortF("invalid jmethodID: %p", mid);
       return nullptr;

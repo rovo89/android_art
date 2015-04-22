@@ -37,13 +37,13 @@
 
 namespace art {
 namespace mirror {
-class ArtMethod;
 class Class;
 class Object;
 class Throwable;
 }  // namespace mirror
 class AllocRecord;
 class ArtField;
+class ArtMethod;
 class ObjectRegistry;
 class ScopedObjectAccessUnchecked;
 class StackVisitor;
@@ -54,7 +54,7 @@ class Thread;
  */
 struct DebugInvokeReq {
   DebugInvokeReq(mirror::Object* invoke_receiver, mirror::Class* invoke_class,
-                 mirror::ArtMethod* invoke_method, uint32_t invoke_options,
+                 ArtMethod* invoke_method, uint32_t invoke_options,
                  uint64_t* args, uint32_t args_count)
       : receiver(invoke_receiver), klass(invoke_class), method(invoke_method),
         arg_count(args_count), arg_values(args), options(invoke_options),
@@ -66,7 +66,7 @@ struct DebugInvokeReq {
   /* request */
   GcRoot<mirror::Object> receiver;      // not used for ClassType.InvokeMethod
   GcRoot<mirror::Class> klass;
-  GcRoot<mirror::ArtMethod> method;
+  ArtMethod* method;
   const uint32_t arg_count;
   uint64_t* const arg_values;   // will be null if arg_count_ == 0
   const uint32_t options;
@@ -92,7 +92,7 @@ struct DebugInvokeReq {
 class SingleStepControl {
  public:
   SingleStepControl(JDWP::JdwpStepSize step_size, JDWP::JdwpStepDepth step_depth,
-                    int stack_depth, mirror::ArtMethod* method)
+                    int stack_depth, ArtMethod* method)
       : step_size_(step_size), step_depth_(step_depth),
         stack_depth_(stack_depth), method_(method) {
   }
@@ -109,16 +109,13 @@ class SingleStepControl {
     return stack_depth_;
   }
 
-  mirror::ArtMethod* GetMethod() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return method_.Read();
+  ArtMethod* GetMethod() const {
+    return method_;
   }
 
   const std::set<uint32_t>& GetDexPcs() const {
     return dex_pcs_;
   }
-
-  void VisitRoots(RootVisitor* visitor, const RootInfo& root_info)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void AddDexPc(uint32_t dex_pc);
 
@@ -138,7 +135,8 @@ class SingleStepControl {
   // set of DEX pcs associated to the source line number where the suspension occurred.
   // This is used to support SD_INTO and SD_OVER single-step depths so we detect when a single-step
   // causes the execution of an instruction in a different method or at a different line number.
-  GcRoot<mirror::ArtMethod> method_;
+  ArtMethod* method_;
+
   std::set<uint32_t> dex_pcs_;
 
   DISALLOW_COPY_AND_ASSIGN(SingleStepControl);
@@ -166,9 +164,9 @@ class DeoptimizationRequest {
     SetMethod(other.Method());
   }
 
-  mirror::ArtMethod* Method() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ArtMethod* Method() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetMethod(mirror::ArtMethod* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetMethod(ArtMethod* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Name 'Kind()' would collide with the above enum name.
   Kind GetKind() const {
@@ -256,7 +254,7 @@ class Dbg {
   static bool IsJdwpConfigured();
 
   // Returns true if a method has any breakpoints.
-  static bool MethodHasAnyBreakpoints(mirror::ArtMethod* method)
+  static bool MethodHasAnyBreakpoints(ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::breakpoint_lock_);
 
@@ -524,10 +522,10 @@ class Dbg {
     kMethodEntry    = 0x04,
     kMethodExit     = 0x08,
   };
-  static void PostFieldAccessEvent(mirror::ArtMethod* m, int dex_pc, mirror::Object* this_object,
+  static void PostFieldAccessEvent(ArtMethod* m, int dex_pc, mirror::Object* this_object,
                                    ArtField* f)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void PostFieldModificationEvent(mirror::ArtMethod* m, int dex_pc,
+  static void PostFieldModificationEvent(ArtMethod* m, int dex_pc,
                                          mirror::Object* this_object, ArtField* f,
                                          const JValue* field_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -541,7 +539,7 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void UpdateDebugger(Thread* thread, mirror::Object* this_object,
-                             mirror::ArtMethod* method, uint32_t new_dex_pc,
+                             ArtMethod* method, uint32_t new_dex_pc,
                              int event_flags, const JValue* return_value)
       LOCKS_EXCLUDED(Locks::breakpoint_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -574,7 +572,7 @@ class Dbg {
 
   // Indicates whether we need to force the use of interpreter to invoke a method.
   // This allows to single-step or continue into the called method.
-  static bool IsForcedInterpreterNeededForCalling(Thread* thread, mirror::ArtMethod* m)
+  static bool IsForcedInterpreterNeededForCalling(Thread* thread, ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (!IsDebuggerActive()) {
       return false;
@@ -585,7 +583,7 @@ class Dbg {
   // Indicates whether we need to force the use of interpreter entrypoint when calling a
   // method through the resolution trampoline. This allows to single-step or continue into
   // the called method.
-  static bool IsForcedInterpreterNeededForResolution(Thread* thread, mirror::ArtMethod* m)
+  static bool IsForcedInterpreterNeededForResolution(Thread* thread, ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (!IsDebuggerActive()) {
       return false;
@@ -596,7 +594,7 @@ class Dbg {
   // Indicates whether we need to force the use of instrumentation entrypoint when calling
   // a method through the resolution trampoline. This allows to deoptimize the stack for
   // debugging when we returned from the called method.
-  static bool IsForcedInstrumentationNeededForResolution(Thread* thread, mirror::ArtMethod* m)
+  static bool IsForcedInstrumentationNeededForResolution(Thread* thread, ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (!IsDebuggerActive()) {
       return false;
@@ -607,7 +605,7 @@ class Dbg {
   // Indicates whether we need to force the use of interpreter when returning from the
   // interpreter into the runtime. This allows to deoptimize the stack and continue
   // execution with interpreter for debugging.
-  static bool IsForcedInterpreterNeededForUpcall(Thread* thread, mirror::ArtMethod* m)
+  static bool IsForcedInterpreterNeededForUpcall(Thread* thread, ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (!IsDebuggerActive()) {
       return false;
@@ -709,7 +707,7 @@ class Dbg {
   static JDWP::FieldId ToFieldId(const ArtField* f)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static void SetJdwpLocation(JDWP::JdwpLocation* location, mirror::ArtMethod* m, uint32_t dex_pc)
+  static void SetJdwpLocation(JDWP::JdwpLocation* location, ArtMethod* m, uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static JDWP::JdwpState* GetJdwpState();
@@ -733,7 +731,7 @@ class Dbg {
   static void PostThreadStartOrStop(Thread*, uint32_t)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static void PostLocationEvent(mirror::ArtMethod* method, int pcOffset,
+  static void PostLocationEvent(ArtMethod* method, int pcOffset,
                                 mirror::Object* thisPtr, int eventFlags,
                                 const JValue* return_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -745,16 +743,16 @@ class Dbg {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::deoptimization_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static bool IsForcedInterpreterNeededForCallingImpl(Thread* thread, mirror::ArtMethod* m)
+  static bool IsForcedInterpreterNeededForCallingImpl(Thread* thread, ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static bool IsForcedInterpreterNeededForResolutionImpl(Thread* thread, mirror::ArtMethod* m)
+  static bool IsForcedInterpreterNeededForResolutionImpl(Thread* thread, ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static bool IsForcedInstrumentationNeededForResolutionImpl(Thread* thread, mirror::ArtMethod* m)
+  static bool IsForcedInstrumentationNeededForResolutionImpl(Thread* thread, ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static bool IsForcedInterpreterNeededForUpcallImpl(Thread* thread, mirror::ArtMethod* m)
+  static bool IsForcedInterpreterNeededForUpcallImpl(Thread* thread, ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static AllocRecord* recent_allocation_records_ PT_GUARDED_BY(Locks::alloc_tracker_lock_);

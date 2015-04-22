@@ -27,10 +27,10 @@
 namespace art {
 
 namespace mirror {
-  class ArtMethod;
   class Array;
 }  // namespace mirror
 
+class ArtMethod;
 class Libraries;
 class ParsedOptions;
 class Runtime;
@@ -77,7 +77,7 @@ class JavaVMExt : public JavaVM {
   // such as NewByteArray.
   // If -verbose:third-party-jni is on, we want to log any JNI function calls
   // made by a third-party native method.
-  bool ShouldTrace(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool ShouldTrace(ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /**
    * Loads the given shared library. 'path' is an absolute pathname.
@@ -92,7 +92,7 @@ class JavaVMExt : public JavaVM {
    * Returns a pointer to the code for the native method 'm', found
    * using dlsym(3) on every native library that's been loaded so far.
    */
-  void* FindCodeForNativeMethod(mirror::ArtMethod* m)
+  void* FindCodeForNativeMethod(ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void DumpForSigQuit(std::ostream& os)

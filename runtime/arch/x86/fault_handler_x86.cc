@@ -16,13 +16,14 @@
 
 
 #include "fault_handler.h"
+
 #include <sys/ucontext.h>
+
+#include "art_method-inl.h"
 #include "base/macros.h"
 #include "globals.h"
 #include "base/logging.h"
 #include "base/hex_dump.h"
-#include "mirror/art_method.h"
-#include "mirror/art_method-inl.h"
 #include "thread.h"
 #include "thread-inl.h"
 
@@ -248,7 +249,7 @@ void FaultManager::HandleNestedSignal(int, siginfo_t*, void* context) {
 }
 
 void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo, void* context,
-                                             mirror::ArtMethod** out_method,
+                                             ArtMethod** out_method,
                                              uintptr_t* out_return_pc, uintptr_t* out_sp) {
   struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
   *out_sp = static_cast<uintptr_t>(uc->CTX_ESP);
@@ -267,10 +268,10 @@ void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo, void* context,
       reinterpret_cast<uint8_t*>(*out_sp) - GetStackOverflowReservedBytes(kX86));
 #endif
   if (overflow_addr == fault_addr) {
-    *out_method = reinterpret_cast<mirror::ArtMethod*>(uc->CTX_METHOD);
+    *out_method = reinterpret_cast<ArtMethod*>(uc->CTX_METHOD);
   } else {
     // The method is at the top of the stack.
-    *out_method = (reinterpret_cast<StackReference<mirror::ArtMethod>* >(*out_sp)[0]).AsMirrorPtr();
+    *out_method = *reinterpret_cast<ArtMethod**>(*out_sp);
   }
 
   uint8_t* pc = reinterpret_cast<uint8_t*>(uc->CTX_EIP);

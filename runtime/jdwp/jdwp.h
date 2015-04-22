@@ -34,11 +34,11 @@ struct iovec;
 namespace art {
 
 class ArtField;
+class ArtMethod;
 union JValue;
 class Thread;
 
 namespace mirror {
-  class ArtMethod;
   class Class;
   class Object;
   class Throwable;
@@ -74,7 +74,7 @@ static inline void expandBufAddRefTypeId(ExpandBuf* pReply, RefTypeId id) { expa
 static inline void expandBufAddFrameId(ExpandBuf* pReply, FrameId id) { expandBufAdd8BE(pReply, id); }
 
 struct EventLocation {
-  mirror::ArtMethod* method;
+  ArtMethod* method;
   uint32_t dex_pc;
 };
 

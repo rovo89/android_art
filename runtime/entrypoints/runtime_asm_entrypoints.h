@@ -29,19 +29,19 @@ static inline const void* GetJniDlsymLookupStub() {
 }
 
 // Return the address of quick stub code for handling IMT conflicts.
-extern "C" void art_quick_imt_conflict_trampoline(mirror::ArtMethod*);
+extern "C" void art_quick_imt_conflict_trampoline(ArtMethod*);
 static inline const void* GetQuickImtConflictStub() {
   return reinterpret_cast<const void*>(art_quick_imt_conflict_trampoline);
 }
 
 // Return the address of quick stub code for bridging from quick code to the interpreter.
-extern "C" void art_quick_to_interpreter_bridge(mirror::ArtMethod*);
+extern "C" void art_quick_to_interpreter_bridge(ArtMethod*);
 static inline const void* GetQuickToInterpreterBridge() {
   return reinterpret_cast<const void*>(art_quick_to_interpreter_bridge);
 }
 
 // Return the address of quick stub code for handling JNI calls.
-extern "C" void art_quick_generic_jni_trampoline(mirror::ArtMethod*);
+extern "C" void art_quick_generic_jni_trampoline(ArtMethod*);
 static inline const void* GetQuickGenericJniStub() {
   return reinterpret_cast<const void*>(art_quick_generic_jni_trampoline);
 }
@@ -53,7 +53,7 @@ static inline const void* GetQuickProxyInvokeHandler() {
 }
 
 // Return the address of quick stub code for resolving a method at first call.
-extern "C" void art_quick_resolution_trampoline(mirror::ArtMethod*);
+extern "C" void art_quick_resolution_trampoline(ArtMethod*);
 static inline const void* GetQuickResolutionStub() {
   return reinterpret_cast<const void*>(art_quick_resolution_trampoline);
 }

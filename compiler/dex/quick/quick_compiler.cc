@@ -18,6 +18,7 @@
 
 #include <cstdint>
 
+#include "art_method-inl.h"
 #include "base/dumpable.h"
 #include "base/logging.h"
 #include "base/macros.h"
@@ -37,7 +38,6 @@
 #include "elf_writer_quick.h"
 #include "jni/quick/jni_compiler.h"
 #include "mir_to_lir.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/object.h"
 #include "runtime.h"
 
@@ -787,7 +787,7 @@ CompiledMethod* QuickCompiler::JniCompile(uint32_t access_flags,
   return ArtQuickJniCompileMethod(GetCompilerDriver(), access_flags, method_idx, dex_file);
 }
 
-uintptr_t QuickCompiler::GetEntryPointOf(mirror::ArtMethod* method) const {
+uintptr_t QuickCompiler::GetEntryPointOf(ArtMethod* method) const {
   return reinterpret_cast<uintptr_t>(method->GetEntryPointFromQuickCompiledCodePtrSize(
       InstructionSetPointerSize(GetCompilerDriver()->GetInstructionSet())));
 }

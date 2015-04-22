@@ -52,7 +52,6 @@ namespace collector {
 }  // namespace gc
 
 namespace mirror {
-  class ArtMethod;
   class Array;
   class Class;
   class ClassLoader;
@@ -69,6 +68,7 @@ namespace verifier {
 class MethodVerifier;
 }  // namespace verifier
 
+class ArtMethod;
 class BaseMutex;
 class ClassLinker;
 class Closure;
@@ -374,7 +374,7 @@ class Thread {
 
   // Get the current method and dex pc. If there are errors in retrieving the dex pc, this will
   // abort the runtime iff abort_on_error is true.
-  mirror::ArtMethod* GetCurrentMethod(uint32_t* dex_pc, bool abort_on_error = true) const
+  ArtMethod* GetCurrentMethod(uint32_t* dex_pc, bool abort_on_error = true) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns whether the given exception was thrown by the current Java method being executed
@@ -382,7 +382,7 @@ class Thread {
   bool IsExceptionThrownByCurrentMethod(mirror::Throwable* exception) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetTopOfStack(StackReference<mirror::ArtMethod>* top_method) {
+  void SetTopOfStack(ArtMethod** top_method) {
     tlsPtr_.managed_stack.SetTopQuickFrame(top_method);
   }
 
@@ -810,11 +810,11 @@ class Thread {
     return tlsPtr_.instrumentation_stack;
   }
 
-  std::vector<mirror::ArtMethod*>* GetStackTraceSample() const {
+  std::vector<ArtMethod*>* GetStackTraceSample() const {
     return tlsPtr_.stack_trace_sample;
   }
 
-  void SetStackTraceSample(std::vector<mirror::ArtMethod*>* sample) {
+  void SetStackTraceSample(std::vector<ArtMethod*>* sample) {
     tlsPtr_.stack_trace_sample = sample;
   }
 
@@ -1161,7 +1161,7 @@ class Thread {
     size_t stack_size;
 
     // Pointer to previous stack trace captured by sampling profiler.
-    std::vector<mirror::ArtMethod*>* stack_trace_sample;
+    std::vector<ArtMethod*>* stack_trace_sample;
 
     // The next thread in the wait set this thread is part of or null if not waiting.
     Thread* wait_next;

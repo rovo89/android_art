@@ -120,6 +120,7 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   HGraph(ArenaAllocator* arena,
          const DexFile& dex_file,
          uint32_t method_idx,
+         InstructionSet instruction_set,
          bool debuggable = false,
          int start_instruction_id = 0)
       : arena_(arena),
@@ -137,6 +138,7 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
         current_instruction_id_(start_instruction_id),
         dex_file_(dex_file),
         method_idx_(method_idx),
+        instruction_set_(instruction_set),
         cached_null_constant_(nullptr),
         cached_int_constants_(std::less<int32_t>(), arena->Adapter()),
         cached_float_constants_(std::less<int32_t>(), arena->Adapter()),
@@ -358,6 +360,8 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
 
   // The method index in the dex file.
   const uint32_t method_idx_;
+
+  const InstructionSet instruction_set_;
 
   // Cached constants.
   HNullConstant* cached_null_constant_;

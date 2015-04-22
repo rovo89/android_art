@@ -16,9 +16,9 @@
 
 #include "jit_instrumentation.h"
 
+#include "art_method-inl.h"
 #include "jit.h"
 #include "jit_code_cache.h"
-#include "mirror/art_method-inl.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {
@@ -26,7 +26,7 @@ namespace jit {
 
 class JitCompileTask : public Task {
  public:
-  explicit JitCompileTask(mirror::ArtMethod* method, JitInstrumentationCache* cache)
+  explicit JitCompileTask(ArtMethod* method, JitInstrumentationCache* cache)
       : method_(method), cache_(cache) {
   }
 
@@ -45,7 +45,7 @@ class JitCompileTask : public Task {
   }
 
  private:
-  mirror::ArtMethod* const method_;
+  ArtMethod* const method_;
   JitInstrumentationCache* const cache_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(JitCompileTask);
@@ -63,7 +63,7 @@ void JitInstrumentationCache::DeleteThreadPool() {
   thread_pool_.reset();
 }
 
-void JitInstrumentationCache::SignalCompiled(Thread* self, mirror::ArtMethod* method) {
+void JitInstrumentationCache::SignalCompiled(Thread* self, ArtMethod* method) {
   ScopedObjectAccessUnchecked soa(self);
   jmethodID method_id = soa.EncodeMethod(method);
   MutexLock mu(self, lock_);
@@ -73,7 +73,7 @@ void JitInstrumentationCache::SignalCompiled(Thread* self, mirror::ArtMethod* me
   }
 }
 
-void JitInstrumentationCache::AddSamples(Thread* self, mirror::ArtMethod* method, size_t count) {
+void JitInstrumentationCache::AddSamples(Thread* self, ArtMethod* method, size_t count) {
   ScopedObjectAccessUnchecked soa(self);
   // Since we don't have on-stack replacement, some methods can remain in the interpreter longer
   // than we want resulting in samples even after the method is compiled.
@@ -101,11 +101,13 @@ void JitInstrumentationCache::AddSamples(Thread* self, mirror::ArtMethod* method
   }
   if (is_hot) {
     if (thread_pool_.get() != nullptr) {
-      thread_pool_->AddTask(self, new JitCompileTask(method->GetInterfaceMethodIfProxy(), this));
+      thread_pool_->AddTask(self, new JitCompileTask(
+          method->GetInterfaceMethodIfProxy(sizeof(void*)), this));
       thread_pool_->StartWorkers(self);
     } else {
       VLOG(jit) << "Compiling hot method " << PrettyMethod(method);
-      Runtime::Current()->GetJit()->CompileMethod(method->GetInterfaceMethodIfProxy(), self);
+      Runtime::Current()->GetJit()->CompileMethod(
+          method->GetInterfaceMethodIfProxy(sizeof(void*)), self);
     }
   }
 }

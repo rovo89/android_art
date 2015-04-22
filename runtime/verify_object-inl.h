@@ -20,7 +20,6 @@
 #include "verify_object.h"
 
 #include "gc/heap.h"
-#include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 
 namespace art {

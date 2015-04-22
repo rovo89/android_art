@@ -20,12 +20,12 @@
 #include <memory>
 #include <vector>
 
+#include "art_method-inl.h"
 #include "base/logging.h"
 #include "base/stl_util.h"
 #include "dex_file.h"
 #include "dex_instruction-inl.h"
 #include "dex_instruction_utils.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
 #include "mirror/object-inl.h"
@@ -212,7 +212,7 @@ bool VerifiedMethod::GenerateDequickenMap(verifier::MethodVerifier* method_verif
     if (is_virtual_quick || is_range_quick) {
       uint32_t dex_pc = inst->GetDexPc(insns);
       verifier::RegisterLine* line = method_verifier->GetRegLine(dex_pc);
-      mirror::ArtMethod* method =
+      ArtMethod* method =
           method_verifier->GetQuickInvokedMethod(inst, line, is_range_quick, true);
       if (method == nullptr) {
         // It can be null if the line wasn't verified since it was unreachable.
@@ -284,20 +284,24 @@ void VerifiedMethod::GenerateDevirtMap(verifier::MethodVerifier* method_verifier
       // We can't devirtualize abstract classes except on arrays of abstract classes.
       continue;
     }
-    mirror::ArtMethod* abstract_method = method_verifier->GetDexCache()->GetResolvedMethod(
-        is_range ? inst->VRegB_3rc() : inst->VRegB_35c());
+    auto* cl = Runtime::Current()->GetClassLinker();
+    size_t pointer_size = cl->GetImagePointerSize();
+    ArtMethod* abstract_method = method_verifier->GetDexCache()->GetResolvedMethod(
+        is_range ? inst->VRegB_3rc() : inst->VRegB_35c(), pointer_size);
     if (abstract_method == nullptr) {
       // If the method is not found in the cache this means that it was never found
       // by ResolveMethodAndCheckAccess() called when verifying invoke_*.
       continue;
     }
     // Find the concrete method.
-    mirror::ArtMethod* concrete_method = nullptr;
+    ArtMethod* concrete_method = nullptr;
     if (is_interface) {
-      concrete_method = reg_type.GetClass()->FindVirtualMethodForInterface(abstract_method);
+      concrete_method = reg_type.GetClass()->FindVirtualMethodForInterface(
+          abstract_method, pointer_size);
     }
     if (is_virtual) {
-      concrete_method = reg_type.GetClass()->FindVirtualMethodForVirtual(abstract_method);
+      concrete_method = reg_type.GetClass()->FindVirtualMethodForVirtual(
+          abstract_method, pointer_size);
     }
     if (concrete_method == nullptr || concrete_method->IsAbstract()) {
       // In cases where concrete_method is not found, or is abstract, continue to the next invoke.

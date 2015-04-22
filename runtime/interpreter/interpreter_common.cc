@@ -413,25 +413,19 @@ EXPLICIT_DO_IPUT_QUICK_ALL_TEMPLATE_DECL(Primitive::kPrimNot)      // iput-objec
 #undef EXPLICIT_DO_IPUT_QUICK_ALL_TEMPLATE_DECL
 #undef EXPLICIT_DO_IPUT_QUICK_TEMPLATE_DECL
 
-uint32_t FindNextInstructionFollowingException(Thread* self,
-                                               ShadowFrame& shadow_frame,
-                                               uint32_t dex_pc,
-                                               const instrumentation::Instrumentation* instrumentation) {
+uint32_t FindNextInstructionFollowingException(
+    Thread* self, ShadowFrame& shadow_frame, uint32_t dex_pc,
+    const instrumentation::Instrumentation* instrumentation) {
   self->VerifyStack();
-  StackHandleScope<3> hs(self);
+  StackHandleScope<2> hs(self);
   Handle<mirror::Throwable> exception(hs.NewHandle(self->GetException()));
   if (instrumentation->HasExceptionCaughtListeners()
       && self->IsExceptionThrownByCurrentMethod(exception.Get())) {
     instrumentation->ExceptionCaughtEvent(self, exception.Get());
   }
   bool clear_exception = false;
-  uint32_t found_dex_pc;
-  {
-    Handle<mirror::Class> exception_class(hs.NewHandle(exception->GetClass()));
-    Handle<mirror::ArtMethod> h_method(hs.NewHandle(shadow_frame.GetMethod()));
-    found_dex_pc = mirror::ArtMethod::FindCatchBlock(h_method, exception_class, dex_pc,
-                                                     &clear_exception);
-  }
+  uint32_t found_dex_pc = shadow_frame.GetMethod()->FindCatchBlock(
+      hs.NewHandle(exception->GetClass()), dex_pc, &clear_exception);
   if (found_dex_pc == DexFile::kDexNoIndex) {
     // Exception is not caught by the current method. We will unwind to the
     // caller. Notify any instrumentation listener.
@@ -651,7 +645,7 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
       UNREACHABLE();
     }
     // Force the use of interpreter when it is required by the debugger.
-    mirror::EntryPointFromInterpreter* entry;
+    EntryPointFromInterpreter* entry;
     if (UNLIKELY(Dbg::IsForcedInterpreterNeededForCalling(self, new_shadow_frame->GetMethod()))) {
       entry = &art::artInterpreterToInterpreterBridge;
     } else {
@@ -668,7 +662,7 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
     shadow_frame.SetVRegReference(vregC, result->GetL());
     // Overwrite all potential copies of the original result of the new-instance of string with the
     // new result of the StringFactory. Use the verifier to find this set of registers.
-    mirror::ArtMethod* method = shadow_frame.GetMethod();
+    ArtMethod* method = shadow_frame.GetMethod();
     MethodReference method_ref = method->ToMethodReference();
     SafeMap<uint32_t, std::set<uint32_t>> string_init_map;
     SafeMap<uint32_t, std::set<uint32_t>>* string_init_map_ptr;
@@ -788,12 +782,16 @@ void RecordArrayElementsInTransaction(mirror::Array* array, int32_t count)
       RecordArrayElementsInTransactionImpl(array->AsShortArray(), count);
       break;
     case Primitive::kPrimInt:
-    case Primitive::kPrimFloat:
       RecordArrayElementsInTransactionImpl(array->AsIntArray(), count);
       break;
+    case Primitive::kPrimFloat:
+      RecordArrayElementsInTransactionImpl(array->AsFloatArray(), count);
+      break;
     case Primitive::kPrimLong:
-    case Primitive::kPrimDouble:
       RecordArrayElementsInTransactionImpl(array->AsLongArray(), count);
+      break;
+    case Primitive::kPrimDouble:
+      RecordArrayElementsInTransactionImpl(array->AsDoubleArray(), count);
       break;
     default:
       LOG(FATAL) << "Unsupported primitive type " << primitive_component_type

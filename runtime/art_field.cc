@@ -20,6 +20,7 @@
 #include "class_linker-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "handle_scope.h"
+#include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "runtime.h"
@@ -44,10 +45,6 @@ void ArtField::SetOffset(MemberOffset num_bytes) {
   }
   // Not called within a transaction.
   offset_ = num_bytes.Uint32Value();
-}
-
-void ArtField::VisitRoots(RootVisitor* visitor) {
-  declaring_class_.VisitRoot(visitor, RootInfo(kRootStickyClass));
 }
 
 ArtField* ArtField::FindInstanceFieldWithOffset(mirror::Class* klass, uint32_t field_offset) {
