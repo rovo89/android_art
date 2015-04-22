@@ -25,6 +25,7 @@
 #include <setjmp.h>
 #include <string>
 
+#include "arch/context.h"
 #include "arch/instruction_set.h"
 #include "atomic.h"
 #include "base/macros.h"
@@ -354,7 +355,18 @@ class Thread {
 
   Context* GetLongJumpContext();
   void ReleaseLongJumpContext(Context* context) {
-    DCHECK(tlsPtr_.long_jump_context == nullptr);
+    if (tlsPtr_.long_jump_context != nullptr) {
+      // Each QuickExceptionHandler gets a long jump context and uses
+      // it for doing the long jump, after finding catch blocks/doing deoptimization.
+      // Both finding catch blocks and deoptimization can trigger another
+      // exception such as a result of class loading. So there can be nested
+      // cases of exception handling and multiple contexts being used.
+      // ReleaseLongJumpContext tries to save the context in tlsPtr_.long_jump_context
+      // for reuse so there is no need to always allocate a new one each time when
+      // getting a context. Since we only keep one context for reuse, delete the
+      // existing one since the passed in context is yet to be used for longjump.
+      delete tlsPtr_.long_jump_context;
+    }
     tlsPtr_.long_jump_context = context;
   }
 
