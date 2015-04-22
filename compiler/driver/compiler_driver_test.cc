@@ -175,6 +175,60 @@ TEST_F(CompilerDriverTest, AbstractMethodErrorStub) {
   }
 }
 
+class CompilerDriverMethodsTest : public CompilerDriverTest {
+ protected:
+  std::unordered_set<std::string>* GetCompiledMethods() OVERRIDE {
+    return new std::unordered_set<std::string>({
+      "byte StaticLeafMethods.identity(byte)",
+      "int StaticLeafMethods.sum(int, int, int)",
+      "double StaticLeafMethods.sum(double, double, double, double)"
+    });
+  }
+};
+
+TEST_F(CompilerDriverMethodsTest, Selection) {
+  Thread* self = Thread::Current();
+  jobject class_loader;
+  {
+    ScopedObjectAccess soa(self);
+    class_loader = LoadDex("StaticLeafMethods");
+  }
+  ASSERT_NE(class_loader, nullptr);
+
+  // Need to enable dex-file writability. Methods rejected to be compiled will run through the
+  // dex-to-dex compiler.
+  for (const DexFile* dex_file : GetDexFiles(class_loader)) {
+    ASSERT_TRUE(dex_file->EnableWrite());
+  }
+
+  CompileAll(class_loader);
+
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  StackHandleScope<1> hs(self);
+  ScopedObjectAccess soa(self);
+  Handle<mirror::ClassLoader> h_loader(hs.NewHandle(
+      reinterpret_cast<mirror::ClassLoader*>(self->DecodeJObject(class_loader))));
+  mirror::Class* klass = class_linker->FindClass(self, "LStaticLeafMethods;", h_loader);
+  ASSERT_NE(klass, nullptr);
+
+  std::unique_ptr<std::unordered_set<std::string>> expected(GetCompiledMethods());
+
+  for (int32_t i = 0; static_cast<uint32_t>(i) < klass->NumDirectMethods(); i++) {
+    mirror::ArtMethod* m = klass->GetDirectMethod(i);
+    std::string name = PrettyMethod(m, true);
+    const void* code =
+        m->GetEntryPointFromQuickCompiledCodePtrSize(InstructionSetPointerSize(kRuntimeISA));
+    ASSERT_NE(code, nullptr);
+    if (expected->find(name) != expected->end()) {
+      expected->erase(name);
+      EXPECT_FALSE(class_linker->IsQuickToInterpreterBridge(code));
+    } else {
+      EXPECT_TRUE(class_linker->IsQuickToInterpreterBridge(code));
+    }
+  }
+  EXPECT_TRUE(expected->empty());
+}
+
 // TODO: need check-cast test (when stub complete & we can throw/catch
 
 }  // namespace art
