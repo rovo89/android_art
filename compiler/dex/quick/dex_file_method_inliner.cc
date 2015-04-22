@@ -368,9 +368,9 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
 
 #define UNSAFE_GET_PUT(type, code, type_flags) \
     INTRINSIC(SunMiscUnsafe, Get ## type, ObjectJ_ ## code, kIntrinsicUnsafeGet, \
-              type_flags & ~kIntrinsicFlagIsObject), \
+              type_flags), \
     INTRINSIC(SunMiscUnsafe, Get ## type ## Volatile, ObjectJ_ ## code, kIntrinsicUnsafeGet, \
-              (type_flags | kIntrinsicFlagIsVolatile) & ~kIntrinsicFlagIsObject), \
+              type_flags | kIntrinsicFlagIsVolatile), \
     INTRINSIC(SunMiscUnsafe, Put ## type, ObjectJ ## code ## _V, kIntrinsicUnsafePut, \
               type_flags), \
     INTRINSIC(SunMiscUnsafe, Put ## type ## Volatile, ObjectJ ## code ## _V, kIntrinsicUnsafePut, \
@@ -507,6 +507,7 @@ bool DexFileMethodInliner::GenIntrinsic(Mir2Lir* backend, CallInfo* info) {
                                     intrinsic.d.data & kIntrinsicFlagIsObject);
     case kIntrinsicUnsafeGet:
       return backend->GenInlinedUnsafeGet(info, intrinsic.d.data & kIntrinsicFlagIsLong,
+                                          intrinsic.d.data & kIntrinsicFlagIsObject,
                                           intrinsic.d.data & kIntrinsicFlagIsVolatile);
     case kIntrinsicUnsafePut:
       return backend->GenInlinedUnsafePut(info, intrinsic.d.data & kIntrinsicFlagIsLong,
