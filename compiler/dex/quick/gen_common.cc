@@ -2088,7 +2088,7 @@ void Mir2Lir::GenConst(RegLocation rl_dest, int value) {
 }
 
 void Mir2Lir::GenConversionCall(QuickEntrypointEnum trampoline, RegLocation rl_dest,
-                                RegLocation rl_src) {
+                                RegLocation rl_src, RegisterClass return_reg_class) {
   /*
    * Don't optimize the register usage since it calls out to support
    * functions
@@ -2097,12 +2097,10 @@ void Mir2Lir::GenConversionCall(QuickEntrypointEnum trampoline, RegLocation rl_d
   FlushAllRegs();   /* Send everything to home location */
   CallRuntimeHelperRegLocation(trampoline, rl_src, false);
   if (rl_dest.wide) {
-    RegLocation rl_result;
-    rl_result = GetReturnWide(LocToRegClass(rl_dest));
+    RegLocation rl_result = GetReturnWide(return_reg_class);
     StoreValueWide(rl_dest, rl_result);
   } else {
-    RegLocation rl_result;
-    rl_result = GetReturn(LocToRegClass(rl_dest));
+    RegLocation rl_result = GetReturn(return_reg_class);
     StoreValue(rl_dest, rl_result);
   }
 }

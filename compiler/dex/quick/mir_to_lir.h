@@ -634,7 +634,6 @@ class Mir2Lir {
     }
 
     RegisterClass ShortyToRegClass(char shorty_type);
-    RegisterClass LocToRegClass(RegLocation loc);
     int ComputeFrameSize();
     void Materialize();
     virtual CompiledMethod* GetCompiledMethod();
@@ -846,7 +845,8 @@ class Mir2Lir {
                           RegLocation rl_src, int lit);
     virtual void GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
                                 RegLocation rl_src1, RegLocation rl_src2, int flags);
-    void GenConversionCall(QuickEntrypointEnum trampoline, RegLocation rl_dest, RegLocation rl_src);
+    void GenConversionCall(QuickEntrypointEnum trampoline, RegLocation rl_dest, RegLocation rl_src,
+                           RegisterClass return_reg_class);
     void GenSuspendTest(int opt_flags);
     void GenSuspendTestAndBranch(int opt_flags, LIR* target);
 
@@ -954,7 +954,7 @@ class Mir2Lir {
     virtual bool GenInlinedIndexOf(CallInfo* info, bool zero_based);
     bool GenInlinedStringCompareTo(CallInfo* info);
     virtual bool GenInlinedCurrentThread(CallInfo* info);
-    bool GenInlinedUnsafeGet(CallInfo* info, bool is_long, bool is_volatile);
+    bool GenInlinedUnsafeGet(CallInfo* info, bool is_long, bool is_object, bool is_volatile);
     bool GenInlinedUnsafePut(CallInfo* info, bool is_long, bool is_object,
                              bool is_volatile, bool is_ordered);
 
