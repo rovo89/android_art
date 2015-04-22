@@ -886,7 +886,7 @@ void IntrinsicCodeGeneratorX86_64::VisitStringCompareTo(HInvoke* invoke) {
   LocationSummary* locations = invoke->GetLocations();
 
   // Note that the null check must have been done earlier.
-  DCHECK(!invoke->CanDoImplicitNullCheck());
+  DCHECK(!invoke->CanDoImplicitNullCheckOn(invoke->InputAt(0)));
 
   CpuRegister argument = locations->InAt(1).AsRegister<CpuRegister>();
   __ testl(argument, argument);
