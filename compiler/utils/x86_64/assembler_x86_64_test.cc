@@ -705,6 +705,34 @@ TEST_F(AssemblerX86_64Test, CmpqAddr) {
   DriverStr(expected, "cmpq");
 }
 
+TEST_F(AssemblerX86_64Test, MovsxdAddr) {
+  GetAssembler()->movsxd(x86_64::CpuRegister(x86_64::R12),
+                       x86_64::Address(x86_64::CpuRegister(x86_64::R9), 0));
+  const char* expected = "movslq 0(%R9), %R12\n";
+  DriverStr(expected, "movsxd");
+}
+
+TEST_F(AssemblerX86_64Test, TestqAddr) {
+  GetAssembler()->testq(x86_64::CpuRegister(x86_64::R12),
+                        x86_64::Address(x86_64::CpuRegister(x86_64::R9), 0));
+  const char* expected = "testq 0(%R9), %R12\n";
+  DriverStr(expected, "testq");
+}
+
+TEST_F(AssemblerX86_64Test, AddqAddr) {
+  GetAssembler()->addq(x86_64::CpuRegister(x86_64::R12),
+                        x86_64::Address(x86_64::CpuRegister(x86_64::R9), 0));
+  const char* expected = "addq 0(%R9), %R12\n";
+  DriverStr(expected, "addq");
+}
+
+TEST_F(AssemblerX86_64Test, SubqAddr) {
+  GetAssembler()->subq(x86_64::CpuRegister(x86_64::R12),
+                        x86_64::Address(x86_64::CpuRegister(x86_64::R9), 0));
+  const char* expected = "subq 0(%R9), %R12\n";
+  DriverStr(expected, "subq");
+}
+
 TEST_F(AssemblerX86_64Test, Cvtss2sdAddr) {
   GetAssembler()->cvtss2sd(x86_64::XmmRegister(x86_64::XMM0),
                            x86_64::Address(x86_64::CpuRegister(x86_64::RAX), 0));

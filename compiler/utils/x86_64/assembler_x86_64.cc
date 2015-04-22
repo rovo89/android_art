@@ -398,7 +398,7 @@ void X86_64Assembler::movsxd(CpuRegister dst, CpuRegister src) {
 
 void X86_64Assembler::movsxd(CpuRegister dst, const Address& src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  EmitRex64(dst);
+  EmitRex64(dst, src);
   EmitUint8(0x63);
   EmitOperand(dst.LowBits(), src);
 }
@@ -1342,7 +1342,7 @@ void X86_64Assembler::testq(CpuRegister reg1, CpuRegister reg2) {
 
 void X86_64Assembler::testq(CpuRegister reg, const Address& address) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  EmitRex64(reg);
+  EmitRex64(reg, address);
   EmitUint8(0x85);
   EmitOperand(reg.LowBits(), address);
 }
@@ -1558,7 +1558,7 @@ void X86_64Assembler::addq(CpuRegister reg, const Immediate& imm) {
 
 void X86_64Assembler::addq(CpuRegister dst, const Address& address) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  EmitRex64(dst);
+  EmitRex64(dst, address);
   EmitUint8(0x03);
   EmitOperand(dst.LowBits(), address);
 }
@@ -1621,7 +1621,7 @@ void X86_64Assembler::subq(CpuRegister dst, CpuRegister src) {
 
 void X86_64Assembler::subq(CpuRegister reg, const Address& address) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  EmitRex64(reg);
+  EmitRex64(reg, address);
   EmitUint8(0x2B);
   EmitOperand(reg.LowBits() & 7, address);
 }
