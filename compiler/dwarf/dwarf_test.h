@@ -56,8 +56,7 @@ class DwarfTest : public CommonRuntimeTest {
   }
 
   // Pretty-print the generated DWARF data using objdump.
-  template<typename Elf_Word, typename Elf_Sword, typename Elf_Addr, typename Elf_Dyn,
-           typename Elf_Sym, typename Elf_Ehdr, typename Elf_Phdr, typename Elf_Shdr>
+  template<typename ElfTypes>
   std::vector<std::string> Objdump(bool is64bit, const char* args) {
     // Write simple elf file with just the DWARF sections.
     class NoCode : public CodeOutput {
@@ -66,10 +65,9 @@ class DwarfTest : public CommonRuntimeTest {
     } code;
     ScratchFile file;
     InstructionSet isa = is64bit ? kX86_64 : kX86;
-    ElfBuilder<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
-               Elf_Sym, Elf_Ehdr, Elf_Phdr, Elf_Shdr> builder(
+    ElfBuilder<ElfTypes> builder(
         &code, file.GetFile(), isa, 0, 0, 0, 0, 0, 0, false, false);
-    typedef ElfRawSectionBuilder<Elf_Word, Elf_Sword, Elf_Shdr> Section;
+    typedef ElfRawSectionBuilder<ElfTypes> Section;
     Section debug_info(".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
     Section debug_abbrev(".debug_abbrev", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
     Section debug_str(".debug_str", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
@@ -125,11 +123,9 @@ class DwarfTest : public CommonRuntimeTest {
 
   std::vector<std::string> Objdump(bool is64bit, const char* args) {
     if (is64bit) {
-      return Objdump<Elf64_Word, Elf64_Sword, Elf64_Addr, Elf64_Dyn,
-          Elf64_Sym, Elf64_Ehdr, Elf64_Phdr, Elf64_Shdr>(is64bit, args);
+      return Objdump<ElfTypes64>(is64bit, args);
     } else {
-      return Objdump<Elf32_Word, Elf32_Sword, Elf32_Addr, Elf32_Dyn,
-          Elf32_Sym, Elf32_Ehdr, Elf32_Phdr, Elf32_Shdr>(is64bit, args);
+      return Objdump<ElfTypes32>(is64bit, args);
     }
   }
 

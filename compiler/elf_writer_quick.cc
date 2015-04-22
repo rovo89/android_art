@@ -39,16 +39,13 @@
 
 namespace art {
 
-template <typename Elf_Word, typename Elf_Sword, typename Elf_Addr,
-          typename Elf_Dyn, typename Elf_Sym, typename Elf_Ehdr,
-          typename Elf_Phdr, typename Elf_Shdr>
-bool ElfWriterQuick<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
-  Elf_Sym, Elf_Ehdr, Elf_Phdr, Elf_Shdr>::Create(File* elf_file,
-                            OatWriter* oat_writer,
-                            const std::vector<const DexFile*>& dex_files,
-                            const std::string& android_root,
-                            bool is_host,
-                            const CompilerDriver& driver) {
+template <typename ElfTypes>
+bool ElfWriterQuick<ElfTypes>::Create(File* elf_file,
+                                      OatWriter* oat_writer,
+                                      const std::vector<const DexFile*>& dex_files,
+                                      const std::string& android_root,
+                                      bool is_host,
+                                      const CompilerDriver& driver) {
   ElfWriterQuick elf_writer(driver, elf_file);
   return elf_writer.Write(oat_writer, dex_files, android_root, is_host);
 }
@@ -67,20 +64,14 @@ class OatWriterWrapper FINAL : public CodeOutput {
   OatWriter* const oat_writer_;
 };
 
-template <typename Elf_Word, typename Elf_Sword, typename Elf_Addr,
-          typename Elf_Dyn, typename Elf_Sym, typename Elf_Ehdr,
-          typename Elf_Phdr, typename Elf_Shdr>
-static void WriteDebugSymbols(ElfBuilder<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
-                                         Elf_Sym, Elf_Ehdr, Elf_Phdr, Elf_Shdr>* builder,
-                              OatWriter* oat_writer);
+template <typename ElfTypes>
+static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder, OatWriter* oat_writer);
 
 // Encode patch locations in .oat_patches format.
-template <typename Elf_Word, typename Elf_Sword, typename Elf_Addr,
-          typename Elf_Dyn, typename Elf_Sym, typename Elf_Ehdr,
-          typename Elf_Phdr, typename Elf_Shdr>
-void ElfWriterQuick<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn, Elf_Sym, Elf_Ehdr,
-  Elf_Phdr, Elf_Shdr>::EncodeOatPatches(const OatWriter::PatchLocationsMap& sections,
-                                        std::vector<uint8_t>* buffer) {
+template <typename ElfTypes>
+void ElfWriterQuick<ElfTypes>::EncodeOatPatches(
+    const OatWriter::PatchLocationsMap& sections,
+    std::vector<uint8_t>* buffer) {
   for (const auto& section : sections) {
     const std::string& name = section.first;
     std::vector<uintptr_t>* locations = section.second.get();
@@ -121,41 +112,36 @@ static void PatchAddresses(const std::vector<uintptr_t>* patch_locations,
   }
 }
 
-template <typename Elf_Word, typename Elf_Sword, typename Elf_Addr,
-          typename Elf_Dyn, typename Elf_Sym, typename Elf_Ehdr,
-          typename Elf_Phdr, typename Elf_Shdr>
-bool ElfWriterQuick<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
-  Elf_Sym, Elf_Ehdr, Elf_Phdr, Elf_Shdr>::Write(OatWriter* oat_writer,
-                           const std::vector<const DexFile*>& dex_files_unused ATTRIBUTE_UNUSED,
-                           const std::string& android_root_unused ATTRIBUTE_UNUSED,
-                           bool is_host_unused ATTRIBUTE_UNUSED) {
+template <typename ElfTypes>
+bool ElfWriterQuick<ElfTypes>::Write(
+    OatWriter* oat_writer,
+    const std::vector<const DexFile*>& dex_files_unused ATTRIBUTE_UNUSED,
+    const std::string& android_root_unused ATTRIBUTE_UNUSED,
+    bool is_host_unused ATTRIBUTE_UNUSED) {
   constexpr bool debug = false;
   const OatHeader& oat_header = oat_writer->GetOatHeader();
-  Elf_Word oat_data_size = oat_header.GetExecutableOffset();
+  typename ElfTypes::Word oat_data_size = oat_header.GetExecutableOffset();
   uint32_t oat_exec_size = oat_writer->GetSize() - oat_data_size;
   uint32_t oat_bss_size = oat_writer->GetBssSize();
 
   OatWriterWrapper wrapper(oat_writer);
 
-  std::unique_ptr<ElfBuilder<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
-                             Elf_Sym, Elf_Ehdr, Elf_Phdr, Elf_Shdr> > builder(
-      new ElfBuilder<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
-                     Elf_Sym, Elf_Ehdr, Elf_Phdr, Elf_Shdr>(
-          &wrapper,
-          elf_file_,
-          compiler_driver_->GetInstructionSet(),
-          0,
-          oat_data_size,
-          oat_data_size,
-          oat_exec_size,
-          RoundUp(oat_data_size + oat_exec_size, kPageSize),
-          oat_bss_size,
-          compiler_driver_->GetCompilerOptions().GetIncludeDebugSymbols(),
-          debug));
+  std::unique_ptr<ElfBuilder<ElfTypes>> builder(new ElfBuilder<ElfTypes>(
+      &wrapper,
+      elf_file_,
+      compiler_driver_->GetInstructionSet(),
+      0,
+      oat_data_size,
+      oat_data_size,
+      oat_exec_size,
+      RoundUp(oat_data_size + oat_exec_size, kPageSize),
+      oat_bss_size,
+      compiler_driver_->GetCompilerOptions().GetIncludeDebugSymbols(),
+      debug));
 
   InstructionSet isa = compiler_driver_->GetInstructionSet();
   int alignment = GetInstructionSetPointerSize(isa);
-  typedef ElfRawSectionBuilder<Elf_Word, Elf_Sword, Elf_Shdr> RawSection;
+  typedef ElfRawSectionBuilder<ElfTypes> RawSection;
   RawSection eh_frame(".eh_frame", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, alignment, 0);
   RawSection eh_frame_hdr(".eh_frame_hdr", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, 4, 0);
   RawSection debug_info(".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
@@ -210,8 +196,8 @@ bool ElfWriterQuick<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
   }
 
   // We know where .text and .eh_frame will be located, so patch the addresses.
-  Elf_Addr text_addr = builder->GetTextBuilder().GetSection()->sh_addr;
-  // TODO: Simplify once we use Elf64 - we can use Elf_Addr instead of branching.
+  typename ElfTypes::Addr text_addr = builder->GetTextBuilder().GetSection()->sh_addr;
+  // TODO: Simplify once we use Elf64 - we can use ElfTypes::Addr instead of branching.
   if (Is64BitInstructionSet(compiler_driver_->GetInstructionSet())) {
     // relative_address = (text_addr + address) - (eh_frame_addr + patch_location);
     PatchAddresses<uint64_t, true>(&eh_frame_patches,
@@ -229,14 +215,10 @@ bool ElfWriterQuick<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
   return builder->Write();
 }
 
-template <typename Elf_Word, typename Elf_Sword, typename Elf_Addr,
-          typename Elf_Dyn, typename Elf_Sym, typename Elf_Ehdr,
-          typename Elf_Phdr, typename Elf_Shdr>
+template <typename ElfTypes>
 // Do not inline to avoid Clang stack frame problems. b/18738594
 NO_INLINE
-static void WriteDebugSymbols(ElfBuilder<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
-                                         Elf_Sym, Elf_Ehdr, Elf_Phdr, Elf_Shdr>* builder,
-                              OatWriter* oat_writer) {
+static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder, OatWriter* oat_writer) {
   const std::vector<OatWriter::DebugInfo>& method_info = oat_writer->GetMethodDebugInfo();
 
   // Find all addresses (low_pc) which contain deduped methods.
@@ -248,8 +230,7 @@ static void WriteDebugSymbols(ElfBuilder<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
     }
   }
 
-  ElfSymtabBuilder<Elf_Word, Elf_Sword, Elf_Addr, Elf_Sym, Elf_Shdr>* symtab =
-      builder->GetSymtabBuilder();
+  ElfSymtabBuilder<ElfTypes>* symtab = builder->GetSymtabBuilder();
   for (auto it = method_info.begin(); it != method_info.end(); ++it) {
     std::string name = PrettyMethod(it->dex_method_index_, *it->dex_file_, true);
     if (deduped_addresses.find(it->low_pc_) != deduped_addresses.end()) {
@@ -272,9 +253,7 @@ static void WriteDebugSymbols(ElfBuilder<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
 }
 
 // Explicit instantiations
-template class ElfWriterQuick<Elf32_Word, Elf32_Sword, Elf32_Addr, Elf32_Dyn,
-                              Elf32_Sym, Elf32_Ehdr, Elf32_Phdr, Elf32_Shdr>;
-template class ElfWriterQuick<Elf64_Word, Elf64_Sword, Elf64_Addr, Elf64_Dyn,
-                              Elf64_Sym, Elf64_Ehdr, Elf64_Phdr, Elf64_Shdr>;
+template class ElfWriterQuick<ElfTypes32>;
+template class ElfWriterQuick<ElfTypes64>;
 
 }  // namespace art
