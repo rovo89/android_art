@@ -753,6 +753,7 @@ bool DexFileMethodInliner::GenInlineConst(MIRGraph* mir_graph, BasicBlock* bb, M
   insn->dalvikInsn.opcode = Instruction::CONST;
   insn->dalvikInsn.vA = move_result->dalvikInsn.vA;
   insn->dalvikInsn.vB = method.d.data;
+  insn->meta.method_lowering_info = invoke->meta.method_lowering_info;  // Preserve type info.
   bb->InsertMIRAfter(move_result, insn);
   return true;
 }
@@ -791,6 +792,7 @@ bool DexFileMethodInliner::GenInlineReturnArg(MIRGraph* mir_graph, BasicBlock* b
   insn->dalvikInsn.opcode = opcode;
   insn->dalvikInsn.vA = move_result->dalvikInsn.vA;
   insn->dalvikInsn.vB = arg;
+  insn->meta.method_lowering_info = invoke->meta.method_lowering_info;  // Preserve type info.
   bb->InsertMIRAfter(move_result, insn);
   return true;
 }
@@ -913,6 +915,7 @@ bool DexFileMethodInliner::GenInlineIPut(MIRGraph* mir_graph, BasicBlock* bb, MI
     }
     move->dalvikInsn.vA = move_result->dalvikInsn.vA;
     move->dalvikInsn.vB = return_reg;
+    move->meta.method_lowering_info = invoke->meta.method_lowering_info;  // Preserve type info.
     bb->InsertMIRAfter(insn, move);
   }
   return true;
