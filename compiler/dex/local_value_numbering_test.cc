@@ -158,10 +158,8 @@ class LocalValueNumberingTest : public testing::Test {
       mir->ssa_rep = &ssa_reps_[i];
       mir->ssa_rep->num_uses = def->num_uses;
       mir->ssa_rep->uses = const_cast<int32_t*>(def->uses);  // Not modified by LVN.
-      mir->ssa_rep->fp_use = nullptr;  // Not used by LVN.
       mir->ssa_rep->num_defs = def->num_defs;
       mir->ssa_rep->defs = const_cast<int32_t*>(def->defs);  // Not modified by LVN.
-      mir->ssa_rep->fp_def = nullptr;  // Not used by LVN.
       mir->dalvikInsn.opcode = def->opcode;
       mir->offset = i;  // LVN uses offset only for debug output
       mir->optimization_flags = 0u;

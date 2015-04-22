@@ -263,12 +263,19 @@ class PerformInitRegLocations : public PassMEMirSsaRep {
 };
 
 /**
- * @class TypeInference
+ * @class TypeInferencePass
  * @brief Type inference pass.
  */
-class TypeInference : public PassMEMirSsaRep {
+class TypeInferencePass : public PassMEMirSsaRep {
  public:
-  TypeInference() : PassMEMirSsaRep("TypeInference", kRepeatingPreOrderDFSTraversal) {
+  TypeInferencePass() : PassMEMirSsaRep("TypeInference", kRepeatingPreOrderDFSTraversal) {
+  }
+
+  void Start(PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    c_unit->mir_graph->InferTypesStart();
   }
 
   bool Worker(PassDataHolder* data) const {
@@ -279,6 +286,13 @@ class TypeInference : public PassMEMirSsaRep {
     BasicBlock* bb = pass_me_data_holder->bb;
     DCHECK(bb != nullptr);
     return c_unit->mir_graph->InferTypes(bb);
+  }
+
+  void End(PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    c_unit->mir_graph.get()->InferTypesEnd();
   }
 };
 

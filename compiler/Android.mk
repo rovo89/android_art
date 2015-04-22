@@ -23,6 +23,7 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/global_value_numbering.cc \
 	dex/gvn_dead_code_elimination.cc \
 	dex/local_value_numbering.cc \
+	dex/type_inference.cc \
 	dex/quick/arm/assemble_arm.cc \
 	dex/quick/arm/call_arm.cc \
 	dex/quick/arm/fp_arm.cc \
