@@ -76,8 +76,8 @@ static constexpr bool kTimeCompileMethod = !kIsDebugBuild;
 // Whether to produce 64-bit ELF files for 64-bit targets. Leave this off for now.
 static constexpr bool kProduce64BitELFFiles = false;
 
-// Whether classes-to-compile is only applied to the boot image, or, when given, too all
-// compilations.
+// Whether classes-to-compile and methods-to-compile are only applied to the boot image, or, when
+// given, too all compilations.
 static constexpr bool kRestrictCompilationFiltersToImage = true;
 
 static double Percentage(size_t x, size_t y) {
@@ -349,6 +349,7 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
                                const InstructionSetFeatures* instruction_set_features,
                                bool image, std::unordered_set<std::string>* image_classes,
                                std::unordered_set<std::string>* compiled_classes,
+                               std::unordered_set<std::string>* compiled_methods,
                                size_t thread_count, bool dump_stats, bool dump_passes,
                                const std::string& dump_cfg_file_name, CumulativeLogger* timer,
                                int swap_fd, const std::string& profile_file)
@@ -369,6 +370,7 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
       image_(image),
       image_classes_(image_classes),
       classes_to_compile_(compiled_classes),
+      methods_to_compile_(compiled_methods),
       had_hard_verifier_failure_(false),
       thread_count_(thread_count),
       stats_(new AOTCompilationStats),
@@ -668,6 +670,19 @@ bool CompilerDriver::IsClassToCompile(const char* descriptor) const {
     return true;
   }
   return classes_to_compile_->find(descriptor) != classes_to_compile_->end();
+}
+
+bool CompilerDriver::IsMethodToCompile(const MethodReference& method_ref) const {
+  if (kRestrictCompilationFiltersToImage && !IsImage()) {
+    return true;
+  }
+
+  if (methods_to_compile_ == nullptr) {
+    return true;
+  }
+
+  std::string tmp = PrettyMethod(method_ref.dex_method_index, *method_ref.dex_file, true);
+  return methods_to_compile_->find(tmp.c_str()) != methods_to_compile_->end();
 }
 
 static void ResolveExceptionsForMethod(MutableHandle<mirror::ArtMethod> method_handle,
@@ -2232,7 +2247,9 @@ void CompilerDriver::CompileMethod(Thread* self, const DexFile::CodeItem* code_i
                    // Basic checks, e.g., not <clinit>.
                    verification_results_->IsCandidateForCompilation(method_ref, access_flags) &&
                    // Did not fail to create VerifiedMethod metadata.
-                   has_verified_method;
+                   has_verified_method &&
+                   // Is eligable for compilation by methods-to-compile filter.
+                   IsMethodToCompile(method_ref);
     if (compile) {
       // NOTE: if compiler declines to compile this method, it will return nullptr.
       compiled_method = compiler_->Compile(code_item, access_flags, invoke_type, class_def_idx,
