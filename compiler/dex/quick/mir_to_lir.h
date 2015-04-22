@@ -388,7 +388,7 @@ class Mir2Lir {
       LIR* DefEnd() { return def_end_; }
       void SetDefEnd(LIR* def_end) { def_end_ = def_end; }
       void ResetDefBody() { def_start_ = def_end_ = nullptr; }
-      // Find member of aliased set matching storage_used; return nullptr if none.
+      // Find member of aliased set matching storage_used; return null if none.
       RegisterInfo* FindMatchingView(uint32_t storage_used) {
         RegisterInfo* res = Master();
         for (; res != nullptr; res = res->GetAliasChain()) {
@@ -605,7 +605,7 @@ class Mir2Lir {
     char* ArenaStrdup(const char* str) {
       size_t len = strlen(str) + 1;
       char* res = arena_->AllocArray<char>(len, kArenaAllocMisc);
-      if (res != NULL) {
+      if (res != nullptr) {
         strncpy(res, str, len);
       }
       return res;
@@ -650,7 +650,7 @@ class Mir2Lir {
     void DumpPromotionMap();
     void CodegenDump();
     LIR* RawLIR(DexOffset dalvik_offset, int opcode, int op0 = 0, int op1 = 0,
-                int op2 = 0, int op3 = 0, int op4 = 0, LIR* target = NULL);
+                int op2 = 0, int op3 = 0, int op4 = 0, LIR* target = nullptr);
     LIR* NewLIR0(int opcode);
     LIR* NewLIR1(int opcode, int dest);
     LIR* NewLIR2(int opcode, int dest, int src1);
@@ -1120,8 +1120,8 @@ class Mir2Lir {
      * @param base_reg The register holding the base address.
      * @param offset The offset from the base.
      * @param check_value The immediate to compare to.
-     * @param target branch target (or nullptr)
-     * @param compare output for getting LIR for comparison (or nullptr)
+     * @param target branch target (or null)
+     * @param compare output for getting LIR for comparison (or null)
      * @returns The branch instruction that was generated.
      */
     virtual LIR* OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg, RegStorage base_reg,
@@ -1854,7 +1854,7 @@ class Mir2Lir {
     // to deduplicate the masks.
     ResourceMaskCache mask_cache_;
 
-    // Record the MIR that generated a given safepoint (nullptr for prologue safepoints).
+    // Record the MIR that generated a given safepoint (null for prologue safepoints).
     ArenaVector<std::pair<LIR*, MIR*>> safepoints_;
 
     // The layout of the cu_->dex_file's dex cache arrays for PC-relative addressing.
@@ -1869,7 +1869,7 @@ class Mir2Lir {
     // For architectures that don't have true PC-relative addressing (see pc_rel_temp_
     // above) and also have a limited range of offsets for loads, it's be useful to
     // know the minimum offset into the dex cache arrays, so we calculate that as well
-    // if pc_rel_temp_ isn't nullptr.
+    // if pc_rel_temp_ isn't null.
     uint32_t dex_cache_arrays_min_offset_;
 
     dwarf::LazyDebugFrameOpCodeWriter cfi_;

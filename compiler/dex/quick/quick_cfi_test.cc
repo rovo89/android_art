@@ -100,7 +100,7 @@ class QuickCFITest : public CFITest {
       }
     }
     m2l->AdjustSpillMask();
-    m2l->GenEntrySequence(NULL, m2l->LocCReturnRef());
+    m2l->GenEntrySequence(nullptr, m2l->LocCReturnRef());
     m2l->GenExitSequence();
     m2l->HandleSlowPaths();
     m2l->AssembleLIR();

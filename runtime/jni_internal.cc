@@ -350,7 +350,7 @@ class JNI {
     ScopedObjectAccess soa(env);
     mirror::Object* obj_field = soa.Decode<mirror::Object*>(jlr_field);
     if (obj_field->GetClass() != mirror::Field::StaticClass()) {
-      // Not even a java.lang.reflect.Field, return nullptr.
+      // Not even a java.lang.reflect.Field, return null. TODO, is this check necessary?
       return nullptr;
     }
     auto* field = static_cast<mirror::Field*>(obj_field);

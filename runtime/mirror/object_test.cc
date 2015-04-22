@@ -61,11 +61,12 @@ class ObjectTest : public CommonRuntimeTest {
     Handle<String> string(
         hs.NewHandle(String::AllocFromModifiedUtf8(self, expected_utf16_length, utf8_in)));
     ASSERT_EQ(expected_utf16_length, string->GetLength());
-    ASSERT_TRUE(string->GetCharArray() != NULL);
-    ASSERT_TRUE(string->GetCharArray()->GetData() != NULL);
+    ASSERT_TRUE(string->GetCharArray() != nullptr);
+    ASSERT_TRUE(string->GetCharArray()->GetData() != nullptr);
     // strlen is necessary because the 1-character string "\x00\x00" is interpreted as ""
     ASSERT_TRUE(string->Equals(utf8_in) || (expected_utf16_length == 1 && strlen(utf8_in) == 0));
-    ASSERT_TRUE(string->Equals(StringPiece(utf8_in)) || (expected_utf16_length == 1 && strlen(utf8_in) == 0));
+    ASSERT_TRUE(string->Equals(StringPiece(utf8_in)) ||
+                (expected_utf16_length == 1 && strlen(utf8_in) == 0));
     for (int32_t i = 0; i < expected_utf16_length; i++) {
       EXPECT_EQ(utf16_expected[i], string->UncheckedCharAt(i));
     }
@@ -110,11 +111,11 @@ TEST_F(ObjectTest, AllocObjectArray) {
   Handle<ObjectArray<Object>> oa(
       hs.NewHandle(class_linker_->AllocObjectArray<Object>(soa.Self(), 2)));
   EXPECT_EQ(2, oa->GetLength());
-  EXPECT_TRUE(oa->Get(0) == NULL);
-  EXPECT_TRUE(oa->Get(1) == NULL);
+  EXPECT_TRUE(oa->Get(0) == nullptr);
+  EXPECT_TRUE(oa->Get(1) == nullptr);
   oa->Set<false>(0, oa.Get());
   EXPECT_TRUE(oa->Get(0) == oa.Get());
-  EXPECT_TRUE(oa->Get(1) == NULL);
+  EXPECT_TRUE(oa->Get(1) == nullptr);
   oa->Set<false>(1, oa.Get());
   EXPECT_TRUE(oa->Get(0) == oa.Get());
   EXPECT_TRUE(oa->Get(1) == oa.Get());
@@ -122,17 +123,17 @@ TEST_F(ObjectTest, AllocObjectArray) {
   Class* aioobe = class_linker_->FindSystemClass(soa.Self(),
                                                  "Ljava/lang/ArrayIndexOutOfBoundsException;");
 
-  EXPECT_TRUE(oa->Get(-1) == NULL);
+  EXPECT_TRUE(oa->Get(-1) == nullptr);
   EXPECT_TRUE(soa.Self()->IsExceptionPending());
   EXPECT_EQ(aioobe, soa.Self()->GetException()->GetClass());
   soa.Self()->ClearException();
 
-  EXPECT_TRUE(oa->Get(2) == NULL);
+  EXPECT_TRUE(oa->Get(2) == nullptr);
   EXPECT_TRUE(soa.Self()->IsExceptionPending());
   EXPECT_EQ(aioobe, soa.Self()->GetException()->GetClass());
   soa.Self()->ClearException();
 
-  ASSERT_TRUE(oa->GetClass() != NULL);
+  ASSERT_TRUE(oa->GetClass() != nullptr);
   Handle<mirror::Class> klass(hs.NewHandle(oa->GetClass()));
   ASSERT_EQ(2U, klass->NumDirectInterfaces());
   EXPECT_EQ(class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Cloneable;"),
@@ -308,13 +309,14 @@ TEST_F(ObjectTest, CheckAndAllocArrayFromCode) {
   Class* java_util_Arrays = class_linker_->FindSystemClass(soa.Self(), "Ljava/util/Arrays;");
   ArtMethod* sort = java_util_Arrays->FindDirectMethod("sort", "([I)V");
   const DexFile::StringId* string_id = java_lang_dex_file_->FindStringId("[I");
-  ASSERT_TRUE(string_id != NULL);
+  ASSERT_TRUE(string_id != nullptr);
   const DexFile::TypeId* type_id = java_lang_dex_file_->FindTypeId(
       java_lang_dex_file_->GetIndexForStringId(*string_id));
-  ASSERT_TRUE(type_id != NULL);
+  ASSERT_TRUE(type_id != nullptr);
   uint32_t type_idx = java_lang_dex_file_->GetIndexForTypeId(*type_id);
-  Object* array = CheckAndAllocArrayFromCodeInstrumented(type_idx, 3, sort, Thread::Current(), false,
-                                                         Runtime::Current()->GetHeap()->GetCurrentAllocator());
+  Object* array = CheckAndAllocArrayFromCodeInstrumented(
+      type_idx, 3, sort, Thread::Current(), false,
+      Runtime::Current()->GetHeap()->GetCurrentAllocator());
   EXPECT_TRUE(array->IsArrayInstance());
   EXPECT_EQ(3, array->AsArray()->GetLength());
   EXPECT_TRUE(array->GetClass()->IsArrayClass());
@@ -367,36 +369,36 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
   Class* klass = class_linker_->FindClass(soa.Self(), "LStaticsFromCode;", loader);
   ArtMethod* clinit = klass->FindClassInitializer();
   const DexFile::StringId* klass_string_id = dex_file->FindStringId("LStaticsFromCode;");
-  ASSERT_TRUE(klass_string_id != NULL);
+  ASSERT_TRUE(klass_string_id != nullptr);
   const DexFile::TypeId* klass_type_id = dex_file->FindTypeId(
       dex_file->GetIndexForStringId(*klass_string_id));
-  ASSERT_TRUE(klass_type_id != NULL);
+  ASSERT_TRUE(klass_type_id != nullptr);
 
   const DexFile::StringId* type_string_id = dex_file->FindStringId("Ljava/lang/Object;");
-  ASSERT_TRUE(type_string_id != NULL);
+  ASSERT_TRUE(type_string_id != nullptr);
   const DexFile::TypeId* type_type_id = dex_file->FindTypeId(
       dex_file->GetIndexForStringId(*type_string_id));
-  ASSERT_TRUE(type_type_id != NULL);
+  ASSERT_TRUE(type_type_id != nullptr);
 
   const DexFile::StringId* name_str_id = dex_file->FindStringId("s0");
-  ASSERT_TRUE(name_str_id != NULL);
+  ASSERT_TRUE(name_str_id != nullptr);
 
   const DexFile::FieldId* field_id = dex_file->FindFieldId(
       *klass_type_id, *name_str_id, *type_type_id);
-  ASSERT_TRUE(field_id != NULL);
+  ASSERT_TRUE(field_id != nullptr);
   uint32_t field_idx = dex_file->GetIndexForFieldId(*field_id);
 
   ArtField* field = FindFieldFromCode<StaticObjectRead, true>(field_idx, clinit, Thread::Current(),
                                                               sizeof(HeapReference<Object>));
   Object* s0 = field->GetObj(klass);
-  EXPECT_TRUE(s0 != NULL);
+  EXPECT_TRUE(s0 != nullptr);
 
   Handle<CharArray> char_array(hs.NewHandle(CharArray::Alloc(soa.Self(), 0)));
   field->SetObj<false>(field->GetDeclaringClass(), char_array.Get());
   EXPECT_EQ(char_array.Get(), field->GetObj(klass));
 
-  field->SetObj<false>(field->GetDeclaringClass(), NULL);
-  EXPECT_EQ(NULL, field->GetObj(klass));
+  field->SetObj<false>(field->GetDeclaringClass(), nullptr);
+  EXPECT_EQ(nullptr, field->GetObj(klass));
 
   // TODO: more exhaustive tests of all 6 cases of ArtField::*FromCode
 }
@@ -416,13 +418,15 @@ TEST_F(ObjectTest, String) {
   AssertString(1, "\xc2\x80",   "\x00\x80",                 0x80);
   AssertString(1, "\xd9\xa6",   "\x06\x66",                 0x0666);
   AssertString(1, "\xdf\xbf",   "\x07\xff",                 0x07ff);
-  AssertString(3, "h\xd9\xa6i", "\x00\x68\x06\x66\x00\x69", (31 * ((31 * 0x68) + 0x0666)) + 0x69);
+  AssertString(3, "h\xd9\xa6i", "\x00\x68\x06\x66\x00\x69",
+               (31 * ((31 * 0x68) + 0x0666)) + 0x69);
 
   // Test three-byte characters.
   AssertString(1, "\xe0\xa0\x80",   "\x08\x00",                 0x0800);
   AssertString(1, "\xe1\x88\xb4",   "\x12\x34",                 0x1234);
   AssertString(1, "\xef\xbf\xbf",   "\xff\xff",                 0xffff);
-  AssertString(3, "h\xe1\x88\xb4i", "\x00\x68\x12\x34\x00\x69", (31 * ((31 * 0x68) + 0x1234)) + 0x69);
+  AssertString(3, "h\xe1\x88\xb4i", "\x00\x68\x12\x34\x00\x69",
+               (31 * ((31 * 0x68) + 0x1234)) + 0x69);
 
   // Test four-byte characters.
   AssertString(2, "\xf0\x9f\x8f\xa0",  "\xd8\x3c\xdf\xe0", (31 * 0xd83c) + 0xdfe0);
@@ -507,9 +511,9 @@ TEST_F(ObjectTest, DescriptorCompare) {
   Handle<ClassLoader> class_loader_2(hs.NewHandle(soa.Decode<ClassLoader*>(jclass_loader_2)));
 
   Class* klass1 = linker->FindClass(soa.Self(), "LProtoCompare;", class_loader_1);
-  ASSERT_TRUE(klass1 != NULL);
+  ASSERT_TRUE(klass1 != nullptr);
   Class* klass2 = linker->FindClass(soa.Self(), "LProtoCompare2;", class_loader_2);
-  ASSERT_TRUE(klass2 != NULL);
+  ASSERT_TRUE(klass2 != nullptr);
 
   ArtMethod* m1_1 = klass1->GetVirtualMethod(0);
   EXPECT_STREQ(m1_1->GetName(), "m1");
@@ -550,13 +554,13 @@ TEST_F(ObjectTest, InstanceOf) {
 
   Class* X = class_linker_->FindClass(soa.Self(), "LX;", class_loader);
   Class* Y = class_linker_->FindClass(soa.Self(), "LY;", class_loader);
-  ASSERT_TRUE(X != NULL);
-  ASSERT_TRUE(Y != NULL);
+  ASSERT_TRUE(X != nullptr);
+  ASSERT_TRUE(Y != nullptr);
 
   Handle<Object> x(hs.NewHandle(X->AllocObject(soa.Self())));
   Handle<Object> y(hs.NewHandle(Y->AllocObject(soa.Self())));
-  ASSERT_TRUE(x.Get() != NULL);
-  ASSERT_TRUE(y.Get() != NULL);
+  ASSERT_TRUE(x.Get() != nullptr);
+  ASSERT_TRUE(y.Get() != nullptr);
 
   EXPECT_TRUE(x->InstanceOf(X));
   EXPECT_FALSE(x->InstanceOf(Y));
@@ -571,8 +575,10 @@ TEST_F(ObjectTest, InstanceOf) {
 
   // All array classes implement Cloneable and Serializable.
   Object* array = ObjectArray<Object>::Alloc(soa.Self(), Object_array_class, 1);
-  Class* java_lang_Cloneable = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Cloneable;");
-  Class* java_io_Serializable = class_linker_->FindSystemClass(soa.Self(), "Ljava/io/Serializable;");
+  Class* java_lang_Cloneable =
+      class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Cloneable;");
+  Class* java_io_Serializable =
+      class_linker_->FindSystemClass(soa.Self(), "Ljava/io/Serializable;");
   EXPECT_TRUE(array->InstanceOf(java_lang_Cloneable));
   EXPECT_TRUE(array->InstanceOf(java_io_Serializable));
 }
@@ -622,35 +628,35 @@ TEST_F(ObjectTest, IsAssignableFromArray) {
   Handle<ClassLoader> class_loader(hs.NewHandle(soa.Decode<ClassLoader*>(jclass_loader)));
   Class* X = class_linker_->FindClass(soa.Self(), "LX;", class_loader);
   Class* Y = class_linker_->FindClass(soa.Self(), "LY;", class_loader);
-  ASSERT_TRUE(X != NULL);
-  ASSERT_TRUE(Y != NULL);
+  ASSERT_TRUE(X != nullptr);
+  ASSERT_TRUE(Y != nullptr);
 
   Class* YA = class_linker_->FindClass(soa.Self(), "[LY;", class_loader);
   Class* YAA = class_linker_->FindClass(soa.Self(), "[[LY;", class_loader);
-  ASSERT_TRUE(YA != NULL);
-  ASSERT_TRUE(YAA != NULL);
+  ASSERT_TRUE(YA != nullptr);
+  ASSERT_TRUE(YAA != nullptr);
 
   Class* XAA = class_linker_->FindClass(soa.Self(), "[[LX;", class_loader);
-  ASSERT_TRUE(XAA != NULL);
+  ASSERT_TRUE(XAA != nullptr);
 
   Class* O = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;");
   Class* OA = class_linker_->FindSystemClass(soa.Self(), "[Ljava/lang/Object;");
   Class* OAA = class_linker_->FindSystemClass(soa.Self(), "[[Ljava/lang/Object;");
   Class* OAAA = class_linker_->FindSystemClass(soa.Self(), "[[[Ljava/lang/Object;");
-  ASSERT_TRUE(O != NULL);
-  ASSERT_TRUE(OA != NULL);
-  ASSERT_TRUE(OAA != NULL);
-  ASSERT_TRUE(OAAA != NULL);
+  ASSERT_TRUE(O != nullptr);
+  ASSERT_TRUE(OA != nullptr);
+  ASSERT_TRUE(OAA != nullptr);
+  ASSERT_TRUE(OAAA != nullptr);
 
   Class* S = class_linker_->FindSystemClass(soa.Self(), "Ljava/io/Serializable;");
   Class* SA = class_linker_->FindSystemClass(soa.Self(), "[Ljava/io/Serializable;");
   Class* SAA = class_linker_->FindSystemClass(soa.Self(), "[[Ljava/io/Serializable;");
-  ASSERT_TRUE(S != NULL);
-  ASSERT_TRUE(SA != NULL);
-  ASSERT_TRUE(SAA != NULL);
+  ASSERT_TRUE(S != nullptr);
+  ASSERT_TRUE(SA != nullptr);
+  ASSERT_TRUE(SAA != nullptr);
 
   Class* IA = class_linker_->FindSystemClass(soa.Self(), "[I");
-  ASSERT_TRUE(IA != NULL);
+  ASSERT_TRUE(IA != nullptr);
 
   EXPECT_TRUE(YAA->IsAssignableFrom(YAA));  // identity
   EXPECT_TRUE(XAA->IsAssignableFrom(YAA));  // element superclass
@@ -673,60 +679,62 @@ TEST_F(ObjectTest, FindInstanceField) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<1> hs(soa.Self());
   Handle<String> s(hs.NewHandle(String::AllocFromModifiedUtf8(soa.Self(), "ABC")));
-  ASSERT_TRUE(s.Get() != NULL);
+  ASSERT_TRUE(s.Get() != nullptr);
   Class* c = s->GetClass();
-  ASSERT_TRUE(c != NULL);
+  ASSERT_TRUE(c != nullptr);
 
   // Wrong type.
-  EXPECT_TRUE(c->FindDeclaredInstanceField("count", "J") == NULL);
-  EXPECT_TRUE(c->FindInstanceField("count", "J") == NULL);
+  EXPECT_TRUE(c->FindDeclaredInstanceField("count", "J") == nullptr);
+  EXPECT_TRUE(c->FindInstanceField("count", "J") == nullptr);
 
   // Wrong name.
-  EXPECT_TRUE(c->FindDeclaredInstanceField("Count", "I") == NULL);
-  EXPECT_TRUE(c->FindInstanceField("Count", "I") == NULL);
+  EXPECT_TRUE(c->FindDeclaredInstanceField("Count", "I") == nullptr);
+  EXPECT_TRUE(c->FindInstanceField("Count", "I") == nullptr);
 
   // Right name and type.
   ArtField* f1 = c->FindDeclaredInstanceField("count", "I");
   ArtField* f2 = c->FindInstanceField("count", "I");
-  EXPECT_TRUE(f1 != NULL);
-  EXPECT_TRUE(f2 != NULL);
+  EXPECT_TRUE(f1 != nullptr);
+  EXPECT_TRUE(f2 != nullptr);
   EXPECT_EQ(f1, f2);
 
   // TODO: check that s.count == 3.
 
   // Ensure that we handle superclass fields correctly...
   c = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/StringBuilder;");
-  ASSERT_TRUE(c != NULL);
+  ASSERT_TRUE(c != nullptr);
   // No StringBuilder.count...
-  EXPECT_TRUE(c->FindDeclaredInstanceField("count", "I") == NULL);
+  EXPECT_TRUE(c->FindDeclaredInstanceField("count", "I") == nullptr);
   // ...but there is an AbstractStringBuilder.count.
-  EXPECT_TRUE(c->FindInstanceField("count", "I") != NULL);
+  EXPECT_TRUE(c->FindInstanceField("count", "I") != nullptr);
 }
 
 TEST_F(ObjectTest, FindStaticField) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<4> hs(soa.Self());
   Handle<String> s(hs.NewHandle(String::AllocFromModifiedUtf8(soa.Self(), "ABC")));
-  ASSERT_TRUE(s.Get() != NULL);
+  ASSERT_TRUE(s.Get() != nullptr);
   Handle<Class> c(hs.NewHandle(s->GetClass()));
-  ASSERT_TRUE(c.Get() != NULL);
+  ASSERT_TRUE(c.Get() != nullptr);
 
   // Wrong type.
-  EXPECT_TRUE(c->FindDeclaredStaticField("CASE_INSENSITIVE_ORDER", "I") == NULL);
-  EXPECT_TRUE(mirror::Class::FindStaticField(soa.Self(), c, "CASE_INSENSITIVE_ORDER", "I") == NULL);
+  EXPECT_TRUE(c->FindDeclaredStaticField("CASE_INSENSITIVE_ORDER", "I") == nullptr);
+  EXPECT_TRUE(mirror::Class::FindStaticField(
+      soa.Self(), c, "CASE_INSENSITIVE_ORDER", "I") == nullptr);
 
   // Wrong name.
-  EXPECT_TRUE(c->FindDeclaredStaticField("cASE_INSENSITIVE_ORDER", "Ljava/util/Comparator;") == NULL);
+  EXPECT_TRUE(c->FindDeclaredStaticField(
+      "cASE_INSENSITIVE_ORDER", "Ljava/util/Comparator;") == nullptr);
   EXPECT_TRUE(
       mirror::Class::FindStaticField(soa.Self(), c, "cASE_INSENSITIVE_ORDER",
-                                     "Ljava/util/Comparator;") == NULL);
+                                     "Ljava/util/Comparator;") == nullptr);
 
   // Right name and type.
   ArtField* f1 = c->FindDeclaredStaticField("CASE_INSENSITIVE_ORDER", "Ljava/util/Comparator;");
   ArtField* f2 = mirror::Class::FindStaticField(soa.Self(), c, "CASE_INSENSITIVE_ORDER",
                                                 "Ljava/util/Comparator;");
-  EXPECT_TRUE(f1 != NULL);
-  EXPECT_TRUE(f2 != NULL);
+  EXPECT_TRUE(f1 != nullptr);
+  EXPECT_TRUE(f2 != nullptr);
   EXPECT_EQ(f1, f2);
 
   // TODO: test static fields via superclasses.

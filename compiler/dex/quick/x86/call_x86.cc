@@ -80,7 +80,7 @@ void X86Mir2Lir::GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocat
 
   // Bounds check - if < 0 or >= size continue following switch
   OpRegImm(kOpCmp, keyReg, size - 1);
-  LIR* branch_over = OpCondBranch(kCondHi, NULL);
+  LIR* branch_over = OpCondBranch(kCondHi, nullptr);
 
   RegStorage addr_for_jump;
   if (cu_->target64) {

@@ -79,7 +79,7 @@ class Mips64Context : public Context {
   NO_RETURN void DoLongJump() OVERRIDE;
 
  private:
-  // Pointers to registers in the stack, initialized to NULL except for the special cases below.
+  // Pointers to registers in the stack, initialized to null except for the special cases below.
   uintptr_t* gprs_[kNumberOfGpuRegisters];
   uint64_t* fprs_[kNumberOfFpuRegisters];
   // Hold values for sp and ra (return address) if they are not located within a stack frame.

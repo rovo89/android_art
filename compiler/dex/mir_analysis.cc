@@ -968,7 +968,7 @@ void MIRGraph::AnalyzeBlock(BasicBlock* bb, MethodStats* stats) {
    * edges until we reach an explicit branch or return.
    */
   BasicBlock* ending_bb = bb;
-  if (ending_bb->last_mir_insn != NULL) {
+  if (ending_bb->last_mir_insn != nullptr) {
     uint32_t ending_flags = kAnalysisAttributes[ending_bb->last_mir_insn->dalvikInsn.opcode];
     while ((ending_flags & kAnBranch) == 0) {
       ending_bb = GetBasicBlock(ending_bb->fall_through);
@@ -998,7 +998,7 @@ void MIRGraph::AnalyzeBlock(BasicBlock* bb, MethodStats* stats) {
   bool done = false;
   while (!done) {
     tbb->visited = true;
-    for (MIR* mir = tbb->first_mir_insn; mir != NULL; mir = mir->next) {
+    for (MIR* mir = tbb->first_mir_insn; mir != nullptr; mir = mir->next) {
       if (MIR::DecodedInstruction::IsPseudoMirOp(mir->dalvikInsn.opcode)) {
         // Skip any MIR pseudo-op.
         continue;
@@ -1195,7 +1195,7 @@ bool MIRGraph::SkipCompilation(std::string* skip_message) {
 
   ClearAllVisitedFlags();
   AllNodesIterator iter(this);
-  for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
+  for (BasicBlock* bb = iter.Next(); bb != nullptr; bb = iter.Next()) {
     AnalyzeBlock(bb, &stats);
   }
 

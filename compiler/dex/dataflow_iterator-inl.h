@@ -23,7 +23,7 @@ namespace art {
 
 // Single forward pass over the nodes.
 inline BasicBlock* DataflowIterator::ForwardSingleNext() {
-  BasicBlock* res = NULL;
+  BasicBlock* res = nullptr;
 
   // Are we not yet at the end?
   if (idx_ < end_idx_) {
@@ -38,7 +38,7 @@ inline BasicBlock* DataflowIterator::ForwardSingleNext() {
 
 // Repeat full forward passes over all nodes until no change occurs during a complete pass.
 inline BasicBlock* DataflowIterator::ForwardRepeatNext() {
-  BasicBlock* res = NULL;
+  BasicBlock* res = nullptr;
 
   // Are we at the end and have we changed something?
   if ((idx_ >= end_idx_) && changed_ == true) {
@@ -61,7 +61,7 @@ inline BasicBlock* DataflowIterator::ForwardRepeatNext() {
 
 // Single reverse pass over the nodes.
 inline BasicBlock* DataflowIterator::ReverseSingleNext() {
-  BasicBlock* res = NULL;
+  BasicBlock* res = nullptr;
 
   // Are we not yet at the end?
   if (idx_ >= 0) {
@@ -76,7 +76,7 @@ inline BasicBlock* DataflowIterator::ReverseSingleNext() {
 
 // Repeat full backwards passes over all nodes until no change occurs during a complete pass.
 inline BasicBlock* DataflowIterator::ReverseRepeatNext() {
-  BasicBlock* res = NULL;
+  BasicBlock* res = nullptr;
 
   // Are we done and we changed something during the last iteration?
   if ((idx_ < 0) && changed_) {

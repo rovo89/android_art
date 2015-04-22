@@ -47,7 +47,7 @@ ManagedRuntimeCallingConvention* ManagedRuntimeCallingConvention::Create(
       return new x86_64::X86_64ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty);
     default:
       LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;
-      return NULL;
+      return nullptr;
   }
 }
 
@@ -122,7 +122,7 @@ JniCallingConvention* JniCallingConvention::Create(bool is_static, bool is_synch
       return new x86_64::X86_64JniCallingConvention(is_static, is_synchronized, shorty);
     default:
       LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;
-      return NULL;
+      return nullptr;
   }
 }
 

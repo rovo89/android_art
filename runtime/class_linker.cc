@@ -110,7 +110,7 @@ static void ThrowEarlierClassFailure(mirror::Class* c)
     mirror::Throwable* pre_allocated = runtime->GetPreAllocatedNoClassDefFoundError();
     self->SetException(pre_allocated);
   } else {
-    if (c->GetVerifyErrorClass() != NULL) {
+    if (c->GetVerifyErrorClass() != nullptr) {
       // TODO: change the verifier to store an _instance_, with a useful detail message?
       std::string temp;
       self->ThrowNewException(c->GetVerifyErrorClass()->GetDescriptor(&temp),
@@ -2271,7 +2271,7 @@ mirror::Class* ClassLinker::InitializePrimitiveClass(mirror::Class* primitive_cl
 // the right context.  It does NOT become the class loader for the
 // array class; that always comes from the base element class.
 //
-// Returns nullptr with an exception raised on failure.
+// Returns null with an exception raised on failure.
 mirror::Class* ClassLinker::CreateArrayClass(Thread* self, const char* descriptor, size_t hash,
                                              Handle<mirror::ClassLoader> class_loader) {
   // Identify the underlying component type

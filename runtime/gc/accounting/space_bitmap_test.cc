@@ -34,7 +34,7 @@ TEST_F(SpaceBitmapTest, Init) {
   size_t heap_capacity = 16 * MB;
   std::unique_ptr<ContinuousSpaceBitmap> space_bitmap(
       ContinuousSpaceBitmap::Create("test bitmap", heap_begin, heap_capacity));
-  EXPECT_TRUE(space_bitmap.get() != NULL);
+  EXPECT_TRUE(space_bitmap.get() != nullptr);
 }
 
 class BitmapVerify {
@@ -62,7 +62,7 @@ TEST_F(SpaceBitmapTest, ScanRange) {
 
   std::unique_ptr<ContinuousSpaceBitmap> space_bitmap(
       ContinuousSpaceBitmap::Create("test bitmap", heap_begin, heap_capacity));
-  EXPECT_TRUE(space_bitmap.get() != NULL);
+  EXPECT_TRUE(space_bitmap.get() != nullptr);
 
   // Set all the odd bits in the first BitsPerIntPtrT * 3 to one.
   for (size_t j = 0; j < kBitsPerIntPtrT * 3; ++j) {

@@ -30,7 +30,7 @@ GcRoot<Class> StackTraceElement::java_lang_StackTraceElement_;
 
 void StackTraceElement::SetClass(Class* java_lang_StackTraceElement) {
   CHECK(java_lang_StackTraceElement_.IsNull());
-  CHECK(java_lang_StackTraceElement != NULL);
+  CHECK(java_lang_StackTraceElement != nullptr);
   java_lang_StackTraceElement_ = GcRoot<Class>(java_lang_StackTraceElement);
 }
 
@@ -44,7 +44,7 @@ StackTraceElement* StackTraceElement::Alloc(Thread* self, Handle<String> declari
                                             int32_t line_number) {
   StackTraceElement* trace =
       down_cast<StackTraceElement*>(GetStackTraceElement()->AllocObject(self));
-  if (LIKELY(trace != NULL)) {
+  if (LIKELY(trace != nullptr)) {
     if (Runtime::Current()->IsActiveTransaction()) {
       trace->Init<true>(declaring_class, method_name, file_name, line_number);
     } else {

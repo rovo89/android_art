@@ -68,7 +68,7 @@ class ThreadList {
 
 
   // Suspend a thread using a peer, typically used by the debugger. Returns the thread on success,
-  // else NULL. The peer is used to identify the thread to avoid races with the thread terminating.
+  // else null. The peer is used to identify the thread to avoid races with the thread terminating.
   // If the thread should be suspended then value of request_suspension should be true otherwise
   // the routine will wait for a previous suspend request. If the suspension times out then *timeout
   // is set to true.
@@ -79,7 +79,7 @@ class ThreadList {
                      Locks::thread_suspend_count_lock_);
 
   // Suspend a thread using its thread id, typically used by lock/monitor inflation. Returns the
-  // thread on success else NULL. The thread id is used to identify the thread to avoid races with
+  // thread on success else null. The thread id is used to identify the thread to avoid races with
   // the thread terminating. Note that as thread ids are recycled this may not suspend the expected
   // thread, that may be terminating. If the suspension times out then *timeout is set to true.
   Thread* SuspendThreadByThreadId(uint32_t thread_id, bool debug_suspension, bool* timed_out)
@@ -164,7 +164,7 @@ class ThreadList {
       LOCKS_EXCLUDED(Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
 
-  void AssertThreadsAreSuspended(Thread* self, Thread* ignore1, Thread* ignore2 = NULL)
+  void AssertThreadsAreSuspended(Thread* self, Thread* ignore1, Thread* ignore2 = nullptr)
       LOCKS_EXCLUDED(Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
 

@@ -40,8 +40,8 @@ class DedupeSet {
   struct HashedKey {
     StoreKey* store_ptr;
     union {
-      HashType store_hash;        // Valid if store_ptr != nullptr.
-      const HashedInKey* in_key;  // Valid if store_ptr == nullptr.
+      HashType store_hash;        // Valid if store_ptr != null.
+      const HashedInKey* in_key;  // Valid if store_ptr == null.
     };
   };
 

@@ -112,7 +112,7 @@ void MipsMir2Lir::GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLoca
   // Test loop.
   RegStorage r_key = AllocTemp();
   LIR* loop_label = NewLIR0(kPseudoTargetLabel);
-  LIR* exit_branch = OpCmpBranch(kCondEq, r_base, r_end, NULL);
+  LIR* exit_branch = OpCmpBranch(kCondEq, r_base, r_end, nullptr);
   Load32Disp(r_base, 0, r_key);
   OpRegImm(kOpAdd, r_base, 8);
   OpCmpBranch(kCondNe, rl_src.reg, r_key, loop_label);
@@ -188,7 +188,7 @@ void MipsMir2Lir::GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLoca
   tab_rec->anchor = base_label;
 
   // Bounds check - if < 0 or >= size continue following switch.
-  LIR* branch_over = OpCmpImmBranch(kCondHi, r_key, size-1, NULL);
+  LIR* branch_over = OpCmpImmBranch(kCondHi, r_key, size-1, nullptr);
 
   // Materialize the table base pointer.
   RegStorage r_base = AllocPtrSizeTemp();

@@ -109,7 +109,7 @@ static jlongArray ConvertNativeToJavaArray(JNIEnv* env,
 //
 //   NullableScopedUtfChars name(env, javaName);
 //   if (env->ExceptionCheck()) {
-//       return NULL;
+//       return null;
 //   }
 //   // ... use name.c_str()
 //
@@ -117,7 +117,7 @@ static jlongArray ConvertNativeToJavaArray(JNIEnv* env,
 class NullableScopedUtfChars {
  public:
   NullableScopedUtfChars(JNIEnv* env, jstring s) : mEnv(env), mString(s) {
-    mUtfChars = (s != NULL) ? env->GetStringUTFChars(s, NULL) : NULL;
+    mUtfChars = (s != nullptr) ? env->GetStringUTFChars(s, nullptr) : nullptr;
   }
 
   ~NullableScopedUtfChars() {
@@ -149,9 +149,10 @@ class NullableScopedUtfChars {
   void operator=(const NullableScopedUtfChars&);
 };
 
-static jobject DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceName, jstring javaOutputName, jint) {
+static jobject DexFile_openDexFileNative(
+    JNIEnv* env, jclass, jstring javaSourceName, jstring javaOutputName, jint) {
   ScopedUtfChars sourceName(env, javaSourceName);
-  if (sourceName.c_str() == NULL) {
+  if (sourceName.c_str() == nullptr) {
     return 0;
   }
   NullableScopedUtfChars outputName(env, javaOutputName);
@@ -224,9 +225,9 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
   }
 
   ScopedUtfChars class_name(env, javaName);
-  if (class_name.c_str() == NULL) {
+  if (class_name.c_str() == nullptr) {
     VLOG(class_linker) << "Failed to find class_name";
-    return NULL;
+    return nullptr;
   }
   const std::string descriptor(DotToDescriptor(class_name.c_str()));
   const size_t hash(ComputeModifiedUtf8Hash(descriptor.c_str()));
@@ -367,7 +368,7 @@ static jint DexFile_getDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename,
                          instruction_set.c_str(), defer);
 }
 
-// public API, NULL pkgname
+// public API, null pkgname
 static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename) {
   const char* instruction_set = GetInstructionSetString(kRuntimeISA);
   ScopedUtfChars filename(env, javaFilename);
@@ -378,11 +379,14 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
 
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(DexFile, closeDexFile, "(Ljava/lang/Object;)V"),
-  NATIVE_METHOD(DexFile, defineClassNative, "(Ljava/lang/String;Ljava/lang/ClassLoader;Ljava/lang/Object;)Ljava/lang/Class;"),
+  NATIVE_METHOD(DexFile, defineClassNative,
+                "(Ljava/lang/String;Ljava/lang/ClassLoader;Ljava/lang/Object;)Ljava/lang/Class;"),
   NATIVE_METHOD(DexFile, getClassNameList, "(Ljava/lang/Object;)[Ljava/lang/String;"),
   NATIVE_METHOD(DexFile, isDexOptNeeded, "(Ljava/lang/String;)Z"),
-  NATIVE_METHOD(DexFile, getDexOptNeeded, "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)I"),
-  NATIVE_METHOD(DexFile, openDexFileNative, "(Ljava/lang/String;Ljava/lang/String;I)Ljava/lang/Object;"),
+  NATIVE_METHOD(DexFile, getDexOptNeeded,
+                "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)I"),
+  NATIVE_METHOD(DexFile, openDexFileNative,
+                "(Ljava/lang/String;Ljava/lang/String;I)Ljava/lang/Object;"),
 };
 
 void register_dalvik_system_DexFile(JNIEnv* env) {

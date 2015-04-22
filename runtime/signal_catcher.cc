@@ -53,7 +53,7 @@ static void DumpCmdLine(std::ostream& os) {
 
     os << "Cmd line: " << current_cmd_line << "\n";
     const char* stashed_cmd_line = GetCmdLine();
-    if (stashed_cmd_line != NULL && current_cmd_line != stashed_cmd_line
+    if (stashed_cmd_line != nullptr && current_cmd_line != stashed_cmd_line
             && strcmp(stashed_cmd_line, "<unset>") != 0) {
       os << "Original command line: " << stashed_cmd_line << "\n";
     }
@@ -67,15 +67,15 @@ SignalCatcher::SignalCatcher(const std::string& stack_trace_file)
     : stack_trace_file_(stack_trace_file),
       lock_("SignalCatcher lock"),
       cond_("SignalCatcher::cond_", lock_),
-      thread_(NULL) {
+      thread_(nullptr) {
   SetHaltFlag(false);
 
   // Create a raw pthread; its start routine will attach to the runtime.
-  CHECK_PTHREAD_CALL(pthread_create, (&pthread_, NULL, &Run, this), "signal catcher thread");
+  CHECK_PTHREAD_CALL(pthread_create, (&pthread_, nullptr, &Run, this), "signal catcher thread");
 
   Thread* self = Thread::Current();
   MutexLock mu(self, lock_);
-  while (thread_ == NULL) {
+  while (thread_ == nullptr) {
     cond_.Wait(self);
   }
 }
@@ -85,7 +85,7 @@ SignalCatcher::~SignalCatcher() {
   // to arrive, send it one.
   SetHaltFlag(true);
   CHECK_PTHREAD_CALL(pthread_kill, (pthread_, SIGQUIT), "signal catcher shutdown");
-  CHECK_PTHREAD_CALL(pthread_join, (pthread_, NULL), "signal catcher shutdown");
+  CHECK_PTHREAD_CALL(pthread_join, (pthread_, nullptr), "signal catcher shutdown");
 }
 
 void SignalCatcher::SetHaltFlag(bool new_value) {
@@ -176,7 +176,7 @@ int SignalCatcher::WaitForSignal(Thread* self, SignalSet& signals) {
 
 void* SignalCatcher::Run(void* arg) {
   SignalCatcher* signal_catcher = reinterpret_cast<SignalCatcher*>(arg);
-  CHECK(signal_catcher != NULL);
+  CHECK(signal_catcher != nullptr);
 
   Runtime* runtime = Runtime::Current();
   CHECK(runtime->AttachCurrentThread("Signal Catcher", true, runtime->GetSystemThreadGroup(),
@@ -199,7 +199,7 @@ void* SignalCatcher::Run(void* arg) {
     int signal_number = signal_catcher->WaitForSignal(self, signals);
     if (signal_catcher->ShouldHalt()) {
       runtime->DetachCurrentThread();
-      return NULL;
+      return nullptr;
     }
 
     switch (signal_number) {

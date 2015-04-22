@@ -38,8 +38,8 @@ TEST_F(InternTableTest, Intern) {
   EXPECT_TRUE(foo_1->Equals("foo"));
   EXPECT_TRUE(foo_2->Equals("foo"));
   EXPECT_TRUE(foo_3->Equals("foo"));
-  EXPECT_TRUE(foo_1.Get() != NULL);
-  EXPECT_TRUE(foo_2.Get() != NULL);
+  EXPECT_TRUE(foo_1.Get() != nullptr);
+  EXPECT_TRUE(foo_2.Get() != nullptr);
   EXPECT_EQ(foo_1.Get(), foo_2.Get());
   EXPECT_NE(foo_1.Get(), bar.Get());
   EXPECT_NE(foo_2.Get(), bar.Get());

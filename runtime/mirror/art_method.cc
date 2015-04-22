@@ -362,7 +362,7 @@ const void* ArtMethod::GetQuickOatEntryPoint(size_t pointer_size) {
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
   const void* code = runtime->GetInstrumentation()->GetQuickCodeFor(this, pointer_size);
-  // On failure, instead of nullptr we get the quick-generic-jni-trampoline for native method
+  // On failure, instead of null we get the quick-generic-jni-trampoline for native method
   // indicating the generic JNI, or the quick-to-interpreter-bridge (but not the trampoline)
   // for non-native methods.
   if (class_linker->IsQuickToInterpreterBridge(code) ||
@@ -503,7 +503,7 @@ QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
 
   const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(this, sizeof(void*));
   ClassLinker* class_linker = runtime->GetClassLinker();
-  // On failure, instead of nullptr we get the quick-generic-jni-trampoline for native method
+  // On failure, instead of null we get the quick-generic-jni-trampoline for native method
   // indicating the generic JNI, or the quick-to-interpreter-bridge (but not the trampoline)
   // for non-native methods. And we really shouldn't see a failure for non-native methods here.
   DCHECK(!class_linker->IsQuickToInterpreterBridge(entry_point));

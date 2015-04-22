@@ -295,11 +295,12 @@ class ShadowFrame {
   }
 
   StackReference<mirror::Object>* References() {
-    return const_cast<StackReference<mirror::Object>*>(const_cast<const ShadowFrame*>(this)->References());
+    return const_cast<StackReference<mirror::Object>*>(
+        const_cast<const ShadowFrame*>(this)->References());
   }
 
   const uint32_t number_of_vregs_;
-  // Link to previous shadow frame or NULL.
+  // Link to previous shadow frame or null.
   ShadowFrame* link_;
   mirror::ArtMethod* method_;
   uint32_t dex_pc_;
@@ -571,7 +572,8 @@ class StackVisitor {
        * Special temporaries may have custom locations and the logic above deals with that.
        * However, non-special temporaries are placed relative to the outs.
        */
-      int temps_start = sizeof(StackReference<mirror::ArtMethod>) + code_item->outs_size_ * sizeof(uint32_t);
+      int temps_start = sizeof(StackReference<mirror::ArtMethod>) +
+          code_item->outs_size_ * sizeof(uint32_t);
       int relative_offset = (reg - (temp_threshold + max_num_special_temps)) * sizeof(uint32_t);
       return temps_start + relative_offset;
     }  else if (reg < num_regs) {

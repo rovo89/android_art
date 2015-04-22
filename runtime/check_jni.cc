@@ -183,7 +183,7 @@ class ScopedCheck {
   }
 
   /*
-   * Verify that the pointer value is non-NULL.
+   * Verify that the pointer value is non-null.
    */
   bool CheckNonNull(const void* ptr) {
     if (UNLIKELY(ptr == nullptr)) {
@@ -612,7 +612,7 @@ class ScopedCheck {
   };
 
   /*
-   * Verify that "jobj" is a valid non-NULL object reference, and points to
+   * Verify that "jobj" is a valid non-null object reference, and points to
    * an instance of expectedClass.
    *
    * Because we're looking at an object on the GC heap, we have to switch
@@ -941,7 +941,7 @@ class ScopedCheck {
     }
   }
   /*
-   * Verify that "array" is non-NULL and points to an Array object.
+   * Verify that "array" is non-null and points to an Array object.
    *
    * Since we're dealing with objects, switch to "running" mode.
    */
@@ -1277,7 +1277,7 @@ class GuardedCopy {
    * Verify the guard area and, if "modOkay" is false, that the data itself
    * has not been altered.
    *
-   * The caller has already checked that "dataBuf" is non-NULL.
+   * The caller has already checked that "dataBuf" is non-null.
    */
   static bool Check(const char* function_name, const void* embedded_buf, bool mod_okay) {
     const GuardedCopy* copy = FromEmbedded(embedded_buf);

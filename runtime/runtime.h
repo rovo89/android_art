@@ -248,7 +248,7 @@ class Runtime {
   }
 
   InternTable* GetInternTable() const {
-    DCHECK(intern_table_ != NULL);
+    DCHECK(intern_table_ != nullptr);
     return intern_table_;
   }
 
@@ -328,7 +328,7 @@ class Runtime {
   void VisitNonConcurrentRoots(RootVisitor* visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Sweep system weaks, the system weak is deleted if the visitor return nullptr. Otherwise, the
+  // Sweep system weaks, the system weak is deleted if the visitor return null. Otherwise, the
   // system weak is updated to be the visitor's returned value.
   void SweepSystemWeaks(IsMarkedCallback* visitor, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -574,7 +574,7 @@ class Runtime {
   void StartDaemonThreads();
   void StartSignalCatcher();
 
-  // A pointer to the active runtime or NULL.
+  // A pointer to the active runtime or null.
   static Runtime* instance_;
 
   // NOTE: these must match the gc::ProcessState values as they come directly from the framework.

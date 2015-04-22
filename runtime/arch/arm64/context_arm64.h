@@ -80,7 +80,7 @@ class Arm64Context : public Context {
   NO_RETURN void DoLongJump() OVERRIDE;
 
  private:
-  // Pointers to register locations, initialized to NULL or the specific registers below.
+  // Pointers to register locations, initialized to null or the specific registers below.
   uintptr_t* gprs_[kNumberOfXRegisters];
   uint64_t * fprs_[kNumberOfDRegisters];
   // Hold values for sp and pc if they are not located within a stack frame.

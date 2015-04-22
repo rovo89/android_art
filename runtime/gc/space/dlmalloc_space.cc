@@ -39,7 +39,7 @@ DlMallocSpace::DlMallocSpace(MemMap* mem_map, size_t initial_size, const std::st
     : MallocSpace(name, mem_map, begin, end, limit, growth_limit, true, can_move_objects,
                   starting_size, initial_size),
       mspace_(mspace) {
-  CHECK(mspace != NULL);
+  CHECK(mspace != nullptr);
 }
 
 DlMallocSpace* DlMallocSpace::CreateFromMemMap(MemMap* mem_map, const std::string& name,
@@ -176,7 +176,7 @@ size_t DlMallocSpace::Free(Thread* self, mirror::Object* ptr) {
 }
 
 size_t DlMallocSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) {
-  DCHECK(ptrs != NULL);
+  DCHECK(ptrs != nullptr);
 
   // Don't need the lock to calculate the size of the freed pointers.
   size_t bytes_freed = 0;
@@ -232,7 +232,7 @@ void DlMallocSpace::Walk(void(*callback)(void *start, void *end, size_t num_byte
                       void* arg) {
   MutexLock mu(Thread::Current(), lock_);
   mspace_inspect_all(mspace_, callback, arg);
-  callback(NULL, NULL, 0, arg);  // Indicate end of a space.
+  callback(nullptr, nullptr, 0, arg);  // Indicate end of a space.
 }
 
 size_t DlMallocSpace::GetFootprint() {

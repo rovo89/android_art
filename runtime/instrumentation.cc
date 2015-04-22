@@ -177,14 +177,14 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
 
     virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       mirror::ArtMethod* m = GetMethod();
-      if (m == NULL) {
+      if (m == nullptr) {
         if (kVerboseInstrumentation) {
           LOG(INFO) << "  Skipping upcall. Frame " << GetFrameId();
         }
         last_return_pc_ = 0;
         return true;  // Ignore upcalls.
       }
-      if (GetCurrentQuickFrame() == NULL) {
+      if (GetCurrentQuickFrame() == nullptr) {
         bool interpreter_frame = true;
         InstrumentationStackFrame instrumentation_frame(GetThisObject(), m, 0, GetFrameId(),
                                                         interpreter_frame);
@@ -309,7 +309,7 @@ static void InstrumentationRestoreStack(Thread* thread, void* arg)
   struct RestoreStackVisitor : public StackVisitor {
     RestoreStackVisitor(Thread* thread_in, uintptr_t instrumentation_exit_pc,
                         Instrumentation* instrumentation)
-        : StackVisitor(thread_in, NULL), thread_(thread_in),
+        : StackVisitor(thread_in, nullptr), thread_(thread_in),
           instrumentation_exit_pc_(instrumentation_exit_pc),
           instrumentation_(instrumentation),
           instrumentation_stack_(thread_in->GetInstrumentationStack()),
@@ -320,14 +320,14 @@ static void InstrumentationRestoreStack(Thread* thread, void* arg)
         return false;  // Stop.
       }
       mirror::ArtMethod* m = GetMethod();
-      if (GetCurrentQuickFrame() == NULL) {
+      if (GetCurrentQuickFrame() == nullptr) {
         if (kVerboseInstrumentation) {
           LOG(INFO) << "  Ignoring a shadow frame. Frame " << GetFrameId()
               << " Method=" << PrettyMethod(m);
         }
         return true;  // Ignore shadow frames.
       }
-      if (m == NULL) {
+      if (m == nullptr) {
         if (kVerboseInstrumentation) {
           LOG(INFO) << "  Skipping upcall. Frame " << GetFrameId();
         }
@@ -645,7 +645,7 @@ void Instrumentation::ResetQuickAllocEntryPoints() {
   Runtime* runtime = Runtime::Current();
   if (runtime->IsStarted()) {
     MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
-    runtime->GetThreadList()->ForEach(ResetQuickAllocEntryPointsForThread, NULL);
+    runtime->GetThreadList()->ForEach(ResetQuickAllocEntryPointsForThread, nullptr);
   }
 }
 

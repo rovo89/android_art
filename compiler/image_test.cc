@@ -68,7 +68,7 @@ TEST_F(ImageTest, WriteRead) {
   // TODO: compile_pic should be a test argument.
   {
     {
-      jobject class_loader = NULL;
+      jobject class_loader = nullptr;
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
       TimingLogger timings("ImageTest::WriteRead", false, false);
       TimingLogger::ScopedTiming t("CompileAll", &timings);
@@ -92,7 +92,7 @@ TEST_F(ImageTest, WriteRead) {
   }
   // Workound bug that mcld::Linker::emit closes oat_file by reopening as dup_oat.
   std::unique_ptr<File> dup_oat(OS::OpenFileReadWrite(oat_file.GetFilename().c_str()));
-  ASSERT_TRUE(dup_oat.get() != NULL);
+  ASSERT_TRUE(dup_oat.get() != nullptr);
 
   {
     bool success_image =
@@ -107,7 +107,7 @@ TEST_F(ImageTest, WriteRead) {
 
   {
     std::unique_ptr<File> file(OS::OpenFileForReading(image_file.GetFilename().c_str()));
-    ASSERT_TRUE(file.get() != NULL);
+    ASSERT_TRUE(file.get() != nullptr);
     ImageHeader image_header;
     ASSERT_EQ(file->ReadFully(&image_header, sizeof(image_header)), true);
     ASSERT_TRUE(image_header.IsValid());
@@ -118,12 +118,12 @@ TEST_F(ImageTest, WriteRead) {
     ASSERT_TRUE(!heap->GetContinuousSpaces().empty());
     gc::space::ContinuousSpace* space = heap->GetNonMovingSpace();
     ASSERT_FALSE(space->IsImageSpace());
-    ASSERT_TRUE(space != NULL);
+    ASSERT_TRUE(space != nullptr);
     ASSERT_TRUE(space->IsMallocSpace());
     ASSERT_GE(sizeof(image_header) + space->Size(), static_cast<size_t>(file->GetLength()));
   }
 
-  ASSERT_TRUE(compiler_driver_->GetImageClasses() != NULL);
+  ASSERT_TRUE(compiler_driver_->GetImageClasses() != nullptr);
   std::unordered_set<std::string> image_classes(*compiler_driver_->GetImageClasses());
 
   // Need to delete the compiler since it has worker threads which are attached to runtime.
@@ -137,7 +137,7 @@ TEST_F(ImageTest, WriteRead) {
   writer.reset(nullptr);
 
   runtime_.reset();
-  java_lang_dex_file_ = NULL;
+  java_lang_dex_file_ = nullptr;
 
   MemMap::Init();
   std::unique_ptr<const DexFile> dex(LoadExpectSingleDexFile(GetLibCoreDexFileName().c_str()));
@@ -145,7 +145,7 @@ TEST_F(ImageTest, WriteRead) {
   RuntimeOptions options;
   std::string image("-Ximage:");
   image.append(image_location.GetFilename());
-  options.push_back(std::make_pair(image.c_str(), reinterpret_cast<void*>(NULL)));
+  options.push_back(std::make_pair(image.c_str(), static_cast<void*>(nullptr)));
   // By default the compiler this creates will not include patch information.
   options.push_back(std::make_pair("-Xnorelocate", nullptr));
 
@@ -158,7 +158,7 @@ TEST_F(ImageTest, WriteRead) {
   // give it away now and then switch to a more managable ScopedObjectAccess.
   Thread::Current()->TransitionFromRunnableToSuspended(kNative);
   ScopedObjectAccess soa(Thread::Current());
-  ASSERT_TRUE(runtime_.get() != NULL);
+  ASSERT_TRUE(runtime_.get() != nullptr);
   class_linker_ = runtime_->GetClassLinker();
 
   gc::Heap* heap = Runtime::Current()->GetHeap();

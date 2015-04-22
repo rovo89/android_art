@@ -156,7 +156,7 @@ static void SetUtf8String(uint8_t* buf, const char* str, size_t strLen) {
 }
 
 /*
- * Add a UTF8 string as a 4-byte length followed by a non-NULL-terminated
+ * Add a UTF8 string as a 4-byte length followed by a non-nullptr-terminated
  * string.
  *
  * Because these strings are coming out of the VM, it's safe to assume that

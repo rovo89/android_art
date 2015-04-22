@@ -41,10 +41,10 @@ inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
                                        mirror::ArtMethod* method,
                                        Thread* self, bool* slow_path) {
   mirror::Class* klass = method->GetDexCacheResolvedType<false>(type_idx);
-  if (UNLIKELY(klass == NULL)) {
+  if (UNLIKELY(klass == nullptr)) {
     klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
     *slow_path = true;
-    if (klass == NULL) {
+    if (klass == nullptr) {
       DCHECK(self->IsExceptionPending());
       return nullptr;  // Failure
     } else {
@@ -526,19 +526,19 @@ inline mirror::ArtMethod* FindMethodFast(uint32_t method_idx,
                                          mirror::Object* this_object,
                                          mirror::ArtMethod* referrer,
                                          bool access_check, InvokeType type) {
-  if (UNLIKELY(this_object == NULL && type != kStatic)) {
-    return NULL;
+  if (UNLIKELY(this_object == nullptr && type != kStatic)) {
+    return nullptr;
   }
   mirror::ArtMethod* resolved_method =
       referrer->GetDeclaringClass()->GetDexCache()->GetResolvedMethod(method_idx);
-  if (UNLIKELY(resolved_method == NULL)) {
-    return NULL;
+  if (UNLIKELY(resolved_method == nullptr)) {
+    return nullptr;
   }
   if (access_check) {
     // Check for incompatible class change errors and access.
     bool icce = resolved_method->CheckIncompatibleClassChange(type);
     if (UNLIKELY(icce)) {
-      return NULL;
+      return nullptr;
     }
     mirror::Class* methods_class = resolved_method->GetDeclaringClass();
     mirror::Class* referring_class = referrer->GetDeclaringClass();
@@ -546,7 +546,7 @@ inline mirror::ArtMethod* FindMethodFast(uint32_t method_idx,
                  !referring_class->CanAccessMember(methods_class,
                                                    resolved_method->GetAccessFlags()))) {
       // Potential illegal access, may need to refine the method's class.
-      return NULL;
+      return nullptr;
     }
   }
   if (type == kInterface) {  // Most common form of slow path dispatch.
@@ -606,7 +606,7 @@ inline mirror::String* ResolveStringFromCode(mirror::ArtMethod* referrer,
 
 inline void UnlockJniSynchronizedMethod(jobject locked, Thread* self) {
   // Save any pending exception over monitor exit call.
-  mirror::Throwable* saved_exception = NULL;
+  mirror::Throwable* saved_exception = nullptr;
   if (UNLIKELY(self->IsExceptionPending())) {
     saved_exception = self->GetException();
     self->ClearException();
@@ -620,7 +620,7 @@ inline void UnlockJniSynchronizedMethod(jobject locked, Thread* self) {
         << self->GetException()->Dump();
   }
   // Restore pending exception.
-  if (saved_exception != NULL) {
+  if (saved_exception != nullptr) {
     self->SetException(saved_exception);
   }
 }

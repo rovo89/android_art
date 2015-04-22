@@ -18,7 +18,7 @@
 #include "gtest/gtest.h"
 
 #define EXPECT_NULL(expected) EXPECT_EQ(reinterpret_cast<const void*>(expected), \
-                                        reinterpret_cast<void*>(NULL));
+                                        static_cast<void*>(nullptr));
 
 namespace art {
 

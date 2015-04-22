@@ -94,7 +94,7 @@ class CompilerDriver {
   // Create a compiler targeting the requested "instruction_set".
   // "image" should be true if image specific optimizations should be
   // enabled.  "image_classes" lets the compiler know what classes it
-  // can assume will be in the image, with nullptr implying all available
+  // can assume will be in the image, with null implying all available
   // classes.
   explicit CompilerDriver(const CompilerOptions* compiler_options,
                           VerificationResults* verification_results,
@@ -228,7 +228,7 @@ class CompilerDriver {
   mirror::ClassLoader* GetClassLoader(ScopedObjectAccess& soa, const DexCompilationUnit* mUnit)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Resolve compiling method's class. Returns nullptr on failure.
+  // Resolve compiling method's class. Returns null on failure.
   mirror::Class* ResolveCompilingMethodsClass(
       const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
       Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit)
@@ -240,7 +240,7 @@ class CompilerDriver {
       const DexCompilationUnit* mUnit)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Resolve a field. Returns nullptr on failure, including incompatible class change.
+  // Resolve a field. Returns null on failure, including incompatible class change.
   // NOTE: Unlike ClassLinker's ResolveField(), this method enforces is_static.
   ArtField* ResolveField(
       const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
@@ -290,7 +290,7 @@ class CompilerDriver {
                                       ArtField* resolved_field)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Resolve a method. Returns nullptr on failure, including incompatible class change.
+  // Resolve a method. Returns null on failure, including incompatible class change.
   mirror::ArtMethod* ResolveMethod(
       ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
       Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
@@ -592,16 +592,16 @@ class CompilerDriver {
   const bool image_;
 
   // If image_ is true, specifies the classes that will be included in
-  // the image. Note if image_classes_ is nullptr, all classes are
+  // the image. Note if image_classes_ is null, all classes are
   // included in the image.
   std::unique_ptr<std::unordered_set<std::string>> image_classes_;
 
-  // Specifies the classes that will be compiled. Note that if classes_to_compile_ is nullptr,
+  // Specifies the classes that will be compiled. Note that if classes_to_compile_ is null,
   // all classes are eligible for compilation (duplication filters etc. will still apply).
   // This option may be restricted to the boot image, depending on a flag in the implementation.
   std::unique_ptr<std::unordered_set<std::string>> classes_to_compile_;
 
-  // Specifies the methods that will be compiled. Note that if methods_to_compile_ is nullptr,
+  // Specifies the methods that will be compiled. Note that if methods_to_compile_ is null,
   // all methods are eligible for compilation (compilation filters etc. will still apply).
   // This option may be restricted to the boot image, depending on a flag in the implementation.
   std::unique_ptr<std::unordered_set<std::string>> methods_to_compile_;

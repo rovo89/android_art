@@ -104,7 +104,7 @@ static void VMDebug_startMethodTracingFd(JNIEnv* env, jclass, jstring javaTraceF
   }
 
   ScopedUtfChars traceFilename(env, javaTraceFilename);
-  if (traceFilename.c_str() == NULL) {
+  if (traceFilename.c_str() == nullptr) {
     return;
   }
   Trace::Start(traceFilename.c_str(), fd, bufferSize, flags, Trace::TraceOutputMode::kFile,
@@ -116,7 +116,7 @@ static void VMDebug_startMethodTracingFilename(JNIEnv* env, jclass, jstring java
                                                jint bufferSize, jint flags,
                                                jboolean samplingEnabled, jint intervalUs) {
   ScopedUtfChars traceFilename(env, javaTraceFilename);
-  if (traceFilename.c_str() == NULL) {
+  if (traceFilename.c_str() == nullptr) {
     return;
   }
   Trace::Start(traceFilename.c_str(), -1, bufferSize, flags, Trace::TraceOutputMode::kFile,
@@ -156,7 +156,7 @@ static jlong VMDebug_lastDebuggerActivity(JNIEnv*, jclass) {
 
 static void ThrowUnsupportedOperationException(JNIEnv* env) {
   ScopedObjectAccess soa(env);
-  soa.Self()->ThrowNewException("Ljava/lang/UnsupportedOperationException;", NULL);
+  soa.Self()->ThrowNewException("Ljava/lang/UnsupportedOperationException;", nullptr);
 }
 
 static void VMDebug_startInstructionCounting(JNIEnv* env, jclass) {
@@ -200,15 +200,15 @@ static jlong VMDebug_threadCpuTimeNanos(JNIEnv*, jclass) {
  * error occurs during file handling.
  */
 static void VMDebug_dumpHprofData(JNIEnv* env, jclass, jstring javaFilename, jobject javaFd) {
-  // Only one of these may be NULL.
-  if (javaFilename == NULL && javaFd == NULL) {
+  // Only one of these may be null.
+  if (javaFilename == nullptr && javaFd == nullptr) {
     ScopedObjectAccess soa(env);
     ThrowNullPointerException("fileName == null && fd == null");
     return;
   }
 
   std::string filename;
-  if (javaFilename != NULL) {
+  if (javaFilename != nullptr) {
     ScopedUtfChars chars(env, javaFilename);
     if (env->ExceptionCheck()) {
       return;
@@ -219,7 +219,7 @@ static void VMDebug_dumpHprofData(JNIEnv* env, jclass, jstring javaFilename, job
   }
 
   int fd = -1;
-  if (javaFd != NULL) {
+  if (javaFd != nullptr) {
     fd = jniGetFDFromFileDescriptor(env, javaFd);
     if (fd < 0) {
       ScopedObjectAccess soa(env);

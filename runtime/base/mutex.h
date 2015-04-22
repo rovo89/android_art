@@ -344,8 +344,8 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
   // Assert the current thread has shared access to the ReaderWriterMutex.
   void AssertSharedHeld(const Thread* self) {
     if (kDebugLocking && (gAborting == 0)) {
-      // TODO: we can only assert this well when self != NULL.
-      CHECK(IsSharedHeld(self) || self == NULL) << *this;
+      // TODO: we can only assert this well when self != null.
+      CHECK(IsSharedHeld(self) || self == nullptr) << *this;
     }
   }
   void AssertReaderHeld(const Thread* self) { AssertSharedHeld(self); }

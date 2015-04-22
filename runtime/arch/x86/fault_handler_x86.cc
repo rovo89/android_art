@@ -240,7 +240,7 @@ void FaultManager::HandleNestedSignal(int, siginfo_t*, void* context) {
   // this code the same for both 32 and 64 bit.
 
   Thread* self = Thread::Current();
-  CHECK(self != nullptr);       // This will cause a SIGABRT if self is nullptr.
+  CHECK(self != nullptr);  // This will cause a SIGABRT if self is null.
 
   struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
   uc->CTX_JMP_BUF = reinterpret_cast<uintptr_t>(*self->GetNestedSignalState());

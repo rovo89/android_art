@@ -64,9 +64,9 @@ RosAllocSpace* RosAllocSpace::CreateFromMemMap(MemMap* mem_map, const std::strin
 
   allocator::RosAlloc* rosalloc = CreateRosAlloc(mem_map->Begin(), starting_size, initial_size,
                                                  capacity, low_memory_mode, running_on_valgrind);
-  if (rosalloc == NULL) {
+  if (rosalloc == nullptr) {
     LOG(ERROR) << "Failed to initialize rosalloc for alloc space (" << name << ")";
-    return NULL;
+    return nullptr;
   }
 
   // Protect memory beyond the starting size. MoreCore will add r/w permissions when necessory
@@ -113,10 +113,10 @@ RosAllocSpace* RosAllocSpace::Create(const std::string& name, size_t initial_siz
   size_t starting_size = Heap::kDefaultStartingSize;
   MemMap* mem_map = CreateMemMap(name, starting_size, &initial_size, &growth_limit, &capacity,
                                  requested_begin);
-  if (mem_map == NULL) {
+  if (mem_map == nullptr) {
     LOG(ERROR) << "Failed to create mem map for alloc space (" << name << ") of size "
                << PrettySize(capacity);
-    return NULL;
+    return nullptr;
   }
 
   RosAllocSpace* space = CreateFromMemMap(mem_map, name, starting_size, initial_size,
@@ -145,7 +145,7 @@ allocator::RosAlloc* RosAllocSpace::CreateRosAlloc(void* begin, size_t morecore_
           art::gc::allocator::RosAlloc::kPageReleaseModeAll :
           art::gc::allocator::RosAlloc::kPageReleaseModeSizeAndEnd,
       running_on_valgrind);
-  if (rosalloc != NULL) {
+  if (rosalloc != nullptr) {
     rosalloc->SetFootprintLimit(initial_size);
   } else {
     PLOG(ERROR) << "RosAlloc::Create failed";
@@ -170,7 +170,7 @@ mirror::Object* RosAllocSpace::AllocWithGrowth(Thread* self, size_t num_bytes,
     rosalloc_->SetFootprintLimit(footprint);
   }
   // Note RosAlloc zeroes memory internally.
-  // Return the new allocation or NULL.
+  // Return the new allocation or null.
   CHECK(!kDebugSpaces || result == nullptr || Contains(result));
   return result;
 }
@@ -192,7 +192,7 @@ MallocSpace* RosAllocSpace::CreateInstance(MemMap* mem_map, const std::string& n
 
 size_t RosAllocSpace::Free(Thread* self, mirror::Object* ptr) {
   if (kDebugSpaces) {
-    CHECK(ptr != NULL);
+    CHECK(ptr != nullptr);
     CHECK(Contains(ptr)) << "Free (" << ptr << ") not in bounds of heap " << *this;
   }
   if (kRecentFreeCount > 0) {
@@ -309,7 +309,7 @@ void RosAllocSpace::InspectAllRosAllocWithSuspendAll(
     MutexLock mu2(self, *Locks::thread_list_lock_);
     rosalloc_->InspectAll(callback, arg);
     if (do_null_callback_at_end) {
-      callback(NULL, NULL, 0, arg);  // Indicate end of a space.
+      callback(nullptr, nullptr, 0, arg);  // Indicate end of a space.
     }
   }
   tl->ResumeAll();
@@ -324,7 +324,7 @@ void RosAllocSpace::InspectAllRosAlloc(void (*callback)(void *start, void *end, 
     // from SignalCatcher::HandleSigQuit().
     rosalloc_->InspectAll(callback, arg);
     if (do_null_callback_at_end) {
-      callback(NULL, NULL, 0, arg);  // Indicate end of a space.
+      callback(nullptr, nullptr, 0, arg);  // Indicate end of a space.
     }
   } else if (Locks::mutator_lock_->IsSharedHeld(self)) {
     // The mutators are not suspended yet and we have a shared access

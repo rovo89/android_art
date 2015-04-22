@@ -36,7 +36,7 @@ constexpr uint8_t CardTable::kCardDirty;
 
 /*
  * Maintain a card table from the write barrier. All writes of
- * non-NULL values to heap addresses should go through an entry in
+ * non-null values to heap addresses should go through an entry in
  * WriteBarrier, and from there to here.
  *
  * The heap is divided into "cards" of GC_CARD_SIZE bytes, as
@@ -44,7 +44,7 @@ constexpr uint8_t CardTable::kCardDirty;
  * data per card, to be used by the GC. The value of the byte will be
  * one of GC_CARD_CLEAN or GC_CARD_DIRTY.
  *
- * After any store of a non-NULL object pointer into a heap object,
+ * After any store of a non-null object pointer into a heap object,
  * code is obliged to mark the card dirty. The setters in
  * object.h [such as SetFieldObject] do this for you. The
  * compiler also contains code to mark cards as dirty.
@@ -64,13 +64,13 @@ CardTable* CardTable::Create(const uint8_t* heap_begin, size_t heap_capacity) {
   std::unique_ptr<MemMap> mem_map(
       MemMap::MapAnonymous("card table", nullptr, capacity + 256, PROT_READ | PROT_WRITE,
                            false, false, &error_msg));
-  CHECK(mem_map.get() != NULL) << "couldn't allocate card table: " << error_msg;
+  CHECK(mem_map.get() != nullptr) << "couldn't allocate card table: " << error_msg;
   // All zeros is the correct initial value; all clean. Anonymous mmaps are initialized to zero, we
   // don't clear the card table to avoid unnecessary pages being allocated
   static_assert(kCardClean == 0, "kCardClean must be 0");
 
   uint8_t* cardtable_begin = mem_map->Begin();
-  CHECK(cardtable_begin != NULL);
+  CHECK(cardtable_begin != nullptr);
 
   // We allocated up to a bytes worth of extra space to allow biased_begin's byte value to equal
   // kCardDirty, compute a offset value to make this the case

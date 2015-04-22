@@ -89,7 +89,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_terminateSignalTest(JNIEnv*, jclass)
 }
 
 // Prevent the compiler being a smart-alec and optimizing out the assignment
-// to nullptr.
+// to null.
 char *go_away_compiler = nullptr;
 
 extern "C" JNIEXPORT jint JNICALL Java_Main_testSignal(JNIEnv*, jclass) {

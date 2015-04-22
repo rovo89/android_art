@@ -578,7 +578,7 @@ LIR* X86Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
       } else if (pc_rel_base_reg_.Valid() || cu_->target64) {
         // We will load the value from the literal area.
         LIR* data_target = ScanLiteralPoolWide(literal_list_, val_lo, val_hi);
-        if (data_target == NULL) {
+        if (data_target == nullptr) {
           data_target = AddWideData(&literal_list_, val_lo, val_hi);
         }
 
@@ -642,8 +642,8 @@ LIR* X86Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
 
 LIR* X86Mir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
                                      int displacement, RegStorage r_dest, OpSize size) {
-  LIR *load = NULL;
-  LIR *load2 = NULL;
+  LIR *load = nullptr;
+  LIR *load2 = nullptr;
   bool is_array = r_index.Valid();
   bool pair = r_dest.IsPair();
   bool is64bit = ((size == k64) || (size == kDouble));
@@ -763,7 +763,7 @@ LIR* X86Mir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int 
     }
   }
 
-  // Always return first load generated as this might cause a fault if base is nullptr.
+  // Always return first load generated as this might cause a fault if base is null.
   return load;
 }
 
@@ -791,8 +791,8 @@ LIR* X86Mir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_
 LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
                                       int displacement, RegStorage r_src, OpSize size,
                                       int opt_flags) {
-  LIR *store = NULL;
-  LIR *store2 = NULL;
+  LIR *store = nullptr;
+  LIR *store2 = nullptr;
   bool is_array = r_index.Valid();
   bool pair = r_src.IsPair();
   bool is64bit = (size == k64) || (size == kDouble);

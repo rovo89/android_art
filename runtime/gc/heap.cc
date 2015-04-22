@@ -412,7 +412,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   }
   // Allocate the card table.
   card_table_.reset(accounting::CardTable::Create(heap_begin, heap_capacity));
-  CHECK(card_table_.get() != NULL) << "Failed to create card table";
+  CHECK(card_table_.get() != nullptr) << "Failed to create card table";
 
   if (foreground_collector_type_ == kCollectorTypeCC && kUseTableLookupReadBarrier) {
     rb_table_.reset(new accounting::ReadBarrierTable());
@@ -1052,7 +1052,7 @@ space::ContinuousSpace* Heap::FindContinuousSpaceFromObject(const mirror::Object
   if (!fail_ok) {
     LOG(FATAL) << "object " << reinterpret_cast<const void*>(obj) << " not inside any spaces!";
   }
-  return NULL;
+  return nullptr;
 }
 
 space::DiscontinuousSpace* Heap::FindDiscontinuousSpaceFromObject(const mirror::Object* obj,
@@ -1065,12 +1065,12 @@ space::DiscontinuousSpace* Heap::FindDiscontinuousSpaceFromObject(const mirror::
   if (!fail_ok) {
     LOG(FATAL) << "object " << reinterpret_cast<const void*>(obj) << " not inside any spaces!";
   }
-  return NULL;
+  return nullptr;
 }
 
 space::Space* Heap::FindSpaceFromObject(const mirror::Object* obj, bool fail_ok) const {
   space::Space* result = FindContinuousSpaceFromObject(obj, true);
-  if (result != NULL) {
+  if (result != nullptr) {
     return result;
   }
   return FindDiscontinuousSpaceFromObject(obj, fail_ok);
@@ -1082,7 +1082,7 @@ space::ImageSpace* Heap::GetImageSpace() const {
       return space->AsImageSpace();
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 void Heap::ThrowOutOfMemoryError(Thread* self, size_t byte_count, AllocatorType allocator_type) {
@@ -2204,7 +2204,7 @@ void Heap::PreZygoteFork() {
   // Turn the current alloc space into a zygote space and obtain the new alloc space composed of
   // the remaining available space.
   // Remove the old space before creating the zygote space since creating the zygote space sets
-  // the old alloc space's bitmaps to nullptr.
+  // the old alloc space's bitmaps to null.
   RemoveSpace(old_alloc_space);
   if (collector::SemiSpace::kUseRememberedSet) {
     // Sanity bound check.

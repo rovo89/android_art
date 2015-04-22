@@ -714,7 +714,7 @@ HConstant* HUnaryOperation::TryStaticEvaluation() const {
     // TODO: Implement static evaluation of long unary operations.
     //
     // Do not exit with a fatal condition here.  Instead, simply
-    // return `nullptr' to notify the caller that this instruction
+    // return `null' to notify the caller that this instruction
     // cannot (yet) be statically evaluated.
     return nullptr;
   }
@@ -750,7 +750,7 @@ HConstant* HBinaryOperation::GetConstantRight() const {
 }
 
 // If `GetConstantRight()` returns one of the input, this returns the other
-// one. Otherwise it returns nullptr.
+// one. Otherwise it returns null.
 HInstruction* HBinaryOperation::GetLeastConstantLeft() const {
   HInstruction* most_constant_right = GetConstantRight();
   if (most_constant_right == nullptr) {
