@@ -92,8 +92,7 @@ class OatSymbolizer FINAL : public CodeOutput {
 
     elf_output_ = OS::CreateEmptyFile(output_name_.c_str());
 
-    builder_.reset(new ElfBuilder<Elf32_Word, Elf32_Sword, Elf32_Addr, Elf32_Dyn,
-                                  Elf32_Sym, Elf32_Ehdr, Elf32_Phdr, Elf32_Shdr>(
+    builder_.reset(new ElfBuilder<ElfTypes32>(
         this,
         elf_output_,
         oat_file_->GetOatHeader().GetInstructionSet(),
@@ -270,8 +269,7 @@ class OatSymbolizer FINAL : public CodeOutput {
         pretty_name = "[Dedup]" + pretty_name;
       }
 
-      ElfSymtabBuilder<Elf32_Word, Elf32_Sword, Elf32_Addr,
-      Elf32_Sym, Elf32_Shdr>* symtab = builder_->GetSymtabBuilder();
+      ElfSymtabBuilder<ElfTypes32>* symtab = builder_->GetSymtabBuilder();
 
       symtab->AddSymbol(pretty_name, &builder_->GetTextBuilder(),
           oat_method.GetCodeOffset() - oat_file_->GetOatHeader().GetExecutableOffset(),
@@ -300,8 +298,7 @@ class OatSymbolizer FINAL : public CodeOutput {
   }
 
   const OatFile* oat_file_;
-  std::unique_ptr<ElfBuilder<Elf32_Word, Elf32_Sword, Elf32_Addr, Elf32_Dyn,
-                              Elf32_Sym, Elf32_Ehdr, Elf32_Phdr, Elf32_Shdr> > builder_;
+  std::unique_ptr<ElfBuilder<ElfTypes32> > builder_;
   File* elf_output_;
   std::unordered_map<uint32_t, uint32_t> state_;
   const std::string output_name_;
