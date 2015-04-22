@@ -89,10 +89,6 @@ void InstructionSimplifierVisitor::Run() {
       // current index, so don't advance the iterator.
       continue;
     }
-    if (simplifications_at_current_position_ >= kMaxSamePositionSimplifications) {
-      LOG(WARNING) << "Too many simplifications (" << simplifications_at_current_position_
-          << ") occurred at the current position.";
-    }
     simplifications_at_current_position_ = 0;
     it.Advance();
   }
