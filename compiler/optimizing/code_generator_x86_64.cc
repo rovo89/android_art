@@ -3756,7 +3756,7 @@ void LocationsBuilderX86_64::VisitBoundsCheck(HBoundsCheck* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RegisterOrConstant(instruction->InputAt(0)));
-  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
   if (instruction->HasUses()) {
     locations->SetOut(Location::SameAsFirstInput());
   }
@@ -3768,16 +3768,38 @@ void InstructionCodeGeneratorX86_64::VisitBoundsCheck(HBoundsCheck* instruction)
   Location length_loc = locations->InAt(1);
   SlowPathCodeX86_64* slow_path =
     new (GetGraph()->GetArena()) BoundsCheckSlowPathX86_64(instruction, index_loc, length_loc);
-  codegen_->AddSlowPath(slow_path);
 
-  CpuRegister length = length_loc.AsRegister<CpuRegister>();
-  if (index_loc.IsConstant()) {
-    int32_t value = CodeGenerator::GetInt32ValueOf(index_loc.GetConstant());
-    __ cmpl(length, Immediate(value));
+  if (length_loc.IsConstant()) {
+    int32_t length = CodeGenerator::GetInt32ValueOf(length_loc.GetConstant());
+    if (index_loc.IsConstant()) {
+      // BCE will remove the bounds check if we are guarenteed to pass.
+      int32_t index = CodeGenerator::GetInt32ValueOf(index_loc.GetConstant());
+      if (index < 0 || index >= length) {
+        codegen_->AddSlowPath(slow_path);
+        __ jmp(slow_path->GetEntryLabel());
+      } else {
+        // Some optimization after BCE may have generated this, and we should not
+        // generate a bounds check if it is a valid range.
+      }
+      return;
+    }
+
+    // We have to reverse the jump condition because the length is the constant.
+    CpuRegister index_reg = index_loc.AsRegister<CpuRegister>();
+    __ cmpl(index_reg, Immediate(length));
+    codegen_->AddSlowPath(slow_path);
+    __ j(kAboveEqual, slow_path->GetEntryLabel());
   } else {
-    __ cmpl(length, index_loc.AsRegister<CpuRegister>());
+    CpuRegister length = length_loc.AsRegister<CpuRegister>();
+    if (index_loc.IsConstant()) {
+      int32_t value = CodeGenerator::GetInt32ValueOf(index_loc.GetConstant());
+      __ cmpl(length, Immediate(value));
+    } else {
+      __ cmpl(length, index_loc.AsRegister<CpuRegister>());
+    }
+    codegen_->AddSlowPath(slow_path);
+    __ j(kBelowEqual, slow_path->GetEntryLabel());
   }
-  __ j(kBelowEqual, slow_path->GetEntryLabel());
 }
 
 void CodeGeneratorX86_64::MarkGCCard(CpuRegister temp,
