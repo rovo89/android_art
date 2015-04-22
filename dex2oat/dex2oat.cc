@@ -445,6 +445,8 @@ class Dex2Oat FINAL {
       image_classes_filename_(nullptr),
       compiled_classes_zip_filename_(nullptr),
       compiled_classes_filename_(nullptr),
+      compiled_methods_zip_filename_(nullptr),
+      compiled_methods_filename_(nullptr),
       image_(false),
       is_host_(false),
       dump_stats_(false),
@@ -564,6 +566,10 @@ class Dex2Oat FINAL {
         compiled_classes_filename_ = option.substr(strlen("--compiled-classes=")).data();
       } else if (option.starts_with("--compiled-classes-zip=")) {
         compiled_classes_zip_filename_ = option.substr(strlen("--compiled-classes-zip=")).data();
+      } else if (option.starts_with("--compiled-methods=")) {
+        compiled_methods_filename_ = option.substr(strlen("--compiled-methods=")).data();
+      } else if (option.starts_with("--compiled-methods-zip=")) {
+        compiled_methods_zip_filename_ = option.substr(strlen("--compiled-methods-zip=")).data();
       } else if (option.starts_with("--base=")) {
         const char* image_base_str = option.substr(strlen("--base=")).data();
         char* end;
@@ -1092,8 +1098,8 @@ class Dex2Oat FINAL {
       std::string error_msg;
       if (image_classes_zip_filename_ != nullptr) {
         image_classes_.reset(ReadImageClassesFromZip(image_classes_zip_filename_,
-                                                    image_classes_filename_,
-                                                    &error_msg));
+                                                     image_classes_filename_,
+                                                     &error_msg));
       } else {
         image_classes_.reset(ReadImageClassesFromFile(image_classes_filename_));
       }
@@ -1121,8 +1127,28 @@ class Dex2Oat FINAL {
                    << compiled_classes_filename_ << "': " << error_msg;
         return false;
       }
-    } else if (image_) {
+    } else {
       compiled_classes_.reset(nullptr);  // By default compile everything.
+    }
+    // If --compiled-methods was specified, read the methods to compile from the given file(s).
+    if (compiled_methods_filename_ != nullptr) {
+      std::string error_msg;
+      if (compiled_methods_zip_filename_ != nullptr) {
+        compiled_methods_.reset(ReadCommentedInputFromZip(compiled_methods_zip_filename_,
+                                                          compiled_methods_filename_,
+                                                          nullptr,            // No post-processing.
+                                                          &error_msg));
+      } else {
+        compiled_methods_.reset(ReadCommentedInputFromFile(compiled_methods_filename_,
+                                                           nullptr));         // No post-processing.
+      }
+      if (compiled_methods_.get() == nullptr) {
+        LOG(ERROR) << "Failed to create list of compiled methods from '"
+            << compiled_methods_filename_ << "': " << error_msg;
+        return false;
+      }
+    } else {
+      compiled_methods_.reset(nullptr);  // By default compile everything.
     }
 
     if (boot_image_option_.empty()) {
@@ -1258,6 +1284,7 @@ class Dex2Oat FINAL {
                                      image_,
                                      image_classes_.release(),
                                      compiled_classes_.release(),
+                                     nullptr,
                                      thread_count_,
                                      dump_stats_,
                                      dump_passes_,
@@ -1618,59 +1645,86 @@ class Dex2Oat FINAL {
   // Reads the class names (java.lang.Object) and returns a set of descriptors (Ljava/lang/Object;)
   static std::unordered_set<std::string>* ReadImageClassesFromFile(
       const char* image_classes_filename) {
-    std::unique_ptr<std::ifstream> image_classes_file(new std::ifstream(image_classes_filename,
-                                                                        std::ifstream::in));
-    if (image_classes_file.get() == nullptr) {
-      LOG(ERROR) << "Failed to open image classes file " << image_classes_filename;
-      return nullptr;
-    }
-    std::unique_ptr<std::unordered_set<std::string>> result(ReadImageClasses(*image_classes_file));
-    image_classes_file->close();
-    return result.release();
-  }
-
-  static std::unordered_set<std::string>* ReadImageClasses(std::istream& image_classes_stream) {
-    std::unique_ptr<std::unordered_set<std::string>> image_classes(
-        new std::unordered_set<std::string>);
-    while (image_classes_stream.good()) {
-      std::string dot;
-      std::getline(image_classes_stream, dot);
-      if (StartsWith(dot, "#") || dot.empty()) {
-        continue;
-      }
-      std::string descriptor(DotToDescriptor(dot.c_str()));
-      image_classes->insert(descriptor);
-    }
-    return image_classes.release();
+    std::function<std::string(const char*)> process = DotToDescriptor;
+    return ReadCommentedInputFromFile(image_classes_filename, &process);
   }
 
   // Reads the class names (java.lang.Object) and returns a set of descriptors (Ljava/lang/Object;)
   static std::unordered_set<std::string>* ReadImageClassesFromZip(
+        const char* zip_filename,
+        const char* image_classes_filename,
+        std::string* error_msg) {
+    std::function<std::string(const char*)> process = DotToDescriptor;
+    return ReadCommentedInputFromZip(zip_filename, image_classes_filename, &process, error_msg);
+  }
+
+  // Read lines from the given file, dropping comments and empty lines. Post-process each line with
+  // the given function.
+  static std::unordered_set<std::string>* ReadCommentedInputFromFile(
+      const char* input_filename, std::function<std::string(const char*)>* process) {
+    std::unique_ptr<std::ifstream> input_file(new std::ifstream(input_filename, std::ifstream::in));
+    if (input_file.get() == nullptr) {
+      LOG(ERROR) << "Failed to open input file " << input_filename;
+      return nullptr;
+    }
+    std::unique_ptr<std::unordered_set<std::string>> result(
+        ReadCommentedInputStream(*input_file, process));
+    input_file->close();
+    return result.release();
+  }
+
+  // Read lines from the given file from the given zip file, dropping comments and empty lines.
+  // Post-process each line with the given function.
+  static std::unordered_set<std::string>* ReadCommentedInputFromZip(
       const char* zip_filename,
-      const char* image_classes_filename,
+      const char* input_filename,
+      std::function<std::string(const char*)>* process,
       std::string* error_msg) {
     std::unique_ptr<ZipArchive> zip_archive(ZipArchive::Open(zip_filename, error_msg));
     if (zip_archive.get() == nullptr) {
       return nullptr;
     }
-    std::unique_ptr<ZipEntry> zip_entry(zip_archive->Find(image_classes_filename, error_msg));
+    std::unique_ptr<ZipEntry> zip_entry(zip_archive->Find(input_filename, error_msg));
     if (zip_entry.get() == nullptr) {
-      *error_msg = StringPrintf("Failed to find '%s' within '%s': %s", image_classes_filename,
+      *error_msg = StringPrintf("Failed to find '%s' within '%s': %s", input_filename,
                                 zip_filename, error_msg->c_str());
       return nullptr;
     }
-    std::unique_ptr<MemMap> image_classes_file(zip_entry->ExtractToMemMap(zip_filename,
-                                                                          image_classes_filename,
-                                                                          error_msg));
-    if (image_classes_file.get() == nullptr) {
-      *error_msg = StringPrintf("Failed to extract '%s' from '%s': %s", image_classes_filename,
+    std::unique_ptr<MemMap> input_file(zip_entry->ExtractToMemMap(zip_filename,
+                                                                  input_filename,
+                                                                  error_msg));
+    if (input_file.get() == nullptr) {
+      *error_msg = StringPrintf("Failed to extract '%s' from '%s': %s", input_filename,
                                 zip_filename, error_msg->c_str());
       return nullptr;
     }
-    const std::string image_classes_string(reinterpret_cast<char*>(image_classes_file->Begin()),
-                                           image_classes_file->Size());
-    std::istringstream image_classes_stream(image_classes_string);
-    return ReadImageClasses(image_classes_stream);
+    const std::string input_string(reinterpret_cast<char*>(input_file->Begin()),
+                                   input_file->Size());
+    std::istringstream input_stream(input_string);
+    return ReadCommentedInputStream(input_stream, process);
+  }
+
+  // Read lines from the given stream, dropping comments and empty lines. Post-process each line
+  // with the given function.
+  static std::unordered_set<std::string>* ReadCommentedInputStream(
+      std::istream& in_stream,
+      std::function<std::string(const char*)>* process) {
+    std::unique_ptr<std::unordered_set<std::string>> image_classes(
+        new std::unordered_set<std::string>);
+    while (in_stream.good()) {
+      std::string dot;
+      std::getline(in_stream, dot);
+      if (StartsWith(dot, "#") || dot.empty()) {
+        continue;
+      }
+      if (process != nullptr) {
+        std::string descriptor((*process)(dot.c_str()));
+        image_classes->insert(descriptor);
+      } else {
+        image_classes->insert(dot);
+      }
+    }
+    return image_classes.release();
   }
 
   void LogCompletionTime() {
@@ -1724,8 +1778,11 @@ class Dex2Oat FINAL {
   const char* image_classes_filename_;
   const char* compiled_classes_zip_filename_;
   const char* compiled_classes_filename_;
+  const char* compiled_methods_zip_filename_;
+  const char* compiled_methods_filename_;
   std::unique_ptr<std::unordered_set<std::string>> image_classes_;
   std::unique_ptr<std::unordered_set<std::string>> compiled_classes_;
+  std::unique_ptr<std::unordered_set<std::string>> compiled_methods_;
   bool image_;
   std::unique_ptr<ImageWriter> image_writer_;
   bool is_host_;

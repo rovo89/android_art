@@ -18,6 +18,7 @@
 #define ART_COMPILER_COMMON_COMPILER_TEST_H_
 
 #include <list>
+#include <unordered_set>
 #include <vector>
 
 #include "common_runtime_test.h"
@@ -55,6 +56,18 @@ class CommonCompilerTest : public CommonRuntimeTest {
   virtual void SetUp();
 
   virtual void SetUpRuntimeOptions(RuntimeOptions *options);
+
+  // Get the set of image classes given to the compiler-driver in SetUp. Note: the compiler
+  // driver assumes ownership of the set, so the test should properly release the set.
+  virtual std::unordered_set<std::string>* GetImageClasses();
+
+  // Get the set of compiled classes given to the compiler-driver in SetUp. Note: the compiler
+  // driver assumes ownership of the set, so the test should properly release the set.
+  virtual std::unordered_set<std::string>* GetCompiledClasses();
+
+  // Get the set of compiled methods given to the compiler-driver in SetUp. Note: the compiler
+  // driver assumes ownership of the set, so the test should properly release the set.
+  virtual std::unordered_set<std::string>* GetCompiledMethods();
 
   virtual void TearDown();
 
