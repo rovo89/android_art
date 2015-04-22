@@ -88,23 +88,36 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
 
   // Visit this block's list of phis.
   for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+    HInstruction* current = it.Current();
     // Ensure this block's list of phis contains only phis.
-    if (!it.Current()->IsPhi()) {
+    if (!current->IsPhi()) {
       AddError(StringPrintf("Block %d has a non-phi in its phi list.",
                             current_block_->GetBlockId()));
     }
-    it.Current()->Accept(this);
+    if (current->GetNext() == nullptr && current != block->GetLastPhi()) {
+      AddError(StringPrintf("The recorded last phi of block %d does not match "
+                            "the actual last phi %d.",
+                            current_block_->GetBlockId(),
+                            current->GetId()));
+    }
+    current->Accept(this);
   }
 
   // Visit this block's list of instructions.
-  for (HInstructionIterator it(block->GetInstructions()); !it.Done();
-       it.Advance()) {
+  for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+    HInstruction* current = it.Current();
     // Ensure this block's list of instructions does not contains phis.
-    if (it.Current()->IsPhi()) {
+    if (current->IsPhi()) {
       AddError(StringPrintf("Block %d has a phi in its non-phi list.",
                             current_block_->GetBlockId()));
     }
-    it.Current()->Accept(this);
+    if (current->GetNext() == nullptr && current != block->GetLastInstruction()) {
+      AddError(StringPrintf("The recorded last instruction of block %d does not match "
+                            "the actual last instruction %d.",
+                            current_block_->GetBlockId(),
+                            current->GetId()));
+    }
+    current->Accept(this);
   }
 }
 
