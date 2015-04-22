@@ -187,7 +187,8 @@ void ArmMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest, Re
       return;
     }
     case Instruction::FLOAT_TO_LONG:
-      GenConversionCall(kQuickF2l, rl_dest, rl_src);
+      CheckEntrypointTypes<kQuickF2l, int64_t, float>();  // int64_t -> kCoreReg
+      GenConversionCall(kQuickF2l, rl_dest, rl_src, kCoreReg);
       return;
     case Instruction::LONG_TO_FLOAT: {
       rl_src = LoadValueWide(rl_src, kFPReg);
@@ -217,7 +218,8 @@ void ArmMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest, Re
       return;
     }
     case Instruction::DOUBLE_TO_LONG:
-      GenConversionCall(kQuickD2l, rl_dest, rl_src);
+      CheckEntrypointTypes<kQuickD2l, int64_t, double>();  // int64_t -> kCoreReg
+      GenConversionCall(kQuickD2l, rl_dest, rl_src, kCoreReg);
       return;
     default:
       LOG(FATAL) << "Unexpected opcode: " << opcode;
