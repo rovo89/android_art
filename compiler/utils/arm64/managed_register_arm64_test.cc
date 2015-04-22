@@ -623,7 +623,7 @@ TEST(Arm64ManagedRegister, VixlRegisters) {
   EXPECT_TRUE(vixl::x29.Is(Arm64Assembler::reg_x(X29)));
   EXPECT_TRUE(vixl::x30.Is(Arm64Assembler::reg_x(X30)));
 
-  EXPECT_TRUE(vixl::x18.Is(Arm64Assembler::reg_x(TR)));
+  EXPECT_TRUE(vixl::x19.Is(Arm64Assembler::reg_x(TR)));
   EXPECT_TRUE(vixl::ip0.Is(Arm64Assembler::reg_x(IP0)));
   EXPECT_TRUE(vixl::ip1.Is(Arm64Assembler::reg_x(IP1)));
   EXPECT_TRUE(vixl::x29.Is(Arm64Assembler::reg_x(FP)));

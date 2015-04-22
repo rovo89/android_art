@@ -173,7 +173,7 @@ class StubTest : public CommonRuntimeTest {
         // Load call params into the right registers.
         "ldp x0, x1, [sp]\n\t"
         "ldp x2, x3, [sp, #16]\n\t"
-        "ldr x18, [sp, #32]\n\t"
+        "ldr x19, [sp, #32]\n\t"
         "add sp, sp, #48\n\t"
         ".cfi_adjust_cfa_offset -48\n\t"
 
@@ -526,7 +526,7 @@ class StubTest : public CommonRuntimeTest {
         // Load call params into the right registers.
         "ldp x0, x1, [sp]\n\t"
         "ldp x2, x3, [sp, #16]\n\t"
-        "ldp x18, x17, [sp, #32]\n\t"
+        "ldp x19, x17, [sp, #32]\n\t"
         "add sp, sp, #48\n\t"
         ".cfi_adjust_cfa_offset -48\n\t"
 

@@ -44,7 +44,7 @@ static const vixl::FPRegister kParameterFPRegisters[] = {
 };
 static constexpr size_t kParameterFPRegistersLength = arraysize(kParameterFPRegisters);
 
-const vixl::Register tr = vixl::x18;                        // Thread Register
+const vixl::Register tr = vixl::x19;                        // Thread Register
 static const vixl::Register kArtMethodRegister = vixl::w0;  // Method register on invoke.
 
 const vixl::CPURegList vixl_reserved_core_registers(vixl::ip0, vixl::ip1);
@@ -52,10 +52,10 @@ const vixl::CPURegList vixl_reserved_fp_registers(vixl::d31);
 
 const vixl::CPURegList runtime_reserved_core_registers(tr, vixl::lr);
 
-// Callee-saved registers defined by AAPCS64.
+// Callee-saved registers AAPCS64 (without x19 - Thread Register)
 const vixl::CPURegList callee_saved_core_registers(vixl::CPURegister::kRegister,
                                                    vixl::kXRegSize,
-                                                   vixl::x19.code(),
+                                                   vixl::x20.code(),
                                                    vixl::x30.code());
 const vixl::CPURegList callee_saved_fp_registers(vixl::CPURegister::kFPRegister,
                                                  vixl::kDRegSize,
