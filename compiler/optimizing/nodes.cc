@@ -416,26 +416,6 @@ static void UpdateInputsUsers(HInstruction* instruction) {
   DCHECK(!instruction->HasEnvironment());
 }
 
-void HBasicBlock::InsertInstructionBefore(HInstruction* instruction, HInstruction* cursor) {
-  DCHECK(!cursor->IsPhi());
-  DCHECK(!instruction->IsPhi());
-  DCHECK_EQ(instruction->GetId(), -1);
-  DCHECK_NE(cursor->GetId(), -1);
-  DCHECK_EQ(cursor->GetBlock(), this);
-  DCHECK(!instruction->IsControlFlow());
-  instruction->next_ = cursor;
-  instruction->previous_ = cursor->previous_;
-  cursor->previous_ = instruction;
-  if (GetFirstInstruction() == cursor) {
-    instructions_.first_instruction_ = instruction;
-  } else {
-    instruction->previous_->next_ = instruction;
-  }
-  instruction->SetBlock(this);
-  instruction->SetId(GetGraph()->GetNextInstructionId());
-  UpdateInputsUsers(instruction);
-}
-
 void HBasicBlock::ReplaceAndRemoveInstructionWith(HInstruction* initial,
                                                   HInstruction* replacement) {
   DCHECK(initial->GetBlock() == this);
@@ -463,23 +443,27 @@ void HBasicBlock::AddPhi(HPhi* phi) {
   Add(&phis_, this, phi);
 }
 
+void HBasicBlock::InsertInstructionBefore(HInstruction* instruction, HInstruction* cursor) {
+  DCHECK(!cursor->IsPhi());
+  DCHECK(!instruction->IsPhi());
+  DCHECK_EQ(instruction->GetId(), -1);
+  DCHECK_NE(cursor->GetId(), -1);
+  DCHECK_EQ(cursor->GetBlock(), this);
+  DCHECK(!instruction->IsControlFlow());
+  instruction->SetBlock(this);
+  instruction->SetId(GetGraph()->GetNextInstructionId());
+  UpdateInputsUsers(instruction);
+  instructions_.InsertInstructionBefore(instruction, cursor);
+}
+
 void HBasicBlock::InsertPhiAfter(HPhi* phi, HPhi* cursor) {
   DCHECK_EQ(phi->GetId(), -1);
   DCHECK_NE(cursor->GetId(), -1);
   DCHECK_EQ(cursor->GetBlock(), this);
-  if (cursor->next_ == nullptr) {
-    cursor->next_ = phi;
-    phi->previous_ = cursor;
-    DCHECK(phi->next_ == nullptr);
-  } else {
-    phi->next_ = cursor->next_;
-    phi->previous_ = cursor;
-    cursor->next_ = phi;
-    phi->next_->previous_ = phi;
-  }
   phi->SetBlock(this);
   phi->SetId(GetGraph()->GetNextInstructionId());
   UpdateInputsUsers(phi);
+  phis_.InsertInstructionAfter(phi, cursor);
 }
 
 static void Remove(HInstructionList* instruction_list,
@@ -543,6 +527,34 @@ void HInstructionList::AddInstruction(HInstruction* instruction) {
     last_instruction_->next_ = instruction;
     instruction->previous_ = last_instruction_;
     last_instruction_ = instruction;
+  }
+}
+
+void HInstructionList::InsertInstructionBefore(HInstruction* instruction, HInstruction* cursor) {
+  DCHECK(Contains(cursor));
+  if (cursor == first_instruction_) {
+    cursor->previous_ = instruction;
+    instruction->next_ = cursor;
+    first_instruction_ = instruction;
+  } else {
+    instruction->previous_ = cursor->previous_;
+    instruction->next_ = cursor;
+    cursor->previous_ = instruction;
+    instruction->previous_->next_ = instruction;
+  }
+}
+
+void HInstructionList::InsertInstructionAfter(HInstruction* instruction, HInstruction* cursor) {
+  DCHECK(Contains(cursor));
+  if (cursor == last_instruction_) {
+    cursor->next_ = instruction;
+    instruction->previous_ = cursor;
+    last_instruction_ = instruction;
+  } else {
+    instruction->next_ = cursor->next_;
+    instruction->previous_ = cursor;
+    cursor->next_ = instruction;
+    instruction->next_->previous_ = instruction;
   }
 }
 
