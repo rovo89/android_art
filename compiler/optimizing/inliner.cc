@@ -190,7 +190,7 @@ bool HInliner::TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
   }
 
   // Run simple optimizations on the graph.
-  HDeadCodeElimination dce(callee_graph);
+  HDeadCodeElimination dce(callee_graph, stats_);
   HConstantFolding fold(callee_graph);
   InstructionSimplifier simplify(callee_graph, stats_);
 

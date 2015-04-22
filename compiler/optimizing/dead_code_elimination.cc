@@ -41,6 +41,7 @@ void HDeadCodeElimination::Run() {
           && !inst->IsMemoryBarrier()  // If we added an explicit barrier then we should keep it.
           && !inst->HasUses()) {
         block->RemoveInstruction(inst);
+        MaybeRecordStat(MethodCompilationStat::kRemovedDeadInstruction);
       }
     }
   }
