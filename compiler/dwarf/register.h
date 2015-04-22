@@ -33,6 +33,7 @@ class Reg {
   //   There are ways around this in DWARF but they are complex.
   //   It would be much simpler to always spill whole D registers.
   //   Arm64 mapping is correct since we already do this there.
+  //   libunwind might struggle with the new mapping as well.
 
   static Reg ArmCore(int num) { return Reg(num); }
   static Reg ArmFp(int num) { return Reg(64 + num); }  // S0–S31.
