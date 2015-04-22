@@ -21,6 +21,7 @@
 #include <string>
 
 #include "arch/instruction_set_features.h"
+#include "art_method.h"
 #include "backend_x86.h"
 #include "base/logging.h"
 #include "dex/compiler_ir.h"
@@ -28,7 +29,6 @@
 #include "dex/reg_storage_eq.h"
 #include "driver/compiler_driver.h"
 #include "mirror/array-inl.h"
-#include "mirror/art_method.h"
 #include "mirror/string.h"
 #include "oat.h"
 #include "x86_lir.h"
@@ -744,6 +744,7 @@ void X86Mir2Lir::SpillCoreRegs() {
   const RegStorage rs_rSP = cu_->target64 ? rs_rX86_SP_64 : rs_rX86_SP_32;
   for (int reg = 0; mask != 0u; mask >>= 1, reg++) {
     if ((mask & 0x1) != 0u) {
+      DCHECK_NE(offset, 0) << "offset 0 should be for method";
       RegStorage r_src = cu_->target64 ? RegStorage::Solo64(reg) : RegStorage::Solo32(reg);
       StoreBaseDisp(rs_rSP, offset, r_src, size, kNotVolatile);
       cfi_.RelOffset(DwarfCoreReg(cu_->target64, reg), offset);
@@ -1026,7 +1027,7 @@ LIR* X86Mir2Lir::GenCallInsn(const MirMethodLoweringInfo& method_info) {
       call_insn = CallWithLinkerFixup(method_info.GetTargetMethod(), method_info.GetSharpType());
     } else {
       call_insn = OpMem(kOpBlx, TargetReg(kArg0, kRef),
-                        mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+                        ArtMethod::EntryPointFromQuickCompiledCodeOffset(
                             cu_->target64 ? 8 : 4).Int32Value());
     }
   } else {
@@ -1103,7 +1104,7 @@ void X86Mir2Lir::InstallLiteralPools() {
 
   // PC-relative references to dex cache arrays.
   for (LIR* p : dex_cache_access_insns_) {
-    DCHECK(p->opcode == kX86Mov32RM);
+    DCHECK(p->opcode == kX86Mov32RM || p->opcode == kX86Mov64RM);
     const DexFile* dex_file = UnwrapPointer<DexFile>(p->operands[3]);
     uint32_t offset = p->operands[4];
     // The offset to patch is the last 4 bytes of the instruction.

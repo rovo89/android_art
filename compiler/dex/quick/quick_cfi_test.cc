@@ -99,7 +99,8 @@ class QuickCFITest : public CFITest {
       }
     }
     m2l->AdjustSpillMask();
-    m2l->GenEntrySequence(nullptr, m2l->LocCReturnRef());
+    m2l->GenEntrySequence(nullptr, m2l->GetCompilationUnit()->target64 ?
+        m2l->LocCReturnWide() : m2l->LocCReturnRef());
     m2l->GenExitSequence();
     m2l->HandleSlowPaths();
     m2l->AssembleLIR();

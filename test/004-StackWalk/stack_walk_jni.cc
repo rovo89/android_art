@@ -36,7 +36,7 @@ class TestReferenceMapVisitor : public CheckReferenceMapVisitor {
     if (CheckReferenceMapVisitor::VisitFrame()) {
       return true;
     }
-    mirror::ArtMethod* m = GetMethod();
+    ArtMethod* m = GetMethod();
     StringPiece m_name(m->GetName());
 
     // Given the method name and the number of times the method has been called,

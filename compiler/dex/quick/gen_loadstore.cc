@@ -42,7 +42,7 @@ LIR* Mir2Lir::LoadConstant(RegStorage r_dest, int value) {
  * register liveness.  That is the responsibility of the caller.
  */
 void Mir2Lir::LoadValueDirect(RegLocation rl_src, RegStorage r_dest) {
-  rl_src = UpdateLoc(rl_src);
+  rl_src = rl_src.wide ? UpdateLocWide(rl_src) : UpdateLoc(rl_src);
   if (rl_src.location == kLocPhysReg) {
     OpRegCopy(r_dest, rl_src.reg);
   } else if (IsInexpensiveConstant(rl_src)) {
@@ -53,11 +53,15 @@ void Mir2Lir::LoadValueDirect(RegLocation rl_src, RegStorage r_dest) {
     DCHECK((rl_src.location == kLocDalvikFrame) ||
            (rl_src.location == kLocCompilerTemp));
     ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+    OpSize op_size;
     if (rl_src.ref) {
-      LoadRefDisp(TargetPtrReg(kSp), SRegOffset(rl_src.s_reg_low), r_dest, kNotVolatile);
+      op_size = kReference;
+    } else if (rl_src.wide) {
+      op_size = k64;
     } else {
-      Load32Disp(TargetPtrReg(kSp), SRegOffset(rl_src.s_reg_low), r_dest);
+      op_size = k32;
     }
+    LoadBaseDisp(TargetPtrReg(kSp), SRegOffset(rl_src.s_reg_low), r_dest, op_size, kNotVolatile);
   }
 }
 
@@ -337,7 +341,11 @@ void Mir2Lir::StoreFinalValueWide(RegLocation rl_dest, RegLocation rl_src) {
 
 /* Utilities to load the current Method* */
 void Mir2Lir::LoadCurrMethodDirect(RegStorage r_tgt) {
-  LoadValueDirectFixed(mir_graph_->GetMethodLoc(), r_tgt);
+  if (GetCompilationUnit()->target64) {
+    LoadValueDirectWideFixed(mir_graph_->GetMethodLoc(), r_tgt);
+  } else {
+    LoadValueDirectFixed(mir_graph_->GetMethodLoc(), r_tgt);
+  }
 }
 
 RegStorage Mir2Lir::LoadCurrMethodWithHint(RegStorage r_hint) {
@@ -355,7 +363,9 @@ RegStorage Mir2Lir::LoadCurrMethodWithHint(RegStorage r_hint) {
 }
 
 RegLocation Mir2Lir::LoadCurrMethod() {
-  return LoadValue(mir_graph_->GetMethodLoc(), kRefReg);
+  return GetCompilationUnit()->target64 ?
+      LoadValueWide(mir_graph_->GetMethodLoc(), kCoreReg) :
+      LoadValue(mir_graph_->GetMethodLoc(), kRefReg);
 }
 
 RegLocation Mir2Lir::ForceTemp(RegLocation loc) {

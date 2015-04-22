@@ -17,12 +17,12 @@
 #include "intrinsics_arm64.h"
 
 #include "arch/arm64/instruction_set_features_arm64.h"
+#include "art_method.h"
 #include "code_generator_arm64.h"
 #include "common_arm64.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "intrinsics.h"
 #include "mirror/array-inl.h"
-#include "mirror/art_method.h"
 #include "mirror/string.h"
 #include "thread.h"
 #include "utils/arm64/assembler_arm64.h"

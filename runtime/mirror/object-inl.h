@@ -24,6 +24,7 @@
 #include "atomic.h"
 #include "array-inl.h"
 #include "class.h"
+#include "class_linker.h"
 #include "lock_word-inl.h"
 #include "monitor.h"
 #include "object_array-inl.h"
@@ -36,9 +37,9 @@
 namespace art {
 namespace mirror {
 
-inline uint32_t Object::ClassSize() {
+inline uint32_t Object::ClassSize(size_t pointer_size) {
   uint32_t vtable_entries = kVTableLength;
-  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0, 0, 0);
+  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0, 0, 0, pointer_size);
 }
 
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
@@ -257,18 +258,6 @@ inline bool Object::IsArrayInstance() {
       template IsArrayClass<kVerifyFlags, kReadBarrierOption>();
 }
 
-template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
-inline bool Object::IsArtMethod() {
-  return GetClass<kVerifyFlags, kReadBarrierOption>()->
-      template IsArtMethodClass<kReadBarrierOption>();
-}
-
-template<VerifyObjectFlags kVerifyFlags>
-inline ArtMethod* Object::AsArtMethod() {
-  DCHECK(IsArtMethod<kVerifyFlags>());
-  return down_cast<ArtMethod*>(this);
-}
-
 template<VerifyObjectFlags kVerifyFlags>
 inline bool Object::IsReferenceInstance() {
   return GetClass<kVerifyFlags>()->IsTypeOfReferenceClass();
@@ -296,7 +285,7 @@ inline BooleanArray* Object::AsBooleanArray() {
 
 template<VerifyObjectFlags kVerifyFlags>
 inline ByteArray* Object::AsByteArray() {
-  static const VerifyObjectFlags kNewFlags = static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis);
+  constexpr auto kNewFlags = static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis);
   DCHECK(GetClass<kVerifyFlags>()->IsArrayClass());
   DCHECK(GetClass<kNewFlags>()->template GetComponentType<kNewFlags>()->IsPrimitiveByte());
   return down_cast<ByteArray*>(this);
@@ -304,7 +293,7 @@ inline ByteArray* Object::AsByteArray() {
 
 template<VerifyObjectFlags kVerifyFlags>
 inline ByteArray* Object::AsByteSizedArray() {
-  constexpr VerifyObjectFlags kNewFlags = static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis);
+  constexpr auto kNewFlags = static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis);
   DCHECK(GetClass<kVerifyFlags>()->IsArrayClass());
   DCHECK(GetClass<kNewFlags>()->template GetComponentType<kNewFlags>()->IsPrimitiveByte() ||
          GetClass<kNewFlags>()->template GetComponentType<kNewFlags>()->IsPrimitiveBoolean());
@@ -337,25 +326,41 @@ inline ShortArray* Object::AsShortSizedArray() {
 }
 
 template<VerifyObjectFlags kVerifyFlags>
-inline IntArray* Object::AsIntArray() {
+inline bool Object::IsIntArray() {
   constexpr auto kNewFlags = static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis);
-  CHECK(GetClass<kVerifyFlags>()->IsArrayClass());
-  CHECK(GetClass<kNewFlags>()->template GetComponentType<kNewFlags>()->IsPrimitiveInt() ||
-         GetClass<kNewFlags>()->template GetComponentType<kNewFlags>()->IsPrimitiveFloat());
+  auto* component_type = GetClass<kVerifyFlags>()->GetComponentType();
+  return component_type != nullptr && component_type->template IsPrimitiveInt<kNewFlags>();
+}
+
+template<VerifyObjectFlags kVerifyFlags>
+inline IntArray* Object::AsIntArray() {
+  DCHECK(IsIntArray<kVerifyFlags>());
   return down_cast<IntArray*>(this);
 }
 
 template<VerifyObjectFlags kVerifyFlags>
-inline LongArray* Object::AsLongArray() {
+inline bool Object::IsLongArray() {
   constexpr auto kNewFlags = static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis);
-  CHECK(GetClass<kVerifyFlags>()->IsArrayClass());
-  CHECK(GetClass<kNewFlags>()->template GetComponentType<kNewFlags>()->IsPrimitiveLong() ||
-         GetClass<kNewFlags>()->template GetComponentType<kNewFlags>()->IsPrimitiveDouble());
+  auto* component_type = GetClass<kVerifyFlags>()->GetComponentType();
+  return component_type != nullptr && component_type->template IsPrimitiveLong<kNewFlags>();
+}
+
+template<VerifyObjectFlags kVerifyFlags>
+inline LongArray* Object::AsLongArray() {
+  DCHECK(IsLongArray<kVerifyFlags>());
   return down_cast<LongArray*>(this);
 }
 
 template<VerifyObjectFlags kVerifyFlags>
+inline bool Object::IsFloatArray() {
+  constexpr auto kNewFlags = static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis);
+  auto* component_type = GetClass<kVerifyFlags>()->GetComponentType();
+  return component_type != nullptr && component_type->template IsPrimitiveFloat<kNewFlags>();
+}
+
+template<VerifyObjectFlags kVerifyFlags>
 inline FloatArray* Object::AsFloatArray() {
+  DCHECK(IsFloatArray<kVerifyFlags>());
   constexpr auto kNewFlags = static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis);
   DCHECK(GetClass<kVerifyFlags>()->IsArrayClass());
   DCHECK(GetClass<kNewFlags>()->template GetComponentType<kNewFlags>()->IsPrimitiveFloat());
@@ -363,7 +368,15 @@ inline FloatArray* Object::AsFloatArray() {
 }
 
 template<VerifyObjectFlags kVerifyFlags>
+inline bool Object::IsDoubleArray() {
+  constexpr auto kNewFlags = static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis);
+  auto* component_type = GetClass<kVerifyFlags>()->GetComponentType();
+  return component_type != nullptr && component_type->template IsPrimitiveDouble<kNewFlags>();
+}
+
+template<VerifyObjectFlags kVerifyFlags>
 inline DoubleArray* Object::AsDoubleArray() {
+  DCHECK(IsDoubleArray<kVerifyFlags>());
   constexpr auto kNewFlags = static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis);
   DCHECK(GetClass<kVerifyFlags>()->IsArrayClass());
   DCHECK(GetClass<kNewFlags>()->template GetComponentType<kNewFlags>()->IsPrimitiveDouble());
@@ -954,8 +967,11 @@ inline void Object::VisitFieldsReferences(uint32_t ref_offsets, const Visitor& v
       if (num_reference_fields == 0u) {
         continue;
       }
+      // Presumably GC can happen when we are cross compiling, it should not cause performance
+      // problems to do pointer size logic.
       MemberOffset field_offset = kIsStatic
-          ? klass->GetFirstReferenceStaticFieldOffset()
+          ? klass->GetFirstReferenceStaticFieldOffset(
+              Runtime::Current()->GetClassLinker()->GetImagePointerSize())
           : klass->GetFirstReferenceInstanceFieldOffset();
       for (size_t i = 0; i < num_reference_fields; ++i) {
         // TODO: Do a simpler check?

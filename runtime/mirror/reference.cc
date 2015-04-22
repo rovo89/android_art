@@ -16,7 +16,7 @@
 
 #include "reference.h"
 
-#include "mirror/art_method.h"
+#include "art_method.h"
 #include "gc_root-inl.h"
 
 namespace art {

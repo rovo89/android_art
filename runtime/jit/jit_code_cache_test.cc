@@ -16,9 +16,9 @@
 
 #include "common_runtime_test.h"
 
+#include "art_method-inl.h"
 #include "class_linker.h"
 #include "jit_code_cache.h"
-#include "mirror/art_method-inl.h"
 #include "scoped_thread_state_change.h"
 #include "thread-inl.h"
 
@@ -50,15 +50,15 @@ TEST_F(JitCodeCacheTest, TestCoverage) {
   ASSERT_TRUE(code_cache->ContainsCodePtr(reserved_code));
   ASSERT_EQ(code_cache->NumMethods(), 1u);
   ClassLinker* const cl = Runtime::Current()->GetClassLinker();
-  auto h_method = hs.NewHandle(cl->AllocArtMethod(soa.Self()));
-  ASSERT_FALSE(code_cache->ContainsMethod(h_method.Get()));
-  h_method->SetEntryPointFromQuickCompiledCode(reserved_code);
-  ASSERT_TRUE(code_cache->ContainsMethod(h_method.Get()));
-  ASSERT_EQ(code_cache->GetCodeFor(h_method.Get()), reserved_code);
+  auto* method = cl->AllocArtMethodArray(soa.Self(), 1);
+  ASSERT_FALSE(code_cache->ContainsMethod(method));
+  method->SetEntryPointFromQuickCompiledCode(reserved_code);
+  ASSERT_TRUE(code_cache->ContainsMethod(method));
+  ASSERT_EQ(code_cache->GetCodeFor(method), reserved_code);
   // Save the code and then change it.
-  code_cache->SaveCompiledCode(h_method.Get(), reserved_code);
-  h_method->SetEntryPointFromQuickCompiledCode(nullptr);
-  ASSERT_EQ(code_cache->GetCodeFor(h_method.Get()), reserved_code);
+  code_cache->SaveCompiledCode(method, reserved_code);
+  method->SetEntryPointFromQuickCompiledCode(nullptr);
+  ASSERT_EQ(code_cache->GetCodeFor(method), reserved_code);
   const uint8_t data_arr[] = {1, 2, 3, 4, 5};
   uint8_t* data_ptr = code_cache->AddDataArray(soa.Self(), data_arr, data_arr + sizeof(data_arr));
   ASSERT_TRUE(data_ptr != nullptr);
@@ -76,7 +76,8 @@ TEST_F(JitCodeCacheTest, TestOverflow) {
   size_t data_bytes = 0;
   constexpr size_t kCodeArrSize = 4 * KB;
   constexpr size_t kDataArrSize = 4 * KB;
-  uint8_t data_arr[kDataArrSize] = {53};
+  uint8_t data_arr[kDataArrSize];
+  std::fill_n(data_arr, arraysize(data_arr), 53);
   // Add code and data until we are full.
   uint8_t* code_ptr = nullptr;
   uint8_t* data_ptr = nullptr;

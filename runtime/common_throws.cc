@@ -19,12 +19,12 @@
 #include <sstream>
 
 #include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "base/logging.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
 #include "invoke_type.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
@@ -78,7 +78,7 @@ static void ThrowWrappedException(const char* exception_descriptor,
 
 // AbstractMethodError
 
-void ThrowAbstractMethodError(mirror::ArtMethod* method) {
+void ThrowAbstractMethodError(ArtMethod* method) {
   ThrowException("Ljava/lang/AbstractMethodError;", nullptr,
                  StringPrintf("abstract method \"%s\"",
                               PrettyMethod(method).c_str()).c_str());
@@ -145,7 +145,7 @@ void ThrowIllegalAccessErrorClass(mirror::Class* referrer, mirror::Class* access
 }
 
 void ThrowIllegalAccessErrorClassForMethodDispatch(mirror::Class* referrer, mirror::Class* accessed,
-                                                   mirror::ArtMethod* called,
+                                                   ArtMethod* called,
                                                    InvokeType type) {
   std::ostringstream msg;
   msg << "Illegal class access ('" << PrettyDescriptor(referrer) << "' attempting to access '"
@@ -154,7 +154,7 @@ void ThrowIllegalAccessErrorClassForMethodDispatch(mirror::Class* referrer, mirr
   ThrowException("Ljava/lang/IllegalAccessError;", referrer, msg.str().c_str());
 }
 
-void ThrowIllegalAccessErrorMethod(mirror::Class* referrer, mirror::ArtMethod* accessed) {
+void ThrowIllegalAccessErrorMethod(mirror::Class* referrer, ArtMethod* accessed) {
   std::ostringstream msg;
   msg << "Method '" << PrettyMethod(accessed) << "' is inaccessible to class '"
       << PrettyDescriptor(referrer) << "'";
@@ -168,13 +168,12 @@ void ThrowIllegalAccessErrorField(mirror::Class* referrer, ArtField* accessed) {
   ThrowException("Ljava/lang/IllegalAccessError;", referrer, msg.str().c_str());
 }
 
-void ThrowIllegalAccessErrorFinalField(mirror::ArtMethod* referrer,
-                                       ArtField* accessed) {
+void ThrowIllegalAccessErrorFinalField(ArtMethod* referrer, ArtField* accessed) {
   std::ostringstream msg;
   msg << "Final field '" << PrettyField(accessed, false) << "' cannot be written to by method '"
       << PrettyMethod(referrer) << "'";
   ThrowException("Ljava/lang/IllegalAccessError;",
-                 referrer != nullptr ? referrer->GetClass() : nullptr,
+                 referrer != nullptr ? referrer->GetDeclaringClass() : nullptr,
                  msg.str().c_str());
 }
 
@@ -201,19 +200,18 @@ void ThrowIllegalArgumentException(const char* msg) {
 // IncompatibleClassChangeError
 
 void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType found_type,
-                                       mirror::ArtMethod* method,
-                                       mirror::ArtMethod* referrer) {
+                                       ArtMethod* method, ArtMethod* referrer) {
   std::ostringstream msg;
   msg << "The method '" << PrettyMethod(method) << "' was expected to be of type "
       << expected_type << " but instead was found to be of type " << found_type;
   ThrowException("Ljava/lang/IncompatibleClassChangeError;",
-                 referrer != nullptr ? referrer->GetClass() : nullptr,
+                 referrer != nullptr ? referrer->GetDeclaringClass() : nullptr,
                  msg.str().c_str());
 }
 
-void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(mirror::ArtMethod* interface_method,
+void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(ArtMethod* interface_method,
                                                                 mirror::Object* this_object,
-                                                                mirror::ArtMethod* referrer) {
+                                                                ArtMethod* referrer) {
   // Referrer is calling interface_method on this_object, however, the interface_method isn't
   // implemented by this_object.
   CHECK(this_object != nullptr);
@@ -223,17 +221,17 @@ void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(mirror::ArtMetho
       << PrettyDescriptor(interface_method->GetDeclaringClass())
       << "' in call to '" << PrettyMethod(interface_method) << "'";
   ThrowException("Ljava/lang/IncompatibleClassChangeError;",
-                 referrer != nullptr ? referrer->GetClass() : nullptr,
+                 referrer != nullptr ? referrer->GetDeclaringClass() : nullptr,
                  msg.str().c_str());
 }
 
 void ThrowIncompatibleClassChangeErrorField(ArtField* resolved_field, bool is_static,
-                                            mirror::ArtMethod* referrer) {
+                                            ArtMethod* referrer) {
   std::ostringstream msg;
   msg << "Expected '" << PrettyField(resolved_field) << "' to be a "
       << (is_static ? "static" : "instance") << " field" << " rather than a "
       << (is_static ? "instance" : "static") << " field";
-  ThrowException("Ljava/lang/IncompatibleClassChangeError;", referrer->GetClass(),
+  ThrowException("Ljava/lang/IncompatibleClassChangeError;", referrer->GetDeclaringClass(),
                  msg.str().c_str());
 }
 
@@ -317,7 +315,7 @@ void ThrowNoSuchMethodError(InvokeType type, mirror::Class* c, const StringPiece
 }
 
 void ThrowNoSuchMethodError(uint32_t method_idx) {
-  mirror::ArtMethod* method = Thread::Current()->GetCurrentMethod(nullptr);
+  ArtMethod* method = Thread::Current()->GetCurrentMethod(nullptr);
   mirror::DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
   const DexFile& dex_file = *dex_cache->GetDexFile();
   std::ostringstream msg;
@@ -353,7 +351,7 @@ void ThrowNullPointerExceptionForMethodAccess(uint32_t method_idx,
   ThrowNullPointerExceptionForMethodAccessImpl(method_idx, dex_file, type);
 }
 
-void ThrowNullPointerExceptionForMethodAccess(mirror::ArtMethod* method,
+void ThrowNullPointerExceptionForMethodAccess(ArtMethod* method,
                                               InvokeType type) {
   mirror::DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
   const DexFile& dex_file = *dex_cache->GetDexFile();
@@ -363,7 +361,7 @@ void ThrowNullPointerExceptionForMethodAccess(mirror::ArtMethod* method,
 
 void ThrowNullPointerExceptionFromDexPC() {
   uint32_t throw_dex_pc;
-  mirror::ArtMethod* method = Thread::Current()->GetCurrentMethod(&throw_dex_pc);
+  ArtMethod* method = Thread::Current()->GetCurrentMethod(&throw_dex_pc);
   const DexFile::CodeItem* code = method->GetCodeItem();
   CHECK_LT(throw_dex_pc, code->insns_size_in_code_units_);
   const Instruction* instr = Instruction::At(&code->insns_[throw_dex_pc]);
@@ -390,7 +388,7 @@ void ThrowNullPointerExceptionFromDexPC() {
     case Instruction::INVOKE_VIRTUAL_RANGE_QUICK: {
       // Since we replaced the method index, we ask the verifier to tell us which
       // method is invoked at this location.
-      mirror::ArtMethod* invoked_method =
+      ArtMethod* invoked_method =
           verifier::MethodVerifier::FindInvokedMethodAtDexPc(method, throw_dex_pc);
       if (invoked_method != nullptr) {
         // NPE with precise message.

@@ -17,8 +17,8 @@
 #include "reference_processor.h"
 
 #include "base/time_utils.h"
+#include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
-#include "mirror/reference.h"
 #include "mirror/reference-inl.h"
 #include "reference_processor-inl.h"
 #include "reflection.h"

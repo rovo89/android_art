@@ -28,14 +28,15 @@
 
 namespace art {
 
+class ArtMethod;
 class ImageHeader;
 class OatHeader;
 
 namespace mirror {
 class Object;
+class PointerArray;
 class Reference;
 class Class;
-class ArtMethod;
 }  // namespace mirror
 
 class PatchOat {
@@ -99,7 +100,9 @@ class PatchOat {
 
   void VisitObject(mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupMethod(mirror::ArtMethod* object, mirror::ArtMethod* copy)
+  void FixupMethod(ArtMethod* object, ArtMethod* copy)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void FixupNativePointerArray(mirror::PointerArray* object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool InHeap(mirror::Object*);
 
@@ -112,6 +115,7 @@ class PatchOat {
 
   bool PatchImage() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void PatchArtFields(const ImageHeader* image_header) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void PatchArtMethods(const ImageHeader* image_header) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void PatchDexFileArrays(mirror::ObjectArray<mirror::Object>* img_roots)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -133,8 +137,28 @@ class PatchOat {
 
   template <typename T>
   T* RelocatedAddressOfPointer(T* obj) {
-    return obj == nullptr ? nullptr :
-        reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(obj) + delta_);
+    if (obj == nullptr) {
+      return obj;
+    }
+    auto ret = reinterpret_cast<uintptr_t>(obj) + delta_;
+    // Trim off high bits in case negative relocation with 64 bit patchoat.
+    if (InstructionSetPointerSize(isa_) == sizeof(uint32_t)) {
+      ret = static_cast<uintptr_t>(static_cast<uint32_t>(ret));
+    }
+    return reinterpret_cast<T*>(ret);
+  }
+
+  template <typename T>
+  T RelocatedAddressOfIntPointer(T obj) {
+    if (obj == 0) {
+      return obj;
+    }
+    T ret = obj + delta_;
+    // Trim off high bits in case negative relocation with 64 bit patchoat.
+    if (InstructionSetPointerSize(isa_) == 4) {
+      ret = static_cast<T>(static_cast<uint32_t>(ret));
+    }
+    return ret;
   }
 
   // Look up the oat header from any elf file.

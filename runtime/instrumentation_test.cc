@@ -42,7 +42,7 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
 
   void MethodEntered(Thread* thread ATTRIBUTE_UNUSED,
                      mirror::Object* this_object ATTRIBUTE_UNUSED,
-                     mirror::ArtMethod* method ATTRIBUTE_UNUSED,
+                     ArtMethod* method ATTRIBUTE_UNUSED,
                      uint32_t dex_pc ATTRIBUTE_UNUSED)
       OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     received_method_enter_event = true;
@@ -50,7 +50,7 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
 
   void MethodExited(Thread* thread ATTRIBUTE_UNUSED,
                     mirror::Object* this_object ATTRIBUTE_UNUSED,
-                    mirror::ArtMethod* method ATTRIBUTE_UNUSED,
+                    ArtMethod* method ATTRIBUTE_UNUSED,
                     uint32_t dex_pc ATTRIBUTE_UNUSED,
                     const JValue& return_value ATTRIBUTE_UNUSED)
       OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -59,7 +59,7 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
 
   void MethodUnwind(Thread* thread ATTRIBUTE_UNUSED,
                     mirror::Object* this_object ATTRIBUTE_UNUSED,
-                    mirror::ArtMethod* method ATTRIBUTE_UNUSED,
+                    ArtMethod* method ATTRIBUTE_UNUSED,
                     uint32_t dex_pc ATTRIBUTE_UNUSED)
       OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     received_method_unwind_event = true;
@@ -67,7 +67,7 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
 
   void DexPcMoved(Thread* thread ATTRIBUTE_UNUSED,
                   mirror::Object* this_object ATTRIBUTE_UNUSED,
-                  mirror::ArtMethod* method ATTRIBUTE_UNUSED,
+                  ArtMethod* method ATTRIBUTE_UNUSED,
                   uint32_t new_dex_pc ATTRIBUTE_UNUSED)
       OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     received_dex_pc_moved_event = true;
@@ -75,7 +75,7 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
 
   void FieldRead(Thread* thread ATTRIBUTE_UNUSED,
                  mirror::Object* this_object ATTRIBUTE_UNUSED,
-                 mirror::ArtMethod* method ATTRIBUTE_UNUSED,
+                 ArtMethod* method ATTRIBUTE_UNUSED,
                  uint32_t dex_pc ATTRIBUTE_UNUSED,
                  ArtField* field ATTRIBUTE_UNUSED)
       OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -84,7 +84,7 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
 
   void FieldWritten(Thread* thread ATTRIBUTE_UNUSED,
                     mirror::Object* this_object ATTRIBUTE_UNUSED,
-                    mirror::ArtMethod* method ATTRIBUTE_UNUSED,
+                    ArtMethod* method ATTRIBUTE_UNUSED,
                     uint32_t dex_pc ATTRIBUTE_UNUSED,
                     ArtField* field ATTRIBUTE_UNUSED,
                     const JValue& field_value ATTRIBUTE_UNUSED)
@@ -99,7 +99,7 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
   }
 
   void BackwardBranch(Thread* thread ATTRIBUTE_UNUSED,
-                      mirror::ArtMethod* method ATTRIBUTE_UNUSED,
+                      ArtMethod* method ATTRIBUTE_UNUSED,
                       int32_t dex_pc_offset ATTRIBUTE_UNUSED)
       OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     received_backward_branch_event = true;
@@ -170,7 +170,7 @@ class InstrumentationTest : public CommonRuntimeTest {
       soa.Self()->TransitionFromSuspendedToRunnable();
     }
 
-    mirror::ArtMethod* const event_method = nullptr;
+    ArtMethod* const event_method = nullptr;
     mirror::Object* const event_obj = nullptr;
     const uint32_t event_dex_pc = 0;
 
@@ -197,8 +197,7 @@ class InstrumentationTest : public CommonRuntimeTest {
     EXPECT_FALSE(DidListenerReceiveEvent(listener, instrumentation_event));
   }
 
-  void DeoptimizeMethod(Thread* self, Handle<mirror::ArtMethod> method,
-                        bool enable_deoptimization)
+  void DeoptimizeMethod(Thread* self, ArtMethod* method, bool enable_deoptimization)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
@@ -207,19 +206,19 @@ class InstrumentationTest : public CommonRuntimeTest {
     if (enable_deoptimization) {
       instrumentation->EnableDeoptimization();
     }
-    instrumentation->Deoptimize(method.Get());
+    instrumentation->Deoptimize(method);
     runtime->GetThreadList()->ResumeAll();
     self->TransitionFromSuspendedToRunnable();
   }
 
-  void UndeoptimizeMethod(Thread* self, Handle<mirror::ArtMethod> method,
+  void UndeoptimizeMethod(Thread* self, ArtMethod* method,
                           const char* key, bool disable_deoptimization)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
     self->TransitionFromRunnableToSuspended(kSuspended);
     runtime->GetThreadList()->SuspendAll("Single method undeoptimization");
-    instrumentation->Undeoptimize(method.Get());
+    instrumentation->Undeoptimize(method);
     if (disable_deoptimization) {
       instrumentation->DisableDeoptimization(key);
     }
@@ -304,7 +303,7 @@ class InstrumentationTest : public CommonRuntimeTest {
   }
 
   static void ReportEvent(const instrumentation::Instrumentation* instr, uint32_t event_type,
-                          Thread* self, mirror::ArtMethod* method, mirror::Object* obj,
+                          Thread* self, ArtMethod* method, mirror::Object* obj,
                           uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     switch (event_type) {
@@ -434,28 +433,28 @@ TEST_F(InstrumentationTest, DeoptimizeDirectMethod) {
   Runtime* const runtime = Runtime::Current();
   instrumentation::Instrumentation* instr = runtime->GetInstrumentation();
   ClassLinker* class_linker = runtime->GetClassLinker();
-  StackHandleScope<2> hs(soa.Self());
+  StackHandleScope<1> hs(soa.Self());
   Handle<mirror::ClassLoader> loader(hs.NewHandle(soa.Decode<mirror::ClassLoader*>(class_loader)));
   mirror::Class* klass = class_linker->FindClass(soa.Self(), "LInstrumentation;", loader);
   ASSERT_TRUE(klass != nullptr);
-  Handle<mirror::ArtMethod> method_to_deoptimize(
-      hs.NewHandle(klass->FindDeclaredDirectMethod("instanceMethod", "()V")));
-  ASSERT_TRUE(method_to_deoptimize.Get() != nullptr);
+  ArtMethod* method_to_deoptimize = klass->FindDeclaredDirectMethod("instanceMethod", "()V",
+                                                                    sizeof(void*));
+  ASSERT_TRUE(method_to_deoptimize != nullptr);
 
   EXPECT_FALSE(instr->AreAllMethodsDeoptimized());
-  EXPECT_FALSE(instr->IsDeoptimized(method_to_deoptimize.Get()));
+  EXPECT_FALSE(instr->IsDeoptimized(method_to_deoptimize));
 
   DeoptimizeMethod(soa.Self(), method_to_deoptimize, true);
 
   EXPECT_FALSE(instr->AreAllMethodsDeoptimized());
   EXPECT_TRUE(instr->AreExitStubsInstalled());
-  EXPECT_TRUE(instr->IsDeoptimized(method_to_deoptimize.Get()));
+  EXPECT_TRUE(instr->IsDeoptimized(method_to_deoptimize));
 
   constexpr const char* instrumentation_key = "DeoptimizeDirectMethod";
   UndeoptimizeMethod(soa.Self(), method_to_deoptimize, instrumentation_key, true);
 
   EXPECT_FALSE(instr->AreAllMethodsDeoptimized());
-  EXPECT_FALSE(instr->IsDeoptimized(method_to_deoptimize.Get()));
+  EXPECT_FALSE(instr->IsDeoptimized(method_to_deoptimize));
 }
 
 TEST_F(InstrumentationTest, FullDeoptimization) {
@@ -481,16 +480,16 @@ TEST_F(InstrumentationTest, MixedDeoptimization) {
   Runtime* const runtime = Runtime::Current();
   instrumentation::Instrumentation* instr = runtime->GetInstrumentation();
   ClassLinker* class_linker = runtime->GetClassLinker();
-  StackHandleScope<2> hs(soa.Self());
+  StackHandleScope<1> hs(soa.Self());
   Handle<mirror::ClassLoader> loader(hs.NewHandle(soa.Decode<mirror::ClassLoader*>(class_loader)));
   mirror::Class* klass = class_linker->FindClass(soa.Self(), "LInstrumentation;", loader);
   ASSERT_TRUE(klass != nullptr);
-  Handle<mirror::ArtMethod> method_to_deoptimize(
-      hs.NewHandle(klass->FindDeclaredDirectMethod("instanceMethod", "()V")));
-  ASSERT_TRUE(method_to_deoptimize.Get() != nullptr);
+  ArtMethod* method_to_deoptimize = klass->FindDeclaredDirectMethod("instanceMethod", "()V",
+                                                                    sizeof(void*));
+  ASSERT_TRUE(method_to_deoptimize != nullptr);
 
   EXPECT_FALSE(instr->AreAllMethodsDeoptimized());
-  EXPECT_FALSE(instr->IsDeoptimized(method_to_deoptimize.Get()));
+  EXPECT_FALSE(instr->IsDeoptimized(method_to_deoptimize));
 
   DeoptimizeMethod(soa.Self(), method_to_deoptimize, true);
   // Deoptimizing a method does not change instrumentation level.
@@ -498,7 +497,7 @@ TEST_F(InstrumentationTest, MixedDeoptimization) {
             GetCurrentInstrumentationLevel());
   EXPECT_FALSE(instr->AreAllMethodsDeoptimized());
   EXPECT_TRUE(instr->AreExitStubsInstalled());
-  EXPECT_TRUE(instr->IsDeoptimized(method_to_deoptimize.Get()));
+  EXPECT_TRUE(instr->IsDeoptimized(method_to_deoptimize));
 
   constexpr const char* instrumentation_key = "MixedDeoptimization";
   DeoptimizeEverything(soa.Self(), instrumentation_key, false);
@@ -506,20 +505,20 @@ TEST_F(InstrumentationTest, MixedDeoptimization) {
             GetCurrentInstrumentationLevel());
   EXPECT_TRUE(instr->AreAllMethodsDeoptimized());
   EXPECT_TRUE(instr->AreExitStubsInstalled());
-  EXPECT_TRUE(instr->IsDeoptimized(method_to_deoptimize.Get()));
+  EXPECT_TRUE(instr->IsDeoptimized(method_to_deoptimize));
 
   UndeoptimizeEverything(soa.Self(), instrumentation_key, false);
   EXPECT_EQ(Instrumentation::InstrumentationLevel::kInstrumentNothing,
             GetCurrentInstrumentationLevel());
   EXPECT_FALSE(instr->AreAllMethodsDeoptimized());
   EXPECT_TRUE(instr->AreExitStubsInstalled());
-  EXPECT_TRUE(instr->IsDeoptimized(method_to_deoptimize.Get()));
+  EXPECT_TRUE(instr->IsDeoptimized(method_to_deoptimize));
 
   UndeoptimizeMethod(soa.Self(), method_to_deoptimize, instrumentation_key, true);
   EXPECT_EQ(Instrumentation::InstrumentationLevel::kInstrumentNothing,
             GetCurrentInstrumentationLevel());
   EXPECT_FALSE(instr->AreAllMethodsDeoptimized());
-  EXPECT_FALSE(instr->IsDeoptimized(method_to_deoptimize.Get()));
+  EXPECT_FALSE(instr->IsDeoptimized(method_to_deoptimize));
 }
 
 TEST_F(InstrumentationTest, MethodTracing_Interpreter) {

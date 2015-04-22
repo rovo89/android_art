@@ -16,9 +16,9 @@
 
 #include "jni_internal.h"
 
+#include "art_method-inl.h"
 #include "common_compiler_test.h"
 #include "java_vm_ext.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/string-inl.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"

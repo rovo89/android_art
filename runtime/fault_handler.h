@@ -27,10 +27,7 @@
 
 namespace art {
 
-namespace mirror {
 class ArtMethod;
-}  // namespace mirror
-
 class FaultHandler;
 
 class FaultManager {
@@ -58,7 +55,7 @@ class FaultManager {
   // The IsInGeneratedCode() function checks that the mutator lock is held before it
   // calls GetMethodAndReturnPCAndSP().
   // TODO: think about adding lock assertions and fake lock and unlock functions.
-  void GetMethodAndReturnPcAndSp(siginfo_t* siginfo, void* context, mirror::ArtMethod** out_method,
+  void GetMethodAndReturnPcAndSp(siginfo_t* siginfo, void* context, ArtMethod** out_method,
                                  uintptr_t* out_return_pc, uintptr_t* out_sp)
                                  NO_THREAD_SAFETY_ANALYSIS;
   bool IsInGeneratedCode(siginfo_t* siginfo, void *context, bool check_dex_pc)

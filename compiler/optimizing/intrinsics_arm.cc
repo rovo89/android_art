@@ -17,11 +17,11 @@
 #include "intrinsics_arm.h"
 
 #include "arch/arm/instruction_set_features_arm.h"
+#include "art_method.h"
 #include "code_generator_arm.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "intrinsics.h"
 #include "mirror/array-inl.h"
-#include "mirror/art_method.h"
 #include "mirror/string.h"
 #include "thread.h"
 #include "utils/arm/assembler_arm.h"

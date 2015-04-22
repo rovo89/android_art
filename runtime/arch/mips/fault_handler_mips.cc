@@ -35,7 +35,7 @@ void FaultManager::HandleNestedSignal(int sig ATTRIBUTE_UNUSED, siginfo_t* info 
 
 void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo ATTRIBUTE_UNUSED,
                                              void* context ATTRIBUTE_UNUSED,
-                                             mirror::ArtMethod** out_method ATTRIBUTE_UNUSED,
+                                             ArtMethod** out_method ATTRIBUTE_UNUSED,
                                              uintptr_t* out_return_pc ATTRIBUTE_UNUSED,
                                              uintptr_t* out_sp ATTRIBUTE_UNUSED) {
 }

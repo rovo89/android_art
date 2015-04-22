@@ -26,10 +26,10 @@
 #include <memory>
 
 #include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "dex_file-inl.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
@@ -344,9 +344,12 @@ std::string PrettyReturnType(const char* signature) {
   return PrettyDescriptor(return_type);
 }
 
-std::string PrettyMethod(mirror::ArtMethod* m, bool with_signature) {
+std::string PrettyMethod(ArtMethod* m, bool with_signature) {
   if (m == nullptr) {
     return "null";
+  }
+  if (!m->IsRuntimeMethod()) {
+    m = m->GetInterfaceMethodIfProxy(Runtime::Current()->GetClassLinker()->GetImagePointerSize());
   }
   std::string result(PrettyDescriptor(m->GetDeclaringClassDescriptor()));
   result += '.';
@@ -595,7 +598,7 @@ std::string DescriptorToName(const char* descriptor) {
   return descriptor;
 }
 
-std::string JniShortName(mirror::ArtMethod* m) {
+std::string JniShortName(ArtMethod* m) {
   std::string class_name(m->GetDeclaringClassDescriptor());
   // Remove the leading 'L' and trailing ';'...
   CHECK_EQ(class_name[0], 'L') << class_name;
@@ -613,7 +616,7 @@ std::string JniShortName(mirror::ArtMethod* m) {
   return short_name;
 }
 
-std::string JniLongName(mirror::ArtMethod* m) {
+std::string JniLongName(ArtMethod* m) {
   std::string long_name;
   long_name += JniShortName(m);
   long_name += "__";
@@ -1088,7 +1091,7 @@ static void Addr2line(const std::string& map_src, uintptr_t offset, std::ostream
 #endif
 
 void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
-    mirror::ArtMethod* current_method, void* ucontext_ptr) {
+    ArtMethod* current_method, void* ucontext_ptr) {
 #if __linux__
   // b/18119146
   if (RUNNING_ON_VALGRIND != 0) {

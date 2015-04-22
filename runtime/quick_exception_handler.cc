@@ -17,11 +17,11 @@
 #include "quick_exception_handler.h"
 
 #include "arch/context.h"
+#include "art_method-inl.h"
 #include "dex_instruction.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "handle_scope-inl.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/throwable.h"
@@ -53,14 +53,14 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
   }
 
   bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ArtMethod* method = GetMethod();
+    ArtMethod* method = GetMethod();
     exception_handler_->SetHandlerFrameDepth(GetFrameDepth());
     if (method == nullptr) {
       // This is the upcall, we remember the frame and last pc so that we may long jump to them.
       exception_handler_->SetHandlerQuickFramePc(GetCurrentQuickFramePc());
       exception_handler_->SetHandlerQuickFrame(GetCurrentQuickFrame());
       uint32_t next_dex_pc;
-      mirror::ArtMethod* next_art_method;
+      ArtMethod* next_art_method;
       bool has_next = GetNextMethodAndDexPc(&next_art_method, &next_dex_pc);
       // Report the method that did the down call as the handler.
       exception_handler_->SetHandlerDexPc(next_dex_pc);
@@ -78,12 +78,11 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
       DCHECK(method->IsCalleeSaveMethod());
       return true;
     }
-    StackHandleScope<1> hs(self_);
-    return HandleTryItems(hs.NewHandle(method));
+    return HandleTryItems(method);
   }
 
  private:
-  bool HandleTryItems(Handle<mirror::ArtMethod> method)
+  bool HandleTryItems(ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t dex_pc = DexFile::kDexNoIndex;
     if (!method->IsNative()) {
@@ -91,13 +90,12 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
     }
     if (dex_pc != DexFile::kDexNoIndex) {
       bool clear_exception = false;
-      StackHandleScope<1> hs(Thread::Current());
+      StackHandleScope<1> hs(self_);
       Handle<mirror::Class> to_find(hs.NewHandle((*exception_)->GetClass()));
-      uint32_t found_dex_pc = mirror::ArtMethod::FindCatchBlock(method, to_find, dex_pc,
-                                                                &clear_exception);
+      uint32_t found_dex_pc = method->FindCatchBlock(to_find, dex_pc, &clear_exception);
       exception_handler_->SetClearException(clear_exception);
       if (found_dex_pc != DexFile::kDexNoIndex) {
-        exception_handler_->SetHandlerMethod(method.Get());
+        exception_handler_->SetHandlerMethod(method);
         exception_handler_->SetHandlerDexPc(found_dex_pc);
         exception_handler_->SetHandlerQuickFramePc(method->ToNativeQuickPc(found_dex_pc));
         exception_handler_->SetHandlerQuickFrame(GetCurrentQuickFrame());
@@ -132,7 +130,7 @@ void QuickExceptionHandler::FindCatch(mirror::Throwable* exception) {
   visitor.WalkStack(true);
 
   if (kDebugExceptionDelivery) {
-    if (handler_quick_frame_->AsMirrorPtr() == nullptr) {
+    if (*handler_quick_frame_ == nullptr) {
       LOG(INFO) << "Handler is upcall";
     }
     if (handler_method_ != nullptr) {
@@ -171,7 +169,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
 
   bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     exception_handler_->SetHandlerFrameDepth(GetFrameDepth());
-    mirror::ArtMethod* method = GetMethod();
+    ArtMethod* method = GetMethod();
     if (method == nullptr) {
       // This is the upcall, we remember the frame and last pc so that we may long jump to them.
       exception_handler_->SetHandlerQuickFramePc(GetCurrentQuickFramePc());
@@ -191,23 +189,21 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
     return static_cast<VRegKind>(kinds.at(reg * 2));
   }
 
-  bool HandleDeoptimization(mirror::ArtMethod* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool HandleDeoptimization(ArtMethod* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile::CodeItem* code_item = m->GetCodeItem();
     CHECK(code_item != nullptr);
     uint16_t num_regs = code_item->registers_size_;
     uint32_t dex_pc = GetDexPc();
-    StackHandleScope<3> hs(self_);  // Dex cache, class loader and method.
+    StackHandleScope<2> hs(self_);  // Dex cache, class loader and method.
     mirror::Class* declaring_class = m->GetDeclaringClass();
     Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
     Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
-    Handle<mirror::ArtMethod> h_method(hs.NewHandle(m));
     verifier::MethodVerifier verifier(self_, h_dex_cache->GetDexFile(), h_dex_cache, h_class_loader,
                                       &m->GetClassDef(), code_item, m->GetDexMethodIndex(),
-                                      h_method, m->GetAccessFlags(), true, true, true, true);
+                                      m, m->GetAccessFlags(), true, true, true, true);
     bool verifier_success = verifier.Verify();
-    CHECK(verifier_success) << PrettyMethod(h_method.Get());
-    ShadowFrame* new_frame = ShadowFrame::CreateDeoptimizedFrame(
-        num_regs, nullptr, h_method.Get(), dex_pc);
+    CHECK(verifier_success) << PrettyMethod(m);
+    ShadowFrame* new_frame = ShadowFrame::CreateDeoptimizedFrame(num_regs, nullptr, m, dex_pc);
     self_->SetShadowFrameUnderConstruction(new_frame);
     const std::vector<int32_t> kinds(verifier.DescribeVRegs(dex_pc));
 
@@ -230,7 +226,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
           // Check IsReferenceVReg in case the compiled GC map doesn't agree with the verifier.
           // We don't want to copy a stale reference into the shadow frame as a reference.
           // b/20736048
-          if (GetVReg(h_method.Get(), reg, kind, &value) && IsReferenceVReg(h_method.Get(), reg)) {
+          if (GetVReg(m, reg, kind, &value) && IsReferenceVReg(m, reg)) {
             new_frame->SetVRegReference(reg, reinterpret_cast<mirror::Object*>(value));
           } else {
             new_frame->SetVReg(reg, kDeadValue);
@@ -241,14 +237,14 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
           if (GetVRegKind(reg + 1, kinds) == kLongHiVReg) {
             // Treat it as a "long" register pair.
             uint64_t value = 0;
-            if (GetVRegPair(h_method.Get(), reg, kLongLoVReg, kLongHiVReg, &value)) {
+            if (GetVRegPair(m, reg, kLongLoVReg, kLongHiVReg, &value)) {
               new_frame->SetVRegLong(reg, value);
             } else {
               new_frame->SetVRegLong(reg, kLongDeadValue);
             }
           } else {
             uint32_t value = 0;
-            if (GetVReg(h_method.Get(), reg, kind, &value)) {
+            if (GetVReg(m, reg, kind, &value)) {
               new_frame->SetVReg(reg, value);
             } else {
               new_frame->SetVReg(reg, kDeadValue);
@@ -260,7 +256,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
             // Nothing to do: we treated it as a "long" register pair.
           } else {
             uint32_t value = 0;
-            if (GetVReg(h_method.Get(), reg, kind, &value)) {
+            if (GetVReg(m, reg, kind, &value)) {
               new_frame->SetVReg(reg, value);
             } else {
               new_frame->SetVReg(reg, kDeadValue);
@@ -270,7 +266,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
         case kDoubleLoVReg:
           if (GetVRegKind(reg + 1, kinds) == kDoubleHiVReg) {
             uint64_t value = 0;
-            if (GetVRegPair(h_method.Get(), reg, kDoubleLoVReg, kDoubleHiVReg, &value)) {
+            if (GetVRegPair(m, reg, kDoubleLoVReg, kDoubleHiVReg, &value)) {
               // Treat it as a "double" register pair.
               new_frame->SetVRegLong(reg, value);
             } else {
@@ -278,7 +274,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
             }
           } else {
             uint32_t value = 0;
-            if (GetVReg(h_method.Get(), reg, kind, &value)) {
+            if (GetVReg(m, reg, kind, &value)) {
               new_frame->SetVReg(reg, value);
             } else {
               new_frame->SetVReg(reg, kDeadValue);
@@ -290,7 +286,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
             // Nothing to do: we treated it as a "double" register pair.
           } else {
             uint32_t value = 0;
-            if (GetVReg(h_method.Get(), reg, kind, &value)) {
+            if (GetVReg(m, reg, kind, &value)) {
               new_frame->SetVReg(reg, value);
             } else {
               new_frame->SetVReg(reg, kDeadValue);
@@ -299,7 +295,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
           break;
         default:
           uint32_t value = 0;
-          if (GetVReg(h_method.Get(), reg, kind, &value)) {
+          if (GetVReg(m, reg, kind, &value)) {
             new_frame->SetVReg(reg, value);
           } else {
             new_frame->SetVReg(reg, kDeadValue);

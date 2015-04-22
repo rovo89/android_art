@@ -106,9 +106,8 @@ class CopyObjectVisitor {
       : self_(self), orig_(orig), num_bytes_(num_bytes) {
   }
 
-  void operator()(Object* obj, size_t usable_size) const
+  void operator()(Object* obj, size_t usable_size ATTRIBUTE_UNUSED) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    UNUSED(usable_size);
     Object::CopyObject(self_, obj, orig_->Get(), num_bytes_);
   }
 

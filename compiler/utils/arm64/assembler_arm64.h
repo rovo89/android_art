@@ -113,8 +113,9 @@ class Arm64Assembler FINAL : public Assembler {
   // Load routines.
   void Load(ManagedRegister dest, FrameOffset src, size_t size) OVERRIDE;
   void LoadFromThread64(ManagedRegister dest, ThreadOffset<8> src, size_t size) OVERRIDE;
-  void LoadRef(ManagedRegister dest, FrameOffset  src) OVERRIDE;
-  void LoadRef(ManagedRegister dest, ManagedRegister base, MemberOffset offs) OVERRIDE;
+  void LoadRef(ManagedRegister dest, FrameOffset src) OVERRIDE;
+  void LoadRef(ManagedRegister dest, ManagedRegister base, MemberOffset offs,
+               bool poison_reference) OVERRIDE;
   void LoadRawPtr(ManagedRegister dest, ManagedRegister base, Offset offs) OVERRIDE;
   void LoadRawPtrFromThread64(ManagedRegister dest, ThreadOffset<8> offs) OVERRIDE;
 

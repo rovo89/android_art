@@ -16,10 +16,9 @@
 
 #include "java_lang_reflect_Constructor.h"
 
+#include "art_method-inl.h"
 #include "class_linker.h"
 #include "jni_internal.h"
-#include "mirror/art_method.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/method.h"
 #include "mirror/object-inl.h"

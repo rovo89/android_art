@@ -28,7 +28,7 @@ class Class;
 // C++ mirror of java.lang.reflect.Method.
 class MANAGED Method : public AbstractMethod {
  public:
-  static Method* CreateFromArtMethod(Thread* self, mirror::ArtMethod* method)
+  static Method* CreateFromArtMethod(Thread* self, ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static mirror::Class* StaticClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -59,7 +59,7 @@ class MANAGED Method : public AbstractMethod {
 // C++ mirror of java.lang.reflect.Constructor.
 class MANAGED Constructor: public AbstractMethod {
  public:
-  static Constructor* CreateFromArtMethod(Thread* self, mirror::ArtMethod* method)
+  static Constructor* CreateFromArtMethod(Thread* self, ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static mirror::Class* StaticClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

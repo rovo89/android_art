@@ -45,7 +45,7 @@ class CommonCompilerTest : public CommonRuntimeTest {
   // Create an OatMethod based on pointers (for unit tests).
   OatFile::OatMethod CreateOatMethod(const void* code);
 
-  void MakeExecutable(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void MakeExecutable(ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void MakeExecutable(const void* code_start, size_t code_length);
 
@@ -74,7 +74,7 @@ class CommonCompilerTest : public CommonRuntimeTest {
   void CompileClass(mirror::ClassLoader* class_loader, const char* class_name)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void CompileMethod(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void CompileMethod(ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void CompileDirectMethod(Handle<mirror::ClassLoader> class_loader, const char* class_name,
                            const char* method_name, const char* signature)

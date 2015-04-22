@@ -23,13 +23,13 @@
 
 #include <random>
 
+#include "art_method.h"
 #include "base/macros.h"
 #include "base/stl_util.h"
 #include "base/scoped_flock.h"
 #include "base/time_utils.h"
 #include "base/unix_file/fd_file.h"
 #include "gc/accounting/space_bitmap-inl.h"
-#include "mirror/art_method.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "oat_file.h"
@@ -687,7 +687,20 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
                               image_file_size, image_header.GetImageSize());
     return nullptr;
   }
-  auto end_of_bitmap = image_header.GetImageBitmapOffset() + image_header.GetImageBitmapSize();
+
+  if (kIsDebugBuild) {
+    LOG(INFO) << "Dumping image sections";
+    for (size_t i = 0; i < ImageHeader::kSectionCount; ++i) {
+      const auto section_idx = static_cast<ImageHeader::ImageSections>(i);
+      auto& section = image_header.GetImageSection(section_idx);
+      LOG(INFO) << section_idx << " start="
+          << reinterpret_cast<void*>(image_header.GetImageBegin() + section.Offset())
+          << section;
+    }
+  }
+
+  const auto& bitmap_section = image_header.GetImageSection(ImageHeader::kSectionImageBitmap);
+  auto end_of_bitmap = static_cast<size_t>(bitmap_section.End());
   if (end_of_bitmap != image_file_size) {
     *error_msg = StringPrintf(
         "Image file size does not equal end of bitmap: size=%" PRIu64 " vs. %zu.", image_file_size,
@@ -697,7 +710,7 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
 
   // Note: The image header is part of the image due to mmap page alignment required of offset.
   std::unique_ptr<MemMap> map(MemMap::MapFileAtAddress(
-      image_header.GetImageBegin(), image_header.GetImageSize() + image_header.GetArtFieldsSize(),
+      image_header.GetImageBegin(), image_header.GetImageSize(),
       PROT_READ | PROT_WRITE, MAP_PRIVATE, file->Fd(), 0, false, image_filename, error_msg));
   if (map.get() == nullptr) {
     DCHECK(!error_msg->empty());
@@ -706,13 +719,9 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
   CHECK_EQ(image_header.GetImageBegin(), map->Begin());
   DCHECK_EQ(0, memcmp(&image_header, map->Begin(), sizeof(ImageHeader)));
 
-  std::unique_ptr<MemMap> image_map(
-      MemMap::MapFileAtAddress(nullptr, image_header.GetImageBitmapSize(),
-                               PROT_READ, MAP_PRIVATE,
-                               file->Fd(), image_header.GetImageBitmapOffset(),
-                               false,
-                               image_filename,
-                               error_msg));
+  std::unique_ptr<MemMap> image_map(MemMap::MapFileAtAddress(
+      nullptr, bitmap_section.Size(), PROT_READ, MAP_PRIVATE, file->Fd(),
+      bitmap_section.Offset(), false, image_filename, error_msg));
   if (image_map.get() == nullptr) {
     *error_msg = StringPrintf("Failed to map image bitmap: %s", error_msg->c_str());
     return nullptr;
@@ -729,7 +738,9 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
     return nullptr;
   }
 
-  uint8_t* const image_end = map->Begin() + image_header.GetImageSize();
+  // We only want the mirror object, not the ArtFields and ArtMethods.
+  uint8_t* const image_end =
+      map->Begin() + image_header.GetImageSection(ImageHeader::kSectionObjects).End();
   std::unique_ptr<ImageSpace> space(new ImageSpace(image_filename, image_location,
                                                    map.release(), bitmap.release(), image_end));
 
@@ -753,25 +764,16 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
   Runtime* runtime = Runtime::Current();
   runtime->SetInstructionSet(space->oat_file_->GetOatHeader().GetInstructionSet());
 
-  mirror::Object* resolution_method = image_header.GetImageRoot(ImageHeader::kResolutionMethod);
-  runtime->SetResolutionMethod(down_cast<mirror::ArtMethod*>(resolution_method));
-  mirror::Object* imt_conflict_method = image_header.GetImageRoot(ImageHeader::kImtConflictMethod);
-  runtime->SetImtConflictMethod(down_cast<mirror::ArtMethod*>(imt_conflict_method));
-  mirror::Object* imt_unimplemented_method =
-      image_header.GetImageRoot(ImageHeader::kImtUnimplementedMethod);
-  runtime->SetImtUnimplementedMethod(down_cast<mirror::ArtMethod*>(imt_unimplemented_method));
-  mirror::Object* default_imt = image_header.GetImageRoot(ImageHeader::kDefaultImt);
-  runtime->SetDefaultImt(down_cast<mirror::ObjectArray<mirror::ArtMethod>*>(default_imt));
-
-  mirror::Object* callee_save_method = image_header.GetImageRoot(ImageHeader::kCalleeSaveMethod);
-  runtime->SetCalleeSaveMethod(down_cast<mirror::ArtMethod*>(callee_save_method),
-                               Runtime::kSaveAll);
-  callee_save_method = image_header.GetImageRoot(ImageHeader::kRefsOnlySaveMethod);
-  runtime->SetCalleeSaveMethod(down_cast<mirror::ArtMethod*>(callee_save_method),
-                               Runtime::kRefsOnly);
-  callee_save_method = image_header.GetImageRoot(ImageHeader::kRefsAndArgsSaveMethod);
-  runtime->SetCalleeSaveMethod(down_cast<mirror::ArtMethod*>(callee_save_method),
-                               Runtime::kRefsAndArgs);
+  runtime->SetResolutionMethod(image_header.GetImageMethod(ImageHeader::kResolutionMethod));
+  runtime->SetImtConflictMethod(image_header.GetImageMethod(ImageHeader::kImtConflictMethod));
+  runtime->SetImtUnimplementedMethod(
+      image_header.GetImageMethod(ImageHeader::kImtUnimplementedMethod));
+  runtime->SetCalleeSaveMethod(
+      image_header.GetImageMethod(ImageHeader::kCalleeSaveMethod), Runtime::kSaveAll);
+  runtime->SetCalleeSaveMethod(
+      image_header.GetImageMethod(ImageHeader::kRefsOnlySaveMethod), Runtime::kRefsOnly);
+  runtime->SetCalleeSaveMethod(
+      image_header.GetImageMethod(ImageHeader::kRefsAndArgsSaveMethod), Runtime::kRefsAndArgs);
 
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "ImageSpace::Init exiting (" << PrettyDuration(NanoTime() - start_time)
