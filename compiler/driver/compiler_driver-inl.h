@@ -79,7 +79,7 @@ inline ArtField* CompilerDriver::ResolveFieldWithDexFile(
   }
   if (UNLIKELY(resolved_field->IsStatic() != is_static)) {
     // ClassLinker can return a field of the wrong kind directly from the DexCache.
-    // Silently return nullptr on such incompatible class change.
+    // Silently return null on such incompatible class change.
     return nullptr;
   }
   return resolved_field;
@@ -206,7 +206,7 @@ inline mirror::ArtMethod* CompilerDriver::ResolveMethod(
   }
   if (check_incompatible_class_change &&
       UNLIKELY(resolved_method->CheckIncompatibleClassChange(invoke_type))) {
-    // Silently return nullptr on incompatible class change.
+    // Silently return null on incompatible class change.
     return nullptr;
   }
   return resolved_method;
@@ -302,7 +302,7 @@ inline int CompilerDriver::IsFastInvoke(
                                                   target_dex_cache, class_loader,
                                                   NullHandle<mirror::ArtMethod>(), kVirtual);
     }
-    CHECK(called_method != NULL);
+    CHECK(called_method != nullptr);
     CHECK(!called_method->IsAbstract());
     int stats_flags = kFlagMethodResolved;
     GetCodeAndMethodForDirectCall(/*out*/invoke_type,

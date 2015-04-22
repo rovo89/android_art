@@ -446,7 +446,7 @@ END art_quick_throw_no_such_method
      * The helper will attempt to locate the target and return a 64-bit result in $v0/$v1 consisting
      * of the target Method* in $v0 and method->code_ in $v1.
      *
-     * If unsuccessful, the helper will return NULL/NULL. There will be a pending exception in the
+     * If unsuccessful, the helper will return null/null. There will be a pending exception in the
      * thread and we branch to another stub to deliver it.
      *
      * On success this wrapper will restore arguments and *jump* to the target, leaving the lr
@@ -484,7 +484,7 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
      * Invocation stub for quick code.
      * On entry:
      *   a0 = method pointer
-     *   a1 = argument array or NULL for no argument methods
+     *   a1 = argument array or null for no argument methods
      *   a2 = size of argument array in bytes
      *   a3 = (managed) thread pointer
      *   [sp + 16] = JValue* result
@@ -520,7 +520,7 @@ ENTRY art_quick_invoke_stub
     lw    $a3, 12($sp)          # copy arg value for a3
     lw    $t9, MIRROR_ART_METHOD_QUICK_CODE_OFFSET_32($a0)  # get pointer to the code
     jalr  $t9                   # call the method
-    sw    $zero, 0($sp)         # store NULL for method* at bottom of frame
+    sw    $zero, 0($sp)         # store null for method* at bottom of frame
     move  $sp, $fp              # restore the stack
     lw    $s0, 0($sp)
     .cfi_restore 16

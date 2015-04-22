@@ -33,7 +33,6 @@ TEST_F(ParsedOptionsTest, ParsedOptions) {
   void* test_vfprintf = reinterpret_cast<void*>(0xa);
   void* test_abort = reinterpret_cast<void*>(0xb);
   void* test_exit = reinterpret_cast<void*>(0xc);
-  void* null = reinterpret_cast<void*>(NULL);
 
   std::string lib_core(CommonRuntimeTest::GetLibCoreDexFileName());
 
@@ -42,27 +41,27 @@ TEST_F(ParsedOptionsTest, ParsedOptions) {
   boot_class_path += lib_core;
 
   RuntimeOptions options;
-  options.push_back(std::make_pair(boot_class_path.c_str(), null));
-  options.push_back(std::make_pair("-classpath", null));
-  options.push_back(std::make_pair(lib_core.c_str(), null));
-  options.push_back(std::make_pair("-cp", null));
-  options.push_back(std::make_pair(lib_core.c_str(), null));
-  options.push_back(std::make_pair("-Ximage:boot_image", null));
-  options.push_back(std::make_pair("-Xcheck:jni", null));
-  options.push_back(std::make_pair("-Xms2048", null));
-  options.push_back(std::make_pair("-Xmx4k", null));
-  options.push_back(std::make_pair("-Xss1m", null));
-  options.push_back(std::make_pair("-XX:HeapTargetUtilization=0.75", null));
-  options.push_back(std::make_pair("-Dfoo=bar", null));
-  options.push_back(std::make_pair("-Dbaz=qux", null));
-  options.push_back(std::make_pair("-verbose:gc,class,jni", null));
+  options.push_back(std::make_pair(boot_class_path.c_str(), nullptr));
+  options.push_back(std::make_pair("-classpath", nullptr));
+  options.push_back(std::make_pair(lib_core.c_str(), nullptr));
+  options.push_back(std::make_pair("-cp", nullptr));
+  options.push_back(std::make_pair(lib_core.c_str(), nullptr));
+  options.push_back(std::make_pair("-Ximage:boot_image", nullptr));
+  options.push_back(std::make_pair("-Xcheck:jni", nullptr));
+  options.push_back(std::make_pair("-Xms2048", nullptr));
+  options.push_back(std::make_pair("-Xmx4k", nullptr));
+  options.push_back(std::make_pair("-Xss1m", nullptr));
+  options.push_back(std::make_pair("-XX:HeapTargetUtilization=0.75", nullptr));
+  options.push_back(std::make_pair("-Dfoo=bar", nullptr));
+  options.push_back(std::make_pair("-Dbaz=qux", nullptr));
+  options.push_back(std::make_pair("-verbose:gc,class,jni", nullptr));
   options.push_back(std::make_pair("vfprintf", test_vfprintf));
   options.push_back(std::make_pair("abort", test_abort));
   options.push_back(std::make_pair("exit", test_exit));
 
   RuntimeArgumentMap map;
   std::unique_ptr<ParsedOptions> parsed(ParsedOptions::Create(options, false, &map));
-  ASSERT_TRUE(parsed.get() != NULL);
+  ASSERT_TRUE(parsed.get() != nullptr);
   ASSERT_NE(0u, map.Size());
 
   using Opt = RuntimeArgumentMap;
@@ -104,7 +103,7 @@ TEST_F(ParsedOptionsTest, ParsedOptionsGc) {
 
   RuntimeArgumentMap map;
   std::unique_ptr<ParsedOptions> parsed(ParsedOptions::Create(options, false, &map));
-  ASSERT_TRUE(parsed.get() != NULL);
+  ASSERT_TRUE(parsed.get() != nullptr);
   ASSERT_NE(0u, map.Size());
 
   using Opt = RuntimeArgumentMap;

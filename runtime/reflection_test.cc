@@ -37,35 +37,35 @@ class ReflectionTest : public CommonCompilerTest {
     // Turn on -verbose:jni for the JNI tests.
     // gLogVerbosity.jni = true;
 
-    vm_->AttachCurrentThread(&env_, NULL);
+    vm_->AttachCurrentThread(&env_, nullptr);
 
     ScopedLocalRef<jclass> aioobe(env_,
                                   env_->FindClass("java/lang/ArrayIndexOutOfBoundsException"));
-    CHECK(aioobe.get() != NULL);
+    CHECK(aioobe.get() != nullptr);
     aioobe_ = reinterpret_cast<jclass>(env_->NewGlobalRef(aioobe.get()));
 
     ScopedLocalRef<jclass> ase(env_, env_->FindClass("java/lang/ArrayStoreException"));
-    CHECK(ase.get() != NULL);
+    CHECK(ase.get() != nullptr);
     ase_ = reinterpret_cast<jclass>(env_->NewGlobalRef(ase.get()));
 
     ScopedLocalRef<jclass> sioobe(env_,
                                   env_->FindClass("java/lang/StringIndexOutOfBoundsException"));
-    CHECK(sioobe.get() != NULL);
+    CHECK(sioobe.get() != nullptr);
     sioobe_ = reinterpret_cast<jclass>(env_->NewGlobalRef(sioobe.get()));
   }
 
   void CleanUpJniEnv() {
-    if (aioobe_ != NULL) {
+    if (aioobe_ != nullptr) {
       env_->DeleteGlobalRef(aioobe_);
-      aioobe_ = NULL;
+      aioobe_ = nullptr;
     }
-    if (ase_ != NULL) {
+    if (ase_ != nullptr) {
       env_->DeleteGlobalRef(ase_);
-      ase_ = NULL;
+      ase_ = nullptr;
     }
-    if (sioobe_ != NULL) {
+    if (sioobe_ != nullptr) {
       env_->DeleteGlobalRef(sioobe_);
-      sioobe_ = NULL;
+      sioobe_ = nullptr;
     }
   }
 
@@ -105,7 +105,7 @@ class ReflectionTest : public CommonCompilerTest {
 
     mirror::Class* c = class_linker_->FindClass(self, DotToDescriptor(class_name).c_str(),
                                                 class_loader);
-    CHECK(c != NULL);
+    CHECK(c != nullptr);
 
     *method = is_static ? c->FindDirectMethod(method_name, method_signature)
                         : c->FindVirtualMethod(method_name, method_signature);
@@ -501,10 +501,10 @@ TEST_F(ReflectionTest, StaticMainMethod) {
   CompileDirectMethod(class_loader, "Main", "main", "([Ljava/lang/String;)V");
 
   mirror::Class* klass = class_linker_->FindClass(soa.Self(), "LMain;", class_loader);
-  ASSERT_TRUE(klass != NULL);
+  ASSERT_TRUE(klass != nullptr);
 
   mirror::ArtMethod* method = klass->FindDirectMethod("main", "([Ljava/lang/String;)V");
-  ASSERT_TRUE(method != NULL);
+  ASSERT_TRUE(method != nullptr);
 
   // Start runtime.
   bool started = runtime_->Start();

@@ -915,7 +915,7 @@ static void UnstartedJNIArrayCreateObjectArray(Thread* self,
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
   mirror::Class* array_class = class_linker->FindArrayClass(self, &element_class);
-  if (UNLIKELY(array_class == NULL)) {
+  if (UNLIKELY(array_class == nullptr)) {
     CHECK(self->IsExceptionPending());
     return;
   }

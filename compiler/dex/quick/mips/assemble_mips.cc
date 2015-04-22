@@ -613,7 +613,7 @@ void MipsMir2Lir::ConvertShortToLongBranch(LIR* lir) {
       LOG(FATAL) << "Unexpected branch kind " << opcode;
       UNREACHABLE();
   }
-  LIR* hop_target = NULL;
+  LIR* hop_target = nullptr;
   if (!unconditional) {
     hop_target = RawLIR(dalvik_offset, kPseudoTargetLabel);
     LIR* hop_branch = RawLIR(dalvik_offset, opcode, lir->operands[0],
@@ -650,7 +650,7 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(CodeOffset start_addr) {
   LIR *lir;
   AssemblerStatus res = kSuccess;  // Assume success.
 
-  for (lir = first_lir_insn_; lir != NULL; lir = NEXT_LIR(lir)) {
+  for (lir = first_lir_insn_; lir != nullptr; lir = NEXT_LIR(lir)) {
     if (lir->opcode < 0) {
       continue;
     }
@@ -668,7 +668,7 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(CodeOffset start_addr) {
          * (label2 - label1), where label1 is a standard
          * kPseudoTargetLabel and is stored in operands[2].
          * If operands[3] is null, then label2 is a kPseudoTargetLabel
-         * and is found in lir->target.  If operands[3] is non-NULL,
+         * and is found in lir->target.  If operands[3] is non-nullptr,
          * then it is a Switch/Data table.
          */
         int offset1 = UnwrapPointer<LIR>(lir->operands[2])->offset;
@@ -863,7 +863,7 @@ int MipsMir2Lir::AssignInsnOffsets() {
   LIR* lir;
   int offset = 0;
 
-  for (lir = first_lir_insn_; lir != NULL; lir = NEXT_LIR(lir)) {
+  for (lir = first_lir_insn_; lir != nullptr; lir = NEXT_LIR(lir)) {
     lir->offset = offset;
     if (LIKELY(lir->opcode >= 0)) {
       if (!lir->flags.is_nop) {

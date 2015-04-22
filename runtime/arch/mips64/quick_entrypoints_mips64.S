@@ -503,7 +503,7 @@ END art_quick_throw_no_such_method
      * The helper will attempt to locate the target and return a 128-bit result in $v0/$v1 consisting
      * of the target Method* in $v0 and method->code_ in $v1.
      *
-     * If unsuccessful, the helper will return NULL/NULL. There will be a pending exception in the
+     * If unsuccessful, the helper will return null/null. There will be a pending exception in the
      * thread and we branch to another stub to deliver it.
      *
      * On success this wrapper will restore arguments and *jump* to the target, leaving the ra
@@ -656,7 +656,7 @@ call_fn:
     # call method (a0 and a1 have been untouched)
     lwu    $a1, 0($a1)           # make a1 = this ptr
     sw     $a1, 4($sp)           # copy this ptr (skip 4 bytes for method*)
-    sw     $zero, 0($sp)         # store NULL for method* at bottom of frame
+    sw     $zero, 0($sp)         # store null for method* at bottom of frame
     ld     $t9, MIRROR_ART_METHOD_QUICK_CODE_OFFSET_64($a0)  # get pointer to the code
     jalr   $t9                   # call the method
     nop
@@ -758,7 +758,7 @@ ENTRY art_quick_invoke_static_stub
 
 call_sfn:
     # call method (a0 has been untouched)
-    sw     $zero, 0($sp)         # store NULL for method* at bottom of frame
+    sw     $zero, 0($sp)         # store null for method* at bottom of frame
     ld     $t9, MIRROR_ART_METHOD_QUICK_CODE_OFFSET_64($a0)  # get pointer to the code
     jalr   $t9                   # call the method
     nop

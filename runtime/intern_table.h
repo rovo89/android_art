@@ -150,7 +150,7 @@ class InternTable {
     UnorderedSet post_zygote_table_;
   };
 
-  // Insert if non null, otherwise return nullptr.
+  // Insert if non null, otherwise return null.
   mirror::String* Insert(mirror::String* s, bool is_strong)
       LOCKS_EXCLUDED(Locks::intern_table_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

@@ -103,9 +103,9 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, mirror::Object* obj) {
   prevState.all = cookie;
   size_t topIndex = segment_state_.parts.topIndex;
 
-  CHECK(obj != NULL);
+  CHECK(obj != nullptr);
   VerifyObject(obj);
-  DCHECK(table_ != NULL);
+  DCHECK(table_ != nullptr);
   DCHECK_GE(segment_state_.parts.numHoles, prevState.parts.numHoles);
 
   if (topIndex == max_entries_) {
@@ -144,7 +144,7 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, mirror::Object* obj) {
               << " holes=" << segment_state_.parts.numHoles;
   }
 
-  DCHECK(result != NULL);
+  DCHECK(result != nullptr);
   return result;
 }
 
@@ -172,7 +172,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
   int topIndex = segment_state_.parts.topIndex;
   int bottomIndex = prevState.parts.topIndex;
 
-  DCHECK(table_ != NULL);
+  DCHECK(table_ != nullptr);
   DCHECK_GE(segment_state_.parts.numHoles, prevState.parts.numHoles);
 
   if (GetIndirectRefKind(iref) == kHandleScopeOrInvalid &&
@@ -227,9 +227,8 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
       }
     }
   } else {
-    // Not the top-most entry.  This creates a hole.  We NULL out the
-    // entry to prevent somebody from deleting it twice and screwing up
-    // the hole count.
+    // Not the top-most entry.  This creates a hole.  We null out the entry to prevent somebody
+    // from deleting it twice and screwing up the hole count.
     if (table_[idx].GetReference()->IsNull()) {
       LOG(INFO) << "--- WEIRD: removing null entry " << idx;
       return false;
@@ -270,9 +269,7 @@ void IndirectReferenceTable::Dump(std::ostream& os) const {
   ReferenceTable::Table entries;
   for (size_t i = 0; i < Capacity(); ++i) {
     mirror::Object* obj = table_[i].GetReference()->Read<kWithoutReadBarrier>();
-    if (UNLIKELY(obj == nullptr)) {
-      // Remove NULLs.
-    } else {
+    if (obj != nullptr) {
       obj = table_[i].GetReference()->Read();
       entries.push_back(GcRoot<mirror::Object>(obj));
     }

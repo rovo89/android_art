@@ -49,7 +49,7 @@ const uint8_t* DexPcToReferenceMap::FindBitMap(uint16_t dex_pc, bool error_if_no
   if (error_if_not_present) {
     LOG(ERROR) << "Didn't find reference bit map for dex_pc " << dex_pc;
   }
-  return NULL;
+  return nullptr;
 }
 
 }  // namespace verifier

@@ -78,7 +78,7 @@ jmethodID WellKnownClasses::java_lang_ref_ReferenceQueue_add;
 jmethodID WellKnownClasses::java_lang_reflect_Proxy_invoke;
 jmethodID WellKnownClasses::java_lang_Runtime_nativeLoad;
 jmethodID WellKnownClasses::java_lang_Short_valueOf;
-jmethodID WellKnownClasses::java_lang_System_runFinalization = NULL;
+jmethodID WellKnownClasses::java_lang_System_runFinalization = nullptr;
 jmethodID WellKnownClasses::java_lang_Thread_init;
 jmethodID WellKnownClasses::java_lang_Thread_run;
 jmethodID WellKnownClasses::java_lang_Thread__UncaughtExceptionHandler_uncaughtException;
@@ -123,7 +123,7 @@ jfieldID WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_type;
 
 static jclass CacheClass(JNIEnv* env, const char* jni_class_name) {
   ScopedLocalRef<jclass> c(env, env->FindClass(jni_class_name));
-  if (c.get() == NULL) {
+  if (c.get() == nullptr) {
     LOG(FATAL) << "Couldn't find class: " << jni_class_name;
   }
   return reinterpret_cast<jclass>(env->NewGlobalRef(c.get()));
@@ -134,7 +134,7 @@ static jfieldID CacheField(JNIEnv* env, jclass c, bool is_static,
   jfieldID fid = (is_static ?
                   env->GetStaticFieldID(c, name, signature) :
                   env->GetFieldID(c, name, signature));
-  if (fid == NULL) {
+  if (fid == nullptr) {
     ScopedObjectAccess soa(env);
     std::ostringstream os;
     WellKnownClasses::ToClass(c)->DumpClass(os, mirror::Class::kDumpClassFullDetail);
@@ -149,7 +149,7 @@ jmethodID CacheMethod(JNIEnv* env, jclass c, bool is_static,
   jmethodID mid = (is_static ?
                    env->GetStaticMethodID(c, name, signature) :
                    env->GetMethodID(c, name, signature));
-  if (mid == NULL) {
+  if (mid == nullptr) {
     ScopedObjectAccess soa(env);
     std::ostringstream os;
     WellKnownClasses::ToClass(c)->DumpClass(os, mirror::Class::kDumpClassFullDetail);

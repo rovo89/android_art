@@ -138,10 +138,10 @@ void ArmMir2Lir::GenCmpLong(RegLocation rl_dest, RegLocation rl_src1, RegLocatio
   RegStorage t_reg = AllocTemp();
   LoadConstant(t_reg, -1);
   OpRegReg(kOpCmp, rl_src1.reg.GetHigh(), rl_src2.reg.GetHigh());
-  LIR* branch1 = OpCondBranch(kCondLt, NULL);
-  LIR* branch2 = OpCondBranch(kCondGt, NULL);
+  LIR* branch1 = OpCondBranch(kCondLt, nullptr);
+  LIR* branch2 = OpCondBranch(kCondGt, nullptr);
   OpRegRegReg(kOpSub, t_reg, rl_src1.reg.GetLow(), rl_src2.reg.GetLow());
-  LIR* branch3 = OpCondBranch(kCondEq, NULL);
+  LIR* branch3 = OpCondBranch(kCondEq, nullptr);
 
   LIR* it = OpIT(kCondHi, "E");
   NewLIR2(kThumb2MovI8M, t_reg.GetReg(), ModifiedImmediate(-1));
@@ -389,7 +389,7 @@ LIR* ArmMir2Lir::OpCmpImmBranch(ConditionCode cond, RegStorage reg, int check_va
    * generate the long form in an attempt to avoid an extra assembly pass.
    * TODO: consider interspersing slowpaths in code following unconditional branches.
    */
-  bool skip = ((target != NULL) && (target->opcode == kPseudoThrowTarget));
+  bool skip = ((target != nullptr) && (target->opcode == kPseudoThrowTarget));
   skip &= ((mir_graph_->GetNumDalvikInsns() - current_dalvik_offset_) > 64);
   if (!skip && reg.Low8() && (check_value == 0)) {
     if (arm_cond == kArmCondEq || arm_cond == kArmCondNe) {
@@ -1159,12 +1159,12 @@ void ArmMir2Lir::GenDivZeroCheckWide(RegStorage reg) {
 LIR* ArmMir2Lir::OpTestSuspend(LIR* target) {
 #ifdef ARM_R4_SUSPEND_FLAG
   NewLIR2(kThumbSubRI8, rs_rARM_SUSPEND.GetReg(), 1);
-  return OpCondBranch((target == NULL) ? kCondEq : kCondNe, target);
+  return OpCondBranch((target == nullptr) ? kCondEq : kCondNe, target);
 #else
   RegStorage t_reg = AllocTemp();
   LoadBaseDisp(rs_rARM_SELF, Thread::ThreadFlagsOffset<4>().Int32Value(),
     t_reg, kUnsignedHalf, kNotVolatile);
-  LIR* cmp_branch = OpCmpImmBranch((target == NULL) ? kCondNe : kCondEq, t_reg,
+  LIR* cmp_branch = OpCmpImmBranch((target == nullptr) ? kCondNe : kCondEq, t_reg,
     0, target);
   FreeTemp(t_reg);
   return cmp_branch;

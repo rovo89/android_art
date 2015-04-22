@@ -27,7 +27,7 @@ class MANAGED IfTable FINAL : public ObjectArray<Object> {
  public:
   ALWAYS_INLINE Class* GetInterface(int32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Class* interface = GetWithoutChecks((i * kMax) + kInterface)->AsClass();
-    DCHECK(interface != NULL);
+    DCHECK(interface != nullptr);
     return interface;
   }
 
@@ -37,14 +37,14 @@ class MANAGED IfTable FINAL : public ObjectArray<Object> {
   ObjectArray<ArtMethod>* GetMethodArray(int32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ObjectArray<ArtMethod>* method_array =
         down_cast<ObjectArray<ArtMethod>*>(Get((i * kMax) + kMethodArray));
-    DCHECK(method_array != NULL);
+    DCHECK(method_array != nullptr);
     return method_array;
   }
 
   size_t GetMethodArrayCount(int32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ObjectArray<ArtMethod>* method_array =
         down_cast<ObjectArray<ArtMethod>*>(Get((i * kMax) + kMethodArray));
-    if (method_array == NULL) {
+    if (method_array == nullptr) {
       return 0;
     }
     return method_array->GetLength();
@@ -52,8 +52,8 @@ class MANAGED IfTable FINAL : public ObjectArray<Object> {
 
   void SetMethodArray(int32_t i, ObjectArray<ArtMethod>* new_ma)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(new_ma != NULL);
-    DCHECK(Get((i * kMax) + kMethodArray) == NULL);
+    DCHECK(new_ma != nullptr);
+    DCHECK(Get((i * kMax) + kMethodArray) == nullptr);
     Set<false>((i * kMax) + kMethodArray, new_ma);
   }
 

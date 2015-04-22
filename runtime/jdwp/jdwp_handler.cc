@@ -133,7 +133,7 @@ static JdwpError RequestInvoke(JdwpState*, Request* request, ExpandBuf* pReply,
 
   if (is_constructor) {
     // If we invoked a constructor (which actually returns void), return the receiver,
-    // unless we threw, in which case we return NULL.
+    // unless we threw, in which case we return null.
     resultTag = JT_OBJECT;
     resultValue = (exceptObjId == 0) ? object_id : 0;
   }

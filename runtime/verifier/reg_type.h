@@ -707,7 +707,7 @@ class UnresolvedUninitializedRefType FINAL : public UninitializedType {
   UnresolvedUninitializedRefType(const std::string& descriptor,
                                  uint32_t allocation_pc, uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : UninitializedType(NULL, descriptor, allocation_pc, cache_id) {
+      : UninitializedType(nullptr, descriptor, allocation_pc, cache_id) {
     if (kIsDebugBuild) {
       CheckInvariants();
     }
@@ -752,7 +752,7 @@ class UnresolvedUninitializedThisRefType FINAL : public UninitializedType {
   UnresolvedUninitializedThisRefType(const std::string& descriptor,
                                      uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : UninitializedType(NULL, descriptor, 0, cache_id) {
+      : UninitializedType(nullptr, descriptor, 0, cache_id) {
     if (kIsDebugBuild) {
       CheckInvariants();
     }
@@ -808,7 +808,7 @@ class UnresolvedType : public RegType {
  public:
   UnresolvedType(const std::string& descriptor, uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : RegType(NULL, descriptor, cache_id) {}
+      : RegType(nullptr, descriptor, cache_id) {}
 
   bool IsNonZeroReferenceTypes() const OVERRIDE;
 };

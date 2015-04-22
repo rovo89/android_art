@@ -43,7 +43,7 @@ static jboolean DdmVmInternal_getRecentAllocationStatus(JNIEnv*, jclass) {
 
 /*
  * Get a stack trace as an array of StackTraceElement objects.  Returns
- * NULL on failure, e.g. if the threadId couldn't be found.
+ * nullptr on failure, e.g. if the threadId couldn't be found.
  */
 static jobjectArray DdmVmInternal_getStackTraceById(JNIEnv* env, jclass, jint thin_lock_id) {
   jobjectArray trace = nullptr;
@@ -145,7 +145,7 @@ static jbyteArray DdmVmInternal_getThreadStats(JNIEnv* env, jclass) {
   }
 
   jbyteArray result = env->NewByteArray(bytes.size());
-  if (result != NULL) {
+  if (result != nullptr) {
     env->SetByteArrayRegion(result, 0, bytes.size(), reinterpret_cast<const jbyte*>(&bytes[0]));
   }
   return result;

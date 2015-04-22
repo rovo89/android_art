@@ -1569,7 +1569,7 @@ LIR* X86Mir2Lir::OpTestSuspend(LIR* target) {
   } else {
     OpTlsCmp(Thread::ThreadFlagsOffset<4>(), 0);
   }
-  return OpCondBranch((target == NULL) ? kCondNe : kCondEq, target);
+  return OpCondBranch((target == nullptr) ? kCondNe : kCondEq, target);
 }
 
 // Decrement register and branch on condition
@@ -3005,7 +3005,7 @@ void X86Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx,
 
   // Assume that there is no match.
   LoadConstant(result_reg, 0);
-  LIR* null_branchover = OpCmpImmBranch(kCondEq, object.reg, 0, NULL);
+  LIR* null_branchover = OpCmpImmBranch(kCondEq, object.reg, 0, nullptr);
 
   // We will use this register to compare to memory below.
   // References are 32 bit in memory, and 64 bit in registers (in 64 bit mode).

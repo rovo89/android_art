@@ -88,7 +88,7 @@ void Monitor::LogContentionEvent(Thread* self, uint32_t wait_ms, uint32_t sample
   cp = EventLogWriteInt(cp, line_number);
 
   // Emit the lock owner source code file name, <= 37 bytes.
-  if (owner_filename == NULL) {
+  if (owner_filename == nullptr) {
     owner_filename = "";
   } else if (strcmp(filename, owner_filename) == 0) {
     // Common case, so save on log space.

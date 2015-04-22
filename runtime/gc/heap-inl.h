@@ -293,7 +293,7 @@ inline mirror::Object* Heap::TryToAllocate(Thread* self, AllocatorType allocator
           return nullptr;
         }
         // Try allocating a new thread local buffer, if the allocaiton fails the space must be
-        // full so return nullptr.
+        // full so return null.
         if (!bump_pointer_space_->AllocNewTlab(self, new_tlab_size)) {
           return nullptr;
         }

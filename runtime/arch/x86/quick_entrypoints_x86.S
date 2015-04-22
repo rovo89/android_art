@@ -285,7 +285,7 @@ TWO_ARG_RUNTIME_EXCEPTION art_quick_throw_array_bounds, artThrowArrayBoundsFromC
      * The helper will attempt to locate the target and return a 64-bit result in r0/r1 consisting
      * of the target Method* in r0 and method->code_ in r1.
      *
-     * If unsuccessful, the helper will return NULL/NULL. There will bea pending exception in the
+     * If unsuccessful, the helper will return null/null will bea pending exception in the
      * thread and we branch to another stub to deliver it.
      *
      * On success this wrapper will restore arguments and *jump* to the target, leaving the lr
@@ -408,7 +408,7 @@ END_MACRO
      * On entry:
      *   [sp] = return address
      *   [sp + 4] = method pointer
-     *   [sp + 8] = argument array or NULL for no argument methods
+     *   [sp + 8] = argument array or null for no argument methods
      *   [sp + 12] = size of argument array in bytes
      *   [sp + 16] = (managed) thread pointer
      *   [sp + 20] = JValue* result
@@ -442,7 +442,7 @@ DEFINE_FUNCTION art_quick_invoke_stub
     subl LITERAL(20), %ebx        // remove space for return address, ebx, ebp, esi and edi
     subl %ebx, %esp               // reserve stack space for argument array
 
-    movl LITERAL(0), (%esp)       // store NULL for method*
+    movl LITERAL(0), (%esp)       // store null for method*
 
     // Copy arg array into stack.
     movl 28(%ebp), %ecx           // ECX = size of args
@@ -506,7 +506,7 @@ END_FUNCTION art_quick_invoke_stub
      * On entry:
      *   [sp] = return address
      *   [sp + 4] = method pointer
-     *   [sp + 8] = argument array or NULL for no argument methods
+     *   [sp + 8] = argument array or null for no argument methods
      *   [sp + 12] = size of argument array in bytes
      *   [sp + 16] = (managed) thread pointer
      *   [sp + 20] = JValue* result
@@ -539,7 +539,7 @@ DEFINE_FUNCTION art_quick_invoke_static_stub
     subl LITERAL(20), %ebx        // remove space for return address, ebx, ebp, esi and edi
     subl %ebx, %esp               // reserve stack space for argument array
 
-    movl LITERAL(0), (%esp)       // store NULL for method*
+    movl LITERAL(0), (%esp)       // store null for method*
 
     // Copy arg array into stack.
     movl 28(%ebp), %ecx           // ECX = size of args
@@ -1352,7 +1352,7 @@ DEFINE_FUNCTION art_quick_resolution_trampoline
     call SYMBOL(artQuickResolutionTrampoline) // (Method* called, receiver, Thread*, SP)
     movl %eax, %edi               // remember code pointer in EDI
     addl LITERAL(16), %esp        // pop arguments
-    test %eax, %eax               // if code pointer is NULL goto deliver pending exception
+    test %eax, %eax               // if code pointer is null goto deliver pending exception
     jz 1f
     RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME_AND_JUMP
 1:

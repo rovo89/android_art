@@ -324,7 +324,7 @@ bool ParsedOptions::ProcessSpecialOptions(const RuntimeOptions& options,
     } else if (option == "vfprintf") {
       const void* hook = options[i].second;
       if (hook == nullptr) {
-        Usage("vfprintf argument was NULL");
+        Usage("vfprintf argument was nullptr");
         return false;
       }
       int (*hook_vfprintf)(FILE *, const char*, va_list) =
@@ -337,7 +337,7 @@ bool ParsedOptions::ProcessSpecialOptions(const RuntimeOptions& options,
     } else if (option == "exit") {
       const void* hook = options[i].second;
       if (hook == nullptr) {
-        Usage("exit argument was NULL");
+        Usage("exit argument was nullptr");
         return false;
       }
       void(*hook_exit)(jint) = reinterpret_cast<void(*)(jint)>(const_cast<void*>(hook));
@@ -348,7 +348,7 @@ bool ParsedOptions::ProcessSpecialOptions(const RuntimeOptions& options,
     } else if (option == "abort") {
       const void* hook = options[i].second;
       if (hook == nullptr) {
-        Usage("abort was NULL\n");
+        Usage("abort was nullptr\n");
         return false;
       }
       void(*hook_abort)() = reinterpret_cast<void(*)()>(const_cast<void*>(hook));

@@ -73,7 +73,7 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
     image_file_location_oat_begin_(image_file_location_oat_begin),
     image_patch_delta_(image_patch_delta),
     key_value_store_(key_value_store),
-    oat_header_(NULL),
+    oat_header_(nullptr),
     size_dex_file_alignment_(0),
     size_executable_offset_alignment_(0),
     size_oat_header_(0),
@@ -326,7 +326,7 @@ class OatWriter::InitOatClassesMethodVisitor : public DexMethodVisitor {
     ClassReference class_ref(dex_file_, class_def_index_);
     CompiledClass* compiled_class = writer_->compiler_driver_->GetCompiledClass(class_ref);
     mirror::Class::Status status;
-    if (compiled_class != NULL) {
+    if (compiled_class != nullptr) {
       status = compiled_class->GetStatus();
     } else if (writer_->compiler_driver_->GetVerificationResults()->IsClassRejected(class_ref)) {
       status = mirror::Class::kStatusError;
@@ -473,7 +473,7 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
         ClassReference class_ref(dex_file_, class_def_index_);
         CompiledClass* compiled_class = compiler_driver->GetCompiledClass(class_ref);
         mirror::Class::Status status;
-        if (compiled_class != NULL) {
+        if (compiled_class != nullptr) {
           status = compiled_class->GetStatus();
         } else if (compiler_driver->GetVerificationResults()->IsClassRejected(class_ref)) {
           status = mirror::Class::kStatusError;
@@ -690,7 +690,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
     OatClass* oat_class = writer_->oat_classes_[oat_class_index_];
     const CompiledMethod* compiled_method = oat_class->GetCompiledMethod(class_def_method_index);
 
-    if (compiled_method != NULL) {  // ie. not an abstract method
+    if (compiled_method != nullptr) {  // ie. not an abstract method
       size_t file_offset = file_offset_;
       OutputStream* out = out_;
 
@@ -893,7 +893,7 @@ class OatWriter::WriteMapMethodVisitor : public OatDexMethodVisitor {
     OatClass* oat_class = writer_->oat_classes_[oat_class_index_];
     const CompiledMethod* compiled_method = oat_class->GetCompiledMethod(class_def_method_index);
 
-    if (compiled_method != NULL) {  // ie. not an abstract method
+    if (compiled_method != nullptr) {  // ie. not an abstract method
       size_t file_offset = file_offset_;
       OutputStream* out = out_;
 
@@ -940,7 +940,7 @@ bool OatWriter::VisitDexMethods(DexMethodVisitor* visitor) {
       }
       const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
       const uint8_t* class_data = dex_file->GetClassData(class_def);
-      if (class_data != NULL) {  // ie not an empty class, such as a marker interface
+      if (class_data != nullptr) {  // ie not an empty class, such as a marker interface
         ClassDataItemIterator it(*dex_file, class_data);
         while (it.HasNextStaticField()) {
           it.Next();
@@ -987,7 +987,7 @@ size_t OatWriter::InitOatDexFiles(size_t offset) {
   // create the OatDexFiles
   for (size_t i = 0; i != dex_files_->size(); ++i) {
     const DexFile* dex_file = (*dex_files_)[i];
-    CHECK(dex_file != NULL);
+    CHECK(dex_file != nullptr);
     OatDexFile* oat_dex_file = new OatDexFile(offset, *dex_file);
     oat_dex_files_.push_back(oat_dex_file);
     offset += oat_dex_file->SizeOf();
@@ -1471,13 +1471,13 @@ OatWriter::OatClass::OatClass(size_t offset,
     oat_method_offsets_offset_from_oat_class += sizeof(method_bitmap_size_);
     oat_method_offsets_offset_from_oat_class += method_bitmap_size_;
   } else {
-    method_bitmap_ = NULL;
+    method_bitmap_ = nullptr;
     method_bitmap_size_ = 0;
   }
 
   for (size_t i = 0; i < num_methods; i++) {
     CompiledMethod* compiled_method = compiled_methods_[i];
-    if (compiled_method == NULL) {
+    if (compiled_method == nullptr) {
       oat_method_offsets_offsets_from_oat_class_[i] = 0;
     } else {
       oat_method_offsets_offsets_from_oat_class_[i] = oat_method_offsets_offset_from_oat_class;

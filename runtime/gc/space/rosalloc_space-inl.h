@@ -73,18 +73,18 @@ inline mirror::Object* RosAllocSpace::AllocCommon(Thread* self, size_t num_bytes
       rosalloc_->Alloc<kThreadSafe>(self, num_bytes, &rosalloc_bytes_allocated,
                                     &rosalloc_usable_size,
                                     &rosalloc_bytes_tl_bulk_allocated));
-  if (LIKELY(result != NULL)) {
+  if (LIKELY(result != nullptr)) {
     if (kDebugSpaces) {
       CHECK(Contains(result)) << "Allocation (" << reinterpret_cast<void*>(result)
             << ") not in bounds of allocation space " << *this;
     }
-    DCHECK(bytes_allocated != NULL);
+    DCHECK(bytes_allocated != nullptr);
     *bytes_allocated = rosalloc_bytes_allocated;
     DCHECK_EQ(rosalloc_usable_size, rosalloc_->UsableSize(result));
     if (usable_size != nullptr) {
       *usable_size = rosalloc_usable_size;
     }
-    DCHECK(bytes_tl_bulk_allocated != NULL);
+    DCHECK(bytes_tl_bulk_allocated != nullptr);
     *bytes_tl_bulk_allocated = rosalloc_bytes_tl_bulk_allocated;
   }
   return result;

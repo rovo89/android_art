@@ -203,7 +203,7 @@ void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_val
       !runtime->GetHeap()->IsObjectValidationEnabled() || !c->IsResolved()) {
     return;
   }
-  for (Class* cur = c; cur != NULL; cur = cur->GetSuperClass()) {
+  for (Class* cur = c; cur != nullptr; cur = cur->GetSuperClass()) {
     ArtField* fields = cur->GetIFields();
     for (size_t i = 0, count = cur->NumInstanceFields(); i < count; ++i) {
       StackHandleScope<1> hs(Thread::Current());

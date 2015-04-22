@@ -183,7 +183,7 @@ class Instruction {
 
   // Reads an instruction out of the stream at the specified address.
   static const Instruction* At(const uint16_t* code) {
-    DCHECK(code != NULL);
+    DCHECK(code != nullptr);
     return reinterpret_cast<const Instruction*>(code);
   }
 

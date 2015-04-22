@@ -42,7 +42,7 @@ Disassembler* Disassembler::Create(InstructionSet instruction_set, DisassemblerO
     return new x86::DisassemblerX86(options, true);
   } else {
     UNIMPLEMENTED(FATAL) << "no disassembler for " << instruction_set;
-    return NULL;
+    return nullptr;
   }
 }
 

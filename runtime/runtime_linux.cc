@@ -321,7 +321,7 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
 
   OsInfo os_info;
   const char* cmd_line = GetCmdLine();
-  if (cmd_line == NULL) {
+  if (cmd_line == nullptr) {
     cmd_line = "<unset>";  // Because no-one called InitLogging.
   }
   pid_t tid = GetTid();
@@ -353,9 +353,10 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
       heap->DumpObject(LOG(INTERNAL_FATAL), reinterpret_cast<mirror::Object*>(info->si_addr));
     }
   }
-  if (getenv("debug_db_uid") != NULL || getenv("art_wait_for_gdb_on_crash") != NULL) {
+  if (getenv("debug_db_uid") != nullptr || getenv("art_wait_for_gdb_on_crash") != nullptr) {
     LOG(INTERNAL_FATAL) << "********************************************************\n"
-                        << "* Process " << getpid() << " thread " << tid << " \"" << thread_name << "\""
+                        << "* Process " << getpid() << " thread " << tid << " \"" << thread_name
+                        << "\""
                         << " has been suspended while crashing.\n"
                         << "* Attach gdb:\n"
                         << "*     gdb -p " << tid << "\n"
@@ -370,7 +371,7 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
   memset(&action, 0, sizeof(action));
   sigemptyset(&action.sa_mask);
   action.sa_handler = SIG_DFL;
-  sigaction(signal_number, &action, NULL);
+  sigaction(signal_number, &action, nullptr);
   // ...and re-raise so we die with the appropriate status.
   kill(getpid(), signal_number);
 #else
@@ -390,19 +391,19 @@ void Runtime::InitPlatformSignalHandlers() {
   action.sa_flags |= SA_ONSTACK;
 
   int rc = 0;
-  rc += sigaction(SIGABRT, &action, NULL);
-  rc += sigaction(SIGBUS, &action, NULL);
-  rc += sigaction(SIGFPE, &action, NULL);
-  rc += sigaction(SIGILL, &action, NULL);
-  rc += sigaction(SIGPIPE, &action, NULL);
-  rc += sigaction(SIGSEGV, &action, NULL);
+  rc += sigaction(SIGABRT, &action, nullptr);
+  rc += sigaction(SIGBUS, &action, nullptr);
+  rc += sigaction(SIGFPE, &action, nullptr);
+  rc += sigaction(SIGILL, &action, nullptr);
+  rc += sigaction(SIGPIPE, &action, nullptr);
+  rc += sigaction(SIGSEGV, &action, nullptr);
 #if defined(SIGSTKFLT)
-  rc += sigaction(SIGSTKFLT, &action, NULL);
+  rc += sigaction(SIGSTKFLT, &action, nullptr);
 #endif
-  rc += sigaction(SIGTRAP, &action, NULL);
+  rc += sigaction(SIGTRAP, &action, nullptr);
   // Special dump-all timeout.
   if (GetTimeoutSignal() != -1) {
-    rc += sigaction(GetTimeoutSignal(), &action, NULL);
+    rc += sigaction(GetTimeoutSignal(), &action, nullptr);
   }
   CHECK_EQ(rc, 0);
 }

@@ -54,28 +54,30 @@ void STLDeleteContainerPointers(ForwardIterator begin,
 // hash_set, or any other STL container which defines sensible begin(), end(),
 // and clear() methods.
 //
-// If container is NULL, this function is a no-op.
+// If container is null, this function is a no-op.
 //
 // As an alternative to calling STLDeleteElements() directly, consider
 // using a container of std::unique_ptr, which ensures that your container's
 // elements are deleted when the container goes out of scope.
 template <class T>
 void STLDeleteElements(T *container) {
-  if (!container) return;
-  STLDeleteContainerPointers(container->begin(), container->end());
-  container->clear();
+  if (container != nullptr) {
+    STLDeleteContainerPointers(container->begin(), container->end());
+    container->clear();
+  }
 }
 
 // Given an STL container consisting of (key, value) pairs, STLDeleteValues
 // deletes all the "value" components and clears the container.  Does nothing
-// in the case it's given a NULL pointer.
+// in the case it's given a null pointer.
 template <class T>
 void STLDeleteValues(T *v) {
-  if (!v) return;
-  for (typename T::iterator i = v->begin(); i != v->end(); ++i) {
-    delete i->second;
+  if (v != nullptr) {
+    for (typename T::iterator i = v->begin(); i != v->end(); ++i) {
+      delete i->second;
+    }
+    v->clear();
   }
-  v->clear();
 }
 
 template <class T>

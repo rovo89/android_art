@@ -27,7 +27,7 @@ void HexDump::Dump(std::ostream& os) const {
     return;
   }
 
-  if (address_ == NULL) {
+  if (address_ == nullptr) {
     os << "00000000:";
     return;
   }

@@ -116,9 +116,9 @@ void ThreadList::DumpForSigQuit(std::ostream& os) {
 }
 
 static void DumpUnattachedThread(std::ostream& os, pid_t tid) NO_THREAD_SAFETY_ANALYSIS {
-  // TODO: No thread safety analysis as DumpState with a NULL thread won't access fields, should
+  // TODO: No thread safety analysis as DumpState with a null thread won't access fields, should
   // refactor DumpState to avoid skipping analysis.
-  Thread::DumpState(os, NULL, tid);
+  Thread::DumpState(os, nullptr, tid);
   DumpKernelStack(os, tid, "  kernel: ", false);
   // TODO: Reenable this when the native code in system_server can handle it.
   // Currently "adb shell kill -3 `pid system_server`" will cause it to exit.
@@ -136,7 +136,7 @@ void ThreadList::DumpUnattachedThreads(std::ostream& os) {
 
   Thread* self = Thread::Current();
   dirent* e;
-  while ((e = readdir(d)) != NULL) {
+  while ((e = readdir(d)) != nullptr) {
     char* end;
     pid_t tid = strtol(e->d_name, &end, 10);
     if (!*end) {
@@ -602,7 +602,7 @@ static void ThreadSuspendByPeerWarning(Thread* self, LogSeverity severity, const
       scoped_name_string(env, (jstring)env->GetObjectField(peer,
                                                           WellKnownClasses::java_lang_Thread_name));
   ScopedUtfChars scoped_name_chars(env, scoped_name_string.get());
-  if (scoped_name_chars.c_str() == NULL) {
+  if (scoped_name_chars.c_str() == nullptr) {
       LOG(severity) << message << ": " << peer;
       env->ExceptionClear();
   } else {
@@ -813,7 +813,7 @@ Thread* ThreadList::FindThreadByThreadId(uint32_t thin_lock_id) {
       return thread;
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 void ThreadList::SuspendAllForDebugger() {
@@ -865,7 +865,7 @@ void ThreadList::SuspendSelfForDebugger() {
 
   // The debugger thread must not suspend itself due to debugger activity!
   Thread* debug_thread = Dbg::GetDebugThread();
-  CHECK(debug_thread != NULL);
+  CHECK(debug_thread != nullptr);
   CHECK(self != debug_thread);
   CHECK_NE(self->GetState(), kRunnable);
   Locks::mutator_lock_->AssertNotHeld(self);
@@ -1142,7 +1142,7 @@ void ThreadList::Unregister(Thread* self) {
 
   // Clear the TLS data, so that the underlying native thread is recognizably detached.
   // (It may wish to reattach later.)
-  CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, NULL), "detach self");
+  CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, nullptr), "detach self");
 
   // Signal that a thread just detached.
   MutexLock mu(nullptr, *Locks::thread_list_lock_);

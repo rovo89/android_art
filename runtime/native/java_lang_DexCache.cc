@@ -31,14 +31,14 @@ static jobject DexCache_getDexNative(JNIEnv* env, jobject javaDexCache) {
   // Should only be called while holding the lock on the dex cache.
   DCHECK_EQ(dex_cache->GetLockOwnerThreadId(), soa.Self()->GetThreadId());
   const DexFile* dex_file = dex_cache->GetDexFile();
-  if (dex_file == NULL) {
-    return NULL;
+  if (dex_file == nullptr) {
+    return nullptr;
   }
   void* address = const_cast<void*>(reinterpret_cast<const void*>(dex_file->Begin()));
   jobject byte_buffer = env->NewDirectByteBuffer(address, dex_file->Size());
-  if (byte_buffer == NULL) {
+  if (byte_buffer == nullptr) {
     DCHECK(soa.Self()->IsExceptionPending());
-    return NULL;
+    return nullptr;
   }
 
   jvalue args[1];

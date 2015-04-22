@@ -244,11 +244,11 @@ class MethodVerifier {
   bool HasFailures() const;
   const RegType& ResolveCheckedClass(uint32_t class_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  // Returns the method of a quick invoke or nullptr if it cannot be found.
+  // Returns the method of a quick invoke or null if it cannot be found.
   mirror::ArtMethod* GetQuickInvokedMethod(const Instruction* inst, RegisterLine* reg_line,
                                            bool is_range, bool allow_failure)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  // Returns the access field of a quick field access (iget/iput-quick) or nullptr
+  // Returns the access field of a quick field access (iget/iput-quick) or null
   // if it cannot be found.
   ArtField* GetQuickFieldAccess(const Instruction* inst, RegisterLine* reg_line)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -585,7 +585,7 @@ class MethodVerifier {
    * Widening conversions on integers and references are allowed, but
    * narrowing conversions are not.
    *
-   * Returns the resolved method on success, nullptr on failure (with *failure
+   * Returns the resolved method on success, null on failure (with *failure
    * set appropriately).
    */
   mirror::ArtMethod* VerifyInvocationArgs(const Instruction* inst,
@@ -686,7 +686,7 @@ class MethodVerifier {
   // The dex PC of a FindLocksAtDexPc request, -1 otherwise.
   uint32_t interesting_dex_pc_;
   // The container into which FindLocksAtDexPc should write the registers containing held locks,
-  // nullptr if we're not doing FindLocksAtDexPc.
+  // null if we're not doing FindLocksAtDexPc.
   std::vector<uint32_t>* monitor_enter_dex_pcs_;
 
   // The types of any error that occurs.

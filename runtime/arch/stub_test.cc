@@ -117,7 +117,7 @@ class StubTest : public CommonRuntimeTest {
         "add sp, sp, #20\n\t"
 
         "blx r3\n\t"                // Call the stub
-        "add sp, sp, #12\n\t"       // Pop nullptr and padding
+        "add sp, sp, #12\n\t"       // Pop null and padding
         ".cfi_adjust_cfa_offset -12\n\t"
         "pop {r1-r12, lr}\n\t"      // Restore state
         ".cfi_adjust_cfa_offset -52\n\t"
@@ -269,7 +269,7 @@ class StubTest : public CommonRuntimeTest {
         "pushq (%%rsp)\n\t"             // & 16B alignment padding
         ".cfi_adjust_cfa_offset 16\n\t"
         "call *%%rax\n\t"              // Call the stub
-        "addq $16, %%rsp\n\t"          // Pop nullptr and padding
+        "addq $16, %%rsp\n\t"          // Pop null and padding
         ".cfi_adjust_cfa_offset -16\n\t"
         : "=a" (result)
           // Use the result from rax
@@ -344,7 +344,7 @@ class StubTest : public CommonRuntimeTest {
         "add sp, sp, #24\n\t"
 
         "blx r3\n\t"                // Call the stub
-        "add sp, sp, #12\n\t"       // Pop nullptr and padding
+        "add sp, sp, #12\n\t"       // Pop null and padding
         ".cfi_adjust_cfa_offset -12\n\t"
         "pop {r1-r12, lr}\n\t"      // Restore state
         ".cfi_adjust_cfa_offset -52\n\t"
@@ -495,7 +495,7 @@ class StubTest : public CommonRuntimeTest {
         "pushq (%%rsp)\n\t"            // & 16B alignment padding
         ".cfi_adjust_cfa_offset 16\n\t"
         "call *%%rbx\n\t"              // Call the stub
-        "addq $16, %%rsp\n\t"          // Pop nullptr and padding
+        "addq $16, %%rsp\n\t"          // Pop null and padding
         ".cfi_adjust_cfa_offset -16\n\t"
         : "=a" (result)
         // Use the result from rax
@@ -1032,7 +1032,7 @@ TEST_F(StubTest, AllocObject) {
   }
 
   {
-    // We can use nullptr in the second argument as we do not need a method here (not used in
+    // We can use null in the second argument as we do not need a method here (not used in
     // resolved/initialized cases)
     size_t result = Invoke3(reinterpret_cast<size_t>(c.Get()), reinterpret_cast<size_t>(nullptr), 0U,
                             StubTest::GetEntrypoint(self, kQuickAllocObjectResolved),
@@ -1046,7 +1046,7 @@ TEST_F(StubTest, AllocObject) {
   }
 
   {
-    // We can use nullptr in the second argument as we do not need a method here (not used in
+    // We can use null in the second argument as we do not need a method here (not used in
     // resolved/initialized cases)
     size_t result = Invoke3(reinterpret_cast<size_t>(c.Get()), reinterpret_cast<size_t>(nullptr), 0U,
                             StubTest::GetEntrypoint(self, kQuickAllocObjectInitialized),
@@ -1166,7 +1166,7 @@ TEST_F(StubTest, AllocObjectArray) {
   }
 
   {
-    // We can use nullptr in the second argument as we do not need a method here (not used in
+    // We can use null in the second argument as we do not need a method here (not used in
     // resolved/initialized cases)
     size_t result = Invoke3(reinterpret_cast<size_t>(c.Get()), 10U,
                             reinterpret_cast<size_t>(nullptr),
@@ -1788,9 +1788,9 @@ static void TestFields(Thread* self, StubTest* test, Primitive::Type test_type) 
 
   JNIEnv* env = Thread::Current()->GetJniEnv();
   jclass jc = env->FindClass("AllFields");
-  CHECK(jc != NULL);
+  CHECK(jc != nullptr);
   jobject o = env->AllocObject(jc);
-  CHECK(o != NULL);
+  CHECK(o != nullptr);
 
   ScopedObjectAccess soa(self);
   StackHandleScope<4> hs(self);

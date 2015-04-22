@@ -48,7 +48,7 @@ inline Class* Object::GetClass() {
 
 template<VerifyObjectFlags kVerifyFlags>
 inline void Object::SetClass(Class* new_klass) {
-  // new_klass may be NULL prior to class linker initialization.
+  // new_klass may be null prior to class linker initialization.
   // We don't mark the card as this occurs as part of object allocation. Not all objects have
   // backing cards, such as large objects.
   // We use non transactional version since we can't undo this write. We also disable checking as
@@ -179,15 +179,15 @@ inline void Object::AssertReadBarrierPointer() const {
 
 template<VerifyObjectFlags kVerifyFlags>
 inline bool Object::VerifierInstanceOf(Class* klass) {
-  DCHECK(klass != NULL);
-  DCHECK(GetClass<kVerifyFlags>() != NULL);
+  DCHECK(klass != nullptr);
+  DCHECK(GetClass<kVerifyFlags>() != nullptr);
   return klass->IsInterface() || InstanceOf(klass);
 }
 
 template<VerifyObjectFlags kVerifyFlags>
 inline bool Object::InstanceOf(Class* klass) {
-  DCHECK(klass != NULL);
-  DCHECK(GetClass<kVerifyNone>() != NULL);
+  DCHECK(klass != nullptr);
+  DCHECK(GetClass<kVerifyNone>() != nullptr);
   return klass->IsAssignableFrom(GetClass<kVerifyFlags>());
 }
 

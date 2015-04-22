@@ -127,7 +127,7 @@ void Arm64Mir2Lir::GenLargePackedSwitch(MIR* mir, uint32_t table_offset, RegLoca
   }
   // Bounds check - if < 0 or >= size continue following switch
   OpRegImm(kOpCmp, key_reg, size - 1);
-  LIR* branch_over = OpCondBranch(kCondHi, NULL);
+  LIR* branch_over = OpCondBranch(kCondHi, nullptr);
 
   // Load the displacement from the switch table
   RegStorage disp_reg = AllocTemp();
@@ -167,7 +167,7 @@ void Arm64Mir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
   } else {
     // If the null-check fails its handled by the slow-path to reduce exception related meta-data.
     if (!cu_->compiler_driver->GetCompilerOptions().GetImplicitNullChecks()) {
-      null_check_branch = OpCmpImmBranch(kCondEq, rs_x0, 0, NULL);
+      null_check_branch = OpCmpImmBranch(kCondEq, rs_x0, 0, nullptr);
     }
   }
   Load32Disp(rs_xSELF, Thread::ThinLockIdOffset<8>().Int32Value(), rs_w1);
@@ -176,12 +176,12 @@ void Arm64Mir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
   MarkPossibleNullPointerException(opt_flags);
   // Zero out the read barrier bits.
   OpRegRegImm(kOpAnd, rs_w2, rs_w3, LockWord::kReadBarrierStateMaskShiftedToggled);
-  LIR* not_unlocked_branch = OpCmpImmBranch(kCondNe, rs_w2, 0, NULL);
+  LIR* not_unlocked_branch = OpCmpImmBranch(kCondNe, rs_w2, 0, nullptr);
   // w3 is zero except for the rb bits here. Copy the read barrier bits into w1.
   OpRegRegReg(kOpOr, rs_w1, rs_w1, rs_w3);
   OpRegRegImm(kOpAdd, rs_x2, rs_x0, mirror::Object::MonitorOffset().Int32Value());
   NewLIR3(kA64Stxr3wrX, rw3, rw1, rx2);
-  LIR* lock_success_branch = OpCmpImmBranch(kCondEq, rs_w3, 0, NULL);
+  LIR* lock_success_branch = OpCmpImmBranch(kCondEq, rs_w3, 0, nullptr);
 
   LIR* slow_path_target = NewLIR0(kPseudoTargetLabel);
   not_unlocked_branch->target = slow_path_target;
@@ -220,7 +220,7 @@ void Arm64Mir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
   } else {
     // If the null-check fails its handled by the slow-path to reduce exception related meta-data.
     if (!cu_->compiler_driver->GetCompilerOptions().GetImplicitNullChecks()) {
-      null_check_branch = OpCmpImmBranch(kCondEq, rs_x0, 0, NULL);
+      null_check_branch = OpCmpImmBranch(kCondEq, rs_x0, 0, nullptr);
     }
   }
   Load32Disp(rs_xSELF, Thread::ThinLockIdOffset<8>().Int32Value(), rs_w1);
@@ -235,16 +235,16 @@ void Arm64Mir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
   OpRegRegImm(kOpAnd, rs_w3, rs_w2, LockWord::kReadBarrierStateMaskShiftedToggled);
   // Zero out except the read barrier bits.
   OpRegRegImm(kOpAnd, rs_w2, rs_w2, LockWord::kReadBarrierStateMaskShifted);
-  LIR* slow_unlock_branch = OpCmpBranch(kCondNe, rs_w3, rs_w1, NULL);
+  LIR* slow_unlock_branch = OpCmpBranch(kCondNe, rs_w3, rs_w1, nullptr);
   GenMemBarrier(kAnyStore);
   LIR* unlock_success_branch;
   if (!kUseReadBarrier) {
     Store32Disp(rs_x0, mirror::Object::MonitorOffset().Int32Value(), rs_w2);
-    unlock_success_branch = OpUnconditionalBranch(NULL);
+    unlock_success_branch = OpUnconditionalBranch(nullptr);
   } else {
     OpRegRegImm(kOpAdd, rs_x3, rs_x0, mirror::Object::MonitorOffset().Int32Value());
     NewLIR3(kA64Stxr3wrX, rw1, rw2, rx3);
-    unlock_success_branch = OpCmpImmBranch(kCondEq, rs_w1, 0, NULL);
+    unlock_success_branch = OpCmpImmBranch(kCondEq, rs_w1, 0, nullptr);
   }
   LIR* slow_path_target = NewLIR0(kPseudoTargetLabel);
   slow_unlock_branch->target = slow_path_target;

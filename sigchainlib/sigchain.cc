@@ -51,7 +51,7 @@ class SignalAction {
   // Unclaim the signal and restore the old action.
   void Unclaim(int signal) {
     claimed_ = false;
-    sigaction(signal, &action_, NULL);        // Restore old action.
+    sigaction(signal, &action_, nullptr);        // Restore old action.
   }
 
   // Get the action associated with this signal.
@@ -133,14 +133,14 @@ extern "C" void InvokeUserSignalHandler(int sig, siginfo_t* info, void* context)
 
   const struct sigaction& action = user_sigactions[sig].GetAction();
   if (user_sigactions[sig].OldStyle()) {
-    if (action.sa_handler != NULL) {
+    if (action.sa_handler != nullptr) {
       action.sa_handler(sig);
     } else {
       signal(sig, SIG_DFL);
       raise(sig);
     }
   } else {
-    if (action.sa_sigaction != NULL) {
+    if (action.sa_sigaction != nullptr) {
       action.sa_sigaction(sig, info, context);
     } else {
       signal(sig, SIG_DFL);
@@ -172,10 +172,10 @@ extern "C" int sigaction(int signal, const struct sigaction* new_action, struct 
   if (signal > 0 && signal < _NSIG && user_sigactions[signal].IsClaimed() &&
       (new_action == nullptr || new_action->sa_handler != SIG_DFL)) {
     struct sigaction saved_action = user_sigactions[signal].GetAction();
-    if (new_action != NULL) {
+    if (new_action != nullptr) {
       user_sigactions[signal].SetAction(*new_action, false);
     }
-    if (old_action != NULL) {
+    if (old_action != nullptr) {
       *old_action = saved_action;
     }
     return 0;
@@ -242,7 +242,7 @@ extern "C" sighandler_t signal(int signal, sighandler_t handler) {
 extern "C" int sigprocmask(int how, const sigset_t* bionic_new_set, sigset_t* bionic_old_set) {
   const sigset_t* new_set_ptr = bionic_new_set;
   sigset_t tmpset;
-  if (bionic_new_set != NULL) {
+  if (bionic_new_set != nullptr) {
     tmpset = *bionic_new_set;
 
     if (how == SIG_BLOCK) {

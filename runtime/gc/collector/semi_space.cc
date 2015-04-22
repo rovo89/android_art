@@ -750,7 +750,7 @@ inline Object* SemiSpace::GetMarkedForwardAddress(mirror::Object* obj) const
     SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
   // All immune objects are assumed marked.
   if (from_space_->HasAddress(obj)) {
-    // Returns either the forwarding address or nullptr.
+    // Returns either the forwarding address or null.
     return GetForwardingAddressInFromSpace(obj);
   } else if (collect_from_space_only_ || immune_region_.ContainsObject(obj) ||
              to_space_->HasAddress(obj)) {

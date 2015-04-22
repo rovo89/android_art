@@ -124,9 +124,9 @@ mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes,
   std::string error_msg;
   MemMap* mem_map = MemMap::MapAnonymous("large object space allocation", nullptr, num_bytes,
                                          PROT_READ | PROT_WRITE, true, false, &error_msg);
-  if (UNLIKELY(mem_map == NULL)) {
+  if (UNLIKELY(mem_map == nullptr)) {
     LOG(WARNING) << "Large object allocation failed: " << error_msg;
-    return NULL;
+    return nullptr;
   }
   mirror::Object* const obj = reinterpret_cast<mirror::Object*>(mem_map->Begin());
   if (kIsDebugBuild) {
@@ -206,7 +206,7 @@ void LargeObjectMapSpace::Walk(DlMallocSpace::WalkCallback callback, void* arg) 
   for (auto it = mem_maps_.begin(); it != mem_maps_.end(); ++it) {
     MemMap* mem_map = it->second;
     callback(mem_map->Begin(), mem_map->End(), mem_map->Size(), arg);
-    callback(NULL, NULL, 0, arg);
+    callback(nullptr, nullptr, 0, arg);
   }
 }
 
@@ -316,7 +316,7 @@ FreeListSpace* FreeListSpace::Create(const std::string& name, uint8_t* requested
   std::string error_msg;
   MemMap* mem_map = MemMap::MapAnonymous(name.c_str(), requested_begin, size,
                                          PROT_READ | PROT_WRITE, true, false, &error_msg);
-  CHECK(mem_map != NULL) << "Failed to allocate large object space mem map: " << error_msg;
+  CHECK(mem_map != nullptr) << "Failed to allocate large object space mem map: " << error_msg;
   return new FreeListSpace(name, mem_map, mem_map->Begin(), mem_map->End());
 }
 

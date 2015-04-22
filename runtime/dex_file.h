@@ -394,7 +394,7 @@ class DexFile {
                                              uint32_t location_checksum,
                                              const OatDexFile* oat_dex_file,
                                              std::string* error_msg) {
-    return OpenMemory(base, size, location, location_checksum, NULL, oat_dex_file, error_msg);
+    return OpenMemory(base, size, location, location_checksum, nullptr, oat_dex_file, error_msg);
   }
 
   // Open all classesXXX.dex files from a zip archive.
@@ -448,7 +448,7 @@ class DexFile {
   }
 
   const Header& GetHeader() const {
-    DCHECK(header_ != NULL) << GetLocation();
+    DCHECK(header_ != nullptr) << GetLocation();
     return *header_;
   }
 
@@ -463,7 +463,7 @@ class DexFile {
 
   // Returns the number of string identifiers in the .dex file.
   size_t NumStringIds() const {
-    DCHECK(header_ != NULL) << GetLocation();
+    DCHECK(header_ != nullptr) << GetLocation();
     return header_->string_ids_size_;
   }
 
@@ -495,7 +495,7 @@ class DexFile {
   const char* StringDataAndUtf16LengthByIdx(uint32_t idx, uint32_t* utf16_length) const {
     if (idx == kDexNoIndex) {
       *utf16_length = 0;
-      return NULL;
+      return nullptr;
     }
     const StringId& string_id = GetStringId(idx);
     return GetStringDataAndUtf16Length(string_id, utf16_length);
@@ -514,7 +514,7 @@ class DexFile {
 
   // Returns the number of type identifiers in the .dex file.
   uint32_t NumTypeIds() const {
-    DCHECK(header_ != NULL) << GetLocation();
+    DCHECK(header_ != nullptr) << GetLocation();
     return header_->type_ids_size_;
   }
 
@@ -553,7 +553,7 @@ class DexFile {
 
   // Returns the number of field identifiers in the .dex file.
   size_t NumFieldIds() const {
-    DCHECK(header_ != NULL) << GetLocation();
+    DCHECK(header_ != nullptr) << GetLocation();
     return header_->field_ids_size_;
   }
 
@@ -593,7 +593,7 @@ class DexFile {
 
   // Returns the number of method identifiers in the .dex file.
   size_t NumMethodIds() const {
-    DCHECK(header_ != NULL) << GetLocation();
+    DCHECK(header_ != nullptr) << GetLocation();
     return header_->method_ids_size_;
   }
 
@@ -643,7 +643,7 @@ class DexFile {
   }
   // Returns the number of class definitions in the .dex file.
   uint32_t NumClassDefs() const {
-    DCHECK(header_ != NULL) << GetLocation();
+    DCHECK(header_ != nullptr) << GetLocation();
     return header_->class_defs_size_;
   }
 
@@ -673,7 +673,7 @@ class DexFile {
 
   const TypeList* GetInterfacesList(const ClassDef& class_def) const {
     if (class_def.interfaces_off_ == 0) {
-        return NULL;
+        return nullptr;
     } else {
       const uint8_t* addr = begin_ + class_def.interfaces_off_;
       return reinterpret_cast<const TypeList*>(addr);
@@ -683,7 +683,7 @@ class DexFile {
   // Returns a pointer to the raw memory mapped class_data_item
   const uint8_t* GetClassData(const ClassDef& class_def) const {
     if (class_def.class_data_off_ == 0) {
-      return NULL;
+      return nullptr;
     } else {
       return begin_ + class_def.class_data_off_;
     }
@@ -692,7 +692,7 @@ class DexFile {
   //
   const CodeItem* GetCodeItem(const uint32_t code_off) const {
     if (code_off == 0) {
-      return NULL;  // native or abstract method
+      return nullptr;  // native or abstract method
     } else {
       const uint8_t* addr = begin_ + code_off;
       return reinterpret_cast<const CodeItem*>(addr);
@@ -705,7 +705,7 @@ class DexFile {
 
   // Returns the number of prototype identifiers in the .dex file.
   size_t NumProtoIds() const {
-    DCHECK(header_ != NULL) << GetLocation();
+    DCHECK(header_ != nullptr) << GetLocation();
     return header_->proto_ids_size_;
   }
 
@@ -745,7 +745,7 @@ class DexFile {
 
   const TypeList* GetProtoParameters(const ProtoId& proto_id) const {
     if (proto_id.parameters_off_ == 0) {
-      return NULL;
+      return nullptr;
     } else {
       const uint8_t* addr = begin_ + proto_id.parameters_off_;
       return reinterpret_cast<const TypeList*>(addr);
@@ -778,7 +778,7 @@ class DexFile {
   // Get the pointer to the start of the debugging data
   const uint8_t* GetDebugInfoStream(const CodeItem* code_item) const {
     if (code_item->debug_info_off_ == 0) {
-      return NULL;
+      return nullptr;
     } else {
       return begin_ + code_item->debug_info_off_;
     }
@@ -818,7 +818,8 @@ class DexFile {
 
   struct LocalInfo {
     LocalInfo()
-        : name_(NULL), descriptor_(NULL), signature_(NULL), start_address_(0), is_live_(false) {}
+        : name_(nullptr), descriptor_(nullptr), signature_(nullptr), start_address_(0),
+          is_live_(false) {}
 
     const char* name_;  // E.g., list
     const char* descriptor_;  // E.g., Ljava/util/LinkedList;
@@ -841,10 +842,10 @@ class DexFile {
 
   void InvokeLocalCbIfLive(void* context, int reg, uint32_t end_address,
                            LocalInfo* local_in_reg, DexDebugNewLocalCb local_cb) const {
-    if (local_cb != NULL && local_in_reg[reg].is_live_) {
+    if (local_cb != nullptr && local_in_reg[reg].is_live_) {
       local_cb(context, reg, local_in_reg[reg].start_address_, end_address,
           local_in_reg[reg].name_, local_in_reg[reg].descriptor_,
-          local_in_reg[reg].signature_ != NULL ? local_in_reg[reg].signature_ : "");
+          local_in_reg[reg].signature_ != nullptr ? local_in_reg[reg].signature_ : "");
     }
   }
 
@@ -865,7 +866,7 @@ class DexFile {
 
   const char* GetSourceFile(const ClassDef& class_def) const {
     if (class_def.source_file_idx_ == 0xffffffff) {
-      return NULL;
+      return nullptr;
     } else {
       return StringDataByIdx(class_def.source_file_idx_);
     }
@@ -926,7 +927,7 @@ class DexFile {
     kVerifyError
   };
 
-  // Opens .dex file from the entry_name in a zip archive. error_code is undefined when non-nullptr
+  // Opens .dex file from the entry_name in a zip archive. error_code is undefined when non-null
   // return.
   static std::unique_ptr<const DexFile> Open(const ZipArchive& zip_archive, const char* entry_name,
                                              const std::string& location, std::string* error_msg,
@@ -1055,7 +1056,7 @@ class DexFileParameterIterator {
   DexFileParameterIterator(const DexFile& dex_file, const DexFile::ProtoId& proto_id)
       : dex_file_(dex_file), size_(0), pos_(0) {
     type_list_ = dex_file_.GetProtoParameters(proto_id);
-    if (type_list_ != NULL) {
+    if (type_list_ != nullptr) {
       size_ = type_list_->Size();
     }
   }
