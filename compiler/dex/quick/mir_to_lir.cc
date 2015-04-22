@@ -104,19 +104,6 @@ RegisterClass Mir2Lir::ShortyToRegClass(char shorty_type) {
   return res;
 }
 
-RegisterClass Mir2Lir::LocToRegClass(RegLocation loc) {
-  RegisterClass res;
-  if (loc.fp) {
-    DCHECK(!loc.ref) << "At most, one of ref/fp may be set";
-    res = kFPReg;
-  } else if (loc.ref) {
-    res = kRefReg;
-  } else {
-    res = kCoreReg;
-  }
-  return res;
-}
-
 void Mir2Lir::LockArg(size_t in_position) {
   RegStorage reg_arg = in_to_reg_storage_mapping_.GetReg(in_position);
 
@@ -560,25 +547,20 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       if (!kLeafOptimization || !mir_graph_->MethodIsLeaf()) {
         GenSuspendTest(opt_flags);
       }
-      DCHECK_EQ(LocToRegClass(rl_src[0]), ShortyToRegClass(cu_->shorty[0]));
-      StoreValue(GetReturn(LocToRegClass(rl_src[0])), rl_src[0]);
+      StoreValue(GetReturn(ShortyToRegClass(cu_->shorty[0])), rl_src[0]);
       break;
 
     case Instruction::RETURN_WIDE:
       if (!kLeafOptimization || !mir_graph_->MethodIsLeaf()) {
         GenSuspendTest(opt_flags);
       }
-      DCHECK_EQ(LocToRegClass(rl_src[0]), ShortyToRegClass(cu_->shorty[0]));
-      StoreValueWide(GetReturnWide(LocToRegClass(rl_src[0])), rl_src[0]);
-      break;
-
-    case Instruction::MOVE_RESULT_WIDE:
-      StoreValueWide(rl_dest, GetReturnWide(LocToRegClass(rl_dest)));
+      StoreValueWide(GetReturnWide(ShortyToRegClass(cu_->shorty[0])), rl_src[0]);
       break;
 
     case Instruction::MOVE_RESULT:
+    case Instruction::MOVE_RESULT_WIDE:
     case Instruction::MOVE_RESULT_OBJECT:
-      StoreValue(rl_dest, GetReturn(LocToRegClass(rl_dest)));
+      // Already processed with invoke or filled-new-array.
       break;
 
     case Instruction::MOVE:
