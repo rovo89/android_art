@@ -427,9 +427,16 @@ void InstructionSimplifierVisitor::VisitMul(HMul* instruction) {
 
   if (Primitive::IsIntOrLongType(type)) {
     int64_t factor = Int64FromConstant(input_cst);
-    // We expect the `0` case to have been handled in the constant folding pass.
-    DCHECK_NE(factor, 0);
-    if (IsPowerOfTwo(factor)) {
+    // Even though constant propagation also takes care of the zero case, other
+    // optimizations can lead to having a zero multiplication.
+    if (factor == 0) {
+      // Replace code looking like
+      //    MUL dst, src, 0
+      // with
+      //    0
+      instruction->ReplaceWith(input_cst);
+      instruction->GetBlock()->RemoveInstruction(instruction);
+    } else if (IsPowerOfTwo(factor)) {
       // Replace code looking like
       //    MUL dst, src, pow_of_2
       // with
