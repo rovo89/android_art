@@ -92,8 +92,28 @@ static void ThrowNoClassDefFoundError(const char* fmt, ...) {
   va_end(args);
 }
 
-static void ThrowEarlierClassFailure(mirror::Class* c)
+static bool HasInitWithString(Thread* self, ClassLinker* class_linker, const char* descriptor)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::ArtMethod* method = self->GetCurrentMethod(nullptr);
+  StackHandleScope<1> hs(self);
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(method != nullptr ?
+      method->GetDeclaringClass()->GetClassLoader()
+      : nullptr));
+  mirror::Class* exception_class = class_linker->FindClass(self, descriptor, class_loader);
+
+  if (exception_class == nullptr) {
+    // No exc class ~ no <init>-with-string.
+    CHECK(self->IsExceptionPending());
+    self->ClearException();
+    return false;
+  }
+
+  mirror::ArtMethod* exception_init_method =
+      exception_class->FindDeclaredDirectMethod("<init>", "(Ljava/lang/String;)V");
+  return exception_init_method != nullptr;
+}
+
+void ClassLinker::ThrowEarlierClassFailure(mirror::Class* c) {
   // The class failed to initialize on a previous attempt, so we want to throw
   // a NoClassDefFoundError (v2 2.17.5).  The exception to this rule is if we
   // failed in verification, in which case v2 5.4.1 says we need to re-throw
@@ -112,9 +132,15 @@ static void ThrowEarlierClassFailure(mirror::Class* c)
   } else {
     if (c->GetVerifyErrorClass() != nullptr) {
       // TODO: change the verifier to store an _instance_, with a useful detail message?
+      // It's possible the exception doesn't have a <init>(String).
       std::string temp;
-      self->ThrowNewException(c->GetVerifyErrorClass()->GetDescriptor(&temp),
-                              PrettyDescriptor(c).c_str());
+      const char* descriptor = c->GetVerifyErrorClass()->GetDescriptor(&temp);
+
+      if (HasInitWithString(self, this, descriptor)) {
+        self->ThrowNewException(descriptor, PrettyDescriptor(c).c_str());
+      } else {
+        self->ThrowNewException(descriptor, nullptr);
+      }
     } else {
       self->ThrowNewException("Ljava/lang/NoClassDefFoundError;",
                               PrettyDescriptor(c).c_str());

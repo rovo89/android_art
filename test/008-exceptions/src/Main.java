@@ -14,6 +14,24 @@
  * limitations under the License.
  */
 
+// An exception that doesn't have a <init>(String) method.
+class BadError extends Error {
+    public BadError() {
+        super("This is bad by convention");
+    }
+}
+
+// A class that throws BadException during static initialization.
+class BadInit {
+    static int dummy;
+    static {
+        System.out.println("Static Init");
+        if (true) {
+            throw new BadError();
+        }
+    }
+}
+
 /**
  * Exceptions across method calls
  */
@@ -29,6 +47,7 @@ public class Main {
     }
     public static void main (String args[]) {
         exceptions_007();
+        exceptionsRethrowClassInitFailure();
     }
 
     private static void catchAndRethrow() {
@@ -44,5 +63,27 @@ public class Main {
 
     private static void throwNullPointerException() {
         throw new NullPointerException("first throw");
+    }
+
+    private static void exceptionsRethrowClassInitFailure() {
+        try {
+            try {
+                BadInit.dummy = 1;
+                throw new IllegalStateException("Should not reach here.");
+            } catch (BadError e) {
+                System.out.println(e);
+            }
+
+            // Check if it works a second time.
+
+            try {
+                BadInit.dummy = 1;
+                throw new IllegalStateException("Should not reach here.");
+            } catch (BadError e) {
+                System.out.println(e);
+            }
+        } catch (Exception error) {
+            error.printStackTrace();
+        }
     }
 }
