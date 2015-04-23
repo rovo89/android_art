@@ -324,7 +324,7 @@ static void RunOptimizations(HGraph* graph,
   HDeadCodeElimination dce2(graph, stats, "dead_code_elimination_final");
   HConstantFolding fold1(graph);
   InstructionSimplifier simplify1(graph, stats);
-  HBooleanSimplifier boolean_not(graph);
+  HBooleanSimplifier boolean_simplify(graph);
 
   HInliner inliner(graph, dex_compilation_unit, dex_compilation_unit, driver, stats);
 
@@ -343,10 +343,10 @@ static void RunOptimizations(HGraph* graph,
     &dce1,
     &fold1,
     &simplify1,
+    &inliner,
     // BooleanSimplifier depends on the InstructionSimplifier removing redundant
     // suspend checks to recognize empty blocks.
-    &boolean_not,
-    &inliner,
+    &boolean_simplify,
     &fold2,
     &side_effects,
     &gvn,

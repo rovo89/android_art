@@ -23,35 +23,11 @@ public class Main {
   }
 
   /*
-   * Test that zero/one constants are accepted as Boolean inputs.
-   */
-
-  // CHECK-START: boolean Main.TestConstAsBoolean() inliner (before)
-  // CHECK-DAG:     [[Invoke:z\d+]]  InvokeStaticOrDirect
-  // CHECK-DAG:                      BooleanNot [ [[Invoke]] ]
-
-  // CHECK-START: boolean Main.TestConstAsBoolean() inliner (after)
-  // CHECK-DAG:     [[Const:i\d+]]   IntConstant 1
-  // CHECK-DAG:                      BooleanNot [ [[Const]] ]
-
-  public static boolean InlineConst() {
-    return true;
-  }
-
-  public static boolean TestConstAsBoolean() {
-    return InlineConst() != true ? true : false;
-  }
-
-  /*
    * Test that integer Phis are accepted as Boolean inputs until
    * we implement a suitable type analysis.
    */
 
-  // CHECK-START: boolean Main.TestPhiAsBoolean(int) inliner (before)
-  // CHECK-DAG:     [[Invoke:z\d+]]  InvokeStaticOrDirect
-  // CHECK-DAG:                      BooleanNot [ [[Invoke]] ]
-
-  // CHECK-START: boolean Main.TestPhiAsBoolean(int) inliner (after)
+  // CHECK-START: boolean Main.TestPhiAsBoolean(int) boolean_simplifier (after)
   // CHECK-DAG:     [[Phi:i\d+]]     Phi
   // CHECK-DAG:                      BooleanNot [ [[Phi]] ]
 
@@ -71,11 +47,7 @@ public class Main {
    * we implement a suitable type analysis.
    */
 
-  // CHECK-START: boolean Main.TestAndAsBoolean(boolean, boolean) inliner (before)
-  // CHECK-DAG:     [[Invoke:z\d+]]  InvokeStaticOrDirect
-  // CHECK-DAG:                      BooleanNot [ [[Invoke]] ]
-
-  // CHECK-START: boolean Main.TestAndAsBoolean(boolean, boolean) inliner (after)
+  // CHECK-START: boolean Main.TestAndAsBoolean(boolean, boolean) boolean_simplifier (after)
   // CHECK-DAG:     [[And:i\d+]]     And
   // CHECK-DAG:                      BooleanNot [ [[And]] ]
 
@@ -92,11 +64,7 @@ public class Main {
    * we implement a suitable type analysis.
    */
 
-  // CHECK-START: boolean Main.TestOrAsBoolean(boolean, boolean) inliner (before)
-  // CHECK-DAG:     [[Invoke:z\d+]]  InvokeStaticOrDirect
-  // CHECK-DAG:                      BooleanNot [ [[Invoke]] ]
-
-  // CHECK-START: boolean Main.TestOrAsBoolean(boolean, boolean) inliner (after)
+  // CHECK-START: boolean Main.TestOrAsBoolean(boolean, boolean) boolean_simplifier (after)
   // CHECK-DAG:     [[Or:i\d+]]      Or
   // CHECK-DAG:                      BooleanNot [ [[Or]] ]
 
@@ -113,11 +81,7 @@ public class Main {
    * we implement a suitable type analysis.
    */
 
-  // CHECK-START: boolean Main.TestXorAsBoolean(boolean, boolean) inliner (before)
-  // CHECK-DAG:     [[Invoke:z\d+]]  InvokeStaticOrDirect
-  // CHECK-DAG:                      BooleanNot [ [[Invoke]] ]
-
-  // CHECK-START: boolean Main.TestXorAsBoolean(boolean, boolean) inliner (after)
+  // CHECK-START: boolean Main.TestXorAsBoolean(boolean, boolean) boolean_simplifier (after)
   // CHECK-DAG:     [[Xor:i\d+]]     Xor
   // CHECK-DAG:                      BooleanNot [ [[Xor]] ]
 
@@ -132,7 +96,6 @@ public class Main {
   public static void main(String[] args) {
     f1 = true;
     f2 = false;
-    assertBoolEquals(false, TestConstAsBoolean());
     assertBoolEquals(true, TestPhiAsBoolean(0));
     assertBoolEquals(false, TestPhiAsBoolean(42));
     assertBoolEquals(true, TestAndAsBoolean(true, false));
