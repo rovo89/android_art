@@ -179,7 +179,6 @@ class MirIFieldLoweringInfo : public MirFieldInfo {
   friend class GlobalValueNumberingTest;
   friend class GvnDeadCodeEliminationTest;
   friend class LocalValueNumberingTest;
-  friend class TypeInferenceTest;
 };
 
 class MirSFieldLoweringInfo : public MirFieldInfo {
@@ -255,7 +254,6 @@ class MirSFieldLoweringInfo : public MirFieldInfo {
   friend class GlobalValueNumberingTest;
   friend class GvnDeadCodeEliminationTest;
   friend class LocalValueNumberingTest;
-  friend class TypeInferenceTest;
 };
 
 }  // namespace art
