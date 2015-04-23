@@ -123,7 +123,7 @@ const uint64_t MIRGraph::oat_data_flow_attributes_[kMirOpLast] = {
   DF_UA | DF_NULL_CHK_A | DF_REF_A,
 
   // 1F CHK_CAST vAA, type@BBBB
-  DF_UA | DF_REF_A | DF_UMS,
+  DF_UA | DF_REF_A | DF_CHK_CAST | DF_UMS,
 
   // 20 INSTANCE_OF vA, vB, type@CCCC
   DF_DA | DF_UB | DF_CORE_A | DF_REF_B | DF_UMS,
@@ -159,10 +159,10 @@ const uint64_t MIRGraph::oat_data_flow_attributes_[kMirOpLast] = {
   DF_NOP,
 
   // 2B PACKED_SWITCH vAA, +BBBBBBBB
-  DF_UA,
+  DF_UA | DF_CORE_A,
 
   // 2C SPARSE_SWITCH vAA, +BBBBBBBB
-  DF_UA,
+  DF_UA | DF_CORE_A,
 
   // 2D CMPL_FLOAT vAA, vBB, vCC
   DF_DA | DF_UB | DF_UC | DF_FP_B | DF_FP_C | DF_CORE_A,
@@ -180,22 +180,22 @@ const uint64_t MIRGraph::oat_data_flow_attributes_[kMirOpLast] = {
   DF_DA | DF_UB | DF_B_WIDE | DF_UC | DF_C_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
   // 32 IF_EQ vA, vB, +CCCC
-  DF_UA | DF_UB,
+  DF_UA | DF_UB | DF_SAME_TYPE_AB,
 
   // 33 IF_NE vA, vB, +CCCC
-  DF_UA | DF_UB,
+  DF_UA | DF_UB | DF_SAME_TYPE_AB,
 
   // 34 IF_LT vA, vB, +CCCC
-  DF_UA | DF_UB,
+  DF_UA | DF_UB | DF_SAME_TYPE_AB,
 
   // 35 IF_GE vA, vB, +CCCC
-  DF_UA | DF_UB,
+  DF_UA | DF_UB | DF_SAME_TYPE_AB,
 
   // 36 IF_GT vA, vB, +CCCC
-  DF_UA | DF_UB,
+  DF_UA | DF_UB | DF_SAME_TYPE_AB,
 
   // 37 IF_LE vA, vB, +CCCC
-  DF_UA | DF_UB,
+  DF_UA | DF_UB | DF_SAME_TYPE_AB,
 
   // 38 IF_EQZ vAA, +BBBB
   DF_UA,
@@ -1080,8 +1080,6 @@ void MIRGraph::AllocateSSAUseData(MIR *mir, int num_uses) {
 
   if (mir->ssa_rep->num_uses_allocated < num_uses) {
     mir->ssa_rep->uses = arena_->AllocArray<int32_t>(num_uses, kArenaAllocDFInfo);
-    // NOTE: will be filled in during type & size inference pass
-    mir->ssa_rep->fp_use = arena_->AllocArray<bool>(num_uses, kArenaAllocDFInfo);
   }
 }
 
@@ -1090,7 +1088,6 @@ void MIRGraph::AllocateSSADefData(MIR *mir, int num_defs) {
 
   if (mir->ssa_rep->num_defs_allocated < num_defs) {
     mir->ssa_rep->defs = arena_->AllocArray<int32_t>(num_defs, kArenaAllocDFInfo);
-    mir->ssa_rep->fp_def = arena_->AllocArray<bool>(num_defs, kArenaAllocDFInfo);
   }
 }
 
@@ -1287,35 +1284,27 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb) {
     if (df_attributes & DF_HAS_USES) {
       num_uses = 0;
       if (df_attributes & DF_UA) {
-        mir->ssa_rep->fp_use[num_uses] = df_attributes & DF_FP_A;
         HandleSSAUse(mir->ssa_rep->uses, d_insn->vA, num_uses++);
         if (df_attributes & DF_A_WIDE) {
-          mir->ssa_rep->fp_use[num_uses] = df_attributes & DF_FP_A;
           HandleSSAUse(mir->ssa_rep->uses, d_insn->vA+1, num_uses++);
         }
       }
       if (df_attributes & DF_UB) {
-        mir->ssa_rep->fp_use[num_uses] = df_attributes & DF_FP_B;
         HandleSSAUse(mir->ssa_rep->uses, d_insn->vB, num_uses++);
         if (df_attributes & DF_B_WIDE) {
-          mir->ssa_rep->fp_use[num_uses] = df_attributes & DF_FP_B;
           HandleSSAUse(mir->ssa_rep->uses, d_insn->vB+1, num_uses++);
         }
       }
       if (df_attributes & DF_UC) {
-        mir->ssa_rep->fp_use[num_uses] = df_attributes & DF_FP_C;
         HandleSSAUse(mir->ssa_rep->uses, d_insn->vC, num_uses++);
         if (df_attributes & DF_C_WIDE) {
-          mir->ssa_rep->fp_use[num_uses] = df_attributes & DF_FP_C;
           HandleSSAUse(mir->ssa_rep->uses, d_insn->vC+1, num_uses++);
         }
       }
     }
     if (df_attributes & DF_HAS_DEFS) {
-      mir->ssa_rep->fp_def[0] = df_attributes & DF_FP_A;
       HandleSSADef(mir->ssa_rep->defs, d_insn->vA, 0);
       if (df_attributes & DF_A_WIDE) {
-        mir->ssa_rep->fp_def[1] = df_attributes & DF_FP_A;
         HandleSSADef(mir->ssa_rep->defs, d_insn->vA+1, 1);
       }
     }
