@@ -478,7 +478,7 @@ void GvnDeadCodeElimination::ChangeBinOp2AddrToPlainBinOp(MIR* mir) {
       mir->dalvikInsn.opcode - Instruction::ADD_INT_2ADDR +  Instruction::ADD_INT);
 }
 
-MIR* GvnDeadCodeElimination::CreatePhi(int s_reg, bool fp) {
+MIR* GvnDeadCodeElimination::CreatePhi(int s_reg) {
   int v_reg = mir_graph_->SRegToVReg(s_reg);
   MIR* phi = mir_graph_->NewMIR();
   phi->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpPhi);
@@ -491,11 +491,9 @@ MIR* GvnDeadCodeElimination::CreatePhi(int s_reg, bool fp) {
 
   mir_graph_->AllocateSSADefData(phi, 1);
   phi->ssa_rep->defs[0] = s_reg;
-  phi->ssa_rep->fp_def[0] = fp;
 
   size_t num_uses = bb_->predecessors.size();
   mir_graph_->AllocateSSAUseData(phi, num_uses);
-  std::fill_n(phi->ssa_rep->fp_use, num_uses, fp);
   size_t idx = 0u;
   for (BasicBlockId pred_id : bb_->predecessors) {
     BasicBlock* pred_bb = mir_graph_->GetBasicBlock(pred_id);
@@ -523,14 +521,12 @@ MIR* GvnDeadCodeElimination::RenameSRegDefOrCreatePhi(uint16_t def_change, uint1
   // defining MIR for that dalvik reg, the preserved valus must come from its predecessors
   // and we need to create a new Phi (a degenerate Phi if there's only a single predecessor).
   if (def_change == kNPos) {
-    bool fp = mir_to_kill->ssa_rep->fp_def[0];
     if (wide) {
       DCHECK_EQ(new_s_reg + 1, mir_to_kill->ssa_rep->defs[1]);
-      DCHECK_EQ(fp, mir_to_kill->ssa_rep->fp_def[1]);
       DCHECK_EQ(mir_graph_->SRegToVReg(new_s_reg) + 1, mir_graph_->SRegToVReg(new_s_reg + 1));
-      CreatePhi(new_s_reg + 1, fp);  // High word Phi.
+      CreatePhi(new_s_reg + 1);  // High word Phi.
     }
-    return CreatePhi(new_s_reg, fp);
+    return CreatePhi(new_s_reg);
   } else {
     DCHECK_LT(def_change, last_change);
     DCHECK_LE(last_change, vreg_chains_.NumMIRs());

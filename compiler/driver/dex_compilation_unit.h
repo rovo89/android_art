@@ -21,6 +21,7 @@
 
 #include "dex_file.h"
 #include "jni.h"
+#include "base/arena_object.h"
 
 namespace art {
 namespace mirror {
@@ -31,7 +32,7 @@ class ClassLinker;
 struct CompilationUnit;
 class VerifiedMethod;
 
-class DexCompilationUnit {
+class DexCompilationUnit : public DeletableArenaObject<kArenaAllocMisc> {
  public:
   explicit DexCompilationUnit(CompilationUnit* cu);
 
