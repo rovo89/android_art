@@ -88,73 +88,41 @@ TEST_F(ElfWriterTest, dlsym) {
   }
 }
 
-// Run only on host since we do unaligned memory accesses.
-#ifndef HAVE_ANDROID_OS
-
-static void PatchSection(const std::vector<uintptr_t>& patch_locations,
-                         std::vector<uint8_t>* section, int32_t delta) {
-  for (uintptr_t location : patch_locations) {
-    *reinterpret_cast<int32_t*>(section->data() + location) += delta;
-  }
-}
-
 TEST_F(ElfWriterTest, EncodeDecodeOatPatches) {
-  std::vector<uint8_t> oat_patches;  // Encoded patches.
+  const std::vector<std::vector<uintptr_t>> test_data {
+      { 0, 4, 8, 15, 128, 200 },
+      { 8, 8 + 127 },
+      { 8, 8 + 128 },
+      { },
+  };
+  for (const auto& patch_locations : test_data) {
+    constexpr int32_t delta = 0x11235813;
 
-  // Encode patch locations for a few sections.
-  OatWriter::PatchLocationsMap sections;
-  std::vector<uintptr_t> patches0 { 0, 4, 8, 15, 128, 200 };  // NOLINT
-  sections.emplace(".section0", std::unique_ptr<std::vector<uintptr_t>>(
-      new std::vector<uintptr_t> { patches0 }));
-  std::vector<uintptr_t> patches1 { 8, 127 };  // NOLINT
-  sections.emplace(".section1", std::unique_ptr<std::vector<uintptr_t>>(
-      new std::vector<uintptr_t> { patches1 }));
-  std::vector<uintptr_t> patches2 { };  // NOLINT
-  sections.emplace(".section2", std::unique_ptr<std::vector<uintptr_t>>(
-      new std::vector<uintptr_t> { patches2 }));
-  ElfWriterQuick32::EncodeOatPatches(sections, &oat_patches);
+    // Encode patch locations.
+    std::vector<uint8_t> oat_patches;
+    ElfWriterQuick32::EncodeOatPatches(patch_locations, &oat_patches);
 
-  // Create buffers to be patched.
-  std::vector<uint8_t> initial_data(256);
-  for (size_t i = 0; i < initial_data.size(); i++) {
-    initial_data[i] = i;
+    // Create buffer to be patched.
+    std::vector<uint8_t> initial_data(256);
+    for (size_t i = 0; i < initial_data.size(); i++) {
+      initial_data[i] = i;
+    }
+
+    // Patch manually.
+    std::vector<uint8_t> expected = initial_data;
+    for (uintptr_t location : patch_locations) {
+      typedef __attribute__((__aligned__(1))) uint32_t UnalignedAddress;
+      *reinterpret_cast<UnalignedAddress*>(expected.data() + location) += delta;
+    }
+
+    // Decode and apply patch locations.
+    std::vector<uint8_t> actual = initial_data;
+    ElfFileImpl32::ApplyOatPatches(
+        oat_patches.data(), oat_patches.data() + oat_patches.size(), delta,
+        actual.data(), actual.data() + actual.size());
+
+    EXPECT_EQ(expected, actual);
   }
-  std::vector<uint8_t> section0_expected = initial_data;
-  std::vector<uint8_t> section1_expected = initial_data;
-  std::vector<uint8_t> section2_expected = initial_data;
-  std::vector<uint8_t> section0_actual = initial_data;
-  std::vector<uint8_t> section1_actual = initial_data;
-  std::vector<uint8_t> section2_actual = initial_data;
-
-  // Patch manually.
-  constexpr int32_t delta = 0x11235813;
-  PatchSection(patches0, &section0_expected, delta);
-  PatchSection(patches1, &section1_expected, delta);
-  PatchSection(patches2, &section2_expected, delta);
-
-  // Decode and apply patch locations.
-  bool section0_successful = ElfFileImpl32::ApplyOatPatches(
-      oat_patches.data(), oat_patches.data() + oat_patches.size(),
-      ".section0", delta,
-      section0_actual.data(), section0_actual.data() + section0_actual.size());
-  EXPECT_TRUE(section0_successful);
-  EXPECT_EQ(section0_expected, section0_actual);
-
-  bool section1_successful = ElfFileImpl32::ApplyOatPatches(
-      oat_patches.data(), oat_patches.data() + oat_patches.size(),
-      ".section1", delta,
-      section1_actual.data(), section1_actual.data() + section1_actual.size());
-  EXPECT_TRUE(section1_successful);
-  EXPECT_EQ(section1_expected, section1_actual);
-
-  bool section2_successful = ElfFileImpl32::ApplyOatPatches(
-      oat_patches.data(), oat_patches.data() + oat_patches.size(),
-      ".section2", delta,
-      section2_actual.data(), section2_actual.data() + section2_actual.size());
-  EXPECT_TRUE(section2_successful);
-  EXPECT_EQ(section2_expected, section2_actual);
 }
-
-#endif
 
 }  // namespace art

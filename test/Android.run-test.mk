@@ -269,10 +269,12 @@ TEST_ART_BROKEN_FALLBACK_RUN_TESTS := \
   117-nopatchoat \
   118-noimage-dex2oat \
   119-noimage-patchoat \
+  137-cfi \
   138-duplicate-classes-check2
 
 # This test fails without an image.
 TEST_ART_BROKEN_NO_IMAGE_RUN_TESTS := \
+  137-cfi \
   138-duplicate-classes-check
 
 ifneq (,$(filter no-dex2oat,$(PREBUILD_TYPES)))
@@ -299,9 +301,13 @@ endif
 
 TEST_ART_BROKEN_FALLBACK_RUN_TESTS :=
 
+# 137:
+# This test unrolls and expects managed frames, but tracing means we run the interpreter.
+# 802:
 # This test dynamically enables tracing to force a deoptimization. This makes the test meaningless
 # when already tracing, and writes an error message that we do not want to check for.
 TEST_ART_BROKEN_TRACING_RUN_TESTS := \
+  137-cfi \
   802-deoptimization
 
 ifneq (,$(filter trace,$(TRACE_TYPES)))
@@ -328,6 +334,7 @@ TEST_ART_BROKEN_NDEBUG_TESTS := \
   118-noimage-dex2oat \
   119-noimage-patchoat \
   131-structural-change \
+  137-cfi \
   139-register-natives \
   454-get-vreg \
   455-set-vreg \
@@ -342,6 +349,33 @@ ifneq (,$(filter ndebug,$(RUN_TYPES)))
 endif
 
 TEST_ART_BROKEN_NDEBUG_TESTS :=
+
+# Known broken tests for the interpreter.
+# CFI unwinding expects managed frames.
+TEST_ART_BROKEN_INTERPRETER_RUN_TESTS := \
+  137-cfi
+
+ifneq (,$(filter interpreter,$(COMPILER_TYPES)))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
+      interpreter,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES),$(TEST_ART_BROKEN_INTERPRETER_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+endif
+
+TEST_ART_BROKEN_INTERPRETER_RUN_TESTS :=
+
+# Known broken tests for the JIT.
+# CFI unwinding expects managed frames, and the test does not iterate enough to even compile. JIT
+# also uses Generic JNI instead of the JNI compiler.
+TEST_ART_BROKEN_JIT_RUN_TESTS := \
+  137-cfi
+
+ifneq (,$(filter jit,$(COMPILER_TYPES)))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
+      jit,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES),$(TEST_ART_BROKEN_JIT_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+endif
+
+TEST_ART_BROKEN_JIT_RUN_TESTS :=
 
 # Known broken tests for the default compiler (Quick).
 TEST_ART_BROKEN_DEFAULT_RUN_TESTS := \
@@ -434,8 +468,11 @@ endif
 TEST_ART_BROKEN_OPTIMIZING_DEBUGGABLE_RUN_TESTS :=
 
 # Tests that should fail in the read barrier configuration.
+# 098: b/20720510
+# 137: Read barrier forces interpreter. Cannot run this with the interpreter.
 TEST_ART_BROKEN_READ_BARRIER_RUN_TESTS := \
-  098-ddmc  # b/20720510
+  098-ddmc \
+  137-cfi \
 
 ifeq ($(ART_USE_READ_BARRIER),true)
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
@@ -444,6 +481,19 @@ ifeq ($(ART_USE_READ_BARRIER),true)
 endif
 
 TEST_ART_BROKEN_READ_BARRIER_RUN_TESTS :=
+
+# Tests that should fail in the heap poisoning configuration.
+# 137: Heap poisoning forces interpreter. Cannot run this with the interpreter.
+TEST_ART_BROKEN_HEAP_POISONING_RUN_TESTS := \
+  137-cfi
+
+ifeq ($(ART_HEAP_POISONING),true)
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
+      $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES),$(TEST_ART_BROKEN_HEAP_POISONING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+endif
+
+TEST_ART_BROKEN_HEAP_POISONING_RUN_TESTS :=
 
 # Clear variables ahead of appending to them when defining tests.
 $(foreach target, $(TARGET_TYPES), $(eval ART_RUN_TEST_$(call name-to-var,$(target))_RULES :=))
