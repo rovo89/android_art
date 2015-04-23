@@ -854,6 +854,10 @@ TEST(RegisterAllocatorTest, SpillInactive) {
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
   SsaLivenessAnalysis liveness(graph, &codegen);
+  // Populate the instructions in the liveness object, to please the register allocator.
+  for (size_t i = 0; i < 32; ++i) {
+    liveness.instructions_from_lifetime_position_.Add(user);
+  }
 
   RegisterAllocator register_allocator(&allocator, &codegen, liveness);
   register_allocator.unhandled_core_intervals_.Add(fourth);
