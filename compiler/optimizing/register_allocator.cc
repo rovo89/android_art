@@ -378,7 +378,7 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
     // Split just before first register use.
     size_t first_register_use = current->FirstRegisterUse();
     if (first_register_use != kNoLifetime) {
-      LiveInterval* split = Split(current, first_register_use - 1);
+      LiveInterval* split = SplitBetween(current, current->GetStart(), first_register_use - 1);
       // Don't add directly to `unhandled`, it needs to be sorted and the start
       // of this new interval might be after intervals already in the list.
       AddSorted(&unhandled, split);
@@ -997,7 +997,7 @@ bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
       // If the first use of that instruction is after the last use of the found
       // register, we split this interval just before its first register use.
       AllocateSpillSlotFor(current);
-      LiveInterval* split = Split(current, first_register_use - 1);
+      LiveInterval* split = SplitBetween(current, current->GetStart(), first_register_use - 1);
       if (current == split) {
         DumpInterval(std::cerr, current);
         DumpAllIntervals(std::cerr);
@@ -1098,6 +1098,31 @@ void RegisterAllocator::AddSorted(GrowableArray<LiveInterval*>* array, LiveInter
   } else if (interval->HasLowInterval()) {
     array->InsertAt(insert_at + 1, interval->GetLowInterval());
   }
+}
+
+LiveInterval* RegisterAllocator::SplitBetween(LiveInterval* interval, size_t from, size_t to) {
+  HBasicBlock* block_from = liveness_.GetBlockFromPosition(from);
+  HBasicBlock* block_to = liveness_.GetBlockFromPosition(to);
+  DCHECK(block_from != nullptr);
+  DCHECK(block_to != nullptr);
+
+  // Both locations are in the same block. We split at the given location.
+  if (block_from == block_to) {
+    return Split(interval, to);
+  }
+
+  // If `to` is in a loop, find the outermost loop header which does not contain `from`.
+  for (HLoopInformationOutwardIterator it(*block_to); !it.Done(); it.Advance()) {
+    HBasicBlock* header = it.Current()->GetHeader();
+    if (block_from->GetLifetimeStart() >= header->GetLifetimeStart()) {
+      break;
+    }
+    block_to = header;
+  }
+
+  // Split at the start of the found block, to piggy back on existing moves
+  // due to resolution if non-linear control flow (see `ConnectSplitSiblings`).
+  return Split(interval, block_to->GetLifetimeStart());
 }
 
 LiveInterval* RegisterAllocator::Split(LiveInterval* interval, size_t position) {
