@@ -657,6 +657,12 @@ class ClassLinker {
   // Return the quick generic JNI stub for testing.
   const void* GetRuntimeQuickGenericJniStub() const;
 
+  // Throw the class initialization failure recorded when first trying to initialize the given
+  // class.
+  // Note: Currently we only store the descriptor, so we cannot throw the exact throwable, only
+  //       a recreation with a custom string.
+  void ThrowEarlierClassFailure(mirror::Class* c) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   std::vector<const DexFile*> boot_class_path_;
   std::vector<std::unique_ptr<const DexFile>> opened_dex_files_;
 
