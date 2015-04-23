@@ -3895,7 +3895,9 @@ class HParallelMove : public HTemplateInstruction<0> {
       }
       for (size_t i = 0, e = moves_.Size(); i < e; ++i) {
         DCHECK(!destination.OverlapsWith(moves_.Get(i).GetDestination()))
-            << "Overlapped destination for two moves in a parallel move.";
+            << "Overlapped destination for two moves in a parallel move: "
+            << moves_.Get(i).GetSource() << " ==> " << moves_.Get(i).GetDestination() << " and "
+            << source << " ==> " << destination;
       }
     }
     moves_.Add(MoveOperands(source, destination, type, instruction));
