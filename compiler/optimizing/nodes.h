@@ -1154,8 +1154,6 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
   virtual bool CanThrow() const { return false; }
   bool HasSideEffects() const { return side_effects_.HasSideEffects(); }
 
-  virtual bool ActAsNullConstant() const { return false; }
-
   // Does not apply for all instructions, but having this at top level greatly
   // simplifies the null check elimination.
   virtual bool CanBeNull() const {
@@ -2080,8 +2078,6 @@ class HNullConstant : public HConstant {
 
   size_t ComputeHashCode() const OVERRIDE { return 0; }
 
-  bool ActAsNullConstant() const OVERRIDE { return true; }
-
   DECLARE_INSTRUCTION(NullConstant);
 
  private:
@@ -2102,11 +2098,6 @@ class HIntConstant : public HConstant {
   }
 
   size_t ComputeHashCode() const OVERRIDE { return GetValue(); }
-
-  // TODO: Null is represented by the `0` constant. In most cases we replace it
-  // with a HNullConstant but we don't do it when comparing (a != null). This
-  // method is an workaround until we fix the above.
-  bool ActAsNullConstant() const OVERRIDE { return value_ == 0; }
 
   bool IsMinusOne() const OVERRIDE { return GetValue() == -1; }
   bool IsZero() const OVERRIDE { return GetValue() == 0; }
