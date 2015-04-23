@@ -60,10 +60,6 @@ inline void SemiSpace::MarkObject(
   if (obj == nullptr) {
     return;
   }
-  if (kUseBakerOrBrooksReadBarrier) {
-    // Verify all the objects have the correct forward pointer installed.
-    obj->AssertReadBarrierPointer();
-  }
   if (from_space_->HasAddress(obj)) {
     mirror::Object* forward_address = GetForwardingAddressInFromSpace(obj);
     // If the object has already been moved, return the new forward address.

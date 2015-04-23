@@ -96,11 +96,11 @@ mirror::Reference* ReferenceQueue::DequeuePendingReference() {
         << "ref=" << ref << " rb_ptr=" << ref->GetReadBarrierPointer();
     if (heap->ConcurrentCopyingCollector()->RegionSpace()->IsInToSpace(ref)) {
       // Moving objects.
-      ref->SetReadBarrierPointer(ReadBarrier::WhitePtr());
+      ref->AtomicSetReadBarrierPointer(ReadBarrier::GrayPtr(), ReadBarrier::WhitePtr());
       CHECK_EQ(ref->GetReadBarrierPointer(), ReadBarrier::WhitePtr());
     } else {
       // Non-moving objects.
-      ref->SetReadBarrierPointer(ReadBarrier::BlackPtr());
+      ref->AtomicSetReadBarrierPointer(ReadBarrier::GrayPtr(), ReadBarrier::BlackPtr());
       CHECK_EQ(ref->GetReadBarrierPointer(), ReadBarrier::BlackPtr());
     }
   }
