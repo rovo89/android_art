@@ -124,13 +124,14 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/optimizing_compiler.cc \
 	optimizing/parallel_move_resolver.cc \
 	optimizing/prepare_for_register_allocation.cc \
+	optimizing/primitive_type_propagation.cc \
+	optimizing/reference_type_propagation.cc \
 	optimizing/register_allocator.cc \
 	optimizing/side_effects_analysis.cc \
 	optimizing/ssa_builder.cc \
 	optimizing/ssa_liveness_analysis.cc \
 	optimizing/ssa_phi_elimination.cc \
-	optimizing/primitive_type_propagation.cc \
-	optimizing/reference_type_propagation.cc \
+	optimizing/stack_map_stream.cc \
 	trampolines/trampoline_compiler.cc \
 	utils/arena_bit_vector.cc \
 	utils/arm/assembler_arm.cc \
