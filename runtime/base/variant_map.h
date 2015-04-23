@@ -31,7 +31,7 @@ namespace art {
 //
 // struct VariantMap {
 //   template <typename TValue>
-//   TValue* Get(Key<T> key);  // nullptr if the value was never set, otherwise the value.
+//   TValue* Get(Key<T> key);  // null if the value was never set, otherwise the value.
 //
 //   template <typename TValue>
 //   void Set(Key<T> key, TValue value);

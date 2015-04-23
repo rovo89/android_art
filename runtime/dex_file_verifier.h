@@ -36,7 +36,7 @@ class DexFileVerifier {
  private:
   DexFileVerifier(const DexFile* dex_file, const uint8_t* begin, size_t size, const char* location)
       : dex_file_(dex_file), begin_(begin), size_(size), location_(location),
-        header_(&dex_file->GetHeader()), ptr_(NULL), previous_item_(NULL)  {
+        header_(&dex_file->GetHeader()), ptr_(nullptr), previous_item_(nullptr)  {
   }
 
   bool Verify();
@@ -99,12 +99,12 @@ class DexFileVerifier {
   bool CheckInterSection();
 
   // Load a string by (type) index. Checks whether the index is in bounds, printing the error if
-  // not. If there is an error, nullptr is returned.
+  // not. If there is an error, null is returned.
   const char* CheckLoadStringByIdx(uint32_t idx, const char* error_fmt);
   const char* CheckLoadStringByTypeIdx(uint32_t type_idx, const char* error_fmt);
 
   // Load a field/method Id by index. Checks whether the index is in bounds, printing the error if
-  // not. If there is an error, nullptr is returned.
+  // not. If there is an error, null is returned.
   const DexFile::FieldId* CheckLoadFieldId(uint32_t idx, const char* error_fmt);
   const DexFile::MethodId* CheckLoadMethodId(uint32_t idx, const char* error_fmt);
 

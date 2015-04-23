@@ -68,7 +68,7 @@ class PassDriver {
    * @return whether the pass was applied.
    */
   virtual bool RunPass(const char* pass_name) {
-    // Paranoid: c_unit cannot be nullptr and we need a pass name.
+    // Paranoid: c_unit cannot be null and we need a pass name.
     DCHECK(pass_name != nullptr);
     DCHECK_NE(pass_name[0], 0);
 

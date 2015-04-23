@@ -40,8 +40,8 @@ TEST_F(ReferenceTableTest, Basics) {
     EXPECT_EQ(0U, rt.Size());
   }
 
-  // Check removal of all NULLs in a empty table is a no-op.
-  rt.Remove(NULL);
+  // Check removal of all nullss in a empty table is a no-op.
+  rt.Remove(nullptr);
   EXPECT_EQ(0U, rt.Size());
 
   // Check removal of all o1 in a empty table is a no-op.

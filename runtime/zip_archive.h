@@ -57,7 +57,7 @@ class ZipEntry {
 
 class ZipArchive {
  public:
-  // return new ZipArchive instance on success, NULL on error.
+  // return new ZipArchive instance on success, null on error.
   static ZipArchive* Open(const char* filename, std::string* error_msg);
   static ZipArchive* OpenFromFd(int fd, const char* filename, std::string* error_msg);
 

@@ -35,10 +35,10 @@ static inline Thread* ThreadForEnv(JNIEnv* env) {
 }
 
 inline Thread* Thread::Current() {
-  // We rely on Thread::Current returning NULL for a detached thread, so it's not obvious
+  // We rely on Thread::Current returning null for a detached thread, so it's not obvious
   // that we can replace this with a direct %fs access on x86.
   if (!is_started_) {
-    return NULL;
+    return nullptr;
   } else {
     void* thread = pthread_getspecific(Thread::pthread_key_self_);
     return reinterpret_cast<Thread*>(thread);
@@ -92,7 +92,7 @@ inline void Thread::AssertThreadSuspensionIsAllowable(bool check_locks) const {
         // We expect no locks except the mutator_lock_ or thread list suspend thread lock.
         if (i != kMutatorLock) {
           BaseMutex* held_mutex = GetHeldMutex(static_cast<LockLevel>(i));
-          if (held_mutex != NULL) {
+          if (held_mutex != nullptr) {
             LOG(ERROR) << "holding \"" << held_mutex->GetName()
                       << "\" at point where thread suspension is expected";
             bad_mutexes_held = true;

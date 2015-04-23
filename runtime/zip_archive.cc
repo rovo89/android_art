@@ -56,7 +56,7 @@ MemMap* ZipEntry::ExtractToMemMap(const char* zip_filename, const char* entry_fi
   name += " extracted in memory from ";
   name += zip_filename;
   std::unique_ptr<MemMap> map(MemMap::MapAnonymous(name.c_str(),
-                                                   NULL, GetUncompressedLength(),
+                                                   nullptr, GetUncompressedLength(),
                                                    PROT_READ | PROT_WRITE, false, false,
                                                    error_msg));
   if (map.get() == nullptr) {

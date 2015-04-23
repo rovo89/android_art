@@ -348,7 +348,7 @@ TWO_ARG_RUNTIME_EXCEPTION art_quick_throw_array_bounds, artThrowArrayBoundsFromC
      * The helper will attempt to locate the target and return a 128-bit result in rax/rdx consisting
      * of the target Method* in rax and method->code_ in rdx.
      *
-     * If unsuccessful, the helper will return NULL/????. There will be a pending exception in the
+     * If unsuccessful, the helper will return null/????. There will be a pending exception in the
      * thread and we branch to another stub to deliver it.
      *
      * On success this wrapper will restore arguments and *jump* to the target, leaving the return
@@ -506,7 +506,7 @@ DEFINE_FUNCTION art_quick_invoke_stub
 #if (STACK_REFERENCE_SIZE != 4)
 #error "STACK_REFERENCE_SIZE(X86_64) size not as expected."
 #endif
-    movl LITERAL(0), (%rsp)       // Store NULL for method*
+    movl LITERAL(0), (%rsp)       // Store null for method*
 
     movl %r10d, %ecx              // Place size of args in rcx.
     movq %rdi, %rax               // rax := method to be called
@@ -554,7 +554,7 @@ END_FUNCTION art_quick_invoke_stub
      * On entry:
      *   [sp] = return address
      *   rdi = method pointer
-     *   rsi = argument array or NULL if no arguments.
+     *   rsi = argument array or null if no arguments.
      *   rdx = size of argument array in bytes
      *   rcx = (managed) thread pointer
      *   r8 = JValue* result
@@ -600,7 +600,7 @@ DEFINE_FUNCTION art_quick_invoke_static_stub
 #if (STACK_REFERENCE_SIZE != 4)
 #error "STACK_REFERENCE_SIZE(X86_64) size not as expected."
 #endif
-    movl LITERAL(0), (%rsp)        // Store NULL for method*
+    movl LITERAL(0), (%rsp)        // Store null for method*
 
     movl %r10d, %ecx               // Place size of args in rcx.
     movq %rdi, %rax                // rax := method to be called
@@ -1302,7 +1302,7 @@ DEFINE_FUNCTION art_quick_resolution_trampoline
     movq %rax, %r10               // Remember returned code pointer in R10.
     movq (%rsp), %rdi             // Load called method into RDI.
     RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
-    testq %r10, %r10              // If code pointer is NULL goto deliver pending exception.
+    testq %r10, %r10              // If code pointer is null goto deliver pending exception.
     jz 1f
     jmp *%r10                     // Tail call into method.
 1:

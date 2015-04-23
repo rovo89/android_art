@@ -58,7 +58,7 @@ class BoundedStackVisitor : public StackVisitor {
   BoundedStackVisitor(std::vector<std::pair<mirror::ArtMethod*, uint32_t>>* stack,
       Thread* thread, uint32_t max_depth)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(thread, NULL), stack_(stack), max_depth_(max_depth), depth_(0) {
+      : StackVisitor(thread, nullptr), stack_(stack), max_depth_(max_depth), depth_(0) {
   }
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -399,7 +399,7 @@ BackgroundMethodSamplingProfiler::BackgroundMethodSamplingProfiler(
 bool BackgroundMethodSamplingProfiler::ProcessMethod(mirror::ArtMethod* method) {
   if (method == nullptr) {
     profile_table_.NullMethod();
-    // Don't record a nullptr method.
+    // Don't record a null method.
     return false;
   }
 
@@ -820,7 +820,7 @@ bool ProfileFile::LoadFile(const std::string& fileName) {
     // Bad summary info.  It should be total/null/boot.
     return false;
   }
-  // This is the number of hits in all profiled methods (without nullptr or boot methods)
+  // This is the number of hits in all profiled methods (without null or boot methods)
   uint32_t total_count = strtoul(summary_info[0].c_str(), nullptr, 10);
 
   // Now read each line until the end of file.  Each line consists of 3 fields separated by '/'.

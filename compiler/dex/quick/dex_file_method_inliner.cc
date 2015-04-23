@@ -392,7 +392,7 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
 
 DexFileMethodInliner::DexFileMethodInliner()
     : lock_("DexFileMethodInliner lock", kDexFileMethodInlinerLock),
-      dex_file_(NULL) {
+      dex_file_(nullptr) {
   static_assert(kClassCacheFirst == 0, "kClassCacheFirst not 0");
   static_assert(arraysize(kClassCacheNames) == kClassCacheLast,
                 "bad arraysize for kClassCacheNames");

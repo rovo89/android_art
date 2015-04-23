@@ -34,15 +34,15 @@ extern "C" void* artFindNativeMethod(Thread* self) {
   Locks::mutator_lock_->AssertNotHeld(self);  // We come here as Native.
   ScopedObjectAccess soa(self);
 
-  mirror::ArtMethod* method = self->GetCurrentMethod(NULL);
-  DCHECK(method != NULL);
+  mirror::ArtMethod* method = self->GetCurrentMethod(nullptr);
+  DCHECK(method != nullptr);
 
-  // Lookup symbol address for method, on failure we'll return NULL with an exception set,
+  // Lookup symbol address for method, on failure we'll return null with an exception set,
   // otherwise we return the address of the method we found.
   void* native_code = soa.Vm()->FindCodeForNativeMethod(method);
-  if (native_code == NULL) {
+  if (native_code == nullptr) {
     DCHECK(self->IsExceptionPending());
-    return NULL;
+    return nullptr;
   } else {
     // Register so that future calls don't come here
     method->RegisterNative(native_code, false);

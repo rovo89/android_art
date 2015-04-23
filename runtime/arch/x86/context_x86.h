@@ -92,7 +92,7 @@ class X86Context : public Context {
     XMM7_0, XMM7_1,
     kNumberOfFloatRegisters};
 
-  // Pointers to register locations. Values are initialized to NULL or the special registers below.
+  // Pointers to register locations. Values are initialized to null or the special registers below.
   uintptr_t* gprs_[kNumberOfCpuRegisters];
   uint32_t* fprs_[kNumberOfFloatRegisters];
   // Hold values for esp and eip if they are not located within a stack frame. EIP is somewhat

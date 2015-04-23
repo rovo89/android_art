@@ -102,7 +102,7 @@ static constexpr uint32_t kDisabledOptimizationsPerISA[] = {
 static_assert(sizeof(kDisabledOptimizationsPerISA) == 8 * sizeof(uint32_t),
               "kDisabledOpts unexpected");
 
-// Supported shorty types per instruction set. nullptr means that all are available.
+// Supported shorty types per instruction set. null means that all are available.
 // Z : boolean
 // B : byte
 // S : short
@@ -422,7 +422,7 @@ static int kInvokeOpcodes[] = {
     Instruction::INVOKE_VIRTUAL_RANGE_QUICK,
 };
 
-// Unsupported opcodes. nullptr can be used when everything is supported. Size of the lists is
+// Unsupported opcodes. null can be used when everything is supported. Size of the lists is
 // recorded below.
 static const int* kUnsupportedOpcodes[] = {
     // 0 = kNone.
@@ -515,7 +515,7 @@ bool QuickCompiler::CanCompileMethod(uint32_t method_idx, const DexFile& dex_fil
 
   for (unsigned int idx = 0; idx < cu->mir_graph->GetNumBlocks(); idx++) {
     BasicBlock* bb = cu->mir_graph->GetBasicBlock(idx);
-    if (bb == NULL) continue;
+    if (bb == nullptr) continue;
     if (bb->block_type == kDead) continue;
     for (MIR* mir = bb->first_mir_insn; mir != nullptr; mir = mir->next) {
       int opcode = mir->dalvikInsn.opcode;

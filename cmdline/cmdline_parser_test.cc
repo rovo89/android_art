@@ -23,7 +23,7 @@
 #include "gtest/gtest.h"
 
 #define EXPECT_NULL(expected) EXPECT_EQ(reinterpret_cast<const void*>(expected), \
-                                        reinterpret_cast<void*>(NULL));
+                                        reinterpret_cast<void*>(nullptr));
 
 namespace art {
   bool UsuallyEquals(double expected, double actual);

@@ -47,7 +47,7 @@ extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, const DexFile::
       method = shadow_frame->GetMethod();
     }
   }
-  uint16_t arg_offset = (code_item == NULL) ? 0 : code_item->registers_size_ - code_item->ins_size_;
+  uint16_t arg_offset = (code_item == nullptr) ? 0 : code_item->registers_size_ - code_item->ins_size_;
   method->Invoke(self, shadow_frame->GetVRegArgs(arg_offset),
                  (shadow_frame->NumberOfVRegs() - arg_offset) * sizeof(uint32_t),
                  result, method->GetShorty());

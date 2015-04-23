@@ -174,7 +174,8 @@ class AllocRecord {
   jobject type_;  // This is a weak global.
   size_t byte_count_;
   uint16_t thin_lock_id_;
-  AllocRecordStackTraceElement stack_[kMaxAllocRecordStackDepth];  // Unused entries have nullptr method.
+  // Unused entries have null method.
+  AllocRecordStackTraceElement stack_[kMaxAllocRecordStackDepth];
 };
 
 class Breakpoint {
@@ -714,7 +715,7 @@ std::string Dbg::GetClassName(JDWP::RefTypeId class_id) {
   mirror::Object* o = gRegistry->Get<mirror::Object*>(class_id, &error);
   if (o == nullptr) {
     if (error == JDWP::ERR_NONE) {
-      return "NULL";
+      return "null";
     } else {
       return StringPrintf("invalid object %p", reinterpret_cast<void*>(class_id));
     }
@@ -727,7 +728,7 @@ std::string Dbg::GetClassName(JDWP::RefTypeId class_id) {
 
 std::string Dbg::GetClassName(mirror::Class* klass) {
   if (klass == nullptr) {
-    return "NULL";
+    return "null";
   }
   std::string temp;
   return DescriptorToName(klass->GetDescriptor(&temp));
@@ -1409,7 +1410,7 @@ void Dbg::SetJdwpLocation(JDWP::JdwpLocation* location, mirror::ArtMethod* m, ui
 std::string Dbg::GetMethodName(JDWP::MethodId method_id) {
   mirror::ArtMethod* m = FromMethodId(method_id);
   if (m == nullptr) {
-    return "NULL";
+    return "null";
   }
   return m->GetName();
 }
@@ -1417,7 +1418,7 @@ std::string Dbg::GetMethodName(JDWP::MethodId method_id) {
 std::string Dbg::GetFieldName(JDWP::FieldId field_id) {
   ArtField* f = FromFieldId(field_id);
   if (f == nullptr) {
-    return "NULL";
+    return "null";
   }
   return f->GetName();
 }
@@ -1721,7 +1722,7 @@ static JDWP::JdwpError GetFieldValueImpl(JDWP::RefTypeId ref_type_id, JDWP::Obje
   if (receiver_class == nullptr && o != nullptr) {
     receiver_class = o->GetClass();
   }
-  // TODO: should we give up now if receiver_class is nullptr?
+  // TODO: should we give up now if receiver_class is null?
   if (receiver_class != nullptr && !f->GetDeclaringClass()->IsAssignableFrom(receiver_class)) {
     LOG(INFO) << "ERR_INVALID_FIELDID: " << PrettyField(f) << " " << PrettyClass(receiver_class);
     return JDWP::ERR_INVALID_FIELDID;
@@ -2176,7 +2177,7 @@ void Dbg::GetThreads(mirror::Object* thread_group, std::vector<JDWP::ObjectId>* 
     }
     mirror::Object* peer = t->GetPeer();
     if (peer == nullptr) {
-      // peer might be NULL if the thread is still starting up. We can't tell the debugger about
+      // peer might be null if the thread is still starting up. We can't tell the debugger about
       // this thread yet.
       // TODO: if we identified threads to the debugger by their Thread*
       // rather than their peer's mirror::Object*, we could fix this.
@@ -3390,7 +3391,7 @@ bool Dbg::IsForcedInterpreterNeededForResolutionImpl(Thread* thread, mirror::Art
 }
 
 bool Dbg::IsForcedInstrumentationNeededForResolutionImpl(Thread* thread, mirror::ArtMethod* m) {
-  // The upcall can be nullptr and in that case we don't need to do anything.
+  // The upcall can be null and in that case we don't need to do anything.
   if (m == nullptr) {
     return false;
   }
@@ -3427,7 +3428,7 @@ bool Dbg::IsForcedInstrumentationNeededForResolutionImpl(Thread* thread, mirror:
 }
 
 bool Dbg::IsForcedInterpreterNeededForUpcallImpl(Thread* thread, mirror::ArtMethod* m) {
-  // The upcall can be nullptr and in that case we don't need to do anything.
+  // The upcall can be null and in that case we don't need to do anything.
   if (m == nullptr) {
     return false;
   }

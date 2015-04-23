@@ -172,7 +172,7 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
   void WriteToBuf(const uint8_t* src, size_t src_size)
       EXCLUSIVE_LOCKS_REQUIRED(streaming_lock_);
 
-  // Singleton instance of the Trace or NULL when no method tracing is active.
+  // Singleton instance of the Trace or null when no method tracing is active.
   static Trace* volatile the_trace_ GUARDED_BY(Locks::trace_lock_);
 
   // The default profiler clock source.
@@ -184,7 +184,7 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
   // Used to remember an unused stack trace to avoid re-allocation during sampling.
   static std::unique_ptr<std::vector<mirror::ArtMethod*>> temp_stack_trace_;
 
-  // File to write trace data out to, NULL if direct to ddms.
+  // File to write trace data out to, null if direct to ddms.
   std::unique_ptr<File> trace_file_;
 
   // Buffer to store trace data.

@@ -1219,7 +1219,7 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
   block_label_list_[block_id].flags.fixup = kFixupLabel;
   AppendLIR(&block_label_list_[block_id]);
 
-  LIR* head_lir = NULL;
+  LIR* head_lir = nullptr;
 
   // If this is a catch block, export the start address.
   if (bb->catch_entry) {
@@ -1245,7 +1245,7 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
     DCHECK_EQ(cfi_.GetCurrentCFAOffset(), frame_size_);
   }
 
-  for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
+  for (mir = bb->first_mir_insn; mir != nullptr; mir = mir->next) {
     ResetRegPool();
     if (cu_->disable_opt & (1 << kTrackLiveTemps)) {
       ClobberAllTemps();
@@ -1269,7 +1269,7 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
     GenPrintLabel(mir);
 
     // Remember the first LIR for this block.
-    if (head_lir == NULL) {
+    if (head_lir == nullptr) {
       head_lir = &block_label_list_[bb->id];
       // Set the first label as a scheduling barrier.
       DCHECK(!head_lir->flags.use_def_invalid);
@@ -1309,7 +1309,7 @@ bool Mir2Lir::SpecialMIR2LIR(const InlineMethod& special) {
   cu_->NewTimingSplit("SpecialMIR2LIR");
   // Find the first DalvikByteCode block.
   DCHECK_EQ(mir_graph_->GetNumReachableBlocks(), mir_graph_->GetDfsOrder().size());
-  BasicBlock*bb = NULL;
+  BasicBlock*bb = nullptr;
   for (BasicBlockId dfs_id : mir_graph_->GetDfsOrder()) {
     BasicBlock* candidate = mir_graph_->GetBasicBlock(dfs_id);
     if (candidate->block_type == kDalvikByteCode) {
@@ -1317,11 +1317,11 @@ bool Mir2Lir::SpecialMIR2LIR(const InlineMethod& special) {
       break;
     }
   }
-  if (bb == NULL) {
+  if (bb == nullptr) {
     return false;
   }
   DCHECK_EQ(bb->start_offset, 0);
-  DCHECK(bb->first_mir_insn != NULL);
+  DCHECK(bb->first_mir_insn != nullptr);
 
   // Get the first instruction.
   MIR* mir = bb->first_mir_insn;
@@ -1343,17 +1343,17 @@ void Mir2Lir::MethodMIR2LIR() {
   PreOrderDfsIterator iter(mir_graph_);
   BasicBlock* curr_bb = iter.Next();
   BasicBlock* next_bb = iter.Next();
-  while (curr_bb != NULL) {
+  while (curr_bb != nullptr) {
     MethodBlockCodeGen(curr_bb);
     // If the fall_through block is no longer laid out consecutively, drop in a branch.
     BasicBlock* curr_bb_fall_through = mir_graph_->GetBasicBlock(curr_bb->fall_through);
-    if ((curr_bb_fall_through != NULL) && (curr_bb_fall_through != next_bb)) {
+    if ((curr_bb_fall_through != nullptr) && (curr_bb_fall_through != next_bb)) {
       OpUnconditionalBranch(&block_label_list_[curr_bb->fall_through]);
     }
     curr_bb = next_bb;
     do {
       next_bb = iter.Next();
-    } while ((next_bb != NULL) && (next_bb->block_type == kDead));
+    } while ((next_bb != nullptr) && (next_bb->block_type == kDead));
   }
   HandleSlowPaths();
 }

@@ -1026,13 +1026,13 @@ typename ElfTypes::Dyn* ElfFileImpl<ElfTypes>::FindDynamicByType(Elf_Sword type)
       return dyn;
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 template <typename ElfTypes>
 typename ElfTypes::Word ElfFileImpl<ElfTypes>::FindDynamicValueByType(Elf_Sword type) const {
   Elf_Dyn* dyn = FindDynamicByType(type);
-  if (dyn == NULL) {
+  if (dyn == nullptr) {
     return 0;
   } else {
     return dyn->d_un.d_val;
@@ -1567,7 +1567,7 @@ bool ElfFileImpl<ElfTypes>::Strip(std::string* error_msg) {
   CHECK_NE(0U, section_headers.size());
   CHECK_EQ(section_headers.size(), section_headers_original_indexes.size());
 
-  // section 0 is the NULL section, sections start at offset of first section
+  // section 0 is the null section, sections start at offset of first section
   CHECK(GetSectionHeader(1) != nullptr);
   Elf_Off offset = GetSectionHeader(1)->sh_offset;
   for (size_t i = 1; i < section_headers.size(); i++) {

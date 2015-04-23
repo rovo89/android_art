@@ -46,7 +46,7 @@ void Mir2Lir::LoadValueDirect(RegLocation rl_src, RegStorage r_dest) {
   if (rl_src.location == kLocPhysReg) {
     OpRegCopy(r_dest, rl_src.reg);
   } else if (IsInexpensiveConstant(rl_src)) {
-    // On 64-bit targets, will sign extend.  Make sure constant reference is always NULL.
+    // On 64-bit targets, will sign extend.  Make sure constant reference is always null.
     DCHECK(!rl_src.ref || (mir_graph_->ConstantValue(rl_src) == 0));
     LoadConstantNoClobber(r_dest, mir_graph_->ConstantValue(rl_src));
   } else {

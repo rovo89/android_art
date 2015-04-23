@@ -55,7 +55,7 @@ template<size_t kAlignment>
 inline bool SpaceBitmap<kAlignment>::Test(const mirror::Object* obj) const {
   uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
   DCHECK(HasAddress(obj)) << obj;
-  DCHECK(bitmap_begin_ != NULL);
+  DCHECK(bitmap_begin_ != nullptr);
   DCHECK_GE(addr, heap_begin_);
   const uintptr_t offset = addr - heap_begin_;
   return (bitmap_begin_[OffsetToIndex(offset)] & OffsetToMask(offset)) != 0;

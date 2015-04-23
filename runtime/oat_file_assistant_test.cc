@@ -118,7 +118,7 @@ class OatFileAssistantTest : public CommonRuntimeTest {
   std::string GetImageDirectory() {
     if (IsHost()) {
       const char* host_dir = getenv("ANDROID_HOST_OUT");
-      CHECK(host_dir != NULL);
+      CHECK(host_dir != nullptr);
       return std::string(host_dir) + "/framework";
     } else {
       return std::string("/data/art-test");

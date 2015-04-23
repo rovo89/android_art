@@ -263,7 +263,7 @@ void CommonCompilerTest::CompileVirtualMethod(Handle<mirror::ClassLoader> class_
   mirror::Class* klass = class_linker_->FindClass(self, class_descriptor.c_str(), class_loader);
   CHECK(klass != nullptr) << "Class not found " << class_name;
   mirror::ArtMethod* method = klass->FindVirtualMethod(method_name, signature);
-  CHECK(method != NULL) << "Virtual method not found: "
+  CHECK(method != nullptr) << "Virtual method not found: "
       << class_name << "." << method_name << signature;
   CompileMethod(method);
 }

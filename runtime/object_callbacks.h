@@ -41,9 +41,10 @@ typedef void (ObjectCallback)(mirror::Object* obj, void* arg);
 typedef mirror::Object* (MarkObjectCallback)(mirror::Object* obj, void* arg) WARN_UNUSED;
 
 typedef void (MarkHeapReferenceCallback)(mirror::HeapReference<mirror::Object>* ref, void* arg);
-typedef void (DelayReferenceReferentCallback)(mirror::Class* klass, mirror::Reference* ref, void* arg);
+typedef void (DelayReferenceReferentCallback)(mirror::Class* klass, mirror::Reference* ref,
+    void* arg);
 
-// A callback for testing if an object is marked, returns nullptr if not marked, otherwise the new
+// A callback for testing if an object is marked, returns null if not marked, otherwise the new
 // address the object (if the object didn't move, returns the object input parameter).
 typedef mirror::Object* (IsMarkedCallback)(mirror::Object* object, void* arg) WARN_UNUSED;
 

@@ -55,7 +55,7 @@ class ValueSet : public ArenaObject<kArenaAllocMisc> {
         buckets_owned_(allocator, num_buckets_, false),
         num_entries_(to_copy.num_entries_) {
     // ArenaAllocator returns zeroed memory, so entries of buckets_ and
-    // buckets_owned_ are initialized to nullptr and false, respectively.
+    // buckets_owned_ are initialized to null and false, respectively.
     DCHECK(IsPowerOfTwo(num_buckets_));
     if (num_buckets_ == to_copy.num_buckets_) {
       // Hash table remains the same size. We copy the bucket pointers and leave

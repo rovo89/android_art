@@ -538,7 +538,7 @@ class Hprof : public SingleRootVisitor {
 
       // STRING format:
       // ID:  ID for this string
-      // U1*: UTF8 characters for string (NOT NULL terminated)
+      // U1*: UTF8 characters for string (NOT null terminated)
       //      (the record format encodes the length)
       __ AddU4(id);
       __ AddUtf8String(string.c_str());
@@ -931,7 +931,7 @@ void Hprof::DumpHeapObject(mirror::Object* obj) {
 
   mirror::Class* c = obj->GetClass();
   if (c == nullptr) {
-    // This object will bother HprofReader, because it has a NULL
+    // This object will bother HprofReader, because it has a null
     // class, so just don't dump it. It could be
     // gDvm.unlinkedJavaLangClass or it could be an object just
     // allocated which hasn't been initialized yet.
@@ -1057,7 +1057,7 @@ void Hprof::DumpHeapArray(mirror::Array* obj, mirror::Class* klass) {
     __ AddU4(length);
     __ AddClassId(LookupClassId(klass));
 
-    // Dump the elements, which are always objects or NULL.
+    // Dump the elements, which are always objects or null.
     __ AddIdList(obj->AsObjectArray<mirror::Object>());
   } else {
     size_t size;

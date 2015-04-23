@@ -72,7 +72,7 @@ extern unsigned int gAborting;
 // This can be used to reveal or conceal logs with specific tags.
 extern void InitLogging(char* argv[]);
 
-// Returns the command line used to invoke the current tool or nullptr if InitLogging hasn't been
+// Returns the command line used to invoke the current tool or null if InitLogging hasn't been
 // performed.
 extern const char* GetCmdLine();
 

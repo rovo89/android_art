@@ -194,7 +194,7 @@ mirror::String* InternTable::LookupStringFromImage(mirror::String* s)
       uint32_t string_idx = dex_file->GetIndexForStringId(*string_id);
       // GetResolvedString() contains a RB.
       mirror::String* image_string = dex_cache->GetResolvedString(string_idx);
-      if (image_string != NULL) {
+      if (image_string != nullptr) {
         return image_string;
       }
     }

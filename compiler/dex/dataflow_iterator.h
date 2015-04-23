@@ -72,7 +72,7 @@ namespace art {
           : mir_graph_(mir_graph),
             start_idx_(start_idx),
             end_idx_(end_idx),
-            block_id_list_(NULL),
+            block_id_list_(nullptr),
             idx_(0),
             repeats_(0),
             changed_(false) {}

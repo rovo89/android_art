@@ -39,7 +39,7 @@ enum RegisterMapFormat {
 class DexPcToReferenceMap {
  public:
   explicit DexPcToReferenceMap(const uint8_t* data) : data_(data) {
-    CHECK(data_ != NULL);
+    CHECK(data_ != nullptr);
   }
 
   // The total size of the reference bit map including header.

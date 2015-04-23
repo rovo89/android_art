@@ -28,7 +28,7 @@ namespace art {
 class NativePcOffsetToReferenceMap {
  public:
   explicit NativePcOffsetToReferenceMap(const uint8_t* data) : data_(data) {
-    CHECK(data_ != NULL);
+    CHECK(data_ != nullptr);
   }
 
   // The number of entries in the table.

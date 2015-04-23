@@ -199,7 +199,7 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   static_assert(IsDirectEntrypoint(kQuickD2iz), "Direct C stub not marked direct.");
   qpoints->pF2iz = art_f2i;
   static_assert(IsDirectEntrypoint(kQuickF2iz), "Direct C stub not marked direct.");
-  qpoints->pIdivmod = NULL;
+  qpoints->pIdivmod = nullptr;
   qpoints->pD2l = art_d2l;
   static_assert(IsDirectEntrypoint(kQuickD2l), "Direct C stub not marked direct.");
   qpoints->pF2l = art_f2l;
@@ -228,19 +228,24 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pQuickImtConflictTrampoline = art_quick_imt_conflict_trampoline;
   qpoints->pQuickResolutionTrampoline = art_quick_resolution_trampoline;
   qpoints->pQuickToInterpreterBridge = art_quick_to_interpreter_bridge;
-  qpoints->pInvokeDirectTrampolineWithAccessCheck = art_quick_invoke_direct_trampoline_with_access_check;
+  qpoints->pInvokeDirectTrampolineWithAccessCheck =
+      art_quick_invoke_direct_trampoline_with_access_check;
   static_assert(!IsDirectEntrypoint(kQuickInvokeDirectTrampolineWithAccessCheck),
                 "Non-direct C stub marked direct.");
-  qpoints->pInvokeInterfaceTrampolineWithAccessCheck = art_quick_invoke_interface_trampoline_with_access_check;
+  qpoints->pInvokeInterfaceTrampolineWithAccessCheck =
+      art_quick_invoke_interface_trampoline_with_access_check;
   static_assert(!IsDirectEntrypoint(kQuickInvokeInterfaceTrampolineWithAccessCheck),
                 "Non-direct C stub marked direct.");
-  qpoints->pInvokeStaticTrampolineWithAccessCheck = art_quick_invoke_static_trampoline_with_access_check;
+  qpoints->pInvokeStaticTrampolineWithAccessCheck =
+      art_quick_invoke_static_trampoline_with_access_check;
   static_assert(!IsDirectEntrypoint(kQuickInvokeStaticTrampolineWithAccessCheck),
                 "Non-direct C stub marked direct.");
-  qpoints->pInvokeSuperTrampolineWithAccessCheck = art_quick_invoke_super_trampoline_with_access_check;
+  qpoints->pInvokeSuperTrampolineWithAccessCheck =
+      art_quick_invoke_super_trampoline_with_access_check;
   static_assert(!IsDirectEntrypoint(kQuickInvokeSuperTrampolineWithAccessCheck),
                 "Non-direct C stub marked direct.");
-  qpoints->pInvokeVirtualTrampolineWithAccessCheck = art_quick_invoke_virtual_trampoline_with_access_check;
+  qpoints->pInvokeVirtualTrampolineWithAccessCheck =
+      art_quick_invoke_virtual_trampoline_with_access_check;
   static_assert(!IsDirectEntrypoint(kQuickInvokeVirtualTrampolineWithAccessCheck),
                 "Non-direct C stub marked direct.");
 

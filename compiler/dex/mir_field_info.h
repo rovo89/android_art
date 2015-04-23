@@ -124,7 +124,7 @@ class MirFieldInfo {
   uint16_t declaring_field_idx_;
   // The type index of the class declaring the field, 0 if unresolved.
   uint16_t declaring_class_idx_;
-  // The dex file that defines the class containing the field and the field, nullptr if unresolved.
+  // The dex file that defines the class containing the field and the field, null if unresolved.
   const DexFile* declaring_dex_file_;
 };
 
