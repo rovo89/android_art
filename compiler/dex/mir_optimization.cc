@@ -25,6 +25,7 @@
 #include "gvn_dead_code_elimination.h"
 #include "local_value_numbering.h"
 #include "mir_field_info.h"
+#include "type_inference.h"
 #include "quick/dex_file_method_inliner.h"
 #include "quick/dex_file_to_method_inliner_map.h"
 #include "stack.h"
@@ -576,7 +577,6 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
               // Copy the SSA information that is relevant.
               mir_next->ssa_rep->num_uses = mir->ssa_rep->num_uses;
               mir_next->ssa_rep->uses = mir->ssa_rep->uses;
-              mir_next->ssa_rep->fp_use = mir->ssa_rep->fp_use;
               mir_next->ssa_rep->num_defs = 0;
               mir->ssa_rep->num_uses = 0;
               mir->ssa_rep->num_defs = 0;
@@ -670,16 +670,7 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
                 mir->ssa_rep->uses = src_ssa;
                 mir->ssa_rep->num_uses = 3;
               }
-              mir->ssa_rep->num_defs = 1;
-              mir->ssa_rep->defs = arena_->AllocArray<int32_t>(1, kArenaAllocDFInfo);
-              mir->ssa_rep->fp_def = arena_->AllocArray<bool>(1, kArenaAllocDFInfo);
-              mir->ssa_rep->fp_def[0] = if_true->ssa_rep->fp_def[0];
-              // Match type of uses to def.
-              mir->ssa_rep->fp_use = arena_->AllocArray<bool>(mir->ssa_rep->num_uses,
-                                                              kArenaAllocDFInfo);
-              for (int i = 0; i < mir->ssa_rep->num_uses; i++) {
-                mir->ssa_rep->fp_use[i] = mir->ssa_rep->fp_def[0];
-              }
+              AllocateSSADefData(mir, 1);
               /*
                * There is usually a Phi node in the join block for our two cases.  If the
                * Phi node only contains our two cases as input, we will use the result
@@ -1134,23 +1125,26 @@ void MIRGraph::EliminateNullChecksEnd() {
   }
 }
 
+void MIRGraph::InferTypesStart() {
+  DCHECK(temp_scoped_alloc_ != nullptr);
+  temp_.ssa.ti = new (temp_scoped_alloc_.get()) TypeInference(this, temp_scoped_alloc_.get());
+}
+
 /*
  * Perform type and size inference for a basic block.
  */
 bool MIRGraph::InferTypes(BasicBlock* bb) {
   if (bb->data_flow_info == nullptr) return false;
 
-  bool infer_changed = false;
-  for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
-    if (mir->ssa_rep == NULL) {
-        continue;
-    }
+  DCHECK(temp_.ssa.ti != nullptr);
+  return temp_.ssa.ti->Apply(bb);
+}
 
-    // Propagate type info.
-    infer_changed = InferTypeAndSize(bb, mir, infer_changed);
-  }
-
-  return infer_changed;
+void MIRGraph::InferTypesEnd() {
+  DCHECK(temp_.ssa.ti != nullptr);
+  temp_.ssa.ti->Finish();
+  delete temp_.ssa.ti;
+  temp_.ssa.ti = nullptr;
 }
 
 bool MIRGraph::EliminateClassInitChecksGate() {
