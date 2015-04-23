@@ -99,6 +99,8 @@ static void WriteEhFrameCIE(InstructionSet isa,
       return;
     }
     case kX86: {
+      // FIXME: Add fp registers once libunwind adds support for them. Bug: 20491296
+      constexpr bool generate_opcodes_for_x86_fp = false;
       DebugFrameOpCodeWriter<> opcodes;
       opcodes.DefCFA(Reg::X86Core(4), 4);   // R4(ESP).
       opcodes.Offset(Reg::X86Core(8), -4);  // R8(EIP).
@@ -113,8 +115,10 @@ static void WriteEhFrameCIE(InstructionSet isa,
         }
       }
       // fp registers.
-      for (int reg = 0; reg < 8; reg++) {
-        opcodes.Undefined(Reg::X86Fp(reg));
+      if (generate_opcodes_for_x86_fp) {
+        for (int reg = 0; reg < 8; reg++) {
+          opcodes.Undefined(Reg::X86Fp(reg));
+        }
       }
       auto return_reg = Reg::X86Core(8);  // R8(EIP).
       WriteEhFrameCIE(is64bit, addr_type, return_reg, opcodes, eh_frame);
