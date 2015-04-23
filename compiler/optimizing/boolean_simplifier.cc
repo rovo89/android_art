@@ -72,8 +72,8 @@ static HInstruction* GetOppositeCondition(HInstruction* cond) {
       return graph->GetIntConstant(0);
     }
   } else {
-    // General case when 'cond' is another instruction of type boolean.
-    DCHECK_EQ(cond->GetType(), Primitive::Type::kPrimBoolean);
+    // General case when 'cond' is another instruction of type boolean,
+    // as verified by SSAChecker.
     return new (allocator) HBooleanNot(cond);
   }
 }
