@@ -225,7 +225,8 @@ if [ "$DEBUGGER" = "y" ]; then
 fi
 
 if [ "$USE_JVM" = "y" ]; then
-  ${JAVA} ${DEBUGGER_OPTS} ${JVM_VERIFY_ARG} -classpath classes $MAIN "$@"
+  # Xmx is necessary since we don't pass down the ART flags to JVM.
+  ${JAVA} ${DEBUGGER_OPTS} ${JVM_VERIFY_ARG} -Xmx256m -classpath classes $MAIN "$@"
   exit
 fi
 
