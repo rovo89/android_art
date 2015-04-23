@@ -1326,11 +1326,6 @@ void ArmMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
     }
   }
 
-  // Now, restore lr to its non-temp status.
-  FreeTemp(tmp1);
-  Clobber(rs_rARM_LR);
-  UnmarkTemp(rs_rARM_LR);
-
   if (reg_status != 0) {
     // We had manually allocated registers for rl_result.
     // Now construct a RegLocation.
@@ -1338,7 +1333,14 @@ void ArmMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
     rl_result.reg = RegStorage::MakeRegPair(res_lo, res_hi);
   }
 
+  // Free tmp1 but keep LR as temp for StoreValueWide() if needed.
+  FreeTemp(tmp1);
+
   StoreValueWide(rl_dest, rl_result);
+
+  // Now, restore lr to its non-temp status.
+  Clobber(rs_rARM_LR);
+  UnmarkTemp(rs_rARM_LR);
 }
 
 void ArmMir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
