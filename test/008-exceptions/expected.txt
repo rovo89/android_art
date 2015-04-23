@@ -1,9 +1,12 @@
 Got an NPE: second throw
 java.lang.NullPointerException: second throw
-	at Main.catchAndRethrow(Main.java:39)
-	at Main.exceptions_007(Main.java:23)
-	at Main.main(Main.java:31)
+	at Main.catchAndRethrow(Main.java:58)
+	at Main.exceptions_007(Main.java:41)
+	at Main.main(Main.java:49)
 Caused by: java.lang.NullPointerException: first throw
-	at Main.throwNullPointerException(Main.java:46)
-	at Main.catchAndRethrow(Main.java:36)
+	at Main.throwNullPointerException(Main.java:65)
+	at Main.catchAndRethrow(Main.java:55)
 	... 2 more
+Static Init
+BadError: This is bad by convention
+BadError: This is bad by convention
