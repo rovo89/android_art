@@ -309,7 +309,8 @@ void X86Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
         branch_normal->target = NewLIR0(kPseudoTargetLabel);
         StoreValueWide(rl_dest, rl_result);
       } else {
-        GenConversionCall(kQuickF2l, rl_dest, rl_src);
+        CheckEntrypointTypes<kQuickF2l, int64_t, float>();  // int64_t -> kCoreReg
+        GenConversionCall(kQuickF2l, rl_dest, rl_src, kCoreReg);
       }
       return;
     case Instruction::DOUBLE_TO_LONG:
@@ -334,7 +335,8 @@ void X86Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
         branch_normal->target = NewLIR0(kPseudoTargetLabel);
         StoreValueWide(rl_dest, rl_result);
       } else {
-        GenConversionCall(kQuickD2l, rl_dest, rl_src);
+        CheckEntrypointTypes<kQuickD2l, int64_t, double>();  // int64_t -> kCoreReg
+        GenConversionCall(kQuickD2l, rl_dest, rl_src, kCoreReg);
       }
       return;
     default:

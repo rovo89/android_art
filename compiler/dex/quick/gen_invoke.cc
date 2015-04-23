@@ -882,8 +882,6 @@ RegLocation Mir2Lir::InlineTarget(CallInfo* info) {
         ShortyToRegClass(mir_graph_->GetShortyFromMethodReference(info->method_ref)[0]));
   } else {
     res = info->result;
-    DCHECK_EQ(LocToRegClass(res),
-              ShortyToRegClass(mir_graph_->GetShortyFromMethodReference(info->method_ref)[0]));
   }
   return res;
 }
@@ -896,8 +894,6 @@ RegLocation Mir2Lir::InlineTargetWide(CallInfo* info) {
         mir_graph_->GetShortyFromMethodReference(info->method_ref)[0]));
   } else {
     res = info->result;
-    DCHECK_EQ(LocToRegClass(res),
-              ShortyToRegClass(mir_graph_->GetShortyFromMethodReference(info->method_ref)[0]));
   }
   return res;
 }
@@ -1338,7 +1334,7 @@ bool Mir2Lir::GenInlinedCurrentThread(CallInfo* info) {
 }
 
 bool Mir2Lir::GenInlinedUnsafeGet(CallInfo* info,
-                                  bool is_long, bool is_volatile) {
+                                  bool is_long, bool is_object, bool is_volatile) {
   if (cu_->instruction_set == kMips || cu_->instruction_set == kMips64) {
     // TODO: add Mips and Mips64 implementations.
     return false;
@@ -1351,7 +1347,7 @@ bool Mir2Lir::GenInlinedUnsafeGet(CallInfo* info,
 
   RegLocation rl_object = LoadValue(rl_src_obj, kRefReg);
   RegLocation rl_offset = LoadValue(rl_src_offset, kCoreReg);
-  RegLocation rl_result = EvalLoc(rl_dest, LocToRegClass(rl_dest), true);
+  RegLocation rl_result = EvalLoc(rl_dest, is_object ? kRefReg : kCoreReg, true);
   if (is_long) {
     if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64
         || cu_->instruction_set == kArm64) {
@@ -1411,7 +1407,7 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
       FreeTemp(rl_temp_offset);
     }
   } else {
-    rl_value = LoadValue(rl_src_value, LocToRegClass(rl_src_value));
+    rl_value = LoadValue(rl_src_value, is_object ? kRefReg : kCoreReg);
     if (rl_value.ref) {
       StoreRefIndexed(rl_object.reg, rl_offset.reg, rl_value.reg, 0);
     } else {
@@ -1499,11 +1495,13 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
   FreeCallTemps();
   if (info->result.location != kLocInvalid) {
     // We have a following MOVE_RESULT - do it now.
+    RegisterClass reg_class =
+        ShortyToRegClass(mir_graph_->GetShortyFromMethodReference(info->method_ref)[0]);
     if (info->result.wide) {
-      RegLocation ret_loc = GetReturnWide(LocToRegClass(info->result));
+      RegLocation ret_loc = GetReturnWide(reg_class);
       StoreValueWide(info->result, ret_loc);
     } else {
-      RegLocation ret_loc = GetReturn(LocToRegClass(info->result));
+      RegLocation ret_loc = GetReturn(reg_class);
       StoreValue(info->result, ret_loc);
     }
   }
