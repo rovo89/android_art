@@ -41,7 +41,7 @@ void PassDriverMEPostOpt::SetupPasses(PassManager* pass_manager) {
   pass_manager->AddPass(new SSAConversion);
   pass_manager->AddPass(new PhiNodeOperands);
   pass_manager->AddPass(new PerformInitRegLocations);
-  pass_manager->AddPass(new TypeInference);
+  pass_manager->AddPass(new TypeInferencePass);
   pass_manager->AddPass(new FinishSSATransformation);
 }
 

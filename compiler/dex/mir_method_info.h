@@ -232,6 +232,7 @@ class MirMethodLoweringInfo : public MirMethodInfo {
   int stats_flags_;
 
   friend class MirOptimizationTest;
+  friend class TypeInferenceTest;
 };
 
 }  // namespace art
