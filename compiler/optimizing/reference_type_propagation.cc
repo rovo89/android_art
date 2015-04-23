@@ -68,11 +68,11 @@ void ReferenceTypePropagation::BoundTypeForIfNotNull(HBasicBlock* block) {
   }
   HInstruction* input0 = ifInput->InputAt(0);
   HInstruction* input1 = ifInput->InputAt(1);
-  HInstruction* obj;
+  HInstruction* obj = nullptr;
 
-  if ((input0->GetType() == Primitive::kPrimNot) && input1->ActAsNullConstant()) {
+  if (input1->IsNullConstant()) {
     obj = input0;
-  } else if ((input1->GetType() == Primitive::kPrimNot) && input0->ActAsNullConstant()) {
+  } else if (input0->IsNullConstant()) {
     obj = input1;
   } else {
     return;
