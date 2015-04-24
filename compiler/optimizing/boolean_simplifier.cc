@@ -120,8 +120,11 @@ void HBooleanSimplifier::Run() {
     phi->ReplaceWith(replacement);
     merge_block->RemovePhi(phi);
 
-    // Link the start/end blocks and remove empty branches.
-    graph_->MergeEmptyBranches(block, merge_block);
+    // Delete the true branch and merge the resulting chain of blocks
+    // 'block->false_block->merge_block' into one.
+    true_block->DisconnectAndDelete();
+    block->MergeWith(false_block);
+    block->MergeWith(merge_block);
 
     // Remove the original condition if it is now unused.
     if (!if_condition->HasUses()) {

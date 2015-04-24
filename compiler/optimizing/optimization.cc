@@ -21,9 +21,9 @@
 
 namespace art {
 
-void HOptimization::MaybeRecordStat(MethodCompilationStat compilation_stat) const {
+void HOptimization::MaybeRecordStat(MethodCompilationStat compilation_stat, size_t count) const {
   if (stats_ != nullptr) {
-    stats_->RecordStat(compilation_stat);
+    stats_->RecordStat(compilation_stat, count);
   }
 }
 
