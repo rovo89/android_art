@@ -58,8 +58,8 @@ class OptimizingCompilerStats {
  public:
   OptimizingCompilerStats() {}
 
-  void RecordStat(MethodCompilationStat stat) {
-    compile_stats_[stat]++;
+  void RecordStat(MethodCompilationStat stat, size_t count = 1) {
+    compile_stats_[stat] += count;
   }
 
   void Log() const {
