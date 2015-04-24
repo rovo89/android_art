@@ -572,14 +572,19 @@ TEST(ConstantFolding, IntConstantFoldingAndJumps) {
   };
 
   // Expected difference after dead code elimination.
-  diff_t expected_dce_diff = {
-    { "  3: IntConstant\n",     removed },
-    { "  13: IntConstant\n",    removed },
-    { "  18: IntConstant\n",    removed },
-    { "  24: IntConstant\n",    removed },
-    { "  34: IntConstant\n",    removed },
-  };
-  std::string expected_after_dce = Patch(expected_after_cf, expected_dce_diff);
+  std::string expected_after_dce =
+    "BasicBlock 0, succ: 1\n"
+    "  5: IntConstant []\n"
+    "  30: SuspendCheck\n"
+    "  32: IntConstant []\n"
+    "  33: IntConstant []\n"
+    "  35: IntConstant [28]\n"
+    "  31: Goto 1\n"
+    "BasicBlock 1, pred: 0, succ: 5\n"
+    "  21: SuspendCheck\n"
+    "  28: Return(35)\n"
+    "BasicBlock 5, pred: 1\n"
+    "  29: Exit\n";
 
   TestCode(data,
            expected_before,
@@ -647,13 +652,15 @@ TEST(ConstantFolding, ConstantCondition) {
     ASSERT_EQ(inst->AsIntConstant()->GetValue(), 1);
   };
 
-  // Expected difference after dead code elimination.
-  diff_t expected_dce_diff = {
-    { "  3: IntConstant [9, 15, 22]\n", "  3: IntConstant [9, 22]\n" },
-    { "  22: Phi(3, 5) [15]\n",         "  22: Phi(3, 5)\n" },
-    { "  15: Add(22, 3)\n",             removed }
-  };
-  std::string expected_after_dce = Patch(expected_after_cf, expected_dce_diff);
+  // Expected graph after dead code elimination.
+  std::string expected_after_dce =
+    "BasicBlock 0, succ: 1\n"
+    "  19: SuspendCheck\n"
+    "  20: Goto 1\n"
+    "BasicBlock 1, pred: 0, succ: 4\n"
+    "  17: ReturnVoid\n"
+    "BasicBlock 4, pred: 1\n"
+    "  18: Exit\n";
 
   TestCode(data,
            expected_before,
