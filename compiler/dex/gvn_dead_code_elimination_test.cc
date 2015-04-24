@@ -406,6 +406,15 @@ class GvnDeadCodeEliminationTest : public testing::Test {
     }
   }
 
+  template <size_t count>
+  void MarkAsWideSRegs(const int32_t (&sregs)[count]) {
+    for (int32_t sreg : sregs) {
+      cu_.mir_graph->reg_location_[sreg].wide = true;
+      cu_.mir_graph->reg_location_[sreg + 1].wide = true;
+      cu_.mir_graph->reg_location_[sreg + 1].high_word = true;
+    }
+  }
+
   void PerformDCE() {
     FillVregToSsaRegExitMaps();
     cu_.mir_graph->GetNumOfCodeAndTempVRs();
@@ -467,9 +476,11 @@ class GvnDeadCodeEliminationTest : public testing::Test {
     cu_.access_flags = kAccStatic;  // Don't let "this" interfere with this test.
     allocator_.reset(ScopedArenaAllocator::Create(&cu_.arena_stack));
     // By default, the zero-initialized reg_location_[.] with ref == false tells LVN that
-    // 0 constants are integral, not references. Nothing else is used by LVN/GVN.
+    // 0 constants are integral, not references, and the values are all narrow.
+    // Nothing else is used by LVN/GVN. Tests can override the default values as needed.
     cu_.mir_graph->reg_location_ = static_cast<RegLocation*>(cu_.arena.Alloc(
         kMaxSsaRegs * sizeof(cu_.mir_graph->reg_location_[0]), kArenaAllocRegAlloc));
+    cu_.mir_graph->num_ssa_regs_ = kMaxSsaRegs;
     // Bind all possible sregs to live vregs for test purposes.
     live_in_v_->SetInitialBits(kMaxSsaRegs);
     cu_.mir_graph->ssa_base_vregs_.reserve(kMaxSsaRegs);
@@ -705,6 +716,8 @@ TEST_F(GvnDeadCodeEliminationTestSimple, Rename4) {
   PrepareSRegToVRegMap(sreg_to_vreg_map);
 
   PrepareMIRs(mirs);
+  static const int32_t wide_sregs[] = { 3 };
+  MarkAsWideSRegs(wide_sregs);
   PerformGVN_DCE();
 
   ASSERT_EQ(arraysize(mirs), value_names_.size());
@@ -745,6 +758,8 @@ TEST_F(GvnDeadCodeEliminationTestSimple, Rename5) {
 
   PrepareIFields(ifields);
   PrepareMIRs(mirs);
+  static const int32_t wide_sregs[] = { 5 };
+  MarkAsWideSRegs(wide_sregs);
   PerformGVN_DCE();
 
   ASSERT_EQ(arraysize(mirs), value_names_.size());
@@ -777,6 +792,8 @@ TEST_F(GvnDeadCodeEliminationTestSimple, Rename6) {
   PrepareSRegToVRegMap(sreg_to_vreg_map);
 
   PrepareMIRs(mirs);
+  static const int32_t wide_sregs[] = { 0, 2 };
+  MarkAsWideSRegs(wide_sregs);
   PerformGVN_DCE();
 
   ASSERT_EQ(arraysize(mirs), value_names_.size());
@@ -1255,6 +1272,8 @@ TEST_F(GvnDeadCodeEliminationTestSimple, Simple4) {
 
   PrepareIFields(ifields);
   PrepareMIRs(mirs);
+  static const int32_t wide_sregs[] = { 1, 6 };
+  MarkAsWideSRegs(wide_sregs);
   PerformGVN_DCE();
 
   ASSERT_EQ(arraysize(mirs), value_names_.size());

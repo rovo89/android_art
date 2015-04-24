@@ -1152,28 +1152,20 @@ uint16_t LocalValueNumbering::HandlePhi(MIR* mir) {
     // Running LVN without a full GVN?
     return kNoValue;
   }
-  int32_t* uses = mir->ssa_rep->uses;
-  // Try to find out if this is merging wide regs.
-  if (mir->ssa_rep->defs[0] != 0 &&
-      sreg_wide_value_map_.count(mir->ssa_rep->defs[0] - 1) != 0u) {
+  // Determine if this Phi is merging wide regs.
+  RegLocation raw_dest = gvn_->GetMirGraph()->GetRawDest(mir);
+  if (raw_dest.high_word) {
     // This is the high part of a wide reg. Ignore the Phi.
     return kNoValue;
   }
-  BasicBlockId* incoming = mir->meta.phi_incoming;
-  int16_t pos = 0;
-  // Check if we're merging a wide value based on the first merged LVN.
-  const LocalValueNumbering* first_lvn = gvn_->merge_lvns_[0];
-  DCHECK_LT(pos, mir->ssa_rep->num_uses);
-  while (incoming[pos] != first_lvn->Id()) {
-    ++pos;
-    DCHECK_LT(pos, mir->ssa_rep->num_uses);
-  }
-  int first_s_reg = uses[pos];
-  bool wide = (first_lvn->sreg_wide_value_map_.count(first_s_reg) != 0u);
+  bool wide = raw_dest.wide;
   // Iterate over *merge_lvns_ and skip incoming sregs for BBs without associated LVN.
   merge_names_.clear();
   uint16_t value_name = kNoValue;
   bool same_values = true;
+  BasicBlockId* incoming = mir->meta.phi_incoming;
+  int32_t* uses = mir->ssa_rep->uses;
+  int16_t pos = 0;
   for (const LocalValueNumbering* lvn : gvn_->merge_lvns_) {
     DCHECK_LT(pos, mir->ssa_rep->num_uses);
     while (incoming[pos] != lvn->Id()) {
@@ -1992,6 +1984,9 @@ uint16_t LocalValueNumbering::GetEndingVregValueNumberImpl(int v_reg, bool wide)
   DCHECK(bb != nullptr);
   int s_reg = bb->data_flow_info->vreg_to_ssa_map_exit[v_reg];
   if (s_reg == INVALID_SREG) {
+    return kNoValue;
+  }
+  if (gvn_->GetMirGraph()->GetRegLocation(s_reg).wide != wide) {
     return kNoValue;
   }
   if (wide) {
