@@ -1065,6 +1065,7 @@ void HGraphBuilder::BuildFillArrayData(const Instruction& instruction, uint32_t 
     default:
       LOG(FATAL) << "Unknown element width for " << payload->element_width;
   }
+  graph_->SetHasArrayAccesses(true);
 }
 
 void HGraphBuilder::BuildFillWideArrayData(HInstruction* object,
