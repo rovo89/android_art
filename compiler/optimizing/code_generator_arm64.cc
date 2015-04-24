@@ -173,14 +173,13 @@ class LoadClassSlowPathARM64 : public SlowPathCodeARM64 {
 
     InvokeRuntimeCallingConvention calling_convention;
     __ Mov(calling_convention.GetRegisterAt(0).W(), cls_->GetTypeIndex());
-    arm64_codegen->LoadCurrentMethod(calling_convention.GetRegisterAt(1).W());
     int32_t entry_point_offset = do_clinit_ ? QUICK_ENTRY_POINT(pInitializeStaticStorage)
                                             : QUICK_ENTRY_POINT(pInitializeType);
     arm64_codegen->InvokeRuntime(entry_point_offset, at_, dex_pc_, this);
     if (do_clinit_) {
-      CheckEntrypointTypes<kQuickInitializeStaticStorage, void*, uint32_t, mirror::ArtMethod*>();
+      CheckEntrypointTypes<kQuickInitializeStaticStorage, void*, uint32_t>();
     } else {
-      CheckEntrypointTypes<kQuickInitializeType, void*, uint32_t, mirror::ArtMethod*>();
+      CheckEntrypointTypes<kQuickInitializeType, void*, uint32_t>();
     }
 
     // Move the class to the desired location.
@@ -225,11 +224,10 @@ class LoadStringSlowPathARM64 : public SlowPathCodeARM64 {
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
-    arm64_codegen->LoadCurrentMethod(calling_convention.GetRegisterAt(1).W());
     __ Mov(calling_convention.GetRegisterAt(0).W(), instruction_->GetStringIndex());
     arm64_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pResolveString), instruction_, instruction_->GetDexPc(), this);
-    CheckEntrypointTypes<kQuickResolveString, void*, uint32_t, mirror::ArtMethod*>();
+    CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
     Primitive::Type type = instruction_->GetType();
     arm64_codegen->MoveLocation(locations->Out(), calling_convention.GetReturnLocation(type), type);
 
