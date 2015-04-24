@@ -384,7 +384,8 @@ TEST_F(UtilsTest, GetSystemImageFilename) {
 TEST_F(UtilsTest, ExecSuccess) {
   std::vector<std::string> command;
   if (kIsTargetBuild) {
-    command.push_back("/system/bin/id");
+    std::string android_root(GetAndroidRoot());
+    command.push_back(android_root + "/bin/id");
   } else {
     command.push_back("/usr/bin/id");
   }

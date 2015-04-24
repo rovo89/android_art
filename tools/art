@@ -92,6 +92,7 @@ fi
 ANDROID_DATA=$ANDROID_DATA \
   ANDROID_ROOT=$ANDROID_ROOT \
   LD_LIBRARY_PATH=$LD_LIBRARY_PATH \
+  PATH=$ANDROID_ROOT/bin:$PATH \
   $invoke_with $ANDROID_ROOT/bin/$DALVIKVM $lib \
     -XXlib:$LIBART \
     -Ximage:$ANDROID_ROOT/framework/core.art \
