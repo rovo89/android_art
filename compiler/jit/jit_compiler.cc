@@ -62,7 +62,7 @@ extern "C" bool jit_compile_method(void* handle, mirror::ArtMethod* method, Thre
 
 JitCompiler::JitCompiler() : total_time_(0) {
   auto* pass_manager_options = new PassManagerOptions;
-  pass_manager_options->SetDisablePassList("GVN,DCE");
+  pass_manager_options->SetDisablePassList("GVN,DCE,GVNCleanup");
   compiler_options_.reset(new CompilerOptions(
       CompilerOptions::kDefaultCompilerFilter,
       CompilerOptions::kDefaultHugeMethodThreshold,
