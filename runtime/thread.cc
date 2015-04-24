@@ -1171,9 +1171,14 @@ bool Thread::IsStillStarting() const {
 }
 
 void Thread::AssertPendingException() const {
-  if (UNLIKELY(!IsExceptionPending())) {
-    LOG(FATAL) << "Pending exception expected.";
-  }
+  CHECK(IsExceptionPending()) << "Pending exception expected.";
+}
+
+void Thread::AssertPendingOOMException() const {
+  AssertPendingException();
+  auto* e = GetException();
+  CHECK_EQ(e->GetClass(), DecodeJObject(WellKnownClasses::java_lang_OutOfMemoryError)->AsClass())
+      << e->Dump();
 }
 
 void Thread::AssertNoPendingException() const {

@@ -39,6 +39,7 @@ jclass WellKnownClasses::java_lang_ClassNotFoundException;
 jclass WellKnownClasses::java_lang_Daemons;
 jclass WellKnownClasses::java_lang_Error;
 jclass WellKnownClasses::java_lang_Object;
+jclass WellKnownClasses::java_lang_OutOfMemoryError;
 jclass WellKnownClasses::java_lang_reflect_AbstractMethod;
 jclass WellKnownClasses::java_lang_reflect_ArtMethod;
 jclass WellKnownClasses::java_lang_reflect_Constructor;
@@ -176,6 +177,7 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_ClassNotFoundException = CacheClass(env, "java/lang/ClassNotFoundException");
   java_lang_Daemons = CacheClass(env, "java/lang/Daemons");
   java_lang_Object = CacheClass(env, "java/lang/Object");
+  java_lang_OutOfMemoryError = CacheClass(env, "java/lang/OutOfMemoryError");
   java_lang_Error = CacheClass(env, "java/lang/Error");
   java_lang_reflect_AbstractMethod = CacheClass(env, "java/lang/reflect/AbstractMethod");
   java_lang_reflect_ArtMethod = CacheClass(env, "java/lang/reflect/ArtMethod");
