@@ -53,10 +53,12 @@ class LocalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
   }
 
   uint16_t GetSregValue(uint16_t s_reg) const {
+    DCHECK(!gvn_->GetMirGraph()->GetRegLocation(s_reg).wide);
     return GetSregValueImpl(s_reg, &sreg_value_map_);
   }
 
   uint16_t GetSregValueWide(uint16_t s_reg) const {
+    DCHECK(gvn_->GetMirGraph()->GetRegLocation(s_reg).wide);
     return GetSregValueImpl(s_reg, &sreg_wide_value_map_);
   }
 
@@ -123,21 +125,27 @@ class LocalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
 
   void SetOperandValue(uint16_t s_reg, uint16_t value) {
     DCHECK_EQ(sreg_wide_value_map_.count(s_reg), 0u);
+    DCHECK(!gvn_->GetMirGraph()->GetRegLocation(s_reg).wide);
     SetOperandValueImpl(s_reg, value, &sreg_value_map_);
   }
 
   uint16_t GetOperandValue(int s_reg) const {
     DCHECK_EQ(sreg_wide_value_map_.count(s_reg), 0u);
+    DCHECK(!gvn_->GetMirGraph()->GetRegLocation(s_reg).wide);
     return GetOperandValueImpl(s_reg, &sreg_value_map_);
   }
 
   void SetOperandValueWide(uint16_t s_reg, uint16_t value) {
     DCHECK_EQ(sreg_value_map_.count(s_reg), 0u);
+    DCHECK(gvn_->GetMirGraph()->GetRegLocation(s_reg).wide);
+    DCHECK(!gvn_->GetMirGraph()->GetRegLocation(s_reg).high_word);
     SetOperandValueImpl(s_reg, value, &sreg_wide_value_map_);
   }
 
   uint16_t GetOperandValueWide(int s_reg) const {
     DCHECK_EQ(sreg_value_map_.count(s_reg), 0u);
+    DCHECK(gvn_->GetMirGraph()->GetRegLocation(s_reg).wide);
+    DCHECK(!gvn_->GetMirGraph()->GetRegLocation(s_reg).high_word);
     return GetOperandValueImpl(s_reg, &sreg_wide_value_map_);
   }
 
@@ -331,7 +339,7 @@ class LocalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
 
   void CopyLiveSregValues(SregValueMap* dest, const SregValueMap& src);
 
-  // Intersect maps as sets. The value type must be equality-comparable.
+  // Intersect SSA reg value maps as sets, ignore dead regs.
   template <SregValueMap LocalValueNumbering::* map_ptr>
   void IntersectSregValueMaps();
 
