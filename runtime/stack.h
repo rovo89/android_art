@@ -668,17 +668,11 @@ class StackVisitor {
   bool SetVRegFromQuickCode(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_value,
                             VRegKind kind)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool SetVRegFromOptimizedCode(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_value,
-                                VRegKind kind)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool SetRegisterIfAccessible(uint32_t reg, uint32_t new_value, VRegKind kind)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool SetVRegPairFromQuickCode(mirror::ArtMethod* m, uint16_t vreg, uint64_t new_value,
                                 VRegKind kind_lo, VRegKind kind_hi)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool SetVRegPairFromOptimizedCode(mirror::ArtMethod* m, uint16_t vreg, uint64_t new_value,
-                                    VRegKind kind_lo, VRegKind kind_hi)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool SetRegisterPairIfAccessible(uint32_t reg_lo, uint32_t reg_hi, uint64_t new_value,
                                    bool is_float)

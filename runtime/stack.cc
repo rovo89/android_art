@@ -345,7 +345,7 @@ bool StackVisitor::SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_val
       DCHECK(context_ != nullptr);  // You can't reliably write registers without a context.
       DCHECK(m == GetMethod());
       if (m->IsOptimized(sizeof(void*))) {
-        return SetVRegFromOptimizedCode(m, vreg, new_value, kind);
+        return false;
       } else {
         return SetVRegFromQuickCode(m, vreg, new_value, kind);
       }
@@ -379,57 +379,6 @@ bool StackVisitor::SetVRegFromQuickCode(mirror::ArtMethod* m, uint16_t vreg, uin
         frame_info.FpSpillMask(), frame_info.FrameSizeInBytes(), vreg);
     *addr = new_value;
     return true;
-  }
-}
-
-bool StackVisitor::SetVRegFromOptimizedCode(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_value,
-                                            VRegKind kind) {
-  const void* code_pointer = m->GetQuickOatCodePointer(sizeof(void*));
-  DCHECK(code_pointer != nullptr);
-  uint32_t native_pc_offset = m->NativeQuickPcOffset(cur_quick_frame_pc_);
-  CodeInfo code_info = m->GetOptimizedCodeInfo();
-  StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset);
-  const DexFile::CodeItem* code_item = m->GetCodeItem();
-  DCHECK(code_item != nullptr) << PrettyMethod(m);  // Can't be null or how would we compile
-                                                    // its instructions?
-  uint16_t number_of_dex_registers = code_item->registers_size_;
-  DCHECK_LT(vreg, number_of_dex_registers);
-  DexRegisterMap dex_register_map =
-      code_info.GetDexRegisterMapOf(stack_map, number_of_dex_registers);
-  DexRegisterLocation::Kind location_kind =
-      dex_register_map.GetLocationKind(vreg, number_of_dex_registers, code_info);
-  uint32_t dex_pc = m->ToDexPc(cur_quick_frame_pc_, false);
-  switch (location_kind) {
-    case DexRegisterLocation::Kind::kInStack: {
-      const int32_t offset =
-          dex_register_map.GetStackOffsetInBytes(vreg, number_of_dex_registers, code_info);
-      uint8_t* addr = reinterpret_cast<uint8_t*>(cur_quick_frame_) + offset;
-      *reinterpret_cast<uint32_t*>(addr) = new_value;
-      return true;
-    }
-    case DexRegisterLocation::Kind::kInRegister:
-    case DexRegisterLocation::Kind::kInFpuRegister: {
-      uint32_t reg = dex_register_map.GetMachineRegister(vreg, number_of_dex_registers, code_info);
-      return SetRegisterIfAccessible(reg, new_value, kind);
-    }
-    case DexRegisterLocation::Kind::kConstant:
-      LOG(ERROR) << StringPrintf("Cannot change value of DEX register v%u used as a constant at "
-                                 "DEX pc 0x%x (native pc 0x%x) of method %s",
-                                 vreg, dex_pc, native_pc_offset,
-                                 PrettyMethod(cur_quick_frame_->AsMirrorPtr()).c_str());
-      return false;
-    case DexRegisterLocation::Kind::kNone:
-      LOG(ERROR) << StringPrintf("No location for DEX register v%u at DEX pc 0x%x "
-                                 "(native pc 0x%x) of method %s",
-                                 vreg, dex_pc, native_pc_offset,
-                                 PrettyMethod(cur_quick_frame_->AsMirrorPtr()).c_str());
-      return false;
-    default:
-      LOG(FATAL) << StringPrintf("Unknown location for DEX register v%u at DEX pc 0x%x "
-                                 "(native pc 0x%x) of method %s",
-                                 vreg, dex_pc, native_pc_offset,
-                                 PrettyMethod(cur_quick_frame_->AsMirrorPtr()).c_str());
-      UNREACHABLE();
   }
 }
 
@@ -477,7 +426,7 @@ bool StackVisitor::SetVRegPair(mirror::ArtMethod* m, uint16_t vreg, uint64_t new
     DCHECK(context_ != nullptr);  // You can't reliably write registers without a context.
     DCHECK(m == GetMethod());
     if (m->IsOptimized(sizeof(void*))) {
-      return SetVRegPairFromOptimizedCode(m, vreg, new_value, kind_lo, kind_hi);
+      return false;
     } else {
       return SetVRegPairFromQuickCode(m, vreg, new_value, kind_lo, kind_hi);
     }
@@ -513,15 +462,6 @@ bool StackVisitor::SetVRegPairFromQuickCode(
     *reinterpret_cast<uint64_t*>(addr) = new_value;
     return true;
   }
-}
-
-bool StackVisitor::SetVRegPairFromOptimizedCode(
-    mirror::ArtMethod* m, uint16_t vreg, uint64_t new_value, VRegKind kind_lo, VRegKind kind_hi) {
-  uint32_t low_32bits = Low32Bits(new_value);
-  uint32_t high_32bits = High32Bits(new_value);
-  bool success = SetVRegFromOptimizedCode(m, vreg, low_32bits, kind_lo);
-  success &= SetVRegFromOptimizedCode(m, vreg + 1, high_32bits, kind_hi);
-  return success;
 }
 
 bool StackVisitor::SetRegisterPairIfAccessible(uint32_t reg_lo, uint32_t reg_hi,
