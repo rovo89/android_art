@@ -1097,7 +1097,7 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
   // - Remove suspend checks, that hold an environment.
   // We must do this after the other blocks have been inlined, otherwise ids of
   // constants could overlap with the inner graph.
-  int parameter_index = 0;
+  size_t parameter_index = 0;
   for (HInstructionIterator it(entry_block_->GetInstructions()); !it.Done(); it.Advance()) {
     HInstruction* current = it.Current();
     if (current->IsNullConstant()) {
@@ -1110,6 +1110,14 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
       // TODO: Don't duplicate floating-point constants.
       current->MoveBefore(outer_graph->GetEntryBlock()->GetLastInstruction());
     } else if (current->IsParameterValue()) {
+      if (kIsDebugBuild
+          && invoke->IsInvokeStaticOrDirect()
+          && invoke->AsInvokeStaticOrDirect()->IsStaticWithExplicitClinitCheck()) {
+        // Ensure we do not use the last input of `invoke`, as it
+        // contains a clinit check which is not an actual argument.
+        size_t last_input_index = invoke->InputCount() - 1;
+        DCHECK(parameter_index != last_input_index);
+      }
       current->ReplaceWith(invoke->InputAt(parameter_index++));
     } else {
       DCHECK(current->IsGoto() || current->IsSuspendCheck());

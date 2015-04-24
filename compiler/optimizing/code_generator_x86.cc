@@ -1196,6 +1196,10 @@ void InstructionCodeGeneratorX86::VisitReturn(HReturn* ret) {
 }
 
 void LocationsBuilderX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
+  // Explicit clinit checks triggered by static invokes must have been
+  // pruned by art::PrepareForRegisterAllocation.
+  DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
+
   IntrinsicLocationsBuilderX86 intrinsic(codegen_);
   if (intrinsic.TryDispatch(invoke)) {
     return;
@@ -1214,6 +1218,10 @@ static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorX86* codegen)
 }
 
 void InstructionCodeGeneratorX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
+  // Explicit clinit checks triggered by static invokes must have been
+  // pruned by art::PrepareForRegisterAllocation.
+  DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
+
   if (TryGenerateIntrinsicCode(invoke, codegen_)) {
     return;
   }

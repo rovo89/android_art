@@ -1966,6 +1966,10 @@ void LocationsBuilderARM64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
 }
 
 void LocationsBuilderARM64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
+  // Explicit clinit checks triggered by static invokes must have been
+  // pruned by art::PrepareForRegisterAllocation.
+  DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
+
   IntrinsicLocationsBuilderARM64 intrinsic(GetGraph()->GetArena());
   if (intrinsic.TryDispatch(invoke)) {
     return;
@@ -2016,6 +2020,10 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
 }
 
 void InstructionCodeGeneratorARM64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
+  // Explicit clinit checks triggered by static invokes must have been
+  // pruned by art::PrepareForRegisterAllocation.
+  DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
+
   if (TryGenerateIntrinsicCode(invoke, codegen_)) {
     return;
   }

@@ -1270,6 +1270,10 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
 }
 
 void LocationsBuilderX86_64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
+  // Explicit clinit checks triggered by static invokes must have been
+  // pruned by art::PrepareForRegisterAllocation.
+  DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
+
   IntrinsicLocationsBuilderX86_64 intrinsic(codegen_);
   if (intrinsic.TryDispatch(invoke)) {
     return;
@@ -1288,6 +1292,10 @@ static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorX86_64* codeg
 }
 
 void InstructionCodeGeneratorX86_64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
+  // Explicit clinit checks triggered by static invokes must have been
+  // pruned by art::PrepareForRegisterAllocation.
+  DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
+
   if (TryGenerateIntrinsicCode(invoke, codegen_)) {
     return;
   }

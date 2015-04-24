@@ -42,6 +42,9 @@ class GraphChecker : public HGraphDelegateVisitor {
   // Check `instruction`.
   void VisitInstruction(HInstruction* instruction) OVERRIDE;
 
+  // Perform control-flow graph checks on instruction.
+  void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE;
+
   // Was the last visit of the graph valid?
   bool IsValid() const {
     return errors_.empty();

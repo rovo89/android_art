@@ -2212,6 +2212,14 @@ class HInvoke : public HInstruction {
 
 class HInvokeStaticOrDirect : public HInvoke {
  public:
+  // Requirements of this method call regarding the class
+  // initialization (clinit) check of its declaring class.
+  enum class ClinitCheckRequirement {
+    kNone,      // Class already initialized.
+    kExplicit,  // Static call having explicit clinit check as last input.
+    kImplicit,  // Static call implicitly requiring a clinit check.
+  };
+
   HInvokeStaticOrDirect(ArenaAllocator* arena,
                         uint32_t number_of_arguments,
                         Primitive::Type return_type,
@@ -2219,11 +2227,13 @@ class HInvokeStaticOrDirect : public HInvoke {
                         uint32_t dex_method_index,
                         bool is_recursive,
                         InvokeType original_invoke_type,
-                        InvokeType invoke_type)
+                        InvokeType invoke_type,
+                        ClinitCheckRequirement clinit_check_requirement)
       : HInvoke(arena, number_of_arguments, return_type, dex_pc, dex_method_index),
         original_invoke_type_(original_invoke_type),
         invoke_type_(invoke_type),
-        is_recursive_(is_recursive) {}
+        is_recursive_(is_recursive),
+        clinit_check_requirement_(clinit_check_requirement) {}
 
   bool CanDoImplicitNullCheck() const OVERRIDE {
     // We access the method via the dex cache so we can't do an implicit null check.
@@ -2236,12 +2246,61 @@ class HInvokeStaticOrDirect : public HInvoke {
   bool IsRecursive() const { return is_recursive_; }
   bool NeedsDexCache() const OVERRIDE { return !IsRecursive(); }
 
+  // Is this instruction a call to a static method?
+  bool IsStatic() const {
+    return GetInvokeType() == kStatic;
+  }
+
+  // Remove the art::HLoadClass instruction set as last input by
+  // art::PrepareForRegisterAllocation::VisitClinitCheck in lieu of
+  // the initial art::HClinitCheck instruction (only relevant for
+  // static calls with explicit clinit check).
+  void RemoveLoadClassAsLastInput() {
+    DCHECK(IsStaticWithExplicitClinitCheck());
+    size_t last_input_index = InputCount() - 1;
+    HInstruction* last_input = InputAt(last_input_index);
+    DCHECK(last_input != nullptr);
+    DCHECK(last_input->IsLoadClass()) << last_input->DebugName();
+    RemoveAsUserOfInput(last_input_index);
+    inputs_.DeleteAt(last_input_index);
+    clinit_check_requirement_ = ClinitCheckRequirement::kImplicit;
+    DCHECK(IsStaticWithImplicitClinitCheck());
+  }
+
+  // Is this a call to a static method whose declaring class has an
+  // explicit intialization check in the graph?
+  bool IsStaticWithExplicitClinitCheck() const {
+    return IsStatic() && (clinit_check_requirement_ == ClinitCheckRequirement::kExplicit);
+  }
+
+  // Is this a call to a static method whose declaring class has an
+  // implicit intialization check requirement?
+  bool IsStaticWithImplicitClinitCheck() const {
+    return IsStatic() && (clinit_check_requirement_ == ClinitCheckRequirement::kImplicit);
+  }
+
   DECLARE_INSTRUCTION(InvokeStaticOrDirect);
+
+ protected:
+  const HUserRecord<HInstruction*> InputRecordAt(size_t i) const OVERRIDE {
+    const HUserRecord<HInstruction*> input_record = HInvoke::InputRecordAt(i);
+    if (kIsDebugBuild && IsStaticWithExplicitClinitCheck() && (i == InputCount() - 1)) {
+      HInstruction* input = input_record.GetInstruction();
+      // `input` is the last input of a static invoke marked as having
+      // an explicit clinit check. It must either be:
+      // - an art::HClinitCheck instruction, set by art::HGraphBuilder; or
+      // - an art::HLoadClass instruction, set by art::PrepareForRegisterAllocation.
+      DCHECK(input != nullptr);
+      DCHECK(input->IsClinitCheck() || input->IsLoadClass()) << input->DebugName();
+    }
+    return input_record;
+  }
 
  private:
   const InvokeType original_invoke_type_;
   const InvokeType invoke_type_;
   const bool is_recursive_;
+  ClinitCheckRequirement clinit_check_requirement_;
 
   DISALLOW_COPY_AND_ASSIGN(HInvokeStaticOrDirect);
 };
@@ -3210,7 +3269,6 @@ class HLoadString : public HExpression<0> {
   DISALLOW_COPY_AND_ASSIGN(HLoadString);
 };
 
-// TODO: Pass this check to HInvokeStaticOrDirect nodes.
 /**
  * Performs an initialization check on its Class object input.
  */

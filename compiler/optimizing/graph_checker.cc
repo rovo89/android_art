@@ -178,6 +178,30 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
   }
 }
 
+void GraphChecker::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
+  VisitInstruction(invoke);
+
+  if (invoke->IsStaticWithExplicitClinitCheck()) {
+    size_t last_input_index = invoke->InputCount() - 1;
+    HInstruction* last_input = invoke->InputAt(last_input_index);
+    if (last_input == nullptr) {
+      AddError(StringPrintf("Static invoke %s:%d marked as having an explicit clinit check "
+                            "has a null pointer as last input.",
+                            invoke->DebugName(),
+                            invoke->GetId()));
+    }
+    if (!last_input->IsClinitCheck() && !last_input->IsLoadClass()) {
+      AddError(StringPrintf("Static invoke %s:%d marked as having an explicit clinit check "
+                            "has a last instruction (%s:%d) which is neither a clinit check "
+                            "nor a load class instruction.",
+                            invoke->DebugName(),
+                            invoke->GetId(),
+                            last_input->DebugName(),
+                            last_input->GetId()));
+    }
+  }
+}
+
 void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
   super_type::VisitBasicBlock(block);
 
@@ -459,7 +483,7 @@ void SSAChecker::VisitBinaryOperation(HBinaryOperation* op) {
           Primitive::PrettyDescriptor(op->InputAt(1)->GetType())));
     }
   } else {
-    if (PrimitiveKind(op->InputAt(1)->GetType()) != PrimitiveKind(op->InputAt(0)->GetType())) {
+    if (PrimitiveKind(op->InputAt(0)->GetType()) != PrimitiveKind(op->InputAt(1)->GetType())) {
       AddError(StringPrintf(
           "Binary operation %s %d has inputs of different types: "
           "%s, and %s.",
@@ -484,7 +508,7 @@ void SSAChecker::VisitBinaryOperation(HBinaryOperation* op) {
           "from its input type: %s vs %s.",
           op->DebugName(), op->GetId(),
           Primitive::PrettyDescriptor(op->GetType()),
-          Primitive::PrettyDescriptor(op->InputAt(1)->GetType())));
+          Primitive::PrettyDescriptor(op->InputAt(0)->GetType())));
     }
   }
 }

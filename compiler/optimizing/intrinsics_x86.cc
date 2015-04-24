@@ -113,6 +113,7 @@ static void MoveFromReturnRegister(Location target,
 
 static void MoveArguments(HInvoke* invoke, ArenaAllocator* arena, CodeGeneratorX86* codegen) {
   if (invoke->InputCount() == 0) {
+    // No argument to move.
     return;
   }
 
@@ -1038,7 +1039,7 @@ static void CreateLongIntToVoidLocations(ArenaAllocator* arena, Primitive::Type 
                                                            LocationSummary::kNoCall,
                                                            kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
-  HInstruction *value = invoke->InputAt(1);
+  HInstruction* value = invoke->InputAt(1);
   if (size == Primitive::kPrimByte) {
     locations->SetInAt(1, Location::ByteRegisterOrConstant(EDX, value));
   } else {

@@ -127,34 +127,67 @@ inline std::pair<bool, bool> CompilerDriver::IsFastInstanceField(
   return std::make_pair(fast_get, fast_put);
 }
 
-inline std::pair<bool, bool> CompilerDriver::IsFastStaticField(
-    mirror::DexCache* dex_cache, mirror::Class* referrer_class,
-    ArtField* resolved_field, uint16_t field_idx, uint32_t* storage_index) {
-  DCHECK(resolved_field->IsStatic());
+template <typename ArtMember>
+inline bool CompilerDriver::CanAccessResolvedMember(mirror::Class* referrer_class ATTRIBUTE_UNUSED,
+                                                    mirror::Class* access_to ATTRIBUTE_UNUSED,
+                                                    ArtMember* member ATTRIBUTE_UNUSED,
+                                                    mirror::DexCache* dex_cache ATTRIBUTE_UNUSED,
+                                                    uint32_t field_idx ATTRIBUTE_UNUSED) {
+  // Not defined for ArtMember values other than ArtField or mirror::ArtMethod.
+  UNREACHABLE();
+}
+
+template <>
+inline bool CompilerDriver::CanAccessResolvedMember<ArtField>(mirror::Class* referrer_class,
+                                                              mirror::Class* access_to,
+                                                              ArtField* field,
+                                                              mirror::DexCache* dex_cache,
+                                                              uint32_t field_idx) {
+  return referrer_class->CanAccessResolvedField(access_to, field, dex_cache, field_idx);
+}
+
+template <>
+inline bool CompilerDriver::CanAccessResolvedMember<mirror::ArtMethod>(
+    mirror::Class* referrer_class,
+    mirror::Class* access_to,
+    mirror::ArtMethod* method,
+    mirror::DexCache* dex_cache,
+    uint32_t field_idx) {
+  return referrer_class->CanAccessResolvedMethod(access_to, method, dex_cache, field_idx);
+}
+
+template <typename ArtMember>
+inline std::pair<bool, bool> CompilerDriver::IsClassOfStaticMemberAvailableToReferrer(
+    mirror::DexCache* dex_cache,
+    mirror::Class* referrer_class,
+    ArtMember* resolved_member,
+    uint16_t member_idx,
+    uint32_t* storage_index) {
+  DCHECK(resolved_member->IsStatic());
   if (LIKELY(referrer_class != nullptr)) {
-    mirror::Class* fields_class = resolved_field->GetDeclaringClass();
-    if (fields_class == referrer_class) {
-      *storage_index = fields_class->GetDexTypeIndex();
+    mirror::Class* members_class = resolved_member->GetDeclaringClass();
+    if (members_class == referrer_class) {
+      *storage_index = members_class->GetDexTypeIndex();
       return std::make_pair(true, true);
     }
-    if (referrer_class->CanAccessResolvedField(fields_class, resolved_field,
-                                               dex_cache, field_idx)) {
-      // We have the resolved field, we must make it into a index for the referrer
+    if (CanAccessResolvedMember<ArtMember>(
+            referrer_class, members_class, resolved_member, dex_cache, member_idx)) {
+      // We have the resolved member, we must make it into a index for the referrer
       // in its static storage (which may fail if it doesn't have a slot for it)
       // TODO: for images we can elide the static storage base null check
       // if we know there's a non-null entry in the image
       const DexFile* dex_file = dex_cache->GetDexFile();
       uint32_t storage_idx = DexFile::kDexNoIndex;
-      if (LIKELY(fields_class->GetDexCache() == dex_cache)) {
-        // common case where the dex cache of both the referrer and the field are the same,
+      if (LIKELY(members_class->GetDexCache() == dex_cache)) {
+        // common case where the dex cache of both the referrer and the member are the same,
         // no need to search the dex file
-        storage_idx = fields_class->GetDexTypeIndex();
+        storage_idx = members_class->GetDexTypeIndex();
       } else {
-        // Search dex file for localized ssb index, may fail if field's class is a parent
+        // Search dex file for localized ssb index, may fail if member's class is a parent
         // of the class mentioned in the dex file and there is no dex cache entry.
         std::string temp;
         const DexFile::StringId* string_id =
-            dex_file->FindStringId(resolved_field->GetDeclaringClass()->GetDescriptor(&temp));
+            dex_file->FindStringId(resolved_member->GetDeclaringClass()->GetDescriptor(&temp));
         if (string_id != nullptr) {
           const DexFile::TypeId* type_id =
              dex_file->FindTypeId(dex_file->GetIndexForStringId(*string_id));
@@ -166,13 +199,30 @@ inline std::pair<bool, bool> CompilerDriver::IsFastStaticField(
       }
       if (storage_idx != DexFile::kDexNoIndex) {
         *storage_index = storage_idx;
-        return std::make_pair(true, !resolved_field->IsFinal());
+        return std::make_pair(true, !resolved_member->IsFinal());
       }
     }
   }
   // Conservative defaults.
   *storage_index = DexFile::kDexNoIndex;
   return std::make_pair(false, false);
+}
+
+inline std::pair<bool, bool> CompilerDriver::IsFastStaticField(
+    mirror::DexCache* dex_cache, mirror::Class* referrer_class,
+    ArtField* resolved_field, uint16_t field_idx, uint32_t* storage_index) {
+  return IsClassOfStaticMemberAvailableToReferrer(
+      dex_cache, referrer_class, resolved_field, field_idx, storage_index);
+}
+
+inline bool CompilerDriver::IsClassOfStaticMethodAvailableToReferrer(
+    mirror::DexCache* dex_cache, mirror::Class* referrer_class,
+    mirror::ArtMethod* resolved_method, uint16_t method_idx, uint32_t* storage_index) {
+  std::pair<bool, bool> result = IsClassOfStaticMemberAvailableToReferrer(
+      dex_cache, referrer_class, resolved_method, method_idx, storage_index);
+  // Only the first member of `result` is meaningful, as there is no
+  // "write access" to a method.
+  return result.first;
 }
 
 inline bool CompilerDriver::IsStaticFieldInReferrerClass(mirror::Class* referrer_class,
