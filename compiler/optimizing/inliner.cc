@@ -130,6 +130,16 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
     return false;
   }
 
+  if (invoke_instruction->IsInvokeStaticOrDirect() &&
+      invoke_instruction->AsInvokeStaticOrDirect()->IsStaticWithImplicitClinitCheck()) {
+    // Case of a static method that cannot be inlined because it implicitly
+    // requires an initialization check of its declaring class.
+    VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
+                   << " is not inlined because it is static and requires a clinit"
+                   << " check that cannot be emitted due to Dex cache limitations";
+    return false;
+  }
+
   if (!TryBuildAndInline(resolved_method, invoke_instruction, method_index, can_use_dex_cache)) {
     resolved_method->SetShouldNotInline();
     return false;

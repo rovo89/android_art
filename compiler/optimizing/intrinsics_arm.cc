@@ -79,6 +79,7 @@ static void MoveFromReturnRegister(Location trg, Primitive::Type type, CodeGener
 
 static void MoveArguments(HInvoke* invoke, ArenaAllocator* arena, CodeGeneratorARM* codegen) {
   if (invoke->InputCount() == 0) {
+    // No argument to move.
     return;
   }
 
