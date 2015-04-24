@@ -77,8 +77,8 @@ class SlowPathCode : public ArenaObject<kArenaAllocSlowPaths> {
 
   virtual void EmitNativeCode(CodeGenerator* codegen) = 0;
 
-  void SaveLiveRegisters(CodeGenerator* codegen, LocationSummary* locations);
-  void RestoreLiveRegisters(CodeGenerator* codegen, LocationSummary* locations);
+  virtual void SaveLiveRegisters(CodeGenerator* codegen, LocationSummary* locations);
+  virtual void RestoreLiveRegisters(CodeGenerator* codegen, LocationSummary* locations);
   void RecordPcInfo(CodeGenerator* codegen, HInstruction* instruction, uint32_t dex_pc);
 
   bool IsCoreRegisterSaved(int reg) const {
@@ -97,11 +97,13 @@ class SlowPathCode : public ArenaObject<kArenaAllocSlowPaths> {
     return saved_fpu_stack_offsets_[reg];
   }
 
- private:
+ protected:
   static constexpr size_t kMaximumNumberOfExpectedRegisters = 32;
   static constexpr uint32_t kRegisterNotSaved = -1;
   uint32_t saved_core_stack_offsets_[kMaximumNumberOfExpectedRegisters];
   uint32_t saved_fpu_stack_offsets_[kMaximumNumberOfExpectedRegisters];
+
+ private:
   DISALLOW_COPY_AND_ASSIGN(SlowPathCode);
 };
 

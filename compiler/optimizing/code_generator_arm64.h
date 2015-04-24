@@ -70,6 +70,9 @@ class SlowPathCodeARM64 : public SlowPathCode {
   vixl::Label* GetEntryLabel() { return &entry_label_; }
   vixl::Label* GetExitLabel() { return &exit_label_; }
 
+  void SaveLiveRegisters(CodeGenerator* codegen, LocationSummary* locations) OVERRIDE;
+  void RestoreLiveRegisters(CodeGenerator* codegen, LocationSummary* locations) OVERRIDE;
+
  private:
   vixl::Label entry_label_;
   vixl::Label exit_label_;
@@ -232,15 +235,8 @@ class CodeGeneratorARM64 : public CodeGenerator {
   void GenerateFrameEntry() OVERRIDE;
   void GenerateFrameExit() OVERRIDE;
 
-  vixl::CPURegList GetFramePreservedCoreRegisters() const {
-    return vixl::CPURegList(vixl::CPURegister::kRegister, vixl::kXRegSize,
-                            core_spill_mask_);
-  }
-
-  vixl::CPURegList GetFramePreservedFPRegisters() const {
-    return vixl::CPURegList(vixl::CPURegister::kFPRegister, vixl::kDRegSize,
-                            fpu_spill_mask_);
-  }
+  vixl::CPURegList GetFramePreservedCoreRegisters() const;
+  vixl::CPURegList GetFramePreservedFPRegisters() const;
 
   void Bind(HBasicBlock* block) OVERRIDE;
 
@@ -282,10 +278,10 @@ class CodeGeneratorARM64 : public CodeGenerator {
 
   Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
 
-  size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id);
-  size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id);
-  size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id);
-  size_t RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id);
+  size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  size_t RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
 
   // The number of registers that can be allocated. The register allocator may
   // decide to reserve and not use a few of them.
