@@ -572,13 +572,13 @@ void Thread::ShortDump(std::ostream& os) const {
   if (GetThreadId() != 0) {
     // If we're in kStarting, we won't have a thin lock id or tid yet.
     os << GetThreadId()
-             << ",tid=" << GetTid() << ',';
+       << ",tid=" << GetTid() << ',';
   }
   os << GetState()
-           << ",Thread*=" << this
-           << ",peer=" << tlsPtr_.opeer
-           << ",\"" << *tlsPtr_.name << "\""
-           << "]";
+     << ",Thread*=" << this
+     << ",peer=" << tlsPtr_.opeer
+     << ",\"" << (tlsPtr_.name != nullptr ? *tlsPtr_.name : "null") << "\""
+     << "]";
 }
 
 void Thread::Dump(std::ostream& os) const {
