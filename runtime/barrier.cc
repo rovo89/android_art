@@ -86,7 +86,7 @@ void Barrier::SetCountLocked(Thread* self, int count) {
 }
 
 Barrier::~Barrier() {
-  CHECK(!count_) << "Attempted to destroy barrier with non zero count";
+  CHECK_EQ(count_, 0) << "Attempted to destroy barrier with non zero count";
 }
 
 }  // namespace art

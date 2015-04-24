@@ -39,6 +39,7 @@ class PrepareForRegisterAllocation : public HGraphDelegateVisitor {
   void VisitBoundType(HBoundType* bound_type) OVERRIDE;
   void VisitClinitCheck(HClinitCheck* check) OVERRIDE;
   void VisitCondition(HCondition* condition) OVERRIDE;
+  void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE;
 
   DISALLOW_COPY_AND_ASSIGN(PrepareForRegisterAllocation);
 };

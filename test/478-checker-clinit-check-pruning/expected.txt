@@ -1,0 +1,4 @@
+Main$ClassWithClinit1's static initializer
+Main$ClassWithClinit2's static initializer
+Main$ClassWithClinit3's static initializer
+Main$ClassWithClinit4's static initializer

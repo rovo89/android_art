@@ -105,6 +105,7 @@ static void MoveFromReturnRegister(Location trg,
 
 static void MoveArguments(HInvoke* invoke, ArenaAllocator* arena, CodeGeneratorX86_64* codegen) {
   if (invoke->InputCount() == 0) {
+    // No argument to move.
     return;
   }
 
