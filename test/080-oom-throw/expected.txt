@@ -1,2 +1,3 @@
+Test reflection correctly threw
 NEW_ARRAY correctly threw OOME
 NEW_INSTANCE correctly threw OOME
