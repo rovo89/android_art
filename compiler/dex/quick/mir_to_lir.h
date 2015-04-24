@@ -1692,10 +1692,8 @@ class Mir2Lir {
      * @param r_result the result register.
      * @param trampoline the helper to call in slow path.
      * @param imm the immediate passed to the helper.
-     * @param r_method the register with ArtMethod* if available, otherwise RegStorage::Invalid().
      */
-    void GenIfNullUseHelperImmMethod(
-        RegStorage r_result, QuickEntrypointEnum trampoline, int imm, RegStorage r_method);
+    void GenIfNullUseHelperImm(RegStorage r_result, QuickEntrypointEnum trampoline, int imm);
 
     /**
      * @brief Generate code to retrieve Class* for another type to be used by SGET/SPUT.

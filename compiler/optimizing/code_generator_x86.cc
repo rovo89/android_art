@@ -174,7 +174,6 @@ class LoadStringSlowPathX86 : public SlowPathCodeX86 {
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
-    x86_codegen->LoadCurrentMethod(calling_convention.GetRegisterAt(1));
     __ movl(calling_convention.GetRegisterAt(0), Immediate(instruction_->GetStringIndex()));
     __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pResolveString)));
     RecordPcInfo(codegen, instruction_, instruction_->GetDexPc());
@@ -208,7 +207,6 @@ class LoadClassSlowPathX86 : public SlowPathCodeX86 {
 
     InvokeRuntimeCallingConvention calling_convention;
     __ movl(calling_convention.GetRegisterAt(0), Immediate(cls_->GetTypeIndex()));
-    x86_codegen->LoadCurrentMethod(calling_convention.GetRegisterAt(1));
     __ fs()->call(Address::Absolute(do_clinit_
         ? QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pInitializeStaticStorage)
         : QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pInitializeType)));
