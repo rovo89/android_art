@@ -1242,8 +1242,12 @@ void InstructionCodeGeneratorARM::VisitReturn(HReturn* ret) {
 
 void LocationsBuilderARM::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
   // Explicit clinit checks triggered by static invokes must have been
-  // pruned by art::PrepareForRegisterAllocation.
-  DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
+  // pruned by art::PrepareForRegisterAllocation, but this step is not
+  // run in baseline. So we remove them manually here if we find them.
+  // TODO: Instead of this local workaround, address this properly.
+  if (invoke->IsStaticWithExplicitClinitCheck()) {
+    invoke->RemoveClinitCheckOrLoadClassAsLastInput();
+  }
 
   IntrinsicLocationsBuilderARM intrinsic(GetGraph()->GetArena(),
                                          codegen_->GetInstructionSetFeatures());

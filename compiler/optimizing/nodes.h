@@ -2262,16 +2262,15 @@ class HInvokeStaticOrDirect : public HInvoke {
     return GetInvokeType() == kStatic;
   }
 
-  // Remove the art::HLoadClass instruction set as last input by
-  // art::PrepareForRegisterAllocation::VisitClinitCheck in lieu of
-  // the initial art::HClinitCheck instruction (only relevant for
-  // static calls with explicit clinit check).
-  void RemoveLoadClassAsLastInput() {
+  // Remove the art::HClinitCheck or art::HLoadClass instruction as
+  // last input (only relevant for static calls with explicit clinit
+  // check).
+  void RemoveClinitCheckOrLoadClassAsLastInput() {
     DCHECK(IsStaticWithExplicitClinitCheck());
     size_t last_input_index = InputCount() - 1;
     HInstruction* last_input = InputAt(last_input_index);
     DCHECK(last_input != nullptr);
-    DCHECK(last_input->IsLoadClass()) << last_input->DebugName();
+    DCHECK(last_input->IsClinitCheck() || last_input->IsLoadClass()) << last_input->DebugName();
     RemoveAsUserOfInput(last_input_index);
     inputs_.DeleteAt(last_input_index);
     clinit_check_requirement_ = ClinitCheckRequirement::kImplicit;
