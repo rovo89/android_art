@@ -35,6 +35,7 @@ if [ ! -f $test_jar -o ! -f $junit_jar ]; then
 fi
 
 art="/data/local/tmp/system/bin/art"
+art_debugee="sh /data/local/tmp/system/bin/art"
 # We use Quick's image on target because optimizing's image is not compiled debuggable.
 image="-Ximage:/data/art-test/core.art"
 args=$@
@@ -50,6 +51,7 @@ while true; do
     # Specify bash explicitly since the art script cannot, since it has to run on the device
     # with mksh.
     art="bash out/host/linux-x86/bin/art"
+    art_debugee="bash out/host/linux-x86/bin/art"
     # We force generation of a new image to avoid build-time and run-time classpath differences.
     image="-Ximage:/system/non/existent"
     # We do not need a device directory on host.
@@ -81,7 +83,7 @@ vogar $vm_command \
       --vm-arg -Djpda.settings.verbose=true \
       --vm-arg -Djpda.settings.syncPort=34016 \
       --vm-arg -Djpda.settings.transportAddress=127.0.0.1:55107 \
-      --vm-arg -Djpda.settings.debuggeeJavaPath="\"sh $art $image $debuggee_args\"" \
+      --vm-arg -Djpda.settings.debuggeeJavaPath="\"$art_debugee $image $debuggee_args\"" \
       --classpath $test_jar \
       --classpath $junit_jar \
       --vm-arg -Xcompiler-option --vm-arg --compiler-backend=Optimizing \
