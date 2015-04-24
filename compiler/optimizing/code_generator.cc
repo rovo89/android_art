@@ -612,7 +612,7 @@ void CodeGenerator::BuildVMapTable(std::vector<uint8_t>* data) const {
 }
 
 void CodeGenerator::BuildStackMaps(std::vector<uint8_t>* data) {
-  uint32_t size = stack_map_stream_.ComputeNeededSize();
+  uint32_t size = stack_map_stream_.PrepareForFillIn();
   data->resize(size);
   MemoryRegion region(data->data(), size);
   stack_map_stream_.FillIn(region);
@@ -654,7 +654,8 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
 
   if (instruction == nullptr) {
     // For stack overflow checks.
-    stack_map_stream_.AddStackMapEntry(dex_pc, pc_info.native_pc, 0, 0, 0, inlining_depth);
+    stack_map_stream_.BeginStackMapEntry(dex_pc, pc_info.native_pc, 0, 0, 0, inlining_depth);
+    stack_map_stream_.EndStackMapEntry();
     return;
   }
   LocationSummary* locations = instruction->GetLocations();
@@ -672,12 +673,12 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
   }
   // The register mask must be a subset of callee-save registers.
   DCHECK_EQ(register_mask & core_callee_save_mask_, register_mask);
-  stack_map_stream_.AddStackMapEntry(dex_pc,
-                                     pc_info.native_pc,
-                                     register_mask,
-                                     locations->GetStackMask(),
-                                     environment_size,
-                                     inlining_depth);
+  stack_map_stream_.BeginStackMapEntry(dex_pc,
+                                       pc_info.native_pc,
+                                       register_mask,
+                                       locations->GetStackMask(),
+                                       environment_size,
+                                       inlining_depth);
 
   // Walk over the environment, and record the location of dex registers.
   for (size_t i = 0; i < environment_size; ++i) {
@@ -823,6 +824,7 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
         LOG(FATAL) << "Unexpected kind " << location.GetKind();
     }
   }
+  stack_map_stream_.EndStackMapEntry();
 }
 
 bool CodeGenerator::CanMoveNullCheckToUser(HNullCheck* null_check) {
