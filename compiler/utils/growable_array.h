@@ -46,6 +46,14 @@ class GrowableArray : public ArenaObject<kArenaAllocGrowableArray> {
       }
     }
 
+    bool Contains(T value) const {
+      for (size_t i = 0; i < num_used_; ++i) {
+        if (elem_list_[i] == value) {
+          return true;
+        }
+      }
+      return false;
+    }
 
     // Expand the list size to at least new length.
     void Resize(size_t new_length) {

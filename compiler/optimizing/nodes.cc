@@ -672,6 +672,11 @@ void HPhi::AddInput(HInstruction* input) {
   input->AddUseAt(this, inputs_.Size() - 1);
 }
 
+void HPhi::RemoveInputAt(size_t index) {
+  RemoveAsUserOfInput(index);
+  inputs_.DeleteAt(index);
+}
+
 #define DEFINE_ACCEPT(name, super)                                             \
 void H##name::Accept(HGraphVisitor* visitor) {                                 \
   visitor->Visit##name(this);                                                  \
@@ -867,6 +872,15 @@ bool HBasicBlock::HasSinglePhi() const {
   return !GetPhis().IsEmpty() && GetFirstPhi()->GetNext() == nullptr;
 }
 
+size_t HInstructionList::CountSize() const {
+  size_t size = 0;
+  HInstruction* current = first_instruction_;
+  for (; current != nullptr; current = current->GetNext()) {
+    size++;
+  }
+  return size;
+}
+
 void HInstructionList::SetBlockOfInstructions(HBasicBlock* block) const {
   for (HInstruction* current = first_instruction_;
        current != nullptr;
@@ -898,40 +912,167 @@ void HInstructionList::Add(const HInstructionList& instruction_list) {
   }
 }
 
-void HBasicBlock::DisconnectFromAll() {
-  DCHECK(dominated_blocks_.IsEmpty()) << "Unimplemented scenario";
+void HBasicBlock::DisconnectAndDelete() {
+  // Dominators must be removed after all the blocks they dominate. This way
+  // a loop header is removed last, a requirement for correct loop information
+  // iteration.
+  DCHECK(dominated_blocks_.IsEmpty());
 
+  // Remove the block from all loops it is included in.
+  for (HLoopInformationOutwardIterator it(*this); !it.Done(); it.Advance()) {
+    HLoopInformation* loop_info = it.Current();
+    loop_info->Remove(this);
+    if (loop_info->IsBackEdge(*this)) {
+      // This deliberately leaves the loop in an inconsistent state and will
+      // fail SSAChecker unless the entire loop is removed during the pass.
+      loop_info->RemoveBackEdge(this);
+    }
+  }
+
+  // Disconnect the block from its predecessors and update their control-flow
+  // instructions.
   for (size_t i = 0, e = predecessors_.Size(); i < e; ++i) {
-    predecessors_.Get(i)->successors_.Delete(this);
+    HBasicBlock* predecessor = predecessors_.Get(i);
+    HInstruction* last_instruction = predecessor->GetLastInstruction();
+    predecessor->RemoveInstruction(last_instruction);
+    predecessor->RemoveSuccessor(this);
+    if (predecessor->GetSuccessors().Size() == 1u) {
+      DCHECK(last_instruction->IsIf());
+      predecessor->AddInstruction(new (graph_->GetArena()) HGoto());
+    } else {
+      // The predecessor has no remaining successors and therefore must be dead.
+      // We deliberately leave it without a control-flow instruction so that the
+      // SSAChecker fails unless it is not removed during the pass too.
+      DCHECK_EQ(predecessor->GetSuccessors().Size(), 0u);
+    }
   }
-  for (size_t i = 0, e = successors_.Size(); i < e; ++i) {
-    successors_.Get(i)->predecessors_.Delete(this);
-  }
-  dominator_->dominated_blocks_.Delete(this);
-
   predecessors_.Reset();
+
+  // Disconnect the block from its successors and update their dominators
+  // and phis.
+  for (size_t i = 0, e = successors_.Size(); i < e; ++i) {
+    HBasicBlock* successor = successors_.Get(i);
+    // Delete this block from the list of predecessors.
+    size_t this_index = successor->GetPredecessorIndexOf(this);
+    successor->predecessors_.DeleteAt(this_index);
+
+    // Check that `successor` has other predecessors, otherwise `this` is the
+    // dominator of `successor` which violates the order DCHECKed at the top.
+    DCHECK(!successor->predecessors_.IsEmpty());
+
+    // Recompute the successor's dominator.
+    HBasicBlock* old_dominator = successor->GetDominator();
+    HBasicBlock* new_dominator = successor->predecessors_.Get(0);
+    for (size_t j = 1, f = successor->predecessors_.Size(); j < f; ++j) {
+      new_dominator = graph_->FindCommonDominator(
+          new_dominator, successor->predecessors_.Get(j));
+    }
+    if (old_dominator != new_dominator) {
+      successor->SetDominator(new_dominator);
+      old_dominator->RemoveDominatedBlock(successor);
+      new_dominator->AddDominatedBlock(successor);
+    }
+
+    // Remove this block's entries in the successor's phis.
+    if (successor->predecessors_.Size() == 1u) {
+      // The successor has just one predecessor left. Replace phis with the only
+      // remaining input.
+      for (HInstructionIterator phi_it(successor->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+        HPhi* phi = phi_it.Current()->AsPhi();
+        phi->ReplaceWith(phi->InputAt(1 - this_index));
+        successor->RemovePhi(phi);
+      }
+    } else {
+      for (HInstructionIterator phi_it(successor->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+        phi_it.Current()->AsPhi()->RemoveInputAt(this_index);
+      }
+    }
+  }
   successors_.Reset();
-  dominator_ = nullptr;
-  graph_ = nullptr;
+
+  // Disconnect from the dominator.
+  dominator_->RemoveDominatedBlock(this);
+  SetDominator(nullptr);
+
+  // Delete from the graph. The function safely deletes remaining instructions
+  // and updates the reverse post order.
+  graph_->DeleteDeadBlock(this);
+  SetGraph(nullptr);
 }
 
 void HBasicBlock::MergeWith(HBasicBlock* other) {
-  DCHECK(successors_.IsEmpty()) << "Unimplemented block merge scenario";
-  DCHECK(dominated_blocks_.IsEmpty()
-         || (dominated_blocks_.Size() == 1 && dominated_blocks_.Get(0) == other))
-      << "Unimplemented block merge scenario";
+  DCHECK_EQ(GetGraph(), other->GetGraph());
+  DCHECK(GetDominatedBlocks().Contains(other));
+  DCHECK_EQ(GetSuccessors().Size(), 1u);
+  DCHECK_EQ(GetSuccessors().Get(0), other);
+  DCHECK_EQ(other->GetPredecessors().Size(), 1u);
+  DCHECK_EQ(other->GetPredecessors().Get(0), this);
   DCHECK(other->GetPhis().IsEmpty());
 
-  successors_.Reset();
-  dominated_blocks_.Reset();
+  // Move instructions from `other` to `this`.
+  DCHECK(EndsWithControlFlowInstruction());
+  RemoveInstruction(GetLastInstruction());
   instructions_.Add(other->GetInstructions());
-  other->GetInstructions().SetBlockOfInstructions(this);
+  other->instructions_.SetBlockOfInstructions(this);
+  other->instructions_.Clear();
 
-  while (!other->GetSuccessors().IsEmpty()) {
-    HBasicBlock* successor = other->GetSuccessors().Get(0);
+  // Remove `other` from the loops it is included in.
+  for (HLoopInformationOutwardIterator it(*other); !it.Done(); it.Advance()) {
+    HLoopInformation* loop_info = it.Current();
+    loop_info->Remove(other);
+    if (loop_info->IsBackEdge(*other)) {
+      loop_info->ClearBackEdges();
+      loop_info->AddBackEdge(this);
+    }
+  }
+
+  // Update links to the successors of `other`.
+  successors_.Reset();
+  while (!other->successors_.IsEmpty()) {
+    HBasicBlock* successor = other->successors_.Get(0);
     successor->ReplacePredecessor(other, this);
   }
 
+  // Update the dominator tree.
+  dominated_blocks_.Delete(other);
+  for (size_t i = 0, e = other->GetDominatedBlocks().Size(); i < e; ++i) {
+    HBasicBlock* dominated = other->GetDominatedBlocks().Get(i);
+    dominated_blocks_.Add(dominated);
+    dominated->SetDominator(this);
+  }
+  other->dominated_blocks_.Reset();
+  other->dominator_ = nullptr;
+
+  // Clear the list of predecessors of `other` in preparation of deleting it.
+  other->predecessors_.Reset();
+
+  // Delete `other` from the graph. The function updates reverse post order.
+  graph_->DeleteDeadBlock(other);
+  other->SetGraph(nullptr);
+}
+
+void HBasicBlock::MergeWithInlined(HBasicBlock* other) {
+  DCHECK_NE(GetGraph(), other->GetGraph());
+  DCHECK(GetDominatedBlocks().IsEmpty());
+  DCHECK(GetSuccessors().IsEmpty());
+  DCHECK(!EndsWithControlFlowInstruction());
+  DCHECK_EQ(other->GetPredecessors().Size(), 1u);
+  DCHECK(other->GetPredecessors().Get(0)->IsEntryBlock());
+  DCHECK(other->GetPhis().IsEmpty());
+  DCHECK(!other->IsInLoop());
+
+  // Move instructions from `other` to `this`.
+  instructions_.Add(other->GetInstructions());
+  other->instructions_.SetBlockOfInstructions(this);
+
+  // Update links to the successors of `other`.
+  successors_.Reset();
+  while (!other->successors_.IsEmpty()) {
+    HBasicBlock* successor = other->successors_.Get(0);
+    successor->ReplacePredecessor(other, this);
+  }
+
+  // Update the dominator tree.
   for (size_t i = 0, e = other->GetDominatedBlocks().Size(); i < e; ++i) {
     HBasicBlock* dominated = other->GetDominatedBlocks().Get(i);
     dominated_blocks_.Add(dominated);
@@ -973,6 +1114,24 @@ static void MakeRoomFor(GrowableArray<HBasicBlock*>* blocks,
   }
 }
 
+void HGraph::DeleteDeadBlock(HBasicBlock* block) {
+  DCHECK_EQ(block->GetGraph(), this);
+  DCHECK(block->GetSuccessors().IsEmpty());
+  DCHECK(block->GetPredecessors().IsEmpty());
+  DCHECK(block->GetDominatedBlocks().IsEmpty());
+  DCHECK(block->GetDominator() == nullptr);
+
+  for (HBackwardInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+    block->RemoveInstruction(it.Current());
+  }
+  for (HBackwardInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+    block->RemovePhi(it.Current()->AsPhi());
+  }
+
+  reverse_post_order_.Delete(block);
+  blocks_.Put(block->GetBlockId(), nullptr);
+}
+
 void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
   if (GetBlocks().Size() == 3) {
     // Simple case of an entry block, a body block, and an exit block.
@@ -1005,7 +1164,7 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
 
     HBasicBlock* first = entry_block_->GetSuccessors().Get(0);
     DCHECK(!first->IsInLoop());
-    at->MergeWith(first);
+    at->MergeWithInlined(first);
     exit_block_->ReplaceWith(to);
 
     // Update all predecessors of the exit block (now the `to` block)
@@ -1135,53 +1294,6 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
 
   // Finally remove the invoke from the caller.
   invoke->GetBlock()->RemoveInstruction(invoke);
-}
-
-void HGraph::MergeEmptyBranches(HBasicBlock* start_block, HBasicBlock* end_block) {
-  // Find the two branches of an If.
-  DCHECK_EQ(start_block->GetSuccessors().Size(), 2u);
-  HBasicBlock* left_branch = start_block->GetSuccessors().Get(0);
-  HBasicBlock* right_branch = start_block->GetSuccessors().Get(1);
-
-  // Make sure this is a diamond control-flow path.
-  DCHECK_EQ(left_branch->GetSuccessors().Get(0), end_block);
-  DCHECK_EQ(right_branch->GetSuccessors().Get(0), end_block);
-  DCHECK_EQ(end_block->GetPredecessors().Size(), 2u);
-  DCHECK_EQ(start_block, end_block->GetDominator());
-
-  // Disconnect the branches and merge the two blocks. This will move
-  // all instructions from 'end_block' to 'start_block'.
-  DCHECK(left_branch->IsSingleGoto());
-  DCHECK(right_branch->IsSingleGoto());
-  left_branch->DisconnectFromAll();
-  right_branch->DisconnectFromAll();
-  start_block->RemoveInstruction(start_block->GetLastInstruction());
-  start_block->MergeWith(end_block);
-
-  // Delete the now redundant blocks from the graph.
-  blocks_.Put(left_branch->GetBlockId(), nullptr);
-  blocks_.Put(right_branch->GetBlockId(), nullptr);
-  blocks_.Put(end_block->GetBlockId(), nullptr);
-
-  // Update reverse post order.
-  reverse_post_order_.Delete(left_branch);
-  reverse_post_order_.Delete(right_branch);
-  reverse_post_order_.Delete(end_block);
-
-  // Update loops which contain the code.
-  for (HLoopInformationOutwardIterator it(*start_block); !it.Done(); it.Advance()) {
-    HLoopInformation* loop_info = it.Current();
-    DCHECK(loop_info->Contains(*left_branch));
-    DCHECK(loop_info->Contains(*right_branch));
-    DCHECK(loop_info->Contains(*end_block));
-    loop_info->Remove(left_branch);
-    loop_info->Remove(right_branch);
-    loop_info->Remove(end_block);
-    if (loop_info->IsBackEdge(*end_block)) {
-      loop_info->RemoveBackEdge(end_block);
-      loop_info->AddBackEdge(start_block);
-    }
-  }
 }
 
 std::ostream& operator<<(std::ostream& os, const ReferenceTypeInfo& rhs) {

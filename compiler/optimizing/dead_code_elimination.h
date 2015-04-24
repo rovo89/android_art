@@ -40,6 +40,10 @@ class HDeadCodeElimination : public HOptimization {
     "dead_code_elimination";
 
  private:
+  void MaybeRecordDeadBlock(HBasicBlock* block);
+  void RemoveDeadBlocks();
+  void RemoveDeadInstructions();
+
   DISALLOW_COPY_AND_ASSIGN(HDeadCodeElimination);
 };
 
