@@ -40,11 +40,12 @@ TEST(StackMapTest, Test1) {
 
   ArenaBitVector sp_mask(&arena, 0, false);
   size_t number_of_dex_registers = 2;
-  stream.AddStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
+  stream.BeginStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
   stream.AddDexRegisterEntry(0, Kind::kInStack, 0);         // Short location.
   stream.AddDexRegisterEntry(1, Kind::kConstant, -2);       // Short location.
+  stream.EndStackMapEntry();
 
-  size_t size = stream.ComputeNeededSize();
+  size_t size = stream.PrepareForFillIn();
   void* memory = arena.Alloc(size, kArenaAllocMisc);
   MemoryRegion region(memory, size);
   stream.FillIn(region);
@@ -123,20 +124,22 @@ TEST(StackMapTest, Test2) {
   sp_mask1.SetBit(2);
   sp_mask1.SetBit(4);
   size_t number_of_dex_registers = 2;
-  stream.AddStackMapEntry(0, 64, 0x3, &sp_mask1, number_of_dex_registers, 2);
+  stream.BeginStackMapEntry(0, 64, 0x3, &sp_mask1, number_of_dex_registers, 2);
   stream.AddDexRegisterEntry(0, Kind::kInStack, 0);         // Short location.
   stream.AddDexRegisterEntry(1, Kind::kConstant, -2);       // Large location.
   stream.AddInlineInfoEntry(42);
   stream.AddInlineInfoEntry(82);
+  stream.EndStackMapEntry();
 
   ArenaBitVector sp_mask2(&arena, 0, true);
   sp_mask2.SetBit(3);
   sp_mask1.SetBit(8);
-  stream.AddStackMapEntry(1, 128, 0xFF, &sp_mask2, number_of_dex_registers, 0);
+  stream.BeginStackMapEntry(1, 128, 0xFF, &sp_mask2, number_of_dex_registers, 0);
   stream.AddDexRegisterEntry(0, Kind::kInRegister, 18);     // Short location.
   stream.AddDexRegisterEntry(1, Kind::kInFpuRegister, 3);   // Short location.
+  stream.EndStackMapEntry();
 
-  size_t size = stream.ComputeNeededSize();
+  size_t size = stream.PrepareForFillIn();
   void* memory = arena.Alloc(size, kArenaAllocMisc);
   MemoryRegion region(memory, size);
   stream.FillIn(region);
@@ -273,11 +276,12 @@ TEST(StackMapTest, TestNonLiveDexRegisters) {
 
   ArenaBitVector sp_mask(&arena, 0, false);
   uint32_t number_of_dex_registers = 2;
-  stream.AddStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
+  stream.BeginStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
   stream.AddDexRegisterEntry(0, Kind::kNone, 0);            // No location.
   stream.AddDexRegisterEntry(1, Kind::kConstant, -2);       // Large location.
+  stream.EndStackMapEntry();
 
-  size_t size = stream.ComputeNeededSize();
+  size_t size = stream.PrepareForFillIn();
   void* memory = arena.Alloc(size, kArenaAllocMisc);
   MemoryRegion region(memory, size);
   stream.FillIn(region);
@@ -353,7 +357,7 @@ TEST(StackMapTest, DexRegisterMapOffsetOverflow) {
   ArenaBitVector sp_mask(&arena, 0, false);
   uint32_t number_of_dex_registers = 1024;
   // Create the first stack map (and its Dex register map).
-  stream.AddStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
+  stream.BeginStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
   uint32_t number_of_dex_live_registers_in_dex_register_map_0 = number_of_dex_registers - 8;
   for (uint32_t i = 0; i < number_of_dex_live_registers_in_dex_register_map_0; ++i) {
     // Use two different Dex register locations to populate this map,
@@ -362,13 +366,15 @@ TEST(StackMapTest, DexRegisterMapOffsetOverflow) {
     // art::DexRegisterMap::SingleEntrySizeInBits).
     stream.AddDexRegisterEntry(i, Kind::kConstant, i % 2);  // Short location.
   }
+  stream.EndStackMapEntry();
   // Create the second stack map (and its Dex register map).
-  stream.AddStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
+  stream.BeginStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
   for (uint32_t i = 0; i < number_of_dex_registers; ++i) {
     stream.AddDexRegisterEntry(i, Kind::kConstant, 0);  // Short location.
   }
+  stream.EndStackMapEntry();
 
-  size_t size = stream.ComputeNeededSize();
+  size_t size = stream.PrepareForFillIn();
   void* memory = arena.Alloc(size, kArenaAllocMisc);
   MemoryRegion region(memory, size);
   stream.FillIn(region);
@@ -413,19 +419,22 @@ TEST(StackMapTest, TestShareDexRegisterMap) {
   ArenaBitVector sp_mask(&arena, 0, false);
   uint32_t number_of_dex_registers = 2;
   // First stack map.
-  stream.AddStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
+  stream.BeginStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
   stream.AddDexRegisterEntry(0, Kind::kInRegister, 0);  // Short location.
   stream.AddDexRegisterEntry(1, Kind::kConstant, -2);   // Large location.
+  stream.EndStackMapEntry();
   // Second stack map, which should share the same dex register map.
-  stream.AddStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
+  stream.BeginStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
   stream.AddDexRegisterEntry(0, Kind::kInRegister, 0);  // Short location.
   stream.AddDexRegisterEntry(1, Kind::kConstant, -2);   // Large location.
+  stream.EndStackMapEntry();
   // Third stack map (doesn't share the dex register map).
-  stream.AddStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
+  stream.BeginStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
   stream.AddDexRegisterEntry(0, Kind::kInRegister, 2);  // Short location.
   stream.AddDexRegisterEntry(1, Kind::kConstant, -2);   // Large location.
+  stream.EndStackMapEntry();
 
-  size_t size = stream.ComputeNeededSize();
+  size_t size = stream.PrepareForFillIn();
   void* memory = arena.Alloc(size, kArenaAllocMisc);
   MemoryRegion region(memory, size);
   stream.FillIn(region);
@@ -462,9 +471,10 @@ TEST(StackMapTest, TestNoDexRegisterMap) {
 
   ArenaBitVector sp_mask(&arena, 0, false);
   uint32_t number_of_dex_registers = 0;
-  stream.AddStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
+  stream.BeginStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
+  stream.EndStackMapEntry();
 
-  size_t size = stream.ComputeNeededSize();
+  size_t size = stream.PrepareForFillIn();
   void* memory = arena.Alloc(size, kArenaAllocMisc);
   MemoryRegion region(memory, size);
   stream.FillIn(region);
