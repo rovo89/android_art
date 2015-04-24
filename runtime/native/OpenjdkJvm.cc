@@ -1,0 +1,686 @@
+/*
+ * Copyright (C) 2014 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Services that OpenJDK expects the VM to provide.
+ */
+#include<stdio.h>
+#include <dlfcn.h>
+#include <limits.h>
+#include <unistd.h>
+
+#include "common_throws.h"
+#include "gc/heap.h"
+#include "thread.h"
+#include "thread_list.h"
+#include "runtime.h"
+#include "handle_scope-inl.h"
+#include "scoped_thread_state_change.h"
+#include "ScopedUtfChars.h"
+#include "mirror/class_loader.h"
+#include "verify_object-inl.h"
+#include "base/logging.h"
+#include "base/macros.h"
+#include "../../libcore/ojluni/src/main/native/jvm.h" // TODO(haaawk): fix it
+#include "jni_internal.h"
+#include "mirror/string-inl.h"
+#include "scoped_fast_native_object_access.h"
+#include "ScopedLocalRef.h"
+#include <sys/time.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+
+#undef LOG_TAG
+#define LOG_TAG "artopenjdx"
+
+/* posix open() with extensions; used by e.g. ZipFile */
+JNIEXPORT jint JVM_Open(const char* fname, jint flags, jint mode)
+{
+    LOG(DEBUG) << "JVM_Open fname='" << fname << "', flags=" << flags << ", mode=" << mode;
+
+    /*
+     * The call is expected to handle JVM_O_DELETE, which causes the file
+     * to be removed after it is opened.  Also, some code seems to
+     * want the special return value JVM_EEXIST if the file open fails
+     * due to O_EXCL.
+     */
+    int fd = TEMP_FAILURE_RETRY(open(fname, flags & ~JVM_O_DELETE, mode));
+    if (fd < 0) {
+        int err = errno;
+        LOG(DEBUG) << "open(" << fname << ") failed: " << strerror(errno);
+        if (err == EEXIST) {
+            return JVM_EEXIST;
+        } else {
+            return -1;
+        }
+    }
+
+    if (flags & JVM_O_DELETE) {
+        LOG(DEBUG) << "Deleting '" << fname << "' after open\n";
+        if (unlink(fname) != 0) {
+            LOG(WARNING) << "Post-open deletion of '" << fname << "' failed: " << strerror(errno);
+        }
+        /* ignore */
+    }
+
+    LOG(VERBOSE) << "open(" << fname << ") --> " << fd;
+    return fd;
+}
+
+/* posix close() */
+JNIEXPORT jint JVM_Close(jint fd)
+{
+    LOG(DEBUG) << "JVM_Close fd=" << fd;
+    // don't want TEMP_FAILURE_RETRY here -- file is closed even if EINTR
+    return close(fd);
+}
+
+/* posix read() */
+JNIEXPORT jint JVM_Read(jint fd, char* buf, jint nbytes)
+{
+    LOG(DEBUG) << "JVM_Read fd=" << fd << ", buf='" << buf << "', nbytes=" << nbytes;
+    return TEMP_FAILURE_RETRY(read(fd, buf, nbytes));
+}
+
+/* posix write(); is used to write messages to stderr */
+JNIEXPORT jint JVM_Write(jint fd, char* buf, jint nbytes)
+{
+    LOG(DEBUG) << "JVM_Write fd=" << fd << ", buf='" << buf << "', nbytes=" << nbytes;
+    return TEMP_FAILURE_RETRY(write(fd, buf, nbytes));
+}
+
+/* posix lseek() */
+JNIEXPORT jlong JVM_Lseek(jint fd, jlong offset, jint whence)
+{
+    LOG(DEBUG) << "JVM_Lseek fd=" << fd << ", offset=" << offset << ", whence=" << whence;
+    return TEMP_FAILURE_RETRY(lseek(fd, offset, whence));
+}
+/*
+ * "raw monitors" seem to be expected to behave like non-recursive pthread
+ * mutexes.  They're used by ZipFile.
+ */
+
+JNIEXPORT void* JVM_RawMonitorCreate(void)
+{
+    LOG(DEBUG) << "JVM_RawMonitorCreate";
+    pthread_mutex_t* newMutex =
+        (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init(newMutex, NULL);
+    return newMutex;
+}
+
+JNIEXPORT void JVM_RawMonitorDestroy(void* mon)
+{
+    LOG(DEBUG) << "JVM_RawMonitorDestroy mon=" << mon;
+    pthread_mutex_destroy((pthread_mutex_t*) mon);
+}
+
+JNIEXPORT jint JVM_RawMonitorEnter(void* mon)
+{
+    LOG(DEBUG) << "JVM_RawMonitorEnter mon=" << mon;
+    return pthread_mutex_lock((pthread_mutex_t*) mon);
+}
+
+JNIEXPORT void JVM_RawMonitorExit(void* mon)
+{
+    LOG(DEBUG) << "JVM_RawMonitorExit mon=" << mon;
+    pthread_mutex_unlock((pthread_mutex_t*) mon);
+}
+
+JNIEXPORT char* JVM_NativePath(char* path)
+{
+    LOG(DEBUG) << "JVM_NativePath path='" << path << "'";
+    return path;
+}
+
+JNIEXPORT jint JVM_GetLastErrorString(char* buf, int len)
+{
+    int err = errno;    // grab before JVM_TRACE can trash it
+    LOG(DEBUG) << "JVM_GetLastErrorString buf=" << buf << ", len=" << len;
+
+#ifdef __GLIBC__
+    if (len == 0)
+        return 0;
+
+    char* result = strerror_r(err, buf, len);
+    if (result != buf) {
+        strncpy(buf, result, len);
+        buf[len-1] = '\0';
+    }
+    return strlen(buf);
+#else
+    return strerror_r(err, buf, len);
+#endif
+}
+
+JNIEXPORT int jio_fprintf(FILE* fp, const char* fmt, ...)
+{
+    va_list args;
+
+    va_start(args, fmt);
+    int len = jio_vfprintf(fp, fmt, args);
+    va_end(args);
+
+    return len;
+}
+
+JNIEXPORT int jio_vfprintf(FILE* fp, const char* fmt, va_list args)
+{
+    assert(fp != NULL);
+    return vfprintf(fp, fmt, args);
+}
+
+/* posix fsync() */
+JNIEXPORT jint JVM_Sync(jint fd)
+{
+    LOG(DEBUG) << "JVM_Sync fd=" << fd;
+    return TEMP_FAILURE_RETRY(fsync(fd));
+}
+
+JNIEXPORT void* JVM_FindLibraryEntry(void* handle, const char* name)
+{
+    LOG(DEBUG) << "JVM_FindLibraryEntry handle=" << handle << " name=" << name;
+    // class loader should use Art version
+    return NULL;
+}
+
+JNIEXPORT jlong JVM_CurrentTimeMillis(JNIEnv* env, jclass unused)
+{
+    LOG(DEBUG) << "JVM_CurrentTimeMillis env=" << env;
+    struct timeval tv;
+
+    gettimeofday(&tv, (struct timezone *) NULL);
+    jlong when = tv.tv_sec * 1000LL + tv.tv_usec / 1000;
+    return when;
+}
+
+JNIEXPORT jint JVM_Socket(jint domain, jint type, jint protocol)
+{
+    LOG(DEBUG) << "JVM_Socket domain=" << domain << ", type=" << type << ", protocol=" << protocol;
+
+    return TEMP_FAILURE_RETRY(socket(domain, type, protocol));
+}
+
+JNIEXPORT jint JVM_InitializeSocketLibrary() {
+  return 0;
+}
+
+int jio_vsnprintf(char *str, size_t count, const char *fmt, va_list args) {
+   if ((intptr_t)count <= 0) return -1;
+   return vsnprintf(str, count, fmt, args);
+}
+
+int jio_snprintf(char *str, size_t count, const char *fmt, ...) {
+   va_list args;
+   int len;
+   va_start(args, fmt);
+   len = jio_vsnprintf(str, count, fmt, args);
+   va_end(args);
+   return len;
+}
+
+JNIEXPORT jint JVM_SetSockOpt(jint fd, int level, int optname,
+    const char* optval, int optlen)
+{
+    LOG(DEBUG) << "JVM_SetSockOpt fd=" << fd << ", level=" << level << ", optname=" << optname
+               << ", optval=" << optval << ", optlen=" << optlen;
+    return TEMP_FAILURE_RETRY(setsockopt(fd, level, optname, optval, optlen));
+}
+
+JNIEXPORT jint JVM_SocketShutdown(jint fd, jint howto)
+{
+    LOG(DEBUG) << "JVM_SocketShutdown fd=" << fd << ", howto=" << howto;
+    return TEMP_FAILURE_RETRY(shutdown(fd, howto));
+}
+
+JNIEXPORT jint JVM_GetSockOpt(jint fd, int level, int optname, char* optval,
+    int* optlen)
+{
+    LOG(DEBUG) << "JVM_GetSockOpt fd=" << fd << ", level=" << level << ", optname=" << optname
+               << ", optval=" << optval << ", optlen=" << optlen;
+
+    socklen_t len = *optlen;
+    int cc = TEMP_FAILURE_RETRY(getsockopt(fd, level, optname, optval, &len));
+    *optlen = len;
+    return cc;
+}
+
+JNIEXPORT jint JVM_GetSockName(jint fd, struct sockaddr* addr, int* addrlen)
+{
+    LOG(DEBUG) << "JVM_GetSockName fd=" << fd << ", addr=" << addr << ", addrlen=" << addrlen;
+
+    socklen_t len = *addrlen;
+    int cc = TEMP_FAILURE_RETRY(getsockname(fd, addr, &len));
+    *addrlen = len;
+    return cc;
+}
+
+JNIEXPORT jint JVM_SocketAvailable(jint fd, jint* result)
+{
+    LOG(DEBUG) << "JVM_SocketAvailable fd=" << fd << ", result=" << result;
+
+    if (TEMP_FAILURE_RETRY(ioctl(fd, FIONREAD, result)) < 0) {
+        LOG(DEBUG) << "ioctl(" << fd << ", FIONREAD) failed: " << strerror(errno);
+        return JNI_FALSE;
+    }
+
+    return JNI_TRUE;
+}
+
+JNIEXPORT jint JVM_Send(jint fd, char* buf, jint nBytes, jint flags)
+{
+    LOG(DEBUG) << "JVM_Send fd=" << fd << ", buf=" << buf << ", nBytes=" << nBytes << ", flags="
+               << flags;
+
+    return TEMP_FAILURE_RETRY(send(fd, buf, nBytes, flags));
+}
+
+JNIEXPORT jint JVM_SocketClose(jint fd)
+{
+    LOG(DEBUG) << "JVM_SocketClose fd=" << fd;
+
+    // don't want TEMP_FAILURE_RETRY here -- file is closed even if EINTR
+    return close(fd);
+}
+
+JNIEXPORT jint JVM_Listen(jint fd, jint count)
+{
+    LOG(DEBUG) << "JVM_Listen fd=" << fd << ", count=" << count;
+
+    return TEMP_FAILURE_RETRY(listen(fd, count));
+}
+
+JNIEXPORT jint JVM_Connect(jint fd, struct sockaddr* addr, jint addrlen)
+{
+    LOG(DEBUG) << "JVM_Connect fd=" << fd << ", addr=" << addr << ", addrlen=" << addrlen;
+
+    return TEMP_FAILURE_RETRY(connect(fd, addr, addrlen));
+}
+
+JNIEXPORT int JVM_GetHostName(char* name, int namelen)
+{
+    LOG(DEBUG) << "JVM_GetHostName name=" << name << ", namelen=" << namelen;
+
+    return TEMP_FAILURE_RETRY(gethostname(name, namelen));
+}
+
+JNIEXPORT jstring JVM_InternString(JNIEnv* env, jstring jstr)
+{
+    LOG(DEBUG) << "JVM_InternString env=" << env << ", jstr=" << jstr;
+    art::ScopedFastNativeObjectAccess soa(env);
+    art::mirror::String* s = soa.Decode<art::mirror::String*>(jstr);
+    art::mirror::String* result = s->Intern();
+    return soa.AddLocalReference<jstring>(result);
+}
+
+JNIEXPORT jlong JVM_FreeMemory(void) {
+    return art::Runtime::Current()->GetHeap()->GetFreeMemory();
+}
+
+JNIEXPORT jlong JVM_TotalMemory(void) {
+    return art::Runtime::Current()->GetHeap()->GetTotalMemory();
+}
+
+JNIEXPORT jlong JVM_MaxMemory(void) {
+    return art::Runtime::Current()->GetHeap()->GetMaxMemory();
+}
+
+JNIEXPORT void JVM_GC(void) {
+    if (art::Runtime::Current()->IsExplicitGcDisabled()) {
+        LOG(INFO) << "Explicit GC skipped.";
+        return;
+    }
+    art::Runtime::Current()->GetHeap()->CollectGarbage(false);
+}
+
+JNIEXPORT void JVM_Exit(jint status) {
+  LOG(INFO) << "System.exit called, status: " << status;
+  art::Runtime::Current()->CallExitHook(status);
+  exit(status);
+}
+
+JNIEXPORT jstring JVM_NativeLoad(JNIEnv* env, jstring javaFilename, jobject javaLoader,
+                                 jstring javaLdLibraryPath) {
+  ScopedUtfChars filename(env, javaFilename);
+  if (filename.c_str() == NULL) {
+    return NULL;
+  }
+
+  if (javaLdLibraryPath != NULL) {
+    ScopedUtfChars ldLibraryPath(env, javaLdLibraryPath);
+    if (ldLibraryPath.c_str() == NULL) {
+      return NULL;
+    }
+    void* sym = dlsym(RTLD_DEFAULT, "android_update_LD_LIBRARY_PATH");
+    if (sym != NULL) {
+      typedef void (*Fn)(const char*);
+      Fn android_update_LD_LIBRARY_PATH = reinterpret_cast<Fn>(sym);
+      (*android_update_LD_LIBRARY_PATH)(ldLibraryPath.c_str());
+    } else {
+      LOG(ERROR) << "android_update_LD_LIBRARY_PATH not found; .so dependencies will not work!";
+    }
+  }
+
+  std::string detail;
+  {
+    art::ScopedObjectAccess soa(env);
+    art::StackHandleScope<1> hs(soa.Self());
+    art::Handle<art::mirror::ClassLoader> classLoader(
+        hs.NewHandle(soa.Decode<art::mirror::ClassLoader*>(javaLoader)));
+    art::JavaVMExt* vm = art::Runtime::Current()->GetJavaVM();
+    bool success = vm->LoadNativeLibrary(filename.c_str(), classLoader, &detail);
+    if (success) {
+      return nullptr;
+    }
+  }
+
+  // Don't let a pending exception from JNI_OnLoad cause a CheckJNI issue with NewStringUTF.
+  env->ExceptionClear();
+  return env->NewStringUTF(detail.c_str());
+}
+
+JNIEXPORT void JVM_StartThread(JNIEnv* env, jobject jthread, jlong stack_size, jboolean daemon) {
+  art::Thread::CreateNativeThread(env, jthread, stack_size, daemon == JNI_TRUE);
+}
+
+JNIEXPORT void JVM_SetThreadPriority(JNIEnv* env, jobject jthread, jint prio) {
+  art::ScopedObjectAccess soa(env);
+  art::MutexLock mu(soa.Self(), *art::Locks::thread_list_lock_);
+  art::Thread* thread = art::Thread::FromManagedThread(soa, jthread);
+  if (thread != NULL) {
+    thread->SetNativePriority(prio);
+  }
+}
+
+JNIEXPORT void JVM_Yield(JNIEnv* env, jclass threadClass) {
+  sched_yield();
+}
+
+JNIEXPORT void JVM_Sleep(JNIEnv* env, jclass threadClass, jobject java_lock, jlong millis) {
+  art::ScopedFastNativeObjectAccess soa(env);
+  art::mirror::Object* lock = soa.Decode<art::mirror::Object*>(java_lock);
+  art::Monitor::Wait(art::Thread::Current(), lock, millis, 0, true, art::kSleeping);
+}
+
+JNIEXPORT jobject JVM_CurrentThread(JNIEnv* env, jclass unused) {
+  art::ScopedFastNativeObjectAccess soa(env);
+  return soa.AddLocalReference<jobject>(soa.Self()->GetPeer());
+}
+
+JNIEXPORT void JVM_Interrupt(JNIEnv* env, jobject jthread) {
+  art::ScopedFastNativeObjectAccess soa(env);
+  art::MutexLock mu(soa.Self(), *art::Locks::thread_list_lock_);
+  art::Thread* thread = art::Thread::FromManagedThread(soa, jthread);
+  if (thread != nullptr) {
+    thread->Interrupt(soa.Self());
+  }
+}
+
+JNIEXPORT jboolean JVM_IsInterrupted(JNIEnv* env, jobject jthread, jboolean clearInterrupted) {
+  if (clearInterrupted) {
+    return static_cast<art::JNIEnvExt*>(env)->self->Interrupted() ? JNI_TRUE : JNI_FALSE;
+  } else {
+    art::ScopedFastNativeObjectAccess soa(env);
+    art::MutexLock mu(soa.Self(), *art::Locks::thread_list_lock_);
+    art::Thread* thread = art::Thread::FromManagedThread(soa, jthread);
+    return (thread != nullptr) ? thread->IsInterrupted() : JNI_FALSE;
+  }
+}
+
+JNIEXPORT jboolean JVM_HoldsLock(JNIEnv* env, jclass unused, jobject jobj) {
+  art::ScopedObjectAccess soa(env);
+  art::mirror::Object* object = soa.Decode<art::mirror::Object*>(jobj);
+  if (object == NULL) {
+    art::ThrowNullPointerException(NULL, "object == null");
+    return JNI_FALSE;
+  }
+  return soa.Self()->HoldsLock(object);
+}
+
+JNIEXPORT void JVM_SetNativeThreadName(JNIEnv* env, jobject jthread, jstring java_name) {
+  ScopedUtfChars name(env, java_name);
+  art::Thread* self;
+  {
+    art::ScopedObjectAccess soa(env);
+    if (soa.Decode<art::mirror::Object*>(jthread) == soa.Self()->GetPeer()) {
+      soa.Self()->SetThreadName(name.c_str());
+      return;
+    }
+    self = soa.Self();
+  }
+  // Suspend thread to avoid it from killing itself while we set its name. We don't just hold the
+  // thread list lock to avoid this, as setting the thread name causes mutator to lock/unlock
+  // in the DDMS send code.
+  art::ThreadList* thread_list = art::Runtime::Current()->GetThreadList();
+  bool timed_out;
+  // Take suspend thread lock to avoid races with threads trying to suspend this one.
+  art::Thread* thread;
+  {
+    art::MutexLock mu(self, *art::Locks::thread_list_suspend_thread_lock_);
+    thread = thread_list->SuspendThreadByPeer(jthread, true, false, &timed_out);
+  }
+  if (thread != NULL) {
+    {
+      art::ScopedObjectAccess soa(env);
+      thread->SetThreadName(name.c_str());
+    }
+    thread_list->Resume(thread, false);
+  } else if (timed_out) {
+    LOG(ERROR) << "Trying to set thread name to '" << name.c_str() << "' failed as the thread "
+        "failed to suspend within a generous timeout.";
+  }
+}
+
+JNIEXPORT jint JVM_IHashCode(JNIEnv* env, jobject javaObject) {
+  if (UNLIKELY(javaObject == nullptr)) {
+    return 0;
+  }
+  art::ScopedFastNativeObjectAccess soa(env);
+  art::mirror::Object* o = soa.Decode<art::mirror::Object*>(javaObject);
+  return static_cast<jint>(o->IdentityHashCode());
+}
+
+JNIEXPORT jlong JVM_NanoTime(JNIEnv* env, jclass unused) {
+#if defined(HAVE_POSIX_CLOCKS)
+    timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    return now.tv_sec * 1000000000LL + now.tv_nsec;
+#else
+    timeval now;
+    gettimeofday(&now, NULL);
+    return static_cast<jlong>(now.tv_sec) * 1000000000LL + now.tv_usec * 1000LL;
+#endif
+}
+static void ThrowArrayStoreException_NotAnArray(const char* identifier, art::mirror::Object* array)
+    SHARED_LOCKS_REQUIRED(art::Locks::mutator_lock_) {
+  std::string actualType(art::PrettyTypeOf(array));
+  art::Thread* self = art::Thread::Current();
+  art::ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+  self->ThrowNewExceptionF(throw_location, "Ljava/lang/ArrayStoreException;",
+                           "%s of type %s is not an array", identifier, actualType.c_str());
+}
+
+JNIEXPORT void JVM_ArrayCopy(JNIEnv* env, jclass unused, jobject javaSrc,
+                             jint srcPos, jobject javaDst, jint dstPos, jint length) {
+  // The API is defined in terms of length, but length is somewhat overloaded so we use count.
+  const jint count = length;
+  art::ScopedFastNativeObjectAccess soa(env);
+
+  // Null pointer checks.
+  if (UNLIKELY(javaSrc == nullptr)) {
+    art::ThrowNullPointerException(nullptr, "src == null");
+    return;
+  }
+  if (UNLIKELY(javaDst == nullptr)) {
+    art::ThrowNullPointerException(nullptr, "dst == null");
+    return;
+  }
+
+  // Make sure source and destination are both arrays.
+  art::mirror::Object* srcObject = soa.Decode<art::mirror::Object*>(javaSrc);
+  if (UNLIKELY(!srcObject->IsArrayInstance())) {
+    ThrowArrayStoreException_NotAnArray("source", srcObject);
+    return;
+  }
+  art::mirror::Object* dstObject = soa.Decode<art::mirror::Object*>(javaDst);
+  if (UNLIKELY(!dstObject->IsArrayInstance())) {
+    ThrowArrayStoreException_NotAnArray("destination", dstObject);
+    return;
+  }
+  art::mirror::Array* srcArray = srcObject->AsArray();
+  art::mirror::Array* dstArray = dstObject->AsArray();
+
+  // Bounds checking.
+  if (UNLIKELY(srcPos < 0) || UNLIKELY(dstPos < 0) || UNLIKELY(count < 0) ||
+      UNLIKELY(srcPos > srcArray->GetLength() - count) ||
+      UNLIKELY(dstPos > dstArray->GetLength() - count)) {
+    art::ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
+    soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/ArrayIndexOutOfBoundsException;",
+                                   "src.length=%d srcPos=%d dst.length=%d dstPos=%d length=%d",
+                                   srcArray->GetLength(), srcPos, dstArray->GetLength(), dstPos,
+                                   count);
+    return;
+  }
+
+  art::mirror::Class* dstComponentType = dstArray->GetClass()->GetComponentType();
+  art::mirror::Class* srcComponentType = srcArray->GetClass()->GetComponentType();
+  art::Primitive::Type dstComponentPrimitiveType = dstComponentType->GetPrimitiveType();
+
+  if (LIKELY(srcComponentType == dstComponentType)) {
+    // Trivial assignability.
+    switch (dstComponentPrimitiveType) {
+      case art::Primitive::kPrimVoid:
+        LOG(FATAL) << "Unreachable, cannot have arrays of type void";
+        return;
+      case art::Primitive::kPrimBoolean:
+      case art::Primitive::kPrimByte:
+        DCHECK_EQ(art::Primitive::ComponentSize(dstComponentPrimitiveType), 1U);
+        dstArray->AsByteSizedArray()->Memmove(dstPos, srcArray->AsByteSizedArray(), srcPos, count);
+        return;
+      case art::Primitive::kPrimChar:
+      case art::Primitive::kPrimShort:
+        DCHECK_EQ(art::Primitive::ComponentSize(dstComponentPrimitiveType), 2U);
+        dstArray->AsShortSizedArray()->Memmove(dstPos, srcArray->AsShortSizedArray(), srcPos, count);
+        return;
+      case art::Primitive::kPrimInt:
+      case art::Primitive::kPrimFloat:
+        DCHECK_EQ(art::Primitive::ComponentSize(dstComponentPrimitiveType), 4U);
+        dstArray->AsIntArray()->Memmove(dstPos, srcArray->AsIntArray(), srcPos, count);
+        return;
+      case art::Primitive::kPrimLong:
+      case art::Primitive::kPrimDouble:
+        DCHECK_EQ(art::Primitive::ComponentSize(dstComponentPrimitiveType), 8U);
+        dstArray->AsLongArray()->Memmove(dstPos, srcArray->AsLongArray(), srcPos, count);
+        return;
+      case art::Primitive::kPrimNot: {
+        art::mirror::ObjectArray<art::mirror::Object>* dstObjArray = dstArray->AsObjectArray<art::mirror::Object>();
+        art::mirror::ObjectArray<art::mirror::Object>* srcObjArray = srcArray->AsObjectArray<art::mirror::Object>();
+        dstObjArray->AssignableMemmove(dstPos, srcObjArray, srcPos, count);
+        return;
+      }
+      default:
+        LOG(FATAL) << "Unknown array type: " << art::PrettyTypeOf(srcArray);
+        return;
+    }
+  }
+  // If one of the arrays holds a primitive type the other array must hold the exact same type.
+  if (UNLIKELY((dstComponentPrimitiveType != art::Primitive::kPrimNot) ||
+               srcComponentType->IsPrimitive())) {
+    std::string srcType(art::PrettyTypeOf(srcArray));
+    std::string dstType(art::PrettyTypeOf(dstArray));
+    art::ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
+    soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/ArrayStoreException;",
+                                   "Incompatible types: src=%s, dst=%s",
+                                   srcType.c_str(), dstType.c_str());
+    return;
+  }
+  // Arrays hold distinct types and so therefore can't alias - use memcpy instead of memmove.
+  art::mirror::ObjectArray<art::mirror::Object>* dstObjArray = dstArray->AsObjectArray<art::mirror::Object>();
+  art::mirror::ObjectArray<art::mirror::Object>* srcObjArray = srcArray->AsObjectArray<art::mirror::Object>();
+  // If we're assigning into say Object[] then we don't need per element checks.
+  if (dstComponentType->IsAssignableFrom(srcComponentType)) {
+    dstObjArray->AssignableMemcpy(dstPos, srcObjArray, srcPos, count);
+    return;
+  }
+  dstObjArray->AssignableCheckingMemcpy(dstPos, srcObjArray, srcPos, count, true);
+}
+
+JNIEXPORT jint JVM_FindSignal(const char* name) {
+  static const char* names[] = {
+        "", "HUP", "INT", "QUIT",
+        "ILL", "TRAP", "ABRT", "BUS",
+        "FPE", "KILL", "USR1", "SEGV",
+        "USR2", "PIPE", "ALRM", "TERM",
+        NULL
+    };
+
+    int i = 0;
+    while (names[++i] != NULL) {
+        if (strcmp(name, names[i]) == 0) {
+            return i;
+        }
+    }
+    LOG(WARNING) << "Signal '" << name << "' not found";
+    assert(false);
+    return 0;
+}
+
+/* signal handler */
+static void internalSignalHandler(int sig)
+{
+    /*
+     * This is expected to invoke sun.misc.Signal.dispatch().  We really
+     * don't want to do that directly from a signal handler, so if we
+     * decide we need this we should hook it into the safe-point mechanism.
+     */
+}
+
+JNIEXPORT void* JVM_RegisterSignal(jint signum, void* handler)
+{
+    LOG(INFO) << "SIGNAL: signum=" << signum << ", handler=" << handler;
+
+    struct sigaction act, oldact;
+
+    /* OpenJDK code makes these assumptions */
+    assert(SIG_DFL == (void*)0);
+    assert(SIG_IGN == (void*)1);
+
+    if (handler == (void*) 2) {
+        /* magic value indicating we should use our internal handler */
+        handler = (void*) internalSignalHandler;
+    }
+
+    act.sa_handler = (void (*)(int))handler;
+    sigemptyset(&act.sa_mask);
+    act.sa_flags = SA_RESTART;
+    sigaction(signum, &act, &oldact);
+
+    if (oldact.sa_handler == internalSignalHandler) {
+        return (void*) 2;
+    } else {
+        return (void*) oldact.sa_handler;
+    }
+}
+
+JNIEXPORT jboolean JVM_RaiseSignal(jint signum)
+{
+    raise(signum);
+    return JNI_TRUE;
+}
+
+JNIEXPORT void JVM_Halt(jint code) {
+  exit(code);
+}

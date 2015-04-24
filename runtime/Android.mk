@@ -128,6 +128,7 @@ LIBART_COMMON_SRC_FILES := \
   native/java_util_concurrent_atomic_AtomicLong.cc \
   native/org_apache_harmony_dalvik_ddmc_DdmServer.cc \
   native/org_apache_harmony_dalvik_ddmc_DdmVmInternal.cc \
+  native/OpenjdkJvm.cc \
   native/sun_misc_Unsafe.cc \
   oat.cc \
   oat_file.cc \
