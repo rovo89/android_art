@@ -270,7 +270,25 @@ class DeadCodeEliminationPass : public PassME {
     CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
     c_unit->mir_graph->EliminateDeadCodeEnd();
-    down_cast<PassMEDataHolder*>(data)->dirty = !c_unit->mir_graph->MirSsaRepUpToDate();
+  }
+};
+
+/**
+ * @class GlobalValueNumberingCleanupPass
+ * @brief Performs the cleanup after global value numbering pass and the dependent
+ *        dead code elimination pass that needs the GVN data.
+ */
+class GlobalValueNumberingCleanupPass : public PassME {
+ public:
+  GlobalValueNumberingCleanupPass()
+    : PassME("GVNCleanup", kNoNodes, "") {
+  }
+
+  void Start(PassDataHolder* data) const OVERRIDE {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    return c_unit->mir_graph->GlobalValueNumberingCleanup();
   }
 };
 
