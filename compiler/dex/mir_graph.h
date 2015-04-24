@@ -1101,6 +1101,7 @@ class MIRGraph {
   bool EliminateDeadCodeGate();
   bool EliminateDeadCode(BasicBlock* bb);
   void EliminateDeadCodeEnd();
+  void GlobalValueNumberingCleanup();
   bool EliminateSuspendChecksGate();
   bool EliminateSuspendChecks(BasicBlock* bb);
 
