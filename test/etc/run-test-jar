@@ -364,6 +364,7 @@ if [ "$HOST" = "n" ]; then
              export ANDROID_ROOT=$ANDROID_ROOT && \
              $mkdir_cmdline && \
              export LD_LIBRARY_PATH=$LD_LIBRARY_PATH && \
+             export PATH=$ANDROID_ROOT/bin:$PATH && \
              $dex2oat_cmdline && \
              $dalvikvm_cmdline"
 
