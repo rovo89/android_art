@@ -264,6 +264,8 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
     }
   }
 
+  const ArenaBitVector& loop_blocks = loop_header->GetLoopInformation()->GetBlocks();
+
   // Ensure there is only one back edge per loop.
   size_t num_back_edges =
     loop_header->GetLoopInformation()->GetBackEdges().Size();
@@ -276,16 +278,27 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
         "Loop defined by header %d has several back edges: %zu.",
         id,
         num_back_edges));
+  } else {
+    DCHECK_EQ(num_back_edges, 1u);
+    int back_edge_id = loop_header->GetLoopInformation()->GetBackEdges().Get(0)->GetBlockId();
+    if (!loop_blocks.IsBitSet(back_edge_id)) {
+      AddError(StringPrintf(
+          "Loop defined by header %d has an invalid back edge %d.",
+          id,
+          back_edge_id));
+    }
   }
 
-  // Ensure all blocks in the loop are dominated by the loop header.
-  const ArenaBitVector& loop_blocks =
-    loop_header->GetLoopInformation()->GetBlocks();
+  // Ensure all blocks in the loop are live and dominated by the loop header.
   for (uint32_t i : loop_blocks.Indexes()) {
     HBasicBlock* loop_block = GetGraph()->GetBlocks().Get(i);
-    if (!loop_header->Dominates(loop_block)) {
+    if (loop_block == nullptr) {
+      AddError(StringPrintf("Loop defined by header %d contains a previously removed block %d.",
+                            id,
+                            i));
+    } else if (!loop_header->Dominates(loop_block)) {
       AddError(StringPrintf("Loop block %d not dominated by loop header %d.",
-                            loop_block->GetBlockId(),
+                            i,
                             id));
     }
   }
@@ -296,7 +309,7 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
     if (!loop_blocks.IsSubsetOf(&outer_info->GetBlocks())) {
       AddError(StringPrintf("Blocks of loop defined by header %d are not a subset of blocks of "
                             "an outer loop defined by header %d.",
-                            loop_header->GetBlockId(),
+                            id,
                             outer_info->GetHeader()->GetBlockId()));
     }
   }
