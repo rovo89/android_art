@@ -456,6 +456,20 @@ void HBasicBlock::InsertInstructionBefore(HInstruction* instruction, HInstructio
   instructions_.InsertInstructionBefore(instruction, cursor);
 }
 
+void HBasicBlock::InsertInstructionAfter(HInstruction* instruction, HInstruction* cursor) {
+  DCHECK(!cursor->IsPhi());
+  DCHECK(!instruction->IsPhi());
+  DCHECK_EQ(instruction->GetId(), -1);
+  DCHECK_NE(cursor->GetId(), -1);
+  DCHECK_EQ(cursor->GetBlock(), this);
+  DCHECK(!instruction->IsControlFlow());
+  DCHECK(!cursor->IsControlFlow());
+  instruction->SetBlock(this);
+  instruction->SetId(GetGraph()->GetNextInstructionId());
+  UpdateInputsUsers(instruction);
+  instructions_.InsertInstructionAfter(instruction, cursor);
+}
+
 void HBasicBlock::InsertPhiAfter(HPhi* phi, HPhi* cursor) {
   DCHECK_EQ(phi->GetId(), -1);
   DCHECK_NE(cursor->GetId(), -1);
