@@ -934,6 +934,20 @@ void Runtime::InitNativeMethods() {
     self->TransitionFromRunnableToSuspended(kNative);
   }
 
+  // Then set up openjdk libcore, which is just a regular JNI library with a
+  // regular JNI_OnLoad.
+  {
+    std::string mapped_name(StringPrintf(OS_SHARED_LIB_FORMAT_STR, "openjdkjavacore"));
+    std::string reason;
+    self->TransitionFromSuspendedToRunnable();
+    StackHandleScope<1> hs(self);
+    auto class_loader(hs.NewHandle<mirror::ClassLoader>(nullptr));
+    if (!instance_->java_vm_->LoadNativeLibrary(mapped_name, class_loader, &reason)) {
+      LOG(FATAL) << "LoadNativeLibrary failed for \"" << mapped_name << "\": " << reason;
+    }
+    self->TransitionFromRunnableToSuspended(kNative);
+  }
+
   // Initialize well known classes that may invoke runtime native methods.
   WellKnownClasses::LateInit(env);
 

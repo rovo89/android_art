@@ -116,14 +116,17 @@ ART_HOST_DEPENDENCIES := \
 	$(ART_HOST_EXECUTABLES) \
 	$(HOST_OUT_JAVA_LIBRARIES)/core-libart-hostdex.jar \
 	$(HOST_OUT_JAVA_LIBRARIES)/core-oj-hostdex.jar \
-	$(ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION)
+	$(ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION) \
+	$(ART_HOST_OUT_SHARED_LIBRARIES)/libopenjdkjavacore$(ART_HOST_SHLIB_EXTENSION)
 ART_TARGET_DEPENDENCIES := \
 	$(ART_TARGET_EXECUTABLES) \
 	$(TARGET_OUT_JAVA_LIBRARIES)/core-libart.jar \
 	$(TARGET_OUT_JAVA_LIBRARIES)/core-oj.jar \
-	$(TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
+	$(TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so \
+	$(TARGET_OUT_SHARED_LIBRARIES)/libopenjdkjavacore.so
 ifdef TARGET_2ND_ARCH
 ART_TARGET_DEPENDENCIES += $(2ND_TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
+ART_TARGET_DEPENDENCIES += $(2ND_TARGET_OUT_SHARED_LIBRARIES)/libopenjdkjavacore.so
 endif
 
 ########################################################################
@@ -351,18 +354,19 @@ oat-target-sync: oat-target
 build-art: build-art-host build-art-target
 
 .PHONY: build-art-host
-build-art-host:   $(ART_HOST_EXECUTABLES)   $(ART_HOST_GTEST_EXECUTABLES)   $(HOST_CORE_IMG_OUT)   $(ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION)
+build-art-host:   $(ART_HOST_EXECUTABLES)   $(ART_HOST_GTEST_EXECUTABLES)   $(HOST_CORE_IMG_OUT)   $(ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION)   $(ART_HOST_OUT_SHARED_LIBRARIES)/libopenjdkjavacore$(ART_HOST_SHLIB_EXTENSION)
+
 
 .PHONY: build-art-target
-build-art-target: $(ART_TARGET_EXECUTABLES) $(ART_TARGET_GTEST_EXECUTABLES) $(TARGET_CORE_IMG_OUT) $(TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
+build-art-target: $(ART_TARGET_EXECUTABLES) $(ART_TARGET_GTEST_EXECUTABLES) $(TARGET_CORE_IMG_OUT) $(TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so $(TARGET_OUT_SHARED_LIBRARIES)/libopenjdkjavacore.so
 
 ########################################################################
 # "m art-host" for just building the files needed to run the art script
 .PHONY: art-host
 ifeq ($(HOST_PREFER_32_BIT),true)
-art-host:   $(HOST_OUT_EXECUTABLES)/art $(HOST_OUT)/bin/dalvikvm32 $(HOST_OUT)/lib/libart.so $(HOST_OUT)/bin/dex2oat $(HOST_OUT)/bin/patchoat $(HOST_CORE_IMG_OUT) $(HOST_OUT)/lib/libjavacore.so $(HOST_OUT)/bin/dalvikvm
+art-host:   $(HOST_OUT_EXECUTABLES)/art $(HOST_OUT)/bin/dalvikvm32 $(HOST_OUT)/lib/libart.so $(HOST_OUT)/bin/dex2oat $(HOST_OUT)/bin/patchoat $(HOST_CORE_IMG_OUT) $(HOST_OUT)/lib/libjavacore.so $(HOST_OUT)/lib/libopenjdkjavacore.so $(HOST_OUT)/bin/dalvikvm
 else
-art-host:   $(HOST_OUT_EXECUTABLES)/art $(HOST_OUT)/bin/dalvikvm64 $(HOST_OUT)/bin/dalvikvm32 $(HOST_OUT)/lib/libart.so $(HOST_OUT)/bin/dex2oat $(HOST_OUT)/bin/patchoat $(HOST_CORE_IMG_OUT) $(HOST_OUT)/lib/libjavacore.so $(HOST_OUT)/lib64/libjavacore.so $(HOST_OUT)/bin/dalvikvm
+art-host:   $(HOST_OUT_EXECUTABLES)/art $(HOST_OUT)/bin/dalvikvm64 $(HOST_OUT)/bin/dalvikvm32 $(HOST_OUT)/lib/libart.so $(HOST_OUT)/bin/dex2oat $(HOST_OUT)/bin/patchoat $(HOST_CORE_IMG_OUT) $(HOST_OUT)/lib/libjavacore.so $(HOST_OUT)/lib64/libjavacore.so $(HOST_OUT)/lib/libopenjdkjavacore.so $(HOST_OUT)/lib64/libopenjdkjavacore.so $(HOST_OUT)/bin/dalvikvm
 endif
 
 .PHONY: art-host-debug
