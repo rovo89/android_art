@@ -46,6 +46,7 @@ void PassDriverMEOpts::SetupPasses(PassManager* pass_manager) {
   pass_manager->AddPass(new CodeLayout);
   pass_manager->AddPass(new GlobalValueNumberingPass);
   pass_manager->AddPass(new DeadCodeEliminationPass);
+  pass_manager->AddPass(new GlobalValueNumberingCleanupPass);
   pass_manager->AddPass(new ConstantPropagation);
   pass_manager->AddPass(new MethodUseCount);
   pass_manager->AddPass(new BBOptimizations);
