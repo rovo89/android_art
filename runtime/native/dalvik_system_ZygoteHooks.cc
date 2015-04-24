@@ -65,6 +65,7 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
     DEBUG_ENABLE_SAFEMODE           = 1 << 3,
     DEBUG_ENABLE_JNI_LOGGING        = 1 << 4,
     DEBUG_ENABLE_JIT                = 1 << 5,
+    DEBUG_GENERATE_CFI              = 1 << 6,
   };
 
   Runtime* const runtime = Runtime::Current();
@@ -110,6 +111,12 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
     debug_flags &= ~DEBUG_ENABLE_JIT;
   }
   runtime->GetJITOptions()->SetUseJIT(use_jit);
+
+  const bool generate_cfi = (debug_flags & DEBUG_GENERATE_CFI) != 0;
+  if (generate_cfi) {
+    runtime->AddCompilerOption("--include-cfi");
+    debug_flags &= ~DEBUG_GENERATE_CFI;
+  }
 
   // This is for backwards compatibility with Dalvik.
   debug_flags &= ~DEBUG_ENABLE_ASSERT;
