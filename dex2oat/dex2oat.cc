@@ -1217,9 +1217,9 @@ class Dex2Oat FINAL {
       if (!UseSwap(image_, dex_files_)) {
         close(swap_fd_);
         swap_fd_ = -1;
-        LOG(INFO) << "Decided to run without swap.";
+        VLOG(compiler) << "Decided to run without swap.";
       } else {
-        LOG(INFO) << "Accepted running with swap.";
+        LOG(INFO) << "Large app, accepted running with swap.";
       }
     }
     // Note that dex2oat won't close the swap_fd_. The compiler driver's swap space will do that.
