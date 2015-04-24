@@ -22,6 +22,8 @@
 #include "class_linker-inl.h"
 #include "common_throws.h"
 #include "dex_file.h"
+#include "entrypoints/quick/callee_save_frame.h"
+#include "handle_scope-inl.h"
 #include "indirect_reference_table.h"
 #include "invoke_type.h"
 #include "jni_internal.h"
@@ -30,10 +32,30 @@
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/throwable.h"
-#include "handle_scope-inl.h"
+#include "nth_caller_visitor.h"
+#include "runtime.h"
 #include "thread.h"
 
 namespace art {
+
+inline mirror::ArtMethod* GetCalleeSaveMethodCaller(Thread* self, Runtime::CalleeSaveType type)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  auto* refs_only_sp = self->GetManagedStack()->GetTopQuickFrame();
+  DCHECK_EQ(refs_only_sp->AsMirrorPtr(), Runtime::Current()->GetCalleeSaveMethod(type));
+
+  const size_t callee_frame_size = GetCalleeSaveFrameSize(kRuntimeISA, type);
+  auto* caller_sp = reinterpret_cast<StackReference<mirror::ArtMethod>*>(
+          reinterpret_cast<uintptr_t>(refs_only_sp) + callee_frame_size);
+  auto* caller = caller_sp->AsMirrorPtr();
+
+  if (kIsDebugBuild) {
+    NthCallerVisitor visitor(self, 1, true);
+    visitor.WalkStack();
+    CHECK(caller == visitor.caller);
+  }
+
+  return caller;
+}
 
 template <const bool kAccessCheck>
 ALWAYS_INLINE

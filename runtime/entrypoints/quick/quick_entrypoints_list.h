@@ -33,10 +33,10 @@
   V(InstanceofNonTrivial, uint32_t, const mirror::Class*, const mirror::Class*) \
   V(CheckCast, void, const mirror::Class*, const mirror::Class*) \
 \
-  V(InitializeStaticStorage, void*, uint32_t, mirror::ArtMethod*) \
-  V(InitializeTypeAndVerifyAccess, void*, uint32_t, mirror::ArtMethod*) \
-  V(InitializeType, void*, uint32_t, mirror::ArtMethod*) \
-  V(ResolveString, void*, uint32_t, mirror::ArtMethod*) \
+  V(InitializeStaticStorage, void*, uint32_t) \
+  V(InitializeTypeAndVerifyAccess, void*, uint32_t) \
+  V(InitializeType, void*, uint32_t) \
+  V(ResolveString, void*, uint32_t) \
 \
   V(Set8Instance, int, uint32_t, void*, int8_t) \
   V(Set8Static, int, uint32_t, int8_t) \
