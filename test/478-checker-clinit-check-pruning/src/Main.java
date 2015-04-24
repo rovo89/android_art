@@ -186,6 +186,80 @@ public class Main {
     }
   }
 
+  /*
+   * Ensure an inlined call to a static method whose declaring class
+   * is a super class of the caller's class does not require an
+   * explicit clinit check.
+   */
+
+  // CHECK-START: void Main$SubClassOfClassWithClinit5.invokeStaticInlined() builder (after)
+  // CHECK-DAG:                           InvokeStaticOrDirect
+
+  // CHECK-START: void Main$SubClassOfClassWithClinit5.invokeStaticInlined() builder (after)
+  // CHECK-NOT:                           LoadClass
+  // CHECK-NOT:                           ClinitCheck
+
+  // CHECK-START: void Main$SubClassOfClassWithClinit5.invokeStaticInlined() inliner (after)
+  // CHECK-NOT:                           LoadClass
+  // CHECK-NOT:                           ClinitCheck
+  // CHECK-NOT:                           InvokeStaticOrDirect
+
+  static class ClassWithClinit5 {
+    static void $opt$inline$StaticMethod() {
+    }
+
+    static {
+      System.out.println("Main$ClassWithClinit5's static initializer");
+    }
+  }
+
+  static class SubClassOfClassWithClinit5 extends ClassWithClinit5 {
+    static void invokeStaticInlined() {
+      ClassWithClinit5.$opt$inline$StaticMethod();
+    }
+  }
+
+  /*
+   * Ensure an non-inlined call to a static method whose declaring
+   * class is a super class of the caller's class does not require an
+   * explicit clinit check.
+   */
+
+  // CHECK-START: void Main$SubClassOfClassWithClinit6.invokeStaticNotInlined() builder (after)
+  // CHECK-DAG:                           InvokeStaticOrDirect
+
+  // CHECK-START: void Main$SubClassOfClassWithClinit6.invokeStaticNotInlined() builder (after)
+  // CHECK-NOT:                           LoadClass
+  // CHECK-NOT:                           ClinitCheck
+
+  // CHECK-START: void Main$SubClassOfClassWithClinit6.invokeStaticNotInlined() inliner (after)
+  // CHECK-DAG:                           InvokeStaticOrDirect
+
+  // CHECK-START: void Main$SubClassOfClassWithClinit6.invokeStaticNotInlined() inliner (after)
+  // CHECK-NOT:                           LoadClass
+  // CHECK-NOT:                           ClinitCheck
+
+  static class ClassWithClinit6 {
+    static boolean doThrow = false;
+
+    static void staticMethod() {
+      if (doThrow) {
+        // Try defeating inlining.
+        throw new Error();
+      }
+    }
+
+    static {
+      System.out.println("Main$ClassWithClinit6's static initializer");
+    }
+  }
+
+  static class SubClassOfClassWithClinit6 extends ClassWithClinit6 {
+    static void invokeStaticNotInlined() {
+      ClassWithClinit6.staticMethod();
+    }
+  }
+
   // TODO: Add a test for the case of a static method whose declaring
   // class type index is not available (i.e. when `storage_index`
   // equals `DexFile::kDexNoIndex` in
@@ -196,5 +270,7 @@ public class Main {
     invokeStaticNotInlined();
     ClassWithClinit3.invokeStaticInlined();
     ClassWithClinit4.invokeStaticNotInlined();
+    SubClassOfClassWithClinit5.invokeStaticInlined();
+    SubClassOfClassWithClinit6.invokeStaticNotInlined();
   }
 }

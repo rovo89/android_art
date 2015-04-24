@@ -666,9 +666,10 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
                                                                    &storage_index);
       }
 
-      if (is_referrer_class) {
-        // If the declaring class is the referrer class, no class
-        // initialization is needed before the static method call.
+      if (referrer_class.Get()->IsSubClass(resolved_method->GetDeclaringClass())) {
+        // If the referrer class is the declaring class or a subclass
+        // of the declaring class, no class initialization is needed
+        // before the static method call.
         clinit_check_requirement = HInvokeStaticOrDirect::ClinitCheckRequirement::kNone;
       } else if (storage_index != DexFile::kDexNoIndex) {
         // If the method's class type index is available, check
