@@ -336,6 +336,7 @@ class Thread {
   }
 
   void AssertPendingException() const;
+  void AssertPendingOOMException() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void AssertNoPendingException() const;
   void AssertNoPendingExceptionForNewException(const char* msg) const;
 
