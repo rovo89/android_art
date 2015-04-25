@@ -1451,13 +1451,13 @@ void MIRGraph::EliminateDeadCodeEnd() {
 }
 
 void MIRGraph::GlobalValueNumberingCleanup() {
+  // If the GVN didn't run, these pointers should be null and everything is effectively no-op.
   delete temp_.gvn.dce;
   temp_.gvn.dce = nullptr;
   delete temp_.gvn.gvn;
   temp_.gvn.gvn = nullptr;
   temp_.gvn.ifield_ids = nullptr;
   temp_.gvn.sfield_ids = nullptr;
-  DCHECK(temp_scoped_alloc_ != nullptr);
   temp_scoped_alloc_.reset();
 }
 
