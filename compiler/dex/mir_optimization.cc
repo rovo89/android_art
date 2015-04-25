@@ -1355,8 +1355,13 @@ void MIRGraph::EliminateClassInitChecksEnd() {
   temp_scoped_alloc_.reset();
 }
 
+static void DisableGVNDependentOptimizations(CompilationUnit* cu) {
+  cu->disable_opt |= (1u << kGvnDeadCodeElimination);
+}
+
 bool MIRGraph::ApplyGlobalValueNumberingGate() {
   if (GlobalValueNumbering::Skip(cu_)) {
+    DisableGVNDependentOptimizations(cu_);
     return false;
   }
 
@@ -1407,7 +1412,7 @@ void MIRGraph::ApplyGlobalValueNumberingEnd() {
     cu_->disable_opt |= (1u << kLocalValueNumbering);
   } else {
     LOG(WARNING) << "GVN failed for " << PrettyMethod(cu_->method_idx, *cu_->dex_file);
-    cu_->disable_opt |= (1u << kGvnDeadCodeElimination);
+    DisableGVNDependentOptimizations(cu_);
   }
 }
 
