@@ -799,9 +799,14 @@ bool UnboxPrimitiveForField(mirror::Object* o, mirror::Class* dst_class, ArtFiel
   return UnboxPrimitive(o, dst_class, f, unboxed_value);
 }
 
-bool UnboxPrimitiveForResult(mirror::Object* o,
-                             mirror::Class* dst_class, JValue* unboxed_value) {
+bool UnboxPrimitiveForResult(mirror::Object* o, mirror::Class* dst_class, JValue* unboxed_value) {
   return UnboxPrimitive(o, dst_class, nullptr, unboxed_value);
+}
+
+mirror::Class* GetCallingClass(Thread* self, size_t num_frames) {
+  NthCallerVisitor visitor(self, num_frames);
+  visitor.WalkStack();
+  return visitor.caller != nullptr ? visitor.caller->GetDeclaringClass() : nullptr;
 }
 
 bool VerifyAccess(Thread* self, mirror::Object* obj, mirror::Class* declaring_class,
@@ -809,30 +814,33 @@ bool VerifyAccess(Thread* self, mirror::Object* obj, mirror::Class* declaring_cl
   if ((access_flags & kAccPublic) != 0) {
     return true;
   }
-  NthCallerVisitor visitor(self, num_frames);
-  visitor.WalkStack();
-  if (UNLIKELY(visitor.caller == nullptr)) {
+  auto* klass = GetCallingClass(self, num_frames);
+  if (UNLIKELY(klass == nullptr)) {
     // The caller is an attached native thread.
     return false;
   }
-  mirror::Class* caller_class = visitor.caller->GetDeclaringClass();
-  if (caller_class == declaring_class) {
+  *calling_class = klass;
+  return VerifyAccess(self, obj, declaring_class, access_flags, klass);
+}
+
+bool VerifyAccess(Thread* self, mirror::Object* obj, mirror::Class* declaring_class,
+                  uint32_t access_flags, mirror::Class* calling_class) {
+  if (calling_class == declaring_class) {
     return true;
   }
   ScopedAssertNoThreadSuspension sants(self, "verify-access");
-  *calling_class = caller_class;
   if ((access_flags & kAccPrivate) != 0) {
     return false;
   }
   if ((access_flags & kAccProtected) != 0) {
-    if (obj != nullptr && !obj->InstanceOf(caller_class) &&
-        !declaring_class->IsInSamePackage(caller_class)) {
+    if (obj != nullptr && !obj->InstanceOf(calling_class) &&
+        !declaring_class->IsInSamePackage(calling_class)) {
       return false;
-    } else if (declaring_class->IsAssignableFrom(caller_class)) {
+    } else if (declaring_class->IsAssignableFrom(calling_class)) {
       return true;
     }
   }
-  return declaring_class->IsInSamePackage(caller_class);
+  return declaring_class->IsInSamePackage(calling_class);
 }
 
 void InvalidReceiverError(mirror::Object* o, mirror::Class* c) {
