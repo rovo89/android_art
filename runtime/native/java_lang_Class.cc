@@ -29,6 +29,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
+#include "reflection.h"
 #include "scoped_thread_state_change.h"
 #include "scoped_fast_native_object_access.h"
 #include "ScopedLocalRef.h"
@@ -391,8 +392,8 @@ static jobject Class_getDeclaredMethodInternal(JNIEnv* env, jobject javaThis,
       nullptr;
 }
 
-jobjectArray Class_getDeclaredMethodsUnchecked(JNIEnv* env, jobject javaThis,
-                                               jboolean publicOnly) {
+static jobjectArray Class_getDeclaredMethodsUnchecked(JNIEnv* env, jobject javaThis,
+                                                      jboolean publicOnly) {
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<5> hs(soa.Self());
   auto* klass = DecodeClass(soa, javaThis);
@@ -457,6 +458,74 @@ jobjectArray Class_getDeclaredMethodsUnchecked(JNIEnv* env, jobject javaThis,
   return soa.AddLocalReference<jobjectArray>(ret.Get());
 }
 
+static jobject Class_newInstance(JNIEnv* env, jobject javaThis) {
+  ScopedFastNativeObjectAccess soa(env);
+  StackHandleScope<4> hs(soa.Self());
+  auto klass = hs.NewHandle(DecodeClass(soa, javaThis));
+  if (UNLIKELY(klass->GetPrimitiveType() != 0 || klass->IsInterface() || klass->IsArrayClass() ||
+               klass->IsAbstract())) {
+    soa.Self()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
+                                   "%s cannot be instantiated", PrettyClass(klass.Get()).c_str());
+    return nullptr;
+  }
+  auto caller = hs.NewHandle<mirror::Class>(nullptr);
+  // Verify that we can access the class.
+  if (!klass->IsPublic()) {
+    caller.Assign(GetCallingClass(soa.Self(), 1));
+    if (caller.Get() != nullptr && !caller->CanAccess(klass.Get())) {
+      soa.Self()->ThrowNewExceptionF(
+          "Ljava/lang/IllegalAccessException;", "%s is not accessible from %s",
+          PrettyClass(klass.Get()).c_str(), PrettyClass(caller.Get()).c_str());
+      return nullptr;
+    }
+  }
+  auto* constructor = klass->GetDeclaredConstructor(
+      soa.Self(), NullHandle<mirror::ObjectArray<mirror::Class>>());
+  if (UNLIKELY(constructor == nullptr)) {
+    soa.Self()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
+                                   "%s has no zero argument constructor",
+                                   PrettyClass(klass.Get()).c_str());
+    return nullptr;
+  }
+  auto receiver = hs.NewHandle(klass->AllocObject(soa.Self()));
+  if (UNLIKELY(receiver.Get() == nullptr)) {
+    soa.Self()->AssertPendingOOMException();
+    return nullptr;
+  }
+  // Verify that we can access the constructor.
+  auto* declaring_class = constructor->GetDeclaringClass();
+  if (!constructor->IsPublic()) {
+    if (caller.Get() == nullptr) {
+      caller.Assign(GetCallingClass(soa.Self(), 1));
+    }
+    if (UNLIKELY(caller.Get() != nullptr && !VerifyAccess(
+        soa.Self(), receiver.Get(), declaring_class, constructor->GetAccessFlags(),
+        caller.Get()))) {
+      soa.Self()->ThrowNewExceptionF(
+          "Ljava/lang/IllegalAccessException;", "%s is not accessible from %s",
+          PrettyMethod(constructor).c_str(), PrettyClass(caller.Get()).c_str());
+      return nullptr;
+    }
+  }
+  // Ensure that we are initialized.
+  if (UNLIKELY(!declaring_class->IsInitialized())) {
+    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(
+        soa.Self(), hs.NewHandle(declaring_class), true, true)) {
+      soa.Self()->AssertPendingException();
+      return nullptr;
+    }
+  }
+  // Invoke the constructor.
+  JValue result;
+  uint32_t args[1] = { static_cast<uint32_t>(reinterpret_cast<uintptr_t>(receiver.Get())) };
+  constructor->Invoke(soa.Self(), args, sizeof(args), &result, "V");
+  if (UNLIKELY(soa.Self()->IsExceptionPending())) {
+    return nullptr;
+  }
+  // Constructors are ()V methods, so we shouldn't touch the result of InvokeMethod.
+  return soa.AddLocalReference<jobject>(receiver.Get());
+}
+
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Class, classForName,
                 "!(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;"),
@@ -474,6 +543,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Class, getNameNative, "!()Ljava/lang/String;"),
   NATIVE_METHOD(Class, getProxyInterfaces, "!()[Ljava/lang/Class;"),
   NATIVE_METHOD(Class, getPublicDeclaredFields, "!()[Ljava/lang/reflect/Field;"),
+  NATIVE_METHOD(Class, newInstance, "!()Ljava/lang/Object;"),
 };
 
 void register_java_lang_Class(JNIEnv* env) {
