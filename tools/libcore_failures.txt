@@ -124,5 +124,11 @@
   description: "Needs kernel updates on host/device",
   result: EXEC_FAILED,
   names: ["libcore.io.OsTest#test_socketPing"]
+},
+{
+  description: "Linker issues in chrooted environment",
+  modes: [device],
+  result: EXEC_FAILED,
+  names: ["org.apache.harmony.tests.java.lang.ProcessManagerTest#testEnvironment"]
 }
 ]
