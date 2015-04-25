@@ -17,6 +17,7 @@
 #include "bb_optimizations.h"
 #include "dataflow_iterator.h"
 #include "dataflow_iterator-inl.h"
+#include "global_value_numbering.h"
 
 namespace art {
 
@@ -78,5 +79,15 @@ bool MethodUseCount::Worker(PassDataHolder* data) const {
   // No need of repeating, so just return false.
   return false;
 }
+
+bool GlobalValueNumberingCleanupPass::Gate(const PassDataHolder* data) const {
+  DCHECK(data != nullptr);
+  CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+  DCHECK(c_unit != nullptr);
+  // Do not do cleanup if GVN skipped this.
+  // TODO: Proper dependencies between passes?
+  return !GlobalValueNumbering::Skip(c_unit);
+}
+
 
 }  // namespace art
