@@ -963,7 +963,7 @@ void HGraphBuilder::BuildArrayAccess(const Instruction& instruction,
     current_block_->AddInstruction(new (arena_) HArrayGet(object, index, anticipated_type));
     UpdateLocal(source_or_dest_reg, current_block_->GetLastInstruction());
   }
-  graph_->SetHasArrayAccesses(true);
+  graph_->SetHasBoundsChecks(true);
 }
 
 void HGraphBuilder::BuildFilledNewArray(uint32_t dex_pc,
@@ -1065,7 +1065,7 @@ void HGraphBuilder::BuildFillArrayData(const Instruction& instruction, uint32_t 
     default:
       LOG(FATAL) << "Unknown element width for " << payload->element_width;
   }
-  graph_->SetHasArrayAccesses(true);
+  graph_->SetHasBoundsChecks(true);
 }
 
 void HGraphBuilder::BuildFillWideArrayData(HInstruction* object,

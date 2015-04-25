@@ -121,6 +121,18 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
   }
 }
 
+void GraphChecker::VisitBoundsCheck(HBoundsCheck* check) {
+  if (!GetGraph()->HasBoundsChecks()) {
+    AddError(StringPrintf("Instruction %s:%d is a HBoundsCheck, "
+                          "but HasBoundsChecks() returns false",
+                          check->DebugName(),
+                          check->GetId()));
+  }
+
+  // Perform the instruction base checks too.
+  VisitInstruction(check);
+}
+
 void GraphChecker::VisitInstruction(HInstruction* instruction) {
   if (seen_ids_.IsBitSet(instruction->GetId())) {
     AddError(StringPrintf("Instruction id %d is duplicate in graph.",

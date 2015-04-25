@@ -1064,7 +1064,7 @@ class BCEVisitor : public HGraphVisitor {
 };
 
 void BoundsCheckElimination::Run() {
-  if (!graph_->HasArrayAccesses()) {
+  if (!graph_->HasBoundsChecks()) {
     return;
   }
 

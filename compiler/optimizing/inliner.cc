@@ -268,8 +268,8 @@ bool HInliner::TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
 
   callee_graph->InlineInto(graph_, invoke_instruction);
 
-  if (callee_graph->HasArrayAccesses()) {
-    graph_->SetHasArrayAccesses(true);
+  if (callee_graph->HasBoundsChecks()) {
+    graph_->SetHasBoundsChecks(true);
   }
 
   return true;

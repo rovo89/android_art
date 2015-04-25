@@ -127,7 +127,7 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
         number_of_vregs_(0),
         number_of_in_vregs_(0),
         temporaries_vreg_slots_(0),
-        has_array_accesses_(false),
+        has_bounds_checks_(false),
         debuggable_(debuggable),
         current_instruction_id_(start_instruction_id),
         cached_null_constant_(nullptr),
@@ -230,12 +230,12 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
     return linear_order_;
   }
 
-  bool HasArrayAccesses() const {
-    return has_array_accesses_;
+  bool HasBoundsChecks() const {
+    return has_bounds_checks_;
   }
 
-  void SetHasArrayAccesses(bool value) {
-    has_array_accesses_ = value;
+  void SetHasBoundsChecks(bool value) {
+    has_bounds_checks_ = value;
   }
 
   bool IsDebuggable() const { return debuggable_; }
@@ -295,8 +295,8 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   // Number of vreg size slots that the temporaries use (used in baseline compiler).
   size_t temporaries_vreg_slots_;
 
-  // Has array accesses. We can totally skip BCE if it's false.
-  bool has_array_accesses_;
+  // Has bounds checks. We can totally skip BCE if it's false.
+  bool has_bounds_checks_;
 
   // Indicates whether the graph should be compiled in a way that
   // ensures full debuggability. If false, we can apply more
