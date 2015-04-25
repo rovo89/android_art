@@ -200,11 +200,11 @@ static std::unique_ptr<const DexFile> FixChecksumAndOpen(uint8_t* bytes, size_t 
   return dex_file;
 }
 
-static bool ModifyAndLoad(const char* location, size_t offset, uint8_t new_val,
-                                    std::string* error_msg) {
+static bool ModifyAndLoad(const char* dex_file_content, const char* location, size_t offset,
+                          uint8_t new_val, std::string* error_msg) {
   // Decode base64.
   size_t length;
-  std::unique_ptr<uint8_t[]> dex_bytes(DecodeBase64(kGoodTestDex, &length));
+  std::unique_ptr<uint8_t[]> dex_bytes(DecodeBase64(dex_file_content, &length));
   CHECK(dex_bytes.get() != nullptr);
 
   // Make modifications.
@@ -221,7 +221,7 @@ TEST_F(DexFileVerifierTest, MethodId) {
     // Class error.
     ScratchFile tmp;
     std::string error_msg;
-    bool success = !ModifyAndLoad(tmp.GetFilename().c_str(), 220, 0xFFU, &error_msg);
+    bool success = !ModifyAndLoad(kGoodTestDex, tmp.GetFilename().c_str(), 220, 0xFFU, &error_msg);
     ASSERT_TRUE(success);
     ASSERT_NE(error_msg.find("inter_method_id_item class_idx"), std::string::npos) << error_msg;
   }
@@ -230,7 +230,7 @@ TEST_F(DexFileVerifierTest, MethodId) {
     // Proto error.
     ScratchFile tmp;
     std::string error_msg;
-    bool success = !ModifyAndLoad(tmp.GetFilename().c_str(), 222, 0xFFU, &error_msg);
+    bool success = !ModifyAndLoad(kGoodTestDex, tmp.GetFilename().c_str(), 222, 0xFFU, &error_msg);
     ASSERT_TRUE(success);
     ASSERT_NE(error_msg.find("inter_method_id_item proto_idx"), std::string::npos) << error_msg;
   }
@@ -239,9 +239,80 @@ TEST_F(DexFileVerifierTest, MethodId) {
     // Name error.
     ScratchFile tmp;
     std::string error_msg;
-    bool success = !ModifyAndLoad(tmp.GetFilename().c_str(), 224, 0xFFU, &error_msg);
+    bool success = !ModifyAndLoad(kGoodTestDex, tmp.GetFilename().c_str(), 224, 0xFFU, &error_msg);
     ASSERT_TRUE(success);
     ASSERT_NE(error_msg.find("inter_method_id_item name_idx"), std::string::npos) << error_msg;
+  }
+}
+
+// Generated from:
+//
+// .class public LTest;
+// .super Ljava/lang/Object;
+// .source "Test.java"
+//
+// .method public constructor <init>()V
+//     .registers 1
+//
+//     .prologue
+//     .line 1
+//     invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+//
+//     return-void
+// .end method
+//
+// .method public static main()V
+//     .registers 2
+//
+//     const-string v0, "a"
+//     const-string v0, "b"
+//     const-string v0, "c"
+//     const-string v0, "d"
+//     const-string v0, "e"
+//     const-string v0, "f"
+//     const-string v0, "g"
+//     const-string v0, "h"
+//     const-string v0, "i"
+//     const-string v0, "j"
+//     const-string v0, "k"
+//
+//     .local v1, "local_var":Ljava/lang/String;
+//     const-string v1, "test"
+// .end method
+
+static const char kDebugInfoTestDex[] =
+    "ZGV4CjAzNQCHRkHix2eIMQgvLD/0VGrlllZLo0Rb6VyUAgAAcAAAAHhWNBIAAAAAAAAAAAwCAAAU"
+    "AAAAcAAAAAQAAADAAAAAAQAAANAAAAAAAAAAAAAAAAMAAADcAAAAAQAAAPQAAACAAQAAFAEAABQB"
+    "AAAcAQAAJAEAADgBAABMAQAAVwEAAFoBAABdAQAAYAEAAGMBAABmAQAAaQEAAGwBAABvAQAAcgEA"
+    "AHUBAAB4AQAAewEAAIYBAACMAQAAAQAAAAIAAAADAAAABQAAAAUAAAADAAAAAAAAAAAAAAAAAAAA"
+    "AAAAABIAAAABAAAAAAAAAAAAAAABAAAAAQAAAAAAAAAEAAAAAAAAAPwBAAAAAAAABjxpbml0PgAG"
+    "TFRlc3Q7ABJMamF2YS9sYW5nL09iamVjdDsAEkxqYXZhL2xhbmcvU3RyaW5nOwAJVGVzdC5qYXZh"
+    "AAFWAAFhAAFiAAFjAAFkAAFlAAFmAAFnAAFoAAFpAAFqAAFrAAlsb2NhbF92YXIABG1haW4ABHRl"
+    "c3QAAAABAAcOAAAAARYDARIDAAAAAQABAAEAAACUAQAABAAAAHAQAgAAAA4AAgAAAAAAAACZAQAA"
+    "GAAAABoABgAaAAcAGgAIABoACQAaAAoAGgALABoADAAaAA0AGgAOABoADwAaABAAGgETAAAAAgAA"
+    "gYAEpAMBCbwDAAALAAAAAAAAAAEAAAAAAAAAAQAAABQAAABwAAAAAgAAAAQAAADAAAAAAwAAAAEA"
+    "AADQAAAABQAAAAMAAADcAAAABgAAAAEAAAD0AAAAAiAAABQAAAAUAQAAAyAAAAIAAACUAQAAASAA"
+    "AAIAAACkAQAAACAAAAEAAAD8AQAAABAAAAEAAAAMAgAA";
+
+TEST_F(DexFileVerifierTest, DebugInfoTypeIdxTest) {
+  {
+    // The input dex file should be good before modification.
+    ScratchFile tmp;
+    std::string error_msg;
+    std::unique_ptr<const DexFile> raw(OpenDexFileBase64(kDebugInfoTestDex,
+                                                         tmp.GetFilename().c_str(),
+                                                         &error_msg));
+    ASSERT_TRUE(raw.get() != nullptr) << error_msg;
+  }
+
+  {
+    // Modify the debug information entry.
+    ScratchFile tmp;
+    std::string error_msg;
+    bool success = !ModifyAndLoad(kDebugInfoTestDex, tmp.GetFilename().c_str(), 416, 0x14U,
+                                  &error_msg);
+    ASSERT_TRUE(success);
+    ASSERT_NE(error_msg.find("DBG_START_LOCAL type_idx"), std::string::npos) << error_msg;
   }
 }
 
