@@ -43,7 +43,7 @@ TEST(BoundsCheckEliminationTest, NarrowingRangeArrayBoundsElimination) {
   ArenaAllocator allocator(&pool);
 
   HGraph* graph = new (&allocator) HGraph(&allocator);
-  graph->SetHasArrayAccesses(true);
+  graph->SetHasBoundsChecks(true);
 
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
@@ -148,7 +148,7 @@ TEST(BoundsCheckEliminationTest, OverflowArrayBoundsElimination) {
   ArenaAllocator allocator(&pool);
 
   HGraph* graph = new (&allocator) HGraph(&allocator);
-  graph->SetHasArrayAccesses(true);
+  graph->SetHasBoundsChecks(true);
 
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
@@ -220,7 +220,7 @@ TEST(BoundsCheckEliminationTest, UnderflowArrayBoundsElimination) {
   ArenaAllocator allocator(&pool);
 
   HGraph* graph = new (&allocator) HGraph(&allocator);
-  graph->SetHasArrayAccesses(true);
+  graph->SetHasBoundsChecks(true);
 
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
@@ -292,7 +292,7 @@ TEST(BoundsCheckEliminationTest, ConstantArrayBoundsElimination) {
   ArenaAllocator allocator(&pool);
 
   HGraph* graph = new (&allocator) HGraph(&allocator);
-  graph->SetHasArrayAccesses(true);
+  graph->SetHasBoundsChecks(true);
 
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
@@ -365,7 +365,7 @@ static HGraph* BuildSSAGraph1(ArenaAllocator* allocator,
                               int increment,
                               IfCondition cond = kCondGE) {
   HGraph* graph = new (allocator) HGraph(allocator);
-  graph->SetHasArrayAccesses(true);
+  graph->SetHasBoundsChecks(true);
 
   HBasicBlock* entry = new (allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
@@ -502,7 +502,7 @@ static HGraph* BuildSSAGraph2(ArenaAllocator* allocator,
                               int increment = -1,
                               IfCondition cond = kCondLE) {
   HGraph* graph = new (allocator) HGraph(allocator);
-  graph->SetHasArrayAccesses(true);
+  graph->SetHasBoundsChecks(true);
 
   HBasicBlock* entry = new (allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
@@ -633,7 +633,7 @@ static HGraph* BuildSSAGraph3(ArenaAllocator* allocator,
                               int increment,
                               IfCondition cond) {
   HGraph* graph = new (allocator) HGraph(allocator);
-  graph->SetHasArrayAccesses(true);
+  graph->SetHasBoundsChecks(true);
 
   HBasicBlock* entry = new (allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
@@ -744,7 +744,7 @@ static HGraph* BuildSSAGraph4(ArenaAllocator* allocator,
                               int initial,
                               IfCondition cond = kCondGE) {
   HGraph* graph = new (allocator) HGraph(allocator);
-  graph->SetHasArrayAccesses(true);
+  graph->SetHasBoundsChecks(true);
 
   HBasicBlock* entry = new (allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
@@ -869,7 +869,7 @@ TEST(BoundsCheckEliminationTest, BubbleSortArrayBoundsElimination) {
   ArenaAllocator allocator(&pool);
 
   HGraph* graph = new (&allocator) HGraph(&allocator);
-  graph->SetHasArrayAccesses(true);
+  graph->SetHasBoundsChecks(true);
 
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
