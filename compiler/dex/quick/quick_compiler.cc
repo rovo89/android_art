@@ -575,7 +575,7 @@ static uint32_t kCompilerOptimizerDisableFlags = 0 |  // Disable specific optimi
   // (1 << kNullCheckElimination) |
   // (1 << kClassInitCheckElimination) |
   // (1 << kGlobalValueNumbering) |
-  // (1 << kGvnDeadCodeElimination) |
+  (1 << kGvnDeadCodeElimination) |
   // (1 << kLocalValueNumbering) |
   // (1 << kPromoteRegs) |
   // (1 << kTrackLiveTemps) |
