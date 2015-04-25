@@ -72,7 +72,7 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
 
   static void SetDefaultClockSource(TraceClockSource clock_source);
 
-  static void Start(const char* trace_filename, int trace_fd, int buffer_size, int flags,
+  static void Start(const char* trace_filename, int trace_fd, size_t buffer_size, int flags,
                     TraceOutputMode output_mode, TraceMode trace_mode, int interval_us)
       LOCKS_EXCLUDED(Locks::mutator_lock_,
                      Locks::thread_list_lock_,
@@ -136,9 +136,10 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
 
   static TraceOutputMode GetOutputMode() LOCKS_EXCLUDED(Locks::trace_lock_);
   static TraceMode GetMode() LOCKS_EXCLUDED(Locks::trace_lock_);
+  static size_t GetBufferSize() LOCKS_EXCLUDED(Locks::trace_lock_);
 
  private:
-  Trace(File* trace_file, const char* trace_name, int buffer_size, int flags,
+  Trace(File* trace_file, const char* trace_name, size_t buffer_size, int flags,
         TraceOutputMode output_mode, TraceMode trace_mode);
 
   // The sampling interval in microseconds is passed as an argument.
@@ -202,7 +203,7 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
   const TraceClockSource clock_source_;
 
   // Size of buf_.
-  const int buffer_size_;
+  const size_t buffer_size_;
 
   // Time trace was created.
   const uint64_t start_time_;

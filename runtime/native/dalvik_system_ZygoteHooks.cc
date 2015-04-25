@@ -152,6 +152,7 @@ static void ZygoteHooks_nativePostForkChild(JNIEnv* env, jclass, jlong token, ji
   if (Trace::GetMethodTracingMode() != TracingMode::kTracingInactive) {
     Trace::TraceOutputMode output_mode = Trace::GetOutputMode();
     Trace::TraceMode trace_mode = Trace::GetMode();
+    size_t buffer_size = Trace::GetBufferSize();
 
     // Just drop it.
     Trace::Abort();
@@ -176,7 +177,7 @@ static void ZygoteHooks_nativePostForkChild(JNIEnv* env, jclass, jlong token, ji
                                               proc_name.c_str());
         Trace::Start(trace_file.c_str(),
                      -1,
-                     -1,  // TODO: Expose buffer size.
+                     buffer_size,
                      0,   // TODO: Expose flags.
                      output_mode,
                      trace_mode,
