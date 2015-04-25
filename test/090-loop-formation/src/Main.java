@@ -52,5 +52,31 @@ public class Main {
         System.out.println("counter3 is " + counter3);
         System.out.println("counter4 is " + counter4);
         System.out.println("counter5 is " + counter5);
+
+        deeplyNested();
+    }
+
+    // GVN is limited to a maximum loop depth of 6. To track whether dependent passes are
+    // correctly turned off, test some very simple, but deeply nested loops.
+    private static void deeplyNested() {
+        int sum = 0;
+        for (int i = 0; i < 2; i++) {
+            for (int j = 0; j < 2; j++) {
+                for (int k = 0; k < 2; k++) {
+                    for (int l = 0; l < 2; l++) {
+                        for (int m = 0; m < 2; m++) {
+                            for (int n = 0; n < 2; n++) {
+                                for (int o = 0; o < 2; o++) {
+                                    for (int p = 0; p < 2; p++) {
+                                        sum++;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        System.out.println(sum);
     }
 }
