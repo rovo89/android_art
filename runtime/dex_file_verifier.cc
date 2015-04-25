@@ -944,7 +944,7 @@ bool DexFileVerifier::CheckIntraDebugInfoItem() {
         uint32_t type_idx = DecodeUnsignedLeb128(&ptr_);
         if (type_idx != 0) {
           type_idx--;
-          if (!CheckIndex(type_idx, header_->string_ids_size_, "DBG_START_LOCAL type_idx")) {
+          if (!CheckIndex(type_idx, header_->type_ids_size_, "DBG_START_LOCAL type_idx")) {
             return false;
           }
         }
@@ -975,7 +975,7 @@ bool DexFileVerifier::CheckIntraDebugInfoItem() {
         uint32_t type_idx = DecodeUnsignedLeb128(&ptr_);
         if (type_idx != 0) {
           type_idx--;
-          if (!CheckIndex(type_idx, header_->string_ids_size_, "DBG_START_LOCAL_EXTENDED type_idx")) {
+          if (!CheckIndex(type_idx, header_->type_ids_size_, "DBG_START_LOCAL_EXTENDED type_idx")) {
             return false;
           }
         }
