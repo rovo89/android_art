@@ -95,7 +95,7 @@ ifeq ($(ART_TEST_RUN_TEST_NO_RELOCATE),true)
   RELOCATE_TYPES += no-relocate
 endif
 ifeq ($(ART_TEST_RUN_TEST_RELOCATE_NO_PATCHOAT),true)
-  RELOCATE_TYPES := relocate-npatchoat
+  RELOCATE_TYPES += relocate-npatchoat
 endif
 TRACE_TYPES := ntrace
 ifeq ($(ART_TEST_TRACE),true)
@@ -257,7 +257,12 @@ TEST_ART_BROKEN_FALLBACK_RUN_TESTS := \
   116-nodex2oat \
   117-nopatchoat \
   118-noimage-dex2oat \
-  119-noimage-patchoat
+  119-noimage-patchoat \
+  138-duplicate-classes-check2
+
+# This test fails without an image.
+TEST_ART_BROKEN_NO_IMAGE_RUN_TESTS := \
+  138-duplicate-classes-check
 
 ifneq (,$(filter no-dex2oat,$(PREBUILD_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),no-dex2oat, \
@@ -270,6 +275,9 @@ ifneq (,$(filter no-image,$(IMAGE_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
       $(COMPILER_TYPES), $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),no-image, \
       $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_FALLBACK_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
+      $(COMPILER_TYPES), $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),no-image, \
+      $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_NO_IMAGE_RUN_TESTS),$(ALL_ADDRESS_SIZES))
 endif
 
 ifneq (,$(filter relocate-npatchoat,$(RELOCATE_TYPES)))
