@@ -817,6 +817,13 @@ static void FreeDexFilesInHeap(std::priority_queue<DexFileAndClassPair>* heap) {
   }
 }
 
+// Check for class-def collisions in dex files.
+//
+// This works by maintaining a heap with one class from each dex file, sorted by the class
+// descriptor. Then a dex-file/class pair is continually removed from the heap and compared
+// against the following top element. If the descriptor is the same, it is now checked whether
+// the two elements agree on whether their dex file was from an already-loaded oat-file or the
+// new oat file. Any disagreement indicates a collision.
 bool ClassLinker::HasCollisions(const OatFile* oat_file, std::string* error_msg) {
   if (!kCheckForDexCollisions) {
     return false;
@@ -940,7 +947,13 @@ std::vector<std::unique_ptr<const DexFile>> ClassLinker::OpenDexFilesFromOat(
         source_oat_file = oat_file.release();
         RegisterOatFile(source_oat_file);
       } else {
-        LOG(WARNING) << "Found duplicate classes, falling back to interpreter mode (if enabled):";
+        if (Runtime::Current()->IsDexFileFallbackEnabled()) {
+          LOG(WARNING) << "Found duplicate classes, falling back to interpreter mode for "
+                       << dex_location;
+        } else {
+          LOG(WARNING) << "Found duplicate classes, dex-file-fallback disabled, will be failing to "
+                          " load classes for " << dex_location;
+        }
         LOG(WARNING) << error_msg;
       }
     }
