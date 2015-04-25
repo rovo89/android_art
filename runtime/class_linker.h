@@ -663,6 +663,9 @@ class ClassLinker {
   //       a recreation with a custom string.
   void ThrowEarlierClassFailure(mirror::Class* c) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Check for duplicate class definitions of the given oat file against all open oat files.
+  bool HasCollisions(const OatFile* oat_file, std::string* error_msg) LOCKS_EXCLUDED(dex_lock_);
+
   std::vector<const DexFile*> boot_class_path_;
   std::vector<std::unique_ptr<const DexFile>> opened_dex_files_;
 

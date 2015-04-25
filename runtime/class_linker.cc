@@ -31,6 +31,7 @@
 #include "base/scoped_flock.h"
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
+#include "base/value_object.h"
 #include "class_linker-inl.h"
 #include "compiler_callbacks.h"
 #include "debugger.h"
@@ -80,6 +81,10 @@
 namespace art {
 
 static constexpr bool kSanityCheckObjects = kIsDebugBuild;
+
+// Do a simple class redefinition check in OpenDexFilesFromOat. This is a conservative check to
+// avoid problems with compile-time class-path != runtime class-path.
+static constexpr bool kCheckForDexCollisions = true;
 
 static void ThrowNoClassDefFoundError(const char* fmt, ...)
     __attribute__((__format__(__printf__, 1, 2)))
@@ -712,6 +717,179 @@ OatFile& ClassLinker::GetImageOatFile(gc::space::ImageSpace* space) {
   return *oat_file;
 }
 
+class DexFileAndClassPair : ValueObject {
+ public:
+  DexFileAndClassPair(const DexFile* dex_file, size_t current_class_index, bool from_loaded_oat)
+     : cached_descriptor_(GetClassDescriptor(dex_file, current_class_index)),
+       dex_file_(dex_file),
+       current_class_index_(current_class_index),
+       from_loaded_oat_(from_loaded_oat) {}
+
+  DexFileAndClassPair(const DexFileAndClassPair&) = default;
+
+  DexFileAndClassPair& operator=(const DexFileAndClassPair& rhs) {
+    cached_descriptor_ = rhs.cached_descriptor_;
+    dex_file_ = rhs.dex_file_;
+    current_class_index_ = rhs.current_class_index_;
+    from_loaded_oat_ = rhs.from_loaded_oat_;
+    return *this;
+  }
+
+  const char* GetCachedDescriptor() const {
+    return cached_descriptor_;
+  }
+
+  bool operator<(const DexFileAndClassPair& rhs) const {
+    const char* lhsDescriptor = cached_descriptor_;
+    const char* rhsDescriptor = rhs.cached_descriptor_;
+    int cmp = strcmp(lhsDescriptor, rhsDescriptor);
+    if (cmp != 0) {
+      return cmp > 0;
+    }
+    return dex_file_ < rhs.dex_file_;
+  }
+
+  bool DexFileHasMoreClasses() const {
+    return current_class_index_ + 1 < dex_file_->NumClassDefs();
+  }
+
+  DexFileAndClassPair GetNext() const {
+    return DexFileAndClassPair(dex_file_, current_class_index_ + 1, from_loaded_oat_);
+  }
+
+  size_t GetCurrentClassIndex() const {
+    return current_class_index_;
+  }
+
+  bool FromLoadedOat() const {
+    return from_loaded_oat_;
+  }
+
+  const DexFile* GetDexFile() const {
+    return dex_file_;
+  }
+
+ private:
+  static const char* GetClassDescriptor(const DexFile* dex_file, size_t index) {
+    const DexFile::ClassDef& class_def = dex_file->GetClassDef(static_cast<uint16_t>(index));
+    return dex_file->StringByTypeIdx(class_def.class_idx_);
+  }
+
+  const char* cached_descriptor_;
+  const DexFile* dex_file_;
+  size_t current_class_index_;
+  bool from_loaded_oat_;  // We only need to compare mismatches between what we load now
+                          // and what was loaded before. Any old duplicates must have been
+                          // OK, and any new "internal" duplicates are as well (they must
+                          // be from multidex, which resolves correctly).
+};
+
+static void AddDexFilesFromOat(const OatFile* oat_file, bool already_loaded,
+                               std::priority_queue<DexFileAndClassPair>* heap) {
+  const std::vector<const OatDexFile*>& oat_dex_files = oat_file->GetOatDexFiles();
+  for (const OatDexFile* oat_dex_file : oat_dex_files) {
+    std::string error;
+    std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(&error);
+    if (dex_file.get() == nullptr) {
+      LOG(WARNING) << "Could not create dex file from oat file: " << error;
+    } else {
+      if (dex_file->NumClassDefs() > 0U) {
+        heap->emplace(dex_file.release(), 0U, already_loaded);
+      }
+    }
+  }
+}
+
+static void AddNext(const DexFileAndClassPair& original,
+                    std::priority_queue<DexFileAndClassPair>* heap) {
+  if (original.DexFileHasMoreClasses()) {
+    heap->push(original.GetNext());
+  } else {
+    // Need to delete the dex file.
+    delete original.GetDexFile();
+  }
+}
+
+static void FreeDexFilesInHeap(std::priority_queue<DexFileAndClassPair>* heap) {
+  while (!heap->empty()) {
+    delete heap->top().GetDexFile();
+    heap->pop();
+  }
+}
+
+bool ClassLinker::HasCollisions(const OatFile* oat_file, std::string* error_msg) {
+  if (!kCheckForDexCollisions) {
+    return false;
+  }
+
+  // Dex files are registered late - once a class is actually being loaded. We have to compare
+  // against the open oat files.
+  ReaderMutexLock mu(Thread::Current(), dex_lock_);
+
+  std::priority_queue<DexFileAndClassPair> heap;
+
+  // Add dex files from already loaded oat files, but skip boot.
+  {
+    // To grab the boot oat, look at the dex files in the boot classpath.
+    const OatFile* boot_oat = nullptr;
+    if (!boot_class_path_.empty()) {
+      const DexFile* boot_dex_file = boot_class_path_[0];
+      // Is it from an oat file?
+      if (boot_dex_file->GetOatDexFile() != nullptr) {
+        boot_oat = boot_dex_file->GetOatDexFile()->GetOatFile();
+      }
+    }
+
+    for (const OatFile* loaded_oat_file : oat_files_) {
+      if (loaded_oat_file == boot_oat) {
+        continue;
+      }
+      AddDexFilesFromOat(loaded_oat_file, true, &heap);
+    }
+  }
+
+  if (heap.empty()) {
+    // No other oat files, return early.
+    return false;
+  }
+
+  // Add dex files from the oat file to check.
+  AddDexFilesFromOat(oat_file, false, &heap);
+
+  // Now drain the heap.
+  while (!heap.empty()) {
+    DexFileAndClassPair compare_pop = heap.top();
+    heap.pop();
+
+    // Compare against the following elements.
+    while (!heap.empty()) {
+      DexFileAndClassPair top = heap.top();
+
+      if (strcmp(compare_pop.GetCachedDescriptor(), top.GetCachedDescriptor()) == 0) {
+        // Same descriptor. Check whether it's crossing old-oat-files to new-oat-files.
+        if (compare_pop.FromLoadedOat() != top.FromLoadedOat()) {
+          *error_msg =
+              StringPrintf("Found duplicated class when checking oat files: '%s' in %s and %s",
+                           compare_pop.GetCachedDescriptor(),
+                           compare_pop.GetDexFile()->GetLocation().c_str(),
+                           top.GetDexFile()->GetLocation().c_str());
+          FreeDexFilesInHeap(&heap);
+          return true;
+        }
+        // Pop it.
+        heap.pop();
+        AddNext(top, &heap);
+      } else {
+        // Something else. Done here.
+        break;
+      }
+    }
+    AddNext(compare_pop, &heap);
+  }
+
+  return false;
+}
+
 std::vector<std::unique_ptr<const DexFile>> ClassLinker::OpenDexFilesFromOat(
     const char* dex_location, const char* oat_location,
     std::vector<std::string>* error_msgs) {
@@ -757,8 +935,14 @@ std::vector<std::unique_ptr<const DexFile>> ClassLinker::OpenDexFilesFromOat(
     // Get the oat file on disk.
     std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
     if (oat_file.get() != nullptr) {
-      source_oat_file = oat_file.release();
-      RegisterOatFile(source_oat_file);
+      // Take the file only if it has no collisions.
+      if (!HasCollisions(oat_file.get(), &error_msg)) {
+        source_oat_file = oat_file.release();
+        RegisterOatFile(source_oat_file);
+      } else {
+        LOG(WARNING) << "Found duplicate classes, falling back to interpreter mode (if enabled):";
+        LOG(WARNING) << error_msg;
+      }
     }
   }
 
