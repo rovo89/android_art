@@ -45,6 +45,9 @@ class GraphChecker : public HGraphDelegateVisitor {
   // Perform control-flow graph checks on instruction.
   void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE;
 
+  // Check that the HasBoundsChecks() flag is set for bounds checks.
+  void VisitBoundsCheck(HBoundsCheck* check) OVERRIDE;
+
   // Was the last visit of the graph valid?
   bool IsValid() const {
     return errors_.empty();
