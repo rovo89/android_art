@@ -498,6 +498,28 @@ void HEnvironment::CopyFrom(HEnvironment* env) {
   }
 }
 
+void HEnvironment::CopyFromWithLoopPhiAdjustment(HEnvironment* env,
+                                                 HBasicBlock* loop_header) {
+  DCHECK(loop_header->IsLoopHeader());
+  for (size_t i = 0; i < env->Size(); i++) {
+    HInstruction* instruction = env->GetInstructionAt(i);
+    SetRawEnvAt(i, instruction);
+    if (instruction == nullptr) {
+      continue;
+    }
+    if (instruction->IsLoopHeaderPhi() && (instruction->GetBlock() == loop_header)) {
+      // At the end of the loop pre-header, the corresponding value for instruction
+      // is the first input of the phi.
+      HInstruction* initial = instruction->AsPhi()->InputAt(0);
+      DCHECK(initial->GetBlock()->Dominates(loop_header));
+      SetRawEnvAt(i, initial);
+      initial->AddEnvUseAt(this, i);
+    } else {
+      instruction->AddEnvUseAt(this, i);
+    }
+  }
+}
+
 void HEnvironment::RemoveAsUserOfInput(size_t index) const {
   const HUserRecord<HEnvironment*> user_record = vregs_.Get(index);
   user_record.GetInstruction()->RemoveEnvironmentUser(user_record.GetUseNode());
