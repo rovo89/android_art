@@ -18,9 +18,11 @@
 #define ART_RUNTIME_BASE_CASTS_H_
 
 #include <assert.h>
+#include <limits>
 #include <string.h>
 #include <type_traits>
 
+#include "base/logging.h"
 #include "base/macros.h"
 
 namespace art {
@@ -81,6 +83,23 @@ inline Dest bit_cast(const Source& source) {
   Dest dest;
   memcpy(&dest, &source, sizeof(dest));
   return dest;
+}
+
+// A version of static_cast that DCHECKs that the value can be precisely represented
+// when converting to Dest.
+template <typename Dest, typename Source>
+inline Dest dchecked_integral_cast(const Source source) {
+  DCHECK(
+      // Check that the value is within the lower limit of Dest.
+      (static_cast<intmax_t>(std::numeric_limits<Dest>::min()) <=
+          static_cast<intmax_t>(std::numeric_limits<Source>::min()) ||
+          source >= static_cast<Source>(std::numeric_limits<Dest>::min())) &&
+      // Check that the value is within the upper limit of Dest.
+      (static_cast<uintmax_t>(std::numeric_limits<Dest>::max()) >=
+          static_cast<uintmax_t>(std::numeric_limits<Source>::max()) ||
+          source <= static_cast<Source>(std::numeric_limits<Dest>::max())));
+
+  return static_cast<Dest>(source);
 }
 
 }  // namespace art
