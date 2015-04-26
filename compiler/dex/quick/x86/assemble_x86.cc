@@ -409,7 +409,7 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   EXT_0F_ENCODING_MAP(Paddq,     0x66, 0xD4, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Psadbw,    0x66, 0xF6, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Addps,     0x00, 0x58, REG_DEF0_USE0),
-  EXT_0F_ENCODING_MAP(Addpd,     0xF2, 0x58, REG_DEF0_USE0),
+  EXT_0F_ENCODING_MAP(Addpd,     0x66, 0x58, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Psubb,     0x66, 0xF8, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Psubw,     0x66, 0xF9, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Psubd,     0x66, 0xFA, REG_DEF0_USE0),
@@ -1627,13 +1627,13 @@ void X86Mir2Lir::EmitUnimplemented(const X86EncodingMap* entry, LIR* lir) {
  * instruction.  In those cases we will try to substitute a new code
  * sequence or request that the trace be shortened and retried.
  */
-AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
+AssemblerStatus X86Mir2Lir::AssembleInstructions(LIR* first_lir_insn, CodeOffset start_addr) {
   UNUSED(start_addr);
   LIR *lir;
   AssemblerStatus res = kSuccess;  // Assume success
 
   const bool kVerbosePcFixup = false;
-  for (lir = first_lir_insn_; lir != nullptr; lir = NEXT_LIR(lir)) {
+  for (lir = first_lir_insn; lir != nullptr; lir = NEXT_LIR(lir)) {
     if (IsPseudoLirOp(lir->opcode)) {
       continue;
     }
@@ -2034,7 +2034,7 @@ void X86Mir2Lir::AssembleLIR() {
    */
 
   while (true) {
-    AssemblerStatus res = AssembleInstructions(0);
+    AssemblerStatus res = AssembleInstructions(first_lir_insn_, 0);
     if (res == kSuccess) {
       break;
     } else {
