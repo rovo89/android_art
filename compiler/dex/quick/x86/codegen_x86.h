@@ -432,7 +432,7 @@ class X86Mir2Lir FINAL : public Mir2Lir {
 
   int AssignInsnOffsets();
   void AssignOffsets();
-  AssemblerStatus AssembleInstructions(CodeOffset start_addr);
+  AssemblerStatus AssembleInstructions(LIR* first_lir_insn, CodeOffset start_addr);
 
   size_t ComputeSize(const X86EncodingMap* entry, int32_t raw_reg, int32_t raw_index,
                      int32_t raw_base, int32_t displacement);
@@ -972,6 +972,9 @@ class X86Mir2Lir FINAL : public Mir2Lir {
   static const X86EncodingMap EncodingMap[kX86Last];
 
   friend std::ostream& operator<<(std::ostream& os, const X86OpCode& rhs);
+  friend class QuickAssembleX86Test;
+  friend class QuickAssembleX86MacroTest;
+  friend class QuickAssembleX86LowLevelTest;
 
   DISALLOW_COPY_AND_ASSIGN(X86Mir2Lir);
 };

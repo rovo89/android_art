@@ -1451,6 +1451,7 @@ class MIRGraph {
   friend class TopologicalSortOrderTest;
   friend class TypeInferenceTest;
   friend class QuickCFITest;
+  friend class QuickAssembleX86TestBase;
 };
 
 }  // namespace art

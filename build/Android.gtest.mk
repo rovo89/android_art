@@ -244,6 +244,7 @@ COMPILER_GTEST_TARGET_SRC_FILES := \
 
 COMPILER_GTEST_HOST_SRC_FILES := \
   $(COMPILER_GTEST_COMMON_SRC_FILES) \
+  compiler/dex/quick/x86/quick_assemble_x86_test.cc \
   compiler/utils/arm/assembler_arm32_test.cc \
   compiler/utils/arm/assembler_thumb2_test.cc \
   compiler/utils/assembler_thumb_test.cc \
