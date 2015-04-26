@@ -22,6 +22,7 @@
 #define ATRACE_TAG ATRACE_TAG_DALVIK
 #include "cutils/trace.h"
 
+#include "base/casts.h"
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
@@ -329,7 +330,7 @@ void* Trace::RunSamplingThread(void* arg) {
   return nullptr;
 }
 
-void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int flags,
+void Trace::Start(const char* trace_filename, int trace_fd, size_t buffer_size, int flags,
                   TraceOutputMode output_mode, TraceMode trace_mode, int interval_us) {
   Thread* self = Thread::Current();
   {
@@ -592,19 +593,15 @@ TracingMode Trace::GetMethodTracingMode() {
   }
 }
 
-static constexpr size_t kStreamingBufferSize = 16 * KB;
+static constexpr size_t kMinBufSize = 18U;  // Trace header is up to 18B.
 
-Trace::Trace(File* trace_file, const char* trace_name, int buffer_size, int flags,
+Trace::Trace(File* trace_file, const char* trace_name, size_t buffer_size, int flags,
              TraceOutputMode output_mode, TraceMode trace_mode)
     : trace_file_(trace_file),
-      buf_(new uint8_t[output_mode == TraceOutputMode::kStreaming ?
-          kStreamingBufferSize :
-          buffer_size]()),
+      buf_(new uint8_t[std::max(kMinBufSize, buffer_size)]()),
       flags_(flags), trace_output_mode_(output_mode), trace_mode_(trace_mode),
       clock_source_(default_clock_source_),
-      buffer_size_(output_mode == TraceOutputMode::kStreaming ?
-          kStreamingBufferSize :
-          buffer_size),
+      buffer_size_(std::max(kMinBufSize, buffer_size)),
       start_time_(MicroTime()), clock_overhead_ns_(GetClockOverheadNanoSeconds()), cur_offset_(0),
       overflow_(false), interval_us_(0), streaming_lock_(nullptr) {
   uint16_t trace_version = GetTraceVersion(clock_source_);
@@ -621,6 +618,7 @@ Trace::Trace(File* trace_file, const char* trace_name, int buffer_size, int flag
     uint16_t record_size = GetRecordSize(clock_source_);
     Append2LE(buf_.get() + 16, record_size);
   }
+  static_assert(18 <= kMinBufSize, "Minimum buffer size not large enough for trace header");
 
   // Update current offset.
   cur_offset_.StoreRelaxed(kTraceHeaderLength);
@@ -875,11 +873,21 @@ static std::string GetMethodLine(mirror::ArtMethod* method)
 void Trace::WriteToBuf(const uint8_t* src, size_t src_size) {
   int32_t old_offset = cur_offset_.LoadRelaxed();
   int32_t new_offset = old_offset + static_cast<int32_t>(src_size);
-  if (new_offset > buffer_size_) {
+  if (dchecked_integral_cast<size_t>(new_offset) > buffer_size_) {
     // Flush buffer.
     if (!trace_file_->WriteFully(buf_.get(), old_offset)) {
       PLOG(WARNING) << "Failed streaming a tracing event.";
     }
+
+    // Check whether the data is too large for the buffer, then write immediately.
+    if (src_size >= buffer_size_) {
+      if (!trace_file_->WriteFully(src, src_size)) {
+        PLOG(WARNING) << "Failed streaming a tracing event.";
+      }
+      cur_offset_.StoreRelease(0);  // Buffer is empty now.
+      return;
+    }
+
     old_offset = 0;
     new_offset = static_cast<int32_t>(src_size);
   }
@@ -900,7 +908,7 @@ void Trace::LogMethodTraceEvent(Thread* thread, mirror::ArtMethod* method,
     do {
       old_offset = cur_offset_.LoadRelaxed();
       new_offset = old_offset + GetRecordSize(clock_source_);
-      if (new_offset > buffer_size_) {
+      if (static_cast<size_t>(new_offset) > buffer_size_) {
         overflow_ = true;
         return;
       }
@@ -1032,6 +1040,12 @@ Trace::TraceMode Trace::GetMode() {
   MutexLock mu(Thread::Current(), *Locks::trace_lock_);
   CHECK(the_trace_ != nullptr) << "Trace mode requested, but no trace currently running";
   return the_trace_->trace_mode_;
+}
+
+size_t Trace::GetBufferSize() {
+  MutexLock mu(Thread::Current(), *Locks::trace_lock_);
+  CHECK(the_trace_ != nullptr) << "Trace mode requested, but no trace currently running";
+  return the_trace_->buffer_size_;
 }
 
 }  // namespace art
