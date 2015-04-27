@@ -417,6 +417,7 @@ HFloatConstant* SsaBuilder::GetFloatEquivalent(HIntConstant* constant) {
     ArenaAllocator* allocator = graph->GetArena();
     result = new (allocator) HFloatConstant(bit_cast<float, int32_t>(constant->GetValue()));
     constant->GetBlock()->InsertInstructionBefore(result, constant->GetNext());
+    graph->CacheFloatConstant(result);
   } else {
     // If there is already a constant with the expected type, we know it is
     // the floating point equivalent of this constant.
@@ -439,6 +440,7 @@ HDoubleConstant* SsaBuilder::GetDoubleEquivalent(HLongConstant* constant) {
     ArenaAllocator* allocator = graph->GetArena();
     result = new (allocator) HDoubleConstant(bit_cast<double, int64_t>(constant->GetValue()));
     constant->GetBlock()->InsertInstructionBefore(result, constant->GetNext());
+    graph->CacheDoubleConstant(result);
   } else {
     // If there is already a constant with the expected type, we know it is
     // the floating point equivalent of this constant.

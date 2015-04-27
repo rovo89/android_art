@@ -303,25 +303,6 @@ HNullConstant* HGraph::GetNullConstant() {
   return cached_null_constant_;
 }
 
-template <class InstructionType, typename ValueType>
-InstructionType* HGraph::CreateConstant(ValueType value,
-                                        ArenaSafeMap<ValueType, InstructionType*>* cache) {
-  // Try to find an existing constant of the given value.
-  InstructionType* constant = nullptr;
-  auto cached_constant = cache->find(value);
-  if (cached_constant != cache->end()) {
-    constant = cached_constant->second;
-  }
-
-  // If not found or previously deleted, create and cache a new instruction.
-  if (constant == nullptr || constant->GetBlock() == nullptr) {
-    constant = new (arena_) InstructionType(value);
-    cache->Overwrite(value, constant);
-    InsertConstant(constant);
-  }
-  return constant;
-}
-
 HConstant* HGraph::GetConstant(Primitive::Type type, int64_t value) {
   switch (type) {
     case Primitive::Type::kPrimBoolean:
@@ -341,6 +322,18 @@ HConstant* HGraph::GetConstant(Primitive::Type type, int64_t value) {
       LOG(FATAL) << "Unsupported constant type";
       UNREACHABLE();
   }
+}
+
+void HGraph::CacheFloatConstant(HFloatConstant* constant) {
+  int32_t value = bit_cast<int32_t, float>(constant->GetValue());
+  DCHECK(cached_float_constants_.find(value) == cached_float_constants_.end());
+  cached_float_constants_.Overwrite(value, constant);
+}
+
+void HGraph::CacheDoubleConstant(HDoubleConstant* constant) {
+  int64_t value = bit_cast<int64_t, double>(constant->GetValue());
+  DCHECK(cached_double_constants_.find(value) == cached_double_constants_.end());
+  cached_double_constants_.Overwrite(value, constant);
 }
 
 void HLoopInformation::Add(HBasicBlock* block) {
@@ -1303,9 +1296,10 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
       current->ReplaceWith(outer_graph->GetIntConstant(current->AsIntConstant()->GetValue()));
     } else if (current->IsLongConstant()) {
       current->ReplaceWith(outer_graph->GetLongConstant(current->AsLongConstant()->GetValue()));
-    } else if (current->IsFloatConstant() || current->IsDoubleConstant()) {
-      // TODO: Don't duplicate floating-point constants.
-      current->MoveBefore(outer_graph->GetEntryBlock()->GetLastInstruction());
+    } else if (current->IsFloatConstant()) {
+      current->ReplaceWith(outer_graph->GetFloatConstant(current->AsFloatConstant()->GetValue()));
+    } else if (current->IsDoubleConstant()) {
+      current->ReplaceWith(outer_graph->GetDoubleConstant(current->AsDoubleConstant()->GetValue()));
     } else if (current->IsParameterValue()) {
       if (kIsDebugBuild
           && invoke->IsInvokeStaticOrDirect()
