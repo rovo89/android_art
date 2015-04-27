@@ -132,7 +132,9 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
         current_instruction_id_(start_instruction_id),
         cached_null_constant_(nullptr),
         cached_int_constants_(std::less<int32_t>(), arena->Adapter()),
-        cached_long_constants_(std::less<int64_t>(), arena->Adapter()) {}
+        cached_float_constants_(std::less<int32_t>(), arena->Adapter()),
+        cached_long_constants_(std::less<int64_t>(), arena->Adapter()),
+        cached_double_constants_(std::less<int64_t>(), arena->Adapter()) {}
 
   ArenaAllocator* GetArena() const { return arena_; }
   const GrowableArray<HBasicBlock*>& GetBlocks() const { return blocks_; }
@@ -241,8 +243,8 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   bool IsDebuggable() const { return debuggable_; }
 
   // Returns a constant of the given type and value. If it does not exist
-  // already, it is created and inserted into the graph. Only integral types
-  // are currently supported.
+  // already, it is created and inserted into the graph. This method is only for
+  // integral types.
   HConstant* GetConstant(Primitive::Type type, int64_t value);
   HNullConstant* GetNullConstant();
   HIntConstant* GetIntConstant(int32_t value) {
@@ -250,6 +252,12 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   }
   HLongConstant* GetLongConstant(int64_t value) {
     return CreateConstant(value, &cached_long_constants_);
+  }
+  HFloatConstant* GetFloatConstant(float value) {
+    return CreateConstant(bit_cast<int32_t, float>(value), &cached_float_constants_);
+  }
+  HDoubleConstant* GetDoubleConstant(double value) {
+    return CreateConstant(bit_cast<int64_t, double>(value), &cached_double_constants_);
   }
 
   HBasicBlock* FindCommonDominator(HBasicBlock* first, HBasicBlock* second) const;
@@ -265,9 +273,33 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   void RemoveInstructionsAsUsersFromDeadBlocks(const ArenaBitVector& visited) const;
   void RemoveDeadBlocks(const ArenaBitVector& visited);
 
-  template <class InstType, typename ValueType>
-  InstType* CreateConstant(ValueType value, ArenaSafeMap<ValueType, InstType*>* cache);
+  template <class InstructionType, typename ValueType>
+  InstructionType* CreateConstant(ValueType value,
+                                  ArenaSafeMap<ValueType, InstructionType*>* cache) {
+    // Try to find an existing constant of the given value.
+    InstructionType* constant = nullptr;
+    auto cached_constant = cache->find(value);
+    if (cached_constant != cache->end()) {
+      constant = cached_constant->second;
+    }
+
+    // If not found or previously deleted, create and cache a new instruction.
+    if (constant == nullptr || constant->GetBlock() == nullptr) {
+      constant = new (arena_) InstructionType(value);
+      cache->Overwrite(value, constant);
+      InsertConstant(constant);
+    }
+    return constant;
+  }
+
   void InsertConstant(HConstant* instruction);
+
+  // Cache a float constant into the graph. This method should only be
+  // called by the SsaBuilder when creating "equivalent" instructions.
+  void CacheFloatConstant(HFloatConstant* constant);
+
+  // See CacheFloatConstant comment.
+  void CacheDoubleConstant(HDoubleConstant* constant);
 
   ArenaAllocator* const arena_;
 
@@ -306,11 +338,14 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   // The current id to assign to a newly added instruction. See HInstruction.id_.
   int32_t current_instruction_id_;
 
-  // Cached common constants often needed by optimization passes.
+  // Cached constants.
   HNullConstant* cached_null_constant_;
   ArenaSafeMap<int32_t, HIntConstant*> cached_int_constants_;
+  ArenaSafeMap<int32_t, HFloatConstant*> cached_float_constants_;
   ArenaSafeMap<int64_t, HLongConstant*> cached_long_constants_;
+  ArenaSafeMap<int64_t, HDoubleConstant*> cached_double_constants_;
 
+  friend class SsaBuilder;           // For caching constants.
   friend class SsaLivenessAnalysis;  // For the linear order.
   ART_FRIEND_TEST(GraphTest, IfSuccessorSimpleJoinBlock1);
   DISALLOW_COPY_AND_ASSIGN(HGraph);
@@ -2046,13 +2081,14 @@ class HFloatConstant : public HConstant {
 
  private:
   explicit HFloatConstant(float value) : HConstant(Primitive::kPrimFloat), value_(value) {}
+  explicit HFloatConstant(int32_t value)
+      : HConstant(Primitive::kPrimFloat), value_(bit_cast<float, int32_t>(value)) {}
 
   const float value_;
 
-  // Only the SsaBuilder can currently create floating-point constants. If we
-  // ever need to create them later in the pipeline, we will have to handle them
-  // the same way as integral constants.
+  // Only the SsaBuilder and HGraph can create floating-point constants.
   friend class SsaBuilder;
+  friend class HGraph;
   DISALLOW_COPY_AND_ASSIGN(HFloatConstant);
 };
 
@@ -2083,13 +2119,14 @@ class HDoubleConstant : public HConstant {
 
  private:
   explicit HDoubleConstant(double value) : HConstant(Primitive::kPrimDouble), value_(value) {}
+  explicit HDoubleConstant(int64_t value)
+      : HConstant(Primitive::kPrimDouble), value_(bit_cast<double, int64_t>(value)) {}
 
   const double value_;
 
-  // Only the SsaBuilder can currently create floating-point constants. If we
-  // ever need to create them later in the pipeline, we will have to handle them
-  // the same way as integral constants.
+  // Only the SsaBuilder and HGraph can create floating-point constants.
   friend class SsaBuilder;
+  friend class HGraph;
   DISALLOW_COPY_AND_ASSIGN(HDoubleConstant);
 };
 
