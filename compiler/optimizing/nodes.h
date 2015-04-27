@@ -589,6 +589,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   // instruction is not in use and removes it from the use lists of its inputs.
   void RemoveInstruction(HInstruction* instruction, bool ensure_safety = true);
   void RemovePhi(HPhi* phi, bool ensure_safety = true);
+  void RemoveInstructionOrPhi(HInstruction* instruction, bool ensure_safety = true);
 
   bool IsLoopHeader() const {
     return (loop_information_ != nullptr) && (loop_information_->GetHeader() == this);

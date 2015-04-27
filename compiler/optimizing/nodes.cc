@@ -481,11 +481,20 @@ static void Remove(HInstructionList* instruction_list,
 }
 
 void HBasicBlock::RemoveInstruction(HInstruction* instruction, bool ensure_safety) {
+  DCHECK(!instruction->IsPhi());
   Remove(&instructions_, this, instruction, ensure_safety);
 }
 
 void HBasicBlock::RemovePhi(HPhi* phi, bool ensure_safety) {
   Remove(&phis_, this, phi, ensure_safety);
+}
+
+void HBasicBlock::RemoveInstructionOrPhi(HInstruction* instruction, bool ensure_safety) {
+  if (instruction->IsPhi()) {
+    RemovePhi(instruction->AsPhi(), ensure_safety);
+  } else {
+    RemoveInstruction(instruction, ensure_safety);
+  }
 }
 
 void HEnvironment::CopyFrom(HEnvironment* env) {
