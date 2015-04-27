@@ -712,6 +712,9 @@ void HPhi::AddInput(HInstruction* input) {
 void HPhi::RemoveInputAt(size_t index) {
   RemoveAsUserOfInput(index);
   inputs_.DeleteAt(index);
+  for (size_t i = index, e = InputCount(); i < e; ++i) {
+    InputRecordAt(i).GetUseNode()->SetIndex(i);
+  }
 }
 
 #define DEFINE_ACCEPT(name, super)                                             \
