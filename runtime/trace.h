@@ -189,7 +189,7 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
   std::unique_ptr<File> trace_file_;
 
   // Buffer to store trace data.
-  std::unique_ptr<uint8_t> buf_;
+  std::unique_ptr<uint8_t[]> buf_;
 
   // Flags enabling extra tracing of things such as alloc counts.
   const int flags_;

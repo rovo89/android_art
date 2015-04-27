@@ -423,7 +423,7 @@ void EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame* shadow_frame, JVa
     }
     ShadowFrame* old_frame = shadow_frame;
     shadow_frame = shadow_frame->GetLink();
-    delete old_frame;
+    ShadowFrame::DeleteDeoptimizedFrame(old_frame);
   }
   ret_val->SetJ(value.GetJ());
 }
