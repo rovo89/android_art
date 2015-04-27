@@ -1455,6 +1455,7 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
                         : Location::StackSlot(interval->GetParent()->GetSpillSlot()));
   }
   UsePosition* use = current->GetFirstUse();
+  UsePosition* env_use = current->GetFirstEnvironmentUse();
 
   // Walk over all siblings, updating locations of use positions, and
   // connecting them when they are adjacent.
@@ -1466,32 +1467,39 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
 
     LiveRange* range = current->GetFirstRange();
     while (range != nullptr) {
-      while (use != nullptr && use->GetPosition() < range->GetStart()) {
-        DCHECK(use->GetIsEnvironment());
-        use = use->GetNext();
-      }
+      DCHECK(use == nullptr || use->GetPosition() >= range->GetStart());
       while (use != nullptr && use->GetPosition() <= range->GetEnd()) {
+        DCHECK(!use->GetIsEnvironment());
         DCHECK(current->CoversSlow(use->GetPosition()) || (use->GetPosition() == range->GetEnd()));
         LocationSummary* locations = use->GetUser()->GetLocations();
-        if (use->GetIsEnvironment()) {
-          locations->SetEnvironmentAt(use->GetInputIndex(), source);
-        } else {
-          Location expected_location = locations->InAt(use->GetInputIndex());
-          // The expected (actual) location may be invalid in case the input is unused. Currently
-          // this only happens for intrinsics.
-          if (expected_location.IsValid()) {
-            if (expected_location.IsUnallocated()) {
-              locations->SetInAt(use->GetInputIndex(), source);
-            } else if (!expected_location.IsConstant()) {
-              AddInputMoveFor(interval->GetDefinedBy(), use->GetUser(), source, expected_location);
-            }
-          } else {
-            DCHECK(use->GetUser()->IsInvoke());
-            DCHECK(use->GetUser()->AsInvoke()->GetIntrinsic() != Intrinsics::kNone);
+        Location expected_location = locations->InAt(use->GetInputIndex());
+        // The expected (actual) location may be invalid in case the input is unused. Currently
+        // this only happens for intrinsics.
+        if (expected_location.IsValid()) {
+          if (expected_location.IsUnallocated()) {
+            locations->SetInAt(use->GetInputIndex(), source);
+          } else if (!expected_location.IsConstant()) {
+            AddInputMoveFor(interval->GetDefinedBy(), use->GetUser(), source, expected_location);
           }
+        } else {
+          DCHECK(use->GetUser()->IsInvoke());
+          DCHECK(use->GetUser()->AsInvoke()->GetIntrinsic() != Intrinsics::kNone);
         }
         use = use->GetNext();
       }
+
+      // Walk over the environment uses, and update their locations.
+      while (env_use != nullptr && env_use->GetPosition() < range->GetStart()) {
+        env_use = env_use->GetNext();
+      }
+
+      while (env_use != nullptr && env_use->GetPosition() <= range->GetEnd()) {
+        DCHECK(current->CoversSlow(env_use->GetPosition()) || (env_use->GetPosition() == range->GetEnd()));
+        LocationSummary* locations = env_use->GetUser()->GetLocations();
+        locations->SetEnvironmentAt(env_use->GetInputIndex(), source);
+        env_use = env_use->GetNext();
+      }
+
       range = range->GetNext();
     }
 
@@ -1553,14 +1561,7 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
     current = next_sibling;
   } while (current != nullptr);
 
-  if (kIsDebugBuild) {
-    // Following uses can only be environment uses. The location for
-    // these environments will be none.
-    while (use != nullptr) {
-      DCHECK(use->GetIsEnvironment());
-      use = use->GetNext();
-    }
-  }
+  DCHECK(use == nullptr);
 }
 
 void RegisterAllocator::ConnectSplitSiblings(LiveInterval* interval,

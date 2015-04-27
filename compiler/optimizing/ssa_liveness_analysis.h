@@ -219,6 +219,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
   void AddTempUse(HInstruction* instruction, size_t temp_index) {
     DCHECK(IsTemp());
     DCHECK(first_use_ == nullptr) << "A temporary can only have one user";
+    DCHECK(first_env_use_ == nullptr) << "A temporary cannot have environment user";
     size_t position = instruction->GetLifetimePosition();
     first_use_ = new (allocator_) UsePosition(
         instruction, temp_index, /* is_environment */ false, position, first_use_);
@@ -265,8 +266,13 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
       return;
     }
 
-    first_use_ = new (allocator_) UsePosition(
-        instruction, input_index, is_environment, position, first_use_);
+    if (is_environment) {
+      first_env_use_ = new (allocator_) UsePosition(
+          instruction, input_index, is_environment, position, first_env_use_);
+    } else {
+      first_use_ = new (allocator_) UsePosition(
+          instruction, input_index, is_environment, position, first_use_);
+    }
 
     if (is_environment && !keep_alive) {
       // If this environment use does not keep the instruction live, it does not
@@ -477,7 +483,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
     size_t end = GetEnd();
     while (use != nullptr && use->GetPosition() <= end) {
       size_t use_position = use->GetPosition();
-      if (use_position > position && !use->GetIsEnvironment()) {
+      if (use_position > position) {
         Location location = use->GetUser()->GetLocations()->InAt(use->GetInputIndex());
         if (location.IsUnallocated()
             && (location.GetPolicy() == Location::kRequiresRegister
@@ -508,12 +514,10 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
     UsePosition* use = first_use_;
     size_t end = GetEnd();
     while (use != nullptr && use->GetPosition() <= end) {
-      if (!use->GetIsEnvironment()) {
-        Location location = use->GetUser()->GetLocations()->InAt(use->GetInputIndex());
-        size_t use_position = use->GetPosition();
-        if (use_position > position && location.IsValid()) {
-          return use_position;
-        }
+      Location location = use->GetUser()->GetLocations()->InAt(use->GetInputIndex());
+      size_t use_position = use->GetPosition();
+      if (use_position > position && location.IsValid()) {
+        return use_position;
       }
       use = use->GetNext();
     }
@@ -522,6 +526,10 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
 
   UsePosition* GetFirstUse() const {
     return first_use_;
+  }
+
+  UsePosition* GetFirstEnvironmentUse() const {
+    return first_env_use_;
   }
 
   Primitive::Type GetType() const {
@@ -577,6 +585,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
     new_interval->parent_ = parent_;
 
     new_interval->first_use_ = first_use_;
+    new_interval->first_env_use_ = first_env_use_;
     LiveRange* current = first_range_;
     LiveRange* previous = nullptr;
     // Iterate over the ranges, and either find a range that covers this position, or
@@ -655,10 +664,18 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
         stream << " ";
       } while ((use = use->GetNext()) != nullptr);
     }
+    stream << "}, {";
+    use = first_env_use_;
+    if (use != nullptr) {
+      do {
+        use->Dump(stream);
+        stream << " ";
+      } while ((use = use->GetNext()) != nullptr);
+    }
     stream << "}";
     stream << " is_fixed: " << is_fixed_ << ", is_split: " << IsSplit();
-    stream << " is_high: " << IsHighInterval();
     stream << " is_low: " << IsLowInterval();
+    stream << " is_high: " << IsHighInterval();
   }
 
   LiveInterval* GetNextSibling() const { return next_sibling_; }
@@ -753,6 +770,10 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
     }
     if (first_use_ != nullptr) {
       high_or_low_interval_->first_use_ = first_use_->Dup(allocator_);
+    }
+
+    if (first_env_use_ != nullptr) {
+      high_or_low_interval_->first_env_use_ = first_env_use_->Dup(allocator_);
     }
   }
 
@@ -851,6 +872,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
         first_safepoint_(nullptr),
         last_safepoint_(nullptr),
         first_use_(nullptr),
+        first_env_use_(nullptr),
         type_(type),
         next_sibling_(nullptr),
         parent_(this),
@@ -905,6 +927,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
 
   // Uses of this interval. Note that this linked list is shared amongst siblings.
   UsePosition* first_use_;
+  UsePosition* first_env_use_;
 
   // The instruction type this interval corresponds to.
   const Primitive::Type type_;
