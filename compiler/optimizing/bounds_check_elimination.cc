@@ -263,17 +263,50 @@ class ArrayAccessInsideLoopFinder : public ValueObject {
   int32_t GetOffsetLow() const { return offset_low_; }
   int32_t GetOffsetHigh() const { return offset_high_; }
 
+  // Returns if `block` that is in loop_info may exit the loop, unless it's
+  // the loop header for loop_info.
+  static bool EarlyExit(HBasicBlock* block, HLoopInformation* loop_info) {
+    DCHECK(loop_info->Contains(*block));
+    if (block == loop_info->GetHeader()) {
+      // Loop header of loop_info. Exiting loop is normal.
+      return false;
+    }
+    const GrowableArray<HBasicBlock*> successors = block->GetSuccessors();
+    for (size_t i = 0; i < successors.Size(); i++) {
+      if (!loop_info->Contains(*successors.Get(i))) {
+        // One of the successors exits the loop.
+        return true;
+      }
+    }
+    return false;
+  }
+
   void Run() {
     HLoopInformation* loop_info = induction_variable_->GetBlock()->GetLoopInformation();
     // Must be simplified loop.
     DCHECK_EQ(loop_info->GetBackEdges().Size(), 1U);
-    // In order not to trigger deoptimization unnecessarily, make sure
-    // that all array accesses collected are really executed in the loop.
-    // For array accesses in a branch inside the loop, don't collect the
-    // access. The bounds check in that branch might not be eliminated.
-    for (HBasicBlock* block = loop_info->GetBackEdges().Get(0);
-         block != loop_info->GetPreHeader();
-         block = block->GetDominator()) {
+    for (HBlocksInLoopIterator it_loop(*loop_info); !it_loop.Done(); it_loop.Advance()) {
+      HBasicBlock* block = it_loop.Current();
+      DCHECK(block->IsInLoop());
+      HBasicBlock* back_edge = loop_info->GetBackEdges().Get(0);
+      if (!block->Dominates(back_edge)) {
+        // In order not to trigger deoptimization unnecessarily, make sure
+        // that all array accesses collected are really executed in the loop.
+        // For array accesses in a branch inside the loop, don't collect the
+        // access. The bounds check in that branch might not be eliminated.
+        continue;
+      }
+      if (EarlyExit(block, loop_info)) {
+        // If the loop body can exit loop (like break, return, etc.), it's not guaranteed
+        // that the loop will loop through the full monotonic value range from
+        // initial_ to end_. So adding deoptimization might be too aggressive and can
+        // trigger deoptimization unnecessarily even if the loop won't actually throw
+        // AIOOBE. Otherwise, the loop induction variable is going to cover the full
+        // monotonic value range from initial_ to end_, and deoptimizations are added
+        // iff the loop will throw AIOOBE.
+        found_array_length_ = nullptr;
+        return;
+      }
       for (HInstruction* instruction = block->GetFirstInstruction();
            instruction != nullptr;
            instruction = instruction->GetNext()) {
@@ -740,7 +773,8 @@ class MonotonicValueRange : public ValueRange {
     ArrayAccessInsideLoopFinder finder(induction_variable_);
 
     if (!finder.HasFoundArrayLength()) {
-      // No array access inside the loop.
+      // No array access was found inside the loop that can benefit
+      // from deoptimization.
       return this;
     }
 
@@ -1184,11 +1218,11 @@ class BCEVisitor : public HGraphVisitor {
           // The comparison is for an induction variable in the loop header.
           DCHECK(left == left_range->AsMonotonicValueRange()->GetInductionVariable());
           HBasicBlock* loop_body_successor;
-          if (UNLIKELY(block->GetLoopInformation() !=
-              instruction->IfFalseSuccessor()->GetLoopInformation())) {
-            loop_body_successor = instruction->IfTrueSuccessor();
-          } else {
+          if (LIKELY(block->GetLoopInformation()->
+              Contains(*instruction->IfFalseSuccessor()))) {
             loop_body_successor = instruction->IfFalseSuccessor();
+          } else {
+            loop_body_successor = instruction->IfTrueSuccessor();
           }
           ValueRange* new_left_range = LookupValueRange(left, loop_body_successor);
           if (new_left_range == left_range) {

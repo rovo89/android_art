@@ -837,6 +837,29 @@ public class Main {
   }
 
 
+  // CHECK-START: void Main.partialLooping(int[], int, int) BCE (before)
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+
+  // CHECK-START: void Main.partialLooping(int[], int, int) BCE (after)
+  // CHECK-NOT: Deoptimize
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+
+  void partialLooping(int[] array, int start, int end) {
+    // This loop doesn't cover the full range of [start, end) so
+    // adding deoptimization is too aggressive, since end can be
+    // greater than array.length but the loop is never going to work on
+    // more than 2 elements.
+    for (int i = start; i < end; i++) {
+      if (i == 2) {
+        return;
+      }
+      array[i] = 1;
+    }
+  }
+
+
   static void testUnknownBounds() {
     boolean caught = false;
     Main main = new Main();
@@ -926,6 +949,14 @@ public class Main {
 
     main = new Main();
     main.foo6(new int[10], 2, 7);
+
+    main = new Main();
+    int[] array = new int[4];
+    main.partialLooping(new int[3], 0, 4);
+    if ((array[0] != 1) && (array[1] != 1) &&
+        (array[2] != 0) && (array[3] != 0)) {
+      System.out.println("partialLooping failed!");
+    }
 
     caught = false;
     main = new Main();
