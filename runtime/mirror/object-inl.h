@@ -115,8 +115,11 @@ inline void Object::Wait(Thread* self, int64_t ms, int32_t ns) {
 }
 
 inline Object* Object::GetReadBarrierPointer() {
-#ifdef USE_BAKER_OR_BROOKS_READ_BARRIER
-  DCHECK(kUseBakerOrBrooksReadBarrier);
+#ifdef USE_BAKER_READ_BARRIER
+  DCHECK(kUseBakerReadBarrier);
+  return reinterpret_cast<Object*>(GetLockWord(false).ReadBarrierState());
+#elif USE_BROOKS_READ_BARRIER
+  DCHECK(kUseBrooksReadBarrier);
   return GetFieldObject<Object, kVerifyNone, kWithoutReadBarrier>(
       OFFSET_OF_OBJECT_MEMBER(Object, x_rb_ptr_));
 #else
@@ -126,8 +129,14 @@ inline Object* Object::GetReadBarrierPointer() {
 }
 
 inline void Object::SetReadBarrierPointer(Object* rb_ptr) {
-#ifdef USE_BAKER_OR_BROOKS_READ_BARRIER
-  DCHECK(kUseBakerOrBrooksReadBarrier);
+#ifdef USE_BAKER_READ_BARRIER
+  DCHECK(kUseBakerReadBarrier);
+  DCHECK_EQ(reinterpret_cast<uint64_t>(rb_ptr) >> 32, 0U);
+  LockWord lw = GetLockWord(false);
+  lw.SetReadBarrierState(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(rb_ptr)));
+  SetLockWord(lw, false);
+#elif USE_BROOKS_READ_BARRIER
+  DCHECK(kUseBrooksReadBarrier);
   // We don't mark the card as this occurs as part of object allocation. Not all objects have
   // backing cards, such as large objects.
   SetFieldObjectWithoutWriteBarrier<false, false, kVerifyNone>(
@@ -140,8 +149,27 @@ inline void Object::SetReadBarrierPointer(Object* rb_ptr) {
 }
 
 inline bool Object::AtomicSetReadBarrierPointer(Object* expected_rb_ptr, Object* rb_ptr) {
-#ifdef USE_BAKER_OR_BROOKS_READ_BARRIER
-  DCHECK(kUseBakerOrBrooksReadBarrier);
+#ifdef USE_BAKER_READ_BARRIER
+  DCHECK(kUseBakerReadBarrier);
+  DCHECK_EQ(reinterpret_cast<uint64_t>(expected_rb_ptr) >> 32, 0U);
+  DCHECK_EQ(reinterpret_cast<uint64_t>(rb_ptr) >> 32, 0U);
+  LockWord expected_lw;
+  LockWord new_lw;
+  do {
+    LockWord lw = GetLockWord(false);
+    if (UNLIKELY(reinterpret_cast<Object*>(lw.ReadBarrierState()) != expected_rb_ptr)) {
+      // Lost the race.
+      return false;
+    }
+    expected_lw = lw;
+    expected_lw.SetReadBarrierState(
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(expected_rb_ptr)));
+    new_lw = lw;
+    new_lw.SetReadBarrierState(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(rb_ptr)));
+  } while (!CasLockWordWeakSequentiallyConsistent(expected_lw, new_lw));
+  return true;
+#elif USE_BROOKS_READ_BARRIER
+  DCHECK(kUseBrooksReadBarrier);
   MemberOffset offset = OFFSET_OF_OBJECT_MEMBER(Object, x_rb_ptr_);
   uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + offset.SizeValue();
   Atomic<uint32_t>* atomic_rb_ptr = reinterpret_cast<Atomic<uint32_t>*>(raw_addr);

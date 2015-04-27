@@ -718,6 +718,7 @@ bool ConcurrentCopying::ProcessMarkStack() {
       // Leave References gray so that GetReferent() will trigger RB.
       CHECK(to_ref->AsReference()->IsEnqueued()) << "Left unenqueued ref gray " << to_ref;
     } else {
+#ifdef USE_BAKER_OR_BROOKS_READ_BARRIER
       if (kUseBakerReadBarrier) {
         if (region_space_->IsInToSpace(to_ref)) {
           // If to-space, change from gray to white.
@@ -739,6 +740,9 @@ bool ConcurrentCopying::ProcessMarkStack() {
           CHECK(to_ref->GetReadBarrierPointer() == ReadBarrier::BlackPtr());
         }
       }
+#else
+      DCHECK(!kUseBakerReadBarrier);
+#endif
     }
     if (ReadBarrier::kEnableToSpaceInvariantChecks || kIsDebugBuild) {
       ConcurrentCopyingAssertToSpaceInvariantObjectVisitor visitor(this);
@@ -815,7 +819,7 @@ class ConcurrentCopyingClearBlackPtrsVisitor {
     DCHECK(obj != nullptr);
     DCHECK(collector_->heap_->GetMarkBitmap()->Test(obj)) << obj;
     DCHECK_EQ(obj->GetReadBarrierPointer(), ReadBarrier::BlackPtr()) << obj;
-    obj->SetReadBarrierPointer(ReadBarrier::WhitePtr());
+    obj->AtomicSetReadBarrierPointer(ReadBarrier::BlackPtr(), ReadBarrier::WhitePtr());
     DCHECK_EQ(obj->GetReadBarrierPointer(), ReadBarrier::WhitePtr()) << obj;
   }
 
@@ -963,7 +967,8 @@ class ConcurrentCopyingComputeUnevacFromSpaceLiveRatioVisitor {
     if (kUseBakerReadBarrier) {
       DCHECK_EQ(ref->GetReadBarrierPointer(), ReadBarrier::BlackPtr()) << ref;
       // Clear the black ptr.
-      ref->SetReadBarrierPointer(ReadBarrier::WhitePtr());
+      ref->AtomicSetReadBarrierPointer(ReadBarrier::BlackPtr(), ReadBarrier::WhitePtr());
+      DCHECK_EQ(ref->GetReadBarrierPointer(), ReadBarrier::WhitePtr()) << ref;
     }
     size_t obj_size = ref->SizeOf();
     size_t alloc_size = RoundUp(obj_size, space::RegionSpace::kAlignment);
@@ -1330,10 +1335,6 @@ mirror::Object* ConcurrentCopying::Copy(mirror::Object* from_ref) {
   while (true) {
     // Copy the object. TODO: copy only the lockword in the second iteration and on?
     memcpy(to_ref, from_ref, obj_size);
-    // Set the gray ptr.
-    if (kUseBakerReadBarrier) {
-      to_ref->SetReadBarrierPointer(ReadBarrier::GrayPtr());
-    }
 
     LockWord old_lock_word = to_ref->GetLockWord(false);
 
@@ -1376,6 +1377,11 @@ mirror::Object* ConcurrentCopying::Copy(mirror::Object* from_ref) {
       CHECK(region_space_->IsInToSpace(to_ref) || heap_->non_moving_space_->HasAddress(to_ref));
       CHECK_NE(to_ref->GetLockWord(false).GetState(), LockWord::kForwardingAddress);
       return to_ref;
+    }
+
+    // Set the gray ptr.
+    if (kUseBakerReadBarrier) {
+      to_ref->SetReadBarrierPointer(ReadBarrier::GrayPtr());
     }
 
     LockWord new_lock_word = LockWord::FromForwardingAddress(reinterpret_cast<size_t>(to_ref));
@@ -1484,6 +1490,21 @@ mirror::Object* ConcurrentCopying::Mark(mirror::Object* from_ref) {
   }
   DCHECK(from_ref != nullptr);
   DCHECK(heap_->collector_type_ == kCollectorTypeCC);
+  if (kUseBakerReadBarrier && !is_active_) {
+    // In the lock word forward address state, the read barrier bits
+    // in the lock word are part of the stored forwarding address and
+    // invalid. This is usually OK as the from-space copy of objects
+    // aren't accessed by mutators due to the to-space
+    // invariant. However, during the dex2oat image writing relocation
+    // and the zygote compaction, objects can be in the forward
+    // address state (to store the forward/relocation addresses) and
+    // they can still be accessed and the invalid read barrier bits
+    // are consulted. If they look like gray but aren't really, the
+    // read barriers slow path can trigger when it shouldn't. To guard
+    // against this, return here if the CC collector isn't running.
+    return from_ref;
+  }
+  DCHECK(region_space_ != nullptr) << "Read barrier slow path taken when CC isn't running?";
   space::RegionSpace::RegionType rtype = region_space_->GetRegionType(from_ref);
   if (rtype == space::RegionSpace::RegionType::kRegionTypeToSpace) {
     // It's already marked.
