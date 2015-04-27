@@ -343,6 +343,18 @@ HConstant* HGraph::GetConstant(Primitive::Type type, int64_t value) {
   }
 }
 
+HFloatConstant* HGraph::GetFloatConstant(float value) {
+  HFloatConstant *constant = new (arena_) HFloatConstant(value);
+  InsertConstant(constant);
+  return constant;
+}
+
+HDoubleConstant* HGraph::GetDoubleConstant(double value) {
+  HDoubleConstant *constant = new (arena_) HDoubleConstant(value);
+  InsertConstant(constant);
+  return constant;
+}
+
 void HLoopInformation::Add(HBasicBlock* block) {
   blocks_.SetBit(block->GetBlockId());
 }
