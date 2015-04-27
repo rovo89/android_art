@@ -128,7 +128,7 @@ void HBooleanSimplifier::Run() {
 
     // Remove the original condition if it is now unused.
     if (!if_condition->HasUses()) {
-      if_condition->GetBlock()->RemoveInstruction(if_condition);
+      if_condition->GetBlock()->RemoveInstructionOrPhi(if_condition);
     }
   }
 }
