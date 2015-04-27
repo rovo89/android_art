@@ -53,6 +53,7 @@ inline LockWord::LockWord() : value_(0) {
 inline LockWord::LockWord(Monitor* mon, uint32_t rb_state)
     : value_(mon->GetMonitorId() | (rb_state << kReadBarrierStateShift) |
              (kStateFat << kStateShift)) {
+  DCHECK_EQ(rb_state & ~kReadBarrierStateMask, 0U);
 #ifndef __LP64__
   DCHECK_ALIGNED(mon, kMonitorIdAlignment);
 #endif

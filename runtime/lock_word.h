@@ -94,6 +94,7 @@ class LockWord {
     kReadBarrierStateMaskShiftedToggled = ~kReadBarrierStateMaskShifted,
 
     // When the state is kHashCode, the non-state bits hold the hashcode.
+    // Note Object.hashCode() has the hash code layout hardcoded.
     kHashShift = 0,
     kHashSize = 32 - kStateSize - kReadBarrierStateSize,
     kHashMask = (1 << kHashSize) - 1,
@@ -110,6 +111,7 @@ class LockWord {
   static LockWord FromThinLockId(uint32_t thread_id, uint32_t count, uint32_t rb_state) {
     CHECK_LE(thread_id, static_cast<uint32_t>(kThinLockMaxOwner));
     CHECK_LE(count, static_cast<uint32_t>(kThinLockMaxCount));
+    DCHECK_EQ(rb_state & ~kReadBarrierStateMask, 0U);
     return LockWord((thread_id << kThinLockOwnerShift) | (count << kThinLockCountShift) |
                     (rb_state << kReadBarrierStateShift) |
                     (kStateThinOrUnlocked << kStateShift));
@@ -122,12 +124,14 @@ class LockWord {
 
   static LockWord FromHashCode(uint32_t hash_code, uint32_t rb_state) {
     CHECK_LE(hash_code, static_cast<uint32_t>(kMaxHash));
+    DCHECK_EQ(rb_state & ~kReadBarrierStateMask, 0U);
     return LockWord((hash_code << kHashShift) |
                     (rb_state << kReadBarrierStateShift) |
                     (kStateHash << kStateShift));
   }
 
   static LockWord FromDefault(uint32_t rb_state) {
+    DCHECK_EQ(rb_state & ~kReadBarrierStateMask, 0U);
     return LockWord(rb_state << kReadBarrierStateShift);
   }
 
@@ -149,7 +153,8 @@ class LockWord {
 
   LockState GetState() const {
     CheckReadBarrierState();
-    if (UNLIKELY(value_ == 0)) {
+    if ((!kUseReadBarrier && UNLIKELY(value_ == 0)) ||
+        (kUseReadBarrier && UNLIKELY((value_ & kReadBarrierStateMaskShiftedToggled) == 0))) {
       return kUnlocked;
     } else {
       uint32_t internal_state = (value_ >> kStateShift) & kStateMask;
@@ -169,6 +174,14 @@ class LockWord {
 
   uint32_t ReadBarrierState() const {
     return (value_ >> kReadBarrierStateShift) & kReadBarrierStateMask;
+  }
+
+  void SetReadBarrierState(uint32_t rb_state) {
+    DCHECK_EQ(rb_state & ~kReadBarrierStateMask, 0U);
+    DCHECK_NE(static_cast<uint32_t>(GetState()), static_cast<uint32_t>(kForwardingAddress));
+    // Clear and or the bits.
+    value_ &= ~(kReadBarrierStateMask << kReadBarrierStateShift);
+    value_ |= (rb_state & kReadBarrierStateMask) << kReadBarrierStateShift;
   }
 
   // Return the owner thin lock thread id.
