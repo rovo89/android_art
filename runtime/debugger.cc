@@ -4774,7 +4774,7 @@ class StringTable {
     for (const std::string& str : table_) {
       const char* s = str.c_str();
       size_t s_len = CountModifiedUtf8Chars(s);
-      std::unique_ptr<uint16_t> s_utf16(new uint16_t[s_len]);
+      std::unique_ptr<uint16_t[]> s_utf16(new uint16_t[s_len]);
       ConvertModifiedUtf8ToUtf16(s_utf16.get(), s);
       JDWP::AppendUtf16BE(bytes, s_utf16.get(), s_len);
     }

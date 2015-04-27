@@ -141,6 +141,10 @@ class Monitor {
     CHECK_EQ(error, 0) << strerror(error);
     return result;
   }
+
+  void operator delete(void* ptr) {
+    free(ptr);
+  }
 #endif
 
  private:
