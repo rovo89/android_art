@@ -242,7 +242,7 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
 
   // Returns a constant of the given type and value. If it does not exist
   // already, it is created and inserted into the graph. Only integral types
-  // are currently cached.
+  // are currently supported.
   HConstant* GetConstant(Primitive::Type type, int64_t value);
   HNullConstant* GetNullConstant();
   HIntConstant* GetIntConstant(int32_t value) {
@@ -251,8 +251,6 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   HLongConstant* GetLongConstant(int64_t value) {
     return CreateConstant(value, &cached_long_constants_);
   }
-  HFloatConstant* GetFloatConstant(float value);
-  HDoubleConstant* GetDoubleConstant(double value);
 
   HBasicBlock* FindCommonDominator(HBasicBlock* first, HBasicBlock* second) const;
 
@@ -2039,9 +2037,10 @@ class HFloatConstant : public HConstant {
 
   const float value_;
 
-  // Only the SsaBuilder and HGraph can create floating-point constants.
+  // Only the SsaBuilder can currently create floating-point constants. If we
+  // ever need to create them later in the pipeline, we will have to handle them
+  // the same way as integral constants.
   friend class SsaBuilder;
-  friend class HGraph;
   DISALLOW_COPY_AND_ASSIGN(HFloatConstant);
 };
 
@@ -2075,9 +2074,10 @@ class HDoubleConstant : public HConstant {
 
   const double value_;
 
-  // Only the SsaBuilder and HGraph can create floating-point constants.
+  // Only the SsaBuilder can currently create floating-point constants. If we
+  // ever need to create them later in the pipeline, we will have to handle them
+  // the same way as integral constants.
   friend class SsaBuilder;
-  friend class HGraph;
   DISALLOW_COPY_AND_ASSIGN(HDoubleConstant);
 };
 
