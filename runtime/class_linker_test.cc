@@ -529,6 +529,7 @@ struct StringOffsets : public CheckOffsets<mirror::String> {
   StringOffsets() : CheckOffsets<mirror::String>(false, "Ljava/lang/String;") {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::String, count_),     "count"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::String, hash_code_), "hashCode"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::String, hash32_),    "hash32"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::String, offset_),    "offset"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::String, array_),     "value"));
   };

@@ -157,6 +157,8 @@ class MANAGED String FINAL : public Object {
 
   uint32_t hash_code_;
 
+  int32_t hash32_;
+
   int32_t offset_;
 
   static GcRoot<Class> java_lang_String_;
