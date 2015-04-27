@@ -26,6 +26,12 @@ public class Main {
     }
   }
 
+  public static void assertIntEquals(int expected, int result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
   /*
    * Elementary test negating a boolean. Verifies that blocks are merged and
    * empty branches removed.
@@ -155,6 +161,36 @@ public class Main {
     return (x <= y) == (y <= z);
   }
 
+  // CHECK-START: int Main.NegatedCondition(boolean) boolean_simplifier (before)
+  // CHECK-DAG:     [[Param:z\d+]]    ParameterValue
+  // CHECK-DAG:     [[Const42:i\d+]]  IntConstant 42
+  // CHECK-DAG:     [[Const43:i\d+]]  IntConstant 43
+  // CHECK-DAG:     [[NotParam:z\d+]] BooleanNot [ [[Param]] ]
+  // CHECK-DAG:                       If [ [[NotParam]] ]
+  // CHECK-DAG:     [[Phi:i\d+]]      Phi [ [[Const42]] [[Const43]] ]
+  // CHECK-DAG:                       Return [ [[Phi]] ]
+
+  // CHECK-START: int Main.NegatedCondition(boolean) boolean_simplifier (after)
+  // CHECK-DAG:     [[Param:z\d+]]    ParameterValue
+  // CHECK-DAG:     [[Const42:i\d+]]  IntConstant 42
+  // CHECK-DAG:     [[Const43:i\d+]]  IntConstant 43
+  // CHECK-DAG:                       If [ [[Param]] ]
+  // CHECK-DAG:     [[Phi:i\d+]]      Phi [ [[Const42]] [[Const43]] ]
+  // CHECK-DAG:                       Return [ [[Phi]] ]
+
+  // Note: The fact that branches are swapped is verified by running the test.
+
+  // CHECK-START: int Main.NegatedCondition(boolean) boolean_simplifier (after)
+  // CHECK-NOT:                       BooleanNot
+
+  public static int NegatedCondition(boolean x) {
+    if (x != false) {
+      return 42;
+    } else {
+      return 43;
+    }
+  }
+
   public static void main(String[] args) {
     assertBoolEquals(false, BooleanNot(true));
     assertBoolEquals(true, BooleanNot(false));
@@ -171,5 +207,7 @@ public class Main {
     assertBoolEquals(true, ValuesOrdered(3, 3, 3));
     assertBoolEquals(true, ValuesOrdered(3, 3, 5));
     assertBoolEquals(false, ValuesOrdered(5, 5, 3));
+    assertIntEquals(42, NegatedCondition(true));
+    assertIntEquals(43, NegatedCondition(false));
   }
 }
