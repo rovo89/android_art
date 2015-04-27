@@ -587,6 +587,14 @@ DISASSEMBLER_ENTRY(cmp,
               src_reg_file = SSE;
               immediate_bytes = 1;
               break;
+          case 0x15:
+              opcode1 = "pextrw";
+              prefix[2] = 0;
+              has_modrm = true;
+              store = true;
+              src_reg_file = SSE;
+              immediate_bytes = 1;
+              break;
             case 0x16:
               opcode1 = "pextrd";
               prefix[2] = 0;
