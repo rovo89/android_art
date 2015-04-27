@@ -526,6 +526,13 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
     predecessors_.Put(1, temp);
   }
 
+  void SwapSuccessors() {
+    DCHECK_EQ(successors_.Size(), 2u);
+    HBasicBlock* temp = successors_.Get(0);
+    successors_.Put(0, successors_.Get(1));
+    successors_.Put(1, temp);
+  }
+
   size_t GetPredecessorIndexOf(HBasicBlock* predecessor) {
     for (size_t i = 0, e = predecessors_.Size(); i < e; ++i) {
       if (predecessors_.Get(i) == predecessor) {

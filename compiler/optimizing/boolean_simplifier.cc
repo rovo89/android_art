@@ -18,6 +18,26 @@
 
 namespace art {
 
+void HBooleanSimplifier::TryRemovingNegatedCondition(HBasicBlock* block) {
+  DCHECK(block->EndsWithIf());
+
+  // Check if the condition is a Boolean negation.
+  HIf* if_instruction = block->GetLastInstruction()->AsIf();
+  HInstruction* boolean_not = if_instruction->InputAt(0);
+  if (!boolean_not->IsBooleanNot()) {
+    return;
+  }
+
+  // Make BooleanNot's input the condition of the If and swap branches.
+  if_instruction->ReplaceInput(boolean_not->InputAt(0), 0);
+  block->SwapSuccessors();
+
+  // Remove the BooleanNot if it is now unused.
+  if (!boolean_not->HasUses()) {
+    boolean_not->GetBlock()->RemoveInstruction(boolean_not);
+  }
+}
+
 // Returns true if 'block1' and 'block2' are empty, merge into the same single
 // successor and the successor can only be reached from them.
 static bool BlocksDoMergeTogether(HBasicBlock* block1, HBasicBlock* block2) {
@@ -78,58 +98,69 @@ static HInstruction* GetOppositeCondition(HInstruction* cond) {
   }
 }
 
+void HBooleanSimplifier::TryRemovingBooleanSelection(HBasicBlock* block) {
+  DCHECK(block->EndsWithIf());
+
+  // Find elements of the pattern.
+  HIf* if_instruction = block->GetLastInstruction()->AsIf();
+  HBasicBlock* true_block = if_instruction->IfTrueSuccessor();
+  HBasicBlock* false_block = if_instruction->IfFalseSuccessor();
+  if (!BlocksDoMergeTogether(true_block, false_block)) {
+    return;
+  }
+  HBasicBlock* merge_block = true_block->GetSuccessors().Get(0);
+  if (!merge_block->HasSinglePhi()) {
+    return;
+  }
+  HPhi* phi = merge_block->GetFirstPhi()->AsPhi();
+  HInstruction* true_value = phi->InputAt(merge_block->GetPredecessorIndexOf(true_block));
+  HInstruction* false_value = phi->InputAt(merge_block->GetPredecessorIndexOf(false_block));
+
+  // Check if the selection negates/preserves the value of the condition and
+  // if so, generate a suitable replacement instruction.
+  HInstruction* if_condition = if_instruction->InputAt(0);
+  HInstruction* replacement;
+  if (NegatesCondition(true_value, false_value)) {
+    replacement = GetOppositeCondition(if_condition);
+    if (replacement->GetBlock() == nullptr) {
+      block->InsertInstructionBefore(replacement, if_instruction);
+    }
+  } else if (PreservesCondition(true_value, false_value)) {
+    replacement = if_condition;
+  } else {
+    return;
+  }
+
+  // Replace the selection outcome with the new instruction.
+  phi->ReplaceWith(replacement);
+  merge_block->RemovePhi(phi);
+
+  // Delete the true branch and merge the resulting chain of blocks
+  // 'block->false_block->merge_block' into one.
+  true_block->DisconnectAndDelete();
+  block->MergeWith(false_block);
+  block->MergeWith(merge_block);
+
+  // Remove the original condition if it is now unused.
+  if (!if_condition->HasUses()) {
+    if_condition->GetBlock()->RemoveInstructionOrPhi(if_condition);
+  }
+}
+
 void HBooleanSimplifier::Run() {
   // Iterate in post order in the unlikely case that removing one occurrence of
-  // the pattern empties a branch block of another occurrence. Otherwise the
-  // order does not matter.
+  // the selection pattern empties a branch block of another occurrence.
+  // Otherwise the order does not matter.
   for (HPostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     if (!block->EndsWithIf()) continue;
 
-    // Find elements of the pattern.
-    HIf* if_instruction = block->GetLastInstruction()->AsIf();
-    HBasicBlock* true_block = if_instruction->IfTrueSuccessor();
-    HBasicBlock* false_block = if_instruction->IfFalseSuccessor();
-    if (!BlocksDoMergeTogether(true_block, false_block)) {
-      continue;
-    }
-    HBasicBlock* merge_block = true_block->GetSuccessors().Get(0);
-    if (!merge_block->HasSinglePhi()) {
-      continue;
-    }
-    HPhi* phi = merge_block->GetFirstPhi()->AsPhi();
-    HInstruction* true_value = phi->InputAt(merge_block->GetPredecessorIndexOf(true_block));
-    HInstruction* false_value = phi->InputAt(merge_block->GetPredecessorIndexOf(false_block));
+    // If condition is negated, remove the negation and swap the branches.
+    TryRemovingNegatedCondition(block);
 
-    // Check if the selection negates/preserves the value of the condition and
-    // if so, generate a suitable replacement instruction.
-    HInstruction* if_condition = if_instruction->InputAt(0);
-    HInstruction* replacement;
-    if (NegatesCondition(true_value, false_value)) {
-      replacement = GetOppositeCondition(if_condition);
-      if (replacement->GetBlock() == nullptr) {
-        block->InsertInstructionBefore(replacement, if_instruction);
-      }
-    } else if (PreservesCondition(true_value, false_value)) {
-      replacement = if_condition;
-    } else {
-      continue;
-    }
-
-    // Replace the selection outcome with the new instruction.
-    phi->ReplaceWith(replacement);
-    merge_block->RemovePhi(phi);
-
-    // Delete the true branch and merge the resulting chain of blocks
-    // 'block->false_block->merge_block' into one.
-    true_block->DisconnectAndDelete();
-    block->MergeWith(false_block);
-    block->MergeWith(merge_block);
-
-    // Remove the original condition if it is now unused.
-    if (!if_condition->HasUses()) {
-      if_condition->GetBlock()->RemoveInstructionOrPhi(if_condition);
-    }
+    // If this is a boolean-selection diamond pattern, replace its result with
+    // the condition value (or its negation) and simplify the graph.
+    TryRemovingBooleanSelection(block);
   }
 }
 

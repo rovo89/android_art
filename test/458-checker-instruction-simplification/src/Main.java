@@ -918,8 +918,12 @@ public class Main {
   // CHECK:                            BooleanNot
   // CHECK-NOT:                        BooleanNot
 
+  public static boolean NegateValue(boolean arg) {
+    return !arg;
+  }
+
   public static boolean NotNotBool(boolean arg) {
-    return !(!arg);
+    return !(NegateValue(arg));
   }
 
   public static void main(String[] args) {
