@@ -290,6 +290,15 @@ class GlobalValueNumberingTest : public testing::Test {
     DoPrepareVregToSsaMapExit(bb_id, map, count);
   }
 
+  template <size_t count>
+  void MarkAsWideSRegs(const int32_t (&sregs)[count]) {
+    for (int32_t sreg : sregs) {
+      cu_.mir_graph->reg_location_[sreg].wide = true;
+      cu_.mir_graph->reg_location_[sreg + 1].wide = true;
+      cu_.mir_graph->reg_location_[sreg + 1].high_word = true;
+    }
+  }
+
   void PerformGVN() {
     DoPerformGVN<LoopRepeatingTopologicalSortIterator>();
   }
@@ -360,9 +369,11 @@ class GlobalValueNumberingTest : public testing::Test {
     cu_.access_flags = kAccStatic;  // Don't let "this" interfere with this test.
     allocator_.reset(ScopedArenaAllocator::Create(&cu_.arena_stack));
     // By default, the zero-initialized reg_location_[.] with ref == false tells LVN that
-    // 0 constants are integral, not references. Nothing else is used by LVN/GVN.
+    // 0 constants are integral, not references, and the values are all narrow.
+    // Nothing else is used by LVN/GVN. Tests can override the default values as needed.
     cu_.mir_graph->reg_location_ =
         cu_.arena.AllocArray<RegLocation>(kMaxSsaRegs, kArenaAllocRegAlloc);
+    cu_.mir_graph->num_ssa_regs_ = kMaxSsaRegs;
     // Bind all possible sregs to live vregs for test purposes.
     live_in_v_->SetInitialBits(kMaxSsaRegs);
     cu_.mir_graph->ssa_base_vregs_.reserve(kMaxSsaRegs);
@@ -910,14 +921,14 @@ TEST_F(GlobalValueNumberingTestDiamond, AliasingArrays) {
       DEF_IGET(6, Instruction::AGET_OBJECT, 3u, 200u, 201u),  // Same as at the left side.
 
       DEF_AGET(3, Instruction::AGET_WIDE, 4u, 300u, 301u),
-      DEF_CONST(5, Instruction::CONST_WIDE, 5u, 1000),
-      DEF_APUT(5, Instruction::APUT_WIDE, 5u, 300u, 301u),
-      DEF_AGET(6, Instruction::AGET_WIDE, 7u, 300u, 301u),  // Differs from the top and the CONST.
+      DEF_CONST(5, Instruction::CONST_WIDE, 6u, 1000),
+      DEF_APUT(5, Instruction::APUT_WIDE, 6u, 300u, 301u),
+      DEF_AGET(6, Instruction::AGET_WIDE, 8u, 300u, 301u),  // Differs from the top and the CONST.
 
-      DEF_AGET(3, Instruction::AGET_SHORT, 8u, 400u, 401u),
-      DEF_CONST(3, Instruction::CONST, 9u, 2000),
-      DEF_APUT(4, Instruction::APUT_SHORT, 9u, 400u, 401u),
-      DEF_APUT(5, Instruction::APUT_SHORT, 9u, 400u, 401u),
+      DEF_AGET(3, Instruction::AGET_SHORT, 10u, 400u, 401u),
+      DEF_CONST(3, Instruction::CONST, 11u, 2000),
+      DEF_APUT(4, Instruction::APUT_SHORT, 11u, 400u, 401u),
+      DEF_APUT(5, Instruction::APUT_SHORT, 11u, 400u, 401u),
       DEF_AGET(6, Instruction::AGET_SHORT, 12u, 400u, 401u),  // Differs from the top, == CONST.
 
       DEF_AGET(3, Instruction::AGET_CHAR, 13u, 500u, 501u),
@@ -939,6 +950,8 @@ TEST_F(GlobalValueNumberingTestDiamond, AliasingArrays) {
   };
 
   PrepareMIRs(mirs);
+  static const int32_t wide_sregs[] = { 4, 6, 8 };
+  MarkAsWideSRegs(wide_sregs);
   PerformGVN();
   ASSERT_EQ(arraysize(mirs), value_names_.size());
   EXPECT_EQ(value_names_[0], value_names_[1]);
@@ -1057,6 +1070,12 @@ TEST_F(GlobalValueNumberingTestDiamond, PhiWide) {
   };
 
   PrepareMIRs(mirs);
+  for (size_t i = 0u; i != arraysize(mirs); ++i) {
+    if ((mirs_[i].ssa_rep->defs[0] % 2) == 0) {
+      const int32_t wide_sregs[] = { mirs_[i].ssa_rep->defs[0] };
+      MarkAsWideSRegs(wide_sregs);
+    }
+  }
   PerformGVN();
   ASSERT_EQ(arraysize(mirs), value_names_.size());
   EXPECT_EQ(value_names_[0], value_names_[7]);
@@ -1493,27 +1512,27 @@ TEST_F(GlobalValueNumberingTestLoop, AliasingArrays) {
   static const MIRDef mirs[] = {
       // NOTE: MIRs here are ordered by unique tests. They will be put into appropriate blocks.
       DEF_AGET(3, Instruction::AGET_WIDE, 0u, 100u, 101u),
-      DEF_AGET(4, Instruction::AGET_WIDE, 1u, 100u, 101u),   // Same as at the top.
-      DEF_AGET(5, Instruction::AGET_WIDE, 2u, 100u, 101u),   // Same as at the top.
+      DEF_AGET(4, Instruction::AGET_WIDE, 2u, 100u, 101u),   // Same as at the top.
+      DEF_AGET(5, Instruction::AGET_WIDE, 4u, 100u, 101u),   // Same as at the top.
 
-      DEF_AGET(3, Instruction::AGET_BYTE, 3u, 200u, 201u),
-      DEF_AGET(4, Instruction::AGET_BYTE, 4u, 200u, 201u),  // Differs from top...
-      DEF_APUT(4, Instruction::APUT_BYTE, 5u, 200u, 201u),  // Because of this IPUT.
-      DEF_AGET(5, Instruction::AGET_BYTE, 6u, 200u, 201u),  // Differs from top and the loop AGET.
+      DEF_AGET(3, Instruction::AGET_BYTE, 6u, 200u, 201u),
+      DEF_AGET(4, Instruction::AGET_BYTE, 7u, 200u, 201u),  // Differs from top...
+      DEF_APUT(4, Instruction::APUT_BYTE, 8u, 200u, 201u),  // Because of this IPUT.
+      DEF_AGET(5, Instruction::AGET_BYTE, 9u, 200u, 201u),  // Differs from top and the loop AGET.
 
-      DEF_AGET(3, Instruction::AGET, 7u, 300u, 301u),
-      DEF_APUT(4, Instruction::APUT, 8u, 300u, 301u),   // Because of this IPUT...
-      DEF_AGET(4, Instruction::AGET, 9u, 300u, 301u),   // Differs from top.
-      DEF_AGET(5, Instruction::AGET, 10u, 300u, 301u),  // Differs from top but == the loop AGET.
+      DEF_AGET(3, Instruction::AGET, 10u, 300u, 301u),
+      DEF_APUT(4, Instruction::APUT, 11u, 300u, 301u),  // Because of this IPUT...
+      DEF_AGET(4, Instruction::AGET, 12u, 300u, 301u),   // Differs from top.
+      DEF_AGET(5, Instruction::AGET, 13u, 300u, 301u),  // Differs from top but == the loop AGET.
 
-      DEF_CONST(3, Instruction::CONST, 11u, 3000),
-      DEF_APUT(3, Instruction::APUT_CHAR, 11u, 400u, 401u),
-      DEF_APUT(3, Instruction::APUT_CHAR, 11u, 400u, 402u),
-      DEF_AGET(4, Instruction::AGET_CHAR, 14u, 400u, 401u),  // Differs from 11u and 16u.
-      DEF_AGET(4, Instruction::AGET_CHAR, 15u, 400u, 402u),  // Same as 14u.
-      DEF_CONST(4, Instruction::CONST, 16u, 4000),
-      DEF_APUT(4, Instruction::APUT_CHAR, 16u, 400u, 401u),
-      DEF_APUT(4, Instruction::APUT_CHAR, 16u, 400u, 402u),
+      DEF_CONST(3, Instruction::CONST, 14u, 3000),
+      DEF_APUT(3, Instruction::APUT_CHAR, 14u, 400u, 401u),
+      DEF_APUT(3, Instruction::APUT_CHAR, 14u, 400u, 402u),
+      DEF_AGET(4, Instruction::AGET_CHAR, 15u, 400u, 401u),  // Differs from 11u and 16u.
+      DEF_AGET(4, Instruction::AGET_CHAR, 16u, 400u, 402u),  // Same as 14u.
+      DEF_CONST(4, Instruction::CONST, 17u, 4000),
+      DEF_APUT(4, Instruction::APUT_CHAR, 17u, 400u, 401u),
+      DEF_APUT(4, Instruction::APUT_CHAR, 17u, 400u, 402u),
       DEF_AGET(5, Instruction::AGET_CHAR, 19u, 400u, 401u),  // Differs from 11u and 14u...
       DEF_AGET(5, Instruction::AGET_CHAR, 20u, 400u, 402u),  // and same as the CONST 16u.
 
@@ -1531,6 +1550,8 @@ TEST_F(GlobalValueNumberingTestLoop, AliasingArrays) {
   };
 
   PrepareMIRs(mirs);
+  static const int32_t wide_sregs[] = { 0, 2, 4 };
+  MarkAsWideSRegs(wide_sregs);
   PerformGVN();
   ASSERT_EQ(arraysize(mirs), value_names_.size());
   EXPECT_EQ(value_names_[0], value_names_[1]);
