@@ -468,7 +468,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   ifeq ($$(art_target_or_host),target)
     LOCAL_SHARED_LIBRARIES += libdl
     # ZipArchive support, the order matters here to get all symbols.
-    LOCAL_STATIC_LIBRARIES := libziparchive libz
+    LOCAL_STATIC_LIBRARIES := libziparchive libz libbase
     # For android::FileMap used by libziparchive.
     LOCAL_SHARED_LIBRARIES += libutils
     # For liblog, atrace, properties, ashmem, set_sched_policy and socket_peer_is_trusted.
