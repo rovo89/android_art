@@ -702,7 +702,6 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
           current_block_->AddInstruction(load_class);
           clinit_check = new (arena_) HClinitCheck(load_class, dex_pc);
           current_block_->AddInstruction(clinit_check);
-          ++number_of_arguments;
         }
       }
     }
@@ -745,14 +744,14 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
       i++;
     }
   }
+  DCHECK_EQ(argument_index, number_of_arguments);
 
   if (clinit_check_requirement == HInvokeStaticOrDirect::ClinitCheckRequirement::kExplicit) {
     // Add the class initialization check as last input of `invoke`.
     DCHECK(clinit_check != nullptr);
-    invoke->SetArgumentAt(argument_index++, clinit_check);
+    invoke->SetArgumentAt(argument_index, clinit_check);
   }
 
-  DCHECK_EQ(argument_index, number_of_arguments);
   current_block_->AddInstruction(invoke);
   latest_result_ = invoke;
 
