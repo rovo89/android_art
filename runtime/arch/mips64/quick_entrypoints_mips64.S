@@ -1265,6 +1265,16 @@ ENTRY \name
 END \name
 .endm
 
+.macro FOUR_ARG_DOWNCALL name, entrypoint, return
+    .extern \entrypoint
+ENTRY \name
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
+    jal     \entrypoint
+    move    $a4, rSELF                 # pass Thread::Current
+    \return
+END \name
+.endm
+
 // Generate the allocation entrypoints for each allocator.
 GENERATE_ALL_ALLOC_ENTRYPOINTS
 
