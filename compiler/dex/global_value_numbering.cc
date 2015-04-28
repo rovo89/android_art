@@ -128,8 +128,9 @@ bool GlobalValueNumbering::FinishBasicBlock(BasicBlock* bb) {
   ++bbs_processed_;
   merge_lvns_.clear();
 
-  bool change = (lvns_[bb->id] == nullptr) || !lvns_[bb->id]->Equals(*work_lvn_);
+  bool change = false;
   if (mode_ == kModeGvn) {
+    change = (lvns_[bb->id] == nullptr) || !lvns_[bb->id]->Equals(*work_lvn_);
     // In GVN mode, keep the latest LVN even if Equals() indicates no change. This is
     // to keep the correct values of fields that do not contribute to Equals() as long
     // as they depend only on predecessor LVNs' fields that do contribute to Equals().
@@ -137,6 +138,9 @@ bool GlobalValueNumbering::FinishBasicBlock(BasicBlock* bb) {
     std::unique_ptr<const LocalValueNumbering> old_lvn(lvns_[bb->id]);
     lvns_[bb->id] = work_lvn_.release();
   } else {
+    DCHECK_EQ(mode_, kModeGvnPostProcessing);  // kModeLvn doesn't use FinishBasicBlock().
+    DCHECK(lvns_[bb->id] != nullptr);
+    DCHECK(lvns_[bb->id]->Equals(*work_lvn_));
     work_lvn_.reset();
   }
   return change;
