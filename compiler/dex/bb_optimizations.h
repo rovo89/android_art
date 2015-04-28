@@ -308,9 +308,6 @@ class GlobalValueNumberingCleanupPass : public PassME {
     : PassME("GVNCleanup", kNoNodes, "") {
   }
 
-  // Depends on GlobalValueNumbering, so implemented in cc file.
-  bool Gate(const PassDataHolder* data) const OVERRIDE;
-
   void Start(PassDataHolder* data) const OVERRIDE {
     DCHECK(data != nullptr);
     CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
