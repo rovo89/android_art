@@ -115,10 +115,14 @@ std::string Throwable::Dump() {
       } else {
         for (int32_t i = 0; i < ste_array->GetLength(); ++i) {
           StackTraceElement* ste = ste_array->Get(i);
-          result += StringPrintf("  at %s (%s:%d)\n",
-                                 ste->GetMethodName()->ToModifiedUtf8().c_str(),
-                                 ste->GetFileName()->ToModifiedUtf8().c_str(),
-                                 ste->GetLineNumber());
+          DCHECK(ste != nullptr);
+          auto* method_name = ste->GetMethodName();
+          auto* file_name = ste->GetFileName();
+          result += StringPrintf(
+              "  at %s (%s:%d)\n",
+              method_name != nullptr ? method_name->ToModifiedUtf8().c_str() : "<unknown method>",
+              file_name != nullptr ? file_name->ToModifiedUtf8().c_str() : "(Unknown Source)",
+              ste->GetLineNumber());
         }
       }
     } else {
