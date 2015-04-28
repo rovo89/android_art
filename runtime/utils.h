@@ -300,6 +300,18 @@ static inline int WhichPowerOf2(T x) {
   return CTZ(x);
 }
 
+// Return whether x / divisor == x * (1.0f / divisor), for every float x.
+static constexpr bool CanDivideByReciprocalMultiplyFloat(int32_t divisor) {
+  // True, if the most significant bits of divisor are 0.
+  return ((divisor & 0x7fffff) == 0);
+}
+
+// Return whether x / divisor == x * (1.0 / divisor), for every double x.
+static constexpr bool CanDivideByReciprocalMultiplyDouble(int64_t divisor) {
+  // True, if the most significant bits of divisor are 0.
+  return ((divisor & ((UINT64_C(1) << 52) - 1)) == 0);
+}
+
 template<typename T>
 static constexpr int POPCOUNT(T x) {
   return (sizeof(T) == sizeof(uint32_t))
