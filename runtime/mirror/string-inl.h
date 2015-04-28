@@ -54,8 +54,9 @@ class SetStringCountVisitor {
 // Sets string count and value in the allocation code path to ensure it is guarded by a CAS.
 class SetStringCountAndBytesVisitor {
  public:
-  SetStringCountAndBytesVisitor(int32_t count, uint8_t* src, int32_t high_byte)
-      : count_(count), src_(src), high_byte_(high_byte) {
+  SetStringCountAndBytesVisitor(int32_t count, Handle<ByteArray> src_array, int32_t offset,
+                                int32_t high_byte)
+      : count_(count), src_array_(src_array), offset_(offset), high_byte_(high_byte) {
   }
 
   void operator()(Object* obj, size_t usable_size ATTRIBUTE_UNUSED) const
@@ -64,35 +65,63 @@ class SetStringCountAndBytesVisitor {
     String* string = down_cast<String*>(obj);
     string->SetCount(count_);
     uint16_t* value = string->GetValue();
+    const uint8_t* const src = reinterpret_cast<uint8_t*>(src_array_->GetData()) + offset_;
     for (int i = 0; i < count_; i++) {
-      value[i] = high_byte_ + (src_[i] & 0xFF);
+      value[i] = high_byte_ + (src[i] & 0xFF);
     }
   }
 
  private:
   const int32_t count_;
-  const uint8_t* const src_;
+  Handle<ByteArray> src_array_;
+  const int32_t offset_;
   const int32_t high_byte_;
 };
 
 // Sets string count and value in the allocation code path to ensure it is guarded by a CAS.
-class SetStringCountAndValueVisitor {
+class SetStringCountAndValueVisitorFromCharArray {
  public:
-  SetStringCountAndValueVisitor(int32_t count, uint16_t* src) : count_(count), src_(src) {
+  SetStringCountAndValueVisitorFromCharArray(int32_t count, Handle<CharArray> src_array,
+                                             int32_t offset) :
+    count_(count), src_array_(src_array), offset_(offset) {
   }
 
-  void operator()(Object* obj, size_t usable_size) const
+  void operator()(Object* obj, size_t usable_size ATTRIBUTE_UNUSED) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    UNUSED(usable_size);
     // Avoid AsString as object is not yet in live bitmap or allocation stack.
     String* string = down_cast<String*>(obj);
     string->SetCount(count_);
-    memcpy(string->GetValue(), src_, count_ * sizeof(uint16_t));
+    const uint16_t* const src = src_array_->GetData() + offset_;
+    memcpy(string->GetValue(), src, count_ * sizeof(uint16_t));
   }
 
  private:
   const int32_t count_;
-  const uint16_t* const src_;
+  Handle<CharArray> src_array_;
+  const int32_t offset_;
+};
+
+// Sets string count and value in the allocation code path to ensure it is guarded by a CAS.
+class SetStringCountAndValueVisitorFromString {
+ public:
+  SetStringCountAndValueVisitorFromString(int32_t count, Handle<String> src_string,
+                                          int32_t offset) :
+    count_(count), src_string_(src_string), offset_(offset) {
+  }
+
+  void operator()(Object* obj, size_t usable_size ATTRIBUTE_UNUSED) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // Avoid AsString as object is not yet in live bitmap or allocation stack.
+    String* string = down_cast<String*>(obj);
+    string->SetCount(count_);
+    const uint16_t* const src = src_string_->GetValue() + offset_;
+    memcpy(string->GetValue(), src, count_ * sizeof(uint16_t));
+  }
+
+ private:
+  const int32_t count_;
+  Handle<String> src_string_;
+  const int32_t offset_;
 };
 
 inline String* String::Intern() {
@@ -140,8 +169,7 @@ template <bool kIsInstrumented>
 inline String* String::AllocFromByteArray(Thread* self, int32_t byte_length,
                                           Handle<ByteArray> array, int32_t offset,
                                           int32_t high_byte, gc::AllocatorType allocator_type) {
-  uint8_t* data = reinterpret_cast<uint8_t*>(array->GetData()) + offset;
-  SetStringCountAndBytesVisitor visitor(byte_length, data, high_byte << 8);
+  SetStringCountAndBytesVisitor visitor(byte_length, array, offset, high_byte << 8);
   String* string = Alloc<kIsInstrumented>(self, byte_length, allocator_type, visitor);
   return string;
 }
@@ -150,8 +178,7 @@ template <bool kIsInstrumented>
 inline String* String::AllocFromCharArray(Thread* self, int32_t array_length,
                                           Handle<CharArray> array, int32_t offset,
                                           gc::AllocatorType allocator_type) {
-  uint16_t* data = array->GetData() + offset;
-  SetStringCountAndValueVisitor visitor(array_length, data);
+  SetStringCountAndValueVisitorFromCharArray visitor(array_length, array, offset);
   String* new_string = Alloc<kIsInstrumented>(self, array_length, allocator_type, visitor);
   return new_string;
 }
@@ -159,8 +186,7 @@ inline String* String::AllocFromCharArray(Thread* self, int32_t array_length,
 template <bool kIsInstrumented>
 inline String* String::AllocFromString(Thread* self, int32_t string_length, Handle<String> string,
                                        int32_t offset, gc::AllocatorType allocator_type) {
-  uint16_t* data = string->GetValue() + offset;
-  SetStringCountAndValueVisitor visitor(string_length, data);
+  SetStringCountAndValueVisitorFromString visitor(string_length, string, offset);
   String* new_string = Alloc<kIsInstrumented>(self, string_length, allocator_type, visitor);
   return new_string;
 }
