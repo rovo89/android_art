@@ -1042,10 +1042,11 @@ inline size_t RosAlloc::Run::MarkFreeBitMapShared(void* ptr, uint32_t* free_bit_
 
 inline uint32_t RosAlloc::Run::GetBitmapLastVectorMask(size_t num_slots, size_t num_vec) {
   const size_t kBitsPerVec = 32;
-  DCHECK_GE(num_slots * kBitsPerVec, num_vec);
+  DCHECK_GE(num_vec * kBitsPerVec, num_slots);
+  DCHECK_NE(num_vec, 0U);
   size_t remain = num_vec * kBitsPerVec - num_slots;
-  DCHECK_NE(remain, kBitsPerVec);
-  return ((1U << remain) - 1) << (kBitsPerVec - remain);
+  DCHECK_LT(remain, kBitsPerVec);
+  return ((1U << remain) - 1) << ((kBitsPerVec - remain) & 0x1F);
 }
 
 inline bool RosAlloc::Run::IsAllFree() {
