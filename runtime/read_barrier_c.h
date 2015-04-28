@@ -26,9 +26,9 @@
 // table-lookup read barriers.
 
 #ifdef ART_USE_READ_BARRIER
-// #define USE_BAKER_READ_BARRIER
+#define USE_BAKER_READ_BARRIER
 // #define USE_BROOKS_READ_BARRIER
-#define USE_TABLE_LOOKUP_READ_BARRIER
+// #define USE_TABLE_LOOKUP_READ_BARRIER
 #endif
 
 #if defined(USE_BAKER_READ_BARRIER) || defined(USE_BROOKS_READ_BARRIER)
