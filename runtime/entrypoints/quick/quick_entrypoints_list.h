@@ -29,6 +29,9 @@
   V(AllocObjectWithAccessCheck, void*, uint32_t, mirror::ArtMethod*) \
   V(CheckAndAllocArray, void*, uint32_t, int32_t, mirror::ArtMethod*) \
   V(CheckAndAllocArrayWithAccessCheck, void*, uint32_t, int32_t, mirror::ArtMethod*) \
+  V(AllocStringFromBytes, void*, void*, int32_t, int32_t, int32_t) \
+  V(AllocStringFromChars, void*, int32_t, int32_t, void*) \
+  V(AllocStringFromString, void*, void*) \
 \
   V(InstanceofNonTrivial, uint32_t, const mirror::Class*, const mirror::Class*) \
   V(CheckCast, void, const mirror::Class*, const mirror::Class*) \
@@ -123,8 +126,24 @@
   V(Deoptimize, void, void) \
 \
   V(A64Load, int64_t, volatile const int64_t *) \
-  V(A64Store, void, volatile int64_t *, int64_t)
-
+  V(A64Store, void, volatile int64_t *, int64_t) \
+\
+  V(NewEmptyString, void) \
+  V(NewStringFromBytes_B, void) \
+  V(NewStringFromBytes_BI, void) \
+  V(NewStringFromBytes_BII, void) \
+  V(NewStringFromBytes_BIII, void) \
+  V(NewStringFromBytes_BIIString, void) \
+  V(NewStringFromBytes_BString, void) \
+  V(NewStringFromBytes_BIICharset, void) \
+  V(NewStringFromBytes_BCharset, void) \
+  V(NewStringFromChars_C, void) \
+  V(NewStringFromChars_CII, void) \
+  V(NewStringFromChars_IIC, void) \
+  V(NewStringFromCodePoints, void) \
+  V(NewStringFromString, void) \
+  V(NewStringFromStringBuffer, void) \
+  V(NewStringFromStringBuilder, void)
 
 #endif  // ART_RUNTIME_ENTRYPOINTS_QUICK_QUICK_ENTRYPOINTS_LIST_H_
 #undef ART_RUNTIME_ENTRYPOINTS_QUICK_QUICK_ENTRYPOINTS_LIST_H_   // #define is only for lint.

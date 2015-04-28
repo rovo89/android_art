@@ -127,14 +127,25 @@ bool RegisterLine::VerifyRegisterTypeWide(MethodVerifier* verifier, uint32_t vsr
   return true;
 }
 
-void RegisterLine::MarkRefsAsInitialized(MethodVerifier* verifier, const RegType& uninit_type) {
+void RegisterLine::MarkRefsAsInitialized(MethodVerifier* verifier, const RegType& uninit_type,
+                                         uint32_t this_reg, uint32_t dex_pc) {
   DCHECK(uninit_type.IsUninitializedTypes());
+  bool is_string = !uninit_type.IsUnresolvedTypes() && uninit_type.GetClass()->IsStringClass();
   const RegType& init_type = verifier->GetRegTypeCache()->FromUninitialized(uninit_type);
   size_t changed = 0;
   for (uint32_t i = 0; i < num_regs_; i++) {
     if (GetRegisterType(verifier, i).Equals(uninit_type)) {
       line_[i] = init_type.GetId();
       changed++;
+      if (i != this_reg && is_string) {
+        auto it = verifier->GetStringInitPcRegMap().find(dex_pc);
+        if (it != verifier->GetStringInitPcRegMap().end()) {
+          it->second.insert(i);
+        } else {
+          std::set<uint32_t> reg_set = { i };
+          verifier->GetStringInitPcRegMap().Put(dex_pc, reg_set);
+        }
+      }
     }
   }
   DCHECK_GT(changed, 0u);

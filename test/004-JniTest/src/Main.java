@@ -33,6 +33,7 @@ public class Main {
         testShallowGetCallingClassLoader();
         testShallowGetStackClass2();
         testCallNonvirtual();
+        testNewStringObject();
     }
 
     private static native void testFindClassOnAttachedNativeThread();
@@ -184,6 +185,8 @@ public class Main {
     private static native void nativeTestShallowGetStackClass2();
 
     private static native void testCallNonvirtual();
+
+    private static native void testNewStringObject();
 }
 
 class JniCallNonvirtualTest {

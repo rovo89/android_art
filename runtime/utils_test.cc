@@ -151,9 +151,6 @@ TEST_F(UtilsTest, PrettyField) {
   f = java_lang_String->FindDeclaredInstanceField("count", "I");
   EXPECT_EQ("int java.lang.String.count", PrettyField(f));
   EXPECT_EQ("java.lang.String.count", PrettyField(f, false));
-  f = java_lang_String->FindDeclaredInstanceField("value", "[C");
-  EXPECT_EQ("char[] java.lang.String.value", PrettyField(f));
-  EXPECT_EQ("java.lang.String.value", PrettyField(f, false));
 }
 
 TEST_F(UtilsTest, PrettySize) {

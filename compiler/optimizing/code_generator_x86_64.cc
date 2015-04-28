@@ -366,18 +366,26 @@ void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
   //
   // Currently we implement the app -> app logic, which looks up in the resolve cache.
 
-  // temp = method;
-  LoadCurrentMethod(temp);
-  if (!invoke->IsRecursive()) {
-    // temp = temp->dex_cache_resolved_methods_;
-    __ movl(temp, Address(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset().SizeValue()));
-    // temp = temp[index_in_cache]
-    __ movl(temp, Address(temp, CodeGenerator::GetCacheOffset(invoke->GetDexMethodIndex())));
+  if (invoke->IsStringInit()) {
+    // temp = thread->string_init_entrypoint
+    __ gs()->movl(temp, Address::Absolute(invoke->GetStringInitOffset()));
     // (temp + offset_of_quick_compiled_code)()
     __ call(Address(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
         kX86_64WordSize).SizeValue()));
   } else {
-    __ call(&frame_entry_label_);
+    // temp = method;
+    LoadCurrentMethod(temp);
+    if (!invoke->IsRecursive()) {
+      // temp = temp->dex_cache_resolved_methods_;
+      __ movl(temp, Address(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset().SizeValue()));
+      // temp = temp[index_in_cache]
+      __ movl(temp, Address(temp, CodeGenerator::GetCacheOffset(invoke->GetDexMethodIndex())));
+      // (temp + offset_of_quick_compiled_code)()
+      __ call(Address(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+          kX86_64WordSize).SizeValue()));
+    } else {
+      __ call(&frame_entry_label_);
+    }
   }
 
   DCHECK(!IsLeafMethod());

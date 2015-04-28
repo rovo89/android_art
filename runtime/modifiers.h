@@ -65,6 +65,8 @@ static constexpr uint32_t kAccClassIsWeakReference      = 0x04000000;
 static constexpr uint32_t kAccClassIsFinalizerReference = 0x02000000;
 // class is a phantom reference
 static constexpr uint32_t kAccClassIsPhantomReference   = 0x01000000;
+// class is the string class
+static constexpr uint32_t kAccClassIsStringClass        = 0x00800000;
 
 static constexpr uint32_t kAccReferenceFlagsMask = (kAccClassIsReference
                                                   | kAccClassIsWeakReference

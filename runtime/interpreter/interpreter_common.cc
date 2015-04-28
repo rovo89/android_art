@@ -21,6 +21,7 @@
 #include "debugger.h"
 #include "mirror/array-inl.h"
 #include "unstarted_runtime.h"
+#include "verifier/method_verifier.h"
 
 namespace art {
 namespace interpreter {
@@ -485,16 +486,28 @@ void AbortTransactionV(Thread* self, const char* fmt, va_list args) {
 template<bool is_range, bool do_assignability_check>
 bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
             const Instruction* inst, uint16_t inst_data, JValue* result) {
+  bool string_init = false;
+  // Replace calls to String.<init> with equivalent StringFactory call.
+  if (called_method->GetDeclaringClass()->IsStringClass() && called_method->IsConstructor()) {
+    ScopedObjectAccessUnchecked soa(self);
+    jmethodID mid = soa.EncodeMethod(called_method);
+    called_method = soa.DecodeMethod(WellKnownClasses::StringInitToStringFactoryMethodID(mid));
+    string_init = true;
+  }
+
   // Compute method information.
   const DexFile::CodeItem* code_item = called_method->GetCodeItem();
   const uint16_t num_ins = (is_range) ? inst->VRegA_3rc(inst_data) : inst->VRegA_35c(inst_data);
   uint16_t num_regs;
   if (LIKELY(code_item != nullptr)) {
     num_regs = code_item->registers_size_;
-    DCHECK_EQ(num_ins, code_item->ins_size_);
   } else {
     DCHECK(called_method->IsNative() || called_method->IsProxyMethod());
     num_regs = num_ins;
+    if (string_init) {
+      // The new StringFactory call is static and has one fewer argument.
+      num_regs--;
+    }
   }
 
   // Allocate shadow frame on the stack.
@@ -504,7 +517,7 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
                                                     memory));
 
   // Initialize new shadow frame.
-  const size_t first_dest_reg = num_regs - num_ins;
+  size_t first_dest_reg = num_regs - num_ins;
   if (do_assignability_check) {
     // Slow path.
     // We might need to do class loading, which incurs a thread state change to kNative. So
@@ -534,6 +547,10 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
     if (!new_shadow_frame->GetMethod()->IsStatic()) {
       size_t receiver_reg = is_range ? vregC : arg[0];
       new_shadow_frame->SetVRegReference(dest_reg, shadow_frame.GetVRegReference(receiver_reg));
+      ++dest_reg;
+      ++arg_offset;
+    } else if (string_init) {
+      // Skip the referrer for the new static StringFactory call.
       ++dest_reg;
       ++arg_offset;
     }
@@ -583,7 +600,12 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
   } else {
     // Fast path: no extra checks.
     if (is_range) {
-      const uint16_t first_src_reg = inst->VRegC_3rc();
+      uint16_t first_src_reg = inst->VRegC_3rc();
+      if (string_init) {
+        // Skip the referrer for the new static StringFactory call.
+        ++first_src_reg;
+        ++first_dest_reg;
+      }
       for (size_t src_reg = first_src_reg, dest_reg = first_dest_reg; dest_reg < num_regs;
           ++dest_reg, ++src_reg) {
         AssignRegister(new_shadow_frame, shadow_frame, dest_reg, src_reg);
@@ -592,12 +614,18 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
       DCHECK_LE(num_ins, 5U);
       uint16_t regList = inst->Fetch16(2);
       uint16_t count = num_ins;
+      size_t arg_index = 0;
+      if (string_init) {
+        // Skip the referrer for the new static StringFactory call.
+        regList >>= 4;
+        ++arg_index;
+      }
       if (count == 5) {
         AssignRegister(new_shadow_frame, shadow_frame, first_dest_reg + 4U,
                        (inst_data >> 8) & 0x0f);
         --count;
        }
-      for (size_t arg_index = 0; arg_index < count; ++arg_index, regList >>= 4) {
+      for (; arg_index < count; ++arg_index, regList >>= 4) {
         AssignRegister(new_shadow_frame, shadow_frame, first_dest_reg + arg_index, regList & 0x0f);
       }
     }
@@ -631,6 +659,38 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
   } else {
     UnstartedRuntimeInvoke(self, code_item, new_shadow_frame, result, first_dest_reg);
   }
+
+  if (string_init && !self->IsExceptionPending()) {
+    // Set the new string result of the StringFactory.
+    uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
+    shadow_frame.SetVRegReference(vregC, result->GetL());
+    // Overwrite all potential copies of the original result of the new-instance of string with the
+    // new result of the StringFactory. Use the verifier to find this set of registers.
+    mirror::ArtMethod* method = shadow_frame.GetMethod();
+    MethodReference method_ref = method->ToMethodReference();
+    SafeMap<uint32_t, std::set<uint32_t>> string_init_map;
+    SafeMap<uint32_t, std::set<uint32_t>>* string_init_map_ptr;
+    MethodRefToStringInitRegMap& method_to_string_init_map = Runtime::Current()->GetStringInitMap();
+    auto it = method_to_string_init_map.find(method_ref);
+    if (it == method_to_string_init_map.end()) {
+      string_init_map = std::move(verifier::MethodVerifier::FindStringInitMap(method));
+      method_to_string_init_map.Overwrite(method_ref, string_init_map);
+      string_init_map_ptr = &string_init_map;
+    } else {
+      string_init_map_ptr = &it->second;
+    }
+    if (string_init_map_ptr->size() != 0) {
+      uint32_t dex_pc = shadow_frame.GetDexPC();
+      auto map_it = string_init_map_ptr->find(dex_pc);
+      if (map_it != string_init_map_ptr->end()) {
+        const std::set<uint32_t>& reg_set = map_it->second;
+        for (auto set_it = reg_set.begin(); set_it != reg_set.end(); ++set_it) {
+          shadow_frame.SetVRegReference(*set_it, result->GetL());
+        }
+      }
+    }
+  }
+
   return !self->IsExceptionPending();
 }
 

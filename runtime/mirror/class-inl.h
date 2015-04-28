@@ -548,6 +548,10 @@ inline void Class::CheckObjectAlloc() {
       << PrettyClass(this)
       << "A class object shouldn't be allocated through this "
       << "as it requires a pre-fence visitor that sets the class size.";
+  DCHECK(!IsStringClass())
+      << PrettyClass(this)
+      << "A string shouldn't be allocated through this "
+      << "as it requires a pre-fence visitor that sets the class size.";
   DCHECK(IsInstantiable()) << PrettyClass(this);
   // TODO: decide whether we want this check. It currently fails during bootstrap.
   // DCHECK(!Runtime::Current()->IsStarted() || IsInitializing()) << PrettyClass(this);

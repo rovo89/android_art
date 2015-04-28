@@ -56,8 +56,12 @@ enum InlineMethodOpcode : uint16_t {
   kIntrinsicReferenceGetReferent,
   kIntrinsicCharAt,
   kIntrinsicCompareTo,
+  kIntrinsicGetCharsNoCheck,
   kIntrinsicIsEmptyOrLength,
   kIntrinsicIndexOf,
+  kIntrinsicNewStringFromBytes,
+  kIntrinsicNewStringFromChars,
+  kIntrinsicNewStringFromString,
   kIntrinsicCurrentThread,
   kIntrinsicPeek,
   kIntrinsicPoke,
@@ -71,6 +75,7 @@ enum InlineMethodOpcode : uint16_t {
   kInlineOpNonWideConst,
   kInlineOpIGet,
   kInlineOpIPut,
+  kInlineStringInit,
 };
 std::ostream& operator<<(std::ostream& os, const InlineMethodOpcode& rhs);
 

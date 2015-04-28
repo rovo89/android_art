@@ -89,7 +89,12 @@ bool ImageWriter::PrepareImageAddressSpace() {
     Thread::Current()->TransitionFromSuspendedToRunnable();
     PruneNonImageClasses();  // Remove junk
     ComputeLazyFieldsForImageClasses();  // Add useful information
-    ProcessStrings();
+
+    // Calling this can in theory fill in some resolved strings. However, in practice it seems to
+    // never resolve any.
+    if (kComputeEagerResolvedStrings) {
+      ComputeEagerResolvedStrings();
+    }
     Thread::Current()->TransitionFromRunnableToSuspended(kNative);
   }
   gc::Heap* heap = Runtime::Current()->GetHeap();
@@ -529,14 +534,6 @@ bool ImageWriter::ComputeLazyFieldsForClassesVisitor(Class* c, void* /*arg*/) {
   return true;
 }
 
-// Count the number of strings in the heap and put the result in arg as a size_t pointer.
-static void CountStringsCallback(Object* obj, void* arg)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  if (obj->GetClass()->IsStringClass()) {
-    ++*reinterpret_cast<size_t*>(arg);
-  }
-}
-
 // Collect all the java.lang.String in the heap and put them in the output strings_ array.
 class StringCollector {
  public:
@@ -566,99 +563,19 @@ class LexicographicalStringComparator {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::String* lhs_s = lhs.AsMirrorPtr();
     mirror::String* rhs_s = rhs.AsMirrorPtr();
-    uint16_t* lhs_begin = lhs_s->GetCharArray()->GetData() + lhs_s->GetOffset();
-    uint16_t* rhs_begin = rhs_s->GetCharArray()->GetData() + rhs_s->GetOffset();
+    uint16_t* lhs_begin = lhs_s->GetValue();
+    uint16_t* rhs_begin = rhs_s->GetValue();
     return std::lexicographical_compare(lhs_begin, lhs_begin + lhs_s->GetLength(),
                                         rhs_begin, rhs_begin + rhs_s->GetLength());
   }
 };
-
-static bool IsPrefix(mirror::String* pref, mirror::String* full)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  if (pref->GetLength() > full->GetLength()) {
-    return false;
-  }
-  uint16_t* pref_begin = pref->GetCharArray()->GetData() + pref->GetOffset();
-  uint16_t* full_begin = full->GetCharArray()->GetData() + full->GetOffset();
-  return std::equal(pref_begin, pref_begin + pref->GetLength(), full_begin);
-}
-
-void ImageWriter::ProcessStrings() {
-  size_t total_strings = 0;
-  gc::Heap* heap = Runtime::Current()->GetHeap();
-  ClassLinker* cl = Runtime::Current()->GetClassLinker();
-  // Count the strings.
-  heap->VisitObjects(CountStringsCallback, &total_strings);
-  Thread* self = Thread::Current();
-  StackHandleScope<1> hs(self);
-  auto strings = hs.NewHandle(cl->AllocStringArray(self, total_strings));
-  StringCollector string_collector(strings, 0U);
-  // Read strings into the array.
-  heap->VisitObjects(StringCollector::Callback, &string_collector);
-  // Some strings could have gotten freed if AllocStringArray caused a GC.
-  CHECK_LE(string_collector.GetIndex(), total_strings);
-  total_strings = string_collector.GetIndex();
-  auto* strings_begin = reinterpret_cast<mirror::HeapReference<mirror::String>*>(
-          strings->GetRawData(sizeof(mirror::HeapReference<mirror::String>), 0));
-  std::sort(strings_begin, strings_begin + total_strings, LexicographicalStringComparator());
-  // Characters of strings which are non equal prefix of another string (not the same string).
-  // We don't count the savings from equal strings since these would get interned later anyways.
-  size_t prefix_saved_chars = 0;
-  // Count characters needed for the strings.
-  size_t num_chars = 0u;
-  mirror::String* prev_s = nullptr;
-  for (size_t idx = 0; idx != total_strings; ++idx) {
-    mirror::String* s = strings->GetWithoutChecks(idx);
-    size_t length = s->GetLength();
-    num_chars += length;
-    if (prev_s != nullptr && IsPrefix(prev_s, s)) {
-      size_t prev_length = prev_s->GetLength();
-      num_chars -= prev_length;
-      if (prev_length != length) {
-        prefix_saved_chars += prev_length;
-      }
-    }
-    prev_s = s;
-  }
-  // Create character array, copy characters and point the strings there.
-  mirror::CharArray* array = mirror::CharArray::Alloc(self, num_chars);
-  string_data_array_ = array;
-  uint16_t* array_data = array->GetData();
-  size_t pos = 0u;
-  prev_s = nullptr;
-  for (size_t idx = 0; idx != total_strings; ++idx) {
-    mirror::String* s = strings->GetWithoutChecks(idx);
-    uint16_t* s_data = s->GetCharArray()->GetData() + s->GetOffset();
-    int32_t s_length = s->GetLength();
-    int32_t prefix_length = 0u;
-    if (idx != 0u && IsPrefix(prev_s, s)) {
-      prefix_length = prev_s->GetLength();
-    }
-    memcpy(array_data + pos, s_data + prefix_length, (s_length - prefix_length) * sizeof(*s_data));
-    s->SetOffset(pos - prefix_length);
-    s->SetArray(array);
-    pos += s_length - prefix_length;
-    prev_s = s;
-  }
-  CHECK_EQ(pos, num_chars);
-
-  if (kIsDebugBuild || VLOG_IS_ON(compiler)) {
-    LOG(INFO) << "Total # image strings=" << total_strings << " combined length="
-        << num_chars << " prefix saved chars=" << prefix_saved_chars;
-  }
-  // Calling this can in theory fill in some resolved strings. However, in practice it seems to
-  // never resolve any.
-  if (kComputeEagerResolvedStrings) {
-    ComputeEagerResolvedStrings();
-  }
-}
 
 void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg ATTRIBUTE_UNUSED) {
   if (!obj->GetClass()->IsStringClass()) {
     return;
   }
   mirror::String* string = obj->AsString();
-  const uint16_t* utf16_string = string->GetCharArray()->GetData() + string->GetOffset();
+  const uint16_t* utf16_string = string->GetValue();
   size_t utf16_length = static_cast<size_t>(string->GetLength());
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   ReaderMutexLock mu(Thread::Current(), *class_linker->DexLock());

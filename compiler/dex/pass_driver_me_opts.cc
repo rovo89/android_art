@@ -35,6 +35,7 @@ void PassDriverMEOpts::SetupPasses(PassManager* pass_manager) {
    * Disadvantage is the passes can't change their internal states depending on CompilationUnit:
    *   - This is not yet an issue: no current pass would require it.
    */
+  pass_manager->AddPass(new StringChange);
   pass_manager->AddPass(new CacheFieldLoweringInfo);
   pass_manager->AddPass(new CacheMethodLoweringInfo);
   pass_manager->AddPass(new CalculatePredecessors);

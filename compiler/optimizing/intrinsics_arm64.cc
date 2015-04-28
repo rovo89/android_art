@@ -75,7 +75,7 @@ static void MoveFromReturnRegister(Location trg,
 
   DCHECK_NE(type, Primitive::kPrimVoid);
 
-  if (Primitive::IsIntegralType(type)) {
+  if (Primitive::IsIntegralType(type) || type == Primitive::kPrimNot) {
     Register trg_reg = RegisterFrom(trg, type);
     Register res_reg = RegisterFrom(ARM64ReturnLocation(type), type);
     __ Mov(trg_reg, res_reg, kDiscardForSameWReg);
@@ -953,10 +953,6 @@ void IntrinsicCodeGeneratorARM64::VisitStringCharAt(HInvoke* invoke) {
   const MemberOffset value_offset = mirror::String::ValueOffset();
   // Location of count
   const MemberOffset count_offset = mirror::String::CountOffset();
-  // Starting offset within data array
-  const MemberOffset offset_offset = mirror::String::OffsetOffset();
-  // Start of char data with array_
-  const MemberOffset data_offset = mirror::Array::DataOffset(sizeof(uint16_t));
 
   Register obj = WRegisterFrom(locations->InAt(0));  // String object pointer.
   Register idx = WRegisterFrom(locations->InAt(1));  // Index of character.
@@ -979,21 +975,15 @@ void IntrinsicCodeGeneratorARM64::VisitStringCharAt(HInvoke* invoke) {
   __ Cmp(idx, temp);
   __ B(hs, slow_path->GetEntryLabel());
 
-  // Index computation.
-  __ Ldr(temp, HeapOperand(obj, offset_offset));         // temp := str.offset.
-  __ Ldr(array_temp, HeapOperand(obj, value_offset));    // array_temp := str.offset.
-  __ Add(temp, temp, idx);
-  DCHECK_EQ(data_offset.Int32Value() % 2, 0);            // We'll compensate by shifting.
-  __ Add(temp, temp, Operand(data_offset.Int32Value() / 2));
+  __ Add(array_temp, obj, Operand(value_offset.Int32Value()));  // array_temp := str.value.
 
   // Load the value.
-  __ Ldrh(out, MemOperand(array_temp.X(), temp, UXTW, 1));  // out := array_temp[temp].
+  __ Ldrh(out, MemOperand(array_temp.X(), idx, UXTW, 1));  // out := array_temp[idx].
 
   __ Bind(slow_path->GetExitLabel());
 }
 
 void IntrinsicLocationsBuilderARM64::VisitStringCompareTo(HInvoke* invoke) {
-  // The inputs plus one temp.
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
                                                             LocationSummary::kCall,
                                                             kIntrinsified);
@@ -1022,6 +1012,84 @@ void IntrinsicCodeGeneratorARM64::VisitStringCompareTo(HInvoke* invoke) {
   __ Bind(slow_path->GetExitLabel());
 }
 
+void IntrinsicLocationsBuilderARM64::VisitStringNewStringFromBytes(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCall,
+                                                            kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(2, LocationFrom(calling_convention.GetRegisterAt(2)));
+  locations->SetInAt(3, LocationFrom(calling_convention.GetRegisterAt(3)));
+  locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimNot));
+}
+
+void IntrinsicCodeGeneratorARM64::VisitStringNewStringFromBytes(HInvoke* invoke) {
+  vixl::MacroAssembler* masm = GetVIXLAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  Register byte_array = WRegisterFrom(locations->InAt(0));
+  __ Cmp(byte_array, 0);
+  SlowPathCodeARM64* slow_path = new (GetAllocator()) IntrinsicSlowPathARM64(invoke);
+  codegen_->AddSlowPath(slow_path);
+  __ B(eq, slow_path->GetEntryLabel());
+
+  __ Ldr(lr,
+      MemOperand(tr, QUICK_ENTRYPOINT_OFFSET(kArm64WordSize, pAllocStringFromBytes).Int32Value()));
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+  __ Blr(lr);
+  __ Bind(slow_path->GetExitLabel());
+}
+
+void IntrinsicLocationsBuilderARM64::VisitStringNewStringFromChars(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCall,
+                                                            kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(2, LocationFrom(calling_convention.GetRegisterAt(2)));
+  locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimNot));
+}
+
+void IntrinsicCodeGeneratorARM64::VisitStringNewStringFromChars(HInvoke* invoke) {
+  vixl::MacroAssembler* masm = GetVIXLAssembler();
+
+  __ Ldr(lr,
+      MemOperand(tr, QUICK_ENTRYPOINT_OFFSET(kArm64WordSize, pAllocStringFromChars).Int32Value()));
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+  __ Blr(lr);
+}
+
+void IntrinsicLocationsBuilderARM64::VisitStringNewStringFromString(HInvoke* invoke) {
+  // The inputs plus one temp.
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCall,
+                                                            kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(2, LocationFrom(calling_convention.GetRegisterAt(2)));
+  locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimNot));
+}
+
+void IntrinsicCodeGeneratorARM64::VisitStringNewStringFromString(HInvoke* invoke) {
+  vixl::MacroAssembler* masm = GetVIXLAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  Register string_to_copy = WRegisterFrom(locations->InAt(0));
+  __ Cmp(string_to_copy, 0);
+  SlowPathCodeARM64* slow_path = new (GetAllocator()) IntrinsicSlowPathARM64(invoke);
+  codegen_->AddSlowPath(slow_path);
+  __ B(eq, slow_path->GetEntryLabel());
+
+  __ Ldr(lr,
+      MemOperand(tr, QUICK_ENTRYPOINT_OFFSET(kArm64WordSize, pAllocStringFromString).Int32Value()));
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+  __ Blr(lr);
+  __ Bind(slow_path->GetExitLabel());
+}
+
 // Unimplemented intrinsics.
 
 #define UNIMPLEMENTED_INTRINSIC(Name)                                                  \
@@ -1034,6 +1102,7 @@ UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
 UNIMPLEMENTED_INTRINSIC(StringIndexOf)
 UNIMPLEMENTED_INTRINSIC(StringIndexOfAfter)
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
+UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
 
 }  // namespace arm64
 }  // namespace art

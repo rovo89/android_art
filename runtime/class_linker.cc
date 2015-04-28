@@ -349,8 +349,8 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   Handle<mirror::Class> java_lang_String(hs.NewHandle(
       AllocClass(self, java_lang_Class.Get(), mirror::String::ClassSize())));
   mirror::String::SetClass(java_lang_String.Get());
-  java_lang_String->SetObjectSize(mirror::String::InstanceSize());
   mirror::Class::SetStatus(java_lang_String, mirror::Class::kStatusResolved, self);
+  java_lang_String->SetStringClass();
 
   // Setup java.lang.ref.Reference.
   Handle<mirror::Class> java_lang_ref_Reference(hs.NewHandle(
@@ -478,7 +478,6 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
     String_class->DumpClass(os2, mirror::Class::kDumpClassFullDetail);
     LOG(FATAL) << os1.str() << "\n\n" << os2.str();
   }
-  CHECK_EQ(java_lang_String->GetObjectSize(), mirror::String::InstanceSize());
   mirror::Class::SetStatus(java_lang_DexCache, mirror::Class::kStatusNotReady, self);
   CHECK_EQ(java_lang_DexCache.Get(), FindSystemClass(self, "Ljava/lang/DexCache;"));
   CHECK_EQ(java_lang_DexCache->GetObjectSize(), mirror::DexCache::InstanceSize());
@@ -1739,6 +1738,13 @@ mirror::Class* ClassLinker::DefineClass(Thread* self, const char* descriptor, si
   klass->SetDexCache(FindDexCache(dex_file));
 
   SetupClass(dex_file, dex_class_def, klass, class_loader.Get());
+
+  // Mark the string class by setting its access flag.
+  if (UNLIKELY(!init_done_)) {
+    if (strcmp(descriptor, "Ljava/lang/String;") == 0) {
+      klass->SetStringClass();
+    }
+  }
 
   ObjectLock<mirror::Class> lock(self, klass);
   klass->SetClinitThreadId(self->GetTid());

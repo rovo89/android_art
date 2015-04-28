@@ -2006,20 +2006,30 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
   //
   // Currently we implement the app -> app logic, which looks up in the resolve cache.
 
-  // temp = method;
-  LoadCurrentMethod(temp);
-  if (!invoke->IsRecursive()) {
-    // temp = temp->dex_cache_resolved_methods_;
-    __ Ldr(temp, HeapOperand(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset()));
-    // temp = temp[index_in_cache];
-    __ Ldr(temp, HeapOperand(temp, index_in_cache));
-    // lr = temp->entry_point_from_quick_compiled_code_;
+  if (invoke->IsStringInit()) {
+    // temp = thread->string_init_entrypoint
+    __ Ldr(temp, HeapOperand(tr, invoke->GetStringInitOffset()));
+    // LR = temp->entry_point_from_quick_compiled_code_;
     __ Ldr(lr, HeapOperand(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
         kArm64WordSize)));
-    // lr();
+    // lr()
     __ Blr(lr);
   } else {
-    __ Bl(&frame_entry_label_);
+    // temp = method;
+    LoadCurrentMethod(temp);
+    if (!invoke->IsRecursive()) {
+      // temp = temp->dex_cache_resolved_methods_;
+      __ Ldr(temp, HeapOperand(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset()));
+      // temp = temp[index_in_cache];
+      __ Ldr(temp, HeapOperand(temp, index_in_cache));
+      // lr = temp->entry_point_from_quick_compiled_code_;
+      __ Ldr(lr, HeapOperand(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+          kArm64WordSize)));
+      // lr();
+      __ Blr(lr);
+    } else {
+      __ Bl(&frame_entry_label_);
+    }
   }
 
   DCHECK(!IsLeafMethod());
