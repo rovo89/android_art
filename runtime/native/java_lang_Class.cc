@@ -487,6 +487,17 @@ static jobject Class_newInstance(JNIEnv* env, jobject javaThis) {
                                    PrettyClass(klass.Get()).c_str());
     return nullptr;
   }
+  // Invoke the string allocator to return an empty string for the string class.
+  if (klass->IsStringClass()) {
+    gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
+    mirror::SetStringCountVisitor visitor(0);
+    mirror::Object* obj = mirror::String::Alloc<true>(soa.Self(), 0, allocator_type, visitor);
+    if (UNLIKELY(soa.Self()->IsExceptionPending())) {
+      return nullptr;
+    } else {
+      return soa.AddLocalReference<jobject>(obj);
+    }
+  }
   auto receiver = hs.NewHandle(klass->AllocObject(soa.Self()));
   if (UNLIKELY(receiver.Get() == nullptr)) {
     soa.Self()->AssertPendingOOMException();
