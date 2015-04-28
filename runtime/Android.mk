@@ -362,6 +362,10 @@ ifeq ($(2ND_DEX2OAT_TARGET_ARCH),arm)
   endif
 endif
 
+ifneq ($(filter tetra, $(TARGET_DEVICE)),)
+  LIBART_CFLAGS += -DNO_DUMP_NATIVE_STACKS
+endif
+
 # $(1): target or host
 # $(2): ndebug or debug
 define build-libart
