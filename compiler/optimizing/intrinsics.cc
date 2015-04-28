@@ -374,4 +374,3 @@ INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 }
 
 }  // namespace art
-
