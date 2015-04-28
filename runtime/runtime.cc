@@ -1566,14 +1566,15 @@ void Runtime::AbortTransactionAndThrowAbortError(Thread* self, const std::string
   // Throwing an exception may cause its class initialization. If we mark the transaction
   // aborted before that, we may warn with a false alarm. Throwing the exception before
   // marking the transaction aborted avoids that.
-  preinitialization_transaction_->ThrowAbortError(self, false);
+  preinitialization_transaction_->ThrowAbortError(self, &abort_message);
   preinitialization_transaction_->Abort(abort_message);
 }
 
 void Runtime::ThrowTransactionAbortError(Thread* self) {
   DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
-  preinitialization_transaction_->ThrowAbortError(self, true);
+  // Passing nullptr means we rethrow an exception with the earlier transaction abort message.
+  preinitialization_transaction_->ThrowAbortError(self, nullptr);
 }
 
 void Runtime::RecordWriteFieldBoolean(mirror::Object* obj, MemberOffset field_offset,
