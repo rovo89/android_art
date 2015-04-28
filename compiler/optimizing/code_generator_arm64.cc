@@ -372,15 +372,15 @@ class DeoptimizationSlowPathARM64 : public SlowPathCodeARM64 {
 
 #undef __
 
-Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type) {
+Location InvokeDexCallingConventionVisitorARM64::GetNextLocation(Primitive::Type type) {
   Location next_location;
   if (type == Primitive::kPrimVoid) {
     LOG(FATAL) << "Unreachable type " << type;
   }
 
   if (Primitive::IsFloatingPointType(type) &&
-      (fp_index_ < calling_convention.GetNumberOfFpuRegisters())) {
-    next_location = LocationFrom(calling_convention.GetFpuRegisterAt(fp_index_++));
+      (float_index_ < calling_convention.GetNumberOfFpuRegisters())) {
+    next_location = LocationFrom(calling_convention.GetFpuRegisterAt(float_index_++));
   } else if (!Primitive::IsFloatingPointType(type) &&
              (gp_index_ < calling_convention.GetNumberOfRegisters())) {
     next_location = LocationFrom(calling_convention.GetRegisterAt(gp_index_++));
@@ -1907,7 +1907,7 @@ void LocationsBuilderARM64::HandleInvoke(HInvoke* invoke) {
       new (GetGraph()->GetArena()) LocationSummary(invoke, LocationSummary::kCall);
   locations->AddTemp(LocationFrom(x0));
 
-  InvokeDexCallingConventionVisitor calling_convention_visitor;
+  InvokeDexCallingConventionVisitorARM64 calling_convention_visitor;
   for (size_t i = 0; i < invoke->GetNumberOfArguments(); i++) {
     HInstruction* input = invoke->InputAt(i);
     locations->SetInAt(i, calling_convention_visitor.GetNextLocation(input->GetType()));

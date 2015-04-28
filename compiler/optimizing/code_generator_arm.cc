@@ -605,7 +605,7 @@ Location CodeGeneratorARM::GetStackLocation(HLoadLocal* load) const {
   UNREACHABLE();
 }
 
-Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type) {
+Location InvokeDexCallingConventionVisitorARM::GetNextLocation(Primitive::Type type) {
   switch (type) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
@@ -680,7 +680,7 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
   return Location();
 }
 
-Location InvokeDexCallingConventionVisitor::GetReturnLocation(Primitive::Type type) {
+Location InvokeDexCallingConventionVisitorARM::GetReturnLocation(Primitive::Type type) {
   switch (type) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
@@ -1288,7 +1288,7 @@ void LocationsBuilderARM::HandleInvoke(HInvoke* invoke) {
       new (GetGraph()->GetArena()) LocationSummary(invoke, LocationSummary::kCall);
   locations->AddTemp(Location::RegisterLocation(R0));
 
-  InvokeDexCallingConventionVisitor calling_convention_visitor;
+  InvokeDexCallingConventionVisitorARM calling_convention_visitor;
   for (size_t i = 0; i < invoke->GetNumberOfArguments(); i++) {
     HInstruction* input = invoke->InputAt(i);
     locations->SetInAt(i, calling_convention_visitor.GetNextLocation(input->GetType()));

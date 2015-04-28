@@ -1240,7 +1240,7 @@ void InstructionCodeGeneratorX86_64::VisitReturn(HReturn* ret) {
   codegen_->GenerateFrameExit();
 }
 
-Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type) {
+Location InvokeDexCallingConventionVisitorX86_64::GetNextLocation(Primitive::Type type) {
   switch (type) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
@@ -1270,7 +1270,7 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
     }
 
     case Primitive::kPrimFloat: {
-      uint32_t index = fp_index_++;
+      uint32_t index = float_index_++;
       stack_index_++;
       if (index < calling_convention.GetNumberOfFpuRegisters()) {
         return Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(index));
@@ -1280,7 +1280,7 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
     }
 
     case Primitive::kPrimDouble: {
-      uint32_t index = fp_index_++;
+      uint32_t index = float_index_++;
       stack_index_ += 2;
       if (index < calling_convention.GetNumberOfFpuRegisters()) {
         return Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(index));
@@ -1338,7 +1338,7 @@ void LocationsBuilderX86_64::HandleInvoke(HInvoke* invoke) {
       new (GetGraph()->GetArena()) LocationSummary(invoke, LocationSummary::kCall);
   locations->AddTemp(Location::RegisterLocation(RDI));
 
-  InvokeDexCallingConventionVisitor calling_convention_visitor;
+  InvokeDexCallingConventionVisitorX86_64 calling_convention_visitor;
   for (size_t i = 0; i < invoke->GetNumberOfArguments(); i++) {
     HInstruction* input = invoke->InputAt(i);
     locations->SetInAt(i, calling_convention_visitor.GetNextLocation(input->GetType()));
