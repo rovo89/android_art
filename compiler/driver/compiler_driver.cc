@@ -40,6 +40,7 @@
 #include "dex/verification_results.h"
 #include "dex/verified_method.h"
 #include "dex/quick/dex_file_method_inliner.h"
+#include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "driver/compiler_options.h"
 #include "elf_writer_quick.h"
 #include "jni_internal.h"
@@ -2483,6 +2484,18 @@ std::string CompilerDriver::GetMemoryUsageString(bool extended) const {
     oss << "\nCFI info dedupe: " << dedupe_cfi_info_.DumpStats();
   }
   return oss.str();
+}
+
+bool CompilerDriver::IsStringTypeIndex(uint16_t type_index, const DexFile* dex_file) {
+  const char* type = dex_file->GetTypeDescriptor(dex_file->GetTypeId(type_index));
+  return strcmp(type, "Ljava/lang/String;") == 0;
+}
+
+bool CompilerDriver::IsStringInit(uint32_t method_index, const DexFile* dex_file, int32_t* offset) {
+  DexFileMethodInliner* inliner = GetMethodInlinerMap()->GetMethodInliner(dex_file);
+  size_t pointer_size = InstructionSetPointerSize(GetInstructionSet());
+  *offset = inliner->GetOffsetForStringInit(method_index, pointer_size);
+  return inliner->IsStringInitMethodIndex(method_index);
 }
 
 }  // namespace art

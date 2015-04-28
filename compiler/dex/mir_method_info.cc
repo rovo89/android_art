@@ -16,6 +16,7 @@
 
 # include "mir_method_info.h"
 
+#include "dex/compiler_ir.h"
 #include "dex/quick/dex_file_method_inliner.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/verified_method.h"
@@ -83,6 +84,13 @@ void MirMethodLoweringInfo::Resolve(CompilerDriver* compiler_driver,
     MethodReference* devirt_target = (it->target_dex_file_ != nullptr) ? &devirt_ref : nullptr;
     InvokeType invoke_type = it->GetInvokeType();
     mirror::ArtMethod* resolved_method = nullptr;
+
+    bool string_init = false;
+    if (default_inliner->IsStringInitMethodIndex(it->MethodIndex())) {
+      string_init = true;
+      invoke_type = kDirect;
+    }
+
     if (!it->IsQuickened()) {
       it->target_dex_file_ = dex_file;
       it->target_method_idx_ = it->MethodIndex();
@@ -170,6 +178,9 @@ void MirMethodLoweringInfo::Resolve(CompilerDriver* compiler_driver,
     it->target_dex_file_ = target_method.dex_file;
     it->target_method_idx_ = target_method.dex_method_index;
     it->stats_flags_ = fast_path_flags;
+    if (string_init) {
+      it->direct_code_ = 0;
+    }
   }
 }
 

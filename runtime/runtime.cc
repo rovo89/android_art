@@ -91,6 +91,7 @@
 #include "native/java_lang_Object.h"
 #include "native/java_lang_Runtime.h"
 #include "native/java_lang_String.h"
+#include "native/java_lang_StringFactory.h"
 #include "native/java_lang_System.h"
 #include "native/java_lang_Thread.h"
 #include "native/java_lang_Throwable.h"
@@ -103,6 +104,7 @@
 #include "native/java_lang_reflect_Method.h"
 #include "native/java_lang_reflect_Proxy.h"
 #include "native/java_util_concurrent_atomic_AtomicLong.h"
+#include "native/libcore_util_CharsetUtils.h"
 #include "native/org_apache_harmony_dalvik_ddmc_DdmServer.h"
 #include "native/org_apache_harmony_dalvik_ddmc_DdmVmInternal.h"
 #include "native/sun_misc_Unsafe.h"
@@ -1170,11 +1172,13 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
   register_java_lang_ref_Reference(env);
   register_java_lang_Runtime(env);
   register_java_lang_String(env);
+  register_java_lang_StringFactory(env);
   register_java_lang_System(env);
   register_java_lang_Thread(env);
   register_java_lang_Throwable(env);
   register_java_lang_VMClassLoader(env);
   register_java_util_concurrent_atomic_AtomicLong(env);
+  register_libcore_util_CharsetUtils(env);
   register_org_apache_harmony_dalvik_ddmc_DdmServer(env);
   register_org_apache_harmony_dalvik_ddmc_DdmVmInternal(env);
   register_sun_misc_Unsafe(env);

@@ -37,7 +37,7 @@ static constexpr FloatRegister kParameterFloatRegisters[] =
 static constexpr size_t kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
 static constexpr size_t kParameterFloatRegistersLength = arraysize(kParameterFloatRegisters);
 
-static constexpr Register kRuntimeParameterCoreRegisters[] = { RDI, RSI, RDX };
+static constexpr Register kRuntimeParameterCoreRegisters[] = { RDI, RSI, RDX, RCX };
 static constexpr size_t kRuntimeParameterCoreRegistersLength =
     arraysize(kRuntimeParameterCoreRegisters);
 static constexpr FloatRegister kRuntimeParameterFpuRegisters[] = { XMM0, XMM1 };

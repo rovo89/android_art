@@ -220,9 +220,6 @@ class ImageWriter FINAL {
   static void ComputeEagerResolvedStringsCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Combine string char arrays.
-  void ProcessStrings() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   // Remove unwanted classes from various roots.
   void PruneNonImageClasses() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static bool NonImageClassesVisitor(mirror::Class* c, void* arg)

@@ -96,6 +96,17 @@ class DexFileMethodInliner {
         LOCKS_EXCLUDED(lock_);
 
     /**
+     * Gets the thread pointer entrypoint offset for a string init method index and pointer size.
+     */
+    uint32_t GetOffsetForStringInit(uint32_t method_index, size_t pointer_size)
+        LOCKS_EXCLUDED(lock_);
+
+    /**
+     * Check whether a particular method index is a string init.
+     */
+    bool IsStringInitMethodIndex(uint32_t method_index) LOCKS_EXCLUDED(lock_);
+
+    /**
      * To avoid multiple lookups of a class by its descriptor, we cache its
      * type index in the IndexCache. These are the indexes into the IndexCache
      * class_indexes array.
@@ -111,9 +122,15 @@ class DexFileMethodInliner {
       kClassCacheFloat,
       kClassCacheDouble,
       kClassCacheVoid,
+      kClassCacheJavaLangByteArray,
+      kClassCacheJavaLangCharArray,
+      kClassCacheJavaLangIntArray,
       kClassCacheJavaLangObject,
       kClassCacheJavaLangRefReference,
       kClassCacheJavaLangString,
+      kClassCacheJavaLangStringBuffer,
+      kClassCacheJavaLangStringBuilder,
+      kClassCacheJavaLangStringFactory,
       kClassCacheJavaLangDouble,
       kClassCacheJavaLangFloat,
       kClassCacheJavaLangInteger,
@@ -122,10 +139,10 @@ class DexFileMethodInliner {
       kClassCacheJavaLangMath,
       kClassCacheJavaLangStrictMath,
       kClassCacheJavaLangThread,
+      kClassCacheJavaNioCharsetCharset,
       kClassCacheLibcoreIoMemory,
       kClassCacheSunMiscUnsafe,
       kClassCacheJavaLangSystem,
-      kClassCacheJavaLangCharArray,
       kClassCacheLast
     };
 
@@ -153,9 +170,14 @@ class DexFileMethodInliner {
       kNameCacheReferenceGetReferent,
       kNameCacheCharAt,
       kNameCacheCompareTo,
+      kNameCacheGetCharsNoCheck,
       kNameCacheIsEmpty,
       kNameCacheIndexOf,
       kNameCacheLength,
+      kNameCacheInit,
+      kNameCacheNewStringFromBytes,
+      kNameCacheNewStringFromChars,
+      kNameCacheNewStringFromString,
       kNameCacheCurrentThread,
       kNameCachePeekByte,
       kNameCachePeekIntNative,
@@ -230,6 +252,26 @@ class DexFileMethodInliner {
       kProtoCacheObjectJ_Object,
       kProtoCacheObjectJObject_V,
       kProtoCacheCharArrayICharArrayII_V,
+      kProtoCacheIICharArrayI_V,
+      kProtoCacheByteArrayIII_String,
+      kProtoCacheIICharArray_String,
+      kProtoCacheString_String,
+      kProtoCache_V,
+      kProtoCacheByteArray_V,
+      kProtoCacheByteArrayI_V,
+      kProtoCacheByteArrayII_V,
+      kProtoCacheByteArrayIII_V,
+      kProtoCacheByteArrayIIString_V,
+      kProtoCacheByteArrayString_V,
+      kProtoCacheByteArrayIICharset_V,
+      kProtoCacheByteArrayCharset_V,
+      kProtoCacheCharArray_V,
+      kProtoCacheCharArrayII_V,
+      kProtoCacheIICharArray_V,
+      kProtoCacheIntArrayII_V,
+      kProtoCacheString_V,
+      kProtoCacheStringBuffer_V,
+      kProtoCacheStringBuilder_V,
       kProtoCacheLast
     };
 

@@ -564,14 +564,21 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
 
   mirror::Object* receiver = nullptr;
   if (!m->IsStatic()) {
-    // Check that the receiver is non-null and an instance of the field's declaring class.
-    receiver = soa.Decode<mirror::Object*>(javaReceiver);
-    if (!VerifyObjectIsClass(receiver, declaring_class)) {
-      return nullptr;
-    }
+    // Replace calls to String.<init> with equivalent StringFactory call.
+    if (declaring_class->IsStringClass() && m->IsConstructor()) {
+      jmethodID mid = soa.EncodeMethod(m);
+      m = soa.DecodeMethod(WellKnownClasses::StringInitToStringFactoryMethodID(mid));
+      CHECK(javaReceiver == nullptr);
+    } else {
+      // Check that the receiver is non-null and an instance of the field's declaring class.
+      receiver = soa.Decode<mirror::Object*>(javaReceiver);
+      if (!VerifyObjectIsClass(receiver, declaring_class)) {
+        return nullptr;
+      }
 
-    // Find the actual implementation of the virtual method.
-    m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(m);
+      // Find the actual implementation of the virtual method.
+      m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(m);
+    }
   }
 
   // Get our arrays of arguments and their types, and check they're the same size.

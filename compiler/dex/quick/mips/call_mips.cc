@@ -20,7 +20,9 @@
 
 #include "base/logging.h"
 #include "dex/mir_graph.h"
+#include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/quick/mir_to_lir-inl.h"
+#include "driver/compiler_driver.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "gc/accounting/card_table.h"
 #include "mips_lir.h"
@@ -397,11 +399,28 @@ void MipsMir2Lir::GenSpecialExitForSuspend() {
  * Bit of a hack here - in the absence of a real scheduling pass,
  * emit the next instruction in static & direct invoke sequences.
  */
-static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info ATTRIBUTE_UNUSED, int state,
+static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info, int state,
                           const MethodReference& target_method, uint32_t, uintptr_t direct_code,
                           uintptr_t direct_method, InvokeType type) {
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
-  if (direct_code != 0 && direct_method != 0) {
+  if (info->string_init_offset != 0) {
+    RegStorage arg0_ref = cg->TargetReg(kArg0, kRef);
+    switch (state) {
+    case 0: {  // Grab target method* from thread pointer
+      cg->LoadRefDisp(cg->TargetPtrReg(kSelf), info->string_init_offset, arg0_ref, kNotVolatile);
+      break;
+    }
+    case 1:  // Grab the code from the method*
+      if (direct_code == 0) {
+        int32_t offset = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+            InstructionSetPointerSize(cu->instruction_set)).Int32Value();
+        cg->LoadWordDisp(arg0_ref, offset, cg->TargetPtrReg(kInvokeTgt));
+      }
+      break;
+    default:
+      return -1;
+    }
+  } else if (direct_code != 0 && direct_method != 0) {
     switch (state) {
       case 0:  // Get the current Method* [sets kArg0]
         if (direct_code != static_cast<uintptr_t>(-1)) {

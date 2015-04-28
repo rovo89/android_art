@@ -18,6 +18,7 @@
 #include "base/logging.h"
 #include "base/scoped_arena_containers.h"
 #include "dataflow_iterator-inl.h"
+#include "dex/verified_method.h"
 #include "dex_flags.h"
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
@@ -25,10 +26,11 @@
 #include "gvn_dead_code_elimination.h"
 #include "local_value_numbering.h"
 #include "mir_field_info.h"
-#include "type_inference.h"
+#include "mirror/string.h"
 #include "quick/dex_file_method_inliner.h"
 #include "quick/dex_file_to_method_inliner_map.h"
 #include "stack.h"
+#include "type_inference.h"
 
 namespace art {
 
@@ -1659,6 +1661,77 @@ void MIRGraph::BasicBlockOptimizationEnd() {
   temp_.gvn.sfield_ids = nullptr;
   temp_scoped_alloc_.reset();
 }
+
+void MIRGraph::StringChange() {
+  AllNodesIterator iter(this);
+  for (BasicBlock* bb = iter.Next(); bb != nullptr; bb = iter.Next()) {
+    for (MIR* mir = bb->first_mir_insn; mir != nullptr; mir = mir->next) {
+      // Look for new instance opcodes, skip otherwise
+      Instruction::Code opcode = mir->dalvikInsn.opcode;
+      if (opcode == Instruction::NEW_INSTANCE) {
+        uint32_t type_idx = mir->dalvikInsn.vB;
+        if (cu_->compiler_driver->IsStringTypeIndex(type_idx, cu_->dex_file)) {
+          // Change NEW_INSTANCE and throwing half of the insn (if it exists) into CONST_4 of 0
+          mir->dalvikInsn.opcode = Instruction::CONST_4;
+          mir->dalvikInsn.vB = 0;
+          MIR* check_mir = GetBasicBlock(bb->predecessors[0])->last_mir_insn;
+          if (check_mir != nullptr &&
+              static_cast<int>(check_mir->dalvikInsn.opcode) == kMirOpCheck) {
+            check_mir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
+            check_mir->dalvikInsn.vB = 0;
+          }
+        }
+      } else if ((opcode == Instruction::INVOKE_DIRECT) ||
+                 (opcode == Instruction::INVOKE_DIRECT_RANGE)) {
+        uint32_t method_idx = mir->dalvikInsn.vB;
+        DexFileMethodInliner* inliner =
+            cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file);
+        if (inliner->IsStringInitMethodIndex(method_idx)) {
+          bool is_range = (opcode == Instruction::INVOKE_DIRECT_RANGE);
+          uint32_t orig_this_reg = is_range ? mir->dalvikInsn.vC : mir->dalvikInsn.arg[0];
+          // Remove this pointer from string init and change to static call.
+          mir->dalvikInsn.vA--;
+          if (!is_range) {
+            mir->dalvikInsn.opcode = Instruction::INVOKE_STATIC;
+            for (uint32_t i = 0; i < mir->dalvikInsn.vA; i++) {
+              mir->dalvikInsn.arg[i] = mir->dalvikInsn.arg[i + 1];
+            }
+          } else {
+            mir->dalvikInsn.opcode = Instruction::INVOKE_STATIC_RANGE;
+            mir->dalvikInsn.vC++;
+          }
+          // Insert a move-result instruction to the original this pointer reg.
+          MIR* move_result_mir = static_cast<MIR *>(arena_->Alloc(sizeof(MIR), kArenaAllocMIR));
+          move_result_mir->dalvikInsn.opcode = Instruction::MOVE_RESULT_OBJECT;
+          move_result_mir->dalvikInsn.vA = orig_this_reg;
+          move_result_mir->offset = mir->offset;
+          move_result_mir->m_unit_index = mir->m_unit_index;
+          bb->InsertMIRAfter(mir, move_result_mir);
+          // Add additional moves if this pointer was copied to other registers.
+          const VerifiedMethod* verified_method =
+              cu_->compiler_driver->GetVerifiedMethod(cu_->dex_file, cu_->method_idx);
+          DCHECK(verified_method != nullptr);
+          const SafeMap<uint32_t, std::set<uint32_t>>& string_init_map =
+              verified_method->GetStringInitPcRegMap();
+          auto map_it = string_init_map.find(mir->offset);
+          if (map_it != string_init_map.end()) {
+            const std::set<uint32_t>& reg_set = map_it->second;
+            for (auto set_it = reg_set.begin(); set_it != reg_set.end(); ++set_it) {
+              MIR* move_mir = static_cast<MIR *>(arena_->Alloc(sizeof(MIR), kArenaAllocMIR));
+              move_mir->dalvikInsn.opcode = Instruction::MOVE_OBJECT;
+              move_mir->dalvikInsn.vA = *set_it;
+              move_mir->dalvikInsn.vB = orig_this_reg;
+              move_mir->offset = mir->offset;
+              move_mir->m_unit_index = mir->m_unit_index;
+              bb->InsertMIRAfter(move_result_mir, move_mir);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 
 bool MIRGraph::EliminateSuspendChecksGate() {
   if ((cu_->disable_opt & (1 << kSuspendCheckElimination)) != 0 ||  // Disabled.

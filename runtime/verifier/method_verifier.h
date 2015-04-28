@@ -199,6 +199,9 @@ class MethodVerifier {
   static mirror::ArtMethod* FindInvokedMethodAtDexPc(mirror::ArtMethod* m, uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  static SafeMap<uint32_t, std::set<uint32_t>> FindStringInitMap(mirror::ArtMethod* m)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   static void Init() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void Shutdown();
 
@@ -263,6 +266,10 @@ class MethodVerifier {
     return (method_access_flags_ & kAccStatic) != 0;
   }
 
+  SafeMap<uint32_t, std::set<uint32_t>>& GetStringInitPcRegMap() {
+    return string_init_pc_reg_map_;
+  }
+
  private:
   // Private constructor for dumping.
   MethodVerifier(Thread* self, const DexFile* dex_file, Handle<mirror::DexCache> dex_cache,
@@ -305,6 +312,9 @@ class MethodVerifier {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::ArtMethod* FindInvokedMethodAtDexPc(uint32_t dex_pc)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  SafeMap<uint32_t, std::set<uint32_t>>& FindStringInitMap()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
@@ -743,6 +753,12 @@ class MethodVerifier {
   MethodVerifier* link_;
 
   friend class art::Thread;
+
+  // Map of dex pcs of invocations of java.lang.String.<init> to the set of other registers that
+  // contain the uninitialized this pointer to that invoke. Will contain no entry if there are
+  // no other registers.
+  SafeMap<uint32_t, std::set<uint32_t>> string_init_pc_reg_map_;
+
   DISALLOW_COPY_AND_ASSIGN(MethodVerifier);
 };
 std::ostream& operator<<(std::ostream& os, const MethodVerifier::FailureKind& rhs);

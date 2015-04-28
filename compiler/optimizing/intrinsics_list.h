@@ -60,8 +60,12 @@
   V(MemoryPokeShortNative, kStatic) \
   V(StringCharAt, kDirect) \
   V(StringCompareTo, kDirect) \
+  V(StringGetCharsNoCheck, kDirect) \
   V(StringIndexOf, kDirect) \
   V(StringIndexOfAfter, kDirect) \
+  V(StringNewStringFromBytes, kStatic) \
+  V(StringNewStringFromChars, kStatic) \
+  V(StringNewStringFromString, kStatic) \
   V(UnsafeCASInt, kDirect) \
   V(UnsafeCASLong, kDirect) \
   V(UnsafeCASObject, kDirect) \
