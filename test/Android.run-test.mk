@@ -386,6 +386,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS :=
 # Known broken tests for the optimizing compiler.
 TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS :=
 TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS += 099-vmdebug # b/18098594
+TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS += 472-unreachable-if-regression # b/19988134
 TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS += 802-deoptimization # b/18547544
 
 ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
