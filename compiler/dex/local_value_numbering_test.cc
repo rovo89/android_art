@@ -182,6 +182,15 @@ class LocalValueNumberingTest : public testing::Test {
         ~MirSFieldLoweringInfo::kFlagClassIsInitialized;
   }
 
+  template <size_t count>
+  void MarkAsWideSRegs(const int32_t (&sregs)[count]) {
+    for (int32_t sreg : sregs) {
+      cu_.mir_graph->reg_location_[sreg].wide = true;
+      cu_.mir_graph->reg_location_[sreg + 1].wide = true;
+      cu_.mir_graph->reg_location_[sreg + 1].high_word = true;
+    }
+  }
+
   void PerformLVN() {
     cu_.mir_graph->temp_.gvn.ifield_ids =  GlobalValueNumbering::PrepareGvnFieldIds(
         allocator_.get(), cu_.mir_graph->ifield_lowering_infos_);
@@ -210,9 +219,11 @@ class LocalValueNumberingTest : public testing::Test {
     cu_.mir_graph.reset(new MIRGraph(&cu_, &cu_.arena));
     allocator_.reset(ScopedArenaAllocator::Create(&cu_.arena_stack));
     // By default, the zero-initialized reg_location_[.] with ref == false tells LVN that
-    // 0 constants are integral, not references. Nothing else is used by LVN/GVN.
+    // 0 constants are integral, not references, and the values are all narrow.
+    // Nothing else is used by LVN/GVN. Tests can override the default values as needed.
     cu_.mir_graph->reg_location_ = static_cast<RegLocation*>(cu_.arena.Alloc(
         kMaxSsaRegs * sizeof(cu_.mir_graph->reg_location_[0]), kArenaAllocRegAlloc));
+    cu_.mir_graph->num_ssa_regs_ = kMaxSsaRegs;
   }
 
   static constexpr size_t kMaxSsaRegs = 16384u;
@@ -379,26 +390,28 @@ TEST_F(LocalValueNumberingTest, UnresolvedIField) {
       { 3u, 0u, 0u, false, kDexMemAccessWord },  // Unresolved field.
   };
   static const MIRDef mirs[] = {
-      DEF_UNIQUE_REF(Instruction::NEW_INSTANCE, 20u),
-      DEF_IGET(Instruction::IGET, 1u, 20u, 0u),             // Resolved field #1, unique object.
-      DEF_IGET(Instruction::IGET, 2u, 21u, 0u),             // Resolved field #1.
-      DEF_IGET_WIDE(Instruction::IGET_WIDE, 3u, 21u, 1u),   // Resolved field #2.
-      DEF_IGET(Instruction::IGET, 4u, 22u, 2u),             // Unresolved IGET can be "acquire".
-      DEF_IGET(Instruction::IGET, 5u, 20u, 0u),             // Resolved field #1, unique object.
-      DEF_IGET(Instruction::IGET, 6u, 21u, 0u),             // Resolved field #1.
-      DEF_IGET_WIDE(Instruction::IGET_WIDE, 7u, 21u, 1u),   // Resolved field #2.
-      DEF_IPUT(Instruction::IPUT, 8u, 22u, 2u),             // IPUT clobbers field #1 (#2 is wide).
-      DEF_IGET(Instruction::IGET, 9u, 20u, 0u),             // Resolved field #1, unique object.
-      DEF_IGET(Instruction::IGET, 10u, 21u, 0u),            // Resolved field #1, new value name.
-      DEF_IGET_WIDE(Instruction::IGET_WIDE, 11u, 21u, 1u),  // Resolved field #2.
-      DEF_IGET_WIDE(Instruction::IGET_WIDE, 12u, 20u, 1u),  // Resolved field #2, unique object.
-      DEF_IPUT(Instruction::IPUT, 13u, 20u, 2u),            // IPUT clobbers field #1 (#2 is wide).
-      DEF_IGET(Instruction::IGET, 14u, 20u, 0u),            // Resolved field #1, unique object.
-      DEF_IGET_WIDE(Instruction::IGET_WIDE, 15u, 20u, 1u),  // Resolved field #2, unique object.
+      DEF_UNIQUE_REF(Instruction::NEW_INSTANCE, 30u),
+      DEF_IGET(Instruction::IGET, 1u, 30u, 0u),             // Resolved field #1, unique object.
+      DEF_IGET(Instruction::IGET, 2u, 31u, 0u),             // Resolved field #1.
+      DEF_IGET_WIDE(Instruction::IGET_WIDE, 3u, 31u, 1u),   // Resolved field #2.
+      DEF_IGET(Instruction::IGET, 5u, 32u, 2u),             // Unresolved IGET can be "acquire".
+      DEF_IGET(Instruction::IGET, 6u, 30u, 0u),             // Resolved field #1, unique object.
+      DEF_IGET(Instruction::IGET, 7u, 31u, 0u),             // Resolved field #1.
+      DEF_IGET_WIDE(Instruction::IGET_WIDE, 8u, 31u, 1u),   // Resolved field #2.
+      DEF_IPUT(Instruction::IPUT, 10u, 32u, 2u),            // IPUT clobbers field #1 (#2 is wide).
+      DEF_IGET(Instruction::IGET, 11u, 30u, 0u),            // Resolved field #1, unique object.
+      DEF_IGET(Instruction::IGET, 12u, 31u, 0u),            // Resolved field #1, new value name.
+      DEF_IGET_WIDE(Instruction::IGET_WIDE, 13u, 31u, 1u),  // Resolved field #2.
+      DEF_IGET_WIDE(Instruction::IGET_WIDE, 15u, 30u, 1u),  // Resolved field #2, unique object.
+      DEF_IPUT(Instruction::IPUT, 17u, 30u, 2u),            // IPUT clobbers field #1 (#2 is wide).
+      DEF_IGET(Instruction::IGET, 18u, 30u, 0u),            // Resolved field #1, unique object.
+      DEF_IGET_WIDE(Instruction::IGET_WIDE, 19u, 30u, 1u),  // Resolved field #2, unique object.
   };
 
   PrepareIFields(ifields);
   PrepareMIRs(mirs);
+  static const int32_t wide_sregs[] = { 3, 8, 13, 15, 19 };
+  MarkAsWideSRegs(wide_sregs);
   PerformLVN();
   ASSERT_EQ(value_names_.size(), 16u);
   // Unresolved field is potentially volatile, so we need to adhere to the volatile semantics.
@@ -430,16 +443,18 @@ TEST_F(LocalValueNumberingTest, UnresolvedSField) {
   static const MIRDef mirs[] = {
       DEF_SGET(Instruction::SGET, 0u, 0u),            // Resolved field #1.
       DEF_SGET_WIDE(Instruction::SGET_WIDE, 1u, 1u),  // Resolved field #2.
-      DEF_SGET(Instruction::SGET, 2u, 2u),            // Unresolved SGET can be "acquire".
-      DEF_SGET(Instruction::SGET, 3u, 0u),            // Resolved field #1.
-      DEF_SGET_WIDE(Instruction::SGET_WIDE, 4u, 1u),  // Resolved field #2.
-      DEF_SPUT(Instruction::SPUT, 5u, 2u),            // SPUT clobbers field #1 (#2 is wide).
-      DEF_SGET(Instruction::SGET, 6u, 0u),            // Resolved field #1.
-      DEF_SGET_WIDE(Instruction::SGET_WIDE, 7u, 1u),  // Resolved field #2.
+      DEF_SGET(Instruction::SGET, 3u, 2u),            // Unresolved SGET can be "acquire".
+      DEF_SGET(Instruction::SGET, 4u, 0u),            // Resolved field #1.
+      DEF_SGET_WIDE(Instruction::SGET_WIDE, 5u, 1u),  // Resolved field #2.
+      DEF_SPUT(Instruction::SPUT, 7u, 2u),            // SPUT clobbers field #1 (#2 is wide).
+      DEF_SGET(Instruction::SGET, 8u, 0u),            // Resolved field #1.
+      DEF_SGET_WIDE(Instruction::SGET_WIDE, 9u, 1u),  // Resolved field #2.
   };
 
   PrepareSFields(sfields);
   PrepareMIRs(mirs);
+  static const int32_t wide_sregs[] = { 1, 5, 9 };
+  MarkAsWideSRegs(wide_sregs);
   PerformLVN();
   ASSERT_EQ(value_names_.size(), 8u);
   // Unresolved field is potentially volatile, so we need to adhere to the volatile semantics.
@@ -585,18 +600,20 @@ TEST_F(LocalValueNumberingTest, EscapingRefs) {
       DEF_IGET(Instruction::IGET, 7u, 20u, 0u),              // New value.
       DEF_IGET(Instruction::IGET, 8u, 20u, 1u),              // Still the same.
       DEF_IPUT_WIDE(Instruction::IPUT_WIDE, 9u, 31u, 3u),    // No aliasing, different type.
-      DEF_IGET(Instruction::IGET, 10u, 20u, 0u),
-      DEF_IGET(Instruction::IGET, 11u, 20u, 1u),
-      DEF_IPUT_WIDE(Instruction::IPUT_WIDE, 12u, 31u, 5u),   // No aliasing, different type.
-      DEF_IGET(Instruction::IGET, 13u, 20u, 0u),
-      DEF_IGET(Instruction::IGET, 14u, 20u, 1u),
-      DEF_IPUT(Instruction::IPUT, 15u, 31u, 4u),             // Aliasing, same type.
-      DEF_IGET(Instruction::IGET, 16u, 20u, 0u),
-      DEF_IGET(Instruction::IGET, 17u, 20u, 1u),
+      DEF_IGET(Instruction::IGET, 11u, 20u, 0u),
+      DEF_IGET(Instruction::IGET, 12u, 20u, 1u),
+      DEF_IPUT_WIDE(Instruction::IPUT_WIDE, 13u, 31u, 5u),   // No aliasing, different type.
+      DEF_IGET(Instruction::IGET, 15u, 20u, 0u),
+      DEF_IGET(Instruction::IGET, 16u, 20u, 1u),
+      DEF_IPUT(Instruction::IPUT, 17u, 31u, 4u),             // Aliasing, same type.
+      DEF_IGET(Instruction::IGET, 18u, 20u, 0u),
+      DEF_IGET(Instruction::IGET, 19u, 20u, 1u),
   };
 
   PrepareIFields(ifields);
   PrepareMIRs(mirs);
+  static const int32_t wide_sregs[] = { 9, 13 };
+  MarkAsWideSRegs(wide_sregs);
   PerformLVN();
   ASSERT_EQ(value_names_.size(), 18u);
   EXPECT_EQ(value_names_[1], value_names_[4]);
@@ -626,14 +643,16 @@ TEST_F(LocalValueNumberingTest, EscapingArrayRefs) {
       DEF_AGET(Instruction::AGET, 4u, 20u, 40u),
       DEF_AGET(Instruction::AGET, 5u, 20u, 41u),
       DEF_APUT_WIDE(Instruction::APUT_WIDE, 6u, 31u, 43u),  // No aliasing, different type.
-      DEF_AGET(Instruction::AGET, 7u, 20u, 40u),
-      DEF_AGET(Instruction::AGET, 8u, 20u, 41u),
-      DEF_APUT(Instruction::APUT, 9u, 32u, 40u),            // May alias with all elements.
-      DEF_AGET(Instruction::AGET, 10u, 20u, 40u),           // New value (same index name).
-      DEF_AGET(Instruction::AGET, 11u, 20u, 41u),           // New value (different index name).
+      DEF_AGET(Instruction::AGET, 8u, 20u, 40u),
+      DEF_AGET(Instruction::AGET, 9u, 20u, 41u),
+      DEF_APUT(Instruction::APUT, 10u, 32u, 40u),           // May alias with all elements.
+      DEF_AGET(Instruction::AGET, 11u, 20u, 40u),           // New value (same index name).
+      DEF_AGET(Instruction::AGET, 12u, 20u, 41u),           // New value (different index name).
   };
 
   PrepareMIRs(mirs);
+  static const int32_t wide_sregs[] = { 6 };
+  MarkAsWideSRegs(wide_sregs);
   PerformLVN();
   ASSERT_EQ(value_names_.size(), 12u);
   EXPECT_EQ(value_names_[1], value_names_[4]);
@@ -769,6 +788,8 @@ TEST_F(LocalValueNumberingTest, DivZeroCheck) {
   };
 
   PrepareMIRs(mirs);
+  static const int32_t wide_sregs[] = { 5, 7, 12, 14, 16 };
+  MarkAsWideSRegs(wide_sregs);
   PerformLVN();
   for (size_t i = 0u; i != mir_count_; ++i) {
     int expected = expected_ignore_div_zero_check[i] ? MIR_IGNORE_DIV_ZERO_CHECK : 0u;
@@ -780,51 +801,55 @@ TEST_F(LocalValueNumberingTest, ConstWide) {
   static const MIRDef mirs[] = {
       // Core reg constants.
       DEF_CONST(Instruction::CONST_WIDE_16, 0u, 0),
-      DEF_CONST(Instruction::CONST_WIDE_16, 1u, 1),
-      DEF_CONST(Instruction::CONST_WIDE_16, 2u, -1),
-      DEF_CONST(Instruction::CONST_WIDE_32, 3u, 1 << 16),
-      DEF_CONST(Instruction::CONST_WIDE_32, 4u, -1 << 16),
-      DEF_CONST(Instruction::CONST_WIDE_32, 5u, (1 << 16) + 1),
-      DEF_CONST(Instruction::CONST_WIDE_32, 6u, (1 << 16) - 1),
-      DEF_CONST(Instruction::CONST_WIDE_32, 7u, -(1 << 16) + 1),
-      DEF_CONST(Instruction::CONST_WIDE_32, 8u, -(1 << 16) - 1),
-      DEF_CONST(Instruction::CONST_WIDE, 9u, INT64_C(1) << 32),
-      DEF_CONST(Instruction::CONST_WIDE, 10u, INT64_C(-1) << 32),
-      DEF_CONST(Instruction::CONST_WIDE, 11u, (INT64_C(1) << 32) + 1),
-      DEF_CONST(Instruction::CONST_WIDE, 12u, (INT64_C(1) << 32) - 1),
-      DEF_CONST(Instruction::CONST_WIDE, 13u, (INT64_C(-1) << 32) + 1),
-      DEF_CONST(Instruction::CONST_WIDE, 14u, (INT64_C(-1) << 32) - 1),
-      DEF_CONST(Instruction::CONST_WIDE_HIGH16, 15u, 1),       // Effectively 1 << 48.
-      DEF_CONST(Instruction::CONST_WIDE_HIGH16, 16u, 0xffff),  // Effectively -1 << 48.
-      DEF_CONST(Instruction::CONST_WIDE, 17u, (INT64_C(1) << 48) + 1),
-      DEF_CONST(Instruction::CONST_WIDE, 18u, (INT64_C(1) << 48) - 1),
-      DEF_CONST(Instruction::CONST_WIDE, 19u, (INT64_C(-1) << 48) + 1),
-      DEF_CONST(Instruction::CONST_WIDE, 20u, (INT64_C(-1) << 48) - 1),
+      DEF_CONST(Instruction::CONST_WIDE_16, 2u, 1),
+      DEF_CONST(Instruction::CONST_WIDE_16, 4u, -1),
+      DEF_CONST(Instruction::CONST_WIDE_32, 6u, 1 << 16),
+      DEF_CONST(Instruction::CONST_WIDE_32, 8u, -1 << 16),
+      DEF_CONST(Instruction::CONST_WIDE_32, 10u, (1 << 16) + 1),
+      DEF_CONST(Instruction::CONST_WIDE_32, 12u, (1 << 16) - 1),
+      DEF_CONST(Instruction::CONST_WIDE_32, 14u, -(1 << 16) + 1),
+      DEF_CONST(Instruction::CONST_WIDE_32, 16u, -(1 << 16) - 1),
+      DEF_CONST(Instruction::CONST_WIDE, 18u, INT64_C(1) << 32),
+      DEF_CONST(Instruction::CONST_WIDE, 20u, INT64_C(-1) << 32),
+      DEF_CONST(Instruction::CONST_WIDE, 22u, (INT64_C(1) << 32) + 1),
+      DEF_CONST(Instruction::CONST_WIDE, 24u, (INT64_C(1) << 32) - 1),
+      DEF_CONST(Instruction::CONST_WIDE, 26u, (INT64_C(-1) << 32) + 1),
+      DEF_CONST(Instruction::CONST_WIDE, 28u, (INT64_C(-1) << 32) - 1),
+      DEF_CONST(Instruction::CONST_WIDE_HIGH16, 30u, 1),       // Effectively 1 << 48.
+      DEF_CONST(Instruction::CONST_WIDE_HIGH16, 32u, 0xffff),  // Effectively -1 << 48.
+      DEF_CONST(Instruction::CONST_WIDE, 34u, (INT64_C(1) << 48) + 1),
+      DEF_CONST(Instruction::CONST_WIDE, 36u, (INT64_C(1) << 48) - 1),
+      DEF_CONST(Instruction::CONST_WIDE, 38u, (INT64_C(-1) << 48) + 1),
+      DEF_CONST(Instruction::CONST_WIDE, 40u, (INT64_C(-1) << 48) - 1),
       // FP reg constants.
-      DEF_CONST(Instruction::CONST_WIDE_16, 21u, 0),
-      DEF_CONST(Instruction::CONST_WIDE_16, 22u, 1),
-      DEF_CONST(Instruction::CONST_WIDE_16, 23u, -1),
-      DEF_CONST(Instruction::CONST_WIDE_32, 24u, 1 << 16),
-      DEF_CONST(Instruction::CONST_WIDE_32, 25u, -1 << 16),
-      DEF_CONST(Instruction::CONST_WIDE_32, 26u, (1 << 16) + 1),
-      DEF_CONST(Instruction::CONST_WIDE_32, 27u, (1 << 16) - 1),
-      DEF_CONST(Instruction::CONST_WIDE_32, 28u, -(1 << 16) + 1),
-      DEF_CONST(Instruction::CONST_WIDE_32, 29u, -(1 << 16) - 1),
-      DEF_CONST(Instruction::CONST_WIDE, 30u, INT64_C(1) << 32),
-      DEF_CONST(Instruction::CONST_WIDE, 31u, INT64_C(-1) << 32),
-      DEF_CONST(Instruction::CONST_WIDE, 32u, (INT64_C(1) << 32) + 1),
-      DEF_CONST(Instruction::CONST_WIDE, 33u, (INT64_C(1) << 32) - 1),
-      DEF_CONST(Instruction::CONST_WIDE, 34u, (INT64_C(-1) << 32) + 1),
-      DEF_CONST(Instruction::CONST_WIDE, 35u, (INT64_C(-1) << 32) - 1),
-      DEF_CONST(Instruction::CONST_WIDE_HIGH16, 36u, 1),       // Effectively 1 << 48.
-      DEF_CONST(Instruction::CONST_WIDE_HIGH16, 37u, 0xffff),  // Effectively -1 << 48.
-      DEF_CONST(Instruction::CONST_WIDE, 38u, (INT64_C(1) << 48) + 1),
-      DEF_CONST(Instruction::CONST_WIDE, 39u, (INT64_C(1) << 48) - 1),
-      DEF_CONST(Instruction::CONST_WIDE, 40u, (INT64_C(-1) << 48) + 1),
-      DEF_CONST(Instruction::CONST_WIDE, 41u, (INT64_C(-1) << 48) - 1),
+      DEF_CONST(Instruction::CONST_WIDE_16, 42u, 0),
+      DEF_CONST(Instruction::CONST_WIDE_16, 44u, 1),
+      DEF_CONST(Instruction::CONST_WIDE_16, 46u, -1),
+      DEF_CONST(Instruction::CONST_WIDE_32, 48u, 1 << 16),
+      DEF_CONST(Instruction::CONST_WIDE_32, 50u, -1 << 16),
+      DEF_CONST(Instruction::CONST_WIDE_32, 52u, (1 << 16) + 1),
+      DEF_CONST(Instruction::CONST_WIDE_32, 54u, (1 << 16) - 1),
+      DEF_CONST(Instruction::CONST_WIDE_32, 56u, -(1 << 16) + 1),
+      DEF_CONST(Instruction::CONST_WIDE_32, 58u, -(1 << 16) - 1),
+      DEF_CONST(Instruction::CONST_WIDE, 60u, INT64_C(1) << 32),
+      DEF_CONST(Instruction::CONST_WIDE, 62u, INT64_C(-1) << 32),
+      DEF_CONST(Instruction::CONST_WIDE, 64u, (INT64_C(1) << 32) + 1),
+      DEF_CONST(Instruction::CONST_WIDE, 66u, (INT64_C(1) << 32) - 1),
+      DEF_CONST(Instruction::CONST_WIDE, 68u, (INT64_C(-1) << 32) + 1),
+      DEF_CONST(Instruction::CONST_WIDE, 70u, (INT64_C(-1) << 32) - 1),
+      DEF_CONST(Instruction::CONST_WIDE_HIGH16, 72u, 1),       // Effectively 1 << 48.
+      DEF_CONST(Instruction::CONST_WIDE_HIGH16, 74u, 0xffff),  // Effectively -1 << 48.
+      DEF_CONST(Instruction::CONST_WIDE, 76u, (INT64_C(1) << 48) + 1),
+      DEF_CONST(Instruction::CONST_WIDE, 78u, (INT64_C(1) << 48) - 1),
+      DEF_CONST(Instruction::CONST_WIDE, 80u, (INT64_C(-1) << 48) + 1),
+      DEF_CONST(Instruction::CONST_WIDE, 82u, (INT64_C(-1) << 48) - 1),
   };
 
   PrepareMIRs(mirs);
+  for (size_t i = 0; i != arraysize(mirs); ++i) {
+    const int32_t wide_sregs[] = { mirs_[i].ssa_rep->defs[0] };
+    MarkAsWideSRegs(wide_sregs);
+  }
   for (size_t i = arraysize(mirs) / 2u; i != arraysize(mirs); ++i) {
     cu_.mir_graph->reg_location_[mirs_[i].ssa_rep->defs[0]].fp = true;
   }

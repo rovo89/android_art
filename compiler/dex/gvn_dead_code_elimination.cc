@@ -984,18 +984,17 @@ bool GvnDeadCodeElimination::RecordMIR(MIR* mir) {
   uint16_t opcode = mir->dalvikInsn.opcode;
   switch (opcode) {
     case kMirOpPhi: {
-      // We can't recognize wide variables in Phi from num_defs == 2 as we've got two Phis instead.
+      // Determine if this Phi is merging wide regs.
+      RegLocation raw_dest = gvn_->GetMirGraph()->GetRawDest(mir);
+      if (raw_dest.high_word) {
+        // This is the high part of a wide reg. Ignore the Phi.
+        return false;
+      }
+      bool wide = raw_dest.wide;
+      // Record the value.
       DCHECK_EQ(mir->ssa_rep->num_defs, 1);
       int s_reg = mir->ssa_rep->defs[0];
-      bool wide = false;
-      uint16_t new_value = lvn_->GetSregValue(s_reg);
-      if (new_value == kNoValue) {
-        wide = true;
-        new_value = lvn_->GetSregValueWide(s_reg);
-        if (new_value == kNoValue) {
-          return false;  // Ignore the high word Phi.
-        }
-      }
+      uint16_t new_value = wide ? lvn_->GetSregValueWide(s_reg) : lvn_->GetSregValue(s_reg);
 
       int v_reg = mir_graph_->SRegToVReg(s_reg);
       DCHECK_EQ(vreg_chains_.CurrentValue(v_reg), kNoValue);  // No previous def for v_reg.
