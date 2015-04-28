@@ -21,6 +21,7 @@
 #include "arm64_lir.h"
 #include "base/logging.h"
 #include "dex/mir_graph.h"
+#include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
@@ -460,7 +461,25 @@ int Arm64Mir2Lir::Arm64NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
                                       InvokeType type) {
   UNUSED(info, unused_idx);
   Arm64Mir2Lir* cg = static_cast<Arm64Mir2Lir*>(cu->cg.get());
-  if (direct_code != 0 && direct_method != 0) {
+  if (info->string_init_offset != 0) {
+    RegStorage arg0_ref = cg->TargetReg(kArg0, kRef);
+    switch (state) {
+    case 0: {  // Grab target method* from thread pointer
+      cg->LoadRefDisp(rs_xSELF, info->string_init_offset, arg0_ref, kNotVolatile);
+      break;
+    }
+    case 1:  // Grab the code from the method*
+      if (direct_code == 0) {
+        // kInvokeTgt := arg0_ref->entrypoint
+        cg->LoadWordDisp(arg0_ref,
+                         mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+                             kArm64PointerSize).Int32Value(), cg->TargetPtrReg(kInvokeTgt));
+      }
+      break;
+    default:
+      return -1;
+    }
+  } else if (direct_code != 0 && direct_method != 0) {
     switch (state) {
     case 0:  // Get the current Method* [sets kArg0]
       if (direct_code != static_cast<uintptr_t>(-1)) {

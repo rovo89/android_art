@@ -375,6 +375,18 @@ void Mir2Lir::CallRuntimeHelperRegLocationRegLocationRegLocation(
   CallHelper(r_tgt, trampoline, safepoint_pc);
 }
 
+void Mir2Lir::CallRuntimeHelperRegLocationRegLocationRegLocationRegLocation(
+    QuickEntrypointEnum trampoline, RegLocation arg0, RegLocation arg1, RegLocation arg2,
+    RegLocation arg3, bool safepoint_pc) {
+  RegStorage r_tgt = CallHelperSetup(trampoline);
+  LoadValueDirectFixed(arg0, TargetReg(kArg0, arg0));
+  LoadValueDirectFixed(arg1, TargetReg(kArg1, arg1));
+  LoadValueDirectFixed(arg2, TargetReg(kArg2, arg2));
+  LoadValueDirectFixed(arg3, TargetReg(kArg3, arg3));
+  ClobberCallerSave();
+  CallHelper(r_tgt, trampoline, safepoint_pc);
+}
+
 /*
  * If there are any ins passed in registers that have not been promoted
  * to a callee-save register, flush them to the frame.  Perform initial
@@ -966,14 +978,10 @@ bool Mir2Lir::GenInlinedReferenceGetReferent(CallInfo* info) {
 }
 
 bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
-  // Location of reference to data array
+  // Location of char array data
   int value_offset = mirror::String::ValueOffset().Int32Value();
   // Location of count
   int count_offset = mirror::String::CountOffset().Int32Value();
-  // Starting offset within data array
-  int offset_offset = mirror::String::OffsetOffset().Int32Value();
-  // Start of char data with array_
-  int data_offset = mirror::Array::DataOffset(sizeof(uint16_t)).Int32Value();
 
   RegLocation rl_obj = info->args[0];
   RegLocation rl_idx = info->args[1];
@@ -983,38 +991,21 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
   GenNullCheck(rl_obj.reg, info->opt_flags);
   bool range_check = (!(info->opt_flags & MIR_IGNORE_RANGE_CHECK));
   LIR* range_check_branch = nullptr;
-  RegStorage reg_off;
-  RegStorage reg_ptr;
-  reg_off = AllocTemp();
-  reg_ptr = AllocTempRef();
   if (range_check) {
     reg_max = AllocTemp();
     Load32Disp(rl_obj.reg, count_offset, reg_max);
     MarkPossibleNullPointerException(info->opt_flags);
-  }
-  Load32Disp(rl_obj.reg, offset_offset, reg_off);
-  MarkPossibleNullPointerException(info->opt_flags);
-  LoadRefDisp(rl_obj.reg, value_offset, reg_ptr, kNotVolatile);
-  if (range_check) {
-    // Set up a slow path to allow retry in case of bounds violation */
+    // Set up a slow path to allow retry in case of bounds violation
     OpRegReg(kOpCmp, rl_idx.reg, reg_max);
     FreeTemp(reg_max);
     range_check_branch = OpCondBranch(kCondUge, nullptr);
   }
-  OpRegImm(kOpAdd, reg_ptr, data_offset);
-  if (rl_idx.is_const) {
-    OpRegImm(kOpAdd, reg_off, mir_graph_->ConstantValue(rl_idx.orig_sreg));
-  } else {
-    OpRegReg(kOpAdd, reg_off, rl_idx.reg);
-  }
+  RegStorage reg_ptr = AllocTempRef();
+  OpRegRegImm(kOpAdd, reg_ptr, rl_obj.reg, value_offset);
   FreeTemp(rl_obj.reg);
-  if (rl_idx.location == kLocPhysReg) {
-    FreeTemp(rl_idx.reg);
-  }
   RegLocation rl_dest = InlineTarget(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  LoadBaseIndexed(reg_ptr, reg_off, rl_result.reg, 1, kUnsignedHalf);
-  FreeTemp(reg_off);
+  LoadBaseIndexed(reg_ptr, rl_idx.reg, rl_result.reg, 1, kUnsignedHalf);
   FreeTemp(reg_ptr);
   StoreValue(rl_dest, rl_result);
   if (range_check) {
@@ -1022,6 +1013,59 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
     info->opt_flags |= MIR_IGNORE_NULL_CHECK;  // Record that we've already null checked.
     AddIntrinsicSlowPath(info, range_check_branch);
   }
+  return true;
+}
+
+bool Mir2Lir::GenInlinedStringGetCharsNoCheck(CallInfo* info) {
+  if (cu_->instruction_set == kMips) {
+    // TODO - add Mips implementation
+    return false;
+  }
+  size_t char_component_size = Primitive::ComponentSize(Primitive::kPrimChar);
+  // Location of data in char array buffer
+  int data_offset = mirror::Array::DataOffset(char_component_size).Int32Value();
+  // Location of char array data in string
+  int value_offset = mirror::String::ValueOffset().Int32Value();
+
+  RegLocation rl_obj = info->args[0];
+  RegLocation rl_start = info->args[1];
+  RegLocation rl_end = info->args[2];
+  RegLocation rl_buffer = info->args[3];
+  RegLocation rl_index = info->args[4];
+
+  ClobberCallerSave();
+  LockCallTemps();  // Using fixed registers
+  RegStorage reg_dst_ptr = TargetReg(kArg0, kRef);
+  RegStorage reg_src_ptr = TargetReg(kArg1, kRef);
+  RegStorage reg_length = TargetReg(kArg2, kNotWide);
+  RegStorage reg_tmp = TargetReg(kArg3, kNotWide);
+  RegStorage reg_tmp_ptr = RegStorage(RegStorage::k64BitSolo, reg_tmp.GetRawBits() & RegStorage::kRegTypeMask);
+
+  LoadValueDirectFixed(rl_buffer, reg_dst_ptr);
+  OpRegImm(kOpAdd, reg_dst_ptr, data_offset);
+  LoadValueDirectFixed(rl_index, reg_tmp);
+  OpRegRegImm(kOpLsl, reg_tmp, reg_tmp, 1);
+  OpRegReg(kOpAdd, reg_dst_ptr, cu_->instruction_set == kArm64 ? reg_tmp_ptr : reg_tmp);
+
+  LoadValueDirectFixed(rl_start, reg_tmp);
+  LoadValueDirectFixed(rl_end, reg_length);
+  OpRegReg(kOpSub, reg_length, reg_tmp);
+  OpRegRegImm(kOpLsl, reg_length, reg_length, 1);
+  LoadValueDirectFixed(rl_obj, reg_src_ptr);
+
+  OpRegImm(kOpAdd, reg_src_ptr, value_offset);
+  OpRegRegImm(kOpLsl, reg_tmp, reg_tmp, 1);
+  OpRegReg(kOpAdd, reg_src_ptr, cu_->instruction_set == kArm64 ? reg_tmp_ptr : reg_tmp);
+
+  RegStorage r_tgt;
+  if (cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64) {
+    r_tgt = LoadHelper(kQuickMemcpy);
+  } else {
+    r_tgt = RegStorage::InvalidReg();
+  }
+  // NOTE: not a safepoint
+  CallHelper(r_tgt, kQuickMemcpy, false, true);
+
   return true;
 }
 
@@ -1055,6 +1099,58 @@ bool Mir2Lir::GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty) {
     }
   }
   StoreValue(rl_dest, rl_result);
+  return true;
+}
+
+bool Mir2Lir::GenInlinedStringFactoryNewStringFromBytes(CallInfo* info) {
+  if (cu_->instruction_set == kMips) {
+    // TODO - add Mips implementation
+    return false;
+  }
+  RegLocation rl_data = info->args[0];
+  RegLocation rl_high = info->args[1];
+  RegLocation rl_offset = info->args[2];
+  RegLocation rl_count = info->args[3];
+  rl_data = LoadValue(rl_data, kRefReg);
+  LIR* data_null_check_branch = OpCmpImmBranch(kCondEq, rl_data.reg, 0, nullptr);
+  AddIntrinsicSlowPath(info, data_null_check_branch);
+  CallRuntimeHelperRegLocationRegLocationRegLocationRegLocation(
+      kQuickAllocStringFromBytes, rl_data, rl_high, rl_offset, rl_count, true);
+  RegLocation rl_return = GetReturn(kRefReg);
+  RegLocation rl_dest = InlineTarget(info);
+  StoreValue(rl_dest, rl_return);
+  return true;
+}
+
+bool Mir2Lir::GenInlinedStringFactoryNewStringFromChars(CallInfo* info) {
+  if (cu_->instruction_set == kMips) {
+    // TODO - add Mips implementation
+    return false;
+  }
+  RegLocation rl_offset = info->args[0];
+  RegLocation rl_count = info->args[1];
+  RegLocation rl_data = info->args[2];
+  CallRuntimeHelperRegLocationRegLocationRegLocation(
+      kQuickAllocStringFromChars, rl_offset, rl_count, rl_data, true);
+  RegLocation rl_return = GetReturn(kRefReg);
+  RegLocation rl_dest = InlineTarget(info);
+  StoreValue(rl_dest, rl_return);
+  return true;
+}
+
+bool Mir2Lir::GenInlinedStringFactoryNewStringFromString(CallInfo* info) {
+  if (cu_->instruction_set == kMips) {
+    // TODO - add Mips implementation
+    return false;
+  }
+  RegLocation rl_string = info->args[0];
+  rl_string = LoadValue(rl_string, kRefReg);
+  LIR* string_null_check_branch = OpCmpImmBranch(kCondEq, rl_string.reg, 0, nullptr);
+  AddIntrinsicSlowPath(info, string_null_check_branch);
+  CallRuntimeHelperRegLocation(kQuickAllocStringFromString, rl_string, true);
+  RegLocation rl_return = GetReturn(kRefReg);
+  RegLocation rl_dest = InlineTarget(info);
+  StoreValue(rl_dest, rl_return);
   return true;
 }
 
@@ -1451,9 +1547,22 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
   LockCallTemps();
 
   const MirMethodLoweringInfo& method_info = mir_graph_->GetMethodLoweringInfo(info->mir);
+  MethodReference target_method = method_info.GetTargetMethod();
   cu_->compiler_driver->ProcessedInvoke(method_info.GetInvokeType(), method_info.StatsFlags());
   InvokeType original_type = static_cast<InvokeType>(method_info.GetInvokeType());
   info->type = method_info.GetSharpType();
+  bool is_string_init = false;
+  if (method_info.IsSpecial()) {
+    DexFileMethodInliner* inliner = cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(
+        target_method.dex_file);
+    if (inliner->IsStringInitMethodIndex(target_method.dex_method_index)) {
+      is_string_init = true;
+      size_t pointer_size = GetInstructionSetPointerSize(cu_->instruction_set);
+      info->string_init_offset = inliner->GetOffsetForStringInit(target_method.dex_method_index,
+                                                                 pointer_size);
+      info->type = kStatic;
+    }
+  }
   bool fast_path = method_info.FastPath();
   bool skip_this;
 
@@ -1478,7 +1587,6 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
     next_call_insn = fast_path ? NextVCallInsn : NextVCallInsnSP;
     skip_this = fast_path;
   }
-  MethodReference target_method = method_info.GetTargetMethod();
   call_state = GenDalvikArgs(info, call_state, p_null_ck,
                              next_call_insn, target_method, method_info.VTableIndex(),
                              method_info.DirectCode(), method_info.DirectMethod(),
@@ -1495,7 +1603,7 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
   FreeCallTemps();
   if (info->result.location != kLocInvalid) {
     // We have a following MOVE_RESULT - do it now.
-    RegisterClass reg_class =
+    RegisterClass reg_class = is_string_init ? kRefReg :
         ShortyToRegClass(mir_graph_->GetShortyFromMethodReference(info->method_ref)[0]);
     if (info->result.wide) {
       RegLocation ret_loc = GetReturnWide(reg_class);

@@ -1264,7 +1264,7 @@ END art_quick_aput_obj
 .macro ONE_ARG_DOWNCALL name, entrypoint, return
     .extern \entrypoint
 ENTRY \name
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  // save callee saves in case of GC
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME // save callee saves in case of GC
     mov    x1, xSELF                  // pass Thread::Current
     bl     \entrypoint                // (uint32_t type_idx, Method* method, Thread*)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
@@ -1276,7 +1276,7 @@ END \name
 .macro TWO_ARG_DOWNCALL name, entrypoint, return
     .extern \entrypoint
 ENTRY \name
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  // save callee saves in case of GC
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME // save callee saves in case of GC
     mov    x2, xSELF                  // pass Thread::Current
     bl     \entrypoint                // (uint32_t type_idx, Method* method, Thread*)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
@@ -1284,15 +1284,28 @@ ENTRY \name
 END \name
 .endm
 
-// Macro to facilitate adding new array allocation entrypoints.
+// Macro to facilitate adding new allocation entrypoints.
 .macro THREE_ARG_DOWNCALL name, entrypoint, return
     .extern \entrypoint
 ENTRY \name
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  // save callee saves in case of GC
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME // save callee saves in case of GC
     mov    x3, xSELF                  // pass Thread::Current
     bl     \entrypoint
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
     \return
+END \name
+.endm
+
+// Macro to facilitate adding new allocation entrypoints.
+.macro FOUR_ARG_DOWNCALL name, entrypoint, return
+    .extern \entrypoint
+ENTRY \name
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME // save callee saves in case of GC
+    mov    x4, xSELF                  // pass Thread::Current
+    bl     \entrypoint                //
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
+    \return
+    DELIVER_PENDING_EXCEPTION
 END \name
 .endm
 
@@ -1725,18 +1738,13 @@ END art_quick_deoptimize
      */
 ENTRY art_quick_indexof
     ldr   w3, [x0, #MIRROR_STRING_COUNT_OFFSET]
-    ldr   w4, [x0, #MIRROR_STRING_OFFSET_OFFSET]
-    ldr   w0, [x0, #MIRROR_STRING_VALUE_OFFSET] // x0 ?
+    add   x0, x0, #MIRROR_STRING_VALUE_OFFSET
 
     /* Clamp start to [0..count] */
     cmp   w2, #0
     csel  w2, wzr, w2, lt
     cmp   w2, w3
     csel  w2, w3, w2, gt
-
-    /* Build a pointer to the start of the string data */
-    add   x0, x0, #MIRROR_CHAR_ARRAY_DATA_OFFSET
-    add   x0, x0, x4, lsl #1
 
     /* Save a copy to compute result */
     mov   x5, x0
@@ -1829,33 +1837,21 @@ ENTRY art_quick_string_compareto
     ret
 1:                        // Different string objects.
 
-    ldr    w6, [x2, #MIRROR_STRING_OFFSET_OFFSET]
-    ldr    w5, [x1, #MIRROR_STRING_OFFSET_OFFSET]
     ldr    w4, [x2, #MIRROR_STRING_COUNT_OFFSET]
     ldr    w3, [x1, #MIRROR_STRING_COUNT_OFFSET]
-    ldr    w2, [x2, #MIRROR_STRING_VALUE_OFFSET]
-    ldr    w1, [x1, #MIRROR_STRING_VALUE_OFFSET]
+    add    x2, x2, #MIRROR_STRING_VALUE_OFFSET
+    add    x1, x1, #MIRROR_STRING_VALUE_OFFSET
 
     /*
-     * Now:           CharArray*    Offset   Count
-     *    first arg      x2          w6        w4
-     *   second arg      x1          w5        w3
+     * Now:           Data*  Count
+     *    first arg    x2      w4
+     *   second arg    x1      w3
      */
 
     // x0 := str1.length(w4) - str2.length(w3). ldr zero-extended w3/w4 into x3/x4.
     subs x0, x4, x3
     // Min(count1, count2) into w3.
     csel x3, x3, x4, ge
-
-    // Build pointer into string data.
-
-    // Add offset in array (substr etc.) (sign extend and << 1).
-    add x2, x2, w6, sxtw #1
-    add x1, x1, w5, sxtw #1
-
-    // Add offset in CharArray to array.
-    add x2, x2, #MIRROR_CHAR_ARRAY_DATA_OFFSET
-    add x1, x1, #MIRROR_CHAR_ARRAY_DATA_OFFSET
 
     // TODO: Tune this value.
     // Check for long string, do memcmp16 for them.

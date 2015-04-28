@@ -64,6 +64,9 @@ const VerifiedMethod* VerifiedMethod::Create(verifier::MethodVerifier* method_ve
   if (method_verifier->HasCheckCasts()) {
     verified_method->GenerateSafeCastSet(method_verifier);
   }
+
+  verified_method->SetStringInitPcRegMap(method_verifier->GetStringInitPcRegMap());
+
   return verified_method.release();
 }
 

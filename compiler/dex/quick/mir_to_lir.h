@@ -897,6 +897,10 @@ class Mir2Lir {
                                                             RegLocation arg0, RegLocation arg1,
                                                             RegLocation arg2,
                                                             bool safepoint_pc);
+    void CallRuntimeHelperRegLocationRegLocationRegLocationRegLocation(
+        QuickEntrypointEnum trampoline, RegLocation arg0, RegLocation arg1,
+        RegLocation arg2, RegLocation arg3, bool safepoint_pc);
+
     void GenInvoke(CallInfo* info);
     void GenInvokeNoInline(CallInfo* info);
     virtual NextCallInsn GetNextSDCallInsn() = 0;
@@ -937,7 +941,11 @@ class Mir2Lir {
 
     bool GenInlinedReferenceGetReferent(CallInfo* info);
     virtual bool GenInlinedCharAt(CallInfo* info);
+    bool GenInlinedStringGetCharsNoCheck(CallInfo* info);
     bool GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty);
+    bool GenInlinedStringFactoryNewStringFromBytes(CallInfo* info);
+    bool GenInlinedStringFactoryNewStringFromChars(CallInfo* info);
+    bool GenInlinedStringFactoryNewStringFromString(CallInfo* info);
     virtual bool GenInlinedReverseBits(CallInfo* info, OpSize size);
     bool GenInlinedReverseBytes(CallInfo* info, OpSize size);
     virtual bool GenInlinedAbsInt(CallInfo* info);

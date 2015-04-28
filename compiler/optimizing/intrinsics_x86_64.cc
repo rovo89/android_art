@@ -824,16 +824,10 @@ void IntrinsicCodeGeneratorX86_64::VisitStringCharAt(HInvoke* invoke) {
   const int32_t value_offset = mirror::String::ValueOffset().Int32Value();
   // Location of count
   const int32_t count_offset = mirror::String::CountOffset().Int32Value();
-  // Starting offset within data array
-  const int32_t offset_offset = mirror::String::OffsetOffset().Int32Value();
-  // Start of char data with array_
-  const int32_t data_offset = mirror::Array::DataOffset(sizeof(uint16_t)).Int32Value();
 
   CpuRegister obj = locations->InAt(0).AsRegister<CpuRegister>();
   CpuRegister idx = locations->InAt(1).AsRegister<CpuRegister>();
   CpuRegister out = locations->Out().AsRegister<CpuRegister>();
-  Location temp_loc = locations->GetTemp(0);
-  CpuRegister temp = temp_loc.AsRegister<CpuRegister>();
 
   // TODO: Maybe we can support range check elimination. Overall, though, I think it's not worth
   //       the cost.
@@ -849,12 +843,8 @@ void IntrinsicCodeGeneratorX86_64::VisitStringCharAt(HInvoke* invoke) {
   codegen_->MaybeRecordImplicitNullCheck(invoke);
   __ j(kAboveEqual, slow_path->GetEntryLabel());
 
-  // Get the actual element.
-  __ movl(temp, idx);                          // temp := idx.
-  __ addl(temp, Address(obj, offset_offset));  // temp := offset + idx.
-  __ movl(out, Address(obj, value_offset));    // obj := obj.array.
-  // out = out[2*temp].
-  __ movzxw(out, Address(out, temp, ScaleFactor::TIMES_2, data_offset));
+  // out = out[2*idx].
+  __ movzxw(out, Address(out, idx, ScaleFactor::TIMES_2, value_offset));
 
   __ Bind(slow_path->GetExitLabel());
 }
@@ -884,6 +874,78 @@ void IntrinsicCodeGeneratorX86_64::VisitStringCompareTo(HInvoke* invoke) {
 
   __ gs()->call(Address::Absolute(
         QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pStringCompareTo), true));
+  __ Bind(slow_path->GetExitLabel());
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitStringNewStringFromBytes(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCall,
+                                                            kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(2, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
+  locations->SetInAt(3, Location::RegisterLocation(calling_convention.GetRegisterAt(3)));
+  locations->SetOut(Location::RegisterLocation(RAX));
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitStringNewStringFromBytes(HInvoke* invoke) {
+  X86_64Assembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  CpuRegister byte_array = locations->InAt(0).AsRegister<CpuRegister>();
+  __ testl(byte_array, byte_array);
+  SlowPathCodeX86_64* slow_path = new (GetAllocator()) IntrinsicSlowPathX86_64(invoke);
+  codegen_->AddSlowPath(slow_path);
+  __ j(kEqual, slow_path->GetEntryLabel());
+
+  __ gs()->call(Address::Absolute(
+        QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pAllocStringFromBytes), true));
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+  __ Bind(slow_path->GetExitLabel());
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitStringNewStringFromChars(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCall,
+                                                            kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(2, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
+  locations->SetOut(Location::RegisterLocation(RAX));
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitStringNewStringFromChars(HInvoke* invoke) {
+  X86_64Assembler* assembler = GetAssembler();
+
+  __ gs()->call(Address::Absolute(
+        QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pAllocStringFromChars), true));
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitStringNewStringFromString(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCall,
+                                                            kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->SetOut(Location::RegisterLocation(RAX));
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitStringNewStringFromString(HInvoke* invoke) {
+  X86_64Assembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  CpuRegister string_to_copy = locations->InAt(0).AsRegister<CpuRegister>();
+  __ testl(string_to_copy, string_to_copy);
+  SlowPathCodeX86_64* slow_path = new (GetAllocator()) IntrinsicSlowPathX86_64(invoke);
+  codegen_->AddSlowPath(slow_path);
+  __ j(kEqual, slow_path->GetEntryLabel());
+
+  __ gs()->call(Address::Absolute(
+        QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pAllocStringFromString), true));
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
   __ Bind(slow_path->GetExitLabel());
 }
 
@@ -1390,6 +1452,7 @@ void IntrinsicLocationsBuilderX86_64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UN
 void IntrinsicCodeGeneratorX86_64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) {    \
 }
 
+UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
 UNIMPLEMENTED_INTRINSIC(StringIndexOf)
 UNIMPLEMENTED_INTRINSIC(StringIndexOfAfter)
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)

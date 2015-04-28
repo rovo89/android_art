@@ -31,6 +31,7 @@ class Main {
         testBooleanMethod();
         testCharMethod();
         testEnvironment();
+        testNewStringObject();
     }
 
     public static native void testFindClassOnAttachedNativeThread();
@@ -167,6 +168,8 @@ class Main {
       //   throw new AssertionError("unexpected value for supported_abis");
       // }
     }
+
+    private static native void testNewStringObject();
 }
 
 public class NativeBridgeMain {

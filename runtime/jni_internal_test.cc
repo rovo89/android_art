@@ -625,8 +625,6 @@ TEST_F(JniInternalTest, AllocObject) {
   // ...whose fields haven't been initialized because
   // we didn't call a constructor.
   ASSERT_EQ(0, env_->GetIntField(o, env_->GetFieldID(c, "count", "I")));
-  ASSERT_EQ(0, env_->GetIntField(o, env_->GetFieldID(c, "offset", "I")));
-  ASSERT_TRUE(env_->GetObjectField(o, env_->GetFieldID(c, "value", "[C")) == nullptr);
 }
 
 TEST_F(JniInternalTest, GetVersion) {
@@ -860,7 +858,9 @@ TEST_F(JniInternalTest, FromReflectedMethod_ToReflectedMethod) {
   jstring s = reinterpret_cast<jstring>(env_->AllocObject(c));
   ASSERT_NE(s, nullptr);
   env_->CallVoidMethod(s, mid2);
-  ASSERT_EQ(JNI_FALSE, env_->ExceptionCheck());
+  // With the string change, this should now throw an UnsupportedOperationException.
+  ASSERT_EQ(JNI_TRUE, env_->ExceptionCheck());
+  env_->ExceptionClear();
 
   mid = env_->GetMethodID(c, "length", "()I");
   ASSERT_NE(mid, nullptr);
@@ -1538,7 +1538,7 @@ TEST_F(JniInternalTest, GetStringChars_ReleaseStringChars) {
 
   jboolean is_copy = JNI_FALSE;
   chars = env_->GetStringChars(s, &is_copy);
-  if (Runtime::Current()->GetHeap()->IsMovableObject(s_m->GetCharArray())) {
+  if (Runtime::Current()->GetHeap()->IsMovableObject(s_m)) {
     EXPECT_EQ(JNI_TRUE, is_copy);
   } else {
     EXPECT_EQ(JNI_FALSE, is_copy);

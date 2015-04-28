@@ -68,6 +68,12 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
   if (!kMovingClasses && c->IsClassClass()) {
     movable = false;
   }
+
+  // String constructor is replaced by a StringFactory method in InvokeMethod.
+  if (c->IsStringClass()) {
+    return InvokeMethod(soa, javaMethod, nullptr, javaArgs, 1);
+  }
+
   mirror::Object* receiver =
       movable ? c->AllocObject(soa.Self()) : c->AllocNonMovableObject(soa.Self());
   if (receiver == nullptr) {
