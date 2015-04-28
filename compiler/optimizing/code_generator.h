@@ -212,6 +212,10 @@ class CodeGenerator {
       std::vector<uint8_t>* vector, const DexCompilationUnit& dex_compilation_unit) const;
   void BuildStackMaps(std::vector<uint8_t>* vector);
 
+  bool IsBaseline() const {
+    return is_baseline_;
+  }
+
   bool IsLeafMethod() const {
     return is_leaf_;
   }
@@ -325,6 +329,7 @@ class CodeGenerator {
         number_of_register_pairs_(number_of_register_pairs),
         core_callee_save_mask_(core_callee_save_mask),
         fpu_callee_save_mask_(fpu_callee_save_mask),
+        is_baseline_(false),
         graph_(graph),
         compiler_options_(compiler_options),
         pc_infos_(graph->GetArena(), 32),
@@ -403,6 +408,9 @@ class CodeGenerator {
   size_t number_of_register_pairs_;
   const uint32_t core_callee_save_mask_;
   const uint32_t fpu_callee_save_mask_;
+
+  // Whether we are using baseline.
+  bool is_baseline_;
 
  private:
   void InitLocationsBaseline(HInstruction* instruction);

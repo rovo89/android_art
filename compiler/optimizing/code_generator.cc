@@ -153,6 +153,7 @@ HBasicBlock* CodeGenerator::FirstNonEmptyBlock(HBasicBlock* block) const {
 }
 
 void CodeGenerator::CompileInternal(CodeAllocator* allocator, bool is_baseline) {
+  is_baseline_ = is_baseline;
   HGraphVisitor* instruction_visitor = GetInstructionVisitor();
   DCHECK_EQ(current_block_index_, 0u);
   GenerateFrameEntry();
