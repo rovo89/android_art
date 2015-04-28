@@ -377,15 +377,42 @@ void InstructionSimplifierVisitor::VisitDiv(HDiv* instruction) {
     return;
   }
 
-  if ((input_cst != nullptr) && input_cst->IsMinusOne() &&
-      (Primitive::IsFloatingPointType(type) || Primitive::IsIntOrLongType(type))) {
+  if ((input_cst != nullptr) && input_cst->IsMinusOne()) {
     // Replace code looking like
     //    DIV dst, src, -1
     // with
     //    NEG dst, src
     instruction->GetBlock()->ReplaceAndRemoveInstructionWith(
-        instruction, (new (GetGraph()->GetArena()) HNeg(type, input_other)));
+        instruction, new (GetGraph()->GetArena()) HNeg(type, input_other));
     RecordSimplification();
+    return;
+  }
+
+  if ((input_cst != nullptr) && Primitive::IsFloatingPointType(type)) {
+    // Try replacing code looking like
+    //    DIV dst, src, constant
+    // with
+    //    MUL dst, src, 1 / constant
+    HConstant* reciprocal = nullptr;
+    if (type == Primitive::Primitive::kPrimDouble) {
+      double value = input_cst->AsDoubleConstant()->GetValue();
+      if (CanDivideByReciprocalMultiplyDouble(bit_cast<int64_t, double>(value))) {
+        reciprocal = GetGraph()->GetDoubleConstant(1.0 / value);
+      }
+    } else {
+      DCHECK_EQ(type, Primitive::kPrimFloat);
+      float value = input_cst->AsFloatConstant()->GetValue();
+      if (CanDivideByReciprocalMultiplyFloat(bit_cast<int32_t, float>(value))) {
+        reciprocal = GetGraph()->GetFloatConstant(1.0f / value);
+      }
+    }
+
+    if (reciprocal != nullptr) {
+      instruction->GetBlock()->ReplaceAndRemoveInstructionWith(
+          instruction, new (GetGraph()->GetArena()) HMul(type, input_other, reciprocal));
+      RecordSimplification();
+      return;
+    }
   }
 }
 
