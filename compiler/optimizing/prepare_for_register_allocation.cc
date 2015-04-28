@@ -91,7 +91,7 @@ void PrepareForRegisterAllocation::VisitInvokeStaticOrDirect(HInvokeStaticOrDire
     // previously) by the graph builder during the creation of the
     // static invoke instruction, but is no longer required at this
     // stage (i.e., after inlining has been performed).
-    invoke->RemoveClinitCheckOrLoadClassAsLastInput();
+    invoke->RemoveLoadClassAsLastInput();
 
     // If the load class instruction is no longer used, remove it from
     // the graph.

@@ -2223,6 +2223,12 @@ class HInvoke : public HInstruction {
     SetRawInputAt(index, argument);
   }
 
+  // Return the number of arguments.  This number can be lower than
+  // the number of inputs returned by InputCount(), as some invoke
+  // instructions (e.g. HInvokeStaticOrDirect) can have non-argument
+  // inputs at the end of their list of inputs.
+  uint32_t GetNumberOfArguments() const { return number_of_arguments_; }
+
   Primitive::Type GetType() const OVERRIDE { return return_type_; }
 
   uint32_t GetDexPc() const { return dex_pc_; }
@@ -2242,16 +2248,19 @@ class HInvoke : public HInstruction {
  protected:
   HInvoke(ArenaAllocator* arena,
           uint32_t number_of_arguments,
+          uint32_t number_of_other_inputs,
           Primitive::Type return_type,
           uint32_t dex_pc,
           uint32_t dex_method_index)
     : HInstruction(SideEffects::All()),
+      number_of_arguments_(number_of_arguments),
       inputs_(arena, number_of_arguments),
       return_type_(return_type),
       dex_pc_(dex_pc),
       dex_method_index_(dex_method_index),
       intrinsic_(Intrinsics::kNone) {
-    inputs_.SetSize(number_of_arguments);
+    uint32_t number_of_inputs = number_of_arguments + number_of_other_inputs;
+    inputs_.SetSize(number_of_inputs);
   }
 
   const HUserRecord<HInstruction*> InputRecordAt(size_t i) const OVERRIDE { return inputs_.Get(i); }
@@ -2259,6 +2268,7 @@ class HInvoke : public HInstruction {
     inputs_.Put(index, input);
   }
 
+  uint32_t number_of_arguments_;
   GrowableArray<HUserRecord<HInstruction*> > inputs_;
   const Primitive::Type return_type_;
   const uint32_t dex_pc_;
@@ -2288,7 +2298,12 @@ class HInvokeStaticOrDirect : public HInvoke {
                         InvokeType original_invoke_type,
                         InvokeType invoke_type,
                         ClinitCheckRequirement clinit_check_requirement)
-      : HInvoke(arena, number_of_arguments, return_type, dex_pc, dex_method_index),
+      : HInvoke(arena,
+                number_of_arguments,
+                clinit_check_requirement == ClinitCheckRequirement::kExplicit ? 1u : 0u,
+                return_type,
+                dex_pc,
+                dex_method_index),
         original_invoke_type_(original_invoke_type),
         invoke_type_(invoke_type),
         is_recursive_(is_recursive),
@@ -2311,15 +2326,16 @@ class HInvokeStaticOrDirect : public HInvoke {
     return GetInvokeType() == kStatic;
   }
 
-  // Remove the art::HClinitCheck or art::HLoadClass instruction as
-  // last input (only relevant for static calls with explicit clinit
-  // check).
-  void RemoveClinitCheckOrLoadClassAsLastInput() {
+  // Remove the art::HLoadClass instruction set as last input by
+  // art::PrepareForRegisterAllocation::VisitClinitCheck in lieu of
+  // the initial art::HClinitCheck instruction (only relevant for
+  // static calls with explicit clinit check).
+  void RemoveLoadClassAsLastInput() {
     DCHECK(IsStaticWithExplicitClinitCheck());
     size_t last_input_index = InputCount() - 1;
     HInstruction* last_input = InputAt(last_input_index);
     DCHECK(last_input != nullptr);
-    DCHECK(last_input->IsClinitCheck() || last_input->IsLoadClass()) << last_input->DebugName();
+    DCHECK(last_input->IsLoadClass()) << last_input->DebugName();
     RemoveAsUserOfInput(last_input_index);
     inputs_.DeleteAt(last_input_index);
     clinit_check_requirement_ = ClinitCheckRequirement::kImplicit;
@@ -2372,7 +2388,7 @@ class HInvokeVirtual : public HInvoke {
                  uint32_t dex_pc,
                  uint32_t dex_method_index,
                  uint32_t vtable_index)
-      : HInvoke(arena, number_of_arguments, return_type, dex_pc, dex_method_index),
+      : HInvoke(arena, number_of_arguments, 0u, return_type, dex_pc, dex_method_index),
         vtable_index_(vtable_index) {}
 
   bool CanDoImplicitNullCheckOn(HInstruction* obj) const OVERRIDE {
@@ -2398,7 +2414,7 @@ class HInvokeInterface : public HInvoke {
                    uint32_t dex_pc,
                    uint32_t dex_method_index,
                    uint32_t imt_index)
-      : HInvoke(arena, number_of_arguments, return_type, dex_pc, dex_method_index),
+      : HInvoke(arena, number_of_arguments, 0u, return_type, dex_pc, dex_method_index),
         imt_index_(imt_index) {}
 
   bool CanDoImplicitNullCheckOn(HInstruction* obj) const OVERRIDE {
