@@ -104,7 +104,7 @@ static void MoveFromReturnRegister(Location trg,
 }
 
 static void MoveArguments(HInvoke* invoke, ArenaAllocator* arena, CodeGeneratorX86_64* codegen) {
-  if (invoke->InputCount() == 0) {
+  if (invoke->GetNumberOfArguments() == 0) {
     // No argument to move.
     return;
   }
@@ -116,7 +116,7 @@ static void MoveArguments(HInvoke* invoke, ArenaAllocator* arena, CodeGeneratorX
   // a parallel move resolver.
   HParallelMove parallel_move(arena);
 
-  for (size_t i = 0; i < invoke->InputCount(); i++) {
+  for (size_t i = 0; i < invoke->GetNumberOfArguments(); i++) {
     HInstruction* input = invoke->InputAt(i);
     Location cc_loc = calling_convention_visitor.GetNextLocation(input->GetType());
     Location actual_loc = locations->InAt(i);
