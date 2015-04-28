@@ -30,10 +30,7 @@
 namespace art {
 
 /*
- * We get here through Constructor.newInstance().  The Constructor object
- * would not be available if the constructor weren't public (per the
- * definition of Class.getConstructor), so we can skip the method access
- * check.  We can also safely assume the constructor isn't associated
+ * We can also safely assume the constructor isn't associated
  * with an interface, array, or primitive class. If this is coming from
  * native, it is OK to avoid access checks since JNI does not enforce them.
  */
@@ -48,8 +45,8 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
                                    PrettyDescriptor(c.Get()).c_str());
     return nullptr;
   }
-  // Verify that we can access the class (only for debug since the above comment).
-  if (kIsDebugBuild && !c->IsPublic()) {
+  // Verify that we can access the class.
+  if (!c->IsPublic()) {
     auto* caller = GetCallingClass(soa.Self(), 1);
     // If caller is null, then we called from JNI, just avoid the check since JNI avoids most
     // access checks anyways. TODO: Investigate if this the correct behavior.
