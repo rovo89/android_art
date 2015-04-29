@@ -350,11 +350,20 @@ TEST_F(DexFileTest, FindFieldId) {
 }
 
 TEST_F(DexFileTest, GetMultiDexClassesDexName) {
+  ASSERT_EQ("classes.dex", DexFile::GetMultiDexClassesDexName(0));
+  ASSERT_EQ("classes2.dex", DexFile::GetMultiDexClassesDexName(1));
+  ASSERT_EQ("classes3.dex", DexFile::GetMultiDexClassesDexName(2));
+  ASSERT_EQ("classes100.dex", DexFile::GetMultiDexClassesDexName(99));
+}
+
+TEST_F(DexFileTest, GetMultiDexLocation) {
   std::string dex_location_str = "/system/app/framework.jar";
   const char* dex_location = dex_location_str.c_str();
-  ASSERT_EQ("/system/app/framework.jar", DexFile::GetMultiDexClassesDexName(0, dex_location));
-  ASSERT_EQ("/system/app/framework.jar:classes2.dex", DexFile::GetMultiDexClassesDexName(1, dex_location));
-  ASSERT_EQ("/system/app/framework.jar:classes101.dex", DexFile::GetMultiDexClassesDexName(100, dex_location));
+  ASSERT_EQ("/system/app/framework.jar", DexFile::GetMultiDexLocation(0, dex_location));
+  ASSERT_EQ("/system/app/framework.jar:classes2.dex",
+            DexFile::GetMultiDexLocation(1, dex_location));
+  ASSERT_EQ("/system/app/framework.jar:classes101.dex",
+            DexFile::GetMultiDexLocation(100, dex_location));
 }
 
 TEST_F(DexFileTest, GetDexCanonicalLocation) {
@@ -363,7 +372,7 @@ TEST_F(DexFileTest, GetDexCanonicalLocation) {
   std::string dex_location(dex_location_real.get());
 
   ASSERT_EQ(dex_location, DexFile::GetDexCanonicalLocation(dex_location.c_str()));
-  std::string multidex_location = DexFile::GetMultiDexClassesDexName(1, dex_location.c_str());
+  std::string multidex_location = DexFile::GetMultiDexLocation(1, dex_location.c_str());
   ASSERT_EQ(multidex_location, DexFile::GetDexCanonicalLocation(multidex_location.c_str()));
 
   std::string dex_location_sym = dex_location + "symlink";
@@ -371,7 +380,7 @@ TEST_F(DexFileTest, GetDexCanonicalLocation) {
 
   ASSERT_EQ(dex_location, DexFile::GetDexCanonicalLocation(dex_location_sym.c_str()));
 
-  std::string multidex_location_sym = DexFile::GetMultiDexClassesDexName(1, dex_location_sym.c_str());
+  std::string multidex_location_sym = DexFile::GetMultiDexLocation(1, dex_location_sym.c_str());
   ASSERT_EQ(multidex_location, DexFile::GetDexCanonicalLocation(multidex_location_sym.c_str()));
 
   ASSERT_EQ(0, unlink(dex_location_sym.c_str()));

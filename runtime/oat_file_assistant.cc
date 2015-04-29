@@ -230,8 +230,8 @@ std::vector<std::unique_ptr<const DexFile>> OatFileAssistant::LoadDexFiles(
   dex_files.push_back(std::move(dex_file));
 
   // Load secondary multidex files
-  for (int i = 1; ; i++) {
-    std::string secondary_dex_location = DexFile::GetMultiDexClassesDexName(i, dex_location);
+  for (size_t i = 1; ; i++) {
+    std::string secondary_dex_location = DexFile::GetMultiDexLocation(i, dex_location);
     oat_dex_file = oat_file.GetOatDexFile(secondary_dex_location.c_str(), nullptr, false);
     if (oat_dex_file == nullptr) {
       // There are no more secondary dex files to load.
@@ -403,9 +403,9 @@ bool OatFileAssistant::GivenOatFileIsOutOfDate(const OatFile& file) {
   }
 
   // Verify the dex checksums for any secondary multidex files
-  for (int i = 1; ; i++) {
+  for (size_t i = 1; ; i++) {
     std::string secondary_dex_location
-      = DexFile::GetMultiDexClassesDexName(i, dex_location_);
+      = DexFile::GetMultiDexLocation(i, dex_location_);
     const OatFile::OatDexFile* secondary_oat_dex_file
       = file.GetOatDexFile(secondary_dex_location.c_str(), nullptr, false);
     if (secondary_oat_dex_file == nullptr) {
