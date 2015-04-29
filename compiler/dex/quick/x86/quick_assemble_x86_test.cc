@@ -180,6 +180,13 @@ TEST_F(QuickAssembleX86LowLevelTest, Mulpd) {
        RegStorage::Solo128(0).GetReg(), RegStorage::Solo128(1).GetReg());
 }
 
+TEST_F(QuickAssembleX86LowLevelTest, Pextrw) {
+  Test(kX86, "Pextrw", "pextrw $7, %xmm3, 8(%eax)\n", kX86PextrwMRI,
+       RegStorage::Solo32(r0).GetReg(), 8, RegStorage::Solo128(3).GetReg(), 7);
+  Test(kX86_64, "Pextrw", "pextrw $7, %xmm8, 8(%r10)\n", kX86PextrwMRI,
+       RegStorage::Solo64(r10q).GetReg(), 8, RegStorage::Solo128(8).GetReg(), 7);
+}
+
 class QuickAssembleX86MacroTest : public QuickAssembleX86TestBase {
  protected:
   typedef void (X86Mir2Lir::*AsmFn)(MIR*);
