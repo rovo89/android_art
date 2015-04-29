@@ -376,7 +376,6 @@ bool HLoopInformation::Populate() {
 }
 
 HBasicBlock* HLoopInformation::GetPreHeader() const {
-  DCHECK_EQ(header_->GetPredecessors().Size(), 2u);
   return header_->GetDominator();
 }
 
@@ -1036,6 +1035,20 @@ void HBasicBlock::DisconnectAndDelete() {
   // and updates the reverse post order.
   graph_->DeleteDeadBlock(this);
   SetGraph(nullptr);
+}
+
+void HBasicBlock::UpdateLoopInformation() {
+  // Check if loop information points to a dismantled loop. If so, replace with
+  // the loop information of a larger loop which contains this block, or nullptr
+  // otherwise. We iterate in case the larger loop has been destroyed too.
+  while (IsInLoop() && loop_information_->GetBackEdges().IsEmpty()) {
+    if (IsLoopHeader()) {
+      HSuspendCheck* suspend_check = loop_information_->GetSuspendCheck();
+      DCHECK_EQ(suspend_check->GetBlock(), this);
+      RemoveInstruction(suspend_check);
+    }
+    loop_information_ = loop_information_->GetPreHeader()->GetLoopInformation();
+  }
 }
 
 void HBasicBlock::MergeWith(HBasicBlock* other) {
