@@ -430,12 +430,20 @@ class X86Assembler FINAL : public Assembler {
 
   void shll(Register reg, const Immediate& imm);
   void shll(Register operand, Register shifter);
+  void shll(const Address& address, const Immediate& imm);
+  void shll(const Address& address, Register shifter);
   void shrl(Register reg, const Immediate& imm);
   void shrl(Register operand, Register shifter);
+  void shrl(const Address& address, const Immediate& imm);
+  void shrl(const Address& address, Register shifter);
   void sarl(Register reg, const Immediate& imm);
   void sarl(Register operand, Register shifter);
+  void sarl(const Address& address, const Immediate& imm);
+  void sarl(const Address& address, Register shifter);
   void shld(Register dst, Register src, Register shifter);
+  void shld(Register dst, Register src, const Immediate& imm);
   void shrd(Register dst, Register src, Register shifter);
+  void shrd(Register dst, Register src, const Immediate& imm);
 
   void negl(Register reg);
   void notl(Register reg);
@@ -620,8 +628,8 @@ class X86Assembler FINAL : public Assembler {
   void EmitLabelLink(Label* label);
   void EmitNearLabelLink(Label* label);
 
-  void EmitGenericShift(int rm, Register reg, const Immediate& imm);
-  void EmitGenericShift(int rm, Register operand, Register shifter);
+  void EmitGenericShift(int rm, const Operand& operand, const Immediate& imm);
+  void EmitGenericShift(int rm, const Operand& operand, Register shifter);
 
   DISALLOW_COPY_AND_ASSIGN(X86Assembler);
 };
