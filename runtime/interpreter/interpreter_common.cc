@@ -501,6 +501,7 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
   uint16_t num_regs;
   if (LIKELY(code_item != nullptr)) {
     num_regs = code_item->registers_size_;
+    DCHECK_EQ(string_init ? num_ins - 1 : num_ins, code_item->ins_size_);
   } else {
     DCHECK(called_method->IsNative() || called_method->IsProxyMethod());
     num_regs = num_ins;
