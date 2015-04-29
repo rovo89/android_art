@@ -112,11 +112,14 @@ class UsePosition : public ArenaObject<kArenaAllocMisc> {
         is_environment_(is_environment),
         position_(position),
         next_(next) {
-    DCHECK(user->IsPhi()
+    DCHECK((user == nullptr)
+        || user->IsPhi()
         || (GetPosition() == user->GetLifetimePosition() + 1)
         || (GetPosition() == user->GetLifetimePosition()));
     DCHECK(next_ == nullptr || next->GetPosition() >= GetPosition());
   }
+
+  static constexpr size_t kNoInput = -1;
 
   size_t GetPosition() const { return position_; }
 
@@ -126,20 +129,31 @@ class UsePosition : public ArenaObject<kArenaAllocMisc> {
   HInstruction* GetUser() const { return user_; }
 
   bool GetIsEnvironment() const { return is_environment_; }
+  bool IsSynthesized() const { return user_ == nullptr; }
 
   size_t GetInputIndex() const { return input_index_; }
 
   void Dump(std::ostream& stream) const {
     stream << position_;
-    if (is_environment_) {
-      stream << " (env)";
-    }
+  }
+
+  HLoopInformation* GetLoopInformation() const {
+    return user_->GetBlock()->GetLoopInformation();
   }
 
   UsePosition* Dup(ArenaAllocator* allocator) const {
     return new (allocator) UsePosition(
         user_, input_index_, is_environment_, position_,
         next_ == nullptr ? nullptr : next_->Dup(allocator));
+  }
+
+  bool RequiresRegister() const {
+    if (GetIsEnvironment()) return false;
+    if (IsSynthesized()) return false;
+    Location location = GetUser()->GetLocations()->InAt(GetInputIndex());
+    return location.IsUnallocated()
+        && (location.GetPolicy() == Location::kRequiresRegister
+            || location.GetPolicy() == Location::kRequiresFpuRegister);
   }
 
  private:
@@ -240,7 +254,13 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
         // location of the input just before that instruction (and not potential moves due
         // to splitting).
         position = instruction->GetLifetimePosition();
+      } else if (!locations->InAt(input_index).IsValid()) {
+        return;
       }
+    }
+
+    if (!is_environment && instruction->IsInLoop()) {
+      AddBackEdgeUses(*instruction->GetBlock());
     }
 
     DCHECK(position == instruction->GetLifetimePosition()
@@ -306,6 +326,9 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
 
   void AddPhiUse(HInstruction* instruction, size_t input_index, HBasicBlock* block) {
     DCHECK(instruction->IsPhi());
+    if (block->IsInLoop()) {
+      AddBackEdgeUses(*block);
+    }
     first_use_ = new (allocator_) UsePosition(
         instruction, input_index, false, block->GetLifetimeEnd(), first_use_);
   }
@@ -456,27 +479,9 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
     if (is_temp_) {
       return position == GetStart() ? position : kNoLifetime;
     }
-    if (position == GetStart() && IsParent()) {
-      LocationSummary* locations = defined_by_->GetLocations();
-      Location location = locations->Out();
-      // This interval is the first interval of the instruction. If the output
-      // of the instruction requires a register, we return the position of that instruction
-      // as the first register use.
-      if (location.IsUnallocated()) {
-        if ((location.GetPolicy() == Location::kRequiresRegister)
-             || (location.GetPolicy() == Location::kSameAsFirstInput
-                 && (locations->InAt(0).IsRegister()
-                     || locations->InAt(0).IsRegisterPair()
-                     || locations->InAt(0).GetPolicy() == Location::kRequiresRegister))) {
-          return position;
-        } else if ((location.GetPolicy() == Location::kRequiresFpuRegister)
-                   || (location.GetPolicy() == Location::kSameAsFirstInput
-                       && locations->InAt(0).GetPolicy() == Location::kRequiresFpuRegister)) {
-          return position;
-        }
-      } else if (location.IsRegister() || location.IsRegisterPair()) {
-        return position;
-      }
+
+    if (IsDefiningPosition(position) && DefinitionRequiresRegister()) {
+      return position;
     }
 
     UsePosition* use = first_use_;
@@ -484,10 +489,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
     while (use != nullptr && use->GetPosition() <= end) {
       size_t use_position = use->GetPosition();
       if (use_position > position) {
-        Location location = use->GetUser()->GetLocations()->InAt(use->GetInputIndex());
-        if (location.IsUnallocated()
-            && (location.GetPolicy() == Location::kRequiresRegister
-                || location.GetPolicy() == Location::kRequiresFpuRegister)) {
+        if (use->RequiresRegister()) {
           return use_position;
         }
       }
@@ -505,18 +507,16 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
       return position == GetStart() ? position : kNoLifetime;
     }
 
-    if (position == GetStart() && IsParent()) {
-      if (defined_by_->GetLocations()->Out().IsValid()) {
-        return position;
-      }
+    if (IsDefiningPosition(position)) {
+      DCHECK(defined_by_->GetLocations()->Out().IsValid());
+      return position;
     }
 
     UsePosition* use = first_use_;
     size_t end = GetEnd();
     while (use != nullptr && use->GetPosition() <= end) {
-      Location location = use->GetUser()->GetLocations()->InAt(use->GetInputIndex());
       size_t use_position = use->GetPosition();
-      if (use_position > position && location.IsValid()) {
+      if (use_position > position) {
         return use_position;
       }
       use = use->GetNext();
@@ -664,7 +664,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
         stream << " ";
       } while ((use = use->GetNext()) != nullptr);
     }
-    stream << "}, {";
+    stream << "}, { ";
     use = first_env_use_;
     if (use != nullptr) {
       do {
@@ -908,6 +908,100 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
       continue;
     }
     return range;
+  }
+
+  bool DefinitionRequiresRegister() const {
+    DCHECK(IsParent());
+    LocationSummary* locations = defined_by_->GetLocations();
+    Location location = locations->Out();
+    // This interval is the first interval of the instruction. If the output
+    // of the instruction requires a register, we return the position of that instruction
+    // as the first register use.
+    if (location.IsUnallocated()) {
+      if ((location.GetPolicy() == Location::kRequiresRegister)
+           || (location.GetPolicy() == Location::kSameAsFirstInput
+               && (locations->InAt(0).IsRegister()
+                   || locations->InAt(0).IsRegisterPair()
+                   || locations->InAt(0).GetPolicy() == Location::kRequiresRegister))) {
+        return true;
+      } else if ((location.GetPolicy() == Location::kRequiresFpuRegister)
+                 || (location.GetPolicy() == Location::kSameAsFirstInput
+                     && (locations->InAt(0).IsFpuRegister()
+                         || locations->InAt(0).IsFpuRegisterPair()
+                         || locations->InAt(0).GetPolicy() == Location::kRequiresFpuRegister))) {
+        return true;
+      }
+    } else if (location.IsRegister() || location.IsRegisterPair()) {
+      return true;
+    }
+    return false;
+  }
+
+  bool IsDefiningPosition(size_t position) const {
+    return IsParent() && (position == GetStart());
+  }
+
+  bool HasSynthesizeUseAt(size_t position) const {
+    UsePosition* use = first_use_;
+    while (use != nullptr) {
+      size_t use_position = use->GetPosition();
+      if ((use_position == position) && use->IsSynthesized()) {
+        return true;
+      }
+      if (use_position > position) break;
+      use = use->GetNext();
+    }
+    return false;
+  }
+
+  void AddBackEdgeUses(const HBasicBlock& block_at_use) {
+    DCHECK(block_at_use.IsInLoop());
+    // Add synthesized uses at the back edge of loops to help the register allocator.
+    // Note that this method is called in decreasing liveness order, to faciliate adding
+    // uses at the head of the `first_use_` linked list. Because below
+    // we iterate from inner-most to outer-most, which is in increasing liveness order,
+    // we need to take extra care of how the `first_use_` linked list is being updated.
+    UsePosition* first_in_new_list = nullptr;
+    UsePosition* last_in_new_list = nullptr;
+    for (HLoopInformationOutwardIterator it(block_at_use);
+         !it.Done();
+         it.Advance()) {
+      HLoopInformation* current = it.Current();
+      if (GetDefinedBy()->GetLifetimePosition() >= current->GetHeader()->GetLifetimeStart()) {
+        // This interval is defined in the loop. We can stop going outward.
+        break;
+      }
+
+      size_t back_edge_use_position = current->GetSingleBackEdge()->GetLifetimeEnd();
+      if ((first_use_ != nullptr) && (first_use_->GetPosition() <= back_edge_use_position)) {
+        // There was a use already seen in this loop. Therefore the previous call to `AddUse`
+        // already inserted the backedge use. We can stop going outward.
+        DCHECK(HasSynthesizeUseAt(back_edge_use_position));
+        break;
+      }
+
+      DCHECK(last_in_new_list == nullptr
+             || back_edge_use_position > last_in_new_list->GetPosition());
+
+      UsePosition* new_use = new (allocator_) UsePosition(
+          nullptr, UsePosition::kNoInput, /* is_environment */ false,
+          back_edge_use_position, nullptr);
+
+      if (last_in_new_list != nullptr) {
+        // Going outward. The latest created use needs to point to the new use.
+        last_in_new_list->SetNext(new_use);
+      } else {
+        // This is the inner-most loop.
+        DCHECK_EQ(current, block_at_use.GetLoopInformation());
+        first_in_new_list = new_use;
+      }
+      last_in_new_list = new_use;
+    }
+    // Link the newly created linked list with `first_use_`.
+    if (last_in_new_list != nullptr) {
+      last_in_new_list->SetNext(first_use_);
+      first_use_ = first_in_new_list;
+    }
   }
 
   ArenaAllocator* const allocator_;

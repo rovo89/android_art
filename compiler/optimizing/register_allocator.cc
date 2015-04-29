@@ -1467,23 +1467,28 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
 
     LiveRange* range = current->GetFirstRange();
     while (range != nullptr) {
-      DCHECK(use == nullptr || use->GetPosition() >= range->GetStart());
+      while (use != nullptr && use->GetPosition() < range->GetStart()) {
+        DCHECK(use->IsSynthesized());
+        use = use->GetNext();
+      }
       while (use != nullptr && use->GetPosition() <= range->GetEnd()) {
         DCHECK(!use->GetIsEnvironment());
         DCHECK(current->CoversSlow(use->GetPosition()) || (use->GetPosition() == range->GetEnd()));
-        LocationSummary* locations = use->GetUser()->GetLocations();
-        Location expected_location = locations->InAt(use->GetInputIndex());
-        // The expected (actual) location may be invalid in case the input is unused. Currently
-        // this only happens for intrinsics.
-        if (expected_location.IsValid()) {
-          if (expected_location.IsUnallocated()) {
-            locations->SetInAt(use->GetInputIndex(), source);
-          } else if (!expected_location.IsConstant()) {
-            AddInputMoveFor(interval->GetDefinedBy(), use->GetUser(), source, expected_location);
+        if (!use->IsSynthesized()) {
+          LocationSummary* locations = use->GetUser()->GetLocations();
+          Location expected_location = locations->InAt(use->GetInputIndex());
+          // The expected (actual) location may be invalid in case the input is unused. Currently
+          // this only happens for intrinsics.
+          if (expected_location.IsValid()) {
+            if (expected_location.IsUnallocated()) {
+              locations->SetInAt(use->GetInputIndex(), source);
+            } else if (!expected_location.IsConstant()) {
+              AddInputMoveFor(interval->GetDefinedBy(), use->GetUser(), source, expected_location);
+            }
+          } else {
+            DCHECK(use->GetUser()->IsInvoke());
+            DCHECK(use->GetUser()->AsInvoke()->GetIntrinsic() != Intrinsics::kNone);
           }
-        } else {
-          DCHECK(use->GetUser()->IsInvoke());
-          DCHECK(use->GetUser()->AsInvoke()->GetIntrinsic() != Intrinsics::kNone);
         }
         use = use->GetNext();
       }
@@ -1561,7 +1566,13 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
     current = next_sibling;
   } while (current != nullptr);
 
-  DCHECK(use == nullptr);
+  if (kIsDebugBuild) {
+    // Following uses can only be synthesized uses.
+    while (use != nullptr) {
+      DCHECK(use->IsSynthesized());
+      use = use->GetNext();
+    }
+  }
 }
 
 void RegisterAllocator::ConnectSplitSiblings(LiveInterval* interval,
