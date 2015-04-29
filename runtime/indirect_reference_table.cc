@@ -175,10 +175,16 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
   DCHECK(table_ != nullptr);
   DCHECK_GE(segment_state_.parts.numHoles, prevState.parts.numHoles);
 
-  if (GetIndirectRefKind(iref) == kHandleScopeOrInvalid &&
-      Thread::Current()->HandleScopeContains(reinterpret_cast<jobject>(iref))) {
-    LOG(WARNING) << "Attempt to remove local handle scope entry from IRT, ignoring";
-    return true;
+  if (GetIndirectRefKind(iref) == kHandleScopeOrInvalid) {
+    auto* self = Thread::Current();
+    if (self->HandleScopeContains(reinterpret_cast<jobject>(iref))) {
+      auto* env = self->GetJniEnv();
+      DCHECK(env != nullptr);
+      if (env->check_jni) {
+        LOG(WARNING) << "Attempt to remove local handle scope entry from IRT, ignoring";
+      }
+      return true;
+    }
   }
   const int idx = ExtractIndex(iref);
   if (idx < bottomIndex) {
