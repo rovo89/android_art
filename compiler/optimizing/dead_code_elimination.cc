@@ -65,10 +65,13 @@ void HDeadCodeElimination::RemoveDeadBlocks() {
   for (HPostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block  = it.Current();
     if (live_blocks.IsBitSet(block->GetBlockId())) {
-      continue;
+      // If this block is part of a loop that is being dismantled, we need to
+      // update its loop information.
+      block->UpdateLoopInformation();
+    } else {
+      MaybeRecordDeadBlock(block);
+      block->DisconnectAndDelete();
     }
-    MaybeRecordDeadBlock(block);
-    block->DisconnectAndDelete();
   }
 
   // Connect successive blocks created by dead branches. Order does not matter.
