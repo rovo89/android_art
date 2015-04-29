@@ -137,7 +137,7 @@ void RegisterLine::MarkRefsAsInitialized(MethodVerifier* verifier, const RegType
     if (GetRegisterType(verifier, i).Equals(uninit_type)) {
       line_[i] = init_type.GetId();
       changed++;
-      if (i != this_reg && is_string) {
+      if (is_string && i != this_reg) {
         auto it = verifier->GetStringInitPcRegMap().find(dex_pc);
         if (it != verifier->GetStringInitPcRegMap().end()) {
           it->second.insert(i);
