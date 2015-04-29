@@ -592,7 +592,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   void RemoveInstructionOrPhi(HInstruction* instruction, bool ensure_safety = true);
 
   bool IsLoopHeader() const {
-    return (loop_information_ != nullptr) && (loop_information_->GetHeader() == this);
+    return IsInLoop() && (loop_information_->GetHeader() == this);
   }
 
   bool IsLoopPreHeaderFirstPredecessor() const {
@@ -611,7 +611,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   void SetInLoop(HLoopInformation* info) {
     if (IsLoopHeader()) {
       // Nothing to do. This just means `info` is an outer loop.
-    } else if (loop_information_ == nullptr) {
+    } else if (!IsInLoop()) {
       loop_information_ = info;
     } else if (loop_information_->Contains(*info->GetHeader())) {
       // Block is currently part of an outer loop. Make it part of this inner loop.
@@ -629,6 +629,11 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   void SetLoopInformation(HLoopInformation* info) {
     loop_information_ = info;
   }
+
+  // Checks if the loop information points to a valid loop. If the loop has been
+  // dismantled (does not have a back edge any more), loop information is
+  // removed or replaced with the information of the first valid outer loop.
+  void UpdateLoopInformation();
 
   bool IsInLoop() const { return loop_information_ != nullptr; }
 
@@ -683,7 +688,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
 
   void Advance() {
     DCHECK(!Done());
-    current_ = current_->GetHeader()->GetDominator()->GetLoopInformation();
+    current_ = current_->GetPreHeader()->GetLoopInformation();
   }
 
   HLoopInformation* Current() const {
