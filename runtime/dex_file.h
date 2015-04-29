@@ -888,7 +888,13 @@ class DexFile {
     return size_;
   }
 
-  static std::string GetMultiDexClassesDexName(size_t number, const char* dex_location);
+  // Return the name of the index-th classes.dex in a multidex zip file. This is classes.dex for
+  // index == 0, and classes{index + 1}.dex else.
+  static std::string GetMultiDexClassesDexName(size_t index);
+
+  // Return the (possibly synthetic) dex location for a multidex entry. This is dex_location for
+  // index == 0, and dex_location + multi-dex-separator + GetMultiDexClassesDexName(index) else.
+  static std::string GetMultiDexLocation(size_t index, const char* dex_location);
 
   // Returns the canonical form of the given dex location.
   //

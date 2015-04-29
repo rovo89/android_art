@@ -296,6 +296,12 @@ std::unique_ptr<const DexFile> DexFile::Open(const ZipArchive& zip_archive, cons
   return dex_file;
 }
 
+// Technically we do not have a limitation with respect to the number of dex files that can be in a
+// multidex APK. However, it's bad practice, as each dex file requires its own tables for symbols
+// (types, classes, methods, ...) and dex caches. So warn the user that we open a zip with what
+// seems an excessive number.
+static constexpr size_t kWarnOnManyDexFilesThreshold = 100;
+
 bool DexFile::OpenFromZip(const ZipArchive& zip_archive, const std::string& location,
                           std::string* error_msg,
                           std::vector<std::unique_ptr<const DexFile>>* dex_files) {
@@ -310,14 +316,13 @@ bool DexFile::OpenFromZip(const ZipArchive& zip_archive, const std::string& loca
     dex_files->push_back(std::move(dex_file));
 
     // Now try some more.
-    size_t i = 2;
 
     // We could try to avoid std::string allocations by working on a char array directly. As we
     // do not expect a lot of iterations, this seems too involved and brittle.
 
-    while (i < 100) {
-      std::string name = StringPrintf("classes%zu.dex", i);
-      std::string fake_location = location + kMultiDexSeparator + name;
+    for (size_t i = 1; ; ++i) {
+      std::string name = GetMultiDexClassesDexName(i);
+      std::string fake_location = GetMultiDexLocation(i, location.c_str());
       std::unique_ptr<const DexFile> next_dex_file(Open(zip_archive, name.c_str(), fake_location,
                                                         error_msg, &error_code));
       if (next_dex_file.get() == nullptr) {
@@ -329,7 +334,16 @@ bool DexFile::OpenFromZip(const ZipArchive& zip_archive, const std::string& loca
         dex_files->push_back(std::move(next_dex_file));
       }
 
-      i++;
+      if (i == kWarnOnManyDexFilesThreshold) {
+        LOG(WARNING) << location << " has in excess of " << kWarnOnManyDexFilesThreshold
+                     << " dex files. Please consider coalescing and shrinking the number to "
+                        " avoid runtime overhead.";
+      }
+
+      if (i == std::numeric_limits<size_t>::max()) {
+        LOG(ERROR) << "Overflow in number of dex files!";
+        break;
+      }
     }
 
     return true;
@@ -973,11 +987,19 @@ bool DexFile::IsMultiDexLocation(const char* location) {
   return strrchr(location, kMultiDexSeparator) != nullptr;
 }
 
-std::string DexFile::GetMultiDexClassesDexName(size_t number, const char* dex_location) {
-  if (number == 0) {
+std::string DexFile::GetMultiDexClassesDexName(size_t index) {
+  if (index == 0) {
+    return "classes.dex";
+  } else {
+    return StringPrintf("classes%zu.dex", index + 1);
+  }
+}
+
+std::string DexFile::GetMultiDexLocation(size_t index, const char* dex_location) {
+  if (index == 0) {
     return dex_location;
   } else {
-    return StringPrintf("%s" kMultiDexSeparatorString "classes%zu.dex", dex_location, number + 1);
+    return StringPrintf("%s" kMultiDexSeparatorString "classes%zu.dex", dex_location, index + 1);
   }
 }
 
