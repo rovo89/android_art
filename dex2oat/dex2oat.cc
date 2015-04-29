@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
@@ -324,26 +325,19 @@ class WatchDog {
     return nullptr;
   }
 
-  static void Message(char severity, const std::string& message) {
-    // TODO: Remove when we switch to LOG when we can guarantee it won't prevent shutdown in error
-    //       cases.
-    fprintf(stderr, "dex2oat%s %c %d %d %s\n",
-            kIsDebugBuild ? "d" : "",
-            severity,
-            getpid(),
-            GetTid(),
-            message.c_str());
-  }
-
   NO_RETURN static void Fatal(const std::string& message) {
-    Message('F', message);
+    // TODO: When we can guarantee it won't prevent shutdown in error cases, move to LOG. However,
+    //       it's rather easy to hang in unwinding.
+    //       LogLine also avoids ART logging lock issues, as it's really only a wrapper around
+    //       logcat logging or stderr output.
+    LogMessage::LogLine(__FILE__, __LINE__, LogSeverity::FATAL, message.c_str());
     exit(1);
   }
 
   void Wait() {
     // TODO: tune the multiplier for GC verification, the following is just to make the timeout
     //       large.
-    int64_t multiplier = kVerifyObjectSupport > kVerifyObjectModeFast ? 100 : 1;
+    constexpr int64_t multiplier = kVerifyObjectSupport > kVerifyObjectModeFast ? 100 : 1;
     timespec timeout_ts;
     InitTimeSpec(true, CLOCK_REALTIME, multiplier * kWatchDogTimeoutSeconds * 1000, 0, &timeout_ts);
     const char* reason = "dex2oat watch dog thread waiting";
@@ -351,7 +345,8 @@ class WatchDog {
     while (!shutting_down_) {
       int rc = TEMP_FAILURE_RETRY(pthread_cond_timedwait(&cond_, &mutex_, &timeout_ts));
       if (rc == ETIMEDOUT) {
-        Fatal(StringPrintf("dex2oat did not finish after %d seconds", kWatchDogTimeoutSeconds));
+        Fatal(StringPrintf("dex2oat did not finish after %" PRId64 " seconds",
+                           kWatchDogTimeoutSeconds));
       } else if (rc != 0) {
         std::string message(StringPrintf("pthread_cond_timedwait failed: %s",
                                          strerror(errno)));
@@ -363,10 +358,10 @@ class WatchDog {
 
   // When setting timeouts, keep in mind that the build server may not be as fast as your desktop.
   // Debug builds are slower so they have larger timeouts.
-  static const unsigned int kSlowdownFactor = kIsDebugBuild ? 5U : 1U;
+  static constexpr int64_t kSlowdownFactor = kIsDebugBuild ? 5U : 1U;
 
-  // 6 minutes scaled by kSlowdownFactor.
-  static const unsigned int kWatchDogTimeoutSeconds = kSlowdownFactor * 6 * 60;
+  // 10 minutes scaled by kSlowdownFactor.
+  static constexpr int64_t kWatchDogTimeoutSeconds = kSlowdownFactor * 10 * 60;
 
   bool is_watch_dog_enabled_;
   bool shutting_down_;
@@ -1805,8 +1800,6 @@ class Dex2Oat FINAL {
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Dex2Oat);
 };
-
-const unsigned int WatchDog::kWatchDogTimeoutSeconds;
 
 static void b13564922() {
 #if defined(__linux__) && defined(__arm__)
