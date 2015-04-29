@@ -78,22 +78,19 @@ class InvokeDexCallingConvention : public CallingConvention<Register, SRegister>
   DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConvention);
 };
 
-class InvokeDexCallingConventionVisitor {
+class InvokeDexCallingConventionVisitorARM : public InvokeDexCallingConventionVisitor {
  public:
-  InvokeDexCallingConventionVisitor()
-      : gp_index_(0), float_index_(0), double_index_(0), stack_index_(0) {}
+  InvokeDexCallingConventionVisitorARM() {}
+  virtual ~InvokeDexCallingConventionVisitorARM() {}
 
-  Location GetNextLocation(Primitive::Type type);
+  Location GetNextLocation(Primitive::Type type) OVERRIDE;
   Location GetReturnLocation(Primitive::Type type);
 
  private:
   InvokeDexCallingConvention calling_convention;
-  uint32_t gp_index_;
-  uint32_t float_index_;
-  uint32_t double_index_;
-  uint32_t stack_index_;
+  uint32_t double_index_ = 0;
 
-  DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitor);
+  DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitorARM);
 };
 
 class ParallelMoveResolverARM : public ParallelMoveResolverWithSwap {
@@ -151,7 +148,7 @@ class LocationsBuilderARM : public HGraphVisitor {
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
 
   CodeGeneratorARM* const codegen_;
-  InvokeDexCallingConventionVisitor parameter_visitor_;
+  InvokeDexCallingConventionVisitorARM parameter_visitor_;
 
   DISALLOW_COPY_AND_ASSIGN(LocationsBuilderARM);
 };
