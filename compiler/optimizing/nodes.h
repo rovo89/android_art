@@ -397,6 +397,11 @@ class HLoopInformation : public ArenaObject<kArenaAllocMisc> {
     return back_edges_;
   }
 
+  HBasicBlock* GetSingleBackEdge() const {
+    DCHECK_EQ(back_edges_.Size(), 1u);
+    return back_edges_.Get(0);
+  }
+
   void ClearBackEdges() {
     back_edges_.Reset();
   }
