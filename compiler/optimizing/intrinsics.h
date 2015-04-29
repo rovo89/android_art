@@ -17,8 +17,10 @@
 #ifndef ART_COMPILER_OPTIMIZING_INTRINSICS_H_
 #define ART_COMPILER_OPTIMIZING_INTRINSICS_H_
 
+#include "code_generator.h"
 #include "nodes.h"
 #include "optimization.h"
+#include "parallel_move_resolver.h"
 
 namespace art {
 
@@ -75,6 +77,38 @@ INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 #undef INTRINSICS_LIST
 #undef OPTIMIZING_INTRINSICS
+
+  static void MoveArguments(HInvoke* invoke,
+                            CodeGenerator* codegen,
+                            InvokeDexCallingConventionVisitor* calling_convention_visitor) {
+    if (kIsDebugBuild && invoke->IsInvokeStaticOrDirect()) {
+      HInvokeStaticOrDirect* invoke_static_or_direct = invoke->AsInvokeStaticOrDirect();
+      // When we do not run baseline, explicit clinit checks triggered by static
+      // invokes must have been pruned by art::PrepareForRegisterAllocation.
+      DCHECK(codegen->IsBaseline() || !invoke_static_or_direct->IsStaticWithExplicitClinitCheck());
+    }
+
+    if (invoke->GetNumberOfArguments() == 0) {
+      // No argument to move.
+      return;
+    }
+
+    LocationSummary* locations = invoke->GetLocations();
+
+    // We're moving potentially two or more locations to locations that could overlap, so we need
+    // a parallel move resolver.
+    HParallelMove parallel_move(codegen->GetGraph()->GetArena());
+
+    for (size_t i = 0; i < invoke->GetNumberOfArguments(); i++) {
+      HInstruction* input = invoke->InputAt(i);
+      Location cc_loc = calling_convention_visitor->GetNextLocation(input->GetType());
+      Location actual_loc = locations->InAt(i);
+
+      parallel_move.AddMove(actual_loc, cc_loc, input->GetType(), nullptr);
+    }
+
+    codegen->GetMoveResolver()->EmitNativeCode(&parallel_move);
+  }
 
  protected:
   IntrinsicVisitor() {}
