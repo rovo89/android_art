@@ -128,7 +128,7 @@ public class Main {
   // CHECK-DAG:     [[Arg:i\d+]]     ParameterValue
   // CHECK-DAG:                      Return [ [[Arg]] ]
 
-  // CHECK-START: int Main.testRemoveLoop(int) dead_code_elimination_final (after)
+  // CHECK-START: int Main.testDeadLoop(int) dead_code_elimination_final (after)
   // CHECK-NOT:                      If
   // CHECK-NOT:                      Add
 
@@ -139,9 +139,56 @@ public class Main {
     return x;
   }
 
+  // CHECK-START: int Main.testUpdateLoopInformation(int) dead_code_elimination_final (before)
+  // CHECK-DAG:                      If
+  // CHECK-DAG:                      If
+  // CHECK-DAG:                      Add
+
+  // CHECK-START: int Main.testUpdateLoopInformation(int) dead_code_elimination_final (after)
+  // CHECK-DAG:     [[Arg:i\d+]]     ParameterValue
+  // CHECK-DAG:                      Return [ [[Arg]] ]
+
+  // CHECK-START: int Main.testUpdateLoopInformation(int) dead_code_elimination_final (after)
+  // CHECK-NOT:                      If
+  // CHECK-NOT:                      Add
+
+  public static int testUpdateLoopInformation(int x) {
+    // Use of Or in the condition generates a dead loop where not all of its
+    // blocks are removed. This forces DCE to update their loop information.
+    while (inlineFalse() || !inlineTrue()) {
+      x++;
+    }
+    return x;
+  }
+
+  // CHECK-START: int Main.testRemoveSuspendCheck(int, int) dead_code_elimination_final (before)
+  // CHECK:                          SuspendCheck
+  // CHECK:                          SuspendCheck
+  // CHECK:                          SuspendCheck
+  // CHECK-NOT:                      SuspendCheck
+
+  // CHECK-START: int Main.testRemoveSuspendCheck(int, int) dead_code_elimination_final (after)
+  // CHECK:                          SuspendCheck
+  // CHECK:                          SuspendCheck
+  // CHECK-NOT:                      SuspendCheck
+
+  public static int testRemoveSuspendCheck(int x, int y) {
+    // Inner loop will leave behind the header with its SuspendCheck. DCE must
+    // remove it, otherwise the outer loop would end up with two.
+    while (y > 0) {
+      while (inlineFalse() || !inlineTrue()) {
+        x++;
+      }
+      y--;
+    }
+    return x;
+  }
+
   public static void main(String[] args) {
     assertIntEquals(7, testTrueBranch(4, 3));
     assertIntEquals(1, testFalseBranch(4, 3));
     assertIntEquals(42, testRemoveLoop(42));
+    assertIntEquals(23, testUpdateLoopInformation(23));
+    assertIntEquals(12, testRemoveSuspendCheck(12, 5));
   }
 }
