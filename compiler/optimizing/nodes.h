@@ -2993,8 +2993,10 @@ class HInstanceFieldGet : public HExpression<1> {
   HInstanceFieldGet(HInstruction* value,
                     Primitive::Type field_type,
                     MemberOffset field_offset,
+                    bool is_final,
                     bool is_volatile)
-      : HExpression(field_type, SideEffects::DependsOnSomething()),
+      : HExpression(field_type,
+                    is_final ? SideEffects::None() : SideEffects::DependsOnSomething()),
         field_info_(field_offset, field_type, is_volatile) {
     SetRawInputAt(0, value);
   }
@@ -3404,8 +3406,10 @@ class HStaticFieldGet : public HExpression<1> {
   HStaticFieldGet(HInstruction* cls,
                   Primitive::Type field_type,
                   MemberOffset field_offset,
+                  bool is_final,
                   bool is_volatile)
-      : HExpression(field_type, SideEffects::DependsOnSomething()),
+      : HExpression(field_type,
+                    is_final ? SideEffects::None() : SideEffects::DependsOnSomething()),
         field_info_(field_offset, field_type, is_volatile) {
     SetRawInputAt(0, cls);
   }
