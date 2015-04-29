@@ -93,7 +93,7 @@ static void MoveArguments(HInvoke* invoke, ArenaAllocator* arena, CodeGeneratorA
   }
 
   LocationSummary* locations = invoke->GetLocations();
-  InvokeDexCallingConventionVisitor calling_convention_visitor;
+  InvokeDexCallingConventionVisitorARM64 calling_convention_visitor;
 
   // We're moving potentially two or more locations to locations that could overlap, so we need
   // a parallel move resolver.

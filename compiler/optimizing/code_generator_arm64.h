@@ -119,25 +119,20 @@ class InvokeDexCallingConvention : public CallingConvention<vixl::Register, vixl
   DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConvention);
 };
 
-class InvokeDexCallingConventionVisitor {
+class InvokeDexCallingConventionVisitorARM64 : public InvokeDexCallingConventionVisitor {
  public:
-  InvokeDexCallingConventionVisitor() : gp_index_(0), fp_index_(0), stack_index_(0) {}
+  InvokeDexCallingConventionVisitorARM64() {}
+  virtual ~InvokeDexCallingConventionVisitorARM64() {}
 
-  Location GetNextLocation(Primitive::Type type);
+  Location GetNextLocation(Primitive::Type type) OVERRIDE;
   Location GetReturnLocation(Primitive::Type return_type) {
     return calling_convention.GetReturnLocation(return_type);
   }
 
  private:
   InvokeDexCallingConvention calling_convention;
-  // The current index for core registers.
-  uint32_t gp_index_;
-  // The current index for floating-point registers.
-  uint32_t fp_index_;
-  // The current stack index.
-  uint32_t stack_index_;
 
-  DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitor);
+  DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitorARM64);
 };
 
 class InstructionCodeGeneratorARM64 : public HGraphVisitor {
@@ -193,7 +188,7 @@ class LocationsBuilderARM64 : public HGraphVisitor {
   void HandleShift(HBinaryOperation* instr);
 
   CodeGeneratorARM64* const codegen_;
-  InvokeDexCallingConventionVisitor parameter_visitor_;
+  InvokeDexCallingConventionVisitorARM64 parameter_visitor_;
 
   DISALLOW_COPY_AND_ASSIGN(LocationsBuilderARM64);
 };
