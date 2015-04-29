@@ -327,6 +327,7 @@ class CodeGenerator {
     return GetFpuSpillSize() + GetCoreSpillSize();
   }
 
+  virtual ParallelMoveResolver* GetMoveResolver() = 0;
 
  protected:
   CodeGenerator(HGraph* graph,
@@ -370,7 +371,6 @@ class CodeGenerator {
 
   virtual Location GetStackLocation(HLoadLocal* load) const = 0;
 
-  virtual ParallelMoveResolver* GetMoveResolver() = 0;
   virtual HGraphVisitor* GetLocationBuilder() = 0;
   virtual HGraphVisitor* GetInstructionVisitor() = 0;
 
