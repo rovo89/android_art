@@ -111,28 +111,9 @@ static void MoveFromReturnRegister(Location target,
   }
 }
 
-static void MoveArguments(HInvoke* invoke, ArenaAllocator* arena, CodeGeneratorX86* codegen) {
-  if (invoke->GetNumberOfArguments() == 0) {
-    // No argument to move.
-    return;
-  }
-
-  LocationSummary* locations = invoke->GetLocations();
+static void MoveArguments(HInvoke* invoke, CodeGeneratorX86* codegen) {
   InvokeDexCallingConventionVisitorX86 calling_convention_visitor;
-
-  // We're moving potentially two or more locations to locations that could overlap, so we need
-  // a parallel move resolver.
-  HParallelMove parallel_move(arena);
-
-  for (size_t i = 0; i < invoke->GetNumberOfArguments(); i++) {
-    HInstruction* input = invoke->InputAt(i);
-    Location cc_loc = calling_convention_visitor.GetNextLocation(input->GetType());
-    Location actual_loc = locations->InAt(i);
-
-    parallel_move.AddMove(actual_loc, cc_loc, input->GetType(), nullptr);
-  }
-
-  codegen->GetMoveResolver()->EmitNativeCode(&parallel_move);
+  IntrinsicVisitor::MoveArguments(invoke, codegen, &calling_convention_visitor);
 }
 
 // Slow-path for fallback (calling the managed code to handle the intrinsic) in an intrinsified
@@ -155,7 +136,7 @@ class IntrinsicSlowPathX86 : public SlowPathCodeX86 {
 
     SaveLiveRegisters(codegen, invoke_->GetLocations());
 
-    MoveArguments(invoke_, codegen->GetGraph()->GetArena(), codegen);
+    MoveArguments(invoke_, codegen);
 
     if (invoke_->IsInvokeStaticOrDirect()) {
       codegen->GenerateStaticOrDirectCall(invoke_->AsInvokeStaticOrDirect(), EAX);
@@ -749,7 +730,7 @@ void IntrinsicCodeGeneratorX86::VisitMathSqrt(HInvoke* invoke) {
 }
 
 static void InvokeOutOfLineIntrinsic(CodeGeneratorX86* codegen, HInvoke* invoke) {
-  MoveArguments(invoke, codegen->GetGraph()->GetArena(), codegen);
+  MoveArguments(invoke, codegen);
 
   DCHECK(invoke->IsInvokeStaticOrDirect());
   codegen->GenerateStaticOrDirectCall(invoke->AsInvokeStaticOrDirect(), EAX);
