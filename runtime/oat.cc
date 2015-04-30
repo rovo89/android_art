@@ -71,7 +71,7 @@ OatHeader* OatHeader::FromFile(const std::string& filename, std::string* error_m
     *error_msg = StringPrintf("Could not get oat header because file could not be opened: %s", filename.c_str());
     return nullptr;
   }
-  std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file.release(), false, false, error_msg));
+  std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file.get(), false, false, error_msg));
   if (elf_file.get() == nullptr) {
     return nullptr;
   }
