@@ -388,6 +388,10 @@ class DexFile {
   static bool Open(const char* filename, const char* location, std::string* error_msg,
                    std::vector<std::unique_ptr<const DexFile>>* dex_files);
 
+  // Checks whether the given file has the dex magic, or is a zip file with a classes.dex entry.
+  // If this function returns false, Open will not succeed. The inverse is not true, however.
+  static bool MaybeDex(const char* filename);
+
   // Opens .dex file, backed by existing memory
   static std::unique_ptr<const DexFile> Open(const uint8_t* base, size_t size,
                                              const std::string& location,
