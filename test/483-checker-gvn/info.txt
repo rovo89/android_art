@@ -1,0 +1,1 @@
+Tests that final fields can be GVNed even with side effects.
