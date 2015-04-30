@@ -153,6 +153,31 @@ bool DexFile::Open(const char* filename, const char* location, std::string* erro
   return false;
 }
 
+static bool ContainsClassesDex(int fd, const char* filename) {
+  std::string error_msg;
+  std::unique_ptr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(fd, filename, &error_msg));
+  if (zip_archive.get() == nullptr) {
+    return false;
+  }
+  std::unique_ptr<ZipEntry> zip_entry(zip_archive->Find(DexFile::kClassesDex, &error_msg));
+  return (zip_entry.get() != nullptr);
+}
+
+bool DexFile::MaybeDex(const char* filename) {
+  uint32_t magic;
+  std::string error_msg;
+  ScopedFd fd(OpenAndReadMagic(filename, &magic, &error_msg));
+  if (fd.get() == -1) {
+    return false;
+  }
+  if (IsZipMagic(magic)) {
+    return ContainsClassesDex(fd.release(), filename);
+  } else if (IsDexMagic(magic)) {
+    return true;
+  }
+  return false;
+}
+
 int DexFile::GetPermissions() const {
   if (mem_map_.get() == nullptr) {
     return 0;
