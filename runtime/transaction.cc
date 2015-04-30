@@ -70,13 +70,21 @@ void Transaction::Abort(const std::string& abort_message) {
   }
 }
 
-void Transaction::ThrowAbortError(Thread* self, bool rethrow) {
+void Transaction::ThrowAbortError(Thread* self, const std::string* abort_message) {
+  const bool rethrow = (abort_message == nullptr);
   if (kIsDebugBuild && rethrow) {
     CHECK(IsAborted()) << "Rethrow " << Transaction::kAbortExceptionDescriptor
                        << " while transaction is not aborted";
   }
-  std::string abort_msg(GetAbortMessage());
-  self->ThrowNewWrappedException(Transaction::kAbortExceptionSignature, abort_msg.c_str());
+  if (rethrow) {
+    // Rethrow an exception with the earlier abort message stored in the transaction.
+    self->ThrowNewWrappedException(Transaction::kAbortExceptionSignature,
+                                   GetAbortMessage().c_str());
+  } else {
+    // Throw an exception with the given abort message.
+    self->ThrowNewWrappedException(Transaction::kAbortExceptionSignature,
+                                   abort_message->c_str());
+  }
 }
 
 bool Transaction::IsAborted() {

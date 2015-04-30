@@ -48,7 +48,7 @@ class Transaction FINAL {
   void Abort(const std::string& abort_message)
       LOCKS_EXCLUDED(log_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void ThrowAbortError(Thread* self, bool rethrow)
+  void ThrowAbortError(Thread* self, const std::string* abort_message)
       LOCKS_EXCLUDED(log_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsAborted() LOCKS_EXCLUDED(log_lock_);
