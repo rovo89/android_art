@@ -67,7 +67,7 @@ class DwarfTest : public CommonRuntimeTest {
     InstructionSet isa = is64bit ? kX86_64 : kX86;
     ElfBuilder<ElfTypes> builder(
         &code, file.GetFile(), isa, 0, 0, 0, 0, 0, 0, false, false);
-    typedef ElfRawSectionBuilder<ElfTypes> Section;
+    typedef typename ElfBuilder<ElfTypes>::ElfRawSectionBuilder Section;
     Section debug_info(".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
     Section debug_abbrev(".debug_abbrev", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
     Section debug_str(".debug_str", SHT_PROGBITS, 0, nullptr, 0, 1, 0);

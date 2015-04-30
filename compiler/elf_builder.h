@@ -26,521 +26,12 @@
 
 namespace art {
 
-template <typename ElfTypes>
-class ElfSectionBuilder : public ValueObject {
- public:
-  using Elf_Word = typename ElfTypes::Word;
-  using Elf_Shdr = typename ElfTypes::Shdr;
-
-  ElfSectionBuilder(const std::string& sec_name, Elf_Word type, Elf_Word flags,
-                    const ElfSectionBuilder<ElfTypes> *link, Elf_Word info,
-                    Elf_Word align, Elf_Word entsize)
-      : section_index_(0), name_(sec_name), link_(link) {
-    memset(&section_, 0, sizeof(section_));
-    section_.sh_type = type;
-    section_.sh_flags = flags;
-    section_.sh_info = info;
-    section_.sh_addralign = align;
-    section_.sh_entsize = entsize;
-  }
-  ElfSectionBuilder(const ElfSectionBuilder&) = default;
-
-  ~ElfSectionBuilder() {}
-
-  Elf_Word GetLink() const {
-    return (link_ != nullptr) ? link_->section_index_ : 0;
-  }
-
-  const Elf_Shdr* GetSection() const {
-    return &section_;
-  }
-
-  Elf_Shdr* GetSection() {
-    return &section_;
-  }
-
-  Elf_Word GetSectionIndex() const {
-    return section_index_;
-  }
-
-  void SetSectionIndex(Elf_Word section_index) {
-    section_index_ = section_index;
-  }
-
-  const std::string& GetName() const {
-    return name_;
-  }
-
- private:
-  Elf_Shdr section_;
-  Elf_Word section_index_;
-  const std::string name_;
-  const ElfSectionBuilder* const link_;
-};
-
-template <typename ElfTypes>
-class ElfDynamicBuilder FINAL : public ElfSectionBuilder<ElfTypes> {
- public:
-  using Elf_Word = typename ElfTypes::Word;
-  using Elf_Sword = typename ElfTypes::Sword;
-  using Elf_Shdr = typename ElfTypes::Shdr;
-  using Elf_Dyn = typename ElfTypes::Dyn;
-
-  void AddDynamicTag(Elf_Sword tag, Elf_Word d_un) {
-    if (tag == DT_NULL) {
-      return;
-    }
-    dynamics_.push_back({nullptr, tag, d_un});
-  }
-
-  void AddDynamicTag(Elf_Sword tag, Elf_Word d_un,
-                     const ElfSectionBuilder<ElfTypes>* section) {
-    if (tag == DT_NULL) {
-      return;
-    }
-    dynamics_.push_back({section, tag, d_un});
-  }
-
-  ElfDynamicBuilder(const std::string& sec_name,
-                    ElfSectionBuilder<ElfTypes> *link)
-  : ElfSectionBuilder<ElfTypes>(sec_name, SHT_DYNAMIC, SHF_ALLOC | SHF_ALLOC,
-                                link, 0, kPageSize, sizeof(Elf_Dyn)) {}
-  ~ElfDynamicBuilder() {}
-
-  Elf_Word GetSize() const {
-    // Add 1 for the DT_NULL, 1 for DT_STRSZ, and 1 for DT_SONAME. All of
-    // these must be added when we actually put the file together because
-    // their values are very dependent on state.
-    return dynamics_.size() + 3;
-  }
-
-  // Create the actual dynamic vector. strsz should be the size of the .dynstr
-  // table and soname_off should be the offset of the soname in .dynstr.
-  // Since niether can be found prior to final layout we will wait until here
-  // to add them.
-  std::vector<Elf_Dyn> GetDynamics(Elf_Word strsz, Elf_Word soname) const {
-    std::vector<Elf_Dyn> ret;
-    for (auto it = dynamics_.cbegin(); it != dynamics_.cend(); ++it) {
-      if (it->section_ != nullptr) {
-        // We are adding an address relative to a section.
-        ret.push_back(
-            {it->tag_, {it->off_ + it->section_->GetSection()->sh_addr}});
-      } else {
-        ret.push_back({it->tag_, {it->off_}});
-      }
-    }
-    ret.push_back({DT_STRSZ, {strsz}});
-    ret.push_back({DT_SONAME, {soname}});
-    ret.push_back({DT_NULL, {0}});
-    return ret;
-  }
-
- private:
-  struct ElfDynamicState {
-    const ElfSectionBuilder<ElfTypes>* section_;
-    Elf_Sword tag_;
-    Elf_Word off_;
-  };
-  std::vector<ElfDynamicState> dynamics_;
-};
-
-template <typename ElfTypes>
-class ElfRawSectionBuilder FINAL : public ElfSectionBuilder<ElfTypes> {
- public:
-  using Elf_Word = typename ElfTypes::Word;
-
-  ElfRawSectionBuilder(const std::string& sec_name, Elf_Word type, Elf_Word flags,
-                       const ElfSectionBuilder<ElfTypes>* link, Elf_Word info,
-                       Elf_Word align, Elf_Word entsize)
-    : ElfSectionBuilder<ElfTypes>(sec_name, type, flags, link, info, align, entsize) {
-  }
-  ElfRawSectionBuilder(const ElfRawSectionBuilder&) = default;
-
-  ~ElfRawSectionBuilder() {}
-
-  std::vector<uint8_t>* GetBuffer() {
-    return &buf_;
-  }
-
-  void SetBuffer(const std::vector<uint8_t>& buf) {
-    buf_ = buf;
-  }
-
- private:
-  std::vector<uint8_t> buf_;
-};
-
-template <typename ElfTypes>
-class ElfOatSectionBuilder FINAL : public ElfSectionBuilder<ElfTypes> {
- public:
-  using Elf_Word = typename ElfTypes::Word;
-
-  ElfOatSectionBuilder(const std::string& sec_name, Elf_Word size, Elf_Word offset,
-                       Elf_Word type, Elf_Word flags)
-    : ElfSectionBuilder<ElfTypes>(sec_name, type, flags, nullptr, 0, kPageSize, 0),
-      offset_(offset), size_(size) {
-  }
-
-  ~ElfOatSectionBuilder() {}
-
-  Elf_Word GetOffset() const {
-    return offset_;
-  }
-
-  Elf_Word GetSize() const {
-    return size_;
-  }
-
- private:
-  // Offset of the content within the file.
-  Elf_Word offset_;
-  // Size of the content within the file.
-  Elf_Word size_;
-};
-
-static inline constexpr uint8_t MakeStInfo(uint8_t binding, uint8_t type) {
-  return ((binding) << 4) + ((type) & 0xf);
-}
-
-// from bionic
-static inline unsigned elfhash(const char *_name) {
-  const unsigned char *name = (const unsigned char *) _name;
-  unsigned h = 0, g;
-
-  while (*name) {
-    h = (h << 4) + *name++;
-    g = h & 0xf0000000;
-    h ^= g;
-    h ^= g >> 24;
-  }
-  return h;
-}
-
-template <typename ElfTypes>
-class ElfSymtabBuilder FINAL : public ElfSectionBuilder<ElfTypes> {
- public:
-  using Elf_Addr = typename ElfTypes::Addr;
-  using Elf_Word = typename ElfTypes::Word;
-  using Elf_Sym = typename ElfTypes::Sym;
-
-  // Add a symbol with given name to this symtab. The symbol refers to
-  // 'relative_addr' within the given section and has the given attributes.
-  void AddSymbol(const std::string& name,
-                 const ElfSectionBuilder<ElfTypes>* section,
-                 Elf_Addr addr,
-                 bool is_relative,
-                 Elf_Word size,
-                 uint8_t binding,
-                 uint8_t type,
-                 uint8_t other = 0) {
-    CHECK(section);
-    ElfSymtabBuilder::ElfSymbolState state {name, section, addr, size, is_relative,
-                                            MakeStInfo(binding, type), other, 0};
-    symbols_.push_back(state);
-  }
-
-  ElfSymtabBuilder(const std::string& sec_name, Elf_Word type,
-                   const std::string& str_name, Elf_Word str_type, bool alloc)
-  : ElfSectionBuilder<ElfTypes>(sec_name, type, ((alloc) ? SHF_ALLOC : 0U),
-                                &strtab_, 0, sizeof(Elf_Word),
-                                sizeof(Elf_Sym)), str_name_(str_name),
-                                str_type_(str_type),
-                                strtab_(str_name,
-                                        str_type,
-                                        ((alloc) ? SHF_ALLOC : 0U),
-                                        nullptr, 0, 1, 1) {
-  }
-
-  ~ElfSymtabBuilder() {}
-
-  std::vector<Elf_Word> GenerateHashContents() const {
-    // Here is how The ELF hash table works.
-    // There are 3 arrays to worry about.
-    // * The symbol table where the symbol information is.
-    // * The bucket array which is an array of indexes into the symtab and chain.
-    // * The chain array which is also an array of indexes into the symtab and chain.
-    //
-    // Lets say the state is something like this.
-    // +--------+       +--------+      +-----------+
-    // | symtab |       | bucket |      |   chain   |
-    // |  null  |       | 1      |      | STN_UNDEF |
-    // | <sym1> |       | 4      |      | 2         |
-    // | <sym2> |       |        |      | 5         |
-    // | <sym3> |       |        |      | STN_UNDEF |
-    // | <sym4> |       |        |      | 3         |
-    // | <sym5> |       |        |      | STN_UNDEF |
-    // +--------+       +--------+      +-----------+
-    //
-    // The lookup process (in python psudocode) is
-    //
-    // def GetSym(name):
-    //     # NB STN_UNDEF == 0
-    //     indx = bucket[elfhash(name) % num_buckets]
-    //     while indx != STN_UNDEF:
-    //         if GetSymbolName(symtab[indx]) == name:
-    //             return symtab[indx]
-    //         indx = chain[indx]
-    //     return SYMBOL_NOT_FOUND
-    //
-    // Between bucket and chain arrays every symtab index must be present exactly
-    // once (except for STN_UNDEF, which must be present 1 + num_bucket times).
-
-    // Select number of buckets.
-    // This is essentially arbitrary.
-    Elf_Word nbuckets;
-    Elf_Word chain_size = GetSize();
-    if (symbols_.size() < 8) {
-      nbuckets = 2;
-    } else if (symbols_.size() < 32) {
-      nbuckets = 4;
-    } else if (symbols_.size() < 256) {
-      nbuckets = 16;
-    } else {
-      // Have about 32 ids per bucket.
-      nbuckets = RoundUp(symbols_.size()/32, 2);
-    }
-    std::vector<Elf_Word> hash;
-    hash.push_back(nbuckets);
-    hash.push_back(chain_size);
-    uint32_t bucket_offset = hash.size();
-    uint32_t chain_offset = bucket_offset + nbuckets;
-    hash.resize(hash.size() + nbuckets + chain_size, 0);
-
-    Elf_Word* buckets = hash.data() + bucket_offset;
-    Elf_Word* chain   = hash.data() + chain_offset;
-
-    // Set up the actual hash table.
-    for (Elf_Word i = 0; i < symbols_.size(); i++) {
-      // Add 1 since we need to have the null symbol that is not in the symbols
-      // list.
-      Elf_Word index = i + 1;
-      Elf_Word hash_val = static_cast<Elf_Word>(elfhash(symbols_[i].name_.c_str())) % nbuckets;
-      if (buckets[hash_val] == 0) {
-        buckets[hash_val] = index;
-      } else {
-        hash_val = buckets[hash_val];
-        CHECK_LT(hash_val, chain_size);
-        while (chain[hash_val] != 0) {
-          hash_val = chain[hash_val];
-          CHECK_LT(hash_val, chain_size);
-        }
-        chain[hash_val] = index;
-        // Check for loops. Works because if this is non-empty then there must be
-        // another cell which already contains the same symbol index as this one,
-        // which means some symbol has more then one name, which isn't allowed.
-        CHECK_EQ(chain[index], static_cast<Elf_Word>(0));
-      }
-    }
-
-    return hash;
-  }
-
-  std::string GenerateStrtab() {
-    std::string tab;
-    tab += '\0';
-    for (auto it = symbols_.begin(); it != symbols_.end(); ++it) {
-      it->name_idx_ = tab.size();
-      tab += it->name_;
-      tab += '\0';
-    }
-    strtab_.GetSection()->sh_size = tab.size();
-    return tab;
-  }
-
-  std::vector<Elf_Sym> GenerateSymtab() {
-    std::vector<Elf_Sym> ret;
-    Elf_Sym undef_sym;
-    memset(&undef_sym, 0, sizeof(undef_sym));
-    undef_sym.st_shndx = SHN_UNDEF;
-    ret.push_back(undef_sym);
-
-    for (auto it = symbols_.cbegin(); it != symbols_.cend(); ++it) {
-      Elf_Sym sym;
-      memset(&sym, 0, sizeof(sym));
-      sym.st_name = it->name_idx_;
-      if (it->is_relative_) {
-        sym.st_value = it->addr_ + it->section_->GetSection()->sh_offset;
-      } else {
-        sym.st_value = it->addr_;
-      }
-      sym.st_size = it->size_;
-      sym.st_other = it->other_;
-      sym.st_shndx = it->section_->GetSectionIndex();
-      sym.st_info = it->info_;
-
-      ret.push_back(sym);
-    }
-    return ret;
-  }
-
-  Elf_Word GetSize() const {
-    // 1 is for the implicit null symbol.
-    return symbols_.size() + 1;
-  }
-
-  ElfSectionBuilder<ElfTypes>* GetStrTab() {
-    return &strtab_;
-  }
-
- private:
-  struct ElfSymbolState {
-    const std::string name_;
-    const ElfSectionBuilder<ElfTypes>* section_;
-    Elf_Addr addr_;
-    Elf_Word size_;
-    bool is_relative_;
-    uint8_t info_;
-    uint8_t other_;
-    // Used during Write() to temporarially hold name index in the strtab.
-    Elf_Word name_idx_;
-  };
-
-  // Information for the strsym for dynstr sections.
-  const std::string str_name_;
-  Elf_Word str_type_;
-  // The symbols in the same order they will be in the symbol table.
-  std::vector<ElfSymbolState> symbols_;
-  ElfSectionBuilder<ElfTypes> strtab_;
-};
-
-template <typename Elf_Word>
-class ElfFilePiece {
- public:
-  virtual ~ElfFilePiece() {}
-
-  virtual bool Write(File* elf_file) {
-    if (static_cast<off_t>(offset_) != lseek(elf_file->Fd(), offset_, SEEK_SET)) {
-      PLOG(ERROR) << "Failed to seek to " << GetDescription() << " offset " << offset_ << " for "
-          << elf_file->GetPath();
-      return false;
-    }
-
-    return DoActualWrite(elf_file);
-  }
-
-  static bool Compare(ElfFilePiece* a, ElfFilePiece* b) {
-    return a->offset_ < b->offset_;
-  }
-
- protected:
-  explicit ElfFilePiece(Elf_Word offset) : offset_(offset) {}
-
-  Elf_Word GetOffset() const {
-    return offset_;
-  }
-
-  virtual const char* GetDescription() const = 0;
-  virtual bool DoActualWrite(File* elf_file) = 0;
-
- private:
-  const Elf_Word offset_;
-
-  DISALLOW_COPY_AND_ASSIGN(ElfFilePiece);
-};
-
-template <typename Elf_Word>
-class ElfFileMemoryPiece FINAL : public ElfFilePiece<Elf_Word> {
- public:
-  ElfFileMemoryPiece(const std::string& name, Elf_Word offset, const void* data, Elf_Word size)
-      : ElfFilePiece<Elf_Word>(offset), dbg_name_(name), data_(data), size_(size) {}
-
- protected:
-  bool DoActualWrite(File* elf_file) OVERRIDE {
-    DCHECK(data_ != nullptr || size_ == 0U) << dbg_name_ << " " << size_;
-
-    if (!elf_file->WriteFully(data_, size_)) {
-      PLOG(ERROR) << "Failed to write " << dbg_name_ << " for " << elf_file->GetPath();
-      return false;
-    }
-
-    return true;
-  }
-
-  const char* GetDescription() const OVERRIDE {
-    return dbg_name_.c_str();
-  }
-
- private:
-  const std::string& dbg_name_;
-  const void *data_;
-  Elf_Word size_;
-};
-
 class CodeOutput {
  public:
   virtual void SetCodeOffset(size_t offset) = 0;
   virtual bool Write(OutputStream* out) = 0;
   virtual ~CodeOutput() {}
 };
-
-template <typename Elf_Word>
-class ElfFileRodataPiece FINAL : public ElfFilePiece<Elf_Word> {
- public:
-  ElfFileRodataPiece(Elf_Word offset, CodeOutput* output) : ElfFilePiece<Elf_Word>(offset),
-      output_(output) {}
-
- protected:
-  bool DoActualWrite(File* elf_file) OVERRIDE {
-    output_->SetCodeOffset(this->GetOffset());
-    std::unique_ptr<BufferedOutputStream> output_stream(
-        new BufferedOutputStream(new FileOutputStream(elf_file)));
-    if (!output_->Write(output_stream.get())) {
-      PLOG(ERROR) << "Failed to write .rodata and .text for " << elf_file->GetPath();
-      return false;
-    }
-
-    return true;
-  }
-
-  const char* GetDescription() const OVERRIDE {
-    return ".rodata";
-  }
-
- private:
-  CodeOutput* const output_;
-
-  DISALLOW_COPY_AND_ASSIGN(ElfFileRodataPiece);
-};
-
-template <typename Elf_Word>
-class ElfFileOatTextPiece FINAL : public ElfFilePiece<Elf_Word> {
- public:
-  ElfFileOatTextPiece(Elf_Word offset, CodeOutput* output) : ElfFilePiece<Elf_Word>(offset),
-      output_(output) {}
-
- protected:
-  bool DoActualWrite(File* elf_file ATTRIBUTE_UNUSED) OVERRIDE {
-    // All data is written by the ElfFileRodataPiece right now, as the oat writer writes in one
-    // piece. This is for future flexibility.
-    UNUSED(output_);
-    return true;
-  }
-
-  const char* GetDescription() const OVERRIDE {
-    return ".text";
-  }
-
- private:
-  CodeOutput* const output_;
-
-  DISALLOW_COPY_AND_ASSIGN(ElfFileOatTextPiece);
-};
-
-template <typename Elf_Word>
-static bool WriteOutFile(const std::vector<ElfFilePiece<Elf_Word>*>& pieces, File* elf_file) {
-  // TODO It would be nice if this checked for overlap.
-  for (auto it = pieces.begin(); it != pieces.end(); ++it) {
-    if (!(*it)->Write(elf_file)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-template <typename Elf_Word, typename Elf_Shdr>
-static inline constexpr Elf_Word NextOffset(const Elf_Shdr& cur, const Elf_Shdr& prev) {
-  return RoundUp(prev.sh_size + prev.sh_offset, cur.sh_addralign);
-}
 
 template <typename ElfTypes>
 class ElfBuilder FINAL {
@@ -553,6 +44,494 @@ class ElfBuilder FINAL {
   using Elf_Sym = typename ElfTypes::Sym;
   using Elf_Phdr = typename ElfTypes::Phdr;
   using Elf_Dyn = typename ElfTypes::Dyn;
+
+  class ElfSectionBuilder : public ValueObject {
+   public:
+    ElfSectionBuilder(const std::string& sec_name, Elf_Word type, Elf_Word flags,
+                      const ElfSectionBuilder *link, Elf_Word info,
+                      Elf_Word align, Elf_Word entsize)
+        : section_index_(0), name_(sec_name), link_(link) {
+      memset(&section_, 0, sizeof(section_));
+      section_.sh_type = type;
+      section_.sh_flags = flags;
+      section_.sh_info = info;
+      section_.sh_addralign = align;
+      section_.sh_entsize = entsize;
+    }
+    ElfSectionBuilder(const ElfSectionBuilder&) = default;
+
+    ~ElfSectionBuilder() {}
+
+    Elf_Word GetLink() const {
+      return (link_ != nullptr) ? link_->section_index_ : 0;
+    }
+
+    const Elf_Shdr* GetSection() const {
+      return &section_;
+    }
+
+    Elf_Shdr* GetSection() {
+      return &section_;
+    }
+
+    Elf_Word GetSectionIndex() const {
+      return section_index_;
+    }
+
+    void SetSectionIndex(Elf_Word section_index) {
+      section_index_ = section_index;
+    }
+
+    const std::string& GetName() const {
+      return name_;
+    }
+
+   private:
+    Elf_Shdr section_;
+    Elf_Word section_index_;
+    const std::string name_;
+    const ElfSectionBuilder* const link_;
+  };
+
+  class ElfDynamicBuilder FINAL : public ElfSectionBuilder {
+   public:
+    void AddDynamicTag(Elf_Sword tag, Elf_Word d_un) {
+      if (tag == DT_NULL) {
+        return;
+      }
+      dynamics_.push_back({nullptr, tag, d_un});
+    }
+
+    void AddDynamicTag(Elf_Sword tag, Elf_Word d_un,
+                       const ElfSectionBuilder* section) {
+      if (tag == DT_NULL) {
+        return;
+      }
+      dynamics_.push_back({section, tag, d_un});
+    }
+
+    ElfDynamicBuilder(const std::string& sec_name,
+                      ElfSectionBuilder *link)
+    : ElfSectionBuilder(sec_name, SHT_DYNAMIC, SHF_ALLOC | SHF_ALLOC,
+                                  link, 0, kPageSize, sizeof(Elf_Dyn)) {}
+    ~ElfDynamicBuilder() {}
+
+    Elf_Word GetSize() const {
+      // Add 1 for the DT_NULL, 1 for DT_STRSZ, and 1 for DT_SONAME. All of
+      // these must be added when we actually put the file together because
+      // their values are very dependent on state.
+      return dynamics_.size() + 3;
+    }
+
+    // Create the actual dynamic vector. strsz should be the size of the .dynstr
+    // table and soname_off should be the offset of the soname in .dynstr.
+    // Since niether can be found prior to final layout we will wait until here
+    // to add them.
+    std::vector<Elf_Dyn> GetDynamics(Elf_Word strsz, Elf_Word soname) const {
+      std::vector<Elf_Dyn> ret;
+      for (auto it = dynamics_.cbegin(); it != dynamics_.cend(); ++it) {
+        if (it->section_ != nullptr) {
+          // We are adding an address relative to a section.
+          ret.push_back(
+              {it->tag_, {it->off_ + it->section_->GetSection()->sh_addr}});
+        } else {
+          ret.push_back({it->tag_, {it->off_}});
+        }
+      }
+      ret.push_back({DT_STRSZ, {strsz}});
+      ret.push_back({DT_SONAME, {soname}});
+      ret.push_back({DT_NULL, {0}});
+      return ret;
+    }
+
+   private:
+    struct ElfDynamicState {
+      const ElfSectionBuilder* section_;
+      Elf_Sword tag_;
+      Elf_Word off_;
+    };
+    std::vector<ElfDynamicState> dynamics_;
+  };
+
+  class ElfRawSectionBuilder FINAL : public ElfSectionBuilder {
+   public:
+    ElfRawSectionBuilder(const std::string& sec_name, Elf_Word type, Elf_Word flags,
+                         const ElfSectionBuilder* link, Elf_Word info,
+                         Elf_Word align, Elf_Word entsize)
+      : ElfSectionBuilder(sec_name, type, flags, link, info, align, entsize) {
+    }
+    ElfRawSectionBuilder(const ElfRawSectionBuilder&) = default;
+
+    ~ElfRawSectionBuilder() {}
+
+    std::vector<uint8_t>* GetBuffer() {
+      return &buf_;
+    }
+
+    void SetBuffer(const std::vector<uint8_t>& buf) {
+      buf_ = buf;
+    }
+
+   private:
+    std::vector<uint8_t> buf_;
+  };
+
+  class ElfOatSectionBuilder FINAL : public ElfSectionBuilder {
+   public:
+    ElfOatSectionBuilder(const std::string& sec_name, Elf_Word size, Elf_Word offset,
+                         Elf_Word type, Elf_Word flags)
+      : ElfSectionBuilder(sec_name, type, flags, nullptr, 0, kPageSize, 0),
+        offset_(offset), size_(size) {
+    }
+
+    ~ElfOatSectionBuilder() {}
+
+    Elf_Word GetOffset() const {
+      return offset_;
+    }
+
+    Elf_Word GetSize() const {
+      return size_;
+    }
+
+   private:
+    // Offset of the content within the file.
+    Elf_Word offset_;
+    // Size of the content within the file.
+    Elf_Word size_;
+  };
+
+  static inline constexpr uint8_t MakeStInfo(uint8_t binding, uint8_t type) {
+    return ((binding) << 4) + ((type) & 0xf);
+  }
+
+  // from bionic
+  static inline unsigned elfhash(const char *_name) {
+    const unsigned char *name = (const unsigned char *) _name;
+    unsigned h = 0, g;
+
+    while (*name) {
+      h = (h << 4) + *name++;
+      g = h & 0xf0000000;
+      h ^= g;
+      h ^= g >> 24;
+    }
+    return h;
+  }
+
+  class ElfSymtabBuilder FINAL : public ElfSectionBuilder {
+   public:
+    // Add a symbol with given name to this symtab. The symbol refers to
+    // 'relative_addr' within the given section and has the given attributes.
+    void AddSymbol(const std::string& name,
+                   const ElfSectionBuilder* section,
+                   Elf_Addr addr,
+                   bool is_relative,
+                   Elf_Word size,
+                   uint8_t binding,
+                   uint8_t type,
+                   uint8_t other = 0) {
+      CHECK(section);
+      ElfSymtabBuilder::ElfSymbolState state {name, section, addr, size, is_relative,
+                                              MakeStInfo(binding, type), other, 0};
+      symbols_.push_back(state);
+    }
+
+    ElfSymtabBuilder(const std::string& sec_name, Elf_Word type,
+                     const std::string& str_name, Elf_Word str_type, bool alloc)
+    : ElfSectionBuilder(sec_name, type, ((alloc) ? SHF_ALLOC : 0U),
+                        &strtab_, 0, sizeof(Elf_Word),
+                        sizeof(Elf_Sym)), str_name_(str_name),
+                        str_type_(str_type),
+                        strtab_(str_name,
+                                str_type,
+                                ((alloc) ? SHF_ALLOC : 0U),
+                                nullptr, 0, 1, 1) {
+    }
+
+    ~ElfSymtabBuilder() {}
+
+    std::vector<Elf_Word> GenerateHashContents() const {
+      // Here is how The ELF hash table works.
+      // There are 3 arrays to worry about.
+      // * The symbol table where the symbol information is.
+      // * The bucket array which is an array of indexes into the symtab and chain.
+      // * The chain array which is also an array of indexes into the symtab and chain.
+      //
+      // Lets say the state is something like this.
+      // +--------+       +--------+      +-----------+
+      // | symtab |       | bucket |      |   chain   |
+      // |  null  |       | 1      |      | STN_UNDEF |
+      // | <sym1> |       | 4      |      | 2         |
+      // | <sym2> |       |        |      | 5         |
+      // | <sym3> |       |        |      | STN_UNDEF |
+      // | <sym4> |       |        |      | 3         |
+      // | <sym5> |       |        |      | STN_UNDEF |
+      // +--------+       +--------+      +-----------+
+      //
+      // The lookup process (in python psudocode) is
+      //
+      // def GetSym(name):
+      //     # NB STN_UNDEF == 0
+      //     indx = bucket[elfhash(name) % num_buckets]
+      //     while indx != STN_UNDEF:
+      //         if GetSymbolName(symtab[indx]) == name:
+      //             return symtab[indx]
+      //         indx = chain[indx]
+      //     return SYMBOL_NOT_FOUND
+      //
+      // Between bucket and chain arrays every symtab index must be present exactly
+      // once (except for STN_UNDEF, which must be present 1 + num_bucket times).
+
+      // Select number of buckets.
+      // This is essentially arbitrary.
+      Elf_Word nbuckets;
+      Elf_Word chain_size = GetSize();
+      if (symbols_.size() < 8) {
+        nbuckets = 2;
+      } else if (symbols_.size() < 32) {
+        nbuckets = 4;
+      } else if (symbols_.size() < 256) {
+        nbuckets = 16;
+      } else {
+        // Have about 32 ids per bucket.
+        nbuckets = RoundUp(symbols_.size()/32, 2);
+      }
+      std::vector<Elf_Word> hash;
+      hash.push_back(nbuckets);
+      hash.push_back(chain_size);
+      uint32_t bucket_offset = hash.size();
+      uint32_t chain_offset = bucket_offset + nbuckets;
+      hash.resize(hash.size() + nbuckets + chain_size, 0);
+
+      Elf_Word* buckets = hash.data() + bucket_offset;
+      Elf_Word* chain   = hash.data() + chain_offset;
+
+      // Set up the actual hash table.
+      for (Elf_Word i = 0; i < symbols_.size(); i++) {
+        // Add 1 since we need to have the null symbol that is not in the symbols
+        // list.
+        Elf_Word index = i + 1;
+        Elf_Word hash_val = static_cast<Elf_Word>(elfhash(symbols_[i].name_.c_str())) % nbuckets;
+        if (buckets[hash_val] == 0) {
+          buckets[hash_val] = index;
+        } else {
+          hash_val = buckets[hash_val];
+          CHECK_LT(hash_val, chain_size);
+          while (chain[hash_val] != 0) {
+            hash_val = chain[hash_val];
+            CHECK_LT(hash_val, chain_size);
+          }
+          chain[hash_val] = index;
+          // Check for loops. Works because if this is non-empty then there must be
+          // another cell which already contains the same symbol index as this one,
+          // which means some symbol has more then one name, which isn't allowed.
+          CHECK_EQ(chain[index], static_cast<Elf_Word>(0));
+        }
+      }
+
+      return hash;
+    }
+
+    std::string GenerateStrtab() {
+      std::string tab;
+      tab += '\0';
+      for (auto it = symbols_.begin(); it != symbols_.end(); ++it) {
+        it->name_idx_ = tab.size();
+        tab += it->name_;
+        tab += '\0';
+      }
+      strtab_.GetSection()->sh_size = tab.size();
+      return tab;
+    }
+
+    std::vector<Elf_Sym> GenerateSymtab() {
+      std::vector<Elf_Sym> ret;
+      Elf_Sym undef_sym;
+      memset(&undef_sym, 0, sizeof(undef_sym));
+      undef_sym.st_shndx = SHN_UNDEF;
+      ret.push_back(undef_sym);
+
+      for (auto it = symbols_.cbegin(); it != symbols_.cend(); ++it) {
+        Elf_Sym sym;
+        memset(&sym, 0, sizeof(sym));
+        sym.st_name = it->name_idx_;
+        if (it->is_relative_) {
+          sym.st_value = it->addr_ + it->section_->GetSection()->sh_offset;
+        } else {
+          sym.st_value = it->addr_;
+        }
+        sym.st_size = it->size_;
+        sym.st_other = it->other_;
+        sym.st_shndx = it->section_->GetSectionIndex();
+        sym.st_info = it->info_;
+
+        ret.push_back(sym);
+      }
+      return ret;
+    }
+
+    Elf_Word GetSize() const {
+      // 1 is for the implicit null symbol.
+      return symbols_.size() + 1;
+    }
+
+    ElfSectionBuilder* GetStrTab() {
+      return &strtab_;
+    }
+
+   private:
+    struct ElfSymbolState {
+      const std::string name_;
+      const ElfSectionBuilder* section_;
+      Elf_Addr addr_;
+      Elf_Word size_;
+      bool is_relative_;
+      uint8_t info_;
+      uint8_t other_;
+      // Used during Write() to temporarially hold name index in the strtab.
+      Elf_Word name_idx_;
+    };
+
+    // Information for the strsym for dynstr sections.
+    const std::string str_name_;
+    Elf_Word str_type_;
+    // The symbols in the same order they will be in the symbol table.
+    std::vector<ElfSymbolState> symbols_;
+    ElfSectionBuilder strtab_;
+  };
+
+  template <typename Elf_Word>
+  class ElfFilePiece {
+   public:
+    virtual ~ElfFilePiece() {}
+
+    virtual bool Write(File* elf_file) {
+      if (static_cast<off_t>(offset_) != lseek(elf_file->Fd(), offset_, SEEK_SET)) {
+        PLOG(ERROR) << "Failed to seek to " << GetDescription() << " offset " << offset_ << " for "
+            << elf_file->GetPath();
+        return false;
+      }
+
+      return DoActualWrite(elf_file);
+    }
+
+    static bool Compare(ElfFilePiece* a, ElfFilePiece* b) {
+      return a->offset_ < b->offset_;
+    }
+
+   protected:
+    explicit ElfFilePiece(Elf_Word offset) : offset_(offset) {}
+
+    Elf_Word GetOffset() const {
+      return offset_;
+    }
+
+    virtual const char* GetDescription() const = 0;
+    virtual bool DoActualWrite(File* elf_file) = 0;
+
+   private:
+    const Elf_Word offset_;
+
+    DISALLOW_COPY_AND_ASSIGN(ElfFilePiece);
+  };
+
+  template <typename Elf_Word>
+  class ElfFileMemoryPiece FINAL : public ElfFilePiece<Elf_Word> {
+   public:
+    ElfFileMemoryPiece(const std::string& name, Elf_Word offset, const void* data, Elf_Word size)
+        : ElfFilePiece<Elf_Word>(offset), dbg_name_(name), data_(data), size_(size) {}
+
+   protected:
+    bool DoActualWrite(File* elf_file) OVERRIDE {
+      DCHECK(data_ != nullptr || size_ == 0U) << dbg_name_ << " " << size_;
+
+      if (!elf_file->WriteFully(data_, size_)) {
+        PLOG(ERROR) << "Failed to write " << dbg_name_ << " for " << elf_file->GetPath();
+        return false;
+      }
+
+      return true;
+    }
+
+    const char* GetDescription() const OVERRIDE {
+      return dbg_name_.c_str();
+    }
+
+   private:
+    const std::string& dbg_name_;
+    const void *data_;
+    Elf_Word size_;
+  };
+
+  template <typename Elf_Word>
+  class ElfFileRodataPiece FINAL : public ElfFilePiece<Elf_Word> {
+   public:
+    ElfFileRodataPiece(Elf_Word offset, CodeOutput* output) : ElfFilePiece<Elf_Word>(offset),
+        output_(output) {}
+
+   protected:
+    bool DoActualWrite(File* elf_file) OVERRIDE {
+      output_->SetCodeOffset(this->GetOffset());
+      std::unique_ptr<BufferedOutputStream> output_stream(
+          new BufferedOutputStream(new FileOutputStream(elf_file)));
+      if (!output_->Write(output_stream.get())) {
+        PLOG(ERROR) << "Failed to write .rodata and .text for " << elf_file->GetPath();
+        return false;
+      }
+
+      return true;
+    }
+
+    const char* GetDescription() const OVERRIDE {
+      return ".rodata";
+    }
+
+   private:
+    CodeOutput* const output_;
+
+    DISALLOW_COPY_AND_ASSIGN(ElfFileRodataPiece);
+  };
+
+  template <typename Elf_Word>
+  class ElfFileOatTextPiece FINAL : public ElfFilePiece<Elf_Word> {
+   public:
+    ElfFileOatTextPiece(Elf_Word offset, CodeOutput* output) : ElfFilePiece<Elf_Word>(offset),
+        output_(output) {}
+
+   protected:
+    bool DoActualWrite(File* elf_file ATTRIBUTE_UNUSED) OVERRIDE {
+      // All data is written by the ElfFileRodataPiece right now, as the oat writer writes in one
+      // piece. This is for future flexibility.
+      UNUSED(output_);
+      return true;
+    }
+
+    const char* GetDescription() const OVERRIDE {
+      return ".text";
+    }
+
+   private:
+    CodeOutput* const output_;
+
+    DISALLOW_COPY_AND_ASSIGN(ElfFileOatTextPiece);
+  };
+
+  template <typename Elf_Word>
+  static bool WriteOutFile(const std::vector<ElfFilePiece<Elf_Word>*>& pieces, File* elf_file) {
+    // TODO It would be nice if this checked for overlap.
+    for (auto it = pieces.begin(); it != pieces.end(); ++it) {
+      if (!(*it)->Write(elf_file)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  template <typename Elf_Word, typename Elf_Shdr>
+  static inline constexpr Elf_Word NextOffset(const Elf_Shdr& cur, const Elf_Shdr& prev) {
+    return RoundUp(prev.sh_size + prev.sh_offset, cur.sh_addralign);
+  }
 
   ElfBuilder(CodeOutput* oat_writer,
              File* elf_file,
@@ -586,11 +565,11 @@ class ElfBuilder FINAL {
   }
   ~ElfBuilder() {}
 
-  const ElfOatSectionBuilder<ElfTypes>& GetTextBuilder() const {
+  const ElfOatSectionBuilder& GetTextBuilder() const {
     return text_builder_;
   }
 
-  ElfSymtabBuilder<ElfTypes>* GetSymtabBuilder() {
+  ElfSymtabBuilder* GetSymtabBuilder() {
     return &symtab_builder_;
   }
 
@@ -795,6 +774,16 @@ class ElfBuilder FINAL {
     hash_builder_.SetSectionIndex(section_index_);
     section_index_++;
 
+    // Setup .eh_frame and .eh_frame_hdr
+    for (auto* builder : other_builders_) {
+      if ((builder->GetSection()->sh_flags & SHF_ALLOC) != 0) {
+        section_ptrs_.push_back(builder->GetSection());
+        AssignSectionStr(builder, &shstrtab_);
+        builder->SetSectionIndex(section_index_);
+        section_index_++;
+      }
+    }
+
     // Setup .rodata
     section_ptrs_.push_back(rodata_builder_.GetSection());
     AssignSectionStr(&rodata_builder_, &shstrtab_);
@@ -966,10 +955,12 @@ class ElfBuilder FINAL {
 
     // Setup all the other sections.
     for (auto* builder : other_builders_) {
-      section_ptrs_.push_back(builder->GetSection());
-      AssignSectionStr(builder, &shstrtab_);
-      builder->SetSectionIndex(section_index_);
-      section_index_++;
+      if ((builder->GetSection()->sh_flags & SHF_ALLOC) == 0) {
+        section_ptrs_.push_back(builder->GetSection());
+        AssignSectionStr(builder, &shstrtab_);
+        builder->SetSectionIndex(section_index_);
+        section_index_++;
+      }
     }
 
     // Setup shstrtab
@@ -1123,7 +1114,8 @@ class ElfBuilder FINAL {
     // Finish setup of the Ehdr values.
     elf_header_.e_phoff = PHDR_OFFSET;
     elf_header_.e_shoff = sections_offset;
-    elf_header_.e_phnum = (bss_builder_.GetSection()->sh_size != 0u) ? PH_NUM : PH_NUM - 1;
+    elf_header_.e_phnum = PH_NUM - (bss_builder_.GetSection()->sh_size == 0u ? 1 : 0)
+                                 - (eh_frame_hdr == nullptr ? 1 : 0);
     elf_header_.e_shnum = section_ptrs_.size();
     elf_header_.e_shstrndx = shstrtab_builder_.GetSectionIndex();
 
@@ -1137,7 +1129,7 @@ class ElfBuilder FINAL {
     } else {
       // Skip PH_LOAD_RW_BSS.
       Elf_Word part1_size = PH_LOAD_RW_BSS * sizeof(Elf_Phdr);
-      Elf_Word part2_size = (PH_NUM - PH_LOAD_RW_BSS - 1) * sizeof(Elf_Phdr);
+      Elf_Word part2_size = (elf_header_.e_phnum - PH_LOAD_RW_BSS) * sizeof(Elf_Phdr);
       CHECK_EQ(part1_size + part2_size, elf_header_.e_phnum * sizeof(Elf_Phdr));
       pieces.push_back(new ElfFileMemoryPiece<Elf_Word>("Program headers", PHDR_OFFSET,
                                                         &program_headers_[0], part1_size));
@@ -1202,11 +1194,11 @@ class ElfBuilder FINAL {
   }
 
   // Adds the given raw section to the builder.  It does not take ownership.
-  void RegisterRawSection(ElfRawSectionBuilder<ElfTypes>* bld) {
+  void RegisterRawSection(ElfRawSectionBuilder* bld) {
     other_builders_.push_back(bld);
   }
 
-  const ElfRawSectionBuilder<ElfTypes>* FindRawSection(const char* name) {
+  const ElfRawSectionBuilder* FindRawSection(const char* name) {
     for (const auto* other_builder : other_builders_) {
       if (other_builder->GetName() == name) {
         return other_builder;
@@ -1324,7 +1316,7 @@ class ElfBuilder FINAL {
     }
   }
 
-  void AssignSectionStr(ElfSectionBuilder<ElfTypes>* builder, std::string* strtab) {
+  void AssignSectionStr(ElfSectionBuilder* builder, std::string* strtab) {
     builder->GetSection()->sh_name = strtab->size();
     *strtab += builder->GetName();
     *strtab += '\0';
@@ -1382,15 +1374,15 @@ class ElfBuilder FINAL {
   std::vector<const Elf_Shdr*> section_ptrs_;
   std::vector<Elf_Word> hash_;
 
-  ElfOatSectionBuilder<ElfTypes> text_builder_;
-  ElfOatSectionBuilder<ElfTypes> rodata_builder_;
-  ElfOatSectionBuilder<ElfTypes> bss_builder_;
-  ElfSymtabBuilder<ElfTypes> dynsym_builder_;
-  ElfSymtabBuilder<ElfTypes> symtab_builder_;
-  ElfSectionBuilder<ElfTypes> hash_builder_;
-  ElfDynamicBuilder<ElfTypes> dynamic_builder_;
-  ElfSectionBuilder<ElfTypes> shstrtab_builder_;
-  std::vector<ElfRawSectionBuilder<ElfTypes>*> other_builders_;
+  ElfOatSectionBuilder text_builder_;
+  ElfOatSectionBuilder rodata_builder_;
+  ElfOatSectionBuilder bss_builder_;
+  ElfSymtabBuilder dynsym_builder_;
+  ElfSymtabBuilder symtab_builder_;
+  ElfSectionBuilder hash_builder_;
+  ElfDynamicBuilder dynamic_builder_;
+  ElfSectionBuilder shstrtab_builder_;
+  std::vector<ElfRawSectionBuilder*> other_builders_;
 
   DISALLOW_COPY_AND_ASSIGN(ElfBuilder);
 };
