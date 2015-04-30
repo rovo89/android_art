@@ -51,10 +51,17 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
     // If caller is null, then we called from JNI, just avoid the check since JNI avoids most
     // access checks anyways. TODO: Investigate if this the correct behavior.
     if (caller != nullptr && !caller->CanAccess(c.Get())) {
-      soa.Self()->ThrowNewExceptionF(
-          "Ljava/lang/IllegalAccessException;", "%s is not accessible from %s",
-          PrettyClass(c.Get()).c_str(), PrettyClass(caller).c_str());
-      return nullptr;
+      if (PrettyDescriptor(c.Get()) == "dalvik.system.DexPathList$Element") {
+        // b/20699073.
+        LOG(WARNING) << "The dalvik.system.DexPathList$Element constructor is not accessible by "
+                        "default. This is a temporary workaround for backwards compatibility "
+                        "with class-loader hacks. Please update your application.";
+      } else {
+        soa.Self()->ThrowNewExceptionF(
+            "Ljava/lang/IllegalAccessException;", "%s is not accessible from %s",
+            PrettyClass(c.Get()).c_str(), PrettyClass(caller).c_str());
+        return nullptr;
+      }
     }
   }
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(soa.Self(), c, true, true)) {
