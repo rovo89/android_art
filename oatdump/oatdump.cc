@@ -269,7 +269,7 @@ class OatSymbolizer FINAL : public CodeOutput {
         pretty_name = "[Dedup]" + pretty_name;
       }
 
-      ElfSymtabBuilder<ElfTypes32>* symtab = builder_->GetSymtabBuilder();
+      auto* symtab = builder_->GetSymtabBuilder();
 
       symtab->AddSymbol(pretty_name, &builder_->GetTextBuilder(),
           oat_method.GetCodeOffset() - oat_file_->GetOatHeader().GetExecutableOffset(),
