@@ -82,10 +82,6 @@ namespace art {
 
 static constexpr bool kSanityCheckObjects = kIsDebugBuild;
 
-// Do a simple class redefinition check in OpenDexFilesFromOat. This is a conservative check to
-// avoid problems with compile-time class-path != runtime class-path.
-static constexpr bool kCheckForDexCollisions = true;
-
 static void ThrowNoClassDefFoundError(const char* fmt, ...)
     __attribute__((__format__(__printf__, 1, 2)))
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -744,6 +740,8 @@ class DexFileAndClassPair : ValueObject {
     const char* rhsDescriptor = rhs.cached_descriptor_;
     int cmp = strcmp(lhsDescriptor, rhsDescriptor);
     if (cmp != 0) {
+      // Note that the order must be reversed. We want to iterate over the classes in dex files.
+      // They are sorted lexicographically. Thus, the priority-queue must be a min-queue.
       return cmp > 0;
     }
     return dex_file_ < rhs.dex_file_;
@@ -767,6 +765,11 @@ class DexFileAndClassPair : ValueObject {
 
   const DexFile* GetDexFile() const {
     return dex_file_;
+  }
+
+  void DeleteDexFile() {
+    delete dex_file_;
+    dex_file_ = nullptr;
   }
 
  private:
@@ -800,13 +803,13 @@ static void AddDexFilesFromOat(const OatFile* oat_file, bool already_loaded,
   }
 }
 
-static void AddNext(const DexFileAndClassPair& original,
+static void AddNext(DexFileAndClassPair* original,
                     std::priority_queue<DexFileAndClassPair>* heap) {
-  if (original.DexFileHasMoreClasses()) {
-    heap->push(original.GetNext());
+  if (original->DexFileHasMoreClasses()) {
+    heap->push(original->GetNext());
   } else {
     // Need to delete the dex file.
-    delete original.GetDexFile();
+    original->DeleteDexFile();
   }
 }
 
@@ -825,19 +828,17 @@ static void FreeDexFilesInHeap(std::priority_queue<DexFileAndClassPair>* heap) {
 // the two elements agree on whether their dex file was from an already-loaded oat-file or the
 // new oat file. Any disagreement indicates a collision.
 bool ClassLinker::HasCollisions(const OatFile* oat_file, std::string* error_msg) {
-  if (!kCheckForDexCollisions) {
-    return false;
-  }
-
   // Dex files are registered late - once a class is actually being loaded. We have to compare
-  // against the open oat files.
+  // against the open oat files. Take the dex_lock_ that protects oat_files_ accesses.
   ReaderMutexLock mu(Thread::Current(), dex_lock_);
 
-  std::priority_queue<DexFileAndClassPair> heap;
+  std::priority_queue<DexFileAndClassPair> queue;
 
   // Add dex files from already loaded oat files, but skip boot.
   {
-    // To grab the boot oat, look at the dex files in the boot classpath.
+    // To grab the boot oat, look at the dex files in the boot classpath. Any of those is fine, as
+    // they were all compiled into the same oat file. So grab the first one, which is guaranteed to
+    // exist if the boot class-path isn't empty.
     const OatFile* boot_oat = nullptr;
     if (!boot_class_path_.empty()) {
       const DexFile* boot_dex_file = boot_class_path_[0];
@@ -851,26 +852,26 @@ bool ClassLinker::HasCollisions(const OatFile* oat_file, std::string* error_msg)
       if (loaded_oat_file == boot_oat) {
         continue;
       }
-      AddDexFilesFromOat(loaded_oat_file, true, &heap);
+      AddDexFilesFromOat(loaded_oat_file, true, &queue);
     }
   }
 
-  if (heap.empty()) {
+  if (queue.empty()) {
     // No other oat files, return early.
     return false;
   }
 
   // Add dex files from the oat file to check.
-  AddDexFilesFromOat(oat_file, false, &heap);
+  AddDexFilesFromOat(oat_file, false, &queue);
 
-  // Now drain the heap.
-  while (!heap.empty()) {
-    DexFileAndClassPair compare_pop = heap.top();
-    heap.pop();
+  // Now drain the queue.
+  while (!queue.empty()) {
+    DexFileAndClassPair compare_pop = queue.top();
+    queue.pop();
 
     // Compare against the following elements.
-    while (!heap.empty()) {
-      DexFileAndClassPair top = heap.top();
+    while (!queue.empty()) {
+      DexFileAndClassPair top = queue.top();
 
       if (strcmp(compare_pop.GetCachedDescriptor(), top.GetCachedDescriptor()) == 0) {
         // Same descriptor. Check whether it's crossing old-oat-files to new-oat-files.
@@ -880,18 +881,18 @@ bool ClassLinker::HasCollisions(const OatFile* oat_file, std::string* error_msg)
                            compare_pop.GetCachedDescriptor(),
                            compare_pop.GetDexFile()->GetLocation().c_str(),
                            top.GetDexFile()->GetLocation().c_str());
-          FreeDexFilesInHeap(&heap);
+          FreeDexFilesInHeap(&queue);
           return true;
         }
         // Pop it.
-        heap.pop();
-        AddNext(top, &heap);
+        queue.pop();
+        AddNext(&top, &queue);
       } else {
         // Something else. Done here.
         break;
       }
     }
-    AddNext(compare_pop, &heap);
+    AddNext(&compare_pop, &queue);
   }
 
   return false;
@@ -942,11 +943,10 @@ std::vector<std::unique_ptr<const DexFile>> ClassLinker::OpenDexFilesFromOat(
     // Get the oat file on disk.
     std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
     if (oat_file.get() != nullptr) {
-      // Take the file only if it has no collisions.
-      if (!HasCollisions(oat_file.get(), &error_msg)) {
-        source_oat_file = oat_file.release();
-        RegisterOatFile(source_oat_file);
-      } else {
+      // Take the file only if it has no collisions, or we must take it because of preopting.
+      bool accept_oat_file = !HasCollisions(oat_file.get(), &error_msg);
+      if (!accept_oat_file) {
+        // Failed the collision check. Print warning.
         if (Runtime::Current()->IsDexFileFallbackEnabled()) {
           LOG(WARNING) << "Found duplicate classes, falling back to interpreter mode for "
                        << dex_location;
@@ -955,6 +955,19 @@ std::vector<std::unique_ptr<const DexFile>> ClassLinker::OpenDexFilesFromOat(
                           " load classes for " << dex_location;
         }
         LOG(WARNING) << error_msg;
+
+        // However, if the app was part of /system and preopted, there is no original dex file
+        // available. In that case grudgingly accept the oat file.
+        if (!DexFile::MaybeDex(dex_location)) {
+          accept_oat_file = true;
+          LOG(WARNING) << "Dex location " << dex_location << " does not seem to include dex file. "
+                       << "Allow oat file use. This is potentially dangerous.";
+        }
+      }
+
+      if (accept_oat_file) {
+        source_oat_file = oat_file.release();
+        RegisterOatFile(source_oat_file);
       }
     }
   }
@@ -976,8 +989,7 @@ std::vector<std::unique_ptr<const DexFile>> ClassLinker::OpenDexFilesFromOat(
     if (Runtime::Current()->IsDexFileFallbackEnabled()) {
       if (!DexFile::Open(dex_location, dex_location, &error_msg, &dex_files)) {
         LOG(WARNING) << error_msg;
-        error_msgs->push_back("Failed to open dex files from "
-            + std::string(dex_location));
+        error_msgs->push_back("Failed to open dex files from " + std::string(dex_location));
       }
     } else {
       error_msgs->push_back("Fallback mode disabled, skipping dex files.");
