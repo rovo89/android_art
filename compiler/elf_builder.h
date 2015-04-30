@@ -536,11 +536,12 @@ class ElfBuilder FINAL {
     // | Elf_Ehdr                |
     // +-------------------------+
     // | Elf_Phdr PHDR           |
-    // | Elf_Phdr LOAD R         | .dynsym .dynstr .hash .eh_frame .eh_frame_hdr .rodata
+    // | Elf_Phdr LOAD R         | .dynsym .dynstr .hash .rodata
     // | Elf_Phdr LOAD R X       | .text
     // | Elf_Phdr LOAD RW        | .bss (Optional)
     // | Elf_Phdr LOAD RW        | .dynamic
     // | Elf_Phdr DYNAMIC        | .dynamic
+    // | Elf_Phdr LOAD R         | .eh_frame .eh_frame_hdr
     // | Elf_Phdr EH_FRAME R     | .eh_frame_hdr
     // +-------------------------+
     // | .dynsym                 |
@@ -556,10 +557,6 @@ class ElfBuilder FINAL {
     // +-------------------------+
     // | .hash                   |
     // | hashtable for dynsym    |
-    // +-------------------------+
-    // | .eh_frame               |  (Optional)
-    // +-------------------------+
-    // | .eh_frame_hdr           |  (Optional)
     // +-------------------------+
     // | .rodata                 |
     // | oatdata..oatexec-4      |
@@ -582,6 +579,10 @@ class ElfBuilder FINAL {
     // | .strtab                 |  (Optional)
     // | names for .symtab       |  (Optional)
     // +-------------------------+  (Optional)
+    // | .eh_frame               |  (Optional)
+    // +-------------------------+  (Optional)
+    // | .eh_frame_hdr           |  (Optional)
+    // +-------------------------+  (Optional)
     // | .debug_info             |  (Optional)
     // +-------------------------+  (Optional)
     // | .debug_abbrev           |  (Optional)
@@ -597,14 +598,14 @@ class ElfBuilder FINAL {
     // | Elf_Shdr .dynsym        |
     // | Elf_Shdr .dynstr        |
     // | Elf_Shdr .hash          |
-    // | Elf_Shdr .eh_frame      |  (Optional)
-    // | Elf_Shdr .eh_frame_hdr  |  (Optional)
     // | Elf_Shdr .rodata        |
     // | Elf_Shdr .text          |
     // | Elf_Shdr .bss           |  (Optional)
     // | Elf_Shdr .dynamic       |
     // | Elf_Shdr .symtab        |  (Optional)
     // | Elf_Shdr .strtab        |  (Optional)
+    // | Elf_Shdr .eh_frame      |  (Optional)
+    // | Elf_Shdr .eh_frame_hdr  |  (Optional)
     // | Elf_Shdr .debug_info    |  (Optional)
     // | Elf_Shdr .debug_abbrev  |  (Optional)
     // | Elf_Shdr .debug_str     |  (Optional)
@@ -620,11 +621,6 @@ class ElfBuilder FINAL {
     sections.push_back(&dynsym_);
     sections.push_back(&dynstr_);
     sections.push_back(&hash_);
-    for (Section* section : other_sections_) {
-      if ((section->GetHeader()->sh_flags & SHF_ALLOC) != 0) {
-        sections.push_back(section);
-      }
-    }
     sections.push_back(&rodata_);
     sections.push_back(&text_);
     if (bss_.GetSize() != 0u) {
@@ -636,9 +632,7 @@ class ElfBuilder FINAL {
       sections.push_back(&strtab_);
     }
     for (Section* section : other_sections_) {
-      if ((section->GetHeader()->sh_flags & SHF_ALLOC) == 0) {
-        sections.push_back(section);
-      }
+      sections.push_back(section);
     }
     sections.push_back(&shstrtab_);
     for (size_t i = 0; i < sections.size(); i++) {
@@ -661,7 +655,7 @@ class ElfBuilder FINAL {
 
     // We do not know the number of headers until the final stages of write.
     // It is easiest to just reserve a fixed amount of space for them.
-    constexpr size_t kMaxProgramHeaders = 7;
+    constexpr size_t kMaxProgramHeaders = 8;
     constexpr size_t kProgramHeadersOffset = sizeof(Elf_Ehdr);
     constexpr size_t kProgramHeadersSize = sizeof(Elf_Phdr) * kMaxProgramHeaders;
 
@@ -716,15 +710,20 @@ class ElfBuilder FINAL {
     }
     program_headers.push_back(MakeProgramHeader(PT_LOAD, PF_R | PF_W, dynamic_));
     program_headers.push_back(MakeProgramHeader(PT_DYNAMIC, PF_R | PF_W, dynamic_));
-    const Section* eh_frame_hdr = FindSection(".eh_frame_hdr");
-    if (eh_frame_hdr != nullptr) {
-      const Section* eh_frame = FindSection(".eh_frame");
-      // Check layout: eh_frame is before eh_frame_hdr and there is no gap.
-      CHECK(eh_frame != nullptr);
-      CHECK_LE(eh_frame->GetHeader()->sh_offset, eh_frame_hdr->GetHeader()->sh_offset);
-      CHECK_EQ(eh_frame->GetHeader()->sh_offset + eh_frame->GetHeader()->sh_size,
-               eh_frame_hdr->GetHeader()->sh_offset);
-      program_headers.push_back(MakeProgramHeader(PT_GNU_EH_FRAME, PF_R, *eh_frame_hdr));
+    const Section* eh_frame = FindSection(".eh_frame");
+    if (eh_frame != nullptr) {
+      program_headers.push_back(MakeProgramHeader(PT_LOAD, PF_R, *eh_frame));
+      const Section* eh_frame_hdr = FindSection(".eh_frame_hdr");
+      if (eh_frame_hdr != nullptr) {
+        // Check layout: eh_frame is before eh_frame_hdr and there is no gap.
+        CHECK_LE(eh_frame->GetHeader()->sh_offset, eh_frame_hdr->GetHeader()->sh_offset);
+        CHECK_EQ(eh_frame->GetHeader()->sh_offset + eh_frame->GetHeader()->sh_size,
+                 eh_frame_hdr->GetHeader()->sh_offset);
+        // Extend the PT_LOAD of .eh_frame to include the .eh_frame_hdr as well.
+        program_headers.back().p_filesz += eh_frame_hdr->GetHeader()->sh_size;
+        program_headers.back().p_memsz  += eh_frame_hdr->GetHeader()->sh_size;
+        program_headers.push_back(MakeProgramHeader(PT_GNU_EH_FRAME, PF_R, *eh_frame_hdr));
+      }
     }
     CHECK_LE(program_headers.size(), kMaxProgramHeaders);
 
