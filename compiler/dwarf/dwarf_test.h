@@ -57,44 +57,41 @@ class DwarfTest : public CommonRuntimeTest {
 
   // Pretty-print the generated DWARF data using objdump.
   template<typename ElfTypes>
-  std::vector<std::string> Objdump(bool is64bit, const char* args) {
+  std::vector<std::string> Objdump(const char* args) {
     // Write simple elf file with just the DWARF sections.
+    InstructionSet isa = (sizeof(typename ElfTypes::Addr) == 8) ? kX86_64 : kX86;
     class NoCode : public CodeOutput {
-      virtual void SetCodeOffset(size_t) { }
-      virtual bool Write(OutputStream*) { return true; }
-    } code;
-    ScratchFile file;
-    InstructionSet isa = is64bit ? kX86_64 : kX86;
-    ElfBuilder<ElfTypes> builder(
-        &code, file.GetFile(), isa, 0, 0, 0, 0, 0, 0, false, false);
-    typedef typename ElfBuilder<ElfTypes>::ElfRawSectionBuilder Section;
-    Section debug_info(".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
-    Section debug_abbrev(".debug_abbrev", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
-    Section debug_str(".debug_str", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
-    Section debug_line(".debug_line", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
-    Section eh_frame(".eh_frame", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, 4, 0);
+      bool Write(OutputStream*) OVERRIDE { return true; }  // NOLINT
+    } no_code;
+    ElfBuilder<ElfTypes> builder(isa, 0, &no_code, 0, &no_code, 0);
+    typedef typename ElfBuilder<ElfTypes>::RawSection RawSection;
+    RawSection debug_info(".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
+    RawSection debug_abbrev(".debug_abbrev", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
+    RawSection debug_str(".debug_str", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
+    RawSection debug_line(".debug_line", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
+    RawSection eh_frame(".eh_frame", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0);
     if (!debug_info_data_.empty()) {
       debug_info.SetBuffer(debug_info_data_);
-      builder.RegisterRawSection(&debug_info);
+      builder.RegisterSection(&debug_info);
     }
     if (!debug_abbrev_data_.empty()) {
       debug_abbrev.SetBuffer(debug_abbrev_data_);
-      builder.RegisterRawSection(&debug_abbrev);
+      builder.RegisterSection(&debug_abbrev);
     }
     if (!debug_str_data_.empty()) {
       debug_str.SetBuffer(debug_str_data_);
-      builder.RegisterRawSection(&debug_str);
+      builder.RegisterSection(&debug_str);
     }
     if (!debug_line_data_.empty()) {
       debug_line.SetBuffer(debug_line_data_);
-      builder.RegisterRawSection(&debug_line);
+      builder.RegisterSection(&debug_line);
     }
     if (!eh_frame_data_.empty()) {
       eh_frame.SetBuffer(eh_frame_data_);
-      builder.RegisterRawSection(&eh_frame);
+      builder.RegisterSection(&eh_frame);
     }
-    builder.Init();
-    builder.Write();
+    ScratchFile file;
+    builder.Write(file.GetFile());
 
     // Read the elf file back using objdump.
     std::vector<std::string> lines;
@@ -123,9 +120,9 @@ class DwarfTest : public CommonRuntimeTest {
 
   std::vector<std::string> Objdump(bool is64bit, const char* args) {
     if (is64bit) {
-      return Objdump<ElfTypes64>(is64bit, args);
+      return Objdump<ElfTypes64>(args);
     } else {
-      return Objdump<ElfTypes32>(is64bit, args);
+      return Objdump<ElfTypes32>(args);
     }
   }
 

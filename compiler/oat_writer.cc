@@ -1112,13 +1112,14 @@ size_t OatWriter::InitOatCodeDexFiles(size_t offset) {
   return offset;
 }
 
-bool OatWriter::Write(OutputStream* out) {
+bool OatWriter::WriteRodata(OutputStream* out) {
   const off_t raw_file_offset = out->Seek(0, kSeekCurrent);
   if (raw_file_offset == (off_t) -1) {
     LOG(ERROR) << "Failed to get file offset in " << out->GetLocation();
     return false;
   }
   const size_t file_offset = static_cast<size_t>(raw_file_offset);
+  oat_data_offset_ = file_offset;
 
   // Reserve space for header. It will be written last - after updating the checksum.
   size_t header_size = oat_header_->GetHeaderSize();
@@ -1145,6 +1146,27 @@ bool OatWriter::Write(OutputStream* out) {
     LOG(ERROR) << "Failed to write oat code to " << out->GetLocation();
     return false;
   }
+
+  // Write padding.
+  off_t new_offset = out->Seek(size_executable_offset_alignment_, kSeekCurrent);
+  relative_offset += size_executable_offset_alignment_;
+  DCHECK_EQ(relative_offset, oat_header_->GetExecutableOffset());
+  size_t expected_file_offset = file_offset + relative_offset;
+  if (static_cast<uint32_t>(new_offset) != expected_file_offset) {
+    PLOG(ERROR) << "Failed to seek to oat code section. Actual: " << new_offset
+                << " Expected: " << expected_file_offset << " File: " << out->GetLocation();
+    return 0;
+  }
+  DCHECK_OFFSET();
+
+  return true;
+}
+
+bool OatWriter::WriteCode(OutputStream* out) {
+  size_t header_size = oat_header_->GetHeaderSize();
+  const size_t file_offset = oat_data_offset_;
+  size_t relative_offset = oat_header_->GetExecutableOffset();
+  DCHECK_OFFSET();
 
   relative_offset = WriteCode(out, file_offset, relative_offset);
   if (relative_offset == 0) {
@@ -1215,7 +1237,7 @@ bool OatWriter::Write(OutputStream* out) {
     PLOG(ERROR) << "Failed to seek to oat header position in " << out->GetLocation();
     return false;
   }
-  DCHECK_EQ(raw_file_offset, out->Seek(0, kSeekCurrent));
+  DCHECK_EQ(file_offset, static_cast<size_t>(out->Seek(0, kSeekCurrent)));
   if (!out->WriteFully(oat_header_, header_size)) {
     PLOG(ERROR) << "Failed to write oat header to " << out->GetLocation();
     return false;
@@ -1290,16 +1312,6 @@ size_t OatWriter::WriteMaps(OutputStream* out, const size_t file_offset, size_t 
 }
 
 size_t OatWriter::WriteCode(OutputStream* out, const size_t file_offset, size_t relative_offset) {
-  off_t new_offset = out->Seek(size_executable_offset_alignment_, kSeekCurrent);
-  relative_offset += size_executable_offset_alignment_;
-  DCHECK_EQ(relative_offset, oat_header_->GetExecutableOffset());
-  size_t expected_file_offset = file_offset + relative_offset;
-  if (static_cast<uint32_t>(new_offset) != expected_file_offset) {
-    PLOG(ERROR) << "Failed to seek to oat code section. Actual: " << new_offset
-                << " Expected: " << expected_file_offset << " File: " << out->GetLocation();
-    return 0;
-  }
-  DCHECK_OFFSET();
   if (compiler_driver_->IsImage()) {
     InstructionSet instruction_set = compiler_driver_->GetInstructionSet();
 
