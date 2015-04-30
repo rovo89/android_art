@@ -128,13 +128,12 @@ bool ElfWriterQuick<ElfTypes>::Write(
   // They are stack allocated here (in the same scope as the builder),
   // but they are registred with the builder only if they are used.
   using RawSection = typename ElfBuilder<ElfTypes>::RawSection;
-  const int pointer_size = GetInstructionSetPointerSize(isa);
   const auto* text = builder->GetText();
   constexpr bool absolute = false;  // patch to make absolute addresses.
   constexpr bool relative = true;  // patch to make relative addresses.
   const bool is64bit = Is64BitInstructionSet(isa);
   RawSection eh_frame(".eh_frame", SHT_PROGBITS, SHF_ALLOC,
-                      nullptr, 0, pointer_size, 0, text, relative, is64bit);
+                      nullptr, 0, kPageSize, 0, text, relative, is64bit);
   RawSection eh_frame_hdr(".eh_frame_hdr", SHT_PROGBITS, SHF_ALLOC,
                           nullptr, 0, 4, 0);
   RawSection debug_info(".debug_info", SHT_PROGBITS, 0,
