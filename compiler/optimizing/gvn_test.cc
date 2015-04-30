@@ -42,21 +42,21 @@ TEST(GVNTest, LocalFieldElimination) {
 
   block->AddInstruction(
       new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimNot,
-          MemberOffset(42), false));
+          MemberOffset(42), false, false));
   block->AddInstruction(
       new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimNot,
-          MemberOffset(42), false));
+          MemberOffset(42), false, false));
   HInstruction* to_remove = block->GetLastInstruction();
   block->AddInstruction(
       new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimNot,
-          MemberOffset(43), false));
+          MemberOffset(43), false, false));
   HInstruction* different_offset = block->GetLastInstruction();
   // Kill the value.
   block->AddInstruction(new (&allocator) HInstanceFieldSet(
       parameter, parameter, Primitive::kPrimNot, MemberOffset(42), false));
   block->AddInstruction(
       new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimNot,
-          MemberOffset(42), false));
+          MemberOffset(42), false, false));
   HInstruction* use_after_kill = block->GetLastInstruction();
   block->AddInstruction(new (&allocator) HExit());
 
@@ -90,7 +90,7 @@ TEST(GVNTest, GlobalFieldElimination) {
   entry->AddSuccessor(block);
   block->AddInstruction(
       new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean,
-          MemberOffset(42), false));
+          MemberOffset(42), false, false));
 
   block->AddInstruction(new (&allocator) HIf(block->GetLastInstruction()));
   HBasicBlock* then = new (&allocator) HBasicBlock(graph);
@@ -107,15 +107,15 @@ TEST(GVNTest, GlobalFieldElimination) {
 
   then->AddInstruction(
       new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean,
-          MemberOffset(42), false));
+          MemberOffset(42), false, false));
   then->AddInstruction(new (&allocator) HGoto());
   else_->AddInstruction(
       new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean,
-          MemberOffset(42), false));
+          MemberOffset(42), false, false));
   else_->AddInstruction(new (&allocator) HGoto());
   join->AddInstruction(
       new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean,
-          MemberOffset(42), false));
+          MemberOffset(42), false, false));
   join->AddInstruction(new (&allocator) HExit());
 
   graph->TryBuildingSsa();
@@ -146,7 +146,7 @@ TEST(GVNTest, LoopFieldElimination) {
   entry->AddSuccessor(block);
   block->AddInstruction(
       new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean,
-          MemberOffset(42), false));
+          MemberOffset(42), false, false));
   block->AddInstruction(new (&allocator) HGoto());
 
   HBasicBlock* loop_header = new (&allocator) HBasicBlock(graph);
@@ -163,7 +163,7 @@ TEST(GVNTest, LoopFieldElimination) {
 
   loop_header->AddInstruction(
       new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean,
-          MemberOffset(42), false));
+          MemberOffset(42), false, false));
   HInstruction* field_get_in_loop_header = loop_header->GetLastInstruction();
   loop_header->AddInstruction(new (&allocator) HIf(block->GetLastInstruction()));
 
@@ -174,13 +174,13 @@ TEST(GVNTest, LoopFieldElimination) {
   HInstruction* field_set = loop_body->GetLastInstruction();
   loop_body->AddInstruction(
       new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean,
-          MemberOffset(42), false));
+          MemberOffset(42), false, false));
   HInstruction* field_get_in_loop_body = loop_body->GetLastInstruction();
   loop_body->AddInstruction(new (&allocator) HGoto());
 
   exit->AddInstruction(
       new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean,
-          MemberOffset(42), false));
+          MemberOffset(42), false, false));
   HInstruction* field_get_in_exit = exit->GetLastInstruction();
   exit->AddInstruction(new (&allocator) HExit());
 
