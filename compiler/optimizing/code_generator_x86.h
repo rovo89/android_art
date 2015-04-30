@@ -75,22 +75,17 @@ class InvokeDexCallingConvention : public CallingConvention<Register, XmmRegiste
   DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConvention);
 };
 
-class InvokeDexCallingConventionVisitor {
+class InvokeDexCallingConventionVisitorX86 : public InvokeDexCallingConventionVisitor {
  public:
-  InvokeDexCallingConventionVisitor() : gp_index_(0), fp_index_(0), stack_index_(0) {}
+  InvokeDexCallingConventionVisitorX86() {}
+  virtual ~InvokeDexCallingConventionVisitorX86() {}
 
-  Location GetNextLocation(Primitive::Type type);
+  Location GetNextLocation(Primitive::Type type) OVERRIDE;
 
  private:
   InvokeDexCallingConvention calling_convention;
-  // The current index for cpu registers.
-  uint32_t gp_index_;
-  // The current index for fpu registers.
-  uint32_t fp_index_;
-  // The current stack index.
-  uint32_t stack_index_;
 
-  DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitor);
+  DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitorX86);
 };
 
 class ParallelMoveResolverX86 : public ParallelMoveResolverWithSwap {
@@ -137,7 +132,7 @@ class LocationsBuilderX86 : public HGraphVisitor {
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
 
   CodeGeneratorX86* const codegen_;
-  InvokeDexCallingConventionVisitor parameter_visitor_;
+  InvokeDexCallingConventionVisitorX86 parameter_visitor_;
 
   DISALLOW_COPY_AND_ASSIGN(LocationsBuilderX86);
 };

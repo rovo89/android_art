@@ -26,6 +26,30 @@
 namespace art {
 
 /**
+ * @class String Change
+ * @brief Converts calls to String.<init> to StringFactory instead.
+ */
+class StringChange : public PassME {
+ public:
+  StringChange() : PassME("StringChange", kNoNodes) {
+  }
+
+  void Start(PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    c_unit->mir_graph->StringChange();
+  }
+
+  bool Gate(const PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    return c_unit->mir_graph->HasInvokes();
+  }
+};
+
+/**
  * @class CacheFieldLoweringInfo
  * @brief Cache the lowering info for fields used by IGET/IPUT/SGET/SPUT insns.
  */

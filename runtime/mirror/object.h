@@ -62,7 +62,7 @@ class Throwable;
 static constexpr bool kCheckFieldAssignments = false;
 
 // Size of Object.
-static constexpr uint32_t kObjectHeaderSize = kUseBakerOrBrooksReadBarrier ? 16 : 8;
+static constexpr uint32_t kObjectHeaderSize = kUseBrooksReadBarrier ? 16 : 8;
 
 // C++ mirror of java.lang.Object
 class MANAGED LOCKABLE Object {
@@ -94,6 +94,9 @@ class MANAGED LOCKABLE Object {
   NO_RETURN
 #endif
   void SetReadBarrierPointer(Object* rb_ptr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+#ifndef USE_BAKER_OR_BROOKS_READ_BARRIER
+  NO_RETURN
+#endif
   bool AtomicSetReadBarrierPointer(Object* expected_rb_ptr, Object* rb_ptr)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void AssertReadBarrierPointer() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -182,7 +185,12 @@ class MANAGED LOCKABLE Object {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   DoubleArray* AsDoubleArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
+  bool IsString() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   String* AsString() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
@@ -502,11 +510,11 @@ class MANAGED LOCKABLE Object {
   // Monitor and hash code information.
   uint32_t monitor_;
 
-#ifdef USE_BAKER_OR_BROOKS_READ_BARRIER
+#ifdef USE_BROOKS_READ_BARRIER
   // Note names use a 'x' prefix and the x_rb_ptr_ is of type int
   // instead of Object to go with the alphabetical/by-type field order
   // on the Java side.
-  uint32_t x_rb_ptr_;      // For the Baker or Brooks pointer.
+  uint32_t x_rb_ptr_;      // For the Brooks pointer.
   uint32_t x_xpadding_;    // For 8-byte alignment. TODO: get rid of this.
 #endif
 

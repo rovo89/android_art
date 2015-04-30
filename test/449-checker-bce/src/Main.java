@@ -608,6 +608,380 @@ public class Main {
   }
 
 
+  int sum;
+
+  // CHECK-START: void Main.foo1(int[], int, int) BCE (before)
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArrayGet
+
+  // CHECK-START: void Main.foo1(int[], int, int) BCE (after)
+  // CHECK: Deoptimize
+  // CHECK: Deoptimize
+  // CHECK: Deoptimize
+  // CHECK-NOT: Deoptimize
+  // CHECK: Phi
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArrayGet
+
+  void foo1(int[] array, int start, int end) {
+    // Three HDeoptimize will be added. One for
+    // start >= 0, one for end <= array.length,
+    // and one for null check on array (to hoist null
+    // check and array.length out of loop).
+    for (int i = start ; i < end; i++) {
+      array[i] = 1;
+      sum += array[i];
+    }
+  }
+
+
+  // CHECK-START: void Main.foo2(int[], int, int) BCE (before)
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArrayGet
+
+  // CHECK-START: void Main.foo2(int[], int, int) BCE (after)
+  // CHECK: Deoptimize
+  // CHECK: Deoptimize
+  // CHECK: Deoptimize
+  // CHECK-NOT: Deoptimize
+  // CHECK: Phi
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArrayGet
+
+  void foo2(int[] array, int start, int end) {
+    // Three HDeoptimize will be added. One for
+    // start >= 0, one for end <= array.length,
+    // and one for null check on array (to hoist null
+    // check and array.length out of loop).
+    for (int i = start ; i <= end; i++) {
+      array[i] = 1;
+      sum += array[i];
+    }
+  }
+
+
+  // CHECK-START: void Main.foo3(int[], int) BCE (before)
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArrayGet
+
+  // CHECK-START: void Main.foo3(int[], int) BCE (after)
+  // CHECK: Deoptimize
+  // CHECK: Deoptimize
+  // CHECK-NOT: Deoptimize
+  // CHECK: Phi
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArrayGet
+
+  void foo3(int[] array, int end) {
+    // Two HDeoptimize will be added. One for end < array.length,
+    // and one for null check on array (to hoist null check
+    // and array.length out of loop).
+    for (int i = 3 ; i <= end; i++) {
+      array[i] = 1;
+      sum += array[i];
+    }
+  }
+
+  // CHECK-START: void Main.foo4(int[], int) BCE (before)
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArrayGet
+
+  // CHECK-START: void Main.foo4(int[], int) BCE (after)
+  // CHECK: Deoptimize
+  // CHECK: Deoptimize
+  // CHECK-NOT: Deoptimize
+  // CHECK: Phi
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArrayGet
+
+  void foo4(int[] array, int end) {
+    // Two HDeoptimize will be added. One for end <= array.length,
+    // and one for null check on array (to hoist null check
+    // and array.length out of loop).
+    for (int i = end ; i > 0; i--) {
+      array[i - 1] = 1;
+      sum += array[i - 1];
+    }
+  }
+
+
+  // CHECK-START: void Main.foo5(int[], int) BCE (before)
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK: BoundsCheck
+  // CHECK: ArrayGet
+
+  // CHECK-START: void Main.foo5(int[], int) BCE (after)
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: Deoptimize
+  // CHECK-NOT: Deoptimize
+  // CHECK: Phi
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArrayGet
+
+  void foo5(int[] array, int end) {
+    // Bounds check in this loop can be eliminated without deoptimization.
+    for (int i = array.length - 1 ; i >= 0; i--) {
+      array[i] = 1;
+    }
+    // One HDeoptimize will be added.
+    // It's for (end - 2 <= array.length - 2).
+    for (int i = end - 2 ; i > 0; i--) {
+      sum += array[i - 1];
+      sum += array[i];
+      sum += array[i + 1];
+    }
+  }
+
+
+  // CHECK-START: void Main.foo6(int[], int, int) BCE (before)
+  // CHECK: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+
+  // CHECK-START: void Main.foo6(int[], int, int) BCE (after)
+  // CHECK: Deoptimize
+  // CHECK: Deoptimize
+  // CHECK: Deoptimize
+  // CHECK-NOT: Deoptimize
+  // CHECK: Phi
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+
+  void foo6(int[] array, int start, int end) {
+    // Three HDeoptimize will be added. One for
+    // start >= 2, one for end <= array.length - 3,
+    // and one for null check on array (to hoist null
+    // check and array.length out of loop).
+    for (int i = end; i >= start; i--) {
+      array[i] = (array[i-2] + array[i-1] + array[i] + array[i+1] + array[i+2]) / 5;
+    }
+  }
+
+
+  // CHECK-START: void Main.foo7(int[], int, int, boolean) BCE (before)
+  // CHECK: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK: BoundsCheck
+  // CHECK: ArrayGet
+
+  // CHECK-START: void Main.foo7(int[], int, int, boolean) BCE (after)
+  // CHECK: Deoptimize
+  // CHECK: Deoptimize
+  // CHECK: Deoptimize
+  // CHECK-NOT: Deoptimize
+  // CHECK: Phi
+  // CHECK: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArrayGet
+
+  void foo7(int[] array, int start, int end, boolean lowEnd) {
+    // Three HDeoptimize will be added. One for
+    // start >= 0, one for end <= array.length,
+    // and one for null check on array (to hoist null
+    // check and array.length out of loop).
+    for (int i = start ; i < end; i++) {
+      if (lowEnd) {
+        // This array access isn't certain. So we don't
+        // use +1000 offset in decision making for deoptimization
+        // conditions.
+        sum += array[i + 1000];
+      }
+      sum += array[i];
+    }
+  }
+
+
+  // CHECK-START: void Main.partialLooping(int[], int, int) BCE (before)
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+
+  // CHECK-START: void Main.partialLooping(int[], int, int) BCE (after)
+  // CHECK-NOT: Deoptimize
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+
+  void partialLooping(int[] array, int start, int end) {
+    // This loop doesn't cover the full range of [start, end) so
+    // adding deoptimization is too aggressive, since end can be
+    // greater than array.length but the loop is never going to work on
+    // more than 2 elements.
+    for (int i = start; i < end; i++) {
+      if (i == 2) {
+        return;
+      }
+      array[i] = 1;
+    }
+  }
+
+
+  static void testUnknownBounds() {
+    boolean caught = false;
+    Main main = new Main();
+    main.foo1(new int[10], 0, 10);
+    if (main.sum != 10) {
+      System.out.println("foo1 failed!");
+    }
+
+    caught = false;
+    main = new Main();
+    try {
+      main.foo1(new int[10], 0, 11);
+    } catch (ArrayIndexOutOfBoundsException e) {
+      caught = true;
+    }
+    if (!caught || main.sum != 10) {
+      System.out.println("foo1 exception failed!");
+    }
+
+    main = new Main();
+    main.foo2(new int[10], 0, 9);
+    if (main.sum != 10) {
+      System.out.println("foo2 failed!");
+    }
+
+    caught = false;
+    main = new Main();
+    try {
+      main.foo2(new int[10], 0, 10);
+    } catch (ArrayIndexOutOfBoundsException e) {
+      caught = true;
+    }
+    if (!caught || main.sum != 10) {
+      System.out.println("foo2 exception failed!");
+    }
+
+    main = new Main();
+    main.foo3(new int[10], 9);
+    if (main.sum != 7) {
+      System.out.println("foo3 failed!");
+    }
+
+    caught = false;
+    main = new Main();
+    try {
+      main.foo3(new int[10], 10);
+    } catch (ArrayIndexOutOfBoundsException e) {
+      caught = true;
+    }
+    if (!caught || main.sum != 7) {
+      System.out.println("foo3 exception failed!");
+    }
+
+    main = new Main();
+    main.foo4(new int[10], 10);
+    if (main.sum != 10) {
+      System.out.println("foo4 failed!");
+    }
+
+    caught = false;
+    main = new Main();
+    try {
+      main.foo4(new int[10], 11);
+    } catch (ArrayIndexOutOfBoundsException e) {
+      caught = true;
+    }
+    if (!caught || main.sum != 0) {
+      System.out.println("foo4 exception failed!");
+    }
+
+    main = new Main();
+    main.foo5(new int[10], 10);
+    if (main.sum != 24) {
+      System.out.println("foo5 failed!");
+    }
+
+    caught = false;
+    main = new Main();
+    try {
+      main.foo5(new int[10], 11);
+    } catch (ArrayIndexOutOfBoundsException e) {
+      caught = true;
+    }
+    if (!caught || main.sum != 2) {
+      System.out.println("foo5 exception failed!");
+    }
+
+    main = new Main();
+    main.foo6(new int[10], 2, 7);
+
+    main = new Main();
+    int[] array = new int[4];
+    main.partialLooping(new int[3], 0, 4);
+    if ((array[0] != 1) && (array[1] != 1) &&
+        (array[2] != 0) && (array[3] != 0)) {
+      System.out.println("partialLooping failed!");
+    }
+
+    caught = false;
+    main = new Main();
+    try {
+      main.foo6(new int[10], 2, 8);
+    } catch (ArrayIndexOutOfBoundsException e) {
+      caught = true;
+    }
+    if (!caught) {
+      System.out.println("foo6 exception failed!");
+    }
+
+    caught = false;
+    main = new Main();
+    try {
+      main.foo6(new int[10], 1, 7);
+    } catch (ArrayIndexOutOfBoundsException e) {
+      caught = true;
+    }
+    if (!caught) {
+      System.out.println("foo6 exception failed!");
+    }
+
+  }
+
   // Make sure this method is compiled with optimizing.
   // CHECK-START: void Main.main(java.lang.String[]) register (after)
   // CHECK: ParallelMove
@@ -643,7 +1017,11 @@ public class Main {
 
     // Make sure this value is kept after deoptimization.
     int i = 1;
-    System.out.println(foo() + i);
+    if (foo() + i != 100) {
+      System.out.println("foo failed!");
+    };
+
+    testUnknownBounds();
   }
 
 }

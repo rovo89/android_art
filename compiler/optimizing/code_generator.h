@@ -105,6 +105,25 @@ class SlowPathCode : public ArenaObject<kArenaAllocSlowPaths> {
   DISALLOW_COPY_AND_ASSIGN(SlowPathCode);
 };
 
+class InvokeDexCallingConventionVisitor {
+ public:
+  virtual Location GetNextLocation(Primitive::Type type) = 0;
+
+ protected:
+  InvokeDexCallingConventionVisitor() {}
+  virtual ~InvokeDexCallingConventionVisitor() {}
+
+  // The current index for core registers.
+  uint32_t gp_index_ = 0u;
+  // The current index for floating-point registers.
+  uint32_t float_index_ = 0u;
+  // The current stack index.
+  uint32_t stack_index_ = 0u;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitor);
+};
+
 class CodeGenerator {
  public:
   // Compiles the graph to executable instructions. Returns whether the compilation
@@ -212,6 +231,10 @@ class CodeGenerator {
       std::vector<uint8_t>* vector, const DexCompilationUnit& dex_compilation_unit) const;
   void BuildStackMaps(std::vector<uint8_t>* vector);
 
+  bool IsBaseline() const {
+    return is_baseline_;
+  }
+
   bool IsLeafMethod() const {
     return is_leaf_;
   }
@@ -304,6 +327,7 @@ class CodeGenerator {
     return GetFpuSpillSize() + GetCoreSpillSize();
   }
 
+  virtual ParallelMoveResolver* GetMoveResolver() = 0;
 
  protected:
   CodeGenerator(HGraph* graph,
@@ -325,6 +349,7 @@ class CodeGenerator {
         number_of_register_pairs_(number_of_register_pairs),
         core_callee_save_mask_(core_callee_save_mask),
         fpu_callee_save_mask_(fpu_callee_save_mask),
+        is_baseline_(false),
         graph_(graph),
         compiler_options_(compiler_options),
         pc_infos_(graph->GetArena(), 32),
@@ -346,7 +371,6 @@ class CodeGenerator {
 
   virtual Location GetStackLocation(HLoadLocal* load) const = 0;
 
-  virtual ParallelMoveResolver* GetMoveResolver() = 0;
   virtual HGraphVisitor* GetLocationBuilder() = 0;
   virtual HGraphVisitor* GetInstructionVisitor() = 0;
 
@@ -403,6 +427,9 @@ class CodeGenerator {
   size_t number_of_register_pairs_;
   const uint32_t core_callee_save_mask_;
   const uint32_t fpu_callee_save_mask_;
+
+  // Whether we are using baseline.
+  bool is_baseline_;
 
  private:
   void InitLocationsBaseline(HInstruction* instruction);

@@ -44,7 +44,7 @@ public class Main {
         System.out.println("Confirm when we overflow, we don't roll over to zero. b/17392248");
         final int overflowAllocations = 64 * 1024;  // Won't fit in unsigned 16-bit value.
         for (int i = 0; i < overflowAllocations; i++) {
-            new String("fnord");
+            new Object();
         }
         Allocations after = new Allocations(DdmVmInternal.getRecentAllocations());
         System.out.println("before < overflowAllocations=" + (before.numberOfEntries < overflowAllocations));

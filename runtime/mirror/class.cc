@@ -330,10 +330,6 @@ bool Class::IsInSamePackage(Class* that) {
   return IsInSamePackage(klass1->GetDescriptor(&temp1), klass2->GetDescriptor(&temp2));
 }
 
-bool Class::IsStringClass() const {
-  return this == String::GetJavaLangString();
-}
-
 bool Class::IsThrowableClass() {
   return WellKnownClasses::ToClass(WellKnownClasses::java_lang_Throwable)->IsAssignableFrom(this);
 }

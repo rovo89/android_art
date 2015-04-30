@@ -189,6 +189,7 @@ ART_CPP_EXTENSION := .cc
 
 ART_C_INCLUDES := \
   external/gtest/include \
+  external/icu/icu4c/source/common \
   external/valgrind/main/include \
   external/valgrind/main \
   external/vixl/src \

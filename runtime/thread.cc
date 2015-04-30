@@ -105,6 +105,43 @@ void Thread::InitTlsEntryPoints() {
                   &tlsPtr_.quick_entrypoints);
 }
 
+void Thread::InitStringEntryPoints() {
+  ScopedObjectAccess soa(this);
+  QuickEntryPoints* qpoints = &tlsPtr_.quick_entrypoints;
+  qpoints->pNewEmptyString = reinterpret_cast<void(*)()>(
+      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newEmptyString));
+  qpoints->pNewStringFromBytes_B = reinterpret_cast<void(*)()>(
+      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromBytes_B));
+  qpoints->pNewStringFromBytes_BI = reinterpret_cast<void(*)()>(
+      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromBytes_BI));
+  qpoints->pNewStringFromBytes_BII = reinterpret_cast<void(*)()>(
+      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromBytes_BII));
+  qpoints->pNewStringFromBytes_BIII = reinterpret_cast<void(*)()>(
+      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromBytes_BIII));
+  qpoints->pNewStringFromBytes_BIIString = reinterpret_cast<void(*)()>(
+      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromBytes_BIIString));
+  qpoints->pNewStringFromBytes_BString = reinterpret_cast<void(*)()>(
+      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromBytes_BString));
+  qpoints->pNewStringFromBytes_BIICharset = reinterpret_cast<void(*)()>(
+      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromBytes_BIICharset));
+  qpoints->pNewStringFromBytes_BCharset = reinterpret_cast<void(*)()>(
+      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromBytes_BCharset));
+  qpoints->pNewStringFromChars_C = reinterpret_cast<void(*)()>(
+      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromChars_C));
+  qpoints->pNewStringFromChars_CII = reinterpret_cast<void(*)()>(
+      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromChars_CII));
+  qpoints->pNewStringFromChars_IIC = reinterpret_cast<void(*)()>(
+      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromChars_IIC));
+  qpoints->pNewStringFromCodePoints = reinterpret_cast<void(*)()>(
+      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromCodePoints));
+  qpoints->pNewStringFromString = reinterpret_cast<void(*)()>(
+      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromString));
+  qpoints->pNewStringFromStringBuffer = reinterpret_cast<void(*)()>(
+      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromStringBuffer));
+  qpoints->pNewStringFromStringBuilder = reinterpret_cast<void(*)()>(
+      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromStringBuilder));
+}
+
 void Thread::ResetQuickAllocEntryPointsForThread() {
   ResetQuickAllocEntryPoints(&tlsPtr_.quick_entrypoints);
 }
@@ -163,6 +200,7 @@ void* Thread::CreateCallback(void* arg) {
   }
   {
     ScopedObjectAccess soa(self);
+    self->InitStringEntryPoints();
 
     // Copy peer into self, deleting global reference when done.
     CHECK(self->tlsPtr_.jpeer != nullptr);
@@ -408,6 +446,8 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_g
       }
     }
   }
+
+  self->InitStringEntryPoints();
 
   CHECK_NE(self->GetState(), kRunnable);
   self->SetState(kNative);
@@ -1930,6 +1970,9 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset) {
   QUICK_ENTRY_POINT_INFO(pAllocObjectWithAccessCheck)
   QUICK_ENTRY_POINT_INFO(pCheckAndAllocArray)
   QUICK_ENTRY_POINT_INFO(pCheckAndAllocArrayWithAccessCheck)
+  QUICK_ENTRY_POINT_INFO(pAllocStringFromBytes)
+  QUICK_ENTRY_POINT_INFO(pAllocStringFromChars)
+  QUICK_ENTRY_POINT_INFO(pAllocStringFromString)
   QUICK_ENTRY_POINT_INFO(pInstanceofNonTrivial)
   QUICK_ENTRY_POINT_INFO(pCheckCast)
   QUICK_ENTRY_POINT_INFO(pInitializeStaticStorage)
@@ -2013,6 +2056,22 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset) {
   QUICK_ENTRY_POINT_INFO(pDeoptimize)
   QUICK_ENTRY_POINT_INFO(pA64Load)
   QUICK_ENTRY_POINT_INFO(pA64Store)
+  QUICK_ENTRY_POINT_INFO(pNewEmptyString)
+  QUICK_ENTRY_POINT_INFO(pNewStringFromBytes_B)
+  QUICK_ENTRY_POINT_INFO(pNewStringFromBytes_BI)
+  QUICK_ENTRY_POINT_INFO(pNewStringFromBytes_BII)
+  QUICK_ENTRY_POINT_INFO(pNewStringFromBytes_BIII)
+  QUICK_ENTRY_POINT_INFO(pNewStringFromBytes_BIIString)
+  QUICK_ENTRY_POINT_INFO(pNewStringFromBytes_BString)
+  QUICK_ENTRY_POINT_INFO(pNewStringFromBytes_BIICharset)
+  QUICK_ENTRY_POINT_INFO(pNewStringFromBytes_BCharset)
+  QUICK_ENTRY_POINT_INFO(pNewStringFromChars_C)
+  QUICK_ENTRY_POINT_INFO(pNewStringFromChars_CII)
+  QUICK_ENTRY_POINT_INFO(pNewStringFromChars_IIC)
+  QUICK_ENTRY_POINT_INFO(pNewStringFromCodePoints)
+  QUICK_ENTRY_POINT_INFO(pNewStringFromString)
+  QUICK_ENTRY_POINT_INFO(pNewStringFromStringBuffer)
+  QUICK_ENTRY_POINT_INFO(pNewStringFromStringBuilder)
 #undef QUICK_ENTRY_POINT_INFO
 
   os << offset;

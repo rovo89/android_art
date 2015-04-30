@@ -153,6 +153,32 @@ extern "C" mirror::Array* artCheckAndAllocArrayFromCodeWithAccessCheck##suffix##
   } else { \
     return CheckAndAllocArrayFromCodeInstrumented(type_idx, component_count, method, self, true, allocator_type); \
   } \
+} \
+extern "C" mirror::String* artAllocStringFromBytesFromCode##suffix##suffix2( \
+    mirror::ByteArray* byte_array, int32_t high, int32_t offset, int32_t byte_count, \
+    Thread* self) \
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
+  ScopedQuickEntrypointChecks sqec(self); \
+  StackHandleScope<1> hs(self); \
+  Handle<mirror::ByteArray> handle_array(hs.NewHandle(byte_array)); \
+  return mirror::String::AllocFromByteArray<instrumented_bool>(self, byte_count, handle_array, \
+                                                               offset, high, allocator_type); \
+} \
+extern "C" mirror::String* artAllocStringFromCharsFromCode##suffix##suffix2( \
+    int32_t offset, int32_t char_count, mirror::CharArray* char_array, Thread* self) \
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
+  StackHandleScope<1> hs(self); \
+  Handle<mirror::CharArray> handle_array(hs.NewHandle(char_array)); \
+  return mirror::String::AllocFromCharArray<instrumented_bool>(self, char_count, handle_array, \
+                                                               offset, allocator_type); \
+} \
+extern "C" mirror::String* artAllocStringFromStringFromCode##suffix##suffix2( \
+    mirror::String* string, Thread* self) \
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
+  StackHandleScope<1> hs(self); \
+  Handle<mirror::String> handle_string(hs.NewHandle(string)); \
+  return mirror::String::AllocFromString<instrumented_bool>(self, handle_string->GetLength(), \
+                                                            handle_string, 0, allocator_type); \
 }
 
 #define GENERATE_ENTRYPOINTS_FOR_ALLOCATOR(suffix, allocator_type) \
@@ -176,6 +202,9 @@ extern "C" void* art_quick_alloc_object_initialized##suffix(mirror::Class* klass
 extern "C" void* art_quick_alloc_object_with_access_check##suffix(uint32_t type_idx, mirror::ArtMethod* ref); \
 extern "C" void* art_quick_check_and_alloc_array##suffix(uint32_t, int32_t, mirror::ArtMethod* ref); \
 extern "C" void* art_quick_check_and_alloc_array_with_access_check##suffix(uint32_t, int32_t, mirror::ArtMethod* ref); \
+extern "C" void* art_quick_alloc_string_from_bytes##suffix(void*, int32_t, int32_t, int32_t); \
+extern "C" void* art_quick_alloc_string_from_chars##suffix(int32_t, int32_t, void*); \
+extern "C" void* art_quick_alloc_string_from_string##suffix(void*); \
 extern "C" void* art_quick_alloc_array##suffix##_instrumented(uint32_t, int32_t, mirror::ArtMethod* ref); \
 extern "C" void* art_quick_alloc_array_resolved##suffix##_instrumented(mirror::Class* klass, int32_t, mirror::ArtMethod* ref); \
 extern "C" void* art_quick_alloc_array_with_access_check##suffix##_instrumented(uint32_t, int32_t, mirror::ArtMethod* ref); \
@@ -185,6 +214,9 @@ extern "C" void* art_quick_alloc_object_initialized##suffix##_instrumented(mirro
 extern "C" void* art_quick_alloc_object_with_access_check##suffix##_instrumented(uint32_t type_idx, mirror::ArtMethod* ref); \
 extern "C" void* art_quick_check_and_alloc_array##suffix##_instrumented(uint32_t, int32_t, mirror::ArtMethod* ref); \
 extern "C" void* art_quick_check_and_alloc_array_with_access_check##suffix##_instrumented(uint32_t, int32_t, mirror::ArtMethod* ref); \
+extern "C" void* art_quick_alloc_string_from_bytes##suffix##_instrumented(void*, int32_t, int32_t, int32_t); \
+extern "C" void* art_quick_alloc_string_from_chars##suffix##_instrumented(int32_t, int32_t, void*); \
+extern "C" void* art_quick_alloc_string_from_string##suffix##_instrumented(void*); \
 void SetQuickAllocEntryPoints##suffix(QuickEntryPoints* qpoints, bool instrumented) { \
   if (instrumented) { \
     qpoints->pAllocArray = art_quick_alloc_array##suffix##_instrumented; \
@@ -196,6 +228,9 @@ void SetQuickAllocEntryPoints##suffix(QuickEntryPoints* qpoints, bool instrument
     qpoints->pAllocObjectWithAccessCheck = art_quick_alloc_object_with_access_check##suffix##_instrumented; \
     qpoints->pCheckAndAllocArray = art_quick_check_and_alloc_array##suffix##_instrumented; \
     qpoints->pCheckAndAllocArrayWithAccessCheck = art_quick_check_and_alloc_array_with_access_check##suffix##_instrumented; \
+    qpoints->pAllocStringFromBytes = art_quick_alloc_string_from_bytes##suffix##_instrumented; \
+    qpoints->pAllocStringFromChars = art_quick_alloc_string_from_chars##suffix##_instrumented; \
+    qpoints->pAllocStringFromString = art_quick_alloc_string_from_string##suffix##_instrumented; \
   } else { \
     qpoints->pAllocArray = art_quick_alloc_array##suffix; \
     qpoints->pAllocArrayResolved = art_quick_alloc_array_resolved##suffix; \
@@ -206,6 +241,9 @@ void SetQuickAllocEntryPoints##suffix(QuickEntryPoints* qpoints, bool instrument
     qpoints->pAllocObjectWithAccessCheck = art_quick_alloc_object_with_access_check##suffix; \
     qpoints->pCheckAndAllocArray = art_quick_check_and_alloc_array##suffix; \
     qpoints->pCheckAndAllocArrayWithAccessCheck = art_quick_check_and_alloc_array_with_access_check##suffix; \
+    qpoints->pAllocStringFromBytes = art_quick_alloc_string_from_bytes##suffix; \
+    qpoints->pAllocStringFromChars = art_quick_alloc_string_from_chars##suffix; \
+    qpoints->pAllocStringFromString = art_quick_alloc_string_from_string##suffix; \
   } \
 }
 

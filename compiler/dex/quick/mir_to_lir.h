@@ -897,6 +897,10 @@ class Mir2Lir {
                                                             RegLocation arg0, RegLocation arg1,
                                                             RegLocation arg2,
                                                             bool safepoint_pc);
+    void CallRuntimeHelperRegLocationRegLocationRegLocationRegLocation(
+        QuickEntrypointEnum trampoline, RegLocation arg0, RegLocation arg1,
+        RegLocation arg2, RegLocation arg3, bool safepoint_pc);
+
     void GenInvoke(CallInfo* info);
     void GenInvokeNoInline(CallInfo* info);
     virtual NextCallInsn GetNextSDCallInsn() = 0;
@@ -937,7 +941,11 @@ class Mir2Lir {
 
     bool GenInlinedReferenceGetReferent(CallInfo* info);
     virtual bool GenInlinedCharAt(CallInfo* info);
+    bool GenInlinedStringGetCharsNoCheck(CallInfo* info);
     bool GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty);
+    bool GenInlinedStringFactoryNewStringFromBytes(CallInfo* info);
+    bool GenInlinedStringFactoryNewStringFromChars(CallInfo* info);
+    bool GenInlinedStringFactoryNewStringFromString(CallInfo* info);
     virtual bool GenInlinedReverseBits(CallInfo* info, OpSize size);
     bool GenInlinedReverseBytes(CallInfo* info, OpSize size);
     virtual bool GenInlinedAbsInt(CallInfo* info);
@@ -1457,26 +1465,6 @@ class Mir2Lir {
     virtual bool InexpensiveConstantInt(int32_t value, Instruction::Code opcode) {
       UNUSED(opcode);
       return InexpensiveConstantInt(value);
-    }
-
-    /**
-     * @brief Whether division by the given divisor can be converted to multiply by its reciprocal.
-     * @param divisor A constant divisor bits of float type.
-     * @return Returns true iff, x/divisor == x*(1.0f/divisor), for every float x.
-     */
-    bool CanDivideByReciprocalMultiplyFloat(int32_t divisor) {
-      // True, if float value significand bits are 0.
-      return ((divisor & 0x7fffff) == 0);
-    }
-
-    /**
-     * @brief Whether division by the given divisor can be converted to multiply by its reciprocal.
-     * @param divisor A constant divisor bits of double type.
-     * @return Returns true iff, x/divisor == x*(1.0/divisor), for every double x.
-     */
-    bool CanDivideByReciprocalMultiplyDouble(int64_t divisor) {
-      // True, if double value significand bits are 0.
-      return ((divisor & ((UINT64_C(1) << 52) - 1)) == 0);
     }
 
     // May be optimized by targets.

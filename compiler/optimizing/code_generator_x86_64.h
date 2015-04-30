@@ -37,7 +37,7 @@ static constexpr FloatRegister kParameterFloatRegisters[] =
 static constexpr size_t kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
 static constexpr size_t kParameterFloatRegistersLength = arraysize(kParameterFloatRegisters);
 
-static constexpr Register kRuntimeParameterCoreRegisters[] = { RDI, RSI, RDX };
+static constexpr Register kRuntimeParameterCoreRegisters[] = { RDI, RSI, RDX, RCX };
 static constexpr size_t kRuntimeParameterCoreRegistersLength =
     arraysize(kRuntimeParameterCoreRegisters);
 static constexpr FloatRegister kRuntimeParameterFpuRegisters[] = { XMM0, XMM1 };
@@ -68,22 +68,17 @@ class InvokeDexCallingConvention : public CallingConvention<Register, FloatRegis
   DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConvention);
 };
 
-class InvokeDexCallingConventionVisitor {
+class InvokeDexCallingConventionVisitorX86_64 : public InvokeDexCallingConventionVisitor {
  public:
-  InvokeDexCallingConventionVisitor() : gp_index_(0), fp_index_(0), stack_index_(0) {}
+  InvokeDexCallingConventionVisitorX86_64() {}
+  virtual ~InvokeDexCallingConventionVisitorX86_64() {}
 
-  Location GetNextLocation(Primitive::Type type);
+  Location GetNextLocation(Primitive::Type type) OVERRIDE;
 
  private:
   InvokeDexCallingConvention calling_convention;
-  // The current index for cpu registers.
-  uint32_t gp_index_;
-  // The current index for fpu registers.
-  uint32_t fp_index_;
-  // The current stack index.
-  uint32_t stack_index_;
 
-  DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitor);
+  DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitorX86_64);
 };
 
 class CodeGeneratorX86_64;
@@ -147,7 +142,7 @@ class LocationsBuilderX86_64 : public HGraphVisitor {
   void HandleFieldGet(HInstruction* instruction);
 
   CodeGeneratorX86_64* const codegen_;
-  InvokeDexCallingConventionVisitor parameter_visitor_;
+  InvokeDexCallingConventionVisitorX86_64 parameter_visitor_;
 
   DISALLOW_COPY_AND_ASSIGN(LocationsBuilderX86_64);
 };

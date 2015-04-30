@@ -186,6 +186,8 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
       return Intrinsics::kStringCharAt;
     case kIntrinsicCompareTo:
       return Intrinsics::kStringCompareTo;
+    case kIntrinsicGetCharsNoCheck:
+      return Intrinsics::kStringGetCharsNoCheck;
     case kIntrinsicIsEmptyOrLength:
       // The inliner can handle these two cases - and this is the preferred approach
       // since after inlining the call is no longer visible (as opposed to waiting
@@ -194,6 +196,12 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
     case kIntrinsicIndexOf:
       return ((method.d.data & kIntrinsicFlagBase0) == 0) ?
           Intrinsics::kStringIndexOfAfter : Intrinsics::kStringIndexOf;
+    case kIntrinsicNewStringFromBytes:
+      return Intrinsics::kStringNewStringFromBytes;
+    case kIntrinsicNewStringFromChars:
+      return Intrinsics::kStringNewStringFromChars;
+    case kIntrinsicNewStringFromString:
+      return Intrinsics::kStringNewStringFromString;
 
     case kIntrinsicCas:
       switch (GetType(method.d.data, false)) {
@@ -280,6 +288,11 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
     case kInlineOpIPut:
       return Intrinsics::kNone;
 
+    // String init cases, not intrinsics.
+
+    case kInlineStringInit:
+      return Intrinsics::kNone;
+
     // No default case to make the compiler warn on missing cases.
   }
   return Intrinsics::kNone;
@@ -361,4 +374,3 @@ INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 }
 
 }  // namespace art
-

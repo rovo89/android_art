@@ -192,7 +192,7 @@ ALWAYS_INLINE static inline ArtField* FindFieldByName(
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   size_t low = 0;
   size_t high = num_fields;
-  const uint16_t* const data = name->GetCharArray()->GetData() + name->GetOffset();
+  const uint16_t* const data = name->GetValue();
   const size_t length = name->GetLength();
   while (low < high) {
     auto mid = (low + high) / 2;
@@ -486,6 +486,17 @@ static jobject Class_newInstance(JNIEnv* env, jobject javaThis) {
                                    "%s has no zero argument constructor",
                                    PrettyClass(klass.Get()).c_str());
     return nullptr;
+  }
+  // Invoke the string allocator to return an empty string for the string class.
+  if (klass->IsStringClass()) {
+    gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
+    mirror::SetStringCountVisitor visitor(0);
+    mirror::Object* obj = mirror::String::Alloc<true>(soa.Self(), 0, allocator_type, visitor);
+    if (UNLIKELY(soa.Self()->IsExceptionPending())) {
+      return nullptr;
+    } else {
+      return soa.AddLocalReference<jobject>(obj);
+    }
   }
   auto receiver = hs.NewHandle(klass->AllocObject(soa.Self()));
   if (UNLIKELY(receiver.Get() == nullptr)) {

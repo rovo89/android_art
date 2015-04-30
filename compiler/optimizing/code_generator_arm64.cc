@@ -372,15 +372,15 @@ class DeoptimizationSlowPathARM64 : public SlowPathCodeARM64 {
 
 #undef __
 
-Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type) {
+Location InvokeDexCallingConventionVisitorARM64::GetNextLocation(Primitive::Type type) {
   Location next_location;
   if (type == Primitive::kPrimVoid) {
     LOG(FATAL) << "Unreachable type " << type;
   }
 
   if (Primitive::IsFloatingPointType(type) &&
-      (fp_index_ < calling_convention.GetNumberOfFpuRegisters())) {
-    next_location = LocationFrom(calling_convention.GetFpuRegisterAt(fp_index_++));
+      (float_index_ < calling_convention.GetNumberOfFpuRegisters())) {
+    next_location = LocationFrom(calling_convention.GetFpuRegisterAt(float_index_++));
   } else if (!Primitive::IsFloatingPointType(type) &&
              (gp_index_ < calling_convention.GetNumberOfRegisters())) {
     next_location = LocationFrom(calling_convention.GetRegisterAt(gp_index_++));
@@ -1907,8 +1907,8 @@ void LocationsBuilderARM64::HandleInvoke(HInvoke* invoke) {
       new (GetGraph()->GetArena()) LocationSummary(invoke, LocationSummary::kCall);
   locations->AddTemp(LocationFrom(x0));
 
-  InvokeDexCallingConventionVisitor calling_convention_visitor;
-  for (size_t i = 0; i < invoke->InputCount(); i++) {
+  InvokeDexCallingConventionVisitorARM64 calling_convention_visitor;
+  for (size_t i = 0; i < invoke->GetNumberOfArguments(); i++) {
     HInstruction* input = invoke->InputAt(i);
     locations->SetInAt(i, calling_convention_visitor.GetNextLocation(input->GetType()));
   }
@@ -1968,13 +1968,9 @@ void LocationsBuilderARM64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
 }
 
 void LocationsBuilderARM64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  // Explicit clinit checks triggered by static invokes must have been
-  // pruned by art::PrepareForRegisterAllocation, but this step is not
-  // run in baseline. So we remove them manually here if we find them.
-  // TODO: Instead of this local workaround, address this properly.
-  if (invoke->IsStaticWithExplicitClinitCheck()) {
-    invoke->RemoveClinitCheckOrLoadClassAsLastInput();
-  }
+  // When we do not run baseline, explicit clinit checks triggered by static
+  // invokes must have been pruned by art::PrepareForRegisterAllocation.
+  DCHECK(codegen_->IsBaseline() || !invoke->IsStaticWithExplicitClinitCheck());
 
   IntrinsicLocationsBuilderARM64 intrinsic(GetGraph()->GetArena());
   if (intrinsic.TryDispatch(invoke)) {
@@ -2006,29 +2002,39 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
   //
   // Currently we implement the app -> app logic, which looks up in the resolve cache.
 
-  // temp = method;
-  LoadCurrentMethod(temp);
-  if (!invoke->IsRecursive()) {
-    // temp = temp->dex_cache_resolved_methods_;
-    __ Ldr(temp, HeapOperand(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset()));
-    // temp = temp[index_in_cache];
-    __ Ldr(temp, HeapOperand(temp, index_in_cache));
-    // lr = temp->entry_point_from_quick_compiled_code_;
+  if (invoke->IsStringInit()) {
+    // temp = thread->string_init_entrypoint
+    __ Ldr(temp, HeapOperand(tr, invoke->GetStringInitOffset()));
+    // LR = temp->entry_point_from_quick_compiled_code_;
     __ Ldr(lr, HeapOperand(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
         kArm64WordSize)));
-    // lr();
+    // lr()
     __ Blr(lr);
   } else {
-    __ Bl(&frame_entry_label_);
+    // temp = method;
+    LoadCurrentMethod(temp);
+    if (!invoke->IsRecursive()) {
+      // temp = temp->dex_cache_resolved_methods_;
+      __ Ldr(temp, HeapOperand(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset()));
+      // temp = temp[index_in_cache];
+      __ Ldr(temp, HeapOperand(temp, index_in_cache));
+      // lr = temp->entry_point_from_quick_compiled_code_;
+      __ Ldr(lr, HeapOperand(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+          kArm64WordSize)));
+      // lr();
+      __ Blr(lr);
+    } else {
+      __ Bl(&frame_entry_label_);
+    }
   }
 
   DCHECK(!IsLeafMethod());
 }
 
 void InstructionCodeGeneratorARM64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  // Explicit clinit checks triggered by static invokes must have been
-  // pruned by art::PrepareForRegisterAllocation.
-  DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
+  // When we do not run baseline, explicit clinit checks triggered by static
+  // invokes must have been pruned by art::PrepareForRegisterAllocation.
+  DCHECK(codegen_->IsBaseline() || !invoke->IsStaticWithExplicitClinitCheck());
 
   if (TryGenerateIntrinsicCode(invoke, codegen_)) {
     return;

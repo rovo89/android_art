@@ -124,6 +124,7 @@ LIBART_COMMON_SRC_FILES := \
   native/java_lang_Object.cc \
   native/java_lang_Runtime.cc \
   native/java_lang_String.cc \
+  native/java_lang_StringFactory.cc \
   native/java_lang_System.cc \
   native/java_lang_Thread.cc \
   native/java_lang_Throwable.cc \
@@ -136,6 +137,7 @@ LIBART_COMMON_SRC_FILES := \
   native/java_lang_reflect_Method.cc \
   native/java_lang_reflect_Proxy.cc \
   native/java_util_concurrent_atomic_AtomicLong.cc \
+  native/libcore_util_CharsetUtils.cc \
   native/org_apache_harmony_dalvik_ddmc_DdmServer.cc \
   native/org_apache_harmony_dalvik_ddmc_DdmVmInternal.cc \
   native/sun_misc_Unsafe.cc \
@@ -466,7 +468,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   ifeq ($$(art_target_or_host),target)
     LOCAL_SHARED_LIBRARIES += libdl
     # ZipArchive support, the order matters here to get all symbols.
-    LOCAL_STATIC_LIBRARIES := libziparchive libz
+    LOCAL_STATIC_LIBRARIES := libziparchive libz libbase
     # For android::FileMap used by libziparchive.
     LOCAL_SHARED_LIBRARIES += libutils
     # For liblog, atrace, properties, ashmem, set_sched_policy and socket_peer_is_trusted.

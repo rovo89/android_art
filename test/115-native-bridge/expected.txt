@@ -4,7 +4,7 @@ Checking for getEnvValues.
 Ready for native bridge tests.
 Checking for support.
 Getting trampoline for JNI_OnLoad with shorty (null).
-Test ART callbacks: all JNI function number is 9.
+Test ART callbacks: all JNI function number is 10.
     name:booleanMethod, signature:(ZZZZZZZZZZ)Z, shorty:ZZZZZZZZZZZ.
     name:byteMethod, signature:(BBBBBBBBBB)B, shorty:BBBBBBBBBBB.
     name:charMethod, signature:(CCCCCCCCCC)C, shorty:CCCCCCCCCCC.
@@ -13,6 +13,7 @@ Test ART callbacks: all JNI function number is 9.
     name:testFindClassOnAttachedNativeThread, signature:()V, shorty:V.
     name:testFindFieldOnAttachedNativeThreadNative, signature:()V, shorty:V.
     name:testGetMirandaMethodNative, signature:()Ljava/lang/reflect/Method;, shorty:L.
+    name:testNewStringObject, signature:()V, shorty:V.
     name:testZeroLengthByteBuffers, signature:()V, shorty:V.
 trampoline_JNI_OnLoad called!
 Getting trampoline for Java_Main_testFindClassOnAttachedNativeThread with shorty V.
@@ -55,3 +56,5 @@ trampoline_Java_Main_charMethod called!
 trampoline_Java_Main_charMethod called!
 trampoline_Java_Main_charMethod called!
 trampoline_Java_Main_charMethod called!
+Getting trampoline for Java_Main_testNewStringObject with shorty V.
+trampoline_Java_Main_testNewStringObject called!

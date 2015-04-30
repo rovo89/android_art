@@ -4078,7 +4078,7 @@ void Dbg::DdmSendThreadNotification(Thread* t, uint32_t type) {
     StackHandleScope<1> hs(soa.Self());
     Handle<mirror::String> name(hs.NewHandle(t->GetThreadName(soa)));
     size_t char_count = (name.Get() != nullptr) ? name->GetLength() : 0;
-    const jchar* chars = (name.Get() != nullptr) ? name->GetCharArray()->GetData() : nullptr;
+    const jchar* chars = (name.Get() != nullptr) ? name->GetValue() : nullptr;
 
     std::vector<uint8_t> bytes;
     JDWP::Append4BE(bytes, t->GetThreadId());
@@ -4774,7 +4774,7 @@ class StringTable {
     for (const std::string& str : table_) {
       const char* s = str.c_str();
       size_t s_len = CountModifiedUtf8Chars(s);
-      std::unique_ptr<uint16_t> s_utf16(new uint16_t[s_len]);
+      std::unique_ptr<uint16_t[]> s_utf16(new uint16_t[s_len]);
       ConvertModifiedUtf8ToUtf16(s_utf16.get(), s);
       JDWP::AppendUtf16BE(bytes, s_utf16.get(), s_len);
     }

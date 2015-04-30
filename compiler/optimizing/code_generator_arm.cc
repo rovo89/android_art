@@ -605,7 +605,7 @@ Location CodeGeneratorARM::GetStackLocation(HLoadLocal* load) const {
   UNREACHABLE();
 }
 
-Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type) {
+Location InvokeDexCallingConventionVisitorARM::GetNextLocation(Primitive::Type type) {
   switch (type) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
@@ -680,7 +680,7 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
   return Location();
 }
 
-Location InvokeDexCallingConventionVisitor::GetReturnLocation(Primitive::Type type) {
+Location InvokeDexCallingConventionVisitorARM::GetReturnLocation(Primitive::Type type) {
   switch (type) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
@@ -1241,13 +1241,9 @@ void InstructionCodeGeneratorARM::VisitReturn(HReturn* ret) {
 }
 
 void LocationsBuilderARM::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  // Explicit clinit checks triggered by static invokes must have been
-  // pruned by art::PrepareForRegisterAllocation, but this step is not
-  // run in baseline. So we remove them manually here if we find them.
-  // TODO: Instead of this local workaround, address this properly.
-  if (invoke->IsStaticWithExplicitClinitCheck()) {
-    invoke->RemoveClinitCheckOrLoadClassAsLastInput();
-  }
+  // When we do not run baseline, explicit clinit checks triggered by static
+  // invokes must have been pruned by art::PrepareForRegisterAllocation.
+  DCHECK(codegen_->IsBaseline() || !invoke->IsStaticWithExplicitClinitCheck());
 
   IntrinsicLocationsBuilderARM intrinsic(GetGraph()->GetArena(),
                                          codegen_->GetInstructionSetFeatures());
@@ -1273,9 +1269,9 @@ static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorARM* codegen)
 }
 
 void InstructionCodeGeneratorARM::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  // Explicit clinit checks triggered by static invokes must have been
-  // pruned by art::PrepareForRegisterAllocation.
-  DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
+  // When we do not run baseline, explicit clinit checks triggered by static
+  // invokes must have been pruned by art::PrepareForRegisterAllocation.
+  DCHECK(codegen_->IsBaseline() || !invoke->IsStaticWithExplicitClinitCheck());
 
   if (TryGenerateIntrinsicCode(invoke, codegen_)) {
     return;
@@ -1292,8 +1288,8 @@ void LocationsBuilderARM::HandleInvoke(HInvoke* invoke) {
       new (GetGraph()->GetArena()) LocationSummary(invoke, LocationSummary::kCall);
   locations->AddTemp(Location::RegisterLocation(R0));
 
-  InvokeDexCallingConventionVisitor calling_convention_visitor;
-  for (size_t i = 0; i < invoke->InputCount(); i++) {
+  InvokeDexCallingConventionVisitorARM calling_convention_visitor;
+  for (size_t i = 0; i < invoke->GetNumberOfArguments(); i++) {
     HInstruction* input = invoke->InputAt(i);
     locations->SetInAt(i, calling_convention_visitor.GetNextLocation(input->GetType()));
   }
@@ -4071,15 +4067,9 @@ void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
   //
   // Currently we implement the app -> app logic, which looks up in the resolve cache.
 
-  // temp = method;
-  LoadCurrentMethod(temp);
-  if (!invoke->IsRecursive()) {
-    // temp = temp->dex_cache_resolved_methods_;
-    __ LoadFromOffset(
-        kLoadWord, temp, temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value());
-    // temp = temp[index_in_cache]
-    __ LoadFromOffset(
-        kLoadWord, temp, temp, CodeGenerator::GetCacheOffset(invoke->GetDexMethodIndex()));
+  if (invoke->IsStringInit()) {
+    // temp = thread->string_init_entrypoint
+    __ LoadFromOffset(kLoadWord, temp, TR, invoke->GetStringInitOffset());
     // LR = temp[offset_of_quick_compiled_code]
     __ LoadFromOffset(kLoadWord, LR, temp,
                       mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
@@ -4087,7 +4077,24 @@ void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
     // LR()
     __ blx(LR);
   } else {
-    __ bl(GetFrameEntryLabel());
+    // temp = method;
+    LoadCurrentMethod(temp);
+    if (!invoke->IsRecursive()) {
+      // temp = temp->dex_cache_resolved_methods_;
+      __ LoadFromOffset(
+          kLoadWord, temp, temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value());
+      // temp = temp[index_in_cache]
+      __ LoadFromOffset(
+          kLoadWord, temp, temp, CodeGenerator::GetCacheOffset(invoke->GetDexMethodIndex()));
+      // LR = temp[offset_of_quick_compiled_code]
+      __ LoadFromOffset(kLoadWord, LR, temp,
+                        mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+                            kArmWordSize).Int32Value());
+      // LR()
+      __ blx(LR);
+    } else {
+      __ bl(GetFrameEntryLabel());
+    }
   }
 
   DCHECK(!IsLeafMethod());

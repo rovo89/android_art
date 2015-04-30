@@ -541,6 +541,16 @@ class Thread {
   }
 
  public:
+  static uint32_t QuickEntryPointOffsetWithSize(size_t quick_entrypoint_offset,
+                                                size_t pointer_size) {
+    DCHECK(pointer_size == 4 || pointer_size == 8) << pointer_size;
+    if (pointer_size == 4) {
+      return QuickEntryPointOffset<4>(quick_entrypoint_offset).Uint32Value();
+    } else {
+      return QuickEntryPointOffset<8>(quick_entrypoint_offset).Uint32Value();
+    }
+  }
+
   template<size_t pointer_size>
   static ThreadOffset<pointer_size> QuickEntryPointOffset(size_t quick_entrypoint_offset) {
     return ThreadOffsetFromTlsPtr<pointer_size>(
@@ -910,6 +920,8 @@ class Thread {
 
   void PushVerifier(verifier::MethodVerifier* verifier);
   void PopVerifier(verifier::MethodVerifier* verifier);
+
+  void InitStringEntryPoints();
 
  private:
   explicit Thread(bool daemon);

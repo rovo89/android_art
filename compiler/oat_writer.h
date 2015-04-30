@@ -118,11 +118,8 @@ class OatWriter {
     return it.first->second.get();
   }
 
-  void SetOatDataOffset(size_t oat_data_offset) {
-    oat_data_offset_ = oat_data_offset;
-  }
-
-  bool Write(OutputStream* out);
+  bool WriteRodata(OutputStream* out);
+  bool WriteCode(OutputStream* out);
 
   ~OatWriter();
 

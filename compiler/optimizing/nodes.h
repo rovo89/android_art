@@ -132,7 +132,9 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
         current_instruction_id_(start_instruction_id),
         cached_null_constant_(nullptr),
         cached_int_constants_(std::less<int32_t>(), arena->Adapter()),
-        cached_long_constants_(std::less<int64_t>(), arena->Adapter()) {}
+        cached_float_constants_(std::less<int32_t>(), arena->Adapter()),
+        cached_long_constants_(std::less<int64_t>(), arena->Adapter()),
+        cached_double_constants_(std::less<int64_t>(), arena->Adapter()) {}
 
   ArenaAllocator* GetArena() const { return arena_; }
   const GrowableArray<HBasicBlock*>& GetBlocks() const { return blocks_; }
@@ -241,8 +243,8 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   bool IsDebuggable() const { return debuggable_; }
 
   // Returns a constant of the given type and value. If it does not exist
-  // already, it is created and inserted into the graph. Only integral types
-  // are currently supported.
+  // already, it is created and inserted into the graph. This method is only for
+  // integral types.
   HConstant* GetConstant(Primitive::Type type, int64_t value);
   HNullConstant* GetNullConstant();
   HIntConstant* GetIntConstant(int32_t value) {
@@ -250,6 +252,12 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   }
   HLongConstant* GetLongConstant(int64_t value) {
     return CreateConstant(value, &cached_long_constants_);
+  }
+  HFloatConstant* GetFloatConstant(float value) {
+    return CreateConstant(bit_cast<int32_t, float>(value), &cached_float_constants_);
+  }
+  HDoubleConstant* GetDoubleConstant(double value) {
+    return CreateConstant(bit_cast<int64_t, double>(value), &cached_double_constants_);
   }
 
   HBasicBlock* FindCommonDominator(HBasicBlock* first, HBasicBlock* second) const;
@@ -265,9 +273,33 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   void RemoveInstructionsAsUsersFromDeadBlocks(const ArenaBitVector& visited) const;
   void RemoveDeadBlocks(const ArenaBitVector& visited);
 
-  template <class InstType, typename ValueType>
-  InstType* CreateConstant(ValueType value, ArenaSafeMap<ValueType, InstType*>* cache);
+  template <class InstructionType, typename ValueType>
+  InstructionType* CreateConstant(ValueType value,
+                                  ArenaSafeMap<ValueType, InstructionType*>* cache) {
+    // Try to find an existing constant of the given value.
+    InstructionType* constant = nullptr;
+    auto cached_constant = cache->find(value);
+    if (cached_constant != cache->end()) {
+      constant = cached_constant->second;
+    }
+
+    // If not found or previously deleted, create and cache a new instruction.
+    if (constant == nullptr || constant->GetBlock() == nullptr) {
+      constant = new (arena_) InstructionType(value);
+      cache->Overwrite(value, constant);
+      InsertConstant(constant);
+    }
+    return constant;
+  }
+
   void InsertConstant(HConstant* instruction);
+
+  // Cache a float constant into the graph. This method should only be
+  // called by the SsaBuilder when creating "equivalent" instructions.
+  void CacheFloatConstant(HFloatConstant* constant);
+
+  // See CacheFloatConstant comment.
+  void CacheDoubleConstant(HDoubleConstant* constant);
 
   ArenaAllocator* const arena_;
 
@@ -306,11 +338,14 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   // The current id to assign to a newly added instruction. See HInstruction.id_.
   int32_t current_instruction_id_;
 
-  // Cached common constants often needed by optimization passes.
+  // Cached constants.
   HNullConstant* cached_null_constant_;
   ArenaSafeMap<int32_t, HIntConstant*> cached_int_constants_;
+  ArenaSafeMap<int32_t, HFloatConstant*> cached_float_constants_;
   ArenaSafeMap<int64_t, HLongConstant*> cached_long_constants_;
+  ArenaSafeMap<int64_t, HDoubleConstant*> cached_double_constants_;
 
+  friend class SsaBuilder;           // For caching constants.
   friend class SsaLivenessAnalysis;  // For the linear order.
   ART_FRIEND_TEST(GraphTest, IfSuccessorSimpleJoinBlock1);
   DISALLOW_COPY_AND_ASSIGN(HGraph);
@@ -360,6 +395,11 @@ class HLoopInformation : public ArenaObject<kArenaAllocMisc> {
 
   const GrowableArray<HBasicBlock*>& GetBackEdges() const {
     return back_edges_;
+  }
+
+  HBasicBlock* GetSingleBackEdge() const {
+    DCHECK_EQ(back_edges_.Size(), 1u);
+    return back_edges_.Get(0);
   }
 
   void ClearBackEdges() {
@@ -526,6 +566,13 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
     predecessors_.Put(1, temp);
   }
 
+  void SwapSuccessors() {
+    DCHECK_EQ(successors_.Size(), 2u);
+    HBasicBlock* temp = successors_.Get(0);
+    successors_.Put(0, successors_.Get(1));
+    successors_.Put(1, temp);
+  }
+
   size_t GetPredecessorIndexOf(HBasicBlock* predecessor) {
     for (size_t i = 0, e = predecessors_.Size(); i < e; ++i) {
       if (predecessors_.Get(i) == predecessor) {
@@ -578,7 +625,9 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   void DisconnectAndDelete();
 
   void AddInstruction(HInstruction* instruction);
+  // Insert `instruction` before/after an existing instruction `cursor`.
   void InsertInstructionBefore(HInstruction* instruction, HInstruction* cursor);
+  void InsertInstructionAfter(HInstruction* instruction, HInstruction* cursor);
   // Replace instruction `initial` with `replacement` within this block.
   void ReplaceAndRemoveInstructionWith(HInstruction* initial,
                                        HInstruction* replacement);
@@ -1013,6 +1062,10 @@ class HEnvironment : public ArenaObject<kArenaAllocMisc> {
   }
 
   void CopyFrom(HEnvironment* env);
+  // Copy from `env`. If it's a loop phi for `loop_header`, copy the first
+  // input to the loop phi instead. This is for inserting instructions that
+  // require an environment (like HDeoptimization) in the loop pre-header.
+  void CopyFromWithLoopPhiAdjustment(HEnvironment* env, HBasicBlock* loop_header);
 
   void SetRawEnvAt(size_t index, HInstruction* instruction) {
     vregs_.Put(index, HUserRecord<HEnvironment*>(instruction));
@@ -1246,6 +1299,13 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
     ArenaAllocator* allocator = GetBlock()->GetGraph()->GetArena();
     environment_ = new (allocator) HEnvironment(allocator, environment->Size());
     environment_->CopyFrom(environment);
+  }
+
+  void CopyEnvironmentFromWithLoopPhiAdjustment(HEnvironment* environment,
+                                                HBasicBlock* block) {
+    ArenaAllocator* allocator = GetBlock()->GetGraph()->GetArena();
+    environment_ = new (allocator) HEnvironment(allocator, environment->Size());
+    environment_->CopyFromWithLoopPhiAdjustment(environment, block);
   }
 
   // Returns the number of entries in the environment. Typically, that is the
@@ -2040,13 +2100,14 @@ class HFloatConstant : public HConstant {
 
  private:
   explicit HFloatConstant(float value) : HConstant(Primitive::kPrimFloat), value_(value) {}
+  explicit HFloatConstant(int32_t value)
+      : HConstant(Primitive::kPrimFloat), value_(bit_cast<float, int32_t>(value)) {}
 
   const float value_;
 
-  // Only the SsaBuilder can currently create floating-point constants. If we
-  // ever need to create them later in the pipeline, we will have to handle them
-  // the same way as integral constants.
+  // Only the SsaBuilder and HGraph can create floating-point constants.
   friend class SsaBuilder;
+  friend class HGraph;
   DISALLOW_COPY_AND_ASSIGN(HFloatConstant);
 };
 
@@ -2077,13 +2138,14 @@ class HDoubleConstant : public HConstant {
 
  private:
   explicit HDoubleConstant(double value) : HConstant(Primitive::kPrimDouble), value_(value) {}
+  explicit HDoubleConstant(int64_t value)
+      : HConstant(Primitive::kPrimDouble), value_(bit_cast<double, int64_t>(value)) {}
 
   const double value_;
 
-  // Only the SsaBuilder can currently create floating-point constants. If we
-  // ever need to create them later in the pipeline, we will have to handle them
-  // the same way as integral constants.
+  // Only the SsaBuilder and HGraph can create floating-point constants.
   friend class SsaBuilder;
+  friend class HGraph;
   DISALLOW_COPY_AND_ASSIGN(HDoubleConstant);
 };
 
@@ -2180,6 +2242,12 @@ class HInvoke : public HInstruction {
     SetRawInputAt(index, argument);
   }
 
+  // Return the number of arguments.  This number can be lower than
+  // the number of inputs returned by InputCount(), as some invoke
+  // instructions (e.g. HInvokeStaticOrDirect) can have non-argument
+  // inputs at the end of their list of inputs.
+  uint32_t GetNumberOfArguments() const { return number_of_arguments_; }
+
   Primitive::Type GetType() const OVERRIDE { return return_type_; }
 
   uint32_t GetDexPc() const { return dex_pc_; }
@@ -2199,16 +2267,19 @@ class HInvoke : public HInstruction {
  protected:
   HInvoke(ArenaAllocator* arena,
           uint32_t number_of_arguments,
+          uint32_t number_of_other_inputs,
           Primitive::Type return_type,
           uint32_t dex_pc,
           uint32_t dex_method_index)
     : HInstruction(SideEffects::All()),
+      number_of_arguments_(number_of_arguments),
       inputs_(arena, number_of_arguments),
       return_type_(return_type),
       dex_pc_(dex_pc),
       dex_method_index_(dex_method_index),
       intrinsic_(Intrinsics::kNone) {
-    inputs_.SetSize(number_of_arguments);
+    uint32_t number_of_inputs = number_of_arguments + number_of_other_inputs;
+    inputs_.SetSize(number_of_inputs);
   }
 
   const HUserRecord<HInstruction*> InputRecordAt(size_t i) const OVERRIDE { return inputs_.Get(i); }
@@ -2216,6 +2287,7 @@ class HInvoke : public HInstruction {
     inputs_.Put(index, input);
   }
 
+  uint32_t number_of_arguments_;
   GrowableArray<HUserRecord<HInstruction*> > inputs_;
   const Primitive::Type return_type_;
   const uint32_t dex_pc_;
@@ -2242,14 +2314,21 @@ class HInvokeStaticOrDirect : public HInvoke {
                         uint32_t dex_pc,
                         uint32_t dex_method_index,
                         bool is_recursive,
+                        int32_t string_init_offset,
                         InvokeType original_invoke_type,
                         InvokeType invoke_type,
                         ClinitCheckRequirement clinit_check_requirement)
-      : HInvoke(arena, number_of_arguments, return_type, dex_pc, dex_method_index),
+      : HInvoke(arena,
+                number_of_arguments,
+                clinit_check_requirement == ClinitCheckRequirement::kExplicit ? 1u : 0u,
+                return_type,
+                dex_pc,
+                dex_method_index),
         original_invoke_type_(original_invoke_type),
         invoke_type_(invoke_type),
         is_recursive_(is_recursive),
-        clinit_check_requirement_(clinit_check_requirement) {}
+        clinit_check_requirement_(clinit_check_requirement),
+        string_init_offset_(string_init_offset) {}
 
   bool CanDoImplicitNullCheckOn(HInstruction* obj) const OVERRIDE {
     UNUSED(obj);
@@ -2262,21 +2341,24 @@ class HInvokeStaticOrDirect : public HInvoke {
   InvokeType GetInvokeType() const { return invoke_type_; }
   bool IsRecursive() const { return is_recursive_; }
   bool NeedsDexCache() const OVERRIDE { return !IsRecursive(); }
+  bool IsStringInit() const { return string_init_offset_ != 0; }
+  int32_t GetStringInitOffset() const { return string_init_offset_; }
 
   // Is this instruction a call to a static method?
   bool IsStatic() const {
     return GetInvokeType() == kStatic;
   }
 
-  // Remove the art::HClinitCheck or art::HLoadClass instruction as
-  // last input (only relevant for static calls with explicit clinit
-  // check).
-  void RemoveClinitCheckOrLoadClassAsLastInput() {
+  // Remove the art::HLoadClass instruction set as last input by
+  // art::PrepareForRegisterAllocation::VisitClinitCheck in lieu of
+  // the initial art::HClinitCheck instruction (only relevant for
+  // static calls with explicit clinit check).
+  void RemoveLoadClassAsLastInput() {
     DCHECK(IsStaticWithExplicitClinitCheck());
     size_t last_input_index = InputCount() - 1;
     HInstruction* last_input = InputAt(last_input_index);
     DCHECK(last_input != nullptr);
-    DCHECK(last_input->IsClinitCheck() || last_input->IsLoadClass()) << last_input->DebugName();
+    DCHECK(last_input->IsLoadClass()) << last_input->DebugName();
     RemoveAsUserOfInput(last_input_index);
     inputs_.DeleteAt(last_input_index);
     clinit_check_requirement_ = ClinitCheckRequirement::kImplicit;
@@ -2317,6 +2399,9 @@ class HInvokeStaticOrDirect : public HInvoke {
   const InvokeType invoke_type_;
   const bool is_recursive_;
   ClinitCheckRequirement clinit_check_requirement_;
+  // Thread entrypoint offset for string init method if this is a string init invoke.
+  // Note that there are multiple string init methods, each having its own offset.
+  int32_t string_init_offset_;
 
   DISALLOW_COPY_AND_ASSIGN(HInvokeStaticOrDirect);
 };
@@ -2329,7 +2414,7 @@ class HInvokeVirtual : public HInvoke {
                  uint32_t dex_pc,
                  uint32_t dex_method_index,
                  uint32_t vtable_index)
-      : HInvoke(arena, number_of_arguments, return_type, dex_pc, dex_method_index),
+      : HInvoke(arena, number_of_arguments, 0u, return_type, dex_pc, dex_method_index),
         vtable_index_(vtable_index) {}
 
   bool CanDoImplicitNullCheckOn(HInstruction* obj) const OVERRIDE {
@@ -2355,7 +2440,7 @@ class HInvokeInterface : public HInvoke {
                    uint32_t dex_pc,
                    uint32_t dex_method_index,
                    uint32_t imt_index)
-      : HInvoke(arena, number_of_arguments, return_type, dex_pc, dex_method_index),
+      : HInvoke(arena, number_of_arguments, 0u, return_type, dex_pc, dex_method_index),
         imt_index_(imt_index) {}
 
   bool CanDoImplicitNullCheckOn(HInstruction* obj) const OVERRIDE {

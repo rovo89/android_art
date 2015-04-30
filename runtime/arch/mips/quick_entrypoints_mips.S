@@ -982,6 +982,7 @@ ENTRY art_quick_set_obj_instance
     RETURN_IF_ZERO
 END art_quick_set_obj_instance
 
+// Macro to facilitate adding new allocation entrypoints.
 .macro ONE_ARG_DOWNCALL name, entrypoint, return
     .extern \entrypoint
 ENTRY \name
@@ -992,7 +993,6 @@ ENTRY \name
 END \name
 .endm
 
-// Macro to facilitate adding new allocation entrypoints.
 .macro TWO_ARG_DOWNCALL name, entrypoint, return
     .extern \entrypoint
 ENTRY \name
@@ -1009,6 +1009,16 @@ ENTRY \name
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME # save callee saves in case of GC
     jal     \entrypoint
     move    $a3, rSELF                # pass Thread::Current
+    \return
+END \name
+.endm
+
+.macro FOUR_ARG_DOWNCALL name, entrypoint, return
+    .extern \entrypoint
+ENTRY \name
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME # save callee saves in case of GC
+    jal     \entrypoint
+    sw      rSELF, 16($sp)            # pass Thread::Current
     \return
 END \name
 .endm

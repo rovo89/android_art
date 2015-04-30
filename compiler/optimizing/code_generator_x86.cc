@@ -551,7 +551,7 @@ Location CodeGeneratorX86::GetStackLocation(HLoadLocal* load) const {
   UNREACHABLE();
 }
 
-Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type) {
+Location InvokeDexCallingConventionVisitorX86::GetNextLocation(Primitive::Type type) {
   switch (type) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
@@ -582,7 +582,7 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
     }
 
     case Primitive::kPrimFloat: {
-      uint32_t index = fp_index_++;
+      uint32_t index = float_index_++;
       stack_index_++;
       if (index < calling_convention.GetNumberOfFpuRegisters()) {
         return Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(index));
@@ -592,7 +592,7 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
     }
 
     case Primitive::kPrimDouble: {
-      uint32_t index = fp_index_++;
+      uint32_t index = float_index_++;
       stack_index_ += 2;
       if (index < calling_convention.GetNumberOfFpuRegisters()) {
         return Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(index));
@@ -1194,13 +1194,9 @@ void InstructionCodeGeneratorX86::VisitReturn(HReturn* ret) {
 }
 
 void LocationsBuilderX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  // Explicit clinit checks triggered by static invokes must have been
-  // pruned by art::PrepareForRegisterAllocation, but this step is not
-  // run in baseline. So we remove them manually here if we find them.
-  // TODO: Instead of this local workaround, address this properly.
-  if (invoke->IsStaticWithExplicitClinitCheck()) {
-    invoke->RemoveClinitCheckOrLoadClassAsLastInput();
-  }
+  // When we do not run baseline, explicit clinit checks triggered by static
+  // invokes must have been pruned by art::PrepareForRegisterAllocation.
+  DCHECK(codegen_->IsBaseline() || !invoke->IsStaticWithExplicitClinitCheck());
 
   IntrinsicLocationsBuilderX86 intrinsic(codegen_);
   if (intrinsic.TryDispatch(invoke)) {
@@ -1220,9 +1216,9 @@ static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorX86* codegen)
 }
 
 void InstructionCodeGeneratorX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  // Explicit clinit checks triggered by static invokes must have been
-  // pruned by art::PrepareForRegisterAllocation.
-  DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
+  // When we do not run baseline, explicit clinit checks triggered by static
+  // invokes must have been pruned by art::PrepareForRegisterAllocation.
+  DCHECK(codegen_->IsBaseline() || !invoke->IsStaticWithExplicitClinitCheck());
 
   if (TryGenerateIntrinsicCode(invoke, codegen_)) {
     return;
@@ -1242,8 +1238,8 @@ void LocationsBuilderX86::HandleInvoke(HInvoke* invoke) {
       new (GetGraph()->GetArena()) LocationSummary(invoke, LocationSummary::kCall);
   locations->AddTemp(Location::RegisterLocation(EAX));
 
-  InvokeDexCallingConventionVisitor calling_convention_visitor;
-  for (size_t i = 0; i < invoke->InputCount(); i++) {
+  InvokeDexCallingConventionVisitorX86 calling_convention_visitor;
+  for (size_t i = 0; i < invoke->GetNumberOfArguments(); i++) {
     HInstruction* input = invoke->InputAt(i);
     locations->SetInAt(i, calling_convention_visitor.GetNextLocation(input->GetType()));
   }
@@ -3114,18 +3110,27 @@ void CodeGeneratorX86::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
   // 3) app -> app
   //
   // Currently we implement the app -> app logic, which looks up in the resolve cache.
-  // temp = method;
-  LoadCurrentMethod(temp);
-  if (!invoke->IsRecursive()) {
-    // temp = temp->dex_cache_resolved_methods_;
-    __ movl(temp, Address(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value()));
-    // temp = temp[index_in_cache]
-    __ movl(temp, Address(temp, CodeGenerator::GetCacheOffset(invoke->GetDexMethodIndex())));
+
+  if (invoke->IsStringInit()) {
+    // temp = thread->string_init_entrypoint
+    __ fs()->movl(temp, Address::Absolute(invoke->GetStringInitOffset()));
     // (temp + offset_of_quick_compiled_code)()
     __ call(Address(
         temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86WordSize).Int32Value()));
   } else {
-    __ call(GetFrameEntryLabel());
+    // temp = method;
+    LoadCurrentMethod(temp);
+    if (!invoke->IsRecursive()) {
+      // temp = temp->dex_cache_resolved_methods_;
+      __ movl(temp, Address(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value()));
+      // temp = temp[index_in_cache]
+      __ movl(temp, Address(temp, CodeGenerator::GetCacheOffset(invoke->GetDexMethodIndex())));
+      // (temp + offset_of_quick_compiled_code)()
+      __ call(Address(temp,
+          mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86WordSize).Int32Value()));
+    } else {
+      __ call(GetFrameEntryLabel());
+    }
   }
 
   DCHECK(!IsLeafMethod());

@@ -548,3 +548,23 @@ class JniCallNonvirtualVoidMethodTest {
 extern "C" void JNICALL Java_Main_testCallNonvirtual(JNIEnv* env, jclass) {
   JniCallNonvirtualVoidMethodTest(env).Test();
 }
+
+extern "C" JNIEXPORT void JNICALL Java_Main_testNewStringObject(JNIEnv* env, jclass) {
+  const char* string = "Test";
+  int length = strlen(string);
+  jclass c = env->FindClass("java/lang/String");
+  assert(c != NULL);
+  jmethodID method = env->GetMethodID(c, "<init>", "([B)V");
+  assert(method != NULL);
+  assert(!env->ExceptionCheck());
+  jbyteArray array = env->NewByteArray(length);
+  env->SetByteArrayRegion(array, 0, length, reinterpret_cast<const jbyte*>(string));
+  jobject o = env->NewObject(c, method, array);
+  assert(o != NULL);
+  jstring s = reinterpret_cast<jstring>(o);
+  assert(env->GetStringLength(s) == length);
+  assert(env->GetStringUTFLength(s) == length);
+  const char* chars = env->GetStringUTFChars(s, nullptr);
+  assert(strcmp(string, chars) == 0);
+  env->ReleaseStringUTFChars(s, chars);
+}

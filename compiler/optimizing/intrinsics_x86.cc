@@ -111,28 +111,9 @@ static void MoveFromReturnRegister(Location target,
   }
 }
 
-static void MoveArguments(HInvoke* invoke, ArenaAllocator* arena, CodeGeneratorX86* codegen) {
-  if (invoke->InputCount() == 0) {
-    // No argument to move.
-    return;
-  }
-
-  LocationSummary* locations = invoke->GetLocations();
-  InvokeDexCallingConventionVisitor calling_convention_visitor;
-
-  // We're moving potentially two or more locations to locations that could overlap, so we need
-  // a parallel move resolver.
-  HParallelMove parallel_move(arena);
-
-  for (size_t i = 0; i < invoke->InputCount(); i++) {
-    HInstruction* input = invoke->InputAt(i);
-    Location cc_loc = calling_convention_visitor.GetNextLocation(input->GetType());
-    Location actual_loc = locations->InAt(i);
-
-    parallel_move.AddMove(actual_loc, cc_loc, input->GetType(), nullptr);
-  }
-
-  codegen->GetMoveResolver()->EmitNativeCode(&parallel_move);
+static void MoveArguments(HInvoke* invoke, CodeGeneratorX86* codegen) {
+  InvokeDexCallingConventionVisitorX86 calling_convention_visitor;
+  IntrinsicVisitor::MoveArguments(invoke, codegen, &calling_convention_visitor);
 }
 
 // Slow-path for fallback (calling the managed code to handle the intrinsic) in an intrinsified
@@ -155,7 +136,7 @@ class IntrinsicSlowPathX86 : public SlowPathCodeX86 {
 
     SaveLiveRegisters(codegen, invoke_->GetLocations());
 
-    MoveArguments(invoke_, codegen->GetGraph()->GetArena(), codegen);
+    MoveArguments(invoke_, codegen);
 
     if (invoke_->IsInvokeStaticOrDirect()) {
       codegen->GenerateStaticOrDirectCall(invoke_->AsInvokeStaticOrDirect(), EAX);
@@ -749,7 +730,7 @@ void IntrinsicCodeGeneratorX86::VisitMathSqrt(HInvoke* invoke) {
 }
 
 static void InvokeOutOfLineIntrinsic(CodeGeneratorX86* codegen, HInvoke* invoke) {
-  MoveArguments(invoke, codegen->GetGraph()->GetArena(), codegen);
+  MoveArguments(invoke, codegen);
 
   DCHECK(invoke->IsInvokeStaticOrDirect());
   codegen->GenerateStaticOrDirectCall(invoke->AsInvokeStaticOrDirect(), EAX);
@@ -910,23 +891,18 @@ void IntrinsicCodeGeneratorX86::VisitStringCharAt(HInvoke* invoke) {
   const int32_t value_offset = mirror::String::ValueOffset().Int32Value();
   // Location of count
   const int32_t count_offset = mirror::String::CountOffset().Int32Value();
-  // Starting offset within data array
-  const int32_t offset_offset = mirror::String::OffsetOffset().Int32Value();
-  // Start of char data with array_
-  const int32_t data_offset = mirror::Array::DataOffset(sizeof(uint16_t)).Int32Value();
 
   Register obj = locations->InAt(0).AsRegister<Register>();
   Register idx = locations->InAt(1).AsRegister<Register>();
   Register out = locations->Out().AsRegister<Register>();
-  Location temp_loc = locations->GetTemp(0);
-  Register temp = temp_loc.AsRegister<Register>();
 
   // TODO: Maybe we can support range check elimination. Overall, though, I think it's not worth
   //       the cost.
   // TODO: For simplicity, the index parameter is requested in a register, so different from Quick
   //       we will not optimize the code for constants (which would save a register).
 
-  SlowPathCodeX86* slow_path = new (GetAllocator()) IntrinsicSlowPathX86(invoke, temp);
+  SlowPathCodeX86* slow_path = new (GetAllocator()) IntrinsicSlowPathX86(
+      invoke, locations->GetTemp(0).AsRegister<Register>());
   codegen_->AddSlowPath(slow_path);
 
   X86Assembler* assembler = GetAssembler();
@@ -935,12 +911,8 @@ void IntrinsicCodeGeneratorX86::VisitStringCharAt(HInvoke* invoke) {
   codegen_->MaybeRecordImplicitNullCheck(invoke);
   __ j(kAboveEqual, slow_path->GetEntryLabel());
 
-  // Get the actual element.
-  __ movl(temp, idx);                          // temp := idx.
-  __ addl(temp, Address(obj, offset_offset));  // temp := offset + idx.
-  __ movl(out, Address(obj, value_offset));    // obj := obj.array.
-  // out = out[2*temp].
-  __ movzxw(out, Address(out, temp, ScaleFactor::TIMES_2, data_offset));
+  // out = out[2*idx].
+  __ movzxw(out, Address(out, idx, ScaleFactor::TIMES_2, value_offset));
 
   __ Bind(slow_path->GetExitLabel());
 }
@@ -973,6 +945,81 @@ void IntrinsicCodeGeneratorX86::VisitStringCompareTo(HInvoke* invoke) {
   __ j(kEqual, slow_path->GetEntryLabel());
 
   __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pStringCompareTo)));
+  __ Bind(slow_path->GetExitLabel());
+}
+
+void IntrinsicLocationsBuilderX86::VisitStringNewStringFromBytes(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCall,
+                                                            kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(2, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
+  locations->SetInAt(3, Location::RegisterLocation(calling_convention.GetRegisterAt(3)));
+  locations->SetOut(Location::RegisterLocation(EAX));
+  // Needs to be EAX for the invoke.
+  locations->AddTemp(Location::RegisterLocation(EAX));
+}
+
+void IntrinsicCodeGeneratorX86::VisitStringNewStringFromBytes(HInvoke* invoke) {
+  X86Assembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  Register byte_array = locations->InAt(0).AsRegister<Register>();
+  __ testl(byte_array, byte_array);
+  SlowPathCodeX86* slow_path = new (GetAllocator()) IntrinsicSlowPathX86(
+      invoke, locations->GetTemp(0).AsRegister<Register>());
+  codegen_->AddSlowPath(slow_path);
+  __ j(kEqual, slow_path->GetEntryLabel());
+
+  __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pAllocStringFromBytes)));
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+  __ Bind(slow_path->GetExitLabel());
+}
+
+void IntrinsicLocationsBuilderX86::VisitStringNewStringFromChars(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCall,
+                                                            kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(2, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
+  locations->SetOut(Location::RegisterLocation(EAX));
+}
+
+void IntrinsicCodeGeneratorX86::VisitStringNewStringFromChars(HInvoke* invoke) {
+  X86Assembler* assembler = GetAssembler();
+
+  __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pAllocStringFromChars)));
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+}
+
+void IntrinsicLocationsBuilderX86::VisitStringNewStringFromString(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCall,
+                                                            kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->SetOut(Location::RegisterLocation(EAX));
+  // Needs to be EAX for the invoke.
+  locations->AddTemp(Location::RegisterLocation(EAX));
+}
+
+void IntrinsicCodeGeneratorX86::VisitStringNewStringFromString(HInvoke* invoke) {
+  X86Assembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  Register string_to_copy = locations->InAt(0).AsRegister<Register>();
+  __ testl(string_to_copy, string_to_copy);
+  SlowPathCodeX86* slow_path = new (GetAllocator()) IntrinsicSlowPathX86(
+      invoke, locations->GetTemp(0).AsRegister<Register>());
+  codegen_->AddSlowPath(slow_path);
+  __ j(kEqual, slow_path->GetEntryLabel());
+
+  __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pAllocStringFromString)));
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
   __ Bind(slow_path->GetExitLabel());
 }
 
@@ -1536,6 +1583,7 @@ void IntrinsicCodeGeneratorX86::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) 
 }
 
 UNIMPLEMENTED_INTRINSIC(MathRoundDouble)
+UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
 UNIMPLEMENTED_INTRINSIC(StringIndexOf)
 UNIMPLEMENTED_INTRINSIC(StringIndexOfAfter)
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)

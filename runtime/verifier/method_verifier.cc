@@ -516,6 +516,23 @@ mirror::ArtMethod* MethodVerifier::FindInvokedMethodAtDexPc(uint32_t dex_pc) {
   return GetQuickInvokedMethod(inst, register_line, is_range, false);
 }
 
+SafeMap<uint32_t, std::set<uint32_t>> MethodVerifier::FindStringInitMap(mirror::ArtMethod* m) {
+  Thread* self = Thread::Current();
+  StackHandleScope<3> hs(self);
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(m->GetDexCache()));
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(m->GetClassLoader()));
+  Handle<mirror::ArtMethod> method(hs.NewHandle(m));
+  MethodVerifier verifier(self, m->GetDexFile(), dex_cache, class_loader, &m->GetClassDef(),
+                          m->GetCodeItem(), m->GetDexMethodIndex(), method, m->GetAccessFlags(),
+                          true, true, false, true);
+  return verifier.FindStringInitMap();
+}
+
+SafeMap<uint32_t, std::set<uint32_t>>& MethodVerifier::FindStringInitMap() {
+  Verify();
+  return GetStringInitPcRegMap();
+}
+
 bool MethodVerifier::Verify() {
   // If there aren't any instructions, make sure that's expected, then exit successfully.
   if (code_item_ == nullptr) {
@@ -2445,7 +2462,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
          * Replace the uninitialized reference with an initialized one. We need to do this for all
          * registers that have the same object instance in them, not just the "this" register.
          */
-        work_line_->MarkRefsAsInitialized(this, this_type);
+        const uint32_t this_reg = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
+        work_line_->MarkRefsAsInitialized(this, this_type, this_reg, work_insn_idx_);
       }
       if (return_type == nullptr) {
         return_type = &reg_types_.FromDescriptor(GetClassLoader(), return_type_descriptor,

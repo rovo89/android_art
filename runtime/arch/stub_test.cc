@@ -1229,30 +1229,13 @@ TEST_F(StubTest, StringCompareTo) {
       "aacaacaacaacaacaacaacaacaacaacaacaac",     // This one's over.
       "aacaacaacaacaacaacaacaacaacaacaacaaca" };  // As is this one. We need a separate one to
                                                   // defeat object-equal optimizations.
-  static constexpr size_t kBaseStringCount  = arraysize(c);
-  static constexpr size_t kStringCount = 2 * kBaseStringCount;
+  static constexpr size_t kStringCount = arraysize(c);
 
   StackHandleScope<kStringCount> hs(self);
   Handle<mirror::String> s[kStringCount];
 
-  for (size_t i = 0; i < kBaseStringCount; ++i) {
+  for (size_t i = 0; i < kStringCount; ++i) {
     s[i] = hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), c[i]));
-  }
-
-  RandGen r(0x1234);
-
-  for (size_t i = kBaseStringCount; i < kStringCount; ++i) {
-    s[i] = hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), c[i - kBaseStringCount]));
-    int32_t length = s[i]->GetLength();
-    if (length > 1) {
-      // Set a random offset and length.
-      int32_t new_offset = 1 + (r.next() % (length - 1));
-      int32_t rest = length - new_offset - 1;
-      int32_t new_length = 1 + (rest > 0 ? r.next() % rest : 0);
-
-      s[i]->SetField32<false>(mirror::String::CountOffset(), new_length);
-      s[i]->SetField32<false>(mirror::String::OffsetOffset(), new_offset);
-    }
   }
 
   // TODO: wide characters
