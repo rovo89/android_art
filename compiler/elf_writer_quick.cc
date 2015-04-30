@@ -141,7 +141,7 @@ bool ElfWriterQuick<ElfTypes>::Write(
 
   InstructionSet isa = compiler_driver_->GetInstructionSet();
   int alignment = GetInstructionSetPointerSize(isa);
-  typedef ElfRawSectionBuilder<ElfTypes> RawSection;
+  typedef typename ElfBuilder<ElfTypes>::ElfRawSectionBuilder RawSection;
   RawSection eh_frame(".eh_frame", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, alignment, 0);
   RawSection eh_frame_hdr(".eh_frame_hdr", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, 4, 0);
   RawSection debug_info(".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
@@ -230,7 +230,7 @@ static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder, OatWriter* oat_writ
     }
   }
 
-  ElfSymtabBuilder<ElfTypes>* symtab = builder->GetSymtabBuilder();
+  auto* symtab = builder->GetSymtabBuilder();
   for (auto it = method_info.begin(); it != method_info.end(); ++it) {
     std::string name = PrettyMethod(it->dex_method_index_, *it->dex_file_, true);
     if (deduped_addresses.find(it->low_pc_) != deduped_addresses.end()) {
