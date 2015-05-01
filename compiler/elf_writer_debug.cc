@@ -170,11 +170,13 @@ void WriteEhFrame(const CompilerDriver* compiler,
   size_t cie_offset = eh_frame->size();
   WriteEhFrameCIE(isa, address_type, eh_frame);
   for (const OatWriter::DebugInfo& mi : method_infos) {
-    const SwapVector<uint8_t>* opcodes = mi.compiled_method_->GetCFIInfo();
-    if (opcodes != nullptr) {
-      WriteEhFrameFDE(Is64BitInstructionSet(isa), cie_offset,
-                      mi.low_pc_, mi.high_pc_ - mi.low_pc_,
-                      opcodes, eh_frame, eh_frame_patches);
+    if (!mi.deduped_) {  // Only one FDE per unique address.
+      const SwapVector<uint8_t>* opcodes = mi.compiled_method_->GetCFIInfo();
+      if (opcodes != nullptr) {
+        WriteEhFrameFDE(Is64BitInstructionSet(isa), cie_offset,
+                        mi.low_pc_, mi.high_pc_ - mi.low_pc_,
+                        opcodes, eh_frame, eh_frame_patches);
+      }
     }
   }
 
