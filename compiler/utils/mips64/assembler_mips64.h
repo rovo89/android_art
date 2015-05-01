@@ -36,6 +36,7 @@ enum LoadOperandType {
   kLoadSignedHalfword,
   kLoadUnsignedHalfword,
   kLoadWord,
+  kLoadUnsignedWord,
   kLoadDoubleword
 };
 
@@ -85,6 +86,7 @@ class Mips64Assembler FINAL : public Assembler {
   void Ld(GpuRegister rt, GpuRegister rs, uint16_t imm16);
   void Lbu(GpuRegister rt, GpuRegister rs, uint16_t imm16);
   void Lhu(GpuRegister rt, GpuRegister rs, uint16_t imm16);
+  void Lwu(GpuRegister rt, GpuRegister rs, uint16_t imm16);
   void Lui(GpuRegister rt, uint16_t imm16);
   void Mfhi(GpuRegister rd);
   void Mflo(GpuRegister rd);
