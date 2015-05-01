@@ -18,6 +18,7 @@
 
 #include <unordered_set>
 
+#include "base/casts.h"
 #include "compiled_method.h"
 #include "driver/compiler_driver.h"
 #include "dex_file-inl.h"
@@ -198,11 +199,11 @@ void WriteEhFrame(const CompilerDriver* compiler,
   const int32_t relative_eh_frame_begin = -static_cast<int32_t>(eh_frame->size());
   header.PushInt32(relative_eh_frame_begin - 4U);
   // Binary search table size (number of entries).
-  header.PushUint32(address_to_fde_offset_map.size());
+  header.PushUint32(dchecked_integral_cast<uint32_t>(address_to_fde_offset_map.size()));
   // Binary search table.
   for (const auto& address_to_fde_offset : address_to_fde_offset_map) {
     u_int32_t code_address = address_to_fde_offset.first;
-    size_t fde_address = address_to_fde_offset.second;
+    int32_t fde_address = dchecked_integral_cast<int32_t>(address_to_fde_offset.second);
     eh_frame_hdr_patches->push_back(header.data()->size());
     header.PushUint32(code_address);
     // We know the exact layout (eh_frame is immediately before eh_frame_hdr)
