@@ -162,17 +162,20 @@ void WriteEhFrame(const CompilerDriver* compiler,
                   ExceptionHeaderValueApplication address_type,
                   std::vector<uint8_t>* eh_frame,
                   std::vector<uintptr_t>* eh_frame_patches,
-                  std::vector<uint8_t>* eh_frame_hdr) {
+                  std::vector<uint8_t>* eh_frame_hdr,
+                  std::vector<uintptr_t>* eh_frame_hdr_patches) {
   const auto& method_infos = oat_writer->GetMethodDebugInfo();
   const InstructionSet isa = compiler->GetInstructionSet();
 
   // Write .eh_frame section.
+  std::map<uint32_t, size_t> address_to_fde_offset_map;
   size_t cie_offset = eh_frame->size();
   WriteEhFrameCIE(isa, address_type, eh_frame);
   for (const OatWriter::DebugInfo& mi : method_infos) {
     if (!mi.deduped_) {  // Only one FDE per unique address.
       const SwapVector<uint8_t>* opcodes = mi.compiled_method_->GetCFIInfo();
       if (opcodes != nullptr) {
+        address_to_fde_offset_map.emplace(mi.low_pc_, eh_frame->size());
         WriteEhFrameFDE(Is64BitInstructionSet(isa), cie_offset,
                         mi.low_pc_, mi.high_pc_ - mi.low_pc_,
                         opcodes, eh_frame, eh_frame_patches);
@@ -183,14 +186,30 @@ void WriteEhFrame(const CompilerDriver* compiler,
   // Write .eh_frame_hdr section.
   Writer<> header(eh_frame_hdr);
   header.PushUint8(1);  // Version.
-  header.PushUint8(DW_EH_PE_pcrel | DW_EH_PE_sdata4);  // Encoding of .eh_frame pointer.
-  header.PushUint8(DW_EH_PE_omit);  // Encoding of binary search table size.
-  header.PushUint8(DW_EH_PE_omit);  // Encoding of binary search table addresses.
-  // .eh_frame pointer - .eh_frame_hdr section is after .eh_frame section, and need to encode
-  // relative to this location as libunwind doesn't honor datarel for eh_frame_hdr correctly.
-  header.PushInt32(-static_cast<int32_t>(eh_frame->size() + 4U));
-  // Omit binary search table size (number of entries).
-  // Omit binary search table.
+  // Encoding of .eh_frame pointer - libunwind does not honor datarel here,
+  // so we have to use pcrel which means relative to the pointer's location.
+  header.PushUint8(DW_EH_PE_pcrel | DW_EH_PE_sdata4);
+  // Encoding of binary search table size.
+  header.PushUint8(DW_EH_PE_udata4);
+  // Encoding of binary search table addresses - libunwind supports only this
+  // specific combination, which means relative to the start of .eh_frame_hdr.
+  header.PushUint8(DW_EH_PE_datarel | DW_EH_PE_sdata4);
+  // .eh_frame pointer - .eh_frame_hdr section is after .eh_frame section
+  const int32_t relative_eh_frame_begin = -static_cast<int32_t>(eh_frame->size());
+  header.PushInt32(relative_eh_frame_begin - 4U);
+  // Binary search table size (number of entries).
+  header.PushUint32(address_to_fde_offset_map.size());
+  // Binary search table.
+  for (const auto& address_to_fde_offset : address_to_fde_offset_map) {
+    u_int32_t code_address = address_to_fde_offset.first;
+    size_t fde_address = address_to_fde_offset.second;
+    eh_frame_hdr_patches->push_back(header.data()->size());
+    header.PushUint32(code_address);
+    // We know the exact layout (eh_frame is immediately before eh_frame_hdr)
+    // and the data is relative to the start of the eh_frame_hdr,
+    // so patching isn't necessary (in contrast to the code address above).
+    header.PushInt32(relative_eh_frame_begin + fde_address);
+  }
 }
 
 /*
