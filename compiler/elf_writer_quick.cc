@@ -107,12 +107,43 @@ class TextWriter FINAL : public CodeOutput {
   OatWriter* oat_writer_;
 };
 
+enum PatchResult {
+  kAbsoluteAddress,  // Absolute memory location.
+  kPointerRelativeAddress,  // Offset relative to the location of the pointer.
+  kSectionRelativeAddress,  // Offset relative to start of containing section.
+};
+
+// Patch memory addresses within a buffer.
+// It assumes that the unpatched addresses are offsets relative to base_address.
+// (which generally means method's low_pc relative to the start of .text)
+template <typename Elf_Addr, typename Address, PatchResult kPatchResult>
+static void Patch(const std::vector<uintptr_t>& patch_locations,
+                  Elf_Addr buffer_address, Elf_Addr base_address,
+                  std::vector<uint8_t>* buffer) {
+  for (uintptr_t location : patch_locations) {
+    typedef __attribute__((__aligned__(1))) Address UnalignedAddress;
+    auto* to_patch = reinterpret_cast<UnalignedAddress*>(buffer->data() + location);
+    switch (kPatchResult) {
+      case kAbsoluteAddress:
+        *to_patch = (base_address + *to_patch);
+        break;
+      case kPointerRelativeAddress:
+        *to_patch = (base_address + *to_patch) - (buffer_address + location);
+        break;
+      case kSectionRelativeAddress:
+        *to_patch = (base_address + *to_patch) - buffer_address;
+        break;
+    }
+  }
+}
+
 template <typename ElfTypes>
 bool ElfWriterQuick<ElfTypes>::Write(
     OatWriter* oat_writer,
     const std::vector<const DexFile*>& dex_files_unused ATTRIBUTE_UNUSED,
     const std::string& android_root_unused ATTRIBUTE_UNUSED,
     bool is_host_unused ATTRIBUTE_UNUSED) {
+  using Elf_Addr = typename ElfTypes::Addr;
   const InstructionSet isa = compiler_driver_->GetInstructionSet();
 
   // Setup the builder with the main OAT sections (.rodata .text .bss).
@@ -129,27 +160,25 @@ bool ElfWriterQuick<ElfTypes>::Write(
   // but they are registred with the builder only if they are used.
   using RawSection = typename ElfBuilder<ElfTypes>::RawSection;
   const auto* text = builder->GetText();
-  constexpr bool absolute = false;  // patch to make absolute addresses.
-  constexpr bool relative = true;  // patch to make relative addresses.
   const bool is64bit = Is64BitInstructionSet(isa);
-  RawSection eh_frame(".eh_frame", SHT_PROGBITS, SHF_ALLOC,
-                      nullptr, 0, kPageSize, 0, text, relative, is64bit);
-  RawSection eh_frame_hdr(".eh_frame_hdr", SHT_PROGBITS, SHF_ALLOC,
-                          nullptr, 0, 4, 0);
-  RawSection debug_info(".debug_info", SHT_PROGBITS, 0,
-                        nullptr, 0, 1, 0, text, absolute, false /* 32bit */);
-  RawSection debug_abbrev(".debug_abbrev", SHT_PROGBITS, 0,
-                          nullptr, 0, 1, 0);
-  RawSection debug_str(".debug_str", SHT_PROGBITS, 0,
-                       nullptr, 0, 1, 0);
-  RawSection debug_line(".debug_line", SHT_PROGBITS, 0,
-                        nullptr, 0, 1, 0, text, absolute, false /* 32bit */);
+  RawSection eh_frame(".eh_frame", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0,
+                      is64bit ? Patch<Elf_Addr, uint64_t, kPointerRelativeAddress> :
+                                Patch<Elf_Addr, uint32_t, kPointerRelativeAddress>,
+                      text);
+  RawSection eh_frame_hdr(".eh_frame_hdr", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, 4, 0,
+                          Patch<Elf_Addr, uint32_t, kSectionRelativeAddress>, text);
+  RawSection debug_info(".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0,
+                        Patch<Elf_Addr, uint32_t, kAbsoluteAddress>, text);
+  RawSection debug_abbrev(".debug_abbrev", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
+  RawSection debug_str(".debug_str", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
+  RawSection debug_line(".debug_line", SHT_PROGBITS, 0, nullptr, 0, 1, 0,
+                        Patch<Elf_Addr, uint32_t, kAbsoluteAddress>, text);
   if (!oat_writer->GetMethodDebugInfo().empty()) {
     if (compiler_driver_->GetCompilerOptions().GetIncludeCFI()) {
       dwarf::WriteEhFrame(
           compiler_driver_, oat_writer, dwarf::DW_EH_PE_pcrel,
           eh_frame.GetBuffer(), eh_frame.GetPatchLocations(),
-          eh_frame_hdr.GetBuffer());
+          eh_frame_hdr.GetBuffer(), eh_frame_hdr.GetPatchLocations());
       builder->RegisterSection(&eh_frame);
       builder->RegisterSection(&eh_frame_hdr);
     }

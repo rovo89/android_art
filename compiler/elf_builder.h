@@ -149,19 +149,20 @@ class ElfBuilder FINAL {
     std::vector<ElfDynamicState> dynamics_;
   };
 
+  using PatchFn = void (*)(const std::vector<uintptr_t>& patch_locations,
+                           Elf_Addr buffer_address,
+                           Elf_Addr base_address,
+                           std::vector<uint8_t>* buffer);
+
   // Section with content based on simple memory buffer.
   // The buffer can be optionally patched before writing.
-  // The resulting address can be either absolute memory
-  // address or offset relative to the pointer location.
   class RawSection FINAL : public Section {
    public:
     RawSection(const std::string& name, Elf_Word type, Elf_Word flags,
                const Section* link, Elf_Word info, Elf_Word align, Elf_Word entsize,
-               const Section* patch_base = nullptr, bool patch_relative = false,
-               bool patch_64bit = (sizeof(Elf_Addr) == sizeof(Elf64_Addr)))
+               PatchFn patch = nullptr, const Section* patch_base_section = nullptr)
         : Section(name, type, flags, link, info, align, entsize),
-          patched(false), patch_base_(patch_base),
-          patch_relative_(patch_relative), patch_64bit_(patch_64bit) {
+          patched_(false), patch_(patch), patch_base_section_(patch_base_section) {
     }
 
     Elf_Word GetSize() const OVERRIDE {
@@ -170,22 +171,14 @@ class ElfBuilder FINAL {
 
     bool Write(File* elf_file) OVERRIDE {
       if (!patch_locations_.empty()) {
-        DCHECK(patch_base_ != nullptr);
-        DCHECK(!patched);  // Do not patch twice.
-        if (patch_relative_) {
-          if (patch_64bit_) {
-            Patch<true, uint64_t>();
-          } else {
-            Patch<true, uint32_t>();
-          }
-        } else {
-          if (patch_64bit_) {
-            Patch<false, uint64_t>();
-          } else {
-            Patch<false, uint32_t>();
-          }
-        }
-        patched = true;
+        DCHECK(!patched_);  // Do not patch twice.
+        DCHECK(patch_ != nullptr);
+        DCHECK(patch_base_section_ != nullptr);
+        patch_(patch_locations_,
+               this->GetHeader()->sh_addr,
+               patch_base_section_->GetHeader()->sh_addr,
+               &buffer_);
+        patched_ = true;
       }
       return WriteArray(elf_file, buffer_.data(), buffer_.size());
     }
@@ -207,23 +200,13 @@ class ElfBuilder FINAL {
     }
 
    private:
-    template <bool RelativeAddress = false, typename PatchedAddress = Elf_Addr>
-    void Patch() {
-      Elf_Addr base_addr = patch_base_->GetHeader()->sh_addr;
-      Elf_Addr addr = this->GetHeader()->sh_addr;
-      for (uintptr_t patch_location : patch_locations_) {
-        typedef __attribute__((__aligned__(1))) PatchedAddress UnalignedAddress;
-        auto* to_patch = reinterpret_cast<UnalignedAddress*>(buffer_.data() + patch_location);
-        *to_patch = (base_addr + *to_patch) - (RelativeAddress ? (addr + patch_location) : 0);
-      }
-    }
-
     std::vector<uint8_t> buffer_;
     std::vector<uintptr_t> patch_locations_;
-    bool patched;
-    const Section* patch_base_;
-    bool patch_relative_;
-    bool patch_64bit_;
+    bool patched_;
+    // User-provided function to do the actual patching.
+    PatchFn patch_;
+    // The section that we patch against (usually .text).
+    const Section* patch_base_section_;
   };
 
   // Writer of .rodata section or .text section.
