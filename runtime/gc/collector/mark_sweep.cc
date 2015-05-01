@@ -381,8 +381,8 @@ class MarkSweepMarkObjectSlowPath {
     if (UNLIKELY(obj == nullptr || !IsAligned<kPageSize>(obj) ||
                  (kIsDebugBuild && large_object_space != nullptr &&
                      !large_object_space->Contains(obj)))) {
-      LOG(ERROR) << "Tried to mark " << obj << " not contained by any spaces";
-      LOG(ERROR) << "Attempting see if it's a bad root";
+      LOG(INTERNAL_FATAL) << "Tried to mark " << obj << " not contained by any spaces";
+      LOG(INTERNAL_FATAL) << "Attempting see if it's a bad root";
       mark_sweep_->VerifyRoots();
       LOG(FATAL) << "Can't mark invalid object";
     }
@@ -498,7 +498,7 @@ class VerifyRootVisitor : public SingleRootVisitor {
     if (heap->GetLiveBitmap()->GetContinuousSpaceBitmap(root) == nullptr) {
       space::LargeObjectSpace* large_object_space = heap->GetLargeObjectsSpace();
       if (large_object_space != nullptr && !large_object_space->Contains(root)) {
-        LOG(ERROR) << "Found invalid root: " << root << " " << info;
+        LOG(INTERNAL_FATAL) << "Found invalid root: " << root << " " << info;
       }
     }
   }
