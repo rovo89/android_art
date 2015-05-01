@@ -288,7 +288,7 @@ class Heap {
 
   // Does a concurrent GC, should only be called by the GC daemon thread
   // through runtime.
-  void ConcurrentGC(Thread* self) LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
+  void ConcurrentGC(Thread* self, bool force_full) LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
 
   // Implements VMDebug.countInstancesOfClass and JDWP VM_InstanceCount.
   // The boolean decides whether to use IsAssignableFrom or == when comparing classes.
@@ -664,7 +664,7 @@ class Heap {
   void RequestTrim(Thread* self) LOCKS_EXCLUDED(pending_task_lock_);
 
   // Request asynchronous GC.
-  void RequestConcurrentGC(Thread* self) LOCKS_EXCLUDED(pending_task_lock_);
+  void RequestConcurrentGC(Thread* self, bool force_full) LOCKS_EXCLUDED(pending_task_lock_);
 
   // Whether or not we may use a garbage collector, used so that we only create collectors we need.
   bool MayUseCollector(CollectorType type) const;
@@ -786,7 +786,7 @@ class Heap {
   void RequestCollectorTransition(CollectorType desired_collector_type, uint64_t delta_time)
       LOCKS_EXCLUDED(pending_task_lock_);
 
-  void RequestConcurrentGCAndSaveObject(Thread* self, mirror::Object** obj)
+  void RequestConcurrentGCAndSaveObject(Thread* self, bool force_full, mirror::Object** obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsGCRequestPending() const;
 
