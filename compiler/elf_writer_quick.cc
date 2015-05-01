@@ -202,6 +202,9 @@ static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder, OatWriter* oat_writ
 
   auto* symtab = builder->GetSymtab();
   for (auto it = method_info.begin(); it != method_info.end(); ++it) {
+    if (it->deduped_) {
+      continue;  // Add symbol only for the first instance.
+    }
     std::string name = PrettyMethod(it->dex_method_index_, *it->dex_file_, true);
     if (deduped_addresses.find(it->low_pc_) != deduped_addresses.end()) {
       name += " [DEDUPED]";
