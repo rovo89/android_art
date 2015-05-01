@@ -30,7 +30,8 @@ void WriteEhFrame(const CompilerDriver* compiler,
                   ExceptionHeaderValueApplication address_type,
                   std::vector<uint8_t>* eh_frame,
                   std::vector<uintptr_t>* eh_frame_patches,
-                  std::vector<uint8_t>* eh_frame_hdr);
+                  std::vector<uint8_t>* eh_frame_hdr,
+                  std::vector<uintptr_t>* eh_frame_hdr_patches);
 
 void WriteDebugSections(const CompilerDriver* compiler,
                         const OatWriter* oat_writer,
