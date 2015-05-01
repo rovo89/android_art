@@ -170,7 +170,8 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
     }
   }
 
-  // Ensure the uses of `instruction` are defined in a block of the graph.
+  // Ensure the uses of `instruction` are defined in a block of the graph,
+  // and the entry in the use list is consistent.
   for (HUseIterator<HInstruction*> use_it(instruction->GetUses());
        !use_it.Done(); use_it.Advance()) {
     HInstruction* use = use_it.Current()->GetUser();
@@ -184,6 +185,27 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
                             use->GetId(),
                             instruction->GetId()));
     }
+    size_t use_index = use_it.Current()->GetIndex();
+    if ((use_index >= use->InputCount()) || (use->InputAt(use_index) != instruction)) {
+      AddError(StringPrintf("User %s:%d of instruction %d has a wrong "
+                            "UseListNode index.",
+                            use->DebugName(),
+                            use->GetId(),
+                            instruction->GetId()));
+    }
+  }
+
+  // Ensure the environment uses entries are consistent.
+  for (HUseIterator<HEnvironment*> use_it(instruction->GetEnvUses());
+       !use_it.Done(); use_it.Advance()) {
+    HEnvironment* use = use_it.Current()->GetUser();
+    size_t use_index = use_it.Current()->GetIndex();
+    if ((use_index >= use->Size()) || (use->GetInstructionAt(use_index) != instruction)) {
+      AddError(StringPrintf("Environment user of %s:%d has a wrong "
+                            "UseListNode index.",
+                            instruction->DebugName(),
+                            instruction->GetId()));
+    }
   }
 
   // Ensure 'instruction' has pointers to its inputs' use entries.
@@ -191,7 +213,11 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
     HUserRecord<HInstruction*> input_record = instruction->InputRecordAt(i);
     HInstruction* input = input_record.GetInstruction();
     HUseListNode<HInstruction*>* use_node = input_record.GetUseNode();
-    if (use_node == nullptr || !input->GetUses().Contains(use_node)) {
+    size_t use_index = use_node->GetIndex();
+    if ((use_node == nullptr)
+        || !input->GetUses().Contains(use_node)
+        || (use_index >= e)
+        || (use_index != i)) {
       AddError(StringPrintf("Instruction %s:%d has an invalid pointer to use entry "
                             "at input %u (%s:%d).",
                             instruction->DebugName(),

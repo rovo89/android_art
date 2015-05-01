@@ -850,13 +850,14 @@ class HUseListNode : public ArenaObject<kArenaAllocMisc> {
   HUseListNode* GetNext() const { return next_; }
   T GetUser() const { return user_; }
   size_t GetIndex() const { return index_; }
+  void SetIndex(size_t index) { index_ = index; }
 
  private:
   HUseListNode(T user, size_t index)
       : user_(user), index_(index), prev_(nullptr), next_(nullptr) {}
 
   T const user_;
-  const size_t index_;
+  size_t index_;
   HUseListNode<T>* prev_;
   HUseListNode<T>* next_;
 
@@ -1090,7 +1091,7 @@ class HEnvironment : public ArenaObject<kArenaAllocMisc> {
 
   GrowableArray<HUserRecord<HEnvironment*> > vregs_;
 
-  friend HInstruction;
+  friend class HInstruction;
 
   DISALLOW_COPY_AND_ASSIGN(HEnvironment);
 };
