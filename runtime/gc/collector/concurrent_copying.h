@@ -279,7 +279,7 @@ class ConcurrentCopying : public GarbageCollector {
   friend class FlipCallback;
   friend class ConcurrentCopyingComputeUnevacFromSpaceLiveRatioVisitor;
 
-  DISALLOW_COPY_AND_ASSIGN(ConcurrentCopying);
+  DISALLOW_IMPLICIT_CONSTRUCTORS(ConcurrentCopying);
 };
 
 }  // namespace collector

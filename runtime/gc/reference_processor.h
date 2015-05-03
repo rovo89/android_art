@@ -81,6 +81,9 @@ class ReferenceProcessor {
     IsHeapReferenceMarkedCallback* is_marked_callback_;
     MarkObjectCallback* mark_callback_;
     void* arg_;
+
+   private:
+    DISALLOW_IMPLICIT_CONSTRUCTORS(ProcessReferencesArgs);
   };
   bool SlowPathEnabled() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Called by ProcessReferences.
@@ -105,6 +108,8 @@ class ReferenceProcessor {
   ReferenceQueue finalizer_reference_queue_;
   ReferenceQueue phantom_reference_queue_;
   ReferenceQueue cleared_references_;
+
+  DISALLOW_COPY_AND_ASSIGN(ReferenceProcessor);
 };
 
 }  // namespace gc
