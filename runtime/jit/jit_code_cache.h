@@ -130,7 +130,7 @@ class JitCodeCache {
   // required since we have to implement ClassLinker::GetQuickOatCodeFor for walking stacks.
   SafeMap<mirror::ArtMethod*, const void*> method_code_map_ GUARDED_BY(lock_);
 
-  DISALLOW_COPY_AND_ASSIGN(JitCodeCache);
+  DISALLOW_IMPLICIT_CONSTRUCTORS(JitCodeCache);
 };
 
 

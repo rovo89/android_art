@@ -58,6 +58,8 @@ class JitInstrumentationCache {
   std::unordered_map<jmethodID, size_t> samples_;
   size_t hot_method_threshold_;
   std::unique_ptr<ThreadPool> thread_pool_;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(JitInstrumentationCache);
 };
 
 class JitInstrumentationListener : public instrumentation::InstrumentationListener {
@@ -97,6 +99,8 @@ class JitInstrumentationListener : public instrumentation::InstrumentationListen
 
  private:
   JitInstrumentationCache* const instrumentation_cache_;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(JitInstrumentationListener);
 };
 
 }  // namespace jit

@@ -278,7 +278,7 @@ class SemiSpace : public GarbageCollector {
 
  private:
   friend class BitmapSetSlowPathVisitor;
-  DISALLOW_COPY_AND_ASSIGN(SemiSpace);
+  DISALLOW_IMPLICIT_CONSTRUCTORS(SemiSpace);
 };
 
 }  // namespace collector

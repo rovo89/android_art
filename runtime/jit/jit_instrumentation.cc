@@ -47,6 +47,8 @@ class JitCompileTask : public Task {
  private:
   mirror::ArtMethod* const method_;
   JitInstrumentationCache* const cache_;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(JitCompileTask);
 };
 
 JitInstrumentationCache::JitInstrumentationCache(size_t hot_method_threshold)

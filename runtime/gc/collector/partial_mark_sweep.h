@@ -40,7 +40,7 @@ class PartialMarkSweep : public MarkSweep {
   virtual void BindBitmaps() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(PartialMarkSweep);
+  DISALLOW_IMPLICIT_CONSTRUCTORS(PartialMarkSweep);
 };
 
 }  // namespace collector

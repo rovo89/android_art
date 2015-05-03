@@ -47,7 +47,7 @@ class StickyMarkSweep FINAL : public PartialMarkSweep {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(StickyMarkSweep);
+  DISALLOW_IMPLICIT_CONSTRUCTORS(StickyMarkSweep);
 };
 
 }  // namespace collector
