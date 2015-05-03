@@ -146,6 +146,8 @@ class CardTable {
   // Card table doesn't begin at the beginning of the mem_map_, instead it is displaced by offset
   // to allow the byte value of biased_begin_ to equal GC_CARD_DIRTY
   const size_t offset_;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(CardTable);
 };
 
 }  // namespace accounting

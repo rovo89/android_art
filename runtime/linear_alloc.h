@@ -42,6 +42,8 @@ class LinearAlloc {
  private:
   mutable Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   ArenaAllocator allocator_ GUARDED_BY(lock_);
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(LinearAlloc);
 };
 
 }  // namespace art

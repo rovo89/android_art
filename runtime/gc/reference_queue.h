@@ -106,7 +106,7 @@ class ReferenceQueue {
   // GC types.
   mirror::Reference* list_;
 
-  DISALLOW_COPY_AND_ASSIGN(ReferenceQueue);
+  DISALLOW_IMPLICIT_CONSTRUCTORS(ReferenceQueue);
 };
 
 }  // namespace gc
