@@ -251,7 +251,7 @@ class MarkCompact : public GarbageCollector {
   friend class UpdateReferenceVisitor;
   friend class UpdateRootVisitor;
 
-  DISALLOW_COPY_AND_ASSIGN(MarkCompact);
+  DISALLOW_IMPLICIT_CONSTRUCTORS(MarkCompact);
 };
 
 }  // namespace collector

@@ -86,6 +86,8 @@ class Jit {
   std::unique_ptr<jit::JitInstrumentationCache> instrumentation_cache_;
   std::unique_ptr<jit::JitCodeCache> code_cache_;
   CompilerCallbacks* compiler_callbacks_;  // Owned by the jit compiler.
+
+  DISALLOW_COPY_AND_ASSIGN(Jit);
 };
 
 class JitOptions {
@@ -114,8 +116,9 @@ class JitOptions {
   bool dump_info_on_shutdown_;
 
   JitOptions() : use_jit_(false), code_cache_capacity_(0), compile_threshold_(0),
-      dump_info_on_shutdown_(false) {
-  }
+      dump_info_on_shutdown_(false) { }
+
+  DISALLOW_COPY_AND_ASSIGN(JitOptions);
 };
 
 }  // namespace jit

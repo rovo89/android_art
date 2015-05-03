@@ -187,7 +187,7 @@ class Space {
 
  private:
   friend class art::gc::Heap;
-  DISALLOW_COPY_AND_ASSIGN(Space);
+  DISALLOW_IMPLICIT_CONSTRUCTORS(Space);
 };
 std::ostream& operator<<(std::ostream& os, const Space& space);
 
@@ -337,7 +337,7 @@ class ContinuousSpace : public Space {
   uint8_t* limit_;
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(ContinuousSpace);
+  DISALLOW_IMPLICIT_CONSTRUCTORS(ContinuousSpace);
 };
 
 // A space where objects may be allocated higgledy-piggledy throughout virtual memory. Currently
@@ -366,7 +366,7 @@ class DiscontinuousSpace : public Space {
   std::unique_ptr<accounting::LargeObjectBitmap> mark_bitmap_;
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(DiscontinuousSpace);
+  DISALLOW_IMPLICIT_CONSTRUCTORS(DiscontinuousSpace);
 };
 
 class MemMapSpace : public ContinuousSpace {
@@ -400,7 +400,7 @@ class MemMapSpace : public ContinuousSpace {
   std::unique_ptr<MemMap> mem_map_;
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(MemMapSpace);
+  DISALLOW_IMPLICIT_CONSTRUCTORS(MemMapSpace);
 };
 
 // Used by the heap compaction interface to enable copying from one type of alloc space to another.
@@ -453,7 +453,7 @@ class ContinuousMemMapAllocSpace : public MemMapSpace, public AllocSpace {
 
  private:
   friend class gc::Heap;
-  DISALLOW_COPY_AND_ASSIGN(ContinuousMemMapAllocSpace);
+  DISALLOW_IMPLICIT_CONSTRUCTORS(ContinuousMemMapAllocSpace);
 };
 
 }  // namespace space

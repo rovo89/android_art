@@ -371,11 +371,8 @@ inline mirror::Object* Heap::TryToAllocate(Thread* self, AllocatorType allocator
 }
 
 inline Heap::AllocationTimer::AllocationTimer(Heap* heap, mirror::Object** allocated_obj_ptr)
-    : heap_(heap), allocated_obj_ptr_(allocated_obj_ptr) {
-  if (kMeasureAllocationTime) {
-    allocation_start_time_ = NanoTime() / kTimeAdjust;
-  }
-}
+    : heap_(heap), allocated_obj_ptr_(allocated_obj_ptr),
+      allocation_start_time_(kMeasureAllocationTime ? NanoTime() / kTimeAdjust : 0u) { }
 
 inline Heap::AllocationTimer::~AllocationTimer() {
   if (kMeasureAllocationTime) {

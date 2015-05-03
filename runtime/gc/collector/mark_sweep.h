@@ -336,7 +336,7 @@ class MarkSweep : public GarbageCollector {
   friend class VerifyRootMarkedVisitor;
   friend class VerifyRootVisitor;
 
-  DISALLOW_COPY_AND_ASSIGN(MarkSweep);
+  DISALLOW_IMPLICIT_CONSTRUCTORS(MarkSweep);
 };
 
 }  // namespace collector
