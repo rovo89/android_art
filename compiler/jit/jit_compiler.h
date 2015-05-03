@@ -67,10 +67,11 @@ class JitCompiler {
       const uint8_t* mapping_table, const uint8_t* vmap_table, const uint8_t* gc_map);
   bool MakeExecutable(CompiledMethod* compiled_method, mirror::ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  DISALLOW_COPY_AND_ASSIGN(JitCompiler);
 };
 
 }  // namespace jit
-
 }  // namespace art
 
 #endif  // ART_COMPILER_JIT_JIT_COMPILER_H_

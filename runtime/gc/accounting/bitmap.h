@@ -121,7 +121,7 @@ class Bitmap {
   const size_t bitmap_size_;
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(Bitmap);
+  DISALLOW_IMPLICIT_CONSTRUCTORS(Bitmap);
 };
 
 // One bit per kAlignment in range (start, end]
@@ -184,6 +184,8 @@ class MemoryRangeBitmap : public Bitmap {
 
   uintptr_t const cover_begin_;
   uintptr_t const cover_end_;
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(MemoryRangeBitmap);
 };
 
 }  // namespace accounting

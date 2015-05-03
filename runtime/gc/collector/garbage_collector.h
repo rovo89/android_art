@@ -190,6 +190,9 @@ class GarbageCollector : public RootVisitor {
   int64_t total_freed_bytes_;
   CumulativeLogger cumulative_timings_;
   mutable Mutex pause_histogram_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+
+ private:
+  DISALLOW_IMPLICIT_CONSTRUCTORS(GarbageCollector);
 };
 
 }  // namespace collector

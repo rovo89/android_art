@@ -46,6 +46,7 @@ class HeapTask : public SelfDeletingTask {
   uint64_t target_run_time_;
 
   friend class TaskProcessor;
+  DISALLOW_IMPLICIT_CONSTRUCTORS(HeapTask);
 };
 
 // Used to process GC tasks (heap trim, heap transitions, concurrent GC).
@@ -78,6 +79,8 @@ class TaskProcessor {
   std::unique_ptr<ConditionVariable> cond_ GUARDED_BY(lock_);
   std::multiset<HeapTask*, CompareByTargetRunTime> tasks_ GUARDED_BY(lock_);
   Thread* running_thread_ GUARDED_BY(lock_);
+
+  DISALLOW_COPY_AND_ASSIGN(TaskProcessor);
 };
 
 }  // namespace gc
