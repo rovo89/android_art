@@ -262,8 +262,8 @@ uint64_t ThreadCpuNanoTime() {
 
 void NanoSleep(uint64_t ns) {
   timespec tm;
-  tm.tv_sec = 0;
-  tm.tv_nsec = ns;
+  tm.tv_sec = ns / MsToNs(1000);
+  tm.tv_nsec = ns - static_cast<uint64_t>(tm.tv_sec) * MsToNs(1000);
   nanosleep(&tm, nullptr);
 }
 

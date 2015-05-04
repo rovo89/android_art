@@ -515,4 +515,10 @@ TEST_F(UtilsTest, IsAbsoluteUint) {
   EXPECT_FALSE(IsAbsoluteUint<32>(UINT_MAX_plus1));
 }
 
+TEST_F(UtilsTest, TestSleep) {
+  auto start = NanoTime();
+  NanoSleep(MsToNs(1500));
+  EXPECT_GT(NanoTime() - start, MsToNs(1000));
+}
+
 }  // namespace art
