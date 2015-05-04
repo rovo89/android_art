@@ -2109,10 +2109,12 @@ class JNI {
         m = c->FindVirtualMethod(name, sig);
       }
       if (m == nullptr) {
-        c->DumpClass(LOG(ERROR), mirror::Class::kDumpClassFullDetail);
-        LOG(return_errors ? ERROR : FATAL) << "Failed to register native method "
+        LOG(return_errors ? ERROR : INTERNAL_FATAL) << "Failed to register native method "
             << PrettyDescriptor(c) << "." << name << sig << " in "
             << c->GetDexCache()->GetLocation()->ToModifiedUtf8();
+        // Safe to pass in LOG(FATAL) since the log object aborts in destructor and only goes
+        // out of scope after the DumpClass is done executing.
+        c->DumpClass(LOG(return_errors ? ERROR : FATAL), mirror::Class::kDumpClassFullDetail);
         ThrowNoSuchMethodError(soa, c, name, sig, "static or non-static");
         return JNI_ERR;
       } else if (!m->IsNative()) {
