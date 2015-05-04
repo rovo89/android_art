@@ -331,10 +331,6 @@ ifeq ($(ART_USE_HSPACE_COMPACT),true)
   LIBART_CFLAGS += -DART_USE_HSPACE_COMPACT
 endif
 
-ifneq ($(filter tetra, $(TARGET_DEVICE)),)
-  LIBART_CFLAGS += -DNO_DUMP_NATIVE_STACKS
-endif
-
 # $(1): target or host
 # $(2): ndebug or debug
 define build-libart
