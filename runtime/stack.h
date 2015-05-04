@@ -74,10 +74,16 @@ class ShadowFrame {
   }
 
   // Create ShadowFrame in heap for deoptimization.
-  static ShadowFrame* Create(uint32_t num_vregs, ShadowFrame* link,
-                             mirror::ArtMethod* method, uint32_t dex_pc) {
+  static ShadowFrame* CreateDeoptimizedFrame(uint32_t num_vregs, ShadowFrame* link,
+                                             mirror::ArtMethod* method, uint32_t dex_pc) {
     uint8_t* memory = new uint8_t[ComputeSize(num_vregs)];
     return Create(num_vregs, link, method, dex_pc, memory);
+  }
+
+  // Delete a ShadowFrame allocated on the heap for deoptimization.
+  static void DeleteDeoptimizedFrame(ShadowFrame* sf) {
+    uint8_t* memory = reinterpret_cast<uint8_t*>(sf);
+    delete[] memory;
   }
 
   // Create ShadowFrame for interpreter using provided memory.
