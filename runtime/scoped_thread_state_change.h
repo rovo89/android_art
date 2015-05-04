@@ -133,11 +133,7 @@ class ScopedObjectAccessAlreadyRunnable {
   T AddLocalReference(mirror::Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
-    if (obj == nullptr) {
-      return nullptr;
-    }
-    DCHECK_NE((reinterpret_cast<uintptr_t>(obj) & 0xffff0000), 0xebad0000);
-    return Env()->AddLocalReference<T>(obj);
+    return obj == nullptr ? nullptr : Env()->AddLocalReference<T>(obj);
   }
 
   template<typename T>
