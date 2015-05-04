@@ -691,6 +691,8 @@ class Dex2Oat FINAL {
         include_cfi = false;
       } else if (option == "--debuggable") {
         debuggable = true;
+        include_debug_symbols = true;
+        include_cfi = true;
       } else if (option.starts_with("--profile-file=")) {
         profile_file_ = option.substr(strlen("--profile-file=")).data();
         VLOG(compiler) << "dex2oat: profile file is " << profile_file_;
