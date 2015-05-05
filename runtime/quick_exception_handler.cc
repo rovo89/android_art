@@ -202,7 +202,8 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
                                       h_method, m->GetAccessFlags(), true, true, true, true);
     bool verifier_success = verifier.Verify();
     CHECK(verifier_success) << PrettyMethod(h_method.Get());
-    ShadowFrame* new_frame = ShadowFrame::Create(num_regs, nullptr, h_method.Get(), dex_pc);
+    ShadowFrame* new_frame = ShadowFrame::CreateDeoptimizedFrame(
+        num_regs, nullptr, h_method.Get(), dex_pc);
     self_->SetShadowFrameUnderConstruction(new_frame);
     const std::vector<int32_t> kinds(verifier.DescribeVRegs(dex_pc));
 
