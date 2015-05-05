@@ -416,7 +416,7 @@ inline bool Heap::IsOutOfMemoryOnAllocation(AllocatorType allocator_type, size_t
 inline void Heap::CheckConcurrentGC(Thread* self, size_t new_num_bytes_allocated,
                                     mirror::Object** obj) {
   if (UNLIKELY(new_num_bytes_allocated >= concurrent_start_bytes_)) {
-    RequestConcurrentGCAndSaveObject(self, obj);
+    RequestConcurrentGCAndSaveObject(self, false, obj);
   }
 }
 
