@@ -973,7 +973,11 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
         break;
       }
 
-      size_t back_edge_use_position = current->GetSingleBackEdge()->GetLifetimeEnd();
+      // We're only adding a synthesized use at the last back edge. Adding syntehsized uses on
+      // all back edges is not necessary: anything used in the loop will have its use at the
+      // last back edge. If we want branches in a loop to have better register allocation than
+      // another branch, then it is the linear order we should change.
+      size_t back_edge_use_position = current->GetLifetimeEnd();
       if ((first_use_ != nullptr) && (first_use_->GetPosition() <= back_edge_use_position)) {
         // There was a use already seen in this loop. Therefore the previous call to `AddUse`
         // already inserted the backedge use. We can stop going outward.

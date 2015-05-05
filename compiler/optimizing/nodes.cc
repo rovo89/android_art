@@ -191,24 +191,6 @@ void HGraph::SplitCriticalEdge(HBasicBlock* block, HBasicBlock* successor) {
 void HGraph::SimplifyLoop(HBasicBlock* header) {
   HLoopInformation* info = header->GetLoopInformation();
 
-  // If there are more than one back edge, make them branch to the same block that
-  // will become the only back edge. This simplifies finding natural loops in the
-  // graph.
-  // Also, if the loop is a do/while (that is the back edge is an if), change the
-  // back edge to be a goto. This simplifies code generation of suspend cheks.
-  if (info->NumberOfBackEdges() > 1 || info->GetBackEdges().Get(0)->GetLastInstruction()->IsIf()) {
-    HBasicBlock* new_back_edge = new (arena_) HBasicBlock(this, header->GetDexPc());
-    AddBlock(new_back_edge);
-    new_back_edge->AddInstruction(new (arena_) HGoto());
-    for (size_t pred = 0, e = info->GetBackEdges().Size(); pred < e; ++pred) {
-      HBasicBlock* back_edge = info->GetBackEdges().Get(pred);
-      back_edge->ReplaceSuccessor(header, new_back_edge);
-    }
-    info->ClearBackEdges();
-    info->AddBackEdge(new_back_edge);
-    new_back_edge->AddSuccessor(header);
-  }
-
   // Make sure the loop has only one pre header. This simplifies SSA building by having
   // to just look at the pre header to know which locals are initialized at entry of the
   // loop.
@@ -218,11 +200,9 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
     AddBlock(pre_header);
     pre_header->AddInstruction(new (arena_) HGoto());
 
-    ArenaBitVector back_edges(arena_, GetBlocks().Size(), false);
-    HBasicBlock* back_edge = info->GetBackEdges().Get(0);
     for (size_t pred = 0; pred < header->GetPredecessors().Size(); ++pred) {
       HBasicBlock* predecessor = header->GetPredecessors().Get(pred);
-      if (predecessor != back_edge) {
+      if (!info->IsBackEdge(*predecessor)) {
         predecessor->ReplaceSuccessor(header, pre_header);
         pred--;
       }
@@ -230,9 +210,17 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
     pre_header->AddSuccessor(header);
   }
 
-  // Make sure the second predecessor of a loop header is the back edge.
-  if (header->GetPredecessors().Get(1) != info->GetBackEdges().Get(0)) {
-    header->SwapPredecessors();
+  // Make sure the first predecessor of a loop header is the incoming block.
+  if (info->IsBackEdge(*header->GetPredecessors().Get(0))) {
+    HBasicBlock* to_swap = header->GetPredecessors().Get(0);
+    for (size_t pred = 1, e = header->GetPredecessors().Size(); pred < e; ++pred) {
+      HBasicBlock* predecessor = header->GetPredecessors().Get(pred);
+      if (!info->IsBackEdge(*predecessor)) {
+        header->predecessors_.Put(pred, to_swap);
+        header->predecessors_.Put(0, predecessor);
+        break;
+      }
+    }
   }
 
   // Place the suspend check at the beginning of the header, so that live registers
@@ -357,21 +345,22 @@ void HLoopInformation::PopulateRecursive(HBasicBlock* block) {
 }
 
 bool HLoopInformation::Populate() {
-  DCHECK_EQ(GetBackEdges().Size(), 1u);
-  HBasicBlock* back_edge = GetBackEdges().Get(0);
-  DCHECK(back_edge->GetDominator() != nullptr);
-  if (!header_->Dominates(back_edge)) {
-    // This loop is not natural. Do not bother going further.
-    return false;
-  }
+  for (size_t i = 0, e = GetBackEdges().Size(); i < e; ++i) {
+    HBasicBlock* back_edge = GetBackEdges().Get(i);
+    DCHECK(back_edge->GetDominator() != nullptr);
+    if (!header_->Dominates(back_edge)) {
+      // This loop is not natural. Do not bother going further.
+      return false;
+    }
 
-  // Populate this loop: starting with the back edge, recursively add predecessors
-  // that are not already part of that loop. Set the header as part of the loop
-  // to end the recursion.
-  // This is a recursive implementation of the algorithm described in
-  // "Advanced Compiler Design & Implementation" (Muchnick) p192.
-  blocks_.SetBit(header_->GetBlockId());
-  PopulateRecursive(back_edge);
+    // Populate this loop: starting with the back edge, recursively add predecessors
+    // that are not already part of that loop. Set the header as part of the loop
+    // to end the recursion.
+    // This is a recursive implementation of the algorithm described in
+    // "Advanced Compiler Design & Implementation" (Muchnick) p192.
+    blocks_.SetBit(header_->GetBlockId());
+    PopulateRecursive(back_edge);
+  }
   return true;
 }
 
@@ -385,6 +374,14 @@ bool HLoopInformation::Contains(const HBasicBlock& block) const {
 
 bool HLoopInformation::IsIn(const HLoopInformation& other) const {
   return other.blocks_.IsBitSet(header_->GetBlockId());
+}
+
+size_t HLoopInformation::GetLifetimeEnd() const {
+  size_t last_position = 0;
+  for (size_t i = 0, e = back_edges_.Size(); i < e; ++i) {
+    last_position = std::max(back_edges_.Get(i)->GetLifetimeEnd(), last_position);
+  }
+  return last_position;
 }
 
 bool HBasicBlock::Dominates(HBasicBlock* other) const {
@@ -963,8 +960,9 @@ void HBasicBlock::DisconnectAndDelete() {
     HLoopInformation* loop_info = it.Current();
     loop_info->Remove(this);
     if (loop_info->IsBackEdge(*this)) {
-      // This deliberately leaves the loop in an inconsistent state and will
-      // fail SSAChecker unless the entire loop is removed during the pass.
+      // If this was the last back edge of the loop, we deliberately leave the
+      // loop in an inconsistent state and will fail SSAChecker unless the
+      // entire loop is removed during the pass.
       loop_info->RemoveBackEdge(this);
     }
   }
@@ -1075,8 +1073,7 @@ void HBasicBlock::MergeWith(HBasicBlock* other) {
     HLoopInformation* loop_info = it.Current();
     loop_info->Remove(other);
     if (loop_info->IsBackEdge(*other)) {
-      loop_info->ClearBackEdges();
-      loop_info->AddBackEdge(this);
+      loop_info->ReplaceBackEdge(other, this);
     }
   }
 
@@ -1307,11 +1304,9 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
         loop_it.Current()->Add(to);
       }
       if (info->IsBackEdge(*at)) {
-        // Only `at` can become a back edge, as the inlined blocks
-        // are predecessors of `at`.
-        DCHECK_EQ(1u, info->NumberOfBackEdges());
-        info->ClearBackEdges();
-        info->AddBackEdge(to);
+        // Only `to` can become a back edge, as the inlined blocks
+        // are predecessors of `to`.
+        info->ReplaceBackEdge(at, to);
       }
     }
   }

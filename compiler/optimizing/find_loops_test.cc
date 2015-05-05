@@ -235,14 +235,13 @@ TEST(FindLoopsTest, Loop4) {
 
   TestBlock(graph, 0, false, -1);            // entry block
   TestBlock(graph, 1, false, -1);            // pre header
-  const int blocks2[] = {2, 3, 4, 5, 8};
-  TestBlock(graph, 2, true, 2, blocks2, 5);  // loop header
+  const int blocks2[] = {2, 3, 4, 5};
+  TestBlock(graph, 2, true, 2, blocks2, arraysize(blocks2));  // loop header
   TestBlock(graph, 3, false, 2);             // block in loop
-  TestBlock(graph, 4, false, 2);             // original back edge
-  TestBlock(graph, 5, false, 2);             // original back edge
+  TestBlock(graph, 4, false, 2);             // back edge
+  TestBlock(graph, 5, false, 2);             // back edge
   TestBlock(graph, 6, false, -1);            // return block
   TestBlock(graph, 7, false, -1);            // exit block
-  TestBlock(graph, 8, false, 2);             // synthesized back edge
 }
 
 
