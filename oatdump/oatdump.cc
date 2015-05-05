@@ -2092,7 +2092,7 @@ class ImageDumper {
   gc::space::ImageSpace& image_space_;
   const ImageHeader& image_header_;
   std::unique_ptr<OatDumper> oat_dumper_;
-  std::unique_ptr<OatDumperOptions> oat_dumper_options_;
+  OatDumperOptions* oat_dumper_options_;
 
   DISALLOW_COPY_AND_ASSIGN(ImageDumper);
 };
