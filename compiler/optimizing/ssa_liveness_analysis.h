@@ -23,6 +23,7 @@
 namespace art {
 
 class CodeGenerator;
+class SsaLivenessAnalysis;
 
 static constexpr int kNoRegister = -1;
 
@@ -690,7 +691,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
   // Returns the first register hint that is at least free before
   // the value contained in `free_until`. If none is found, returns
   // `kNoRegister`.
-  int FindFirstRegisterHint(size_t* free_until) const;
+  int FindFirstRegisterHint(size_t* free_until, const SsaLivenessAnalysis& liveness) const;
 
   // If there is enough at the definition site to find a register (for example
   // it uses the same input as the first input), returns the register as a hint.
@@ -1116,12 +1117,16 @@ class SsaLivenessAnalysis : public ValueObject {
   }
 
   HBasicBlock* GetBlockFromPosition(size_t index) const {
-    HInstruction* instruction = GetInstructionFromPosition(index / 2);
+    HInstruction* instruction = GetInstructionFromPosition(index);
     if (instruction == nullptr) {
       // If we are at a block boundary, get the block following.
-      instruction = GetInstructionFromPosition((index / 2) + 1);
+      instruction = GetInstructionFromPosition(index + 1);
     }
     return instruction->GetBlock();
+  }
+
+  bool IsAtBlockBoundary(size_t index) const {
+    return GetInstructionFromPosition(index) == nullptr;
   }
 
   HInstruction* GetTempUser(LiveInterval* temp) const {
