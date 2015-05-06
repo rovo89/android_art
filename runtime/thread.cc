@@ -940,10 +940,14 @@ void Thread::DumpState(std::ostream& os) const {
 struct StackDumpVisitor : public StackVisitor {
   StackDumpVisitor(std::ostream& os_in, Thread* thread_in, Context* context, bool can_allocate_in)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(thread_in, context), os(os_in), thread(thread_in),
-        can_allocate(can_allocate_in), last_method(nullptr), last_line_number(0),
-        repetition_count(0), frame_count(0) {
-  }
+      : StackVisitor(thread_in, context, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
+        os(os_in),
+        thread(thread_in),
+        can_allocate(can_allocate_in),
+        last_method(nullptr),
+        last_line_number(0),
+        repetition_count(0),
+        frame_count(0) {}
 
   virtual ~StackDumpVisitor() {
     if (frame_count == 0) {
@@ -1528,7 +1532,7 @@ class CountStackDepthVisitor : public StackVisitor {
  public:
   explicit CountStackDepthVisitor(Thread* thread)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(thread, nullptr),
+      : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         depth_(0), skip_depth_(0), skipping_(true) {}
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -1568,8 +1572,12 @@ template<bool kTransactionActive>
 class BuildInternalStackTraceVisitor : public StackVisitor {
  public:
   explicit BuildInternalStackTraceVisitor(Thread* self, Thread* thread, int skip_depth)
-      : StackVisitor(thread, nullptr), self_(self),
-        skip_depth_(skip_depth), count_(0), dex_pc_trace_(nullptr), method_trace_(nullptr) {}
+      : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
+        self_(self),
+        skip_depth_(skip_depth),
+        count_(0),
+        dex_pc_trace_(nullptr),
+        method_trace_(nullptr) {}
 
   bool Init(int depth)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -2111,7 +2119,10 @@ Context* Thread::GetLongJumpContext() {
 struct CurrentMethodVisitor FINAL : public StackVisitor {
   CurrentMethodVisitor(Thread* thread, Context* context, bool abort_on_error)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(thread, context), this_object_(nullptr), method_(nullptr), dex_pc_(0),
+      : StackVisitor(thread, context, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
+        this_object_(nullptr),
+        method_(nullptr),
+        dex_pc_(0),
         abort_on_error_(abort_on_error) {}
   bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::ArtMethod* m = GetMethod();
@@ -2154,7 +2165,10 @@ class ReferenceMapVisitor : public StackVisitor {
  public:
   ReferenceMapVisitor(Thread* thread, Context* context, RootVisitor& visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(thread, context), visitor_(visitor) {}
+        // We are visiting the references in compiled frames, so we do not need
+        // to know the inlined frames.
+      : StackVisitor(thread, context, StackVisitor::StackWalkKind::kSkipInlinedFrames),
+        visitor_(visitor) {}
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (false) {
