@@ -182,7 +182,7 @@
     // Restore xSELF as it might be scratched.
     mov xSELF, xETR
     // ETR
-    ldr xETR, [sp, #16]
+    ldr xETR, [sp, #32]
     .cfi_restore x21
 
     add sp, sp, #112
