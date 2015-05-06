@@ -18,7 +18,7 @@
 
 #include "mirror/art_method-inl.h"
 #include "quick/quick_method_frame_info.h"
-#include "util.h"
+#include "utils.h"
 
 namespace art {
 namespace mips64 {
