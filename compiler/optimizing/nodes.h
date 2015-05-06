@@ -27,6 +27,7 @@
 #include "handle_scope.h"
 #include "invoke_type.h"
 #include "locations.h"
+#include "method_reference.h"
 #include "mirror/class.h"
 #include "offsets.h"
 #include "primitive.h"
@@ -2998,13 +2999,81 @@ class HInvokeStaticOrDirect : public HInvoke {
     kImplicit,  // Static call implicitly requiring a clinit check.
   };
 
+  // Determines how to load the target ArtMethod*.
+  enum class MethodLoadKind {
+    // Use a String init ArtMethod* loaded from Thread entrypoints.
+    kStringInit,
+
+    // Use the method's own ArtMethod* loaded by the register allocator.
+    kRecursive,
+
+    // Use ArtMethod* at a known address, embed the direct address in the code.
+    // Used for app->boot calls with non-relocatable image and for JIT-compiled calls.
+    kDirectAddress,
+
+    // Use ArtMethod* at an address that will be known at link time, embed the direct
+    // address in the code. If the image is relocatable, emit .patch_oat entry.
+    // Used for app->boot calls with relocatable image and boot->boot calls, whether
+    // the image relocatable or not.
+    kDirectAddressWithFixup,
+
+    // Load from resoved methods array in the dex cache using a PC-relative load.
+    // Used when we need to use the dex cache, for example for invoke-static that
+    // may cause class initialization (the entry may point to a resolution method),
+    // and we know that we can access the dex cache arrays using a PC-relative load.
+    kDexCachePcRelative,
+
+    // Use ArtMethod* from the resolved methods of the compiled method's own ArtMethod*.
+    // Used for JIT when we need to use the dex cache. This is also the last-resort-kind
+    // used when other kinds are unavailable (say, dex cache arrays are not PC-relative)
+    // or unimplemented or impractical (i.e. slow) on a particular architecture.
+    kDexCacheViaMethod,
+  };
+
+  // Determines the location of the code pointer.
+  enum class CodePtrLocation {
+    // Recursive call, use local PC-relative call instruction.
+    kCallSelf,
+
+    // Use PC-relative call instruction patched at link time.
+    // Used for calls within an oat file, boot->boot or app->app.
+    kCallPCRelative,
+
+    // Call to a known target address, embed the direct address in code.
+    // Used for app->boot call with non-relocatable image and for JIT-compiled calls.
+    kCallDirect,
+
+    // Call to a target address that will be known at link time, embed the direct
+    // address in code. If the image is relocatable, emit .patch_oat entry.
+    // Used for app->boot calls with relocatable image and boot->boot calls, whether
+    // the image relocatable or not.
+    kCallDirectWithFixup,
+
+    // Use code pointer from the ArtMethod*.
+    // Used when we don't know the target code. This is also the last-resort-kind used when
+    // other kinds are unimplemented or impractical (i.e. slow) on a particular architecture.
+    kCallArtMethod,
+  };
+
+  struct DispatchInfo {
+    const MethodLoadKind method_load_kind;
+    const CodePtrLocation code_ptr_location;
+    // The method load data holds
+    //   - thread entrypoint offset for kStringInit method if this is a string init invoke.
+    //     Note that there are multiple string init methods, each having its own offset.
+    //   - the method address for kDirectAddress
+    //   - the dex cache arrays offset for kDexCachePcRel.
+    const uint64_t method_load_data;
+    const uint64_t direct_code_ptr;
+  };
+
   HInvokeStaticOrDirect(ArenaAllocator* arena,
                         uint32_t number_of_arguments,
                         Primitive::Type return_type,
                         uint32_t dex_pc,
-                        uint32_t dex_method_index,
-                        bool is_recursive,
-                        int32_t string_init_offset,
+                        uint32_t method_index,
+                        MethodReference target_method,
+                        DispatchInfo dispatch_info,
                         InvokeType original_invoke_type,
                         InvokeType invoke_type,
                         ClinitCheckRequirement clinit_check_requirement)
@@ -3014,15 +3083,15 @@ class HInvokeStaticOrDirect : public HInvoke {
                 // potentially one other if the clinit check is explicit, and one other
                 // if the method is a string factory.
                 1u + (clinit_check_requirement == ClinitCheckRequirement::kExplicit ? 1u : 0u)
-                   + (string_init_offset ? 1u : 0u),
+                   + (dispatch_info.method_load_kind == MethodLoadKind::kStringInit ? 1u : 0u),
                 return_type,
                 dex_pc,
-                dex_method_index,
+                method_index,
                 original_invoke_type),
         invoke_type_(invoke_type),
-        is_recursive_(is_recursive),
         clinit_check_requirement_(clinit_check_requirement),
-        string_init_offset_(string_init_offset) {}
+        target_method_(target_method),
+        dispatch_info_(dispatch_info) {}
 
   bool CanDoImplicitNullCheckOn(HInstruction* obj) const OVERRIDE {
     UNUSED(obj);
@@ -3036,11 +3105,36 @@ class HInvokeStaticOrDirect : public HInvoke {
   }
 
   InvokeType GetInvokeType() const { return invoke_type_; }
-  bool IsRecursive() const { return is_recursive_; }
-  bool NeedsDexCache() const OVERRIDE { return !IsRecursive(); }
-  bool IsStringInit() const { return string_init_offset_ != 0; }
-  int32_t GetStringInitOffset() const { return string_init_offset_; }
+  MethodLoadKind GetMethodLoadKind() const { return dispatch_info_.method_load_kind; }
+  CodePtrLocation GetCodePtrLocation() const { return dispatch_info_.code_ptr_location; }
+  bool IsRecursive() const { return GetMethodLoadKind() == MethodLoadKind::kRecursive; }
+  bool NeedsDexCache() const OVERRIDE { return !IsRecursive() && !IsStringInit(); }
+  bool IsStringInit() const { return GetMethodLoadKind() == MethodLoadKind::kStringInit; }
   uint32_t GetCurrentMethodInputIndex() const { return GetNumberOfArguments(); }
+  bool HasMethodAddress() const { return GetMethodLoadKind() == MethodLoadKind::kDirectAddress; }
+  bool HasPcRelDexCache() const { return GetMethodLoadKind() == MethodLoadKind::kDexCachePcRelative; }
+  bool HasDirectCodePtr() const { return GetCodePtrLocation() == CodePtrLocation::kCallDirect; }
+  MethodReference GetTargetMethod() const { return target_method_; }
+
+  int32_t GetStringInitOffset() const {
+    DCHECK(IsStringInit());
+    return dispatch_info_.method_load_data;
+  }
+
+  uint64_t GetMethodAddress() const {
+    DCHECK(HasMethodAddress());
+    return dispatch_info_.method_load_data;
+  }
+
+  uint32_t GetDexCacheArrayOffset() const {
+    DCHECK(HasPcRelDexCache());
+    return dispatch_info_.method_load_data;
+  }
+
+  uint64_t GetDirectCodePtr() const {
+    DCHECK(HasDirectCodePtr());
+    return dispatch_info_.direct_code_ptr;
+  }
 
   // Is this instruction a call to a static method?
   bool IsStatic() const {
@@ -3111,11 +3205,12 @@ class HInvokeStaticOrDirect : public HInvoke {
 
  private:
   const InvokeType invoke_type_;
-  const bool is_recursive_;
   ClinitCheckRequirement clinit_check_requirement_;
-  // Thread entrypoint offset for string init method if this is a string init invoke.
-  // Note that there are multiple string init methods, each having its own offset.
-  int32_t string_init_offset_;
+  // The target method may refer to different dex file or method index than the original
+  // invoke. This happens for sharpened calls and for calls where a method was redeclared
+  // in derived class to increase visibility.
+  MethodReference target_method_;
+  DispatchInfo dispatch_info_;
 
   DISALLOW_COPY_AND_ASSIGN(HInvokeStaticOrDirect);
 };
@@ -5017,6 +5112,16 @@ inline int64_t Int64FromConstant(HConstant* constant) {
   DCHECK(constant->IsIntConstant() || constant->IsLongConstant());
   return constant->IsIntConstant() ? constant->AsIntConstant()->GetValue()
                                    : constant->AsLongConstant()->GetValue();
+}
+
+inline bool IsSameDexFile(const DexFile& lhs, const DexFile& rhs) {
+  // For the purposes of the compiler, the dex files must actually be the same object
+  // if we want to safely treat them as the same. This is especially important for JIT
+  // as custom class loaders can open the same underlying file (or memory) multiple
+  // times and provide different class resolution but no two class loaders should ever
+  // use the same DexFile object - doing so is an unsupported hack that can lead to
+  // all sorts of weird failures.
+  return &lhs == &rhs;
 }
 
 }  // namespace art
