@@ -134,7 +134,10 @@ bool InlineMethodAnalyser::AnalyseMethodCode(verifier::MethodVerifier* verifier,
 bool InlineMethodAnalyser::IsSyntheticAccessor(MethodReference ref) {
   const DexFile::MethodId& method_id = ref.dex_file->GetMethodId(ref.dex_method_index);
   const char* method_name = ref.dex_file->GetMethodName(method_id);
-  return strncmp(method_name, "access$", strlen("access$")) == 0;
+  // javac names synthetic accessors "access$nnn",
+  // jack names them "-getN", "-putN", "-wrapN".
+  return strncmp(method_name, "access$", strlen("access$")) == 0 ||
+      strncmp(method_name, "-", strlen("-")) == 0;
 }
 
 bool InlineMethodAnalyser::AnalyseReturnMethod(const DexFile::CodeItem* code_item,
