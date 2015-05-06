@@ -521,4 +521,27 @@ TEST_F(UtilsTest, TestSleep) {
   EXPECT_GT(NanoTime() - start, MsToNs(1000));
 }
 
+TEST_F(UtilsTest, IsValidDescriptor) {
+  std::vector<uint8_t> descriptor(
+      { 'L', 'a', '/', 'b', '$', 0xed, 0xa0, 0x80, 0xed, 0xb0, 0x80, ';', 0x00 });
+  EXPECT_TRUE(IsValidDescriptor(reinterpret_cast<char*>(&descriptor[0])));
+
+  std::vector<uint8_t> unpaired_surrogate(
+      { 'L', 'a', '/', 'b', '$', 0xed, 0xa0, 0x80, ';', 0x00 });
+  EXPECT_FALSE(IsValidDescriptor(reinterpret_cast<char*>(&unpaired_surrogate[0])));
+
+  std::vector<uint8_t> unpaired_surrogate_at_end(
+      { 'L', 'a', '/', 'b', '$', 0xed, 0xa0, 0x80, 0x00 });
+  EXPECT_FALSE(IsValidDescriptor(reinterpret_cast<char*>(&unpaired_surrogate_at_end[0])));
+
+  std::vector<uint8_t> invalid_surrogate(
+      { 'L', 'a', '/', 'b', '$', 0xed, 0xb0, 0x80, ';', 0x00 });
+  EXPECT_FALSE(IsValidDescriptor(reinterpret_cast<char*>(&invalid_surrogate[0])));
+
+  std::vector<uint8_t> unpaired_surrogate_with_multibyte_sequence(
+      { 'L', 'a', '/', 'b', '$', 0xed, 0xb0, 0x80, 0xf0, 0x9f, 0x8f, 0xa0, ';', 0x00 });
+  EXPECT_FALSE(
+      IsValidDescriptor(reinterpret_cast<char*>(&unpaired_surrogate_with_multibyte_sequence[0])));
+}
+
 }  // namespace art

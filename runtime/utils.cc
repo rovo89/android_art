@@ -827,14 +827,21 @@ bool IsValidPartOfMemberNameUtf8Slow(const char** pUtf8Ptr) {
    */
 
   const uint32_t pair = GetUtf16FromUtf8(pUtf8Ptr);
-
   const uint16_t leading = GetLeadingUtf16Char(pair);
-  const uint32_t trailing = GetTrailingUtf16Char(pair);
 
-  if (trailing == 0) {
-    // Perform follow-up tests based on the high 8 bits of the
-    // lower surrogate.
-    switch (leading >> 8) {
+  // We have a surrogate pair resulting from a valid 4 byte UTF sequence.
+  // No further checks are necessary because 4 byte sequences span code
+  // points [U+10000, U+1FFFFF], which are valid codepoints in a dex
+  // identifier. Furthermore, GetUtf16FromUtf8 guarantees that each of
+  // the surrogate halves are valid and well formed in this instance.
+  if (GetTrailingUtf16Char(pair) != 0) {
+    return true;
+  }
+
+
+  // We've encountered a one, two or three byte UTF-8 sequence. The
+  // three byte UTF-8 sequence could be one half of a surrogate pair.
+  switch (leading >> 8) {
     case 0x00:
       // It's only valid if it's above the ISO-8859-1 high space (0xa0).
       return (leading > 0x00a0);
@@ -842,9 +849,14 @@ bool IsValidPartOfMemberNameUtf8Slow(const char** pUtf8Ptr) {
     case 0xd9:
     case 0xda:
     case 0xdb:
-      // It looks like a leading surrogate but we didn't find a trailing
-      // surrogate if we're here.
-      return false;
+      {
+        // We found a three byte sequence encoding one half of a surrogate.
+        // Look for the other half.
+        const uint32_t pair2 = GetUtf16FromUtf8(pUtf8Ptr);
+        const uint16_t trailing = GetLeadingUtf16Char(pair2);
+
+        return (GetTrailingUtf16Char(pair2) == 0) && (0xdc00 <= trailing && trailing <= 0xdfff);
+      }
     case 0xdc:
     case 0xdd:
     case 0xde:
@@ -855,21 +867,19 @@ bool IsValidPartOfMemberNameUtf8Slow(const char** pUtf8Ptr) {
     case 0xff:
       // It's in the range that has spaces, controls, and specials.
       switch (leading & 0xfff8) {
-      case 0x2000:
-      case 0x2008:
-      case 0x2028:
-      case 0xfff0:
-      case 0xfff8:
-        return false;
+        case 0x2000:
+        case 0x2008:
+        case 0x2028:
+        case 0xfff0:
+        case 0xfff8:
+          return false;
       }
-      break;
-    }
-
-    return true;
+      return true;
+    default:
+      return true;
   }
 
-  // We have a surrogate pair. Check that trailing surrogate is well formed.
-  return (trailing >= 0xdc00 && trailing <= 0xdfff);
+  UNREACHABLE();
 }
 
 /* Return whether the pointed-at modified-UTF-8 encoded character is
