@@ -1292,32 +1292,62 @@ void X86Assembler::decl(const Address& address) {
 
 
 void X86Assembler::shll(Register reg, const Immediate& imm) {
-  EmitGenericShift(4, reg, imm);
+  EmitGenericShift(4, Operand(reg), imm);
 }
 
 
 void X86Assembler::shll(Register operand, Register shifter) {
-  EmitGenericShift(4, operand, shifter);
+  EmitGenericShift(4, Operand(operand), shifter);
+}
+
+
+void X86Assembler::shll(const Address& address, const Immediate& imm) {
+  EmitGenericShift(4, address, imm);
+}
+
+
+void X86Assembler::shll(const Address& address, Register shifter) {
+  EmitGenericShift(4, address, shifter);
 }
 
 
 void X86Assembler::shrl(Register reg, const Immediate& imm) {
-  EmitGenericShift(5, reg, imm);
+  EmitGenericShift(5, Operand(reg), imm);
 }
 
 
 void X86Assembler::shrl(Register operand, Register shifter) {
-  EmitGenericShift(5, operand, shifter);
+  EmitGenericShift(5, Operand(operand), shifter);
+}
+
+
+void X86Assembler::shrl(const Address& address, const Immediate& imm) {
+  EmitGenericShift(5, address, imm);
+}
+
+
+void X86Assembler::shrl(const Address& address, Register shifter) {
+  EmitGenericShift(5, address, shifter);
 }
 
 
 void X86Assembler::sarl(Register reg, const Immediate& imm) {
-  EmitGenericShift(7, reg, imm);
+  EmitGenericShift(7, Operand(reg), imm);
 }
 
 
 void X86Assembler::sarl(Register operand, Register shifter) {
-  EmitGenericShift(7, operand, shifter);
+  EmitGenericShift(7, Operand(operand), shifter);
+}
+
+
+void X86Assembler::sarl(const Address& address, const Immediate& imm) {
+  EmitGenericShift(7, address, imm);
+}
+
+
+void X86Assembler::sarl(const Address& address, Register shifter) {
+  EmitGenericShift(7, address, shifter);
 }
 
 
@@ -1330,12 +1360,30 @@ void X86Assembler::shld(Register dst, Register src, Register shifter) {
 }
 
 
+void X86Assembler::shld(Register dst, Register src, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x0F);
+  EmitUint8(0xA4);
+  EmitRegisterOperand(src, dst);
+  EmitUint8(imm.value() & 0xFF);
+}
+
+
 void X86Assembler::shrd(Register dst, Register src, Register shifter) {
   DCHECK_EQ(ECX, shifter);
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x0F);
   EmitUint8(0xAD);
   EmitRegisterOperand(src, dst);
+}
+
+
+void X86Assembler::shrd(Register dst, Register src, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x0F);
+  EmitUint8(0xAC);
+  EmitRegisterOperand(src, dst);
+  EmitUint8(imm.value() & 0xFF);
 }
 
 
@@ -1622,28 +1670,28 @@ void X86Assembler::EmitLabelLink(Label* label) {
 
 
 void X86Assembler::EmitGenericShift(int reg_or_opcode,
-                                    Register reg,
+                                    const Operand& operand,
                                     const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   CHECK(imm.is_int8());
   if (imm.value() == 1) {
     EmitUint8(0xD1);
-    EmitOperand(reg_or_opcode, Operand(reg));
+    EmitOperand(reg_or_opcode, operand);
   } else {
     EmitUint8(0xC1);
-    EmitOperand(reg_or_opcode, Operand(reg));
+    EmitOperand(reg_or_opcode, operand);
     EmitUint8(imm.value() & 0xFF);
   }
 }
 
 
 void X86Assembler::EmitGenericShift(int reg_or_opcode,
-                                    Register operand,
+                                    const Operand& operand,
                                     Register shifter) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   CHECK_EQ(shifter, ECX);
   EmitUint8(0xD3);
-  EmitOperand(reg_or_opcode, Operand(operand));
+  EmitOperand(reg_or_opcode, operand);
 }
 
 static dwarf::Reg DWARFReg(Register reg) {
