@@ -175,12 +175,6 @@
 // This assumes the top part of these stack frame types are identical.
 #define REFS_AND_ARGS_MINUS_REFS_SIZE (FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE - FRAME_SIZE_REFS_ONLY_CALLEE_SAVE)
 
-    /*
-     * Macro that sets up the callee save frame to conform with
-     * Runtime::CreateCalleeSaveMethod(kRefsAndArgs). Restoration assumes
-     * non-moving GC.
-     * callee-save: padding + $f12-$f19 + $a1-$a7 + $s2-$s7 + $gp + $ra + $s8 = 24 total + 1 words padding + Method*
-     */
 .macro SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_INTERNAL
     daddiu  $sp, $sp, -208
     .cfi_adjust_cfa_offset 208
@@ -232,16 +226,15 @@
     s.d    $f14, 32($sp)
     s.d    $f13, 24($sp)           # = kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset
     s.d    $f12, 16($sp)           # This isn't necessary to store.
-
-    # 1x8 bytes paddig + Method*
-    ld      $v0, %got(_ZN3art7Runtime9instance_E)($gp)
-    ld      $v0, 0($v0)
-    THIS_LOAD_REQUIRES_READ_BARRIER
-    lwu     $v0, RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET($v0)
-    sw      $v0, 0($sp)                                # Place Method* at bottom of stack.
-    sd      $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)  # Place sp in Thread::Current()->top_quick_frame.
+    # 1x8 bytes padding + Method*
 .endm
 
+    /*
+     * Macro that sets up the callee save frame to conform with
+     * Runtime::CreateCalleeSaveMethod(kRefsAndArgs). Restoration assumes
+     * non-moving GC.
+     * callee-save: padding + $f12-$f19 + $a1-$a7 + $s2-$s7 + $gp + $ra + $s8 = 24 total + 1 words padding + Method*
+     */
 .macro SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME
     SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_INTERNAL
     # load appropriate callee-save-method
@@ -250,6 +243,12 @@
     THIS_LOAD_REQUIRES_READ_BARRIER
     lwu     $v0, RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET($v0)
     sw      $v0, 0($sp)                                # Place Method* at bottom of stack.
+    sd      $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)  # Place sp in Thread::Current()->top_quick_frame.
+.endm
+
+.macro SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_WITH_METHOD_IN_A0
+    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_INTERNAL
+    sw      $a0, 0($sp)                                # Place Method* at bottom of stack.
     sd      $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)  # Place sp in Thread::Current()->top_quick_frame.
 .endm
 
@@ -1326,8 +1325,7 @@ END art_quick_test_suspend
      */
     .extern artQuickProxyInvokeHandler
 ENTRY art_quick_proxy_invoke_handler
-    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME
-    sd      $a0, 0($sp)            # place proxy method at bottom of frame
+    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_WITH_METHOD_IN_A0
     move    $a2, rSELF             # pass Thread::Current
     jal     artQuickProxyInvokeHandler  # (Method* proxy method, receiver, Thread*, SP)
     move    $a3, $sp               # pass $sp
@@ -1377,8 +1375,7 @@ END art_quick_resolution_trampoline
     .extern artQuickGenericJniTrampoline
     .extern artQuickGenericJniEndTrampoline
 ENTRY art_quick_generic_jni_trampoline
-    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_INTERNAL
-    sd      $a0, 0($sp)            # store native ArtMethod* to bottom of stack
+    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_WITH_METHOD_IN_A0
     move    $s8, $sp               # save $sp
 
     # prepare for call to artQuickGenericJniTrampoline(Thread*, SP)
