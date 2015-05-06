@@ -768,7 +768,7 @@ bool RegisterAllocator::TryAllocateFreeReg(LiveInterval* current) {
     }
   } else {
     DCHECK(!current->IsHighInterval());
-    int hint = current->FindFirstRegisterHint(free_until);
+    int hint = current->FindFirstRegisterHint(free_until, liveness_);
     if (hint != kNoRegister) {
       DCHECK(!IsBlocked(hint));
       reg = hint;
@@ -1101,14 +1101,49 @@ void RegisterAllocator::AddSorted(GrowableArray<LiveInterval*>* array, LiveInter
 }
 
 LiveInterval* RegisterAllocator::SplitBetween(LiveInterval* interval, size_t from, size_t to) {
-  HBasicBlock* block_from = liveness_.GetBlockFromPosition(from);
-  HBasicBlock* block_to = liveness_.GetBlockFromPosition(to);
+  HBasicBlock* block_from = liveness_.GetBlockFromPosition(from / 2);
+  HBasicBlock* block_to = liveness_.GetBlockFromPosition(to / 2);
   DCHECK(block_from != nullptr);
   DCHECK(block_to != nullptr);
 
   // Both locations are in the same block. We split at the given location.
   if (block_from == block_to) {
     return Split(interval, to);
+  }
+
+  /*
+   * Non-linear control flow will force moves at every branch instruction to the new location.
+   * To avoid having all branches doing the moves, we find the next non-linear position and
+   * split the interval at this position. Take the following example (block number is the linear
+   * order position):
+   *
+   *     B1
+   *    /  \
+   *   B2  B3
+   *    \  /
+   *     B4
+   *
+   * B2 needs to split an interval, whose next use is in B4. If we were to split at the
+   * beginning of B4, B3 would need to do a move between B3 and B4 to ensure the interval
+   * is now in the correct location. It makes performance worst if the interval is spilled
+   * and both B2 and B3 need to reload it before entering B4.
+   *
+   * By splitting at B3, we give a chance to the register allocator to allocate the
+   * interval to the same register as in B1, and therefore avoid doing any
+   * moves in B3.
+   */
+  if (block_from->GetDominator() != nullptr) {
+    const GrowableArray<HBasicBlock*>& dominated = block_from->GetDominator()->GetDominatedBlocks();
+    for (size_t i = 0; i < dominated.Size(); ++i) {
+      size_t position = dominated.Get(i)->GetLifetimeStart();
+      if ((position > from) && (block_to->GetLifetimeStart() > position)) {
+        // Even if we found a better block, we continue iterating in case
+        // a dominated block is closer.
+        // Note that dominated blocks are not sorted in liveness order.
+        block_to = dominated.Get(i);
+        DCHECK_NE(block_to, block_from);
+      }
+    }
   }
 
   // If `to` is in a loop, find the outermost loop header which does not contain `from`.

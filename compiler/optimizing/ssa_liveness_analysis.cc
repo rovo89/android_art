@@ -322,7 +322,8 @@ static int RegisterOrLowRegister(Location location) {
   return location.IsPair() ? location.low() : location.reg();
 }
 
-int LiveInterval::FindFirstRegisterHint(size_t* free_until) const {
+int LiveInterval::FindFirstRegisterHint(size_t* free_until,
+                                        const SsaLivenessAnalysis& liveness) const {
   DCHECK(!IsHighInterval());
   if (IsTemp()) return kNoRegister;
 
@@ -333,6 +334,26 @@ int LiveInterval::FindFirstRegisterHint(size_t* free_until) const {
     int hint = FindHintAtDefinition();
     if (hint != kNoRegister && free_until[hint] > GetStart()) {
       return hint;
+    }
+  }
+
+  if (IsSplit() && liveness.IsAtBlockBoundary(GetStart() / 2)) {
+    // If the start of this interval is at a block boundary, we look at the
+    // location of the interval in blocks preceding the block this interval
+    // starts at. If one location is a register we return it as a hint. This
+    // will avoid a move between the two blocks.
+    HBasicBlock* block = liveness.GetBlockFromPosition(GetStart() / 2);
+    for (size_t i = 0; i < block->GetPredecessors().Size(); ++i) {
+      size_t position = block->GetPredecessors().Get(i)->GetLifetimeEnd() - 1;
+      // We know positions above GetStart() do not have a location yet.
+      if (position < GetStart()) {
+        LiveInterval* existing = GetParent()->GetSiblingAt(position);
+        if (existing != nullptr
+            && existing->HasRegister()
+            && (free_until[existing->GetRegister()] > GetStart())) {
+          return existing->GetRegister();
+        }
+      }
     }
   }
 
