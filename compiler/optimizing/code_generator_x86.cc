@@ -2830,7 +2830,11 @@ void InstructionCodeGeneratorX86::HandleShift(HBinaryOperation* op) {
 void InstructionCodeGeneratorX86::GenerateShlLong(const Location& loc, int shift) {
   Register low = loc.AsRegisterPairLow<Register>();
   Register high = loc.AsRegisterPairHigh<Register>();
-  if (shift == 32) {
+  if (shift == 1) {
+    // This is just an addition.
+    __ addl(low, low);
+    __ adcl(high, high);
+  } else if (shift == 32) {
     // Shift by 32 is easy. High gets low, and low gets 0.
     codegen_->EmitParallelMoves(
         loc.ToLow(),
