@@ -34,6 +34,18 @@ public class Main {
     }
   }
 
+  public static void assertFloatEquals(float expected, float result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
+  public static void assertDoubleEquals(double expected, double result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
   /**
    * Tiny three-register program exercising int constant folding
    * on negation.
@@ -461,6 +473,174 @@ public class Main {
     return arg < Double.NaN;
   }
 
+  // CHECK-START: int Main.ReturnInt33() constant_folding (before)
+  // CHECK-DAG:     [[Const33:j\d+]]  LongConstant 33
+  // CHECK-DAG:     [[Convert:i\d+]]  TypeConversion [[Const33]]
+  // CHECK-DAG:                       Return [ [[Convert]] ]
+
+  // CHECK-START: int Main.ReturnInt33() constant_folding (after)
+  // CHECK-DAG:     [[Const33:i\d+]]  IntConstant 33
+  // CHECK-DAG:                       Return [ [[Const33]] ]
+
+  public static int ReturnInt33() {
+    long imm = 33L;
+    return (int) imm;
+  }
+
+  // CHECK-START: int Main.ReturnIntMax() constant_folding (before)
+  // CHECK-DAG:     [[ConstMax:f\d+]] FloatConstant 1e+34
+  // CHECK-DAG:     [[Convert:i\d+]]  TypeConversion [[ConstMax]]
+  // CHECK-DAG:                       Return [ [[Convert]] ]
+
+  // CHECK-START: int Main.ReturnIntMax() constant_folding (after)
+  // CHECK-DAG:     [[ConstMax:i\d+]] IntConstant 2147483647
+  // CHECK-DAG:                       Return [ [[ConstMax]] ]
+
+  public static int ReturnIntMax() {
+    float imm = 1.0e34f;
+    return (int) imm;
+  }
+
+  // CHECK-START: int Main.ReturnInt0() constant_folding (before)
+  // CHECK-DAG:     [[ConstNaN:d\d+]] DoubleConstant nan
+  // CHECK-DAG:     [[Convert:i\d+]]  TypeConversion [[ConstNaN]]
+  // CHECK-DAG:                       Return [ [[Convert]] ]
+
+  // CHECK-START: int Main.ReturnInt0() constant_folding (after)
+  // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
+  // CHECK-DAG:                       Return [ [[Const0]] ]
+
+  public static int ReturnInt0() {
+    double imm = Double.NaN;
+    return (int) imm;
+  }
+
+  // CHECK-START: long Main.ReturnLong33() constant_folding (before)
+  // CHECK-DAG:     [[Const33:i\d+]]  IntConstant 33
+  // CHECK-DAG:     [[Convert:j\d+]]  TypeConversion [[Const33]]
+  // CHECK-DAG:                       Return [ [[Convert]] ]
+
+  // CHECK-START: long Main.ReturnLong33() constant_folding (after)
+  // CHECK-DAG:     [[Const33:j\d+]]  LongConstant 33
+  // CHECK-DAG:                       Return [ [[Const33]] ]
+
+  public static long ReturnLong33() {
+    int imm = 33;
+    return (long) imm;
+  }
+
+  // CHECK-START: long Main.ReturnLong34() constant_folding (before)
+  // CHECK-DAG:     [[Const34:f\d+]]  FloatConstant 34
+  // CHECK-DAG:     [[Convert:j\d+]]  TypeConversion [[Const34]]
+  // CHECK-DAG:                       Return [ [[Convert]] ]
+
+  // CHECK-START: long Main.ReturnLong34() constant_folding (after)
+  // CHECK-DAG:     [[Const34:j\d+]]  LongConstant 34
+  // CHECK-DAG:                       Return [ [[Const34]] ]
+
+  public static long ReturnLong34() {
+    float imm = 34.0f;
+    return (long) imm;
+  }
+
+  // CHECK-START: long Main.ReturnLong0() constant_folding (before)
+  // CHECK-DAG:     [[ConstNaN:d\d+]] DoubleConstant nan
+  // CHECK-DAG:     [[Convert:j\d+]]  TypeConversion [[ConstNaN]]
+  // CHECK-DAG:                       Return [ [[Convert]] ]
+
+  // CHECK-START: long Main.ReturnLong0() constant_folding (after)
+  // CHECK-DAG:     [[Const0:j\d+]]   LongConstant 0
+  // CHECK-DAG:                       Return [ [[Const0]] ]
+
+  public static long ReturnLong0() {
+    double imm = -Double.NaN;
+    return (long) imm;
+  }
+
+  // CHECK-START: float Main.ReturnFloat33() constant_folding (before)
+  // CHECK-DAG:     [[Const33:i\d+]]  IntConstant 33
+  // CHECK-DAG:     [[Convert:f\d+]]  TypeConversion [[Const33]]
+  // CHECK-DAG:                       Return [ [[Convert]] ]
+
+  // CHECK-START: float Main.ReturnFloat33() constant_folding (after)
+  // CHECK-DAG:     [[Const33:f\d+]]  FloatConstant 33
+  // CHECK-DAG:                       Return [ [[Const33]] ]
+
+  public static float ReturnFloat33() {
+    int imm = 33;
+    return (float) imm;
+  }
+
+  // CHECK-START: float Main.ReturnFloat34() constant_folding (before)
+  // CHECK-DAG:     [[Const34:j\d+]]  LongConstant 34
+  // CHECK-DAG:     [[Convert:f\d+]]  TypeConversion [[Const34]]
+  // CHECK-DAG:                       Return [ [[Convert]] ]
+
+  // CHECK-START: float Main.ReturnFloat34() constant_folding (after)
+  // CHECK-DAG:     [[Const34:f\d+]]  FloatConstant 34
+  // CHECK-DAG:                       Return [ [[Const34]] ]
+
+  public static float ReturnFloat34() {
+    long imm = 34L;
+    return (float) imm;
+  }
+
+  // CHECK-START: float Main.ReturnFloat99P25() constant_folding (before)
+  // CHECK-DAG:     [[Const:d\d+]]    DoubleConstant 99.25
+  // CHECK-DAG:     [[Convert:f\d+]]  TypeConversion [[Const]]
+  // CHECK-DAG:                       Return [ [[Convert]] ]
+
+  // CHECK-START: float Main.ReturnFloat99P25() constant_folding (after)
+  // CHECK-DAG:     [[Const:f\d+]]    FloatConstant 99.25
+  // CHECK-DAG:                       Return [ [[Const]] ]
+
+  public static float ReturnFloat99P25() {
+    double imm = 99.25;
+    return (float) imm;
+  }
+
+  // CHECK-START: double Main.ReturnDouble33() constant_folding (before)
+  // CHECK-DAG:     [[Const33:i\d+]]  IntConstant 33
+  // CHECK-DAG:     [[Convert:d\d+]]  TypeConversion [[Const33]]
+  // CHECK-DAG:                       Return [ [[Convert]] ]
+
+  // CHECK-START: double Main.ReturnDouble33() constant_folding (after)
+  // CHECK-DAG:     [[Const33:d\d+]]  DoubleConstant 33
+  // CHECK-DAG:                       Return [ [[Const33]] ]
+
+  public static double ReturnDouble33() {
+    int imm = 33;
+    return (double) imm;
+  }
+
+  // CHECK-START: double Main.ReturnDouble34() constant_folding (before)
+  // CHECK-DAG:     [[Const34:j\d+]]  LongConstant 34
+  // CHECK-DAG:     [[Convert:d\d+]]  TypeConversion [[Const34]]
+  // CHECK-DAG:                       Return [ [[Convert]] ]
+
+  // CHECK-START: double Main.ReturnDouble34() constant_folding (after)
+  // CHECK-DAG:     [[Const34:d\d+]]  DoubleConstant 34
+  // CHECK-DAG:                       Return [ [[Const34]] ]
+
+  public static double ReturnDouble34() {
+    long imm = 34L;
+    return (double) imm;
+  }
+
+  // CHECK-START: double Main.ReturnDouble99P25() constant_folding (before)
+  // CHECK-DAG:     [[Const:f\d+]]    FloatConstant 99.25
+  // CHECK-DAG:     [[Convert:d\d+]]  TypeConversion [[Const]]
+  // CHECK-DAG:                       Return [ [[Convert]] ]
+
+  // CHECK-START: double Main.ReturnDouble99P25() constant_folding (after)
+  // CHECK-DAG:     [[Const:d\d+]]    DoubleConstant 99.25
+  // CHECK-DAG:                       Return [ [[Const]] ]
+
+  public static double ReturnDouble99P25() {
+    float imm = 99.25f;
+    return (double) imm;
+  }
+
   public static void main(String[] args) {
     assertIntEquals(IntNegation(), -42);
     assertIntEquals(IntAddition1(), 3);
@@ -485,5 +665,17 @@ public class Main {
     assertIntEquals(XorSameInt(arbitrary), 0);
     assertFalse(CmpFloatGreaterThanNaN(arbitrary));
     assertFalse(CmpDoubleLessThanNaN(arbitrary));
+    assertIntEquals(ReturnInt33(), 33);
+    assertIntEquals(ReturnIntMax(), 2147483647);
+    assertIntEquals(ReturnInt0(), 0);
+    assertLongEquals(ReturnLong33(), 33);
+    assertLongEquals(ReturnLong34(), 34);
+    assertLongEquals(ReturnLong0(), 0);
+    assertFloatEquals(ReturnFloat33(), 33);
+    assertFloatEquals(ReturnFloat34(), 34);
+    assertFloatEquals(ReturnFloat99P25(), 99.25f);
+    assertDoubleEquals(ReturnDouble33(), 33);
+    assertDoubleEquals(ReturnDouble34(), 34);
+    assertDoubleEquals(ReturnDouble99P25(), 99.25);
   }
 }

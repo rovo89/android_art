@@ -71,6 +71,14 @@ void HConstantFolding::Run() {
           inst->ReplaceWith(constant);
           inst->GetBlock()->RemoveInstruction(inst);
         }
+      } else if (inst->IsTypeConversion()) {
+        // Constant folding: replace `TypeConversion(a)' with a constant at
+        // compile time if `a' is a constant.
+        HConstant* constant = inst->AsTypeConversion()->TryStaticEvaluation();
+        if (constant != nullptr) {
+          inst->ReplaceWith(constant);
+          inst->GetBlock()->RemoveInstruction(inst);
+        }
       } else if (inst->IsDivZeroCheck()) {
         // We can safely remove the check if the input is a non-null constant.
         HDivZeroCheck* check = inst->AsDivZeroCheck();
