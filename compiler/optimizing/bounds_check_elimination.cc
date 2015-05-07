@@ -281,15 +281,22 @@ class ArrayAccessInsideLoopFinder : public ValueObject {
     return false;
   }
 
+  static bool DominatesAllBackEdges(HBasicBlock* block, HLoopInformation* loop_info) {
+    for (size_t i = 0, e = loop_info->GetBackEdges().Size(); i < e; ++i) {
+      HBasicBlock* back_edge = loop_info->GetBackEdges().Get(i);
+      if (!block->Dominates(back_edge)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   void Run() {
     HLoopInformation* loop_info = induction_variable_->GetBlock()->GetLoopInformation();
-    // Must be simplified loop.
-    DCHECK_EQ(loop_info->GetBackEdges().Size(), 1U);
     for (HBlocksInLoopIterator it_loop(*loop_info); !it_loop.Done(); it_loop.Advance()) {
       HBasicBlock* block = it_loop.Current();
       DCHECK(block->IsInLoop());
-      HBasicBlock* back_edge = loop_info->GetBackEdges().Get(0);
-      if (!block->Dominates(back_edge)) {
+      if (!DominatesAllBackEdges(block, loop_info)) {
         // In order not to trigger deoptimization unnecessarily, make sure
         // that all array accesses collected are really executed in the loop.
         // For array accesses in a branch inside the loop, don't collect the
@@ -1151,9 +1158,26 @@ class BCEVisitor : public HGraphVisitor {
     bounds_check->GetBlock()->RemoveInstruction(bounds_check);
   }
 
+  static bool HasSameInputAtBackEdges(HPhi* phi) {
+    DCHECK(phi->IsLoopHeaderPhi());
+    // Start with input 1. Input 0 is from the incoming block.
+    HInstruction* input1 = phi->InputAt(1);
+    DCHECK(phi->GetBlock()->GetLoopInformation()->IsBackEdge(
+        *phi->GetBlock()->GetPredecessors().Get(1)));
+    for (size_t i = 2, e = phi->InputCount(); i < e; ++i) {
+      DCHECK(phi->GetBlock()->GetLoopInformation()->IsBackEdge(
+          *phi->GetBlock()->GetPredecessors().Get(i)));
+      if (input1 != phi->InputAt(i)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   void VisitPhi(HPhi* phi) {
-    if (phi->IsLoopHeaderPhi() && phi->GetType() == Primitive::kPrimInt) {
-      DCHECK_EQ(phi->InputCount(), 2U);
+    if (phi->IsLoopHeaderPhi()
+        && (phi->GetType() == Primitive::kPrimInt)
+        && HasSameInputAtBackEdges(phi)) {
       HInstruction* instruction = phi->InputAt(1);
       HInstruction *left;
       int32_t increment;
