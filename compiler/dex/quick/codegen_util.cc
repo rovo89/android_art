@@ -1391,22 +1391,6 @@ void Mir2Lir::InitReferenceVRegs(BasicBlock* bb, BitVector* references) {
       }
     }
   }
-  if (bb->block_type != kEntryBlock && bb->first_mir_insn != nullptr &&
-      static_cast<int>(bb->first_mir_insn->dalvikInsn.opcode) == kMirOpCheckPart2) {
-    // In Mir2Lir::MethodBlockCodeGen() we have artificially moved the throwing
-    // instruction to the previous block. However, the MIRGraph data used above
-    // doesn't reflect that, so we still need to process that MIR insn here.
-    MIR* mir = nullptr;
-    BasicBlock* pred_bb = bb;
-    // Traverse empty blocks.
-    while (mir == nullptr && pred_bb->predecessors.size() == 1u) {
-      pred_bb = mir_graph_->GetBasicBlock(bb->predecessors[0]);
-      DCHECK(pred_bb != nullptr);
-      mir = pred_bb->last_mir_insn;
-    }
-    DCHECK(mir != nullptr);
-    UpdateReferenceVRegsLocal(nullptr, mir, references);
-  }
 }
 
 bool Mir2Lir::UpdateReferenceVRegsLocal(MIR* mir, MIR* prev_mir, BitVector* references) {
