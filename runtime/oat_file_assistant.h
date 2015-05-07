@@ -353,7 +353,6 @@ class OatFileAssistant {
   // To implement Lock(), we lock a dummy file where the oat file would go
   // (adding ".flock" to the target file name) and retain the lock for the
   // remaining lifetime of the OatFileAssistant object.
-  std::unique_ptr<File> lock_file_;
   ScopedFlock flock_;
 
   // In a properly constructed OatFileAssistant object, dex_location_ should
