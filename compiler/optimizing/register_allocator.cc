@@ -1534,9 +1534,10 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
       }
 
       while (env_use != nullptr && env_use->GetPosition() <= range->GetEnd()) {
-        DCHECK(current->CoversSlow(env_use->GetPosition()) || (env_use->GetPosition() == range->GetEnd()));
-        LocationSummary* locations = env_use->GetUser()->GetLocations();
-        locations->SetEnvironmentAt(env_use->GetInputIndex(), source);
+        DCHECK(current->CoversSlow(env_use->GetPosition())
+               || (env_use->GetPosition() == range->GetEnd()));
+        HEnvironment* environment = env_use->GetUser()->GetEnvironment();
+        environment->SetLocationAt(env_use->GetInputIndex(), source);
         env_use = env_use->GetNext();
       }
 

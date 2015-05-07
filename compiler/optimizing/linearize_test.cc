@@ -39,7 +39,7 @@ namespace art {
 static void TestCode(const uint16_t* data, const int* expected_order, size_t number_of_blocks) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
-  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HGraph* graph = CreateGraph(&allocator);
   HGraphBuilder builder(graph);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
   bool graph_built = builder.BuildGraph(*item);
