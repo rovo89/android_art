@@ -1209,7 +1209,11 @@ TEST_F(StubTest, AllocObjectArray) {
 TEST_F(StubTest, StringCompareTo) {
   TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
 
-#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
+// #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
+//
+// TODO: re-enable this test once the intrinsics are sorted
+// out.
+#if defined(__disabled_for_openjdk__)
   // TODO: Check the "Unresolved" allocation stubs
 
   Thread* self = Thread::Current();
