@@ -169,7 +169,8 @@ void MirMethodLoweringInfo::Resolve(CompilerDriver* compiler_driver,
         ~(kFlagFastPath | kFlagIsIntrinsic | kFlagIsSpecial | kFlagClassIsInitialized |
             (kInvokeTypeMask << kBitSharpTypeBegin));
     it->flags_ = other_flags |
-        (fast_path_flags != 0 ? kFlagFastPath : 0u) |
+        // String init path is a special always-fast path.
+        (fast_path_flags != 0 || string_init ? kFlagFastPath : 0u) |
         ((is_intrinsic_or_special & kInlineIntrinsic) != 0 ? kFlagIsIntrinsic : 0u) |
         ((is_intrinsic_or_special & kInlineSpecial) != 0 ? kFlagIsSpecial : 0u) |
         (static_cast<uint16_t>(invoke_type) << kBitSharpTypeBegin) |
