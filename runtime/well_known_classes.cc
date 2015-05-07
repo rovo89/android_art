@@ -215,7 +215,7 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_Throwable_cause = CacheField(env, java_lang_Throwable, false, "cause", "Ljava/lang/Throwable;");
   java_lang_Throwable_detailMessage = CacheField(env, java_lang_Throwable, false, "detailMessage", "Ljava/lang/String;");
   java_lang_Throwable_stackTrace = CacheField(env, java_lang_Throwable, false, "stackTrace", "[Ljava/lang/StackTraceElement;");
-  java_lang_Throwable_stackState = CacheField(env, java_lang_Throwable, false, "stackState", "Ljava/lang/Object;");
+  java_lang_Throwable_stackState = CacheField(env, java_lang_Throwable, false, "backtrace", "Ljava/lang/Object;");
   java_lang_Throwable_suppressedExceptions = CacheField(env, java_lang_Throwable, false, "suppressedExceptions", "Ljava/util/List;");
   java_lang_reflect_AbstractMethod_artMethod = CacheField(env, java_lang_reflect_AbstractMethod, false, "artMethod", "Ljava/lang/reflect/ArtMethod;");
   java_lang_reflect_Field_artField = CacheField(env, java_lang_reflect_Field, false, "artField", "Ljava/lang/reflect/ArtField;");

@@ -535,9 +535,9 @@ struct StringOffsets : public CheckOffsets<mirror::String> {
 
 struct ThrowableOffsets : public CheckOffsets<mirror::Throwable> {
   ThrowableOffsets() : CheckOffsets<mirror::Throwable>(false, "Ljava/lang/Throwable;") {
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Throwable, backtrace_),           "backtrace_"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Throwable, cause_),                 "cause"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Throwable, detail_message_),        "detailMessage"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Throwable, stack_state_),           "stackState"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Throwable, stack_trace_),           "stackTrace"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Throwable, suppressed_exceptions_), "suppressedExceptions"));
   };
