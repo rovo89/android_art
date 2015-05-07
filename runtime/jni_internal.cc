@@ -1955,7 +1955,7 @@ class JNI {
       ThrowSIOOBE(soa, start, length, s->GetLength());
     } else {
       CHECK_NON_NULL_MEMCPY_ARGUMENT(length, buf);
-      const jchar* chars = s->GetCharArray()->GetData() + s->GetOffset();
+      const jchar* chars = s->GetCharArray()->GetData();
       memcpy(buf, chars + start, length * sizeof(jchar));
     }
   }
@@ -1969,7 +1969,7 @@ class JNI {
       ThrowSIOOBE(soa, start, length, s->GetLength());
     } else {
       CHECK_NON_NULL_MEMCPY_ARGUMENT(length, buf);
-      const jchar* chars = s->GetCharArray()->GetData() + s->GetOffset();
+      const jchar* chars = s->GetCharArray()->GetData();
       ConvertUtf16ToModifiedUtf8(buf, chars + start, length);
     }
   }
@@ -1985,17 +1985,16 @@ class JNI {
         *is_copy = JNI_TRUE;
       }
       int32_t char_count = s->GetLength();
-      int32_t offset = s->GetOffset();
       jchar* bytes = new jchar[char_count];
       for (int32_t i = 0; i < char_count; i++) {
-        bytes[i] = chars->Get(i + offset);
+        bytes[i] = chars->Get(i);
       }
       return bytes;
     } else {
       if (is_copy != nullptr) {
         *is_copy = JNI_FALSE;
       }
-      return static_cast<jchar*>(chars->GetData() + s->GetOffset());
+      return static_cast<jchar*>(chars->GetData());
     }
   }
 
@@ -2004,7 +2003,7 @@ class JNI {
     ScopedObjectAccess soa(env);
     mirror::String* s = soa.Decode<mirror::String*>(java_string);
     mirror::CharArray* s_chars = s->GetCharArray();
-    if (chars != (s_chars->GetData() + s->GetOffset())) {
+    if (chars != (s_chars->GetData())) {
       delete[] chars;
     }
   }
@@ -2014,7 +2013,6 @@ class JNI {
     ScopedObjectAccess soa(env);
     mirror::String* s = soa.Decode<mirror::String*>(java_string);
     mirror::CharArray* chars = s->GetCharArray();
-    int32_t offset = s->GetOffset();
     gc::Heap* heap = Runtime::Current()->GetHeap();
     if (heap->IsMovableObject(chars)) {
       StackHandleScope<1> hs(soa.Self());
@@ -2024,7 +2022,7 @@ class JNI {
     if (is_copy != nullptr) {
       *is_copy = JNI_FALSE;
     }
-    return static_cast<jchar*>(chars->GetData() + offset);
+    return static_cast<jchar*>(chars->GetData());
   }
 
   static void ReleaseStringCritical(JNIEnv* env, jstring java_string, const jchar* chars) {
@@ -2050,7 +2048,7 @@ class JNI {
     size_t byte_count = s->GetUtfLength();
     char* bytes = new char[byte_count + 1];
     CHECK(bytes != nullptr);  // bionic aborts anyway.
-    const uint16_t* chars = s->GetCharArray()->GetData() + s->GetOffset();
+    const uint16_t* chars = s->GetCharArray()->GetData();
     ConvertUtf16ToModifiedUtf8(bytes, chars, s->GetLength());
     bytes[byte_count] = '\0';
     return bytes;

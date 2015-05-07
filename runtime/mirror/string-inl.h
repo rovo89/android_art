@@ -38,9 +38,7 @@ inline CharArray* String::GetCharArray() {
 }
 
 inline int32_t String::GetLength() {
-  int32_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(String, count_));
-  DCHECK(result >= 0 && result <= GetCharArray()->GetLength());
-  return result;
+  return GetCharArray()->GetLength();
 }
 
 inline void String::SetArray(CharArray* new_array) {
@@ -57,23 +55,23 @@ inline String* String::Intern() {
 inline uint16_t String::CharAt(int32_t index) {
   // TODO: do we need this? Equals is the only caller, and could
   // bounds check itself.
-  DCHECK_GE(count_, 0);  // ensures the unsigned comparison is safe.
-  if (UNLIKELY(static_cast<uint32_t>(index) >= static_cast<uint32_t>(count_))) {
+  DCHECK_GE(GetLength(), 0);  // ensures the unsigned comparison is safe.
+  if (UNLIKELY(static_cast<uint32_t>(index) >= static_cast<uint32_t>(GetLength()))) {
     Thread* self = Thread::Current();
     ThrowLocation throw_location = self->GetCurrentLocationForThrow();
     self->ThrowNewExceptionF(throw_location, "Ljava/lang/StringIndexOutOfBoundsException;",
-                             "length=%i; index=%i", count_, index);
+                             "length=%i; index=%i", GetLength(), index);
     return 0;
   }
-  return GetCharArray()->Get(index + GetOffset());
+  return GetCharArray()->Get(index);
 }
 
 inline int32_t String::GetHashCode() {
-  int32_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(String, hash_code_));
+  int32_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(String, hash_));
   if (UNLIKELY(result == 0)) {
     result = ComputeHashCode();
   }
-  DCHECK(result != 0 || ComputeUtf16Hash(GetCharArray(), GetOffset(), GetLength()) == 0)
+  DCHECK(result != 0 || ComputeUtf16Hash(GetCharArray(), 0, GetLength()) == 0)
       << ToModifiedUtf8() << " " << result;
   return result;
 }

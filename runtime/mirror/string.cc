@@ -40,7 +40,7 @@ int32_t String::FastIndexOf(int32_t ch, int32_t start) {
   } else if (start > count) {
     start = count;
   }
-  const uint16_t* chars = GetCharArray()->GetData() + GetOffset();
+  const uint16_t* chars = GetCharArray()->GetData();
   const uint16_t* p = chars + start;
   const uint16_t* end = chars + count;
   while (p < end) {
@@ -63,13 +63,13 @@ void String::ResetClass() {
 }
 
 int32_t String::ComputeHashCode() {
-  const int32_t hash_code = ComputeUtf16Hash(GetCharArray(), GetOffset(), GetLength());
-  SetHashCode(hash_code);
+  const int32_t hash_code = ComputeUtf16Hash(GetCharArray(), 0, GetLength());
+  SetHash(hash_code);
   return hash_code;
 }
 
 int32_t String::GetUtfLength() {
-  return CountUtf8Bytes(GetCharArray()->GetData() + GetOffset(), GetLength());
+  return CountUtf8Bytes(GetCharArray()->GetData(), GetLength());
 }
 
 String* String::AllocFromUtf16(Thread* self,
@@ -88,7 +88,7 @@ String* String::AllocFromUtf16(Thread* self,
   memcpy(array->GetData(), utf16_data_in, utf16_length * sizeof(uint16_t));
   if (hash_code != 0) {
     DCHECK_EQ(hash_code, ComputeUtf16Hash(utf16_data_in, utf16_length));
-    string->SetHashCode(hash_code);
+    string->SetHash(hash_code);
   } else {
     string->ComputeHashCode();
   }
@@ -128,7 +128,6 @@ String* String::Alloc(Thread* self, Handle<CharArray> array) {
   String* string = down_cast<String*>(GetJavaLangString()->AllocObject(self));
   if (LIKELY(string != nullptr)) {
     string->SetArray(array.Get());
-    string->SetCount(array->GetLength());
   }
   return string;
 }
@@ -191,7 +190,7 @@ bool String::Equals(const StringPiece& modified_utf8) {
 
 // Create a modified UTF-8 encoded std::string from a java/lang/String object.
 std::string String::ToModifiedUtf8() {
-  const uint16_t* chars = GetCharArray()->GetData() + GetOffset();
+  const uint16_t* chars = GetCharArray()->GetData();
   size_t byte_count = GetUtfLength();
   std::string result(byte_count, static_cast<char>(0));
   ConvertUtf16ToModifiedUtf8(&result[0], chars, GetLength());
@@ -214,8 +213,8 @@ int32_t String::CompareTo(String* rhs) {
   int32_t rhsCount = rhs->GetLength();
   int32_t countDiff = lhsCount - rhsCount;
   int32_t minCount = (countDiff < 0) ? lhsCount : rhsCount;
-  const uint16_t* lhsChars = lhs->GetCharArray()->GetData() + lhs->GetOffset();
-  const uint16_t* rhsChars = rhs->GetCharArray()->GetData() + rhs->GetOffset();
+  const uint16_t* lhsChars = lhs->GetCharArray()->GetData();
+  const uint16_t* rhsChars = rhs->GetCharArray()->GetData();
   int32_t otherRes = MemCmp16(lhsChars, rhsChars, minCount);
   if (otherRes != 0) {
     return otherRes;

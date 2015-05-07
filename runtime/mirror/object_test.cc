@@ -85,8 +85,6 @@ TEST_F(ObjectTest, AsmConstants) {
   EXPECT_EQ(OBJECT_ARRAY_DATA_OFFSET, Array::DataOffset(sizeof(HeapReference<Object>)).Int32Value());
 
   EXPECT_EQ(STRING_VALUE_OFFSET, String::ValueOffset().Int32Value());
-  EXPECT_EQ(STRING_COUNT_OFFSET, String::CountOffset().Int32Value());
-  EXPECT_EQ(STRING_OFFSET_OFFSET, String::OffsetOffset().Int32Value());
   EXPECT_EQ(STRING_DATA_OFFSET, Array::DataOffset(sizeof(uint16_t)).Int32Value());
 
   EXPECT_EQ(METHOD_DEX_CACHE_METHODS_OFFSET,
@@ -448,11 +446,6 @@ TEST_F(ObjectTest, StringLength) {
   EXPECT_EQ(string->GetLength(), 7);
   EXPECT_EQ(string->GetUtfLength(), 7);
 
-  string->SetOffset(2);
-  string->SetCount(5);
-  EXPECT_TRUE(string->Equals("droid"));
-  EXPECT_EQ(string->GetLength(), 5);
-  EXPECT_EQ(string->GetUtfLength(), 5);
 }
 
 TEST_F(ObjectTest, DescriptorCompare) {

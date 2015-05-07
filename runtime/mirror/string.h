@@ -42,25 +42,11 @@ class MANAGED String FINAL : public Object {
     return sizeof(String);
   }
 
-  static MemberOffset CountOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(String, count_);
-  }
-
   static MemberOffset ValueOffset() {
     return OFFSET_OF_OBJECT_MEMBER(String, array_);
   }
 
-  static MemberOffset OffsetOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(String, offset_);
-  }
-
   CharArray* GetCharArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  int32_t GetOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    int32_t result = GetField32(OffsetOffset());
-    DCHECK_LE(0, result);
-    return result;
-  }
 
   int32_t GetLength() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -111,12 +97,6 @@ class MANAGED String FINAL : public Object {
 
   int32_t CompareTo(String* other) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetOffset(int32_t new_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // Offset is only used during testing so use non-transactional mode.
-    DCHECK_LE(0, new_offset);
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(String, offset_), new_offset);
-  }
-
   void SetArray(CharArray* new_array) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static Class* GetJavaLangString() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -130,18 +110,11 @@ class MANAGED String FINAL : public Object {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
-  void SetHashCode(int32_t new_hash_code) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void SetHash(int32_t new_hash_code) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Hash code is invariant so use non-transactional mode. Also disable check as we may run inside
     // a transaction.
-    DCHECK_EQ(0, GetField32(OFFSET_OF_OBJECT_MEMBER(String, hash_code_)));
-    SetField32<false, false>(OFFSET_OF_OBJECT_MEMBER(String, hash_code_), new_hash_code);
-  }
-
-  void SetCount(int32_t new_count) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // Count is invariant so use non-transactional mode. Also disable check as we may run inside
-    // a transaction.
-    DCHECK_LE(0, new_count);
-    SetField32<false, false>(OFFSET_OF_OBJECT_MEMBER(String, count_), new_count);
+    DCHECK_EQ(0, GetField32(OFFSET_OF_OBJECT_MEMBER(String, hash_)));
+    SetField32<false, false>(OFFSET_OF_OBJECT_MEMBER(String, hash_), new_hash_code);
   }
 
   static String* Alloc(Thread* self, int32_t utf16_length)
@@ -153,13 +126,9 @@ class MANAGED String FINAL : public Object {
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   HeapReference<CharArray> array_;
 
-  int32_t count_;
-
-  uint32_t hash_code_;
+  uint32_t hash_;
 
   int32_t hash32_;
-
-  int32_t offset_;
 
   static GcRoot<Class> java_lang_String_;
 
