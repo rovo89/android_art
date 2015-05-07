@@ -126,7 +126,7 @@ bool ImageWriter::Write(const std::string& image_filename,
     Thread::Current()->TransitionFromSuspendedToRunnable();
     PruneNonImageClasses();  // Remove junk
     ComputeLazyFieldsForImageClasses();  // Add useful information
-    ProcessStrings();
+    ComputeEagerResolvedStrings();
     Thread::Current()->TransitionFromRunnableToSuspended(kNative);
   }
   gc::Heap* heap = Runtime::Current()->GetHeap();
@@ -449,156 +449,6 @@ bool ImageWriter::ComputeLazyFieldsForClassesVisitor(Class* c, void* /*arg*/) {
   return true;
 }
 
-// Count the number of strings in the heap and put the result in arg as a size_t pointer.
-static void CountStringsCallback(Object* obj, void* arg)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  if (obj->GetClass()->IsStringClass()) {
-    ++*reinterpret_cast<size_t*>(arg);
-  }
-}
-
-// Collect all the java.lang.String in the heap and put them in the output strings_ array.
-class StringCollector {
- public:
-  StringCollector(Handle<mirror::ObjectArray<mirror::String>> strings, size_t index)
-      : strings_(strings), index_(index) {
-  }
-  static void Callback(Object* obj, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    auto* collector = reinterpret_cast<StringCollector*>(arg);
-    if (obj->GetClass()->IsStringClass()) {
-      collector->strings_->SetWithoutChecks<false>(collector->index_++, obj->AsString());
-    }
-  }
-  size_t GetIndex() const {
-    return index_;
-  }
-
- private:
-  Handle<mirror::ObjectArray<mirror::String>> strings_;
-  size_t index_;
-};
-
-// Compare strings based on length, used for sorting strings by length / reverse length.
-class StringLengthComparator {
- public:
-  explicit StringLengthComparator(Handle<mirror::ObjectArray<mirror::String>> strings)
-      : strings_(strings) {
-  }
-  bool operator()(size_t a, size_t b) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return strings_->GetWithoutChecks(a)->GetLength() < strings_->GetWithoutChecks(b)->GetLength();
-  }
-
- private:
-  Handle<mirror::ObjectArray<mirror::String>> strings_;
-};
-
-// Normal string < comparison through the chars_ array.
-class SubstringComparator {
- public:
-  explicit SubstringComparator(const std::vector<uint16_t>* const chars) : chars_(chars) {
-  }
-  bool operator()(const std::pair<size_t, size_t>& a, const std::pair<size_t, size_t>& b) {
-    return std::lexicographical_compare(chars_->begin() + a.first,
-                                        chars_->begin() + a.first + a.second,
-                                        chars_->begin() + b.first,
-                                        chars_->begin() + b.first + b.second);
-  }
-
- private:
-  const std::vector<uint16_t>* const chars_;
-};
-
-void ImageWriter::ProcessStrings() {
-  size_t total_strings = 0;
-  gc::Heap* heap = Runtime::Current()->GetHeap();
-  ClassLinker* cl = Runtime::Current()->GetClassLinker();
-  {
-    ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
-    heap->VisitObjects(CountStringsCallback, &total_strings);  // Count the strings.
-  }
-  Thread* self = Thread::Current();
-  StackHandleScope<1> hs(self);
-  auto strings = hs.NewHandle(cl->AllocStringArray(self, total_strings));
-  StringCollector string_collector(strings, 0U);
-  {
-    ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
-    // Read strings into the array.
-    heap->VisitObjects(StringCollector::Callback, &string_collector);
-  }
-  // Some strings could have gotten freed if AllocStringArray caused a GC.
-  CHECK_LE(string_collector.GetIndex(), total_strings);
-  total_strings = string_collector.GetIndex();
-  size_t total_length = 0;
-  std::vector<size_t> reverse_sorted_strings;
-  for (size_t i = 0; i < total_strings; ++i) {
-    mirror::String* s = strings->GetWithoutChecks(i);
-    // Look up the string in the array.
-    total_length += s->GetLength();
-    reverse_sorted_strings.push_back(i);
-  }
-  // Sort by reverse length.
-  StringLengthComparator comparator(strings);
-  std::sort(reverse_sorted_strings.rbegin(), reverse_sorted_strings.rend(), comparator);
-  // Deduplicate prefixes and add strings to the char array.
-  std::vector<uint16_t> combined_chars(total_length, 0U);
-  size_t num_chars = 0;
-  // Characters of strings which are non equal prefix of another string (not the same string).
-  // We don't count the savings from equal strings since these would get interned later anyways.
-  size_t prefix_saved_chars = 0;
-  std::set<std::pair<size_t, size_t>, SubstringComparator> existing_strings((
-      SubstringComparator(&combined_chars)));
-  for (size_t i = 0; i < total_strings; ++i) {
-    mirror::String* s = strings->GetWithoutChecks(reverse_sorted_strings[i]);
-    // Add the string to the end of the char array.
-    size_t length = s->GetLength();
-    for (size_t j = 0; j < length; ++j) {
-      combined_chars[num_chars++] = s->CharAt(j);
-    }
-    // Try to see if the string exists as a prefix of an existing string.
-    size_t new_offset = 0;
-    std::pair<size_t, size_t> new_string(num_chars - length, length);
-    auto it = existing_strings.lower_bound(new_string);
-    bool is_prefix = true;
-    if (it == existing_strings.end()) {
-      is_prefix = false;
-    } else {
-      CHECK_LE(length, it->second);
-      for (size_t j = 0; j < length; ++j) {
-        if (combined_chars[it->first + j] != s->CharAt(j)) {
-          is_prefix = false;
-          break;
-        }
-      }
-    }
-    if (is_prefix) {
-      // Shares a prefix, set the offset to where the new offset will be.
-      new_offset = it->first;
-      // Remove the added chars.
-      num_chars -= length;
-      if (it->second != length) {
-        prefix_saved_chars += length;
-      }
-    } else {
-      new_offset = new_string.first;
-      existing_strings.insert(new_string);
-    }
-    s->SetOffset(new_offset);
-  }
-  // Allocate and update the char arrays.
-  auto* array = mirror::CharArray::Alloc(self, num_chars);
-  for (size_t i = 0; i < num_chars; ++i) {
-    array->SetWithoutChecks<false>(i, combined_chars[i]);
-  }
-  for (size_t i = 0; i < total_strings; ++i) {
-    strings->GetWithoutChecks(i)->SetArray(array);
-  }
-  if (kIsDebugBuild || VLOG_IS_ON(compiler)) {
-    LOG(INFO) << "Total # image strings=" << total_strings << " combined length="
-        << total_length << " prefix saved chars=" << prefix_saved_chars;
-  }
-  ComputeEagerResolvedStrings();
-}
-
 void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg) {
   if (!obj->GetClass()->IsStringClass()) {
     return;
@@ -627,7 +477,7 @@ void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg) {
   }
 }
 
-void ImageWriter::ComputeEagerResolvedStrings() {
+void ImageWriter::ComputeEagerResolvedStrings() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
   Runtime::Current()->GetHeap()->VisitObjects(ComputeEagerResolvedStringsCallback, this);
 }
@@ -698,7 +548,8 @@ bool ImageWriter::NonImageClassesVisitor(Class* klass, void* arg) {
   return true;
 }
 
-void ImageWriter::CheckNonImageClassesRemoved() {
+void ImageWriter::CheckNonImageClassesRemoved()
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (compiler_driver_.GetImageClasses() != nullptr) {
     gc::Heap* heap = Runtime::Current()->GetHeap();
     ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
@@ -953,7 +804,8 @@ void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_d
   // Note that image_end_ is left at end of used space
 }
 
-void ImageWriter::CopyAndFixupObjects() {
+void ImageWriter::CopyAndFixupObjects()
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread* self = Thread::Current();
   const char* old_cause = self->StartAssertNoThreadSuspension("ImageWriter");
   gc::Heap* heap = Runtime::Current()->GetHeap();

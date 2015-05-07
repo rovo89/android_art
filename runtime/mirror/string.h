@@ -97,8 +97,6 @@ class MANAGED String FINAL : public Object {
 
   int32_t CompareTo(String* other) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetArray(CharArray* new_array) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   static Class* GetJavaLangString() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(!java_lang_String_.IsNull());
     return java_lang_String_.Read();
@@ -117,11 +115,20 @@ class MANAGED String FINAL : public Object {
     SetField32<false, false>(OFFSET_OF_OBJECT_MEMBER(String, hash_), new_hash_code);
   }
 
+  void SetOffset(int32_t new_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // Offset is only used during testing so use non-transactional mode.
+    DCHECK_LE(0, new_offset);
+    DCHECK_GE(GetLength(), new_offset);
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(String, offset_), new_offset);
+  }
+
   static String* Alloc(Thread* self, int32_t utf16_length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static String* Alloc(Thread* self, Handle<CharArray> array)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void SetArray(CharArray* new_array) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   HeapReference<CharArray> array_;
@@ -133,7 +140,6 @@ class MANAGED String FINAL : public Object {
   static GcRoot<Class> java_lang_String_;
 
   friend struct art::StringOffsets;  // for verifying offset information
-
   FRIEND_TEST(ObjectTest, StringLength);  // for SetOffset and SetCount
   DISALLOW_IMPLICIT_CONSTRUCTORS(String);
 };
