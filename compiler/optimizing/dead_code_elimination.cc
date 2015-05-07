@@ -47,6 +47,12 @@ static void MarkReachableBlocks(HBasicBlock* block, ArenaBitVector* visited) {
   }
 }
 
+static void MarkLoopHeadersContaining(const HBasicBlock& block, ArenaBitVector* set) {
+  for (HLoopInformationOutwardIterator it(block); !it.Done(); it.Advance()) {
+    set->SetBit(it.Current()->GetHeader()->GetBlockId());
+  }
+}
+
 void HDeadCodeElimination::MaybeRecordDeadBlock(HBasicBlock* block) {
   if (stats_ != nullptr) {
     stats_->RecordStat(MethodCompilationStat::kRemovedDeadInstruction,
@@ -58,18 +64,24 @@ void HDeadCodeElimination::RemoveDeadBlocks() {
   // Classify blocks as reachable/unreachable.
   ArenaAllocator* allocator = graph_->GetArena();
   ArenaBitVector live_blocks(allocator, graph_->GetBlocks().Size(), false);
+  ArenaBitVector affected_loops(allocator, graph_->GetBlocks().Size(), false);
+
   MarkReachableBlocks(graph_->GetEntryBlock(), &live_blocks);
 
-  // Remove all dead blocks. Process blocks in post-order, because removal needs
-  // the block's chain of dominators.
+  // Remove all dead blocks. Iterate in post order because removal needs the
+  // block's chain of dominators and nested loops need to be updated from the
+  // inside out.
   for (HPostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block  = it.Current();
-    if (live_blocks.IsBitSet(block->GetBlockId())) {
-      // If this block is part of a loop that is being dismantled, we need to
-      // update its loop information.
-      block->UpdateLoopInformation();
+    int id = block->GetBlockId();
+    if (live_blocks.IsBitSet(id)) {
+      if (affected_loops.IsBitSet(id)) {
+        DCHECK(block->IsLoopHeader());
+        block->GetLoopInformation()->Update();
+      }
     } else {
       MaybeRecordDeadBlock(block);
+      MarkLoopHeadersContaining(*block, &affected_loops);
       block->DisconnectAndDelete();
     }
   }
