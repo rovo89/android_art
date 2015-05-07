@@ -272,6 +272,10 @@ void Mips64Assembler::Lhu(GpuRegister rt, GpuRegister rs, uint16_t imm16) {
   EmitI(0x25, rs, rt, imm16);
 }
 
+void Mips64Assembler::Lwu(GpuRegister rt, GpuRegister rs, uint16_t imm16) {
+  EmitI(0x27, rs, rt, imm16);
+}
+
 void Mips64Assembler::Lui(GpuRegister rt, uint16_t imm16) {
   EmitI(0xf, static_cast<GpuRegister>(0), rt, imm16);
 }
@@ -480,6 +484,9 @@ void Mips64Assembler::LoadFromOffset(LoadOperandType type, GpuRegister reg, GpuR
     case kLoadWord:
       Lw(reg, base, offset);
       break;
+    case kLoadUnsignedWord:
+      Lwu(reg, base, offset);
+      break;
     case kLoadDoubleword:
       // TODO: alignment issues ???
       Ld(reg, base, offset);
@@ -512,7 +519,6 @@ void Mips64Assembler::EmitLoad(ManagedRegister m_dst, GpuRegister src_register, 
     CHECK_EQ(0u, size) << dst;
   } else if (dst.IsGpuRegister()) {
     if (size == 4) {
-      CHECK_EQ(4u, size) << dst;
       LoadFromOffset(kLoadWord, dst.AsGpuRegister(), src_register, src_offset);
     } else if (size == 8) {
       CHECK_EQ(8u, size) << dst;
@@ -740,14 +746,13 @@ void Mips64Assembler::LoadFromThread64(ManagedRegister mdest, ThreadOffset<8> sr
 void Mips64Assembler::LoadRef(ManagedRegister mdest, FrameOffset src) {
   Mips64ManagedRegister dest = mdest.AsMips64();
   CHECK(dest.IsGpuRegister());
-  LoadFromOffset(kLoadWord, dest.AsGpuRegister(), SP, src.Int32Value());
+  LoadFromOffset(kLoadUnsignedWord, dest.AsGpuRegister(), SP, src.Int32Value());
 }
 
-void Mips64Assembler::LoadRef(ManagedRegister mdest, ManagedRegister base,
-                            MemberOffset offs) {
+void Mips64Assembler::LoadRef(ManagedRegister mdest, ManagedRegister base, MemberOffset offs) {
   Mips64ManagedRegister dest = mdest.AsMips64();
-  CHECK(dest.IsGpuRegister() && dest.IsGpuRegister());
-  LoadFromOffset(kLoadWord, dest.AsGpuRegister(),
+  CHECK(dest.IsGpuRegister() && base.AsMips64().IsGpuRegister());
+  LoadFromOffset(kLoadUnsignedWord, dest.AsGpuRegister(),
                  base.AsMips64().AsGpuRegister(), offs.Int32Value());
   if (kPoisonHeapReferences) {
     Subu(dest.AsGpuRegister(), ZERO, dest.AsGpuRegister());
@@ -921,7 +926,7 @@ void Mips64Assembler::CreateHandleScopeEntry(ManagedRegister mout_reg,
     // the address in the handle scope holding the reference.
     // e.g. out_reg = (handle == 0) ? 0 : (SP+handle_offset)
     if (in_reg.IsNoRegister()) {
-      LoadFromOffset(kLoadWord, out_reg.AsGpuRegister(),
+      LoadFromOffset(kLoadUnsignedWord, out_reg.AsGpuRegister(),
                      SP, handle_scope_offset.Int32Value());
       in_reg = out_reg;
     }
@@ -944,7 +949,7 @@ void Mips64Assembler::CreateHandleScopeEntry(FrameOffset out_off,
   CHECK(scratch.IsGpuRegister()) << scratch;
   if (null_allowed) {
     Label null_arg;
-    LoadFromOffset(kLoadWord, scratch.AsGpuRegister(), SP,
+    LoadFromOffset(kLoadUnsignedWord, scratch.AsGpuRegister(), SP,
                    handle_scope_offset.Int32Value());
     // Null values get a handle scope entry value of 0.  Otherwise, the handle scope entry is
     // the address in the handle scope holding the reference.
@@ -998,7 +1003,7 @@ void Mips64Assembler::Call(FrameOffset base, Offset offset, ManagedRegister mscr
   Mips64ManagedRegister scratch = mscratch.AsMips64();
   CHECK(scratch.IsGpuRegister()) << scratch;
   // Call *(*(SP + base) + offset)
-  LoadFromOffset(kLoadWord, scratch.AsGpuRegister(),
+  LoadFromOffset(kLoadUnsignedWord, scratch.AsGpuRegister(),
                  SP, base.Int32Value());
   LoadFromOffset(kLoadDoubleword, scratch.AsGpuRegister(),
                  scratch.AsGpuRegister(), offset.Int32Value());
