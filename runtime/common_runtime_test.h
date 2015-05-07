@@ -182,7 +182,7 @@ class CheckJniAbortCatcher {
   }
 
 #define TEST_DISABLED_FOR_MIPS() \
-  if (kRuntimeISA == kMips || kRuntimeISA == kMips64) { \
+  if (kRuntimeISA == kMips) { \
     printf("WARNING: TEST DISABLED FOR MIPS\n"); \
     return; \
   }
