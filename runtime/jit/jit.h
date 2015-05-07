@@ -19,8 +19,6 @@
 
 #include <unordered_map>
 
-#include "instrumentation.h"
-
 #include "atomic.h"
 #include "base/macros.h"
 #include "base/mutex.h"
