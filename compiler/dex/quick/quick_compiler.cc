@@ -403,7 +403,6 @@ static int kAllOpcodes[] = {
     kMirOpRangeCheck,
     kMirOpDivZeroCheck,
     kMirOpCheck,
-    kMirOpCheckPart2,
     kMirOpSelect,
 };
 
