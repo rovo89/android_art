@@ -126,6 +126,9 @@ Trace* volatile Trace::the_trace_ = nullptr;
 pthread_t Trace::sampling_pthread_ = 0U;
 std::unique_ptr<std::vector<mirror::ArtMethod*>> Trace::temp_stack_trace_;
 
+// The key identifying the tracer to update instrumentation.
+static constexpr const char* kTracerInstrumentationKey = "Tracer";
+
 static mirror::ArtMethod* DecodeTraceMethodId(uint32_t tmid) {
   return reinterpret_cast<mirror::ArtMethod*>(tmid & ~kTraceMethodActionMask);
 }
@@ -393,7 +396,7 @@ void Trace::Start(const char* trace_filename, int trace_fd, size_t buffer_size, 
                                                    instrumentation::Instrumentation::kMethodExited |
                                                    instrumentation::Instrumentation::kMethodUnwind);
         // TODO: In full-PIC mode, we don't need to fully deopt.
-        runtime->GetInstrumentation()->EnableMethodTracing();
+        runtime->GetInstrumentation()->EnableMethodTracing(kTracerInstrumentationKey);
       }
     }
   }
@@ -440,7 +443,7 @@ void Trace::StopTracing(bool finish_tracing, bool flush_file) {
       MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
       runtime->GetThreadList()->ForEach(ClearThreadStackTraceAndClockBase, nullptr);
     } else {
-      runtime->GetInstrumentation()->DisableMethodTracing();
+      runtime->GetInstrumentation()->DisableMethodTracing(kTracerInstrumentationKey);
       runtime->GetInstrumentation()->RemoveListener(
           the_trace, instrumentation::Instrumentation::kMethodEntered |
           instrumentation::Instrumentation::kMethodExited |
@@ -522,7 +525,7 @@ void Trace::Pause() {
       MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
       runtime->GetThreadList()->ForEach(ClearThreadStackTraceAndClockBase, nullptr);
     } else {
-      runtime->GetInstrumentation()->DisableMethodTracing();
+      runtime->GetInstrumentation()->DisableMethodTracing(kTracerInstrumentationKey);
       runtime->GetInstrumentation()->RemoveListener(the_trace,
                                                     instrumentation::Instrumentation::kMethodEntered |
                                                     instrumentation::Instrumentation::kMethodExited |
@@ -566,7 +569,7 @@ void Trace::Resume() {
                                                instrumentation::Instrumentation::kMethodExited |
                                                instrumentation::Instrumentation::kMethodUnwind);
     // TODO: In full-PIC mode, we don't need to fully deopt.
-    runtime->GetInstrumentation()->EnableMethodTracing();
+    runtime->GetInstrumentation()->EnableMethodTracing(kTracerInstrumentationKey);
   }
 
   runtime->GetThreadList()->ResumeAll();
