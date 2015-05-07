@@ -14,12 +14,17 @@
  * limitations under the License.
  */
 
+#include "common_throws.h"
 #include "gc/accounting/card_table-inl.h"
 #include "jni_internal.h"
 #include "mirror/array.h"
 #include "mirror/object.h"
 #include "mirror/object-inl.h"
 #include "scoped_fast_native_object_access.h"
+
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
 
 namespace art {
 
@@ -182,6 +187,7 @@ static jint Unsafe_getArrayIndexScaleForComponentType(JNIEnv* env, jclass, jobje
   Primitive::Type primitive_type = component->GetPrimitiveType();
   return Primitive::ComponentSize(primitive_type);
 }
+
 static jint Unsafe_addressSize(JNIEnv* env, jobject) {
   return sizeof(void*);
 }
@@ -365,6 +371,95 @@ static void Unsafe_copyMemoryFromPrimitiveArray(JNIEnv *env,
         ThrowIllegalAccessException(nullptr, "not a primitive array");
     }
 }
+static jboolean Unsafe_getBoolean(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
+  // TODO(haaawk): Fix this.
+  //ScopedFastNativeObjectAccess soa(env);
+  //mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  //return obj->GetField8(MemberOffset(offset));
+  return 0;
+}
+
+static void Unsafe_putBoolean(JNIEnv* env, jobject, jobject javaObj, jlong offset, jboolean newValue) {
+  // TODO(haaawk): Fix this.
+  //ScopedFastNativeObjectAccess soa(env);
+  //mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  // JNI must use non transactional mode.
+  //obj->SetField8<false>(MemberOffset(offset), newValue);
+}
+
+static jbyte Unsafe_getByte(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
+  // TODO(haaawk): Fix this.
+  //ScopedFastNativeObjectAccess soa(env);
+  //mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  //return obj->GetField8(MemberOffset(offset));
+  return 0;
+}
+
+static void Unsafe_putByte(JNIEnv* env, jobject, jobject javaObj, jlong offset, jbyte newValue) {
+  // TODO(haaawk): Fix this.
+  //ScopedFastNativeObjectAccess soa(env);
+  //mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  // JNI must use non transactional mode.
+  //obj->SetField8<false>(MemberOffset(offset), newValue);
+}
+
+static jchar Unsafe_getChar(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
+  // TODO(haaawk): Fix this.
+  //ScopedFastNativeObjectAccess soa(env);
+  //mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  //return obj->GetField16(MemberOffset(offset));
+  return 0;
+}
+
+static void Unsafe_putChar(JNIEnv* env, jobject, jobject javaObj, jlong offset, jchar newValue) {
+  // TODO(haaawk): Fix this.
+  //ScopedFastNativeObjectAccess soa(env);
+  //mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  // JNI must use non transactional mode.
+  //obj->SetField16<false>(MemberOffset(offset), newValue);
+}
+
+static jshort Unsafe_getShort(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
+  // TODO(haaawk): Fix this.
+  //ScopedFastNativeObjectAccess soa(env);
+  //mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  //return obj->GetField16(MemberOffset(offset));
+  return 0;
+}
+
+static void Unsafe_putShort(JNIEnv* env, jobject, jobject javaObj, jlong offset, jshort newValue) {
+  // TODO(haaawk): Fix this.
+  //ScopedFastNativeObjectAccess soa(env);
+  //mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  // JNI must use non transactional mode.
+  //obj->SetField16<false>(MemberOffset(offset), newValue);
+}
+
+static jfloat Unsafe_getFloat(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
+  ScopedFastNativeObjectAccess soa(env);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  return obj->GetField32(MemberOffset(offset));
+}
+
+static void Unsafe_putFloat(JNIEnv* env, jobject, jobject javaObj, jlong offset, jfloat newValue) {
+  ScopedFastNativeObjectAccess soa(env);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  // JNI must use non transactional mode.
+  obj->SetField32<false>(MemberOffset(offset), newValue);
+}
+
+static jdouble Unsafe_getDouble(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
+  ScopedFastNativeObjectAccess soa(env);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  return obj->GetField64(MemberOffset(offset));
+}
+
+static void Unsafe_putDouble(JNIEnv* env, jobject, jobject javaObj, jlong offset, jdouble newValue) {
+  ScopedFastNativeObjectAccess soa(env);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  // JNI must use non transactional mode.
+  obj->SetField64<false>(MemberOffset(offset), newValue);
+}
 
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Unsafe, compareAndSwapInt, "!(Ljava/lang/Object;JII)Z"),
@@ -410,6 +505,18 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Unsafe, copyMemory, "!(JJJ)V"),
   NATIVE_METHOD(Unsafe, copyMemoryToPrimitiveArray, "!(JLjava/lang/Object;JJ)V"),
   NATIVE_METHOD(Unsafe, copyMemoryFromPrimitiveArray, "!(Ljava/lang/Object;JJJ)V"),
+  NATIVE_METHOD(Unsafe, getBoolean, "!(Ljava/lang/Object;J)Z"),
+  NATIVE_METHOD(Unsafe, getByte, "!(Ljava/lang/Object;J)B"),
+  NATIVE_METHOD(Unsafe, getChar, "!(Ljava/lang/Object;J)C"),
+  NATIVE_METHOD(Unsafe, getShort, "!(Ljava/lang/Object;J)S"),
+  NATIVE_METHOD(Unsafe, getFloat, "!(Ljava/lang/Object;J)F"),
+  NATIVE_METHOD(Unsafe, getDouble, "!(Ljava/lang/Object;J)D"),
+  NATIVE_METHOD(Unsafe, putBoolean, "!(Ljava/lang/Object;JZ)V"),
+  NATIVE_METHOD(Unsafe, putByte, "!(Ljava/lang/Object;JB)V"),
+  NATIVE_METHOD(Unsafe, putChar, "!(Ljava/lang/Object;JC)V"),
+  NATIVE_METHOD(Unsafe, putShort, "!(Ljava/lang/Object;JS)V"),
+  NATIVE_METHOD(Unsafe, putFloat, "!(Ljava/lang/Object;JF)V"),
+  NATIVE_METHOD(Unsafe, putDouble, "!(Ljava/lang/Object;JD)V"),
 };
 
 void register_sun_misc_Unsafe(JNIEnv* env) {
