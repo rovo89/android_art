@@ -74,7 +74,7 @@ vogar $vm_command \
       $args \
       $device_dir \
       $image_compiler_option \
-      --timeout 600 \
+      --timeout 800 \
       --vm-arg -Djpda.settings.verbose=true \
       --vm-arg -Djpda.settings.syncPort=34016 \
       --vm-arg -Djpda.settings.transportAddress=127.0.0.1:55107 \
