@@ -996,9 +996,6 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
   REGISTER(register_java_lang_Class);
   REGISTER(register_java_lang_DexCache);
   REGISTER(register_java_lang_Object);
-  REGISTER(register_java_lang_Runtime);
-  REGISTER(register_java_lang_String);
-  REGISTER(register_java_lang_System);
   REGISTER(register_java_lang_Thread);
   REGISTER(register_java_lang_VMClassLoader);
   REGISTER(register_java_lang_ref_FinalizerReference);
