@@ -141,6 +141,8 @@ static bool NeedsFullDeoptimization(JdwpEventKind eventKind) {
     }
 }
 
+// Returns the instrumentation event the DebugInstrumentationListener must
+// listen to in order to properly report the given JDWP event to the debugger.
 static uint32_t GetInstrumentationEventFor(JdwpEventKind eventKind) {
   switch (eventKind) {
     case EK_BREAKPOINT:

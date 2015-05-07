@@ -752,6 +752,18 @@ class Thread {
     tls32_.ready_for_debug_invoke = ready;
   }
 
+  bool IsDebugMethodEntry() const {
+    return tls32_.debug_method_entry_;
+  }
+
+  void SetDebugMethodEntry() {
+    tls32_.debug_method_entry_ = true;
+  }
+
+  void ClearDebugMethodEntry() {
+    tls32_.debug_method_entry_ = false;
+  }
+
   // Activates single step control for debugging. The thread takes the
   // ownership of the given SingleStepControl*. It is deleted by a call
   // to DeactivateSingleStepControl or upon thread destruction.
@@ -1028,7 +1040,7 @@ class Thread {
       suspend_count(0), debug_suspend_count(0), thin_lock_thread_id(0), tid(0),
       daemon(is_daemon), throwing_OutOfMemoryError(false), no_thread_suspension(0),
       thread_exit_check_count(0), handling_signal_(false), suspended_at_suspend_check(false),
-      ready_for_debug_invoke(false) {
+      ready_for_debug_invoke(false), debug_method_entry_(false) {
     }
 
     union StateAndFlags state_and_flags;
@@ -1077,6 +1089,10 @@ class Thread {
     // used to invoke method from the debugger which is only allowed when
     // the thread is suspended by an event.
     bool32_t ready_for_debug_invoke;
+
+    // True if the thread enters a method. This is used to detect method entry
+    // event for the debugger.
+    bool32_t debug_method_entry_;
   } tls32_;
 
   struct PACKED(8) tls_64bit_sized_values {
