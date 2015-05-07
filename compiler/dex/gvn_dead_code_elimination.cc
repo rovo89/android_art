@@ -533,7 +533,7 @@ MIR* GvnDeadCodeElimination::RenameSRegDefOrCreatePhi(uint16_t def_change, uint1
 
   // Just before we kill mir_to_kill, we need to replace the previous SSA reg assigned to the
   // same dalvik reg to keep consistency with subsequent instructions. However, if there's no
-  // defining MIR for that dalvik reg, the preserved valus must come from its predecessors
+  // defining MIR for that dalvik reg, the preserved values must come from its predecessors
   // and we need to create a new Phi (a degenerate Phi if there's only a single predecessor).
   if (def_change == kNPos) {
     if (wide) {
@@ -541,7 +541,21 @@ MIR* GvnDeadCodeElimination::RenameSRegDefOrCreatePhi(uint16_t def_change, uint1
       DCHECK_EQ(mir_graph_->SRegToVReg(new_s_reg) + 1, mir_graph_->SRegToVReg(new_s_reg + 1));
       CreatePhi(new_s_reg + 1);  // High word Phi.
     }
-    return CreatePhi(new_s_reg);
+    MIR* phi = CreatePhi(new_s_reg);
+    // If this is a degenerate Phi with all inputs being the same SSA reg, we need to its uses.
+    DCHECK_NE(phi->ssa_rep->num_uses, 0u);
+    int old_s_reg = phi->ssa_rep->uses[0];
+    bool all_same = true;
+    for (size_t i = 1u, num = phi->ssa_rep->num_uses; i != num; ++i) {
+      if (phi->ssa_rep->uses[i] != old_s_reg) {
+        all_same = false;
+        break;
+      }
+    }
+    if (all_same) {
+      vreg_chains_.RenameSRegUses(0u, last_change, old_s_reg, new_s_reg, wide);
+    }
+    return phi;
   } else {
     DCHECK_LT(def_change, last_change);
     DCHECK_LE(last_change, vreg_chains_.NumMIRs());
