@@ -320,8 +320,10 @@ static void RunOptimizations(HGraph* graph,
                              const DexCompilationUnit& dex_compilation_unit,
                              PassInfoPrinter* pass_info_printer,
                              StackHandleScopeCollection* handles) {
-  HDeadCodeElimination dce1(graph, stats);
-  HDeadCodeElimination dce2(graph, stats, "dead_code_elimination_final");
+  HDeadCodeElimination dce1(graph, stats,
+                            HDeadCodeElimination::kInitialDeadCodeEliminationPassName);
+  HDeadCodeElimination dce2(graph, stats,
+                            HDeadCodeElimination::kFinalDeadCodeEliminationPassName);
   HConstantFolding fold1(graph);
   InstructionSimplifier simplify1(graph, stats);
   HBooleanSimplifier boolean_simplify(graph);

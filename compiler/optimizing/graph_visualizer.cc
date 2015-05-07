@@ -17,6 +17,7 @@
 #include "graph_visualizer.h"
 
 #include "code_generator.h"
+#include "dead_code_elimination.h"
 #include "licm.h"
 #include "nodes.h"
 #include "optimization.h"
@@ -253,7 +254,8 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
         }
       }
       output_ << " (liveness: " << instruction->GetLifetimePosition() << ")";
-    } else if (IsPass(LICM::kLoopInvariantCodeMotionPassName)) {
+    } else if (IsPass(LICM::kLoopInvariantCodeMotionPassName)
+               || IsPass(HDeadCodeElimination::kFinalDeadCodeEliminationPassName)) {
       output_ << " ( loop_header:";
       HLoopInformation* info = instruction->GetBlock()->GetLoopInformation();
       if (info == nullptr) {

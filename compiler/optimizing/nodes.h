@@ -436,6 +436,12 @@ class HLoopInformation : public ArenaObject<kArenaAllocMisc> {
   // that is the header dominates the back edge.
   bool Populate();
 
+  // Reanalyzes the loop by removing loop info from its blocks and re-running
+  // Populate(). If there are no back edges left, the loop info is completely
+  // removed as well as its SuspendCheck instruction. It must be run on nested
+  // inner loops first.
+  void Update();
+
   // Returns whether this loop information contains `block`.
   // Note that this loop information *must* be populated before entering this function.
   bool Contains(const HBasicBlock& block) const;
@@ -705,14 +711,9 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
     loop_information_ = info;
   }
 
-  // Checks if the loop information points to a valid loop. If the loop has been
-  // dismantled (does not have a back edge any more), loop information is
-  // removed or replaced with the information of the first valid outer loop.
-  void UpdateLoopInformation();
-
   bool IsInLoop() const { return loop_information_ != nullptr; }
 
-  // Returns wheter this block dominates the blocked passed as parameter.
+  // Returns whether this block dominates the blocked passed as parameter.
   bool Dominates(HBasicBlock* block) const;
 
   size_t GetLifetimeStart() const { return lifetime_start_; }
