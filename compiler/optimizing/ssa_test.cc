@@ -373,30 +373,26 @@ TEST(SsaTest, Loop6) {
   const char* expected =
     "BasicBlock 0, succ: 1\n"
     "  0: IntConstant 0 [5]\n"
-    "  1: IntConstant 4 [14, 8, 8]\n"
-    "  2: IntConstant 5 [14]\n"
+    "  1: IntConstant 4 [5, 8, 8]\n"
+    "  2: IntConstant 5 [5]\n"
     "  3: Goto\n"
     "BasicBlock 1, pred: 0, succ: 2\n"
     "  4: Goto\n"
-    "BasicBlock 2, pred: 1, 8, succ: 6, 3\n"
-    "  5: Phi(0, 14) [12, 6, 6]\n"
+    "BasicBlock 2, pred: 1, 4, 5, succ: 6, 3\n"
+    "  5: Phi(0, 2, 1) [12, 6, 6]\n"
     "  6: Equal(5, 5) [7]\n"
     "  7: If(6)\n"
     "BasicBlock 3, pred: 2, succ: 5, 4\n"
     "  8: Equal(1, 1) [9]\n"
     "  9: If(8)\n"
-    "BasicBlock 4, pred: 3, succ: 8\n"
+    "BasicBlock 4, pred: 3, succ: 2\n"
     "  10: Goto\n"
-    "BasicBlock 5, pred: 3, succ: 8\n"
+    "BasicBlock 5, pred: 3, succ: 2\n"
     "  11: Goto\n"
     "BasicBlock 6, pred: 2, succ: 7\n"
     "  12: Return(5)\n"
     "BasicBlock 7, pred: 6\n"
-    "  13: Exit\n"
-    // Synthesized single back edge of loop.
-    "BasicBlock 8, pred: 5, 4, succ: 2\n"
-    "  14: Phi(1, 2) [5]\n"
-    "  15: Goto\n";
+    "  13: Exit\n";
 
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,

@@ -153,6 +153,10 @@ class SuspendCheckSlowPathX86 : public SlowPathCodeX86 {
     return &return_label_;
   }
 
+  HBasicBlock* GetSuccessor() const {
+    return successor_;
+  }
+
  private:
   HSuspendCheck* const instruction_;
   HBasicBlock* const successor_;
@@ -809,7 +813,6 @@ void InstructionCodeGeneratorX86::VisitGoto(HGoto* got) {
 
   HLoopInformation* info = block->GetLoopInformation();
   if (info != nullptr && info->IsBackEdge(*block) && info->HasSuspendCheck()) {
-    codegen_->ClearSpillSlotsFromLoopPhisInStackMap(info->GetSuspendCheck());
     GenerateSuspendCheck(info->GetSuspendCheck(), successor);
     return;
   }
@@ -3993,8 +3996,19 @@ void InstructionCodeGeneratorX86::VisitSuspendCheck(HSuspendCheck* instruction) 
 void InstructionCodeGeneratorX86::GenerateSuspendCheck(HSuspendCheck* instruction,
                                                        HBasicBlock* successor) {
   SuspendCheckSlowPathX86* slow_path =
-      new (GetGraph()->GetArena()) SuspendCheckSlowPathX86(instruction, successor);
-  codegen_->AddSlowPath(slow_path);
+      down_cast<SuspendCheckSlowPathX86*>(instruction->GetSlowPath());
+  if (slow_path == nullptr) {
+    slow_path = new (GetGraph()->GetArena()) SuspendCheckSlowPathX86(instruction, successor);
+    instruction->SetSlowPath(slow_path);
+    codegen_->AddSlowPath(slow_path);
+    if (successor != nullptr) {
+      DCHECK(successor->IsLoopHeader());
+      codegen_->ClearSpillSlotsFromLoopPhisInStackMap(instruction);
+    }
+  } else {
+    DCHECK_EQ(slow_path->GetSuccessor(), successor);
+  }
+
   __ fs()->cmpw(Address::Absolute(
       Thread::ThreadFlagsOffset<kX86WordSize>().Int32Value()), Immediate(0));
   if (successor == nullptr) {

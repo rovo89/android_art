@@ -75,9 +75,7 @@ void SsaLivenessAnalysis::LinearizeGraph() {
     HBasicBlock* block = it.Current();
     size_t number_of_forward_predecessors = block->GetPredecessors().Size();
     if (block->IsLoopHeader()) {
-      // We rely on having simplified the CFG.
-      DCHECK_EQ(1u, block->GetLoopInformation()->NumberOfBackEdges());
-      number_of_forward_predecessors--;
+      number_of_forward_predecessors -= block->GetLoopInformation()->NumberOfBackEdges();
     }
     forward_predecessors.Put(block->GetBlockId(), number_of_forward_predecessors);
   }
@@ -264,13 +262,12 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
     }
 
     if (block->IsLoopHeader()) {
-      HBasicBlock* back_edge = block->GetLoopInformation()->GetBackEdges().Get(0);
+      size_t last_position = block->GetLoopInformation()->GetLifetimeEnd();
       // For all live_in instructions at the loop header, we need to create a range
       // that covers the full loop.
       for (uint32_t idx : live_in->Indexes()) {
         HInstruction* current = instructions_from_ssa_index_.Get(idx);
-        current->GetLiveInterval()->AddLoopRange(block->GetLifetimeStart(),
-                                                 back_edge->GetLifetimeEnd());
+        current->GetLiveInterval()->AddLoopRange(block->GetLifetimeStart(), last_position);
       }
     }
   }

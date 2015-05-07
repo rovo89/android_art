@@ -288,6 +288,7 @@ void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
 
 void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
   int id = loop_header->GetBlockId();
+  HLoopInformation* loop_information = loop_header->GetLoopInformation();
 
   // Ensure the pre-header block is first in the list of
   // predecessors of a loop header.
@@ -297,57 +298,48 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
         id));
   }
 
-  // Ensure the loop header has only two predecessors and that only the
-  // second one is a back edge.
+  // Ensure the loop header has only one incoming branch and the remaining
+  // predecessors are back edges.
   size_t num_preds = loop_header->GetPredecessors().Size();
   if (num_preds < 2) {
     AddError(StringPrintf(
         "Loop header %d has less than two predecessors: %zu.",
         id,
         num_preds));
-  } else if (num_preds > 2) {
-    AddError(StringPrintf(
-        "Loop header %d has more than two predecessors: %zu.",
-        id,
-        num_preds));
   } else {
-    HLoopInformation* loop_information = loop_header->GetLoopInformation();
     HBasicBlock* first_predecessor = loop_header->GetPredecessors().Get(0);
     if (loop_information->IsBackEdge(*first_predecessor)) {
       AddError(StringPrintf(
           "First predecessor of loop header %d is a back edge.",
           id));
     }
-    HBasicBlock* second_predecessor = loop_header->GetPredecessors().Get(1);
-    if (!loop_information->IsBackEdge(*second_predecessor)) {
-      AddError(StringPrintf(
-          "Second predecessor of loop header %d is not a back edge.",
-          id));
+    for (size_t i = 1, e = loop_header->GetPredecessors().Size(); i < e; ++i) {
+      HBasicBlock* predecessor = loop_header->GetPredecessors().Get(i);
+      if (!loop_information->IsBackEdge(*predecessor)) {
+        AddError(StringPrintf(
+            "Loop header %d has multiple incoming (non back edge) blocks.",
+            id));
+      }
     }
   }
 
-  const ArenaBitVector& loop_blocks = loop_header->GetLoopInformation()->GetBlocks();
+  const ArenaBitVector& loop_blocks = loop_information->GetBlocks();
 
-  // Ensure there is only one back edge per loop.
-  size_t num_back_edges =
-    loop_header->GetLoopInformation()->GetBackEdges().Size();
+  // Ensure back edges belong to the loop.
+  size_t num_back_edges = loop_information->GetBackEdges().Size();
   if (num_back_edges == 0) {
     AddError(StringPrintf(
         "Loop defined by header %d has no back edge.",
         id));
-  } else if (num_back_edges > 1) {
-    AddError(StringPrintf(
-        "Loop defined by header %d has several back edges: %zu.",
-        id,
-        num_back_edges));
   } else {
-    DCHECK_EQ(num_back_edges, 1u);
-    int back_edge_id = loop_header->GetLoopInformation()->GetBackEdges().Get(0)->GetBlockId();
-    if (!loop_blocks.IsBitSet(back_edge_id)) {
-      AddError(StringPrintf(
-          "Loop defined by header %d has an invalid back edge %d.",
-          id,
-          back_edge_id));
+    for (size_t i = 0; i < num_back_edges; ++i) {
+      int back_edge_id = loop_information->GetBackEdges().Get(i)->GetBlockId();
+      if (!loop_blocks.IsBitSet(back_edge_id)) {
+        AddError(StringPrintf(
+            "Loop defined by header %d has an invalid back edge %d.",
+            id,
+            back_edge_id));
+      }
     }
   }
 
