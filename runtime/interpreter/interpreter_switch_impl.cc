@@ -47,10 +47,7 @@ namespace interpreter {
 // Code to run before each dex instruction.
 #define PREAMBLE()                                                                              \
   do {                                                                                          \
-    DCHECK(!inst->IsReturn());                                                                  \
-    if (UNLIKELY(notified_method_entry_event)) {                                                \
-      notified_method_entry_event = false;                                                      \
-    } else if (UNLIKELY(instrumentation->HasDexPcListeners())) {                                \
+    if (UNLIKELY(instrumentation->HasDexPcListeners())) {                                       \
       instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),  \
                                        shadow_frame.GetMethod(), dex_pc);                       \
     }                                                                                           \
@@ -67,7 +64,6 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
   self->VerifyStack();
 
   uint32_t dex_pc = shadow_frame.GetDexPC();
-  bool notified_method_entry_event = false;
   const auto* const instrumentation = Runtime::Current()->GetInstrumentation();
   if (LIKELY(dex_pc == 0)) {  // We are entering the method as opposed to deoptimizing.
     if (kIsDebugBuild) {
@@ -76,7 +72,6 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
     if (UNLIKELY(instrumentation->HasMethodEntryListeners())) {
       instrumentation->MethodEnterEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                         shadow_frame.GetMethod(), 0);
-      notified_method_entry_event = true;
     }
   }
   const uint16_t* const insns = code_item->insns_;
@@ -171,19 +166,18 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         break;
       }
       case Instruction::RETURN_VOID_NO_BARRIER: {
+        PREAMBLE();
         JValue result;
         self->AllowThreadSuspension();
         if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
           instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
                                            result);
-        } else if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-          instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
-                                           shadow_frame.GetMethod(), dex_pc);
         }
         return result;
       }
       case Instruction::RETURN_VOID: {
+        PREAMBLE();
         QuasiAtomic::ThreadFenceForConstructor();
         JValue result;
         self->AllowThreadSuspension();
@@ -191,13 +185,11 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
                                            result);
-        } else if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-          instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
-                                           shadow_frame.GetMethod(), dex_pc);
         }
         return result;
       }
       case Instruction::RETURN: {
+        PREAMBLE();
         JValue result;
         result.SetJ(0);
         result.SetI(shadow_frame.GetVReg(inst->VRegA_11x(inst_data)));
@@ -206,13 +198,11 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
                                            result);
-        } else if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-          instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
-                                           shadow_frame.GetMethod(), dex_pc);
         }
         return result;
       }
       case Instruction::RETURN_WIDE: {
+        PREAMBLE();
         JValue result;
         result.SetJ(shadow_frame.GetVRegLong(inst->VRegA_11x(inst_data)));
         self->AllowThreadSuspension();
@@ -220,13 +210,11 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
                                            result);
-        } else if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-          instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
-                                           shadow_frame.GetMethod(), dex_pc);
         }
         return result;
       }
       case Instruction::RETURN_OBJECT: {
+        PREAMBLE();
         JValue result;
         self->AllowThreadSuspension();
         const size_t ref_idx = inst->VRegA_11x(inst_data);
@@ -254,9 +242,6 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
                                            result);
-        } else if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-          instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
-                                           shadow_frame.GetMethod(), dex_pc);
         }
         return result;
       }
