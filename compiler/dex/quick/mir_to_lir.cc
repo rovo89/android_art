@@ -1187,7 +1187,6 @@ void Mir2Lir::HandleExtendedMethodMIR(BasicBlock* bb, MIR* mir) {
     case kMirOpRangeCheck:
     case kMirOpDivZeroCheck:
     case kMirOpCheck:
-    case kMirOpCheckPart2:
       // Ignore these known opcodes
       break;
     default:
@@ -1274,20 +1273,6 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
       // Set the first label as a scheduling barrier.
       DCHECK(!head_lir->flags.use_def_invalid);
       head_lir->u.m.def_mask = &kEncodeAll;
-    }
-
-    if (opcode == kMirOpCheck) {
-      // Combine check and work halves of throwing instruction.
-      MIR* work_half = mir->meta.throw_insn;
-      mir->dalvikInsn = work_half->dalvikInsn;
-      mir->optimization_flags = work_half->optimization_flags;
-      mir->meta = work_half->meta;  // Whatever the work_half had, we need to copy it.
-      opcode = work_half->dalvikInsn.opcode;
-      SSARepresentation* ssa_rep = work_half->ssa_rep;
-      work_half->ssa_rep = mir->ssa_rep;
-      mir->ssa_rep = ssa_rep;
-      work_half->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpCheckPart2);
-      work_half->meta.throw_insn = mir;
     }
 
     if (MIR::DecodedInstruction::IsPseudoMirOp(opcode)) {
