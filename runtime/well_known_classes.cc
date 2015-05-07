@@ -193,7 +193,7 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_Thread_init = CacheMethod(env, java_lang_Thread, false, "<init>", "(Ljava/lang/ThreadGroup;Ljava/lang/String;IZ)V");
   java_lang_Thread_run = CacheMethod(env, java_lang_Thread, false, "run", "()V");
   java_lang_Thread$UncaughtExceptionHandler_uncaughtException = CacheMethod(env, java_lang_Thread$UncaughtExceptionHandler, false, "uncaughtException", "(Ljava/lang/Thread;Ljava/lang/Throwable;)V");
-  java_lang_ThreadGroup_removeThread = CacheMethod(env, java_lang_ThreadGroup, false, "removeThread", "(Ljava/lang/Thread;)V");
+  java_lang_ThreadGroup_removeThread = CacheMethod(env, java_lang_ThreadGroup, false, "threadTerminated", "(Ljava/lang/Thread;)V");
   java_nio_DirectByteBuffer_init = CacheMethod(env, java_nio_DirectByteBuffer, false, "<init>", "(JI)V");
   org_apache_harmony_dalvik_ddmc_DdmServer_broadcast = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "broadcast", "(I)V");
   org_apache_harmony_dalvik_ddmc_DdmServer_dispatch = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "dispatch", "(I[BII)Lorg/apache/harmony/dalvik/ddmc/Chunk;");
@@ -207,7 +207,7 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_Thread_lock = CacheField(env, java_lang_Thread, false, "lock", "Ljava/lang/Object;");
   java_lang_Thread_name = CacheField(env, java_lang_Thread, false, "name", "Ljava/lang/String;");
   java_lang_Thread_priority = CacheField(env, java_lang_Thread, false, "priority", "I");
-  java_lang_Thread_uncaughtHandler = CacheField(env, java_lang_Thread, false, "uncaughtHandler", "Ljava/lang/Thread$UncaughtExceptionHandler;");
+  java_lang_Thread_uncaughtHandler = CacheField(env, java_lang_Thread, false, "uncaughtExceptionHandler", "Ljava/lang/Thread$UncaughtExceptionHandler;");
   java_lang_Thread_nativePeer = CacheField(env, java_lang_Thread, false, "nativePeer", "J");
   java_lang_ThreadGroup_mainThreadGroup = CacheField(env, java_lang_ThreadGroup, true, "mainThreadGroup", "Ljava/lang/ThreadGroup;");
   java_lang_ThreadGroup_name = CacheField(env, java_lang_ThreadGroup, false, "name", "Ljava/lang/String;");
