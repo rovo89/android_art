@@ -58,14 +58,15 @@ class SsaBuilder : public HGraphVisitor {
 
   void BuildSsa();
 
-  HEnvironment* GetLocalsFor(HBasicBlock* block) {
-    HEnvironment* env = locals_for_.Get(block->GetBlockId());
-    if (env == nullptr) {
-      env = new (GetGraph()->GetArena()) HEnvironment(
+  GrowableArray<HInstruction*>* GetLocalsFor(HBasicBlock* block) {
+    GrowableArray<HInstruction*>* locals = locals_for_.Get(block->GetBlockId());
+    if (locals == nullptr) {
+      locals = new (GetGraph()->GetArena()) GrowableArray<HInstruction*>(
           GetGraph()->GetArena(), GetGraph()->GetNumberOfVRegs());
-      locals_for_.Put(block->GetBlockId(), env);
+      locals->SetSize(GetGraph()->GetNumberOfVRegs());
+      locals_for_.Put(block->GetBlockId(), locals);
     }
-    return env;
+    return locals;
   }
 
   HInstruction* ValueOfLocal(HBasicBlock* block, size_t local);
@@ -93,14 +94,14 @@ class SsaBuilder : public HGraphVisitor {
   static HPhi* GetFloatDoubleOrReferenceEquivalentOfPhi(HPhi* phi, Primitive::Type type);
 
   // Locals for the current block being visited.
-  HEnvironment* current_locals_;
+  GrowableArray<HInstruction*>* current_locals_;
 
   // Keep track of loop headers found. The last phase of the analysis iterates
   // over these blocks to set the inputs of their phis.
   GrowableArray<HBasicBlock*> loop_headers_;
 
   // HEnvironment for each block.
-  GrowableArray<HEnvironment*> locals_for_;
+  GrowableArray<GrowableArray<HInstruction*>*> locals_for_;
 
   DISALLOW_COPY_AND_ASSIGN(SsaBuilder);
 };

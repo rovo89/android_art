@@ -500,6 +500,16 @@ void HBasicBlock::RemoveInstructionOrPhi(HInstruction* instruction, bool ensure_
   }
 }
 
+void HEnvironment::CopyFrom(const GrowableArray<HInstruction*>& locals) {
+  for (size_t i = 0; i < locals.Size(); i++) {
+    HInstruction* instruction = locals.Get(i);
+    SetRawEnvAt(i, instruction);
+    if (instruction != nullptr) {
+      instruction->AddEnvUseAt(this, i);
+    }
+  }
+}
+
 void HEnvironment::CopyFrom(HEnvironment* env) {
   for (size_t i = 0; i < env->Size(); i++) {
     HInstruction* instruction = env->GetInstructionAt(i);
