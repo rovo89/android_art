@@ -1507,6 +1507,14 @@ void X86Assembler::jmp(Label* label) {
 }
 
 
+void X86Assembler::repne_scasw() {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0xF2);
+  EmitUint8(0xAF);
+}
+
+
 X86Assembler* X86Assembler::lock() {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xF0);

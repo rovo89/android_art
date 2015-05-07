@@ -190,4 +190,10 @@ TEST_F(AssemblerX86Test, FPUIntegerStore) {
   DriverStr(expected, "FPUIntegerStore");
 }
 
+TEST_F(AssemblerX86Test, Repnescasw) {
+  GetAssembler()->repne_scasw();
+  const char* expected = "repne scasw\n";
+  DriverStr(expected, "Repnescasw");
+}
+
 }  // namespace art
