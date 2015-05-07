@@ -1068,7 +1068,9 @@ class HEnvironment : public ArenaObject<kArenaAllocMisc> {
     }
   }
 
-  void CopyFrom(HEnvironment* env);
+  void CopyFrom(const GrowableArray<HInstruction*>& locals);
+  void CopyFrom(HEnvironment* environment);
+
   // Copy from `env`. If it's a loop phi for `loop_header`, copy the first
   // input to the loop phi instead. This is for inserting instructions that
   // require an environment (like HDeoptimization) in the loop pre-header.
