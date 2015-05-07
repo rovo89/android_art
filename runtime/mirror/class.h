@@ -504,7 +504,7 @@ class MANAGED Class FINAL : public Object {
   static uint32_t ClassClassSize() {
     // The number of vtable entries in java.lang.Class.
     uint32_t vtable_entries = Object::kVTableLength + 69;
-    return ComputeClassSize(true, vtable_entries, 0, 1, 0);
+    return ComputeClassSize(true, vtable_entries, 3, 1, 0);
   }
 
   // The size of a java.lang.Class representing a primitive such as int.class.
@@ -1067,6 +1067,8 @@ class MANAGED Class FINAL : public Object {
   bool IsAssignableFromArray(Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void CheckObjectAlloc() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  HeapReference<Object> annotation_type_;
 
   // defining class loader, or NULL for the "bootstrap" system loader
   HeapReference<ClassLoader> class_loader_;
