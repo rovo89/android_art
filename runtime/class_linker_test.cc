@@ -498,6 +498,7 @@ struct ArtMethodOffsets : public CheckOffsets<mirror::ArtMethod> {
 struct ClassOffsets : public CheckOffsets<mirror::Class> {
   ClassOffsets() : CheckOffsets<mirror::Class>(false, "Ljava/lang/Class;") {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, access_flags_),                  "accessFlags"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, annotation_type_),               "annotationType"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, class_loader_),                  "classLoader"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, class_size_),                    "classSize"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, clinit_thread_id_),              "clinitThreadId"));
