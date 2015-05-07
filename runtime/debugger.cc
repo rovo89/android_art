@@ -232,13 +232,29 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
   virtual ~DebugInstrumentationListener() {}
 
   void MethodEntered(Thread* thread, mirror::Object* this_object, mirror::ArtMethod* method,
-                     uint32_t dex_pc ATTRIBUTE_UNUSED)
+                     uint32_t dex_pc)
       OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (method->IsNative()) {
       // TODO: post location events is a suspension point and native method entry stubs aren't.
       return;
     }
-    Dbg::UpdateDebugger(thread, this_object, method, 0, Dbg::kMethodEntry, nullptr);
+    if (IsListeningToDexPcMoved()) {
+      // We also listen to kDexPcMoved instrumentation event so we know the DexPcMoved method is
+      // going to be called right after us. To avoid sending JDWP events twice for this location,
+      // we report the event in DexPcMoved. However, we must remind this is method entry so we
+      // send the METHOD_ENTRY event. And we can also group it with other events for this location
+      // like BREAKPOINT or SINGLE_STEP (or even METHOD_EXIT if this is a RETURN instruction).
+      thread->SetDebugMethodEntry();
+    } else if (IsListeningToMethodExit() && IsReturn(method, dex_pc)) {
+      // We also listen to kMethodExited instrumentation event and the current instruction is a
+      // RETURN so we know the MethodExited method is going to be called right after us. To avoid
+      // sending JDWP events twice for this location, we report the event(s) in MethodExited.
+      // However, we must remind this is method entry so we send the METHOD_ENTRY event. And we can
+      // also group it with other events for this location like BREAKPOINT or SINGLE_STEP.
+      thread->SetDebugMethodEntry();
+    } else {
+      Dbg::UpdateDebugger(thread, this_object, method, 0, Dbg::kMethodEntry, nullptr);
+    }
   }
 
   void MethodExited(Thread* thread, mirror::Object* this_object, mirror::ArtMethod* method,
@@ -248,14 +264,20 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
       // TODO: post location events is a suspension point and native method entry stubs aren't.
       return;
     }
-    Dbg::UpdateDebugger(thread, this_object, method, dex_pc, Dbg::kMethodExit, &return_value);
+    uint32_t events = Dbg::kMethodExit;
+    if (thread->IsDebugMethodEntry()) {
+      // It is also the method entry.
+      DCHECK(IsReturn(method, dex_pc));
+      events |= Dbg::kMethodEntry;
+      thread->ClearDebugMethodEntry();
+    }
+    Dbg::UpdateDebugger(thread, this_object, method, dex_pc, events, &return_value);
   }
 
-  void MethodUnwind(Thread* thread, mirror::Object* this_object, mirror::ArtMethod* method,
-                    uint32_t dex_pc)
+  void MethodUnwind(Thread* thread ATTRIBUTE_UNUSED, mirror::Object* this_object ATTRIBUTE_UNUSED,
+                    mirror::ArtMethod* method, uint32_t dex_pc)
       OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // We're not recorded to listen to this kind of event, so complain.
-    UNUSED(thread, this_object, method, dex_pc);
     LOG(ERROR) << "Unexpected method unwind event in debugger " << PrettyMethod(method)
                << " " << dex_pc;
   }
@@ -263,13 +285,27 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
   void DexPcMoved(Thread* thread, mirror::Object* this_object, mirror::ArtMethod* method,
                   uint32_t new_dex_pc)
       OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Dbg::UpdateDebugger(thread, this_object, method, new_dex_pc, 0, nullptr);
+    if (IsListeningToMethodExit() && IsReturn(method, new_dex_pc)) {
+      // We also listen to kMethodExited instrumentation event and the current instruction is a
+      // RETURN so we know the MethodExited method is going to be called right after us. Like in
+      // MethodEntered, we delegate event reporting to MethodExited.
+      // Besides, if this RETURN instruction is the only one in the method, we can send multiple
+      // JDWP events in the same packet: METHOD_ENTRY, METHOD_EXIT, BREAKPOINT and/or SINGLE_STEP.
+      // Therefore, we must not clear the debug method entry flag here.
+    } else {
+      uint32_t events = 0;
+      if (thread->IsDebugMethodEntry()) {
+        // It is also the method entry.
+        events = Dbg::kMethodEntry;
+        thread->ClearDebugMethodEntry();
+      }
+      Dbg::UpdateDebugger(thread, this_object, method, new_dex_pc, events, nullptr);
+    }
   }
 
-  void FieldRead(Thread* thread, mirror::Object* this_object, mirror::ArtMethod* method,
-                 uint32_t dex_pc, ArtField* field)
+  void FieldRead(Thread* thread ATTRIBUTE_UNUSED, mirror::Object* this_object,
+                 mirror::ArtMethod* method, uint32_t dex_pc, ArtField* field)
       OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    UNUSED(thread);
     Dbg::PostFieldAccessEvent(method, dex_pc, this_object, field);
   }
 
@@ -293,6 +329,26 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
   }
 
  private:
+  static bool IsReturn(mirror::ArtMethod* method, uint32_t dex_pc)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    const DexFile::CodeItem* code_item = method->GetCodeItem();
+    const Instruction* instruction = Instruction::At(&code_item->insns_[dex_pc]);
+    return instruction->IsReturn();
+  }
+
+  static bool IsListeningToDexPcMoved() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return IsListeningTo(instrumentation::Instrumentation::kDexPcMoved);
+  }
+
+  static bool IsListeningToMethodExit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return IsListeningTo(instrumentation::Instrumentation::kMethodExited);
+  }
+
+  static bool IsListeningTo(instrumentation::Instrumentation::InstrumentationEvent event)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return (Dbg::GetInstrumentationEvents() & event) != 0;
+  }
+
   DISALLOW_COPY_AND_ASSIGN(DebugInstrumentationListener);
 } gDebugInstrumentationListener;
 

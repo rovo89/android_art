@@ -156,7 +156,6 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   const Instruction* inst = Instruction::At(code_item->insns_ + dex_pc);
   uint16_t inst_data;
   const void* const* currentHandlersTable;
-  bool notified_method_entry_event = false;
   UPDATE_HANDLER_TABLE();
   if (LIKELY(dex_pc == 0)) {  // We are entering the method as opposed to deoptimizing.
     if (kIsDebugBuild) {
@@ -166,7 +165,6 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
     if (UNLIKELY(instrumentation->HasMethodEntryListeners())) {
       instrumentation->MethodEnterEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                         shadow_frame.GetMethod(), 0);
-      notified_method_entry_event = true;
     }
   }
 
@@ -264,9 +262,6 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
       instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                        shadow_frame.GetMethod(), dex_pc,
                                        result);
-    } else if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-      instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
-                                       shadow_frame.GetMethod(), dex_pc);
     }
     return result;
   }
@@ -281,9 +276,6 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
       instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                        shadow_frame.GetMethod(), dex_pc,
                                        result);
-    } else if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-      instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
-                                       shadow_frame.GetMethod(), dex_pc);
     }
     return result;
   }
@@ -299,9 +291,6 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
       instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                        shadow_frame.GetMethod(), dex_pc,
                                        result);
-    } else if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-      instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
-                                       shadow_frame.GetMethod(), dex_pc);
     }
     return result;
   }
@@ -316,9 +305,6 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
       instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                        shadow_frame.GetMethod(), dex_pc,
                                        result);
-    } else if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-      instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
-                                       shadow_frame.GetMethod(), dex_pc);
     }
     return result;
   }
@@ -352,9 +338,6 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
       instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                        shadow_frame.GetMethod(), dex_pc,
                                        result);
-    } else if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-      instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
-                                       shadow_frame.GetMethod(), dex_pc);
     }
     return result;
   }
@@ -2510,26 +2493,16 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 // Note: we do not use the kReturn instruction flag here (to test the instruction is a return). The
 // compiler seems to not evaluate "(Instruction::FlagsOf(Instruction::code) & kReturn) != 0" to
 // a constant condition that would remove the "if" statement so the test is free.
-#define INSTRUMENTATION_INSTRUCTION_HANDLER(o, code, n, f, r, i, a, v)                            \
-  alt_op_##code: {                                                                                \
-    if (Instruction::code != Instruction::RETURN_VOID &&                                          \
-        Instruction::code != Instruction::RETURN_VOID_NO_BARRIER &&                               \
-        Instruction::code != Instruction::RETURN &&                                               \
-        Instruction::code != Instruction::RETURN_WIDE &&                                          \
-        Instruction::code != Instruction::RETURN_OBJECT) {                                        \
-      if (LIKELY(!notified_method_entry_event)) {                                                 \
-        Runtime* runtime = Runtime::Current();                                                    \
-        const instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();  \
-        if (UNLIKELY(instrumentation->HasDexPcListeners())) {                                     \
-          Object* this_object = shadow_frame.GetThisObject(code_item->ins_size_);                 \
-          instrumentation->DexPcMovedEvent(self, this_object, shadow_frame.GetMethod(), dex_pc);  \
-        }                                                                                         \
-      } else {                                                                                    \
-        notified_method_entry_event = false;                                                      \
-      }                                                                                           \
-    }                                                                                             \
-    UPDATE_HANDLER_TABLE();                                                                       \
-    goto *handlersTable[instrumentation::kMainHandlerTable][Instruction::code];                   \
+#define INSTRUMENTATION_INSTRUCTION_HANDLER(o, code, n, f, r, i, a, v)                        \
+  alt_op_##code: {                                                                            \
+    Runtime* const runtime = Runtime::Current();                                              \
+    const instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();  \
+    if (UNLIKELY(instrumentation->HasDexPcListeners())) {                                     \
+      Object* this_object = shadow_frame.GetThisObject(code_item->ins_size_);                 \
+      instrumentation->DexPcMovedEvent(self, this_object, shadow_frame.GetMethod(), dex_pc);  \
+    }                                                                                         \
+    UPDATE_HANDLER_TABLE();                                                                   \
+    goto *handlersTable[instrumentation::kMainHandlerTable][Instruction::code];               \
   }
 #include "dex_instruction_list.h"
       DEX_INSTRUCTION_LIST(INSTRUMENTATION_INSTRUCTION_HANDLER)
