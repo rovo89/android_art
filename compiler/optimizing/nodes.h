@@ -48,6 +48,7 @@ class HPhi;
 class HSuspendCheck;
 class LiveInterval;
 class LocationSummary;
+class SlowPathCode;
 class SsaBuilder;
 
 static const int kDefaultNumberOfBlocks = 8;
@@ -397,16 +398,21 @@ class HLoopInformation : public ArenaObject<kArenaAllocMisc> {
     return back_edges_;
   }
 
-  HBasicBlock* GetSingleBackEdge() const {
-    DCHECK_EQ(back_edges_.Size(), 1u);
-    return back_edges_.Get(0);
+  // Returns the lifetime position of the back edge that has the
+  // greatest lifetime position.
+  size_t GetLifetimeEnd() const;
+
+  void ReplaceBackEdge(HBasicBlock* existing, HBasicBlock* new_back_edge) {
+    for (size_t i = 0, e = back_edges_.Size(); i < e; ++i) {
+      if (back_edges_.Get(i) == existing) {
+        back_edges_.Put(i, new_back_edge);
+        return;
+      }
+    }
+    UNREACHABLE();
   }
 
-  void ClearBackEdges() {
-    back_edges_.Reset();
-  }
-
-  // Find blocks that are part of this loop. Returns whether the loop is a natural loop,
+  // Finds blocks that are part of this loop. Returns whether the loop is a natural loop,
   // that is the header dominates the back edge.
   bool Populate();
 
@@ -3247,18 +3253,24 @@ class HTemporary : public HTemplateInstruction<0> {
 class HSuspendCheck : public HTemplateInstruction<0> {
  public:
   explicit HSuspendCheck(uint32_t dex_pc)
-      : HTemplateInstruction(SideEffects::None()), dex_pc_(dex_pc) {}
+      : HTemplateInstruction(SideEffects::None()), dex_pc_(dex_pc), slow_path_(nullptr) {}
 
   bool NeedsEnvironment() const OVERRIDE {
     return true;
   }
 
   uint32_t GetDexPc() const { return dex_pc_; }
+  void SetSlowPath(SlowPathCode* slow_path) { slow_path_ = slow_path; }
+  SlowPathCode* GetSlowPath() const { return slow_path_; }
 
   DECLARE_INSTRUCTION(SuspendCheck);
 
  private:
   const uint32_t dex_pc_;
+
+  // Only used for code generation, in order to share the same slow path between back edges
+  // of a same loop.
+  SlowPathCode* slow_path_;
 
   DISALLOW_COPY_AND_ASSIGN(HSuspendCheck);
 };
