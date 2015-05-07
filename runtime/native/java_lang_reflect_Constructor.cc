@@ -74,8 +74,16 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
   return javaReceiver;
 }
 
+static jobject Constructor_newInstance0(JNIEnv* env, jclass unused, jclass ctorClass,
+                                       jclass allocClass) {
+    jmethodID ctor = env->GetMethodID(ctorClass, "<init>", "()V");
+    DCHECK(ctor != NULL);
+    return env->NewObject(allocClass, ctor);
+}
+
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Constructor, newInstance, "!([Ljava/lang/Object;Z)Ljava/lang/Object;"),
+  NATIVE_METHOD(Constructor, newInstance0, "!(Ljava/lang/Class;Ljava/lang/Class;)Ljava/lang/Object;"),
 };
 
 void register_java_lang_reflect_Constructor(JNIEnv* env) {
