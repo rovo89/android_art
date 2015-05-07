@@ -1629,6 +1629,52 @@ TEST_F(GvnDeadCodeEliminationTestDiamond, CreatePhi1) {
 }
 
 TEST_F(GvnDeadCodeEliminationTestDiamond, CreatePhi2) {
+  static const MIRDef mirs[] = {
+      DEF_CONST(3, Instruction::CONST, 0u, 1000),
+      DEF_MOVE(4, Instruction::MOVE, 1u, 0u),
+      DEF_CONST(4, Instruction::CONST, 2u, 1000),
+  };
+
+  static const int32_t sreg_to_vreg_map[] = { 0, 1, 0 };
+  PrepareSRegToVRegMap(sreg_to_vreg_map);
+
+  PrepareMIRs(mirs);
+  PerformGVN_DCE();
+
+  ASSERT_EQ(arraysize(mirs), value_names_.size());
+  EXPECT_EQ(value_names_[0], value_names_[1]);
+  EXPECT_EQ(value_names_[0], value_names_[2]);
+
+  static const bool eliminated[] = {
+      false, false, true,
+  };
+  static_assert(arraysize(eliminated) == arraysize(mirs), "array size mismatch");
+  for (size_t i = 0; i != arraysize(eliminated); ++i) {
+    bool actually_eliminated = (static_cast<int>(mirs_[i].dalvikInsn.opcode) == kMirOpNop);
+    EXPECT_EQ(eliminated[i], actually_eliminated) << i;
+  }
+  // Check that we've created a single-input Phi to replace the CONST 3u.
+  BasicBlock* bb4 = cu_.mir_graph->GetBasicBlock(4);
+  MIR* phi = bb4->first_mir_insn;
+  ASSERT_TRUE(phi != nullptr);
+  ASSERT_EQ(kMirOpPhi, static_cast<int>(phi->dalvikInsn.opcode));
+  ASSERT_EQ(1, phi->ssa_rep->num_uses);
+  EXPECT_EQ(0, phi->ssa_rep->uses[0]);
+  ASSERT_EQ(1, phi->ssa_rep->num_defs);
+  EXPECT_EQ(2, phi->ssa_rep->defs[0]);
+  EXPECT_EQ(0u, phi->dalvikInsn.vA);
+  MIR* move = phi->next;
+  ASSERT_TRUE(move != nullptr);
+  ASSERT_EQ(Instruction::MOVE, move->dalvikInsn.opcode);
+  ASSERT_EQ(1, move->ssa_rep->num_uses);
+  EXPECT_EQ(2, move->ssa_rep->uses[0]);
+  ASSERT_EQ(1, move->ssa_rep->num_defs);
+  EXPECT_EQ(1, move->ssa_rep->defs[0]);
+  EXPECT_EQ(1u, move->dalvikInsn.vA);
+  EXPECT_EQ(0u, move->dalvikInsn.vB);
+}
+
+TEST_F(GvnDeadCodeEliminationTestDiamond, CreatePhi3) {
   static const IFieldDef ifields[] = {
       { 0u, 1u, 0u, false, kDexMemAccessWord },
   };
