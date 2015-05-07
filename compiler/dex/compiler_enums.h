@@ -172,7 +172,6 @@ enum ExtendedMIROpcode {
   kMirOpRangeCheck,
   kMirOpDivZeroCheck,
   kMirOpCheck,
-  kMirOpCheckPart2,
   kMirOpSelect,
 
   // Vector opcodes:

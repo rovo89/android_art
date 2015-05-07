@@ -834,9 +834,6 @@ const uint64_t MIRGraph::oat_data_flow_attributes_[kMirOpLast] = {
   // 10B MIR_CHECK
   0,
 
-  // 10C MIR_CHECKPART2
-  0,
-
   // 10D MIR_SELECT
   DF_DA | DF_UB,
 
