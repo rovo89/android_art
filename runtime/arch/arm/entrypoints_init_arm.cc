@@ -166,6 +166,9 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pThrowStackOverflow = art_quick_throw_stack_overflow;
 
   qpoints->pDeoptimize = art_quick_deoptimize;
+
+  // Read barrier
+  qpoints->pReadBarrierJni = ReadBarrierJni;
 }
 
 }  // namespace art

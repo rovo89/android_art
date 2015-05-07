@@ -138,7 +138,8 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
     FrameOffset handle_scope_offset = main_jni_conv->CurrentParamHandleScopeEntryOffset();
     // Check handle scope offset is within frame
     CHECK_LT(handle_scope_offset.Uint32Value(), frame_size);
-    // TODO: Insert the read barrier for this load.
+    // Note this LoadRef() already includes the heap poisoning negation.
+    // Note this LoadRef() does not include read barrier. It will be handled below.
     __ LoadRef(main_jni_conv->InterproceduralScratchRegister(),
                mr_conv->MethodRegister(), mirror::ArtMethod::DeclaringClassOffset());
     __ VerifyObject(main_jni_conv->InterproceduralScratchRegister(), false);
@@ -188,6 +189,49 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   const size_t main_out_arg_size = main_jni_conv->OutArgSize();
   size_t current_out_arg_size = main_out_arg_size;
   __ IncreaseFrameSize(main_out_arg_size);
+
+  // Call the read barrier for the declaring class loaded from the method for a static call.
+  // Note that we always have outgoing param space available for at least two params.
+  if (kUseReadBarrier && is_static) {
+    ThreadOffset<4> read_barrier32 = QUICK_ENTRYPOINT_OFFSET(4, pReadBarrierJni);
+    ThreadOffset<8> read_barrier64 = QUICK_ENTRYPOINT_OFFSET(8, pReadBarrierJni);
+    main_jni_conv->ResetIterator(FrameOffset(main_out_arg_size));
+    main_jni_conv->Next();  // Skip JNIEnv.
+    FrameOffset class_handle_scope_offset = main_jni_conv->CurrentParamHandleScopeEntryOffset();
+    main_jni_conv->ResetIterator(FrameOffset(main_out_arg_size));
+    // Pass the handle for the class as the first argument.
+    if (main_jni_conv->IsCurrentParamOnStack()) {
+      FrameOffset out_off = main_jni_conv->CurrentParamStackOffset();
+      __ CreateHandleScopeEntry(out_off, class_handle_scope_offset,
+                         mr_conv->InterproceduralScratchRegister(),
+                         false);
+    } else {
+      ManagedRegister out_reg = main_jni_conv->CurrentParamRegister();
+      __ CreateHandleScopeEntry(out_reg, class_handle_scope_offset,
+                         ManagedRegister::NoRegister(), false);
+    }
+    main_jni_conv->Next();
+    // Pass the current thread as the second argument and call.
+    if (main_jni_conv->IsCurrentParamInRegister()) {
+      __ GetCurrentThread(main_jni_conv->CurrentParamRegister());
+      if (is_64_bit_target) {
+        __ Call(main_jni_conv->CurrentParamRegister(), Offset(read_barrier64),
+                main_jni_conv->InterproceduralScratchRegister());
+      } else {
+        __ Call(main_jni_conv->CurrentParamRegister(), Offset(read_barrier32),
+                main_jni_conv->InterproceduralScratchRegister());
+      }
+    } else {
+      __ GetCurrentThread(main_jni_conv->CurrentParamStackOffset(),
+                          main_jni_conv->InterproceduralScratchRegister());
+      if (is_64_bit_target) {
+        __ CallFromThread64(read_barrier64, main_jni_conv->InterproceduralScratchRegister());
+      } else {
+        __ CallFromThread32(read_barrier32, main_jni_conv->InterproceduralScratchRegister());
+      }
+    }
+    main_jni_conv->ResetIterator(FrameOffset(main_out_arg_size));  // Reset.
+  }
 
   // 6. Call into appropriate JniMethodStart passing Thread* so that transition out of Runnable
   //    can occur. The result is the saved JNI local state that is restored by the exit call. We
