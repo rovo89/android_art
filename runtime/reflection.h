@@ -61,10 +61,6 @@ JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccessAlreadyRunnab
                                            jobject obj, jmethodID mid, va_list args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-void InvokeWithShadowFrame(Thread* self, ShadowFrame* shadow_frame, uint16_t arg_offset,
-                           JValue* result)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
 // num_frames is number of frames we look up for access check.
 jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject method, jobject receiver,
                      jobject args, size_t num_frames = 1)
