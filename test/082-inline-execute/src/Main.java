@@ -236,15 +236,6 @@ public class Main {
     String str10 = "abcdefghij";
     String str40 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabc";
 
-    int supplementaryChar = 0x20b9f;
-    String surrogatePair = "\ud842\udf9f";
-    String stringWithSurrogates = "hello " + surrogatePair + " world";
-
-    Assert.assertEquals(stringWithSurrogates.indexOf(supplementaryChar), "hello ".length());
-    Assert.assertEquals(stringWithSurrogates.indexOf(supplementaryChar, 2), "hello ".length());
-    Assert.assertEquals(stringWithSurrogates.indexOf(supplementaryChar, 6), 6);
-    Assert.assertEquals(stringWithSurrogates.indexOf(supplementaryChar, 7), -1);
-
     Assert.assertEquals(str0.indexOf('a'), -1);
     Assert.assertEquals(str3.indexOf('a'), 0);
     Assert.assertEquals(str3.indexOf('b'), 1);
@@ -269,22 +260,47 @@ public class Main {
     Assert.assertEquals(str40.indexOf('a',10), 10);
     Assert.assertEquals(str40.indexOf('b',40), -1);
 
+    testIndexOfNull();
+
+    testSurrogateIndexOf();
+  }
+
+  private static void testSurrogateIndexOf() {
+    int supplementaryChar = 0x20b9f;
+    String surrogatePair = "\ud842\udf9f";
+    String stringWithSurrogates = "hello " + surrogatePair + " world";
+
+    Assert.assertEquals(stringWithSurrogates.indexOf(supplementaryChar), "hello ".length());
+    Assert.assertEquals(stringWithSurrogates.indexOf(supplementaryChar, 2), "hello ".length());
+    Assert.assertEquals(stringWithSurrogates.indexOf(supplementaryChar, 6), 6);
+    Assert.assertEquals(stringWithSurrogates.indexOf(supplementaryChar, 7), -1);
+  }
+
+  private static void testIndexOfNull() {
     String strNull = null;
     try {
-      strNull.indexOf('a');
+      testNullIndex(strNull, 'a');
       Assert.fail();
     } catch (NullPointerException expected) {
     }
     try {
-      strNull.indexOf('a', 0);
+      testNullIndex(strNull, 'a', 0);
       Assert.fail();
     } catch (NullPointerException expected) {
     }
     try {
-      strNull.indexOf('a', -1);
+        testNullIndex(strNull, 'a', -1);
       Assert.fail();
     } catch (NullPointerException expected) {
     }
+  }
+
+  private static int testNullIndex(String strNull, int c) {
+    return strNull.indexOf(c);
+  }
+
+  private static int testNullIndex(String strNull, int c, int startIndex) {
+    return strNull.indexOf(c, startIndex);
   }
 
   public static void test_String_compareTo() {
