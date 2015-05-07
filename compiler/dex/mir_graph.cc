@@ -52,8 +52,7 @@ const char* MIRGraph::extended_mir_op_names_[kMirOpLast - kMirOpFirst] = {
   "OpNullCheck",
   "OpRangeCheck",
   "OpDivZeroCheck",
-  "Check1",
-  "Check2",
+  "Check",
   "Select",
   "ConstVector",
   "MoveVector",
@@ -1508,7 +1507,7 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
   Instruction::Format dalvik_format = Instruction::k10x;  // Default to no-operand format.
 
   // Handle special cases that recover the original dalvik instruction.
-  if ((opcode == kMirOpCheck) || (opcode == kMirOpCheckPart2)) {
+  if (opcode == kMirOpCheck) {
     str.append(extended_mir_op_names_[opcode - kMirOpFirst]);
     str.append(": ");
     // Recover the original Dex instruction.
@@ -2517,8 +2516,6 @@ int MIR::DecodedInstruction::FlagsOf() const {
       return Instruction::kContinue | Instruction::kThrow;
     case kMirOpCheck:
       return Instruction::kContinue | Instruction::kThrow;
-    case kMirOpCheckPart2:
-      return Instruction::kContinue;
     case kMirOpSelect:
       return Instruction::kContinue;
     case kMirOpConstVector:
