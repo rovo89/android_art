@@ -87,9 +87,9 @@ size_t ComputeModifiedUtf8Hash(const char* chars);
 /*
  * Retrieve the next UTF-16 character or surrogate pair from a UTF-8 string.
  * single byte, 2-byte and 3-byte UTF-8 sequences result in a single UTF-16
- * character whereas 4-byte UTF-8 sequences result in a surrogate pair. Use
- * GetLeadingUtf16Char and GetTrailingUtf16Char to process the return value
- * of this function.
+ * character (possibly one half of a surrogate) whereas 4-byte UTF-8 sequences
+ * result in a surrogate pair. Use GetLeadingUtf16Char and GetTrailingUtf16Char
+ * to process the return value of this function.
  *
  * Advances "*utf8_data_in" to the start of the next character.
  *
