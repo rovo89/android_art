@@ -472,6 +472,9 @@ class StackVisitor {
   bool GetNextMethodAndDexPc(mirror::ArtMethod** next_method, uint32_t* next_dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  bool IsReferenceVReg(mirror::ArtMethod* m, uint16_t vreg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   bool GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind, uint32_t* val) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
