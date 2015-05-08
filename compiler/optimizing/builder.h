@@ -88,7 +88,10 @@ class HGraphBuilder : public ValueObject {
   // the newly created blocks.
   // As a side effect, also compute the number of dex instructions, blocks, and
   // branches.
-  void ComputeBranchTargets(const uint16_t* start,
+  // Returns true if all the branches fall inside the method code, false otherwise.
+  // (In normal cases this should always return true but someone can artificially
+  // create a code unit in which branches fall-through out of it).
+  bool ComputeBranchTargets(const uint16_t* start,
                             const uint16_t* end,
                             size_t* number_of_branches);
   void MaybeUpdateCurrentBlock(size_t index);
