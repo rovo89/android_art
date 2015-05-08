@@ -29,25 +29,26 @@ enum MethodCompilationStat {
   kCompiledBaseline,
   kCompiledOptimized,
   kCompiledQuick,
-  kInstructionSimplifications,
   kInlinedInvoke,
-  kNotCompiledUnsupportedIsa,
-  kNotCompiledPathological,
+  kInstructionSimplifications,
+  kNotCompiledBranchOutsideMethodCode,
+  kNotCompiledCannotBuildSSA,
+  kNotCompiledCantAccesType,
+  kNotCompiledClassNotVerified,
   kNotCompiledHugeMethod,
   kNotCompiledLargeMethodNoBranches,
-  kNotCompiledCannotBuildSSA,
   kNotCompiledNoCodegen,
-  kNotCompiledUnresolvedMethod,
-  kNotCompiledUnresolvedField,
   kNotCompiledNonSequentialRegPair,
+  kNotCompiledPathological,
   kNotCompiledSpaceFilter,
-  kNotOptimizedTryCatch,
-  kNotOptimizedDisabled,
-  kNotCompiledCantAccesType,
-  kNotOptimizedRegisterAllocator,
   kNotCompiledUnhandledInstruction,
+  kNotCompiledUnresolvedField,
+  kNotCompiledUnresolvedMethod,
+  kNotCompiledUnsupportedIsa,
   kNotCompiledVerifyAtRuntime,
-  kNotCompiledClassNotVerified,
+  kNotOptimizedDisabled,
+  kNotOptimizedRegisterAllocator,
+  kNotOptimizedTryCatch,
   kRemovedCheckedCast,
   kRemovedDeadInstruction,
   kRemovedNullCheck,
@@ -98,23 +99,24 @@ class OptimizingCompilerStats {
       case kCompiledQuick : return "kCompiledQuick";
       case kInlinedInvoke : return "kInlinedInvoke";
       case kInstructionSimplifications: return "kInstructionSimplifications";
-      case kNotCompiledUnsupportedIsa : return "kNotCompiledUnsupportedIsa";
-      case kNotCompiledPathological : return "kNotCompiledPathological";
+      case kNotCompiledBranchOutsideMethodCode: return "kNotCompiledBranchOutsideMethodCode";
+      case kNotCompiledCannotBuildSSA : return "kNotCompiledCannotBuildSSA";
+      case kNotCompiledCantAccesType : return "kNotCompiledCantAccesType";
+      case kNotCompiledClassNotVerified : return "kNotCompiledClassNotVerified";
       case kNotCompiledHugeMethod : return "kNotCompiledHugeMethod";
       case kNotCompiledLargeMethodNoBranches : return "kNotCompiledLargeMethodNoBranches";
-      case kNotCompiledCannotBuildSSA : return "kNotCompiledCannotBuildSSA";
       case kNotCompiledNoCodegen : return "kNotCompiledNoCodegen";
-      case kNotCompiledUnresolvedMethod : return "kNotCompiledUnresolvedMethod";
-      case kNotCompiledUnresolvedField : return "kNotCompiledUnresolvedField";
       case kNotCompiledNonSequentialRegPair : return "kNotCompiledNonSequentialRegPair";
-      case kNotOptimizedDisabled : return "kNotOptimizedDisabled";
-      case kNotOptimizedTryCatch : return "kNotOptimizedTryCatch";
-      case kNotCompiledCantAccesType : return "kNotCompiledCantAccesType";
+      case kNotCompiledPathological : return "kNotCompiledPathological";
       case kNotCompiledSpaceFilter : return "kNotCompiledSpaceFilter";
-      case kNotOptimizedRegisterAllocator : return "kNotOptimizedRegisterAllocator";
       case kNotCompiledUnhandledInstruction : return "kNotCompiledUnhandledInstruction";
+      case kNotCompiledUnresolvedField : return "kNotCompiledUnresolvedField";
+      case kNotCompiledUnresolvedMethod : return "kNotCompiledUnresolvedMethod";
+      case kNotCompiledUnsupportedIsa : return "kNotCompiledUnsupportedIsa";
       case kNotCompiledVerifyAtRuntime : return "kNotCompiledVerifyAtRuntime";
-      case kNotCompiledClassNotVerified : return "kNotCompiledClassNotVerified";
+      case kNotOptimizedDisabled : return "kNotOptimizedDisabled";
+      case kNotOptimizedRegisterAllocator : return "kNotOptimizedRegisterAllocator";
+      case kNotOptimizedTryCatch : return "kNotOptimizedTryCatch";
       case kRemovedCheckedCast: return "kRemovedCheckedCast";
       case kRemovedDeadInstruction: return "kRemovedDeadInstruction";
       case kRemovedNullCheck: return "kRemovedNullCheck";
