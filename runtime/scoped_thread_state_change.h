@@ -133,6 +133,7 @@ class ScopedObjectAccessAlreadyRunnable {
   T AddLocalReference(mirror::Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
+    DCHECK_NE(obj, Runtime::Current()->GetClearedJniWeakGlobal());
     return obj == nullptr ? nullptr : Env()->AddLocalReference<T>(obj);
   }
 
