@@ -27,7 +27,8 @@
 #define rSELF $s1
 
 
-    //  Declare a function called name, sets up $gp.
+    // Declare a function called name, sets up $gp.
+    // This macro modifies t8.
 .macro ENTRY name
     .type \name, %function
     .global \name
@@ -35,10 +36,11 @@
     .balign 16
 \name:
     .cfi_startproc
+    // Set up $gp and store the previous $gp value to $t8. It will be pushed to the
+    // stack after the frame has been constructed.
+    .cpsetup $t9, $t8, \name
     // Ensure we get a sane starting CFA.
     .cfi_def_cfa $sp,0
-    // Load $gp. We expect that ".set noreorder" is in effect.
-    .cpload $t9
     // Declare a local convenience label to be branched to when $gp is already set up.
 .L\name\()_gp_set:
 .endm
