@@ -282,7 +282,10 @@ bool HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
 
   // To avoid splitting blocks, we compute ahead of time the instructions that
   // start a new block, and create these blocks.
-  ComputeBranchTargets(code_ptr, code_end, &number_of_branches);
+  if (!ComputeBranchTargets(code_ptr, code_end, &number_of_branches)) {
+    MaybeRecordStat(MethodCompilationStat::kNotCompiledBranchOutsideMethodCode);
+    return false;
+  }
 
   // Note that the compiler driver is null when unit testing.
   if ((compiler_driver_ != nullptr) && SkipCompilation(code_item, number_of_branches)) {
@@ -349,7 +352,7 @@ void HGraphBuilder::MaybeUpdateCurrentBlock(size_t index) {
   current_block_ = block;
 }
 
-void HGraphBuilder::ComputeBranchTargets(const uint16_t* code_ptr,
+bool HGraphBuilder::ComputeBranchTargets(const uint16_t* code_ptr,
                                          const uint16_t* code_end,
                                          size_t* number_of_branches) {
   branch_targets_.SetSize(code_end - code_ptr);
@@ -374,7 +377,14 @@ void HGraphBuilder::ComputeBranchTargets(const uint16_t* code_ptr,
       }
       dex_pc += instruction.SizeInCodeUnits();
       code_ptr += instruction.SizeInCodeUnits();
-      if ((code_ptr < code_end) && (FindBlockStartingAt(dex_pc) == nullptr)) {
+
+      if (code_ptr >= code_end) {
+        if (instruction.CanFlowThrough()) {
+          // In the normal case we should never hit this but someone can artificially forge a dex
+          // file to fall-through out the method code. In this case we bail out compilation.
+          return false;
+        }
+      } else if (FindBlockStartingAt(dex_pc) == nullptr) {
         block = new (arena_) HBasicBlock(graph_, dex_pc);
         branch_targets_.Put(dex_pc, block);
       }
@@ -406,7 +416,12 @@ void HGraphBuilder::ComputeBranchTargets(const uint16_t* code_ptr,
       // Fall-through. Add a block if there is more code afterwards.
       dex_pc += instruction.SizeInCodeUnits();
       code_ptr += instruction.SizeInCodeUnits();
-      if ((code_ptr < code_end) && (FindBlockStartingAt(dex_pc) == nullptr)) {
+      if (code_ptr >= code_end) {
+        // In the normal case we should never hit this but someone can artificially forge a dex
+        // file to fall-through out the method code. In this case we bail out compilation.
+        // (A switch can fall-through so we don't need to check CanFlowThrough().)
+        return false;
+      } else if (FindBlockStartingAt(dex_pc) == nullptr) {
         block = new (arena_) HBasicBlock(graph_, dex_pc);
         branch_targets_.Put(dex_pc, block);
       }
@@ -415,6 +430,7 @@ void HGraphBuilder::ComputeBranchTargets(const uint16_t* code_ptr,
       dex_pc += instruction.SizeInCodeUnits();
     }
   }
+  return true;
 }
 
 HBasicBlock* HGraphBuilder::FindBlockStartingAt(int32_t index) const {
