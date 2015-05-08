@@ -491,7 +491,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     bool no_gap = MemMap::CheckNoGaps(GetImageSpace()->GetMemMap(),
                                       non_moving_space_->GetMemMap());
     if (!no_gap) {
-      MemMap::DumpMaps(LOG(ERROR));
+      MemMap::DumpMaps(LOG(ERROR), true);
       LOG(FATAL) << "There's a gap between the image space and the non-moving space";
     }
   }
