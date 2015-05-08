@@ -137,7 +137,7 @@ class MemMap {
 
   static bool CheckNoGaps(MemMap* begin_map, MemMap* end_map)
       LOCKS_EXCLUDED(Locks::mem_maps_lock_);
-  static void DumpMaps(std::ostream& os)
+  static void DumpMaps(std::ostream& os, bool terse = false)
       LOCKS_EXCLUDED(Locks::mem_maps_lock_);
 
   typedef AllocationTrackingMultiMap<void*, MemMap*, kAllocatorTagMaps> Maps;
@@ -149,7 +149,7 @@ class MemMap {
   MemMap(const std::string& name, uint8_t* begin, size_t size, void* base_begin, size_t base_size,
          int prot, bool reuse) LOCKS_EXCLUDED(Locks::mem_maps_lock_);
 
-  static void DumpMapsLocked(std::ostream& os)
+  static void DumpMapsLocked(std::ostream& os, bool terse)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mem_maps_lock_);
   static bool HasMemMap(MemMap* map)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mem_maps_lock_);
