@@ -405,9 +405,9 @@ class OatFileAssistant {
   bool cached_oat_file_name_found_;
   std::string cached_oat_file_name_;
 
-  // Cached value of the loaded odex file.
+  // Cached value of the loaded oat file.
   // Use the GetOatFile method rather than accessing this directly, unless you
-  // know the odex file isn't out of date.
+  // know the oat file isn't out of date.
   bool oat_file_load_attempted_ = false;
   std::unique_ptr<OatFile> cached_oat_file_;
 
