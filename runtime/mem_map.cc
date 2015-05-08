@@ -153,7 +153,7 @@ static bool ContainedWithinExistingMap(uint8_t* ptr, size_t size,
       return true;
     }
   }
-  PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
+  PrintFileToLog("/proc/self/maps", LogSeverity::ERROR);
   *error_msg = StringPrintf("Requested region 0x%08" PRIxPTR "-0x%08" PRIxPTR " does not overlap "
                             "any existing map. See process maps in the log.", begin, end);
   return false;
@@ -256,7 +256,7 @@ MemMap* MemMap::MapAnonymous(const char* name, uint8_t* expected_ptr, size_t byt
     // Only use this if you actually made the page reservation yourself.
     CHECK(expected_ptr != nullptr);
 
-    DCHECK(ContainedWithinExistingMap(expected_ptr, byte_count, error_msg)) << error_msg;
+    DCHECK(ContainedWithinExistingMap(expected_ptr, byte_count, error_msg)) << *error_msg;
     flags |= MAP_FIXED;
   }
 
@@ -411,7 +411,7 @@ MemMap* MemMap::MapFileAtAddress(uint8_t* expected_ptr, size_t byte_count, int p
     // Only use this if you actually made the page reservation yourself.
     CHECK(expected_ptr != nullptr);
 
-    DCHECK(ContainedWithinExistingMap(expected_ptr, byte_count, error_msg)) << error_msg;
+    DCHECK(ContainedWithinExistingMap(expected_ptr, byte_count, error_msg)) << *error_msg;
     flags |= MAP_FIXED;
   } else {
     CHECK_EQ(0, flags & MAP_FIXED);
