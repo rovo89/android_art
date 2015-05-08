@@ -604,6 +604,11 @@ std::unique_ptr<T> MakeUnique(Args&& ... args) {
   return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
 
+inline bool TestBitmap(size_t idx, const uint8_t* bitmap) {
+  return ((bitmap[idx / kBitsPerByte] >> (idx % kBitsPerByte)) & 0x01) != 0;
+}
+
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_UTILS_H_
