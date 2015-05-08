@@ -274,6 +274,9 @@ public class Main {
     Assert.assertEquals(stringWithSurrogates.indexOf(supplementaryChar, 2), "hello ".length());
     Assert.assertEquals(stringWithSurrogates.indexOf(supplementaryChar, 6), 6);
     Assert.assertEquals(stringWithSurrogates.indexOf(supplementaryChar, 7), -1);
+
+    Assert.assertEquals(stringWithSurrogates.indexOf(supplementaryChar - 0x10000), -1);
+    Assert.assertEquals(stringWithSurrogates.indexOf(supplementaryChar | 0x80000000), -1);
   }
 
   private static void testIndexOfNull() {

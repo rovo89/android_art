@@ -993,6 +993,91 @@ void IntrinsicCodeGeneratorARM64::VisitStringCompareTo(HInvoke* invoke) {
   __ Bind(slow_path->GetExitLabel());
 }
 
+static void GenerateVisitStringIndexOf(HInvoke* invoke,
+                                       vixl::MacroAssembler* masm,
+                                       CodeGeneratorARM64* codegen,
+                                       ArenaAllocator* allocator,
+                                       bool start_at_zero) {
+  LocationSummary* locations = invoke->GetLocations();
+  Register tmp_reg = WRegisterFrom(locations->GetTemp(0));
+
+  // Note that the null check must have been done earlier.
+  DCHECK(!invoke->CanDoImplicitNullCheckOn(invoke->InputAt(0)));
+
+  // Check for code points > 0xFFFF. Either a slow-path check when we don't know statically,
+  // or directly dispatch if we have a constant.
+  SlowPathCodeARM64* slow_path = nullptr;
+  if (invoke->InputAt(1)->IsIntConstant()) {
+    if (static_cast<uint32_t>(invoke->InputAt(1)->AsIntConstant()->GetValue()) > 0xFFFFU) {
+      // Always needs the slow-path. We could directly dispatch to it, but this case should be
+      // rare, so for simplicity just put the full slow-path down and branch unconditionally.
+      slow_path = new (allocator) IntrinsicSlowPathARM64(invoke);
+      codegen->AddSlowPath(slow_path);
+      __ B(slow_path->GetEntryLabel());
+      __ Bind(slow_path->GetExitLabel());
+      return;
+    }
+  } else {
+    Register char_reg = WRegisterFrom(locations->InAt(1));
+    __ Mov(tmp_reg, 0xFFFF);
+    __ Cmp(char_reg, Operand(tmp_reg));
+    slow_path = new (allocator) IntrinsicSlowPathARM64(invoke);
+    codegen->AddSlowPath(slow_path);
+    __ B(hi, slow_path->GetEntryLabel());
+  }
+
+  if (start_at_zero) {
+    // Start-index = 0.
+    __ Mov(tmp_reg, 0);
+  }
+
+  __ Ldr(lr, MemOperand(tr, QUICK_ENTRYPOINT_OFFSET(kArm64WordSize, pIndexOf).Int32Value()));
+  __ Blr(lr);
+
+  if (slow_path != nullptr) {
+    __ Bind(slow_path->GetExitLabel());
+  }
+}
+
+void IntrinsicLocationsBuilderARM64::VisitStringIndexOf(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCall,
+                                                            kIntrinsified);
+  // We have a hand-crafted assembly stub that follows the runtime calling convention. So it's
+  // best to align the inputs accordingly.
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
+  locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimInt));
+
+  // Need a temp for slow-path codepoint compare, and need to send start_index=0.
+  locations->AddTemp(LocationFrom(calling_convention.GetRegisterAt(2)));
+}
+
+void IntrinsicCodeGeneratorARM64::VisitStringIndexOf(HInvoke* invoke) {
+  GenerateVisitStringIndexOf(invoke, GetVIXLAssembler(), codegen_, GetAllocator(), true);
+}
+
+void IntrinsicLocationsBuilderARM64::VisitStringIndexOfAfter(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCall,
+                                                            kIntrinsified);
+  // We have a hand-crafted assembly stub that follows the runtime calling convention. So it's
+  // best to align the inputs accordingly.
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(2, LocationFrom(calling_convention.GetRegisterAt(2)));
+  locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimInt));
+
+  // Need a temp for slow-path codepoint compare.
+  locations->AddTemp(Location::RequiresRegister());
+}
+
+void IntrinsicCodeGeneratorARM64::VisitStringIndexOfAfter(HInvoke* invoke) {
+  GenerateVisitStringIndexOf(invoke, GetVIXLAssembler(), codegen_, GetAllocator(), false);
+}
+
 void IntrinsicLocationsBuilderARM64::VisitStringNewStringFromBytes(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
                                                             LocationSummary::kCall,
@@ -1080,8 +1165,6 @@ void IntrinsicCodeGeneratorARM64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED
 }
 
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
-UNIMPLEMENTED_INTRINSIC(StringIndexOf)
-UNIMPLEMENTED_INTRINSIC(StringIndexOfAfter)
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
 UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
 
