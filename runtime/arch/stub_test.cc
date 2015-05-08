@@ -1563,7 +1563,11 @@ static void GetSet32Static(ArtField* f, Thread* self, mirror::ArtMethod* referre
                                            self,
                                            referrer);
 
+#if defined(__mips__) && defined(__LP64__)
+    EXPECT_EQ(static_cast<uint32_t>(res), values[i]) << "Iteration " << i;
+#else
     EXPECT_EQ(res, values[i]) << "Iteration " << i;
+#endif
   }
 #else
   UNUSED(f, self, referrer, test);
