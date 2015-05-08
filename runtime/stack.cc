@@ -19,6 +19,7 @@
 #include "arch/context.h"
 #include "base/hex_dump.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
+#include "gc_map.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object.h"
@@ -149,6 +150,33 @@ mirror::Object* StackVisitor::GetThisObject() const {
 size_t StackVisitor::GetNativePcOffset() const {
   DCHECK(!IsShadowFrame());
   return GetMethod()->NativeQuickPcOffset(cur_quick_frame_pc_);
+}
+
+bool StackVisitor::IsReferenceVReg(mirror::ArtMethod* m, uint16_t vreg) {
+  // Process register map (which native and runtime methods don't have)
+  if (m->IsNative() || m->IsRuntimeMethod() || m->IsProxyMethod()) {
+    return false;
+  }
+  if (m->IsOptimized(sizeof(void*))) {
+    return true;  // TODO: Implement.
+  }
+  const uint8_t* native_gc_map = m->GetNativeGcMap(sizeof(void*));
+  CHECK(native_gc_map != nullptr) << PrettyMethod(m);
+  const DexFile::CodeItem* code_item = m->GetCodeItem();
+  // Can't be null or how would we compile its instructions?
+  DCHECK(code_item != nullptr) << PrettyMethod(m);
+  NativePcOffsetToReferenceMap map(native_gc_map);
+  size_t num_regs = std::min(map.RegWidth() * 8, static_cast<size_t>(code_item->registers_size_));
+  const uint8_t* reg_bitmap = nullptr;
+  if (num_regs > 0) {
+    Runtime* runtime = Runtime::Current();
+    const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(m, sizeof(void*));
+    uintptr_t native_pc_offset = m->NativeQuickPcOffset(GetCurrentQuickFramePc(), entry_point);
+    reg_bitmap = map.FindBitMap(native_pc_offset);
+    DCHECK(reg_bitmap != nullptr);
+  }
+  // Does this register hold a reference?
+  return vreg < num_regs && TestBitmap(vreg, reg_bitmap);
 }
 
 bool StackVisitor::GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind,
