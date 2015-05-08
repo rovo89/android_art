@@ -2311,10 +2311,6 @@ class ReferenceMapVisitor : public StackVisitor {
     }
   }
 
-  static bool TestBitmap(size_t reg, const uint8_t* reg_vector) {
-    return ((reg_vector[reg / kBitsPerByte] >> (reg % kBitsPerByte)) & 0x01) != 0;
-  }
-
   // Visitor for when we visit a root.
   RootVisitor& visitor_;
 };
