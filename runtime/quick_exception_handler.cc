@@ -223,7 +223,10 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
           break;
         case kReferenceVReg: {
           uint32_t value = 0;
-          if (GetVReg(h_method.Get(), reg, kind, &value)) {
+          // Check IsReferenceVReg in case the compiled GC map doesn't agree with the verifier.
+          // We don't want to copy a stale reference into the shadow frame as a reference.
+          // b/20736048
+          if (GetVReg(h_method.Get(), reg, kind, &value) && IsReferenceVReg(h_method.Get(), reg)) {
             new_frame->SetVRegReference(reg, reinterpret_cast<mirror::Object*>(value));
           } else {
             new_frame->SetVReg(reg, kDeadValue);
