@@ -282,6 +282,9 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   Address LiteralInt32Address(int32_t v);
   Address LiteralInt64Address(int64_t v);
 
+  // Load a 64 bit value into a register in the most efficient manner.
+  void Load64BitValue(CpuRegister dest, int64_t value);
+
  private:
   // Labels for each block that will be compiled.
   GrowableArray<Label> block_labels_;
