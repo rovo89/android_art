@@ -783,7 +783,7 @@ void IntrinsicCodeGeneratorX86_64::VisitMathRoundDouble(HInvoke* invoke) {
   __ Bind(&nan);
 
   //  output = 0
-  __ xorq(out, out);
+  __ xorl(out, out);
   __ Bind(&done);
 }
 
