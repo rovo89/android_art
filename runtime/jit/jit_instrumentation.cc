@@ -77,7 +77,7 @@ void JitInstrumentationCache::AddSamples(Thread* self, mirror::ArtMethod* method
   ScopedObjectAccessUnchecked soa(self);
   // Since we don't have on-stack replacement, some methods can remain in the interpreter longer
   // than we want resulting in samples even after the method is compiled.
-  if (method->IsClassInitializer() ||
+  if (method->IsClassInitializer() || method->IsNative() ||
       Runtime::Current()->GetJit()->GetCodeCache()->ContainsMethod(method)) {
     return;
   }
