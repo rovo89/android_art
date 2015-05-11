@@ -225,7 +225,7 @@ static void RunCodeOptimized(HGraph* graph,
 static void TestCode(const uint16_t* data, bool has_result = false, int32_t expected = 0) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
-  HGraph* graph = new (&arena) HGraph(&arena);
+  HGraph* graph = CreateGraph(&arena);
   HGraphBuilder builder(graph);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
   bool graph_built = builder.BuildGraph(*item);
@@ -238,7 +238,7 @@ static void TestCode(const uint16_t* data, bool has_result = false, int32_t expe
 static void TestCodeLong(const uint16_t* data, bool has_result, int64_t expected) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
-  HGraph* graph = new (&arena) HGraph(&arena);
+  HGraph* graph = CreateGraph(&arena);
   HGraphBuilder builder(graph, Primitive::kPrimLong);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
   bool graph_built = builder.BuildGraph(*item);
@@ -504,7 +504,7 @@ TEST(CodegenTest, NonMaterializedCondition) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
 
-  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HGraph* graph = CreateGraph(&allocator);
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
@@ -623,7 +623,7 @@ TEST(CodegenTest, MaterializedCondition1) {
   for (size_t i = 0; i < arraysize(lhs); i++) {
     ArenaPool pool;
     ArenaAllocator allocator(&pool);
-    HGraph* graph = new (&allocator) HGraph(&allocator);
+    HGraph* graph = CreateGraph(&allocator);
 
     HBasicBlock* entry_block = new (&allocator) HBasicBlock(graph);
     graph->AddBlock(entry_block);
@@ -669,7 +669,7 @@ TEST(CodegenTest, MaterializedCondition2) {
   for (size_t i = 0; i < arraysize(lhs); i++) {
     ArenaPool pool;
     ArenaAllocator allocator(&pool);
-    HGraph* graph = new (&allocator) HGraph(&allocator);
+    HGraph* graph = CreateGraph(&allocator);
 
     HBasicBlock* entry_block = new (&allocator) HBasicBlock(graph);
     graph->AddBlock(entry_block);

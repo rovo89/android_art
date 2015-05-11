@@ -46,7 +46,7 @@ static void DumpBitVector(BitVector* vector,
 static void TestCode(const uint16_t* data, const char* expected) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
-  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HGraph* graph = CreateGraph(&allocator);
   HGraphBuilder builder(graph);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
   bool graph_built = builder.BuildGraph(*item);

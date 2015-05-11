@@ -21,6 +21,7 @@
 #include "cfi_test.h"
 #include "gtest/gtest.h"
 #include "optimizing/code_generator.h"
+#include "optimizing/optimizing_unit_test.h"
 #include "utils/assembler.h"
 
 #include "optimizing/optimizing_cfi_test_expected.inc"
@@ -45,10 +46,10 @@ class OptimizingCFITest  : public CFITest {
     std::unique_ptr<const InstructionSetFeatures> isa_features;
     std::string error;
     isa_features.reset(InstructionSetFeatures::FromVariant(isa, "default", &error));
-    HGraph graph(&allocator);
+    HGraph* graph = CreateGraph(&allocator);
     // Generate simple frame with some spills.
     std::unique_ptr<CodeGenerator> code_gen(
-        CodeGenerator::Create(&graph, isa, *isa_features.get(), opts));
+        CodeGenerator::Create(graph, isa, *isa_features.get(), opts));
     const int frame_size = 64;
     int core_reg = 0;
     int fp_reg = 0;

@@ -512,7 +512,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
 
   ArenaAllocator arena(Runtime::Current()->GetArenaPool());
   HGraph* graph = new (&arena) HGraph(
-      &arena, compiler_driver->GetCompilerOptions().GetDebuggable());
+      &arena, dex_file, method_idx, compiler_driver->GetCompilerOptions().GetDebuggable());
 
   // For testing purposes, we put a special marker on method names that should be compiled
   // with this compiler. This makes sure we're not regressing.
