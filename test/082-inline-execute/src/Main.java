@@ -262,7 +262,78 @@ public class Main {
 
     testIndexOfNull();
 
+    // Same data as above, but stored so it's not a literal in the next test. -2 stands for
+    // indexOf(I) instead of indexOf(II).
+    start--;
+    int[][] searchData = {
+        { 'a', -2, -1 },
+        { 'a', -2, 0 },
+        { 'b', -2, 1 },
+        { 'c', -2, 2 },
+        { 'j', -2, 9 },
+        { 'a', -2, 0 },
+        { 'b', -2, 38 },
+        { 'c', -2, 39 },
+        { 'a', 20, -1 },
+        { 'a', 0, -1 },
+        { 'a', -1, -1 },
+        { '/', ++start, -1 },
+        { 'a', negIndex[0], -1 },
+        { 'a', 0, 0 },
+        { 'a', 1, -1 },
+        { 'a', 1234, -1 },
+        { 'b', 0, 1 },
+        { 'b', 1, 1 },
+        { 'c', 2, 2 },
+        { 'j', 5, 9 },
+        { 'j', 9, 9 },
+        { 'a', 10, 10 },
+        { 'b', 40, -1 },
+    };
+    testStringIndexOfChars(searchData);
+
     testSurrogateIndexOf();
+  }
+
+  private static void testStringIndexOfChars(int[][] searchData) {
+    // Use a try-catch to avoid inlining.
+    try {
+      testStringIndexOfCharsImpl(searchData);
+    } catch (Exception e) {
+      System.out.println("Unexpected exception");
+    }
+  }
+
+  private static void testStringIndexOfCharsImpl(int[][] searchData) {
+    String str0 = "";
+    String str1 = "/";
+    String str3 = "abc";
+    String str10 = "abcdefghij";
+    String str40 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabc";
+
+    Assert.assertEquals(str0.indexOf(searchData[0][0]), searchData[0][2]);
+    Assert.assertEquals(str3.indexOf(searchData[1][0]), searchData[1][2]);
+    Assert.assertEquals(str3.indexOf(searchData[2][0]), searchData[2][2]);
+    Assert.assertEquals(str3.indexOf(searchData[3][0]), searchData[3][2]);
+    Assert.assertEquals(str10.indexOf(searchData[4][0]), searchData[4][2]);
+    Assert.assertEquals(str40.indexOf(searchData[5][0]), searchData[5][2]);
+    Assert.assertEquals(str40.indexOf(searchData[6][0]), searchData[6][2]);
+    Assert.assertEquals(str40.indexOf(searchData[7][0]), searchData[7][2]);
+    Assert.assertEquals(str0.indexOf(searchData[8][0], searchData[8][1]), searchData[8][2]);
+    Assert.assertEquals(str0.indexOf(searchData[9][0], searchData[9][1]), searchData[9][2]);
+    Assert.assertEquals(str0.indexOf(searchData[10][0], searchData[10][1]), searchData[10][2]);
+    Assert.assertEquals(str1.indexOf(searchData[11][0], searchData[11][1]), searchData[11][2]);
+    Assert.assertEquals(str1.indexOf(searchData[12][0], searchData[12][1]), searchData[12][2]);
+    Assert.assertEquals(str3.indexOf(searchData[13][0], searchData[13][1]), searchData[13][2]);
+    Assert.assertEquals(str3.indexOf(searchData[14][0], searchData[14][1]), searchData[14][2]);
+    Assert.assertEquals(str3.indexOf(searchData[15][0], searchData[15][1]), searchData[15][2]);
+    Assert.assertEquals(str3.indexOf(searchData[16][0], searchData[16][1]), searchData[16][2]);
+    Assert.assertEquals(str3.indexOf(searchData[17][0], searchData[17][1]), searchData[17][2]);
+    Assert.assertEquals(str3.indexOf(searchData[18][0], searchData[18][1]), searchData[18][2]);
+    Assert.assertEquals(str10.indexOf(searchData[19][0], searchData[19][1]), searchData[19][2]);
+    Assert.assertEquals(str10.indexOf(searchData[20][0], searchData[20][1]), searchData[20][2]);
+    Assert.assertEquals(str40.indexOf(searchData[21][0], searchData[21][1]), searchData[21][2]);
+    Assert.assertEquals(str40.indexOf(searchData[22][0], searchData[22][1]), searchData[22][2]);
   }
 
   private static void testSurrogateIndexOf() {
