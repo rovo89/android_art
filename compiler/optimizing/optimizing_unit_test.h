@@ -72,11 +72,16 @@ void RemoveSuspendChecks(HGraph* graph) {
   }
 }
 
+inline HGraph* CreateGraph(ArenaAllocator* allocator) {
+  return new (allocator) HGraph(
+      allocator, *reinterpret_cast<DexFile*>(allocator->Alloc(sizeof(DexFile))), -1);
+}
+
 // Create a control-flow graph from Dex instructions.
 inline HGraph* CreateCFG(ArenaAllocator* allocator,
                          const uint16_t* data,
                          Primitive::Type return_type = Primitive::kPrimInt) {
-  HGraph* graph = new (allocator) HGraph(allocator);
+  HGraph* graph = CreateGraph(allocator);
   HGraphBuilder builder(graph, return_type);
   const DexFile::CodeItem* item =
     reinterpret_cast<const DexFile::CodeItem*>(data);

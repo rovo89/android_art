@@ -28,7 +28,7 @@
 namespace art {
 
 static HGraph* TestCode(const uint16_t* data, ArenaAllocator* allocator) {
-  HGraph* graph = new (allocator) HGraph(allocator);
+  HGraph* graph = CreateGraph(allocator);
   HGraphBuilder builder(graph);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
   builder.BuildGraph(*item);

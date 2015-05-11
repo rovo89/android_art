@@ -25,8 +25,6 @@ LocationSummary::LocationSummary(HInstruction* instruction,
                                  bool intrinsified)
     : inputs_(instruction->GetBlock()->GetGraph()->GetArena(), instruction->InputCount()),
       temps_(instruction->GetBlock()->GetGraph()->GetArena(), 0),
-      environment_(instruction->GetBlock()->GetGraph()->GetArena(),
-                   instruction->EnvironmentSize()),
       output_overlaps_(Location::kOutputOverlap),
       call_kind_(call_kind),
       stack_mask_(nullptr),
@@ -36,10 +34,6 @@ LocationSummary::LocationSummary(HInstruction* instruction,
   inputs_.SetSize(instruction->InputCount());
   for (size_t i = 0; i < instruction->InputCount(); ++i) {
     inputs_.Put(i, Location());
-  }
-  environment_.SetSize(instruction->EnvironmentSize());
-  for (size_t i = 0; i < instruction->EnvironmentSize(); ++i) {
-    environment_.Put(i, Location());
   }
   instruction->SetLocations(this);
 

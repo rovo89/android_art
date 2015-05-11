@@ -30,7 +30,7 @@ namespace art {
  *     1: Exit
  */
 HGraph* CreateSimpleCFG(ArenaAllocator* allocator) {
-  HGraph* graph = new (allocator) HGraph(allocator);
+  HGraph* graph = CreateGraph(allocator);
   HBasicBlock* entry_block = new (allocator) HBasicBlock(graph);
   entry_block->AddInstruction(new (allocator) HGoto());
   graph->AddBlock(entry_block);

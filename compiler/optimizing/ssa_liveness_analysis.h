@@ -104,13 +104,13 @@ class LiveRange FINAL : public ArenaObject<kArenaAllocMisc> {
 class UsePosition : public ArenaObject<kArenaAllocMisc> {
  public:
   UsePosition(HInstruction* user,
+              HEnvironment* environment,
               size_t input_index,
-              bool is_environment,
               size_t position,
               UsePosition* next)
       : user_(user),
+        environment_(environment),
         input_index_(input_index),
-        is_environment_(is_environment),
         position_(position),
         next_(next) {
     DCHECK((user == nullptr)
@@ -129,7 +129,7 @@ class UsePosition : public ArenaObject<kArenaAllocMisc> {
 
   HInstruction* GetUser() const { return user_; }
 
-  bool GetIsEnvironment() const { return is_environment_; }
+  bool GetIsEnvironment() const { return environment_ != nullptr; }
   bool IsSynthesized() const { return user_ == nullptr; }
 
   size_t GetInputIndex() const { return input_index_; }
@@ -144,7 +144,7 @@ class UsePosition : public ArenaObject<kArenaAllocMisc> {
 
   UsePosition* Dup(ArenaAllocator* allocator) const {
     return new (allocator) UsePosition(
-        user_, input_index_, is_environment_, position_,
+        user_, environment_, input_index_, position_,
         next_ == nullptr ? nullptr : next_->Dup(allocator));
   }
 
@@ -159,8 +159,8 @@ class UsePosition : public ArenaObject<kArenaAllocMisc> {
 
  private:
   HInstruction* const user_;
+  HEnvironment* const environment_;
   const size_t input_index_;
-  const bool is_environment_;
   const size_t position_;
   UsePosition* next_;
 
@@ -237,15 +237,16 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
     DCHECK(first_env_use_ == nullptr) << "A temporary cannot have environment user";
     size_t position = instruction->GetLifetimePosition();
     first_use_ = new (allocator_) UsePosition(
-        instruction, temp_index, /* is_environment */ false, position, first_use_);
+        instruction, /* environment */ nullptr, temp_index, position, first_use_);
     AddRange(position, position + 1);
   }
 
   void AddUse(HInstruction* instruction,
+              HEnvironment* environment,
               size_t input_index,
-              bool is_environment,
               bool keep_alive = false) {
     // Set the use within the instruction.
+    bool is_environment = (environment != nullptr);
     size_t position = instruction->GetLifetimePosition() + 1;
     LocationSummary* locations = instruction->GetLocations();
     if (!is_environment) {
@@ -279,7 +280,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
       }
       DCHECK(first_use_->GetPosition() + 1 == position);
       UsePosition* new_use = new (allocator_) UsePosition(
-          instruction, input_index, is_environment, position, cursor->GetNext());
+          instruction, environment, input_index, position, cursor->GetNext());
       cursor->SetNext(new_use);
       if (first_range_->GetEnd() == first_use_->GetPosition()) {
         first_range_->end_ = position;
@@ -289,10 +290,10 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
 
     if (is_environment) {
       first_env_use_ = new (allocator_) UsePosition(
-          instruction, input_index, is_environment, position, first_env_use_);
+          instruction, environment, input_index, position, first_env_use_);
     } else {
       first_use_ = new (allocator_) UsePosition(
-          instruction, input_index, is_environment, position, first_use_);
+          instruction, environment, input_index, position, first_use_);
     }
 
     if (is_environment && !keep_alive) {
@@ -331,7 +332,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
       AddBackEdgeUses(*block);
     }
     first_use_ = new (allocator_) UsePosition(
-        instruction, input_index, false, block->GetLifetimeEnd(), first_use_);
+        instruction, /* environment */ nullptr, input_index, block->GetLifetimeEnd(), first_use_);
   }
 
   void AddRange(size_t start, size_t end) {
@@ -989,8 +990,11 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
              || back_edge_use_position > last_in_new_list->GetPosition());
 
       UsePosition* new_use = new (allocator_) UsePosition(
-          nullptr, UsePosition::kNoInput, /* is_environment */ false,
-          back_edge_use_position, nullptr);
+          /* user */ nullptr,
+          /* environment */ nullptr,
+          UsePosition::kNoInput,
+          back_edge_use_position,
+          /* next */ nullptr);
 
       if (last_in_new_list != nullptr) {
         // Going outward. The latest created use needs to point to the new use.
