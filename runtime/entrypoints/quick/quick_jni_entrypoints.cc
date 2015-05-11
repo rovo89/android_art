@@ -22,6 +22,13 @@
 
 namespace art {
 
+extern void ReadBarrierJni(mirror::CompressedReference<mirror::Object>* handle_on_stack,
+                           Thread* self ATTRIBUTE_UNUSED) {
+  // Call the read barrier and update the handle.
+  mirror::Object* to_ref = ReadBarrier::BarrierForRoot(handle_on_stack);
+  handle_on_stack->Assign(to_ref);
+}
+
 // Called on entry to JNI, transition out of Runnable and release share of mutator_lock_.
 extern uint32_t JniMethodStart(Thread* self) {
   JNIEnvExt* env = self->GetJniEnv();
