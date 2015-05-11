@@ -58,8 +58,10 @@ class BoundedStackVisitor : public StackVisitor {
   BoundedStackVisitor(std::vector<std::pair<mirror::ArtMethod*, uint32_t>>* stack,
       Thread* thread, uint32_t max_depth)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(thread, nullptr), stack_(stack), max_depth_(max_depth), depth_(0) {
-  }
+      : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
+        stack_(stack),
+        max_depth_(max_depth),
+        depth_(0) {}
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::ArtMethod* m = GetMethod();
