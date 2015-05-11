@@ -409,8 +409,17 @@ class PACKED(4) ManagedStack {
 };
 
 class StackVisitor {
+ public:
+  // This enum defines a flag to control whether inlined frames are included
+  // when walking the stack.
+  enum class StackWalkKind {
+    kIncludeInlinedFrames,
+    kSkipInlinedFrames,
+  };
+
  protected:
-  StackVisitor(Thread* thread, Context* context) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  StackVisitor(Thread* thread, Context* context, StackWalkKind walk_kind)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  public:
   virtual ~StackVisitor() {}
@@ -465,7 +474,7 @@ class StackVisitor {
 
   size_t GetNumFrames() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (num_frames_ == 0) {
-      num_frames_ = ComputeNumFrames(thread_);
+      num_frames_ = ComputeNumFrames(thread_, walk_kind_);
     }
     return num_frames_;
   }
@@ -601,6 +610,10 @@ class StackVisitor {
     return sizeof(StackReference<mirror::ArtMethod>) + (out_num * sizeof(uint32_t));
   }
 
+  bool IsInInlinedFrame() const {
+    return false;
+  }
+
   uintptr_t GetCurrentQuickFramePc() const {
     return cur_quick_frame_pc_;
   }
@@ -621,13 +634,14 @@ class StackVisitor {
 
   std::string DescribeLocation() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static size_t ComputeNumFrames(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static size_t ComputeNumFrames(Thread* thread, StackWalkKind walk_kind)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void DescribeStack(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   // Private constructor known in the case that num_frames_ has already been computed.
-  StackVisitor(Thread* thread, Context* context, size_t num_frames)
+  StackVisitor(Thread* thread, Context* context, StackWalkKind walk_kind, size_t num_frames)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsAccessibleRegister(uint32_t reg, bool is_float) const {
@@ -690,6 +704,7 @@ class StackVisitor {
   void SanityCheckFrame() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Thread* const thread_;
+  const StackWalkKind walk_kind_;
   ShadowFrame* cur_shadow_frame_;
   StackReference<mirror::ArtMethod>* cur_quick_frame_;
   uintptr_t cur_quick_frame_pc_;

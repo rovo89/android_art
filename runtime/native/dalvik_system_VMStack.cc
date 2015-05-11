@@ -84,7 +84,8 @@ static jobject VMStack_getCallingClassLoader(JNIEnv* env, jclass) {
 static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass) {
   struct ClosestUserClassLoaderVisitor : public StackVisitor {
     explicit ClosestUserClassLoaderVisitor(Thread* thread)
-      : StackVisitor(thread, nullptr), class_loader(nullptr) {}
+      : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
+        class_loader(nullptr) {}
 
     bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       DCHECK(class_loader == nullptr);
