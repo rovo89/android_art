@@ -143,7 +143,9 @@
   V(NewStringFromCodePoints, void) \
   V(NewStringFromString, void) \
   V(NewStringFromStringBuffer, void) \
-  V(NewStringFromStringBuilder, void)
+  V(NewStringFromStringBuilder, void) \
+\
+  V(ReadBarrierJni, void, mirror::CompressedReference<mirror::Object>*, Thread*)
 
 #endif  // ART_RUNTIME_ENTRYPOINTS_QUICK_QUICK_ENTRYPOINTS_LIST_H_
 #undef ART_RUNTIME_ENTRYPOINTS_QUICK_QUICK_ENTRYPOINTS_LIST_H_   // #define is only for lint.
