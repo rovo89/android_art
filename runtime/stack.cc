@@ -85,16 +85,20 @@ bool ManagedStack::ShadowFramesContain(StackReference<mirror::Object>* shadow_fr
   return false;
 }
 
-StackVisitor::StackVisitor(Thread* thread, Context* context)
-    : thread_(thread), cur_shadow_frame_(nullptr),
-      cur_quick_frame_(nullptr), cur_quick_frame_pc_(0), num_frames_(0), cur_depth_(0),
-      context_(context) {
-  DCHECK(thread == Thread::Current() || thread->IsSuspended()) << *thread;
-}
+StackVisitor::StackVisitor(Thread* thread, Context* context, StackWalkKind walk_kind)
+    : StackVisitor(thread, context, walk_kind, 0) {}
 
-StackVisitor::StackVisitor(Thread* thread, Context* context, size_t num_frames)
-    : thread_(thread), cur_shadow_frame_(nullptr),
-      cur_quick_frame_(nullptr), cur_quick_frame_pc_(0), num_frames_(num_frames), cur_depth_(0),
+StackVisitor::StackVisitor(Thread* thread,
+                           Context* context,
+                           StackWalkKind walk_kind,
+                           size_t num_frames)
+    : thread_(thread),
+      walk_kind_(walk_kind),
+      cur_shadow_frame_(nullptr),
+      cur_quick_frame_(nullptr),
+      cur_quick_frame_pc_(0),
+      num_frames_(num_frames),
+      cur_depth_(0),
       context_(context) {
   DCHECK(thread == Thread::Current() || thread->IsSuspended()) << *thread;
 }
@@ -565,10 +569,10 @@ void StackVisitor::SetReturnPc(uintptr_t new_ret_pc) {
   *reinterpret_cast<uintptr_t*>(pc_addr) = new_ret_pc;
 }
 
-size_t StackVisitor::ComputeNumFrames(Thread* thread) {
+size_t StackVisitor::ComputeNumFrames(Thread* thread, StackWalkKind walk_kind) {
   struct NumFramesVisitor : public StackVisitor {
-    explicit NumFramesVisitor(Thread* thread_in)
-        : StackVisitor(thread_in, nullptr), frames(0) {}
+    NumFramesVisitor(Thread* thread_in, StackWalkKind walk_kind_in)
+        : StackVisitor(thread_in, nullptr, walk_kind_in), frames(0) {}
 
     bool VisitFrame() OVERRIDE {
       frames++;
@@ -577,16 +581,23 @@ size_t StackVisitor::ComputeNumFrames(Thread* thread) {
 
     size_t frames;
   };
-  NumFramesVisitor visitor(thread);
+  NumFramesVisitor visitor(thread, walk_kind);
   visitor.WalkStack(true);
   return visitor.frames;
 }
 
 bool StackVisitor::GetNextMethodAndDexPc(mirror::ArtMethod** next_method, uint32_t* next_dex_pc) {
   struct HasMoreFramesVisitor : public StackVisitor {
-    explicit HasMoreFramesVisitor(Thread* thread, size_t num_frames, size_t frame_height)
-        : StackVisitor(thread, nullptr, num_frames), frame_height_(frame_height),
-          found_frame_(false), has_more_frames_(false), next_method_(nullptr), next_dex_pc_(0) {
+    HasMoreFramesVisitor(Thread* thread,
+                         StackWalkKind walk_kind,
+                         size_t num_frames,
+                         size_t frame_height)
+        : StackVisitor(thread, nullptr, walk_kind, num_frames),
+          frame_height_(frame_height),
+          found_frame_(false),
+          has_more_frames_(false),
+          next_method_(nullptr),
+          next_dex_pc_(0) {
     }
 
     bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -610,7 +621,7 @@ bool StackVisitor::GetNextMethodAndDexPc(mirror::ArtMethod** next_method, uint32
     mirror::ArtMethod* next_method_;
     uint32_t next_dex_pc_;
   };
-  HasMoreFramesVisitor visitor(thread_, GetNumFrames(), GetFrameHeight());
+  HasMoreFramesVisitor visitor(thread_, walk_kind_, GetNumFrames(), GetFrameHeight());
   visitor.WalkStack(true);
   *next_method = visitor.next_method_;
   *next_dex_pc = visitor.next_dex_pc_;
@@ -620,7 +631,7 @@ bool StackVisitor::GetNextMethodAndDexPc(mirror::ArtMethod** next_method, uint32
 void StackVisitor::DescribeStack(Thread* thread) {
   struct DescribeStackVisitor : public StackVisitor {
     explicit DescribeStackVisitor(Thread* thread_in)
-        : StackVisitor(thread_in, nullptr) {}
+        : StackVisitor(thread_in, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames) {}
 
     bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       LOG(INFO) << "Frame Id=" << GetFrameId() << " " << DescribeLocation();

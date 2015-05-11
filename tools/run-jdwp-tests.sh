@@ -19,11 +19,6 @@ if [ ! -d libcore ]; then
   exit 1
 fi
 
-if [[ $ANDROID_SERIAL == HT4CTJT03670 ]] || [[ $ANDROID_SERIAL == HT49CJT00070 ]]; then
-  echo "Not running on buildbot because of failures on volantis. Investigating."
-  exit 0
-fi
-
 # Jar containing all the tests.
 test_jar=out/host/linux-x86/framework/apache-harmony-jdwp-tests-hostdex.jar
 junit_jar=out/host/linux-x86/framework/junit.jar
@@ -79,7 +74,7 @@ vogar $vm_command \
       $args \
       $device_dir \
       $image_compiler_option \
-      --timeout 600 \
+      --timeout 800 \
       --vm-arg -Djpda.settings.verbose=true \
       --vm-arg -Djpda.settings.syncPort=34016 \
       --vm-arg -Djpda.settings.transportAddress=127.0.0.1:55107 \

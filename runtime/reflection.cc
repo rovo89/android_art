@@ -520,23 +520,6 @@ JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccessAlreadyRunnab
   return result;
 }
 
-void InvokeWithShadowFrame(Thread* self, ShadowFrame* shadow_frame, uint16_t arg_offset,
-                           JValue* result) {
-  // We want to make sure that the stack is not within a small distance from the
-  // protected region in case we are calling into a leaf function whose stack
-  // check has been elided.
-  if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEnd())) {
-    ThrowStackOverflowError(self);
-    return;
-  }
-  uint32_t shorty_len;
-  const char* shorty = shadow_frame->GetMethod()->GetShorty(&shorty_len);
-  ArgArray arg_array(shorty, shorty_len);
-  arg_array.BuildArgArrayFromFrame(shadow_frame, arg_offset);
-  shadow_frame->GetMethod()->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(), result,
-                                    shorty);
-}
-
 jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaMethod,
                      jobject javaReceiver, jobject javaArgs, size_t num_frames) {
   // We want to make sure that the stack is not within a small distance from the

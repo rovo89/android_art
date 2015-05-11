@@ -52,7 +52,7 @@ public class Main {
     expectEquals(Integer.MIN_VALUE, $opt$Shl(1073741824, 1));  // overflow
     expectEquals(1073741824, $opt$Shl(268435456, 2));
 
-   // othe nly 5 lower bits should be used for shifting (& 0x1f).
+    // Only the 5 lower bits should be used for shifting (& 0x1f).
     expectEquals(7, $opt$Shl(7, 32));  // 32 & 0x1f = 0
     expectEquals(14, $opt$Shl(7, 33));  // 33 & 0x1f = 1
     expectEquals(32, $opt$Shl(1, 101));  // 101 & 0x1f = 5
@@ -97,6 +97,13 @@ public class Main {
 
     expectEquals(Long.MIN_VALUE, $opt$Shl(7L, Long.MAX_VALUE));
     expectEquals(7L, $opt$Shl(7L, Long.MIN_VALUE));
+
+    // Exercise some special cases handled by backends/simplifier.
+    expectEquals(24L, $opt$ShlConst1(12L));
+    expectEquals(0x2345678900000000L, $opt$ShlConst32(0x123456789L));
+    expectEquals(0x2490249000000000L, $opt$ShlConst33(0x12481248L));
+    expectEquals(0x4920492000000000L, $opt$ShlConst34(0x12481248L));
+    expectEquals(0x9240924000000000L, $opt$ShlConst35(0x12481248L));
   }
 
   private static void shrInt() {
@@ -277,7 +284,7 @@ public class Main {
     return a >>> 2L;
   }
 
-    static int $opt$ShlConst0(int a) {
+  static int $opt$ShlConst0(int a) {
     return a << 0;
   }
 
@@ -299,6 +306,26 @@ public class Main {
 
   static long $opt$UShrConst0(long a) {
     return a >>> 0L;
+  }
+
+  static long $opt$ShlConst1(long a) {
+    return a << 1L;
+  }
+
+  static long $opt$ShlConst32(long a) {
+    return a << 32L;
+  }
+
+  static long $opt$ShlConst33(long a) {
+    return a << 33L;
+  }
+
+  static long $opt$ShlConst34(long a) {
+    return a << 34L;
+  }
+
+  static long $opt$ShlConst35(long a) {
+    return a << 35L;
   }
 
 }

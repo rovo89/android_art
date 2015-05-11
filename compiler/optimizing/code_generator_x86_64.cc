@@ -99,7 +99,7 @@ class DivRemMinusOneSlowPathX86_64 : public SlowPathCodeX86_64 {
       if (is_div_) {
         __ negq(cpu_reg_);
       } else {
-        __ movq(cpu_reg_, Immediate(0));
+        __ xorl(cpu_reg_, cpu_reg_);
       }
     }
     __ jmp(GetExitLabel());
@@ -134,6 +134,10 @@ class SuspendCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
   Label* GetReturnLabel() {
     DCHECK(successor_ == nullptr);
     return &return_label_;
+  }
+
+  HBasicBlock* GetSuccessor() const {
+    return successor_;
   }
 
  private:
@@ -671,7 +675,7 @@ void CodeGeneratorX86_64::Move(Location destination, Location source) {
         DCHECK(constant->IsLongConstant());
         value = constant->AsLongConstant()->GetValue();
       }
-      __ movq(CpuRegister(TMP), Immediate(value));
+      Load64BitValue(CpuRegister(TMP), value);
       __ movq(Address(CpuRegister(RSP), destination.GetStackIndex()), CpuRegister(TMP));
     } else {
       DCHECK(source.IsDoubleStackSlot());
@@ -704,9 +708,9 @@ void CodeGeneratorX86_64::Move(HInstruction* instruction,
     } else if (const_to_move->IsLongConstant()) {
       int64_t value = const_to_move->AsLongConstant()->GetValue();
       if (location.IsRegister()) {
-        __ movq(location.AsRegister<CpuRegister>(), Immediate(value));
+        Load64BitValue(location.AsRegister<CpuRegister>(), value);
       } else if (location.IsDoubleStackSlot()) {
-        __ movq(CpuRegister(TMP), Immediate(value));
+        Load64BitValue(CpuRegister(TMP), value);
         __ movq(Address(CpuRegister(RSP), location.GetStackIndex()), CpuRegister(TMP));
       } else {
         DCHECK(location.IsConstant());
@@ -771,7 +775,6 @@ void InstructionCodeGeneratorX86_64::VisitGoto(HGoto* got) {
 
   HLoopInformation* info = block->GetLoopInformation();
   if (info != nullptr && info->IsBackEdge(*block) && info->HasSuspendCheck()) {
-    codegen_->ClearSpillSlotsFromLoopPhisInStackMap(info->GetSuspendCheck());
     GenerateSuspendCheck(info->GetSuspendCheck(), successor);
     return;
   }
@@ -956,7 +959,7 @@ void InstructionCodeGeneratorX86_64::VisitCondition(HCondition* comp) {
     LocationSummary* locations = comp->GetLocations();
     CpuRegister reg = locations->Out().AsRegister<CpuRegister>();
     // Clear register: setcc only sets the low byte.
-    __ xorq(reg, reg);
+    __ xorl(reg, reg);
     Location lhs = locations->InAt(0);
     Location rhs = locations->InAt(1);
     if (rhs.IsRegister()) {
@@ -1419,8 +1422,8 @@ void InstructionCodeGeneratorX86_64::VisitInvokeInterface(HInvokeInterface* invo
   size_t class_offset = mirror::Object::ClassOffset().SizeValue();
 
   // Set the hidden argument.
-  __ movq(invoke->GetLocations()->GetTemp(1).AsRegister<CpuRegister>(),
-          Immediate(invoke->GetDexMethodIndex()));
+  CpuRegister hidden_reg = invoke->GetLocations()->GetTemp(1).AsRegister<CpuRegister>();
+  codegen_->Load64BitValue(hidden_reg, invoke->GetDexMethodIndex());
 
   // temp = object->GetClass();
   if (receiver.IsStackSlot()) {
@@ -1856,7 +1859,7 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           XmmRegister temp = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
           Label done, nan;
 
-          __ movq(output, Immediate(kPrimLongMax));
+          codegen_->Load64BitValue(output, kPrimLongMax);
           // temp = long-to-float(output)
           __ cvtsi2ss(temp, output, true);
           // if input >= temp goto done
@@ -1869,7 +1872,7 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           __ jmp(&done);
           __ Bind(&nan);
           //  output = 0
-          __ xorq(output, output);
+          __ xorl(output, output);
           __ Bind(&done);
           break;
         }
@@ -1881,7 +1884,7 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           XmmRegister temp = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
           Label done, nan;
 
-          __ movq(output, Immediate(kPrimLongMax));
+          codegen_->Load64BitValue(output, kPrimLongMax);
           // temp = long-to-double(output)
           __ cvtsi2sd(temp, output, true);
           // if input >= temp goto done
@@ -1894,7 +1897,7 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           __ jmp(&done);
           __ Bind(&nan);
           //  output = 0
-          __ xorq(output, output);
+          __ xorl(output, output);
           __ Bind(&done);
           break;
         }
@@ -2483,7 +2486,7 @@ void InstructionCodeGeneratorX86_64::DivRemOneOrMinusOne(HBinaryOperation* instr
 
     case Primitive::kPrimLong: {
       if (instruction->IsRem()) {
-        __ xorq(output_register, output_register);
+        __ xorl(output_register, output_register);
       } else {
         __ movq(output_register, input_register);
         if (imm == -1) {
@@ -2527,7 +2530,7 @@ void InstructionCodeGeneratorX86_64::DivByPowerOfTwo(HDiv* instruction) {
     DCHECK_EQ(instruction->GetResultType(), Primitive::kPrimLong);
     CpuRegister rdx = locations->GetTemp(0).AsRegister<CpuRegister>();
 
-    __ movq(rdx, Immediate(std::abs(imm) - 1));
+    codegen_->Load64BitValue(rdx, std::abs(imm) - 1);
     __ addq(rdx, numerator);
     __ testq(numerator, numerator);
     __ cmov(kGreaterEqual, rdx, numerator);
@@ -2624,7 +2627,7 @@ void InstructionCodeGeneratorX86_64::GenerateDivRemWithAnyConstant(HBinaryOperat
     __ movq(numerator, rax);
 
     // RAX = magic
-    __ movq(rax, Immediate(magic));
+    codegen_->Load64BitValue(rax, magic);
 
     // RDX:RAX = magic * numerator
     __ imulq(numerator);
@@ -2653,8 +2656,7 @@ void InstructionCodeGeneratorX86_64::GenerateDivRemWithAnyConstant(HBinaryOperat
       if (IsInt<32>(imm)) {
         __ imulq(rdx, Immediate(static_cast<int32_t>(imm)));
       } else {
-        __ movq(numerator, Immediate(imm));
-        __ imulq(rdx, numerator);
+        __ imulq(rdx, codegen_->LiteralInt64Address(imm));
       }
 
       __ subq(rax, rdx);
@@ -3020,8 +3022,8 @@ void LocationsBuilderX86_64::VisitNewInstance(HNewInstance* instruction) {
 void InstructionCodeGeneratorX86_64::VisitNewInstance(HNewInstance* instruction) {
   InvokeRuntimeCallingConvention calling_convention;
   codegen_->LoadCurrentMethod(CpuRegister(calling_convention.GetRegisterAt(1)));
-  __ movq(CpuRegister(calling_convention.GetRegisterAt(0)), Immediate(instruction->GetTypeIndex()));
-
+  codegen_->Load64BitValue(CpuRegister(calling_convention.GetRegisterAt(0)),
+                           instruction->GetTypeIndex());
   __ gs()->call(
       Address::Absolute(GetThreadOffset<kX86_64WordSize>(instruction->GetEntrypoint()), true));
 
@@ -3042,7 +3044,8 @@ void LocationsBuilderX86_64::VisitNewArray(HNewArray* instruction) {
 void InstructionCodeGeneratorX86_64::VisitNewArray(HNewArray* instruction) {
   InvokeRuntimeCallingConvention calling_convention;
   codegen_->LoadCurrentMethod(CpuRegister(calling_convention.GetRegisterAt(2)));
-  __ movq(CpuRegister(calling_convention.GetRegisterAt(0)), Immediate(instruction->GetTypeIndex()));
+  codegen_->Load64BitValue(CpuRegister(calling_convention.GetRegisterAt(0)),
+                           instruction->GetTypeIndex());
 
   __ gs()->call(
       Address::Absolute(GetThreadOffset<kX86_64WordSize>(instruction->GetEntrypoint()), true));
@@ -3864,8 +3867,19 @@ void InstructionCodeGeneratorX86_64::VisitSuspendCheck(HSuspendCheck* instructio
 void InstructionCodeGeneratorX86_64::GenerateSuspendCheck(HSuspendCheck* instruction,
                                                           HBasicBlock* successor) {
   SuspendCheckSlowPathX86_64* slow_path =
-      new (GetGraph()->GetArena()) SuspendCheckSlowPathX86_64(instruction, successor);
-  codegen_->AddSlowPath(slow_path);
+      down_cast<SuspendCheckSlowPathX86_64*>(instruction->GetSlowPath());
+  if (slow_path == nullptr) {
+    slow_path = new (GetGraph()->GetArena()) SuspendCheckSlowPathX86_64(instruction, successor);
+    instruction->SetSlowPath(slow_path);
+    codegen_->AddSlowPath(slow_path);
+    if (successor != nullptr) {
+      DCHECK(successor->IsLoopHeader());
+      codegen_->ClearSpillSlotsFromLoopPhisInStackMap(instruction);
+    }
+  } else {
+    DCHECK_EQ(slow_path->GetSuccessor(), successor);
+  }
+
   __ gs()->cmpw(Address::Absolute(
       Thread::ThreadFlagsOffset<kX86_64WordSize>().Int32Value(), true), Immediate(0));
   if (successor == nullptr) {
@@ -3938,45 +3952,42 @@ void ParallelMoveResolverX86_64::EmitMove(size_t index) {
     } else if (constant->IsLongConstant()) {
       int64_t value = constant->AsLongConstant()->GetValue();
       if (destination.IsRegister()) {
-        __ movq(destination.AsRegister<CpuRegister>(), Immediate(value));
+        codegen_->Load64BitValue(destination.AsRegister<CpuRegister>(), value);
       } else {
         DCHECK(destination.IsDoubleStackSlot()) << destination;
-        __ movq(CpuRegister(TMP), Immediate(value));
+        codegen_->Load64BitValue(CpuRegister(TMP), value);
         __ movq(Address(CpuRegister(RSP), destination.GetStackIndex()), CpuRegister(TMP));
       }
     } else if (constant->IsFloatConstant()) {
       float fp_value = constant->AsFloatConstant()->GetValue();
       int32_t value = bit_cast<int32_t, float>(fp_value);
-      Immediate imm(value);
       if (destination.IsFpuRegister()) {
         XmmRegister dest = destination.AsFpuRegister<XmmRegister>();
         if (value == 0) {
           // easy FP 0.0.
           __ xorps(dest, dest);
         } else {
-          __ movl(CpuRegister(TMP), imm);
-          __ movd(dest, CpuRegister(TMP));
+          __ movss(dest, codegen_->LiteralFloatAddress(fp_value));
         }
       } else {
         DCHECK(destination.IsStackSlot()) << destination;
+        Immediate imm(value);
         __ movl(Address(CpuRegister(RSP), destination.GetStackIndex()), imm);
       }
     } else {
       DCHECK(constant->IsDoubleConstant()) << constant->DebugName();
       double fp_value =  constant->AsDoubleConstant()->GetValue();
       int64_t value = bit_cast<int64_t, double>(fp_value);
-      Immediate imm(value);
       if (destination.IsFpuRegister()) {
         XmmRegister dest = destination.AsFpuRegister<XmmRegister>();
         if (value == 0) {
           __ xorpd(dest, dest);
         } else {
-          __ movq(CpuRegister(TMP), imm);
-          __ movd(dest, CpuRegister(TMP));
+          __ movsd(dest, codegen_->LiteralDoubleAddress(fp_value));
         }
       } else {
         DCHECK(destination.IsDoubleStackSlot()) << destination;
-        __ movq(CpuRegister(TMP), imm);
+        codegen_->Load64BitValue(CpuRegister(TMP), value);
         __ movq(Address(CpuRegister(RSP), destination.GetStackIndex()), CpuRegister(TMP));
       }
     }
@@ -4433,6 +4444,17 @@ void InstructionCodeGeneratorX86_64::VisitBoundType(HBoundType* instruction) {
   // Nothing to do, this should be removed during prepare for register allocator.
   UNUSED(instruction);
   LOG(FATAL) << "Unreachable";
+}
+
+void CodeGeneratorX86_64::Load64BitValue(CpuRegister dest, int64_t value) {
+  if (value == 0) {
+    __ xorl(dest, dest);
+  } else if (value > 0 && IsInt<32>(value)) {
+    // We can use a 32 bit move, as it will zero-extend and is one byte shorter.
+    __ movl(dest, Immediate(static_cast<int32_t>(value)));
+  } else {
+    __ movq(dest, Immediate(value));
+  }
 }
 
 void CodeGeneratorX86_64::Finalize(CodeAllocator* allocator) {

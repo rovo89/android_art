@@ -46,7 +46,9 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
   CatchBlockStackVisitor(Thread* self, Context* context, Handle<mirror::Throwable>* exception,
                          QuickExceptionHandler* exception_handler)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(self, context), self_(self), exception_(exception),
+      : StackVisitor(self, context, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
+        self_(self),
+        exception_(exception),
         exception_handler_(exception_handler) {
   }
 
@@ -160,7 +162,9 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
  public:
   DeoptimizeStackVisitor(Thread* self, Context* context, QuickExceptionHandler* exception_handler)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(self, context), self_(self), exception_handler_(exception_handler),
+      : StackVisitor(self, context, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
+        self_(self),
+        exception_handler_(exception_handler),
         prev_shadow_frame_(nullptr) {
     CHECK(!self_->HasDeoptimizationShadowFrame());
   }
@@ -202,7 +206,8 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
                                       h_method, m->GetAccessFlags(), true, true, true, true);
     bool verifier_success = verifier.Verify();
     CHECK(verifier_success) << PrettyMethod(h_method.Get());
-    ShadowFrame* new_frame = ShadowFrame::Create(num_regs, nullptr, h_method.Get(), dex_pc);
+    ShadowFrame* new_frame = ShadowFrame::CreateDeoptimizedFrame(
+        num_regs, nullptr, h_method.Get(), dex_pc);
     self_->SetShadowFrameUnderConstruction(new_frame);
     const std::vector<int32_t> kinds(verifier.DescribeVRegs(dex_pc));
 
@@ -337,7 +342,7 @@ class InstrumentationStackVisitor : public StackVisitor {
  public:
   InstrumentationStackVisitor(Thread* self, size_t frame_depth)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(self, nullptr),
+      : StackVisitor(self, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         frame_depth_(frame_depth),
         instrumentation_frames_to_pop_(0) {
     CHECK_NE(frame_depth_, kInvalidFrameDepth);
@@ -348,7 +353,12 @@ class InstrumentationStackVisitor : public StackVisitor {
     if (current_frame_depth < frame_depth_) {
       CHECK(GetMethod() != nullptr);
       if (UNLIKELY(reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc()) == GetReturnPc())) {
-        ++instrumentation_frames_to_pop_;
+        if (!IsInInlinedFrame()) {
+          // We do not count inlined frames, because we do not instrument them. The reason we
+          // include them in the stack walking is the check against `frame_depth_`, which is
+          // given to us by a visitor that visits inlined frames.
+          ++instrumentation_frames_to_pop_;
+        }
       }
       return true;
     } else {

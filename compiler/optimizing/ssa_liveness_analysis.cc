@@ -75,9 +75,7 @@ void SsaLivenessAnalysis::LinearizeGraph() {
     HBasicBlock* block = it.Current();
     size_t number_of_forward_predecessors = block->GetPredecessors().Size();
     if (block->IsLoopHeader()) {
-      // We rely on having simplified the CFG.
-      DCHECK_EQ(1u, block->GetLoopInformation()->NumberOfBackEdges());
-      number_of_forward_predecessors--;
+      number_of_forward_predecessors -= block->GetLoopInformation()->NumberOfBackEdges();
     }
     forward_predecessors.Put(block->GetBlockId(), number_of_forward_predecessors);
   }
@@ -220,10 +218,11 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
 
       // Process the environment first, because we know their uses come after
       // or at the same liveness position of inputs.
-      if (current->HasEnvironment()) {
+      for (HEnvironment* environment = current->GetEnvironment();
+           environment != nullptr;
+           environment = environment->GetParent()) {
         // Handle environment uses. See statements (b) and (c) of the
         // SsaLivenessAnalysis.
-        HEnvironment* environment = current->GetEnvironment();
         for (size_t i = 0, e = environment->Size(); i < e; ++i) {
           HInstruction* instruction = environment->GetInstructionAt(i);
           bool should_be_live = ShouldBeLiveForEnvironment(instruction);
@@ -233,7 +232,7 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
           }
           if (instruction != nullptr) {
             instruction->GetLiveInterval()->AddUse(
-                current, i, /* is_environment */ true, should_be_live);
+                current, environment, i, should_be_live);
           }
         }
       }
@@ -245,7 +244,7 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
         // to be materialized.
         if (input->HasSsaIndex()) {
           live_in->SetBit(input->GetSsaIndex());
-          input->GetLiveInterval()->AddUse(current, i, /* is_environment */ false);
+          input->GetLiveInterval()->AddUse(current, /* environment */ nullptr, i);
         }
       }
     }
@@ -264,13 +263,12 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
     }
 
     if (block->IsLoopHeader()) {
-      HBasicBlock* back_edge = block->GetLoopInformation()->GetBackEdges().Get(0);
+      size_t last_position = block->GetLoopInformation()->GetLifetimeEnd();
       // For all live_in instructions at the loop header, we need to create a range
       // that covers the full loop.
       for (uint32_t idx : live_in->Indexes()) {
         HInstruction* current = instructions_from_ssa_index_.Get(idx);
-        current->GetLiveInterval()->AddLoopRange(block->GetLifetimeStart(),
-                                                 back_edge->GetLifetimeEnd());
+        current->GetLiveInterval()->AddLoopRange(block->GetLifetimeStart(), last_position);
       }
     }
   }
@@ -322,7 +320,8 @@ static int RegisterOrLowRegister(Location location) {
   return location.IsPair() ? location.low() : location.reg();
 }
 
-int LiveInterval::FindFirstRegisterHint(size_t* free_until) const {
+int LiveInterval::FindFirstRegisterHint(size_t* free_until,
+                                        const SsaLivenessAnalysis& liveness) const {
   DCHECK(!IsHighInterval());
   if (IsTemp()) return kNoRegister;
 
@@ -333,6 +332,26 @@ int LiveInterval::FindFirstRegisterHint(size_t* free_until) const {
     int hint = FindHintAtDefinition();
     if (hint != kNoRegister && free_until[hint] > GetStart()) {
       return hint;
+    }
+  }
+
+  if (IsSplit() && liveness.IsAtBlockBoundary(GetStart() / 2)) {
+    // If the start of this interval is at a block boundary, we look at the
+    // location of the interval in blocks preceding the block this interval
+    // starts at. If one location is a register we return it as a hint. This
+    // will avoid a move between the two blocks.
+    HBasicBlock* block = liveness.GetBlockFromPosition(GetStart() / 2);
+    for (size_t i = 0; i < block->GetPredecessors().Size(); ++i) {
+      size_t position = block->GetPredecessors().Get(i)->GetLifetimeEnd() - 1;
+      // We know positions above GetStart() do not have a location yet.
+      if (position < GetStart()) {
+        LiveInterval* existing = GetParent()->GetSiblingAt(position);
+        if (existing != nullptr
+            && existing->HasRegister()
+            && (free_until[existing->GetRegister()] > GetStart())) {
+          return existing->GetRegister();
+        }
+      }
     }
   }
 

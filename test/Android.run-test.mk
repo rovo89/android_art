@@ -385,7 +385,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS :=
 
 # Known broken tests for the optimizing compiler.
 TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS :=
-TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS += 472-unreachable-if-regression # b/19988134
 
 ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
@@ -428,6 +427,17 @@ endif
 
 TEST_ART_BROKEN_OPTIMIZING_DEBUGGABLE_RUN_TESTS :=
 
+# Tests that should fail in the read barrier configuration.
+TEST_ART_BROKEN_READ_BARRIER_RUN_TESTS := \
+  098-ddmc  # b/20720510
+
+ifeq ($(ART_USE_READ_BARRIER),true)
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
+      $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES),$(TEST_ART_BROKEN_READ_BARRIER_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+endif
+
+TEST_ART_BROKEN_READ_BARRIER_RUN_TESTS :=
 
 # Clear variables ahead of appending to them when defining tests.
 $(foreach target, $(TARGET_TYPES), $(eval ART_RUN_TEST_$(call name-to-var,$(target))_RULES :=))

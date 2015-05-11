@@ -27,6 +27,19 @@
     .extern artDeliverPendingExceptionFromCode
 
     /*
+     * Macro that sets up $gp and stores the previous $gp value to $t8.
+     * This macro modifies v1 and t8.
+     */
+.macro SETUP_GP
+    move $v1, $ra
+    bal 1f
+    nop
+1:
+    .cpsetup $ra, $t8, 1b
+    move $ra, $v1
+.endm
+
+    /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveAll)
      * callee-save: padding + $f24-$f31 + $s0-$s7 + $gp + $ra + $s8 = 19 total + 1x8 bytes padding
@@ -44,8 +57,8 @@
     .cfi_rel_offset 31, 152
     sd     $s8, 144($sp)
     .cfi_rel_offset 30, 144
-    sd     $gp, 136($sp)
-    .cfi_rel_offset 28, 136
+    sd     $t8, 136($sp)           # t8 holds caller's gp, now save it to the stack.
+    .cfi_rel_offset 28, 136        # Value from gp is pushed, so set the cfi offset accordingly.
     sd     $s7, 128($sp)
     .cfi_rel_offset 23, 128
     sd     $s6, 120($sp)
@@ -102,8 +115,8 @@
     .cfi_rel_offset 31, 72
     sd     $s8, 64($sp)
     .cfi_rel_offset 30, 64
-    sd     $gp, 56($sp)
-    .cfi_rel_offset 28, 56
+    sd     $t8, 56($sp)            # t8 holds caller's gp, now save it to the stack.
+    .cfi_rel_offset 28, 56         # Value from gp is pushed, so set the cfi offset accordingly.
     sd     $s7, 48($sp)
     .cfi_rel_offset 23, 48
     sd     $s6, 40($sp)
@@ -130,7 +143,7 @@
     .cfi_restore 31
     ld     $s8, 64($sp)
     .cfi_restore 30
-    ld     $gp, 56($sp)
+    ld     $t8, 56($sp)            # Restore gp back to it's temp storage.
     .cfi_restore 28
     ld     $s7, 48($sp)
     .cfi_restore 23
@@ -146,6 +159,7 @@
     .cfi_restore 18
     daddiu $sp, $sp, 80
     .cfi_adjust_cfa_offset -80
+    .cpreturn
 .endm
 
 .macro RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
@@ -153,7 +167,7 @@
     .cfi_restore 31
     ld     $s8, 64($sp)
     .cfi_restore 30
-    ld     $gp, 56($sp)
+    ld     $t8, 56($sp)            # Restore gp back to it's temp storage.
     .cfi_restore 28
     ld     $s7, 48($sp)
     .cfi_restore 23
@@ -167,6 +181,7 @@
     .cfi_restore 19
     ld     $s2, 8($sp)
     .cfi_restore 18
+    .cpreturn
     jalr   $zero, $ra
     daddiu $sp, $sp, 80
     .cfi_adjust_cfa_offset -80
@@ -175,12 +190,6 @@
 // This assumes the top part of these stack frame types are identical.
 #define REFS_AND_ARGS_MINUS_REFS_SIZE (FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE - FRAME_SIZE_REFS_ONLY_CALLEE_SAVE)
 
-    /*
-     * Macro that sets up the callee save frame to conform with
-     * Runtime::CreateCalleeSaveMethod(kRefsAndArgs). Restoration assumes
-     * non-moving GC.
-     * callee-save: padding + $f12-$f19 + $a1-$a7 + $s2-$s7 + $gp + $ra + $s8 = 24 total + 1 words padding + Method*
-     */
 .macro SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_INTERNAL
     daddiu  $sp, $sp, -208
     .cfi_adjust_cfa_offset 208
@@ -194,8 +203,8 @@
     .cfi_rel_offset 31, 200
     sd     $s8, 192($sp)
     .cfi_rel_offset 30, 192
-    sd     $gp, 184($sp)
-    .cfi_rel_offset 28, 184
+    sd     $t8, 184($sp)           # t8 holds caller's gp, now save it to the stack.
+    .cfi_rel_offset 28, 184        # Value from gp is pushed, so set the cfi offset accordingly.
     sd     $s7, 176($sp)
     .cfi_rel_offset 23, 176
     sd     $s6, 168($sp)
@@ -232,16 +241,15 @@
     s.d    $f14, 32($sp)
     s.d    $f13, 24($sp)           # = kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset
     s.d    $f12, 16($sp)           # This isn't necessary to store.
-
-    # 1x8 bytes paddig + Method*
-    ld      $v0, %got(_ZN3art7Runtime9instance_E)($gp)
-    ld      $v0, 0($v0)
-    THIS_LOAD_REQUIRES_READ_BARRIER
-    lwu     $v0, RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET($v0)
-    sw      $v0, 0($sp)                                # Place Method* at bottom of stack.
-    sd      $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)  # Place sp in Thread::Current()->top_quick_frame.
+    # 1x8 bytes padding + Method*
 .endm
 
+    /*
+     * Macro that sets up the callee save frame to conform with
+     * Runtime::CreateCalleeSaveMethod(kRefsAndArgs). Restoration assumes
+     * non-moving GC.
+     * callee-save: padding + $f12-$f19 + $a1-$a7 + $s2-$s7 + $gp + $ra + $s8 = 24 total + 1 words padding + Method*
+     */
 .macro SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME
     SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_INTERNAL
     # load appropriate callee-save-method
@@ -253,12 +261,18 @@
     sd      $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)  # Place sp in Thread::Current()->top_quick_frame.
 .endm
 
+.macro SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_WITH_METHOD_IN_A0
+    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_INTERNAL
+    sw      $a0, 0($sp)                                # Place Method* at bottom of stack.
+    sd      $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)  # Place sp in Thread::Current()->top_quick_frame.
+.endm
+
 .macro RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
     ld     $ra, 200($sp)
     .cfi_restore 31
     ld     $s8, 192($sp)
     .cfi_restore 30
-    ld     $gp, 184($sp)
+    ld     $t8, 184($sp)           # Restore gp back to it's temp storage.
     .cfi_restore 28
     ld     $s7, 176($sp)
     .cfi_restore 23
@@ -297,6 +311,7 @@
     l.d    $f13, 24($sp)
     l.d    $f12, 16($sp)
 
+    .cpreturn
     daddiu $sp, $sp, 208
     .cfi_adjust_cfa_offset -208
 .endm
@@ -307,6 +322,7 @@
      * exception is Thread::Current()->exception_
      */
 .macro DELIVER_PENDING_EXCEPTION
+    SETUP_GP
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME     # save callee saves for throw
     dla     $t9, artDeliverPendingExceptionFromCode
     jalr    $zero, $t9                   # artDeliverPendingExceptionFromCode(Thread*)
@@ -348,7 +364,7 @@
      * On entry $a0 is uint32_t* gprs_ and $a1 is uint32_t* fprs_
      * FIXME: just guessing about the shape of the jmpbuf.  Where will pc be?
      */
-ENTRY art_quick_do_long_jump
+ENTRY_NO_GP art_quick_do_long_jump
     l.d     $f0, 0($a1)
     l.d     $f1, 8($a1)
     l.d     $f2, 16($a1)
@@ -605,7 +621,7 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
      *   a4 = JValue* result
      *   a5 = shorty
      */
-ENTRY art_quick_invoke_stub
+ENTRY_NO_GP art_quick_invoke_stub
     # push a4, a5, s0(rSUSPEND), s1(rSELF), s8, ra onto the stack
     daddiu $sp, $sp, -48
     .cfi_adjust_cfa_offset 48
@@ -707,7 +723,7 @@ END art_quick_invoke_stub
      *   a4 = JValue* result
      *   a5 = shorty
      */
-ENTRY art_quick_invoke_static_stub
+ENTRY_NO_GP art_quick_invoke_static_stub
 
     # push a4, a5, s0(rSUSPEND), s1(rSELF), s8, ra, onto the stack
     daddiu $sp, $sp, -48
@@ -851,7 +867,8 @@ ENTRY art_quick_check_cast
     sd     $a1, 8($sp)
     sd     $a0, 0($sp)
     jal    artIsAssignableFromCode
-    nop
+    .cpreturn                       # Restore gp from t8 in branch delay slot.
+                                    # t8 may be clobbered in artIsAssignableFromCode.
     beq    $v0, $zero, .Lthrow_class_cast_exception
     ld     $ra, 24($sp)
     jalr   $zero, $ra
@@ -863,6 +880,7 @@ ENTRY art_quick_check_cast
     ld     $a0, 0($sp)
     daddiu $sp, $sp, 32
     .cfi_adjust_cfa_offset -32
+    SETUP_GP
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     dla  $t9, artThrowClassCastException
     jalr $zero, $t9                 # artThrowClassCastException (Class*, Class*, Thread*)
@@ -908,13 +926,13 @@ ENTRY art_quick_aput_obj
     daddu $t1, $t1, $t0
     sb   $t0, ($t1)
     jalr $zero, $ra
-    nop
+    .cpreturn                       # Restore gp from t8 in branch delay slot.
 .Ldo_aput_null:
     dsll  $a1, $a1, 2
     daddu $t0, $a0, $a1
     sw   $a2, MIRROR_OBJECT_ARRAY_DATA_OFFSET($t0)
     jalr $zero, $ra
-    nop
+    .cpreturn                       # Restore gp from t8 in branch delay slot.
 .Lcheck_assignability:
     daddiu $sp, $sp, -64
     .cfi_adjust_cfa_offset 64
@@ -927,7 +945,8 @@ ENTRY art_quick_aput_obj
     move   $a1, $t1
     move   $a0, $t0
     jal    artIsAssignableFromCode  # (Class*, Class*)
-    nop
+    .cpreturn                       # Restore gp from t8 in branch delay slot.
+                                    # t8 may be clobbered in artIsAssignableFromCode.
     ld     $ra, 56($sp)
     ld     $t9, 24($sp)
     ld     $a2, 16($sp)
@@ -935,6 +954,7 @@ ENTRY art_quick_aput_obj
     ld     $a0, 0($sp)
     daddiu $sp, $sp, 64
     .cfi_adjust_cfa_offset -64
+    SETUP_GP
     bne    $v0, $zero, .Ldo_aput
     nop
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
@@ -1312,7 +1332,7 @@ ENTRY art_quick_test_suspend
     bne    $a0, $zero, 1f
     daddiu rSUSPEND, $zero, SUSPEND_CHECK_INTERVAL   # reset rSUSPEND to SUSPEND_CHECK_INTERVAL
     jalr   $zero, $ra
-    nop
+    .cpreturn                                 # Restore gp from t8 in branch delay slot.
 1:
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME         # save callee saves for stack crawl
     jal    artTestSuspendFromCode             # (Thread*)
@@ -1326,8 +1346,7 @@ END art_quick_test_suspend
      */
     .extern artQuickProxyInvokeHandler
 ENTRY art_quick_proxy_invoke_handler
-    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME
-    sd      $a0, 0($sp)            # place proxy method at bottom of frame
+    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_WITH_METHOD_IN_A0
     move    $a2, rSELF             # pass Thread::Current
     jal     artQuickProxyInvokeHandler  # (Method* proxy method, receiver, Thread*, SP)
     move    $a3, $sp               # pass $sp
@@ -1352,6 +1371,7 @@ ENTRY art_quick_imt_conflict_trampoline
     dsll    $t0, 2                 # convert target method offset to bytes
     daddu   $a0, $t0               # get address of target method
     dla     $t9, art_quick_invoke_interface_trampoline
+    .cpreturn
     jalr    $zero, $t9
     lwu     $a0, MIRROR_OBJECT_ARRAY_DATA_OFFSET($a0)  # load the target method
 END art_quick_imt_conflict_trampoline
@@ -1377,8 +1397,7 @@ END art_quick_resolution_trampoline
     .extern artQuickGenericJniTrampoline
     .extern artQuickGenericJniEndTrampoline
 ENTRY art_quick_generic_jni_trampoline
-    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_INTERNAL
-    sd      $a0, 0($sp)            # store native ArtMethod* to bottom of stack
+    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_WITH_METHOD_IN_A0
     move    $s8, $sp               # save $sp
 
     # prepare for call to artQuickGenericJniTrampoline(Thread*, SP)
@@ -1481,8 +1500,7 @@ END art_quick_instrumentation_entry
     .global art_quick_instrumentation_exit
 art_quick_instrumentation_exit:
     .cfi_startproc
-    daddiu   $t9, $ra, 4       # put current address into $t9 to rebuild $gp
-    .cpload  $t9
+    SETUP_GP
     move     $ra, $zero        # link register is to here, so clobber with 0 for later checks
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
     move     $t0, $sp          # remember bottom of caller's frame
@@ -1494,8 +1512,11 @@ art_quick_instrumentation_exit:
     mov.d    $f15, $f0         # pass fpr result
     move     $a2, $v0          # pass gpr result
     move     $a1, $t0          # pass $sp
-    jal      artInstrumentationMethodExitFromCode  # (Thread*, SP, gpr_res, fpr_res)
     move     $a0, rSELF        # pass Thread::Current
+    jal      artInstrumentationMethodExitFromCode  # (Thread*, SP, gpr_res, fpr_res)
+    .cpreturn                  # Restore gp from t8 in branch delay slot. gp is not used anymore,
+                               # and t8 may be clobbered in artInstrumentationMethodExitFromCode.
+
     move     $t9, $v0          # set aside returned link register
     move     $ra, $v1          # set link register for deoptimization
     ld       $v0, 0($sp)       # restore return values

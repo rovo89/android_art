@@ -29,6 +29,7 @@
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "compiler_callbacks.h"
+#include "gc/space/image_space.h"
 #include "mem_map.h"
 #include "os.h"
 #include "scoped_thread_state_change.h"
@@ -610,10 +611,23 @@ TEST_F(OatFileAssistantTest, OdexOatOverlap) {
   // Things aren't relocated, so it should fall back to interpreted.
   std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
   ASSERT_TRUE(oat_file.get() != nullptr);
+
   EXPECT_FALSE(oat_file->IsExecutable());
   std::vector<std::unique_ptr<const DexFile>> dex_files;
   dex_files = oat_file_assistant.LoadDexFiles(*oat_file, dex_location.c_str());
   EXPECT_EQ(1u, dex_files.size());
+
+  // Add some extra checks to help diagnose apparently flaky test failures.
+  Runtime* runtime = Runtime::Current();
+  const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
+  ASSERT_TRUE(image_space != nullptr);
+  const ImageHeader& image_header = image_space->GetImageHeader();
+  const OatHeader& oat_header = oat_file->GetOatHeader();
+  EXPECT_FALSE(oat_file->IsPic());
+  EXPECT_EQ(image_header.GetOatChecksum(), oat_header.GetImageFileLocationOatChecksum());
+  EXPECT_NE(reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin()),
+      oat_header.GetImageFileLocationOatDataBegin());
+  EXPECT_NE(image_header.GetPatchDelta(), oat_header.GetImagePatchDelta());
 }
 
 // Case: We have a DEX file and a PIC ODEX file, but no OAT file.

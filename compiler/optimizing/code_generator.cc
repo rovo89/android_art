@@ -100,11 +100,11 @@ static bool CheckTypeConsistency(HInstruction* instruction) {
   for (size_t i = 0; i < instruction->EnvironmentSize(); ++i) {
     if (environment->GetInstructionAt(i) != nullptr) {
       Primitive::Type type = environment->GetInstructionAt(i)->GetType();
-      DCHECK(CheckType(type, locations->GetEnvironmentAt(i)))
-        << type << " " << locations->GetEnvironmentAt(i);
+      DCHECK(CheckType(type, environment->GetLocationAt(i)))
+        << type << " " << environment->GetLocationAt(i);
     } else {
-      DCHECK(locations->GetEnvironmentAt(i).IsInvalid())
-        << locations->GetEnvironmentAt(i);
+      DCHECK(environment->GetLocationAt(i).IsInvalid())
+        << environment->GetLocationAt(i);
     }
   }
   return true;
@@ -680,6 +680,11 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
                                        locations->GetStackMask(),
                                        environment_size,
                                        inlining_depth);
+  if (environment != nullptr) {
+    // TODO: Handle parent environment.
+    DCHECK(environment->GetParent() == nullptr);
+    DCHECK_EQ(environment->GetDexPc(), dex_pc);
+  }
 
   // Walk over the environment, and record the location of dex registers.
   for (size_t i = 0; i < environment_size; ++i) {
@@ -689,7 +694,7 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
       continue;
     }
 
-    Location location = locations->GetEnvironmentAt(i);
+    Location location = environment->GetLocationAt(i);
     switch (location.GetKind()) {
       case Location::kConstant: {
         DCHECK_EQ(current, location.GetConstant());

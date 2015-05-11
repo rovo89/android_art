@@ -44,8 +44,11 @@ ENTRY art_jni_dlsym_lookup_stub
     .cfi_rel_offset 5, 8
     sd     $a0, 0($sp)
     .cfi_rel_offset 4, 0
-    jal    artFindNativeMethod  # (Thread*)
     move   $a0, $s1             # pass Thread::Current()
+    jal    artFindNativeMethod  # (Thread*)
+    .cpreturn                   # Restore gp from t8 in branch delay slot. gp is not used
+                                # anymore, and t8 may be clobbered in artFindNativeMethod.
+
     ld     $a0, 0($sp)          # restore registers from stack
     .cfi_restore 4
     ld     $a1, 8($sp)

@@ -332,7 +332,7 @@ void SsaBuilder::BuildSsa() {
 }
 
 HInstruction* SsaBuilder::ValueOfLocal(HBasicBlock* block, size_t local) {
-  return GetLocalsFor(block)->GetInstructionAt(local);
+  return GetLocalsFor(block)->Get(local);
 }
 
 void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
@@ -349,7 +349,7 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
         HPhi* phi = new (GetGraph()->GetArena()) HPhi(
             GetGraph()->GetArena(), local, 0, Primitive::kPrimVoid);
         block->AddPhi(phi);
-        current_locals_->SetRawEnvAt(local, phi);
+        current_locals_->Put(local, phi);
       }
     }
     // Save the loop header so that the last phase of the analysis knows which
@@ -389,7 +389,7 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
         block->AddPhi(phi);
         value = phi;
       }
-      current_locals_->SetRawEnvAt(local, value);
+      current_locals_->Put(local, value);
     }
   }
 
@@ -520,7 +520,7 @@ HInstruction* SsaBuilder::GetReferenceTypeEquivalent(HInstruction* value) {
 }
 
 void SsaBuilder::VisitLoadLocal(HLoadLocal* load) {
-  HInstruction* value = current_locals_->GetInstructionAt(load->GetLocal()->GetRegNumber());
+  HInstruction* value = current_locals_->Get(load->GetLocal()->GetRegNumber());
   // If the operation requests a specific type, we make sure its input is of that type.
   if (load->GetType() != value->GetType()) {
     if (load->GetType() == Primitive::kPrimFloat || load->GetType() == Primitive::kPrimDouble) {
@@ -534,7 +534,7 @@ void SsaBuilder::VisitLoadLocal(HLoadLocal* load) {
 }
 
 void SsaBuilder::VisitStoreLocal(HStoreLocal* store) {
-  current_locals_->SetRawEnvAt(store->GetLocal()->GetRegNumber(), store->InputAt(1));
+  current_locals_->Put(store->GetLocal()->GetRegNumber(), store->InputAt(1));
   store->GetBlock()->RemoveInstruction(store);
 }
 
@@ -543,8 +543,12 @@ void SsaBuilder::VisitInstruction(HInstruction* instruction) {
     return;
   }
   HEnvironment* environment = new (GetGraph()->GetArena()) HEnvironment(
-      GetGraph()->GetArena(), current_locals_->Size());
-  environment->CopyFrom(current_locals_);
+      GetGraph()->GetArena(),
+      current_locals_->Size(),
+      GetGraph()->GetDexFile(),
+      GetGraph()->GetMethodIdx(),
+      instruction->GetDexPc());
+  environment->CopyFrom(*current_locals_);
   instruction->SetRawEnvironment(environment);
 }
 

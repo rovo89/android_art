@@ -166,6 +166,9 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
   void GenerateShlLong(const Location& loc, Register shifter);
   void GenerateShrLong(const Location& loc, Register shifter);
   void GenerateUShrLong(const Location& loc, Register shifter);
+  void GenerateShlLong(const Location& loc, int shift);
+  void GenerateShrLong(const Location& loc, int shift);
+  void GenerateUShrLong(const Location& loc, int shift);
   void GenerateMemoryBarrier(MemBarrierKind kind);
   void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
