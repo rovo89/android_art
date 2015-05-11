@@ -137,13 +137,25 @@ void InstructionSimplifierVisitor::VisitShift(HBinaryOperation* instruction) {
   HConstant* input_cst = instruction->GetConstantRight();
   HInstruction* input_other = instruction->GetLeastConstantLeft();
 
-  if ((input_cst != nullptr) && input_cst->IsZero()) {
-    // Replace code looking like
-    //    SHL dst, src, 0
-    // with
-    //    src
-    instruction->ReplaceWith(input_other);
-    instruction->GetBlock()->RemoveInstruction(instruction);
+  if (input_cst != nullptr) {
+    if (input_cst->IsZero()) {
+      // Replace code looking like
+      //    SHL dst, src, 0
+      // with
+      //    src
+      instruction->ReplaceWith(input_other);
+      instruction->GetBlock()->RemoveInstruction(instruction);
+    } else if (instruction->IsShl() && input_cst->IsOne()) {
+      // Replace Shl looking like
+      //    SHL dst, src, 1
+      // with
+      //    ADD dst, src, src
+      HAdd *add = new(GetGraph()->GetArena()) HAdd(instruction->GetType(),
+                                                   input_other,
+                                                   input_other);
+      instruction->GetBlock()->ReplaceAndRemoveInstructionWith(instruction, add);
+      RecordSimplification();
+    }
   }
 }
 
