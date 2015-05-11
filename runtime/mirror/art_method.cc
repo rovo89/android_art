@@ -511,7 +511,6 @@ QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
   if (class_linker->IsQuickGenericJniStub(entry_point)) {
     // Generic JNI frame.
     DCHECK(IsNative());
-    StackHandleScope<1> hs(Thread::Current());
     uint32_t handle_refs = GetNumberOfReferenceArgsWithoutReceiver(this) + 1;
     size_t scope_size = HandleScope::SizeOf(handle_refs);
     QuickMethodFrameInfo callee_info = runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
