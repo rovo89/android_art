@@ -543,7 +543,11 @@ void SsaBuilder::VisitInstruction(HInstruction* instruction) {
     return;
   }
   HEnvironment* environment = new (GetGraph()->GetArena()) HEnvironment(
-      GetGraph()->GetArena(), current_locals_->Size());
+      GetGraph()->GetArena(),
+      current_locals_->Size(),
+      GetGraph()->GetDexFile(),
+      GetGraph()->GetMethodIdx(),
+      instruction->GetDexPc());
   environment->CopyFrom(*current_locals_);
   instruction->SetRawEnvironment(environment);
 }

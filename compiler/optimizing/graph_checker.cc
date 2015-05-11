@@ -386,8 +386,9 @@ void SSAChecker::VisitInstruction(HInstruction* instruction) {
 
   // Ensure an instruction having an environment is dominated by the
   // instructions contained in the environment.
-  HEnvironment* environment = instruction->GetEnvironment();
-  if (environment != nullptr) {
+  for (HEnvironment* environment = instruction->GetEnvironment();
+       environment != nullptr;
+       environment = environment->GetParent()) {
     for (size_t i = 0, e = environment->Size(); i < e; ++i) {
       HInstruction* env_instruction = environment->GetInstructionAt(i);
       if (env_instruction != nullptr

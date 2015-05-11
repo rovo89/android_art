@@ -73,7 +73,7 @@ TEST(GraphTest, IfSuccessorSimpleJoinBlock1) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
 
-  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HGraph* graph = CreateGraph(&allocator);
   HBasicBlock* entry_block = createEntryBlock(graph, &allocator);
   HBasicBlock* if_block = createIfBlock(graph, &allocator);
   HBasicBlock* if_true = createGotoBlock(graph, &allocator);
@@ -108,7 +108,7 @@ TEST(GraphTest, IfSuccessorSimpleJoinBlock2) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
 
-  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HGraph* graph = CreateGraph(&allocator);
   HBasicBlock* entry_block = createEntryBlock(graph, &allocator);
   HBasicBlock* if_block = createIfBlock(graph, &allocator);
   HBasicBlock* if_false = createGotoBlock(graph, &allocator);
@@ -143,7 +143,7 @@ TEST(GraphTest, IfSuccessorMultipleBackEdges1) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
 
-  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HGraph* graph = CreateGraph(&allocator);
   HBasicBlock* entry_block = createEntryBlock(graph, &allocator);
   HBasicBlock* if_block = createIfBlock(graph, &allocator);
   HBasicBlock* return_block = createReturnBlock(graph, &allocator);
@@ -178,7 +178,7 @@ TEST(GraphTest, IfSuccessorMultipleBackEdges2) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
 
-  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HGraph* graph = CreateGraph(&allocator);
   HBasicBlock* entry_block = createEntryBlock(graph, &allocator);
   HBasicBlock* if_block = createIfBlock(graph, &allocator);
   HBasicBlock* return_block = createReturnBlock(graph, &allocator);
@@ -213,7 +213,7 @@ TEST(GraphTest, IfSuccessorMultiplePreHeaders1) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
 
-  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HGraph* graph = CreateGraph(&allocator);
   HBasicBlock* entry_block = createEntryBlock(graph, &allocator);
   HBasicBlock* first_if_block = createIfBlock(graph, &allocator);
   HBasicBlock* if_block = createIfBlock(graph, &allocator);
@@ -252,7 +252,7 @@ TEST(GraphTest, IfSuccessorMultiplePreHeaders2) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
 
-  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HGraph* graph = CreateGraph(&allocator);
   HBasicBlock* entry_block = createEntryBlock(graph, &allocator);
   HBasicBlock* first_if_block = createIfBlock(graph, &allocator);
   HBasicBlock* if_block = createIfBlock(graph, &allocator);
@@ -288,7 +288,7 @@ TEST(GraphTest, InsertInstructionBefore) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
 
-  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HGraph* graph = CreateGraph(&allocator);
   HBasicBlock* block = createGotoBlock(graph, &allocator);
   HInstruction* got = block->GetLastInstruction();
   ASSERT_TRUE(got->IsControlFlow());

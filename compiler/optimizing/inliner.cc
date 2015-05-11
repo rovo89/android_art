@@ -170,7 +170,11 @@ bool HInliner::TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
     nullptr);
 
   HGraph* callee_graph = new (graph_->GetArena()) HGraph(
-      graph_->GetArena(), graph_->IsDebuggable(), graph_->GetCurrentInstructionId());
+      graph_->GetArena(),
+      caller_dex_file,
+      method_index,
+      graph_->IsDebuggable(),
+      graph_->GetCurrentInstructionId());
 
   OptimizingCompilerStats inline_stats;
   HGraphBuilder builder(callee_graph,

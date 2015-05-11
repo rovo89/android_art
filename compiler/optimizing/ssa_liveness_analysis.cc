@@ -218,10 +218,11 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
 
       // Process the environment first, because we know their uses come after
       // or at the same liveness position of inputs.
-      if (current->HasEnvironment()) {
+      for (HEnvironment* environment = current->GetEnvironment();
+           environment != nullptr;
+           environment = environment->GetParent()) {
         // Handle environment uses. See statements (b) and (c) of the
         // SsaLivenessAnalysis.
-        HEnvironment* environment = current->GetEnvironment();
         for (size_t i = 0, e = environment->Size(); i < e; ++i) {
           HInstruction* instruction = environment->GetInstructionAt(i);
           bool should_be_live = ShouldBeLiveForEnvironment(instruction);
@@ -231,7 +232,7 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
           }
           if (instruction != nullptr) {
             instruction->GetLiveInterval()->AddUse(
-                current, i, /* is_environment */ true, should_be_live);
+                current, environment, i, should_be_live);
           }
         }
       }
@@ -243,7 +244,7 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
         // to be materialized.
         if (input->HasSsaIndex()) {
           live_in->SetBit(input->GetSsaIndex());
-          input->GetLiveInterval()->AddUse(current, i, /* is_environment */ false);
+          input->GetLiveInterval()->AddUse(current, /* environment */ nullptr, i);
         }
       }
     }

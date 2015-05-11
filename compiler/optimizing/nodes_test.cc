@@ -16,6 +16,7 @@
 
 #include "base/arena_allocator.h"
 #include "nodes.h"
+#include "optimizing_unit_test.h"
 
 #include "gtest/gtest.h"
 
@@ -29,7 +30,7 @@ TEST(Node, RemoveInstruction) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
 
-  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HGraph* graph = CreateGraph(&allocator);
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
@@ -49,7 +50,8 @@ TEST(Node, RemoveInstruction) {
   first_block->AddSuccessor(exit_block);
   exit_block->AddInstruction(new (&allocator) HExit());
 
-  HEnvironment* environment = new (&allocator) HEnvironment(&allocator, 1);
+  HEnvironment* environment = new (&allocator) HEnvironment(
+      &allocator, 1, graph->GetDexFile(), graph->GetMethodIdx(), 0);
   null_check->SetRawEnvironment(environment);
   environment->SetRawEnvAt(0, parameter);
   parameter->AddEnvUseAt(null_check->GetEnvironment(), 0);
@@ -70,7 +72,7 @@ TEST(Node, InsertInstruction) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
 
-  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HGraph* graph = CreateGraph(&allocator);
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
@@ -96,7 +98,7 @@ TEST(Node, AddInstruction) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
 
-  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HGraph* graph = CreateGraph(&allocator);
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
@@ -110,6 +112,53 @@ TEST(Node, AddInstruction) {
 
   ASSERT_TRUE(parameter->HasUses());
   ASSERT_TRUE(parameter->GetUses().HasOnlyOneUse());
+}
+
+TEST(Node, ParentEnvironment) {
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+
+  HGraph* graph = CreateGraph(&allocator);
+  HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(entry);
+  graph->SetEntryBlock(entry);
+  HInstruction* parameter1 = new (&allocator) HParameterValue(0, Primitive::kPrimNot);
+  HInstruction* with_environment = new (&allocator) HNullCheck(parameter1, 0);
+  entry->AddInstruction(parameter1);
+  entry->AddInstruction(with_environment);
+  entry->AddInstruction(new (&allocator) HExit());
+
+  ASSERT_TRUE(parameter1->HasUses());
+  ASSERT_TRUE(parameter1->GetUses().HasOnlyOneUse());
+
+  HEnvironment* environment = new (&allocator) HEnvironment(
+      &allocator, 1, graph->GetDexFile(), graph->GetMethodIdx(), 0);
+  GrowableArray<HInstruction*> array(&allocator, 1);
+  array.Add(parameter1);
+
+  environment->CopyFrom(array);
+  with_environment->SetRawEnvironment(environment);
+
+  ASSERT_TRUE(parameter1->HasEnvironmentUses());
+  ASSERT_TRUE(parameter1->GetEnvUses().HasOnlyOneUse());
+
+  HEnvironment* parent1 = new (&allocator) HEnvironment(
+      &allocator, 1, graph->GetDexFile(), graph->GetMethodIdx(), 0);
+  parent1->CopyFrom(array);
+
+  ASSERT_EQ(parameter1->GetEnvUses().SizeSlow(), 2u);
+
+  HEnvironment* parent2 = new (&allocator) HEnvironment(
+      &allocator, 1, graph->GetDexFile(), graph->GetMethodIdx(), 0);
+  parent2->CopyFrom(array);
+  parent1->SetAndCopyParentChain(&allocator, parent2);
+
+  // One use for parent2, and one other use for the new parent of parent1.
+  ASSERT_EQ(parameter1->GetEnvUses().SizeSlow(), 4u);
+
+  // We have copied the parent chain. So we now have two more uses.
+  environment->SetAndCopyParentChain(&allocator, parent1);
+  ASSERT_EQ(parameter1->GetEnvUses().SizeSlow(), 6u);
 }
 
 }  // namespace art
