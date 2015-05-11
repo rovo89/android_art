@@ -142,6 +142,9 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
 
   // Deoptimize
   qpoints->pDeoptimize = art_quick_deoptimize_from_compiled_slow_path;
+
+  // Read barrier
+  qpoints->pReadBarrierJni = ReadBarrierJni;
 #endif  // __APPLE__
 };
 
