@@ -465,7 +465,7 @@ bool OatFileAssistant::GivenOatFileIsUpToDate(const OatFile& file) {
 
   const ImageInfo* image_info = GetImageInfo();
   if (image_info == nullptr) {
-    VLOG(oat) << "No image for to check oat relocation against.";
+    VLOG(oat) << "No image to check oat relocation against.";
     return false;
   }
 
