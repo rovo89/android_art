@@ -223,6 +223,24 @@ public class Main {
     return arg << 0;
   }
 
+  // CHECK-START: int Main.Shl1(int) instruction_simplifier (before)
+  // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const1:i\d+]]   IntConstant 1
+  // CHECK-DAG:     [[Shl:i\d+]]      Shl [ [[Arg]] [[Const1]] ]
+  // CHECK-DAG:                       Return [ [[Shl]] ]
+
+  // CHECK-START: int Main.Shl1(int) instruction_simplifier (after)
+  // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
+  // CHECK-DAG:     [[Add:i\d+]]      Add [ [[Arg]] [[Arg]] ]
+  // CHECK-DAG:                       Return [ [[Add]] ]
+
+  // CHECK-START: int Main.Shl1(int) instruction_simplifier (after)
+  // CHECK-NOT:                       Shl
+
+  public static int Shl1(int arg) {
+    return arg << 1;
+  }
+
   // CHECK-START: long Main.Shr0(long) instruction_simplifier (before)
   // CHECK-DAG:     [[Arg:j\d+]]      ParameterValue
   // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
@@ -1060,5 +1078,6 @@ public class Main {
     assertDoubleEquals(Div2(150.0), 75.0);
     assertFloatEquals(DivMP25(100.0f), -400.0f);
     assertDoubleEquals(DivMP25(150.0), -600.0);
+    assertLongEquals(Shl1(100), 200);
   }
 }
