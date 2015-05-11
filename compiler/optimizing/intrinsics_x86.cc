@@ -16,6 +16,8 @@
 
 #include "intrinsics_x86.h"
 
+#include <limits>
+
 #include "arch/x86/instruction_set_features_x86.h"
 #include "code_generator_x86.h"
 #include "entrypoints/quick/quick_entrypoints.h"
@@ -124,11 +126,8 @@ static void MoveArguments(HInvoke* invoke, CodeGeneratorX86* codegen) {
 //       restored!
 class IntrinsicSlowPathX86 : public SlowPathCodeX86 {
  public:
-  explicit IntrinsicSlowPathX86(HInvoke* invoke, Register temp)
-    : invoke_(invoke) {
-      // The temporary register has to be EAX for x86 invokes.
-      DCHECK_EQ(temp, EAX);
-    }
+  explicit IntrinsicSlowPathX86(HInvoke* invoke)
+    : invoke_(invoke) { }
 
   void EmitNativeCode(CodeGenerator* codegen_in) OVERRIDE {
     CodeGeneratorX86* codegen = down_cast<CodeGeneratorX86*>(codegen_in);
@@ -880,8 +879,6 @@ void IntrinsicLocationsBuilderX86::VisitStringCharAt(HInvoke* invoke) {
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
   locations->SetOut(Location::SameAsFirstInput());
-  // Needs to be EAX for the invoke.
-  locations->AddTemp(Location::RegisterLocation(EAX));
 }
 
 void IntrinsicCodeGeneratorX86::VisitStringCharAt(HInvoke* invoke) {
@@ -901,8 +898,7 @@ void IntrinsicCodeGeneratorX86::VisitStringCharAt(HInvoke* invoke) {
   // TODO: For simplicity, the index parameter is requested in a register, so different from Quick
   //       we will not optimize the code for constants (which would save a register).
 
-  SlowPathCodeX86* slow_path = new (GetAllocator()) IntrinsicSlowPathX86(
-      invoke, locations->GetTemp(0).AsRegister<Register>());
+  SlowPathCodeX86* slow_path = new (GetAllocator()) IntrinsicSlowPathX86(invoke);
   codegen_->AddSlowPath(slow_path);
 
   X86Assembler* assembler = GetAssembler();
@@ -926,8 +922,6 @@ void IntrinsicLocationsBuilderX86::VisitStringCompareTo(HInvoke* invoke) {
   locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
   locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
   locations->SetOut(Location::RegisterLocation(EAX));
-  // Needs to be EAX for the invoke.
-  locations->AddTemp(Location::RegisterLocation(EAX));
 }
 
 void IntrinsicCodeGeneratorX86::VisitStringCompareTo(HInvoke* invoke) {
@@ -939,13 +933,164 @@ void IntrinsicCodeGeneratorX86::VisitStringCompareTo(HInvoke* invoke) {
 
   Register argument = locations->InAt(1).AsRegister<Register>();
   __ testl(argument, argument);
-  SlowPathCodeX86* slow_path = new (GetAllocator()) IntrinsicSlowPathX86(
-      invoke, locations->GetTemp(0).AsRegister<Register>());
+  SlowPathCodeX86* slow_path = new (GetAllocator()) IntrinsicSlowPathX86(invoke);
   codegen_->AddSlowPath(slow_path);
   __ j(kEqual, slow_path->GetEntryLabel());
 
   __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pStringCompareTo)));
   __ Bind(slow_path->GetExitLabel());
+}
+
+static void CreateStringIndexOfLocations(HInvoke* invoke,
+                                         ArenaAllocator* allocator,
+                                         bool start_at_zero) {
+  LocationSummary* locations = new (allocator) LocationSummary(invoke,
+                                                               LocationSummary::kCallOnSlowPath,
+                                                               kIntrinsified);
+  // The data needs to be in EDI for scasw. So request that the string is there, anyways.
+  locations->SetInAt(0, Location::RegisterLocation(EDI));
+  // If we look for a constant char, we'll still have to copy it into EAX. So just request the
+  // allocator to do that, anyways. We can still do the constant check by checking the parameter
+  // of the instruction explicitly.
+  // Note: This works as we don't clobber EAX anywhere.
+  locations->SetInAt(1, Location::RegisterLocation(EAX));
+  if (!start_at_zero) {
+    locations->SetInAt(2, Location::RequiresRegister());          // The starting index.
+  }
+  // As we clobber EDI during execution anyways, also use it as the output.
+  locations->SetOut(Location::SameAsFirstInput());
+
+  // repne scasw uses ECX as the counter.
+  locations->AddTemp(Location::RegisterLocation(ECX));
+  // Need another temporary to be able to compute the result.
+  locations->AddTemp(Location::RequiresRegister());
+}
+
+static void GenerateStringIndexOf(HInvoke* invoke,
+                                  X86Assembler* assembler,
+                                  CodeGeneratorX86* codegen,
+                                  ArenaAllocator* allocator,
+                                  bool start_at_zero) {
+  LocationSummary* locations = invoke->GetLocations();
+
+  // Note that the null check must have been done earlier.
+  DCHECK(!invoke->CanDoImplicitNullCheckOn(invoke->InputAt(0)));
+
+  Register string_obj = locations->InAt(0).AsRegister<Register>();
+  Register search_value = locations->InAt(1).AsRegister<Register>();
+  Register counter = locations->GetTemp(0).AsRegister<Register>();
+  Register string_length = locations->GetTemp(1).AsRegister<Register>();
+  Register out = locations->Out().AsRegister<Register>();
+
+  // Check our assumptions for registers.
+  DCHECK_EQ(string_obj, EDI);
+  DCHECK_EQ(search_value, EAX);
+  DCHECK_EQ(counter, ECX);
+  DCHECK_EQ(out, EDI);
+
+  // Check for code points > 0xFFFF. Either a slow-path check when we don't know statically,
+  // or directly dispatch if we have a constant.
+  SlowPathCodeX86* slow_path = nullptr;
+  if (invoke->InputAt(1)->IsIntConstant()) {
+    if (static_cast<uint32_t>(invoke->InputAt(1)->AsIntConstant()->GetValue()) >
+    std::numeric_limits<uint16_t>::max()) {
+      // Always needs the slow-path. We could directly dispatch to it, but this case should be
+      // rare, so for simplicity just put the full slow-path down and branch unconditionally.
+      slow_path = new (allocator) IntrinsicSlowPathX86(invoke);
+      codegen->AddSlowPath(slow_path);
+      __ jmp(slow_path->GetEntryLabel());
+      __ Bind(slow_path->GetExitLabel());
+      return;
+    }
+  } else {
+    __ cmpl(search_value, Immediate(std::numeric_limits<uint16_t>::max()));
+    slow_path = new (allocator) IntrinsicSlowPathX86(invoke);
+    codegen->AddSlowPath(slow_path);
+    __ j(kAbove, slow_path->GetEntryLabel());
+  }
+
+  // From here down, we know that we are looking for a char that fits in 16 bits.
+  // Location of reference to data array within the String object.
+  int32_t value_offset = mirror::String::ValueOffset().Int32Value();
+  // Location of count within the String object.
+  int32_t count_offset = mirror::String::CountOffset().Int32Value();
+
+  // Load string length, i.e., the count field of the string.
+  __ movl(string_length, Address(string_obj, count_offset));
+
+  // Do a zero-length check.
+  // TODO: Support jecxz.
+  Label not_found_label;
+  __ testl(string_length, string_length);
+  __ j(kEqual, &not_found_label);
+
+  if (start_at_zero) {
+    // Number of chars to scan is the same as the string length.
+    __ movl(counter, string_length);
+
+    // Move to the start of the string.
+    __ addl(string_obj, Immediate(value_offset));
+  } else {
+    Register start_index = locations->InAt(2).AsRegister<Register>();
+
+    // Do a start_index check.
+    __ cmpl(start_index, string_length);
+    __ j(kGreaterEqual, &not_found_label);
+
+    // Ensure we have a start index >= 0;
+    __ xorl(counter, counter);
+    __ cmpl(start_index, Immediate(0));
+    __ cmovl(kGreater, counter, start_index);
+
+    // Move to the start of the string: string_obj + value_offset + 2 * start_index.
+    __ leal(string_obj, Address(string_obj, counter, ScaleFactor::TIMES_2, value_offset));
+
+    // Now update ecx (the repne scasw work counter). We have string.length - start_index left to
+    // compare.
+    __ negl(counter);
+    __ leal(counter, Address(string_length, counter, ScaleFactor::TIMES_1, 0));
+  }
+
+  // Everything is set up for repne scasw:
+  //   * Comparison address in EDI.
+  //   * Counter in ECX.
+  __ repne_scasw();
+
+  // Did we find a match?
+  __ j(kNotEqual, &not_found_label);
+
+  // Yes, we matched.  Compute the index of the result.
+  __ subl(string_length, counter);
+  __ leal(out, Address(string_length, -1));
+
+  Label done;
+  __ jmp(&done);
+
+  // Failed to match; return -1.
+  __ Bind(&not_found_label);
+  __ movl(out, Immediate(-1));
+
+  // And join up at the end.
+  __ Bind(&done);
+  if (slow_path != nullptr) {
+    __ Bind(slow_path->GetExitLabel());
+  }
+}
+
+void IntrinsicLocationsBuilderX86::VisitStringIndexOf(HInvoke* invoke) {
+  CreateStringIndexOfLocations(invoke, arena_, true);
+}
+
+void IntrinsicCodeGeneratorX86::VisitStringIndexOf(HInvoke* invoke) {
+  GenerateStringIndexOf(invoke, GetAssembler(), codegen_, GetAllocator(), true);
+}
+
+void IntrinsicLocationsBuilderX86::VisitStringIndexOfAfter(HInvoke* invoke) {
+  CreateStringIndexOfLocations(invoke, arena_, false);
+}
+
+void IntrinsicCodeGeneratorX86::VisitStringIndexOfAfter(HInvoke* invoke) {
+  GenerateStringIndexOf(invoke, GetAssembler(), codegen_, GetAllocator(), false);
 }
 
 void IntrinsicLocationsBuilderX86::VisitStringNewStringFromBytes(HInvoke* invoke) {
@@ -958,8 +1103,6 @@ void IntrinsicLocationsBuilderX86::VisitStringNewStringFromBytes(HInvoke* invoke
   locations->SetInAt(2, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
   locations->SetInAt(3, Location::RegisterLocation(calling_convention.GetRegisterAt(3)));
   locations->SetOut(Location::RegisterLocation(EAX));
-  // Needs to be EAX for the invoke.
-  locations->AddTemp(Location::RegisterLocation(EAX));
 }
 
 void IntrinsicCodeGeneratorX86::VisitStringNewStringFromBytes(HInvoke* invoke) {
@@ -968,8 +1111,7 @@ void IntrinsicCodeGeneratorX86::VisitStringNewStringFromBytes(HInvoke* invoke) {
 
   Register byte_array = locations->InAt(0).AsRegister<Register>();
   __ testl(byte_array, byte_array);
-  SlowPathCodeX86* slow_path = new (GetAllocator()) IntrinsicSlowPathX86(
-      invoke, locations->GetTemp(0).AsRegister<Register>());
+  SlowPathCodeX86* slow_path = new (GetAllocator()) IntrinsicSlowPathX86(invoke);
   codegen_->AddSlowPath(slow_path);
   __ j(kEqual, slow_path->GetEntryLabel());
 
@@ -1003,8 +1145,6 @@ void IntrinsicLocationsBuilderX86::VisitStringNewStringFromString(HInvoke* invok
   InvokeRuntimeCallingConvention calling_convention;
   locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
   locations->SetOut(Location::RegisterLocation(EAX));
-  // Needs to be EAX for the invoke.
-  locations->AddTemp(Location::RegisterLocation(EAX));
 }
 
 void IntrinsicCodeGeneratorX86::VisitStringNewStringFromString(HInvoke* invoke) {
@@ -1013,8 +1153,7 @@ void IntrinsicCodeGeneratorX86::VisitStringNewStringFromString(HInvoke* invoke) 
 
   Register string_to_copy = locations->InAt(0).AsRegister<Register>();
   __ testl(string_to_copy, string_to_copy);
-  SlowPathCodeX86* slow_path = new (GetAllocator()) IntrinsicSlowPathX86(
-      invoke, locations->GetTemp(0).AsRegister<Register>());
+  SlowPathCodeX86* slow_path = new (GetAllocator()) IntrinsicSlowPathX86(invoke);
   codegen_->AddSlowPath(slow_path);
   __ j(kEqual, slow_path->GetEntryLabel());
 
@@ -1584,8 +1723,6 @@ void IntrinsicCodeGeneratorX86::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) 
 
 UNIMPLEMENTED_INTRINSIC(MathRoundDouble)
 UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
-UNIMPLEMENTED_INTRINSIC(StringIndexOf)
-UNIMPLEMENTED_INTRINSIC(StringIndexOfAfter)
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
 

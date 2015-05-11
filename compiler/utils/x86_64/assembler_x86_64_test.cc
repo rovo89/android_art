@@ -1215,4 +1215,10 @@ TEST_F(AssemblerX86_64Test, MovsxbRegs) {
   DriverStr(Repeatrb(&x86_64::X86_64Assembler::movsxb, "movsbl %{reg2}, %{reg1}"), "movsxb");
 }
 
+TEST_F(AssemblerX86_64Test, Repnescasw) {
+  GetAssembler()->repne_scasw();
+  const char* expected = "repne scasw\n";
+  DriverStr(expected, "Repnescasw");
+}
+
 }  // namespace art
