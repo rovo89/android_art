@@ -525,14 +525,6 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
     return temps_.Size();
   }
 
-  void SetEnvironmentAt(uint32_t at, Location location) {
-    environment_.Put(at, location);
-  }
-
-  Location GetEnvironmentAt(uint32_t at) const {
-    return environment_.Get(at);
-  }
-
   Location Out() const { return output_; }
 
   bool CanCall() const { return call_kind_ != kNoCall; }
@@ -602,7 +594,6 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
  private:
   GrowableArray<Location> inputs_;
   GrowableArray<Location> temps_;
-  GrowableArray<Location> environment_;
   // Whether the output overlaps with any of the inputs. If it overlaps, then it cannot
   // share the same register as the inputs.
   Location::OutputOverlap output_overlaps_;

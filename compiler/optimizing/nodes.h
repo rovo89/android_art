@@ -117,7 +117,11 @@ class HInstructionList {
 // Control-flow graph of a method. Contains a list of basic blocks.
 class HGraph : public ArenaObject<kArenaAllocMisc> {
  public:
-  HGraph(ArenaAllocator* arena, bool debuggable = false, int start_instruction_id = 0)
+  HGraph(ArenaAllocator* arena,
+         const DexFile& dex_file,
+         uint32_t method_idx,
+         bool debuggable = false,
+         int start_instruction_id = 0)
       : arena_(arena),
         blocks_(arena, kDefaultNumberOfBlocks),
         reverse_post_order_(arena, kDefaultNumberOfBlocks),
@@ -131,6 +135,8 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
         has_bounds_checks_(false),
         debuggable_(debuggable),
         current_instruction_id_(start_instruction_id),
+        dex_file_(dex_file),
+        method_idx_(method_idx),
         cached_null_constant_(nullptr),
         cached_int_constants_(std::less<int32_t>(), arena->Adapter()),
         cached_float_constants_(std::less<int32_t>(), arena->Adapter()),
@@ -263,6 +269,14 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
 
   HBasicBlock* FindCommonDominator(HBasicBlock* first, HBasicBlock* second) const;
 
+  const DexFile& GetDexFile() const {
+    return dex_file_;
+  }
+
+  uint32_t GetMethodIdx() const {
+    return method_idx_;
+  }
+
  private:
   void VisitBlockForDominatorTree(HBasicBlock* block,
                                   HBasicBlock* predecessor,
@@ -338,6 +352,12 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
 
   // The current id to assign to a newly added instruction. See HInstruction.id_.
   int32_t current_instruction_id_;
+
+  // The dex file from which the method is from.
+  const DexFile& dex_file_;
+
+  // The method index in the dex file.
+  const uint32_t method_idx_;
 
   // Cached constants.
   HNullConstant* cached_null_constant_;
@@ -934,6 +954,14 @@ class HUseList : public ValueObject {
     return first_ != nullptr && first_->next_ == nullptr;
   }
 
+  size_t SizeSlow() const {
+    size_t count = 0;
+    for (HUseListNode<T>* current = first_; current != nullptr; current = current->GetNext()) {
+      ++count;
+    }
+    return count;
+  }
+
  private:
   HUseListNode<T>* first_;
 };
@@ -1060,12 +1088,38 @@ class SideEffects : public ValueObject {
 // A HEnvironment object contains the values of virtual registers at a given location.
 class HEnvironment : public ArenaObject<kArenaAllocMisc> {
  public:
-  HEnvironment(ArenaAllocator* arena, size_t number_of_vregs)
-     : vregs_(arena, number_of_vregs) {
+  HEnvironment(ArenaAllocator* arena,
+               size_t number_of_vregs,
+               const DexFile& dex_file,
+               uint32_t method_idx,
+               uint32_t dex_pc)
+     : vregs_(arena, number_of_vregs),
+       locations_(arena, number_of_vregs),
+       parent_(nullptr),
+       dex_file_(dex_file),
+       method_idx_(method_idx),
+       dex_pc_(dex_pc) {
     vregs_.SetSize(number_of_vregs);
     for (size_t i = 0; i < number_of_vregs; i++) {
       vregs_.Put(i, HUserRecord<HEnvironment*>());
     }
+
+    locations_.SetSize(number_of_vregs);
+    for (size_t i = 0; i < number_of_vregs; ++i) {
+      locations_.Put(i, Location());
+    }
+  }
+
+  void SetAndCopyParentChain(ArenaAllocator* allocator, HEnvironment* parent) {
+    parent_ = new (allocator) HEnvironment(allocator,
+                                           parent->Size(),
+                                           parent->GetDexFile(),
+                                           parent->GetMethodIdx(),
+                                           parent->GetDexPc());
+    if (parent->GetParent() != nullptr) {
+      parent_->SetAndCopyParentChain(allocator, parent->GetParent());
+    }
+    parent_->CopyFrom(parent);
   }
 
   void CopyFrom(const GrowableArray<HInstruction*>& locals);
@@ -1088,6 +1142,28 @@ class HEnvironment : public ArenaObject<kArenaAllocMisc> {
 
   size_t Size() const { return vregs_.Size(); }
 
+  HEnvironment* GetParent() const { return parent_; }
+
+  void SetLocationAt(size_t index, Location location) {
+    locations_.Put(index, location);
+  }
+
+  Location GetLocationAt(size_t index) const {
+    return locations_.Get(index);
+  }
+
+  uint32_t GetDexPc() const {
+    return dex_pc_;
+  }
+
+  uint32_t GetMethodIdx() const {
+    return method_idx_;
+  }
+
+  const DexFile& GetDexFile() const {
+    return dex_file_;
+  }
+
  private:
   // Record instructions' use entries of this environment for constant-time removal.
   // It should only be called by HInstruction when a new environment use is added.
@@ -1098,6 +1174,11 @@ class HEnvironment : public ArenaObject<kArenaAllocMisc> {
   }
 
   GrowableArray<HUserRecord<HEnvironment*> > vregs_;
+  GrowableArray<Location> locations_;
+  HEnvironment* parent_;
+  const DexFile& dex_file_;
+  const uint32_t method_idx_;
+  const uint32_t dex_pc_;
 
   friend class HInstruction;
 
@@ -1229,6 +1310,11 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
   }
 
   virtual bool NeedsEnvironment() const { return false; }
+  virtual uint32_t GetDexPc() const {
+    LOG(FATAL) << "GetDexPc() cannot be called on an instruction that"
+                  " does not need an environment";
+    UNREACHABLE();
+  }
   virtual bool IsControlFlow() const { return false; }
   virtual bool CanThrow() const { return false; }
   bool HasSideEffects() const { return side_effects_.HasSideEffects(); }
@@ -1306,14 +1392,30 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
   // copying, the uses lists are being updated.
   void CopyEnvironmentFrom(HEnvironment* environment) {
     ArenaAllocator* allocator = GetBlock()->GetGraph()->GetArena();
-    environment_ = new (allocator) HEnvironment(allocator, environment->Size());
+    environment_ = new (allocator) HEnvironment(
+        allocator,
+        environment->Size(),
+        environment->GetDexFile(),
+        environment->GetMethodIdx(),
+        environment->GetDexPc());
     environment_->CopyFrom(environment);
+    if (environment->GetParent() != nullptr) {
+      environment_->SetAndCopyParentChain(allocator, environment->GetParent());
+    }
   }
 
   void CopyEnvironmentFromWithLoopPhiAdjustment(HEnvironment* environment,
                                                 HBasicBlock* block) {
     ArenaAllocator* allocator = GetBlock()->GetGraph()->GetArena();
-    environment_ = new (allocator) HEnvironment(allocator, environment->Size());
+    environment_ = new (allocator) HEnvironment(
+        allocator,
+        environment->Size(),
+        environment->GetDexFile(),
+        environment->GetMethodIdx(),
+        environment->GetDexPc());
+    if (environment->GetParent() != nullptr) {
+      environment_->SetAndCopyParentChain(allocator, environment->GetParent());
+    }
     environment_->CopyFromWithLoopPhiAdjustment(environment, block);
   }
 
@@ -1690,7 +1792,7 @@ class HDeoptimize : public HTemplateInstruction<1> {
 
   bool NeedsEnvironment() const OVERRIDE { return true; }
   bool CanThrow() const OVERRIDE { return true; }
-  uint32_t GetDexPc() const { return dex_pc_; }
+  uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
 
   DECLARE_INSTRUCTION(Deoptimize);
 
@@ -2259,7 +2361,7 @@ class HInvoke : public HInstruction {
 
   Primitive::Type GetType() const OVERRIDE { return return_type_; }
 
-  uint32_t GetDexPc() const { return dex_pc_; }
+  uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
 
   uint32_t GetDexMethodIndex() const { return dex_method_index_; }
 
@@ -2476,7 +2578,7 @@ class HNewInstance : public HExpression<0> {
         type_index_(type_index),
         entrypoint_(entrypoint) {}
 
-  uint32_t GetDexPc() const { return dex_pc_; }
+  uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
   uint16_t GetTypeIndex() const { return type_index_; }
 
   // Calls runtime so needs an environment.
@@ -2528,7 +2630,7 @@ class HNewArray : public HExpression<1> {
     SetRawInputAt(0, length);
   }
 
-  uint32_t GetDexPc() const { return dex_pc_; }
+  uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
   uint16_t GetTypeIndex() const { return type_index_; }
 
   // Calls runtime so needs an environment.
@@ -2623,7 +2725,7 @@ class HDiv : public HBinaryOperation {
     return (y == -1) ? -x : x / y;
   }
 
-  uint32_t GetDexPc() const { return dex_pc_; }
+  uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
 
   DECLARE_INSTRUCTION(Div);
 
@@ -2650,7 +2752,7 @@ class HRem : public HBinaryOperation {
     return (y == -1) ? 0 : x % y;
   }
 
-  uint32_t GetDexPc() const { return dex_pc_; }
+  uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
 
   DECLARE_INSTRUCTION(Rem);
 
@@ -2677,7 +2779,7 @@ class HDivZeroCheck : public HExpression<1> {
   bool NeedsEnvironment() const OVERRIDE { return true; }
   bool CanThrow() const OVERRIDE { return true; }
 
-  uint32_t GetDexPc() const { return dex_pc_; }
+  uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
 
   DECLARE_INSTRUCTION(DivZeroCheck);
 
@@ -2872,7 +2974,7 @@ class HTypeConversion : public HExpression<1> {
 
   // Required by the x86 and ARM code generators when producing calls
   // to the runtime.
-  uint32_t GetDexPc() const { return dex_pc_; }
+  uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
 
   bool CanBeMoved() const OVERRIDE { return true; }
   bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE { return true; }
@@ -2982,7 +3084,7 @@ class HNullCheck : public HExpression<1> {
 
   bool CanBeNull() const OVERRIDE { return false; }
 
-  uint32_t GetDexPc() const { return dex_pc_; }
+  uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
 
   DECLARE_INSTRUCTION(NullCheck);
 
@@ -3145,7 +3247,7 @@ class HArraySet : public HTemplateInstruction<3> {
 
   bool NeedsTypeCheck() const { return needs_type_check_; }
 
-  uint32_t GetDexPc() const { return dex_pc_; }
+  uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
 
   HInstruction* GetArray() const { return InputAt(0); }
   HInstruction* GetIndex() const { return InputAt(1); }
@@ -3215,7 +3317,7 @@ class HBoundsCheck : public HExpression<2> {
 
   bool CanThrow() const OVERRIDE { return true; }
 
-  uint32_t GetDexPc() const { return dex_pc_; }
+  uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
 
   DECLARE_INSTRUCTION(BoundsCheck);
 
@@ -3261,7 +3363,7 @@ class HSuspendCheck : public HTemplateInstruction<0> {
     return true;
   }
 
-  uint32_t GetDexPc() const { return dex_pc_; }
+  uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
   void SetSlowPath(SlowPathCode* slow_path) { slow_path_ = slow_path; }
   SlowPathCode* GetSlowPath() const { return slow_path_; }
 
@@ -3300,7 +3402,7 @@ class HLoadClass : public HExpression<0> {
 
   size_t ComputeHashCode() const OVERRIDE { return type_index_; }
 
-  uint32_t GetDexPc() const { return dex_pc_; }
+  uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
   uint16_t GetTypeIndex() const { return type_index_; }
   bool IsReferrersClass() const { return is_referrers_class_; }
 
@@ -3374,7 +3476,7 @@ class HLoadString : public HExpression<0> {
 
   size_t ComputeHashCode() const OVERRIDE { return string_index_; }
 
-  uint32_t GetDexPc() const { return dex_pc_; }
+  uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
   uint32_t GetStringIndex() const { return string_index_; }
 
   // TODO: Can we deopt or debug when we resolve a string?
@@ -3412,7 +3514,7 @@ class HClinitCheck : public HExpression<1> {
     return true;
   }
 
-  uint32_t GetDexPc() const { return dex_pc_; }
+  uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
 
   HLoadClass* GetLoadClass() const { return InputAt(0)->AsLoadClass(); }
 
@@ -3512,7 +3614,7 @@ class HThrow : public HTemplateInstruction<1> {
 
   bool CanThrow() const OVERRIDE { return true; }
 
-  uint32_t GetDexPc() const { return dex_pc_; }
+  uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
 
   DECLARE_INSTRUCTION(Throw);
 
@@ -3546,7 +3648,7 @@ class HInstanceOf : public HExpression<2> {
     return false;
   }
 
-  uint32_t GetDexPc() const { return dex_pc_; }
+  uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
 
   bool IsClassFinal() const { return class_is_final_; }
 
@@ -3621,7 +3723,7 @@ class HCheckCast : public HTemplateInstruction<2> {
   bool MustDoNullCheck() const { return must_do_null_check_; }
   void ClearMustDoNullCheck() { must_do_null_check_ = false; }
 
-  uint32_t GetDexPc() const { return dex_pc_; }
+  uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
 
   bool IsClassFinal() const { return class_is_final_; }
 
@@ -3667,7 +3769,7 @@ class HMonitorOperation : public HTemplateInstruction<1> {
   bool NeedsEnvironment() const OVERRIDE { return true; }
   bool CanThrow() const OVERRIDE { return true; }
 
-  uint32_t GetDexPc() const { return dex_pc_; }
+  uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
 
   bool IsEnter() const { return kind_ == kEnter; }
 

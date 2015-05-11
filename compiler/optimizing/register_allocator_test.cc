@@ -38,7 +38,7 @@ namespace art {
 static bool Check(const uint16_t* data) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
-  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HGraph* graph = CreateGraph(&allocator);
   HGraphBuilder builder(graph);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
   builder.BuildGraph(*item);
@@ -60,7 +60,7 @@ static bool Check(const uint16_t* data) {
 TEST(RegisterAllocatorTest, ValidateIntervals) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
-  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HGraph* graph = CreateGraph(&allocator);
   std::unique_ptr<const X86InstructionSetFeatures> features_x86(
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
@@ -255,7 +255,7 @@ TEST(RegisterAllocatorTest, Loop2) {
 }
 
 static HGraph* BuildSSAGraph(const uint16_t* data, ArenaAllocator* allocator) {
-  HGraph* graph = new (allocator) HGraph(allocator);
+  HGraph* graph = CreateGraph(allocator);
   HGraphBuilder builder(graph);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
   builder.BuildGraph(*item);
@@ -463,7 +463,7 @@ static HGraph* BuildIfElseWithPhi(ArenaAllocator* allocator,
                                   HPhi** phi,
                                   HInstruction** input1,
                                   HInstruction** input2) {
-  HGraph* graph = new (allocator) HGraph(allocator);
+  HGraph* graph = CreateGraph(allocator);
   HBasicBlock* entry = new (allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
@@ -593,7 +593,7 @@ TEST(RegisterAllocatorTest, PhiHint) {
 static HGraph* BuildFieldReturn(ArenaAllocator* allocator,
                                 HInstruction** field,
                                 HInstruction** ret) {
-  HGraph* graph = new (allocator) HGraph(allocator);
+  HGraph* graph = CreateGraph(allocator);
   HBasicBlock* entry = new (allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
@@ -661,7 +661,7 @@ TEST(RegisterAllocatorTest, ExpectedInRegisterHint) {
 static HGraph* BuildTwoSubs(ArenaAllocator* allocator,
                             HInstruction** first_sub,
                             HInstruction** second_sub) {
-  HGraph* graph = new (allocator) HGraph(allocator);
+  HGraph* graph = CreateGraph(allocator);
   HBasicBlock* entry = new (allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
@@ -731,7 +731,7 @@ TEST(RegisterAllocatorTest, SameAsFirstInputHint) {
 
 static HGraph* BuildDiv(ArenaAllocator* allocator,
                         HInstruction** div) {
-  HGraph* graph = new (allocator) HGraph(allocator);
+  HGraph* graph = CreateGraph(allocator);
   HBasicBlock* entry = new (allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
@@ -783,7 +783,7 @@ TEST(RegisterAllocatorTest, SpillInactive) {
   // Create a synthesized graph to please the register_allocator and
   // ssa_liveness_analysis code.
   ArenaAllocator allocator(&pool);
-  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HGraph* graph = CreateGraph(&allocator);
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
