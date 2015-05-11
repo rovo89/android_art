@@ -91,8 +91,9 @@ static constexpr uint8_t kOpNewThread = 2U;
 
 class BuildStackTraceVisitor : public StackVisitor {
  public:
-  explicit BuildStackTraceVisitor(Thread* thread) : StackVisitor(thread, nullptr),
-      method_trace_(Trace::AllocStackTrace()) {}
+  explicit BuildStackTraceVisitor(Thread* thread)
+      : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
+        method_trace_(Trace::AllocStackTrace()) {}
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::ArtMethod* m = GetMethod();

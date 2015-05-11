@@ -29,7 +29,8 @@ class TestVisitor : public StackVisitor {
  public:
   TestVisitor(Thread* thread, Context* context, mirror::Object* this_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(thread, context), this_value_(this_value) {}
+      : StackVisitor(thread, context, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
+        this_value_(this_value) {}
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::ArtMethod* m = GetMethod();
