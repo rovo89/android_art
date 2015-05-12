@@ -22,4 +22,8 @@ public class Test extends Super {
     private void print() {
         System.out.println("Test");
     }
+
+    public String toString() {
+        return new String("Test");
+    }
 }
