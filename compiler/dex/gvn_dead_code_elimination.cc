@@ -340,7 +340,8 @@ void GvnDeadCodeElimination::VRegChains::RemoveChange(uint16_t change) {
       DCHECK_EQ(vreg_high_words_.IsBitSet(v_reg), v_reg == data->vreg_def + 1);
       if (data->vreg_def == v_reg && data->low_def_over_high_word) {
         vreg_high_words_.SetBit(v_reg);
-      } else if (data->vreg_def != v_reg && data->high_def_over_low_word) {
+      } else if (data->vreg_def != v_reg &&
+          (data->high_def_over_low_word || data->prev_value_high.value == kNoValue)) {
         vreg_high_words_.ClearBit(v_reg);
       }
     } else {
