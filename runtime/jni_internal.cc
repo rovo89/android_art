@@ -2099,6 +2099,35 @@ class JNI {
         return JNI_ERR;
       }
       bool is_fast = false;
+      // Notes about fast JNI calls:
+      //
+      // On a normal JNI call, the calling thread usually transitions
+      // from the kRunnable state to the kNative state. But if the
+      // called native function needs to access any Java object, it
+      // will have to transition back to the kRunnable state.
+      //
+      // There is a cost to this double transition. For a JNI call
+      // that should be quick, this cost may dominate the call cost.
+      //
+      // On a fast JNI call, the calling thread avoids this double
+      // transition by not transitioning from kRunnable to kNative and
+      // stays in the kRunnable state.
+      //
+      // There are risks to using a fast JNI call because it can delay
+      // a response to a thread suspension request which is typically
+      // used for a GC root scanning, etc. If a fast JNI call takes a
+      // long time, it could cause longer thread suspension latency
+      // and GC pauses.
+      //
+      // Thus, fast JNI should be used with care. It should be used
+      // for a JNI call that takes a short amount of time (eg. no
+      // long-running loop) and does not block (eg. no locks, I/O,
+      // etc.)
+      //
+      // A '!' prefix in the signature in the JNINativeMethod
+      // indicates that it's a fast JNI call and the runtime omits the
+      // thread state transition from kRunnable to kNative at the
+      // entry.
       if (*sig == '!') {
         is_fast = true;
         ++sig;
