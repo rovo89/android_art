@@ -96,9 +96,8 @@ OatFileAssistant::OatFileAssistant(const char* dex_location,
 
 OatFileAssistant::~OatFileAssistant() {
   // Clean up the lock file.
-  if (lock_file_.get() != nullptr) {
-    lock_file_->Erase();
-    TEMP_FAILURE_RETRY(unlink(lock_file_->GetPath().c_str()));
+  if (flock_.HasFile()) {
+    TEMP_FAILURE_RETRY(unlink(flock_.GetFile()->GetPath().c_str()));
   }
 }
 
@@ -121,7 +120,7 @@ bool OatFileAssistant::IsInBootClassPath() {
 
 bool OatFileAssistant::Lock(std::string* error_msg) {
   CHECK(error_msg != nullptr);
-  CHECK(lock_file_.get() == nullptr) << "OatFileAssistant::Lock already acquired";
+  CHECK(!flock_.HasFile()) << "OatFileAssistant::Lock already acquired";
 
   if (OatFileName() == nullptr) {
     *error_msg = "Failed to determine lock file";
@@ -129,13 +128,7 @@ bool OatFileAssistant::Lock(std::string* error_msg) {
   }
   std::string lock_file_name = *OatFileName() + ".flock";
 
-  lock_file_.reset(OS::CreateEmptyFile(lock_file_name.c_str()));
-  if (lock_file_.get() == nullptr) {
-    *error_msg = "Failed to create lock file " + lock_file_name;
-    return false;
-  }
-
-  if (!flock_.Init(lock_file_.get(), error_msg)) {
+  if (!flock_.Init(lock_file_name.c_str(), error_msg)) {
     TEMP_FAILURE_RETRY(unlink(lock_file_name.c_str()));
     return false;
   }
