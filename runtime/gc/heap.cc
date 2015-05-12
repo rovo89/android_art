@@ -1612,10 +1612,19 @@ void Heap::SetTargetHeapUtilization(float target) {
 }
 
 size_t Heap::GetObjectsAllocated() const {
+  Thread* self = Thread::Current();
+  ScopedThreadStateChange tsc(self, kWaitingForGetObjectsAllocated);
+  auto* tl = Runtime::Current()->GetThreadList();
+  // Need SuspendAll here to prevent lock violation if RosAlloc does it during InspectAll.
+  tl->SuspendAll(__FUNCTION__);
   size_t total = 0;
-  for (space::AllocSpace* space : alloc_spaces_) {
-    total += space->GetObjectsAllocated();
+  {
+    ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
+    for (space::AllocSpace* space : alloc_spaces_) {
+      total += space->GetObjectsAllocated();
+    }
   }
+  tl->ResumeAll();
   return total;
 }
 
