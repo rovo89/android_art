@@ -31,13 +31,13 @@ class HDeadCodeElimination : public HOptimization {
  public:
   HDeadCodeElimination(HGraph* graph,
                        OptimizingCompilerStats* stats = nullptr,
-                       const char* name = kDeadCodeEliminationPassName)
+                       const char* name = kInitialDeadCodeEliminationPassName)
       : HOptimization(graph, true, name, stats) {}
 
   void Run() OVERRIDE;
 
-  static constexpr const char* kDeadCodeEliminationPassName =
-    "dead_code_elimination";
+  static constexpr const char* kInitialDeadCodeEliminationPassName = "dead_code_elimination";
+  static constexpr const char* kFinalDeadCodeEliminationPassName = "dead_code_elimination_final";
 
  private:
   void MaybeRecordDeadBlock(HBasicBlock* block);
