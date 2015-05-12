@@ -428,8 +428,7 @@ endif
 TEST_ART_BROKEN_OPTIMIZING_DEBUGGABLE_RUN_TESTS :=
 
 # Tests that should fail in the read barrier configuration.
-TEST_ART_BROKEN_READ_BARRIER_RUN_TESTS := \
-  098-ddmc  # b/20720510
+TEST_ART_BROKEN_READ_BARRIER_RUN_TESTS :=
 
 ifeq ($(ART_USE_READ_BARRIER),true)
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
