@@ -18,6 +18,19 @@
 
 .field public static value:Z
 
+# CHECK-START: boolean TestCase.testCase() boolean_simplifier (before)
+# CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
+# CHECK-DAG:     [[Const1:i\d+]]   IntConstant 1
+# CHECK-DAG:     [[Value:z\d+]]    StaticFieldGet
+# CHECK-DAG:                       If [ [[Value]] ]
+# CHECK-DAG:     [[Phi:i\d+]]      Phi [ [[Const1]] [[Const0]] ]
+# CHECK-DAG:                       Return [ [[Phi]] ]
+
+# CHECK-START: boolean TestCase.testCase() boolean_simplifier (after)
+# CHECK-DAG:     [[Value:z\d+]]    StaticFieldGet
+# CHECK-DAG:     [[Not:z\d+]]      BooleanNot [ [[Value]] ]
+# CHECK-DAG:                       Return [ [[Not]] ]
+
 .method public static testCase()Z
     .registers 2
     sget-boolean v0, LTestCase;->value:Z
