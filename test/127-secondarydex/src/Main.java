@@ -24,6 +24,7 @@ import java.lang.reflect.Method;
 public class Main {
     public static void main(String[] args) {
         testSlowPathDirectInvoke();
+        testString();
     }
 
     public static void testSlowPathDirectInvoke() {
@@ -39,5 +40,12 @@ public class Main {
         } catch (Exception e) {
             System.out.println("Got unexpected exception " + e);
         }
+    }
+
+    // For string change, test that String.<init> is compiled properly in
+    // secondary dex. See http://b/20870917
+    public static void testString() {
+        Test t = new Test();
+        System.out.println(t.toString());
     }
 }

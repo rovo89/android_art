@@ -1,3 +1,4 @@
 testSlowPathDirectInvoke
 Test
 Got null pointer exception
+Test
