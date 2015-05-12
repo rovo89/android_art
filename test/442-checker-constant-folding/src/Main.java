@@ -16,6 +16,12 @@
 
 public class Main {
 
+  public static void assertFalse(boolean condition) {
+    if (condition) {
+      throw new Error();
+    }
+  }
+
   public static void assertIntEquals(int expected, int result) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
@@ -407,6 +413,54 @@ public class Main {
     return arg ^ arg;
   }
 
+  // CHECK-START: boolean Main.CmpFloatGreaterThanNaN(float) constant_folding (before)
+  // CHECK-DAG:     [[Arg:f\d+]]      ParameterValue
+  // CHECK-DAG:     [[ConstNan:f\d+]] FloatConstant nan
+  // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
+  // CHECK-DAG:                       IntConstant 1
+  // CHECK-DAG:     [[Cmp:i\d+]]      Compare [ [[Arg]] [[ConstNan]] ]
+  // CHECK-DAG:     [[Le:z\d+]]       LessThanOrEqual [ [[Cmp]] [[Const0]] ]
+  // CHECK-DAG:                       If [ [[Le]] ]
+
+  // CHECK-START: boolean Main.CmpFloatGreaterThanNaN(float) constant_folding (after)
+  // CHECK-DAG:                       ParameterValue
+  // CHECK-DAG:                       FloatConstant nan
+  // CHECK-DAG:                       IntConstant 0
+  // CHECK-DAG:     [[Const1:i\d+]]   IntConstant 1
+  // CHECK-DAG:                       If [ [[Const1]] ]
+
+  // CHECK-START: boolean Main.CmpFloatGreaterThanNaN(float) constant_folding (after)
+  // CHECK-NOT:                       Compare
+  // CHECK-NOT:                       LessThanOrEqual
+
+  public static boolean CmpFloatGreaterThanNaN(float arg) {
+    return arg > Float.NaN;
+  }
+
+  // CHECK-START: boolean Main.CmpDoubleLessThanNaN(double) constant_folding (before)
+  // CHECK-DAG:     [[Arg:d\d+]]      ParameterValue
+  // CHECK-DAG:     [[ConstNan:d\d+]] DoubleConstant nan
+  // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
+  // CHECK-DAG:                       IntConstant 1
+  // CHECK-DAG:     [[Cmp:i\d+]]      Compare [ [[Arg]] [[ConstNan]] ]
+  // CHECK-DAG:     [[Ge:z\d+]]       GreaterThanOrEqual [ [[Cmp]] [[Const0]] ]
+  // CHECK-DAG:                       If [ [[Ge]] ]
+
+  // CHECK-START: boolean Main.CmpDoubleLessThanNaN(double) constant_folding (after)
+  // CHECK-DAG:                       ParameterValue
+  // CHECK-DAG:                       DoubleConstant nan
+  // CHECK-DAG:                       IntConstant 0
+  // CHECK-DAG:     [[Const1:i\d+]]   IntConstant 1
+  // CHECK-DAG:                       If [ [[Const1]] ]
+
+  // CHECK-START: boolean Main.CmpDoubleLessThanNaN(double) constant_folding (after)
+  // CHECK-NOT:                       Compare
+  // CHECK-NOT:                       GreaterThanOrEqual
+
+  public static boolean CmpDoubleLessThanNaN(double arg) {
+    return arg < Double.NaN;
+  }
+
   public static void main(String[] args) {
     assertIntEquals(IntNegation(), -42);
     assertIntEquals(IntAddition1(), 3);
@@ -417,17 +471,19 @@ public class Main {
     assertIntEquals(StaticCondition(), 5);
     assertIntEquals(JumpsAndConditionals(true), 7);
     assertIntEquals(JumpsAndConditionals(false), 3);
-    int random = 123456;  // Chosen randomly.
-    assertIntEquals(And0(random), 0);
-    assertLongEquals(Mul0(random), 0);
-    assertIntEquals(OrAllOnes(random), -1);
-    assertLongEquals(Rem0(random), 0);
-    assertIntEquals(Rem1(random), 0);
-    assertLongEquals(RemN1(random), 0);
-    assertIntEquals(Shl0(random), 0);
-    assertLongEquals(Shr0(random), 0);
-    assertLongEquals(SubSameLong(random), 0);
-    assertIntEquals(UShr0(random), 0);
-    assertIntEquals(XorSameInt(random), 0);
+    int arbitrary = 123456;  // Value chosen arbitrarily.
+    assertIntEquals(And0(arbitrary), 0);
+    assertLongEquals(Mul0(arbitrary), 0);
+    assertIntEquals(OrAllOnes(arbitrary), -1);
+    assertLongEquals(Rem0(arbitrary), 0);
+    assertIntEquals(Rem1(arbitrary), 0);
+    assertLongEquals(RemN1(arbitrary), 0);
+    assertIntEquals(Shl0(arbitrary), 0);
+    assertLongEquals(Shr0(arbitrary), 0);
+    assertLongEquals(SubSameLong(arbitrary), 0);
+    assertIntEquals(UShr0(arbitrary), 0);
+    assertIntEquals(XorSameInt(arbitrary), 0);
+    assertFalse(CmpFloatGreaterThanNaN(arbitrary));
+    assertFalse(CmpDoubleLessThanNaN(arbitrary));
   }
 }
