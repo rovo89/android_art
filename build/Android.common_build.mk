@@ -110,10 +110,6 @@ ART_TARGET_CLANG_CFLAGS_x86_64 :=
 ART_TARGET_CLANG_CFLAGS_arm64  += \
   -DNVALGRIND
 
-# FIXME: upstream LLVM has a vectorizer bug that needs to be fixed
-ART_TARGET_CLANG_CFLAGS_arm64 += \
-  -fno-vectorize
-
 # Warn about thread safety violations with clang.
 art_clang_cflags := -Wthread-safety
 
