@@ -39,7 +39,7 @@ if [ -z "$TMPDIR" ]; then
 else
   tmp_dir="${TMPDIR}/$USER/${test_dir}"
 fi
-checker="${progdir}/../tools/checker.py"
+checker="${progdir}/../tools/checker/checker.py"
 
 export JAVA="java"
 export JAVAC="javac -g"
