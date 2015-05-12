@@ -24,11 +24,6 @@
 
 namespace art {
 
-// The number of words necessary to encode bits.
-static constexpr uint32_t BitsToWords(uint32_t bits) {
-  return RoundUp(bits, 32) / 32;
-}
-
 // TODO: replace excessive argument defaulting when we are at gcc 4.7
 // or later on host with delegating constructor support. Specifically,
 // starts_bits and storage_size/storage are mutually exclusive.

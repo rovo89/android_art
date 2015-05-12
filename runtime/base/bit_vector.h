@@ -20,6 +20,8 @@
 #include <stdint.h>
 #include <iterator>
 
+#include "utils.h"
+
 namespace art {
 
 class Allocator;
@@ -115,6 +117,11 @@ class BitVector {
             uint32_t* storage = nullptr);
 
   virtual ~BitVector();
+
+  // The number of words necessary to encode bits.
+  static constexpr uint32_t BitsToWords(uint32_t bits) {
+    return RoundUp(bits, kWordBits) / kWordBits;
+  }
 
   // Mark the specified bit as "set".
   void SetBit(uint32_t idx) {
