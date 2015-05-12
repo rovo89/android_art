@@ -121,6 +121,7 @@ class GvnDeadCodeElimination : public DeletableArenaObject<kArenaAllocMisc> {
    private:
     const uint32_t num_vregs_;
     VRegValue* const vreg_data_;
+    BitVector vreg_high_words_;
     ScopedArenaVector<MIRData> mir_data_;
   };
 
