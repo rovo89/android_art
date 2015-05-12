@@ -20,6 +20,7 @@
 
 #include "base/bit_vector-inl.h"
 #include "base/macros.h"
+#include "base/allocator.h"
 #include "compiler_enums.h"
 #include "dataflow_iterator-inl.h"
 #include "dex_instruction.h"
@@ -75,6 +76,9 @@ inline void GvnDeadCodeElimination::MIRData::RemovePrevChange(int v_reg, MIRData
 GvnDeadCodeElimination::VRegChains::VRegChains(uint32_t num_vregs, ScopedArenaAllocator* alloc)
     : num_vregs_(num_vregs),
       vreg_data_(alloc->AllocArray<VRegValue>(num_vregs, kArenaAllocMisc)),
+      vreg_high_words_(num_vregs, false, Allocator::GetNoopAllocator(),
+                       BitVector::BitsToWords(num_vregs),
+                       alloc->AllocArray<uint32_t>(BitVector::BitsToWords(num_vregs))),
       mir_data_(alloc->Adapter()) {
   mir_data_.reserve(100);
 }
@@ -82,6 +86,7 @@ GvnDeadCodeElimination::VRegChains::VRegChains(uint32_t num_vregs, ScopedArenaAl
 inline void GvnDeadCodeElimination::VRegChains::Reset() {
   DCHECK(mir_data_.empty());
   std::fill_n(vreg_data_, num_vregs_, VRegValue());
+  vreg_high_words_.ClearAllBits();
 }
 
 void GvnDeadCodeElimination::VRegChains::AddMIRWithDef(MIR* mir, int v_reg, bool wide,
@@ -93,24 +98,26 @@ void GvnDeadCodeElimination::VRegChains::AddMIRWithDef(MIR* mir, int v_reg, bool
   data->wide_def = wide;
   data->vreg_def = v_reg;
 
-  if (vreg_data_[v_reg].change != kNPos &&
-      mir_data_[vreg_data_[v_reg].change].vreg_def + 1 == v_reg) {
-    data->low_def_over_high_word = true;
-  }
-  data->prev_value = vreg_data_[v_reg];
   DCHECK_LT(static_cast<size_t>(v_reg), num_vregs_);
+  data->prev_value = vreg_data_[v_reg];
+  data->low_def_over_high_word =
+      (vreg_data_[v_reg].change != kNPos)
+      ? GetMIRData(vreg_data_[v_reg].change)->vreg_def + 1 == v_reg
+      : vreg_high_words_.IsBitSet(v_reg);
   vreg_data_[v_reg].value = new_value;
   vreg_data_[v_reg].change = pos;
+  vreg_high_words_.ClearBit(v_reg);
 
   if (wide) {
-    if (vreg_data_[v_reg + 1].change != kNPos &&
-        mir_data_[vreg_data_[v_reg + 1].change].vreg_def == v_reg + 1) {
-      data->high_def_over_low_word = true;
-    }
-    data->prev_value_high = vreg_data_[v_reg + 1];
     DCHECK_LT(static_cast<size_t>(v_reg + 1), num_vregs_);
+    data->prev_value_high = vreg_data_[v_reg + 1];
+    data->high_def_over_low_word =
+        (vreg_data_[v_reg + 1].change != kNPos)
+        ? GetMIRData(vreg_data_[v_reg + 1].change)->vreg_def == v_reg + 1
+        : !vreg_high_words_.IsBitSet(v_reg + 1);
     vreg_data_[v_reg + 1].value = new_value;
     vreg_data_[v_reg + 1].change = pos;
+    vreg_high_words_.SetBit(v_reg + 1);
   }
 }
 
@@ -123,9 +130,17 @@ void GvnDeadCodeElimination::VRegChains::RemoveLastMIRData() {
   if (data->has_def) {
     DCHECK_EQ(vreg_data_[data->vreg_def].change, NumMIRs() - 1u);
     vreg_data_[data->vreg_def] = data->prev_value;
+    DCHECK(!vreg_high_words_.IsBitSet(data->vreg_def));
+    if (data->low_def_over_high_word) {
+      vreg_high_words_.SetBit(data->vreg_def);
+    }
     if (data->wide_def) {
       DCHECK_EQ(vreg_data_[data->vreg_def + 1].change, NumMIRs() - 1u);
       vreg_data_[data->vreg_def + 1] = data->prev_value_high;
+      DCHECK(vreg_high_words_.IsBitSet(data->vreg_def + 1));
+      if (data->high_def_over_low_word) {
+        vreg_high_words_.ClearBit(data->vreg_def + 1);
+      }
     }
   }
   mir_data_.pop_back();
@@ -169,6 +184,7 @@ void GvnDeadCodeElimination::VRegChains::InsertInitialValueHigh(int v_reg, uint1
   uint16_t change = vreg_data_[v_reg].change;
   if (change == kNPos) {
     vreg_data_[v_reg].value = value;
+    vreg_high_words_.SetBit(v_reg);
   } else {
     while (true) {
       MIRData* data = &mir_data_[change];
@@ -208,6 +224,7 @@ void GvnDeadCodeElimination::VRegChains::UpdateInitialVRegValue(int v_reg, bool 
         }
       }
       vreg_data_[v_reg].value = old_value;
+      DCHECK(!vreg_high_words_.IsBitSet(v_reg));  // Keep marked as low word.
     }
   } else {
     DCHECK_LT(static_cast<size_t>(v_reg + 1), num_vregs_);
@@ -223,6 +240,7 @@ void GvnDeadCodeElimination::VRegChains::UpdateInitialVRegValue(int v_reg, bool 
         old_value = lvn->GetStartingVregValueNumber(v_reg);
       }
       vreg_data_[v_reg].value = old_value;
+      DCHECK(!vreg_high_words_.IsBitSet(v_reg));  // Keep marked as low word.
     }
     if (check_high && vreg_data_[v_reg + 1].value == kNoValue) {
       uint16_t old_value = lvn->GetStartingVregValueNumber(v_reg + 1);
@@ -234,6 +252,7 @@ void GvnDeadCodeElimination::VRegChains::UpdateInitialVRegValue(int v_reg, bool 
         }
       }
       vreg_data_[v_reg + 1].value = old_value;
+      DCHECK(!vreg_high_words_.IsBitSet(v_reg + 1));  // Keep marked as low word.
     }
   }
 }
@@ -300,6 +319,8 @@ void GvnDeadCodeElimination::VRegChains::ReplaceChange(uint16_t old_change, uint
     if (next_change == kNPos) {
       DCHECK_EQ(vreg_data_[v_reg].change, old_change);
       vreg_data_[v_reg].change = new_change;
+      DCHECK_EQ(vreg_high_words_.IsBitSet(v_reg), v_reg == old_data->vreg_def + 1);
+      // No change in vreg_high_words_.
     } else {
       DCHECK_EQ(mir_data_[next_change].PrevChange(v_reg), old_change);
       mir_data_[next_change].SetPrevChange(v_reg, new_change);
@@ -316,6 +337,12 @@ void GvnDeadCodeElimination::VRegChains::RemoveChange(uint16_t change) {
     if (next_change == kNPos) {
       DCHECK_EQ(vreg_data_[v_reg].change, change);
       vreg_data_[v_reg] = (data->vreg_def == v_reg) ? data->prev_value : data->prev_value_high;
+      DCHECK_EQ(vreg_high_words_.IsBitSet(v_reg), v_reg == data->vreg_def + 1);
+      if (data->vreg_def == v_reg && data->low_def_over_high_word) {
+        vreg_high_words_.SetBit(v_reg);
+      } else if (data->vreg_def != v_reg && data->high_def_over_low_word) {
+        vreg_high_words_.ClearBit(v_reg);
+      }
     } else {
       DCHECK_EQ(mir_data_[next_change].PrevChange(v_reg), change);
       mir_data_[next_change].RemovePrevChange(v_reg, data);
