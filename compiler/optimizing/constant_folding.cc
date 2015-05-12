@@ -28,6 +28,7 @@ class InstructionWithAbsorbingInputSimplifier : public HGraphVisitor {
   void VisitShift(HBinaryOperation* shift);
 
   void VisitAnd(HAnd* instruction) OVERRIDE;
+  void VisitCompare(HCompare* instruction) OVERRIDE;
   void VisitMul(HMul* instruction) OVERRIDE;
   void VisitOr(HOr* instruction) OVERRIDE;
   void VisitRem(HRem* instruction) OVERRIDE;
@@ -105,6 +106,26 @@ void InstructionWithAbsorbingInputSimplifier::VisitAnd(HAnd* instruction) {
     //    CONSTANT 0
     instruction->ReplaceWith(input_cst);
     instruction->GetBlock()->RemoveInstruction(instruction);
+  }
+}
+
+void InstructionWithAbsorbingInputSimplifier::VisitCompare(HCompare* instruction) {
+  HConstant* input_cst = instruction->GetConstantRight();
+  if (input_cst != nullptr) {
+    HInstruction* input_value = instruction->GetLeastConstantLeft();
+    if (Primitive::IsFloatingPointType(input_value->GetType()) &&
+        ((input_cst->IsFloatConstant() && input_cst->AsFloatConstant()->IsNaN()) ||
+         (input_cst->IsDoubleConstant() && input_cst->AsDoubleConstant()->IsNaN()))) {
+      // Replace code looking like
+      //    CMP{G,L} dst, src, NaN
+      // with
+      //    CONSTANT +1 (gt bias)
+      // or
+      //    CONSTANT -1 (lt bias)
+      instruction->ReplaceWith(GetGraph()->GetConstant(Primitive::kPrimInt,
+                                                       (instruction->IsGtBias() ? 1 : -1)));
+      instruction->GetBlock()->RemoveInstruction(instruction);
+    }
   }
 }
 
