@@ -1896,4 +1896,39 @@ TEST_F(GvnDeadCodeEliminationTestLoop, IFieldLoopVariable) {
   EXPECT_EQ(2u, phi->dalvikInsn.vA);
 }
 
+TEST_F(GvnDeadCodeEliminationTestDiamond, LongOverlaps1) {
+  static const MIRDef mirs[] = {
+      DEF_CONST_WIDE(3, Instruction::CONST_WIDE, 0u, 1000u),
+      DEF_CONST_WIDE(3, Instruction::CONST_WIDE, 2u, 1000u),
+      DEF_MOVE_WIDE(4, Instruction::MOVE_WIDE, 4u, 0u),
+      DEF_MOVE_WIDE(4, Instruction::MOVE_WIDE, 6u, 2u),
+      DEF_MOVE_WIDE(4, Instruction::MOVE_WIDE, 8u, 4u),
+      DEF_MOVE_WIDE(4, Instruction::MOVE_WIDE, 10u, 6u),
+  };
+
+  // The last insn should overlap the first and second.
+  static const int32_t sreg_to_vreg_map[] = { 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3 };
+  PrepareSRegToVRegMap(sreg_to_vreg_map);
+
+  PrepareMIRs(mirs);
+  static const int32_t wide_sregs[] = { 0, 2, 4, 6, 8, 10 };
+  MarkAsWideSRegs(wide_sregs);
+  PerformGVN_DCE();
+
+  ASSERT_EQ(arraysize(mirs), value_names_.size());
+  EXPECT_EQ(value_names_[0], value_names_[1]);
+  EXPECT_EQ(value_names_[0], value_names_[2]);
+  EXPECT_EQ(value_names_[0], value_names_[3]);
+  EXPECT_EQ(value_names_[0], value_names_[4]);
+
+  static const bool eliminated[] = {
+      false, false, false, false, false, false,
+  };
+  static_assert(arraysize(eliminated) == arraysize(mirs), "array size mismatch");
+  for (size_t i = 0; i != arraysize(eliminated); ++i) {
+    bool actually_eliminated = (static_cast<int>(mirs_[i].dalvikInsn.opcode) == kMirOpNop);
+    EXPECT_EQ(eliminated[i], actually_eliminated) << i;
+  }
+}
+
 }  // namespace art
