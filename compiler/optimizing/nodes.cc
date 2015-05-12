@@ -17,6 +17,7 @@
 #include "nodes.h"
 
 #include "ssa_builder.h"
+#include "base/bit_vector-inl.h"
 #include "utils/growable_array.h"
 #include "scoped_thread_state_change.h"
 
@@ -346,6 +347,7 @@ void HLoopInformation::PopulateRecursive(HBasicBlock* block) {
 }
 
 bool HLoopInformation::Populate() {
+  DCHECK_EQ(blocks_.NumSetBits(), 0u) << "Loop information has already been populated";
   for (size_t i = 0, e = GetBackEdges().Size(); i < e; ++i) {
     HBasicBlock* back_edge = GetBackEdges().Get(i);
     DCHECK(back_edge->GetDominator() != nullptr);
@@ -363,6 +365,39 @@ bool HLoopInformation::Populate() {
     PopulateRecursive(back_edge);
   }
   return true;
+}
+
+void HLoopInformation::Update() {
+  HGraph* graph = header_->GetGraph();
+  for (uint32_t id : blocks_.Indexes()) {
+    HBasicBlock* block = graph->GetBlocks().Get(id);
+    // Reset loop information of non-header blocks inside the loop, except
+    // members of inner nested loops because those should already have been
+    // updated by their own LoopInformation.
+    if (block->GetLoopInformation() == this && block != header_) {
+      block->SetLoopInformation(nullptr);
+    }
+  }
+  blocks_.ClearAllBits();
+
+  if (back_edges_.IsEmpty()) {
+    // The loop has been dismantled, delete its suspend check and remove info
+    // from the header.
+    DCHECK(HasSuspendCheck());
+    header_->RemoveInstruction(suspend_check_);
+    header_->SetLoopInformation(nullptr);
+    header_ = nullptr;
+    suspend_check_ = nullptr;
+  } else {
+    if (kIsDebugBuild) {
+      for (size_t i = 0, e = back_edges_.Size(); i < e; ++i) {
+        DCHECK(header_->Dominates(back_edges_.Get(i)));
+      }
+    }
+    // This loop still has reachable back edges. Repopulate the list of blocks.
+    bool populate_successful = Populate();
+    DCHECK(populate_successful);
+  }
 }
 
 HBasicBlock* HLoopInformation::GetPreHeader() const {
@@ -1047,20 +1082,6 @@ void HBasicBlock::DisconnectAndDelete() {
   // and updates the reverse post order.
   graph_->DeleteDeadBlock(this);
   SetGraph(nullptr);
-}
-
-void HBasicBlock::UpdateLoopInformation() {
-  // Check if loop information points to a dismantled loop. If so, replace with
-  // the loop information of a larger loop which contains this block, or nullptr
-  // otherwise. We iterate in case the larger loop has been destroyed too.
-  while (IsInLoop() && loop_information_->GetBackEdges().IsEmpty()) {
-    if (IsLoopHeader()) {
-      HSuspendCheck* suspend_check = loop_information_->GetSuspendCheck();
-      DCHECK_EQ(suspend_check->GetBlock(), this);
-      RemoveInstruction(suspend_check);
-    }
-    loop_information_ = loop_information_->GetPreHeader()->GetLoopInformation();
-  }
 }
 
 void HBasicBlock::MergeWith(HBasicBlock* other) {
