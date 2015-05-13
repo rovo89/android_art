@@ -252,7 +252,7 @@ static jobject Class_getDeclaredField(JNIEnv* env, jobject javaThis, jstring nam
     std::string name_str = name_string->ToModifiedUtf8();
     // We may have a pending exception if we failed to resolve.
     if (!soa.Self()->IsExceptionPending()) {
-      soa.Self()->ThrowNewException("Ljava/lang/NoSuchFieldException;", name_str.c_str());
+      ThrowNoSuchFieldException(DecodeClass(soa, javaThis), name_str.c_str());
     }
     return nullptr;
   }
