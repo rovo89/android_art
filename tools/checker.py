@@ -746,7 +746,8 @@ def FindCheckFiles(path):
     foundFiles = []
     for root, dirs, files in os.walk(path):
       for file in files:
-        if os.path.splitext(file)[1] == ".java":
+        extension = os.path.splitext(file)[1]
+        if extension in [".java", ".smali"]:
           foundFiles.append(os.path.join(root, file))
     return foundFiles
   else:
