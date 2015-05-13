@@ -81,6 +81,9 @@ class OatFile FINAL {
 
   bool IsPic() const;
 
+  // Indicates whether the oat file was compiled with full debugging capability.
+  bool IsDebuggable() const;
+
   ElfFile* GetElfFile() const {
     CHECK_NE(reinterpret_cast<uintptr_t>(elf_file_.get()), reinterpret_cast<uintptr_t>(nullptr))
         << "Cannot get an elf file from " << GetLocation();

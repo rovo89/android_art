@@ -819,6 +819,34 @@ static void FreeDexFilesInHeap(std::priority_queue<DexFileAndClassPair>* heap) {
   }
 }
 
+const OatFile* ClassLinker::GetBootOatFile() {
+  // To grab the boot oat, look at the dex files in the boot classpath. Any of those is fine, as
+  // they were all compiled into the same oat file. So grab the first one, which is guaranteed to
+  // exist if the boot class-path isn't empty.
+  if (boot_class_path_.empty()) {
+    return nullptr;
+  }
+  const DexFile* boot_dex_file = boot_class_path_[0];
+  // Is it from an oat file?
+  if (boot_dex_file->GetOatDexFile() != nullptr) {
+    return boot_dex_file->GetOatDexFile()->GetOatFile();
+  }
+  return nullptr;
+}
+
+const OatFile* ClassLinker::GetPrimaryOatFile() {
+  ReaderMutexLock mu(Thread::Current(), dex_lock_);
+  const OatFile* boot_oat_file = GetBootOatFile();
+  if (boot_oat_file != nullptr) {
+    for (const OatFile* oat_file : oat_files_) {
+      if (oat_file != boot_oat_file) {
+        return oat_file;
+      }
+    }
+  }
+  return nullptr;
+}
+
 // Check for class-def collisions in dex files.
 //
 // This works by maintaining a heap with one class from each dex file, sorted by the class
@@ -835,18 +863,7 @@ bool ClassLinker::HasCollisions(const OatFile* oat_file, std::string* error_msg)
 
   // Add dex files from already loaded oat files, but skip boot.
   {
-    // To grab the boot oat, look at the dex files in the boot classpath. Any of those is fine, as
-    // they were all compiled into the same oat file. So grab the first one, which is guaranteed to
-    // exist if the boot class-path isn't empty.
-    const OatFile* boot_oat = nullptr;
-    if (!boot_class_path_.empty()) {
-      const DexFile* boot_dex_file = boot_class_path_[0];
-      // Is it from an oat file?
-      if (boot_dex_file->GetOatDexFile() != nullptr) {
-        boot_oat = boot_dex_file->GetOatDexFile()->GetOatFile();
-      }
-    }
-
+    const OatFile* boot_oat = GetBootOatFile();
     for (const OatFile* loaded_oat_file : oat_files_) {
       if (loaded_oat_file == boot_oat) {
         continue;

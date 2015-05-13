@@ -295,6 +295,10 @@ class ClassLinker {
     return boot_class_path_;
   }
 
+  // Returns the first non-image oat file in the class path.
+  const OatFile* GetPrimaryOatFile()
+      LOCKS_EXCLUDED(dex_lock_);
+
   void VisitClasses(ClassVisitor* visitor, void* arg)
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -614,6 +618,9 @@ class ClassLinker {
 
   const OatFile* FindOpenedOatFileFromOatLocation(const std::string& oat_location)
       LOCKS_EXCLUDED(dex_lock_);
+
+  // Returns the boot image oat file.
+  const OatFile* GetBootOatFile() SHARED_LOCKS_REQUIRED(dex_lock_);
 
   mirror::ArtMethod* CreateProxyConstructor(Thread* self, Handle<mirror::Class> klass,
                                             mirror::Class* proxy_class)
