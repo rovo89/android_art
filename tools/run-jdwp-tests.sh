@@ -22,7 +22,7 @@ fi
 # Jar containing all the tests.
 test_jar=out/host/linux-x86/framework/apache-harmony-jdwp-tests-hostdex.jar
 
-if [ ! -f $test_jar -o ! -f $junit_jar ]; then
+if [ ! -f $test_jar ]; then
   echo "Before running, you must build jdwp tests and vogar:" \
        "make apache-harmony-jdwp-tests-hostdex vogar vogar.jar"
   exit 1
