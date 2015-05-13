@@ -29,21 +29,21 @@
 # CHECK-DAG:     [[Cst1:i\d+]]  IntConstant 1
 # CHECK-DAG:     [[Cst5:i\d+]]  IntConstant 5
 # CHECK-DAG:     [[Cst7:i\d+]]  IntConstant 7
-# CHECK-DAG:     [[PhiX:i\d+]]  Phi [ [[ArgX]] [[Add5:i\d+]] [[Add7:i\d+]] ] loop_header:[[HeaderY:B\d+]]
-# CHECK-DAG:                    If [ [[ArgY]] ]                              loop_header:[[HeaderY]]
-# CHECK-DAG:                    If [ [[Cst1]] ]                              loop_header:[[HeaderY]]
-# CHECK-DAG:     [[Add5]]       Add [ [[PhiX]] [[Cst5]] ]                    loop_header:[[HeaderY]]
-# CHECK-DAG:     [[Add7]]       Add [ [[PhiX]] [[Cst7]] ]                    loop_header:[[HeaderY]]
-# CHECK-DAG:                    Return [ [[PhiX]] ]                          loop_header:null
+# CHECK-DAG:     [[PhiX:i\d+]]  Phi [ [[ArgX]] [[Add5:i\d+]] [[Add7:i\d+]] ] loop:[[HeaderY:B\d+]]
+# CHECK-DAG:                    If [ [[ArgY]] ]                              loop:[[HeaderY]]
+# CHECK-DAG:                    If [ [[Cst1]] ]                              loop:[[HeaderY]]
+# CHECK-DAG:     [[Add5]]       Add [ [[PhiX]] [[Cst5]] ]                    loop:[[HeaderY]]
+# CHECK-DAG:     [[Add7]]       Add [ [[PhiX]] [[Cst7]] ]                    loop:[[HeaderY]]
+# CHECK-DAG:                    Return [ [[PhiX]] ]                          loop:none
 
 # CHECK-START: int TestCase.testSingleExit(int, boolean) dead_code_elimination_final (after)
 # CHECK-DAG:     [[ArgX:i\d+]]  ParameterValue
 # CHECK-DAG:     [[ArgY:z\d+]]  ParameterValue
 # CHECK-DAG:     [[Cst7:i\d+]]  IntConstant 7
-# CHECK-DAG:     [[PhiX:i\d+]]  Phi [ [[ArgX]] [[AddX:i\d+]] ]               loop_header:[[HeaderY:B\d+]]
-# CHECK-DAG:                    If [ [[ArgY]] ]                              loop_header:[[HeaderY]]
-# CHECK-DAG:     [[AddX]]       Add [ [[PhiX]] [[Cst7]] ]                    loop_header:[[HeaderY]]
-# CHECK-DAG:                    Return [ [[PhiX]] ]                          loop_header:null
+# CHECK-DAG:     [[PhiX:i\d+]]  Phi [ [[ArgX]] [[AddX:i\d+]] ]               loop:[[HeaderY:B\d+]]
+# CHECK-DAG:                    If [ [[ArgY]] ]                              loop:[[HeaderY]]
+# CHECK-DAG:     [[AddX]]       Add [ [[PhiX]] [[Cst7]] ]                    loop:[[HeaderY]]
+# CHECK-DAG:                    Return [ [[PhiX]] ]                          loop:none
 
 .method public static testSingleExit(IZ)I
   .registers 3
@@ -80,24 +80,24 @@
 # CHECK-DAG:     [[Cst1:i\d+]]  IntConstant 1
 # CHECK-DAG:     [[Cst5:i\d+]]  IntConstant 5
 # CHECK-DAG:     [[Cst7:i\d+]]  IntConstant 7
-# CHECK-DAG:     [[PhiX:i\d+]]  Phi [ [[ArgX]] [[Add5:i\d+]] [[Add7:i\d+]] ] loop_header:[[HeaderY:B\d+]]
-# CHECK-DAG:                    If [ [[ArgY]] ]                              loop_header:[[HeaderY]]
-# CHECK-DAG:                    If [ [[ArgZ]] ]                              loop_header:[[HeaderY]]
-# CHECK-DAG:                    If [ [[Cst1]] ]                              loop_header:[[HeaderY]]
-# CHECK-DAG:     [[Add5]]       Add [ [[PhiX]] [[Cst5]] ]                    loop_header:[[HeaderY]]
-# CHECK-DAG:     [[Add7]]       Add [ [[PhiX]] [[Cst7]] ]                    loop_header:[[HeaderY]]
-# CHECK-DAG:                    Return [ [[PhiX]] ]                          loop_header:null
+# CHECK-DAG:     [[PhiX:i\d+]]  Phi [ [[ArgX]] [[Add5:i\d+]] [[Add7:i\d+]] ] loop:[[HeaderY:B\d+]]
+# CHECK-DAG:                    If [ [[ArgY]] ]                              loop:[[HeaderY]]
+# CHECK-DAG:                    If [ [[ArgZ]] ]                              loop:[[HeaderY]]
+# CHECK-DAG:                    If [ [[Cst1]] ]                              loop:[[HeaderY]]
+# CHECK-DAG:     [[Add5]]       Add [ [[PhiX]] [[Cst5]] ]                    loop:[[HeaderY]]
+# CHECK-DAG:     [[Add7]]       Add [ [[PhiX]] [[Cst7]] ]                    loop:[[HeaderY]]
+# CHECK-DAG:                    Return [ [[PhiX]] ]                          loop:none
 
 # CHECK-START: int TestCase.testMultipleExits(int, boolean, boolean) dead_code_elimination_final (after)
 # CHECK-DAG:     [[ArgX:i\d+]]  ParameterValue
 # CHECK-DAG:     [[ArgY:z\d+]]  ParameterValue
 # CHECK-DAG:     [[ArgZ:z\d+]]  ParameterValue
 # CHECK-DAG:     [[Cst7:i\d+]]  IntConstant 7
-# CHECK-DAG:     [[PhiX:i\d+]]  Phi [ [[ArgX]] [[Add7:i\d+]] ]               loop_header:[[HeaderY:B\d+]]
-# CHECK-DAG:                    If [ [[ArgY]] ]                              loop_header:[[HeaderY]]
-# CHECK-DAG:     [[Add7]]       Add [ [[PhiX]] [[Cst7]] ]                    loop_header:[[HeaderY]]
-# CHECK-DAG:                    If [ [[ArgZ]] ]                              loop_header:null
-# CHECK-DAG:                    Return [ [[PhiX]] ]                          loop_header:null
+# CHECK-DAG:     [[PhiX:i\d+]]  Phi [ [[ArgX]] [[Add7:i\d+]] ]               loop:[[HeaderY:B\d+]]
+# CHECK-DAG:                    If [ [[ArgY]] ]                              loop:[[HeaderY]]
+# CHECK-DAG:     [[Add7]]       Add [ [[PhiX]] [[Cst7]] ]                    loop:[[HeaderY]]
+# CHECK-DAG:                    If [ [[ArgZ]] ]                              loop:none
+# CHECK-DAG:                    Return [ [[PhiX]] ]                          loop:none
 
 .method public static testMultipleExits(IZZ)I
   .registers 4
@@ -137,15 +137,15 @@
 # CHECK-DAG:     [[Cst5:i\d+]]  IntConstant 5
 # CHECK-DAG:     [[Cst7:i\d+]]  IntConstant 7
 # CHECK-DAG:     [[Cst9:i\d+]]  IntConstant 9
-# CHECK-DAG:     [[PhiX1:i\d+]] Phi [ [[ArgX]] [[Add5:i\d+]] [[Add7:i\d+]] ] loop_header:[[HeaderY:B\d+]]
-# CHECK-DAG:                    If [ [[ArgY]] ]                              loop_header:[[HeaderY]]
-# CHECK-DAG:                    If [ [[ArgZ]] ]                              loop_header:[[HeaderY]]
-# CHECK-DAG:     [[Mul9:i\d+]]  Mul [ [[PhiX1]] [[Cst9]] ]                   loop_header:[[HeaderY]]
-# CHECK-DAG:     [[PhiX2:i\d+]] Phi [ [[Mul9]] [[PhiX1]] ]                   loop_header:[[HeaderY]]
-# CHECK-DAG:                    If [ [[Cst1]] ]                              loop_header:[[HeaderY]]
-# CHECK-DAG:     [[Add5]]       Add [ [[PhiX2]] [[Cst5]] ]                   loop_header:[[HeaderY]]
-# CHECK-DAG:     [[Add7]]       Add [ [[PhiX1]] [[Cst7]] ]                   loop_header:[[HeaderY]]
-# CHECK-DAG:                    Return [ [[PhiX2]] ]                         loop_header:null
+# CHECK-DAG:     [[PhiX1:i\d+]] Phi [ [[ArgX]] [[Add5:i\d+]] [[Add7:i\d+]] ] loop:[[HeaderY:B\d+]]
+# CHECK-DAG:                    If [ [[ArgY]] ]                              loop:[[HeaderY]]
+# CHECK-DAG:                    If [ [[ArgZ]] ]                              loop:[[HeaderY]]
+# CHECK-DAG:     [[Mul9:i\d+]]  Mul [ [[PhiX1]] [[Cst9]] ]                   loop:[[HeaderY]]
+# CHECK-DAG:     [[PhiX2:i\d+]] Phi [ [[Mul9]] [[PhiX1]] ]                   loop:[[HeaderY]]
+# CHECK-DAG:                    If [ [[Cst1]] ]                              loop:[[HeaderY]]
+# CHECK-DAG:     [[Add5]]       Add [ [[PhiX2]] [[Cst5]] ]                   loop:[[HeaderY]]
+# CHECK-DAG:     [[Add7]]       Add [ [[PhiX1]] [[Cst7]] ]                   loop:[[HeaderY]]
+# CHECK-DAG:                    Return [ [[PhiX2]] ]                         loop:none
 
 # CHECK-START: int TestCase.testExitPredecessors(int, boolean, boolean) dead_code_elimination_final (after)
 # CHECK-DAG:     [[ArgX:i\d+]]  ParameterValue
@@ -153,13 +153,13 @@
 # CHECK-DAG:     [[ArgZ:z\d+]]  ParameterValue
 # CHECK-DAG:     [[Cst7:i\d+]]  IntConstant 7
 # CHECK-DAG:     [[Cst9:i\d+]]  IntConstant 9
-# CHECK-DAG:     [[PhiX1:i\d+]] Phi [ [[ArgX]] [[Add7:i\d+]] ]               loop_header:[[HeaderY:B\d+]]
-# CHECK-DAG:                    If [ [[ArgY]] ]                              loop_header:[[HeaderY]]
-# CHECK-DAG:     [[Add7]]       Add [ [[PhiX1]] [[Cst7]] ]                   loop_header:[[HeaderY]]
-# CHECK-DAG:                    If [ [[ArgZ]] ]                              loop_header:null
-# CHECK-DAG:     [[Mul9:i\d+]]  Mul [ [[PhiX1]] [[Cst9]] ]                   loop_header:null
-# CHECK-DAG:     [[PhiX2:i\d+]] Phi [ [[Mul9]] [[PhiX1]] ]                   loop_header:null
-# CHECK-DAG:                    Return [ [[PhiX2]] ]                         loop_header:null
+# CHECK-DAG:     [[PhiX1:i\d+]] Phi [ [[ArgX]] [[Add7:i\d+]] ]               loop:[[HeaderY:B\d+]]
+# CHECK-DAG:                    If [ [[ArgY]] ]                              loop:[[HeaderY]]
+# CHECK-DAG:     [[Add7]]       Add [ [[PhiX1]] [[Cst7]] ]                   loop:[[HeaderY]]
+# CHECK-DAG:                    If [ [[ArgZ]] ]                              loop:none
+# CHECK-DAG:     [[Mul9:i\d+]]  Mul [ [[PhiX1]] [[Cst9]] ]                   loop:none
+# CHECK-DAG:     [[PhiX2:i\d+]] Phi [ [[Mul9]] [[PhiX1]] ]                   loop:none
+# CHECK-DAG:                    Return [ [[PhiX2]] ]                         loop:none
 
 .method public static testExitPredecessors(IZZ)I
   .registers 4
@@ -205,19 +205,19 @@
 # CHECK-DAG:     [[Cst5:i\d+]]  IntConstant 5
 # CHECK-DAG:     [[Cst7:i\d+]]  IntConstant 7
 #
-# CHECK-DAG:     [[PhiX:i\d+]]  Phi [ [[ArgX]] [[Add5:i\d+]] [[Add7:i\d+]] ] loop_header:[[HeaderY:B\d+]]
-# CHECK-DAG:     [[PhiZ1:i\d+]] Phi [ [[ArgZ]] [[XorZ:i\d+]] [[PhiZ1]] ]     loop_header:[[HeaderY]]
-# CHECK-DAG:                    If [ [[ArgY]] ]                              loop_header:[[HeaderY]]
+# CHECK-DAG:     [[PhiX:i\d+]]  Phi [ [[ArgX]] [[Add5:i\d+]] [[Add7:i\d+]] ] loop:[[HeaderY:B\d+]]
+# CHECK-DAG:     [[PhiZ1:i\d+]] Phi [ [[ArgZ]] [[XorZ:i\d+]] [[PhiZ1]] ]     loop:[[HeaderY]]
+# CHECK-DAG:                    If [ [[ArgY]] ]                              loop:[[HeaderY]]
 #
 #                               ### Inner loop ###
-# CHECK-DAG:     [[PhiZ2:i\d+]] Phi [ [[PhiZ1]] [[XorZ]] ]                   loop_header:[[HeaderZ:B\d+]]
-# CHECK-DAG:     [[XorZ]]       Xor [ [[PhiZ2]] [[Cst1]] ]                   loop_header:[[HeaderZ]]
-# CHECK-DAG:     [[CondZ:z\d+]] Equal [ [[XorZ]] [[Cst0]] ]                  loop_header:[[HeaderZ]]
-# CHECK-DAG:                    If [ [[CondZ]] ]                             loop_header:[[HeaderZ]]
+# CHECK-DAG:     [[PhiZ2:i\d+]] Phi [ [[PhiZ1]] [[XorZ]] ]                   loop:[[HeaderZ:B\d+]]
+# CHECK-DAG:     [[XorZ]]       Xor [ [[PhiZ2]] [[Cst1]] ]                   loop:[[HeaderZ]]
+# CHECK-DAG:     [[CondZ:z\d+]] Equal [ [[XorZ]] [[Cst0]] ]                  loop:[[HeaderZ]]
+# CHECK-DAG:                    If [ [[CondZ]] ]                             loop:[[HeaderZ]]
 #
-# CHECK-DAG:     [[Add5]]       Add [ [[PhiX]] [[Cst5]] ]                    loop_header:[[HeaderY]]
-# CHECK-DAG:     [[Add7]]       Add [ [[PhiX]] [[Cst7]] ]                    loop_header:[[HeaderY]]
-# CHECK-DAG:                    Return [ [[PhiX]] ]                          loop_header:null
+# CHECK-DAG:     [[Add5]]       Add [ [[PhiX]] [[Cst5]] ]                    loop:[[HeaderY]]
+# CHECK-DAG:     [[Add7]]       Add [ [[PhiX]] [[Cst7]] ]                    loop:[[HeaderY]]
+# CHECK-DAG:                    Return [ [[PhiX]] ]                          loop:none
 
 # CHECK-START: int TestCase.testInnerLoop(int, boolean, boolean) dead_code_elimination_final (after)
 # CHECK-DAG:     [[ArgX:i\d+]]  ParameterValue
@@ -227,18 +227,18 @@
 # CHECK-DAG:     [[Cst1:i\d+]]  IntConstant 1
 # CHECK-DAG:     [[Cst7:i\d+]]  IntConstant 7
 #
-# CHECK-DAG:     [[PhiX:i\d+]]  Phi [ [[ArgX]] [[Add7:i\d+]] ]               loop_header:[[HeaderY:B\d+]]
-# CHECK-DAG:     [[PhiZ1:i\d+]] Phi [ [[ArgZ]] [[PhiZ1]] ]                   loop_header:[[HeaderY]]
-# CHECK-DAG:                    If [ [[ArgY]] ]                              loop_header:[[HeaderY]]
-# CHECK-DAG:     [[Add7]]       Add [ [[PhiX]] [[Cst7]] ]                    loop_header:[[HeaderY]]
+# CHECK-DAG:     [[PhiX:i\d+]]  Phi [ [[ArgX]] [[Add7:i\d+]] ]               loop:[[HeaderY:B\d+]]
+# CHECK-DAG:     [[PhiZ1:i\d+]] Phi [ [[ArgZ]] [[PhiZ1]] ]                   loop:[[HeaderY]]
+# CHECK-DAG:                    If [ [[ArgY]] ]                              loop:[[HeaderY]]
+# CHECK-DAG:     [[Add7]]       Add [ [[PhiX]] [[Cst7]] ]                    loop:[[HeaderY]]
 #
 #                               ### Inner loop ###
-# CHECK-DAG:     [[PhiZ2:i\d+]] Phi [ [[PhiZ1]] [[XorZ:i\d+]] ]              loop_header:[[HeaderZ:B\d+]]
-# CHECK-DAG:     [[XorZ]]       Xor [ [[PhiZ2]] [[Cst1]] ]                   loop_header:[[HeaderZ]]
-# CHECK-DAG:     [[CondZ:z\d+]] Equal [ [[XorZ]] [[Cst0]] ]                  loop_header:[[HeaderZ]]
-# CHECK-DAG:                    If [ [[CondZ]] ]                             loop_header:[[HeaderZ]]
+# CHECK-DAG:     [[PhiZ2:i\d+]] Phi [ [[PhiZ1]] [[XorZ:i\d+]] ]              loop:[[HeaderZ:B\d+]]
+# CHECK-DAG:     [[XorZ]]       Xor [ [[PhiZ2]] [[Cst1]] ]                   loop:[[HeaderZ]]
+# CHECK-DAG:     [[CondZ:z\d+]] Equal [ [[XorZ]] [[Cst0]] ]                  loop:[[HeaderZ]]
+# CHECK-DAG:                    If [ [[CondZ]] ]                             loop:[[HeaderZ]]
 #
-# CHECK-DAG:                    Return [ [[PhiX]] ]                          loop_header:null
+# CHECK-DAG:                    Return [ [[PhiX]] ]                          loop:none
 
 .method public static testInnerLoop(IZZ)I
   .registers 4

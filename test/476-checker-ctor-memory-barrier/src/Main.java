@@ -17,7 +17,7 @@
 
 class ClassWithoutFinals {
   // CHECK-START: void ClassWithoutFinals.<init>() register (after)
-  // CHECK-NOT: MemoryBarrier {{StoreStore}}
+  // CHECK-NOT: MemoryBarrier kind:StoreStore
   public ClassWithoutFinals() {}
 }
 
@@ -26,7 +26,7 @@ class ClassWithFinals {
   public ClassWithFinals obj;
 
   // CHECK-START: void ClassWithFinals.<init>(boolean) register (after)
-  // CHECK:     MemoryBarrier {{StoreStore}}
+  // CHECK:     MemoryBarrier kind:StoreStore
   // CHECK-NOT: {{.*}}
   // CHECK:     ReturnVoid
   public ClassWithFinals(boolean cond) {
@@ -38,7 +38,7 @@ class ClassWithFinals {
   }
 
   // CHECK-START: void ClassWithFinals.<init>() register (after)
-  // CHECK:     MemoryBarrier {{StoreStore}}
+  // CHECK:     MemoryBarrier kind:StoreStore
   // CHECK-NOT: {{.*}}
   // CHECK:     ReturnVoid
   public ClassWithFinals() {
@@ -46,8 +46,8 @@ class ClassWithFinals {
   }
 
   // CHECK-START: void ClassWithFinals.<init>(int) register (after)
-  // CHECK:     MemoryBarrier {{StoreStore}}
-  // CHECK:     MemoryBarrier {{StoreStore}}
+  // CHECK:     MemoryBarrier kind:StoreStore
+  // CHECK:     MemoryBarrier kind:StoreStore
   // CHECK-NOT: {{.*}}
   // CHECK:     ReturnVoid
   public ClassWithFinals(int x) {
@@ -61,7 +61,7 @@ class ClassWithFinals {
 
 class InheritFromClassWithFinals extends ClassWithFinals {
   // CHECK-START: void InheritFromClassWithFinals.<init>() register (after)
-  // CHECK:     MemoryBarrier {{StoreStore}}
+  // CHECK:     MemoryBarrier kind:StoreStore
   // CHECK-NOT: {{.*}}
   // CHECK:     ReturnVoid
 
@@ -75,7 +75,7 @@ class InheritFromClassWithFinals extends ClassWithFinals {
   // CHECK:     InvokeStaticOrDirect
 
   // CHECK-START: void InheritFromClassWithFinals.<init>(boolean) register (after)
-  // CHECK-NOT: MemoryBarrier {{StoreStore}}
+  // CHECK-NOT: MemoryBarrier kind:StoreStore
   public InheritFromClassWithFinals(boolean cond) {
     super(cond);
     // should not inline the super constructor
@@ -86,8 +86,8 @@ class HaveFinalsAndInheritFromClassWithFinals extends ClassWithFinals {
   final int y;
 
   // CHECK-START: void HaveFinalsAndInheritFromClassWithFinals.<init>() register (after)
-  // CHECK:     MemoryBarrier {{StoreStore}}
-  // CHECK:     MemoryBarrier {{StoreStore}}
+  // CHECK:     MemoryBarrier kind:StoreStore
+  // CHECK:     MemoryBarrier kind:StoreStore
   // CHECK-NOT: {{.*}}
   // CHECK:     ReturnVoid
 
@@ -100,7 +100,7 @@ class HaveFinalsAndInheritFromClassWithFinals extends ClassWithFinals {
 
   // CHECK-START: void HaveFinalsAndInheritFromClassWithFinals.<init>(boolean) register (after)
   // CHECK:     InvokeStaticOrDirect
-  // CHECK:     MemoryBarrier {{StoreStore}}
+  // CHECK:     MemoryBarrier kind:StoreStore
   // CHECK-NOT: {{.*}}
   // CHECK:     ReturnVoid
   public HaveFinalsAndInheritFromClassWithFinals(boolean cond) {
@@ -116,13 +116,13 @@ public class Main {
   // CHECK:     InvokeStaticOrDirect
 
   // CHECK-START: ClassWithFinals Main.noInlineNoConstructorBarrier() register (after)
-  // CHECK-NOT: MemoryBarrier {{StoreStore}}
+  // CHECK-NOT: MemoryBarrier kind:StoreStore
   public static ClassWithFinals noInlineNoConstructorBarrier() {
     return new ClassWithFinals(false);
   }
 
   // CHECK-START: ClassWithFinals Main.inlineConstructorBarrier() register (after)
-  // CHECK:     MemoryBarrier {{StoreStore}}
+  // CHECK:     MemoryBarrier kind:StoreStore
   // CHECK-NOT: {{.*}}
   // CHECK:     Return
 
@@ -133,7 +133,7 @@ public class Main {
   }
 
   // CHECK-START: InheritFromClassWithFinals Main.doubleInlineConstructorBarrier() register (after)
-  // CHECK:     MemoryBarrier {{StoreStore}}
+  // CHECK:     MemoryBarrier kind:StoreStore
   // CHECK-NOT: {{.*}}
   // CHECK:     Return
 

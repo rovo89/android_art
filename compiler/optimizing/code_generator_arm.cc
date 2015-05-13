@@ -347,11 +347,11 @@ inline Condition ARMOppositeCondition(IfCondition cond) {
 }
 
 void CodeGeneratorARM::DumpCoreRegister(std::ostream& stream, int reg) const {
-  stream << ArmManagedRegister::FromCoreRegister(Register(reg));
+  stream << Register(reg);
 }
 
 void CodeGeneratorARM::DumpFloatingPointRegister(std::ostream& stream, int reg) const {
-  stream << ArmManagedRegister::FromSRegister(SRegister(reg));
+  stream << SRegister(reg);
 }
 
 size_t CodeGeneratorARM::SaveCoreRegister(size_t stack_index, uint32_t reg_id) {
