@@ -149,6 +149,9 @@ void ThrowNoSuchFieldError(const StringPiece& scope, mirror::Class* c,
                            const StringPiece& type, const StringPiece& name)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+void ThrowNoSuchFieldException(mirror::Class* c, const StringPiece& name)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
 // NoSuchMethodError
 
 void ThrowNoSuchMethodError(InvokeType type, mirror::Class* c, const StringPiece& name,
