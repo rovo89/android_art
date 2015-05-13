@@ -233,6 +233,20 @@ public class Main {
             field.set(instance, null);
 
             /*
+             * Try getDeclaredField on a non-existant field.
+             */
+            try {
+                field = target.getDeclaredField("nonExistant");
+                System.out.println("ERROR: Expected NoSuchFieldException");
+            } catch (NoSuchFieldException nsfe) {
+                String msg = nsfe.getMessage();
+                if (!msg.contains("Target;")) {
+                    System.out.println("  NoSuchFieldException '" + msg +
+                        "' didn't contain class");
+                }
+            }
+
+            /*
              * Do some stuff with long.
              */
             long longVal;
