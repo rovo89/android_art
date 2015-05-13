@@ -302,7 +302,9 @@ uint32_t BackgroundMethodSamplingProfiler::WriteProfile() {
   } while (length > 0);
 
   // Truncate the file to the new length.
-  ftruncate(fd, full_length);
+  if (ftruncate(fd, full_length) == -1) {
+    LOG(ERROR) << "Failed to truncate profile file " << full_name;
+  }
 
   // Now unlock the file, allowing another process in.
   err = flock(fd, LOCK_UN);
