@@ -66,7 +66,7 @@ class ElfFile {
                              const std::string& symbol_name,
                              bool build_map);
 
-  size_t GetLoadedSize() const;
+  bool GetLoadedSize(size_t* size, std::string* error_msg) const;
 
   // Strip an ELF file of unneeded debugging information.
   // Returns true on success, false on failure.
