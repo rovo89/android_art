@@ -283,13 +283,19 @@ void ThrowNegativeArraySizeException(const char* msg) {
 // NoSuchFieldError
 
 void ThrowNoSuchFieldError(const StringPiece& scope, mirror::Class* c,
-                           const StringPiece& type, const StringPiece& name)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+                           const StringPiece& type, const StringPiece& name) {
   std::ostringstream msg;
   std::string temp;
   msg << "No " << scope << "field " << name << " of type " << type
       << " in class " << c->GetDescriptor(&temp) << " or its superclasses";
   ThrowException("Ljava/lang/NoSuchFieldError;", c, msg.str().c_str());
+}
+
+void ThrowNoSuchFieldException(mirror::Class* c, const StringPiece& name) {
+  std::ostringstream msg;
+  std::string temp;
+  msg << "No field " << name << " in class " << c->GetDescriptor(&temp);
+  ThrowException("Ljava/lang/NoSuchFieldException;", c, msg.str().c_str());
 }
 
 // NoSuchMethodError
