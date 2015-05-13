@@ -21,11 +21,10 @@ fi
 
 # Jar containing all the tests.
 test_jar=out/host/linux-x86/framework/apache-harmony-jdwp-tests-hostdex.jar
-junit_jar=out/host/linux-x86/framework/junit.jar
 
 if [ ! -f $test_jar -o ! -f $junit_jar ]; then
   echo "Before running, you must build jdwp tests and vogar:" \
-       "make junit apache-harmony-jdwp-tests-hostdex vogar vogar.jar"
+       "make apache-harmony-jdwp-tests-hostdex vogar vogar.jar"
   exit 1
 fi
 
@@ -80,7 +79,6 @@ vogar $vm_command \
       --vm-arg -Djpda.settings.transportAddress=127.0.0.1:55107 \
       --vm-arg -Djpda.settings.debuggeeJavaPath="\"$art_debugee $image $debuggee_args\"" \
       --classpath $test_jar \
-      --classpath $junit_jar \
       --vm-arg -Xcompiler-option --vm-arg --compiler-backend=Optimizing \
       --vm-arg -Xcompiler-option --vm-arg --debuggable \
       org.apache.harmony.jpda.tests.share.AllTests
