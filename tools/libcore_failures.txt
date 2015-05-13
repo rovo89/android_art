@@ -11,8 +11,8 @@
 {
   description: "Assert.java differences between vogar and junit.",
   result: EXEC_FAILED,
-  modes: [host],
-  name: "libcore.java.math.RunCSVTests#test_csv"
+  names: ["libcore.java.math.RunCSVTests#test_csv",
+          "org.apache.harmony.tests.java.util.HashMapTest#test_EntrySet"]
 },
 {
   description: "Differences between vogar and cts in user directory",
