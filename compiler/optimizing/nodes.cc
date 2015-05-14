@@ -16,6 +16,7 @@
 
 #include "nodes.h"
 
+#include "code_generator.h"
 #include "ssa_builder.h"
 #include "base/bit_vector-inl.h"
 #include "utils/growable_array.h"
@@ -792,6 +793,84 @@ void HGraphVisitor::VisitBasicBlock(HBasicBlock* block) {
   for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
     it.Current()->Accept(this);
   }
+}
+
+HConstant* HTypeConversion::TryStaticEvaluation() const {
+  HGraph* graph = GetBlock()->GetGraph();
+  if (GetInput()->IsIntConstant()) {
+    int32_t value = GetInput()->AsIntConstant()->GetValue();
+    switch (GetResultType()) {
+      case Primitive::kPrimLong:
+        return graph->GetLongConstant(static_cast<int64_t>(value));
+      case Primitive::kPrimFloat:
+        return graph->GetFloatConstant(static_cast<float>(value));
+      case Primitive::kPrimDouble:
+        return graph->GetDoubleConstant(static_cast<double>(value));
+      default:
+        return nullptr;
+    }
+  } else if (GetInput()->IsLongConstant()) {
+    int64_t value = GetInput()->AsLongConstant()->GetValue();
+    switch (GetResultType()) {
+      case Primitive::kPrimInt:
+        return graph->GetIntConstant(static_cast<int32_t>(value));
+      case Primitive::kPrimFloat:
+        return graph->GetFloatConstant(static_cast<float>(value));
+      case Primitive::kPrimDouble:
+        return graph->GetDoubleConstant(static_cast<double>(value));
+      default:
+        return nullptr;
+    }
+  } else if (GetInput()->IsFloatConstant()) {
+    float value = GetInput()->AsFloatConstant()->GetValue();
+    switch (GetResultType()) {
+      case Primitive::kPrimInt:
+        if (std::isnan(value))
+          return graph->GetIntConstant(0);
+        if (value >= kPrimIntMax)
+          return graph->GetIntConstant(kPrimIntMax);
+        if (value <= kPrimIntMin)
+          return graph->GetIntConstant(kPrimIntMin);
+        return graph->GetIntConstant(static_cast<int32_t>(value));
+      case Primitive::kPrimLong:
+        if (std::isnan(value))
+          return graph->GetLongConstant(0);
+        if (value >= kPrimLongMax)
+          return graph->GetLongConstant(kPrimLongMax);
+        if (value <= kPrimLongMin)
+          return graph->GetLongConstant(kPrimLongMin);
+        return graph->GetLongConstant(static_cast<int64_t>(value));
+      case Primitive::kPrimDouble:
+        return graph->GetDoubleConstant(static_cast<double>(value));
+      default:
+        return nullptr;
+    }
+  } else if (GetInput()->IsDoubleConstant()) {
+    double value = GetInput()->AsDoubleConstant()->GetValue();
+    switch (GetResultType()) {
+      case Primitive::kPrimInt:
+        if (std::isnan(value))
+          return graph->GetIntConstant(0);
+        if (value >= kPrimIntMax)
+          return graph->GetIntConstant(kPrimIntMax);
+        if (value <= kPrimLongMin)
+          return graph->GetIntConstant(kPrimIntMin);
+        return graph->GetIntConstant(static_cast<int32_t>(value));
+      case Primitive::kPrimLong:
+        if (std::isnan(value))
+          return graph->GetLongConstant(0);
+        if (value >= kPrimLongMax)
+          return graph->GetLongConstant(kPrimLongMax);
+        if (value <= kPrimLongMin)
+          return graph->GetLongConstant(kPrimLongMin);
+        return graph->GetLongConstant(static_cast<int64_t>(value));
+      case Primitive::kPrimFloat:
+        return graph->GetFloatConstant(static_cast<float>(value));
+      default:
+        return nullptr;
+    }
+  }
+  return nullptr;
 }
 
 HConstant* HUnaryOperation::TryStaticEvaluation() const {
