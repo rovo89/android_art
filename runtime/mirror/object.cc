@@ -244,5 +244,10 @@ void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_val
   UNREACHABLE();
 }
 
+ArtField* Object::FindFieldByOffset(MemberOffset offset) {
+  return IsClass() ? ArtField::FindStaticFieldWithOffset(AsClass(), offset.Uint32Value())
+      : ArtField::FindInstanceFieldWithOffset(GetClass(), offset.Uint32Value());
+}
+
 }  // namespace mirror
 }  // namespace art
