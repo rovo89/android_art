@@ -55,16 +55,16 @@ endif
 clean-oat-target:
 	adb root
 	adb wait-for-device remount
-	adb shell sh -c "rm -rf $(ART_TARGET_NATIVETEST_DIR)"
-	adb shell sh -c "rm -rf $(ART_TARGET_TEST_DIR)"
-	adb shell sh -c "rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*/*"
-	adb shell sh -c "rm -rf $(DEXPREOPT_BOOT_JAR_DIR)/$(DEX2OAT_TARGET_ARCH)"
-	adb shell sh -c "rm -rf system/app/$(DEX2OAT_TARGET_ARCH)"
+	adb shell rm -rf $(ART_TARGET_NATIVETEST_DIR)
+	adb shell rm -rf $(ART_TARGET_TEST_DIR)
+	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*/*
+	adb shell rm -rf $(DEXPREOPT_BOOT_JAR_DIR)/$(DEX2OAT_TARGET_ARCH)
+	adb shell rm -rf system/app/$(DEX2OAT_TARGET_ARCH)
 ifdef TARGET_2ND_ARCH
-	adb shell sh -c "rm -rf $(DEXPREOPT_BOOT_JAR_DIR)/$($(TARGET_2ND_ARCH_VAR_PREFIX)DEX2OAT_TARGET_ARCH)"
-	adb shell sh -c "rm -rf system/app/$($(TARGET_2ND_ARCH_VAR_PREFIX)DEX2OAT_TARGET_ARCH)"
+	adb shell rm -rf $(DEXPREOPT_BOOT_JAR_DIR)/$($(TARGET_2ND_ARCH_VAR_PREFIX)DEX2OAT_TARGET_ARCH)
+	adb shell rm -rf system/app/$($(TARGET_2ND_ARCH_VAR_PREFIX)DEX2OAT_TARGET_ARCH)
 endif
-	adb shell sh -c "rm -rf data/run-test/test-*/dalvik-cache/*"
+	adb shell rm -rf data/run-test/test-*/dalvik-cache/*
 
 ifneq ($(art_dont_bother),true)
 
@@ -404,9 +404,9 @@ use-dalvik:
 use-art-full:
 	adb root
 	adb wait-for-device shell stop
-	adb shell sh -c "rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*"
-	adb shell setprop dalvik.vm.dex2oat-filter ""
-	adb shell setprop dalvik.vm.image-dex2oat-filter ""
+	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*
+	adb shell setprop dalvik.vm.dex2oat-filter \"\"
+	adb shell setprop dalvik.vm.image-dex2oat-filter \"\"
 	adb shell setprop persist.sys.dalvik.vm.lib.2 libart.so
 	adb shell start
 
@@ -414,9 +414,9 @@ use-art-full:
 use-artd-full:
 	adb root
 	adb wait-for-device shell stop
-	adb shell sh -c "rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*"
-	adb shell setprop dalvik.vm.dex2oat-filter ""
-	adb shell setprop dalvik.vm.image-dex2oat-filter ""
+	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*
+	adb shell setprop dalvik.vm.dex2oat-filter \"\"
+	adb shell setprop dalvik.vm.image-dex2oat-filter \"\"
 	adb shell setprop persist.sys.dalvik.vm.lib.2 libartd.so
 	adb shell start
 
@@ -424,7 +424,7 @@ use-artd-full:
 use-art-verify-at-runtime:
 	adb root
 	adb wait-for-device shell stop
-	adb shell sh -c "rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*"
+	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*
 	adb shell setprop dalvik.vm.dex2oat-filter "verify-at-runtime"
 	adb shell setprop dalvik.vm.image-dex2oat-filter "verify-at-runtime"
 	adb shell setprop persist.sys.dalvik.vm.lib.2 libart.so
@@ -434,7 +434,7 @@ use-art-verify-at-runtime:
 use-art-interpret-only:
 	adb root
 	adb wait-for-device shell stop
-	adb shell sh -c "rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*"
+	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*
 	adb shell setprop dalvik.vm.dex2oat-filter "interpret-only"
 	adb shell setprop dalvik.vm.image-dex2oat-filter "interpret-only"
 	adb shell setprop persist.sys.dalvik.vm.lib.2 libart.so
@@ -444,7 +444,7 @@ use-art-interpret-only:
 use-artd-interpret-only:
 	adb root
 	adb wait-for-device shell stop
-	adb shell sh -c "rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*"
+	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*
 	adb shell setprop dalvik.vm.dex2oat-filter "interpret-only"
 	adb shell setprop dalvik.vm.image-dex2oat-filter "interpret-only"
 	adb shell setprop persist.sys.dalvik.vm.lib.2 libartd.so
@@ -454,7 +454,7 @@ use-artd-interpret-only:
 use-art-verify-none:
 	adb root
 	adb wait-for-device shell stop
-	adb shell sh -c "rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*"
+	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*
 	adb shell setprop dalvik.vm.dex2oat-filter "verify-none"
 	adb shell setprop dalvik.vm.image-dex2oat-filter "verify-none"
 	adb shell setprop persist.sys.dalvik.vm.lib.2 libart.so
