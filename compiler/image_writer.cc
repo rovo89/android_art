@@ -166,7 +166,7 @@ bool ImageWriter::Write(const std::string& image_filename,
 
   size_t oat_loaded_size = 0;
   size_t oat_data_offset = 0;
-  ElfWriter::GetOatElfInformation(oat_file.get(), oat_loaded_size, oat_data_offset);
+  ElfWriter::GetOatElfInformation(oat_file.get(), &oat_loaded_size, &oat_data_offset);
 
   Thread::Current()->TransitionFromSuspendedToRunnable();
   CreateHeader(oat_loaded_size, oat_data_offset);

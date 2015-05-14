@@ -106,8 +106,8 @@ class ElfFileImpl {
   Elf_Word GetRelaNum(Elf_Shdr&) const;
   Elf_Rela& GetRela(Elf_Shdr&, Elf_Word) const;
 
-  // Returns the expected size when the file is loaded at runtime
-  size_t GetLoadedSize() const;
+  // Retrieves the expected size when the file is loaded at runtime. Returns true if successful.
+  bool GetLoadedSize(size_t* size, std::string* error_msg) const;
 
   // Load segments into memory based on PT_LOAD program headers.
   // executable is true at run time, false at compile time.

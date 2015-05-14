@@ -39,16 +39,17 @@ uintptr_t ElfWriter::GetOatDataAddress(ElfFile* elf_file) {
 }
 
 void ElfWriter::GetOatElfInformation(File* file,
-                                     size_t& oat_loaded_size,
-                                     size_t& oat_data_offset) {
+                                     size_t* oat_loaded_size,
+                                     size_t* oat_data_offset) {
   std::string error_msg;
   std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file, false, false, &error_msg));
   CHECK(elf_file.get() != nullptr) << error_msg;
 
-  oat_loaded_size = elf_file->GetLoadedSize();
-  CHECK_NE(0U, oat_loaded_size);
-  oat_data_offset = GetOatDataAddress(elf_file.get());
-  CHECK_NE(0U, oat_data_offset);
+  bool success = elf_file->GetLoadedSize(oat_loaded_size, &error_msg);
+  CHECK(success) << error_msg;
+  CHECK_NE(0U, *oat_loaded_size);
+  *oat_data_offset = GetOatDataAddress(elf_file.get());
+  CHECK_NE(0U, *oat_data_offset);
 }
 
 bool ElfWriter::Fixup(File* file, uintptr_t oat_data_begin) {
