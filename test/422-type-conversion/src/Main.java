@@ -625,65 +625,67 @@ public class Main {
     assertCharEquals((char)0, $opt$IntToChar(-2147483648));  // -(2^31)
   }
 
+  // A dummy value to defeat inlining of these routines.
+  static boolean doThrow = false;
 
   // These methods produce int-to-long Dex instructions.
-  static long $opt$ByteToLong(byte a) { return (long)a; }
-  static long $opt$ShortToLong(short a) { return (long)a; }
-  static long $opt$IntToLong(int a) { return (long)a; }
-  static long $opt$CharToLong(int a) { return (long)a; }
+  static long $opt$ByteToLong(byte a) { if (doThrow) throw new Error(); return (long)a; }
+  static long $opt$ShortToLong(short a) { if (doThrow) throw new Error(); return (long)a; }
+  static long $opt$IntToLong(int a) { if (doThrow) throw new Error(); return (long)a; }
+  static long $opt$CharToLong(int a) { if (doThrow) throw new Error(); return (long)a; }
 
   // These methods produce int-to-float Dex instructions.
-  static float $opt$ByteToFloat(byte a) { return (float)a; }
-  static float $opt$ShortToFloat(short a) { return (float)a; }
-  static float $opt$IntToFloat(int a) { return (float)a; }
-  static float $opt$CharToFloat(char a) { return (float)a; }
+  static float $opt$ByteToFloat(byte a) { if (doThrow) throw new Error(); return (float)a; }
+  static float $opt$ShortToFloat(short a) { if (doThrow) throw new Error(); return (float)a; }
+  static float $opt$IntToFloat(int a) { if (doThrow) throw new Error(); return (float)a; }
+  static float $opt$CharToFloat(char a) { if (doThrow) throw new Error(); return (float)a; }
 
   // These methods produce int-to-double Dex instructions.
-  static double $opt$ByteToDouble(byte a) { return (double)a; }
-  static double $opt$ShortToDouble(short a) { return (double)a; }
-  static double $opt$IntToDouble(int a) { return (double)a; }
-  static double $opt$CharToDouble(int a) { return (double)a; }
+  static double $opt$ByteToDouble(byte a) { if (doThrow) throw new Error(); return (double)a; }
+  static double $opt$ShortToDouble(short a) { if (doThrow) throw new Error(); return (double)a; }
+  static double $opt$IntToDouble(int a) { if (doThrow) throw new Error(); return (double)a; }
+  static double $opt$CharToDouble(int a) { if (doThrow) throw new Error(); return (double)a; }
 
   // These methods produce long-to-int Dex instructions.
-  static int $opt$LongToInt(long a) { return (int)a; }
-  static int $opt$LongLiteralToInt() { return (int)42L; }
+  static int $opt$LongToInt(long a) { if (doThrow) throw new Error(); return (int)a; }
+  static int $opt$LongLiteralToInt() { if (doThrow) throw new Error(); return (int)42L; }
 
   // This method produces a long-to-float Dex instruction.
-  static float $opt$LongToFloat(long a) { return (float)a; }
+  static float $opt$LongToFloat(long a) { if (doThrow) throw new Error(); return (float)a; }
 
   // This method produces a long-to-double Dex instruction.
-  static double $opt$LongToDouble(long a) { return (double)a; }
+  static double $opt$LongToDouble(long a) { if (doThrow) throw new Error(); return (double)a; }
 
   // This method produces a float-to-int Dex instruction.
-  static int $opt$FloatToInt(float a) { return (int)a; }
+  static int $opt$FloatToInt(float a) { if (doThrow) throw new Error(); return (int)a; }
 
   // This method produces a float-to-long Dex instruction.
-  static long $opt$FloatToLong(float a){ return (long)a; }
+  static long $opt$FloatToLong(float a){ if (doThrow) throw new Error(); return (long)a; }
 
   // This method produces a float-to-double Dex instruction.
-  static double $opt$FloatToDouble(float a) { return (double)a; }
+  static double $opt$FloatToDouble(float a) { if (doThrow) throw new Error(); return (double)a; }
 
   // This method produces a double-to-int Dex instruction.
-  static int $opt$DoubleToInt(double a){ return (int)a; }
+  static int $opt$DoubleToInt(double a){ if (doThrow) throw new Error(); return (int)a; }
 
   // This method produces a double-to-long Dex instruction.
-  static long $opt$DoubleToLong(double a){ return (long)a; }
+  static long $opt$DoubleToLong(double a){ if (doThrow) throw new Error(); return (long)a; }
 
   // This method produces a double-to-float Dex instruction.
-  static float $opt$DoubleToFloat(double a) { return (float)a; }
+  static float $opt$DoubleToFloat(double a) { if (doThrow) throw new Error(); return (float)a; }
 
   // These methods produce int-to-byte Dex instructions.
-  static byte $opt$ShortToByte(short a) { return (byte)a; }
-  static byte $opt$IntToByte(int a) { return (byte)a; }
-  static byte $opt$CharToByte(char a) { return (byte)a; }
+  static byte $opt$ShortToByte(short a) { if (doThrow) throw new Error(); return (byte)a; }
+  static byte $opt$IntToByte(int a) { if (doThrow) throw new Error(); return (byte)a; }
+  static byte $opt$CharToByte(char a) { if (doThrow) throw new Error(); return (byte)a; }
 
   // These methods produce int-to-short Dex instructions.
-  static short $opt$ByteToShort(byte a) { return (short)a; }
-  static short $opt$IntToShort(int a) { return (short)a; }
-  static short $opt$CharToShort(char a) { return (short)a; }
+  static short $opt$ByteToShort(byte a) { if (doThrow) throw new Error(); return (short)a; }
+  static short $opt$IntToShort(int a) { if (doThrow) throw new Error(); return (short)a; }
+  static short $opt$CharToShort(char a) { if (doThrow) throw new Error(); return (short)a; }
 
   // These methods produce int-to-char Dex instructions.
-  static char $opt$ByteToChar(byte a) { return (char)a; }
-  static char $opt$ShortToChar(short a) { return (char)a; }
-  static char $opt$IntToChar(int a) { return (char)a; }
+  static char $opt$ByteToChar(byte a) { if (doThrow) throw new Error(); return (char)a; }
+  static char $opt$ShortToChar(short a) { if (doThrow) throw new Error(); return (char)a; }
+  static char $opt$IntToChar(int a) { if (doThrow) throw new Error(); return (char)a; }
 }
