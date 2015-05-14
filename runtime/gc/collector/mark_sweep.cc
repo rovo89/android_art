@@ -368,10 +368,13 @@ bool MarkSweep::HeapReferenceMarkedCallback(mirror::HeapReference<mirror::Object
 
 class MarkSweepMarkObjectSlowPath {
  public:
-  explicit MarkSweepMarkObjectSlowPath(MarkSweep* mark_sweep) : mark_sweep_(mark_sweep) {
+  explicit MarkSweepMarkObjectSlowPath(MarkSweep* mark_sweep, Object* holder = nullptr,
+                                       MemberOffset offset = MemberOffset(0))
+      : mark_sweep_(mark_sweep), holder_(holder), offset_(offset) {
   }
 
-  void operator()(const Object* obj) const ALWAYS_INLINE {
+  void operator()(const Object* obj) const ALWAYS_INLINE
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (kProfileLargeObjects) {
       // TODO: Differentiate between marking and testing somehow.
       ++mark_sweep_->large_object_test_;
@@ -384,6 +387,13 @@ class MarkSweepMarkObjectSlowPath {
       LOG(INTERNAL_FATAL) << "Tried to mark " << obj << " not contained by any spaces";
       LOG(INTERNAL_FATAL) << "Attempting see if it's a bad root";
       mark_sweep_->VerifyRoots();
+      if (holder_ != nullptr) {
+        ArtField* field = holder_->FindFieldByOffset(offset_);
+        LOG(INTERNAL_FATAL) << "Field info: holder=" << holder_
+                            << " holder_type=" << PrettyTypeOf(holder_)
+                            << " offset=" << offset_.Uint32Value()
+                            << " field=" << (field != nullptr ? field->GetName() : "nullptr");
+      }
       PrintFileToLog("/proc/self/maps", LogSeverity::INTERNAL_FATAL);
       MemMap::DumpMaps(LOG(INTERNAL_FATAL), true);
       LOG(FATAL) << "Can't mark invalid object";
@@ -392,9 +402,11 @@ class MarkSweepMarkObjectSlowPath {
 
  private:
   MarkSweep* const mark_sweep_;
+  mirror::Object* const holder_;
+  MemberOffset offset_;
 };
 
-inline void MarkSweep::MarkObjectNonNull(Object* obj) {
+inline void MarkSweep::MarkObjectNonNull(Object* obj, Object* holder, MemberOffset offset) {
   DCHECK(obj != nullptr);
   if (kUseBakerOrBrooksReadBarrier) {
     // Verify all the objects have the correct pointer installed.
@@ -416,7 +428,7 @@ inline void MarkSweep::MarkObjectNonNull(Object* obj) {
     if (kCountMarkedObjects) {
       ++mark_slowpath_count_;
     }
-    MarkSweepMarkObjectSlowPath visitor(this);
+    MarkSweepMarkObjectSlowPath visitor(this, holder, offset);
     // TODO: We already know that the object is not in the current_space_bitmap_ but MarkBitmap::Set
     // will check again.
     if (!mark_bitmap_->Set(obj, visitor)) {
@@ -456,9 +468,9 @@ inline bool MarkSweep::MarkObjectParallel(const Object* obj) {
 }
 
 // Used to mark objects when processing the mark stack. If an object is null, it is not marked.
-inline void MarkSweep::MarkObject(Object* obj) {
+inline void MarkSweep::MarkObject(Object* obj, Object* holder, MemberOffset offset) {
   if (obj != nullptr) {
-    MarkObjectNonNull(obj);
+    MarkObjectNonNull(obj, holder, offset);
   } else if (kCountMarkedObjects) {
     ++mark_null_count_;
   }
@@ -1209,7 +1221,7 @@ class MarkObjectVisitor {
       Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
       Locks::heap_bitmap_lock_->AssertExclusiveHeld(Thread::Current());
     }
-    mark_sweep_->MarkObject(obj->GetFieldObject<mirror::Object>(offset));
+    mark_sweep_->MarkObject(obj->GetFieldObject<mirror::Object>(offset), obj, offset);
   }
 
  private:

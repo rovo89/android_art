@@ -439,6 +439,8 @@ class MANAGED LOCKABLE Object {
   void VisitReferences(const Visitor& visitor, const JavaLangRefVisitor& ref_visitor)
       NO_THREAD_SAFETY_ANALYSIS;
 
+  ArtField* FindFieldByOffset(MemberOffset offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Used by object_test.
   static void SetHashCodeSeed(uint32_t new_seed);
   // Generate an identity hash code. Public for object test.

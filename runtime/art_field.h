@@ -161,6 +161,9 @@ class ArtField {
   // Returns an instance field with this offset in the given class or null if not found.
   static ArtField* FindInstanceFieldWithOffset(mirror::Class* klass, uint32_t field_offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  // Returns a static field with this offset in the given class or null if not found.
+  static ArtField* FindStaticFieldWithOffset(mirror::Class* klass, uint32_t field_offset)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const char* GetName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
