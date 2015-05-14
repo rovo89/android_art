@@ -67,10 +67,23 @@ class OatFileAssistantTest : public CommonRuntimeTest {
       << "Expected stripped dex file to be at: " << GetStrippedDexSrc1();
     ASSERT_FALSE(DexFile::GetChecksum(GetStrippedDexSrc1().c_str(), &checksum, &error_msg))
       << "Expected stripped dex file to be stripped: " << GetStrippedDexSrc1();
-    ASSERT_TRUE(OS::FileExists(GetMultiDexSrc1().c_str()))
-      << "Expected multidex file to be at: " << GetMultiDexSrc1();
     ASSERT_TRUE(OS::FileExists(GetDexSrc2().c_str()))
       << "Expected dex file to be at: " << GetDexSrc2();
+
+    // GetMultiDexSrc2 should have the same primary dex checksum as
+    // GetMultiDexSrc1, but a different secondary dex checksum.
+    std::vector<std::unique_ptr<const DexFile>> multi1;
+    ASSERT_TRUE(DexFile::Open(GetMultiDexSrc1().c_str(),
+          GetMultiDexSrc1().c_str(), &error_msg, &multi1)) << error_msg;
+    ASSERT_GT(multi1.size(), 1u);
+
+    std::vector<std::unique_ptr<const DexFile>> multi2;
+    ASSERT_TRUE(DexFile::Open(GetMultiDexSrc2().c_str(),
+          GetMultiDexSrc2().c_str(), &error_msg, &multi2)) << error_msg;
+    ASSERT_GT(multi2.size(), 1u);
+
+    ASSERT_EQ(multi1[0]->GetLocationChecksum(), multi2[0]->GetLocationChecksum());
+    ASSERT_NE(multi1[1]->GetLocationChecksum(), multi2[1]->GetLocationChecksum());
   }
 
   virtual void SetUpRuntimeOptions(RuntimeOptions* options) {
@@ -147,6 +160,12 @@ class OatFileAssistantTest : public CommonRuntimeTest {
 
   std::string GetMultiDexSrc1() {
     return GetTestDexFileName("MultiDex");
+  }
+
+  // Returns the path to a multidex file equivalent to GetMultiDexSrc2, but
+  // with the contents of the secondary dex file changed.
+  std::string GetMultiDexSrc2() {
+    return GetTestDexFileName("MultiDexModifiedSecondary");
   }
 
   std::string GetDexSrc2() {
@@ -342,6 +361,23 @@ TEST_F(OatFileAssistantTest, MultiDexOatUpToDate) {
   std::vector<std::unique_ptr<const DexFile>> dex_files;
   dex_files = oat_file_assistant.LoadDexFiles(*oat_file, dex_location.c_str());
   EXPECT_EQ(2u, dex_files.size());
+}
+
+// Case: We have a MultiDEX file where the secondary dex file is out of date.
+// Expect: The status is kDex2OatNeeded.
+TEST_F(OatFileAssistantTest, MultiDexSecondaryOutOfDate) {
+  std::string dex_location = GetScratchDir() + "/MultiDexSecondaryOutOfDate.jar";
+
+  // Compile code for GetMultiDexSrc1.
+  Copy(GetMultiDexSrc1(), dex_location);
+  GenerateOatForTest(dex_location.c_str());
+
+  // Now overwrite the dex file with GetMultiDexSrc2 so the secondary checksum
+  // is out of date.
+  Copy(GetMultiDexSrc2(), dex_location);
+
+  OatFileAssistant oat_file_assistant(dex_location.c_str(), kRuntimeISA, true);
+  EXPECT_EQ(OatFileAssistant::kDex2OatNeeded, oat_file_assistant.GetDexOptNeeded());
 }
 
 // Case: We have a MultiDEX file and up-to-date OAT file for it with relative
@@ -1001,9 +1037,6 @@ TEST_F(OatFileAssistantTest, DexOptStatusValues) {
 // TODO: More Tests:
 //  * Test class linker falls back to unquickened dex for DexNoOat
 //  * Test class linker falls back to unquickened dex for MultiDexNoOat
-//  * Test multidex files:
-//     - Multidex with only classes2.dex out of date should have status
-//       kOutOfDate
 //  * Test using secondary isa
 //  * Test with profiling info?
 //  * Test for status of oat while oat is being generated (how?)
