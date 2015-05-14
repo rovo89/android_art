@@ -39,47 +39,6 @@ class CodeInfo;
  * their own fields.
  */
 
-/**
- * Inline information for a specific PC. The information is of the form:
- * [inlining_depth, [method_dex reference]+]
- */
-class InlineInfo {
- public:
-  explicit InlineInfo(MemoryRegion region) : region_(region) {}
-
-  uint8_t GetDepth() const {
-    return region_.LoadUnaligned<uint8_t>(kDepthOffset);
-  }
-
-  void SetDepth(uint8_t depth) {
-    region_.StoreUnaligned<uint8_t>(kDepthOffset, depth);
-  }
-
-  uint32_t GetMethodReferenceIndexAtDepth(uint8_t depth) const {
-    return region_.LoadUnaligned<uint32_t>(kFixedSize + depth * SingleEntrySize());
-  }
-
-  void SetMethodReferenceIndexAtDepth(uint8_t depth, uint32_t index) {
-    region_.StoreUnaligned<uint32_t>(kFixedSize + depth * SingleEntrySize(), index);
-  }
-
-  static size_t SingleEntrySize() {
-    return sizeof(uint32_t);
-  }
-
- private:
-  // TODO: Instead of plain types such as "uint8_t", introduce
-  // typedefs (and document the memory layout of InlineInfo).
-  static constexpr int kDepthOffset = 0;
-  static constexpr int kFixedSize = kDepthOffset + sizeof(uint8_t);
-
-  MemoryRegion region_;
-
-  friend class CodeInfo;
-  friend class StackMap;
-  friend class StackMapStream;
-};
-
 // Dex register location container used by DexRegisterMap and StackMapStream.
 class DexRegisterLocation {
  public:
@@ -506,7 +465,8 @@ class DexRegisterMap {
                       const CodeInfo& code_info) const {
     DexRegisterLocation location =
         GetDexRegisterLocation(dex_register_number, number_of_dex_registers, code_info);
-    DCHECK(location.GetKind() == DexRegisterLocation::Kind::kConstant);
+    DCHECK(location.GetKind() == DexRegisterLocation::Kind::kConstant)
+        << DexRegisterLocation::PrettyDescriptor(location.GetKind());
     return location.GetValue();
   }
 
@@ -641,6 +601,8 @@ class DexRegisterMap {
     return region_.size();
   }
 
+  void Dump(std::ostream& o, const CodeInfo& code_info, uint16_t number_of_dex_registers) const;
+
  private:
   // Return the index in the Dex register map corresponding to the Dex
   // register number `dex_register_number`.
@@ -675,9 +637,6 @@ class DexRegisterMap {
  * The information is of the form:
  * [dex_pc, native_pc_offset, dex_register_map_offset, inlining_info_offset, register_mask,
  * stack_mask].
- *
- * Note that register_mask is fixed size, but stack_mask is variable size, depending on the
- * stack size of a method.
  */
 class StackMap {
  public:
@@ -759,6 +718,72 @@ class StackMap {
   friend class StackMapStream;
 };
 
+/**
+ * Inline information for a specific PC. The information is of the form:
+ * [inlining_depth, [dex_pc, method_index, dex_register_map_offset]+]
+ */
+class InlineInfo {
+ public:
+  explicit InlineInfo(MemoryRegion region) : region_(region) {}
+
+  uint8_t GetDepth() const {
+    return region_.LoadUnaligned<uint8_t>(kDepthOffset);
+  }
+
+  void SetDepth(uint8_t depth) {
+    region_.StoreUnaligned<uint8_t>(kDepthOffset, depth);
+  }
+
+  uint32_t GetMethodIndexAtDepth(uint8_t depth) const {
+    return region_.LoadUnaligned<uint32_t>(kFixedSize + depth * SingleEntrySize());
+  }
+
+  void SetMethodIndexAtDepth(uint8_t depth, uint32_t index) {
+    region_.StoreUnaligned<uint32_t>(kFixedSize + depth * SingleEntrySize(), index);
+  }
+
+  uint32_t GetDexPcAtDepth(uint8_t depth) const {
+    return region_.LoadUnaligned<uint32_t>(
+        kFixedSize + depth * SingleEntrySize() + sizeof(uint32_t));
+  }
+
+  void SetDexPcAtDepth(uint8_t depth, uint32_t dex_pc) {
+    region_.StoreUnaligned<uint32_t>(
+        kFixedSize + depth * SingleEntrySize() + sizeof(uint32_t), dex_pc);
+  }
+
+  uint32_t GetDexRegisterMapOffsetAtDepth(uint8_t depth) const {
+    return region_.LoadUnaligned<uint32_t>(
+        kFixedSize + depth * SingleEntrySize() + sizeof(uint32_t) + sizeof(uint32_t));
+  }
+
+  void SetDexRegisterMapOffsetAtDepth(uint8_t depth, uint32_t offset) {
+    region_.StoreUnaligned<uint32_t>(
+        kFixedSize + depth * SingleEntrySize() + sizeof(uint32_t) + sizeof(uint32_t), offset);
+  }
+
+  bool HasDexRegisterMapAtDepth(uint8_t depth) const {
+    return GetDexRegisterMapOffsetAtDepth(depth) != StackMap::kNoDexRegisterMap;
+  }
+
+  static size_t SingleEntrySize() {
+    return sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t);
+  }
+
+  void Dump(std::ostream& os, const CodeInfo& info, uint16_t* number_of_dex_registers) const;
+
+ private:
+  // TODO: Instead of plain types such as "uint8_t", introduce
+  // typedefs (and document the memory layout of InlineInfo).
+  static constexpr int kDepthOffset = 0;
+  static constexpr int kFixedSize = kDepthOffset + sizeof(uint8_t);
+
+  MemoryRegion region_;
+
+  friend class CodeInfo;
+  friend class StackMap;
+  friend class StackMapStream;
+};
 
 /**
  * Wrapper around all compiler information collected for a method.
@@ -956,6 +981,17 @@ class CodeInfo {
   DexRegisterMap GetDexRegisterMapOf(StackMap stack_map, uint32_t number_of_dex_registers) const {
     DCHECK(stack_map.HasDexRegisterMap(*this));
     uint32_t offset = GetDexRegisterMapsOffset() + stack_map.GetDexRegisterMapOffset(*this);
+    size_t size = ComputeDexRegisterMapSizeOf(offset, number_of_dex_registers);
+    return DexRegisterMap(region_.Subregion(offset, size));
+  }
+
+  // Return the `DexRegisterMap` pointed by `inline_info` at depth `depth`.
+  DexRegisterMap GetDexRegisterMapAtDepth(uint8_t depth,
+                                          InlineInfo inline_info,
+                                          uint32_t number_of_dex_registers) const {
+    DCHECK(inline_info.HasDexRegisterMapAtDepth(depth));
+    uint32_t offset =
+        GetDexRegisterMapsOffset() + inline_info.GetDexRegisterMapOffsetAtDepth(depth);
     size_t size = ComputeDexRegisterMapSizeOf(offset, number_of_dex_registers);
     return DexRegisterMap(region_.Subregion(offset, size));
   }
