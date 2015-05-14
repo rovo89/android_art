@@ -650,28 +650,33 @@ bool PatchOat::PatchElf() {
 template <typename ElfFileImpl>
 bool PatchOat::PatchElf(ElfFileImpl* oat_file) {
   TimingLogger::ScopedTiming t("Fixup Elf Text Section", timings_);
+
+  // Fix up absolute references to locations within the boot image.
   if (!oat_file->ApplyOatPatchesTo(".text", delta_)) {
     return false;
   }
 
+  // Update the OatHeader fields referencing the boot image.
   if (!PatchOatHeader<ElfFileImpl>(oat_file)) {
     return false;
   }
 
-  bool need_fixup = false;
+  bool need_boot_oat_fixup = true;
   for (unsigned int i = 0; i < oat_file->GetProgramHeaderNum(); ++i) {
     auto hdr = oat_file->GetProgramHeader(i);
-    if ((hdr->p_vaddr != 0 && hdr->p_vaddr != hdr->p_offset) ||
-        (hdr->p_paddr != 0 && hdr->p_paddr != hdr->p_offset)) {
-      need_fixup = true;
+    if (hdr->p_type == PT_LOAD && hdr->p_vaddr == 0u) {
+      need_boot_oat_fixup = false;
       break;
     }
   }
-  if (!need_fixup) {
-    // This was never passed through ElfFixup so all headers/symbols just have their offset as
-    // their addr. Therefore we do not need to update these parts.
+  if (!need_boot_oat_fixup) {
+    // This is an app oat file that can be loaded at an arbitrary address in memory.
+    // Boot image references were patched above and there's nothing else to do.
     return true;
   }
+
+  // This is a boot oat file that's loaded at a particular address and we need
+  // to patch all absolute addresses, starting with ELF program headers.
 
   t.NewTiming("Fixup Elf Headers");
   // Fixup Phdr's

@@ -1080,9 +1080,9 @@ typename ElfTypes::Rela& ElfFileImpl<ElfTypes>::GetRela(Elf_Shdr& section_header
 
 // Base on bionic phdr_table_get_load_size
 template <typename ElfTypes>
-size_t ElfFileImpl<ElfTypes>::GetLoadedSize() const {
-  Elf_Addr min_vaddr = 0xFFFFFFFFu;
-  Elf_Addr max_vaddr = 0x00000000u;
+bool ElfFileImpl<ElfTypes>::GetLoadedSize(size_t* size, std::string* error_msg) const {
+  Elf_Addr min_vaddr = static_cast<Elf_Addr>(-1);
+  Elf_Addr max_vaddr = 0u;
   for (Elf_Word i = 0; i < GetProgramHeaderNum(); i++) {
     Elf_Phdr* program_header = GetProgramHeader(i);
     if (program_header->p_type != PT_LOAD) {
@@ -1093,6 +1093,15 @@ size_t ElfFileImpl<ElfTypes>::GetLoadedSize() const {
        min_vaddr = begin_vaddr;
     }
     Elf_Addr end_vaddr = program_header->p_vaddr + program_header->p_memsz;
+    if (UNLIKELY(begin_vaddr > end_vaddr)) {
+      std::ostringstream oss;
+      oss << "Program header #" << i << " has overflow in p_vaddr+p_memsz: 0x" << std::hex
+          << program_header->p_vaddr << "+0x" << program_header->p_memsz << "=0x" << end_vaddr
+          << " in ELF file \"" << file_->GetPath() << "\"";
+      *error_msg = oss.str();
+      *size = static_cast<size_t>(-1);
+      return false;
+    }
     if (end_vaddr > max_vaddr) {
       max_vaddr = end_vaddr;
     }
@@ -1100,8 +1109,18 @@ size_t ElfFileImpl<ElfTypes>::GetLoadedSize() const {
   min_vaddr = RoundDown(min_vaddr, kPageSize);
   max_vaddr = RoundUp(max_vaddr, kPageSize);
   CHECK_LT(min_vaddr, max_vaddr) << file_->GetPath();
-  size_t loaded_size = max_vaddr - min_vaddr;
-  return loaded_size;
+  Elf_Addr loaded_size = max_vaddr - min_vaddr;
+  // Check that the loaded_size fits in size_t.
+  if (UNLIKELY(loaded_size > std::numeric_limits<size_t>::max())) {
+    std::ostringstream oss;
+    oss << "Loaded size is 0x" << std::hex << loaded_size << " but maximum size_t is 0x"
+        << std::numeric_limits<size_t>::max() << " for ELF file \"" << file_->GetPath() << "\"";
+    *error_msg = oss.str();
+    *size = static_cast<size_t>(-1);
+    return false;
+  }
+  *size = loaded_size;
+  return true;
 }
 
 template <typename ElfTypes>
@@ -1164,9 +1183,14 @@ bool ElfFileImpl<ElfTypes>::Load(bool executable, std::string* error_msg) {
       }
       std::string reservation_name("ElfFile reservation for ");
       reservation_name += file_->GetPath();
+      size_t loaded_size;
+      if (!GetLoadedSize(&loaded_size, error_msg)) {
+        DCHECK(!error_msg->empty());
+        return false;
+      }
       std::unique_ptr<MemMap> reserve(MemMap::MapAnonymous(reservation_name.c_str(),
                                                            reserve_base_override,
-                                                           GetLoadedSize(), PROT_NONE, false, false,
+                                                           loaded_size, PROT_NONE, false, false,
                                                            error_msg));
       if (reserve.get() == nullptr) {
         *error_msg = StringPrintf("Failed to allocate %s: %s",
@@ -1915,8 +1939,8 @@ uint64_t ElfFile::FindSymbolAddress(unsigned section_type,
   DELEGATE_TO_IMPL(FindSymbolAddress, section_type, symbol_name, build_map);
 }
 
-size_t ElfFile::GetLoadedSize() const {
-  DELEGATE_TO_IMPL(GetLoadedSize);
+bool ElfFile::GetLoadedSize(size_t* size, std::string* error_msg) const {
+  DELEGATE_TO_IMPL(GetLoadedSize, size, error_msg);
 }
 
 bool ElfFile::Strip(File* file, std::string* error_msg) {
