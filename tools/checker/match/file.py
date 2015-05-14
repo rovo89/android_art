@@ -141,7 +141,7 @@ def MatchFiles(checkerFile, c1File):
     c1Pass = c1File.findPass(testCase.name)
     if c1Pass is None:
       Logger.fail("Test case \"" + testCase.name + "\" not found in the C1visualizer output",
-                  testCase.fileName, testCase.lineNo)
+                  testCase.fileName, testCase.startLineNo)
     Logger.startTest(testCase.name)
     __matchGroups(testCase, c1Pass)
     Logger.testPassed()
