@@ -1931,4 +1931,56 @@ TEST_F(GvnDeadCodeEliminationTestDiamond, LongOverlaps1) {
   }
 }
 
+TEST_F(GvnDeadCodeEliminationTestSimple, MixedOverlaps1) {
+  static const MIRDef mirs[] = {
+      DEF_CONST(3, Instruction::CONST, 0u, 1000u),
+      DEF_MOVE(3, Instruction::MOVE, 1u, 0u),
+      DEF_CONST(3, Instruction::CONST, 2u, 2000u),
+      { 3, Instruction::INT_TO_LONG, 0, 0u, 1, { 2u }, 2, { 3u, 4u} },
+      DEF_MOVE_WIDE(3, Instruction::MOVE_WIDE, 5u, 3u),
+      DEF_CONST(3, Instruction::CONST, 7u, 3000u),
+      DEF_CONST(3, Instruction::CONST, 8u, 4000u),
+  };
+
+  static const int32_t sreg_to_vreg_map[] = { 1, 2, 0, 0, 1, 3, 4, 0, 1 };
+  PrepareSRegToVRegMap(sreg_to_vreg_map);
+
+  PrepareMIRs(mirs);
+  static const int32_t wide_sregs[] = { 3, 5 };
+  MarkAsWideSRegs(wide_sregs);
+  PerformGVN_DCE();
+
+  ASSERT_EQ(arraysize(mirs), value_names_.size());
+  static const size_t diff_indexes[] = { 0, 2, 3, 5, 6 };
+  ExpectValueNamesNE(diff_indexes);
+  EXPECT_EQ(value_names_[0], value_names_[1]);
+  EXPECT_EQ(value_names_[3], value_names_[4]);
+
+  static const bool eliminated[] = {
+      false, true, false, false, true, false, false,
+  };
+  static_assert(arraysize(eliminated) == arraysize(mirs), "array size mismatch");
+  for (size_t i = 0; i != arraysize(eliminated); ++i) {
+    bool actually_eliminated = (static_cast<int>(mirs_[i].dalvikInsn.opcode) == kMirOpNop);
+    EXPECT_EQ(eliminated[i], actually_eliminated) << i;
+  }
+  // Check renamed registers in CONST.
+  MIR* cst = &mirs_[0];
+  ASSERT_EQ(Instruction::CONST, cst->dalvikInsn.opcode);
+  ASSERT_EQ(0, cst->ssa_rep->num_uses);
+  ASSERT_EQ(1, cst->ssa_rep->num_defs);
+  EXPECT_EQ(1, cst->ssa_rep->defs[0]);
+  EXPECT_EQ(2u, cst->dalvikInsn.vA);
+  // Check renamed registers in INT_TO_LONG.
+  MIR* int_to_long = &mirs_[3];
+  ASSERT_EQ(Instruction::INT_TO_LONG, int_to_long->dalvikInsn.opcode);
+  ASSERT_EQ(1, int_to_long->ssa_rep->num_uses);
+  EXPECT_EQ(2, int_to_long->ssa_rep->uses[0]);
+  ASSERT_EQ(2, int_to_long->ssa_rep->num_defs);
+  EXPECT_EQ(5, int_to_long->ssa_rep->defs[0]);
+  EXPECT_EQ(6, int_to_long->ssa_rep->defs[1]);
+  EXPECT_EQ(3u, int_to_long->dalvikInsn.vA);
+  EXPECT_EQ(0u, int_to_long->dalvikInsn.vB);
+}
+
 }  // namespace art

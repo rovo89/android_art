@@ -58,14 +58,12 @@ inline void GvnDeadCodeElimination::MIRData::RemovePrevChange(int v_reg, MIRData
       low_def_over_high_word = prev_data->low_def_over_high_word;
     } else {
       prev_value = prev_data->prev_value_high;
-      low_def_over_high_word =
-          prev_data->prev_value_high.value != kNPos && !prev_data->high_def_over_low_word;
+      low_def_over_high_word = !prev_data->high_def_over_low_word;
     }
   } else {
     if (prev_data->vreg_def == v_reg) {
       prev_value_high = prev_data->prev_value;
-      high_def_over_low_word =
-          prev_data->prev_value.value != kNPos && !prev_data->low_def_over_high_word;
+      high_def_over_low_word = !prev_data->low_def_over_high_word;
     } else {
       prev_value_high = prev_data->prev_value_high;
       high_def_over_low_word = prev_data->high_def_over_low_word;
@@ -340,8 +338,7 @@ void GvnDeadCodeElimination::VRegChains::RemoveChange(uint16_t change) {
       DCHECK_EQ(vreg_high_words_.IsBitSet(v_reg), v_reg == data->vreg_def + 1);
       if (data->vreg_def == v_reg && data->low_def_over_high_word) {
         vreg_high_words_.SetBit(v_reg);
-      } else if (data->vreg_def != v_reg &&
-          (data->high_def_over_low_word || data->prev_value_high.value == kNoValue)) {
+      } else if (data->vreg_def != v_reg && data->high_def_over_low_word) {
         vreg_high_words_.ClearBit(v_reg);
       }
     } else {
