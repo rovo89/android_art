@@ -981,7 +981,11 @@ void Hprof::DumpHeapClass(mirror::Class* klass) {
     // ClassObjects have their static fields appended, so aren't all the same size.
     // But they're at least this size.
     __ AddU4(sizeof(mirror::Class));  // instance size
-  } else if (klass->IsArrayClass() || klass->IsStringClass() || klass->IsPrimitive()) {
+  } else if (klass->IsStringClass()) {
+    // Strings are variable length with character data at the end like arrays.
+    // This outputs the size of an empty string.
+    __ AddU4(sizeof(mirror::String));
+  } else if (klass->IsArrayClass() || klass->IsPrimitive()) {
     __ AddU4(0);
   } else {
     __ AddU4(klass->GetObjectSize());  // instance size
