@@ -616,16 +616,17 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
       uint16_t regList = inst->Fetch16(2);
       uint16_t count = num_ins;
       size_t arg_index = 0;
-      if (string_init) {
-        // Skip the referrer for the new static StringFactory call.
-        regList >>= 4;
-        ++arg_index;
-      }
       if (count == 5) {
         AssignRegister(new_shadow_frame, shadow_frame, first_dest_reg + 4U,
                        (inst_data >> 8) & 0x0f);
         --count;
-       }
+      }
+      if (string_init) {
+        // Skip the referrer for the new static StringFactory call.
+        regList >>= 4;
+        ++first_dest_reg;
+        --count;
+      }
       for (; arg_index < count; ++arg_index, regList >>= 4) {
         AssignRegister(new_shadow_frame, shadow_frame, first_dest_reg + arg_index, regList & 0x0f);
       }
