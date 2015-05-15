@@ -373,8 +373,7 @@ class MarkSweepMarkObjectSlowPath {
       : mark_sweep_(mark_sweep), holder_(holder), offset_(offset) {
   }
 
-  void operator()(const Object* obj) const ALWAYS_INLINE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void operator()(const Object* obj) const ALWAYS_INLINE NO_THREAD_SAFETY_ANALYSIS {
     if (kProfileLargeObjects) {
       // TODO: Differentiate between marking and testing somehow.
       ++mark_sweep_->large_object_test_;
@@ -385,17 +384,51 @@ class MarkSweepMarkObjectSlowPath {
                  (kIsDebugBuild && large_object_space != nullptr &&
                      !large_object_space->Contains(obj)))) {
       LOG(INTERNAL_FATAL) << "Tried to mark " << obj << " not contained by any spaces";
-      LOG(INTERNAL_FATAL) << "Attempting see if it's a bad root";
-      mark_sweep_->VerifyRoots();
       if (holder_ != nullptr) {
+        size_t holder_size = holder_->SizeOf();
         ArtField* field = holder_->FindFieldByOffset(offset_);
-        LOG(INTERNAL_FATAL) << "Field info: holder=" << holder_
+        LOG(INTERNAL_FATAL) << "Field info: "
+                            << " holder=" << holder_
+                            << " holder_size=" << holder_size
                             << " holder_type=" << PrettyTypeOf(holder_)
                             << " offset=" << offset_.Uint32Value()
-                            << " field=" << (field != nullptr ? field->GetName() : "nullptr");
+                            << " field=" << (field != nullptr ? field->GetName() : "nullptr")
+                            << " field_type="
+                            << (field != nullptr ? field->GetTypeDescriptor() : "")
+                            << " first_ref_field_offset="
+                            << (holder_->IsClass()
+                                ? holder_->AsClass()->GetFirstReferenceStaticFieldOffset()
+                                : holder_->GetClass()->GetFirstReferenceInstanceFieldOffset())
+                            << " num_of_ref_fields="
+                            << (holder_->IsClass()
+                                ? holder_->AsClass()->NumReferenceStaticFields()
+                                : holder_->GetClass()->NumReferenceInstanceFields())
+                            << "\n";
       }
       PrintFileToLog("/proc/self/maps", LogSeverity::INTERNAL_FATAL);
       MemMap::DumpMaps(LOG(INTERNAL_FATAL), true);
+      {
+        LOG(INTERNAL_FATAL) << "Attempting see if it's a bad root";
+        Thread* self = Thread::Current();
+        if (Locks::mutator_lock_->IsExclusiveHeld(self)) {
+          mark_sweep_->VerifyRoots();
+        } else {
+          const bool heap_bitmap_exclusive_locked =
+              Locks::heap_bitmap_lock_->IsExclusiveHeld(self);
+          if (heap_bitmap_exclusive_locked) {
+            Locks::heap_bitmap_lock_->ExclusiveUnlock(self);
+          }
+          Locks::mutator_lock_->SharedUnlock(self);
+          ThreadList* tl = Runtime::Current()->GetThreadList();
+          tl->SuspendAll(__FUNCTION__);
+          mark_sweep_->VerifyRoots();
+          tl->ResumeAll();
+          Locks::mutator_lock_->SharedLock(self);
+          if (heap_bitmap_exclusive_locked) {
+            Locks::heap_bitmap_lock_->ExclusiveLock(self);
+          }
+        }
+      }
       LOG(FATAL) << "Can't mark invalid object";
     }
   }
