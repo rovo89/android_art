@@ -163,6 +163,11 @@ class InstructionCodeGeneratorARM64 : public HGraphVisitor {
                              vixl::Label* true_target,
                              vixl::Label* false_target,
                              vixl::Label* always_true_target);
+  void DivRemOneOrMinusOne(HBinaryOperation* instruction);
+  void DivRemByPowerOfTwo(HBinaryOperation* instruction);
+  void GenerateDivRemWithAnyConstant(HBinaryOperation* instruction);
+  void GenerateDivRemIntegral(HBinaryOperation* instruction);
+
 
   Arm64Assembler* const assembler_;
   CodeGeneratorARM64* const codegen_;

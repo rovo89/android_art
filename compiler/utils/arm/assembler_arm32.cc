@@ -200,6 +200,13 @@ void Arm32Assembler::mls(Register rd, Register rn, Register rm, Register ra,
 }
 
 
+void Arm32Assembler::smull(Register rd_lo, Register rd_hi, Register rn,
+                           Register rm, Condition cond) {
+  // Assembler registers rd_lo, rd_hi, rn, rm are encoded as rd, rn, rm, rs.
+  EmitMulOp(cond, B23 | B22, rd_lo, rd_hi, rn, rm);
+}
+
+
 void Arm32Assembler::umull(Register rd_lo, Register rd_hi, Register rn,
                            Register rm, Condition cond) {
   // Assembler registers rd_lo, rd_hi, rn, rm are encoded as rd, rn, rm, rs.

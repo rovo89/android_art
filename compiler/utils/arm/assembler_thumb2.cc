@@ -238,6 +238,24 @@ void Thumb2Assembler::mls(Register rd, Register rn, Register rm, Register ra,
 }
 
 
+void Thumb2Assembler::smull(Register rd_lo, Register rd_hi, Register rn,
+                            Register rm, Condition cond) {
+  CheckCondition(cond);
+
+  uint32_t op1 = 0U /* 0b000; */;
+  uint32_t op2 = 0U /* 0b0000 */;
+  int32_t encoding = B31 | B30 | B29 | B28 | B27 | B25 | B24 | B23 |
+      op1 << 20 |
+      op2 << 4 |
+      static_cast<uint32_t>(rd_lo) << 12 |
+      static_cast<uint32_t>(rd_hi) << 8 |
+      static_cast<uint32_t>(rn) << 16 |
+      static_cast<uint32_t>(rm);
+
+  Emit32(encoding);
+}
+
+
 void Thumb2Assembler::umull(Register rd_lo, Register rd_hi, Register rn,
                             Register rm, Condition cond) {
   CheckCondition(cond);
@@ -740,13 +758,6 @@ bool Thumb2Assembler::Is32BitDataProcessing(Condition cond ATTRIBUTE_UNUSED,
     return true;
   }
 
-  // Check for MOV with an ROR.
-  if (opcode == MOV && so.IsRegister() && so.IsShift() && so.GetShift() == ROR) {
-    if (so.GetImmediate() != 0) {
-      return true;
-    }
-  }
-
   bool rn_is_valid = true;
 
   // Check for single operand instructions and ADD/SUB.
@@ -788,6 +799,19 @@ bool Thumb2Assembler::Is32BitDataProcessing(Condition cond ATTRIBUTE_UNUSED,
         if (so.GetImmediate() > 255) {
           return true;
         }
+      }
+    }
+  }
+
+  // Check for register shift operand.
+  if (so.IsRegister() && so.IsShift()) {
+    if (opcode != MOV) {
+      return true;
+    }
+    // Check for MOV with an ROR.
+    if (so.GetShift() == ROR) {
+      if (so.GetImmediate() != 0) {
+        return true;
       }
     }
   }
