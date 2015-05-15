@@ -104,10 +104,10 @@ class CheckerParser_RegexExpressionTest(unittest.TestCase):
     self.assertEqualsPattern("{{a?b.c}}", "a?b.c")
 
   def test_VarRefOnly(self):
-    self.assertEqualsVarRef("[[ABC]]", "ABC")
+    self.assertEqualsVarRef("<<ABC>>", "ABC")
 
   def test_VarDefOnly(self):
-    self.assertEqualsVarDef("[[ABC:a?b.c]]", "ABC", "a?b.c")
+    self.assertEqualsVarDef("<<ABC:a?b.c>>", "ABC", "a?b.c")
 
   def test_TextWithWhitespace(self):
     self.assertEqualsRegex("foo bar", "(foo), (bar)")
@@ -117,7 +117,7 @@ class CheckerParser_RegexExpressionTest(unittest.TestCase):
     self.assertEqualsRegex("foo{{abc}}bar", "(foo)(abc)(bar)")
 
   def test_TextWithVar(self):
-    self.assertEqualsRegex("foo[[ABC:abc]]bar", "(foo)(abc)(bar)")
+    self.assertEqualsRegex("foo<<ABC:abc>>bar", "(foo)(abc)(bar)")
 
   def test_PlainWithRegexAndWhitespaces(self):
     self.assertEqualsRegex("foo {{abc}}bar", "(foo), (abc)(bar)")
@@ -125,14 +125,14 @@ class CheckerParser_RegexExpressionTest(unittest.TestCase):
     self.assertEqualsRegex("foo {{abc}} bar", "(foo), (abc), (bar)")
 
   def test_PlainWithVarAndWhitespaces(self):
-    self.assertEqualsRegex("foo [[ABC:abc]]bar", "(foo), (abc)(bar)")
-    self.assertEqualsRegex("foo[[ABC:abc]] bar", "(foo)(abc), (bar)")
-    self.assertEqualsRegex("foo [[ABC:abc]] bar", "(foo), (abc), (bar)")
+    self.assertEqualsRegex("foo <<ABC:abc>>bar", "(foo), (abc)(bar)")
+    self.assertEqualsRegex("foo<<ABC:abc>> bar", "(foo)(abc), (bar)")
+    self.assertEqualsRegex("foo <<ABC:abc>> bar", "(foo), (abc), (bar)")
 
   def test_AllKinds(self):
-    self.assertEqualsRegex("foo [[ABC:abc]]{{def}}bar", "(foo), (abc)(def)(bar)")
-    self.assertEqualsRegex("foo[[ABC:abc]] {{def}}bar", "(foo)(abc), (def)(bar)")
-    self.assertEqualsRegex("foo [[ABC:abc]] {{def}} bar", "(foo), (abc), (def), (bar)")
+    self.assertEqualsRegex("foo <<ABC:abc>>{{def}}bar", "(foo), (abc)(def)(bar)")
+    self.assertEqualsRegex("foo<<ABC:abc>> {{def}}bar", "(foo)(abc), (def)(bar)")
+    self.assertEqualsRegex("foo <<ABC:abc>> {{def}} bar", "(foo), (abc), (def), (bar)")
 
   # # Test that variables and patterns are parsed correctly
 
@@ -142,35 +142,35 @@ class CheckerParser_RegexExpressionTest(unittest.TestCase):
     self.assertEqualsPattern("{{(a{bc})}}", "(a{bc})")
 
   def test_ValidRef(self):
-    self.assertEqualsVarRef("[[ABC]]", "ABC")
-    self.assertEqualsVarRef("[[A1BC2]]", "A1BC2")
+    self.assertEqualsVarRef("<<ABC>>", "ABC")
+    self.assertEqualsVarRef("<<A1BC2>>", "A1BC2")
 
   def test_ValidDef(self):
-    self.assertEqualsVarDef("[[ABC:abc]]", "ABC", "abc")
-    self.assertEqualsVarDef("[[ABC:ab:c]]", "ABC", "ab:c")
-    self.assertEqualsVarDef("[[ABC:a[b]c]]", "ABC", "a[b]c")
-    self.assertEqualsVarDef("[[ABC:(a[bc])]]", "ABC", "(a[bc])")
+    self.assertEqualsVarDef("<<ABC:abc>>", "ABC", "abc")
+    self.assertEqualsVarDef("<<ABC:ab:c>>", "ABC", "ab:c")
+    self.assertEqualsVarDef("<<ABC:a[b]c>>", "ABC", "a[b]c")
+    self.assertEqualsVarDef("<<ABC:(a[bc])>>", "ABC", "(a[bc])")
 
   def test_Empty(self):
     self.assertVariantNotEqual("{{}}", RegexExpression.Variant.Pattern)
-    self.assertVariantNotEqual("[[]]", RegexExpression.Variant.VarRef)
-    self.assertVariantNotEqual("[[:]]", RegexExpression.Variant.VarDef)
+    self.assertVariantNotEqual("<<>>", RegexExpression.Variant.VarRef)
+    self.assertVariantNotEqual("<<:>>", RegexExpression.Variant.VarDef)
 
   def test_InvalidVarName(self):
-    self.assertVariantNotEqual("[[0ABC]]", RegexExpression.Variant.VarRef)
-    self.assertVariantNotEqual("[[AB=C]]", RegexExpression.Variant.VarRef)
-    self.assertVariantNotEqual("[[ABC=]]", RegexExpression.Variant.VarRef)
-    self.assertVariantNotEqual("[[0ABC:abc]]", RegexExpression.Variant.VarDef)
-    self.assertVariantNotEqual("[[AB=C:abc]]", RegexExpression.Variant.VarDef)
-    self.assertVariantNotEqual("[[ABC=:abc]]", RegexExpression.Variant.VarDef)
+    self.assertVariantNotEqual("<<0ABC>>", RegexExpression.Variant.VarRef)
+    self.assertVariantNotEqual("<<AB=C>>", RegexExpression.Variant.VarRef)
+    self.assertVariantNotEqual("<<ABC=>>", RegexExpression.Variant.VarRef)
+    self.assertVariantNotEqual("<<0ABC:abc>>", RegexExpression.Variant.VarDef)
+    self.assertVariantNotEqual("<<AB=C:abc>>", RegexExpression.Variant.VarDef)
+    self.assertVariantNotEqual("<<ABC=:abc>>", RegexExpression.Variant.VarDef)
 
   def test_BodyMatchNotGreedy(self):
     self.assertEqualsRegex("{{abc}}{{def}}", "(abc)(def)")
-    self.assertEqualsRegex("[[ABC:abc]][[DEF:def]]", "(abc)(def)")
+    self.assertEqualsRegex("<<ABC:abc>><<DEF:def>>", "(abc)(def)")
 
   def test_NoVarDefsInNotChecks(self):
     with self.assertRaises(CheckerException):
-      self.parseAssertion("[[ABC:abc]]", "-NOT")
+      self.parseAssertion("<<ABC:abc>>", "-NOT")
 
 
 class CheckerParser_FileLayoutTest(unittest.TestCase):
