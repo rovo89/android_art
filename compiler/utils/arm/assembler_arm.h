@@ -398,6 +398,8 @@ class ArmAssembler : public Assembler {
                    Condition cond = AL) = 0;
   virtual void mls(Register rd, Register rn, Register rm, Register ra,
                    Condition cond = AL) = 0;
+  virtual void smull(Register rd_lo, Register rd_hi, Register rn, Register rm,
+                     Condition cond = AL) = 0;
   virtual void umull(Register rd_lo, Register rd_hi, Register rn, Register rm,
                      Condition cond = AL) = 0;
 

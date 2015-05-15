@@ -17,6 +17,7 @@
 #include "code_generator_arm.h"
 
 #include "arch/arm/instruction_set_features_arm.h"
+#include "code_generator_utils.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "gc/accounting/card_table.h"
 #include "intrinsics.h"
@@ -2185,11 +2186,134 @@ void InstructionCodeGeneratorARM::VisitMul(HMul* mul) {
   }
 }
 
+void InstructionCodeGeneratorARM::DivRemOneOrMinusOne(HBinaryOperation* instruction) {
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+  DCHECK(instruction->GetResultType() == Primitive::kPrimInt);
+
+  LocationSummary* locations = instruction->GetLocations();
+  Location second = locations->InAt(1);
+  DCHECK(second.IsConstant());
+
+  Register out = locations->Out().AsRegister<Register>();
+  Register dividend = locations->InAt(0).AsRegister<Register>();
+  int32_t imm = second.GetConstant()->AsIntConstant()->GetValue();
+  DCHECK(imm == 1 || imm == -1);
+
+  if (instruction->IsRem()) {
+    __ LoadImmediate(out, 0);
+  } else {
+    if (imm == 1) {
+      __ Mov(out, dividend);
+    } else {
+      __ rsb(out, dividend, ShifterOperand(0));
+    }
+  }
+}
+
+void InstructionCodeGeneratorARM::DivRemByPowerOfTwo(HBinaryOperation* instruction) {
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+  DCHECK(instruction->GetResultType() == Primitive::kPrimInt);
+
+  LocationSummary* locations = instruction->GetLocations();
+  Location second = locations->InAt(1);
+  DCHECK(second.IsConstant());
+
+  Register out = locations->Out().AsRegister<Register>();
+  Register dividend = locations->InAt(0).AsRegister<Register>();
+  Register temp = locations->GetTemp(0).AsRegister<Register>();
+  int32_t imm = second.GetConstant()->AsIntConstant()->GetValue();
+  int32_t abs_imm = std::abs(imm);
+  DCHECK(IsPowerOfTwo(abs_imm));
+  int ctz_imm = CTZ(abs_imm);
+
+  if (ctz_imm == 1) {
+    __ Lsr(temp, dividend, 32 - ctz_imm);
+  } else {
+    __ Asr(temp, dividend, 31);
+    __ Lsr(temp, temp, 32 - ctz_imm);
+  }
+  __ add(out, temp, ShifterOperand(dividend));
+
+  if (instruction->IsDiv()) {
+    __ Asr(out, out, ctz_imm);
+    if (imm < 0) {
+      __ rsb(out, out, ShifterOperand(0));
+    }
+  } else {
+    __ ubfx(out, out, 0, ctz_imm);
+    __ sub(out, out, ShifterOperand(temp));
+  }
+}
+
+void InstructionCodeGeneratorARM::GenerateDivRemWithAnyConstant(HBinaryOperation* instruction) {
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+  DCHECK(instruction->GetResultType() == Primitive::kPrimInt);
+
+  LocationSummary* locations = instruction->GetLocations();
+  Location second = locations->InAt(1);
+  DCHECK(second.IsConstant());
+
+  Register out = locations->Out().AsRegister<Register>();
+  Register dividend = locations->InAt(0).AsRegister<Register>();
+  Register temp1 = locations->GetTemp(0).AsRegister<Register>();
+  Register temp2 = locations->GetTemp(1).AsRegister<Register>();
+  int64_t imm = second.GetConstant()->AsIntConstant()->GetValue();
+
+  int64_t magic;
+  int shift;
+  CalculateMagicAndShiftForDivRem(imm, false /* is_long */, &magic, &shift);
+
+  __ LoadImmediate(temp1, magic);
+  __ smull(temp2, temp1, dividend, temp1);
+
+  if (imm > 0 && magic < 0) {
+    __ add(temp1, temp1, ShifterOperand(dividend));
+  } else if (imm < 0 && magic > 0) {
+    __ sub(temp1, temp1, ShifterOperand(dividend));
+  }
+
+  if (shift != 0) {
+    __ Asr(temp1, temp1, shift);
+  }
+
+  if (instruction->IsDiv()) {
+    __ sub(out, temp1, ShifterOperand(temp1, ASR, 31));
+  } else {
+    __ sub(temp1, temp1, ShifterOperand(temp1, ASR, 31));
+    // TODO: Strength reduction for mls.
+    __ LoadImmediate(temp2, imm);
+    __ mls(out, temp1, temp2, dividend);
+  }
+}
+
+void InstructionCodeGeneratorARM::GenerateDivRemConstantIntegral(HBinaryOperation* instruction) {
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+  DCHECK(instruction->GetResultType() == Primitive::kPrimInt);
+
+  LocationSummary* locations = instruction->GetLocations();
+  Location second = locations->InAt(1);
+  DCHECK(second.IsConstant());
+
+  int32_t imm = second.GetConstant()->AsIntConstant()->GetValue();
+  if (imm == 0) {
+    // Do not generate anything. DivZeroCheck would prevent any code to be executed.
+  } else if (imm == 1 || imm == -1) {
+    DivRemOneOrMinusOne(instruction);
+  } else if (IsPowerOfTwo(std::abs(imm))) {
+    DivRemByPowerOfTwo(instruction);
+  } else {
+    DCHECK(imm <= -2 || imm >= 2);
+    GenerateDivRemWithAnyConstant(instruction);
+  }
+}
+
 void LocationsBuilderARM::VisitDiv(HDiv* div) {
   LocationSummary::CallKind call_kind = LocationSummary::kNoCall;
   if (div->GetResultType() == Primitive::kPrimLong) {
     // pLdiv runtime call.
     call_kind = LocationSummary::kCall;
+  } else if (div->GetResultType() == Primitive::kPrimInt && div->InputAt(1)->IsConstant()) {
+    // sdiv will be replaced by other instruction sequence.
   } else if (div->GetResultType() == Primitive::kPrimInt &&
              !codegen_->GetInstructionSetFeatures().HasDivideInstruction()) {
     // pIdivmod runtime call.
@@ -2200,7 +2324,20 @@ void LocationsBuilderARM::VisitDiv(HDiv* div) {
 
   switch (div->GetResultType()) {
     case Primitive::kPrimInt: {
-      if (codegen_->GetInstructionSetFeatures().HasDivideInstruction()) {
+      if (div->InputAt(1)->IsConstant()) {
+        locations->SetInAt(0, Location::RequiresRegister());
+        locations->SetInAt(1, Location::RegisterOrConstant(div->InputAt(1)));
+        locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+        int32_t abs_imm = std::abs(div->InputAt(1)->AsIntConstant()->GetValue());
+        if (abs_imm <= 1) {
+          // No temp register required.
+        } else {
+          locations->AddTemp(Location::RequiresRegister());
+          if (!IsPowerOfTwo(abs_imm)) {
+            locations->AddTemp(Location::RequiresRegister());
+          }
+        }
+      } else if (codegen_->GetInstructionSetFeatures().HasDivideInstruction()) {
         locations->SetInAt(0, Location::RequiresRegister());
         locations->SetInAt(1, Location::RequiresRegister());
         locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
@@ -2244,7 +2381,9 @@ void InstructionCodeGeneratorARM::VisitDiv(HDiv* div) {
 
   switch (div->GetResultType()) {
     case Primitive::kPrimInt: {
-      if (codegen_->GetInstructionSetFeatures().HasDivideInstruction()) {
+      if (second.IsConstant()) {
+        GenerateDivRemConstantIntegral(div);
+      } else if (codegen_->GetInstructionSetFeatures().HasDivideInstruction()) {
         __ sdiv(out.AsRegister<Register>(),
                 first.AsRegister<Register>(),
                 second.AsRegister<Register>());
@@ -2296,8 +2435,11 @@ void LocationsBuilderARM::VisitRem(HRem* rem) {
 
   // Most remainders are implemented in the runtime.
   LocationSummary::CallKind call_kind = LocationSummary::kCall;
-  if (rem->GetResultType() == Primitive::kPrimInt &&
-      codegen_->GetInstructionSetFeatures().HasDivideInstruction()) {
+  if (rem->GetResultType() == Primitive::kPrimInt && rem->InputAt(1)->IsConstant()) {
+    // sdiv will be replaced by other instruction sequence.
+    call_kind = LocationSummary::kNoCall;
+  } else if ((rem->GetResultType() == Primitive::kPrimInt)
+             && codegen_->GetInstructionSetFeatures().HasDivideInstruction()) {
     // Have hardware divide instruction for int, do it with three instructions.
     call_kind = LocationSummary::kNoCall;
   }
@@ -2306,7 +2448,20 @@ void LocationsBuilderARM::VisitRem(HRem* rem) {
 
   switch (type) {
     case Primitive::kPrimInt: {
-      if (codegen_->GetInstructionSetFeatures().HasDivideInstruction()) {
+      if (rem->InputAt(1)->IsConstant()) {
+        locations->SetInAt(0, Location::RequiresRegister());
+        locations->SetInAt(1, Location::RegisterOrConstant(rem->InputAt(1)));
+        locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+        int32_t abs_imm = std::abs(rem->InputAt(1)->AsIntConstant()->GetValue());
+        if (abs_imm <= 1) {
+          // No temp register required.
+        } else {
+          locations->AddTemp(Location::RequiresRegister());
+          if (!IsPowerOfTwo(abs_imm)) {
+            locations->AddTemp(Location::RequiresRegister());
+          }
+        }
+      } else if (codegen_->GetInstructionSetFeatures().HasDivideInstruction()) {
         locations->SetInAt(0, Location::RequiresRegister());
         locations->SetInAt(1, Location::RequiresRegister());
         locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
@@ -2363,7 +2518,9 @@ void InstructionCodeGeneratorARM::VisitRem(HRem* rem) {
   Primitive::Type type = rem->GetResultType();
   switch (type) {
     case Primitive::kPrimInt: {
-      if (codegen_->GetInstructionSetFeatures().HasDivideInstruction()) {
+        if (second.IsConstant()) {
+          GenerateDivRemConstantIntegral(rem);
+        } else if (codegen_->GetInstructionSetFeatures().HasDivideInstruction()) {
         Register reg1 = first.AsRegister<Register>();
         Register reg2 = second.AsRegister<Register>();
         Register temp = locations->GetTemp(0).AsRegister<Register>();
