@@ -501,14 +501,20 @@ cd "$tmp_dir"
 
 if [ '!' -r "$build" ]; then
     cp "${progdir}/etc/default-build" build
+else
+    cp "${progdir}/etc/default-build" .
 fi
 
 if [ '!' -r "$run" ]; then
     cp "${progdir}/etc/default-run" run
+else
+    cp "${progdir}/etc/default-run" .
 fi
 
 if [ '!' -r "$check_cmd" ]; then
     cp "${progdir}/etc/default-check" check
+else
+    cp "${progdir}/etc/default-check" .
 fi
 
 chmod 755 "$build"

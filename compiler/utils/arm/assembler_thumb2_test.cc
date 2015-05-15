@@ -89,23 +89,24 @@ TEST_F(AssemblerThumb2Test, Toolchain) {
   EXPECT_TRUE(CheckTools());
 }
 
+#define __ GetAssembler()->
 
 TEST_F(AssemblerThumb2Test, Sbfx) {
-  GetAssembler()->sbfx(arm::R0, arm::R1, 0, 1);
-  GetAssembler()->sbfx(arm::R0, arm::R1, 0, 8);
-  GetAssembler()->sbfx(arm::R0, arm::R1, 0, 16);
-  GetAssembler()->sbfx(arm::R0, arm::R1, 0, 32);
+  __ sbfx(arm::R0, arm::R1, 0, 1);
+  __ sbfx(arm::R0, arm::R1, 0, 8);
+  __ sbfx(arm::R0, arm::R1, 0, 16);
+  __ sbfx(arm::R0, arm::R1, 0, 32);
 
-  GetAssembler()->sbfx(arm::R0, arm::R1, 8, 1);
-  GetAssembler()->sbfx(arm::R0, arm::R1, 8, 8);
-  GetAssembler()->sbfx(arm::R0, arm::R1, 8, 16);
-  GetAssembler()->sbfx(arm::R0, arm::R1, 8, 24);
+  __ sbfx(arm::R0, arm::R1, 8, 1);
+  __ sbfx(arm::R0, arm::R1, 8, 8);
+  __ sbfx(arm::R0, arm::R1, 8, 16);
+  __ sbfx(arm::R0, arm::R1, 8, 24);
 
-  GetAssembler()->sbfx(arm::R0, arm::R1, 16, 1);
-  GetAssembler()->sbfx(arm::R0, arm::R1, 16, 8);
-  GetAssembler()->sbfx(arm::R0, arm::R1, 16, 16);
+  __ sbfx(arm::R0, arm::R1, 16, 1);
+  __ sbfx(arm::R0, arm::R1, 16, 8);
+  __ sbfx(arm::R0, arm::R1, 16, 16);
 
-  GetAssembler()->sbfx(arm::R0, arm::R1, 31, 1);
+  __ sbfx(arm::R0, arm::R1, 31, 1);
 
   const char* expected =
       "sbfx r0, r1, #0, #1\n"
@@ -127,21 +128,21 @@ TEST_F(AssemblerThumb2Test, Sbfx) {
 }
 
 TEST_F(AssemblerThumb2Test, Ubfx) {
-  GetAssembler()->ubfx(arm::R0, arm::R1, 0, 1);
-  GetAssembler()->ubfx(arm::R0, arm::R1, 0, 8);
-  GetAssembler()->ubfx(arm::R0, arm::R1, 0, 16);
-  GetAssembler()->ubfx(arm::R0, arm::R1, 0, 32);
+  __ ubfx(arm::R0, arm::R1, 0, 1);
+  __ ubfx(arm::R0, arm::R1, 0, 8);
+  __ ubfx(arm::R0, arm::R1, 0, 16);
+  __ ubfx(arm::R0, arm::R1, 0, 32);
 
-  GetAssembler()->ubfx(arm::R0, arm::R1, 8, 1);
-  GetAssembler()->ubfx(arm::R0, arm::R1, 8, 8);
-  GetAssembler()->ubfx(arm::R0, arm::R1, 8, 16);
-  GetAssembler()->ubfx(arm::R0, arm::R1, 8, 24);
+  __ ubfx(arm::R0, arm::R1, 8, 1);
+  __ ubfx(arm::R0, arm::R1, 8, 8);
+  __ ubfx(arm::R0, arm::R1, 8, 16);
+  __ ubfx(arm::R0, arm::R1, 8, 24);
 
-  GetAssembler()->ubfx(arm::R0, arm::R1, 16, 1);
-  GetAssembler()->ubfx(arm::R0, arm::R1, 16, 8);
-  GetAssembler()->ubfx(arm::R0, arm::R1, 16, 16);
+  __ ubfx(arm::R0, arm::R1, 16, 1);
+  __ ubfx(arm::R0, arm::R1, 16, 8);
+  __ ubfx(arm::R0, arm::R1, 16, 16);
 
-  GetAssembler()->ubfx(arm::R0, arm::R1, 31, 1);
+  __ ubfx(arm::R0, arm::R1, 31, 1);
 
   const char* expected =
       "ubfx r0, r1, #0, #1\n"
@@ -163,7 +164,7 @@ TEST_F(AssemblerThumb2Test, Ubfx) {
 }
 
 TEST_F(AssemblerThumb2Test, Vmstat) {
-  GetAssembler()->vmstat();
+  __ vmstat();
 
   const char* expected = "vmrs APSR_nzcv, FPSCR\n";
 
@@ -171,10 +172,10 @@ TEST_F(AssemblerThumb2Test, Vmstat) {
 }
 
 TEST_F(AssemblerThumb2Test, ldrexd) {
-  GetAssembler()->ldrexd(arm::R0, arm::R1, arm::R0);
-  GetAssembler()->ldrexd(arm::R0, arm::R1, arm::R1);
-  GetAssembler()->ldrexd(arm::R0, arm::R1, arm::R2);
-  GetAssembler()->ldrexd(arm::R5, arm::R3, arm::R7);
+  __ ldrexd(arm::R0, arm::R1, arm::R0);
+  __ ldrexd(arm::R0, arm::R1, arm::R1);
+  __ ldrexd(arm::R0, arm::R1, arm::R2);
+  __ ldrexd(arm::R5, arm::R3, arm::R7);
 
   const char* expected =
       "ldrexd r0, r1, [r0]\n"
@@ -185,10 +186,10 @@ TEST_F(AssemblerThumb2Test, ldrexd) {
 }
 
 TEST_F(AssemblerThumb2Test, strexd) {
-  GetAssembler()->strexd(arm::R9, arm::R0, arm::R1, arm::R0);
-  GetAssembler()->strexd(arm::R9, arm::R0, arm::R1, arm::R1);
-  GetAssembler()->strexd(arm::R9, arm::R0, arm::R1, arm::R2);
-  GetAssembler()->strexd(arm::R9, arm::R5, arm::R3, arm::R7);
+  __ strexd(arm::R9, arm::R0, arm::R1, arm::R0);
+  __ strexd(arm::R9, arm::R0, arm::R1, arm::R1);
+  __ strexd(arm::R9, arm::R0, arm::R1, arm::R2);
+  __ strexd(arm::R9, arm::R5, arm::R3, arm::R7);
 
   const char* expected =
       "strexd r9, r0, r1, [r0]\n"
@@ -199,9 +200,9 @@ TEST_F(AssemblerThumb2Test, strexd) {
 }
 
 TEST_F(AssemblerThumb2Test, LdrdStrd) {
-  GetAssembler()->ldrd(arm::R0, arm::Address(arm::R2, 8));
-  GetAssembler()->ldrd(arm::R0, arm::Address(arm::R12));
-  GetAssembler()->strd(arm::R0, arm::Address(arm::R2, 8));
+  __ ldrd(arm::R0, arm::Address(arm::R2, 8));
+  __ ldrd(arm::R0, arm::Address(arm::R12));
+  __ strd(arm::R0, arm::Address(arm::R2, 8));
 
   const char* expected =
       "ldrd r0, r1, [r2, #8]\n"
@@ -211,7 +212,6 @@ TEST_F(AssemblerThumb2Test, LdrdStrd) {
 }
 
 TEST_F(AssemblerThumb2Test, eor) {
-#define __ GetAssembler()->
   __ eor(arm::R1, arm::R1, arm::ShifterOperand(arm::R0));
   __ eor(arm::R1, arm::R0, arm::ShifterOperand(arm::R1));
   __ eor(arm::R1, arm::R8, arm::ShifterOperand(arm::R0));
@@ -230,21 +230,45 @@ TEST_F(AssemblerThumb2Test, eor) {
 TEST_F(AssemblerThumb2Test, sub) {
   __ subs(arm::R1, arm::R0, arm::ShifterOperand(42));
   __ sub(arm::R1, arm::R0, arm::ShifterOperand(42));
+  __ subs(arm::R1, arm::R0, arm::ShifterOperand(arm::R2, arm::ASR, 31));
+  __ sub(arm::R1, arm::R0, arm::ShifterOperand(arm::R2, arm::ASR, 31));
 
   const char* expected =
       "subs r1, r0, #42\n"
-      "subw r1, r0, #42\n";
+      "subw r1, r0, #42\n"
+      "subs r1, r0, r2, asr #31\n"
+      "sub r1, r0, r2, asr #31\n";
   DriverStr(expected, "sub");
 }
 
 TEST_F(AssemblerThumb2Test, add) {
   __ adds(arm::R1, arm::R0, arm::ShifterOperand(42));
   __ add(arm::R1, arm::R0, arm::ShifterOperand(42));
+  __ adds(arm::R1, arm::R0, arm::ShifterOperand(arm::R2, arm::ASR, 31));
+  __ add(arm::R1, arm::R0, arm::ShifterOperand(arm::R2, arm::ASR, 31));
 
   const char* expected =
       "adds r1, r0, #42\n"
-      "addw r1, r0, #42\n";
+      "addw r1, r0, #42\n"
+      "adds r1, r0, r2, asr #31\n"
+      "add r1, r0, r2, asr #31\n";
   DriverStr(expected, "add");
+}
+
+TEST_F(AssemblerThumb2Test, umull) {
+  __ umull(arm::R0, arm::R1, arm::R2, arm::R3);
+
+  const char* expected =
+      "umull r0, r1, r2, r3\n";
+  DriverStr(expected, "umull");
+}
+
+TEST_F(AssemblerThumb2Test, smull) {
+  __ smull(arm::R0, arm::R1, arm::R2, arm::R3);
+
+  const char* expected =
+      "smull r0, r1, r2, r3\n";
+  DriverStr(expected, "smull");
 }
 
 TEST_F(AssemblerThumb2Test, StoreWordToThumbOffset) {

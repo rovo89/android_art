@@ -189,6 +189,10 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
                              Label* true_target,
                              Label* false_target,
                              Label* always_true_target);
+  void DivRemOneOrMinusOne(HBinaryOperation* instruction);
+  void DivRemByPowerOfTwo(HBinaryOperation* instruction);
+  void GenerateDivRemWithAnyConstant(HBinaryOperation* instruction);
+  void GenerateDivRemConstantIntegral(HBinaryOperation* instruction);
 
   ArmAssembler* const assembler_;
   CodeGeneratorARM* const codegen_;

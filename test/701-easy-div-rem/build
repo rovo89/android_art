@@ -18,6 +18,11 @@
 set -e
 
 # Write out the source file.
-cpp -P src/Main.java.in src/Main.java
+mkdir src
+python ./genMain.py
+
+# Increase the file size limitation for classes.lst as the machine generated
+# source file contains a lot of methods and is quite large.
+ulimit -S 4096
 
 ./default-build

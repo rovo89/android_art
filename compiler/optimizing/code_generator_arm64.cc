@@ -17,6 +17,7 @@
 #include "code_generator_arm64.h"
 
 #include "arch/arm64/instruction_set_features_arm64.h"
+#include "code_generator_utils.h"
 #include "common_arm64.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
@@ -1603,6 +1604,152 @@ FOR_EACH_CONDITION_INSTRUCTION(DEFINE_CONDITION_VISITORS)
 #undef DEFINE_CONDITION_VISITORS
 #undef FOR_EACH_CONDITION_INSTRUCTION
 
+void InstructionCodeGeneratorARM64::DivRemOneOrMinusOne(HBinaryOperation* instruction) {
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+
+  LocationSummary* locations = instruction->GetLocations();
+  Location second = locations->InAt(1);
+  DCHECK(second.IsConstant());
+
+  Register out = OutputRegister(instruction);
+  Register dividend = InputRegisterAt(instruction, 0);
+  int64_t imm = Int64FromConstant(second.GetConstant());
+  DCHECK(imm == 1 || imm == -1);
+
+  if (instruction->IsRem()) {
+    __ Mov(out, 0);
+  } else {
+    if (imm == 1) {
+      __ Mov(out, dividend);
+    } else {
+      __ Neg(out, dividend);
+    }
+  }
+}
+
+void InstructionCodeGeneratorARM64::DivRemByPowerOfTwo(HBinaryOperation* instruction) {
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+
+  LocationSummary* locations = instruction->GetLocations();
+  Location second = locations->InAt(1);
+  DCHECK(second.IsConstant());
+
+  Register out = OutputRegister(instruction);
+  Register dividend = InputRegisterAt(instruction, 0);
+  int64_t imm = Int64FromConstant(second.GetConstant());
+  int64_t abs_imm = std::abs(imm);
+  DCHECK(IsPowerOfTwo(abs_imm));
+  int ctz_imm = CTZ(abs_imm);
+
+  UseScratchRegisterScope temps(GetVIXLAssembler());
+  Register temp = temps.AcquireSameSizeAs(out);
+
+  if (instruction->IsDiv()) {
+    __ Add(temp, dividend, abs_imm - 1);
+    __ Cmp(dividend, 0);
+    __ Csel(out, temp, dividend, lt);
+    if (imm > 0) {
+      __ Asr(out, out, ctz_imm);
+    } else {
+      __ Neg(out, Operand(out, ASR, ctz_imm));
+    }
+  } else {
+    int bits = instruction->GetResultType() == Primitive::kPrimInt ? 32 : 64;
+    __ Asr(temp, dividend, bits - 1);
+    __ Lsr(temp, temp, bits - ctz_imm);
+    __ Add(out, dividend, temp);
+    __ And(out, out, abs_imm - 1);
+    __ Sub(out, out, temp);
+  }
+}
+
+void InstructionCodeGeneratorARM64::GenerateDivRemWithAnyConstant(HBinaryOperation* instruction) {
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+
+  LocationSummary* locations = instruction->GetLocations();
+  Location second = locations->InAt(1);
+  DCHECK(second.IsConstant());
+
+  Register out = OutputRegister(instruction);
+  Register dividend = InputRegisterAt(instruction, 0);
+  int64_t imm = Int64FromConstant(second.GetConstant());
+
+  Primitive::Type type = instruction->GetResultType();
+  DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong);
+
+  int64_t magic;
+  int shift;
+  CalculateMagicAndShiftForDivRem(imm, type == Primitive::kPrimLong /* is_long */, &magic, &shift);
+
+  UseScratchRegisterScope temps(GetVIXLAssembler());
+  Register temp = temps.AcquireSameSizeAs(out);
+
+  // temp = get_high(dividend * magic)
+  __ Mov(temp, magic);
+  if (type == Primitive::kPrimLong) {
+    __ Smulh(temp, dividend, temp);
+  } else {
+    __ Smull(temp.X(), dividend, temp);
+    __ Lsr(temp.X(), temp.X(), 32);
+  }
+
+  if (imm > 0 && magic < 0) {
+    __ Add(temp, temp, dividend);
+  } else if (imm < 0 && magic > 0) {
+    __ Sub(temp, temp, dividend);
+  }
+
+  if (shift != 0) {
+    __ Asr(temp, temp, shift);
+  }
+
+  if (instruction->IsDiv()) {
+    __ Sub(out, temp, Operand(temp, ASR, type == Primitive::kPrimLong ? 63 : 31));
+  } else {
+    __ Sub(temp, temp, Operand(temp, ASR, type == Primitive::kPrimLong ? 63 : 31));
+    // TODO: Strength reduction for msub.
+    Register temp_imm = temps.AcquireSameSizeAs(out);
+    __ Mov(temp_imm, imm);
+    __ Msub(out, temp, temp_imm, dividend);
+  }
+}
+
+void InstructionCodeGeneratorARM64::GenerateDivRemIntegral(HBinaryOperation* instruction) {
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+  Primitive::Type type = instruction->GetResultType();
+  DCHECK(type == Primitive::kPrimInt || Primitive::kPrimLong);
+
+  LocationSummary* locations = instruction->GetLocations();
+  Register out = OutputRegister(instruction);
+  Location second = locations->InAt(1);
+
+  if (second.IsConstant()) {
+    int64_t imm = Int64FromConstant(second.GetConstant());
+
+    if (imm == 0) {
+      // Do not generate anything. DivZeroCheck would prevent any code to be executed.
+    } else if (imm == 1 || imm == -1) {
+      DivRemOneOrMinusOne(instruction);
+    } else if (IsPowerOfTwo(std::abs(imm))) {
+      DivRemByPowerOfTwo(instruction);
+    } else {
+      DCHECK(imm <= -2 || imm >= 2);
+      GenerateDivRemWithAnyConstant(instruction);
+    }
+  } else {
+    Register dividend = InputRegisterAt(instruction, 0);
+    Register divisor = InputRegisterAt(instruction, 1);
+    if (instruction->IsDiv()) {
+      __ Sdiv(out, dividend, divisor);
+    } else {
+      UseScratchRegisterScope temps(GetVIXLAssembler());
+      Register temp = temps.AcquireSameSizeAs(out);
+      __ Sdiv(temp, dividend, divisor);
+      __ Msub(out, temp, divisor, dividend);
+    }
+  }
+}
+
 void LocationsBuilderARM64::VisitDiv(HDiv* div) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(div, LocationSummary::kNoCall);
@@ -1610,7 +1757,7 @@ void LocationsBuilderARM64::VisitDiv(HDiv* div) {
     case Primitive::kPrimInt:
     case Primitive::kPrimLong:
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(div->InputAt(1)));
       locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
 
@@ -1631,7 +1778,7 @@ void InstructionCodeGeneratorARM64::VisitDiv(HDiv* div) {
   switch (type) {
     case Primitive::kPrimInt:
     case Primitive::kPrimLong:
-      __ Sdiv(OutputRegister(div), InputRegisterAt(div, 0), InputRegisterAt(div, 1));
+      GenerateDivRemIntegral(div);
       break;
 
     case Primitive::kPrimFloat:
@@ -2454,7 +2601,7 @@ void LocationsBuilderARM64::VisitRem(HRem* rem) {
     case Primitive::kPrimInt:
     case Primitive::kPrimLong:
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(rem->InputAt(1)));
       locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
 
@@ -2479,14 +2626,7 @@ void InstructionCodeGeneratorARM64::VisitRem(HRem* rem) {
   switch (type) {
     case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
-      UseScratchRegisterScope temps(GetVIXLAssembler());
-      Register dividend = InputRegisterAt(rem, 0);
-      Register divisor = InputRegisterAt(rem, 1);
-      Register output = OutputRegister(rem);
-      Register temp = temps.AcquireSameSizeAs(output);
-
-      __ Sdiv(temp, dividend, divisor);
-      __ Msub(output, temp, divisor, dividend);
+      GenerateDivRemIntegral(rem);
       break;
     }
 
