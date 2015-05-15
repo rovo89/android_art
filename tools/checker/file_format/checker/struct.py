@@ -114,8 +114,8 @@ class RegexExpression(EqualityMixin, PrintableMixin):
     rRegex = r"(.+?)"
     rPatternStartSym = r"(\{\{)"
     rPatternEndSym = r"(\}\})"
-    rVariableStartSym = r"(\[\[)"
-    rVariableEndSym = r"(\]\])"
+    rVariableStartSym = r"(<<)"
+    rVariableEndSym = r"(>>)"
     rVariableSeparator = r"(:)"
 
     regexPattern = rPatternStartSym + rRegex + rPatternEndSym

@@ -17,8 +17,8 @@
 public class Main {
 
   // CHECK-START: int Main.inlineIfThenElse() inliner (before)
-  // CHECK-DAG:     [[Invoke:i\d+]]  InvokeStaticOrDirect
-  // CHECK-DAG:                      Return [ [[Invoke]] ]
+  // CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
+  // CHECK-DAG:                      Return [ <<Invoke>> ]
 
   // CHECK-START: int Main.inlineIfThenElse() inliner (after)
   // CHECK-NOT:                      InvokeStaticOrDirect

@@ -24,13 +24,13 @@ public class Main {
    */
 
   // CHECK-START: void Main.invokeStaticInlined() builder (after)
-  // CHECK-DAG:     [[LoadClass:l\d+]]    LoadClass
-  // CHECK-DAG:     [[ClinitCheck:l\d+]]  ClinitCheck [ [[LoadClass]] ]
-  // CHECK-DAG:                           InvokeStaticOrDirect [ [[ClinitCheck]] ]
+  // CHECK-DAG:     <<LoadClass:l\d+>>    LoadClass
+  // CHECK-DAG:     <<ClinitCheck:l\d+>>  ClinitCheck [ <<LoadClass>> ]
+  // CHECK-DAG:                           InvokeStaticOrDirect [ <<ClinitCheck>> ]
 
   // CHECK-START: void Main.invokeStaticInlined() inliner (after)
-  // CHECK-DAG:     [[LoadClass:l\d+]]    LoadClass
-  // CHECK-DAG:     [[ClinitCheck:l\d+]]  ClinitCheck [ [[LoadClass]] ]
+  // CHECK-DAG:     <<LoadClass:l\d+>>    LoadClass
+  // CHECK-DAG:     <<ClinitCheck:l\d+>>  ClinitCheck [ <<LoadClass>> ]
 
   // CHECK-START: void Main.invokeStaticInlined() inliner (after)
   // CHECK-NOT:                           InvokeStaticOrDirect
@@ -67,14 +67,14 @@ public class Main {
    */
 
   // CHECK-START: void Main.invokeStaticNotInlined() builder (after)
-  // CHECK-DAG:     [[LoadClass:l\d+]]    LoadClass
-  // CHECK-DAG:     [[ClinitCheck:l\d+]]  ClinitCheck [ [[LoadClass]] ]
-  // CHECK-DAG:                           InvokeStaticOrDirect [ [[ClinitCheck]] ]
+  // CHECK-DAG:     <<LoadClass:l\d+>>    LoadClass
+  // CHECK-DAG:     <<ClinitCheck:l\d+>>  ClinitCheck [ <<LoadClass>> ]
+  // CHECK-DAG:                           InvokeStaticOrDirect [ <<ClinitCheck>> ]
 
   // CHECK-START: void Main.invokeStaticNotInlined() inliner (after)
-  // CHECK-DAG:     [[LoadClass:l\d+]]    LoadClass
-  // CHECK-DAG:     [[ClinitCheck:l\d+]]  ClinitCheck [ [[LoadClass]] ]
-  // CHECK-DAG:                           InvokeStaticOrDirect [ [[ClinitCheck]] ]
+  // CHECK-DAG:     <<LoadClass:l\d+>>    LoadClass
+  // CHECK-DAG:     <<ClinitCheck:l\d+>>  ClinitCheck [ <<LoadClass>> ]
+  // CHECK-DAG:                           InvokeStaticOrDirect [ <<ClinitCheck>> ]
 
   // The following checks ensure the clinit check and load class
   // instructions added by the builder are pruned by the

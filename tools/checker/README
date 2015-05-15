@@ -11,7 +11,7 @@ Assertions are tested in groups which correspond to the individual compiler
 passes. Each group of check lines therefore must start with a 'CHECK-START'
 header which specifies the output group it should be tested against. The group
 name must exactly match one of the groups recognized in the output (they can
-be listed with the '--list-groups' command-line flag).
+be listed with the '--list-passes' command-line flag).
 
 Matching of check lines is carried out in the order of appearance in the
 source file. There are three types of check lines:
@@ -38,7 +38,7 @@ enclosed in round brackets. For example, the pattern '{{foo{2}}}' will parse
 the invalid regex 'foo{2', but '{{(fo{2})}}' will match 'foo'.
 
 Regex patterns can be named and referenced later. A new variable is defined
-with '[[name:regex]]' and can be referenced with '[[name]]'. Variables are
+with '<<name:regex>>' and can be referenced with '<<name>>'. Variables are
 only valid within the scope of the defining group. Within a group they cannot
 be redefined or used undefined.
 
@@ -46,8 +46,8 @@ Example:
   The following assertions can be placed in a Java source file:
 
   // CHECK-START: int MyClass.MyMethod() constant_folding (after)
-  // CHECK:         [[ID:i\d+]]  IntConstant {{11|22}}
-  // CHECK:                      Return [ [[ID]] ]
+  // CHECK:         <<ID:i\d+>>  IntConstant {{11|22}}
+  // CHECK:                      Return [ <<ID>> ]
 
   The engine will attempt to match the check lines against the output of the
   group named on the first line. Together they verify that the CFG after
