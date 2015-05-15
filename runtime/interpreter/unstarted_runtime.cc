@@ -755,6 +755,64 @@ static void UnstartedSecurityGetSecurityPropertiesReader(
   result->SetL(h_obj.Get());
 }
 
+// This allows reading the new style of String objects during compilation.
+static void UnstartedStringGetCharsNoCheck(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result ATTRIBUTE_UNUSED, size_t arg_offset)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  jint start = shadow_frame->GetVReg(arg_offset + 1);
+  jint end = shadow_frame->GetVReg(arg_offset + 2);
+  jint index = shadow_frame->GetVReg(arg_offset + 4);
+  mirror::String* string = shadow_frame->GetVRegReference(arg_offset)->AsString();
+  if (string == nullptr) {
+    AbortTransactionOrFail(self, "String.getCharsNoCheck with null object");
+    return;
+  }
+  StackHandleScope<1> hs(self);
+  Handle<mirror::CharArray> h_char_array(hs.NewHandle(shadow_frame->GetVRegReference(arg_offset + 3)->AsCharArray()));
+  string->GetChars(start, end, h_char_array, index);
+}
+
+// This allows reading chars from the new style of String objects during compilation.
+static void UnstartedStringCharAt(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  jint index = shadow_frame->GetVReg(arg_offset + 1);
+  mirror::String* string = shadow_frame->GetVRegReference(arg_offset)->AsString();
+  if (string == nullptr) {
+    AbortTransactionOrFail(self, "String.charAt with null object");
+    return;
+  }
+  result->SetC(string->CharAt(index));
+}
+
+// This allows creating the new style of String objects during compilation.
+static void UnstartedStringFactoryNewStringFromChars(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  jint offset = shadow_frame->GetVReg(arg_offset);
+  jint char_count = shadow_frame->GetVReg(arg_offset + 1);
+  DCHECK_GE(char_count, 0);
+  StackHandleScope<1> hs(self);
+  Handle<mirror::CharArray> h_char_array(hs.NewHandle(shadow_frame->GetVRegReference(arg_offset + 2)->AsCharArray()));
+  Runtime* runtime = Runtime::Current();
+  gc::AllocatorType allocator = runtime->GetHeap()->GetCurrentAllocator();
+  result->SetL(mirror::String::AllocFromCharArray<true>(self, char_count, h_char_array, offset, allocator));
+}
+
+// This allows creating the new style of String objects during compilation.
+static void UnstartedStringFastSubstring(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  jint start = shadow_frame->GetVReg(arg_offset + 1);
+  jint length = shadow_frame->GetVReg(arg_offset + 2);
+  DCHECK_GE(length, 0);
+  StackHandleScope<1> hs(self);
+  Handle<mirror::String> h_string(hs.NewHandle(shadow_frame->GetVRegReference(arg_offset)->AsString()));
+  Runtime* runtime = Runtime::Current();
+  gc::AllocatorType allocator = runtime->GetHeap()->GetCurrentAllocator();
+  result->SetL(mirror::String::AllocFromString<true>(self, length, h_string, start, allocator));
+}
+
 static void UnstartedJNIVMRuntimeNewUnpaddedArray(Thread* self,
                                                   mirror::ArtMethod* method ATTRIBUTE_UNUSED,
                                                   mirror::Object* receiver ATTRIBUTE_UNUSED,
@@ -1079,6 +1137,14 @@ static void UnstartedRuntimeInitializeInvokeHandlers() {
           &UnstartedMemoryPeekArrayEntry },
       { "java.io.Reader java.security.Security.getSecurityPropertiesReader()",
           &UnstartedSecurityGetSecurityPropertiesReader },
+      { "void java.lang.String.getCharsNoCheck(int, int, char[], int)",
+          &UnstartedStringGetCharsNoCheck },
+      { "char java.lang.String.charAt(int)",
+          &UnstartedStringCharAt },
+      { "java.lang.String java.lang.StringFactory.newStringFromChars(int, int, char[])",
+          &UnstartedStringFactoryNewStringFromChars },
+      { "java.lang.String java.lang.String.fastSubstring(int, int)",
+          &UnstartedStringFastSubstring },
   };
 
   for (auto& def : defs) {
