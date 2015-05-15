@@ -107,7 +107,7 @@ bool FdFile::Open(const std::string& path, int flags, mode_t mode) {
 }
 
 int FdFile::Close() {
-  int result = TEMP_FAILURE_RETRY(close(fd_));
+  int result = close(fd_);
 
   // Test here, so the file is closed and not leaked.
   if (kCheckSafeUsage) {
