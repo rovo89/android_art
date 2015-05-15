@@ -396,11 +396,11 @@ void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
 }
 
 void CodeGeneratorX86_64::DumpCoreRegister(std::ostream& stream, int reg) const {
-  stream << X86_64ManagedRegister::FromCpuRegister(Register(reg));
+  stream << Register(reg);
 }
 
 void CodeGeneratorX86_64::DumpFloatingPointRegister(std::ostream& stream, int reg) const {
-  stream << X86_64ManagedRegister::FromXmmRegister(FloatRegister(reg));
+  stream << FloatRegister(reg);
 }
 
 size_t CodeGeneratorX86_64::SaveCoreRegister(size_t stack_index, uint32_t reg_id) {

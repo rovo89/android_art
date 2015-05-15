@@ -691,11 +691,11 @@ size_t CodeGeneratorARM64::RestoreFloatingPointRegister(size_t stack_index, uint
 }
 
 void CodeGeneratorARM64::DumpCoreRegister(std::ostream& stream, int reg) const {
-  stream << Arm64ManagedRegister::FromXRegister(XRegister(reg));
+  stream << XRegister(reg);
 }
 
 void CodeGeneratorARM64::DumpFloatingPointRegister(std::ostream& stream, int reg) const {
-  stream << Arm64ManagedRegister::FromDRegister(DRegister(reg));
+  stream << DRegister(reg);
 }
 
 void CodeGeneratorARM64::MoveConstant(CPURegister destination, HConstant* constant) {
