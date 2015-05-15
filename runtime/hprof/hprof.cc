@@ -1150,13 +1150,20 @@ void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass) {
   // Output native value character array for strings.
   if (orig_klass->IsStringClass()) {
     mirror::String* s = obj->AsString();
-    __ AddObjectId(reinterpret_cast<mirror::Object*>(s->GetValue()));
+    mirror::Object* value;
+    if (s->GetLength() == 0) {
+      // If string is empty, use an object-aligned address within the string for the value.
+      value = reinterpret_cast<mirror::Object*>(reinterpret_cast<uintptr_t>(s) + kObjectAlignment);
+    } else {
+      value = reinterpret_cast<mirror::Object*>(s->GetValue());
+    }
+    __ AddObjectId(value);
 
     // Patch the instance field length.
     __ UpdateU4(size_patch_offset, output_->Length() - (size_patch_offset + 4));
 
     __ AddU1(HPROF_PRIMITIVE_ARRAY_DUMP);
-    __ AddObjectId(reinterpret_cast<mirror::Object*>(s->GetValue()));
+    __ AddObjectId(value);
     __ AddU4(StackTraceSerialNumber(obj));
     __ AddU4(s->GetLength());
     __ AddU1(hprof_basic_char);
