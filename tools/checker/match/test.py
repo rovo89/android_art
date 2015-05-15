@@ -58,40 +58,40 @@ class MatchLines_Test(unittest.TestCase):
     self.assertFalse(self.matches("foo{{A|B}}bar", "fooCbar"))
 
   def test_VariableReference(self):
-    self.assertTrue(self.matches("foo[[X]]bar", "foobar", {"X": ""}))
-    self.assertTrue(self.matches("foo[[X]]bar", "fooAbar", {"X": "A"}))
-    self.assertTrue(self.matches("foo[[X]]bar", "fooBbar", {"X": "B"}))
-    self.assertFalse(self.matches("foo[[X]]bar", "foobar", {"X": "A"}))
-    self.assertFalse(self.matches("foo[[X]]bar", "foo bar", {"X": "A"}))
+    self.assertTrue(self.matches("foo<<X>>bar", "foobar", {"X": ""}))
+    self.assertTrue(self.matches("foo<<X>>bar", "fooAbar", {"X": "A"}))
+    self.assertTrue(self.matches("foo<<X>>bar", "fooBbar", {"X": "B"}))
+    self.assertFalse(self.matches("foo<<X>>bar", "foobar", {"X": "A"}))
+    self.assertFalse(self.matches("foo<<X>>bar", "foo bar", {"X": "A"}))
     with self.assertRaises(CheckerException):
-      self.assertTrue(self.matches("foo[[X]]bar", "foobar", {}))
+      self.assertTrue(self.matches("foo<<X>>bar", "foobar", {}))
 
   def test_VariableDefinition(self):
-    self.assertTrue(self.matches("foo[[X:A|B]]bar", "fooAbar"))
-    self.assertTrue(self.matches("foo[[X:A|B]]bar", "fooBbar"))
-    self.assertFalse(self.matches("foo[[X:A|B]]bar", "fooCbar"))
+    self.assertTrue(self.matches("foo<<X:A|B>>bar", "fooAbar"))
+    self.assertTrue(self.matches("foo<<X:A|B>>bar", "fooBbar"))
+    self.assertFalse(self.matches("foo<<X:A|B>>bar", "fooCbar"))
 
-    env = self.tryMatch("foo[[X:A.*B]]bar", "fooABbar", {})
+    env = self.tryMatch("foo<<X:A.*B>>bar", "fooABbar", {})
     self.assertEqual(env, {"X": "AB"})
-    env = self.tryMatch("foo[[X:A.*B]]bar", "fooAxxBbar", {})
+    env = self.tryMatch("foo<<X:A.*B>>bar", "fooAxxBbar", {})
     self.assertEqual(env, {"X": "AxxB"})
 
-    self.assertTrue(self.matches("foo[[X:A|B]]bar[[X]]baz", "fooAbarAbaz"))
-    self.assertTrue(self.matches("foo[[X:A|B]]bar[[X]]baz", "fooBbarBbaz"))
-    self.assertFalse(self.matches("foo[[X:A|B]]bar[[X]]baz", "fooAbarBbaz"))
+    self.assertTrue(self.matches("foo<<X:A|B>>bar<<X>>baz", "fooAbarAbaz"))
+    self.assertTrue(self.matches("foo<<X:A|B>>bar<<X>>baz", "fooBbarBbaz"))
+    self.assertFalse(self.matches("foo<<X:A|B>>bar<<X>>baz", "fooAbarBbaz"))
 
   def test_NoVariableRedefinition(self):
     with self.assertRaises(CheckerException):
-      self.matches("[[X:...]][[X]][[X:...]][[X]]", "foofoobarbar")
+      self.matches("<<X:...>><<X>><<X:...>><<X>>", "foofoobarbar")
 
   def test_EnvNotChangedOnPartialMatch(self):
     env = {"Y": "foo"}
-    self.assertFalse(self.matches("[[X:A]]bar", "Abaz", env))
+    self.assertFalse(self.matches("<<X:A>>bar", "Abaz", env))
     self.assertFalse("X" in env.keys())
 
   def test_VariableContentEscaped(self):
-    self.assertTrue(self.matches("[[X:..]]foo[[X]]", ".*foo.*"))
-    self.assertFalse(self.matches("[[X:..]]foo[[X]]", ".*fooAAAA"))
+    self.assertTrue(self.matches("<<X:..>>foo<<X>>", ".*foo.*"))
+    self.assertFalse(self.matches("<<X:..>>foo<<X>>", ".*fooAAAA"))
 
 
 class MatchFiles_Test(unittest.TestCase):
@@ -133,8 +133,8 @@ class MatchFiles_Test(unittest.TestCase):
   def test_Variables(self):
     self.assertTrue(self.matches(
     """
-      // CHECK: foo[[X:.]]bar
-      // CHECK: abc[[X]]def
+      // CHECK: foo<<X:.>>bar
+      // CHECK: abc<<X>>def
     """,
     """
       foo bar
@@ -142,9 +142,9 @@ class MatchFiles_Test(unittest.TestCase):
     """))
     self.assertTrue(self.matches(
     """
-      // CHECK: foo[[X:([0-9]+)]]bar
-      // CHECK: abc[[X]]def
-      // CHECK: ### [[X]] ###
+      // CHECK: foo<<X:([0-9]+)>>bar
+      // CHECK: abc<<X>>def
+      // CHECK: ### <<X>> ###
     """,
     """
       foo1234bar
@@ -153,8 +153,8 @@ class MatchFiles_Test(unittest.TestCase):
     """))
     self.assertFalse(self.matches(
     """
-      // CHECK: foo[[X:([0-9]+)]]bar
-      // CHECK: abc[[X]]def
+      // CHECK: foo<<X:([0-9]+)>>bar
+      // CHECK: abc<<X>>def
     """,
     """
       foo1234bar
