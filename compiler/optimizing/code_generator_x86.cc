@@ -340,11 +340,11 @@ inline Condition X86Condition(IfCondition cond) {
 }
 
 void CodeGeneratorX86::DumpCoreRegister(std::ostream& stream, int reg) const {
-  stream << X86ManagedRegister::FromCpuRegister(Register(reg));
+  stream << Register(reg);
 }
 
 void CodeGeneratorX86::DumpFloatingPointRegister(std::ostream& stream, int reg) const {
-  stream << X86ManagedRegister::FromXmmRegister(XmmRegister(reg));
+  stream << XmmRegister(reg);
 }
 
 size_t CodeGeneratorX86::SaveCoreRegister(size_t stack_index, uint32_t reg_id) {
