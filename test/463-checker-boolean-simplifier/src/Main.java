@@ -38,12 +38,12 @@ public class Main {
    */
 
   // CHECK-START: boolean Main.BooleanNot(boolean) boolean_simplifier (before)
-  // CHECK-DAG:     [[Param:z\d+]]    ParameterValue
-  // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
-  // CHECK-DAG:     [[Const1:i\d+]]   IntConstant 1
-  // CHECK-DAG:                       If [ [[Param]] ]
-  // CHECK-DAG:     [[Phi:i\d+]]      Phi [ [[Const1]] [[Const0]] ]
-  // CHECK-DAG:                       Return [ [[Phi]] ]
+  // CHECK-DAG:     <<Param:z\d+>>    ParameterValue
+  // CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
+  // CHECK-DAG:     <<Const1:i\d+>>   IntConstant 1
+  // CHECK-DAG:                       If [ <<Param>> ]
+  // CHECK-DAG:     <<Phi:i\d+>>      Phi [ <<Const1>> <<Const0>> ]
+  // CHECK-DAG:                       Return [ <<Phi>> ]
 
   // CHECK-START: boolean Main.BooleanNot(boolean) boolean_simplifier (before)
   // CHECK:                           Goto
@@ -52,10 +52,10 @@ public class Main {
   // CHECK-NOT:                       Goto
 
   // CHECK-START: boolean Main.BooleanNot(boolean) boolean_simplifier (after)
-  // CHECK-DAG:     [[Param:z\d+]]    ParameterValue
-  // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
-  // CHECK-DAG:     [[NotParam:z\d+]] BooleanNot [ [[Param]] ]
-  // CHECK-DAG:                       Return [ [[NotParam]] ]
+  // CHECK-DAG:     <<Param:z\d+>>    ParameterValue
+  // CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
+  // CHECK-DAG:     <<NotParam:z\d+>> BooleanNot [ <<Param>> ]
+  // CHECK-DAG:                       Return [ <<NotParam>> ]
 
   // CHECK-START: boolean Main.BooleanNot(boolean) boolean_simplifier (after)
   // CHECK-NOT:                       If
@@ -75,22 +75,22 @@ public class Main {
    */
 
   // CHECK-START: boolean Main.GreaterThan(int, int) boolean_simplifier (before)
-  // CHECK-DAG:     [[ParamX:i\d+]]   ParameterValue
-  // CHECK-DAG:     [[ParamY:i\d+]]   ParameterValue
-  // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
-  // CHECK-DAG:     [[Const1:i\d+]]   IntConstant 1
-  // CHECK-DAG:     [[Cond:z\d+]]     GreaterThan [ [[ParamX]] [[ParamY]] ]
-  // CHECK-DAG:                       If [ [[Cond]] ]
-  // CHECK-DAG:     [[Phi:i\d+]]      Phi [ [[Const0]] [[Const1]] ]
-  // CHECK-DAG:                       Return [ [[Phi]] ]
+  // CHECK-DAG:     <<ParamX:i\d+>>   ParameterValue
+  // CHECK-DAG:     <<ParamY:i\d+>>   ParameterValue
+  // CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
+  // CHECK-DAG:     <<Const1:i\d+>>   IntConstant 1
+  // CHECK-DAG:     <<Cond:z\d+>>     GreaterThan [ <<ParamX>> <<ParamY>> ]
+  // CHECK-DAG:                       If [ <<Cond>> ]
+  // CHECK-DAG:     <<Phi:i\d+>>      Phi [ <<Const0>> <<Const1>> ]
+  // CHECK-DAG:                       Return [ <<Phi>> ]
 
   // CHECK-START: boolean Main.GreaterThan(int, int) boolean_simplifier (after)
-  // CHECK-DAG:     [[ParamX:i\d+]]   ParameterValue
-  // CHECK-DAG:     [[ParamY:i\d+]]   ParameterValue
-  // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
-  // CHECK-DAG:     [[Const1:i\d+]]   IntConstant 1
-  // CHECK-DAG:     [[Cond:z\d+]]     GreaterThan [ [[ParamX]] [[ParamY]] ]
-  // CHECK-DAG:                       Return [ [[Cond]] ]
+  // CHECK-DAG:     <<ParamX:i\d+>>   ParameterValue
+  // CHECK-DAG:     <<ParamY:i\d+>>   ParameterValue
+  // CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
+  // CHECK-DAG:     <<Const1:i\d+>>   IntConstant 1
+  // CHECK-DAG:     <<Cond:z\d+>>     GreaterThan [ <<ParamX>> <<ParamY>> ]
+  // CHECK-DAG:                       Return [ <<Cond>> ]
 
   public static boolean GreaterThan(int x, int y) {
     return (x <= y) ? false : true;
@@ -102,22 +102,22 @@ public class Main {
    */
 
   // CHECK-START: boolean Main.LessThan(int, int) boolean_simplifier (before)
-  // CHECK-DAG:     [[ParamX:i\d+]]   ParameterValue
-  // CHECK-DAG:     [[ParamY:i\d+]]   ParameterValue
-  // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
-  // CHECK-DAG:     [[Const1:i\d+]]   IntConstant 1
-  // CHECK-DAG:     [[Cond:z\d+]]     GreaterThanOrEqual [ [[ParamX]] [[ParamY]] ]
-  // CHECK-DAG:                       If [ [[Cond]] ]
-  // CHECK-DAG:     [[Phi:i\d+]]      Phi [ [[Const1]] [[Const0]] ]
-  // CHECK-DAG:                       Return [ [[Phi]] ]
+  // CHECK-DAG:     <<ParamX:i\d+>>   ParameterValue
+  // CHECK-DAG:     <<ParamY:i\d+>>   ParameterValue
+  // CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
+  // CHECK-DAG:     <<Const1:i\d+>>   IntConstant 1
+  // CHECK-DAG:     <<Cond:z\d+>>     GreaterThanOrEqual [ <<ParamX>> <<ParamY>> ]
+  // CHECK-DAG:                       If [ <<Cond>> ]
+  // CHECK-DAG:     <<Phi:i\d+>>      Phi [ <<Const1>> <<Const0>> ]
+  // CHECK-DAG:                       Return [ <<Phi>> ]
 
   // CHECK-START: boolean Main.LessThan(int, int) boolean_simplifier (after)
-  // CHECK-DAG:     [[ParamX:i\d+]]   ParameterValue
-  // CHECK-DAG:     [[ParamY:i\d+]]   ParameterValue
-  // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
-  // CHECK-DAG:     [[Const1:i\d+]]   IntConstant 1
-  // CHECK-DAG:     [[Cond:z\d+]]     LessThan [ [[ParamX]] [[ParamY]] ]
-  // CHECK-DAG:                       Return [ [[Cond]] ]
+  // CHECK-DAG:     <<ParamX:i\d+>>   ParameterValue
+  // CHECK-DAG:     <<ParamY:i\d+>>   ParameterValue
+  // CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
+  // CHECK-DAG:     <<Const1:i\d+>>   IntConstant 1
+  // CHECK-DAG:     <<Cond:z\d+>>     LessThan [ <<ParamX>> <<ParamY>> ]
+  // CHECK-DAG:                       Return [ <<Cond>> ]
 
   // CHECK-START: boolean Main.LessThan(int, int) boolean_simplifier (after)
   // CHECK-NOT:                       GreaterThanOrEqual
@@ -132,51 +132,51 @@ public class Main {
    */
 
   // CHECK-START: boolean Main.ValuesOrdered(int, int, int) boolean_simplifier (before)
-  // CHECK-DAG:     [[ParamX:i\d+]]   ParameterValue
-  // CHECK-DAG:     [[ParamY:i\d+]]   ParameterValue
-  // CHECK-DAG:     [[ParamZ:i\d+]]   ParameterValue
-  // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
-  // CHECK-DAG:     [[Const1:i\d+]]   IntConstant 1
-  // CHECK-DAG:     [[CondXY:z\d+]]   GreaterThan [ [[ParamX]] [[ParamY]] ]
-  // CHECK-DAG:                       If [ [[CondXY]] ]
-  // CHECK-DAG:     [[CondYZ:z\d+]]   GreaterThan [ [[ParamY]] [[ParamZ]] ]
-  // CHECK-DAG:                       If [ [[CondYZ]] ]
-  // CHECK-DAG:     [[CondXYZ:z\d+]]  NotEqual [ [[PhiXY:i\d+]] [[PhiYZ:i\d+]] ]
-  // CHECK-DAG:                       If [ [[CondXYZ]] ]
-  // CHECK-DAG:                       Return [ [[PhiXYZ:i\d+]] ]
-  // CHECK-DAG:     [[PhiXY]]         Phi [ [[Const1]] [[Const0]] ]
-  // CHECK-DAG:     [[PhiYZ]]         Phi [ [[Const1]] [[Const0]] ]
-  // CHECK-DAG:     [[PhiXYZ]]        Phi [ [[Const1]] [[Const0]] ]
+  // CHECK-DAG:     <<ParamX:i\d+>>   ParameterValue
+  // CHECK-DAG:     <<ParamY:i\d+>>   ParameterValue
+  // CHECK-DAG:     <<ParamZ:i\d+>>   ParameterValue
+  // CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
+  // CHECK-DAG:     <<Const1:i\d+>>   IntConstant 1
+  // CHECK-DAG:     <<CondXY:z\d+>>   GreaterThan [ <<ParamX>> <<ParamY>> ]
+  // CHECK-DAG:                       If [ <<CondXY>> ]
+  // CHECK-DAG:     <<CondYZ:z\d+>>   GreaterThan [ <<ParamY>> <<ParamZ>> ]
+  // CHECK-DAG:                       If [ <<CondYZ>> ]
+  // CHECK-DAG:     <<CondXYZ:z\d+>>  NotEqual [ <<PhiXY:i\d+>> <<PhiYZ:i\d+>> ]
+  // CHECK-DAG:                       If [ <<CondXYZ>> ]
+  // CHECK-DAG:                       Return [ <<PhiXYZ:i\d+>> ]
+  // CHECK-DAG:     <<PhiXY>>         Phi [ <<Const1>> <<Const0>> ]
+  // CHECK-DAG:     <<PhiYZ>>         Phi [ <<Const1>> <<Const0>> ]
+  // CHECK-DAG:     <<PhiXYZ>>        Phi [ <<Const1>> <<Const0>> ]
 
   // CHECK-START: boolean Main.ValuesOrdered(int, int, int) boolean_simplifier (after)
-  // CHECK-DAG:     [[ParamX:i\d+]]   ParameterValue
-  // CHECK-DAG:     [[ParamY:i\d+]]   ParameterValue
-  // CHECK-DAG:     [[ParamZ:i\d+]]   ParameterValue
-  // CHECK-DAG:     [[CmpXY:z\d+]]    LessThanOrEqual [ [[ParamX]] [[ParamY]] ]
-  // CHECK-DAG:     [[CmpYZ:z\d+]]    LessThanOrEqual [ [[ParamY]] [[ParamZ]] ]
-  // CHECK-DAG:     [[CmpXYZ:z\d+]]   Equal [ [[CmpXY]] [[CmpYZ]] ]
-  // CHECK-DAG:                       Return [ [[CmpXYZ]] ]
+  // CHECK-DAG:     <<ParamX:i\d+>>   ParameterValue
+  // CHECK-DAG:     <<ParamY:i\d+>>   ParameterValue
+  // CHECK-DAG:     <<ParamZ:i\d+>>   ParameterValue
+  // CHECK-DAG:     <<CmpXY:z\d+>>    LessThanOrEqual [ <<ParamX>> <<ParamY>> ]
+  // CHECK-DAG:     <<CmpYZ:z\d+>>    LessThanOrEqual [ <<ParamY>> <<ParamZ>> ]
+  // CHECK-DAG:     <<CmpXYZ:z\d+>>   Equal [ <<CmpXY>> <<CmpYZ>> ]
+  // CHECK-DAG:                       Return [ <<CmpXYZ>> ]
 
   public static boolean ValuesOrdered(int x, int y, int z) {
     return (x <= y) == (y <= z);
   }
 
   // CHECK-START: int Main.NegatedCondition(boolean) boolean_simplifier (before)
-  // CHECK-DAG:     [[Param:z\d+]]    ParameterValue
-  // CHECK-DAG:     [[Const42:i\d+]]  IntConstant 42
-  // CHECK-DAG:     [[Const43:i\d+]]  IntConstant 43
-  // CHECK-DAG:     [[NotParam:z\d+]] BooleanNot [ [[Param]] ]
-  // CHECK-DAG:                       If [ [[NotParam]] ]
-  // CHECK-DAG:     [[Phi:i\d+]]      Phi [ [[Const42]] [[Const43]] ]
-  // CHECK-DAG:                       Return [ [[Phi]] ]
+  // CHECK-DAG:     <<Param:z\d+>>    ParameterValue
+  // CHECK-DAG:     <<Const42:i\d+>>  IntConstant 42
+  // CHECK-DAG:     <<Const43:i\d+>>  IntConstant 43
+  // CHECK-DAG:     <<NotParam:z\d+>> BooleanNot [ <<Param>> ]
+  // CHECK-DAG:                       If [ <<NotParam>> ]
+  // CHECK-DAG:     <<Phi:i\d+>>      Phi [ <<Const42>> <<Const43>> ]
+  // CHECK-DAG:                       Return [ <<Phi>> ]
 
   // CHECK-START: int Main.NegatedCondition(boolean) boolean_simplifier (after)
-  // CHECK-DAG:     [[Param:z\d+]]    ParameterValue
-  // CHECK-DAG:     [[Const42:i\d+]]  IntConstant 42
-  // CHECK-DAG:     [[Const43:i\d+]]  IntConstant 43
-  // CHECK-DAG:                       If [ [[Param]] ]
-  // CHECK-DAG:     [[Phi:i\d+]]      Phi [ [[Const42]] [[Const43]] ]
-  // CHECK-DAG:                       Return [ [[Phi]] ]
+  // CHECK-DAG:     <<Param:z\d+>>    ParameterValue
+  // CHECK-DAG:     <<Const42:i\d+>>  IntConstant 42
+  // CHECK-DAG:     <<Const43:i\d+>>  IntConstant 43
+  // CHECK-DAG:                       If [ <<Param>> ]
+  // CHECK-DAG:     <<Phi:i\d+>>      Phi [ <<Const42>> <<Const43>> ]
+  // CHECK-DAG:                       Return [ <<Phi>> ]
 
   // Note: The fact that branches are swapped is verified by running the test.
 
