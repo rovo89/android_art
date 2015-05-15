@@ -48,8 +48,7 @@ class StringList {
   // Construct StringList from a linked list. List element class T
   // must provide methods `GetNext` and `Dump`.
   template<class T>
-  StringList(T* first_entry)
-    : StringList() {
+  explicit StringList(T* first_entry) : StringList() {
     for (T* current = first_entry; current != nullptr; current = current->GetNext()) {
       current->Dump(NewEntryStream());
     }
