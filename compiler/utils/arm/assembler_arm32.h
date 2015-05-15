@@ -90,6 +90,8 @@ class Arm32Assembler FINAL : public ArmAssembler {
            Condition cond = AL) OVERRIDE;
   void mls(Register rd, Register rn, Register rm, Register ra,
            Condition cond = AL) OVERRIDE;
+  void smull(Register rd_lo, Register rd_hi, Register rn, Register rm,
+             Condition cond = AL) OVERRIDE;
   void umull(Register rd_lo, Register rd_hi, Register rn, Register rm,
              Condition cond = AL) OVERRIDE;
 
