@@ -36,16 +36,69 @@ class Object;
 
 namespace interpreter {
 
-void UnstartedRuntimeInitialize();
+// Support for an unstarted runtime. These are special handwritten implementations for select
+// libcore native and non-native methods so we can compile-time initialize classes in the boot
+// image.
+//
+// While it would technically be OK to only expose the public functions, a class was chosen to
+// wrap this so the actual implementations are exposed for testing. This is also why the private
+// methods are not documented here - they are not intended to be used directly except in
+// testing.
 
-void UnstartedRuntimeInvoke(Thread* self, const DexFile::CodeItem* code_item,
-                            ShadowFrame* shadow_frame,
-                            JValue* result, size_t arg_offset)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+class UnstartedRuntime {
+ public:
+  static void Initialize();
 
-void UnstartedRuntimeJni(Thread* self, mirror::ArtMethod* method, mirror::Object* receiver,
-                         uint32_t* args, JValue* result)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static void Invoke(Thread* self,
+                     const DexFile::CodeItem* code_item,
+                     ShadowFrame* shadow_frame,
+                     JValue* result,
+                     size_t arg_offset)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static void Jni(Thread* self,
+                  mirror::ArtMethod* method,
+                  mirror::Object* receiver,
+                  uint32_t* args,
+                  JValue* result)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+ private:
+  // Methods that intercept available libcore implementations.
+#define UNSTARTED_DIRECT(ShortName, SigIgnored)                 \
+  static void Unstarted ## ShortName(Thread* self,              \
+                                     ShadowFrame* shadow_frame, \
+                                     JValue* result,            \
+                                     size_t arg_offset)         \
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+#include "unstarted_runtime_list.h"
+  UNSTARTED_RUNTIME_DIRECT_LIST(UNSTARTED_DIRECT)
+#undef UNSTARTED_RUNTIME_DIRECT_LIST
+#undef UNSTARTED_RUNTIME_JNI_LIST
+#undef UNSTARTED_DIRECT
+
+  // Methods that are native.
+#define UNSTARTED_JNI(ShortName, SigIgnored)                       \
+  static void UnstartedJNI ## ShortName(Thread* self,              \
+                                        mirror::ArtMethod* method, \
+                                        mirror::Object* receiver,  \
+                                        uint32_t* args,            \
+                                        JValue* result)            \
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+#include "unstarted_runtime_list.h"
+  UNSTARTED_RUNTIME_JNI_LIST(UNSTARTED_JNI)
+#undef UNSTARTED_RUNTIME_DIRECT_LIST
+#undef UNSTARTED_RUNTIME_JNI_LIST
+#undef UNSTARTED_JNI
+
+  static void InitializeInvokeHandlers();
+  static void InitializeJNIHandlers();
+
+  friend class UnstartedRuntimeTest;
+
+  DISALLOW_ALLOCATION();
+  DISALLOW_COPY_AND_ASSIGN(UnstartedRuntime);
+};
 
 }  // namespace interpreter
 }  // namespace art
