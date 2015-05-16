@@ -163,6 +163,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/instrumentation_test.cc \
   runtime/intern_table_test.cc \
   runtime/interpreter/safe_math_test.cc \
+  runtime/interpreter/unstarted_runtime_test.cc \
   runtime/java_vm_ext_test.cc \
   runtime/jit/jit_code_cache_test.cc \
   runtime/leb128_test.cc \
