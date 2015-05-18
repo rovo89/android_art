@@ -42,18 +42,13 @@ static bool HasWhitespace(const char* str) {
 
 class StringList {
  public:
-  enum Format {
-    kArrayBrackets,
-    kSetBrackets,
-  };
-
   // Create an empty list
-  StringList(Format format = kArrayBrackets) : format_(format), is_empty_(true) {}
+  StringList() : is_empty_(true) {}
 
   // Construct StringList from a linked list. List element class T
   // must provide methods `GetNext` and `Dump`.
   template<class T>
-  explicit StringList(T* first_entry, Format format = kArrayBrackets) : StringList(format) {
+  explicit StringList(T* first_entry) : StringList() {
     for (T* current = first_entry; current != nullptr; current = current->GetNext()) {
       current->Dump(NewEntryStream());
     }
@@ -69,7 +64,6 @@ class StringList {
   }
 
  private:
-  Format format_;
   bool is_empty_;
   std::ostringstream sstream_;
 
@@ -77,12 +71,7 @@ class StringList {
 };
 
 std::ostream& operator<<(std::ostream& os, const StringList& list) {
-  if (list.format_ == StringList::kArrayBrackets) {
-    return os << "[" << list.sstream_.str() << "]";
-  } else {
-    DCHECK_EQ(list.format_, StringList::kSetBrackets);
-    return os << "{" << list.sstream_.str() << "}";
-  }
+  return os << "[" << list.sstream_.str() << "]";
 }
 
 /**
@@ -302,8 +291,7 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
       StartAttributeStream("liveness") << instruction->GetLifetimePosition();
       if (instruction->HasLiveInterval()) {
         LiveInterval* interval = instruction->GetLiveInterval();
-        StartAttributeStream("ranges")
-            << StringList(interval->GetFirstRange(), StringList::kSetBrackets);
+        StartAttributeStream("ranges") << StringList(interval->GetFirstRange());
         StartAttributeStream("uses") << StringList(interval->GetFirstUse());
         StartAttributeStream("env_uses") << StringList(interval->GetFirstEnvironmentUse());
         StartAttributeStream("is_fixed") << interval->IsFixed();
