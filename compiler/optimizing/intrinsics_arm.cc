@@ -657,7 +657,8 @@ static void GenUnsafePut(LocationSummary* locations,
   if (type == Primitive::kPrimNot) {
     Register temp = locations->GetTemp(0).AsRegister<Register>();
     Register card = locations->GetTemp(1).AsRegister<Register>();
-    codegen->MarkGCCard(temp, card, base, value);
+    bool value_can_be_null = true;  // TODO: Worth finding out this information?
+    codegen->MarkGCCard(temp, card, base, value, value_can_be_null);
   }
 }
 
@@ -725,7 +726,8 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
   if (type == Primitive::kPrimNot) {
     // Mark card for object assuming new value is stored. Worst case we will mark an unchanged
     // object and scan the receiver at the next GC for nothing.
-    codegen->MarkGCCard(tmp_ptr, tmp_lo, base, value_lo);
+    bool value_can_be_null = true;  // TODO: Worth finding out this information?
+    codegen->MarkGCCard(tmp_ptr, tmp_lo, base, value_lo, value_can_be_null);
   }
 
   // Prevent reordering with prior memory operations.

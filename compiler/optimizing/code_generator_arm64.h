@@ -154,7 +154,9 @@ class InstructionCodeGeneratorARM64 : public HGraphVisitor {
   void GenerateMemoryBarrier(MemBarrierKind kind);
   void GenerateSuspendCheck(HSuspendCheck* instruction, HBasicBlock* successor);
   void HandleBinaryOp(HBinaryOperation* instr);
-  void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
+  void HandleFieldSet(HInstruction* instruction,
+                      const FieldInfo& field_info,
+                      bool value_can_be_null);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
   void HandleShift(HBinaryOperation* instr);
   void GenerateImplicitNullCheck(HNullCheck* instruction);
@@ -271,7 +273,7 @@ class CodeGeneratorARM64 : public CodeGenerator {
   vixl::MacroAssembler* GetVIXLAssembler() { return GetAssembler()->vixl_masm_; }
 
   // Emit a write barrier.
-  void MarkGCCard(vixl::Register object, vixl::Register value);
+  void MarkGCCard(vixl::Register object, vixl::Register value, bool value_can_be_null);
 
   // Register allocation.
 

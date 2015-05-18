@@ -605,16 +605,20 @@ Location CodeGeneratorARM64::GetStackLocation(HLoadLocal* load) const {
   return Location::NoLocation();
 }
 
-void CodeGeneratorARM64::MarkGCCard(Register object, Register value) {
+void CodeGeneratorARM64::MarkGCCard(Register object, Register value, bool value_can_be_null) {
   UseScratchRegisterScope temps(GetVIXLAssembler());
   Register card = temps.AcquireX();
   Register temp = temps.AcquireW();   // Index within the CardTable - 32bit.
   vixl::Label done;
-  __ Cbz(value, &done);
+  if (value_can_be_null) {
+    __ Cbz(value, &done);
+  }
   __ Ldr(card, MemOperand(tr, Thread::CardTableOffset<kArm64WordSize>().Int32Value()));
   __ Lsr(temp, object, gc::accounting::CardTable::kCardShift);
   __ Strb(card, MemOperand(card, temp.X()));
-  __ Bind(&done);
+  if (value_can_be_null) {
+    __ Bind(&done);
+  }
 }
 
 void CodeGeneratorARM64::SetupBlockedRegisters(bool is_baseline) const {
@@ -1169,7 +1173,8 @@ void LocationsBuilderARM64::HandleFieldSet(HInstruction* instruction) {
 }
 
 void InstructionCodeGeneratorARM64::HandleFieldSet(HInstruction* instruction,
-                                                   const FieldInfo& field_info) {
+                                                   const FieldInfo& field_info,
+                                                   bool value_can_be_null) {
   DCHECK(instruction->IsInstanceFieldSet() || instruction->IsStaticFieldSet());
   BlockPoolsScope block_pools(GetVIXLAssembler());
 
@@ -1195,7 +1200,7 @@ void InstructionCodeGeneratorARM64::HandleFieldSet(HInstruction* instruction,
   }
 
   if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->InputAt(1))) {
-    codegen_->MarkGCCard(obj, Register(value));
+    codegen_->MarkGCCard(obj, Register(value), value_can_be_null);
   }
 }
 
@@ -1421,7 +1426,7 @@ void InstructionCodeGeneratorARM64::VisitArraySet(HArraySet* instruction) {
       codegen_->MaybeRecordImplicitNullCheck(instruction);
     }
     if (CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue())) {
-      codegen_->MarkGCCard(obj, value.W());
+      codegen_->MarkGCCard(obj, value.W(), instruction->GetValueCanBeNull());
     }
   }
 }
@@ -1993,7 +1998,7 @@ void LocationsBuilderARM64::VisitInstanceFieldSet(HInstanceFieldSet* instruction
 }
 
 void InstructionCodeGeneratorARM64::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
-  HandleFieldSet(instruction, instruction->GetFieldInfo());
+  HandleFieldSet(instruction, instruction->GetFieldInfo(), instruction->GetValueCanBeNull());
 }
 
 void LocationsBuilderARM64::VisitInstanceOf(HInstanceOf* instruction) {
@@ -2736,7 +2741,7 @@ void LocationsBuilderARM64::VisitStaticFieldSet(HStaticFieldSet* instruction) {
 }
 
 void InstructionCodeGeneratorARM64::VisitStaticFieldSet(HStaticFieldSet* instruction) {
-  HandleFieldSet(instruction, instruction->GetFieldInfo());
+  HandleFieldSet(instruction, instruction->GetFieldInfo(), instruction->GetValueCanBeNull());
 }
 
 void LocationsBuilderARM64::VisitSuspendCheck(HSuspendCheck* instruction) {
