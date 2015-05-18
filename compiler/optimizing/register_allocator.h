@@ -140,7 +140,8 @@ class RegisterAllocator {
   void DumpInterval(std::ostream& stream, LiveInterval* interval) const;
   void DumpAllIntervals(std::ostream& stream) const;
   int FindAvailableRegisterPair(size_t* next_use, size_t starting_at) const;
-  int FindAvailableRegister(size_t* next_use) const;
+  int FindAvailableRegister(size_t* next_use, LiveInterval* current) const;
+  bool IsCallerSaveRegister(int reg) const;
 
   // Try splitting an active non-pair or unaligned pair interval at the given `position`.
   // Returns whether it was successful at finding such an interval.
