@@ -23,6 +23,7 @@
 #include <map>
 
 #include "base/casts.h"
+#include "handle.h"
 #include "jdwp/jdwp.h"
 #include "safe_map.h"
 
@@ -65,7 +66,19 @@ class ObjectRegistry {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
+
   JDWP::RefTypeId AddRefType(mirror::Class* c)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_);
+
+  template<class T>
+  JDWP::ObjectId Add(Handle<T> obj_h)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_);
+
+  JDWP::RefTypeId AddRefType(Handle<mirror::Class> c_h)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
@@ -98,7 +111,8 @@ class ObjectRegistry {
   jobject GetJObject(JDWP::ObjectId id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
-  JDWP::ObjectId InternalAdd(mirror::Object* o)
+  template<class T>
+  JDWP::ObjectId InternalAdd(Handle<T> obj_h)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(lock_,
                      Locks::thread_list_lock_,
