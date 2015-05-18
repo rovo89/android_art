@@ -257,21 +257,48 @@ void CodeInfo::Dump(std::ostream& os, uint16_t number_of_dex_registers) const {
     DumpStackMapHeader(os, i);
     if (stack_map.HasDexRegisterMap(*this)) {
       DexRegisterMap dex_register_map = GetDexRegisterMapOf(stack_map, number_of_dex_registers);
-      // TODO: Display the bit mask of live Dex registers.
-      for (size_t j = 0; j < number_of_dex_registers; ++j) {
-        if (dex_register_map.IsDexRegisterLive(j)) {
-          size_t location_catalog_entry_index = dex_register_map.GetLocationCatalogEntryIndex(
-              j, number_of_dex_registers, number_of_location_catalog_entries);
-          DexRegisterLocation location =
-              dex_register_map.GetDexRegisterLocation(j, number_of_dex_registers, *this);
-          DumpRegisterMapping(
-              os, j, location, "v",
-              "\t[entry " + std::to_string(static_cast<int>(location_catalog_entry_index)) + "]");
-        }
-      }
+      dex_register_map.Dump(os, *this, number_of_dex_registers);
     }
   }
-  // TODO: Dump the stack map's inline information.
+  // TODO: Dump the stack map's inline information? We need to know more from the caller:
+  //       we need to know the number of dex registers for each inlined method.
+}
+
+void DexRegisterMap::Dump(std::ostream& os,
+                          const CodeInfo& code_info,
+                          uint16_t number_of_dex_registers) const {
+  size_t number_of_location_catalog_entries =
+      code_info.GetNumberOfDexRegisterLocationCatalogEntries();
+  // TODO: Display the bit mask of live Dex registers.
+  for (size_t j = 0; j < number_of_dex_registers; ++j) {
+    if (IsDexRegisterLive(j)) {
+      size_t location_catalog_entry_index = GetLocationCatalogEntryIndex(
+          j, number_of_dex_registers, number_of_location_catalog_entries);
+      DexRegisterLocation location = GetDexRegisterLocation(j, number_of_dex_registers, code_info);
+      DumpRegisterMapping(
+          os, j, location, "v",
+          "\t[entry " + std::to_string(static_cast<int>(location_catalog_entry_index)) + "]");
+    }
+  }
+}
+
+void InlineInfo::Dump(std::ostream& os,
+                      const CodeInfo& code_info,
+                      uint16_t number_of_dex_registers[]) const {
+  os << "InlineInfo with depth " << static_cast<uint32_t>(GetDepth()) << "\n";
+
+  for (size_t i = 0; i < GetDepth(); ++i) {
+    os << " At depth " << i
+       << std::hex
+       << " (dex_pc=0x" << GetDexPcAtDepth(i)
+       << ", method_index=0x" << GetMethodIndexAtDepth(i)
+       << ")\n";
+    if (HasDexRegisterMapAtDepth(i)) {
+      DexRegisterMap dex_register_map =
+          code_info.GetDexRegisterMapAtDepth(i, *this, number_of_dex_registers[i]);
+      dex_register_map.Dump(os, code_info, number_of_dex_registers[i]);
+    }
+  }
 }
 
 }  // namespace art
