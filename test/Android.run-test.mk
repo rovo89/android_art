@@ -324,6 +324,7 @@ TEST_ART_BROKEN_NDEBUG_TESTS := \
   119-noimage-patchoat \
   131-structural-change \
   137-cfi \
+  139-register-natives \
   454-get-vreg \
   455-set-vreg \
   457-regs \

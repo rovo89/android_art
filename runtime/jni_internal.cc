@@ -311,6 +311,30 @@ static JavaVMExt* JavaVmExtFromEnv(JNIEnv* env) {
     return; \
   }
 
+template <bool kNative>
+static mirror::ArtMethod* FindMethod(mirror::Class* c,
+                                     const StringPiece& name,
+                                     const StringPiece& sig)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
+    mirror::ArtMethod* method = c->GetDirectMethod(i);
+    if (kNative == method->IsNative() &&
+        name == method->GetName() && method->GetSignature() == sig) {
+      return method;
+    }
+  }
+
+  for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
+    mirror::ArtMethod* method = c->GetVirtualMethod(i);
+    if (kNative == method->IsNative() &&
+        name == method->GetName() && method->GetSignature() == sig) {
+      return method;
+    }
+  }
+
+  return nullptr;
+}
+
 class JNI {
  public:
   static jint GetVersion(JNIEnv*) {
@@ -2133,10 +2157,33 @@ class JNI {
         ++sig;
       }
 
-      mirror::ArtMethod* m = c->FindDirectMethod(name, sig);
-      if (m == nullptr) {
-        m = c->FindVirtualMethod(name, sig);
+      // Note: the right order is to try to find the method locally
+      // first, either as a direct or a virtual method. Then move to
+      // the parent.
+      mirror::ArtMethod* m = nullptr;
+      bool warn_on_going_to_parent = down_cast<JNIEnvExt*>(env)->vm->IsCheckJniEnabled();
+      for (mirror::Class* current_class = c;
+           current_class != nullptr;
+           current_class = current_class->GetSuperClass()) {
+        // Search first only comparing methods which are native.
+        m = FindMethod<true>(current_class, name, sig);
+        if (m != nullptr) {
+          break;
+        }
+
+        // Search again comparing to all methods, to find non-native methods that match.
+        m = FindMethod<false>(current_class, name, sig);
+        if (m != nullptr) {
+          break;
+        }
+
+        if (warn_on_going_to_parent) {
+          LOG(WARNING) << "CheckJNI: method to register \"" << name << "\" not in the given class. "
+                       << "This is slow, consider changing your RegisterNatives calls.";
+          warn_on_going_to_parent = false;
+        }
       }
+
       if (m == nullptr) {
         LOG(return_errors ? ERROR : INTERNAL_FATAL) << "Failed to register native method "
             << PrettyDescriptor(c) << "." << name << sig << " in "
