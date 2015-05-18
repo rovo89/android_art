@@ -72,6 +72,7 @@ class StackMapStream : public ValueObject {
         number_of_stack_maps_with_inline_info_(0),
         dex_map_hash_to_stack_map_indices_(std::less<uint32_t>(), allocator->Adapter()),
         current_entry_(),
+        current_inline_info_(),
         stack_mask_size_(0),
         inline_info_size_(0),
         dex_register_maps_size_(0),
@@ -81,7 +82,9 @@ class StackMapStream : public ValueObject {
         stack_maps_start_(0),
         dex_register_maps_start_(0),
         inline_infos_start_(0),
-        needed_size_(0) {}
+        needed_size_(0),
+        current_dex_register_(0),
+        in_inline_frame_(false) {}
 
   // See runtime/stack_map.h to know what these fields contain.
   struct StackMapEntry {
@@ -99,7 +102,11 @@ class StackMapStream : public ValueObject {
   };
 
   struct InlineInfoEntry {
+    uint32_t dex_pc;
     uint32_t method_index;
+    uint32_t num_dex_registers;
+    BitVector* live_dex_registers_mask;
+    size_t dex_register_locations_start_index;
   };
 
   void BeginStackMapEntry(uint32_t dex_pc,
@@ -110,11 +117,12 @@ class StackMapStream : public ValueObject {
                           uint8_t inlining_depth);
   void EndStackMapEntry();
 
-  void AddDexRegisterEntry(uint16_t dex_register,
-                           DexRegisterLocation::Kind kind,
-                           int32_t value);
+  void AddDexRegisterEntry(DexRegisterLocation::Kind kind, int32_t value);
 
-  void AddInlineInfoEntry(uint32_t method_index);
+  void BeginInlineInfoEntry(uint32_t method_index,
+                            uint32_t dex_pc,
+                            uint32_t num_dex_registers);
+  void EndInlineInfoEntry();
 
   // Prepares the stream to fill in a memory region. Must be called before FillIn.
   // Returns the size (in bytes) needed to store this stream.
@@ -123,7 +131,8 @@ class StackMapStream : public ValueObject {
 
  private:
   size_t ComputeDexRegisterLocationCatalogSize() const;
-  size_t ComputeDexRegisterMapSize(const StackMapEntry& entry) const;
+  size_t ComputeDexRegisterMapSize(uint32_t num_dex_registers,
+                                   const BitVector& live_dex_registers_mask) const;
   size_t ComputeDexRegisterMapsSize() const;
   size_t ComputeInlineInfoSize() const;
 
@@ -131,6 +140,10 @@ class StackMapStream : public ValueObject {
   // or kNoSameDexMapFound if no such entry exists.
   size_t FindEntryWithTheSameDexMap();
   bool HaveTheSameDexMaps(const StackMapEntry& a, const StackMapEntry& b) const;
+  void FillInDexRegisterMap(DexRegisterMap dex_register_map,
+                            uint32_t num_dex_registers,
+                            const BitVector& live_dex_registers_mask,
+                            uint32_t start_index_in_dex_register_locations) const;
 
   ArenaAllocator* allocator_;
   GrowableArray<StackMapEntry> stack_maps_;
@@ -155,6 +168,7 @@ class StackMapStream : public ValueObject {
   ArenaSafeMap<uint32_t, GrowableArray<uint32_t>> dex_map_hash_to_stack_map_indices_;
 
   StackMapEntry current_entry_;
+  InlineInfoEntry current_inline_info_;
   size_t stack_mask_size_;
   size_t inline_info_size_;
   size_t dex_register_maps_size_;
@@ -165,6 +179,8 @@ class StackMapStream : public ValueObject {
   size_t dex_register_maps_start_;
   size_t inline_infos_start_;
   size_t needed_size_;
+  uint32_t current_dex_register_;
+  bool in_inline_frame_;
 
   static constexpr uint32_t kNoSameDexMapFound = -1;
 

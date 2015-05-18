@@ -41,8 +41,8 @@ TEST(StackMapTest, Test1) {
   ArenaBitVector sp_mask(&arena, 0, false);
   size_t number_of_dex_registers = 2;
   stream.BeginStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
-  stream.AddDexRegisterEntry(0, Kind::kInStack, 0);         // Short location.
-  stream.AddDexRegisterEntry(1, Kind::kConstant, -2);       // Short location.
+  stream.AddDexRegisterEntry(Kind::kInStack, 0);         // Short location.
+  stream.AddDexRegisterEntry(Kind::kConstant, -2);       // Short location.
   stream.EndStackMapEntry();
 
   size_t size = stream.PrepareForFillIn();
@@ -124,19 +124,22 @@ TEST(StackMapTest, Test2) {
   sp_mask1.SetBit(2);
   sp_mask1.SetBit(4);
   size_t number_of_dex_registers = 2;
+  size_t number_of_dex_registers_in_inline_info = 0;
   stream.BeginStackMapEntry(0, 64, 0x3, &sp_mask1, number_of_dex_registers, 2);
-  stream.AddDexRegisterEntry(0, Kind::kInStack, 0);         // Short location.
-  stream.AddDexRegisterEntry(1, Kind::kConstant, -2);       // Large location.
-  stream.AddInlineInfoEntry(42);
-  stream.AddInlineInfoEntry(82);
+  stream.AddDexRegisterEntry(Kind::kInStack, 0);         // Short location.
+  stream.AddDexRegisterEntry(Kind::kConstant, -2);       // Large location.
+  stream.BeginInlineInfoEntry(82, 3, number_of_dex_registers_in_inline_info);
+  stream.EndInlineInfoEntry();
+  stream.BeginInlineInfoEntry(42, 2, number_of_dex_registers_in_inline_info);
+  stream.EndInlineInfoEntry();
   stream.EndStackMapEntry();
 
   ArenaBitVector sp_mask2(&arena, 0, true);
   sp_mask2.SetBit(3);
   sp_mask1.SetBit(8);
   stream.BeginStackMapEntry(1, 128, 0xFF, &sp_mask2, number_of_dex_registers, 0);
-  stream.AddDexRegisterEntry(0, Kind::kInRegister, 18);     // Short location.
-  stream.AddDexRegisterEntry(1, Kind::kInFpuRegister, 3);   // Short location.
+  stream.AddDexRegisterEntry(Kind::kInRegister, 18);     // Short location.
+  stream.AddDexRegisterEntry(Kind::kInFpuRegister, 3);   // Short location.
   stream.EndStackMapEntry();
 
   size_t size = stream.PrepareForFillIn();
@@ -211,8 +214,10 @@ TEST(StackMapTest, Test2) {
     ASSERT_TRUE(stack_map.HasInlineInfo(code_info));
     InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map);
     ASSERT_EQ(2u, inline_info.GetDepth());
-    ASSERT_EQ(42u, inline_info.GetMethodReferenceIndexAtDepth(0));
-    ASSERT_EQ(82u, inline_info.GetMethodReferenceIndexAtDepth(1));
+    ASSERT_EQ(82u, inline_info.GetMethodIndexAtDepth(0));
+    ASSERT_EQ(42u, inline_info.GetMethodIndexAtDepth(1));
+    ASSERT_EQ(3u, inline_info.GetDexPcAtDepth(0));
+    ASSERT_EQ(2u, inline_info.GetDexPcAtDepth(1));
   }
 
   // Second stack map.
@@ -277,8 +282,8 @@ TEST(StackMapTest, TestNonLiveDexRegisters) {
   ArenaBitVector sp_mask(&arena, 0, false);
   uint32_t number_of_dex_registers = 2;
   stream.BeginStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
-  stream.AddDexRegisterEntry(0, Kind::kNone, 0);            // No location.
-  stream.AddDexRegisterEntry(1, Kind::kConstant, -2);       // Large location.
+  stream.AddDexRegisterEntry(Kind::kNone, 0);            // No location.
+  stream.AddDexRegisterEntry(Kind::kConstant, -2);       // Large location.
   stream.EndStackMapEntry();
 
   size_t size = stream.PrepareForFillIn();
@@ -364,13 +369,13 @@ TEST(StackMapTest, DexRegisterMapOffsetOverflow) {
     // as using a single value (in the whole CodeInfo object) would
     // make this Dex register mapping data empty (see
     // art::DexRegisterMap::SingleEntrySizeInBits).
-    stream.AddDexRegisterEntry(i, Kind::kConstant, i % 2);  // Short location.
+    stream.AddDexRegisterEntry(Kind::kConstant, i % 2);  // Short location.
   }
   stream.EndStackMapEntry();
   // Create the second stack map (and its Dex register map).
   stream.BeginStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
   for (uint32_t i = 0; i < number_of_dex_registers; ++i) {
-    stream.AddDexRegisterEntry(i, Kind::kConstant, 0);  // Short location.
+    stream.AddDexRegisterEntry(Kind::kConstant, 0);  // Short location.
   }
   stream.EndStackMapEntry();
 
@@ -420,18 +425,18 @@ TEST(StackMapTest, TestShareDexRegisterMap) {
   uint32_t number_of_dex_registers = 2;
   // First stack map.
   stream.BeginStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
-  stream.AddDexRegisterEntry(0, Kind::kInRegister, 0);  // Short location.
-  stream.AddDexRegisterEntry(1, Kind::kConstant, -2);   // Large location.
+  stream.AddDexRegisterEntry(Kind::kInRegister, 0);  // Short location.
+  stream.AddDexRegisterEntry(Kind::kConstant, -2);   // Large location.
   stream.EndStackMapEntry();
   // Second stack map, which should share the same dex register map.
   stream.BeginStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
-  stream.AddDexRegisterEntry(0, Kind::kInRegister, 0);  // Short location.
-  stream.AddDexRegisterEntry(1, Kind::kConstant, -2);   // Large location.
+  stream.AddDexRegisterEntry(Kind::kInRegister, 0);  // Short location.
+  stream.AddDexRegisterEntry(Kind::kConstant, -2);   // Large location.
   stream.EndStackMapEntry();
   // Third stack map (doesn't share the dex register map).
   stream.BeginStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
-  stream.AddDexRegisterEntry(0, Kind::kInRegister, 2);  // Short location.
-  stream.AddDexRegisterEntry(1, Kind::kConstant, -2);   // Large location.
+  stream.AddDexRegisterEntry(Kind::kInRegister, 2);  // Short location.
+  stream.AddDexRegisterEntry(Kind::kConstant, -2);   // Large location.
   stream.EndStackMapEntry();
 
   size_t size = stream.PrepareForFillIn();
@@ -498,6 +503,169 @@ TEST(StackMapTest, TestNoDexRegisterMap) {
 
   ASSERT_FALSE(stack_map.HasDexRegisterMap(code_info));
   ASSERT_FALSE(stack_map.HasInlineInfo(code_info));
+}
+
+TEST(StackMapTest, InlineTest) {
+  ArenaPool pool;
+  ArenaAllocator arena(&pool);
+  StackMapStream stream(&arena);
+
+  ArenaBitVector sp_mask1(&arena, 0, true);
+  sp_mask1.SetBit(2);
+  sp_mask1.SetBit(4);
+
+  // First stack map.
+  stream.BeginStackMapEntry(0, 64, 0x3, &sp_mask1, 2, 2);
+  stream.AddDexRegisterEntry(Kind::kInStack, 0);
+  stream.AddDexRegisterEntry(Kind::kConstant, 4);
+
+  stream.BeginInlineInfoEntry(42, 2, 1);
+  stream.AddDexRegisterEntry(Kind::kInStack, 8);
+  stream.EndInlineInfoEntry();
+  stream.BeginInlineInfoEntry(82, 3, 3);
+  stream.AddDexRegisterEntry(Kind::kInStack, 16);
+  stream.AddDexRegisterEntry(Kind::kConstant, 20);
+  stream.AddDexRegisterEntry(Kind::kInRegister, 15);
+  stream.EndInlineInfoEntry();
+
+  stream.EndStackMapEntry();
+
+  // Second stack map.
+  stream.BeginStackMapEntry(2, 22, 0x3, &sp_mask1, 2, 3);
+  stream.AddDexRegisterEntry(Kind::kInStack, 56);
+  stream.AddDexRegisterEntry(Kind::kConstant, 0);
+
+  stream.BeginInlineInfoEntry(42, 2, 1);
+  stream.AddDexRegisterEntry(Kind::kInStack, 12);
+  stream.EndInlineInfoEntry();
+  stream.BeginInlineInfoEntry(82, 3, 3);
+  stream.AddDexRegisterEntry(Kind::kInStack, 80);
+  stream.AddDexRegisterEntry(Kind::kConstant, 10);
+  stream.AddDexRegisterEntry(Kind::kInRegister, 5);
+  stream.EndInlineInfoEntry();
+  stream.BeginInlineInfoEntry(52, 5, 0);
+  stream.EndInlineInfoEntry();
+
+  stream.EndStackMapEntry();
+
+  // Third stack map.
+  stream.BeginStackMapEntry(4, 56, 0x3, &sp_mask1, 2, 0);
+  stream.AddDexRegisterEntry(Kind::kNone, 0);
+  stream.AddDexRegisterEntry(Kind::kConstant, 4);
+  stream.EndStackMapEntry();
+
+  // Fourth stack map.
+  stream.BeginStackMapEntry(6, 78, 0x3, &sp_mask1, 2, 3);
+  stream.AddDexRegisterEntry(Kind::kInStack, 56);
+  stream.AddDexRegisterEntry(Kind::kConstant, 0);
+
+  stream.BeginInlineInfoEntry(42, 2, 0);
+  stream.EndInlineInfoEntry();
+  stream.BeginInlineInfoEntry(52, 5, 1);
+  stream.AddDexRegisterEntry(Kind::kInRegister, 2);
+  stream.EndInlineInfoEntry();
+  stream.BeginInlineInfoEntry(52, 10, 2);
+  stream.AddDexRegisterEntry(Kind::kNone, 0);
+  stream.AddDexRegisterEntry(Kind::kInRegister, 3);
+  stream.EndInlineInfoEntry();
+
+  stream.EndStackMapEntry();
+
+  size_t size = stream.PrepareForFillIn();
+  void* memory = arena.Alloc(size, kArenaAllocMisc);
+  MemoryRegion region(memory, size);
+  stream.FillIn(region);
+
+  CodeInfo ci(region);
+
+  {
+    // Verify first stack map.
+    StackMap sm0 = ci.GetStackMapAt(0);
+
+    DexRegisterMap dex_registers0 = ci.GetDexRegisterMapOf(sm0, 2);
+    ASSERT_EQ(0, dex_registers0.GetStackOffsetInBytes(0, 2, ci));
+    ASSERT_EQ(4, dex_registers0.GetConstant(1, 2, ci));
+
+    InlineInfo if0 = ci.GetInlineInfoOf(sm0);
+    ASSERT_EQ(2u, if0.GetDepth());
+    ASSERT_EQ(2u, if0.GetDexPcAtDepth(0));
+    ASSERT_EQ(42u, if0.GetMethodIndexAtDepth(0));
+    ASSERT_EQ(3u, if0.GetDexPcAtDepth(1));
+    ASSERT_EQ(82u, if0.GetMethodIndexAtDepth(1));
+
+    DexRegisterMap dex_registers1 = ci.GetDexRegisterMapAtDepth(0, if0, 1);
+    ASSERT_EQ(8, dex_registers1.GetStackOffsetInBytes(0, 1, ci));
+
+    DexRegisterMap dex_registers2 = ci.GetDexRegisterMapAtDepth(1, if0, 3);
+    ASSERT_EQ(16, dex_registers2.GetStackOffsetInBytes(0, 3, ci));
+    ASSERT_EQ(20, dex_registers2.GetConstant(1, 3, ci));
+    ASSERT_EQ(15, dex_registers2.GetMachineRegister(2, 3, ci));
+  }
+
+  {
+    // Verify second stack map.
+    StackMap sm1 = ci.GetStackMapAt(1);
+
+    DexRegisterMap dex_registers0 = ci.GetDexRegisterMapOf(sm1, 2);
+    ASSERT_EQ(56, dex_registers0.GetStackOffsetInBytes(0, 2, ci));
+    ASSERT_EQ(0, dex_registers0.GetConstant(1, 2, ci));
+
+    InlineInfo if1 = ci.GetInlineInfoOf(sm1);
+    ASSERT_EQ(3u, if1.GetDepth());
+    ASSERT_EQ(2u, if1.GetDexPcAtDepth(0));
+    ASSERT_EQ(42u, if1.GetMethodIndexAtDepth(0));
+    ASSERT_EQ(3u, if1.GetDexPcAtDepth(1));
+    ASSERT_EQ(82u, if1.GetMethodIndexAtDepth(1));
+    ASSERT_EQ(5u, if1.GetDexPcAtDepth(2));
+    ASSERT_EQ(52u, if1.GetMethodIndexAtDepth(2));
+
+    DexRegisterMap dex_registers1 = ci.GetDexRegisterMapAtDepth(0, if1, 1);
+    ASSERT_EQ(12, dex_registers1.GetStackOffsetInBytes(0, 1, ci));
+
+    DexRegisterMap dex_registers2 = ci.GetDexRegisterMapAtDepth(1, if1, 3);
+    ASSERT_EQ(80, dex_registers2.GetStackOffsetInBytes(0, 3, ci));
+    ASSERT_EQ(10, dex_registers2.GetConstant(1, 3, ci));
+    ASSERT_EQ(5, dex_registers2.GetMachineRegister(2, 3, ci));
+
+    ASSERT_FALSE(if1.HasDexRegisterMapAtDepth(2));
+  }
+
+  {
+    // Verify third stack map.
+    StackMap sm2 = ci.GetStackMapAt(2);
+
+    DexRegisterMap dex_registers0 = ci.GetDexRegisterMapOf(sm2, 2);
+    ASSERT_FALSE(dex_registers0.IsDexRegisterLive(0));
+    ASSERT_EQ(4, dex_registers0.GetConstant(1, 2, ci));
+    ASSERT_FALSE(sm2.HasInlineInfo(ci));
+  }
+
+  {
+    // Verify fourth stack map.
+    StackMap sm3 = ci.GetStackMapAt(3);
+
+    DexRegisterMap dex_registers0 = ci.GetDexRegisterMapOf(sm3, 2);
+    ASSERT_EQ(56, dex_registers0.GetStackOffsetInBytes(0, 2, ci));
+    ASSERT_EQ(0, dex_registers0.GetConstant(1, 2, ci));
+
+    InlineInfo if2 = ci.GetInlineInfoOf(sm3);
+    ASSERT_EQ(3u, if2.GetDepth());
+    ASSERT_EQ(2u, if2.GetDexPcAtDepth(0));
+    ASSERT_EQ(42u, if2.GetMethodIndexAtDepth(0));
+    ASSERT_EQ(5u, if2.GetDexPcAtDepth(1));
+    ASSERT_EQ(52u, if2.GetMethodIndexAtDepth(1));
+    ASSERT_EQ(10u, if2.GetDexPcAtDepth(2));
+    ASSERT_EQ(52u, if2.GetMethodIndexAtDepth(2));
+
+    ASSERT_FALSE(if2.HasDexRegisterMapAtDepth(0));
+
+    DexRegisterMap dex_registers1 = ci.GetDexRegisterMapAtDepth(1, if2, 1);
+    ASSERT_EQ(2, dex_registers1.GetMachineRegister(0, 1, ci));
+
+    DexRegisterMap dex_registers2 = ci.GetDexRegisterMapAtDepth(2, if2, 2);
+    ASSERT_FALSE(dex_registers2.IsDexRegisterLive(0));
+    ASSERT_EQ(3, dex_registers2.GetMachineRegister(1, 2, ci));
+  }
 }
 
 }  // namespace art
