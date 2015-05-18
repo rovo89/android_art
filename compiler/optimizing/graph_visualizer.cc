@@ -58,7 +58,7 @@ class StringList {
     if (is_empty_) {
       is_empty_ = false;
     } else {
-      sstream_ << " ";
+      sstream_ << ",";
     }
     return sstream_;
   }
@@ -71,7 +71,7 @@ class StringList {
 };
 
 std::ostream& operator<<(std::ostream& os, const StringList& list) {
-  return os << "[ " << list.sstream_.str() << " ]";
+  return os << "[" << list.sstream_.str() << "]";
 }
 
 /**
