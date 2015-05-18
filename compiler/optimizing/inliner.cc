@@ -36,8 +36,8 @@
 
 namespace art {
 
-static constexpr int kMaxInlineCodeUnits = 100;
-static constexpr int kDepthLimit = 5;
+static constexpr int kMaxInlineCodeUnits = 18;
+static constexpr int kDepthLimit = 3;
 
 void HInliner::Run() {
   if (graph_->IsDebuggable()) {
@@ -46,8 +46,15 @@ void HInliner::Run() {
     return;
   }
   const GrowableArray<HBasicBlock*>& blocks = graph_->GetReversePostOrder();
+  HBasicBlock* next_block = blocks.Get(0);
   for (size_t i = 0; i < blocks.Size(); ++i) {
-    HBasicBlock* block = blocks.Get(i);
+    // Because we are changing the graph when inlining, we need to remember the next block.
+    // This avoids doing the inlining work again on the inlined blocks.
+    if (blocks.Get(i) != next_block) {
+      continue;
+    }
+    HBasicBlock* block = next_block;
+    next_block = (i == blocks.Size() - 1) ? nullptr : blocks.Get(i + 1);
     for (HInstruction* instruction = block->GetFirstInstruction(); instruction != nullptr;) {
       HInstruction* next = instruction->GetNext();
       HInvokeStaticOrDirect* call = instruction->AsInvokeStaticOrDirect();
@@ -90,10 +97,10 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
     return false;
   }
 
-  bool can_use_dex_cache = true;
+  bool same_dex_file = true;
   const DexFile& outer_dex_file = *outer_compilation_unit_.GetDexFile();
   if (resolved_method->GetDexFile()->GetLocation().compare(outer_dex_file.GetLocation()) != 0) {
-    can_use_dex_cache = false;
+    same_dex_file = false;
   }
 
   const DexFile::CodeItem* code_item = resolved_method->GetCodeItem();
@@ -140,7 +147,7 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
     return false;
   }
 
-  if (!TryBuildAndInline(resolved_method, invoke_instruction, method_index, can_use_dex_cache)) {
+  if (!TryBuildAndInline(resolved_method, invoke_instruction, method_index, same_dex_file)) {
     return false;
   }
 
@@ -152,7 +159,7 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
 bool HInliner::TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
                                  HInvoke* invoke_instruction,
                                  uint32_t method_index,
-                                 bool can_use_dex_cache) const {
+                                 bool same_dex_file) const {
   ScopedObjectAccess soa(Thread::Current());
   const DexFile::CodeItem* code_item = resolved_method->GetCodeItem();
   const DexFile& caller_dex_file = *caller_compilation_unit_.GetDexFile();
@@ -254,6 +261,31 @@ bool HInliner::TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
     inliner.Run();
   }
 
+  // TODO: We should abort only if all predecessors throw. However,
+  // HGraph::InlineInto currently does not handle an exit block with
+  // a throw predecessor.
+  HBasicBlock* exit_block = callee_graph->GetExitBlock();
+  if (exit_block == nullptr) {
+    VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
+                   << " could not be inlined because it has an infinite loop";
+    resolved_method->SetShouldNotInline();
+    return false;
+  }
+
+  bool has_throw_predecessor = false;
+  for (size_t i = 0, e = exit_block->GetPredecessors().Size(); i < e; ++i) {
+    if (exit_block->GetPredecessors().Get(i)->GetLastInstruction()->IsThrow()) {
+      has_throw_predecessor = true;
+      break;
+    }
+  }
+  if (has_throw_predecessor) {
+    VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
+                   << " could not be inlined because one branch always throws";
+    resolved_method->SetShouldNotInline();
+    return false;
+  }
+
   HReversePostOrderIterator it(*callee_graph);
   it.Advance();  // Past the entry block, it does not contain instructions that prevent inlining.
   for (; !it.Done(); it.Advance()) {
@@ -269,27 +301,24 @@ bool HInliner::TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
          !instr_it.Done();
          instr_it.Advance()) {
       HInstruction* current = instr_it.Current();
-      if (current->IsSuspendCheck()) {
-        continue;
-      }
 
-      if (current->CanThrow()) {
+      if (current->IsInvokeInterface()) {
+        // Disable inlining of interface calls. The cost in case of entering the
+        // resolution conflict is currently too high.
         VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
-                       << " could not be inlined because " << current->DebugName()
-                       << " can throw";
+                       << " could not be inlined because it has an interface call.";
         resolved_method->SetShouldNotInline();
         return false;
       }
 
-      if (current->NeedsEnvironment()) {
+      if (!same_dex_file && current->NeedsEnvironment()) {
         VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
                        << " could not be inlined because " << current->DebugName()
-                       << " needs an environment";
-        resolved_method->SetShouldNotInline();
+                       << " needs an environment and is in a different dex file";
         return false;
       }
 
-      if (!can_use_dex_cache && current->NeedsDexCache()) {
+      if (!same_dex_file && current->NeedsDexCache()) {
         VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
                        << " could not be inlined because " << current->DebugName()
                        << " it is in a different dex file and requires access to the dex cache";
@@ -301,10 +330,6 @@ bool HInliner::TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
   }
 
   callee_graph->InlineInto(graph_, invoke_instruction);
-
-  if (callee_graph->HasBoundsChecks()) {
-    graph_->SetHasBoundsChecks(true);
-  }
 
   return true;
 }

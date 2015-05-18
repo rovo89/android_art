@@ -167,7 +167,7 @@ public class Main {
     static void invokeStaticNotInlined() {
       // The invocation of invokeStaticNotInlined triggers the
       // initialization of ClassWithClinit4, meaning that the
-      // hereinbelow call to staticMethod does not need a clinit
+      // call to staticMethod below does not need a clinit
       // check.
       staticMethod();
     }

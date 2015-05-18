@@ -18,6 +18,7 @@
 
 #include "arch/context.h"
 #include "base/hex_dump.h"
+#include "entrypoints/entrypoint_utils-inl.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc_map.h"
 #include "mirror/art_method-inl.h"
@@ -119,8 +120,11 @@ mirror::ArtMethod* StackVisitor::GetMethod() const SHARED_LOCKS_REQUIRED(Locks::
   } else if (cur_quick_frame_ != nullptr) {
     if (IsInInlinedFrame()) {
       size_t depth_in_stack_map = current_inlining_depth_ - 1;
-      return GetCurrentQuickFrame()->AsMirrorPtr()->GetDexCacheResolvedMethod(
-          GetCurrentInlineInfo().GetMethodIndexAtDepth(depth_in_stack_map));
+      InlineInfo inline_info = GetCurrentInlineInfo();
+      uint32_t method_index = inline_info.GetMethodIndexAtDepth(depth_in_stack_map);
+      InvokeType invoke_type =
+          static_cast<InvokeType>(inline_info.GetInvokeTypeAtDepth(depth_in_stack_map));
+      return GetResolvedMethod(GetCurrentQuickFrame()->AsMirrorPtr(), method_index, invoke_type);
     } else {
       return cur_quick_frame_->AsMirrorPtr();
     }
@@ -761,6 +765,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
               if (UNLIKELY(!should_continue)) {
                 return;
               }
+              cur_depth_++;
             }
           }
         }
