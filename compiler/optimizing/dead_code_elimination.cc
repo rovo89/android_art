@@ -17,6 +17,7 @@
 #include "dead_code_elimination.h"
 
 #include "base/bit_vector-inl.h"
+#include "ssa_phi_elimination.h"
 
 namespace art {
 
@@ -132,6 +133,7 @@ void HDeadCodeElimination::RemoveDeadInstructions() {
 
 void HDeadCodeElimination::Run() {
   RemoveDeadBlocks();
+  SsaRedundantPhiElimination(graph_).Run();
   RemoveDeadInstructions();
 }
 
