@@ -99,15 +99,45 @@ StackVisitor::StackVisitor(Thread* thread,
       cur_quick_frame_pc_(0),
       num_frames_(num_frames),
       cur_depth_(0),
+      current_inlining_depth_(0),
       context_(context) {
   DCHECK(thread == Thread::Current() || thread->IsSuspended()) << *thread;
+}
+
+InlineInfo StackVisitor::GetCurrentInlineInfo() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::ArtMethod* outer_method = GetCurrentQuickFrame()->AsMirrorPtr();
+  uint32_t native_pc_offset = outer_method->NativeQuickPcOffset(cur_quick_frame_pc_);
+  CodeInfo code_info = outer_method->GetOptimizedCodeInfo();
+  StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset);
+  return code_info.GetInlineInfoOf(stack_map);
+}
+
+mirror::ArtMethod* StackVisitor::GetMethod() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (cur_shadow_frame_ != nullptr) {
+    return cur_shadow_frame_->GetMethod();
+  } else if (cur_quick_frame_ != nullptr) {
+    if (IsInInlinedFrame()) {
+      size_t depth_in_stack_map = current_inlining_depth_ - 1;
+      return GetCurrentQuickFrame()->AsMirrorPtr()->GetDexCacheResolvedMethod(
+          GetCurrentInlineInfo().GetMethodIndexAtDepth(depth_in_stack_map));
+    } else {
+      return cur_quick_frame_->AsMirrorPtr();
+    }
+  } else {
+    return nullptr;
+  }
 }
 
 uint32_t StackVisitor::GetDexPc(bool abort_on_failure) const {
   if (cur_shadow_frame_ != nullptr) {
     return cur_shadow_frame_->GetDexPC();
   } else if (cur_quick_frame_ != nullptr) {
-    return GetMethod()->ToDexPc(cur_quick_frame_pc_, abort_on_failure);
+    if (IsInInlinedFrame()) {
+      size_t depth_in_stack_map = current_inlining_depth_ - 1;
+      return GetCurrentInlineInfo().GetDexPcAtDepth(depth_in_stack_map);
+    } else {
+      return GetMethod()->ToDexPc(cur_quick_frame_pc_, abort_on_failure);
+    }
   } else {
     return 0;
   }
@@ -225,18 +255,27 @@ bool StackVisitor::GetVRegFromQuickCode(mirror::ArtMethod* m, uint16_t vreg, VRe
 
 bool StackVisitor::GetVRegFromOptimizedCode(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind,
                                             uint32_t* val) const {
-  const void* code_pointer = m->GetQuickOatCodePointer(sizeof(void*));
-  DCHECK(code_pointer != nullptr);
-  uint32_t native_pc_offset = m->NativeQuickPcOffset(cur_quick_frame_pc_);
-  CodeInfo code_info = m->GetOptimizedCodeInfo();
-  StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset);
+  DCHECK_EQ(m, GetMethod());
   const DexFile::CodeItem* code_item = m->GetCodeItem();
   DCHECK(code_item != nullptr) << PrettyMethod(m);  // Can't be null or how would we compile
                                                     // its instructions?
-  DCHECK_LT(vreg, code_item->registers_size_);
   uint16_t number_of_dex_registers = code_item->registers_size_;
-  DexRegisterMap dex_register_map =
-      code_info.GetDexRegisterMapOf(stack_map, number_of_dex_registers);
+  DCHECK_LT(vreg, code_item->registers_size_);
+
+  mirror::ArtMethod* outer_method = GetCurrentQuickFrame()->AsMirrorPtr();
+  const void* code_pointer = outer_method->GetQuickOatCodePointer(sizeof(void*));
+  DCHECK(code_pointer != nullptr);
+  CodeInfo code_info = outer_method->GetOptimizedCodeInfo();
+
+  uint32_t native_pc_offset = outer_method->NativeQuickPcOffset(cur_quick_frame_pc_);
+  StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset);
+  size_t depth_in_stack_map = current_inlining_depth_ - 1;
+
+  DexRegisterMap dex_register_map = IsInInlinedFrame()
+      ? code_info.GetDexRegisterMapAtDepth(
+            depth_in_stack_map, code_info.GetInlineInfoOf(stack_map), number_of_dex_registers)
+      : code_info.GetDexRegisterMapOf(stack_map, number_of_dex_registers);
+
   DexRegisterLocation::Kind location_kind =
       dex_register_map.GetLocationKind(vreg, number_of_dex_registers, code_info);
   switch (location_kind) {
@@ -704,6 +743,26 @@ void StackVisitor::WalkStack(bool include_transitions) {
       mirror::ArtMethod* method = cur_quick_frame_->AsMirrorPtr();
       while (method != nullptr) {
         SanityCheckFrame();
+
+        if ((walk_kind_ == StackWalkKind::kIncludeInlinedFrames)
+            && method->IsOptimized(sizeof(void*))) {
+          CodeInfo code_info = method->GetOptimizedCodeInfo();
+          uint32_t native_pc_offset = method->NativeQuickPcOffset(cur_quick_frame_pc_);
+          StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset);
+          if (stack_map.HasInlineInfo(code_info)) {
+            InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map);
+            DCHECK_EQ(current_inlining_depth_, 0u);
+            for (current_inlining_depth_ = inline_info.GetDepth();
+                 current_inlining_depth_ != 0;
+                 --current_inlining_depth_) {
+              bool should_continue = VisitFrame();
+              if (UNLIKELY(!should_continue)) {
+                return;
+              }
+            }
+          }
+        }
+
         bool should_continue = VisitFrame();
         if (UNLIKELY(!should_continue)) {
           return;
