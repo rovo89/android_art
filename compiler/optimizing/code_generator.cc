@@ -645,23 +645,34 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
     }
   }
 
+  uint32_t outer_dex_pc = dex_pc;
+  uint32_t outer_environment_size = 0;
+  uint32_t inlining_depth = 0;
+  if (instruction != nullptr) {
+    for (HEnvironment* environment = instruction->GetEnvironment();
+         environment != nullptr;
+         environment = environment->GetParent()) {
+      outer_dex_pc = environment->GetDexPc();
+      outer_environment_size = environment->Size();
+      if (environment != instruction->GetEnvironment()) {
+        inlining_depth++;
+      }
+    }
+  }
+
   // Collect PC infos for the mapping table.
   struct PcInfo pc_info;
-  pc_info.dex_pc = dex_pc;
+  pc_info.dex_pc = outer_dex_pc;
   pc_info.native_pc = GetAssembler()->CodeSize();
   pc_infos_.Add(pc_info);
 
-  uint32_t inlining_depth = 0;
-
   if (instruction == nullptr) {
     // For stack overflow checks.
-    stack_map_stream_.BeginStackMapEntry(dex_pc, pc_info.native_pc, 0, 0, 0, inlining_depth);
+    stack_map_stream_.BeginStackMapEntry(pc_info.dex_pc, pc_info.native_pc, 0, 0, 0, 0);
     stack_map_stream_.EndStackMapEntry();
     return;
   }
   LocationSummary* locations = instruction->GetLocations();
-  HEnvironment* environment = instruction->GetEnvironment();
-  size_t environment_size = instruction->EnvironmentSize();
 
   uint32_t register_mask = locations->GetRegisterMask();
   if (locations->OnlyCallsOnSlowPath()) {
@@ -674,23 +685,32 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
   }
   // The register mask must be a subset of callee-save registers.
   DCHECK_EQ(register_mask & core_callee_save_mask_, register_mask);
-  stack_map_stream_.BeginStackMapEntry(dex_pc,
+  stack_map_stream_.BeginStackMapEntry(pc_info.dex_pc,
                                        pc_info.native_pc,
                                        register_mask,
                                        locations->GetStackMask(),
-                                       environment_size,
+                                       outer_environment_size,
                                        inlining_depth);
-  if (environment != nullptr) {
-    // TODO: Handle parent environment.
-    DCHECK(environment->GetParent() == nullptr);
-    DCHECK_EQ(environment->GetDexPc(), dex_pc);
+
+  EmitEnvironment(instruction->GetEnvironment(), slow_path);
+  stack_map_stream_.EndStackMapEntry();
+}
+
+void CodeGenerator::EmitEnvironment(HEnvironment* environment, SlowPathCode* slow_path) {
+  if (environment == nullptr) return;
+
+  if (environment->GetParent() != nullptr) {
+    // We emit the parent environment first.
+    EmitEnvironment(environment->GetParent(), slow_path);
+    stack_map_stream_.BeginInlineInfoEntry(
+        environment->GetMethodIdx(), environment->GetDexPc(), environment->Size());
   }
 
   // Walk over the environment, and record the location of dex registers.
-  for (size_t i = 0; i < environment_size; ++i) {
+  for (size_t i = 0, environment_size = environment->Size(); i < environment_size; ++i) {
     HInstruction* current = environment->GetInstructionAt(i);
     if (current == nullptr) {
-      stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kNone, 0);
+      stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kNone, 0);
       continue;
     }
 
@@ -701,41 +721,44 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
         if (current->IsLongConstant()) {
           int64_t value = current->AsLongConstant()->GetValue();
           stack_map_stream_.AddDexRegisterEntry(
-              i, DexRegisterLocation::Kind::kConstant, Low32Bits(value));
+              DexRegisterLocation::Kind::kConstant, Low32Bits(value));
           stack_map_stream_.AddDexRegisterEntry(
-              ++i, DexRegisterLocation::Kind::kConstant, High32Bits(value));
+              DexRegisterLocation::Kind::kConstant, High32Bits(value));
+          ++i;
           DCHECK_LT(i, environment_size);
         } else if (current->IsDoubleConstant()) {
           int64_t value = bit_cast<int64_t, double>(current->AsDoubleConstant()->GetValue());
           stack_map_stream_.AddDexRegisterEntry(
-              i, DexRegisterLocation::Kind::kConstant, Low32Bits(value));
+              DexRegisterLocation::Kind::kConstant, Low32Bits(value));
           stack_map_stream_.AddDexRegisterEntry(
-              ++i, DexRegisterLocation::Kind::kConstant, High32Bits(value));
+              DexRegisterLocation::Kind::kConstant, High32Bits(value));
+          ++i;
           DCHECK_LT(i, environment_size);
         } else if (current->IsIntConstant()) {
           int32_t value = current->AsIntConstant()->GetValue();
-          stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kConstant, value);
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kConstant, value);
         } else if (current->IsNullConstant()) {
-          stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kConstant, 0);
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kConstant, 0);
         } else {
           DCHECK(current->IsFloatConstant()) << current->DebugName();
           int32_t value = bit_cast<int32_t, float>(current->AsFloatConstant()->GetValue());
-          stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kConstant, value);
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kConstant, value);
         }
         break;
       }
 
       case Location::kStackSlot: {
         stack_map_stream_.AddDexRegisterEntry(
-            i, DexRegisterLocation::Kind::kInStack, location.GetStackIndex());
+            DexRegisterLocation::Kind::kInStack, location.GetStackIndex());
         break;
       }
 
       case Location::kDoubleStackSlot: {
         stack_map_stream_.AddDexRegisterEntry(
-            i, DexRegisterLocation::Kind::kInStack, location.GetStackIndex());
+            DexRegisterLocation::Kind::kInStack, location.GetStackIndex());
         stack_map_stream_.AddDexRegisterEntry(
-            ++i, DexRegisterLocation::Kind::kInStack, location.GetHighStackIndex(kVRegSize));
+            DexRegisterLocation::Kind::kInStack, location.GetHighStackIndex(kVRegSize));
+        ++i;
         DCHECK_LT(i, environment_size);
         break;
       }
@@ -744,16 +767,18 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
         int id = location.reg();
         if (slow_path != nullptr && slow_path->IsCoreRegisterSaved(id)) {
           uint32_t offset = slow_path->GetStackOffsetOfCoreRegister(id);
-          stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kInStack, offset);
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInStack, offset);
           if (current->GetType() == Primitive::kPrimLong) {
             stack_map_stream_.AddDexRegisterEntry(
-                ++i, DexRegisterLocation::Kind::kInStack, offset + kVRegSize);
+                DexRegisterLocation::Kind::kInStack, offset + kVRegSize);
+            ++i;
             DCHECK_LT(i, environment_size);
           }
         } else {
-          stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kInRegister, id);
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInRegister, id);
           if (current->GetType() == Primitive::kPrimLong) {
-            stack_map_stream_.AddDexRegisterEntry(++i, DexRegisterLocation::Kind::kInRegister, id);
+            stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInRegister, id);
+            ++i;
             DCHECK_LT(i, environment_size);
           }
         }
@@ -764,17 +789,18 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
         int id = location.reg();
         if (slow_path != nullptr && slow_path->IsFpuRegisterSaved(id)) {
           uint32_t offset = slow_path->GetStackOffsetOfFpuRegister(id);
-          stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kInStack, offset);
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInStack, offset);
           if (current->GetType() == Primitive::kPrimDouble) {
             stack_map_stream_.AddDexRegisterEntry(
-                ++i, DexRegisterLocation::Kind::kInStack, offset + kVRegSize);
+                DexRegisterLocation::Kind::kInStack, offset + kVRegSize);
+            ++i;
             DCHECK_LT(i, environment_size);
           }
         } else {
-          stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kInFpuRegister, id);
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInFpuRegister, id);
           if (current->GetType() == Primitive::kPrimDouble) {
-            stack_map_stream_.AddDexRegisterEntry(
-                ++i, DexRegisterLocation::Kind::kInFpuRegister, id);
+            stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInFpuRegister, id);
+            ++i;
             DCHECK_LT(i, environment_size);
           }
         }
@@ -786,16 +812,17 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
         int high = location.high();
         if (slow_path != nullptr && slow_path->IsFpuRegisterSaved(low)) {
           uint32_t offset = slow_path->GetStackOffsetOfFpuRegister(low);
-          stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kInStack, offset);
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInStack, offset);
         } else {
-          stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kInFpuRegister, low);
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInFpuRegister, low);
         }
         if (slow_path != nullptr && slow_path->IsFpuRegisterSaved(high)) {
           uint32_t offset = slow_path->GetStackOffsetOfFpuRegister(high);
-          stack_map_stream_.AddDexRegisterEntry(++i, DexRegisterLocation::Kind::kInStack, offset);
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInStack, offset);
+          ++i;
         } else {
-          stack_map_stream_.AddDexRegisterEntry(
-              ++i, DexRegisterLocation::Kind::kInFpuRegister, high);
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInFpuRegister, high);
+          ++i;
         }
         DCHECK_LT(i, environment_size);
         break;
@@ -806,23 +833,23 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
         int high = location.high();
         if (slow_path != nullptr && slow_path->IsCoreRegisterSaved(low)) {
           uint32_t offset = slow_path->GetStackOffsetOfCoreRegister(low);
-          stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kInStack, offset);
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInStack, offset);
         } else {
-          stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kInRegister, low);
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInRegister, low);
         }
         if (slow_path != nullptr && slow_path->IsCoreRegisterSaved(high)) {
           uint32_t offset = slow_path->GetStackOffsetOfCoreRegister(high);
-          stack_map_stream_.AddDexRegisterEntry(++i, DexRegisterLocation::Kind::kInStack, offset);
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInStack, offset);
         } else {
-          stack_map_stream_.AddDexRegisterEntry(
-              ++i, DexRegisterLocation::Kind::kInRegister, high);
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInRegister, high);
         }
+        ++i;
         DCHECK_LT(i, environment_size);
         break;
       }
 
       case Location::kInvalid: {
-        stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kNone, 0);
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kNone, 0);
         break;
       }
 
@@ -830,7 +857,10 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
         LOG(FATAL) << "Unexpected kind " << location.GetKind();
     }
   }
-  stack_map_stream_.EndStackMapEntry();
+
+  if (environment->GetParent() != nullptr) {
+    stack_map_stream_.EndInlineInfoEntry();
+  }
 }
 
 bool CodeGenerator::CanMoveNullCheckToUser(HNullCheck* null_check) {
