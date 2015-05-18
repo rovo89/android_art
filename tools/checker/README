@@ -47,7 +47,7 @@ Example:
 
   // CHECK-START: int MyClass.MyMethod() constant_folding (after)
   // CHECK:         <<ID:i\d+>>  IntConstant {{11|22}}
-  // CHECK:                      Return [ <<ID>> ]
+  // CHECK:                      Return [<<ID>>]
 
   The engine will attempt to match the check lines against the output of the
   group named on the first line. Together they verify that the CFG after
