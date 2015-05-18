@@ -34,16 +34,16 @@ public class Main {
   // CHECK-DAG:     <<ArgX:i\d+>>    ParameterValue
   // CHECK-DAG:     <<ArgY:i\d+>>    ParameterValue
   // CHECK-DAG:                      If
-  // CHECK-DAG:     <<Add:i\d+>>     Add [ <<ArgX>> <<ArgY>> ]
-  // CHECK-DAG:     <<Sub:i\d+>>     Sub [ <<ArgX>> <<ArgY>> ]
-  // CHECK-DAG:     <<Phi:i\d+>>     Phi [ <<Add>> <<Sub>> ]
-  // CHECK-DAG:                      Return [ <<Phi>> ]
+  // CHECK-DAG:     <<Add:i\d+>>     Add [<<ArgX>>,<<ArgY>>]
+  // CHECK-DAG:     <<Sub:i\d+>>     Sub [<<ArgX>>,<<ArgY>>]
+  // CHECK-DAG:     <<Phi:i\d+>>     Phi [<<Add>>,<<Sub>>]
+  // CHECK-DAG:                      Return [<<Phi>>]
 
   // CHECK-START: int Main.testTrueBranch(int, int) dead_code_elimination_final (after)
   // CHECK-DAG:     <<ArgX:i\d+>>    ParameterValue
   // CHECK-DAG:     <<ArgY:i\d+>>    ParameterValue
-  // CHECK-DAG:     <<Add:i\d+>>     Add [ <<ArgX>> <<ArgY>> ]
-  // CHECK-DAG:                      Return [ <<Add>> ]
+  // CHECK-DAG:     <<Add:i\d+>>     Add [<<ArgX>>,<<ArgY>>]
+  // CHECK-DAG:                      Return [<<Add>>]
 
   // CHECK-START: int Main.testTrueBranch(int, int) dead_code_elimination_final (after)
   // CHECK-NOT:                      If
@@ -64,16 +64,16 @@ public class Main {
   // CHECK-DAG:     <<ArgX:i\d+>>    ParameterValue
   // CHECK-DAG:     <<ArgY:i\d+>>    ParameterValue
   // CHECK-DAG:                      If
-  // CHECK-DAG:     <<Add:i\d+>>     Add [ <<ArgX>> <<ArgY>> ]
-  // CHECK-DAG:     <<Sub:i\d+>>     Sub [ <<ArgX>> <<ArgY>> ]
-  // CHECK-DAG:     <<Phi:i\d+>>     Phi [ <<Add>> <<Sub>> ]
-  // CHECK-DAG:                      Return [ <<Phi>> ]
+  // CHECK-DAG:     <<Add:i\d+>>     Add [<<ArgX>>,<<ArgY>>]
+  // CHECK-DAG:     <<Sub:i\d+>>     Sub [<<ArgX>>,<<ArgY>>]
+  // CHECK-DAG:     <<Phi:i\d+>>     Phi [<<Add>>,<<Sub>>]
+  // CHECK-DAG:                      Return [<<Phi>>]
 
   // CHECK-START: int Main.testFalseBranch(int, int) dead_code_elimination_final (after)
   // CHECK-DAG:     <<ArgX:i\d+>>    ParameterValue
   // CHECK-DAG:     <<ArgY:i\d+>>    ParameterValue
-  // CHECK-DAG:     <<Sub:i\d+>>     Sub [ <<ArgX>> <<ArgY>> ]
-  // CHECK-DAG:                      Return [ <<Sub>> ]
+  // CHECK-DAG:     <<Sub:i\d+>>     Sub [<<ArgX>>,<<ArgY>>]
+  // CHECK-DAG:                      Return [<<Sub>>]
 
   // CHECK-START: int Main.testFalseBranch(int, int) dead_code_elimination_final (after)
   // CHECK-NOT:                      If
@@ -126,7 +126,7 @@ public class Main {
 
   // CHECK-START: int Main.testDeadLoop(int) dead_code_elimination_final (after)
   // CHECK-DAG:     <<Arg:i\d+>>     ParameterValue
-  // CHECK-DAG:                      Return [ <<Arg>> ]
+  // CHECK-DAG:                      Return [<<Arg>>]
 
   // CHECK-START: int Main.testDeadLoop(int) dead_code_elimination_final (after)
   // CHECK-NOT:                      If
@@ -146,7 +146,7 @@ public class Main {
 
   // CHECK-START: int Main.testUpdateLoopInformation(int) dead_code_elimination_final (after)
   // CHECK-DAG:     <<Arg:i\d+>>     ParameterValue
-  // CHECK-DAG:                      Return [ <<Arg>> ]
+  // CHECK-DAG:                      Return [<<Arg>>]
 
   // CHECK-START: int Main.testUpdateLoopInformation(int) dead_code_elimination_final (after)
   // CHECK-NOT:                      If
