@@ -120,7 +120,8 @@ public class Main {
   // CHECK-START: java.lang.Class Main.inlineMainClass() inliner (after)
   // CHECK-DAG:                     Return [<<Class:l\d+>>]
   // CHECK-DAG:     <<Class>>       LoadClass
-  // Note: Verify backwards because there are two LoadClass instructions
+  // Note: There are two LoadClass instructions. We obtain the correct
+  //       instruction id by matching the Return's input list first.
 
   public static Class inlineMainClass() {
     return OtherDex.returnMainClass();
@@ -148,7 +149,8 @@ public class Main {
   // CHECK-START: java.lang.Class Main.inlineOtherDexCallingMain() inliner (after)
   // CHECK-DAG:                     Return [<<Class:l\d+>>]
   // CHECK-DAG:     <<Class>>       LoadClass
-  // Note: Verify backwards because there are two LoadClass instructions
+  // Note: There are two LoadClass instructions. We obtain the correct
+  //       instruction id by matching the Return's input list first.
 
   public static Class inlineOtherDexCallingMain() {
     return OtherDex.returnOtherDexCallingMain();
