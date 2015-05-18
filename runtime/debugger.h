@@ -109,8 +109,8 @@ class SingleStepControl {
     return stack_depth_;
   }
 
-  mirror::ArtMethod* GetMethod() const {
-    return method_;
+  mirror::ArtMethod* GetMethod() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return method_.Read();
   }
 
   const std::set<uint32_t>& GetDexPcs() const {
@@ -138,7 +138,7 @@ class SingleStepControl {
   // set of DEX pcs associated to the source line number where the suspension occurred.
   // This is used to support SD_INTO and SD_OVER single-step depths so we detect when a single-step
   // causes the execution of an instruction in a different method or at a different line number.
-  mirror::ArtMethod* method_;
+  GcRoot<mirror::ArtMethod> method_;
   std::set<uint32_t> dex_pcs_;
 
   DISALLOW_COPY_AND_ASSIGN(SingleStepControl);
