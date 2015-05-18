@@ -228,13 +228,12 @@
 # CHECK-DAG:     <<Cst7:i\d+>>  IntConstant 7
 #
 # CHECK-DAG:     <<PhiX:i\d+>>  Phi [<<ArgX>>,<<Add7:i\d+>>]               loop:<<HeaderY:B\d+>>
-# CHECK-DAG:     <<PhiZ1:i\d+>> Phi [<<ArgZ>>,<<PhiZ1>>]                   loop:<<HeaderY>>
 # CHECK-DAG:                    If [<<ArgY>>]                              loop:<<HeaderY>>
 # CHECK-DAG:     <<Add7>>       Add [<<PhiX>>,<<Cst7>>]                    loop:<<HeaderY>>
 #
 #                               ### Inner loop ###
-# CHECK-DAG:     <<PhiZ2:i\d+>> Phi [<<PhiZ1>>,<<XorZ:i\d+>>]              loop:<<HeaderZ:B\d+>>
-# CHECK-DAG:     <<XorZ>>       Xor [<<PhiZ2>>,<<Cst1>>]                   loop:<<HeaderZ>>
+# CHECK-DAG:     <<PhiZ:i\d+>>  Phi [<<ArgZ>>,<<XorZ:i\d+>>]               loop:<<HeaderZ:B\d+>>
+# CHECK-DAG:     <<XorZ>>       Xor [<<PhiZ>>,<<Cst1>>]                    loop:<<HeaderZ>>
 # CHECK-DAG:     <<CondZ:z\d+>> Equal [<<XorZ>>,<<Cst0>>]                  loop:<<HeaderZ>>
 # CHECK-DAG:                    If [<<CondZ>>]                             loop:<<HeaderZ>>
 #
