@@ -424,7 +424,8 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
         // exception was thrown to force the activations to be removed from the
         // stack. Continue execution in the interpreter.
         self->ClearException();
-        ShadowFrame* shadow_frame = self->GetAndClearDeoptimizationShadowFrame(result);
+        ShadowFrame* shadow_frame = self->PopStackedShadowFrame(kDeoptimizationShadowFrame);
+        result->SetJ(self->PopDeoptimizationReturnValue().GetJ());
         self->SetTopOfStack(nullptr);
         self->SetTopOfShadowStack(shadow_frame);
         interpreter::EnterInterpreterFromDeoptimize(self, shadow_frame, result);

@@ -163,8 +163,8 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
       : StackVisitor(self, context, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         self_(self),
         exception_handler_(exception_handler),
-        prev_shadow_frame_(nullptr) {
-    CHECK(!self_->HasDeoptimizationShadowFrame());
+        prev_shadow_frame_(nullptr),
+        stacked_shadow_frame_pushed_(false) {
   }
 
   bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -174,6 +174,13 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
       // This is the upcall, we remember the frame and last pc so that we may long jump to them.
       exception_handler_->SetHandlerQuickFramePc(GetCurrentQuickFramePc());
       exception_handler_->SetHandlerQuickFrame(GetCurrentQuickFrame());
+      if (!stacked_shadow_frame_pushed_) {
+        // In case there is no deoptimized shadow frame for this upcall, we still
+        // need to push a nullptr to the stack since there is always a matching pop after
+        // the long jump.
+        self_->PushStackedShadowFrame(nullptr, kDeoptimizationShadowFrame);
+        stacked_shadow_frame_pushed_ = true;
+      }
       return false;  // End stack walk.
     } else if (method->IsRuntimeMethod()) {
       // Ignore callee save method.
@@ -204,111 +211,115 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
     bool verifier_success = verifier.Verify();
     CHECK(verifier_success) << PrettyMethod(m);
     ShadowFrame* new_frame = ShadowFrame::CreateDeoptimizedFrame(num_regs, nullptr, m, dex_pc);
-    self_->SetShadowFrameUnderConstruction(new_frame);
-    const std::vector<int32_t> kinds(verifier.DescribeVRegs(dex_pc));
+    {
+      ScopedStackedShadowFramePusher pusher(self_, new_frame, kShadowFrameUnderConstruction);
+      const std::vector<int32_t> kinds(verifier.DescribeVRegs(dex_pc));
 
-    // Markers for dead values, used when the verifier knows a Dex register is undefined,
-    // or when the compiler knows the register has not been initialized, or is not used
-    // anymore in the method.
-    static constexpr uint32_t kDeadValue = 0xEBADDE09;
-    static constexpr uint64_t kLongDeadValue = 0xEBADDE09EBADDE09;
-    for (uint16_t reg = 0; reg < num_regs; ++reg) {
-      VRegKind kind = GetVRegKind(reg, kinds);
-      switch (kind) {
-        case kUndefined:
-          new_frame->SetVReg(reg, kDeadValue);
-          break;
-        case kConstant:
-          new_frame->SetVReg(reg, kinds.at((reg * 2) + 1));
-          break;
-        case kReferenceVReg: {
-          uint32_t value = 0;
-          // Check IsReferenceVReg in case the compiled GC map doesn't agree with the verifier.
-          // We don't want to copy a stale reference into the shadow frame as a reference.
-          // b/20736048
-          if (GetVReg(m, reg, kind, &value) && IsReferenceVReg(m, reg)) {
-            new_frame->SetVRegReference(reg, reinterpret_cast<mirror::Object*>(value));
-          } else {
+      // Markers for dead values, used when the verifier knows a Dex register is undefined,
+      // or when the compiler knows the register has not been initialized, or is not used
+      // anymore in the method.
+      static constexpr uint32_t kDeadValue = 0xEBADDE09;
+      static constexpr uint64_t kLongDeadValue = 0xEBADDE09EBADDE09;
+      for (uint16_t reg = 0; reg < num_regs; ++reg) {
+        VRegKind kind = GetVRegKind(reg, kinds);
+        switch (kind) {
+          case kUndefined:
             new_frame->SetVReg(reg, kDeadValue);
+            break;
+          case kConstant:
+            new_frame->SetVReg(reg, kinds.at((reg * 2) + 1));
+            break;
+          case kReferenceVReg: {
+            uint32_t value = 0;
+            // Check IsReferenceVReg in case the compiled GC map doesn't agree with the verifier.
+            // We don't want to copy a stale reference into the shadow frame as a reference.
+            // b/20736048
+            if (GetVReg(m, reg, kind, &value) && IsReferenceVReg(m, reg)) {
+              new_frame->SetVRegReference(reg, reinterpret_cast<mirror::Object*>(value));
+            } else {
+              new_frame->SetVReg(reg, kDeadValue);
+            }
+            break;
           }
-          break;
+          case kLongLoVReg:
+            if (GetVRegKind(reg + 1, kinds) == kLongHiVReg) {
+              // Treat it as a "long" register pair.
+              uint64_t value = 0;
+              if (GetVRegPair(m, reg, kLongLoVReg, kLongHiVReg, &value)) {
+                new_frame->SetVRegLong(reg, value);
+              } else {
+                new_frame->SetVRegLong(reg, kLongDeadValue);
+              }
+            } else {
+              uint32_t value = 0;
+              if (GetVReg(m, reg, kind, &value)) {
+                new_frame->SetVReg(reg, value);
+              } else {
+                new_frame->SetVReg(reg, kDeadValue);
+              }
+            }
+            break;
+          case kLongHiVReg:
+            if (GetVRegKind(reg - 1, kinds) == kLongLoVReg) {
+              // Nothing to do: we treated it as a "long" register pair.
+            } else {
+              uint32_t value = 0;
+              if (GetVReg(m, reg, kind, &value)) {
+                new_frame->SetVReg(reg, value);
+              } else {
+                new_frame->SetVReg(reg, kDeadValue);
+              }
+            }
+            break;
+          case kDoubleLoVReg:
+            if (GetVRegKind(reg + 1, kinds) == kDoubleHiVReg) {
+              uint64_t value = 0;
+              if (GetVRegPair(m, reg, kDoubleLoVReg, kDoubleHiVReg, &value)) {
+                // Treat it as a "double" register pair.
+                new_frame->SetVRegLong(reg, value);
+              } else {
+                new_frame->SetVRegLong(reg, kLongDeadValue);
+              }
+            } else {
+              uint32_t value = 0;
+              if (GetVReg(m, reg, kind, &value)) {
+                new_frame->SetVReg(reg, value);
+              } else {
+                new_frame->SetVReg(reg, kDeadValue);
+              }
+            }
+            break;
+          case kDoubleHiVReg:
+            if (GetVRegKind(reg - 1, kinds) == kDoubleLoVReg) {
+              // Nothing to do: we treated it as a "double" register pair.
+            } else {
+              uint32_t value = 0;
+              if (GetVReg(m, reg, kind, &value)) {
+                new_frame->SetVReg(reg, value);
+              } else {
+                new_frame->SetVReg(reg, kDeadValue);
+              }
+            }
+            break;
+          default:
+            uint32_t value = 0;
+            if (GetVReg(m, reg, kind, &value)) {
+              new_frame->SetVReg(reg, value);
+            } else {
+              new_frame->SetVReg(reg, kDeadValue);
+            }
+            break;
         }
-        case kLongLoVReg:
-          if (GetVRegKind(reg + 1, kinds) == kLongHiVReg) {
-            // Treat it as a "long" register pair.
-            uint64_t value = 0;
-            if (GetVRegPair(m, reg, kLongLoVReg, kLongHiVReg, &value)) {
-              new_frame->SetVRegLong(reg, value);
-            } else {
-              new_frame->SetVRegLong(reg, kLongDeadValue);
-            }
-          } else {
-            uint32_t value = 0;
-            if (GetVReg(m, reg, kind, &value)) {
-              new_frame->SetVReg(reg, value);
-            } else {
-              new_frame->SetVReg(reg, kDeadValue);
-            }
-          }
-          break;
-        case kLongHiVReg:
-          if (GetVRegKind(reg - 1, kinds) == kLongLoVReg) {
-            // Nothing to do: we treated it as a "long" register pair.
-          } else {
-            uint32_t value = 0;
-            if (GetVReg(m, reg, kind, &value)) {
-              new_frame->SetVReg(reg, value);
-            } else {
-              new_frame->SetVReg(reg, kDeadValue);
-            }
-          }
-          break;
-        case kDoubleLoVReg:
-          if (GetVRegKind(reg + 1, kinds) == kDoubleHiVReg) {
-            uint64_t value = 0;
-            if (GetVRegPair(m, reg, kDoubleLoVReg, kDoubleHiVReg, &value)) {
-              // Treat it as a "double" register pair.
-              new_frame->SetVRegLong(reg, value);
-            } else {
-              new_frame->SetVRegLong(reg, kLongDeadValue);
-            }
-          } else {
-            uint32_t value = 0;
-            if (GetVReg(m, reg, kind, &value)) {
-              new_frame->SetVReg(reg, value);
-            } else {
-              new_frame->SetVReg(reg, kDeadValue);
-            }
-          }
-          break;
-        case kDoubleHiVReg:
-          if (GetVRegKind(reg - 1, kinds) == kDoubleLoVReg) {
-            // Nothing to do: we treated it as a "double" register pair.
-          } else {
-            uint32_t value = 0;
-            if (GetVReg(m, reg, kind, &value)) {
-              new_frame->SetVReg(reg, value);
-            } else {
-              new_frame->SetVReg(reg, kDeadValue);
-            }
-          }
-          break;
-        default:
-          uint32_t value = 0;
-          if (GetVReg(m, reg, kind, &value)) {
-            new_frame->SetVReg(reg, value);
-          } else {
-            new_frame->SetVReg(reg, kDeadValue);
-          }
-          break;
       }
     }
     if (prev_shadow_frame_ != nullptr) {
       prev_shadow_frame_->SetLink(new_frame);
     } else {
-      self_->SetDeoptimizationShadowFrame(new_frame);
+      // Will be popped after the long jump after DeoptimizeStack(),
+      // right before interpreter::EnterInterpreterFromDeoptimize().
+      stacked_shadow_frame_pushed_ = true;
+      self_->PushStackedShadowFrame(new_frame, kDeoptimizationShadowFrame);
     }
-    self_->ClearShadowFrameUnderConstruction();
     prev_shadow_frame_ = new_frame;
     return true;
   }
@@ -316,6 +327,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
   Thread* const self_;
   QuickExceptionHandler* const exception_handler_;
   ShadowFrame* prev_shadow_frame_;
+  bool stacked_shadow_frame_pushed_;
 
   DISALLOW_COPY_AND_ASSIGN(DeoptimizeStackVisitor);
 };

@@ -28,6 +28,7 @@ namespace art {
 
 extern "C" NO_RETURN void artDeoptimize(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
+  self->PushAndClearDeoptimizationReturnValue();
   self->SetException(Thread::GetDeoptimizationException());
   self->QuickDeliverException();
 }

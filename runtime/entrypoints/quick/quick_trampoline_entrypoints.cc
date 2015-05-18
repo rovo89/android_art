@@ -647,7 +647,7 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
     ArtMethod* caller = QuickArgumentVisitor::GetCallingMethod(sp);
     if (UNLIKELY(Dbg::IsForcedInterpreterNeededForUpcall(self, caller))) {
       self->SetException(Thread::GetDeoptimizationException());
-      self->SetDeoptimizationReturnValue(result);
+      self->SetDeoptimizationReturnValue(result, shorty[0] == 'L');
     }
 
     // No need to restore the args since the method has already been run by the interpreter.

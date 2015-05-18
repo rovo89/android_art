@@ -147,29 +147,38 @@ void Thread::ResetQuickAllocEntryPointsForThread() {
   ResetQuickAllocEntryPoints(&tlsPtr_.quick_entrypoints);
 }
 
-void Thread::SetDeoptimizationShadowFrame(ShadowFrame* sf) {
-  tlsPtr_.deoptimization_shadow_frame = sf;
+void Thread::PushAndClearDeoptimizationReturnValue() {
+  DeoptimizationReturnValueRecord* record = new DeoptimizationReturnValueRecord(
+      tls64_.deoptimization_return_value,
+      tls32_.deoptimization_return_value_is_reference,
+      tlsPtr_.deoptimization_return_value_stack);
+  tlsPtr_.deoptimization_return_value_stack = record;
+  ClearDeoptimizationReturnValue();
 }
 
-void Thread::SetDeoptimizationReturnValue(const JValue& ret_val) {
-  tls64_.deoptimization_return_value.SetJ(ret_val.GetJ());
+JValue Thread::PopDeoptimizationReturnValue() {
+  DeoptimizationReturnValueRecord* record = tlsPtr_.deoptimization_return_value_stack;
+  DCHECK(record != nullptr);
+  tlsPtr_.deoptimization_return_value_stack = record->GetLink();
+  JValue ret_val(record->GetReturnValue());
+  delete record;
+  return ret_val;
 }
 
-ShadowFrame* Thread::GetAndClearDeoptimizationShadowFrame(JValue* ret_val) {
-  ShadowFrame* sf = tlsPtr_.deoptimization_shadow_frame;
-  tlsPtr_.deoptimization_shadow_frame = nullptr;
-  ret_val->SetJ(tls64_.deoptimization_return_value.GetJ());
-  return sf;
+void Thread::PushStackedShadowFrame(ShadowFrame* sf, StackedShadowFrameType type) {
+  StackedShadowFrameRecord* record = new StackedShadowFrameRecord(
+      sf, type, tlsPtr_.stacked_shadow_frame_record);
+  tlsPtr_.stacked_shadow_frame_record = record;
 }
 
-void Thread::SetShadowFrameUnderConstruction(ShadowFrame* sf) {
-  sf->SetLink(tlsPtr_.shadow_frame_under_construction);
-  tlsPtr_.shadow_frame_under_construction = sf;
-}
-
-void Thread::ClearShadowFrameUnderConstruction() {
-  CHECK_NE(static_cast<ShadowFrame*>(nullptr), tlsPtr_.shadow_frame_under_construction);
-  tlsPtr_.shadow_frame_under_construction = tlsPtr_.shadow_frame_under_construction->GetLink();
+ShadowFrame* Thread::PopStackedShadowFrame(StackedShadowFrameType type) {
+  StackedShadowFrameRecord* record = tlsPtr_.stacked_shadow_frame_record;
+  DCHECK(record != nullptr);
+  DCHECK(record->GetType() == type);
+  tlsPtr_.stacked_shadow_frame_record = record->GetLink();
+  ShadowFrame* shadow_frame = record->GetShadowFrame();
+  delete record;
+  return shadow_frame;
 }
 
 void Thread::InitTid() {
@@ -2385,21 +2394,27 @@ void Thread::VisitRoots(RootVisitor* visitor) {
   if (tlsPtr_.debug_invoke_req != nullptr) {
     tlsPtr_.debug_invoke_req->VisitRoots(visitor, RootInfo(kRootDebugger, thread_id));
   }
-  if (tlsPtr_.deoptimization_shadow_frame != nullptr) {
+  if (tlsPtr_.stacked_shadow_frame_record != nullptr) {
     RootCallbackVisitor visitor_to_callback(visitor, thread_id);
     ReferenceMapVisitor<RootCallbackVisitor> mapper(this, nullptr, visitor_to_callback);
-    for (ShadowFrame* shadow_frame = tlsPtr_.deoptimization_shadow_frame; shadow_frame != nullptr;
-        shadow_frame = shadow_frame->GetLink()) {
-      mapper.VisitShadowFrame(shadow_frame);
+    for (StackedShadowFrameRecord* record = tlsPtr_.stacked_shadow_frame_record;
+         record != nullptr;
+         record = record->GetLink()) {
+      for (ShadowFrame* shadow_frame = record->GetShadowFrame();
+           shadow_frame != nullptr;
+           shadow_frame = shadow_frame->GetLink()) {
+        mapper.VisitShadowFrame(shadow_frame);
+      }
     }
   }
-  if (tlsPtr_.shadow_frame_under_construction != nullptr) {
-    RootCallbackVisitor visitor_to_callback(visitor, thread_id);
-    ReferenceMapVisitor<RootCallbackVisitor> mapper(this, nullptr, visitor_to_callback);
-    for (ShadowFrame* shadow_frame = tlsPtr_.shadow_frame_under_construction;
-        shadow_frame != nullptr;
-        shadow_frame = shadow_frame->GetLink()) {
-      mapper.VisitShadowFrame(shadow_frame);
+  if (tlsPtr_.deoptimization_return_value_stack != nullptr) {
+    for (DeoptimizationReturnValueRecord* record = tlsPtr_.deoptimization_return_value_stack;
+         record != nullptr;
+         record = record->GetLink()) {
+      if (record->IsReference()) {
+        visitor->VisitRootIfNonNull(record->GetGCRoot(),
+            RootInfo(kRootThreadObject, thread_id));
+      }
     }
   }
   for (auto* verifier = tlsPtr_.method_verifier; verifier != nullptr; verifier = verifier->link_) {
