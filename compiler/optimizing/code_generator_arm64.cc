@@ -65,6 +65,7 @@ using helpers::VIXLRegCodeFromART;
 using helpers::WRegisterFrom;
 using helpers::XRegisterFrom;
 using helpers::ARM64EncodableConstantOrRegister;
+using helpers::ArtVixlRegCodeCoherentForRegSet;
 
 static constexpr size_t kHeapRefSize = sizeof(mirror::HeapReference<mirror::Object>);
 static constexpr int kCurrentMethodStackOffset = 0;
@@ -105,6 +106,88 @@ Location InvokeRuntimeCallingConvention::GetReturnLocation(Primitive::Type retur
 
 #define __ down_cast<CodeGeneratorARM64*>(codegen)->GetVIXLAssembler()->
 #define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kArm64WordSize, x).Int32Value()
+
+// Calculate memory accessing operand for save/restore live registers.
+static void SaveRestoreLiveRegistersHelper(CodeGenerator* codegen,
+                                           RegisterSet* register_set,
+                                           int64_t spill_offset,
+                                           bool is_save) {
+  DCHECK(ArtVixlRegCodeCoherentForRegSet(register_set->GetCoreRegisters(),
+                                         codegen->GetNumberOfCoreRegisters(),
+                                         register_set->GetFloatingPointRegisters(),
+                                         codegen->GetNumberOfFloatingPointRegisters()));
+
+  CPURegList core_list = CPURegList(CPURegister::kRegister, kXRegSize,
+      register_set->GetCoreRegisters() & (~callee_saved_core_registers.list()));
+  CPURegList fp_list = CPURegList(CPURegister::kFPRegister, kDRegSize,
+      register_set->GetFloatingPointRegisters() & (~callee_saved_fp_registers.list()));
+
+  MacroAssembler* masm = down_cast<CodeGeneratorARM64*>(codegen)->GetVIXLAssembler();
+  UseScratchRegisterScope temps(masm);
+
+  Register base = masm->StackPointer();
+  int64_t core_spill_size = core_list.TotalSizeInBytes();
+  int64_t fp_spill_size = fp_list.TotalSizeInBytes();
+  int64_t reg_size = kXRegSizeInBytes;
+  int64_t max_ls_pair_offset = spill_offset + core_spill_size + fp_spill_size - 2 * reg_size;
+  uint32_t ls_access_size = WhichPowerOf2(reg_size);
+  if (((core_list.Count() > 1) || (fp_list.Count() > 1)) &&
+      !masm->IsImmLSPair(max_ls_pair_offset, ls_access_size)) {
+    // If the offset does not fit in the instruction's immediate field, use an alternate register
+    // to compute the base address(float point registers spill base address).
+    Register new_base = temps.AcquireSameSizeAs(base);
+    __ Add(new_base, base, Operand(spill_offset + core_spill_size));
+    base = new_base;
+    spill_offset = -core_spill_size;
+    int64_t new_max_ls_pair_offset = fp_spill_size - 2 * reg_size;
+    DCHECK(masm->IsImmLSPair(spill_offset, ls_access_size));
+    DCHECK(masm->IsImmLSPair(new_max_ls_pair_offset, ls_access_size));
+  }
+
+  if (is_save) {
+    __ StoreCPURegList(core_list, MemOperand(base, spill_offset));
+    __ StoreCPURegList(fp_list, MemOperand(base, spill_offset + core_spill_size));
+  } else {
+    __ LoadCPURegList(core_list, MemOperand(base, spill_offset));
+    __ LoadCPURegList(fp_list, MemOperand(base, spill_offset + core_spill_size));
+  }
+}
+
+void SlowPathCodeARM64::SaveLiveRegisters(CodeGenerator* codegen, LocationSummary* locations) {
+  RegisterSet* register_set = locations->GetLiveRegisters();
+  size_t stack_offset = codegen->GetFirstRegisterSlotInSlowPath();
+  for (size_t i = 0, e = codegen->GetNumberOfCoreRegisters(); i < e; ++i) {
+    if (!codegen->IsCoreCalleeSaveRegister(i) && register_set->ContainsCoreRegister(i)) {
+      // If the register holds an object, update the stack mask.
+      if (locations->RegisterContainsObject(i)) {
+        locations->SetStackBit(stack_offset / kVRegSize);
+      }
+      DCHECK_LT(stack_offset, codegen->GetFrameSize() - codegen->FrameEntrySpillSize());
+      DCHECK_LT(i, kMaximumNumberOfExpectedRegisters);
+      saved_core_stack_offsets_[i] = stack_offset;
+      stack_offset += kXRegSizeInBytes;
+    }
+  }
+
+  for (size_t i = 0, e = codegen->GetNumberOfFloatingPointRegisters(); i < e; ++i) {
+    if (!codegen->IsFloatingPointCalleeSaveRegister(i) &&
+        register_set->ContainsFloatingPointRegister(i)) {
+      DCHECK_LT(stack_offset, codegen->GetFrameSize() - codegen->FrameEntrySpillSize());
+      DCHECK_LT(i, kMaximumNumberOfExpectedRegisters);
+      saved_fpu_stack_offsets_[i] = stack_offset;
+      stack_offset += kDRegSizeInBytes;
+    }
+  }
+
+  SaveRestoreLiveRegistersHelper(codegen, register_set,
+                                 codegen->GetFirstRegisterSlotInSlowPath(), true /* is_save */);
+}
+
+void SlowPathCodeARM64::RestoreLiveRegisters(CodeGenerator* codegen, LocationSummary* locations) {
+  RegisterSet* register_set = locations->GetLiveRegisters();
+  SaveRestoreLiveRegistersHelper(codegen, register_set,
+                                 codegen->GetFirstRegisterSlotInSlowPath(), false /* is_save */);
+}
 
 class BoundsCheckSlowPathARM64 : public SlowPathCodeARM64 {
  public:
@@ -528,6 +611,19 @@ void CodeGeneratorARM64::GenerateFrameExit() {
   __ Ret();
   GetAssembler()->cfi().RestoreState();
   GetAssembler()->cfi().DefCFAOffset(GetFrameSize());
+}
+
+vixl::CPURegList CodeGeneratorARM64::GetFramePreservedCoreRegisters() const {
+  DCHECK(ArtVixlRegCodeCoherentForRegSet(core_spill_mask_, GetNumberOfCoreRegisters(), 0, 0));
+  return vixl::CPURegList(vixl::CPURegister::kRegister, vixl::kXRegSize,
+                          core_spill_mask_);
+}
+
+vixl::CPURegList CodeGeneratorARM64::GetFramePreservedFPRegisters() const {
+  DCHECK(ArtVixlRegCodeCoherentForRegSet(0, 0, fpu_spill_mask_,
+                                         GetNumberOfFloatingPointRegisters()));
+  return vixl::CPURegList(vixl::CPURegister::kFPRegister, vixl::kDRegSize,
+                          fpu_spill_mask_);
 }
 
 void CodeGeneratorARM64::Bind(HBasicBlock* block) {
