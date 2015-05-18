@@ -48,7 +48,7 @@ class StringList {
   };
 
   // Create an empty list
-  StringList(Format format = kArrayBrackets) : format_(format), is_empty_(true) {}
+  explicit StringList(Format format = kArrayBrackets) : format_(format), is_empty_(true) {}
 
   // Construct StringList from a linked list. List element class T
   // must provide methods `GetNext` and `Dump`.
