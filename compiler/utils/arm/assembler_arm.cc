@@ -860,8 +860,6 @@ void ArmExceptionSlowPath::Emit(Assembler* sasm) {
   // Set up call to Thread::Current()->pDeliverException.
   __ LoadFromOffset(kLoadWord, R12, TR, QUICK_ENTRYPOINT_OFFSET(4, pDeliverException).Int32Value());
   __ blx(R12);
-  // Call never returns.
-  __ bkpt(0);
 #undef __
 }
 
