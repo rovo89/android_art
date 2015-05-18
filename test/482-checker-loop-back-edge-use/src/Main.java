@@ -18,14 +18,14 @@
 public class Main {
 
   // CHECK-START: void Main.loop1(boolean) liveness (after)
-  // CHECK:         ParameterValue  liveness:2  ranges:[ 2-22 ] uses:[ 17 22 ]
+  // CHECK:         ParameterValue  liveness:2  ranges:[2-22] uses:[17,22]
   // CHECK:         Goto            liveness:20
   public static void loop1(boolean incoming) {
     while (incoming) {}
   }
 
   // CHECK-START: void Main.loop2(boolean) liveness (after)
-  // CHECK:         ParameterValue  liveness:2  ranges:[ 2-42 ] uses:[ 33 38 42 ]
+  // CHECK:         ParameterValue  liveness:2  ranges:[2-42] uses:[33,38,42]
   // CHECK:         Goto            liveness:36
   // CHECK:         Goto            liveness:40
   public static void loop2(boolean incoming) {
@@ -36,7 +36,7 @@ public class Main {
   }
 
   // CHECK-START: void Main.loop3(boolean) liveness (after)
-  // CHECK:         ParameterValue  liveness:2  ranges:[ 2-60 ] uses:[ 56 60 ]
+  // CHECK:         ParameterValue  liveness:2  ranges:[2-60] uses:[56,60]
   // CHECK:         Goto            liveness:58
 
   // CHECK-START: void Main.loop3(boolean) liveness (after)
@@ -50,7 +50,7 @@ public class Main {
   }
 
   // CHECK-START: void Main.loop4(boolean) liveness (after)
-  // CHECK:         ParameterValue  liveness:2  ranges:[ 2-22 ] uses:[ 22 ]
+  // CHECK:         ParameterValue  liveness:2  ranges:[2-22] uses:[22]
 
   // CHECK-START: void Main.loop4(boolean) liveness (after)
   // CHECK-NOT:     Goto            liveness:20
@@ -63,7 +63,7 @@ public class Main {
   }
 
   // CHECK-START: void Main.loop5(boolean) liveness (after)
-  // CHECK:         ParameterValue  liveness:2  ranges:[ 2-50 ] uses:[ 33 42 46 50 ]
+  // CHECK:         ParameterValue  liveness:2  ranges:[2-50] uses:[33,42,46,50]
   // CHECK:         Goto            liveness:44
   // CHECK:         Goto            liveness:48
   public static void loop5(boolean incoming) {
@@ -76,7 +76,7 @@ public class Main {
   }
 
   // CHECK-START: void Main.loop6(boolean) liveness (after)
-  // CHECK          ParameterValue  liveness:2  ranges:[ 2-46 ] uses:[ 24 46 ]
+  // CHECK          ParameterValue  liveness:2  ranges:[2-46] uses:[24,46]
   // CHECK:         Goto            liveness:44
 
   // CHECK-START: void Main.loop6(boolean) liveness (after)
@@ -90,7 +90,7 @@ public class Main {
   }
 
   // CHECK-START: void Main.loop7(boolean) liveness (after)
-  // CHECK:         ParameterValue  liveness:2  ranges:[ 2-50 ] uses:[ 32 41 46 50 ]
+  // CHECK:         ParameterValue  liveness:2  ranges:[2-50] uses:[32,41,46,50]
   // CHECK:         Goto            liveness:44
   // CHECK:         Goto            liveness:48
   public static void loop7(boolean incoming) {
@@ -102,7 +102,7 @@ public class Main {
   }
 
   // CHECK-START: void Main.loop8() liveness (after)
-  // CHECK:         StaticFieldGet  liveness:12 ranges:[ 12-44 ] uses:[ 35 40 44 ]
+  // CHECK:         StaticFieldGet  liveness:12 ranges:[12-44] uses:[35,40,44]
   // CHECK:         Goto            liveness:38
   // CHECK:         Goto            liveness:42
   public static void loop8() {
@@ -114,7 +114,7 @@ public class Main {
   }
 
   // CHECK-START: void Main.loop9() liveness (after)
-  // CHECK:         StaticFieldGet  liveness:22 ranges:[ 22-36 ] uses:[ 31 36 ]
+  // CHECK:         StaticFieldGet  liveness:22 ranges:[22-36] uses:[31,36]
   // CHECK:         Goto            liveness:38
   public static void loop9() {
     while (Runtime.getRuntime() != null) {

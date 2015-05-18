@@ -19,7 +19,7 @@ public class Main {
   // CHECK-START: void Main.InlineVoid() inliner (before)
   // CHECK-DAG:     <<Const42:i\d+>> IntConstant 42
   // CHECK-DAG:                      InvokeStaticOrDirect
-  // CHECK-DAG:                      InvokeStaticOrDirect [ <<Const42>> ]
+  // CHECK-DAG:                      InvokeStaticOrDirect [<<Const42>>]
 
   // CHECK-START: void Main.InlineVoid() inliner (after)
   // CHECK-NOT:                      InvokeStaticOrDirect
@@ -31,12 +31,12 @@ public class Main {
 
   // CHECK-START: int Main.InlineParameter(int) inliner (before)
   // CHECK-DAG:     <<Param:i\d+>>  ParameterValue
-  // CHECK-DAG:     <<Result:i\d+>> InvokeStaticOrDirect [ <<Param>> ]
-  // CHECK-DAG:                     Return [ <<Result>> ]
+  // CHECK-DAG:     <<Result:i\d+>> InvokeStaticOrDirect [<<Param>>]
+  // CHECK-DAG:                     Return [<<Result>>]
 
   // CHECK-START: int Main.InlineParameter(int) inliner (after)
   // CHECK-DAG:     <<Param:i\d+>>  ParameterValue
-  // CHECK-DAG:                     Return [ <<Param>> ]
+  // CHECK-DAG:                     Return [<<Param>>]
 
   public static int InlineParameter(int a) {
     return returnParameter(a);
@@ -44,12 +44,12 @@ public class Main {
 
   // CHECK-START: long Main.InlineWideParameter(long) inliner (before)
   // CHECK-DAG:     <<Param:j\d+>>  ParameterValue
-  // CHECK-DAG:     <<Result:j\d+>> InvokeStaticOrDirect [ <<Param>> ]
-  // CHECK-DAG:                     Return [ <<Result>> ]
+  // CHECK-DAG:     <<Result:j\d+>> InvokeStaticOrDirect [<<Param>>]
+  // CHECK-DAG:                     Return [<<Result>>]
 
   // CHECK-START: long Main.InlineWideParameter(long) inliner (after)
   // CHECK-DAG:     <<Param:j\d+>>  ParameterValue
-  // CHECK-DAG:                     Return [ <<Param>> ]
+  // CHECK-DAG:                     Return [<<Param>>]
 
   public static long InlineWideParameter(long a) {
     return returnWideParameter(a);
@@ -57,12 +57,12 @@ public class Main {
 
   // CHECK-START: java.lang.Object Main.InlineReferenceParameter(java.lang.Object) inliner (before)
   // CHECK-DAG:     <<Param:l\d+>>  ParameterValue
-  // CHECK-DAG:     <<Result:l\d+>> InvokeStaticOrDirect [ <<Param>> ]
-  // CHECK-DAG:                     Return [ <<Result>> ]
+  // CHECK-DAG:     <<Result:l\d+>> InvokeStaticOrDirect [<<Param>>]
+  // CHECK-DAG:                     Return [<<Result>>]
 
   // CHECK-START: java.lang.Object Main.InlineReferenceParameter(java.lang.Object) inliner (after)
   // CHECK-DAG:     <<Param:l\d+>>  ParameterValue
-  // CHECK-DAG:                     Return [ <<Param>> ]
+  // CHECK-DAG:                     Return [<<Param>>]
 
   public static Object InlineReferenceParameter(Object o) {
     return returnReferenceParameter(o);
@@ -70,11 +70,11 @@ public class Main {
 
   // CHECK-START: int Main.InlineInt() inliner (before)
   // CHECK-DAG:     <<Result:i\d+>> InvokeStaticOrDirect
-  // CHECK-DAG:                     Return [ <<Result>> ]
+  // CHECK-DAG:                     Return [<<Result>>]
 
   // CHECK-START: int Main.InlineInt() inliner (after)
   // CHECK-DAG:     <<Const4:i\d+>> IntConstant 4
-  // CHECK-DAG:                     Return [ <<Const4>> ]
+  // CHECK-DAG:                     Return [<<Const4>>]
 
   public static int InlineInt() {
     return returnInt();
@@ -82,11 +82,11 @@ public class Main {
 
   // CHECK-START: long Main.InlineWide() inliner (before)
   // CHECK-DAG:     <<Result:j\d+>> InvokeStaticOrDirect
-  // CHECK-DAG:                     Return [ <<Result>> ]
+  // CHECK-DAG:                     Return [<<Result>>]
 
   // CHECK-START: long Main.InlineWide() inliner (after)
   // CHECK-DAG:     <<Const8:j\d+>> LongConstant 8
-  // CHECK-DAG:                     Return [ <<Const8>> ]
+  // CHECK-DAG:                     Return [<<Const8>>]
 
   public static long InlineWide() {
     return returnWide();
@@ -96,13 +96,13 @@ public class Main {
   // CHECK-DAG:     <<Const3:i\d+>> IntConstant 3
   // CHECK-DAG:     <<Const5:i\d+>> IntConstant 5
   // CHECK-DAG:     <<Result:i\d+>> InvokeStaticOrDirect
-  // CHECK-DAG:                     Return [ <<Result>> ]
+  // CHECK-DAG:                     Return [<<Result>>]
 
   // CHECK-START: int Main.InlineAdd() inliner (after)
   // CHECK-DAG:     <<Const3:i\d+>> IntConstant 3
   // CHECK-DAG:     <<Const5:i\d+>> IntConstant 5
-  // CHECK-DAG:     <<Add:i\d+>>    Add [ <<Const3>> <<Const5>> ]
-  // CHECK-DAG:                     Return [ <<Add>> ]
+  // CHECK-DAG:     <<Add:i\d+>>    Add [<<Const3>>,<<Const5>>]
+  // CHECK-DAG:                     Return [<<Add>>]
 
   public static int InlineAdd() {
     return returnAdd(3, 5);
@@ -110,14 +110,14 @@ public class Main {
 
   // CHECK-START: int Main.InlineFieldAccess() inliner (before)
   // CHECK-DAG:     <<After:i\d+>>  InvokeStaticOrDirect
-  // CHECK-DAG:                     Return [ <<After>> ]
+  // CHECK-DAG:                     Return [<<After>>]
 
   // CHECK-START: int Main.InlineFieldAccess() inliner (after)
   // CHECK-DAG:     <<Const1:i\d+>> IntConstant 1
   // CHECK-DAG:     <<Before:i\d+>> StaticFieldGet
-  // CHECK-DAG:     <<After:i\d+>>  Add [ <<Before>> <<Const1>> ]
-  // CHECK-DAG:                     StaticFieldSet [ {{l\d+}} <<After>> ]
-  // CHECK-DAG:                     Return [ <<After>> ]
+  // CHECK-DAG:     <<After:i\d+>>  Add [<<Before>>,<<Const1>>]
+  // CHECK-DAG:                     StaticFieldSet [{{l\d+}},<<After>>]
+  // CHECK-DAG:                     Return [<<After>>]
 
   // CHECK-START: int Main.InlineFieldAccess() inliner (after)
   // CHECK-NOT:                     InvokeStaticOrDirect
@@ -130,19 +130,19 @@ public class Main {
   // CHECK-DAG:     <<Const1:i\d+>> IntConstant 1
   // CHECK-DAG:     <<Const3:i\d+>> IntConstant 3
   // CHECK-DAG:     <<Const5:i\d+>> IntConstant 5
-  // CHECK-DAG:     <<Add:i\d+>>    InvokeStaticOrDirect [ <<Const1>> <<Const3>> ]
-  // CHECK-DAG:     <<Sub:i\d+>>    InvokeStaticOrDirect [ <<Const5>> <<Const3>> ]
-  // CHECK-DAG:     <<Phi:i\d+>>    Phi [ <<Add>> <<Sub>> ]
-  // CHECK-DAG:                     Return [ <<Phi>> ]
+  // CHECK-DAG:     <<Add:i\d+>>    InvokeStaticOrDirect [<<Const1>>,<<Const3>>]
+  // CHECK-DAG:     <<Sub:i\d+>>    InvokeStaticOrDirect [<<Const5>>,<<Const3>>]
+  // CHECK-DAG:     <<Phi:i\d+>>    Phi [<<Add>>,<<Sub>>]
+  // CHECK-DAG:                     Return [<<Phi>>]
 
   // CHECK-START: int Main.InlineWithControlFlow(boolean) inliner (after)
   // CHECK-DAG:     <<Const1:i\d+>> IntConstant 1
   // CHECK-DAG:     <<Const3:i\d+>> IntConstant 3
   // CHECK-DAG:     <<Const5:i\d+>> IntConstant 5
-  // CHECK-DAG:     <<Add:i\d+>>    Add [ <<Const1>> <<Const3>> ]
-  // CHECK-DAG:     <<Sub:i\d+>>    Sub [ <<Const5>> <<Const3>> ]
-  // CHECK-DAG:     <<Phi:i\d+>>    Phi [ <<Add>> <<Sub>> ]
-  // CHECK-DAG:                     Return [ <<Phi>> ]
+  // CHECK-DAG:     <<Add:i\d+>>    Add [<<Const1>>,<<Const3>>]
+  // CHECK-DAG:     <<Sub:i\d+>>    Sub [<<Const5>>,<<Const3>>]
+  // CHECK-DAG:     <<Phi:i\d+>>    Phi [<<Add>>,<<Sub>>]
+  // CHECK-DAG:                     Return [<<Phi>>]
 
   public static int InlineWithControlFlow(boolean cond) {
     int x, const1, const3, const5;

@@ -89,7 +89,7 @@ public class Main {
 
   // CHECK-START: int Main.arrayLength(int[]) licm (before)
   // CHECK-DAG: <<NullCheck:l\d+>> NullCheck loop:{{B\d+}}
-  // CHECK-DAG:                    ArrayLength [ <<NullCheck>> ] loop:{{B\d+}}
+  // CHECK-DAG:                    ArrayLength [<<NullCheck>>] loop:{{B\d+}}
 
   // CHECK-START: int Main.arrayLength(int[]) licm (after)
   // CHECK-NOT:                    NullCheck loop:{{B\d+}}
@@ -97,7 +97,7 @@ public class Main {
 
   // CHECK-START: int Main.arrayLength(int[]) licm (after)
   // CHECK-DAG: <<NullCheck:l\d+>> NullCheck loop:none
-  // CHECK-DAG:                    ArrayLength [ <<NullCheck>> ] loop:none
+  // CHECK-DAG:                    ArrayLength [<<NullCheck>>] loop:none
 
   public static int arrayLength(int[] array) {
     int result = 0;

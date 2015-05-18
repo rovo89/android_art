@@ -29,7 +29,7 @@ public class Main {
 
   // CHECK-START: boolean Main.TestPhiAsBoolean(int) boolean_simplifier (after)
   // CHECK-DAG:     <<Phi:i\d+>>     Phi
-  // CHECK-DAG:                      BooleanNot [ <<Phi>> ]
+  // CHECK-DAG:                      BooleanNot [<<Phi>>]
 
   public static boolean f1;
   public static boolean f2;
@@ -49,7 +49,7 @@ public class Main {
 
   // CHECK-START: boolean Main.TestAndAsBoolean(boolean, boolean) boolean_simplifier (after)
   // CHECK-DAG:     <<And:i\d+>>     And
-  // CHECK-DAG:                      BooleanNot [ <<And>> ]
+  // CHECK-DAG:                      BooleanNot [<<And>>]
 
   public static boolean InlineAnd(boolean x, boolean y) {
     return x & y;
@@ -66,7 +66,7 @@ public class Main {
 
   // CHECK-START: boolean Main.TestOrAsBoolean(boolean, boolean) boolean_simplifier (after)
   // CHECK-DAG:     <<Or:i\d+>>      Or
-  // CHECK-DAG:                      BooleanNot [ <<Or>> ]
+  // CHECK-DAG:                      BooleanNot [<<Or>>]
 
   public static boolean InlineOr(boolean x, boolean y) {
     return x | y;
@@ -83,7 +83,7 @@ public class Main {
 
   // CHECK-START: boolean Main.TestXorAsBoolean(boolean, boolean) boolean_simplifier (after)
   // CHECK-DAG:     <<Xor:i\d+>>     Xor
-  // CHECK-DAG:                      BooleanNot [ <<Xor>> ]
+  // CHECK-DAG:                      BooleanNot [<<Xor>>]
 
   public static boolean InlineXor(boolean x, boolean y) {
     return x ^ y;
