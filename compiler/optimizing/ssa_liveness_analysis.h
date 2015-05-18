@@ -76,7 +76,7 @@ class LiveRange FINAL : public ArenaObject<kArenaAllocMisc> {
   }
 
   void Dump(std::ostream& stream) const {
-    stream << start_ << "-" << end_;
+    stream << "[" << start_ << "," << end_ << ")";
   }
 
   LiveRange* Dup(ArenaAllocator* allocator) const {
