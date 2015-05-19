@@ -30,7 +30,7 @@
 #if !defined(USE_BAKER_OR_BROOKS_READ_BARRIER)
 
 // Offsets within java.lang.Class.
-#define CLASS_COMPONENT_TYPE_OFFSET 12
+#define CLASS_COMPONENT_TYPE_OFFSET 16
 
 // Array offsets.
 #define ARRAY_LENGTH_OFFSET 8
@@ -54,7 +54,7 @@
 #else
 
 // Offsets within java.lang.Class.
-#define CLASS_COMPONENT_TYPE_OFFSET 20
+#define CLASS_COMPONENT_TYPE_OFFSET 24
 
 // Array offsets.
 #define ARRAY_LENGTH_OFFSET 16
