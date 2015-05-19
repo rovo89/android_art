@@ -30,6 +30,7 @@ GTEST_DEX_DIRECTORIES := \
   Interfaces \
   Main \
   MultiDex \
+  MultiDexModifiedSecondary \
   MyClass \
   MyClassNatives \
   Nested \
@@ -68,7 +69,7 @@ ART_GTEST_exception_test_DEX_DEPS := ExceptionHandle
 ART_GTEST_instrumentation_test_DEX_DEPS := Instrumentation
 ART_GTEST_jni_compiler_test_DEX_DEPS := MyClassNatives
 ART_GTEST_jni_internal_test_DEX_DEPS := AllFields StaticLeafMethods
-ART_GTEST_oat_file_assistant_test_DEX_DEPS := Main MainStripped MultiDex Nested
+ART_GTEST_oat_file_assistant_test_DEX_DEPS := Main MainStripped MultiDex MultiDexModifiedSecondary Nested
 ART_GTEST_oat_file_test_DEX_DEPS := Main MultiDex
 ART_GTEST_object_test_DEX_DEPS := ProtoCompare ProtoCompare2 StaticsFromCode XandY
 ART_GTEST_proxy_test_DEX_DEPS := Interfaces

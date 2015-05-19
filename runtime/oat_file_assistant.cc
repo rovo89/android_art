@@ -417,7 +417,7 @@ bool OatFileAssistant::GivenOatFileIsOutOfDate(const OatFile& file) {
           << secondary_dex_location
           << ". Expected: " << expected_secondary_checksum
           << ", Actual: " << actual_secondary_checksum;
-        return false;
+        return true;
       }
     } else {
       // If we can't get the checksum for the secondary location, we assume
