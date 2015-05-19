@@ -539,11 +539,6 @@ void HGraphBuilder::Binop_22b(const Instruction& instruction, bool reverse) {
 }
 
 static bool RequiresConstructorBarrier(const DexCompilationUnit* cu, const CompilerDriver& driver) {
-  // dex compilation unit is null only when unit testing.
-  if (cu == nullptr) {
-    return false;
-  }
-
   Thread* self = Thread::Current();
   return cu->IsConstructor()
       && driver.RequiresConstructorBarrier(self, cu->GetDexFile(), cu->GetClassDefIndex());
@@ -551,9 +546,12 @@ static bool RequiresConstructorBarrier(const DexCompilationUnit* cu, const Compi
 
 void HGraphBuilder::BuildReturn(const Instruction& instruction, Primitive::Type type) {
   if (type == Primitive::kPrimVoid) {
-    // Note that we might insert redundant barriers when inlining `super` calls.
-    // TODO: add a data flow analysis to get rid of duplicate barriers.
-    if (RequiresConstructorBarrier(dex_compilation_unit_, *compiler_driver_)) {
+    if (graph_->ShouldGenerateConstructorBarrier()) {
+      // The compilation unit is null during testing.
+      if (dex_compilation_unit_ != nullptr) {
+        DCHECK(RequiresConstructorBarrier(dex_compilation_unit_, *compiler_driver_))
+          << "Inconsistent use of ShouldGenerateConstructorBarrier. Should not generate a barrier.";
+      }
       current_block_->AddInstruction(new (arena_) HMemoryBarrier(kStoreStore));
     }
     current_block_->AddInstruction(new (arena_) HReturnVoid());

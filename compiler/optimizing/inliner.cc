@@ -169,10 +169,30 @@ bool HInliner::TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
     resolved_method->GetAccessFlags(),
     nullptr);
 
+  bool requires_ctor_barrier = false;
+
+  if (dex_compilation_unit.IsConstructor()) {
+    // If it's a super invocation and we already generate a barrier there's no need
+    // to generate another one.
+    // We identify super calls by looking at the "this" pointer. If its value is the
+    // same as the local "this" pointer then we must have a super invocation.
+    bool is_super_invocation = invoke_instruction->InputAt(0)->IsParameterValue()
+        && invoke_instruction->InputAt(0)->AsParameterValue()->IsThis();
+    if (is_super_invocation && graph_->ShouldGenerateConstructorBarrier()) {
+      requires_ctor_barrier = false;
+    } else {
+      Thread* self = Thread::Current();
+      requires_ctor_barrier = compiler_driver_->RequiresConstructorBarrier(self,
+          dex_compilation_unit.GetDexFile(),
+          dex_compilation_unit.GetClassDefIndex());
+    }
+  }
+
   HGraph* callee_graph = new (graph_->GetArena()) HGraph(
       graph_->GetArena(),
       caller_dex_file,
       method_index,
+      requires_ctor_barrier,
       graph_->IsDebuggable(),
       graph_->GetCurrentInstructionId());
 
