@@ -512,9 +512,14 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     class_def_idx, method_idx, access_flags,
     compiler_driver->GetVerifiedMethod(&dex_file, method_idx));
 
+  bool requires_barrier = dex_compilation_unit.IsConstructor()
+      && compiler_driver->RequiresConstructorBarrier(Thread::Current(),
+                                                     dex_compilation_unit.GetDexFile(),
+                                                     dex_compilation_unit.GetClassDefIndex());
   ArenaAllocator arena(Runtime::Current()->GetArenaPool());
   HGraph* graph = new (&arena) HGraph(
-      &arena, dex_file, method_idx, compiler_driver->GetCompilerOptions().GetDebuggable());
+      &arena, dex_file, method_idx, requires_barrier,
+      compiler_driver->GetCompilerOptions().GetDebuggable());
 
   // For testing purposes, we put a special marker on method names that should be compiled
   // with this compiler. This makes sure we're not regressing.
