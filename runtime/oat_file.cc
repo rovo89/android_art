@@ -703,6 +703,10 @@ bool OatFile::IsPic() const {
   // TODO: Check against oat_patches. b/18144996
 }
 
+bool OatFile::IsDebuggable() const {
+  return GetOatHeader().IsDebuggable();
+}
+
 static constexpr char kDexClassPathEncodingSeparator = '*';
 
 std::string OatFile::EncodeDexFileDependencies(const std::vector<const DexFile*>& dex_files) {

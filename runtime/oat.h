@@ -32,13 +32,17 @@ class InstructionSetFeatures;
 class PACKED(4) OatHeader {
  public:
   static constexpr uint8_t kOatMagic[] = { 'o', 'a', 't', '\n' };
-  static constexpr uint8_t kOatVersion[] = { '0', '6', '2', '\0' };
+  static constexpr uint8_t kOatVersion[] = { '0', '6', '3', '\0' };
 
   static constexpr const char* kImageLocationKey = "image-location";
   static constexpr const char* kDex2OatCmdLineKey = "dex2oat-cmdline";
   static constexpr const char* kDex2OatHostKey = "dex2oat-host";
   static constexpr const char* kPicKey = "pic";
+  static constexpr const char* kDebuggableKey = "debuggable";
   static constexpr const char* kClassPathKey = "classpath";
+
+  static constexpr const char kTrueValue[] = "true";
+  static constexpr const char kFalseValue[] = "false";
 
   static OatHeader* Create(InstructionSet instruction_set,
                            const InstructionSetFeatures* instruction_set_features,
@@ -99,6 +103,7 @@ class PACKED(4) OatHeader {
 
   size_t GetHeaderSize() const;
   bool IsPic() const;
+  bool IsDebuggable() const;
 
  private:
   OatHeader(InstructionSet instruction_set,
@@ -107,6 +112,9 @@ class PACKED(4) OatHeader {
             uint32_t image_file_location_oat_checksum,
             uint32_t image_file_location_oat_data_begin,
             const SafeMap<std::string, std::string>* variable_data);
+
+  // Returns true if the value of the given key is "true", false otherwise.
+  bool IsKeyEnabled(const char* key) const;
 
   void Flatten(const SafeMap<std::string, std::string>* variable_data);
 
