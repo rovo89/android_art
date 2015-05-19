@@ -56,12 +56,12 @@ class ElfBuilder FINAL {
    public:
     Section(const std::string& name, Elf_Word type, Elf_Word flags,
             const Section* link, Elf_Word info, Elf_Word align, Elf_Word entsize)
-        : header_(), section_index_(0), name_(name), link_(link) {
-      header_.sh_type = type;
-      header_.sh_flags = flags;
-      header_.sh_info = info;
-      header_.sh_addralign = align;
-      header_.sh_entsize = entsize;
+        : header_(new Elf_Shdr()), section_index_(0), name_(name), link_(link) {
+      header_->sh_type = type;
+      header_->sh_flags = flags;
+      header_->sh_info = info;
+      header_->sh_addralign = align;
+      header_->sh_entsize = entsize;
     }
     virtual ~Section() {}
 
@@ -79,11 +79,11 @@ class ElfBuilder FINAL {
     }
 
     const Elf_Shdr* GetHeader() const {
-      return &header_;
+      return header_.get();
     }
 
     Elf_Shdr* GetHeader() {
-      return &header_;
+      return header_.get();
     }
 
     Elf_Word GetSectionIndex() const {
@@ -100,7 +100,9 @@ class ElfBuilder FINAL {
     }
 
    private:
-    Elf_Shdr header_;
+    // Elf_Shdr is somewhat large so allocate it on the heap.
+    // Otherwise we get in trouble with stack frame sizes.
+    std::unique_ptr<Elf_Shdr> header_;
     Elf_Word section_index_;
     const std::string name_;
     const Section* const link_;
