@@ -65,6 +65,7 @@ class InstructionSimplifierVisitor : public HGraphVisitor {
   void VisitUShr(HUShr* instruction) OVERRIDE;
   void VisitXor(HXor* instruction) OVERRIDE;
   void VisitInstanceOf(HInstanceOf* instruction) OVERRIDE;
+  bool IsDominatedByInputNullCheck(HInstruction* instr);
 
   OptimizingCompilerStats* stats_;
   bool simplification_occurred_ = false;
@@ -174,9 +175,20 @@ void InstructionSimplifierVisitor::VisitNullCheck(HNullCheck* null_check) {
   }
 }
 
+bool InstructionSimplifierVisitor::IsDominatedByInputNullCheck(HInstruction* instr) {
+  HInstruction* input = instr->InputAt(0);
+  for (HUseIterator<HInstruction*> it(input->GetUses()); !it.Done(); it.Advance()) {
+    HInstruction* use = it.Current()->GetUser();
+    if (use->IsNullCheck() && use->StrictlyDominates(instr)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void InstructionSimplifierVisitor::VisitCheckCast(HCheckCast* check_cast) {
   HLoadClass* load_class = check_cast->InputAt(1)->AsLoadClass();
-  if (!check_cast->InputAt(0)->CanBeNull()) {
+  if (!check_cast->InputAt(0)->CanBeNull() || IsDominatedByInputNullCheck(check_cast)) {
     check_cast->ClearMustDoNullCheck();
   }
 
@@ -198,7 +210,7 @@ void InstructionSimplifierVisitor::VisitCheckCast(HCheckCast* check_cast) {
 }
 
 void InstructionSimplifierVisitor::VisitInstanceOf(HInstanceOf* instruction) {
-  if (!instruction->InputAt(0)->CanBeNull()) {
+  if (!instruction->InputAt(0)->CanBeNull() || IsDominatedByInputNullCheck(instruction)) {
     instruction->ClearMustDoNullCheck();
   }
 }
