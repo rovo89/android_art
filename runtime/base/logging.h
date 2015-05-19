@@ -39,6 +39,7 @@ enum LogSeverity {
 struct LogVerbosity {
   bool class_linker;  // Enabled with "-verbose:class".
   bool compiler;
+  bool deopt;
   bool gc;
   bool heap;
   bool jdwp;
