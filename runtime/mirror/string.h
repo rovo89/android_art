@@ -115,13 +115,6 @@ class MANAGED String FINAL : public Object {
     SetField32<false, false>(OFFSET_OF_OBJECT_MEMBER(String, hash_), new_hash_code);
   }
 
-  void SetOffset(int32_t new_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // Offset is only used during testing so use non-transactional mode.
-    DCHECK_LE(0, new_offset);
-    DCHECK_GE(GetLength(), new_offset);
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(String, offset_), new_offset);
-  }
-
   static String* Alloc(Thread* self, int32_t utf16_length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
