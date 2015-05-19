@@ -27,6 +27,8 @@ namespace art {
 
 constexpr uint8_t OatHeader::kOatMagic[4];
 constexpr uint8_t OatHeader::kOatVersion[4];
+constexpr const char OatHeader::kTrueValue[];
+constexpr const char OatHeader::kFalseValue[];
 
 static size_t ComputeOatHeaderSize(const SafeMap<std::string, std::string>* variable_data) {
   size_t estimate = 0U;
@@ -443,9 +445,16 @@ size_t OatHeader::GetHeaderSize() const {
 }
 
 bool OatHeader::IsPic() const {
-  const char* pic_string = GetStoreValueByKey(OatHeader::kPicKey);
-  static const char kTrue[] = "true";
-  return (pic_string != nullptr && strncmp(pic_string, kTrue, sizeof(kTrue)) == 0);
+  return IsKeyEnabled(OatHeader::kPicKey);
+}
+
+bool OatHeader::IsDebuggable() const {
+  return IsKeyEnabled(OatHeader::kDebuggableKey);
+}
+
+bool OatHeader::IsKeyEnabled(const char* key) const {
+  const char* key_value = GetStoreValueByKey(key);
+  return (key_value != nullptr && strncmp(key_value, kTrueValue, sizeof(kTrueValue)) == 0);
 }
 
 void OatHeader::Flatten(const SafeMap<std::string, std::string>* key_value_store) {

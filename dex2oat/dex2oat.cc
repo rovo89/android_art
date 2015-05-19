@@ -979,7 +979,10 @@ class Dex2Oat FINAL {
       oss.str("");  // Reset.
       oss << kRuntimeISA;
       key_value_store_->Put(OatHeader::kDex2OatHostKey, oss.str());
-      key_value_store_->Put(OatHeader::kPicKey, compile_pic ? "true" : "false");
+      key_value_store_->Put(OatHeader::kPicKey,
+                            compile_pic ? OatHeader::kTrueValue : OatHeader::kFalseValue);
+      key_value_store_->Put(OatHeader::kDebuggableKey,
+                            debuggable ? OatHeader::kTrueValue : OatHeader::kFalseValue);
     }
   }
 

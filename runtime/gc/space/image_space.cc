@@ -203,6 +203,9 @@ static bool GenerateImage(const std::string& image_filename, InstructionSet imag
   oat_file_option_string += ImageHeader::GetOatLocationFromImageLocation(image_filename);
   arg_vector.push_back(oat_file_option_string);
 
+  // Note: we do not generate a fully debuggable boot image so we do not pass the
+  // compiler flag --debuggable here.
+
   Runtime::Current()->AddCurrentRuntimeFeaturesAsDex2OatArguments(&arg_vector);
   CHECK_EQ(image_isa, kRuntimeISA)
       << "We should always be generating an image for the current isa.";
