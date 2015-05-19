@@ -1510,6 +1510,81 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
   invoke->GetBlock()->RemoveInstruction(invoke);
 }
 
+/*
+ * Loop will be transformed to:
+ *       old_pre_header
+ *             |
+ *          if_block
+ *           /    \
+ *  dummy_block   deopt_block
+ *           \    /
+ *       new_pre_header
+ *             |
+ *           header
+ */
+void HGraph::TransformLoopHeaderForBCE(HBasicBlock* header) {
+  DCHECK(header->IsLoopHeader());
+  HBasicBlock* pre_header = header->GetDominator();
+
+  // Need this to avoid critical edge.
+  HBasicBlock* if_block = new (arena_) HBasicBlock(this, header->GetDexPc());
+  // Need this to avoid critical edge.
+  HBasicBlock* dummy_block = new (arena_) HBasicBlock(this, header->GetDexPc());
+  HBasicBlock* deopt_block = new (arena_) HBasicBlock(this, header->GetDexPc());
+  HBasicBlock* new_pre_header = new (arena_) HBasicBlock(this, header->GetDexPc());
+  AddBlock(if_block);
+  AddBlock(dummy_block);
+  AddBlock(deopt_block);
+  AddBlock(new_pre_header);
+
+  header->ReplacePredecessor(pre_header, new_pre_header);
+  pre_header->successors_.Reset();
+  pre_header->dominated_blocks_.Reset();
+
+  pre_header->AddSuccessor(if_block);
+  if_block->AddSuccessor(dummy_block);  // True successor
+  if_block->AddSuccessor(deopt_block);  // False successor
+  dummy_block->AddSuccessor(new_pre_header);
+  deopt_block->AddSuccessor(new_pre_header);
+
+  pre_header->dominated_blocks_.Add(if_block);
+  if_block->SetDominator(pre_header);
+  if_block->dominated_blocks_.Add(dummy_block);
+  dummy_block->SetDominator(if_block);
+  if_block->dominated_blocks_.Add(deopt_block);
+  deopt_block->SetDominator(if_block);
+  if_block->dominated_blocks_.Add(new_pre_header);
+  new_pre_header->SetDominator(if_block);
+  new_pre_header->dominated_blocks_.Add(header);
+  header->SetDominator(new_pre_header);
+
+  size_t index_of_header = 0;
+  while (reverse_post_order_.Get(index_of_header) != header) {
+    index_of_header++;
+  }
+  MakeRoomFor(&reverse_post_order_, 4, index_of_header - 1);
+  reverse_post_order_.Put(index_of_header++, if_block);
+  reverse_post_order_.Put(index_of_header++, dummy_block);
+  reverse_post_order_.Put(index_of_header++, deopt_block);
+  reverse_post_order_.Put(index_of_header++, new_pre_header);
+
+  HLoopInformation* info = pre_header->GetLoopInformation();
+  if (info != nullptr) {
+    if_block->SetLoopInformation(info);
+    dummy_block->SetLoopInformation(info);
+    deopt_block->SetLoopInformation(info);
+    new_pre_header->SetLoopInformation(info);
+    for (HLoopInformationOutwardIterator loop_it(*pre_header);
+         !loop_it.Done();
+         loop_it.Advance()) {
+      loop_it.Current()->Add(if_block);
+      loop_it.Current()->Add(dummy_block);
+      loop_it.Current()->Add(deopt_block);
+      loop_it.Current()->Add(new_pre_header);
+    }
+  }
+}
+
 std::ostream& operator<<(std::ostream& os, const ReferenceTypeInfo& rhs) {
   ScopedObjectAccess soa(Thread::Current());
   os << "["
