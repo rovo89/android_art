@@ -797,7 +797,8 @@ static void GenUnsafePut(LocationSummary* locations,
   }
 
   if (type == Primitive::kPrimNot) {
-    codegen->MarkGCCard(base, value);
+    bool value_can_be_null = true;  // TODO: Worth finding out this information?
+    codegen->MarkGCCard(base, value, value_can_be_null);
   }
 }
 
@@ -856,7 +857,8 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
   // This needs to be before the temp registers, as MarkGCCard also uses VIXL temps.
   if (type == Primitive::kPrimNot) {
     // Mark card for object assuming new value is stored.
-    codegen->MarkGCCard(base, value);
+    bool value_can_be_null = true;  // TODO: Worth finding out this information?
+    codegen->MarkGCCard(base, value, value_can_be_null);
   }
 
   UseScratchRegisterScope temps(masm);

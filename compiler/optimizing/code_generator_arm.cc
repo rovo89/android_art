@@ -3037,7 +3037,8 @@ void LocationsBuilderARM::HandleFieldSet(HInstruction* instruction, const FieldI
 }
 
 void InstructionCodeGeneratorARM::HandleFieldSet(HInstruction* instruction,
-                                                 const FieldInfo& field_info) {
+                                                 const FieldInfo& field_info,
+                                                 bool value_can_be_null) {
   DCHECK(instruction->IsInstanceFieldSet() || instruction->IsStaticFieldSet());
 
   LocationSummary* locations = instruction->GetLocations();
@@ -3126,7 +3127,8 @@ void InstructionCodeGeneratorARM::HandleFieldSet(HInstruction* instruction,
   if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->InputAt(1))) {
     Register temp = locations->GetTemp(0).AsRegister<Register>();
     Register card = locations->GetTemp(1).AsRegister<Register>();
-    codegen_->MarkGCCard(temp, card, base, value.AsRegister<Register>());
+    codegen_->MarkGCCard(
+        temp, card, base, value.AsRegister<Register>(), value_can_be_null);
   }
 
   if (is_volatile) {
@@ -3253,7 +3255,7 @@ void LocationsBuilderARM::VisitInstanceFieldSet(HInstanceFieldSet* instruction) 
 }
 
 void InstructionCodeGeneratorARM::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
-  HandleFieldSet(instruction, instruction->GetFieldInfo());
+  HandleFieldSet(instruction, instruction->GetFieldInfo(), instruction->GetValueCanBeNull());
 }
 
 void LocationsBuilderARM::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
@@ -3277,7 +3279,7 @@ void LocationsBuilderARM::VisitStaticFieldSet(HStaticFieldSet* instruction) {
 }
 
 void InstructionCodeGeneratorARM::VisitStaticFieldSet(HStaticFieldSet* instruction) {
-  HandleFieldSet(instruction, instruction->GetFieldInfo());
+  HandleFieldSet(instruction, instruction->GetFieldInfo(), instruction->GetValueCanBeNull());
 }
 
 void LocationsBuilderARM::VisitNullCheck(HNullCheck* instruction) {
@@ -3547,7 +3549,7 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
           DCHECK_EQ(value_type, Primitive::kPrimNot);
           Register temp = locations->GetTemp(0).AsRegister<Register>();
           Register card = locations->GetTemp(1).AsRegister<Register>();
-          codegen_->MarkGCCard(temp, card, obj, value);
+          codegen_->MarkGCCard(temp, card, obj, value, instruction->GetValueCanBeNull());
         }
       } else {
         DCHECK_EQ(value_type, Primitive::kPrimNot);
@@ -3652,13 +3654,21 @@ void InstructionCodeGeneratorARM::VisitBoundsCheck(HBoundsCheck* instruction) {
   __ b(slow_path->GetEntryLabel(), CS);
 }
 
-void CodeGeneratorARM::MarkGCCard(Register temp, Register card, Register object, Register value) {
+void CodeGeneratorARM::MarkGCCard(Register temp,
+                                  Register card,
+                                  Register object,
+                                  Register value,
+                                  bool can_be_null) {
   Label is_null;
-  __ CompareAndBranchIfZero(value, &is_null);
+  if (can_be_null) {
+    __ CompareAndBranchIfZero(value, &is_null);
+  }
   __ LoadFromOffset(kLoadWord, card, TR, Thread::CardTableOffset<kArmWordSize>().Int32Value());
   __ Lsr(temp, object, gc::accounting::CardTable::kCardShift);
   __ strb(card, Address(card, temp));
-  __ Bind(&is_null);
+  if (can_be_null) {
+    __ Bind(&is_null);
+  }
 }
 
 void LocationsBuilderARM::VisitTemporary(HTemporary* temp) {

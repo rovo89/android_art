@@ -3163,7 +3163,8 @@ class HInstanceFieldSet : public HTemplateInstruction<2> {
                     MemberOffset field_offset,
                     bool is_volatile)
       : HTemplateInstruction(SideEffects::ChangesSomething()),
-        field_info_(field_offset, field_type, is_volatile) {
+        field_info_(field_offset, field_type, is_volatile),
+        value_can_be_null_(true) {
     SetRawInputAt(0, object);
     SetRawInputAt(1, value);
   }
@@ -3177,11 +3178,14 @@ class HInstanceFieldSet : public HTemplateInstruction<2> {
   Primitive::Type GetFieldType() const { return field_info_.GetFieldType(); }
   bool IsVolatile() const { return field_info_.IsVolatile(); }
   HInstruction* GetValue() const { return InputAt(1); }
+  bool GetValueCanBeNull() const { return value_can_be_null_; }
+  void ClearValueCanBeNull() { value_can_be_null_ = false; }
 
   DECLARE_INSTRUCTION(InstanceFieldSet);
 
  private:
   const FieldInfo field_info_;
+  bool value_can_be_null_;
 
   DISALLOW_COPY_AND_ASSIGN(HInstanceFieldSet);
 };
@@ -3230,7 +3234,8 @@ class HArraySet : public HTemplateInstruction<3> {
       : HTemplateInstruction(SideEffects::ChangesSomething()),
         dex_pc_(dex_pc),
         expected_component_type_(expected_component_type),
-        needs_type_check_(value->GetType() == Primitive::kPrimNot) {
+        needs_type_check_(value->GetType() == Primitive::kPrimNot),
+        value_can_be_null_(true) {
     SetRawInputAt(0, array);
     SetRawInputAt(1, index);
     SetRawInputAt(2, value);
@@ -3252,6 +3257,11 @@ class HArraySet : public HTemplateInstruction<3> {
     needs_type_check_ = false;
   }
 
+  void ClearValueCanBeNull() {
+    value_can_be_null_ = false;
+  }
+
+  bool GetValueCanBeNull() const { return value_can_be_null_; }
   bool NeedsTypeCheck() const { return needs_type_check_; }
 
   uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
@@ -3277,6 +3287,7 @@ class HArraySet : public HTemplateInstruction<3> {
   const uint32_t dex_pc_;
   const Primitive::Type expected_component_type_;
   bool needs_type_check_;
+  bool value_can_be_null_;
 
   DISALLOW_COPY_AND_ASSIGN(HArraySet);
 };
@@ -3577,7 +3588,8 @@ class HStaticFieldSet : public HTemplateInstruction<2> {
                   MemberOffset field_offset,
                   bool is_volatile)
       : HTemplateInstruction(SideEffects::ChangesSomething()),
-        field_info_(field_offset, field_type, is_volatile) {
+        field_info_(field_offset, field_type, is_volatile),
+        value_can_be_null_(true) {
     SetRawInputAt(0, cls);
     SetRawInputAt(1, value);
   }
@@ -3588,11 +3600,14 @@ class HStaticFieldSet : public HTemplateInstruction<2> {
   bool IsVolatile() const { return field_info_.IsVolatile(); }
 
   HInstruction* GetValue() const { return InputAt(1); }
+  bool GetValueCanBeNull() const { return value_can_be_null_; }
+  void ClearValueCanBeNull() { value_can_be_null_ = false; }
 
   DECLARE_INSTRUCTION(StaticFieldSet);
 
  private:
   const FieldInfo field_info_;
+  bool value_can_be_null_;
 
   DISALLOW_COPY_AND_ASSIGN(HStaticFieldSet);
 };
