@@ -25,13 +25,14 @@
 namespace art {
 namespace dwarf {
 
-void WriteEhFrame(const CompilerDriver* compiler,
-                  const OatWriter* oat_writer,
-                  ExceptionHeaderValueApplication address_type,
-                  std::vector<uint8_t>* eh_frame,
-                  std::vector<uintptr_t>* eh_frame_patches,
-                  std::vector<uint8_t>* eh_frame_hdr,
-                  std::vector<uintptr_t>* eh_frame_hdr_patches);
+void WriteCFISection(const CompilerDriver* compiler,
+                     const OatWriter* oat_writer,
+                     ExceptionHeaderValueApplication address_type,
+                     CFIFormat format,
+                     std::vector<uint8_t>* debug_frame,
+                     std::vector<uintptr_t>* debug_frame_patches,
+                     std::vector<uint8_t>* eh_frame_hdr,
+                     std::vector<uintptr_t>* eh_frame_hdr_patches);
 
 void WriteDebugSections(const CompilerDriver* compiler,
                         const OatWriter* oat_writer,
