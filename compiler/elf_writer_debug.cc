@@ -29,9 +29,10 @@
 namespace art {
 namespace dwarf {
 
-static void WriteEhFrameCIE(InstructionSet isa,
-                            ExceptionHeaderValueApplication addr_type,
-                            std::vector<uint8_t>* eh_frame) {
+static void WriteDebugFrameCIE(InstructionSet isa,
+                               ExceptionHeaderValueApplication addr_type,
+                               CFIFormat format,
+                               std::vector<uint8_t>* eh_frame) {
   // Scratch registers should be marked as undefined.  This tells the
   // debugger that its value in the previous frame is not recoverable.
   bool is64bit = Is64BitInstructionSet(isa);
@@ -57,7 +58,8 @@ static void WriteEhFrameCIE(InstructionSet isa,
         }
       }
       auto return_reg = Reg::ArmCore(14);  // R14(LR).
-      WriteEhFrameCIE(is64bit, addr_type, return_reg, opcodes, eh_frame);
+      WriteDebugFrameCIE(is64bit, addr_type, return_reg,
+                         opcodes, format, eh_frame);
       return;
     }
     case kArm64: {
@@ -80,7 +82,8 @@ static void WriteEhFrameCIE(InstructionSet isa,
         }
       }
       auto return_reg = Reg::Arm64Core(30);  // R30(LR).
-      WriteEhFrameCIE(is64bit, addr_type, return_reg, opcodes, eh_frame);
+      WriteDebugFrameCIE(is64bit, addr_type, return_reg,
+                         opcodes, format, eh_frame);
       return;
     }
     case kMips:
@@ -96,7 +99,8 @@ static void WriteEhFrameCIE(InstructionSet isa,
         }
       }
       auto return_reg = Reg::MipsCore(31);  // R31(RA).
-      WriteEhFrameCIE(is64bit, addr_type, return_reg, opcodes, eh_frame);
+      WriteDebugFrameCIE(is64bit, addr_type, return_reg,
+                         opcodes, format, eh_frame);
       return;
     }
     case kX86: {
@@ -122,7 +126,8 @@ static void WriteEhFrameCIE(InstructionSet isa,
         }
       }
       auto return_reg = Reg::X86Core(8);  // R8(EIP).
-      WriteEhFrameCIE(is64bit, addr_type, return_reg, opcodes, eh_frame);
+      WriteDebugFrameCIE(is64bit, addr_type, return_reg,
+                         opcodes, format, eh_frame);
       return;
     }
     case kX86_64: {
@@ -148,7 +153,8 @@ static void WriteEhFrameCIE(InstructionSet isa,
         }
       }
       auto return_reg = Reg::X86_64Core(16);  // R16(RIP).
-      WriteEhFrameCIE(is64bit, addr_type, return_reg, opcodes, eh_frame);
+      WriteDebugFrameCIE(is64bit, addr_type, return_reg,
+                         opcodes, format, eh_frame);
       return;
     }
     case kNone:
@@ -158,58 +164,61 @@ static void WriteEhFrameCIE(InstructionSet isa,
   UNREACHABLE();
 }
 
-void WriteEhFrame(const CompilerDriver* compiler,
-                  const OatWriter* oat_writer,
-                  ExceptionHeaderValueApplication address_type,
-                  std::vector<uint8_t>* eh_frame,
-                  std::vector<uintptr_t>* eh_frame_patches,
-                  std::vector<uint8_t>* eh_frame_hdr,
-                  std::vector<uintptr_t>* eh_frame_hdr_patches) {
+void WriteCFISection(const CompilerDriver* compiler,
+                     const OatWriter* oat_writer,
+                     ExceptionHeaderValueApplication address_type,
+                     CFIFormat format,
+                     std::vector<uint8_t>* debug_frame,
+                     std::vector<uintptr_t>* debug_frame_patches,
+                     std::vector<uint8_t>* eh_frame_hdr,
+                     std::vector<uintptr_t>* eh_frame_hdr_patches) {
   const auto& method_infos = oat_writer->GetMethodDebugInfo();
   const InstructionSet isa = compiler->GetInstructionSet();
 
-  // Write .eh_frame section.
+  // Write .eh_frame/.debug_frame section.
   std::map<uint32_t, size_t> address_to_fde_offset_map;
-  size_t cie_offset = eh_frame->size();
-  WriteEhFrameCIE(isa, address_type, eh_frame);
+  size_t cie_offset = debug_frame->size();
+  WriteDebugFrameCIE(isa, address_type, format, debug_frame);
   for (const OatWriter::DebugInfo& mi : method_infos) {
     if (!mi.deduped_) {  // Only one FDE per unique address.
       const SwapVector<uint8_t>* opcodes = mi.compiled_method_->GetCFIInfo();
       if (opcodes != nullptr) {
-        address_to_fde_offset_map.emplace(mi.low_pc_, eh_frame->size());
-        WriteEhFrameFDE(Is64BitInstructionSet(isa), cie_offset,
-                        mi.low_pc_, mi.high_pc_ - mi.low_pc_,
-                        opcodes, eh_frame, eh_frame_patches);
+        address_to_fde_offset_map.emplace(mi.low_pc_, debug_frame->size());
+        WriteDebugFrameFDE(Is64BitInstructionSet(isa), cie_offset,
+                           mi.low_pc_, mi.high_pc_ - mi.low_pc_,
+                           opcodes, format, debug_frame, debug_frame_patches);
       }
     }
   }
 
-  // Write .eh_frame_hdr section.
-  Writer<> header(eh_frame_hdr);
-  header.PushUint8(1);  // Version.
-  // Encoding of .eh_frame pointer - libunwind does not honor datarel here,
-  // so we have to use pcrel which means relative to the pointer's location.
-  header.PushUint8(DW_EH_PE_pcrel | DW_EH_PE_sdata4);
-  // Encoding of binary search table size.
-  header.PushUint8(DW_EH_PE_udata4);
-  // Encoding of binary search table addresses - libunwind supports only this
-  // specific combination, which means relative to the start of .eh_frame_hdr.
-  header.PushUint8(DW_EH_PE_datarel | DW_EH_PE_sdata4);
-  // .eh_frame pointer - .eh_frame_hdr section is after .eh_frame section
-  const int32_t relative_eh_frame_begin = -static_cast<int32_t>(eh_frame->size());
-  header.PushInt32(relative_eh_frame_begin - 4U);
-  // Binary search table size (number of entries).
-  header.PushUint32(dchecked_integral_cast<uint32_t>(address_to_fde_offset_map.size()));
-  // Binary search table.
-  for (const auto& address_to_fde_offset : address_to_fde_offset_map) {
-    u_int32_t code_address = address_to_fde_offset.first;
-    int32_t fde_address = dchecked_integral_cast<int32_t>(address_to_fde_offset.second);
-    eh_frame_hdr_patches->push_back(header.data()->size());
-    header.PushUint32(code_address);
-    // We know the exact layout (eh_frame is immediately before eh_frame_hdr)
-    // and the data is relative to the start of the eh_frame_hdr,
-    // so patching isn't necessary (in contrast to the code address above).
-    header.PushInt32(relative_eh_frame_begin + fde_address);
+  if (format == DW_EH_FRAME_FORMAT) {
+    // Write .eh_frame_hdr section.
+    Writer<> header(eh_frame_hdr);
+    header.PushUint8(1);  // Version.
+    // Encoding of .eh_frame pointer - libunwind does not honor datarel here,
+    // so we have to use pcrel which means relative to the pointer's location.
+    header.PushUint8(DW_EH_PE_pcrel | DW_EH_PE_sdata4);
+    // Encoding of binary search table size.
+    header.PushUint8(DW_EH_PE_udata4);
+    // Encoding of binary search table addresses - libunwind supports only this
+    // specific combination, which means relative to the start of .eh_frame_hdr.
+    header.PushUint8(DW_EH_PE_datarel | DW_EH_PE_sdata4);
+    // .eh_frame pointer - .eh_frame_hdr section is after .eh_frame section
+    const int32_t relative_eh_frame_begin = -static_cast<int32_t>(debug_frame->size());
+    header.PushInt32(relative_eh_frame_begin - 4U);
+    // Binary search table size (number of entries).
+    header.PushUint32(dchecked_integral_cast<uint32_t>(address_to_fde_offset_map.size()));
+    // Binary search table.
+    for (const auto& address_to_fde_offset : address_to_fde_offset_map) {
+      u_int32_t code_address = address_to_fde_offset.first;
+      int32_t fde_address = dchecked_integral_cast<int32_t>(address_to_fde_offset.second);
+      eh_frame_hdr_patches->push_back(header.data()->size());
+      header.PushUint32(code_address);
+      // We know the exact layout (eh_frame is immediately before eh_frame_hdr)
+      // and the data is relative to the start of the eh_frame_hdr,
+      // so patching isn't necessary (in contrast to the code address above).
+      header.PushInt32(relative_eh_frame_begin + fde_address);
+    }
   }
 }
 

@@ -680,6 +680,14 @@ enum ExceptionHeaderValueApplication : uint8_t {
   DW_EH_PE_aligned = 0x50,
 };
 
+enum CFIFormat : uint8_t {
+  // This is the original format as defined by the specification.
+  // It is used for the .debug_frame section.
+  DW_DEBUG_FRAME_FORMAT,
+  // Slightly modified format used for the .eh_frame section.
+  DW_EH_FRAME_FORMAT
+};
+
 }  // namespace dwarf
 }  // namespace art
 

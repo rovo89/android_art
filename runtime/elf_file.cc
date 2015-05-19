@@ -1402,25 +1402,23 @@ typename ElfTypes::Shdr* ElfFileImpl<ElfTypes>::FindSectionByName(
 
 template <typename ElfTypes>
 bool ElfFileImpl<ElfTypes>::FixupDebugSections(typename std::make_signed<Elf_Off>::type base_address_delta) {
-  const Elf_Shdr* debug_info = FindSectionByName(".debug_info");
-  const Elf_Shdr* debug_abbrev = FindSectionByName(".debug_abbrev");
-  const Elf_Shdr* debug_str = FindSectionByName(".debug_str");
-  const Elf_Shdr* strtab_sec = FindSectionByName(".strtab");
-  const Elf_Shdr* symtab_sec = FindSectionByName(".symtab");
-
-  if (debug_info == nullptr || debug_abbrev == nullptr ||
-      debug_str == nullptr || strtab_sec == nullptr || symtab_sec == nullptr) {
-    // Release version of ART does not generate debug info.
-    return true;
-  }
   if (base_address_delta == 0) {
     return true;
   }
-  if (!ApplyOatPatchesTo(".debug_info", base_address_delta)) {
-    return false;
+  if (FindSectionByName(".debug_frame") != nullptr) {
+    if (!ApplyOatPatchesTo(".debug_frame", base_address_delta)) {
+      return false;
+    }
   }
-  if (!ApplyOatPatchesTo(".debug_line", base_address_delta)) {
-    return false;
+  if (FindSectionByName(".debug_info") != nullptr) {
+    if (!ApplyOatPatchesTo(".debug_info", base_address_delta)) {
+      return false;
+    }
+  }
+  if (FindSectionByName(".debug_line") != nullptr) {
+    if (!ApplyOatPatchesTo(".debug_line", base_address_delta)) {
+      return false;
+    }
   }
   return true;
 }
