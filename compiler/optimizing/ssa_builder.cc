@@ -504,7 +504,7 @@ HInstruction* SsaBuilder::GetFloatOrDoubleEquivalent(HInstruction* user,
     // typed and the value in a dex register will not be used for both floating point and
     // non-floating point operations. So the only reason an instruction would want a floating
     // point equivalent is for an unused phi that will be removed by the dead phi elimination phase.
-    DCHECK(user->IsPhi());
+    DCHECK(user->IsPhi()) << "is actually " << user->DebugName() << " (" << user->GetId() << ")";
     return value;
   }
 }
