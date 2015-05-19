@@ -54,6 +54,11 @@ def __processLine(line, lineNo, prefix):
   if plainLine is not None:
     return (plainLine, TestAssertion.Variant.InOrder, lineNo), None
 
+  # 'CHECK-NEXT' lines are in-order but must match the very next line.
+  nextLine = __extractLine(prefix + "-NEXT", line)
+  if nextLine is not None:
+    return (nextLine, TestAssertion.Variant.NextLine, lineNo), None
+
   # 'CHECK-DAG' lines are no-order assertions.
   dagLine = __extractLine(prefix + "-DAG", line)
   if dagLine is not None:

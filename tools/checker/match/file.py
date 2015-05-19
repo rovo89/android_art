@@ -127,6 +127,11 @@ def MatchTestCase(testCase, c1Pass):
       assert len(assertionGroup) == 1
       scope = MatchScope(matchFrom, c1Length)
       match = findMatchingLine(assertionGroup[0], c1Pass, scope, variables)
+    elif assertionGroup[0].variant == TestAssertion.Variant.NextLine:
+      # Single next-line assertion. Test if the current line matches.
+      assert len(assertionGroup) == 1
+      scope = MatchScope(matchFrom, matchFrom + 1)
+      match = findMatchingLine(assertionGroup[0], c1Pass, scope, variables)
     else:
       # A group of DAG assertions. Match them all starting from the same point.
       assert assertionGroup[0].variant == TestAssertion.Variant.DAG
