@@ -278,8 +278,7 @@ TWO_ARG_RUNTIME_EXCEPTION art_quick_throw_array_bounds, artThrowArrayBoundsFromC
     /*
      * All generated callsites for interface invokes and invocation slow paths will load arguments
      * as usual - except instead of loading arg0/r0 with the target Method*, arg0/r0 will contain
-     * the method_idx.  This wrapper will save arg1-arg3, load the caller's Method*, align the
-     * stack and call the appropriate C helper.
+     * the method_idx.  This wrapper will save arg1-arg3 and call the appropriate C helper.
      * NOTE: "this" is first visible argument of the target, and so can be found in arg1/r1.
      *
      * The helper will attempt to locate the target and return a 64-bit result in r0/r1 consisting
@@ -297,19 +296,15 @@ MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
     movl %esp, %edx  // remember SP
 
     // Outgoing argument set up
-    subl MACRO_LITERAL(12), %esp  // alignment padding
-    CFI_ADJUST_CFA_OFFSET(12)
     PUSH edx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    CFI_ADJUST_CFA_OFFSET(4)
-    pushl 32+32(%edx)             // pass caller Method*
     CFI_ADJUST_CFA_OFFSET(4)
     PUSH ecx                      // pass arg2
     PUSH eax                      // pass arg1
     call VAR(cxx_name, 1)         // cxx_name(arg1, arg2, arg3, Thread*, SP)
     movl %edx, %edi               // save code pointer in EDI
-    addl MACRO_LITERAL(36), %esp  // Pop arguments skip eax
-    CFI_ADJUST_CFA_OFFSET(-36)
+    addl MACRO_LITERAL(20), %esp  // Pop arguments skip eax
+    CFI_ADJUST_CFA_OFFSET(-20)
 
     // Restore FPRs.
     movsd 0(%esp), %xmm0

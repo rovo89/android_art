@@ -294,8 +294,13 @@ class QuickArgumentVisitor {
   static mirror::ArtMethod* GetCallingMethod(StackReference<mirror::ArtMethod>* sp)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(sp->AsMirrorPtr()->IsCalleeSaveMethod());
-    uint8_t* previous_sp = reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_FrameSize;
-    return reinterpret_cast<StackReference<mirror::ArtMethod>*>(previous_sp)->AsMirrorPtr();
+    return GetCalleeSaveMethodCaller(sp, Runtime::kRefsAndArgs);
+  }
+
+  static uint32_t GetCallingDexPc(StackReference<mirror::ArtMethod>* sp)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(sp->AsMirrorPtr()->IsCalleeSaveMethod());
+    return GetCallingMethod(sp)->ToDexPc(QuickArgumentVisitor::GetCallingPc(sp));
   }
 
   // For the given quick ref and args quick frame, return the caller's PC.
@@ -827,12 +832,13 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
 
   // Compute details about the called method (avoid GCs)
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  mirror::ArtMethod* caller = QuickArgumentVisitor::GetCallingMethod(sp);
   InvokeType invoke_type;
   MethodReference called_method(nullptr, 0);
   const bool called_method_known_on_entry = !called->IsRuntimeMethod();
+  mirror::ArtMethod* caller = nullptr;
   if (!called_method_known_on_entry) {
-    uint32_t dex_pc = caller->ToDexPc(QuickArgumentVisitor::GetCallingPc(sp));
+    caller = QuickArgumentVisitor::GetCallingMethod(sp);
+    uint32_t dex_pc = QuickArgumentVisitor::GetCallingDexPc(sp);
     const DexFile::CodeItem* code;
     called_method.dex_file = caller->GetDexFile();
     code = caller->GetCodeItem();
@@ -1946,16 +1952,13 @@ extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self, jvalue result,
 // to hold the mutator lock (see SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) annotations).
 
 template<InvokeType type, bool access_check>
-static TwoWordReturn artInvokeCommon(uint32_t method_idx, mirror::Object* this_object,
-                                     mirror::ArtMethod* caller_method,
-                                     Thread* self, StackReference<mirror::ArtMethod>* sp);
-
-template<InvokeType type, bool access_check>
-static TwoWordReturn artInvokeCommon(uint32_t method_idx, mirror::Object* this_object,
-                                     mirror::ArtMethod* caller_method,
-                                     Thread* self, StackReference<mirror::ArtMethod>* sp) {
+static TwoWordReturn artInvokeCommon(uint32_t method_idx,
+                                     mirror::Object* this_object,
+                                     Thread* self,
+                                     StackReference<mirror::ArtMethod>* sp) {
   ScopedQuickEntrypointChecks sqec(self);
   DCHECK_EQ(sp->AsMirrorPtr(), Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs));
+  mirror::ArtMethod* caller_method = QuickArgumentVisitor::GetCallingMethod(sp);
   mirror::ArtMethod* method = FindMethodFast(method_idx, this_object, caller_method, access_check,
                                              type);
   if (UNLIKELY(method == nullptr)) {
@@ -1994,7 +1997,6 @@ static TwoWordReturn artInvokeCommon(uint32_t method_idx, mirror::Object* this_o
   template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                          \
   TwoWordReturn artInvokeCommon<type, access_check>(uint32_t method_idx,                        \
                                                     mirror::Object* this_object,                \
-                                                    mirror::ArtMethod* caller_method,           \
                                                     Thread* self,                               \
                                                     StackReference<mirror::ArtMethod>* sp)      \
 
@@ -2012,58 +2014,58 @@ EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(kSuper, true);
 
 // See comments in runtime_support_asm.S
 extern "C" TwoWordReturn artInvokeInterfaceTrampolineWithAccessCheck(
-    uint32_t method_idx, mirror::Object* this_object,
-    mirror::ArtMethod* caller_method, Thread* self,
+    uint32_t method_idx,
+    mirror::Object* this_object,
+    Thread* self,
     StackReference<mirror::ArtMethod>* sp)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return artInvokeCommon<kInterface, true>(method_idx, this_object,
-                                           caller_method, self, sp);
+  return artInvokeCommon<kInterface, true>(method_idx, this_object, self, sp);
 }
 
 extern "C" TwoWordReturn artInvokeDirectTrampolineWithAccessCheck(
-    uint32_t method_idx, mirror::Object* this_object,
-    mirror::ArtMethod* caller_method, Thread* self,
+    uint32_t method_idx,
+    mirror::Object* this_object,
+    Thread* self,
     StackReference<mirror::ArtMethod>* sp)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return artInvokeCommon<kDirect, true>(method_idx, this_object, caller_method,
-                                        self, sp);
+  return artInvokeCommon<kDirect, true>(method_idx, this_object, self, sp);
 }
 
 extern "C" TwoWordReturn artInvokeStaticTrampolineWithAccessCheck(
-    uint32_t method_idx, mirror::Object* this_object,
-    mirror::ArtMethod* caller_method, Thread* self,
+    uint32_t method_idx,
+    mirror::Object* this_object,
+    Thread* self,
     StackReference<mirror::ArtMethod>* sp)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return artInvokeCommon<kStatic, true>(method_idx, this_object, caller_method,
-                                        self, sp);
+  return artInvokeCommon<kStatic, true>(method_idx, this_object, self, sp);
 }
 
 extern "C" TwoWordReturn artInvokeSuperTrampolineWithAccessCheck(
-    uint32_t method_idx, mirror::Object* this_object,
-    mirror::ArtMethod* caller_method, Thread* self,
+    uint32_t method_idx,
+    mirror::Object* this_object,
+    Thread* self,
     StackReference<mirror::ArtMethod>* sp)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return artInvokeCommon<kSuper, true>(method_idx, this_object, caller_method,
-                                       self, sp);
+  return artInvokeCommon<kSuper, true>(method_idx, this_object, self, sp);
 }
 
 extern "C" TwoWordReturn artInvokeVirtualTrampolineWithAccessCheck(
-    uint32_t method_idx, mirror::Object* this_object,
-    mirror::ArtMethod* caller_method, Thread* self,
+    uint32_t method_idx,
+    mirror::Object* this_object,
+    Thread* self,
     StackReference<mirror::ArtMethod>* sp)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return artInvokeCommon<kVirtual, true>(method_idx, this_object, caller_method,
-                                         self, sp);
+  return artInvokeCommon<kVirtual, true>(method_idx, this_object, self, sp);
 }
 
 // Determine target of interface dispatch. This object is known non-null.
 extern "C" TwoWordReturn artInvokeInterfaceTrampoline(mirror::ArtMethod* interface_method,
                                                       mirror::Object* this_object,
-                                                      mirror::ArtMethod* caller_method,
                                                       Thread* self,
                                                       StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
+  mirror::ArtMethod* caller_method = QuickArgumentVisitor::GetCallingMethod(sp);
   mirror::ArtMethod* method;
   if (LIKELY(interface_method->GetDexMethodIndex() != DexFile::kDexNoIndex)) {
     method = this_object->GetClass()->FindVirtualMethodForInterface(interface_method);
@@ -2075,12 +2077,7 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(mirror::ArtMethod* interfa
   } else {
     DCHECK(interface_method == Runtime::Current()->GetResolutionMethod());
 
-    // Find the caller PC.
-    constexpr size_t pc_offset = GetCalleeSaveReturnPcOffset(kRuntimeISA, Runtime::kRefsAndArgs);
-    uintptr_t caller_pc = *reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(sp) + pc_offset);
-
-    // Map the caller PC to a dex PC.
-    uint32_t dex_pc = caller_method->ToDexPc(caller_pc);
+    uint32_t dex_pc = QuickArgumentVisitor::GetCallingDexPc(sp);
     const DexFile::CodeItem* code = caller_method->GetCodeItem();
     CHECK_LT(dex_pc, code->insns_size_in_code_units_);
     const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);

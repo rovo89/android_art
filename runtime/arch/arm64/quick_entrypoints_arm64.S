@@ -459,8 +459,7 @@ ONE_ARG_RUNTIME_EXCEPTION art_quick_throw_no_such_method, artThrowNoSuchMethodFr
     /*
      * All generated callsites for interface invokes and invocation slow paths will load arguments
      * as usual - except instead of loading arg0/x0 with the target Method*, arg0/x0 will contain
-     * the method_idx.  This wrapper will save arg1-arg3, load the caller's Method*, align the
-     * stack and call the appropriate C helper.
+     * the method_idx.  This wrapper will save arg1-arg3, and call the appropriate C helper.
      * NOTE: "this" is first visible argument of the target, and so can be found in arg1/x1.
      *
      * The helper will attempt to locate the target and return a 128-bit result in x0/x1 consisting
@@ -483,10 +482,9 @@ ENTRY \c_name
     // Helper signature is always
     // (method_idx, *this_object, *caller_method, *self, sp)
 
-    ldr    w2, [sp, #FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE]  // pass caller Method*
-    mov    x3, xSELF                      // pass Thread::Current
-    mov    x4, sp
-    bl     \cxx_name                      // (method_idx, this, caller, Thread*, SP)
+    mov    x2, xSELF                      // pass Thread::Current
+    mov    x3, sp
+    bl     \cxx_name                      // (method_idx, this, Thread*, SP)
     mov    xIP0, x1                       // save Method*->code_
     RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
     cbz    x0, 1f                         // did we find the target? if not go to exception delivery
