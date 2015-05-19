@@ -181,7 +181,9 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
                                HInstruction* instruction);
   void GenerateWideAtomicLoad(Register addr, uint32_t offset,
                               Register out_lo, Register out_hi);
-  void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
+  void HandleFieldSet(HInstruction* instruction,
+                      const FieldInfo& field_info,
+                      bool value_can_be_null);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
   void GenerateImplicitNullCheck(HNullCheck* instruction);
   void GenerateExplicitNullCheck(HNullCheck* instruction);
@@ -274,7 +276,7 @@ class CodeGeneratorARM : public CodeGenerator {
       int32_t offset, HInstruction* instruction, uint32_t dex_pc, SlowPathCode* slow_path);
 
   // Emit a write barrier.
-  void MarkGCCard(Register temp, Register card, Register object, Register value);
+  void MarkGCCard(Register temp, Register card, Register object, Register value, bool can_be_null);
 
   Label* GetLabelOf(HBasicBlock* block) const {
     return CommonGetLabelOf<Label>(block_labels_.GetRawStorage(), block);

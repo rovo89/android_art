@@ -174,7 +174,9 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
   void GenerateDivRemIntegral(HBinaryOperation* instruction);
   void HandleShift(HBinaryOperation* operation);
   void GenerateMemoryBarrier(MemBarrierKind kind);
-  void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
+  void HandleFieldSet(HInstruction* instruction,
+                      const FieldInfo& field_info,
+                      bool value_can_be_null);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
   void GenerateImplicitNullCheck(HNullCheck* instruction);
   void GenerateExplicitNullCheck(HNullCheck* instruction);
@@ -248,7 +250,11 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   }
 
   // Emit a write barrier.
-  void MarkGCCard(CpuRegister temp, CpuRegister card, CpuRegister object, CpuRegister value);
+  void MarkGCCard(CpuRegister temp,
+                  CpuRegister card,
+                  CpuRegister object,
+                  CpuRegister value,
+                  bool value_can_be_null);
 
   // Helper method to move a value between two locations.
   void Move(Location destination, Location source);
