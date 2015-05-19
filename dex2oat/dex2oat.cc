@@ -89,6 +89,63 @@ static std::string CommandLine() {
   return Join(command, ' ');
 }
 
+// A stripped version. Remove some less essential parameters. If we see a "--zip-fd=" parameter, be
+// even more aggressive. There won't be much reasonable data here for us in that case anyways (the
+// locations are all staged).
+static std::string StrippedCommandLine() {
+  std::vector<std::string> command;
+
+  // Do a pre-pass to look for zip-fd.
+  bool saw_zip_fd = false;
+  for (int i = 0; i < original_argc; ++i) {
+    if (StartsWith(original_argv[i], "--zip-fd=")) {
+      saw_zip_fd = true;
+      break;
+    }
+  }
+
+  // Now filter out things.
+  for (int i = 0; i < original_argc; ++i) {
+    // All runtime-arg parameters are dropped.
+    if (strcmp(original_argv[i], "--runtime-arg") == 0) {
+      i++;  // Drop the next part, too.
+      continue;
+    }
+
+    // Any instruction-setXXX is dropped.
+    if (StartsWith(original_argv[i], "--instruction-set")) {
+      continue;
+    }
+
+    // The boot image is dropped.
+    if (StartsWith(original_argv[i], "--boot-image=")) {
+      continue;
+    }
+
+    // This should leave any dex-file and oat-file options, describing what we compiled.
+
+    // However, we prefer to drop this when we saw --zip-fd.
+    if (saw_zip_fd) {
+      // Drop anything --zip-X, --dex-X, --oat-X, --swap-X.
+      if (StartsWith(original_argv[i], "--zip-") ||
+          StartsWith(original_argv[i], "--dex-") ||
+          StartsWith(original_argv[i], "--oat-") ||
+          StartsWith(original_argv[i], "--swap-")) {
+        continue;
+      }
+    }
+
+    command.push_back(original_argv[i]);
+  }
+
+  // Construct the final output.
+  if (command.size() <= 1U) {
+    // It seems only "/system/bin/dex2oat" is left, or not even that. Use a pretty line.
+    return "Starting dex2oat.";
+  }
+  return Join(command, ' ');
+}
+
 static void UsageErrorV(const char* fmt, va_list ap) {
   std::string error;
   StringAppendV(&error, fmt, ap);
@@ -1911,7 +1968,17 @@ static int dex2oat(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  LOG(INFO) << CommandLine();
+  // Print the complete line when any of the following is true:
+  //   1) Debug build
+  //   2) Compiling an image
+  //   3) Compiling with --host
+  //   4) Compiling on the host (not a target build)
+  // Otherwise, print a stripped command line.
+  if (kIsDebugBuild || dex2oat.IsImage() || dex2oat.IsHost() || !kIsTargetBuild) {
+    LOG(INFO) << CommandLine();
+  } else {
+    LOG(INFO) << StrippedCommandLine();
+  }
 
   if (!dex2oat.Setup()) {
     dex2oat.EraseOatFile();
