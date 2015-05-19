@@ -35,6 +35,7 @@
 #include "leb128.h"
 #include "pass_driver_me_post_opt.h"
 #include "stack.h"
+#include "utils.h"
 
 namespace art {
 

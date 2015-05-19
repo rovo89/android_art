@@ -18,12 +18,12 @@
 
 #include "codegen_x86.h"
 
+#include "base/bit_utils.h"
 #include "base/logging.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "dex/reg_storage_eq.h"
 #include "mirror/art_method.h"
 #include "mirror/array-inl.h"
-#include "utils.h"
 #include "x86_lir.h"
 
 namespace art {

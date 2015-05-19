@@ -16,10 +16,9 @@
 
 #include "context_x86.h"
 
+#include "base/bit_utils.h"
 #include "mirror/art_method-inl.h"
 #include "quick/quick_method_frame_info.h"
-#include "utils.h"
-
 
 namespace art {
 namespace x86 {
@@ -27,12 +26,8 @@ namespace x86 {
 static constexpr uintptr_t gZero = 0;
 
 void X86Context::Reset() {
-  for (size_t  i = 0; i < kNumberOfCpuRegisters; i++) {
-    gprs_[i] = nullptr;
-  }
-  for (size_t i = 0; i < kNumberOfFloatRegisters; ++i) {
-    fprs_[i] = nullptr;
-  }
+  std::fill_n(gprs_, arraysize(gprs_), nullptr);
+  std::fill_n(fprs_, arraysize(fprs_), nullptr);
   gprs_[ESP] = &esp_;
   // Initialize registers with easy to spot debug values.
   esp_ = X86Context::kBadGprBase + ESP;
@@ -42,36 +37,29 @@ void X86Context::Reset() {
 void X86Context::FillCalleeSaves(const StackVisitor& fr) {
   mirror::ArtMethod* method = fr.GetMethod();
   const QuickMethodFrameInfo frame_info = method->GetQuickFrameInfo();
-  size_t spill_count = POPCOUNT(frame_info.CoreSpillMask());
-  size_t fp_spill_count = POPCOUNT(frame_info.FpSpillMask());
-  if (spill_count > 0) {
-    // Lowest number spill is farthest away, walk registers and fill into context.
-    int j = 2;  // Offset j to skip return address spill.
-    for (int i = 0; i < kNumberOfCpuRegisters; i++) {
-      if (((frame_info.CoreSpillMask() >> i) & 1) != 0) {
-        gprs_[i] = fr.CalleeSaveAddress(spill_count - j, frame_info.FrameSizeInBytes());
-        j++;
-      }
-    }
+  int spill_pos = 0;
+
+  // Core registers come first, from the highest down to the lowest.
+  uint32_t core_regs =
+      frame_info.CoreSpillMask() & ~(static_cast<uint32_t>(-1) << kNumberOfCpuRegisters);
+  DCHECK_EQ(1, POPCOUNT(frame_info.CoreSpillMask() & ~core_regs));  // Return address spill.
+  for (uint32_t core_reg : HighToLowBits(core_regs)) {
+    gprs_[core_reg] = fr.CalleeSaveAddress(spill_pos, frame_info.FrameSizeInBytes());
+    ++spill_pos;
   }
-  if (fp_spill_count > 0) {
-    // Lowest number spill is farthest away, walk registers and fill into context.
-    size_t j = 2;  // Offset j to skip return address spill.
-    size_t fp_spill_size_in_words = fp_spill_count * 2;
-    for (size_t i = 0; i < kNumberOfFloatRegisters; ++i) {
-      if (((frame_info.FpSpillMask() >> i) & 1) != 0) {
-        // There are 2 pieces to each XMM register, to match VR size.
-        fprs_[2*i] = reinterpret_cast<uint32_t*>(
-            fr.CalleeSaveAddress(spill_count + fp_spill_size_in_words - j,
-                                 frame_info.FrameSizeInBytes()));
-        fprs_[2*i+1] = reinterpret_cast<uint32_t*>(
-            fr.CalleeSaveAddress(spill_count + fp_spill_size_in_words - j - 1,
-                                 frame_info.FrameSizeInBytes()));
-        // Two void* per XMM register.
-        j += 2;
-      }
-    }
+  DCHECK_EQ(spill_pos, POPCOUNT(frame_info.CoreSpillMask()) - 1);
+
+  // FP registers come second, from the highest down to the lowest.
+  uint32_t fp_regs = frame_info.FpSpillMask();
+  DCHECK_EQ(0u, fp_regs & (static_cast<uint32_t>(-1) << kNumberOfFloatRegisters));
+  for (uint32_t fp_reg : HighToLowBits(fp_regs)) {
+    // Two void* per XMM register.
+    fprs_[2 * fp_reg] = fr.CalleeSaveAddress(spill_pos + 1, frame_info.FrameSizeInBytes());
+    fprs_[2 * fp_reg + 1] = fr.CalleeSaveAddress(spill_pos, frame_info.FrameSizeInBytes());
+    spill_pos += 2;
   }
+  DCHECK_EQ(spill_pos,
+            POPCOUNT(frame_info.CoreSpillMask()) - 1 + 2 * POPCOUNT(frame_info.FpSpillMask()));
 }
 
 void X86Context::SmashCallerSaves() {

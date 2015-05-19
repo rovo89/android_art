@@ -16,6 +16,7 @@
 
 #include "reference_processor.h"
 
+#include "base/time_utils.h"
 #include "mirror/object-inl.h"
 #include "mirror/reference.h"
 #include "mirror/reference-inl.h"
@@ -24,6 +25,7 @@
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
 #include "task_processor.h"
+#include "utils.h"
 #include "well_known_classes.h"
 
 namespace art {

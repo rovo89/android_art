@@ -22,6 +22,7 @@
 #include "invoke_type.h"
 #include "nodes.h"
 #include "quick/inline_method_analyser.h"
+#include "utils.h"
 
 namespace art {
 

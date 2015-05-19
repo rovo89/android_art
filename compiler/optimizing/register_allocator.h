@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_REGISTER_ALLOCATOR_H_
 #define ART_COMPILER_OPTIMIZING_REGISTER_ALLOCATOR_H_
 
+#include "arch/instruction_set.h"
 #include "base/macros.h"
 #include "primitive.h"
 #include "utils/growable_array.h"

@@ -158,7 +158,8 @@ Arm64JniCallingConvention::Arm64JniCallingConvention(bool is_static, bool is_syn
                                                      const char* shorty)
     : JniCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize) {
   uint32_t core_spill_mask = CoreSpillMask();
-  for (int x_reg = 0; x_reg < kNumberOfXRegisters; ++x_reg) {
+  DCHECK_EQ(XZR, kNumberOfXRegisters - 1);  // Exclude XZR from the loop (avoid 1 << 32).
+  for (int x_reg = 0; x_reg < kNumberOfXRegisters - 1; ++x_reg) {
     if (((1 << x_reg) & core_spill_mask) != 0) {
       callee_save_regs_.push_back(
           Arm64ManagedRegister::FromXRegister(static_cast<XRegister>(x_reg)));

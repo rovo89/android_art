@@ -24,7 +24,6 @@
 #include "utils/arm/managed_register_arm.h"
 #include "utils/arm/assembler_arm.h"
 #include "offsets.h"
-#include "utils.h"
 
 namespace art {
 namespace arm {

@@ -27,7 +27,6 @@
 #include "object_callbacks.h"
 #include "primitive.h"
 #include "read_barrier_option.h"
-#include "utils.h"
 
 #ifndef IMT_SIZE
 #error IMT_SIZE not defined

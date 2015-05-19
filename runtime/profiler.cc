@@ -23,6 +23,7 @@
 #include <fstream>
 
 #include "base/stl_util.h"
+#include "base/time_utils.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "common_throws.h"
@@ -39,6 +40,7 @@
 #include "ScopedLocalRef.h"
 #include "thread.h"
 #include "thread_list.h"
+#include "utils.h"
 
 #include "entrypoints/quick/quick_entrypoints.h"
 

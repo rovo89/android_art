@@ -493,11 +493,6 @@ InstructionCodeGeneratorARM::InstructionCodeGeneratorARM(HGraph* graph, CodeGene
         assembler_(codegen->GetAssembler()),
         codegen_(codegen) {}
 
-static uint32_t LeastSignificantBit(uint32_t mask) {
-  // ffs starts at 1.
-  return ffs(mask) - 1;
-}
-
 void CodeGeneratorARM::ComputeSpillMask() {
   core_spill_mask_ = allocated_registers_.GetCoreRegisters() & core_callee_save_mask_;
   // Save one extra register for baseline. Note that on thumb2, there is no easy

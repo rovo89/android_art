@@ -117,8 +117,7 @@ class Arm64ManagedRegister : public ManagedRegister {
 
   bool IsSRegister() const {
     CHECK(IsValidManagedRegister());
-    const int test = id_ - (kNumberOfXRegIds + kNumberOfWRegIds +
-                            kNumberOfDRegIds);
+    const int test = id_ - (kNumberOfXRegIds + kNumberOfWRegIds + kNumberOfDRegIds);
     return (0 <= test) && (test < kNumberOfSRegIds);
   }
 

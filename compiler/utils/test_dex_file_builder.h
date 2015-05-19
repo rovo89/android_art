@@ -22,8 +22,9 @@
 #include <map>
 #include <vector>
 
+#include "base/bit_utils.h"
+#include "base/logging.h"
 #include "dex_file.h"
-#include "utils.h"
 
 namespace art {
 

@@ -18,6 +18,7 @@
 
 #include "ssa_builder.h"
 #include "base/bit_vector-inl.h"
+#include "base/bit_utils.h"
 #include "utils/growable_array.h"
 #include "scoped_thread_state_change.h"
 

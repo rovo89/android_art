@@ -20,7 +20,7 @@
 #include <stdint.h>
 #include <iterator>
 
-#include "utils.h"
+#include "base/bit_utils.h"
 
 namespace art {
 

@@ -22,6 +22,7 @@
 #include <sstream>
 
 #include "base/histogram-inl.h"
+#include "base/time_utils.h"
 #include "class_linker.h"
 #include "common_throws.h"
 #include "debugger.h"

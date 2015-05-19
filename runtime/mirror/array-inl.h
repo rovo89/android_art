@@ -19,11 +19,13 @@
 
 #include "array.h"
 
+#include "base/bit_utils.h"
+#include "base/logging.h"
 #include "base/stringprintf.h"
+#include "base/casts.h"
 #include "class.h"
 #include "gc/heap-inl.h"
 #include "thread.h"
-#include "utils.h"
 
 namespace art {
 namespace mirror {

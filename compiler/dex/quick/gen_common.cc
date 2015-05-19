@@ -19,6 +19,7 @@
 #include <functional>
 
 #include "arch/arm/instruction_set_features_arm.h"
+#include "base/bit_utils.h"
 #include "base/macros.h"
 #include "dex/compiler_ir.h"
 #include "dex/mir_graph.h"
@@ -30,7 +31,6 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_reference.h"
-#include "utils.h"
 #include "utils/dex_cache_arrays_layout-inl.h"
 #include "verifier/method_verifier.h"
 

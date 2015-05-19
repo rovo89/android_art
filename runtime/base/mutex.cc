@@ -24,12 +24,12 @@
 
 #include "atomic.h"
 #include "base/logging.h"
+#include "base/time_utils.h"
 #include "base/value_object.h"
 #include "mutex-inl.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "thread-inl.h"
-#include "utils.h"
 
 namespace art {
 

@@ -16,11 +16,11 @@
 
 #include "assembler_thumb2.h"
 
+#include "base/bit_utils.h"
 #include "base/logging.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "offsets.h"
 #include "thread.h"
-#include "utils.h"
 
 namespace art {
 namespace arm {

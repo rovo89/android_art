@@ -19,13 +19,13 @@
 
 #include <vector>
 
+#include "base/bit_utils.h"
 #include "base/logging.h"
 #include "base/value_object.h"
 #include "constants_arm.h"
 #include "utils/arm/managed_register_arm.h"
 #include "utils/assembler.h"
 #include "offsets.h"
-#include "utils.h"
 
 namespace art {
 namespace arm {

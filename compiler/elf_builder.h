@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "arch/instruction_set.h"
+#include "base/bit_utils.h"
 #include "base/unix_file/fd_file.h"
 #include "buffered_output_stream.h"
 #include "elf_utils.h"

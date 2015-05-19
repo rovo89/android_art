@@ -20,10 +20,10 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include "base/bit_utils.h"
 #include "debug_stack.h"
 #include "macros.h"
 #include "mutex.h"
-#include "utils.h"
 
 namespace art {
 

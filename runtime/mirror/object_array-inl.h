@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_MIRROR_OBJECT_ARRAY_INL_H_
 #define ART_RUNTIME_MIRROR_OBJECT_ARRAY_INL_H_
 
+#include <string>
+
 #include "object_array.h"
 
 #include "array-inl.h"
@@ -26,7 +28,7 @@
 #include "runtime.h"
 #include "handle_scope-inl.h"
 #include "thread.h"
-#include <string>
+#include "utils.h"
 
 namespace art {
 namespace mirror {

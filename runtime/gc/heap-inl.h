@@ -19,6 +19,7 @@
 
 #include "heap.h"
 
+#include "base/time_utils.h"
 #include "debugger.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/collector/semi_space.h"
@@ -31,6 +32,7 @@
 #include "handle_scope-inl.h"
 #include "thread.h"
 #include "thread-inl.h"
+#include "utils.h"
 #include "verify_object-inl.h"
 
 namespace art {
