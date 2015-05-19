@@ -1230,13 +1230,13 @@ bool Mir2Lir::GenInlinedReferenceGetReferent(CallInfo* info) {
 
 bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
   // Temporary disabled intrinsic.
-  return true;
+  return false;
 }
 
 // Generates an inlined String.is_empty or String.length.
 bool Mir2Lir::GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty) {
   // Temporary disabled intrinsic.
-  return true;
+  return false;
 }
 
 bool Mir2Lir::GenInlinedReverseBytes(CallInfo* info, OpSize size) {

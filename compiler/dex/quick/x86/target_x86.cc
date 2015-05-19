@@ -1238,8 +1238,8 @@ bool X86Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
  * otherwise bails to standard library code.
  */
 bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
-   // Temporarily disabled intrinsic.
-  return true;
+  // Temporarily disabled intrinsic.
+  return false;
 }
 
 /*
@@ -2630,7 +2630,7 @@ int X86Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
 
 bool X86Mir2Lir::GenInlinedCharAt(CallInfo* info) {
   // Temporarily disabled intrinsic.
-  return true;
+  return false;
 }
 
 bool X86Mir2Lir::GenInlinedCurrentThread(CallInfo* info) {
