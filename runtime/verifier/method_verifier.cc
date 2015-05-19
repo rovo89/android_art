@@ -286,6 +286,13 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
   }
 }
 
+static bool IsLargeMethod(const DexFile::CodeItem* const code_item) {
+  uint16_t registers_size = code_item->registers_size_;
+  uint32_t insns_size = code_item->insns_size_in_code_units_;
+
+  return registers_size * insns_size > 4*1024*1024;
+}
+
 MethodVerifier::FailureKind MethodVerifier::VerifyMethod(Thread* self, uint32_t method_idx,
                                                          const DexFile* dex_file,
                                                          Handle<mirror::DexCache> dex_cache,
@@ -329,7 +336,8 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(Thread* self, uint32_t 
     uint64_t duration_ns = NanoTime() - start_ns;
     if (duration_ns > MsToNs(100)) {
       LOG(WARNING) << "Verification of " << PrettyMethod(method_idx, *dex_file)
-                   << " took " << PrettyDuration(duration_ns);
+                   << " took " << PrettyDuration(duration_ns)
+                   << (IsLargeMethod(code_item) ? " (large method)" : "");
     }
   }
   return result;
@@ -1211,10 +1219,6 @@ bool MethodVerifier::VerifyCodeFlow() {
   uint16_t registers_size = code_item_->registers_size_;
   uint32_t insns_size = code_item_->insns_size_in_code_units_;
 
-  if (registers_size * insns_size > 4*1024*1024) {
-    LOG(WARNING) << "warning: method is huge (regs=" << registers_size
-                 << " insns_size=" << insns_size << ")";
-  }
   /* Create and initialize table holding register status */
   reg_table_.Init(kTrackCompilerInterestPoints,
                   insn_flags_.get(),
