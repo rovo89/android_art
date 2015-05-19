@@ -18,13 +18,14 @@
 #define ART_COMPILER_UTILS_X86_64_ASSEMBLER_X86_64_H_
 
 #include <vector>
+
+#include "base/bit_utils.h"
 #include "base/macros.h"
 #include "constants_x86_64.h"
 #include "globals.h"
 #include "managed_register_x86_64.h"
 #include "offsets.h"
 #include "utils/assembler.h"
-#include "utils.h"
 
 namespace art {
 namespace x86_64 {

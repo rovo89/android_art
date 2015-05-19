@@ -16,6 +16,7 @@
 
 #include "task_processor.h"
 
+#include "base/time_utils.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {

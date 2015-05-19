@@ -18,8 +18,8 @@
 #define ART_RUNTIME_STACK_MAP_H_
 
 #include "base/bit_vector.h"
+#include "base/bit_utils.h"
 #include "memory_region.h"
-#include "utils.h"
 
 namespace art {
 

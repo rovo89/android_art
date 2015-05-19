@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_GC_SPACE_BUMP_POINTER_SPACE_INL_H_
 #define ART_RUNTIME_GC_SPACE_BUMP_POINTER_SPACE_INL_H_
 
+#include "base/bit_utils.h"
 #include "bump_pointer_space.h"
 
 namespace art {

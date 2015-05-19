@@ -16,9 +16,11 @@
 
 #include "local_value_numbering.h"
 
+#include "base/bit_utils.h"
 #include "global_value_numbering.h"
 #include "mir_field_info.h"
 #include "mir_graph.h"
+#include "utils.h"
 
 namespace art {
 

@@ -16,10 +16,10 @@
 
 #include "image.h"
 
+#include "base/bit_utils.h"
 #include "mirror/object_array.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
-#include "utils.h"
 
 namespace art {
 

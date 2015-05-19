@@ -27,7 +27,6 @@
 #include "os.h"
 #include "space-inl.h"
 #include "thread-inl.h"
-#include "utils.h"
 
 namespace art {
 namespace gc {

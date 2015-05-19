@@ -22,8 +22,8 @@
 #include <vector>
 
 #include "arch/instruction_set.h"
+#include "base/bit_utils.h"
 #include "method_reference.h"
-#include "utils.h"
 #include "utils/array_ref.h"
 #include "utils/swap_space.h"
 

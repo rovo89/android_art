@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_DEX_TYPE_INFERENCE_H_
 #define ART_COMPILER_DEX_TYPE_INFERENCE_H_
 
+#include "base/bit_utils.h"
 #include "base/logging.h"
 #include "base/arena_object.h"
 #include "base/scoped_arena_containers.h"

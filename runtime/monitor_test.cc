@@ -20,6 +20,7 @@
 #include <string>
 
 #include "atomic.h"
+#include "base/time_utils.h"
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "handle_scope-inl.h"
@@ -27,7 +28,6 @@
 #include "mirror/string-inl.h"  // Strings are easiest to allocate
 #include "scoped_thread_state_change.h"
 #include "thread_pool.h"
-#include "utils.h"
 
 namespace art {
 

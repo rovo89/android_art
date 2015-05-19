@@ -28,7 +28,6 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "mem_map.h"
-#include "utils.h"
 
 namespace art {
 

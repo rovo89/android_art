@@ -24,6 +24,7 @@
 #include "allocator_type.h"
 #include "arch/instruction_set.h"
 #include "atomic.h"
+#include "base/time_utils.h"
 #include "base/timing_logger.h"
 #include "gc/accounting/atomic_stack.h"
 #include "gc/accounting/card_table.h"

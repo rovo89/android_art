@@ -18,9 +18,9 @@
 #define ART_COMPILER_DWARF_WRITER_H_
 
 #include <vector>
-#include "leb128.h"
+#include "base/bit_utils.h"
 #include "base/logging.h"
-#include "utils.h"
+#include "leb128.h"
 
 namespace art {
 namespace dwarf {

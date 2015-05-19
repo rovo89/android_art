@@ -18,13 +18,15 @@
 #define ART_RUNTIME_MEMORY_REGION_H_
 
 #include <stdint.h>
+#include <type_traits>
 
+#include "arch/instruction_set.h"
+#include "base/bit_utils.h"
 #include "base/casts.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "base/value_object.h"
 #include "globals.h"
-#include "utils.h"
 
 namespace art {
 
@@ -71,7 +73,7 @@ class MemoryRegion FINAL : public ValueObject {
   template<typename T>
   ALWAYS_INLINE T LoadUnaligned(uintptr_t offset) const {
     // Equivalent unsigned integer type corresponding to T.
-    typedef typename UnsignedIntegerType<sizeof(T)>::type U;
+    typedef typename std::make_unsigned<T>::type U;
     U equivalent_unsigned_integer_value = 0;
     // Read the value byte by byte in a little-endian fashion.
     for (size_t i = 0; i < sizeof(U); ++i) {
@@ -86,7 +88,7 @@ class MemoryRegion FINAL : public ValueObject {
   template<typename T>
   ALWAYS_INLINE void StoreUnaligned(uintptr_t offset, T value) const {
     // Equivalent unsigned integer type corresponding to T.
-    typedef typename UnsignedIntegerType<sizeof(T)>::type U;
+    typedef typename std::make_unsigned<T>::type U;
     U equivalent_unsigned_integer_value = bit_cast<U, T>(value);
     // Write the value byte by byte in a little-endian fashion.
     for (size_t i = 0; i < sizeof(U); ++i) {

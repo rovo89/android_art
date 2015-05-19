@@ -22,6 +22,7 @@
 
 #include "arch/context.h"
 #include "art_field-inl.h"
+#include "base/time_utils.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"

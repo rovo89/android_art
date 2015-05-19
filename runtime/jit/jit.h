@@ -33,6 +33,10 @@ namespace art {
 class CompilerCallbacks;
 struct RuntimeArgumentMap;
 
+namespace mirror {
+class ArtMethod;
+}  // namespace mirror
+
 namespace jit {
 
 class JitCodeCache;

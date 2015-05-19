@@ -31,6 +31,7 @@
 #include "invoke_type.h"
 #include "lazy_debug_frame_opcode_writer.h"
 #include "leb128.h"
+#include "primitive.h"
 #include "safe_map.h"
 #include "utils/array_ref.h"
 #include "utils/dex_cache_arrays_layout.h"

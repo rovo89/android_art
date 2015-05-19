@@ -32,6 +32,7 @@ LIBART_COMMON_SRC_FILES := \
   base/scoped_flock.cc \
   base/stringpiece.cc \
   base/stringprintf.cc \
+  base/time_utils.cc \
   base/timing_logger.cc \
   base/unix_file/fd_file.cc \
   base/unix_file/random_access_file_utils.cc \

@@ -22,6 +22,7 @@
 #include "dex/quick/mir_to_lir.h"
 #include "driver/compiler_driver.h"
 #include "mir_graph.h"
+#include "utils.h"
 
 namespace art {
 

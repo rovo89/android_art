@@ -20,8 +20,8 @@
 #include <zlib.h>
 
 #include "arch/instruction_set_features.h"
+#include "base/bit_utils.h"
 #include "base/stringprintf.h"
-#include "utils.h"
 
 namespace art {
 

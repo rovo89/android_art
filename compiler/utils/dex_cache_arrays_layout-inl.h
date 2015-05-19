@@ -19,11 +19,11 @@
 
 #include "dex_cache_arrays_layout.h"
 
+#include "base/bit_utils.h"
 #include "base/logging.h"
 #include "globals.h"
 #include "mirror/array-inl.h"
 #include "primitive.h"
-#include "utils.h"
 
 namespace mirror {
 class ArtMethod;

@@ -25,6 +25,7 @@
 #include "mir_field_info.h"
 #include "mir_graph.h"
 #include "mir_method_info.h"
+#include "utils.h"
 
 namespace art {
 

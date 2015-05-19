@@ -29,6 +29,7 @@
 #include "base/logging.h"
 #include "base/macros.h"
 #include "base/mutex-inl.h"
+#include "base/time_utils.h"
 #include "base/timing_logger.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/heap_bitmap-inl.h"

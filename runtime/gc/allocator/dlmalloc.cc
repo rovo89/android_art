@@ -16,6 +16,7 @@
 
 #include "dlmalloc.h"
 
+#include "base/bit_utils.h"
 #include "base/logging.h"
 
 // ART specific morecore implementation defined in space.cc.

@@ -124,6 +124,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/arch/x86_64/instruction_set_features_x86_64_test.cc \
   runtime/barrier_test.cc \
   runtime/base/bit_field_test.cc \
+  runtime/base/bit_utils_test.cc \
   runtime/base/bit_vector_test.cc \
   runtime/base/hash_set_test.cc \
   runtime/base/hex_dump_test.cc \
@@ -131,6 +132,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/base/mutex_test.cc \
   runtime/base/scoped_flock_test.cc \
   runtime/base/stringprintf_test.cc \
+  runtime/base/time_utils_test.cc \
   runtime/base/timing_logger_test.cc \
   runtime/base/variant_map_test.cc \
   runtime/base/unix_file/fd_file_test.cc \
