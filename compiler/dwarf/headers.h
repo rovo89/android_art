@@ -35,17 +35,18 @@ namespace dwarf {
 // and compilers are expected *not* to use it by default.
 // In particular, it is not related to machine architecture.
 
-// Write common information entry (CIE) to .eh_frame section.
+// Write common information entry (CIE) to .debug_frame or .eh_frame section.
 template<typename Allocator>
-void WriteEhFrameCIE(bool is64bit,
-                     ExceptionHeaderValueApplication address_type,
-                     Reg return_address_register,
-                     const DebugFrameOpCodeWriter<Allocator>& opcodes,
-                     std::vector<uint8_t>* eh_frame) {
-  Writer<> writer(eh_frame);
+void WriteDebugFrameCIE(bool is64bit,
+                        ExceptionHeaderValueApplication address_type,
+                        Reg return_address_register,
+                        const DebugFrameOpCodeWriter<Allocator>& opcodes,
+                        CFIFormat format,
+                        std::vector<uint8_t>* debug_frame) {
+  Writer<> writer(debug_frame);
   size_t cie_header_start_ = writer.data()->size();
   writer.PushUint32(0);  // Length placeholder.
-  writer.PushUint32(0);  // CIE id.
+  writer.PushUint32((format == DW_EH_FRAME_FORMAT) ? 0 : 0xFFFFFFFF);  // CIE id.
   writer.PushUint8(1);   // Version.
   writer.PushString("zR");
   writer.PushUleb128(DebugFrameOpCodeWriter<Allocator>::kCodeAlignmentFactor);
@@ -62,20 +63,26 @@ void WriteEhFrameCIE(bool is64bit,
   writer.UpdateUint32(cie_header_start_, writer.data()->size() - cie_header_start_ - 4);
 }
 
-// Write frame description entry (FDE) to .eh_frame section.
+// Write frame description entry (FDE) to .debug_frame or .eh_frame section.
 template<typename Allocator>
-void WriteEhFrameFDE(bool is64bit, size_t cie_offset,
-                     uint64_t initial_address, uint64_t address_range,
-                     const std::vector<uint8_t, Allocator>* opcodes,
-                     std::vector<uint8_t>* eh_frame,
-                     std::vector<uintptr_t>* eh_frame_patches) {
-  Writer<> writer(eh_frame);
+void WriteDebugFrameFDE(bool is64bit, size_t cie_offset,
+                        uint64_t initial_address, uint64_t address_range,
+                        const std::vector<uint8_t, Allocator>* opcodes,
+                        CFIFormat format,
+                        std::vector<uint8_t>* debug_frame,
+                        std::vector<uintptr_t>* debug_frame_patches) {
+  Writer<> writer(debug_frame);
   size_t fde_header_start = writer.data()->size();
   writer.PushUint32(0);  // Length placeholder.
-  uint32_t cie_pointer = writer.data()->size() - cie_offset;
-  writer.PushUint32(cie_pointer);
+  if (format == DW_EH_FRAME_FORMAT) {
+    uint32_t cie_pointer = writer.data()->size() - cie_offset;
+    writer.PushUint32(cie_pointer);
+  } else {
+    uint32_t cie_pointer = cie_offset;
+    writer.PushUint32(cie_pointer);
+  }
   // Relocate initial_address, but not address_range (it is size).
-  eh_frame_patches->push_back(writer.data()->size());
+  debug_frame_patches->push_back(writer.data()->size());
   if (is64bit) {
     writer.PushUint64(initial_address);
     writer.PushUint64(address_range);
