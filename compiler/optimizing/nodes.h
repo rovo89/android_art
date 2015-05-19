@@ -182,6 +182,10 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   // Inline this graph in `outer_graph`, replacing the given `invoke` instruction.
   void InlineInto(HGraph* outer_graph, HInvoke* invoke);
 
+  // Need to add a couple of blocks to test if the loop body is entered and
+  // put deoptimization instructions, etc.
+  void TransformLoopHeaderForBCE(HBasicBlock* header);
+
   // Removes `block` from the graph.
   void DeleteDeadBlock(HBasicBlock* block);
 
@@ -4080,6 +4084,39 @@ class HBlocksInLoopIterator : public ValueObject {
   size_t index_;
 
   DISALLOW_COPY_AND_ASSIGN(HBlocksInLoopIterator);
+};
+
+// Iterator over the blocks that art part of the loop. Includes blocks part
+// of an inner loop. The order in which the blocks are iterated is reverse
+// post order.
+class HBlocksInLoopReversePostOrderIterator : public ValueObject {
+ public:
+  explicit HBlocksInLoopReversePostOrderIterator(const HLoopInformation& info)
+      : blocks_in_loop_(info.GetBlocks()),
+        blocks_(info.GetHeader()->GetGraph()->GetReversePostOrder()),
+        index_(0) {
+    if (!blocks_in_loop_.IsBitSet(blocks_.Get(index_)->GetBlockId())) {
+      Advance();
+    }
+  }
+
+  bool Done() const { return index_ == blocks_.Size(); }
+  HBasicBlock* Current() const { return blocks_.Get(index_); }
+  void Advance() {
+    ++index_;
+    for (size_t e = blocks_.Size(); index_ < e; ++index_) {
+      if (blocks_in_loop_.IsBitSet(blocks_.Get(index_)->GetBlockId())) {
+        break;
+      }
+    }
+  }
+
+ private:
+  const BitVector& blocks_in_loop_;
+  const GrowableArray<HBasicBlock*>& blocks_;
+  size_t index_;
+
+  DISALLOW_COPY_AND_ASSIGN(HBlocksInLoopReversePostOrderIterator);
 };
 
 inline int64_t Int64FromConstant(HConstant* constant) {
