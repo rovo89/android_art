@@ -690,12 +690,20 @@ bool OatFileAssistant::Dex2Oat(const std::vector<std::string>& args,
     return false;
   }
 
+  ClassLinker* linker = runtime->GetClassLinker();
+  CHECK(linker != nullptr) << "ClassLinker is not created yet";
+  const OatFile* primary_oat_file = linker->GetPrimaryOatFile();
+  const bool debuggable = primary_oat_file != nullptr && primary_oat_file->IsDebuggable();
+
   std::vector<std::string> argv;
   argv.push_back(runtime->GetCompilerExecutable());
   argv.push_back("--runtime-arg");
   argv.push_back("-classpath");
   argv.push_back("--runtime-arg");
   argv.push_back(runtime->GetClassPathString());
+  if (debuggable) {
+    argv.push_back("--debuggable");
+  }
   runtime->AddCurrentRuntimeFeaturesAsDex2OatArguments(&argv);
 
   if (!runtime->IsVerificationEnabled()) {
