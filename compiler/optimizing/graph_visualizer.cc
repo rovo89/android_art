@@ -265,6 +265,11 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
     StartAttributeStream("kind") << barrier->GetBarrierKind();
   }
 
+  void VisitLoadClass(HLoadClass* load_cass) OVERRIDE {
+    StartAttributeStream("gen_clinit_check") << std::boolalpha
+        << load_cass->MustGenerateClinitCheck() << std::noboolalpha;
+  }
+
   bool IsPass(const char* name) {
     return strcmp(pass_name_, name) == 0;
   }

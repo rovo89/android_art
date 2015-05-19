@@ -3444,8 +3444,8 @@ class HLoadClass : public HExpression<0> {
     return generate_clinit_check_;
   }
 
-  void SetMustGenerateClinitCheck() {
-    generate_clinit_check_ = true;
+  void SetMustGenerateClinitCheck(bool generate_clinit_check) {
+    generate_clinit_check_ = generate_clinit_check;
   }
 
   bool CanCallRuntime() const {

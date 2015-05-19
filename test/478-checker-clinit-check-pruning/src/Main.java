@@ -24,12 +24,12 @@ public class Main {
    */
 
   // CHECK-START: void Main.invokeStaticInlined() builder (after)
-  // CHECK-DAG:     <<LoadClass:l\d+>>    LoadClass
+  // CHECK-DAG:     <<LoadClass:l\d+>>    LoadClass gen_clinit_check:false
   // CHECK-DAG:     <<ClinitCheck:l\d+>>  ClinitCheck [<<LoadClass>>]
   // CHECK-DAG:                           InvokeStaticOrDirect [<<ClinitCheck>>]
 
   // CHECK-START: void Main.invokeStaticInlined() inliner (after)
-  // CHECK-DAG:     <<LoadClass:l\d+>>    LoadClass
+  // CHECK-DAG:     <<LoadClass:l\d+>>    LoadClass gen_clinit_check:false
   // CHECK-DAG:     <<ClinitCheck:l\d+>>  ClinitCheck [<<LoadClass>>]
 
   // CHECK-START: void Main.invokeStaticInlined() inliner (after)
@@ -42,7 +42,7 @@ public class Main {
   // CFG as it is before the next pass (liveness analysis) instead.
 
   // CHECK-START: void Main.invokeStaticInlined() liveness (before)
-  // CHECK-DAG:                           LoadClass
+  // CHECK-DAG:                           LoadClass gen_clinit_check:true
 
   // CHECK-START: void Main.invokeStaticInlined() liveness (before)
   // CHECK-NOT:                           ClinitCheck
@@ -67,12 +67,12 @@ public class Main {
    */
 
   // CHECK-START: void Main.invokeStaticNotInlined() builder (after)
-  // CHECK-DAG:     <<LoadClass:l\d+>>    LoadClass
+  // CHECK-DAG:     <<LoadClass:l\d+>>    LoadClass gen_clinit_check:false
   // CHECK-DAG:     <<ClinitCheck:l\d+>>  ClinitCheck [<<LoadClass>>]
   // CHECK-DAG:                           InvokeStaticOrDirect [<<ClinitCheck>>]
 
   // CHECK-START: void Main.invokeStaticNotInlined() inliner (after)
-  // CHECK-DAG:     <<LoadClass:l\d+>>    LoadClass
+  // CHECK-DAG:     <<LoadClass:l\d+>>    LoadClass gen_clinit_check:false
   // CHECK-DAG:     <<ClinitCheck:l\d+>>  ClinitCheck [<<LoadClass>>]
   // CHECK-DAG:                           InvokeStaticOrDirect [<<ClinitCheck>>]
 
@@ -258,6 +258,44 @@ public class Main {
     static void invokeStaticNotInlined() {
       ClassWithClinit6.staticMethod();
     }
+  }
+
+
+  /*
+   * Verify that if we have a static call immediately after the load class
+   * we don't do generate a clinit check.
+   */
+
+  // CHECK-START: void Main.noClinitBecauseOfInvokeStatic() liveness (before)
+  // CHECK-DAG:     <<IntConstant:i\d+>>  IntConstant 0
+  // CHECK-DAG:     <<LoadClass:l\d+>>    LoadClass gen_clinit_check:false
+  // CHECK-DAG:                           InvokeStaticOrDirect
+  // CHECK-DAG:                           StaticFieldSet [<<LoadClass>>,<<IntConstant>>]
+
+  // CHECK-START: void Main.noClinitBecauseOfInvokeStatic() liveness (before)
+  // CHECK-NOT:                           ClinitCheck
+
+  static void noClinitBecauseOfInvokeStatic() {
+    ClassWithClinit2.staticMethod();
+    ClassWithClinit2.doThrow = false;
+  }
+
+  /*
+   * Verify that if the static call is after a field access, the load class
+   * will generate a clinit check.
+   */
+
+  // CHECK-START: void Main.clinitBecauseOfFieldAccess() liveness (before)
+  // CHECK-DAG:     <<IntConstant:i\d+>>  IntConstant 0
+  // CHECK-DAG:     <<LoadClass:l\d+>>    LoadClass gen_clinit_check:true
+  // CHECK-DAG:                           StaticFieldSet [<<LoadClass>>,<<IntConstant>>]
+  // CHECK-DAG:                           InvokeStaticOrDirect
+
+  // CHECK-START: void Main.clinitBecauseOfFieldAccess() liveness (before)
+  // CHECK-NOT:                           ClinitCheck
+  static void clinitBecauseOfFieldAccess() {
+    ClassWithClinit2.doThrow = false;
+    ClassWithClinit2.staticMethod();
   }
 
   // TODO: Add a test for the case of a static method whose declaring
