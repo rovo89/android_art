@@ -1374,10 +1374,12 @@ static void GenUnsafePut(LocationSummary* locations, Primitive::Type type, bool 
   }
 
   if (type == Primitive::kPrimNot) {
+    bool value_can_be_null = true;  // TODO: Worth finding out this information?
     codegen->MarkGCCard(locations->GetTemp(0).AsRegister<CpuRegister>(),
                         locations->GetTemp(1).AsRegister<CpuRegister>(),
                         base,
-                        value);
+                        value,
+                        value_can_be_null);
   }
 }
 
@@ -1459,10 +1461,12 @@ static void GenCAS(Primitive::Type type, HInvoke* invoke, CodeGeneratorX86_64* c
     // Integer or object.
     if (type == Primitive::kPrimNot) {
       // Mark card for object assuming new value is stored.
+      bool value_can_be_null = true;  // TODO: Worth finding out this information?
       codegen->MarkGCCard(locations->GetTemp(0).AsRegister<CpuRegister>(),
                           locations->GetTemp(1).AsRegister<CpuRegister>(),
                           base,
-                          value);
+                          value,
+                          value_can_be_null);
     }
 
     __ LockCmpxchgl(Address(base, offset, TIMES_1, 0), value);

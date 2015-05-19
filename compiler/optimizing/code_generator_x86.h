@@ -170,7 +170,9 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
   void GenerateShrLong(const Location& loc, int shift);
   void GenerateUShrLong(const Location& loc, int shift);
   void GenerateMemoryBarrier(MemBarrierKind kind);
-  void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
+  void HandleFieldSet(HInstruction* instruction,
+                      const FieldInfo& field_info,
+                      bool value_can_be_null);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
   // Push value to FPU stack. `is_fp` specifies whether the value is floating point or not.
   // `is_wide` specifies whether it is long/double or not.
@@ -260,7 +262,11 @@ class CodeGeneratorX86 : public CodeGenerator {
   void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Register temp);
 
   // Emit a write barrier.
-  void MarkGCCard(Register temp, Register card, Register object, Register value);
+  void MarkGCCard(Register temp,
+                  Register card,
+                  Register object,
+                  Register value,
+                  bool value_can_be_null);
 
   void LoadCurrentMethod(Register reg);
 
