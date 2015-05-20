@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from common.immutables               import ImmutableDict
 from common.testing                  import ToUnicode
 from file_format.c1visualizer.parser import ParseC1visualizerStream
 from file_format.c1visualizer.struct import C1visualizerFile, C1visualizerPass
@@ -33,7 +34,9 @@ class MatchLines_Test(unittest.TestCase):
     return ParseCheckerAssertion(testCase, checkerString, TestAssertion.Variant.InOrder, 0)
 
   def tryMatch(self, checkerString, c1String, varState={}):
-    return MatchLines(self.createTestAssertion(checkerString), ToUnicode(c1String), varState)
+    return MatchLines(self.createTestAssertion(checkerString),
+                      ToUnicode(c1String),
+                      ImmutableDict(varState))
 
   def matches(self, checkerString, c1String, varState={}):
     return self.tryMatch(checkerString, c1String, varState) is not None
