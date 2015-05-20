@@ -28,6 +28,7 @@ LIBARTTEST_COMMON_SRC_FILES := \
   116-nodex2oat/nodex2oat.cc \
   117-nopatchoat/nopatchoat.cc \
   118-noimage-dex2oat/noimage-dex2oat.cc \
+  137-cfi/cfi.cc \
   454-get-vreg/get_vreg_jni.cc \
   455-set-vreg/set_vreg_jni.cc \
   457-regs/regs_jni.cc \
@@ -56,7 +57,7 @@ define build-libarttest
     LOCAL_MODULE_TAGS := tests
   endif
   LOCAL_SRC_FILES := $(LIBARTTEST_COMMON_SRC_FILES)
-  LOCAL_SHARED_LIBRARIES += libartd
+  LOCAL_SHARED_LIBRARIES += libartd libbacktrace
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.libarttest.mk
