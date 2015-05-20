@@ -3974,7 +3974,8 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
 
   CHECK_EQ(sizeof(jvalue), sizeof(uint64_t));
 
-  JValue result = InvokeWithJValues(soa, pReq->receiver.Read(), soa.EncodeMethod(m.Get()),
+  ScopedLocalRef<jobject> ref(soa.Env(), soa.AddLocalReference<jobject>(pReq->receiver.Read()));
+  JValue result = InvokeWithJValues(soa, ref.get(), soa.EncodeMethod(m.Get()),
                                     reinterpret_cast<jvalue*>(pReq->arg_values));
 
   pReq->result_tag = BasicTagFromDescriptor(m.Get()->GetShorty());
