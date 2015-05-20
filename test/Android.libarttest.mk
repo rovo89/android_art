@@ -29,6 +29,7 @@ LIBARTTEST_COMMON_SRC_FILES := \
   117-nopatchoat/nopatchoat.cc \
   118-noimage-dex2oat/noimage-dex2oat.cc \
   137-cfi/cfi.cc \
+  139-register-natives/regnative.cc \
   454-get-vreg/get_vreg_jni.cc \
   455-set-vreg/set_vreg_jni.cc \
   457-regs/regs_jni.cc \
