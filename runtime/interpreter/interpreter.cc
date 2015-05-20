@@ -386,7 +386,7 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
     // references pointers due to moving GC.
     args = shadow_frame->GetVRegArgs(method->IsStatic() ? 0 : 1);
     if (!Runtime::Current()->IsStarted()) {
-      UnstartedRuntimeJni(self, method, receiver, args, result);
+      UnstartedRuntime::Jni(self, method, receiver, args, result);
     } else {
       InterpreterJni(self, method, shorty, receiver, args, result);
     }
@@ -474,7 +474,7 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, const DexFile::C
     CHECK(!Runtime::Current()->IsStarted());
     Object* receiver = is_static ? nullptr : shadow_frame->GetVRegReference(0);
     uint32_t* args = shadow_frame->GetVRegArgs(is_static ? 0 : 1);
-    UnstartedRuntimeJni(self, shadow_frame->GetMethod(), receiver, args, result);
+    UnstartedRuntime::Jni(self, shadow_frame->GetMethod(), receiver, args, result);
   }
 
   self->PopShadowFrame();
