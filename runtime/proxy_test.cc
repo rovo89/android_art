@@ -20,6 +20,7 @@
 #include "art_field-inl.h"
 #include "class_linker-inl.h"
 #include "common_compiler_test.h"
+#include "mirror/field-inl.h"
 #include "mirror/method.h"
 #include "scoped_thread_state_change.h"
 
@@ -189,6 +190,55 @@ TEST_F(ProxyTest, ProxyFieldHelper) {
   EXPECT_EQ(throwsFieldClass.Get(), field->GetType<true>());
   EXPECT_STREQ("L$Proxy1234;", field->GetDeclaringClass()->GetDescriptor(&temp));
   EXPECT_FALSE(field->IsPrimitiveType());
+}
+
+// Creates two proxy classes and check the art/mirror fields of their static fields.
+TEST_F(ProxyTest, CheckArtMirrorFieldsOfProxyStaticFields) {
+  ScopedObjectAccess soa(Thread::Current());
+  jobject jclass_loader = LoadDex("Interfaces");
+  StackHandleScope<7> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+
+  Handle<mirror::Class> proxyClass0;
+  Handle<mirror::Class> proxyClass1;
+  {
+    std::vector<mirror::Class*> interfaces;
+    proxyClass0 = hs.NewHandle(GenerateProxyClass(soa, jclass_loader, "$Proxy0", interfaces));
+    proxyClass1 = hs.NewHandle(GenerateProxyClass(soa, jclass_loader, "$Proxy1", interfaces));
+  }
+
+  ASSERT_TRUE(proxyClass0.Get() != nullptr);
+  ASSERT_TRUE(proxyClass0->IsProxyClass());
+  ASSERT_TRUE(proxyClass0->IsInitialized());
+  ASSERT_TRUE(proxyClass1.Get() != nullptr);
+  ASSERT_TRUE(proxyClass1->IsProxyClass());
+  ASSERT_TRUE(proxyClass1->IsInitialized());
+
+  ArtField* static_fields0 = proxyClass0->GetSFields();
+  ASSERT_TRUE(static_fields0 != nullptr);
+  ASSERT_EQ(2u, proxyClass0->NumStaticFields());
+  ArtField* static_fields1 = proxyClass1->GetSFields();
+  ASSERT_TRUE(static_fields1 != nullptr);
+  ASSERT_EQ(2u, proxyClass1->NumStaticFields());
+
+  EXPECT_EQ(static_fields0[0].GetDeclaringClass(), proxyClass0.Get());
+  EXPECT_EQ(static_fields0[1].GetDeclaringClass(), proxyClass0.Get());
+  EXPECT_EQ(static_fields1[0].GetDeclaringClass(), proxyClass1.Get());
+  EXPECT_EQ(static_fields1[1].GetDeclaringClass(), proxyClass1.Get());
+
+  Handle<mirror::Field> field00 =
+      hs.NewHandle(mirror::Field::CreateFromArtField(soa.Self(), &static_fields0[0], true));
+  Handle<mirror::Field> field01 =
+      hs.NewHandle(mirror::Field::CreateFromArtField(soa.Self(), &static_fields0[1], true));
+  Handle<mirror::Field> field10 =
+      hs.NewHandle(mirror::Field::CreateFromArtField(soa.Self(), &static_fields1[0], true));
+  Handle<mirror::Field> field11 =
+      hs.NewHandle(mirror::Field::CreateFromArtField(soa.Self(), &static_fields1[1], true));
+  EXPECT_EQ(field00->GetArtField(), &static_fields0[0]);
+  EXPECT_EQ(field01->GetArtField(), &static_fields0[1]);
+  EXPECT_EQ(field10->GetArtField(), &static_fields1[0]);
+  EXPECT_EQ(field11->GetArtField(), &static_fields1[1]);
 }
 
 }  // namespace art
