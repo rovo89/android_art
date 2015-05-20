@@ -358,6 +358,20 @@ endif
 
 TEST_ART_BROKEN_INTERPRETER_RUN_TESTS :=
 
+# Known broken tests for the JIT.
+# CFI unwinding expects managed frames, and the test does not iterate enough to even compile. JIT
+# also uses Generic JNI instead of the JNI compiler.
+TEST_ART_BROKEN_JIT_RUN_TESTS := \
+  137-cfi
+
+ifneq (,$(filter jit,$(COMPILER_TYPES)))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
+      jit,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES),$(TEST_ART_BROKEN_JIT_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+endif
+
+TEST_ART_BROKEN_JIT_RUN_TESTS :=
+
 # Known broken tests for the default compiler (Quick).
 TEST_ART_BROKEN_DEFAULT_RUN_TESTS := \
   457-regs
