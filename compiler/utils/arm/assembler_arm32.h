@@ -201,8 +201,8 @@ class Arm32Assembler FINAL : public ArmAssembler {
   void vpopd(DRegister reg, int nregs, Condition cond = AL) OVERRIDE;
 
   // Branch instructions.
-  void b(Label* label, Condition cond = AL);
-  void bl(Label* label, Condition cond = AL);
+  void b(Label* label, Condition cond = AL) OVERRIDE;
+  void bl(Label* label, Condition cond = AL) OVERRIDE;
   void blx(Register rm, Condition cond = AL) OVERRIDE;
   void bx(Register rm, Condition cond = AL) OVERRIDE;
   void Lsl(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,

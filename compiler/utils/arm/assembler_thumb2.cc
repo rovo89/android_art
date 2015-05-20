@@ -671,8 +671,14 @@ void Thumb2Assembler::vcmpdz(DRegister dd, Condition cond) {
   EmitVFPddd(cond, B23 | B21 | B20 | B18 | B16 | B6, dd, D0, D0);
 }
 
+
 void Thumb2Assembler::b(Label* label, Condition cond) {
   EmitBranch(cond, label, false, false);
+}
+
+
+void Thumb2Assembler::b(NearLabel* label, Condition cond) {
+  EmitBranch(cond, label, false, false, true /* is_near */);
 }
 
 
@@ -1613,7 +1619,7 @@ void Thumb2Assembler::EmitMultiMemOp(Condition cond,
 }
 
 
-void Thumb2Assembler::EmitBranch(Condition cond, Label* label, bool link, bool x) {
+void Thumb2Assembler::EmitBranch(Condition cond, Label* label, bool link, bool x, bool is_near) {
   uint32_t pc = buffer_.Size();
   Branch::Type branch_type;
   if (cond == AL) {
@@ -1644,8 +1650,8 @@ void Thumb2Assembler::EmitBranch(Condition cond, Label* label, bool link, bool x
     }
   } else {
     // Branch is to an unbound label.  Emit space for it.
-    uint16_t branch_id = AddBranch(branch_type, pc, cond);    // Unresolved branch.
-    if (!CanRelocateBranches() || force_32bit_) {
+    uint16_t branch_id = AddBranch(branch_type, pc, cond, is_near);    // Unresolved branch.
+    if (force_32bit_ || (!CanRelocateBranches() && !is_near)) {
       Emit16(static_cast<uint16_t>(label->position_));    // Emit current label link.
       Emit16(0);                   // another 16 bits.
     } else {
@@ -2747,6 +2753,11 @@ void Thumb2Assembler::CompareAndBranchIfZero(Register r, Label* label) {
     cmp(r, ShifterOperand(0));
     b(label, EQ);
   }
+}
+
+
+void Thumb2Assembler::CompareAndBranchIfZero(Register r, NearLabel* label) {
+  cbz(r, label);
 }
 
 

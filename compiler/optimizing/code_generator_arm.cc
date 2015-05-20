@@ -2883,7 +2883,7 @@ void InstructionCodeGeneratorARM::VisitCompare(HCompare* compare) {
   Location left = locations->InAt(0);
   Location right = locations->InAt(1);
 
-  Label less, greater, done;
+  NearLabel less, greater, done;
   Primitive::Type type = compare->InputAt(0)->GetType();
   switch (type) {
     case Primitive::kPrimLong: {
@@ -2979,7 +2979,7 @@ void InstructionCodeGeneratorARM::GenerateWideAtomicStore(Register addr,
                                                           Register temp1,
                                                           Register temp2,
                                                           HInstruction* instruction) {
-  Label fail;
+  NearLabel fail;
   if (offset != 0) {
     __ LoadImmediate(temp1, offset);
     __ add(IP, addr, ShifterOperand(temp1));
@@ -3659,7 +3659,7 @@ void CodeGeneratorARM::MarkGCCard(Register temp,
                                   Register object,
                                   Register value,
                                   bool can_be_null) {
-  Label is_null;
+  NearLabel is_null;
   if (can_be_null) {
     __ CompareAndBranchIfZero(value, &is_null);
   }
@@ -4081,14 +4081,13 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
   Register cls = locations->InAt(1).AsRegister<Register>();
   Register out = locations->Out().AsRegister<Register>();
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
-  Label done, zero;
+  NearLabel done, zero;
   SlowPathCodeARM* slow_path = nullptr;
 
   // Return 0 if `obj` is null.
   // avoid null check if we know obj is not null.
   if (instruction->MustDoNullCheck()) {
-    __ cmp(obj, ShifterOperand(0));
-    __ b(&zero, EQ);
+    __ CompareAndBranchIfZero(obj, &zero);
   }
   // Compare the class of `obj` with `cls`.
   __ LoadFromOffset(kLoadWord, out, obj, class_offset);
@@ -4139,16 +4138,17 @@ void InstructionCodeGeneratorARM::VisitCheckCast(HCheckCast* instruction) {
       instruction, locations->InAt(1), locations->GetTemp(0), instruction->GetDexPc());
   codegen_->AddSlowPath(slow_path);
 
+  NearLabel done;
   // avoid null check if we know obj is not null.
   if (instruction->MustDoNullCheck()) {
-    __ cmp(obj, ShifterOperand(0));
-    __ b(slow_path->GetExitLabel(), EQ);
+    __ CompareAndBranchIfZero(obj, &done);
   }
   // Compare the class of `obj` with `cls`.
   __ LoadFromOffset(kLoadWord, temp, obj, class_offset);
   __ cmp(temp, ShifterOperand(cls));
   __ b(slow_path->GetEntryLabel(), NE);
   __ Bind(slow_path->GetExitLabel());
+  __ Bind(&done);
 }
 
 void LocationsBuilderARM::VisitMonitorOperation(HMonitorOperation* instruction) {
