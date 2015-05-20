@@ -13,77 +13,88 @@
 # limitations under the License.
 
 from common.logger              import Logger
-from file_format.checker.struct import TestAssertion, RegexExpression
+from file_format.checker.struct import RegexExpression
 
 import re
 
-def __isMatchAtStart(match):
-  """ Tests if the given Match occurred at the beginning of the line. """
-  return (match is not None) and (match.start() == 0)
+def headAndTail(list):
+  return list[0], list[1:]
 
-def __generatePattern(checkLine, linePart, varState):
-  """ Returns the regex pattern to be matched in the output line. Variable
-      references are substituted with their current values provided in the
-      'varState' argument.
+def splitAtSeparators(expressions):
+  """ Splits a list of RegexExpressions at separators. """
+  splitExpressions = []
+  wordStart = 0
+  for index, expression in enumerate(expressions):
+    if expression.variant == RegexExpression.Variant.Separator:
+      splitExpressions.append(expressions[wordStart:index])
+      wordStart = index + 1
+  splitExpressions.append(expressions[wordStart:])
+  return splitExpressions
 
-  An exception is raised if a referenced variable is undefined.
+def matchWords(checkerWord, stringWord, variables, pos):
+  """ Attempts to match a list of RegexExpressions against a string. 
+      Returns updated variable dictionary if successful and None otherwise.
   """
-  if linePart.variant == RegexExpression.Variant.VarRef:
-    try:
-      return re.escape(varState[linePart.name])
-    except KeyError:
-      Logger.testFailed("Use of undefined variable \"" + linePart.name + "\"",
-                        checkLine.fileName, checkLine.lineNo)
-  else:
-    return linePart.pattern
+  # Create own copy of the variable dictionary, otherwise updates would change
+  # the caller's state.
+  variables = dict(variables)
 
-def __isSeparated(outputLine, matchStart):
-  return (matchStart == 0) or (outputLine[matchStart - 1:matchStart].isspace())
-
-def MatchLines(checkLine, outputLine, initialVarState):
-  """ Attempts to match the check line against a line from the output file with
-      the given initial variable values. It returns the new variable state if
-      successful and None otherwise.
-  """
-  # Do the full matching on a shadow copy of the variable state. If the
-  # matching fails half-way, we will not need to revert the state.
-  varState = dict(initialVarState)
-
-  matchStart = 0
-  isAfterSeparator = True
-
-  # Now try to parse all of the parts of the check line in the right order.
-  # Variable values are updated on-the-fly, meaning that a variable can
-  # be referenced immediately after its definition.
-  for part in checkLine.expressions:
-    if part.variant == RegexExpression.Variant.Separator:
-      isAfterSeparator = True
-      continue
-
-    # Find the earliest match for this line part.
-    pattern = __generatePattern(checkLine, part, varState)
-    while True:
-      match = re.search(pattern, outputLine[matchStart:])
-      if (match is None) or (not isAfterSeparator and not __isMatchAtStart(match)):
-        return None
-      matchEnd = matchStart + match.end()
-      matchStart += match.start()
-
-      # Check if this is a valid match if we expect a whitespace separator
-      # before the matched text. Otherwise loop and look for another match.
-      if not isAfterSeparator or __isSeparated(outputLine, matchStart):
-        break
+  for expression in checkerWord:
+    # If `expression` is a variable reference, replace it with the value.
+    if expression.variant == RegexExpression.Variant.VarRef:
+      if expression.name in variables:
+        pattern = re.escape(variables[expression.name])
       else:
-        matchStart += 1
+        Logger.testFailed("Multiple definitions of variable \"{}\"".format(expression.name), 
+                          pos.fileName, pos.lineNo)
+    else:
+      pattern = expression.pattern
 
-    if part.variant == RegexExpression.Variant.VarDef:
-      if part.name in varState:
-        Logger.testFailed("Multiple definitions of variable \"" + part.name + "\"",
-                          checkLine.fileName, checkLine.lineNo)
-      varState[part.name] = outputLine[matchStart:matchEnd]
+    # Match the expression's regex pattern against the remainder of the word.
+    # Note: re.match will succeed only if matched from the beginning.
+    match = re.match(pattern, stringWord)
+    if not match:
+      return None
 
-    matchStart = matchEnd
-    isAfterSeparator = False
+    # If `expression` was a variable definition, set the variable's value.
+    if expression.variant == RegexExpression.Variant.VarDef:
+      if expression.name not in variables:
+        variables[expression.name] = stringWord[:match.end()]
+      else:
+        Logger.testFailed("Multiple definitions of variable \"{}\"".format(expression.name), 
+                          pos.fileName, pos.lineNo)
 
-  # All parts were successfully matched. Return the new variable state.
-  return varState
+    # Move cursor by deleting the matched characters.
+    stringWord = stringWord[match.end():]
+
+  # Make sure the entire word matched, i.e. `stringWord` is empty.
+  if stringWord:
+    return None
+  
+  return variables
+
+def MatchLines(checkerLine, stringLine, variables):
+  """ Attempts to match a CHECK line against a string. Returns variable state
+      after the match if successful and None otherwise.
+  """
+  checkerWords = splitAtSeparators(checkerLine.expressions)
+  stringWords = stringLine.split()
+
+  while checkerWords:
+    # Get the next run of RegexExpressions which must match one string word.
+    checkerWord, checkerWords = headAndTail(checkerWords)
+
+    # Keep reading words until a match is found.
+    wordMatched = False
+    while stringWords:
+      stringWord, stringWords = headAndTail(stringWords)
+      newVariables = matchWords(checkerWord, stringWord, variables, checkerLine)
+      if newVariables is not None:
+        wordMatched = True
+        variables = newVariables
+        break
+    if not wordMatched:
+      return None
+
+  # All RegexExpressions matched. Return new variable state.
+  return variables
