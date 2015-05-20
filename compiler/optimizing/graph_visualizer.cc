@@ -270,6 +270,16 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
         << load_cass->MustGenerateClinitCheck() << std::noboolalpha;
   }
 
+  void VisitCheckCast(HCheckCast* check_cast) OVERRIDE {
+    StartAttributeStream("must_do_null_check") << std::boolalpha
+        << check_cast->MustDoNullCheck() << std::noboolalpha;
+  }
+
+  void VisitInstanceOf(HInstanceOf* instance_of) OVERRIDE {
+    StartAttributeStream("must_do_null_check") << std::boolalpha
+        << instance_of->MustDoNullCheck() << std::noboolalpha;
+  }
+
   bool IsPass(const char* name) {
     return strcmp(pass_name_, name) == 0;
   }
