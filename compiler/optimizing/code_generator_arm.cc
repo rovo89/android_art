@@ -391,7 +391,7 @@ CodeGeneratorARM::CodeGeneratorARM(HGraph* graph,
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetArena(), this),
-      assembler_(true),
+      assembler_(false /* can_relocate_branches */),
       isa_features_(isa_features) {
   // Save the PC register to mimic Quick.
   AddAllocatedRegister(Location::RegisterLocation(PC));
