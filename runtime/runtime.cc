@@ -1678,10 +1678,6 @@ void Runtime::AddCurrentRuntimeFeaturesAsDex2OatArguments(std::vector<std::strin
   std::string feature_string("--instruction-set-features=");
   feature_string += features->GetFeatureString();
   argv->push_back(feature_string);
-
-  if (Dbg::IsJdwpConfigured()) {
-    argv->push_back("--debuggable");
-  }
 }
 
 void Runtime::UpdateProfilerState(int state) {
