@@ -327,7 +327,7 @@ void CommonRuntimeTest::SetUp() {
   // Initialize maps for unstarted runtime. This needs to be here, as running clinits needs this
   // set up.
   if (!unstarted_initialized_) {
-    interpreter::UnstartedRuntimeInitialize();
+    interpreter::UnstartedRuntime::Initialize();
     unstarted_initialized_ = true;
   }
 

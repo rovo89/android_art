@@ -659,7 +659,7 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
     }
     entry(self, code_item, new_shadow_frame, result);
   } else {
-    UnstartedRuntimeInvoke(self, code_item, new_shadow_frame, result, first_dest_reg);
+    UnstartedRuntime::Invoke(self, code_item, new_shadow_frame, result, first_dest_reg);
   }
 
   if (string_init && !self->IsExceptionPending()) {
