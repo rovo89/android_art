@@ -74,8 +74,8 @@ namespace art {
 
 static constexpr bool kTimeCompileMethod = !kIsDebugBuild;
 
-// Whether to produce 64-bit ELF files for 64-bit targets. Leave this off for now.
-static constexpr bool kProduce64BitELFFiles = false;
+// Whether to produce 64-bit ELF files for 64-bit targets.
+static constexpr bool kProduce64BitELFFiles = true;
 
 // Whether classes-to-compile and methods-to-compile are only applied to the boot image, or, when
 // given, too all compilations.
