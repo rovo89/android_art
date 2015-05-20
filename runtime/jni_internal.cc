@@ -682,8 +682,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT(obj);
     CHECK_NON_NULL_ARGUMENT(mid);
     ScopedObjectAccess soa(env);
-    JValue result(InvokeVirtualOrInterfaceWithJValues(soa, soa.Decode<mirror::Object*>(obj), mid,
-                                                      args));
+    JValue result(InvokeVirtualOrInterfaceWithJValues(soa, obj, mid, args));
     return soa.AddLocalReference<jobject>(result.GetL());
   }
 
@@ -709,8 +708,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(obj);
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(mid);
     ScopedObjectAccess soa(env);
-    return InvokeVirtualOrInterfaceWithJValues(soa, soa.Decode<mirror::Object*>(obj), mid,
-                                               args).GetZ();
+    return InvokeVirtualOrInterfaceWithJValues(soa, obj, mid, args).GetZ();
   }
 
   static jbyte CallByteMethod(JNIEnv* env, jobject obj, jmethodID mid, ...) {
@@ -735,8 +733,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(obj);
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(mid);
     ScopedObjectAccess soa(env);
-    return InvokeVirtualOrInterfaceWithJValues(soa, soa.Decode<mirror::Object*>(obj), mid,
-                                               args).GetB();
+    return InvokeVirtualOrInterfaceWithJValues(soa, obj, mid, args).GetB();
   }
 
   static jchar CallCharMethod(JNIEnv* env, jobject obj, jmethodID mid, ...) {
@@ -761,8 +758,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(obj);
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(mid);
     ScopedObjectAccess soa(env);
-    return InvokeVirtualOrInterfaceWithJValues(soa, soa.Decode<mirror::Object*>(obj), mid,
-                                               args).GetC();
+    return InvokeVirtualOrInterfaceWithJValues(soa, obj, mid, args).GetC();
   }
 
   static jdouble CallDoubleMethod(JNIEnv* env, jobject obj, jmethodID mid, ...) {
@@ -787,8 +783,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(obj);
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(mid);
     ScopedObjectAccess soa(env);
-    return InvokeVirtualOrInterfaceWithJValues(soa, soa.Decode<mirror::Object*>(obj), mid,
-                                               args).GetD();
+    return InvokeVirtualOrInterfaceWithJValues(soa, obj, mid, args).GetD();
   }
 
   static jfloat CallFloatMethod(JNIEnv* env, jobject obj, jmethodID mid, ...) {
@@ -813,8 +808,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(obj);
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(mid);
     ScopedObjectAccess soa(env);
-    return InvokeVirtualOrInterfaceWithJValues(soa, soa.Decode<mirror::Object*>(obj), mid,
-                                               args).GetF();
+    return InvokeVirtualOrInterfaceWithJValues(soa, obj, mid, args).GetF();
   }
 
   static jint CallIntMethod(JNIEnv* env, jobject obj, jmethodID mid, ...) {
@@ -839,8 +833,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(obj);
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(mid);
     ScopedObjectAccess soa(env);
-    return InvokeVirtualOrInterfaceWithJValues(soa, soa.Decode<mirror::Object*>(obj), mid,
-                                               args).GetI();
+    return InvokeVirtualOrInterfaceWithJValues(soa, obj, mid, args).GetI();
   }
 
   static jlong CallLongMethod(JNIEnv* env, jobject obj, jmethodID mid, ...) {
@@ -865,8 +858,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(obj);
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(mid);
     ScopedObjectAccess soa(env);
-    return InvokeVirtualOrInterfaceWithJValues(soa, soa.Decode<mirror::Object*>(obj), mid,
-                                               args).GetJ();
+    return InvokeVirtualOrInterfaceWithJValues(soa, obj, mid, args).GetJ();
   }
 
   static jshort CallShortMethod(JNIEnv* env, jobject obj, jmethodID mid, ...) {
@@ -891,8 +883,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(obj);
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(mid);
     ScopedObjectAccess soa(env);
-    return InvokeVirtualOrInterfaceWithJValues(soa, soa.Decode<mirror::Object*>(obj), mid,
-                                               args).GetS();
+    return InvokeVirtualOrInterfaceWithJValues(soa, obj, mid, args).GetS();
   }
 
   static void CallVoidMethod(JNIEnv* env, jobject obj, jmethodID mid, ...) {
@@ -916,7 +907,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(obj);
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(mid);
     ScopedObjectAccess soa(env);
-    InvokeVirtualOrInterfaceWithJValues(soa, soa.Decode<mirror::Object*>(obj), mid, args);
+    InvokeVirtualOrInterfaceWithJValues(soa, obj, mid, args);
   }
 
   static jobject CallNonvirtualObjectMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
@@ -945,7 +936,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT(obj);
     CHECK_NON_NULL_ARGUMENT(mid);
     ScopedObjectAccess soa(env);
-    JValue result(InvokeWithJValues(soa, soa.Decode<mirror::Object*>(obj), mid, args));
+    JValue result(InvokeWithJValues(soa, obj, mid, args));
     return soa.AddLocalReference<jobject>(result.GetL());
   }
 
@@ -974,7 +965,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(obj);
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(mid);
     ScopedObjectAccess soa(env);
-    return InvokeWithJValues(soa, soa.Decode<mirror::Object*>(obj), mid, args).GetZ();
+    return InvokeWithJValues(soa, obj, mid, args).GetZ();
   }
 
   static jbyte CallNonvirtualByteMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
@@ -1001,7 +992,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(obj);
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(mid);
     ScopedObjectAccess soa(env);
-    return InvokeWithJValues(soa, soa.Decode<mirror::Object*>(obj), mid, args).GetB();
+    return InvokeWithJValues(soa, obj, mid, args).GetB();
   }
 
   static jchar CallNonvirtualCharMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
@@ -1028,7 +1019,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(obj);
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(mid);
     ScopedObjectAccess soa(env);
-    return InvokeWithJValues(soa, soa.Decode<mirror::Object*>(obj), mid, args).GetC();
+    return InvokeWithJValues(soa, obj, mid, args).GetC();
   }
 
   static jshort CallNonvirtualShortMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
@@ -1055,7 +1046,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(obj);
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(mid);
     ScopedObjectAccess soa(env);
-    return InvokeWithJValues(soa, soa.Decode<mirror::Object*>(obj), mid, args).GetS();
+    return InvokeWithJValues(soa, obj, mid, args).GetS();
   }
 
   static jint CallNonvirtualIntMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
@@ -1082,7 +1073,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(obj);
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(mid);
     ScopedObjectAccess soa(env);
-    return InvokeWithJValues(soa, soa.Decode<mirror::Object*>(obj), mid, args).GetI();
+    return InvokeWithJValues(soa, obj, mid, args).GetI();
   }
 
   static jlong CallNonvirtualLongMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
@@ -1109,7 +1100,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(obj);
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(mid);
     ScopedObjectAccess soa(env);
-    return InvokeWithJValues(soa, soa.Decode<mirror::Object*>(obj), mid, args).GetJ();
+    return InvokeWithJValues(soa, obj, mid, args).GetJ();
   }
 
   static jfloat CallNonvirtualFloatMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
@@ -1136,7 +1127,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(obj);
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(mid);
     ScopedObjectAccess soa(env);
-    return InvokeWithJValues(soa, soa.Decode<mirror::Object*>(obj), mid, args).GetF();
+    return InvokeWithJValues(soa, obj, mid, args).GetF();
   }
 
   static jdouble CallNonvirtualDoubleMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
@@ -1163,7 +1154,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(obj);
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(mid);
     ScopedObjectAccess soa(env);
-    return InvokeWithJValues(soa, soa.Decode<mirror::Object*>(obj), mid, args).GetD();
+    return InvokeWithJValues(soa, obj, mid, args).GetD();
   }
 
   static void CallNonvirtualVoidMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
@@ -1189,7 +1180,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(obj);
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(mid);
     ScopedObjectAccess soa(env);
-    InvokeWithJValues(soa, soa.Decode<mirror::Object*>(obj), mid, args);
+    InvokeWithJValues(soa, obj, mid, args);
   }
 
   static jfieldID GetFieldID(JNIEnv* env, jclass java_class, const char* name, const char* sig) {
