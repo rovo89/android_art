@@ -26,7 +26,7 @@
 #include <cutils/trace.h>
 #include <signal.h>
 #include <sys/syscall.h>
-#include <valgrind.h>
+#include "base/memory_tool.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -177,7 +177,7 @@ Runtime::Runtime()
       exit_(nullptr),
       abort_(nullptr),
       stats_enabled_(false),
-      running_on_valgrind_(RUNNING_ON_VALGRIND > 0),
+      is_running_on_memory_tool_(RUNNING_ON_MEMORY_TOOL),
       profiler_started_(false),
       instrumentation_(),
       main_thread_group_(nullptr),
@@ -938,7 +938,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
     case kMips64:
       implicit_null_checks_ = true;
       // Installing stack protection does not play well with valgrind.
-      implicit_so_checks_ = (RUNNING_ON_VALGRIND == 0);
+      implicit_so_checks_ = !(RUNNING_ON_MEMORY_TOOL && kMemoryToolIsValgrind);
       break;
     default:
       // Keep the defaults.

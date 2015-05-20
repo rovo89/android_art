@@ -18,7 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
-#include <valgrind.h>
+#include "base/memory_tool.h"
 
 #include <fstream>
 #include <iostream>
@@ -519,7 +519,7 @@ class Dex2Oat FINAL {
     // the runtime.
     LogCompletionTime();
 
-    if (kIsDebugBuild || (RUNNING_ON_VALGRIND != 0)) {
+    if (kIsDebugBuild || (RUNNING_ON_MEMORY_TOOL && kMemoryToolDetectsLeaks)) {
       delete runtime_;  // See field declaration for why this is manual.
     }
   }
@@ -2003,7 +2003,7 @@ int main(int argc, char** argv) {
   // Everything was done, do an explicit exit here to avoid running Runtime destructors that take
   // time (bug 10645725) unless we're a debug build or running on valgrind. Note: The Dex2Oat class
   // should not destruct the runtime in this case.
-  if (!art::kIsDebugBuild && (RUNNING_ON_VALGRIND == 0)) {
+  if (!art::kIsDebugBuild && (RUNNING_ON_MEMORY_TOOL == 0)) {
     exit(result);
   }
   return result;

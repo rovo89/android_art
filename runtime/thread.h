@@ -138,11 +138,6 @@ static constexpr size_t kNumRosAllocThreadLocalSizeBrackets = 34;
 
 class Thread {
  public:
-  // For implicit overflow checks we reserve an extra piece of memory at the bottom
-  // of the stack (lowest memory).  The higher portion of the memory
-  // is protected against reads and the lower is available for use while
-  // throwing the StackOverflow exception.
-  static constexpr size_t kStackOverflowProtectedSize = 4 * KB;
   static const size_t kStackOverflowImplicitCheckSize;
 
   // Creates a new native thread corresponding to the given managed peer.

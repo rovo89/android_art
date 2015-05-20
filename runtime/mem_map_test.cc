@@ -18,7 +18,7 @@
 
 #include <memory>
 
-#include <valgrind.h>
+#include "base/memory_tool.h"
 
 #include "gtest/gtest.h"
 
@@ -216,7 +216,7 @@ TEST_F(MemMapTest, RemapAtEnd32bit) {
 TEST_F(MemMapTest, MapAnonymousExactAddr32bitHighAddr) {
   CommonInit();
   // This test may not work under valgrind.
-  if (RUNNING_ON_VALGRIND == 0) {
+  if (RUNNING_ON_MEMORY_TOOL == 0) {
     uintptr_t start_addr = ART_BASE_ADDRESS + 0x1000000;
     std::string error_msg;
     std::unique_ptr<MemMap> map(MemMap::MapAnonymous("MapAnonymousExactAddr32bitHighAddr",
