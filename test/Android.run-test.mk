@@ -323,6 +323,7 @@ TEST_ART_BROKEN_NDEBUG_TESTS := \
   118-noimage-dex2oat \
   119-noimage-patchoat \
   131-structural-change \
+  137-cfi \
   454-get-vreg \
   455-set-vreg \
   457-regs \
@@ -437,6 +438,11 @@ ifeq ($(ART_USE_READ_BARRIER),true)
 endif
 
 TEST_ART_BROKEN_READ_BARRIER_RUN_TESTS :=
+
+# Test 137-cfi works in 32-bit only until we enable 64-bit ELF files.
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
+    $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+    $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES),137-cfi,64)
 
 # Clear variables ahead of appending to them when defining tests.
 $(foreach target, $(TARGET_TYPES), $(eval ART_RUN_TEST_$(call name-to-var,$(target))_RULES :=))
