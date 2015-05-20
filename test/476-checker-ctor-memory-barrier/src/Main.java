@@ -157,7 +157,7 @@ public class Main {
   // CHECK-START: void Main.inlineNew() register (after)
   // CHECK:     MemoryBarrier kind:StoreStore
   // CHECK-NOT: {{.*}}
-  // CHECK:     Return
+  // CHECK:     ReturnVoid
 
   // CHECK-START: void Main.inlineNew() register (after)
   // CHECK-NOT: InvokeStaticOrDirect
@@ -168,7 +168,7 @@ public class Main {
   // CHECK-START: void Main.inlineNew1() register (after)
   // CHECK:     MemoryBarrier kind:StoreStore
   // CHECK-NOT: {{.*}}
-  // CHECK:     Return
+  // CHECK:     ReturnVoid
 
   // CHECK-START: void Main.inlineNew1() register (after)
   // CHECK-NOT: InvokeStaticOrDirect
@@ -179,7 +179,7 @@ public class Main {
   // CHECK-START: void Main.inlineNew2() register (after)
   // CHECK:     MemoryBarrier kind:StoreStore
   // CHECK-NOT: {{.*}}
-  // CHECK:     Return
+  // CHECK:     ReturnVoid
 
   // CHECK-START: void Main.inlineNew2() register (after)
   // CHECK-NOT: InvokeStaticOrDirect
@@ -191,7 +191,7 @@ public class Main {
   // CHECK:     MemoryBarrier kind:StoreStore
   // CHECK:     MemoryBarrier kind:StoreStore
   // CHECK-NOT: {{.*}}
-  // CHECK:     Return
+  // CHECK:     ReturnVoid
 
   // CHECK-START: void Main.inlineNew3() register (after)
   // CHECK-NOT: InvokeStaticOrDirect
