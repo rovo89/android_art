@@ -53,7 +53,7 @@ void PrepareForRegisterAllocation::VisitClinitCheck(HClinitCheck* check) {
   if (check->GetPrevious() == cls) {
     // Pass the initialization duty to the `HLoadClass` instruction,
     // and remove the instruction from the graph.
-    cls->SetMustGenerateClinitCheck();
+    cls->SetMustGenerateClinitCheck(true);
     check->GetBlock()->RemoveInstruction(check);
   }
 }
@@ -82,8 +82,15 @@ void PrepareForRegisterAllocation::VisitCondition(HCondition* condition) {
 void PrepareForRegisterAllocation::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
   if (invoke->IsStaticWithExplicitClinitCheck()) {
     size_t last_input_index = invoke->InputCount() - 1;
-    HInstruction* last_input = invoke->InputAt(last_input_index);
-    DCHECK(last_input->IsLoadClass()) << last_input->DebugName();
+    HLoadClass* last_input = invoke->InputAt(last_input_index)->AsLoadClass();
+    DCHECK(last_input != nullptr)
+        << "Last input is not HLoadClass. It is " << last_input->DebugName();
+
+    // The static call will initialize the class so there's no need for a clinit check if
+    // it's the first user.
+    if (last_input == invoke->GetPrevious()) {
+      last_input->SetMustGenerateClinitCheck(false);
+    }
 
     // Remove a load class instruction as last input of a static
     // invoke, which has been added (along with a clinit check,
