@@ -137,8 +137,8 @@ class MatchFiles_Test(unittest.TestCase):
       // CHECK: abc<<X>>def
     """,
     """
-      foo bar
-      abc def
+      foo0bar
+      abc0def
     """))
     self.assertTrue(self.matches(
     """
@@ -160,6 +160,12 @@ class MatchFiles_Test(unittest.TestCase):
       foo1234bar
       abc1235def
     """))
+
+  def test_WholeWordMustMatch(self):
+    self.assertTrue(self.matches( "// CHECK: b{{.}}r", "abc bar def"))
+    self.assertFalse(self.matches( "// CHECK: b{{.}}r", "abc Xbar def"))
+    self.assertFalse(self.matches( "// CHECK: b{{.}}r", "abc barX def"))
+    self.assertFalse(self.matches( "// CHECK: b{{.}}r", "abc b r def"))
 
   def test_InOrderAssertions(self):
     self.assertTrue(self.matches(
