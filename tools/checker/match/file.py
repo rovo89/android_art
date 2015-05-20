@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from common.immutables                import ImmutableDict
 from common.logger                    import Logger
 from file_format.c1visualizer.struct  import C1visualizerFile, C1visualizerPass
 from file_format.checker.struct       import CheckerFile, TestCase, TestAssertion
@@ -112,7 +113,7 @@ def __matchGroups(checkGroup, outputGroup):
       responsible for running the checks in the right order and scope, and
       for propagating the variable state between the check lines.
   """
-  varState = {}
+  varState = ImmutableDict()
   checkLines = checkGroup.assertions
   outputLines = outputGroup.body
   startLineNo = outputGroup.startLineNo

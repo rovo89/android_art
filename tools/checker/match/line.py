@@ -32,20 +32,16 @@ def splitAtSeparators(expressions):
   return splitExpressions
 
 def matchWords(checkerWord, stringWord, variables, pos):
-  """ Attempts to match a list of RegexExpressions against a string. 
+  """ Attempts to match a list of RegexExpressions against a string.
       Returns updated variable dictionary if successful and None otherwise.
   """
-  # Create own copy of the variable dictionary, otherwise updates would change
-  # the caller's state.
-  variables = dict(variables)
-
   for expression in checkerWord:
     # If `expression` is a variable reference, replace it with the value.
     if expression.variant == RegexExpression.Variant.VarRef:
       if expression.name in variables:
         pattern = re.escape(variables[expression.name])
       else:
-        Logger.testFailed("Multiple definitions of variable \"{}\"".format(expression.name), 
+        Logger.testFailed("Multiple definitions of variable \"{}\"".format(expression.name),
                           pos.fileName, pos.lineNo)
     else:
       pattern = expression.pattern
@@ -59,9 +55,9 @@ def matchWords(checkerWord, stringWord, variables, pos):
     # If `expression` was a variable definition, set the variable's value.
     if expression.variant == RegexExpression.Variant.VarDef:
       if expression.name not in variables:
-        variables[expression.name] = stringWord[:match.end()]
+        variables = variables.copyWith(expression.name, stringWord[:match.end()])
       else:
-        Logger.testFailed("Multiple definitions of variable \"{}\"".format(expression.name), 
+        Logger.testFailed("Multiple definitions of variable \"{}\"".format(expression.name),
                           pos.fileName, pos.lineNo)
 
     # Move cursor by deleting the matched characters.
@@ -70,7 +66,7 @@ def matchWords(checkerWord, stringWord, variables, pos):
   # Make sure the entire word matched, i.e. `stringWord` is empty.
   if stringWord:
     return None
-  
+
   return variables
 
 def MatchLines(checkerLine, stringLine, variables):
