@@ -38,23 +38,32 @@
 
 namespace art {
 
-inline mirror::ArtMethod* GetCalleeSaveMethodCaller(Thread* self, Runtime::CalleeSaveType type)
+inline mirror::ArtMethod* GetCalleeSaveMethodCaller(StackReference<mirror::ArtMethod>* sp,
+                                                    Runtime::CalleeSaveType type,
+                                                    bool do_caller_check = false)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  auto* refs_only_sp = self->GetManagedStack()->GetTopQuickFrame();
-  DCHECK_EQ(refs_only_sp->AsMirrorPtr(), Runtime::Current()->GetCalleeSaveMethod(type));
+  DCHECK_EQ(sp->AsMirrorPtr(), Runtime::Current()->GetCalleeSaveMethod(type));
 
   const size_t callee_frame_size = GetCalleeSaveFrameSize(kRuntimeISA, type);
   auto* caller_sp = reinterpret_cast<StackReference<mirror::ArtMethod>*>(
-          reinterpret_cast<uintptr_t>(refs_only_sp) + callee_frame_size);
+          reinterpret_cast<uintptr_t>(sp) + callee_frame_size);
   auto* caller = caller_sp->AsMirrorPtr();
 
-  if (kIsDebugBuild) {
-    NthCallerVisitor visitor(self, 1, true);
+  if (kIsDebugBuild && do_caller_check) {
+    // Note that do_caller_check is optional, as this method can be called by
+    // stubs, and tests without a proper call stack.
+    NthCallerVisitor visitor(Thread::Current(), 1, true);
     visitor.WalkStack();
-    CHECK(caller == visitor.caller);
+    CHECK_EQ(caller, visitor.caller);
   }
 
   return caller;
+}
+
+inline mirror::ArtMethod* GetCalleeSaveMethodCaller(Thread* self, Runtime::CalleeSaveType type)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  return GetCalleeSaveMethodCaller(
+      self->GetManagedStack()->GetTopQuickFrame(), type, true /* do_caller_check */);
 }
 
 template <const bool kAccessCheck>

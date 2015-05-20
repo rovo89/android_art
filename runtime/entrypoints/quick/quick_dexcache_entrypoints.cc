@@ -25,8 +25,7 @@
 
 namespace art {
 
-extern "C" mirror::Class* artInitializeStaticStorageFromCode(uint32_t type_idx,
-                                                             Thread* self)
+extern "C" mirror::Class* artInitializeStaticStorageFromCode(uint32_t type_idx, Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Called to ensure static storage base is initialized for direct static field reads and writes.
   // A class may be accessing another class' fields when it doesn't have access, as access has been
@@ -36,8 +35,7 @@ extern "C" mirror::Class* artInitializeStaticStorageFromCode(uint32_t type_idx,
   return ResolveVerifyAndClinit(type_idx, caller, self, true, false);
 }
 
-extern "C" mirror::Class* artInitializeTypeFromCode(uint32_t type_idx,
-                                                    Thread* self)
+extern "C" mirror::Class* artInitializeTypeFromCode(uint32_t type_idx, Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Called when method->dex_cache_resolved_types_[] misses.
   ScopedQuickEntrypointChecks sqec(self);
@@ -45,8 +43,7 @@ extern "C" mirror::Class* artInitializeTypeFromCode(uint32_t type_idx,
   return ResolveVerifyAndClinit(type_idx, caller, self, false, false);
 }
 
-extern "C" mirror::Class* artInitializeTypeAndVerifyAccessFromCode(uint32_t type_idx,
-                                                                   Thread* self)
+extern "C" mirror::Class* artInitializeTypeAndVerifyAccessFromCode(uint32_t type_idx, Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Called when caller isn't guaranteed to have access to a type and the dex cache may be
   // unpopulated.
@@ -55,8 +52,7 @@ extern "C" mirror::Class* artInitializeTypeAndVerifyAccessFromCode(uint32_t type
   return ResolveVerifyAndClinit(type_idx, caller, self, false, true);
 }
 
-extern "C" mirror::String* artResolveStringFromCode(int32_t string_idx,
-                                                    Thread* self)
+extern "C" mirror::String* artResolveStringFromCode(int32_t string_idx, Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
   auto* caller = GetCalleeSaveMethodCaller(self, Runtime::kRefsOnly);

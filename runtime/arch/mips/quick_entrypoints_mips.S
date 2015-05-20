@@ -439,8 +439,7 @@ END art_quick_throw_no_such_method
     /*
      * All generated callsites for interface invokes and invocation slow paths will load arguments
      * as usual - except instead of loading arg0/$a0 with the target Method*, arg0/$a0 will contain
-     * the method_idx.  This wrapper will save arg1-arg3, load the caller's Method*, align the
-     * stack and call the appropriate C helper.
+     * the method_idx.  This wrapper will save arg1-arg3, and call the appropriate C helper.
      * NOTE: "this" is first visable argument of the target, and so can be found in arg1/$a1.
      *
      * The helper will attempt to locate the target and return a 64-bit result in $v0/$v1 consisting
@@ -456,15 +455,13 @@ END art_quick_throw_no_such_method
     .extern \cxx_name
 ENTRY \c_name
     SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME  # save callee saves in case allocation triggers GC
-    lw    $a2, FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE+ARG_SLOT_SIZE($sp)    # pass caller Method*
-    addiu $t0, $sp, ARG_SLOT_SIZE         # save $sp (remove arg slots)
-    move  $a3, rSELF                      # pass Thread::Current
-    jal   \cxx_name                       # (method_idx, this, caller, Thread*, $sp)
-    sw    $t0, 16($sp)                    # pass $sp
-    move  $a0, $v0                        # save target Method*
+    move  $a2, rSELF                       # pass Thread::Current
+    jal   \cxx_name                        # (method_idx, this, Thread*, $sp)
+    addiu $a3, $sp, ARG_SLOT_SIZE          # pass $sp (remove arg slots)
+    move  $a0, $v0                         # save target Method*
     RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
     beqz  $v0, 1f
-    move  $t9, $v1                        # save $v0->code_
+    move  $t9, $v1                         # save $v0->code_
     jalr  $zero, $t9
     nop
 1:
