@@ -31,8 +31,8 @@ namespace arm {
 
 class Thumb2Assembler FINAL : public ArmAssembler {
  public:
-  explicit Thumb2Assembler(bool force_32bit_branches = false)
-      : force_32bit_branches_(force_32bit_branches),
+  explicit Thumb2Assembler(bool can_relocate_branches = true)
+      : can_relocate_branches_(can_relocate_branches),
         force_32bit_(false),
         it_cond_index_(kNoItCondition),
         next_condition_(AL) {
@@ -52,8 +52,8 @@ class Thumb2Assembler FINAL : public ArmAssembler {
     return force_32bit_;
   }
 
-  bool IsForced32BitBranches() const {
-    return force_32bit_branches_;
+  bool CanRelocateBranches() const {
+    return can_relocate_branches_;
   }
 
   void FinalizeInstructions(const MemoryRegion& region) OVERRIDE {
@@ -439,8 +439,12 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   void EmitShift(Register rd, Register rm, Shift shift, uint8_t amount, bool setcc = false);
   void EmitShift(Register rd, Register rn, Shift shift, Register rm, bool setcc = false);
 
-  bool force_32bit_branches_;  // Force the assembler to use 32 bit branch instructions.
-  bool force_32bit_;           // Force the assembler to use 32 bit thumb2 instructions.
+  // Whether the assembler can relocate branches. If false, unresolved branches will be
+  // emitted on 32bits.
+  bool can_relocate_branches_;
+
+  // Force the assembler to use 32 bit thumb2 instructions.
+  bool force_32bit_;
 
   // IfThen conditions.  Used to check that conditional instructions match the preceding IT.
   Condition it_conditions_[4];
@@ -556,12 +560,21 @@ class Thumb2Assembler FINAL : public ArmAssembler {
     // size of the branch to change return true.  Otherwise return false.
     bool Resolve(uint32_t target) {
       target_ = target;
-      Size newsize = CalculateSize();
-      if (size_ != newsize) {
-        size_ = newsize;
-        return true;
+      if (assembler_->CanRelocateBranches()) {
+        Size new_size = CalculateSize();
+        if (size_ != new_size) {
+          size_ = new_size;
+          return true;
+        }
+        return false;
+      } else {
+        if (kIsDebugBuild) {
+          Size new_size = CalculateSize();
+          // Check that the size has not increased.
+          DCHECK(!(new_size == k32Bit && size_ == k16Bit));
+        }
+        return false;
       }
-      return false;
     }
 
     // Move a cbz/cbnz branch.  This is always forward.
@@ -577,6 +590,7 @@ class Thumb2Assembler FINAL : public ArmAssembler {
     // size of the branch instruction.  It returns true if the branch
     // has changed size.
     bool Relocate(uint32_t oldlocation, int32_t delta) {
+      DCHECK(assembler_->CanRelocateBranches());
       if (location_ > oldlocation) {
         location_ += delta;
       }
@@ -589,9 +603,9 @@ class Thumb2Assembler FINAL : public ArmAssembler {
       }
 
       // Calculate the new size.
-      Size newsize = CalculateSize();
-      if (size_ != newsize) {
-        size_ = newsize;
+      Size new_size = CalculateSize();
+      if (size_ != new_size) {
+        size_ = new_size;
         return true;
       }
       return false;
@@ -633,15 +647,13 @@ class Thumb2Assembler FINAL : public ArmAssembler {
    private:
     // Calculate the size of the branch instruction based on its type and offset.
     Size CalculateSize() const {
-      if (assembler_->IsForced32BitBranches()) {
-        return k32Bit;
-      }
       if (target_ == kUnresolved) {
         if (assembler_->IsForced32Bit() && (type_ == kUnconditional || type_ == kConditional)) {
           return k32Bit;
         }
-        return k16Bit;
+        return assembler_->CanRelocateBranches() ? k16Bit : k32Bit;
       }
+      // When the target is resolved, we know the best encoding for it.
       int32_t delta = target_ - location_ - 4;
       if (delta < 0) {
         delta = -delta;
