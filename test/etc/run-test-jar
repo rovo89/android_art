@@ -226,7 +226,11 @@ fi
 
 if [ "$USE_JVM" = "y" ]; then
   # Xmx is necessary since we don't pass down the ART flags to JVM.
-  ${JAVA} ${DEBUGGER_OPTS} ${JVM_VERIFY_ARG} -Xmx256m -classpath classes $MAIN "$@"
+  cmdline="${JAVA} ${DEBUGGER_OPTS} ${JVM_VERIFY_ARG} -Xmx256m -classpath classes ${FLAGS} $MAIN $@"
+  if [ "$DEV_MODE" = "y" ]; then
+    echo $cmdline
+  fi
+  $cmdline
   exit
 fi
 
