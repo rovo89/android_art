@@ -101,11 +101,13 @@ void StackMapStream::AddDexRegisterEntry(DexRegisterLocation::Kind kind, int32_t
 
 void StackMapStream::BeginInlineInfoEntry(uint32_t method_index,
                                           uint32_t dex_pc,
+                                          InvokeType invoke_type,
                                           uint32_t num_dex_registers) {
   DCHECK(!in_inline_frame_);
   in_inline_frame_ = true;
   current_inline_info_.method_index = method_index;
   current_inline_info_.dex_pc = dex_pc;
+  current_inline_info_.invoke_type = invoke_type;
   current_inline_info_.num_dex_registers = num_dex_registers;
   current_inline_info_.dex_register_locations_start_index = dex_register_locations_.Size();
   if (num_dex_registers != 0) {
@@ -313,6 +315,7 @@ void StackMapStream::FillIn(MemoryRegion region) {
         InlineInfoEntry inline_entry = inline_infos_.Get(depth + entry.inline_infos_start_index);
         inline_info.SetMethodIndexAtDepth(depth, inline_entry.method_index);
         inline_info.SetDexPcAtDepth(depth, inline_entry.dex_pc);
+        inline_info.SetInvokeTypeAtDepth(depth, inline_entry.invoke_type);
         if (inline_entry.num_dex_registers == 0) {
           // No dex map available.
           inline_info.SetDexRegisterMapOffsetAtDepth(depth, StackMap::kNoDexRegisterMap);

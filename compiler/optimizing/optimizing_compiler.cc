@@ -518,7 +518,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
                                                      dex_compilation_unit.GetClassDefIndex());
   ArenaAllocator arena(Runtime::Current()->GetArenaPool());
   HGraph* graph = new (&arena) HGraph(
-      &arena, dex_file, method_idx, requires_barrier,
+      &arena, dex_file, method_idx, requires_barrier, kInvalidInvokeType,
       compiler_driver->GetCompilerOptions().GetDebuggable());
 
   // For testing purposes, we put a special marker on method names that should be compiled
