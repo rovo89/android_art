@@ -313,8 +313,7 @@ ONE_ARG_RUNTIME_EXCEPTION art_quick_throw_no_such_method, artThrowNoSuchMethodFr
     /*
      * All generated callsites for interface invokes and invocation slow paths will load arguments
      * as usual - except instead of loading arg0/r0 with the target Method*, arg0/r0 will contain
-     * the method_idx.  This wrapper will save arg1-arg3, load the caller's Method*, align the
-     * stack and call the appropriate C helper.
+     * the method_idx.  This wrapper will save arg1-arg3, and call the appropriate C helper.
      * NOTE: "this" is first visible argument of the target, and so can be found in arg1/r1.
      *
      * The helper will attempt to locate the target and return a 64-bit result in r0/r1 consisting
@@ -330,13 +329,10 @@ ONE_ARG_RUNTIME_EXCEPTION art_quick_throw_no_such_method, artThrowNoSuchMethodFr
     .extern \cxx_name
 ENTRY \c_name
     SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME r2, r3  @ save callee saves in case allocation triggers GC
-    ldr    r2, [sp, #FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE]  @ pass caller Method*
-    mov    r3, r9                         @ pass Thread::Current
-    mov    r12, sp
-    str    r12, [sp, #-16]!               @ expand the frame and pass SP
+    mov    r2, r9                         @ pass Thread::Current
+    mov    r3, sp
     .cfi_adjust_cfa_offset 16
     bl     \cxx_name                      @ (method_idx, this, caller, Thread*, SP)
-    add    sp, #16                        @ strip the extra frame
     .cfi_adjust_cfa_offset -16
     mov    r12, r1                        @ save Method*->code_
     RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME

@@ -341,8 +341,7 @@ TWO_ARG_RUNTIME_EXCEPTION art_quick_throw_array_bounds, artThrowArrayBoundsFromC
     /*
      * All generated callsites for interface invokes and invocation slow paths will load arguments
      * as usual - except instead of loading arg0/rdi with the target Method*, arg0/rdi will contain
-     * the method_idx.  This wrapper will save arg1-arg3, load the caller's Method*, align the
-     * stack and call the appropriate C helper.
+     * the method_idx.  This wrapper will save arg1-arg3, and call the appropriate C helper.
      * NOTE: "this" is first visible argument of the target, and so can be found in arg1/rsi.
      *
      * The helper will attempt to locate the target and return a 128-bit result in rax/rdx consisting
@@ -362,11 +361,10 @@ MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
     // Helper signature is always
     // (method_idx, *this_object, *caller_method, *self, sp)
 
-    movl FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE(%rsp), %edx  // pass caller Method*
-    movq %gs:THREAD_SELF_OFFSET, %rcx                      // pass Thread
-    movq %rsp, %r8                                         // pass SP
+    movq %gs:THREAD_SELF_OFFSET, %rdx                      // pass Thread
+    movq %rsp, %rcx                                        // pass SP
 
-    call VAR(cxx_name, 1)                   // cxx_name(arg1, arg2, caller method*, Thread*, SP)
+    call VAR(cxx_name, 1)                   // cxx_name(arg1, arg2, Thread*, SP)
                                                            // save the code pointer
     movq %rax, %rdi
     movq %rdx, %rax
