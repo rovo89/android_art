@@ -60,6 +60,8 @@ static const int kDefaultNumberOfBackEdges = 1;
 static constexpr uint32_t kMaxIntShiftValue = 0x1f;
 static constexpr uint64_t kMaxLongShiftValue = 0x3f;
 
+static constexpr uint32_t kUnknownFieldIndex = static_cast<uint32_t>(-1);
+
 static constexpr InvokeType kInvalidInvokeType = static_cast<InvokeType>(-1);
 
 enum IfCondition {
@@ -3140,17 +3142,29 @@ class HNullCheck : public HExpression<1> {
 
 class FieldInfo : public ValueObject {
  public:
-  FieldInfo(MemberOffset field_offset, Primitive::Type field_type, bool is_volatile)
-      : field_offset_(field_offset), field_type_(field_type), is_volatile_(is_volatile) {}
+  FieldInfo(MemberOffset field_offset,
+            Primitive::Type field_type,
+            bool is_volatile,
+            uint32_t index,
+            const DexFile& dex_file)
+      : field_offset_(field_offset),
+        field_type_(field_type),
+        is_volatile_(is_volatile),
+        index_(index),
+        dex_file_(dex_file) {}
 
   MemberOffset GetFieldOffset() const { return field_offset_; }
   Primitive::Type GetFieldType() const { return field_type_; }
+  uint32_t GetFieldIndex() const { return index_; }
+  const DexFile& GetDexFile() const { return dex_file_; }
   bool IsVolatile() const { return is_volatile_; }
 
  private:
   const MemberOffset field_offset_;
   const Primitive::Type field_type_;
   const bool is_volatile_;
+  uint32_t index_;
+  const DexFile& dex_file_;
 };
 
 class HInstanceFieldGet : public HExpression<1> {
@@ -3158,9 +3172,11 @@ class HInstanceFieldGet : public HExpression<1> {
   HInstanceFieldGet(HInstruction* value,
                     Primitive::Type field_type,
                     MemberOffset field_offset,
-                    bool is_volatile)
+                    bool is_volatile,
+                    uint32_t field_idx,
+                    const DexFile& dex_file)
       : HExpression(field_type, SideEffects::DependsOnSomething()),
-        field_info_(field_offset, field_type, is_volatile) {
+        field_info_(field_offset, field_type, is_volatile, field_idx, dex_file) {
     SetRawInputAt(0, value);
   }
 
@@ -3198,9 +3214,11 @@ class HInstanceFieldSet : public HTemplateInstruction<2> {
                     HInstruction* value,
                     Primitive::Type field_type,
                     MemberOffset field_offset,
-                    bool is_volatile)
+                    bool is_volatile,
+                    uint32_t field_idx,
+                    const DexFile& dex_file)
       : HTemplateInstruction(SideEffects::ChangesSomething()),
-        field_info_(field_offset, field_type, is_volatile),
+        field_info_(field_offset, field_type, is_volatile, field_idx, dex_file),
         value_can_be_null_(true) {
     SetRawInputAt(0, object);
     SetRawInputAt(1, value);
@@ -3591,9 +3609,11 @@ class HStaticFieldGet : public HExpression<1> {
   HStaticFieldGet(HInstruction* cls,
                   Primitive::Type field_type,
                   MemberOffset field_offset,
-                  bool is_volatile)
+                  bool is_volatile,
+                  uint32_t field_idx,
+                  const DexFile& dex_file)
       : HExpression(field_type, SideEffects::DependsOnSomething()),
-        field_info_(field_offset, field_type, is_volatile) {
+        field_info_(field_offset, field_type, is_volatile, field_idx, dex_file) {
     SetRawInputAt(0, cls);
   }
 
@@ -3628,9 +3648,11 @@ class HStaticFieldSet : public HTemplateInstruction<2> {
                   HInstruction* value,
                   Primitive::Type field_type,
                   MemberOffset field_offset,
-                  bool is_volatile)
+                  bool is_volatile,
+                  uint32_t field_idx,
+                  const DexFile& dex_file)
       : HTemplateInstruction(SideEffects::ChangesSomething()),
-        field_info_(field_offset, field_type, is_volatile),
+        field_info_(field_offset, field_type, is_volatile, field_idx, dex_file),
         value_can_be_null_(true) {
     SetRawInputAt(0, cls);
     SetRawInputAt(1, value);
