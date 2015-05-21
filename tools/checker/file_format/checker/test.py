@@ -192,8 +192,11 @@ class CheckerParser_FileLayoutTest(unittest.TestCase):
 
   def assertParsesTo(self, checkerText, expectedData):
     expectedFile = self.createFile(expectedData)
-    actualFile = ParseCheckerStream("<test_file>", "CHECK", io.StringIO(ToUnicode(checkerText)))
+    actualFile = self.parse(checkerText)
     return self.assertEqual(expectedFile, actualFile)
+
+  def parse(self, checkerText):
+    return ParseCheckerStream("<test_file>", "CHECK", io.StringIO(ToUnicode(checkerText)))
 
   def test_EmptyFile(self):
     self.assertParsesTo("", [])
@@ -227,12 +230,40 @@ class CheckerParser_FileLayoutTest(unittest.TestCase):
     self.assertParsesTo(
       """
         // CHECK-START: Example Group
-        // CHECK:     foo
-        // CHECK-NOT: bar
-        // CHECK-DAG: abc
-        // CHECK-DAG: def
+        // CHECK:      foo1
+        // CHECK:      foo2
+        // CHECK-NEXT: foo3
+        // CHECK-NEXT: foo4
+        // CHECK-NOT:  bar
+        // CHECK-DAG:  abc
+        // CHECK-DAG:  def
       """,
-      [ ( "Example Group", [ ("foo", TestAssertion.Variant.InOrder),
+      [ ( "Example Group", [ ("foo1", TestAssertion.Variant.InOrder),
+                             ("foo2", TestAssertion.Variant.InOrder),
+                             ("foo3", TestAssertion.Variant.NextLine),
+                             ("foo4", TestAssertion.Variant.NextLine),
                              ("bar", TestAssertion.Variant.Not),
                              ("abc", TestAssertion.Variant.DAG),
                              ("def", TestAssertion.Variant.DAG) ] ) ])
+
+  def test_MisplacedNext(self):
+    with self.assertRaises(CheckerException):
+      self.parse(
+        """
+          // CHECK-START: Example Group
+          // CHECK-DAG:  foo
+          // CHECK-NEXT: bar
+        """)
+    with self.assertRaises(CheckerException):
+      self.parse(
+        """
+          // CHECK-START: Example Group
+          // CHECK-NOT:  foo
+          // CHECK-NEXT: bar
+        """)
+    with self.assertRaises(CheckerException):
+      self.parse(
+        """
+          // CHECK-START: Example Group
+          // CHECK-NEXT: bar
+        """)
