@@ -368,6 +368,9 @@ elif [ "$runtime" = "art" ]; then
     else
       run_args="${run_args} --no-relocate"
     fi
+elif [ "$runtime" = "jvm" ]; then
+    # TODO: Detect whether the host is 32-bit or 64-bit.
+    run_args="${run_args} --runtime-option -Djava.library.path=${ANDROID_HOST_OUT}/lib64"
 fi
 
 if [ "$have_image" = "no" ]; then
