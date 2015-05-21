@@ -550,21 +550,58 @@ extern "C" void JNICALL Java_Main_testCallNonvirtual(JNIEnv* env, jclass) {
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_testNewStringObject(JNIEnv* env, jclass) {
-  const char* string = "Test";
-  int length = strlen(string);
   jclass c = env->FindClass("java/lang/String");
-  assert(c != NULL);
-  jmethodID method = env->GetMethodID(c, "<init>", "([B)V");
-  assert(method != NULL);
+  assert(c != nullptr);
+
+  jmethodID mid1 = env->GetMethodID(c, "<init>", "()V");
+  assert(mid1 != nullptr);
   assert(!env->ExceptionCheck());
-  jbyteArray array = env->NewByteArray(length);
-  env->SetByteArrayRegion(array, 0, length, reinterpret_cast<const jbyte*>(string));
-  jobject o = env->NewObject(c, method, array);
-  assert(o != NULL);
-  jstring s = reinterpret_cast<jstring>(o);
-  assert(env->GetStringLength(s) == length);
-  assert(env->GetStringUTFLength(s) == length);
+  jmethodID mid2 = env->GetMethodID(c, "<init>", "([B)V");
+  assert(mid2 != nullptr);
+  assert(!env->ExceptionCheck());
+  jmethodID mid3 = env->GetMethodID(c, "<init>", "([C)V");
+  assert(mid3 != nullptr);
+  assert(!env->ExceptionCheck());
+  jmethodID mid4 = env->GetMethodID(c, "<init>", "(Ljava/lang/String;)V");
+  assert(mid4 != nullptr);
+  assert(!env->ExceptionCheck());
+
+  const char* test_array = "Test";
+  int byte_array_length = strlen(test_array);
+  jbyteArray byte_array = env->NewByteArray(byte_array_length);
+  env->SetByteArrayRegion(byte_array, 0, byte_array_length, reinterpret_cast<const jbyte*>(test_array));
+
+  // Test NewObject
+  jstring s = reinterpret_cast<jstring>(env->NewObject(c, mid2, byte_array));
+  assert(s != nullptr);
+  assert(env->GetStringLength(s) == byte_array_length);
+  assert(env->GetStringUTFLength(s) == byte_array_length);
   const char* chars = env->GetStringUTFChars(s, nullptr);
-  assert(strcmp(string, chars) == 0);
+  assert(strcmp(test_array, chars) == 0);
   env->ReleaseStringUTFChars(s, chars);
+
+  // Test AllocObject and Call(Nonvirtual)VoidMethod
+  jstring s1 = reinterpret_cast<jstring>(env->AllocObject(c));
+  assert(s1 != nullptr);
+  jstring s2 = reinterpret_cast<jstring>(env->AllocObject(c));
+  assert(s2 != nullptr);
+  jstring s3 = reinterpret_cast<jstring>(env->AllocObject(c));
+  assert(s3 != nullptr);
+  jstring s4 = reinterpret_cast<jstring>(env->AllocObject(c));
+  assert(s4 != nullptr);
+
+  jcharArray char_array = env->NewCharArray(5);
+  jstring string_arg = env->NewStringUTF("helloworld");
+
+  // With Var Args
+  env->CallVoidMethod(s1, mid1);
+  env->CallNonvirtualVoidMethod(s2, c, mid2, byte_array);
+
+  // With JValues
+  jvalue args3[1];
+  args3[0].l = char_array;
+  jvalue args4[1];
+  args4[0].l = string_arg;
+  env->CallVoidMethodA(s3, mid3, args3);
+  env->CallNonvirtualVoidMethodA(s4, c, mid4, args4);
 }

@@ -49,12 +49,12 @@ JValue InvokeWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa, jobject o
                          va_list args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-JValue InvokeWithJValues(const ScopedObjectAccessAlreadyRunnable& soa, mirror::Object* receiver,
-                         jmethodID mid, jvalue* args)
+JValue InvokeWithJValues(const ScopedObjectAccessAlreadyRunnable& soa, jobject obj, jmethodID mid,
+                         jvalue* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccessAlreadyRunnable& soa,
-                                           mirror::Object* receiver, jmethodID mid, jvalue* args)
+                                           jobject obj, jmethodID mid, jvalue* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa,

@@ -858,8 +858,7 @@ TEST_F(JniInternalTest, FromReflectedMethod_ToReflectedMethod) {
   jstring s = reinterpret_cast<jstring>(env_->AllocObject(c));
   ASSERT_NE(s, nullptr);
   env_->CallVoidMethod(s, mid2);
-  // With the string change, this should now throw an UnsupportedOperationException.
-  ASSERT_EQ(JNI_TRUE, env_->ExceptionCheck());
+  ASSERT_EQ(JNI_FALSE, env_->ExceptionCheck());
   env_->ExceptionClear();
 
   mid = env_->GetMethodID(c, "length", "()I");
