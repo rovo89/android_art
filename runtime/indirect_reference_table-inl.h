@@ -82,6 +82,15 @@ inline mirror::Object* IndirectReferenceTable::Get(IndirectRef iref) const {
   return obj;
 }
 
+inline void IndirectReferenceTable::Update(IndirectRef iref, mirror::Object* obj) {
+  if (!GetChecked(iref)) {
+    LOG(WARNING) << "IndirectReferenceTable Update failed to find reference " << iref;
+    return;
+  }
+  uint32_t idx = ExtractIndex(iref);
+  table_[idx].SetReference(obj);
+}
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_INDIRECT_REFERENCE_TABLE_INL_H_
