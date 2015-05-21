@@ -702,8 +702,10 @@ void CodeGenerator::EmitEnvironment(HEnvironment* environment, SlowPathCode* slo
   if (environment->GetParent() != nullptr) {
     // We emit the parent environment first.
     EmitEnvironment(environment->GetParent(), slow_path);
-    stack_map_stream_.BeginInlineInfoEntry(
-        environment->GetMethodIdx(), environment->GetDexPc(), environment->Size());
+    stack_map_stream_.BeginInlineInfoEntry(environment->GetMethodIdx(),
+                                           environment->GetDexPc(),
+                                           environment->GetInvokeType(),
+                                           environment->Size());
   }
 
   // Walk over the environment, and record the location of dex registers.

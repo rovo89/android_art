@@ -735,31 +735,43 @@ class InlineInfo {
   }
 
   uint32_t GetMethodIndexAtDepth(uint8_t depth) const {
-    return region_.LoadUnaligned<uint32_t>(kFixedSize + depth * SingleEntrySize());
+    return region_.LoadUnaligned<uint32_t>(
+        kFixedSize + depth * SingleEntrySize() + kMethodIndexOffset);
   }
 
   void SetMethodIndexAtDepth(uint8_t depth, uint32_t index) {
-    region_.StoreUnaligned<uint32_t>(kFixedSize + depth * SingleEntrySize(), index);
+    region_.StoreUnaligned<uint32_t>(
+        kFixedSize + depth * SingleEntrySize() + kMethodIndexOffset, index);
   }
 
   uint32_t GetDexPcAtDepth(uint8_t depth) const {
     return region_.LoadUnaligned<uint32_t>(
-        kFixedSize + depth * SingleEntrySize() + sizeof(uint32_t));
+        kFixedSize + depth * SingleEntrySize() + kDexPcOffset);
   }
 
   void SetDexPcAtDepth(uint8_t depth, uint32_t dex_pc) {
     region_.StoreUnaligned<uint32_t>(
-        kFixedSize + depth * SingleEntrySize() + sizeof(uint32_t), dex_pc);
+        kFixedSize + depth * SingleEntrySize() + kDexPcOffset, dex_pc);
+  }
+
+  uint8_t GetInvokeTypeAtDepth(uint8_t depth) const {
+    return region_.LoadUnaligned<uint8_t>(
+        kFixedSize + depth * SingleEntrySize() + kInvokeTypeOffset);
+  }
+
+  void SetInvokeTypeAtDepth(uint8_t depth, uint8_t invoke_type) {
+    region_.StoreUnaligned<uint8_t>(
+        kFixedSize + depth * SingleEntrySize() + kInvokeTypeOffset, invoke_type);
   }
 
   uint32_t GetDexRegisterMapOffsetAtDepth(uint8_t depth) const {
     return region_.LoadUnaligned<uint32_t>(
-        kFixedSize + depth * SingleEntrySize() + sizeof(uint32_t) + sizeof(uint32_t));
+        kFixedSize + depth * SingleEntrySize() + kDexRegisterMapOffset);
   }
 
   void SetDexRegisterMapOffsetAtDepth(uint8_t depth, uint32_t offset) {
     region_.StoreUnaligned<uint32_t>(
-        kFixedSize + depth * SingleEntrySize() + sizeof(uint32_t) + sizeof(uint32_t), offset);
+        kFixedSize + depth * SingleEntrySize() + kDexRegisterMapOffset, offset);
   }
 
   bool HasDexRegisterMapAtDepth(uint8_t depth) const {
@@ -767,7 +779,7 @@ class InlineInfo {
   }
 
   static size_t SingleEntrySize() {
-    return sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t);
+    return kFixedEntrySize;
   }
 
   void Dump(std::ostream& os, const CodeInfo& info, uint16_t* number_of_dex_registers) const;
@@ -777,6 +789,12 @@ class InlineInfo {
   // typedefs (and document the memory layout of InlineInfo).
   static constexpr int kDepthOffset = 0;
   static constexpr int kFixedSize = kDepthOffset + sizeof(uint8_t);
+
+  static constexpr int kMethodIndexOffset = 0;
+  static constexpr int kDexPcOffset = kMethodIndexOffset + sizeof(uint32_t);
+  static constexpr int kInvokeTypeOffset = kDexPcOffset + sizeof(uint32_t);
+  static constexpr int kDexRegisterMapOffset = kInvokeTypeOffset + sizeof(uint8_t);
+  static constexpr int kFixedEntrySize = kDexRegisterMapOffset + sizeof(uint32_t);
 
   MemoryRegion region_;
 
