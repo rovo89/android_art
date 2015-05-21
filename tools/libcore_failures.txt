@@ -45,6 +45,16 @@
           "org.apache.harmony.tests.java.text.MessageFormatTest#test19011159"]
 },
 {
+  description: "Failures needing investigation",
+  result: EXEC_FAILED,
+  modes: [device],
+  names: ["libcore.java.util.TimeZoneTest#testDisplayNames",
+          "libcore.java.util.TimeZoneTest#test_useDaylightTime_Taiwan",
+          "org.apache.harmony.tests.java.util.DateTest#test_Constructor",
+          "org.apache.harmony.tests.java.util.ScannerTest#test_Constructor_LReadableByteChannel",
+          "org.apache.harmony.tests.java.util.TimeZoneTest#test_hasSameRules_Ljava_util_TimeZone"]
+},
+{
   description: "Failing due to a locale problem on hammerhead.",
   result: EXEC_FAILED,
   modes: [device],
