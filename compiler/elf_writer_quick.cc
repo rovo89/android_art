@@ -43,7 +43,8 @@ namespace art {
 // it is used by C++ exception handling (which we do not use so we
 // can choose either).  C++ compilers generally tend to use .eh_frame
 // because if they need it sometimes, they might as well always use it.
-constexpr dwarf::CFIFormat kCFIFormat = dwarf::DW_EH_FRAME_FORMAT;
+// Let's use .debug_frame because it is easier to strip or compress.
+constexpr dwarf::CFIFormat kCFIFormat = dwarf::DW_DEBUG_FRAME_FORMAT;
 
 template <typename ElfTypes>
 bool ElfWriterQuick<ElfTypes>::Create(File* elf_file,
