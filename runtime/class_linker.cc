@@ -82,9 +82,6 @@ namespace art {
 
 static constexpr bool kSanityCheckObjects = kIsDebugBuild;
 
-// For b/21333911.
-static constexpr bool kDuplicateClassesCheck = false;
-
 static void ThrowNoClassDefFoundError(const char* fmt, ...)
     __attribute__((__format__(__printf__, 1, 2)))
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -858,10 +855,6 @@ const OatFile* ClassLinker::GetPrimaryOatFile() {
 // the two elements agree on whether their dex file was from an already-loaded oat-file or the
 // new oat file. Any disagreement indicates a collision.
 bool ClassLinker::HasCollisions(const OatFile* oat_file, std::string* error_msg) {
-  if (!kDuplicateClassesCheck) {
-    return false;
-  }
-
   // Dex files are registered late - once a class is actually being loaded. We have to compare
   // against the open oat files. Take the dex_lock_ that protects oat_files_ accesses.
   ReaderMutexLock mu(Thread::Current(), dex_lock_);
