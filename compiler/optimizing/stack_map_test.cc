@@ -128,9 +128,9 @@ TEST(StackMapTest, Test2) {
   stream.BeginStackMapEntry(0, 64, 0x3, &sp_mask1, number_of_dex_registers, 2);
   stream.AddDexRegisterEntry(Kind::kInStack, 0);         // Short location.
   stream.AddDexRegisterEntry(Kind::kConstant, -2);       // Large location.
-  stream.BeginInlineInfoEntry(82, 3, number_of_dex_registers_in_inline_info);
+  stream.BeginInlineInfoEntry(82, 3, kDirect, number_of_dex_registers_in_inline_info);
   stream.EndInlineInfoEntry();
-  stream.BeginInlineInfoEntry(42, 2, number_of_dex_registers_in_inline_info);
+  stream.BeginInlineInfoEntry(42, 2, kStatic, number_of_dex_registers_in_inline_info);
   stream.EndInlineInfoEntry();
   stream.EndStackMapEntry();
 
@@ -218,6 +218,8 @@ TEST(StackMapTest, Test2) {
     ASSERT_EQ(42u, inline_info.GetMethodIndexAtDepth(1));
     ASSERT_EQ(3u, inline_info.GetDexPcAtDepth(0));
     ASSERT_EQ(2u, inline_info.GetDexPcAtDepth(1));
+    ASSERT_EQ(kDirect, inline_info.GetInvokeTypeAtDepth(0));
+    ASSERT_EQ(kStatic, inline_info.GetInvokeTypeAtDepth(1));
   }
 
   // Second stack map.
@@ -519,10 +521,10 @@ TEST(StackMapTest, InlineTest) {
   stream.AddDexRegisterEntry(Kind::kInStack, 0);
   stream.AddDexRegisterEntry(Kind::kConstant, 4);
 
-  stream.BeginInlineInfoEntry(42, 2, 1);
+  stream.BeginInlineInfoEntry(42, 2, kStatic, 1);
   stream.AddDexRegisterEntry(Kind::kInStack, 8);
   stream.EndInlineInfoEntry();
-  stream.BeginInlineInfoEntry(82, 3, 3);
+  stream.BeginInlineInfoEntry(82, 3, kStatic, 3);
   stream.AddDexRegisterEntry(Kind::kInStack, 16);
   stream.AddDexRegisterEntry(Kind::kConstant, 20);
   stream.AddDexRegisterEntry(Kind::kInRegister, 15);
@@ -535,15 +537,15 @@ TEST(StackMapTest, InlineTest) {
   stream.AddDexRegisterEntry(Kind::kInStack, 56);
   stream.AddDexRegisterEntry(Kind::kConstant, 0);
 
-  stream.BeginInlineInfoEntry(42, 2, 1);
+  stream.BeginInlineInfoEntry(42, 2, kDirect, 1);
   stream.AddDexRegisterEntry(Kind::kInStack, 12);
   stream.EndInlineInfoEntry();
-  stream.BeginInlineInfoEntry(82, 3, 3);
+  stream.BeginInlineInfoEntry(82, 3, kStatic, 3);
   stream.AddDexRegisterEntry(Kind::kInStack, 80);
   stream.AddDexRegisterEntry(Kind::kConstant, 10);
   stream.AddDexRegisterEntry(Kind::kInRegister, 5);
   stream.EndInlineInfoEntry();
-  stream.BeginInlineInfoEntry(52, 5, 0);
+  stream.BeginInlineInfoEntry(52, 5, kVirtual, 0);
   stream.EndInlineInfoEntry();
 
   stream.EndStackMapEntry();
@@ -559,12 +561,12 @@ TEST(StackMapTest, InlineTest) {
   stream.AddDexRegisterEntry(Kind::kInStack, 56);
   stream.AddDexRegisterEntry(Kind::kConstant, 0);
 
-  stream.BeginInlineInfoEntry(42, 2, 0);
+  stream.BeginInlineInfoEntry(42, 2, kVirtual, 0);
   stream.EndInlineInfoEntry();
-  stream.BeginInlineInfoEntry(52, 5, 1);
+  stream.BeginInlineInfoEntry(52, 5, kInterface, 1);
   stream.AddDexRegisterEntry(Kind::kInRegister, 2);
   stream.EndInlineInfoEntry();
-  stream.BeginInlineInfoEntry(52, 10, 2);
+  stream.BeginInlineInfoEntry(52, 10, kStatic, 2);
   stream.AddDexRegisterEntry(Kind::kNone, 0);
   stream.AddDexRegisterEntry(Kind::kInRegister, 3);
   stream.EndInlineInfoEntry();
@@ -590,8 +592,10 @@ TEST(StackMapTest, InlineTest) {
     ASSERT_EQ(2u, if0.GetDepth());
     ASSERT_EQ(2u, if0.GetDexPcAtDepth(0));
     ASSERT_EQ(42u, if0.GetMethodIndexAtDepth(0));
+    ASSERT_EQ(kStatic, if0.GetInvokeTypeAtDepth(0));
     ASSERT_EQ(3u, if0.GetDexPcAtDepth(1));
     ASSERT_EQ(82u, if0.GetMethodIndexAtDepth(1));
+    ASSERT_EQ(kStatic, if0.GetInvokeTypeAtDepth(1));
 
     DexRegisterMap dex_registers1 = ci.GetDexRegisterMapAtDepth(0, if0, 1);
     ASSERT_EQ(8, dex_registers1.GetStackOffsetInBytes(0, 1, ci));
@@ -614,10 +618,13 @@ TEST(StackMapTest, InlineTest) {
     ASSERT_EQ(3u, if1.GetDepth());
     ASSERT_EQ(2u, if1.GetDexPcAtDepth(0));
     ASSERT_EQ(42u, if1.GetMethodIndexAtDepth(0));
+    ASSERT_EQ(kDirect, if1.GetInvokeTypeAtDepth(0));
     ASSERT_EQ(3u, if1.GetDexPcAtDepth(1));
     ASSERT_EQ(82u, if1.GetMethodIndexAtDepth(1));
+    ASSERT_EQ(kStatic, if1.GetInvokeTypeAtDepth(1));
     ASSERT_EQ(5u, if1.GetDexPcAtDepth(2));
     ASSERT_EQ(52u, if1.GetMethodIndexAtDepth(2));
+    ASSERT_EQ(kVirtual, if1.GetInvokeTypeAtDepth(2));
 
     DexRegisterMap dex_registers1 = ci.GetDexRegisterMapAtDepth(0, if1, 1);
     ASSERT_EQ(12, dex_registers1.GetStackOffsetInBytes(0, 1, ci));
@@ -652,10 +659,13 @@ TEST(StackMapTest, InlineTest) {
     ASSERT_EQ(3u, if2.GetDepth());
     ASSERT_EQ(2u, if2.GetDexPcAtDepth(0));
     ASSERT_EQ(42u, if2.GetMethodIndexAtDepth(0));
+    ASSERT_EQ(kVirtual, if2.GetInvokeTypeAtDepth(0));
     ASSERT_EQ(5u, if2.GetDexPcAtDepth(1));
     ASSERT_EQ(52u, if2.GetMethodIndexAtDepth(1));
+    ASSERT_EQ(kInterface, if2.GetInvokeTypeAtDepth(1));
     ASSERT_EQ(10u, if2.GetDexPcAtDepth(2));
     ASSERT_EQ(52u, if2.GetMethodIndexAtDepth(2));
+    ASSERT_EQ(kStatic, if2.GetInvokeTypeAtDepth(2));
 
     ASSERT_FALSE(if2.HasDexRegisterMapAtDepth(0));
 

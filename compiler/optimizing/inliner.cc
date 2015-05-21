@@ -193,6 +193,7 @@ bool HInliner::TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
       caller_dex_file,
       method_index,
       requires_ctor_barrier,
+      invoke_instruction->GetOriginalInvokeType(),
       graph_->IsDebuggable(),
       graph_->GetCurrentInstructionId());
 
