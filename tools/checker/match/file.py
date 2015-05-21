@@ -12,127 +12,138 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections                      import namedtuple
 from common.immutables                import ImmutableDict
 from common.logger                    import Logger
 from file_format.c1visualizer.struct  import C1visualizerFile, C1visualizerPass
 from file_format.checker.struct       import CheckerFile, TestCase, TestAssertion
 from match.line                       import MatchLines
 
-def __headAndTail(list):
-  return list[0], list[1:]
+MatchScope = namedtuple("MatchScope", ["start", "end"])
+MatchInfo = namedtuple("MatchInfo", ["scope", "variables"])
 
-def __splitByVariant(lines, variant):
-  """ Splits a list of check lines at index 'i' such that lines[i] is the first
-      element whose variant is not equal to the given parameter.
+class MatchFailedException(Exception):
+  def __init__(self, assertion, lineNo):
+    self.assertion = assertion
+    self.lineNo = lineNo
+
+def splitIntoGroups(assertions):
+  """ Breaks up a list of assertions, grouping instructions which should be
+      tested in the same scope (consecutive DAG and NOT instructions).
+   """
+  splitAssertions = []
+  lastVariant = None
+  for assertion in assertions:
+    if (assertion.variant == lastVariant and
+        assertion.variant in [TestAssertion.Variant.DAG, TestAssertion.Variant.Not]):
+      splitAssertions[-1].append(assertion)
+    else:
+      splitAssertions.append([assertion])
+      lastVariant = assertion.variant
+  return splitAssertions
+
+def findMatchingLine(assertion, c1Pass, scope, variables, excludeLines=[]):
+  """ Finds the first line in `c1Pass` which matches `assertion`.
+
+  Scan only lines numbered between `scope.start` and `scope.end` and not on the
+  `excludeLines` list.
+
+  Returns the index of the `c1Pass` line matching the assertion and variables
+  values after the match.
+
+  Raises MatchFailedException if no such `c1Pass` line can be found.
   """
-  i = 0
-  while i < len(lines) and lines[i].variant == variant:
-    i += 1
-  return lines[:i], lines[i:]
+  for i in range(scope.start, scope.end):
+    if i in excludeLines: continue
+    newVariables = MatchLines(assertion, c1Pass.body[i], variables)
+    if newVariables is not None:
+      return MatchInfo(MatchScope(i, i), newVariables)
+  raise MatchFailedException(assertion, scope.start)
 
-def __nextIndependentChecks(checkLines):
-  """ Extracts the first sequence of check lines which are independent of each
-      other's match location, i.e. either consecutive DAG lines or a single
-      InOrder line. Any Not lines preceeding this sequence are also extracted.
+def matchDagGroup(assertions, c1Pass, scope, variables):
+  """ Attempts to find matching `c1Pass` lines for a group of DAG assertions.
+
+  Assertions are matched in the list order and variable values propagated. Only
+  lines in `scope` are scanned and each line can only match one assertion.
+
+  Returns the range of `c1Pass` lines covered by this group (min/max of matching
+  line numbers) and the variable values after the match of the last assertion.
+
+  Raises MatchFailedException when an assertion cannot be satisfied.
   """
-  notChecks, checkLines = __splitByVariant(checkLines, TestAssertion.Variant.Not)
-  if not checkLines:
-    return notChecks, [], []
-
-  head, tail = __headAndTail(checkLines)
-  if head.variant == TestAssertion.Variant.InOrder:
-    return notChecks, [head], tail
-  else:
-    assert head.variant == TestAssertion.Variant.DAG
-    independentChecks, checkLines = __splitByVariant(checkLines, TestAssertion.Variant.DAG)
-    return notChecks, independentChecks, checkLines
-
-def __findFirstMatch(checkLine, outputLines, startLineNo, lineFilter, varState):
-  """ If successful, returns the line number of the first output line matching
-      the check line and the updated variable state. Otherwise returns -1 and
-      None, respectively. The 'lineFilter' parameter can be used to supply a
-      list of line numbers (counting from 1) which should be skipped.
-  """
-  matchLineNo = startLineNo
-  for outputLine in outputLines:
-    if matchLineNo not in lineFilter:
-      newVarState = MatchLines(checkLine, outputLine, varState)
-      if newVarState is not None:
-        return matchLineNo, newVarState
-    matchLineNo += 1
-  return -1, None
-
-def __matchIndependentChecks(checkLines, outputLines, startLineNo, varState):
-  """ Matches the given positive check lines against the output in order of
-      appearance. Variable state is propagated but the scope of the search
-      remains the same for all checks. Each output line can only be matched
-      once. If all check lines are matched, the resulting variable state is
-      returned together with the remaining output. The function also returns
-      output lines which appear before either of the matched lines so they can
-      be tested against Not checks.
-  """
-  # If no checks are provided, skip over the entire output.
-  if not checkLines:
-    return outputLines, [], startLineNo + len(outputLines), varState
-
-  # Keep track of which lines have been matched.
   matchedLines = []
+  for assertion in assertions:
+    assert assertion.variant == TestAssertion.Variant.DAG
+    match = findMatchingLine(assertion, c1Pass, scope, variables, matchedLines)
+    variables = match.variables
+    assert match.scope.start == match.scope.end
+    assert match.scope.start not in matchedLines
+    matchedLines.append(match.scope.start)
+  return MatchInfo(MatchScope(min(matchedLines), max(matchedLines)), variables)
 
-  # Find first unused output line which matches each check line.
-  for checkLine in checkLines:
-    matchLineNo, varState = \
-      __findFirstMatch(checkLine, outputLines, startLineNo, matchedLines, varState)
-    if varState is None:
-      Logger.testFailed("Could not match check line \"" + checkLine.originalText + "\" " +
-                        "starting from output line " + str(startLineNo),
-                        checkLine.fileName, checkLine.lineNo)
-    matchedLines.append(matchLineNo)
+def testNotGroup(assertions, c1Pass, scope, variables):
+  """ Verifies that none of the given NOT assertions matches a line inside
+      the given `scope` of `c1Pass` lines.
 
-  # Return new variable state and the output lines which lie outside the
-  # match locations of this independent group.
-  minMatchLineNo = min(matchedLines)
-  maxMatchLineNo = max(matchedLines)
-  preceedingLines = outputLines[:minMatchLineNo - startLineNo]
-  remainingLines = outputLines[maxMatchLineNo - startLineNo + 1:]
-  return preceedingLines, remainingLines, maxMatchLineNo + 1, varState
-
-def __matchNotLines(checkLines, outputLines, startLineNo, varState):
-  """ Makes sure that the given check lines do not match any of the given output
-      lines. Variable state does not change.
+  Raises MatchFailedException if an assertion matches a line in the scope.
   """
-  for checkLine in checkLines:
-    assert checkLine.variant == TestAssertion.Variant.Not
-    matchLineNo, matchVarState = \
-      __findFirstMatch(checkLine, outputLines, startLineNo, [], varState)
-    if matchVarState is not None:
-      Logger.testFailed("CHECK-NOT line \"" + checkLine.originalText + "\" matches output line " + \
-                        str(matchLineNo), checkLine.fileName, checkLine.lineNo)
+  for i in range(scope.start, scope.end):
+    line = c1Pass.body[i]
+    for assertion in assertions:
+      assert assertion.variant == TestAssertion.Variant.Not
+      if MatchLines(assertion, line, variables) is not None:
+        raise MatchFailedException(assertion, i)
 
-def __matchGroups(checkGroup, outputGroup):
-  """ Matches the check lines in this group against an output group. It is
-      responsible for running the checks in the right order and scope, and
-      for propagating the variable state between the check lines.
+def MatchTestCase(testCase, c1Pass):
+  """ Runs a test case against a C1visualizer graph dump.
+
+  Raises MatchFailedException when an assertion cannot be satisfied.
   """
-  varState = ImmutableDict()
-  checkLines = checkGroup.assertions
-  outputLines = outputGroup.body
-  startLineNo = outputGroup.startLineNo
+  assert testCase.name == c1Pass.name
 
-  while checkLines:
-    # Extract the next sequence of location-independent checks to be matched.
-    notChecks, independentChecks, checkLines = __nextIndependentChecks(checkLines)
+  matchFrom = 0
+  variables = ImmutableDict()
+  c1Length = len(c1Pass.body)
 
-    # Match the independent checks.
-    notOutput, outputLines, newStartLineNo, newVarState = \
-      __matchIndependentChecks(independentChecks, outputLines, startLineNo, varState)
+  # NOT assertions are verified retrospectively, once the scope is known.
+  pendingNotAssertions = None
 
-    # Run the Not checks against the output lines which lie between the last
-    # two independent groups or the bounds of the output.
-    __matchNotLines(notChecks, notOutput, startLineNo, varState)
+  # Prepare assertions by grouping those that are verified in the same scope.
+  # We also add None as an EOF assertion that will set scope for NOTs.
+  assertionGroups = splitIntoGroups(testCase.assertions)
+  assertionGroups.append(None)
 
-    # Update variable state.
-    startLineNo = newStartLineNo
-    varState = newVarState
+  for assertionGroup in assertionGroups:
+    if assertionGroup is None:
+      # EOF marker always matches the last+1 line of c1Pass.
+      match = MatchInfo(MatchScope(c1Length, c1Length), None)
+    elif assertionGroup[0].variant == TestAssertion.Variant.Not:
+      # NOT assertions will be tested together with the next group.
+      assert not pendingNotAssertions
+      pendingNotAssertions = assertionGroup
+      continue
+    elif assertionGroup[0].variant == TestAssertion.Variant.InOrder:
+      # Single in-order assertion. Find the first line that matches.
+      assert len(assertionGroup) == 1
+      scope = MatchScope(matchFrom, c1Length)
+      match = findMatchingLine(assertionGroup[0], c1Pass, scope, variables)
+    else:
+      # A group of DAG assertions. Match them all starting from the same point.
+      assert assertionGroup[0].variant == TestAssertion.Variant.DAG
+      scope = MatchScope(matchFrom, c1Length)
+      match = matchDagGroup(assertionGroup, c1Pass, scope, variables)
+
+    if pendingNotAssertions:
+      # Previous group were NOT assertions. Make sure they don't match any lines
+      # in the [matchFrom, match.start) scope.
+      scope = MatchScope(matchFrom, match.scope.start)
+      testNotGroup(pendingNotAssertions, c1Pass, scope, variables)
+      pendingNotAssertions = None
+
+    # Update state.
+    assert matchFrom <= match.scope.end
+    matchFrom = match.scope.end + 1
+    variables = match.variables
 
 def MatchFiles(checkerFile, c1File):
   for testCase in checkerFile.testCases:
@@ -141,8 +152,18 @@ def MatchFiles(checkerFile, c1File):
     # match a check group against the first output group of the same name.
     c1Pass = c1File.findPass(testCase.name)
     if c1Pass is None:
-      Logger.fail("Test case \"" + testCase.name + "\" not found in the C1visualizer output",
+      Logger.fail("Test case \"{}\" not found in the CFG file".format(testCase.name),
                   testCase.fileName, testCase.startLineNo)
+
     Logger.startTest(testCase.name)
-    __matchGroups(testCase, c1Pass)
-    Logger.testPassed()
+    try:
+      MatchTestCase(testCase, c1Pass)
+      Logger.testPassed()
+    except MatchFailedException as e:
+      lineNo = c1Pass.startLineNo + e.lineNo
+      if e.assertion.variant == TestAssertion.Variant.Not:
+        Logger.testFailed("NOT assertion matched line {}".format(lineNo),
+                          e.assertion.fileName, e.assertion.lineNo)
+      else:
+        Logger.testFailed("Assertion could not be matched starting from line {}".format(lineNo),
+                          e.assertion.fileName, e.assertion.lineNo)
