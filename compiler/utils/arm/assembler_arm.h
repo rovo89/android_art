@@ -33,16 +33,6 @@ namespace arm {
 class Arm32Assembler;
 class Thumb2Assembler;
 
-// This class indicates that the label and its uses
-// will fall into a range that is encodable in 16bits on thumb2.
-class NearLabel : public Label {
- public:
-  NearLabel() {}
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(NearLabel);
-};
-
 class ShifterOperand {
  public:
   ShifterOperand() : type_(kUnknown), rm_(kNoRegister), rs_(kNoRegister),
@@ -529,9 +519,6 @@ class ArmAssembler : public Assembler {
 
   // Branch instructions.
   virtual void b(Label* label, Condition cond = AL) = 0;
-  virtual void b(NearLabel* label, Condition cond = AL) {
-    b(reinterpret_cast<Label*>(label), cond);
-  }
   virtual void bl(Label* label, Condition cond = AL) = 0;
   virtual void blx(Register rm, Condition cond = AL) = 0;
   virtual void bx(Register rm, Condition cond = AL) = 0;
@@ -667,9 +654,6 @@ class ArmAssembler : public Assembler {
   virtual void Bind(Label* label) = 0;
 
   virtual void CompareAndBranchIfZero(Register r, Label* label) = 0;
-  virtual void CompareAndBranchIfZero(Register r, NearLabel* label) {
-    CompareAndBranchIfZero(r, reinterpret_cast<Label*>(label));
-  }
   virtual void CompareAndBranchIfNonZero(Register r, Label* label) = 0;
 
   //
