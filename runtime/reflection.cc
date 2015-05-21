@@ -21,6 +21,7 @@
 #include "common_throws.h"
 #include "dex_file-inl.h"
 #include "entrypoints/entrypoint_utils.h"
+#include "indirect_reference_table-inl.h"
 #include "jni_internal.h"
 #include "mirror/abstract_method.h"
 #include "mirror/art_method-inl.h"
@@ -449,6 +450,11 @@ JValue InvokeWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa, jobject o
   }
 
   mirror::ArtMethod* method = soa.DecodeMethod(mid);
+  bool is_string_init = method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
+  if (is_string_init) {
+    // Replace calls to String.<init> with equivalent StringFactory call.
+    method = soa.DecodeMethod(WellKnownClasses::StringInitToStringFactoryMethodID(mid));
+  }
   mirror::Object* receiver = method->IsStatic() ? nullptr : soa.Decode<mirror::Object*>(obj);
   uint32_t shorty_len = 0;
   const char* shorty = method->GetShorty(&shorty_len);
@@ -456,11 +462,15 @@ JValue InvokeWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa, jobject o
   ArgArray arg_array(shorty, shorty_len);
   arg_array.BuildArgArrayFromVarArgs(soa, receiver, args);
   InvokeWithArgArray(soa, method, &arg_array, &result, shorty);
+  if (is_string_init) {
+    // For string init, remap original receiver to StringFactory result.
+    soa.Self()->GetJniEnv()->locals.Update(obj, result.GetL());
+  }
   return result;
 }
 
-JValue InvokeWithJValues(const ScopedObjectAccessAlreadyRunnable& soa, mirror::Object* receiver,
-                         jmethodID mid, jvalue* args) {
+JValue InvokeWithJValues(const ScopedObjectAccessAlreadyRunnable& soa, jobject obj, jmethodID mid,
+                         jvalue* args) {
   // We want to make sure that the stack is not within a small distance from the
   // protected region in case we are calling into a leaf function whose stack
   // check has been elided.
@@ -470,17 +480,27 @@ JValue InvokeWithJValues(const ScopedObjectAccessAlreadyRunnable& soa, mirror::O
   }
 
   mirror::ArtMethod* method = soa.DecodeMethod(mid);
+  bool is_string_init = method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
+  if (is_string_init) {
+    // Replace calls to String.<init> with equivalent StringFactory call.
+    method = soa.DecodeMethod(WellKnownClasses::StringInitToStringFactoryMethodID(mid));
+  }
+  mirror::Object* receiver = method->IsStatic() ? nullptr : soa.Decode<mirror::Object*>(obj);
   uint32_t shorty_len = 0;
   const char* shorty = method->GetShorty(&shorty_len);
   JValue result;
   ArgArray arg_array(shorty, shorty_len);
   arg_array.BuildArgArrayFromJValues(soa, receiver, args);
   InvokeWithArgArray(soa, method, &arg_array, &result, shorty);
+  if (is_string_init) {
+    // For string init, remap original receiver to StringFactory result.
+    soa.Self()->GetJniEnv()->locals.Update(obj, result.GetL());
+  }
   return result;
 }
 
 JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccessAlreadyRunnable& soa,
-                                           mirror::Object* receiver, jmethodID mid, jvalue* args) {
+                                           jobject obj, jmethodID mid, jvalue* args) {
   // We want to make sure that the stack is not within a small distance from the
   // protected region in case we are calling into a leaf function whose stack
   // check has been elided.
@@ -489,13 +509,24 @@ JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccessAlreadyRunnab
     return JValue();
   }
 
+  mirror::Object* receiver = soa.Decode<mirror::Object*>(obj);
   mirror::ArtMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
+  bool is_string_init = method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
+  if (is_string_init) {
+    // Replace calls to String.<init> with equivalent StringFactory call.
+    method = soa.DecodeMethod(WellKnownClasses::StringInitToStringFactoryMethodID(mid));
+    receiver = nullptr;
+  }
   uint32_t shorty_len = 0;
   const char* shorty = method->GetShorty(&shorty_len);
   JValue result;
   ArgArray arg_array(shorty, shorty_len);
   arg_array.BuildArgArrayFromJValues(soa, receiver, args);
   InvokeWithArgArray(soa, method, &arg_array, &result, shorty);
+  if (is_string_init) {
+    // For string init, remap original receiver to StringFactory result.
+    soa.Self()->GetJniEnv()->locals.Update(obj, result.GetL());
+  }
   return result;
 }
 
@@ -511,12 +542,22 @@ JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccessAlreadyRunnab
 
   mirror::Object* receiver = soa.Decode<mirror::Object*>(obj);
   mirror::ArtMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
+  bool is_string_init = method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
+  if (is_string_init) {
+    // Replace calls to String.<init> with equivalent StringFactory call.
+    method = soa.DecodeMethod(WellKnownClasses::StringInitToStringFactoryMethodID(mid));
+    receiver = nullptr;
+  }
   uint32_t shorty_len = 0;
   const char* shorty = method->GetShorty(&shorty_len);
   JValue result;
   ArgArray arg_array(shorty, shorty_len);
   arg_array.BuildArgArrayFromVarArgs(soa, receiver, args);
   InvokeWithArgArray(soa, method, &arg_array, &result, shorty);
+  if (is_string_init) {
+    // For string init, remap original receiver to StringFactory result.
+    soa.Self()->GetJniEnv()->locals.Update(obj, result.GetL());
+  }
   return result;
 }
 
