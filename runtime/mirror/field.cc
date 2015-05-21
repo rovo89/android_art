@@ -54,7 +54,19 @@ void Field::VisitRoots(RootVisitor* visitor) {
 }
 
 ArtField* Field::GetArtField() {
-  mirror::DexCache* const dex_cache = GetDeclaringClass()->GetDexCache();
+  mirror::Class* declaring_class = GetDeclaringClass();
+  if (UNLIKELY(declaring_class->IsProxyClass())) {
+    DCHECK(IsStatic());
+    DCHECK_EQ(declaring_class->NumStaticFields(), 2U);
+    // 0 == Class[] interfaces; 1 == Class[][] throws;
+    if (GetDexFieldIndex() == 0) {
+      return &declaring_class->GetSFields()[0];
+    } else {
+      DCHECK_EQ(GetDexFieldIndex(), 1U);
+      return &declaring_class->GetSFields()[1];
+    }
+  }
+  mirror::DexCache* const dex_cache = declaring_class->GetDexCache();
   ArtField* const art_field = dex_cache->GetResolvedField(GetDexFieldIndex(), sizeof(void*));
   CHECK(art_field != nullptr);
   return art_field;

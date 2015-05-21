@@ -30,10 +30,11 @@ namespace mirror {
 template <bool kTransactionActive>
 inline mirror::Field* Field::CreateFromArtField(Thread* self, ArtField* field,
                                                 bool force_resolve) {
+  StackHandleScope<2> hs(self);
   // Try to resolve type before allocating since this is a thread suspension point.
-  mirror::Class* type = field->GetType<true>();
+  Handle<mirror::Class> type = hs.NewHandle(field->GetType<true>());
 
-  if (type == nullptr) {
+  if (type.Get() == nullptr) {
     if (force_resolve) {
       if (kIsDebugBuild) {
         self->AssertPendingException();
@@ -48,7 +49,6 @@ inline mirror::Field* Field::CreateFromArtField(Thread* self, ArtField* field,
       self->ClearException();
     }
   }
-  StackHandleScope<1> hs(self);
   auto ret = hs.NewHandle(static_cast<Field*>(StaticClass()->AllocObject(self)));
   if (ret.Get() == nullptr) {
     if (kIsDebugBuild) {
@@ -58,14 +58,22 @@ inline mirror::Field* Field::CreateFromArtField(Thread* self, ArtField* field,
   }
   auto dex_field_index = field->GetDexFieldIndex();
   auto* resolved_field = field->GetDexCache()->GetResolvedField(dex_field_index, sizeof(void*));
-  if (resolved_field != nullptr) {
-    DCHECK_EQ(resolved_field, field);
+  if (field->GetDeclaringClass()->IsProxyClass()) {
+    DCHECK(field->IsStatic());
+    DCHECK_LT(dex_field_index, 2U);
+    // The two static fields (interfaces, throws) of all proxy classes
+    // share the same dex file indices 0 and 1. So, we can't resolve
+    // them in the dex cache.
   } else {
-    // We rely on the field being resolved so that we can back to the ArtField
-    // (i.e. FromReflectedMethod).
-    field->GetDexCache()->SetResolvedField(dex_field_index, field, sizeof(void*));
+    if (resolved_field != nullptr) {
+      DCHECK_EQ(resolved_field, field);
+    } else {
+      // We rely on the field being resolved so that we can back to the ArtField
+      // (i.e. FromReflectedMethod).
+      field->GetDexCache()->SetResolvedField(dex_field_index, field, sizeof(void*));
+    }
   }
-  ret->SetType<kTransactionActive>(type);
+  ret->SetType<kTransactionActive>(type.Get());
   ret->SetDeclaringClass<kTransactionActive>(field->GetDeclaringClass());
   ret->SetAccessFlags<kTransactionActive>(field->GetAccessFlags());
   ret->SetDexFieldIndex<kTransactionActive>(dex_field_index);
