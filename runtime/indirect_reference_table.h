@@ -213,6 +213,10 @@ class IrtEntry {
   uint32_t GetSerial() const {
     return serial_;
   }
+  void SetReference(mirror::Object* obj) {
+    DCHECK_LT(serial_, kIRTPrevCount);
+    references_[serial_] = GcRoot<mirror::Object>(obj);
+  }
 
  private:
   uint32_t serial_;
@@ -292,6 +296,13 @@ class IndirectReferenceTable {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return Get<kReadBarrierOption>(iref);
   }
+
+  /*
+   * Update an existing entry.
+   *
+   * Updates an existing indirect reference to point to a new object.
+   */
+  void Update(IndirectRef iref, mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Remove an existing entry.

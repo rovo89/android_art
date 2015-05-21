@@ -216,7 +216,8 @@ void* Thread::CreateCallback(void* arg) {
     // Invoke the 'run' method of our java.lang.Thread.
     mirror::Object* receiver = self->tlsPtr_.opeer;
     jmethodID mid = WellKnownClasses::java_lang_Thread_run;
-    InvokeVirtualOrInterfaceWithJValues(soa, receiver, mid, nullptr);
+    ScopedLocalRef<jobject> ref(soa.Env(), soa.AddLocalReference<jobject>(receiver));
+    InvokeVirtualOrInterfaceWithJValues(soa, ref.get(), mid, nullptr);
   }
   // Detach and delete self.
   Runtime::Current()->GetThreadList()->Unregister(self);
@@ -1886,7 +1887,8 @@ void Thread::ThrowNewWrappedException(const char* exception_class_descriptor,
       jv_args[i].l = cause.get();
       ++i;
     }
-    InvokeWithJValues(soa, exception.Get(), soa.EncodeMethod(exception_init_method), jv_args);
+    ScopedLocalRef<jobject> ref(soa.Env(), soa.AddLocalReference<jobject>(exception.Get()));
+    InvokeWithJValues(soa, ref.get(), soa.EncodeMethod(exception_init_method), jv_args);
     if (LIKELY(!IsExceptionPending())) {
       SetException(exception.Get());
     }
