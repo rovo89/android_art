@@ -1241,7 +1241,7 @@ ArtField* CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx,
   mirror::Class* referrer_class;
   mirror::DexCache* dex_cache;
   {
-    StackHandleScope<3> hs(soa.Self());
+    StackHandleScope<2> hs(soa.Self());
     Handle<mirror::DexCache> dex_cache_handle(
         hs.NewHandle(mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile())));
     Handle<mirror::ClassLoader> class_loader_handle(
