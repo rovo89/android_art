@@ -287,6 +287,10 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
 }
 
 static bool IsLargeMethod(const DexFile::CodeItem* const code_item) {
+  if (code_item == nullptr) {
+    return false;
+  }
+
   uint16_t registers_size = code_item->registers_size_;
   uint32_t insns_size = code_item->insns_size_in_code_units_;
 
