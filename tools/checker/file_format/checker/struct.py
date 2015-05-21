@@ -42,7 +42,7 @@ class TestCase(PrintableMixin):
     self.startLineNo = startLineNo
 
     if not self.name:
-      Logger.fail("Test case does not have a name", self.parent.fileName, self.startLineNo)
+      Logger.fail("Test case does not have a name", self.fileName, self.startLineNo)
 
     self.parent.addTestCase(self)
 
@@ -51,6 +51,13 @@ class TestCase(PrintableMixin):
     return self.parent.fileName
 
   def addAssertion(self, new_assertion):
+    if new_assertion.variant == TestAssertion.Variant.NextLine:
+      if not self.assertions or \
+         (self.assertions[-1].variant != TestAssertion.Variant.InOrder and \
+          self.assertions[-1].variant != TestAssertion.Variant.NextLine):
+        Logger.fail("A next-line assertion can only be placed after an "
+                    "in-order assertion or another next-line assertion.",
+                    new_assertion.fileName, new_assertion.lineNo)
     self.assertions.append(new_assertion)
 
   def __eq__(self, other):
@@ -63,7 +70,7 @@ class TestAssertion(PrintableMixin):
 
   class Variant(object):
     """Supported types of assertions."""
-    InOrder, DAG, Not = range(3)
+    InOrder, NextLine, DAG, Not = range(4)
 
   def __init__(self, parent, variant, originalText, lineNo):
     assert isinstance(parent, TestCase)
