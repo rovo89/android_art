@@ -21,28 +21,19 @@
   name: "libcore.java.lang.SystemTest#testSystemProperties_mutable"
 },
 {
-  description: "Differences between vogar and cts",
+  description: "Differences between vogar and cts. Passes with --mode activity",
   result: EXEC_FAILED,
   modes: [device],
-  names: ["libcore.java.lang.OldSystemTest#test_getProperties",
-          "org.apache.harmony.tests.java.lang.Process2Test#test_getErrorStream",
-          "org.apache.harmony.tests.java.lang.ProcessTest#test_exitValue"]
+  names: ["libcore.java.lang.OldSystemTest#test_getProperties"]
 },
 {
-  description: "Failures needing investigation",
+  description: "Differences between vogar and cts. EACCESS when run with vogar.
+                Passes on host, passes with cts. Passes with vogar with su
+                (--invoke-with \"su root\"). Does not pass after setting chmod
+                777 all directories on path to socket (on device without su).",
   result: EXEC_FAILED,
   modes: [device],
-  names: ["libcore.java.util.TimeZoneTest#testDisplayNames",
-          "libcore.java.util.TimeZoneTest#test_useDaylightTime_Taiwan",
-          "libcore.java.util.TimeZoneTest#testAllDisplayNames",
-          "libcore.io.OsTest#testUnixDomainSockets_in_file_system",
-          "org.apache.harmony.luni.tests.java.net.URLConnectionTest#test_setReadTimeoutI",
-          "org.apache.harmony.tests.java.util.DateTest#test_Constructor",
-          "org.apache.harmony.tests.java.util.ScannerTest#test_Constructor_LReadableByteChannel",
-          "org.apache.harmony.tests.java.util.TimeZoneTest#test_hasSameRules_Ljava_util_TimeZone",
-          "org.apache.harmony.tests.java.text.ChoiceFormatTest#testEscapedPatternWithConsecutiveQuotes",
-          "org.apache.harmony.tests.java.text.ChoiceFormatTest#testToPatternWithInfinities",
-          "org.apache.harmony.tests.java.text.MessageFormatTest#test19011159"]
+  names: ["libcore.io.OsTest#testUnixDomainSockets_in_file_system"]
 },
 {
   description: "Failing due to a locale problem on hammerhead.",
