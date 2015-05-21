@@ -60,6 +60,8 @@ static const int kDefaultNumberOfBackEdges = 1;
 static constexpr uint32_t kMaxIntShiftValue = 0x1f;
 static constexpr uint64_t kMaxLongShiftValue = 0x3f;
 
+static constexpr InvokeType kInvalidInvokeType = static_cast<InvokeType>(-1);
+
 enum IfCondition {
   kCondEQ,
   kCondNE,
@@ -121,6 +123,7 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
          const DexFile& dex_file,
          uint32_t method_idx,
          bool should_generate_constructor_barrier,
+         InvokeType invoke_type = kInvalidInvokeType,
          bool debuggable = false,
          int start_instruction_id = 0)
       : arena_(arena),
@@ -138,6 +141,7 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
         current_instruction_id_(start_instruction_id),
         dex_file_(dex_file),
         method_idx_(method_idx),
+        invoke_type_(invoke_type),
         should_generate_constructor_barrier_(should_generate_constructor_barrier),
         cached_null_constant_(nullptr),
         cached_int_constants_(std::less<int32_t>(), arena->Adapter()),
@@ -283,6 +287,10 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
     return method_idx_;
   }
 
+  InvokeType GetInvokeType() const {
+    return invoke_type_;
+  }
+
  private:
   void VisitBlockForDominatorTree(HBasicBlock* block,
                                   HBasicBlock* predecessor,
@@ -364,6 +372,9 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
 
   // The method index in the dex file.
   const uint32_t method_idx_;
+
+  // If inlined, this encodes how the callee is being invoked.
+  const InvokeType invoke_type_;
 
   const bool should_generate_constructor_barrier_;
 
@@ -1101,13 +1112,15 @@ class HEnvironment : public ArenaObject<kArenaAllocMisc> {
                size_t number_of_vregs,
                const DexFile& dex_file,
                uint32_t method_idx,
-               uint32_t dex_pc)
+               uint32_t dex_pc,
+               InvokeType invoke_type)
      : vregs_(arena, number_of_vregs),
        locations_(arena, number_of_vregs),
        parent_(nullptr),
        dex_file_(dex_file),
        method_idx_(method_idx),
-       dex_pc_(dex_pc) {
+       dex_pc_(dex_pc),
+       invoke_type_(invoke_type) {
     vregs_.SetSize(number_of_vregs);
     for (size_t i = 0; i < number_of_vregs; i++) {
       vregs_.Put(i, HUserRecord<HEnvironment*>());
@@ -1119,16 +1132,20 @@ class HEnvironment : public ArenaObject<kArenaAllocMisc> {
     }
   }
 
+  HEnvironment(ArenaAllocator* arena, const HEnvironment& to_copy)
+      : HEnvironment(arena,
+                     to_copy.Size(),
+                     to_copy.GetDexFile(),
+                     to_copy.GetMethodIdx(),
+                     to_copy.GetDexPc(),
+                     to_copy.GetInvokeType()) {}
+
   void SetAndCopyParentChain(ArenaAllocator* allocator, HEnvironment* parent) {
-    parent_ = new (allocator) HEnvironment(allocator,
-                                           parent->Size(),
-                                           parent->GetDexFile(),
-                                           parent->GetMethodIdx(),
-                                           parent->GetDexPc());
+    parent_ = new (allocator) HEnvironment(allocator, *parent);
+    parent_->CopyFrom(parent);
     if (parent->GetParent() != nullptr) {
       parent_->SetAndCopyParentChain(allocator, parent->GetParent());
     }
-    parent_->CopyFrom(parent);
   }
 
   void CopyFrom(const GrowableArray<HInstruction*>& locals);
@@ -1169,6 +1186,10 @@ class HEnvironment : public ArenaObject<kArenaAllocMisc> {
     return method_idx_;
   }
 
+  InvokeType GetInvokeType() const {
+    return invoke_type_;
+  }
+
   const DexFile& GetDexFile() const {
     return dex_file_;
   }
@@ -1188,6 +1209,7 @@ class HEnvironment : public ArenaObject<kArenaAllocMisc> {
   const DexFile& dex_file_;
   const uint32_t method_idx_;
   const uint32_t dex_pc_;
+  const InvokeType invoke_type_;
 
   friend class HInstruction;
 
@@ -1401,12 +1423,7 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
   // copying, the uses lists are being updated.
   void CopyEnvironmentFrom(HEnvironment* environment) {
     ArenaAllocator* allocator = GetBlock()->GetGraph()->GetArena();
-    environment_ = new (allocator) HEnvironment(
-        allocator,
-        environment->Size(),
-        environment->GetDexFile(),
-        environment->GetMethodIdx(),
-        environment->GetDexPc());
+    environment_ = new (allocator) HEnvironment(allocator, *environment);
     environment_->CopyFrom(environment);
     if (environment->GetParent() != nullptr) {
       environment_->SetAndCopyParentChain(allocator, environment->GetParent());
@@ -1416,16 +1433,11 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
   void CopyEnvironmentFromWithLoopPhiAdjustment(HEnvironment* environment,
                                                 HBasicBlock* block) {
     ArenaAllocator* allocator = GetBlock()->GetGraph()->GetArena();
-    environment_ = new (allocator) HEnvironment(
-        allocator,
-        environment->Size(),
-        environment->GetDexFile(),
-        environment->GetMethodIdx(),
-        environment->GetDexPc());
+    environment_ = new (allocator) HEnvironment(allocator, *environment);
+    environment_->CopyFromWithLoopPhiAdjustment(environment, block);
     if (environment->GetParent() != nullptr) {
       environment_->SetAndCopyParentChain(allocator, environment->GetParent());
     }
-    environment_->CopyFromWithLoopPhiAdjustment(environment, block);
   }
 
   // Returns the number of entries in the environment. Typically, that is the
@@ -2376,6 +2388,8 @@ class HInvoke : public HInstruction {
 
   uint32_t GetDexMethodIndex() const { return dex_method_index_; }
 
+  InvokeType GetOriginalInvokeType() const { return original_invoke_type_; }
+
   Intrinsics GetIntrinsic() const {
     return intrinsic_;
   }
@@ -2392,13 +2406,15 @@ class HInvoke : public HInstruction {
           uint32_t number_of_other_inputs,
           Primitive::Type return_type,
           uint32_t dex_pc,
-          uint32_t dex_method_index)
+          uint32_t dex_method_index,
+          InvokeType original_invoke_type)
     : HInstruction(SideEffects::All()),
       number_of_arguments_(number_of_arguments),
       inputs_(arena, number_of_arguments),
       return_type_(return_type),
       dex_pc_(dex_pc),
       dex_method_index_(dex_method_index),
+      original_invoke_type_(original_invoke_type),
       intrinsic_(Intrinsics::kNone) {
     uint32_t number_of_inputs = number_of_arguments + number_of_other_inputs;
     inputs_.SetSize(number_of_inputs);
@@ -2414,6 +2430,7 @@ class HInvoke : public HInstruction {
   const Primitive::Type return_type_;
   const uint32_t dex_pc_;
   const uint32_t dex_method_index_;
+  const InvokeType original_invoke_type_;
   Intrinsics intrinsic_;
 
  private:
@@ -2445,8 +2462,8 @@ class HInvokeStaticOrDirect : public HInvoke {
                 clinit_check_requirement == ClinitCheckRequirement::kExplicit ? 1u : 0u,
                 return_type,
                 dex_pc,
-                dex_method_index),
-        original_invoke_type_(original_invoke_type),
+                dex_method_index,
+                original_invoke_type),
         invoke_type_(invoke_type),
         is_recursive_(is_recursive),
         clinit_check_requirement_(clinit_check_requirement),
@@ -2459,7 +2476,6 @@ class HInvokeStaticOrDirect : public HInvoke {
     return false;
   }
 
-  InvokeType GetOriginalInvokeType() const { return original_invoke_type_; }
   InvokeType GetInvokeType() const { return invoke_type_; }
   bool IsRecursive() const { return is_recursive_; }
   bool NeedsDexCache() const OVERRIDE { return !IsRecursive(); }
@@ -2517,7 +2533,6 @@ class HInvokeStaticOrDirect : public HInvoke {
   }
 
  private:
-  const InvokeType original_invoke_type_;
   const InvokeType invoke_type_;
   const bool is_recursive_;
   ClinitCheckRequirement clinit_check_requirement_;
@@ -2536,7 +2551,7 @@ class HInvokeVirtual : public HInvoke {
                  uint32_t dex_pc,
                  uint32_t dex_method_index,
                  uint32_t vtable_index)
-      : HInvoke(arena, number_of_arguments, 0u, return_type, dex_pc, dex_method_index),
+      : HInvoke(arena, number_of_arguments, 0u, return_type, dex_pc, dex_method_index, kVirtual),
         vtable_index_(vtable_index) {}
 
   bool CanDoImplicitNullCheckOn(HInstruction* obj) const OVERRIDE {
@@ -2562,7 +2577,7 @@ class HInvokeInterface : public HInvoke {
                    uint32_t dex_pc,
                    uint32_t dex_method_index,
                    uint32_t imt_index)
-      : HInvoke(arena, number_of_arguments, 0u, return_type, dex_pc, dex_method_index),
+      : HInvoke(arena, number_of_arguments, 0u, return_type, dex_pc, dex_method_index, kInterface),
         imt_index_(imt_index) {}
 
   bool CanDoImplicitNullCheckOn(HInstruction* obj) const OVERRIDE {
