@@ -389,6 +389,9 @@ class MarkSweepMarkObjectSlowPath {
         ArtField* field = holder_->FindFieldByOffset(offset_);
         LOG(INTERNAL_FATAL) << "Field info: "
                             << " holder=" << holder_
+                            << " holder is "
+                            << (mark_sweep_->GetHeap()->IsLiveObjectLocked(holder_)
+                                ? "alive" : "dead")
                             << " holder_size=" << holder_size
                             << " holder_type=" << PrettyTypeOf(holder_)
                             << " offset=" << offset_.Uint32Value()
@@ -404,6 +407,12 @@ class MarkSweepMarkObjectSlowPath {
                                 ? holder_->AsClass()->NumReferenceStaticFields()
                                 : holder_->GetClass()->NumReferenceInstanceFields())
                             << "\n";
+        // Print the memory content of the holder.
+        for (size_t i = 0; i < holder_size / sizeof(uint32_t); ++i) {
+          uint32_t* p = reinterpret_cast<uint32_t*>(holder_);
+          LOG(INTERNAL_FATAL) << &p[i] << ": " << "holder+" << (i * sizeof(uint32_t)) << " = "
+                              << std::hex << p[i];
+        }
       }
       PrintFileToLog("/proc/self/maps", LogSeverity::INTERNAL_FATAL);
       MemMap::DumpMaps(LOG(INTERNAL_FATAL), true);
