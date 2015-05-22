@@ -201,29 +201,32 @@ uint32_t ArtMethod::ToDexPc(const uintptr_t pc, bool abort_on_failure) {
   uint32_t sought_offset = pc - reinterpret_cast<uintptr_t>(entry_point);
   if (IsOptimized(sizeof(void*))) {
     CodeInfo code_info = GetOptimizedCodeInfo();
-    return code_info.GetStackMapForNativePcOffset(sought_offset).GetDexPc(code_info);
-  }
-
-  MappingTable table(entry_point != nullptr ?
-      GetMappingTable(EntryPointToCodePointer(entry_point), sizeof(void*)) : nullptr);
-  if (table.TotalSize() == 0) {
-    // NOTE: Special methods (see Mir2Lir::GenSpecialCase()) have an empty mapping
-    // but they have no suspend checks and, consequently, we never call ToDexPc() for them.
-    DCHECK(IsNative() || IsCalleeSaveMethod() || IsProxyMethod()) << PrettyMethod(this);
-    return DexFile::kDexNoIndex;   // Special no mapping case
-  }
-  // Assume the caller wants a pc-to-dex mapping so check here first.
-  typedef MappingTable::PcToDexIterator It;
-  for (It cur = table.PcToDexBegin(), end = table.PcToDexEnd(); cur != end; ++cur) {
-    if (cur.NativePcOffset() == sought_offset) {
-      return cur.DexPc();
+    StackMap stack_map = code_info.GetStackMapForNativePcOffset(sought_offset);
+    if (stack_map.IsValid()) {
+      return stack_map.GetDexPc(code_info);
     }
-  }
-  // Now check dex-to-pc mappings.
-  typedef MappingTable::DexToPcIterator It2;
-  for (It2 cur = table.DexToPcBegin(), end = table.DexToPcEnd(); cur != end; ++cur) {
-    if (cur.NativePcOffset() == sought_offset) {
-      return cur.DexPc();
+  } else {
+    MappingTable table(entry_point != nullptr ?
+        GetMappingTable(EntryPointToCodePointer(entry_point), sizeof(void*)) : nullptr);
+    if (table.TotalSize() == 0) {
+      // NOTE: Special methods (see Mir2Lir::GenSpecialCase()) have an empty mapping
+      // but they have no suspend checks and, consequently, we never call ToDexPc() for them.
+      DCHECK(IsNative() || IsCalleeSaveMethod() || IsProxyMethod()) << PrettyMethod(this);
+      return DexFile::kDexNoIndex;   // Special no mapping case
+    }
+    // Assume the caller wants a pc-to-dex mapping so check here first.
+    typedef MappingTable::PcToDexIterator It;
+    for (It cur = table.PcToDexBegin(), end = table.PcToDexEnd(); cur != end; ++cur) {
+      if (cur.NativePcOffset() == sought_offset) {
+        return cur.DexPc();
+      }
+    }
+    // Now check dex-to-pc mappings.
+    typedef MappingTable::DexToPcIterator It2;
+    for (It2 cur = table.DexToPcBegin(), end = table.DexToPcEnd(); cur != end; ++cur) {
+      if (cur.NativePcOffset() == sought_offset) {
+        return cur.DexPc();
+      }
     }
   }
   if (abort_on_failure) {

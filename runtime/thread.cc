@@ -2248,6 +2248,7 @@ class ReferenceMapVisitor : public StackVisitor {
         uintptr_t native_pc_offset = m->NativeQuickPcOffset(GetCurrentQuickFramePc(), entry_point);
         CodeInfo code_info = m->GetOptimizedCodeInfo();
         StackMap map = code_info.GetStackMapForNativePcOffset(native_pc_offset);
+        DCHECK(map.IsValid());
         MemoryRegion mask = map.GetStackMask(code_info);
         // Visit stack entries that hold pointers.
         for (size_t i = 0; i < mask.size_in_bits(); ++i) {
