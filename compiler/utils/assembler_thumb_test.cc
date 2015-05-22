@@ -1338,6 +1338,24 @@ TEST(Thumb2AssemblerTest, LoadStoreLimits) {
   delete assembler;
 }
 
+TEST(Thumb2AssemblerTest, CompareAndBranch) {
+  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+
+  arm::NearLabel label;
+  __ CompareAndBranchIfZero(arm::R0, &label);
+  __ CompareAndBranchIfZero(arm::R11, &label);
+  __ CompareAndBranchIfNonZero(arm::R0, &label);
+  __ CompareAndBranchIfNonZero(arm::R11, &label);
+  __ Bind(&label);
+
+  size_t cs = __ CodeSize();
+  std::vector<uint8_t> managed_code(cs);
+  MemoryRegion code(&managed_code[0], managed_code.size());
+  __ FinalizeInstructions(code);
+  dump(managed_code, "CompareAndBranch");
+  delete assembler;
+}
+
 #undef __
 }  // namespace arm
 }  // namespace art

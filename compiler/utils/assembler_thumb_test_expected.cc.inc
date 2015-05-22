@@ -4822,6 +4822,16 @@ const char* LoadStoreLimitsResults[] = {
   "  30:   f8a4 0040       strh.w  r0, [r4, #64]   ; 0x40\n",
   nullptr
 };
+const char* CompareAndBranchResults[] = {
+  "  0: b130        cbz r0, 10 <CompareAndBranch+0x10>\n",
+  "  2: f1bb 0f00   cmp.w fp, #0\n",
+  "  6: d003        beq.n 10 <CompareAndBranch+0x10>\n",
+  "  8: b910        cbnz r0, 10 <CompareAndBranch+0x10>\n",
+  "  a: f1bb 0f00   cmp.w fp, #0\n",
+  "  e: d1ff        bne.n 10 <CompareAndBranch+0x10>\n",
+  nullptr
+};
+
 std::map<std::string, const char**> test_results;
 void setup_results() {
     test_results["SimpleMov"] = SimpleMovResults;
@@ -4869,4 +4879,5 @@ void setup_results() {
     test_results["LoadStoreRegOffset"] = LoadStoreRegOffsetResults;
     test_results["LoadStoreLiteral"] = LoadStoreLiteralResults;
     test_results["LoadStoreLimits"] = LoadStoreLimitsResults;
+    test_results["CompareAndBranch"] = CompareAndBranchResults;
 }
