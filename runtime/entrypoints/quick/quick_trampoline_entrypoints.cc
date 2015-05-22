@@ -89,7 +89,7 @@ class QuickArgumentVisitor {
   // | LR         |
   // | X29        |
   // |  :         |
-  // | X19        |
+  // | X20        |
   // | X7         |
   // | :          |
   // | X1         |

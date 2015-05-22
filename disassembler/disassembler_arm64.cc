@@ -31,8 +31,7 @@ namespace arm64 {
 // runtime/arch/arm64/registers_arm64.h. We do not include that file to
 // avoid a dependency on libart.
 enum {
-  TR  = 18,
-  ETR = 21,
+  TR  = 19,
   IP0 = 16,
   IP1 = 17,
   FP  = 29,

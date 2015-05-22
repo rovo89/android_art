@@ -22,9 +22,7 @@
 // Define special registers.
 
 // Register holding Thread::Current().
-#define xSELF x18
-// x18 is not preserved by aapcs64, save it on xETR(External Thread reg) for restore and later use.
-#define xETR x21
+#define xSELF x19
 // Frame Pointer
 #define xFP   x29
 // Link Register
