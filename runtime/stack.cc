@@ -109,6 +109,7 @@ InlineInfo StackVisitor::GetCurrentInlineInfo() const SHARED_LOCKS_REQUIRED(Lock
   uint32_t native_pc_offset = outer_method->NativeQuickPcOffset(cur_quick_frame_pc_);
   CodeInfo code_info = outer_method->GetOptimizedCodeInfo();
   StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset);
+  DCHECK(stack_map.IsValid());
   return code_info.GetInlineInfoOf(stack_map);
 }
 
@@ -269,6 +270,7 @@ bool StackVisitor::GetVRegFromOptimizedCode(mirror::ArtMethod* m, uint16_t vreg,
 
   uint32_t native_pc_offset = outer_method->NativeQuickPcOffset(cur_quick_frame_pc_);
   StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset);
+  DCHECK(stack_map.IsValid());
   size_t depth_in_stack_map = current_inlining_depth_ - 1;
 
   DexRegisterMap dex_register_map = IsInInlinedFrame()
@@ -749,7 +751,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
           CodeInfo code_info = method->GetOptimizedCodeInfo();
           uint32_t native_pc_offset = method->NativeQuickPcOffset(cur_quick_frame_pc_);
           StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset);
-          if (stack_map.HasInlineInfo(code_info)) {
+          if (stack_map.IsValid() && stack_map.HasInlineInfo(code_info)) {
             InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map);
             DCHECK_EQ(current_inlining_depth_, 0u);
             for (current_inlining_depth_ = inline_info.GetDepth();
