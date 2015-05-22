@@ -641,6 +641,9 @@ class DexRegisterMap {
 class StackMap {
  public:
   explicit StackMap(MemoryRegion region) : region_(region) {}
+  StackMap() {}
+
+  bool IsValid() const { return region_.pointer() != nullptr; }
 
   uint32_t GetDexPc(const CodeInfo& info) const;
 
@@ -1029,8 +1032,7 @@ class CodeInfo {
         return stack_map;
       }
     }
-    LOG(FATAL) << "Unreachable";
-    UNREACHABLE();
+    return StackMap();
   }
 
   StackMap GetStackMapForNativePcOffset(uint32_t native_pc_offset) const {
@@ -1041,8 +1043,7 @@ class CodeInfo {
         return stack_map;
       }
     }
-    LOG(FATAL) << "Unreachable";
-    UNREACHABLE();
+    return StackMap();
   }
 
   void Dump(std::ostream& os, uint16_t number_of_dex_registers) const;
