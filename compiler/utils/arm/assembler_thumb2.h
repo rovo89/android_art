@@ -239,6 +239,7 @@ class Thumb2Assembler FINAL : public ArmAssembler {
 
   // Branch instructions.
   void b(Label* label, Condition cond = AL);
+  void b(NearLabel* label, Condition cond = AL);
   void bl(Label* label, Condition cond = AL);
   void blx(Label* label);
   void blx(Register rm, Condition cond = AL) OVERRIDE;
@@ -273,6 +274,7 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   void Mov(Register rd, Register rm, Condition cond = AL) OVERRIDE;
 
   void CompareAndBranchIfZero(Register r, Label* label) OVERRIDE;
+  void CompareAndBranchIfZero(Register r, NearLabel* label) OVERRIDE;
   void CompareAndBranchIfNonZero(Register r, Label* label) OVERRIDE;
 
   // Memory barriers.
@@ -431,7 +433,7 @@ class Thumb2Assembler FINAL : public ArmAssembler {
 
   void EmitVPushPop(uint32_t reg, int nregs, bool push, bool dbl, Condition cond);
 
-  void EmitBranch(Condition cond, Label* label, bool link, bool x);
+  void EmitBranch(Condition cond, Label* label, bool link, bool x, bool is_near = false);
   static int32_t EncodeBranchOffset(int32_t offset, int32_t inst);
   static int DecodeBranchOffset(int32_t inst);
   int32_t EncodeTstOffset(int offset, int32_t inst);
@@ -559,6 +561,7 @@ class Thumb2Assembler FINAL : public ArmAssembler {
     // Resolve a branch when the target is known.  If this causes the
     // size of the branch to change return true.  Otherwise return false.
     bool Resolve(uint32_t target) {
+      uint32_t old_target = target_;
       target_ = target;
       if (assembler_->CanRelocateBranches()) {
         Size new_size = CalculateSize();
@@ -569,9 +572,12 @@ class Thumb2Assembler FINAL : public ArmAssembler {
         return false;
       } else {
         if (kIsDebugBuild) {
-          Size new_size = CalculateSize();
-          // Check that the size has not increased.
-          DCHECK(!(new_size == k32Bit && size_ == k16Bit));
+          if (old_target == kUnresolved) {
+            // Check that the size has not increased.
+            DCHECK(!(CalculateSize() == k32Bit && size_ == k16Bit));
+          } else {
+            DCHECK(CalculateSize() == size_);
+          }
         }
         return false;
       }
@@ -651,6 +657,10 @@ class Thumb2Assembler FINAL : public ArmAssembler {
         if (assembler_->IsForced32Bit() && (type_ == kUnconditional || type_ == kConditional)) {
           return k32Bit;
         }
+        if (IsCompareAndBranch()) {
+          // Compare and branch instructions can only be encoded on 16 bits.
+          return k16Bit;
+        }
         return assembler_->CanRelocateBranches() ? k16Bit : k32Bit;
       }
       // When the target is resolved, we know the best encoding for it.
@@ -714,8 +724,15 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   }
 
   // Add an unresolved branch and return its id.
-  uint16_t AddBranch(Branch::Type type, uint32_t location, Condition cond = AL) {
-    branches_.push_back(new Branch(this, type, location, cond));
+  uint16_t AddBranch(Branch::Type type,
+                     uint32_t location,
+                     Condition cond = AL,
+                     bool is_near = false) {
+    Branch* branch = new Branch(this, type, location, cond);
+    if (is_near) {
+      branch->ResetSize(Branch::k16Bit);
+    }
+    branches_.push_back(branch);
     return branches_.size() - 1;
   }
 
