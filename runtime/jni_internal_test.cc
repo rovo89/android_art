@@ -1238,7 +1238,7 @@ TEST_F(JniInternalTest, GetSuperclass) {
   ASSERT_NE(runnable_interface, nullptr);
   ASSERT_TRUE(env_->IsSameObject(object_class, env_->GetSuperclass(string_class)));
   ASSERT_EQ(env_->GetSuperclass(object_class), nullptr);
-  ASSERT_TRUE(env_->IsSameObject(object_class, env_->GetSuperclass(runnable_interface)));
+  ASSERT_EQ(env_->GetSuperclass(runnable_interface), nullptr);
 
   // Null as class should fail.
   CheckJniAbortCatcher jni_abort_catcher;

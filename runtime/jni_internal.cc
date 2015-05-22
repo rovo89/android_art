@@ -406,7 +406,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT(java_class);
     ScopedObjectAccess soa(env);
     mirror::Class* c = soa.Decode<mirror::Class*>(java_class);
-    return soa.AddLocalReference<jclass>(c->GetSuperClass());
+    return soa.AddLocalReference<jclass>(c->IsInterface() ? nullptr : c->GetSuperClass());
   }
 
   // Note: java_class1 should be safely castable to java_class2, and
