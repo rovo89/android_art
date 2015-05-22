@@ -35,7 +35,7 @@ class ElfWriterQuick FINAL : public ElfWriter {
                      const CompilerDriver& driver)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static void EncodeOatPatches(const OatWriter::PatchLocationsMap& sections,
+  static void EncodeOatPatches(const std::vector<uintptr_t>& locations,
                                std::vector<uint8_t>* buffer);
 
  protected:

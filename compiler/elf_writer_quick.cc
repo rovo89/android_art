@@ -19,6 +19,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "base/casts.h"
 #include "base/logging.h"
 #include "base/unix_file/fd_file.h"
 #include "compiled_method.h"
@@ -69,36 +70,17 @@ bool ElfWriterQuick<ElfTypes>::Create(File* elf_file,
 template <typename ElfTypes>
 static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder, OatWriter* oat_writer);
 
-// Encode patch locations in .oat_patches format.
+// Encode patch locations as LEB128 list of deltas between consecutive addresses.
 template <typename ElfTypes>
-void ElfWriterQuick<ElfTypes>::EncodeOatPatches(
-    const OatWriter::PatchLocationsMap& sections,
-    std::vector<uint8_t>* buffer) {
-  for (const auto& section : sections) {
-    const std::string& name = section.first;
-    std::vector<uintptr_t>* locations = section.second.get();
-    DCHECK(!name.empty());
-    std::sort(locations->begin(), locations->end());
-    // Reserve buffer space - guess 2 bytes per ULEB128.
-    buffer->reserve(buffer->size() + name.size() + locations->size() * 2);
-    // Write null-terminated section name.
-    const uint8_t* name_data = reinterpret_cast<const uint8_t*>(name.c_str());
-    buffer->insert(buffer->end(), name_data, name_data + name.size() + 1);
-    // Write placeholder for data length.
-    size_t length_pos = buffer->size();
-    EncodeUnsignedLeb128(buffer, UINT32_MAX);
-    // Write LEB128 encoded list of advances (deltas between consequtive addresses).
-    size_t data_pos = buffer->size();
-    uintptr_t address = 0;  // relative to start of section.
-    for (uintptr_t location : *locations) {
-      DCHECK_LT(location - address, UINT32_MAX) << "Large gap between patch locations";
-      EncodeUnsignedLeb128(buffer, location - address);
-      address = location;
-    }
-    // Update length.
-    UpdateUnsignedLeb128(buffer->data() + length_pos, buffer->size() - data_pos);
+void ElfWriterQuick<ElfTypes>::EncodeOatPatches(const std::vector<uintptr_t>& locations,
+                                                std::vector<uint8_t>* buffer) {
+  buffer->reserve(buffer->size() + locations.size() * 2);  // guess 2 bytes per ULEB128.
+  uintptr_t address = 0;  // relative to start of section.
+  for (uintptr_t location : locations) {
+    DCHECK_GE(location, address) << "Patch locations are not in sorted order";
+    EncodeUnsignedLeb128(buffer, dchecked_integral_cast<uint32_t>(location - address));
+    address = location;
   }
-  buffer->push_back(0);  // End of sections.
 }
 
 class RodataWriter FINAL : public CodeOutput {
@@ -175,7 +157,7 @@ bool ElfWriterQuick<ElfTypes>::Write(
 
   // Add debug sections.
   // They are stack allocated here (in the same scope as the builder),
-  // but they are registred with the builder only if they are used.
+  // but they are registered with the builder only if they are used.
   using RawSection = typename ElfBuilder<ElfTypes>::RawSection;
   const auto* text = builder->GetText();
   const bool is64bit = Is64BitInstructionSet(isa);
@@ -190,12 +172,15 @@ bool ElfWriterQuick<ElfTypes>::Write(
                          is64bit ? Patch<Elf_Addr, uint64_t, kAbsoluteAddress> :
                                    Patch<Elf_Addr, uint32_t, kAbsoluteAddress>,
                          text);
+  RawSection debug_frame_oat_patches(".debug_frame.oat_patches", SHT_OAT_PATCH);
   RawSection debug_info(".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0,
                         Patch<Elf_Addr, uint32_t, kAbsoluteAddress>, text);
-  RawSection debug_abbrev(".debug_abbrev", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
-  RawSection debug_str(".debug_str", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
+  RawSection debug_info_oat_patches(".debug_info.oat_patches", SHT_OAT_PATCH);
+  RawSection debug_abbrev(".debug_abbrev", SHT_PROGBITS);
+  RawSection debug_str(".debug_str", SHT_PROGBITS);
   RawSection debug_line(".debug_line", SHT_PROGBITS, 0, nullptr, 0, 1, 0,
                         Patch<Elf_Addr, uint32_t, kAbsoluteAddress>, text);
+  RawSection debug_line_oat_patches(".debug_line.oat_patches", SHT_OAT_PATCH);
   if (!oat_writer->GetMethodDebugInfo().empty()) {
     if (compiler_driver_->GetCompilerOptions().GetIncludeCFI()) {
       if (kCFIFormat == dwarf::DW_EH_FRAME_FORMAT) {
@@ -214,8 +199,9 @@ bool ElfWriterQuick<ElfTypes>::Write(
             debug_frame.GetBuffer(), debug_frame.GetPatchLocations(),
             nullptr, nullptr);
         builder->RegisterSection(&debug_frame);
-        *oat_writer->GetAbsolutePatchLocationsFor(".debug_frame") =
-            *debug_frame.GetPatchLocations();
+        EncodeOatPatches(*debug_frame.GetPatchLocations(),
+                         debug_frame_oat_patches.GetBuffer());
+        builder->RegisterSection(&debug_frame_oat_patches);
       }
     }
     if (compiler_driver_->GetCompilerOptions().GetIncludeDebugSymbols()) {
@@ -229,24 +215,26 @@ bool ElfWriterQuick<ElfTypes>::Write(
           debug_str.GetBuffer(),
           debug_line.GetBuffer(), debug_line.GetPatchLocations());
       builder->RegisterSection(&debug_info);
+      EncodeOatPatches(*debug_info.GetPatchLocations(),
+                       debug_info_oat_patches.GetBuffer());
+      builder->RegisterSection(&debug_info_oat_patches);
       builder->RegisterSection(&debug_abbrev);
       builder->RegisterSection(&debug_str);
       builder->RegisterSection(&debug_line);
-      *oat_writer->GetAbsolutePatchLocationsFor(".debug_info") =
-          *debug_info.GetPatchLocations();
-      *oat_writer->GetAbsolutePatchLocationsFor(".debug_line") =
-          *debug_line.GetPatchLocations();
+      EncodeOatPatches(*debug_line.GetPatchLocations(),
+                       debug_line_oat_patches.GetBuffer());
+      builder->RegisterSection(&debug_line_oat_patches);
     }
   }
 
-  // Add relocation section.
-  RawSection oat_patches(".oat_patches", SHT_OAT_PATCH, 0, nullptr, 0, 1, 0);
-  if (compiler_driver_->GetCompilerOptions().GetIncludePatchInformation() ||
-      // ElfWriter::Fixup will be called regardless and it needs to be able
-      // to patch debug sections so we have to include patches for them.
-      compiler_driver_->GetCompilerOptions().GetIncludeDebugSymbols()) {
-    EncodeOatPatches(oat_writer->GetAbsolutePatchLocations(), oat_patches.GetBuffer());
-    builder->RegisterSection(&oat_patches);
+  // Add relocation section for .text.
+  RawSection text_oat_patches(".text.oat_patches", SHT_OAT_PATCH);
+  if (compiler_driver_->GetCompilerOptions().GetIncludePatchInformation()) {
+    // Note that ElfWriter::Fixup will be called regardless and therefore
+    // we need to include oat_patches for debug sections unconditionally.
+    EncodeOatPatches(oat_writer->GetAbsolutePatchLocations(),
+                     text_oat_patches.GetBuffer());
+    builder->RegisterSection(&text_oat_patches);
   }
 
   return builder->Write(elf_file_);
