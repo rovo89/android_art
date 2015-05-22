@@ -103,6 +103,7 @@ void Arm64Context::SmashCallerSaves() {
   gprs_[X13] = nullptr;
   gprs_[X14] = nullptr;
   gprs_[X15] = nullptr;
+  gprs_[X18] = nullptr;
 
   // d0-d7, d16-d31 are caller-saved; d8-d15 are callee-saved.
 
