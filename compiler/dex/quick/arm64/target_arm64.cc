@@ -51,19 +51,17 @@ static constexpr RegStorage dp_regs_arr[] =
      rs_d8, rs_d9, rs_d10, rs_d11, rs_d12, rs_d13, rs_d14, rs_d15,
      rs_d16, rs_d17, rs_d18, rs_d19, rs_d20, rs_d21, rs_d22, rs_d23,
      rs_d24, rs_d25, rs_d26, rs_d27, rs_d28, rs_d29, rs_d30, rs_d31};
-// Note: we are not able to call to C function since rs_xSELF is a special register need to be
-// preserved but would be scratched by native functions follow aapcs64.
 static constexpr RegStorage reserved_regs_arr[] = {rs_wSELF, rs_wsp, rs_wLR, rs_wzr};
 static constexpr RegStorage reserved64_regs_arr[] = {rs_xSELF, rs_sp, rs_xLR, rs_xzr};
 
 static constexpr RegStorage core_temps_arr[] =
     {rs_w0, rs_w1, rs_w2, rs_w3, rs_w4, rs_w5, rs_w6, rs_w7,
      rs_w8, rs_w9, rs_w10, rs_w11, rs_w12, rs_w13, rs_w14, rs_w15, rs_w16,
-     rs_w17};
+     rs_w17, rs_w18};
 static constexpr RegStorage core64_temps_arr[] =
     {rs_x0, rs_x1, rs_x2, rs_x3, rs_x4, rs_x5, rs_x6, rs_x7,
      rs_x8, rs_x9, rs_x10, rs_x11, rs_x12, rs_x13, rs_x14, rs_x15, rs_x16,
-     rs_x17};
+     rs_x17, rs_x18};
 static constexpr RegStorage sp_temps_arr[] =
     {rs_f0, rs_f1, rs_f2, rs_f3, rs_f4, rs_f5, rs_f6, rs_f7,
      rs_f16, rs_f17, rs_f18, rs_f19, rs_f20, rs_f21, rs_f22, rs_f23,
@@ -691,6 +689,7 @@ void Arm64Mir2Lir::ClobberCallerSave() {
   Clobber(rs_x15);
   Clobber(rs_x16);
   Clobber(rs_x17);
+  Clobber(rs_x18);
   Clobber(rs_x30);
 
   Clobber(rs_f0);
