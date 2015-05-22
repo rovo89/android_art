@@ -30,13 +30,8 @@ namespace art {
  */
 class ReferenceTypePropagation : public HOptimization {
  public:
-  ReferenceTypePropagation(HGraph* graph,
-                           const DexFile& dex_file,
-                           const DexCompilationUnit& dex_compilation_unit,
-                           StackHandleScopeCollection* handles)
+  ReferenceTypePropagation(HGraph* graph, StackHandleScopeCollection* handles)
     : HOptimization(graph, true, kReferenceTypePropagationPassName),
-      dex_file_(dex_file),
-      dex_compilation_unit_(dex_compilation_unit),
       handles_(handles),
       worklist_(graph->GetArena(), kDefaultWorklistSize) {}
 
@@ -66,8 +61,6 @@ class ReferenceTypePropagation : public HOptimization {
   ReferenceTypeInfo MergeTypes(const ReferenceTypeInfo& a, const ReferenceTypeInfo& b)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  const DexFile& dex_file_;
-  const DexCompilationUnit& dex_compilation_unit_;
   StackHandleScopeCollection* handles_;
 
   GrowableArray<HInstruction*> worklist_;
