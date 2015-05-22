@@ -215,9 +215,9 @@ class AssemblerTestInfrastructure {
 
     bool success = Exec(args, error_msg);
     if (!success) {
-      LOG(INFO) << "Assembler command line:";
+      LOG(ERROR) << "Assembler command line:";
       for (std::string arg : args) {
-        LOG(INFO) << arg;
+        LOG(ERROR) << arg;
       }
     }
     return success;
