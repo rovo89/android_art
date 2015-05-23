@@ -1815,8 +1815,8 @@ mirror::Class* ClassLinker::DefineClass(Thread* self, const char* descriptor, si
   // TODO: Use fast jobjects?
   auto interfaces = hs.NewHandle<mirror::ObjectArray<mirror::Class>>(nullptr);
 
-  mirror::Class* new_class = nullptr;
-  if (!LinkClass(self, descriptor, klass, interfaces, &new_class)) {
+  MutableHandle<mirror::Class> h_new_class = hs.NewHandle<mirror::Class>(nullptr);
+  if (!LinkClass(self, descriptor, klass, interfaces, &h_new_class)) {
     // Linking failed.
     if (!klass->IsErroneous()) {
       mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
@@ -1824,10 +1824,8 @@ mirror::Class* ClassLinker::DefineClass(Thread* self, const char* descriptor, si
     return nullptr;
   }
   self->AssertNoPendingException();
-  CHECK(new_class != nullptr) << descriptor;
-  CHECK(new_class->IsResolved()) << descriptor;
-
-  Handle<mirror::Class> new_class_h(hs.NewHandle(new_class));
+  CHECK(h_new_class.Get() != nullptr) << descriptor;
+  CHECK(h_new_class->IsResolved()) << descriptor;
 
   // Instrumentation may have updated entrypoints for all methods of all
   // classes. However it could not update methods of this class while we
@@ -1838,7 +1836,7 @@ mirror::Class* ClassLinker::DefineClass(Thread* self, const char* descriptor, si
     // suspending all threads to update entrypoints while we are doing it
     // for this class.
     DCHECK_EQ(self->GetState(), kRunnable);
-    Runtime::Current()->GetInstrumentation()->InstallStubsForClass(new_class_h.Get());
+    Runtime::Current()->GetInstrumentation()->InstallStubsForClass(h_new_class.Get());
   }
 
   /*
@@ -1852,9 +1850,9 @@ mirror::Class* ClassLinker::DefineClass(Thread* self, const char* descriptor, si
    * The class has been prepared and resolved but possibly not yet verified
    * at this point.
    */
-  Dbg::PostClassPrepare(new_class_h.Get());
+  Dbg::PostClassPrepare(h_new_class.Get());
 
-  return new_class_h.Get();
+  return h_new_class.Get();
 }
 
 uint32_t ClassLinker::SizeOfClassWithoutEmbeddedTables(const DexFile& dex_file,
@@ -2738,11 +2736,7 @@ mirror::Class* ClassLinker::UpdateClass(const char* descriptor, mirror::Class* k
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   auto existing_it = class_table_.FindWithHash(std::make_pair(descriptor, klass->GetClassLoader()),
                                                hash);
-  if (existing_it == class_table_.end()) {
-    CHECK(klass->IsProxyClass());
-    return nullptr;
-  }
-
+  CHECK(existing_it != class_table_.end());
   mirror::Class* existing = existing_it->Read();
   CHECK_NE(existing, klass) << descriptor;
   CHECK(!existing->IsResolved()) << descriptor;
@@ -3214,7 +3208,7 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
                                              jobjectArray interfaces, jobject loader,
                                              jobjectArray methods, jobjectArray throws) {
   Thread* self = soa.Self();
-  StackHandleScope<9> hs(self);
+  StackHandleScope<10> hs(self);
   MutableHandle<mirror::Class> klass(hs.NewHandle(
       AllocClass(self, GetClassRoot(kJavaLangClass), sizeof(mirror::Class))));
   if (klass.Get() == nullptr) {
@@ -3228,9 +3222,17 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   klass->SetClassLoader(soa.Decode<mirror::ClassLoader*>(loader));
   DCHECK_EQ(klass->GetPrimitiveType(), Primitive::kPrimNot);
   klass->SetName(soa.Decode<mirror::String*>(name));
-  mirror::Class* proxy_class = GetClassRoot(kJavaLangReflectProxy);
-  klass->SetDexCache(proxy_class->GetDexCache());
+  klass->SetDexCache(GetClassRoot(kJavaLangReflectProxy)->GetDexCache());
   mirror::Class::SetStatus(klass, mirror::Class::kStatusIdx, self);
+  std::string descriptor(GetDescriptorForProxy(klass.Get()));
+  size_t hash = ComputeModifiedUtf8Hash(descriptor.c_str());
+
+  // Insert the class before loading the fields as the field roots
+  // (ArtField::declaring_class_) are only visited from the class
+  // table. There can't be any suspend points between inserting the
+  // class and setting the field arrays below.
+  mirror::Class* existing = InsertClass(descriptor.c_str(), klass.Get(), hash);
+  CHECK(existing == nullptr);
 
   // Instance fields are inherited, but we add a couple of static fields...
   const size_t num_fields = 2;
@@ -3253,18 +3255,21 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
 
   // Proxies have 1 direct method, the constructor
   {
-    mirror::ObjectArray<mirror::ArtMethod>* directs = AllocArtMethodArray(self, 1);
-    if (UNLIKELY(directs == nullptr)) {
+    StackHandleScope<2> hs2(self);
+    Handle<mirror::ObjectArray<mirror::ArtMethod>> directs =
+        hs2.NewHandle(AllocArtMethodArray(self, 1));
+    if (UNLIKELY(directs.Get() == nullptr)) {
       CHECK(self->IsExceptionPending());  // OOME.
       return nullptr;
     }
-    klass->SetDirectMethods(directs);
-    mirror::ArtMethod* constructor = CreateProxyConstructor(self, klass, proxy_class);
-    if (UNLIKELY(constructor == nullptr)) {
+    klass->SetDirectMethods(directs.Get());
+    Handle<mirror::ArtMethod> constructor =
+        hs2.NewHandle(CreateProxyConstructor(self, klass));
+    if (UNLIKELY(constructor.Get() == nullptr)) {
       CHECK(self->IsExceptionPending());  // OOME.
       return nullptr;
     }
-    klass->SetDirectMethod(0, constructor);
+    klass->SetDirectMethod(0, constructor.Get());
   }
 
   // Create virtual method using specified prototypes.
@@ -3273,35 +3278,38 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
     << PrettyClass(h_methods->GetClass());
   const size_t num_virtual_methods = h_methods->GetLength();
   {
-    mirror::ObjectArray<mirror::ArtMethod>* virtuals = AllocArtMethodArray(self,
-                                                                           num_virtual_methods);
-    if (UNLIKELY(virtuals == nullptr)) {
+    StackHandleScope<1> hs2(self);
+    Handle<mirror::ObjectArray<mirror::ArtMethod>> virtuals =
+        hs2.NewHandle(AllocArtMethodArray(self, num_virtual_methods));
+    if (UNLIKELY(virtuals.Get() == nullptr)) {
       CHECK(self->IsExceptionPending());  // OOME.
       return nullptr;
     }
-    klass->SetVirtualMethods(virtuals);
+    klass->SetVirtualMethods(virtuals.Get());
   }
   for (size_t i = 0; i < num_virtual_methods; ++i) {
-    StackHandleScope<1> hs2(self);
+    StackHandleScope<2> hs2(self);
     Handle<mirror::ArtMethod> prototype(hs2.NewHandle(h_methods->Get(i)->GetArtMethod()));
-    mirror::ArtMethod* clone = CreateProxyMethod(self, klass, prototype);
-    if (UNLIKELY(clone == nullptr)) {
+    Handle<mirror::ArtMethod> clone(hs2.NewHandle(CreateProxyMethod(self, klass, prototype)));
+    if (UNLIKELY(clone.Get() == nullptr)) {
       CHECK(self->IsExceptionPending());  // OOME.
       return nullptr;
     }
-    klass->SetVirtualMethod(i, clone);
+    klass->SetVirtualMethod(i, clone.Get());
   }
 
-  klass->SetSuperClass(proxy_class);  // The super class is java.lang.reflect.Proxy
-  mirror::Class::SetStatus(klass, mirror::Class::kStatusLoaded, self);  // Now effectively in the loaded state.
+  // The super class is java.lang.reflect.Proxy
+  klass->SetSuperClass(GetClassRoot(kJavaLangReflectProxy));
+  // Now effectively in the loaded state.
+  mirror::Class::SetStatus(klass, mirror::Class::kStatusLoaded, self);
   self->AssertNoPendingException();
 
-  std::string descriptor(GetDescriptorForProxy(klass.Get()));
-  mirror::Class* new_class = nullptr;
+  MutableHandle<mirror::Class> new_class = hs.NewHandle<mirror::Class>(nullptr);
   {
     // Must hold lock on object when resolved.
     ObjectLock<mirror::Class> resolution_lock(self, klass);
-    // Link the fields and virtual methods, creating vtable and iftables
+    // Link the fields and virtual methods, creating vtable and iftables.
+    // The new class will replace the old one in the class table.
     Handle<mirror::ObjectArray<mirror::Class> > h_interfaces(
         hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Class>*>(interfaces)));
     if (!LinkClass(self, descriptor.c_str(), klass, h_interfaces, &new_class)) {
@@ -3309,15 +3317,14 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
       return nullptr;
     }
   }
-
   CHECK(klass->IsRetired());
-  CHECK_NE(klass.Get(), new_class);
-  klass.Assign(new_class);
+  CHECK_NE(klass.Get(), new_class.Get());
+  klass.Assign(new_class.Get());
 
-  CHECK_EQ(interfaces_sfield->GetDeclaringClass(), new_class);
+  CHECK_EQ(interfaces_sfield->GetDeclaringClass(), klass.Get());
   interfaces_sfield->SetObject<false>(klass.Get(),
                                       soa.Decode<mirror::ObjectArray<mirror::Class>*>(interfaces));
-  CHECK_EQ(throws_sfield->GetDeclaringClass(), new_class);
+  CHECK_EQ(throws_sfield->GetDeclaringClass(), klass.Get());
   throws_sfield->SetObject<false>(klass.Get(),
       soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class> >*>(throws));
 
@@ -3338,7 +3345,8 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
       CheckProxyMethod(virtual_method, prototype);
     }
 
-    mirror::String* decoded_name = soa.Decode<mirror::String*>(name);
+    StackHandleScope<1> hs2(self);
+    Handle<mirror::String> decoded_name = hs2.NewHandle(soa.Decode<mirror::String*>(name));
     std::string interfaces_field_name(StringPrintf("java.lang.Class[] %s.interfaces",
                                                    decoded_name->ToModifiedUtf8().c_str()));
     CHECK_EQ(PrettyField(klass->GetStaticField(0)), interfaces_field_name);
@@ -3352,9 +3360,6 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
     CHECK_EQ(klass.Get()->GetThrows(),
              soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>*>(throws));
   }
-  mirror::Class* existing = InsertClass(descriptor.c_str(), klass.Get(),
-                                        ComputeModifiedUtf8Hash(descriptor.c_str()));
-  CHECK(existing == nullptr);
   return klass.Get();
 }
 
@@ -3389,17 +3394,16 @@ mirror::ArtMethod* ClassLinker::FindMethodForProxy(mirror::Class* proxy_class,
 
 
 mirror::ArtMethod* ClassLinker::CreateProxyConstructor(Thread* self,
-                                                       Handle<mirror::Class> klass,
-                                                       mirror::Class* proxy_class) {
+                                                       Handle<mirror::Class> klass) {
   // Create constructor for Proxy that must initialize h
   mirror::ObjectArray<mirror::ArtMethod>* proxy_direct_methods =
-      proxy_class->GetDirectMethods();
+      GetClassRoot(kJavaLangReflectProxy)->GetDirectMethods();
   CHECK_EQ(proxy_direct_methods->GetLength(), 16);
   mirror::ArtMethod* proxy_constructor = proxy_direct_methods->Get(2);
   // Ensure constructor is in dex cache so that we can use the dex cache to look up the overridden
   // constructor method.
-  proxy_class->GetDexCache()->SetResolvedMethod(proxy_constructor->GetDexMethodIndex(),
-                                                proxy_constructor);
+  GetClassRoot(kJavaLangReflectProxy)->GetDexCache()->SetResolvedMethod(
+      proxy_constructor->GetDexMethodIndex(), proxy_constructor);
   // Clone the existing constructor of Proxy (our constructor would just invoke it so steal its
   // code_ too)
   mirror::ArtMethod* constructor = down_cast<mirror::ArtMethod*>(proxy_constructor->Clone(self));
@@ -3923,7 +3927,7 @@ void ClassLinker::FixupTemporaryDeclaringClass(mirror::Class* temp_class, mirror
 
 bool ClassLinker::LinkClass(Thread* self, const char* descriptor, Handle<mirror::Class> klass,
                             Handle<mirror::ObjectArray<mirror::Class>> interfaces,
-                            mirror::Class** new_class) {
+                            MutableHandle<mirror::Class>* h_new_class_out) {
   CHECK_EQ(mirror::Class::kStatusLoaded, klass->GetStatus());
 
   if (!LinkSuperClass(klass)) {
@@ -3956,25 +3960,23 @@ bool ClassLinker::LinkClass(Thread* self, const char* descriptor, Handle<mirror:
     // This will notify waiters on klass that saw the not yet resolved
     // class in the class_table_ during EnsureResolved.
     mirror::Class::SetStatus(klass, mirror::Class::kStatusResolved, self);
-    *new_class = klass.Get();
+    h_new_class_out->Assign(klass.Get());
   } else {
     CHECK(!klass->IsResolved());
     // Retire the temporary class and create the correctly sized resolved class.
-    *new_class = klass->CopyOf(self, class_size, &imt_handle_scope);
-    if (UNLIKELY(*new_class == nullptr)) {
+    StackHandleScope<1> hs(self);
+    auto h_new_class = hs.NewHandle<mirror::Class>(
+        klass->CopyOf(self, class_size, &imt_handle_scope));
+    if (UNLIKELY(h_new_class.Get() == nullptr)) {
       CHECK(self->IsExceptionPending());  // Expect an OOME.
       mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
       return false;
     }
 
-    CHECK_EQ((*new_class)->GetClassSize(), class_size);
-    StackHandleScope<1> hs(self);
-    auto new_class_h = hs.NewHandleWrapper<mirror::Class>(new_class);
-    ObjectLock<mirror::Class> lock(self, new_class_h);
-
-    FixupTemporaryDeclaringClass(klass.Get(), new_class_h.Get());
-
-    mirror::Class* existing = UpdateClass(descriptor, new_class_h.Get(),
+    CHECK_EQ(h_new_class->GetClassSize(), class_size);
+    ObjectLock<mirror::Class> lock(self, h_new_class);
+    FixupTemporaryDeclaringClass(klass.Get(), h_new_class.Get());
+    mirror::Class* existing = UpdateClass(descriptor, h_new_class.Get(),
                                           ComputeModifiedUtf8Hash(descriptor));
     CHECK(existing == nullptr || existing == klass.Get());
 
@@ -3982,10 +3984,12 @@ bool ClassLinker::LinkClass(Thread* self, const char* descriptor, Handle<mirror:
     // class_table_ during EnsureResolved.
     mirror::Class::SetStatus(klass, mirror::Class::kStatusRetired, self);
 
-    CHECK_EQ(new_class_h->GetStatus(), mirror::Class::kStatusResolving);
+    CHECK_EQ(h_new_class->GetStatus(), mirror::Class::kStatusResolving);
     // This will notify waiters on new_class that saw the not yet resolved
     // class in the class_table_ during EnsureResolved.
-    mirror::Class::SetStatus(new_class_h, mirror::Class::kStatusResolved, self);
+    mirror::Class::SetStatus(h_new_class, mirror::Class::kStatusResolved, self);
+    // Return the new class.
+    h_new_class_out->Assign(h_new_class.Get());
   }
   return true;
 }

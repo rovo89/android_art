@@ -69,6 +69,7 @@ ArtField* Field::GetArtField() {
   mirror::DexCache* const dex_cache = declaring_class->GetDexCache();
   ArtField* const art_field = dex_cache->GetResolvedField(GetDexFieldIndex(), sizeof(void*));
   CHECK(art_field != nullptr);
+  CHECK_EQ(declaring_class, art_field->GetDeclaringClass());
   return art_field;
 }
 
