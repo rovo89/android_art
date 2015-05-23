@@ -39,7 +39,7 @@ typedef int (*SigActionFnPtr)(int, const struct sigaction*, struct sigaction*);
 
 class SignalAction {
  public:
-  SignalAction() : claimed_(false), uses_old_style_(false) {
+  SignalAction() : claimed_(false), uses_old_style_(false), special_handler_(nullptr) {
   }
 
   // Claim the signal and keep the action specified.
@@ -77,10 +77,19 @@ class SignalAction {
     return uses_old_style_;
   }
 
+  void SetSpecialHandler(SpecialSignalHandlerFn fn) {
+    special_handler_ = fn;
+  }
+
+  SpecialSignalHandlerFn GetSpecialHandler() {
+    return special_handler_;
+  }
+
  private:
-  struct sigaction action_;     // Action to be performed.
-  bool claimed_;                // Whether signal is claimed or not.
-  bool uses_old_style_;         // Action is created using signal().  Use sa_handler.
+  struct sigaction action_;                 // Action to be performed.
+  bool claimed_;                            // Whether signal is claimed or not.
+  bool uses_old_style_;                     // Action is created using signal().  Use sa_handler.
+  SpecialSignalHandlerFn special_handler_;  // A special handler executed before user handlers.
 };
 
 // User's signal handlers
@@ -109,9 +118,16 @@ static void CheckSignalValid(int signal) {
   }
 }
 
+// Sigchainlib's own handler so we can ensure a managed handler is called first even if nobody
+// claimed a chain. Simply forward to InvokeUserSignalHandler.
+static void sigchainlib_managed_handler_sigaction(int sig, siginfo_t* info, void* context) {
+  InvokeUserSignalHandler(sig, info, context);
+}
+
 // Claim a signal chain for a particular signal.
 extern "C" void ClaimSignalChain(int signal, struct sigaction* oldaction) {
   CheckSignalValid(signal);
+
   user_sigactions[signal].Claim(*oldaction);
 }
 
@@ -129,6 +145,15 @@ extern "C" void InvokeUserSignalHandler(int sig, siginfo_t* info, void* context)
   // The signal must have been claimed in order to get here.  Check it.
   if (!user_sigactions[sig].IsClaimed()) {
     abort();
+  }
+
+  // Do we have a managed handler? If so, run it first.
+  SpecialSignalHandlerFn managed = user_sigactions[sig].GetSpecialHandler();
+  if (managed != nullptr) {
+    // Call the handler. If it succeeds, we're done.
+    if (managed(sig, info, context)) {
+      return;
+    }
   }
 
   const struct sigaction& action = user_sigactions[sig].GetAction();
@@ -301,6 +326,26 @@ extern "C" void InitializeSignalChain() {
     }
   }
   initialized = true;
+}
+
+extern "C" void SetSpecialSignalHandlerFn(int signal, SpecialSignalHandlerFn fn) {
+  CheckSignalValid(signal);
+
+  // Set the managed_handler.
+  user_sigactions[signal].SetSpecialHandler(fn);
+
+  // In case the chain isn't claimed, claim it for ourself so we can ensure the managed handler
+  // goes first.
+  if (!user_sigactions[signal].IsClaimed()) {
+    struct sigaction tmp;
+    tmp.sa_sigaction = sigchainlib_managed_handler_sigaction;
+    sigemptyset(&tmp.sa_mask);
+    tmp.sa_flags = SA_SIGINFO | SA_ONSTACK;
+#if !defined(__APPLE__) && !defined(__mips__)
+    tmp.sa_restorer = nullptr;
+#endif
+    user_sigactions[signal].Claim(tmp);
+  }
 }
 
 }   // namespace art
