@@ -183,7 +183,7 @@ uint32_t Arm64JniCallingConvention::CoreSpillMask() const {
   // Jni function is the native function which the java code wants to call.
   // Jni method is the method that compiled by jni compiler.
   // Call chain: managed code(java) --> jni method --> jni function.
-  // Thread register(X18, scratched by aapcs64) is not saved on stack, it is saved in ETR(X21).
+  // Thread register(X19) is saved on stack.
   return 1 << X19 | 1 << X20 | 1 << X21 | 1 << X22 | 1 << X23 | 1 << X24 |
          1 << X25 | 1 << X26 | 1 << X27 | 1 << X28 | 1 << X29 | 1 << LR;
 }

@@ -27,15 +27,8 @@
 namespace art {
 
 // Cast entrypoints.
-extern "C" uint32_t art_quick_assignable_from_code(const mirror::Class* klass,
+extern "C" uint32_t artIsAssignableFromCode(const mirror::Class* klass,
                                             const mirror::Class* ref_class);
-
-// Single-precision FP arithmetics.
-extern "C" float art_quick_fmodf(float a, float b);          // REM_FLOAT[_2ADDR]
-
-// Double-precision FP arithmetics.
-extern "C" double art_quick_fmod(double a, double b);        // REM_DOUBLE[_2ADDR]
-
 
 void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
                      QuickEntryPoints* qpoints) {
@@ -50,7 +43,7 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   ResetQuickAllocEntryPoints(qpoints);
 
   // Cast
-  qpoints->pInstanceofNonTrivial = art_quick_assignable_from_code;
+  qpoints->pInstanceofNonTrivial = artIsAssignableFromCode;
   qpoints->pCheckCast = art_quick_check_cast;
 
   // DexCache
@@ -110,9 +103,9 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pCmpgFloat = nullptr;
   qpoints->pCmplDouble = nullptr;
   qpoints->pCmplFloat = nullptr;
-  qpoints->pFmod = art_quick_fmod;
+  qpoints->pFmod = fmod;
   qpoints->pL2d = nullptr;
-  qpoints->pFmodf = art_quick_fmodf;
+  qpoints->pFmodf = fmodf;
   qpoints->pL2f = nullptr;
   qpoints->pD2iz = nullptr;
   qpoints->pF2iz = nullptr;
@@ -129,7 +122,7 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   // Intrinsics
   qpoints->pIndexOf = art_quick_indexof;
   qpoints->pStringCompareTo = art_quick_string_compareto;
-  qpoints->pMemcpy = art_quick_memcpy;
+  qpoints->pMemcpy = memcpy;
 
   // Invocation
   qpoints->pQuickImtConflictTrampoline = art_quick_imt_conflict_trampoline;

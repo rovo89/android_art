@@ -35,14 +35,15 @@ namespace art {
  * r16-r17: Also known as ip0-ip1, respectively. Used as scratch registers by
  *          the linker, by the trampolines and other stubs (the backend uses
  *          these as temporary registers).
- * r18    : (rxSELF) is reserved (pointer to thread-local storage).
- * r19-r29: Callee save registers (promotion targets).
+ * r18    : Caller save register (used as temporary register).
+ * r19    : (rxSELF) is reserved (pointer to thread-local storage).
+ * r20-r29: Callee save registers (promotion targets).
  * r30    : (lr) is reserved (the link register).
  * rsp    : (sp) is reserved (the stack pointer).
  * rzr    : (zr) is reserved (the zero register).
  *
- * 18 core temps that codegen can use (r0-r17).
- * 10 core registers that can be used for promotion.
+ * 19 core temps that codegen can use (r0-r18).
+ * 9 core registers that can be used for promotion.
  *
  * Floating-point registers
  * v0-v31
@@ -145,7 +146,7 @@ enum A64NativeRegisterPool {  // private marker to avoid generate-operator-out.p
   // Aliases which are not defined in "ARM Architecture Reference, register names".
   rxIP0 = rx16,
   rxIP1 = rx17,
-  rxSELF = rx18,
+  rxSELF = rx19,
   rxLR = rx30,
   /*
    * FIXME: It's a bit awkward to define both 32 and 64-bit views of these - we'll only ever use
@@ -154,7 +155,7 @@ enum A64NativeRegisterPool {  // private marker to avoid generate-operator-out.p
    */
   rwIP0 = rw16,
   rwIP1 = rw17,
-  rwSELF = rw18,
+  rwSELF = rw19,
   rwLR = rw30,
 };
 
