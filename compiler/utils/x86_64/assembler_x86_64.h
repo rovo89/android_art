@@ -332,7 +332,7 @@ class X86_64Assembler FINAL : public Assembler {
   void movq(CpuRegister dst, const Address& src);
   void movl(CpuRegister dst, const Address& src);
   void movq(const Address& dst, CpuRegister src);
-  void movq(const Address& dst, const Immediate& src);
+  void movq(const Address& dst, const Immediate& imm);
   void movl(const Address& dst, CpuRegister src);
   void movl(const Address& dst, const Immediate& imm);
 
