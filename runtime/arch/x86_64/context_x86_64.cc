@@ -53,7 +53,8 @@ void X86_64Context::FillCalleeSaves(const StackVisitor& fr) {
   uint32_t fp_regs = frame_info.FpSpillMask();
   DCHECK_EQ(0u, fp_regs & (static_cast<uint32_t>(-1) << kNumberOfFloatRegisters));
   for (uint32_t fp_reg : HighToLowBits(fp_regs)) {
-    fprs_[fp_reg] = fr.CalleeSaveAddress(spill_pos, frame_info.FrameSizeInBytes());
+    fprs_[fp_reg] = reinterpret_cast<uint64_t*>(
+        fr.CalleeSaveAddress(spill_pos, frame_info.FrameSizeInBytes()));
     ++spill_pos;
   }
   DCHECK_EQ(spill_pos,
