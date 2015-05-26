@@ -2387,6 +2387,7 @@ class HInvoke : public HInstruction {
   uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
 
   uint32_t GetDexMethodIndex() const { return dex_method_index_; }
+  const DexFile& GetDexFile() const { return GetEnvironment()->GetDexFile(); }
 
   InvokeType GetOriginalInvokeType() const { return original_invoke_type_; }
 
@@ -2598,14 +2599,19 @@ class HInvokeInterface : public HInvoke {
 
 class HNewInstance : public HExpression<0> {
  public:
-  HNewInstance(uint32_t dex_pc, uint16_t type_index, QuickEntrypointEnum entrypoint)
+  HNewInstance(uint32_t dex_pc,
+               uint16_t type_index,
+               const DexFile& dex_file,
+               QuickEntrypointEnum entrypoint)
       : HExpression(Primitive::kPrimNot, SideEffects::None()),
         dex_pc_(dex_pc),
         type_index_(type_index),
+        dex_file_(dex_file),
         entrypoint_(entrypoint) {}
 
   uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
   uint16_t GetTypeIndex() const { return type_index_; }
+  const DexFile& GetDexFile() const { return dex_file_; }
 
   // Calls runtime so needs an environment.
   bool NeedsEnvironment() const OVERRIDE { return true; }
@@ -2624,6 +2630,7 @@ class HNewInstance : public HExpression<0> {
  private:
   const uint32_t dex_pc_;
   const uint16_t type_index_;
+  const DexFile& dex_file_;
   const QuickEntrypointEnum entrypoint_;
 
   DISALLOW_COPY_AND_ASSIGN(HNewInstance);
@@ -3428,10 +3435,12 @@ class HSuspendCheck : public HTemplateInstruction<0> {
 class HLoadClass : public HExpression<0> {
  public:
   HLoadClass(uint16_t type_index,
+             const DexFile& dex_file,
              bool is_referrers_class,
              uint32_t dex_pc)
       : HExpression(Primitive::kPrimNot, SideEffects::None()),
         type_index_(type_index),
+        dex_file_(dex_file),
         is_referrers_class_(is_referrers_class),
         dex_pc_(dex_pc),
         generate_clinit_check_(false),
@@ -3487,12 +3496,15 @@ class HLoadClass : public HExpression<0> {
     return loaded_class_rti_.IsExact();
   }
 
+  const DexFile& GetDexFile() { return dex_file_; }
+
   bool NeedsDexCache() const OVERRIDE { return !is_referrers_class_; }
 
   DECLARE_INSTRUCTION(LoadClass);
 
  private:
   const uint16_t type_index_;
+  const DexFile& dex_file_;
   const bool is_referrers_class_;
   const uint32_t dex_pc_;
   // Whether this instruction must generate the initialization check.

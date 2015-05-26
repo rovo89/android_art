@@ -223,7 +223,6 @@ class OptimizingCompiler FINAL : public Compiler {
   CompiledMethod* CompileOptimized(HGraph* graph,
                                    CodeGenerator* codegen,
                                    CompilerDriver* driver,
-                                   const DexFile& dex_file,
                                    const DexCompilationUnit& dex_compilation_unit,
                                    PassInfoPrinter* pass_info) const;
 
@@ -316,7 +315,6 @@ static void RunOptimizations(HOptimization* optimizations[],
 static void RunOptimizations(HGraph* graph,
                              CompilerDriver* driver,
                              OptimizingCompilerStats* stats,
-                             const DexFile& dex_file,
                              const DexCompilationUnit& dex_compilation_unit,
                              PassInfoPrinter* pass_info_printer,
                              StackHandleScopeCollection* handles) {
@@ -335,10 +333,10 @@ static void RunOptimizations(HGraph* graph,
   GVNOptimization gvn(graph, side_effects);
   LICM licm(graph, side_effects);
   BoundsCheckElimination bce(graph);
-  ReferenceTypePropagation type_propagation(graph, dex_file, dex_compilation_unit, handles);
+  ReferenceTypePropagation type_propagation(graph, handles);
   InstructionSimplifier simplify2(graph, stats, "instruction_simplifier_after_types");
 
-  IntrinsicsRecognizer intrinsics(graph, dex_compilation_unit.GetDexFile(), driver);
+  IntrinsicsRecognizer intrinsics(graph, driver);
 
   HOptimization* optimizations[] = {
     &intrinsics,
@@ -391,12 +389,11 @@ static void AllocateRegisters(HGraph* graph,
 CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
                                                      CodeGenerator* codegen,
                                                      CompilerDriver* compiler_driver,
-                                                     const DexFile& dex_file,
                                                      const DexCompilationUnit& dex_compilation_unit,
                                                      PassInfoPrinter* pass_info_printer) const {
   StackHandleScopeCollection handles(Thread::Current());
   RunOptimizations(graph, compiler_driver, compilation_stats_.get(),
-                   dex_file, dex_compilation_unit, pass_info_printer, &handles);
+                   dex_compilation_unit, pass_info_printer, &handles);
 
   AllocateRegisters(graph, codegen, pass_info_printer);
 
@@ -585,7 +582,6 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     return CompileOptimized(graph,
                             codegen.get(),
                             compiler_driver,
-                            dex_file,
                             dex_compilation_unit,
                             &pass_info_printer);
   } else if (shouldOptimize && can_allocate_registers) {
