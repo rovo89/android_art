@@ -16,10 +16,12 @@
 
 #include "codegen_x86.h"
 
+#include "base/bit_utils.h"
 #include "base/logging.h"
 #include "dex/compiler_ir.h"
 #include "dex/quick/mir_to_lir.h"
 #include "oat.h"
+#include "utils.h"
 #include "x86_lir.h"
 
 namespace art {

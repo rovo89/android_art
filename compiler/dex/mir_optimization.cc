@@ -31,6 +31,7 @@
 #include "quick/dex_file_to_method_inliner_map.h"
 #include "stack.h"
 #include "type_inference.h"
+#include "utils.h"
 
 namespace art {
 

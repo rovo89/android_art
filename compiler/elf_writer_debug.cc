@@ -25,6 +25,7 @@
 #include "dwarf/headers.h"
 #include "dwarf/register.h"
 #include "oat_writer.h"
+#include "utils.h"
 
 namespace art {
 namespace dwarf {

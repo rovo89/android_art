@@ -25,6 +25,7 @@
 #include "base/value_object.h"
 #include "runtime.h"
 #include "thread.h"
+#include "utils.h"
 
 #if ART_USE_FUTEXES
 #include "linux/futex.h"

@@ -22,8 +22,8 @@
 #include <memory>
 
 #include "atomic.h"
+#include "base/bit_utils.h"
 #include "base/logging.h"
-#include "utils.h"
 
 namespace art {
 namespace gc {

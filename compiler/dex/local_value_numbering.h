@@ -106,8 +106,7 @@ class LocalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
   }
 
   void SetOperandValueImpl(uint16_t s_reg, uint16_t value, SregValueMap* map) {
-    DCHECK_EQ(map->count(s_reg), 0u) << PrettyMethod(gvn_->cu_->method_idx, *gvn_->cu_->dex_file)
-        << " LVN id: " << id_ << ", s_reg: " << s_reg;
+    DCHECK_EQ(map->count(s_reg), 0u);
     map->Put(s_reg, value);
   }
 

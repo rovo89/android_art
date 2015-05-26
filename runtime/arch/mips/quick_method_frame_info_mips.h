@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_ARCH_MIPS_QUICK_METHOD_FRAME_INFO_MIPS_H_
 #define ART_RUNTIME_ARCH_MIPS_QUICK_METHOD_FRAME_INFO_MIPS_H_
 
+#include "base/bit_utils.h"
 #include "quick/quick_method_frame_info.h"
 #include "registers_mips.h"
 #include "runtime.h"  // for Runtime::CalleeSaveType.

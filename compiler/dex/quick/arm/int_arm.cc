@@ -20,6 +20,7 @@
 
 #include "arch/instruction_set_features.h"
 #include "arm_lir.h"
+#include "base/bit_utils.h"
 #include "base/logging.h"
 #include "dex/compiler_ir.h"
 #include "dex/mir_graph.h"
@@ -28,7 +29,6 @@
 #include "driver/compiler_driver.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "mirror/array-inl.h"
-#include "utils.h"
 
 namespace art {
 

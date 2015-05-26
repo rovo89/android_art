@@ -32,6 +32,7 @@
 #include "reference-inl.h"
 #include "runtime.h"
 #include "string.h"
+#include "utils.h"
 
 namespace art {
 namespace mirror {

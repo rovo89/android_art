@@ -23,6 +23,7 @@
 
 #include "base/mutex.h"
 #include "base/stl_util.h"
+#include "base/time_utils.h"
 #include "class_linker.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"

@@ -18,6 +18,7 @@
 
 #include "base/casts.h"
 #include "base/stl_util.h"
+#include "base/time_utils.h"
 #include "runtime.h"
 #include "thread-inl.h"
 

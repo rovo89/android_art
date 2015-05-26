@@ -20,6 +20,7 @@
 #include "dex/quick/quick_compiler_factory.h"
 #include "driver/compiler_driver.h"
 #include "optimizing/optimizing_compiler.h"
+#include "utils.h"
 
 namespace art {
 

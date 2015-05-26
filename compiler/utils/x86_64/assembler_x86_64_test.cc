@@ -20,9 +20,9 @@
 #include <map>
 #include <random>
 
+#include "base/bit_utils.h"
 #include "base/stl_util.h"
 #include "utils/assembler_test.h"
-#include "utils.h"
 
 namespace art {
 

@@ -19,6 +19,7 @@
 #include "codegen_arm.h"
 
 #include "arm_lir.h"
+#include "base/bit_utils.h"
 #include "base/logging.h"
 #include "dex/mir_graph.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
@@ -29,7 +30,6 @@
 #include "mirror/art_method.h"
 #include "mirror/object_array-inl.h"
 #include "entrypoints/quick/quick_entrypoints.h"
-#include "utils.h"
 #include "utils/dex_cache_arrays_layout-inl.h"
 
 namespace art {

@@ -17,13 +17,14 @@
 #ifndef ART_COMPILER_UTILS_ASSEMBLER_TEST_BASE_H_
 #define ART_COMPILER_UTILS_ASSEMBLER_TEST_BASE_H_
 
-#include "common_runtime_test.h"  // For ScratchFile
-
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <iterator>
 #include <sys/stat.h>
+
+#include "common_runtime_test.h"  // For ScratchFile
+#include "utils.h"
 
 namespace art {
 

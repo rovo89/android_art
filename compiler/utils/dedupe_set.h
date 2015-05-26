@@ -26,6 +26,7 @@
 #include "base/mutex.h"
 #include "base/stl_util.h"
 #include "base/stringprintf.h"
+#include "base/time_utils.h"
 #include "utils/swap_space.h"
 
 namespace art {

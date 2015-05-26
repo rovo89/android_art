@@ -20,9 +20,9 @@
 #include <iosfwd>
 #include <stdint.h>
 
+#include "base/bit_utils.h"
 #include "base/logging.h"
 #include "read_barrier.h"
-#include "utils.h"
 
 namespace art {
 namespace mirror {

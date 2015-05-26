@@ -41,6 +41,7 @@
 #include "base/macros.h"
 #include "base/stl_util.h"
 #include "base/stringpiece.h"
+#include "base/time_utils.h"
 #include "base/timing_logger.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"

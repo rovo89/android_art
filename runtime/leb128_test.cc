@@ -18,6 +18,7 @@
 
 #include "gtest/gtest.h"
 #include "base/histogram-inl.h"
+#include "base/time_utils.h"
 
 namespace art {
 

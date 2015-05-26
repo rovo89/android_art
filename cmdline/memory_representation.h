@@ -20,24 +20,25 @@
 #include <string>
 #include <assert.h>
 #include <ostream>
-#include "utils.h"
+
+#include "base/bit_utils.h"
 
 namespace art {
 
 // An integral representation of bytes of memory.
 // The underlying runtime size_t value is guaranteed to be a multiple of Divisor.
-template <size_t Divisor = 1024>
+template <size_t kDivisor = 1024>
 struct Memory {
-  static_assert(IsPowerOfTwo(Divisor), "Divisor must be a power of 2");
+  static_assert(IsPowerOfTwo(kDivisor), "Divisor must be a power of 2");
 
-  static Memory<Divisor> FromBytes(size_t bytes) {
-    assert(bytes % Divisor == 0);
-    return Memory<Divisor>(bytes);
+  static Memory<kDivisor> FromBytes(size_t bytes) {
+    assert(bytes % kDivisor == 0);
+    return Memory<kDivisor>(bytes);
   }
 
   Memory() : Value(0u) {}
   Memory(size_t value) : Value(value) {  // NOLINT [runtime/explicit] [5]
-    assert(value % Divisor == 0);
+    assert(value % kDivisor == 0);
   }
   operator size_t() const { return Value; }
 
@@ -45,12 +46,10 @@ struct Memory {
     return Value;
   }
 
-  static constexpr size_t kDivisor = Divisor;
-
   static const char* Name() {
     static std::string str;
     if (str.empty()) {
-      str = "Memory<" + std::to_string(Divisor) + '>';
+      str = "Memory<" + std::to_string(kDivisor) + '>';
     }
 
     return str.c_str();
@@ -59,9 +58,9 @@ struct Memory {
   size_t Value;
 };
 
-template <size_t Divisor>
-std::ostream& operator<<(std::ostream& stream, Memory<Divisor> memory) {
-  return stream << memory.Value << '*' << Divisor;
+template <size_t kDivisor>
+std::ostream& operator<<(std::ostream& stream, Memory<kDivisor> memory) {
+  return stream << memory.Value << '*' << kDivisor;
 }
 
 using MemoryKiB = Memory<1024>;
