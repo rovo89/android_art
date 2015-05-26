@@ -61,6 +61,7 @@ namespace mirror {
   template<class T> class PrimitiveArray;
   typedef PrimitiveArray<int32_t> IntArray;
   class StackTraceElement;
+  class String;
   class Throwable;
 }  // namespace mirror
 

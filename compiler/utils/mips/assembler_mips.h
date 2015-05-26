@@ -25,7 +25,6 @@
 #include "managed_register_mips.h"
 #include "utils/assembler.h"
 #include "offsets.h"
-#include "utils.h"
 
 namespace art {
 namespace mips {

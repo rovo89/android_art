@@ -25,8 +25,9 @@
 
 #include "base/macros.h"
 #include "base/stl_util.h"
-#include "base/unix_file/fd_file.h"
 #include "base/scoped_flock.h"
+#include "base/time_utils.h"
+#include "base/unix_file/fd_file.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "mirror/art_method.h"
 #include "mirror/class-inl.h"

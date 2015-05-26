@@ -17,6 +17,7 @@
 #include "barrier.h"
 
 #include "base/mutex.h"
+#include "base/time_utils.h"
 #include "thread.h"
 
 namespace art {

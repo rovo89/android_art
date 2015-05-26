@@ -19,7 +19,6 @@
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "offsets.h"
 #include "thread.h"
-#include "utils.h"
 
 using namespace vixl;  // NOLINT(build/namespaces)
 

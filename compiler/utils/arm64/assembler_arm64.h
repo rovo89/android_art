@@ -26,7 +26,6 @@
 #include "utils/arm64/managed_register_arm64.h"
 #include "utils/assembler.h"
 #include "offsets.h"
-#include "utils.h"
 
 // TODO: make vixl clean wrt -Wshadow.
 #pragma GCC diagnostic push

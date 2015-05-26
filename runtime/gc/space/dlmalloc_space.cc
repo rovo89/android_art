@@ -16,6 +16,7 @@
 
 #include "dlmalloc_space-inl.h"
 
+#include "base/time_utils.h"
 #include "gc/accounting/card_table.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/heap.h"

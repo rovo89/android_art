@@ -1738,7 +1738,7 @@ void InstructionCodeGeneratorARM64::DivRemByPowerOfTwo(HBinaryOperation* instruc
   Register out = OutputRegister(instruction);
   Register dividend = InputRegisterAt(instruction, 0);
   int64_t imm = Int64FromConstant(second.GetConstant());
-  int64_t abs_imm = std::abs(imm);
+  uint64_t abs_imm = static_cast<uint64_t>(std::abs(imm));
   DCHECK(IsPowerOfTwo(abs_imm));
   int ctz_imm = CTZ(abs_imm);
 

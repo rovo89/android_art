@@ -25,7 +25,6 @@
 #include "gc/accounting/space_bitmap.h"
 #include "gc/heap.h"
 #include "os.h"
-#include "utils.h"
 
 namespace art {
 

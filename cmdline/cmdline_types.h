@@ -27,6 +27,7 @@
 #include "unit.h"
 #include "jdwp/jdwp.h"
 #include "runtime/base/logging.h"
+#include "runtime/base/time_utils.h"
 #include "gc/collector_type.h"
 #include "gc/space/large_object_space.h"
 #include "profiler_options.h"

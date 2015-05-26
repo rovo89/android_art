@@ -20,6 +20,7 @@
 #include "base/value_object.h"
 #include "utils/growable_array.h"
 #include "locations.h"
+#include "primitive.h"
 
 namespace art {
 

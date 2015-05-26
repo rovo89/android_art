@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 
+#include "arch/instruction_set.h"
 #include "base/arena_allocator.h"
 #include "base/scoped_arena_allocator.h"
 #include "base/timing_logger.h"
@@ -31,6 +32,7 @@ namespace art {
 
 class ClassLinker;
 class CompilerDriver;
+class DexFile;
 class Mir2Lir;
 class MIRGraph;
 

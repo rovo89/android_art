@@ -22,11 +22,11 @@
 #include <string>
 
 #include "atomic.h"
+#include "base/bit_utils.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "mem_map.h"
 #include "stack.h"
-#include "utils.h"
 
 namespace art {
 namespace gc {

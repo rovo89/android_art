@@ -17,16 +17,19 @@
 #ifndef ART_RUNTIME_BASE_BOUNDED_FIFO_H_
 #define ART_RUNTIME_BASE_BOUNDED_FIFO_H_
 
+#include "base/bit_utils.h"
+#include "base/logging.h"
+
 namespace art {
 
 // A bounded fifo is a fifo which has a bounded size. The power of two version uses a bit mask to
 // avoid needing to deal with wrapping integers around or using a modulo operation.
-template <typename T, const size_t MaxSize>
+template <typename T, const size_t kMaxSize>
 class BoundedFifoPowerOfTwo {
+  static_assert(IsPowerOfTwo(kMaxSize), "kMaxSize must be a power of 2.");
+
  public:
   BoundedFifoPowerOfTwo() {
-    // TODO: Do this with a compile time check.
-    CHECK(IsPowerOfTwo(MaxSize));
     clear();
   }
 
@@ -45,7 +48,7 @@ class BoundedFifoPowerOfTwo {
 
   void push_back(const T& value) {
     ++size_;
-    DCHECK_LE(size_, MaxSize);
+    DCHECK_LE(size_, kMaxSize);
     // Relies on integer overflow behavior.
     data_[back_index_++ & mask_] = value;
   }
@@ -61,9 +64,9 @@ class BoundedFifoPowerOfTwo {
   }
 
  private:
-  static const size_t mask_ = MaxSize - 1;
+  static const size_t mask_ = kMaxSize - 1;
   size_t back_index_, size_;
-  T data_[MaxSize];
+  T data_[kMaxSize];
 };
 
 }  // namespace art

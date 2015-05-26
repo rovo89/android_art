@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_ARCH_X86_QUICK_METHOD_FRAME_INFO_X86_H_
 #define ART_RUNTIME_ARCH_X86_QUICK_METHOD_FRAME_INFO_X86_H_
 
+#include "base/bit_utils.h"
 #include "quick/quick_method_frame_info.h"
 #include "registers_x86.h"
 #include "runtime.h"  // for Runtime::CalleeSaveType.

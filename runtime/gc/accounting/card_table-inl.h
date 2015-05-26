@@ -18,11 +18,11 @@
 #define ART_RUNTIME_GC_ACCOUNTING_CARD_TABLE_INL_H_
 
 #include "atomic.h"
+#include "base/bit_utils.h"
 #include "base/logging.h"
 #include "card_table.h"
 #include "mem_map.h"
 #include "space_bitmap.h"
-#include "utils.h"
 
 namespace art {
 namespace gc {

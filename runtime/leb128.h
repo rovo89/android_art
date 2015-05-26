@@ -17,8 +17,11 @@
 #ifndef ART_RUNTIME_LEB128_H_
 #define ART_RUNTIME_LEB128_H_
 
+#include <vector>
+
+#include "base/bit_utils.h"
+#include "base/logging.h"
 #include "globals.h"
-#include "utils.h"
 
 namespace art {
 

@@ -30,6 +30,7 @@
 #include "base/histogram-inl.h"
 #include "base/mutex.h"
 #include "base/mutex-inl.h"
+#include "base/time_utils.h"
 #include "base/timing_logger.h"
 #include "debugger.h"
 #include "jni_internal.h"
@@ -38,7 +39,6 @@
 #include "scoped_thread_state_change.h"
 #include "thread.h"
 #include "trace.h"
-#include "utils.h"
 #include "well_known_classes.h"
 
 namespace art {
