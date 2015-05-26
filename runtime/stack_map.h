@@ -923,10 +923,6 @@ class CodeInfo {
         + (NumberOfBytesForDexRegisterMap() * sizeof(uint8_t));
   }
 
-  uint32_t GetDexRegisterLocationCatalogOffset() const {
-    return kFixedSize;
-  }
-
   DexRegisterLocationCatalog GetDexRegisterLocationCatalog() const {
     return DexRegisterLocationCatalog(region_.Subregion(
         GetDexRegisterLocationCatalogOffset(),
@@ -991,12 +987,16 @@ class CodeInfo {
     return StackMapSize() * GetNumberOfStackMaps();
   }
 
-  size_t GetDexRegisterMapsOffset() const {
+  uint32_t GetDexRegisterLocationCatalogOffset() const {
     return GetStackMapsOffset() + GetStackMapsSize();
   }
 
-  uint32_t GetStackMapsOffset() const {
+  size_t GetDexRegisterMapsOffset() const {
     return GetDexRegisterLocationCatalogOffset() + GetDexRegisterLocationCatalogSize();
+  }
+
+  uint32_t GetStackMapsOffset() const {
+    return kFixedSize;
   }
 
   DexRegisterMap GetDexRegisterMapOf(StackMap stack_map, uint32_t number_of_dex_registers) const {
