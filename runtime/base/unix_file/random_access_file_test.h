@@ -82,7 +82,7 @@ class RandomAccessFileTest : public testing::Test {
 
   void TestReadContent(const std::string& content, RandomAccessFile* file) {
     const int buf_size = content.size() + 10;
-    std::unique_ptr<char> buf(new char[buf_size]);
+    std::unique_ptr<char[]> buf(new char[buf_size]);
     // Can't read from a negative offset.
     ASSERT_EQ(-EINVAL, file->Read(buf.get(), 0, -123));
 
