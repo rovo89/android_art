@@ -141,7 +141,6 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
   }
 
   if (!TryBuildAndInline(resolved_method, invoke_instruction, method_index, can_use_dex_cache)) {
-    resolved_method->SetShouldNotInline();
     return false;
   }
 
@@ -208,6 +207,7 @@ bool HInliner::TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
   if (!builder.BuildGraph(*code_item)) {
     VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
                    << " could not be built, so cannot be inlined";
+    resolved_method->SetShouldNotInline();
     return false;
   }
 
@@ -215,12 +215,14 @@ bool HInliner::TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
                                                   compiler_driver_->GetInstructionSet())) {
     VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
                    << " cannot be inlined because of the register allocator";
+    resolved_method->SetShouldNotInline();
     return false;
   }
 
   if (!callee_graph->TryBuildingSsa()) {
     VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
                    << " could not be transformed to SSA";
+    resolved_method->SetShouldNotInline();
     return false;
   }
 
@@ -257,6 +259,7 @@ bool HInliner::TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
     if (block->IsLoopHeader()) {
       VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
                      << " could not be inlined because it contains a loop";
+      resolved_method->SetShouldNotInline();
       return false;
     }
 
@@ -272,6 +275,7 @@ bool HInliner::TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
         VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
                        << " could not be inlined because " << current->DebugName()
                        << " can throw";
+        resolved_method->SetShouldNotInline();
         return false;
       }
 
@@ -279,6 +283,7 @@ bool HInliner::TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
         VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
                        << " could not be inlined because " << current->DebugName()
                        << " needs an environment";
+        resolved_method->SetShouldNotInline();
         return false;
       }
 
@@ -286,6 +291,8 @@ bool HInliner::TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
         VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
                        << " could not be inlined because " << current->DebugName()
                        << " it is in a different dex file and requires access to the dex cache";
+        // Do not flag the method as not-inlineable. A caller within the same
+        // dex file could still successfully inline it.
         return false;
       }
     }
