@@ -711,8 +711,8 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
           clinit_check_requirement = HInvokeStaticOrDirect::ClinitCheckRequirement::kNone;
         } else {
           clinit_check_requirement = HInvokeStaticOrDirect::ClinitCheckRequirement::kExplicit;
-          HLoadClass* load_class =
-              new (arena_) HLoadClass(storage_index, is_referrer_class, dex_pc);
+          HLoadClass* load_class = new (arena_) HLoadClass(
+              storage_index, *dex_compilation_unit_->GetDexFile(), is_referrer_class, dex_pc);
           current_block_->AddInstruction(load_class);
           clinit_check = new (arena_) HClinitCheck(load_class, dex_pc);
           current_block_->AddInstruction(clinit_check);
@@ -915,7 +915,8 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
       *outer_compilation_unit_->GetDexFile(), storage_index);
   bool is_initialized = resolved_field->GetDeclaringClass()->IsInitialized() && is_in_dex_cache;
 
-  HLoadClass* constant = new (arena_) HLoadClass(storage_index, is_referrer_class, dex_pc);
+  HLoadClass* constant = new (arena_) HLoadClass(
+      storage_index, *dex_compilation_unit_->GetDexFile(), is_referrer_class, dex_pc);
   current_block_->AddInstruction(constant);
 
   HInstruction* cls = constant;
@@ -1151,7 +1152,10 @@ bool HGraphBuilder::BuildTypeCheck(const Instruction& instruction,
   }
   HInstruction* object = LoadLocal(reference, Primitive::kPrimNot);
   HLoadClass* cls = new (arena_) HLoadClass(
-      type_index, IsOutermostCompilingClass(type_index), dex_pc);
+      type_index,
+      *dex_compilation_unit_->GetDexFile(),
+      IsOutermostCompilingClass(type_index),
+      dex_pc);
   current_block_->AddInstruction(cls);
   // The class needs a temporary before being used by the type check.
   Temporaries temps(graph_);
@@ -1976,7 +1980,8 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
             ? kQuickAllocObjectWithAccessCheck
             : kQuickAllocObject;
 
-        current_block_->AddInstruction(new (arena_) HNewInstance(dex_pc, type_index, entrypoint));
+        current_block_->AddInstruction(new (arena_) HNewInstance(
+            dex_pc, type_index, *dex_compilation_unit_->GetDexFile(), entrypoint));
         UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
       }
       break;
@@ -2161,8 +2166,11 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
         MaybeRecordStat(MethodCompilationStat::kNotCompiledCantAccesType);
         return false;
       }
-      current_block_->AddInstruction(
-          new (arena_) HLoadClass(type_index, IsOutermostCompilingClass(type_index), dex_pc));
+      current_block_->AddInstruction(new (arena_) HLoadClass(
+          type_index,
+          *dex_compilation_unit_->GetDexFile(),
+          IsOutermostCompilingClass(type_index),
+          dex_pc));
       UpdateLocal(instruction.VRegA_21c(), current_block_->GetLastInstruction());
       break;
     }
