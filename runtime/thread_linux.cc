@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-#include "thread.h"
-
 #include <signal.h>
+
+#include "thread.h"
+#include "utils.h"
 
 namespace art {
 

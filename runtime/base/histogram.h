@@ -20,7 +20,6 @@
 #include <string>
 
 #include "base/logging.h"
-#include "utils.h"
 
 namespace art {
 

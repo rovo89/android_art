@@ -26,6 +26,7 @@
 #include "mirror/field.h"
 #include "reflection-inl.h"
 #include "scoped_fast_native_object_access.h"
+#include "utils.h"
 
 namespace art {
 

@@ -16,6 +16,7 @@
 
 #include "assembler_mips.h"
 
+#include "base/bit_utils.h"
 #include "base/casts.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "memory_region.h"

@@ -33,6 +33,7 @@
 
 #include "arch/context.h"
 #include "art_field-inl.h"
+#include "base/bit_utils.h"
 #include "base/mutex.h"
 #include "base/timing_logger.h"
 #include "base/to_str.h"

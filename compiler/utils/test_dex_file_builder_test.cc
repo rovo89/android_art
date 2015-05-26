@@ -18,6 +18,7 @@
 
 #include "dex_file-inl.h"
 #include "gtest/gtest.h"
+#include "utils.h"
 
 namespace art {
 

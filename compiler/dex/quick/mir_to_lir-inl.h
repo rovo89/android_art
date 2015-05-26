@@ -21,6 +21,7 @@
 
 #include "base/logging.h"
 #include "dex/compiler_ir.h"
+#include "utils.h"
 
 namespace art {
 

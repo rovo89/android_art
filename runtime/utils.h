@@ -43,13 +43,6 @@ class Object;
 class String;
 }  // namespace mirror
 
-enum TimeUnit {
-  kTimeUnitNanosecond,
-  kTimeUnitMicrosecond,
-  kTimeUnitMillisecond,
-  kTimeUnitSecond,
-};
-
 template <typename T>
 bool ParseUint(const char *in, T* out) {
   char* end;
@@ -78,228 +71,6 @@ bool ParseInt(const char* in, T* out) {
   return true;
 }
 
-template<typename T>
-static constexpr bool IsPowerOfTwo(T x) {
-  return (x & (x - 1)) == 0;
-}
-
-template<int n, typename T>
-static inline bool IsAligned(T x) {
-  static_assert((n & (n - 1)) == 0, "n is not a power of two");
-  return (x & (n - 1)) == 0;
-}
-
-template<int n, typename T>
-static inline bool IsAligned(T* x) {
-  return IsAligned<n>(reinterpret_cast<const uintptr_t>(x));
-}
-
-template<typename T>
-static inline bool IsAlignedParam(T x, int n) {
-  return (x & (n - 1)) == 0;
-}
-
-#define CHECK_ALIGNED(value, alignment) \
-  CHECK(::art::IsAligned<alignment>(value)) << reinterpret_cast<const void*>(value)
-
-#define DCHECK_ALIGNED(value, alignment) \
-  DCHECK(::art::IsAligned<alignment>(value)) << reinterpret_cast<const void*>(value)
-
-#define DCHECK_ALIGNED_PARAM(value, alignment) \
-  DCHECK(::art::IsAlignedParam(value, alignment)) << reinterpret_cast<const void*>(value)
-
-// Check whether an N-bit two's-complement representation can hold value.
-template <typename T>
-static inline bool IsInt(int N, T value) {
-  int bitsPerT = sizeof(T) * kBitsPerByte;
-  if (N == bitsPerT) {
-    return true;
-  } else {
-    CHECK_LT(0, N);
-    CHECK_LT(N, bitsPerT);
-    T limit = static_cast<T>(1) << (N - 1);
-    return (-limit <= value) && (value < limit);
-  }
-}
-
-template <typename T>
-static constexpr T GetIntLimit(size_t bits) {
-  return
-      DCHECK_CONSTEXPR(bits > 0, "bits cannot be zero", 0)
-      DCHECK_CONSTEXPR(bits < kBitsPerByte * sizeof(T), "kBits must be < max.", 0)
-      static_cast<T>(1) << (bits - 1);
-}
-
-template <size_t kBits, typename T>
-static constexpr bool IsInt(T value) {
-  static_assert(kBits > 0, "kBits cannot be zero.");
-  static_assert(kBits <= kBitsPerByte * sizeof(T), "kBits must be <= max.");
-  static_assert(std::is_signed<T>::value, "Needs a signed type.");
-  // Corner case for "use all bits." Can't use the limits, as they would overflow, but it is
-  // trivially true.
-  return (kBits == kBitsPerByte * sizeof(T)) ?
-      true :
-      (-GetIntLimit<T>(kBits) <= value) && (value < GetIntLimit<T>(kBits));
-}
-
-template <size_t kBits, typename T>
-static constexpr bool IsUint(T value) {
-  static_assert(kBits > 0, "kBits cannot be zero.");
-  static_assert(kBits <= kBitsPerByte * sizeof(T), "kBits must be <= max.");
-  static_assert(std::is_integral<T>::value, "Needs an integral type.");
-  // Corner case for "use all bits." Can't use the limits, as they would overflow, but it is
-  // trivially true.
-  return (0 <= value) &&
-      (kBits == kBitsPerByte * sizeof(T) ||
-          (static_cast<typename std::make_unsigned<T>::type>(value) <=
-               GetIntLimit<typename std::make_unsigned<T>::type>(kBits + 1) - 1));
-}
-
-template <size_t kBits, typename T>
-static constexpr bool IsAbsoluteUint(T value) {
-  static_assert(kBits <= kBitsPerByte * sizeof(T), "kBits must be < max.");
-  return (kBits == kBitsPerByte * sizeof(T)) ?
-      true :
-      IsUint<kBits, T>(value < 0 ? -value : value);
-}
-
-static inline uint16_t Low16Bits(uint32_t value) {
-  return static_cast<uint16_t>(value);
-}
-
-static inline uint16_t High16Bits(uint32_t value) {
-  return static_cast<uint16_t>(value >> 16);
-}
-
-static inline uint32_t Low32Bits(uint64_t value) {
-  return static_cast<uint32_t>(value);
-}
-
-static inline uint32_t High32Bits(uint64_t value) {
-  return static_cast<uint32_t>(value >> 32);
-}
-
-// Traits class providing an unsigned integer type of (byte) size `n`.
-template <size_t n>
-struct UnsignedIntegerType {
-  // No defined `type`.
-};
-
-template <>
-struct UnsignedIntegerType<1> { typedef uint8_t type; };
-
-template <>
-struct UnsignedIntegerType<2> { typedef uint16_t type; };
-
-template <>
-struct UnsignedIntegerType<4> { typedef uint32_t type; };
-
-template <>
-struct UnsignedIntegerType<8> { typedef uint64_t type; };
-
-// Type identity.
-template <typename T>
-struct TypeIdentity {
-  typedef T type;
-};
-
-// Like sizeof, but count how many bits a type takes. Pass type explicitly.
-template <typename T>
-static constexpr size_t BitSizeOf() {
-  return sizeof(T) * CHAR_BIT;
-}
-
-// Like sizeof, but count how many bits a type takes. Infers type from parameter.
-template <typename T>
-static constexpr size_t BitSizeOf(T /*x*/) {
-  return sizeof(T) * CHAR_BIT;
-}
-
-// For rounding integers.
-template<typename T>
-static constexpr T RoundDown(T x, typename TypeIdentity<T>::type n) WARN_UNUSED;
-
-template<typename T>
-static constexpr T RoundDown(T x, typename TypeIdentity<T>::type n) {
-  return
-      DCHECK_CONSTEXPR(IsPowerOfTwo(n), , T(0))
-      (x & -n);
-}
-
-template<typename T>
-static constexpr T RoundUp(T x, typename TypeIdentity<T>::type n) WARN_UNUSED;
-
-template<typename T>
-static constexpr T RoundUp(T x, typename TypeIdentity<T>::type n) {
-  return RoundDown(x + n - 1, n);
-}
-
-// For aligning pointers.
-template<typename T>
-static inline T* AlignDown(T* x, uintptr_t n) WARN_UNUSED;
-
-template<typename T>
-static inline T* AlignDown(T* x, uintptr_t n) {
-  return reinterpret_cast<T*>(RoundDown(reinterpret_cast<uintptr_t>(x), n));
-}
-
-template<typename T>
-static inline T* AlignUp(T* x, uintptr_t n) WARN_UNUSED;
-
-template<typename T>
-static inline T* AlignUp(T* x, uintptr_t n) {
-  return reinterpret_cast<T*>(RoundUp(reinterpret_cast<uintptr_t>(x), n));
-}
-
-namespace utils {
-namespace detail {  // Private, implementation-specific namespace. Do not poke outside of this file.
-template <typename T>
-static constexpr inline T RoundUpToPowerOfTwoRecursive(T x, size_t bit) {
-  return bit == (BitSizeOf<T>()) ? x: RoundUpToPowerOfTwoRecursive(x | x >> bit, bit << 1);
-}
-}  // namespace detail
-}  // namespace utils
-
-// Recursive implementation is from "Hacker's Delight" by Henry S. Warren, Jr.,
-// figure 3-3, page 48, where the function is called clp2.
-template <typename T>
-static constexpr inline T RoundUpToPowerOfTwo(T x) {
-  return art::utils::detail::RoundUpToPowerOfTwoRecursive(x - 1, 1) + 1;
-}
-
-// Find the bit position of the most significant bit (0-based), or -1 if there were no bits set.
-template <typename T>
-static constexpr ssize_t MostSignificantBit(T value) {
-  return (value == 0) ? -1 : (MostSignificantBit(value >> 1) + 1);
-}
-
-// How many bits (minimally) does it take to store the constant 'value'? i.e. 1 for 1, 3 for 5, etc.
-template <typename T>
-static constexpr size_t MinimumBitsToStore(T value) {
-  return static_cast<size_t>(MostSignificantBit(value) + 1);
-}
-
-template<typename T>
-static constexpr int CLZ(T x) {
-  static_assert(sizeof(T) <= sizeof(long long), "T too large, must be smaller than long long");  // NOLINT [runtime/int] [4]
-  return (sizeof(T) == sizeof(uint32_t))
-      ? __builtin_clz(x)  // TODO: __builtin_clz[ll] has undefined behavior for x=0
-      : __builtin_clzll(x);
-}
-
-template<typename T>
-static constexpr int CTZ(T x) {
-  return (sizeof(T) == sizeof(uint32_t))
-      ? __builtin_ctz(x)
-      : __builtin_ctzll(x);
-}
-
-template<typename T>
-static inline int WhichPowerOf2(T x) {
-  DCHECK((x != 0) && IsPowerOfTwo(x));
-  return CTZ(x);
-}
-
 // Return whether x / divisor == x * (1.0f / divisor), for every float x.
 static constexpr bool CanDivideByReciprocalMultiplyFloat(int32_t divisor) {
   // True, if the most significant bits of divisor are 0.
@@ -310,13 +81,6 @@ static constexpr bool CanDivideByReciprocalMultiplyFloat(int32_t divisor) {
 static constexpr bool CanDivideByReciprocalMultiplyDouble(int64_t divisor) {
   // True, if the most significant bits of divisor are 0.
   return ((divisor & ((UINT64_C(1) << 52) - 1)) == 0);
-}
-
-template<typename T>
-static constexpr int POPCOUNT(T x) {
-  return (sizeof(T) == sizeof(uint32_t))
-      ? __builtin_popcount(x)
-      : __builtin_popcountll(x);
 }
 
 static inline uint32_t PointerToLowMemUInt32(const void* p) {
@@ -392,21 +156,6 @@ std::string PrettyJavaAccessFlags(uint32_t access_flags);
 // Returns a human-readable size string such as "1MB".
 std::string PrettySize(int64_t size_in_bytes);
 
-// Returns a human-readable time string which prints every nanosecond while trying to limit the
-// number of trailing zeros. Prints using the largest human readable unit up to a second.
-// e.g. "1ms", "1.000000001s", "1.001us"
-std::string PrettyDuration(uint64_t nano_duration, size_t max_fraction_digits = 3);
-
-// Format a nanosecond time to specified units.
-std::string FormatDuration(uint64_t nano_duration, TimeUnit time_unit,
-                           size_t max_fraction_digits);
-
-// Get the appropriate unit for a nanosecond duration.
-TimeUnit GetAppropriateTimeUnit(uint64_t nano_duration);
-
-// Get the divisor to convert from a nanoseconds to a time unit.
-uint64_t GetNsToTimeUnitDivisor(TimeUnit time_unit);
-
 // Performs JNI name mangling as described in section 11.3 "Linking Native Methods"
 // of the JNI spec.
 std::string MangleForJni(const std::string& s);
@@ -440,43 +189,6 @@ std::string JniLongName(mirror::ArtMethod* m)
 
 bool ReadFileToString(const std::string& file_name, std::string* result);
 bool PrintFileToLog(const std::string& file_name, LogSeverity level);
-
-// Returns the current date in ISO yyyy-mm-dd hh:mm:ss format.
-std::string GetIsoDate();
-
-// Returns the monotonic time since some unspecified starting point in milliseconds.
-uint64_t MilliTime();
-
-// Returns the monotonic time since some unspecified starting point in microseconds.
-uint64_t MicroTime();
-
-// Returns the monotonic time since some unspecified starting point in nanoseconds.
-uint64_t NanoTime();
-
-// Returns the thread-specific CPU-time clock in nanoseconds or -1 if unavailable.
-uint64_t ThreadCpuNanoTime();
-
-// Converts the given number of nanoseconds to milliseconds.
-static constexpr inline uint64_t NsToMs(uint64_t ns) {
-  return ns / 1000 / 1000;
-}
-
-// Converts the given number of milliseconds to nanoseconds
-static constexpr inline uint64_t MsToNs(uint64_t ns) {
-  return ns * 1000 * 1000;
-}
-
-#if defined(__APPLE__)
-// No clocks to specify on OS/X, fake value to pass to routines that require a clock.
-#define CLOCK_REALTIME 0xebadf00d
-#endif
-
-// Sleep for the given number of nanoseconds, a bad way to handle contention.
-void NanoSleep(uint64_t ns);
-
-// Initialize a timespec to either a relative time (ms,ns), or to the absolute
-// time corresponding to the indicated clock value plus the supplied offset.
-void InitTimeSpec(bool absolute, int clock, int64_t ms, int32_t ns, timespec* ts);
 
 // Splits a string using the given separator character into a vector of
 // strings. Empty strings will be omitted.

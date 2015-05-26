@@ -19,8 +19,8 @@
 
 #include <vector>
 
+#include "base/bit_utils.h"
 #include "gc_map.h"
-#include "utils.h"
 
 namespace art {
 

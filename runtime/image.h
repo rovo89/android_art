@@ -21,7 +21,6 @@
 
 #include "globals.h"
 #include "mirror/object.h"
-#include "utils.h"
 
 namespace art {
 

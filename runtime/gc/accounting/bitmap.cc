@@ -16,6 +16,7 @@
 
 #include "bitmap-inl.h"
 
+#include "base/bit_utils.h"
 #include "card_table.h"
 #include "mem_map.h"
 

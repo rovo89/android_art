@@ -23,7 +23,6 @@
 #include "jni/quick/mips64/calling_convention_mips64.h"
 #include "jni/quick/x86/calling_convention_x86.h"
 #include "jni/quick/x86_64/calling_convention_x86_64.h"
-#include "utils.h"
 
 namespace art {
 

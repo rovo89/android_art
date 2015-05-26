@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include "base/arena_containers.h"
+#include "base/bit_utils.h"
 #include "base/scoped_arena_containers.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
