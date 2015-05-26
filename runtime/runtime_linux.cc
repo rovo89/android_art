@@ -340,6 +340,9 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
                       << "Thread: " << tid << " \"" << thread_name << "\"\n"
                       << "Registers:\n" << Dumpable<UContext>(thread_context) << "\n"
                       << "Backtrace:\n" << Dumpable<Backtrace>(thread_backtrace);
+  if (kIsDebugBuild && signal_number == SIGSEGV) {
+    PrintFileToLog("/proc/self/maps", LogSeverity::INTERNAL_FATAL);
+  }
   Runtime* runtime = Runtime::Current();
   if (runtime != nullptr) {
     if (IsTimeoutSignal(signal_number)) {
