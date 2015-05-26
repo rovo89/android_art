@@ -2806,7 +2806,27 @@ void Dbg::PostLocationEvent(mirror::ArtMethod* m, int dex_pc, mirror::Object* th
   JDWP::EventLocation location;
   SetEventLocation(&location, m, dex_pc);
 
+  // We need to be sure no exception is pending when calling JdwpState::PostLocationEvent.
+  // This is required to be able to call JNI functions to create JDWP ids. To achieve this,
+  // we temporarily clear the current thread's exception (if any) and will restore it after
+  // the call.
+  // Note: the only way to get a pending exception here is to suspend on a move-exception
+  // instruction.
+  Thread* const self = Thread::Current();
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Throwable> pending_exception(hs.NewHandle(self->GetException()));
+  self->ClearException();
+  if (kIsDebugBuild && pending_exception.Get() != nullptr) {
+    const DexFile::CodeItem* code_item = location.method->GetCodeItem();
+    const Instruction* instr = Instruction::At(&code_item->insns_[location.dex_pc]);
+    CHECK_EQ(Instruction::MOVE_EXCEPTION, instr->Opcode());
+  }
+
   gJdwpState->PostLocationEvent(&location, this_object, event_flags, return_value);
+
+  if (pending_exception.Get() != nullptr) {
+    self->SetException(pending_exception.Get());
+  }
 }
 
 void Dbg::PostFieldAccessEvent(mirror::ArtMethod* m, int dex_pc,
