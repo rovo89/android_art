@@ -45,6 +45,15 @@ namespace art {
 // because if they need it sometimes, they might as well always use it.
 constexpr dwarf::CFIFormat kCFIFormat = dwarf::DW_EH_FRAME_FORMAT;
 
+// The ARM specification defines three special mapping symbols
+// $a, $t and $d which mark ARM, Thumb and data ranges respectively.
+// These symbols can be used by tools, for example, to pretty
+// print instructions correctly.  Objdump will use them if they
+// exist, but it will still work well without them.
+// However, these extra symbols take space, so let's just generate
+// one symbol which marks the whole .text section as code.
+constexpr bool kGenerateSingleArmMappingSymbol = true;
+
 template <typename ElfTypes>
 bool ElfWriterQuick<ElfTypes>::Create(File* elf_file,
                                       OatWriter* oat_writer,
@@ -245,6 +254,7 @@ bool ElfWriterQuick<ElfTypes>::Write(
 template <typename ElfTypes>
 static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder, OatWriter* oat_writer) {
   const std::vector<OatWriter::DebugInfo>& method_info = oat_writer->GetMethodDebugInfo();
+  bool generated_mapping_symbol = false;
 
   // Find all addresses (low_pc) which contain deduped methods.
   // The first instance of method is not marked deduped_, but the rest is.
@@ -273,9 +283,14 @@ static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder, OatWriter* oat_writ
 
     // Conforming to aaelf, add $t mapping symbol to indicate start of a sequence of thumb2
     // instructions, so that disassembler tools can correctly disassemble.
+    // Note that even if we generate just a single mapping symbol, ARM's Streamline
+    // requires it to match function symbol.  Just address 0 does not work.
     if (it->compiled_method_->GetInstructionSet() == kThumb2) {
-      symtab->AddSymbol("$t", builder->GetText(), it->low_pc_ & ~1, true,
-                        0, STB_LOCAL, STT_NOTYPE);
+      if (!generated_mapping_symbol || !kGenerateSingleArmMappingSymbol) {
+        symtab->AddSymbol("$t", builder->GetText(), it->low_pc_ & ~1, true,
+                          0, STB_LOCAL, STT_NOTYPE);
+        generated_mapping_symbol = true;
+      }
     }
   }
 }
