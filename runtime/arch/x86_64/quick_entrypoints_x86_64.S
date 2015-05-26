@@ -1338,9 +1338,7 @@ DEFINE_FUNCTION art_quick_imt_conflict_trampoline
     int3
     int3
 #else
-    movl 8(%rsp), %edi            // load caller Method*
-    movl MIRROR_ART_METHOD_DEX_CACHE_METHODS_OFFSET(%rdi), %edi  // load dex_cache_resolved_methods
-    movl MIRROR_OBJECT_ARRAY_DATA_OFFSET(%rdi, %rax, 4), %edi  // load the target method
+    movq %rax, %rdi
     jmp art_quick_invoke_interface_trampoline
 #endif  // __APPLE__
 END_FUNCTION art_quick_imt_conflict_trampoline
