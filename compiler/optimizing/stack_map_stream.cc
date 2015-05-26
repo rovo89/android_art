@@ -144,14 +144,17 @@ size_t StackMapStream::PrepareForFillIn() {
 
   // Note: use RoundUp to word-size here if you want CodeInfo objects to be word aligned.
   needed_size_ = CodeInfo::kFixedSize
-      + dex_register_location_catalog_size_
       + stack_maps_size_
+      + dex_register_location_catalog_size_
       + dex_register_maps_size_
       + inline_info_size_;
 
-  dex_register_location_catalog_start_ = CodeInfo::kFixedSize;
-  stack_maps_start_ = dex_register_location_catalog_start_ + dex_register_location_catalog_size_;
-  dex_register_maps_start_ = stack_maps_start_ + stack_maps_size_;
+  stack_maps_start_ = CodeInfo::kFixedSize;
+  // TODO: Move the catalog at the end. It is currently too expensive at runtime
+  // to compute its size (note that we do not encode that size in the CodeInfo).
+  dex_register_location_catalog_start_ = stack_maps_start_ + stack_maps_size_;
+  dex_register_maps_start_ =
+      dex_register_location_catalog_start_ + dex_register_location_catalog_size_;
   inline_infos_start_ = dex_register_maps_start_ + dex_register_maps_size_;
 
   return needed_size_;
