@@ -2302,7 +2302,7 @@ struct OatdumpArgs : public CmdlineArgs {
         "  --dump:raw_mapping_table enables dumping of the mapping table.\n"
         "      Example: --dump:raw_mapping_table\n"
         "\n"
-        "  --dump:raw_mapping_table enables dumping of the GC map.\n"
+        "  --dump:raw_gc_map enables dumping of the GC map.\n"
         "      Example: --dump:raw_gc_map\n"
         "\n"
         "  --no-dump:vmap may be used to disable vmap dumping.\n"
