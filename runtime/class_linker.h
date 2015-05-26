@@ -49,6 +49,7 @@ namespace mirror {
 }  // namespace mirror
 
 template<class T> class Handle;
+template<class T> class MutableHandle;
 class InternTable;
 template<class T> class ObjectLock;
 class Runtime;
@@ -572,7 +573,7 @@ class ClassLinker {
 
   bool LinkClass(Thread* self, const char* descriptor, Handle<mirror::Class> klass,
                  Handle<mirror::ObjectArray<mirror::Class>> interfaces,
-                 mirror::Class** new_class)
+                 MutableHandle<mirror::Class>* h_new_class_out)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool LinkSuperClass(Handle<mirror::Class> klass)
@@ -622,8 +623,7 @@ class ClassLinker {
   // Returns the boot image oat file.
   const OatFile* GetBootOatFile() SHARED_LOCKS_REQUIRED(dex_lock_);
 
-  mirror::ArtMethod* CreateProxyConstructor(Thread* self, Handle<mirror::Class> klass,
-                                            mirror::Class* proxy_class)
+  mirror::ArtMethod* CreateProxyConstructor(Thread* self, Handle<mirror::Class> klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   mirror::ArtMethod* CreateProxyMethod(Thread* self, Handle<mirror::Class> klass,
                                        Handle<mirror::ArtMethod> prototype)
