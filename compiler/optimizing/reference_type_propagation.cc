@@ -161,7 +161,8 @@ void ReferenceTypePropagation::BoundTypeForIfInstanceOf(HBasicBlock* block) {
 
 void ReferenceTypePropagation::VisitNewInstance(HNewInstance* instr) {
   ScopedObjectAccess soa(Thread::Current());
-  mirror::DexCache* dex_cache = dex_compilation_unit_.GetClassLinker()->FindDexCache(dex_file_);
+  mirror::DexCache* dex_cache =
+      Runtime::Current()->GetClassLinker()->FindDexCache(instr->GetDexFile());
   // Get type from dex cache assuming it was populated by the verifier.
   mirror::Class* resolved_class = dex_cache->GetResolvedType(instr->GetTypeIndex());
   if (resolved_class != nullptr) {
@@ -172,7 +173,8 @@ void ReferenceTypePropagation::VisitNewInstance(HNewInstance* instr) {
 
 void ReferenceTypePropagation::VisitLoadClass(HLoadClass* instr) {
   ScopedObjectAccess soa(Thread::Current());
-  mirror::DexCache* dex_cache = dex_compilation_unit_.GetClassLinker()->FindDexCache(dex_file_);
+  mirror::DexCache* dex_cache =
+      Runtime::Current()->GetClassLinker()->FindDexCache(instr->GetDexFile());
   // Get type from dex cache assuming it was populated by the verifier.
   mirror::Class* resolved_class = dex_cache->GetResolvedType(instr->GetTypeIndex());
   if (resolved_class != nullptr) {
