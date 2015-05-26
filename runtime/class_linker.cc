@@ -1407,9 +1407,10 @@ mirror::DexCache* ClassLinker::AllocDexCache(Thread* self, const DexFile& dex_fi
     return nullptr;
   }
   Handle<mirror::Array> fields;
-  if (image_pointer_size_ == 8) {
+  if (image_pointer_size_ == 8u) {
     fields = hs.NewHandle<mirror::Array>(mirror::LongArray::Alloc(self, dex_file.NumFieldIds()));
   } else {
+    DCHECK_EQ(image_pointer_size_, 4u);
     fields = hs.NewHandle<mirror::Array>(mirror::IntArray::Alloc(self, dex_file.NumFieldIds()));
   }
   if (fields.Get() == nullptr) {
@@ -5670,7 +5671,7 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self, std::vector<const DexFi
   ArtField* const parent_field =
       mirror::Class::FindField(self, hs.NewHandle(h_path_class_loader->GetClass()), "parent",
                                "Ljava/lang/ClassLoader;");
-  DCHECK(parent_field!= nullptr);
+  DCHECK(parent_field != nullptr);
   mirror::Object* boot_cl =
       soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_BootClassLoader)->AllocObject(self);
   parent_field->SetObject<false>(h_path_class_loader.Get(), boot_cl);

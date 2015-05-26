@@ -1006,7 +1006,7 @@ bool ImageWriter::CopyAndFixupIfDexCacheFieldArray(mirror::Object* dst, mirror::
   // Fixup int pointers for the field array.
   CHECK(!arr->IsObjectArray());
   const size_t num_elements = arr->GetLength();
-  if (target_ptr_size_ == 4) {
+  if (target_ptr_size_ == 4u) {
     // Will get fixed up by fixup object.
     dst->SetClass(down_cast<mirror::Class*>(
     GetImageAddress(mirror::IntArray::GetArrayClass())));
@@ -1026,10 +1026,11 @@ bool ImageWriter::CopyAndFixupIfDexCacheFieldArray(mirror::Object* dst, mirror::
       CHECK(it2 != art_field_reloc_.end()) << "No relocation for field " << PrettyField(field);
       fixup_location = image_begin_ + it2->second;
     }
-    if (target_ptr_size_ == 4) {
+    if (target_ptr_size_ == 4u) {
       down_cast<mirror::IntArray*>(dest_array)->SetWithoutChecks<kVerifyNone>(
           i, static_cast<uint32_t>(reinterpret_cast<uint64_t>(fixup_location)));
     } else {
+      DCHECK_EQ(target_ptr_size_, 8u);
       down_cast<mirror::LongArray*>(dest_array)->SetWithoutChecks<kVerifyNone>(
           i, reinterpret_cast<uint64_t>(fixup_location));
     }
