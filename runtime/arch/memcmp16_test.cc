@@ -144,10 +144,10 @@ static void CheckSeparate(size_t max_length, size_t min_length) {
     ASSERT_EQ(expected, computed) << "Run " << round << ", c1=" << count1 << " c2=" << count2;
 
     if (count1 > 0U) {
-      delete s1;
+      delete[] s1;
     }
     if (count2 > 0U) {
-      delete s2;
+      delete[] s2;
     }
   }
 }
