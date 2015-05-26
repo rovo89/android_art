@@ -24,6 +24,7 @@
 #include "mirror/object_reference.h"
 #include "mirror/reference.h"
 #include "runtime.h"
+#include "utils.h"
 
 namespace art {
 

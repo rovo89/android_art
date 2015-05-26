@@ -18,6 +18,7 @@
 
 #include "arch/instruction_set.h"
 #include "arch/instruction_set_features.h"
+#include "base/time_utils.h"
 #include "base/timing_logger.h"
 #include "compiler_callbacks.h"
 #include "dex/pass_manager.h"

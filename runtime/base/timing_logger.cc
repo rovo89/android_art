@@ -22,9 +22,10 @@
 #include "timing_logger.h"
 
 #include "base/logging.h"
-#include "thread-inl.h"
 #include "base/stl_util.h"
 #include "base/histogram-inl.h"
+#include "base/time_utils.h"
+#include "thread-inl.h"
 
 #include <cmath>
 #include <iomanip>

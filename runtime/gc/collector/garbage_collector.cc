@@ -25,11 +25,13 @@
 #include "base/histogram-inl.h"
 #include "base/logging.h"
 #include "base/mutex-inl.h"
+#include "base/time_utils.h"
 #include "gc/accounting/heap_bitmap.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
 #include "thread-inl.h"
 #include "thread_list.h"
+#include "utils.h"
 
 namespace art {
 namespace gc {

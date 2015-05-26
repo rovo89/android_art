@@ -28,6 +28,7 @@
 #include "base/dumpable.h"
 #include "base/histogram-inl.h"
 #include "base/stl_util.h"
+#include "base/time_utils.h"
 #include "common_throws.h"
 #include "cutils/sched_policy.h"
 #include "debugger.h"

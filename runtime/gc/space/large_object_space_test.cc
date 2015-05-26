@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "base/time_utils.h"
 #include "space_test.h"
 #include "large_object_space.h"
 

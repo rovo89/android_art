@@ -21,6 +21,7 @@
 #include "art_field-inl.h"
 #include "base/logging.h"
 #include "base/mutex-inl.h"
+#include "base/time_utils.h"
 #include "class_linker.h"
 #include "compiler_callbacks.h"
 #include "dex_file-inl.h"
@@ -41,6 +42,7 @@
 #include "register_line-inl.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
+#include "utils.h"
 #include "handle_scope-inl.h"
 #include "verifier/dex_gc_map.h"
 

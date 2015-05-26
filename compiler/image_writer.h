@@ -26,6 +26,7 @@
 #include <string>
 #include <ostream>
 
+#include "base/bit_utils.h"
 #include "base/macros.h"
 #include "driver/compiler_driver.h"
 #include "gc/space/space.h"
@@ -35,7 +36,6 @@
 #include "os.h"
 #include "safe_map.h"
 #include "gc/space/space.h"
-#include "utils.h"
 
 namespace art {
 
@@ -136,7 +136,7 @@ class ImageWriter FINAL {
 
   friend std::ostream& operator<<(std::ostream& stream, const Bin& bin);
 
-  static constexpr size_t kBinBits = MinimumBitsToStore(kBinMirrorCount - 1);
+  static constexpr size_t kBinBits = MinimumBitsToStore<uint32_t>(kBinMirrorCount - 1);
   // uint32 = typeof(lockword_)
   static constexpr size_t kBinShift = BitSizeOf<uint32_t>() - kBinBits;
   // 111000.....0

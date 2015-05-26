@@ -16,9 +16,9 @@
 
 #include "context_mips64.h"
 
+#include "base/bit_utils.h"
 #include "mirror/art_method-inl.h"
 #include "quick/quick_method_frame_info.h"
-#include "utils.h"
 
 namespace art {
 namespace mips64 {
@@ -26,12 +26,8 @@ namespace mips64 {
 static constexpr uintptr_t gZero = 0;
 
 void Mips64Context::Reset() {
-  for (size_t i = 0; i < kNumberOfGpuRegisters; i++) {
-    gprs_[i] = nullptr;
-  }
-  for (size_t i = 0; i < kNumberOfFpuRegisters; i++) {
-    fprs_[i] = nullptr;
-  }
+  std::fill_n(gprs_, arraysize(gprs_), nullptr);
+  std::fill_n(fprs_, arraysize(fprs_), nullptr);
   gprs_[SP] = &sp_;
   gprs_[RA] = &ra_;
   // Initialize registers with easy to spot debug values.
@@ -42,29 +38,21 @@ void Mips64Context::Reset() {
 void Mips64Context::FillCalleeSaves(const StackVisitor& fr) {
   mirror::ArtMethod* method = fr.GetMethod();
   const QuickMethodFrameInfo frame_info = method->GetQuickFrameInfo();
-  size_t spill_count = POPCOUNT(frame_info.CoreSpillMask());
-  size_t fp_spill_count = POPCOUNT(frame_info.FpSpillMask());
-  if (spill_count > 0) {
-    // Lowest number spill is farthest away, walk registers and fill into context.
-    int j = 1;
-    for (size_t i = 0; i < kNumberOfGpuRegisters; i++) {
-      if (((frame_info.CoreSpillMask() >> i) & 1) != 0) {
-        gprs_[i] = fr.CalleeSaveAddress(spill_count - j, frame_info.FrameSizeInBytes());
-        j++;
-      }
-    }
+  int spill_pos = 0;
+
+  // Core registers come first, from the highest down to the lowest.
+  for (uint32_t core_reg : HighToLowBits(frame_info.CoreSpillMask())) {
+    gprs_[core_reg] = fr.CalleeSaveAddress(spill_pos, frame_info.FrameSizeInBytes());
+    ++spill_pos;
   }
-  if (fp_spill_count > 0) {
-    // Lowest number spill is farthest away, walk registers and fill into context.
-    int j = 1;
-    for (size_t i = 0; i < kNumberOfFpuRegisters; i++) {
-      if (((frame_info.FpSpillMask() >> i) & 1) != 0) {
-        fprs_[i] = fr.CalleeSaveAddress(spill_count + fp_spill_count - j,
-                                        frame_info.FrameSizeInBytes());
-        j++;
-      }
-    }
+  DCHECK_EQ(spill_pos, POPCOUNT(frame_info.CoreSpillMask()));
+
+  // FP registers come second, from the highest down to the lowest.
+  for (uint32_t fp_reg : HighToLowBits(frame_info.FpSpillMask())) {
+    fprs_[fp_reg] = fr.CalleeSaveAddress(spill_pos, frame_info.FrameSizeInBytes());
+    ++spill_pos;
   }
+  DCHECK_EQ(spill_pos, POPCOUNT(frame_info.CoreSpillMask()) + POPCOUNT(frame_info.FpSpillMask()));
 }
 
 void Mips64Context::SetGPR(uint32_t reg, uintptr_t value) {

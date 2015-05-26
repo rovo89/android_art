@@ -25,6 +25,7 @@
 #include "string.h"
 #include "thread.h"
 #include "utf.h"
+#include "utils.h"
 
 namespace art {
 namespace mirror {

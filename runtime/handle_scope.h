@@ -23,7 +23,6 @@
 #include "base/macros.h"
 #include "handle.h"
 #include "stack.h"
-#include "utils.h"
 #include "verify_object.h"
 
 namespace art {

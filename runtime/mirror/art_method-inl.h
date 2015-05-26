@@ -31,6 +31,7 @@
 #include "quick/quick_method_frame_info.h"
 #include "read_barrier-inl.h"
 #include "runtime-inl.h"
+#include "utils.h"
 
 namespace art {
 namespace mirror {

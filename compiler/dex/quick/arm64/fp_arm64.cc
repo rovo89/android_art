@@ -20,7 +20,6 @@
 #include "base/logging.h"
 #include "dex/mir_graph.h"
 #include "dex/quick/mir_to_lir-inl.h"
-#include "utils.h"
 
 namespace art {
 

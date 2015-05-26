@@ -16,6 +16,7 @@
 
 #include "assembler_mips64.h"
 
+#include "base/bit_utils.h"
 #include "base/casts.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "memory_region.h"
@@ -116,7 +117,7 @@ void Mips64Assembler::EmitJump(Label* label, bool link) {
 
 int32_t Mips64Assembler::EncodeBranchOffset(int offset, int32_t inst, bool is_jump) {
   CHECK_ALIGNED(offset, 4);
-  CHECK(IsInt(POPCOUNT(kBranchOffsetMask), offset)) << offset;
+  CHECK(IsInt<POPCOUNT(kBranchOffsetMask)>(offset)) << offset;
 
   // Properly preserve only the bits supported in the instruction.
   offset >>= 2;

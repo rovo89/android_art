@@ -40,6 +40,7 @@
 #include "art_field-inl.h"
 #include "base/logging.h"
 #include "base/stringprintf.h"
+#include "base/time_utils.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "common_throws.h"

@@ -19,7 +19,6 @@
 #include "base/logging.h"
 #include "handle_scope-inl.h"
 #include "utils/x86/managed_register_x86.h"
-#include "utils.h"
 
 namespace art {
 namespace x86 {
