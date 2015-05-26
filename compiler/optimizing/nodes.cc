@@ -1290,11 +1290,16 @@ void HGraph::DeleteDeadBlock(HBasicBlock* block) {
     block->RemovePhi(it.Current()->AsPhi());
   }
 
+  if (block->IsExitBlock()) {
+    exit_block_ = nullptr;
+  }
+
   reverse_post_order_.Delete(block);
   blocks_.Put(block->GetBlockId(), nullptr);
 }
 
 void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
+  DCHECK(HasExitBlock()) << "Unimplemented scenario";
   if (GetBlocks().Size() == 3) {
     // Simple case of an entry block, a body block, and an exit block.
     // Put the body block's instruction into `invoke`'s block.

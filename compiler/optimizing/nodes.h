@@ -155,6 +155,7 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
 
   HBasicBlock* GetEntryBlock() const { return entry_block_; }
   HBasicBlock* GetExitBlock() const { return exit_block_; }
+  bool HasExitBlock() const { return exit_block_ != nullptr; }
 
   void SetEntryBlock(HBasicBlock* block) { entry_block_ = block; }
   void SetExitBlock(HBasicBlock* block) { exit_block_ = block; }
