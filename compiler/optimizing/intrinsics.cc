@@ -326,9 +326,6 @@ static bool CheckInvokeType(Intrinsics intrinsic, HInvoke* invoke) {
 
 // TODO: Refactor DexFileMethodInliner and have something nicer than InlineMethod.
 void IntrinsicsRecognizer::Run() {
-  DexFileMethodInliner* inliner = driver_->GetMethodInlinerMap()->GetMethodInliner(dex_file_);
-  DCHECK(inliner != nullptr);
-
   for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     for (HInstructionIterator inst_it(block->GetInstructions()); !inst_it.Done();
@@ -337,6 +334,9 @@ void IntrinsicsRecognizer::Run() {
       if (inst->IsInvoke()) {
         HInvoke* invoke = inst->AsInvoke();
         InlineMethod method;
+        DexFileMethodInliner* inliner =
+            driver_->GetMethodInlinerMap()->GetMethodInliner(&invoke->GetDexFile());
+        DCHECK(inliner != nullptr);
         if (inliner->IsIntrinsic(invoke->GetDexMethodIndex(), &method)) {
           Intrinsics intrinsic = GetIntrinsic(method);
 
@@ -344,7 +344,7 @@ void IntrinsicsRecognizer::Run() {
             if (!CheckInvokeType(intrinsic, invoke)) {
               LOG(WARNING) << "Found an intrinsic with unexpected invoke type: "
                            << intrinsic << " for "
-                           << PrettyMethod(invoke->GetDexMethodIndex(), *dex_file_);
+                           << PrettyMethod(invoke->GetDexMethodIndex(), invoke->GetDexFile());
             } else {
               invoke->SetIntrinsic(intrinsic);
             }
