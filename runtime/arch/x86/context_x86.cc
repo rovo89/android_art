@@ -54,8 +54,10 @@ void X86Context::FillCalleeSaves(const StackVisitor& fr) {
   DCHECK_EQ(0u, fp_regs & (static_cast<uint32_t>(-1) << kNumberOfFloatRegisters));
   for (uint32_t fp_reg : HighToLowBits(fp_regs)) {
     // Two void* per XMM register.
-    fprs_[2 * fp_reg] = fr.CalleeSaveAddress(spill_pos + 1, frame_info.FrameSizeInBytes());
-    fprs_[2 * fp_reg + 1] = fr.CalleeSaveAddress(spill_pos, frame_info.FrameSizeInBytes());
+    fprs_[2 * fp_reg] = reinterpret_cast<uint32_t*>(
+        fr.CalleeSaveAddress(spill_pos + 1, frame_info.FrameSizeInBytes()));
+    fprs_[2 * fp_reg + 1] = reinterpret_cast<uint32_t*>(
+        fr.CalleeSaveAddress(spill_pos, frame_info.FrameSizeInBytes()));
     spill_pos += 2;
   }
   DCHECK_EQ(spill_pos,
