@@ -36,6 +36,7 @@ namespace art {
 namespace x86 {
 
 static constexpr int kCurrentMethodStackOffset = 0;
+static constexpr Register kMethodRegisterArgument = EAX;
 
 static constexpr Register kCoreCalleeSaves[] = { EBP, ESI, EDI };
 
@@ -498,7 +499,7 @@ void CodeGeneratorX86::GenerateFrameEntry() {
   int adjust = GetFrameSize() - FrameEntrySpillSize();
   __ subl(ESP, Immediate(adjust));
   __ cfi().AdjustCFAOffset(adjust);
-  __ movl(Address(ESP, kCurrentMethodStackOffset), EAX);
+  __ movl(Address(ESP, kCurrentMethodStackOffset), kMethodRegisterArgument);
 }
 
 void CodeGeneratorX86::GenerateFrameExit() {
@@ -717,11 +718,11 @@ void CodeGeneratorX86::Move64(Location destination, Location source) {
 
 void CodeGeneratorX86::Move(HInstruction* instruction, Location location, HInstruction* move_for) {
   LocationSummary* locations = instruction->GetLocations();
-  if (locations != nullptr && locations->Out().Equals(location)) {
+  if (instruction->IsCurrentMethod()) {
+    Move32(location, Location::StackSlot(kCurrentMethodStackOffset));
+  } else if (locations != nullptr && locations->Out().Equals(location)) {
     return;
-  }
-
-  if (locations != nullptr && locations->Out().IsConstant()) {
+  } else if (locations != nullptr && locations->Out().IsConstant()) {
     HConstant* const_to_move = locations->Out().GetConstant();
     if (const_to_move->IsIntConstant() || const_to_move->IsNullConstant()) {
       Immediate imm(GetInt32ValueOf(const_to_move));
@@ -1239,7 +1240,7 @@ void LocationsBuilderX86::VisitInvokeVirtual(HInvokeVirtual* invoke) {
 void LocationsBuilderX86::HandleInvoke(HInvoke* invoke) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(invoke, LocationSummary::kCall);
-  locations->AddTemp(Location::RegisterLocation(EAX));
+  locations->AddTemp(Location::RegisterLocation(kMethodRegisterArgument));
 
   InvokeDexCallingConventionVisitorX86 calling_convention_visitor;
   for (size_t i = 0; i < invoke->GetNumberOfArguments(); i++) {
@@ -3010,8 +3011,17 @@ void LocationsBuilderX86::VisitParameterValue(HParameterValue* instruction) {
   locations->SetOut(location);
 }
 
-void InstructionCodeGeneratorX86::VisitParameterValue(HParameterValue* instruction) {
-  UNUSED(instruction);
+void InstructionCodeGeneratorX86::VisitParameterValue(
+    HParameterValue* instruction ATTRIBUTE_UNUSED) {
+}
+
+void LocationsBuilderX86::VisitCurrentMethod(HCurrentMethod* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  locations->SetOut(Location::RegisterLocation(kMethodRegisterArgument));
+}
+
+void InstructionCodeGeneratorX86::VisitCurrentMethod(HCurrentMethod* instruction ATTRIBUTE_UNUSED) {
 }
 
 void LocationsBuilderX86::VisitNot(HNot* not_) {
@@ -4279,20 +4289,22 @@ void LocationsBuilderX86::VisitLoadClass(HLoadClass* cls) {
       : LocationSummary::kNoCall;
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(cls, call_kind);
+  locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister());
 }
 
 void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) {
-  Register out = cls->GetLocations()->Out().AsRegister<Register>();
+  LocationSummary* locations = cls->GetLocations();
+  Register out = locations->Out().AsRegister<Register>();
+  Register current_method = locations->InAt(0).AsRegister<Register>();
   if (cls->IsReferrersClass()) {
     DCHECK(!cls->CanCallRuntime());
     DCHECK(!cls->MustGenerateClinitCheck());
-    codegen_->LoadCurrentMethod(out);
-    __ movl(out, Address(out, mirror::ArtMethod::DeclaringClassOffset().Int32Value()));
+    __ movl(out, Address(current_method, mirror::ArtMethod::DeclaringClassOffset().Int32Value()));
   } else {
     DCHECK(cls->CanCallRuntime());
-    codegen_->LoadCurrentMethod(out);
-    __ movl(out, Address(out, mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value()));
+    __ movl(out, Address(
+        current_method, mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value()));
     __ movl(out, Address(out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex())));
 
     SlowPathCodeX86* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathX86(

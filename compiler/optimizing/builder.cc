@@ -712,7 +712,11 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
         } else {
           clinit_check_requirement = HInvokeStaticOrDirect::ClinitCheckRequirement::kExplicit;
           HLoadClass* load_class = new (arena_) HLoadClass(
-              storage_index, *dex_compilation_unit_->GetDexFile(), is_referrer_class, dex_pc);
+              graph_->GetCurrentMethod(),
+              storage_index,
+              *dex_compilation_unit_->GetDexFile(),
+              is_referrer_class,
+              dex_pc);
           current_block_->AddInstruction(load_class);
           clinit_check = new (arena_) HClinitCheck(load_class, dex_pc);
           current_block_->AddInstruction(clinit_check);
@@ -915,8 +919,11 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
       *outer_compilation_unit_->GetDexFile(), storage_index);
   bool is_initialized = resolved_field->GetDeclaringClass()->IsInitialized() && is_in_dex_cache;
 
-  HLoadClass* constant = new (arena_) HLoadClass(
-      storage_index, *dex_compilation_unit_->GetDexFile(), is_referrer_class, dex_pc);
+  HLoadClass* constant = new (arena_) HLoadClass(graph_->GetCurrentMethod(),
+                                                 storage_index,
+                                                 *dex_compilation_unit_->GetDexFile(),
+                                                 is_referrer_class,
+                                                 dex_pc);
   current_block_->AddInstruction(constant);
 
   HInstruction* cls = constant;
@@ -1152,6 +1159,7 @@ bool HGraphBuilder::BuildTypeCheck(const Instruction& instruction,
   }
   HInstruction* object = LoadLocal(reference, Primitive::kPrimNot);
   HLoadClass* cls = new (arena_) HLoadClass(
+      graph_->GetCurrentMethod(),
       type_index,
       *dex_compilation_unit_->GetDexFile(),
       IsOutermostCompilingClass(type_index),
@@ -2167,6 +2175,7 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
         return false;
       }
       current_block_->AddInstruction(new (arena_) HLoadClass(
+          graph_->GetCurrentMethod(),
           type_index,
           *dex_compilation_unit_->GetDexFile(),
           IsOutermostCompilingClass(type_index),
