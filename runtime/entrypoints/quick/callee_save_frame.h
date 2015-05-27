@@ -38,22 +38,24 @@ class ArtMethod;
 
 class ScopedQuickEntrypointChecks {
  public:
-  explicit ScopedQuickEntrypointChecks(Thread *self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : self_(self) {
-    if (kIsDebugBuild) {
+  explicit ScopedQuickEntrypointChecks(Thread *self,
+                                       bool entry_check = kIsDebugBuild,
+                                       bool exit_check = kIsDebugBuild)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) : self_(self), exit_check_(exit_check) {
+    if (entry_check) {
       TestsOnEntry();
     }
   }
 
-  explicit ScopedQuickEntrypointChecks() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : self_(kIsDebugBuild ? Thread::Current() : nullptr) {
+  ScopedQuickEntrypointChecks() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      : self_(kIsDebugBuild ? Thread::Current() : nullptr), exit_check_(kIsDebugBuild) {
     if (kIsDebugBuild) {
       TestsOnEntry();
     }
   }
 
   ~ScopedQuickEntrypointChecks() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (kIsDebugBuild) {
+    if (exit_check_) {
       TestsOnExit();
     }
   }
@@ -70,6 +72,7 @@ class ScopedQuickEntrypointChecks {
   }
 
   Thread* const self_;
+  bool exit_check_;
 };
 
 static constexpr size_t GetCalleeSaveFrameSize(InstructionSet isa, Runtime::CalleeSaveType type) {

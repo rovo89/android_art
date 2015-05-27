@@ -131,7 +131,9 @@ class MANAGED PrimitiveArray : public Array {
 
   // TODO fix thread safety analysis broken by the use of template. This should be
   // SHARED_LOCKS_REQUIRED(Locks::mutator_lock_).
-  template<bool kTransactionActive, bool kCheckTransaction = true>
+  template<bool kTransactionActive,
+           bool kCheckTransaction = true,
+           VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   void SetWithoutChecks(int32_t i, T value) ALWAYS_INLINE NO_THREAD_SAFETY_ANALYSIS;
 
   /*

@@ -972,8 +972,8 @@ void ImageWriter::CopyAndFixupObjects() {
   // Fix up the object previously had hash codes.
   for (const std::pair<mirror::Object*, uint32_t>& hash_pair : saved_hashes_) {
     Object* obj = hash_pair.first;
-    DCHECK_EQ(obj->GetLockWord(false).ReadBarrierState(), 0U);
-    obj->SetLockWord(LockWord::FromHashCode(hash_pair.second, 0U), false);
+    DCHECK_EQ(obj->GetLockWord<kVerifyNone>(false).ReadBarrierState(), 0U);
+    obj->SetLockWord<kVerifyNone>(LockWord::FromHashCode(hash_pair.second, 0U), false);
   }
   saved_hashes_.clear();
 }
@@ -1008,11 +1008,11 @@ bool ImageWriter::CopyAndFixupIfDexCacheFieldArray(mirror::Object* dst, mirror::
   const size_t num_elements = arr->GetLength();
   if (target_ptr_size_ == 4u) {
     // Will get fixed up by fixup object.
-    dst->SetClass(down_cast<mirror::Class*>(
+    dst->SetClass<kVerifyNone>(down_cast<mirror::Class*>(
     GetImageAddress(mirror::IntArray::GetArrayClass())));
   } else {
     DCHECK_EQ(target_ptr_size_, 8u);
-    dst->SetClass(down_cast<mirror::Class*>(
+    dst->SetClass<kVerifyNone>(down_cast<mirror::Class*>(
     GetImageAddress(mirror::LongArray::GetArrayClass())));
   }
   mirror::Array* dest_array = down_cast<mirror::Array*>(dst);
@@ -1027,15 +1027,15 @@ bool ImageWriter::CopyAndFixupIfDexCacheFieldArray(mirror::Object* dst, mirror::
       fixup_location = image_begin_ + it2->second;
     }
     if (target_ptr_size_ == 4u) {
-      down_cast<mirror::IntArray*>(dest_array)->SetWithoutChecks<kVerifyNone>(
+      down_cast<mirror::IntArray*>(dest_array)->SetWithoutChecks<false, false, kVerifyNone>(
           i, static_cast<uint32_t>(reinterpret_cast<uint64_t>(fixup_location)));
     } else {
       DCHECK_EQ(target_ptr_size_, 8u);
-      down_cast<mirror::LongArray*>(dest_array)->SetWithoutChecks<kVerifyNone>(
+      down_cast<mirror::LongArray*>(dest_array)->SetWithoutChecks<false, false, kVerifyNone>(
           i, reinterpret_cast<uint64_t>(fixup_location));
     }
   }
-  dst->SetLockWord(LockWord::Default(), false);
+  dst->SetLockWord<kVerifyNone>(LockWord::Default(), false);
   return true;
 }
 

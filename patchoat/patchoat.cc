@@ -563,21 +563,21 @@ void PatchOat::FixupMethod(mirror::ArtMethod* object, mirror::ArtMethod* copy) {
   uintptr_t quick= reinterpret_cast<uintptr_t>(
       object->GetEntryPointFromQuickCompiledCodePtrSize<kVerifyNone>(pointer_size));
   if (quick != 0) {
-    copy->SetEntryPointFromQuickCompiledCodePtrSize(reinterpret_cast<void*>(quick + delta_),
-                                                    pointer_size);
+    copy->SetEntryPointFromQuickCompiledCodePtrSize<kVerifyNone>(
+        reinterpret_cast<void*>(quick + delta_), pointer_size);
   }
   uintptr_t interpreter = reinterpret_cast<uintptr_t>(
       object->GetEntryPointFromInterpreterPtrSize<kVerifyNone>(pointer_size));
   if (interpreter != 0) {
-    copy->SetEntryPointFromInterpreterPtrSize(
+    copy->SetEntryPointFromInterpreterPtrSize<kVerifyNone>(
         reinterpret_cast<mirror::EntryPointFromInterpreter*>(interpreter + delta_), pointer_size);
   }
 
   uintptr_t native_method = reinterpret_cast<uintptr_t>(
       object->GetEntryPointFromJniPtrSize(pointer_size));
   if (native_method != 0) {
-    copy->SetEntryPointFromJniPtrSize(reinterpret_cast<void*>(native_method + delta_),
-                                      pointer_size);
+    copy->SetEntryPointFromJniPtrSize<kVerifyNone>(
+        reinterpret_cast<void*>(native_method + delta_), pointer_size);
   }
 }
 
