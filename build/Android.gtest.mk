@@ -111,6 +111,7 @@ LOCAL_PATH := art
 RUNTIME_GTEST_COMMON_SRC_FILES := \
   cmdline/cmdline_parser_test.cc \
   imgdiag/imgdiag_test.cc \
+  oatdump/oatdump_test.cc \
   runtime/arch/arch_test.cc \
   runtime/arch/instruction_set_test.cc \
   runtime/arch/instruction_set_features_test.cc \
