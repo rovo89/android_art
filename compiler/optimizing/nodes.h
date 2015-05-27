@@ -2656,16 +2656,19 @@ class HNewArray : public HExpression<1> {
   HNewArray(HInstruction* length,
             uint32_t dex_pc,
             uint16_t type_index,
+            const DexFile& dex_file,
             QuickEntrypointEnum entrypoint)
       : HExpression(Primitive::kPrimNot, SideEffects::None()),
         dex_pc_(dex_pc),
         type_index_(type_index),
+        dex_file_(dex_file),
         entrypoint_(entrypoint) {
     SetRawInputAt(0, length);
   }
 
   uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
   uint16_t GetTypeIndex() const { return type_index_; }
+  const DexFile& GetDexFile() const { return dex_file_; }
 
   // Calls runtime so needs an environment.
   bool NeedsEnvironment() const OVERRIDE { return true; }
@@ -2682,6 +2685,7 @@ class HNewArray : public HExpression<1> {
  private:
   const uint32_t dex_pc_;
   const uint16_t type_index_;
+  const DexFile& dex_file_;
   const QuickEntrypointEnum entrypoint_;
 
   DISALLOW_COPY_AND_ASSIGN(HNewArray);
