@@ -168,6 +168,10 @@ class ElfBuilder FINAL {
           patched_(false), patch_(patch), patch_base_section_(patch_base_section) {
     }
 
+    RawSection(const std::string& name, Elf_Word type)
+        : RawSection(name, type, 0, nullptr, 0, 1, 0, nullptr, nullptr) {
+    }
+
     Elf_Word GetSize() const OVERRIDE {
       return buffer_.size();
     }
@@ -779,10 +783,12 @@ class ElfBuilder FINAL {
 
   template<typename T>
   static bool WriteArray(File* elf_file, const T* data, size_t count) {
-    DCHECK(data != nullptr);
-    if (!elf_file->WriteFully(data, count * sizeof(T))) {
-      PLOG(ERROR) << "Failed to write to file " << elf_file->GetPath();
-      return false;
+    if (count != 0) {
+      DCHECK(data != nullptr);
+      if (!elf_file->WriteFully(data, count * sizeof(T))) {
+        PLOG(ERROR) << "Failed to write to file " << elf_file->GetPath();
+        return false;
+      }
     }
     return true;
   }
