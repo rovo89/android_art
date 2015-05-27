@@ -983,20 +983,20 @@ void InstructionCodeGeneratorX86::VisitStoreLocal(HStoreLocal* store) {
   UNUSED(store);
 }
 
-void LocationsBuilderX86::VisitCondition(HCondition* comp) {
+void LocationsBuilderX86::VisitCondition(HCondition* cond) {
   LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(comp, LocationSummary::kNoCall);
+      new (GetGraph()->GetArena()) LocationSummary(cond, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::Any());
-  if (comp->NeedsMaterialization()) {
+  if (cond->NeedsMaterialization()) {
     // We need a byte register.
     locations->SetOut(Location::RegisterLocation(ECX));
   }
 }
 
-void InstructionCodeGeneratorX86::VisitCondition(HCondition* comp) {
-  if (comp->NeedsMaterialization()) {
-    LocationSummary* locations = comp->GetLocations();
+void InstructionCodeGeneratorX86::VisitCondition(HCondition* cond) {
+  if (cond->NeedsMaterialization()) {
+    LocationSummary* locations = cond->GetLocations();
     Register reg = locations->Out().AsRegister<Register>();
     // Clear register: setcc only sets the low byte.
     __ xorl(reg, reg);
@@ -1014,7 +1014,7 @@ void InstructionCodeGeneratorX86::VisitCondition(HCondition* comp) {
     } else {
       __ cmpl(lhs.AsRegister<Register>(), Address(ESP, rhs.GetStackIndex()));
     }
-    __ setb(X86Condition(comp->GetCondition()), reg);
+    __ setb(X86Condition(cond->GetCondition()), reg);
   }
 }
 
