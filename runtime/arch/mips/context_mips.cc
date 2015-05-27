@@ -87,7 +87,7 @@ void MipsContext::DoLongJump() {
     gprs[i] = gprs_[i] != nullptr ? *gprs_[i] : MipsContext::kBadGprBase + i;
   }
   for (size_t i = 0; i < kNumberOfFRegisters; ++i) {
-    fprs[i] = fprs_[i] != nullptr ? *fprs_[i] : MipsContext::kBadGprBase + i;
+    fprs[i] = fprs_[i] != nullptr ? *fprs_[i] : MipsContext::kBadFprBase + i;
   }
   art_quick_do_long_jump(gprs, fprs);
 }
