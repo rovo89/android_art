@@ -134,7 +134,7 @@ void Arm64Context::DoLongJump() {
     gprs[i] = gprs_[i] != nullptr ? *gprs_[i] : Arm64Context::kBadGprBase + i;
   }
   for (size_t i = 0; i < kNumberOfDRegisters; ++i) {
-    fprs[i] = fprs_[i] != nullptr ? *fprs_[i] : Arm64Context::kBadGprBase + i;
+    fprs[i] = fprs_[i] != nullptr ? *fprs_[i] : Arm64Context::kBadFprBase + i;
   }
   DCHECK_EQ(reinterpret_cast<uintptr_t>(Thread::Current()), gprs[TR]);
   art_quick_do_long_jump(gprs, fprs);
