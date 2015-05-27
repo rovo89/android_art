@@ -1385,16 +1385,11 @@ DEFINE_FUNCTION art_quick_proxy_invoke_handler
 END_FUNCTION art_quick_proxy_invoke_handler
 
     /*
-     * Called to resolve an imt conflict. xmm0 is a hidden argument that holds the target method's
+     * Called to resolve an imt conflict. xmm7 is a hidden argument that holds the target method's
      * dex method index.
      */
 DEFINE_FUNCTION art_quick_imt_conflict_trampoline
-    PUSH ecx
-    movl 8(%esp), %eax            // load caller Method*
-    movl MIRROR_ART_METHOD_DEX_CACHE_METHODS_OFFSET(%eax), %eax  // load dex_cache_resolved_methods
-    movd %xmm7, %ecx              // get target method index stored in xmm0
-    movl MIRROR_OBJECT_ARRAY_DATA_OFFSET(%eax, %ecx, 4), %eax  // load the target method
-    POP ecx
+    movd %xmm7, %eax              // get target method index stored in xmm7
     jmp SYMBOL(art_quick_invoke_interface_trampoline)
 END_FUNCTION art_quick_imt_conflict_trampoline
 

@@ -890,10 +890,7 @@ END art_quick_proxy_invoke_handler
      * dex method index.
      */
 ENTRY art_quick_imt_conflict_trampoline
-    ldr    r0, [sp, #0]            @ load caller Method*
-    ldr    r0, [r0, #MIRROR_ART_METHOD_DEX_CACHE_METHODS_OFFSET]  @ load dex_cache_resolved_methods
-    add    r0, #MIRROR_OBJECT_ARRAY_DATA_OFFSET  @ get starting address of data
-    ldr    r0, [r0, r12, lsl 2]    @ load the target method
+    mov    r0, r12
     b art_quick_invoke_interface_trampoline
 END art_quick_imt_conflict_trampoline
 
