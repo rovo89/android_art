@@ -125,7 +125,9 @@ class MANAGED LOCKABLE Object {
 
   // As_volatile can be false if the mutators are suspended. This is an optimization since it
   // avoids the barriers.
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   LockWord GetLockWord(bool as_volatile) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   void SetLockWord(LockWord new_val, bool as_volatile) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool CasLockWordWeakSequentiallyConsistent(LockWord old_val, LockWord new_val)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

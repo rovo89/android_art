@@ -29,7 +29,9 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(mirror::ArtMethod* 
                                                              Thread* self,
                                                              uintptr_t lr)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
+  // Instrumentation changes the stack. Thus, when exiting, the stack cannot be verified, so skip
+  // that part.
+  ScopedQuickEntrypointChecks sqec(self, kIsDebugBuild, false);
   instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
   const void* result;
   if (instrumentation->IsDeoptimized(method)) {
