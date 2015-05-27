@@ -351,9 +351,8 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
  public:
   InitCodeMethodVisitor(OatWriter* writer, size_t offset)
     : OatDexMethodVisitor(writer, offset),
-      text_absolute_patch_locations_(writer->GetAbsolutePatchLocationsFor(".text")),
       debuggable_(writer->GetCompilerDriver()->GetCompilerOptions().GetDebuggable()) {
-    text_absolute_patch_locations_->reserve(
+    writer_->absolute_patch_locations_.reserve(
         writer_->compiler_driver_->GetNonRelativeLinkerPatchCount());
   }
 
@@ -444,7 +443,7 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
           uintptr_t base_loc = offset_ - code_size - writer_->oat_header_->GetExecutableOffset();
           for (const LinkerPatch& patch : compiled_method->GetPatches()) {
             if (!patch.IsPcRelative()) {
-              text_absolute_patch_locations_->push_back(base_loc + patch.LiteralOffset());
+              writer_->absolute_patch_locations_.push_back(base_loc + patch.LiteralOffset());
             }
           }
         }
@@ -546,9 +545,6 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
   // Deduplication is already done on a pointer basis by the compiler driver,
   // so we can simply compare the pointers to find out if things are duplicated.
   SafeMap<const CompiledMethod*, uint32_t, CodeOffsetsKeyComparator> dedupe_map_;
-
-  // Patch locations for the .text section.
-  std::vector<uintptr_t>* const text_absolute_patch_locations_;
 
   // Cache of compiler's --debuggable option.
   const bool debuggable_;

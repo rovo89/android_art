@@ -1401,86 +1401,53 @@ typename ElfTypes::Shdr* ElfFileImpl<ElfTypes>::FindSectionByName(
 }
 
 template <typename ElfTypes>
-bool ElfFileImpl<ElfTypes>::FixupDebugSections(typename std::make_signed<Elf_Off>::type base_address_delta) {
+bool ElfFileImpl<ElfTypes>::FixupDebugSections(Elf_Addr base_address_delta) {
   if (base_address_delta == 0) {
     return true;
   }
-  if (FindSectionByName(".debug_frame") != nullptr) {
-    if (!ApplyOatPatchesTo(".debug_frame", base_address_delta)) {
-      return false;
-    }
-  }
-  if (FindSectionByName(".debug_info") != nullptr) {
-    if (!ApplyOatPatchesTo(".debug_info", base_address_delta)) {
-      return false;
-    }
-  }
-  if (FindSectionByName(".debug_line") != nullptr) {
-    if (!ApplyOatPatchesTo(".debug_line", base_address_delta)) {
-      return false;
-    }
-  }
-  return true;
+  return ApplyOatPatchesTo(".debug_frame", base_address_delta) &&
+         ApplyOatPatchesTo(".debug_info", base_address_delta) &&
+         ApplyOatPatchesTo(".debug_line", base_address_delta);
 }
 
 template <typename ElfTypes>
 bool ElfFileImpl<ElfTypes>::ApplyOatPatchesTo(
-    const char* target_section_name,
-    typename std::make_signed<Elf_Off>::type delta) {
-  auto patches_section = FindSectionByName(".oat_patches");
+    const char* target_section_name, Elf_Addr delta) {
+  auto target_section = FindSectionByName(target_section_name);
+  if (target_section == nullptr) {
+    return true;
+  }
+  std::string patches_name = target_section_name + std::string(".oat_patches");
+  auto patches_section = FindSectionByName(patches_name.c_str());
   if (patches_section == nullptr) {
-    LOG(ERROR) << ".oat_patches section not found.";
+    LOG(ERROR) << patches_name << " section not found.";
     return false;
   }
   if (patches_section->sh_type != SHT_OAT_PATCH) {
-    LOG(ERROR) << "Unexpected type of .oat_patches.";
+    LOG(ERROR) << "Unexpected type of " << patches_name;
     return false;
   }
-  auto target_section = FindSectionByName(target_section_name);
-  if (target_section == nullptr) {
-    LOG(ERROR) << target_section_name << " section not found.";
-    return false;
-  }
-  if (!ApplyOatPatches(
+  ApplyOatPatches(
       Begin() + patches_section->sh_offset,
       Begin() + patches_section->sh_offset + patches_section->sh_size,
-      target_section_name, delta,
+      delta,
       Begin() + target_section->sh_offset,
-      Begin() + target_section->sh_offset + target_section->sh_size)) {
-    LOG(ERROR) << target_section_name << " section not found in .oat_patches.";
-  }
+      Begin() + target_section->sh_offset + target_section->sh_size);
   return true;
 }
 
-// Apply .oat_patches to given section.
+// Apply LEB128 encoded patches to given section.
 template <typename ElfTypes>
-bool ElfFileImpl<ElfTypes>::ApplyOatPatches(
-    const uint8_t* patches, const uint8_t* patches_end,
-    const char* target_section_name,
-    typename std::make_signed<Elf_Off>::type delta,
+void ElfFileImpl<ElfTypes>::ApplyOatPatches(
+    const uint8_t* patches, const uint8_t* patches_end, Elf_Addr delta,
     uint8_t* to_patch, const uint8_t* to_patch_end) {
-  // Read null-terminated section name.
-  const char* section_name;
-  while ((section_name = reinterpret_cast<const char*>(patches))[0] != '\0') {
-    patches += strlen(section_name) + 1;
-    uint32_t length = DecodeUnsignedLeb128(&patches);
-    const uint8_t* next_section = patches + length;
-    // Is it the section we want to patch?
-    if (strcmp(section_name, target_section_name) == 0) {
-      // Read LEB128 encoded list of advances.
-      while (patches < next_section) {
-        DCHECK_LT(patches, patches_end) << "Unexpected end of .oat_patches.";
-        to_patch += DecodeUnsignedLeb128(&patches);
-        DCHECK_LT(to_patch, to_patch_end) << "Patch past the end of " << section_name;
-        // TODO: 32-bit vs 64-bit.  What is the right type to use here?
-        auto* patch_loc = reinterpret_cast<typename std::make_signed<Elf_Off>::type*>(to_patch);
-        *patch_loc += delta;
-      }
-      return true;
-    }
-    patches = next_section;
+  typedef __attribute__((__aligned__(1))) Elf_Addr UnalignedAddress;
+  while (patches < patches_end) {
+    to_patch += DecodeUnsignedLeb128(&patches);
+    DCHECK_LE(patches, patches_end) << "Unexpected end of patch list.";
+    DCHECK_LT(to_patch, to_patch_end) << "Patch past the end of section.";
+    *reinterpret_cast<UnalignedAddress*>(to_patch) += delta;
   }
-  return false;
 }
 
 template <typename ElfTypes>
