@@ -59,19 +59,23 @@ inline void Object::SetClass(Class* new_klass) {
       OFFSET_OF_OBJECT_MEMBER(Object, klass_), new_klass);
 }
 
+template<VerifyObjectFlags kVerifyFlags>
 inline LockWord Object::GetLockWord(bool as_volatile) {
   if (as_volatile) {
-    return LockWord(GetField32Volatile(OFFSET_OF_OBJECT_MEMBER(Object, monitor_)));
+    return LockWord(GetField32Volatile<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Object, monitor_)));
   }
-  return LockWord(GetField32(OFFSET_OF_OBJECT_MEMBER(Object, monitor_)));
+  return LockWord(GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Object, monitor_)));
 }
 
+template<VerifyObjectFlags kVerifyFlags>
 inline void Object::SetLockWord(LockWord new_val, bool as_volatile) {
   // Force use of non-transactional mode and do not check.
   if (as_volatile) {
-    SetField32Volatile<false, false>(OFFSET_OF_OBJECT_MEMBER(Object, monitor_), new_val.GetValue());
+    SetField32Volatile<false, false, kVerifyFlags>(
+        OFFSET_OF_OBJECT_MEMBER(Object, monitor_), new_val.GetValue());
   } else {
-    SetField32<false, false>(OFFSET_OF_OBJECT_MEMBER(Object, monitor_), new_val.GetValue());
+    SetField32<false, false, kVerifyFlags>(
+        OFFSET_OF_OBJECT_MEMBER(Object, monitor_), new_val.GetValue());
   }
 }
 
