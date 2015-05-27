@@ -1027,7 +1027,11 @@ void HGraphBuilder::BuildFilledNewArray(uint32_t dex_pc,
   QuickEntrypointEnum entrypoint = NeedsAccessCheck(type_index)
       ? kQuickAllocArrayWithAccessCheck
       : kQuickAllocArray;
-  HInstruction* object = new (arena_) HNewArray(length, dex_pc, type_index, entrypoint);
+  HInstruction* object = new (arena_) HNewArray(length,
+                                                dex_pc,
+                                                type_index,
+                                                *dex_compilation_unit_->GetDexFile(),
+                                                entrypoint);
   current_block_->AddInstruction(object);
 
   const char* descriptor = dex_file_->StringByTypeIdx(type_index);
@@ -1993,8 +1997,8 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       QuickEntrypointEnum entrypoint = NeedsAccessCheck(type_index)
           ? kQuickAllocArrayWithAccessCheck
           : kQuickAllocArray;
-      current_block_->AddInstruction(
-          new (arena_) HNewArray(length, dex_pc, type_index, entrypoint));
+      current_block_->AddInstruction(new (arena_) HNewArray(
+          length, dex_pc, type_index, *dex_compilation_unit_->GetDexFile(), entrypoint));
       UpdateLocal(instruction.VRegA_22c(), current_block_->GetLastInstruction());
       break;
     }
