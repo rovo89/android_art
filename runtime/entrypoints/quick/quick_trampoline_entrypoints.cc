@@ -823,7 +823,10 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
                                                     Thread* self,
                                                     StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
+  // The resolution trampoline stashes the resolved method into the callee-save frame to transport
+  // it. Thus, when exiting, the stack cannot be verified (as the resolved method most likely
+  // does not have the same stack layout as the callee-save method).
+  ScopedQuickEntrypointChecks sqec(self, kIsDebugBuild, false);
   // Start new JNI local reference state
   JNIEnvExt* env = self->GetJniEnv();
   ScopedObjectAccessUnchecked soa(env);

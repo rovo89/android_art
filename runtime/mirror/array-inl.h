@@ -237,7 +237,7 @@ inline void PrimitiveArray<T>::Set(int32_t i, T value) {
 }
 
 template<typename T>
-template<bool kTransactionActive, bool kCheckTransaction>
+template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
 inline void PrimitiveArray<T>::SetWithoutChecks(int32_t i, T value) {
   if (kCheckTransaction) {
     DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
@@ -245,7 +245,7 @@ inline void PrimitiveArray<T>::SetWithoutChecks(int32_t i, T value) {
   if (kTransactionActive) {
     Runtime::Current()->RecordWriteArray(this, i, GetWithoutChecks(i));
   }
-  DCHECK(CheckIsValidIndex(i));
+  DCHECK(CheckIsValidIndex<kVerifyFlags>(i));
   GetData()[i] = value;
 }
 // Backward copy where elements are of aligned appropriately for T. Count is in T sized units.
