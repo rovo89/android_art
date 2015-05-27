@@ -944,19 +944,19 @@ void InstructionCodeGeneratorX86_64::VisitStoreLocal(HStoreLocal* store) {
   UNUSED(store);
 }
 
-void LocationsBuilderX86_64::VisitCondition(HCondition* comp) {
+void LocationsBuilderX86_64::VisitCondition(HCondition* cond) {
   LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(comp, LocationSummary::kNoCall);
+      new (GetGraph()->GetArena()) LocationSummary(cond, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::Any());
-  if (comp->NeedsMaterialization()) {
+  if (cond->NeedsMaterialization()) {
     locations->SetOut(Location::RequiresRegister());
   }
 }
 
-void InstructionCodeGeneratorX86_64::VisitCondition(HCondition* comp) {
-  if (comp->NeedsMaterialization()) {
-    LocationSummary* locations = comp->GetLocations();
+void InstructionCodeGeneratorX86_64::VisitCondition(HCondition* cond) {
+  if (cond->NeedsMaterialization()) {
+    LocationSummary* locations = cond->GetLocations();
     CpuRegister reg = locations->Out().AsRegister<CpuRegister>();
     // Clear register: setcc only sets the low byte.
     __ xorl(reg, reg);
@@ -974,7 +974,7 @@ void InstructionCodeGeneratorX86_64::VisitCondition(HCondition* comp) {
     } else {
       __ cmpl(lhs.AsRegister<CpuRegister>(), Address(CpuRegister(RSP), rhs.GetStackIndex()));
     }
-    __ setcc(X86_64Condition(comp->GetCondition()), reg);
+    __ setcc(X86_64Condition(cond->GetCondition()), reg);
   }
 }
 
