@@ -1028,19 +1028,19 @@ void InstructionCodeGeneratorARM::VisitDeoptimize(HDeoptimize* deoptimize) {
   GenerateTestAndBranch(deoptimize, slow_path_entry, nullptr, slow_path_entry);
 }
 
-void LocationsBuilderARM::VisitCondition(HCondition* comp) {
+void LocationsBuilderARM::VisitCondition(HCondition* cond) {
   LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(comp, LocationSummary::kNoCall);
+      new (GetGraph()->GetArena()) LocationSummary(cond, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RegisterOrConstant(comp->InputAt(1)));
-  if (comp->NeedsMaterialization()) {
+  locations->SetInAt(1, Location::RegisterOrConstant(cond->InputAt(1)));
+  if (cond->NeedsMaterialization()) {
     locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
   }
 }
 
-void InstructionCodeGeneratorARM::VisitCondition(HCondition* comp) {
-  if (!comp->NeedsMaterialization()) return;
-  LocationSummary* locations = comp->GetLocations();
+void InstructionCodeGeneratorARM::VisitCondition(HCondition* cond) {
+  if (!cond->NeedsMaterialization()) return;
+  LocationSummary* locations = cond->GetLocations();
   Register left = locations->InAt(0).AsRegister<Register>();
 
   if (locations->InAt(1).IsRegister()) {
@@ -1057,11 +1057,11 @@ void InstructionCodeGeneratorARM::VisitCondition(HCondition* comp) {
       __ cmp(left, ShifterOperand(temp));
     }
   }
-  __ it(ARMCondition(comp->GetCondition()), kItElse);
+  __ it(ARMCondition(cond->GetCondition()), kItElse);
   __ mov(locations->Out().AsRegister<Register>(), ShifterOperand(1),
-         ARMCondition(comp->GetCondition()));
+         ARMCondition(cond->GetCondition()));
   __ mov(locations->Out().AsRegister<Register>(), ShifterOperand(0),
-         ARMOppositeCondition(comp->GetCondition()));
+         ARMOppositeCondition(cond->GetCondition()));
 }
 
 void LocationsBuilderARM::VisitEqual(HEqual* comp) {
