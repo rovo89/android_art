@@ -2059,13 +2059,14 @@ extern "C" TwoWordReturn artInvokeVirtualTrampolineWithAccessCheck(
 }
 
 // Determine target of interface dispatch. This object is known non-null.
-extern "C" TwoWordReturn artInvokeInterfaceTrampoline(mirror::ArtMethod* interface_method,
+extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t dex_method_idx,
                                                       mirror::Object* this_object,
                                                       Thread* self,
                                                       StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
   mirror::ArtMethod* caller_method = QuickArgumentVisitor::GetCallingMethod(sp);
+  mirror::ArtMethod* interface_method = caller_method->GetDexCacheResolvedMethod(dex_method_idx);
   mirror::ArtMethod* method;
   if (LIKELY(interface_method->GetDexMethodIndex() != DexFile::kDexNoIndex)) {
     method = this_object->GetClass()->FindVirtualMethodForInterface(interface_method);
@@ -2076,21 +2077,21 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(mirror::ArtMethod* interfa
     }
   } else {
     DCHECK(interface_method == Runtime::Current()->GetResolutionMethod());
-
-    uint32_t dex_pc = QuickArgumentVisitor::GetCallingDexPc(sp);
-    const DexFile::CodeItem* code = caller_method->GetCodeItem();
-    CHECK_LT(dex_pc, code->insns_size_in_code_units_);
-    const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);
-    Instruction::Code instr_code = instr->Opcode();
-    CHECK(instr_code == Instruction::INVOKE_INTERFACE ||
-          instr_code == Instruction::INVOKE_INTERFACE_RANGE)
-        << "Unexpected call into interface trampoline: " << instr->DumpString(nullptr);
-    uint32_t dex_method_idx;
-    if (instr_code == Instruction::INVOKE_INTERFACE) {
-      dex_method_idx = instr->VRegB_35c();
-    } else {
-      DCHECK_EQ(instr_code, Instruction::INVOKE_INTERFACE_RANGE);
-      dex_method_idx = instr->VRegB_3rc();
+    if (kIsDebugBuild) {
+      uint32_t dex_pc = QuickArgumentVisitor::GetCallingDexPc(sp);
+      const DexFile::CodeItem* code = caller_method->GetCodeItem();
+      CHECK_LT(dex_pc, code->insns_size_in_code_units_);
+      const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);
+      Instruction::Code instr_code = instr->Opcode();
+      CHECK(instr_code == Instruction::INVOKE_INTERFACE ||
+            instr_code == Instruction::INVOKE_INTERFACE_RANGE)
+          << "Unexpected call into interface trampoline: " << instr->DumpString(nullptr);
+      if (instr_code == Instruction::INVOKE_INTERFACE) {
+        CHECK_EQ(dex_method_idx, instr->VRegB_35c());
+      } else {
+        CHECK_EQ(instr_code, Instruction::INVOKE_INTERFACE_RANGE);
+        CHECK_EQ(dex_method_idx, instr->VRegB_3rc());
+      }
     }
 
     const DexFile* dex_file = caller_method->GetDeclaringClass()->GetDexCache()
