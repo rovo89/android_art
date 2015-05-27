@@ -177,8 +177,8 @@ ART_CPP_EXTENSION := .cc
 ART_C_INCLUDES := \
   external/gtest/include \
   external/icu/icu4c/source/common \
-  external/valgrind/main/include \
-  external/valgrind/main \
+  external/valgrind/include \
+  external/valgrind \
   external/vixl/src \
   external/zlib \
 
