@@ -1365,14 +1365,10 @@ END art_quick_proxy_invoke_handler
      * dex method index.
      */
 ENTRY art_quick_imt_conflict_trampoline
-    lwu     $a0, 0($sp)            # load caller Method*
-    lwu     $a0, MIRROR_ART_METHOD_DEX_CACHE_METHODS_OFFSET($a0)  # load dex_cache_resolved_methods
-    dsll    $t0, 2                 # convert target method offset to bytes
-    daddu   $a0, $t0               # get address of target method
     dla     $t9, art_quick_invoke_interface_trampoline
     .cpreturn
     jalr    $zero, $t9
-    lwu     $a0, MIRROR_OBJECT_ARRAY_DATA_OFFSET($a0)  # load the target method
+    move    $a0, $t0
 END art_quick_imt_conflict_trampoline
 
     .extern artQuickResolutionTrampoline
