@@ -42,6 +42,7 @@ class ReferenceTypePropagation : public HOptimization {
  private:
   void VisitNewInstance(HNewInstance* new_instance);
   void VisitLoadClass(HLoadClass* load_class);
+  void VisitNewArray(HNewArray* instr);
   void VisitPhi(HPhi* phi);
   void VisitBasicBlock(HBasicBlock* block);
 
@@ -50,6 +51,7 @@ class ReferenceTypePropagation : public HOptimization {
 
   void BoundTypeForIfNotNull(HBasicBlock* block);
   void BoundTypeForIfInstanceOf(HBasicBlock* block);
+  void UpdateReferenceTypeInfo(HInstruction* instr, uint16_t type_idx, const DexFile& dex_file);
 
   void ProcessWorklist();
   void AddToWorklist(HInstruction* instr);
