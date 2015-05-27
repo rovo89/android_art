@@ -1035,7 +1035,7 @@ class OatDumper {
   void DumpCodeInfo(std::ostream& os,
                     const CodeInfo& code_info,
                     const DexFile::CodeItem& code_item) {
-    code_info.Dump(os, code_item.registers_size_);
+    code_info.Dump(os, code_item.registers_size_, true);
   }
 
   // Display a vmap table.
