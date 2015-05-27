@@ -207,7 +207,9 @@ bool HInliner::TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
   if (!builder.BuildGraph(*code_item)) {
     VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
                    << " could not be built, so cannot be inlined";
-    resolved_method->SetShouldNotInline();
+    // There could be multiple reasons why the graph could not be built, including
+    // unaccessible methods/fields due to using a different dex cache. We do not mark
+    // the method as non-inlineable so that other callers can still try to inline it.
     return false;
   }
 
