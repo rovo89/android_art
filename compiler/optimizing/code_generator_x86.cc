@@ -1959,6 +1959,8 @@ void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
       if (second.IsRegister()) {
         if (out.AsRegister<Register>() == first.AsRegister<Register>()) {
           __ addl(out.AsRegister<Register>(), second.AsRegister<Register>());
+        } else if (out.AsRegister<Register>() == second.AsRegister<Register>()) {
+          __ addl(out.AsRegister<Register>(), first.AsRegister<Register>());
         } else {
           __ leal(out.AsRegister<Register>(), Address(
               first.AsRegister<Register>(), second.AsRegister<Register>(), TIMES_1, 0));

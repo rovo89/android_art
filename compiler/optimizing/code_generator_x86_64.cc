@@ -2117,6 +2117,8 @@ void InstructionCodeGeneratorX86_64::VisitAdd(HAdd* add) {
       if (second.IsRegister()) {
         if (out.AsRegister<Register>() == first.AsRegister<Register>()) {
           __ addl(out.AsRegister<CpuRegister>(), second.AsRegister<CpuRegister>());
+        } else if (out.AsRegister<Register>() == second.AsRegister<Register>()) {
+          __ addl(out.AsRegister<CpuRegister>(), first.AsRegister<CpuRegister>());
         } else {
           __ leal(out.AsRegister<CpuRegister>(), Address(
               first.AsRegister<CpuRegister>(), second.AsRegister<CpuRegister>(), TIMES_1, 0));
@@ -2140,6 +2142,8 @@ void InstructionCodeGeneratorX86_64::VisitAdd(HAdd* add) {
       if (second.IsRegister()) {
         if (out.AsRegister<Register>() == first.AsRegister<Register>()) {
           __ addq(out.AsRegister<CpuRegister>(), second.AsRegister<CpuRegister>());
+        } else if (out.AsRegister<Register>() == second.AsRegister<Register>()) {
+          __ addq(out.AsRegister<CpuRegister>(), first.AsRegister<CpuRegister>());
         } else {
           __ leaq(out.AsRegister<CpuRegister>(), Address(
               first.AsRegister<CpuRegister>(), second.AsRegister<CpuRegister>(), TIMES_1, 0));
