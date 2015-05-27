@@ -16,6 +16,9 @@
 
 #include "dalvik_system_VMRuntime.h"
 
+#ifdef HAVE_ANDROID_OS
+extern "C" void android_set_application_target_sdk_version(uint32_t version);
+#endif
 #include <limits.h>
 #include <ScopedUtfChars.h>
 
@@ -192,6 +195,12 @@ static void VMRuntime_setTargetSdkVersionNative(JNIEnv*, jobject, jint target_sd
   // Note that targetSdkVersion may be CUR_DEVELOPMENT (10000).
   // Note that targetSdkVersion may be 0, meaning "current".
   Runtime::Current()->SetTargetSdkVersion(target_sdk_version);
+
+#ifdef HAVE_ANDROID_OS
+  // This part is letting libc/dynamic linker know about current app's
+  // target sdk version to enable compatibility workarounds.
+  android_set_application_target_sdk_version(static_cast<uint32_t>(target_sdk_version));
+#endif
 }
 
 static void VMRuntime_registerNativeAllocation(JNIEnv* env, jobject, jint bytes) {
