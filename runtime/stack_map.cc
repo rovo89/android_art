@@ -212,38 +212,8 @@ static void DumpRegisterMapping(std::ostream& os,
               << " (" << location.GetValue() << ")" << suffix << '\n';
 }
 
-void CodeInfo::DumpStackMap(std::ostream& os,
-                            size_t stack_map_num,
-                            uint16_t number_of_dex_registers) const {
-  StackMap stack_map = GetStackMapAt(stack_map_num);
-  DumpStackMapHeader(os, stack_map_num);
-  if (stack_map.HasDexRegisterMap(*this)) {
-    DexRegisterMap dex_register_map = GetDexRegisterMapOf(stack_map, number_of_dex_registers);
-    dex_register_map.Dump(os, *this, number_of_dex_registers);
-  }
-}
-
-void CodeInfo::DumpStackMapHeader(std::ostream& os, size_t stack_map_num) const {
-  StackMap stack_map = GetStackMapAt(stack_map_num);
-  Indenter indent_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
-  std::ostream indented_os(&indent_filter);
-  indented_os << "StackMap " << stack_map_num
-              << std::hex
-              << " (dex_pc=0x" << stack_map.GetDexPc(*this)
-              << ", native_pc_offset=0x" << stack_map.GetNativePcOffset(*this)
-              << ", dex_register_map_offset=0x" << stack_map.GetDexRegisterMapOffset(*this)
-              << ", inline_info_offset=0x" << stack_map.GetInlineDescriptorOffset(*this)
-              << ", register_mask=0x" << stack_map.GetRegisterMask(*this)
-              << std::dec
-              << ", stack_mask=0b";
-  MemoryRegion stack_mask = stack_map.GetStackMask(*this);
-  for (size_t i = 0, e = stack_mask.size_in_bits(); i < e; ++i) {
-    indented_os << stack_mask.LoadBit(e - i - 1);
-  }
-  indented_os << ")\n";
-};
-
 void CodeInfo::Dump(std::ostream& os,
+                    uint32_t code_offset,
                     uint16_t number_of_dex_registers,
                     bool dump_stack_maps) const {
   uint32_t code_info_size = GetOverallSize();
@@ -265,7 +235,9 @@ void CodeInfo::Dump(std::ostream& os,
   // Display stack maps along with (live) Dex register maps.
   if (dump_stack_maps) {
     for (size_t i = 0; i < number_of_stack_maps; ++i) {
-      DumpStackMap(indented_os, i, number_of_dex_registers);
+      StackMap stack_map = GetStackMapAt(i);
+      stack_map.Dump(
+          indented_os, *this, code_offset, number_of_dex_registers, " " + std::to_string(i));
     }
   }
   // TODO: Dump the stack map's inline information? We need to know more from the caller:
@@ -304,6 +276,34 @@ void DexRegisterMap::Dump(std::ostream& os,
           indented_os, j, location, "v",
           "\t[entry " + std::to_string(static_cast<int>(location_catalog_entry_index)) + "]");
     }
+  }
+}
+
+void StackMap::Dump(std::ostream& os,
+                    const CodeInfo& code_info,
+                    uint32_t code_offset,
+                    uint16_t number_of_dex_registers,
+                    const std::string& header_suffix) const {
+  Indenter indent_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
+  std::ostream indented_os(&indent_filter);
+  indented_os << "StackMap" << header_suffix
+              << std::hex
+              << " [native_pc=0x" << code_offset + GetNativePcOffset(code_info) << "]"
+              << " (dex_pc=0x" << GetDexPc(code_info)
+              << ", native_pc_offset=0x" << GetNativePcOffset(code_info)
+              << ", dex_register_map_offset=0x" << GetDexRegisterMapOffset(code_info)
+              << ", inline_info_offset=0x" << GetInlineDescriptorOffset(code_info)
+              << ", register_mask=0x" << GetRegisterMask(code_info)
+              << std::dec
+              << ", stack_mask=0b";
+  MemoryRegion stack_mask = GetStackMask(code_info);
+  for (size_t i = 0, e = stack_mask.size_in_bits(); i < e; ++i) {
+    indented_os << stack_mask.LoadBit(e - i - 1);
+  }
+  indented_os << ")\n";
+  if (HasDexRegisterMap(code_info)) {
+    DexRegisterMap dex_register_map = code_info.GetDexRegisterMapOf(*this, number_of_dex_registers);
+    dex_register_map.Dump(os, code_info, number_of_dex_registers);
   }
 }
 
