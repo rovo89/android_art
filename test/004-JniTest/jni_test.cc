@@ -604,4 +604,20 @@ extern "C" JNIEXPORT void JNICALL Java_Main_testNewStringObject(JNIEnv* env, jcl
   args4[0].l = string_arg;
   env->CallVoidMethodA(s3, mid3, args3);
   env->CallNonvirtualVoidMethodA(s4, c, mid4, args4);
+
+  // Test with global and weak global references
+  jstring s5 = reinterpret_cast<jstring>(env->AllocObject(c));
+  assert(s5 != nullptr);
+  s5 = reinterpret_cast<jstring>(env->NewGlobalRef(s5));
+  jstring s6 = reinterpret_cast<jstring>(env->AllocObject(c));
+  assert(s6 != nullptr);
+  s6 = reinterpret_cast<jstring>(env->NewWeakGlobalRef(s6));
+
+  env->CallVoidMethod(s5, mid1);
+  env->CallNonvirtualVoidMethod(s6, c, mid2, byte_array);
+  assert(env->GetStringLength(s5) == 0);
+  assert(env->GetStringLength(s6) == byte_array_length);
+  const char* chars6 = env->GetStringUTFChars(s6, nullptr);
+  assert(strcmp(test_array, chars6) == 0);
+  env->ReleaseStringUTFChars(s6, chars6);
 }
