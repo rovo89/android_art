@@ -125,8 +125,16 @@ class JavaVMExt : public JavaVM {
   mirror::Object* DecodeGlobal(Thread* self, IndirectRef ref)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void UpdateGlobal(Thread* self, IndirectRef ref, mirror::Object* result)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(globals_lock_);
+
   mirror::Object* DecodeWeakGlobal(Thread* self, IndirectRef ref)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void UpdateWeakGlobal(Thread* self, IndirectRef ref, mirror::Object* result)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(weak_globals_lock_);
 
   const JNIInvokeInterface* GetUncheckedFunctions() const {
     return unchecked_functions_;
