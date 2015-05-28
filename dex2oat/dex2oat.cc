@@ -230,14 +230,14 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("");
   UsageError("  --no-include-patch-information: Do not include patching information.");
   UsageError("");
-  UsageError("  --include-debug-symbols: Include ELF symbols in this oat file");
+  UsageError("  -g");
+  UsageError("  --generate-debug-info: Generate debug information for native debugging,");
+  UsageError("      such as stack unwinding information, ELF symbols and DWARF sections.");
+  UsageError("      This generates all the available information. Unneeded parts can be");
+  UsageError("      stripped using standard command line tools such as strip or objcopy.");
+  UsageError("      (enabled by default in debug builds, disabled by default otherwise)");
   UsageError("");
-  UsageError("  --no-include-debug-symbols: Do not include ELF symbols in this oat file");
-  UsageError("");
-  UsageError("  --include-cfi: Include call frame information in the .eh_frame section.");
-  UsageError("      The --include-debug-symbols option implies --include-cfi.");
-  UsageError("");
-  UsageError("  --no-include-cfi: Do not include call frame information in the .eh_frame section.");
+  UsageError("  --no-generate-debug-info: Do not generate debug information for native debugging.");
   UsageError("");
   UsageError("  --runtime-arg <argument>: used to specify various arguments for the runtime,");
   UsageError("      such as initial heap size, maximum heap size, and verbose output.");
@@ -499,8 +499,7 @@ class Dex2Oat FINAL {
 
     bool debuggable = false;
     bool include_patch_information = CompilerOptions::kDefaultIncludePatchInformation;
-    bool include_debug_symbols = kIsDebugBuild;
-    bool include_cfi = kIsDebugBuild;
+    bool generate_debug_info = kIsDebugBuild;
     bool watch_dog_enabled = true;
     bool abort_on_hard_verifier_error = false;
     bool requested_specific_compiler = false;
@@ -682,18 +681,13 @@ class Dex2Oat FINAL {
         dump_cfg_file_name_ = option.substr(strlen("--dump-cfg=")).data();
       } else if (option == "--dump-stats") {
         dump_stats_ = true;
-      } else if (option == "--include-debug-symbols" || option == "--no-strip-symbols") {
-        include_debug_symbols = true;
-      } else if (option == "--no-include-debug-symbols" || option == "--strip-symbols") {
-        include_debug_symbols = false;
-      } else if (option == "--include-cfi") {
-        include_cfi = true;
-      } else if (option == "--no-include-cfi") {
-        include_cfi = false;
+      } else if (option == "--generate-debug-info" || option == "-g") {
+        generate_debug_info = true;
+      } else if (option == "--no-generate-debug-info") {
+        generate_debug_info = false;
       } else if (option == "--debuggable") {
         debuggable = true;
-        include_debug_symbols = true;
-        include_cfi = true;
+        generate_debug_info = true;
       } else if (option.starts_with("--profile-file=")) {
         profile_file_ = option.substr(strlen("--profile-file=")).data();
         VLOG(compiler) << "dex2oat: profile file is " << profile_file_;
@@ -933,10 +927,6 @@ class Dex2Oat FINAL {
         break;
     }
 
-    if (debuggable) {
-      // TODO: Consider adding CFI info and symbols here.
-    }
-
     compiler_options_.reset(new CompilerOptions(compiler_filter,
                                                 huge_method_threshold,
                                                 large_method_threshold,
@@ -946,8 +936,7 @@ class Dex2Oat FINAL {
                                                 include_patch_information,
                                                 top_k_profile_threshold,
                                                 debuggable,
-                                                include_debug_symbols,
-                                                include_cfi,
+                                                generate_debug_info,
                                                 implicit_null_checks,
                                                 implicit_so_checks,
                                                 implicit_suspend_checks,

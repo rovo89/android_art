@@ -97,7 +97,7 @@ ANDROID_DATA=$ANDROID_DATA \
     -XXlib:$LIBART \
     -Xnorelocate \
     -Ximage:$ANDROID_ROOT/framework/core.art \
-    -Xcompiler-option --include-debug-symbols \
+    -Xcompiler-option --generate-debug-info \
     "$@"
 
 EXIT_STATUS=$?
