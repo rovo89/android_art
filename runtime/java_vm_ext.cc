@@ -562,12 +562,22 @@ mirror::Object* JavaVMExt::DecodeGlobal(Thread* self, IndirectRef ref) {
   return globals_.SynchronizedGet(self, &globals_lock_, ref);
 }
 
+void JavaVMExt::UpdateGlobal(Thread* self, IndirectRef ref, mirror::Object* result) {
+  WriterMutexLock mu(self, globals_lock_);
+  globals_.Update(ref, result);
+}
+
 mirror::Object* JavaVMExt::DecodeWeakGlobal(Thread* self, IndirectRef ref) {
   MutexLock mu(self, weak_globals_lock_);
   while (UNLIKELY(!allow_new_weak_globals_)) {
     weak_globals_add_condition_.WaitHoldingLocks(self);
   }
   return weak_globals_.Get(ref);
+}
+
+void JavaVMExt::UpdateWeakGlobal(Thread* self, IndirectRef ref, mirror::Object* result) {
+  MutexLock mu(self, weak_globals_lock_);
+  weak_globals_.Update(ref, result);
 }
 
 void JavaVMExt::DumpReferenceTables(std::ostream& os) {
