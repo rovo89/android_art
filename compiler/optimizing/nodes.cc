@@ -295,6 +295,19 @@ HNullConstant* HGraph::GetNullConstant() {
   return cached_null_constant_;
 }
 
+HCurrentMethod* HGraph::GetCurrentMethod() {
+  if (cached_current_method_ == nullptr) {
+    cached_current_method_ = new (arena_) HCurrentMethod();
+    if (entry_block_->GetFirstInstruction() == nullptr) {
+      entry_block_->AddInstruction(cached_current_method_);
+    } else {
+      entry_block_->InsertInstructionBefore(
+          cached_current_method_, entry_block_->GetFirstInstruction());
+    }
+  }
+  return cached_current_method_;
+}
+
 HConstant* HGraph::GetConstant(Primitive::Type type, int64_t value) {
   switch (type) {
     case Primitive::Type::kPrimBoolean:
@@ -1461,6 +1474,8 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
         DCHECK(parameter_index != last_input_index);
       }
       current->ReplaceWith(invoke->InputAt(parameter_index++));
+    } else if (current->IsCurrentMethod()) {
+      current->ReplaceWith(outer_graph->GetCurrentMethod());
     } else {
       DCHECK(current->IsGoto() || current->IsSuspendCheck());
       entry_block_->RemoveInstruction(current);

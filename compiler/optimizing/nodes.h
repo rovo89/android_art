@@ -35,6 +35,7 @@ namespace art {
 
 class GraphChecker;
 class HBasicBlock;
+class HCurrentMethod;
 class HDoubleConstant;
 class HEnvironment;
 class HFloatConstant;
@@ -147,7 +148,8 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
         cached_int_constants_(std::less<int32_t>(), arena->Adapter()),
         cached_float_constants_(std::less<int32_t>(), arena->Adapter()),
         cached_long_constants_(std::less<int64_t>(), arena->Adapter()),
-        cached_double_constants_(std::less<int64_t>(), arena->Adapter()) {}
+        cached_double_constants_(std::less<int64_t>(), arena->Adapter()),
+        cached_current_method_(nullptr) {}
 
   ArenaAllocator* GetArena() const { return arena_; }
   const GrowableArray<HBasicBlock*>& GetBlocks() const { return blocks_; }
@@ -278,6 +280,8 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
     return CreateConstant(bit_cast<int64_t, double>(value), &cached_double_constants_);
   }
 
+  HCurrentMethod* GetCurrentMethod();
+
   HBasicBlock* FindCommonDominator(HBasicBlock* first, HBasicBlock* second) const;
 
   const DexFile& GetDexFile() const {
@@ -385,6 +389,8 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   ArenaSafeMap<int32_t, HFloatConstant*> cached_float_constants_;
   ArenaSafeMap<int64_t, HLongConstant*> cached_long_constants_;
   ArenaSafeMap<int64_t, HDoubleConstant*> cached_double_constants_;
+
+  HCurrentMethod* cached_current_method_;
 
   friend class SsaBuilder;           // For caching constants.
   friend class SsaLivenessAnalysis;  // For the linear order.
@@ -811,6 +817,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(ClinitCheck, Instruction)                                           \
   M(Compare, BinaryOperation)                                           \
   M(Condition, BinaryOperation)                                         \
+  M(CurrentMethod, Instruction)                                         \
   M(Deoptimize, Instruction)                                            \
   M(Div, BinaryOperation)                                               \
   M(DivZeroCheck, Instruction)                                          \
@@ -1822,6 +1829,19 @@ class HDeoptimize : public HTemplateInstruction<1> {
   uint32_t dex_pc_;
 
   DISALLOW_COPY_AND_ASSIGN(HDeoptimize);
+};
+
+// Represents the ArtMethod that was passed as a first argument to
+// the method. It is used by instructions that depend on it, like
+// instructions that work with the dex cache.
+class HCurrentMethod : public HExpression<0> {
+ public:
+  HCurrentMethod() : HExpression(Primitive::kPrimNot, SideEffects::None()) {}
+
+  DECLARE_INSTRUCTION(CurrentMethod);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HCurrentMethod);
 };
 
 class HUnaryOperation : public HExpression<1> {
@@ -3437,9 +3457,10 @@ class HSuspendCheck : public HTemplateInstruction<0> {
 /**
  * Instruction to load a Class object.
  */
-class HLoadClass : public HExpression<0> {
+class HLoadClass : public HExpression<1> {
  public:
-  HLoadClass(uint16_t type_index,
+  HLoadClass(HCurrentMethod* current_method,
+             uint16_t type_index,
              const DexFile& dex_file,
              bool is_referrers_class,
              uint32_t dex_pc)
@@ -3449,7 +3470,9 @@ class HLoadClass : public HExpression<0> {
         is_referrers_class_(is_referrers_class),
         dex_pc_(dex_pc),
         generate_clinit_check_(false),
-        loaded_class_rti_(ReferenceTypeInfo::CreateTop(/* is_exact */ false)) {}
+        loaded_class_rti_(ReferenceTypeInfo::CreateTop(/* is_exact */ false)) {
+    SetRawInputAt(0, current_method);
+  }
 
   bool CanBeMoved() const OVERRIDE { return true; }
 
