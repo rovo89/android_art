@@ -16,21 +16,21 @@
 
 public class Main {
 
-  // CHECK-START: void Main.test1(boolean, int, int, int, int, int) register (after)
-  // CHECK:       name "B0"
-  // CHECK-NOT:     ParallelMove
-  // CHECK:       name "B1"
-  // CHECK-NOT:   end_block
-  // CHECK:         If
-  // CHECK-NOT:     ParallelMove
-  // CHECK:       name "B3"
-  // CHECK-NOT:   end_block
-  // CHECK:         ArraySet
+  /// CHECK-START: void Main.test1(boolean, int, int, int, int, int) register (after)
+  /// CHECK:       name "B0"
+  /// CHECK-NOT:     ParallelMove
+  /// CHECK:       name "B1"
+  /// CHECK-NOT:   end_block
+  /// CHECK:         If
+  /// CHECK-NOT:     ParallelMove
+  /// CHECK:       name "B3"
+  /// CHECK-NOT:   end_block
+  /// CHECK:         ArraySet
   // We could check here that there is a parallel move, but it's only valid
   // for some architectures (for example x86), as other architectures may
   // not do move at all.
-  // CHECK:       end_block
-  // CHECK-NOT:     ParallelMove
+  /// CHECK:       end_block
+  /// CHECK-NOT:     ParallelMove
 
   public static void test1(boolean z, int a, int b, int c, int d, int m) {
     int e = live1;
@@ -51,21 +51,21 @@ public class Main {
     live1 = e + f + g;
   }
 
-  // CHECK-START: void Main.test2(boolean, int, int, int, int, int) register (after)
-  // CHECK:       name "B0"
-  // CHECK-NOT:     ParallelMove
-  // CHECK:       name "B1"
-  // CHECK-NOT:   end_block
-  // CHECK:         If
-  // CHECK-NOT:     ParallelMove
-  // CHECK:       name "B3"
-  // CHECK-NOT:   end_block
-  // CHECK:         ArraySet
+  /// CHECK-START: void Main.test2(boolean, int, int, int, int, int) register (after)
+  /// CHECK:       name "B0"
+  /// CHECK-NOT:     ParallelMove
+  /// CHECK:       name "B1"
+  /// CHECK-NOT:   end_block
+  /// CHECK:         If
+  /// CHECK-NOT:     ParallelMove
+  /// CHECK:       name "B3"
+  /// CHECK-NOT:   end_block
+  /// CHECK:         ArraySet
   // We could check here that there is a parallel move, but it's only valid
   // for some architectures (for example x86), as other architectures may
   // not do move at all.
-  // CHECK:       end_block
-  // CHECK-NOT:     ParallelMove
+  /// CHECK:       end_block
+  /// CHECK-NOT:     ParallelMove
 
   public static void test2(boolean z, int a, int b, int c, int d, int m) {
     int e = live1;
@@ -85,21 +85,21 @@ public class Main {
     live1 = e + f + g;
   }
 
-  // CHECK-START: void Main.test3(boolean, int, int, int, int, int) register (after)
-  // CHECK:       name "B0"
-  // CHECK-NOT:     ParallelMove
-  // CHECK:       name "B1"
-  // CHECK-NOT:   end_block
-  // CHECK:         If
-  // CHECK-NOT:     ParallelMove
-  // CHECK:       name "B6"
-  // CHECK-NOT:   end_block
-  // CHECK:         ArraySet
+  /// CHECK-START: void Main.test3(boolean, int, int, int, int, int) register (after)
+  /// CHECK:       name "B0"
+  /// CHECK-NOT:     ParallelMove
+  /// CHECK:       name "B1"
+  /// CHECK-NOT:   end_block
+  /// CHECK:         If
+  /// CHECK-NOT:     ParallelMove
+  /// CHECK:       name "B6"
+  /// CHECK-NOT:   end_block
+  /// CHECK:         ArraySet
   // We could check here that there is a parallel move, but it's only valid
   // for some architectures (for example x86), as other architectures may
   // not do move at all.
-  // CHECK:       end_block
-  // CHECK-NOT:     ParallelMove
+  /// CHECK:       end_block
+  /// CHECK-NOT:     ParallelMove
 
   public static void test3(boolean z, int a, int b, int c, int d, int m) {
     // Same version as test2, but with branches reversed, to ensure

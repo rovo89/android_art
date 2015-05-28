@@ -17,8 +17,8 @@
 
 public class Main {
 
-  // CHECK-START: java.lang.Object Main.boundTypeForIf(java.lang.Object) reference_type_propagation (after)
-  // CHECK:     BoundType
+  /// CHECK-START: java.lang.Object Main.boundTypeForIf(java.lang.Object) reference_type_propagation (after)
+  /// CHECK:     BoundType
   public static Object boundTypeForIf(Object a) {
     if (a != null) {
       return a.toString();
@@ -27,8 +27,8 @@ public class Main {
     }
   }
 
-  // CHECK-START: java.lang.Object Main.boundTypeForInstanceOf(java.lang.Object) reference_type_propagation (after)
-  // CHECK:     BoundType
+  /// CHECK-START: java.lang.Object Main.boundTypeForInstanceOf(java.lang.Object) reference_type_propagation (after)
+  /// CHECK:     BoundType
   public static Object boundTypeForInstanceOf(Object a) {
     if (a instanceof Main) {
       return (Main)a;
@@ -37,8 +37,8 @@ public class Main {
     }
   }
 
-  // CHECK-START: java.lang.Object Main.noBoundTypeForIf(java.lang.Object) reference_type_propagation (after)
-  // CHECK-NOT: BoundType
+  /// CHECK-START: java.lang.Object Main.noBoundTypeForIf(java.lang.Object) reference_type_propagation (after)
+  /// CHECK-NOT: BoundType
   public static Object noBoundTypeForIf(Object a) {
     if (a == null) {
       return new Object();
@@ -47,8 +47,8 @@ public class Main {
     }
   }
 
-  // CHECK-START: java.lang.Object Main.noBoundTypeForInstanceOf(java.lang.Object) reference_type_propagation (after)
-  // CHECK-NOT: BoundType
+  /// CHECK-START: java.lang.Object Main.noBoundTypeForInstanceOf(java.lang.Object) reference_type_propagation (after)
+  /// CHECK-NOT: BoundType
   public static Object noBoundTypeForInstanceOf(Object a) {
     if (a instanceof Main) {
       return new Object();
