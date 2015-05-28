@@ -74,8 +74,7 @@ JitCompiler::JitCompiler() : total_time_(0) {
       false,
       CompilerOptions::kDefaultTopKProfileThreshold,
       false,  // TODO: Think about debuggability of JIT-compiled code.
-      false,
-      false,
+      CompilerOptions::kDefaultGenerateDebugInfo,
       false,
       false,
       false,

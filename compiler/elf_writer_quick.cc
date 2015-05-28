@@ -192,7 +192,8 @@ bool ElfWriterQuick<ElfTypes>::Write(
   std::unique_ptr<RawSection> debug_line_oat_patches(new RawSection(
       ".debug_line.oat_patches", SHT_OAT_PATCH));
   if (!oat_writer->GetMethodDebugInfo().empty()) {
-    if (compiler_driver_->GetCompilerOptions().GetIncludeCFI()) {
+    if (compiler_driver_->GetCompilerOptions().GetGenerateDebugInfo()) {
+      // Generate CFI (stack unwinding information).
       if (kCFIFormat == dwarf::DW_EH_FRAME_FORMAT) {
         dwarf::WriteCFISection(
             compiler_driver_, oat_writer,
@@ -213,8 +214,6 @@ bool ElfWriterQuick<ElfTypes>::Write(
                          debug_frame_oat_patches->GetBuffer());
         builder->RegisterSection(debug_frame_oat_patches.get());
       }
-    }
-    if (compiler_driver_->GetCompilerOptions().GetIncludeDebugSymbols()) {
       // Add methods to .symtab.
       WriteDebugSymbols(builder.get(), oat_writer);
       // Generate DWARF .debug_* sections.
