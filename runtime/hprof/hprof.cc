@@ -48,6 +48,7 @@
 #include "dex_file-inl.h"
 #include "gc_root.h"
 #include "gc/accounting/heap_bitmap.h"
+#include "gc/allocation_record.h"
 #include "gc/heap.h"
 #include "gc/space/space.h"
 #include "globals.h"
@@ -68,7 +69,6 @@ namespace hprof {
 static constexpr bool kDirectStream = true;
 
 static constexpr uint32_t kHprofTime = 0;
-static constexpr uint32_t kHprofNullStackTrace = 0;
 static constexpr uint32_t kHprofNullThread = 0;
 
 static constexpr size_t kMaxObjectsPerSegment = 128;
@@ -144,6 +144,10 @@ enum HprofBasicType {
 
 typedef uint32_t HprofStringId;
 typedef uint32_t HprofClassObjectId;
+typedef uint32_t HprofClassSerialNumber;
+typedef uint32_t HprofStackTraceSerialNumber;
+typedef uint32_t HprofStackFrameId;
+static constexpr HprofStackTraceSerialNumber kHprofNullStackTrace = 0;
 
 class EndianOutput {
  public:
@@ -192,6 +196,10 @@ class EndianOutput {
 
   void AddObjectId(const mirror::Object* value) {
     AddU4(PointerToLowMemUInt32(value));
+  }
+
+  void AddStackTraceSerialNumber(HprofStackTraceSerialNumber value) {
+    AddU4(value);
   }
 
   // The ID for the synthetic object generated to account for class static overhead.
@@ -415,13 +423,21 @@ class Hprof : public SingleRootVisitor {
         start_ns_(NanoTime()),
         current_heap_(HPROF_HEAP_DEFAULT),
         objects_in_segment_(0),
-        next_string_id_(0x400000) {
+        next_string_id_(0x400000),
+        next_class_serial_number_(1) {
     LOG(INFO) << "hprof: heap dump \"" << filename_ << "\" starting...";
   }
 
   void Dump()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
-      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_) {
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_, Locks::alloc_tracker_lock_) {
+    {
+      MutexLock mu(Thread::Current(), *Locks::alloc_tracker_lock_);
+      if (Runtime::Current()->GetHeap()->IsAllocTrackingEnabled()) {
+        PopulateAllocationTrackingTraces();
+      }
+    }
+
     // First pass to measure the size of the dump.
     size_t overall_size;
     size_t max_length;
@@ -480,11 +496,11 @@ class Hprof : public SingleRootVisitor {
     objects_in_segment_ = 0;
 
     if (header_first) {
-      ProcessHeader();
+      ProcessHeader(true);
       ProcessBody();
     } else {
       ProcessBody();
-      ProcessHeader();
+      ProcessHeader(false);
     }
   }
 
@@ -501,21 +517,29 @@ class Hprof : public SingleRootVisitor {
     output_->EndRecord();
   }
 
-  void ProcessHeader() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void ProcessHeader(bool string_first) EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Write the header.
     WriteFixedHeader();
     // Write the string and class tables, and any stack traces, to the header.
     // (jhat requires that these appear before any of the data in the body that refers to them.)
-    WriteStringTable();
+    // jhat also requires the string table appear before class table and stack traces.
+    // However, WriteStackTraces() can modify the string table, so it's necessary to call
+    // WriteStringTable() last in the first pass, to compute the correct length of the output.
+    if (string_first) {
+      WriteStringTable();
+    }
     WriteClassTable();
     WriteStackTraces();
+    if (!string_first) {
+      WriteStringTable();
+    }
     output_->EndRecord();
   }
 
   void WriteClassTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    uint32_t nextSerialNumber = 1;
-
-    for (mirror::Class* c : classes_) {
+    for (const auto& p : classes_) {
+      mirror::Class* c = p.first;
+      HprofClassSerialNumber sn = p.second;
       CHECK(c != nullptr);
       output_->StartNewRecord(HPROF_TAG_LOAD_CLASS, kHprofTime);
       // LOAD CLASS format:
@@ -523,9 +547,9 @@ class Hprof : public SingleRootVisitor {
       // ID: class object ID. We use the address of the class object structure as its ID.
       // U4: stack trace serial number
       // ID: class name string ID
-      __ AddU4(nextSerialNumber++);
+      __ AddU4(sn);
       __ AddObjectId(c);
-      __ AddU4(kHprofNullStackTrace);
+      __ AddStackTraceSerialNumber(LookupStackTraceSerialNumber(c));
       __ AddStringId(LookupClassNameId(c));
     }
   }
@@ -567,13 +591,29 @@ class Hprof : public SingleRootVisitor {
 
   HprofClassObjectId LookupClassId(mirror::Class* c) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (c != nullptr) {
-      auto result = classes_.insert(c);
-      const mirror::Class* present = *result.first;
-      CHECK_EQ(present, c);
-      // Make sure that we've assigned a string ID for this class' name
-      LookupClassNameId(c);
+      auto it = classes_.find(c);
+      if (it == classes_.end()) {
+        // first time to see this class
+        HprofClassSerialNumber sn = next_class_serial_number_++;
+        classes_.Put(c, sn);
+        // Make sure that we've assigned a string ID for this class' name
+        LookupClassNameId(c);
+      }
     }
     return PointerToLowMemUInt32(c);
+  }
+
+  HprofStackTraceSerialNumber LookupStackTraceSerialNumber(const mirror::Object* obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    auto r = allocation_records_.find(obj);
+    if (r == allocation_records_.end()) {
+      return kHprofNullStackTrace;
+    } else {
+      const gc::AllocRecordStackTrace* trace = r->second;
+      auto result = traces_.find(trace);
+      CHECK(result != traces_.end());
+      return result->second;
+    }
   }
 
   HprofStringId LookupStringId(mirror::String* string) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -622,12 +662,66 @@ class Hprof : public SingleRootVisitor {
     __ AddU4(static_cast<uint32_t>(nowMs & 0xFFFFFFFF));
   }
 
-  void WriteStackTraces() {
+  void WriteStackTraces() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Write a dummy stack trace record so the analysis tools don't freak out.
     output_->StartNewRecord(HPROF_TAG_STACK_TRACE, kHprofTime);
-    __ AddU4(kHprofNullStackTrace);
+    __ AddStackTraceSerialNumber(kHprofNullStackTrace);
     __ AddU4(kHprofNullThread);
     __ AddU4(0);    // no frames
+
+    // TODO: jhat complains "WARNING: Stack trace not found for serial # -1", but no trace should
+    // have -1 as its serial number (as long as HprofStackTraceSerialNumber doesn't overflow).
+    for (const auto& it : traces_) {
+      const gc::AllocRecordStackTrace* trace = it.first;
+      HprofStackTraceSerialNumber trace_sn = it.second;
+      size_t depth = trace->GetDepth();
+
+      // First write stack frames of the trace
+      for (size_t i = 0; i < depth; ++i) {
+        const gc::AllocRecordStackTraceElement* frame = &trace->GetStackElement(i);
+        ArtMethod* method = frame->GetMethod();
+        CHECK(method != nullptr);
+        output_->StartNewRecord(HPROF_TAG_STACK_FRAME, kHprofTime);
+        // STACK FRAME format:
+        // ID: stack frame ID. We use the address of the AllocRecordStackTraceElement object as its ID.
+        // ID: method name string ID
+        // ID: method signature string ID
+        // ID: source file name string ID
+        // U4: class serial number
+        // U4: >0, line number; 0, no line information available; -1, unknown location
+        auto frame_result = frames_.find(frame);
+        CHECK(frame_result != frames_.end());
+        __ AddU4(frame_result->second);
+        __ AddStringId(LookupStringId(method->GetName()));
+        __ AddStringId(LookupStringId(method->GetSignature().ToString()));
+        const char* source_file = method->GetDeclaringClassSourceFile();
+        if (source_file == nullptr) {
+          source_file = "";
+        }
+        __ AddStringId(LookupStringId(source_file));
+        auto class_result = classes_.find(method->GetDeclaringClass());
+        CHECK(class_result != classes_.end());
+        __ AddU4(class_result->second);
+        __ AddU4(frame->ComputeLineNumber());
+      }
+
+      // Then write the trace itself
+      output_->StartNewRecord(HPROF_TAG_STACK_TRACE, kHprofTime);
+      // STACK TRACE format:
+      // U4: stack trace serial number. We use the address of the AllocRecordStackTrace object as its serial number.
+      // U4: thread serial number. We use Thread::GetTid().
+      // U4: number of frames
+      // [ID]*: series of stack frame ID's
+      __ AddStackTraceSerialNumber(trace_sn);
+      __ AddU4(trace->GetTid());
+      __ AddU4(depth);
+      for (size_t i = 0; i < depth; ++i) {
+        const gc::AllocRecordStackTraceElement* frame = &trace->GetStackElement(i);
+        auto frame_result = frames_.find(frame);
+        CHECK(frame_result != frames_.end());
+        __ AddU4(frame_result->second);
+      }
+    }
   }
 
   bool DumpToDdmsBuffered(size_t overall_size ATTRIBUTE_UNUSED, size_t max_length ATTRIBUTE_UNUSED)
@@ -723,6 +817,40 @@ class Hprof : public SingleRootVisitor {
     return true;
   }
 
+  void PopulateAllocationTrackingTraces()
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::alloc_tracker_lock_) {
+    gc::AllocRecordObjectMap* records = Runtime::Current()->GetHeap()->GetAllocationRecords();
+    CHECK(records != nullptr);
+    HprofStackTraceSerialNumber next_trace_sn = kHprofNullStackTrace + 1;
+    HprofStackFrameId next_frame_id = 0;
+
+    for (auto it = records->Begin(), end = records->End(); it != end; ++it) {
+      const mirror::Object* obj = it->first.Read();
+      const gc::AllocRecordStackTrace* trace = it->second->GetStackTrace();
+
+      // Copy the pair into a real hash map to speed up look up.
+      auto records_result = allocation_records_.emplace(obj, trace);
+      // The insertion should always succeed, i.e. no duplicate object pointers in "records"
+      CHECK(records_result.second);
+
+      // Generate serial numbers for traces, and IDs for frames.
+      auto traces_result = traces_.find(trace);
+      if (traces_result == traces_.end()) {
+        traces_.emplace(trace, next_trace_sn++);
+        // only check frames if the trace is newly discovered
+        for (size_t i = 0, depth = trace->GetDepth(); i < depth; ++i) {
+          const gc::AllocRecordStackTraceElement* frame = &trace->GetStackElement(i);
+          auto frames_result = frames_.find(frame);
+          if (frames_result == frames_.end()) {
+            frames_.emplace(frame, next_frame_id++);
+          }
+        }
+      }
+    }
+    CHECK_EQ(traces_.size(), next_trace_sn - kHprofNullStackTrace - 1);
+    CHECK_EQ(frames_.size(), next_frame_id);
+  }
+
   // If direct_to_ddms_ is set, "filename_" and "fd" will be ignored.
   // Otherwise, "filename_" must be valid, though if "fd" >= 0 it will
   // only be used for debug messages.
@@ -737,9 +865,18 @@ class Hprof : public SingleRootVisitor {
   HprofHeapId current_heap_;  // Which heap we're currently dumping.
   size_t objects_in_segment_;
 
-  std::set<mirror::Class*> classes_;
   HprofStringId next_string_id_;
   SafeMap<std::string, HprofStringId> strings_;
+  HprofClassSerialNumber next_class_serial_number_;
+  SafeMap<mirror::Class*, HprofClassSerialNumber> classes_;
+
+  std::unordered_map<const gc::AllocRecordStackTrace*, HprofStackTraceSerialNumber,
+                     gc::HashAllocRecordTypesPtr<gc::AllocRecordStackTrace>,
+                     gc::EqAllocRecordTypesPtr<gc::AllocRecordStackTrace>> traces_;
+  std::unordered_map<const gc::AllocRecordStackTraceElement*, HprofStackFrameId,
+                     gc::HashAllocRecordTypesPtr<gc::AllocRecordStackTraceElement>,
+                     gc::EqAllocRecordTypesPtr<gc::AllocRecordStackTraceElement>> frames_;
+  std::unordered_map<const mirror::Object*, const gc::AllocRecordStackTrace*> allocation_records_;
 
   DISALLOW_COPY_AND_ASSIGN(Hprof);
 };
@@ -881,10 +1018,6 @@ void Hprof::MarkRootObject(const mirror::Object* obj, jobject jni_obj, HprofHeap
   ++objects_in_segment_;
 }
 
-static int StackTraceSerialNumber(const mirror::Object* /*obj*/) {
-  return kHprofNullStackTrace;
-}
-
 void Hprof::DumpHeapObject(mirror::Object* obj) {
   // Ignore classes that are retired.
   if (obj->IsClass() && obj->AsClass()->IsRetired()) {
@@ -966,7 +1099,7 @@ void Hprof::DumpHeapClass(mirror::Class* klass) {
     // StaticField array at the end of this class.
     __ AddU1(HPROF_PRIMITIVE_ARRAY_DUMP);
     __ AddClassStaticsId(klass);
-    __ AddU4(StackTraceSerialNumber(klass));
+    __ AddStackTraceSerialNumber(LookupStackTraceSerialNumber(klass));
     __ AddU4(byteLength);
     __ AddU1(hprof_basic_byte);
     for (int i = 0; i < byteLength; ++i) {
@@ -976,7 +1109,7 @@ void Hprof::DumpHeapClass(mirror::Class* klass) {
 
   __ AddU1(HPROF_CLASS_DUMP);
   __ AddClassId(LookupClassId(klass));
-  __ AddU4(StackTraceSerialNumber(klass));
+  __ AddStackTraceSerialNumber(LookupStackTraceSerialNumber(klass));
   __ AddClassId(LookupClassId(klass->GetSuperClass()));
   __ AddObjectId(klass->GetClassLoader());
   __ AddObjectId(nullptr);    // no signer
@@ -1072,7 +1205,7 @@ void Hprof::DumpHeapArray(mirror::Array* obj, mirror::Class* klass) {
     __ AddU1(HPROF_OBJECT_ARRAY_DUMP);
 
     __ AddObjectId(obj);
-    __ AddU4(StackTraceSerialNumber(obj));
+    __ AddStackTraceSerialNumber(LookupStackTraceSerialNumber(obj));
     __ AddU4(length);
     __ AddClassId(LookupClassId(klass));
 
@@ -1087,7 +1220,7 @@ void Hprof::DumpHeapArray(mirror::Array* obj, mirror::Class* klass) {
     __ AddU1(HPROF_PRIMITIVE_ARRAY_DUMP);
 
     __ AddObjectId(obj);
-    __ AddU4(StackTraceSerialNumber(obj));
+    __ AddStackTraceSerialNumber(LookupStackTraceSerialNumber(obj));
     __ AddU4(length);
     __ AddU1(t);
 
@@ -1108,7 +1241,7 @@ void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass) {
   // obj is an instance object.
   __ AddU1(HPROF_INSTANCE_DUMP);
   __ AddObjectId(obj);
-  __ AddU4(StackTraceSerialNumber(obj));
+  __ AddStackTraceSerialNumber(LookupStackTraceSerialNumber(obj));
   __ AddClassId(LookupClassId(klass));
 
   // Reserve some space for the length of the instance data, which we won't
@@ -1170,7 +1303,7 @@ void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass) {
 
     __ AddU1(HPROF_PRIMITIVE_ARRAY_DUMP);
     __ AddObjectId(value);
-    __ AddU4(StackTraceSerialNumber(obj));
+    __ AddStackTraceSerialNumber(LookupStackTraceSerialNumber(obj));
     __ AddU4(s->GetLength());
     __ AddU1(hprof_basic_char);
     __ AddU2List(s->GetValue(), s->GetLength());
