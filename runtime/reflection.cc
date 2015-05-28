@@ -464,7 +464,7 @@ JValue InvokeWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa, jobject o
   InvokeWithArgArray(soa, method, &arg_array, &result, shorty);
   if (is_string_init) {
     // For string init, remap original receiver to StringFactory result.
-    soa.Self()->GetJniEnv()->locals.Update(obj, result.GetL());
+    UpdateReference(soa.Self(), obj, result.GetL());
   }
   return result;
 }
@@ -494,7 +494,7 @@ JValue InvokeWithJValues(const ScopedObjectAccessAlreadyRunnable& soa, jobject o
   InvokeWithArgArray(soa, method, &arg_array, &result, shorty);
   if (is_string_init) {
     // For string init, remap original receiver to StringFactory result.
-    soa.Self()->GetJniEnv()->locals.Update(obj, result.GetL());
+    UpdateReference(soa.Self(), obj, result.GetL());
   }
   return result;
 }
@@ -525,7 +525,7 @@ JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccessAlreadyRunnab
   InvokeWithArgArray(soa, method, &arg_array, &result, shorty);
   if (is_string_init) {
     // For string init, remap original receiver to StringFactory result.
-    soa.Self()->GetJniEnv()->locals.Update(obj, result.GetL());
+    UpdateReference(soa.Self(), obj, result.GetL());
   }
   return result;
 }
@@ -556,7 +556,7 @@ JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccessAlreadyRunnab
   InvokeWithArgArray(soa, method, &arg_array, &result, shorty);
   if (is_string_init) {
     // For string init, remap original receiver to StringFactory result.
-    soa.Self()->GetJniEnv()->locals.Update(obj, result.GetL());
+    UpdateReference(soa.Self(), obj, result.GetL());
   }
   return result;
 }
@@ -880,6 +880,23 @@ void InvalidReceiverError(mirror::Object* o, mirror::Class* c) {
   ThrowIllegalArgumentException(StringPrintf("Expected receiver of type %s, but got %s",
                                              expected_class_name.c_str(),
                                              actual_class_name.c_str()).c_str());
+}
+
+// This only works if there's one reference which points to the object in obj.
+// Will need to be fixed if there's cases where it's not.
+void UpdateReference(Thread* self, jobject obj, mirror::Object* result) {
+  IndirectRef ref = reinterpret_cast<IndirectRef>(obj);
+  IndirectRefKind kind = GetIndirectRefKind(ref);
+  if (kind == kLocal) {
+    self->GetJniEnv()->locals.Update(obj, result);
+  } else if (kind == kHandleScopeOrInvalid) {
+    LOG(FATAL) << "Unsupported UpdateReference for kind kHandleScopeOrInvalid";
+  } else if (kind == kGlobal) {
+    self->GetJniEnv()->vm->UpdateGlobal(self, ref, result);
+  } else {
+    DCHECK_EQ(kind, kWeakGlobal);
+    self->GetJniEnv()->vm->UpdateWeakGlobal(self, ref, result);
+  }
 }
 
 }  // namespace art
