@@ -49,7 +49,7 @@ class CompilerOptions FINAL {
   static const size_t kDefaultTinyMethodThreshold = 20;
   static const size_t kDefaultNumDexMethodsThreshold = 900;
   static constexpr double kDefaultTopKProfileThreshold = 90.0;
-  static const bool kDefaultIncludeDebugSymbols = kIsDebugBuild;
+  static const bool kDefaultGenerateDebugInfo = kIsDebugBuild;
   static const bool kDefaultIncludePatchInformation = false;
 
   CompilerOptions();
@@ -64,8 +64,7 @@ class CompilerOptions FINAL {
                   bool include_patch_information,
                   double top_k_profile_threshold,
                   bool debuggable,
-                  bool include_debug_symbols,
-                  bool include_cfi,
+                  bool generate_debug_info,
                   bool implicit_null_checks,
                   bool implicit_so_checks,
                   bool implicit_suspend_checks,
@@ -146,13 +145,8 @@ class CompilerOptions FINAL {
     return debuggable_;
   }
 
-  bool GetIncludeDebugSymbols() const {
-    return include_debug_symbols_;
-  }
-
-  bool GetIncludeCFI() const {
-    // include-debug-symbols implies include-cfi.
-    return include_cfi_ || include_debug_symbols_;
+  bool GetGenerateDebugInfo() const {
+    return generate_debug_info_;
   }
 
   bool GetImplicitNullChecks() const {
@@ -212,8 +206,7 @@ class CompilerOptions FINAL {
   // When using a profile file only the top K% of the profiled samples will be compiled.
   const double top_k_profile_threshold_;
   const bool debuggable_;
-  const bool include_debug_symbols_;
-  const bool include_cfi_;
+  const bool generate_debug_info_;
   const bool implicit_null_checks_;
   const bool implicit_so_checks_;
   const bool implicit_suspend_checks_;
