@@ -105,7 +105,7 @@ class MatchFiles_Test(unittest.TestCase):
   def assertMatches(self, checkerString, c1String):
     checkerString = \
       """
-        // CHECK-START: MyMethod MyPass
+        /// CHECK-START: MyMethod MyPass
       """ + checkerString
     c1String = \
       """
@@ -131,18 +131,18 @@ class MatchFiles_Test(unittest.TestCase):
       self.assertMatches(checkerString, c1String)
 
   def test_Text(self):
-    self.assertMatches("// CHECK: foo bar", "foo bar")
-    self.assertDoesNotMatch("// CHECK: foo bar", "abc def")
+    self.assertMatches("/// CHECK: foo bar", "foo bar")
+    self.assertDoesNotMatch("/// CHECK: foo bar", "abc def")
 
   def test_Pattern(self):
-    self.assertMatches("// CHECK: abc {{de.}}", "abc de#")
-    self.assertDoesNotMatch("// CHECK: abc {{de.}}", "abc d#f")
+    self.assertMatches("/// CHECK: abc {{de.}}", "abc de#")
+    self.assertDoesNotMatch("/// CHECK: abc {{de.}}", "abc d#f")
 
   def test_Variables(self):
     self.assertMatches(
     """
-      // CHECK: foo<<X:.>>bar
-      // CHECK: abc<<X>>def
+      /// CHECK: foo<<X:.>>bar
+      /// CHECK: abc<<X>>def
     """,
     """
       foo0bar
@@ -150,9 +150,9 @@ class MatchFiles_Test(unittest.TestCase):
     """)
     self.assertMatches(
     """
-      // CHECK: foo<<X:([0-9]+)>>bar
-      // CHECK: abc<<X>>def
-      // CHECK: ### <<X>> ###
+      /// CHECK: foo<<X:([0-9]+)>>bar
+      /// CHECK: abc<<X>>def
+      /// CHECK: ### <<X>> ###
     """,
     """
       foo1234bar
@@ -161,8 +161,8 @@ class MatchFiles_Test(unittest.TestCase):
     """)
     self.assertDoesNotMatch(
     """
-      // CHECK: foo<<X:([0-9]+)>>bar
-      // CHECK: abc<<X>>def
+      /// CHECK: foo<<X:([0-9]+)>>bar
+      /// CHECK: abc<<X>>def
     """,
     """
       foo1234bar
@@ -170,16 +170,16 @@ class MatchFiles_Test(unittest.TestCase):
     """)
 
   def test_WholeWordMustMatch(self):
-    self.assertMatches("// CHECK: b{{.}}r", "abc bar def")
-    self.assertDoesNotMatch("// CHECK: b{{.}}r", "abc Xbar def")
-    self.assertDoesNotMatch("// CHECK: b{{.}}r", "abc barX def")
-    self.assertDoesNotMatch("// CHECK: b{{.}}r", "abc b r def")
+    self.assertMatches("/// CHECK: b{{.}}r", "abc bar def")
+    self.assertDoesNotMatch("/// CHECK: b{{.}}r", "abc Xbar def")
+    self.assertDoesNotMatch("/// CHECK: b{{.}}r", "abc barX def")
+    self.assertDoesNotMatch("/// CHECK: b{{.}}r", "abc b r def")
 
   def test_InOrderAssertions(self):
     self.assertMatches(
     """
-      // CHECK: foo
-      // CHECK: bar
+      /// CHECK: foo
+      /// CHECK: bar
     """,
     """
       foo
@@ -187,8 +187,8 @@ class MatchFiles_Test(unittest.TestCase):
     """)
     self.assertDoesNotMatch(
     """
-      // CHECK: foo
-      // CHECK: bar
+      /// CHECK: foo
+      /// CHECK: bar
     """,
     """
       bar
@@ -198,10 +198,10 @@ class MatchFiles_Test(unittest.TestCase):
   def test_NextLineAssertions(self):
     self.assertMatches(
     """
-      // CHECK:      foo
-      // CHECK-NEXT: bar
-      // CHECK-NEXT: abc
-      // CHECK:      def
+      /// CHECK:      foo
+      /// CHECK-NEXT: bar
+      /// CHECK-NEXT: abc
+      /// CHECK:      def
     """,
     """
       foo
@@ -211,9 +211,9 @@ class MatchFiles_Test(unittest.TestCase):
     """)
     self.assertMatches(
     """
-      // CHECK:      foo
-      // CHECK-NEXT: bar
-      // CHECK:      def
+      /// CHECK:      foo
+      /// CHECK-NEXT: bar
+      /// CHECK:      def
     """,
     """
       foo
@@ -223,8 +223,8 @@ class MatchFiles_Test(unittest.TestCase):
     """)
     self.assertDoesNotMatch(
     """
-      // CHECK:      foo
-      // CHECK-NEXT: bar
+      /// CHECK:      foo
+      /// CHECK-NEXT: bar
     """,
     """
       foo
@@ -234,8 +234,8 @@ class MatchFiles_Test(unittest.TestCase):
 
     self.assertDoesNotMatch(
     """
-      // CHECK:      foo
-      // CHECK-NEXT: bar
+      /// CHECK:      foo
+      /// CHECK-NEXT: bar
     """,
     """
       bar
@@ -246,8 +246,8 @@ class MatchFiles_Test(unittest.TestCase):
   def test_DagAssertions(self):
     self.assertMatches(
     """
-      // CHECK-DAG: foo
-      // CHECK-DAG: bar
+      /// CHECK-DAG: foo
+      /// CHECK-DAG: bar
     """,
     """
       foo
@@ -255,8 +255,8 @@ class MatchFiles_Test(unittest.TestCase):
     """)
     self.assertMatches(
     """
-      // CHECK-DAG: foo
-      // CHECK-DAG: bar
+      /// CHECK-DAG: foo
+      /// CHECK-DAG: bar
     """,
     """
       bar
@@ -266,10 +266,10 @@ class MatchFiles_Test(unittest.TestCase):
   def test_DagAssertionsScope(self):
     self.assertMatches(
     """
-      // CHECK:     foo
-      // CHECK-DAG: abc
-      // CHECK-DAG: def
-      // CHECK:     bar
+      /// CHECK:     foo
+      /// CHECK-DAG: abc
+      /// CHECK-DAG: def
+      /// CHECK:     bar
     """,
     """
       foo
@@ -279,10 +279,10 @@ class MatchFiles_Test(unittest.TestCase):
     """)
     self.assertDoesNotMatch(
     """
-      // CHECK:     foo
-      // CHECK-DAG: abc
-      // CHECK-DAG: def
-      // CHECK:     bar
+      /// CHECK:     foo
+      /// CHECK-DAG: abc
+      /// CHECK-DAG: def
+      /// CHECK:     bar
     """,
     """
       foo
@@ -292,10 +292,10 @@ class MatchFiles_Test(unittest.TestCase):
     """)
     self.assertDoesNotMatch(
     """
-      // CHECK:     foo
-      // CHECK-DAG: abc
-      // CHECK-DAG: def
-      // CHECK:     bar
+      /// CHECK:     foo
+      /// CHECK-DAG: abc
+      /// CHECK-DAG: def
+      /// CHECK:     bar
     """,
     """
       foo
@@ -307,7 +307,7 @@ class MatchFiles_Test(unittest.TestCase):
   def test_NotAssertions(self):
     self.assertMatches(
     """
-      // CHECK-NOT: foo
+      /// CHECK-NOT: foo
     """,
     """
       abc
@@ -315,7 +315,7 @@ class MatchFiles_Test(unittest.TestCase):
     """)
     self.assertDoesNotMatch(
     """
-      // CHECK-NOT: foo
+      /// CHECK-NOT: foo
     """,
     """
       abc foo
@@ -323,8 +323,8 @@ class MatchFiles_Test(unittest.TestCase):
     """)
     self.assertDoesNotMatch(
     """
-      // CHECK-NOT: foo
-      // CHECK-NOT: bar
+      /// CHECK-NOT: foo
+      /// CHECK-NOT: bar
     """,
     """
       abc
@@ -334,9 +334,9 @@ class MatchFiles_Test(unittest.TestCase):
   def test_NotAssertionsScope(self):
     self.assertMatches(
     """
-      // CHECK:     abc
-      // CHECK-NOT: foo
-      // CHECK:     def
+      /// CHECK:     abc
+      /// CHECK-NOT: foo
+      /// CHECK:     def
     """,
     """
       abc
@@ -344,9 +344,9 @@ class MatchFiles_Test(unittest.TestCase):
     """)
     self.assertMatches(
     """
-      // CHECK:     abc
-      // CHECK-NOT: foo
-      // CHECK:     def
+      /// CHECK:     abc
+      /// CHECK-NOT: foo
+      /// CHECK:     def
     """,
     """
       abc
@@ -355,9 +355,9 @@ class MatchFiles_Test(unittest.TestCase):
     """)
     self.assertDoesNotMatch(
     """
-      // CHECK:     abc
-      // CHECK-NOT: foo
-      // CHECK:     def
+      /// CHECK:     abc
+      /// CHECK-NOT: foo
+      /// CHECK:     def
     """,
     """
       abc
@@ -368,8 +368,8 @@ class MatchFiles_Test(unittest.TestCase):
   def test_LineOnlyMatchesOnce(self):
     self.assertMatches(
     """
-      // CHECK-DAG: foo
-      // CHECK-DAG: foo
+      /// CHECK-DAG: foo
+      /// CHECK-DAG: foo
     """,
     """
       foo
@@ -378,8 +378,8 @@ class MatchFiles_Test(unittest.TestCase):
     """)
     self.assertDoesNotMatch(
     """
-      // CHECK-DAG: foo
-      // CHECK-DAG: foo
+      /// CHECK-DAG: foo
+      /// CHECK-DAG: foo
     """,
     """
       foo

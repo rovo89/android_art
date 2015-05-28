@@ -16,13 +16,13 @@
 
 public class Main {
 
-  // CHECK-START: java.lang.Object Main.InlineNullConstant() inliner (before)
-  // CHECK:         NullConstant
-  // CHECK-NOT:     NullConstant
+  /// CHECK-START: java.lang.Object Main.InlineNullConstant() inliner (before)
+  /// CHECK:         NullConstant
+  /// CHECK-NOT:     NullConstant
 
-  // CHECK-START: java.lang.Object Main.InlineNullConstant() inliner (after)
-  // CHECK:         NullConstant
-  // CHECK-NOT:     NullConstant
+  /// CHECK-START: java.lang.Object Main.InlineNullConstant() inliner (after)
+  /// CHECK:         NullConstant
+  /// CHECK-NOT:     NullConstant
 
   public static Object returnNullConstant(Object x) {
     return null;
@@ -32,13 +32,13 @@ public class Main {
     return returnNullConstant(null);
   }
 
-  // CHECK-START: int Main.InlineIntConstant() inliner (before)
-  // CHECK:         IntConstant 42
-  // CHECK-NOT:     IntConstant 42
+  /// CHECK-START: int Main.InlineIntConstant() inliner (before)
+  /// CHECK:         IntConstant 42
+  /// CHECK-NOT:     IntConstant 42
 
-  // CHECK-START: int Main.InlineIntConstant() inliner (after)
-  // CHECK:         IntConstant 42
-  // CHECK-NOT:     IntConstant 42
+  /// CHECK-START: int Main.InlineIntConstant() inliner (after)
+  /// CHECK:         IntConstant 42
+  /// CHECK-NOT:     IntConstant 42
 
   public static int returnIntConstant(int x) {
     return 42;
@@ -48,13 +48,13 @@ public class Main {
     return returnIntConstant(42);
   }
 
-  // CHECK-START: long Main.InlineLongConstant() inliner (before)
-  // CHECK:         LongConstant 42
-  // CHECK-NOT:     LongConstant 42
+  /// CHECK-START: long Main.InlineLongConstant() inliner (before)
+  /// CHECK:         LongConstant 42
+  /// CHECK-NOT:     LongConstant 42
 
-  // CHECK-START: long Main.InlineLongConstant() inliner (after)
-  // CHECK:         LongConstant 42
-  // CHECK-NOT:     LongConstant 42
+  /// CHECK-START: long Main.InlineLongConstant() inliner (after)
+  /// CHECK:         LongConstant 42
+  /// CHECK-NOT:     LongConstant 42
 
   public static long returnLongConstant(long x) {
     return 42L;

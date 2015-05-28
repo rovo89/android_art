@@ -33,12 +33,12 @@ public class Main {
     return result;
   }
 
-  // CHECK-START: int Main.NestedLoop(int, int) inliner (before)
-  // CHECK-NOT:     Mul
+  /// CHECK-START: int Main.NestedLoop(int, int) inliner (before)
+  /// CHECK-NOT:     Mul
 
-  // CHECK-START: int Main.NestedLoop(int, int) inliner (after)
-  // CHECK:         Mul
-  // CHECK-NOT:     Mul
+  /// CHECK-START: int Main.NestedLoop(int, int) inliner (after)
+  /// CHECK:         Mul
+  /// CHECK-NOT:     Mul
 
   public static int NestedLoop(int max_x, int max_y) {
     int total = 0;

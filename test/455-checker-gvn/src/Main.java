@@ -19,15 +19,15 @@ public class Main {
     System.out.println(foo(3, 4));
   }
 
-  // CHECK-START: int Main.foo(int, int) GVN (before)
-  // CHECK: Add
-  // CHECK: Add
-  // CHECK: Add
+  /// CHECK-START: int Main.foo(int, int) GVN (before)
+  /// CHECK: Add
+  /// CHECK: Add
+  /// CHECK: Add
 
-  // CHECK-START: int Main.foo(int, int) GVN (after)
-  // CHECK: Add
-  // CHECK: Add
-  // CHECK-NOT: Add
+  /// CHECK-START: int Main.foo(int, int) GVN (after)
+  /// CHECK: Add
+  /// CHECK: Add
+  /// CHECK-NOT: Add
 
   public static int foo(int x, int y) {
     int sum1 = x + y;
