@@ -16,14 +16,14 @@
 
 public class Main {
 
-  // CHECK-START: int Main.div() licm (before)
-  // CHECK-DAG: Div loop:{{B\d+}}
+  /// CHECK-START: int Main.div() licm (before)
+  /// CHECK-DAG: Div loop:{{B\d+}}
 
-  // CHECK-START: int Main.div() licm (after)
-  // CHECK-NOT: Div loop:{{B\d+}}
+  /// CHECK-START: int Main.div() licm (after)
+  /// CHECK-NOT: Div loop:{{B\d+}}
 
-  // CHECK-START: int Main.div() licm (after)
-  // CHECK-DAG: Div loop:none
+  /// CHECK-START: int Main.div() licm (after)
+  /// CHECK-DAG: Div loop:none
 
   public static int div() {
     int result = 0;
@@ -33,14 +33,14 @@ public class Main {
     return result;
   }
 
-  // CHECK-START: int Main.innerDiv() licm (before)
-  // CHECK-DAG: Div loop:{{B\d+}}
+  /// CHECK-START: int Main.innerDiv() licm (before)
+  /// CHECK-DAG: Div loop:{{B\d+}}
 
-  // CHECK-START: int Main.innerDiv() licm (after)
-  // CHECK-NOT: Div loop:{{B\d+}}
+  /// CHECK-START: int Main.innerDiv() licm (after)
+  /// CHECK-NOT: Div loop:{{B\d+}}
 
-  // CHECK-START: int Main.innerDiv() licm (after)
-  // CHECK-DAG: Div loop:none
+  /// CHECK-START: int Main.innerDiv() licm (after)
+  /// CHECK-DAG: Div loop:none
 
   public static int innerDiv() {
     int result = 0;
@@ -52,11 +52,11 @@ public class Main {
     return result;
   }
 
-  // CHECK-START: int Main.innerDiv2() licm (before)
-  // CHECK-DAG: Mul loop:B4
+  /// CHECK-START: int Main.innerDiv2() licm (before)
+  /// CHECK-DAG: Mul loop:B4
 
-  // CHECK-START: int Main.innerDiv2() licm (after)
-  // CHECK-DAG: Mul loop:B2
+  /// CHECK-START: int Main.innerDiv2() licm (after)
+  /// CHECK-DAG: Mul loop:B2
 
   public static int innerDiv2() {
     int result = 0;
@@ -71,11 +71,11 @@ public class Main {
     return result;
   }
 
-  // CHECK-START: int Main.innerDiv3(int, int) licm (before)
-  // CHECK-DAG: Div loop:{{B\d+}}
+  /// CHECK-START: int Main.innerDiv3(int, int) licm (before)
+  /// CHECK-DAG: Div loop:{{B\d+}}
 
-  // CHECK-START: int Main.innerDiv3(int, int) licm (after)
-  // CHECK-DAG: Div loop:{{B\d+}}
+  /// CHECK-START: int Main.innerDiv3(int, int) licm (after)
+  /// CHECK-DAG: Div loop:{{B\d+}}
 
   public static int innerDiv3(int a, int b) {
     int result = 0;
@@ -87,17 +87,17 @@ public class Main {
     return result;
   }
 
-  // CHECK-START: int Main.arrayLength(int[]) licm (before)
-  // CHECK-DAG: <<NullCheck:l\d+>> NullCheck loop:{{B\d+}}
-  // CHECK-DAG:                    ArrayLength [<<NullCheck>>] loop:{{B\d+}}
+  /// CHECK-START: int Main.arrayLength(int[]) licm (before)
+  /// CHECK-DAG: <<NullCheck:l\d+>> NullCheck loop:{{B\d+}}
+  /// CHECK-DAG:                    ArrayLength [<<NullCheck>>] loop:{{B\d+}}
 
-  // CHECK-START: int Main.arrayLength(int[]) licm (after)
-  // CHECK-NOT:                    NullCheck loop:{{B\d+}}
-  // CHECK-NOT:                    ArrayLength loop:{{B\d+}}
+  /// CHECK-START: int Main.arrayLength(int[]) licm (after)
+  /// CHECK-NOT:                    NullCheck loop:{{B\d+}}
+  /// CHECK-NOT:                    ArrayLength loop:{{B\d+}}
 
-  // CHECK-START: int Main.arrayLength(int[]) licm (after)
-  // CHECK-DAG: <<NullCheck:l\d+>> NullCheck loop:none
-  // CHECK-DAG:                    ArrayLength [<<NullCheck>>] loop:none
+  /// CHECK-START: int Main.arrayLength(int[]) licm (after)
+  /// CHECK-DAG: <<NullCheck:l\d+>> NullCheck loop:none
+  /// CHECK-DAG:                    ArrayLength [<<NullCheck>>] loop:none
 
   public static int arrayLength(int[] array) {
     int result = 0;

@@ -19,27 +19,27 @@ public final class Main {
   public void invokeVirtual() {
   }
 
-  // CHECK-START: void Main.inlineSharpenInvokeVirtual(Main) inliner (before)
-  // CHECK-DAG:     <<Invoke:v\d+>>  InvokeStaticOrDirect
-  // CHECK-DAG:                      ReturnVoid
+  /// CHECK-START: void Main.inlineSharpenInvokeVirtual(Main) inliner (before)
+  /// CHECK-DAG:     <<Invoke:v\d+>>  InvokeStaticOrDirect
+  /// CHECK-DAG:                      ReturnVoid
 
-  // CHECK-START: void Main.inlineSharpenInvokeVirtual(Main) inliner (after)
-  // CHECK-NOT:                      InvokeStaticOrDirect
+  /// CHECK-START: void Main.inlineSharpenInvokeVirtual(Main) inliner (after)
+  /// CHECK-NOT:                      InvokeStaticOrDirect
 
   public static void inlineSharpenInvokeVirtual(Main m) {
     m.invokeVirtual();
   }
 
-  // CHECK-START: int Main.inlineSharpenStringInvoke() inliner (before)
-  // CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
-  // CHECK-DAG:                      Return [<<Invoke>>]
+  /// CHECK-START: int Main.inlineSharpenStringInvoke() inliner (before)
+  /// CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
+  /// CHECK-DAG:                      Return [<<Invoke>>]
 
-  // CHECK-START: int Main.inlineSharpenStringInvoke() inliner (after)
-  // CHECK-NOT:                      InvokeStaticOrDirect
+  /// CHECK-START: int Main.inlineSharpenStringInvoke() inliner (after)
+  /// CHECK-NOT:                      InvokeStaticOrDirect
 
-  // CHECK-START: int Main.inlineSharpenStringInvoke() inliner (after)
-  // CHECK-DAG:     <<Field:i\d+>>   InstanceFieldGet
-  // CHECK-DAG:                      Return [<<Field>>]
+  /// CHECK-START: int Main.inlineSharpenStringInvoke() inliner (after)
+  /// CHECK-DAG:     <<Field:i\d+>>   InstanceFieldGet
+  /// CHECK-DAG:                      Return [<<Field>>]
 
   public static int inlineSharpenStringInvoke() {
     return "Foo".length();

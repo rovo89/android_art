@@ -12,10 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from common.logger              import Logger
 from file_format.common         import SplitStream
 from file_format.checker.struct import CheckerFile, TestCase, TestAssertion, RegexExpression
 
 import re
+
+def __isCheckerLine(line):
+  return line.startswith("///") or line.startswith("##")
 
 def __extractLine(prefix, line):
   """ Attempts to parse a check line. The regex searches for a comment symbol
@@ -23,7 +27,7 @@ def __extractLine(prefix, line):
       beginning of the line. Whitespaces are ignored.
   """
   rIgnoreWhitespace = r"\s*"
-  rCommentSymbols = [r"//", r"#"]
+  rCommentSymbols = [r"///", r"##"]
   regexPrefix = rIgnoreWhitespace + \
                 r"(" + r"|".join(rCommentSymbols) + r")" + \
                 rIgnoreWhitespace + \
@@ -37,13 +41,16 @@ def __extractLine(prefix, line):
   else:
     return None
 
-def __processLine(line, lineNo, prefix):
+def __processLine(line, lineNo, prefix, fileName):
   """ This function is invoked on each line of the check file and returns a pair
       which instructs the parser how the line should be handled. If the line is
       to be included in the current check group, it is returned in the first
       value. If the line starts a new check group, the name of the group is
       returned in the second value.
   """
+  if not __isCheckerLine(line):
+    return None, None
+
   # Lines beginning with 'CHECK-START' start a new test case.
   startLine = __extractLine(prefix + "-START", line)
   if startLine is not None:
@@ -69,8 +76,7 @@ def __processLine(line, lineNo, prefix):
   if notLine is not None:
     return (notLine, TestAssertion.Variant.Not, lineNo), None
 
-  # Other lines are ignored.
-  return None, None
+  Logger.fail("Checker assertion could not be parsed", fileName, lineNo)
 
 def __isMatchAtStart(match):
   """ Tests if the given Match occurred at the beginning of the line. """
@@ -137,9 +143,9 @@ def ParseCheckerAssertion(parent, line, variant, lineNo):
 
 def ParseCheckerStream(fileName, prefix, stream):
   checkerFile = CheckerFile(fileName)
-  fnProcessLine = lambda line, lineNo: __processLine(line, lineNo, prefix)
+  fnProcessLine = lambda line, lineNo: __processLine(line, lineNo, prefix, fileName)
   fnLineOutsideChunk = lambda line, lineNo: \
-      Logger.fail("C1visualizer line not inside a group", fileName, lineNo)
+      Logger.fail("Checker line not inside a group", fileName, lineNo)
   for caseName, caseLines, startLineNo in SplitStream(stream, fnProcessLine, fnLineOutsideChunk):
     testCase = TestCase(checkerFile, caseName, startLineNo)
     for caseLine in caseLines:

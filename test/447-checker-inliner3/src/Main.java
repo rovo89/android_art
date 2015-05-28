@@ -16,12 +16,12 @@
 
 public class Main {
 
-  // CHECK-START: int Main.inlineIfThenElse() inliner (before)
-  // CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
-  // CHECK-DAG:                      Return [<<Invoke>>]
+  /// CHECK-START: int Main.inlineIfThenElse() inliner (before)
+  /// CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
+  /// CHECK-DAG:                      Return [<<Invoke>>]
 
-  // CHECK-START: int Main.inlineIfThenElse() inliner (after)
-  // CHECK-NOT:                      InvokeStaticOrDirect
+  /// CHECK-START: int Main.inlineIfThenElse() inliner (after)
+  /// CHECK-NOT:                      InvokeStaticOrDirect
 
   public static int inlineIfThenElse() {
     return foo(true);
@@ -35,11 +35,11 @@ public class Main {
     }
   }
 
-  // CHECK-START: int Main.inlineInLoop() inliner (before)
-  // CHECK-DAG:     InvokeStaticOrDirect
+  /// CHECK-START: int Main.inlineInLoop() inliner (before)
+  /// CHECK-DAG:     InvokeStaticOrDirect
 
-  // CHECK-START: int Main.inlineInLoop() inliner (after)
-  // CHECK-NOT:     InvokeStaticOrDirect
+  /// CHECK-START: int Main.inlineInLoop() inliner (after)
+  /// CHECK-NOT:     InvokeStaticOrDirect
 
   public static int inlineInLoop() {
     int result = 0;
@@ -49,11 +49,11 @@ public class Main {
     return result;
   }
 
-  // CHECK-START: int Main.inlineInLoopHeader() inliner (before)
-  // CHECK-DAG:     InvokeStaticOrDirect
+  /// CHECK-START: int Main.inlineInLoopHeader() inliner (before)
+  /// CHECK-DAG:     InvokeStaticOrDirect
 
-  // CHECK-START: int Main.inlineInLoopHeader() inliner (after)
-  // CHECK-NOT:     InvokeStaticOrDirect
+  /// CHECK-START: int Main.inlineInLoopHeader() inliner (after)
+  /// CHECK-NOT:     InvokeStaticOrDirect
 
   public static int inlineInLoopHeader() {
     int result = 0;
