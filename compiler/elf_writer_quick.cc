@@ -156,52 +156,62 @@ bool ElfWriterQuick<ElfTypes>::Write(
       isa, rodata_size, &rodata_writer, text_size, &text_writer, bss_size));
 
   // Add debug sections.
-  // They are stack allocated here (in the same scope as the builder),
+  // They are allocated here (in the same scope as the builder),
   // but they are registered with the builder only if they are used.
   using RawSection = typename ElfBuilder<ElfTypes>::RawSection;
   const auto* text = builder->GetText();
   const bool is64bit = Is64BitInstructionSet(isa);
   const int pointer_size = GetInstructionSetPointerSize(isa);
-  RawSection eh_frame(".eh_frame", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0,
-                      is64bit ? Patch<Elf_Addr, uint64_t, kPointerRelativeAddress> :
-                                Patch<Elf_Addr, uint32_t, kPointerRelativeAddress>,
-                      text);
-  RawSection eh_frame_hdr(".eh_frame_hdr", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, 4, 0,
-                          Patch<Elf_Addr, uint32_t, kSectionRelativeAddress>, text);
-  RawSection debug_frame(".debug_frame", SHT_PROGBITS, 0, nullptr, 0, pointer_size, 0,
-                         is64bit ? Patch<Elf_Addr, uint64_t, kAbsoluteAddress> :
-                                   Patch<Elf_Addr, uint32_t, kAbsoluteAddress>,
-                         text);
-  RawSection debug_frame_oat_patches(".debug_frame.oat_patches", SHT_OAT_PATCH);
-  RawSection debug_info(".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0,
-                        Patch<Elf_Addr, uint32_t, kAbsoluteAddress>, text);
-  RawSection debug_info_oat_patches(".debug_info.oat_patches", SHT_OAT_PATCH);
-  RawSection debug_abbrev(".debug_abbrev", SHT_PROGBITS);
-  RawSection debug_str(".debug_str", SHT_PROGBITS);
-  RawSection debug_line(".debug_line", SHT_PROGBITS, 0, nullptr, 0, 1, 0,
-                        Patch<Elf_Addr, uint32_t, kAbsoluteAddress>, text);
-  RawSection debug_line_oat_patches(".debug_line.oat_patches", SHT_OAT_PATCH);
+  std::unique_ptr<RawSection> eh_frame(new RawSection(
+      ".eh_frame", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0,
+      is64bit ? Patch<Elf_Addr, uint64_t, kPointerRelativeAddress> :
+                Patch<Elf_Addr, uint32_t, kPointerRelativeAddress>,
+      text));
+  std::unique_ptr<RawSection> eh_frame_hdr(new RawSection(
+      ".eh_frame_hdr", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, 4, 0,
+      Patch<Elf_Addr, uint32_t, kSectionRelativeAddress>, text));
+  std::unique_ptr<RawSection> debug_frame(new RawSection(
+      ".debug_frame", SHT_PROGBITS, 0, nullptr, 0, pointer_size, 0,
+      is64bit ? Patch<Elf_Addr, uint64_t, kAbsoluteAddress> :
+                Patch<Elf_Addr, uint32_t, kAbsoluteAddress>,
+      text));
+  std::unique_ptr<RawSection> debug_frame_oat_patches(new RawSection(
+      ".debug_frame.oat_patches", SHT_OAT_PATCH));
+  std::unique_ptr<RawSection> debug_info(new RawSection(
+      ".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0,
+      Patch<Elf_Addr, uint32_t, kAbsoluteAddress>, text));
+  std::unique_ptr<RawSection> debug_info_oat_patches(new RawSection(
+      ".debug_info.oat_patches", SHT_OAT_PATCH));
+  std::unique_ptr<RawSection> debug_abbrev(new RawSection(
+      ".debug_abbrev", SHT_PROGBITS));
+  std::unique_ptr<RawSection> debug_str(new RawSection(
+      ".debug_str", SHT_PROGBITS));
+  std::unique_ptr<RawSection> debug_line(new RawSection(
+      ".debug_line", SHT_PROGBITS, 0, nullptr, 0, 1, 0,
+      Patch<Elf_Addr, uint32_t, kAbsoluteAddress>, text));
+  std::unique_ptr<RawSection> debug_line_oat_patches(new RawSection(
+      ".debug_line.oat_patches", SHT_OAT_PATCH));
   if (!oat_writer->GetMethodDebugInfo().empty()) {
     if (compiler_driver_->GetCompilerOptions().GetIncludeCFI()) {
       if (kCFIFormat == dwarf::DW_EH_FRAME_FORMAT) {
         dwarf::WriteCFISection(
             compiler_driver_, oat_writer,
             dwarf::DW_EH_PE_pcrel, kCFIFormat,
-            eh_frame.GetBuffer(), eh_frame.GetPatchLocations(),
-            eh_frame_hdr.GetBuffer(), eh_frame_hdr.GetPatchLocations());
-        builder->RegisterSection(&eh_frame);
-        builder->RegisterSection(&eh_frame_hdr);
+            eh_frame->GetBuffer(), eh_frame->GetPatchLocations(),
+            eh_frame_hdr->GetBuffer(), eh_frame_hdr->GetPatchLocations());
+        builder->RegisterSection(eh_frame.get());
+        builder->RegisterSection(eh_frame_hdr.get());
       } else {
         DCHECK(kCFIFormat == dwarf::DW_DEBUG_FRAME_FORMAT);
         dwarf::WriteCFISection(
             compiler_driver_, oat_writer,
             dwarf::DW_EH_PE_absptr, kCFIFormat,
-            debug_frame.GetBuffer(), debug_frame.GetPatchLocations(),
+            debug_frame->GetBuffer(), debug_frame->GetPatchLocations(),
             nullptr, nullptr);
-        builder->RegisterSection(&debug_frame);
-        EncodeOatPatches(*debug_frame.GetPatchLocations(),
-                         debug_frame_oat_patches.GetBuffer());
-        builder->RegisterSection(&debug_frame_oat_patches);
+        builder->RegisterSection(debug_frame.get());
+        EncodeOatPatches(*debug_frame->GetPatchLocations(),
+                         debug_frame_oat_patches->GetBuffer());
+        builder->RegisterSection(debug_frame_oat_patches.get());
       }
     }
     if (compiler_driver_->GetCompilerOptions().GetIncludeDebugSymbols()) {
@@ -210,31 +220,32 @@ bool ElfWriterQuick<ElfTypes>::Write(
       // Generate DWARF .debug_* sections.
       dwarf::WriteDebugSections(
           compiler_driver_, oat_writer,
-          debug_info.GetBuffer(), debug_info.GetPatchLocations(),
-          debug_abbrev.GetBuffer(),
-          debug_str.GetBuffer(),
-          debug_line.GetBuffer(), debug_line.GetPatchLocations());
-      builder->RegisterSection(&debug_info);
-      EncodeOatPatches(*debug_info.GetPatchLocations(),
-                       debug_info_oat_patches.GetBuffer());
-      builder->RegisterSection(&debug_info_oat_patches);
-      builder->RegisterSection(&debug_abbrev);
-      builder->RegisterSection(&debug_str);
-      builder->RegisterSection(&debug_line);
-      EncodeOatPatches(*debug_line.GetPatchLocations(),
-                       debug_line_oat_patches.GetBuffer());
-      builder->RegisterSection(&debug_line_oat_patches);
+          debug_info->GetBuffer(), debug_info->GetPatchLocations(),
+          debug_abbrev->GetBuffer(),
+          debug_str->GetBuffer(),
+          debug_line->GetBuffer(), debug_line->GetPatchLocations());
+      builder->RegisterSection(debug_info.get());
+      EncodeOatPatches(*debug_info->GetPatchLocations(),
+                       debug_info_oat_patches->GetBuffer());
+      builder->RegisterSection(debug_info_oat_patches.get());
+      builder->RegisterSection(debug_abbrev.get());
+      builder->RegisterSection(debug_str.get());
+      builder->RegisterSection(debug_line.get());
+      EncodeOatPatches(*debug_line->GetPatchLocations(),
+                       debug_line_oat_patches->GetBuffer());
+      builder->RegisterSection(debug_line_oat_patches.get());
     }
   }
 
   // Add relocation section for .text.
-  RawSection text_oat_patches(".text.oat_patches", SHT_OAT_PATCH);
+  std::unique_ptr<RawSection> text_oat_patches(new RawSection(
+      ".text.oat_patches", SHT_OAT_PATCH));
   if (compiler_driver_->GetCompilerOptions().GetIncludePatchInformation()) {
     // Note that ElfWriter::Fixup will be called regardless and therefore
     // we need to include oat_patches for debug sections unconditionally.
     EncodeOatPatches(oat_writer->GetAbsolutePatchLocations(),
-                     text_oat_patches.GetBuffer());
-    builder->RegisterSection(&text_oat_patches);
+                     text_oat_patches->GetBuffer());
+    builder->RegisterSection(text_oat_patches.get());
   }
 
   return builder->Write(elf_file_);
