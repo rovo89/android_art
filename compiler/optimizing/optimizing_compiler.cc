@@ -401,7 +401,7 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
   codegen->CompileOptimized(&allocator);
 
   DefaultSrcMap src_mapping_table;
-  if (compiler_driver->GetCompilerOptions().GetIncludeDebugSymbols()) {
+  if (compiler_driver->GetCompilerOptions().GetGenerateDebugInfo()) {
     codegen->BuildSourceMap(&src_mapping_table);
   }
 
@@ -438,7 +438,7 @@ CompiledMethod* OptimizingCompiler::CompileBaseline(
   std::vector<uint8_t> mapping_table;
   codegen->BuildMappingTable(&mapping_table);
   DefaultSrcMap src_mapping_table;
-  if (compiler_driver->GetCompilerOptions().GetIncludeDebugSymbols()) {
+  if (compiler_driver->GetCompilerOptions().GetGenerateDebugInfo()) {
     codegen->BuildSourceMap(&src_mapping_table);
   }
   std::vector<uint8_t> vmap_table;
@@ -534,7 +534,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     return nullptr;
   }
   codegen->GetAssembler()->cfi().SetEnabled(
-      compiler_driver->GetCompilerOptions().GetIncludeCFI());
+      compiler_driver->GetCompilerOptions().GetGenerateDebugInfo());
 
   PassInfoPrinter pass_info_printer(graph,
                                     method_name.c_str(),
