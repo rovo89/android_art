@@ -3702,7 +3702,9 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
 
   mirror::ArtMethod* m = single_step_control->GetMethod();
   const int32_t line_number = visitor.line_number;
-  if (!m->IsNative()) {
+  // Note: if the thread is not running Java code (pure native thread), there is no "current"
+  // method on the stack (and no line number either).
+  if (m != nullptr && !m->IsNative()) {
     const DexFile::CodeItem* const code_item = m->GetCodeItem();
     DebugCallbackContext context(single_step_control, line_number, code_item);
     m->GetDexFile()->DecodeDebugInfo(code_item, m->IsStatic(), m->GetDexMethodIndex(),
