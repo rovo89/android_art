@@ -26,31 +26,31 @@ class OtherClass {
 
 public final class Main {
 
-  // CHECK-START: int Main.accessTwoStatics() GVN (before)
-  // CHECK-DAG:     <<Class1:l\d+>>  LoadClass
-  // CHECK-DAG:                      ClinitCheck [<<Class1>>]
-  // CHECK-DAG:     <<Class2:l\d+>>  LoadClass
-  // CHECK-DAG:                      ClinitCheck [<<Class2>>]
+  /// CHECK-START: int Main.accessTwoStatics() GVN (before)
+  /// CHECK-DAG:     <<Class1:l\d+>>  LoadClass
+  /// CHECK-DAG:                      ClinitCheck [<<Class1>>]
+  /// CHECK-DAG:     <<Class2:l\d+>>  LoadClass
+  /// CHECK-DAG:                      ClinitCheck [<<Class2>>]
 
-  // CHECK-START: int Main.accessTwoStatics() GVN (after)
-  // CHECK-DAG:     <<Class:l\d+>>   LoadClass
-  // CHECK-DAG:                      ClinitCheck [<<Class>>]
-  // CHECK-NOT:                      ClinitCheck
+  /// CHECK-START: int Main.accessTwoStatics() GVN (after)
+  /// CHECK-DAG:     <<Class:l\d+>>   LoadClass
+  /// CHECK-DAG:                      ClinitCheck [<<Class>>]
+  /// CHECK-NOT:                      ClinitCheck
 
   public static int accessTwoStatics() {
     return OtherClass.b - OtherClass.a;
   }
 
-  // CHECK-START: int Main.accessTwoStaticsCallInBetween() GVN (before)
-  // CHECK-DAG:     <<Class1:l\d+>>  LoadClass
-  // CHECK-DAG:                      ClinitCheck [<<Class1>>]
-  // CHECK-DAG:     <<Class2:l\d+>>  LoadClass
-  // CHECK-DAG:                      ClinitCheck [<<Class2>>]
+  /// CHECK-START: int Main.accessTwoStaticsCallInBetween() GVN (before)
+  /// CHECK-DAG:     <<Class1:l\d+>>  LoadClass
+  /// CHECK-DAG:                      ClinitCheck [<<Class1>>]
+  /// CHECK-DAG:     <<Class2:l\d+>>  LoadClass
+  /// CHECK-DAG:                      ClinitCheck [<<Class2>>]
 
-  // CHECK-START: int Main.accessTwoStaticsCallInBetween() GVN (after)
-  // CHECK-DAG:     <<Class:l\d+>>   LoadClass
-  // CHECK-DAG:                      ClinitCheck [<<Class>>]
-  // CHECK-NOT:                      ClinitCheck
+  /// CHECK-START: int Main.accessTwoStaticsCallInBetween() GVN (after)
+  /// CHECK-DAG:     <<Class:l\d+>>   LoadClass
+  /// CHECK-DAG:                      ClinitCheck [<<Class>>]
+  /// CHECK-NOT:                      ClinitCheck
 
   public static int accessTwoStaticsCallInBetween() {
     int b = OtherClass.b;

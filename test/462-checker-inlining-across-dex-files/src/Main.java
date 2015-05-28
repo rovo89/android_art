@@ -21,105 +21,105 @@ class AAA {
 
 public class Main {
 
-  // CHECK-START: void Main.inlineEmptyMethod() inliner (before)
-  // CHECK-DAG:     <<Invoke:v\d+>>  InvokeStaticOrDirect
-  // CHECK-DAG:                      ReturnVoid
+  /// CHECK-START: void Main.inlineEmptyMethod() inliner (before)
+  /// CHECK-DAG:     <<Invoke:v\d+>>  InvokeStaticOrDirect
+  /// CHECK-DAG:                      ReturnVoid
 
-  // CHECK-START: void Main.inlineEmptyMethod() inliner (after)
-  // CHECK-NOT:                      InvokeStaticOrDirect
+  /// CHECK-START: void Main.inlineEmptyMethod() inliner (after)
+  /// CHECK-NOT:                      InvokeStaticOrDirect
 
   public static void inlineEmptyMethod() {
     OtherDex.emptyMethod();
   }
 
-  // CHECK-START: int Main.inlineReturnIntMethod() inliner (before)
-  // CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
-  // CHECK-DAG:                      Return [<<Invoke>>]
+  /// CHECK-START: int Main.inlineReturnIntMethod() inliner (before)
+  /// CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
+  /// CHECK-DAG:                      Return [<<Invoke>>]
 
-  // CHECK-START: int Main.inlineReturnIntMethod() inliner (after)
-  // CHECK-NOT:                      InvokeStaticOrDirect
+  /// CHECK-START: int Main.inlineReturnIntMethod() inliner (after)
+  /// CHECK-NOT:                      InvokeStaticOrDirect
 
-  // CHECK-START: int Main.inlineReturnIntMethod() inliner (after)
-  // CHECK-DAG:     <<Const38:i\d+>> IntConstant 38
-  // CHECK-DAG:                      Return [<<Const38>>]
+  /// CHECK-START: int Main.inlineReturnIntMethod() inliner (after)
+  /// CHECK-DAG:     <<Const38:i\d+>> IntConstant 38
+  /// CHECK-DAG:                      Return [<<Const38>>]
 
   public static int inlineReturnIntMethod() {
     return OtherDex.returnIntMethod();
   }
 
-  // CHECK-START: int Main.dontInlineOtherDexStatic() inliner (before)
-  // CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
-  // CHECK-DAG:                      Return [<<Invoke>>]
+  /// CHECK-START: int Main.dontInlineOtherDexStatic() inliner (before)
+  /// CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
+  /// CHECK-DAG:                      Return [<<Invoke>>]
 
-  // CHECK-START: int Main.dontInlineOtherDexStatic() inliner (after)
-  // CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
-  // CHECK-DAG:                      Return [<<Invoke>>]
+  /// CHECK-START: int Main.dontInlineOtherDexStatic() inliner (after)
+  /// CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
+  /// CHECK-DAG:                      Return [<<Invoke>>]
 
   public static int dontInlineOtherDexStatic() {
     return OtherDex.returnOtherDexStatic();
   }
 
-  // CHECK-START: int Main.inlineMainStatic() inliner (before)
-  // CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
-  // CHECK-DAG:                      Return [<<Invoke>>]
+  /// CHECK-START: int Main.inlineMainStatic() inliner (before)
+  /// CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
+  /// CHECK-DAG:                      Return [<<Invoke>>]
 
-  // CHECK-START: int Main.inlineMainStatic() inliner (after)
-  // CHECK-NOT:                      InvokeStaticOrDirect
+  /// CHECK-START: int Main.inlineMainStatic() inliner (after)
+  /// CHECK-NOT:                      InvokeStaticOrDirect
 
-  // CHECK-START: int Main.inlineMainStatic() inliner (after)
-  // CHECK-DAG:     <<Static:i\d+>>  StaticFieldGet
-  // CHECK-DAG:                      Return [<<Static>>]
+  /// CHECK-START: int Main.inlineMainStatic() inliner (after)
+  /// CHECK-DAG:     <<Static:i\d+>>  StaticFieldGet
+  /// CHECK-DAG:                      Return [<<Static>>]
 
   public static int inlineMainStatic() {
     return OtherDex.returnMainStatic();
   }
 
-  // CHECK-START: int Main.dontInlineRecursiveCall() inliner (before)
-  // CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
-  // CHECK-DAG:                      Return [<<Invoke>>]
+  /// CHECK-START: int Main.dontInlineRecursiveCall() inliner (before)
+  /// CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
+  /// CHECK-DAG:                      Return [<<Invoke>>]
 
-  // CHECK-START: int Main.dontInlineRecursiveCall() inliner (after)
-  // CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
-  // CHECK-DAG:                      Return [<<Invoke>>]
+  /// CHECK-START: int Main.dontInlineRecursiveCall() inliner (after)
+  /// CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
+  /// CHECK-DAG:                      Return [<<Invoke>>]
 
   public static int dontInlineRecursiveCall() {
     return OtherDex.recursiveCall();
   }
 
-  // CHECK-START: java.lang.String Main.dontInlineReturnString() inliner (before)
-  // CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
-  // CHECK-DAG:                      Return [<<Invoke>>]
+  /// CHECK-START: java.lang.String Main.dontInlineReturnString() inliner (before)
+  /// CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
+  /// CHECK-DAG:                      Return [<<Invoke>>]
 
-  // CHECK-START: java.lang.String Main.dontInlineReturnString() inliner (after)
-  // CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
-  // CHECK-DAG:                      Return [<<Invoke>>]
+  /// CHECK-START: java.lang.String Main.dontInlineReturnString() inliner (after)
+  /// CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
+  /// CHECK-DAG:                      Return [<<Invoke>>]
 
   public static String dontInlineReturnString() {
     return OtherDex.returnString();
   }
 
-  // CHECK-START: java.lang.Class Main.dontInlineOtherDexClass() inliner (before)
-  // CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
-  // CHECK-DAG:                      Return [<<Invoke>>]
+  /// CHECK-START: java.lang.Class Main.dontInlineOtherDexClass() inliner (before)
+  /// CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
+  /// CHECK-DAG:                      Return [<<Invoke>>]
 
-  // CHECK-START: java.lang.Class Main.dontInlineOtherDexClass() inliner (after)
-  // CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
-  // CHECK-DAG:                      Return [<<Invoke>>]
+  /// CHECK-START: java.lang.Class Main.dontInlineOtherDexClass() inliner (after)
+  /// CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
+  /// CHECK-DAG:                      Return [<<Invoke>>]
 
   public static Class dontInlineOtherDexClass() {
     return OtherDex.returnOtherDexClass();
   }
 
-  // CHECK-START: java.lang.Class Main.inlineMainClass() inliner (before)
-  // CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
-  // CHECK-DAG:                      Return [<<Invoke>>]
+  /// CHECK-START: java.lang.Class Main.inlineMainClass() inliner (before)
+  /// CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
+  /// CHECK-DAG:                      Return [<<Invoke>>]
 
-  // CHECK-START: java.lang.Class Main.inlineMainClass() inliner (after)
-  // CHECK-NOT:                      InvokeStaticOrDirect
+  /// CHECK-START: java.lang.Class Main.inlineMainClass() inliner (after)
+  /// CHECK-NOT:                      InvokeStaticOrDirect
 
-  // CHECK-START: java.lang.Class Main.inlineMainClass() inliner (after)
-  // CHECK-DAG:                     Return [<<Class:l\d+>>]
-  // CHECK-DAG:     <<Class>>       LoadClass
+  /// CHECK-START: java.lang.Class Main.inlineMainClass() inliner (after)
+  /// CHECK-DAG:                     Return [<<Class:l\d+>>]
+  /// CHECK-DAG:     <<Class>>       LoadClass
   // Note: There are two LoadClass instructions. We obtain the correct
   //       instruction id by matching the Return's input list first.
 
@@ -127,28 +127,28 @@ public class Main {
     return OtherDex.returnMainClass();
   }
 
-  // CHECK-START: java.lang.Class Main.dontInlineOtherDexClassStaticCall() inliner (before)
-  // CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
-  // CHECK-DAG:                      Return [<<Invoke>>]
+  /// CHECK-START: java.lang.Class Main.dontInlineOtherDexClassStaticCall() inliner (before)
+  /// CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
+  /// CHECK-DAG:                      Return [<<Invoke>>]
 
-  // CHECK-START: java.lang.Class Main.dontInlineOtherDexClassStaticCall() inliner (after)
-  // CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
-  // CHECK-DAG:                      Return [<<Invoke>>]
+  /// CHECK-START: java.lang.Class Main.dontInlineOtherDexClassStaticCall() inliner (after)
+  /// CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
+  /// CHECK-DAG:                      Return [<<Invoke>>]
 
   public static Class dontInlineOtherDexClassStaticCall() {
     return OtherDex.returnOtherDexClassStaticCall();
   }
 
-  // CHECK-START: java.lang.Class Main.inlineOtherDexCallingMain() inliner (before)
-  // CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
-  // CHECK-DAG:                      Return [<<Invoke>>]
+  /// CHECK-START: java.lang.Class Main.inlineOtherDexCallingMain() inliner (before)
+  /// CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
+  /// CHECK-DAG:                      Return [<<Invoke>>]
 
-  // CHECK-START: java.lang.Class Main.inlineOtherDexCallingMain() inliner (after)
-  // CHECK-NOT:                      InvokeStaticOrDirect
+  /// CHECK-START: java.lang.Class Main.inlineOtherDexCallingMain() inliner (after)
+  /// CHECK-NOT:                      InvokeStaticOrDirect
 
-  // CHECK-START: java.lang.Class Main.inlineOtherDexCallingMain() inliner (after)
-  // CHECK-DAG:                     Return [<<Class:l\d+>>]
-  // CHECK-DAG:     <<Class>>       LoadClass
+  /// CHECK-START: java.lang.Class Main.inlineOtherDexCallingMain() inliner (after)
+  /// CHECK-DAG:                     Return [<<Class:l\d+>>]
+  /// CHECK-DAG:     <<Class>>       LoadClass
   // Note: There are two LoadClass instructions. We obtain the correct
   //       instruction id by matching the Return's input list first.
 
