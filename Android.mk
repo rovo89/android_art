@@ -119,6 +119,10 @@ include $(art_path)/test/Android.run-test.mk
 
 # Sync test files to the target, depends upon all things that must be pushed to the target.
 .PHONY: test-art-target-sync
+# Check if we need to sync. In case ART_TEST_ANDROID_ROOT is not empty,
+# the code below uses 'adb push' instead of 'adb sync', which does not
+# check if the files on the device have changed.
+ifneq ($(ART_TEST_NO_SYNC),true)
 ifeq ($(ART_TEST_ANDROID_ROOT),)
 test-art-target-sync: $(TEST_ART_TARGET_SYNC_DEPS)
 	adb root
@@ -130,9 +134,7 @@ test-art-target-sync: $(TEST_ART_TARGET_SYNC_DEPS)
 	adb wait-for-device push $(ANDROID_PRODUCT_OUT)/system $(ART_TEST_ANDROID_ROOT)
 	adb push $(ANDROID_PRODUCT_OUT)/data /data
 endif
-
-# Undefine variable now its served its purpose.
-TEST_ART_TARGET_SYNC_DEPS :=
+endif
 
 # "mm test-art" to build and run all tests on host and device
 .PHONY: test-art
@@ -377,6 +379,15 @@ build-art-host:   $(HOST_OUT_EXECUTABLES)/art $(ART_HOST_DEPENDENCIES) $(HOST_CO
 build-art-target: $(TARGET_OUT_EXECUTABLES)/art $(ART_TARGET_DEPENDENCIES) $(TARGET_CORE_IMG_OUTS)
 
 ########################################################################
+# Rules for building all dependencies for tests.
+
+.PHONY: build-art-host-tests
+build-art-host-tests:   build-art-host $(ART_TEST_HOST_RUN_TEST_DEPENDENCIES) $(ART_TEST_HOST_GTEST_DEPENDENCIES)
+
+.PHONY: build-art-target-tests
+build-art-target-tests:   build-art-target $(TEST_ART_TARGET_SYNC_DEPS)
+
+########################################################################
 # targets to switch back and forth from libdvm to libart
 
 .PHONY: use-art
@@ -467,3 +478,4 @@ endif # !art_dont_bother
 # Clear locally used variables.
 art_dont_bother :=
 art_test_bother :=
+TEST_ART_TARGET_SYNC_DEPS :=
