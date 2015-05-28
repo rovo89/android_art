@@ -634,16 +634,16 @@ void CodeGeneratorARM64::Move(HInstruction* instruction,
                               Location location,
                               HInstruction* move_for) {
   LocationSummary* locations = instruction->GetLocations();
-  if (locations != nullptr && locations->Out().Equals(location)) {
-    return;
-  }
-
   Primitive::Type type = instruction->GetType();
   DCHECK_NE(type, Primitive::kPrimVoid);
 
-  if (instruction->IsIntConstant()
-      || instruction->IsLongConstant()
-      || instruction->IsNullConstant()) {
+  if (instruction->IsCurrentMethod()) {
+    MoveLocation(location, Location::StackSlot(kCurrentMethodStackOffset));
+  } else if (locations != nullptr && locations->Out().Equals(location)) {
+    return;
+  } else if (instruction->IsIntConstant()
+             || instruction->IsLongConstant()
+             || instruction->IsNullConstant()) {
     int64_t value = GetInt64ValueOf(instruction->AsConstant());
     if (location.IsRegister()) {
       Register dst = RegisterFrom(location, type);
@@ -2345,20 +2345,20 @@ void LocationsBuilderARM64::VisitLoadClass(HLoadClass* cls) {
   LocationSummary::CallKind call_kind = cls->CanCallRuntime() ? LocationSummary::kCallOnSlowPath
                                                               : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(cls, call_kind);
+  locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister());
 }
 
 void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
   Register out = OutputRegister(cls);
+  Register current_method = InputRegisterAt(cls, 0);
   if (cls->IsReferrersClass()) {
     DCHECK(!cls->CanCallRuntime());
     DCHECK(!cls->MustGenerateClinitCheck());
-    codegen_->LoadCurrentMethod(out);
-    __ Ldr(out, HeapOperand(out, mirror::ArtMethod::DeclaringClassOffset()));
+    __ Ldr(out, HeapOperand(current_method, mirror::ArtMethod::DeclaringClassOffset()));
   } else {
     DCHECK(cls->CanCallRuntime());
-    codegen_->LoadCurrentMethod(out);
-    __ Ldr(out, HeapOperand(out, mirror::ArtMethod::DexCacheResolvedTypesOffset()));
+    __ Ldr(out, HeapOperand(current_method, mirror::ArtMethod::DexCacheResolvedTypesOffset()));
     __ Ldr(out, HeapOperand(out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex())));
 
     SlowPathCodeARM64* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathARM64(
@@ -2674,9 +2674,20 @@ void LocationsBuilderARM64::VisitParameterValue(HParameterValue* instruction) {
   locations->SetOut(location);
 }
 
-void InstructionCodeGeneratorARM64::VisitParameterValue(HParameterValue* instruction) {
+void InstructionCodeGeneratorARM64::VisitParameterValue(
+    HParameterValue* instruction ATTRIBUTE_UNUSED) {
   // Nothing to do, the parameter is already at its location.
-  UNUSED(instruction);
+}
+
+void LocationsBuilderARM64::VisitCurrentMethod(HCurrentMethod* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  locations->SetOut(LocationFrom(x0));
+}
+
+void InstructionCodeGeneratorARM64::VisitCurrentMethod(
+    HCurrentMethod* instruction ATTRIBUTE_UNUSED) {
+  // Nothing to do, the method is already at its location.
 }
 
 void LocationsBuilderARM64::VisitPhi(HPhi* instruction) {
