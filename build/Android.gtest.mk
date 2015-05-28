@@ -383,7 +383,7 @@ define define-art-gtest-rule-host
   ART_TEST_HOST_GTEST_DEPENDENCIES += $$(gtest_deps)
 
 .PHONY: $$(gtest_rule)
-$$(gtest_rule): $$(gtest_deps)
+$$(gtest_rule): $$(gtest_exe) $$(gtest_deps)
 	$(hide) ($$(call ART_TEST_SKIP,$$@) && $$< && $$(call ART_TEST_PASSED,$$@)) \
 	  || $$(call ART_TEST_FAILED,$$@)
 
