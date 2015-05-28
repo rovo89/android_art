@@ -85,6 +85,9 @@ mirror::Class* GetCallingClass(Thread* self, size_t num_frames)
 void InvalidReceiverError(mirror::Object* o, mirror::Class* c)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+void UpdateReference(Thread* self, jobject obj, mirror::Object* result)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_REFLECTION_H_
