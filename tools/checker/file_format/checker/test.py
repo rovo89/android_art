@@ -26,43 +26,56 @@ CheckerException = SystemExit
 class CheckerParser_PrefixTest(unittest.TestCase):
 
   def tryParse(self, string):
-    checkerText = u"// CHECK-START: pass\n" + ToUnicode(string)
-    checkFile = ParseCheckerStream("<test-file>", "CHECK", io.StringIO(checkerText))
+    checkerText = u"/// CHECK-START: pass\n" + ToUnicode(string)
+    return ParseCheckerStream("<test-file>", "CHECK", io.StringIO(checkerText))
+
+  def assertParses(self, string):
+    checkFile = self.tryParse(string)
     self.assertEqual(len(checkFile.testCases), 1)
-    testCase = checkFile.testCases[0]
-    return len(testCase.assertions) != 0
+    self.assertNotEqual(len(checkFile.testCases[0].assertions), 0)
+
+  def assertIgnored(self, string):
+    checkFile = self.tryParse(string)
+    self.assertEqual(len(checkFile.testCases), 1)
+    self.assertEqual(len(checkFile.testCases[0].assertions), 0)
+
+  def assertInvalid(self, string):
+    with self.assertRaises(CheckerException):
+      self.tryParse(string)
+
+  def test_ValidFormat(self):
+    self.assertParses("///CHECK:foo")
+    self.assertParses("##CHECK:bar")
 
   def test_InvalidFormat(self):
-    self.assertFalse(self.tryParse("CHECK"))
-    self.assertFalse(self.tryParse(":CHECK"))
-    self.assertFalse(self.tryParse("CHECK:"))
-    self.assertFalse(self.tryParse("//CHECK"))
-    self.assertFalse(self.tryParse("#CHECK"))
+    self.assertIgnored("CHECK")
+    self.assertIgnored(":CHECK")
+    self.assertIgnored("CHECK:")
+    self.assertIgnored("//CHECK")
+    self.assertIgnored("#CHECK")
+    self.assertInvalid("///CHECK")
+    self.assertInvalid("##CHECK")
 
-    self.assertTrue(self.tryParse("//CHECK:foo"))
-    self.assertTrue(self.tryParse("#CHECK:bar"))
-
-  def test_InvalidLabel(self):
-    self.assertFalse(self.tryParse("//ACHECK:foo"))
-    self.assertFalse(self.tryParse("#ACHECK:foo"))
+  def test_InvalidPrefix(self):
+    self.assertInvalid("///ACHECK:foo")
+    self.assertInvalid("##ACHECK:foo")
 
   def test_NotFirstOnTheLine(self):
-    self.assertFalse(self.tryParse("A// CHECK: foo"))
-    self.assertFalse(self.tryParse("A # CHECK: foo"))
-    self.assertFalse(self.tryParse("// // CHECK: foo"))
-    self.assertFalse(self.tryParse("# # CHECK: foo"))
+    self.assertIgnored("A/// CHECK: foo")
+    self.assertIgnored("A # CHECK: foo")
+    self.assertInvalid("/// /// CHECK: foo")
+    self.assertInvalid("## ## CHECK: foo")
 
   def test_WhitespaceAgnostic(self):
-    self.assertTrue(self.tryParse("  //CHECK: foo"))
-    self.assertTrue(self.tryParse("//  CHECK: foo"))
-    self.assertTrue(self.tryParse("    //CHECK: foo"))
-    self.assertTrue(self.tryParse("//    CHECK: foo"))
-
+    self.assertParses("  ///CHECK: foo")
+    self.assertParses("///  CHECK: foo")
+    self.assertParses("    ///CHECK: foo")
+    self.assertParses("///    CHECK: foo")
 
 class CheckerParser_RegexExpressionTest(unittest.TestCase):
 
   def parseAssertion(self, string, variant=""):
-    checkerText = u"// CHECK-START: pass\n// CHECK" + ToUnicode(variant) + u": " + ToUnicode(string)
+    checkerText = u"/// CHECK-START: pass\n/// CHECK" + ToUnicode(variant) + u": " + ToUnicode(string)
     checkerFile = ParseCheckerStream("<test-file>", "CHECK", io.StringIO(checkerText))
     self.assertEqual(len(checkerFile.testCases), 1)
     testCase = checkerFile.testCases[0]
@@ -204,9 +217,9 @@ class CheckerParser_FileLayoutTest(unittest.TestCase):
   def test_SingleGroup(self):
     self.assertParsesTo(
       """
-        // CHECK-START: Example Group
-        // CHECK:  foo
-        // CHECK:    bar
+        /// CHECK-START: Example Group
+        /// CHECK:  foo
+        /// CHECK:    bar
       """,
       [ ( "Example Group", [ ("foo", TestAssertion.Variant.InOrder),
                              ("bar", TestAssertion.Variant.InOrder) ] ) ])
@@ -214,12 +227,12 @@ class CheckerParser_FileLayoutTest(unittest.TestCase):
   def test_MultipleGroups(self):
     self.assertParsesTo(
       """
-        // CHECK-START: Example Group1
-        // CHECK: foo
-        // CHECK: bar
-        // CHECK-START: Example Group2
-        // CHECK: abc
-        // CHECK: def
+        /// CHECK-START: Example Group1
+        /// CHECK: foo
+        /// CHECK: bar
+        /// CHECK-START: Example Group2
+        /// CHECK: abc
+        /// CHECK: def
       """,
       [ ( "Example Group1", [ ("foo", TestAssertion.Variant.InOrder),
                               ("bar", TestAssertion.Variant.InOrder) ] ),
@@ -229,14 +242,14 @@ class CheckerParser_FileLayoutTest(unittest.TestCase):
   def test_AssertionVariants(self):
     self.assertParsesTo(
       """
-        // CHECK-START: Example Group
-        // CHECK:      foo1
-        // CHECK:      foo2
-        // CHECK-NEXT: foo3
-        // CHECK-NEXT: foo4
-        // CHECK-NOT:  bar
-        // CHECK-DAG:  abc
-        // CHECK-DAG:  def
+        /// CHECK-START: Example Group
+        /// CHECK:      foo1
+        /// CHECK:      foo2
+        /// CHECK-NEXT: foo3
+        /// CHECK-NEXT: foo4
+        /// CHECK-NOT:  bar
+        /// CHECK-DAG:  abc
+        /// CHECK-DAG:  def
       """,
       [ ( "Example Group", [ ("foo1", TestAssertion.Variant.InOrder),
                              ("foo2", TestAssertion.Variant.InOrder),
@@ -250,20 +263,20 @@ class CheckerParser_FileLayoutTest(unittest.TestCase):
     with self.assertRaises(CheckerException):
       self.parse(
         """
-          // CHECK-START: Example Group
-          // CHECK-DAG:  foo
-          // CHECK-NEXT: bar
+          /// CHECK-START: Example Group
+          /// CHECK-DAG:  foo
+          /// CHECK-NEXT: bar
         """)
     with self.assertRaises(CheckerException):
       self.parse(
         """
-          // CHECK-START: Example Group
-          // CHECK-NOT:  foo
-          // CHECK-NEXT: bar
+          /// CHECK-START: Example Group
+          /// CHECK-NOT:  foo
+          /// CHECK-NEXT: bar
         """)
     with self.assertRaises(CheckerException):
       self.parse(
         """
-          // CHECK-START: Example Group
-          // CHECK-NEXT: bar
+          /// CHECK-START: Example Group
+          /// CHECK-NEXT: bar
         """)

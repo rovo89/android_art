@@ -16,16 +16,16 @@
 
 public class Main {
 
-  // CHECK-START: int Main.inlineInstanceCall(Main) inliner (before)
-  // CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
-  // CHECK-DAG:                      Return [<<Invoke>>]
+  /// CHECK-START: int Main.inlineInstanceCall(Main) inliner (before)
+  /// CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
+  /// CHECK-DAG:                      Return [<<Invoke>>]
 
-  // CHECK-START: int Main.inlineInstanceCall(Main) inliner (after)
-  // CHECK-NOT:                      InvokeStaticOrDirect
+  /// CHECK-START: int Main.inlineInstanceCall(Main) inliner (after)
+  /// CHECK-NOT:                      InvokeStaticOrDirect
 
-  // CHECK-START: int Main.inlineInstanceCall(Main) inliner (after)
-  // CHECK-DAG:     <<Field:i\d+>>   InstanceFieldGet
-  // CHECK-DAG:                      Return [<<Field>>]
+  /// CHECK-START: int Main.inlineInstanceCall(Main) inliner (after)
+  /// CHECK-DAG:     <<Field:i\d+>>   InstanceFieldGet
+  /// CHECK-DAG:                      Return [<<Field>>]
 
   public static int inlineInstanceCall(Main m) {
     return m.foo();
@@ -37,16 +37,16 @@ public class Main {
 
   int field = 42;
 
-  // CHECK-START: int Main.inlineNestedCall() inliner (before)
-  // CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
-  // CHECK-DAG:                      Return [<<Invoke>>]
+  /// CHECK-START: int Main.inlineNestedCall() inliner (before)
+  /// CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
+  /// CHECK-DAG:                      Return [<<Invoke>>]
 
-  // CHECK-START: int Main.inlineNestedCall() inliner (after)
-  // CHECK-NOT:                      InvokeStaticOrDirect
+  /// CHECK-START: int Main.inlineNestedCall() inliner (after)
+  /// CHECK-NOT:                      InvokeStaticOrDirect
 
-  // CHECK-START: int Main.inlineNestedCall() inliner (after)
-  // CHECK-DAG:     <<Const38:i\d+>> IntConstant 38
-  // CHECK-DAG:                      Return [<<Const38>>]
+  /// CHECK-START: int Main.inlineNestedCall() inliner (after)
+  /// CHECK-DAG:     <<Const38:i\d+>> IntConstant 38
+  /// CHECK-DAG:                      Return [<<Const38>>]
 
   public static int inlineNestedCall() {
     return nestedCall();
