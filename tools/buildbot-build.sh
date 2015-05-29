@@ -52,7 +52,7 @@ while true; do
     android_root=$1
     shift
   elif [[ "$1" == -j* ]]; then
-    j_arg = $1
+    j_arg=$1
     shift
   elif [[ "$1" == "" ]]; then
     break
