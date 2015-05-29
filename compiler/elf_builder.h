@@ -645,11 +645,10 @@ class ElfBuilder FINAL {
     // It is easiest to just reserve a fixed amount of space for them.
     constexpr size_t kMaxProgramHeaders = 8;
     constexpr size_t kProgramHeadersOffset = sizeof(Elf_Ehdr);
-    constexpr size_t kProgramHeadersSize = sizeof(Elf_Phdr) * kMaxProgramHeaders;
 
     // Layout of all sections - determine the final file offsets and addresses.
     // This must be done after we have built all sections and know their size.
-    Elf_Off file_offset = kProgramHeadersOffset + kProgramHeadersSize;
+    Elf_Off file_offset = kProgramHeadersOffset + sizeof(Elf_Phdr) * kMaxProgramHeaders;
     Elf_Addr load_address = file_offset;
     std::vector<Elf_Shdr> section_headers;
     section_headers.reserve(1u + sections.size());
@@ -686,8 +685,7 @@ class ElfBuilder FINAL {
     // PT_LOAD does the mapping.  Other PT_* types allow the program to locate
     // interesting parts of memory and their addresses overlap with PT_LOAD.
     std::vector<Elf_Phdr> program_headers;
-    program_headers.push_back(MakeProgramHeader(PT_PHDR, PF_R,
-      kProgramHeadersOffset, kProgramHeadersSize, sizeof(Elf_Word)));
+    program_headers.push_back(Elf_Phdr());  // Placeholder for PT_PHDR.
     // Create the main LOAD R segment which spans all sections up to .rodata.
     const Elf_Shdr* rodata = rodata_.GetHeader();
     program_headers.push_back(MakeProgramHeader(PT_LOAD, PF_R,
@@ -713,6 +711,9 @@ class ElfBuilder FINAL {
         program_headers.push_back(MakeProgramHeader(PT_GNU_EH_FRAME, PF_R, *eh_frame_hdr));
       }
     }
+    DCHECK_EQ(program_headers[0].p_type, 0u);  // Check placeholder.
+    program_headers[0] = MakeProgramHeader(PT_PHDR, PF_R,
+      kProgramHeadersOffset, program_headers.size() * sizeof(Elf_Phdr), sizeof(Elf_Word));
     CHECK_LE(program_headers.size(), kMaxProgramHeaders);
 
     // Create the main ELF header.
