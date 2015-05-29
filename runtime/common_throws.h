@@ -134,6 +134,10 @@ void ThrowLinkageError(mirror::Class* referrer, const char* fmt, ...)
     __attribute__((__format__(__printf__, 2, 3)))
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
+void ThrowWrappedLinkageError(mirror::Class* referrer, const char* fmt, ...)
+    __attribute__((__format__(__printf__, 2, 3)))
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
+
 // NegativeArraySizeException
 
 void ThrowNegativeArraySizeException(int size)
