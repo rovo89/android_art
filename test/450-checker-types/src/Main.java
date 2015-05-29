@@ -364,6 +364,28 @@ public class Main {
     ((SubclassA)b).$noinline$g();
   }
 
+  public SubclassA $noinline$getSubclass() { throw new RuntimeException(); }
+
+  /// CHECK-START: void Main.testArraySimpleRemove() instruction_simplifier_after_types (before)
+  /// CHECK:         CheckCast
+
+  /// CHECK-START: void Main.testArraySimpleRemove() instruction_simplifier_after_types (after)
+  /// CHECK-NOT:     CheckCast
+  public void testArraySimpleRemove() {
+    Super[] b = new SubclassA[10];
+    SubclassA[] c = (SubclassA[])b;
+  }
+
+  /// CHECK-START: void Main.testInvokeSimpleRemove() instruction_simplifier_after_types (before)
+  /// CHECK:         CheckCast
+
+  /// CHECK-START: void Main.testInvokeSimpleRemove() instruction_simplifier_after_types (after)
+  /// CHECK-NOT:     CheckCast
+  public void testInvokeSimpleRemove() {
+    Super b = $noinline$getSubclass();
+    ((SubclassA)b).$noinline$g();
+  }
+
   public static void main(String[] args) {
   }
 }
