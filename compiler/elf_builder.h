@@ -310,7 +310,7 @@ class ElfBuilder FINAL {
 
     SymtabSection(const std::string& name, Elf_Word type, Elf_Word flags,
                   StrtabSection* strtab)
-        : Section(name, type, flags, strtab, 0, sizeof(Elf_Word), sizeof(Elf_Sym)),
+        : Section(name, type, flags, strtab, 0, sizeof(Elf_Off), sizeof(Elf_Sym)),
           strtab_(strtab) {
     }
 
@@ -677,7 +677,7 @@ class ElfBuilder FINAL {
       // Collect section headers into continuous array for convenience.
       section_headers.push_back(*header);
     }
-    Elf_Off section_headers_offset = RoundUp(file_offset, sizeof(Elf_Word));
+    Elf_Off section_headers_offset = RoundUp(file_offset, sizeof(Elf_Off));
 
     // Create program headers now that we know the layout of the whole file.
     // Each segment contains one or more sections which are mapped together.
@@ -713,7 +713,7 @@ class ElfBuilder FINAL {
     }
     DCHECK_EQ(program_headers[0].p_type, 0u);  // Check placeholder.
     program_headers[0] = MakeProgramHeader(PT_PHDR, PF_R,
-      kProgramHeadersOffset, program_headers.size() * sizeof(Elf_Phdr), sizeof(Elf_Word));
+      kProgramHeadersOffset, program_headers.size() * sizeof(Elf_Phdr), sizeof(Elf_Off));
     CHECK_LE(program_headers.size(), kMaxProgramHeaders);
 
     // Create the main ELF header.
