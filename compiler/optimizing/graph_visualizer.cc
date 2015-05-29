@@ -280,6 +280,13 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
         << instance_of->MustDoNullCheck() << std::noboolalpha;
   }
 
+  void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE {
+    StartAttributeStream("dex_file_index") << invoke->GetDexMethodIndex();
+    StartAttributeStream("recursive") << std::boolalpha
+                                      << invoke->IsRecursive()
+                                      << std::noboolalpha;
+  }
+
   bool IsPass(const char* name) {
     return strcmp(pass_name_, name) == 0;
   }
