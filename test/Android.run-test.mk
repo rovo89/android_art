@@ -32,11 +32,14 @@ art_run_tests_dir := $(call intermediates-dir-for,PACKAGING,art-run-tests)/DATA
 # an empty file touched in the intermediate directory.
 TEST_ART_RUN_TEST_BUILD_RULES :=
 
+# Dependencies for actually running a run-test.
+TEST_ART_RUN_TEST_DEPENDENCIES := $(DX) $(HOST_OUT_EXECUTABLES)/jasmin $(HOST_OUT_EXECUTABLES)/smali $(HOST_OUT_EXECUTABLES)/dexmerger
+
 # Helper to create individual build targets for tests. Must be called with $(eval).
 # $(1): the test number
 define define-build-art-run-test
   dmart_target := $(art_run_tests_dir)/art-run-tests/$(1)/touch
-$$(dmart_target): $(DX) $(HOST_OUT_EXECUTABLES)/jasmin $(HOST_OUT_EXECUTABLES)/smali $(HOST_OUT_EXECUTABLES)/dexmerger
+$$(dmart_target): $(TEST_ART_RUN_TEST_DEPENDENCIES)
 	$(hide) rm -rf $$(dir $$@) && mkdir -p $$(dir $$@)
 	$(hide) DX=$(abspath $(DX)) JASMIN=$(abspath $(HOST_OUT_EXECUTABLES)/jasmin) \
 	  SMALI=$(abspath $(HOST_OUT_EXECUTABLES)/smali) \
