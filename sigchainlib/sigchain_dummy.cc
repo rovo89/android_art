@@ -78,6 +78,12 @@ extern "C" void EnsureFrontOfChain(int signal ATTRIBUTE_UNUSED,
   abort();
 }
 
+extern "C" void SetSpecialSignalHandlerFn(int signal ATTRIBUTE_UNUSED,
+                                          SpecialSignalHandlerFn fn ATTRIBUTE_UNUSED) {
+  log("SetSpecialSignalHandlerFn is not exported by the main executable.");
+  abort();
+}
+
 #pragma GCC diagnostic pop
 
 }  // namespace art
