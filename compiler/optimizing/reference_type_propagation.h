@@ -45,6 +45,8 @@ class ReferenceTypePropagation : public HOptimization {
   void VisitNewArray(HNewArray* instr);
   void VisitPhi(HPhi* phi);
   void VisitBasicBlock(HBasicBlock* block);
+  void UpdateFieldAccessTypeInfo(HInstruction* instr, const FieldInfo& info);
+  void SetClassAsTypeInfo(HInstruction* instr, mirror::Class* klass);
 
   void UpdateBoundType(HBoundType* bound_type) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void UpdatePhi(HPhi* phi) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -52,6 +54,8 @@ class ReferenceTypePropagation : public HOptimization {
   void BoundTypeForIfNotNull(HBasicBlock* block);
   void BoundTypeForIfInstanceOf(HBasicBlock* block);
   void UpdateReferenceTypeInfo(HInstruction* instr, uint16_t type_idx, const DexFile& dex_file);
+  void VisitInstanceFieldGet(HInstanceFieldGet* instr);
+  void VisitStaticFieldGet(HStaticFieldGet* instr);
 
   void ProcessWorklist();
   void AddToWorklist(HInstruction* instr);
