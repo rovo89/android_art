@@ -55,4 +55,18 @@
     END \name
 .endm
 
+// Macros to poison (negate) the reference for heap poisoning.
+.macro POISON_HEAP_REF rRef
+#ifdef USE_HEAP_POISONING
+    neg \rRef, \rRef
+#endif  // USE_HEAP_POISONING
+.endm
+
+// Macros to unpoison (negate) the reference for heap poisoning.
+.macro UNPOISON_HEAP_REF rRef
+#ifdef USE_HEAP_POISONING
+    neg \rRef, \rRef
+#endif  // USE_HEAP_POISONING
+.endm
+
 #endif  // ART_RUNTIME_ARCH_ARM64_ASM_SUPPORT_ARM64_S_

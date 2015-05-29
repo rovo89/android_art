@@ -97,7 +97,7 @@ static constexpr bool kUseReadBarrier = kUseBakerReadBarrier || kUseBrooksReadBa
     kUseTableLookupReadBarrier;
 
 // If true, references within the heap are poisoned (negated).
-#ifdef ART_HEAP_POISONING
+#ifdef USE_HEAP_POISONING
 static constexpr bool kPoisonHeapReferences = true;
 #else
 static constexpr bool kPoisonHeapReferences = false;

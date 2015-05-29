@@ -616,12 +616,16 @@ END art_quick_aput_obj_with_bound_check
 ENTRY art_quick_aput_obj
     cbz r2, .Ldo_aput_null
     ldr r3, [r0, #MIRROR_OBJECT_CLASS_OFFSET]
+    UNPOISON_HEAP_REF r3
     ldr ip, [r2, #MIRROR_OBJECT_CLASS_OFFSET]
+    UNPOISON_HEAP_REF ip
     ldr r3, [r3, #MIRROR_CLASS_COMPONENT_TYPE_OFFSET]
+    UNPOISON_HEAP_REF r3
     cmp r3, ip  @ value's type == array's component type - trivial assignability
     bne .Lcheck_assignability
 .Ldo_aput:
     add r3, r0, #MIRROR_OBJECT_ARRAY_DATA_OFFSET
+    POISON_HEAP_REF r2
     str r2, [r3, r1, lsl #2]
     ldr r3, [r9, #THREAD_CARD_TABLE_OFFSET]
     lsr r0, r0, #7
@@ -649,6 +653,7 @@ ENTRY art_quick_aput_obj
     .cfi_restore lr
     .cfi_adjust_cfa_offset -16
     add r3, r0, #MIRROR_OBJECT_ARRAY_DATA_OFFSET
+    POISON_HEAP_REF r2
     str r2, [r3, r1, lsl #2]
     ldr r3, [r9, #THREAD_CARD_TABLE_OFFSET]
     lsr r0, r0, #7
