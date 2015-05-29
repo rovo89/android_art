@@ -4190,6 +4190,7 @@ void InstructionCodeGeneratorX86_64::VisitClinitCheck(HClinitCheck* check) {
 void LocationsBuilderX86_64::VisitLoadString(HLoadString* load) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(load, LocationSummary::kCallOnSlowPath);
+  locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister());
 }
 
@@ -4197,9 +4198,10 @@ void InstructionCodeGeneratorX86_64::VisitLoadString(HLoadString* load) {
   SlowPathCodeX86_64* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathX86_64(load);
   codegen_->AddSlowPath(slow_path);
 
-  CpuRegister out = load->GetLocations()->Out().AsRegister<CpuRegister>();
-  codegen_->LoadCurrentMethod(CpuRegister(out));
-  __ movl(out, Address(out, mirror::ArtMethod::DeclaringClassOffset().Int32Value()));
+  LocationSummary* locations = load->GetLocations();
+  CpuRegister out = locations->Out().AsRegister<CpuRegister>();
+  CpuRegister current_method = locations->InAt(0).AsRegister<CpuRegister>();
+  __ movl(out, Address(current_method, mirror::ArtMethod::DeclaringClassOffset().Int32Value()));
   __ movl(out, Address(out, mirror::Class::DexCacheStringsOffset().Int32Value()));
   __ movl(out, Address(out, CodeGenerator::GetCacheOffset(load->GetStringIndex())));
   __ testl(out, out);

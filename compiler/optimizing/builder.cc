@@ -2151,13 +2151,15 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     }
 
     case Instruction::CONST_STRING: {
-      current_block_->AddInstruction(new (arena_) HLoadString(instruction.VRegB_21c(), dex_pc));
+      current_block_->AddInstruction(
+          new (arena_) HLoadString(graph_->GetCurrentMethod(), instruction.VRegB_21c(), dex_pc));
       UpdateLocal(instruction.VRegA_21c(), current_block_->GetLastInstruction());
       break;
     }
 
     case Instruction::CONST_STRING_JUMBO: {
-      current_block_->AddInstruction(new (arena_) HLoadString(instruction.VRegB_31c(), dex_pc));
+      current_block_->AddInstruction(
+          new (arena_) HLoadString(graph_->GetCurrentMethod(), instruction.VRegB_31c(), dex_pc));
       UpdateLocal(instruction.VRegA_31c(), current_block_->GetLastInstruction());
       break;
     }
