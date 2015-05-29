@@ -393,7 +393,7 @@ $$(gtest_rule): $$(gtest_exe) $$(gtest_deps)
 
 
 .PHONY: valgrind-$$(gtest_rule)
-valgrind-$$(gtest_rule): $$(gtest_deps) $(ART_VALGRIND_DEPENDENCIES)
+valgrind-$$(gtest_rule): $$(gtest_exe) $$(gtest_deps) $(ART_VALGRIND_DEPENDENCIES)
 	$(hide) $$(call ART_TEST_SKIP,$$@) && \
 	  VALGRIND_LIB=$(HOST_OUT)/lib64/valgrind \
 	  $(HOST_OUT_EXECUTABLES)/valgrind --leak-check=full --error-exitcode=1 $$< && \
