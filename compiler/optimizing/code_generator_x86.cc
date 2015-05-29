@@ -4352,6 +4352,7 @@ void InstructionCodeGeneratorX86::GenerateClassInitializationCheck(
 void LocationsBuilderX86::VisitLoadString(HLoadString* load) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(load, LocationSummary::kCallOnSlowPath);
+  locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister());
 }
 
@@ -4359,9 +4360,10 @@ void InstructionCodeGeneratorX86::VisitLoadString(HLoadString* load) {
   SlowPathCodeX86* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathX86(load);
   codegen_->AddSlowPath(slow_path);
 
-  Register out = load->GetLocations()->Out().AsRegister<Register>();
-  codegen_->LoadCurrentMethod(out);
-  __ movl(out, Address(out, mirror::ArtMethod::DeclaringClassOffset().Int32Value()));
+  LocationSummary* locations = load->GetLocations();
+  Register out = locations->Out().AsRegister<Register>();
+  Register current_method = locations->InAt(0).AsRegister<Register>();
+  __ movl(out, Address(current_method, mirror::ArtMethod::DeclaringClassOffset().Int32Value()));
   __ movl(out, Address(out, mirror::Class::DexCacheStringsOffset().Int32Value()));
   __ movl(out, Address(out, CodeGenerator::GetCacheOffset(load->GetStringIndex())));
   __ testl(out, out);
