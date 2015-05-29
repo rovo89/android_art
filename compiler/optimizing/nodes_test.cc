@@ -51,7 +51,7 @@ TEST(Node, RemoveInstruction) {
   exit_block->AddInstruction(new (&allocator) HExit());
 
   HEnvironment* environment = new (&allocator) HEnvironment(
-      &allocator, 1, graph->GetDexFile(), graph->GetMethodIdx(), 0, kStatic);
+      &allocator, 1, graph->GetDexFile(), graph->GetMethodIdx(), 0, kStatic, null_check);
   null_check->SetRawEnvironment(environment);
   environment->SetRawEnvAt(0, parameter);
   parameter->AddEnvUseAt(null_check->GetEnvironment(), 0);
@@ -132,7 +132,7 @@ TEST(Node, ParentEnvironment) {
   ASSERT_TRUE(parameter1->GetUses().HasOnlyOneUse());
 
   HEnvironment* environment = new (&allocator) HEnvironment(
-      &allocator, 1, graph->GetDexFile(), graph->GetMethodIdx(), 0, kStatic);
+      &allocator, 1, graph->GetDexFile(), graph->GetMethodIdx(), 0, kStatic, with_environment);
   GrowableArray<HInstruction*> array(&allocator, 1);
   array.Add(parameter1);
 
@@ -143,13 +143,13 @@ TEST(Node, ParentEnvironment) {
   ASSERT_TRUE(parameter1->GetEnvUses().HasOnlyOneUse());
 
   HEnvironment* parent1 = new (&allocator) HEnvironment(
-      &allocator, 1, graph->GetDexFile(), graph->GetMethodIdx(), 0, kStatic);
+      &allocator, 1, graph->GetDexFile(), graph->GetMethodIdx(), 0, kStatic, nullptr);
   parent1->CopyFrom(array);
 
   ASSERT_EQ(parameter1->GetEnvUses().SizeSlow(), 2u);
 
   HEnvironment* parent2 = new (&allocator) HEnvironment(
-      &allocator, 1, graph->GetDexFile(), graph->GetMethodIdx(), 0, kStatic);
+      &allocator, 1, graph->GetDexFile(), graph->GetMethodIdx(), 0, kStatic, nullptr);
   parent2->CopyFrom(array);
   parent1->SetAndCopyParentChain(&allocator, parent2);
 
