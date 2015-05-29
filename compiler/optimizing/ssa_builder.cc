@@ -548,7 +548,8 @@ void SsaBuilder::VisitInstruction(HInstruction* instruction) {
       GetGraph()->GetDexFile(),
       GetGraph()->GetMethodIdx(),
       instruction->GetDexPc(),
-      GetGraph()->GetInvokeType());
+      GetGraph()->GetInvokeType(),
+      instruction);
   environment->CopyFrom(*current_locals_);
   instruction->SetRawEnvironment(environment);
 }

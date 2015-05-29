@@ -53,18 +53,30 @@ public class Main {
   }
 
   public static void main(String[] args) {
-    if (testLiveArgument(42) != 42) {
-      throw new Error("Expected 42");
+    if (testLiveArgument(staticField3) != staticField3) {
+      throw new Error("Expected " + staticField3);
     }
 
-    if (testLiveArgument(42) != 42) {
-      throw new Error("Expected 42");
+    if (testLiveArgument(staticField3) != staticField3) {
+      throw new Error("Expected " + staticField3);
     }
 
-    testIntervalHole(1, true);
-    testIntervalHole(1, false);
+    testWrapperIntervalHole(1, true);
+    testWrapperIntervalHole(1, false);
+  }
+
+  // Wrapper method to avoid inlining, which affects liveness
+  // of dex registers.
+  static void testWrapperIntervalHole(int arg, boolean test) {
+    try {
+      Thread.sleep(0);
+      testIntervalHole(arg, test);
+    } catch (Exception e) {
+      throw new Error(e);
+    }
   }
 
   static int staticField1;
   static int staticField2;
+  static int staticField3 = 42;
 }

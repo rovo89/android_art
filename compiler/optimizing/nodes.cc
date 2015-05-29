@@ -1314,6 +1314,29 @@ void HGraph::DeleteDeadBlock(HBasicBlock* block) {
 
 void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
   DCHECK(HasExitBlock()) << "Unimplemented scenario";
+  // Update the environments in this graph to have the invoke's environment
+  // as parent.
+  {
+    HReversePostOrderIterator it(*this);
+    it.Advance();  // Skip the entry block, we do not need to update the entry's suspend check.
+    for (; !it.Done(); it.Advance()) {
+      HBasicBlock* block = it.Current();
+      for (HInstructionIterator instr_it(block->GetInstructions());
+           !instr_it.Done();
+           instr_it.Advance()) {
+        HInstruction* current = instr_it.Current();
+        if (current->NeedsEnvironment()) {
+          current->GetEnvironment()->SetAndCopyParentChain(
+              outer_graph->GetArena(), invoke->GetEnvironment());
+        }
+      }
+    }
+  }
+  outer_graph->UpdateMaximumNumberOfOutVRegs(GetMaximumNumberOfOutVRegs());
+  if (HasBoundsChecks()) {
+    outer_graph->SetHasBoundsChecks(true);
+  }
+
   if (GetBlocks().Size() == 3) {
     // Simple case of an entry block, a body block, and an exit block.
     // Put the body block's instruction into `invoke`'s block.

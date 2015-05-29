@@ -88,7 +88,11 @@ void PrepareForRegisterAllocation::VisitInvokeStaticOrDirect(HInvokeStaticOrDire
 
     // The static call will initialize the class so there's no need for a clinit check if
     // it's the first user.
-    if (last_input == invoke->GetPrevious()) {
+    // There is one special case where we still need the clinit check, when inlining. Because
+    // currently the callee is responsible for reporting parameters to the GC, the code
+    // that walks the stack during `artQuickResolutionTrampoline` cannot be interrupted for GC.
+    // Therefore we cannot allocate any object in that code, including loading a new class.
+    if (last_input == invoke->GetPrevious() && !invoke->IsInlined()) {
       last_input->SetMustGenerateClinitCheck(false);
     }
 
@@ -102,7 +106,7 @@ void PrepareForRegisterAllocation::VisitInvokeStaticOrDirect(HInvokeStaticOrDire
 
     // If the load class instruction is no longer used, remove it from
     // the graph.
-    if (!last_input->HasUses()) {
+    if (!last_input->HasUses() && !(last_input->MustGenerateClinitCheck() && invoke->IsInlined())) {
       last_input->GetBlock()->RemoveInstruction(last_input);
     }
   }

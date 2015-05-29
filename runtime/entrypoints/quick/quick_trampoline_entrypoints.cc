@@ -297,10 +297,37 @@ class QuickArgumentVisitor {
     return GetCalleeSaveMethodCaller(sp, Runtime::kRefsAndArgs);
   }
 
+  static mirror::ArtMethod* GetOuterMethod(StackReference<mirror::ArtMethod>* sp)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(sp->AsMirrorPtr()->IsCalleeSaveMethod());
+    uint8_t* previous_sp =
+        reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_FrameSize;
+    return reinterpret_cast<StackReference<mirror::ArtMethod>*>(previous_sp)->AsMirrorPtr();
+  }
+
   static uint32_t GetCallingDexPc(StackReference<mirror::ArtMethod>* sp)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(sp->AsMirrorPtr()->IsCalleeSaveMethod());
-    return GetCallingMethod(sp)->ToDexPc(QuickArgumentVisitor::GetCallingPc(sp));
+    const size_t callee_frame_size = GetCalleeSaveFrameSize(kRuntimeISA, Runtime::kRefsAndArgs);
+    auto* caller_sp = reinterpret_cast<StackReference<mirror::ArtMethod>*>(
+          reinterpret_cast<uintptr_t>(sp) + callee_frame_size);
+    mirror::ArtMethod* outer_method = caller_sp->AsMirrorPtr();
+    uintptr_t outer_pc = QuickArgumentVisitor::GetCallingPc(sp);
+    uintptr_t outer_pc_offset = outer_method->NativeQuickPcOffset(outer_pc);
+
+    if (outer_method->IsOptimized(sizeof(void*))) {
+      CodeInfo code_info = outer_method->GetOptimizedCodeInfo();
+      StackMap stack_map = code_info.GetStackMapForNativePcOffset(outer_pc_offset);
+      DCHECK(stack_map.IsValid());
+      if (stack_map.HasInlineInfo(code_info)) {
+        InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map);
+        return inline_info.GetDexPcAtDepth(inline_info.GetDepth() - 1);
+      } else {
+        return stack_map.GetDexPc(code_info);
+      }
+    } else {
+      return outer_method->ToDexPc(outer_pc);
+    }
   }
 
   // For the given quick ref and args quick frame, return the caller's PC.
@@ -2068,7 +2095,11 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t dex_method_idx,
                                                       StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
-  mirror::ArtMethod* caller_method = QuickArgumentVisitor::GetCallingMethod(sp);
+  // The optimizing compiler currently does not inline methods that have an interface
+  // invocation. We use the outer method directly to avoid fetching a stack map, which is
+  // more expensive.
+  mirror::ArtMethod* caller_method = QuickArgumentVisitor::GetOuterMethod(sp);
+  DCHECK_EQ(caller_method, QuickArgumentVisitor::GetCallingMethod(sp));
   mirror::ArtMethod* interface_method = caller_method->GetDexCacheResolvedMethod(dex_method_idx);
   mirror::ArtMethod* method;
   if (LIKELY(interface_method->GetDexMethodIndex() != DexFile::kDexNoIndex)) {
