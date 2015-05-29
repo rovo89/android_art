@@ -269,6 +269,13 @@ void ThrowLinkageError(mirror::Class* referrer, const char* fmt, ...) {
   va_end(args);
 }
 
+void ThrowWrappedLinkageError(mirror::Class* referrer, const char* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  ThrowWrappedException("Ljava/lang/LinkageError;", referrer, fmt, &args);
+  va_end(args);
+}
+
 // NegativeArraySizeException
 
 void ThrowNegativeArraySizeException(int size) {
