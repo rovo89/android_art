@@ -117,6 +117,7 @@ class UsePosition : public ArenaObject<kArenaAllocMisc> {
         || user->IsPhi()
         || (GetPosition() == user->GetLifetimePosition() + 1)
         || (GetPosition() == user->GetLifetimePosition()));
+    DCHECK(environment == nullptr || user == nullptr);
     DCHECK(next_ == nullptr || next->GetPosition() >= GetPosition());
   }
 
@@ -128,6 +129,7 @@ class UsePosition : public ArenaObject<kArenaAllocMisc> {
   void SetNext(UsePosition* next) { next_ = next; }
 
   HInstruction* GetUser() const { return user_; }
+  HEnvironment* GetEnvironment() const { return environment_; }
 
   bool GetIsEnvironment() const { return environment_ != nullptr; }
   bool IsSynthesized() const { return user_ == nullptr; }
@@ -280,7 +282,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
       }
       DCHECK(first_use_->GetPosition() + 1 == position);
       UsePosition* new_use = new (allocator_) UsePosition(
-          instruction, environment, input_index, position, cursor->GetNext());
+          instruction, nullptr /* environment */, input_index, position, cursor->GetNext());
       cursor->SetNext(new_use);
       if (first_range_->GetEnd() == first_use_->GetPosition()) {
         first_range_->end_ = position;
@@ -290,10 +292,10 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
 
     if (is_environment) {
       first_env_use_ = new (allocator_) UsePosition(
-          instruction, environment, input_index, position, first_env_use_);
+          nullptr /* instruction */, environment, input_index, position, first_env_use_);
     } else {
       first_use_ = new (allocator_) UsePosition(
-          instruction, environment, input_index, position, first_use_);
+          instruction, nullptr /* environment */, input_index, position, first_use_);
     }
 
     if (is_environment && !keep_alive) {

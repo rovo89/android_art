@@ -38,6 +38,29 @@
 
 namespace art {
 
+inline mirror::ArtMethod* GetResolvedMethod(mirror::ArtMethod* outer_method,
+                                            uint32_t method_index,
+                                            InvokeType invoke_type)
+  SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::ArtMethod* caller = outer_method->GetDexCacheResolvedMethod(method_index);
+  if (!caller->IsRuntimeMethod()) {
+    return caller;
+  }
+
+  // The method in the dex cache can be the runtime method responsible for invoking
+  // the stub that will then update the dex cache. Therefore, we need to do the
+  // resolution ourselves.
+
+  StackHandleScope<3> hs(Thread::Current());
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Handle<mirror::ArtMethod> outer(hs.NewHandle(outer_method));
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(outer->GetClassLoader()));
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(outer->GetDexCache()));
+  Handle<mirror::ArtMethod> referrer;
+  return class_linker->ResolveMethod(
+      *outer->GetDexFile(), method_index, dex_cache, class_loader, referrer, invoke_type);
+}
+
 inline mirror::ArtMethod* GetCalleeSaveMethodCaller(StackReference<mirror::ArtMethod>* sp,
                                                     Runtime::CalleeSaveType type,
                                                     bool do_caller_check = false)
@@ -47,7 +70,25 @@ inline mirror::ArtMethod* GetCalleeSaveMethodCaller(StackReference<mirror::ArtMe
   const size_t callee_frame_size = GetCalleeSaveFrameSize(kRuntimeISA, type);
   auto* caller_sp = reinterpret_cast<StackReference<mirror::ArtMethod>*>(
           reinterpret_cast<uintptr_t>(sp) + callee_frame_size);
-  auto* caller = caller_sp->AsMirrorPtr();
+  mirror::ArtMethod* outer_method = caller_sp->AsMirrorPtr();
+  mirror::ArtMethod* caller = outer_method;
+
+  if ((outer_method != nullptr) && outer_method->IsOptimized(sizeof(void*))) {
+    const size_t callee_return_pc_offset = GetCalleeSaveReturnPcOffset(kRuntimeISA, type);
+    uintptr_t caller_pc = *reinterpret_cast<uintptr_t*>(
+        (reinterpret_cast<uint8_t*>(sp) + callee_return_pc_offset));
+    uintptr_t native_pc_offset = outer_method->NativeQuickPcOffset(caller_pc);
+    CodeInfo code_info = outer_method->GetOptimizedCodeInfo();
+    StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset);
+    DCHECK(stack_map.IsValid());
+    if (stack_map.HasInlineInfo(code_info)) {
+      InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map);
+      uint32_t method_index = inline_info.GetMethodIndexAtDepth(inline_info.GetDepth() - 1);
+      InvokeType invoke_type = static_cast<InvokeType>(
+          inline_info.GetInvokeTypeAtDepth(inline_info.GetDepth() - 1));
+      caller = GetResolvedMethod(outer_method, method_index, invoke_type);
+    }
+  }
 
   if (kIsDebugBuild && do_caller_check) {
     // Note that do_caller_check is optional, as this method can be called by

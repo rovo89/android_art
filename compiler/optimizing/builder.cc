@@ -652,8 +652,8 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
     DCHECK((optimized_invoke_type == invoke_type) || (optimized_invoke_type != kDirect)
            || compiler_driver_->GetCompilerOptions().GetCompilePic());
     bool is_recursive =
-        (target_method.dex_method_index == dex_compilation_unit_->GetDexMethodIndex());
-    DCHECK(!is_recursive || (target_method.dex_file == dex_compilation_unit_->GetDexFile()));
+        (target_method.dex_method_index == outer_compilation_unit_->GetDexMethodIndex())
+        && (target_method.dex_file == outer_compilation_unit_->GetDexFile());
 
     if (optimized_invoke_type == kStatic) {
       ScopedObjectAccess soa(Thread::Current());

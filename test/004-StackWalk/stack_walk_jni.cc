@@ -45,11 +45,11 @@ class TestReferenceMapVisitor : public CheckReferenceMapVisitor {
     if (m_name == "f") {
       if (gJava_StackWalk_refmap_calls == 1) {
         CHECK_EQ(1U, GetDexPc());
-        CHECK_REGS(1);
+        CHECK_REGS(4);
       } else {
         CHECK_EQ(gJava_StackWalk_refmap_calls, 2);
         CHECK_EQ(5U, GetDexPc());
-        CHECK_REGS(1);
+        CHECK_REGS(4);
       }
     } else if (m_name == "g") {
       if (gJava_StackWalk_refmap_calls == 1) {
