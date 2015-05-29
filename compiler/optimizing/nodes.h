@@ -3544,12 +3544,14 @@ class HLoadClass : public HExpression<1> {
   DISALLOW_COPY_AND_ASSIGN(HLoadClass);
 };
 
-class HLoadString : public HExpression<0> {
+class HLoadString : public HExpression<1> {
  public:
-  HLoadString(uint32_t string_index, uint32_t dex_pc)
+  HLoadString(HCurrentMethod* current_method, uint32_t string_index, uint32_t dex_pc)
       : HExpression(Primitive::kPrimNot, SideEffects::None()),
         string_index_(string_index),
-        dex_pc_(dex_pc) {}
+        dex_pc_(dex_pc) {
+    SetRawInputAt(0, current_method);
+  }
 
   bool CanBeMoved() const OVERRIDE { return true; }
 
