@@ -18,8 +18,10 @@
 
 #include "class_linker.h"
 #include "common_runtime_test.h"
+#include "dex_instruction.h"
 #include "handle.h"
 #include "handle_scope-inl.h"
+#include "interpreter/interpreter_common.h"
 #include "mirror/class_loader.h"
 #include "mirror/string-inl.h"
 #include "runtime.h"
@@ -245,6 +247,33 @@ TEST_F(UnstartedRuntimeTest, StringCharAt) {
   }
 
   ShadowFrame::DeleteDeoptimizedFrame(tmp);
+}
+
+TEST_F(UnstartedRuntimeTest, StringInit) {
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+  mirror::Class* klass = mirror::String::GetJavaLangString();
+  mirror::ArtMethod* method = klass->FindDeclaredDirectMethod("<init>", "(Ljava/lang/String;)V");
+
+  // create instruction data for invoke-direct {v0, v1} of method with fake index
+  uint16_t inst_data[3] = { 0x2070, 0x0000, 0x0010 };
+  const Instruction* inst = Instruction::At(inst_data);
+
+  JValue result;
+  ShadowFrame* shadow_frame = ShadowFrame::CreateDeoptimizedFrame(10, nullptr, method, 0);
+  const char* base_string = "hello_world";
+  mirror::String* string_arg = mirror::String::AllocFromModifiedUtf8(self, base_string);
+  mirror::String* reference_empty_string = mirror::String::AllocFromModifiedUtf8(self, "");
+  shadow_frame->SetVRegReference(0, reference_empty_string);
+  shadow_frame->SetVRegReference(1, string_arg);
+
+  interpreter::DoCall<false, false>(method, self, *shadow_frame, inst, inst_data[0], &result);
+  mirror::String* string_result = reinterpret_cast<mirror::String*>(result.GetL());
+  EXPECT_EQ(string_arg->GetLength(), string_result->GetLength());
+  EXPECT_EQ(memcmp(string_arg->GetValue(), string_result->GetValue(),
+                   string_arg->GetLength() * sizeof(uint16_t)), 0);
+
+  ShadowFrame::DeleteDeoptimizedFrame(shadow_frame);
 }
 
 }  // namespace interpreter
