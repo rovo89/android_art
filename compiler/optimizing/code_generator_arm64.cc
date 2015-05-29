@@ -2397,6 +2397,7 @@ void InstructionCodeGeneratorARM64::VisitLoadLocal(HLoadLocal* load) {
 void LocationsBuilderARM64::VisitLoadString(HLoadString* load) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(load, LocationSummary::kCallOnSlowPath);
+  locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister());
 }
 
@@ -2405,8 +2406,8 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
   codegen_->AddSlowPath(slow_path);
 
   Register out = OutputRegister(load);
-  codegen_->LoadCurrentMethod(out);
-  __ Ldr(out, HeapOperand(out, mirror::ArtMethod::DeclaringClassOffset()));
+  Register current_method = InputRegisterAt(load, 0);
+  __ Ldr(out, HeapOperand(current_method, mirror::ArtMethod::DeclaringClassOffset()));
   __ Ldr(out, HeapOperand(out, mirror::Class::DexCacheStringsOffset()));
   __ Ldr(out, HeapOperand(out, CodeGenerator::GetCacheOffset(load->GetStringIndex())));
   __ Cbz(out, slow_path->GetEntryLabel());
