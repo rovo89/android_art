@@ -289,6 +289,8 @@ class CodeGeneratorARM : public CodeGenerator {
     block_labels_.SetSize(GetGraph()->GetBlocks().Size());
   }
 
+  void Finalize(CodeAllocator* allocator) OVERRIDE;
+
   const ArmInstructionSetFeatures& GetInstructionSetFeatures() const {
     return isa_features_;
   }

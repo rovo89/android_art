@@ -392,10 +392,24 @@ CodeGeneratorARM::CodeGeneratorARM(HGraph* graph,
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetArena(), this),
-      assembler_(false /* can_relocate_branches */),
+      assembler_(),
       isa_features_(isa_features) {
   // Save the PC register to mimic Quick.
   AddAllocatedRegister(Location::RegisterLocation(PC));
+}
+
+void CodeGeneratorARM::Finalize(CodeAllocator* allocator) {
+  // Ensure that we fix up branches and literal loads and emit the literal pool.
+  __ FinalizeCode();
+
+  // Adjust native pc offsets in stack maps.
+  for (size_t i = 0, num = stack_map_stream_.GetNumberOfStackMaps(); i != num; ++i) {
+    uint32_t old_position = stack_map_stream_.GetStackMap(i).native_pc_offset;
+    uint32_t new_position = __ GetAdjustedPosition(old_position);
+    stack_map_stream_.SetStackMapNativePcOffset(i, new_position);
+  }
+
+  CodeGenerator::Finalize(allocator);
 }
 
 Location CodeGeneratorARM::AllocateFreeRegister(Primitive::Type type) const {
@@ -2842,7 +2856,7 @@ void InstructionCodeGeneratorARM::VisitCompare(HCompare* compare) {
   Location left = locations->InAt(0);
   Location right = locations->InAt(1);
 
-  NearLabel less, greater, done;
+  Label less, greater, done;
   Primitive::Type type = compare->InputAt(0)->GetType();
   switch (type) {
     case Primitive::kPrimLong: {
@@ -2938,7 +2952,7 @@ void InstructionCodeGeneratorARM::GenerateWideAtomicStore(Register addr,
                                                           Register temp1,
                                                           Register temp2,
                                                           HInstruction* instruction) {
-  NearLabel fail;
+  Label fail;
   if (offset != 0) {
     __ LoadImmediate(temp1, offset);
     __ add(IP, addr, ShifterOperand(temp1));
@@ -3618,7 +3632,7 @@ void CodeGeneratorARM::MarkGCCard(Register temp,
                                   Register object,
                                   Register value,
                                   bool can_be_null) {
-  NearLabel is_null;
+  Label is_null;
   if (can_be_null) {
     __ CompareAndBranchIfZero(value, &is_null);
   }
@@ -4047,7 +4061,7 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
   Register cls = locations->InAt(1).AsRegister<Register>();
   Register out = locations->Out().AsRegister<Register>();
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
-  NearLabel done, zero;
+  Label done, zero;
   SlowPathCodeARM* slow_path = nullptr;
 
   // Return 0 if `obj` is null.
@@ -4104,19 +4118,15 @@ void InstructionCodeGeneratorARM::VisitCheckCast(HCheckCast* instruction) {
       instruction, locations->InAt(1), locations->GetTemp(0), instruction->GetDexPc());
   codegen_->AddSlowPath(slow_path);
 
-  NearLabel done;
   // avoid null check if we know obj is not null.
   if (instruction->MustDoNullCheck()) {
-    __ CompareAndBranchIfZero(obj, &done);
+    __ CompareAndBranchIfZero(obj, slow_path->GetExitLabel());
   }
   // Compare the class of `obj` with `cls`.
   __ LoadFromOffset(kLoadWord, temp, obj, class_offset);
   __ cmp(temp, ShifterOperand(cls));
   __ b(slow_path->GetEntryLabel(), NE);
   __ Bind(slow_path->GetExitLabel());
-  if (instruction->MustDoNullCheck()) {
-    __ Bind(&done);
-  }
 }
 
 void LocationsBuilderARM::VisitMonitorOperation(HMonitorOperation* instruction) {

@@ -78,12 +78,19 @@ class AssemblerThumb2Test : public AssemblerTest<arm::Thumb2Assembler,
     return imm_value;
   }
 
+  std::string RepeatInsn(size_t count, const std::string& insn) {
+    std::string result;
+    for (; count != 0u; --count) {
+      result += insn;
+    }
+    return result;
+  }
+
  private:
   std::vector<arm::Register*> registers_;
 
   static constexpr const char* kThumb2AssemblyHeader = ".syntax unified\n.thumb\n";
 };
-
 
 TEST_F(AssemblerThumb2Test, Toolchain) {
   EXPECT_TRUE(CheckTools());
@@ -368,6 +375,579 @@ TEST_F(AssemblerThumb2Test, StoreWordPairToNonThumbOffset) {
       "strd r11, ip, [r6, #0]\n"
       "ldr r6, [sp], #4\n";       // Pop(r6)
   DriverStr(expected, "StoreWordPairToNonThumbOffset");
+}
+
+TEST_F(AssemblerThumb2Test, TwoCbzMaxOffset) {
+  Label label0, label1, label2;
+  __ cbz(arm::R0, &label1);
+  constexpr size_t kLdrR0R0Count1 = 63;
+  for (size_t i = 0; i != kLdrR0R0Count1; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ Bind(&label0);
+  __ cbz(arm::R0, &label2);
+  __ Bind(&label1);
+  constexpr size_t kLdrR0R0Count2 = 64;
+  for (size_t i = 0; i != kLdrR0R0Count2; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ Bind(&label2);
+
+  std::string expected =
+      "cbz r0, 1f\n" +            // cbz r0, label1
+      RepeatInsn(kLdrR0R0Count1, "ldr r0, [r0]\n") +
+      "0:\n"
+      "cbz r0, 2f\n"              // cbz r0, label2
+      "1:\n" +
+      RepeatInsn(kLdrR0R0Count2, "ldr r0, [r0]\n") +
+      "2:\n";
+  DriverStr(expected, "TwoCbzMaxOffset");
+
+  EXPECT_EQ(static_cast<uint32_t>(label0.Position()) + 0u,
+            __ GetAdjustedPosition(label0.Position()));
+  EXPECT_EQ(static_cast<uint32_t>(label1.Position()) + 0u,
+            __ GetAdjustedPosition(label1.Position()));
+  EXPECT_EQ(static_cast<uint32_t>(label2.Position()) + 0u,
+            __ GetAdjustedPosition(label2.Position()));
+}
+
+TEST_F(AssemblerThumb2Test, TwoCbzBeyondMaxOffset) {
+  Label label0, label1, label2;
+  __ cbz(arm::R0, &label1);
+  constexpr size_t kLdrR0R0Count1 = 63;
+  for (size_t i = 0; i != kLdrR0R0Count1; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ Bind(&label0);
+  __ cbz(arm::R0, &label2);
+  __ Bind(&label1);
+  constexpr size_t kLdrR0R0Count2 = 65;
+  for (size_t i = 0; i != kLdrR0R0Count2; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ Bind(&label2);
+
+  std::string expected =
+      "cmp r0, #0\n"              // cbz r0, label1
+      "beq.n 1f\n" +
+      RepeatInsn(kLdrR0R0Count1, "ldr r0, [r0]\n") +
+      "0:\n"
+      "cmp r0, #0\n"              // cbz r0, label2
+      "beq.n 2f\n"
+      "1:\n" +
+      RepeatInsn(kLdrR0R0Count2, "ldr r0, [r0]\n") +
+      "2:\n";
+  DriverStr(expected, "TwoCbzBeyondMaxOffset");
+
+  EXPECT_EQ(static_cast<uint32_t>(label0.Position()) + 2u,
+            __ GetAdjustedPosition(label0.Position()));
+  EXPECT_EQ(static_cast<uint32_t>(label1.Position()) + 4u,
+            __ GetAdjustedPosition(label1.Position()));
+  EXPECT_EQ(static_cast<uint32_t>(label2.Position()) + 4u,
+            __ GetAdjustedPosition(label2.Position()));
+}
+
+TEST_F(AssemblerThumb2Test, TwoCbzSecondAtMaxB16Offset) {
+  Label label0, label1, label2;
+  __ cbz(arm::R0, &label1);
+  constexpr size_t kLdrR0R0Count1 = 62;
+  for (size_t i = 0; i != kLdrR0R0Count1; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ Bind(&label0);
+  __ cbz(arm::R0, &label2);
+  __ Bind(&label1);
+  constexpr size_t kLdrR0R0Count2 = 128;
+  for (size_t i = 0; i != kLdrR0R0Count2; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ Bind(&label2);
+
+  std::string expected =
+      "cbz r0, 1f\n" +            // cbz r0, label1
+      RepeatInsn(kLdrR0R0Count1, "ldr r0, [r0]\n") +
+      "0:\n"
+      "cmp r0, #0\n"              // cbz r0, label2
+      "beq.n 2f\n"
+      "1:\n" +
+      RepeatInsn(kLdrR0R0Count2, "ldr r0, [r0]\n") +
+      "2:\n";
+  DriverStr(expected, "TwoCbzSecondAtMaxB16Offset");
+
+  EXPECT_EQ(static_cast<uint32_t>(label0.Position()) + 0u,
+            __ GetAdjustedPosition(label0.Position()));
+  EXPECT_EQ(static_cast<uint32_t>(label1.Position()) + 2u,
+            __ GetAdjustedPosition(label1.Position()));
+  EXPECT_EQ(static_cast<uint32_t>(label2.Position()) + 2u,
+            __ GetAdjustedPosition(label2.Position()));
+}
+
+TEST_F(AssemblerThumb2Test, TwoCbzSecondBeyondMaxB16Offset) {
+  Label label0, label1, label2;
+  __ cbz(arm::R0, &label1);
+  constexpr size_t kLdrR0R0Count1 = 62;
+  for (size_t i = 0; i != kLdrR0R0Count1; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ Bind(&label0);
+  __ cbz(arm::R0, &label2);
+  __ Bind(&label1);
+  constexpr size_t kLdrR0R0Count2 = 129;
+  for (size_t i = 0; i != kLdrR0R0Count2; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ Bind(&label2);
+
+  std::string expected =
+      "cmp r0, #0\n"              // cbz r0, label1
+      "beq.n 1f\n" +
+      RepeatInsn(kLdrR0R0Count1, "ldr r0, [r0]\n") +
+      "0:\n"
+      "cmp r0, #0\n"              // cbz r0, label2
+      "beq.w 2f\n"
+      "1:\n" +
+      RepeatInsn(kLdrR0R0Count2, "ldr r0, [r0]\n") +
+      "2:\n";
+  DriverStr(expected, "TwoCbzSecondBeyondMaxB16Offset");
+
+  EXPECT_EQ(static_cast<uint32_t>(label0.Position()) + 2u,
+            __ GetAdjustedPosition(label0.Position()));
+  EXPECT_EQ(static_cast<uint32_t>(label1.Position()) + 6u,
+            __ GetAdjustedPosition(label1.Position()));
+  EXPECT_EQ(static_cast<uint32_t>(label2.Position()) + 6u,
+            __ GetAdjustedPosition(label2.Position()));
+}
+
+TEST_F(AssemblerThumb2Test, TwoCbzFirstAtMaxB16Offset) {
+  Label label0, label1, label2;
+  __ cbz(arm::R0, &label1);
+  constexpr size_t kLdrR0R0Count1 = 127;
+  for (size_t i = 0; i != kLdrR0R0Count1; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ Bind(&label0);
+  __ cbz(arm::R0, &label2);
+  __ Bind(&label1);
+  constexpr size_t kLdrR0R0Count2 = 64;
+  for (size_t i = 0; i != kLdrR0R0Count2; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ Bind(&label2);
+
+  std::string expected =
+      "cmp r0, #0\n"              // cbz r0, label1
+      "beq.n 1f\n" +
+      RepeatInsn(kLdrR0R0Count1, "ldr r0, [r0]\n") +
+      "0:\n"
+      "cbz r0, 2f\n"              // cbz r0, label2
+      "1:\n" +
+      RepeatInsn(kLdrR0R0Count2, "ldr r0, [r0]\n") +
+      "2:\n";
+  DriverStr(expected, "TwoCbzFirstAtMaxB16Offset");
+
+  EXPECT_EQ(static_cast<uint32_t>(label0.Position()) + 2u,
+            __ GetAdjustedPosition(label0.Position()));
+  EXPECT_EQ(static_cast<uint32_t>(label1.Position()) + 2u,
+            __ GetAdjustedPosition(label1.Position()));
+  EXPECT_EQ(static_cast<uint32_t>(label2.Position()) + 2u,
+            __ GetAdjustedPosition(label2.Position()));
+}
+
+TEST_F(AssemblerThumb2Test, TwoCbzFirstBeyondMaxB16Offset) {
+  Label label0, label1, label2;
+  __ cbz(arm::R0, &label1);
+  constexpr size_t kLdrR0R0Count1 = 127;
+  for (size_t i = 0; i != kLdrR0R0Count1; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ Bind(&label0);
+  __ cbz(arm::R0, &label2);
+  __ Bind(&label1);
+  constexpr size_t kLdrR0R0Count2 = 65;
+  for (size_t i = 0; i != kLdrR0R0Count2; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ Bind(&label2);
+
+  std::string expected =
+      "cmp r0, #0\n"              // cbz r0, label1
+      "beq.w 1f\n" +
+      RepeatInsn(kLdrR0R0Count1, "ldr r0, [r0]\n") +
+      "0:\n"
+      "cmp r0, #0\n"              // cbz r0, label2
+      "beq.n 2f\n"
+      "1:\n" +
+      RepeatInsn(kLdrR0R0Count2, "ldr r0, [r0]\n") +
+      "2:\n";
+  DriverStr(expected, "TwoCbzFirstBeyondMaxB16Offset");
+
+  EXPECT_EQ(static_cast<uint32_t>(label0.Position()) + 4u,
+            __ GetAdjustedPosition(label0.Position()));
+  EXPECT_EQ(static_cast<uint32_t>(label1.Position()) + 6u,
+            __ GetAdjustedPosition(label1.Position()));
+  EXPECT_EQ(static_cast<uint32_t>(label2.Position()) + 6u,
+            __ GetAdjustedPosition(label2.Position()));
+}
+
+TEST_F(AssemblerThumb2Test, LoadLiteralMax1KiB) {
+  arm::Literal* literal = __ NewLiteral<int32_t>(0x12345678);
+  __ LoadLiteral(arm::R0, literal);
+  Label label;
+  __ Bind(&label);
+  constexpr size_t kLdrR0R0Count = 511;
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  std::string expected =
+      "1:\n"
+      "ldr.n r0, [pc, #((2f - 1b - 2) & ~2)]\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".align 2, 0\n"
+      "2:\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadLiteralMax1KiB");
+
+  EXPECT_EQ(static_cast<uint32_t>(label.Position()) + 0u,
+            __ GetAdjustedPosition(label.Position()));
+}
+
+TEST_F(AssemblerThumb2Test, LoadLiteralBeyondMax1KiB) {
+  arm::Literal* literal = __ NewLiteral<int32_t>(0x12345678);
+  __ LoadLiteral(arm::R0, literal);
+  Label label;
+  __ Bind(&label);
+  constexpr size_t kLdrR0R0Count = 512;
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  std::string expected =
+      "1:\n"
+      "ldr.w r0, [pc, #((2f - 1b - 2) & ~2)]\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".align 2, 0\n"
+      "2:\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadLiteralBeyondMax1KiB");
+
+  EXPECT_EQ(static_cast<uint32_t>(label.Position()) + 2u,
+            __ GetAdjustedPosition(label.Position()));
+}
+
+TEST_F(AssemblerThumb2Test, LoadLiteralMax4KiB) {
+  arm::Literal* literal = __ NewLiteral<int32_t>(0x12345678);
+  __ LoadLiteral(arm::R1, literal);
+  Label label;
+  __ Bind(&label);
+  constexpr size_t kLdrR0R0Count = 2046;
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  std::string expected =
+      "1:\n"
+      "ldr.w r1, [pc, #((2f - 1b - 2) & ~2)]\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".align 2, 0\n"
+      "2:\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadLiteralMax4KiB");
+
+  EXPECT_EQ(static_cast<uint32_t>(label.Position()) + 2u,
+            __ GetAdjustedPosition(label.Position()));
+}
+
+TEST_F(AssemblerThumb2Test, LoadLiteralBeyondMax4KiB) {
+  arm::Literal* literal = __ NewLiteral<int32_t>(0x12345678);
+  __ LoadLiteral(arm::R1, literal);
+  Label label;
+  __ Bind(&label);
+  constexpr size_t kLdrR0R0Count = 2047;
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  std::string expected =
+      "movw r1, #4096\n"  // "as" does not consider (2f - 1f - 4) a constant expression for movw.
+      "1:\n"
+      "add r1, pc\n"
+      "ldr r1, [r1, #0]\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".align 2, 0\n"
+      "2:\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadLiteralBeyondMax4KiB");
+
+  EXPECT_EQ(static_cast<uint32_t>(label.Position()) + 6u,
+            __ GetAdjustedPosition(label.Position()));
+}
+
+TEST_F(AssemblerThumb2Test, LoadLiteralMax64KiB) {
+  arm::Literal* literal = __ NewLiteral<int32_t>(0x12345678);
+  __ LoadLiteral(arm::R1, literal);
+  Label label;
+  __ Bind(&label);
+  constexpr size_t kLdrR0R0Count = (1u << 15) - 2u;
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  std::string expected =
+      "movw r1, #0xfffc\n"  // "as" does not consider (2f - 1f - 4) a constant expression for movw.
+      "1:\n"
+      "add r1, pc\n"
+      "ldr r1, [r1, #0]\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".align 2, 0\n"
+      "2:\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadLiteralMax64KiB");
+
+  EXPECT_EQ(static_cast<uint32_t>(label.Position()) + 6u,
+            __ GetAdjustedPosition(label.Position()));
+}
+
+TEST_F(AssemblerThumb2Test, LoadLiteralBeyondMax64KiB) {
+  arm::Literal* literal = __ NewLiteral<int32_t>(0x12345678);
+  __ LoadLiteral(arm::R1, literal);
+  Label label;
+  __ Bind(&label);
+  constexpr size_t kLdrR0R0Count = (1u << 15) - 1u;
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  std::string expected =
+      "mov.w r1, #((2f - 1f - 4) & ~0xfff)\n"
+      "1:\n"
+      "add r1, pc\n"
+      "ldr r1, [r1, #((2f - 1b - 4) & 0xfff)]\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".align 2, 0\n"
+      "2:\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadLiteralBeyondMax64KiB");
+
+  EXPECT_EQ(static_cast<uint32_t>(label.Position()) + 8u,
+            __ GetAdjustedPosition(label.Position()));
+}
+
+TEST_F(AssemblerThumb2Test, LoadLiteralMax1MiB) {
+  arm::Literal* literal = __ NewLiteral<int32_t>(0x12345678);
+  __ LoadLiteral(arm::R1, literal);
+  Label label;
+  __ Bind(&label);
+  constexpr size_t kLdrR0R0Count = (1u << 19) - 3u;
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  std::string expected =
+      "mov.w r1, #((2f - 1f - 4) & ~0xfff)\n"
+      "1:\n"
+      "add r1, pc\n"
+      "ldr r1, [r1, #((2f - 1b - 4) & 0xfff)]\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".align 2, 0\n"
+      "2:\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadLiteralMax1MiB");
+
+  EXPECT_EQ(static_cast<uint32_t>(label.Position()) + 8u,
+            __ GetAdjustedPosition(label.Position()));
+}
+
+TEST_F(AssemblerThumb2Test, LoadLiteralBeyondMax1MiB) {
+  arm::Literal* literal = __ NewLiteral<int32_t>(0x12345678);
+  __ LoadLiteral(arm::R1, literal);
+  Label label;
+  __ Bind(&label);
+  constexpr size_t kLdrR0R0Count = (1u << 19) - 2u;
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  std::string expected =
+      // "as" does not consider ((2f - 1f - 4) & 0xffff) a constant expression for movw.
+      "movw r1, #(0x100000 & 0xffff)\n"
+      // "as" does not consider ((2f - 1f - 4) >> 16) a constant expression for movt.
+      "movt r1, #(0x100000 >> 16)\n"
+      "1:\n"
+      "add r1, pc\n"
+      "ldr.w r1, [r1, #0]\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".align 2, 0\n"
+      "2:\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadLiteralBeyondMax1MiB");
+
+  EXPECT_EQ(static_cast<uint32_t>(label.Position()) + 12u,
+            __ GetAdjustedPosition(label.Position()));
+}
+
+TEST_F(AssemblerThumb2Test, LoadLiteralFar) {
+  arm::Literal* literal = __ NewLiteral<int32_t>(0x12345678);
+  __ LoadLiteral(arm::R1, literal);
+  Label label;
+  __ Bind(&label);
+  constexpr size_t kLdrR0R0Count = (1u << 19) - 2u + 0x1234;
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  std::string expected =
+      // "as" does not consider ((2f - 1f - 4) & 0xffff) a constant expression for movw.
+      "movw r1, #((0x100000 + 2 * 0x1234) & 0xffff)\n"
+      // "as" does not consider ((2f - 1f - 4) >> 16) a constant expression for movt.
+      "movt r1, #((0x100000 + 2 * 0x1234) >> 16)\n"
+      "1:\n"
+      "add r1, pc\n"
+      "ldr.w r1, [r1, #0]\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".align 2, 0\n"
+      "2:\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadLiteralFar");
+
+  EXPECT_EQ(static_cast<uint32_t>(label.Position()) + 12u,
+            __ GetAdjustedPosition(label.Position()));
+}
+
+TEST_F(AssemblerThumb2Test, LoadLiteralWideMax1KiB) {
+  arm::Literal* literal = __ NewLiteral<int64_t>(INT64_C(0x1234567887654321));
+  __ LoadLiteral(arm::R1, arm::R3, literal);
+  Label label;
+  __ Bind(&label);
+  constexpr size_t kLdrR0R0Count = 510;
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  std::string expected =
+      "1:\n"
+      "ldrd r1, r3, [pc, #((2f - 1b - 2) & ~2)]\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".align 2, 0\n"
+      "2:\n"
+      ".word 0x87654321\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadLiteralWideMax1KiB");
+
+  EXPECT_EQ(static_cast<uint32_t>(label.Position()) + 0u,
+            __ GetAdjustedPosition(label.Position()));
+}
+
+TEST_F(AssemblerThumb2Test, LoadLiteralWideBeyondMax1KiB) {
+  arm::Literal* literal = __ NewLiteral<int64_t>(INT64_C(0x1234567887654321));
+  __ LoadLiteral(arm::R1, arm::R3, literal);
+  Label label;
+  __ Bind(&label);
+  constexpr size_t kLdrR0R0Count = 511;
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  std::string expected =
+      "mov.w ip, #((2f - 1f - 4) & ~0x3ff)\n"
+      "1:\n"
+      "add ip, pc\n"
+      "ldrd r1, r3, [ip, #((2f - 1b - 4) & 0x3ff)]\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".align 2, 0\n"
+      "2:\n"
+      ".word 0x87654321\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadLiteralWideBeyondMax1KiB");
+
+  EXPECT_EQ(static_cast<uint32_t>(label.Position()) + 6u,
+            __ GetAdjustedPosition(label.Position()));
+}
+
+TEST_F(AssemblerThumb2Test, LoadLiteralSingleMax256KiB) {
+  // The literal size must match but the type doesn't, so use an int32_t rather than float.
+  arm::Literal* literal = __ NewLiteral<int32_t>(0x12345678);
+  __ LoadLiteral(arm::S3, literal);
+  Label label;
+  __ Bind(&label);
+  constexpr size_t kLdrR0R0Count = (1 << 17) - 3u;
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  std::string expected =
+      "mov.w ip, #((2f - 1f - 4) & ~0x3ff)\n"
+      "1:\n"
+      "add ip, pc\n"
+      "vldr s3, [ip, #((2f - 1b - 4) & 0x3ff)]\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".align 2, 0\n"
+      "2:\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadLiteralSingleMax256KiB");
+
+  EXPECT_EQ(static_cast<uint32_t>(label.Position()) + 6u,
+            __ GetAdjustedPosition(label.Position()));
+}
+
+TEST_F(AssemblerThumb2Test, LoadLiteralDoubleBeyondMax256KiB) {
+  // The literal size must match but the type doesn't, so use an int64_t rather than double.
+  arm::Literal* literal = __ NewLiteral<int64_t>(INT64_C(0x1234567887654321));
+  __ LoadLiteral(arm::D3, literal);
+  Label label;
+  __ Bind(&label);
+  constexpr size_t kLdrR0R0Count = (1 << 17) - 2u;
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  std::string expected =
+      // "as" does not consider ((2f - 1f - 4) & 0xffff) a constant expression for movw.
+      "movw ip, #(0x40000 & 0xffff)\n"
+      // "as" does not consider ((2f - 1f - 4) >> 16) a constant expression for movt.
+      "movt ip, #(0x40000 >> 16)\n"
+      "1:\n"
+      "add ip, pc\n"
+      "vldr d3, [ip, #0]\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".align 2, 0\n"
+      "2:\n"
+      ".word 0x87654321\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadLiteralDoubleBeyondMax256KiB");
+
+  EXPECT_EQ(static_cast<uint32_t>(label.Position()) + 10u,
+            __ GetAdjustedPosition(label.Position()));
+}
+
+TEST_F(AssemblerThumb2Test, LoadLiteralDoubleFar) {
+  // The literal size must match but the type doesn't, so use an int64_t rather than double.
+  arm::Literal* literal = __ NewLiteral<int64_t>(INT64_C(0x1234567887654321));
+  __ LoadLiteral(arm::D3, literal);
+  Label label;
+  __ Bind(&label);
+  constexpr size_t kLdrR0R0Count = (1 << 17) - 2u + 0x1234;
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  std::string expected =
+      // "as" does not consider ((2f - 1f - 4) & 0xffff) a constant expression for movw.
+      "movw ip, #((0x40000 + 2 * 0x1234) & 0xffff)\n"
+      // "as" does not consider ((2f - 1f - 4) >> 16) a constant expression for movt.
+      "movt ip, #((0x40000 + 2 * 0x1234) >> 16)\n"
+      "1:\n"
+      "add ip, pc\n"
+      "vldr d3, [ip, #0]\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".align 2, 0\n"
+      "2:\n"
+      ".word 0x87654321\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadLiteralDoubleFar");
+
+  EXPECT_EQ(static_cast<uint32_t>(label.Position()) + 10u,
+            __ GetAdjustedPosition(label.Position()));
 }
 
 }  // namespace art

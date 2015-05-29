@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_UTILS_ARM_ASSEMBLER_ARM_H_
 #define ART_COMPILER_UTILS_ARM_ASSEMBLER_ARM_H_
 
+#include <type_traits>
 #include <vector>
 
 #include "base/bit_utils.h"
@@ -33,14 +34,47 @@ namespace arm {
 class Arm32Assembler;
 class Thumb2Assembler;
 
-// This class indicates that the label and its uses
-// will fall into a range that is encodable in 16bits on thumb2.
-class NearLabel : public Label {
+// Assembler literal is a value embedded in code, retrieved using a PC-relative load.
+class Literal {
  public:
-  NearLabel() {}
+  static constexpr size_t kMaxSize = 8;
+
+  Literal(uint32_t size, const uint8_t* data)
+      : label_(), size_(size) {
+    DCHECK_LE(size, Literal::kMaxSize);
+    memcpy(data_, data, size);
+  }
+
+  template <typename T>
+  T GetValue() const {
+    DCHECK_EQ(size_, sizeof(T));
+    T value;
+    memcpy(&value, data_, sizeof(T));
+    return value;
+  }
+
+  uint32_t GetSize() const {
+    return size_;
+  }
+
+  const uint8_t* GetData() const {
+    return data_;
+  }
+
+  Label* GetLabel() {
+    return &label_;
+  }
+
+  const Label* GetLabel() const {
+    return &label_;
+  }
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(NearLabel);
+  Label label_;
+  const uint32_t size_;
+  uint8_t data_[kMaxSize];
+
+  DISALLOW_COPY_AND_ASSIGN(Literal);
 };
 
 class ShifterOperand {
@@ -529,9 +563,6 @@ class ArmAssembler : public Assembler {
 
   // Branch instructions.
   virtual void b(Label* label, Condition cond = AL) = 0;
-  virtual void b(NearLabel* label, Condition cond = AL) {
-    b(static_cast<Label*>(label), cond);
-  }
   virtual void bl(Label* label, Condition cond = AL) = 0;
   virtual void blx(Register rm, Condition cond = AL) = 0;
   virtual void bx(Register rm, Condition cond = AL) = 0;
@@ -541,8 +572,30 @@ class ArmAssembler : public Assembler {
 
   void Pad(uint32_t bytes);
 
+  // Get the final position of a label after local fixup based on the old position
+  // recorded before FinalizeCode().
+  virtual uint32_t GetAdjustedPosition(uint32_t old_position) = 0;
+
   // Macros.
   // Most of these are pure virtual as they need to be implemented per instruction set.
+
+  // Create a new literal with a given value.
+  // NOTE: Force the template parameter to be explicitly specified. In the absence of
+  // std::omit_from_type_deduction<T> or std::identity<T>, use std::decay<T>.
+  template <typename T>
+  Literal* NewLiteral(typename std::decay<T>::type value) {
+    static_assert(std::is_integral<T>::value, "T must be an integral type.");
+    return NewLiteral(sizeof(value), reinterpret_cast<const uint8_t*>(&value));
+  }
+
+  // Create a new literal with the given data.
+  virtual Literal* NewLiteral(size_t size, const uint8_t* data) = 0;
+
+  // Load literal.
+  virtual void LoadLiteral(Register rt, Literal* literal) = 0;
+  virtual void LoadLiteral(Register rt, Register rt2, Literal* literal) = 0;
+  virtual void LoadLiteral(SRegister sd, Literal* literal) = 0;
+  virtual void LoadLiteral(DRegister dd, Literal* literal) = 0;
 
   // Add signed constant value to rd. May clobber IP.
   virtual void AddConstant(Register rd, int32_t value, Condition cond = AL) = 0;
@@ -667,9 +720,6 @@ class ArmAssembler : public Assembler {
   virtual void Bind(Label* label) = 0;
 
   virtual void CompareAndBranchIfZero(Register r, Label* label) = 0;
-  virtual void CompareAndBranchIfZero(Register r, NearLabel* label) {
-    CompareAndBranchIfZero(r, static_cast<Label*>(label));
-  }
   virtual void CompareAndBranchIfNonZero(Register r, Label* label) = 0;
 
   //
