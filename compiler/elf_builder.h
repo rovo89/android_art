@@ -267,7 +267,7 @@ class ElfBuilder FINAL {
   class StrtabSection FINAL : public Section {
    public:
     StrtabSection(const std::string& name, Elf_Word flags)
-        : Section(name, SHT_STRTAB, flags, nullptr, 0, 1, 1) {
+        : Section(name, SHT_STRTAB, flags, nullptr, 0, 1, 0) {
       buffer_.reserve(4 * KB);
       // The first entry of strtab must be empty string.
       buffer_ += '\0';
@@ -503,7 +503,7 @@ class ElfBuilder FINAL {
       text_(".text", SHT_PROGBITS, SHF_ALLOC | SHF_EXECINSTR,
             nullptr, 0, kPageSize, 0, text_size, text_writer),
       bss_(".bss", bss_size),
-      dynamic_(".dynamic", &dynsym_),
+      dynamic_(".dynamic", &dynstr_),
       strtab_(".strtab", 0),
       symtab_(".symtab", SHT_SYMTAB, 0, &strtab_),
       shstrtab_(".shstrtab", 0) {
