@@ -52,8 +52,7 @@ class ProxyTest : public CommonCompilerTest {
     // Builds the method array.
     jsize methods_count = 3;  // Object.equals, Object.hashCode and Object.toString.
     for (mirror::Class* interface : interfaces) {
-      mirror::ObjectArray<mirror::ArtMethod>* virtual_methods = interface->GetVirtualMethods();
-      methods_count += (virtual_methods == nullptr) ? 0 : virtual_methods->GetLength();
+      methods_count += interface->NumVirtualMethods();
     }
     jobjectArray proxyClassMethods = soa.Env()->NewObjectArray(
         methods_count, soa.AddLocalReference<jclass>(mirror::Method::StaticClass()), nullptr);
@@ -61,28 +60,29 @@ class ProxyTest : public CommonCompilerTest {
 
     jsize array_index = 0;
     // Fill the method array
-    mirror::ArtMethod* method = javaLangObject->FindDeclaredVirtualMethod(
-        "equals", "(Ljava/lang/Object;)Z");
+    ArtMethod* method = javaLangObject->FindDeclaredVirtualMethod(
+        "equals", "(Ljava/lang/Object;)Z", sizeof(void*));
     CHECK(method != nullptr);
     soa.Env()->SetObjectArrayElement(
         proxyClassMethods, array_index++, soa.AddLocalReference<jobject>(
             mirror::Method::CreateFromArtMethod(soa.Self(), method)));
-    method = javaLangObject->FindDeclaredVirtualMethod("hashCode", "()I");
+    method = javaLangObject->FindDeclaredVirtualMethod("hashCode", "()I", sizeof(void*));
     CHECK(method != nullptr);
     soa.Env()->SetObjectArrayElement(
         proxyClassMethods, array_index++, soa.AddLocalReference<jobject>(
             mirror::Method::CreateFromArtMethod(soa.Self(), method)));
-    method = javaLangObject->FindDeclaredVirtualMethod("toString", "()Ljava/lang/String;");
+    method = javaLangObject->FindDeclaredVirtualMethod(
+        "toString", "()Ljava/lang/String;", sizeof(void*));
     CHECK(method != nullptr);
     soa.Env()->SetObjectArrayElement(
         proxyClassMethods, array_index++, soa.AddLocalReference<jobject>(
             mirror::Method::CreateFromArtMethod(soa.Self(), method)));
     // Now adds all interfaces virtual methods.
     for (mirror::Class* interface : interfaces) {
-      for (int32_t i = 0, count = interface->NumVirtualMethods(); i < count; ++i) {
+      for (auto& m : interface->GetVirtualMethods(sizeof(void*))) {
         soa.Env()->SetObjectArrayElement(
             proxyClassMethods, array_index++, soa.AddLocalReference<jobject>(
-                mirror::Method::CreateFromArtMethod(soa.Self(), interface->GetVirtualMethod(i))));
+                mirror::Method::CreateFromArtMethod(soa.Self(), &m)));
       }
     }
     CHECK_EQ(array_index, methods_count);

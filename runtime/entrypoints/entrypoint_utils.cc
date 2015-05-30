@@ -17,11 +17,11 @@
 #include "entrypoints/entrypoint_utils.h"
 
 #include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "base/mutex.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "gc/accounting/card_table-inl.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/method.h"
 #include "mirror/object-inl.h"
@@ -35,7 +35,7 @@ namespace art {
 
 static inline mirror::Class* CheckFilledNewArrayAlloc(uint32_t type_idx,
                                                       int32_t component_count,
-                                                      mirror::ArtMethod* referrer,
+                                                      ArtMethod* referrer,
                                                       Thread* self,
                                                       bool access_check)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -76,7 +76,7 @@ static inline mirror::Class* CheckFilledNewArrayAlloc(uint32_t type_idx,
 
 // Helper function to allocate array for FILLED_NEW_ARRAY.
 mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, int32_t component_count,
-                                          mirror::ArtMethod* referrer, Thread* self,
+                                          ArtMethod* referrer, Thread* self,
                                           bool access_check,
                                           gc::AllocatorType /* allocator_type */) {
   mirror::Class* klass = CheckFilledNewArrayAlloc(type_idx, component_count, referrer, self,
@@ -96,7 +96,7 @@ mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, int32_t component_c
 // Helper function to allocate array for FILLED_NEW_ARRAY.
 mirror::Array* CheckAndAllocArrayFromCodeInstrumented(uint32_t type_idx,
                                                       int32_t component_count,
-                                                      mirror::ArtMethod* referrer,
+                                                      ArtMethod* referrer,
                                                       Thread* self,
                                                       bool access_check,
                                                       gc::AllocatorType /* allocator_type */) {
@@ -294,22 +294,19 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
       mirror::Object* rcvr = soa.Decode<mirror::Object*>(rcvr_jobj);
       mirror::Class* proxy_class = rcvr->GetClass();
       mirror::Method* interface_method = soa.Decode<mirror::Method*>(interface_method_jobj);
-      mirror::ArtMethod* proxy_method =
-          rcvr->GetClass()->FindVirtualMethodForInterface(interface_method->GetArtMethod());
-      int throws_index = -1;
-      size_t num_virt_methods = proxy_class->NumVirtualMethods();
-      for (size_t i = 0; i < num_virt_methods; i++) {
-        if (proxy_class->GetVirtualMethod(i) == proxy_method) {
-          throws_index = i;
-          break;
-        }
-      }
-      CHECK_NE(throws_index, -1);
+      ArtMethod* proxy_method = rcvr->GetClass()->FindVirtualMethodForInterface(
+          interface_method->GetArtMethod(), sizeof(void*));
+      auto* virtual_methods = proxy_class->GetVirtualMethodsPtr();
+      size_t num_virtuals = proxy_class->NumVirtualMethods();
+      size_t method_size = ArtMethod::ObjectSize(sizeof(void*));
+      int throws_index = (reinterpret_cast<uintptr_t>(proxy_method) -
+          reinterpret_cast<uintptr_t>(virtual_methods)) / method_size;
+      CHECK_LT(throws_index, static_cast<int>(num_virtuals));
       mirror::ObjectArray<mirror::Class>* declared_exceptions =
           proxy_class->GetThrows()->Get(throws_index);
       mirror::Class* exception_class = exception->GetClass();
       bool declares_exception = false;
-      for (int i = 0; i < declared_exceptions->GetLength() && !declares_exception; i++) {
+      for (int32_t i = 0; i < declared_exceptions->GetLength() && !declares_exception; i++) {
         mirror::Class* declared_exception = declared_exceptions->Get(i);
         declares_exception = declared_exception->IsAssignableFrom(exception_class);
       }

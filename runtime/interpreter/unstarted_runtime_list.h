@@ -31,7 +31,6 @@
   V(SystemArraycopyInt, "void java.lang.System.arraycopy(int[], int, int[], int, int)") \
   V(ThreadLocalGet, "java.lang.Object java.lang.ThreadLocal.get()") \
   V(MathCeil, "double java.lang.Math.ceil(double)") \
-  V(ArtMethodGetMethodName, "java.lang.String java.lang.reflect.ArtMethod.getMethodName(java.lang.reflect.ArtMethod)") \
   V(ObjectHashCode, "int java.lang.Object.hashCode()") \
   V(DoubleDoubleToRawLongBits, "long java.lang.Double.doubleToRawLongBits(double)") \
   V(DexCacheGetDexNative, "com.android.dex.Dex java.lang.DexCache.getDexNative()") \

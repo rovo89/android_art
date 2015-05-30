@@ -26,7 +26,6 @@ namespace art {
 
 static constexpr size_t kObjectReferenceSize = 4;
 
-
 constexpr size_t ComponentSizeShiftWidth(size_t component_size) {
   return component_size == 1u ? 0u :
       component_size == 2u ? 1u :

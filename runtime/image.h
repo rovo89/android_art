@@ -24,6 +24,34 @@
 
 namespace art {
 
+class PACKED(4) ImageSection {
+ public:
+  ImageSection() : offset_(0), size_(0) { }
+  ImageSection(uint32_t offset, uint32_t size) : offset_(offset), size_(size) { }
+  ImageSection(const ImageSection& section) = default;
+  ImageSection& operator=(const ImageSection& section) = default;
+
+  uint32_t Offset() const {
+    return offset_;
+  }
+
+  uint32_t Size() const {
+    return size_;
+  }
+
+  uint32_t End() const {
+    return Offset() + Size();
+  }
+
+  bool Contains(uint64_t offset) const {
+    return offset - offset_ < size_;
+  }
+
+ private:
+  uint32_t offset_;
+  uint32_t size_;
+};
+
 // header of image files written by ImageWriter, read and validated by Space.
 class PACKED(4) ImageHeader {
  public:
@@ -31,16 +59,14 @@ class PACKED(4) ImageHeader {
 
   ImageHeader(uint32_t image_begin,
               uint32_t image_size_,
-              uint32_t art_fields_offset,
-              uint32_t art_fields_size,
-              uint32_t image_bitmap_offset,
-              uint32_t image_bitmap_size,
+              ImageSection* sections,
               uint32_t image_roots,
               uint32_t oat_checksum,
               uint32_t oat_file_begin,
               uint32_t oat_data_begin,
               uint32_t oat_data_end,
               uint32_t oat_file_end,
+              uint32_t pointer_size,
               bool compile_pic_);
 
   bool IsValid() const;
@@ -52,22 +78,6 @@ class PACKED(4) ImageHeader {
 
   size_t GetImageSize() const {
     return static_cast<uint32_t>(image_size_);
-  }
-
-  size_t GetArtFieldsOffset() const {
-    return art_fields_offset_;
-  }
-
-  size_t GetArtFieldsSize() const {
-    return art_fields_size_;
-  }
-
-  size_t GetImageBitmapOffset() const {
-    return image_bitmap_offset_;
-  }
-
-  size_t GetImageBitmapSize() const {
-    return image_bitmap_size_;
   }
 
   uint32_t GetOatChecksum() const {
@@ -94,6 +104,10 @@ class PACKED(4) ImageHeader {
     return reinterpret_cast<uint8_t*>(oat_file_end_);
   }
 
+  uint32_t GetPointerSize() const {
+    return pointer_size_;
+  }
+
   off_t GetPatchDelta() const {
     return patch_delta_;
   }
@@ -108,18 +122,37 @@ class PACKED(4) ImageHeader {
     return oat_filename;
   }
 
-  enum ImageRoot {
+  enum ImageMethod {
     kResolutionMethod,
     kImtConflictMethod,
     kImtUnimplementedMethod,
-    kDefaultImt,
     kCalleeSaveMethod,
     kRefsOnlySaveMethod,
     kRefsAndArgsSaveMethod,
+    kImageMethodsCount,  // Number of elements in enum.
+  };
+
+  enum ImageRoot {
     kDexCaches,
     kClassRoots,
     kImageRootsMax,
   };
+
+  enum ImageSections {
+    kSectionObjects,
+    kSectionArtFields,
+    kSectionArtMethods,
+    kSectionImageBitmap,
+    kSectionCount,  // Number of elements in enum.
+  };
+
+  ArtMethod* GetImageMethod(ImageMethod index) const;
+  void SetImageMethod(ImageMethod index, ArtMethod* method);
+
+  const ImageSection& GetImageSection(ImageSections index) const;
+  const ImageSection& GetMethodsSection() const {
+    return GetImageSection(kSectionArtMethods);
+  }
 
   mirror::Object* GetImageRoot(ImageRoot image_root) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -145,18 +178,6 @@ class PACKED(4) ImageHeader {
   // Image size, not page aligned.
   uint32_t image_size_;
 
-  // ArtField array offset.
-  uint32_t art_fields_offset_;
-
-  // ArtField size in bytes.
-  uint32_t art_fields_size_;
-
-  // Image bitmap offset in the file.
-  uint32_t image_bitmap_offset_;
-
-  // Size of the image bitmap.
-  uint32_t image_bitmap_size_;
-
   // Checksum of the oat file we link to for load time sanity check.
   uint32_t oat_checksum_;
 
@@ -179,11 +200,25 @@ class PACKED(4) ImageHeader {
   // Absolute address of an Object[] of objects needed to reinitialize from an image.
   uint32_t image_roots_;
 
+  // Pointer size, this affects the size of the ArtMethods.
+  uint32_t pointer_size_;
+
   // Boolean (0 or 1) to denote if the image was compiled with --compile-pic option
   const uint32_t compile_pic_;
 
+  // Image sections
+  ImageSection sections_[kSectionCount];
+
+  // Image methods.
+  uint64_t image_methods_[kImageMethodsCount];
+
   friend class ImageWriter;
 };
+
+std::ostream& operator<<(std::ostream& os, const ImageHeader::ImageMethod& policy);
+std::ostream& operator<<(std::ostream& os, const ImageHeader::ImageRoot& policy);
+std::ostream& operator<<(std::ostream& os, const ImageHeader::ImageSections& section);
+std::ostream& operator<<(std::ostream& os, const ImageSection& section);
 
 }  // namespace art
 

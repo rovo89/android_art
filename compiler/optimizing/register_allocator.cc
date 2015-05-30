@@ -71,7 +71,9 @@ RegisterAllocator::RegisterAllocator(ArenaAllocator* allocator,
   physical_fp_register_intervals_.SetSize(codegen->GetNumberOfFloatingPointRegisters());
   // Always reserve for the current method and the graph's max out registers.
   // TODO: compute it instead.
-  reserved_out_slots_ = 1 + codegen->GetGraph()->GetMaximumNumberOfOutVRegs();
+  // ArtMethod* takes 2 vregs for 64 bits.
+  reserved_out_slots_ = InstructionSetPointerSize(codegen->GetInstructionSet()) / kVRegSize +
+      codegen->GetGraph()->GetMaximumNumberOfOutVRegs();
 }
 
 bool RegisterAllocator::CanAllocateRegistersFor(const HGraph& graph ATTRIBUTE_UNUSED,

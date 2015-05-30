@@ -20,6 +20,7 @@
 #include <deque>
 #include <queue>
 #include <set>
+#include <unordered_map>
 #include <vector>
 
 #include "arena_containers.h"  // For ArenaAllocatorAdapterKind.
@@ -54,6 +55,11 @@ using ScopedArenaSet = std::set<T, Comparator, ScopedArenaAllocatorAdapter<T>>;
 template <typename K, typename V, typename Comparator = std::less<K>>
 using ScopedArenaSafeMap =
     SafeMap<K, V, Comparator, ScopedArenaAllocatorAdapter<std::pair<const K, V>>>;
+
+template <typename K, typename V, class Hash = std::hash<K>, class KeyEqual = std::equal_to<K>>
+using ScopedArenaUnorderedMap =
+    std::unordered_map<K, V, Hash, KeyEqual, ScopedArenaAllocatorAdapter<std::pair<const K, V>>>;
+
 
 // Implementation details below.
 

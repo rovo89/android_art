@@ -28,6 +28,7 @@
 #endif
 
 #include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "base/stl_util.h"
 #include "base/time_utils.h"
 #include "base/timing_logger.h"
@@ -50,8 +51,8 @@
 #include "runtime.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/heap_bitmap.h"
+#include "gc/space/image_space.h"
 #include "gc/space/space.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
@@ -542,7 +543,7 @@ DexToDexCompilationLevel CompilerDriver::GetDexToDexCompilationlevel(
   }
 }
 
-void CompilerDriver::CompileOne(Thread* self, mirror::ArtMethod* method, TimingLogger* timings) {
+void CompilerDriver::CompileOne(Thread* self, ArtMethod* method, TimingLogger* timings) {
   DCHECK(!Runtime::Current()->IsStarted());
   jobject jclass_loader;
   const DexFile* dex_file;
@@ -586,7 +587,7 @@ void CompilerDriver::CompileOne(Thread* self, mirror::ArtMethod* method, TimingL
   self->TransitionFromSuspendedToRunnable();
 }
 
-CompiledMethod* CompilerDriver::CompileMethod(Thread* self, mirror::ArtMethod* method) {
+CompiledMethod* CompilerDriver::CompileMethod(Thread* self, ArtMethod* method) {
   const uint32_t method_idx = method->GetDexMethodIndex();
   const uint32_t access_flags = method->GetAccessFlags();
   const InvokeType invoke_type = method->GetInvokeType();
@@ -688,8 +689,8 @@ bool CompilerDriver::IsMethodToCompile(const MethodReference& method_ref) const 
   return methods_to_compile_->find(tmp.c_str()) != methods_to_compile_->end();
 }
 
-static void ResolveExceptionsForMethod(MutableHandle<mirror::ArtMethod> method_handle,
-    std::set<std::pair<uint16_t, const DexFile*>>& exceptions_to_resolve)
+static void ResolveExceptionsForMethod(
+    ArtMethod* method_handle, std::set<std::pair<uint16_t, const DexFile*>>& exceptions_to_resolve)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   const DexFile::CodeItem* code_item = method_handle->GetCodeItem();
   if (code_item == nullptr) {
@@ -728,17 +729,14 @@ static void ResolveExceptionsForMethod(MutableHandle<mirror::ArtMethod> method_h
 
 static bool ResolveCatchBlockExceptionsClassVisitor(mirror::Class* c, void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  std::set<std::pair<uint16_t, const DexFile*>>* exceptions_to_resolve =
+  auto* exceptions_to_resolve =
       reinterpret_cast<std::set<std::pair<uint16_t, const DexFile*>>*>(arg);
-  StackHandleScope<1> hs(Thread::Current());
-  MutableHandle<mirror::ArtMethod> method_handle(hs.NewHandle<mirror::ArtMethod>(nullptr));
-  for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
-    method_handle.Assign(c->GetVirtualMethod(i));
-    ResolveExceptionsForMethod(method_handle, *exceptions_to_resolve);
+  const auto pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+  for (auto& m : c->GetVirtualMethods(pointer_size)) {
+    ResolveExceptionsForMethod(&m, *exceptions_to_resolve);
   }
-  for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
-    method_handle.Assign(c->GetDirectMethod(i));
-    ResolveExceptionsForMethod(method_handle, *exceptions_to_resolve);
+  for (auto& m : c->GetDirectMethods(pointer_size)) {
+    ResolveExceptionsForMethod(&m, *exceptions_to_resolve);
   }
   return true;
 }
@@ -826,6 +824,7 @@ static void MaybeAddToImageClasses(Handle<mirror::Class> c,
   // Make a copy of the handle so that we don't clobber it doing Assign.
   MutableHandle<mirror::Class> klass(hs.NewHandle(c.Get()));
   std::string temp;
+  const size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   while (!klass->IsObjectClass()) {
     const char* descriptor = klass->GetDescriptor(&temp);
     std::pair<std::unordered_set<std::string>::iterator, bool> result =
@@ -838,6 +837,12 @@ static void MaybeAddToImageClasses(Handle<mirror::Class> c,
       StackHandleScope<1> hs2(self);
       MaybeAddToImageClasses(hs2.NewHandle(mirror::Class::GetDirectInterface(self, klass, i)),
                              image_classes);
+    }
+    for (auto& m : c->GetVirtualMethods(pointer_size)) {
+      if (m.IsMiranda() || (true)) {
+        StackHandleScope<1> hs2(self);
+        MaybeAddToImageClasses(hs2.NewHandle(m.GetDeclaringClass()), image_classes);
+      }
     }
     if (klass->IsArrayClass()) {
       StackHandleScope<1> hs2(self);
@@ -855,10 +860,7 @@ class ClinitImageUpdate {
                                    Thread* self, ClassLinker* linker, std::string* error_msg) {
     std::unique_ptr<ClinitImageUpdate> res(new ClinitImageUpdate(image_class_descriptors, self,
                                                                  linker));
-    if (res->art_method_class_ == nullptr) {
-      *error_msg = "Could not find ArtMethod class.";
-      return nullptr;
-    } else if (res->dex_cache_class_ == nullptr) {
+    if (res->dex_cache_class_ == nullptr) {
       *error_msg = "Could not find DexCache class.";
       return nullptr;
     }
@@ -903,8 +905,6 @@ class ClinitImageUpdate {
     old_cause_ = self->StartAssertNoThreadSuspension("Boot image closure");
 
     // Find the interesting classes.
-    art_method_class_ = linker->LookupClass(self, "Ljava/lang/reflect/ArtMethod;",
-        ComputeModifiedUtf8Hash("Ljava/lang/reflect/ArtMethod;"), nullptr);
     dex_cache_class_ = linker->LookupClass(self, "Ljava/lang/DexCache;",
         ComputeModifiedUtf8Hash("Ljava/lang/DexCache;"), nullptr);
 
@@ -922,7 +922,8 @@ class ClinitImageUpdate {
       data->image_classes_.push_back(klass);
     } else {
       // Check whether it is initialized and has a clinit. They must be kept, too.
-      if (klass->IsInitialized() && klass->FindClassInitializer() != nullptr) {
+      if (klass->IsInitialized() && klass->FindClassInitializer(
+          Runtime::Current()->GetClassLinker()->GetImagePointerSize()) != nullptr) {
         data->image_classes_.push_back(klass);
       }
     }
@@ -950,9 +951,9 @@ class ClinitImageUpdate {
       VisitClinitClassesObject(object->GetClass());
     }
 
-    // If it is not a dex cache or an ArtMethod, visit all references.
+    // If it is not a DexCache, visit all references.
     mirror::Class* klass = object->GetClass();
-    if (klass != art_method_class_ && klass != dex_cache_class_) {
+    if (klass != dex_cache_class_) {
       object->VisitReferences<false /* visit class */>(*this, *this);
     }
   }
@@ -960,7 +961,6 @@ class ClinitImageUpdate {
   mutable std::unordered_set<mirror::Object*> marked_objects_;
   std::unordered_set<std::string>* const image_class_descriptors_;
   std::vector<mirror::Class*> image_classes_;
-  const mirror::Class* art_method_class_;
   const mirror::Class* dex_cache_class_;
   Thread* const self_;
   const char* old_cause_;
@@ -1334,7 +1334,7 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
 void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType sharp_type,
                                                    bool no_guarantee_of_dex_cache_entry,
                                                    const mirror::Class* referrer_class,
-                                                   mirror::ArtMethod* method,
+                                                   ArtMethod* method,
                                                    int* stats_flags,
                                                    MethodReference* target_method,
                                                    uintptr_t* direct_code,
@@ -1347,6 +1347,8 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
   *direct_method = 0;
   Runtime* const runtime = Runtime::Current();
   gc::Heap* const heap = runtime->GetHeap();
+  auto* cl = runtime->GetClassLinker();
+  const auto pointer_size = cl->GetImagePointerSize();
   bool use_dex_cache = GetCompilerOptions().GetCompilePic();  // Off by default
   const bool compiling_boot = heap->IsCompilingBoot();
   // TODO This is somewhat hacky. We should refactor all of this invoke codepath.
@@ -1375,7 +1377,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
   if (runtime->UseJit()) {
     // If we are the JIT, then don't allow a direct call to the interpreter bridge since this will
     // never be updated even after we compile the method.
-    if (runtime->GetClassLinker()->IsQuickToInterpreterBridge(
+    if (cl->IsQuickToInterpreterBridge(
         reinterpret_cast<const void*>(compiler_->GetEntryPointOf(method)))) {
       use_dex_cache = true;
     }
@@ -1389,8 +1391,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
       is_in_image = IsImageClass(method->GetDeclaringClassDescriptor());
     } else {
       is_in_image = instruction_set_ != kX86 && instruction_set_ != kX86_64 &&
-                    Runtime::Current()->GetHeap()->FindSpaceFromObject(method->GetDeclaringClass(),
-                                                                       false)->IsImageSpace();
+                    heap->FindSpaceFromObject(method->GetDeclaringClass(), false)->IsImageSpace();
     }
     if (!is_in_image) {
       // We can only branch directly to Methods that are resolved in the DexCache.
@@ -1403,14 +1404,14 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
   bool must_use_direct_pointers = false;
   mirror::DexCache* dex_cache = declaring_class->GetDexCache();
   if (target_method->dex_file == dex_cache->GetDexFile() &&
-    !(runtime->UseJit() && dex_cache->GetResolvedMethod(method->GetDexMethodIndex()) == nullptr)) {
+    !(runtime->UseJit() && dex_cache->GetResolvedMethod(
+        method->GetDexMethodIndex(), pointer_size) == nullptr)) {
     target_method->dex_method_index = method->GetDexMethodIndex();
   } else {
     if (no_guarantee_of_dex_cache_entry) {
       // See if the method is also declared in this dex cache.
-      uint32_t dex_method_idx =
-          method->FindDexMethodIndexInOtherDexFile(*target_method->dex_file,
-                                                   target_method->dex_method_index);
+      uint32_t dex_method_idx = method->FindDexMethodIndexInOtherDexFile(
+          *target_method->dex_file, target_method->dex_method_index);
       if (dex_method_idx != DexFile::kDexNoIndex) {
         target_method->dex_method_index = dex_method_idx;
       } else {
@@ -1431,7 +1432,13 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
       *type = sharp_type;
     }
   } else {
-    bool method_in_image = heap->FindSpaceFromObject(method, false)->IsImageSpace();
+    auto* image_space = heap->GetImageSpace();
+    bool method_in_image = false;
+    if (image_space != nullptr) {
+      const auto& method_section = image_space->GetImageHeader().GetMethodsSection();
+      method_in_image = method_section.Contains(
+          reinterpret_cast<uint8_t*>(method) - image_space->Begin());
+    }
     if (method_in_image || compiling_boot || runtime->UseJit()) {
       // We know we must be able to get to the method in the image, so use that pointer.
       // In the case where we are the JIT, we can always use direct pointers since we know where
@@ -1469,21 +1476,16 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
   int stats_flags = 0;
   ScopedObjectAccess soa(Thread::Current());
   // Try to resolve the method and compiling method's class.
-  mirror::ArtMethod* resolved_method;
-  mirror::Class* referrer_class;
   StackHandleScope<3> hs(soa.Self());
   Handle<mirror::DexCache> dex_cache(
       hs.NewHandle(mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile())));
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
       soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader())));
-  {
-    uint32_t method_idx = target_method->dex_method_index;
-    Handle<mirror::ArtMethod> resolved_method_handle(hs.NewHandle(
-        ResolveMethod(soa, dex_cache, class_loader, mUnit, method_idx, orig_invoke_type)));
-    referrer_class = (resolved_method_handle.Get() != nullptr)
-        ? ResolveCompilingMethodsClass(soa, dex_cache, class_loader, mUnit) : nullptr;
-    resolved_method = resolved_method_handle.Get();
-  }
+  uint32_t method_idx = target_method->dex_method_index;
+  ArtMethod* resolved_method = ResolveMethod(
+      soa, dex_cache, class_loader, mUnit, method_idx, orig_invoke_type);
+  auto h_referrer_class = hs.NewHandle(resolved_method != nullptr ?
+      ResolveCompilingMethodsClass(soa, dex_cache, class_loader, mUnit) : nullptr);
   bool result = false;
   if (resolved_method != nullptr) {
     *vtable_idx = GetResolvedMethodVTableIndex(resolved_method, orig_invoke_type);
@@ -1492,13 +1494,13 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
       const MethodReference* devirt_target = mUnit->GetVerifiedMethod()->GetDevirtTarget(dex_pc);
 
       stats_flags = IsFastInvoke(
-          soa, dex_cache, class_loader, mUnit, referrer_class, resolved_method,
+          soa, dex_cache, class_loader, mUnit, h_referrer_class.Get(), resolved_method,
           invoke_type, target_method, devirt_target, direct_code, direct_method);
       result = stats_flags != 0;
     } else {
       // Devirtualization not enabled. Inline IsFastInvoke(), dropping the devirtualization parts.
-      if (UNLIKELY(referrer_class == nullptr) ||
-          UNLIKELY(!referrer_class->CanAccessResolvedMethod(resolved_method->GetDeclaringClass(),
+      if (UNLIKELY(h_referrer_class.Get() == nullptr) ||
+          UNLIKELY(!h_referrer_class->CanAccessResolvedMethod(resolved_method->GetDeclaringClass(),
                                                             resolved_method, dex_cache.Get(),
                                                             target_method->dex_method_index)) ||
           *invoke_type == kSuper) {
@@ -1506,8 +1508,9 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
       } else {
         // Sharpening failed so generate a regular resolved method dispatch.
         stats_flags = kFlagMethodResolved;
-        GetCodeAndMethodForDirectCall(invoke_type, *invoke_type, false, referrer_class, resolved_method,
-                                      &stats_flags, target_method, direct_code, direct_method);
+        GetCodeAndMethodForDirectCall(
+            invoke_type, *invoke_type, false, h_referrer_class.Get(), resolved_method, &stats_flags,
+            target_method, direct_code, direct_method);
         result = true;
       }
     }
@@ -1773,20 +1776,18 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
     }
     if (resolve_fields_and_methods) {
       while (it.HasNextDirectMethod()) {
-        mirror::ArtMethod* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(),
-                                                                dex_cache, class_loader,
-                                                                NullHandle<mirror::ArtMethod>(),
-                                                                it.GetMethodInvokeType(class_def));
+        ArtMethod* method = class_linker->ResolveMethod(
+            dex_file, it.GetMemberIndex(), dex_cache, class_loader, nullptr,
+            it.GetMethodInvokeType(class_def));
         if (method == nullptr) {
           CheckAndClearResolveException(soa.Self());
         }
         it.Next();
       }
       while (it.HasNextVirtualMethod()) {
-        mirror::ArtMethod* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(),
-                                                                dex_cache, class_loader,
-                                                                NullHandle<mirror::ArtMethod>(),
-                                                                it.GetMethodInvokeType(class_def));
+        ArtMethod* method = class_linker->ResolveMethod(
+            dex_file, it.GetMemberIndex(), dex_cache, class_loader, nullptr,
+            it.GetMethodInvokeType(class_def));
         if (method == nullptr) {
           CheckAndClearResolveException(soa.Self());
         }

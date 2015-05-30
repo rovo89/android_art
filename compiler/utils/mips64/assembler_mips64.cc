@@ -601,10 +601,10 @@ void Mips64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   }
 
   // Write out Method*.
-  StoreToOffset(kStoreWord, method_reg.AsMips64().AsGpuRegister(), SP, 0);
+  StoreToOffset(kStoreDoubleword, method_reg.AsMips64().AsGpuRegister(), SP, 0);
 
   // Write out entry spills.
-  int32_t offset = frame_size + sizeof(StackReference<mirror::ArtMethod>);
+  int32_t offset = frame_size + kFramePointerSize;
   for (size_t i = 0; i < entry_spills.size(); ++i) {
     Mips64ManagedRegister reg = entry_spills.at(i).AsMips64();
     ManagedRegisterSpill spill = entry_spills.at(i);
@@ -750,12 +750,13 @@ void Mips64Assembler::LoadRef(ManagedRegister mdest, FrameOffset src) {
   LoadFromOffset(kLoadUnsignedWord, dest.AsGpuRegister(), SP, src.Int32Value());
 }
 
-void Mips64Assembler::LoadRef(ManagedRegister mdest, ManagedRegister base, MemberOffset offs) {
+void Mips64Assembler::LoadRef(ManagedRegister mdest, ManagedRegister base, MemberOffset offs,
+                              bool poison_reference) {
   Mips64ManagedRegister dest = mdest.AsMips64();
   CHECK(dest.IsGpuRegister() && base.AsMips64().IsGpuRegister());
   LoadFromOffset(kLoadUnsignedWord, dest.AsGpuRegister(),
                  base.AsMips64().AsGpuRegister(), offs.Int32Value());
-  if (kPoisonHeapReferences) {
+  if (kPoisonHeapReferences && poison_reference) {
     Subu(dest.AsGpuRegister(), ZERO, dest.AsGpuRegister());
   }
 }
@@ -1004,7 +1005,7 @@ void Mips64Assembler::Call(FrameOffset base, Offset offset, ManagedRegister mscr
   Mips64ManagedRegister scratch = mscratch.AsMips64();
   CHECK(scratch.IsGpuRegister()) << scratch;
   // Call *(*(SP + base) + offset)
-  LoadFromOffset(kLoadUnsignedWord, scratch.AsGpuRegister(),
+  LoadFromOffset(kLoadDoubleword, scratch.AsGpuRegister(),
                  SP, base.Int32Value());
   LoadFromOffset(kLoadDoubleword, scratch.AsGpuRegister(),
                  scratch.AsGpuRegister(), offset.Int32Value());

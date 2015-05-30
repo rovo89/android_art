@@ -35,11 +35,11 @@
 namespace art {
 
 namespace mirror {
-  class ArtMethod;
   class DexCache;
 }  // namespace mirror
 
 class ArtField;
+class ArtMethod;
 class Thread;
 
 using DexIndexBitSet = std::bitset<65536>;
@@ -99,38 +99,38 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
   void MeasureClockOverhead();
   uint32_t GetClockOverheadNanoSeconds();
 
-  void CompareAndUpdateStackTrace(Thread* thread, std::vector<mirror::ArtMethod*>* stack_trace)
+  void CompareAndUpdateStackTrace(Thread* thread, std::vector<ArtMethod*>* stack_trace)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // InstrumentationListener implementation.
   void MethodEntered(Thread* thread, mirror::Object* this_object,
-                     mirror::ArtMethod* method, uint32_t dex_pc)
+                     ArtMethod* method, uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
   void MethodExited(Thread* thread, mirror::Object* this_object,
-                    mirror::ArtMethod* method, uint32_t dex_pc,
+                    ArtMethod* method, uint32_t dex_pc,
                     const JValue& return_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
   void MethodUnwind(Thread* thread, mirror::Object* this_object,
-                    mirror::ArtMethod* method, uint32_t dex_pc)
+                    ArtMethod* method, uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
   void DexPcMoved(Thread* thread, mirror::Object* this_object,
-                  mirror::ArtMethod* method, uint32_t new_dex_pc)
+                  ArtMethod* method, uint32_t new_dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
   void FieldRead(Thread* thread, mirror::Object* this_object,
-                 mirror::ArtMethod* method, uint32_t dex_pc, ArtField* field)
+                 ArtMethod* method, uint32_t dex_pc, ArtField* field)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
   void FieldWritten(Thread* thread, mirror::Object* this_object,
-                    mirror::ArtMethod* method, uint32_t dex_pc, ArtField* field,
+                    ArtMethod* method, uint32_t dex_pc, ArtField* field,
                     const JValue& field_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
   void ExceptionCaught(Thread* thread, mirror::Throwable* exception_object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
-  void BackwardBranch(Thread* thread, mirror::ArtMethod* method, int32_t dex_pc_offset)
+  void BackwardBranch(Thread* thread, ArtMethod* method, int32_t dex_pc_offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
   // Reuse an old stack trace if it exists, otherwise allocate a new one.
-  static std::vector<mirror::ArtMethod*>* AllocStackTrace();
+  static std::vector<ArtMethod*>* AllocStackTrace();
   // Clear and store an old stack trace for later use.
-  static void FreeStackTrace(std::vector<mirror::ArtMethod*>* stack_trace);
+  static void FreeStackTrace(std::vector<ArtMethod*>* stack_trace);
   // Save id and name of a thread before it exits.
   static void StoreExitingThreadInfo(Thread* thread);
 
@@ -150,20 +150,20 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
 
   void ReadClocks(Thread* thread, uint32_t* thread_clock_diff, uint32_t* wall_clock_diff);
 
-  void LogMethodTraceEvent(Thread* thread, mirror::ArtMethod* method,
+  void LogMethodTraceEvent(Thread* thread, ArtMethod* method,
                            instrumentation::Instrumentation::InstrumentationEvent event,
                            uint32_t thread_clock_diff, uint32_t wall_clock_diff)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Methods to output traced methods and threads.
-  void GetVisitedMethods(size_t end_offset, std::set<mirror::ArtMethod*>* visited_methods);
-  void DumpMethodList(std::ostream& os, const std::set<mirror::ArtMethod*>& visited_methods)
+  void GetVisitedMethods(size_t end_offset, std::set<ArtMethod*>* visited_methods);
+  void DumpMethodList(std::ostream& os, const std::set<ArtMethod*>& visited_methods)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DumpThreadList(std::ostream& os) LOCKS_EXCLUDED(Locks::thread_list_lock_);
 
   // Methods to register seen entitites in streaming mode. The methods return true if the entity
   // is newly discovered.
-  bool RegisterMethod(mirror::ArtMethod* method)
+  bool RegisterMethod(ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) EXCLUSIVE_LOCKS_REQUIRED(streaming_lock_);
   bool RegisterThread(Thread* thread)
       EXCLUSIVE_LOCKS_REQUIRED(streaming_lock_);
@@ -183,7 +183,7 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
   static pthread_t sampling_pthread_;
 
   // Used to remember an unused stack trace to avoid re-allocation during sampling.
-  static std::unique_ptr<std::vector<mirror::ArtMethod*>> temp_stack_trace_;
+  static std::unique_ptr<std::vector<ArtMethod*>> temp_stack_trace_;
 
   // File to write trace data out to, null if direct to ddms.
   std::unique_ptr<File> trace_file_;

@@ -23,6 +23,8 @@
 #include "common_runtime_test.h"
 #include "globals.h"
 #include "mirror/array-inl.h"
+#include "mirror/class-inl.h"
+#include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
 #include "scoped_thread_state_change.h"
 #include "zygote_space.h"

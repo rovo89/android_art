@@ -20,6 +20,7 @@ include art/build/Android.common_build.mk
 
 LIBART_COMMON_SRC_FILES := \
   art_field.cc \
+  art_method.cc \
   atomic.cc.arm \
   barrier.cc \
   base/allocator.cc \
@@ -102,7 +103,6 @@ LIBART_COMMON_SRC_FILES := \
   mem_map.cc \
   memory_region.cc \
   mirror/abstract_method.cc \
-  mirror/art_method.cc \
   mirror/array.cc \
   mirror/class.cc \
   mirror/dex_cache.cc \
@@ -317,6 +317,7 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
   gc/space/region_space.h \
   gc/space/space.h \
   gc/heap.h \
+  image.h \
   instrumentation.h \
   indirect_reference_table.h \
   invoke_type.h \

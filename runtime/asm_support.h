@@ -18,8 +18,8 @@
 #define ART_RUNTIME_ASM_SUPPORT_H_
 
 #if defined(__cplusplus)
+#include "art_method.h"
 #include "lock_word.h"
-#include "mirror/art_method.h"
 #include "mirror/class.h"
 #include "mirror/string.h"
 #include "runtime.h"
@@ -69,12 +69,12 @@ ADD_TEST_EQ(static_cast<size_t>(RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET),
             art::Runtime::GetCalleeSaveMethodOffset(art::Runtime::kSaveAll))
 
 // Offset of field Runtime::callee_save_methods_[kRefsOnly]
-#define RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET COMPRESSED_REFERENCE_SIZE
+#define RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET 8
 ADD_TEST_EQ(static_cast<size_t>(RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET),
             art::Runtime::GetCalleeSaveMethodOffset(art::Runtime::kRefsOnly))
 
 // Offset of field Runtime::callee_save_methods_[kRefsAndArgs]
-#define RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET (2 * COMPRESSED_REFERENCE_SIZE)
+#define RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET (2 * 8)
 ADD_TEST_EQ(static_cast<size_t>(RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET),
             art::Runtime::GetCalleeSaveMethodOffset(art::Runtime::kRefsAndArgs))
 
@@ -135,13 +135,13 @@ ADD_TEST_EQ(size_t(MIRROR_OBJECT_HEADER_SIZE), sizeof(art::mirror::Object))
 #define MIRROR_CLASS_COMPONENT_TYPE_OFFSET (4 + MIRROR_OBJECT_HEADER_SIZE)
 ADD_TEST_EQ(MIRROR_CLASS_COMPONENT_TYPE_OFFSET,
             art::mirror::Class::ComponentTypeOffset().Int32Value())
-#define MIRROR_CLASS_ACCESS_FLAGS_OFFSET (44 + MIRROR_OBJECT_HEADER_SIZE)
+#define MIRROR_CLASS_ACCESS_FLAGS_OFFSET (36 + MIRROR_OBJECT_HEADER_SIZE)
 ADD_TEST_EQ(MIRROR_CLASS_ACCESS_FLAGS_OFFSET,
             art::mirror::Class::AccessFlagsOffset().Int32Value())
-#define MIRROR_CLASS_OBJECT_SIZE_OFFSET (96 + MIRROR_OBJECT_HEADER_SIZE)
+#define MIRROR_CLASS_OBJECT_SIZE_OFFSET (112 + MIRROR_OBJECT_HEADER_SIZE)
 ADD_TEST_EQ(MIRROR_CLASS_OBJECT_SIZE_OFFSET,
             art::mirror::Class::ObjectSizeOffset().Int32Value())
-#define MIRROR_CLASS_STATUS_OFFSET (108 + MIRROR_OBJECT_HEADER_SIZE)
+#define MIRROR_CLASS_STATUS_OFFSET (124 + MIRROR_OBJECT_HEADER_SIZE)
 ADD_TEST_EQ(MIRROR_CLASS_STATUS_OFFSET,
             art::mirror::Class::StatusOffset().Int32Value())
 
@@ -169,6 +169,10 @@ ADD_TEST_EQ(MIRROR_OBJECT_ARRAY_DATA_OFFSET,
 ADD_TEST_EQ(static_cast<size_t>(MIRROR_OBJECT_ARRAY_COMPONENT_SIZE),
             sizeof(art::mirror::HeapReference<art::mirror::Object>))
 
+#define MIRROR_LONG_ARRAY_DATA_OFFSET (8 + MIRROR_OBJECT_HEADER_SIZE)
+ADD_TEST_EQ(MIRROR_LONG_ARRAY_DATA_OFFSET,
+            art::mirror::Array::DataOffset(sizeof(uint64_t)).Int32Value())
+
 // Offsets within java.lang.String.
 #define MIRROR_STRING_COUNT_OFFSET  MIRROR_OBJECT_HEADER_SIZE
 ADD_TEST_EQ(MIRROR_STRING_COUNT_OFFSET, art::mirror::String::CountOffset().Int32Value())
@@ -177,21 +181,21 @@ ADD_TEST_EQ(MIRROR_STRING_COUNT_OFFSET, art::mirror::String::CountOffset().Int32
 ADD_TEST_EQ(MIRROR_STRING_VALUE_OFFSET, art::mirror::String::ValueOffset().Int32Value())
 
 // Offsets within java.lang.reflect.ArtMethod.
-#define MIRROR_ART_METHOD_DEX_CACHE_METHODS_OFFSET (4 + MIRROR_OBJECT_HEADER_SIZE)
-ADD_TEST_EQ(MIRROR_ART_METHOD_DEX_CACHE_METHODS_OFFSET,
-            art::mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value())
+#define ART_METHOD_DEX_CACHE_METHODS_OFFSET 4
+ADD_TEST_EQ(ART_METHOD_DEX_CACHE_METHODS_OFFSET,
+            art::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value())
 
-#define MIRROR_ART_METHOD_DEX_CACHE_TYPES_OFFSET (8 + MIRROR_OBJECT_HEADER_SIZE)
-ADD_TEST_EQ(MIRROR_ART_METHOD_DEX_CACHE_TYPES_OFFSET,
-            art::mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value())
+#define ART_METHOD_DEX_CACHE_TYPES_OFFSET 8
+ADD_TEST_EQ(ART_METHOD_DEX_CACHE_TYPES_OFFSET,
+            art::ArtMethod::DexCacheResolvedTypesOffset().Int32Value())
 
-#define MIRROR_ART_METHOD_QUICK_CODE_OFFSET_32        (36 + MIRROR_OBJECT_HEADER_SIZE)
-ADD_TEST_EQ(MIRROR_ART_METHOD_QUICK_CODE_OFFSET_32,
-            art::mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(4).Int32Value())
+#define ART_METHOD_QUICK_CODE_OFFSET_32 36
+ADD_TEST_EQ(ART_METHOD_QUICK_CODE_OFFSET_32,
+            art::ArtMethod::EntryPointFromQuickCompiledCodeOffset(4).Int32Value())
 
-#define MIRROR_ART_METHOD_QUICK_CODE_OFFSET_64        (48 + MIRROR_OBJECT_HEADER_SIZE)
-ADD_TEST_EQ(MIRROR_ART_METHOD_QUICK_CODE_OFFSET_64,
-            art::mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(8).Int32Value())
+#define ART_METHOD_QUICK_CODE_OFFSET_64 48
+ADD_TEST_EQ(ART_METHOD_QUICK_CODE_OFFSET_64,
+            art::ArtMethod::EntryPointFromQuickCompiledCodeOffset(8).Int32Value())
 
 #define LOCK_WORD_STATE_SHIFT 30
 ADD_TEST_EQ(LOCK_WORD_STATE_SHIFT, static_cast<int32_t>(art::LockWord::kStateShift))

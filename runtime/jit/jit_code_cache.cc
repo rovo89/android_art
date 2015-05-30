@@ -18,8 +18,8 @@
 
 #include <sstream>
 
+#include "art_method-inl.h"
 #include "mem_map.h"
-#include "mirror/art_method-inl.h"
 #include "oat_file-inl.h"
 
 namespace art {
@@ -58,7 +58,7 @@ JitCodeCache::JitCodeCache(MemMap* mem_map)
   code_cache_end_ = mem_map->End();
 }
 
-bool JitCodeCache::ContainsMethod(mirror::ArtMethod* method) const {
+bool JitCodeCache::ContainsMethod(ArtMethod* method) const {
   return ContainsCodePtr(method->GetEntryPointFromQuickCompiledCode());
 }
 
@@ -93,7 +93,7 @@ uint8_t* JitCodeCache::AddDataArray(Thread* self, const uint8_t* begin, const ui
   return data_cache_ptr_ - size;
 }
 
-const void* JitCodeCache::GetCodeFor(mirror::ArtMethod* method) {
+const void* JitCodeCache::GetCodeFor(ArtMethod* method) {
   const void* code = method->GetEntryPointFromQuickCompiledCode();
   if (ContainsCodePtr(code)) {
     return code;
@@ -106,7 +106,7 @@ const void* JitCodeCache::GetCodeFor(mirror::ArtMethod* method) {
   return nullptr;
 }
 
-void JitCodeCache::SaveCompiledCode(mirror::ArtMethod* method, const void* old_code_ptr) {
+void JitCodeCache::SaveCompiledCode(ArtMethod* method, const void* old_code_ptr) {
   DCHECK_EQ(method->GetEntryPointFromQuickCompiledCode(), old_code_ptr);
   DCHECK(ContainsCodePtr(old_code_ptr)) << PrettyMethod(method) << " old_code_ptr="
       << old_code_ptr;

@@ -21,7 +21,6 @@
 #include "common_throws.h"
 #include "dex_file-inl.h"
 #include "jni_internal.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/field.h"
 #include "reflection-inl.h"

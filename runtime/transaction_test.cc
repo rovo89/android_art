@@ -17,10 +17,10 @@
 #include "transaction.h"
 
 #include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "mirror/array-inl.h"
-#include "mirror/art_method-inl.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {

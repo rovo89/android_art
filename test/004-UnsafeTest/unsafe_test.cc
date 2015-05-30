@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
+#include "art_method-inl.h"
 #include "jni.h"
 #include "mirror/array.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"

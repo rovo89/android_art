@@ -16,9 +16,9 @@
 
 #include "dalvik_system_VMStack.h"
 
+#include "art_method-inl.h"
 #include "jni_internal.h"
 #include "nth_caller_visitor.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
@@ -90,10 +90,13 @@ static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass) {
     bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       DCHECK(class_loader == nullptr);
       mirror::Class* c = GetMethod()->GetDeclaringClass();
-      mirror::Object* cl = c->GetClassLoader();
-      if (cl != nullptr) {
-        class_loader = cl;
-        return false;
+      // c is null for runtime methods.
+      if (c != nullptr) {
+        mirror::Object* cl = c->GetClassLoader();
+        if (cl != nullptr) {
+          class_loader = cl;
+          return false;
+        }
       }
       return true;
     }

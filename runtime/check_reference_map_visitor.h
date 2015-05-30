@@ -17,8 +17,8 @@
 #ifndef ART_RUNTIME_CHECK_REFERENCE_MAP_VISITOR_H_
 #define ART_RUNTIME_CHECK_REFERENCE_MAP_VISITOR_H_
 
+#include "art_method-inl.h"
 #include "gc_map.h"
-#include "mirror/art_method-inl.h"
 #include "scoped_thread_state_change.h"
 #include "stack_map.h"
 
@@ -32,7 +32,7 @@ class CheckReferenceMapVisitor : public StackVisitor {
       : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames) {}
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ArtMethod* m = GetMethod();
+    ArtMethod* m = GetMethod();
     if (m->IsCalleeSaveMethod() || m->IsNative()) {
       CHECK_EQ(GetDexPc(), DexFile::kDexNoIndex);
     }
@@ -63,7 +63,7 @@ class CheckReferenceMapVisitor : public StackVisitor {
  private:
   void CheckOptimizedMethod(int* registers, int number_of_references, uint32_t native_pc_offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ArtMethod* m = GetMethod();
+    ArtMethod* m = GetMethod();
     CodeInfo code_info = m->GetOptimizedCodeInfo();
     StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset);
     uint16_t number_of_dex_registers = m->GetCodeItem()->registers_size_;
@@ -104,7 +104,7 @@ class CheckReferenceMapVisitor : public StackVisitor {
 
   void CheckQuickMethod(int* registers, int number_of_references, uint32_t native_pc_offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ArtMethod* m = GetMethod();
+    ArtMethod* m = GetMethod();
     NativePcOffsetToReferenceMap map(m->GetNativeGcMap(sizeof(void*)));
     const uint8_t* ref_bitmap = map.FindBitMap(native_pc_offset);
     CHECK(ref_bitmap);

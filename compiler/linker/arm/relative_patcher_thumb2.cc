@@ -16,8 +16,8 @@
 
 #include "linker/arm/relative_patcher_thumb2.h"
 
+#include "art_method.h"
 #include "compiled_method.h"
-#include "mirror/art_method.h"
 #include "utils/arm/assembler_thumb2.h"
 
 namespace art {
@@ -80,7 +80,7 @@ std::vector<uint8_t> Thumb2RelativePatcher::CompileThunkCode() {
   arm::Thumb2Assembler assembler;
   assembler.LoadFromOffset(
       arm::kLoadWord, arm::PC, arm::R0,
-      mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArmPointerSize).Int32Value());
+      ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArmPointerSize).Int32Value());
   assembler.bkpt(0);
   std::vector<uint8_t> thunk_code(assembler.CodeSize());
   MemoryRegion code(thunk_code.data(), thunk_code.size());

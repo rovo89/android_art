@@ -663,9 +663,8 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
               *dex_compilation_unit_->GetDexFile())));
       Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
           soa.Decode<mirror::ClassLoader*>(dex_compilation_unit_->GetClassLoader())));
-      mirror::ArtMethod* resolved_method = compiler_driver_->ResolveMethod(
-          soa, dex_cache, class_loader, dex_compilation_unit_, method_idx,
-          optimized_invoke_type);
+      ArtMethod* resolved_method = compiler_driver_->ResolveMethod(
+          soa, dex_cache, class_loader, dex_compilation_unit_, method_idx, optimized_invoke_type);
 
       if (resolved_method == nullptr) {
         MaybeRecordStat(MethodCompilationStat::kNotCompiledUnresolvedMethod);

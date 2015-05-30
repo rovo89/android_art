@@ -52,9 +52,9 @@ class UnstartedRuntimeTest : public CommonRuntimeTest {
 #undef UNSTARTED_DIRECT
 
   // Methods that are native.
-#define UNSTARTED_JNI(Name, SigIgnored)                                   \
+#define UNSTARTED_JNI(Name, SigIgnored)                       \
   static void UnstartedJNI ## Name(Thread* self,              \
-                                   mirror::ArtMethod* method, \
+                                   ArtMethod* method,         \
                                    mirror::Object* receiver,  \
                                    uint32_t* args,            \
                                    JValue* result)            \
@@ -253,7 +253,8 @@ TEST_F(UnstartedRuntimeTest, StringInit) {
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
   mirror::Class* klass = mirror::String::GetJavaLangString();
-  mirror::ArtMethod* method = klass->FindDeclaredDirectMethod("<init>", "(Ljava/lang/String;)V");
+  ArtMethod* method = klass->FindDeclaredDirectMethod("<init>", "(Ljava/lang/String;)V",
+                                                      sizeof(void*));
 
   // create instruction data for invoke-direct {v0, v1} of method with fake index
   uint16_t inst_data[3] = { 0x2070, 0x0000, 0x0010 };

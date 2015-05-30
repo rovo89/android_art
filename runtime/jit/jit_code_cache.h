@@ -31,12 +31,9 @@
 
 namespace art {
 
+class ArtMethod;
 class CompiledMethod;
 class CompilerCallbacks;
-
-namespace mirror {
-class ArtMethod;
-}  // namespcae mirror
 
 namespace jit {
 
@@ -80,7 +77,7 @@ class JitCodeCache {
   }
 
   // Return true if the code cache contains the code pointer which si the entrypoint of the method.
-  bool ContainsMethod(mirror::ArtMethod* method) const
+  bool ContainsMethod(ArtMethod* method) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Return true if the code cache contains a code ptr.
@@ -95,12 +92,12 @@ class JitCodeCache {
       LOCKS_EXCLUDED(lock_);
 
   // Get code for a method, returns null if it is not in the jit cache.
-  const void* GetCodeFor(mirror::ArtMethod* method)
+  const void* GetCodeFor(ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(lock_);
 
   // Save the compiled code for a method so that GetCodeFor(method) will return old_code_ptr if the
   // entrypoint isn't within the cache.
-  void SaveCompiledCode(mirror::ArtMethod* method, const void* old_code_ptr)
+  void SaveCompiledCode(ArtMethod* method, const void* old_code_ptr)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(lock_);
 
  private:
@@ -125,10 +122,9 @@ class JitCodeCache {
   const uint8_t* data_cache_begin_;
   const uint8_t* data_cache_end_;
   size_t num_methods_;
-  // TODO: This relies on methods not moving.
   // This map holds code for methods if they were deoptimized by the instrumentation stubs. This is
   // required since we have to implement ClassLinker::GetQuickOatCodeFor for walking stacks.
-  SafeMap<mirror::ArtMethod*, const void*> method_code_map_ GUARDED_BY(lock_);
+  SafeMap<ArtMethod*, const void*> method_code_map_ GUARDED_BY(lock_);
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(JitCodeCache);
 };

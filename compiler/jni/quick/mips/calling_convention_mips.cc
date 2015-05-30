@@ -148,7 +148,7 @@ ManagedRegister MipsJniCallingConvention::ReturnScratchRegister() const {
 
 size_t MipsJniCallingConvention::FrameSize() {
   // Method*, LR and callee save area size, local reference segment state
-  size_t frame_data_size = sizeof(StackReference<mirror::ArtMethod>) +
+  size_t frame_data_size = kMipsPointerSize +
       (2 + CalleeSaveRegisters().size()) * kFramePointerSize;
   // References plus 2 words for HandleScope header
   size_t handle_scope_size = HandleScope::SizeOf(kFramePointerSize, ReferenceCount());

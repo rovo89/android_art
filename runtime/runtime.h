@@ -41,10 +41,6 @@
 
 namespace art {
 
-class ArenaPool;
-class CompilerCallbacks;
-class LinearAlloc;
-
 namespace gc {
   class Heap;
   namespace collector {
@@ -58,7 +54,6 @@ namespace jit {
 }  // namespace jit
 
 namespace mirror {
-  class ArtMethod;
   class ClassLoader;
   class Array;
   template<class T> class ObjectArray;
@@ -70,11 +65,15 @@ namespace mirror {
 namespace verifier {
   class MethodVerifier;
 }  // namespace verifier
+class ArenaPool;
+class ArtMethod;
 class ClassLinker;
 class Closure;
+class CompilerCallbacks;
 class DexFile;
 class InternTable;
 class JavaVMExt;
+class LinearAlloc;
 class MonitorList;
 class MonitorPool;
 class NullPointerHandler;
@@ -342,47 +341,28 @@ class Runtime {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns a special method that calls into a trampoline for runtime method resolution
-  mirror::ArtMethod* GetResolutionMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ArtMethod* GetResolutionMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasResolutionMethod() const {
-    return !resolution_method_.IsNull();
+    return resolution_method_ != nullptr;
   }
 
-  void SetResolutionMethod(mirror::ArtMethod* method) {
-    resolution_method_ = GcRoot<mirror::ArtMethod>(method);
-  }
+  void SetResolutionMethod(ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::ArtMethod* CreateResolutionMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ArtMethod* CreateResolutionMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns a special method that calls into a trampoline for runtime imt conflicts.
-  mirror::ArtMethod* GetImtConflictMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::ArtMethod* GetImtUnimplementedMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ArtMethod* GetImtConflictMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ArtMethod* GetImtUnimplementedMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasImtConflictMethod() const {
-    return !imt_conflict_method_.IsNull();
+    return imt_conflict_method_ != nullptr;
   }
 
-  void SetImtConflictMethod(mirror::ArtMethod* method);
-  void SetImtUnimplementedMethod(mirror::ArtMethod* method) {
-    imt_unimplemented_method_ = GcRoot<mirror::ArtMethod>(method);
-  }
+  void SetImtConflictMethod(ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetImtUnimplementedMethod(ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::ArtMethod* CreateImtConflictMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  // Returns an imt with every entry set to conflict, used as default imt for all classes.
-  mirror::ObjectArray<mirror::ArtMethod>* GetDefaultImt()
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  bool HasDefaultImt() const {
-    return !default_imt_.IsNull();
-  }
-
-  void SetDefaultImt(mirror::ObjectArray<mirror::ArtMethod>* imt) {
-    default_imt_ = GcRoot<mirror::ObjectArray<mirror::ArtMethod>>(imt);
-  }
-
-  mirror::ObjectArray<mirror::ArtMethod>* CreateDefaultImt(ClassLinker* cl)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ArtMethod* CreateImtConflictMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns a special method that describes all callee saves being spilled to the stack.
   enum CalleeSaveType {
@@ -393,20 +373,20 @@ class Runtime {
   };
 
   bool HasCalleeSaveMethod(CalleeSaveType type) const {
-    return !callee_save_methods_[type].IsNull();
+    return callee_save_methods_[type] != 0u;
   }
 
-  mirror::ArtMethod* GetCalleeSaveMethod(CalleeSaveType type)
+  ArtMethod* GetCalleeSaveMethod(CalleeSaveType type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::ArtMethod* GetCalleeSaveMethodUnchecked(CalleeSaveType type)
+  ArtMethod* GetCalleeSaveMethodUnchecked(CalleeSaveType type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   QuickMethodFrameInfo GetCalleeSaveMethodFrameInfo(CalleeSaveType type) const {
     return callee_save_method_frame_infos_[type];
   }
 
-  QuickMethodFrameInfo GetRuntimeMethodFrameInfo(mirror::ArtMethod* method)
+  QuickMethodFrameInfo GetRuntimeMethodFrameInfo(ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static size_t GetCalleeSaveMethodOffset(CalleeSaveType type) {
@@ -419,9 +399,9 @@ class Runtime {
 
   void SetInstructionSet(InstructionSet instruction_set);
 
-  void SetCalleeSaveMethod(mirror::ArtMethod* method, CalleeSaveType type);
+  void SetCalleeSaveMethod(ArtMethod* method, CalleeSaveType type);
 
-  mirror::ArtMethod* CreateCalleeSaveMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ArtMethod* CreateCalleeSaveMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   int32_t GetStat(int kind);
 
@@ -588,15 +568,15 @@ class Runtime {
   static constexpr int kProfileForground = 0;
   static constexpr int kProfileBackgrouud = 1;
 
-  GcRoot<mirror::ArtMethod> callee_save_methods_[kLastCalleeSaveType];
+  // 64 bit so that we can share the same asm offsets for both 32 and 64 bits.
+  uint64_t callee_save_methods_[kLastCalleeSaveType];
   GcRoot<mirror::Throwable> pre_allocated_OutOfMemoryError_;
   GcRoot<mirror::Throwable> pre_allocated_NoClassDefFoundError_;
-  GcRoot<mirror::ArtMethod> resolution_method_;
-  GcRoot<mirror::ArtMethod> imt_conflict_method_;
+  ArtMethod* resolution_method_;
+  ArtMethod* imt_conflict_method_;
   // Unresolved method has the same behavior as the conflict method, it is used by the class linker
   // for differentiating between unfilled imt slots vs conflict slots in superclasses.
-  GcRoot<mirror::ArtMethod> imt_unimplemented_method_;
-  GcRoot<mirror::ObjectArray<mirror::ArtMethod>> default_imt_;
+  ArtMethod* imt_unimplemented_method_;
 
   // Special sentinel object used to invalid conditions in JNI (cleared weak references) and
   // JDWP (invalid references).

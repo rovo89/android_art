@@ -328,6 +328,11 @@ inline mirror::String* ArtField::GetStringName(Thread* self, bool resolve) {
   return name;
 }
 
+template<typename RootVisitorType>
+inline void ArtField::VisitRoots(RootVisitorType& visitor) {
+  visitor.VisitRoot(declaring_class_.AddressWithoutBarrier());
+}
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_ART_FIELD_INL_H_

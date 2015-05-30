@@ -419,7 +419,7 @@ ENTRY art_quick_invoke_stub_internal
     mov    r4, #SUSPEND_CHECK_INTERVAL     @ reset r4 to suspend check interval
 #endif
 
-    ldr    ip, [r0, #MIRROR_ART_METHOD_QUICK_CODE_OFFSET_32]  @ get pointer to the code
+    ldr    ip, [r0, #ART_METHOD_QUICK_CODE_OFFSET_32]  @ get pointer to the code
     blx    ip                              @ call the method
 
     mov    sp, r11                         @ restore the stack pointer

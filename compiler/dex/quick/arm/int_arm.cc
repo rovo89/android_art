@@ -1107,7 +1107,9 @@ void ArmMir2Lir::OpPcRelDexCacheArrayAddr(const DexFile* dex_file, int offset, R
   dex_cache_access_insns_.push_back(movt);
 }
 
-void ArmMir2Lir::OpPcRelDexCacheArrayLoad(const DexFile* dex_file, int offset, RegStorage r_dest) {
+void ArmMir2Lir::OpPcRelDexCacheArrayLoad(const DexFile* dex_file, int offset, RegStorage r_dest,
+                                          bool wide) {
+  DCHECK(!wide) << "Unsupported";
   if (dex_cache_arrays_base_reg_.Valid()) {
     LoadRefDisp(dex_cache_arrays_base_reg_, offset - dex_cache_arrays_min_offset_,
                 r_dest, kNotVolatile);

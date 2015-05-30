@@ -19,6 +19,7 @@
 #include <fstream>
 #include <stdint.h>
 
+#include "art_method-inl.h"
 #include "base/arena_allocator.h"
 #include "base/dumpable.h"
 #include "base/timing_logger.h"
@@ -44,7 +45,6 @@
 #include "intrinsics.h"
 #include "licm.h"
 #include "jni/quick/jni_compiler.h"
-#include "mirror/art_method-inl.h"
 #include "nodes.h"
 #include "prepare_for_register_allocation.h"
 #include "reference_type_propagation.h"
@@ -196,7 +196,7 @@ class OptimizingCompiler FINAL : public Compiler {
     return ArtQuickJniCompileMethod(GetCompilerDriver(), access_flags, method_idx, dex_file);
   }
 
-  uintptr_t GetEntryPointOf(mirror::ArtMethod* method) const OVERRIDE
+  uintptr_t GetEntryPointOf(ArtMethod* method) const OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return reinterpret_cast<uintptr_t>(method->GetEntryPointFromQuickCompiledCodePtrSize(
         InstructionSetPointerSize(GetCompilerDriver()->GetInstructionSet())));
@@ -515,8 +515,8 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
                                                      dex_compilation_unit.GetClassDefIndex());
   ArenaAllocator arena(Runtime::Current()->GetArenaPool());
   HGraph* graph = new (&arena) HGraph(
-      &arena, dex_file, method_idx, requires_barrier, kInvalidInvokeType,
-      compiler_driver->GetCompilerOptions().GetDebuggable());
+      &arena, dex_file, method_idx, requires_barrier, compiler_driver->GetInstructionSet(),
+      kInvalidInvokeType, compiler_driver->GetCompilerOptions().GetDebuggable());
 
   // For testing purposes, we put a special marker on method names that should be compiled
   // with this compiler. This makes sure we're not regressing.

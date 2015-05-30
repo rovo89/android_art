@@ -293,14 +293,14 @@ void Arm64Assembler::LoadRef(ManagedRegister m_dst, FrameOffset offs) {
   LoadWFromOffset(kLoadWord, dst.AsOverlappingWRegister(), SP, offs.Int32Value());
 }
 
-void Arm64Assembler::LoadRef(ManagedRegister m_dst, ManagedRegister m_base,
-                             MemberOffset offs) {
+void Arm64Assembler::LoadRef(ManagedRegister m_dst, ManagedRegister m_base, MemberOffset offs,
+                             bool poison_reference) {
   Arm64ManagedRegister dst = m_dst.AsArm64();
   Arm64ManagedRegister base = m_base.AsArm64();
   CHECK(dst.IsXRegister() && base.IsXRegister());
   LoadWFromOffset(kLoadWord, dst.AsOverlappingWRegister(), base.AsXRegister(),
                   offs.Int32Value());
-  if (kPoisonHeapReferences) {
+  if (kPoisonHeapReferences && poison_reference) {
     WRegister ref_reg = dst.AsOverlappingWRegister();
     ___ Neg(reg_w(ref_reg), vixl::Operand(reg_w(ref_reg)));
   }
@@ -535,7 +535,7 @@ void Arm64Assembler::Call(FrameOffset base, Offset offs, ManagedRegister m_scrat
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
   CHECK(scratch.IsXRegister()) << scratch;
   // Call *(*(SP + base) + offset)
-  LoadWFromOffset(kLoadWord, scratch.AsOverlappingWRegister(), SP, base.Int32Value());
+  LoadFromOffset(scratch.AsXRegister(), SP, base.Int32Value());
   LoadFromOffset(scratch.AsXRegister(), scratch.AsXRegister(), offs.Int32Value());
   ___ Blr(reg_x(scratch.AsXRegister()));
 }
@@ -544,8 +544,9 @@ void Arm64Assembler::CallFromThread64(ThreadOffset<8> /*offset*/, ManagedRegiste
   UNIMPLEMENTED(FATAL) << "Unimplemented Call() variant";
 }
 
-void Arm64Assembler::CreateHandleScopeEntry(ManagedRegister m_out_reg, FrameOffset handle_scope_offs,
-                                     ManagedRegister m_in_reg, bool null_allowed) {
+void Arm64Assembler::CreateHandleScopeEntry(
+    ManagedRegister m_out_reg, FrameOffset handle_scope_offs, ManagedRegister m_in_reg,
+    bool null_allowed) {
   Arm64ManagedRegister out_reg = m_out_reg.AsArm64();
   Arm64ManagedRegister in_reg = m_in_reg.AsArm64();
   // For now we only hold stale handle scope entries in x registers.
@@ -571,7 +572,7 @@ void Arm64Assembler::CreateHandleScopeEntry(ManagedRegister m_out_reg, FrameOffs
 }
 
 void Arm64Assembler::CreateHandleScopeEntry(FrameOffset out_off, FrameOffset handle_scope_offset,
-                                     ManagedRegister m_scratch, bool null_allowed) {
+                                            ManagedRegister m_scratch, bool null_allowed) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
   CHECK(scratch.IsXRegister()) << scratch;
   if (null_allowed) {
@@ -590,7 +591,7 @@ void Arm64Assembler::CreateHandleScopeEntry(FrameOffset out_off, FrameOffset han
 }
 
 void Arm64Assembler::LoadReferenceFromHandleScope(ManagedRegister m_out_reg,
-                                           ManagedRegister m_in_reg) {
+                                                  ManagedRegister m_in_reg) {
   Arm64ManagedRegister out_reg = m_out_reg.AsArm64();
   Arm64ManagedRegister in_reg = m_in_reg.AsArm64();
   CHECK(out_reg.IsXRegister()) << out_reg;
@@ -701,7 +702,7 @@ void Arm64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 
   // Increase frame to required size.
   DCHECK_ALIGNED(frame_size, kStackAlignment);
-  DCHECK_GE(frame_size, core_reg_size + fp_reg_size + sizeof(StackReference<mirror::ArtMethod>));
+  DCHECK_GE(frame_size, core_reg_size + fp_reg_size + kArm64PointerSize);
   IncreaseFrameSize(frame_size);
 
   // Save callee-saves.
@@ -710,13 +711,12 @@ void Arm64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 
   DCHECK(core_reg_list.IncludesAliasOf(reg_x(TR)));
 
-  // Write StackReference<Method>.
+  // Write ArtMethod*
   DCHECK(X0 == method_reg.AsArm64().AsXRegister());
-  DCHECK_EQ(4U, sizeof(StackReference<mirror::ArtMethod>));
-  StoreWToOffset(StoreOperandType::kStoreWord, W0, SP, 0);
+  StoreToOffset(X0, SP, 0);
 
   // Write out entry spills
-  int32_t offset = frame_size + sizeof(StackReference<mirror::ArtMethod>);
+  int32_t offset = frame_size + kArm64PointerSize;
   for (size_t i = 0; i < entry_spills.size(); ++i) {
     Arm64ManagedRegister reg = entry_spills.at(i).AsArm64();
     if (reg.IsNoRegister()) {
@@ -758,7 +758,7 @@ void Arm64Assembler::RemoveFrame(size_t frame_size,
 
   // For now we only check that the size of the frame is large enough to hold spills and method
   // reference.
-  DCHECK_GE(frame_size, core_reg_size + fp_reg_size + sizeof(StackReference<mirror::ArtMethod>));
+  DCHECK_GE(frame_size, core_reg_size + fp_reg_size + kArm64PointerSize);
   DCHECK_ALIGNED(frame_size, kStackAlignment);
 
   DCHECK(core_reg_list.IncludesAliasOf(reg_x(TR)));

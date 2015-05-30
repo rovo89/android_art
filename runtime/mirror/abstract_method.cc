@@ -16,14 +16,14 @@
 
 #include "abstract_method.h"
 
-#include "mirror/art_method-inl.h"
+#include "art_method-inl.h"
 
 namespace art {
 namespace mirror {
 
-bool AbstractMethod::CreateFromArtMethod(mirror::ArtMethod* method) {
-  auto* interface_method = method->GetInterfaceMethodIfProxy();
-  SetFieldObject<false>(ArtMethodOffset(), method);
+bool AbstractMethod::CreateFromArtMethod(ArtMethod* method) {
+  auto* interface_method = method->GetInterfaceMethodIfProxy(sizeof(void*));
+  SetArtMethod(method);
   SetFieldObject<false>(DeclaringClassOffset(), method->GetDeclaringClass());
   SetFieldObject<false>(
       DeclaringClassOfOverriddenMethodOffset(), interface_method->GetDeclaringClass());
@@ -32,8 +32,12 @@ bool AbstractMethod::CreateFromArtMethod(mirror::ArtMethod* method) {
   return true;
 }
 
-mirror::ArtMethod* AbstractMethod::GetArtMethod() {
-  return GetFieldObject<mirror::ArtMethod>(ArtMethodOffset());
+ArtMethod* AbstractMethod::GetArtMethod() {
+  return reinterpret_cast<ArtMethod*>(GetField64(ArtMethodOffset()));
+}
+
+void AbstractMethod::SetArtMethod(ArtMethod* method) {
+  SetField64<false>(ArtMethodOffset(), reinterpret_cast<uint64_t>(method));
 }
 
 mirror::Class* AbstractMethod::GetDeclaringClass() {

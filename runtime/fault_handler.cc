@@ -19,8 +19,9 @@
 #include <setjmp.h>
 #include <sys/mman.h>
 #include <sys/ucontext.h>
+
+#include "art_method-inl.h"
 #include "base/stl_util.h"
-#include "mirror/art_method.h"
 #include "mirror/class.h"
 #include "sigchain.h"
 #include "thread-inl.h"
@@ -321,7 +322,7 @@ bool FaultManager::IsInGeneratedCode(siginfo_t* siginfo, void* context, bool che
     return false;
   }
 
-  mirror::ArtMethod* method_obj = 0;
+  ArtMethod* method_obj = 0;
   uintptr_t return_pc = 0;
   uintptr_t sp = 0;
 
@@ -331,6 +332,7 @@ bool FaultManager::IsInGeneratedCode(siginfo_t* siginfo, void* context, bool che
 
   // If we don't have a potential method, we're outta here.
   VLOG(signals) << "potential method: " << method_obj;
+  // TODO: Check linear alloc and image.
   if (method_obj == 0 || !IsAligned<kObjectAlignment>(method_obj)) {
     VLOG(signals) << "no method";
     return false;
@@ -341,7 +343,7 @@ bool FaultManager::IsInGeneratedCode(siginfo_t* siginfo, void* context, bool che
   // Check that the class pointer inside the object is not null and is aligned.
   // TODO: Method might be not a heap address, and GetClass could fault.
   // No read barrier because method_obj may not be a real object.
-  mirror::Class* cls = method_obj->GetClass<kVerifyNone, kWithoutReadBarrier>();
+  mirror::Class* cls = method_obj->GetDeclaringClassNoBarrier();
   if (cls == nullptr) {
     VLOG(signals) << "not a class";
     return false;
@@ -354,12 +356,6 @@ bool FaultManager::IsInGeneratedCode(siginfo_t* siginfo, void* context, bool che
 
   if (!VerifyClassClass(cls)) {
     VLOG(signals) << "not a class class";
-    return false;
-  }
-
-  // Now make sure the class is a mirror::ArtMethod.
-  if (!cls->IsArtMethodClass()) {
-    VLOG(signals) << "not a method";
     return false;
   }
 
@@ -418,16 +414,14 @@ bool JavaStackTraceHandler::Action(int sig, siginfo_t* siginfo, void* context) {
 #endif
   if (in_generated_code) {
     LOG(ERROR) << "Dumping java stack trace for crash in generated code";
-    mirror::ArtMethod* method = nullptr;
+    ArtMethod* method = nullptr;
     uintptr_t return_pc = 0;
     uintptr_t sp = 0;
     Thread* self = Thread::Current();
 
     manager_->GetMethodAndReturnPcAndSp(siginfo, context, &method, &return_pc, &sp);
     // Inside of generated code, sp[0] is the method, so sp is the frame.
-    StackReference<mirror::ArtMethod>* frame =
-        reinterpret_cast<StackReference<mirror::ArtMethod>*>(sp);
-    self->SetTopOfStack(frame);
+    self->SetTopOfStack(reinterpret_cast<ArtMethod**>(sp));
 #ifdef TEST_NESTED_SIGNAL
     // To test the nested signal handler we raise a signal here.  This will cause the
     // nested signal handler to be called and perform a longjmp back to the setjmp

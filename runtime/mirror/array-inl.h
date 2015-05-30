@@ -20,19 +20,19 @@
 #include "array.h"
 
 #include "base/bit_utils.h"
+#include "base/casts.h"
 #include "base/logging.h"
 #include "base/stringprintf.h"
-#include "base/casts.h"
-#include "class.h"
+#include "class-inl.h"
 #include "gc/heap-inl.h"
 #include "thread.h"
 
 namespace art {
 namespace mirror {
 
-inline uint32_t Array::ClassSize() {
+inline uint32_t Array::ClassSize(size_t pointer_size) {
   uint32_t vtable_entries = Object::kVTableLength;
-  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0, 0, 0);
+  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0, 0, 0, pointer_size);
 }
 
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
@@ -368,6 +368,30 @@ inline void PrimitiveArray<T>::Memcpy(int32_t dst_pos, PrimitiveArray<T>* src, i
     uint64_t* d = reinterpret_cast<uint64_t*>(dst_raw);
     const uint64_t* s = reinterpret_cast<const uint64_t*>(src_raw);
     ArrayForwardCopy<uint64_t>(d, s, count);
+  }
+}
+
+template<typename T>
+inline T PointerArray::GetElementPtrSize(uint32_t idx, size_t ptr_size) {
+  // C style casts here since we sometimes have T be a pointer, or sometimes an integer
+  // (for stack traces).
+  if (ptr_size == 8) {
+    return (T)static_cast<uintptr_t>(AsLongArray()->GetWithoutChecks(idx));
+  }
+  DCHECK_EQ(ptr_size, 4u);
+  return (T)static_cast<uintptr_t>(AsIntArray()->GetWithoutChecks(idx));
+}
+
+template<bool kTransactionActive, bool kUnchecked, typename T>
+inline void PointerArray::SetElementPtrSize(uint32_t idx, T element, size_t ptr_size) {
+  if (ptr_size == 8) {
+    (kUnchecked ? down_cast<LongArray*>(static_cast<Object*>(this)) : AsLongArray())->
+        SetWithoutChecks<kTransactionActive>(idx, (uint64_t)(element));
+  } else {
+    DCHECK_EQ(ptr_size, 4u);
+    DCHECK_LE((uintptr_t)element, 0xFFFFFFFFu);
+    (kUnchecked ? down_cast<IntArray*>(static_cast<Object*>(this)) : AsIntArray())
+        ->SetWithoutChecks<kTransactionActive>(idx, static_cast<uint32_t>((uintptr_t)element));
   }
 }
 

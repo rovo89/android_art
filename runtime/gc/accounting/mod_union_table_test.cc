@@ -198,12 +198,12 @@ void ModUnionTableTest::RunTest(ModUnionTableFactory::TableType type) {
   obj1->Set(1, other_space_ref1);
   obj2->Set(3, other_space_ref2);
   table->ClearCards();
-  std::set<mirror::Object*> visited;
-  table->UpdateAndMarkReferences(&CollectVisitedCallback, &visited);
+  std::set<mirror::Object*> visited_before;
+  table->UpdateAndMarkReferences(&CollectVisitedCallback, &visited_before);
   // Check that we visited all the references in other spaces only.
-  ASSERT_GE(visited.size(), 2u);
-  ASSERT_TRUE(visited.find(other_space_ref1) != visited.end());
-  ASSERT_TRUE(visited.find(other_space_ref2) != visited.end());
+  ASSERT_GE(visited_before.size(), 2u);
+  ASSERT_TRUE(visited_before.find(other_space_ref1) != visited_before.end());
+  ASSERT_TRUE(visited_before.find(other_space_ref2) != visited_before.end());
   // Verify that all the other references were visited.
   // obj1, obj2 cards should still be in mod union table since they have references to other
   // spaces.
@@ -229,12 +229,15 @@ void ModUnionTableTest::RunTest(ModUnionTableFactory::TableType type) {
     ASSERT_TRUE(table->ContainsCardFor(reinterpret_cast<uintptr_t>(ptr)));
   }
   // Visit again and make sure the cards got cleared back to their sane state.
-  visited.clear();
-  table->UpdateAndMarkReferences(&CollectVisitedCallback, &visited);
-  // Verify that the dump matches what we saw earlier.
+  std::set<mirror::Object*> visited_after;
+  table->UpdateAndMarkReferences(&CollectVisitedCallback, &visited_after);
+  // Check that we visited a superset after.
+  for (auto* obj : visited_before) {
+    ASSERT_TRUE(visited_after.find(obj) != visited_after.end()) << obj;
+  }
+  // Verify that the dump still works.
   std::ostringstream oss2;
   table->Dump(oss2);
-  ASSERT_EQ(oss.str(), oss2.str());
   // Remove the space we added so it doesn't persist to the next test.
   heap->RemoveSpace(other_space.get());
 }
