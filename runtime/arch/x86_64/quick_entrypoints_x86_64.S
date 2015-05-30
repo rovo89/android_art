@@ -57,7 +57,7 @@ MACRO0(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME)
     PUSH r12  // Callee save.
     PUSH rbp  // Callee save.
     PUSH rbx  // Callee save.
-    // Create space for FPR args, plus space for StackReference<ArtMethod>.
+    // Create space for FPR args, plus space for ArtMethod*.
     subq MACRO_LITERAL(4 * 8 + 8), %rsp
     CFI_ADJUST_CFA_OFFSET(4 * 8 + 8)
     // Save FPRs.
@@ -67,7 +67,7 @@ MACRO0(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME)
     movq %xmm15, 32(%rsp)
     // R10 := ArtMethod* for save all callee save frame method.
     THIS_LOAD_REQUIRES_READ_BARRIER
-    movl RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10d
+    movq RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
     // Store ArtMethod* to bottom of stack.
     movq %r10, 0(%rsp)
     // Store rsp as the top quick frame.
@@ -100,7 +100,7 @@ MACRO0(SETUP_REFS_ONLY_CALLEE_SAVE_FRAME)
     PUSH r12  // Callee save.
     PUSH rbp  // Callee save.
     PUSH rbx  // Callee save.
-    // Create space for FPR args, plus space for StackReference<ArtMethod>.
+    // Create space for FPR args, plus space for ArtMethod*.
     subq LITERAL(8 + 4 * 8), %rsp
     CFI_ADJUST_CFA_OFFSET(8 + 4 * 8)
     // Save FPRs.
@@ -110,7 +110,7 @@ MACRO0(SETUP_REFS_ONLY_CALLEE_SAVE_FRAME)
     movq %xmm15, 32(%rsp)
     // R10 := ArtMethod* for refs only callee save frame method.
     THIS_LOAD_REQUIRES_READ_BARRIER
-    movl RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10d
+    movq RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
     // Store ArtMethod* to bottom of stack.
     movq %r10, 0(%rsp)
     // Store rsp as the stop quick frame.
@@ -164,13 +164,12 @@ MACRO0(SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME)
     PUSH rbx  // Callee save.
     PUSH rdx  // Quick arg 2.
     PUSH rcx  // Quick arg 3.
-    // Create space for FPR args and create 2 slots, 1 of padding and 1 for the
-    // StackReference<ArtMethod>.
+    // Create space for FPR args and create 2 slots for ArtMethod*.
     subq MACRO_LITERAL(80 + 4 * 8), %rsp
     CFI_ADJUST_CFA_OFFSET(80 + 4 * 8)
     // R10 := ArtMethod* for ref and args callee save frame method.
     THIS_LOAD_REQUIRES_READ_BARRIER
-    movl RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10d
+    movq RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
     // Save FPRs.
     movq %xmm0, 16(%rsp)
     movq %xmm1, 24(%rsp)
@@ -210,8 +209,7 @@ MACRO0(SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_WITH_METHOD_IN_RDI)
     PUSH rbx  // Callee save.
     PUSH rdx  // Quick arg 2.
     PUSH rcx  // Quick arg 3.
-    // Create space for FPR args and create 2 slots, 1 of padding and 1 for the
-    // StackReference<ArtMethod>.
+    // Create space for FPR args and create 2 slots for ArtMethod*.
     subq LITERAL(80 + 4 * 8), %rsp
     CFI_ADJUST_CFA_OFFSET(80 + 4 * 8)
     // Save FPRs.
@@ -504,13 +502,13 @@ DEFINE_FUNCTION art_quick_invoke_stub
 #if (STACK_REFERENCE_SIZE != 4)
 #error "STACK_REFERENCE_SIZE(X86_64) size not as expected."
 #endif
-    movl LITERAL(0), (%rsp)       // Store null for method*
+    movq LITERAL(0), (%rsp)       // Store null for method*
 
     movl %r10d, %ecx              // Place size of args in rcx.
     movq %rdi, %rax               // rax := method to be called
     movq %rsi, %r11               // r11 := arg_array
-    leaq 4(%rsp), %rdi            // rdi is pointing just above the StackReference<method> in the
-                                  // stack arguments.
+    leaq 8(%rsp), %rdi            // rdi is pointing just above the ArtMethod* in the stack
+                                  // arguments.
     // Copy arg array into stack.
     rep movsb                     // while (rcx--) { *rdi++ = *rsi++ }
     leaq 1(%r9), %r10             // r10 := shorty + 1  ; ie skip return arg character
@@ -522,7 +520,7 @@ DEFINE_FUNCTION art_quick_invoke_stub
     LOOP_OVER_SHORTY_LOADING_GPRS r8, r8d, .Lgpr_setup_finished
     LOOP_OVER_SHORTY_LOADING_GPRS r9, r9d, .Lgpr_setup_finished
 .Lgpr_setup_finished:
-    call *MIRROR_ART_METHOD_QUICK_CODE_OFFSET_64(%rdi) // Call the method.
+    call *ART_METHOD_QUICK_CODE_OFFSET_64(%rdi) // Call the method.
     movq %rbp, %rsp               // Restore stack pointer.
     POP r15                       // Pop r15
     POP r14                       // Pop r14
@@ -598,12 +596,12 @@ DEFINE_FUNCTION art_quick_invoke_static_stub
 #if (STACK_REFERENCE_SIZE != 4)
 #error "STACK_REFERENCE_SIZE(X86_64) size not as expected."
 #endif
-    movl LITERAL(0), (%rsp)        // Store null for method*
+    movq LITERAL(0), (%rsp)        // Store null for method*
 
     movl %r10d, %ecx               // Place size of args in rcx.
     movq %rdi, %rax                // rax := method to be called
     movq %rsi, %r11                // r11 := arg_array
-    leaq 4(%rsp), %rdi             // rdi is pointing just above the StackReference<method> in the
+    leaq 8(%rsp), %rdi             // rdi is pointing just above the ArtMethod* in the
                                    // stack arguments.
     // Copy arg array into stack.
     rep movsb                      // while (rcx--) { *rdi++ = *rsi++ }
@@ -615,7 +613,7 @@ DEFINE_FUNCTION art_quick_invoke_static_stub
     LOOP_OVER_SHORTY_LOADING_GPRS r8, r8d, .Lgpr_setup_finished2
     LOOP_OVER_SHORTY_LOADING_GPRS r9, r9d, .Lgpr_setup_finished2
 .Lgpr_setup_finished2:
-    call *MIRROR_ART_METHOD_QUICK_CODE_OFFSET_64(%rdi) // Call the method.
+    call *ART_METHOD_QUICK_CODE_OFFSET_64(%rdi) // Call the method.
     movq %rbp, %rsp                // Restore stack pointer.
     POP r15                        // Pop r15
     POP r14                        // Pop r14
@@ -749,7 +747,7 @@ END_MACRO
 
 MACRO3(ONE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name, 0)
-    movl 8(%rsp), %esi                  // pass referrer
+    movq 8(%rsp), %rsi                  // pass referrer
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
                                         // arg0 is in rdi
     movq %gs:THREAD_SELF_OFFSET, %rdx   // pass Thread::Current()
@@ -761,7 +759,7 @@ END_MACRO
 
 MACRO3(TWO_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name, 0)
-    movl 8(%rsp), %edx                  // pass referrer
+    movq 8(%rsp), %rdx                  // pass referrer
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
                                         // arg0 and arg1 are in rdi/rsi
     movq %gs:THREAD_SELF_OFFSET, %rcx   // pass Thread::Current()
@@ -773,7 +771,7 @@ END_MACRO
 
 MACRO3(THREE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name, 0)
-    movl 8(%rsp), %ecx                  // pass referrer
+    movq 8(%rsp), %rcx                  // pass referrer
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
                                         // arg0, arg1, and arg2 are in rdi/rsi/rdx
     movq %gs:THREAD_SELF_OFFSET, %r8    // pass Thread::Current()
@@ -920,7 +918,7 @@ DEFINE_FUNCTION art_quick_alloc_object_tlab
     // Fast path tlab allocation.
     // RDI: uint32_t type_idx, RSI: ArtMethod*
     // RDX, RCX, R8, R9: free. RAX: return val.
-    movl MIRROR_ART_METHOD_DEX_CACHE_TYPES_OFFSET(%rsi), %edx  // Load dex cache resolved types array
+    movl ART_METHOD_DEX_CACHE_TYPES_OFFSET(%rsi), %edx  // Load dex cache resolved types array
                                                                // Load the class
     movl MIRROR_OBJECT_ARRAY_DATA_OFFSET(%rdx, %rdi, MIRROR_OBJECT_ARRAY_COMPONENT_SIZE), %edx
     testl %edx, %edx                                           // Check null class
@@ -1307,7 +1305,7 @@ ONE_ARG_REF_DOWNCALL art_quick_get_obj_static, artGetObjStaticFromCode, RETURN_O
 // This is singled out as the argument order is different.
 DEFINE_FUNCTION art_quick_set64_static
     movq %rsi, %rdx                      // pass new_val
-    movl 8(%rsp), %esi                   // pass referrer
+    movq 8(%rsp), %rsi                   // pass referrer
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
                                          // field_idx is in rdi
     movq %gs:THREAD_SELF_OFFSET, %rcx    // pass Thread::Current()
@@ -1391,7 +1389,6 @@ END_FUNCTION art_quick_resolution_trampoline
  * | XMM2              |    float arg 3
  * | XMM1              |    float arg 2
  * | XMM0              |    float arg 1
- * | Padding           |
  * | RDI/Method*       |  <- sp
  * #-------------------#
  * | Scratch Alloca    |    5K scratch space

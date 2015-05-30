@@ -15,6 +15,7 @@
  */
 
 #include "arch/instruction_set_features.h"
+#include "art_method-inl.h"
 #include "class_linker.h"
 #include "common_compiler_test.h"
 #include "compiled_method.h"
@@ -26,7 +27,6 @@
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
 #include "entrypoints/quick/quick_entrypoints.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
@@ -41,7 +41,7 @@ class OatTest : public CommonCompilerTest {
  protected:
   static const bool kCompile = false;  // DISABLED_ due to the time to compile libcore
 
-  void CheckMethod(mirror::ArtMethod* method,
+  void CheckMethod(ArtMethod* method,
                    const OatFile::OatMethod& oat_method,
                    const DexFile& dex_file)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -140,16 +140,18 @@ TEST_F(OatTest, WriteRead) {
   ASSERT_TRUE(oat_dex_file != nullptr);
   CHECK_EQ(dex_file.GetLocationChecksum(), oat_dex_file->GetDexFileLocationChecksum());
   ScopedObjectAccess soa(Thread::Current());
+  auto pointer_size = class_linker->GetImagePointerSize();
   for (size_t i = 0; i < dex_file.NumClassDefs(); i++) {
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(i);
     const uint8_t* class_data = dex_file.GetClassData(class_def);
+
     size_t num_virtual_methods = 0;
     if (class_data != nullptr) {
       ClassDataItemIterator it(dex_file, class_data);
       num_virtual_methods = it.NumVirtualMethods();
     }
+
     const char* descriptor = dex_file.GetClassDescriptor(class_def);
-    StackHandleScope<1> hs(soa.Self());
     mirror::Class* klass = class_linker->FindClass(soa.Self(), descriptor,
                                                    NullHandle<mirror::ClassLoader>());
 
@@ -159,14 +161,19 @@ TEST_F(OatTest, WriteRead) {
              oat_class.GetType()) << descriptor;
 
     size_t method_index = 0;
-    for (size_t j = 0; j < klass->NumDirectMethods(); j++, method_index++) {
-      CheckMethod(klass->GetDirectMethod(j),
-                  oat_class.GetOatMethod(method_index), dex_file);
+    for (auto& m : klass->GetDirectMethods(pointer_size)) {
+      CheckMethod(&m, oat_class.GetOatMethod(method_index), dex_file);
+      ++method_index;
     }
-    for (size_t j = 0; j < num_virtual_methods; j++, method_index++) {
-      CheckMethod(klass->GetVirtualMethod(j),
-                  oat_class.GetOatMethod(method_index), dex_file);
+    size_t visited_virtuals = 0;
+    for (auto& m : klass->GetVirtualMethods(pointer_size)) {
+      if (!m.IsMiranda()) {
+        CheckMethod(&m, oat_class.GetOatMethod(method_index), dex_file);
+        ++method_index;
+        ++visited_virtuals;
+      }
     }
+    EXPECT_EQ(visited_virtuals, num_virtual_methods);
   }
 }
 

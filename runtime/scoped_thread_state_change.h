@@ -158,20 +158,15 @@ class ScopedObjectAccessAlreadyRunnable {
     return reinterpret_cast<jfieldID>(field);
   }
 
-  mirror::ArtMethod* DecodeMethod(jmethodID mid) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ArtMethod* DecodeMethod(jmethodID mid) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
-    CHECK(!kMovingMethods);
-    mirror::ArtMethod* method = reinterpret_cast<mirror::ArtMethod*>(mid);
-    return ReadBarrier::BarrierForRoot<mirror::ArtMethod, kWithReadBarrier>(&method);
+    return reinterpret_cast<ArtMethod*>(mid);
   }
 
-  jmethodID EncodeMethod(mirror::ArtMethod* method) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  jmethodID EncodeMethod(ArtMethod* method) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
-    CHECK(!kMovingMethods);
     return reinterpret_cast<jmethodID>(method);
   }
 

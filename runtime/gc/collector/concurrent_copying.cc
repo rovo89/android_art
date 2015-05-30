@@ -22,6 +22,7 @@
 #include "gc/space/image_space.h"
 #include "gc/space/space.h"
 #include "intern_table.h"
+#include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "scoped_thread_state_change.h"
 #include "thread-inl.h"

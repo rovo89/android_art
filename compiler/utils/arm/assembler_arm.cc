@@ -378,7 +378,7 @@ static dwarf::Reg DWARFReg(SRegister reg) {
   return dwarf::Reg::ArmFp(static_cast<int>(reg));
 }
 
-constexpr size_t kFramePointerSize = 4;
+constexpr size_t kFramePointerSize = kArmPointerSize;
 
 void ArmAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                               const std::vector<ManagedRegister>& callee_save_regs,
@@ -415,7 +415,7 @@ void ArmAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   StoreToOffset(kStoreWord, R0, SP, 0);
 
   // Write out entry spills.
-  int32_t offset = frame_size + sizeof(StackReference<mirror::ArtMethod>);
+  int32_t offset = frame_size + kFramePointerSize;
   for (size_t i = 0; i < entry_spills.size(); ++i) {
     ArmManagedRegister reg = entry_spills.at(i).AsArm();
     if (reg.IsNoRegister()) {
@@ -528,13 +528,13 @@ void ArmAssembler::CopyRef(FrameOffset dest, FrameOffset src,
   StoreToOffset(kStoreWord, scratch.AsCoreRegister(), SP, dest.Int32Value());
 }
 
-void ArmAssembler::LoadRef(ManagedRegister mdest, ManagedRegister base,
-                           MemberOffset offs) {
+void ArmAssembler::LoadRef(ManagedRegister mdest, ManagedRegister base, MemberOffset offs,
+                           bool poison_reference) {
   ArmManagedRegister dst = mdest.AsArm();
   CHECK(dst.IsCoreRegister() && dst.IsCoreRegister()) << dst;
   LoadFromOffset(kLoadWord, dst.AsCoreRegister(),
                  base.AsArm().AsCoreRegister(), offs.Int32Value());
-  if (kPoisonHeapReferences) {
+  if (kPoisonHeapReferences && poison_reference) {
     rsb(dst.AsCoreRegister(), dst.AsCoreRegister(), ShifterOperand(0));
   }
 }

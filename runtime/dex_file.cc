@@ -28,6 +28,7 @@
 #include <sstream>
 
 #include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "base/logging.h"
 #include "base/stringprintf.h"
 #include "class_linker.h"
@@ -35,7 +36,6 @@
 #include "dex_file_verifier.h"
 #include "globals.h"
 #include "leb128.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/string.h"
 #include "os.h"
 #include "safe_map.h"
@@ -760,7 +760,7 @@ const Signature DexFile::CreateSignature(const StringPiece& signature) const {
   return Signature(this, *proto_id);
 }
 
-int32_t DexFile::GetLineNumFromPC(mirror::ArtMethod* method, uint32_t rel_pc) const {
+int32_t DexFile::GetLineNumFromPC(ArtMethod* method, uint32_t rel_pc) const {
   // For native method, lineno should be -2 to indicate it is native. Note that
   // "line number == -2" is how libcore tells from StackTraceElement.
   if (method->GetCodeItemOffset() == 0) {

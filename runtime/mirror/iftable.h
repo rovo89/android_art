@@ -34,27 +34,22 @@ class MANAGED IfTable FINAL : public ObjectArray<Object> {
   ALWAYS_INLINE void SetInterface(int32_t i, Class* interface)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  ObjectArray<ArtMethod>* GetMethodArray(int32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    ObjectArray<ArtMethod>* method_array =
-        down_cast<ObjectArray<ArtMethod>*>(Get((i * kMax) + kMethodArray));
+  PointerArray* GetMethodArray(int32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    auto* method_array = down_cast<PointerArray*>(Get((i * kMax) + kMethodArray));
     DCHECK(method_array != nullptr);
     return method_array;
   }
 
   size_t GetMethodArrayCount(int32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    ObjectArray<ArtMethod>* method_array =
-        down_cast<ObjectArray<ArtMethod>*>(Get((i * kMax) + kMethodArray));
-    if (method_array == nullptr) {
-      return 0;
-    }
-    return method_array->GetLength();
+    auto* method_array = down_cast<PointerArray*>(Get((i * kMax) + kMethodArray));
+    return method_array == nullptr ? 0u : method_array->GetLength();
   }
 
-  void SetMethodArray(int32_t i, ObjectArray<ArtMethod>* new_ma)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(new_ma != nullptr);
-    DCHECK(Get((i * kMax) + kMethodArray) == nullptr);
-    Set<false>((i * kMax) + kMethodArray, new_ma);
+  void SetMethodArray(int32_t i, PointerArray* arr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(arr != nullptr);
+    auto idx = i * kMax + kMethodArray;
+    DCHECK(Get(idx) == nullptr);
+    Set<false>(idx, arr);
   }
 
   size_t Count() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

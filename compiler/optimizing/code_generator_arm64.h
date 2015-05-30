@@ -45,7 +45,7 @@ static const vixl::FPRegister kParameterFPRegisters[] = {
 static constexpr size_t kParameterFPRegistersLength = arraysize(kParameterFPRegisters);
 
 const vixl::Register tr = vixl::x19;                        // Thread Register
-static const vixl::Register kArtMethodRegister = vixl::w0;  // Method register on invoke.
+static const vixl::Register kArtMethodRegister = vixl::x0;  // Method register on invoke.
 
 const vixl::CPURegList vixl_reserved_core_registers(vixl::ip0, vixl::ip1);
 const vixl::CPURegList vixl_reserved_fp_registers(vixl::d31);
@@ -97,7 +97,8 @@ class InvokeRuntimeCallingConvention : public CallingConvention<vixl::Register, 
       : CallingConvention(kRuntimeParameterCoreRegisters,
                           kRuntimeParameterCoreRegistersLength,
                           kRuntimeParameterFpuRegisters,
-                          kRuntimeParameterFpuRegistersLength) {}
+                          kRuntimeParameterFpuRegistersLength,
+                          kArm64PointerSize) {}
 
   Location GetReturnLocation(Primitive::Type return_type);
 
@@ -111,7 +112,8 @@ class InvokeDexCallingConvention : public CallingConvention<vixl::Register, vixl
       : CallingConvention(kParameterCoreRegisters,
                           kParameterCoreRegistersLength,
                           kParameterFPRegisters,
-                          kParameterFPRegistersLength) {}
+                          kParameterFPRegistersLength,
+                          kArm64PointerSize) {}
 
   Location GetReturnLocation(Primitive::Type return_type) {
     return ARM64ReturnLocation(return_type);

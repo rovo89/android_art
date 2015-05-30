@@ -18,11 +18,11 @@
 
 #include <dlfcn.h>
 
+#include "art_method-inl.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "interpreter/interpreter.h"
 #include "jit_code_cache.h"
 #include "jit_instrumentation.h"
-#include "mirror/art_method-inl.h"
 #include "runtime.h"
 #include "runtime_options.h"
 #include "thread_list.h"
@@ -100,7 +100,7 @@ bool Jit::LoadCompiler(std::string* error_msg) {
     *error_msg = "JIT couldn't find jit_unload entry point";
     return false;
   }
-  jit_compile_method_ = reinterpret_cast<bool (*)(void*, mirror::ArtMethod*, Thread*)>(
+  jit_compile_method_ = reinterpret_cast<bool (*)(void*, ArtMethod*, Thread*)>(
       dlsym(jit_library_handle_, "jit_compile_method"));
   if (jit_compile_method_ == nullptr) {
     dlclose(jit_library_handle_);
@@ -126,7 +126,7 @@ bool Jit::LoadCompiler(std::string* error_msg) {
   return true;
 }
 
-bool Jit::CompileMethod(mirror::ArtMethod* method, Thread* self) {
+bool Jit::CompileMethod(ArtMethod* method, Thread* self) {
   DCHECK(!method->IsRuntimeMethod());
   if (Dbg::IsDebuggerActive() && Dbg::MethodHasAnyBreakpoints(method)) {
     VLOG(jit) << "JIT not compiling " << PrettyMethod(method) << " due to breakpoint";

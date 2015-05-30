@@ -22,6 +22,7 @@
 
 #include <fstream>
 
+#include "art_method-inl.h"
 #include "base/stl_util.h"
 #include "base/time_utils.h"
 #include "base/unix_file/fd_file.h"
@@ -30,7 +31,6 @@
 #include "debugger.h"
 #include "dex_file-inl.h"
 #include "instrumentation.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
 #include "mirror/object_array-inl.h"
@@ -57,7 +57,7 @@ volatile bool BackgroundMethodSamplingProfiler::shutting_down_ = false;
 // Walk through the method within depth of max_depth_ on the Java stack
 class BoundedStackVisitor : public StackVisitor {
  public:
-  BoundedStackVisitor(std::vector<std::pair<mirror::ArtMethod*, uint32_t>>* stack,
+  BoundedStackVisitor(std::vector<std::pair<ArtMethod*, uint32_t>>* stack,
       Thread* thread, uint32_t max_depth)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
@@ -66,7 +66,7 @@ class BoundedStackVisitor : public StackVisitor {
         depth_(0) {}
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ArtMethod* m = GetMethod();
+    ArtMethod* m = GetMethod();
     if (m->IsRuntimeMethod()) {
       return true;
     }
@@ -81,7 +81,7 @@ class BoundedStackVisitor : public StackVisitor {
   }
 
  private:
-  std::vector<std::pair<mirror::ArtMethod*, uint32_t>>* stack_;
+  std::vector<std::pair<ArtMethod*, uint32_t>>* stack_;
   const uint32_t max_depth_;
   uint32_t depth_;
 };
@@ -94,7 +94,7 @@ static void GetSample(Thread* thread, void* arg) SHARED_LOCKS_REQUIRED(Locks::mu
   const ProfilerOptions profile_options = profiler->GetProfilerOptions();
   switch (profile_options.GetProfileType()) {
     case kProfilerMethod: {
-      mirror::ArtMethod* method = thread->GetCurrentMethod(nullptr);
+      ArtMethod* method = thread->GetCurrentMethod(nullptr);
       if ((false) && method == nullptr) {
         LOG(INFO) << "No current method available";
         std::ostringstream os;
@@ -402,7 +402,7 @@ BackgroundMethodSamplingProfiler::BackgroundMethodSamplingProfiler(
 
 // Filter out methods the profiler doesn't want to record.
 // We require mutator lock since some statistics will be updated here.
-bool BackgroundMethodSamplingProfiler::ProcessMethod(mirror::ArtMethod* method) {
+bool BackgroundMethodSamplingProfiler::ProcessMethod(ArtMethod* method) {
   if (method == nullptr) {
     profile_table_.NullMethod();
     // Don't record a null method.
@@ -437,7 +437,7 @@ bool BackgroundMethodSamplingProfiler::ProcessMethod(mirror::ArtMethod* method) 
 
 // A method has been hit, record its invocation in the method map.
 // The mutator_lock must be held (shared) when this is called.
-void BackgroundMethodSamplingProfiler::RecordMethod(mirror::ArtMethod* method) {
+void BackgroundMethodSamplingProfiler::RecordMethod(ArtMethod* method) {
   // Add to the profile table unless it is filtered out.
   if (ProcessMethod(method)) {
     profile_table_.Put(method);
@@ -450,7 +450,7 @@ void BackgroundMethodSamplingProfiler::RecordStack(const std::vector<Instruction
     return;
   }
   // Get the method on top of the stack. We use this method to perform filtering.
-  mirror::ArtMethod* method = stack.front().first;
+  ArtMethod* method = stack.front().first;
   if (ProcessMethod(method)) {
       profile_table_.PutStack(stack);
   }
@@ -466,7 +466,7 @@ uint32_t BackgroundMethodSamplingProfiler::DumpProfile(std::ostream& os) {
 }
 
 // Profile Table.
-// This holds a mapping of mirror::ArtMethod* to a count of how many times a sample
+// This holds a mapping of ArtMethod* to a count of how many times a sample
 // hit it at the top of the stack.
 ProfileSampleResults::ProfileSampleResults(Mutex& lock) : lock_(lock), num_samples_(0),
     num_null_methods_(0),
@@ -484,7 +484,7 @@ ProfileSampleResults::~ProfileSampleResults() {
 
 // Add a method to the profile table.  If it's the first time the method
 // has been seen, add it with count=1, otherwise increment the count.
-void ProfileSampleResults::Put(mirror::ArtMethod* method) {
+void ProfileSampleResults::Put(ArtMethod* method) {
   MutexLock mu(Thread::Current(), lock_);
   uint32_t index = Hash(method);
   if (table[index] == nullptr) {
@@ -519,7 +519,7 @@ void ProfileSampleResults::PutStack(const std::vector<InstructionLocation>& stac
   for (std::vector<InstructionLocation>::const_reverse_iterator iter = stack.rbegin();
        iter != stack.rend(); ++iter) {
     InstructionLocation inst_loc = *iter;
-    mirror::ArtMethod* method = inst_loc.first;
+    ArtMethod* method = inst_loc.first;
     if (method == nullptr) {
       // skip null method
       continue;
@@ -579,7 +579,7 @@ uint32_t ProfileSampleResults::Write(std::ostream& os, ProfileDataType type) {
       Map *map = table[i];
       if (map != nullptr) {
         for (const auto &meth_iter : *map) {
-          mirror::ArtMethod *method = meth_iter.first;
+          ArtMethod *method = meth_iter.first;
           std::string method_name = PrettyMethod(method);
 
           const DexFile::CodeItem* codeitem = method->GetCodeItem();
@@ -711,7 +711,7 @@ void ProfileSampleResults::Clear() {
   previous_.clear();
 }
 
-uint32_t ProfileSampleResults::Hash(mirror::ArtMethod* method) {
+uint32_t ProfileSampleResults::Hash(ArtMethod* method) {
   return (PointerToLowMemUInt32(method) >> 3) % kHashSize;
 }
 

@@ -36,14 +36,14 @@
 
 namespace art {
 
+class ArtMethod;
 class LockWord;
 template<class T> class Handle;
-class Thread;
 class StackVisitor;
+class Thread;
 typedef uint32_t MonitorId;
 
 namespace mirror {
-  class ArtMethod;
   class Object;
 }  // namespace mirror
 
@@ -226,7 +226,7 @@ class Monitor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Translates the provided method and pc into its declaring class' source file and line number.
-  void TranslateLocation(mirror::ArtMethod* method, uint32_t pc,
+  void TranslateLocation(ArtMethod* method, uint32_t pc,
                          const char** source_file, uint32_t* line_number) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -262,7 +262,7 @@ class Monitor {
   // Method and dex pc where the lock owner acquired the lock, used when lock
   // sampling is enabled. locking_method_ may be null if the lock is currently
   // unlocked, or if the lock is acquired by the system when the stack is empty.
-  mirror::ArtMethod* locking_method_ GUARDED_BY(monitor_lock_);
+  ArtMethod* locking_method_ GUARDED_BY(monitor_lock_);
   uint32_t locking_dex_pc_ GUARDED_BY(monitor_lock_);
 
   // The denser encoded version of this monitor as stored in the lock word.

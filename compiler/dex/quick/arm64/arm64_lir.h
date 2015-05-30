@@ -72,7 +72,7 @@ namespace art {
  * | IN[ins-1]                                  |  {Note: resides in caller's frame}
  * |       .                                    |
  * | IN[0]                                      |
- * | caller's method (StackReference<ArtMethod>)|  {This is a compressed (4-bytes) reference}
+ * | caller's method ArtMethod*                 |  {Pointer sized reference}
  * +============================================+  {Note: start of callee's frame}
  * | spill region                               |  {variable sized - will include lr if non-leaf}
  * +--------------------------------------------+
@@ -91,7 +91,7 @@ namespace art {
  * | OUT[outs-2]                                |
  * |       .                                    |
  * | OUT[0]                                     |
- * | current method (StackReference<ArtMethod>) | <<== sp w/ 16-byte alignment
+ * | current method ArtMethod*                  | <<== sp w/ 16-byte alignment
  * +============================================+
  */
 

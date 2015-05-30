@@ -30,12 +30,13 @@
 #include "base/macros.h"
 #include "driver/compiler_driver.h"
 #include "gc/space/space.h"
+#include "lock_word.h"
 #include "mem_map.h"
 #include "oat_file.h"
 #include "mirror/dex_cache.h"
 #include "os.h"
 #include "safe_map.h"
-#include "gc/space/space.h"
+#include "utils.h"
 
 namespace art {
 
@@ -53,18 +54,12 @@ class ImageWriter FINAL {
         quick_to_interpreter_bridge_offset_(0), compile_pic_(compile_pic),
         target_ptr_size_(InstructionSetPointerSize(compiler_driver_.GetInstructionSet())),
         bin_slot_sizes_(), bin_slot_previous_sizes_(), bin_slot_count_(),
-        string_data_array_(nullptr) {
+        dirty_methods_(0u), clean_methods_(0u) {
     CHECK_NE(image_begin, 0U);
+    std::fill(image_methods_, image_methods_ + arraysize(image_methods_), nullptr);
   }
 
   ~ImageWriter() {
-    // For interned strings a large array is allocated to hold all the character data and avoid
-    // overhead. However, no GC is run anymore at this point. As the array is likely large, it
-    // will be allocated in the large object space, where valgrind can track every single
-    // allocation. Not explicitly freeing that array will be recognized as a leak.
-    if (RUNNING_ON_VALGRIND != 0) {
-      FreeStringDataArray();
-    }
   }
 
   bool PrepareImageAddressSpace();
@@ -73,13 +68,13 @@ class ImageWriter FINAL {
     return image_roots_address_ != 0u;
   }
 
-  mirror::Object* GetImageAddress(mirror::Object* object) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (object == nullptr) {
-      return nullptr;
-    }
-    return reinterpret_cast<mirror::Object*>(image_begin_ + GetImageOffset(object));
+  template <typename T>
+  T* GetImageAddress(T* object) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return object == nullptr ? nullptr :
+        reinterpret_cast<T*>(image_begin_ + GetImageOffset(object));
   }
+
+  ArtMethod* GetImageMethodAddress(ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::HeapReference<mirror::Object>* GetDexCacheArrayElementImageAddress(
       const DexFile* dex_file, uint32_t offset) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -90,11 +85,12 @@ class ImageWriter FINAL {
   }
 
   uint8_t* GetOatFileBegin() const {
-    return image_begin_ + RoundUp(image_end_ + bin_slot_sizes_[kBinArtField], kPageSize);
+    return image_begin_ + RoundUp(
+        image_end_ + bin_slot_sizes_[kBinArtField] + bin_slot_sizes_[kBinArtMethodDirty] +
+        bin_slot_sizes_[kBinArtMethodClean], kPageSize);
   }
 
-  bool Write(const std::string& image_filename,
-             const std::string& oat_filename,
+  bool Write(const std::string& image_filename, const std::string& oat_filename,
              const std::string& oat_location)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
@@ -124,11 +120,15 @@ class ImageWriter FINAL {
     kBinClassInitializedFinalStatics,  // Class initializers have been run, no non-final statics
     kBinClassInitialized,         // Class initializers have been run
     kBinClassVerified,            // Class verified, but initializers haven't been run
-    kBinArtMethodNative,          // Art method that is actually native
-    kBinArtMethodNotInitialized,  // Art method with a declaring class that wasn't initialized
     // Add more bins here if we add more segregation code.
-    // Non mirror fields must be below. ArtFields should be always clean.
+    // Non mirror fields must be below.
+    // ArtFields should be always clean.
     kBinArtField,
+    // If the class is initialized, then the ArtMethods are probably clean.
+    kBinArtMethodClean,
+    // ArtMethods may be dirty if the class has native methods or a declaring class that isn't
+    // initialized.
+    kBinArtMethodDirty,
     kBinSize,
     // Number of bins which are for mirror objects.
     kBinMirrorCount = kBinArtField,
@@ -138,9 +138,12 @@ class ImageWriter FINAL {
 
   static constexpr size_t kBinBits = MinimumBitsToStore<uint32_t>(kBinMirrorCount - 1);
   // uint32 = typeof(lockword_)
-  static constexpr size_t kBinShift = BitSizeOf<uint32_t>() - kBinBits;
+  // Subtract read barrier bits since we want these to remain 0, or else it may result in DCHECK
+  // failures due to invalid read barrier bits during object field reads.
+  static const size_t kBinShift = BitSizeOf<uint32_t>() - kBinBits -
+      LockWord::kReadBarrierStateSize;
   // 111000.....0
-  static constexpr size_t kBinMask = ((static_cast<size_t>(1) << kBinBits) - 1) << kBinShift;
+  static const size_t kBinMask = ((static_cast<size_t>(1) << kBinBits) - 1) << kBinShift;
 
   // We use the lock word to store the bin # and bin index of the object in the image.
   //
@@ -172,6 +175,8 @@ class ImageWriter FINAL {
   bool IsImageOffsetAssigned(mirror::Object* object) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   size_t GetImageOffset(mirror::Object* object) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void UpdateImageOffset(mirror::Object* obj, uintptr_t offset)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void PrepareDexCacheArraySlots() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void AssignImageBinSlot(mirror::Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -180,6 +185,8 @@ class ImageWriter FINAL {
   bool IsImageBinSlotAssigned(mirror::Object* object) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   BinSlot GetImageBinSlot(mirror::Object* object) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void AddMethodPointerArray(mirror::PointerArray* arr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void* GetImageAddressCallback(void* writer, mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -197,10 +204,12 @@ class ImageWriter FINAL {
     // With Quick, code is within the OatFile, as there are all in one
     // .o ELF object.
     DCHECK_LT(offset, oat_file_->Size());
-    if (offset == 0u) {
-      return nullptr;
-    }
-    return oat_data_begin_ + offset;
+    DCHECK(oat_data_begin_ != nullptr);
+    return offset == 0u ? nullptr : oat_data_begin_ + offset;
+  }
+
+  static bool IsArtMethodBin(Bin bin) {
+    return bin == kBinArtMethodClean || bin == kBinArtMethodDirty;
   }
 
   // Returns true if the class was in the original requested image classes list.
@@ -257,21 +266,20 @@ class ImageWriter FINAL {
   static void CopyAndFixupObjectsCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void CopyAndFixupObject(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool CopyAndFixupIfDexCacheFieldArray(mirror::Object* dst, mirror::Object* obj,
-                                        mirror::Class* klass)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupMethod(mirror::ArtMethod* orig, mirror::ArtMethod* copy)
+  void CopyAndFixupMethod(ArtMethod* orig, ArtMethod* copy)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void FixupClass(mirror::Class* orig, mirror::Class* copy)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void FixupObject(mirror::Object* orig, mirror::Object* copy)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void FixupPointerArray(mirror::Object* dst, mirror::PointerArray* arr, mirror::Class* klass,
+                         Bin array_type) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get quick code for non-resolution/imt_conflict/abstract method.
-  const uint8_t* GetQuickCode(mirror::ArtMethod* method, bool* quick_is_interpreted)
+  const uint8_t* GetQuickCode(ArtMethod* method, bool* quick_is_interpreted)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  const uint8_t* GetQuickEntryPoint(mirror::ArtMethod* method)
+  const uint8_t* GetQuickEntryPoint(ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Patches references in OatFile to expect runtime addresses.
@@ -280,8 +288,11 @@ class ImageWriter FINAL {
   // Calculate the sum total of the bin slot sizes in [0, up_to). Defaults to all bins.
   size_t GetBinSizeSum(Bin up_to = kBinSize) const;
 
-  // Release the string_data_array_.
-  void FreeStringDataArray();
+  // Return true if a method is likely to be dirtied at runtime.
+  bool WillMethodBeDirty(ArtMethod* m) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Assign the offset for an ArtMethod.
+  void AssignMethodOffset(ArtMethod* method, Bin bin) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const CompilerDriver& compiler_driver_;
 
@@ -308,8 +319,13 @@ class ImageWriter FINAL {
   struct DexCacheArrayLocation {
     size_t offset_;
     size_t length_;
+    Bin bin_type_;
   };
   SafeMap<mirror::Object*, DexCacheArrayLocation> dex_cache_array_indexes_;
+
+  // Pointer arrays that need to be updated. Since these are only some int and long arrays, we need
+  // to keep track. These include vtable arrays, iftable arrays, and dex caches.
+  std::unordered_map<mirror::PointerArray*, Bin> pointer_arrays_;
 
   // The start offsets of the dex cache arrays.
   SafeMap<const DexFile*, size_t> dex_cache_array_starts_;
@@ -344,12 +360,21 @@ class ImageWriter FINAL {
   size_t bin_slot_previous_sizes_[kBinSize];  // Number of bytes in previous bins.
   size_t bin_slot_count_[kBinSize];  // Number of objects in a bin
 
-  // ArtField relocating map, ArtFields are allocated as array of structs but we want to have one
-  // entry per art field for convenience.
-  // ArtFields are placed right after the end of the image objects (aka sum of bin_slot_sizes_).
-  std::unordered_map<ArtField*, uintptr_t> art_field_reloc_;
+  // ArtField, ArtMethod relocating map. These are allocated as array of structs but we want to
+  // have one entry per art field for convenience. ArtFields are placed right after the end of the
+  // image objects (aka sum of bin_slot_sizes_). ArtMethods are placed right after the ArtFields.
+  struct NativeObjectReloc {
+    uintptr_t offset;
+    Bin bin_type;
+  };
+  std::unordered_map<void*, NativeObjectReloc> native_object_reloc_;
 
-  void* string_data_array_;  // The backing for the interned strings.
+  // Runtime ArtMethods which aren't reachable from any Class but need to be copied into the image.
+  ArtMethod* image_methods_[ImageHeader::kImageMethodsCount];
+
+  // Counters for measurements, used for logging only.
+  uint64_t dirty_methods_;
+  uint64_t clean_methods_;
 
   friend class FixupVisitor;
   friend class FixupClassVisitor;

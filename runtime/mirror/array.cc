@@ -125,6 +125,26 @@ void Array::ThrowArrayStoreException(Object* object) {
   art::ThrowArrayStoreException(object->GetClass(), this->GetClass());
 }
 
+Array* Array::CopyOf(Thread* self, int32_t new_length) {
+  CHECK(GetClass()->GetComponentType()->IsPrimitive()) << "Will miss write barriers";
+  DCHECK_GE(new_length, 0);
+  // We may get copied by a compacting GC.
+  StackHandleScope<1> hs(self);
+  auto h_this(hs.NewHandle(this));
+  auto* heap = Runtime::Current()->GetHeap();
+  gc::AllocatorType allocator_type = heap->IsMovableObject(this) ? heap->GetCurrentAllocator() :
+      heap->GetCurrentNonMovingAllocator();
+  const auto component_size = GetClass()->GetComponentSize();
+  const auto component_shift = GetClass()->GetComponentSizeShift();
+  Array* new_array = Alloc<true>(self, GetClass(), new_length, component_shift, allocator_type);
+  if (LIKELY(new_array != nullptr)) {
+    memcpy(new_array->GetRawData(component_size, 0), h_this->GetRawData(component_size, 0),
+           std::min(h_this->GetLength(), new_length) << component_shift);
+  }
+  return new_array;
+}
+
+
 template <typename T> GcRoot<Class> PrimitiveArray<T>::array_class_;
 
 // Explicitly instantiate all the primitive array types.

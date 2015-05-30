@@ -185,19 +185,19 @@ TEST_F(UtilsTest, JniShortName_JniLongName) {
   ScopedObjectAccess soa(Thread::Current());
   mirror::Class* c = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/String;");
   ASSERT_TRUE(c != nullptr);
-  mirror::ArtMethod* m;
+  ArtMethod* m;
 
-  m = c->FindVirtualMethod("charAt", "(I)C");
+  m = c->FindVirtualMethod("charAt", "(I)C", sizeof(void*));
   ASSERT_TRUE(m != nullptr);
   EXPECT_EQ("Java_java_lang_String_charAt", JniShortName(m));
   EXPECT_EQ("Java_java_lang_String_charAt__I", JniLongName(m));
 
-  m = c->FindVirtualMethod("indexOf", "(Ljava/lang/String;I)I");
+  m = c->FindVirtualMethod("indexOf", "(Ljava/lang/String;I)I", sizeof(void*));
   ASSERT_TRUE(m != nullptr);
   EXPECT_EQ("Java_java_lang_String_indexOf", JniShortName(m));
   EXPECT_EQ("Java_java_lang_String_indexOf__Ljava_lang_String_2I", JniLongName(m));
 
-  m = c->FindDirectMethod("copyValueOf", "([CII)Ljava/lang/String;");
+  m = c->FindDirectMethod("copyValueOf", "([CII)Ljava/lang/String;", sizeof(void*));
   ASSERT_TRUE(m != nullptr);
   EXPECT_EQ("Java_java_lang_String_copyValueOf", JniShortName(m));
   EXPECT_EQ("Java_java_lang_String_copyValueOf___3CII", JniLongName(m));

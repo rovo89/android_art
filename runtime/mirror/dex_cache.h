@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_MIRROR_DEX_CACHE_H_
 #define ART_RUNTIME_MIRROR_DEX_CACHE_H_
 
+#include "array.h"
 #include "art_field.h"
 #include "art_method.h"
 #include "class.h"
@@ -38,22 +39,19 @@ class String;
 class MANAGED DexCache FINAL : public Object {
  public:
   // Size of java.lang.DexCache.class.
-  static uint32_t ClassSize();
+  static uint32_t ClassSize(size_t pointer_size);
 
   // Size of an instance of java.lang.DexCache not including referenced values.
   static constexpr uint32_t InstanceSize() {
     return sizeof(DexCache);
   }
 
-  void Init(const DexFile* dex_file,
-            String* location,
-            ObjectArray<String>* strings,
-            ObjectArray<Class>* types,
-            ObjectArray<ArtMethod>* methods,
-            Array* fields)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void Init(const DexFile* dex_file, String* location, ObjectArray<String>* strings,
+            ObjectArray<Class>* types, PointerArray* methods, PointerArray* fields,
+            size_t pointer_size) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void Fixup(ArtMethod* trampoline) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void Fixup(ArtMethod* trampoline, size_t pointer_size)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   String* GetLocation() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(DexCache, location_));
@@ -109,19 +107,18 @@ class MANAGED DexCache FINAL : public Object {
   void SetResolvedType(uint32_t type_idx, Class* resolved)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  ArtMethod* GetResolvedMethod(uint32_t method_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE ArtMethod* GetResolvedMethod(uint32_t method_idx, size_t ptr_size)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetResolvedMethod(uint32_t method_idx, ArtMethod* resolved) ALWAYS_INLINE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    GetResolvedMethods()->Set(method_idx, resolved);
-  }
-
-  // Pointer sized variant, used for patching.
-  ArtField* GetResolvedField(uint32_t idx, size_t ptr_size)
+  ALWAYS_INLINE void SetResolvedMethod(uint32_t method_idx, ArtMethod* resolved, size_t ptr_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Pointer sized variant, used for patching.
-  void SetResolvedField(uint32_t idx, ArtField* field, size_t ptr_size)
+  ALWAYS_INLINE ArtField* GetResolvedField(uint32_t idx, size_t ptr_size)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Pointer sized variant, used for patching.
+  ALWAYS_INLINE void SetResolvedField(uint32_t idx, ArtField* field, size_t ptr_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ObjectArray<String>* GetStrings() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -133,13 +130,12 @@ class MANAGED DexCache FINAL : public Object {
         OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_types_));
   }
 
-  ObjectArray<ArtMethod>* GetResolvedMethods() ALWAYS_INLINE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject< ObjectArray<ArtMethod>>(ResolvedMethodsOffset());
+  PointerArray* GetResolvedMethods() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetFieldObject<PointerArray>(ResolvedMethodsOffset());
   }
 
-  Array* GetResolvedFields() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject<Array>(ResolvedFieldsOffset());
+  PointerArray* GetResolvedFields() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetFieldObject<PointerArray>(ResolvedFieldsOffset());
   }
 
   const DexFile* GetDexFile() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -154,9 +150,9 @@ class MANAGED DexCache FINAL : public Object {
  private:
   HeapReference<Object> dex_;
   HeapReference<String> location_;
-  // Either an int array or long array (64 bit).
-  HeapReference<Object> resolved_fields_;
-  HeapReference<ObjectArray<ArtMethod>> resolved_methods_;
+  // Either an int array or long array based on runtime ISA since these arrays hold pointers.
+  HeapReference<PointerArray> resolved_fields_;
+  HeapReference<PointerArray> resolved_methods_;
   HeapReference<ObjectArray<Class>> resolved_types_;
   HeapReference<ObjectArray<String>> strings_;
   uint64_t dex_file_;

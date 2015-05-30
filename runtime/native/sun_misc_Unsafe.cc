@@ -19,7 +19,7 @@
 #include "gc/accounting/card_table-inl.h"
 #include "jni_internal.h"
 #include "mirror/array.h"
-#include "mirror/object.h"
+#include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "scoped_fast_native_object_access.h"
 

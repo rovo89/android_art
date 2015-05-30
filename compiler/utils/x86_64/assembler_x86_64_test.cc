@@ -1127,7 +1127,7 @@ std::string buildframe_test_fn(AssemblerX86_64Test::Base* assembler_test ATTRIBU
   ssize_t displacement = static_cast<ssize_t>(frame_size) - (spill_regs.size() * 8 + 8);
   str << "subq $" << displacement << ", %rsp\n";
   // 3) Store method reference.
-  str << "movl %edi, (%rsp)\n";
+  str << "movq %rdi, (%rsp)\n";
   // 4) Entry spills.
   str << "movq %rax, " << frame_size + 0 << "(%rsp)\n";
   str << "movq %rbx, " << frame_size + 8 << "(%rsp)\n";

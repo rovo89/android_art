@@ -28,14 +28,13 @@
 #include "android/dlext.h"
 #endif
 
+#include "art_method-inl.h"
 #include "base/bit_vector.h"
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "elf_file.h"
 #include "elf_utils.h"
 #include "oat.h"
-#include "mirror/art_method.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class.h"
 #include "mirror/object-inl.h"
 #include "os.h"
@@ -693,7 +692,7 @@ const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) 
   return OatMethod(oat_file_->Begin(), 0);
 }
 
-void OatFile::OatMethod::LinkMethod(mirror::ArtMethod* method) const {
+void OatFile::OatMethod::LinkMethod(ArtMethod* method) const {
   CHECK(method != nullptr);
   method->SetEntryPointFromQuickCompiledCode(GetQuickCode());
 }

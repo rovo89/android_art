@@ -49,7 +49,7 @@ class QuickCompiler : public Compiler {
                              uint32_t method_idx,
                              const DexFile& dex_file) const OVERRIDE;
 
-  uintptr_t GetEntryPointOf(mirror::ArtMethod* method) const OVERRIDE
+  uintptr_t GetEntryPointOf(ArtMethod* method) const OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static Mir2Lir* GetCodeGenerator(CompilationUnit* cu, void* compilation_unit);

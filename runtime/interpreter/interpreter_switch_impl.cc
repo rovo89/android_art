@@ -888,7 +888,8 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           break;
         }
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
-        IntArray* array = a->AsIntArray();
+        DCHECK(a->IsIntArray() || a->IsFloatArray()) << PrettyTypeOf(a);
+        auto* array = down_cast<IntArray*>(a);
         if (array->CheckIsValidIndex(index)) {
           shadow_frame.SetVReg(inst->VRegA_23x(inst_data), array->GetWithoutChecks(index));
           inst = inst->Next_2xx();
@@ -906,7 +907,8 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           break;
         }
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
-        LongArray* array = a->AsLongArray();
+        DCHECK(a->IsLongArray() || a->IsDoubleArray()) << PrettyTypeOf(a);
+        auto* array = down_cast<LongArray*>(a);
         if (array->CheckIsValidIndex(index)) {
           shadow_frame.SetVRegLong(inst->VRegA_23x(inst_data), array->GetWithoutChecks(index));
           inst = inst->Next_2xx();
@@ -1019,7 +1021,8 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         }
         int32_t val = shadow_frame.GetVReg(inst->VRegA_23x(inst_data));
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
-        IntArray* array = a->AsIntArray();
+        DCHECK(a->IsIntArray() || a->IsFloatArray()) << PrettyTypeOf(a);
+        auto* array = down_cast<IntArray*>(a);
         if (array->CheckIsValidIndex(index)) {
           array->SetWithoutChecks<transaction_active>(index, val);
           inst = inst->Next_2xx();
@@ -1038,7 +1041,8 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         }
         int64_t val = shadow_frame.GetVRegLong(inst->VRegA_23x(inst_data));
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
-        LongArray* array = a->AsLongArray();
+        DCHECK(a->IsLongArray() || a->IsDoubleArray()) << PrettyTypeOf(a);
+        LongArray* array = down_cast<LongArray*>(a);
         if (array->CheckIsValidIndex(index)) {
           array->SetWithoutChecks<transaction_active>(index, val);
           inst = inst->Next_2xx();
