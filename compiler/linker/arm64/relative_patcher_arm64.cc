@@ -17,9 +17,9 @@
 #include "linker/arm64/relative_patcher_arm64.h"
 
 #include "arch/arm64/instruction_set_features_arm64.h"
+#include "art_method.h"
 #include "compiled_method.h"
 #include "driver/compiler_driver.h"
-#include "mirror/art_method.h"
 #include "utils/arm64/assembler_arm64.h"
 #include "oat.h"
 #include "output_stream.h"
@@ -158,6 +158,8 @@ void Arm64RelativePatcher::PatchDexCacheReference(std::vector<uint8_t>* code,
   uint32_t insn = GetInsn(code, literal_offset);
   uint32_t pc_insn_offset = patch.PcInsnOffset();
   uint32_t disp = target_offset - ((patch_offset - literal_offset + pc_insn_offset) & ~0xfffu);
+  bool wide = (insn & 0x40000000) != 0;
+  uint32_t shift = wide ? 3u : 2u;
   if (literal_offset == pc_insn_offset) {
     // Check it's an ADRP with imm == 0 (unset).
     DCHECK_EQ((insn & 0xffffffe0u), 0x90000000u)
@@ -173,7 +175,7 @@ void Arm64RelativePatcher::PatchDexCacheReference(std::vector<uint8_t>* code,
       uint32_t out_disp = thunk_offset - patch_offset;
       DCHECK_EQ(out_disp & 3u, 0u);
       DCHECK((out_disp >> 27) == 0u || (out_disp >> 27) == 31u);  // 28-bit signed.
-      insn = (out_disp & 0x0fffffffu) >> 2;
+      insn = (out_disp & 0x0fffffffu) >> shift;
       insn |= 0x14000000;  // B <thunk>
 
       uint32_t back_disp = -out_disp;
@@ -194,7 +196,8 @@ void Arm64RelativePatcher::PatchDexCacheReference(std::vector<uint8_t>* code,
     // Write the new ADRP (or B to the erratum 843419 thunk).
     SetInsn(code, literal_offset, insn);
   } else {
-    DCHECK_EQ(insn & 0xfffffc00, 0xb9400000);  // LDR 32-bit with imm12 == 0 (unset).
+    // LDR 32-bit or 64-bit with imm12 == 0 (unset).
+    DCHECK_EQ(insn & 0xbffffc00, 0xb9400000) << insn;
     if (kIsDebugBuild) {
       uint32_t adrp = GetInsn(code, pc_insn_offset);
       if ((adrp & 0x9f000000u) != 0x90000000u) {
@@ -216,7 +219,7 @@ void Arm64RelativePatcher::PatchDexCacheReference(std::vector<uint8_t>* code,
       CHECK_EQ(adrp & 0x9f00001fu,                    // Check that pc_insn_offset points
                0x90000000 | ((insn >> 5) & 0x1fu));   // to ADRP with matching register.
     }
-    uint32_t imm12 = (disp & 0xfffu) >> 2;
+    uint32_t imm12 = (disp & 0xfffu) >> shift;
     insn = (insn & ~(0xfffu << 10)) | (imm12 << 10);
     SetInsn(code, literal_offset, insn);
   }
@@ -226,7 +229,7 @@ std::vector<uint8_t> Arm64RelativePatcher::CompileThunkCode() {
   // The thunk just uses the entry point in the ArtMethod. This works even for calls
   // to the generic JNI and interpreter trampolines.
   arm64::Arm64Assembler assembler;
-  Offset offset(mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+  Offset offset(ArtMethod::EntryPointFromQuickCompiledCodeOffset(
       kArm64PointerSize).Int32Value());
   assembler.JumpTo(ManagedRegister(arm64::X0), offset, ManagedRegister(arm64::IP0));
   // Ensure we emit the literal pool.

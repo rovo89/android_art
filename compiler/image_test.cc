@@ -111,8 +111,9 @@ TEST_F(ImageTest, WriteRead) {
     ImageHeader image_header;
     ASSERT_EQ(file->ReadFully(&image_header, sizeof(image_header)), true);
     ASSERT_TRUE(image_header.IsValid());
-    ASSERT_GE(image_header.GetImageBitmapOffset(), sizeof(image_header));
-    ASSERT_NE(0U, image_header.GetImageBitmapSize());
+    const auto& bitmap_section = image_header.GetImageSection(ImageHeader::kSectionImageBitmap);
+    ASSERT_GE(bitmap_section.Offset(), sizeof(image_header));
+    ASSERT_NE(0U, bitmap_section.Size());
 
     gc::Heap* heap = Runtime::Current()->GetHeap();
     ASSERT_TRUE(!heap->GetContinuousSpaces().empty());
@@ -120,7 +121,7 @@ TEST_F(ImageTest, WriteRead) {
     ASSERT_FALSE(space->IsImageSpace());
     ASSERT_TRUE(space != nullptr);
     ASSERT_TRUE(space->IsMallocSpace());
-    ASSERT_GE(sizeof(image_header) + space->Size(), static_cast<size_t>(file->GetLength()));
+    ASSERT_LE(space->Size(), static_cast<size_t>(file->GetLength()));
   }
 
   ASSERT_TRUE(compiler_driver_->GetImageClasses() != nullptr);
@@ -195,25 +196,23 @@ TEST_F(ImageTest, WriteRead) {
 TEST_F(ImageTest, ImageHeaderIsValid) {
     uint32_t image_begin = ART_BASE_ADDRESS;
     uint32_t image_size_ = 16 * KB;
-    uint32_t image_bitmap_offset = 0;
-    uint32_t image_bitmap_size = 0;
     uint32_t image_roots = ART_BASE_ADDRESS + (1 * KB);
     uint32_t oat_checksum = 0;
     uint32_t oat_file_begin = ART_BASE_ADDRESS + (4 * KB);  // page aligned
     uint32_t oat_data_begin = ART_BASE_ADDRESS + (8 * KB);  // page aligned
     uint32_t oat_data_end = ART_BASE_ADDRESS + (9 * KB);
     uint32_t oat_file_end = ART_BASE_ADDRESS + (10 * KB);
+    ImageSection sections[ImageHeader::kSectionCount];
     ImageHeader image_header(image_begin,
                              image_size_,
-                             0u, 0u,
-                             image_bitmap_offset,
-                             image_bitmap_size,
+                             sections,
                              image_roots,
                              oat_checksum,
                              oat_file_begin,
                              oat_data_begin,
                              oat_data_end,
                              oat_file_end,
+                             sizeof(void*),
                              /*compile_pic*/false);
     ASSERT_TRUE(image_header.IsValid());
 

@@ -20,11 +20,11 @@
 #include <stdio.h>
 #include <memory>
 
+#include "art_method-inl.h"
 #include "class_linker-inl.h"
 #include "common_compiler_test.h"
 #include "dex_file.h"
 #include "gc/heap.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache-inl.h"
@@ -85,11 +85,12 @@ class CompilerDriverTest : public CommonCompilerTest {
           hs.NewHandle(soa.Decode<mirror::ClassLoader*>(class_loader)));
       mirror::Class* c = class_linker->FindClass(soa.Self(), descriptor, loader);
       CHECK(c != nullptr);
-      for (size_t j = 0; j < c->NumDirectMethods(); j++) {
-        MakeExecutable(c->GetDirectMethod(j));
+      const auto pointer_size = class_linker->GetImagePointerSize();
+      for (auto& m : c->GetDirectMethods(pointer_size)) {
+        MakeExecutable(&m);
       }
-      for (size_t j = 0; j < c->NumVirtualMethods(); j++) {
-        MakeExecutable(c->GetVirtualMethod(j));
+      for (auto& m : c->GetVirtualMethods(pointer_size)) {
+        MakeExecutable(&m);
       }
     }
   }
@@ -120,8 +121,10 @@ TEST_F(CompilerDriverTest, DISABLED_LARGE_CompileDexLibCore) {
                               << " " << dex.GetTypeDescriptor(dex.GetTypeId(i));
   }
   EXPECT_EQ(dex.NumMethodIds(), dex_cache->NumResolvedMethods());
+  auto* cl = Runtime::Current()->GetClassLinker();
+  auto pointer_size = cl->GetImagePointerSize();
   for (size_t i = 0; i < dex_cache->NumResolvedMethods(); i++) {
-    mirror::ArtMethod* method = dex_cache->GetResolvedMethod(i);
+    ArtMethod* method = dex_cache->GetResolvedMethod(i, pointer_size);
     EXPECT_TRUE(method != nullptr) << "method_idx=" << i
                                 << " " << dex.GetMethodDeclaringClassDescriptor(dex.GetMethodId(i))
                                 << " " << dex.GetMethodName(dex.GetMethodId(i));
@@ -131,7 +134,7 @@ TEST_F(CompilerDriverTest, DISABLED_LARGE_CompileDexLibCore) {
   }
   EXPECT_EQ(dex.NumFieldIds(), dex_cache->NumResolvedFields());
   for (size_t i = 0; i < dex_cache->NumResolvedFields(); i++) {
-    ArtField* field = Runtime::Current()->GetClassLinker()->GetResolvedField(i, dex_cache);
+    ArtField* field = cl->GetResolvedField(i, dex_cache);
     EXPECT_TRUE(field != nullptr) << "field_idx=" << i
                                << " " << dex.GetFieldDeclaringClassDescriptor(dex.GetFieldId(i))
                                << " " << dex.GetFieldName(dex.GetFieldId(i));
@@ -157,12 +160,15 @@ TEST_F(CompilerDriverTest, AbstractMethodErrorStub) {
 
   // Create a jobj_ of ConcreteClass, NOT AbstractClass.
   jclass c_class = env_->FindClass("ConcreteClass");
+
   jmethodID constructor = env_->GetMethodID(c_class, "<init>", "()V");
+
   jobject jobj_ = env_->NewObject(c_class, constructor);
   ASSERT_TRUE(jobj_ != nullptr);
 
   // Force non-virtual call to AbstractClass foo, will throw AbstractMethodError exception.
   env_->CallNonvirtualVoidMethod(jobj_, class_, mid_);
+
   EXPECT_EQ(env_->ExceptionCheck(), JNI_TRUE);
   jthrowable exception = env_->ExceptionOccurred();
   env_->ExceptionClear();
@@ -212,11 +218,10 @@ TEST_F(CompilerDriverMethodsTest, Selection) {
 
   std::unique_ptr<std::unordered_set<std::string>> expected(GetCompiledMethods());
 
-  for (int32_t i = 0; static_cast<uint32_t>(i) < klass->NumDirectMethods(); i++) {
-    mirror::ArtMethod* m = klass->GetDirectMethod(i);
-    std::string name = PrettyMethod(m, true);
-    const void* code =
-        m->GetEntryPointFromQuickCompiledCodePtrSize(InstructionSetPointerSize(kRuntimeISA));
+  const auto pointer_size = class_linker->GetImagePointerSize();
+  for (auto& m : klass->GetDirectMethods(pointer_size)) {
+    std::string name = PrettyMethod(&m, true);
+    const void* code = m.GetEntryPointFromQuickCompiledCodePtrSize(pointer_size);
     ASSERT_NE(code, nullptr);
     if (expected->find(name) != expected->end()) {
       expected->erase(name);

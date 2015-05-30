@@ -98,7 +98,7 @@ class OatFile FINAL {
 
   class OatMethod FINAL {
    public:
-    void LinkMethod(mirror::ArtMethod* method) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+    void LinkMethod(ArtMethod* method) const;
 
     uint32_t GetCodeOffset() const {
       return code_offset_;

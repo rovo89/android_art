@@ -131,7 +131,7 @@ size_t JniCallingConvention::ReferenceCount() const {
 
 FrameOffset JniCallingConvention::SavedLocalReferenceCookieOffset() const {
   size_t references_size = handle_scope_pointer_size_ * ReferenceCount();  // size excluding header
-  return FrameOffset(HandleerencesOffset().Int32Value() + references_size);
+  return FrameOffset(HandleReferencesOffset().Int32Value() + references_size);
 }
 
 FrameOffset JniCallingConvention::ReturnValueSaveLocation() const {
@@ -228,7 +228,7 @@ bool JniCallingConvention::IsCurrentParamALong() {
 FrameOffset JniCallingConvention::CurrentParamHandleScopeEntryOffset() {
   CHECK(IsCurrentParamAReference());
   CHECK_LT(HandleScopeLinkOffset(), HandleScopeNumRefsOffset());
-  int result = HandleerencesOffset().Int32Value() + itr_refs_ * handle_scope_pointer_size_;
+  int result = HandleReferencesOffset().Int32Value() + itr_refs_ * handle_scope_pointer_size_;
   CHECK_GT(result, HandleScopeNumRefsOffset().Int32Value());
   return FrameOffset(result);
 }

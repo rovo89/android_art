@@ -50,14 +50,14 @@ inline mirror::Field* Field::CreateFromArtField(Thread* self, ArtField* field,
     }
   }
   auto ret = hs.NewHandle(static_cast<Field*>(StaticClass()->AllocObject(self)));
-  if (ret.Get() == nullptr) {
-    if (kIsDebugBuild) {
-      self->AssertPendingException();
-    }
+  if (UNLIKELY(ret.Get() == nullptr)) {
+    self->AssertPendingOOMException();
     return nullptr;
   }
+  const auto pointer_size = kTransactionActive ?
+      Runtime::Current()->GetClassLinker()->GetImagePointerSize() : sizeof(void*);
   auto dex_field_index = field->GetDexFieldIndex();
-  auto* resolved_field = field->GetDexCache()->GetResolvedField(dex_field_index, sizeof(void*));
+  auto* resolved_field = field->GetDexCache()->GetResolvedField(dex_field_index, pointer_size);
   if (field->GetDeclaringClass()->IsProxyClass()) {
     DCHECK(field->IsStatic());
     DCHECK_LT(dex_field_index, 2U);
@@ -70,7 +70,7 @@ inline mirror::Field* Field::CreateFromArtField(Thread* self, ArtField* field,
     } else {
       // We rely on the field being resolved so that we can back to the ArtField
       // (i.e. FromReflectedMethod).
-      field->GetDexCache()->SetResolvedField(dex_field_index, field, sizeof(void*));
+      field->GetDexCache()->SetResolvedField(dex_field_index, field, pointer_size);
     }
   }
   ret->SetType<kTransactionActive>(type.Get());

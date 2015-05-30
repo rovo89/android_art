@@ -25,6 +25,7 @@
 #include <sstream>
 
 #include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "class_linker-inl.h"
@@ -33,7 +34,6 @@
 #include "dex_instruction-inl.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "handle_scope-inl.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
@@ -41,7 +41,7 @@
 #include "thread.h"
 #include "well_known_classes.h"
 
-using ::art::mirror::ArtMethod;
+using ::art::ArtMethod;
 using ::art::mirror::Array;
 using ::art::mirror::BooleanArray;
 using ::art::mirror::ByteArray;
@@ -105,7 +105,7 @@ static inline bool DoInvoke(Thread* self, ShadowFrame& shadow_frame, const Instr
   const uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
   const uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
   Object* receiver = (type == kStatic) ? nullptr : shadow_frame.GetVRegReference(vregC);
-  mirror::ArtMethod* sf_method = shadow_frame.GetMethod();
+  ArtMethod* sf_method = shadow_frame.GetMethod();
   ArtMethod* const called_method = FindMethodFromCode<type, do_access_check>(
       method_idx, &receiver, &sf_method, self);
   // The shadow frame should already be pushed, so we don't need to update it.
@@ -139,7 +139,8 @@ static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
   }
   const uint32_t vtable_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
   CHECK(receiver->GetClass()->ShouldHaveEmbeddedImtAndVTable());
-  ArtMethod* const called_method = receiver->GetClass()->GetEmbeddedVTableEntry(vtable_idx);
+  ArtMethod* const called_method = receiver->GetClass()->GetEmbeddedVTableEntry(
+      vtable_idx, sizeof(void*));
   if (UNLIKELY(called_method == nullptr)) {
     CHECK(self->IsExceptionPending());
     result->SetJ(0);
@@ -184,7 +185,6 @@ bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instruction* inst, uint1
 // java.lang.String class is initialized.
 static inline String* ResolveString(Thread* self, ShadowFrame& shadow_frame, uint32_t string_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  CHECK(!kMovingMethods);
   Class* java_lang_string_class = String::GetJavaLangString();
   if (UNLIKELY(!java_lang_string_class->IsInitialized())) {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -195,7 +195,7 @@ static inline String* ResolveString(Thread* self, ShadowFrame& shadow_frame, uin
       return nullptr;
     }
   }
-  mirror::ArtMethod* method = shadow_frame.GetMethod();
+  ArtMethod* method = shadow_frame.GetMethod();
   mirror::Class* declaring_class = method->GetDeclaringClass();
   mirror::String* s = declaring_class->GetDexCacheStrings()->Get(string_idx);
   if (UNLIKELY(s == nullptr)) {

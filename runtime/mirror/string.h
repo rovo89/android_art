@@ -34,7 +34,7 @@ namespace mirror {
 class MANAGED String FINAL : public Object {
  public:
   // Size of java.lang.String.class.
-  static uint32_t ClassSize();
+  static uint32_t ClassSize(size_t pointer_size);
 
   // Size of an instance of java.lang.String not including its value array.
   static constexpr uint32_t InstanceSize() {

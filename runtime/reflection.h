@@ -23,11 +23,11 @@
 
 namespace art {
 namespace mirror {
-  class ArtMethod;
   class Class;
   class Object;
 }  // namespace mirror
 class ArtField;
+class ArtMethod;
 union JValue;
 class ScopedObjectAccessAlreadyRunnable;
 class ShadowFrame;

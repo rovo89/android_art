@@ -20,15 +20,15 @@
 // All quick entrypoints. Format is name, return type, argument types.
 
 #define QUICK_ENTRYPOINT_LIST(V) \
-  V(AllocArray, void*, uint32_t, int32_t, mirror::ArtMethod*) \
-  V(AllocArrayResolved, void*, mirror::Class*, int32_t, mirror::ArtMethod*) \
-  V(AllocArrayWithAccessCheck, void*, uint32_t, int32_t, mirror::ArtMethod*) \
-  V(AllocObject, void*, uint32_t, mirror::ArtMethod*) \
-  V(AllocObjectResolved, void*, mirror::Class*, mirror::ArtMethod*) \
-  V(AllocObjectInitialized, void*, mirror::Class*, mirror::ArtMethod*) \
-  V(AllocObjectWithAccessCheck, void*, uint32_t, mirror::ArtMethod*) \
-  V(CheckAndAllocArray, void*, uint32_t, int32_t, mirror::ArtMethod*) \
-  V(CheckAndAllocArrayWithAccessCheck, void*, uint32_t, int32_t, mirror::ArtMethod*) \
+  V(AllocArray, void*, uint32_t, int32_t, ArtMethod*) \
+  V(AllocArrayResolved, void*, mirror::Class*, int32_t, ArtMethod*) \
+  V(AllocArrayWithAccessCheck, void*, uint32_t, int32_t, ArtMethod*) \
+  V(AllocObject, void*, uint32_t, ArtMethod*) \
+  V(AllocObjectResolved, void*, mirror::Class*, ArtMethod*) \
+  V(AllocObjectInitialized, void*, mirror::Class*, ArtMethod*) \
+  V(AllocObjectWithAccessCheck, void*, uint32_t, ArtMethod*) \
+  V(CheckAndAllocArray, void*, uint32_t, int32_t, ArtMethod*) \
+  V(CheckAndAllocArrayWithAccessCheck, void*, uint32_t, int32_t, ArtMethod*) \
   V(AllocStringFromBytes, void*, void*, int32_t, int32_t, int32_t) \
   V(AllocStringFromChars, void*, int32_t, int32_t, void*) \
   V(AllocStringFromString, void*, void*) \
@@ -77,7 +77,7 @@
   V(JniMethodEndSynchronized, void, uint32_t, jobject, Thread*) \
   V(JniMethodEndWithReference, mirror::Object*, jobject, uint32_t, Thread*) \
   V(JniMethodEndWithReferenceSynchronized, mirror::Object*, jobject, uint32_t, jobject, Thread*) \
-  V(QuickGenericJniTrampoline, void, mirror::ArtMethod*) \
+  V(QuickGenericJniTrampoline, void, ArtMethod*) \
 \
   V(LockObject, void, mirror::Object*) \
   V(UnlockObject, void, mirror::Object*) \
@@ -106,9 +106,9 @@
   V(StringCompareTo, int32_t, void*, void*) \
   V(Memcpy, void*, void*, const void*, size_t) \
 \
-  V(QuickImtConflictTrampoline, void, mirror::ArtMethod*) \
-  V(QuickResolutionTrampoline, void, mirror::ArtMethod*) \
-  V(QuickToInterpreterBridge, void, mirror::ArtMethod*) \
+  V(QuickImtConflictTrampoline, void, ArtMethod*) \
+  V(QuickResolutionTrampoline, void, ArtMethod*) \
+  V(QuickToInterpreterBridge, void, ArtMethod*) \
   V(InvokeDirectTrampolineWithAccessCheck, void, uint32_t, void*) \
   V(InvokeInterfaceTrampolineWithAccessCheck, void, uint32_t, void*) \
   V(InvokeStaticTrampolineWithAccessCheck, void, uint32_t, void*) \

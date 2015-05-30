@@ -152,12 +152,11 @@ class MethodVerifier {
                                              Handle<mirror::DexCache> dex_cache,
                                              Handle<mirror::ClassLoader> class_loader,
                                              const DexFile::ClassDef* class_def,
-                                             const DexFile::CodeItem* code_item,
-                                             Handle<mirror::ArtMethod> method,
+                                             const DexFile::CodeItem* code_item, ArtMethod* method,
                                              uint32_t method_access_flags)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static FailureKind VerifyMethod(mirror::ArtMethod* method, bool allow_soft_failures,
+  static FailureKind VerifyMethod(ArtMethod* method, bool allow_soft_failures,
                                   std::string* error) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uint8_t EncodePcToReferenceMapData() const;
@@ -185,21 +184,21 @@ class MethodVerifier {
 
   // Fills 'monitor_enter_dex_pcs' with the dex pcs of the monitor-enter instructions corresponding
   // to the locks held at 'dex_pc' in method 'm'.
-  static void FindLocksAtDexPc(mirror::ArtMethod* m, uint32_t dex_pc,
+  static void FindLocksAtDexPc(ArtMethod* m, uint32_t dex_pc,
                                std::vector<uint32_t>* monitor_enter_dex_pcs)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns the accessed field corresponding to the quick instruction's field
   // offset at 'dex_pc' in method 'm'.
-  static ArtField* FindAccessedFieldAtDexPc(mirror::ArtMethod* m, uint32_t dex_pc)
+  static ArtField* FindAccessedFieldAtDexPc(ArtMethod* m, uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns the invoked method corresponding to the quick instruction's vtable
   // index at 'dex_pc' in method 'm'.
-  static mirror::ArtMethod* FindInvokedMethodAtDexPc(mirror::ArtMethod* m, uint32_t dex_pc)
+  static ArtMethod* FindInvokedMethodAtDexPc(ArtMethod* m, uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static SafeMap<uint32_t, std::set<uint32_t>> FindStringInitMap(mirror::ArtMethod* m)
+  static SafeMap<uint32_t, std::set<uint32_t>> FindStringInitMap(ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void Init() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -212,7 +211,7 @@ class MethodVerifier {
   MethodVerifier(Thread* self, const DexFile* dex_file, Handle<mirror::DexCache> dex_cache,
                  Handle<mirror::ClassLoader> class_loader, const DexFile::ClassDef* class_def,
                  const DexFile::CodeItem* code_item, uint32_t method_idx,
-                 Handle<mirror::ArtMethod> method,
+                 ArtMethod* method,
                  uint32_t access_flags, bool can_load_classes, bool allow_soft_failures,
                  bool need_precise_constants, bool allow_thread_suspension)
           SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
@@ -248,7 +247,7 @@ class MethodVerifier {
   const RegType& ResolveCheckedClass(uint32_t class_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Returns the method of a quick invoke or null if it cannot be found.
-  mirror::ArtMethod* GetQuickInvokedMethod(const Instruction* inst, RegisterLine* reg_line,
+  ArtMethod* GetQuickInvokedMethod(const Instruction* inst, RegisterLine* reg_line,
                                            bool is_range, bool allow_failure)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Returns the access field of a quick field access (iget/iput-quick) or null
@@ -275,7 +274,7 @@ class MethodVerifier {
   MethodVerifier(Thread* self, const DexFile* dex_file, Handle<mirror::DexCache> dex_cache,
                  Handle<mirror::ClassLoader> class_loader, const DexFile::ClassDef* class_def,
                  const DexFile::CodeItem* code_item, uint32_t method_idx,
-                 Handle<mirror::ArtMethod> method, uint32_t access_flags,
+                 ArtMethod* method, uint32_t access_flags,
                  bool can_load_classes, bool allow_soft_failures, bool need_precise_constants,
                  bool verify_to_dump, bool allow_thread_suspension)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -302,7 +301,7 @@ class MethodVerifier {
                                   Handle<mirror::ClassLoader> class_loader,
                                   const DexFile::ClassDef* class_def_idx,
                                   const DexFile::CodeItem* code_item,
-                                  Handle<mirror::ArtMethod> method, uint32_t method_access_flags,
+                                  ArtMethod* method, uint32_t method_access_flags,
                                   bool allow_soft_failures, bool need_precise_constants)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -311,7 +310,7 @@ class MethodVerifier {
   ArtField* FindAccessedFieldAtDexPc(uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::ArtMethod* FindInvokedMethodAtDexPc(uint32_t dex_pc)
+  ArtMethod* FindInvokedMethodAtDexPc(uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   SafeMap<uint32_t, std::set<uint32_t>>& FindStringInitMap()
@@ -573,7 +572,7 @@ class MethodVerifier {
    * the referrer can access the resolved method.
    * Does not throw exceptions.
    */
-  mirror::ArtMethod* ResolveMethodAndCheckAccess(uint32_t method_idx, MethodType method_type)
+  ArtMethod* ResolveMethodAndCheckAccess(uint32_t method_idx, MethodType method_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
@@ -598,7 +597,7 @@ class MethodVerifier {
    * Returns the resolved method on success, null on failure (with *failure
    * set appropriately).
    */
-  mirror::ArtMethod* VerifyInvocationArgs(const Instruction* inst,
+  ArtMethod* VerifyInvocationArgs(const Instruction* inst,
                                           MethodType method_type,
                                           bool is_range, bool is_super)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -610,12 +609,12 @@ class MethodVerifier {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template <class T>
-  mirror::ArtMethod* VerifyInvocationArgsFromIterator(T* it, const Instruction* inst,
+  ArtMethod* VerifyInvocationArgsFromIterator(T* it, const Instruction* inst,
                                                       MethodType method_type, bool is_range,
-                                                      mirror::ArtMethod* res_method)
+                                                      ArtMethod* res_method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::ArtMethod* VerifyInvokeVirtualQuickArgs(const Instruction* inst, bool is_range)
+  ArtMethod* VerifyInvokeVirtualQuickArgs(const Instruction* inst, bool is_range)
   SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
@@ -680,7 +679,7 @@ class MethodVerifier {
 
   const uint32_t dex_method_idx_;  // The method we're working on.
   // Its object representation if known.
-  Handle<mirror::ArtMethod> mirror_method_ GUARDED_BY(Locks::mutator_lock_);
+  ArtMethod* mirror_method_ GUARDED_BY(Locks::mutator_lock_);
   const uint32_t method_access_flags_;  // Method's access flags.
   const RegType* return_type_;  // Lazily computed return type of the method.
   const DexFile* const dex_file_;  // The dex file containing the method.

@@ -96,11 +96,11 @@ class ExceptionTest : public CommonRuntimeTest {
     CHECK_EQ(mapping_table_offset & 1u, 0u);
     const uint8_t* code_ptr = &fake_header_code_and_maps_[gc_map_offset];
 
-    method_f_ = my_klass_->FindVirtualMethod("f", "()I");
+    method_f_ = my_klass_->FindVirtualMethod("f", "()I", sizeof(void*));
     ASSERT_TRUE(method_f_ != nullptr);
     method_f_->SetEntryPointFromQuickCompiledCode(code_ptr);
 
-    method_g_ = my_klass_->FindVirtualMethod("g", "(I)V");
+    method_g_ = my_klass_->FindVirtualMethod("g", "(I)V", sizeof(void*));
     ASSERT_TRUE(method_g_ != nullptr);
     method_g_->SetEntryPointFromQuickCompiledCode(code_ptr);
   }
@@ -113,8 +113,8 @@ class ExceptionTest : public CommonRuntimeTest {
   std::vector<uint8_t> fake_gc_map_;
   std::vector<uint8_t> fake_header_code_and_maps_;
 
-  mirror::ArtMethod* method_f_;
-  mirror::ArtMethod* method_g_;
+  ArtMethod* method_f_;
+  ArtMethod* method_g_;
 
  private:
   mirror::Class* my_klass_;
@@ -167,7 +167,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
   std::vector<uintptr_t> fake_stack;
   Runtime* r = Runtime::Current();
   r->SetInstructionSet(kRuntimeISA);
-  mirror::ArtMethod* save_method = r->CreateCalleeSaveMethod();
+  ArtMethod* save_method = r->CreateCalleeSaveMethod();
   r->SetCalleeSaveMethod(save_method, Runtime::kSaveAll);
   QuickMethodFrameInfo frame_info = save_method->GetQuickFrameInfo();
 
@@ -209,14 +209,13 @@ TEST_F(ExceptionTest, StackTraceElement) {
   fake_stack.push_back(0);
 
   // Set up thread to appear as if we called out of method_g_ at pc dex 3
-  thread->SetTopOfStack(reinterpret_cast<StackReference<mirror::ArtMethod>*>(&fake_stack[0]));
+  thread->SetTopOfStack(reinterpret_cast<ArtMethod**>(&fake_stack[0]));
 
   jobject internal = thread->CreateInternalStackTrace<false>(soa);
   ASSERT_TRUE(internal != nullptr);
   jobjectArray ste_array = Thread::InternalStackTraceToStackTraceElementArray(soa, internal);
   ASSERT_TRUE(ste_array != nullptr);
-  mirror::ObjectArray<mirror::StackTraceElement>* trace_array =
-      soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>*>(ste_array);
+  auto* trace_array = soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>*>(ste_array);
 
   ASSERT_TRUE(trace_array != nullptr);
   ASSERT_TRUE(trace_array->Get(0) != nullptr);

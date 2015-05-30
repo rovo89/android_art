@@ -16,6 +16,7 @@
 
 #include "field-inl.h"
 
+#include "class-inl.h"
 #include "dex_cache-inl.h"
 #include "object_array-inl.h"
 #include "object-inl.h"

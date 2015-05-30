@@ -16,8 +16,8 @@
 
 #include <stdint.h>
 
+#include "art_method-inl.h"
 #include "common_runtime_test.h"
-#include "mirror/art_method-inl.h"
 #include "quick/quick_method_frame_info.h"
 
 namespace art {
@@ -38,7 +38,7 @@ class ArchTest : public CommonRuntimeTest {
     t->TransitionFromSuspendedToRunnable();  // So we can create callee-save methods.
 
     r->SetInstructionSet(isa);
-    mirror::ArtMethod* save_method = r->CreateCalleeSaveMethod();
+    ArtMethod* save_method = r->CreateCalleeSaveMethod();
     r->SetCalleeSaveMethod(save_method, type);
     QuickMethodFrameInfo frame_info = save_method->GetQuickFrameInfo();
     EXPECT_EQ(frame_info.FrameSizeInBytes(), save_size) << "Expected and real size differs for "

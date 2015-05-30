@@ -28,11 +28,8 @@
 
 namespace art {
 
-class InstructionSetFeatures;
-
-namespace mirror {
 class ArtMethod;
-}
+class InstructionSetFeatures;
 
 namespace jit {
 
@@ -40,11 +37,11 @@ class JitCompiler {
  public:
   static JitCompiler* Create();
   virtual ~JitCompiler();
-  bool CompileMethod(Thread* self, mirror::ArtMethod* method)
+  bool CompileMethod(Thread* self, ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // This is in the compiler since the runtime doesn't have access to the compiled method
   // structures.
-  bool AddToCodeCache(mirror::ArtMethod* method, const CompiledMethod* compiled_method,
+  bool AddToCodeCache(ArtMethod* method, const CompiledMethod* compiled_method,
                       OatFile::OatMethod* out_method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   CompilerCallbacks* GetCompilerCallbacks() const;
   size_t GetTotalCompileTime() const {
@@ -65,7 +62,7 @@ class JitCompiler {
   uint8_t* WriteMethodHeaderAndCode(
       const CompiledMethod* compiled_method, uint8_t* reserve_begin, uint8_t* reserve_end,
       const uint8_t* mapping_table, const uint8_t* vmap_table, const uint8_t* gc_map);
-  bool MakeExecutable(CompiledMethod* compiled_method, mirror::ArtMethod* method)
+  bool MakeExecutable(CompiledMethod* compiled_method, ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   DISALLOW_COPY_AND_ASSIGN(JitCompiler);

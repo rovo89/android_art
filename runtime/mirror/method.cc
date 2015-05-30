@@ -16,7 +16,9 @@
 
 #include "method.h"
 
-#include "mirror/art_method.h"
+#include "art_method.h"
+#include "gc_root-inl.h"
+#include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 
 namespace art {
@@ -49,7 +51,7 @@ void Method::ResetArrayClass() {
   array_class_ = GcRoot<Class>(nullptr);
 }
 
-Method* Method::CreateFromArtMethod(Thread* self, mirror::ArtMethod* method) {
+Method* Method::CreateFromArtMethod(Thread* self, ArtMethod* method) {
   DCHECK(!method->IsConstructor()) << PrettyMethod(method);
   auto* ret = down_cast<Method*>(StaticClass()->AllocObject(self));
   if (LIKELY(ret != nullptr)) {
@@ -90,7 +92,7 @@ void Constructor::VisitRoots(RootVisitor* visitor) {
   array_class_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
 }
 
-Constructor* Constructor::CreateFromArtMethod(Thread* self, mirror::ArtMethod* method) {
+Constructor* Constructor::CreateFromArtMethod(Thread* self, ArtMethod* method) {
   DCHECK(method->IsConstructor()) << PrettyMethod(method);
   auto* ret = down_cast<Constructor*>(StaticClass()->AllocObject(self));
   if (LIKELY(ret != nullptr)) {

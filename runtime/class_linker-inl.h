@@ -57,7 +57,7 @@ inline mirror::Class* ClassLinker::FindArrayClass(Thread* self, mirror::Class** 
 }
 
 inline mirror::String* ClassLinker::ResolveString(uint32_t string_idx,
-                                                  mirror::ArtMethod* referrer) {
+                                                  ArtMethod* referrer) {
   mirror::Class* declaring_class = referrer->GetDeclaringClass();
   mirror::String* resolved_string = declaring_class->GetDexCacheStrings()->Get(string_idx);
   if (UNLIKELY(resolved_string == nullptr)) {
@@ -73,7 +73,7 @@ inline mirror::String* ClassLinker::ResolveString(uint32_t string_idx,
 }
 
 inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx,
-                                               mirror::ArtMethod* referrer) {
+                                               ArtMethod* referrer) {
   mirror::Class* resolved_type = referrer->GetDexCacheResolvedType(type_idx);
   if (UNLIKELY(resolved_type == nullptr)) {
     mirror::Class* declaring_class = referrer->GetDeclaringClass();
@@ -104,30 +104,27 @@ inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx, ArtField* refe
   return resolved_type;
 }
 
-inline mirror::ArtMethod* ClassLinker::GetResolvedMethod(uint32_t method_idx,
-                                                         mirror::ArtMethod* referrer) {
-  mirror::ArtMethod* resolved_method = referrer->GetDexCacheResolvedMethod(method_idx);
+inline ArtMethod* ClassLinker::GetResolvedMethod(uint32_t method_idx, ArtMethod* referrer) {
+  ArtMethod* resolved_method = referrer->GetDexCacheResolvedMethod(
+      method_idx, image_pointer_size_);
   if (resolved_method == nullptr || resolved_method->IsRuntimeMethod()) {
     return nullptr;
   }
   return resolved_method;
 }
 
-inline mirror::ArtMethod* ClassLinker::ResolveMethod(Thread* self, uint32_t method_idx,
-                                                     mirror::ArtMethod** referrer,
-                                                     InvokeType type) {
-  mirror::ArtMethod* resolved_method = GetResolvedMethod(method_idx, *referrer);
-  if (LIKELY(resolved_method != nullptr)) {
-    return resolved_method;
+inline ArtMethod* ClassLinker::ResolveMethod(Thread* self, uint32_t method_idx,
+                                             ArtMethod* referrer, InvokeType type) {
+  ArtMethod* resolved_method = GetResolvedMethod(method_idx, referrer);
+  if (UNLIKELY(resolved_method == nullptr)) {
+    mirror::Class* declaring_class = referrer->GetDeclaringClass();
+    StackHandleScope<2> hs(self);
+    Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
+    Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
+    const DexFile* dex_file = h_dex_cache->GetDexFile();
+    resolved_method = ResolveMethod(*dex_file, method_idx, h_dex_cache, h_class_loader, referrer,
+                                    type);
   }
-  mirror::Class* declaring_class = (*referrer)->GetDeclaringClass();
-  StackHandleScope<3> hs(self);
-  Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
-  Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
-  HandleWrapper<mirror::ArtMethod> h_referrer(hs.NewHandleWrapper(referrer));
-  const DexFile* dex_file = h_dex_cache->GetDexFile();
-  resolved_method = ResolveMethod(*dex_file, method_idx, h_dex_cache, h_class_loader, h_referrer,
-                                  type);
   // Note: We cannot check here to see whether we added the method to the cache. It
   //       might be an erroneous class, which results in it being hidden from us.
   return resolved_method;
@@ -142,8 +139,8 @@ inline ArtField* ClassLinker::GetResolvedField(
   return GetResolvedField(field_idx, field_declaring_class->GetDexCache());
 }
 
-inline ArtField* ClassLinker::ResolveField(uint32_t field_idx, mirror::ArtMethod* referrer,
-                                                   bool is_static) {
+inline ArtField* ClassLinker::ResolveField(uint32_t field_idx, ArtMethod* referrer,
+                                           bool is_static) {
   mirror::Class* declaring_class = referrer->GetDeclaringClass();
   ArtField* resolved_field = GetResolvedField(field_idx, declaring_class);
   if (UNLIKELY(resolved_field == nullptr)) {
@@ -177,12 +174,6 @@ inline mirror::ObjectArray<mirror::String>* ClassLinker::AllocStringArray(Thread
                                                                           size_t length) {
   return mirror::ObjectArray<mirror::String>::Alloc(self, GetClassRoot(kJavaLangStringArrayClass),
                                                     length);
-}
-
-inline mirror::ObjectArray<mirror::ArtMethod>* ClassLinker::AllocArtMethodArray(Thread* self,
-                                                                                size_t length) {
-  return mirror::ObjectArray<mirror::ArtMethod>::Alloc(self,
-      GetClassRoot(kJavaLangReflectArtMethodArrayClass), length);
 }
 
 inline mirror::IfTable* ClassLinker::AllocIfTable(Thread* self, size_t ifcount) {

@@ -18,7 +18,9 @@
 
 #include "common_runtime_test.h"
 #include "mirror/array-inl.h"
+#include "mirror/class-inl.h"
 #include "mirror/string.h"
+#include "primitive.h"
 #include "scoped_thread_state_change.h"
 #include "thread-inl.h"
 
