@@ -152,7 +152,7 @@ class CodeGenerator {
   size_t GetStackSlotOfParameter(HParameterValue* parameter) const {
     // Note that this follows the current calling convention.
     return GetFrameSize()
-        + kVRegSize  // Art method
+        + InstructionSetPointerSize(GetInstructionSet())  // Art method
         + parameter->GetIndex() * kVRegSize;
   }
 
@@ -273,6 +273,8 @@ class CodeGenerator {
   // Note: this method assumes we always have the same pointer size, regardless
   // of the architecture.
   static size_t GetCacheOffset(uint32_t index);
+  // Pointer variant for ArtMethod and ArtField arrays.
+  size_t GetCachePointerOffset(uint32_t index);
 
   void EmitParallelMoves(Location from1,
                          Location to1,
@@ -477,11 +479,13 @@ class CallingConvention {
   CallingConvention(const C* registers,
                     size_t number_of_registers,
                     const F* fpu_registers,
-                    size_t number_of_fpu_registers)
+                    size_t number_of_fpu_registers,
+                    size_t pointer_size)
       : registers_(registers),
         number_of_registers_(number_of_registers),
         fpu_registers_(fpu_registers),
-        number_of_fpu_registers_(number_of_fpu_registers) {}
+        number_of_fpu_registers_(number_of_fpu_registers),
+        pointer_size_(pointer_size) {}
 
   size_t GetNumberOfRegisters() const { return number_of_registers_; }
   size_t GetNumberOfFpuRegisters() const { return number_of_fpu_registers_; }
@@ -498,8 +502,8 @@ class CallingConvention {
 
   size_t GetStackOffsetOf(size_t index) const {
     // We still reserve the space for parameters passed by registers.
-    // Add one for the method pointer.
-    return (index + 1) * kVRegSize;
+    // Add space for the method pointer.
+    return pointer_size_ + index * kVRegSize;
   }
 
  private:
@@ -507,6 +511,7 @@ class CallingConvention {
   const size_t number_of_registers_;
   const F* fpu_registers_;
   const size_t number_of_fpu_registers_;
+  const size_t pointer_size_;
 
   DISALLOW_COPY_AND_ASSIGN(CallingConvention);
 };

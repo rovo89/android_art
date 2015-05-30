@@ -16,12 +16,10 @@
 
 #include "art_method.h"
 
-#include "abstract_method.h"
 #include "arch/context.h"
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/stringpiece.h"
-#include "class-inl.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
 #include "entrypoints/entrypoint_utils.h"
@@ -32,15 +30,15 @@
 #include "jit/jit_code_cache.h"
 #include "jni_internal.h"
 #include "mapping_table.h"
-#include "object_array-inl.h"
-#include "object_array.h"
-#include "object-inl.h"
+#include "mirror/abstract_method.h"
+#include "mirror/class-inl.h"
+#include "mirror/object_array-inl.h"
+#include "mirror/object-inl.h"
+#include "mirror/string.h"
 #include "scoped_thread_state_change.h"
-#include "string.h"
 #include "well_known_classes.h"
 
 namespace art {
-namespace mirror {
 
 extern "C" void art_quick_invoke_stub(ArtMethod*, uint32_t*, uint32_t, Thread*, JValue*,
                                       const char*);
@@ -49,9 +47,6 @@ extern "C" void art_quick_invoke_static_stub(ArtMethod*, uint32_t*, uint32_t, Th
                                              const char*);
 #endif
 
-// TODO: get global references for these
-GcRoot<Class> ArtMethod::java_lang_reflect_ArtMethod_;
-
 ArtMethod* ArtMethod::FromReflectedMethod(const ScopedObjectAccessAlreadyRunnable& soa,
                                           jobject jlr_method) {
   auto* abstract_method = soa.Decode<mirror::AbstractMethod*>(jlr_method);
@@ -59,17 +54,13 @@ ArtMethod* ArtMethod::FromReflectedMethod(const ScopedObjectAccessAlreadyRunnabl
   return abstract_method->GetArtMethod();
 }
 
-void ArtMethod::VisitRoots(RootVisitor* visitor) {
-  java_lang_reflect_ArtMethod_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
-}
-
 mirror::String* ArtMethod::GetNameAsString(Thread* self) {
-  mirror::ArtMethod* method = GetInterfaceMethodIfProxy();
-  const DexFile* dex_file = method->GetDexFile();
-  uint32_t dex_method_idx = method->GetDexMethodIndex();
-  const DexFile::MethodId& method_id = dex_file->GetMethodId(dex_method_idx);
+  CHECK(!IsProxyMethod());
   StackHandleScope<1> hs(self);
-  Handle<mirror::DexCache> dex_cache(hs.NewHandle(method->GetDexCache()));
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(GetDexCache()));
+  auto* dex_file = dex_cache->GetDexFile();
+  uint32_t dex_method_idx = GetDexMethodIndex();
+  const DexFile::MethodId& method_id = dex_file->GetMethodId(dex_method_idx);
   return Runtime::Current()->GetClassLinker()->ResolveString(*dex_file, method_id.name_idx_,
                                                              dex_cache);
 }
@@ -85,17 +76,6 @@ InvokeType ArtMethod::GetInvokeType() {
   } else {
     return kVirtual;
   }
-}
-
-void ArtMethod::SetClass(Class* java_lang_reflect_ArtMethod) {
-  CHECK(java_lang_reflect_ArtMethod_.IsNull());
-  CHECK(java_lang_reflect_ArtMethod != nullptr);
-  java_lang_reflect_ArtMethod_ = GcRoot<Class>(java_lang_reflect_ArtMethod);
-}
-
-void ArtMethod::ResetClass() {
-  CHECK(!java_lang_reflect_ArtMethod_.IsNull());
-  java_lang_reflect_ArtMethod_ = GcRoot<Class>(nullptr);
 }
 
 size_t ArtMethod::NumArgRegisters(const StringPiece& shorty) {
@@ -129,31 +109,33 @@ static bool HasSameNameAndSignature(ArtMethod* method1, ArtMethod* method2)
   return dex_file->GetMethodSignature(mid) == dex_file2->GetMethodSignature(mid2);
 }
 
-ArtMethod* ArtMethod::FindOverriddenMethod() {
+ArtMethod* ArtMethod::FindOverriddenMethod(size_t pointer_size) {
   if (IsStatic()) {
     return nullptr;
   }
-  Class* declaring_class = GetDeclaringClass();
-  Class* super_class = declaring_class->GetSuperClass();
+  mirror::Class* declaring_class = GetDeclaringClass();
+  mirror::Class* super_class = declaring_class->GetSuperClass();
   uint16_t method_index = GetMethodIndex();
   ArtMethod* result = nullptr;
   // Did this method override a super class method? If so load the result from the super class'
   // vtable
   if (super_class->HasVTable() && method_index < super_class->GetVTableLength()) {
-    result = super_class->GetVTableEntry(method_index);
+    result = super_class->GetVTableEntry(method_index, pointer_size);
   } else {
     // Method didn't override superclass method so search interfaces
     if (IsProxyMethod()) {
-      result = GetDexCacheResolvedMethods()->Get(GetDexMethodIndex());
+      result = GetDexCacheResolvedMethods()->GetElementPtrSize<ArtMethod*>(
+          GetDexMethodIndex(), pointer_size);
       CHECK_EQ(result,
                Runtime::Current()->GetClassLinker()->FindMethodForProxy(GetDeclaringClass(), this));
     } else {
-      IfTable* iftable = GetDeclaringClass()->GetIfTable();
+      mirror::IfTable* iftable = GetDeclaringClass()->GetIfTable();
       for (size_t i = 0; i < iftable->Count() && result == nullptr; i++) {
-        Class* interface = iftable->GetInterface(i);
+        mirror::Class* interface = iftable->GetInterface(i);
         for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
-          mirror::ArtMethod* interface_method = interface->GetVirtualMethod(j);
-          if (HasSameNameAndSignature(this, interface_method)) {
+          ArtMethod* interface_method = interface->GetVirtualMethod(j, pointer_size);
+          if (HasSameNameAndSignature(
+              this, interface_method->GetInterfaceMethodIfProxy(sizeof(void*)))) {
             result = interface_method;
             break;
           }
@@ -161,9 +143,8 @@ ArtMethod* ArtMethod::FindOverriddenMethod() {
       }
     }
   }
-  if (kIsDebugBuild) {
-    DCHECK(result == nullptr || HasSameNameAndSignature(this, result));
-  }
+  DCHECK(result == nullptr || HasSameNameAndSignature(
+      GetInterfaceMethodIfProxy(sizeof(void*)), result->GetInterfaceMethodIfProxy(sizeof(void*))));
   return result;
 }
 
@@ -267,9 +248,9 @@ uintptr_t ArtMethod::ToNativeQuickPc(const uint32_t dex_pc, bool abort_on_failur
   return UINTPTR_MAX;
 }
 
-uint32_t ArtMethod::FindCatchBlock(Handle<ArtMethod> h_this, Handle<Class> exception_type,
+uint32_t ArtMethod::FindCatchBlock(Handle<mirror::Class> exception_type,
                                    uint32_t dex_pc, bool* has_no_move_exception) {
-  const DexFile::CodeItem* code_item = h_this->GetCodeItem();
+  const DexFile::CodeItem* code_item = GetCodeItem();
   // Set aside the exception while we resolve its type.
   Thread* self = Thread::Current();
   StackHandleScope<1> hs(self);
@@ -286,7 +267,7 @@ uint32_t ArtMethod::FindCatchBlock(Handle<ArtMethod> h_this, Handle<Class> excep
       break;
     }
     // Does this catch exception type apply?
-    Class* iter_exception_type = h_this->GetClassFromTypeIndex(iter_type_idx, true);
+    mirror::Class* iter_exception_type = GetClassFromTypeIndex(iter_type_idx, true);
     if (UNLIKELY(iter_exception_type == nullptr)) {
       // Now have a NoClassDefFoundError as exception. Ignore in case the exception class was
       // removed by a pro-guard like tool.
@@ -296,7 +277,7 @@ uint32_t ArtMethod::FindCatchBlock(Handle<ArtMethod> h_this, Handle<Class> excep
       // release its in use context at the end.
       delete self->GetLongJumpContext();
       LOG(WARNING) << "Unresolved exception class when finding catch block: "
-        << DescriptorToDot(h_this->GetTypeDescriptorFromTypeIdx(iter_type_idx));
+        << DescriptorToDot(GetTypeDescriptorFromTypeIdx(iter_type_idx));
     } else if (iter_exception_type->IsAssignableFrom(exception_type.Get())) {
       found_dex_pc = it.GetHandlerAddress();
       break;
@@ -378,7 +359,8 @@ const void* ArtMethod::GetQuickOatEntryPoint(size_t pointer_size) {
 #ifndef NDEBUG
 uintptr_t ArtMethod::NativeQuickPcOffset(const uintptr_t pc, const void* quick_entry_point) {
   CHECK_NE(quick_entry_point, GetQuickToInterpreterBridge());
-  CHECK_EQ(quick_entry_point, Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this, sizeof(void*)));
+  CHECK_EQ(quick_entry_point,
+           Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this, sizeof(void*)));
   return pc - reinterpret_cast<uintptr_t>(quick_entry_point);
 }
 #endif
@@ -393,7 +375,7 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
   if (kIsDebugBuild) {
     self->AssertThreadSuspensionIsAllowable();
     CHECK_EQ(kRunnable, self->GetState());
-    CHECK_STREQ(GetShorty(), shorty);
+    CHECK_STREQ(GetInterfaceMethodIfProxy(sizeof(void*))->GetShorty(), shorty);
   }
 
   // Push a transition back into managed code onto the linked list in thread.
@@ -408,16 +390,20 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
     if (IsStatic()) {
       art::interpreter::EnterInterpreterFromInvoke(self, this, nullptr, args, result);
     } else {
-      Object* receiver = reinterpret_cast<StackReference<Object>*>(&args[0])->AsMirrorPtr();
+      mirror::Object* receiver =
+          reinterpret_cast<StackReference<mirror::Object>*>(&args[0])->AsMirrorPtr();
       art::interpreter::EnterInterpreterFromInvoke(self, this, receiver, args + 1, result);
     }
   } else {
-    const bool kLogInvocationStartAndReturn = false;
+    DCHECK_EQ(runtime->GetClassLinker()->GetImagePointerSize(), sizeof(void*));
+
+    constexpr bool kLogInvocationStartAndReturn = false;
     bool have_quick_code = GetEntryPointFromQuickCompiledCode() != nullptr;
     if (LIKELY(have_quick_code)) {
       if (kLogInvocationStartAndReturn) {
-        LOG(INFO) << StringPrintf("Invoking '%s' quick code=%p", PrettyMethod(this).c_str(),
-                                  GetEntryPointFromQuickCompiledCode());
+        LOG(INFO) << StringPrintf(
+            "Invoking '%s' quick code=%p static=%d", PrettyMethod(this).c_str(),
+            GetEntryPointFromQuickCompiledCode(), static_cast<int>(IsStatic() ? 1 : 0));
       }
 
       // Ensure that we won't be accidentally calling quick compiled code when -Xint.
@@ -484,6 +470,11 @@ QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
     return runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
   }
 
+  // This goes before IsProxyMethod since runtime methods have a null declaring class.
+  if (UNLIKELY(IsRuntimeMethod())) {
+    return runtime->GetRuntimeMethodFrameInfo(this);
+  }
+
   // For Proxy method we add special handling for the direct method case  (there is only one
   // direct method - constructor). Direct method is cloned from original
   // java.lang.reflect.Proxy class together with code and as a result it is executed as usual
@@ -498,10 +489,6 @@ QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
     } else {
       return runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
     }
-  }
-
-  if (UNLIKELY(IsRuntimeMethod())) {
-    return runtime->GetRuntimeMethodFrameInfo(this);
   }
 
   const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(this, sizeof(void*));
@@ -519,11 +506,9 @@ QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
     QuickMethodFrameInfo callee_info = runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
 
     // Callee saves + handle scope + method ref + alignment
-    size_t frame_size = RoundUp(callee_info.FrameSizeInBytes() + scope_size
-                                - sizeof(void*)  // callee-save frame stores a whole method pointer
-                                + sizeof(StackReference<mirror::ArtMethod>),
-                                kStackAlignment);
-
+    // Note: -sizeof(void*) since callee-save frame stores a whole method pointer.
+    size_t frame_size = RoundUp(callee_info.FrameSizeInBytes() - sizeof(void*) +
+                                sizeof(ArtMethod*) + scope_size, kStackAlignment);
     return QuickMethodFrameInfo(frame_size, callee_info.CoreSpillMask(), callee_info.FpSpillMask());
   }
 
@@ -573,5 +558,4 @@ bool ArtMethod::EqualParameters(Handle<mirror::ObjectArray<mirror::Class>> param
   return true;
 }
 
-}  // namespace mirror
 }  // namespace art

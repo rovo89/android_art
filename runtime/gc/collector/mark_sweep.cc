@@ -401,7 +401,8 @@ class MarkSweepMarkObjectSlowPath {
                             << (field != nullptr ? field->GetTypeDescriptor() : "")
                             << " first_ref_field_offset="
                             << (holder_->IsClass()
-                                ? holder_->AsClass()->GetFirstReferenceStaticFieldOffset()
+                                ? holder_->AsClass()->GetFirstReferenceStaticFieldOffset(
+                                    sizeof(void*))
                                 : holder_->GetClass()->GetFirstReferenceInstanceFieldOffset())
                             << " num_of_ref_fields="
                             << (holder_->IsClass()

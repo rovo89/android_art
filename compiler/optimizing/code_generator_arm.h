@@ -54,7 +54,8 @@ class InvokeRuntimeCallingConvention : public CallingConvention<Register, SRegis
       : CallingConvention(kRuntimeParameterCoreRegisters,
                           kRuntimeParameterCoreRegistersLength,
                           kRuntimeParameterFpuRegisters,
-                          kRuntimeParameterFpuRegistersLength) {}
+                          kRuntimeParameterFpuRegistersLength,
+                          kArmPointerSize) {}
 
  private:
   DISALLOW_COPY_AND_ASSIGN(InvokeRuntimeCallingConvention);
@@ -72,7 +73,8 @@ class InvokeDexCallingConvention : public CallingConvention<Register, SRegister>
       : CallingConvention(kParameterCoreRegisters,
                           kParameterCoreRegistersLength,
                           kParameterFpuRegisters,
-                          kParameterFpuRegistersLength) {}
+                          kParameterFpuRegistersLength,
+                          kArmPointerSize) {}
 
  private:
   DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConvention);

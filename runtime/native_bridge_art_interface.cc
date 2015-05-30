@@ -20,10 +20,10 @@
 
 #include "nativebridge/native_bridge.h"
 
+#include "art_method-inl.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "dex_file-inl.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "scoped_thread_state_change.h"
 #include "sigchain.h"
@@ -32,29 +32,24 @@ namespace art {
 
 static const char* GetMethodShorty(JNIEnv* env, jmethodID mid) {
   ScopedObjectAccess soa(env);
-  mirror::ArtMethod* m = soa.DecodeMethod(mid);
+  ArtMethod* m = soa.DecodeMethod(mid);
   return m->GetShorty();
 }
 
 static uint32_t GetNativeMethodCount(JNIEnv* env, jclass clazz) {
-  if (clazz == nullptr)
+  if (clazz == nullptr) {
     return 0;
+  }
 
   ScopedObjectAccess soa(env);
   mirror::Class* c = soa.Decode<mirror::Class*>(clazz);
 
   uint32_t native_method_count = 0;
-  for (uint32_t i = 0; i < c->NumDirectMethods(); ++i) {
-    mirror::ArtMethod* m = c->GetDirectMethod(i);
-    if (m->IsNative()) {
-      native_method_count++;
-    }
+  for (auto& m : c->GetDirectMethods(sizeof(void*))) {
+    native_method_count += m.IsNative() ? 1u : 0u;
   }
-  for (uint32_t i = 0; i < c->NumVirtualMethods(); ++i) {
-    mirror::ArtMethod* m = c->GetVirtualMethod(i);
-    if (m->IsNative()) {
-      native_method_count++;
-    }
+  for (auto& m : c->GetVirtualMethods(sizeof(void*))) {
+    native_method_count += m.IsNative() ? 1u : 0u;
   }
   return native_method_count;
 }
@@ -68,29 +63,27 @@ static uint32_t GetNativeMethods(JNIEnv* env, jclass clazz, JNINativeMethod* met
   mirror::Class* c = soa.Decode<mirror::Class*>(clazz);
 
   uint32_t count = 0;
-  for (uint32_t i = 0; i < c->NumDirectMethods(); ++i) {
-    mirror::ArtMethod* m = c->GetDirectMethod(i);
-    if (m->IsNative()) {
+  for (auto& m : c->GetDirectMethods(sizeof(void*))) {
+    if (m.IsNative()) {
       if (count < method_count) {
-        methods[count].name = m->GetName();
-        methods[count].signature = m->GetShorty();
-        methods[count].fnPtr = m->GetEntryPointFromJni();
+        methods[count].name = m.GetName();
+        methods[count].signature = m.GetShorty();
+        methods[count].fnPtr = m.GetEntryPointFromJni();
         count++;
       } else {
-        LOG(WARNING) << "Output native method array too small. Skipping " << PrettyMethod(m);
+        LOG(WARNING) << "Output native method array too small. Skipping " << PrettyMethod(&m);
       }
     }
   }
-  for (uint32_t i = 0; i < c->NumVirtualMethods(); ++i) {
-    mirror::ArtMethod* m = c->GetVirtualMethod(i);
-    if (m->IsNative()) {
+  for (auto& m : c->GetVirtualMethods(sizeof(void*))) {
+    if (m.IsNative()) {
       if (count < method_count) {
-        methods[count].name = m->GetName();
-        methods[count].signature = m->GetShorty();
-        methods[count].fnPtr = m->GetEntryPointFromJni();
+        methods[count].name = m.GetName();
+        methods[count].signature = m.GetShorty();
+        methods[count].fnPtr = m.GetEntryPointFromJni();
         count++;
       } else {
-        LOG(WARNING) << "Output native method array too small. Skipping " << PrettyMethod(m);
+        LOG(WARNING) << "Output native method array too small. Skipping " << PrettyMethod(&m);
       }
     }
   }

@@ -74,7 +74,8 @@ void RemoveSuspendChecks(HGraph* graph) {
 
 inline HGraph* CreateGraph(ArenaAllocator* allocator) {
   return new (allocator) HGraph(
-      allocator, *reinterpret_cast<DexFile*>(allocator->Alloc(sizeof(DexFile))), -1, false);
+      allocator, *reinterpret_cast<DexFile*>(allocator->Alloc(sizeof(DexFile))), -1, false,
+      kRuntimeISA);
 }
 
 // Create a control-flow graph from Dex instructions.

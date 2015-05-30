@@ -858,7 +858,8 @@ void Arm64Mir2Lir::InstallLiteralPools() {
 
   // PC-relative references to dex cache arrays.
   for (LIR* p : dex_cache_access_insns_) {
-    DCHECK(p->opcode == kA64Adrp2xd || p->opcode == kA64Ldr3rXD);
+    auto non_wide = UNWIDE(p->opcode);  // May be a wide load for ArtMethod*.
+    DCHECK(non_wide == kA64Adrp2xd || non_wide == kA64Ldr3rXD) << p->opcode << " " << non_wide;
     const LIR* adrp = UnwrapPointer<LIR>(p->operands[4]);
     DCHECK_EQ(adrp->opcode, kA64Adrp2xd);
     const DexFile* dex_file = UnwrapPointer<DexFile>(adrp->operands[2]);
@@ -894,8 +895,7 @@ void Arm64Mir2Lir::GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir)
       rl_src[0] = mir_graph_->GetSrc(mir, 0);
       rl_src[1] = mir_graph_->GetSrc(mir, 1);
       rl_src[2]= mir_graph_->GetSrc(mir, 2);
-      GenMaddMsubInt(rl_dest, rl_src[0], rl_src[1], rl_src[2],
-                     (opcode == kMirOpMsubInt) ? true : false);
+      GenMaddMsubInt(rl_dest, rl_src[0], rl_src[1], rl_src[2], opcode == kMirOpMsubInt);
       break;
     case kMirOpMaddLong:
     case kMirOpMsubLong:
@@ -903,8 +903,7 @@ void Arm64Mir2Lir::GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir)
       rl_src[0] = mir_graph_->GetSrcWide(mir, 0);
       rl_src[1] = mir_graph_->GetSrcWide(mir, 2);
       rl_src[2] = mir_graph_->GetSrcWide(mir, 4);
-      GenMaddMsubLong(rl_dest, rl_src[0], rl_src[1], rl_src[2],
-                      (opcode == kMirOpMsubLong) ? true : false);
+      GenMaddMsubLong(rl_dest, rl_src[0], rl_src[1], rl_src[2], opcode == kMirOpMsubLong);
       break;
     default:
       LOG(FATAL) << "Unexpected opcode: " << static_cast<int>(opcode);

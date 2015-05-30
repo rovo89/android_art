@@ -97,9 +97,9 @@ ManagedRegister X86_64ManagedRuntimeCallingConvention::CurrentParamRegister() {
 }
 
 FrameOffset X86_64ManagedRuntimeCallingConvention::CurrentParamStackOffset() {
-  return FrameOffset(displacement_.Int32Value() +   // displacement
-                     sizeof(StackReference<mirror::ArtMethod>) +  // Method ref
-                     (itr_slots_ * sizeof(uint32_t)));  // offset into in args
+  return FrameOffset(displacement_.Int32Value() +  // displacement
+                     kX86_64PointerSize +  // Method ref
+                     itr_slots_ * sizeof(uint32_t));  // offset into in args
 }
 
 const ManagedRegisterEntrySpills& X86_64ManagedRuntimeCallingConvention::EntrySpills() {
@@ -149,7 +149,7 @@ uint32_t X86_64JniCallingConvention::FpSpillMask() const {
 
 size_t X86_64JniCallingConvention::FrameSize() {
   // Method*, return address and callee save area size, local reference segment state
-  size_t frame_data_size = sizeof(StackReference<mirror::ArtMethod>) +
+  size_t frame_data_size = kX86_64PointerSize +
       (2 + CalleeSaveRegisters().size()) * kFramePointerSize;
   // References plus link_ (pointer) and number_of_references_ (uint32_t) for HandleScope header
   size_t handle_scope_size = HandleScope::SizeOf(kFramePointerSize, ReferenceCount());

@@ -188,9 +188,10 @@ class Mips64Assembler FINAL : public Assembler {
 
   void LoadFromThread64(ManagedRegister mdest, ThreadOffset<8> src, size_t size) OVERRIDE;
 
-  void LoadRef(ManagedRegister dest, FrameOffset  src) OVERRIDE;
+  void LoadRef(ManagedRegister dest, FrameOffset src) OVERRIDE;
 
-  void LoadRef(ManagedRegister mdest, ManagedRegister base, MemberOffset offs) OVERRIDE;
+  void LoadRef(ManagedRegister mdest, ManagedRegister base, MemberOffset offs,
+               bool poison_reference) OVERRIDE;
 
   void LoadRawPtr(ManagedRegister mdest, ManagedRegister base, Offset offs) OVERRIDE;
 

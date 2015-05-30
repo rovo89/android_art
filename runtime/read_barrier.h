@@ -28,12 +28,11 @@
 // which needs to be a C header file for asm_support.h.
 
 namespace art {
-
 namespace mirror {
-  class ArtMethod;
   class Object;
   template<typename MirrorType> class HeapReference;
 }  // namespace mirror
+class ArtMethod;
 
 class ReadBarrier {
  public:

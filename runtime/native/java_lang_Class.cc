@@ -273,7 +273,7 @@ static jobject Class_getDeclaredConstructorInternal(
   return nullptr;
 }
 
-static ALWAYS_INLINE inline bool MethodMatchesConstructor(mirror::ArtMethod* m, bool public_only)
+static ALWAYS_INLINE inline bool MethodMatchesConstructor(ArtMethod* m, bool public_only)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(m != nullptr);
   return (!public_only || m->IsPublic()) && !m->IsStatic() && m->IsConstructor();
@@ -283,14 +283,11 @@ static jobjectArray Class_getDeclaredConstructorsInternal(
     JNIEnv* env, jobject javaThis, jboolean publicOnly) {
   ScopedFastNativeObjectAccess soa(env);
   auto* klass = DecodeClass(soa, javaThis);
-  StackHandleScope<2> hs(soa.Self());
-  auto h_direct_methods = hs.NewHandle(klass->GetDirectMethods());
+  StackHandleScope<1> hs(soa.Self());
   size_t constructor_count = 0;
-  auto count = h_direct_methods.Get() != nullptr ? h_direct_methods->GetLength() : 0u;
   // Two pass approach for speed.
-  for (size_t i = 0; i < count; ++i) {
-    constructor_count += MethodMatchesConstructor(h_direct_methods->GetWithoutChecks(i),
-                                                  publicOnly != JNI_FALSE) ? 1u : 0u;
+  for (auto& m : klass->GetDirectMethods(sizeof(void*))) {
+    constructor_count += MethodMatchesConstructor(&m, publicOnly != JNI_FALSE) ? 1u : 0u;
   }
   auto h_constructors = hs.NewHandle(mirror::ObjectArray<mirror::Constructor>::Alloc(
       soa.Self(), mirror::Constructor::ArrayClass(), constructor_count));
@@ -299,12 +296,11 @@ static jobjectArray Class_getDeclaredConstructorsInternal(
     return nullptr;
   }
   constructor_count = 0;
-  for (size_t i = 0; i < count; ++i) {
-    auto* method = h_direct_methods->GetWithoutChecks(i);
-    if (MethodMatchesConstructor(method, publicOnly != JNI_FALSE)) {
-      auto* constructor = mirror::Constructor::CreateFromArtMethod(soa.Self(), method);
+  for (auto& m : klass->GetDirectMethods(sizeof(void*))) {
+    if (MethodMatchesConstructor(&m, publicOnly != JNI_FALSE)) {
+      auto* constructor = mirror::Constructor::CreateFromArtMethod(soa.Self(), &m);
       if (UNLIKELY(constructor == nullptr)) {
-        soa.Self()->AssertPendingException();
+        soa.Self()->AssertPendingOOMException();
         return nullptr;
       }
       h_constructors->SetWithoutChecks<false>(constructor_count++, constructor);
@@ -323,7 +319,7 @@ static jobject Class_getDeclaredMethodInternal(JNIEnv* env, jobject javaThis,
   // were synthesized by the runtime.
   constexpr uint32_t kSkipModifiers = kAccMiranda | kAccSynthetic;
   ScopedFastNativeObjectAccess soa(env);
-  StackHandleScope<5> hs(soa.Self());
+  StackHandleScope<4> hs(soa.Self());
   auto h_method_name = hs.NewHandle(soa.Decode<mirror::String*>(name));
   if (UNLIKELY(h_method_name.Get() == nullptr)) {
     ThrowNullPointerException("name == null");
@@ -331,60 +327,49 @@ static jobject Class_getDeclaredMethodInternal(JNIEnv* env, jobject javaThis,
   }
   auto h_args = hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Class>*>(args));
   auto* klass = DecodeClass(soa, javaThis);
-  mirror::ArtMethod* result = nullptr;
-  auto* virtual_methods = klass->GetVirtualMethods();
-  if (virtual_methods != nullptr) {
-    auto h_virtual_methods = hs.NewHandle(virtual_methods);
-    for (size_t i = 0, count = virtual_methods->GetLength(); i < count; ++i) {
-      auto* m = h_virtual_methods->GetWithoutChecks(i);
-      auto* np_method = m->GetInterfaceMethodIfProxy();
+  ArtMethod* result = nullptr;
+  for (auto& m : klass->GetVirtualMethods(sizeof(void*))) {
+    auto* np_method = m.GetInterfaceMethodIfProxy(sizeof(void*));
+    // May cause thread suspension.
+    mirror::String* np_name = np_method->GetNameAsString(soa.Self());
+    if (!np_name->Equals(h_method_name.Get()) || !np_method->EqualParameters(h_args)) {
+      if (UNLIKELY(soa.Self()->IsExceptionPending())) {
+        return nullptr;
+      }
+      continue;
+    }
+    auto modifiers = m.GetAccessFlags();
+    if ((modifiers & kSkipModifiers) == 0) {
+      return soa.AddLocalReference<jobject>(mirror::Method::CreateFromArtMethod(soa.Self(), &m));
+    }
+    if ((modifiers & kAccMiranda) == 0) {
+      result = &m;  // Remember as potential result if it's not a miranda method.
+    }
+  }
+  if (result == nullptr) {
+    for (auto& m : klass->GetDirectMethods(sizeof(void*))) {
+      auto modifiers = m.GetAccessFlags();
+      if ((modifiers & kAccConstructor) != 0) {
+        continue;
+      }
+      auto* np_method = m.GetInterfaceMethodIfProxy(sizeof(void*));
       // May cause thread suspension.
       mirror::String* np_name = np_method->GetNameAsString(soa.Self());
+      if (np_name == nullptr) {
+        soa.Self()->AssertPendingException();
+        return nullptr;
+      }
       if (!np_name->Equals(h_method_name.Get()) || !np_method->EqualParameters(h_args)) {
         if (UNLIKELY(soa.Self()->IsExceptionPending())) {
           return nullptr;
         }
         continue;
       }
-      auto modifiers = m->GetAccessFlags();
       if ((modifiers & kSkipModifiers) == 0) {
-        return soa.AddLocalReference<jobject>(mirror::Method::CreateFromArtMethod(soa.Self(), m));
+        return soa.AddLocalReference<jobject>(mirror::Method::CreateFromArtMethod(soa.Self(), &m));
       }
-      if ((modifiers & kAccMiranda) == 0) {
-        result = m;  // Remember as potential result if it's not a miranda method.
-      }
-    }
-  }
-  if (result == nullptr) {
-    auto* direct_methods = klass->GetDirectMethods();
-    if (direct_methods != nullptr) {
-      auto h_direct_methods = hs.NewHandle(direct_methods);
-      for (size_t i = 0, count = direct_methods->GetLength(); i < count; ++i) {
-        auto* m = h_direct_methods->GetWithoutChecks(i);
-        auto modifiers = m->GetAccessFlags();
-        if ((modifiers & kAccConstructor) != 0) {
-          continue;
-        }
-        auto* np_method = m->GetInterfaceMethodIfProxy();
-        // May cause thread suspension.
-        mirror::String* np_name = np_method ->GetNameAsString(soa.Self());
-        if (np_name == nullptr) {
-          soa.Self()->AssertPendingException();
-          return nullptr;
-        }
-        if (!np_name->Equals(h_method_name.Get()) || !np_method->EqualParameters(h_args)) {
-          if (UNLIKELY(soa.Self()->IsExceptionPending())) {
-            return nullptr;
-          }
-          continue;
-        }
-        if ((modifiers & kSkipModifiers) == 0) {
-          return soa.AddLocalReference<jobject>(mirror::Method::CreateFromArtMethod(
-              soa.Self(), m));
-        }
-        // Direct methods cannot be miranda methods, so this potential result must be synthetic.
-        result = m;
-      }
+      // Direct methods cannot be miranda methods, so this potential result must be synthetic.
+      result = &m;
     }
   }
   return result != nullptr ?
@@ -395,64 +380,50 @@ static jobject Class_getDeclaredMethodInternal(JNIEnv* env, jobject javaThis,
 static jobjectArray Class_getDeclaredMethodsUnchecked(JNIEnv* env, jobject javaThis,
                                                       jboolean publicOnly) {
   ScopedFastNativeObjectAccess soa(env);
-  StackHandleScope<5> hs(soa.Self());
+  StackHandleScope<3> hs(soa.Self());
   auto* klass = DecodeClass(soa, javaThis);
-  auto virtual_methods = hs.NewHandle(klass->GetVirtualMethods());
-  auto direct_methods = hs.NewHandle(klass->GetDirectMethods());
   size_t num_methods = 0;
-  if (virtual_methods.Get() != nullptr) {
-    for (size_t i = 0, count = virtual_methods->GetLength(); i < count; ++i) {
-      auto* m = virtual_methods->GetWithoutChecks(i);
-      auto modifiers = m->GetAccessFlags();
-      if ((publicOnly == JNI_FALSE || (modifiers & kAccPublic) != 0) &&
-          (modifiers & kAccMiranda) == 0) {
-        ++num_methods;
-      }
+  for (auto& m : klass->GetVirtualMethods(sizeof(void*))) {
+    auto modifiers = m.GetAccessFlags();
+    if ((publicOnly == JNI_FALSE || (modifiers & kAccPublic) != 0) &&
+        (modifiers & kAccMiranda) == 0) {
+      ++num_methods;
     }
   }
-  if (direct_methods.Get() != nullptr) {
-    for (size_t i = 0, count = direct_methods->GetLength(); i < count; ++i) {
-      auto* m = direct_methods->GetWithoutChecks(i);
-      auto modifiers = m->GetAccessFlags();
-      // Add non-constructor direct/static methods.
-      if ((publicOnly == JNI_FALSE || (modifiers & kAccPublic) != 0) &&
-          (modifiers & kAccConstructor) == 0) {
-        ++num_methods;
-      }
+  for (auto& m : klass->GetDirectMethods(sizeof(void*))) {
+    auto modifiers = m.GetAccessFlags();
+    // Add non-constructor direct/static methods.
+    if ((publicOnly == JNI_FALSE || (modifiers & kAccPublic) != 0) &&
+        (modifiers & kAccConstructor) == 0) {
+      ++num_methods;
     }
   }
   auto ret = hs.NewHandle(mirror::ObjectArray<mirror::Method>::Alloc(
       soa.Self(), mirror::Method::ArrayClass(), num_methods));
   num_methods = 0;
-  if (virtual_methods.Get() != nullptr) {
-    for (size_t i = 0, count = virtual_methods->GetLength(); i < count; ++i) {
-      auto* m = virtual_methods->GetWithoutChecks(i);
-      auto modifiers = m->GetAccessFlags();
-      if ((publicOnly == JNI_FALSE || (modifiers & kAccPublic) != 0) &&
-          (modifiers & kAccMiranda) == 0) {
-        auto* method = mirror::Method::CreateFromArtMethod(soa.Self(), m);
-        if (method == nullptr) {
-          soa.Self()->AssertPendingException();
-          return nullptr;
-        }
-        ret->SetWithoutChecks<false>(num_methods++, method);
+  for (auto& m : klass->GetVirtualMethods(sizeof(void*))) {
+    auto modifiers = m.GetAccessFlags();
+    if ((publicOnly == JNI_FALSE || (modifiers & kAccPublic) != 0) &&
+        (modifiers & kAccMiranda) == 0) {
+      auto* method = mirror::Method::CreateFromArtMethod(soa.Self(), &m);
+      if (method == nullptr) {
+        soa.Self()->AssertPendingException();
+        return nullptr;
       }
+      ret->SetWithoutChecks<false>(num_methods++, method);
     }
   }
-  if (direct_methods.Get() != nullptr) {
-    for (size_t i = 0, count = direct_methods->GetLength(); i < count; ++i) {
-      auto* m = direct_methods->GetWithoutChecks(i);
-      auto modifiers = m->GetAccessFlags();
-      // Add non-constructor direct/static methods.
-      if ((publicOnly == JNI_FALSE || (modifiers & kAccPublic) != 0) &&
-          (modifiers & kAccConstructor) == 0) {
-        auto* method = mirror::Method::CreateFromArtMethod(soa.Self(), m);
-        if (method == nullptr) {
-          soa.Self()->AssertPendingException();
-          return nullptr;
-        }
-        ret->SetWithoutChecks<false>(num_methods++, method);
+  for (auto& m : klass->GetDirectMethods(sizeof(void*))) {
+    auto modifiers = m.GetAccessFlags();
+    // Add non-constructor direct/static methods.
+    if ((publicOnly == JNI_FALSE || (modifiers & kAccPublic) != 0) &&
+        (modifiers & kAccConstructor) == 0) {
+      auto* method = mirror::Method::CreateFromArtMethod(soa.Self(), &m);
+      if (method == nullptr) {
+        soa.Self()->AssertPendingException();
+        return nullptr;
       }
+      ret->SetWithoutChecks<false>(num_methods++, method);
     }
   }
   return soa.AddLocalReference<jobjectArray>(ret.Get());

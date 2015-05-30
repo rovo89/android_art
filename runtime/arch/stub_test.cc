@@ -17,10 +17,10 @@
 #include <cstdio>
 
 #include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/string-inl.h"
 #include "scoped_thread_state_change.h"
@@ -70,7 +70,7 @@ class StubTest : public CommonRuntimeTest {
 
   // TODO: Set up a frame according to referrer's specs.
   size_t Invoke3WithReferrer(size_t arg0, size_t arg1, size_t arg2, uintptr_t code, Thread* self,
-                             mirror::ArtMethod* referrer) {
+                             ArtMethod* referrer) {
     // Push a transition back into managed code onto the linked list in thread.
     ManagedStack fragment;
     self->PushManagedStackFragment(&fragment);
@@ -420,7 +420,7 @@ class StubTest : public CommonRuntimeTest {
 
   // TODO: Set up a frame according to referrer's specs.
   size_t Invoke3WithReferrerAndHidden(size_t arg0, size_t arg1, size_t arg2, uintptr_t code,
-                                      Thread* self, mirror::ArtMethod* referrer, size_t hidden) {
+                                      Thread* self, ArtMethod* referrer, size_t hidden) {
     // Push a transition back into managed code onto the linked list in thread.
     ManagedStack fragment;
     self->PushManagedStackFragment(&fragment);
@@ -776,7 +776,7 @@ class StubTest : public CommonRuntimeTest {
 
   // Method with 32b arg0, 64b arg1
   size_t Invoke3UWithReferrer(size_t arg0, uint64_t arg1, uintptr_t code, Thread* self,
-                              mirror::ArtMethod* referrer) {
+                              ArtMethod* referrer) {
 #if (defined(__x86_64__) && !defined(__APPLE__)) || (defined(__mips__) && defined(__LP64__)) || \
     defined(__aarch64__)
     // Just pass through.
@@ -1282,7 +1282,8 @@ TEST_F(StubTest, AllocObject) {
   {
     // Use an arbitrary method from c to use as referrer
     size_t result = Invoke3(static_cast<size_t>(c->GetDexTypeIndex()),    // type_idx
-                            reinterpret_cast<size_t>(c->GetVirtualMethod(0)),  // arbitrary
+                            // arbitrary
+                            reinterpret_cast<size_t>(c->GetVirtualMethod(0, sizeof(void*))),
                             0U,
                             StubTest::GetEntrypoint(self, kQuickAllocObject),
                             self);
@@ -1297,7 +1298,7 @@ TEST_F(StubTest, AllocObject) {
   {
     // We can use null in the second argument as we do not need a method here (not used in
     // resolved/initialized cases)
-    size_t result = Invoke3(reinterpret_cast<size_t>(c.Get()), reinterpret_cast<size_t>(nullptr), 0U,
+    size_t result = Invoke3(reinterpret_cast<size_t>(c.Get()), 0u, 0U,
                             StubTest::GetEntrypoint(self, kQuickAllocObjectResolved),
                             self);
 
@@ -1311,7 +1312,7 @@ TEST_F(StubTest, AllocObject) {
   {
     // We can use null in the second argument as we do not need a method here (not used in
     // resolved/initialized cases)
-    size_t result = Invoke3(reinterpret_cast<size_t>(c.Get()), reinterpret_cast<size_t>(nullptr), 0U,
+    size_t result = Invoke3(reinterpret_cast<size_t>(c.Get()), 0u, 0U,
                             StubTest::GetEntrypoint(self, kQuickAllocObjectInitialized),
                             self);
 
@@ -1367,7 +1368,7 @@ TEST_F(StubTest, AllocObject) {
     }
     self->ClearException();
 
-    size_t result = Invoke3(reinterpret_cast<size_t>(c.Get()), reinterpret_cast<size_t>(nullptr), 0U,
+    size_t result = Invoke3(reinterpret_cast<size_t>(c.Get()), 0u, 0U,
                             StubTest::GetEntrypoint(self, kQuickAllocObjectInitialized),
                             self);
     EXPECT_TRUE(self->IsExceptionPending());
@@ -1417,7 +1418,8 @@ TEST_F(StubTest, AllocObjectArray) {
     // Use an arbitrary method from c to use as referrer
     size_t result = Invoke3(static_cast<size_t>(c->GetDexTypeIndex()),    // type_idx
                             10U,
-                            reinterpret_cast<size_t>(c_obj->GetVirtualMethod(0)),  // arbitrary
+                            // arbitrary
+                            reinterpret_cast<size_t>(c_obj->GetVirtualMethod(0, sizeof(void*))),
                             StubTest::GetEntrypoint(self, kQuickAllocArray),
                             self);
 
@@ -1554,7 +1556,7 @@ TEST_F(StubTest, StringCompareTo) {
 
 
 static void GetSetBooleanStatic(ArtField* f, Thread* self,
-                                mirror::ArtMethod* referrer, StubTest* test)
+                                ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
@@ -1584,7 +1586,7 @@ static void GetSetBooleanStatic(ArtField* f, Thread* self,
   std::cout << "Skipping set_boolean_static as I don't know how to do that on " << kRuntimeISA << std::endl;
 #endif
 }
-static void GetSetByteStatic(ArtField* f, Thread* self, mirror::ArtMethod* referrer,
+static void GetSetByteStatic(ArtField* f, Thread* self, ArtMethod* referrer,
                              StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
@@ -1616,7 +1618,7 @@ static void GetSetByteStatic(ArtField* f, Thread* self, mirror::ArtMethod* refer
 
 
 static void GetSetBooleanInstance(Handle<mirror::Object>* obj, ArtField* f, Thread* self,
-                                  mirror::ArtMethod* referrer, StubTest* test)
+                                  ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
@@ -1651,7 +1653,7 @@ static void GetSetBooleanInstance(Handle<mirror::Object>* obj, ArtField* f, Thre
 #endif
 }
 static void GetSetByteInstance(Handle<mirror::Object>* obj, ArtField* f,
-                             Thread* self, mirror::ArtMethod* referrer, StubTest* test)
+                             Thread* self, ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
@@ -1685,7 +1687,7 @@ static void GetSetByteInstance(Handle<mirror::Object>* obj, ArtField* f,
 #endif
 }
 
-static void GetSetCharStatic(ArtField* f, Thread* self, mirror::ArtMethod* referrer,
+static void GetSetCharStatic(ArtField* f, Thread* self, ArtMethod* referrer,
                              StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
@@ -1716,7 +1718,7 @@ static void GetSetCharStatic(ArtField* f, Thread* self, mirror::ArtMethod* refer
 #endif
 }
 static void GetSetShortStatic(ArtField* f, Thread* self,
-                              mirror::ArtMethod* referrer, StubTest* test)
+                              ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
@@ -1747,7 +1749,7 @@ static void GetSetShortStatic(ArtField* f, Thread* self,
 }
 
 static void GetSetCharInstance(Handle<mirror::Object>* obj, ArtField* f,
-                               Thread* self, mirror::ArtMethod* referrer, StubTest* test)
+                               Thread* self, ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
@@ -1781,7 +1783,7 @@ static void GetSetCharInstance(Handle<mirror::Object>* obj, ArtField* f,
 #endif
 }
 static void GetSetShortInstance(Handle<mirror::Object>* obj, ArtField* f,
-                             Thread* self, mirror::ArtMethod* referrer, StubTest* test)
+                             Thread* self, ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
@@ -1815,7 +1817,7 @@ static void GetSetShortInstance(Handle<mirror::Object>* obj, ArtField* f,
 #endif
 }
 
-static void GetSet32Static(ArtField* f, Thread* self, mirror::ArtMethod* referrer,
+static void GetSet32Static(ArtField* f, Thread* self, ArtMethod* referrer,
                            StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
@@ -1852,7 +1854,7 @@ static void GetSet32Static(ArtField* f, Thread* self, mirror::ArtMethod* referre
 
 
 static void GetSet32Instance(Handle<mirror::Object>* obj, ArtField* f,
-                             Thread* self, mirror::ArtMethod* referrer, StubTest* test)
+                             Thread* self, ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
@@ -1893,7 +1895,7 @@ static void GetSet32Instance(Handle<mirror::Object>* obj, ArtField* f,
     (defined(__x86_64__) && !defined(__APPLE__))
 
 static void set_and_check_static(uint32_t f_idx, mirror::Object* val, Thread* self,
-                                 mirror::ArtMethod* referrer, StubTest* test)
+                                 ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   test->Invoke3WithReferrer(static_cast<size_t>(f_idx),
                             reinterpret_cast<size_t>(val),
@@ -1912,7 +1914,7 @@ static void set_and_check_static(uint32_t f_idx, mirror::Object* val, Thread* se
 }
 #endif
 
-static void GetSetObjStatic(ArtField* f, Thread* self, mirror::ArtMethod* referrer,
+static void GetSetObjStatic(ArtField* f, Thread* self, ArtMethod* referrer,
                             StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
@@ -1936,7 +1938,7 @@ static void GetSetObjStatic(ArtField* f, Thread* self, mirror::ArtMethod* referr
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
 static void set_and_check_instance(ArtField* f, mirror::Object* trg,
-                                   mirror::Object* val, Thread* self, mirror::ArtMethod* referrer,
+                                   mirror::Object* val, Thread* self, ArtMethod* referrer,
                                    StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   test->Invoke3WithReferrer(static_cast<size_t>(f->GetDexFieldIndex()),
@@ -1960,7 +1962,7 @@ static void set_and_check_instance(ArtField* f, mirror::Object* trg,
 #endif
 
 static void GetSetObjInstance(Handle<mirror::Object>* obj, ArtField* f,
-                              Thread* self, mirror::ArtMethod* referrer, StubTest* test)
+                              Thread* self, ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
@@ -1982,7 +1984,7 @@ static void GetSetObjInstance(Handle<mirror::Object>* obj, ArtField* f,
 
 // TODO: Complete these tests for 32b architectures.
 
-static void GetSet64Static(ArtField* f, Thread* self, mirror::ArtMethod* referrer,
+static void GetSet64Static(ArtField* f, Thread* self, ArtMethod* referrer,
                            StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if (defined(__x86_64__) && !defined(__APPLE__)) || (defined(__mips__) && defined(__LP64__)) || \
@@ -2014,7 +2016,7 @@ static void GetSet64Static(ArtField* f, Thread* self, mirror::ArtMethod* referre
 
 
 static void GetSet64Instance(Handle<mirror::Object>* obj, ArtField* f,
-                             Thread* self, mirror::ArtMethod* referrer, StubTest* test)
+                             Thread* self, ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if (defined(__x86_64__) && !defined(__APPLE__)) || (defined(__mips__) && defined(__LP64__)) || \
     defined(__aarch64__)
@@ -2060,11 +2062,11 @@ static void TestFields(Thread* self, StubTest* test, Primitive::Type test_type) 
   CHECK(o != nullptr);
 
   ScopedObjectAccess soa(self);
-  StackHandleScope<4> hs(self);
+  StackHandleScope<3> hs(self);
   Handle<mirror::Object> obj(hs.NewHandle(soa.Decode<mirror::Object*>(o)));
   Handle<mirror::Class> c(hs.NewHandle(obj->GetClass()));
   // Need a method as a referrer
-  Handle<mirror::ArtMethod> m(hs.NewHandle(c->GetDirectMethod(0)));
+  ArtMethod* m = c->GetDirectMethod(0, sizeof(void*));
 
   // Play with it...
 
@@ -2079,27 +2081,27 @@ static void TestFields(Thread* self, StubTest* test, Primitive::Type test_type) 
     }
     switch (type) {
       case Primitive::Type::kPrimBoolean:
-        GetSetBooleanStatic(f, self, m.Get(), test);
+        GetSetBooleanStatic(f, self, m, test);
         break;
       case Primitive::Type::kPrimByte:
-        GetSetByteStatic(f, self, m.Get(), test);
+        GetSetByteStatic(f, self, m, test);
         break;
       case Primitive::Type::kPrimChar:
-        GetSetCharStatic(f, self, m.Get(), test);
+        GetSetCharStatic(f, self, m, test);
         break;
       case Primitive::Type::kPrimShort:
-        GetSetShortStatic(f, self, m.Get(), test);
+        GetSetShortStatic(f, self, m, test);
         break;
       case Primitive::Type::kPrimInt:
-        GetSet32Static(f, self, m.Get(), test);
+        GetSet32Static(f, self, m, test);
         break;
       case Primitive::Type::kPrimLong:
-        GetSet64Static(f, self, m.Get(), test);
+        GetSet64Static(f, self, m, test);
         break;
       case Primitive::Type::kPrimNot:
         // Don't try array.
         if (f->GetTypeDescriptor()[0] != '[') {
-          GetSetObjStatic(f, self, m.Get(), test);
+          GetSetObjStatic(f, self, m, test);
         }
         break;
       default:
@@ -2118,27 +2120,27 @@ static void TestFields(Thread* self, StubTest* test, Primitive::Type test_type) 
     }
     switch (type) {
       case Primitive::Type::kPrimBoolean:
-        GetSetBooleanInstance(&obj, f, self, m.Get(), test);
+        GetSetBooleanInstance(&obj, f, self, m, test);
         break;
       case Primitive::Type::kPrimByte:
-        GetSetByteInstance(&obj, f, self, m.Get(), test);
+        GetSetByteInstance(&obj, f, self, m, test);
         break;
       case Primitive::Type::kPrimChar:
-        GetSetCharInstance(&obj, f, self, m.Get(), test);
+        GetSetCharInstance(&obj, f, self, m, test);
         break;
       case Primitive::Type::kPrimShort:
-        GetSetShortInstance(&obj, f, self, m.Get(), test);
+        GetSetShortInstance(&obj, f, self, m, test);
         break;
       case Primitive::Type::kPrimInt:
-        GetSet32Instance(&obj, f, self, m.Get(), test);
+        GetSet32Instance(&obj, f, self, m, test);
         break;
       case Primitive::Type::kPrimLong:
-        GetSet64Instance(&obj, f, self, m.Get(), test);
+        GetSet64Instance(&obj, f, self, m, test);
         break;
       case Primitive::Type::kPrimNot:
         // Don't try array.
         if (f->GetTypeDescriptor()[0] != '[') {
-          GetSetObjInstance(&obj, f, self, m.Get(), test);
+          GetSetObjInstance(&obj, f, self, m, test);
         }
         break;
       default:
@@ -2235,17 +2237,18 @@ TEST_F(StubTest, IMT) {
   ASSERT_NE(nullptr, arraylist_jclass);
   jmethodID arraylist_constructor = env->GetMethodID(arraylist_jclass, "<init>", "()V");
   ASSERT_NE(nullptr, arraylist_constructor);
-  jmethodID contains_jmethod = env->GetMethodID(arraylist_jclass, "contains", "(Ljava/lang/Object;)Z");
+  jmethodID contains_jmethod = env->GetMethodID(
+      arraylist_jclass, "contains", "(Ljava/lang/Object;)Z");
   ASSERT_NE(nullptr, contains_jmethod);
   jmethodID add_jmethod = env->GetMethodID(arraylist_jclass, "add", "(Ljava/lang/Object;)Z");
   ASSERT_NE(nullptr, add_jmethod);
 
-  // Get mirror representation.
-  Handle<mirror::ArtMethod> contains_amethod(hs.NewHandle(soa.DecodeMethod(contains_jmethod)));
+  // Get representation.
+  ArtMethod* contains_amethod = soa.DecodeMethod(contains_jmethod);
 
   // Patch up ArrayList.contains.
-  if (contains_amethod.Get()->GetEntryPointFromQuickCompiledCode() == nullptr) {
-    contains_amethod.Get()->SetEntryPointFromQuickCompiledCode(reinterpret_cast<void*>(
+  if (contains_amethod->GetEntryPointFromQuickCompiledCode() == nullptr) {
+    contains_amethod->SetEntryPointFromQuickCompiledCode(reinterpret_cast<void*>(
         StubTest::GetEntrypoint(self, kQuickQuickToInterpreterBridge)));
   }
 
@@ -2254,11 +2257,12 @@ TEST_F(StubTest, IMT) {
   // Load List and used methods (JNI).
   jclass list_jclass = env->FindClass("java/util/List");
   ASSERT_NE(nullptr, list_jclass);
-  jmethodID inf_contains_jmethod = env->GetMethodID(list_jclass, "contains", "(Ljava/lang/Object;)Z");
+  jmethodID inf_contains_jmethod = env->GetMethodID(
+      list_jclass, "contains", "(Ljava/lang/Object;)Z");
   ASSERT_NE(nullptr, inf_contains_jmethod);
 
   // Get mirror representation.
-  Handle<mirror::ArtMethod> inf_contains(hs.NewHandle(soa.DecodeMethod(inf_contains_jmethod)));
+  ArtMethod* inf_contains = soa.DecodeMethod(inf_contains_jmethod);
 
   // Object
 
@@ -2287,8 +2291,8 @@ TEST_F(StubTest, IMT) {
       Invoke3WithReferrerAndHidden(0U, reinterpret_cast<size_t>(array_list.Get()),
                                    reinterpret_cast<size_t>(obj.Get()),
                                    StubTest::GetEntrypoint(self, kQuickQuickImtConflictTrampoline),
-                                   self, contains_amethod.Get(),
-                                   static_cast<size_t>(inf_contains.Get()->GetDexMethodIndex()));
+                                   self, contains_amethod,
+                                   static_cast<size_t>(inf_contains->GetDexMethodIndex()));
 
   ASSERT_FALSE(self->IsExceptionPending());
   EXPECT_EQ(static_cast<size_t>(JNI_FALSE), result);
@@ -2301,33 +2305,31 @@ TEST_F(StubTest, IMT) {
 
   // Contains.
 
-  result = Invoke3WithReferrerAndHidden(0U, reinterpret_cast<size_t>(array_list.Get()),
-                                        reinterpret_cast<size_t>(obj.Get()),
-                                        StubTest::GetEntrypoint(self, kQuickQuickImtConflictTrampoline),
-                                        self, contains_amethod.Get(),
-                                        static_cast<size_t>(inf_contains.Get()->GetDexMethodIndex()));
+  result = Invoke3WithReferrerAndHidden(
+      0U, reinterpret_cast<size_t>(array_list.Get()), reinterpret_cast<size_t>(obj.Get()),
+      StubTest::GetEntrypoint(self, kQuickQuickImtConflictTrampoline), self, contains_amethod,
+      static_cast<size_t>(inf_contains->GetDexMethodIndex()));
 
   ASSERT_FALSE(self->IsExceptionPending());
   EXPECT_EQ(static_cast<size_t>(JNI_TRUE), result);
 
   // 2. regular interface trampoline
 
-  result = Invoke3WithReferrer(static_cast<size_t>(inf_contains.Get()->GetDexMethodIndex()),
+  result = Invoke3WithReferrer(static_cast<size_t>(inf_contains->GetDexMethodIndex()),
                                reinterpret_cast<size_t>(array_list.Get()),
                                reinterpret_cast<size_t>(obj.Get()),
                                StubTest::GetEntrypoint(self,
                                    kQuickInvokeInterfaceTrampolineWithAccessCheck),
-                               self, contains_amethod.Get());
+                               self, contains_amethod);
 
   ASSERT_FALSE(self->IsExceptionPending());
   EXPECT_EQ(static_cast<size_t>(JNI_TRUE), result);
 
-  result = Invoke3WithReferrer(static_cast<size_t>(inf_contains.Get()->GetDexMethodIndex()),
-                               reinterpret_cast<size_t>(array_list.Get()),
-                               reinterpret_cast<size_t>(array_list.Get()),
-                               StubTest::GetEntrypoint(self,
-                                   kQuickInvokeInterfaceTrampolineWithAccessCheck),
-                               self, contains_amethod.Get());
+  result = Invoke3WithReferrer(
+      static_cast<size_t>(inf_contains->GetDexMethodIndex()),
+      reinterpret_cast<size_t>(array_list.Get()), reinterpret_cast<size_t>(array_list.Get()),
+      StubTest::GetEntrypoint(self, kQuickInvokeInterfaceTrampolineWithAccessCheck), self,
+      contains_amethod);
 
   ASSERT_FALSE(self->IsExceptionPending());
   EXPECT_EQ(static_cast<size_t>(JNI_FALSE), result);

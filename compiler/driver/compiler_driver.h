@@ -116,11 +116,11 @@ class CompilerDriver {
                   TimingLogger* timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  CompiledMethod* CompileMethod(Thread* self, mirror::ArtMethod*)
+  CompiledMethod* CompileMethod(Thread* self, ArtMethod*)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) WARN_UNUSED;
 
   // Compile a single Method.
-  void CompileOne(Thread* self, mirror::ArtMethod* method, TimingLogger* timings)
+  void CompileOne(Thread* self, ArtMethod* method, TimingLogger* timings)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   VerificationResults* GetVerificationResults() const {
@@ -288,7 +288,7 @@ class CompilerDriver {
   // return DexFile::kDexNoIndex through `storage_index`.
   bool IsClassOfStaticMethodAvailableToReferrer(mirror::DexCache* dex_cache,
                                                 mirror::Class* referrer_class,
-                                                mirror::ArtMethod* resolved_method,
+                                                ArtMethod* resolved_method,
                                                 uint16_t method_idx,
                                                 uint32_t* storage_index)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -303,7 +303,7 @@ class CompilerDriver {
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolve a method. Returns null on failure, including incompatible class change.
-  mirror::ArtMethod* ResolveMethod(
+  ArtMethod* ResolveMethod(
       ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
       Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
       uint32_t method_idx, InvokeType invoke_type, bool check_incompatible_class_change = true)
@@ -311,13 +311,13 @@ class CompilerDriver {
 
   // Get declaration location of a resolved field.
   void GetResolvedMethodDexFileLocation(
-      mirror::ArtMethod* resolved_method, const DexFile** declaring_dex_file,
+      ArtMethod* resolved_method, const DexFile** declaring_dex_file,
       uint16_t* declaring_class_idx, uint16_t* declaring_method_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get the index in the vtable of the method.
   uint16_t GetResolvedMethodVTableIndex(
-      mirror::ArtMethod* resolved_method, InvokeType type)
+      ArtMethod* resolved_method, InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Can we fast-path an INVOKE? If no, returns 0. If yes, returns a non-zero opaque flags value
@@ -325,7 +325,7 @@ class CompilerDriver {
   int IsFastInvoke(
       ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
       Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
-      mirror::Class* referrer_class, mirror::ArtMethod* resolved_method, InvokeType* invoke_type,
+      mirror::Class* referrer_class, ArtMethod* resolved_method, InvokeType* invoke_type,
       MethodReference* target_method, const MethodReference* devirt_target,
       uintptr_t* direct_code, uintptr_t* direct_method)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -333,7 +333,7 @@ class CompilerDriver {
   // Is method's class initialized for an invoke?
   // For static invokes to determine whether we need to consider potential call to <clinit>().
   // For non-static invokes, assuming a non-null reference, the class is always initialized.
-  bool IsMethodsClassInitialized(mirror::Class* referrer_class, mirror::ArtMethod* resolved_method)
+  bool IsMethodsClassInitialized(mirror::Class* referrer_class, ArtMethod* resolved_method)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get the layout of dex cache arrays for a dex file. Returns invalid layout if the
@@ -526,7 +526,7 @@ class CompilerDriver {
                                      InvokeType sharp_type,
                                      bool no_guarantee_of_dex_cache_entry,
                                      const mirror::Class* referrer_class,
-                                     mirror::ArtMethod* method,
+                                     ArtMethod* method,
                                      /*out*/int* stats_flags,
                                      MethodReference* target_method,
                                      uintptr_t* direct_code, uintptr_t* direct_method)

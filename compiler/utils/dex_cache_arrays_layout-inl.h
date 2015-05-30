@@ -25,12 +25,6 @@
 #include "mirror/array-inl.h"
 #include "primitive.h"
 
-namespace mirror {
-class ArtMethod;
-class Class;
-class String;
-}  // namespace mirror
-
 namespace art {
 
 inline DexCacheArraysLayout::DexCacheArraysLayout(size_t pointer_size, const DexFile* dex_file)
@@ -40,7 +34,7 @@ inline DexCacheArraysLayout::DexCacheArraysLayout(size_t pointer_size, const Dex
       strings_offset_(methods_offset_ + MethodsSize(dex_file->NumMethodIds())),
       fields_offset_(strings_offset_ + StringsSize(dex_file->NumStringIds())),
       size_(fields_offset_ + FieldsSize(dex_file->NumFieldIds())) {
-  DCHECK(pointer_size == 4u || pointer_size == 8u);
+  DCHECK(ValidPointerSize(pointer_size)) << pointer_size;
 }
 
 inline size_t DexCacheArraysLayout::TypeOffset(uint32_t type_idx) const {
@@ -52,12 +46,11 @@ inline size_t DexCacheArraysLayout::TypesSize(size_t num_elements) const {
 }
 
 inline size_t DexCacheArraysLayout::MethodOffset(uint32_t method_idx) const {
-  return methods_offset_ + ElementOffset(
-      sizeof(mirror::HeapReference<mirror::ArtMethod>), method_idx);
+  return methods_offset_ + ElementOffset(pointer_size_, method_idx);
 }
 
 inline size_t DexCacheArraysLayout::MethodsSize(size_t num_elements) const {
-  return ArraySize(sizeof(mirror::HeapReference<mirror::ArtMethod>), num_elements);
+  return ArraySize(pointer_size_, num_elements);
 }
 
 inline size_t DexCacheArraysLayout::StringOffset(uint32_t string_idx) const {

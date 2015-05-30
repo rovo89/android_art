@@ -19,6 +19,7 @@
 
 #include "indirect_reference_table.h"
 
+#include "gc_root-inl.h"
 #include "runtime-inl.h"
 #include "verify_object-inl.h"
 

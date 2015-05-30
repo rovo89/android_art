@@ -38,7 +38,7 @@ class Object;
 class String;
 }  // namespace mirror
 
-class ArtField {
+class ArtField FINAL {
  public:
   ArtField();
 
@@ -151,8 +151,8 @@ class ArtField {
   void SetObj(mirror::Object* object, mirror::Object* new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void VisitRoots(RootVisitor* visitor)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  template<typename RootVisitorType>
+  void VisitRoots(RootVisitorType& visitor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsVolatile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccVolatile) != 0;

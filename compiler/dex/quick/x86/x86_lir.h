@@ -82,7 +82,7 @@ namespace art {
  * | IN[ins-1]                 |  {Note: resides in caller's frame}
  * |       .                   |
  * | IN[0]                     |
- * | caller's Method*          |
+ * | caller's ArtMethod*       |
  * +===========================+  {Note: start of callee's frame}
  * | return address            |  {pushed by call}
  * | spill region              |  {variable sized}
@@ -104,7 +104,7 @@ namespace art {
  * | OUT[outs-2]               |
  * |       .                   |
  * | OUT[0]                    |
- * | StackReference<ArtMethod> | <<== sp w/ 16-byte alignment
+ * | ArtMethod*                | <<== sp w/ 16-byte alignment
  * +===========================+
  */
 

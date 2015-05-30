@@ -17,7 +17,7 @@
 #ifndef ART_RUNTIME_NATIVE_SCOPED_FAST_NATIVE_OBJECT_ACCESS_H_
 #define ART_RUNTIME_NATIVE_SCOPED_FAST_NATIVE_OBJECT_ACCESS_H_
 
-#include "mirror/art_method-inl.h"
+#include "art_method-inl.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {
@@ -31,7 +31,7 @@ class ScopedFastNativeObjectAccess : public ScopedObjectAccessAlreadyRunnable {
     SHARED_LOCK_FUNCTION(Locks::mutator_lock_) ALWAYS_INLINE
      : ScopedObjectAccessAlreadyRunnable(env) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
-    DCHECK(Self()->GetManagedStack()->GetTopQuickFrame()->AsMirrorPtr()->IsFastNative());
+    DCHECK((*Self()->GetManagedStack()->GetTopQuickFrame())->IsFastNative());
     // Don't work with raw objects in non-runnable states.
     DCHECK_EQ(Self()->GetState(), kRunnable);
   }

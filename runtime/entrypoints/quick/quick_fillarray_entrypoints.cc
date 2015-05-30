@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
+#include "art_method-inl.h"
 #include "callee_save_frame.h"
 #include "mirror/array.h"
-#include "mirror/art_method-inl.h"
 #include "entrypoints/entrypoint_utils.h"
 
 namespace art {
@@ -25,7 +25,7 @@ namespace art {
  * Handle fill array data by copying appropriate part of dex file into array.
  */
 extern "C" int artHandleFillArrayDataFromCode(uint32_t payload_offset, mirror::Array* array,
-                                              mirror::ArtMethod* method, Thread* self)
+                                              ArtMethod* method, Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
   const uint16_t* const insns = method->GetCodeItem()->insns_;

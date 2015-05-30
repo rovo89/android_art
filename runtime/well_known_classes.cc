@@ -22,6 +22,7 @@
 
 #include "base/logging.h"
 #include "mirror/class.h"
+#include "mirror/throwable.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
 #include "thread-inl.h"
@@ -41,7 +42,6 @@ jclass WellKnownClasses::java_lang_Error;
 jclass WellKnownClasses::java_lang_Object;
 jclass WellKnownClasses::java_lang_OutOfMemoryError;
 jclass WellKnownClasses::java_lang_reflect_AbstractMethod;
-jclass WellKnownClasses::java_lang_reflect_ArtMethod;
 jclass WellKnownClasses::java_lang_reflect_Constructor;
 jclass WellKnownClasses::java_lang_reflect_Field;
 jclass WellKnownClasses::java_lang_reflect_Method;
@@ -165,11 +165,13 @@ static jclass CacheClass(JNIEnv* env, const char* jni_class_name) {
 
 static jfieldID CacheField(JNIEnv* env, jclass c, bool is_static,
                            const char* name, const char* signature) {
-  jfieldID fid = (is_static ?
-                  env->GetStaticFieldID(c, name, signature) :
-                  env->GetFieldID(c, name, signature));
+  jfieldID fid = is_static ? env->GetStaticFieldID(c, name, signature) :
+      env->GetFieldID(c, name, signature);
   if (fid == nullptr) {
     ScopedObjectAccess soa(env);
+    if (soa.Self()->IsExceptionPending()) {
+      LOG(INTERNAL_FATAL) << soa.Self()->GetException()->Dump() << '\n';
+    }
     std::ostringstream os;
     WellKnownClasses::ToClass(c)->DumpClass(os, mirror::Class::kDumpClassFullDetail);
     LOG(FATAL) << "Couldn't find field \"" << name << "\" with signature \"" << signature << "\": "
@@ -180,11 +182,13 @@ static jfieldID CacheField(JNIEnv* env, jclass c, bool is_static,
 
 jmethodID CacheMethod(JNIEnv* env, jclass c, bool is_static,
                       const char* name, const char* signature) {
-  jmethodID mid = (is_static ?
-                   env->GetStaticMethodID(c, name, signature) :
-                   env->GetMethodID(c, name, signature));
+  jmethodID mid = is_static ? env->GetStaticMethodID(c, name, signature) :
+      env->GetMethodID(c, name, signature);
   if (mid == nullptr) {
     ScopedObjectAccess soa(env);
+    if (soa.Self()->IsExceptionPending()) {
+      LOG(INTERNAL_FATAL) << soa.Self()->GetException()->Dump() << '\n';
+    }
     std::ostringstream os;
     WellKnownClasses::ToClass(c)->DumpClass(os, mirror::Class::kDumpClassFullDetail);
     LOG(FATAL) << "Couldn't find method \"" << name << "\" with signature \"" << signature << "\": "
@@ -213,7 +217,6 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_OutOfMemoryError = CacheClass(env, "java/lang/OutOfMemoryError");
   java_lang_Error = CacheClass(env, "java/lang/Error");
   java_lang_reflect_AbstractMethod = CacheClass(env, "java/lang/reflect/AbstractMethod");
-  java_lang_reflect_ArtMethod = CacheClass(env, "java/lang/reflect/ArtMethod");
   java_lang_reflect_Constructor = CacheClass(env, "java/lang/reflect/Constructor");
   java_lang_reflect_Field = CacheClass(env, "java/lang/reflect/Field");
   java_lang_reflect_Method = CacheClass(env, "java/lang/reflect/Method");
@@ -334,7 +337,7 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_Throwable_stackTrace = CacheField(env, java_lang_Throwable, false, "stackTrace", "[Ljava/lang/StackTraceElement;");
   java_lang_Throwable_stackState = CacheField(env, java_lang_Throwable, false, "stackState", "Ljava/lang/Object;");
   java_lang_Throwable_suppressedExceptions = CacheField(env, java_lang_Throwable, false, "suppressedExceptions", "Ljava/util/List;");
-  java_lang_reflect_AbstractMethod_artMethod = CacheField(env, java_lang_reflect_AbstractMethod, false, "artMethod", "Ljava/lang/reflect/ArtMethod;");
+  java_lang_reflect_AbstractMethod_artMethod = CacheField(env, java_lang_reflect_AbstractMethod, false, "artMethod", "J");
   java_lang_reflect_Proxy_h = CacheField(env, java_lang_reflect_Proxy, false, "h", "Ljava/lang/reflect/InvocationHandler;");
   java_nio_DirectByteBuffer_capacity = CacheField(env, java_nio_DirectByteBuffer, false, "capacity", "I");
   java_nio_DirectByteBuffer_effectiveDirectAddress = CacheField(env, java_nio_DirectByteBuffer, false, "effectiveDirectAddress", "J");

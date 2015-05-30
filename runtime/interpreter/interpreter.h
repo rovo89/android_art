@@ -22,10 +22,10 @@
 
 namespace art {
 namespace mirror {
-class ArtMethod;
 class Object;
 }  // namespace mirror
 
+class ArtMethod;
 union JValue;
 class ShadowFrame;
 class Thread;
@@ -33,7 +33,7 @@ class Thread;
 namespace interpreter {
 
 // Called by ArtMethod::Invoke, shadow frames arguments are taken from the args array.
-extern void EnterInterpreterFromInvoke(Thread* self, mirror::ArtMethod* method,
+extern void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method,
                                        mirror::Object* receiver, uint32_t* args, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

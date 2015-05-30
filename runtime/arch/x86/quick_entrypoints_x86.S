@@ -472,7 +472,7 @@ DEFINE_FUNCTION art_quick_invoke_stub
     // Nothing left to load.
 .Lgpr_setup_finished:
     mov 20(%ebp), %eax            // move method pointer into eax
-    call *MIRROR_ART_METHOD_QUICK_CODE_OFFSET_32(%eax) // call the method
+    call *ART_METHOD_QUICK_CODE_OFFSET_32(%eax) // call the method
     mov %ebp, %esp                // restore stack pointer
     CFI_DEF_CFA_REGISTER(esp)
     POP edi                       // pop edi
@@ -589,7 +589,7 @@ DEFINE_FUNCTION art_quick_invoke_static_stub
     // Nothing left to load.
 .Lgpr_setup_finished2:
     mov 20(%ebp), %eax            // move method pointer into eax
-    call *MIRROR_ART_METHOD_QUICK_CODE_OFFSET_32(%eax) // call the method
+    call *ART_METHOD_QUICK_CODE_OFFSET_32(%eax) // call the method
     mov %ebp, %esp                // restore stack pointer
     CFI_DEF_CFA_REGISTER(esp)
     POP edi                       // pop edi

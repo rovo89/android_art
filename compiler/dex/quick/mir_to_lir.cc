@@ -1232,6 +1232,10 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
     ResetRegPool();
     int start_vreg = mir_graph_->GetFirstInVR();
     AppendLIR(NewLIR0(kPseudoPrologueBegin));
+    DCHECK_EQ(cu_->target64, Is64BitInstructionSet(cu_->instruction_set));
+    if (cu_->target64) {
+      DCHECK(mir_graph_->GetMethodLoc().wide);
+    }
     GenEntrySequence(&mir_graph_->reg_location_[start_vreg], mir_graph_->GetMethodLoc());
     AppendLIR(NewLIR0(kPseudoPrologueEnd));
     DCHECK_EQ(cfi_.GetCurrentCFAOffset(), frame_size_);

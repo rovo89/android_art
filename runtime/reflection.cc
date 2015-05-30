@@ -17,6 +17,7 @@
 #include "reflection-inl.h"
 
 #include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "class_linker.h"
 #include "common_throws.h"
 #include "dex_file-inl.h"
@@ -24,7 +25,6 @@
 #include "indirect_reference_table-inl.h"
 #include "jni_internal.h"
 #include "mirror/abstract_method.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
 #include "nth_caller_visitor.h"
@@ -213,10 +213,9 @@ class ArgArray {
   }
 
   bool BuildArgArrayFromObjectArray(mirror::Object* receiver,
-                                    mirror::ObjectArray<mirror::Object>* args,
-                                    Handle<mirror::ArtMethod> h_m)
+                                    mirror::ObjectArray<mirror::Object>* args, ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile::TypeList* classes = h_m->GetParameterTypeList();
+    const DexFile::TypeList* classes = m->GetParameterTypeList();
     // Set receiver if non-null (method is not static)
     if (receiver != nullptr) {
       Append(receiver);
@@ -225,11 +224,11 @@ class ArgArray {
       mirror::Object* arg = args->Get(args_offset);
       if (((shorty_[i] == 'L') && (arg != nullptr)) || ((arg == nullptr && shorty_[i] != 'L'))) {
         mirror::Class* dst_class =
-            h_m->GetClassFromTypeIndex(classes->GetTypeItem(args_offset).type_idx_, true);
+            m->GetClassFromTypeIndex(classes->GetTypeItem(args_offset).type_idx_, true);
         if (UNLIKELY(arg == nullptr || !arg->InstanceOf(dst_class))) {
           ThrowIllegalArgumentException(
               StringPrintf("method %s argument %zd has type %s, got %s",
-                  PrettyMethod(h_m.Get(), false).c_str(),
+                  PrettyMethod(m, false).c_str(),
                   args_offset + 1,  // Humans don't count from 0.
                   PrettyDescriptor(dst_class).c_str(),
                   PrettyTypeOf(arg).c_str()).c_str());
@@ -257,7 +256,7 @@ class ArgArray {
             } else { \
               ThrowIllegalArgumentException(\
                   StringPrintf("method %s argument %zd has type %s, got %s", \
-                      PrettyMethod(h_m.Get(), false).c_str(), \
+                      PrettyMethod(m, false).c_str(), \
                       args_offset + 1, \
                       expected, \
                       PrettyTypeOf(arg).c_str()).c_str()); \
@@ -343,7 +342,7 @@ class ArgArray {
   std::unique_ptr<uint32_t[]> large_arg_array_;
 };
 
-static void CheckMethodArguments(JavaVMExt* vm, mirror::ArtMethod* m, uint32_t* args)
+static void CheckMethodArguments(JavaVMExt* vm, ArtMethod* m, uint32_t* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   const DexFile::TypeList* params = m->GetParameterTypeList();
   if (params == nullptr) {
@@ -356,16 +355,14 @@ static void CheckMethodArguments(JavaVMExt* vm, mirror::ArtMethod* m, uint32_t* 
     offset = 1;
   }
   // TODO: If args contain object references, it may cause problems.
-  Thread* self = Thread::Current();
-  StackHandleScope<1> hs(self);
-  Handle<mirror::ArtMethod> h_m(hs.NewHandle(m));
+  Thread* const self = Thread::Current();
   for (uint32_t i = 0; i < num_params; i++) {
     uint16_t type_idx = params->GetTypeItem(i).type_idx_;
-    mirror::Class* param_type = h_m->GetClassFromTypeIndex(type_idx, true);
+    mirror::Class* param_type = m->GetClassFromTypeIndex(type_idx, true);
     if (param_type == nullptr) {
       CHECK(self->IsExceptionPending());
       LOG(ERROR) << "Internal error: unresolvable type for argument type in JNI invoke: "
-          << h_m->GetTypeDescriptorFromTypeIdx(type_idx) << "\n"
+          << m->GetTypeDescriptorFromTypeIdx(type_idx) << "\n"
           << self->GetException()->Dump();
       self->ClearException();
       ++error_count;
@@ -378,7 +375,7 @@ static void CheckMethodArguments(JavaVMExt* vm, mirror::ArtMethod* m, uint32_t* 
       if (argument != nullptr && !argument->InstanceOf(param_type)) {
         LOG(ERROR) << "JNI ERROR (app bug): attempt to pass an instance of "
                    << PrettyTypeOf(argument) << " as argument " << (i + 1)
-                   << " to " << PrettyMethod(h_m.Get());
+                   << " to " << PrettyMethod(m);
         ++error_count;
       }
     } else if (param_type->IsPrimitiveLong() || param_type->IsPrimitiveDouble()) {
@@ -388,25 +385,25 @@ static void CheckMethodArguments(JavaVMExt* vm, mirror::ArtMethod* m, uint32_t* 
       if (param_type->IsPrimitiveBoolean()) {
         if (arg != JNI_TRUE && arg != JNI_FALSE) {
           LOG(ERROR) << "JNI ERROR (app bug): expected jboolean (0/1) but got value of "
-              << arg << " as argument " << (i + 1) << " to " << PrettyMethod(h_m.Get());
+              << arg << " as argument " << (i + 1) << " to " << PrettyMethod(m);
           ++error_count;
         }
       } else if (param_type->IsPrimitiveByte()) {
         if (arg < -128 || arg > 127) {
           LOG(ERROR) << "JNI ERROR (app bug): expected jbyte but got value of "
-              << arg << " as argument " << (i + 1) << " to " << PrettyMethod(h_m.Get());
+              << arg << " as argument " << (i + 1) << " to " << PrettyMethod(m);
           ++error_count;
         }
       } else if (param_type->IsPrimitiveChar()) {
         if (args[i + offset] > 0xFFFF) {
           LOG(ERROR) << "JNI ERROR (app bug): expected jchar but got value of "
-              << arg << " as argument " << (i + 1) << " to " << PrettyMethod(h_m.Get());
+              << arg << " as argument " << (i + 1) << " to " << PrettyMethod(m);
           ++error_count;
         }
       } else if (param_type->IsPrimitiveShort()) {
         if (arg < -32768 || arg > 0x7FFF) {
           LOG(ERROR) << "JNI ERROR (app bug): expected jshort but got value of "
-              << arg << " as argument " << (i + 1) << " to " << PrettyMethod(h_m.Get());
+              << arg << " as argument " << (i + 1) << " to " << PrettyMethod(m);
           ++error_count;
         }
       }
@@ -416,24 +413,23 @@ static void CheckMethodArguments(JavaVMExt* vm, mirror::ArtMethod* m, uint32_t* 
     // TODO: pass the JNI function name (such as "CallVoidMethodV") through so we can call JniAbort
     // with an argument.
     vm->JniAbortF(nullptr, "bad arguments passed to %s (see above for details)",
-                  PrettyMethod(h_m.Get()).c_str());
+                  PrettyMethod(m).c_str());
   }
 }
 
-static mirror::ArtMethod* FindVirtualMethod(mirror::Object* receiver,
-                                            mirror::ArtMethod* method)
+static ArtMethod* FindVirtualMethod(mirror::Object* receiver, ArtMethod* method)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(method);
+  return receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(method, sizeof(void*));
 }
 
 
 static void InvokeWithArgArray(const ScopedObjectAccessAlreadyRunnable& soa,
-                               mirror::ArtMethod* method, ArgArray* arg_array, JValue* result,
+                               ArtMethod* method, ArgArray* arg_array, JValue* result,
                                const char* shorty)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   uint32_t* args = arg_array->GetArray();
   if (UNLIKELY(soa.Env()->check_jni)) {
-    CheckMethodArguments(soa.Vm(), method, args);
+    CheckMethodArguments(soa.Vm(), method->GetInterfaceMethodIfProxy(sizeof(void*)), args);
   }
   method->Invoke(soa.Self(), args, arg_array->GetNumBytes(), result, shorty);
 }
@@ -449,7 +445,7 @@ JValue InvokeWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa, jobject o
     return JValue();
   }
 
-  mirror::ArtMethod* method = soa.DecodeMethod(mid);
+  ArtMethod* method = soa.DecodeMethod(mid);
   bool is_string_init = method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
   if (is_string_init) {
     // Replace calls to String.<init> with equivalent StringFactory call.
@@ -479,7 +475,7 @@ JValue InvokeWithJValues(const ScopedObjectAccessAlreadyRunnable& soa, jobject o
     return JValue();
   }
 
-  mirror::ArtMethod* method = soa.DecodeMethod(mid);
+  ArtMethod* method = soa.DecodeMethod(mid);
   bool is_string_init = method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
   if (is_string_init) {
     // Replace calls to String.<init> with equivalent StringFactory call.
@@ -510,7 +506,7 @@ JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccessAlreadyRunnab
   }
 
   mirror::Object* receiver = soa.Decode<mirror::Object*>(obj);
-  mirror::ArtMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
+  ArtMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
   bool is_string_init = method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
   if (is_string_init) {
     // Replace calls to String.<init> with equivalent StringFactory call.
@@ -541,7 +537,7 @@ JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccessAlreadyRunnab
   }
 
   mirror::Object* receiver = soa.Decode<mirror::Object*>(obj);
-  mirror::ArtMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
+  ArtMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
   bool is_string_init = method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
   if (is_string_init) {
     // Replace calls to String.<init> with equivalent StringFactory call.
@@ -574,7 +570,7 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
 
   auto* abstract_method = soa.Decode<mirror::AbstractMethod*>(javaMethod);
   const bool accessible = abstract_method->IsAccessible();
-  mirror::ArtMethod* m = abstract_method->GetArtMethod();
+  ArtMethod* m = abstract_method->GetArtMethod();
 
   mirror::Class* declaring_class = m->GetDeclaringClass();
   if (UNLIKELY(!declaring_class->IsInitialized())) {
@@ -601,13 +597,14 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
       }
 
       // Find the actual implementation of the virtual method.
-      m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(m);
+      m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(m, sizeof(void*));
     }
   }
 
   // Get our arrays of arguments and their types, and check they're the same size.
   auto* objects = soa.Decode<mirror::ObjectArray<mirror::Object>*>(javaArgs);
-  const DexFile::TypeList* classes = m->GetParameterTypeList();
+  auto* np_method = m->GetInterfaceMethodIfProxy(sizeof(void*));
+  const DexFile::TypeList* classes = np_method->GetParameterTypeList();
   uint32_t classes_size = (classes == nullptr) ? 0 : classes->Size();
   uint32_t arg_count = (objects != nullptr) ? objects->GetLength() : 0;
   if (arg_count != classes_size) {
@@ -633,11 +630,9 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
   // Invoke the method.
   JValue result;
   uint32_t shorty_len = 0;
-  const char* shorty = m->GetShorty(&shorty_len);
+  const char* shorty = np_method->GetShorty(&shorty_len);
   ArgArray arg_array(shorty, shorty_len);
-  StackHandleScope<1> hs(soa.Self());
-  Handle<mirror::ArtMethod> h_m(hs.NewHandle(m));
-  if (!arg_array.BuildArgArrayFromObjectArray(receiver, objects, h_m)) {
+  if (!arg_array.BuildArgArrayFromObjectArray(receiver, objects, np_method)) {
     CHECK(soa.Self()->IsExceptionPending());
     return nullptr;
   }

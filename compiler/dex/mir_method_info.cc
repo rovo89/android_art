@@ -83,7 +83,7 @@ void MirMethodLoweringInfo::Resolve(CompilerDriver* compiler_driver,
     MethodReference devirt_ref(it->target_dex_file_, it->target_method_idx_);
     MethodReference* devirt_target = (it->target_dex_file_ != nullptr) ? &devirt_ref : nullptr;
     InvokeType invoke_type = it->GetInvokeType();
-    mirror::ArtMethod* resolved_method = nullptr;
+    ArtMethod* resolved_method = nullptr;
 
     bool string_init = false;
     if (default_inliner->IsStringInitMethodIndex(it->MethodIndex())) {

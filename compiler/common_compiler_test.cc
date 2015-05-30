@@ -17,6 +17,8 @@
 #include "common_compiler_test.h"
 
 #include "arch/instruction_set_features.h"
+#include "art_field-inl.h"
+#include "art_method.h"
 #include "class_linker.h"
 #include "compiled_method.h"
 #include "dex/pass_manager.h"
@@ -26,7 +28,8 @@
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
 #include "interpreter/interpreter.h"
-#include "mirror/art_method.h"
+#include "mirror/class_loader.h"
+#include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
 #include "mirror/object-inl.h"
 #include "scoped_thread_state_change.h"
@@ -38,7 +41,7 @@ namespace art {
 CommonCompilerTest::CommonCompilerTest() {}
 CommonCompilerTest::~CommonCompilerTest() {}
 
-void CommonCompilerTest::MakeExecutable(mirror::ArtMethod* method) {
+void CommonCompilerTest::MakeExecutable(ArtMethod* method) {
   CHECK(method != nullptr);
 
   const CompiledMethod* compiled_method = nullptr;
@@ -132,11 +135,12 @@ void CommonCompilerTest::MakeExecutable(mirror::ClassLoader* class_loader, const
   Handle<mirror::ClassLoader> loader(hs.NewHandle(class_loader));
   mirror::Class* klass = class_linker_->FindClass(self, class_descriptor.c_str(), loader);
   CHECK(klass != nullptr) << "Class not found " << class_name;
-  for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
-    MakeExecutable(klass->GetDirectMethod(i));
+  size_t pointer_size = class_linker_->GetImagePointerSize();
+  for (auto& m : klass->GetDirectMethods(pointer_size)) {
+    MakeExecutable(&m);
   }
-  for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
-    MakeExecutable(klass->GetVirtualMethod(i));
+  for (auto& m : klass->GetVirtualMethods(pointer_size)) {
+    MakeExecutable(&m);
   }
 }
 
@@ -225,15 +229,16 @@ void CommonCompilerTest::CompileClass(mirror::ClassLoader* class_loader, const c
   Handle<mirror::ClassLoader> loader(hs.NewHandle(class_loader));
   mirror::Class* klass = class_linker_->FindClass(self, class_descriptor.c_str(), loader);
   CHECK(klass != nullptr) << "Class not found " << class_name;
-  for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
-    CompileMethod(klass->GetDirectMethod(i));
+  auto pointer_size = class_linker_->GetImagePointerSize();
+  for (auto& m : klass->GetDirectMethods(pointer_size)) {
+    CompileMethod(&m);
   }
-  for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
-    CompileMethod(klass->GetVirtualMethod(i));
+  for (auto& m : klass->GetVirtualMethods(pointer_size)) {
+    CompileMethod(&m);
   }
 }
 
-void CommonCompilerTest::CompileMethod(mirror::ArtMethod* method) {
+void CommonCompilerTest::CompileMethod(ArtMethod* method) {
   CHECK(method != nullptr);
   TimingLogger timings("CommonTest::CompileMethod", false, false);
   TimingLogger::ScopedTiming t(__FUNCTION__, &timings);
@@ -249,7 +254,8 @@ void CommonCompilerTest::CompileDirectMethod(Handle<mirror::ClassLoader> class_l
   Thread* self = Thread::Current();
   mirror::Class* klass = class_linker_->FindClass(self, class_descriptor.c_str(), class_loader);
   CHECK(klass != nullptr) << "Class not found " << class_name;
-  mirror::ArtMethod* method = klass->FindDirectMethod(method_name, signature);
+  auto pointer_size = class_linker_->GetImagePointerSize();
+  ArtMethod* method = klass->FindDirectMethod(method_name, signature, pointer_size);
   CHECK(method != nullptr) << "Direct method not found: "
       << class_name << "." << method_name << signature;
   CompileMethod(method);
@@ -262,7 +268,8 @@ void CommonCompilerTest::CompileVirtualMethod(Handle<mirror::ClassLoader> class_
   Thread* self = Thread::Current();
   mirror::Class* klass = class_linker_->FindClass(self, class_descriptor.c_str(), class_loader);
   CHECK(klass != nullptr) << "Class not found " << class_name;
-  mirror::ArtMethod* method = klass->FindVirtualMethod(method_name, signature);
+  auto pointer_size = class_linker_->GetImagePointerSize();
+  ArtMethod* method = klass->FindVirtualMethod(method_name, signature, pointer_size);
   CHECK(method != nullptr) << "Virtual method not found: "
       << class_name << "." << method_name << signature;
   CompileMethod(method);

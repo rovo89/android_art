@@ -86,17 +86,21 @@ std::string Throwable::Dump() {
   result += "\n";
   Object* stack_state = GetStackState();
   // check stack state isn't missing or corrupt
-  if (stack_state != nullptr && stack_state->IsObjectArray()) {
+  if (stack_state != nullptr &&
+      (stack_state->IsIntArray() || stack_state->IsLongArray())) {
     // Decode the internal stack trace into the depth and method trace
-    ObjectArray<Object>* method_trace = down_cast<ObjectArray<Object>*>(stack_state);
-    int32_t depth = method_trace->GetLength() - 1;
-    IntArray* pc_trace = down_cast<IntArray*>(method_trace->Get(depth));
+    // Format is [method pointers][pcs]
+    auto* method_trace = down_cast<mirror::PointerArray*>(stack_state->AsArray());
+    auto array_len = method_trace->GetLength();
+    CHECK_EQ(array_len % 2, 0);
+    const auto depth = array_len / 2;
     if (depth == 0) {
       result += "(Throwable with empty stack trace)";
     } else {
+      auto ptr_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
       for (int32_t i = 0; i < depth; ++i) {
-        mirror::ArtMethod* method = down_cast<ArtMethod*>(method_trace->Get(i));
-        uint32_t dex_pc = pc_trace->Get(i);
+        ArtMethod* method = method_trace->GetElementPtrSize<ArtMethod*>(i, ptr_size);
+        uintptr_t dex_pc = method_trace->GetElementPtrSize<uintptr_t>(i + depth, ptr_size);
         int32_t line_number = method->GetLineNumFromDexPC(dex_pc);
         const char* source_file = method->GetDeclaringClassSourceFile();
         result += StringPrintf("  at %s (%s:%d)\n", PrettyMethod(method, true).c_str(),
@@ -108,8 +112,7 @@ std::string Throwable::Dump() {
     if (stack_trace != nullptr && stack_trace->IsObjectArray()) {
       CHECK_EQ(stack_trace->GetClass()->GetComponentType(),
                StackTraceElement::GetStackTraceElement());
-      ObjectArray<StackTraceElement>* ste_array =
-          down_cast<ObjectArray<StackTraceElement>*>(stack_trace);
+      auto* ste_array = down_cast<ObjectArray<StackTraceElement>*>(stack_trace);
       if (ste_array->GetLength() == 0) {
         result += "(Throwable with empty stack trace)";
       } else {
