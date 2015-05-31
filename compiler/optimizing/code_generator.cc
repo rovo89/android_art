@@ -124,13 +124,14 @@ void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {
   if (!is_leaf) {
     MarkNotLeaf();
   }
+  const bool is_64_bit = Is64BitInstructionSet(GetInstructionSet());
   InitializeCodeGeneration(GetGraph()->GetNumberOfLocalVRegs()
                              + GetGraph()->GetTemporariesVRegSlots()
                              + 1 /* filler */,
                            0, /* the baseline compiler does not have live registers at slow path */
                            0, /* the baseline compiler does not have live registers at slow path */
                            GetGraph()->GetMaximumNumberOfOutVRegs()
-                             + 1 /* current method */,
+                             + (is_64_bit ? 2 : 1) /* current method */,
                            GetGraph()->GetBlocks());
   CompileInternal(allocator, /* is_baseline */ true);
 }

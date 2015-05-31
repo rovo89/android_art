@@ -484,9 +484,9 @@ inline mirror::Class* ArtMethod::GetReturnType(bool resolve) {
 
 template<typename RootVisitorType>
 void ArtMethod::VisitRoots(RootVisitorType& visitor) {
-  visitor.VisitRoot(declaring_class_.AddressWithoutBarrier());
-  visitor.VisitRoot(dex_cache_resolved_methods_.AddressWithoutBarrier());
-  visitor.VisitRoot(dex_cache_resolved_types_.AddressWithoutBarrier());
+  visitor.VisitRootIfNonNull(declaring_class_.AddressWithoutBarrier());
+  visitor.VisitRootIfNonNull(dex_cache_resolved_methods_.AddressWithoutBarrier());
+  visitor.VisitRootIfNonNull(dex_cache_resolved_types_.AddressWithoutBarrier());
 }
 
 inline void ArtMethod::CopyFrom(const ArtMethod* src, size_t image_pointer_size) {
