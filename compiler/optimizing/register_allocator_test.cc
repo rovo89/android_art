@@ -426,6 +426,13 @@ TEST(RegisterAllocatorTest, FreeUntil) {
   // Add an artifical range to cover the temps that will be put in the unhandled list.
   LiveInterval* unhandled = graph->GetEntryBlock()->GetFirstInstruction()->GetLiveInterval();
   unhandled->AddLoopRange(0, 60);
+
+   // Populate the instructions in the liveness object, to please the register allocator.
+  for (size_t i = 0; i < 60; ++i) {
+    liveness.instructions_from_lifetime_position_.Add(
+        graph->GetEntryBlock()->GetFirstInstruction());
+  }
+
   // For SSA value intervals, only an interval resulted from a split may intersect
   // with inactive intervals.
   unhandled = register_allocator.Split(unhandled, 5);
