@@ -590,7 +590,8 @@ void MarkSweep::MarkNonThreadRoots() {
 void MarkSweep::MarkConcurrentRoots(VisitRootFlags flags) {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   // Visit all runtime roots and clear dirty flags.
-  Runtime::Current()->VisitConcurrentRoots(this, flags);
+  Runtime::Current()->VisitConcurrentRoots(
+      this, static_cast<VisitRootFlags>(flags | kVisitRootFlagNonMoving));
 }
 
 class ScanObjectVisitor {
