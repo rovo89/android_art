@@ -692,7 +692,7 @@ void CodeGeneratorX86_64::Move(HInstruction* instruction,
                                HInstruction* move_for) {
   LocationSummary* locations = instruction->GetLocations();
   if (instruction->IsCurrentMethod()) {
-    Move(location, Location::StackSlot(kCurrentMethodStackOffset));
+    Move(location, Location::DoubleStackSlot(kCurrentMethodStackOffset));
   } else if (locations != nullptr && locations->Out().Equals(location)) {
     return;
   } else if (locations != nullptr && locations->Out().IsConstant()) {
