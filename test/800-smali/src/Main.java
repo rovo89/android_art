@@ -79,6 +79,8 @@ public class Main {
             "moveExceptionOnEntry", new Object[]{0}, new VerifyError(), null));
         testCases.add(new TestCase("EmptySparseSwitch", "EmptySparseSwitch", "run", null, null,
                 null));
+        testCases.add(new TestCase("b/20224106", "B20224106", "run", null, new VerifyError(),
+                0));
     }
 
     public void runTests() {
