@@ -1630,7 +1630,12 @@ size_t Heap::GetObjectsAllocated() const {
 }
 
 uint64_t Heap::GetObjectsAllocatedEver() const {
-  return GetObjectsFreedEver() + GetObjectsAllocated();
+  uint64_t total = GetObjectsFreedEver();
+  // If we are detached, we can't use GetObjectsAllocated since we can't change thread states.
+  if (Thread::Current() != nullptr) {
+    total += GetObjectsAllocated();
+  }
+  return total;
 }
 
 uint64_t Heap::GetBytesAllocatedEver() const {

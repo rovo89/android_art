@@ -98,6 +98,9 @@ enum VisitRootFlags : uint8_t {
   kVisitRootFlagStartLoggingNewRoots = 0x4,
   kVisitRootFlagStopLoggingNewRoots = 0x8,
   kVisitRootFlagClearRootLog = 0x10,
+  // Non moving means we can have optimizations where we don't visit some roots if they are
+  // definitely reachable from another location. E.g. ArtMethod and ArtField roots.
+  kVisitRootFlagNonMoving = 0x20,
 };
 
 class Runtime {
