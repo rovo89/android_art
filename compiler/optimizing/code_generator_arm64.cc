@@ -637,7 +637,7 @@ void CodeGeneratorARM64::Move(HInstruction* instruction,
   DCHECK_NE(type, Primitive::kPrimVoid);
 
   if (instruction->IsCurrentMethod()) {
-    MoveLocation(location, Location::StackSlot(kCurrentMethodStackOffset));
+    MoveLocation(location, Location::DoubleStackSlot(kCurrentMethodStackOffset));
   } else if (locations != nullptr && locations->Out().Equals(location)) {
     return;
   } else if (instruction->IsIntConstant()
