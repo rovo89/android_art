@@ -2860,7 +2860,16 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   if (have_pending_hard_failure_) {
     if (Runtime::Current()->IsAotCompiler()) {
       /* When AOT compiling, check that the last failure is a hard failure */
-      CHECK_EQ(failures_[failures_.size() - 1], VERIFY_ERROR_BAD_CLASS_HARD);
+      if (failures_[failures_.size() - 1] != VERIFY_ERROR_BAD_CLASS_HARD) {
+        LOG(ERROR) << "Pending failures:";
+        for (auto& error : failures_) {
+          LOG(ERROR) << error;
+        }
+        for (auto& error_msg : failure_messages_) {
+          LOG(ERROR) << error_msg->str();
+        }
+        LOG(FATAL) << "Pending hard failure, but last failure not hard.";
+      }
     }
     /* immediate failure, reject class */
     info_messages_ << "Rejecting opcode " << inst->DumpString(dex_file_);
@@ -3358,13 +3367,13 @@ ArtMethod* MethodVerifier::VerifyInvocationArgsFromIterator(
       if (!src_type.IsIntegralTypes()) {
         Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "register v" << get_reg << " has type " << src_type
             << " but expected " << reg_type;
-        return res_method;
+        return nullptr;
       }
     } else if (!work_line_->VerifyRegisterType(this, get_reg, reg_type)) {
       // Continue on soft failures. We need to find possible hard failures to avoid problems in the
       // compiler.
       if (have_pending_hard_failure_) {
-        return res_method;
+        return nullptr;
       }
     }
     sig_registers += reg_type.IsLongOrDoubleTypes() ?  2 : 1;
