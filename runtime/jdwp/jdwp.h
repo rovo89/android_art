@@ -297,7 +297,7 @@ struct JdwpState {
 
  private:
   explicit JdwpState(const JdwpOptions* options);
-  size_t ProcessRequest(Request* request, ExpandBuf* pReply);
+  size_t ProcessRequest(Request* request, ExpandBuf* pReply, bool* skip_reply);
   bool InvokeInProgress();
   bool IsConnected();
   void SuspendByPolicy(JdwpSuspendPolicy suspend_policy, JDWP::ObjectId thread_self_id)
