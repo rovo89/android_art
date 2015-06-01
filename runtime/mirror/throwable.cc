@@ -71,9 +71,18 @@ bool Throwable::IsCheckedException() {
 
 int32_t Throwable::GetStackDepth() {
   Object* stack_state = GetStackState();
-  if (stack_state == nullptr || !stack_state->IsObjectArray()) return -1;
-  ObjectArray<Object>* method_trace = down_cast<ObjectArray<Object>*>(stack_state);
-  return method_trace->GetLength() - 1;
+  if (stack_state == nullptr) {
+    return -1;
+  }
+  if (!stack_state->IsIntArray() && !stack_state->IsLongArray()) {
+    return -1;
+  }
+  mirror::PointerArray* method_trace = down_cast<mirror::PointerArray*>(stack_state->AsArray());
+  int32_t array_len = method_trace->GetLength();
+  // The format is [method pointers][pcs] so the depth is half the length (see method
+  // BuildInternalStackTraceVisitor::Init).
+  CHECK_EQ(array_len % 2, 0);
+  return array_len / 2;
 }
 
 std::string Throwable::Dump() {

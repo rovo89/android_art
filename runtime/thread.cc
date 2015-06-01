@@ -1583,7 +1583,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
 
   bool Init(int depth)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // Allocate method trace with an extra slot that will hold the PC trace
+    // Allocate method trace with format [method pointers][pcs].
     auto* cl = Runtime::Current()->GetClassLinker();
     trace_ = cl->AllocPointerArray(self_, depth * 2);
     if (trace_ == nullptr) {
