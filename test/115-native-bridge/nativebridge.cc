@@ -327,5 +327,7 @@ android::NativeBridgeCallbacks NativeBridgeItf {
   .loadLibrary = &native_bridge_loadLibrary,
   .getTrampoline = &native_bridge_getTrampoline,
   .isSupported = &native_bridge_isSupported,
-  .getAppEnv = &native_bridge_getAppEnv
+  .getAppEnv = &native_bridge_getAppEnv,
+  .isCompatibleWith = nullptr,
+  .getSignalHandler = nullptr
 };
