@@ -427,7 +427,7 @@ TEST(RegisterAllocatorTest, FreeUntil) {
   LiveInterval* unhandled = graph->GetEntryBlock()->GetFirstInstruction()->GetLiveInterval();
   unhandled->AddLoopRange(0, 60);
 
-   // Populate the instructions in the liveness object, to please the register allocator.
+  // Populate the instructions in the liveness object, to please the register allocator.
   for (size_t i = 0; i < 60; ++i) {
     liveness.instructions_from_lifetime_position_.Add(
         graph->GetEntryBlock()->GetFirstInstruction());
