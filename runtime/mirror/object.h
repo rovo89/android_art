@@ -435,7 +435,7 @@ class MANAGED LOCKABLE Object {
           field_offset, static_cast<int32_t>(ptr));
     } else {
       SetField64<kTransactionActive, kCheckTransaction, kVerifyFlags>(
-          field_offset, static_cast<int64_t>(reinterpret_cast<intptr_t>(new_value)));
+          field_offset, static_cast<int64_t>(reinterpret_cast<uintptr_t>(new_value)));
     }
   }
   // TODO fix thread safety analysis broken by the use of template. This should be
@@ -469,8 +469,8 @@ class MANAGED LOCKABLE Object {
     } else {
       int64_t v = GetField64<kVerifyFlags, kIsVolatile>(field_offset);
       // Check that we dont lose any non 0 bits.
-      DCHECK_EQ(reinterpret_cast<int64_t>(reinterpret_cast<T>(v)), v);
-      return reinterpret_cast<T>(v);
+      DCHECK_EQ(static_cast<int64_t>(static_cast<uintptr_t>(v)), v);
+      return reinterpret_cast<T>(static_cast<uintptr_t>(v));
     }
   }
 
