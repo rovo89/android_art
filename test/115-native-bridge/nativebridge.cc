@@ -19,6 +19,8 @@
 #include <algorithm>
 #include <dlfcn.h>
 #include <jni.h>
+#include <stdlib.h>
+#include <signal.h>
 #include <vector>
 
 #include "stdio.h"
@@ -179,6 +181,37 @@ static jchar trampoline_Java_Main_charMethod(JNIEnv* env, jclass klass, jchar c1
   return fnPtr(env, klass, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10);
 }
 
+// This code is adapted from 004-SignalTest and causes a segfault.
+char *go_away_compiler = nullptr;
+
+[[ noreturn ]] static void test_sigaction_handler(int sig ATTRIBUTE_UNUSED,
+                                                  siginfo_t* info ATTRIBUTE_UNUSED,
+                                                  void* context ATTRIBUTE_UNUSED) {
+  printf("Should not reach the test sigaction handler.");
+  abort();
+}
+
+static jint trampoline_Java_Main_testSignal(JNIEnv*, jclass) {
+  // Install the sigaction handler above, which should *not* be reached as the native-bridge
+  // handler should be called first. Note: we won't chain at all, if we ever get here, we'll die.
+  struct sigaction tmp;
+  sigemptyset(&tmp.sa_mask);
+  tmp.sa_sigaction = test_sigaction_handler;
+#if !defined(__APPLE__) && !defined(__mips__)
+  tmp.sa_restorer = nullptr;
+#endif
+  sigaction(SIGSEGV, &tmp, nullptr);
+
+#if defined(__arm__) || defined(__i386__) || defined(__x86_64__) || defined(__aarch64__)
+  // On supported architectures we cause a real SEGV.
+  *go_away_compiler = 'a';
+#else
+  // On other architectures we simulate SEGV.
+  kill(getpid(), SIGSEGV);
+#endif
+  return 1234;
+}
+
 NativeBridgeMethod gNativeBridgeMethods[] = {
   { "JNI_OnLoad", "", true, nullptr,
     reinterpret_cast<void*>(trampoline_JNI_OnLoad) },
@@ -202,6 +235,8 @@ NativeBridgeMethod gNativeBridgeMethods[] = {
     reinterpret_cast<void*>(trampoline_Java_Main_testNewStringObject) },
   { "testZeroLengthByteBuffers", "()V", true, nullptr,
     reinterpret_cast<void*>(trampoline_Java_Main_testZeroLengthByteBuffers) },
+  { "testSignal", "()I", true, nullptr,
+    reinterpret_cast<void*>(trampoline_Java_Main_testSignal) },
 };
 
 static NativeBridgeMethod* find_native_bridge_method(const char *name) {
@@ -319,15 +354,73 @@ extern "C" const struct android::NativeBridgeRuntimeValues* native_bridge_getApp
   return &nb_env;
 }
 
+// v2 parts.
+
+extern "C" bool nb_is_compatible(uint32_t bridge_version ATTRIBUTE_UNUSED) {
+  return true;
+}
+
+#if defined(__i386__) || defined(__x86_64__)
+#if defined(__APPLE__)
+#define ucontext __darwin_ucontext
+
+#if defined(__x86_64__)
+// 64 bit mac build.
+#define CTX_EIP uc_mcontext->__ss.__rip
+#else
+// 32 bit mac build.
+#define CTX_EIP uc_mcontext->__ss.__eip
+#endif
+
+#elif defined(__x86_64__)
+// 64 bit linux build.
+#define CTX_EIP uc_mcontext.gregs[REG_RIP]
+#else
+// 32 bit linux build.
+#define CTX_EIP uc_mcontext.gregs[REG_EIP]
+#endif
+#endif
+
+// A dummy special handler, continueing after the faulting location. This code comes from
+// 004-SignalTest.
+static bool nb_signalhandler(int sig, siginfo_t* info ATTRIBUTE_UNUSED, void* context) {
+  printf("NB signal handler with signal %d.\n", sig);
+#if defined(__arm__)
+  struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
+  struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
+  sc->arm_pc += 2;          // Skip instruction causing segv.
+#elif defined(__aarch64__)
+  struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
+  struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
+  sc->pc += 4;          // Skip instruction causing segv.
+#elif defined(__i386__) || defined(__x86_64__)
+  struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
+  uc->CTX_EIP += 3;
+#else
+  UNUSED(context);
+#endif
+  // We handled this...
+  return true;
+}
+
+static ::android::NativeBridgeSignalHandlerFn native_bridge_get_signal_handler(int signal) {
+  // Only test segfault handler.
+  if (signal == SIGSEGV) {
+    return &nb_signalhandler;
+  }
+  return nullptr;
+}
+
+
 // "NativeBridgeItf" is effectively an API (it is the name of the symbol that will be loaded
 // by the native bridge library).
 android::NativeBridgeCallbacks NativeBridgeItf {
-  .version = 1,
+  .version = 2,
   .initialize = &native_bridge_initialize,
   .loadLibrary = &native_bridge_loadLibrary,
   .getTrampoline = &native_bridge_getTrampoline,
   .isSupported = &native_bridge_isSupported,
   .getAppEnv = &native_bridge_getAppEnv,
-  .isCompatibleWith = nullptr,
-  .getSignalHandler = nullptr
+  .isCompatibleWith = &nb_is_compatible,
+  .getSignalHandler = &native_bridge_get_signal_handler
 };
