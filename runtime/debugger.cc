@@ -1467,7 +1467,7 @@ std::string Dbg::GetMethodName(JDWP::MethodId method_id) {
   if (m == nullptr) {
     return "null";
   }
-  return m->GetName();
+  return m->GetInterfaceMethodIfProxy(sizeof(void*))->GetName();
 }
 
 std::string Dbg::GetFieldName(JDWP::FieldId field_id) {
@@ -1590,8 +1590,9 @@ JDWP::JdwpError Dbg::OutputDeclaredMethods(JDWP::RefTypeId class_id, bool with_g
     ArtMethod* m = i < direct_method_count ?
         c->GetDirectMethod(i, ptr_size) : c->GetVirtualMethod(i - direct_method_count, ptr_size);
     expandBufAddMethodId(pReply, ToMethodId(m));
-    expandBufAddUtf8String(pReply, m->GetName());
-    expandBufAddUtf8String(pReply, m->GetSignature().ToString());
+    expandBufAddUtf8String(pReply, m->GetInterfaceMethodIfProxy(sizeof(void*))->GetName());
+    expandBufAddUtf8String(pReply,
+                           m->GetInterfaceMethodIfProxy(sizeof(void*))->GetSignature().ToString());
     if (with_generic) {
       const char* generic_signature = "";
       expandBufAddUtf8String(pReply, generic_signature);
