@@ -341,6 +341,7 @@ int LiveInterval::FindFirstRegisterHint(size_t* free_until,
     // starts at. If one location is a register we return it as a hint. This
     // will avoid a move between the two blocks.
     HBasicBlock* block = liveness.GetBlockFromPosition(GetStart() / 2);
+    size_t next_register_use = FirstRegisterUse();
     for (size_t i = 0; i < block->GetPredecessors().Size(); ++i) {
       size_t position = block->GetPredecessors().Get(i)->GetLifetimeEnd() - 1;
       // We know positions above GetStart() do not have a location yet.
@@ -348,7 +349,9 @@ int LiveInterval::FindFirstRegisterHint(size_t* free_until,
         LiveInterval* existing = GetParent()->GetSiblingAt(position);
         if (existing != nullptr
             && existing->HasRegister()
-            && (free_until[existing->GetRegister()] > GetStart())) {
+            // It's worth using that register if it is available until
+            // the next use.
+            && (free_until[existing->GetRegister()] >= next_register_use)) {
           return existing->GetRegister();
         }
       }
