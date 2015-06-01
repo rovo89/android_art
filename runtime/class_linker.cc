@@ -1264,12 +1264,18 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
     // marked concurrently and we don't hold the classlinker_classes_lock_ when we do the copy.
     for (GcRoot<mirror::Class>& root : class_table_) {
       buffered_visitor.VisitRoot(root);
-      root.Read()->VisitNativeRoots(buffered_visitor, image_pointer_size_);
+      if ((flags & kVisitRootFlagNonMoving) == 0) {
+        // Don't bother visiting ArtField and ArtMethod if kVisitRootFlagNonMoving is set since
+        // these roots are all reachable from the class or dex cache.
+        root.Read()->VisitNativeRoots(buffered_visitor, image_pointer_size_);
+      }
     }
     // PreZygote classes can't move so we won't need to update fields' declaring classes.
     for (GcRoot<mirror::Class>& root : pre_zygote_class_table_) {
       buffered_visitor.VisitRoot(root);
-      root.Read()->VisitNativeRoots(buffered_visitor, image_pointer_size_);
+      if ((flags & kVisitRootFlagNonMoving) == 0) {
+        root.Read()->VisitNativeRoots(buffered_visitor, image_pointer_size_);
+      }
     }
   } else if ((flags & kVisitRootFlagNewRoots) != 0) {
     for (auto& root : new_class_roots_) {

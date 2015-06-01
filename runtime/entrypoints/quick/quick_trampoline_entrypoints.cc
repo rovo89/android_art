@@ -2083,7 +2083,7 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t dex_method_idx,
       return GetTwoWordFailureValue();  // Failure.
     }
   } else {
-    DCHECK(interface_method == Runtime::Current()->GetResolutionMethod());
+    DCHECK_EQ(interface_method, Runtime::Current()->GetResolutionMethod());
     if (kIsDebugBuild) {
       uint32_t dex_pc = QuickArgumentVisitor::GetCallingDexPc(sp);
       const DexFile::CodeItem* code = caller_method->GetCodeItem();
