@@ -879,6 +879,7 @@ bool Trace::RegisterThread(Thread* thread) {
 
 static std::string GetMethodLine(ArtMethod* method)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  method = method->GetInterfaceMethodIfProxy(sizeof(void*));
   return StringPrintf("%p\t%s\t%s\t%s\t%s\n", method,
       PrettyDescriptor(method->GetDeclaringClassDescriptor()).c_str(), method->GetName(),
       method->GetSignature().ToString().c_str(), method->GetDeclaringClassSourceFile());
