@@ -2408,8 +2408,10 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::INVOKE_DIRECT:
     case Instruction::INVOKE_DIRECT_RANGE: {
       bool is_range = (inst->Opcode() == Instruction::INVOKE_DIRECT_RANGE);
-      mirror::ArtMethod* called_method = VerifyInvocationArgs(inst, METHOD_DIRECT,
-                                                                   is_range, false);
+      mirror::ArtMethod* called_method = VerifyInvocationArgs(inst,
+                                                              METHOD_DIRECT,
+                                                              is_range,
+                                                              false);
       const char* return_type_descriptor;
       bool is_constructor;
       const RegType* return_type = nullptr;
@@ -2491,9 +2493,9 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::INVOKE_STATIC_RANGE: {
         bool is_range = (inst->Opcode() == Instruction::INVOKE_STATIC_RANGE);
         mirror::ArtMethod* called_method = VerifyInvocationArgs(inst,
-                                                                     METHOD_STATIC,
-                                                                     is_range,
-                                                                     false);
+                                                                METHOD_STATIC,
+                                                                is_range,
+                                                                false);
         const char* descriptor;
         if (called_method == nullptr) {
           uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
@@ -2516,9 +2518,9 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::INVOKE_INTERFACE_RANGE: {
       bool is_range =  (inst->Opcode() == Instruction::INVOKE_INTERFACE_RANGE);
       mirror::ArtMethod* abs_method = VerifyInvocationArgs(inst,
-                                                                METHOD_INTERFACE,
-                                                                is_range,
-                                                                false);
+                                                           METHOD_INTERFACE,
+                                                           is_range,
+                                                           false);
       if (abs_method != nullptr) {
         mirror::Class* called_interface = abs_method->GetDeclaringClass();
         if (!called_interface->IsInterface() && !called_interface->IsObjectClass()) {
@@ -2888,7 +2890,16 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   if (have_pending_hard_failure_) {
     if (Runtime::Current()->IsAotCompiler()) {
       /* When AOT compiling, check that the last failure is a hard failure */
-      CHECK_EQ(failures_[failures_.size() - 1], VERIFY_ERROR_BAD_CLASS_HARD);
+      if (failures_[failures_.size() - 1] != VERIFY_ERROR_BAD_CLASS_HARD) {
+        LOG(ERROR) << "Pending failures:";
+        for (auto& error : failures_) {
+          LOG(ERROR) << error;
+        }
+        for (auto& error_msg : failure_messages_) {
+          LOG(ERROR) << error_msg->str();
+        }
+        LOG(FATAL) << "Pending hard failure, but last failure not hard.";
+      }
     }
     /* immediate failure, reject class */
     info_messages_ << "Rejecting opcode " << inst->DumpString(dex_file_);
@@ -3386,13 +3397,13 @@ mirror::ArtMethod* MethodVerifier::VerifyInvocationArgsFromIterator(T* it, const
       if (!src_type.IsIntegralTypes()) {
         Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "register v" << get_reg << " has type " << src_type
             << " but expected " << reg_type;
-        return res_method;
+        return nullptr;
       }
     } else if (!work_line_->VerifyRegisterType(this, get_reg, reg_type)) {
       // Continue on soft failures. We need to find possible hard failures to avoid problems in the
       // compiler.
       if (have_pending_hard_failure_) {
-        return res_method;
+        return nullptr;
       }
     }
     sig_registers += reg_type.IsLongOrDoubleTypes() ?  2 : 1;
