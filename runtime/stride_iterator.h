@@ -62,7 +62,8 @@ class StrideIterator : public std::iterator<std::random_access_iterator_tag, T> 
 
  private:
   uintptr_t ptr_;
-  const size_t stride_;
+  // Not const for operator=.
+  size_t stride_;
 };
 
 }  // namespace art
