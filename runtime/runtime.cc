@@ -1329,6 +1329,24 @@ void Runtime::VisitConstantRoots(RootVisitor* visitor) {
   mirror::PrimitiveArray<int32_t>::VisitRoots(visitor);   // IntArray
   mirror::PrimitiveArray<int64_t>::VisitRoots(visitor);   // LongArray
   mirror::PrimitiveArray<int16_t>::VisitRoots(visitor);   // ShortArray
+  // Visiting the roots of these ArtMethods is not currently required since all the GcRoots are
+  // null.
+  BufferedRootVisitor<16> buffered_visitor(visitor, RootInfo(kRootVMInternal));
+  if (HasResolutionMethod()) {
+    resolution_method_->VisitRoots(buffered_visitor);
+  }
+  if (HasImtConflictMethod()) {
+    imt_conflict_method_->VisitRoots(buffered_visitor);
+  }
+  if (imt_unimplemented_method_ != nullptr) {
+    imt_unimplemented_method_->VisitRoots(buffered_visitor);
+  }
+  for (size_t i = 0; i < kLastCalleeSaveType; ++i) {
+    auto* m = reinterpret_cast<ArtMethod*>(callee_save_methods_[i]);
+    if (m != nullptr) {
+      m->VisitRoots(buffered_visitor);
+    }
+  }
 }
 
 void Runtime::VisitConcurrentRoots(RootVisitor* visitor, VisitRootFlags flags) {
