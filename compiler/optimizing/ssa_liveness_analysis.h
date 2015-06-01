@@ -1219,6 +1219,7 @@ class SsaLivenessAnalysis : public ValueObject {
   size_t number_of_ssa_values_;
 
   ART_FRIEND_TEST(RegisterAllocatorTest, SpillInactive);
+  ART_FRIEND_TEST(RegisterAllocatorTest, FreeUntil);
 
   DISALLOW_COPY_AND_ASSIGN(SsaLivenessAnalysis);
 };
