@@ -806,7 +806,7 @@ void Class::PopulateEmbeddedImtAndVTable(ArtMethod* const (&methods)[kImtSize],
   for (size_t i = 0; i < kImtSize; i++) {
     auto method = methods[i];
     DCHECK(method != nullptr);
-    SetEmbeddedImTableEntry(i, Runtime::Current()->GetImtConflictMethod(), pointer_size);
+    SetEmbeddedImTableEntry(i, method, pointer_size);
   }
   PointerArray* table = GetVTableDuringLinking();
   CHECK(table != nullptr) << PrettyClass(this);
