@@ -802,9 +802,9 @@ bool RegisterAllocator::TryAllocateFreeReg(LiveInterval* current) {
   current->SetRegister(reg);
   if (!current->IsDeadAt(free_until[reg])) {
     // If the register is only available for a subset of live ranges
-    // covered by `current`, split `current` at the position where
+    // covered by `current`, split `current` before the position where
     // the register is not available anymore.
-    LiveInterval* split = Split(current, free_until[reg]);
+    LiveInterval* split = SplitBetween(current, current->GetStart(), free_until[reg]);
     DCHECK(split != nullptr);
     AddSorted(unhandled_, split);
   }
