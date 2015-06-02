@@ -105,6 +105,7 @@ TEST_F(ImageTest, WriteRead) {
                                                << oat_file.GetFilename();
   }
 
+  uint64_t image_file_size;
   {
     std::unique_ptr<File> file(OS::OpenFileForReading(image_file.GetFilename().c_str()));
     ASSERT_TRUE(file.get() != nullptr);
@@ -121,7 +122,8 @@ TEST_F(ImageTest, WriteRead) {
     ASSERT_FALSE(space->IsImageSpace());
     ASSERT_TRUE(space != nullptr);
     ASSERT_TRUE(space->IsMallocSpace());
-    ASSERT_LE(space->Size(), static_cast<size_t>(file->GetLength()));
+
+    image_file_size = file->GetLength();
   }
 
   ASSERT_TRUE(compiler_driver_->GetImageClasses() != nullptr);
@@ -167,6 +169,9 @@ TEST_F(ImageTest, WriteRead) {
   ASSERT_TRUE(heap->GetNonMovingSpace()->IsMallocSpace());
 
   gc::space::ImageSpace* image_space = heap->GetImageSpace();
+  ASSERT_TRUE(image_space != nullptr);
+  ASSERT_LE(image_space->Size(), image_file_size);
+
   image_space->VerifyImageAllocations();
   uint8_t* image_begin = image_space->Begin();
   uint8_t* image_end = image_space->End();
