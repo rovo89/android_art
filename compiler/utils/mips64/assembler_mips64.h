@@ -56,13 +56,31 @@ class Mips64Assembler FINAL : public Assembler {
   void Addi(GpuRegister rt, GpuRegister rs, uint16_t imm16);
   void Addu(GpuRegister rd, GpuRegister rs, GpuRegister rt);
   void Addiu(GpuRegister rt, GpuRegister rs, uint16_t imm16);
-  void Daddiu(GpuRegister rt, GpuRegister rs, uint16_t imm16);
+  void Daddu(GpuRegister rd, GpuRegister rs, GpuRegister rt);  // MIPS64
+  void Daddiu(GpuRegister rt, GpuRegister rs, uint16_t imm16);  // MIPS64
   void Sub(GpuRegister rd, GpuRegister rs, GpuRegister rt);
   void Subu(GpuRegister rd, GpuRegister rs, GpuRegister rt);
-  void Mult(GpuRegister rs, GpuRegister rt);
-  void Multu(GpuRegister rs, GpuRegister rt);
-  void Div(GpuRegister rs, GpuRegister rt);
-  void Divu(GpuRegister rs, GpuRegister rt);
+  void Dsubu(GpuRegister rd, GpuRegister rs, GpuRegister rt);  // MIPS64
+
+  void MultR2(GpuRegister rs, GpuRegister rt);  // R2
+  void MultuR2(GpuRegister rs, GpuRegister rt);  // R2
+  void DivR2(GpuRegister rs, GpuRegister rt);  // R2
+  void DivuR2(GpuRegister rs, GpuRegister rt);  // R2
+  void MulR2(GpuRegister rd, GpuRegister rs, GpuRegister rt);  // R2
+  void DivR2(GpuRegister rd, GpuRegister rs, GpuRegister rt);  // R2
+  void ModR2(GpuRegister rd, GpuRegister rs, GpuRegister rt);  // R2
+  void DivuR2(GpuRegister rd, GpuRegister rs, GpuRegister rt);  // R2
+  void ModuR2(GpuRegister rd, GpuRegister rs, GpuRegister rt);  // R2
+  void MulR6(GpuRegister rd, GpuRegister rs, GpuRegister rt);  // R6
+  void DivR6(GpuRegister rd, GpuRegister rs, GpuRegister rt);  // R6
+  void ModR6(GpuRegister rd, GpuRegister rs, GpuRegister rt);  // R6
+  void DivuR6(GpuRegister rd, GpuRegister rs, GpuRegister rt);  // R6
+  void ModuR6(GpuRegister rd, GpuRegister rs, GpuRegister rt);  // R6
+  void Dmul(GpuRegister rd, GpuRegister rs, GpuRegister rt);  // MIPS64 R6
+  void Ddiv(GpuRegister rd, GpuRegister rs, GpuRegister rt);  // MIPS64 R6
+  void Dmod(GpuRegister rd, GpuRegister rs, GpuRegister rt);  // MIPS64 R6
+  void Ddivu(GpuRegister rd, GpuRegister rs, GpuRegister rt);  // MIPS64 R6
+  void Dmodu(GpuRegister rd, GpuRegister rs, GpuRegister rt);  // MIPS64 R6
 
   void And(GpuRegister rd, GpuRegister rs, GpuRegister rt);
   void Andi(GpuRegister rt, GpuRegister rs, uint16_t imm16);
@@ -72,40 +90,72 @@ class Mips64Assembler FINAL : public Assembler {
   void Xori(GpuRegister rt, GpuRegister rs, uint16_t imm16);
   void Nor(GpuRegister rd, GpuRegister rs, GpuRegister rt);
 
-  void Sll(GpuRegister rd, GpuRegister rs, int shamt);
-  void Srl(GpuRegister rd, GpuRegister rs, int shamt);
-  void Sra(GpuRegister rd, GpuRegister rs, int shamt);
-  void Sllv(GpuRegister rd, GpuRegister rs, GpuRegister rt);
-  void Srlv(GpuRegister rd, GpuRegister rs, GpuRegister rt);
-  void Srav(GpuRegister rd, GpuRegister rs, GpuRegister rt);
+  void Seb(GpuRegister rd, GpuRegister rt);  // R2+
+  void Seh(GpuRegister rd, GpuRegister rt);  // R2+
+  void Dext(GpuRegister rs, GpuRegister rt, int pos, int size_less_one);  // MIPS64
+
+  void Sll(GpuRegister rd, GpuRegister rt, int shamt);
+  void Srl(GpuRegister rd, GpuRegister rt, int shamt);
+  void Sra(GpuRegister rd, GpuRegister rt, int shamt);
+  void Sllv(GpuRegister rd, GpuRegister rt, GpuRegister rs);
+  void Srlv(GpuRegister rd, GpuRegister rt, GpuRegister rs);
+  void Srav(GpuRegister rd, GpuRegister rt, GpuRegister rs);
+  void Dsll(GpuRegister rd, GpuRegister rt, int shamt);  // MIPS64
+  void Dsrl(GpuRegister rd, GpuRegister rt, int shamt);  // MIPS64
+  void Dsra(GpuRegister rd, GpuRegister rt, int shamt);  // MIPS64
+  void Dsll32(GpuRegister rd, GpuRegister rt, int shamt);  // MIPS64
+  void Dsrl32(GpuRegister rd, GpuRegister rt, int shamt);  // MIPS64
+  void Dsra32(GpuRegister rd, GpuRegister rt, int shamt);  // MIPS64
+  void Dsllv(GpuRegister rd, GpuRegister rt, GpuRegister rs);  // MIPS64
+  void Dsrlv(GpuRegister rd, GpuRegister rt, GpuRegister rs);  // MIPS64
+  void Dsrav(GpuRegister rd, GpuRegister rt, GpuRegister rs);  // MIPS64
 
   void Lb(GpuRegister rt, GpuRegister rs, uint16_t imm16);
   void Lh(GpuRegister rt, GpuRegister rs, uint16_t imm16);
   void Lw(GpuRegister rt, GpuRegister rs, uint16_t imm16);
-  void Ld(GpuRegister rt, GpuRegister rs, uint16_t imm16);
+  void Ld(GpuRegister rt, GpuRegister rs, uint16_t imm16);  // MIPS64
   void Lbu(GpuRegister rt, GpuRegister rs, uint16_t imm16);
   void Lhu(GpuRegister rt, GpuRegister rs, uint16_t imm16);
-  void Lwu(GpuRegister rt, GpuRegister rs, uint16_t imm16);
+  void Lwu(GpuRegister rt, GpuRegister rs, uint16_t imm16);  // MIPS64
   void Lui(GpuRegister rt, uint16_t imm16);
-  void Mfhi(GpuRegister rd);
-  void Mflo(GpuRegister rd);
+  void Dahi(GpuRegister rs, uint16_t imm16);  // MIPS64 R6
+  void Dati(GpuRegister rs, uint16_t imm16);  // MIPS64 R6
+  void Sync(uint32_t stype);
+  void Mfhi(GpuRegister rd);  // R2
+  void Mflo(GpuRegister rd);  // R2
 
   void Sb(GpuRegister rt, GpuRegister rs, uint16_t imm16);
   void Sh(GpuRegister rt, GpuRegister rs, uint16_t imm16);
   void Sw(GpuRegister rt, GpuRegister rs, uint16_t imm16);
-  void Sd(GpuRegister rt, GpuRegister rs, uint16_t imm16);
+  void Sd(GpuRegister rt, GpuRegister rs, uint16_t imm16);  // MIPS64
 
   void Slt(GpuRegister rd, GpuRegister rs, GpuRegister rt);
   void Sltu(GpuRegister rd, GpuRegister rs, GpuRegister rt);
   void Slti(GpuRegister rt, GpuRegister rs, uint16_t imm16);
   void Sltiu(GpuRegister rt, GpuRegister rs, uint16_t imm16);
 
-  void Beq(GpuRegister rt, GpuRegister rs, uint16_t imm16);
-  void Bne(GpuRegister rt, GpuRegister rs, uint16_t imm16);
-  void J(uint32_t address);
-  void Jal(uint32_t address);
-  void Jr(GpuRegister rs);
+  void Beq(GpuRegister rs, GpuRegister rt, uint16_t imm16);
+  void Bne(GpuRegister rs, GpuRegister rt, uint16_t imm16);
+  void J(uint32_t addr26);
+  void Jal(uint32_t addr26);
+  void Jalr(GpuRegister rd, GpuRegister rs);
   void Jalr(GpuRegister rs);
+  void Jr(GpuRegister rs);
+  void Auipc(GpuRegister rs, uint16_t imm16);  // R6
+  void Jic(GpuRegister rt, uint16_t imm16);  // R6
+  void Jialc(GpuRegister rt, uint16_t imm16);  // R6
+  void Bltc(GpuRegister rs, GpuRegister rt, uint16_t imm16);  // R6
+  void Bltzc(GpuRegister rt, uint16_t imm16);  // R6
+  void Bgtzc(GpuRegister rt, uint16_t imm16);  // R6
+  void Bgec(GpuRegister rs, GpuRegister rt, uint16_t imm16);  // R6
+  void Bgezc(GpuRegister rt, uint16_t imm16);  // R6
+  void Blezc(GpuRegister rt, uint16_t imm16);  // R6
+  void Bltuc(GpuRegister rs, GpuRegister rt, uint16_t imm16);  // R6
+  void Bgeuc(GpuRegister rs, GpuRegister rt, uint16_t imm16);  // R6
+  void Beqc(GpuRegister rs, GpuRegister rt, uint16_t imm16);  // R6
+  void Bnec(GpuRegister rs, GpuRegister rt, uint16_t imm16);  // R6
+  void Beqzc(GpuRegister rs, uint32_t imm21);  // R6
+  void Bnezc(GpuRegister rs, uint32_t imm21);  // R6
 
   void AddS(FpuRegister fd, FpuRegister fs, FpuRegister ft);
   void SubS(FpuRegister fd, FpuRegister fs, FpuRegister ft);
@@ -117,9 +167,18 @@ class Mips64Assembler FINAL : public Assembler {
   void DivD(FpuRegister fd, FpuRegister fs, FpuRegister ft);
   void MovS(FpuRegister fd, FpuRegister fs);
   void MovD(FpuRegister fd, FpuRegister fs);
+  void NegS(FpuRegister fd, FpuRegister fs);
+  void NegD(FpuRegister fd, FpuRegister fs);
+
+  void Cvtsw(FpuRegister fd, FpuRegister fs);
+  void Cvtdw(FpuRegister fd, FpuRegister fs);
+  void Cvtsd(FpuRegister fd, FpuRegister fs);
+  void Cvtds(FpuRegister fd, FpuRegister fs);
 
   void Mfc1(GpuRegister rt, FpuRegister fs);
-  void Mtc1(FpuRegister ft, GpuRegister rs);
+  void Mtc1(GpuRegister rt, FpuRegister fs);
+  void Dmfc1(GpuRegister rt, FpuRegister fs);  // MIPS64
+  void Dmtc1(GpuRegister rt, FpuRegister fs);  // MIPS64
   void Lwc1(FpuRegister ft, GpuRegister rs, uint16_t imm16);
   void Ldc1(FpuRegister ft, GpuRegister rs, uint16_t imm16);
   void Swc1(FpuRegister ft, GpuRegister rs, uint16_t imm16);
@@ -127,15 +186,33 @@ class Mips64Assembler FINAL : public Assembler {
 
   void Break();
   void Nop();
-  void Move(GpuRegister rt, GpuRegister rs);
-  void Clear(GpuRegister rt);
-  void Not(GpuRegister rt, GpuRegister rs);
-  void Mul(GpuRegister rd, GpuRegister rs, GpuRegister rt);
-  void Div(GpuRegister rd, GpuRegister rs, GpuRegister rt);
-  void Rem(GpuRegister rd, GpuRegister rs, GpuRegister rt);
+  void Move(GpuRegister rd, GpuRegister rs);
+  void Clear(GpuRegister rd);
+  void Not(GpuRegister rd, GpuRegister rs);
 
-  void AddConstant64(GpuRegister rt, GpuRegister rs, int32_t value);
-  void LoadImmediate64(GpuRegister rt, int32_t value);
+  // Higher level composite instructions
+  void LoadConst32(GpuRegister rd, int32_t value);
+  void LoadConst64(GpuRegister rd, int64_t value);  // MIPS64
+
+  void Addiu32(GpuRegister rt, GpuRegister rs, int32_t value, GpuRegister rtmp = AT);
+  void Daddiu64(GpuRegister rt, GpuRegister rs, int64_t value, GpuRegister rtmp = AT);  // MIPS64
+
+  void Bind(Label* label);  // R6
+  void B(Label* label);  // R6
+  void Jalr(Label* label, GpuRegister indirect_reg = RA);  // R6
+  // TODO: implement common for R6 and non-R6 interface for conditional branches?
+  void Bltc(GpuRegister rs, GpuRegister rt, Label* label);  // R6
+  void Bltzc(GpuRegister rt, Label* label);  // R6
+  void Bgtzc(GpuRegister rt, Label* label);  // R6
+  void Bgec(GpuRegister rs, GpuRegister rt, Label* label);  // R6
+  void Bgezc(GpuRegister rt, Label* label);  // R6
+  void Blezc(GpuRegister rt, Label* label);  // R6
+  void Bltuc(GpuRegister rs, GpuRegister rt, Label* label);  // R6
+  void Bgeuc(GpuRegister rs, GpuRegister rt, Label* label);  // R6
+  void Beqc(GpuRegister rs, GpuRegister rt, Label* label);  // R6
+  void Bnec(GpuRegister rs, GpuRegister rt, Label* label);  // R6
+  void Beqzc(GpuRegister rs, Label* label);  // R6
+  void Bnezc(GpuRegister rs, Label* label);  // R6
 
   void EmitLoad(ManagedRegister m_dst, GpuRegister src_register, int32_t src_offset, size_t size);
   void LoadFromOffset(LoadOperandType type, GpuRegister reg, GpuRegister base, int32_t offset);
@@ -144,10 +221,7 @@ class Mips64Assembler FINAL : public Assembler {
   void StoreFpuToOffset(StoreOperandType type, FpuRegister reg, GpuRegister base, int32_t offset);
 
   // Emit data (e.g. encoded instruction or immediate) to the instruction stream.
-  void Emit(int32_t value);
-  void EmitBranch(GpuRegister rt, GpuRegister rs, Label* label, bool equal);
-  void EmitJump(Label* label, bool link);
-  void Bind(Label* label, bool is_jump);
+  void Emit(uint32_t value);
 
   //
   // Overridden common assembler high-level functionality
@@ -269,12 +343,10 @@ class Mips64Assembler FINAL : public Assembler {
  private:
   void EmitR(int opcode, GpuRegister rs, GpuRegister rt, GpuRegister rd, int shamt, int funct);
   void EmitI(int opcode, GpuRegister rs, GpuRegister rt, uint16_t imm);
-  void EmitJ(int opcode, int address);
+  void EmitI21(int opcode, GpuRegister rs, uint32_t imm21);
+  void EmitJ(int opcode, uint32_t addr26);
   void EmitFR(int opcode, int fmt, FpuRegister ft, FpuRegister fs, FpuRegister fd, int funct);
   void EmitFI(int opcode, int fmt, FpuRegister rt, uint16_t imm);
-
-  int32_t EncodeBranchOffset(int offset, int32_t inst, bool is_jump);
-  int DecodeBranchOffset(int32_t inst, bool is_jump);
 
   DISALLOW_COPY_AND_ASSIGN(Mips64Assembler);
 };
