@@ -55,7 +55,7 @@ static constexpr SRegister kFpuCalleeSaves[] =
 // S registers. Therefore there is no need to block it.
 static constexpr DRegister DTMP = D31;
 
-#define __ reinterpret_cast<ArmAssembler*>(codegen->GetAssembler())->
+#define __ down_cast<ArmAssembler*>(codegen->GetAssembler())->
 #define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kArmWordSize, x).Int32Value()
 
 class NullCheckSlowPathARM : public SlowPathCodeARM {
@@ -318,7 +318,7 @@ class DeoptimizationSlowPathARM : public SlowPathCodeARM {
 #undef __
 
 #undef __
-#define __ reinterpret_cast<ArmAssembler*>(GetAssembler())->
+#define __ down_cast<ArmAssembler*>(GetAssembler())->
 
 inline Condition ARMCondition(IfCondition cond) {
   switch (cond) {
