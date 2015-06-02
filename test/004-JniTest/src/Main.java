@@ -34,6 +34,7 @@ public class Main {
         testShallowGetStackClass2();
         testCallNonvirtual();
         testNewStringObject();
+        testRemoveLocalObject();
     }
 
     private static native void testFindClassOnAttachedNativeThread();
@@ -111,6 +112,12 @@ public class Main {
       }
     }
 
+    private static native void removeLocalObject(Object o);
+
+    private static void testRemoveLocalObject() {
+        removeLocalObject(new Object());
+    }
+    
     private static native short shortMethod(short s1, short s2, short s3, short s4, short s5, short s6, short s7,
         short s8, short s9, short s10);
 
