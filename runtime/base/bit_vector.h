@@ -21,6 +21,7 @@
 #include <iterator>
 
 #include "base/bit_utils.h"
+#include "globals.h"
 
 namespace art {
 
@@ -228,6 +229,19 @@ class BitVector {
 
   // Number of bits set in range [0, end) in storage. (No range check.)
   static uint32_t NumSetBits(const uint32_t* storage, uint32_t end);
+
+  // Fill given memory region with the contents of the vector and zero padding.
+  void CopyTo(void* dst, size_t len) const {
+    DCHECK_LE(static_cast<size_t>(GetHighestBitSet() + 1), len * kBitsPerByte);
+    size_t vec_len = GetSizeOf();
+    if (vec_len < len) {
+      void* dst_padding = reinterpret_cast<uint8_t*>(dst) + vec_len;
+      memcpy(dst, storage_, vec_len);
+      memset(dst_padding, 0, len - vec_len);
+    } else {
+      memcpy(dst, storage_, len);
+    }
+  }
 
   void Dump(std::ostream& os, const char* prefix) const;
 
