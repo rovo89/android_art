@@ -256,7 +256,6 @@ bool HInliner::TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
         VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
                        << " could not be inlined because " << current->DebugName()
                        << " can throw";
-        resolved_method->SetShouldNotInline();
         return false;
       }
 
@@ -264,7 +263,6 @@ bool HInliner::TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
         VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
                        << " could not be inlined because " << current->DebugName()
                        << " needs an environment";
-        resolved_method->SetShouldNotInline();
         return false;
       }
 
