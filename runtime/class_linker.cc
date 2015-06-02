@@ -5018,6 +5018,13 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
         }
       }
     }
+    // Fix up IMT in case it has any miranda methods in it.
+    for (size_t i = 0; i < mirror::Class::kImtSize; ++i) {
+      auto it = move_table.find(out_imt[i]);
+      if (it != move_table.end()) {
+        out_imt[i] = it->second;
+      }
+    }
     // Check that there are no stale methods are in the dex cache array.
     if (kIsDebugBuild) {
       auto* resolved_methods = klass->GetDexCache()->GetResolvedMethods();
