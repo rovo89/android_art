@@ -723,16 +723,10 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
       }
     }
 
-    invoke = new (arena_) HInvokeStaticOrDirect(arena_,
-                                                number_of_arguments,
-                                                return_type,
-                                                dex_pc,
-                                                target_method.dex_method_index,
-                                                is_recursive,
-                                                string_init_offset,
-                                                invoke_type,
-                                                optimized_invoke_type,
-                                                clinit_check_requirement);
+    invoke = new (arena_) HInvokeStaticOrDirect(
+        arena_, number_of_arguments, return_type, dex_pc, target_method.dex_method_index,
+        is_recursive, string_init_offset, invoke_type, optimized_invoke_type,
+        clinit_check_requirement);
   }
 
   size_t start_index = 0;
