@@ -244,6 +244,9 @@ bool JitCompiler::AddToCodeCache(ArtMethod* method, const CompiledMethod* compil
       compiled_method, code_reserve, code_reserve + reserve_size, mapping_table_ptr,
       vmap_table_ptr, gc_map_ptr);
 
+  __builtin___clear_cache(reinterpret_cast<char*>(code_ptr),
+                          reinterpret_cast<char*>(code_ptr + quick_code->size()));
+
   const size_t thumb_offset = compiled_method->CodeDelta();
   const uint32_t code_offset = code_ptr - base + thumb_offset;
   *out_method = OatFile::OatMethod(base, code_offset);
