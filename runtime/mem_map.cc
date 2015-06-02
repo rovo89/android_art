@@ -221,7 +221,7 @@ static bool CheckMapRequest(uint8_t* expected_ptr, void* actual_ptr, size_t byte
   // We call this here so that we can try and generate a full error
   // message with the overlapping mapping. There's no guarantee that
   // that there will be an overlap though, since
-  // - The kernel is not *required* to honour expected_ptr unless MAP_FIXED is
+  // - The kernel is not *required* to honor expected_ptr unless MAP_FIXED is
   //   true, even if there is no overlap
   // - There might have been an overlap at the point of mmap, but the
   //   overlapping region has since been unmapped.
