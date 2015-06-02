@@ -28,10 +28,11 @@ namespace art {
 /**
  * Propagates reference types to instructions.
  */
-class ReferenceTypePropagation : public HOptimization {
+class ReferenceTypePropagation : public HOptimization, public HGraphDelegateVisitor {
  public:
   ReferenceTypePropagation(HGraph* graph, StackHandleScopeCollection* handles)
     : HOptimization(graph, true, kReferenceTypePropagationPassName),
+      HGraphDelegateVisitor(graph),
       handles_(handles),
       worklist_(graph->GetArena(), kDefaultWorklistSize) {}
 
@@ -56,6 +57,7 @@ class ReferenceTypePropagation : public HOptimization {
   void UpdateReferenceTypeInfo(HInstruction* instr, uint16_t type_idx, const DexFile& dex_file);
   void VisitInstanceFieldGet(HInstanceFieldGet* instr);
   void VisitStaticFieldGet(HStaticFieldGet* instr);
+  void VisitInvoke(HInvoke* instr);
 
   void ProcessWorklist();
   void AddToWorklist(HInstruction* instr);
