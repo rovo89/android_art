@@ -17,6 +17,7 @@
 #include "indirect_reference_table-inl.h"
 
 #include "jni_internal.h"
+#include "nth_caller_visitor.h"
 #include "reference_table.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
@@ -181,7 +182,9 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
       auto* env = self->GetJniEnv();
       DCHECK(env != nullptr);
       if (env->check_jni) {
-        LOG(WARNING) << "Attempt to remove local handle scope entry from IRT, ignoring";
+        ScopedObjectAccess soa(self);
+        LOG(WARNING) << "Attempt to remove non-JNI local reference, dumping thread";
+        self->Dump(LOG(WARNING));
       }
       return true;
     }

@@ -258,6 +258,11 @@ extern "C" jchar JNICALL Java_Main_charMethod(JNIEnv*, jclass, jchar c1, jchar c
   return char_returns[c1];
 }
 
+extern "C" JNIEXPORT void JNICALL Java_Main_removeLocalObject(JNIEnv* env, jclass, jclass o) {
+  // Delete the arg to see if it crashes.
+  env->DeleteLocalRef(o);
+}
+
 extern "C" JNIEXPORT jboolean JNICALL Java_Main_nativeIsAssignableFrom(JNIEnv* env, jclass,
                                                                        jclass from, jclass to) {
   return env->IsAssignableFrom(from, to);
