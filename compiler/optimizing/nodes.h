@@ -3367,6 +3367,9 @@ class HArraySet : public HTemplateInstruction<3> {
     return needs_type_check_;
   }
 
+  // Can throw ArrayStoreException.
+  bool CanThrow() const OVERRIDE { return needs_type_check_; }
+
   bool CanDoImplicitNullCheckOn(HInstruction* obj) const OVERRIDE {
     UNUSED(obj);
     // TODO: Same as for ArrayGet.
