@@ -1124,7 +1124,7 @@ TEST_F(StubTest, CheckCast) {
 
 
 TEST_F(StubTest, APutObj) {
-  TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
+  TEST_DISABLED_FOR_READ_BARRIER();
 
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
@@ -1258,7 +1258,7 @@ TEST_F(StubTest, APutObj) {
 }
 
 TEST_F(StubTest, AllocObject) {
-  TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
+  TEST_DISABLED_FOR_READ_BARRIER();
 
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
@@ -1385,7 +1385,7 @@ TEST_F(StubTest, AllocObject) {
 }
 
 TEST_F(StubTest, AllocObjectArray) {
-  TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
+  TEST_DISABLED_FOR_READ_BARRIER();
 
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
@@ -1474,7 +1474,7 @@ TEST_F(StubTest, AllocObjectArray) {
 
 
 TEST_F(StubTest, StringCompareTo) {
-  TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
+  TEST_DISABLED_FOR_READ_BARRIER();
 
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   // TODO: Check the "Unresolved" allocation stubs
@@ -2152,7 +2152,7 @@ static void TestFields(Thread* self, StubTest* test, Primitive::Type test_type) 
 }
 
 TEST_F(StubTest, Fields8) {
-  TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
+  TEST_DISABLED_FOR_READ_BARRIER();
 
   Thread* self = Thread::Current();
 
@@ -2166,7 +2166,7 @@ TEST_F(StubTest, Fields8) {
 }
 
 TEST_F(StubTest, Fields16) {
-  TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
+  TEST_DISABLED_FOR_READ_BARRIER();
 
   Thread* self = Thread::Current();
 
@@ -2180,7 +2180,7 @@ TEST_F(StubTest, Fields16) {
 }
 
 TEST_F(StubTest, Fields32) {
-  TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
+  TEST_DISABLED_FOR_READ_BARRIER();
 
   Thread* self = Thread::Current();
 
@@ -2193,7 +2193,7 @@ TEST_F(StubTest, Fields32) {
 }
 
 TEST_F(StubTest, FieldsObj) {
-  TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
+  TEST_DISABLED_FOR_READ_BARRIER();
 
   Thread* self = Thread::Current();
 
@@ -2206,7 +2206,7 @@ TEST_F(StubTest, FieldsObj) {
 }
 
 TEST_F(StubTest, Fields64) {
-  TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
+  TEST_DISABLED_FOR_READ_BARRIER();
 
   Thread* self = Thread::Current();
 
@@ -2221,7 +2221,7 @@ TEST_F(StubTest, Fields64) {
 TEST_F(StubTest, IMT) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
-  TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
+  TEST_DISABLED_FOR_READ_BARRIER();
 
   Thread* self = Thread::Current();
 
@@ -2342,7 +2342,7 @@ TEST_F(StubTest, IMT) {
 
 TEST_F(StubTest, StringIndexOf) {
 #if defined(__arm__) || defined(__aarch64__)
-  TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
+  TEST_DISABLED_FOR_READ_BARRIER();
 
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
