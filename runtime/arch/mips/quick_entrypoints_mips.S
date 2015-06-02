@@ -650,13 +650,17 @@ ENTRY art_quick_aput_obj
     beqz $a2, .Ldo_aput_null
     nop
     lw $t0, MIRROR_OBJECT_CLASS_OFFSET($a0)
+    UNPOISON_HEAP_REF $t0
     lw $t1, MIRROR_OBJECT_CLASS_OFFSET($a2)
+    UNPOISON_HEAP_REF $t1
     lw $t0, MIRROR_CLASS_COMPONENT_TYPE_OFFSET($t0)
+    UNPOISON_HEAP_REF $t0
     bne $t1, $t0, .Lcheck_assignability  # value's type == array's component type - trivial assignability
     nop
 .Ldo_aput:
     sll $a1, $a1, 2
     add $t0, $a0, $a1
+    POISON_HEAP_REF $a2
     sw  $a2, MIRROR_OBJECT_ARRAY_DATA_OFFSET($t0)
     lw  $t0, THREAD_CARD_TABLE_OFFSET(rSELF)
     srl $t1, $a0, 7
