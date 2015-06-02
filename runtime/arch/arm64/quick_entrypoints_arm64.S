@@ -1146,15 +1146,19 @@ ENTRY art_quick_aput_obj
     cbz x2, .Ldo_aput_null
     ldr w3, [x0, #MIRROR_OBJECT_CLASS_OFFSET]            // Heap reference = 32b
                                                          // This also zero-extends to x3
+    UNPOISON_HEAP_REF w3
     ldr w4, [x2, #MIRROR_OBJECT_CLASS_OFFSET]            // Heap reference = 32b
                                                          // This also zero-extends to x4
+    UNPOISON_HEAP_REF w4
     ldr w3, [x3, #MIRROR_CLASS_COMPONENT_TYPE_OFFSET]    // Heap reference = 32b
                                                          // This also zero-extends to x3
+    UNPOISON_HEAP_REF w3
     cmp w3, w4  // value's type == array's component type - trivial assignability
     bne .Lcheck_assignability
 .Ldo_aput:
     add x3, x0, #MIRROR_OBJECT_ARRAY_DATA_OFFSET
                                                          // "Compress" = do nothing
+    POISON_HEAP_REF w2
     str w2, [x3, x1, lsl #2]                             // Heap reference = 32b
     ldr x3, [xSELF, #THREAD_CARD_TABLE_OFFSET]
     lsr x0, x0, #7
@@ -1194,6 +1198,7 @@ ENTRY art_quick_aput_obj
 
     add x3, x0, #MIRROR_OBJECT_ARRAY_DATA_OFFSET
                                                           // "Compress" = do nothing
+    POISON_HEAP_REF w2
     str w2, [x3, x1, lsl #2]                              // Heap reference = 32b
     ldr x3, [xSELF, #THREAD_CARD_TABLE_OFFSET]
     lsr x0, x0, #7
