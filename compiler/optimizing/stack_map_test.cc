@@ -136,7 +136,7 @@ TEST(StackMapTest, Test2) {
 
   ArenaBitVector sp_mask2(&arena, 0, true);
   sp_mask2.SetBit(3);
-  sp_mask1.SetBit(8);
+  sp_mask2.SetBit(8);
   stream.BeginStackMapEntry(1, 128, 0xFF, &sp_mask2, number_of_dex_registers, 0);
   stream.AddDexRegisterEntry(Kind::kInRegister, 18);     // Short location.
   stream.AddDexRegisterEntry(Kind::kInFpuRegister, 3);   // Short location.
@@ -148,7 +148,7 @@ TEST(StackMapTest, Test2) {
   stream.FillIn(region);
 
   CodeInfo code_info(region);
-  ASSERT_EQ(1u, code_info.GetStackMaskSize());
+  ASSERT_EQ(2u, code_info.GetStackMaskSize());
   ASSERT_EQ(2u, code_info.GetNumberOfStackMaps());
 
   uint32_t number_of_location_catalog_entries =
