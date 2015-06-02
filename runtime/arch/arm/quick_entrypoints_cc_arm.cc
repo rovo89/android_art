@@ -14,23 +14,23 @@
  * limitations under the License.
  */
 
-#include "mirror/art_method.h"
+#include "art_method.h"
 #include "utils.h"  // For RoundUp().
 
 namespace art {
 
 // Assembly stub that does the final part of the up-call into Java.
-extern "C" void art_quick_invoke_stub_internal(mirror::ArtMethod*, uint32_t*, uint32_t,
+extern "C" void art_quick_invoke_stub_internal(ArtMethod*, uint32_t*, uint32_t,
                                                Thread* self, JValue* result, uint32_t, uint32_t*,
                                                uint32_t*);
 
 template <bool kIsStatic>
-static void quick_invoke_reg_setup(mirror::ArtMethod* method, uint32_t* args, uint32_t args_size,
+static void quick_invoke_reg_setup(ArtMethod* method, uint32_t* args, uint32_t args_size,
                                    Thread* self, JValue* result, const char* shorty) {
   // Note: We do not follow aapcs ABI in quick code for both softfp and hardfp.
   uint32_t core_reg_args[4];  // r0 ~ r3
   uint32_t fp_reg_args[16];  // s0 ~ s15 (d0 ~ d7)
-  uint32_t gpr_index = 1;  // Index into core registers. Reserve r0 for mirror::ArtMethod*.
+  uint32_t gpr_index = 1;  // Index into core registers. Reserve r0 for ArtMethod*.
   uint32_t fpr_index = 0;  // Index into float registers.
   uint32_t fpr_double_index = 0;  // Index into float registers for doubles.
   uint32_t arg_index = 0;  // Index into argument array.
@@ -99,16 +99,16 @@ static void quick_invoke_reg_setup(mirror::ArtMethod* method, uint32_t* args, ui
       core_reg_args, fp_reg_args);
 }
 
-// Called by art::mirror::ArtMethod::Invoke to do entry into a non-static method.
+// Called by art::ArtMethod::Invoke to do entry into a non-static method.
 // TODO: migrate into an assembly implementation as with ARM64.
-extern "C" void art_quick_invoke_stub(mirror::ArtMethod* method, uint32_t* args, uint32_t args_size,
+extern "C" void art_quick_invoke_stub(ArtMethod* method, uint32_t* args, uint32_t args_size,
                                       Thread* self, JValue* result, const char* shorty) {
   quick_invoke_reg_setup<false>(method, args, args_size, self, result, shorty);
 }
 
-// Called by art::mirror::ArtMethod::Invoke to do entry into a static method.
+// Called by art::ArtMethod::Invoke to do entry into a static method.
 // TODO: migrate into an assembly implementation as with ARM64.
-extern "C" void art_quick_invoke_static_stub(mirror::ArtMethod* method, uint32_t* args,
+extern "C" void art_quick_invoke_static_stub(ArtMethod* method, uint32_t* args,
                                              uint32_t args_size, Thread* self, JValue* result,
                                              const char* shorty) {
   quick_invoke_reg_setup<true>(method, args, args_size, self, result, shorty);

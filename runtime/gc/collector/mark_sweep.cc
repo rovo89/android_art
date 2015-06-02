@@ -401,7 +401,8 @@ class MarkSweepMarkObjectSlowPath {
                             << (field != nullptr ? field->GetTypeDescriptor() : "")
                             << " first_ref_field_offset="
                             << (holder_->IsClass()
-                                ? holder_->AsClass()->GetFirstReferenceStaticFieldOffset()
+                                ? holder_->AsClass()->GetFirstReferenceStaticFieldOffset(
+                                    sizeof(void*))
                                 : holder_->GetClass()->GetFirstReferenceInstanceFieldOffset())
                             << " num_of_ref_fields="
                             << (holder_->IsClass()
@@ -589,7 +590,8 @@ void MarkSweep::MarkNonThreadRoots() {
 void MarkSweep::MarkConcurrentRoots(VisitRootFlags flags) {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   // Visit all runtime roots and clear dirty flags.
-  Runtime::Current()->VisitConcurrentRoots(this, flags);
+  Runtime::Current()->VisitConcurrentRoots(
+      this, static_cast<VisitRootFlags>(flags | kVisitRootFlagNonMoving));
 }
 
 class ScanObjectVisitor {

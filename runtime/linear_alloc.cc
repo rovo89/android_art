@@ -23,6 +23,11 @@ namespace art {
 LinearAlloc::LinearAlloc(ArenaPool* pool) : lock_("linear alloc"), allocator_(pool) {
 }
 
+void* LinearAlloc::Realloc(Thread* self, void* ptr, size_t old_size, size_t new_size) {
+  MutexLock mu(self, lock_);
+  return allocator_.Realloc(ptr, old_size, new_size);
+}
+
 void* LinearAlloc::Alloc(Thread* self, size_t size) {
   MutexLock mu(self, lock_);
   return allocator_.Alloc(size);
@@ -31,6 +36,16 @@ void* LinearAlloc::Alloc(Thread* self, size_t size) {
 size_t LinearAlloc::GetUsedMemory() const {
   MutexLock mu(Thread::Current(), lock_);
   return allocator_.BytesUsed();
+}
+
+ArenaPool* LinearAlloc::GetArenaPool() {
+  MutexLock mu(Thread::Current(), lock_);
+  return allocator_.GetArenaPool();
+}
+
+bool LinearAlloc::Contains(void* ptr) const {
+  MutexLock mu(Thread::Current(), lock_);
+  return allocator_.Contains(ptr);
 }
 
 }  // namespace art

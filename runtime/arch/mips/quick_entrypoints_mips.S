@@ -526,7 +526,7 @@ ENTRY art_quick_invoke_stub
     lw    $a1, 4($sp)           # copy arg value for a1
     lw    $a2, 8($sp)           # copy arg value for a2
     lw    $a3, 12($sp)          # copy arg value for a3
-    lw    $t9, MIRROR_ART_METHOD_QUICK_CODE_OFFSET_32($a0)  # get pointer to the code
+    lw    $t9, ART_METHOD_QUICK_CODE_OFFSET_32($a0)  # get pointer to the code
     jalr  $t9                   # call the method
     sw    $zero, 0($sp)         # store null for method* at bottom of frame
     move  $sp, $fp              # restore the stack
@@ -1103,7 +1103,7 @@ END art_quick_proxy_invoke_handler
      */
 ENTRY art_quick_imt_conflict_trampoline
     lw      $a0, 0($sp)            # load caller Method*
-    lw      $a0, MIRROR_ART_METHOD_DEX_CACHE_METHODS_OFFSET($a0)  # load dex_cache_resolved_methods
+    lw      $a0, ART_METHOD_DEX_CACHE_METHODS_OFFSET($a0)  # load dex_cache_resolved_methods
     sll     $t0, 2                 # convert target method offset to bytes
     add     $a0, $t0               # get address of target method
     lw      $a0, MIRROR_OBJECT_ARRAY_DATA_OFFSET($a0)  # load the target method

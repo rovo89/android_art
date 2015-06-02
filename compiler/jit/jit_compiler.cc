@@ -16,6 +16,7 @@
 
 #include "jit_compiler.h"
 
+#include "art_method-inl.h"
 #include "arch/instruction_set.h"
 #include "arch/instruction_set_features.h"
 #include "base/time_utils.h"
@@ -27,7 +28,6 @@
 #include "driver/compiler_options.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
-#include "mirror/art_method-inl.h"
 #include "oat_file-inl.h"
 #include "object_lock.h"
 #include "thread_list.h"
@@ -54,7 +54,7 @@ extern "C" void jit_unload(void* handle) {
   delete reinterpret_cast<JitCompiler*>(handle);
 }
 
-extern "C" bool jit_compile_method(void* handle, mirror::ArtMethod* method, Thread* self)
+extern "C" bool jit_compile_method(void* handle, ArtMethod* method, Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   auto* jit_compiler = reinterpret_cast<JitCompiler*>(handle);
   DCHECK(jit_compiler != nullptr);
@@ -105,34 +105,33 @@ JitCompiler::JitCompiler() : total_time_(0) {
 JitCompiler::~JitCompiler() {
 }
 
-bool JitCompiler::CompileMethod(Thread* self, mirror::ArtMethod* method) {
+bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method) {
   TimingLogger logger("JIT compiler timing logger", true, VLOG_IS_ON(jit));
   const uint64_t start_time = NanoTime();
   StackHandleScope<2> hs(self);
   self->AssertNoPendingException();
   Runtime* runtime = Runtime::Current();
-  Handle<mirror::ArtMethod> h_method(hs.NewHandle(method));
   if (runtime->GetJit()->GetCodeCache()->ContainsMethod(method)) {
     VLOG(jit) << "Already compiled " << PrettyMethod(method);
     return true;  // Already compiled
   }
-  Handle<mirror::Class> h_class(hs.NewHandle(h_method->GetDeclaringClass()));
+  Handle<mirror::Class> h_class(hs.NewHandle(method->GetDeclaringClass()));
   {
     TimingLogger::ScopedTiming t2("Initializing", &logger);
     if (!runtime->GetClassLinker()->EnsureInitialized(self, h_class, true, true)) {
-      VLOG(jit) << "JIT failed to initialize " << PrettyMethod(h_method.Get());
+      VLOG(jit) << "JIT failed to initialize " << PrettyMethod(method);
       return false;
     }
   }
   const DexFile* dex_file = h_class->GetDexCache()->GetDexFile();
-  MethodReference method_ref(dex_file, h_method->GetDexMethodIndex());
+  MethodReference method_ref(dex_file, method->GetDexMethodIndex());
   // Only verify if we don't already have verification results.
   if (verification_results_->GetVerifiedMethod(method_ref) == nullptr) {
     TimingLogger::ScopedTiming t2("Verifying", &logger);
     std::string error;
-    if (verifier::MethodVerifier::VerifyMethod(h_method.Get(), true, &error) ==
+    if (verifier::MethodVerifier::VerifyMethod(method, true, &error) ==
         verifier::MethodVerifier::kHardFailure) {
-      VLOG(jit) << "Not compile method " << PrettyMethod(h_method.Get())
+      VLOG(jit) << "Not compile method " << PrettyMethod(method)
           << " due to verification failure " << error;
       return false;
     }
@@ -140,7 +139,7 @@ bool JitCompiler::CompileMethod(Thread* self, mirror::ArtMethod* method) {
   CompiledMethod* compiled_method = nullptr;
   {
     TimingLogger::ScopedTiming t2("Compiling", &logger);
-    compiled_method = compiler_driver_->CompileMethod(self, h_method.Get());
+    compiled_method = compiler_driver_->CompileMethod(self, method);
   }
   {
     TimingLogger::ScopedTiming t2("TrimMaps", &logger);
@@ -154,16 +153,15 @@ bool JitCompiler::CompileMethod(Thread* self, mirror::ArtMethod* method) {
   // Don't add the method if we are supposed to be deoptimized.
   bool result = false;
   if (!runtime->GetInstrumentation()->AreAllMethodsDeoptimized()) {
-    const void* code = runtime->GetClassLinker()->GetOatMethodQuickCodeFor(
-        h_method.Get());
+    const void* code = runtime->GetClassLinker()->GetOatMethodQuickCodeFor(method);
     if (code != nullptr) {
       // Already have some compiled code, just use this instead of linking.
       // TODO: Fix recompilation.
-      h_method->SetEntryPointFromQuickCompiledCode(code);
+      method->SetEntryPointFromQuickCompiledCode(code);
       result = true;
     } else {
       TimingLogger::ScopedTiming t2("MakeExecutable", &logger);
-      result = MakeExecutable(compiled_method, h_method.Get());
+      result = MakeExecutable(compiled_method, method);
     }
   }
   // Remove the compiled method to save memory.
@@ -205,7 +203,7 @@ uint8_t* JitCompiler::WriteMethodHeaderAndCode(const CompiledMethod* compiled_me
   return code_ptr;
 }
 
-bool JitCompiler::AddToCodeCache(mirror::ArtMethod* method, const CompiledMethod* compiled_method,
+bool JitCompiler::AddToCodeCache(ArtMethod* method, const CompiledMethod* compiled_method,
                                  OatFile::OatMethod* out_method) {
   Runtime* runtime = Runtime::Current();
   JitCodeCache* const code_cache = runtime->GetJit()->GetCodeCache();
@@ -261,7 +259,7 @@ bool JitCompiler::AddToCodeCache(mirror::ArtMethod* method, const CompiledMethod
   return true;
 }
 
-bool JitCompiler::MakeExecutable(CompiledMethod* compiled_method, mirror::ArtMethod* method) {
+bool JitCompiler::MakeExecutable(CompiledMethod* compiled_method, ArtMethod* method) {
   CHECK(method != nullptr);
   CHECK(compiled_method != nullptr);
   OatFile::OatMethod oat_method(nullptr, 0);

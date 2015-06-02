@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_BASE_ITERATION_RANGE_H_
 #define ART_RUNTIME_BASE_ITERATION_RANGE_H_
 
+#include <iterator>
+
 namespace art {
 
 // Helper class that acts as a container for range-based loops, given an iteration
@@ -38,9 +40,14 @@ class IterationRange {
   iterator cend() const { return last_; }
 
  private:
-  iterator first_;
-  iterator last_;
+  const iterator first_;
+  const iterator last_;
 };
+
+template <typename Iter>
+static inline IterationRange<Iter> MakeIterationRange(const Iter& begin_it, const Iter& end_it) {
+  return IterationRange<Iter>(begin_it, end_it);
+}
 
 }  // namespace art
 

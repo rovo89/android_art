@@ -982,12 +982,11 @@ class Mir2Lir {
     }
     // Load a reference at base + displacement and decompress into register.
     LIR* LoadRefDisp(RegStorage r_base, int displacement, RegStorage r_dest,
-                             VolatileKind is_volatile) {
+                     VolatileKind is_volatile) {
       return LoadBaseDisp(r_base, displacement, r_dest, kReference, is_volatile);
     }
     // Load a reference at base + index and decompress into register.
-    LIR* LoadRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest,
-                                int scale) {
+    LIR* LoadRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest, int scale) {
       return LoadBaseIndexed(r_base, r_index, r_dest, scale, kReference);
     }
     // Load Dalvik value with 32-bit memory storage.  If compressed object reference, decompress.
@@ -1008,12 +1007,11 @@ class Mir2Lir {
     }
     // Store an uncompressed reference into a compressed 32-bit container.
     LIR* StoreRefDisp(RegStorage r_base, int displacement, RegStorage r_src,
-                              VolatileKind is_volatile) {
+                      VolatileKind is_volatile) {
       return StoreBaseDisp(r_base, displacement, r_src, kReference, is_volatile);
     }
     // Store an uncompressed reference into a compressed 32-bit container by index.
-    LIR* StoreRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
-                                 int scale) {
+    LIR* StoreRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src, int scale) {
       return StoreBaseIndexed(r_base, r_index, r_src, scale, kReference);
     }
     // Store 32 bits, regardless of target.
@@ -1117,8 +1115,10 @@ class Mir2Lir {
      * @param dex_file the dex file associated with the target dex cache.
      * @param offset the offset of the element in the fixed dex cache arrays' layout.
      * @param r_dest the register where to load the element.
+     * @param wide, load 64 bits if true, otherwise 32 bits.
      */
-    virtual void OpPcRelDexCacheArrayLoad(const DexFile* dex_file, int offset, RegStorage r_dest);
+    virtual void OpPcRelDexCacheArrayLoad(const DexFile* dex_file, int offset, RegStorage r_dest,
+                                          bool wide);
 
     // Routines that work for the generic case, but may be overriden by target.
     /*

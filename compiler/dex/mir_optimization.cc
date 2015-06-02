@@ -249,7 +249,7 @@ int MIRGraph::GetSSAUseCount(int s_reg) {
 size_t MIRGraph::GetNumBytesForSpecialTemps() const {
   // This logic is written with assumption that Method* is only special temp.
   DCHECK_EQ(max_available_special_compiler_temps_, 1u);
-  return sizeof(StackReference<mirror::ArtMethod>);
+  return InstructionSetPointerSize(cu_->instruction_set);
 }
 
 size_t MIRGraph::GetNumAvailableVRTemps() {
@@ -316,6 +316,7 @@ CompilerTemp* MIRGraph::GetNewCompilerTemp(CompilerTempType ct_type, bool wide) 
     // The vreg is always the first special temp for method ptr.
     compiler_temp->v_reg = GetFirstSpecialTempVR();
 
+    CHECK(reg_location_ == nullptr);
   } else if (ct_type == kCompilerTempBackend) {
     requested_backend_temp_ = true;
 

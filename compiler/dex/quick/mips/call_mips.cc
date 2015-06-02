@@ -18,6 +18,7 @@
 
 #include "codegen_mips.h"
 
+#include "art_method.h"
 #include "base/logging.h"
 #include "dex/mir_graph.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
@@ -26,7 +27,6 @@
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "gc/accounting/card_table.h"
 #include "mips_lir.h"
-#include "mirror/art_method.h"
 #include "mirror/object_array-inl.h"
 
 namespace art {
@@ -407,12 +407,12 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info, int state,
     RegStorage arg0_ref = cg->TargetReg(kArg0, kRef);
     switch (state) {
     case 0: {  // Grab target method* from thread pointer
-      cg->LoadRefDisp(cg->TargetPtrReg(kSelf), info->string_init_offset, arg0_ref, kNotVolatile);
+      cg->LoadWordDisp(cg->TargetPtrReg(kSelf), info->string_init_offset, arg0_ref);
       break;
     }
     case 1:  // Grab the code from the method*
       if (direct_code == 0) {
-        int32_t offset = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+        int32_t offset = ArtMethod::EntryPointFromQuickCompiledCodeOffset(
             InstructionSetPointerSize(cu->instruction_set)).Int32Value();
         cg->LoadWordDisp(arg0_ref, offset, cg->TargetPtrReg(kInvokeTgt));
       }
@@ -454,7 +454,7 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info, int state,
         break;
       case 1:  // Get method->dex_cache_resolved_methods_
         cg->LoadRefDisp(arg0_ref,
-                        mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(),
+                        ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(),
                         arg0_ref,
                         kNotVolatile);
         // Set up direct code if known.
@@ -471,17 +471,18 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info, int state,
           }
         }
         break;
-      case 2:  // Grab target method*
+      case 2: {
+        // Grab target method*
         CHECK_EQ(cu->dex_file, target_method.dex_file);
-        cg->LoadRefDisp(arg0_ref,
-                        mirror::ObjectArray<mirror::Object>::
-                        OffsetOfElement(target_method.dex_method_index).Int32Value(),
-                        arg0_ref,
-                        kNotVolatile);
+        const size_t pointer_size = GetInstructionSetPointerSize(cu->instruction_set);
+        cg->LoadWordDisp(arg0_ref,
+                         mirror::Array::DataOffset(pointer_size).Uint32Value() +
+                         target_method.dex_method_index * pointer_size, arg0_ref);
         break;
+      }
       case 3:  // Grab the code from the method*
         if (direct_code == 0) {
-          int32_t offset = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+          int32_t offset = ArtMethod::EntryPointFromQuickCompiledCodeOffset(
               InstructionSetPointerSize(cu->instruction_set)).Int32Value();
           // Get the compiled code address [use *alt_from or kArg0, set kInvokeTgt]
           cg->LoadWordDisp(arg0_ref, offset, cg->TargetPtrReg(kInvokeTgt));

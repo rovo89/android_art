@@ -114,18 +114,24 @@ size_t CodeGenerator::GetCacheOffset(uint32_t index) {
   return mirror::ObjectArray<mirror::Object>::OffsetOfElement(index).SizeValue();
 }
 
+size_t CodeGenerator::GetCachePointerOffset(uint32_t index) {
+  auto pointer_size = InstructionSetPointerSize(GetInstructionSet());
+  return mirror::Array::DataOffset(pointer_size).Uint32Value() + pointer_size * index;
+}
+
 void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {
   Initialize();
   if (!is_leaf) {
     MarkNotLeaf();
   }
+  const bool is_64_bit = Is64BitInstructionSet(GetInstructionSet());
   InitializeCodeGeneration(GetGraph()->GetNumberOfLocalVRegs()
                              + GetGraph()->GetTemporariesVRegSlots()
                              + 1 /* filler */,
                            0, /* the baseline compiler does not have live registers at slow path */
                            0, /* the baseline compiler does not have live registers at slow path */
                            GetGraph()->GetMaximumNumberOfOutVRegs()
-                             + 1 /* current method */,
+                             + (is_64_bit ? 2 : 1) /* current method */,
                            GetGraph()->GetBlocks());
   CompileInternal(allocator, /* is_baseline */ true);
 }
@@ -270,7 +276,8 @@ int32_t CodeGenerator::GetStackSlot(HLocal* local) const {
   uint16_t number_of_locals = GetGraph()->GetNumberOfLocalVRegs();
   if (reg_number >= number_of_locals) {
     // Local is a parameter of the method. It is stored in the caller's frame.
-    return GetFrameSize() + kVRegSize  // ART method
+    // TODO: Share this logic with StackVisitor::GetVRegOffsetFromQuickCode.
+    return GetFrameSize() + InstructionSetPointerSize(GetInstructionSet())  // ART method
                           + (reg_number - number_of_locals) * kVRegSize;
   } else {
     // Local is a temporary in this method. It is stored in this method's frame.

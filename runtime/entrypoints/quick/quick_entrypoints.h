@@ -29,13 +29,13 @@ namespace art {
 
 namespace mirror {
 class Array;
-class ArtMethod;
 class Class;
 class Object;
 template<class MirrorType>
 class CompressedReference;
 }  // namespace mirror
 
+class ArtMethod;
 class Thread;
 
 // Pointers to functions that are called by quick compiler generated code via thread-local storage.

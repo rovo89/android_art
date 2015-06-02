@@ -35,6 +35,7 @@
 #define ATRACE_TAG ATRACE_TAG_DALVIK
 #include <cutils/trace.h>
 
+#include "art_method-inl.h"
 #include "arch/instruction_set_features.h"
 #include "arch/mips/instruction_set_features_mips.h"
 #include "base/dumpable.h"
@@ -61,7 +62,6 @@
 #include "image_writer.h"
 #include "interpreter/unstarted_runtime.h"
 #include "leb128.h"
-#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"

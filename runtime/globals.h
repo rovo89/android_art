@@ -67,12 +67,8 @@ static constexpr bool kUseOptimizingCompiler = false;
 // Garbage collector constants.
 static constexpr bool kMovingCollector = true;
 static constexpr bool kMarkCompactSupport = false && kMovingCollector;
-// True if we allow moving field arrays, this can cause complication with mark compact.
-static constexpr bool kMoveFieldArrays = !kMarkCompactSupport;
 // True if we allow moving classes.
 static constexpr bool kMovingClasses = !kMarkCompactSupport;
-// True if we allow moving methods.
-static constexpr bool kMovingMethods = false;
 
 // If true, the quick compiler embeds class pointers in the compiled
 // code, if possible.

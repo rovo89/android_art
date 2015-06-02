@@ -31,7 +31,7 @@ namespace art {
 // Run the tests only on host.
 #ifndef HAVE_ANDROID_OS
 
-class OptimizingCFITest  : public CFITest {
+class OptimizingCFITest : public CFITest {
  public:
   // Enable this flag to generate the expected outputs.
   static constexpr bool kGenerateExpected = false;

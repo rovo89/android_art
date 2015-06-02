@@ -15,8 +15,8 @@
  */
 
 #include "arch/context.h"
+#include "art_method-inl.h"
 #include "jni.h"
-#include "mirror/art_method-inl.h"
 #include "scoped_thread_state_change.h"
 #include "stack.h"
 #include "thread.h"
@@ -33,7 +33,7 @@ class TestVisitor : public StackVisitor {
         this_value_(this_value) {}
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ArtMethod* m = GetMethod();
+    ArtMethod* m = GetMethod();
     std::string m_name(m->GetName());
 
     if (m_name.compare("testIntVReg") == 0) {

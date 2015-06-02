@@ -20,6 +20,7 @@
 #include "dex_cache.h"
 
 #include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "base/logging.h"
 #include "mirror/class.h"
 #include "runtime.h"
@@ -27,20 +28,9 @@
 namespace art {
 namespace mirror {
 
-inline uint32_t DexCache::ClassSize() {
+inline uint32_t DexCache::ClassSize(size_t pointer_size) {
   uint32_t vtable_entries = Object::kVTableLength + 5;
-  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0, 0, 0);
-}
-
-inline ArtMethod* DexCache::GetResolvedMethod(uint32_t method_idx)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ArtMethod* method = GetResolvedMethods()->Get(method_idx);
-  // Hide resolution trampoline methods from the caller
-  if (method != nullptr && method->IsRuntimeMethod()) {
-    DCHECK_EQ(method, Runtime::Current()->GetResolutionMethod());
-    return nullptr;
-  }
-  return method;
+  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0, 0, 0, pointer_size);
 }
 
 inline void DexCache::SetResolvedType(uint32_t type_idx, Class* resolved) {
@@ -50,15 +40,8 @@ inline void DexCache::SetResolvedType(uint32_t type_idx, Class* resolved) {
 }
 
 inline ArtField* DexCache::GetResolvedField(uint32_t idx, size_t ptr_size) {
-  ArtField* field = nullptr;
-  if (ptr_size == 8) {
-    field = reinterpret_cast<ArtField*>(
-        static_cast<uintptr_t>(GetResolvedFields()->AsLongArray()->GetWithoutChecks(idx)));
-  } else {
-    DCHECK_EQ(ptr_size, 4u);
-    field = reinterpret_cast<ArtField*>(
-      static_cast<uintptr_t>(GetResolvedFields()->AsIntArray()->GetWithoutChecks(idx)));
-  }
+  DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), ptr_size);
+  auto* field = GetResolvedFields()->GetElementPtrSize<ArtField*>(idx, ptr_size);
   if (field == nullptr || field->GetDeclaringClass()->IsErroneous()) {
     return nullptr;
   }
@@ -66,15 +49,24 @@ inline ArtField* DexCache::GetResolvedField(uint32_t idx, size_t ptr_size) {
 }
 
 inline void DexCache::SetResolvedField(uint32_t idx, ArtField* field, size_t ptr_size) {
-  if (ptr_size == 8) {
-    GetResolvedFields()->AsLongArray()->Set(
-        idx, static_cast<uint64_t>(reinterpret_cast<uintptr_t>(field)));
-  } else {
-    DCHECK_EQ(ptr_size, 4u);
-    CHECK_LE(reinterpret_cast<uintptr_t>(field), 0xFFFFFFFF);
-    GetResolvedFields()->AsIntArray()->Set(
-        idx, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(field)));
+  DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), ptr_size);
+  GetResolvedFields()->SetElementPtrSize(idx, field, ptr_size);
+}
+
+inline ArtMethod* DexCache::GetResolvedMethod(uint32_t method_idx, size_t ptr_size) {
+  DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), ptr_size);
+  auto* method = GetResolvedMethods()->GetElementPtrSize<ArtMethod*>(method_idx, ptr_size);
+  // Hide resolution trampoline methods from the caller
+  if (method != nullptr && method->IsRuntimeMethod()) {
+    DCHECK_EQ(method, Runtime::Current()->GetResolutionMethod());
+    return nullptr;
   }
+  return method;
+}
+
+inline void DexCache::SetResolvedMethod(uint32_t idx, ArtMethod* method, size_t ptr_size) {
+  DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), ptr_size);
+  GetResolvedMethods()->SetElementPtrSize(idx, method, ptr_size);
 }
 
 }  // namespace mirror

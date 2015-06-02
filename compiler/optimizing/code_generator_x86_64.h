@@ -50,7 +50,8 @@ class InvokeRuntimeCallingConvention : public CallingConvention<Register, FloatR
       : CallingConvention(kRuntimeParameterCoreRegisters,
                           kRuntimeParameterCoreRegistersLength,
                           kRuntimeParameterFpuRegisters,
-                          kRuntimeParameterFpuRegistersLength) {}
+                          kRuntimeParameterFpuRegistersLength,
+                          kX86_64PointerSize) {}
 
  private:
   DISALLOW_COPY_AND_ASSIGN(InvokeRuntimeCallingConvention);
@@ -62,7 +63,8 @@ class InvokeDexCallingConvention : public CallingConvention<Register, FloatRegis
       kParameterCoreRegisters,
       kParameterCoreRegistersLength,
       kParameterFloatRegisters,
-      kParameterFloatRegistersLength) {}
+      kParameterFloatRegistersLength,
+      kX86_64PointerSize) {}
 
  private:
   DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConvention);

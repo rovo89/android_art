@@ -83,7 +83,8 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     void UnconditionallyMarkGCCard(RegStorage tgt_addr_reg) OVERRIDE;
 
     bool CanUseOpPcRelDexCacheArrayLoad() const OVERRIDE;
-    void OpPcRelDexCacheArrayLoad(const DexFile* dex_file, int offset, RegStorage r_dest) OVERRIDE;
+    void OpPcRelDexCacheArrayLoad(const DexFile* dex_file, int offset, RegStorage r_dest,
+                                  bool wide) OVERRIDE;
 
     // Required for target - register utilities.
     RegStorage TargetReg(SpecialTargetRegister reg) OVERRIDE;

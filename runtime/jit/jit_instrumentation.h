@@ -31,12 +31,12 @@
 
 namespace art {
 namespace mirror {
-  class ArtMethod;
   class Class;
   class Object;
   class Throwable;
 }  // namespace mirror
 class ArtField;
+class ArtMethod;
 union JValue;
 class Thread;
 
@@ -46,9 +46,9 @@ namespace jit {
 class JitInstrumentationCache {
  public:
   explicit JitInstrumentationCache(size_t hot_method_threshold);
-  void AddSamples(Thread* self, mirror::ArtMethod* method, size_t samples)
+  void AddSamples(Thread* self, ArtMethod* method, size_t samples)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SignalCompiled(Thread* self, mirror::ArtMethod* method)
+  void SignalCompiled(Thread* self, ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void CreateThreadPool();
   void DeleteThreadPool();
@@ -67,31 +67,31 @@ class JitInstrumentationListener : public instrumentation::InstrumentationListen
   explicit JitInstrumentationListener(JitInstrumentationCache* cache);
 
   virtual void MethodEntered(Thread* thread, mirror::Object* /*this_object*/,
-                             mirror::ArtMethod* method, uint32_t /*dex_pc*/)
+                             ArtMethod* method, uint32_t /*dex_pc*/)
       OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     instrumentation_cache_->AddSamples(thread, method, 1);
   }
   virtual void MethodExited(Thread* /*thread*/, mirror::Object* /*this_object*/,
-                            mirror::ArtMethod* /*method*/, uint32_t /*dex_pc*/,
+                            ArtMethod* /*method*/, uint32_t /*dex_pc*/,
                             const JValue& /*return_value*/)
       OVERRIDE { }
   virtual void MethodUnwind(Thread* /*thread*/, mirror::Object* /*this_object*/,
-                            mirror::ArtMethod* /*method*/, uint32_t /*dex_pc*/) OVERRIDE { }
+                            ArtMethod* /*method*/, uint32_t /*dex_pc*/) OVERRIDE { }
   virtual void FieldRead(Thread* /*thread*/, mirror::Object* /*this_object*/,
-                         mirror::ArtMethod* /*method*/, uint32_t /*dex_pc*/,
+                         ArtMethod* /*method*/, uint32_t /*dex_pc*/,
                          ArtField* /*field*/) OVERRIDE { }
   virtual void FieldWritten(Thread* /*thread*/, mirror::Object* /*this_object*/,
-                            mirror::ArtMethod* /*method*/, uint32_t /*dex_pc*/,
+                            ArtMethod* /*method*/, uint32_t /*dex_pc*/,
                             ArtField* /*field*/, const JValue& /*field_value*/)
       OVERRIDE { }
   virtual void ExceptionCaught(Thread* /*thread*/,
                                mirror::Throwable* /*exception_object*/) OVERRIDE { }
 
   virtual void DexPcMoved(Thread* /*self*/, mirror::Object* /*this_object*/,
-                          mirror::ArtMethod* /*method*/, uint32_t /*new_dex_pc*/) OVERRIDE { }
+                          ArtMethod* /*method*/, uint32_t /*new_dex_pc*/) OVERRIDE { }
 
   // We only care about how many dex instructions were executed in the Jit.
-  virtual void BackwardBranch(Thread* thread, mirror::ArtMethod* method, int32_t dex_pc_offset)
+  virtual void BackwardBranch(Thread* thread, ArtMethod* method, int32_t dex_pc_offset)
       OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK_LE(dex_pc_offset, 0);
     instrumentation_cache_->AddSamples(thread, method, 1);

@@ -18,6 +18,7 @@
 
 #include <dlfcn.h>
 
+#include "art_method.h"
 #include "base/dumpable.h"
 #include "base/mutex.h"
 #include "base/stl_util.h"
@@ -25,7 +26,6 @@
 #include "dex_file-inl.h"
 #include "fault_handler.h"
 #include "indirect_reference_table-inl.h"
-#include "mirror/art_method.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "nativebridge/native_bridge.h"
@@ -205,7 +205,7 @@ class Libraries {
   }
 
   // See section 11.3 "Linking Native Methods" of the JNI spec.
-  void* FindNativeMethod(mirror::ArtMethod* m, std::string& detail)
+  void* FindNativeMethod(ArtMethod* m, std::string& detail)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::jni_libraries_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string jni_short_name(JniShortName(m));
@@ -386,7 +386,7 @@ JavaVMExt::~JavaVMExt() {
 void JavaVMExt::JniAbort(const char* jni_function_name, const char* msg) {
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
-  mirror::ArtMethod* current_method = self->GetCurrentMethod(nullptr);
+  ArtMethod* current_method = self->GetCurrentMethod(nullptr);
 
   std::ostringstream os;
   os << "JNI DETECTED ERROR IN APPLICATION: " << msg;
@@ -424,7 +424,7 @@ void JavaVMExt::JniAbortF(const char* jni_function_name, const char* fmt, ...) {
   va_end(args);
 }
 
-bool JavaVMExt::ShouldTrace(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+bool JavaVMExt::ShouldTrace(ArtMethod* method) {
   // Fast where no tracing is enabled.
   if (trace_.empty() && !VLOG_IS_ON(third_party_jni)) {
     return false;
@@ -737,7 +737,7 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env, const std::string& path, jobject 
   return was_successful;
 }
 
-void* JavaVMExt::FindCodeForNativeMethod(mirror::ArtMethod* m) {
+void* JavaVMExt::FindCodeForNativeMethod(ArtMethod* m) {
   CHECK(m->IsNative());
   mirror::Class* c = m->GetDeclaringClass();
   // If this is a static method, it could be called before the class has been initialized.

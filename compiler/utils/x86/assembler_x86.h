@@ -538,9 +538,10 @@ class X86Assembler FINAL : public Assembler {
 
   void LoadFromThread32(ManagedRegister dest, ThreadOffset<4> src, size_t size) OVERRIDE;
 
-  void LoadRef(ManagedRegister dest, FrameOffset  src) OVERRIDE;
+  void LoadRef(ManagedRegister dest, FrameOffset src) OVERRIDE;
 
-  void LoadRef(ManagedRegister dest, ManagedRegister base, MemberOffset offs) OVERRIDE;
+  void LoadRef(ManagedRegister dest, ManagedRegister base, MemberOffset offs,
+               bool poison_reference) OVERRIDE;
 
   void LoadRawPtr(ManagedRegister dest, ManagedRegister base, Offset offs) OVERRIDE;
 

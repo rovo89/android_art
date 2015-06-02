@@ -21,6 +21,7 @@
 #include <vector>
 #include <fstream>
 
+#include "art_method.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "calling_convention.h"
@@ -31,7 +32,6 @@
 #include "driver/compiler_options.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "jni_env_ext.h"
-#include "mirror/art_method.h"
 #include "utils/assembler.h"
 #include "utils/managed_register.h"
 #include "utils/arm/managed_register_arm.h"
@@ -117,18 +117,18 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
 
   if (is_64_bit_target) {
     __ CopyRawPtrFromThread64(main_jni_conv->HandleScopeLinkOffset(),
-                            Thread::TopHandleScopeOffset<8>(),
-                            mr_conv->InterproceduralScratchRegister());
+                              Thread::TopHandleScopeOffset<8>(),
+                              mr_conv->InterproceduralScratchRegister());
     __ StoreStackOffsetToThread64(Thread::TopHandleScopeOffset<8>(),
-                                main_jni_conv->HandleScopeOffset(),
-                                mr_conv->InterproceduralScratchRegister());
+                                  main_jni_conv->HandleScopeOffset(),
+                                  mr_conv->InterproceduralScratchRegister());
   } else {
     __ CopyRawPtrFromThread32(main_jni_conv->HandleScopeLinkOffset(),
-                            Thread::TopHandleScopeOffset<4>(),
-                            mr_conv->InterproceduralScratchRegister());
+                              Thread::TopHandleScopeOffset<4>(),
+                              mr_conv->InterproceduralScratchRegister());
     __ StoreStackOffsetToThread32(Thread::TopHandleScopeOffset<4>(),
-                                main_jni_conv->HandleScopeOffset(),
-                                mr_conv->InterproceduralScratchRegister());
+                                  main_jni_conv->HandleScopeOffset(),
+                                  mr_conv->InterproceduralScratchRegister());
   }
 
   // 3. Place incoming reference arguments into handle scope
@@ -138,10 +138,10 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
     FrameOffset handle_scope_offset = main_jni_conv->CurrentParamHandleScopeEntryOffset();
     // Check handle scope offset is within frame
     CHECK_LT(handle_scope_offset.Uint32Value(), frame_size);
-    // Note this LoadRef() already includes the heap poisoning negation.
+    // Note this LoadRef() doesn't need heap poisoning since its from the ArtMethod.
     // Note this LoadRef() does not include read barrier. It will be handled below.
     __ LoadRef(main_jni_conv->InterproceduralScratchRegister(),
-               mr_conv->MethodRegister(), mirror::ArtMethod::DeclaringClassOffset());
+               mr_conv->MethodRegister(), ArtMethod::DeclaringClassOffset(), false);
     __ VerifyObject(main_jni_conv->InterproceduralScratchRegister(), false);
     __ StoreRef(handle_scope_offset, main_jni_conv->InterproceduralScratchRegister());
     main_jni_conv->Next();  // in handle scope so move to next argument
@@ -251,12 +251,11 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
     if (main_jni_conv->IsCurrentParamOnStack()) {
       FrameOffset out_off = main_jni_conv->CurrentParamStackOffset();
       __ CreateHandleScopeEntry(out_off, locked_object_handle_scope_offset,
-                         mr_conv->InterproceduralScratchRegister(),
-                         false);
+                                mr_conv->InterproceduralScratchRegister(), false);
     } else {
       ManagedRegister out_reg = main_jni_conv->CurrentParamRegister();
       __ CreateHandleScopeEntry(out_reg, locked_object_handle_scope_offset,
-                         ManagedRegister::NoRegister(), false);
+                                ManagedRegister::NoRegister(), false);
     }
     main_jni_conv->Next();
   }
@@ -264,10 +263,10 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
     __ GetCurrentThread(main_jni_conv->CurrentParamRegister());
     if (is_64_bit_target) {
       __ Call(main_jni_conv->CurrentParamRegister(), Offset(jni_start64),
-             main_jni_conv->InterproceduralScratchRegister());
+              main_jni_conv->InterproceduralScratchRegister());
     } else {
       __ Call(main_jni_conv->CurrentParamRegister(), Offset(jni_start32),
-             main_jni_conv->InterproceduralScratchRegister());
+              main_jni_conv->InterproceduralScratchRegister());
     }
   } else {
     __ GetCurrentThread(main_jni_conv->CurrentParamStackOffset(),
@@ -347,15 +346,15 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
     FrameOffset jni_env = main_jni_conv->CurrentParamStackOffset();
     if (is_64_bit_target) {
       __ CopyRawPtrFromThread64(jni_env, Thread::JniEnvOffset<8>(),
-                            main_jni_conv->InterproceduralScratchRegister());
+                                main_jni_conv->InterproceduralScratchRegister());
     } else {
       __ CopyRawPtrFromThread32(jni_env, Thread::JniEnvOffset<4>(),
-                            main_jni_conv->InterproceduralScratchRegister());
+                                main_jni_conv->InterproceduralScratchRegister());
     }
   }
 
   // 9. Plant call to native code associated with method.
-  MemberOffset jni_entrypoint_offset = mirror::ArtMethod::EntryPointFromJniOffset(
+  MemberOffset jni_entrypoint_offset = ArtMethod::EntryPointFromJniOffset(
       InstructionSetPointerSize(instruction_set));
   __ Call(main_jni_conv->MethodStackOffset(), jni_entrypoint_offset,
           mr_conv->InterproceduralScratchRegister());

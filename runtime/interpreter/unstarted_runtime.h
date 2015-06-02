@@ -24,14 +24,12 @@
 
 namespace art {
 
+class ArtMethod;
 class Thread;
 class ShadowFrame;
 
 namespace mirror {
-
-class ArtMethod;
 class Object;
-
 }  // namespace mirror
 
 namespace interpreter {
@@ -57,7 +55,7 @@ class UnstartedRuntime {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void Jni(Thread* self,
-                  mirror::ArtMethod* method,
+                  ArtMethod* method,
                   mirror::Object* receiver,
                   uint32_t* args,
                   JValue* result)
@@ -80,7 +78,7 @@ class UnstartedRuntime {
   // Methods that are native.
 #define UNSTARTED_JNI(ShortName, SigIgnored)                       \
   static void UnstartedJNI ## ShortName(Thread* self,              \
-                                        mirror::ArtMethod* method, \
+                                        ArtMethod* method, \
                                         mirror::Object* receiver,  \
                                         uint32_t* args,            \
                                         JValue* result)            \

@@ -32,9 +32,7 @@
 #include "arch/x86_64/quick_method_frame_info_x86_64.h"
 
 namespace art {
-namespace mirror {
 class ArtMethod;
-}  // namespace mirror
 
 class ScopedQuickEntrypointChecks {
  public:

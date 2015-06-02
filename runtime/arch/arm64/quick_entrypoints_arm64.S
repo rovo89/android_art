@@ -32,7 +32,8 @@
 
     // xIP0 = (ArtMethod*) Runtime.instance_.callee_save_methods[kRefAndArgs]  .
     THIS_LOAD_REQUIRES_READ_BARRIER
-    ldr wIP0, [xIP0, RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET ]
+    // Loads appropriate callee-save-method.
+    ldr xIP0, [xIP0, RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET ]
 
     sub sp, sp, #176
     .cfi_adjust_cfa_offset 176
@@ -97,7 +98,8 @@
 
     // xIP0 = (ArtMethod*) Runtime.instance_.callee_save_methods[kRefAndArgs]  .
     THIS_LOAD_REQUIRES_READ_BARRIER
-    ldr wIP0, [xIP0, RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET ]
+    // Loads appropriate callee-save-method.
+    ldr xIP0, [xIP0, RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET ]
 
     sub sp, sp, #112
     .cfi_adjust_cfa_offset 112
@@ -271,7 +273,7 @@
 
     // xIP0 = (ArtMethod*) Runtime.instance_.callee_save_methods[kRefAndArgs]  .
     THIS_LOAD_REQUIRES_READ_BARRIER
-    ldr wIP0, [xIP0, RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET ]
+    ldr xIP0, [xIP0, RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET ]
 
     SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_INTERNAL
 
@@ -483,7 +485,7 @@ ENTRY \c_name
     // Helper signature is always
     // (method_idx, *this_object, *caller_method, *self, sp)
 
-    ldr    w2, [sp, #FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE]  // pass caller Method*
+    ldr    x2, [sp, #FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE]  // pass caller Method*
     mov    x3, xSELF                      // pass Thread::Current
     mov    x4, sp
     bl     \cxx_name                      // (method_idx, this, caller, Thread*, SP)
@@ -508,14 +510,14 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
 .macro INVOKE_STUB_CREATE_FRAME
 
 SAVE_SIZE=15*8   // x4, x5, x19, x20, x21, x22, x23, x24, x25, x26, x27, x28, SP, LR, FP saved.
-SAVE_SIZE_AND_METHOD=SAVE_SIZE+STACK_REFERENCE_SIZE
+SAVE_SIZE_AND_METHOD=SAVE_SIZE+8
 
 
     mov x9, sp                             // Save stack pointer.
     .cfi_register sp,x9
 
     add x10, x2, # SAVE_SIZE_AND_METHOD    // calculate size of frame.
-    sub x10, sp, x10                       // Calculate SP position - saves + ArtMethod* +  args
+    sub x10, sp, x10                       // Calculate SP position - saves + ArtMethod* + args
     and x10, x10, # ~0xf                   // Enforce 16 byte stack alignment.
     mov sp, x10                            // Set new SP.
 
@@ -565,7 +567,7 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+STACK_REFERENCE_SIZE
     // W2 - args length
     // X9 - destination address.
     // W10 - temporary
-    add x9, sp, #4                         // Destination address is bottom of stack + null.
+    add x9, sp, #8                         // Destination address is bottom of stack + null.
 
     // Use \@ to differentiate between macro invocations.
 .LcopyParams\@:
@@ -579,18 +581,14 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+STACK_REFERENCE_SIZE
 
 .LendCopyParams\@:
 
-    // Store null into StackReference<Method>* at bottom of frame.
-    str wzr, [sp]
-
-#if (STACK_REFERENCE_SIZE != 4)
-#error "STACK_REFERENCE_SIZE(ARM64) size not as expected."
-#endif
+    // Store null into ArtMethod* at bottom of frame.
+    str xzr, [sp]
 .endm
 
 .macro INVOKE_STUB_CALL_AND_RETURN
 
     // load method-> METHOD_QUICK_CODE_OFFSET
-    ldr x9, [x0 , #MIRROR_ART_METHOD_QUICK_CODE_OFFSET_64]
+    ldr x9, [x0, #ART_METHOD_QUICK_CODE_OFFSET_64]
     // Branch to method.
     blr x9
 
@@ -681,7 +679,7 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+STACK_REFERENCE_SIZE
  *  | uint32_t out[n-1]    |
  *  |    :      :          |        Outs
  *  | uint32_t out[0]      |
- *  | StackRef<ArtMethod>  | <- SP  value=null
+ *  | ArtMethod*           | <- SP  value=null
  *  +----------------------+
  *
  * Outgoing registers:
@@ -1314,7 +1312,7 @@ END \name
     .extern \entrypoint
 ENTRY \name
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  // save callee saves in case of GC
-    ldr    w1, [sp, #FRAME_SIZE_REFS_ONLY_CALLEE_SAVE] // Load referrer
+    ldr    x1, [sp, #FRAME_SIZE_REFS_ONLY_CALLEE_SAVE] // Load referrer
     mov    x2, xSELF                  // pass Thread::Current
     bl     \entrypoint                // (uint32_t type_idx, Method* method, Thread*, SP)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
@@ -1326,7 +1324,7 @@ END \name
     .extern \entrypoint
 ENTRY \name
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  // save callee saves in case of GC
-    ldr    w2, [sp, #FRAME_SIZE_REFS_ONLY_CALLEE_SAVE] // Load referrer
+    ldr    x2, [sp, #FRAME_SIZE_REFS_ONLY_CALLEE_SAVE] // Load referrer
     mov    x3, xSELF                  // pass Thread::Current
     bl     \entrypoint
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
@@ -1338,7 +1336,7 @@ END \name
     .extern \entrypoint
 ENTRY \name
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  // save callee saves in case of GC
-    ldr    w3, [sp, #FRAME_SIZE_REFS_ONLY_CALLEE_SAVE] // Load referrer
+    ldr    x3, [sp, #FRAME_SIZE_REFS_ONLY_CALLEE_SAVE] // Load referrer
     mov    x4, xSELF                  // pass Thread::Current
     bl     \entrypoint
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
@@ -1401,7 +1399,7 @@ THREE_ARG_REF_DOWNCALL art_quick_set_obj_instance, artSetObjInstanceFromCode, RE
 ENTRY art_quick_set64_static
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  // save callee saves in case of GC
     mov    x3, x1                     // Store value
-    ldr    w1, [sp, #FRAME_SIZE_REFS_ONLY_CALLEE_SAVE] // Load referrer
+    ldr    x1, [sp, #FRAME_SIZE_REFS_ONLY_CALLEE_SAVE] // Load referrer
     mov    x2, x3                     // Put value param
     mov    x3, xSELF                  // pass Thread::Current
     bl     artSet64StaticFromCode
@@ -1468,10 +1466,10 @@ END art_quick_proxy_invoke_handler
      * dex method index.
      */
 ENTRY art_quick_imt_conflict_trampoline
-    ldr    w0, [sp, #0]                                // load caller Method*
-    ldr    w0, [x0, #MIRROR_ART_METHOD_DEX_CACHE_METHODS_OFFSET]  // load dex_cache_resolved_methods
-    add    x0, x0, #MIRROR_OBJECT_ARRAY_DATA_OFFSET    // get starting address of data
-    ldr    w0, [x0, xIP1, lsl 2]                       // load the target method
+    ldr    x0, [sp, #0]                                // load caller Method*
+    ldr    w0, [x0, #ART_METHOD_DEX_CACHE_METHODS_OFFSET]  // load dex_cache_resolved_methods
+    add    x0, x0, #MIRROR_LONG_ARRAY_DATA_OFFSET      // get starting address of data
+    ldr    x0, [x0, xIP1, lsl 3]                       // load the target method
     b art_quick_invoke_interface_trampoline
 END art_quick_imt_conflict_trampoline
 
@@ -1482,7 +1480,7 @@ ENTRY art_quick_resolution_trampoline
     bl artQuickResolutionTrampoline  // (called, receiver, Thread*, SP)
     cbz x0, 1f
     mov xIP0, x0            // Remember returned code pointer in xIP0.
-    ldr w0, [sp, #0]        // artQuickResolutionTrampoline puts called method in *SP.
+    ldr x0, [sp, #0]        // artQuickResolutionTrampoline puts called method in *SP.
     RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
     br xIP0
 1:

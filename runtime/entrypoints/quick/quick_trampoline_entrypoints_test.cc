@@ -16,9 +16,9 @@
 
 #include <stdint.h>
 
+#include "art_method-inl.h"
 #include "callee_save_frame.h"
 #include "common_runtime_test.h"
-#include "mirror/art_method-inl.h"
 #include "quick/quick_method_frame_info.h"
 
 namespace art {
@@ -31,8 +31,7 @@ class QuickTrampolineEntrypointsTest : public CommonRuntimeTest {
     options->push_back(std::make_pair("imageinstructionset", "x86_64"));
   }
 
-  static mirror::ArtMethod* CreateCalleeSaveMethod(InstructionSet isa,
-                                                   Runtime::CalleeSaveType type)
+  static ArtMethod* CreateCalleeSaveMethod(InstructionSet isa, Runtime::CalleeSaveType type)
       NO_THREAD_SAFETY_ANALYSIS {
     Runtime* r = Runtime::Current();
 
@@ -40,7 +39,7 @@ class QuickTrampolineEntrypointsTest : public CommonRuntimeTest {
     t->TransitionFromSuspendedToRunnable();  // So we can create callee-save methods.
 
     r->SetInstructionSet(isa);
-    mirror::ArtMethod* save_method = r->CreateCalleeSaveMethod();
+    ArtMethod* save_method = r->CreateCalleeSaveMethod();
     r->SetCalleeSaveMethod(save_method, type);
 
     t->TransitionFromRunnableToSuspended(ThreadState::kNative);  // So we can shut down.
@@ -50,7 +49,7 @@ class QuickTrampolineEntrypointsTest : public CommonRuntimeTest {
 
   static void CheckFrameSize(InstructionSet isa, Runtime::CalleeSaveType type, uint32_t save_size)
       NO_THREAD_SAFETY_ANALYSIS {
-    mirror::ArtMethod* save_method = CreateCalleeSaveMethod(isa, type);
+    ArtMethod* save_method = CreateCalleeSaveMethod(isa, type);
     QuickMethodFrameInfo frame_info = save_method->GetQuickFrameInfo();
     EXPECT_EQ(frame_info.FrameSizeInBytes(), save_size) << "Expected and real size differs for "
         << type << " core spills=" << std::hex << frame_info.CoreSpillMask() << " fp spills="
@@ -59,7 +58,7 @@ class QuickTrampolineEntrypointsTest : public CommonRuntimeTest {
 
   static void CheckPCOffset(InstructionSet isa, Runtime::CalleeSaveType type, size_t pc_offset)
       NO_THREAD_SAFETY_ANALYSIS {
-    mirror::ArtMethod* save_method = CreateCalleeSaveMethod(isa, type);
+    ArtMethod* save_method = CreateCalleeSaveMethod(isa, type);
     QuickMethodFrameInfo frame_info = save_method->GetQuickFrameInfo();
     EXPECT_EQ(save_method->GetReturnPcOffset().SizeValue(), pc_offset)
         << "Expected and real pc offset differs for " << type

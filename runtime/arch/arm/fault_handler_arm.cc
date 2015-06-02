@@ -18,13 +18,13 @@
 #include "fault_handler.h"
 
 #include <sys/ucontext.h>
+
+#include "art_method-inl.h"
 #include "base/macros.h"
 #include "base/hex_dump.h"
 #include "globals.h"
 #include "base/logging.h"
 #include "base/hex_dump.h"
-#include "mirror/art_method.h"
-#include "mirror/art_method-inl.h"
 #include "thread.h"
 #include "thread-inl.h"
 
@@ -65,7 +65,7 @@ void FaultManager::HandleNestedSignal(int sig ATTRIBUTE_UNUSED, siginfo_t* info 
 }
 
 void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo ATTRIBUTE_UNUSED, void* context,
-                                             mirror::ArtMethod** out_method,
+                                             ArtMethod** out_method,
                                              uintptr_t* out_return_pc, uintptr_t* out_sp) {
   struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
   struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
@@ -81,10 +81,10 @@ void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo ATTRIBUTE_UNUSED
   uintptr_t* overflow_addr = reinterpret_cast<uintptr_t*>(
       reinterpret_cast<uint8_t*>(*out_sp) - GetStackOverflowReservedBytes(kArm));
   if (overflow_addr == fault_addr) {
-    *out_method = reinterpret_cast<mirror::ArtMethod*>(sc->arm_r0);
+    *out_method = reinterpret_cast<ArtMethod*>(sc->arm_r0);
   } else {
     // The method is at the top of the stack.
-    *out_method = reinterpret_cast<mirror::ArtMethod*>(reinterpret_cast<uintptr_t*>(*out_sp)[0]);
+    *out_method = reinterpret_cast<ArtMethod*>(reinterpret_cast<uintptr_t*>(*out_sp)[0]);
   }
 
   // Work out the return PC.  This will be the address of the instruction

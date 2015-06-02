@@ -18,6 +18,7 @@
 
 #include "dex_file.h"
 #include "jni_internal.h"
+#include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
 #include "mirror/object-inl.h"
 #include "scoped_fast_native_object_access.h"

@@ -19,7 +19,7 @@
 
 #include "runtime.h"
 
-#include "mirror/art_method.h"
+#include "art_method.h"
 #include "read_barrier-inl.h"
 
 namespace art {
@@ -34,52 +34,46 @@ inline mirror::Object* Runtime::GetClearedJniWeakGlobal() {
   return obj;
 }
 
-inline QuickMethodFrameInfo Runtime::GetRuntimeMethodFrameInfo(mirror::ArtMethod* method) {
+inline QuickMethodFrameInfo Runtime::GetRuntimeMethodFrameInfo(ArtMethod* method) {
   DCHECK(method != nullptr);
   // Cannot be imt-conflict-method or resolution-method.
-  DCHECK(method != GetImtConflictMethod());
-  DCHECK(method != GetResolutionMethod());
+  DCHECK_NE(method, GetImtConflictMethod());
+  DCHECK_NE(method, GetResolutionMethod());
   // Don't use GetCalleeSaveMethod(), some tests don't set all callee save methods.
   if (method == GetCalleeSaveMethodUnchecked(Runtime::kRefsAndArgs)) {
     return GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
   } else if (method == GetCalleeSaveMethodUnchecked(Runtime::kSaveAll)) {
     return GetCalleeSaveMethodFrameInfo(Runtime::kSaveAll);
   } else {
-    DCHECK(method == GetCalleeSaveMethodUnchecked(Runtime::kRefsOnly));
+    DCHECK_EQ(method, GetCalleeSaveMethodUnchecked(Runtime::kRefsOnly));
     return GetCalleeSaveMethodFrameInfo(Runtime::kRefsOnly);
   }
 }
 
-inline mirror::ArtMethod* Runtime::GetResolutionMethod() {
+inline ArtMethod* Runtime::GetResolutionMethod() {
   CHECK(HasResolutionMethod());
-  return resolution_method_.Read();
+  return resolution_method_;
 }
 
-inline mirror::ArtMethod* Runtime::GetImtConflictMethod() {
+inline ArtMethod* Runtime::GetImtConflictMethod() {
   CHECK(HasImtConflictMethod());
-  return imt_conflict_method_.Read();
+  return imt_conflict_method_;
 }
 
-inline mirror::ArtMethod* Runtime::GetImtUnimplementedMethod() {
-  CHECK(!imt_unimplemented_method_.IsNull());
-  return imt_unimplemented_method_.Read();
+inline ArtMethod* Runtime::GetImtUnimplementedMethod() {
+  CHECK(imt_unimplemented_method_ != nullptr);
+  return imt_unimplemented_method_;
 }
 
-inline mirror::ObjectArray<mirror::ArtMethod>* Runtime::GetDefaultImt()
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  CHECK(HasDefaultImt());
-  return default_imt_.Read();
-}
-
-inline mirror::ArtMethod* Runtime::GetCalleeSaveMethod(CalleeSaveType type)
+inline ArtMethod* Runtime::GetCalleeSaveMethod(CalleeSaveType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(HasCalleeSaveMethod(type));
-  return callee_save_methods_[type].Read();
+  return GetCalleeSaveMethodUnchecked(type);
 }
 
-inline mirror::ArtMethod* Runtime::GetCalleeSaveMethodUnchecked(CalleeSaveType type)
+inline ArtMethod* Runtime::GetCalleeSaveMethodUnchecked(CalleeSaveType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return callee_save_methods_[type].Read();
+  return reinterpret_cast<ArtMethod*>(callee_save_methods_[type]);
 }
 
 }  // namespace art

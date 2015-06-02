@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "base/dumpable.h"
 #include "base/scoped_flock.h"
 #include "base/stringpiece.h"
@@ -35,8 +36,9 @@
 #include "elf_file_impl.h"
 #include "gc/space/image_space.h"
 #include "image.h"
-#include "mirror/art_method-inl.h"
+#include "mirror/abstract_method.h"
 #include "mirror/object-inl.h"
+#include "mirror/method.h"
 #include "mirror/reference.h"
 #include "noop_compiler_callbacks.h"
 #include "offsets.h"
@@ -120,7 +122,7 @@ bool PatchOat::Patch(const std::string& image_location, off_t delta,
   }
   ImageHeader image_header;
   if (sizeof(image_header) != input_image->Read(reinterpret_cast<char*>(&image_header),
-                                              sizeof(image_header), 0)) {
+                                                sizeof(image_header), 0)) {
     LOG(ERROR) << "Unable to read image header from image file " << input_image->GetPath();
     return false;
   }
@@ -416,12 +418,22 @@ bool PatchOat::ReplaceOatFileWithSymlink(const std::string& input_oat_filename,
 }
 
 void PatchOat::PatchArtFields(const ImageHeader* image_header) {
-  const size_t art_field_size = image_header->GetArtFieldsSize();
-  const size_t art_field_offset = image_header->GetArtFieldsOffset();
-  for (size_t pos = 0; pos < art_field_size; pos += sizeof(ArtField)) {
-    auto* field = reinterpret_cast<ArtField*>(heap_->Begin() + art_field_offset + pos);
-    auto* dest_field = RelocatedCopyOf(field);
-    dest_field->SetDeclaringClass(RelocatedAddressOfPointer(field->GetDeclaringClass()));
+  const auto& section = image_header->GetImageSection(ImageHeader::kSectionArtFields);
+  for (size_t pos = 0; pos < section.Size(); pos += sizeof(ArtField)) {
+    auto* src = reinterpret_cast<ArtField*>(heap_->Begin() + section.Offset() + pos);
+    auto* dest = RelocatedCopyOf(src);
+    dest->SetDeclaringClass(RelocatedAddressOfPointer(src->GetDeclaringClass()));
+  }
+}
+
+void PatchOat::PatchArtMethods(const ImageHeader* image_header) {
+  const auto& section = image_header->GetMethodsSection();
+  const size_t pointer_size = InstructionSetPointerSize(isa_);
+  size_t method_size = ArtMethod::ObjectSize(pointer_size);
+  for (size_t pos = 0; pos < section.Size(); pos += method_size) {
+    auto* src = reinterpret_cast<ArtMethod*>(heap_->Begin() + section.Offset() + pos);
+    auto* dest = RelocatedCopyOf(src);
+    FixupMethod(src, dest);
   }
 }
 
@@ -431,31 +443,35 @@ void PatchOat::PatchDexFileArrays(mirror::ObjectArray<mirror::Object>* img_roots
   for (size_t i = 0, count = dex_caches->GetLength(); i < count; ++i) {
     auto* dex_cache = dex_caches->GetWithoutChecks(i);
     auto* fields = dex_cache->GetResolvedFields();
-    if (fields == nullptr) {
-      continue;
+    if (fields != nullptr) {
+      CHECK(!fields->IsObjectArray());
+      CHECK(fields->IsArrayInstance());
+      FixupNativePointerArray(fields);
     }
-    CHECK(!fields->IsObjectArray());
-    CHECK(fields->IsArrayInstance());
-    auto* component_type = fields->GetClass()->GetComponentType();
-    if (component_type->IsPrimitiveInt()) {
-      mirror::IntArray* arr = fields->AsIntArray();
-      mirror::IntArray* copy_arr = down_cast<mirror::IntArray*>(RelocatedCopyOf(arr));
-      for (size_t j = 0, count2 = arr->GetLength(); j < count2; ++j) {
-        auto f = arr->GetWithoutChecks(j);
-        if (f != 0) {
-          copy_arr->SetWithoutChecks<false>(j, f + delta_);
-        }
-      }
-    } else {
-      CHECK(component_type->IsPrimitiveLong());
-      mirror::LongArray* arr = fields->AsLongArray();
-      mirror::LongArray* copy_arr = down_cast<mirror::LongArray*>(RelocatedCopyOf(arr));
-      for (size_t j = 0, count2 = arr->GetLength(); j < count2; ++j) {
-        auto f = arr->GetWithoutChecks(j);
-        if (f != 0) {
-          copy_arr->SetWithoutChecks<false>(j, f + delta_);
-        }
-      }
+    auto* methods = dex_cache->GetResolvedMethods();
+    if (methods != nullptr) {
+      CHECK(!methods->IsObjectArray());
+      CHECK(methods->IsArrayInstance());
+      FixupNativePointerArray(methods);
+    }
+  }
+}
+
+void PatchOat::FixupNativePointerArray(mirror::PointerArray* object) {
+  if (object->IsIntArray()) {
+    mirror::IntArray* arr = object->AsIntArray();
+    mirror::IntArray* copy_arr = down_cast<mirror::IntArray*>(RelocatedCopyOf(arr));
+    for (size_t j = 0, count2 = arr->GetLength(); j < count2; ++j) {
+      copy_arr->SetWithoutChecks<false>(
+          j, RelocatedAddressOfIntPointer(arr->GetWithoutChecks(j)));
+    }
+  } else {
+    CHECK(object->IsLongArray());
+    mirror::LongArray* arr = object->AsLongArray();
+    mirror::LongArray* copy_arr = down_cast<mirror::LongArray*>(RelocatedCopyOf(arr));
+    for (size_t j = 0, count2 = arr->GetLength(); j < count2; ++j) {
+      copy_arr->SetWithoutChecks<false>(
+          j, RelocatedAddressOfIntPointer(arr->GetWithoutChecks(j)));
     }
   }
 }
@@ -469,6 +485,9 @@ bool PatchOat::PatchImage() {
 
   // Patch and update ArtFields.
   PatchArtFields(image_header);
+
+  // Patch and update ArtMethods.
+  PatchArtMethods(image_header);
 
   // Patch dex file int/long arrays which point to ArtFields.
   PatchDexFileArrays(img_roots);
@@ -545,40 +564,63 @@ void PatchOat::VisitObject(mirror::Object* object) {
   }
   PatchOat::PatchVisitor visitor(this, copy);
   object->VisitReferences<true, kVerifyNone>(visitor, visitor);
-  if (object->IsArtMethod<kVerifyNone>()) {
-    FixupMethod(down_cast<mirror::ArtMethod*>(object), down_cast<mirror::ArtMethod*>(copy));
-  } else if (object->IsClass<kVerifyNone>()) {
-    mirror::Class* klass = down_cast<mirror::Class*>(object);
-    down_cast<mirror::Class*>(copy)->SetSFieldsUnchecked(
-        RelocatedAddressOfPointer(klass->GetSFields()));
-    down_cast<mirror::Class*>(copy)->SetIFieldsUnchecked(
-        RelocatedAddressOfPointer(klass->GetIFields()));
+  if (object->IsClass<kVerifyNone>()) {
+    auto* klass = object->AsClass();
+    auto* copy_klass = down_cast<mirror::Class*>(copy);
+    copy_klass->SetSFieldsUnchecked(RelocatedAddressOfPointer(klass->GetSFields()));
+    copy_klass->SetIFieldsUnchecked(RelocatedAddressOfPointer(klass->GetIFields()));
+    copy_klass->SetDirectMethodsPtrUnchecked(
+        RelocatedAddressOfPointer(klass->GetDirectMethodsPtr()));
+    copy_klass->SetVirtualMethodsPtr(RelocatedAddressOfPointer(klass->GetVirtualMethodsPtr()));
+    auto* vtable = klass->GetVTable();
+    if (vtable != nullptr) {
+      FixupNativePointerArray(vtable);
+    }
+    auto* iftable = klass->GetIfTable();
+    if (iftable != nullptr) {
+      for (int32_t i = 0; i < klass->GetIfTableCount(); ++i) {
+        if (iftable->GetMethodArrayCount(i) > 0) {
+          auto* method_array = iftable->GetMethodArray(i);
+          CHECK(method_array != nullptr);
+          FixupNativePointerArray(method_array);
+        }
+      }
+    }
+    if (klass->ShouldHaveEmbeddedImtAndVTable()) {
+      const size_t pointer_size = InstructionSetPointerSize(isa_);
+      for (int32_t i = 0; i < klass->GetEmbeddedVTableLength(); ++i) {
+        copy_klass->SetEmbeddedVTableEntryUnchecked(i, RelocatedAddressOfPointer(
+            klass->GetEmbeddedVTableEntry(i, pointer_size)), pointer_size);
+      }
+      for (size_t i = 0; i < mirror::Class::kImtSize; ++i) {
+        copy_klass->SetEmbeddedImTableEntry(i, RelocatedAddressOfPointer(
+            klass->GetEmbeddedImTableEntry(i, pointer_size)), pointer_size);
+      }
+    }
+  }
+  if (object->GetClass() == mirror::Method::StaticClass() ||
+      object->GetClass() == mirror::Constructor::StaticClass()) {
+    // Need to go update the ArtMethod.
+    auto* dest = down_cast<mirror::AbstractMethod*>(copy);
+    auto* src = down_cast<mirror::AbstractMethod*>(object);
+    dest->SetArtMethod(RelocatedAddressOfPointer(src->GetArtMethod()));
   }
 }
 
-void PatchOat::FixupMethod(mirror::ArtMethod* object, mirror::ArtMethod* copy) {
+void PatchOat::FixupMethod(ArtMethod* object, ArtMethod* copy) {
   const size_t pointer_size = InstructionSetPointerSize(isa_);
+  copy->CopyFrom(object, pointer_size);
   // Just update the entry points if it looks like we should.
   // TODO: sanity check all the pointers' values
-  uintptr_t quick= reinterpret_cast<uintptr_t>(
-      object->GetEntryPointFromQuickCompiledCodePtrSize<kVerifyNone>(pointer_size));
-  if (quick != 0) {
-    copy->SetEntryPointFromQuickCompiledCodePtrSize(reinterpret_cast<void*>(quick + delta_),
-                                                    pointer_size);
-  }
-  uintptr_t interpreter = reinterpret_cast<uintptr_t>(
-      object->GetEntryPointFromInterpreterPtrSize<kVerifyNone>(pointer_size));
-  if (interpreter != 0) {
-    copy->SetEntryPointFromInterpreterPtrSize(
-        reinterpret_cast<mirror::EntryPointFromInterpreter*>(interpreter + delta_), pointer_size);
-  }
-
-  uintptr_t native_method = reinterpret_cast<uintptr_t>(
-      object->GetEntryPointFromJniPtrSize(pointer_size));
-  if (native_method != 0) {
-    copy->SetEntryPointFromJniPtrSize(reinterpret_cast<void*>(native_method + delta_),
-                                      pointer_size);
-  }
+  copy->SetDeclaringClass(RelocatedAddressOfPointer(object->GetDeclaringClass()));
+  copy->SetDexCacheResolvedMethods(RelocatedAddressOfPointer(object->GetDexCacheResolvedMethods()));
+  copy->SetDexCacheResolvedTypes(RelocatedAddressOfPointer(object->GetDexCacheResolvedTypes()));
+  copy->SetEntryPointFromQuickCompiledCodePtrSize(RelocatedAddressOfPointer(
+      object->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size)), pointer_size);
+  copy->SetEntryPointFromInterpreterPtrSize(RelocatedAddressOfPointer(
+      object->GetEntryPointFromInterpreterPtrSize(pointer_size)), pointer_size);
+  copy->SetEntryPointFromJniPtrSize(RelocatedAddressOfPointer(
+      object->GetEntryPointFromJniPtrSize(pointer_size)), pointer_size);
 }
 
 bool PatchOat::Patch(File* input_oat, off_t delta, File* output_oat, TimingLogger* timings,

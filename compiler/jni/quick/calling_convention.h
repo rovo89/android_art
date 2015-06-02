@@ -171,7 +171,7 @@ class CallingConvention {
     if (IsStatic()) {
       param++;  // 0th argument must skip return value at start of the shorty
     } else if (param == 0) {
-      return frame_pointer_size_;  // this argument
+      return sizeof(mirror::HeapReference<mirror::Object>);  // this argument
     }
     size_t result = Primitive::ComponentSize(Primitive::GetType(shorty_[param]));
     if (result >= 1 && result < 4) {
@@ -196,7 +196,7 @@ class CallingConvention {
   unsigned int itr_float_and_doubles_;
   // Space for frames below this on the stack.
   FrameOffset displacement_;
-  // The size of a reference.
+  // The size of a pointer.
   const size_t frame_pointer_size_;
   // The size of a reference entry within the handle scope.
   const size_t handle_scope_pointer_size_;
@@ -320,12 +320,13 @@ class JniCallingConvention : public CallingConvention {
 
   // Position of handle scope and interior fields
   FrameOffset HandleScopeOffset() const {
-    return FrameOffset(this->displacement_.Int32Value() + sizeof(StackReference<mirror::ArtMethod>));
+    return FrameOffset(this->displacement_.Int32Value() + frame_pointer_size_);
     // above Method reference
   }
 
   FrameOffset HandleScopeLinkOffset() const {
-    return FrameOffset(HandleScopeOffset().Int32Value() + HandleScope::LinkOffset(frame_pointer_size_));
+    return FrameOffset(HandleScopeOffset().Int32Value() +
+                       HandleScope::LinkOffset(frame_pointer_size_));
   }
 
   FrameOffset HandleScopeNumRefsOffset() const {
@@ -333,7 +334,7 @@ class JniCallingConvention : public CallingConvention {
                        HandleScope::NumberOfReferencesOffset(frame_pointer_size_));
   }
 
-  FrameOffset HandleerencesOffset() const {
+  FrameOffset HandleReferencesOffset() const {
     return FrameOffset(HandleScopeOffset().Int32Value() +
                        HandleScope::ReferencesOffset(frame_pointer_size_));
   }
