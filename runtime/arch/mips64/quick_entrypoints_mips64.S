@@ -649,7 +649,7 @@ ENTRY_NO_GP art_quick_invoke_stub
     daddiu $t0, $a5, 1           # t0 = shorty[1] (skip 1 for return type)
     daddiu $t1, $a1, 4           # t1 = ptr to arg_array[4] (skip this ptr)
     daddiu $t2, $a2, -4          # t2 = number of argument bytes remain (skip this ptr)
-    daddiu $v0, $sp, 8           # v0 points to where to copy arg_array
+    daddiu $v0, $sp, 12          # v0 points to where to copy arg_array
     LOOP_OVER_SHORTY_LOADING_REG a2, f14, call_fn
     LOOP_OVER_SHORTY_LOADING_REG a3, f15, call_fn
     LOOP_OVER_SHORTY_LOADING_REG a4, f16, call_fn
