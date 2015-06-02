@@ -179,4 +179,18 @@ MACRO1(SETUP_GOT_NOSAVE, got_reg)
 #endif
 END_MACRO
 
+// Macros to poison (negate) the reference for heap poisoning.
+MACRO1(POISON_HEAP_REF, rRef)
+#ifdef USE_HEAP_POISONING
+    neg REG_VAR(rRef, 0)
+#endif  // USE_HEAP_POISONING
+END_MACRO
+
+// Macros to unpoison (negate) the reference for heap poisoning.
+MACRO1(UNPOISON_HEAP_REF, rRef)
+#ifdef USE_HEAP_POISONING
+    neg REG_VAR(rRef, 0)
+#endif  // USE_HEAP_POISONING
+END_MACRO
+
 #endif  // ART_RUNTIME_ARCH_X86_ASM_SUPPORT_X86_S_

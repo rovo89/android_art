@@ -181,6 +181,13 @@ class CheckJniAbortCatcher {
     return; \
   }
 
+// TODO: When read barrier works with the compiler, get rid of this.
+#define TEST_DISABLED_FOR_READ_BARRIER() \
+  if (kUseReadBarrier) { \
+    printf("WARNING: TEST DISABLED FOR READ BARRIER\n"); \
+    return; \
+  }
+
 #define TEST_DISABLED_FOR_MIPS() \
   if (kRuntimeISA == kMips) { \
     printf("WARNING: TEST DISABLED FOR MIPS\n"); \
