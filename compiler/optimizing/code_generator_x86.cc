@@ -44,7 +44,7 @@ static constexpr int kC2ConditionMask = 0x400;
 
 static constexpr int kFakeReturnRegister = Register(8);
 
-#define __ reinterpret_cast<X86Assembler*>(codegen->GetAssembler())->
+#define __ down_cast<X86Assembler*>(codegen->GetAssembler())->
 
 class NullCheckSlowPathX86 : public SlowPathCodeX86 {
  public:
@@ -324,7 +324,7 @@ class DeoptimizationSlowPathX86 : public SlowPathCodeX86 {
 };
 
 #undef __
-#define __ reinterpret_cast<X86Assembler*>(GetAssembler())->
+#define __ down_cast<X86Assembler*>(GetAssembler())->
 
 inline Condition X86Condition(IfCondition cond) {
   switch (cond) {

@@ -46,7 +46,7 @@ static constexpr FloatRegister kFpuCalleeSaves[] = { XMM12, XMM13, XMM14, XMM15 
 
 static constexpr int kC2ConditionMask = 0x400;
 
-#define __ reinterpret_cast<X86_64Assembler*>(codegen->GetAssembler())->
+#define __ down_cast<X86_64Assembler*>(codegen->GetAssembler())->
 
 class NullCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
  public:
@@ -343,7 +343,7 @@ class DeoptimizationSlowPathX86_64 : public SlowPathCodeX86_64 {
 };
 
 #undef __
-#define __ reinterpret_cast<X86_64Assembler*>(GetAssembler())->
+#define __ down_cast<X86_64Assembler*>(GetAssembler())->
 
 inline Condition X86_64Condition(IfCondition cond) {
   switch (cond) {
