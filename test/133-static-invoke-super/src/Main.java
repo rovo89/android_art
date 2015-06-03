@@ -26,14 +26,14 @@ public class Main {
         run(timing);
     }
 
-    static int testBasis(int interations) {
-      (new SubClass()).testDirect(interations);
-      return interations;
+    static int testBasis(int iterations) {
+      (new SubClass()).testDirect(iterations);
+      return iterations;
     }
 
-    static int testStatic(int interations) {
-      (new SubClass()).testStatic(interations);
-      return interations;
+    static int testStatic(int iterations) {
+      (new SubClass()).testStatic(iterations);
+      return iterations;
     }
 
     static public void run(boolean timing) {
