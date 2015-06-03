@@ -84,7 +84,6 @@ inline Condition ARM64Condition(IfCondition cond) {
 }
 
 Location ARM64ReturnLocation(Primitive::Type return_type) {
-  DCHECK_NE(return_type, Primitive::kPrimVoid);
   // Note that in practice, `LocationFrom(x0)` and `LocationFrom(w0)` create the
   // same Location object, and so do `LocationFrom(d0)` and `LocationFrom(s0)`,
   // but we use the exact registers for clarity.
@@ -94,6 +93,8 @@ Location ARM64ReturnLocation(Primitive::Type return_type) {
     return LocationFrom(d0);
   } else if (return_type == Primitive::kPrimLong) {
     return LocationFrom(x0);
+  } else if (return_type == Primitive::kPrimVoid) {
+    return Location::NoLocation();
   } else {
     return LocationFrom(w0);
   }
