@@ -1263,6 +1263,8 @@ Location InvokeDexCallingConventionVisitorX86_64::GetReturnLocation(Primitive::T
     case Primitive::kPrimFloat:
       return Location::FpuRegisterLocation(XMM0);
   }
+
+  UNREACHABLE();
 }
 
 Location InvokeDexCallingConventionVisitorX86_64::GetMethodLocation() const {
