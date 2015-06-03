@@ -115,6 +115,8 @@ class SlowPathCode : public ArenaObject<kArenaAllocSlowPaths> {
 class InvokeDexCallingConventionVisitor {
  public:
   virtual Location GetNextLocation(Primitive::Type type) = 0;
+  virtual Location GetReturnLocation(Primitive::Type type) const = 0;
+  virtual Location GetMethodLocation() const = 0;
 
  protected:
   InvokeDexCallingConventionVisitor() {}
@@ -337,6 +339,9 @@ class CodeGenerator {
   }
 
   virtual ParallelMoveResolver* GetMoveResolver() = 0;
+
+  static void CreateCommonInvokeLocationSummary(
+      HInvoke* invoke, InvokeDexCallingConventionVisitor* visitor);
 
  protected:
   CodeGenerator(HGraph* graph,
