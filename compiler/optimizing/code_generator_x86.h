@@ -83,6 +83,8 @@ class InvokeDexCallingConventionVisitorX86 : public InvokeDexCallingConventionVi
   virtual ~InvokeDexCallingConventionVisitorX86() {}
 
   Location GetNextLocation(Primitive::Type type) OVERRIDE;
+  Location GetReturnLocation(Primitive::Type type) const OVERRIDE;
+  Location GetMethodLocation() const OVERRIDE;
 
  private:
   InvokeDexCallingConvention calling_convention;

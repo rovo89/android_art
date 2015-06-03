@@ -1245,6 +1245,30 @@ void InstructionCodeGeneratorX86_64::VisitReturn(HReturn* ret) {
   codegen_->GenerateFrameExit();
 }
 
+Location InvokeDexCallingConventionVisitorX86_64::GetReturnLocation(Primitive::Type type) const {
+  switch (type) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimInt:
+    case Primitive::kPrimNot:
+    case Primitive::kPrimLong:
+      return Location::RegisterLocation(RAX);
+
+    case Primitive::kPrimVoid:
+      return Location::NoLocation();
+
+    case Primitive::kPrimDouble:
+    case Primitive::kPrimFloat:
+      return Location::FpuRegisterLocation(XMM0);
+  }
+}
+
+Location InvokeDexCallingConventionVisitorX86_64::GetMethodLocation() const {
+  return Location::RegisterLocation(kMethodRegisterArgument);
+}
+
 Location InvokeDexCallingConventionVisitorX86_64::GetNextLocation(Primitive::Type type) {
   switch (type) {
     case Primitive::kPrimBoolean:
@@ -1339,35 +1363,8 @@ void InstructionCodeGeneratorX86_64::VisitInvokeStaticOrDirect(HInvokeStaticOrDi
 }
 
 void LocationsBuilderX86_64::HandleInvoke(HInvoke* invoke) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(invoke, LocationSummary::kCall);
-  locations->AddTemp(Location::RegisterLocation(kMethodRegisterArgument));
-
   InvokeDexCallingConventionVisitorX86_64 calling_convention_visitor;
-  for (size_t i = 0; i < invoke->GetNumberOfArguments(); i++) {
-    HInstruction* input = invoke->InputAt(i);
-    locations->SetInAt(i, calling_convention_visitor.GetNextLocation(input->GetType()));
-  }
-
-  switch (invoke->GetType()) {
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-    case Primitive::kPrimInt:
-    case Primitive::kPrimNot:
-    case Primitive::kPrimLong:
-      locations->SetOut(Location::RegisterLocation(RAX));
-      break;
-
-    case Primitive::kPrimVoid:
-      break;
-
-    case Primitive::kPrimDouble:
-    case Primitive::kPrimFloat:
-      locations->SetOut(Location::FpuRegisterLocation(XMM0));
-      break;
-  }
+  CodeGenerator::CreateCommonInvokeLocationSummary(invoke, &calling_convention_visitor);
 }
 
 void LocationsBuilderX86_64::VisitInvokeVirtual(HInvokeVirtual* invoke) {

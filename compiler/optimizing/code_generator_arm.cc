@@ -681,7 +681,7 @@ Location InvokeDexCallingConventionVisitorARM::GetNextLocation(Primitive::Type t
   return Location();
 }
 
-Location InvokeDexCallingConventionVisitorARM::GetReturnLocation(Primitive::Type type) {
+Location InvokeDexCallingConventionVisitorARM::GetReturnLocation(Primitive::Type type) const {
   switch (type) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
@@ -708,6 +708,10 @@ Location InvokeDexCallingConventionVisitorARM::GetReturnLocation(Primitive::Type
       return Location();
   }
   UNREACHABLE();
+}
+
+Location InvokeDexCallingConventionVisitorARM::GetMethodLocation() const {
+  return Location::RegisterLocation(kMethodRegisterArgument);
 }
 
 void CodeGeneratorARM::Move32(Location destination, Location source) {
@@ -1285,17 +1289,8 @@ void InstructionCodeGeneratorARM::VisitInvokeStaticOrDirect(HInvokeStaticOrDirec
 }
 
 void LocationsBuilderARM::HandleInvoke(HInvoke* invoke) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(invoke, LocationSummary::kCall);
-  locations->AddTemp(Location::RegisterLocation(kMethodRegisterArgument));
-
   InvokeDexCallingConventionVisitorARM calling_convention_visitor;
-  for (size_t i = 0; i < invoke->GetNumberOfArguments(); i++) {
-    HInstruction* input = invoke->InputAt(i);
-    locations->SetInAt(i, calling_convention_visitor.GetNextLocation(input->GetType()));
-  }
-
-  locations->SetOut(calling_convention_visitor.GetReturnLocation(invoke->GetType()));
+  CodeGenerator::CreateCommonInvokeLocationSummary(invoke, &calling_convention_visitor);
 }
 
 void LocationsBuilderARM::VisitInvokeVirtual(HInvokeVirtual* invoke) {
