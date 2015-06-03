@@ -975,7 +975,15 @@ class Thread {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void RemoveFromThreadGroup(ScopedObjectAccess& soa) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool Init(ThreadList*, JavaVMExt*) EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_);
+  // Initialize a thread.
+  //
+  // The third parameter is not mandatory. If given, the thread will use this JNIEnvExt. In case
+  // Init succeeds, this means the thread takes ownership of it. If Init fails, it is the caller's
+  // responsibility to destroy the given JNIEnvExt. If the parameter is null, Init will try to
+  // create a JNIEnvExt on its own (and potentially fail at that stage, indicated by a return value
+  // of false).
+  bool Init(ThreadList*, JavaVMExt*, JNIEnvExt* jni_env_ext = nullptr)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_);
   void InitCardTable();
   void InitCpu();
   void CleanupCpu();
@@ -1111,8 +1119,8 @@ class Thread {
 
   struct PACKED(4) tls_ptr_sized_values {
       tls_ptr_sized_values() : card_table(nullptr), exception(nullptr), stack_end(nullptr),
-      managed_stack(), suspend_trigger(nullptr), jni_env(nullptr), self(nullptr), opeer(nullptr),
-      jpeer(nullptr), stack_begin(nullptr), stack_size(0),
+      managed_stack(), suspend_trigger(nullptr), jni_env(nullptr), tmp_jni_env(nullptr),
+      self(nullptr), opeer(nullptr), jpeer(nullptr), stack_begin(nullptr), stack_size(0),
       stack_trace_sample(nullptr), wait_next(nullptr), monitor_enter_object(nullptr),
       top_handle_scope(nullptr), class_loader_override(nullptr), long_jump_context(nullptr),
       instrumentation_stack(nullptr), debug_invoke_req(nullptr), single_step_control(nullptr),
@@ -1143,6 +1151,10 @@ class Thread {
 
     // Every thread may have an associated JNI environment
     JNIEnvExt* jni_env;
+
+    // Temporary storage to transfer a pre-allocated JNIEnvExt from the creating thread to the
+    // created thread.
+    JNIEnvExt* tmp_jni_env;
 
     // Initialized to "this". On certain architectures (such as x86) reading off of Thread::Current
     // is easy but getting the address of Thread::Current is hard. This field can be read off of
