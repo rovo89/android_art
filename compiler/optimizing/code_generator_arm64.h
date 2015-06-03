@@ -115,7 +115,7 @@ class InvokeDexCallingConvention : public CallingConvention<vixl::Register, vixl
                           kParameterFPRegistersLength,
                           kArm64PointerSize) {}
 
-  Location GetReturnLocation(Primitive::Type return_type) {
+  Location GetReturnLocation(Primitive::Type return_type) const {
     return ARM64ReturnLocation(return_type);
   }
 
@@ -130,9 +130,10 @@ class InvokeDexCallingConventionVisitorARM64 : public InvokeDexCallingConvention
   virtual ~InvokeDexCallingConventionVisitorARM64() {}
 
   Location GetNextLocation(Primitive::Type type) OVERRIDE;
-  Location GetReturnLocation(Primitive::Type return_type) {
+  Location GetReturnLocation(Primitive::Type return_type) const OVERRIDE {
     return calling_convention.GetReturnLocation(return_type);
   }
+  Location GetMethodLocation() const OVERRIDE;
 
  private:
   InvokeDexCallingConvention calling_convention;

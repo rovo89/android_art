@@ -482,6 +482,10 @@ Location InvokeDexCallingConventionVisitorARM64::GetNextLocation(Primitive::Type
   return next_location;
 }
 
+Location InvokeDexCallingConventionVisitorARM64::GetMethodLocation() const {
+  return LocationFrom(x0);
+}
+
 CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph,
                                        const Arm64InstructionSetFeatures& isa_features,
                                        const CompilerOptions& compiler_options)
@@ -2163,20 +2167,8 @@ void InstructionCodeGeneratorARM64::VisitNullConstant(HNullConstant* constant) {
 }
 
 void LocationsBuilderARM64::HandleInvoke(HInvoke* invoke) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(invoke, LocationSummary::kCall);
-  locations->AddTemp(LocationFrom(x0));
-
   InvokeDexCallingConventionVisitorARM64 calling_convention_visitor;
-  for (size_t i = 0; i < invoke->GetNumberOfArguments(); i++) {
-    HInstruction* input = invoke->InputAt(i);
-    locations->SetInAt(i, calling_convention_visitor.GetNextLocation(input->GetType()));
-  }
-
-  Primitive::Type return_type = invoke->GetType();
-  if (return_type != Primitive::kPrimVoid) {
-    locations->SetOut(calling_convention_visitor.GetReturnLocation(return_type));
-  }
+  CodeGenerator::CreateCommonInvokeLocationSummary(invoke, &calling_convention_visitor);
 }
 
 void LocationsBuilderARM64::VisitInvokeInterface(HInvokeInterface* invoke) {

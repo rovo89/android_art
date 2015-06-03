@@ -288,6 +288,20 @@ int32_t CodeGenerator::GetStackSlot(HLocal* local) const {
   }
 }
 
+void CodeGenerator::CreateCommonInvokeLocationSummary(
+    HInvoke* invoke, InvokeDexCallingConventionVisitor* visitor){
+  ArenaAllocator* allocator = invoke->GetBlock()->GetGraph()->GetArena();
+  LocationSummary* locations = new (allocator) LocationSummary(invoke, LocationSummary::kCall);
+  locations->AddTemp(visitor->GetMethodLocation());
+
+  for (size_t i = 0; i < invoke->GetNumberOfArguments(); i++) {
+    HInstruction* input = invoke->InputAt(i);
+    locations->SetInAt(i, visitor->GetNextLocation(input->GetType()));
+  }
+
+  locations->SetOut(visitor->GetReturnLocation(invoke->GetType()));
+}
+
 void CodeGenerator::BlockIfInRegister(Location location, bool is_out) const {
   // The DCHECKS below check that a register is not specified twice in
   // the summary. The out location can overlap with an input, so we need
