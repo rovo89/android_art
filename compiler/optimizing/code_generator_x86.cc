@@ -556,6 +556,32 @@ Location CodeGeneratorX86::GetStackLocation(HLoadLocal* load) const {
   UNREACHABLE();
 }
 
+Location InvokeDexCallingConventionVisitorX86::GetReturnLocation(Primitive::Type type) const {
+  switch (type) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimInt:
+    case Primitive::kPrimNot:
+      return Location::RegisterLocation(EAX);
+
+    case Primitive::kPrimLong:
+      return Location::RegisterPairLocation(EAX, EDX);
+
+    case Primitive::kPrimVoid:
+      return Location::NoLocation();
+
+    case Primitive::kPrimDouble:
+    case Primitive::kPrimFloat:
+      return Location::FpuRegisterLocation(XMM0);
+  }
+}
+
+Location InvokeDexCallingConventionVisitorX86::GetMethodLocation() const {
+  return Location::RegisterLocation(kMethodRegisterArgument);
+}
+
 Location InvokeDexCallingConventionVisitorX86::GetNextLocation(Primitive::Type type) {
   switch (type) {
     case Primitive::kPrimBoolean:
@@ -977,7 +1003,6 @@ void LocationsBuilderX86::VisitStoreLocal(HStoreLocal* store) {
     default:
       LOG(FATAL) << "Unknown local type " << store->InputAt(1)->GetType();
   }
-  store->SetLocations(locations);
 }
 
 void InstructionCodeGeneratorX86::VisitStoreLocal(HStoreLocal* store) {
@@ -1238,40 +1263,8 @@ void LocationsBuilderX86::VisitInvokeVirtual(HInvokeVirtual* invoke) {
 }
 
 void LocationsBuilderX86::HandleInvoke(HInvoke* invoke) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(invoke, LocationSummary::kCall);
-  locations->AddTemp(Location::RegisterLocation(kMethodRegisterArgument));
-
   InvokeDexCallingConventionVisitorX86 calling_convention_visitor;
-  for (size_t i = 0; i < invoke->GetNumberOfArguments(); i++) {
-    HInstruction* input = invoke->InputAt(i);
-    locations->SetInAt(i, calling_convention_visitor.GetNextLocation(input->GetType()));
-  }
-
-  switch (invoke->GetType()) {
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-    case Primitive::kPrimInt:
-    case Primitive::kPrimNot:
-      locations->SetOut(Location::RegisterLocation(EAX));
-      break;
-
-    case Primitive::kPrimLong:
-      locations->SetOut(Location::RegisterPairLocation(EAX, EDX));
-      break;
-
-    case Primitive::kPrimVoid:
-      break;
-
-    case Primitive::kPrimDouble:
-    case Primitive::kPrimFloat:
-      locations->SetOut(Location::FpuRegisterLocation(XMM0));
-      break;
-  }
-
-  invoke->SetLocations(locations);
+  CodeGenerator::CreateCommonInvokeLocationSummary(invoke, &calling_convention_visitor);
 }
 
 void InstructionCodeGeneratorX86::VisitInvokeVirtual(HInvokeVirtual* invoke) {
@@ -3922,7 +3915,6 @@ void LocationsBuilderX86::VisitArrayLength(HArrayLength* instruction) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
-  instruction->SetLocations(locations);
 }
 
 void InstructionCodeGeneratorX86::VisitArrayLength(HArrayLength* instruction) {
