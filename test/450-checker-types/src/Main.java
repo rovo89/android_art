@@ -16,25 +16,25 @@
 
 
 interface Interface {
-  void f();
+  void $noinline$f();
 }
 
 class Super implements Interface {
-  public void f() {
+  public void $noinline$f() {
     throw new RuntimeException();
   }
 }
 
 class SubclassA extends Super {
-  public void f() {
+  public void $noinline$f() {
     throw new RuntimeException();
   }
 
-  public String h() {
+  public String $noinline$h() {
     throw new RuntimeException();
   }
 
-  void g() {
+  void $noinline$g() {
     throw new RuntimeException();
   }
 }
@@ -43,11 +43,11 @@ class SubclassC extends SubclassA {
 }
 
 class SubclassB extends Super {
-  public void f() {
+  public void $noinline$f() {
     throw new RuntimeException();
   }
 
-  void g() {
+  void $noinline$g() {
     throw new RuntimeException();
   }
 }
@@ -61,7 +61,7 @@ public class Main {
   /// CHECK-NOT:     CheckCast
   public void testSimpleRemove() {
     Super s = new SubclassA();
-    ((SubclassA)s).g();
+    ((SubclassA)s).$noinline$g();
   }
 
   /// CHECK-START: void Main.testSimpleKeep(Super) instruction_simplifier_after_types (before)
@@ -70,7 +70,7 @@ public class Main {
   /// CHECK-START: void Main.testSimpleKeep(Super) instruction_simplifier_after_types (after)
   /// CHECK:         CheckCast
   public void testSimpleKeep(Super s) {
-    ((SubclassA)s).f();
+    ((SubclassA)s).$noinline$f();
   }
 
   /// CHECK-START: java.lang.String Main.testClassRemove() instruction_simplifier_after_types (before)
@@ -90,7 +90,7 @@ public class Main {
   /// CHECK:         CheckCast
   public String testClassKeep() {
     Object s = SubclassA.class;
-    return ((SubclassA)s).h();
+    return ((SubclassA)s).$noinline$h();
   }
 
   /// CHECK-START: void Main.testIfRemove(int) instruction_simplifier_after_types (before)
@@ -105,7 +105,7 @@ public class Main {
     } else {
       s = new SubclassC();
     }
-    ((SubclassA)s).g();
+    ((SubclassA)s).$noinline$g();
   }
 
   /// CHECK-START: void Main.testIfKeep(int) instruction_simplifier_after_types (before)
@@ -120,7 +120,7 @@ public class Main {
     } else {
       s = new SubclassB();
     }
-    ((SubclassA)s).g();
+    ((SubclassA)s).$noinline$g();
   }
 
   /// CHECK-START: void Main.testForRemove(int) instruction_simplifier_after_types (before)
@@ -135,7 +135,7 @@ public class Main {
         s = new SubclassC();
       }
     }
-    ((SubclassA)s).g();
+    ((SubclassA)s).$noinline$g();
   }
 
   /// CHECK-START: void Main.testForKeep(int) instruction_simplifier_after_types (before)
@@ -150,7 +150,7 @@ public class Main {
         s = new SubclassC();
       }
     }
-    ((SubclassC)s).g();
+    ((SubclassC)s).$noinline$g();
   }
 
   /// CHECK-START: void Main.testPhiFromCall(int) instruction_simplifier_after_types (before)
@@ -165,7 +165,7 @@ public class Main {
     } else {
       x = newObject();  // this one will have an unknown type.
     }
-    ((SubclassC)x).g();
+    ((SubclassC)x).$noinline$g();
   }
 
   /// CHECK-START: void Main.testInstanceOf(java.lang.Object) instruction_simplifier_after_types (before)
@@ -176,10 +176,10 @@ public class Main {
   /// CHECK-NOT:     CheckCast
   public void testInstanceOf(Object o) {
     if (o instanceof SubclassC) {
-      ((SubclassC)o).g();
+      ((SubclassC)o).$noinline$g();
     }
     if (o instanceof SubclassB) {
-      ((SubclassB)o).g();
+      ((SubclassB)o).$noinline$g();
     }
   }
 
@@ -192,10 +192,10 @@ public class Main {
   /// CHECK:         CheckCast
   public void testInstanceOfKeep(Object o) {
     if (o instanceof SubclassC) {
-      ((SubclassB)o).g();
+      ((SubclassB)o).$noinline$g();
     }
     if (o instanceof SubclassB) {
-      ((SubclassA)o).g();
+      ((SubclassA)o).$noinline$g();
     }
   }
 
@@ -208,9 +208,9 @@ public class Main {
   public void testInstanceOfNested(Object o) {
     if (o instanceof SubclassC) {
       if (o instanceof SubclassB) {
-        ((SubclassB)o).g();
+        ((SubclassB)o).$noinline$g();
       } else {
-        ((SubclassC)o).g();
+        ((SubclassC)o).$noinline$g();
       }
     }
   }
@@ -229,7 +229,7 @@ public class Main {
     }
 
     if (o instanceof SubclassB) {
-      ((SubclassB)o).g();
+      ((SubclassB)o).$noinline$g();
     }
   }
 
@@ -245,7 +245,7 @@ public class Main {
         o = new SubclassB();
       }
       if (o instanceof SubclassB) {
-        ((SubclassB)o).g();
+        ((SubclassB)o).$noinline$g();
       }
     }
   }
@@ -258,7 +258,7 @@ public class Main {
   public void testInstanceOfSubclass() {
     Object o = new SubclassA();
     if (o instanceof Super) {
-      ((SubclassA)o).g();
+      ((SubclassA)o).$noinline$g();
     }
   }
 
@@ -276,7 +276,7 @@ public class Main {
     }
 
     if (o instanceof Super) {
-      ((SubclassA)o).g();
+      ((SubclassA)o).$noinline$g();
     }
   }
 
@@ -294,7 +294,7 @@ public class Main {
     }
 
     if (o instanceof Super) {
-      ((Super)o).f();
+      ((Super)o).$noinline$f();
     }
   }
 
@@ -307,7 +307,7 @@ public class Main {
     Object o = new SubclassA();
     for (int i = 0; i < n; i++) {
       if (o instanceof Super) {
-        ((SubclassA)o).g();
+        ((SubclassA)o).$noinline$g();
       }
       if (i / 2 == 0) {
         o = new SubclassC();
@@ -324,7 +324,7 @@ public class Main {
     Object o = new SubclassA();
     for (int i = 0; i < n; i++) {
       if (o instanceof Super) {
-        ((Super)o).f();
+        ((Super)o).$noinline$f();
       }
       if (i / 2 == 0) {
         o = new Object();
@@ -351,7 +351,7 @@ public class Main {
   public void testInstanceFieldGetSimpleRemove() {
     Main m = new Main();
     Super a = m.a;
-    ((SubclassA)a).g();
+    ((SubclassA)a).$noinline$g();
   }
 
   /// CHECK-START: void Main.testStaticFieldGetSimpleRemove() instruction_simplifier_after_types (before)
@@ -361,7 +361,7 @@ public class Main {
   /// CHECK-NOT:     CheckCast
   public void testStaticFieldGetSimpleRemove() {
     Super b = Main.b;
-    ((SubclassA)b).g();
+    ((SubclassA)b).$noinline$g();
   }
 
   public static void main(String[] args) {
