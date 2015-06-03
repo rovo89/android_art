@@ -277,9 +277,9 @@ ClassLinker::ClassLinker(InternTable* intern_table)
       quick_to_interpreter_bridge_trampoline_(nullptr),
       image_pointer_size_(sizeof(void*)) {
   CHECK(intern_table_ != nullptr);
-  for (auto& root : find_array_class_cache_) {
-    root = GcRoot<mirror::Class>(nullptr);
-  }
+  static_assert(kFindArrayCacheSize == arraysize(find_array_class_cache_),
+                "Array cache size wrong.");
+  std::fill_n(find_array_class_cache_, kFindArrayCacheSize, GcRoot<mirror::Class>(nullptr));
 }
 
 void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> boot_class_path) {
@@ -5875,6 +5875,11 @@ ArtMethod* ClassLinker::CreateRuntimeMethod() {
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
   CHECK(method->IsRuntimeMethod());
   return method;
+}
+
+void ClassLinker::DropFindArrayClassCache() {
+  std::fill_n(find_array_class_cache_, kFindArrayCacheSize, GcRoot<mirror::Class>(nullptr));
+  find_array_class_cache_next_victim_ = 0;
 }
 
 }  // namespace art
