@@ -387,29 +387,6 @@ endif
 
 TEST_ART_BROKEN_DEFAULT_RUN_TESTS :=
 
-# Known broken tests for Quick's and Optimizing's ARM back ends.
-TEST_ART_BROKEN_ARM_RUN_TESTS := 477-long-to-float-conversion-precision  # b/20413424
-
-ifeq ($(TARGET_ARCH),arm)
-  ifneq (,$(filter 32,$(ALL_ADDRESS_SIZES)))
-    ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
-        $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-        $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES),$(TEST_ART_BROKEN_ARM_RUN_TESTS),32)
-  endif
-endif
-
-ifdef TARGET_2ND_ARCH
-  ifeq ($(TARGET_2ND_ARCH),arm)
-    ifneq (,$(filter 32,$(ALL_ADDRESS_SIZES)))
-      ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
-          $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-          $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES),$(TEST_ART_BROKEN_ARM_RUN_TESTS),32)
-    endif
-  endif
-endif
-
-TEST_ART_BROKEN_ARM_RUN_TESTS :=
-
 # Known broken tests for the arm64 optimizing compiler backend.
 TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS :=
 
