@@ -29,9 +29,11 @@ void X86Context::Reset() {
   std::fill_n(gprs_, arraysize(gprs_), nullptr);
   std::fill_n(fprs_, arraysize(fprs_), nullptr);
   gprs_[ESP] = &esp_;
+  gprs_[EAX] = &arg0_;
   // Initialize registers with easy to spot debug values.
   esp_ = X86Context::kBadGprBase + ESP;
   eip_ = X86Context::kBadGprBase + kNumberOfCpuRegisters;
+  arg0_ = 0;
 }
 
 void X86Context::FillCalleeSaves(const StackVisitor& fr) {

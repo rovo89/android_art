@@ -108,7 +108,8 @@ enum ThreadFlag {
 
 enum class StackedShadowFrameType {
   kShadowFrameUnderConstruction,
-  kDeoptimizationShadowFrame
+  kDeoptimizationShadowFrame,
+  kSingleFrameDeoptimizationShadowFrame
 };
 
 static constexpr size_t kNumRosAllocThreadLocalSizeBrackets = 34;
@@ -843,7 +844,7 @@ class Thread {
   void AssertHasDeoptimizationContext()
       SHARED_REQUIRES(Locks::mutator_lock_);
   void PushStackedShadowFrame(ShadowFrame* sf, StackedShadowFrameType type);
-  ShadowFrame* PopStackedShadowFrame(StackedShadowFrameType type);
+  ShadowFrame* PopStackedShadowFrame(StackedShadowFrameType type, bool must_be_present = true);
 
   // For debugger, find the shadow frame that corresponds to a frame id.
   // Or return null if there is none.

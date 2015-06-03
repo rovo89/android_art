@@ -29,6 +29,7 @@
 #include "mirror/method.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
+#include "quick_exception_handler.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "debugger.h"
@@ -646,27 +647,85 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
   if (method->IsAbstract()) {
     ThrowAbstractMethodError(method);
     return 0;
+  }
+
+  JValue tmp_value;
+  ShadowFrame* deopt_frame = self->PopStackedShadowFrame(
+      StackedShadowFrameType::kSingleFrameDeoptimizationShadowFrame, false);
+  const DexFile::CodeItem* code_item = method->GetCodeItem();
+  DCHECK(code_item != nullptr) << PrettyMethod(method);
+  ManagedStack fragment;
+
+  DCHECK(!method->IsNative()) << PrettyMethod(method);
+  uint32_t shorty_len = 0;
+  auto* non_proxy_method = method->GetInterfaceMethodIfProxy(sizeof(void*));
+  const char* shorty = non_proxy_method->GetShorty(&shorty_len);
+
+  JValue result;
+
+  if (deopt_frame != nullptr) {
+    // Coming from single-frame deopt.
+
+    if (kIsDebugBuild) {
+      // Sanity-check: are the methods as expected? We check that the last shadow frame (the bottom
+      // of the call-stack) corresponds to the called method.
+      ShadowFrame* linked = deopt_frame;
+      while (linked->GetLink() != nullptr) {
+        linked = linked->GetLink();
+      }
+      CHECK_EQ(method, linked->GetMethod()) << PrettyMethod(method) << " "
+          << PrettyMethod(linked->GetMethod());
+    }
+
+    if (VLOG_IS_ON(deopt)) {
+      // Print out the stack to verify that it was a single-frame deopt.
+      LOG(INFO) << "Continue-ing from deopt. Stack is:";
+      QuickExceptionHandler::DumpFramesWithType(self, true);
+    }
+
+    mirror::Throwable* pending_exception = nullptr;
+    self->PopDeoptimizationContext(&result, &pending_exception);
+
+    // Push a transition back into managed code onto the linked list in thread.
+    self->PushManagedStackFragment(&fragment);
+
+    // Ensure that the stack is still in order.
+    if (kIsDebugBuild) {
+      class DummyStackVisitor : public StackVisitor {
+       public:
+        explicit DummyStackVisitor(Thread* self_in) SHARED_REQUIRES(Locks::mutator_lock_)
+            : StackVisitor(self_in, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames) {}
+
+        bool VisitFrame() OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+          // Nothing to do here. In a debug build, SanityCheckFrame will do the work in the walking
+          // logic. Just always say we want to continue.
+          return true;
+        }
+      };
+      DummyStackVisitor dsv(self);
+      dsv.WalkStack();
+    }
+
+    // Restore the exception that was pending before deoptimization then interpret the
+    // deoptimized frames.
+    if (pending_exception != nullptr) {
+      self->SetException(pending_exception);
+    }
+    interpreter::EnterInterpreterFromDeoptimize(self, deopt_frame, &result);
   } else {
-    DCHECK(!method->IsNative()) << PrettyMethod(method);
     const char* old_cause = self->StartAssertNoThreadSuspension(
         "Building interpreter shadow frame");
-    const DexFile::CodeItem* code_item = method->GetCodeItem();
-    DCHECK(code_item != nullptr) << PrettyMethod(method);
     uint16_t num_regs = code_item->registers_size_;
     void* memory = alloca(ShadowFrame::ComputeSize(num_regs));
     // No last shadow coming from quick.
     ShadowFrame* shadow_frame(ShadowFrame::Create(num_regs, nullptr, method, 0, memory));
     size_t first_arg_reg = code_item->registers_size_ - code_item->ins_size_;
-    uint32_t shorty_len = 0;
-    auto* non_proxy_method = method->GetInterfaceMethodIfProxy(sizeof(void*));
-    const char* shorty = non_proxy_method->GetShorty(&shorty_len);
     BuildQuickShadowFrameVisitor shadow_frame_builder(sp, method->IsStatic(), shorty, shorty_len,
                                                       shadow_frame, first_arg_reg);
     shadow_frame_builder.VisitArguments();
     const bool needs_initialization =
         method->IsStatic() && !method->GetDeclaringClass()->IsInitialized();
     // Push a transition back into managed code onto the linked list in thread.
-    ManagedStack fragment;
     self->PushManagedStackFragment(&fragment);
     self->PushShadowFrame(shadow_frame);
     self->EndAssertNoThreadSuspension(old_cause);
@@ -681,24 +740,26 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
         return 0;
       }
     }
-    JValue result = interpreter::EnterInterpreterFromEntryPoint(self, code_item, shadow_frame);
-    // Pop transition.
-    self->PopManagedStackFragment(fragment);
 
-    // Request a stack deoptimization if needed
-    ArtMethod* caller = QuickArgumentVisitor::GetCallingMethod(sp);
-    if (UNLIKELY(Dbg::IsForcedInterpreterNeededForUpcall(self, caller))) {
-      // Push the context of the deoptimization stack so we can restore the return value and the
-      // exception before executing the deoptimized frames.
-      self->PushDeoptimizationContext(result, shorty[0] == 'L', self->GetException());
-
-      // Set special exception to cause deoptimization.
-      self->SetException(Thread::GetDeoptimizationException());
-    }
-
-    // No need to restore the args since the method has already been run by the interpreter.
-    return result.GetJ();
+    result = interpreter::EnterInterpreterFromEntryPoint(self, code_item, shadow_frame);
   }
+
+  // Pop transition.
+  self->PopManagedStackFragment(fragment);
+
+  // Request a stack deoptimization if needed
+  ArtMethod* caller = QuickArgumentVisitor::GetCallingMethod(sp);
+  if (UNLIKELY(Dbg::IsForcedInterpreterNeededForUpcall(self, caller))) {
+    // Push the context of the deoptimization stack so we can restore the return value and the
+    // exception before executing the deoptimized frames.
+    self->PushDeoptimizationContext(result, shorty[0] == 'L', self->GetException());
+
+    // Set special exception to cause deoptimization.
+    self->SetException(Thread::GetDeoptimizationException());
+  }
+
+  // No need to restore the args since the method has already been run by the interpreter.
+  return result.GetJ();
 }
 
 // Visits arguments on the stack placing them into the args vector, Object* arguments are converted
