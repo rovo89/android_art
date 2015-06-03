@@ -289,7 +289,7 @@ int32_t CodeGenerator::GetStackSlot(HLocal* local) const {
 }
 
 void CodeGenerator::CreateCommonInvokeLocationSummary(
-    HInvoke* invoke, InvokeDexCallingConventionVisitor* visitor){
+    HInvoke* invoke, InvokeDexCallingConventionVisitor* visitor) {
   ArenaAllocator* allocator = invoke->GetBlock()->GetGraph()->GetArena();
   LocationSummary* locations = new (allocator) LocationSummary(invoke, LocationSummary::kCall);
   locations->AddTemp(visitor->GetMethodLocation());
