@@ -86,7 +86,8 @@ class InvokeDexCallingConventionVisitorARM : public InvokeDexCallingConventionVi
   virtual ~InvokeDexCallingConventionVisitorARM() {}
 
   Location GetNextLocation(Primitive::Type type) OVERRIDE;
-  Location GetReturnLocation(Primitive::Type type);
+  Location GetReturnLocation(Primitive::Type type) const OVERRIDE;
+  Location GetMethodLocation() const OVERRIDE;
 
  private:
   InvokeDexCallingConvention calling_convention;
