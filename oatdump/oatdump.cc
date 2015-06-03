@@ -306,6 +306,7 @@ class OatDumperOptions {
   OatDumperOptions(bool dump_raw_mapping_table,
                    bool dump_raw_gc_map,
                    bool dump_vmap,
+                   bool dump_code_info_stack_maps,
                    bool disassemble_code,
                    bool absolute_addresses,
                    const char* class_filter,
@@ -317,6 +318,7 @@ class OatDumperOptions {
     : dump_raw_mapping_table_(dump_raw_mapping_table),
       dump_raw_gc_map_(dump_raw_gc_map),
       dump_vmap_(dump_vmap),
+      dump_code_info_stack_maps_(dump_code_info_stack_maps),
       disassemble_code_(disassemble_code),
       absolute_addresses_(absolute_addresses),
       class_filter_(class_filter),
@@ -330,6 +332,7 @@ class OatDumperOptions {
   const bool dump_raw_mapping_table_;
   const bool dump_raw_gc_map_;
   const bool dump_vmap_;
+  const bool dump_code_info_stack_maps_;
   const bool disassemble_code_;
   const bool absolute_addresses_;
   const char* const class_filter_;
@@ -1013,15 +1016,13 @@ class OatDumper {
   void DumpVmapData(std::ostream& os,
                     const OatFile::OatMethod& oat_method,
                     const DexFile::CodeItem* code_item) {
-    if (oat_method.GetGcMap() == nullptr) {
-      // If the native GC map is null, then this method has been
-      // compiled with the optimizing compiler. The optimizing
-      // compiler currently outputs its stack maps in the vmap table.
+    if (IsMethodGeneratedByOptimizingCompiler(oat_method, code_item)) {
+      // The optimizing compiler outputs its CodeInfo data in the vmap table.
       const void* raw_code_info = oat_method.GetVmapTable();
       if (raw_code_info != nullptr) {
         CodeInfo code_info(raw_code_info);
         DCHECK(code_item != nullptr);
-        DumpCodeInfo(os, code_info, *code_item);
+        DumpCodeInfo(os, code_info, oat_method, *code_item);
       }
     } else {
       // Otherwise, display the vmap table.
@@ -1036,8 +1037,12 @@ class OatDumper {
   // Display a CodeInfo object emitted by the optimizing compiler.
   void DumpCodeInfo(std::ostream& os,
                     const CodeInfo& code_info,
+                    const OatFile::OatMethod& oat_method,
                     const DexFile::CodeItem& code_item) {
-    code_info.Dump(os, code_item.registers_size_, true);
+    code_info.Dump(os,
+                   oat_method.GetCodeOffset(),
+                   code_item.registers_size_,
+                   options_.dump_code_info_stack_maps_);
   }
 
   // Display a vmap table.
@@ -1200,6 +1205,23 @@ class OatDumper {
     }
   }
 
+  uint32_t DumpInformationAtOffset(std::ostream& os,
+                                   const OatFile::OatMethod& oat_method,
+                                   const DexFile::CodeItem* code_item,
+                                   size_t offset,
+                                   bool suspend_point_mapping) {
+    if (IsMethodGeneratedByOptimizingCompiler(oat_method, code_item)) {
+      if (suspend_point_mapping) {
+        DumpDexRegisterMapAtOffset(os, oat_method, code_item, offset);
+      }
+      // The return value is not used in the case of a method compiled
+      // with the optimizing compiler.
+      return DexFile::kDexNoIndex;
+    } else {
+      return DumpMappingAtOffset(os, oat_method, offset, suspend_point_mapping);
+    }
+  }
+
   uint32_t DumpMappingAtOffset(std::ostream& os, const OatFile::OatMethod& oat_method,
                                size_t offset, bool suspend_point_mapping) {
     MappingTable table(oat_method.GetMappingTable());
@@ -1302,6 +1324,35 @@ class OatDumper {
     }
   }
 
+  // Has `oat_method` -- corresponding to the Dex `code_item` -- been compiled by
+  // the optimizing compiler?
+  static bool IsMethodGeneratedByOptimizingCompiler(const OatFile::OatMethod& oat_method,
+                                                    const DexFile::CodeItem* code_item) {
+    // If the native GC map is null and the Dex `code_item` is not
+    // null, then this method has been compiled with the optimizing
+    // compiler.
+    return oat_method.GetGcMap() == nullptr && code_item != nullptr;
+  }
+
+  void DumpDexRegisterMapAtOffset(std::ostream& os,
+                                  const OatFile::OatMethod& oat_method,
+                                  const DexFile::CodeItem* code_item,
+                                  size_t offset) {
+    // This method is only relevant for oat methods compiled with the
+    // optimizing compiler.
+    DCHECK(IsMethodGeneratedByOptimizingCompiler(oat_method, code_item));
+
+    // The optimizing compiler outputs its CodeInfo data in the vmap table.
+    const void* raw_code_info = oat_method.GetVmapTable();
+    if (raw_code_info != nullptr) {
+      CodeInfo code_info(raw_code_info);
+      StackMap stack_map = code_info.GetStackMapForNativePcOffset(offset);
+      if (stack_map.IsValid()) {
+        stack_map.Dump(os, code_info, oat_method.GetCodeOffset(), code_item->registers_size_);
+      }
+    }
+  }
+
   verifier::MethodVerifier* DumpVerifier(std::ostream& os, uint32_t dex_method_idx,
                                          const DexFile* dex_file,
                                          const DexFile::ClassDef& class_def,
@@ -1337,11 +1388,11 @@ class OatDumper {
       size_t offset = 0;
       while (offset < code_size) {
         if (!bad_input) {
-          DumpMappingAtOffset(os, oat_method, offset, false);
+          DumpInformationAtOffset(os, oat_method, code_item, offset, false);
         }
         offset += disassembler_->Dump(os, quick_native_pc + offset);
         if (!bad_input) {
-          uint32_t dex_pc = DumpMappingAtOffset(os, oat_method, offset, true);
+          uint32_t dex_pc = DumpInformationAtOffset(os, oat_method, code_item, offset, true);
           if (dex_pc != DexFile::kDexNoIndex) {
             DumpGcMapAtNativePcOffset(os, oat_method, code_item, offset);
             if (verifier != nullptr) {
@@ -2309,6 +2360,8 @@ struct OatdumpArgs : public CmdlineArgs {
       dump_raw_gc_map_ = true;
     } else if (option == "--no-dump:vmap") {
       dump_vmap_ = false;
+    } else if (option =="--dump:code_info_stack_maps") {
+      dump_code_info_stack_maps_ = true;
     } else if (option == "--no-disassemble") {
       disassemble_code_ = false;
     } else if (option.starts_with("--symbolize=")) {
@@ -2388,6 +2441,9 @@ struct OatdumpArgs : public CmdlineArgs {
         "  --no-dump:vmap may be used to disable vmap dumping.\n"
         "      Example: --no-dump:vmap\n"
         "\n"
+        "  --dump:code_info_stack_maps enables dumping of stack maps in CodeInfo sections.\n"
+        "      Example: --dump:code_info_stack_maps\n"
+        "\n"
         "  --no-disassemble may be used to disable disassembly.\n"
         "      Example: --no-disassemble\n"
         "\n"
@@ -2428,6 +2484,7 @@ struct OatdumpArgs : public CmdlineArgs {
   bool dump_raw_mapping_table_ = false;
   bool dump_raw_gc_map_ = false;
   bool dump_vmap_ = true;
+  bool dump_code_info_stack_maps_ = false;
   bool disassemble_code_ = true;
   bool symbolize_ = false;
   bool list_classes_ = false;
@@ -2447,6 +2504,7 @@ struct OatdumpMain : public CmdlineMain<OatdumpArgs> {
         args_->dump_raw_mapping_table_,
         args_->dump_raw_gc_map_,
         args_->dump_vmap_,
+        args_->dump_code_info_stack_maps_,
         args_->disassemble_code_,
         absolute_addresses,
         args_->class_filter_,
