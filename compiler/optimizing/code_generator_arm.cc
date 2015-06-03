@@ -1638,8 +1638,7 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
           // Processing a Dex `long-to-double' instruction.
           locations->SetInAt(0, Location::RequiresRegister());
           locations->SetOut(Location::RequiresFpuRegister());
-          locations->AddTemp(Location::RequiresRegister());
-          locations->AddTemp(Location::RequiresRegister());
+          locations->AddTemp(Location::RequiresFpuRegister());
           locations->AddTemp(Location::RequiresFpuRegister());
           break;
 
@@ -1857,29 +1856,21 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
           Register high = in.AsRegisterPairHigh<Register>();
           SRegister out_s = out.AsFpuRegisterPairLow<SRegister>();
           DRegister out_d = FromLowSToD(out_s);
-          Register constant_low = locations->GetTemp(0).AsRegister<Register>();
-          Register constant_high = locations->GetTemp(1).AsRegister<Register>();
-          SRegister temp_s = locations->GetTemp(2).AsFpuRegisterPairLow<SRegister>();
+          SRegister temp_s = locations->GetTemp(0).AsFpuRegisterPairLow<SRegister>();
           DRegister temp_d = FromLowSToD(temp_s);
+          SRegister constant_s = locations->GetTemp(1).AsFpuRegisterPairLow<SRegister>();
+          DRegister constant_d = FromLowSToD(constant_s);
 
-          // out_d = int-to-double(high)
-          __ vmovsr(out_s, high);
-          __ vcvtdi(out_d, out_s);
-          // Using vmovd to load the `k2Pow32EncodingForDouble` constant
-          // as an immediate value into `temp_d` does not work, as
-          // this instruction only transfers 8 significant bits of its
-          // immediate operand.  Instead, use two 32-bit core
-          // registers to load `k2Pow32EncodingForDouble` into `temp_d`.
-          __ LoadImmediate(constant_low, Low32Bits(k2Pow32EncodingForDouble));
-          __ LoadImmediate(constant_high, High32Bits(k2Pow32EncodingForDouble));
-          __ vmovdrr(temp_d, constant_low, constant_high);
-          // out_d = out_d * 2^32
-          __ vmuld(out_d, out_d, temp_d);
-          // temp_d = unsigned-to-double(low)
-          __ vmovsr(temp_s, low);
-          __ vcvtdu(temp_d, temp_s);
-          // out_d = out_d + temp_d
-          __ vaddd(out_d, out_d, temp_d);
+          // temp_d = int-to-double(high)
+          __ vmovsr(temp_s, high);
+          __ vcvtdi(temp_d, temp_s);
+          // constant_d = k2Pow32EncodingForDouble
+          __ LoadDImmediate(constant_d, bit_cast<double, int64_t>(k2Pow32EncodingForDouble));
+          // out_d = unsigned-to-double(low)
+          __ vmovsr(out_s, low);
+          __ vcvtdu(out_d, out_s);
+          // out_d += temp_d * constant_d
+          __ vmlad(out_d, temp_d, constant_d);
           break;
         }
 
