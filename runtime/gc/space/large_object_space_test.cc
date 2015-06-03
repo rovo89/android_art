@@ -34,6 +34,7 @@ class LargeObjectSpaceTest : public SpaceTest {
 
 void LargeObjectSpaceTest::LargeObjectTest() {
   size_t rand_seed = 0;
+  Thread* const self = Thread::Current();
   for (size_t i = 0; i < 2; ++i) {
     LargeObjectSpace* los = nullptr;
     if (i == 0) {
@@ -51,8 +52,8 @@ void LargeObjectSpaceTest::LargeObjectTest() {
         size_t request_size = test_rand(&rand_seed) % max_allocation_size;
         size_t allocation_size = 0;
         size_t bytes_tl_bulk_allocated;
-        mirror::Object* obj = los->Alloc(Thread::Current(), request_size, &allocation_size,
-                                         nullptr, &bytes_tl_bulk_allocated);
+        mirror::Object* obj = los->Alloc(self, request_size, &allocation_size, nullptr,
+                                         &bytes_tl_bulk_allocated);
         ASSERT_TRUE(obj != nullptr);
         ASSERT_EQ(allocation_size, los->AllocationSize(obj, nullptr));
         ASSERT_GE(allocation_size, request_size);
@@ -70,8 +71,21 @@ void LargeObjectSpaceTest::LargeObjectTest() {
         }
       }
 
+      // Check the zygote flag for the first phase.
+      if (phase == 0) {
+        for (const auto& pair : requests) {
+          mirror::Object* obj = pair.first;
+          ASSERT_FALSE(los->IsZygoteLargeObject(self, obj));
+        }
+        los->SetAllLargeObjectsAsZygoteObjects(self);
+        for (const auto& pair : requests) {
+          mirror::Object* obj = pair.first;
+          ASSERT_TRUE(los->IsZygoteLargeObject(self, obj));
+        }
+      }
+
       // Free 1 / 2 the allocations the first phase, and all the second phase.
-      size_t limit = !phase ? requests.size() / 2 : 0;
+      size_t limit = phase == 0 ? requests.size() / 2 : 0;
       while (requests.size() > limit) {
         mirror::Object* obj = requests.back().first;
         size_t request_size = requests.back().second;
@@ -88,7 +102,7 @@ void LargeObjectSpaceTest::LargeObjectTest() {
 
     size_t bytes_allocated = 0, bytes_tl_bulk_allocated;
     // Checks that the coalescing works.
-    mirror::Object* obj = los->Alloc(Thread::Current(), 100 * MB, &bytes_allocated, nullptr,
+    mirror::Object* obj = los->Alloc(self, 100 * MB, &bytes_allocated, nullptr,
                                      &bytes_tl_bulk_allocated);
     EXPECT_TRUE(obj != nullptr);
     los->Free(Thread::Current(), obj);
