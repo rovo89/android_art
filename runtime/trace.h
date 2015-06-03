@@ -23,6 +23,7 @@
 #include <ostream>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "atomic.h"
@@ -49,6 +50,48 @@ enum TracingMode {
   kTracingInactive,
   kMethodTracingActive,
   kSampleProfilingActive,
+};
+
+// File format:
+//     header
+//     record 0
+//     record 1
+//     ...
+//
+// Header format:
+//     u4  magic ('SLOW')
+//     u2  version
+//     u2  offset to data
+//     u8  start date/time in usec
+//     u2  record size in bytes (version >= 2 only)
+//     ... padding to 32 bytes
+//
+// Record format v1:
+//     u1  thread ID
+//     u4  method ID | method action
+//     u4  time delta since start, in usec
+//
+// Record format v2:
+//     u2  thread ID
+//     u4  method ID | method action
+//     u4  time delta since start, in usec
+//
+// Record format v3:
+//     u2  thread ID
+//     u4  method ID | method action
+//     u4  time delta since start, in usec
+//     u4  wall time since start, in usec (when clock == "dual" only)
+//
+// 32 bits of microseconds is 70 minutes.
+//
+// All values are stored in little-endian order.
+
+enum TraceAction {
+    kTraceMethodEnter = 0x00,       // method entry
+    kTraceMethodExit = 0x01,        // method exit
+    kTraceUnroll = 0x02,            // method exited by exception unrolling
+    // 0x03 currently unused
+    kTraceMethodActionMask = 0x03,  // two bits
 };
 
 class Trace FINAL : public instrumentation::InstrumentationListener {
@@ -173,6 +216,16 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
   void WriteToBuf(const uint8_t* src, size_t src_size)
       EXCLUSIVE_LOCKS_REQUIRED(streaming_lock_);
 
+  uint32_t EncodeTraceMethod(ArtMethod* method) LOCKS_EXCLUDED(unique_methods_lock_);
+  uint32_t EncodeTraceMethodAndAction(ArtMethod* method, TraceAction action)
+      LOCKS_EXCLUDED(unique_methods_lock_);
+  ArtMethod* DecodeTraceMethod(uint32_t tmid) LOCKS_EXCLUDED(unique_methods_lock_);
+  std::string GetMethodLine(ArtMethod* method) LOCKS_EXCLUDED(unique_methods_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void DumpBuf(uint8_t* buf, size_t buf_size, TraceClockSource clock_source)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Singleton instance of the Trace or null when no method tracing is active.
   static Trace* volatile the_trace_ GUARDED_BY(Locks::trace_lock_);
 
@@ -228,6 +281,12 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
   Mutex* streaming_lock_;
   std::map<mirror::DexCache*, DexIndexBitSet*> seen_methods_;
   std::unique_ptr<ThreadIDBitSet> seen_threads_;
+
+  // Bijective map from ArtMethod* to index.
+  // Map from ArtMethod* to index in unique_methods_;
+  Mutex* unique_methods_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  std::unordered_map<ArtMethod*, uint32_t> art_method_id_map_ GUARDED_BY(unique_methods_lock_);
+  std::vector<ArtMethod*> unique_methods_ GUARDED_BY(unique_methods_lock_);
 
   DISALLOW_COPY_AND_ASSIGN(Trace);
 };
