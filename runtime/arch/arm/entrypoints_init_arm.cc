@@ -127,11 +127,13 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
     qpoints->pFmodf = fmodf;
     qpoints->pD2l = art_d2l;
     qpoints->pF2l = art_f2l;
+    qpoints->pL2f = art_l2f;
   } else {
     qpoints->pFmod = art_quick_fmod;
     qpoints->pFmodf = art_quick_fmodf;
     qpoints->pD2l = art_quick_d2l;
     qpoints->pF2l = art_quick_f2l;
+    qpoints->pL2f = art_quick_l2f;
   }
 
   // Intrinsics

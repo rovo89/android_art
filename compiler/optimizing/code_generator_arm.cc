@@ -1456,11 +1456,12 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
   Primitive::Type input_type = conversion->GetInputType();
   DCHECK_NE(result_type, input_type);
 
-  // The float-to-long and double-to-long type conversions rely on a
-  // call to the runtime.
+  // The float-to-long, double-to-long and long-to-float type conversions
+  // rely on a call to the runtime.
   LocationSummary::CallKind call_kind =
-      ((input_type == Primitive::kPrimFloat || input_type == Primitive::kPrimDouble)
-       && result_type == Primitive::kPrimLong)
+      (((input_type == Primitive::kPrimFloat || input_type == Primitive::kPrimDouble)
+        && result_type == Primitive::kPrimLong)
+       || (input_type == Primitive::kPrimLong && result_type == Primitive::kPrimFloat))
       ? LocationSummary::kCall
       : LocationSummary::kNoCall;
   LocationSummary* locations =
@@ -1603,15 +1604,14 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
           locations->SetOut(Location::RequiresFpuRegister());
           break;
 
-        case Primitive::kPrimLong:
+        case Primitive::kPrimLong: {
           // Processing a Dex `long-to-float' instruction.
-          locations->SetInAt(0, Location::RequiresRegister());
-          locations->SetOut(Location::RequiresFpuRegister());
-          locations->AddTemp(Location::RequiresRegister());
-          locations->AddTemp(Location::RequiresRegister());
-          locations->AddTemp(Location::RequiresFpuRegister());
-          locations->AddTemp(Location::RequiresFpuRegister());
+          InvokeRuntimeCallingConvention calling_convention;
+          locations->SetInAt(0, Location::RegisterPairLocation(
+              calling_convention.GetRegisterAt(0), calling_convention.GetRegisterAt(1)));
+          locations->SetOut(Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(0)));
           break;
+        }
 
         case Primitive::kPrimDouble:
           // Processing a Dex `double-to-float' instruction.
@@ -1820,47 +1820,13 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
           break;
         }
 
-        case Primitive::kPrimLong: {
+        case Primitive::kPrimLong:
           // Processing a Dex `long-to-float' instruction.
-          Register low = in.AsRegisterPairLow<Register>();
-          Register high = in.AsRegisterPairHigh<Register>();
-          SRegister output = out.AsFpuRegister<SRegister>();
-          Register constant_low = locations->GetTemp(0).AsRegister<Register>();
-          Register constant_high = locations->GetTemp(1).AsRegister<Register>();
-          SRegister temp1_s = locations->GetTemp(2).AsFpuRegisterPairLow<SRegister>();
-          DRegister temp1_d = FromLowSToD(temp1_s);
-          SRegister temp2_s = locations->GetTemp(3).AsFpuRegisterPairLow<SRegister>();
-          DRegister temp2_d = FromLowSToD(temp2_s);
-
-          // Operations use doubles for precision reasons (each 32-bit
-          // half of a long fits in the 53-bit mantissa of a double,
-          // but not in the 24-bit mantissa of a float).  This is
-          // especially important for the low bits.  The result is
-          // eventually converted to float.
-
-          // temp1_d = int-to-double(high)
-          __ vmovsr(temp1_s, high);
-          __ vcvtdi(temp1_d, temp1_s);
-          // Using vmovd to load the `k2Pow32EncodingForDouble` constant
-          // as an immediate value into `temp2_d` does not work, as
-          // this instruction only transfers 8 significant bits of its
-          // immediate operand.  Instead, use two 32-bit core
-          // registers to load `k2Pow32EncodingForDouble` into
-          // `temp2_d`.
-          __ LoadImmediate(constant_low, Low32Bits(k2Pow32EncodingForDouble));
-          __ LoadImmediate(constant_high, High32Bits(k2Pow32EncodingForDouble));
-          __ vmovdrr(temp2_d, constant_low, constant_high);
-          // temp1_d = temp1_d * 2^32
-          __ vmuld(temp1_d, temp1_d, temp2_d);
-          // temp2_d = unsigned-to-double(low)
-          __ vmovsr(temp2_s, low);
-          __ vcvtdu(temp2_d, temp2_s);
-          // temp1_d = temp1_d + temp2_d
-          __ vaddd(temp1_d, temp1_d, temp2_d);
-          // output = double-to-float(temp1_d);
-          __ vcvtsd(output, temp1_d);
+          codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pL2f),
+                                  conversion,
+                                  conversion->GetDexPc(),
+                                  nullptr);
           break;
-        }
 
         case Primitive::kPrimDouble:
           // Processing a Dex `double-to-float' instruction.
