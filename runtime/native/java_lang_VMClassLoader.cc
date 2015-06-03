@@ -55,60 +55,29 @@ static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoa
   return nullptr;
 }
 
-static jint VMClassLoader_getBootClassPathSize(JNIEnv*, jclass) {
-  return Runtime::Current()->GetClassLinker()->GetBootClassPath().size();
-}
-
 /*
- * Returns a string URL for a resource with the specified 'javaName' in
- * entry 'index' of the boot class path.
- *
- * We return a newly-allocated String in the following form:
- *
- *   jar:file://path!/name
- *
- * Where "path" is the bootstrap class path entry and "name" is the string
- * passed into this method.  "path" needs to be an absolute path (starting
- * with '/'); if it's not we'd need to make it absolute as part of forming
- * the URL string.
+ * Returns an array of entries from the boot classpath that could contain resources.
  */
-static jstring VMClassLoader_getBootClassPathResource(JNIEnv* env, jclass, jstring javaName,
-                                                      jint index) {
-  ScopedUtfChars name(env, javaName);
-  if (name.c_str() == nullptr) {
-    return nullptr;
-  }
-
+static jobjectArray VMClassLoader_getBootClassPathEntries(JNIEnv* env, jclass) {
   const std::vector<const DexFile*>& path =
       Runtime::Current()->GetClassLinker()->GetBootClassPath();
-  if (index < 0 || size_t(index) >= path.size()) {
-    return nullptr;
-  }
-  const DexFile* dex_file = path[index];
+  jclass stringClass = env->FindClass("java/lang/String");
+  jobjectArray array = env->NewObjectArray(path.size(), stringClass, nullptr);
+  for (size_t i = 0; i < path.size(); ++i) {
+    const DexFile* dex_file = path[i];
 
-  // For multidex locations, e.g., x.jar:classes2.dex, we want to look into x.jar.
-  const std::string& location(dex_file->GetBaseLocation());
+    // For multidex locations, e.g., x.jar:classes2.dex, we want to look into x.jar.
+    const std::string& location(dex_file->GetBaseLocation());
 
-  std::string error_msg;
-  std::unique_ptr<ZipArchive> zip_archive(ZipArchive::Open(location.c_str(), &error_msg));
-  if (zip_archive.get() == nullptr) {
-    LOG(WARNING) << "Failed to open zip archive '" << location << "': " << error_msg;
-    return nullptr;
+    jstring javaPath = env->NewStringUTF(location.c_str());
+    env->SetObjectArrayElement(array, i, javaPath);
   }
-  std::unique_ptr<ZipEntry> zip_entry(zip_archive->Find(name.c_str(), &error_msg));
-  if (zip_entry.get() == nullptr) {
-    return nullptr;
-  }
-
-  std::string url;
-  StringAppendF(&url, "jar:file://%s!/%s", location.c_str(), name.c_str());
-  return env->NewStringUTF(url.c_str());
+  return array;
 }
 
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMClassLoader, findLoadedClass, "!(Ljava/lang/ClassLoader;Ljava/lang/String;)Ljava/lang/Class;"),
-  NATIVE_METHOD(VMClassLoader, getBootClassPathResource, "(Ljava/lang/String;I)Ljava/lang/String;"),
-  NATIVE_METHOD(VMClassLoader, getBootClassPathSize, "!()I"),
+  NATIVE_METHOD(VMClassLoader, getBootClassPathEntries, "()[Ljava/lang/String;"),
 };
 
 void register_java_lang_VMClassLoader(JNIEnv* env) {
