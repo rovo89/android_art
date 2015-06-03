@@ -1040,7 +1040,7 @@ void Hprof::DumpHeapClass(mirror::Class* klass) {
   }
 
   // Instance fields for this class (no superclass fields)
-  int iFieldCount = klass->IsObjectClass() ? 0 : klass->NumInstanceFields();
+  int iFieldCount = klass->NumInstanceFields();
   if (klass->IsStringClass()) {
     __ AddU2((uint16_t)iFieldCount + 1);
   } else {
@@ -1114,7 +1114,7 @@ void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass) {
   // Write the instance data;  fields for this class, followed by super class fields,
   // and so on. Don't write the klass or monitor fields of Object.class.
   mirror::Class* orig_klass = klass;
-  while (!klass->IsObjectClass()) {
+  do {
     int ifieldCount = klass->NumInstanceFields();
     for (int i = 0; i < ifieldCount; ++i) {
       ArtField* f = klass->GetInstanceField(i);
@@ -1146,7 +1146,7 @@ void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass) {
     }
 
     klass = klass->GetSuperClass();
-  }
+  } while (klass != nullptr);
 
   // Output native value character array for strings.
   if (orig_klass->IsStringClass()) {
