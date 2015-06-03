@@ -480,6 +480,10 @@ class ClassLinker {
 
   ArtMethod* CreateRuntimeMethod();
 
+  // Clear the ArrayClass cache. This is necessary when cleaning up for the image, as the cache
+  // entries are roots, but potentially not image classes.
+  void DropFindArrayClassCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  private:
   const OatFile::OatMethod FindOatMethodFor(ArtMethod* method, bool* found)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
