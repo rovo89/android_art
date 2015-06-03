@@ -707,6 +707,7 @@ Location InvokeDexCallingConventionVisitorARM::GetReturnLocation(Primitive::Type
     case Primitive::kPrimVoid:
       return Location();
   }
+
   UNREACHABLE();
 }
 
