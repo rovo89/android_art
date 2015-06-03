@@ -891,14 +891,19 @@ void Hprof::DumpHeapObject(mirror::Object* obj) {
     return;
   }
 
-  gc::space::ContinuousSpace* space =
-      Runtime::Current()->GetHeap()->FindContinuousSpaceFromObject(obj, true);
+  gc::Heap* const heap = Runtime::Current()->GetHeap();
+  const gc::space::ContinuousSpace* const space = heap->FindContinuousSpaceFromObject(obj, true);
   HprofHeapId heap_type = HPROF_HEAP_APP;
   if (space != nullptr) {
     if (space->IsZygoteSpace()) {
       heap_type = HPROF_HEAP_ZYGOTE;
     } else if (space->IsImageSpace()) {
       heap_type = HPROF_HEAP_IMAGE;
+    }
+  } else {
+    const auto* los = heap->GetLargeObjectsSpace();
+    if (los->Contains(obj) && los->IsZygoteLargeObject(Thread::Current(), obj)) {
+      heap_type = HPROF_HEAP_ZYGOTE;
     }
   }
   CheckHeapSegmentConstraints();
