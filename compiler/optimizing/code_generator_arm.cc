@@ -2901,22 +2901,22 @@ void InstructionCodeGeneratorARM::VisitPhi(HPhi* instruction) {
 
 void InstructionCodeGeneratorARM::GenerateMemoryBarrier(MemBarrierKind kind) {
   // TODO (ported from quick): revisit Arm barrier kinds
-  DmbOptions flavour = DmbOptions::ISH;  // quiet c++ warnings
+  DmbOptions flavor = DmbOptions::ISH;  // quiet c++ warnings
   switch (kind) {
     case MemBarrierKind::kAnyStore:
     case MemBarrierKind::kLoadAny:
     case MemBarrierKind::kAnyAny: {
-      flavour = DmbOptions::ISH;
+      flavor = DmbOptions::ISH;
       break;
     }
     case MemBarrierKind::kStoreStore: {
-      flavour = DmbOptions::ISHST;
+      flavor = DmbOptions::ISHST;
       break;
     }
     default:
       LOG(FATAL) << "Unexpected memory barrier " << kind;
   }
-  __ dmb(flavour);
+  __ dmb(flavor);
 }
 
 void InstructionCodeGeneratorARM::GenerateWideAtomicLoad(Register addr,
