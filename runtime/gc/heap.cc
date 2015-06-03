@@ -2252,6 +2252,7 @@ void Heap::PreZygoteFork() {
   // Set all the cards in the mod-union table since we don't know which objects contain references
   // to large objects.
   mod_union_table->SetCards();
+  large_object_space_->SetAllLargeObjectsAsZygoteObjects(self);
   AddModUnionTable(mod_union_table);
   if (collector::SemiSpace::kUseRememberedSet) {
     // Add a new remembered set for the post-zygote non-moving space.
