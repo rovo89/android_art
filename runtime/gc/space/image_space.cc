@@ -34,6 +34,10 @@
 #include "space-inl.h"
 #include "utils.h"
 
+#ifdef HAVE_ANDROID_OS
+#include <cutils/properties.h>
+#endif
+
 namespace art {
 namespace gc {
 namespace space {
@@ -124,17 +128,32 @@ static void RealPruneDalvikCache(const std::string& cache_dir_path) {
 static void MarkZygoteStart(const InstructionSet isa) {
   const std::string isa_subdir = GetDalvikCacheOrDie(GetInstructionSetString(isa), false);
   const std::string boot_marker = isa_subdir + "/.booting";
+  bool pruned_image_cache = true;
+
+#ifdef HAVE_ANDROID_OS
+  int8_t prune_image_cache = property_get_bool("persist.art.pruneimagecache", 1);
+#else
+  int8_t prune_image_cache = 1;
+#endif
 
   if (OS::FileExists(boot_marker.c_str())) {
-    LOG(WARNING) << "Incomplete boot detected. Pruning dalvik cache";
-    RealPruneDalvikCache(isa_subdir);
+    if (!prune_image_cache) {
+      LOG(WARNING) << "Incomplete boot detected. Skipped prunning of dalvik cache due to property";
+      pruned_image_cache = false;
+    } else {
+      LOG(WARNING) << "Incomplete boot detected. Pruning dalvik cache";
+      RealPruneDalvikCache(isa_subdir);
+      pruned_image_cache = true;
+    }
   }
 
-  VLOG(startup) << "Creating boot start marker: " << boot_marker;
-  std::unique_ptr<File> f(OS::CreateEmptyFile(boot_marker.c_str()));
-  if (f.get() != nullptr) {
-    if (f->FlushCloseOrErase() != 0) {
-      PLOG(WARNING) << "Failed to write boot marker.";
+  if (pruned_image_cache || !OS::FileExists(boot_marker.c_str())) {
+    VLOG(startup) << "Creating boot start marker: " << boot_marker;
+    std::unique_ptr<File> f(OS::CreateEmptyFile(boot_marker.c_str()));
+    if (f.get() != nullptr) {
+      if (f->FlushCloseOrErase() != 0) {
+        PLOG(WARNING) << "Failed to write boot marker.";
+      }
     }
   }
 }
