@@ -98,6 +98,12 @@ class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
   void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes) OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Return true if the large object is a zygote large object. Potentially slow.
+  virtual bool IsZygoteLargeObject(Thread* self, mirror::Object* obj) const = 0;
+  // Called when we create the zygote space, mark all existing large objects as zygote large
+  // objects.
+  virtual void SetAllLargeObjectsAsZygoteObjects(Thread* self) = 0;
+
  protected:
   explicit LargeObjectSpace(const std::string& name, uint8_t* begin, uint8_t* end);
   static void SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg);
@@ -133,16 +139,20 @@ class LargeObjectMapSpace : public LargeObjectSpace {
   bool Contains(const mirror::Object* obj) const NO_THREAD_SAFETY_ANALYSIS;
 
  protected:
+  struct LargeObject {
+    MemMap* mem_map;
+    bool is_zygote;
+  };
   explicit LargeObjectMapSpace(const std::string& name);
   virtual ~LargeObjectMapSpace() {}
 
+  bool IsZygoteLargeObject(Thread* self, mirror::Object* obj) const OVERRIDE LOCKS_EXCLUDED(lock_);
+  void SetAllLargeObjectsAsZygoteObjects(Thread* self) OVERRIDE LOCKS_EXCLUDED(lock_);
+
   // Used to ensure mutual exclusion when the allocation spaces data structures are being modified.
   mutable Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  std::vector<mirror::Object*, TrackingAllocator<mirror::Object*, kAllocatorTagLOS>> large_objects_
+  AllocationTrackingSafeMap<mirror::Object*, LargeObject, kAllocatorTagLOSMaps> large_objects_
       GUARDED_BY(lock_);
-  typedef SafeMap<mirror::Object*, MemMap*, std::less<mirror::Object*>,
-      TrackingAllocator<std::pair<mirror::Object*, MemMap*>, kAllocatorTagLOSMaps>> MemMaps;
-  MemMaps mem_maps_ GUARDED_BY(lock_);
 };
 
 // A continuous large object space with a free-list to handle holes.
@@ -177,6 +187,8 @@ class FreeListSpace FINAL : public LargeObjectSpace {
   }
   // Removes header from the free blocks set by finding the corresponding iterator and erasing it.
   void RemoveFreePrev(AllocationInfo* info) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  bool IsZygoteLargeObject(Thread* self, mirror::Object* obj) const OVERRIDE;
+  void SetAllLargeObjectsAsZygoteObjects(Thread* self) OVERRIDE;
 
   class SortByPrevFree {
    public:
@@ -192,7 +204,7 @@ class FreeListSpace FINAL : public LargeObjectSpace {
   std::unique_ptr<MemMap> allocation_info_map_;
   AllocationInfo* allocation_info_;
 
-  Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  mutable Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   // Free bytes at the end of the space.
   size_t free_end_ GUARDED_BY(lock_);
   FreeBlocks free_blocks_ GUARDED_BY(lock_);

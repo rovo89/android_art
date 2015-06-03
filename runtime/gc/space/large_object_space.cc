@@ -41,8 +41,8 @@ class ValgrindLargeObjectMapSpace FINAL : public LargeObjectMapSpace {
     // Keep valgrind happy if there is any large objects such as dex cache arrays which aren't
     // freed since they are held live by the class linker.
     MutexLock mu(Thread::Current(), lock_);
-    for (auto& m : mem_maps_) {
-      delete m.second;
+    for (auto& m : large_objects_) {
+      delete m.second.mem_map;
     }
   }
 
@@ -139,8 +139,7 @@ mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes,
     CHECK(space_bitmap == nullptr) << obj_end << " overlaps with bitmap " << *space_bitmap;
   }
   MutexLock mu(self, lock_);
-  large_objects_.push_back(obj);
-  mem_maps_.Put(obj, mem_map);
+  large_objects_.Put(obj, LargeObject {mem_map, false /* not zygote */});
   const size_t allocation_size = mem_map->BaseSize();
   DCHECK(bytes_allocated != nullptr);
   begin_ = std::min(begin_, reinterpret_cast<uint8_t*>(obj));
@@ -161,28 +160,43 @@ mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes,
   return obj;
 }
 
+bool LargeObjectMapSpace::IsZygoteLargeObject(Thread* self, mirror::Object* obj) const {
+  MutexLock mu(self, lock_);
+  auto it = large_objects_.find(obj);
+  CHECK(it != large_objects_.end());
+  return it->second.is_zygote;
+}
+
+void LargeObjectMapSpace::SetAllLargeObjectsAsZygoteObjects(Thread* self) {
+  MutexLock mu(self, lock_);
+  for (auto& pair : large_objects_) {
+    pair.second.is_zygote = true;
+  }
+}
+
 size_t LargeObjectMapSpace::Free(Thread* self, mirror::Object* ptr) {
   MutexLock mu(self, lock_);
-  MemMaps::iterator found = mem_maps_.find(ptr);
-  if (UNLIKELY(found == mem_maps_.end())) {
-    Runtime::Current()->GetHeap()->DumpSpaces(LOG(ERROR));
+  auto it = large_objects_.find(ptr);
+  if (UNLIKELY(it == large_objects_.end())) {
+    Runtime::Current()->GetHeap()->DumpSpaces(LOG(INTERNAL_FATAL));
     LOG(FATAL) << "Attempted to free large object " << ptr << " which was not live";
   }
-  const size_t map_size = found->second->BaseSize();
+  MemMap* mem_map = it->second.mem_map;
+  const size_t map_size = mem_map->BaseSize();
   DCHECK_GE(num_bytes_allocated_, map_size);
   size_t allocation_size = map_size;
   num_bytes_allocated_ -= allocation_size;
   --num_objects_allocated_;
-  delete found->second;
-  mem_maps_.erase(found);
+  delete mem_map;
+  large_objects_.erase(it);
   return allocation_size;
 }
 
 size_t LargeObjectMapSpace::AllocationSize(mirror::Object* obj, size_t* usable_size) {
   MutexLock mu(Thread::Current(), lock_);
-  auto found = mem_maps_.find(obj);
-  CHECK(found != mem_maps_.end()) << "Attempted to get size of a large object which is not live";
-  size_t alloc_size = found->second->BaseSize();
+  auto it = large_objects_.find(obj);
+  CHECK(it != large_objects_.end()) << "Attempted to get size of a large object which is not live";
+  size_t alloc_size = it->second.mem_map->BaseSize();
   if (usable_size != nullptr) {
     *usable_size = alloc_size;
   }
@@ -202,8 +216,8 @@ size_t LargeObjectSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object*
 
 void LargeObjectMapSpace::Walk(DlMallocSpace::WalkCallback callback, void* arg) {
   MutexLock mu(Thread::Current(), lock_);
-  for (auto it = mem_maps_.begin(); it != mem_maps_.end(); ++it) {
-    MemMap* mem_map = it->second;
+  for (auto& pair : large_objects_) {
+    MemMap* mem_map = pair.second.mem_map;
     callback(mem_map->Begin(), mem_map->End(), mem_map->Size(), arg);
     callback(nullptr, nullptr, 0, arg);
   }
@@ -213,22 +227,25 @@ bool LargeObjectMapSpace::Contains(const mirror::Object* obj) const {
   Thread* self = Thread::Current();
   if (lock_.IsExclusiveHeld(self)) {
     // We hold lock_ so do the check.
-    return mem_maps_.find(const_cast<mirror::Object*>(obj)) != mem_maps_.end();
+    return large_objects_.find(const_cast<mirror::Object*>(obj)) != large_objects_.end();
   } else {
     MutexLock mu(self, lock_);
-    return mem_maps_.find(const_cast<mirror::Object*>(obj)) != mem_maps_.end();
+    return large_objects_.find(const_cast<mirror::Object*>(obj)) != large_objects_.end();
   }
 }
 
 // Keeps track of allocation sizes + whether or not the previous allocation is free.
-// Used to coalesce free blocks and find the best fit block for an allocation.
+// Used to coalesce free blocks and find the best fit block for an allocation for best fit object
+// allocation. Each allocation has an AllocationInfo which contains the size of the previous free
+// block preceding it. Implemented in such a way that we can also find the iterator for any
+// allocation info pointer.
 class AllocationInfo {
  public:
   AllocationInfo() : prev_free_(0), alloc_size_(0) {
   }
   // Return the number of pages that the allocation info covers.
   size_t AlignSize() const {
-    return alloc_size_ & ~kFlagFree;
+    return alloc_size_ & kFlagsMask;
   }
   // Returns the allocation size in bytes.
   size_t ByteSize() const {
@@ -237,11 +254,21 @@ class AllocationInfo {
   // Updates the allocation size and whether or not it is free.
   void SetByteSize(size_t size, bool free) {
     DCHECK_ALIGNED(size, FreeListSpace::kAlignment);
-    alloc_size_ = (size / FreeListSpace::kAlignment) | (free ? kFlagFree : 0U);
+    alloc_size_ = (size / FreeListSpace::kAlignment) | (free ? kFlagFree : 0u);
   }
+  // Returns true if the block is free.
   bool IsFree() const {
     return (alloc_size_ & kFlagFree) != 0;
   }
+  // Return true if the large object is a zygote object.
+  bool IsZygoteObject() const {
+    return (alloc_size_ & kFlagZygote) != 0;
+  }
+  // Change the object to be a zygote object.
+  void SetZygoteObject() {
+    alloc_size_ |= kFlagZygote;
+  }
+  // Return true if this is a zygote large object.
   // Finds and returns the next non free allocation info after ourself.
   AllocationInfo* GetNextInfo() {
     return this + AlignSize();
@@ -275,10 +302,9 @@ class AllocationInfo {
   }
 
  private:
-  // Used to implement best fit object allocation. Each allocation has an AllocationInfo which
-  // contains the size of the previous free block preceding it. Implemented in such a way that we
-  // can also find the iterator for any allocation info pointer.
-  static constexpr uint32_t kFlagFree = 0x8000000;
+  static constexpr uint32_t kFlagFree = 0x80000000;  // If block is free.
+  static constexpr uint32_t kFlagZygote = 0x40000000;  // If the large object is a zygote object.
+  static constexpr uint32_t kFlagsMask = ~(kFlagFree | kFlagZygote);  // Combined flags for masking.
   // Contains the size of the previous free block with kAlignment as the unit. If 0 then the
   // allocation before us is not free.
   // These variables are undefined in the middle of allocations / free blocks.
@@ -493,7 +519,7 @@ mirror::Object* FreeListSpace::Alloc(Thread* self, size_t num_bytes, size_t* byt
 }
 
 void FreeListSpace::Dump(std::ostream& os) const {
-  MutexLock mu(Thread::Current(), const_cast<Mutex&>(lock_));
+  MutexLock mu(Thread::Current(), lock_);
   os << GetName() << " -"
      << " begin: " << reinterpret_cast<void*>(Begin())
      << " end: " << reinterpret_cast<void*>(End()) << "\n";
@@ -516,6 +542,24 @@ void FreeListSpace::Dump(std::ostream& os) const {
   if (free_end_) {
     os << "Free block at address: " << reinterpret_cast<const void*>(free_end_start)
        << " of length " << free_end_ << " bytes\n";
+  }
+}
+
+bool FreeListSpace::IsZygoteLargeObject(Thread* self ATTRIBUTE_UNUSED, mirror::Object* obj) const {
+  const AllocationInfo* info = GetAllocationInfoForAddress(reinterpret_cast<uintptr_t>(obj));
+  DCHECK(info != nullptr);
+  return info->IsZygoteObject();
+}
+
+void FreeListSpace::SetAllLargeObjectsAsZygoteObjects(Thread* self) {
+  MutexLock mu(self, lock_);
+  uintptr_t free_end_start = reinterpret_cast<uintptr_t>(end_) - free_end_;
+  for (AllocationInfo* cur_info = GetAllocationInfoForAddress(reinterpret_cast<uintptr_t>(Begin())),
+      *end_info = GetAllocationInfoForAddress(free_end_start); cur_info < end_info;
+      cur_info = cur_info->GetNextInfo()) {
+    if (!cur_info->IsFree()) {
+      cur_info->SetZygoteObject();
+    }
   }
 }
 
