@@ -80,6 +80,7 @@ extern "C" void art_quick_unlock_object(art::mirror::Object*);
 // Math entrypoints.
 extern "C" int64_t art_quick_d2l(double);
 extern "C" int64_t art_quick_f2l(float);
+extern "C" float art_quick_l2f (int64_t);
 extern "C" int64_t art_quick_ldiv(int64_t, int64_t);
 extern "C" int64_t art_quick_lmod(int64_t, int64_t);
 extern "C" int64_t art_quick_lmul(int64_t, int64_t);
