@@ -196,7 +196,12 @@ void* Thread::CreateCallback(void* arg) {
     // Check that if we got here we cannot be shutting down (as shutdown should never have started
     // while threads are being born).
     CHECK(!runtime->IsShuttingDownLocked());
-    CHECK(self->Init(runtime->GetThreadList(), runtime->GetJavaVM()));
+    // Note: given that the JNIEnv is created in the parent thread, the only failure point here is
+    //       a mess in InitStackHwm. We do not have a reasonable way to recover from that, so abort
+    //       the runtime in such a case. In case this ever changes, we need to make sure here to
+    //       delete the tmp_jni_env, as we own it at this point.
+    CHECK(self->Init(runtime->GetThreadList(), runtime->GetJavaVM(), self->tlsPtr_.tmp_jni_env));
+    self->tlsPtr_.tmp_jni_env = nullptr;
     Runtime::Current()->EndThreadBirth();
   }
   {
@@ -358,37 +363,59 @@ void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_siz
   env->SetLongField(java_peer, WellKnownClasses::java_lang_Thread_nativePeer,
                     reinterpret_cast<jlong>(child_thread));
 
-  pthread_t new_pthread;
-  pthread_attr_t attr;
-  CHECK_PTHREAD_CALL(pthread_attr_init, (&attr), "new thread");
-  CHECK_PTHREAD_CALL(pthread_attr_setdetachstate, (&attr, PTHREAD_CREATE_DETACHED), "PTHREAD_CREATE_DETACHED");
-  CHECK_PTHREAD_CALL(pthread_attr_setstacksize, (&attr, stack_size), stack_size);
-  int pthread_create_result = pthread_create(&new_pthread, &attr, Thread::CreateCallback, child_thread);
-  CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attr), "new thread");
+  // Try to allocate a JNIEnvExt for the thread. We do this here as we might be out of memory and
+  // do not have a good way to report this on the child's side.
+  std::unique_ptr<JNIEnvExt> child_jni_env_ext(
+      JNIEnvExt::Create(child_thread, Runtime::Current()->GetJavaVM()));
 
-  if (pthread_create_result != 0) {
-    // pthread_create(3) failed, so clean up.
-    {
-      MutexLock mu(self, *Locks::runtime_shutdown_lock_);
-      runtime->EndThreadBirth();
+  int pthread_create_result = 0;
+  if (child_jni_env_ext.get() != nullptr) {
+    pthread_t new_pthread;
+    pthread_attr_t attr;
+    child_thread->tlsPtr_.tmp_jni_env = child_jni_env_ext.get();
+    CHECK_PTHREAD_CALL(pthread_attr_init, (&attr), "new thread");
+    CHECK_PTHREAD_CALL(pthread_attr_setdetachstate, (&attr, PTHREAD_CREATE_DETACHED),
+                       "PTHREAD_CREATE_DETACHED");
+    CHECK_PTHREAD_CALL(pthread_attr_setstacksize, (&attr, stack_size), stack_size);
+    pthread_create_result = pthread_create(&new_pthread,
+                                           &attr,
+                                           Thread::CreateCallback,
+                                           child_thread);
+    CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attr), "new thread");
+
+    if (pthread_create_result == 0) {
+      // pthread_create started the new thread. The child is now responsible for managing the
+      // JNIEnvExt we created.
+      // Note: we can't check for tmp_jni_env == nullptr, as that would require synchronization
+      //       between the threads.
+      child_jni_env_ext.release();
+      return;
     }
-    // Manually delete the global reference since Thread::Init will not have been run.
-    env->DeleteGlobalRef(child_thread->tlsPtr_.jpeer);
-    child_thread->tlsPtr_.jpeer = nullptr;
-    delete child_thread;
-    child_thread = nullptr;
-    // TODO: remove from thread group?
-    env->SetLongField(java_peer, WellKnownClasses::java_lang_Thread_nativePeer, 0);
-    {
-      std::string msg(StringPrintf("pthread_create (%s stack) failed: %s",
-                                   PrettySize(stack_size).c_str(), strerror(pthread_create_result)));
-      ScopedObjectAccess soa(env);
-      soa.Self()->ThrowOutOfMemoryError(msg.c_str());
-    }
+  }
+
+  // Either JNIEnvExt::Create or pthread_create(3) failed, so clean up.
+  {
+    MutexLock mu(self, *Locks::runtime_shutdown_lock_);
+    runtime->EndThreadBirth();
+  }
+  // Manually delete the global reference since Thread::Init will not have been run.
+  env->DeleteGlobalRef(child_thread->tlsPtr_.jpeer);
+  child_thread->tlsPtr_.jpeer = nullptr;
+  delete child_thread;
+  child_thread = nullptr;
+  // TODO: remove from thread group?
+  env->SetLongField(java_peer, WellKnownClasses::java_lang_Thread_nativePeer, 0);
+  {
+    std::string msg(child_jni_env_ext.get() == nullptr ?
+        "Could not allocate JNI Env" :
+        StringPrintf("pthread_create (%s stack) failed: %s",
+                                 PrettySize(stack_size).c_str(), strerror(pthread_create_result)));
+    ScopedObjectAccess soa(env);
+    soa.Self()->ThrowOutOfMemoryError(msg.c_str());
   }
 }
 
-bool Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm) {
+bool Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm, JNIEnvExt* jni_env_ext) {
   // This function does all the initialization that must be run by the native thread it applies to.
   // (When we create a new thread from managed code, we allocate the Thread* in Thread::Create so
   // we can handshake with the corresponding native thread when it's ready.) Check this native
@@ -415,9 +442,15 @@ bool Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm) {
 
   tls32_.thin_lock_thread_id = thread_list->AllocThreadId(this);
 
-  tlsPtr_.jni_env = JNIEnvExt::Create(this, java_vm);
-  if (tlsPtr_.jni_env == nullptr) {
-    return false;
+  if (jni_env_ext != nullptr) {
+    DCHECK_EQ(jni_env_ext->vm, java_vm);
+    DCHECK_EQ(jni_env_ext->self, this);
+    tlsPtr_.jni_env = jni_env_ext;
+  } else {
+    tlsPtr_.jni_env = JNIEnvExt::Create(this, java_vm);
+    if (tlsPtr_.jni_env == nullptr) {
+      return false;
+    }
   }
 
   thread_list->Register(this);
