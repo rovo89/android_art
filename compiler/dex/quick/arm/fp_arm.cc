@@ -191,30 +191,8 @@ void ArmMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest, Re
       GenConversionCall(kQuickF2l, rl_dest, rl_src, kCoreReg);
       return;
     case Instruction::LONG_TO_FLOAT: {
-      rl_src = LoadValueWide(rl_src, kFPReg);
-      RegisterInfo* info = GetRegInfo(rl_src.reg);
-      RegStorage src_low = info->FindMatchingView(RegisterInfo::kLowSingleStorageMask)->GetReg();
-      DCHECK(src_low.Valid());
-      RegStorage src_high = info->FindMatchingView(RegisterInfo::kHighSingleStorageMask)->GetReg();
-      DCHECK(src_high.Valid());
-      rl_result = EvalLoc(rl_dest, kFPReg, true);
-      // Allocate temp registers.
-      RegStorage high_val = AllocTempDouble();
-      RegStorage low_val = AllocTempDouble();
-      RegStorage const_val = AllocTempDouble();
-      // Long to double.
-      NewLIR2(kThumb2VcvtF64S32, high_val.GetReg(), src_high.GetReg());
-      NewLIR2(kThumb2VcvtF64U32, low_val.GetReg(), src_low.GetReg());
-      LoadConstantWide(const_val, INT64_C(0x41f0000000000000));
-      NewLIR3(kThumb2VmlaF64, low_val.GetReg(), high_val.GetReg(), const_val.GetReg());
-      // Double to float.
-      NewLIR2(kThumb2VcvtDF, rl_result.reg.GetReg(), low_val.GetReg());
-      // Free temp registers.
-      FreeTemp(high_val);
-      FreeTemp(low_val);
-      FreeTemp(const_val);
-      // Store result.
-      StoreValue(rl_dest, rl_result);
+      CheckEntrypointTypes<kQuickL2f, float, int64_t>();  // float -> kFPReg
+      GenConversionCall(kQuickL2f, rl_dest, rl_src, kFPReg);
       return;
     }
     case Instruction::DOUBLE_TO_LONG:
