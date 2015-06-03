@@ -61,7 +61,9 @@ class ThreadList {
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_);
 
   // Suspends all threads and gets exclusive access to the mutator_lock_.
-  void SuspendAll(const char* cause)
+  // If long suspend is true, then other people who try to suspend will never timeout. Long suspend
+  // is currenly used for hprof since large heaps take a long time.
+  void SuspendAll(const char* cause, bool long_suspend = false)
       EXCLUSIVE_LOCK_FUNCTION(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
@@ -183,6 +185,9 @@ class ThreadList {
   // Thread suspend time histogram. Only modified when all the threads are suspended, so guarding
   // by mutator lock ensures no thread can read when another thread is modifying it.
   Histogram<uint64_t> suspend_all_historam_ GUARDED_BY(Locks::mutator_lock_);
+
+  // Whether or not the current thread suspension is long.
+  bool long_suspend_;
 
   friend class Thread;
 

@@ -52,7 +52,7 @@ static constexpr useconds_t kThreadSuspendMaxSleepUs = 5000;
 
 ThreadList::ThreadList()
     : suspend_all_count_(0), debug_suspend_all_count_(0), unregistering_count_(0),
-      suspend_all_historam_("suspend all histogram", 16, 64) {
+      suspend_all_historam_("suspend all histogram", 16, 64), long_suspend_(false) {
   CHECK(Monitor::IsValidLockWord(LockWord::FromThinLockId(kMaxThreadId, 1, 0U)));
 }
 
@@ -448,7 +448,7 @@ size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_c
   return runnable_threads.size() + other_threads.size() + 1;  // +1 for self.
 }
 
-void ThreadList::SuspendAll(const char* cause) {
+void ThreadList::SuspendAll(const char* cause, bool long_suspend) {
   Thread* self = Thread::Current();
 
   if (self != nullptr) {
@@ -482,13 +482,21 @@ void ThreadList::SuspendAll(const char* cause) {
 
   // Block on the mutator lock until all Runnable threads release their share of access.
 #if HAVE_TIMED_RWLOCK
-  // Timeout if we wait more than 30 seconds.
-  if (!Locks::mutator_lock_->ExclusiveLockWithTimeout(self, kThreadSuspendTimeoutMs, 0)) {
-    UnsafeLogFatalForThreadSuspendAllTimeout();
+  while (true) {
+    if (Locks::mutator_lock_->ExclusiveLockWithTimeout(self, kThreadSuspendTimeoutMs, 0)) {
+      break;
+    } else if (!long_suspend_) {
+      // Reading long_suspend without the mutator lock is slightly racy, in some rare cases, this
+      // could result in a thread suspend timeout.
+      // Timeout if we wait more than kThreadSuspendTimeoutMs seconds.
+      UnsafeLogFatalForThreadSuspendAllTimeout();
+    }
   }
 #else
   Locks::mutator_lock_->ExclusiveLock(self);
 #endif
+
+  long_suspend_ = long_suspend;
 
   const uint64_t end_time = NanoTime();
   const uint64_t suspend_time = end_time - start_time;
@@ -528,6 +536,8 @@ void ThreadList::ResumeAll() {
     // Debug check that all threads are suspended.
     AssertThreadsAreSuspended(self, self);
   }
+
+  long_suspend_ = false;
 
   Locks::mutator_lock_->ExclusiveUnlock(self);
   {
@@ -599,8 +609,8 @@ static void ThreadSuspendByPeerWarning(Thread* self, LogSeverity severity, const
                                        jobject peer) {
   JNIEnvExt* env = self->GetJniEnv();
   ScopedLocalRef<jstring>
-      scoped_name_string(env, (jstring)env->GetObjectField(peer,
-                                                          WellKnownClasses::java_lang_Thread_name));
+      scoped_name_string(env, (jstring)env->GetObjectField(
+          peer, WellKnownClasses::java_lang_Thread_name));
   ScopedUtfChars scoped_name_chars(env, scoped_name_string.get());
   if (scoped_name_chars.c_str() == nullptr) {
       LOG(severity) << message << ": " << peer;
