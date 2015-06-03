@@ -718,6 +718,9 @@ void ImageWriter::PruneNonImageClasses() {
     // contains data only valid during a real run.
     dex_cache->SetFieldObject<false>(mirror::DexCache::DexOffset(), nullptr);
   }
+
+  // Drop the array class cache in the ClassLinker, as these are roots holding those classes live.
+  class_linker->DropFindArrayClassCache();
 }
 
 bool ImageWriter::NonImageClassesVisitor(Class* klass, void* arg) {
