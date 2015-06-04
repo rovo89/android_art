@@ -1229,6 +1229,10 @@ const OatFile* ClassLinker::FindOpenedOatFileFromOatLocation(const std::string& 
     const OatFile* oat_file = oat_files_[i];
     DCHECK(oat_file != nullptr);
     if (oat_file->GetLocation() == oat_location) {
+      if (oat_file->IsCreatedInZygote() && !Runtime::Current()->IsZygote() && oat_location.find("/system@") == std::string::npos) {
+        LOG(INFO) << "Ignoring oat file opened by Zygote: " << oat_location;
+        continue;
+      }
       return oat_file;
     }
   }
