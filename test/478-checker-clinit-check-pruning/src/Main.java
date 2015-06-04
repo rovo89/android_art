@@ -90,7 +90,7 @@ public class Main {
   /// CHECK-NOT:                           ClinitCheck
 
   static void invokeStaticNotInlined() {
-    ClassWithClinit2.staticMethod();
+    ClassWithClinit2.$noinline$staticMethod();
   }
 
   static class ClassWithClinit2 {
@@ -100,7 +100,7 @@ public class Main {
 
     static boolean doThrow = false;
 
-    static void staticMethod() {
+    static void $noinline$staticMethod() {
       if (doThrow) {
         // Try defeating inlining.
         throw new Error();
@@ -169,7 +169,7 @@ public class Main {
       // initialization of ClassWithClinit4, meaning that the
       // call to staticMethod below does not need a clinit
       // check.
-      staticMethod();
+      $noinline$staticMethod();
     }
 
     static {
@@ -178,7 +178,7 @@ public class Main {
 
     static boolean doThrow = false;
 
-    static void staticMethod() {
+    static void $noinline$staticMethod() {
       if (doThrow) {
         // Try defeating inlining.
         throw new Error();
@@ -242,7 +242,7 @@ public class Main {
   static class ClassWithClinit6 {
     static boolean doThrow = false;
 
-    static void staticMethod() {
+    static void $noinline$staticMethod() {
       if (doThrow) {
         // Try defeating inlining.
         throw new Error();
@@ -256,7 +256,7 @@ public class Main {
 
   static class SubClassOfClassWithClinit6 extends ClassWithClinit6 {
     static void invokeStaticNotInlined() {
-      ClassWithClinit6.staticMethod();
+      ClassWithClinit6.$noinline$staticMethod();
     }
   }
 
@@ -276,7 +276,7 @@ public class Main {
   /// CHECK-NOT:                           ClinitCheck
 
   static void noClinitBecauseOfInvokeStatic() {
-    ClassWithClinit2.staticMethod();
+    ClassWithClinit2.$noinline$staticMethod();
     ClassWithClinit2.doThrow = false;
   }
 
@@ -295,7 +295,7 @@ public class Main {
   /// CHECK-NOT:                           ClinitCheck
   static void clinitBecauseOfFieldAccess() {
     ClassWithClinit2.doThrow = false;
-    ClassWithClinit2.staticMethod();
+    ClassWithClinit2.$noinline$staticMethod();
   }
 
   // TODO: Add a test for the case of a static method whose declaring
