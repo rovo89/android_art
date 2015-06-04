@@ -1346,9 +1346,11 @@ class OatDumper {
     const void* raw_code_info = oat_method.GetVmapTable();
     if (raw_code_info != nullptr) {
       CodeInfo code_info(raw_code_info);
-      StackMap stack_map = code_info.GetStackMapForNativePcOffset(offset);
+      StackMapEncoding encoding = code_info.ExtractEncoding();
+      StackMap stack_map = code_info.GetStackMapForNativePcOffset(offset, encoding);
       if (stack_map.IsValid()) {
-        stack_map.Dump(os, code_info, oat_method.GetCodeOffset(), code_item->registers_size_);
+        stack_map.Dump(
+            os, code_info, encoding, oat_method.GetCodeOffset(), code_item->registers_size_);
       }
     }
   }

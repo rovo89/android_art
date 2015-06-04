@@ -77,10 +77,11 @@ inline ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp,
         (reinterpret_cast<uint8_t*>(sp) + callee_return_pc_offset));
     uintptr_t native_pc_offset = outer_method->NativeQuickPcOffset(caller_pc);
     CodeInfo code_info = outer_method->GetOptimizedCodeInfo();
-    StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset);
+    StackMapEncoding encoding = code_info.ExtractEncoding();
+    StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
     DCHECK(stack_map.IsValid());
-    if (stack_map.HasInlineInfo(code_info)) {
-      InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map);
+    if (stack_map.HasInlineInfo(encoding)) {
+      InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map, encoding);
       uint32_t method_index = inline_info.GetMethodIndexAtDepth(inline_info.GetDepth() - 1);
       InvokeType invoke_type = static_cast<InvokeType>(
           inline_info.GetInvokeTypeAtDepth(inline_info.GetDepth() - 1));

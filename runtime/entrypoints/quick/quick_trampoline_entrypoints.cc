@@ -314,13 +314,14 @@ class QuickArgumentVisitor {
 
     if (outer_method->IsOptimized(sizeof(void*))) {
       CodeInfo code_info = outer_method->GetOptimizedCodeInfo();
-      StackMap stack_map = code_info.GetStackMapForNativePcOffset(outer_pc_offset);
+      StackMapEncoding encoding = code_info.ExtractEncoding();
+      StackMap stack_map = code_info.GetStackMapForNativePcOffset(outer_pc_offset, encoding);
       DCHECK(stack_map.IsValid());
-      if (stack_map.HasInlineInfo(code_info)) {
-        InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map);
+      if (stack_map.HasInlineInfo(encoding)) {
+        InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map, encoding);
         return inline_info.GetDexPcAtDepth(inline_info.GetDepth() - 1);
       } else {
-        return stack_map.GetDexPc(code_info);
+        return stack_map.GetDexPc(encoding);
       }
     } else {
       return outer_method->ToDexPc(outer_pc);
