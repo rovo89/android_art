@@ -1254,6 +1254,10 @@ void LocationsBuilderARM::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invok
   IntrinsicLocationsBuilderARM intrinsic(GetGraph()->GetArena(),
                                          codegen_->GetInstructionSetFeatures());
   if (intrinsic.TryDispatch(invoke)) {
+    LocationSummary* locations = invoke->GetLocations();
+    if (locations->CanCall()) {
+      locations->SetInAt(invoke->GetCurrentMethodInputIndex(), Location::RequiresRegister());
+    }
     return;
   }
 
@@ -1283,9 +1287,9 @@ void InstructionCodeGeneratorARM::VisitInvokeStaticOrDirect(HInvokeStaticOrDirec
     return;
   }
 
-  Register temp = invoke->GetLocations()->GetTemp(0).AsRegister<Register>();
-
-  codegen_->GenerateStaticOrDirectCall(invoke, temp);
+  LocationSummary* locations = invoke->GetLocations();
+  codegen_->GenerateStaticOrDirectCall(
+      invoke, locations->HasTemps() ? locations->GetTemp(0) : Location::NoLocation());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
@@ -1316,12 +1320,8 @@ void InstructionCodeGeneratorARM::VisitInvokeVirtual(HInvokeVirtual* invoke) {
   Location receiver = locations->InAt(0);
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
   // temp = object->GetClass();
-  if (receiver.IsStackSlot()) {
-    __ LoadFromOffset(kLoadWord, temp, SP, receiver.GetStackIndex());
-    __ LoadFromOffset(kLoadWord, temp, temp, class_offset);
-  } else {
-    __ LoadFromOffset(kLoadWord, temp, receiver.AsRegister<Register>(), class_offset);
-  }
+  DCHECK(receiver.IsRegister());
+  __ LoadFromOffset(kLoadWord, temp, receiver.AsRegister<Register>(), class_offset);
   codegen_->MaybeRecordImplicitNullCheck(invoke);
   // temp = temp->GetMethodAt(method_offset);
   uint32_t entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(
@@ -4206,9 +4206,7 @@ void InstructionCodeGeneratorARM::HandleBitwiseOperation(HBinaryOperation* instr
   }
 }
 
-void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Register temp) {
-  DCHECK_EQ(temp, kArtMethodRegister);
-
+void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) {
   // TODO: Implement all kinds of calls:
   // 1) boot -> boot
   // 2) app -> boot
@@ -4217,32 +4215,32 @@ void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
   // Currently we implement the app -> app logic, which looks up in the resolve cache.
 
   if (invoke->IsStringInit()) {
+    Register reg = temp.AsRegister<Register>();
     // temp = thread->string_init_entrypoint
-    __ LoadFromOffset(kLoadWord, temp, TR, invoke->GetStringInitOffset());
+    __ LoadFromOffset(kLoadWord, reg, TR, invoke->GetStringInitOffset());
     // LR = temp[offset_of_quick_compiled_code]
-    __ LoadFromOffset(kLoadWord, LR, temp,
+    __ LoadFromOffset(kLoadWord, LR, reg,
                       ArtMethod::EntryPointFromQuickCompiledCodeOffset(
                           kArmWordSize).Int32Value());
     // LR()
     __ blx(LR);
+  } else if (invoke->IsRecursive()) {
+    __ bl(GetFrameEntryLabel());
   } else {
-    // temp = method;
-    LoadCurrentMethod(temp);
-    if (!invoke->IsRecursive()) {
-      // temp = temp->dex_cache_resolved_methods_;
-      __ LoadFromOffset(
-          kLoadWord, temp, temp, ArtMethod::DexCacheResolvedMethodsOffset().Int32Value());
-      // temp = temp[index_in_cache]
-      __ LoadFromOffset(
-          kLoadWord, temp, temp, CodeGenerator::GetCacheOffset(invoke->GetDexMethodIndex()));
-      // LR = temp[offset_of_quick_compiled_code]
-      __ LoadFromOffset(kLoadWord, LR, temp, ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-          kArmWordSize).Int32Value());
-      // LR()
-      __ blx(LR);
-    } else {
-      __ bl(GetFrameEntryLabel());
-    }
+    Register current_method =
+        invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex()).AsRegister<Register>();
+    Register reg = temp.AsRegister<Register>();
+    // reg = current_method->dex_cache_resolved_methods_;
+    __ LoadFromOffset(
+        kLoadWord, reg, current_method, ArtMethod::DexCacheResolvedMethodsOffset().Int32Value());
+    // reg = reg[index_in_cache]
+    __ LoadFromOffset(
+        kLoadWord, reg, reg, CodeGenerator::GetCacheOffset(invoke->GetDexMethodIndex()));
+    // LR = reg[offset_of_quick_compiled_code]
+    __ LoadFromOffset(kLoadWord, LR, reg, ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+        kArmWordSize).Int32Value());
+    // LR()
+    __ blx(LR);
   }
 
   DCHECK(!IsLeafMethod());

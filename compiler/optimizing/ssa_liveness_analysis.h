@@ -394,7 +394,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
       first_range_->start_ = from;
     } else {
       // Instruction without uses.
-      DCHECK(!defined_by_->HasNonEnvironmentUses());
+      DCHECK(first_use_ == nullptr);
       DCHECK(from == defined_by_->GetLifetimePosition());
       first_range_ = last_range_ = range_search_start_ =
           new (allocator_) LiveRange(from, from + 2, nullptr);
