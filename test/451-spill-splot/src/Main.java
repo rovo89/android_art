@@ -48,37 +48,37 @@ public class Main {
     for (int count = 0; count < 2; count++) {
       System.out.println(aa + bb + cc + dd + ee + ff + gg + hh + ii + jj + kk + ll + mm + nn);
       System.out.println(a + b + c + d + e + f + g + h + i + j);
-      a = computeDouble();
-      b = computeDouble();
-      c = computeDouble();
-      d = computeDouble();
-      e = computeDouble();
-      f = computeDouble();
-      g = computeDouble();
-      h = computeDouble();
-      i = computeDouble();
-      j = computeDouble();
+      a = $noinline$computeDouble();
+      b = $noinline$computeDouble();
+      c = $noinline$computeDouble();
+      d = $noinline$computeDouble();
+      e = $noinline$computeDouble();
+      f = $noinline$computeDouble();
+      g = $noinline$computeDouble();
+      h = $noinline$computeDouble();
+      i = $noinline$computeDouble();
+      j = $noinline$computeDouble();
       System.out.println(a + b + c + d + e + f + g + h + i + j);
-      aa = computeFloat();
-      bb = computeFloat();
-      cc = computeFloat();
-      dd = computeFloat();
-      ee = computeFloat();
-      ff = computeFloat();
-      gg = computeFloat();
-      hh = computeFloat();
-      ii = computeFloat();
-      jj = computeFloat();
-      kk = computeFloat();
-      ll = computeFloat();
-      mm = computeFloat();
-      nn = computeFloat();
+      aa = $noinline$computeFloat();
+      bb = $noinline$computeFloat();
+      cc = $noinline$computeFloat();
+      dd = $noinline$computeFloat();
+      ee = $noinline$computeFloat();
+      ff = $noinline$computeFloat();
+      gg = $noinline$computeFloat();
+      hh = $noinline$computeFloat();
+      ii = $noinline$computeFloat();
+      jj = $noinline$computeFloat();
+      kk = $noinline$computeFloat();
+      ll = $noinline$computeFloat();
+      mm = $noinline$computeFloat();
+      nn = $noinline$computeFloat();
     }
   }
 
   static boolean doThrow = false;
 
-  public static double computeDouble() {
+  public static double $noinline$computeDouble() {
     if (doThrow) {
       // Try defeating inlining.
       throw new Error();
@@ -86,7 +86,7 @@ public class Main {
     return 2.0;
   }
 
-  public static float computeFloat() {
+  public static float $noinline$computeFloat() {
     if (doThrow) {
       // Try defeating inlining.
       throw new Error();

@@ -2,7 +2,7 @@ public class Main {
   public Main() {
   }
 
-  int f() throws Exception {
+  int $noinline$f() throws Exception {
     g(1);
     g(2);
 
@@ -93,6 +93,6 @@ public class Main {
 
   public static void main(String[] args) throws Exception {
     Main st = new Main();
-    st.f();
+    st.$noinline$f();
   }
 }
