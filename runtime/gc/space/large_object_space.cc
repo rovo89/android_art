@@ -46,8 +46,8 @@ class ValgrindLargeObjectMapSpace FINAL : public LargeObjectMapSpace {
     }
   }
 
-  virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
-                                size_t* usable_size, size_t* bytes_tl_bulk_allocated)
+  mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
+                        size_t* usable_size, size_t* bytes_tl_bulk_allocated)
       OVERRIDE {
     mirror::Object* obj =
         LargeObjectMapSpace::Alloc(self, num_bytes + kValgrindRedZoneBytes * 2, bytes_allocated,
@@ -63,26 +63,35 @@ class ValgrindLargeObjectMapSpace FINAL : public LargeObjectMapSpace {
     return object_without_rdz;
   }
 
-  virtual size_t AllocationSize(mirror::Object* obj, size_t* usable_size) OVERRIDE {
-    mirror::Object* object_with_rdz = reinterpret_cast<mirror::Object*>(
-        reinterpret_cast<uintptr_t>(obj) - kValgrindRedZoneBytes);
-    return LargeObjectMapSpace::AllocationSize(object_with_rdz, usable_size);
+  size_t AllocationSize(mirror::Object* obj, size_t* usable_size) OVERRIDE {
+    return LargeObjectMapSpace::AllocationSize(ObjectWithRedzone(obj), usable_size);
   }
 
-  virtual size_t Free(Thread* self, mirror::Object* obj) OVERRIDE {
-    mirror::Object* object_with_rdz = reinterpret_cast<mirror::Object*>(
-        reinterpret_cast<uintptr_t>(obj) - kValgrindRedZoneBytes);
+  bool IsZygoteLargeObject(Thread* self, mirror::Object* obj) const OVERRIDE {
+    return LargeObjectMapSpace::IsZygoteLargeObject(self, ObjectWithRedzone(obj));
+  }
+
+  size_t Free(Thread* self, mirror::Object* obj) OVERRIDE {
+    mirror::Object* object_with_rdz = ObjectWithRedzone(obj);
     VALGRIND_MAKE_MEM_UNDEFINED(object_with_rdz, AllocationSize(obj, nullptr));
     return LargeObjectMapSpace::Free(self, object_with_rdz);
   }
 
   bool Contains(const mirror::Object* obj) const OVERRIDE {
-    mirror::Object* object_with_rdz = reinterpret_cast<mirror::Object*>(
-        reinterpret_cast<uintptr_t>(obj) - kValgrindRedZoneBytes);
-    return LargeObjectMapSpace::Contains(object_with_rdz);
+    return LargeObjectMapSpace::Contains(ObjectWithRedzone(obj));
   }
 
  private:
+  static const mirror::Object* ObjectWithRedzone(const mirror::Object* obj) {
+    return reinterpret_cast<const mirror::Object*>(
+        reinterpret_cast<uintptr_t>(obj) - kValgrindRedZoneBytes);
+  }
+
+  static mirror::Object* ObjectWithRedzone(mirror::Object* obj) {
+    return reinterpret_cast<mirror::Object*>(
+        reinterpret_cast<uintptr_t>(obj) - kValgrindRedZoneBytes);
+  }
+
   static constexpr size_t kValgrindRedZoneBytes = kPageSize;
 };
 
@@ -253,6 +262,7 @@ class AllocationInfo {
   }
   // Updates the allocation size and whether or not it is free.
   void SetByteSize(size_t size, bool free) {
+    DCHECK_EQ(size & ~kFlagsMask, 0u);
     DCHECK_ALIGNED(size, FreeListSpace::kAlignment);
     alloc_size_ = (size / FreeListSpace::kAlignment) | (free ? kFlagFree : 0u);
   }
