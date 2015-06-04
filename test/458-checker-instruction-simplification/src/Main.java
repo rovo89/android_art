@@ -933,18 +933,18 @@ public class Main {
    * remove the second.
    */
 
-  /// CHECK-START: boolean Main.NotNotBool(boolean) instruction_simplifier_after_types (before)
+  /// CHECK-START: boolean Main.NotNotBool(boolean) last_instruction_simplifier (before)
   /// CHECK-DAG:     <<Arg:z\d+>>       ParameterValue
   /// CHECK-DAG:     <<NotArg:z\d+>>    BooleanNot [<<Arg>>]
   /// CHECK-DAG:     <<NotNotArg:z\d+>> BooleanNot [<<NotArg>>]
   /// CHECK-DAG:                        Return [<<NotNotArg>>]
 
-  /// CHECK-START: boolean Main.NotNotBool(boolean) instruction_simplifier_after_types (after)
+  /// CHECK-START: boolean Main.NotNotBool(boolean) last_instruction_simplifier (after)
   /// CHECK-DAG:     <<Arg:z\d+>>       ParameterValue
   /// CHECK-DAG:                        BooleanNot [<<Arg>>]
   /// CHECK-DAG:                        Return [<<Arg>>]
 
-  /// CHECK-START: boolean Main.NotNotBool(boolean) instruction_simplifier_after_types (after)
+  /// CHECK-START: boolean Main.NotNotBool(boolean) last_instruction_simplifier (after)
   /// CHECK:                            BooleanNot
   /// CHECK-NOT:                        BooleanNot
 
