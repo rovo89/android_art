@@ -525,6 +525,8 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
     return temps_.Size();
   }
 
+  bool HasTemps() const { return !temps_.IsEmpty(); }
+
   Location Out() const { return output_; }
 
   bool CanCall() const { return call_kind_ != kNoCall; }
