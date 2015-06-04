@@ -240,6 +240,22 @@ static bool CheckMapRequest(uint8_t* expected_ptr, void* actual_ptr, size_t byte
   return false;
 }
 
+#if USE_ART_LOW_4G_ALLOCATOR
+static inline void* TryMemMapLow4GB(void* ptr, size_t page_aligned_byte_count, int prot, int flags,
+                                    int fd) {
+  void* actual = mmap(ptr, page_aligned_byte_count, prot, flags, fd, 0);
+  if (actual != MAP_FAILED) {
+    // Since we didn't use MAP_FIXED the kernel may have mapped it somewhere not in the low
+    // 4GB. If this is the case, unmap and retry.
+    if (reinterpret_cast<uintptr_t>(actual) + page_aligned_byte_count >= 4 * GB) {
+      munmap(actual, page_aligned_byte_count);
+      actual = MAP_FAILED;
+    }
+  }
+  return actual;
+}
+#endif
+
 MemMap* MemMap::MapAnonymous(const char* name, uint8_t* expected_ptr, size_t byte_count, int prot,
                              bool low_4gb, bool reuse, std::string* error_msg) {
 #ifndef __LP64__
@@ -339,6 +355,14 @@ MemMap* MemMap::MapAnonymous(const char* name, uint8_t* expected_ptr, size_t byt
         ++it;
       }
 
+      // Try to see if we get lucky with this address since none of the ART maps overlap.
+      actual = TryMemMapLow4GB(reinterpret_cast<void*>(ptr), page_aligned_byte_count, prot, flags,
+                               fd.get());
+      if (actual != MAP_FAILED) {
+        next_mem_pos_ = reinterpret_cast<uintptr_t>(actual) + page_aligned_byte_count;
+        break;
+      }
+
       if (4U * GB - ptr < page_aligned_byte_count) {
         // Not enough memory until 4GB.
         if (first_run) {
@@ -368,17 +392,10 @@ MemMap* MemMap::MapAnonymous(const char* name, uint8_t* expected_ptr, size_t byt
       next_mem_pos_ = tail_ptr;  // update early, as we break out when we found and mapped a region
 
       if (safe == true) {
-        actual = mmap(reinterpret_cast<void*>(ptr), page_aligned_byte_count, prot, flags, fd.get(),
-                      0);
+        actual = TryMemMapLow4GB(reinterpret_cast<void*>(ptr), page_aligned_byte_count, prot, flags,
+                                 fd.get());
         if (actual != MAP_FAILED) {
-          // Since we didn't use MAP_FIXED the kernel may have mapped it somewhere not in the low
-          // 4GB. If this is the case, unmap and retry.
-          if (reinterpret_cast<uintptr_t>(actual) + page_aligned_byte_count < 4 * GB) {
             break;
-          } else {
-            munmap(actual, page_aligned_byte_count);
-            actual = MAP_FAILED;
-          }
         }
       } else {
         // Skip over last page.
