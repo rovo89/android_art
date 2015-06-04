@@ -314,7 +314,31 @@ MemMap* MemMap::MapAnonymous(const char* name, uint8_t* expected_ptr, size_t byt
   if (low_4gb && expected_ptr == nullptr) {
     bool first_run = true;
 
+    MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
     for (uintptr_t ptr = next_mem_pos_; ptr < 4 * GB; ptr += kPageSize) {
+      // Use maps_ as an optimization to skip over large maps.
+      // Find the first map which is address > ptr.
+      auto it = maps_->upper_bound(reinterpret_cast<void*>(ptr));
+      if (it != maps_->begin()) {
+        auto before_it = it;
+        --before_it;
+        // Start at the end of the map before the upper bound.
+        ptr = std::max(ptr, reinterpret_cast<uintptr_t>(before_it->second->BaseEnd()));
+        CHECK_ALIGNED(ptr, kPageSize);
+      }
+      while (it != maps_->end()) {
+        // How much space do we have until the next map?
+        size_t delta = reinterpret_cast<uintptr_t>(it->first) - ptr;
+        // If the space may be sufficient, break out of the loop.
+        if (delta >= page_aligned_byte_count) {
+          break;
+        }
+        // Otherwise, skip to the end of the map.
+        ptr = reinterpret_cast<uintptr_t>(it->second->BaseEnd());
+        CHECK_ALIGNED(ptr, kPageSize);
+        ++it;
+      }
+
       if (4U * GB - ptr < page_aligned_byte_count) {
         // Not enough memory until 4GB.
         if (first_run) {
