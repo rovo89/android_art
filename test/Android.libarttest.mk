@@ -74,6 +74,7 @@ define build-libarttest
   else # host
     LOCAL_CLANG := $(ART_HOST_CLANG)
     LOCAL_CFLAGS := $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
+    LOCAL_ASFLAGS := $(ART_HOST_ASFLAGS)
     LOCAL_LDLIBS := $(ART_HOST_LDLIBS) -ldl -lpthread
     LOCAL_IS_HOST_MODULE := true
     LOCAL_MULTILIB := both
