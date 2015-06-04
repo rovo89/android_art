@@ -27,6 +27,7 @@
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache.h"
 #include "nodes.h"
+#include "reference_type_propagation.h"
 #include "register_allocator.h"
 #include "ssa_phi_elimination.h"
 #include "scoped_thread_state_change.h"
@@ -57,7 +58,7 @@ void HInliner::Run() {
     next_block = (i == blocks.Size() - 1) ? nullptr : blocks.Get(i + 1);
     for (HInstruction* instruction = block->GetFirstInstruction(); instruction != nullptr;) {
       HInstruction* next = instruction->GetNext();
-      HInvokeStaticOrDirect* call = instruction->AsInvokeStaticOrDirect();
+      HInvoke* call = instruction->AsInvoke();
       // As long as the call is not intrinsified, it is worth trying to inline.
       if (call != nullptr && call->GetIntrinsic() == Intrinsics::kNone) {
         // We use the original invoke type to ensure the resolution of the called method
@@ -83,6 +84,79 @@ void HInliner::Run() {
   }
 }
 
+static bool IsMethodOrDeclaringClassFinal(ArtMethod* method)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  return method->IsFinal() || method->GetDeclaringClass()->IsFinal();
+}
+
+/**
+ * Given the `resolved_method` looked up in the dex cache, try to find
+ * the actual runtime target of an interface or virtual call.
+ * Return nullptr if the runtime target cannot be proven.
+ */
+static ArtMethod* FindVirtualOrInterfaceTarget(HInvoke* invoke, ArtMethod* resolved_method)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (IsMethodOrDeclaringClassFinal(resolved_method)) {
+    // No need to lookup further, the resolved method will be the target.
+    return resolved_method;
+  }
+
+  HInstruction* receiver = invoke->InputAt(0);
+  if (receiver->IsNullCheck()) {
+    // Due to multiple levels of inlining within the same pass, it might be that
+    // null check does not have the reference type of the actual receiver.
+    receiver = receiver->InputAt(0);
+  }
+  ReferenceTypeInfo info = receiver->GetReferenceTypeInfo();
+  if (info.IsTop()) {
+    // We have no information on the receiver.
+    return nullptr;
+  } else if (!info.IsExact()) {
+    // We currently only support inlining with known receivers.
+    // TODO: Remove this check, we should be able to inline final methods
+    // on unknown receivers.
+    return nullptr;
+  } else if (info.GetTypeHandle()->IsInterface()) {
+    // Statically knowing that the receiver has an interface type cannot
+    // help us find what is the target method.
+    return nullptr;
+  }
+
+  ClassLinker* cl = Runtime::Current()->GetClassLinker();
+  size_t pointer_size = cl->GetImagePointerSize();
+  if (invoke->IsInvokeInterface()) {
+    resolved_method = info.GetTypeHandle()->FindVirtualMethodForInterface(
+        resolved_method, pointer_size);
+  } else {
+    DCHECK(invoke->IsInvokeVirtual());
+    resolved_method = info.GetTypeHandle()->FindVirtualMethodForVirtual(
+        resolved_method, pointer_size);
+  }
+
+  if (resolved_method == nullptr) {
+    // The information we had on the receiver was not enough to find
+    // the target method. Since we check above the exact type of the receiver,
+    // the only reason this can happen is an IncompatibleClassChangeError.
+    return nullptr;
+  } else if (resolved_method->IsAbstract()) {
+    // The information we had on the receiver was not enough to find
+    // the target method. Since we check above the exact type of the receiver,
+    // the only reason this can happen is an IncompatibleClassChangeError.
+    return nullptr;
+  } else if (IsMethodOrDeclaringClassFinal(resolved_method)) {
+    // A final method has to be the target method.
+    return resolved_method;
+  } else if (info.IsExact()) {
+    // If we found a method and the receiver's concrete type is statically
+    // known, we know for sure the target.
+    return resolved_method;
+  } else {
+    // Even if we did find a method, the receiver type was not enough to
+    // statically find the runtime target.
+    return nullptr;
+  }
+}
+
 bool HInliner::TryInline(HInvoke* invoke_instruction,
                          uint32_t method_index,
                          InvokeType invoke_type) const {
@@ -90,17 +164,32 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
   const DexFile& caller_dex_file = *caller_compilation_unit_.GetDexFile();
   VLOG(compiler) << "Try inlining " << PrettyMethod(method_index, caller_dex_file);
 
-  StackHandleScope<3> hs(soa.Self());
-  Handle<mirror::DexCache> dex_cache(
-      hs.NewHandle(caller_compilation_unit_.GetClassLinker()->FindDexCache(caller_dex_file)));
-  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
-      soa.Decode<mirror::ClassLoader*>(caller_compilation_unit_.GetClassLoader())));
-  ArtMethod* resolved_method(compiler_driver_->ResolveMethod(
-      soa, dex_cache, class_loader, &caller_compilation_unit_, method_index, invoke_type));
+  ArtMethod* resolved_method = nullptr;
+  {
+    // Don't keep this handle scope on stack, otherwise we cannot do a reference type
+    // propagation while inlining.
+    StackHandleScope<2> hs(soa.Self());
+    Handle<mirror::DexCache> dex_cache(
+        hs.NewHandle(caller_compilation_unit_.GetClassLinker()->FindDexCache(caller_dex_file)));
+    Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
+        soa.Decode<mirror::ClassLoader*>(caller_compilation_unit_.GetClassLoader())));
+    resolved_method = compiler_driver_->ResolveMethod(
+        soa, dex_cache, class_loader, &caller_compilation_unit_, method_index, invoke_type);
+  }
 
   if (resolved_method == nullptr) {
     VLOG(compiler) << "Method cannot be resolved " << PrettyMethod(method_index, caller_dex_file);
     return false;
+  }
+
+  if (!invoke_instruction->IsInvokeStaticOrDirect()) {
+    resolved_method = FindVirtualOrInterfaceTarget(invoke_instruction, resolved_method);
+    if (resolved_method == nullptr) {
+      VLOG(compiler) << "Interface or virtual call to "
+                     << PrettyMethod(method_index, caller_dex_file)
+                     << "could not be statically determined";
+      return false;
+    }
   }
 
   bool same_dex_file = true;
@@ -245,11 +334,13 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
   // Run simple optimizations on the graph.
   HDeadCodeElimination dce(callee_graph, stats_);
   HConstantFolding fold(callee_graph);
+  ReferenceTypePropagation type_propagation(callee_graph, handles_);
   InstructionSimplifier simplify(callee_graph, stats_);
 
   HOptimization* optimizations[] = {
     &dce,
     &fold,
+    &type_propagation,
     &simplify,
   };
 
@@ -263,6 +354,7 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
                      outer_compilation_unit_,
                      dex_compilation_unit,
                      compiler_driver_,
+                     handles_,
                      stats_,
                      depth_ + 1);
     inliner.Run();
