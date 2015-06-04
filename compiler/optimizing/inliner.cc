@@ -69,6 +69,13 @@ void HInliner::Run() {
             bool should_inline = callee_name.find("$inline$") != std::string::npos;
             CHECK(!should_inline) << "Could not inline " << callee_name;
           }
+        } else {
+          if (kIsDebugBuild) {
+            std::string callee_name =
+                PrettyMethod(call->GetDexMethodIndex(), *outer_compilation_unit_.GetDexFile());
+            bool must_not_inline = callee_name.find("$noinline$") != std::string::npos;
+            CHECK(!must_not_inline) << "Should not have inlined " << callee_name;
+          }
         }
       }
       instruction = next;

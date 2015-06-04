@@ -36,16 +36,16 @@ public class Main {
   /// CHECK:       CheckCast must_do_null_check:false
   public void CheckCastPreChecked(Object o) {
     o.toString();
-    ((Main)o).Bar();
+    ((Main)o).$noinline$Bar();
   }
 
   /// CHECK-START: void Main.CheckCast(java.lang.Object) instruction_simplifier (after)
   /// CHECK:       CheckCast must_do_null_check:true
   public void CheckCast(Object o) {
-    ((Main)o).Bar();
+    ((Main)o).$noinline$Bar();
   }
 
-  void Bar() {throw new RuntimeException();}
+  void $noinline$Bar() {throw new RuntimeException();}
 
   public static void main(String[] sa) {
     Main t = new Main();
