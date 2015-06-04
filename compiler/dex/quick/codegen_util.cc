@@ -775,43 +775,33 @@ void Mir2Lir::CreateNativeGcMap() {
     prev_mir = mir;
   }
 
-#if defined(BYTE_ORDER) && (BYTE_ORDER == LITTLE_ENDIAN)
-  static constexpr bool kLittleEndian = true;
-#else
-  static constexpr bool kLittleEndian = false;
-#endif
-
   // Build the GC map.
   uint32_t reg_width = static_cast<uint32_t>((max_ref_vreg + 8) / 8);
   GcMapBuilder native_gc_map_builder(&native_gc_map_,
                                      safepoints_.size(),
                                      max_native_offset, reg_width);
-  if (kLittleEndian) {
-    for (const auto& entry : safepoints_) {
-      uint32_t native_offset = entry.first->offset;
-      MIR* mir = entry.second;
-      UpdateReferenceVRegs(mir, prev_mir, references);
-      // For little-endian, the bytes comprising the bit vector's raw storage are what we need.
-      native_gc_map_builder.AddEntry(native_offset,
-                                     reinterpret_cast<const uint8_t*>(references->GetRawStorage()));
-      prev_mir = mir;
+#if !defined(BYTE_ORDER) || (BYTE_ORDER != LITTLE_ENDIAN)
+  ArenaVector<uint8_t> references_buffer(arena_->Adapter());
+  references_buffer.resize(reg_width);
+#endif
+  for (const auto& entry : safepoints_) {
+    uint32_t native_offset = entry.first->offset;
+    MIR* mir = entry.second;
+    UpdateReferenceVRegs(mir, prev_mir, references);
+#if !defined(BYTE_ORDER) || (BYTE_ORDER != LITTLE_ENDIAN)
+    // Big-endian or unknown endianness, manually translate the bit vector data.
+    const auto* raw_storage = references->GetRawStorage();
+    for (size_t i = 0; i != reg_width; ++i) {
+      references_buffer[i] = static_cast<uint8_t>(
+          raw_storage[i / sizeof(raw_storage[0])] >> (8u * (i % sizeof(raw_storage[0]))));
     }
-  } else {
-    ArenaVector<uint8_t> references_buffer(arena_->Adapter());
-    references_buffer.resize(reg_width);
-    for (const auto& entry : safepoints_) {
-      uint32_t native_offset = entry.first->offset;
-      MIR* mir = entry.second;
-      UpdateReferenceVRegs(mir, prev_mir, references);
-      // Big-endian or unknown endianness, manually translate the bit vector data.
-      const auto* raw_storage = references->GetRawStorage();
-      for (size_t i = 0; i != reg_width; ++i) {
-        references_buffer[i] = static_cast<uint8_t>(
-            raw_storage[i / sizeof(raw_storage[0])] >> (8u * (i % sizeof(raw_storage[0]))));
-      }
-      native_gc_map_builder.AddEntry(native_offset, &references_buffer[0]);
-      prev_mir = mir;
-    }
+    native_gc_map_builder.AddEntry(native_offset, &references_buffer[0]);
+#else
+    // For little-endian, the bytes comprising the bit vector's raw storage are what we need.
+    native_gc_map_builder.AddEntry(native_offset,
+                                   reinterpret_cast<const uint8_t*>(references->GetRawStorage()));
+#endif
+    prev_mir = mir;
   }
 }
 
