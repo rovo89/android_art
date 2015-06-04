@@ -301,7 +301,7 @@ class CodeGeneratorARM : public CodeGenerator {
 
   Label* GetFrameEntryLabel() { return &frame_entry_label_; }
 
-  void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp);
+  void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Register temp);
 
  private:
   // Labels for each block that will be compiled.

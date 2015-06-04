@@ -26,7 +26,7 @@ public class Main {
   /// CHECK-START: void Main.invokeStaticInlined() builder (after)
   /// CHECK-DAG:     <<LoadClass:l\d+>>    LoadClass gen_clinit_check:false
   /// CHECK-DAG:     <<ClinitCheck:l\d+>>  ClinitCheck [<<LoadClass>>]
-  /// CHECK-DAG:                           InvokeStaticOrDirect [{{[ij]\d+}},<<ClinitCheck>>]
+  /// CHECK-DAG:                           InvokeStaticOrDirect [<<ClinitCheck>>]
 
   /// CHECK-START: void Main.invokeStaticInlined() inliner (after)
   /// CHECK-DAG:     <<LoadClass:l\d+>>    LoadClass gen_clinit_check:false
@@ -69,12 +69,12 @@ public class Main {
   /// CHECK-START: void Main.invokeStaticNotInlined() builder (after)
   /// CHECK-DAG:     <<LoadClass:l\d+>>    LoadClass gen_clinit_check:false
   /// CHECK-DAG:     <<ClinitCheck:l\d+>>  ClinitCheck [<<LoadClass>>]
-  /// CHECK-DAG:                           InvokeStaticOrDirect [{{[ij]\d+}},<<ClinitCheck>>]
+  /// CHECK-DAG:                           InvokeStaticOrDirect [<<ClinitCheck>>]
 
   /// CHECK-START: void Main.invokeStaticNotInlined() inliner (after)
   /// CHECK-DAG:     <<LoadClass:l\d+>>    LoadClass gen_clinit_check:false
   /// CHECK-DAG:     <<ClinitCheck:l\d+>>  ClinitCheck [<<LoadClass>>]
-  /// CHECK-DAG:                           InvokeStaticOrDirect [{{[ij]\d+}},<<ClinitCheck>>]
+  /// CHECK-DAG:                           InvokeStaticOrDirect [<<ClinitCheck>>]
 
   // The following checks ensure the clinit check and load class
   // instructions added by the builder are pruned by the
