@@ -291,6 +291,7 @@ LOCAL_MODULE := libart-gtest
 LOCAL_MODULE_TAGS := optional
 LOCAL_CPP_EXTENSION := cc
 LOCAL_CFLAGS := $(ART_HOST_CFLAGS)
+LOCAL_ASFLAGS := $(ART_HOST_ASFLAGS)
 LOCAL_SRC_FILES := runtime/common_runtime_test.cc compiler/common_compiler_test.cc
 LOCAL_C_INCLUDES := $(ART_C_INCLUDES) art/runtime art/compiler
 LOCAL_SHARED_LIBRARIES := libartd libartd-compiler
@@ -489,6 +490,7 @@ test-art-target-gtest-$$(art_gtest_name): $$(ART_TEST_TARGET_GTEST_$$(art_gtest_
   else # host
     LOCAL_CLANG := $$(ART_HOST_CLANG)
     LOCAL_CFLAGS += $$(ART_HOST_CFLAGS) $$(ART_HOST_DEBUG_CFLAGS)
+    LOCAL_ASFLAGS += $$(ART_HOST_ASFLAGS)
     LOCAL_SHARED_LIBRARIES += libicuuc-host libicui18n-host libnativehelper libziparchive-host libz-host libvixld
     LOCAL_LDLIBS := $(ART_HOST_LDLIBS) -lpthread -ldl
     LOCAL_IS_HOST_MODULE := true
