@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "base/bit_vector.h"
 #include "dex/compiler_internals.h"
 #include "dex_file-inl.h"
 #include "gc_map.h"
@@ -85,8 +84,6 @@ void Mir2Lir::MarkSafepointPC(LIR* inst) {
   inst->u.m.def_mask = &kEncodeAll;
   LIR* safepoint_pc = NewLIR0(kPseudoSafepointPC);
   DCHECK(safepoint_pc->u.m.def_mask->Equals(kEncodeAll));
-  DCHECK(current_mir_ != nullptr || (current_dalvik_offset_ == 0 && safepoints_.empty()));
-  safepoints_.emplace_back(safepoint_pc, current_mir_);
 }
 
 void Mir2Lir::MarkSafepointPCAfter(LIR* after) {
@@ -101,8 +98,6 @@ void Mir2Lir::MarkSafepointPCAfter(LIR* after) {
     InsertLIRAfter(after, safepoint_pc);
   }
   DCHECK(safepoint_pc->u.m.def_mask->Equals(kEncodeAll));
-  DCHECK(current_mir_ != nullptr || (current_dalvik_offset_ == 0 && safepoints_.empty()));
-  safepoints_.emplace_back(safepoint_pc, current_mir_);
 }
 
 /* Remove a LIR from the list. */
@@ -751,61 +746,6 @@ void Mir2Lir::CreateMappingTables() {
 }
 
 void Mir2Lir::CreateNativeGcMap() {
-  if (UNLIKELY((cu_->disable_opt & (1u << kPromoteRegs)) != 0u)) {
-    // If we're not promoting to physical registers, it's safe to use the verifier's notion of
-    // references. (We disable register promotion when type inference finds a type conflict and
-    // in that the case we defer to the verifier to avoid using the compiler's conflicting info.)
-    CreateNativeGcMapWithoutRegisterPromotion();
-    return;
-  }
-
-  ArenaBitVector* references = new (arena_) ArenaBitVector(arena_, mir_graph_->GetNumSSARegs(),
-                                                           false);
-
-  // Calculate max native offset and max reference vreg.
-  MIR* prev_mir = nullptr;
-  int max_ref_vreg = -1;
-  CodeOffset max_native_offset = 0u;
-  for (const auto& entry : safepoints_) {
-    uint32_t native_offset = entry.first->offset;
-    max_native_offset = std::max(max_native_offset, native_offset);
-    MIR* mir = entry.second;
-    UpdateReferenceVRegs(mir, prev_mir, references);
-    max_ref_vreg = std::max(max_ref_vreg, references->GetHighestBitSet());
-    prev_mir = mir;
-  }
-
-  // Build the GC map.
-  uint32_t reg_width = static_cast<uint32_t>((max_ref_vreg + 8) / 8);
-  GcMapBuilder native_gc_map_builder(&native_gc_map_,
-                                     safepoints_.size(),
-                                     max_native_offset, reg_width);
-#if !defined(BYTE_ORDER) || (BYTE_ORDER != LITTLE_ENDIAN)
-  ArenaVector<uint8_t> references_buffer(arena_->Adapter());
-  references_buffer.resize(reg_width);
-#endif
-  for (const auto& entry : safepoints_) {
-    uint32_t native_offset = entry.first->offset;
-    MIR* mir = entry.second;
-    UpdateReferenceVRegs(mir, prev_mir, references);
-#if !defined(BYTE_ORDER) || (BYTE_ORDER != LITTLE_ENDIAN)
-    // Big-endian or unknown endianness, manually translate the bit vector data.
-    const auto* raw_storage = references->GetRawStorage();
-    for (size_t i = 0; i != reg_width; ++i) {
-      references_buffer[i] = static_cast<uint8_t>(
-          raw_storage[i / sizeof(raw_storage[0])] >> (8u * (i % sizeof(raw_storage[0]))));
-    }
-    native_gc_map_builder.AddEntry(native_offset, &references_buffer[0]);
-#else
-    // For little-endian, the bytes comprising the bit vector's raw storage are what we need.
-    native_gc_map_builder.AddEntry(native_offset,
-                                   reinterpret_cast<const uint8_t*>(references->GetRawStorage()));
-#endif
-    prev_mir = mir;
-  }
-}
-
-void Mir2Lir::CreateNativeGcMapWithoutRegisterPromotion() {
   DCHECK(!encoded_mapping_table_.empty());
   MappingTable mapping_table(&encoded_mapping_table_[0]);
   uint32_t max_native_offset = 0;
@@ -1067,7 +1007,6 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       block_label_list_(NULL),
       promotion_map_(NULL),
       current_dalvik_offset_(0),
-      current_mir_(nullptr),
       estimated_native_code_size_(0),
       reg_pool_(NULL),
       live_sreg_(0),
@@ -1082,8 +1021,7 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       last_lir_insn_(NULL),
       slow_paths_(arena, 32, kGrowableArraySlowPaths),
       mem_ref_type_(ResourceMask::kHeapRef),
-      mask_cache_(arena),
-      safepoints_(arena->Adapter()) {
+      mask_cache_(arena) {
   // Reserve pointer id 0 for NULL.
   size_t null_idx = WrapPointer(NULL);
   DCHECK_EQ(null_idx, 0U);
@@ -1372,102 +1310,6 @@ RegLocation Mir2Lir::NarrowRegLoc(RegLocation loc) {
 
 void Mir2Lir::GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir) {
   LOG(FATAL) << "Unknown MIR opcode not supported on this architecture";
-}
-
-void Mir2Lir::InitReferenceVRegs(BasicBlock* bb, BitVector* references) {
-  // Mark the references coming from the first predecessor.
-  DCHECK(bb != nullptr);
-  DCHECK(bb->block_type == kEntryBlock || bb->predecessors->Size() != 0u);
-  BasicBlock* first_bb =
-      (bb->block_type == kEntryBlock) ? bb : mir_graph_->GetBasicBlock(bb->predecessors->Get(0));
-  DCHECK(first_bb != nullptr);
-  DCHECK(first_bb->data_flow_info != nullptr);
-  DCHECK(first_bb->data_flow_info->vreg_to_ssa_map_exit != nullptr);
-  const int32_t* first_vreg_to_ssa_map = first_bb->data_flow_info->vreg_to_ssa_map_exit;
-  references->ClearAllBits();
-  for (uint32_t vreg = 0, num_vregs = cu_->num_regs + cu_->num_ins; vreg != num_vregs; ++vreg) {
-    int32_t sreg = first_vreg_to_ssa_map[vreg];
-    if (sreg != INVALID_SREG && mir_graph_->reg_location_[sreg].ref &&
-        !mir_graph_->IsConstantNullRef(mir_graph_->reg_location_[sreg])) {
-      references->SetBit(vreg);
-    }
-  }
-  // Unmark the references that are merging with a different value.
-  for (size_t i = 1u, num_pred = bb->predecessors->Size(); i < num_pred; ++i) {
-    BasicBlock* pred_bb = mir_graph_->GetBasicBlock(bb->predecessors->Get(i));
-    DCHECK(pred_bb != nullptr);
-    DCHECK(pred_bb->data_flow_info != nullptr);
-    DCHECK(pred_bb->data_flow_info->vreg_to_ssa_map_exit != nullptr);
-    const int32_t* pred_vreg_to_ssa_map = pred_bb->data_flow_info->vreg_to_ssa_map_exit;
-    for (uint32_t vreg : references->Indexes()) {
-      if (first_vreg_to_ssa_map[vreg] != pred_vreg_to_ssa_map[vreg]) {
-        // NOTE: The BitVectorSet::IndexIterator will not check the pointed-to bit again,
-        // so clearing the bit has no effect on the iterator.
-        references->ClearBit(vreg);
-      }
-    }
-  }
-  if (bb->block_type != kEntryBlock && bb->first_mir_insn != nullptr &&
-      static_cast<int>(bb->first_mir_insn->dalvikInsn.opcode) == kMirOpCheckPart2) {
-    // In Mir2Lir::MethodBlockCodeGen() we have artificially moved the throwing
-    // instruction to the previous block. However, the MIRGraph data used above
-    // doesn't reflect that, so we still need to process that MIR insn here.
-    DCHECK_EQ(bb->predecessors->Size(), 1u);
-    BasicBlock* pred_bb = mir_graph_->GetBasicBlock(bb->predecessors->Get(0));
-    DCHECK(pred_bb != nullptr);
-    DCHECK(pred_bb->last_mir_insn != nullptr);
-    UpdateReferenceVRegsLocal(nullptr, pred_bb->last_mir_insn, references);
-  }
-}
-
-bool Mir2Lir::UpdateReferenceVRegsLocal(MIR* mir, MIR* prev_mir, BitVector* references) {
-  DCHECK(mir == nullptr || mir->bb == prev_mir->bb);
-  DCHECK(prev_mir != nullptr);
-  while (prev_mir != nullptr) {
-    if (prev_mir == mir) {
-      return true;
-    }
-    const size_t num_defs = prev_mir->ssa_rep->num_defs;
-    const int32_t* defs = prev_mir->ssa_rep->defs;
-    if (num_defs == 1u && mir_graph_->reg_location_[defs[0]].ref &&
-        !mir_graph_->IsConstantNullRef(mir_graph_->reg_location_[defs[0]])) {
-      references->SetBit(mir_graph_->SRegToVReg(defs[0]));
-    } else {
-      for (size_t i = 0u; i != num_defs; ++i) {
-        references->ClearBit(mir_graph_->SRegToVReg(defs[i]));
-      }
-    }
-    prev_mir = prev_mir->next;
-  }
-  return false;
-}
-
-void Mir2Lir::UpdateReferenceVRegs(MIR* mir, MIR* prev_mir, BitVector* references) {
-  if (mir == nullptr) {
-    // Safepoint in entry sequence.
-    InitReferenceVRegs(mir_graph_->GetEntryBlock(), references);
-    return;
-  }
-  if (mir->dalvikInsn.opcode == Instruction::RETURN_VOID ||
-      mir->dalvikInsn.opcode == Instruction::RETURN ||
-      mir->dalvikInsn.opcode == Instruction::RETURN_WIDE ||
-      mir->dalvikInsn.opcode == Instruction::RETURN_OBJECT ||
-      mir->dalvikInsn.opcode == Instruction::RETURN_VOID_BARRIER) {
-    references->ClearAllBits();
-    if (mir->dalvikInsn.opcode == Instruction::RETURN_OBJECT) {
-      references->SetBit(mir_graph_->SRegToVReg(mir->ssa_rep->uses[0]));
-    }
-    return;
-  }
-  if (prev_mir != nullptr && mir->bb == prev_mir->bb &&
-      UpdateReferenceVRegsLocal(mir, prev_mir, references)) {
-    return;
-  }
-  BasicBlock* bb = mir_graph_->GetBasicBlock(mir->bb);
-  DCHECK(bb != nullptr);
-  InitReferenceVRegs(bb, references);
-  bool success = UpdateReferenceVRegsLocal(mir, bb->first_mir_insn, references);
-  DCHECK(success) << "MIR @0x" << std::hex << mir->offset << " not in BB#" << std::dec << mir->bb;
 }
 
 }  // namespace art

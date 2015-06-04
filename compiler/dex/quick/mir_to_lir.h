@@ -139,7 +139,6 @@ typedef uint32_t CodeOffset;         // Native code offset in bytes.
 #endif
 
 struct BasicBlock;
-class BitVector;
 struct CallInfo;
 struct CompilationUnit;
 struct InlineMethod;
@@ -523,8 +522,7 @@ class Mir2Lir : public Backend {
      public:
       LIRSlowPath(Mir2Lir* m2l, const DexOffset dexpc, LIR* fromfast,
                   LIR* cont = nullptr) :
-        m2l_(m2l), cu_(m2l->cu_), current_dex_pc_(dexpc), current_mir_(m2l->current_mir_),
-        fromfast_(fromfast), cont_(cont) {
+        m2l_(m2l), cu_(m2l->cu_), current_dex_pc_(dexpc), fromfast_(fromfast), cont_(cont) {
           m2l->StartSlowPath(this);
       }
       virtual ~LIRSlowPath() {}
@@ -548,7 +546,6 @@ class Mir2Lir : public Backend {
       Mir2Lir* const m2l_;
       CompilationUnit* const cu_;
       const DexOffset current_dex_pc_;
-      MIR* current_mir_;
       LIR* const fromfast_;
       LIR* const cont_;
     };
@@ -706,7 +703,6 @@ class Mir2Lir : public Backend {
     bool VerifyCatchEntries();
     void CreateMappingTables();
     void CreateNativeGcMap();
-    void CreateNativeGcMapWithoutRegisterPromotion();
     int AssignLiteralOffset(CodeOffset offset);
     int AssignSwitchTablesOffset(CodeOffset offset);
     int AssignFillArrayDataOffset(CodeOffset offset);
@@ -1679,16 +1675,6 @@ class Mir2Lir : public Backend {
     // See CheckRegLocationImpl.
     void CheckRegLocation(RegLocation rl) const;
 
-    // Find the references at the beginning of a basic block (for generating GC maps).
-    void InitReferenceVRegs(BasicBlock* bb, BitVector* references);
-
-    // Update references from prev_mir to mir in the same BB. If mir is null or before
-    // prev_mir, report failure (return false) and update references to the end of the BB.
-    bool UpdateReferenceVRegsLocal(MIR* mir, MIR* prev_mir, BitVector* references);
-
-    // Update references from prev_mir to mir.
-    void UpdateReferenceVRegs(MIR* mir, MIR* prev_mir, BitVector* references);
-
   public:
     // TODO: add accessors for these.
     LIR* literal_list_;                        // Constants.
@@ -1706,6 +1692,7 @@ class Mir2Lir : public Backend {
     GrowableArray<RegisterInfo*> tempreg_info_;
     GrowableArray<RegisterInfo*> reginfo_map_;
     GrowableArray<void*> pointer_storage_;
+    CodeOffset current_code_offset_;    // Working byte offset of machine instructons.
     CodeOffset data_offset_;            // starting offset of literal pool.
     size_t total_size_;                   // header + code size.
     LIR* block_label_list_;
@@ -1720,7 +1707,6 @@ class Mir2Lir : public Backend {
      * The low-level LIR creation utilites will pull it from here.  Rework this.
      */
     DexOffset current_dalvik_offset_;
-    MIR* current_mir_;
     size_t estimated_native_code_size_;     // Just an estimate; used to reserve code_buffer_ size.
     RegisterPool* reg_pool_;
     /*
@@ -1755,9 +1741,6 @@ class Mir2Lir : public Backend {
     // (i.e. 8 bytes on 32-bit arch, 16 bytes on 64-bit arch) and we use ResourceMaskCache
     // to deduplicate the masks.
     ResourceMaskCache mask_cache_;
-
-    // Record the MIR that generated a given safepoint (nullptr for prologue safepoints).
-    ArenaVector<std::pair<LIR*, MIR*>> safepoints_;
 };  // Class Mir2Lir
 
 }  // namespace art
