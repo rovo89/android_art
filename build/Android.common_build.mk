@@ -68,6 +68,9 @@ art_default_gc_type_cflags := -DART_DEFAULT_GC_TYPE_IS_$(ART_DEFAULT_GC_TYPE)
 ART_HOST_CFLAGS :=
 ART_TARGET_CFLAGS :=
 
+ART_HOST_ASFLAGS :=
+ART_TARGET_ASFLAGS :=
+
 # Clang build support.
 
 # Host.
@@ -199,6 +202,9 @@ art_cflags := \
   -fvisibility=protected \
   $(art_default_gc_type_cflags)
 
+# Base set of asflags used by all things ART.
+art_asflags :=
+
 # Missing declarations: too many at the moment, as we use "extern" quite a bit.
 #  -Wmissing-declarations \
 
@@ -217,10 +223,12 @@ endif
 
 ifeq ($(ART_HEAP_POISONING),true)
   art_cflags += -DART_HEAP_POISONING=1
+  art_asflags += -DART_HEAP_POISONING=1
 endif
 
 ifeq ($(ART_USE_READ_BARRIER),true)
   art_cflags += -DART_USE_READ_BARRIER=1
+  art_asflags += -DART_USE_READ_BARRIER=1
 endif
 
 ifeq ($(ART_USE_TLAB),true)
@@ -258,11 +266,13 @@ ifndef LIBART_IMG_HOST_BASE_ADDRESS
 endif
 ART_HOST_CFLAGS += $(art_cflags) -DART_BASE_ADDRESS=$(LIBART_IMG_HOST_BASE_ADDRESS)
 ART_HOST_CFLAGS += -DART_DEFAULT_INSTRUCTION_SET_FEATURES=default
+ART_HOST_ASFLAGS += $(art_asflags)
 
 ifndef LIBART_IMG_TARGET_BASE_ADDRESS
   $(error LIBART_IMG_TARGET_BASE_ADDRESS unset)
 endif
 ART_TARGET_CFLAGS += $(art_cflags) -DART_TARGET -DART_BASE_ADDRESS=$(LIBART_IMG_TARGET_BASE_ADDRESS)
+ART_TARGET_ASFLAGS += $(art_asflags)
 
 ART_HOST_NON_DEBUG_CFLAGS := $(art_host_non_debug_cflags)
 ART_TARGET_NON_DEBUG_CFLAGS := $(art_target_non_debug_cflags)
@@ -292,6 +302,7 @@ ART_TARGET_CFLAGS += -DART_BASE_ADDRESS_MAX_DELTA=$(LIBART_IMG_TARGET_MAX_BASE_A
 
 # Clear locals now they've served their purpose.
 art_cflags :=
+art_asflags :=
 art_debug_cflags :=
 art_non_debug_cflags :=
 art_host_non_debug_cflags :=
@@ -311,6 +322,7 @@ ART_TARGET_LDFLAGS :=
 define set-target-local-cflags-vars
   LOCAL_CFLAGS += $(ART_TARGET_CFLAGS)
   LOCAL_CFLAGS_x86 += $(ART_TARGET_CFLAGS_x86)
+  LOCAL_ASFLAGS += $(ART_TARGET_ASFLAGS)
   LOCAL_LDFLAGS += $(ART_TARGET_LDFLAGS)
   art_target_cflags_ndebug_or_debug := $(1)
   ifeq ($$(art_target_cflags_ndebug_or_debug),debug)
