@@ -277,7 +277,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
     return false;
   }
 
-  void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, CpuRegister temp);
+  void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp);
 
   const X86_64InstructionSetFeatures& GetInstructionSetFeatures() const {
     return isa_features_;

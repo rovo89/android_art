@@ -1231,6 +1231,10 @@ void LocationsBuilderX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invok
 
   IntrinsicLocationsBuilderX86 intrinsic(codegen_);
   if (intrinsic.TryDispatch(invoke)) {
+    LocationSummary* locations = invoke->GetLocations();
+    if (locations->CanCall()) {
+      locations->SetInAt(invoke->GetCurrentMethodInputIndex(), Location::RequiresRegister());
+    }
     return;
   }
 
@@ -1255,8 +1259,9 @@ void InstructionCodeGeneratorX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirec
     return;
   }
 
+  LocationSummary* locations = invoke->GetLocations();
   codegen_->GenerateStaticOrDirectCall(
-      invoke, invoke->GetLocations()->GetTemp(0).AsRegister<Register>());
+      invoke, locations->HasTemps() ? locations->GetTemp(0) : Location::NoLocation());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
@@ -1276,13 +1281,8 @@ void InstructionCodeGeneratorX86::VisitInvokeVirtual(HInvokeVirtual* invoke) {
   LocationSummary* locations = invoke->GetLocations();
   Location receiver = locations->InAt(0);
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
-  // temp = object->GetClass();
-  if (receiver.IsStackSlot()) {
-    __ movl(temp, Address(ESP, receiver.GetStackIndex()));
-    __ movl(temp, Address(temp, class_offset));
-  } else {
-    __ movl(temp, Address(receiver.AsRegister<Register>(), class_offset));
-  }
+  DCHECK(receiver.IsRegister());
+  __ movl(temp, Address(receiver.AsRegister<Register>(), class_offset));
   codegen_->MaybeRecordImplicitNullCheck(invoke);
   // temp = temp->GetMethodAt(method_offset);
   __ movl(temp, Address(temp, method_offset));
@@ -3201,7 +3201,7 @@ void InstructionCodeGeneratorX86::GenerateMemoryBarrier(MemBarrierKind kind) {
 
 
 void CodeGeneratorX86::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
-                                                  Register temp) {
+                                                  Location temp) {
   // TODO: Implement all kinds of calls:
   // 1) boot -> boot
   // 2) app -> boot
@@ -3211,25 +3211,26 @@ void CodeGeneratorX86::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
 
   if (invoke->IsStringInit()) {
     // temp = thread->string_init_entrypoint
-    __ fs()->movl(temp, Address::Absolute(invoke->GetStringInitOffset()));
+    Register reg = temp.AsRegister<Register>();
+    __ fs()->movl(reg, Address::Absolute(invoke->GetStringInitOffset()));
     // (temp + offset_of_quick_compiled_code)()
     __ call(Address(
-        temp, ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86WordSize).Int32Value()));
+        reg, ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86WordSize).Int32Value()));
+  } else if (invoke->IsRecursive()) {
+    __ call(GetFrameEntryLabel());
   } else {
-    // temp = method;
-    LoadCurrentMethod(temp);
-    if (!invoke->IsRecursive()) {
-      // temp = temp->dex_cache_resolved_methods_;
-      __ movl(temp, Address(temp, ArtMethod::DexCacheResolvedMethodsOffset().Int32Value()));
-      // temp = temp[index_in_cache]
-      __ movl(temp, Address(temp,
-                            CodeGenerator::GetCachePointerOffset(invoke->GetDexMethodIndex())));
-      // (temp + offset_of_quick_compiled_code)()
-      __ call(Address(temp,
-          ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86WordSize).Int32Value()));
-    } else {
-      __ call(GetFrameEntryLabel());
-    }
+    Register current_method =
+        invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex()).AsRegister<Register>();
+    Register reg = temp.AsRegister<Register>();
+    // temp = temp->dex_cache_resolved_methods_;
+    __ movl(reg, Address(
+        current_method, ArtMethod::DexCacheResolvedMethodsOffset().Int32Value()));
+    // temp = temp[index_in_cache]
+    __ movl(reg, Address(reg,
+                         CodeGenerator::GetCachePointerOffset(invoke->GetDexMethodIndex())));
+    // (temp + offset_of_quick_compiled_code)()
+    __ call(Address(reg,
+        ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86WordSize).Int32Value()));
   }
 
   DCHECK(!IsLeafMethod());
