@@ -65,17 +65,18 @@ class CheckReferenceMapVisitor : public StackVisitor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ArtMethod* m = GetMethod();
     CodeInfo code_info = m->GetOptimizedCodeInfo();
-    StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset);
+    StackMapEncoding encoding = code_info.ExtractEncoding();
+    StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
     uint16_t number_of_dex_registers = m->GetCodeItem()->registers_size_;
     DexRegisterMap dex_register_map =
-        code_info.GetDexRegisterMapOf(stack_map, number_of_dex_registers);
-    MemoryRegion stack_mask = stack_map.GetStackMask(code_info);
-    uint32_t register_mask = stack_map.GetRegisterMask(code_info);
+        code_info.GetDexRegisterMapOf(stack_map, encoding, number_of_dex_registers);
+    MemoryRegion stack_mask = stack_map.GetStackMask(encoding);
+    uint32_t register_mask = stack_map.GetRegisterMask(encoding);
     for (int i = 0; i < number_of_references; ++i) {
       int reg = registers[i];
       CHECK(reg < m->GetCodeItem()->registers_size_);
-      DexRegisterLocation location =
-          dex_register_map.GetDexRegisterLocation(reg, number_of_dex_registers, code_info);
+      DexRegisterLocation location = dex_register_map.GetDexRegisterLocation(
+          reg, number_of_dex_registers, code_info, encoding);
       switch (location.GetKind()) {
         case DexRegisterLocation::Kind::kNone:
           // Not set, should not be a reference.

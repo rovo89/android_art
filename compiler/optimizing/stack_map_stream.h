@@ -171,6 +171,7 @@ class StackMapStream : public ValueObject {
 
   StackMapEntry current_entry_;
   InlineInfoEntry current_inline_info_;
+  StackMapEncoding stack_map_encoding_;
   size_t stack_mask_size_;
   size_t inline_info_size_;
   size_t dex_register_maps_size_;

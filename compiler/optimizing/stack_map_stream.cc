@@ -133,13 +133,13 @@ size_t StackMapStream::PrepareForFillIn() {
   stack_mask_size_ = RoundUp(stack_mask_number_of_bits, kBitsPerByte) / kBitsPerByte;
   inline_info_size_ = ComputeInlineInfoSize();
   dex_register_maps_size_ = ComputeDexRegisterMapsSize();
-  stack_maps_size_ = stack_maps_.Size()
-      * StackMap::ComputeStackMapSize(stack_mask_size_,
-                                      inline_info_size_,
-                                      dex_register_maps_size_,
-                                      dex_pc_max_,
-                                      native_pc_offset_max_,
-                                      register_mask_max_);
+  stack_map_encoding_ = StackMapEncoding::CreateFromSizes(stack_mask_size_,
+                                                          inline_info_size_,
+                                                          dex_register_maps_size_,
+                                                          dex_pc_max_,
+                                                          native_pc_offset_max_,
+                                                          register_mask_max_);
+  stack_maps_size_ = stack_maps_.Size() * stack_map_encoding_.ComputeStackMapSize();
   dex_register_location_catalog_size_ = ComputeDexRegisterLocationCatalogSize();
 
   // Note: use RoundUp to word-size here if you want CodeInfo objects to be word aligned.
@@ -235,14 +235,9 @@ void StackMapStream::FillIn(MemoryRegion region) {
   MemoryRegion inline_infos_region = region.Subregion(
       inline_infos_start_, inline_info_size_);
 
-  code_info.SetEncoding(inline_info_size_,
-                        dex_register_maps_size_,
-                        dex_pc_max_,
-                        native_pc_offset_max_,
-                        register_mask_max_);
+  code_info.SetEncoding(stack_map_encoding_);
   code_info.SetNumberOfStackMaps(stack_maps_.Size());
-  code_info.SetStackMaskSize(stack_mask_size_);
-  DCHECK_EQ(code_info.GetStackMapsSize(), stack_maps_size_);
+  DCHECK_EQ(code_info.GetStackMapsSize(code_info.ExtractEncoding()), stack_maps_size_);
 
   // Set the Dex register location catalog.
   code_info.SetNumberOfDexRegisterLocationCatalogEntries(location_catalog_entries_.Size());
@@ -263,26 +258,27 @@ void StackMapStream::FillIn(MemoryRegion region) {
   uintptr_t next_dex_register_map_offset = 0;
   uintptr_t next_inline_info_offset = 0;
   for (size_t i = 0, e = stack_maps_.Size(); i < e; ++i) {
-    StackMap stack_map = code_info.GetStackMapAt(i);
+    StackMap stack_map = code_info.GetStackMapAt(i, stack_map_encoding_);
     StackMapEntry entry = stack_maps_.Get(i);
 
-    stack_map.SetDexPc(code_info, entry.dex_pc);
-    stack_map.SetNativePcOffset(code_info, entry.native_pc_offset);
-    stack_map.SetRegisterMask(code_info, entry.register_mask);
+    stack_map.SetDexPc(stack_map_encoding_, entry.dex_pc);
+    stack_map.SetNativePcOffset(stack_map_encoding_, entry.native_pc_offset);
+    stack_map.SetRegisterMask(stack_map_encoding_, entry.register_mask);
     if (entry.sp_mask != nullptr) {
-      stack_map.SetStackMask(code_info, *entry.sp_mask);
+      stack_map.SetStackMask(stack_map_encoding_, *entry.sp_mask);
     }
 
     if (entry.num_dex_registers == 0) {
       // No dex map available.
-      stack_map.SetDexRegisterMapOffset(code_info, StackMap::kNoDexRegisterMap);
+      stack_map.SetDexRegisterMapOffset(stack_map_encoding_, StackMap::kNoDexRegisterMap);
     } else {
       // Search for an entry with the same dex map.
       if (entry.same_dex_register_map_as_ != kNoSameDexMapFound) {
         // If we have a hit reuse the offset.
-        stack_map.SetDexRegisterMapOffset(code_info,
-            code_info.GetStackMapAt(entry.same_dex_register_map_as_)
-                     .GetDexRegisterMapOffset(code_info));
+        stack_map.SetDexRegisterMapOffset(
+            stack_map_encoding_,
+            code_info.GetStackMapAt(entry.same_dex_register_map_as_, stack_map_encoding_)
+                     .GetDexRegisterMapOffset(stack_map_encoding_));
       } else {
         // New dex registers maps should be added to the stack map.
         MemoryRegion register_region = dex_register_locations_region.Subregion(
@@ -291,7 +287,7 @@ void StackMapStream::FillIn(MemoryRegion region) {
         next_dex_register_map_offset += register_region.size();
         DexRegisterMap dex_register_map(register_region);
         stack_map.SetDexRegisterMapOffset(
-          code_info, register_region.start() - dex_register_locations_region.start());
+            stack_map_encoding_, register_region.start() - dex_register_locations_region.start());
 
         // Set the dex register location.
         FillInDexRegisterMap(dex_register_map,
@@ -311,7 +307,7 @@ void StackMapStream::FillIn(MemoryRegion region) {
 
       // Currently relative to the dex register map.
       stack_map.SetInlineDescriptorOffset(
-          code_info, inline_region.start() - dex_register_locations_region.start());
+          stack_map_encoding_, inline_region.start() - dex_register_locations_region.start());
 
       inline_info.SetDepth(entry.inlining_depth);
       for (size_t depth = 0; depth < entry.inlining_depth; ++depth) {
@@ -341,7 +337,7 @@ void StackMapStream::FillIn(MemoryRegion region) {
       }
     } else {
       if (inline_info_size_ != 0) {
-        stack_map.SetInlineDescriptorOffset(code_info, StackMap::kNoInlineInfo);
+        stack_map.SetInlineDescriptorOffset(stack_map_encoding_, StackMap::kNoInlineInfo);
       }
     }
   }

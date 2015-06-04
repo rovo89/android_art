@@ -182,9 +182,10 @@ uint32_t ArtMethod::ToDexPc(const uintptr_t pc, bool abort_on_failure) {
   uint32_t sought_offset = pc - reinterpret_cast<uintptr_t>(entry_point);
   if (IsOptimized(sizeof(void*))) {
     CodeInfo code_info = GetOptimizedCodeInfo();
-    StackMap stack_map = code_info.GetStackMapForNativePcOffset(sought_offset);
+    StackMapEncoding encoding = code_info.ExtractEncoding();
+    StackMap stack_map = code_info.GetStackMapForNativePcOffset(sought_offset, encoding);
     if (stack_map.IsValid()) {
-      return stack_map.GetDexPc(code_info);
+      return stack_map.GetDexPc(encoding);
     }
   } else {
     MappingTable table(entry_point != nullptr ?
