@@ -22,6 +22,8 @@
 #include <linux/fs.h>
 #endif
 
+#define ATRACE_TAG ATRACE_TAG_DALVIK
+#include <cutils/trace.h>
 #include <signal.h>
 #include <sys/syscall.h>
 #include <valgrind.h>
@@ -492,8 +494,12 @@ bool Runtime::Start() {
     ScopedObjectAccess soa(self);
     gc::space::ImageSpace* image_space = heap_->GetImageSpace();
     if (image_space != nullptr) {
+      ATRACE_BEGIN("AddImageStringsToTable");
       GetInternTable()->AddImageStringsToTable(image_space);
+      ATRACE_END();
+      ATRACE_BEGIN("MoveImageClassesToClassTable");
       GetClassLinker()->MoveImageClassesToClassTable();
+      ATRACE_END();
     }
   }
 
@@ -512,7 +518,9 @@ bool Runtime::Start() {
 
   // InitNativeMethods needs to be after started_ so that the classes
   // it touches will have methods linked to the oat file if necessary.
+  ATRACE_BEGIN("InitNativeMethods");
   InitNativeMethods();
+  ATRACE_END();
 
   // Initialize well known thread group values that may be accessed threads while attaching.
   InitThreadGroups(self);
@@ -533,7 +541,9 @@ bool Runtime::Start() {
                       GetInstructionSetString(kRuntimeISA));
   }
 
+  ATRACE_BEGIN("StartDaemonThreads");
   StartDaemonThreads();
+  ATRACE_END();
 
   {
     ScopedObjectAccess soa(self);
@@ -763,6 +773,7 @@ static size_t OpenDexFiles(const std::vector<std::string>& dex_filenames,
 }
 
 bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) {
+  ATRACE_BEGIN("Runtime::Init");
   CHECK_EQ(sysconf(_SC_PAGE_SIZE), kPageSize);
 
   MemMap::Init();
@@ -773,6 +784,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
       ParsedOptions::Create(raw_options, ignore_unrecognized, &runtime_options));
   if (parsed_options.get() == nullptr) {
     LOG(ERROR) << "Failed to parse options";
+    ATRACE_END();
     return false;
   }
   VLOG(startup) << "Runtime::Init -verbose:startup enabled";
@@ -826,6 +838,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   zygote_max_failed_boots_ = runtime_options.GetOrDefault(Opt::ZygoteMaxFailedBoots);
 
   XGcOption xgc_option = runtime_options.GetOrDefault(Opt::GcOption);
+  ATRACE_BEGIN("CreateHeap");
   heap_ = new gc::Heap(runtime_options.GetOrDefault(Opt::MemoryInitialSize),
                        runtime_options.GetOrDefault(Opt::HeapGrowthLimit),
                        runtime_options.GetOrDefault(Opt::HeapMinFree),
@@ -855,9 +868,11 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
                        xgc_option.verify_post_gc_rosalloc_,
                        runtime_options.GetOrDefault(Opt::EnableHSpaceCompactForOOM),
                        runtime_options.GetOrDefault(Opt::HSpaceCompactForOOMMinIntervalsMs));
+  ATRACE_END();
 
   if (heap_->GetImageSpace() == nullptr && !allow_dex_file_fallback_) {
     LOG(ERROR) << "Dex file fallback disabled, cannot continue without image.";
+    ATRACE_END();
     return false;
   }
 
@@ -957,7 +972,9 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   CHECK_GE(GetHeap()->GetContinuousSpaces().size(), 1U);
   class_linker_ = new ClassLinker(intern_table_);
   if (GetHeap()->HasImageSpace()) {
+    ATRACE_BEGIN("InitFromImage");
     class_linker_->InitFromImage();
+    ATRACE_END();
     if (kIsDebugBuild) {
       GetHeap()->GetImageSpace()->VerifyImageAllocations();
     }
@@ -1089,6 +1106,8 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   }
 
   VLOG(startup) << "Runtime::Init exiting";
+
+  ATRACE_END();
 
   return true;
 }

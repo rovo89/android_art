@@ -232,10 +232,11 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     requested_alloc_space_begin = reinterpret_cast<uint8_t*>(300 * MB) - non_moving_space_capacity;
   }
   if (!image_file_name.empty()) {
+    ATRACE_BEGIN("ImageSpace::Create");
     std::string error_msg;
-    space::ImageSpace* image_space = space::ImageSpace::Create(image_file_name.c_str(),
-                                                               image_instruction_set,
-                                                               &error_msg);
+    auto* image_space = space::ImageSpace::Create(image_file_name.c_str(), image_instruction_set,
+                                                  &error_msg);
+    ATRACE_END();
     if (image_space != nullptr) {
       AddSpace(image_space);
       // Oat files referenced by image files immediately follow them in memory, ensure alloc space
@@ -287,6 +288,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   }
   std::string error_str;
   std::unique_ptr<MemMap> non_moving_space_mem_map;
+  ATRACE_BEGIN("Create heap maps");
   if (separate_non_moving_space) {
     // If we are the zygote, the non moving space becomes the zygote space when we run
     // PreZygoteFork the first time. In this case, call the map "zygote space" since we can't
@@ -323,6 +325,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
                                                       capacity_, &error_str));
     CHECK(main_mem_map_2.get() != nullptr) << error_str;
   }
+  ATRACE_END();
+  ATRACE_BEGIN("Create spaces");
   // Create the non moving space first so that bitmaps don't take up the address range.
   if (separate_non_moving_space) {
     // Non moving space is always dlmalloc since we currently don't have support for multiple
@@ -340,7 +344,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   if (foreground_collector_type_ == kCollectorTypeCC) {
     region_space_ = space::RegionSpace::Create("Region space", capacity_ * 2, request_begin);
     AddSpace(region_space_);
-  } else if (IsMovingGc(foreground_collector_type_) && foreground_collector_type_ != kCollectorTypeGSS) {
+  } else if (IsMovingGc(foreground_collector_type_) &&
+      foreground_collector_type_ != kCollectorTypeGSS) {
     // Create bump pointer spaces.
     // We only to create the bump pointer if the foreground collector is a compacting GC.
     // TODO: Place bump-pointer spaces somewhere to minimize size of card table.
@@ -411,10 +416,12 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   if (main_space_backup_.get() != nullptr) {
     RemoveSpace(main_space_backup_.get());
   }
+  ATRACE_END();
   // Allocate the card table.
+  ATRACE_BEGIN("Create card table");
   card_table_.reset(accounting::CardTable::Create(heap_begin, heap_capacity));
   CHECK(card_table_.get() != nullptr) << "Failed to create card table";
-
+  ATRACE_END();
   if (foreground_collector_type_ == kCollectorTypeCC && kUseTableLookupReadBarrier) {
     rb_table_.reset(new accounting::ReadBarrierTable());
     DCHECK(rb_table_->IsAllCleared());
