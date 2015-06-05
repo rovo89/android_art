@@ -752,7 +752,7 @@ static InstructionSetFeatures ParseFeatureList(std::string str) {
       // Turn off support for Large Physical Address Extension.
       result.SetHasLpae(false);
     } else {
-      Usage("Unknown instruction set feature: '%s'", feature.c_str());
+      LOG(WARNING) << StringPrintf("Unknown instruction set feature: '%s'", feature.c_str());
     }
   }
   // others...
@@ -1105,7 +1105,7 @@ static int dex2oat(int argc, char** argv) {
         Usage("--swap-fd passed a negative value %d", swap_fd);
       }
     } else {
-      Usage("Unknown argument %s", option.data());
+      LOG(WARNING) << StringPrintf("Unknown argument %s", option.data());
     }
   }
 
@@ -1239,7 +1239,7 @@ static int dex2oat(int argc, char** argv) {
   } else if (strcmp(compiler_filter_string, "everything") == 0) {
     compiler_filter = CompilerOptions::kEverything;
   } else {
-    Usage("Unknown --compiler-filter value %s", compiler_filter_string);
+    LOG(WARNING) << StringPrintf("Unknown --compiler-filter value %s", compiler_filter_string);
   }
 
   // Set the compilation target's implicit checks options.

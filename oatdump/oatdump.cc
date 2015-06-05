@@ -1751,7 +1751,6 @@ static int oatdump(int argc, char** argv) {
       os = out.get();
     } else {
       fprintf(stderr, "Unknown argument %s\n", option.data());
-      usage();
     }
   }
 
