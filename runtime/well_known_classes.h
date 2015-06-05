@@ -45,6 +45,7 @@ struct WellKnownClasses {
   static jclass dalvik_system_DexPathList;
   static jclass dalvik_system_DexPathList__Element;
   static jclass dalvik_system_PathClassLoader;
+  static jclass dalvik_system_VMRuntime;
   static jclass java_lang_BootClassLoader;
   static jclass java_lang_ClassLoader;
   static jclass java_lang_ClassNotFoundException;
@@ -74,6 +75,7 @@ struct WellKnownClasses {
   static jclass org_apache_harmony_dalvik_ddmc_DdmServer;
 
   static jmethodID com_android_dex_Dex_create;
+  static jmethodID dalvik_system_VMRuntime_runFinalization;
   static jmethodID java_lang_Boolean_valueOf;
   static jmethodID java_lang_Byte_valueOf;
   static jmethodID java_lang_Character_valueOf;
