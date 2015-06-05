@@ -3318,7 +3318,10 @@ ArtMethod* MethodVerifier::VerifyInvocationArgsFromIterator(
     }
     if (method_type != METHOD_INTERFACE && !actual_arg_type.IsZero()) {
       const RegType* res_method_class;
-      if (res_method != nullptr) {
+      // Miranda methods have the declaring interface as their declaring class, not the abstract
+      // class. It would be wrong to use this for the type check (interface type checks are
+      // postponed to runtime).
+      if (res_method != nullptr && !res_method->IsMiranda()) {
         mirror::Class* klass = res_method->GetDeclaringClass();
         std::string temp;
         res_method_class = &reg_types_.FromClass(klass->GetDescriptor(&temp), klass,
