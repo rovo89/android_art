@@ -19,6 +19,8 @@ import java.lang.Runtime;
 
 public class Main {
     static Object nativeLock = new Object();
+    static Object deadlockLock = new Object();
+    static boolean aboutToDeadlockLock = false;
     static int nativeBytes = 0;
     static Object runtime;
     static Method register_native_allocation;
@@ -28,13 +30,15 @@ public class Main {
     static class NativeAllocation {
         private int bytes;
 
-        NativeAllocation(int bytes) throws Exception {
+        NativeAllocation(int bytes, boolean testingDeadlock) throws Exception {
             this.bytes = bytes;
             register_native_allocation.invoke(runtime, bytes);
             synchronized (nativeLock) {
-                nativeBytes += bytes;
-                if (nativeBytes > maxMem) {
-                    throw new OutOfMemoryError();
+                if (!testingDeadlock) {
+                    nativeBytes += bytes;
+                    if (nativeBytes > maxMem) {
+                        throw new OutOfMemoryError();
+                    }
                 }
             }
         }
@@ -44,6 +48,9 @@ public class Main {
                 nativeBytes -= bytes;
             }
             register_native_free.invoke(runtime, bytes);
+            aboutToDeadlockLock = true;
+            synchronized (deadlockLock) {
+            }
         }
     }
 
@@ -59,7 +66,20 @@ public class Main {
         int allocation_count = 256;
         NativeAllocation[] allocations = new NativeAllocation[count];
         for (int i = 0; i < allocation_count; ++i) {
-            allocations[i % count] = new NativeAllocation(size);
+            allocations[i % count] = new NativeAllocation(size, false);
+        }
+        // Test that we don't get a deadlock if we are holding nativeLock. If there is no timeout,
+        // then we will get a finalizer timeout exception.
+        aboutToDeadlockLock = false;
+        synchronized (deadlockLock) {
+            for (int i = 0; aboutToDeadlockLock != true; ++i) {
+                allocations[i % count] = new NativeAllocation(size, true);
+            }
+            // Do more allocations now that the finalizer thread is deadlocked so that we force
+            // finalization and timeout. 
+            for (int i = 0; i < 10; ++i) {
+                allocations[i % count] = new NativeAllocation(size, true);
+            }
         }
         System.out.println("Test complete");
     }

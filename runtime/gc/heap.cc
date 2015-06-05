@@ -110,6 +110,9 @@ static constexpr size_t kVerifyObjectAllocationStackSize = 16 * KB /
     sizeof(mirror::HeapReference<mirror::Object>);
 static constexpr size_t kDefaultAllocationStackSize = 8 * MB /
     sizeof(mirror::HeapReference<mirror::Object>);
+// System.runFinalization can deadlock with native allocations, to deal with this, we have a
+// timeout on how long we wait for finalizers to run. b/21544853
+static constexpr uint64_t kNativeAllocationFinalizeTimeout = MsToNs(250u);
 
 Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max_free,
            double target_utilization, double foreground_heap_growth_multiplier,
@@ -3538,22 +3541,16 @@ bool Heap::IsGCRequestPending() const {
   return concurrent_gc_pending_.LoadRelaxed();
 }
 
-void Heap::RunFinalization(JNIEnv* env) {
-  // Can't do this in WellKnownClasses::Init since System is not properly set up at that point.
-  if (WellKnownClasses::java_lang_System_runFinalization == nullptr) {
-    CHECK(WellKnownClasses::java_lang_System != nullptr);
-    WellKnownClasses::java_lang_System_runFinalization =
-        CacheMethod(env, WellKnownClasses::java_lang_System, true, "runFinalization", "()V");
-    CHECK(WellKnownClasses::java_lang_System_runFinalization != nullptr);
-  }
-  env->CallStaticVoidMethod(WellKnownClasses::java_lang_System,
-                            WellKnownClasses::java_lang_System_runFinalization);
+void Heap::RunFinalization(JNIEnv* env, uint64_t timeout) {
+  env->CallStaticVoidMethod(WellKnownClasses::dalvik_system_VMRuntime,
+                            WellKnownClasses::dalvik_system_VMRuntime_runFinalization,
+                            static_cast<jlong>(timeout));
 }
 
 void Heap::RegisterNativeAllocation(JNIEnv* env, size_t bytes) {
   Thread* self = ThreadForEnv(env);
   if (native_need_to_run_finalization_) {
-    RunFinalization(env);
+    RunFinalization(env, kNativeAllocationFinalizeTimeout);
     UpdateMaxNativeFootprint();
     native_need_to_run_finalization_ = false;
   }
@@ -3569,7 +3566,7 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, size_t bytes) {
     if (new_native_bytes_allocated > growth_limit_) {
       if (WaitForGcToComplete(kGcCauseForNativeAlloc, self) != collector::kGcTypeNone) {
         // Just finished a GC, attempt to run finalizers.
-        RunFinalization(env);
+        RunFinalization(env, kNativeAllocationFinalizeTimeout);
         CHECK(!env->ExceptionCheck());
         // Native bytes allocated may be updated by finalization, refresh it.
         new_native_bytes_allocated = native_bytes_allocated_.LoadRelaxed();
@@ -3577,7 +3574,7 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, size_t bytes) {
       // If we still are over the watermark, attempt a GC for alloc and run finalizers.
       if (new_native_bytes_allocated > growth_limit_) {
         CollectGarbageInternal(gc_type, kGcCauseForNativeAlloc, false);
-        RunFinalization(env);
+        RunFinalization(env, kNativeAllocationFinalizeTimeout);
         native_need_to_run_finalization_ = false;
         CHECK(!env->ExceptionCheck());
       }
