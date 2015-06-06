@@ -748,13 +748,11 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
   for (size_t i = start_index; i < number_of_vreg_arguments; i++, argument_index++) {
     Primitive::Type type = Primitive::GetType(descriptor[descriptor_index++]);
     bool is_wide = (type == Primitive::kPrimLong) || (type == Primitive::kPrimDouble);
-    if (!is_range && is_wide && args[i] + 1 != args[i + 1]) {
-      LOG(WARNING) << "Non sequential register pair in " << dex_compilation_unit_->GetSymbol()
-                   << " at " << dex_pc;
-      // We do not implement non sequential register pair.
-      MaybeRecordStat(MethodCompilationStat::kNotCompiledNonSequentialRegPair);
-      return false;
-    }
+    // Longs and doubles should be in pairs, that is, sequential registers. The verifier should
+    // reject any class where this is violated.
+    DCHECK(is_range || !is_wide || (args[i] + 1 == args[i + 1]))
+        << "Non sequential register pair in " << dex_compilation_unit_->GetSymbol()
+        << " at " << dex_pc;
     HInstruction* arg = LoadLocal(is_range ? register_index + i : args[i], type);
     invoke->SetArgumentAt(argument_index, arg);
     if (is_wide) {
