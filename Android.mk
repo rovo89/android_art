@@ -124,6 +124,8 @@ ifdef TARGET_2ND_ARCH
 ART_TARGET_DEPENDENCIES += $(2ND_TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
 endif
 
+ifdef DISABLED_FOR_XPOSED
+
 ########################################################################
 # test rules
 
@@ -289,6 +291,8 @@ test-art-target-optimizing$(2ND_ART_PHONY_TEST_TARGET_SUFFIX): test-art-target-r
 test-art-target-interpreter$(2ND_ART_PHONY_TEST_TARGET_SUFFIX): test-art-target-run-test-interpreter$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)
 	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
 endif
+
+endif # DISABLED_FOR_XPOSED
 
 ########################################################################
 # oat-target and oat-target-sync rules
