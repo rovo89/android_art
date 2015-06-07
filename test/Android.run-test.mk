@@ -259,11 +259,6 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),
     $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES), \
     $(PICTEST_TYPES),$(DEBUGGABLE_TYPES),131-structural-change,$(ALL_ADDRESS_SIZES))
 
-# 138-duplicate-classes-check. Turned off temporarily, b/21333911.
-ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
-    $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES), \
-    $(PICTEST_TYPES),$(DEBUGGABLE_TYPES),138-duplicate-classes-check,$(ALL_ADDRESS_SIZES))
-
 # All these tests check that we have sane behavior if we don't have a patchoat or dex2oat.
 # Therefore we shouldn't run them in situations where we actually don't have these since they
 # explicitly test for them. These all also assume we have an image.
