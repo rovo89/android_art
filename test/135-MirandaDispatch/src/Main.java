@@ -46,6 +46,15 @@ public class Main {
         if (counter != loopIterations * loopIterations) {
           System.out.println("Expected " + loopIterations * loopIterations + " got " + counter);
         }
+
+        try {
+            Class<?> b21646347 = Class.forName("B21646347");
+            throw new RuntimeException("Expected a VerifyError");
+        } catch (VerifyError expected) {
+            System.out.println("b/21646347");
+        } catch (Throwable t) {
+            t.printStackTrace();
+        }
         System.out.println("Finishing");
     }
 }
