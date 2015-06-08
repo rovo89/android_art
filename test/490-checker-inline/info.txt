@@ -1,1 +1,0 @@
-Check that we inline virtual and interface calls.
