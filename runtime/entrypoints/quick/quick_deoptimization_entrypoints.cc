@@ -36,6 +36,7 @@ extern "C" NO_RETURN void artDeoptimize(Thread* self) SHARED_LOCKS_REQUIRED(Lock
     self->Dump(LOG(INFO));
   }
 
+  self->PushAndClearDeoptimizationReturnValue();
   self->SetException(Thread::GetDeoptimizationException());
   self->QuickDeliverException();
 }

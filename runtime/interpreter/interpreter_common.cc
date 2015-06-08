@@ -517,7 +517,8 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
     // Slow path.
     // We might need to do class loading, which incurs a thread state change to kNative. So
     // register the shadow frame as under construction and allow suspension again.
-    self->SetShadowFrameUnderConstruction(new_shadow_frame);
+    ScopedStackedShadowFramePusher pusher(
+        self, new_shadow_frame, kShadowFrameUnderConstruction);
     self->EndAssertNoThreadSuspension(old_cause);
 
     // We need to do runtime check on reference assignment. We need to load the shorty
@@ -590,8 +591,6 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
           break;
       }
     }
-    // We're done with the construction.
-    self->ClearShadowFrameUnderConstruction();
   } else {
     // Fast path: no extra checks.
     if (is_range) {
