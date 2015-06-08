@@ -27,37 +27,37 @@ public class Main {
     return m.g();
   }
 
-  /// CHECK-START: Main Main.thisTest() ssa_builder (after)
+  /// CHECK-START: Main Main.thisTest() instruction_simplifier (before)
   /// CHECK:         NullCheck
   /// CHECK:         InvokeStaticOrDirect
 
-  /// CHECK-START: Main Main.thisTest() instruction_simplifier_after_types (after)
+  /// CHECK-START: Main Main.thisTest() instruction_simplifier (after)
   /// CHECK-NOT:     NullCheck
   /// CHECK:         InvokeStaticOrDirect
   public Main thisTest() {
     return g();
   }
 
-  /// CHECK-START: Main Main.newInstanceRemoveTest() ssa_builder (after)
+  /// CHECK-START: Main Main.newInstanceRemoveTest() instruction_simplifier (before)
   /// CHECK:         NewInstance
   /// CHECK:         NullCheck
   /// CHECK:         InvokeStaticOrDirect
   /// CHECK:         NullCheck
   /// CHECK:         InvokeStaticOrDirect
 
-  /// CHECK-START: Main Main.newInstanceRemoveTest() instruction_simplifier_after_types (after)
+  /// CHECK-START: Main Main.newInstanceRemoveTest() instruction_simplifier (after)
   /// CHECK-NOT:     NullCheck
   public Main newInstanceRemoveTest() {
     Main m = new Main();
     return m.g();
   }
 
-  /// CHECK-START: Main Main.newArrayRemoveTest() ssa_builder (after)
+  /// CHECK-START: Main Main.newArrayRemoveTest() instruction_simplifier (before)
   /// CHECK:         NewArray
   /// CHECK:         NullCheck
   /// CHECK:         ArrayGet
 
-  /// CHECK-START: Main Main.newArrayRemoveTest() instruction_simplifier_after_types (after)
+  /// CHECK-START: Main Main.newArrayRemoveTest() instruction_simplifier (after)
   /// CHECK:         NewArray
   /// CHECK-NOT:     NullCheck
   /// CHECK:         ArrayGet
@@ -178,10 +178,10 @@ public class Main {
     return n.g();
   }
 
-  /// CHECK-START: Main Main.scopeRemoveTest(int, Main) ssa_builder (after)
+  /// CHECK-START: Main Main.scopeRemoveTest(int, Main) instruction_simplifier (before)
   /// CHECK:         NullCheck
 
-  /// CHECK-START: Main Main.scopeRemoveTest(int, Main) instruction_simplifier_after_types (after)
+  /// CHECK-START: Main Main.scopeRemoveTest(int, Main) instruction_simplifier (after)
   /// CHECK-NOT:     NullCheck
   public Main scopeRemoveTest(int count, Main a) {
     Main m = null;
