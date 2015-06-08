@@ -181,6 +181,7 @@ LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES := \
 
 # $(1): target or host
 # $(2): ndebug or debug
+# $(3): static or shared (empty means shared, applies only for host)
 define build-libart-compiler
   ifneq ($(1),target)
     ifneq ($(1),host)
@@ -195,6 +196,7 @@ define build-libart-compiler
 
   art_target_or_host := $(1)
   art_ndebug_or_debug := $(2)
+  art_static_or_shared := $(3)
 
   include $(CLEAR_VARS)
   ifeq ($$(art_target_or_host),host)
@@ -203,17 +205,29 @@ define build-libart-compiler
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
   ifeq ($$(art_ndebug_or_debug),ndebug)
     LOCAL_MODULE := libart-compiler
-    LOCAL_SHARED_LIBRARIES += libart
+    ifeq ($$(art_static_or_shared), static)
+      LOCAL_STATIC_LIBRARIES += libart
+    else
+      LOCAL_SHARED_LIBRARIES += libart
+    endif
     ifeq ($$(art_target_or_host),target)
       LOCAL_FDO_SUPPORT := true
     endif
   else # debug
     LOCAL_MODULE := libartd-compiler
-    LOCAL_SHARED_LIBRARIES += libartd
+    ifeq ($$(art_static_or_shared), static)
+      LOCAL_STATIC_LIBRARIES += libartd
+    else
+      LOCAL_SHARED_LIBRARIES += libartd
+    endif
   endif
 
   LOCAL_MODULE_TAGS := optional
-  LOCAL_MODULE_CLASS := SHARED_LIBRARIES
+  ifeq ($$(art_static_or_shared), static)
+    LOCAL_MODULE_CLASS := STATIC_LIBRARIES
+  else
+    LOCAL_MODULE_CLASS := SHARED_LIBRARIES
+  endif
 
   LOCAL_SRC_FILES := $$(LIBART_COMPILER_SRC_FILES)
 
@@ -237,6 +251,9 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
     LOCAL_CFLAGS += $(ART_HOST_CFLAGS)
     LOCAL_ASFLAGS += $(ART_HOST_ASFLAGS)
     LOCAL_LDLIBS := $(ART_HOST_LDLIBS)
+    ifeq ($$(art_static_or_shared),static)
+      LOCAL_LDFLAGS += -static
+    endif
     ifeq ($$(art_ndebug_or_debug),debug)
       LOCAL_CFLAGS += $(ART_HOST_DEBUG_CFLAGS)
     else
@@ -254,9 +271,17 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
   # Vixl assembly support for ARM64 targets.
   ifeq ($$(art_ndebug_or_debug),debug)
-    LOCAL_SHARED_LIBRARIES += libvixld
+    ifeq ($$(art_static_or_shared), static)
+      LOCAL_WHOLESTATIC_LIBRARIES += libvixld
+    else
+      LOCAL_SHARED_LIBRARIES += libvixld
+    endif
   else
-    LOCAL_SHARED_LIBRARIES += libvixl
+    ifeq ($$(art_static_or_shared), static)
+      LOCAL_WHOLE_STATIC_LIBRARIES += libvixl
+    else
+      LOCAL_SHARED_LIBRARIES += libvixl
+    endif
   endif
 
   LOCAL_NATIVE_COVERAGE := $(ART_COVERAGE)
@@ -267,7 +292,11 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
     include $(BUILD_SHARED_LIBRARY)
   else # host
     LOCAL_MULTILIB := both
-    include $(BUILD_HOST_SHARED_LIBRARY)
+    ifeq ($$(art_static_or_shared), static)
+      include $(BUILD_HOST_STATIC_LIBRARY)
+    else
+      include $(BUILD_HOST_SHARED_LIBRARY)
+    endif
   endif
 
   ifeq ($$(art_target_or_host),target)
@@ -278,20 +307,38 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
     endif
   else # host
     ifeq ($$(art_ndebug_or_debug),debug)
-      $(HOST_OUT_EXECUTABLES)/dex2oatd: $$(LOCAL_INSTALLED_MODULE)
+      ifeq ($$(art_static_or_shared),static)
+        $(HOST_OUT_EXECUTABLES)/dex2oatds: $$(LOCAL_INSTALLED_MODULE)
+      else
+        $(HOST_OUT_EXECUTABLES)/dex2oatd: $$(LOCAL_INSTALLED_MODULE)
+      endif
     else
-      $(HOST_OUT_EXECUTABLES)/dex2oat: $$(LOCAL_INSTALLED_MODULE)
+      ifeq ($$(art_static_or_shared),static)
+        $(HOST_OUT_EXECUTABLES)/dex2oats: $$(LOCAL_INSTALLED_MODULE)
+      else
+        $(HOST_OUT_EXECUTABLES)/dex2oat: $$(LOCAL_INSTALLED_MODULE)
+      endif
     endif
   endif
 
+  # Clear locally defined variables.
+  art_target_or_host :=
+  art_ndebug_or_debug :=
+  art_static_or_shared :=
 endef
 
 # We always build dex2oat and dependencies, even if the host build is otherwise disabled, since they are used to cross compile for the target.
 ifeq ($(ART_BUILD_HOST_NDEBUG),true)
   $(eval $(call build-libart-compiler,host,ndebug))
+  ifeq ($(ART_BUILD_HOST_STATIC),true)
+    $(eval $(call build-libart-compiler,host,ndebug,static))
+  endif
 endif
 ifeq ($(ART_BUILD_HOST_DEBUG),true)
   $(eval $(call build-libart-compiler,host,debug))
+  ifeq ($(ART_BUILD_HOST_STATIC),true)
+    $(eval $(call build-libart-compiler,host,debug,static))
+  endif
 endif
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
   $(eval $(call build-libart-compiler,target,ndebug))
