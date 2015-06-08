@@ -1790,7 +1790,8 @@ bool MIRGraph::EliminateSuspendChecks(BasicBlock* bb) {
         pred_mask_union |= pred_mask;
       }
     }
-    DCHECK_EQ(((1u << (IsLoopHead(bb->id) ? bb->nesting_depth - 1u: bb->nesting_depth)) - 1u),
+    // DCHECK_EQ() may not hold for unnatural loop heads, so use DCHECK_GE().
+    DCHECK_GE(((1u << (IsLoopHead(bb->id) ? bb->nesting_depth - 1u: bb->nesting_depth)) - 1u),
               pred_mask_union);
     suspend_checks_in_loops &= pred_mask_union;
   }
