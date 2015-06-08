@@ -326,7 +326,7 @@ static void RunOptimizations(HGraph* graph,
   InstructionSimplifier simplify1(graph, stats);
   HBooleanSimplifier boolean_simplify(graph);
 
-  HInliner inliner(graph, dex_compilation_unit, dex_compilation_unit, driver, handles, stats);
+  HInliner inliner(graph, dex_compilation_unit, dex_compilation_unit, driver, stats);
 
   HConstantFolding fold2(graph, "constant_folding_after_inlining");
   SideEffectsAnalysis side_effects(graph);
@@ -335,8 +335,6 @@ static void RunOptimizations(HGraph* graph,
   BoundsCheckElimination bce(graph);
   ReferenceTypePropagation type_propagation(graph, handles);
   InstructionSimplifier simplify2(graph, stats, "instruction_simplifier_after_types");
-  InstructionSimplifier simplify3(graph, stats, "last_instruction_simplifier");
-  ReferenceTypePropagation type_propagation2(graph, handles);
 
   IntrinsicsRecognizer intrinsics(graph, driver);
 
@@ -345,12 +343,7 @@ static void RunOptimizations(HGraph* graph,
     &dce1,
     &fold1,
     &simplify1,
-    &type_propagation,
-    &simplify2,
     &inliner,
-    // Run another type propagation phase: inlining will open up more opprotunities
-    // to remove checkast/instanceof and null checks.
-    &type_propagation2,
     // BooleanSimplifier depends on the InstructionSimplifier removing redundant
     // suspend checks to recognize empty blocks.
     &boolean_simplify,
@@ -359,7 +352,8 @@ static void RunOptimizations(HGraph* graph,
     &gvn,
     &licm,
     &bce,
-    &simplify3,
+    &type_propagation,
+    &simplify2,
     &dce2,
   };
 
