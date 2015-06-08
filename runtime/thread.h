@@ -99,6 +99,55 @@ enum ThreadFlag {
   kCheckpointRequest = 2  // Request that the thread do some checkpoint work and then continue.
 };
 
+enum StackedShadowFrameType {
+  kShadowFrameUnderConstruction,
+  kDeoptimizationShadowFrame
+};
+
+class StackedShadowFrameRecord {
+ public:
+  StackedShadowFrameRecord(ShadowFrame* shadow_frame,
+                           StackedShadowFrameType type,
+                           StackedShadowFrameRecord* link)
+      : shadow_frame_(shadow_frame),
+        type_(type),
+        link_(link) {}
+
+  ShadowFrame* GetShadowFrame() const { return shadow_frame_; }
+  bool GetType() const { return type_; }
+  StackedShadowFrameRecord* GetLink() const { return link_; }
+
+ private:
+  ShadowFrame* const shadow_frame_;
+  const StackedShadowFrameType type_;
+  StackedShadowFrameRecord* const link_;
+
+  DISALLOW_COPY_AND_ASSIGN(StackedShadowFrameRecord);
+};
+
+class DeoptimizationReturnValueRecord {
+ public:
+  DeoptimizationReturnValueRecord(const JValue& ret_val,
+                                  bool is_reference,
+                                  DeoptimizationReturnValueRecord* link)
+      : ret_val_(ret_val), is_reference_(is_reference), link_(link) {}
+
+  JValue GetReturnValue() const { return ret_val_; }
+  bool IsReference() const { return is_reference_; }
+  DeoptimizationReturnValueRecord* GetLink() const { return link_; }
+  mirror::Object** GetGCRoot() {
+    DCHECK(is_reference_);
+    return ret_val_.GetGCRoot();
+  }
+
+ private:
+  JValue ret_val_;
+  const bool is_reference_;
+  DeoptimizationReturnValueRecord* const link_;
+
+  DISALLOW_COPY_AND_ASSIGN(DeoptimizationReturnValueRecord);
+};
+
 static constexpr size_t kNumRosAllocThreadLocalSizeBrackets = 34;
 
 // Thread's stack layout for implicit stack overflow checks:
@@ -790,21 +839,25 @@ class Thread {
     return reinterpret_cast<mirror::Throwable*>(-1);
   }
 
-  void SetDeoptimizationShadowFrame(ShadowFrame* sf);
-  void SetDeoptimizationReturnValue(const JValue& ret_val);
-
-  ShadowFrame* GetAndClearDeoptimizationShadowFrame(JValue* ret_val);
-
-  bool HasDeoptimizationShadowFrame() const {
-    return tlsPtr_.deoptimization_shadow_frame != nullptr;
+  // Currently deoptimization invokes verifier which can trigger class loading
+  // and execute Java code, so there might be nested deoptimizations happening.
+  // We need to save the ongoing deoptimization shadow frames and return
+  // values on stacks.
+  void SetDeoptimizationReturnValue(const JValue& ret_val, bool is_reference) {
+    tls64_.deoptimization_return_value.SetJ(ret_val.GetJ());
+    tls32_.deoptimization_return_value_is_reference = is_reference;
   }
-
-  void SetShadowFrameUnderConstruction(ShadowFrame* sf);
-  void ClearShadowFrameUnderConstruction();
-
-  bool HasShadowFrameUnderConstruction() const {
-    return tlsPtr_.shadow_frame_under_construction != nullptr;
+  bool IsDeoptimizationReturnValueReference() {
+    return tls32_.deoptimization_return_value_is_reference;
   }
+  void ClearDeoptimizationReturnValue() {
+    tls64_.deoptimization_return_value.SetJ(0);
+    tls32_.deoptimization_return_value_is_reference = false;
+  }
+  void PushAndClearDeoptimizationReturnValue();
+  JValue PopDeoptimizationReturnValue();
+  void PushStackedShadowFrame(ShadowFrame* sf, StackedShadowFrameType type);
+  ShadowFrame* PopStackedShadowFrame(StackedShadowFrameType type);
 
   std::deque<instrumentation::InstrumentationStackFrame>* GetInstrumentationStack() {
     return tlsPtr_.instrumentation_stack;
@@ -1048,7 +1101,8 @@ class Thread {
     explicit tls_32bit_sized_values(bool is_daemon) :
       suspend_count(0), debug_suspend_count(0), thin_lock_thread_id(0), tid(0),
       daemon(is_daemon), throwing_OutOfMemoryError(false), no_thread_suspension(0),
-      thread_exit_check_count(0), handling_signal_(false), suspended_at_suspend_check(false),
+      thread_exit_check_count(0), handling_signal_(false),
+      deoptimization_return_value_is_reference(false), suspended_at_suspend_check(false),
       ready_for_debug_invoke(false), debug_method_entry_(false) {
     }
 
@@ -1089,6 +1143,10 @@ class Thread {
     // True if signal is being handled by this thread.
     bool32_t handling_signal_;
 
+    // True if the return value for interpreter after deoptimization is a reference.
+    // For gc purpose.
+    bool32_t deoptimization_return_value_is_reference;
+
     // True if the thread is suspended in FullSuspendCheck(). This is
     // used to distinguish runnable threads that are suspended due to
     // a normal suspend check from other threads.
@@ -1124,8 +1182,9 @@ class Thread {
       stack_trace_sample(nullptr), wait_next(nullptr), monitor_enter_object(nullptr),
       top_handle_scope(nullptr), class_loader_override(nullptr), long_jump_context(nullptr),
       instrumentation_stack(nullptr), debug_invoke_req(nullptr), single_step_control(nullptr),
-      deoptimization_shadow_frame(nullptr), shadow_frame_under_construction(nullptr), name(nullptr),
-      pthread_self(0), last_no_thread_suspension_cause(nullptr), thread_local_start(nullptr),
+      stacked_shadow_frame_record(nullptr), deoptimization_return_value_stack(nullptr),
+      name(nullptr), pthread_self(0),
+      last_no_thread_suspension_cause(nullptr), thread_local_start(nullptr),
       thread_local_pos(nullptr), thread_local_end(nullptr), thread_local_objects(0),
       thread_local_alloc_stack_top(nullptr), thread_local_alloc_stack_end(nullptr),
       nested_signal_state(nullptr), flip_function(nullptr), method_verifier(nullptr) {
@@ -1201,11 +1260,13 @@ class Thread {
     // JDWP single-stepping support.
     SingleStepControl* single_step_control;
 
-    // Shadow frame stack that is used temporarily during the deoptimization of a method.
-    ShadowFrame* deoptimization_shadow_frame;
+    // For gc purpose, a shadow frame record stack that keeps track of:
+    // 1) shadow frames under construction.
+    // 2) deoptimization shadow frames.
+    StackedShadowFrameRecord* stacked_shadow_frame_record;
 
-    // Shadow frame stack that is currently under construction but not yet on the stack
-    ShadowFrame* shadow_frame_under_construction;
+    // Deoptimization return value record stack.
+    DeoptimizationReturnValueRecord* deoptimization_return_value_stack;
 
     // A cached copy of the java.lang.Thread's name.
     std::string* name;
@@ -1291,6 +1352,23 @@ class ScopedAssertNoThreadSuspension {
  private:
   Thread* const self_;
   const char* const old_cause_;
+};
+
+class ScopedStackedShadowFramePusher {
+ public:
+  ScopedStackedShadowFramePusher(Thread* self, ShadowFrame* sf, StackedShadowFrameType type)
+    : self_(self), type_(type) {
+    self_->PushStackedShadowFrame(sf, type);
+  }
+  ~ScopedStackedShadowFramePusher() {
+    self_->PopStackedShadowFrame(type_);
+  }
+
+ private:
+  Thread* const self_;
+  const StackedShadowFrameType type_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedStackedShadowFramePusher);
 };
 
 std::ostream& operator<<(std::ostream& os, const Thread& thread);

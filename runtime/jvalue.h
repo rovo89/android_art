@@ -61,6 +61,8 @@ union PACKED(4) JValue {
   uint8_t GetZ() const { return z; }
   void SetZ(uint8_t new_z) { z = new_z; }
 
+  mirror::Object** GetGCRoot() { return &l; }
+
  private:
   uint8_t z;
   int8_t b;
