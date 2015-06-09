@@ -147,6 +147,50 @@ void Thread::ResetQuickAllocEntryPointsForThread() {
   ResetQuickAllocEntryPoints(&tlsPtr_.quick_entrypoints);
 }
 
+class DeoptimizationReturnValueRecord {
+ public:
+  DeoptimizationReturnValueRecord(const JValue& ret_val,
+                                  bool is_reference,
+                                  DeoptimizationReturnValueRecord* link)
+      : ret_val_(ret_val), is_reference_(is_reference), link_(link) {}
+
+  JValue GetReturnValue() const { return ret_val_; }
+  bool IsReference() const { return is_reference_; }
+  DeoptimizationReturnValueRecord* GetLink() const { return link_; }
+  mirror::Object** GetGCRoot() {
+    DCHECK(is_reference_);
+    return ret_val_.GetGCRoot();
+  }
+
+ private:
+  JValue ret_val_;
+  const bool is_reference_;
+  DeoptimizationReturnValueRecord* const link_;
+
+  DISALLOW_COPY_AND_ASSIGN(DeoptimizationReturnValueRecord);
+};
+
+class StackedShadowFrameRecord {
+ public:
+  StackedShadowFrameRecord(ShadowFrame* shadow_frame,
+                           StackedShadowFrameType type,
+                           StackedShadowFrameRecord* link)
+      : shadow_frame_(shadow_frame),
+        type_(type),
+        link_(link) {}
+
+  ShadowFrame* GetShadowFrame() const { return shadow_frame_; }
+  StackedShadowFrameType GetType() const { return type_; }
+  StackedShadowFrameRecord* GetLink() const { return link_; }
+
+ private:
+  ShadowFrame* const shadow_frame_;
+  const StackedShadowFrameType type_;
+  StackedShadowFrameRecord* const link_;
+
+  DISALLOW_COPY_AND_ASSIGN(StackedShadowFrameRecord);
+};
+
 void Thread::PushAndClearDeoptimizationReturnValue() {
   DeoptimizationReturnValueRecord* record = new DeoptimizationReturnValueRecord(
       tls64_.deoptimization_return_value,
@@ -174,7 +218,7 @@ void Thread::PushStackedShadowFrame(ShadowFrame* sf, StackedShadowFrameType type
 ShadowFrame* Thread::PopStackedShadowFrame(StackedShadowFrameType type) {
   StackedShadowFrameRecord* record = tlsPtr_.stacked_shadow_frame_record;
   DCHECK(record != nullptr);
-  DCHECK(record->GetType() == type);
+  DCHECK_EQ(record->GetType(), type);
   tlsPtr_.stacked_shadow_frame_record = record->GetLink();
   ShadowFrame* shadow_frame = record->GetShadowFrame();
   delete record;
