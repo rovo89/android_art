@@ -178,7 +178,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
         // In case there is no deoptimized shadow frame for this upcall, we still
         // need to push a nullptr to the stack since there is always a matching pop after
         // the long jump.
-        self_->PushStackedShadowFrame(nullptr, kDeoptimizationShadowFrame);
+        self_->PushStackedShadowFrame(nullptr, StackedShadowFrameType::kDeoptimizationShadowFrame);
         stacked_shadow_frame_pushed_ = true;
       }
       return false;  // End stack walk.
@@ -212,7 +212,8 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
     CHECK(verifier_success) << PrettyMethod(m);
     ShadowFrame* new_frame = ShadowFrame::CreateDeoptimizedFrame(num_regs, nullptr, m, dex_pc);
     {
-      ScopedStackedShadowFramePusher pusher(self_, new_frame, kShadowFrameUnderConstruction);
+      ScopedStackedShadowFramePusher pusher(self_, new_frame,
+                                            StackedShadowFrameType::kShadowFrameUnderConstruction);
       const std::vector<int32_t> kinds(verifier.DescribeVRegs(dex_pc));
 
       // Markers for dead values, used when the verifier knows a Dex register is undefined,
@@ -318,7 +319,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
       // Will be popped after the long jump after DeoptimizeStack(),
       // right before interpreter::EnterInterpreterFromDeoptimize().
       stacked_shadow_frame_pushed_ = true;
-      self_->PushStackedShadowFrame(new_frame, kDeoptimizationShadowFrame);
+      self_->PushStackedShadowFrame(new_frame, StackedShadowFrameType::kDeoptimizationShadowFrame);
     }
     prev_shadow_frame_ = new_frame;
     return true;

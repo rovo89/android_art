@@ -154,10 +154,12 @@ def ProcessFile(filename):
       sys.stderr.write('%s\n' % (rest))
       Confused(filename, line_number, raw_line)
 
-    if len(enclosing_classes) > 0:
-      if is_enum_class:
-        enum_value = enum_name + '::' + enum_value
-      else:
+    # If the enum is scoped, we must prefix enum value with enum name (which is already prefixed
+    # by enclosing classes).
+    if is_enum_class:
+      enum_value = enum_name + '::' + enum_value
+    else:
+      if len(enclosing_classes) > 0:
         enum_value = '::'.join(enclosing_classes) + '::' + enum_value
 
     _ENUMS[enum_name].append((enum_value, enum_text))
