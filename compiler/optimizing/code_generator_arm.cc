@@ -1254,10 +1254,6 @@ void LocationsBuilderARM::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invok
   IntrinsicLocationsBuilderARM intrinsic(GetGraph()->GetArena(),
                                          codegen_->GetInstructionSetFeatures());
   if (intrinsic.TryDispatch(invoke)) {
-    LocationSummary* locations = invoke->GetLocations();
-    if (locations->CanCall()) {
-      locations->SetInAt(invoke->GetCurrentMethodInputIndex(), Location::RequiresRegister());
-    }
     return;
   }
 
@@ -4227,12 +4223,20 @@ void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
   } else if (invoke->IsRecursive()) {
     __ bl(GetFrameEntryLabel());
   } else {
-    Register current_method =
-        invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex()).AsRegister<Register>();
+    Location current_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
+    Register method_reg;
     Register reg = temp.AsRegister<Register>();
+    if (current_method.IsRegister()) {
+      method_reg = current_method.AsRegister<Register>();
+    } else {
+      DCHECK(invoke->GetLocations()->Intrinsified());
+      DCHECK(!current_method.IsValid());
+      method_reg = reg;
+      __ LoadFromOffset(kLoadWord, reg, SP, kCurrentMethodStackOffset);
+    }
     // reg = current_method->dex_cache_resolved_methods_;
     __ LoadFromOffset(
-        kLoadWord, reg, current_method, ArtMethod::DexCacheResolvedMethodsOffset().Int32Value());
+        kLoadWord, reg, method_reg, ArtMethod::DexCacheResolvedMethodsOffset().Int32Value());
     // reg = reg[index_in_cache]
     __ LoadFromOffset(
         kLoadWord, reg, reg, CodeGenerator::GetCacheOffset(invoke->GetDexMethodIndex()));
