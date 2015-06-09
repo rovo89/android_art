@@ -763,6 +763,11 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
   }
   DCHECK_EQ(argument_index, number_of_arguments);
 
+  if (invoke->IsInvokeStaticOrDirect()) {
+    invoke->SetArgumentAt(argument_index, graph_->GetCurrentMethod());
+    argument_index++;
+  }
+
   if (clinit_check_requirement == HInvokeStaticOrDirect::ClinitCheckRequirement::kExplicit) {
     // Add the class initialization check as last input of `invoke`.
     DCHECK(clinit_check != nullptr);

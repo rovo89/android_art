@@ -484,7 +484,7 @@ Location InvokeDexCallingConventionVisitorARM64::GetNextLocation(Primitive::Type
 }
 
 Location InvokeDexCallingConventionVisitorARM64::GetMethodLocation() const {
-  return LocationFrom(x0);
+  return LocationFrom(kArtMethodRegister);
 }
 
 CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph,
@@ -2227,6 +2227,10 @@ void LocationsBuilderARM64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* inv
 
   IntrinsicLocationsBuilderARM64 intrinsic(GetGraph()->GetArena());
   if (intrinsic.TryDispatch(invoke)) {
+    LocationSummary* locations = invoke->GetLocations();
+    if (locations->CanCall()) {
+      locations->SetInAt(invoke->GetCurrentMethodInputIndex(), Location::RequiresRegister());
+    }
     return;
   }
 
@@ -2242,9 +2246,8 @@ static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorARM64* codege
   return false;
 }
 
-void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Register temp) {
+void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) {
   // Make sure that ArtMethod* is passed in kArtMethodRegister as per the calling convention.
-  DCHECK(temp.Is(kArtMethodRegister));
   size_t index_in_cache = GetCachePointerOffset(invoke->GetDexMethodIndex());
 
   // TODO: Implement all kinds of calls:
@@ -2255,30 +2258,30 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
   // Currently we implement the app -> app logic, which looks up in the resolve cache.
 
   if (invoke->IsStringInit()) {
+    Register reg = XRegisterFrom(temp);
     // temp = thread->string_init_entrypoint
-    __ Ldr(temp.X(), MemOperand(tr, invoke->GetStringInitOffset()));
+    __ Ldr(reg.X(), MemOperand(tr, invoke->GetStringInitOffset()));
     // LR = temp->entry_point_from_quick_compiled_code_;
     __ Ldr(lr, MemOperand(
-        temp, ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64WordSize).Int32Value()));
+        reg, ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64WordSize).Int32Value()));
     // lr()
     __ Blr(lr);
+  } else if (invoke->IsRecursive()) {
+    __ Bl(&frame_entry_label_);
   } else {
-    // temp = method;
-    LoadCurrentMethod(temp.X());
-    if (!invoke->IsRecursive()) {
-      // temp = temp->dex_cache_resolved_methods_;
-      __ Ldr(temp.W(), MemOperand(temp.X(),
-                                  ArtMethod::DexCacheResolvedMethodsOffset().Int32Value()));
-      // temp = temp[index_in_cache];
-      __ Ldr(temp.X(), MemOperand(temp, index_in_cache));
-      // lr = temp->entry_point_from_quick_compiled_code_;
-      __ Ldr(lr, MemOperand(temp.X(), ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-          kArm64WordSize).Int32Value()));
-      // lr();
-      __ Blr(lr);
-    } else {
-      __ Bl(&frame_entry_label_);
-    }
+    Register current_method =
+        XRegisterFrom(invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex()));
+    Register reg = XRegisterFrom(temp);
+    // temp = current_method->dex_cache_resolved_methods_;
+    __ Ldr(reg.W(), MemOperand(current_method.X(),
+                               ArtMethod::DexCacheResolvedMethodsOffset().Int32Value()));
+    // temp = temp[index_in_cache];
+    __ Ldr(reg.X(), MemOperand(reg, index_in_cache));
+    // lr = temp->entry_point_from_quick_compiled_code_;
+    __ Ldr(lr, MemOperand(reg.X(), ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+        kArm64WordSize).Int32Value()));
+    // lr();
+    __ Blr(lr);
   }
 
   DCHECK(!IsLeafMethod());
@@ -2294,8 +2297,9 @@ void InstructionCodeGeneratorARM64::VisitInvokeStaticOrDirect(HInvokeStaticOrDir
   }
 
   BlockPoolsScope block_pools(GetVIXLAssembler());
-  Register temp = XRegisterFrom(invoke->GetLocations()->GetTemp(0));
-  codegen_->GenerateStaticOrDirectCall(invoke, temp);
+  LocationSummary* locations = invoke->GetLocations();
+  codegen_->GenerateStaticOrDirectCall(
+      invoke, locations->HasTemps() ? locations->GetTemp(0) : Location::NoLocation());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
@@ -2314,14 +2318,8 @@ void InstructionCodeGeneratorARM64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
 
   BlockPoolsScope block_pools(GetVIXLAssembler());
 
-  // temp = object->GetClass();
-  if (receiver.IsStackSlot()) {
-    __ Ldr(temp.W(), MemOperand(sp, receiver.GetStackIndex()));
-    __ Ldr(temp.W(), HeapOperand(temp.W(), class_offset));
-  } else {
-    DCHECK(receiver.IsRegister());
-    __ Ldr(temp.W(), HeapOperandFrom(receiver, class_offset));
-  }
+  DCHECK(receiver.IsRegister());
+  __ Ldr(temp.W(), HeapOperandFrom(receiver, class_offset));
   codegen_->MaybeRecordImplicitNullCheck(invoke);
   // temp = temp->GetMethodAt(method_offset);
   __ Ldr(temp, MemOperand(temp, method_offset));
@@ -2674,7 +2672,7 @@ void InstructionCodeGeneratorARM64::VisitParameterValue(
 void LocationsBuilderARM64::VisitCurrentMethod(HCurrentMethod* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetOut(LocationFrom(x0));
+  locations->SetOut(LocationFrom(kArtMethodRegister));
 }
 
 void InstructionCodeGeneratorARM64::VisitCurrentMethod(
