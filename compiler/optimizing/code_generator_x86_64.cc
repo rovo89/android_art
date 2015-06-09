@@ -587,11 +587,6 @@ void CodeGeneratorX86_64::Bind(HBasicBlock* block) {
   __ Bind(GetLabelOf(block));
 }
 
-void CodeGeneratorX86_64::LoadCurrentMethod(CpuRegister reg) {
-  DCHECK(RequiresCurrentMethod());
-  __ movq(reg, Address(CpuRegister(RSP), kCurrentMethodStackOffset));
-}
-
 Location CodeGeneratorX86_64::GetStackLocation(HLoadLocal* load) const {
   switch (load->GetType()) {
     case Primitive::kPrimLong:
@@ -3022,13 +3017,12 @@ void LocationsBuilderX86_64::VisitNewInstance(HNewInstance* instruction) {
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
   InvokeRuntimeCallingConvention calling_convention;
   locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
   locations->SetOut(Location::RegisterLocation(RAX));
 }
 
 void InstructionCodeGeneratorX86_64::VisitNewInstance(HNewInstance* instruction) {
   InvokeRuntimeCallingConvention calling_convention;
-  codegen_->LoadCurrentMethod(CpuRegister(calling_convention.GetRegisterAt(1)));
   codegen_->Load64BitValue(CpuRegister(calling_convention.GetRegisterAt(0)),
                            instruction->GetTypeIndex());
   __ gs()->call(
@@ -3043,14 +3037,13 @@ void LocationsBuilderX86_64::VisitNewArray(HNewArray* instruction) {
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
   InvokeRuntimeCallingConvention calling_convention;
   locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
   locations->SetOut(Location::RegisterLocation(RAX));
   locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
 }
 
 void InstructionCodeGeneratorX86_64::VisitNewArray(HNewArray* instruction) {
   InvokeRuntimeCallingConvention calling_convention;
-  codegen_->LoadCurrentMethod(CpuRegister(calling_convention.GetRegisterAt(2)));
   codegen_->Load64BitValue(CpuRegister(calling_convention.GetRegisterAt(0)),
                            instruction->GetTypeIndex());
 
