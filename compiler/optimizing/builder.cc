@@ -1050,6 +1050,7 @@ void HGraphBuilder::BuildFilledNewArray(uint32_t dex_pc,
       ? kQuickAllocArrayWithAccessCheck
       : kQuickAllocArray;
   HInstruction* object = new (arena_) HNewArray(length,
+                                                graph_->GetCurrentMethod(),
                                                 dex_pc,
                                                 type_index,
                                                 *dex_compilation_unit_->GetDexFile(),
@@ -2008,7 +2009,11 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
             : kQuickAllocObject;
 
         current_block_->AddInstruction(new (arena_) HNewInstance(
-            dex_pc, type_index, *dex_compilation_unit_->GetDexFile(), entrypoint));
+            graph_->GetCurrentMethod(),
+            dex_pc,
+            type_index,
+            *dex_compilation_unit_->GetDexFile(),
+            entrypoint));
         UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
       }
       break;
@@ -2020,8 +2025,12 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       QuickEntrypointEnum entrypoint = NeedsAccessCheck(type_index)
           ? kQuickAllocArrayWithAccessCheck
           : kQuickAllocArray;
-      current_block_->AddInstruction(new (arena_) HNewArray(
-          length, dex_pc, type_index, *dex_compilation_unit_->GetDexFile(), entrypoint));
+      current_block_->AddInstruction(new (arena_) HNewArray(length,
+                                                            graph_->GetCurrentMethod(),
+                                                            dex_pc,
+                                                            type_index,
+                                                            *dex_compilation_unit_->GetDexFile(),
+                                                            entrypoint));
       UpdateLocal(instruction.VRegA_22c(), current_block_->GetLastInstruction());
       break;
     }

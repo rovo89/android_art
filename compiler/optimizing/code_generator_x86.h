@@ -272,8 +272,6 @@ class CodeGeneratorX86 : public CodeGenerator {
                   Register value,
                   bool value_can_be_null);
 
-  void LoadCurrentMethod(Register reg);
-
   Label* GetLabelOf(HBasicBlock* block) const {
     return CommonGetLabelOf<Label>(block_labels_.GetRawStorage(), block);
   }
