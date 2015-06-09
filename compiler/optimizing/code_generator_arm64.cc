@@ -1071,12 +1071,6 @@ void CodeGeneratorARM64::StoreRelease(Primitive::Type type,
   }
 }
 
-void CodeGeneratorARM64::LoadCurrentMethod(vixl::Register current_method) {
-  DCHECK(RequiresCurrentMethod());
-  CHECK(current_method.IsX());
-  __ Ldr(current_method, MemOperand(sp, kCurrentMethodStackOffset));
-}
-
 void CodeGeneratorARM64::InvokeRuntime(int32_t entry_point_offset,
                                        HInstruction* instruction,
                                        uint32_t dex_pc,
@@ -2526,9 +2520,9 @@ void LocationsBuilderARM64::VisitNewArray(HNewArray* instruction) {
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
   InvokeRuntimeCallingConvention calling_convention;
   locations->AddTemp(LocationFrom(calling_convention.GetRegisterAt(0)));
-  locations->AddTemp(LocationFrom(calling_convention.GetRegisterAt(2)));
   locations->SetOut(LocationFrom(x0));
   locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(2)));
   CheckEntrypointTypes<kQuickAllocArrayWithAccessCheck,
                        void*, uint32_t, int32_t, ArtMethod*>();
 }
@@ -2538,9 +2532,6 @@ void InstructionCodeGeneratorARM64::VisitNewArray(HNewArray* instruction) {
   InvokeRuntimeCallingConvention calling_convention;
   Register type_index = RegisterFrom(locations->GetTemp(0), Primitive::kPrimInt);
   DCHECK(type_index.Is(w0));
-  Register current_method = RegisterFrom(locations->GetTemp(1), Primitive::kPrimLong);
-  DCHECK(current_method.Is(x2));
-  codegen_->LoadCurrentMethod(current_method.X());
   __ Mov(type_index, instruction->GetTypeIndex());
   codegen_->InvokeRuntime(
       GetThreadOffset<kArm64WordSize>(instruction->GetEntrypoint()).Int32Value(),
@@ -2555,7 +2546,7 @@ void LocationsBuilderARM64::VisitNewInstance(HNewInstance* instruction) {
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
   InvokeRuntimeCallingConvention calling_convention;
   locations->AddTemp(LocationFrom(calling_convention.GetRegisterAt(0)));
-  locations->AddTemp(LocationFrom(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(1)));
   locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimNot));
   CheckEntrypointTypes<kQuickAllocObjectWithAccessCheck, void*, uint32_t, ArtMethod*>();
 }
@@ -2564,9 +2555,6 @@ void InstructionCodeGeneratorARM64::VisitNewInstance(HNewInstance* instruction) 
   LocationSummary* locations = instruction->GetLocations();
   Register type_index = RegisterFrom(locations->GetTemp(0), Primitive::kPrimInt);
   DCHECK(type_index.Is(w0));
-  Register current_method = RegisterFrom(locations->GetTemp(1), Primitive::kPrimNot);
-  DCHECK(current_method.Is(w1));
-  codegen_->LoadCurrentMethod(current_method.X());
   __ Mov(type_index, instruction->GetTypeIndex());
   codegen_->InvokeRuntime(
       GetThreadOffset<kArm64WordSize>(instruction->GetEntrypoint()).Int32Value(),
