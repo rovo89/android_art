@@ -147,8 +147,16 @@ class InstructionCodeGeneratorARM64 : public HGraphVisitor {
 
 #define DECLARE_VISIT_INSTRUCTION(name, super) \
   void Visit##name(H##name* instr) OVERRIDE;
-  FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
+
+  FOR_EACH_CONCRETE_INSTRUCTION_COMMON(DECLARE_VISIT_INSTRUCTION)
+  FOR_EACH_CONCRETE_INSTRUCTION_ARM64(DECLARE_VISIT_INSTRUCTION)
+
 #undef DECLARE_VISIT_INSTRUCTION
+
+  void VisitInstruction(HInstruction* instruction) OVERRIDE {
+    LOG(FATAL) << "Unreachable instruction " << instruction->DebugName()
+               << " (id " << instruction->GetId() << ")";
+  }
 
   Arm64Assembler* GetAssembler() const { return assembler_; }
   vixl::MacroAssembler* GetVIXLAssembler() { return GetAssembler()->vixl_masm_; }
@@ -188,8 +196,16 @@ class LocationsBuilderARM64 : public HGraphVisitor {
 
 #define DECLARE_VISIT_INSTRUCTION(name, super) \
   void Visit##name(H##name* instr) OVERRIDE;
-  FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
+
+  FOR_EACH_CONCRETE_INSTRUCTION_COMMON(DECLARE_VISIT_INSTRUCTION)
+  FOR_EACH_CONCRETE_INSTRUCTION_ARM64(DECLARE_VISIT_INSTRUCTION)
+
 #undef DECLARE_VISIT_INSTRUCTION
+
+  void VisitInstruction(HInstruction* instruction) OVERRIDE {
+    LOG(FATAL) << "Unreachable instruction " << instruction->DebugName()
+               << " (id " << instruction->GetId() << ")";
+  }
 
  private:
   void HandleBinaryOp(HBinaryOperation* instr);
