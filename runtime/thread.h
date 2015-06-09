@@ -74,6 +74,7 @@ class ClassLinker;
 class Closure;
 class Context;
 struct DebugInvokeReq;
+class DeoptimizationReturnValueRecord;
 class DexFile;
 class JavaVMExt;
 struct JNIEnvExt;
@@ -82,6 +83,7 @@ class Runtime;
 class ScopedObjectAccessAlreadyRunnable;
 class ShadowFrame;
 class SingleStepControl;
+class StackedShadowFrameRecord;
 class Thread;
 class ThreadList;
 
@@ -99,53 +101,9 @@ enum ThreadFlag {
   kCheckpointRequest = 2  // Request that the thread do some checkpoint work and then continue.
 };
 
-enum StackedShadowFrameType {
+enum class StackedShadowFrameType {
   kShadowFrameUnderConstruction,
   kDeoptimizationShadowFrame
-};
-
-class StackedShadowFrameRecord {
- public:
-  StackedShadowFrameRecord(ShadowFrame* shadow_frame,
-                           StackedShadowFrameType type,
-                           StackedShadowFrameRecord* link)
-      : shadow_frame_(shadow_frame),
-        type_(type),
-        link_(link) {}
-
-  ShadowFrame* GetShadowFrame() const { return shadow_frame_; }
-  bool GetType() const { return type_; }
-  StackedShadowFrameRecord* GetLink() const { return link_; }
-
- private:
-  ShadowFrame* const shadow_frame_;
-  const StackedShadowFrameType type_;
-  StackedShadowFrameRecord* const link_;
-
-  DISALLOW_COPY_AND_ASSIGN(StackedShadowFrameRecord);
-};
-
-class DeoptimizationReturnValueRecord {
- public:
-  DeoptimizationReturnValueRecord(const JValue& ret_val,
-                                  bool is_reference,
-                                  DeoptimizationReturnValueRecord* link)
-      : ret_val_(ret_val), is_reference_(is_reference), link_(link) {}
-
-  JValue GetReturnValue() const { return ret_val_; }
-  bool IsReference() const { return is_reference_; }
-  DeoptimizationReturnValueRecord* GetLink() const { return link_; }
-  mirror::Object** GetGCRoot() {
-    DCHECK(is_reference_);
-    return ret_val_.GetGCRoot();
-  }
-
- private:
-  JValue ret_val_;
-  const bool is_reference_;
-  DeoptimizationReturnValueRecord* const link_;
-
-  DISALLOW_COPY_AND_ASSIGN(DeoptimizationReturnValueRecord);
 };
 
 static constexpr size_t kNumRosAllocThreadLocalSizeBrackets = 34;
@@ -1371,6 +1329,7 @@ class ScopedStackedShadowFramePusher {
 };
 
 std::ostream& operator<<(std::ostream& os, const Thread& thread);
+std::ostream& operator<<(std::ostream& os, const StackedShadowFrameType& thread);
 
 }  // namespace art
 
