@@ -2668,9 +2668,10 @@ class HInvokeInterface : public HInvoke {
   DISALLOW_COPY_AND_ASSIGN(HInvokeInterface);
 };
 
-class HNewInstance : public HExpression<0> {
+class HNewInstance : public HExpression<1> {
  public:
-  HNewInstance(uint32_t dex_pc,
+  HNewInstance(HCurrentMethod* current_method,
+               uint32_t dex_pc,
                uint16_t type_index,
                const DexFile& dex_file,
                QuickEntrypointEnum entrypoint)
@@ -2678,7 +2679,9 @@ class HNewInstance : public HExpression<0> {
         dex_pc_(dex_pc),
         type_index_(type_index),
         dex_file_(dex_file),
-        entrypoint_(entrypoint) {}
+        entrypoint_(entrypoint) {
+    SetRawInputAt(0, current_method);
+  }
 
   uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
   uint16_t GetTypeIndex() const { return type_index_; }
@@ -2721,9 +2724,10 @@ class HNeg : public HUnaryOperation {
   DISALLOW_COPY_AND_ASSIGN(HNeg);
 };
 
-class HNewArray : public HExpression<1> {
+class HNewArray : public HExpression<2> {
  public:
   HNewArray(HInstruction* length,
+            HCurrentMethod* current_method,
             uint32_t dex_pc,
             uint16_t type_index,
             const DexFile& dex_file,
@@ -2734,6 +2738,7 @@ class HNewArray : public HExpression<1> {
         dex_file_(dex_file),
         entrypoint_(entrypoint) {
     SetRawInputAt(0, length);
+    SetRawInputAt(1, current_method);
   }
 
   uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
