@@ -15,6 +15,7 @@
  */
 
 #include "compiler_ir.h"
+#include "dataflow_iterator-inl.h"
 #include "mir_graph.h"
 #include "gtest/gtest.h"
 
@@ -372,6 +373,74 @@ TEST_F(TopologicalSortOrderTest, LoopWithTwoEntryPoints) {
   ComputeTopologicalSortOrder();
   CheckOrder(expected_order);
   CheckLoopEnds(loop_ends);
+}
+
+TEST_F(TopologicalSortOrderTest, UnnaturalLoops) {
+  const BBDef bbs[] = {
+      DEF_BB(kNullBlock, DEF_SUCC0(), DEF_PRED0()),
+      DEF_BB(kEntryBlock, DEF_SUCC1(3), DEF_PRED0()),
+      DEF_BB(kExitBlock, DEF_SUCC0(), DEF_PRED1(10)),
+      DEF_BB(kDalvikByteCode, DEF_SUCC2(5, 4), DEF_PRED1(1)),
+      DEF_BB(kDalvikByteCode, DEF_SUCC1(5), DEF_PRED2(11, 3)),  // Unnatural loop head (top-level).
+      DEF_BB(kDalvikByteCode, DEF_SUCC1(6), DEF_PRED2(3, 4)),
+      DEF_BB(kDalvikByteCode, DEF_SUCC2(9, 7), DEF_PRED1(5)),
+      DEF_BB(kDalvikByteCode, DEF_SUCC1(8), DEF_PRED1(6)),
+      DEF_BB(kDalvikByteCode, DEF_SUCC1(9), DEF_PRED2(10, 7)),  // Unnatural loop head (nested).
+      DEF_BB(kDalvikByteCode, DEF_SUCC1(10), DEF_PRED2(6, 8)),
+      DEF_BB(kDalvikByteCode, DEF_SUCC2(8, 11), DEF_PRED1(9)),
+      DEF_BB(kDalvikByteCode, DEF_SUCC2(4, 2), DEF_PRED1(10)),
+  };
+  const BasicBlockId expected_order[] = {
+      1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 2
+  };
+  const uint16_t loop_ends[] = {
+      0, 0, 10, 0, 0, 0, 9, 0, 0, 0, 0,
+  };
+
+  PrepareBasicBlocks(bbs);
+  ComputeTopologicalSortOrder();
+  CheckOrder(expected_order);
+  CheckLoopEnds(loop_ends);
+
+  const std::pair<BasicBlockId, bool> expected_and_change[] = {
+      { 1, false },
+      { 3, false },
+      { 4, true },    // Initial run of the outer loop.
+      { 5, true },
+      { 6, true },
+      { 7, true },
+      { 8, true },    // Initial run of the inner loop.
+      { 9, true },
+      { 10, true },
+      { 8, true },    // Recalculation of the inner loop - changed.
+      { 9, true },
+      { 10, true },
+      { 8, false },   // Recalculation of the inner loop - unchanged.
+      { 11, true },
+      { 4, true },    // Recalculation of the outer loop - changed.
+      { 5, true },
+      { 6, true },
+      { 7, false },   // No change: skip inner loop head because inputs are unchanged.
+      { 9, true },
+      { 10, true },
+      { 8, true },    // Recalculation of the inner loop - changed.
+      { 9, true },
+      { 10, true },
+      { 8, false },   // Recalculation of the inner loop - unchanged.
+      { 11, true },
+      { 4, false },   // Recalculation of the outer loop - unchanged.
+      { 2, false },
+  };
+  size_t pos = 0;
+  LoopRepeatingTopologicalSortIterator iter(cu_.mir_graph.get());
+  bool change = false;
+  for (BasicBlock* bb = iter.Next(change); bb != nullptr; bb = iter.Next(change)) {
+    ASSERT_NE(arraysize(expected_and_change), pos);
+    ASSERT_EQ(expected_and_change[pos].first, bb->id) << pos;
+    change = expected_and_change[pos].second;
+    ++pos;
+  }
+  ASSERT_EQ(arraysize(expected_and_change), pos);
 }
 
 }  // namespace art
