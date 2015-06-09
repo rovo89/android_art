@@ -646,13 +646,8 @@ static HGraph* BuildSSAGraph3(ArenaAllocator* allocator,
   HBasicBlock* block = new (allocator) HBasicBlock(graph);
   graph->AddBlock(block);
   entry->AddSuccessor(block);
-  HInstruction* new_array = new (allocator) HNewArray(
-      constant_10,
-      graph->GetCurrentMethod(),
-      0,
-      Primitive::kPrimInt,
-      graph->GetDexFile(),
-      kQuickAllocArray);
+  HInstruction* new_array = new (allocator)
+      HNewArray(constant_10, 0, Primitive::kPrimInt, graph->GetDexFile(), kQuickAllocArray);
   block->AddInstruction(new_array);
   block->AddInstruction(new (allocator) HGoto());
 
