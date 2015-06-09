@@ -481,7 +481,6 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
                   bool intrinsified = false);
 
   void SetInAt(uint32_t at, Location location) {
-    DCHECK(inputs_.Get(at).IsUnallocated() || inputs_.Get(at).IsInvalid());
     inputs_.Put(at, location);
   }
 
@@ -524,6 +523,8 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
   size_t GetTempCount() const {
     return temps_.Size();
   }
+
+  bool HasTemps() const { return !temps_.IsEmpty(); }
 
   Location Out() const { return output_; }
 

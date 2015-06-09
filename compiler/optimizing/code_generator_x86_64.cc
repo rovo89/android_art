@@ -360,7 +360,7 @@ inline Condition X86_64Condition(IfCondition cond) {
 }
 
 void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
-                                                     CpuRegister temp) {
+                                                     Location temp) {
   // All registers are assumed to be correctly set up.
 
   // TODO: Implement all kinds of calls:
@@ -371,26 +371,28 @@ void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
   // Currently we implement the app -> app logic, which looks up in the resolve cache.
 
   if (invoke->IsStringInit()) {
+    CpuRegister reg = temp.AsRegister<CpuRegister>();
     // temp = thread->string_init_entrypoint
-    __ gs()->movl(temp, Address::Absolute(invoke->GetStringInitOffset()));
+    __ gs()->movl(reg, Address::Absolute(invoke->GetStringInitOffset()));
     // (temp + offset_of_quick_compiled_code)()
-    __ call(Address(temp, ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+    __ call(Address(reg, ArtMethod::EntryPointFromQuickCompiledCodeOffset(
         kX86_64WordSize).SizeValue()));
+  } else if (invoke->IsRecursive()) {
+    __ call(&frame_entry_label_);
   } else {
-    // temp = method;
-    LoadCurrentMethod(temp);
-    if (!invoke->IsRecursive()) {
-      // temp = temp->dex_cache_resolved_methods_;
-      __ movl(temp, Address(temp, ArtMethod::DexCacheResolvedMethodsOffset().SizeValue()));
-      // temp = temp[index_in_cache]
-      __ movq(temp, Address(
-          temp, CodeGenerator::GetCachePointerOffset(invoke->GetDexMethodIndex())));
-      // (temp + offset_of_quick_compiled_code)()
-      __ call(Address(temp, ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-          kX86_64WordSize).SizeValue()));
-    } else {
-      __ call(&frame_entry_label_);
-    }
+    LocationSummary* locations = invoke->GetLocations();
+    CpuRegister reg = temp.AsRegister<CpuRegister>();
+    CpuRegister current_method =
+        locations->InAt(invoke->GetCurrentMethodInputIndex()).AsRegister<CpuRegister>();
+    // temp = temp->dex_cache_resolved_methods_;
+    __ movl(reg, Address(
+        current_method, ArtMethod::DexCacheResolvedMethodsOffset().SizeValue()));
+    // temp = temp[index_in_cache]
+    __ movq(reg, Address(
+        reg, CodeGenerator::GetCachePointerOffset(invoke->GetDexMethodIndex())));
+    // (temp + offset_of_quick_compiled_code)()
+    __ call(Address(reg, ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+        kX86_64WordSize).SizeValue()));
   }
 
   DCHECK(!IsLeafMethod());
@@ -1334,6 +1336,10 @@ void LocationsBuilderX86_64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* in
 
   IntrinsicLocationsBuilderX86_64 intrinsic(codegen_);
   if (intrinsic.TryDispatch(invoke)) {
+    LocationSummary* locations = invoke->GetLocations();
+    if (locations->CanCall()) {
+      locations->SetInAt(invoke->GetCurrentMethodInputIndex(), Location::RequiresRegister());
+    }
     return;
   }
 
@@ -1358,9 +1364,9 @@ void InstructionCodeGeneratorX86_64::VisitInvokeStaticOrDirect(HInvokeStaticOrDi
     return;
   }
 
+  LocationSummary* locations = invoke->GetLocations();
   codegen_->GenerateStaticOrDirectCall(
-      invoke,
-      invoke->GetLocations()->GetTemp(0).AsRegister<CpuRegister>());
+      invoke, locations->HasTemps() ? locations->GetTemp(0) : Location::NoLocation());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
@@ -1390,12 +1396,8 @@ void InstructionCodeGeneratorX86_64::VisitInvokeVirtual(HInvokeVirtual* invoke) 
   Location receiver = locations->InAt(0);
   size_t class_offset = mirror::Object::ClassOffset().SizeValue();
   // temp = object->GetClass();
-  if (receiver.IsStackSlot()) {
-    __ movl(temp, Address(CpuRegister(RSP), receiver.GetStackIndex()));
-    __ movl(temp, Address(temp, class_offset));
-  } else {
-    __ movl(temp, Address(receiver.AsRegister<CpuRegister>(), class_offset));
-  }
+  DCHECK(receiver.IsRegister());
+  __ movl(temp, Address(receiver.AsRegister<CpuRegister>(), class_offset));
   codegen_->MaybeRecordImplicitNullCheck(invoke);
   // temp = temp->GetMethodAt(method_offset);
   __ movq(temp, Address(temp, method_offset));

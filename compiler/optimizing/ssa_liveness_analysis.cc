@@ -242,7 +242,7 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
         HInstruction* input = current->InputAt(i);
         // Some instructions 'inline' their inputs, that is they do not need
         // to be materialized.
-        if (input->HasSsaIndex()) {
+        if (input->HasSsaIndex() && current->GetLocations()->InAt(i).IsValid()) {
           live_in->SetBit(input->GetSsaIndex());
           input->GetLiveInterval()->AddUse(current, /* environment */ nullptr, i);
         }
