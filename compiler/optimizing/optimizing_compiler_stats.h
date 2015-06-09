@@ -19,6 +19,7 @@
 
 #include <sstream>
 #include <string>
+#include <type_traits>
 
 #include "atomic.h"
 
@@ -38,7 +39,6 @@ enum MethodCompilationStat {
   kNotCompiledHugeMethod,
   kNotCompiledLargeMethodNoBranches,
   kNotCompiledNoCodegen,
-  kNotCompiledNonSequentialRegPair,
   kNotCompiledPathological,
   kNotCompiledSpaceFilter,
   kNotCompiledUnhandledInstruction,
@@ -84,14 +84,15 @@ class OptimizingCompilerStats {
 
       for (int i = 0; i < kLastStat; i++) {
         if (compile_stats_[i] != 0) {
-          LOG(INFO) << PrintMethodCompilationStat(i) << ": " << compile_stats_[i];
+          LOG(INFO) << PrintMethodCompilationStat(static_cast<MethodCompilationStat>(i)) << ": "
+              << compile_stats_[i];
         }
       }
     }
   }
 
  private:
-  std::string PrintMethodCompilationStat(int stat) const {
+  std::string PrintMethodCompilationStat(MethodCompilationStat stat) const {
     switch (stat) {
       case kAttemptCompilation : return "kAttemptCompilation";
       case kCompiledBaseline : return "kCompiledBaseline";
@@ -106,7 +107,6 @@ class OptimizingCompilerStats {
       case kNotCompiledHugeMethod : return "kNotCompiledHugeMethod";
       case kNotCompiledLargeMethodNoBranches : return "kNotCompiledLargeMethodNoBranches";
       case kNotCompiledNoCodegen : return "kNotCompiledNoCodegen";
-      case kNotCompiledNonSequentialRegPair : return "kNotCompiledNonSequentialRegPair";
       case kNotCompiledPathological : return "kNotCompiledPathological";
       case kNotCompiledSpaceFilter : return "kNotCompiledSpaceFilter";
       case kNotCompiledUnhandledInstruction : return "kNotCompiledUnhandledInstruction";
@@ -120,9 +120,12 @@ class OptimizingCompilerStats {
       case kRemovedCheckedCast: return "kRemovedCheckedCast";
       case kRemovedDeadInstruction: return "kRemovedDeadInstruction";
       case kRemovedNullCheck: return "kRemovedNullCheck";
-      default: LOG(FATAL) << "invalid stat";
+
+      case kLastStat: break;  // Invalid to print out.
     }
-    return "";
+    LOG(FATAL) << "invalid stat "
+        << static_cast<std::underlying_type<MethodCompilationStat>::type>(stat);
+    UNREACHABLE();
   }
 
   AtomicInteger compile_stats_[kLastStat];
