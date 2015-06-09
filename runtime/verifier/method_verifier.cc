@@ -3372,11 +3372,27 @@ ArtMethod* MethodVerifier::VerifyInvocationArgsFromIterator(
             << " but expected " << reg_type;
         return nullptr;
       }
-    } else if (!work_line_->VerifyRegisterType(this, get_reg, reg_type)) {
-      // Continue on soft failures. We need to find possible hard failures to avoid problems in the
-      // compiler.
-      if (have_pending_hard_failure_) {
-        return nullptr;
+    } else {
+      if (!work_line_->VerifyRegisterType(this, get_reg, reg_type)) {
+        // Continue on soft failures. We need to find possible hard failures to avoid problems in
+        // the compiler.
+        if (have_pending_hard_failure_) {
+          return nullptr;
+        }
+      } else if (reg_type.IsLongOrDoubleTypes()) {
+        // Check that registers are consecutive (for non-range invokes). Invokes are the only
+        // instructions not specifying register pairs by the first component, but require them
+        // nonetheless. Only check when there's an actual register in the parameters. If there's
+        // none, this will fail below.
+        if (!is_range && sig_registers + 1 < expected_args) {
+          uint32_t second_reg = arg[sig_registers + 1];
+          if (second_reg != get_reg + 1) {
+            Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Rejecting invocation, long or double parameter "
+                "at index " << sig_registers << " is not a pair: " << get_reg << " + "
+                << second_reg << ".";
+            return nullptr;
+          }
+        }
       }
     }
     sig_registers += reg_type.IsLongOrDoubleTypes() ?  2 : 1;
