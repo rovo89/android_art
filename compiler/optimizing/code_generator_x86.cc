@@ -1231,10 +1231,6 @@ void LocationsBuilderX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invok
 
   IntrinsicLocationsBuilderX86 intrinsic(codegen_);
   if (intrinsic.TryDispatch(invoke)) {
-    LocationSummary* locations = invoke->GetLocations();
-    if (locations->CanCall()) {
-      locations->SetInAt(invoke->GetCurrentMethodInputIndex(), Location::RequiresRegister());
-    }
     return;
   }
 
@@ -3237,7 +3233,7 @@ void CodeGeneratorX86::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
     if (current_method.IsRegister()) {
       method_reg = current_method.AsRegister<Register>();
     } else {
-      DCHECK(IsBaseline());
+      DCHECK(IsBaseline() || invoke->GetLocations()->Intrinsified());
       DCHECK(!current_method.IsValid());
       method_reg = reg;
       __ movl(reg, Address(ESP, kCurrentMethodStackOffset));
