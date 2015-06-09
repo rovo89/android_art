@@ -380,13 +380,20 @@ void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
   } else if (invoke->IsRecursive()) {
     __ call(&frame_entry_label_);
   } else {
-    LocationSummary* locations = invoke->GetLocations();
     CpuRegister reg = temp.AsRegister<CpuRegister>();
-    CpuRegister current_method =
-        locations->InAt(invoke->GetCurrentMethodInputIndex()).AsRegister<CpuRegister>();
+    Location current_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
+    Register method_reg;
+    if (current_method.IsRegister()) {
+      method_reg = current_method.AsRegister<Register>();
+    } else {
+      DCHECK(invoke->GetLocations()->Intrinsified());
+      DCHECK(!current_method.IsValid());
+      method_reg = reg.AsRegister();
+      __ movq(reg, Address(CpuRegister(RSP), kCurrentMethodStackOffset));
+    }
     // temp = temp->dex_cache_resolved_methods_;
-    __ movl(reg, Address(
-        current_method, ArtMethod::DexCacheResolvedMethodsOffset().SizeValue()));
+    __ movl(reg, Address(CpuRegister(method_reg),
+                         ArtMethod::DexCacheResolvedMethodsOffset().SizeValue()));
     // temp = temp[index_in_cache]
     __ movq(reg, Address(
         reg, CodeGenerator::GetCachePointerOffset(invoke->GetDexMethodIndex())));
@@ -1336,10 +1343,6 @@ void LocationsBuilderX86_64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* in
 
   IntrinsicLocationsBuilderX86_64 intrinsic(codegen_);
   if (intrinsic.TryDispatch(invoke)) {
-    LocationSummary* locations = invoke->GetLocations();
-    if (locations->CanCall()) {
-      locations->SetInAt(invoke->GetCurrentMethodInputIndex(), Location::RequiresRegister());
-    }
     return;
   }
 

@@ -2227,10 +2227,6 @@ void LocationsBuilderARM64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* inv
 
   IntrinsicLocationsBuilderARM64 intrinsic(GetGraph()->GetArena());
   if (intrinsic.TryDispatch(invoke)) {
-    LocationSummary* locations = invoke->GetLocations();
-    if (locations->CanCall()) {
-      locations->SetInAt(invoke->GetCurrentMethodInputIndex(), Location::RequiresRegister());
-    }
     return;
   }
 
@@ -2269,11 +2265,20 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
   } else if (invoke->IsRecursive()) {
     __ Bl(&frame_entry_label_);
   } else {
-    Register current_method =
-        XRegisterFrom(invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex()));
+    Location current_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
     Register reg = XRegisterFrom(temp);
+    Register method_reg;
+    if (current_method.IsRegister()) {
+      method_reg = XRegisterFrom(current_method);
+    } else {
+      DCHECK(invoke->GetLocations()->Intrinsified());
+      DCHECK(!current_method.IsValid());
+      method_reg = reg;
+      __ Ldr(reg.X(), MemOperand(sp, kCurrentMethodStackOffset));
+    }
+
     // temp = current_method->dex_cache_resolved_methods_;
-    __ Ldr(reg.W(), MemOperand(current_method.X(),
+    __ Ldr(reg.W(), MemOperand(method_reg.X(),
                                ArtMethod::DexCacheResolvedMethodsOffset().Int32Value()));
     // temp = temp[index_in_cache];
     __ Ldr(reg.X(), MemOperand(reg, index_in_cache));
