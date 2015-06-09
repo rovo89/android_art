@@ -62,7 +62,7 @@ void HInliner::Run() {
       if (call != nullptr && call->GetIntrinsic() == Intrinsics::kNone) {
         // We use the original invoke type to ensure the resolution of the called method
         // works properly.
-        if (!TryInline(call, call->GetDexMethodIndex(), call->GetOriginalInvokeType())) {
+        if (!TryInline(call, call->GetDexMethodIndex())) {
           if (kIsDebugBuild) {
             std::string callee_name =
                 PrettyMethod(call->GetDexMethodIndex(), *outer_compilation_unit_.GetDexFile());
@@ -83,22 +83,18 @@ void HInliner::Run() {
   }
 }
 
-bool HInliner::TryInline(HInvoke* invoke_instruction,
-                         uint32_t method_index,
-                         InvokeType invoke_type) const {
+bool HInliner::TryInline(HInvoke* invoke_instruction, uint32_t method_index) const {
   ScopedObjectAccess soa(Thread::Current());
   const DexFile& caller_dex_file = *caller_compilation_unit_.GetDexFile();
   VLOG(compiler) << "Try inlining " << PrettyMethod(method_index, caller_dex_file);
 
-  StackHandleScope<3> hs(soa.Self());
-  Handle<mirror::DexCache> dex_cache(
-      hs.NewHandle(caller_compilation_unit_.GetClassLinker()->FindDexCache(caller_dex_file)));
-  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
-      soa.Decode<mirror::ClassLoader*>(caller_compilation_unit_.GetClassLoader())));
-  ArtMethod* resolved_method(compiler_driver_->ResolveMethod(
-      soa, dex_cache, class_loader, &caller_compilation_unit_, method_index, invoke_type));
+  ClassLinker* class_linker = caller_compilation_unit_.GetClassLinker();
+  // We can query the dex cache directly. The verifier has populated it already.
+  ArtMethod* resolved_method = class_linker->FindDexCache(caller_dex_file)->GetResolvedMethod(
+      method_index, class_linker->GetImagePointerSize());
 
   if (resolved_method == nullptr) {
+    // Method cannot be resolved if it is in another dex file we do not have access to.
     VLOG(compiler) << "Method cannot be resolved " << PrettyMethod(method_index, caller_dex_file);
     return false;
   }
@@ -200,13 +196,19 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
     }
   }
 
+  InvokeType invoke_type = invoke_instruction->GetOriginalInvokeType();
+  if (invoke_type == kInterface) {
+    // We have statically resolved the dispatch. To please the class linker
+    // at runtime, we change this call as if it was a virtual call.
+    invoke_type = kVirtual;
+  }
   HGraph* callee_graph = new (graph_->GetArena()) HGraph(
       graph_->GetArena(),
       caller_dex_file,
       method_index,
       requires_ctor_barrier,
       compiler_driver_->GetInstructionSet(),
-      invoke_instruction->GetOriginalInvokeType(),
+      invoke_type,
       graph_->IsDebuggable(),
       graph_->GetCurrentInstructionId());
 
