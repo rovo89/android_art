@@ -465,7 +465,9 @@ bool DexFileVerifier::CheckClassDataItemField(uint32_t idx, uint32_t access_flag
 }
 
 bool DexFileVerifier::CheckClassDataItemMethod(uint32_t idx, uint32_t access_flags,
-                                               uint32_t code_offset, bool expect_direct) {
+                                               uint32_t code_offset,
+                                               std::unordered_set<uint32_t>& direct_method_indexes,
+                                               bool expect_direct) {
   if (!CheckIndex(idx, header_->method_ids_size_, "class_data_item method_idx")) {
     return false;
   }
@@ -477,6 +479,13 @@ bool DexFileVerifier::CheckClassDataItemMethod(uint32_t idx, uint32_t access_fla
 
   if (UNLIKELY(is_direct != expect_direct)) {
     ErrorStringPrintf("Direct/virtual method not in expected list");
+    return false;
+  }
+
+  if (expect_direct) {
+    direct_method_indexes.insert(idx);
+  } else if (direct_method_indexes.find(idx) != direct_method_indexes.end()) {
+    ErrorStringPrintf("Found virtual method with same index as direct method: %d", idx);
     return false;
   }
 
@@ -682,6 +691,7 @@ bool DexFileVerifier::CheckEncodedAnnotation() {
 
 bool DexFileVerifier::CheckIntraClassDataItem() {
   ClassDataItemIterator it(*dex_file_, ptr_);
+  std::unordered_set<uint32_t> direct_method_indexes;
 
   // These calls use the raw access flags to check whether the whole dex field is valid.
 
@@ -697,13 +707,13 @@ bool DexFileVerifier::CheckIntraClassDataItem() {
   }
   for (; it.HasNextDirectMethod(); it.Next()) {
     if (!CheckClassDataItemMethod(it.GetMemberIndex(), it.GetRawMemberAccessFlags(),
-        it.GetMethodCodeItemOffset(), true)) {
+        it.GetMethodCodeItemOffset(), direct_method_indexes, true)) {
       return false;
     }
   }
   for (; it.HasNextVirtualMethod(); it.Next()) {
     if (!CheckClassDataItemMethod(it.GetMemberIndex(), it.GetRawMemberAccessFlags(),
-        it.GetMethodCodeItemOffset(), false)) {
+        it.GetMethodCodeItemOffset(), direct_method_indexes, false)) {
       return false;
     }
   }
