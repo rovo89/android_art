@@ -186,32 +186,91 @@ bool InstructionSimplifierVisitor::IsDominatedByInputNullCheck(HInstruction* ins
   return false;
 }
 
-void InstructionSimplifierVisitor::VisitCheckCast(HCheckCast* check_cast) {
-  HLoadClass* load_class = check_cast->InputAt(1)->AsLoadClass();
-  if (!check_cast->InputAt(0)->CanBeNull() || IsDominatedByInputNullCheck(check_cast)) {
-    check_cast->ClearMustDoNullCheck();
-  }
-
-  if (!load_class->IsResolved()) {
+// Returns whether doing a type test between the class of `object` against `klass` has
+// a statically known outcome. The result of the test is stored in `outcome`.
+static bool TypeCheckHasKnownOutcome(HLoadClass* klass, HInstruction* object, bool* outcome) {
+  if (!klass->IsResolved()) {
     // If the class couldn't be resolve it's not safe to compare against it. It's
     // default type would be Top which might be wider that the actual class type
     // and thus producing wrong results.
-    return;
+    return false;
   }
-  ReferenceTypeInfo obj_rti = check_cast->InputAt(0)->GetReferenceTypeInfo();
-  ReferenceTypeInfo class_rti = load_class->GetLoadedClassRTI();
+
+  ReferenceTypeInfo obj_rti = object->GetReferenceTypeInfo();
+  ReferenceTypeInfo class_rti = klass->GetLoadedClassRTI();
   ScopedObjectAccess soa(Thread::Current());
   if (class_rti.IsSupertypeOf(obj_rti)) {
+    *outcome = true;
+    return true;
+  } else if (obj_rti.IsExact()) {
+    // The test failed at compile time so will also fail at runtime.
+    *outcome = false;
+    return true;
+  } else if (!class_rti.IsInterface() && !obj_rti.IsSupertypeOf(class_rti)) {
+    // Different type hierarchy. The test will fail.
+    *outcome = false;
+    return true;
+  }
+  return false;
+}
+
+void InstructionSimplifierVisitor::VisitCheckCast(HCheckCast* check_cast) {
+  HInstruction* object = check_cast->InputAt(0);
+  if (!object->CanBeNull() || IsDominatedByInputNullCheck(check_cast)) {
+    check_cast->ClearMustDoNullCheck();
+  }
+
+  if (object->IsNullConstant()) {
     check_cast->GetBlock()->RemoveInstruction(check_cast);
     if (stats_ != nullptr) {
       stats_->RecordStat(MethodCompilationStat::kRemovedCheckedCast);
+    }
+    return;
+  }
+
+  bool outcome;
+  if (TypeCheckHasKnownOutcome(check_cast->InputAt(1)->AsLoadClass(), object, &outcome)) {
+    if (outcome) {
+      check_cast->GetBlock()->RemoveInstruction(check_cast);
+      if (stats_ != nullptr) {
+        stats_->RecordStat(MethodCompilationStat::kRemovedCheckedCast);
+      }
+    } else {
+      // Don't do anything for exceptional cases for now. Ideally we should remove
+      // all instructions and blocks this instruction dominates.
     }
   }
 }
 
 void InstructionSimplifierVisitor::VisitInstanceOf(HInstanceOf* instruction) {
-  if (!instruction->InputAt(0)->CanBeNull() || IsDominatedByInputNullCheck(instruction)) {
+  HInstruction* object = instruction->InputAt(0);
+  bool can_be_null = true;
+  if (!object->CanBeNull() || IsDominatedByInputNullCheck(instruction)) {
+    can_be_null = false;
     instruction->ClearMustDoNullCheck();
+  }
+
+  HGraph* graph = GetGraph();
+  if (object->IsNullConstant()) {
+    instruction->ReplaceWith(graph->GetIntConstant(0));
+    instruction->GetBlock()->RemoveInstruction(instruction);
+    RecordSimplification();
+    return;
+  }
+
+  bool outcome;
+  if (TypeCheckHasKnownOutcome(instruction->InputAt(1)->AsLoadClass(), object, &outcome)) {
+    if (outcome && can_be_null) {
+      // Type test will succeed, we just need a null test.
+      HNotEqual* test = new (graph->GetArena()) HNotEqual(graph->GetNullConstant(), object);
+      instruction->GetBlock()->InsertInstructionBefore(test, instruction);
+      instruction->ReplaceWith(test);
+    } else {
+      // We've statically determined the result of the instanceof.
+      instruction->ReplaceWith(graph->GetIntConstant(outcome));
+    }
+    RecordSimplification();
+    instruction->GetBlock()->RemoveInstruction(instruction);
   }
 }
 

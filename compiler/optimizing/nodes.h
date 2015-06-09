@@ -1281,6 +1281,9 @@ class ReferenceTypeInfo : ValueObject {
 
   bool IsExact() const { return is_exact_; }
   bool IsTop() const { return is_top_; }
+  bool IsInterface() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return !IsTop() && GetTypeHandle()->IsInterface();
+  }
 
   Handle<mirror::Class> GetTypeHandle() const { return type_handle_; }
 
