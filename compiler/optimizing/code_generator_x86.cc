@@ -527,11 +527,6 @@ void CodeGeneratorX86::Bind(HBasicBlock* block) {
   __ Bind(GetLabelOf(block));
 }
 
-void CodeGeneratorX86::LoadCurrentMethod(Register reg) {
-  DCHECK(RequiresCurrentMethod());
-  __ movl(reg, Address(ESP, kCurrentMethodStackOffset));
-}
-
 Location CodeGeneratorX86::GetStackLocation(HLoadLocal* load) const {
   switch (load->GetType()) {
     case Primitive::kPrimLong:
@@ -2972,14 +2967,12 @@ void LocationsBuilderX86::VisitNewInstance(HNewInstance* instruction) {
   locations->SetOut(Location::RegisterLocation(EAX));
   InvokeRuntimeCallingConvention calling_convention;
   locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
 }
 
 void InstructionCodeGeneratorX86::VisitNewInstance(HNewInstance* instruction) {
   InvokeRuntimeCallingConvention calling_convention;
-  codegen_->LoadCurrentMethod(calling_convention.GetRegisterAt(1));
   __ movl(calling_convention.GetRegisterAt(0), Immediate(instruction->GetTypeIndex()));
-
   __ fs()->call(Address::Absolute(GetThreadOffset<kX86WordSize>(instruction->GetEntrypoint())));
 
   codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
@@ -2992,13 +2985,12 @@ void LocationsBuilderX86::VisitNewArray(HNewArray* instruction) {
   locations->SetOut(Location::RegisterLocation(EAX));
   InvokeRuntimeCallingConvention calling_convention;
   locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
   locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
 }
 
 void InstructionCodeGeneratorX86::VisitNewArray(HNewArray* instruction) {
   InvokeRuntimeCallingConvention calling_convention;
-  codegen_->LoadCurrentMethod(calling_convention.GetRegisterAt(2));
   __ movl(calling_convention.GetRegisterAt(0), Immediate(instruction->GetTypeIndex()));
 
   __ fs()->call(Address::Absolute(GetThreadOffset<kX86WordSize>(instruction->GetEntrypoint())));
