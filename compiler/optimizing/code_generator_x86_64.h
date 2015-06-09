@@ -263,8 +263,6 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   // Helper method to move a value between two locations.
   void Move(Location destination, Location source);
 
-  void LoadCurrentMethod(CpuRegister reg);
-
   Label* GetLabelOf(HBasicBlock* block) const {
     return CommonGetLabelOf<Label>(block_labels_.GetRawStorage(), block);
   }
