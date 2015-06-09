@@ -296,6 +296,10 @@ if [ "$RELOCATE" = "y" ]; then
 else
     FLAGS="$FLAGS -Xnorelocate"
     COMPILE_FLAGS="${COMPILE_FLAGS} --runtime-arg -Xnorelocate"
+    if [ "$HOST" = "y" ]; then
+        # Increase ulimit to 64MB in case we are running hprof test.
+        ulimit -S 64000 || exit 1
+    fi
 fi
 
 if [ "$HOST" = "n" ]; then
