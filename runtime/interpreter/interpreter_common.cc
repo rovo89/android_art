@@ -518,7 +518,7 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
     // We might need to do class loading, which incurs a thread state change to kNative. So
     // register the shadow frame as under construction and allow suspension again.
     ScopedStackedShadowFramePusher pusher(
-        self, new_shadow_frame, kShadowFrameUnderConstruction);
+        self, new_shadow_frame, StackedShadowFrameType::kShadowFrameUnderConstruction);
     self->EndAssertNoThreadSuspension(old_cause);
 
     // We need to do runtime check on reference assignment. We need to load the shorty
