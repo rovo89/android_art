@@ -181,10 +181,16 @@ inline BasicBlock* LoopRepeatingTopologicalSortIterator::Next(bool had_change) {
     idx_ += 1;
     BasicBlock* bb = mir_graph_->GetBasicBlock((*block_id_list_)[idx]);
     DCHECK(bb != nullptr);
+    if ((*loop_ends_)[idx] != 0u) {
+      // If bb->visited is false, the loop needs to be processed from scratch.
+      // Otherwise we mark it as recalculating; for a natural loop we will not
+      // need to recalculate any block in the loop anyway, and for unnatural
+      // loops we will recalculate the loop head only if one of its predecessors
+      // actually changes.
+      bool recalculating = bb->visited;
+      loop_head_stack_->push_back(std::make_pair(idx, recalculating));
+    }
     if (!bb->visited) {
-      if ((*loop_ends_)[idx] != 0u) {
-        loop_head_stack_->push_back(std::make_pair(idx, false));  // Not recalculating.
-      }
       return bb;
     }
   }
