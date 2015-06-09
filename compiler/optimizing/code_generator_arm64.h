@@ -150,6 +150,8 @@ class InstructionCodeGeneratorARM64 : public HGraphVisitor {
   FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
 #undef DECLARE_VISIT_INSTRUCTION
 
+  void LoadCurrentMethod(XRegister reg);
+
   Arm64Assembler* GetAssembler() const { return assembler_; }
   vixl::MacroAssembler* GetVIXLAssembler() { return GetAssembler()->vixl_masm_; }
 
