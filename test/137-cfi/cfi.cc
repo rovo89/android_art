@@ -94,6 +94,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_unwindInProcess(JNIEnv*, jobject
   std::vector<std::string> seq = {
       "Java_Main_unwindInProcess",                   // This function.
       "boolean Main.unwindInProcess(int, boolean)",  // The corresponding Java native method frame.
+      "int java.util.Arrays.binarySearch(java.lang.Object[], int, int, java.lang.Object, java.util.Comparator)",  // Framework method.
       "void Main.main(java.lang.String[])"           // The Java entry method.
   };
 
@@ -185,6 +186,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_unwindOtherProcess(JNIEnv*, jobj
                                                      // Note: For some reason, the name isn't
                                                      // resolved, so don't look for it right now.
         "boolean Main.sleep(int, boolean, double)",  // The corresponding Java native method frame.
+        "int java.util.Arrays.binarySearch(java.lang.Object[], int, int, java.lang.Object, java.util.Comparator)",  // Framework method.
         "void Main.main(java.lang.String[])"         // The Java entry method.
     };
 
