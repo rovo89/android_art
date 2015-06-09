@@ -292,7 +292,6 @@ void CodeGenerator::CreateCommonInvokeLocationSummary(
     HInvoke* invoke, InvokeDexCallingConventionVisitor* visitor) {
   ArenaAllocator* allocator = invoke->GetBlock()->GetGraph()->GetArena();
   LocationSummary* locations = new (allocator) LocationSummary(invoke, LocationSummary::kCall);
-  locations->AddTemp(visitor->GetMethodLocation());
 
   for (size_t i = 0; i < invoke->GetNumberOfArguments(); i++) {
     HInstruction* input = invoke->InputAt(i);
@@ -300,6 +299,20 @@ void CodeGenerator::CreateCommonInvokeLocationSummary(
   }
 
   locations->SetOut(visitor->GetReturnLocation(invoke->GetType()));
+
+  if (invoke->IsInvokeStaticOrDirect()) {
+    HInvokeStaticOrDirect* call = invoke->AsInvokeStaticOrDirect();
+    if (call->IsStringInit()) {
+      locations->AddTemp(visitor->GetMethodLocation());
+    } else if (call->IsRecursive()) {
+      locations->SetInAt(call->GetCurrentMethodInputIndex(), visitor->GetMethodLocation());
+    } else {
+      locations->AddTemp(visitor->GetMethodLocation());
+      locations->SetInAt(call->GetCurrentMethodInputIndex(), Location::RequiresRegister());
+    }
+  } else {
+    locations->AddTemp(visitor->GetMethodLocation());
+  }
 }
 
 void CodeGenerator::BlockIfInRegister(Location location, bool is_out) const {

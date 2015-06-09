@@ -263,7 +263,7 @@ class CodeGeneratorX86 : public CodeGenerator {
   void Move64(Location destination, Location source);
 
   // Generate a call to a static or direct method.
-  void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Register temp);
+  void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp);
 
   // Emit a write barrier.
   void MarkGCCard(Register temp,
