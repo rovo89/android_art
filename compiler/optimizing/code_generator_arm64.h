@@ -150,8 +150,6 @@ class InstructionCodeGeneratorARM64 : public HGraphVisitor {
   FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
 #undef DECLARE_VISIT_INSTRUCTION
 
-  void LoadCurrentMethod(XRegister reg);
-
   Arm64Assembler* GetAssembler() const { return assembler_; }
   vixl::MacroAssembler* GetVIXLAssembler() { return GetAssembler()->vixl_masm_; }
 
@@ -328,7 +326,6 @@ class CodeGeneratorARM64 : public CodeGenerator {
                     Primitive::Type type = Primitive::kPrimVoid);
   void Load(Primitive::Type type, vixl::CPURegister dst, const vixl::MemOperand& src);
   void Store(Primitive::Type type, vixl::CPURegister rt, const vixl::MemOperand& dst);
-  void LoadCurrentMethod(vixl::Register current_method);
   void LoadAcquire(HInstruction* instruction, vixl::CPURegister dst, const vixl::MemOperand& src);
   void StoreRelease(Primitive::Type type, vixl::CPURegister rt, const vixl::MemOperand& dst);
 
