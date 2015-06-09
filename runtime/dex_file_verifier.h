@@ -59,6 +59,7 @@ class DexFileVerifier {
                                  uint32_t* handler_offsets, uint32_t handlers_size);
   bool CheckClassDataItemField(uint32_t idx, uint32_t access_flags, bool expect_static);
   bool CheckClassDataItemMethod(uint32_t idx, uint32_t access_flags, uint32_t code_offset,
+                                std::unordered_set<uint32_t>& direct_method_indexes,
                                 bool expect_direct);
   bool CheckPadding(size_t offset, uint32_t aligned_offset);
   bool CheckEncodedValue();
