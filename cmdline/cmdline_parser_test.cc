@@ -262,6 +262,13 @@ TEST_F(CmdlineParserTest, TestLogVerbosity) {
   EXPECT_SINGLE_PARSE_FAIL("-verbose:blablabla", CmdlineResult::kUsage);  // invalid verbose opt
 
   {
+    const char* log_args = "-verbose:deopt";
+    LogVerbosity log_verbosity = LogVerbosity();
+    log_verbosity.deopt = true;
+    EXPECT_SINGLE_PARSE_VALUE(log_verbosity, log_args, M::Verbose);
+  }
+
+  {
     const char* log_args = "-verbose:oat";
     LogVerbosity log_verbosity = LogVerbosity();
     log_verbosity.oat = true;
