@@ -56,7 +56,7 @@ namespace interpreter {
 template<bool do_access_check, bool transaction_active>
 JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
                          ShadowFrame& shadow_frame, JValue result_register) {
-  bool do_assignability_check = do_access_check;
+  constexpr bool do_assignability_check = do_access_check;
   if (UNLIKELY(!shadow_frame.HasReferenceArray())) {
     LOG(FATAL) << "Invalid shadow frame for interpreter use";
     return JValue();

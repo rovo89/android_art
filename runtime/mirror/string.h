@@ -95,7 +95,7 @@ class MANAGED String FINAL : public Object {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template <bool kIsInstrumented>
-  ALWAYS_INLINE static String* AllocFromCharArray(Thread* self, int32_t array_length,
+  ALWAYS_INLINE static String* AllocFromCharArray(Thread* self, int32_t count,
                                                   Handle<CharArray> array, int32_t offset,
                                                   gc::AllocatorType allocator_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

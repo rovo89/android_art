@@ -98,7 +98,7 @@ bool VerifiedMethod::GenerateGcMap(verifier::MethodVerifier* method_verifier) {
   }
   size_t ref_bitmap_bytes = RoundUp(ref_bitmap_bits, kBitsPerByte) / kBitsPerByte;
   // There are 2 bytes to encode the number of entries.
-  if (num_entries >= 65536) {
+  if (num_entries > std::numeric_limits<uint16_t>::max()) {
     LOG(WARNING) << "Cannot encode GC map for method with " << num_entries << " entries: "
                  << PrettyMethod(method_verifier->GetMethodReference().dex_method_index,
                                  *method_verifier->GetMethodReference().dex_file);
