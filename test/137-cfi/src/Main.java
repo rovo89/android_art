@@ -20,8 +20,10 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.Comparator;
 
-public class Main {
+public class Main implements Comparator<Main> {
   // Whether to test local unwinding. Libunwind uses linker info to find executables. As we do
   // not dlopen at the moment, this doesn't work, so keep it off for now.
   public final static boolean TEST_LOCAL_UNWINDING = false;
@@ -31,6 +33,8 @@ public class Main {
   public final static boolean TEST_REMOTE_UNWINDING = true;
 
   private boolean secondary;
+
+  private boolean passed;
 
   public Main(boolean secondary) {
       this.secondary = secondary;
@@ -60,13 +64,13 @@ public class Main {
   }
 
   private void runSecondary() {
-      foo(true);
+      foo();
       throw new RuntimeException("Didn't expect to get back...");
   }
 
   private void runPrimary() {
       // First do the in-process unwinding.
-      if (TEST_LOCAL_UNWINDING && !foo(false)) {
+      if (TEST_LOCAL_UNWINDING && !foo()) {
           System.out.println("Unwinding self failed.");
       }
 
@@ -134,8 +138,19 @@ public class Main {
       }
   }
 
-  public boolean foo(boolean b) {
-      return bar(b);
+  public boolean foo() {
+      // Call bar via Arrays.binarySearch.
+      // This tests that we can unwind from framework code.
+      Main[] array = { this, this, this };
+      Arrays.binarySearch(array, 0, 3, this /* value */, this /* comparator */);
+      return passed;
+  }
+
+  public int compare(Main lhs, Main rhs) {
+      passed = bar(secondary);
+      // Returning "equal" ensures that we terminate search
+      // after first item and thus call bar() only once.
+      return 0;
   }
 
   public boolean bar(boolean b) {
