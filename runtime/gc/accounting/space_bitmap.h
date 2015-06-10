@@ -188,14 +188,15 @@ class SpaceBitmap {
 
   std::string Dump() const;
 
+  // Helper function for computing bitmap size based on a 64 bit capacity.
+  static size_t ComputeBitmapSize(uint64_t capacity);
+  static size_t ComputeHeapSize(uint64_t bitmap_bytes);
+
  private:
   // TODO: heap_end_ is initialized so that the heap bitmap is empty, this doesn't require the -1,
   // however, we document that this is expected on heap_end_
   SpaceBitmap(const std::string& name, MemMap* mem_map, uintptr_t* bitmap_begin, size_t bitmap_size,
               const void* heap_begin);
-
-  // Helper function for computing bitmap size based on a 64 bit capacity.
-  static size_t ComputeBitmapSize(uint64_t capacity);
 
   template<bool kSetBit>
   bool Modify(const mirror::Object* obj);

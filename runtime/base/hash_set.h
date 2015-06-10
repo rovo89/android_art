@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include <utility>
 
+#include "bit_utils.h"
 #include "logging.h"
 
 namespace art {
@@ -121,6 +122,7 @@ class HashSet {
   typedef BaseIterator<T, HashSet> Iterator;
   typedef BaseIterator<const T, const HashSet> ConstIterator;
 
+  // If we don't own the data, this will create a new array which owns the data.
   void Clear() {
     DeallocateStorage();
     AllocateStorage(1);
@@ -128,17 +130,68 @@ class HashSet {
     elements_until_expand_ = 0;
   }
 
-  HashSet() : num_elements_(0), num_buckets_(0), data_(nullptr),
+  HashSet() : num_elements_(0), num_buckets_(0), owns_data_(false), data_(nullptr),
       min_load_factor_(kDefaultMinLoadFactor), max_load_factor_(kDefaultMaxLoadFactor) {
     Clear();
   }
 
-  HashSet(const HashSet& other) : num_elements_(0), num_buckets_(0), data_(nullptr) {
+  HashSet(const HashSet& other) : num_elements_(0), num_buckets_(0), owns_data_(false),
+      data_(nullptr) {
     *this = other;
   }
 
-  HashSet(HashSet&& other) : num_elements_(0), num_buckets_(0), data_(nullptr) {
+  HashSet(HashSet&& other) : num_elements_(0), num_buckets_(0), owns_data_(false),
+      data_(nullptr) {
     *this = std::move(other);
+  }
+
+  // Construct from existing data.
+  // Read from a block of memory, if make_copy_of_data is false, then data_ points to within the
+  // passed in ptr_.
+  HashSet(const uint8_t* ptr, bool make_copy_of_data, size_t* read_count) {
+    uint64_t temp;
+    size_t offset = 0;
+    offset = ReadFromBytes(ptr, offset, &temp);
+    num_elements_ = static_cast<uint64_t>(temp);
+    offset = ReadFromBytes(ptr, offset, &temp);
+    num_buckets_ = static_cast<uint64_t>(temp);
+    CHECK_LE(num_elements_, num_buckets_);
+    offset = ReadFromBytes(ptr, offset, &temp);
+    elements_until_expand_ = static_cast<uint64_t>(temp);
+    offset = ReadFromBytes(ptr, offset, &min_load_factor_);
+    offset = ReadFromBytes(ptr, offset, &max_load_factor_);
+    if (!make_copy_of_data) {
+      owns_data_ = false;
+      data_ = const_cast<T*>(reinterpret_cast<const T*>(ptr + offset));
+      offset += sizeof(*data_) * num_buckets_;
+    } else {
+      AllocateStorage(num_buckets_);
+      // Write elements, not that this may not be safe for cross compilation if the elements are
+      // pointer sized.
+      for (size_t i = 0; i < num_buckets_; ++i) {
+        offset = ReadFromBytes(ptr, offset, &data_[i]);
+      }
+    }
+    // Caller responsible for aligning.
+    *read_count = offset;
+  }
+
+  // Returns how large the table is after being written. If target is null, then no writing happens
+  // but the size is still returned. Target must be 8 byte aligned.
+  size_t WriteToMemory(uint8_t* ptr) {
+    size_t offset = 0;
+    offset = WriteToBytes(ptr, offset, static_cast<uint64_t>(num_elements_));
+    offset = WriteToBytes(ptr, offset, static_cast<uint64_t>(num_buckets_));
+    offset = WriteToBytes(ptr, offset, static_cast<uint64_t>(elements_until_expand_));
+    offset = WriteToBytes(ptr, offset, min_load_factor_);
+    offset = WriteToBytes(ptr, offset, max_load_factor_);
+    // Write elements, not that this may not be safe for cross compilation if the elements are
+    // pointer sized.
+    for (size_t i = 0; i < num_buckets_; ++i) {
+      offset = WriteToBytes(ptr, offset, data_[i]);
+    }
+    // Caller responsible for aligning.
+    return offset;
   }
 
   ~HashSet() {
@@ -152,6 +205,7 @@ class HashSet {
     std::swap(elements_until_expand_, other.elements_until_expand_);
     std::swap(min_load_factor_, other.min_load_factor_);
     std::swap(max_load_factor_, other.max_load_factor_);
+    std::swap(owns_data_, other.owns_data_);
     return *this;
   }
 
@@ -386,6 +440,7 @@ class HashSet {
   void AllocateStorage(size_t num_buckets) {
     num_buckets_ = num_buckets;
     data_ = allocfn_.allocate(num_buckets_);
+    owns_data_ = true;
     for (size_t i = 0; i < num_buckets_; ++i) {
       allocfn_.construct(allocfn_.address(data_[i]));
       emptyfn_.MakeEmpty(data_[i]);
@@ -394,10 +449,13 @@ class HashSet {
 
   void DeallocateStorage() {
     if (num_buckets_ != 0) {
-      for (size_t i = 0; i < NumBuckets(); ++i) {
-        allocfn_.destroy(allocfn_.address(data_[i]));
+      if (owns_data_) {
+        for (size_t i = 0; i < NumBuckets(); ++i) {
+          allocfn_.destroy(allocfn_.address(data_[i]));
+        }
+        allocfn_.deallocate(data_, NumBuckets());
+        owns_data_ = false;
       }
-      allocfn_.deallocate(data_, NumBuckets());
       data_ = nullptr;
       num_buckets_ = 0;
     }
@@ -418,18 +476,23 @@ class HashSet {
   // Expand / shrink the table to the new specified size.
   void Resize(size_t new_size) {
     DCHECK_GE(new_size, Size());
-    T* old_data = data_;
+    T* const old_data = data_;
     size_t old_num_buckets = num_buckets_;
     // Reinsert all of the old elements.
+    const bool owned_data = owns_data_;
     AllocateStorage(new_size);
     for (size_t i = 0; i < old_num_buckets; ++i) {
       T& element = old_data[i];
       if (!emptyfn_.IsEmpty(element)) {
         data_[FirstAvailableSlot(IndexForHash(hashfn_(element)))] = std::move(element);
       }
-      allocfn_.destroy(allocfn_.address(element));
+      if (owned_data) {
+        allocfn_.destroy(allocfn_.address(element));
+      }
     }
-    allocfn_.deallocate(old_data, old_num_buckets);
+    if (owned_data) {
+      allocfn_.deallocate(old_data, old_num_buckets);
+    }
   }
 
   ALWAYS_INLINE size_t FirstAvailableSlot(size_t index) const {
@@ -439,6 +502,24 @@ class HashSet {
     return index;
   }
 
+  // Return new offset.
+  template <typename Elem>
+  static size_t WriteToBytes(uint8_t* ptr, size_t offset, Elem n) {
+    DCHECK_ALIGNED(ptr + offset, sizeof(n));
+    if (ptr != nullptr) {
+      *reinterpret_cast<Elem*>(ptr + offset) = n;
+    }
+    return offset + sizeof(n);
+  }
+
+  template <typename Elem>
+  static size_t ReadFromBytes(const uint8_t* ptr, size_t offset, Elem* out) {
+    DCHECK(ptr != nullptr);
+    DCHECK_ALIGNED(ptr + offset, sizeof(*out));
+    *out = *reinterpret_cast<const Elem*>(ptr + offset);
+    return offset + sizeof(*out);
+  }
+
   Alloc allocfn_;  // Allocator function.
   HashFn hashfn_;  // Hashing function.
   EmptyFn emptyfn_;  // IsEmpty/SetEmpty function.
@@ -446,6 +527,7 @@ class HashSet {
   size_t num_elements_;  // Number of inserted elements.
   size_t num_buckets_;  // Number of hash table buckets.
   size_t elements_until_expand_;  // Maxmimum number of elements until we expand the table.
+  bool owns_data_;  // If we own data_ and are responsible for freeing it.
   T* data_;  // Backing storage.
   double min_load_factor_;
   double max_load_factor_;
