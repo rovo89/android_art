@@ -106,12 +106,16 @@ class MANAGED ArtMethod FINAL : public Object {
   }
 
   // Returns true if the method is static, private, or a constructor.
-  bool IsDirect() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return IsDirect(GetAccessFlags());
+  bool IsDirect(bool ignore_xposed = false) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return IsDirect(GetAccessFlags(), ignore_xposed);
   }
 
-  static bool IsDirect(uint32_t access_flags) {
-    return (access_flags & (kAccStatic | kAccPrivate | kAccConstructor)) != 0;
+  static bool IsDirect(uint32_t access_flags, bool ignore_xposed = false) {
+    uint32_t mask = kAccStatic | kAccPrivate | kAccConstructor;
+    if (LIKELY(!ignore_xposed)) {
+      mask |= kAccXposedOriginalMethod;
+    }
+    return (access_flags & mask) != 0;
   }
 
   // Returns true if the method is declared synchronized.
@@ -145,7 +149,7 @@ class MANAGED ArtMethod FINAL : public Object {
     return (GetAccessFlags() & kAccSynthetic) != 0;
   }
 
-  bool IsProxyMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool IsProxyMethod(bool ignore_xposed = false) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsPreverified() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccPreverified) != 0;

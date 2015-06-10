@@ -2388,7 +2388,7 @@ bool ClassLinker::FindOatMethodFor(mirror::ArtMethod* method, OatFile::OatMethod
   // method for direct methods (or virtual methods made direct).
   mirror::Class* declaring_class = method->GetDeclaringClass();
   size_t oat_method_index;
-  if (method->IsStatic() || method->IsDirect()) {
+  if (method->IsStatic() || method->IsDirect(true)) {
     // Simple case where the oat method index was stashed at load time.
     oat_method_index = method->GetMethodIndex();
   } else {

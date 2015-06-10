@@ -120,8 +120,8 @@ size_t ArtMethod::NumArgRegisters(const StringPiece& shorty) {
   return num_registers;
 }
 
-bool ArtMethod::IsProxyMethod() {
-  return GetDeclaringClass()->IsProxyClass() || IsXposedHookedMethod();
+bool ArtMethod::IsProxyMethod(bool ignore_xposed) {
+  return GetDeclaringClass()->IsProxyClass() || (!ignore_xposed && IsXposedHookedMethod());
 }
 
 ArtMethod* ArtMethod::FindOverriddenMethod() {
@@ -409,7 +409,7 @@ void ArtMethod::EnableXposedHook(JNIEnv* env, jobject additional_info) {
   // Create a backup of the ArtMethod object
   ArtMethod* backup_method = down_cast<ArtMethod*>(Clone(soa.Self()));
   // Set private flag to avoid virtual table lookups during invocation
-  backup_method->SetAccessFlags(backup_method->GetAccessFlags() | kAccPrivate | kAccXposedOriginalMethod);
+  backup_method->SetAccessFlags(backup_method->GetAccessFlags() | kAccXposedOriginalMethod);
 
   // Create a Method/Constructor object for the backup ArtMethod object
   jobject reflect_method;
