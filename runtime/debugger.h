@@ -23,6 +23,7 @@
 
 #include <pthread.h>
 
+#include <list>
 #include <map>
 #include <set>
 #include <string>
@@ -32,7 +33,6 @@
 #include "jdwp/jdwp.h"
 #include "jni.h"
 #include "jvalue.h"
-#include "object_callbacks.h"
 #include "thread_state.h"
 
 namespace art {
@@ -41,7 +41,6 @@ class Class;
 class Object;
 class Throwable;
 }  // namespace mirror
-class AllocRecord;
 class ArtField;
 class ArtMethod;
 class ObjectRegistry;
@@ -202,19 +201,6 @@ std::ostream& operator<<(std::ostream& os, const DeoptimizationRequest::Kind& rh
 
 class Dbg {
  public:
-  class TypeCache {
-   public:
-    // Returns a weak global for the input type. Deduplicates.
-    jobject Add(mirror::Class* t) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_,
-                                                        Locks::alloc_tracker_lock_);
-    // Clears the type cache and deletes all the weak global refs.
-    void Clear() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_,
-                                       Locks::alloc_tracker_lock_);
-
-   private:
-    std::multimap<int32_t, jobject> objects_;
-  };
-
   static void SetJdwpAllowed(bool allowed);
 
   static void StartJdwp();
@@ -655,19 +641,12 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
-   * Recent allocation tracking support.
+   * Allocation tracking support.
    */
-  static void RecordAllocation(Thread* self, mirror::Class* type, size_t byte_count)
-      LOCKS_EXCLUDED(Locks::alloc_tracker_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void SetAllocTrackingEnabled(bool enabled) LOCKS_EXCLUDED(Locks::alloc_tracker_lock_);
-  static bool IsAllocTrackingEnabled() {
-    return recent_allocation_records_ != nullptr;
-  }
   static jbyteArray GetRecentAllocations()
       LOCKS_EXCLUDED(Locks::alloc_tracker_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static size_t HeadIndex() EXCLUSIVE_LOCKS_REQUIRED(Locks::alloc_tracker_lock_);
   static void DumpRecentAllocations() LOCKS_EXCLUDED(Locks::alloc_tracker_lock_);
 
   enum HpifWhen {
@@ -755,11 +734,6 @@ class Dbg {
   static bool IsForcedInterpreterNeededForUpcallImpl(Thread* thread, ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static AllocRecord* recent_allocation_records_ PT_GUARDED_BY(Locks::alloc_tracker_lock_);
-  static size_t alloc_record_max_ GUARDED_BY(Locks::alloc_tracker_lock_);
-  static size_t alloc_record_head_ GUARDED_BY(Locks::alloc_tracker_lock_);
-  static size_t alloc_record_count_ GUARDED_BY(Locks::alloc_tracker_lock_);
-
   // Indicates whether the debugger is making requests.
   static bool gDebuggerActive;
 
@@ -784,9 +758,6 @@ class Dbg {
 
   static size_t* GetReferenceCounterForEvent(uint32_t instrumentation_event);
 
-  // Weak global type cache, TODO improve this.
-  static TypeCache type_cache_ GUARDED_BY(Locks::alloc_tracker_lock_);
-
   // Instrumentation event reference counters.
   // TODO we could use an array instead of having all these dedicated counters. Instrumentation
   // events are bits of a mask so we could convert them to array index.
@@ -798,7 +769,6 @@ class Dbg {
   static size_t exception_catch_event_ref_count_ GUARDED_BY(Locks::deoptimization_lock_);
   static uint32_t instrumentation_events_ GUARDED_BY(Locks::mutator_lock_);
 
-  friend class AllocRecord;  // For type_cache_ with proper annotalysis.
   DISALLOW_COPY_AND_ASSIGN(Dbg);
 };
 

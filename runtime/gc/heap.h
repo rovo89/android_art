@@ -58,6 +58,7 @@ namespace mirror {
 
 namespace gc {
 
+class AllocRecordObjectMap;
 class ReferenceProcessor;
 class TaskProcessor;
 
@@ -683,6 +684,27 @@ class Heap {
   void DumpGcCountRateHistogram(std::ostream& os) const;
   void DumpBlockingGcCountRateHistogram(std::ostream& os) const;
 
+  // Allocation tracking support
+  // Callers to this function use double-checked locking to ensure safety on allocation_records_
+  bool IsAllocTrackingEnabled() const {
+    return alloc_tracking_enabled_.LoadRelaxed();
+  }
+
+  void SetAllocTrackingEnabled(bool enabled) EXCLUSIVE_LOCKS_REQUIRED(Locks::alloc_tracker_lock_) {
+    alloc_tracking_enabled_.StoreRelaxed(enabled);
+  }
+
+  AllocRecordObjectMap* GetAllocationRecords() const
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::alloc_tracker_lock_) {
+    return allocation_records_.get();
+  }
+
+  void SetAllocationRecords(AllocRecordObjectMap* records)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::alloc_tracker_lock_);
+
+  void SweepAllocationRecords(IsMarkedCallback* visitor, void* arg) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  private:
   class ConcurrentGCTask;
   class CollectorTransitionTask;
@@ -1190,6 +1212,11 @@ class Heap {
   Histogram<uint64_t> gc_count_rate_histogram_ GUARDED_BY(gc_complete_lock_);
   // The histogram of the number of blocking GC invocations per window duration.
   Histogram<uint64_t> blocking_gc_count_rate_histogram_ GUARDED_BY(gc_complete_lock_);
+
+  // Allocation tracking support
+  Atomic<bool> alloc_tracking_enabled_;
+  std::unique_ptr<AllocRecordObjectMap> allocation_records_
+      GUARDED_BY(Locks::alloc_tracker_lock_);
 
   friend class CollectorTransitionTask;
   friend class collector::GarbageCollector;
