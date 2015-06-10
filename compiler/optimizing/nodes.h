@@ -824,7 +824,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
   DISALLOW_COPY_AND_ASSIGN(HLoopInformationOutwardIterator);
 };
 
-#define FOR_EACH_CONCRETE_INSTRUCTION(M)                                \
+#define FOR_EACH_CONCRETE_INSTRUCTION_COMMON(M)                         \
   M(Add, BinaryOperation)                                               \
   M(And, BinaryOperation)                                               \
   M(ArrayGet, Instruction)                                              \
@@ -893,6 +893,21 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(TypeConversion, Instruction)                                        \
   M(UShr, BinaryOperation)                                              \
   M(Xor, BinaryOperation)                                               \
+
+#define FOR_EACH_CONCRETE_INSTRUCTION_ARM(M)
+
+#define FOR_EACH_CONCRETE_INSTRUCTION_ARM64(M)
+
+#define FOR_EACH_CONCRETE_INSTRUCTION_X86(M)
+
+#define FOR_EACH_CONCRETE_INSTRUCTION_X86_64(M)
+
+#define FOR_EACH_CONCRETE_INSTRUCTION(M)                                \
+  FOR_EACH_CONCRETE_INSTRUCTION_COMMON(M)                               \
+  FOR_EACH_CONCRETE_INSTRUCTION_ARM(M)                                  \
+  FOR_EACH_CONCRETE_INSTRUCTION_ARM64(M)                                \
+  FOR_EACH_CONCRETE_INSTRUCTION_X86(M)                                  \
+  FOR_EACH_CONCRETE_INSTRUCTION_X86_64(M)
 
 #define FOR_EACH_INSTRUCTION(M)                                         \
   FOR_EACH_CONCRETE_INSTRUCTION(M)                                      \
