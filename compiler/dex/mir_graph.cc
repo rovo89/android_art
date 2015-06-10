@@ -173,7 +173,7 @@ int MIRGraph::ParseInsn(const uint16_t* code_ptr, MIR::DecodedInstruction* decod
   decoded_instruction->vB = inst->HasVRegB() ? inst->VRegB() : 0;
   decoded_instruction->vB_wide = inst->HasWideVRegB() ? inst->WideVRegB() : 0;
   decoded_instruction->vC = inst->HasVRegC() ?  inst->VRegC() : 0;
-  if (inst->HasVarArgs()) {
+  if (inst->HasVarArgs35c()) {
     inst->GetVarArgs(decoded_instruction->arg);
   }
   return inst->SizeInCodeUnits();

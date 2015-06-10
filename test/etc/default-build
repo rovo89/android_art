@@ -18,6 +18,7 @@
 set -e
 
 DX_FLAGS=""
+SKIP_DX_MERGER="false"
 
 while true; do
   if [ "x$1" = "x--dx-option" ]; then
@@ -38,22 +39,36 @@ if [ -e classes.dex ]; then
   exit 0
 fi
 
-mkdir classes
-${JAVAC} -implicit:none -classpath src-multidex -d classes `find src -name '*.java'`
+if [ -d src ]; then
+  mkdir classes
+  ${JAVAC} -implicit:none -classpath src-multidex -d classes `find src -name '*.java'`
+fi
 
 if [ -d src2 ]; then
+  mkdir -p classes
   ${JAVAC} -d classes `find src2 -name '*.java'`
 fi
 
-if [ ${NEED_DEX} = "true" ]; then
+if ! [ -d src ] && ! [ -d src2 ]; then
+  # No src directory? Then forget about trying to run dx.
+  SKIP_DX_MERGER="true"
+fi
+
+if [ ${NEED_DEX} = "true" -a ${SKIP_DX_MERGER} = "false" ]; then
   ${DX} -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex \
     --dump-width=1000 ${DX_FLAGS} classes
 fi
 
 if [ -d smali ]; then
   # Compile Smali classes
-  ${SMALI} -JXmx256m --output smali_classes.dex `find smali -name '*.smali'`
-  ${DXMERGER} classes.dex classes.dex smali_classes.dex
+  ${SMALI} -JXmx256m --experimental --api-level 23 --output smali_classes.dex `find smali -name '*.smali'`
+
+  # Don't bother with dexmerger if we provide our own main function in a smali file.
+  if [ ${SKIP_DX_MERGER} = "false" ]; then
+    ${DXMERGER} classes.dex classes.dex smali_classes.dex
+  else
+    mv smali_classes.dex classes.dex
+  fi
 fi
 
 if [ -d src-ex ]; then

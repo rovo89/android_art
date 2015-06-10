@@ -480,12 +480,28 @@ void AbortTransactionV(Thread* self, const char* fmt, va_list args) {
   Runtime::Current()->AbortTransactionAndThrowAbortError(self, abort_msg);
 }
 
+// Separate declaration is required solely for the attributes.
+template<bool is_range, bool do_assignability_check> SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+static inline bool DoCallCommon(ArtMethod* called_method,
+                                Thread* self,
+                                ShadowFrame& shadow_frame,
+                                JValue* result,
+                                uint16_t number_of_inputs,
+                                uint32_t arg[Instruction::kMaxVarArgRegs],
+                                uint32_t vregC) ALWAYS_INLINE;
+
 template<bool is_range, bool do_assignability_check>
-bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
-            const Instruction* inst, uint16_t inst_data, JValue* result) {
+static inline bool DoCallCommon(ArtMethod* called_method,
+                                Thread* self,
+                                ShadowFrame& shadow_frame,
+                                JValue* result,
+                                uint16_t number_of_inputs,
+                                uint32_t arg[Instruction::kMaxVarArgRegs],
+                                uint32_t vregC) {
   bool string_init = false;
   // Replace calls to String.<init> with equivalent StringFactory call.
-  if (called_method->GetDeclaringClass()->IsStringClass() && called_method->IsConstructor()) {
+  if (UNLIKELY(called_method->GetDeclaringClass()->IsStringClass()
+               && called_method->IsConstructor())) {
     ScopedObjectAccessUnchecked soa(self);
     jmethodID mid = soa.EncodeMethod(called_method);
     called_method = soa.DecodeMethod(WellKnownClasses::StringInitToStringFactoryMethodID(mid));
@@ -494,28 +510,56 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
 
   // Compute method information.
   const DexFile::CodeItem* code_item = called_method->GetCodeItem();
-  const uint16_t num_ins = (is_range) ? inst->VRegA_3rc(inst_data) : inst->VRegA_35c(inst_data);
+
+  // Number of registers for the callee's call frame.
   uint16_t num_regs;
   if (LIKELY(code_item != nullptr)) {
     num_regs = code_item->registers_size_;
-    DCHECK_EQ(string_init ? num_ins - 1 : num_ins, code_item->ins_size_);
+    DCHECK_EQ(string_init ? number_of_inputs - 1 : number_of_inputs, code_item->ins_size_);
   } else {
     DCHECK(called_method->IsNative() || called_method->IsProxyMethod());
-    num_regs = num_ins;
-    if (string_init) {
-      // The new StringFactory call is static and has one fewer argument.
-      num_regs--;
-    }
+    num_regs = number_of_inputs;
   }
 
+  // Hack for String init:
+  //
+  // Rewrite invoke-x java.lang.String.<init>(this, a, b, c, ...) into:
+  //         invoke-x StringFactory(a, b, c, ...)
+  // by effectively dropping the first virtual register from the invoke.
+  //
+  // (at this point the ArtMethod has already been replaced,
+  // so we just need to fix-up the arguments)
+  uint32_t string_init_vreg_this = is_range ? vregC : arg[0];
+  if (UNLIKELY(code_item == nullptr && string_init)) {
+    DCHECK(called_method->IsNative() || called_method->IsProxyMethod());
+
+    DCHECK_GT(num_regs, 0u);  // As the method is an instance method, there should be at least 1.
+    // The new StringFactory call is static and has one fewer argument.
+    num_regs--;
+    number_of_inputs--;
+
+    // Rewrite the var-args, dropping the 0th argument ("this")
+    for (uint32_t i = 1; i < Instruction::kMaxVarArgRegs; ++i) {
+      arg[i - 1] = arg[i];
+    }
+    arg[Instruction::kMaxVarArgRegs - 1] = 0;
+
+    // Rewrite the non-var-arg case
+    vregC++;  // Skips the 0th vreg in the range ("this").
+  }
+
+  // Parameter registers go at the end of the shadow frame.
+  DCHECK_GE(num_regs, number_of_inputs);
+  size_t first_dest_reg = num_regs - number_of_inputs;
+  DCHECK_NE(first_dest_reg, (size_t)-1);
+
   // Allocate shadow frame on the stack.
-  const char* old_cause = self->StartAssertNoThreadSuspension("DoCall");
+  const char* old_cause = self->StartAssertNoThreadSuspension("DoCallCommon");
   void* memory = alloca(ShadowFrame::ComputeSize(num_regs));
   ShadowFrame* new_shadow_frame(ShadowFrame::Create(num_regs, &shadow_frame, called_method, 0,
                                                     memory));
 
-  // Initialize new shadow frame.
-  size_t first_dest_reg = num_regs - num_ins;
+  // Initialize new shadow frame by copying the registers from the callee shadow frame.
   if (do_assignability_check) {
     // Slow path.
     // We might need to do class loading, which incurs a thread state change to kNative. So
@@ -530,33 +574,23 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
     uint32_t shorty_len = 0;
     const char* shorty = new_shadow_frame->GetMethod()->GetShorty(&shorty_len);
 
-    // TODO: find a cleaner way to separate non-range and range information without duplicating
-    //       code.
-    uint32_t arg[5];  // only used in invoke-XXX.
-    uint32_t vregC;   // only used in invoke-XXX-range.
-    if (is_range) {
-      vregC = inst->VRegC_3rc();
-    } else {
-      inst->GetVarArgs(arg, inst_data);
-    }
-
     // Handle receiver apart since it's not part of the shorty.
     size_t dest_reg = first_dest_reg;
     size_t arg_offset = 0;
+
     if (!new_shadow_frame->GetMethod()->IsStatic()) {
       size_t receiver_reg = is_range ? vregC : arg[0];
       new_shadow_frame->SetVRegReference(dest_reg, shadow_frame.GetVRegReference(receiver_reg));
       ++dest_reg;
       ++arg_offset;
-    } else if (string_init) {
-      // Skip the referrer for the new static StringFactory call.
-      ++dest_reg;
-      ++arg_offset;
     }
+
+    // Copy the caller's invoke-* arguments into the callee's parameter registers.
     for (uint32_t shorty_pos = 0; dest_reg < num_regs; ++shorty_pos, ++dest_reg, ++arg_offset) {
       DCHECK_LT(shorty_pos + 1, shorty_len);
       const size_t src_reg = (is_range) ? vregC + arg_offset : arg[arg_offset];
       switch (shorty[shorty_pos + 1]) {
+        // Handle Object references. 1 virtual register slot.
         case 'L': {
           Object* o = shadow_frame.GetVRegReference(src_reg);
           if (do_assignability_check && o != nullptr) {
@@ -581,50 +615,40 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
           new_shadow_frame->SetVRegReference(dest_reg, o);
           break;
         }
+        // Handle doubles and longs. 2 consecutive virtual register slots.
         case 'J': case 'D': {
-          uint64_t wide_value = (static_cast<uint64_t>(shadow_frame.GetVReg(src_reg + 1)) << 32) |
-                                static_cast<uint32_t>(shadow_frame.GetVReg(src_reg));
+          uint64_t wide_value =
+              (static_cast<uint64_t>(shadow_frame.GetVReg(src_reg + 1)) << BitSizeOf<uint32_t>()) |
+               static_cast<uint32_t>(shadow_frame.GetVReg(src_reg));
           new_shadow_frame->SetVRegLong(dest_reg, wide_value);
+          // Skip the next virtual register slot since we already used it.
           ++dest_reg;
           ++arg_offset;
           break;
         }
+        // Handle all other primitives that are always 1 virtual register slot.
         default:
           new_shadow_frame->SetVReg(dest_reg, shadow_frame.GetVReg(src_reg));
           break;
       }
     }
   } else {
+    size_t arg_index = 0;
+
     // Fast path: no extra checks.
     if (is_range) {
-      uint16_t first_src_reg = inst->VRegC_3rc();
-      if (string_init) {
-        // Skip the referrer for the new static StringFactory call.
-        ++first_src_reg;
-        ++first_dest_reg;
-      }
+      // TODO: Implement the range version of invoke-lambda
+      uint16_t first_src_reg = vregC;
+
       for (size_t src_reg = first_src_reg, dest_reg = first_dest_reg; dest_reg < num_regs;
           ++dest_reg, ++src_reg) {
         AssignRegister(new_shadow_frame, shadow_frame, dest_reg, src_reg);
       }
     } else {
-      DCHECK_LE(num_ins, 5U);
-      uint16_t regList = inst->Fetch16(2);
-      uint16_t count = num_ins;
-      size_t arg_index = 0;
-      if (count == 5) {
-        AssignRegister(new_shadow_frame, shadow_frame, first_dest_reg + 4U,
-                       (inst_data >> 8) & 0x0f);
-        --count;
-      }
-      if (string_init) {
-        // Skip the referrer for the new static StringFactory call.
-        regList >>= 4;
-        ++first_dest_reg;
-        --count;
-      }
-      for (; arg_index < count; ++arg_index, regList >>= 4) {
-        AssignRegister(new_shadow_frame, shadow_frame, first_dest_reg + arg_index, regList & 0x0f);
+      DCHECK_LE(number_of_inputs, Instruction::kMaxVarArgRegs);
+
+      for (; arg_index < number_of_inputs; ++arg_index) {
+        AssignRegister(new_shadow_frame, shadow_frame, first_dest_reg + arg_index, arg[arg_index]);
       }
     }
     self->EndAssertNoThreadSuspension(old_cause);
@@ -660,8 +684,7 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
 
   if (string_init && !self->IsExceptionPending()) {
     // Set the new string result of the StringFactory.
-    uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
-    shadow_frame.SetVRegReference(vregC, result->GetL());
+    shadow_frame.SetVRegReference(string_init_vreg_this, result->GetL());
     // Overwrite all potential copies of the original result of the new-instance of string with the
     // new result of the StringFactory. Use the verifier to find this set of registers.
     ArtMethod* method = shadow_frame.GetMethod();
@@ -690,6 +713,56 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
   }
 
   return !self->IsExceptionPending();
+}
+
+template<bool is_range, bool do_assignability_check>
+bool DoLambdaCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
+                  const Instruction* inst, uint16_t inst_data, JValue* result) {
+  const uint4_t num_additional_registers = inst->VRegB_25x();
+  // Argument word count.
+  const uint16_t number_of_inputs = num_additional_registers + 1;
+  // The first input register is always present and is not encoded in the count.
+
+  // TODO: find a cleaner way to separate non-range and range information without duplicating
+  //       code.
+  uint32_t arg[Instruction::kMaxVarArgRegs];  // only used in invoke-XXX.
+  uint32_t vregC = 0;   // only used in invoke-XXX-range.
+  if (is_range) {
+    vregC = inst->VRegC_3rc();
+  } else {
+    // TODO(iam): See if it's possible to remove inst_data dependency from 35x to avoid this path
+    UNUSED(inst_data);
+    inst->GetAllArgs25x(arg);
+  }
+
+  // TODO: if there's an assignability check, throw instead?
+  DCHECK(called_method->IsStatic());
+
+  return DoCallCommon<is_range, do_assignability_check>(
+      called_method, self, shadow_frame,
+      result, number_of_inputs, arg, vregC);
+}
+
+template<bool is_range, bool do_assignability_check>
+bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
+            const Instruction* inst, uint16_t inst_data, JValue* result) {
+  // Argument word count.
+  const uint16_t number_of_inputs = (is_range) ? inst->VRegA_3rc(inst_data) : inst->VRegA_35c(inst_data);
+
+  // TODO: find a cleaner way to separate non-range and range information without duplicating
+  //       code.
+  uint32_t arg[Instruction::kMaxVarArgRegs];  // only used in invoke-XXX.
+  uint32_t vregC = 0;
+  if (is_range) {
+    vregC = inst->VRegC_3rc();
+  } else {
+    vregC = inst->VRegC_35c();
+    inst->GetVarArgs(arg, inst_data);
+  }
+
+  return DoCallCommon<is_range, do_assignability_check>(
+      called_method, self, shadow_frame,
+      result, number_of_inputs, arg, vregC);
 }
 
 template <bool is_range, bool do_access_check, bool transaction_active>
@@ -733,8 +806,8 @@ bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
     DCHECK(self->IsExceptionPending());
     return false;
   }
-  uint32_t arg[5];  // only used in filled-new-array.
-  uint32_t vregC;   // only used in filled-new-array-range.
+  uint32_t arg[Instruction::kMaxVarArgRegs];  // only used in filled-new-array.
+  uint32_t vregC = 0;   // only used in filled-new-array-range.
   if (is_range) {
     vregC = inst->VRegC_3rc();
   } else {
@@ -814,6 +887,20 @@ EXPLICIT_DO_CALL_TEMPLATE_DECL(false, true);
 EXPLICIT_DO_CALL_TEMPLATE_DECL(true, false);
 EXPLICIT_DO_CALL_TEMPLATE_DECL(true, true);
 #undef EXPLICIT_DO_CALL_TEMPLATE_DECL
+
+// Explicit DoLambdaCall template function declarations.
+#define EXPLICIT_DO_LAMBDA_CALL_TEMPLATE_DECL(_is_range, _do_assignability_check)               \
+  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                          \
+  bool DoLambdaCall<_is_range, _do_assignability_check>(ArtMethod* method, Thread* self,        \
+                                                        ShadowFrame& shadow_frame,              \
+                                                        const Instruction* inst,                \
+                                                        uint16_t inst_data,                     \
+                                                        JValue* result)
+EXPLICIT_DO_LAMBDA_CALL_TEMPLATE_DECL(false, false);
+EXPLICIT_DO_LAMBDA_CALL_TEMPLATE_DECL(false, true);
+EXPLICIT_DO_LAMBDA_CALL_TEMPLATE_DECL(true, false);
+EXPLICIT_DO_LAMBDA_CALL_TEMPLATE_DECL(true, true);
+#undef EXPLICIT_DO_LAMBDA_CALL_TEMPLATE_DECL
 
 // Explicit DoFilledNewArray template function declarations.
 #define EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(_is_range_, _check, _transaction_active)       \
