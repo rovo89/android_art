@@ -29,6 +29,7 @@
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
 #include "gc/accounting/card_table-inl.h"
+#include "gc/allocation_record.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
 #include "handle_scope.h"
@@ -61,126 +62,29 @@ namespace art {
 // The key identifying the debugger to update instrumentation.
 static constexpr const char* kDbgInstrumentationKey = "Debugger";
 
-static const size_t kMaxAllocRecordStackDepth = 16;  // Max 255.
-static const size_t kDefaultNumAllocRecords = 64*1024;  // Must be a power of 2. 2BE can hold 64k-1.
-
-// Limit alloc_record_count to the 2BE value that is the limit of the current protocol.
+// Limit alloc_record_count to the 2BE value (64k-1) that is the limit of the current protocol.
 static uint16_t CappedAllocRecordCount(size_t alloc_record_count) {
-  if (alloc_record_count > 0xffff) {
-    return 0xffff;
+  size_t cap = 0xffff;
+#ifdef HAVE_ANDROID_OS
+  // Check whether there's a system property overriding the number of recent records.
+  const char* propertyName = "dalvik.vm.recentAllocMax";
+  char recentAllocMaxString[PROPERTY_VALUE_MAX];
+  if (property_get(propertyName, recentAllocMaxString, "") > 0) {
+    char* end;
+    size_t value = strtoul(recentAllocMaxString, &end, 10);
+    if (*end != '\0') {
+      LOG(ERROR) << "Ignoring  " << propertyName << " '" << recentAllocMaxString
+                 << "' --- invalid";
+    } else {
+      cap = value;
+    }
+  }
+#endif
+  if (alloc_record_count > cap) {
+    return cap;
   }
   return alloc_record_count;
 }
-
-class AllocRecordStackTraceElement {
- public:
-  AllocRecordStackTraceElement() : method_(nullptr), dex_pc_(0) {
-  }
-
-  int32_t LineNumber() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    ArtMethod* method = Method();
-    DCHECK(method != nullptr);
-    return method->GetLineNumFromDexPC(DexPc());
-  }
-
-  ArtMethod* Method() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    ScopedObjectAccessUnchecked soa(Thread::Current());
-    return soa.DecodeMethod(method_);
-  }
-
-  void SetMethod(ArtMethod* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    ScopedObjectAccessUnchecked soa(Thread::Current());
-    method_ = soa.EncodeMethod(m);
-  }
-
-  uint32_t DexPc() const {
-    return dex_pc_;
-  }
-
-  void SetDexPc(uint32_t pc) {
-    dex_pc_ = pc;
-  }
-
- private:
-  jmethodID method_;
-  uint32_t dex_pc_;
-};
-
-jobject Dbg::TypeCache::Add(mirror::Class* t) {
-  ScopedObjectAccessUnchecked soa(Thread::Current());
-  JNIEnv* const env = soa.Env();
-  ScopedLocalRef<jobject> local_ref(soa.Env(), soa.AddLocalReference<jobject>(t));
-  const int32_t hash_code = soa.Decode<mirror::Class*>(local_ref.get())->IdentityHashCode();
-  auto range = objects_.equal_range(hash_code);
-  for (auto it = range.first; it != range.second; ++it) {
-    if (soa.Decode<mirror::Class*>(it->second) == soa.Decode<mirror::Class*>(local_ref.get())) {
-      // Found a matching weak global, return it.
-      return it->second;
-    }
-  }
-  const jobject weak_global = env->NewWeakGlobalRef(local_ref.get());
-  objects_.insert(std::make_pair(hash_code, weak_global));
-  return weak_global;
-}
-
-void Dbg::TypeCache::Clear() {
-  JavaVMExt* vm = Runtime::Current()->GetJavaVM();
-  Thread* self = Thread::Current();
-  for (const auto& p : objects_) {
-    vm->DeleteWeakGlobalRef(self, p.second);
-  }
-  objects_.clear();
-}
-
-class AllocRecord {
- public:
-  AllocRecord() : type_(nullptr), byte_count_(0), thin_lock_id_(0) {}
-
-  mirror::Class* Type() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return down_cast<mirror::Class*>(Thread::Current()->DecodeJObject(type_));
-  }
-
-  void SetType(mirror::Class* t) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_,
-                                                       Locks::alloc_tracker_lock_) {
-    type_ = Dbg::type_cache_.Add(t);
-  }
-
-  size_t GetDepth() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    size_t depth = 0;
-    while (depth < kMaxAllocRecordStackDepth && stack_[depth].Method() != nullptr) {
-      ++depth;
-    }
-    return depth;
-  }
-
-  size_t ByteCount() const {
-    return byte_count_;
-  }
-
-  void SetByteCount(size_t count) {
-    byte_count_ = count;
-  }
-
-  uint16_t ThinLockId() const {
-    return thin_lock_id_;
-  }
-
-  void SetThinLockId(uint16_t id) {
-    thin_lock_id_ = id;
-  }
-
-  AllocRecordStackTraceElement* StackElement(size_t index) {
-    DCHECK_LT(index, kMaxAllocRecordStackDepth);
-    return &stack_[index];
-  }
-
- private:
-  jobject type_;  // This is a weak global.
-  size_t byte_count_;
-  uint16_t thin_lock_id_;
-  // Unused entries have null method.
-  AllocRecordStackTraceElement stack_[kMaxAllocRecordStackDepth];
-};
 
 class Breakpoint {
  public:
@@ -381,13 +285,6 @@ static Dbg::HpsgWhat gDdmNhsgWhat;
 bool Dbg::gDebuggerActive = false;
 bool Dbg::gDisposed = false;
 ObjectRegistry* Dbg::gRegistry = nullptr;
-
-// Recent allocation tracking.
-AllocRecord* Dbg::recent_allocation_records_ = nullptr;  // TODO: CircularBuffer<AllocRecord>
-size_t Dbg::alloc_record_max_ = 0;
-size_t Dbg::alloc_record_head_ = 0;
-size_t Dbg::alloc_record_count_ = 0;
-Dbg::TypeCache Dbg::type_cache_;
 
 // Deoptimization support.
 std::vector<DeoptimizationRequest> Dbg::deoptimization_requests_;
@@ -4665,177 +4562,41 @@ void Dbg::DdmSendHeapSegments(bool native) {
   Dbg::DdmSendChunk(native ? CHUNK_TYPE("NHEN") : CHUNK_TYPE("HPEN"), sizeof(heap_id), heap_id);
 }
 
-static size_t GetAllocTrackerMax() {
-#ifdef HAVE_ANDROID_OS
-  // Check whether there's a system property overriding the number of records.
-  const char* propertyName = "dalvik.vm.allocTrackerMax";
-  char allocRecordMaxString[PROPERTY_VALUE_MAX];
-  if (property_get(propertyName, allocRecordMaxString, "") > 0) {
-    char* end;
-    size_t value = strtoul(allocRecordMaxString, &end, 10);
-    if (*end != '\0') {
-      LOG(ERROR) << "Ignoring  " << propertyName << " '" << allocRecordMaxString
-                 << "' --- invalid";
-      return kDefaultNumAllocRecords;
-    }
-    if (!IsPowerOfTwo(value)) {
-      LOG(ERROR) << "Ignoring  " << propertyName << " '" << allocRecordMaxString
-                 << "' --- not power of two";
-      return kDefaultNumAllocRecords;
-    }
-    return value;
-  }
-#endif
-  return kDefaultNumAllocRecords;
-}
-
 void Dbg::SetAllocTrackingEnabled(bool enable) {
-  Thread* self = Thread::Current();
-  if (enable) {
-    {
-      MutexLock mu(self, *Locks::alloc_tracker_lock_);
-      if (recent_allocation_records_ != nullptr) {
-        return;  // Already enabled, bail.
-      }
-      alloc_record_max_ = GetAllocTrackerMax();
-      LOG(INFO) << "Enabling alloc tracker (" << alloc_record_max_ << " entries of "
-                << kMaxAllocRecordStackDepth << " frames, taking "
-                << PrettySize(sizeof(AllocRecord) * alloc_record_max_) << ")";
-      DCHECK_EQ(alloc_record_head_, 0U);
-      DCHECK_EQ(alloc_record_count_, 0U);
-      recent_allocation_records_ = new AllocRecord[alloc_record_max_];
-      CHECK(recent_allocation_records_ != nullptr);
-    }
-    Runtime::Current()->GetInstrumentation()->InstrumentQuickAllocEntryPoints();
-  } else {
-    {
-      ScopedObjectAccess soa(self);  // For type_cache_.Clear();
-      MutexLock mu(self, *Locks::alloc_tracker_lock_);
-      if (recent_allocation_records_ == nullptr) {
-        return;  // Already disabled, bail.
-      }
-      LOG(INFO) << "Disabling alloc tracker";
-      delete[] recent_allocation_records_;
-      recent_allocation_records_ = nullptr;
-      alloc_record_head_ = 0;
-      alloc_record_count_ = 0;
-      type_cache_.Clear();
-    }
-    // If an allocation comes in before we uninstrument, we will safely drop it on the floor.
-    Runtime::Current()->GetInstrumentation()->UninstrumentQuickAllocEntryPoints();
-  }
-}
-
-struct AllocRecordStackVisitor : public StackVisitor {
-  AllocRecordStackVisitor(Thread* thread, AllocRecord* record_in)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
-        record(record_in),
-        depth(0) {}
-
-  // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
-  // annotalysis.
-  bool VisitFrame() NO_THREAD_SAFETY_ANALYSIS {
-    if (depth >= kMaxAllocRecordStackDepth) {
-      return false;
-    }
-    ArtMethod* m = GetMethod();
-    if (!m->IsRuntimeMethod()) {
-      record->StackElement(depth)->SetMethod(m);
-      record->StackElement(depth)->SetDexPc(GetDexPc());
-      ++depth;
-    }
-    return true;
-  }
-
-  ~AllocRecordStackVisitor() {
-    // Clear out any unused stack trace elements.
-    for (; depth < kMaxAllocRecordStackDepth; ++depth) {
-      record->StackElement(depth)->SetMethod(nullptr);
-      record->StackElement(depth)->SetDexPc(0);
-    }
-  }
-
-  AllocRecord* record;
-  size_t depth;
-};
-
-void Dbg::RecordAllocation(Thread* self, mirror::Class* type, size_t byte_count) {
-  MutexLock mu(self, *Locks::alloc_tracker_lock_);
-  if (recent_allocation_records_ == nullptr) {
-    // In the process of shutting down recording, bail.
-    return;
-  }
-
-  // Advance and clip.
-  if (++alloc_record_head_ == alloc_record_max_) {
-    alloc_record_head_ = 0;
-  }
-
-  // Fill in the basics.
-  AllocRecord* record = &recent_allocation_records_[alloc_record_head_];
-  record->SetType(type);
-  record->SetByteCount(byte_count);
-  record->SetThinLockId(self->GetThreadId());
-
-  // Fill in the stack trace.
-  AllocRecordStackVisitor visitor(self, record);
-  visitor.WalkStack();
-
-  if (alloc_record_count_ < alloc_record_max_) {
-    ++alloc_record_count_;
-  }
-}
-
-// Returns the index of the head element.
-//
-// We point at the most-recently-written record, so if alloc_record_count_ is 1
-// we want to use the current element.  Take "head+1" and subtract count
-// from it.
-//
-// We need to handle underflow in our circular buffer, so we add
-// alloc_record_max_ and then mask it back down.
-size_t Dbg::HeadIndex() {
-  return (Dbg::alloc_record_head_ + 1 + Dbg::alloc_record_max_ - Dbg::alloc_record_count_) &
-      (Dbg::alloc_record_max_ - 1);
+  gc::AllocRecordObjectMap::SetAllocTrackingEnabled(enable);
 }
 
 void Dbg::DumpRecentAllocations() {
   ScopedObjectAccess soa(Thread::Current());
   MutexLock mu(soa.Self(), *Locks::alloc_tracker_lock_);
-  if (recent_allocation_records_ == nullptr) {
+  if (!Runtime::Current()->GetHeap()->IsAllocTrackingEnabled()) {
     LOG(INFO) << "Not recording tracked allocations";
     return;
   }
+  gc::AllocRecordObjectMap* records = Runtime::Current()->GetHeap()->GetAllocationRecords();
+  CHECK(records != nullptr);
 
-  // "i" is the head of the list.  We want to start at the end of the
-  // list and move forward to the tail.
-  size_t i = HeadIndex();
-  const uint16_t capped_count = CappedAllocRecordCount(Dbg::alloc_record_count_);
+  const uint16_t capped_count = CappedAllocRecordCount(records->Size());
   uint16_t count = capped_count;
 
-  LOG(INFO) << "Tracked allocations, (head=" << alloc_record_head_ << " count=" << count << ")";
-  while (count--) {
-    AllocRecord* record = &recent_allocation_records_[i];
+  LOG(INFO) << "Tracked allocations, (count=" << count << ")";
+  for (auto it = records->RBegin(), end = records->REnd();
+      count > 0 && it != end; count--, it++) {
+    const gc::AllocRecord* record = it->second;
 
-    LOG(INFO) << StringPrintf(" Thread %-2d %6zd bytes ", record->ThinLockId(), record->ByteCount())
-              << PrettyClass(record->Type());
+    LOG(INFO) << StringPrintf(" Thread %-2d %6zd bytes ", record->GetTid(), record->ByteCount())
+              << PrettyClass(it->first.Read()->GetClass());
 
-    for (size_t stack_frame = 0; stack_frame < kMaxAllocRecordStackDepth; ++stack_frame) {
-      AllocRecordStackTraceElement* stack_element = record->StackElement(stack_frame);
-      ArtMethod* m = stack_element->Method();
-      if (m == nullptr) {
-        break;
-      }
-      LOG(INFO) << "    " << PrettyMethod(m) << " line " << stack_element->LineNumber();
+    for (size_t stack_frame = 0, depth = record->GetDepth(); stack_frame < depth; ++stack_frame) {
+      const gc::AllocRecordStackTraceElement& stack_element = record->StackElement(stack_frame);
+      ArtMethod* m = stack_element.GetMethod();
+      LOG(INFO) << "    " << PrettyMethod(m) << " line " << stack_element.ComputeLineNumber();
     }
 
     // pause periodically to help logcat catch up
     if ((count % 5) == 0) {
       usleep(40000);
     }
-
-    i = (i + 1) & (alloc_record_max_ - 1);
   }
 }
 
@@ -4937,6 +4698,15 @@ jbyteArray Dbg::GetRecentAllocations() {
   std::vector<uint8_t> bytes;
   {
     MutexLock mu(self, *Locks::alloc_tracker_lock_);
+    gc::AllocRecordObjectMap* records = Runtime::Current()->GetHeap()->GetAllocationRecords();
+    // In case this method is called when allocation tracker is disabled,
+    // we should still send some data back.
+    gc::AllocRecordObjectMap dummy;
+    if (records == nullptr) {
+      CHECK(!Runtime::Current()->GetHeap()->IsAllocTrackingEnabled());
+      records = &dummy;
+    }
+
     //
     // Part 1: generate string tables.
     //
@@ -4944,26 +4714,23 @@ jbyteArray Dbg::GetRecentAllocations() {
     StringTable method_names;
     StringTable filenames;
 
-    const uint16_t capped_count = CappedAllocRecordCount(Dbg::alloc_record_count_);
+    const uint16_t capped_count = CappedAllocRecordCount(records->Size());
     uint16_t count = capped_count;
-    size_t idx = HeadIndex();
-    while (count--) {
-      AllocRecord* record = &recent_allocation_records_[idx];
+    for (auto it = records->RBegin(), end = records->REnd();
+         count > 0 && it != end; count--, it++) {
+      const gc::AllocRecord* record = it->second;
       std::string temp;
-      class_names.Add(record->Type()->GetDescriptor(&temp));
-      for (size_t i = 0; i < kMaxAllocRecordStackDepth; i++) {
-        ArtMethod* m = record->StackElement(i)->Method();
-        if (m != nullptr) {
-          class_names.Add(m->GetDeclaringClassDescriptor());
-          method_names.Add(m->GetName());
-          filenames.Add(GetMethodSourceFile(m));
-        }
+      class_names.Add(it->first.Read()->GetClass()->GetDescriptor(&temp));
+      for (size_t i = 0, depth = record->GetDepth(); i < depth; i++) {
+        ArtMethod* m = record->StackElement(i).GetMethod();
+        class_names.Add(m->GetDeclaringClassDescriptor());
+        method_names.Add(m->GetName());
+        filenames.Add(GetMethodSourceFile(m));
       }
-
-      idx = (idx + 1) & (alloc_record_max_ - 1);
     }
 
-    LOG(INFO) << "allocation records: " << capped_count;
+    LOG(INFO) << "recent allocation records: " << capped_count;
+    LOG(INFO) << "allocation records all objects: " << records->Size();
 
     //
     // Part 2: Generate the output and store it in the buffer.
@@ -4991,20 +4758,23 @@ jbyteArray Dbg::GetRecentAllocations() {
     JDWP::Append2BE(bytes, method_names.Size());
     JDWP::Append2BE(bytes, filenames.Size());
 
-    idx = HeadIndex();
     std::string temp;
-    for (count = capped_count; count != 0; --count) {
+    count = capped_count;
+    // The last "count" number of allocation records in "records" are the most recent "count" number
+    // of allocations. Reverse iterate to get them. The most recent allocation is sent first.
+    for (auto it = records->RBegin(), end = records->REnd();
+         count > 0 && it != end; count--, it++) {
       // For each entry:
       // (4b) total allocation size
       // (2b) thread id
       // (2b) allocated object's class name index
       // (1b) stack depth
-      AllocRecord* record = &recent_allocation_records_[idx];
+      const gc::AllocRecord* record = it->second;
       size_t stack_depth = record->GetDepth();
       size_t allocated_object_class_name_index =
-          class_names.IndexOf(record->Type()->GetDescriptor(&temp));
+          class_names.IndexOf(it->first.Read()->GetClass()->GetDescriptor(&temp));
       JDWP::Append4BE(bytes, record->ByteCount());
-      JDWP::Append2BE(bytes, record->ThinLockId());
+      JDWP::Append2BE(bytes, static_cast<uint16_t>(record->GetTid()));
       JDWP::Append2BE(bytes, allocated_object_class_name_index);
       JDWP::Append1BE(bytes, stack_depth);
 
@@ -5014,16 +4784,15 @@ jbyteArray Dbg::GetRecentAllocations() {
         // (2b) method name
         // (2b) method source file
         // (2b) line number, clipped to 32767; -2 if native; -1 if no source
-        ArtMethod* m = record->StackElement(stack_frame)->Method();
+        ArtMethod* m = record->StackElement(stack_frame).GetMethod();
         size_t class_name_index = class_names.IndexOf(m->GetDeclaringClassDescriptor());
         size_t method_name_index = method_names.IndexOf(m->GetName());
         size_t file_name_index = filenames.IndexOf(GetMethodSourceFile(m));
         JDWP::Append2BE(bytes, class_name_index);
         JDWP::Append2BE(bytes, method_name_index);
         JDWP::Append2BE(bytes, file_name_index);
-        JDWP::Append2BE(bytes, record->StackElement(stack_frame)->LineNumber());
+        JDWP::Append2BE(bytes, record->StackElement(stack_frame).ComputeLineNumber());
       }
-      idx = (idx + 1) & (alloc_record_max_ - 1);
     }
 
     // (xb) class name strings

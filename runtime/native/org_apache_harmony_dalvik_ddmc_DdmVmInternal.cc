@@ -38,7 +38,7 @@ static jbyteArray DdmVmInternal_getRecentAllocations(JNIEnv* env, jclass) {
 }
 
 static jboolean DdmVmInternal_getRecentAllocationStatus(JNIEnv*, jclass) {
-  return Dbg::IsAllocTrackingEnabled();
+  return Runtime::Current()->GetHeap()->IsAllocTrackingEnabled();
 }
 
 /*

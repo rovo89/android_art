@@ -22,6 +22,7 @@
 #include "base/time_utils.h"
 #include "debugger.h"
 #include "gc/accounting/card_table-inl.h"
+#include "gc/allocation_record.h"
 #include "gc/collector/semi_space.h"
 #include "gc/space/bump_pointer_space-inl.h"
 #include "gc/space/dlmalloc_space-inl.h"
@@ -168,11 +169,11 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
     PushOnAllocationStack(self, &obj);
   }
   if (kInstrumented) {
-    if (Dbg::IsAllocTrackingEnabled()) {
-      Dbg::RecordAllocation(self, klass, bytes_allocated);
+    if (IsAllocTrackingEnabled()) {
+      AllocRecordObjectMap::RecordAllocation(self, obj, bytes_allocated);
     }
   } else {
-    DCHECK(!Dbg::IsAllocTrackingEnabled());
+    DCHECK(!IsAllocTrackingEnabled());
   }
   // IsConcurrentGc() isn't known at compile time so we can optimize by not checking it for
   // the BumpPointer or TLAB allocators. This is nice since it allows the entire if statement to be
