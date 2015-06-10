@@ -19,7 +19,7 @@ if [ ! -d art ]; then
   exit 1
 fi
 
-common_targets="vogar vogar.jar core-tests apache-harmony-jdwp-tests-hostdex out/host/linux-x86/bin/adb jsr166-tests"
+common_targets="vogar vogar.jar core-tests apache-harmony-jdwp-tests-hostdex out/host/linux-x86/bin/adb jsr166-tests conscrypt-tests"
 android_root="/data/local/tmp/system"
 linker="linker"
 mode="target"
