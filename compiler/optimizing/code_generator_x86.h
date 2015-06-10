@@ -124,9 +124,15 @@ class LocationsBuilderX86 : public HGraphVisitor {
 #define DECLARE_VISIT_INSTRUCTION(name, super)     \
   void Visit##name(H##name* instr) OVERRIDE;
 
-  FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
+  FOR_EACH_CONCRETE_INSTRUCTION_COMMON(DECLARE_VISIT_INSTRUCTION)
+  FOR_EACH_CONCRETE_INSTRUCTION_X86(DECLARE_VISIT_INSTRUCTION)
 
 #undef DECLARE_VISIT_INSTRUCTION
+
+  void VisitInstruction(HInstruction* instruction) OVERRIDE {
+    LOG(FATAL) << "Unreachable instruction " << instruction->DebugName()
+               << " (id " << instruction->GetId() << ")";
+  }
 
  private:
   void HandleBitwiseOperation(HBinaryOperation* instruction);
@@ -148,9 +154,15 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
 #define DECLARE_VISIT_INSTRUCTION(name, super)     \
   void Visit##name(H##name* instr) OVERRIDE;
 
-  FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
+  FOR_EACH_CONCRETE_INSTRUCTION_COMMON(DECLARE_VISIT_INSTRUCTION)
+  FOR_EACH_CONCRETE_INSTRUCTION_X86(DECLARE_VISIT_INSTRUCTION)
 
 #undef DECLARE_VISIT_INSTRUCTION
+
+  void VisitInstruction(HInstruction* instruction) OVERRIDE {
+    LOG(FATAL) << "Unreachable instruction " << instruction->DebugName()
+               << " (id " << instruction->GetId() << ")";
+  }
 
   X86Assembler* GetAssembler() const { return assembler_; }
 
