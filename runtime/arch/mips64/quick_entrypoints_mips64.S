@@ -87,11 +87,11 @@
     s.d    $f24,  8($sp)
 
     # load appropriate callee-save-method
-    ld      $v0, %got(_ZN3art7Runtime9instance_E)($gp)
-    ld      $v0, 0($v0)
+    ld      $t1, %got(_ZN3art7Runtime9instance_E)($gp)
+    ld      $t1, 0($t1)
     THIS_LOAD_REQUIRES_READ_BARRIER
-    ld      $v0, RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET($v0)
-    sd      $v0, 0($sp)                                # Place ArtMethod* at bottom of stack.
+    ld      $t1, RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET($t1)
+    sd      $t1, 0($sp)                                # Place ArtMethod* at bottom of stack.
     sd      $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)  # Place sp in Thread::Current()->top_quick_frame.
 .endm
 
@@ -130,11 +130,11 @@
     sd     $s2, 8($sp)
     .cfi_rel_offset 18, 8
     # load appropriate callee-save-method
-    ld      $v0, %got(_ZN3art7Runtime9instance_E)($gp)
-    ld      $v0, 0($v0)
+    ld      $t1, %got(_ZN3art7Runtime9instance_E)($gp)
+    ld      $t1, 0($t1)
     THIS_LOAD_REQUIRES_READ_BARRIER
-    ld      $v0, RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET($v0)
-    sd      $v0, 0($sp)                                # Place Method* at bottom of stack.
+    ld      $t1, RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET($t1)
+    sd      $t1, 0($sp)                                # Place Method* at bottom of stack.
     sd      $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)  # Place sp in Thread::Current()->top_quick_frame.
 .endm
 
@@ -253,11 +253,11 @@
 .macro SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME
     SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_INTERNAL
     # load appropriate callee-save-method
-    ld      $v0, %got(_ZN3art7Runtime9instance_E)($gp)
-    ld      $v0, 0($v0)
+    ld      $t1, %got(_ZN3art7Runtime9instance_E)($gp)
+    ld      $t1, 0($t1)
     THIS_LOAD_REQUIRES_READ_BARRIER
-    ld      $v0, RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET($v0)
-    sd      $v0, 0($sp)                                # Place Method* at bottom of stack.
+    ld      $t1, RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET($t1)
+    sd      $t1, 0($sp)                                # Place Method* at bottom of stack.
     sd      $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)  # Place sp in Thread::Current()->top_quick_frame.
 .endm
 
@@ -442,7 +442,7 @@ END art_quick_do_long_jump
      * Called by managed code, saves most registers (forms basis of long jump
      * context) and passes the bottom of the stack.
      * artDeliverExceptionFromCode will place the callee save Method* at
-     * the bottom of the thread. On entry v0 holds Throwable*
+     * the bottom of the thread. On entry a0 holds Throwable*
      */
 ENTRY art_quick_deliver_exception
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
