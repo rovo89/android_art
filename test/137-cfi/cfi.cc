@@ -73,6 +73,13 @@ static bool CheckStack(Backtrace* bt, const std::vector<std::string>& seq) {
     }
   }
 
+  printf("Can not find %s in backtrace:\n", seq[cur_search_index].c_str());
+  for (Backtrace::const_iterator it = bt->begin(); it != bt->end(); ++it) {
+    if (BacktraceMap::IsValid(it->map)) {
+      printf("  %s\n", it->func_name.c_str());
+    }
+  }
+
   return false;
 }
 #endif
@@ -83,8 +90,10 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_unwindInProcess(JNIEnv*, jobject
 
   std::unique_ptr<Backtrace> bt(Backtrace::Create(BACKTRACE_CURRENT_PROCESS, GetTid()));
   if (!bt->Unwind(0, nullptr)) {
+    printf("Can not unwind in process.\n");
     return JNI_FALSE;
   } else if (bt->NumFrames() == 0) {
+    printf("No frames for unwind in process.\n");
     return JNI_FALSE;
   }
 
@@ -155,6 +164,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_unwindOtherProcess(JNIEnv*, jobj
 
   if (ptrace(PTRACE_ATTACH, pid, 0, 0)) {
     // Were not able to attach, bad.
+    printf("Failed to attach to other process.\n");
     PLOG(ERROR) << "Failed to attach.";
     kill(pid, SIGCONT);
     return JNI_FALSE;
@@ -172,8 +182,10 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_unwindOtherProcess(JNIEnv*, jobj
   std::unique_ptr<Backtrace> bt(Backtrace::Create(pid, BACKTRACE_CURRENT_THREAD));
   bool result = true;
   if (!bt->Unwind(0, nullptr)) {
+    printf("Can not unwind other process.\n");
     result = false;
   } else if (bt->NumFrames() == 0) {
+    printf("No frames for unwind of other process.\n");
     result = false;
   }
 
