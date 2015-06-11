@@ -598,6 +598,7 @@ class Heap {
 
   // GC performance measuring
   void DumpGcPerformanceInfo(std::ostream& os);
+  void ResetGcPerformanceInfo();
 
   // Returns true if we currently care about pause times.
   bool CareAboutPauseTimes() const {
