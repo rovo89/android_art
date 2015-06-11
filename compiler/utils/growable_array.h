@@ -46,8 +46,8 @@ class GrowableArray : public ArenaObject<kArenaAllocGrowableArray> {
       }
     }
 
-    bool Contains(T value) const {
-      for (size_t i = 0; i < num_used_; ++i) {
+    bool Contains(T value, size_t start_from = 0) const {
+      for (size_t i = start_from; i < num_used_; ++i) {
         if (elem_list_[i] == value) {
           return true;
         }
