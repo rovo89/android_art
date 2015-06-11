@@ -96,6 +96,7 @@ basic_verify="false"
 gc_verify="false"
 gc_stress="false"
 always_clean="no"
+never_clean="no"
 have_dex2oat="yes"
 have_patchoat="yes"
 have_image="yes"
@@ -269,6 +270,9 @@ while true; do
         shift
     elif [ "x$1" = "x--always-clean" ]; then
         always_clean="yes"
+        shift
+    elif [ "x$1" = "x--never-clean" ]; then
+        never_clean="yes"
         shift
     elif [ "x$1" = "x--dex2oat-swap" ]; then
         run_args="${run_args} --dex2oat-swap"
@@ -472,6 +476,7 @@ if [ "$usage" = "yes" ]; then
         echo "    --gcstress            Run with gc stress testing"
         echo "    --gcverify            Run with gc verification"
         echo "    --always-clean        Delete the test files even if the test fails."
+        echo "    --never-clean         Keep the test files even if the test succeeds."
         echo "    --android-root [path] The path on target for the android root. (/system by default)."
         echo "    --dex2oat-swap        Use a dex2oat swap file."
     ) 1>&2
@@ -668,7 +673,7 @@ fi
 ) 1>&2
 
 # Clean up test files.
-if [ "$always_clean" = "yes" -o "$good" = "yes" ]; then
+if [ "$always_clean" = "yes" -o "$good" = "yes" ] && [ "$never_clean" = "no" ]; then
     cd "$oldwd"
     rm -rf "$tmp_dir"
     if [ "$target_mode" = "yes" -a "$build_exit" = "0" ]; then
