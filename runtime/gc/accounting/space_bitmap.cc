@@ -35,6 +35,11 @@ size_t SpaceBitmap<kAlignment>::ComputeBitmapSize(uint64_t capacity) {
 }
 
 template<size_t kAlignment>
+size_t SpaceBitmap<kAlignment>::ComputeHeapSize(uint64_t bitmap_bytes) {
+  return bitmap_bytes * kBitsPerByte * kAlignment;
+}
+
+template<size_t kAlignment>
 SpaceBitmap<kAlignment>* SpaceBitmap<kAlignment>::CreateFromMemMap(
     const std::string& name, MemMap* mem_map, uint8_t* heap_begin, size_t heap_capacity) {
   CHECK(mem_map != nullptr);
