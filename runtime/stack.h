@@ -95,6 +95,8 @@ class ShadowFrame {
   }
   ~ShadowFrame() {}
 
+  // TODO(iam): Clean references array up since they're always there,
+  // we don't need to do conditionals.
   bool HasReferenceArray() const {
     return true;
   }
@@ -149,6 +151,9 @@ class ShadowFrame {
     return *reinterpret_cast<unaligned_double*>(vreg);
   }
 
+  // Look up the reference given its virtual register number.
+  // If this returns non-null then this does not mean the vreg is currently a reference
+  // on non-moving collectors. Check that the raw reg with GetVReg is equal to this if not certain.
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   mirror::Object* GetVRegReference(size_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK_LT(i, NumberOfVRegs());
@@ -283,6 +288,8 @@ class ShadowFrame {
   ShadowFrame(uint32_t num_vregs, ShadowFrame* link, ArtMethod* method,
               uint32_t dex_pc, bool has_reference_array)
       : number_of_vregs_(num_vregs), link_(link), method_(method), dex_pc_(dex_pc) {
+    // TODO(iam): Remove this parameter, it's an an artifact of portable removal
+    DCHECK(has_reference_array);
     if (has_reference_array) {
       memset(vregs_, 0, num_vregs * (sizeof(uint32_t) + sizeof(StackReference<mirror::Object>)));
     } else {
@@ -306,6 +313,15 @@ class ShadowFrame {
   ShadowFrame* link_;
   ArtMethod* method_;
   uint32_t dex_pc_;
+
+  // This is a two-part array:
+  //  - [0..number_of_vregs) holds the raw virtual registers, and each element here is always 4
+  //    bytes.
+  //  - [number_of_vregs..number_of_vregs*2) holds only reference registers. Each element here is
+  //    ptr-sized.
+  // In other words when a primitive is stored in vX, the second (reference) part of the array will
+  // be null. When a reference is stored in vX, the second (reference) part of the array will be a
+  // copy of vX.
   uint32_t vregs_[0];
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(ShadowFrame);
