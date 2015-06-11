@@ -116,6 +116,8 @@ class PatchOat {
   bool PatchImage() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void PatchArtFields(const ImageHeader* image_header) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void PatchArtMethods(const ImageHeader* image_header) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void PatchInternedStrings(const ImageHeader* image_header)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void PatchDexFileArrays(mirror::ObjectArray<mirror::Object>* img_roots)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -123,7 +125,7 @@ class PatchOat {
   bool WriteImage(File* out);
 
   template <typename T>
-  T* RelocatedCopyOf(T* obj) {
+  T* RelocatedCopyOf(T* obj) const {
     if (obj == nullptr) {
       return nullptr;
     }
@@ -136,7 +138,7 @@ class PatchOat {
   }
 
   template <typename T>
-  T* RelocatedAddressOfPointer(T* obj) {
+  T* RelocatedAddressOfPointer(T* obj) const {
     if (obj == nullptr) {
       return obj;
     }
@@ -149,7 +151,7 @@ class PatchOat {
   }
 
   template <typename T>
-  T RelocatedAddressOfIntPointer(T obj) {
+  T RelocatedAddressOfIntPointer(T obj) const {
     if (obj == 0) {
       return obj;
     }
@@ -199,6 +201,7 @@ class PatchOat {
 
   TimingLogger* timings_;
 
+  friend class FixupRootVisitor;
   DISALLOW_IMPLICIT_CONSTRUCTORS(PatchOat);
 };
 

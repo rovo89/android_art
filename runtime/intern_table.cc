@@ -152,20 +152,28 @@ void InternTable::AddImageStringsToTable(gc::space::ImageSpace* image_space) {
   CHECK(image_space != nullptr);
   MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
   if (!image_added_to_intern_table_) {
-    mirror::Object* root = image_space->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
-    mirror::ObjectArray<mirror::DexCache>* dex_caches = root->AsObjectArray<mirror::DexCache>();
-    for (int32_t i = 0; i < dex_caches->GetLength(); ++i) {
-      mirror::DexCache* dex_cache = dex_caches->Get(i);
-      const DexFile* dex_file = dex_cache->GetDexFile();
-      const size_t num_strings = dex_file->NumStringIds();
-      for (size_t j = 0; j < num_strings; ++j) {
-        mirror::String* image_string = dex_cache->GetResolvedString(j);
-        if (image_string != nullptr) {
-          mirror::String* found = LookupStrong(image_string);
-          if (found == nullptr) {
-            InsertStrong(image_string);
-          } else {
-            DCHECK_EQ(found, image_string);
+    const ImageHeader* const header = &image_space->GetImageHeader();
+    // Check if we have the interned strings section.
+    const ImageSection& section = header->GetImageSection(ImageHeader::kSectionInternedStrings);
+    if (section.Size() > 0) {
+      ReadFromMemoryLocked(image_space->Begin() + section.Offset());
+    } else {
+      // TODO: Delete this logic?
+      mirror::Object* root = header->GetImageRoot(ImageHeader::kDexCaches);
+      mirror::ObjectArray<mirror::DexCache>* dex_caches = root->AsObjectArray<mirror::DexCache>();
+      for (int32_t i = 0; i < dex_caches->GetLength(); ++i) {
+        mirror::DexCache* dex_cache = dex_caches->Get(i);
+        const DexFile* dex_file = dex_cache->GetDexFile();
+        const size_t num_strings = dex_file->NumStringIds();
+        for (size_t j = 0; j < num_strings; ++j) {
+          mirror::String* image_string = dex_cache->GetResolvedString(j);
+          if (image_string != nullptr) {
+            mirror::String* found = LookupStrong(image_string);
+            if (found == nullptr) {
+              InsertStrong(image_string);
+            } else {
+              DCHECK_EQ(found, image_string);
+            }
           }
         }
       }
@@ -285,6 +293,29 @@ void InternTable::SweepInternTableWeaks(IsMarkedCallback* callback, void* arg) {
   weak_interns_.SweepWeaks(callback, arg);
 }
 
+void InternTable::AddImageInternTable(gc::space::ImageSpace* image_space) {
+  const ImageSection& intern_section = image_space->GetImageHeader().GetImageSection(
+      ImageHeader::kSectionInternedStrings);
+  // Read the string tables from the image.
+  const uint8_t* ptr = image_space->Begin() + intern_section.Offset();
+  const size_t offset = ReadFromMemory(ptr);
+  CHECK_LE(offset, intern_section.Size());
+}
+
+size_t InternTable::ReadFromMemory(const uint8_t* ptr) {
+  MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
+  return ReadFromMemoryLocked(ptr);
+}
+
+size_t InternTable::ReadFromMemoryLocked(const uint8_t* ptr) {
+  return strong_interns_.ReadIntoPreZygoteTable(ptr);
+}
+
+size_t InternTable::WriteToMemory(uint8_t* ptr) {
+  MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
+  return strong_interns_.WriteFromPostZygoteTable(ptr);
+}
+
 std::size_t InternTable::StringHashEquals::operator()(const GcRoot<mirror::String>& root) const {
   if (kIsDebugBuild) {
     Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
@@ -298,6 +329,17 @@ bool InternTable::StringHashEquals::operator()(const GcRoot<mirror::String>& a,
     Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
   }
   return a.Read()->Equals(b.Read());
+}
+
+size_t InternTable::Table::ReadIntoPreZygoteTable(const uint8_t* ptr) {
+  CHECK_EQ(pre_zygote_table_.Size(), 0u);
+  size_t read_count = 0;
+  pre_zygote_table_ = UnorderedSet(ptr, false /* make copy */, &read_count);
+  return read_count;
+}
+
+size_t InternTable::Table::WriteFromPostZygoteTable(uint8_t* ptr) {
+  return post_zygote_table_.WriteToMemory(ptr);
 }
 
 void InternTable::Table::Remove(mirror::String* s) {
@@ -325,9 +367,13 @@ mirror::String* InternTable::Table::Find(mirror::String* s) {
 }
 
 void InternTable::Table::SwapPostZygoteWithPreZygote() {
-  CHECK(pre_zygote_table_.Empty());
-  std::swap(pre_zygote_table_, post_zygote_table_);
-  VLOG(heap) << "Swapping " << pre_zygote_table_.Size() << " interns to the pre zygote table";
+  if (pre_zygote_table_.Empty()) {
+    std::swap(pre_zygote_table_, post_zygote_table_);
+    VLOG(heap) << "Swapping " << pre_zygote_table_.Size() << " interns to the pre zygote table";
+  } else {
+    // This case happens if read the intern table from the image.
+    VLOG(heap) << "Not swapping due to non-empty pre_zygote_table_";
+  }
 }
 
 void InternTable::Table::Insert(mirror::String* s) {

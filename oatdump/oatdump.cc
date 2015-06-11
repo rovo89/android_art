@@ -1610,6 +1610,8 @@ class ImageDumper {
     const auto& bitmap_section = image_header_.GetImageSection(ImageHeader::kSectionImageBitmap);
     const auto& field_section = image_header_.GetImageSection(ImageHeader::kSectionArtFields);
     const auto& method_section = image_header_.GetMethodsSection();
+    const auto& intern_section = image_header_.GetImageSection(
+        ImageHeader::kSectionInternedStrings);
     stats_.header_bytes = header_bytes;
     size_t alignment_bytes = RoundUp(header_bytes, kObjectAlignment) - header_bytes;
     stats_.alignment_bytes += alignment_bytes;
@@ -1617,6 +1619,7 @@ class ImageDumper {
     stats_.bitmap_bytes += bitmap_section.Size();
     stats_.art_field_bytes += field_section.Size();
     stats_.art_method_bytes += method_section.Size();
+    stats_.interned_strings_bytes += intern_section.Size();
     stats_.Dump(os);
     os << "\n";
 
@@ -1945,6 +1948,7 @@ class ImageDumper {
     size_t object_bytes;
     size_t art_field_bytes;
     size_t art_method_bytes;
+    size_t interned_strings_bytes;
     size_t bitmap_bytes;
     size_t alignment_bytes;
 
@@ -1974,6 +1978,7 @@ class ImageDumper {
           object_bytes(0),
           art_field_bytes(0),
           art_method_bytes(0),
+          interned_strings_bytes(0),
           bitmap_bytes(0),
           alignment_bytes(0),
           managed_code_bytes(0),
@@ -2131,21 +2136,24 @@ class ImageDumper {
            << "art_file_bytes = header_bytes + object_bytes + alignment_bytes\n";
         Indenter indent_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
         std::ostream indent_os(&indent_filter);
-        indent_os << StringPrintf("header_bytes     =  %8zd (%2.0f%% of art file bytes)\n"
-                                  "object_bytes     =  %8zd (%2.0f%% of art file bytes)\n"
-                                  "art_field_bytes  =  %8zd (%2.0f%% of art file bytes)\n"
-                                  "art_method_bytes =  %8zd (%2.0f%% of art file bytes)\n"
-                                  "bitmap_bytes     =  %8zd (%2.0f%% of art file bytes)\n"
-                                  "alignment_bytes  =  %8zd (%2.0f%% of art file bytes)\n\n",
+        indent_os << StringPrintf("header_bytes          =  %8zd (%2.0f%% of art file bytes)\n"
+                                  "object_bytes          =  %8zd (%2.0f%% of art file bytes)\n"
+                                  "art_field_bytes       =  %8zd (%2.0f%% of art file bytes)\n"
+                                  "art_method_bytes      =  %8zd (%2.0f%% of art file bytes)\n"
+                                  "interned_string_bytes =  %8zd (%2.0f%% of art file bytes)\n"
+                                  "bitmap_bytes          =  %8zd (%2.0f%% of art file bytes)\n"
+                                  "alignment_bytes       =  %8zd (%2.0f%% of art file bytes)\n\n",
                                   header_bytes, PercentOfFileBytes(header_bytes),
                                   object_bytes, PercentOfFileBytes(object_bytes),
                                   art_field_bytes, PercentOfFileBytes(art_field_bytes),
                                   art_method_bytes, PercentOfFileBytes(art_method_bytes),
+                                  interned_strings_bytes,
+                                  PercentOfFileBytes(interned_strings_bytes),
                                   bitmap_bytes, PercentOfFileBytes(bitmap_bytes),
                                   alignment_bytes, PercentOfFileBytes(alignment_bytes))
             << std::flush;
         CHECK_EQ(file_bytes, header_bytes + object_bytes + art_field_bytes + art_method_bytes +
-            bitmap_bytes + alignment_bytes);
+                 interned_strings_bytes + bitmap_bytes + alignment_bytes);
       }
 
       os << "object_bytes breakdown:\n";

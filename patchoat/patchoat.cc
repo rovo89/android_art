@@ -437,6 +437,41 @@ void PatchOat::PatchArtMethods(const ImageHeader* image_header) {
   }
 }
 
+class FixupRootVisitor : public RootVisitor {
+ public:
+  explicit FixupRootVisitor(const PatchOat* patch_oat) : patch_oat_(patch_oat) {
+  }
+
+  void VisitRoots(mirror::Object*** roots, size_t count, const RootInfo& info ATTRIBUTE_UNUSED)
+      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    for (size_t i = 0; i < count; ++i) {
+      *roots[i] = patch_oat_->RelocatedAddressOfPointer(*roots[i]);
+    }
+  }
+
+  void VisitRoots(mirror::CompressedReference<mirror::Object>** roots, size_t count,
+                  const RootInfo& info ATTRIBUTE_UNUSED)
+      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    for (size_t i = 0; i < count; ++i) {
+      roots[i]->Assign(patch_oat_->RelocatedAddressOfPointer(roots[i]->AsMirrorPtr()));
+    }
+  }
+
+ private:
+  const PatchOat* const patch_oat_;
+};
+
+void PatchOat::PatchInternedStrings(const ImageHeader* image_header) {
+  const auto& section = image_header->GetImageSection(ImageHeader::kSectionInternedStrings);
+  InternTable temp_table;
+  // Note that we require that ReadFromMemory does not make an internal copy of the elements.
+  // This also relies on visit roots not doing any verification which could fail after we update
+  // the roots to be the image addresses.
+  temp_table.ReadFromMemory(image_->Begin() + section.Offset());
+  FixupRootVisitor visitor(this);
+  temp_table.VisitRoots(&visitor, kVisitRootFlagAllRoots);
+}
+
 void PatchOat::PatchDexFileArrays(mirror::ObjectArray<mirror::Object>* img_roots) {
   auto* dex_caches = down_cast<mirror::ObjectArray<mirror::DexCache>*>(
       img_roots->Get(ImageHeader::kDexCaches));
@@ -483,12 +518,9 @@ bool PatchOat::PatchImage() {
   auto* img_roots = image_header->GetImageRoots();
   image_header->RelocateImage(delta_);
 
-  // Patch and update ArtFields.
   PatchArtFields(image_header);
-
-  // Patch and update ArtMethods.
   PatchArtMethods(image_header);
-
+  PatchInternedStrings(image_header);
   // Patch dex file int/long arrays which point to ArtFields.
   PatchDexFileArrays(img_roots);
 
