@@ -1000,6 +1000,27 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
   BaseMutex::DumpAll(os);
 }
 
+void Heap::ResetGcPerformanceInfo() {
+  for (auto& collector : garbage_collectors_) {
+    collector->ResetMeasurements();
+  }
+  total_allocation_time_.StoreRelaxed(0);
+  total_bytes_freed_ever_ = 0;
+  total_objects_freed_ever_ = 0;
+  total_wait_time_ = 0;
+  blocking_gc_count_ = 0;
+  blocking_gc_time_ = 0;
+  gc_count_last_window_ = 0;
+  blocking_gc_count_last_window_ = 0;
+  last_update_time_gc_count_rate_histograms_ =  // Round down by the window duration.
+      (NanoTime() / kGcCountRateHistogramWindowDuration) * kGcCountRateHistogramWindowDuration;
+  {
+    MutexLock mu(Thread::Current(), *gc_complete_lock_);
+    gc_count_rate_histogram_.Reset();
+    blocking_gc_count_rate_histogram_.Reset();
+  }
+}
+
 uint64_t Heap::GetGcCount() const {
   uint64_t gc_count = 0U;
   for (auto& collector : garbage_collectors_) {
