@@ -22,6 +22,9 @@ fi
 # Jar containing jsr166 tests.
 jsr166_test_jar=out/target/common/obj/JAVA_LIBRARIES/jsr166-tests_intermediates/javalib.jar
 
+# Jar containing conscrypt tests.
+conscrypt_test_jar=out/target/common/obj/JAVA_LIBRARIES/conscrypt-tests_intermediates/javalib.jar
+
 # Jar containing all the other tests.
 test_jar=out/target/common/obj/JAVA_LIBRARIES/core-tests_intermediates/javalib.jar
 
@@ -33,13 +36,16 @@ if [ ! -f $test_jar ]; then
 fi
 
 # Packages that currently work correctly with the expectation files.
-working_packages=("libcore.icu"
+working_packages=("com.android.org.conscrypt"
+                  "libcore.icu"
                   "libcore.io"
                   "libcore.java.lang"
                   "libcore.java.math"
+                  "libcore.java.security"
                   "libcore.java.text"
                   "libcore.java.util"
                   "libcore.javax.crypto"
+                  "libcore.javax.net"
                   "libcore.javax.security"
                   "libcore.javax.sql"
                   "libcore.javax.xml"
@@ -65,4 +71,4 @@ working_packages=("libcore.icu"
 # Run the tests using vogar.
 echo "Running tests for the following test packages:"
 echo ${working_packages[@]} | tr " " "\n"
-vogar $@ --expectations art/tools/libcore_failures.txt --classpath $jsr166_test_jar --classpath $test_jar ${working_packages[@]}
+vogar $@ --expectations art/tools/libcore_failures.txt --classpath $jsr166_test_jar --classpath $conscrypt_test_jar --classpath $test_jar ${working_packages[@]}
