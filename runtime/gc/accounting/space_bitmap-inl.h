@@ -159,6 +159,7 @@ template<size_t kAlignment> template<bool kSetBit>
 inline bool SpaceBitmap<kAlignment>::Modify(const mirror::Object* obj) {
   uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
   DCHECK_GE(addr, heap_begin_);
+  DCHECK(HasAddress(obj)) << obj;
   const uintptr_t offset = addr - heap_begin_;
   const size_t index = OffsetToIndex(offset);
   const uintptr_t mask = OffsetToMask(offset);

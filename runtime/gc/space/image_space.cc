@@ -694,7 +694,7 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
       const auto section_idx = static_cast<ImageHeader::ImageSections>(i);
       auto& section = image_header.GetImageSection(section_idx);
       LOG(INFO) << section_idx << " start="
-          << reinterpret_cast<void*>(image_header.GetImageBegin() + section.Offset())
+          << reinterpret_cast<void*>(image_header.GetImageBegin() + section.Offset()) << " "
           << section;
     }
   }
@@ -730,9 +730,9 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
   std::string bitmap_name(StringPrintf("imagespace %s live-bitmap %u", image_filename,
                                        bitmap_index));
   std::unique_ptr<accounting::ContinuousSpaceBitmap> bitmap(
-      accounting::ContinuousSpaceBitmap::CreateFromMemMap(bitmap_name, image_map.release(),
-                                                          reinterpret_cast<uint8_t*>(map->Begin()),
-                                                          map->Size()));
+      accounting::ContinuousSpaceBitmap::CreateFromMemMap(
+          bitmap_name, image_map.release(), reinterpret_cast<uint8_t*>(map->Begin()),
+          accounting::ContinuousSpaceBitmap::ComputeHeapSize(bitmap_section.Size())));
   if (bitmap.get() == nullptr) {
     *error_msg = StringPrintf("Could not create bitmap '%s'", bitmap_name.c_str());
     return nullptr;
