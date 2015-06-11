@@ -26,10 +26,10 @@
 namespace art {
 namespace dwarf {
 
-constexpr CFIFormat kCFIFormat = DW_DEBUG_FRAME_FORMAT;
-
 // Run the tests only on host since we need objdump.
 #ifndef HAVE_ANDROID_OS
+
+constexpr CFIFormat kCFIFormat = DW_DEBUG_FRAME_FORMAT;
 
 TEST_F(DwarfTest, DebugFrame) {
   const bool is64bit = false;
