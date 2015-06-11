@@ -176,11 +176,13 @@ inline String* String::AllocFromByteArray(Thread* self, int32_t byte_length,
 }
 
 template <bool kIsInstrumented>
-inline String* String::AllocFromCharArray(Thread* self, int32_t array_length,
+inline String* String::AllocFromCharArray(Thread* self, int32_t count,
                                           Handle<CharArray> array, int32_t offset,
                                           gc::AllocatorType allocator_type) {
-  SetStringCountAndValueVisitorFromCharArray visitor(array_length, array, offset);
-  String* new_string = Alloc<kIsInstrumented>(self, array_length, allocator_type, visitor);
+  // It is a caller error to have a count less than the actual array's size.
+  DCHECK_GE(array->GetLength(), count);
+  SetStringCountAndValueVisitorFromCharArray visitor(count, array, offset);
+  String* new_string = Alloc<kIsInstrumented>(self, count, allocator_type, visitor);
   return new_string;
 }
 
