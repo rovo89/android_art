@@ -763,7 +763,7 @@ class MonotonicValueRange : public ValueRange {
           return initial_val >= end_val;
         }
       } else {
-        DCHECK(increment_ == -1);
+        DCHECK_EQ(increment_, -1);
         if (inclusive_) {
           return initial_val < end_val;
         } else {
@@ -824,7 +824,7 @@ class MonotonicValueRange : public ValueRange {
         cond = new (graph->GetArena()) HGreaterThanOrEqual(initial_, end_);
       }
     } else {
-      DCHECK(increment_ == -1);
+      DCHECK_EQ(increment_, -1);
       if (inclusive_) {
         cond = new (graph->GetArena()) HLessThan(initial_, end_);
       } else {
