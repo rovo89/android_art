@@ -1659,6 +1659,51 @@ JDWP::JdwpTag Dbg::GetStaticFieldBasicTag(JDWP::FieldId field_id) {
   return BasicTagFromDescriptor(FromFieldId(field_id)->GetTypeDescriptor());
 }
 
+static JValue GetArtFieldValue(ArtField* f, mirror::Object* o)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  Primitive::Type fieldType = f->GetTypeAsPrimitiveType();
+  JValue field_value;
+  switch (fieldType) {
+    case Primitive::kPrimBoolean:
+      field_value.SetZ(f->GetBoolean(o));
+      return field_value;
+
+    case Primitive::kPrimByte:
+      field_value.SetB(f->GetByte(o));
+      return field_value;
+
+    case Primitive::kPrimChar:
+      field_value.SetC(f->GetChar(o));
+      return field_value;
+
+    case Primitive::kPrimShort:
+      field_value.SetS(f->GetShort(o));
+      return field_value;
+
+    case Primitive::kPrimInt:
+    case Primitive::kPrimFloat:
+      // Int and Float must be treated as 32-bit values in JDWP.
+      field_value.SetI(f->GetInt(o));
+      return field_value;
+
+    case Primitive::kPrimLong:
+    case Primitive::kPrimDouble:
+      // Long and Double must be treated as 64-bit values in JDWP.
+      field_value.SetJ(f->GetLong(o));
+      return field_value;
+
+    case Primitive::kPrimNot:
+      field_value.SetL(f->GetObject(o));
+      return field_value;
+
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "Attempt to read from field of type 'void'";
+      UNREACHABLE();
+  }
+  LOG(FATAL) << "Attempt to read from field of unknown type";
+  UNREACHABLE();
+}
+
 static JDWP::JdwpError GetFieldValueImpl(JDWP::RefTypeId ref_type_id, JDWP::ObjectId object_id,
                                          JDWP::FieldId field_id, JDWP::ExpandBuf* pReply,
                                          bool is_static)
@@ -1693,27 +1738,17 @@ static JDWP::JdwpError GetFieldValueImpl(JDWP::RefTypeId ref_type_id, JDWP::Obje
     }
   } else {
     if (f->IsStatic()) {
-      LOG(WARNING) << "Ignoring non-nullptr receiver for ObjectReference.SetValues on static field "
-          << PrettyField(f);
+      LOG(WARNING) << "Ignoring non-nullptr receiver for ObjectReference.GetValues"
+                   << " on static field " << PrettyField(f);
     }
   }
   if (f->IsStatic()) {
     o = f->GetDeclaringClass();
   }
 
+  JValue field_value(GetArtFieldValue(f, o));
   JDWP::JdwpTag tag = BasicTagFromDescriptor(f->GetTypeDescriptor());
-  JValue field_value;
-  if (tag == JDWP::JT_VOID) {
-    LOG(FATAL) << "Unknown tag: " << tag;
-  } else if (!IsPrimitiveTag(tag)) {
-    field_value.SetL(f->GetObject(o));
-  } else if (tag == JDWP::JT_DOUBLE || tag == JDWP::JT_LONG) {
-    field_value.SetJ(f->Get64(o));
-  } else {
-    field_value.SetI(f->Get32(o));
-  }
   Dbg::OutputJValue(tag, &field_value, pReply);
-
   return JDWP::ERR_NONE;
 }
 
@@ -1725,6 +1760,76 @@ JDWP::JdwpError Dbg::GetFieldValue(JDWP::ObjectId object_id, JDWP::FieldId field
 JDWP::JdwpError Dbg::GetStaticFieldValue(JDWP::RefTypeId ref_type_id, JDWP::FieldId field_id,
                                          JDWP::ExpandBuf* pReply) {
   return GetFieldValueImpl(ref_type_id, 0, field_id, pReply, true);
+}
+
+static JDWP::JdwpError SetArtFieldValue(ArtField* f, mirror::Object* o, uint64_t value, int width)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  Primitive::Type fieldType = f->GetTypeAsPrimitiveType();
+  // Debugging only happens at runtime so we know we are not running in a transaction.
+  static constexpr bool kNoTransactionMode = false;
+  switch (fieldType) {
+    case Primitive::kPrimBoolean:
+      CHECK_EQ(width, 1);
+      f->SetBoolean<kNoTransactionMode>(o, static_cast<uint8_t>(value));
+      return JDWP::ERR_NONE;
+
+    case Primitive::kPrimByte:
+      CHECK_EQ(width, 1);
+      f->SetByte<kNoTransactionMode>(o, static_cast<uint8_t>(value));
+      return JDWP::ERR_NONE;
+
+    case Primitive::kPrimChar:
+      CHECK_EQ(width, 2);
+      f->SetChar<kNoTransactionMode>(o, static_cast<uint16_t>(value));
+      return JDWP::ERR_NONE;
+
+    case Primitive::kPrimShort:
+      CHECK_EQ(width, 2);
+      f->SetShort<kNoTransactionMode>(o, static_cast<int16_t>(value));
+      return JDWP::ERR_NONE;
+
+    case Primitive::kPrimInt:
+    case Primitive::kPrimFloat:
+      CHECK_EQ(width, 4);
+      // Int and Float must be treated as 32-bit values in JDWP.
+      f->SetInt<kNoTransactionMode>(o, static_cast<int32_t>(value));
+      return JDWP::ERR_NONE;
+
+    case Primitive::kPrimLong:
+    case Primitive::kPrimDouble:
+      CHECK_EQ(width, 8);
+      // Long and Double must be treated as 64-bit values in JDWP.
+      f->SetLong<kNoTransactionMode>(o, value);
+      return JDWP::ERR_NONE;
+
+    case Primitive::kPrimNot: {
+      JDWP::JdwpError error;
+      mirror::Object* v = Dbg::GetObjectRegistry()->Get<mirror::Object*>(value, &error);
+      if (error != JDWP::ERR_NONE) {
+        return JDWP::ERR_INVALID_OBJECT;
+      }
+      if (v != nullptr) {
+        mirror::Class* field_type;
+        {
+          StackHandleScope<2> hs(Thread::Current());
+          HandleWrapper<mirror::Object> h_v(hs.NewHandleWrapper(&v));
+          HandleWrapper<mirror::Object> h_o(hs.NewHandleWrapper(&o));
+          field_type = f->GetType<true>();
+        }
+        if (!field_type->IsAssignableFrom(v->GetClass())) {
+          return JDWP::ERR_INVALID_OBJECT;
+        }
+      }
+      f->SetObject<kNoTransactionMode>(o, v);
+      return JDWP::ERR_NONE;
+    }
+
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "Attempt to write to field of type 'void'";
+      UNREACHABLE();
+  }
+  LOG(FATAL) << "Attempt to write to field of unknown type";
+  UNREACHABLE();
 }
 
 static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId object_id, JDWP::FieldId field_id,
@@ -1745,47 +1850,14 @@ static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId object_id, JDWP::FieldId
     }
   } else {
     if (f->IsStatic()) {
-      LOG(WARNING) << "Ignoring non-nullptr receiver for ObjectReference.SetValues on static field " << PrettyField(f);
+      LOG(WARNING) << "Ignoring non-nullptr receiver for ObjectReference.SetValues"
+                   << " on static field " << PrettyField(f);
     }
   }
   if (f->IsStatic()) {
     o = f->GetDeclaringClass();
   }
-
-  JDWP::JdwpTag tag = BasicTagFromDescriptor(f->GetTypeDescriptor());
-
-  if (IsPrimitiveTag(tag)) {
-    if (tag == JDWP::JT_DOUBLE || tag == JDWP::JT_LONG) {
-      CHECK_EQ(width, 8);
-      // Debugging can't use transactional mode (runtime only).
-      f->Set64<false>(o, value);
-    } else {
-      CHECK_LE(width, 4);
-      // Debugging can't use transactional mode (runtime only).
-      f->Set32<false>(o, value);
-    }
-  } else {
-    mirror::Object* v = Dbg::GetObjectRegistry()->Get<mirror::Object*>(value, &error);
-    if (error != JDWP::ERR_NONE) {
-      return JDWP::ERR_INVALID_OBJECT;
-    }
-    if (v != nullptr) {
-      mirror::Class* field_type;
-      {
-        StackHandleScope<2> hs(Thread::Current());
-        HandleWrapper<mirror::Object> h_v(hs.NewHandleWrapper(&v));
-        HandleWrapper<mirror::Object> h_o(hs.NewHandleWrapper(&o));
-        field_type = f->GetType<true>();
-      }
-      if (!field_type->IsAssignableFrom(v->GetClass())) {
-        return JDWP::ERR_INVALID_OBJECT;
-      }
-    }
-    // Debugging can't use transactional mode (runtime only).
-    f->SetObject<false>(o, v);
-  }
-
-  return JDWP::ERR_NONE;
+  return SetArtFieldValue(f, o, value, width);
 }
 
 JDWP::JdwpError Dbg::SetFieldValue(JDWP::ObjectId object_id, JDWP::FieldId field_id, uint64_t value,
