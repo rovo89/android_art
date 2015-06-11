@@ -380,7 +380,7 @@ END art_quick_do_long_jump
     /*
      * Called by managed code, saves most registers (forms basis of long jump context) and passes
      * the bottom of the stack. artDeliverExceptionFromCode will place the callee save Method* at
-     * the bottom of the thread. On entry r0 holds Throwable*
+     * the bottom of the thread. On entry a0 holds Throwable*
      */
 ENTRY art_quick_deliver_exception
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
