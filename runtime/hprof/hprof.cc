@@ -75,7 +75,7 @@ static constexpr size_t kMaxObjectsPerSegment = 128;
 static constexpr size_t kMaxBytesPerSegment = 4096;
 
 // The static field-name for the synthetic object generated to account for class static overhead.
-static constexpr const char* kStaticOverheadName = "$staticOverhead";
+static constexpr const char* kClassOverheadName = "$classOverhead";
 
 enum HprofTag {
   HPROF_TAG_STRING = 0x01,
@@ -1092,17 +1092,23 @@ void Hprof::DumpHeapClass(mirror::Class* klass) {
     // Class is allocated but not yet loaded: we cannot access its fields or super class.
     return;
   }
-  size_t sFieldCount = klass->NumStaticFields();
-  if (sFieldCount != 0) {
-    int byteLength = sFieldCount * sizeof(JValue);  // TODO bogus; fields are packed
+  const size_t num_static_fields = klass->NumStaticFields();
+  // Total class size including embedded IMT, embedded vtable, and static fields.
+  const size_t class_size = klass->GetClassSize();
+  // Class size excluding static fields (relies on reference fields being the first static fields).
+  const size_t class_size_without_overhead = sizeof(mirror::Class);
+  CHECK_LE(class_size_without_overhead, class_size);
+  const size_t overhead_size = class_size - class_size_without_overhead;
+
+  if (overhead_size != 0) {
     // Create a byte array to reflect the allocation of the
     // StaticField array at the end of this class.
     __ AddU1(HPROF_PRIMITIVE_ARRAY_DUMP);
     __ AddClassStaticsId(klass);
     __ AddStackTraceSerialNumber(LookupStackTraceSerialNumber(klass));
-    __ AddU4(byteLength);
+    __ AddU4(overhead_size);
     __ AddU1(hprof_basic_byte);
-    for (int i = 0; i < byteLength; ++i) {
+    for (size_t i = 0; i < overhead_size; ++i) {
       __ AddU1(0);
     }
   }
@@ -1119,7 +1125,7 @@ void Hprof::DumpHeapClass(mirror::Class* klass) {
   if (klass->IsClassClass()) {
     // ClassObjects have their static fields appended, so aren't all the same size.
     // But they're at least this size.
-    __ AddU4(sizeof(mirror::Class));  // instance size
+    __ AddU4(class_size_without_overhead);  // instance size
   } else if (klass->IsStringClass()) {
     // Strings are variable length with character data at the end like arrays.
     // This outputs the size of an empty string.
@@ -1133,15 +1139,15 @@ void Hprof::DumpHeapClass(mirror::Class* klass) {
   __ AddU2(0);  // empty const pool
 
   // Static fields
-  if (sFieldCount == 0) {
-    __ AddU2((uint16_t)0);
+  if (overhead_size == 0) {
+    __ AddU2(static_cast<uint16_t>(0));
   } else {
-    __ AddU2((uint16_t)(sFieldCount+1));
-    __ AddStringId(LookupStringId(kStaticOverheadName));
+    __ AddU2(static_cast<uint16_t>(num_static_fields + 1));
+    __ AddStringId(LookupStringId(kClassOverheadName));
     __ AddU1(hprof_basic_object);
     __ AddClassStaticsId(klass);
 
-    for (size_t i = 0; i < sFieldCount; ++i) {
+    for (size_t i = 0; i < num_static_fields; ++i) {
       ArtField* f = klass->GetStaticField(i);
 
       size_t size;
