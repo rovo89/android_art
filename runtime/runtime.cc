@@ -646,6 +646,10 @@ void Runtime::DidForkFromZygote(JNIEnv* env, NativeBridgeAction action, const ch
 
   // Create the thread pools.
   heap_->CreateThreadPool();
+  // Reset the gc performance data at zygote fork so that the GCs
+  // before fork aren't attributed to an app.
+  heap_->ResetGcPerformanceInfo();
+
   if (jit_.get() == nullptr && jit_options_->UseJIT()) {
     // Create the JIT if the flag is set and we haven't already create it (happens for run-tests).
     CreateJit();
