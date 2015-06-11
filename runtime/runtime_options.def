@@ -30,6 +30,8 @@
 // If a default value is omitted here, T{} is used as the default value, which is
 // almost-always the value of the type as if it was memset to all 0.
 //
+// Please keep the columns aligned if possible when adding new rows.
+//
 
 // Parse-able keys from the command line.
 RUNTIME_OPTIONS_KEY (Unit,                Zygote)
@@ -64,9 +66,9 @@ RUNTIME_OPTIONS_KEY (Unit,                IgnoreMaxFootprint)
 RUNTIME_OPTIONS_KEY (Unit,                LowMemoryMode)
 RUNTIME_OPTIONS_KEY (bool,                UseTLAB,                        (kUseTlab || kUseReadBarrier))
 RUNTIME_OPTIONS_KEY (bool,                EnableHSpaceCompactForOOM,      true)
-RUNTIME_OPTIONS_KEY (bool,                UseJIT,      false)
-RUNTIME_OPTIONS_KEY (unsigned int,        JITCompileThreshold, jit::Jit::kDefaultCompileThreshold)
-RUNTIME_OPTIONS_KEY (MemoryKiB,           JITCodeCacheCapacity, jit::JitCodeCache::kDefaultCapacity)
+RUNTIME_OPTIONS_KEY (bool,                UseJIT,                         false)
+RUNTIME_OPTIONS_KEY (unsigned int,        JITCompileThreshold,            jit::Jit::kDefaultCompileThreshold)
+RUNTIME_OPTIONS_KEY (MemoryKiB,           JITCodeCacheCapacity,           jit::JitCodeCache::kDefaultCapacity)
 RUNTIME_OPTIONS_KEY (MillisecondsToNanoseconds, \
                                           HSpaceCompactForOOMMinIntervalsMs,\
                                                                           MsToNs(100 * 1000))  // 100s
@@ -105,9 +107,12 @@ RUNTIME_OPTIONS_KEY (std::vector<std::string>, \
                                           ImageCompilerOptions)  // -Ximage-compiler-option ...
 RUNTIME_OPTIONS_KEY (bool,                Verify,                         true)
 RUNTIME_OPTIONS_KEY (std::string,         NativeBridge)
+RUNTIME_OPTIONS_KEY (unsigned int,        ZygoteMaxFailedBoots,           10)
+RUNTIME_OPTIONS_KEY (Unit,                NoDexFileFallback)
 RUNTIME_OPTIONS_KEY (std::string,         CpuAbiList)
 
 // Not parse-able from command line, but can be provided explicitly.
+// (Do not add anything here that is defined in ParsedOptions::MakeParser)
 RUNTIME_OPTIONS_KEY (const std::vector<const DexFile*>*, \
                                           BootClassPathDexList)  // TODO: make unique_ptr
 RUNTIME_OPTIONS_KEY (InstructionSet,      ImageInstructionSet,            kRuntimeISA)
@@ -120,7 +125,5 @@ RUNTIME_OPTIONS_KEY (void (*)(int32_t status), \
                                                                           // We don't call abort(3) by default; see
                                                                           // Runtime::Abort.
 RUNTIME_OPTIONS_KEY (void (*)(),          HookAbort,                      nullptr)
-RUNTIME_OPTIONS_KEY (unsigned int,        ZygoteMaxFailedBoots,           10)
-RUNTIME_OPTIONS_KEY (Unit,                NoDexFileFallback)
 
 #undef RUNTIME_OPTIONS_KEY

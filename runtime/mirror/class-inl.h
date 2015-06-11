@@ -666,7 +666,7 @@ template <bool kVisitClass, typename Visitor>
 inline void Class::VisitReferences(mirror::Class* klass, const Visitor& visitor) {
   VisitInstanceFieldsReferences<kVisitClass>(klass, visitor);
   // Right after a class is allocated, but not yet loaded
-  // (kStatusNotReady, see ClassLinkder::LoadClass()), GC may find it
+  // (kStatusNotReady, see ClassLinker::LoadClass()), GC may find it
   // and scan it. IsTemp() may call Class::GetAccessFlags() but may
   // fail in the DCHECK in Class::GetAccessFlags() because the class
   // status is kStatusNotReady. To avoid it, rely on IsResolved()

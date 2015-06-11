@@ -450,10 +450,13 @@ void UnexpectedOpcode(const Instruction* inst, const ShadowFrame& shadow_frame) 
 static inline void AssignRegister(ShadowFrame* new_shadow_frame, const ShadowFrame& shadow_frame,
                                   size_t dest_reg, size_t src_reg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  // If both register locations contains the same value, the register probably holds a reference.
   // Uint required, so that sign extension does not make this wrong on 64b systems
   uint32_t src_value = shadow_frame.GetVReg(src_reg);
   mirror::Object* o = shadow_frame.GetVRegReference<kVerifyNone>(src_reg);
+
+  // If both register locations contains the same value, the register probably holds a reference.
+  // Note: As an optimization, non-moving collectors leave a stale reference value
+  // in the references array even after the original vreg was overwritten to a non-reference.
   if (src_value == reinterpret_cast<uintptr_t>(o)) {
     new_shadow_frame->SetVRegReference(dest_reg, o);
   } else {

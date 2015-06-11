@@ -31,7 +31,7 @@ namespace art {
 template <typename MirrorType, ReadBarrierOption kReadBarrierOption, bool kMaybeDuringStartup>
 inline MirrorType* ReadBarrier::Barrier(
     mirror::Object* obj, MemberOffset offset, mirror::HeapReference<MirrorType>* ref_addr) {
-  const bool with_read_barrier = kReadBarrierOption == kWithReadBarrier;
+  constexpr bool with_read_barrier = kReadBarrierOption == kWithReadBarrier;
   if (with_read_barrier && kUseBakerReadBarrier) {
     // The higher bits of the rb ptr, rb_ptr_high_bits (must be zero)
     // is used to create artificial data dependency from the is_gray
