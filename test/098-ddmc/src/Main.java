@@ -43,8 +43,10 @@ public class Main {
 
         System.out.println("Confirm when we overflow, we don't roll over to zero. b/17392248");
         final int overflowAllocations = 64 * 1024;  // Won't fit in unsigned 16-bit value.
+        // Keep the new objects live so they are not garbage collected.
+        Object[] objects = new Object[overflowAllocations];
         for (int i = 0; i < overflowAllocations; i++) {
-            new Object();
+            objects[i] = new Object();
         }
         Allocations after = new Allocations(DdmVmInternal.getRecentAllocations());
         System.out.println("before < overflowAllocations=" + (before.numberOfEntries < overflowAllocations));
@@ -67,7 +69,7 @@ public class Main {
         DdmVmInternal.enableRecentAllocations(true);
         System.out.println("status=" + DdmVmInternal.getRecentAllocationStatus());
         for (int i = 0; i < 16 * 1024; i++) {
-            new String("fnord");
+            objects[i] = new String("fnord");
         }
         Allocations first = new Allocations(DdmVmInternal.getRecentAllocations());
         DdmVmInternal.enableRecentAllocations(true);
