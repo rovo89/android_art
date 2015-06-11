@@ -54,7 +54,7 @@ class ImageWriter FINAL {
         quick_to_interpreter_bridge_offset_(0), compile_pic_(compile_pic),
         target_ptr_size_(InstructionSetPointerSize(compiler_driver_.GetInstructionSet())),
         bin_slot_sizes_(), bin_slot_previous_sizes_(), bin_slot_count_(),
-        dirty_methods_(0u), clean_methods_(0u) {
+        intern_table_bytes_(0u), dirty_methods_(0u), clean_methods_(0u) {
     CHECK_NE(image_begin, 0U);
     std::fill(image_methods_, image_methods_ + arraysize(image_methods_), nullptr);
   }
@@ -84,11 +84,7 @@ class ImageWriter FINAL {
         image_begin_ + RoundUp(sizeof(ImageHeader), kObjectAlignment) + it->second + offset);
   }
 
-  uint8_t* GetOatFileBegin() const {
-    return image_begin_ + RoundUp(
-        image_end_ + bin_slot_sizes_[kBinArtField] + bin_slot_sizes_[kBinArtMethodDirty] +
-        bin_slot_sizes_[kBinArtMethodClean], kPageSize);
-  }
+  uint8_t* GetOatFileBegin() const;
 
   bool Write(const std::string& image_filename, const std::string& oat_filename,
              const std::string& oat_location)
@@ -158,7 +154,7 @@ class ImageWriter FINAL {
     // The offset in bytes from the beginning of the bin. Aligned to object size.
     uint32_t GetIndex() const;
     // Pack into a single uint32_t, for storing into a lock word.
-    explicit operator uint32_t() const { return lockword_; }
+    uint32_t Uint32Value() const { return lockword_; }
     // Comparison operator for map support
     bool operator<(const BinSlot& other) const  { return lockword_ < other.lockword_; }
 
@@ -170,7 +166,7 @@ class ImageWriter FINAL {
   // We use the lock word to store the offset of the object in the image.
   void AssignImageOffset(mirror::Object* object, BinSlot bin_slot)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SetImageOffset(mirror::Object* object, BinSlot bin_slot, size_t offset)
+  void SetImageOffset(mirror::Object* object, size_t offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsImageOffsetAssigned(mirror::Object* object) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -330,11 +326,9 @@ class ImageWriter FINAL {
   // The start offsets of the dex cache arrays.
   SafeMap<const DexFile*, size_t> dex_cache_array_starts_;
 
-  // Saved hashes (objects are inside of the image so that they don't move).
-  std::vector<std::pair<mirror::Object*, uint32_t>> saved_hashes_;
-
-  // Saved hashes (objects are bin slots to inside of the image, not yet allocated an address).
-  std::map<BinSlot, uint32_t> saved_hashes_map_;
+  // Saved hash codes. We use these to restore lockwords which were temporarily used to have
+  // forwarding addresses as well as copying over hash codes.
+  std::unordered_map<mirror::Object*, uint32_t> saved_hashcode_map_;
 
   // Beginning target oat address for the pointers from the output image to its oat file.
   const uint8_t* oat_data_begin_;
@@ -360,6 +354,9 @@ class ImageWriter FINAL {
   size_t bin_slot_previous_sizes_[kBinSize];  // Number of bytes in previous bins.
   size_t bin_slot_count_[kBinSize];  // Number of objects in a bin
 
+  // Cached size of the intern table for when we allocate memory.
+  size_t intern_table_bytes_;
+
   // ArtField, ArtMethod relocating map. These are allocated as array of structs but we want to
   // have one entry per art field for convenience. ArtFields are placed right after the end of the
   // image objects (aka sum of bin_slot_sizes_). ArtMethods are placed right after the ArtFields.
@@ -376,8 +373,9 @@ class ImageWriter FINAL {
   uint64_t dirty_methods_;
   uint64_t clean_methods_;
 
-  friend class FixupVisitor;
   friend class FixupClassVisitor;
+  friend class FixupRootVisitor;
+  friend class FixupVisitor;
   DISALLOW_COPY_AND_ASSIGN(ImageWriter);
 };
 

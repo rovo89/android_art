@@ -1055,7 +1055,7 @@ static void SanityCheckArtMethodPointerArray(
 static void SanityCheckObjectsCallback(mirror::Object* obj, void* arg ATTRIBUTE_UNUSED)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(obj != nullptr);
-  CHECK(obj->GetClass() != nullptr) << "Null class " << obj;
+  CHECK(obj->GetClass() != nullptr) << "Null class in object " << obj;
   CHECK(obj->GetClass()->GetClass() != nullptr) << "Null class class " << obj;
   if (obj->IsClass()) {
     auto klass = obj->AsClass();
