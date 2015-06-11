@@ -97,6 +97,20 @@ class InternTable {
   void SwapPostZygoteWithPreZygote()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(Locks::intern_table_lock_);
 
+  // Add an intern table which was serialized to the image.
+  void AddImageInternTable(gc::space::ImageSpace* image_space)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(Locks::intern_table_lock_);
+
+  // Read the intern table from memory. The elements aren't copied, the intern hash set data will
+  // point to somewhere within ptr. Only reads the strong interns.
+  size_t ReadFromMemory(const uint8_t* ptr) LOCKS_EXCLUDED(Locks::intern_table_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Write the post zygote intern table to a pointer. Only writes the strong interns since it is
+  // expected that there is no weak interns since this is called from the image writer.
+  size_t WriteToMemory(uint8_t* ptr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::intern_table_lock_);
+
  private:
   class StringHashEquals {
    public:
@@ -133,6 +147,16 @@ class InternTable {
         EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
     void SwapPostZygoteWithPreZygote() EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
     size_t Size() const EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
+    // Read pre zygote table is called from ReadFromMemory which happens during runtime creation
+    // when we load the image intern table. Returns how many bytes were read.
+    size_t ReadIntoPreZygoteTable(const uint8_t* ptr)
+        EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+    // The image writer calls WritePostZygoteTable through WriteToMemory, it writes the interns in
+    // the post zygote table. Returns how many bytes were written.
+    size_t WriteFromPostZygoteTable(uint8_t* ptr)
+        EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
    private:
     typedef HashSet<GcRoot<mirror::String>, GcRootEmptyFn, StringHashEquals, StringHashEquals,
@@ -191,6 +215,10 @@ class InternTable {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
   friend class Transaction;
+
+  size_t ReadFromMemoryLocked(const uint8_t* ptr)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool image_added_to_intern_table_ GUARDED_BY(Locks::intern_table_lock_);
   bool log_new_roots_ GUARDED_BY(Locks::intern_table_lock_);
