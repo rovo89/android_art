@@ -126,11 +126,14 @@ class ValueBound : public ValueObject {
     return instruction_ == bound.instruction_ && constant_ == bound.constant_;
   }
 
-  static HInstruction* FromArrayLengthToNewArrayIfPossible(HInstruction* instruction) {
-    // Null check on the NewArray should have been eliminated by instruction
-    // simplifier already.
-    if (instruction->IsArrayLength() && instruction->InputAt(0)->IsNewArray()) {
-      return instruction->InputAt(0)->AsNewArray();
+  static HInstruction* FromArrayLengthToArray(HInstruction* instruction) {
+    DCHECK(instruction->IsArrayLength() || instruction->IsNewArray());
+    if (instruction->IsArrayLength()) {
+      HInstruction* input = instruction->InputAt(0);
+      if (input->IsNullCheck()) {
+        input = input->AsNullCheck()->InputAt(0);
+      }
+      return input;
     }
     return instruction;
   }
@@ -146,8 +149,9 @@ class ValueBound : public ValueObject {
 
     // Some bounds are created with HNewArray* as the instruction instead
     // of HArrayLength*. They are treated the same.
-    instruction1 = FromArrayLengthToNewArrayIfPossible(instruction1);
-    instruction2 = FromArrayLengthToNewArrayIfPossible(instruction2);
+    // HArrayLength with the same array input are considered equal also.
+    instruction1 = FromArrayLengthToArray(instruction1);
+    instruction2 = FromArrayLengthToArray(instruction2);
     return instruction1 == instruction2;
   }
 
@@ -271,7 +275,7 @@ class ArrayAccessInsideLoopFinder : public ValueObject {
       // Loop header of loop_info. Exiting loop is normal.
       return false;
     }
-    const GrowableArray<HBasicBlock*> successors = block->GetSuccessors();
+    const GrowableArray<HBasicBlock*>& successors = block->GetSuccessors();
     for (size_t i = 0; i < successors.Size(); i++) {
       if (!loop_info->Contains(*successors.Get(i))) {
         // One of the successors exits the loop.
@@ -293,8 +297,14 @@ class ArrayAccessInsideLoopFinder : public ValueObject {
 
   void Run() {
     HLoopInformation* loop_info = induction_variable_->GetBlock()->GetLoopInformation();
-    for (HBlocksInLoopIterator it_loop(*loop_info); !it_loop.Done(); it_loop.Advance()) {
-      HBasicBlock* block = it_loop.Current();
+    HBlocksInLoopReversePostOrderIterator it_loop(*loop_info);
+    HBasicBlock* block = it_loop.Current();
+    DCHECK(block == induction_variable_->GetBlock());
+    // Skip loop header. Since narrowed value range of a MonotonicValueRange only
+    // applies to the loop body (after the test at the end of the loop header).
+    it_loop.Advance();
+    for (; !it_loop.Done(); it_loop.Advance()) {
+      block = it_loop.Current();
       DCHECK(block->IsInLoop());
       if (!DominatesAllBackEdges(block, loop_info)) {
         // In order not to trigger deoptimization unnecessarily, make sure
@@ -308,29 +318,34 @@ class ArrayAccessInsideLoopFinder : public ValueObject {
         // that the loop will loop through the full monotonic value range from
         // initial_ to end_. So adding deoptimization might be too aggressive and can
         // trigger deoptimization unnecessarily even if the loop won't actually throw
-        // AIOOBE. Otherwise, the loop induction variable is going to cover the full
-        // monotonic value range from initial_ to end_, and deoptimizations are added
-        // iff the loop will throw AIOOBE.
+        // AIOOBE.
         found_array_length_ = nullptr;
         return;
       }
       for (HInstruction* instruction = block->GetFirstInstruction();
            instruction != nullptr;
            instruction = instruction->GetNext()) {
-        if (!instruction->IsArrayGet() && !instruction->IsArraySet()) {
-          continue;
-        }
-        HInstruction* index = instruction->InputAt(1);
-        if (!index->IsBoundsCheck()) {
+        if (!instruction->IsBoundsCheck()) {
           continue;
         }
 
-        HArrayLength* array_length = index->InputAt(1)->AsArrayLength();
-        if (array_length == nullptr) {
-          DCHECK(index->InputAt(1)->IsIntConstant());
+        HInstruction* length_value = instruction->InputAt(1);
+        if (length_value->IsIntConstant()) {
           // TODO: may optimize for constant case.
           continue;
         }
+
+        DCHECK(!length_value->IsPhi());
+        if (length_value->IsPhi()) {
+          // Outer loop shouldn't collect bounds checks inside inner
+          // loop because the inner loop body doen't dominate
+          // outer loop's back edges. However just to be on the safe side,
+          // if there are any such cases, we just skip over them.
+          continue;
+        }
+
+        DCHECK(length_value->IsArrayLength());
+        HArrayLength* array_length = length_value->AsArrayLength();
 
         HInstruction* array = array_length->InputAt(0);
         if (array->IsNullCheck()) {
@@ -347,7 +362,7 @@ class ArrayAccessInsideLoopFinder : public ValueObject {
           continue;
         }
 
-        index = index->AsBoundsCheck()->InputAt(0);
+        HInstruction* index = instruction->AsBoundsCheck()->InputAt(0);
         HInstruction* left = index;
         int32_t right = 0;
         if (left == induction_variable_ ||
@@ -375,7 +390,7 @@ class ArrayAccessInsideLoopFinder : public ValueObject {
   // The instruction that corresponds to a MonotonicValueRange.
   HInstruction* induction_variable_;
 
-  // The array length of the array that's accessed inside the loop.
+  // The array length of the array that's accessed inside the loop body.
   HArrayLength* found_array_length_;
 
   // The lowest and highest constant offsets relative to induction variable
@@ -410,6 +425,8 @@ class ValueRange : public ArenaObject<kArenaAllocMisc> {
   ArenaAllocator* GetAllocator() const { return allocator_; }
   ValueBound GetLower() const { return lower_; }
   ValueBound GetUpper() const { return upper_; }
+
+  bool IsConstantValueRange() { return lower_.IsConstant() && upper_.IsConstant(); }
 
   // If it's certain that this value range fits in other_range.
   virtual bool FitsIn(ValueRange* other_range) const {
@@ -495,12 +512,29 @@ class MonotonicValueRange : public ValueRange {
   ValueBound GetBound() const { return bound_; }
   void SetEnd(HInstruction* end) { end_ = end; }
   void SetInclusive(bool inclusive) { inclusive_ = inclusive; }
-  HBasicBlock* GetLoopHead() const {
+  HBasicBlock* GetLoopHeader() const {
     DCHECK(induction_variable_->GetBlock()->IsLoopHeader());
     return induction_variable_->GetBlock();
   }
 
   MonotonicValueRange* AsMonotonicValueRange() OVERRIDE { return this; }
+
+  HBasicBlock* GetLoopHeaderSuccesorInLoop() {
+    HBasicBlock* header = GetLoopHeader();
+    HInstruction* instruction = header->GetLastInstruction();
+    DCHECK(instruction->IsIf());
+    HIf* h_if = instruction->AsIf();
+    HLoopInformation* loop_info = header->GetLoopInformation();
+    bool true_successor_in_loop = loop_info->Contains(*h_if->IfTrueSuccessor());
+    bool false_successor_in_loop = loop_info->Contains(*h_if->IfFalseSuccessor());
+
+    // Just in case it's some strange loop structure.
+    if (true_successor_in_loop && false_successor_in_loop) {
+      return nullptr;
+    }
+    DCHECK(true_successor_in_loop || false_successor_in_loop);
+    return false_successor_in_loop ? h_if->IfFalseSuccessor() : h_if->IfTrueSuccessor();
+  }
 
   // If it's certain that this value range fits in other_range.
   bool FitsIn(ValueRange* other_range) const OVERRIDE {
@@ -593,12 +627,114 @@ class MonotonicValueRange : public ValueRange {
     }
   }
 
+  // Try to add HDeoptimize's in the loop pre-header first to narrow this range.
+  // For example, this loop:
+  //
+  //   for (int i = start; i < end; i++) {
+  //     array[i - 1] = array[i] + array[i + 1];
+  //   }
+  //
+  // will be transformed to:
+  //
+  //   int array_length_in_loop_body_if_needed;
+  //   if (start >= end) {
+  //     array_length_in_loop_body_if_needed = 0;
+  //   } else {
+  //     if (start < 1) deoptimize();
+  //     if (array == null) deoptimize();
+  //     array_length = array.length;
+  //     if (end > array_length - 1) deoptimize;
+  //     array_length_in_loop_body_if_needed = array_length;
+  //   }
+  //   for (int i = start; i < end; i++) {
+  //     // No more null check and bounds check.
+  //     // array.length value is replaced with array_length_in_loop_body_if_needed
+  //     // in the loop body.
+  //     array[i - 1] = array[i] + array[i + 1];
+  //   }
+  //
+  // We basically first go through the loop body and find those array accesses whose
+  // index is at a constant offset from the induction variable ('i' in the above example),
+  // and update offset_low and offset_high along the way. We then add the following
+  // deoptimizations in the loop pre-header (suppose end is not inclusive).
+  //   if (start < -offset_low) deoptimize();
+  //   if (end >= array.length - offset_high) deoptimize();
+  // It might be necessary to first hoist array.length (and the null check on it) out of
+  // the loop with another deoptimization.
+  //
+  // In order not to trigger deoptimization unnecessarily, we want to make a strong
+  // guarantee that no deoptimization is triggered if the loop body itself doesn't
+  // throw AIOOBE. (It's the same as saying if deoptimization is triggered, the loop
+  // body must throw AIOOBE).
+  // This is achieved by the following:
+  // 1) We only process loops that iterate through the full monotonic range from
+  //    initial_ to end_. We do the following checks to make sure that's the case:
+  //    a) The loop doesn't have early exit (via break, return, etc.)
+  //    b) The increment_ is 1/-1. An increment of 2, for example, may skip end_.
+  // 2) We only collect array accesses of blocks in the loop body that dominate
+  //    all loop back edges, these array accesses are guaranteed to happen
+  //    at each loop iteration.
+  // With 1) and 2), if the loop body doesn't throw AIOOBE, collected array accesses
+  // when the induction variable is at initial_ and end_ must be in a legal range.
+  // Since the added deoptimizations are basically checking the induction variable
+  // at initial_ and end_ values, no deoptimization will be triggered either.
+  //
+  // A special case is the loop body isn't entered at all. In that case, we may still
+  // add deoptimization due to the analysis described above. In order not to trigger
+  // deoptimization, we do a test between initial_ and end_ first and skip over
+  // the added deoptimization.
+  ValueRange* NarrowWithDeoptimization() {
+    if (increment_ != 1 && increment_ != -1) {
+      // In order not to trigger deoptimization unnecessarily, we want to
+      // make sure the loop iterates through the full range from initial_ to
+      // end_ so that boundaries are covered by the loop. An increment of 2,
+      // for example, may skip end_.
+      return this;
+    }
+
+    if (end_ == nullptr) {
+      // No full info to add deoptimization.
+      return this;
+    }
+
+    HBasicBlock* header = induction_variable_->GetBlock();
+    DCHECK(header->IsLoopHeader());
+    HBasicBlock* pre_header = header->GetLoopInformation()->GetPreHeader();
+    if (!initial_->GetBlock()->Dominates(pre_header) ||
+        !end_->GetBlock()->Dominates(pre_header)) {
+      // Can't add a check in loop pre-header if the value isn't available there.
+      return this;
+    }
+
+    ArrayAccessInsideLoopFinder finder(induction_variable_);
+
+    if (!finder.HasFoundArrayLength()) {
+      // No array access was found inside the loop that can benefit
+      // from deoptimization.
+      return this;
+    }
+
+    if (!AddDeoptimization(finder)) {
+      return this;
+    }
+
+    // After added deoptimizations, induction variable fits in
+    // [-offset_low, array.length-1-offset_high], adjusted with collected offsets.
+    ValueBound lower = ValueBound(0, -finder.GetOffsetLow());
+    ValueBound upper = ValueBound(finder.GetFoundArrayLength(), -1 - finder.GetOffsetHigh());
+    // We've narrowed the range after added deoptimizations.
+    return new (GetAllocator()) ValueRange(GetAllocator(), lower, upper);
+  }
+
   // Returns true if adding a (constant >= value) check for deoptimization
   // is allowed and will benefit compiled code.
-  bool CanAddDeoptimizationConstant(HInstruction* value,
-                                    int32_t constant,
-                                    bool* is_proven) {
+  bool CanAddDeoptimizationConstant(HInstruction* value, int32_t constant, bool* is_proven) {
     *is_proven = false;
+    HBasicBlock* header = induction_variable_->GetBlock();
+    DCHECK(header->IsLoopHeader());
+    HBasicBlock* pre_header = header->GetLoopInformation()->GetPreHeader();
+    DCHECK(value->GetBlock()->Dominates(pre_header));
+
     // See if we can prove the relationship first.
     if (value->IsIntConstant()) {
       if (value->AsIntConstant()->GetValue() >= constant) {
@@ -615,22 +751,118 @@ class MonotonicValueRange : public ValueRange {
     return true;
   }
 
+  // Try to filter out cases that the loop entry test will never be true.
+  bool LoopEntryTestUseful() {
+    if (initial_->IsIntConstant() && end_->IsIntConstant()) {
+      int32_t initial_val = initial_->AsIntConstant()->GetValue();
+      int32_t end_val = end_->AsIntConstant()->GetValue();
+      if (increment_ == 1) {
+        if (inclusive_) {
+          return initial_val > end_val;
+        } else {
+          return initial_val >= end_val;
+        }
+      } else {
+        DCHECK(increment_ == -1);
+        if (inclusive_) {
+          return initial_val < end_val;
+        } else {
+          return initial_val <= end_val;
+        }
+      }
+    }
+    return true;
+  }
+
+  // Returns the block for adding deoptimization.
+  HBasicBlock* TransformLoopForDeoptimizationIfNeeded() {
+    HBasicBlock* header = induction_variable_->GetBlock();
+    DCHECK(header->IsLoopHeader());
+    HBasicBlock* pre_header = header->GetLoopInformation()->GetPreHeader();
+    // Deoptimization is only added when both initial_ and end_ are defined
+    // before the loop.
+    DCHECK(initial_->GetBlock()->Dominates(pre_header));
+    DCHECK(end_->GetBlock()->Dominates(pre_header));
+
+    // If it can be proven the loop body is definitely entered (unless exception
+    // is thrown in the loop header for which triggering deoptimization is fine),
+    // there is no need for tranforming the loop. In that case, deoptimization
+    // will just be added in the loop pre-header.
+    if (!LoopEntryTestUseful()) {
+      return pre_header;
+    }
+
+    HGraph* graph = header->GetGraph();
+    graph->TransformLoopHeaderForBCE(header);
+    HBasicBlock* new_pre_header = header->GetDominator();
+    DCHECK(new_pre_header == header->GetLoopInformation()->GetPreHeader());
+    HBasicBlock* if_block = new_pre_header->GetDominator();
+    HBasicBlock* dummy_block = if_block->GetSuccessors().Get(0);  // True successor.
+    HBasicBlock* deopt_block = if_block->GetSuccessors().Get(1);  // False successor.
+
+    dummy_block->AddInstruction(new (graph->GetArena()) HGoto());
+    deopt_block->AddInstruction(new (graph->GetArena()) HGoto());
+    new_pre_header->AddInstruction(new (graph->GetArena()) HGoto());
+    return deopt_block;
+  }
+
+  // Adds a test between initial_ and end_ to see if the loop body is entered.
+  // If the loop body isn't entered at all, it jumps to the loop pre-header (after
+  // transformation) to avoid any deoptimization.
+  void AddLoopBodyEntryTest() {
+    HBasicBlock* header = induction_variable_->GetBlock();
+    DCHECK(header->IsLoopHeader());
+    HBasicBlock* pre_header = header->GetLoopInformation()->GetPreHeader();
+    HBasicBlock* if_block = pre_header->GetDominator();
+    HGraph* graph = header->GetGraph();
+
+    HCondition* cond;
+    if (increment_ == 1) {
+      if (inclusive_) {
+        cond = new (graph->GetArena()) HGreaterThan(initial_, end_);
+      } else {
+        cond = new (graph->GetArena()) HGreaterThanOrEqual(initial_, end_);
+      }
+    } else {
+      DCHECK(increment_ == -1);
+      if (inclusive_) {
+        cond = new (graph->GetArena()) HLessThan(initial_, end_);
+      } else {
+        cond = new (graph->GetArena()) HLessThanOrEqual(initial_, end_);
+      }
+    }
+    HIf* h_if = new (graph->GetArena()) HIf(cond);
+    if_block->AddInstruction(cond);
+    if_block->AddInstruction(h_if);
+  }
+
   // Adds a check that (value >= constant), and HDeoptimize otherwise.
   void AddDeoptimizationConstant(HInstruction* value,
-                                 int32_t constant) {
-    HBasicBlock* block = induction_variable_->GetBlock();
-    DCHECK(block->IsLoopHeader());
-    HGraph* graph = block->GetGraph();
-    HBasicBlock* pre_header = block->GetLoopInformation()->GetPreHeader();
-    HSuspendCheck* suspend_check = block->GetLoopInformation()->GetSuspendCheck();
+                                 int32_t constant,
+                                 HBasicBlock* deopt_block,
+                                 bool loop_entry_test_block_added) {
+    HBasicBlock* header = induction_variable_->GetBlock();
+    DCHECK(header->IsLoopHeader());
+    HBasicBlock* pre_header = header->GetDominator();
+    if (loop_entry_test_block_added) {
+      DCHECK(deopt_block->GetSuccessors().Get(0) == pre_header);
+    } else {
+      DCHECK(deopt_block == pre_header);
+    }
+    HGraph* graph = header->GetGraph();
+    HSuspendCheck* suspend_check = header->GetLoopInformation()->GetSuspendCheck();
+    if (loop_entry_test_block_added) {
+      DCHECK_EQ(deopt_block, header->GetDominator()->GetDominator()->GetSuccessors().Get(1));
+    }
+
     HIntConstant* const_instr = graph->GetIntConstant(constant);
     HCondition* cond = new (graph->GetArena()) HLessThan(value, const_instr);
     HDeoptimize* deoptimize = new (graph->GetArena())
         HDeoptimize(cond, suspend_check->GetDexPc());
-    pre_header->InsertInstructionBefore(cond, pre_header->GetLastInstruction());
-    pre_header->InsertInstructionBefore(deoptimize, pre_header->GetLastInstruction());
+    deopt_block->InsertInstructionBefore(cond, deopt_block->GetLastInstruction());
+    deopt_block->InsertInstructionBefore(deoptimize, deopt_block->GetLastInstruction());
     deoptimize->CopyEnvironmentFromWithLoopPhiAdjustment(
-        suspend_check->GetEnvironment(), block);
+        suspend_check->GetEnvironment(), header);
   }
 
   // Returns true if adding a (value <= array_length + offset) check for deoptimization
@@ -640,6 +872,26 @@ class MonotonicValueRange : public ValueRange {
                                        int32_t offset,
                                        bool* is_proven) {
     *is_proven = false;
+    HBasicBlock* header = induction_variable_->GetBlock();
+    DCHECK(header->IsLoopHeader());
+    HBasicBlock* pre_header = header->GetLoopInformation()->GetPreHeader();
+    DCHECK(value->GetBlock()->Dominates(pre_header));
+
+    if (array_length->GetBlock() == header) {
+      // array_length_in_loop_body_if_needed only has correct value when the loop
+      // body is entered. We bail out in this case. Usually array_length defined
+      // in the loop header is already hoisted by licm.
+      return false;
+    } else {
+      // array_length is defined either before the loop header already, or in
+      // the loop body since it's used in the loop body. If it's defined in the loop body,
+      // a phi array_length_in_loop_body_if_needed is used to replace it. In that case,
+      // all the uses of array_length must be dominated by its definition in the loop
+      // body. array_length_in_loop_body_if_needed is guaranteed to be the same as
+      // array_length once the loop body is entered so all the uses of the phi will
+      // use the correct value.
+    }
+
     if (offset > 0) {
       // There might be overflow issue.
       // TODO: handle this, possibly with some distance relationship between
@@ -667,56 +919,99 @@ class MonotonicValueRange : public ValueRange {
   // Adds a check that (value <= array_length + offset), and HDeoptimize otherwise.
   void AddDeoptimizationArrayLength(HInstruction* value,
                                     HArrayLength* array_length,
-                                    int32_t offset) {
-    HBasicBlock* block = induction_variable_->GetBlock();
-    DCHECK(block->IsLoopHeader());
-    HGraph* graph = block->GetGraph();
-    HBasicBlock* pre_header = block->GetLoopInformation()->GetPreHeader();
-    HSuspendCheck* suspend_check = block->GetLoopInformation()->GetSuspendCheck();
+                                    int32_t offset,
+                                    HBasicBlock* deopt_block,
+                                    bool loop_entry_test_block_added) {
+    HBasicBlock* header = induction_variable_->GetBlock();
+    DCHECK(header->IsLoopHeader());
+    HBasicBlock* pre_header = header->GetDominator();
+    if (loop_entry_test_block_added) {
+      DCHECK(deopt_block->GetSuccessors().Get(0) == pre_header);
+    } else {
+      DCHECK(deopt_block == pre_header);
+    }
+    HGraph* graph = header->GetGraph();
+    HSuspendCheck* suspend_check = header->GetLoopInformation()->GetSuspendCheck();
 
     // We may need to hoist null-check and array_length out of loop first.
-    if (!array_length->GetBlock()->Dominates(pre_header)) {
+    if (!array_length->GetBlock()->Dominates(deopt_block)) {
+      // array_length must be defined in the loop body.
+      DCHECK(header->GetLoopInformation()->Contains(*array_length->GetBlock()));
+      DCHECK(array_length->GetBlock() != header);
+
       HInstruction* array = array_length->InputAt(0);
       HNullCheck* null_check = array->AsNullCheck();
       if (null_check != nullptr) {
         array = null_check->InputAt(0);
       }
-      // We've already made sure array is defined before the loop when collecting
+      // We've already made sure the array is defined before the loop when collecting
       // array accesses for the loop.
-      DCHECK(array->GetBlock()->Dominates(pre_header));
-      if (null_check != nullptr && !null_check->GetBlock()->Dominates(pre_header)) {
+      DCHECK(array->GetBlock()->Dominates(deopt_block));
+      if (null_check != nullptr && !null_check->GetBlock()->Dominates(deopt_block)) {
         // Hoist null check out of loop with a deoptimization.
         HNullConstant* null_constant = graph->GetNullConstant();
         HCondition* null_check_cond = new (graph->GetArena()) HEqual(array, null_constant);
         // TODO: for one dex_pc, share the same deoptimization slow path.
         HDeoptimize* null_check_deoptimize = new (graph->GetArena())
             HDeoptimize(null_check_cond, suspend_check->GetDexPc());
-        pre_header->InsertInstructionBefore(null_check_cond, pre_header->GetLastInstruction());
-        pre_header->InsertInstructionBefore(
-            null_check_deoptimize, pre_header->GetLastInstruction());
+        deopt_block->InsertInstructionBefore(
+            null_check_cond, deopt_block->GetLastInstruction());
+        deopt_block->InsertInstructionBefore(
+            null_check_deoptimize, deopt_block->GetLastInstruction());
         // Eliminate null check in the loop.
         null_check->ReplaceWith(array);
         null_check->GetBlock()->RemoveInstruction(null_check);
         null_check_deoptimize->CopyEnvironmentFromWithLoopPhiAdjustment(
-            suspend_check->GetEnvironment(), block);
+            suspend_check->GetEnvironment(), header);
       }
-      // Hoist array_length out of loop.
-      array_length->MoveBefore(pre_header->GetLastInstruction());
+
+      HArrayLength* new_array_length = new (graph->GetArena()) HArrayLength(array);
+      deopt_block->InsertInstructionBefore(new_array_length, deopt_block->GetLastInstruction());
+
+      if (loop_entry_test_block_added) {
+        // Replace array_length defined inside the loop body with a phi
+        // array_length_in_loop_body_if_needed. This is a synthetic phi so there is
+        // no vreg number for it.
+        HPhi* phi = new (graph->GetArena()) HPhi(
+            graph->GetArena(), kNoRegNumber, 2, Primitive::kPrimInt);
+        // Set to 0 if the loop body isn't entered.
+        phi->SetRawInputAt(0, graph->GetIntConstant(0));
+        // Set to array.length if the loop body is entered.
+        phi->SetRawInputAt(1, new_array_length);
+        pre_header->AddPhi(phi);
+        array_length->ReplaceWith(phi);
+        // Make sure phi is only used after the loop body is entered.
+        if (kIsDebugBuild) {
+          for (HUseIterator<HInstruction*> it(phi->GetUses());
+               !it.Done();
+               it.Advance()) {
+            HInstruction* user = it.Current()->GetUser();
+            DCHECK(GetLoopHeaderSuccesorInLoop()->Dominates(user->GetBlock()));
+          }
+        }
+      } else {
+        array_length->ReplaceWith(new_array_length);
+      }
+
+      array_length->GetBlock()->RemoveInstruction(array_length);
+      // Use new_array_length for deopt.
+      array_length = new_array_length;
     }
 
-    HIntConstant* offset_instr = graph->GetIntConstant(offset);
-    HAdd* add = new (graph->GetArena()) HAdd(Primitive::kPrimInt, array_length, offset_instr);
-    HCondition* cond = new (graph->GetArena()) HGreaterThan(value, add);
-    HDeoptimize* deoptimize = new (graph->GetArena())
-        HDeoptimize(cond, suspend_check->GetDexPc());
-    pre_header->InsertInstructionBefore(add, pre_header->GetLastInstruction());
-    pre_header->InsertInstructionBefore(cond, pre_header->GetLastInstruction());
-    pre_header->InsertInstructionBefore(deoptimize, pre_header->GetLastInstruction());
-    deoptimize->CopyEnvironmentFromWithLoopPhiAdjustment(
-        suspend_check->GetEnvironment(), block);
+    HInstruction* added = array_length;
+    if (offset != 0) {
+      HIntConstant* offset_instr = graph->GetIntConstant(offset);
+      added = new (graph->GetArena()) HAdd(Primitive::kPrimInt, array_length, offset_instr);
+      deopt_block->InsertInstructionBefore(added, deopt_block->GetLastInstruction());
+    }
+    HCondition* cond = new (graph->GetArena()) HGreaterThan(value, added);
+    HDeoptimize* deopt = new (graph->GetArena()) HDeoptimize(cond, suspend_check->GetDexPc());
+    deopt_block->InsertInstructionBefore(cond, deopt_block->GetLastInstruction());
+    deopt_block->InsertInstructionBefore(deopt, deopt_block->GetLastInstruction());
+    deopt->CopyEnvironmentFromWithLoopPhiAdjustment(suspend_check->GetEnvironment(), header);
   }
 
-  // Add deoptimizations in loop pre-header with the collected array access
+  // Adds deoptimizations in loop pre-header with the collected array access
   // data so that value ranges can be established in loop body.
   // Returns true if deoptimizations are successfully added, or if it's proven
   // it's not necessary.
@@ -733,68 +1028,58 @@ class MonotonicValueRange : public ValueRange {
       return false;
     }
 
+    HBasicBlock* deopt_block;
+    bool loop_entry_test_block_added = false;
     bool is_constant_proven, is_length_proven;
+
+    HInstruction* const_comparing_instruction;
+    int32_t const_compared_to;
+    HInstruction* array_length_comparing_instruction;
+    int32_t array_length_offset;
     if (increment_ == 1) {
       // Increasing from initial_ to end_.
-      int32_t offset = inclusive_ ? -offset_high - 1 : -offset_high;
-      if (CanAddDeoptimizationConstant(initial_, -offset_low, &is_constant_proven) &&
-          CanAddDeoptimizationArrayLength(end_, array_length, offset, &is_length_proven)) {
-        if (!is_constant_proven) {
-          AddDeoptimizationConstant(initial_, -offset_low);
+      const_comparing_instruction = initial_;
+      const_compared_to = -offset_low;
+      array_length_comparing_instruction = end_;
+      array_length_offset = inclusive_ ? -offset_high - 1 : -offset_high;
+    } else {
+      const_comparing_instruction = end_;
+      const_compared_to = inclusive_ ? -offset_low : -offset_low - 1;
+      array_length_comparing_instruction = initial_;
+      array_length_offset = -offset_high - 1;
+    }
+
+    if (CanAddDeoptimizationConstant(const_comparing_instruction,
+                                     const_compared_to,
+                                     &is_constant_proven) &&
+        CanAddDeoptimizationArrayLength(array_length_comparing_instruction,
+                                        array_length,
+                                        array_length_offset,
+                                        &is_length_proven)) {
+      if (!is_constant_proven || !is_length_proven) {
+        deopt_block = TransformLoopForDeoptimizationIfNeeded();
+        loop_entry_test_block_added = (deopt_block != pre_header);
+        if (loop_entry_test_block_added) {
+          // Loop body may be entered.
+          AddLoopBodyEntryTest();
         }
-        if (!is_length_proven) {
-          AddDeoptimizationArrayLength(end_, array_length, offset);
-        }
-        return true;
       }
-    } else if (increment_ == -1) {
-      // Decreasing from initial_ to end_.
-      int32_t constant = inclusive_ ? -offset_low : -offset_low - 1;
-      if (CanAddDeoptimizationConstant(end_, constant, &is_constant_proven) &&
-          CanAddDeoptimizationArrayLength(
-              initial_, array_length, -offset_high - 1, &is_length_proven)) {
-        if (!is_constant_proven) {
-          AddDeoptimizationConstant(end_, constant);
-        }
-        if (!is_length_proven) {
-          AddDeoptimizationArrayLength(initial_, array_length, -offset_high - 1);
-        }
-        return true;
+      if (!is_constant_proven) {
+        AddDeoptimizationConstant(const_comparing_instruction,
+                                  const_compared_to,
+                                  deopt_block,
+                                  loop_entry_test_block_added);
       }
+      if (!is_length_proven) {
+        AddDeoptimizationArrayLength(array_length_comparing_instruction,
+                                     array_length,
+                                     array_length_offset,
+                                     deopt_block,
+                                     loop_entry_test_block_added);
+      }
+      return true;
     }
     return false;
-  }
-
-  // Try to add HDeoptimize's in the loop pre-header first to narrow this range.
-  ValueRange* NarrowWithDeoptimization() {
-    if (increment_ != 1 && increment_ != -1) {
-      // TODO: possibly handle overflow/underflow issues with deoptimization.
-      return this;
-    }
-
-    if (end_ == nullptr) {
-      // No full info to add deoptimization.
-      return this;
-    }
-
-    ArrayAccessInsideLoopFinder finder(induction_variable_);
-
-    if (!finder.HasFoundArrayLength()) {
-      // No array access was found inside the loop that can benefit
-      // from deoptimization.
-      return this;
-    }
-
-    if (!AddDeoptimization(finder)) {
-      return this;
-    }
-
-    // After added deoptimizations, induction variable fits in
-    // [-offset_low, array.length-1-offset_high], adjusted with collected offsets.
-    ValueBound lower = ValueBound(0, -finder.GetOffsetLow());
-    ValueBound upper = ValueBound(finder.GetFoundArrayLength(), -1 - finder.GetOffsetHigh());
-    // We've narrowed the range after added deoptimizations.
-    return new (GetAllocator()) ValueRange(GetAllocator(), lower, upper);
   }
 
  private:
@@ -819,12 +1104,17 @@ class BCEVisitor : public HGraphVisitor {
   // it's likely some AIOOBE will be thrown.
   static constexpr int32_t kMaxConstantForAddingDeoptimize = INT_MAX - 1024 * 1024;
 
+  // Added blocks for loop body entry test.
+  bool IsAddedBlock(HBasicBlock* block) const {
+    return block->GetBlockId() >= initial_block_size_;
+  }
+
   explicit BCEVisitor(HGraph* graph)
-      : HGraphVisitor(graph),
-        maps_(graph->GetBlocks().Size()),
-        need_to_revisit_block_(false) {}
+      : HGraphVisitor(graph), maps_(graph->GetBlocks().Size()),
+        need_to_revisit_block_(false), initial_block_size_(graph->GetBlocks().Size()) {}
 
   void VisitBasicBlock(HBasicBlock* block) OVERRIDE {
+    DCHECK(!IsAddedBlock(block));
     first_constant_index_bounds_check_map_.clear();
     HGraphVisitor::VisitBasicBlock(block);
     if (need_to_revisit_block_) {
@@ -839,6 +1129,10 @@ class BCEVisitor : public HGraphVisitor {
  private:
   // Return the map of proven value ranges at the beginning of a basic block.
   ArenaSafeMap<int, ValueRange*>* GetValueRangeMap(HBasicBlock* basic_block) {
+    if (IsAddedBlock(basic_block)) {
+      // Added blocks don't keep value ranges.
+      return nullptr;
+    }
     int block_id = basic_block->GetBlockId();
     if (maps_.at(block_id) == nullptr) {
       std::unique_ptr<ArenaSafeMap<int, ValueRange*>> map(
@@ -853,8 +1147,12 @@ class BCEVisitor : public HGraphVisitor {
   ValueRange* LookupValueRange(HInstruction* instruction, HBasicBlock* basic_block) {
     while (basic_block != nullptr) {
       ArenaSafeMap<int, ValueRange*>* map = GetValueRangeMap(basic_block);
-      if (map->find(instruction->GetId()) != map->end()) {
-        return map->Get(instruction->GetId());
+      if (map != nullptr) {
+        if (map->find(instruction->GetId()) != map->end()) {
+          return map->Get(instruction->GetId());
+        }
+      } else {
+        DCHECK(IsAddedBlock(basic_block));
       }
       basic_block = basic_block->GetDominator();
     }
@@ -971,7 +1269,7 @@ class BCEVisitor : public HGraphVisitor {
     if (left_range != nullptr) {
       left_monotonic_range = left_range->AsMonotonicValueRange();
       if (left_monotonic_range != nullptr) {
-        HBasicBlock* loop_head = left_monotonic_range->GetLoopHead();
+        HBasicBlock* loop_head = left_monotonic_range->GetLoopHeader();
         if (instruction->GetBlock() != loop_head) {
           // For monotonic value range, don't handle `instruction`
           // if it's not defined in the loop header.
@@ -1013,7 +1311,7 @@ class BCEVisitor : public HGraphVisitor {
         // Update the info for monotonic value range.
         if (left_monotonic_range->GetInductionVariable() == left &&
             left_monotonic_range->GetIncrement() < 0 &&
-            block == left_monotonic_range->GetLoopHead() &&
+            block == left_monotonic_range->GetLoopHeader() &&
             instruction->IfFalseSuccessor()->GetLoopInformation() == block->GetLoopInformation()) {
           left_monotonic_range->SetEnd(right);
           left_monotonic_range->SetInclusive(cond == kCondLT);
@@ -1047,7 +1345,7 @@ class BCEVisitor : public HGraphVisitor {
         // Update the info for monotonic value range.
         if (left_monotonic_range->GetInductionVariable() == left &&
             left_monotonic_range->GetIncrement() > 0 &&
-            block == left_monotonic_range->GetLoopHead() &&
+            block == left_monotonic_range->GetLoopHeader() &&
             instruction->IfFalseSuccessor()->GetLoopInformation() == block->GetLoopInformation()) {
           left_monotonic_range->SetEnd(right);
           left_monotonic_range->SetInclusive(cond == kCondGT);
@@ -1083,7 +1381,16 @@ class BCEVisitor : public HGraphVisitor {
     HBasicBlock* block = bounds_check->GetBlock();
     HInstruction* index = bounds_check->InputAt(0);
     HInstruction* array_length = bounds_check->InputAt(1);
-    DCHECK(array_length->IsIntConstant() || array_length->IsArrayLength());
+    DCHECK(array_length->IsIntConstant() ||
+           array_length->IsArrayLength() ||
+           array_length->IsPhi());
+
+    if (array_length->IsPhi()) {
+      // Input 1 of the phi contains the real array.length once the loop body is
+      // entered. That value will be used for bound analysis. The graph is still
+      // strickly in SSA form.
+      array_length = array_length->AsPhi()->InputAt(1)->AsArrayLength();
+    }
 
     if (!index->IsIntConstant()) {
       ValueRange* index_range = LookupValueRange(index, block);
@@ -1238,25 +1545,26 @@ class BCEVisitor : public HGraphVisitor {
         }
 
         if (left_range->IsMonotonicValueRange() &&
-            block == left_range->AsMonotonicValueRange()->GetLoopHead()) {
+            block == left_range->AsMonotonicValueRange()->GetLoopHeader()) {
           // The comparison is for an induction variable in the loop header.
           DCHECK(left == left_range->AsMonotonicValueRange()->GetInductionVariable());
-          HBasicBlock* loop_body_successor;
-          if (LIKELY(block->GetLoopInformation()->
-              Contains(*instruction->IfFalseSuccessor()))) {
-            loop_body_successor = instruction->IfFalseSuccessor();
-          } else {
-            loop_body_successor = instruction->IfTrueSuccessor();
+          HBasicBlock* loop_body_successor =
+            left_range->AsMonotonicValueRange()->GetLoopHeaderSuccesorInLoop();
+          if (loop_body_successor == nullptr) {
+            // In case it's some strange loop structure.
+            return;
           }
           ValueRange* new_left_range = LookupValueRange(left, loop_body_successor);
-          if (new_left_range == left_range) {
+          if ((new_left_range == left_range) ||
+              // Range narrowed with deoptimization is usually more useful than
+              // a constant range.
+              new_left_range->IsConstantValueRange()) {
             // We are not successful in narrowing the monotonic value range to
             // a regular value range. Try using deoptimization.
             new_left_range = left_range->AsMonotonicValueRange()->
                 NarrowWithDeoptimization();
             if (new_left_range != left_range) {
-              GetValueRangeMap(instruction->IfFalseSuccessor())->
-                  Overwrite(left->GetId(), new_left_range);
+              GetValueRangeMap(loop_body_successor)->Overwrite(left->GetId(), new_left_range);
             }
           }
         }
@@ -1511,6 +1819,9 @@ class BCEVisitor : public HGraphVisitor {
   // eliminate those bounds checks.
   bool need_to_revisit_block_;
 
+  // Initial number of blocks.
+  int32_t initial_block_size_;
+
   DISALLOW_COPY_AND_ASSIGN(BCEVisitor);
 };
 
@@ -1527,7 +1838,22 @@ void BoundsCheckElimination::Run() {
   // value can be narrowed further down in the dominator tree.
   //
   // TODO: only visit blocks that dominate some array accesses.
-  visitor.VisitReversePostOrder();
+  HBasicBlock* last_visited_block = nullptr;
+  for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
+    HBasicBlock* current = it.Current();
+    if (current == last_visited_block) {
+      // We may insert blocks into the reverse post order list when processing
+      // a loop header. Don't process it again.
+      DCHECK(current->IsLoopHeader());
+      continue;
+    }
+    if (visitor.IsAddedBlock(current)) {
+      // Skip added blocks. Their effects are already taken care of.
+      continue;
+    }
+    visitor.VisitBasicBlock(current);
+    last_visited_block = current;
+  }
 }
 
 }  // namespace art
