@@ -3721,6 +3721,7 @@ JDWP::JdwpError Dbg::PrepareInvokeMethod(uint32_t request_id, JDWP::ObjectId thr
                                          uint32_t options) {
   Thread* const self = Thread::Current();
   CHECK_EQ(self, GetDebugThread()) << "This must be called by the JDWP thread";
+  const bool resume_all_threads = ((options & JDWP::INVOKE_SINGLE_THREADED) == 0);
 
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   Thread* targetThread = nullptr;
@@ -3744,27 +3745,32 @@ JDWP::JdwpError Dbg::PrepareInvokeMethod(uint32_t request_id, JDWP::ObjectId thr
     }
 
     /*
-     * We currently have a bug where we don't successfully resume the
-     * target thread if the suspend count is too deep.  We're expected to
-     * require one "resume" for each "suspend", but when asked to execute
-     * a method we have to resume fully and then re-suspend it back to the
-     * same level.  (The easiest way to cause this is to type "suspend"
-     * multiple times in jdb.)
+     * According to the JDWP specs, we are expected to resume all threads (or only the
+     * target thread) once. So if a thread has been suspended more than once (either by
+     * the debugger for an event or by the runtime for GC), it will remain suspended before
+     * the invoke is executed. This means the debugger is responsible to properly resume all
+     * the threads it has suspended so the target thread can execute the method.
      *
-     * It's unclear what this means when the event specifies "resume all"
-     * and some threads are suspended more deeply than others.  This is
-     * a rare problem, so for now we just prevent it from hanging forever
-     * by rejecting the method invocation request.  Without this, we will
-     * be stuck waiting on a suspended thread.
+     * However, for compatibility reason with older versions of debuggers (like Eclipse), we
+     * fully resume all threads (by canceling *all* debugger suspensions) when the debugger
+     * wants us to resume all threads. This is to avoid ending up in deadlock situation.
+     *
+     * On the other hand, if we are asked to only resume the target thread, then we follow the
+     * JDWP specs by resuming that thread only once. This means the thread will remain suspended
+     * if it has been suspended more than once before the invoke (and again, this is the
+     * responsibility of the debugger to properly resume that thread before invoking a method).
      */
     int suspend_count;
     {
       MutexLock mu2(soa.Self(), *Locks::thread_suspend_count_lock_);
       suspend_count = targetThread->GetSuspendCount();
     }
-    if (suspend_count > 1) {
-      LOG(ERROR) << *targetThread << " suspend count too deep for method invocation: " << suspend_count;
-      return JDWP::ERR_THREAD_SUSPENDED;  // Probably not expected here.
+    if (suspend_count > 1 && resume_all_threads) {
+      // The target thread will remain suspended even after we resume it. Let's emit a warning
+      // to indicate the invoke won't be executed until the thread is resumed.
+      LOG(WARNING) << *targetThread << " suspended more than once (suspend count == "
+                   << suspend_count << "). This thread will invoke the method only once "
+                   << "it is fully resumed.";
     }
 
     mirror::Object* receiver = gRegistry->Get<mirror::Object*>(object_id, &error);
@@ -3849,8 +3855,7 @@ JDWP::JdwpError Dbg::PrepareInvokeMethod(uint32_t request_id, JDWP::ObjectId thr
   // The fact that we've released the thread list lock is a bit risky --- if the thread goes
   // away we're sitting high and dry -- but we must release this before the UndoDebuggerSuspensions
   // call.
-
-  if ((options & JDWP::INVOKE_SINGLE_THREADED) == 0) {
+  if (resume_all_threads) {
     VLOG(jdwp) << "      Resuming all threads";
     thread_list->UndoDebuggerSuspensions();
   } else {
