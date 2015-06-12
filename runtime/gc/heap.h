@@ -703,6 +703,9 @@ class Heap {
   void SetAllocationRecords(AllocRecordObjectMap* records)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::alloc_tracker_lock_);
 
+  void VisitAllocationRecords(RootVisitor* visitor) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   void SweepAllocationRecords(IsMarkedCallback* visitor, void* arg) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
