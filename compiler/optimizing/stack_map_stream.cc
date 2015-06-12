@@ -49,7 +49,6 @@ void StackMapStream::BeginStackMapEntry(uint32_t dex_pc,
   }
 
   dex_pc_max_ = std::max(dex_pc_max_, dex_pc);
-  native_pc_offset_max_ = std::max(native_pc_offset_max_, native_pc_offset);
   register_mask_max_ = std::max(register_mask_max_, register_mask);
   current_dex_register_ = 0;
 }
@@ -128,16 +127,25 @@ void StackMapStream::EndInlineInfoEntry() {
   current_inline_info_ = InlineInfoEntry();
 }
 
+uint32_t StackMapStream::ComputeMaxNativePcOffset() const {
+  uint32_t max_native_pc_offset = 0u;
+  for (size_t i = 0, size = stack_maps_.Size(); i != size; ++i) {
+    max_native_pc_offset = std::max(max_native_pc_offset, stack_maps_.Get(i).native_pc_offset);
+  }
+  return max_native_pc_offset;
+}
+
 size_t StackMapStream::PrepareForFillIn() {
   int stack_mask_number_of_bits = stack_mask_max_ + 1;  // Need room for max element too.
   stack_mask_size_ = RoundUp(stack_mask_number_of_bits, kBitsPerByte) / kBitsPerByte;
   inline_info_size_ = ComputeInlineInfoSize();
   dex_register_maps_size_ = ComputeDexRegisterMapsSize();
+  uint32_t max_native_pc_offset = ComputeMaxNativePcOffset();
   stack_map_encoding_ = StackMapEncoding::CreateFromSizes(stack_mask_size_,
                                                           inline_info_size_,
                                                           dex_register_maps_size_,
                                                           dex_pc_max_,
-                                                          native_pc_offset_max_,
+                                                          max_native_pc_offset,
                                                           register_mask_max_);
   stack_maps_size_ = stack_maps_.Size() * stack_map_encoding_.ComputeStackMapSize();
   dex_register_location_catalog_size_ = ComputeDexRegisterLocationCatalogSize();
