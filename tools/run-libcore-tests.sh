@@ -33,7 +33,8 @@ if [ ! -f $test_jar ]; then
 fi
 
 # Packages that currently work correctly with the expectation files.
-working_packages=("libcore.icu"
+working_packages=("dalvik.system"
+                  "libcore.icu"
                   "libcore.io"
                   "libcore.java.lang"
                   "libcore.java.math"
