@@ -1617,10 +1617,32 @@ JDWP::JdwpError Dbg::OutputDeclaredMethods(JDWP::RefTypeId class_id, bool with_g
   size_t direct_method_count = c->NumDirectMethods();
   size_t virtual_method_count = c->NumVirtualMethods();
 
-  expandBufAdd4BE(pReply, direct_method_count + virtual_method_count);
+  size_t xposed_method_count = 0;
+  for (size_t i = 0; i < direct_method_count + virtual_method_count; ++i) {
+    mirror::ArtMethod* m = (i < direct_method_count) ? c->GetDirectMethod(i) : c->GetVirtualMethod(i - direct_method_count);
+    if (UNLIKELY(m->IsXposedHookedMethod())) {
+      ++xposed_method_count;
+    }
+  }
+
+  expandBufAdd4BE(pReply, direct_method_count + virtual_method_count + xposed_method_count);
 
   for (size_t i = 0; i < direct_method_count + virtual_method_count; ++i) {
     mirror::ArtMethod* m = (i < direct_method_count) ? c->GetDirectMethod(i) : c->GetVirtualMethod(i - direct_method_count);
+
+    if (UNLIKELY(xposed_method_count > 0 && m->IsXposedHookedMethod())) {
+      expandBufAddMethodId(pReply, ToMethodId(m));
+      expandBufAddUtf8String(pReply, m->GetName());
+      expandBufAddUtf8String(pReply, m->GetSignature().ToString());
+      if (with_generic) {
+        static const char genericSignature[1] = "";
+        expandBufAddUtf8String(pReply, genericSignature);
+      }
+      expandBufAdd4BE(pReply, MangleAccessFlags(m->GetAccessFlags()));
+
+      m = m->GetXposedOriginalMethod();
+    }
+
     expandBufAddMethodId(pReply, ToMethodId(m));
     expandBufAddUtf8String(pReply, m->GetName());
     expandBufAddUtf8String(pReply, m->GetSignature().ToString());
