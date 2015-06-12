@@ -52,6 +52,7 @@ class HInliner : public HOptimization {
   bool TryInline(HInvoke* invoke_instruction, uint32_t method_index) const;
   bool TryBuildAndInline(ArtMethod* resolved_method,
                          HInvoke* invoke_instruction,
+                         uint32_t method_index,
                          bool same_dex_file) const;
 
   const DexCompilationUnit& outer_compilation_unit_;
