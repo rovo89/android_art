@@ -67,7 +67,6 @@ class StackMapStream : public ValueObject {
         inline_infos_(allocator, 2),
         stack_mask_max_(-1),
         dex_pc_max_(0),
-        native_pc_offset_max_(0),
         register_mask_max_(0),
         number_of_stack_maps_with_inline_info_(0),
         dex_map_hash_to_stack_map_indices_(std::less<uint32_t>(), allocator->Adapter()),
@@ -126,6 +125,17 @@ class StackMapStream : public ValueObject {
                             uint32_t num_dex_registers);
   void EndInlineInfoEntry();
 
+  size_t GetNumberOfStackMaps() const {
+    return stack_maps_.Size();
+  }
+
+  const StackMapEntry& GetStackMap(size_t i) const {
+    DCHECK_LT(i, stack_maps_.Size());
+    return stack_maps_.GetRawStorage()[i];
+  }
+
+  uint32_t ComputeMaxNativePcOffset() const;
+
   // Prepares the stream to fill in a memory region. Must be called before FillIn.
   // Returns the size (in bytes) needed to store this stream.
   size_t PrepareForFillIn();
@@ -163,7 +173,6 @@ class StackMapStream : public ValueObject {
   GrowableArray<InlineInfoEntry> inline_infos_;
   int stack_mask_max_;
   uint32_t dex_pc_max_;
-  uint32_t native_pc_offset_max_;
   uint32_t register_mask_max_;
   size_t number_of_stack_maps_with_inline_info_;
 
