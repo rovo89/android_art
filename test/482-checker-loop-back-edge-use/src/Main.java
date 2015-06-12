@@ -36,8 +36,8 @@ public class Main {
   }
 
   /// CHECK-START: void Main.loop3(boolean) liveness (after)
-  /// CHECK:         ParameterValue  liveness:4  ranges:{[4,62)} uses:[58,62]
-  /// CHECK:         Goto            liveness:60
+  /// CHECK:         ParameterValue  liveness:4  ranges:{[4,64)} uses:[60,64]
+  /// CHECK:         Goto            liveness:62
 
   /// CHECK-START: void Main.loop3(boolean) liveness (after)
   /// CHECK-NOT:     Goto liveness:56
@@ -63,9 +63,9 @@ public class Main {
   }
 
   /// CHECK-START: void Main.loop5(boolean) liveness (after)
-  /// CHECK:         ParameterValue  liveness:4  ranges:{[4,52)} uses:[35,44,48,52]
-  /// CHECK:         Goto            liveness:46
-  /// CHECK:         Goto            liveness:50
+  /// CHECK:         ParameterValue  liveness:4  ranges:{[4,54)} uses:[37,46,50,54]
+  /// CHECK:         Goto            liveness:48
+  /// CHECK:         Goto            liveness:52
   public static void loop5(boolean incoming) {
     // 'incoming' must have a use at both back edges.
     while (Runtime.getRuntime() != null) {
@@ -76,8 +76,8 @@ public class Main {
   }
 
   /// CHECK-START: void Main.loop6(boolean) liveness (after)
-  /// CHECK:         ParameterValue  liveness:4  ranges:{[4,48)} uses:[26,48]
-  /// CHECK:         Goto            liveness:46
+  /// CHECK:         ParameterValue  liveness:4  ranges:{[4,50)} uses:[26,50]
+  /// CHECK:         Goto            liveness:48
 
   /// CHECK-START: void Main.loop6(boolean) liveness (after)
   /// CHECK-NOT:     Goto            liveness:24
@@ -90,9 +90,9 @@ public class Main {
   }
 
   /// CHECK-START: void Main.loop7(boolean) liveness (after)
-  /// CHECK:         ParameterValue  liveness:4  ranges:{[4,52)} uses:[34,43,48,52]
-  /// CHECK:         Goto            liveness:46
-  /// CHECK:         Goto            liveness:50
+  /// CHECK:         ParameterValue  liveness:4  ranges:{[4,54)} uses:[36,45,50,54]
+  /// CHECK:         Goto            liveness:48
+  /// CHECK:         Goto            liveness:52
   public static void loop7(boolean incoming) {
     // 'incoming' must have a use at both back edges.
     while (Runtime.getRuntime() != null) {
@@ -102,9 +102,9 @@ public class Main {
   }
 
   /// CHECK-START: void Main.loop8() liveness (after)
-  /// CHECK:         StaticFieldGet  liveness:14 ranges:{[14,46)} uses:[37,42,46]
-  /// CHECK:         Goto            liveness:40
-  /// CHECK:         Goto            liveness:44
+  /// CHECK:         StaticFieldGet  liveness:14 ranges:{[14,48)} uses:[39,44,48]
+  /// CHECK:         Goto            liveness:42
+  /// CHECK:         Goto            liveness:46
   public static void loop8() {
     // 'incoming' must have a use at both back edges.
     boolean incoming = field;
@@ -114,8 +114,8 @@ public class Main {
   }
 
   /// CHECK-START: void Main.loop9() liveness (after)
-  /// CHECK:         StaticFieldGet  liveness:24 ranges:{[24,38)} uses:[33,38]
-  /// CHECK:         Goto            liveness:40
+  /// CHECK:         StaticFieldGet  liveness:26 ranges:{[26,40)} uses:[35,40]
+  /// CHECK:         Goto            liveness:42
   public static void loop9() {
     while (Runtime.getRuntime() != null) {
       // 'incoming' must only have a use in the inner loop.
