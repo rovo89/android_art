@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_OPTIMIZATION_H_
 #define ART_COMPILER_OPTIMIZING_OPTIMIZATION_H_
 
+#include "base/arena_object.h"
 #include "nodes.h"
 #include "optimizing_compiler_stats.h"
 
@@ -25,7 +26,7 @@ namespace art {
 /**
  * Abstraction to implement an optimization pass.
  */
-class HOptimization : public ValueObject {
+class HOptimization : public ArenaObject<kArenaAllocMisc> {
  public:
   HOptimization(HGraph* graph,
                 bool is_in_ssa_form,
