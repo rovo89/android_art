@@ -99,10 +99,6 @@ put ourselves to sleep.  That way we don't interfere with anyone else and
 don't allow anyone else to interfere with us.
 */
 
-
-#define kJdwpEventCommandSet    64
-#define kJdwpCompositeCommand   100
-
 namespace art {
 
 namespace JDWP {
@@ -612,13 +608,10 @@ void JdwpState::SuspendByPolicy(JdwpSuspendPolicy suspend_policy, JDWP::ObjectId
      */
     DebugInvokeReq* const pReq = Dbg::GetInvokeReq();
     if (pReq == nullptr) {
-      /*LOGD("SuspendByPolicy: no invoke needed");*/
       break;
     }
 
-    /* grab this before posting/suspending again */
-    AcquireJdwpTokenForEvent(thread_self_id);
-
+    // Execute method.
     Dbg::ExecuteMethod(pReq);
   }
 }
@@ -749,11 +742,11 @@ static ExpandBuf* eventPrep() {
 void JdwpState::EventFinish(ExpandBuf* pReq) {
   uint8_t* buf = expandBufGetBuffer(pReq);
 
-  Set4BE(buf, expandBufGetLength(pReq));
-  Set4BE(buf + 4, NextRequestSerial());
-  Set1(buf + 8, 0);     /* flags */
-  Set1(buf + 9, kJdwpEventCommandSet);
-  Set1(buf + 10, kJdwpCompositeCommand);
+  Set4BE(buf + kJDWPHeaderSizeOffset, expandBufGetLength(pReq));
+  Set4BE(buf + kJDWPHeaderIdOffset, NextRequestSerial());
+  Set1(buf + kJDWPHeaderFlagsOffset, 0);     /* flags */
+  Set1(buf + kJDWPHeaderCmdSetOffset, kJDWPEventCmdSet);
+  Set1(buf + kJDWPHeaderCmdOffset, kJDWPEventCompositeCmd);
 
   SendRequest(pReq);
 
