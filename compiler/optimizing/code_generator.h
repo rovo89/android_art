@@ -64,11 +64,6 @@ class CodeAllocator {
   DISALLOW_COPY_AND_ASSIGN(CodeAllocator);
 };
 
-struct PcInfo {
-  uint32_t dex_pc;
-  uintptr_t native_pc;
-};
-
 class SlowPathCode : public ArenaObject<kArenaAllocSlowPaths> {
  public:
   SlowPathCode() {
@@ -366,7 +361,6 @@ class CodeGenerator {
         is_baseline_(false),
         graph_(graph),
         compiler_options_(compiler_options),
-        pc_infos_(graph->GetArena(), 32),
         slow_paths_(graph->GetArena(), 8),
         block_order_(nullptr),
         current_block_index_(0),
@@ -455,7 +449,6 @@ class CodeGenerator {
   HGraph* const graph_;
   const CompilerOptions& compiler_options_;
 
-  GrowableArray<PcInfo> pc_infos_;
   GrowableArray<SlowPathCode*> slow_paths_;
 
   // The order to use for code generation.
