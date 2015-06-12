@@ -29,15 +29,32 @@
 /*
  * JDWP constants.
  */
-#define kJDWPHeaderLen  11
-#define kJDWPFlagReply  0x80
+static constexpr size_t kJDWPHeaderSizeOffset = 0U;
+static constexpr size_t kJDWPHeaderIdOffset = 4U;
+static constexpr size_t kJDWPHeaderFlagsOffset = 8U;
+static constexpr size_t kJDWPHeaderErrorCodeOffset = 9U;
+static constexpr size_t kJDWPHeaderCmdSetOffset = 9U;
+static constexpr size_t kJDWPHeaderCmdOffset = 10U;
+static constexpr size_t kJDWPHeaderLen = 11U;
+static constexpr uint8_t kJDWPFlagReply = 0x80;
 
-#define kMagicHandshake     "JDWP-Handshake"
-#define kMagicHandshakeLen  (sizeof(kMagicHandshake)-1)
+static constexpr const char kMagicHandshake[] = "JDWP-Handshake";
+static constexpr size_t kMagicHandshakeLen = sizeof(kMagicHandshake) - 1;
+
+/* Invoke commands */
+static constexpr uint8_t kJDWPClassTypeCmdSet = 3U;
+static constexpr uint8_t kJDWPClassTypeInvokeMethodCmd = 3U;
+static constexpr uint8_t kJDWPClassTypeNewInstanceCmd = 4U;
+static constexpr uint8_t kJDWPObjectReferenceCmdSet = 9U;
+static constexpr uint8_t kJDWPObjectReferenceInvokeCmd = 6U;
+
+/* Event command */
+static constexpr uint8_t kJDWPEventCmdSet = 64U;
+static constexpr uint8_t kJDWPEventCompositeCmd = 100U;
 
 /* DDM support */
-#define kJDWPDdmCmdSet  199     /* 0xc7, or 'G'+128 */
-#define kJDWPDdmCmd     1
+static constexpr uint8_t kJDWPDdmCmdSet = 199U;  // 0xc7, or 'G'+128
+static constexpr uint8_t kJDWPDdmCmd = 1U;
 
 namespace art {
 

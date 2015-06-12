@@ -395,8 +395,15 @@ bool JdwpState::HandlePacket() {
   JDWP::Request request(netStateBase->input_buffer_, netStateBase->input_count_);
 
   ExpandBuf* pReply = expandBufAlloc();
-  size_t replyLength = ProcessRequest(&request, pReply);
-  ssize_t cc = netStateBase->WritePacket(pReply, replyLength);
+  bool skip_reply = false;
+  size_t replyLength = ProcessRequest(&request, pReply, &skip_reply);
+  ssize_t cc = 0;
+  if (!skip_reply) {
+    cc = netStateBase->WritePacket(pReply, replyLength);
+  } else {
+    DCHECK_EQ(replyLength, 0U);
+  }
+  expandBufFree(pReply);
 
   /*
    * We processed this request and sent its reply so we can release the JDWP token.
@@ -405,10 +412,8 @@ bool JdwpState::HandlePacket() {
 
   if (cc != static_cast<ssize_t>(replyLength)) {
     PLOG(ERROR) << "Failed sending reply to debugger";
-    expandBufFree(pReply);
     return false;
   }
-  expandBufFree(pReply);
   netStateBase->ConsumeBytes(request.GetLength());
   {
     MutexLock mu(self, shutdown_lock_);
