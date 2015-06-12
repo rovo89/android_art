@@ -2483,7 +2483,7 @@ class HInvoke : public HInstruction {
     intrinsic_ = intrinsic;
   }
 
-  bool IsInlined() const {
+  bool IsFromInlinedInvoke() const {
     return GetEnvironment()->GetParent() != nullptr;
   }
 
@@ -3603,7 +3603,7 @@ class HLoadClass : public HExpression<1> {
   bool CanThrow() const OVERRIDE {
     // May call runtime and and therefore can throw.
     // TODO: finer grain decision.
-    return !is_referrers_class_;
+    return CanCallRuntime();
   }
 
   ReferenceTypeInfo GetLoadedClassRTI() {
