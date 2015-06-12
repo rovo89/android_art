@@ -1595,6 +1595,9 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
       line_number = -1;
       class_name_object.Assign(method->GetDeclaringClass()->GetName());
       // source_name_object intentionally left null for proxy methods
+      if (method->IsXposedHookedMethod()) {
+        source_name_object.Assign(mirror::String::AllocFromModifiedUtf8(soa.Self(), "<Xposed>"));
+      }
     } else {
       mirror::IntArray* pc_trace = down_cast<mirror::IntArray*>(method_trace->Get(depth));
       uint32_t dex_pc = pc_trace->Get(i);
