@@ -132,5 +132,42 @@
   result: EXEC_FAILED,
   names: ["libcore.javax.crypto.CipherTest#testCipher_ShortBlock_Failure",
           "libcore.javax.crypto.CipherTest#testCipher_Success"]
+},
+{
+  description: "Tests newly added to the build bot (b/21722374)",
+  result: EXEC_FAILED,
+  names: ["com.android.org.conscrypt.NativeCryptoTest#test_SSL_do_handshake_clientCertificateRequested_throws_after_renegotiate",
+          "com.android.org.conscrypt.NativeCryptoTest#test_SSL_new",
+          "com.android.org.conscrypt.NativeCryptoTest#test_SSL_renegotiate",
+          "com.android.org.conscrypt.NativeCryptoTest#test_SSL_set_session_creation_enabled",
+          "libcore.java.security.KeyPairGeneratorTest#test_getInstance_provider1",
+          "libcore.java.security.KeyStoreTest",
+          "libcore.java.security.ProviderTest#test_Provider_getServices",
+          "libcore.java.security.SignatureTest#test18566_AlgorithmOid_MissingNull_Failure",
+          "libcore.java.security.SignatureTest#testVerify_NONEwithRSA_Key_SignatureTooLarge_Failure",
+          "libcore.java.security.SignatureTest#testVerify_SHA1withRSA_Key_WrongExpectedSignature_Failure",
+          "libcore.java.security.SignatureTest#test_getInstance",
+          "libcore.javax.net.ssl.KeyManagerFactoryTest#test_KeyManagerFactory_getDefaultAlgorithm",
+          "libcore.javax.net.ssl.KeyManagerFactoryTest#test_KeyManagerFactory_getInstance",
+          "libcore.javax.net.ssl.SSLContextTest#test_SSLContext_defaultConfiguration",
+          "libcore.javax.net.ssl.SSLSocketTest#test_SSLSocket_NoEnabledCipherSuites_Failure",
+          "libcore.javax.net.ssl.SSLSocketTest#test_SSLSocket_sendsTlsFallbackScsv_InappropriateFallback_Failure"]
+},
+{
+  description: "Tests newly added to the build bot (b/21722374). Not failing with adb sync; ./run-libcore-tests.sh",
+  result: EXEC_FAILED,
+  names: ["com.android.org.conscrypt.NativeCryptoTest#test_SSL_set_cipher_lists",
+          "libcore.java.security.KeyStoreTest#test_KeyStore_load_InputStream",
+          "libcore.java.security.KeyStoreTest#test_KeyStore_load_LoadStoreParameter",
+          "libcore.java.security.KeyStoreTest#test_KeyStore_size",
+          "libcore.java.security.MessageDigestTest#test_getInstance",
+          "libcore.java.security.cert.X509CertificateTest#test_Provider",
+          "libcore.javax.net.ssl.TrustManagerFactoryTest#test_TrustManagerFactory_getDefaultAlgorithm",
+          "libcore.javax.net.ssl.TrustManagerFactoryTest#test_TrustManagerFactory_getInstance"]
+},
+{
+  description: "Test failing because of wrong dates in build bot devices",
+  result: EXEC_FAILED,
+  names: ["libcore.java.security.cert.X509CertificateNistPkitsTest"]
 }
 ]
