@@ -1,0 +1,7 @@
+java.lang.Exception
+	at Main.$noinline$bar(Main.java:139)
+	at Level2.$inline$bar(Main.java:88)
+	at Level1.$inline$bar(Main.java:82)
+	at LoadedByMyClassLoader.bar(Main.java:94)
+	at java.lang.reflect.Method.invoke(Native Method)
+	at Main.main(Main.java:113)
