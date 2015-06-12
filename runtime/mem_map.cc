@@ -439,6 +439,14 @@ MemMap* MemMap::MapAnonymous(const char* name, uint8_t* expected_ptr, size_t byt
                     page_aligned_byte_count, prot, false);
 }
 
+MemMap* MemMap::MapDummy(const char* name, uint8_t* addr, size_t byte_count) {
+  if (byte_count == 0) {
+    return new MemMap(name, nullptr, 0, nullptr, 0, 0, false);
+  }
+  const size_t page_aligned_byte_count = RoundUp(byte_count, kPageSize);
+  return new MemMap(name, addr, byte_count, addr, page_aligned_byte_count, 0, true /* reuse */);
+}
+
 MemMap* MemMap::MapFileAtAddress(uint8_t* expected_ptr, size_t byte_count, int prot, int flags,
                                  int fd, off_t start, bool reuse, const char* filename,
                                  std::string* error_msg) {
