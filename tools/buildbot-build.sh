@@ -19,7 +19,7 @@ if [ ! -d art ]; then
   exit 1
 fi
 
-common_targets="vogar vogar.jar core-tests apache-harmony-jdwp-tests-hostdex out/host/linux-x86/bin/adb jsr166-tests libjavacoretests"
+common_targets="vogar vogar.jar core-tests apache-harmony-jdwp-tests-hostdex out/host/linux-x86/bin/adb jsr166-tests"
 android_root="/data/local/tmp/system"
 linker="linker"
 mode="target"
@@ -60,7 +60,7 @@ while true; do
 done
 
 if [[ $mode == "host" ]]; then
-  make_command="make $j_arg build-art-host-tests $common_targets"
+  make_command="make $j_arg build-art-host-tests $common_targets out/host/linux-x86/lib/libjavacoretests.so out/host/linux-x86/lib64/libjavacoretests.so"
   echo "Executing $make_command"
   $make_command
 elif [[ $mode == "target" ]]; then
@@ -70,7 +70,7 @@ elif [[ $mode == "target" ]]; then
   # Use '-e' to force the override of TARGET_GLOBAL_LDFLAGS.
   # Also, we build extra tools that will be used by tests, so that
   # they are compiled with our own linker.
-  make_command="make -e $j_arg build-art-target-tests $common_targets libjavacrypto linker toybox toolbox sh"
+  make_command="make -e $j_arg build-art-target-tests $common_targets libjavacrypto libjavacoretests linker toybox toolbox sh"
   echo "Executing env $env $make_command"
   env $env $make_command
 fi
