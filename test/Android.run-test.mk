@@ -230,12 +230,15 @@ endif
 TEST_ART_BROKEN_NO_RELOCATE_TESTS :=
 
 # Tests that are broken with GC stress.
-TEST_ART_BROKEN_GCSTRESS_RUN_TESTS :=
+# TODO: remove 098-ddmc from the list once the old behavior of getRecentAllocation() of DDMS
+# is restored. b/20037135
+TEST_ART_BROKEN_GCSTRESS_RUN_TESTS := \
+  098-ddmc
 
 ifneq (,$(filter gcstress,$(GC_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
       $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),gcstress,$(JNI_TYPES), \
-      $(IMAGE_TYPES), $(PICTEST_TYPES), $(DBEUGGABLE_TYPES), $(TEST_ART_BROKEN_GCSTRESS_RUN_TESTS), $(ALL_ADDRESS_SIZES))
+      $(IMAGE_TYPES), $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_GCSTRESS_RUN_TESTS), $(ALL_ADDRESS_SIZES))
 endif
 
 TEST_ART_BROKEN_GCSTRESS_RUN_TESTS :=
