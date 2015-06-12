@@ -875,31 +875,36 @@ void ThreadList::SuspendSelfForDebugger() {
 
   // The debugger thread must not suspend itself due to debugger activity!
   Thread* debug_thread = Dbg::GetDebugThread();
-  CHECK(debug_thread != nullptr);
   CHECK(self != debug_thread);
   CHECK_NE(self->GetState(), kRunnable);
   Locks::mutator_lock_->AssertNotHeld(self);
 
-  {
+  // The debugger may have detached while we were executing an invoke request. In that case, we
+  // must not suspend ourself.
+  DebugInvokeReq* pReq = self->GetInvokeReq();
+  const bool skip_thread_suspension = (pReq != nullptr && !Dbg::IsDebuggerActive());
+  if (!skip_thread_suspension) {
     // Collisions with other suspends aren't really interesting. We want
     // to ensure that we're the only one fiddling with the suspend count
     // though.
     MutexLock mu(self, *Locks::thread_suspend_count_lock_);
     self->ModifySuspendCount(self, +1, true);
     CHECK_GT(self->GetSuspendCount(), 0);
+
+    VLOG(threads) << *self << " self-suspending (debugger)";
+  } else {
+    // We must no longer be subject to debugger suspension.
+    MutexLock mu(self, *Locks::thread_suspend_count_lock_);
+    CHECK_EQ(self->GetDebugSuspendCount(), 0) << "Debugger detached without resuming us";
+
+    VLOG(threads) << *self << " not self-suspending because debugger detached during invoke";
   }
 
-  VLOG(threads) << *self << " self-suspending (debugger)";
-
-  // Tell JDWP we've completed invocation and are ready to suspend.
-  DebugInvokeReq* const pReq = self->GetInvokeReq();
+  // If the debugger requested an invoke, we need to send the reply and clear the request.
   if (pReq != nullptr) {
-    // Clear debug invoke request before signaling.
+    Dbg::FinishInvokeMethod(pReq);
     self->ClearDebugInvokeReq();
-
-    VLOG(jdwp) << "invoke complete, signaling";
-    MutexLock mu(self, pReq->lock);
-    pReq->cond.Signal(self);
+    pReq = nullptr;  // object has been deleted, clear it for safety.
   }
 
   // Tell JDWP that we've completed suspension. The JDWP thread can't
