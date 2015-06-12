@@ -508,19 +508,14 @@ void CodeGenerator::BuildNativeGCMap(
       dex_compilation_unit.GetVerifiedMethod()->GetDexGcMap();
   verifier::DexPcToReferenceMap dex_gc_map(&(gc_map_raw)[0]);
 
-  uint32_t max_native_offset = 0;
-  for (size_t i = 0; i < pc_infos_.Size(); i++) {
-    uint32_t native_offset = pc_infos_.Get(i).native_pc;
-    if (native_offset > max_native_offset) {
-      max_native_offset = native_offset;
-    }
-  }
+  uint32_t max_native_offset = stack_map_stream_.ComputeMaxNativePcOffset();
 
-  GcMapBuilder builder(data, pc_infos_.Size(), max_native_offset, dex_gc_map.RegWidth());
-  for (size_t i = 0; i < pc_infos_.Size(); i++) {
-    struct PcInfo pc_info = pc_infos_.Get(i);
-    uint32_t native_offset = pc_info.native_pc;
-    uint32_t dex_pc = pc_info.dex_pc;
+  size_t num_stack_maps = stack_map_stream_.GetNumberOfStackMaps();
+  GcMapBuilder builder(data, num_stack_maps, max_native_offset, dex_gc_map.RegWidth());
+  for (size_t i = 0; i != num_stack_maps; ++i) {
+    const StackMapStream::StackMapEntry& stack_map_entry = stack_map_stream_.GetStackMap(i);
+    uint32_t native_offset = stack_map_entry.native_pc_offset;
+    uint32_t dex_pc = stack_map_entry.dex_pc;
     const uint8_t* references = dex_gc_map.FindBitMap(dex_pc, false);
     CHECK(references != nullptr) << "Missing ref for dex pc 0x" << std::hex << dex_pc;
     builder.AddEntry(native_offset, references);
@@ -528,17 +523,17 @@ void CodeGenerator::BuildNativeGCMap(
 }
 
 void CodeGenerator::BuildSourceMap(DefaultSrcMap* src_map) const {
-  for (size_t i = 0; i < pc_infos_.Size(); i++) {
-    struct PcInfo pc_info = pc_infos_.Get(i);
-    uint32_t pc2dex_offset = pc_info.native_pc;
-    int32_t pc2dex_dalvik_offset = pc_info.dex_pc;
+  for (size_t i = 0, num = stack_map_stream_.GetNumberOfStackMaps(); i != num; ++i) {
+    const StackMapStream::StackMapEntry& stack_map_entry = stack_map_stream_.GetStackMap(i);
+    uint32_t pc2dex_offset = stack_map_entry.native_pc_offset;
+    int32_t pc2dex_dalvik_offset = stack_map_entry.dex_pc;
     src_map->push_back(SrcMapElem({pc2dex_offset, pc2dex_dalvik_offset}));
   }
 }
 
 void CodeGenerator::BuildMappingTable(std::vector<uint8_t>* data) const {
   uint32_t pc2dex_data_size = 0u;
-  uint32_t pc2dex_entries = pc_infos_.Size();
+  uint32_t pc2dex_entries = stack_map_stream_.GetNumberOfStackMaps();
   uint32_t pc2dex_offset = 0u;
   int32_t pc2dex_dalvik_offset = 0;
   uint32_t dex2pc_data_size = 0u;
@@ -547,11 +542,11 @@ void CodeGenerator::BuildMappingTable(std::vector<uint8_t>* data) const {
   int32_t dex2pc_dalvik_offset = 0;
 
   for (size_t i = 0; i < pc2dex_entries; i++) {
-    struct PcInfo pc_info = pc_infos_.Get(i);
-    pc2dex_data_size += UnsignedLeb128Size(pc_info.native_pc - pc2dex_offset);
-    pc2dex_data_size += SignedLeb128Size(pc_info.dex_pc - pc2dex_dalvik_offset);
-    pc2dex_offset = pc_info.native_pc;
-    pc2dex_dalvik_offset = pc_info.dex_pc;
+    const StackMapStream::StackMapEntry& stack_map_entry = stack_map_stream_.GetStackMap(i);
+    pc2dex_data_size += UnsignedLeb128Size(stack_map_entry.native_pc_offset - pc2dex_offset);
+    pc2dex_data_size += SignedLeb128Size(stack_map_entry.dex_pc - pc2dex_dalvik_offset);
+    pc2dex_offset = stack_map_entry.native_pc_offset;
+    pc2dex_dalvik_offset = stack_map_entry.dex_pc;
   }
 
   // Walk over the blocks and find which ones correspond to catch block entries.
@@ -586,12 +581,12 @@ void CodeGenerator::BuildMappingTable(std::vector<uint8_t>* data) const {
   dex2pc_dalvik_offset = 0u;
 
   for (size_t i = 0; i < pc2dex_entries; i++) {
-    struct PcInfo pc_info = pc_infos_.Get(i);
-    DCHECK(pc2dex_offset <= pc_info.native_pc);
-    write_pos = EncodeUnsignedLeb128(write_pos, pc_info.native_pc - pc2dex_offset);
-    write_pos = EncodeSignedLeb128(write_pos, pc_info.dex_pc - pc2dex_dalvik_offset);
-    pc2dex_offset = pc_info.native_pc;
-    pc2dex_dalvik_offset = pc_info.dex_pc;
+    const StackMapStream::StackMapEntry& stack_map_entry = stack_map_stream_.GetStackMap(i);
+    DCHECK(pc2dex_offset <= stack_map_entry.native_pc_offset);
+    write_pos = EncodeUnsignedLeb128(write_pos, stack_map_entry.native_pc_offset - pc2dex_offset);
+    write_pos = EncodeSignedLeb128(write_pos, stack_map_entry.dex_pc - pc2dex_dalvik_offset);
+    pc2dex_offset = stack_map_entry.native_pc_offset;
+    pc2dex_dalvik_offset = stack_map_entry.dex_pc;
   }
 
   for (size_t i = 0; i < graph_->GetBlocks().Size(); ++i) {
@@ -617,9 +612,9 @@ void CodeGenerator::BuildMappingTable(std::vector<uint8_t>* data) const {
     auto it = table.PcToDexBegin();
     auto it2 = table.DexToPcBegin();
     for (size_t i = 0; i < pc2dex_entries; i++) {
-      struct PcInfo pc_info = pc_infos_.Get(i);
-      CHECK_EQ(pc_info.native_pc, it.NativePcOffset());
-      CHECK_EQ(pc_info.dex_pc, it.DexPc());
+      const StackMapStream::StackMapEntry& stack_map_entry = stack_map_stream_.GetStackMap(i);
+      CHECK_EQ(stack_map_entry.native_pc_offset, it.NativePcOffset());
+      CHECK_EQ(stack_map_entry.dex_pc, it.DexPc());
       ++it;
     }
     for (size_t i = 0; i < graph_->GetBlocks().Size(); ++i) {
@@ -695,14 +690,11 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
   }
 
   // Collect PC infos for the mapping table.
-  struct PcInfo pc_info;
-  pc_info.dex_pc = outer_dex_pc;
-  pc_info.native_pc = GetAssembler()->CodeSize();
-  pc_infos_.Add(pc_info);
+  uint32_t native_pc = GetAssembler()->CodeSize();
 
   if (instruction == nullptr) {
     // For stack overflow checks.
-    stack_map_stream_.BeginStackMapEntry(pc_info.dex_pc, pc_info.native_pc, 0, 0, 0, 0);
+    stack_map_stream_.BeginStackMapEntry(outer_dex_pc, native_pc, 0, 0, 0, 0);
     stack_map_stream_.EndStackMapEntry();
     return;
   }
@@ -719,8 +711,8 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
   }
   // The register mask must be a subset of callee-save registers.
   DCHECK_EQ(register_mask & core_callee_save_mask_, register_mask);
-  stack_map_stream_.BeginStackMapEntry(pc_info.dex_pc,
-                                       pc_info.native_pc,
+  stack_map_stream_.BeginStackMapEntry(outer_dex_pc,
+                                       native_pc,
                                        register_mask,
                                        locations->GetStackMask(),
                                        outer_environment_size,
