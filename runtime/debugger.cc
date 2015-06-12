@@ -1603,7 +1603,7 @@ JDWP::JdwpError Dbg::OutputDeclaredMethods(JDWP::RefTypeId class_id, bool with_g
 
     if (UNLIKELY(xposed_method_count > 0 && m->IsXposedHookedMethod())) {
       expandBufAddMethodId(pReply, ToMethodId(m));
-      expandBufAddUtf8String(pReply, m->GetName());
+      expandBufAddUtf8String(pReply, StringPrintf("%s<Xposed>", m->GetName()).c_str());
       expandBufAddUtf8String(pReply, m->GetSignature().ToString());
       if (with_generic) {
         const char* generic_signature = "";
