@@ -364,7 +364,7 @@ public class Main {
     ((SubclassA)b).$noinline$g();
   }
 
-  public SubclassA getSubclass() { throw new RuntimeException(); }
+  public SubclassA $noinline$getSubclass() { throw new RuntimeException(); }
 
   /// CHECK-START: void Main.testInvokeSimpleRemove() instruction_simplifier_after_types (before)
   /// CHECK:         CheckCast
@@ -372,7 +372,7 @@ public class Main {
   /// CHECK-START: void Main.testInvokeSimpleRemove() instruction_simplifier_after_types (after)
   /// CHECK-NOT:     CheckCast
   public void testInvokeSimpleRemove() {
-    Super b = getSubclass();
+    Super b = $noinline$getSubclass();
     ((SubclassA)b).$noinline$g();
   }
 
