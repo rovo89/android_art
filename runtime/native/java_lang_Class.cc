@@ -380,8 +380,8 @@ static jobject Class_getDeclaredMethodInternal(JNIEnv* env, jobject javaThis,
 static jobjectArray Class_getDeclaredMethodsUnchecked(JNIEnv* env, jobject javaThis,
                                                       jboolean publicOnly) {
   ScopedFastNativeObjectAccess soa(env);
-  StackHandleScope<3> hs(soa.Self());
-  auto* klass = DecodeClass(soa, javaThis);
+  StackHandleScope<2> hs(soa.Self());
+  auto klass = hs.NewHandle(DecodeClass(soa, javaThis));
   size_t num_methods = 0;
   for (auto& m : klass->GetVirtualMethods(sizeof(void*))) {
     auto modifiers = m.GetAccessFlags();
