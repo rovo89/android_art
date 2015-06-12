@@ -529,7 +529,7 @@ END art_quick_throw_no_such_method
     .extern \cxx_name
 ENTRY \c_name
     SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME  # save callee saves in case allocation triggers GC
-    lwu   $a2, FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE($sp)  # pass caller Method*
+    ld    $a2, FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE($sp)  # pass caller Method*
     move  $a3, rSELF                       # pass Thread::Current
     jal   \cxx_name                        # (method_idx, this, caller, Thread*, $sp)
     move  $a4, $sp                         # pass $sp
