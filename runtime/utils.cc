@@ -385,6 +385,11 @@ std::string PrettyMethod(mirror::ArtMethod* m, bool with_signature) {
     result = PrettyReturnType(sig_as_string.c_str()) + " " + result +
         PrettyArguments(sig_as_string.c_str());
   }
+  if (UNLIKELY(m->IsXposedHookedMethod())) {
+    result += " [XposedHooked]";
+  } else if (UNLIKELY(m->IsXposedOriginalMethod())) {
+    result += " [XposedOriginal]";
+  }
   return result;
 }
 
