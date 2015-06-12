@@ -2578,12 +2578,11 @@ void Thread::SetDebugInvokeReq(DebugInvokeReq* req) {
 }
 
 void Thread::ClearDebugInvokeReq() {
-  CHECK(Dbg::IsDebuggerActive());
   CHECK(GetInvokeReq() != nullptr) << "Debug invoke req not active in thread " << *this;
   CHECK(Thread::Current() == this) << "Debug invoke must be finished by the thread itself";
-  // We do not own the DebugInvokeReq* so we must not delete it, it is the responsibility of
-  // the owner (the JDWP thread).
+  DebugInvokeReq* req = tlsPtr_.debug_invoke_req;
   tlsPtr_.debug_invoke_req = nullptr;
+  delete req;
 }
 
 void Thread::PushVerifier(verifier::MethodVerifier* verifier) {
