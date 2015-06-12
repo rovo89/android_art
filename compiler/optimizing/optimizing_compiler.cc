@@ -318,49 +318,55 @@ static void RunOptimizations(HGraph* graph,
                              const DexCompilationUnit& dex_compilation_unit,
                              PassInfoPrinter* pass_info_printer,
                              StackHandleScopeCollection* handles) {
-  HDeadCodeElimination dce1(graph, stats,
-                            HDeadCodeElimination::kInitialDeadCodeEliminationPassName);
-  HDeadCodeElimination dce2(graph, stats,
-                            HDeadCodeElimination::kFinalDeadCodeEliminationPassName);
-  HConstantFolding fold1(graph);
-  InstructionSimplifier simplify1(graph, stats);
-  HBooleanSimplifier boolean_simplify(graph);
+  ArenaAllocator* arena = graph->GetArena();
+  HDeadCodeElimination* dce1 = new (arena) HDeadCodeElimination(
+      graph, stats, HDeadCodeElimination::kInitialDeadCodeEliminationPassName);
+  HDeadCodeElimination* dce2 = new (arena) HDeadCodeElimination(
+      graph, stats, HDeadCodeElimination::kFinalDeadCodeEliminationPassName);
+  HConstantFolding* fold1 = new (arena) HConstantFolding(graph);
+  InstructionSimplifier* simplify1 = new (arena) InstructionSimplifier(graph, stats);
+  HBooleanSimplifier* boolean_simplify = new (arena) HBooleanSimplifier(graph);
 
-  HInliner inliner(graph, dex_compilation_unit, dex_compilation_unit, driver, handles, stats);
+  HInliner* inliner = new (arena) HInliner(
+      graph, dex_compilation_unit, dex_compilation_unit, driver, handles, stats);
 
-  HConstantFolding fold2(graph, "constant_folding_after_inlining");
-  SideEffectsAnalysis side_effects(graph);
-  GVNOptimization gvn(graph, side_effects);
-  LICM licm(graph, side_effects);
-  BoundsCheckElimination bce(graph);
-  ReferenceTypePropagation type_propagation(graph, handles);
-  InstructionSimplifier simplify2(graph, stats, "instruction_simplifier_after_types");
-  InstructionSimplifier simplify3(graph, stats, "last_instruction_simplifier");
-  ReferenceTypePropagation type_propagation2(graph, handles);
+  HConstantFolding* fold2 = new (arena) HConstantFolding(graph, "constant_folding_after_inlining");
+  SideEffectsAnalysis* side_effects = new (arena) SideEffectsAnalysis(graph);
+  GVNOptimization* gvn = new (arena) GVNOptimization(graph, *side_effects);
+  LICM* licm = new (arena) LICM(graph, *side_effects);
+  BoundsCheckElimination* bce = new (arena) BoundsCheckElimination(graph);
+  ReferenceTypePropagation* type_propagation =
+      new (arena) ReferenceTypePropagation(graph, handles);
+  InstructionSimplifier* simplify2 = new (arena) InstructionSimplifier(
+      graph, stats, "instruction_simplifier_after_types");
+  InstructionSimplifier* simplify3 = new (arena) InstructionSimplifier(
+      graph, stats, "last_instruction_simplifier");
+  ReferenceTypePropagation* type_propagation2 =
+      new (arena) ReferenceTypePropagation(graph, handles);
 
-  IntrinsicsRecognizer intrinsics(graph, driver);
+  IntrinsicsRecognizer* intrinsics = new (arena) IntrinsicsRecognizer(graph, driver);
 
   HOptimization* optimizations[] = {
-    &intrinsics,
-    &dce1,
-    &fold1,
-    &simplify1,
-    &type_propagation,
-    &simplify2,
-    &inliner,
+    intrinsics,
+    dce1,
+    fold1,
+    simplify1,
+    type_propagation,
+    simplify2,
+    inliner,
     // Run another type propagation phase: inlining will open up more opprotunities
     // to remove checkast/instanceof and null checks.
-    &type_propagation2,
+    type_propagation2,
     // BooleanSimplifier depends on the InstructionSimplifier removing redundant
     // suspend checks to recognize empty blocks.
-    &boolean_simplify,
-    &fold2,
-    &side_effects,
-    &gvn,
-    &licm,
-    &bce,
-    &simplify3,
-    &dce2,
+    boolean_simplify,
+    fold2,
+    side_effects,
+    gvn,
+    licm,
+    bce,
+    simplify3,
+    dce2,
   };
 
   RunOptimizations(optimizations, arraysize(optimizations), pass_info_printer);
