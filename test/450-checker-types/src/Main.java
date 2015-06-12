@@ -364,6 +364,18 @@ public class Main {
     ((SubclassA)b).$noinline$g();
   }
 
+  public SubclassA getSubclass() { throw new RuntimeException(); }
+
+  /// CHECK-START: void Main.testInvokeSimpleRemove() instruction_simplifier_after_types (before)
+  /// CHECK:         CheckCast
+
+  /// CHECK-START: void Main.testInvokeSimpleRemove() instruction_simplifier_after_types (after)
+  /// CHECK-NOT:     CheckCast
+  public void testInvokeSimpleRemove() {
+    Super b = getSubclass();
+    ((SubclassA)b).$noinline$g();
+  }
+
   public static void main(String[] args) {
   }
 }
