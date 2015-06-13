@@ -808,18 +808,11 @@ static void FreeDexFilesInHeap(std::priority_queue<DexFileAndClassPair>* heap) {
 }
 
 const OatFile* ClassLinker::GetBootOatFile() {
-  // To grab the boot oat, look at the dex files in the boot classpath. Any of those is fine, as
-  // they were all compiled into the same oat file. So grab the first one, which is guaranteed to
-  // exist if the boot class-path isn't empty.
-  if (boot_class_path_.empty()) {
+  gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetImageSpace();
+  if (image_space == nullptr) {
     return nullptr;
   }
-  const DexFile* boot_dex_file = boot_class_path_[0];
-  // Is it from an oat file?
-  if (boot_dex_file->GetOatDexFile() != nullptr) {
-    return boot_dex_file->GetOatDexFile()->GetOatFile();
-  }
-  return nullptr;
+  return image_space->GetOatFile();
 }
 
 const OatFile* ClassLinker::GetPrimaryOatFile() {

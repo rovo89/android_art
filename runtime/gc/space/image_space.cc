@@ -755,6 +755,7 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
     DCHECK(!error_msg->empty());
     return nullptr;
   }
+  space->oat_file_non_owned_ = space->oat_file_.get();
 
   if (validate_oat_file && !space->ValidateOatFile(error_msg)) {
     DCHECK(!error_msg->empty());
@@ -838,9 +839,11 @@ bool ImageSpace::ValidateOatFile(std::string* error_msg) const {
   return true;
 }
 
+
 const OatFile* ImageSpace::GetOatFile() const {
-  return oat_file_.get();
+  return oat_file_non_owned_;
 }
+
 
 OatFile* ImageSpace::ReleaseOatFile() {
   CHECK(oat_file_.get() != nullptr);
