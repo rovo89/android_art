@@ -74,7 +74,8 @@ inline MirrorType* ReadBarrier::Barrier(
 }
 
 template <typename MirrorType, ReadBarrierOption kReadBarrierOption, bool kMaybeDuringStartup>
-inline MirrorType* ReadBarrier::BarrierForRoot(MirrorType** root) {
+inline MirrorType* ReadBarrier::BarrierForRoot(MirrorType** root,
+                                               GcRootSource* gc_root_source) {
   MirrorType* ref = *root;
   const bool with_read_barrier = kReadBarrierOption == kWithReadBarrier;
   if (with_read_barrier && kUseBakerReadBarrier) {
@@ -87,7 +88,7 @@ inline MirrorType* ReadBarrier::BarrierForRoot(MirrorType** root) {
     if (Runtime::Current()->GetHeap()->ConcurrentCopyingCollector()->IsMarking()) {
       ref = reinterpret_cast<MirrorType*>(Mark(ref));
     }
-    AssertToSpaceInvariant(nullptr, MemberOffset(0), ref);
+    AssertToSpaceInvariant(gc_root_source, ref);
     return ref;
   } else if (with_read_barrier && kUseBrooksReadBarrier) {
     // To be implemented.
@@ -105,7 +106,7 @@ inline MirrorType* ReadBarrier::BarrierForRoot(MirrorType** root) {
       Atomic<mirror::Object*>* atomic_root = reinterpret_cast<Atomic<mirror::Object*>*>(root);
       atomic_root->CompareExchangeStrongSequentiallyConsistent(old_ref, ref);
     }
-    AssertToSpaceInvariant(nullptr, MemberOffset(0), ref);
+    AssertToSpaceInvariant(gc_root_source, ref);
     return ref;
   } else {
     return ref;
@@ -114,7 +115,8 @@ inline MirrorType* ReadBarrier::BarrierForRoot(MirrorType** root) {
 
 // TODO: Reduce copy paste
 template <typename MirrorType, ReadBarrierOption kReadBarrierOption, bool kMaybeDuringStartup>
-inline MirrorType* ReadBarrier::BarrierForRoot(mirror::CompressedReference<MirrorType>* root) {
+inline MirrorType* ReadBarrier::BarrierForRoot(mirror::CompressedReference<MirrorType>* root,
+                                               GcRootSource* gc_root_source) {
   MirrorType* ref = root->AsMirrorPtr();
   const bool with_read_barrier = kReadBarrierOption == kWithReadBarrier;
   if (with_read_barrier && kUseBakerReadBarrier) {
@@ -127,7 +129,7 @@ inline MirrorType* ReadBarrier::BarrierForRoot(mirror::CompressedReference<Mirro
     if (Runtime::Current()->GetHeap()->ConcurrentCopyingCollector()->IsMarking()) {
       ref = reinterpret_cast<MirrorType*>(Mark(ref));
     }
-    AssertToSpaceInvariant(nullptr, MemberOffset(0), ref);
+    AssertToSpaceInvariant(gc_root_source, ref);
     return ref;
   } else if (with_read_barrier && kUseBrooksReadBarrier) {
     // To be implemented.
@@ -147,7 +149,7 @@ inline MirrorType* ReadBarrier::BarrierForRoot(mirror::CompressedReference<Mirro
           reinterpret_cast<Atomic<mirror::CompressedReference<MirrorType>>*>(root);
       atomic_root->CompareExchangeStrongSequentiallyConsistent(old_ref, new_ref);
     }
-    AssertToSpaceInvariant(nullptr, MemberOffset(0), ref);
+    AssertToSpaceInvariant(gc_root_source, ref);
     return ref;
   } else {
     return ref;
@@ -180,6 +182,17 @@ inline void ReadBarrier::AssertToSpaceInvariant(mirror::Object* obj, MemberOffse
     }
     Runtime::Current()->GetHeap()->ConcurrentCopyingCollector()->
         AssertToSpaceInvariant(obj, offset, ref);
+  }
+}
+
+inline void ReadBarrier::AssertToSpaceInvariant(GcRootSource* gc_root_source,
+                                                mirror::Object* ref) {
+  if (kEnableToSpaceInvariantChecks || kIsDebugBuild) {
+    if (ref == nullptr || IsDuringStartup()) {
+      return;
+    }
+    Runtime::Current()->GetHeap()->ConcurrentCopyingCollector()->
+        AssertToSpaceInvariant(gc_root_source, ref);
   }
 }
 

@@ -34,7 +34,8 @@
 namespace art {
 
 inline mirror::Class* ArtField::GetDeclaringClass() {
-  mirror::Class* result = declaring_class_.Read();
+  GcRootSource gc_root_source(this);
+  mirror::Class* result = declaring_class_.Read(&gc_root_source);
   DCHECK(result != nullptr);
   DCHECK(result->IsLoaded() || result->IsErroneous());
   return result;
