@@ -52,52 +52,29 @@ NO_RETURN static void Runtime_nativeExit(JNIEnv*, jclass, jint status) {
   exit(status);
 }
 
-static void SetLdLibraryPath(JNIEnv* env, jstring javaLdLibraryPathJstr, jstring javaDexPathJstr) {
+static void SetLdLibraryPath(JNIEnv* env, jstring javaLdLibraryPathJstr) {
 #ifdef HAVE_ANDROID_OS
-  std::stringstream ss;
   if (javaLdLibraryPathJstr != nullptr) {
-    ScopedUtfChars javaLdLibraryPath(env, javaLdLibraryPathJstr);
-    if (javaLdLibraryPath.c_str() != nullptr) {
-      ss << javaLdLibraryPath.c_str();
+    ScopedUtfChars ldLibraryPath(env, javaLdLibraryPathJstr);
+    if (ldLibraryPath.c_str() != nullptr) {
+      android_update_LD_LIBRARY_PATH(ldLibraryPath.c_str());
     }
   }
 
-  if (javaDexPathJstr != nullptr) {
-    ScopedUtfChars javaDexPath(env, javaDexPathJstr);
-    if (javaDexPath.c_str() != nullptr) {
-      std::vector<std::string> dexPathVector;
-      Split(javaDexPath.c_str(), ':', &dexPathVector);
-
-      for (auto abi : art::Runtime::Current()->GetCpuAbilist()) {
-        for (auto zip_path : dexPathVector) {
-          // Native libraries live under lib/<abi>/ inside .apk file.
-          ss << ":" << zip_path << "!" << "lib/" << abi;
-        }
-      }
-    }
-  }
-
-  std::string ldLibraryPathStr = ss.str();
-  const char* ldLibraryPath = ldLibraryPathStr.c_str();
-  if (*ldLibraryPath == ':') {
-    ++ldLibraryPath;
-  }
-
-  android_update_LD_LIBRARY_PATH(ldLibraryPath);
 #else
   LOG(WARNING) << "android_update_LD_LIBRARY_PATH not found; .so dependencies will not work!";
-  UNUSED(javaLdLibraryPathJstr, javaDexPathJstr, env);
+  UNUSED(javaLdLibraryPathJstr, env);
 #endif
 }
 
 static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, jobject javaLoader,
-                                  jstring javaLdLibraryPathJstr, jstring javaDexPathJstr) {
+                                  jstring javaLdLibraryPathJstr) {
   ScopedUtfChars filename(env, javaFilename);
   if (filename.c_str() == nullptr) {
     return nullptr;
   }
 
-  SetLdLibraryPath(env, javaLdLibraryPathJstr, javaDexPathJstr);
+  SetLdLibraryPath(env, javaLdLibraryPathJstr);
 
   std::string error_msg;
   {
@@ -130,7 +107,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Runtime, gc, "()V"),
   NATIVE_METHOD(Runtime, maxMemory, "!()J"),
   NATIVE_METHOD(Runtime, nativeExit, "(I)V"),
-  NATIVE_METHOD(Runtime, nativeLoad, "(Ljava/lang/String;Ljava/lang/ClassLoader;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"),
+  NATIVE_METHOD(Runtime, nativeLoad, "(Ljava/lang/String;Ljava/lang/ClassLoader;Ljava/lang/String;)Ljava/lang/String;"),
   NATIVE_METHOD(Runtime, totalMemory, "!()J"),
 };
 
