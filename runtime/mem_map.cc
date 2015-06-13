@@ -436,7 +436,7 @@ MemMap* MemMap::MapAnonymous(const char* name, uint8_t* expected_ptr, size_t byt
     return nullptr;
   }
   return new MemMap(name, reinterpret_cast<uint8_t*>(actual), byte_count, actual,
-                    page_aligned_byte_count, prot, false);
+                    page_aligned_byte_count, prot, reuse);
 }
 
 MemMap* MemMap::MapDummy(const char* name, uint8_t* addr, size_t byte_count) {
