@@ -29,6 +29,9 @@
 
 #include "base/logging.h"
 #include "base/macros.h"
+#include "gc/heap.h"
+#include "gc/space/image_space.h"
+#include "oat_file.h"
 #include "utils.h"
 
 namespace art {
@@ -84,8 +87,26 @@ static bool CheckStack(Backtrace* bt, const std::vector<std::string>& seq) {
 }
 #endif
 
+// Currently we have to fall back to our own loader for the boot image when it's compiled PIC
+// because its base is zero. Thus in-process unwinding through it won't work. This is a helper
+// detecting this.
+#if __linux__
+static bool IsPicImage() {
+  gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetImageSpace();
+  CHECK(image_space != nullptr);  // We should be running with an image.
+  const OatFile* oat_file = image_space->GetOatFile();
+  CHECK(oat_file != nullptr);     // We should have an oat file to go with the image.
+  return oat_file->IsPic();
+}
+#endif
+
 extern "C" JNIEXPORT jboolean JNICALL Java_Main_unwindInProcess(JNIEnv*, jobject, jint, jboolean) {
 #if __linux__
+  if (IsPicImage()) {
+    LOG(INFO) << "Image is pic, in-process unwinding check bypassed.";
+    return JNI_TRUE;
+  }
+
   // TODO: What to do on Valgrind?
 
   std::unique_ptr<Backtrace> bt(Backtrace::Create(BACKTRACE_CURRENT_PROCESS, GetTid()));
