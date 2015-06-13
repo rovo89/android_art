@@ -64,6 +64,12 @@ class MemMap {
   static MemMap* MapAnonymous(const char* ashmem_name, uint8_t* addr, size_t byte_count, int prot,
                               bool low_4gb, bool reuse, std::string* error_msg);
 
+  // Create placeholder for a region allocated by direct call to mmap.
+  // This is useful when we do not have control over the code calling mmap,
+  // but when we still want to keep track of it in the list.
+  // The region is not considered to be owned and will not be unmmaped.
+  static MemMap* MapDummy(const char* name, uint8_t* addr, size_t byte_count);
+
   // Map part of a file, taking care of non-page aligned offsets.  The
   // "start" offset is absolute, not relative.
   //
