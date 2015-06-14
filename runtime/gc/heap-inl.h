@@ -174,6 +174,13 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
   } else {
     DCHECK(!Dbg::IsAllocTrackingEnabled());
   }
+  if (kInstrumented) {
+    if (gc_stress_mode_) {
+      CheckGcStressMode(self, &obj);
+    }
+  } else {
+    DCHECK(!gc_stress_mode_);
+  }
   // IsConcurrentGc() isn't known at compile time so we can optimize by not checking it for
   // the BumpPointer or TLAB allocators. This is nice since it allows the entire if statement to be
   // optimized out. And for the other allocators, AllocatorMayHaveConcurrentGC is a constant since

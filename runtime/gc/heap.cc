@@ -21,6 +21,7 @@
 
 #include <limits>
 #include <memory>
+#include <unwind.h>  // For GC verification.
 #include <vector>
 
 #include "art_field-inl.h"
@@ -125,7 +126,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
            bool ignore_max_footprint, bool use_tlab,
            bool verify_pre_gc_heap, bool verify_pre_sweeping_heap, bool verify_post_gc_heap,
            bool verify_pre_gc_rosalloc, bool verify_pre_sweeping_rosalloc,
-           bool verify_post_gc_rosalloc, bool use_homogeneous_space_compaction_for_oom,
+           bool verify_post_gc_rosalloc, bool gc_stress_mode,
+           bool use_homogeneous_space_compaction_for_oom,
            uint64_t min_interval_homogeneous_space_compaction_by_oom)
     : non_moving_space_(nullptr),
       rosalloc_space_(nullptr),
@@ -170,6 +172,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       verify_pre_gc_rosalloc_(verify_pre_gc_rosalloc),
       verify_pre_sweeping_rosalloc_(verify_pre_sweeping_rosalloc),
       verify_post_gc_rosalloc_(verify_post_gc_rosalloc),
+      gc_stress_mode_(gc_stress_mode),
       /* For GC a lot mode, we limit the allocations stacks to be kGcAlotInterval allocations. This
        * causes a lot of GC since we do a GC for alloc whenever the stack is full. When heap
        * verification is enabled, we limit the size of allocation stacks to speed up their
@@ -209,13 +212,17 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       blocking_gc_count_last_window_(0U),
       gc_count_rate_histogram_("gc count rate histogram", 1U, kGcCountRateMaxBucketCount),
       blocking_gc_count_rate_histogram_("blocking gc count rate histogram", 1U,
-                                        kGcCountRateMaxBucketCount) {
+                                        kGcCountRateMaxBucketCount),
+      backtrace_lock_(nullptr),
+      seen_backtrace_count_(0u),
+      unique_backtrace_count_(0u) {
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() entering";
   }
+  Runtime* const runtime = Runtime::Current();
   // If we aren't the zygote, switch to the default non zygote allocator. This may update the
   // entrypoints.
-  const bool is_zygote = Runtime::Current()->IsZygote();
+  const bool is_zygote = runtime->IsZygote();
   if (!is_zygote) {
     // Background compaction is currently not supported for command line runs.
     if (background_collector_type_ != foreground_collector_type_) {
@@ -507,8 +514,12 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       LOG(FATAL) << "There's a gap between the image space and the non-moving space";
     }
   }
-  if (running_on_valgrind_) {
-    Runtime::Current()->GetInstrumentation()->InstrumentQuickAllocEntryPoints();
+  instrumentation::Instrumentation* const instrumentation = runtime->GetInstrumentation();
+  if (gc_stress_mode_) {
+    backtrace_lock_ = new Mutex("GC complete lock");
+  }
+  if (running_on_valgrind_ || gc_stress_mode_) {
+    instrumentation->InstrumentQuickAllocEntryPoints();
   }
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() exiting";
@@ -1072,6 +1083,12 @@ Heap::~Heap() {
   STLDeleteElements(&discontinuous_spaces_);
   delete gc_complete_lock_;
   delete pending_task_lock_;
+  delete backtrace_lock_;
+  if (unique_backtrace_count_.LoadRelaxed() != 0 || seen_backtrace_count_.LoadRelaxed() != 0) {
+    LOG(INFO) << "gc stress unique=" << unique_backtrace_count_.LoadRelaxed()
+        << " total=" << seen_backtrace_count_.LoadRelaxed() +
+            unique_backtrace_count_.LoadRelaxed();
+  }
   VLOG(heap) << "Finished ~Heap()";
 }
 
@@ -3672,6 +3689,74 @@ void Heap::ClearMarkedObjects() {
   // Clear the marked objects in the discontinous space object sets.
   for (const auto& space : GetDiscontinuousSpaces()) {
     space->GetMarkBitmap()->Clear();
+  }
+}
+
+// Based on debug malloc logic from libc/bionic/debug_stacktrace.cpp.
+class StackCrawlState {
+ public:
+  StackCrawlState(uintptr_t* frames, size_t max_depth, size_t skip_count)
+      : frames_(frames), frame_count_(0), max_depth_(max_depth), skip_count_(skip_count) {
+  }
+  size_t GetFrameCount() const {
+    return frame_count_;
+  }
+  static _Unwind_Reason_Code Callback(_Unwind_Context* context, void* arg) {
+    auto* const state = reinterpret_cast<StackCrawlState*>(arg);
+    const uintptr_t ip = _Unwind_GetIP(context);
+    // The first stack frame is get_backtrace itself. Skip it.
+    if (ip != 0 && state->skip_count_ > 0) {
+      --state->skip_count_;
+      return _URC_NO_REASON;
+    }
+    // ip may be off for ARM but it shouldn't matter since we only use it for hashing.
+    state->frames_[state->frame_count_] = ip;
+    state->frame_count_++;
+    return state->frame_count_ >= state->max_depth_ ? _URC_END_OF_STACK : _URC_NO_REASON;
+  }
+
+ private:
+  uintptr_t* const frames_;
+  size_t frame_count_;
+  const size_t max_depth_;
+  size_t skip_count_;
+};
+
+static size_t get_backtrace(uintptr_t* frames, size_t max_depth) {
+  StackCrawlState state(frames, max_depth, 0u);
+  _Unwind_Backtrace(&StackCrawlState::Callback, &state);
+  return state.GetFrameCount();
+}
+
+void Heap::CheckGcStressMode(Thread* self, mirror::Object** obj) {
+  auto* const runtime = Runtime::Current();
+  if (gc_stress_mode_ && runtime->GetClassLinker()->IsInitialized() &&
+      !runtime->IsActiveTransaction() && mirror::Class::HasJavaLangClass()) {
+    // Check if we should GC.
+    bool new_backtrace = false;
+    {
+      static constexpr size_t kMaxFrames = 16u;
+      uintptr_t backtrace[kMaxFrames];
+      const size_t frames = get_backtrace(backtrace, kMaxFrames);
+      uint64_t hash = 0;
+      for (size_t i = 0; i < frames; ++i) {
+        hash = hash * 2654435761 + backtrace[i];
+        hash += (hash >> 13) ^ (hash << 6);
+      }
+      MutexLock mu(self, *backtrace_lock_);
+      new_backtrace = seen_backtraces_.find(hash) == seen_backtraces_.end();
+      if (new_backtrace) {
+        seen_backtraces_.insert(hash);
+      }
+    }
+    if (new_backtrace) {
+      StackHandleScope<1> hs(self);
+      auto h = hs.NewHandleWrapper(obj);
+      CollectGarbage(false);
+      unique_backtrace_count_.FetchAndAddSequentiallyConsistent(1);
+    } else {
+      seen_backtrace_count_.FetchAndAddSequentiallyConsistent(1);
+    }
   }
 }
 

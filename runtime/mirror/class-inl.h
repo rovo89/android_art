@@ -757,7 +757,7 @@ inline bool Class::GetSlowPathEnabled() {
 }
 
 inline void Class::SetSlowPath(bool enabled) {
-  SetFieldBoolean<false>(GetSlowPathFlagOffset(), enabled);
+  SetFieldBoolean<false, false>(GetSlowPathFlagOffset(), enabled);
 }
 
 inline void Class::InitializeClassVisitor::operator()(
