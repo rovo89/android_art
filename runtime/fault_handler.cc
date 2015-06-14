@@ -73,6 +73,8 @@ namespace art {
 FaultManager fault_manager;
 
 extern "C" {
+
+__attribute__ ((visibility ("default")))
 void art_sigsegv_fault() {
   // Set a breakpoint here to be informed when a SIGSEGV is unhandled by ART.
   VLOG(signals)<< "Caught unknown SIGSEGV in ART fault handler - chaining to next handler.";
