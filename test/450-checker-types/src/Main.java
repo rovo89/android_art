@@ -385,6 +385,15 @@ public class Main {
     Super b = $noinline$getSubclass();
     ((SubclassA)b).$noinline$g();
   }
+  /// CHECK-START: void Main.testArrayGetSimpleRemove() instruction_simplifier_after_types (before)
+  /// CHECK:         CheckCast
+
+  /// CHECK-START: void Main.testArrayGetSimpleRemove() instruction_simplifier_after_types (after)
+  /// CHECK-NOT:     CheckCast
+  public void testArrayGetSimpleRemove() {
+    Super[] a = new SubclassA[10];
+    ((SubclassA)a[0]).$noinline$g();
+  }
 
   public static void main(String[] args) {
   }
