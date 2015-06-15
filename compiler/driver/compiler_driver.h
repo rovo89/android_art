@@ -501,6 +501,16 @@ class CompilerDriver {
                                       uint32_t field_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Can we assume that the klass is initialized?
+  bool CanAssumeClassIsInitialized(mirror::Class* klass)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool CanReferrerAssumeClassIsInitialized(mirror::Class* referrer_class, mirror::Class* klass)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Can we assume that the klass is loaded?
+  bool CanAssumeClassIsLoaded(mirror::Class* klass)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // These flags are internal to CompilerDriver for collecting INVOKE resolution statistics.
   // The only external contract is that unresolved method has flags 0 and resolved non-0.
   enum {
