@@ -126,10 +126,7 @@ ArtMethod* StackVisitor::GetMethod() const {
     if (IsInInlinedFrame()) {
       size_t depth_in_stack_map = current_inlining_depth_ - 1;
       InlineInfo inline_info = GetCurrentInlineInfo();
-      uint32_t method_index = inline_info.GetMethodIndexAtDepth(depth_in_stack_map);
-      InvokeType invoke_type =
-          static_cast<InvokeType>(inline_info.GetInvokeTypeAtDepth(depth_in_stack_map));
-      return GetResolvedMethod(*GetCurrentQuickFrame(), method_index, invoke_type);
+      return GetResolvedMethod(*GetCurrentQuickFrame(), inline_info, depth_in_stack_map);
     } else {
       return *cur_quick_frame_;
     }
