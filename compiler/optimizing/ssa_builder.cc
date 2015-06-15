@@ -184,22 +184,24 @@ void SsaBuilder::FixNullConstantType() {
       }
       HInstruction* left = equality_instr->InputAt(0);
       HInstruction* right = equality_instr->InputAt(1);
-      HInstruction* null_instr = nullptr;
+      HInstruction* int_operand = nullptr;
 
-      if ((left->GetType() == Primitive::kPrimNot) && right->IsIntConstant()) {
-        null_instr = right;
-      } else if ((right->GetType() == Primitive::kPrimNot) && left->IsIntConstant()) {
-        null_instr = left;
+      if ((left->GetType() == Primitive::kPrimNot) && (right->GetType() == Primitive::kPrimInt)) {
+        int_operand = right;
+      } else if ((right->GetType() == Primitive::kPrimNot)
+                 && (left->GetType() == Primitive::kPrimInt)) {
+        int_operand = left;
       } else {
         continue;
       }
 
       // If we got here, we are comparing against a reference and the int constant
       // should be replaced with a null constant.
-      if (null_instr->IsIntConstant()) {
-        DCHECK_EQ(0, null_instr->AsIntConstant()->GetValue());
-        equality_instr->ReplaceInput(GetGraph()->GetNullConstant(), null_instr == right ? 1 : 0);
-      }
+      // Both type propagation and redundant phi elimination ensure `int_operand`
+      // can only be the 0 constant.
+      DCHECK(int_operand->IsIntConstant());
+      DCHECK_EQ(0, int_operand->AsIntConstant()->GetValue());
+      equality_instr->ReplaceInput(GetGraph()->GetNullConstant(), int_operand == right ? 1 : 0);
     }
   }
 }
@@ -255,27 +257,31 @@ void SsaBuilder::BuildSsa() {
   PrimitiveTypePropagation type_propagation(GetGraph());
   type_propagation.Run();
 
-  // 5) Fix the type for null constants which are part of an equality comparison.
-  FixNullConstantType();
-
-  // 6) When creating equivalent phis we copy the inputs of the original phi which
-  // may be improperly typed. This will be fixed during the type propagation but
+  // 5) When creating equivalent phis we copy the inputs of the original phi which
+  // may be improperly typed. This was fixed during the type propagation in 4) but
   // as a result we may end up with two equivalent phis with the same type for
   // the same dex register. This pass cleans them up.
   EquivalentPhisCleanup();
 
-  // 7) Mark dead phis again. Step 4) may have introduced new phis.
-  // Step 6) might enable the death of new phis.
+  // 6) Mark dead phis again. Step 4) may have introduced new phis.
+  // Step 5) might enable the death of new phis.
   SsaDeadPhiElimination dead_phis(GetGraph());
   dead_phis.MarkDeadPhis();
 
-  // 8) Now that the graph is correctly typed, we can get rid of redundant phis.
+  // 7) Now that the graph is correctly typed, we can get rid of redundant phis.
   // Note that we cannot do this phase before type propagation, otherwise
   // we could get rid of phi equivalents, whose presence is a requirement for the
   // type propagation phase. Note that this is to satisfy statement (a) of the
   // SsaBuilder (see ssa_builder.h).
   SsaRedundantPhiElimination redundant_phi(GetGraph());
   redundant_phi.Run();
+
+  // 8) Fix the type for null constants which are part of an equality comparison.
+  // We need to do this after redundant phi elimination, to ensure the only cases
+  // that we can see are reference comparison against 0. The redundant phi
+  // elimination ensures we do not see a phi taking two 0 constants in a HEqual
+  // or HNotEqual.
+  FixNullConstantType();
 
   // 9) Make sure environments use the right phi "equivalent": a phi marked dead
   // can have a phi equivalent that is not dead. We must therefore update
