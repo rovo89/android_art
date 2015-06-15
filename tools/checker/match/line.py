@@ -41,7 +41,7 @@ def matchWords(checkerWord, stringWord, variables, pos):
       if expression.name in variables:
         pattern = re.escape(variables[expression.name])
       else:
-        Logger.testFailed("Multiple definitions of variable \"{}\"".format(expression.name),
+        Logger.testFailed("Missing definition of variable \"{}\"".format(expression.name),
                           pos.fileName, pos.lineNo)
     else:
       pattern = expression.pattern
