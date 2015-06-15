@@ -62,7 +62,37 @@ working_packages=("libcore.icu"
                   "tests.java.lang.String"
                   "jsr166")
 
+vogar_args=$@
+while true; do
+  if [[ "$1" == "--mode=device" ]]; then
+    vogar_args="$vogar_args --device-dir=/data/local/tmp"
+    vogar_args="$vogar_args --vm-command=/data/local/tmp/system/bin/art"
+    vogar_args="$vogar_args --vm-arg -Ximage:/data/art-test/core-optimizing.art"
+    shift
+  elif [[ "$1" == "--mode=host" ]]; then
+    # We explicitly give a wrong path for the image, to ensure vogar
+    # will create a boot image with the default compiler. Note that
+    # giving an existing image on host does not work because of
+    # classpath/resources differences when compiling the boot image.
+    vogar_args="$vogar_args --vm-arg -Ximage:/non/existent"
+    shift
+  elif [[ $1 == "--debug" ]]; then
+    # Remove the --debug from the arguments.
+    vogar_args=${vogar_args/$1}
+    vogar_args="$vogar_args --vm-arg -XXlib:libartd.so"
+    # Increase the timeout, as vogar cannot set individual test
+    # timeout when being asked to run packages, and some tests go above
+    # the default timeout.
+    vogar_args="$vogar_args --timeout 180"
+    shift
+  elif [[ "$1" == "" ]]; then
+    break
+  else
+    shift
+  fi
+done
+
 # Run the tests using vogar.
 echo "Running tests for the following test packages:"
 echo ${working_packages[@]} | tr " " "\n"
-vogar $@ --expectations art/tools/libcore_failures.txt --classpath $jsr166_test_jar --classpath $test_jar ${working_packages[@]}
+vogar $vogar_args --expectations art/tools/libcore_failures.txt --classpath $jsr166_test_jar --classpath $test_jar ${working_packages[@]}
