@@ -37,6 +37,7 @@ class RTPVisitor : public HGraphDelegateVisitor {
   void VisitInstanceFieldGet(HInstanceFieldGet* instr) OVERRIDE;
   void VisitStaticFieldGet(HStaticFieldGet* instr) OVERRIDE;
   void VisitInvoke(HInvoke* instr) OVERRIDE;
+  void VisitArrayGet(HArrayGet* instr) OVERRIDE;
   void UpdateReferenceTypeInfo(HInstruction* instr,
                                uint16_t type_idx,
                                const DexFile& dex_file,
@@ -325,6 +326,19 @@ void RTPVisitor::VisitInvoke(HInvoke* instr) {
   DCHECK(method != nullptr);
   mirror::Class* klass = method->GetReturnType(false);
   SetClassAsTypeInfo(instr, klass, /* is_exact */ false);
+}
+
+void RTPVisitor::VisitArrayGet(HArrayGet* instr) {
+  if (instr->GetType() != Primitive::kPrimNot) {
+    return;
+  }
+
+  HInstruction* parent = instr->InputAt(0);
+  ScopedObjectAccess soa(Thread::Current());
+  Handle<mirror::Class> handle = parent->GetReferenceTypeInfo().GetTypeHandle();
+  if (handle.GetReference() != nullptr && handle->IsObjectArrayClass()) {
+    SetClassAsTypeInfo(instr, handle->GetComponentType(), /* is_exact */ false);
+  }
 }
 
 void ReferenceTypePropagation::UpdateBoundType(HBoundType* instr) {
