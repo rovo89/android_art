@@ -39,9 +39,12 @@
 namespace art {
 
 inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
-                                    uint32_t method_index,
-                                    InvokeType invoke_type)
+                                    const InlineInfo& inline_info,
+                                    uint8_t inlining_depth)
   SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  uint32_t method_index = inline_info.GetMethodIndexAtDepth(inlining_depth);
+  InvokeType invoke_type = static_cast<InvokeType>(
+        inline_info.GetInvokeTypeAtDepth(inlining_depth));
   ArtMethod* caller = outer_method->GetDexCacheResolvedMethod(method_index, sizeof(void*));
   if (!caller->IsRuntimeMethod()) {
     return caller;
@@ -50,11 +53,20 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
   // The method in the dex cache can be the runtime method responsible for invoking
   // the stub that will then update the dex cache. Therefore, we need to do the
   // resolution ourselves.
-
+  
+  // We first find the class loader of our caller. If it is the outer method, we can directly
+  // use its class loader. Otherwise, we also need to resolve our caller.
   StackHandleScope<2> hs(Thread::Current());
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(outer_method->GetClassLoader()));
+  MutableHandle<mirror::ClassLoader> class_loader(hs.NewHandle<mirror::Class>(nullptr));
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(outer_method->GetDexCache()));
+  if (inlining_depth == 0) {
+    class_loader.Assign(outer_method->GetClassLoader());
+  } else {
+    caller = GetResolvedMethod(outer_method, inline_info, inlining_depth - 1);
+    class_loader.Assign(caller->GetClassLoader());
+  }
+
   return class_linker->ResolveMethod(
       *outer_method->GetDexFile(), method_index, dex_cache, class_loader, nullptr, invoke_type);
 }
@@ -82,10 +94,7 @@ inline ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp,
     DCHECK(stack_map.IsValid());
     if (stack_map.HasInlineInfo(encoding)) {
       InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map, encoding);
-      uint32_t method_index = inline_info.GetMethodIndexAtDepth(inline_info.GetDepth() - 1);
-      InvokeType invoke_type = static_cast<InvokeType>(
-          inline_info.GetInvokeTypeAtDepth(inline_info.GetDepth() - 1));
-      caller = GetResolvedMethod(outer_method, method_index, invoke_type);
+      caller = GetResolvedMethod(outer_method, inline_info, inline_info.GetDepth() - 1);
     }
   }
 
