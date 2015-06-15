@@ -77,18 +77,6 @@ class MyClassLoader extends ClassLoader {
   }
 }
 
-class Level1 {
-  public static void $inline$bar() {
-    Level2.$inline$bar();
-  }
-}
-
-class Level2 {
-  public static void $inline$bar() {
-    Main.$noinline$bar();
-  }
-}
-
 class LoadedByMyClassLoader {
   public static void bar() {
     Level1.$inline$bar();
