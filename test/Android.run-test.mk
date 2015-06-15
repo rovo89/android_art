@@ -338,6 +338,7 @@ TEST_ART_BROKEN_NDEBUG_TESTS := \
   457-regs \
   461-get-reference-vreg \
   466-get-live-vreg \
+  497-inlining-and-class-loader \
 
 ifneq (,$(filter ndebug,$(RUN_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),ndebug,$(PREBUILD_TYPES), \
