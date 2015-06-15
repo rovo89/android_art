@@ -53,7 +53,7 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
   // The method in the dex cache can be the runtime method responsible for invoking
   // the stub that will then update the dex cache. Therefore, we need to do the
   // resolution ourselves.
-  
+
   // We first find the class loader of our caller. If it is the outer method, we can directly
   // use its class loader. Otherwise, we also need to resolve our caller.
   StackHandleScope<2> hs(Thread::Current());
