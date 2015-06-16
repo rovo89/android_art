@@ -199,18 +199,13 @@ class AssemblerBuffer {
     *reinterpret_cast<T*>(contents_ + position) = value;
   }
 
-  void Resize(size_t new_size) {
-    if (new_size > Capacity()) {
-      ExtendCapacity(new_size);
-    }
-    cursor_ = contents_ + new_size;
-  }
-
-  void Move(size_t newposition, size_t oldposition, size_t size) {
-    // Move a chunk of the buffer from oldposition to newposition.
-    DCHECK_LE(oldposition + size, Size());
-    DCHECK_LE(newposition + size, Size());
-    memmove(contents_ + newposition, contents_ + oldposition, size);
+  void Move(size_t newposition, size_t oldposition) {
+    CHECK(HasEnsuredCapacity());
+    // Move the contents of the buffer from oldposition to
+    // newposition by nbytes.
+    size_t nbytes = Size() - oldposition;
+    memmove(contents_ + newposition, contents_ + oldposition, nbytes);
+    cursor_ += newposition - oldposition;
   }
 
   // Emit a fixup at the current location.
@@ -355,7 +350,7 @@ class AssemblerBuffer {
     return data + capacity - kMinimumGap;
   }
 
-  void ExtendCapacity(size_t min_capacity = 0u);
+  void ExtendCapacity();
 
   friend class AssemblerFixup;
 };
@@ -381,8 +376,8 @@ class Assembler {
  public:
   static Assembler* Create(InstructionSet instruction_set);
 
-  // Finalize the code; emit slow paths, fixup branches, add literal pool, etc.
-  virtual void FinalizeCode() { buffer_.EmitSlowPaths(this); }
+  // Emit slow paths queued during assembly
+  virtual void EmitSlowPaths() { buffer_.EmitSlowPaths(this); }
 
   // Size of generated code
   virtual size_t CodeSize() const { return buffer_.Size(); }
