@@ -169,6 +169,8 @@ class ConcurrentCopying : public GarbageCollector {
   }
   void AssertToSpaceInvariant(mirror::Object* obj, MemberOffset offset, mirror::Object* ref)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void AssertToSpaceInvariant(GcRootSource* gc_root_source, mirror::Object* ref)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsInToSpace(mirror::Object* ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(ref != nullptr);
     return IsMarked(ref) == ref;
@@ -236,6 +238,10 @@ class ConcurrentCopying : public GarbageCollector {
   void SwapStacks(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void RecordLiveStackFreezeSize(Thread* self);
   void ComputeUnevacFromSpaceLiveRatio();
+  void LogFromSpaceRefHolder(mirror::Object* obj, MemberOffset offset)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void AssertToSpaceInvariantInNonMovingSpace(mirror::Object* obj, mirror::Object* ref)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   space::RegionSpace* region_space_;      // The underlying region space.
   std::unique_ptr<Barrier> gc_barrier_;

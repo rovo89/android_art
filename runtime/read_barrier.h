@@ -19,6 +19,7 @@
 
 #include "base/mutex.h"
 #include "base/macros.h"
+#include "gc_root.h"
 #include "jni.h"
 #include "mirror/object_reference.h"
 #include "offsets.h"
@@ -54,14 +55,16 @@ class ReadBarrier {
   // whereas the return value must be an updated reference.
   template <typename MirrorType, ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
             bool kMaybeDuringStartup = false>
-  ALWAYS_INLINE static MirrorType* BarrierForRoot(MirrorType** root)
+  ALWAYS_INLINE static MirrorType* BarrierForRoot(MirrorType** root,
+                                                  GcRootSource* gc_root_source = nullptr)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // It's up to the implementation whether the given root gets updated
   // whereas the return value must be an updated reference.
   template <typename MirrorType, ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
             bool kMaybeDuringStartup = false>
-  ALWAYS_INLINE static MirrorType* BarrierForRoot(mirror::CompressedReference<MirrorType>* root)
+  ALWAYS_INLINE static MirrorType* BarrierForRoot(mirror::CompressedReference<MirrorType>* root,
+                                                  GcRootSource* gc_root_source = nullptr)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static bool IsDuringStartup();
@@ -74,6 +77,9 @@ class ReadBarrier {
   // With the holder object.
   static void AssertToSpaceInvariant(mirror::Object* obj, MemberOffset offset,
                                      mirror::Object* ref)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  // With GcRootSource.
+  static void AssertToSpaceInvariant(GcRootSource* gc_root_source, mirror::Object* ref)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static mirror::Object* Mark(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
