@@ -39,6 +39,7 @@ device_dir="--device-dir=/data/local/tmp"
 # image.
 vm_command="--vm-command=$art"
 image_compiler_option=""
+debug="no"
 
 while true; do
   if [[ "$1" == "--mode=host" ]]; then
@@ -53,11 +54,16 @@ while true; do
     # Vogar knows which VM to use on host.
     vm_command=""
     # We only compile the image on the host. Note that not providing this option
-    # puts us below the adb command limit for vogar.
+    # for target testing puts us below the adb command limit for vogar.
     image_compiler_option="--vm-arg -Ximage-compiler-option --vm-arg --debuggable"
     shift
   elif [[ $1 == -Ximage:* ]]; then
     image="$1"
+    shift
+  elif [[ $1 == "--debug" ]]; then
+    debug="yes"
+    # Remove the --debug from the arguments.
+    args=${args/$1}
     shift
   elif [[ "$1" == "" ]]; then
     break
@@ -66,9 +72,16 @@ while true; do
   fi
 done
 
+vm_args="--vm-arg $image"
+if [[ $debug == "yes" ]]; then
+  art="$art -d"
+  art_debugee="$art_debugee -d"
+  vm_args="$vm_args --vm-arg -XXlib:libartd.so"
+fi
+
 # Run the tests using vogar.
 vogar $vm_command \
-      --vm-arg $image \
+      $vm_args \
       --verbose \
       $args \
       $device_dir \
