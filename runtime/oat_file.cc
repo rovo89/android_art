@@ -286,15 +286,21 @@ bool OatFile::Dlopen(const std::string& elf_filename, uint8_t* requested_base,
           if (info->dlpi_phdr[i].p_type == PT_LOAD) {
             auto vaddr = reinterpret_cast<uint8_t*>(info->dlpi_addr + info->dlpi_phdr[i].p_vaddr);
             MemMap::MapDummy(info->dlpi_name, vaddr, info->dlpi_phdr[i].p_memsz);
+            context->found = true;
           }
         }
       }
       return 0;
     }
     std::string so_name;
-  } context;
-  context.so_name = elf_filename;
+    bool found;
+  } context = { elf_filename, false };
   dl_iterate_phdr(dl_iterate_context::callback, &context);
+
+  if (!context.found) {
+    PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
+    LOG(ERROR) << "File " << elf_filename << " loaded with dlopen but can not find its mmaps.";
+  }
 
   return Setup(abs_dex_location, error_msg);
 #endif  // __APPLE__
