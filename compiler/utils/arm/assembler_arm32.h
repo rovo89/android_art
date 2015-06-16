@@ -238,7 +238,16 @@ class Arm32Assembler FINAL : public ArmAssembler {
   // Memory barriers.
   void dmb(DmbOptions flavor) OVERRIDE;
 
-  // Macros.
+  // Get the final position of a label after local fixup based on the old position
+  // recorded before FinalizeCode().
+  uint32_t GetAdjustedPosition(uint32_t old_position) OVERRIDE;
+
+  Literal* NewLiteral(size_t size, const uint8_t* data) OVERRIDE;
+  void LoadLiteral(Register rt, Literal* literal) OVERRIDE;
+  void LoadLiteral(Register rt, Register rt2, Literal* literal) OVERRIDE;
+  void LoadLiteral(SRegister sd, Literal* literal) OVERRIDE;
+  void LoadLiteral(DRegister dd, Literal* literal) OVERRIDE;
+
   // Add signed constant value to rd. May clobber IP.
   void AddConstant(Register rd, int32_t value, Condition cond = AL) OVERRIDE;
   void AddConstant(Register rd, Register rn, int32_t value,
