@@ -4832,7 +4832,7 @@ const char* CompareAndBranchResults[] = {
   nullptr
 };
 
-std::map<std::string, const char**> test_results;
+std::map<std::string, const char* const*> test_results;
 void setup_results() {
     test_results["SimpleMov"] = SimpleMovResults;
     test_results["SimpleMov32"] = SimpleMov32Results;
