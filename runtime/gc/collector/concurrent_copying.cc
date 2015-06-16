@@ -1002,95 +1002,165 @@ void ConcurrentCopying::AssertToSpaceInvariant(mirror::Object* obj, MemberOffset
     } else if (region_space_->IsInFromSpace(ref)) {
       // Not OK. Do extra logging.
       if (obj != nullptr) {
-        if (kUseBakerReadBarrier) {
-          LOG(INFO) << "holder=" << obj << " " << PrettyTypeOf(obj)
-                    << " holder rb_ptr=" << obj->GetReadBarrierPointer();
-        } else {
-          LOG(INFO) << "holder=" << obj << " " << PrettyTypeOf(obj);
-        }
-        if (region_space_->IsInFromSpace(obj)) {
-          LOG(INFO) << "holder is in the from-space.";
-        } else if (region_space_->IsInToSpace(obj)) {
-          LOG(INFO) << "holder is in the to-space.";
-        } else if (region_space_->IsInUnevacFromSpace(obj)) {
-          LOG(INFO) << "holder is in the unevac from-space.";
-          if (region_space_bitmap_->Test(obj)) {
-            LOG(INFO) << "holder is marked in the region space bitmap.";
-          } else {
-            LOG(INFO) << "holder is not marked in the region space bitmap.";
-          }
-        } else {
-          // In a non-moving space.
-          if (immune_region_.ContainsObject(obj)) {
-            LOG(INFO) << "holder is in the image or the zygote space.";
-            accounting::ContinuousSpaceBitmap* cc_bitmap =
-                cc_heap_bitmap_->GetContinuousSpaceBitmap(obj);
-            CHECK(cc_bitmap != nullptr)
-                << "An immune space object must have a bitmap.";
-            if (cc_bitmap->Test(obj)) {
-              LOG(INFO) << "holder is marked in the bit map.";
-            } else {
-              LOG(INFO) << "holder is NOT marked in the bit map.";
-            }
-          } else {
-            LOG(INFO) << "holder is in a non-moving (or main) space.";
-            accounting::ContinuousSpaceBitmap* mark_bitmap =
-                heap_mark_bitmap_->GetContinuousSpaceBitmap(obj);
-            accounting::LargeObjectBitmap* los_bitmap =
-                heap_mark_bitmap_->GetLargeObjectBitmap(obj);
-            CHECK(los_bitmap != nullptr) << "LOS bitmap covers the entire address range";
-            bool is_los = mark_bitmap == nullptr;
-            if (!is_los && mark_bitmap->Test(obj)) {
-              LOG(INFO) << "holder is marked in the mark bit map.";
-            } else if (is_los && los_bitmap->Test(obj)) {
-              LOG(INFO) << "holder is marked in the los bit map.";
-            } else {
-              // If ref is on the allocation stack, then it is considered
-              // mark/alive (but not necessarily on the live stack.)
-              if (IsOnAllocStack(obj)) {
-                LOG(INFO) << "holder is on the alloc stack.";
-              } else {
-                LOG(INFO) << "holder is not marked or on the alloc stack.";
-              }
-            }
-          }
-        }
-        LOG(INFO) << "offset=" << offset.SizeValue();
+        LogFromSpaceRefHolder(obj, offset);
       }
+      ref->GetLockWord(false).Dump(LOG(INTERNAL_FATAL));
       CHECK(false) << "Found from-space ref " << ref << " " << PrettyTypeOf(ref);
     } else {
-      // In a non-moving spaces. Check that the ref is marked.
-      if (immune_region_.ContainsObject(ref)) {
-        accounting::ContinuousSpaceBitmap* cc_bitmap =
-            cc_heap_bitmap_->GetContinuousSpaceBitmap(ref);
-        CHECK(cc_bitmap != nullptr)
-            << "An immune space ref must have a bitmap. " << ref;
-        if (kUseBakerReadBarrier) {
-          CHECK(cc_bitmap->Test(ref))
-              << "Unmarked immune space ref. obj=" << obj << " rb_ptr="
-              << obj->GetReadBarrierPointer() << " ref=" << ref;
-        } else {
-          CHECK(cc_bitmap->Test(ref))
-              << "Unmarked immune space ref. obj=" << obj << " ref=" << ref;
-        }
+      AssertToSpaceInvariantInNonMovingSpace(obj, ref);
+    }
+  }
+}
+
+class RootPrinter {
+ public:
+  RootPrinter() { }
+
+  template <class MirrorType>
+  ALWAYS_INLINE void VisitRootIfNonNull(mirror::CompressedReference<MirrorType>* root)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (!root->IsNull()) {
+      VisitRoot(root);
+    }
+  }
+
+  template <class MirrorType>
+  void VisitRoot(mirror::Object** root)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    LOG(INTERNAL_FATAL) << "root=" << root << " ref=" << *root;
+  }
+
+  template <class MirrorType>
+  void VisitRoot(mirror::CompressedReference<MirrorType>* root)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    LOG(INTERNAL_FATAL) << "root=" << root << " ref=" << root->AsMirrorPtr();
+  }
+};
+
+void ConcurrentCopying::AssertToSpaceInvariant(GcRootSource* gc_root_source,
+                                               mirror::Object* ref) {
+  CHECK(heap_->collector_type_ == kCollectorTypeCC) << static_cast<size_t>(heap_->collector_type_);
+  if (is_asserting_to_space_invariant_) {
+    if (region_space_->IsInToSpace(ref)) {
+      // OK.
+      return;
+    } else if (region_space_->IsInUnevacFromSpace(ref)) {
+      CHECK(region_space_bitmap_->Test(ref)) << ref;
+    } else if (region_space_->IsInFromSpace(ref)) {
+      // Not OK. Do extra logging.
+      if (gc_root_source == nullptr) {
+        // No info.
+      } else if (gc_root_source->HasArtField()) {
+        ArtField* field = gc_root_source->GetArtField();
+        LOG(INTERNAL_FATAL) << "gc root in field " << field << " " << PrettyField(field);
+        RootPrinter root_printer;
+        field->VisitRoots(root_printer);
+      } else if (gc_root_source->HasArtMethod()) {
+        ArtMethod* method = gc_root_source->GetArtMethod();
+        LOG(INTERNAL_FATAL) << "gc root in method " << method << " " << PrettyMethod(method);
+        RootPrinter root_printer;
+        method->VisitRoots(root_printer);
+      }
+      ref->GetLockWord(false).Dump(LOG(INTERNAL_FATAL));
+      region_space_->DumpNonFreeRegions(LOG(INTERNAL_FATAL));
+      PrintFileToLog("/proc/self/maps", LogSeverity::INTERNAL_FATAL);
+      MemMap::DumpMaps(LOG(INTERNAL_FATAL), true);
+      CHECK(false) << "Found from-space ref " << ref << " " << PrettyTypeOf(ref);
+    } else {
+      AssertToSpaceInvariantInNonMovingSpace(nullptr, ref);
+    }
+  }
+}
+
+void ConcurrentCopying::LogFromSpaceRefHolder(mirror::Object* obj, MemberOffset offset) {
+  if (kUseBakerReadBarrier) {
+    LOG(INFO) << "holder=" << obj << " " << PrettyTypeOf(obj)
+              << " holder rb_ptr=" << obj->GetReadBarrierPointer();
+  } else {
+    LOG(INFO) << "holder=" << obj << " " << PrettyTypeOf(obj);
+  }
+  if (region_space_->IsInFromSpace(obj)) {
+    LOG(INFO) << "holder is in the from-space.";
+  } else if (region_space_->IsInToSpace(obj)) {
+    LOG(INFO) << "holder is in the to-space.";
+  } else if (region_space_->IsInUnevacFromSpace(obj)) {
+    LOG(INFO) << "holder is in the unevac from-space.";
+    if (region_space_bitmap_->Test(obj)) {
+      LOG(INFO) << "holder is marked in the region space bitmap.";
+    } else {
+      LOG(INFO) << "holder is not marked in the region space bitmap.";
+    }
+  } else {
+    // In a non-moving space.
+    if (immune_region_.ContainsObject(obj)) {
+      LOG(INFO) << "holder is in the image or the zygote space.";
+      accounting::ContinuousSpaceBitmap* cc_bitmap =
+          cc_heap_bitmap_->GetContinuousSpaceBitmap(obj);
+      CHECK(cc_bitmap != nullptr)
+          << "An immune space object must have a bitmap.";
+      if (cc_bitmap->Test(obj)) {
+        LOG(INFO) << "holder is marked in the bit map.";
       } else {
-        accounting::ContinuousSpaceBitmap* mark_bitmap =
-            heap_mark_bitmap_->GetContinuousSpaceBitmap(ref);
-        accounting::LargeObjectBitmap* los_bitmap =
-            heap_mark_bitmap_->GetLargeObjectBitmap(ref);
-        CHECK(los_bitmap != nullptr) << "LOS bitmap covers the entire address range";
-        bool is_los = mark_bitmap == nullptr;
-        if ((!is_los && mark_bitmap->Test(ref)) ||
-            (is_los && los_bitmap->Test(ref))) {
-          // OK.
+        LOG(INFO) << "holder is NOT marked in the bit map.";
+      }
+    } else {
+      LOG(INFO) << "holder is in a non-moving (or main) space.";
+      accounting::ContinuousSpaceBitmap* mark_bitmap =
+          heap_mark_bitmap_->GetContinuousSpaceBitmap(obj);
+      accounting::LargeObjectBitmap* los_bitmap =
+          heap_mark_bitmap_->GetLargeObjectBitmap(obj);
+      CHECK(los_bitmap != nullptr) << "LOS bitmap covers the entire address range";
+      bool is_los = mark_bitmap == nullptr;
+      if (!is_los && mark_bitmap->Test(obj)) {
+        LOG(INFO) << "holder is marked in the mark bit map.";
+      } else if (is_los && los_bitmap->Test(obj)) {
+        LOG(INFO) << "holder is marked in the los bit map.";
+      } else {
+        // If ref is on the allocation stack, then it is considered
+        // mark/alive (but not necessarily on the live stack.)
+        if (IsOnAllocStack(obj)) {
+          LOG(INFO) << "holder is on the alloc stack.";
         } else {
-          // If ref is on the allocation stack, then it may not be
-          // marked live, but considered marked/alive (but not
-          // necessarily on the live stack).
-          CHECK(IsOnAllocStack(ref)) << "Unmarked ref that's not on the allocation stack. "
-                                     << "obj=" << obj << " ref=" << ref;
+          LOG(INFO) << "holder is not marked or on the alloc stack.";
         }
       }
+    }
+  }
+  LOG(INFO) << "offset=" << offset.SizeValue();
+}
+
+void ConcurrentCopying::AssertToSpaceInvariantInNonMovingSpace(mirror::Object* obj,
+                                                               mirror::Object* ref) {
+  // In a non-moving spaces. Check that the ref is marked.
+  if (immune_region_.ContainsObject(ref)) {
+    accounting::ContinuousSpaceBitmap* cc_bitmap =
+        cc_heap_bitmap_->GetContinuousSpaceBitmap(ref);
+    CHECK(cc_bitmap != nullptr)
+        << "An immune space ref must have a bitmap. " << ref;
+    if (kUseBakerReadBarrier) {
+      CHECK(cc_bitmap->Test(ref))
+          << "Unmarked immune space ref. obj=" << obj << " rb_ptr="
+          << obj->GetReadBarrierPointer() << " ref=" << ref;
+    } else {
+      CHECK(cc_bitmap->Test(ref))
+          << "Unmarked immune space ref. obj=" << obj << " ref=" << ref;
+    }
+  } else {
+    accounting::ContinuousSpaceBitmap* mark_bitmap =
+        heap_mark_bitmap_->GetContinuousSpaceBitmap(ref);
+    accounting::LargeObjectBitmap* los_bitmap =
+        heap_mark_bitmap_->GetLargeObjectBitmap(ref);
+    CHECK(los_bitmap != nullptr) << "LOS bitmap covers the entire address range";
+    bool is_los = mark_bitmap == nullptr;
+    if ((!is_los && mark_bitmap->Test(ref)) ||
+        (is_los && los_bitmap->Test(ref))) {
+      // OK.
+    } else {
+      // If ref is on the allocation stack, then it may not be
+      // marked live, but considered marked/alive (but not
+      // necessarily on the live stack).
+      CHECK(IsOnAllocStack(ref)) << "Unmarked ref that's not on the allocation stack. "
+                                 << "obj=" << obj << " ref=" << ref;
     }
   }
 }

@@ -36,7 +36,8 @@
 namespace art {
 
 inline mirror::Class* ArtMethod::GetDeclaringClassUnchecked() {
-  return declaring_class_.Read();
+  GcRootSource gc_root_source(this);
+  return declaring_class_.Read(&gc_root_source);
 }
 
 inline mirror::Class* ArtMethod::GetDeclaringClassNoBarrier() {
@@ -84,7 +85,8 @@ inline uint32_t ArtMethod::GetDexMethodIndex() {
 }
 
 inline mirror::PointerArray* ArtMethod::GetDexCacheResolvedMethods() {
-  return dex_cache_resolved_methods_.Read();
+  GcRootSource gc_root_source(this);
+  return dex_cache_resolved_methods_.Read(&gc_root_source);
 }
 
 inline ArtMethod* ArtMethod::GetDexCacheResolvedMethod(uint16_t method_index, size_t ptr_size) {
@@ -118,7 +120,8 @@ inline bool ArtMethod::HasSameDexCacheResolvedMethods(ArtMethod* other) {
 }
 
 inline mirror::ObjectArray<mirror::Class>* ArtMethod::GetDexCacheResolvedTypes() {
-  return dex_cache_resolved_types_.Read();
+  GcRootSource gc_root_source(this);
+  return dex_cache_resolved_types_.Read(&gc_root_source);
 }
 
 template <bool kWithCheck>
