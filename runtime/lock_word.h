@@ -210,6 +210,10 @@ class LockWord {
     return lw1.GetValueWithoutReadBarrierState() == lw2.GetValueWithoutReadBarrierState();
   }
 
+  void Dump(std::ostream& os) {
+    os << "LockWord:" << std::hex << value_;
+  }
+
  private:
   // Default constructor with no lock ownership.
   LockWord();

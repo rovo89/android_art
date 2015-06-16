@@ -22,6 +22,8 @@
 #include "mirror/object_reference.h"
 
 namespace art {
+class ArtField;
+class ArtMethod;
 
 namespace mirror {
 class Object;
@@ -129,11 +131,43 @@ class SingleRootVisitor : public RootVisitor {
   virtual void VisitRoot(mirror::Object* root, const RootInfo& info) = 0;
 };
 
+class GcRootSource {
+ public:
+  GcRootSource()
+      : field_(nullptr), method_(nullptr) {
+  }
+  explicit GcRootSource(ArtField* field)
+      : field_(field), method_(nullptr) {
+  }
+  explicit GcRootSource(ArtMethod* method)
+      : field_(nullptr), method_(method) {
+  }
+  ArtField* GetArtField() const {
+    return field_;
+  }
+  ArtMethod* GetArtMethod() const {
+    return method_;
+  }
+  bool HasArtField() const {
+    return field_ != nullptr;
+  }
+  bool HasArtMethod() const {
+    return method_ != nullptr;
+  }
+
+ private:
+  ArtField* const field_;
+  ArtMethod* const method_;
+
+  DISALLOW_COPY_AND_ASSIGN(GcRootSource);
+};
+
 template<class MirrorType>
 class GcRoot {
  public:
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  ALWAYS_INLINE MirrorType* Read() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE MirrorType* Read(GcRootSource* gc_root_source = nullptr) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void VisitRoot(RootVisitor* visitor, const RootInfo& info) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
