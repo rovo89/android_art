@@ -26,7 +26,7 @@ import java.util.Comparator;
 public class Main implements Comparator<Main> {
   // Whether to test local unwinding. Libunwind uses linker info to find executables. As we do
   // not dlopen at the moment, this doesn't work, so keep it off for now.
-  public final static boolean TEST_LOCAL_UNWINDING = false;
+  public final static boolean TEST_LOCAL_UNWINDING = true;
 
   // Unwinding another process, modelling debuggerd. This doesn't use the linker, so should work
   // no matter whether we're using dlopen or not.
