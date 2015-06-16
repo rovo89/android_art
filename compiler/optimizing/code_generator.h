@@ -358,7 +358,6 @@ class CodeGenerator {
         number_of_register_pairs_(number_of_register_pairs),
         core_callee_save_mask_(core_callee_save_mask),
         fpu_callee_save_mask_(fpu_callee_save_mask),
-        stack_map_stream_(graph->GetArena()),
         is_baseline_(false),
         graph_(graph),
         compiler_options_(compiler_options),
@@ -366,7 +365,8 @@ class CodeGenerator {
         block_order_(nullptr),
         current_block_index_(0),
         is_leaf_(true),
-        requires_current_method_(false) {}
+        requires_current_method_(false),
+        stack_map_stream_(graph->GetArena()) {}
 
   // Register allocation logic.
   void AllocateRegistersLocally(HInstruction* instruction) const;
@@ -436,8 +436,6 @@ class CodeGenerator {
   const uint32_t core_callee_save_mask_;
   const uint32_t fpu_callee_save_mask_;
 
-  StackMapStream stack_map_stream_;
-
   // Whether we are using baseline.
   bool is_baseline_;
 
@@ -465,6 +463,8 @@ class CodeGenerator {
 
   // Whether an instruction in the graph accesses the current method.
   bool requires_current_method_;
+
+  StackMapStream stack_map_stream_;
 
   friend class OptimizingCFITest;
 

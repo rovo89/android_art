@@ -73,8 +73,8 @@ class Arm64Assembler FINAL : public Assembler {
     delete vixl_masm_;
   }
 
-  // Finalize the code.
-  void FinalizeCode() OVERRIDE;
+  // Emit slow paths queued during assembly.
+  void EmitSlowPaths();
 
   // Size of generated code.
   size_t CodeSize() const;

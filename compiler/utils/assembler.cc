@@ -80,11 +80,10 @@ void AssemblerBuffer::FinalizeInstructions(const MemoryRegion& instructions) {
 }
 
 
-void AssemblerBuffer::ExtendCapacity(size_t min_capacity) {
+void AssemblerBuffer::ExtendCapacity() {
   size_t old_size = Size();
   size_t old_capacity = Capacity();
   size_t new_capacity = std::min(old_capacity * 2, old_capacity + 1 * MB);
-  new_capacity = std::max(new_capacity, min_capacity);
 
   // Allocate the new data area and copy contents of the old one to it.
   uint8_t* new_contents = NewContents(new_capacity);
