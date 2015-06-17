@@ -1354,6 +1354,41 @@ int Arm32Assembler::DecodeBranchOffset(int32_t inst) {
 }
 
 
+uint32_t Arm32Assembler::GetAdjustedPosition(uint32_t old_position ATTRIBUTE_UNUSED) {
+  LOG(FATAL) << "Unimplemented.";
+  UNREACHABLE();
+}
+
+Literal* Arm32Assembler::NewLiteral(size_t size ATTRIBUTE_UNUSED,
+                                    const uint8_t* data ATTRIBUTE_UNUSED)  {
+  LOG(FATAL) << "Unimplemented.";
+  UNREACHABLE();
+}
+
+void Arm32Assembler::LoadLiteral(Register rt ATTRIBUTE_UNUSED,
+                                 Literal* literal ATTRIBUTE_UNUSED)  {
+  LOG(FATAL) << "Unimplemented.";
+  UNREACHABLE();
+}
+
+void Arm32Assembler::LoadLiteral(Register rt ATTRIBUTE_UNUSED, Register rt2 ATTRIBUTE_UNUSED,
+                                 Literal* literal ATTRIBUTE_UNUSED)  {
+  LOG(FATAL) << "Unimplemented.";
+  UNREACHABLE();
+}
+
+void Arm32Assembler::LoadLiteral(SRegister sd ATTRIBUTE_UNUSED,
+                                 Literal* literal ATTRIBUTE_UNUSED)  {
+  LOG(FATAL) << "Unimplemented.";
+  UNREACHABLE();
+}
+
+void Arm32Assembler::LoadLiteral(DRegister dd ATTRIBUTE_UNUSED,
+                                 Literal* literal ATTRIBUTE_UNUSED) {
+  LOG(FATAL) << "Unimplemented.";
+  UNREACHABLE();
+}
+
 void Arm32Assembler::AddConstant(Register rd, int32_t value, Condition cond) {
   AddConstant(rd, rd, value, cond);
 }

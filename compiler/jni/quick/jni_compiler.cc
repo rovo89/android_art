@@ -474,7 +474,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   DCHECK_EQ(jni_asm->cfi().GetCurrentCFAOffset(), static_cast<int>(frame_size));
 
   // 17. Finalize code generation
-  __ EmitSlowPaths();
+  __ FinalizeCode();
   size_t cs = __ CodeSize();
   std::vector<uint8_t> managed_code(cs);
   MemoryRegion code(&managed_code[0], managed_code.size());

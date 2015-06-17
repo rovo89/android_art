@@ -71,6 +71,8 @@ class OptimizingCFITest : public CFITest {
         }
       }
     }
+    GrowableArray<HBasicBlock*> blocks(&allocator, 0);
+    code_gen->block_order_ = &blocks;
     code_gen->ComputeSpillMask();
     code_gen->SetFrameSize(frame_size);
     code_gen->GenerateFrameEntry();

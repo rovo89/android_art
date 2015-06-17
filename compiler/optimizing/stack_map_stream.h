@@ -134,6 +134,11 @@ class StackMapStream : public ValueObject {
     return stack_maps_.GetRawStorage()[i];
   }
 
+  void SetStackMapNativePcOffset(size_t i, uint32_t native_pc_offset) {
+    DCHECK_LT(i, stack_maps_.Size());
+    stack_maps_.GetRawStorage()[i].native_pc_offset = native_pc_offset;
+  }
+
   uint32_t ComputeMaxNativePcOffset() const;
 
   // Prepares the stream to fill in a memory region. Must be called before FillIn.
