@@ -295,7 +295,10 @@ static inline int32_t DoPackedSwitch(const Instruction* inst, const ShadowFrame&
   int32_t test_val = shadow_frame.GetVReg(inst->VRegA_31t(inst_data));
   DCHECK_EQ(switch_data[0], static_cast<uint16_t>(Instruction::kPackedSwitchSignature));
   uint16_t size = switch_data[1];
-  DCHECK_GT(size, 0);
+  if (size == 0) {
+    // Empty packed switch, move forward by 3 (size of PACKED_SWITCH).
+    return 3;
+  }
   const int32_t* keys = reinterpret_cast<const int32_t*>(&switch_data[2]);
   DCHECK(IsAligned<4>(keys));
   int32_t first_key = keys[0];

@@ -1,0 +1,2 @@
+Regression test for the interpreter and optimizing's builder which used
+to trip when compiled code contained a packed switch with no targets.
