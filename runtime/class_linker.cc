@@ -4894,6 +4894,9 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
           if (interface_name_comparator.HasSameNameAndSignature(
               vtable_method_for_name_comparison)) {
             if (!vtable_method->IsAbstract() && !vtable_method->IsPublic()) {
+              // Must do EndAssertNoThreadSuspension before throw since the throw can cause
+              // allocations.
+              self->EndAssertNoThreadSuspension(old_cause);
               ThrowIllegalAccessError(klass.Get(),
                   "Method '%s' implementing interface method '%s' is not public",
                   PrettyMethod(vtable_method).c_str(), PrettyMethod(interface_method).c_str());
