@@ -122,10 +122,6 @@ void HDeadCodeElimination::RemoveDeadInstructions() {
       if (!inst->HasSideEffects()
           && !inst->CanThrow()
           && !inst->IsSuspendCheck()
-          // The current method needs to stay in the graph in case of inlining.
-          // It is always passed anyway, and keeping it in the graph does not
-          // affect the generated code.
-          && !inst->IsCurrentMethod()
           // If we added an explicit barrier then we should keep it.
           && !inst->IsMemoryBarrier()
           && !inst->HasUses()) {
