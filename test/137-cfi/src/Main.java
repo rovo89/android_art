@@ -103,7 +103,7 @@ public class Main implements Comparator<Main> {
               System.out.println("Unwinding other process failed.");
           }
       } finally {
-          // Kill the forked process.
+          // Kill the forked process if it is not already dead.
           p.destroy();
       }
   }
