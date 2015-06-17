@@ -88,6 +88,7 @@ class InternTable {
   void DisallowNewInterns() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void AllowNewInterns() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void EnsureNewInternsDisallowed() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void BroadcastForNewInterns() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Adds all of the resolved image strings from the image space into the intern table. The
   // advantage of doing this is preventing expensive DexFile::FindStringId calls.

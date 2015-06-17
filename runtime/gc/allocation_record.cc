@@ -265,7 +265,8 @@ void AllocRecordObjectMap::RecordAllocation(Thread* self, mirror::Object* obj, m
   }
 
   // Wait for GC's sweeping to complete and allow new records
-  while (UNLIKELY(!records->allow_new_record_)) {
+  while (UNLIKELY((!kUseReadBarrier && !records->allow_new_record_) ||
+                  (kUseReadBarrier && !self->GetWeakRefAccessEnabled()))) {
     records->new_record_condition_.WaitHoldingLocks(self);
   }
 

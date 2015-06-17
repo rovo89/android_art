@@ -1512,6 +1512,13 @@ void Runtime::EnsureNewSystemWeaksDisallowed() {
   java_vm_->EnsureNewWeakGlobalsDisallowed();
 }
 
+void Runtime::BroadcastForNewSystemWeaks() {
+  CHECK(kUseReadBarrier);
+  monitor_list_->BroadcastForNewMonitors();
+  intern_table_->BroadcastForNewInterns();
+  java_vm_->BroadcastForNewWeakGlobals();
+}
+
 void Runtime::SetInstructionSet(InstructionSet instruction_set) {
   instruction_set_ = instruction_set;
   if ((instruction_set_ == kThumb2) || (instruction_set_ == kArm)) {
