@@ -1210,14 +1210,20 @@ bool HGraphBuilder::NeedsAccessCheck(uint32_t type_index) const {
 }
 
 void HGraphBuilder::BuildPackedSwitch(const Instruction& instruction, uint32_t dex_pc) {
+  // Verifier guarantees that the payload for PackedSwitch contains:
+  //   (a) number of entries (may be zero)
+  //   (b) first and lowest switch case value (entry 0, always present)
+  //   (c) list of target pcs (entries 1 <= i <= N)
   SwitchTable table(instruction, dex_pc, false);
 
   // Value to test against.
   HInstruction* value = LoadLocal(instruction.VRegA(), Primitive::kPrimInt);
 
+  // Retrieve number of entries.
   uint16_t num_entries = table.GetNumEntries();
-  // There should be at least one entry here.
-  DCHECK_GT(num_entries, 0U);
+  if (num_entries == 0) {
+    return;
+  }
 
   // Chained cmp-and-branch, starting from starting_key.
   int32_t starting_key = table.GetEntryAt(0);
@@ -1229,6 +1235,10 @@ void HGraphBuilder::BuildPackedSwitch(const Instruction& instruction, uint32_t d
 }
 
 void HGraphBuilder::BuildSparseSwitch(const Instruction& instruction, uint32_t dex_pc) {
+  // Verifier guarantees that the payload for SparseSwitch contains:
+  //   (a) number of entries (may be zero)
+  //   (b) sorted key values (entries 0 <= i < N)
+  //   (c) target pcs corresponding to the switch values (entries N <= i < 2*N)
   SwitchTable table(instruction, dex_pc, true);
 
   // Value to test against.
