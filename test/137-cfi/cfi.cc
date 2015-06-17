@@ -188,7 +188,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_unwindOtherProcess(JNIEnv*, jobj
     // Were not able to attach, bad.
     printf("Failed to attach to other process.\n");
     PLOG(ERROR) << "Failed to attach.";
-    kill(pid, SIGCONT);
+    kill(pid, SIGKILL);
     return JNI_FALSE;
   }
 
@@ -230,8 +230,8 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_unwindOtherProcess(JNIEnv*, jobj
     PLOG(ERROR) << "Detach failed";
   }
 
-  // Continue the process so we can kill it on the Java side.
-  kill(pid, SIGCONT);
+  // Kill the other process once we are done with it.
+  kill(pid, SIGKILL);
 
   return result ? JNI_TRUE : JNI_FALSE;
 #else
