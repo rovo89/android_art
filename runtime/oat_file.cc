@@ -281,23 +281,37 @@ bool OatFile::Dlopen(const std::string& elf_filename, uint8_t* requested_base,
   struct dl_iterate_context {
     static int callback(struct dl_phdr_info *info, size_t /* size */, void *data) {
       auto* context = reinterpret_cast<dl_iterate_context*>(data);
-      if (info->dlpi_name != nullptr && info->dlpi_name == context->so_name) {
-        for (int i = 0; i < info->dlpi_phnum; i++) {
-          if (info->dlpi_phdr[i].p_type == PT_LOAD) {
-            auto vaddr = reinterpret_cast<uint8_t*>(info->dlpi_addr + info->dlpi_phdr[i].p_vaddr);
-            MemMap::MapDummy(info->dlpi_name, vaddr, info->dlpi_phdr[i].p_memsz);
-            context->found = true;
+      // See whether this callback corresponds to the file which we have just loaded.
+      bool contains_begin = false;
+      for (int i = 0; i < info->dlpi_phnum; i++) {
+        if (info->dlpi_phdr[i].p_type == PT_LOAD) {
+          uint8_t* vaddr = reinterpret_cast<uint8_t*>(info->dlpi_addr +
+                                                      info->dlpi_phdr[i].p_vaddr);
+          size_t memsz = info->dlpi_phdr[i].p_memsz;
+          if (vaddr <= context->begin_ && context->begin_ < vaddr + memsz) {
+            contains_begin = true;
+            break;
           }
         }
       }
-      return 0;
+      // Add dummy mmaps for this file.
+      if (contains_begin) {
+        for (int i = 0; i < info->dlpi_phnum; i++) {
+          if (info->dlpi_phdr[i].p_type == PT_LOAD) {
+            uint8_t* vaddr = reinterpret_cast<uint8_t*>(info->dlpi_addr +
+                                                        info->dlpi_phdr[i].p_vaddr);
+            size_t memsz = info->dlpi_phdr[i].p_memsz;
+            MemMap::MapDummy(info->dlpi_name, vaddr, memsz);
+          }
+        }
+        return 1;  // Stop iteration and return 1 from dl_iterate_phdr.
+      }
+      return 0;  // Continue iteration and return 0 from dl_iterate_phdr when finished.
     }
-    std::string so_name;
-    bool found;
-  } context = { elf_filename, false };
-  dl_iterate_phdr(dl_iterate_context::callback, &context);
+    const uint8_t* begin_;
+  } context = { begin_ };
 
-  if (!context.found) {
+  if (dl_iterate_phdr(dl_iterate_context::callback, &context) == 0) {
     PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
     LOG(ERROR) << "File " << elf_filename << " loaded with dlopen but can not find its mmaps.";
   }
