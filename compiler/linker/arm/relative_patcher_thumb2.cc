@@ -82,6 +82,7 @@ std::vector<uint8_t> Thumb2RelativePatcher::CompileThunkCode() {
       arm::kLoadWord, arm::PC, arm::R0,
       ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArmPointerSize).Int32Value());
   assembler.bkpt(0);
+  assembler.FinalizeCode();
   std::vector<uint8_t> thunk_code(assembler.CodeSize());
   MemoryRegion code(thunk_code.data(), thunk_code.size());
   assembler.FinalizeInstructions(code);
