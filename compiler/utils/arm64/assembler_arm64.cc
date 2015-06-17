@@ -31,7 +31,7 @@ namespace arm64 {
 #define ___   vixl_masm_->
 #endif
 
-void Arm64Assembler::EmitSlowPaths() {
+void Arm64Assembler::FinalizeCode() {
   if (!exception_blocks_.empty()) {
     for (size_t i = 0; i < exception_blocks_.size(); i++) {
       EmitExceptionPoll(exception_blocks_.at(i));

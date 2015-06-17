@@ -233,7 +233,7 @@ std::vector<uint8_t> Arm64RelativePatcher::CompileThunkCode() {
       kArm64PointerSize).Int32Value());
   assembler.JumpTo(ManagedRegister(arm64::X0), offset, ManagedRegister(arm64::IP0));
   // Ensure we emit the literal pool.
-  assembler.EmitSlowPaths();
+  assembler.FinalizeCode();
   std::vector<uint8_t> thunk_code(assembler.CodeSize());
   MemoryRegion code(thunk_code.data(), thunk_code.size());
   assembler.FinalizeInstructions(code);

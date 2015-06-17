@@ -358,15 +358,15 @@ class CodeGenerator {
         number_of_register_pairs_(number_of_register_pairs),
         core_callee_save_mask_(core_callee_save_mask),
         fpu_callee_save_mask_(fpu_callee_save_mask),
+        stack_map_stream_(graph->GetArena()),
+        block_order_(nullptr),
         is_baseline_(false),
         graph_(graph),
         compiler_options_(compiler_options),
         slow_paths_(graph->GetArena(), 8),
-        block_order_(nullptr),
         current_block_index_(0),
         is_leaf_(true),
-        requires_current_method_(false),
-        stack_map_stream_(graph->GetArena()) {}
+        requires_current_method_(false) {}
 
   // Register allocation logic.
   void AllocateRegistersLocally(HInstruction* instruction) const;
@@ -436,6 +436,11 @@ class CodeGenerator {
   const uint32_t core_callee_save_mask_;
   const uint32_t fpu_callee_save_mask_;
 
+  StackMapStream stack_map_stream_;
+
+  // The order to use for code generation.
+  const GrowableArray<HBasicBlock*>* block_order_;
+
   // Whether we are using baseline.
   bool is_baseline_;
 
@@ -451,9 +456,6 @@ class CodeGenerator {
 
   GrowableArray<SlowPathCode*> slow_paths_;
 
-  // The order to use for code generation.
-  const GrowableArray<HBasicBlock*>* block_order_;
-
   // The current block index in `block_order_` of the block
   // we are generating code for.
   size_t current_block_index_;
@@ -463,8 +465,6 @@ class CodeGenerator {
 
   // Whether an instruction in the graph accesses the current method.
   bool requires_current_method_;
-
-  StackMapStream stack_map_stream_;
 
   friend class OptimizingCFITest;
 
