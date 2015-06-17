@@ -19,6 +19,7 @@
 #include <stdint.h>
 
 #include "indenter.h"
+#include "invoke_type.h"
 
 namespace art {
 
@@ -207,6 +208,13 @@ void StackMap::Dump(std::ostream& os,
         *this, encoding, number_of_dex_registers);
     dex_register_map.Dump(os, code_info, number_of_dex_registers);
   }
+  if (HasInlineInfo(encoding)) {
+    InlineInfo inline_info = code_info.GetInlineInfoOf(*this, encoding);
+    // We do not know the length of the dex register maps of inlined frames
+    // at this level, so we just pass null to `InlineInfo::Dump` to tell
+    // it not to look at these maps.
+    inline_info.Dump(os, code_info, nullptr);
+  }
 }
 
 void InlineInfo::Dump(std::ostream& os,
@@ -220,9 +228,11 @@ void InlineInfo::Dump(std::ostream& os,
     indented_os << " At depth " << i
                 << std::hex
                 << " (dex_pc=0x" << GetDexPcAtDepth(i)
-                << ", method_index=0x" << GetMethodIndexAtDepth(i)
+                << std::dec
+                << ", method_index=" << GetMethodIndexAtDepth(i)
+                << ", invoke_type=" << static_cast<InvokeType>(GetInvokeTypeAtDepth(i))
                 << ")\n";
-    if (HasDexRegisterMapAtDepth(i)) {
+    if (HasDexRegisterMapAtDepth(i) && (number_of_dex_registers != nullptr)) {
       StackMapEncoding encoding = code_info.ExtractEncoding();
       DexRegisterMap dex_register_map =
           code_info.GetDexRegisterMapAtDepth(i, *this, encoding, number_of_dex_registers[i]);
