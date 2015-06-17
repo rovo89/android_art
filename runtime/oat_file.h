@@ -321,6 +321,9 @@ class OatFile FINAL {
   // dlopen handle during runtime.
   void* dlopen_handle_;
 
+  // Dummy memory map objects corresponding to the regions mapped by dlopen.
+  std::vector<std::unique_ptr<MemMap>> dlopen_mmaps_;
+
   // Owning storage for the OatDexFile objects.
   std::vector<const OatDexFile*> oat_dex_files_storage_;
 
