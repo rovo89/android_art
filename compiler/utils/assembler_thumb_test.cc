@@ -65,19 +65,32 @@ int CompareIgnoringSpace(const char* s1, const char* s2) {
   return *s1 - *s2;
 }
 
-void dump(std::vector<uint8_t>& code, const char* testname) {
-  // This will only work on the host.  There is no as, objcopy or objdump on the
-  // device.
+void InitResults() {
+  if (test_results.empty()) {
+    setup_results();
+  }
+}
+
+std::string GetToolsDir() {
 #ifndef HAVE_ANDROID_OS
-  static bool results_ok = false;
+  // This will only work on the host.  There is no as, objcopy or objdump on the device.
   static std::string toolsdir;
 
-  if (!results_ok) {
+  if (toolsdir.empty()) {
     setup_results();
     toolsdir = CommonRuntimeTest::GetAndroidTargetToolsDir(kThumb2);
     SetAndroidData();
-    results_ok = true;
   }
+
+  return toolsdir;
+#else
+  return std::string();
+#endif
+}
+
+void DumpAndCheck(std::vector<uint8_t>& code, const char* testname, const char* const* results) {
+#ifndef HAVE_ANDROID_OS
+  static std::string toolsdir = GetToolsDir();
 
   ScratchFile file;
 
@@ -130,9 +143,6 @@ void dump(std::vector<uint8_t>& code, const char* testname) {
     FILE *fp = popen(cmd, "r");
     ASSERT_TRUE(fp != nullptr);
 
-    std::map<std::string, const char**>::iterator results = test_results.find(testname);
-    ASSERT_NE(results, test_results.end());
-
     uint32_t lineindex = 0;
 
     while (!feof(fp)) {
@@ -141,14 +151,14 @@ void dump(std::vector<uint8_t>& code, const char* testname) {
       if (s == nullptr) {
         break;
       }
-      if (CompareIgnoringSpace(results->second[lineindex], testline) != 0) {
+      if (CompareIgnoringSpace(results[lineindex], testline) != 0) {
         LOG(FATAL) << "Output is not as expected at line: " << lineindex
-          << results->second[lineindex] << "/" << testline;
+          << results[lineindex] << "/" << testline;
       }
       ++lineindex;
     }
     // Check that we are at the end.
-    ASSERT_TRUE(results->second[lineindex] == nullptr);
+    ASSERT_TRUE(results[lineindex] == nullptr);
     fclose(fp);
   }
 
@@ -163,8 +173,31 @@ void dump(std::vector<uint8_t>& code, const char* testname) {
 
 #define __ assembler->
 
+void EmitAndCheck(arm::Thumb2Assembler* assembler, const char* testname,
+                  const char* const* results) {
+  __ FinalizeCode();
+  size_t cs = __ CodeSize();
+  std::vector<uint8_t> managed_code(cs);
+  MemoryRegion code(&managed_code[0], managed_code.size());
+  __ FinalizeInstructions(code);
+
+  DumpAndCheck(managed_code, testname, results);
+}
+
+void EmitAndCheck(arm::Thumb2Assembler* assembler, const char* testname) {
+  InitResults();
+  std::map<std::string, const char* const*>::iterator results = test_results.find(testname);
+  ASSERT_NE(results, test_results.end());
+
+  EmitAndCheck(assembler, testname, results->second);
+}
+
+#undef __
+
+#define __ assembler.
+
 TEST(Thumb2AssemblerTest, SimpleMov) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ mov(R0, ShifterOperand(R1));
   __ mov(R8, ShifterOperand(R9));
@@ -172,46 +205,31 @@ TEST(Thumb2AssemblerTest, SimpleMov) {
   __ mov(R0, ShifterOperand(1));
   __ mov(R8, ShifterOperand(9));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "SimpleMov");
-  delete assembler;
+  EmitAndCheck(&assembler, "SimpleMov");
 }
 
 TEST(Thumb2AssemblerTest, SimpleMov32) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
-  assembler->Force32Bit();
+  arm::Thumb2Assembler assembler;
+  __ Force32Bit();
 
   __ mov(R0, ShifterOperand(R1));
   __ mov(R8, ShifterOperand(R9));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "SimpleMov32");
-  delete assembler;
+  EmitAndCheck(&assembler, "SimpleMov32");
 }
 
 TEST(Thumb2AssemblerTest, SimpleMovAdd) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ mov(R0, ShifterOperand(R1));
   __ add(R0, R1, ShifterOperand(R2));
   __ add(R0, R1, ShifterOperand());
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "SimpleMovAdd");
-  delete assembler;
+  EmitAndCheck(&assembler, "SimpleMovAdd");
 }
 
 TEST(Thumb2AssemblerTest, DataProcessingRegister) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ mov(R0, ShifterOperand(R1));
   __ mvn(R0, ShifterOperand(R1));
@@ -249,16 +267,11 @@ TEST(Thumb2AssemblerTest, DataProcessingRegister) {
   // 32 bit variants.
   __ add(R12, R1, ShifterOperand(R0));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "DataProcessingRegister");
-  delete assembler;
+  EmitAndCheck(&assembler, "DataProcessingRegister");
 }
 
 TEST(Thumb2AssemblerTest, DataProcessingImmediate) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ mov(R0, ShifterOperand(0x55));
   __ mvn(R0, ShifterOperand(0x55));
@@ -283,16 +296,11 @@ TEST(Thumb2AssemblerTest, DataProcessingImmediate) {
   __ movs(R0, ShifterOperand(0x55));
   __ mvns(R0, ShifterOperand(0x55));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "DataProcessingImmediate");
-  delete assembler;
+  EmitAndCheck(&assembler, "DataProcessingImmediate");
 }
 
 TEST(Thumb2AssemblerTest, DataProcessingModifiedImmediate) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ mov(R0, ShifterOperand(0x550055));
   __ mvn(R0, ShifterOperand(0x550055));
@@ -311,17 +319,12 @@ TEST(Thumb2AssemblerTest, DataProcessingModifiedImmediate) {
   __ cmp(R0, ShifterOperand(0x550055));
   __ cmn(R0, ShifterOperand(0x550055));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "DataProcessingModifiedImmediate");
-  delete assembler;
+  EmitAndCheck(&assembler, "DataProcessingModifiedImmediate");
 }
 
 
 TEST(Thumb2AssemblerTest, DataProcessingModifiedImmediates) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ mov(R0, ShifterOperand(0x550055));
   __ mov(R0, ShifterOperand(0x55005500));
@@ -331,16 +334,11 @@ TEST(Thumb2AssemblerTest, DataProcessingModifiedImmediates) {
   __ mov(R0, ShifterOperand(0x350));            // rotated to 2nd last position
   __ mov(R0, ShifterOperand(0x1a8));            // rotated to last position
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "DataProcessingModifiedImmediates");
-  delete assembler;
+  EmitAndCheck(&assembler, "DataProcessingModifiedImmediates");
 }
 
 TEST(Thumb2AssemblerTest, DataProcessingShiftedRegister) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ mov(R3, ShifterOperand(R4, LSL, 4));
   __ mov(R3, ShifterOperand(R4, LSR, 5));
@@ -355,17 +353,12 @@ TEST(Thumb2AssemblerTest, DataProcessingShiftedRegister) {
   __ mov(R8, ShifterOperand(R4, ROR, 7));
   __ mov(R8, ShifterOperand(R4, RRX));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "DataProcessingShiftedRegister");
-  delete assembler;
+  EmitAndCheck(&assembler, "DataProcessingShiftedRegister");
 }
 
 
 TEST(Thumb2AssemblerTest, BasicLoad) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ ldr(R3, Address(R4, 24));
   __ ldrb(R3, Address(R4, 24));
@@ -382,17 +375,12 @@ TEST(Thumb2AssemblerTest, BasicLoad) {
   __ ldrsb(R8, Address(R4, 24));
   __ ldrsh(R8, Address(R4, 24));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "BasicLoad");
-  delete assembler;
+  EmitAndCheck(&assembler, "BasicLoad");
 }
 
 
 TEST(Thumb2AssemblerTest, BasicStore) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ str(R3, Address(R4, 24));
   __ strb(R3, Address(R4, 24));
@@ -405,16 +393,11 @@ TEST(Thumb2AssemblerTest, BasicStore) {
   __ strb(R8, Address(R4, 24));
   __ strh(R8, Address(R4, 24));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "BasicStore");
-  delete assembler;
+  EmitAndCheck(&assembler, "BasicStore");
 }
 
 TEST(Thumb2AssemblerTest, ComplexLoad) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ ldr(R3, Address(R4, 24, Address::Mode::Offset));
   __ ldr(R3, Address(R4, 24, Address::Mode::PreIndex));
@@ -451,17 +434,12 @@ TEST(Thumb2AssemblerTest, ComplexLoad) {
   __ ldrsh(R3, Address(R4, 24, Address::Mode::NegPreIndex));
   __ ldrsh(R3, Address(R4, 24, Address::Mode::NegPostIndex));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "ComplexLoad");
-  delete assembler;
+  EmitAndCheck(&assembler, "ComplexLoad");
 }
 
 
 TEST(Thumb2AssemblerTest, ComplexStore) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ str(R3, Address(R4, 24, Address::Mode::Offset));
   __ str(R3, Address(R4, 24, Address::Mode::PreIndex));
@@ -484,16 +462,11 @@ TEST(Thumb2AssemblerTest, ComplexStore) {
   __ strh(R3, Address(R4, 24, Address::Mode::NegPreIndex));
   __ strh(R3, Address(R4, 24, Address::Mode::NegPostIndex));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "ComplexStore");
-  delete assembler;
+  EmitAndCheck(&assembler, "ComplexStore");
 }
 
 TEST(Thumb2AssemblerTest, NegativeLoadStore) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ ldr(R3, Address(R4, -24, Address::Mode::Offset));
   __ ldr(R3, Address(R4, -24, Address::Mode::PreIndex));
@@ -551,30 +524,20 @@ TEST(Thumb2AssemblerTest, NegativeLoadStore) {
   __ strh(R3, Address(R4, -24, Address::Mode::NegPreIndex));
   __ strh(R3, Address(R4, -24, Address::Mode::NegPostIndex));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "NegativeLoadStore");
-  delete assembler;
+  EmitAndCheck(&assembler, "NegativeLoadStore");
 }
 
 TEST(Thumb2AssemblerTest, SimpleLoadStoreDual) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ strd(R2, Address(R0, 24, Address::Mode::Offset));
   __ ldrd(R2, Address(R0, 24, Address::Mode::Offset));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "SimpleLoadStoreDual");
-  delete assembler;
+  EmitAndCheck(&assembler, "SimpleLoadStoreDual");
 }
 
 TEST(Thumb2AssemblerTest, ComplexLoadStoreDual) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ strd(R2, Address(R0, 24, Address::Mode::Offset));
   __ strd(R2, Address(R0, 24, Address::Mode::PreIndex));
@@ -590,16 +553,11 @@ TEST(Thumb2AssemblerTest, ComplexLoadStoreDual) {
   __ ldrd(R2, Address(R0, 24, Address::Mode::NegPreIndex));
   __ ldrd(R2, Address(R0, 24, Address::Mode::NegPostIndex));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "ComplexLoadStoreDual");
-  delete assembler;
+  EmitAndCheck(&assembler, "ComplexLoadStoreDual");
 }
 
 TEST(Thumb2AssemblerTest, NegativeLoadStoreDual) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ strd(R2, Address(R0, -24, Address::Mode::Offset));
   __ strd(R2, Address(R0, -24, Address::Mode::PreIndex));
@@ -615,16 +573,11 @@ TEST(Thumb2AssemblerTest, NegativeLoadStoreDual) {
   __ ldrd(R2, Address(R0, -24, Address::Mode::NegPreIndex));
   __ ldrd(R2, Address(R0, -24, Address::Mode::NegPostIndex));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "NegativeLoadStoreDual");
-  delete assembler;
+  EmitAndCheck(&assembler, "NegativeLoadStoreDual");
 }
 
 TEST(Thumb2AssemblerTest, SimpleBranch) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   Label l1;
   __ mov(R0, ShifterOperand(2));
@@ -658,17 +611,12 @@ TEST(Thumb2AssemblerTest, SimpleBranch) {
   __ Bind(&l5);
   __ mov(R0, ShifterOperand(6));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "SimpleBranch");
-  delete assembler;
+  EmitAndCheck(&assembler, "SimpleBranch");
 }
 
 TEST(Thumb2AssemblerTest, LongBranch) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
-  assembler->Force32Bit();
+  arm::Thumb2Assembler assembler;
+  __ Force32Bit();
   // 32 bit branches.
   Label l1;
   __ mov(R0, ShifterOperand(2));
@@ -703,16 +651,11 @@ TEST(Thumb2AssemblerTest, LongBranch) {
   __ Bind(&l5);
   __ mov(R0, ShifterOperand(6));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "LongBranch");
-  delete assembler;
+  EmitAndCheck(&assembler, "LongBranch");
 }
 
 TEST(Thumb2AssemblerTest, LoadMultiple) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   // 16 bit.
   __ ldm(DB_W, R4, (1 << R0 | 1 << R3));
@@ -724,16 +667,11 @@ TEST(Thumb2AssemblerTest, LoadMultiple) {
   // Single reg is converted to ldr
   __ ldm(DB_W, R4, (1 << R5));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "LoadMultiple");
-  delete assembler;
+  EmitAndCheck(&assembler, "LoadMultiple");
 }
 
 TEST(Thumb2AssemblerTest, StoreMultiple) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   // 16 bit.
   __ stm(IA_W, R4, (1 << R0 | 1 << R3));
@@ -746,16 +684,11 @@ TEST(Thumb2AssemblerTest, StoreMultiple) {
   __ stm(IA_W, R4, (1 << R5));
   __ stm(IA, R4, (1 << R5));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "StoreMultiple");
-  delete assembler;
+  EmitAndCheck(&assembler, "StoreMultiple");
 }
 
 TEST(Thumb2AssemblerTest, MovWMovT) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ movw(R4, 0);         // 16 bit.
   __ movw(R4, 0x34);      // 16 bit.
@@ -768,16 +701,11 @@ TEST(Thumb2AssemblerTest, MovWMovT) {
   __ movt(R0, 0x1234);
   __ movt(R1, 0xffff);
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "MovWMovT");
-  delete assembler;
+  EmitAndCheck(&assembler, "MovWMovT");
 }
 
 TEST(Thumb2AssemblerTest, SpecialAddSub) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ add(R2, SP, ShifterOperand(0x50));   // 16 bit.
   __ add(SP, SP, ShifterOperand(0x50));   // 16 bit.
@@ -792,16 +720,11 @@ TEST(Thumb2AssemblerTest, SpecialAddSub) {
 
   __ sub(SP, SP, ShifterOperand(0xf00));   // 32 bit due to imm size
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "SpecialAddSub");
-  delete assembler;
+  EmitAndCheck(&assembler, "SpecialAddSub");
 }
 
 TEST(Thumb2AssemblerTest, StoreToOffset) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ StoreToOffset(kStoreWord, R2, R4, 12);     // Simple
   __ StoreToOffset(kStoreWord, R2, R4, 0x2000);     // Offset too big.
@@ -809,17 +732,12 @@ TEST(Thumb2AssemblerTest, StoreToOffset) {
   __ StoreToOffset(kStoreHalfword, R0, R12, 12);
   __ StoreToOffset(kStoreByte, R2, R12, 12);
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "StoreToOffset");
-  delete assembler;
+  EmitAndCheck(&assembler, "StoreToOffset");
 }
 
 
 TEST(Thumb2AssemblerTest, IfThen) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ it(EQ);
   __ mov(R1, ShifterOperand(1), EQ);
@@ -848,16 +766,11 @@ TEST(Thumb2AssemblerTest, IfThen) {
   __ mov(R3, ShifterOperand(3), EQ);
   __ mov(R4, ShifterOperand(4), NE);
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "IfThen");
-  delete assembler;
+  EmitAndCheck(&assembler, "IfThen");
 }
 
 TEST(Thumb2AssemblerTest, CbzCbnz) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   Label l1;
   __ cbz(R2, &l1);
@@ -873,16 +786,11 @@ TEST(Thumb2AssemblerTest, CbzCbnz) {
   __ Bind(&l2);
   __ mov(R2, ShifterOperand(4));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "CbzCbnz");
-  delete assembler;
+  EmitAndCheck(&assembler, "CbzCbnz");
 }
 
 TEST(Thumb2AssemblerTest, Multiply) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ mul(R0, R1, R0);
   __ mul(R0, R1, R2);
@@ -898,16 +806,11 @@ TEST(Thumb2AssemblerTest, Multiply) {
   __ umull(R0, R1, R2, R3);
   __ umull(R8, R9, R10, R11);
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "Multiply");
-  delete assembler;
+  EmitAndCheck(&assembler, "Multiply");
 }
 
 TEST(Thumb2AssemblerTest, Divide) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ sdiv(R0, R1, R2);
   __ sdiv(R8, R9, R10);
@@ -915,16 +818,11 @@ TEST(Thumb2AssemblerTest, Divide) {
   __ udiv(R0, R1, R2);
   __ udiv(R8, R9, R10);
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "Divide");
-  delete assembler;
+  EmitAndCheck(&assembler, "Divide");
 }
 
 TEST(Thumb2AssemblerTest, VMov) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ vmovs(S1, 1.0);
   __ vmovd(D1, 1.0);
@@ -932,17 +830,12 @@ TEST(Thumb2AssemblerTest, VMov) {
   __ vmovs(S1, S2);
   __ vmovd(D1, D2);
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "VMov");
-  delete assembler;
+  EmitAndCheck(&assembler, "VMov");
 }
 
 
 TEST(Thumb2AssemblerTest, BasicFloatingPoint) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ vadds(S0, S1, S2);
   __ vsubs(S0, S1, S2);
@@ -964,16 +857,11 @@ TEST(Thumb2AssemblerTest, BasicFloatingPoint) {
   __ vnegd(D0, D1);
   __ vsqrtd(D0, D1);
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "BasicFloatingPoint");
-  delete assembler;
+  EmitAndCheck(&assembler, "BasicFloatingPoint");
 }
 
 TEST(Thumb2AssemblerTest, FloatingPointConversions) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ vcvtsd(S2, D2);
   __ vcvtds(D2, S2);
@@ -990,16 +878,11 @@ TEST(Thumb2AssemblerTest, FloatingPointConversions) {
   __ vcvtud(S1, D2);
   __ vcvtdu(D1, S2);
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "FloatingPointConversions");
-  delete assembler;
+  EmitAndCheck(&assembler, "FloatingPointConversions");
 }
 
 TEST(Thumb2AssemblerTest, FloatingPointComparisons) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ vcmps(S0, S1);
   __ vcmpd(D0, D1);
@@ -1007,57 +890,37 @@ TEST(Thumb2AssemblerTest, FloatingPointComparisons) {
   __ vcmpsz(S2);
   __ vcmpdz(D2);
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "FloatingPointComparisons");
-  delete assembler;
+  EmitAndCheck(&assembler, "FloatingPointComparisons");
 }
 
 TEST(Thumb2AssemblerTest, Calls) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ blx(LR);
   __ bx(LR);
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "Calls");
-  delete assembler;
+  EmitAndCheck(&assembler, "Calls");
 }
 
 TEST(Thumb2AssemblerTest, Breakpoint) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ bkpt(0);
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "Breakpoint");
-  delete assembler;
+  EmitAndCheck(&assembler, "Breakpoint");
 }
 
 TEST(Thumb2AssemblerTest, StrR1) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ str(R1, Address(SP, 68));
   __ str(R1, Address(SP, 1068));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "StrR1");
-  delete assembler;
+  EmitAndCheck(&assembler, "StrR1");
 }
 
 TEST(Thumb2AssemblerTest, VPushPop) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ vpushs(S2, 4);
   __ vpushd(D2, 4);
@@ -1065,16 +928,11 @@ TEST(Thumb2AssemblerTest, VPushPop) {
   __ vpops(S2, 4);
   __ vpopd(D2, 4);
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "VPushPop");
-  delete assembler;
+  EmitAndCheck(&assembler, "VPushPop");
 }
 
 TEST(Thumb2AssemblerTest, Max16BitBranch) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   Label l1;
   __ b(&l1);
@@ -1084,16 +942,11 @@ TEST(Thumb2AssemblerTest, Max16BitBranch) {
   __ Bind(&l1);
   __ mov(R1, ShifterOperand(R2));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "Max16BitBranch");
-  delete assembler;
+  EmitAndCheck(&assembler, "Max16BitBranch");
 }
 
 TEST(Thumb2AssemblerTest, Branch32) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   Label l1;
   __ b(&l1);
@@ -1103,16 +956,11 @@ TEST(Thumb2AssemblerTest, Branch32) {
   __ Bind(&l1);
   __ mov(R1, ShifterOperand(R2));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "Branch32");
-  delete assembler;
+  EmitAndCheck(&assembler, "Branch32");
 }
 
 TEST(Thumb2AssemblerTest, CompareAndBranchMax) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   Label l1;
   __ cbz(R4, &l1);
@@ -1122,16 +970,11 @@ TEST(Thumb2AssemblerTest, CompareAndBranchMax) {
   __ Bind(&l1);
   __ mov(R1, ShifterOperand(R2));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "CompareAndBranchMax");
-  delete assembler;
+  EmitAndCheck(&assembler, "CompareAndBranchMax");
 }
 
 TEST(Thumb2AssemblerTest, CompareAndBranchRelocation16) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   Label l1;
   __ cbz(R4, &l1);
@@ -1141,16 +984,11 @@ TEST(Thumb2AssemblerTest, CompareAndBranchRelocation16) {
   __ Bind(&l1);
   __ mov(R1, ShifterOperand(R2));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "CompareAndBranchRelocation16");
-  delete assembler;
+  EmitAndCheck(&assembler, "CompareAndBranchRelocation16");
 }
 
 TEST(Thumb2AssemblerTest, CompareAndBranchRelocation32) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   Label l1;
   __ cbz(R4, &l1);
@@ -1160,16 +998,11 @@ TEST(Thumb2AssemblerTest, CompareAndBranchRelocation32) {
   __ Bind(&l1);
   __ mov(R1, ShifterOperand(R2));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "CompareAndBranchRelocation32");
-  delete assembler;
+  EmitAndCheck(&assembler, "CompareAndBranchRelocation32");
 }
 
 TEST(Thumb2AssemblerTest, MixedBranch32) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   Label l1;
   Label l2;
@@ -1184,16 +1017,11 @@ TEST(Thumb2AssemblerTest, MixedBranch32) {
   __ Bind(&l1);
   __ mov(R1, ShifterOperand(R2));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "MixedBranch32");
-  delete assembler;
+  EmitAndCheck(&assembler, "MixedBranch32");
 }
 
 TEST(Thumb2AssemblerTest, Shifts) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   // 16 bit
   __ Lsl(R0, R1, 5);
@@ -1240,16 +1068,11 @@ TEST(Thumb2AssemblerTest, Shifts) {
   __ Lsr(R0, R8, R2, true);
   __ Asr(R0, R1, R8, true);
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "Shifts");
-  delete assembler;
+  EmitAndCheck(&assembler, "Shifts");
 }
 
 TEST(Thumb2AssemblerTest, LoadStoreRegOffset) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   // 16 bit.
   __ ldr(R0, Address(R1, R2));
@@ -1272,16 +1095,11 @@ TEST(Thumb2AssemblerTest, LoadStoreRegOffset) {
   __ ldr(R0, Address(R1, R8));
   __ str(R0, Address(R1, R8));
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "LoadStoreRegOffset");
-  delete assembler;
+  EmitAndCheck(&assembler, "LoadStoreRegOffset");
 }
 
 TEST(Thumb2AssemblerTest, LoadStoreLiteral) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ ldr(R0, Address(4));
   __ str(R0, Address(4));
@@ -1295,16 +1113,11 @@ TEST(Thumb2AssemblerTest, LoadStoreLiteral) {
   __ str(R0, Address(0x3ff));       // 32 bit (no 16 bit str(literal)).
   __ str(R0, Address(0x7ff));       // 11 bits (32 bit).
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "LoadStoreLiteral");
-  delete assembler;
+  EmitAndCheck(&assembler, "LoadStoreLiteral");
 }
 
 TEST(Thumb2AssemblerTest, LoadStoreLimits) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
   __ ldr(R0, Address(R4, 124));     // 16 bit.
   __ ldr(R0, Address(R4, 128));     // 32 bit.
@@ -1330,30 +1143,20 @@ TEST(Thumb2AssemblerTest, LoadStoreLimits) {
   __ strh(R0, Address(R4, 62));     // 16 bit.
   __ strh(R0, Address(R4, 64));     // 32 bit.
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "LoadStoreLimits");
-  delete assembler;
+  EmitAndCheck(&assembler, "LoadStoreLimits");
 }
 
 TEST(Thumb2AssemblerTest, CompareAndBranch) {
-  arm::Thumb2Assembler* assembler = static_cast<arm::Thumb2Assembler*>(Assembler::Create(kThumb2));
+  arm::Thumb2Assembler assembler;
 
-  arm::NearLabel label;
+  Label label;
   __ CompareAndBranchIfZero(arm::R0, &label);
   __ CompareAndBranchIfZero(arm::R11, &label);
   __ CompareAndBranchIfNonZero(arm::R0, &label);
   __ CompareAndBranchIfNonZero(arm::R11, &label);
   __ Bind(&label);
 
-  size_t cs = __ CodeSize();
-  std::vector<uint8_t> managed_code(cs);
-  MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
-  dump(managed_code, "CompareAndBranch");
-  delete assembler;
+  EmitAndCheck(&assembler, "CompareAndBranch");
 }
 
 #undef __

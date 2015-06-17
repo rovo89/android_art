@@ -544,6 +544,7 @@ class AssemblerTest : public testing::Test {
   }
 
   void DriverWrapper(std::string assembly_text, std::string test_name) {
+    assembler_->FinalizeCode();
     size_t cs = assembler_->CodeSize();
     std::unique_ptr<std::vector<uint8_t>> data(new std::vector<uint8_t>(cs));
     MemoryRegion code(&(*data)[0], data->size());
