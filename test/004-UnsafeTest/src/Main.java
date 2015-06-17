@@ -36,6 +36,13 @@ public class Main {
     }
   }
 
+  private static void check(Object actual, Object expected, String msg) {
+    if (actual != expected) {
+      System.out.println(msg + " : " + actual + " != " + expected);
+      System.exit(1);
+    }
+  }
+
   private static Unsafe getUnsafe() throws Exception {
     Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
     Field f = unsafeClass.getDeclaredField("theUnsafe");
@@ -80,6 +87,7 @@ public class Main {
         "Unsafe.arrayIndexScale(Object[])");
 
     TestClass t = new TestClass();
+
     int intValue = 12345678;
     Field intField = TestClass.class.getDeclaredField("intVar");
     long intOffset = unsafe.objectFieldOffset(intField);
@@ -87,13 +95,22 @@ public class Main {
     unsafe.putInt(t, intOffset, intValue);
     check(t.intVar, intValue, "Unsafe.putInt(Object, long, int)");
     check(unsafe.getInt(t, intOffset), intValue, "Unsafe.getInt(Object, long)");
+
+    long longValue = 1234567887654321L;
     Field longField = TestClass.class.getDeclaredField("longVar");
     long longOffset = unsafe.objectFieldOffset(longField);
-    long longValue = 1234567887654321L;
     check(unsafe.getLong(t, longOffset), 0, "Unsafe.getLong(Object, long) - initial");
     unsafe.putLong(t, longOffset, longValue);
     check(t.longVar, longValue, "Unsafe.putLong(Object, long, long)");
     check(unsafe.getLong(t, longOffset), longValue, "Unsafe.getLong(Object, long)");
+
+    Object objectValue = new Object();
+    Field objectField = TestClass.class.getDeclaredField("objectVar");
+    long objectOffset = unsafe.objectFieldOffset(objectField);
+    check(unsafe.getObject(t, objectOffset), null, "Unsafe.getObject(Object, long) - initial");
+    unsafe.putObject(t, objectOffset, objectValue);
+    check(t.objectVar, objectValue, "Unsafe.putObject(Object, long, Object)");
+    check(unsafe.getObject(t, objectOffset), objectValue, "Unsafe.getObject(Object, long)");
 
     if (unsafe.compareAndSwapInt(t, intOffset, 0, 1)) {
         System.out.println("Unexpectedly succeeding compareAndSwap...");
@@ -119,6 +136,7 @@ public class Main {
   private static class TestClass {
     public int intVar = 0;
     public long longVar = 0;
+    public Object objectVar = null;
   }
 
   private static native int vmArrayBaseOffset(Class clazz);
