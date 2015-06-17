@@ -206,7 +206,9 @@ static bool TypeCheckHasKnownOutcome(HLoadClass* klass, HInstruction* object, bo
     // The test failed at compile time so will also fail at runtime.
     *outcome = false;
     return true;
-  } else if (!class_rti.IsInterface() && !obj_rti.IsSupertypeOf(class_rti)) {
+  } else if (!class_rti.IsInterface()
+             && !obj_rti.IsInterface()
+             && !obj_rti.IsSupertypeOf(class_rti)) {
     // Different type hierarchy. The test will fail.
     *outcome = false;
     return true;
