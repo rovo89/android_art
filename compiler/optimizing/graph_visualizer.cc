@@ -21,6 +21,7 @@
 #include "licm.h"
 #include "nodes.h"
 #include "optimization.h"
+#include "reference_type_propagation.h"
 #include "register_allocator.h"
 #include "ssa_liveness_analysis.h"
 
@@ -353,6 +354,24 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
         StartAttributeStream("loop") << "none";
       } else {
         StartAttributeStream("loop") << "B" << info->GetHeader()->GetBlockId();
+      }
+    } else if (IsPass(ReferenceTypePropagation::kReferenceTypePropagationPassName)
+               && is_after_pass_) {
+      if (instruction->GetType() == Primitive::kPrimNot) {
+        if (instruction->IsLoadClass()) {
+          ScopedObjectAccess soa(Thread::Current());
+          StartAttributeStream("klass")
+              << PrettyClass(instruction->AsLoadClass()->GetLoadedClassRTI().GetTypeHandle().Get());
+        } else {
+          ReferenceTypeInfo info = instruction->GetReferenceTypeInfo();
+          if (info.IsTop()) {
+            StartAttributeStream("klass") << "java.lang.Object";
+          } else {
+            ScopedObjectAccess soa(Thread::Current());
+            StartAttributeStream("klass") << PrettyClass(info.GetTypeHandle().Get());
+          }
+          StartAttributeStream("exact") << std::boolalpha << info.IsExact() << std::noboolalpha;
+        }
       }
     }
   }
