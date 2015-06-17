@@ -342,9 +342,9 @@ static void RunOptimizations(HGraph* graph,
 
   HOptimization* optimizations[] = {
     &intrinsics,
-    &dce1,
     &fold1,
     &simplify1,
+    &dce1,
     &inliner,
     // BooleanSimplifier depends on the InstructionSimplifier removing redundant
     // suspend checks to recognize empty blocks.
