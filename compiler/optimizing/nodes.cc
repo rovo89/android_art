@@ -299,7 +299,10 @@ HNullConstant* HGraph::GetNullConstant() {
 }
 
 HCurrentMethod* HGraph::GetCurrentMethod() {
-  if (cached_current_method_ == nullptr) {
+  // For simplicity, don't bother reviving the cached current method if it is
+  // not null and not in a block. Otherwise, we need to clear the instruction
+  // id and/or any invariants the graph is assuming when adding new instructions.
+  if ((cached_current_method_ == nullptr) || (cached_current_method_->GetBlock() == nullptr)) {
     cached_current_method_ = new (arena_) HCurrentMethod(
         Is64BitInstructionSet(instruction_set_) ? Primitive::kPrimLong : Primitive::kPrimInt);
     if (entry_block_->GetFirstInstruction() == nullptr) {
