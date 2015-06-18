@@ -603,7 +603,12 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
   const char* descriptor = dex_file_->StringDataByIdx(proto_id.shorty_idx_);
   Primitive::Type return_type = Primitive::GetType(descriptor[0]);
   bool is_instance_call = invoke_type != kStatic;
-  size_t number_of_arguments = strlen(descriptor) - (is_instance_call ? 0 : 1);
+  // Remove the return type from the 'proto'.
+  size_t number_of_arguments = strlen(descriptor) - 1;
+  if (is_instance_call) {
+    // One extra argument for 'this'.
+    ++number_of_arguments;
+  }
 
   MethodReference target_method(dex_file_, method_idx);
   uintptr_t direct_code;
@@ -614,7 +619,8 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
   if (!compiler_driver_->ComputeInvokeInfo(dex_compilation_unit_, dex_pc, true, true,
                                            &optimized_invoke_type, &target_method, &table_index,
                                            &direct_code, &direct_method)) {
-    VLOG(compiler) << "Did not compile " << PrettyMethod(method_idx, *dex_file_)
+    VLOG(compiler) << "Did not compile "
+                   << PrettyMethod(dex_compilation_unit_->GetDexMethodIndex(), *dex_file_)
                    << " because a method call could not be resolved";
     MaybeRecordStat(MethodCompilationStat::kNotCompiledUnresolvedMethod);
     return false;
@@ -746,26 +752,45 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
     start_index = 1;
   }
 
-  uint32_t descriptor_index = 1;
+  uint32_t descriptor_index = 1;  // Skip the return type.
   uint32_t argument_index = start_index;
   if (is_string_init) {
     start_index = 1;
   }
-  for (size_t i = start_index; i < number_of_vreg_arguments; i++, argument_index++) {
+  for (size_t i = start_index;
+       // Make sure we don't go over the expected arguments or over the number of
+       // dex registers given. If the instruction was seen as dead by the verifier,
+       // it hasn't been properly checked.
+       (i < number_of_vreg_arguments) && (argument_index < number_of_arguments);
+       i++, argument_index++) {
     Primitive::Type type = Primitive::GetType(descriptor[descriptor_index++]);
     bool is_wide = (type == Primitive::kPrimLong) || (type == Primitive::kPrimDouble);
-    // Longs and doubles should be in pairs, that is, sequential registers. The verifier should
-    // reject any class where this is violated.
-    DCHECK(is_range || !is_wide || (args[i] + 1 == args[i + 1]))
-        << "Non sequential register pair in " << dex_compilation_unit_->GetSymbol()
-        << " at " << dex_pc;
+    if (!is_range
+        && is_wide
+        && ((i + 1 == number_of_vreg_arguments) || (args[i] + 1 != args[i + 1]))) {
+      // Longs and doubles should be in pairs, that is, sequential registers. The verifier should
+      // reject any class where this is violated. However, the verifier only does these checks
+      // on non trivially dead instructions, so we just bailout the compilation.
+      VLOG(compiler) << "Did not compile "
+                     << PrettyMethod(dex_compilation_unit_->GetDexMethodIndex(), *dex_file_)
+                     << " because of non-sequential dex register pair in wide argument";
+      MaybeRecordStat(MethodCompilationStat::kNotCompiledMalformedOpcode);
+      return false;
+    }
     HInstruction* arg = LoadLocal(is_range ? register_index + i : args[i], type);
     invoke->SetArgumentAt(argument_index, arg);
     if (is_wide) {
       i++;
     }
   }
-  DCHECK_EQ(argument_index, number_of_arguments);
+
+  if (argument_index != number_of_arguments) {
+    VLOG(compiler) << "Did not compile "
+                   << PrettyMethod(dex_compilation_unit_->GetDexMethodIndex(), *dex_file_)
+                   << " because of wrong number of arguments in invoke instruction";
+    MaybeRecordStat(MethodCompilationStat::kNotCompiledMalformedOpcode);
+    return false;
+  }
 
   if (invoke->IsInvokeStaticOrDirect()) {
     invoke->SetArgumentAt(argument_index, graph_->GetCurrentMethod());
