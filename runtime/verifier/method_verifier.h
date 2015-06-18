@@ -77,6 +77,16 @@ enum VerifyError {
   VERIFY_ERROR_ACCESS_METHOD,   // IllegalAccessError.
   VERIFY_ERROR_CLASS_CHANGE,    // IncompatibleClassChangeError.
   VERIFY_ERROR_INSTANTIATION,   // InstantiationError.
+  // For opcodes that don't have complete verifier support (such as lambda opcodes),
+  // we need a way to continue execution at runtime without attempting to re-verify
+  // (since we know it will fail no matter what). Instead, run as the interpreter
+  // in a special "do access checks" mode which will perform verifier-like checking
+  // on the fly.
+  //
+  // TODO: Once all new opcodes have implemented full verifier support, this can be removed.
+  VERIFY_ERROR_FORCE_INTERPRETER,  // Skip the verification phase at runtime;
+                                   // force the interpreter to do access checks.
+                                   // (sets a soft fail at compile time).
 };
 std::ostream& operator<<(std::ostream& os, const VerifyError& rhs);
 
