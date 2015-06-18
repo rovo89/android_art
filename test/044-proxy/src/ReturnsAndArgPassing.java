@@ -57,6 +57,8 @@ public class ReturnsAndArgPassing {
       check(proxy instanceof Proxy);
       check(method.getDeclaringClass() == MyInterface.class);
       String name = method.getName();
+      // Check for moving GC bugs in proxy stubs.
+      Runtime.getRuntime().gc();
       if (name.endsWith("Foo")) {
         check(args == null);
         fooInvocations++;
