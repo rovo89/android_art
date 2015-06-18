@@ -38,6 +38,7 @@ enum MethodCompilationStat {
   kNotCompiledClassNotVerified,
   kNotCompiledHugeMethod,
   kNotCompiledLargeMethodNoBranches,
+  kNotCompiledMalformedOpcode,
   kNotCompiledNoCodegen,
   kNotCompiledPathological,
   kNotCompiledSpaceFilter,
@@ -106,6 +107,7 @@ class OptimizingCompilerStats {
       case kNotCompiledClassNotVerified : return "kNotCompiledClassNotVerified";
       case kNotCompiledHugeMethod : return "kNotCompiledHugeMethod";
       case kNotCompiledLargeMethodNoBranches : return "kNotCompiledLargeMethodNoBranches";
+      case kNotCompiledMalformedOpcode : return "kNotCompiledMalformedOpcode";
       case kNotCompiledNoCodegen : return "kNotCompiledNoCodegen";
       case kNotCompiledPathological : return "kNotCompiledPathological";
       case kNotCompiledSpaceFilter : return "kNotCompiledSpaceFilter";
