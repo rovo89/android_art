@@ -1400,8 +1400,9 @@ DEFINE_FUNCTION art_quick_proxy_invoke_handler
     movd %eax, %xmm0              // place return value also into floating point return value
     movd %edx, %xmm1
     punpckldq %xmm1, %xmm0
-    addl LITERAL(76), %esp        // pop arguments
-    CFI_ADJUST_CFA_OFFSET(-76)
+    addl LITERAL(16 + FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE - FRAME_SIZE_REFS_ONLY_CALLEE_SAVE), %esp
+    CFI_ADJUST_CFA_OFFSET(-(16 + FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE - FRAME_SIZE_REFS_ONLY_CALLEE_SAVE))
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 END_FUNCTION art_quick_proxy_invoke_handler
 

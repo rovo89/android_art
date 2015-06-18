@@ -1334,9 +1334,8 @@ DEFINE_FUNCTION art_quick_proxy_invoke_handler
     movq %gs:THREAD_SELF_OFFSET, %rdx       // Pass Thread::Current().
     movq %rsp, %rcx                         // Pass SP.
     call SYMBOL(artQuickProxyInvokeHandler) // (proxy method, receiver, Thread*, SP)
+    RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
     movq %rax, %xmm0                        // Copy return value in case of float returns.
-    addq LITERAL(168 + 4*8), %rsp           // Pop arguments.
-    CFI_ADJUST_CFA_OFFSET(-168 - 4*8)
     RETURN_OR_DELIVER_PENDING_EXCEPTION
 END_FUNCTION art_quick_proxy_invoke_handler
 
