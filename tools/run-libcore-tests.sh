@@ -64,6 +64,8 @@ working_packages=("dalvik.system"
                   "jsr166")
 
 vogar_args=$@
+# Make sure we don't fall back to dex files without oat files.
+vogar_args="$vogar_args --vm-arg -Xno-dex-file-fallback"
 while true; do
   if [[ "$1" == "--mode=device" ]]; then
     vogar_args="$vogar_args --device-dir=/data/local/tmp"
