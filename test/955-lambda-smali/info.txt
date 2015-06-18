@@ -1,0 +1,3 @@
+Smali-based tests for experimental lambda intructions.
+
+Obviously needs to run under ART.

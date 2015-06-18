@@ -223,6 +223,7 @@ inline bool Instruction::HasVRegB() const {
     case k22t: return true;
     case k22x: return true;
     case k23x: return true;
+    case k25x: return true;
     case k31c: return true;
     case k31i: return true;
     case k31t: return true;
@@ -252,6 +253,7 @@ inline int32_t Instruction::VRegB() const {
     case k22t: return VRegB_22t();
     case k22x: return VRegB_22x();
     case k23x: return VRegB_23x();
+    case k25x: return VRegB_25x();
     case k31c: return VRegB_31c();
     case k31i: return VRegB_31i();
     case k31t: return VRegB_31t();
@@ -329,6 +331,12 @@ inline uint8_t Instruction::VRegB_23x() const {
   return static_cast<uint8_t>(Fetch16(1) & 0xff);
 }
 
+// Number of additional registers in this instruction. # of var arg registers = this value + 1.
+inline uint4_t Instruction::VRegB_25x() const {
+  DCHECK_EQ(FormatOf(Opcode()), k25x);
+  return InstB(Fetch16(0));
+}
+
 inline uint32_t Instruction::VRegB_31c() const {
   DCHECK_EQ(FormatOf(Opcode()), k31c);
   return Fetch32(1);
@@ -375,6 +383,7 @@ inline bool Instruction::HasVRegC() const {
     case k22s: return true;
     case k22t: return true;
     case k23x: return true;
+    case k25x: return true;
     case k35c: return true;
     case k3rc: return true;
     default: return false;
@@ -388,6 +397,7 @@ inline int32_t Instruction::VRegC() const {
     case k22s: return VRegC_22s();
     case k22t: return VRegC_22t();
     case k23x: return VRegC_23x();
+    case k25x: return VRegC_25x();
     case k35c: return VRegC_35c();
     case k3rc: return VRegC_3rc();
     default:
@@ -421,6 +431,11 @@ inline uint8_t Instruction::VRegC_23x() const {
   return static_cast<uint8_t>(Fetch16(1) >> 8);
 }
 
+inline uint4_t Instruction::VRegC_25x() const {
+  DCHECK_EQ(FormatOf(Opcode()), k25x);
+  return static_cast<uint4_t>(Fetch16(1) & 0xf);
+}
+
 inline uint4_t Instruction::VRegC_35c() const {
   DCHECK_EQ(FormatOf(Opcode()), k35c);
   return static_cast<uint4_t>(Fetch16(2) & 0x0f);
@@ -431,11 +446,78 @@ inline uint16_t Instruction::VRegC_3rc() const {
   return Fetch16(2);
 }
 
-inline bool Instruction::HasVarArgs() const {
+inline bool Instruction::HasVarArgs35c() const {
   return FormatOf(Opcode()) == k35c;
 }
 
-inline void Instruction::GetVarArgs(uint32_t arg[5], uint16_t inst_data) const {
+inline bool Instruction::HasVarArgs25x() const {
+  return FormatOf(Opcode()) == k25x;
+}
+
+// Copies all of the parameter registers into the arg array. Check the length with VRegB_25x()+1.
+inline void Instruction::GetAllArgs25x(uint32_t arg[kMaxVarArgRegs]) const {
+  DCHECK_EQ(FormatOf(Opcode()), k25x);
+
+  /*
+   * The opcode looks like this:
+   *   op vC, {vD, vE, vF, vG}
+   *
+   *  and vB is the (implicit) register count (0-4) which denotes how far from vD to vG to read.
+   *
+   *  vC is always present, so with "op vC, {}" the register count will be 0 even though vC
+   *  is valid.
+   *
+   *  The exact semantic meanings of vC:vG is up to the instruction using the format.
+   *
+   *  Encoding drawing as a bit stream:
+   *  (Note that each uint16 is little endian, and each register takes up 4 bits)
+   *
+   *       uint16  |||   uint16
+   *   7-0     15-8    7-0   15-8
+   *  |------|-----|||-----|-----|
+   *  |opcode|vB|vG|||vD|vC|vF|vE|
+   *  |------|-----|||-----|-----|
+   */
+  uint16_t reg_list = Fetch16(1);
+  uint4_t count = VRegB_25x();
+  DCHECK_LE(count, 4U) << "Invalid arg count in 25x (" << count << ")";
+
+  /*
+   * TODO(iam): Change instruction encoding to one of:
+   *
+   * - (X) vA = args count, vB = closure register, {vC..vG} = args (25x)
+   * - (Y) vA = args count, vB = method index, {vC..vG} = args (35x)
+   *
+   * (do this in conjunction with adding verifier support for invoke-lambda)
+   */
+
+  /*
+   * Copy the argument registers into the arg[] array, and
+   * also copy the first argument into vC. (The
+   * DecodedInstruction structure doesn't have separate
+   * fields for {vD, vE, vF, vG}, so there's no need to make
+   * copies of those.) Note that all cases fall-through.
+   */
+  switch (count) {
+    case 4:
+      arg[4] = (Fetch16(0) >> 8) & 0x0f;  // vG
+      FALLTHROUGH_INTENDED;
+    case 3:
+      arg[3] = (reg_list >> 12) & 0x0f;  // vF
+      FALLTHROUGH_INTENDED;
+    case 2:
+      arg[2] = (reg_list >> 8) & 0x0f;  // vE
+      FALLTHROUGH_INTENDED;
+    case 1:
+      arg[1] = (reg_list >> 4) & 0x0f;  // vD
+      FALLTHROUGH_INTENDED;
+    default:  // case 0
+      arg[0] = VRegC_25x();  // vC
+      break;
+  }
+}
+
+inline void Instruction::GetVarArgs(uint32_t arg[kMaxVarArgRegs], uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k35c);
 
   /*

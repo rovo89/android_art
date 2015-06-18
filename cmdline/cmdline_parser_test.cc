@@ -101,6 +101,19 @@ namespace art {
     return ::testing::AssertionFailure() << "key was not in the map";
   }
 
+  template <typename TMap, typename TKey, typename T>
+  ::testing::AssertionResult IsExpectedDefaultKeyValue(const T& expected,
+                                                       const TMap& map,
+                                                       const TKey& key) {
+    const T& actual = map.GetOrDefault(key);
+    if (!UsuallyEquals(expected, actual)) {
+      return ::testing::AssertionFailure()
+          << "expected " << detail::ToStringAny(expected) << " but got "
+          << detail::ToStringAny(actual);
+     }
+    return ::testing::AssertionSuccess();
+  }
+
 class CmdlineParserTest : public ::testing::Test {
  public:
   CmdlineParserTest() = default;
@@ -145,12 +158,22 @@ class CmdlineParserTest : public ::testing::Test {
 
 #define EXPECT_KEY_EXISTS(map, key) EXPECT_TRUE((map).Exists(key))
 #define EXPECT_KEY_VALUE(map, key, expected) EXPECT_TRUE(IsExpectedKeyValue(expected, map, key))
+#define EXPECT_DEFAULT_KEY_VALUE(map, key, expected) EXPECT_TRUE(IsExpectedDefaultKeyValue(expected, map, key))
 
-#define EXPECT_SINGLE_PARSE_EMPTY_SUCCESS(argv)               \
+#define _EXPECT_SINGLE_PARSE_EMPTY_SUCCESS(argv)              \
   do {                                                        \
     EXPECT_TRUE(IsResultSuccessful(parser_->Parse(argv)));    \
     EXPECT_EQ(0u, parser_->GetArgumentsMap().Size());         \
+
+#define EXPECT_SINGLE_PARSE_EMPTY_SUCCESS(argv)               \
+  _EXPECT_SINGLE_PARSE_EMPTY_SUCCESS(argv);                   \
   } while (false)
+
+#define EXPECT_SINGLE_PARSE_DEFAULT_VALUE(expected, argv, key)\
+  _EXPECT_SINGLE_PARSE_EMPTY_SUCCESS(argv);                   \
+    RuntimeArgumentMap args = parser_->ReleaseArgumentsMap(); \
+    EXPECT_DEFAULT_KEY_VALUE(args, key, expected);            \
+  } while (false)                                             // NOLINT [readability/namespace] [5]
 
 #define _EXPECT_SINGLE_PARSE_EXISTS(argv, key)                \
   do {                                                        \
@@ -508,6 +531,24 @@ TEST_F(CmdlineParserTest, TestProfilerOptions) {
                               M::ProfilerOpts);
   }
 }  // TEST_F
+
+/* -X[no]experimental-lambdas */
+TEST_F(CmdlineParserTest, TestExperimentalLambdas) {
+  // Off by default
+  EXPECT_SINGLE_PARSE_DEFAULT_VALUE(false,
+                                    "",
+                                    M::ExperimentalLambdas);
+
+  // Disabled explicitly
+  EXPECT_SINGLE_PARSE_VALUE(false,
+                            "-Xnoexperimental-lambdas",
+                            M::ExperimentalLambdas);
+
+  // Enabled explicitly
+  EXPECT_SINGLE_PARSE_VALUE(true,
+                            "-Xexperimental-lambdas",
+                            M::ExperimentalLambdas);
+}
 
 TEST_F(CmdlineParserTest, TestIgnoreUnrecognized) {
   RuntimeParser::Builder parserBuilder;

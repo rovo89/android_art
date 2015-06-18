@@ -105,6 +105,7 @@ class Instruction {
     k22t,  // op vA, vB, +CCCC
     k22s,  // op vA, vB, #+CCCC
     k22c,  // op vA, vB, thing@CCCC
+    k25x,  // op vC, {vD, vE, vF, vG} (B: count)
     k32x,  // op vAAAA, vBBBB
     k30t,  // op +AAAAAAAA
     k31t,  // op vAA, +BBBBBBBB
@@ -116,30 +117,31 @@ class Instruction {
   };
 
   enum Flags {
-    kBranch              = 0x000001,  // conditional or unconditional branch
-    kContinue            = 0x000002,  // flow can continue to next statement
-    kSwitch              = 0x000004,  // switch statement
-    kThrow               = 0x000008,  // could cause an exception to be thrown
-    kReturn              = 0x000010,  // returns, no additional statements
-    kInvoke              = 0x000020,  // a flavor of invoke
-    kUnconditional       = 0x000040,  // unconditional branch
-    kAdd                 = 0x000080,  // addition
-    kSubtract            = 0x000100,  // subtract
-    kMultiply            = 0x000200,  // multiply
-    kDivide              = 0x000400,  // division
-    kRemainder           = 0x000800,  // remainder
-    kAnd                 = 0x001000,  // and
-    kOr                  = 0x002000,  // or
-    kXor                 = 0x004000,  // xor
-    kShl                 = 0x008000,  // shl
-    kShr                 = 0x010000,  // shr
-    kUshr                = 0x020000,  // ushr
-    kCast                = 0x040000,  // cast
-    kStore               = 0x080000,  // store opcode
-    kLoad                = 0x100000,  // load opcode
-    kClobber             = 0x200000,  // clobbers memory in a big way (not just a write)
-    kRegCFieldOrConstant = 0x400000,  // is the third virtual register a field or literal constant (vC)
-    kRegBFieldOrConstant = 0x800000,  // is the second virtual register a field or literal constant (vB)
+    kBranch              = 0x0000001,  // conditional or unconditional branch
+    kContinue            = 0x0000002,  // flow can continue to next statement
+    kSwitch              = 0x0000004,  // switch statement
+    kThrow               = 0x0000008,  // could cause an exception to be thrown
+    kReturn              = 0x0000010,  // returns, no additional statements
+    kInvoke              = 0x0000020,  // a flavor of invoke
+    kUnconditional       = 0x0000040,  // unconditional branch
+    kAdd                 = 0x0000080,  // addition
+    kSubtract            = 0x0000100,  // subtract
+    kMultiply            = 0x0000200,  // multiply
+    kDivide              = 0x0000400,  // division
+    kRemainder           = 0x0000800,  // remainder
+    kAnd                 = 0x0001000,  // and
+    kOr                  = 0x0002000,  // or
+    kXor                 = 0x0004000,  // xor
+    kShl                 = 0x0008000,  // shl
+    kShr                 = 0x0010000,  // shr
+    kUshr                = 0x0020000,  // ushr
+    kCast                = 0x0040000,  // cast
+    kStore               = 0x0080000,  // store opcode
+    kLoad                = 0x0100000,  // load opcode
+    kClobber             = 0x0200000,  // clobbers memory in a big way (not just a write)
+    kRegCFieldOrConstant = 0x0400000,  // is the third virtual register a field or literal constant (vC)
+    kRegBFieldOrConstant = 0x0800000,  // is the second virtual register a field or literal constant (vB)
+    kExperimental        = 0x1000000,  // is an experimental opcode
   };
 
   enum VerifyFlag {
@@ -205,7 +207,7 @@ class Instruction {
 
   // Returns a pointer to the instruction after this 2xx instruction in the stream.
   const Instruction* Next_2xx() const {
-    DCHECK(FormatOf(Opcode()) >= k20t && FormatOf(Opcode()) <= k22c);
+    DCHECK(FormatOf(Opcode()) >= k20t && FormatOf(Opcode()) <= k25x);
     return RelativeAt(2);
   }
 
@@ -355,6 +357,7 @@ class Instruction {
   }
   uint16_t VRegB_22x() const;
   uint8_t VRegB_23x() const;
+  uint4_t VRegB_25x() const;
   uint32_t VRegB_31c() const;
   int32_t VRegB_31i() const;
   int32_t VRegB_31t() const;
@@ -381,15 +384,20 @@ class Instruction {
   int16_t VRegC_22s() const;
   int16_t VRegC_22t() const;
   uint8_t VRegC_23x() const;
+  uint4_t VRegC_25x() const;
   uint4_t VRegC_35c() const;
   uint16_t VRegC_3rc() const;
 
   // Fills the given array with the 'arg' array of the instruction.
-  bool HasVarArgs() const;
+  bool HasVarArgs35c() const;
+  bool HasVarArgs25x() const;
+
+  // TODO(iam): Make this name more consistent with GetAllArgs25x by including the opcode format.
   void GetVarArgs(uint32_t args[kMaxVarArgRegs], uint16_t inst_data) const;
   void GetVarArgs(uint32_t args[kMaxVarArgRegs]) const {
     return GetVarArgs(args, Fetch16(0));
   }
+  void GetAllArgs25x(uint32_t args[kMaxVarArgRegs]) const;
 
   // Returns the opcode field of the instruction. The given "inst_data" parameter must be the first
   // 16 bits of instruction.
@@ -487,6 +495,11 @@ class Instruction {
   // Determine if this instruction is an invoke.
   bool IsInvoke() const {
     return (kInstructionFlags[Opcode()] & kInvoke) != 0;
+  }
+
+  // Determine if this instruction is experimental.
+  bool IsExperimental() const {
+    return (kInstructionFlags[Opcode()] & kExperimental) != 0;
   }
 
   int GetVerifyTypeArgumentA() const {
