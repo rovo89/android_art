@@ -348,10 +348,10 @@ static void RunOptimizations(HGraph* graph,
 
   HOptimization* optimizations[] = {
     intrinsics,
-    dce1,
     fold1,
     simplify1,
     type_propagation,
+    dce1,
     simplify2,
     inliner,
     // Run another type propagation phase: inlining will open up more opprotunities
