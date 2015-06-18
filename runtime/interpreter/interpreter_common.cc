@@ -704,30 +704,31 @@ bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
     return false;
   }
   uint16_t type_idx = is_range ? inst->VRegB_3rc() : inst->VRegB_35c();
-  Class* arrayClass = ResolveVerifyAndClinit(type_idx, shadow_frame.GetMethod(),
-                                             self, false, do_access_check);
-  if (UNLIKELY(arrayClass == nullptr)) {
+  Class* array_class = ResolveVerifyAndClinit(type_idx, shadow_frame.GetMethod(),
+                                              self, false, do_access_check);
+  if (UNLIKELY(array_class == nullptr)) {
     DCHECK(self->IsExceptionPending());
     return false;
   }
-  CHECK(arrayClass->IsArrayClass());
-  Class* componentClass = arrayClass->GetComponentType();
-  if (UNLIKELY(componentClass->IsPrimitive() && !componentClass->IsPrimitiveInt())) {
-    if (componentClass->IsPrimitiveLong() || componentClass->IsPrimitiveDouble()) {
+  CHECK(array_class->IsArrayClass());
+  Class* component_class = array_class->GetComponentType();
+  const bool is_primitive_int_component = component_class->IsPrimitiveInt();
+  if (UNLIKELY(component_class->IsPrimitive() && !is_primitive_int_component)) {
+    if (component_class->IsPrimitiveLong() || component_class->IsPrimitiveDouble()) {
       ThrowRuntimeException("Bad filled array request for type %s",
-                            PrettyDescriptor(componentClass).c_str());
+                            PrettyDescriptor(component_class).c_str());
     } else {
       self->ThrowNewExceptionF("Ljava/lang/InternalError;",
                                "Found type %s; filled-new-array not implemented for anything but 'int'",
-                               PrettyDescriptor(componentClass).c_str());
+                               PrettyDescriptor(component_class).c_str());
     }
     return false;
   }
-  Object* newArray = Array::Alloc<true>(self, arrayClass, length,
-                                        arrayClass->GetComponentSizeShift(),
-                                        Runtime::Current()->GetHeap()->GetCurrentAllocator());
-  if (UNLIKELY(newArray == nullptr)) {
-    DCHECK(self->IsExceptionPending());
+  Object* new_array = Array::Alloc<true>(self, array_class, length,
+                                         array_class->GetComponentSizeShift(),
+                                         Runtime::Current()->GetHeap()->GetCurrentAllocator());
+  if (UNLIKELY(new_array == nullptr)) {
+    self->AssertPendingOOMException();
     return false;
   }
   uint32_t arg[5];  // only used in filled-new-array.
@@ -737,17 +738,18 @@ bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
   } else {
     inst->GetVarArgs(arg);
   }
-  const bool is_primitive_int_component = componentClass->IsPrimitiveInt();
   for (int32_t i = 0; i < length; ++i) {
     size_t src_reg = is_range ? vregC + i : arg[i];
     if (is_primitive_int_component) {
-      newArray->AsIntArray()->SetWithoutChecks<transaction_active>(i, shadow_frame.GetVReg(src_reg));
+      new_array->AsIntArray()->SetWithoutChecks<transaction_active>(
+          i, shadow_frame.GetVReg(src_reg));
     } else {
-      newArray->AsObjectArray<Object>()->SetWithoutChecks<transaction_active>(i, shadow_frame.GetVRegReference(src_reg));
+      new_array->AsObjectArray<Object>()->SetWithoutChecks<transaction_active>(
+          i, shadow_frame.GetVRegReference(src_reg));
     }
   }
 
-  result->SetL(newArray);
+  result->SetL(new_array);
   return true;
 }
 
