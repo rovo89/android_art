@@ -261,10 +261,11 @@
   V(0xF0, IGET_BYTE_QUICK, "iget-byte-quick", k22c, true, kFieldRef, kContinue | kThrow | kLoad | kRegCFieldOrConstant, kVerifyRegA | kVerifyRegB | kVerifyRuntimeOnly) \
   V(0xF1, IGET_CHAR_QUICK, "iget-char-quick", k22c, true, kFieldRef, kContinue | kThrow | kLoad | kRegCFieldOrConstant, kVerifyRegA | kVerifyRegB | kVerifyRuntimeOnly) \
   V(0xF2, IGET_SHORT_QUICK, "iget-short-quick", k22c, true, kFieldRef, kContinue | kThrow | kLoad | kRegCFieldOrConstant, kVerifyRegA | kVerifyRegB | kVerifyRuntimeOnly) \
-  V(0xF3, UNUSED_F3, "unused-f3", k10x, false, kUnknown, 0, kVerifyError) \
+  V(0xF3, INVOKE_LAMBDA, "invoke-lambda", k25x, false, kNone, kContinue | kThrow | kInvoke | kExperimental, kVerifyRegC /*TODO: | kVerifyVarArg*/) \
   V(0xF4, UNUSED_F4, "unused-f4", k10x, false, kUnknown, 0, kVerifyError) \
   V(0xF5, UNUSED_F5, "unused-f5", k10x, false, kUnknown, 0, kVerifyError) \
-  V(0xF6, UNUSED_F6, "unused-f6", k10x, false, kUnknown, 0, kVerifyError) \
+  /* TODO(iam): get rid of the unused 'false' column */ \
+  V(0xF6, CREATE_LAMBDA, "create-lambda", k21c, false_UNUSED, kMethodRef, kContinue | kThrow | kExperimental, kVerifyRegA | kVerifyRegBMethod) \
   V(0xF7, UNUSED_F7, "unused-f7", k10x, false, kUnknown, 0, kVerifyError) \
   V(0xF8, UNUSED_F8, "unused-f8", k10x, false, kUnknown, 0, kVerifyError) \
   V(0xF9, UNUSED_F9, "unused-f9", k10x, false, kUnknown, 0, kVerifyError) \
@@ -292,6 +293,7 @@
   V(k22t) \
   V(k22s) \
   V(k22c) \
+  V(k25x) \
   V(k32x) \
   V(k30t) \
   V(k31t) \

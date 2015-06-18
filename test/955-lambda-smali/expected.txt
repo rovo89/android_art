@@ -1,0 +1,4 @@
+SanityCheck
+Hello world! (0-args, no closure)
+ABCD Hello world! (4-args, no closure)
+Caught NPE

@@ -110,6 +110,7 @@ RUNTIME_OPTIONS_KEY (std::string,         NativeBridge)
 RUNTIME_OPTIONS_KEY (unsigned int,        ZygoteMaxFailedBoots,           10)
 RUNTIME_OPTIONS_KEY (Unit,                NoDexFileFallback)
 RUNTIME_OPTIONS_KEY (std::string,         CpuAbiList)
+RUNTIME_OPTIONS_KEY (bool,                ExperimentalLambdas,            false) // -X[no]experimental-lambdas
 
 // Not parse-able from command line, but can be provided explicitly.
 // (Do not add anything here that is defined in ParsedOptions::MakeParser)

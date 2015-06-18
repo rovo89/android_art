@@ -97,6 +97,127 @@ template<bool is_range, bool do_assignability_check>
 bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
             const Instruction* inst, uint16_t inst_data, JValue* result);
 
+// Invokes the given lambda closure. This is part of the invocation support and is used by
+// DoLambdaInvoke functions.
+// Returns true on success, otherwise throws an exception and returns false.
+template<bool is_range, bool do_assignability_check>
+bool DoLambdaCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
+                  const Instruction* inst, uint16_t inst_data, JValue* result);
+
+// Validates that the art method corresponding to a lambda method target
+// is semantically valid:
+//
+// Must be ACC_STATIC and ACC_LAMBDA. Must be a concrete managed implementation
+// (i.e. not native, not proxy, not abstract, ...).
+//
+// If the validation fails, return false and raise an exception.
+static inline bool IsValidLambdaTargetOrThrow(ArtMethod* called_method)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool success = false;
+
+  if (UNLIKELY(called_method == nullptr)) {
+    // The shadow frame should already be pushed, so we don't need to update it.
+  } else if (UNLIKELY(called_method->IsAbstract())) {
+    ThrowAbstractMethodError(called_method);
+    // TODO(iam): Also handle the case when the method is non-static, what error do we throw?
+    // TODO(iam): Also make sure that ACC_LAMBDA is set.
+  } else if (UNLIKELY(called_method->GetCodeItem() == nullptr)) {
+    // Method could be native, proxy method, etc. Lambda targets have to be concrete impls,
+    // so don't allow this.
+  } else {
+    success = true;
+  }
+
+  return success;
+}
+
+// Handles create-lambda instructions.
+// Returns true on success, otherwise throws an exception and returns false.
+// (Exceptions are thrown by creating a new exception and then being put in the thread TLS)
+//
+// As a work-in-progress implementation, this shoves the ArtMethod object corresponding
+// to the target dex method index into the target register vA and vA + 1.
+template<bool do_access_check>
+static inline bool DoCreateLambda(Thread* self, ShadowFrame& shadow_frame,
+                                  const Instruction* inst) {
+  /*
+   * create-lambda is opcode 0x21c
+   * - vA is the target register where the closure will be stored into
+   *   (also stores into vA + 1)
+   * - vB is the method index which will be the target for a later invoke-lambda
+   */
+  const uint32_t method_idx = inst->VRegB_21c();
+  mirror::Object* receiver = nullptr;  // Always static. (see 'kStatic')
+  ArtMethod* sf_method = shadow_frame.GetMethod();
+  ArtMethod* const called_method = FindMethodFromCode<kStatic, do_access_check>(
+      method_idx, &receiver, &sf_method, self);
+
+  uint32_t vregA = inst->VRegA_21c();
+
+  if (UNLIKELY(!IsValidLambdaTargetOrThrow(called_method))) {
+    CHECK(self->IsExceptionPending());
+    shadow_frame.SetVReg(vregA, 0u);
+    shadow_frame.SetVReg(vregA + 1, 0u);
+    return false;
+  }
+
+  // Split the method into a lo and hi 32 bits so we can encode them into 2 virtual registers.
+  uint32_t called_method_lo = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(called_method));
+  uint32_t called_method_hi = static_cast<uint32_t>(reinterpret_cast<uint64_t>(called_method)
+                                                    >> BitSizeOf<uint32_t>());
+  // Use uint64_t instead of uintptr_t to allow shifting past the max on 32-bit.
+  static_assert(sizeof(uint64_t) >= sizeof(uintptr_t), "Impossible");
+
+  DCHECK_NE(called_method_lo | called_method_hi, 0u);
+
+  shadow_frame.SetVReg(vregA, called_method_lo);
+  shadow_frame.SetVReg(vregA + 1, called_method_hi);
+  return true;
+}
+
+template<bool do_access_check>
+static inline bool DoInvokeLambda(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst,
+                                  uint16_t inst_data, JValue* result) {
+  /*
+   * invoke-lambda is opcode 0x25
+   *
+   * - vC is the closure register (both vC and vC + 1 will be used to store the closure).
+   * - vB is the number of additional registers up to |{vD,vE,vF,vG}| (4)
+   * - the rest of the registers are always var-args
+   *
+   * - reading var-args for 0x25 gets us vD,vE,vF,vG (but not vB)
+   */
+  uint32_t vC = inst->VRegC_25x();
+
+  // TODO(iam): Introduce a closure abstraction that will contain the captured variables
+  // instead of just an ArtMethod. We also should only need to use 1 register instead of 2.
+  uint32_t vc_value_lo = shadow_frame.GetVReg(vC);
+  uint32_t vc_value_hi = shadow_frame.GetVReg(vC + 1);
+
+  uint64_t vc_value_ptr = (static_cast<uint64_t>(vc_value_hi) << BitSizeOf<uint32_t>())
+                           | vc_value_lo;
+
+  // Use uint64_t instead of uintptr_t to allow left-shifting past the max on 32-bit.
+  static_assert(sizeof(uint64_t) >= sizeof(uintptr_t), "Impossible");
+  ArtMethod* const called_method = reinterpret_cast<ArtMethod* const>(vc_value_ptr);
+
+  // Guard against the user passing a null closure, which is odd but (sadly) semantically valid.
+  if (UNLIKELY(called_method == nullptr)) {
+    ThrowNullPointerExceptionFromInterpreter();
+    result->SetJ(0);
+    return false;
+  }
+
+  if (UNLIKELY(!IsValidLambdaTargetOrThrow(called_method))) {
+    CHECK(self->IsExceptionPending());
+    result->SetJ(0);
+    return false;
+  } else {
+    return DoLambdaCall<false, do_access_check>(called_method, self, shadow_frame, inst, inst_data,
+                                                result);
+  }
+}
+
 // Handles invoke-XXX/range instructions.
 // Returns true on success, otherwise throws an exception and returns false.
 template<InvokeType type, bool is_range, bool do_access_check>
@@ -419,6 +540,26 @@ EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kInterface)   // invoke-interface/range.
 EXPLICIT_DO_INVOKE_VIRTUAL_QUICK_TEMPLATE_DECL(false);  // invoke-virtual-quick.
 EXPLICIT_DO_INVOKE_VIRTUAL_QUICK_TEMPLATE_DECL(true);   // invoke-virtual-quick-range.
 #undef EXPLICIT_INSTANTIATION_DO_INVOKE_VIRTUAL_QUICK
+
+// Explicitly instantiate all DoCreateLambda functions.
+#define EXPLICIT_DO_CREATE_LAMBDA_DECL(_do_check)                                    \
+template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                 \
+bool DoCreateLambda<_do_check>(Thread* self, ShadowFrame& shadow_frame,              \
+                        const Instruction* inst)
+
+EXPLICIT_DO_CREATE_LAMBDA_DECL(false);  // create-lambda
+EXPLICIT_DO_CREATE_LAMBDA_DECL(true);   // create-lambda
+#undef EXPLICIT_DO_CREATE_LAMBDA_DECL
+
+// Explicitly instantiate all DoInvokeLambda functions.
+#define EXPLICIT_DO_INVOKE_LAMBDA_DECL(_do_check)                                    \
+template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                 \
+bool DoInvokeLambda<_do_check>(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst, \
+                               uint16_t inst_data, JValue* result);
+
+EXPLICIT_DO_INVOKE_LAMBDA_DECL(false);  // invoke-lambda
+EXPLICIT_DO_INVOKE_LAMBDA_DECL(true);   // invoke-lambda
+#undef EXPLICIT_DO_INVOKE_LAMBDA_DECL
 
 
 }  // namespace interpreter
