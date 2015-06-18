@@ -85,6 +85,7 @@ public class Main {
                 0));
         testCases.add(new TestCase("b/21865464", "B21865464", "run", null, null,
                 null));
+        testCases.add(new TestCase("b/21873167", "B21873167", "test", null, null, null));
     }
 
     public void runTests() {
