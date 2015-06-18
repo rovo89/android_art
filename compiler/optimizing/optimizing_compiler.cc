@@ -340,9 +340,11 @@ static void RunOptimizations(HGraph* graph,
   InstructionSimplifier* simplify2 = new (arena) InstructionSimplifier(
       graph, stats, "instruction_simplifier_after_types");
   InstructionSimplifier* simplify3 = new (arena) InstructionSimplifier(
-      graph, stats, "last_instruction_simplifier");
+      graph, stats, "instruction_simplifier_after_bce");
   ReferenceTypePropagation* type_propagation2 =
       new (arena) ReferenceTypePropagation(graph, handles);
+  InstructionSimplifier* simplify4 = new (arena) InstructionSimplifier(
+      graph, stats, "instruction_simplifier_before_codegen");
 
   IntrinsicsRecognizer* intrinsics = new (arena) IntrinsicsRecognizer(graph, driver);
 
@@ -367,6 +369,10 @@ static void RunOptimizations(HGraph* graph,
     bce,
     simplify3,
     dce2,
+    // The codegen has a few assumptions that only the instruction simplifier can
+    // satisfy. For example, the code generator does not expect to see a
+    // HTypeConversion from a type to the same type.
+    simplify4,
   };
 
   RunOptimizations(optimizations, arraysize(optimizations), pass_info_printer);
