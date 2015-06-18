@@ -2844,11 +2844,29 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       break;
     }
 
-    case 0xf4:
-    case 0xf5:
-    case 0xf7 ... 0xf9: {
+    case Instruction::UNUSED_F4:
+    case Instruction::UNUSED_F5:
+    case Instruction::UNUSED_F7: {
       DCHECK(false);  // TODO(iam): Implement opcodes for lambdas
-      FALLTHROUGH_INTENDED;  // Conservatively fail verification on release builds.
+      // Conservatively fail verification on release builds.
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Unexpected opcode " << inst->DumpString(dex_file_);
+      break;
+    }
+
+    case Instruction::BOX_LAMBDA: {
+      // Don't bother verifying, instead the interpreter will take the slow path with access checks.
+      // If the code would've normally hard-failed, then the interpreter will throw the
+      // appropriate verification errors at runtime.
+      Fail(VERIFY_ERROR_FORCE_INTERPRETER);  // TODO(iam): implement box-lambda verification
+      break;
+    }
+
+     case Instruction::UNBOX_LAMBDA: {
+      // Don't bother verifying, instead the interpreter will take the slow path with access checks.
+      // If the code would've normally hard-failed, then the interpreter will throw the
+      // appropriate verification errors at runtime.
+      Fail(VERIFY_ERROR_FORCE_INTERPRETER);  // TODO(iam): implement unbox-lambda verification
+      break;
     }
 
     /* These should never appear during verification. */
