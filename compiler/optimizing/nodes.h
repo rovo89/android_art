@@ -335,6 +335,7 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
     }
 
     // If not found or previously deleted, create and cache a new instruction.
+    // Don't bother reviving a previously deleted instruction, for simplicity.
     if (constant == nullptr || constant->GetBlock() == nullptr) {
       constant = new (arena_) InstructionType(value);
       cache->Overwrite(value, constant);
