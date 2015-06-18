@@ -77,7 +77,7 @@ while true; do
     # classpath/resources differences when compiling the boot image.
     vogar_args="$vogar_args --vm-arg -Ximage:/non/existent"
     shift
-  elif [[ $1 == "--debug" ]]; then
+  elif [[ "$1" == "--debug" ]]; then
     # Remove the --debug from the arguments.
     vogar_args=${vogar_args/$1}
     vogar_args="$vogar_args --vm-arg -XXlib:libartd.so"
