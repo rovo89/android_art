@@ -377,10 +377,10 @@ static int kAllOpcodes[] = {
     Instruction::IGET_BYTE_QUICK,
     Instruction::IGET_CHAR_QUICK,
     Instruction::IGET_SHORT_QUICK,
-    Instruction::UNUSED_F3,
+    Instruction::INVOKE_LAMBDA,
     Instruction::UNUSED_F4,
     Instruction::UNUSED_F5,
-    Instruction::UNUSED_F6,
+    Instruction::CREATE_LAMBDA,
     Instruction::UNUSED_F7,
     Instruction::UNUSED_F8,
     Instruction::UNUSED_F9,
@@ -421,7 +421,13 @@ static int kInvokeOpcodes[] = {
     Instruction::INVOKE_VIRTUAL_RANGE_QUICK,
 };
 
-// Unsupported opcodes. null can be used when everything is supported. Size of the lists is
+// TODO: Add support for lambda opcodes to the quick compiler.
+static const int kUnsupportedLambdaOpcodes[] = {
+    Instruction::INVOKE_LAMBDA,
+    Instruction::CREATE_LAMBDA,
+};
+
+// Unsupported opcodes. Null can be used when everything is supported. Size of the lists is
 // recorded below.
 static const int* kUnsupportedOpcodes[] = {
     // 0 = kNone.
@@ -429,17 +435,17 @@ static const int* kUnsupportedOpcodes[] = {
     // 1 = kArm, unused (will use kThumb2).
     kAllOpcodes,
     // 2 = kArm64.
-    nullptr,
+    kUnsupportedLambdaOpcodes,
     // 3 = kThumb2.
-    nullptr,
+    kUnsupportedLambdaOpcodes,
     // 4 = kX86.
-    nullptr,
+    kUnsupportedLambdaOpcodes,
     // 5 = kX86_64.
-    nullptr,
+    kUnsupportedLambdaOpcodes,
     // 6 = kMips.
-    nullptr,
+    kUnsupportedLambdaOpcodes,
     // 7 = kMips64.
-    nullptr
+    kUnsupportedLambdaOpcodes,
 };
 static_assert(sizeof(kUnsupportedOpcodes) == 8 * sizeof(int*), "kUnsupportedOpcodes unexpected");
 
@@ -450,20 +456,25 @@ static const size_t kUnsupportedOpcodesSize[] = {
     // 1 = kArm, unused (will use kThumb2).
     arraysize(kAllOpcodes),
     // 2 = kArm64.
-    0,
+    arraysize(kUnsupportedLambdaOpcodes),
     // 3 = kThumb2.
-    0,
+    arraysize(kUnsupportedLambdaOpcodes),
     // 4 = kX86.
-    0,
+    arraysize(kUnsupportedLambdaOpcodes),
     // 5 = kX86_64.
-    0,
+    arraysize(kUnsupportedLambdaOpcodes),
     // 6 = kMips.
-    0,
+    arraysize(kUnsupportedLambdaOpcodes),
     // 7 = kMips64.
-    0
+    arraysize(kUnsupportedLambdaOpcodes),
 };
 static_assert(sizeof(kUnsupportedOpcodesSize) == 8 * sizeof(size_t),
               "kUnsupportedOpcodesSize unexpected");
+
+static bool IsUnsupportedExperimentalLambdasOnly(size_t i) {
+  DCHECK_LE(i, arraysize(kUnsupportedOpcodes));
+  return kUnsupportedOpcodes[i] == kUnsupportedLambdaOpcodes;
+}
 
 // The maximum amount of Dalvik register in a method for which we will start compiling. Tries to
 // avoid an abort when we need to manage more SSA registers than we can.
@@ -487,6 +498,30 @@ static bool CanCompileShorty(const char* shorty, InstructionSet instruction_set)
   return true;
 }
 
+// If the ISA has unsupported opcodes, should we skip scanning over them?
+//
+// Most of the time we're compiling non-experimental files, so scanning just slows
+// performance down by as much as 6% with 4 threads.
+// In the rare cases we compile experimental opcodes, the runtime has an option to enable it,
+// which will force scanning for any unsupported opcodes.
+static bool SkipScanningUnsupportedOpcodes(InstructionSet instruction_set) {
+  if (UNLIKELY(kUnsupportedOpcodesSize[instruction_set] == 0U)) {
+    // All opcodes are supported no matter what. Usually not the case
+    // since experimental opcodes are not implemented in the quick compiler.
+    return true;
+  } else if (LIKELY(!Runtime::Current()->AreExperimentalLambdasEnabled())) {
+    // Experimental opcodes are disabled.
+    //
+    // If all unsupported opcodes are experimental we don't need to do scanning.
+    return IsUnsupportedExperimentalLambdasOnly(instruction_set);
+  } else {
+    // Experimental opcodes are enabled.
+    //
+    // Do the opcode scanning if the ISA has any unsupported opcodes.
+    return false;
+  }
+}
+
 // Skip the method that we do not support currently.
 bool QuickCompiler::CanCompileMethod(uint32_t method_idx, const DexFile& dex_file,
                                      CompilationUnit* cu) const {
@@ -498,7 +533,7 @@ bool QuickCompiler::CanCompileMethod(uint32_t method_idx, const DexFile& dex_fil
 
   // Check whether we do have limitations at all.
   if (kSupportedTypes[cu->instruction_set] == nullptr &&
-      kUnsupportedOpcodesSize[cu->instruction_set] == 0U) {
+      SkipScanningUnsupportedOpcodes(cu->instruction_set)) {
     return true;
   }
 

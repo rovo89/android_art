@@ -53,6 +53,11 @@ namespace interpreter {
     }                                                                                           \
   } while (false)
 
+static bool IsExperimentalInstructionEnabled(const Instruction *inst) {
+  DCHECK(inst->IsExperimental());
+  return Runtime::Current()->AreExperimentalLambdasEnabled();
+}
+
 template<bool do_access_check, bool transaction_active>
 JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
                          ShadowFrame& shadow_frame, JValue result_register) {
@@ -2217,8 +2222,39 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
                              (inst->VRegC_22b() & 0x1f));
         inst = inst->Next_2xx();
         break;
+      case Instruction::INVOKE_LAMBDA: {
+        if (!IsExperimentalInstructionEnabled(inst)) {
+          UnexpectedOpcode(inst, shadow_frame);
+        }
+
+        PREAMBLE();
+        bool success = DoInvokeLambda<do_access_check>(self, shadow_frame, inst, inst_data,
+                                                       &result_register);
+        POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
+        break;
+      }
+      case Instruction::CREATE_LAMBDA: {
+        if (!IsExperimentalInstructionEnabled(inst)) {
+          UnexpectedOpcode(inst, shadow_frame);
+        }
+
+        PREAMBLE();
+        bool success = DoCreateLambda<do_access_check>(self, shadow_frame, inst);
+        POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
+        break;
+      }
+      case Instruction::UNUSED_F4:
+      case Instruction::UNUSED_F5:
+      case Instruction::UNUSED_F7 ... Instruction::UNUSED_F9: {
+        if (!IsExperimentalInstructionEnabled(inst)) {
+          UnexpectedOpcode(inst, shadow_frame);
+        }
+
+        CHECK(false);  // TODO(iam): Implement opcodes for lambdas
+        break;
+      }
       case Instruction::UNUSED_3E ... Instruction::UNUSED_43:
-      case Instruction::UNUSED_F3 ... Instruction::UNUSED_FF:
+      case Instruction::UNUSED_FA ... Instruction::UNUSED_FF:
       case Instruction::UNUSED_79:
       case Instruction::UNUSED_7A:
         UnexpectedOpcode(inst, shadow_frame);

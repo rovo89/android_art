@@ -527,6 +527,10 @@ class Runtime {
     return zygote_max_failed_boots_;
   }
 
+  bool AreExperimentalLambdasEnabled() const {
+    return experimental_lambdas_;
+  }
+
   // Create the JIT and instrumentation and code cache.
   void CreateJit();
 
@@ -726,6 +730,12 @@ class Runtime {
   // and trying again. This option is only inspected when we're running as a
   // zygote.
   uint32_t zygote_max_failed_boots_;
+
+  // Enable experimental opcodes that aren't fully specified yet. The intent is to
+  // eventually publish them as public-usable opcodes, but they aren't ready yet.
+  //
+  // Experimental opcodes should not be used by other production code.
+  bool experimental_lambdas_;
 
   MethodRefToStringInitRegMap method_ref_string_init_reg_map_;
 
