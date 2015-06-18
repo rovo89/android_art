@@ -377,8 +377,7 @@ TEST_ART_BROKEN_JIT_RUN_TESTS :=
 
 # Known broken tests for the default compiler (Quick).
 TEST_ART_BROKEN_DEFAULT_RUN_TESTS := \
-  457-regs \
-  496-checker-inlining-and-class-loader
+  457-regs
 
 ifneq (,$(filter default,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
