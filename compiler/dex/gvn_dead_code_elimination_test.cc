@@ -137,6 +137,8 @@ class GvnDeadCodeEliminationTest : public testing::Test {
     { bb, opcode, 0u, 0u, 1, { src1 }, 1, { result } }
 #define DEF_BINOP(bb, opcode, result, src1, src2) \
     { bb, opcode, 0u, 0u, 2, { src1, src2 }, 1, { result } }
+#define DEF_BINOP_WIDE(bb, opcode, result, src1, src2) \
+    { bb, opcode, 0u, 0u, 4, { src1, src1 + 1, src2, src2 + 1 }, 2, { result, result + 1 } }
 
   void DoPrepareIFields(const IFieldDef* defs, size_t count) {
     cu_.mir_graph->ifield_lowering_infos_.clear();
@@ -1936,7 +1938,7 @@ TEST_F(GvnDeadCodeEliminationTestSimple, MixedOverlaps1) {
       DEF_CONST(3, Instruction::CONST, 0u, 1000u),
       DEF_MOVE(3, Instruction::MOVE, 1u, 0u),
       DEF_CONST(3, Instruction::CONST, 2u, 2000u),
-      { 3, Instruction::INT_TO_LONG, 0, 0u, 1, { 2u }, 2, { 3u, 4u} },
+      { 3, Instruction::INT_TO_LONG, 0, 0u, 1, { 2u }, 2, { 3u, 4u } },
       DEF_MOVE_WIDE(3, Instruction::MOVE_WIDE, 5u, 3u),
       DEF_CONST(3, Instruction::CONST, 7u, 3000u),
       DEF_CONST(3, Instruction::CONST, 8u, 4000u),
@@ -1981,6 +1983,87 @@ TEST_F(GvnDeadCodeEliminationTestSimple, MixedOverlaps1) {
   EXPECT_EQ(6, int_to_long->ssa_rep->defs[1]);
   EXPECT_EQ(3u, int_to_long->dalvikInsn.vA);
   EXPECT_EQ(0u, int_to_long->dalvikInsn.vB);
+}
+
+TEST_F(GvnDeadCodeEliminationTestSimple, UnusedRegs1) {
+  static const MIRDef mirs[] = {
+      DEF_CONST(3, Instruction::CONST, 0u, 1000u),
+      DEF_CONST(3, Instruction::CONST, 1u, 2000u),
+      DEF_BINOP(3, Instruction::ADD_INT, 2u, 1u, 0u),
+      DEF_CONST(3, Instruction::CONST, 3u, 1000u),            // NOT killed (b/21702651).
+      DEF_BINOP(3, Instruction::ADD_INT, 4u, 1u, 3u),         // Killed (RecordPass)
+      DEF_CONST(3, Instruction::CONST, 5u, 2000u),            // Killed with 9u (BackwardPass)
+      DEF_BINOP(3, Instruction::ADD_INT, 6u, 5u, 0u),         // Killed (RecordPass)
+      DEF_CONST(3, Instruction::CONST, 7u, 4000u),
+      DEF_MOVE(3, Instruction::MOVE, 8u, 0u),                 // Killed with 6u (BackwardPass)
+  };
+
+  static const int32_t sreg_to_vreg_map[] = { 1, 2, 3, 0, 3, 0, 3, 4, 0 };
+  PrepareSRegToVRegMap(sreg_to_vreg_map);
+
+  PrepareMIRs(mirs);
+  PerformGVN_DCE();
+
+  ASSERT_EQ(arraysize(mirs), value_names_.size());
+  static const size_t diff_indexes[] = { 0, 1, 2, 7 };
+  ExpectValueNamesNE(diff_indexes);
+  EXPECT_EQ(value_names_[0], value_names_[3]);
+  EXPECT_EQ(value_names_[2], value_names_[4]);
+  EXPECT_EQ(value_names_[1], value_names_[5]);
+  EXPECT_EQ(value_names_[2], value_names_[6]);
+  EXPECT_EQ(value_names_[0], value_names_[8]);
+
+  static const bool eliminated[] = {
+      false, false, false, false, true, true, true, false, true,
+  };
+  static_assert(arraysize(eliminated) == arraysize(mirs), "array size mismatch");
+  for (size_t i = 0; i != arraysize(eliminated); ++i) {
+    bool actually_eliminated = (static_cast<int>(mirs_[i].dalvikInsn.opcode) == kMirOpNop);
+    EXPECT_EQ(eliminated[i], actually_eliminated) << i;
+  }
+}
+
+TEST_F(GvnDeadCodeEliminationTestSimple, UnusedRegs2) {
+  static const MIRDef mirs[] = {
+      DEF_CONST(3, Instruction::CONST, 0u, 1000u),
+      DEF_CONST(3, Instruction::CONST, 1u, 2000u),
+      DEF_BINOP(3, Instruction::ADD_INT, 2u, 1u, 0u),
+      DEF_CONST(3, Instruction::CONST, 3u, 1000u),            // Killed (BackwardPass; b/21702651)
+      DEF_BINOP(3, Instruction::ADD_INT, 4u, 1u, 3u),         // Killed (RecordPass)
+      DEF_CONST_WIDE(3, Instruction::CONST_WIDE, 5u, 4000u),
+      { 3, Instruction::LONG_TO_INT, 0, 0u, 2, { 5u, 6u }, 1, { 7u } },
+      DEF_BINOP(3, Instruction::ADD_INT, 8u, 7u, 0u),
+      DEF_CONST_WIDE(3, Instruction::CONST_WIDE, 9u, 4000u),  // Killed with 12u (BackwardPass)
+      DEF_CONST(3, Instruction::CONST, 11u, 6000u),
+      { 3, Instruction::LONG_TO_INT, 0, 0u, 2, { 9u, 10u }, 1, { 12u } },  // Killed with 9u (BP)
+  };
+
+  static const int32_t sreg_to_vreg_map[] = {
+      2, 3, 4, 1, 4, 5, 6 /* high word */, 0, 7, 0, 1 /* high word */, 8, 0
+  };
+  PrepareSRegToVRegMap(sreg_to_vreg_map);
+
+  PrepareMIRs(mirs);
+  static const int32_t wide_sregs[] = { 5, 9 };
+  MarkAsWideSRegs(wide_sregs);
+  PerformGVN_DCE();
+
+  ASSERT_EQ(arraysize(mirs), value_names_.size());
+  static const size_t diff_indexes[] = { 0, 1, 2, 5, 6, 7, 9 };
+  ExpectValueNamesNE(diff_indexes);
+  EXPECT_EQ(value_names_[0], value_names_[3]);
+  EXPECT_EQ(value_names_[2], value_names_[4]);
+  EXPECT_EQ(value_names_[5], value_names_[8]);
+  EXPECT_EQ(value_names_[6], value_names_[10]);
+
+  static const bool eliminated[] = {
+      false, false, false, true, true, false, false, false, true, false, true,
+  };
+  static_assert(arraysize(eliminated) == arraysize(mirs), "array size mismatch");
+  for (size_t i = 0; i != arraysize(eliminated); ++i) {
+    bool actually_eliminated = (static_cast<int>(mirs_[i].dalvikInsn.opcode) == kMirOpNop);
+    EXPECT_EQ(eliminated[i], actually_eliminated) << i;
+  }
 }
 
 }  // namespace art
