@@ -398,12 +398,13 @@ bool MIRGraph::IsBadMonitorExitCatch(NarrowDexOffset monitor_exit_offset,
   DCHECK(monitor_exit->Opcode() == Instruction::MONITOR_EXIT);
   int monitor_reg = monitor_exit->VRegA_11x();
   const Instruction* check_insn = Instruction::At(current_code_item_->insns_ + catch_offset);
-  DCHECK(check_insn->Opcode() == Instruction::MOVE_EXCEPTION);
-  if (check_insn->VRegA_11x() == monitor_reg) {
-    // Unexpected move-exception to the same register. Probably not the pattern we're looking for.
-    return false;
+  if (check_insn->Opcode() == Instruction::MOVE_EXCEPTION) {
+    if (check_insn->VRegA_11x() == monitor_reg) {
+      // Unexpected move-exception to the same register. Probably not the pattern we're looking for.
+      return false;
+    }
+    check_insn = check_insn->Next();
   }
-  check_insn = check_insn->Next();
   while (true) {
     int dest = -1;
     bool wide = false;
