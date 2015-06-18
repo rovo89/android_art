@@ -282,11 +282,11 @@ static ALWAYS_INLINE inline bool MethodMatchesConstructor(ArtMethod* m, bool pub
 static jobjectArray Class_getDeclaredConstructorsInternal(
     JNIEnv* env, jobject javaThis, jboolean publicOnly) {
   ScopedFastNativeObjectAccess soa(env);
-  auto* klass = DecodeClass(soa, javaThis);
-  StackHandleScope<1> hs(soa.Self());
+  StackHandleScope<2> hs(soa.Self());
+  Handle<mirror::Class> h_klass = hs.NewHandle(DecodeClass(soa, javaThis));
   size_t constructor_count = 0;
   // Two pass approach for speed.
-  for (auto& m : klass->GetDirectMethods(sizeof(void*))) {
+  for (auto& m : h_klass->GetDirectMethods(sizeof(void*))) {
     constructor_count += MethodMatchesConstructor(&m, publicOnly != JNI_FALSE) ? 1u : 0u;
   }
   auto h_constructors = hs.NewHandle(mirror::ObjectArray<mirror::Constructor>::Alloc(
@@ -296,7 +296,7 @@ static jobjectArray Class_getDeclaredConstructorsInternal(
     return nullptr;
   }
   constructor_count = 0;
-  for (auto& m : klass->GetDirectMethods(sizeof(void*))) {
+  for (auto& m : h_klass->GetDirectMethods(sizeof(void*))) {
     if (MethodMatchesConstructor(&m, publicOnly != JNI_FALSE)) {
       auto* constructor = mirror::Constructor::CreateFromArtMethod(soa.Self(), &m);
       if (UNLIKELY(constructor == nullptr)) {
@@ -319,16 +319,16 @@ static jobject Class_getDeclaredMethodInternal(JNIEnv* env, jobject javaThis,
   // were synthesized by the runtime.
   constexpr uint32_t kSkipModifiers = kAccMiranda | kAccSynthetic;
   ScopedFastNativeObjectAccess soa(env);
-  StackHandleScope<4> hs(soa.Self());
+  StackHandleScope<3> hs(soa.Self());
   auto h_method_name = hs.NewHandle(soa.Decode<mirror::String*>(name));
   if (UNLIKELY(h_method_name.Get() == nullptr)) {
     ThrowNullPointerException("name == null");
     return nullptr;
   }
   auto h_args = hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Class>*>(args));
-  auto* klass = DecodeClass(soa, javaThis);
+  Handle<mirror::Class> h_klass = hs.NewHandle(DecodeClass(soa, javaThis));
   ArtMethod* result = nullptr;
-  for (auto& m : klass->GetVirtualMethods(sizeof(void*))) {
+  for (auto& m : h_klass->GetVirtualMethods(sizeof(void*))) {
     auto* np_method = m.GetInterfaceMethodIfProxy(sizeof(void*));
     // May cause thread suspension.
     mirror::String* np_name = np_method->GetNameAsString(soa.Self());
@@ -347,7 +347,7 @@ static jobject Class_getDeclaredMethodInternal(JNIEnv* env, jobject javaThis,
     }
   }
   if (result == nullptr) {
-    for (auto& m : klass->GetDirectMethods(sizeof(void*))) {
+    for (auto& m : h_klass->GetDirectMethods(sizeof(void*))) {
       auto modifiers = m.GetAccessFlags();
       if ((modifiers & kAccConstructor) != 0) {
         continue;
@@ -381,7 +381,7 @@ static jobjectArray Class_getDeclaredMethodsUnchecked(JNIEnv* env, jobject javaT
                                                       jboolean publicOnly) {
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<2> hs(soa.Self());
-  auto klass = hs.NewHandle(DecodeClass(soa, javaThis));
+  Handle<mirror::Class> klass = hs.NewHandle(DecodeClass(soa, javaThis));
   size_t num_methods = 0;
   for (auto& m : klass->GetVirtualMethods(sizeof(void*))) {
     auto modifiers = m.GetAccessFlags();
@@ -432,7 +432,7 @@ static jobjectArray Class_getDeclaredMethodsUnchecked(JNIEnv* env, jobject javaT
 static jobject Class_newInstance(JNIEnv* env, jobject javaThis) {
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<4> hs(soa.Self());
-  auto klass = hs.NewHandle(DecodeClass(soa, javaThis));
+  Handle<mirror::Class> klass = hs.NewHandle(DecodeClass(soa, javaThis));
   if (UNLIKELY(klass->GetPrimitiveType() != 0 || klass->IsInterface() || klass->IsArrayClass() ||
                klass->IsAbstract())) {
     soa.Self()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
