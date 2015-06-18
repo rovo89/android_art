@@ -659,7 +659,8 @@ void CompilerDriver::PreCompile(jobject class_loader, const std::vector<const De
 
 bool CompilerDriver::IsImageClass(const char* descriptor) const {
   if (!IsImage()) {
-    return true;
+    // NOTE: Currently unreachable, all callers check IsImage().
+    return false;
   } else {
     return image_classes_->find(descriptor) != image_classes_->end();
   }
@@ -990,6 +991,24 @@ void CompilerDriver::UpdateImageClasses(TimingLogger* timings) {
     // Resume threads.
     current->GetThreadList()->ResumeAll();
   }
+}
+
+bool CompilerDriver::CanAssumeClassIsLoaded(mirror::Class* klass) {
+  Runtime* runtime = Runtime::Current();
+  if (!runtime->IsAotCompiler()) {
+    DCHECK(runtime->UseJit());
+    // Having the klass reference here implies that the klass is already loaded.
+    return true;
+  }
+  if (!IsImage()) {
+    // Assume loaded only if klass is in the boot image. App classes cannot be assumed
+    // loaded because we don't even know what class loader will be used to load them.
+    bool class_in_image = runtime->GetHeap()->FindSpaceFromObject(klass, false)->IsImageSpace();
+    return class_in_image;
+  }
+  std::string temp;
+  const char* descriptor = klass->GetDescriptor(&temp);
+  return IsImageClass(descriptor);
 }
 
 bool CompilerDriver::CanAssumeTypeIsPresentInDexCache(const DexFile& dex_file, uint32_t type_idx) {
