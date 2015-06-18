@@ -1003,7 +1003,6 @@ bool GvnDeadCodeElimination::BackwardPassTryToKillLastMIR() {
                 vreg_chains_.GetMIRData(kill_heads_[v_reg])->PrevChange(v_reg));
     }
   }
-  unused_vregs_->Union(vregs_to_kill_);
   for (auto it = changes_to_kill_.rbegin(), end = changes_to_kill_.rend(); it != end; ++it) {
     MIRData* data = vreg_chains_.GetMIRData(*it);
     DCHECK(!data->must_keep);
@@ -1011,6 +1010,10 @@ bool GvnDeadCodeElimination::BackwardPassTryToKillLastMIR() {
     vreg_chains_.RemoveChange(*it);
     KillMIR(data);
   }
+
+  // Each dependent register not in vregs_to_kill_ is either already marked unused or
+  // it's one word of a wide register where the other word has been overwritten.
+  unused_vregs_->UnionIfNotIn(dependent_vregs_, vregs_to_kill_);
 
   vreg_chains_.RemoveTrailingNops();
   return true;
