@@ -288,7 +288,10 @@ void HGraph::InsertConstant(HConstant* constant) {
 }
 
 HNullConstant* HGraph::GetNullConstant() {
-  if (cached_null_constant_ == nullptr) {
+  // For simplicity, don't bother reviving the cached null constant if it is
+  // not null and not in a block. Otherwise, we need to clear the instruction
+  // id and/or any invariants the graph is assuming when adding new instructions.
+  if ((cached_null_constant_ == nullptr) || (cached_null_constant_->GetBlock() == nullptr)) {
     cached_null_constant_ = new (arena_) HNullConstant();
     InsertConstant(cached_null_constant_);
   }
