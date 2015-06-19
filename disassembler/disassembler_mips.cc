@@ -106,6 +106,9 @@ static const MipsInstruction gMipsInstructions[] = {
   { kRTypeMask | (0x1f << 21), 62 | (1 << 21), "drotr32", "DTA", },
   { kRTypeMask, 62, "dsrl32", "DTA", },
   { kRTypeMask, 63, "dsra32", "DTA", },
+  { kRTypeMask, (31u << kOpcodeShift) | 3, "dext", "TSAZ", },
+  { kRTypeMask | (0x1f << 21) | (0x1f << 6), (31u << 26) | (16 << 6) | 32, "seb", "DT", },
+  { kRTypeMask | (0x1f << 21) | (0x1f << 6), (31u << 26) | (24 << 6) | 32, "seh", "DT", },
 
   // SPECIAL0
   { kSpecial0Mask | 0x7ff, (2 << 6) | 24, "mul", "DST" },
@@ -150,12 +153,16 @@ static const MipsInstruction gMipsInstructions[] = {
   { kITypeMask | (0x1f << 16), 1 << kOpcodeShift | (16 << 16), "bltzal", "SB" },
   { kITypeMask | (0x1f << 16), 1 << kOpcodeShift | (18 << 16), "bltzall", "SB" },
   { kITypeMask | (0x1f << 16), 6 << kOpcodeShift | (0 << 16), "blez", "SB" },
+  { kITypeMask, 6 << kOpcodeShift, "bgeuc", "STB" },
   { kITypeMask | (0x1f << 16), 7 << kOpcodeShift | (0 << 16), "bgtz", "SB" },
+  { kITypeMask, 7 << kOpcodeShift, "bltuc", "STB" },
   { kITypeMask | (0x1f << 16), 1 << kOpcodeShift | (6 << 16), "dahi", "Si", },
   { kITypeMask | (0x1f << 16), 1 << kOpcodeShift | (30 << 16), "dati", "Si", },
 
   { 0xffff0000, (4 << kOpcodeShift), "b", "B" },
   { 0xffff0000, (1 << kOpcodeShift) | (17 << 16), "bal", "B" },
+
+  { kITypeMask, 8 << kOpcodeShift, "beqc", "STB" },
 
   { kITypeMask, 8 << kOpcodeShift, "addi", "TSi", },
   { kITypeMask, 9 << kOpcodeShift, "addiu", "TSi", },
@@ -166,6 +173,83 @@ static const MipsInstruction gMipsInstructions[] = {
   { kITypeMask, 14 << kOpcodeShift, "xori", "TSi", },
   { kITypeMask | (0x1f << 21), 15 << kOpcodeShift, "lui", "TI", },
   { kITypeMask, 15 << kOpcodeShift, "aui", "TSI", },
+
+  { kITypeMask | (0x1f << 21), 22 << kOpcodeShift, "blezc", "TB" },
+
+  // TODO: de-dup
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (1  << 21) | (1  << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (2  << 21) | (2  << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (3  << 21) | (3  << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (4  << 21) | (4  << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (5  << 21) | (5  << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (6  << 21) | (6  << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (7  << 21) | (7  << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (8  << 21) | (8  << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (9  << 21) | (9  << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (10 << 21) | (10 << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (11 << 21) | (11 << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (12 << 21) | (12 << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (13 << 21) | (13 << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (14 << 21) | (14 << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (15 << 21) | (15 << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (16 << 21) | (16 << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (17 << 21) | (17 << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (18 << 21) | (18 << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (19 << 21) | (19 << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (20 << 21) | (20 << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (21 << 21) | (21 << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (22 << 21) | (22 << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (23 << 21) | (23 << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (24 << 21) | (24 << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (25 << 21) | (25 << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (26 << 21) | (26 << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (27 << 21) | (27 << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (28 << 21) | (28 << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (29 << 21) | (29 << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (30 << 21) | (30 << 16), "bgezc", "TB" },
+  { kITypeMask | (0x3ff << 16), (22 << kOpcodeShift) | (31 << 21) | (31 << 16), "bgezc", "TB" },
+
+  { kITypeMask, 22 << kOpcodeShift, "bgec", "STB" },
+
+  { kITypeMask | (0x1f << 21), 23 << kOpcodeShift, "bgtzc", "TB" },
+
+  // TODO: de-dup
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (1  << 21) | (1  << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (2  << 21) | (2  << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (3  << 21) | (3  << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (4  << 21) | (4  << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (5  << 21) | (5  << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (6  << 21) | (6  << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (7  << 21) | (7  << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (8  << 21) | (8  << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (9  << 21) | (9  << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (10 << 21) | (10 << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (11 << 21) | (11 << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (12 << 21) | (12 << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (13 << 21) | (13 << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (14 << 21) | (14 << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (15 << 21) | (15 << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (16 << 21) | (16 << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (17 << 21) | (17 << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (18 << 21) | (18 << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (19 << 21) | (19 << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (20 << 21) | (20 << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (21 << 21) | (21 << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (22 << 21) | (22 << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (23 << 21) | (23 << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (24 << 21) | (24 << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (25 << 21) | (25 << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (26 << 21) | (26 << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (27 << 21) | (27 << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (28 << 21) | (28 << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (29 << 21) | (29 << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (30 << 21) | (30 << 16), "bltzc", "TB" },
+  { kITypeMask | (0x3ff << 16), (23 << kOpcodeShift) | (31 << 21) | (31 << 16), "bltzc", "TB" },
+
+  { kITypeMask, 23 << kOpcodeShift, "bltc", "STB" },
+
+  { kITypeMask, 24 << kOpcodeShift, "bnec", "STB" },
+
   { kITypeMask, 25 << kOpcodeShift, "daddiu", "TSi", },
   { kITypeMask, 29 << kOpcodeShift, "daui", "TSi", },
 
@@ -180,9 +264,22 @@ static const MipsInstruction gMipsInstructions[] = {
   { kITypeMask, 43u << kOpcodeShift, "sw", "TO", },
   { kITypeMask, 49u << kOpcodeShift, "lwc1", "tO", },
   { kITypeMask, 53u << kOpcodeShift, "ldc1", "tO", },
+  { kITypeMask | (0x1f << 21), 54u << kOpcodeShift, "jic", "Ti" },
+  { kITypeMask | (1 << 21), (54u << kOpcodeShift) | (1 << 21), "beqzc", "Sb" },  // TODO: de-dup?
+  { kITypeMask | (1 << 22), (54u << kOpcodeShift) | (1 << 22), "beqzc", "Sb" },
+  { kITypeMask | (1 << 23), (54u << kOpcodeShift) | (1 << 23), "beqzc", "Sb" },
+  { kITypeMask | (1 << 24), (54u << kOpcodeShift) | (1 << 24), "beqzc", "Sb" },
+  { kITypeMask | (1 << 25), (54u << kOpcodeShift) | (1 << 25), "beqzc", "Sb" },
   { kITypeMask, 55u << kOpcodeShift, "ld", "TO", },
   { kITypeMask, 57u << kOpcodeShift, "swc1", "tO", },
+  { kITypeMask | (0x1f << 16), (59u << kOpcodeShift) | (30 << 16), "auipc", "Si" },
   { kITypeMask, 61u << kOpcodeShift, "sdc1", "tO", },
+  { kITypeMask | (0x1f << 21), 62u << kOpcodeShift, "jialc", "Ti" },
+  { kITypeMask | (1 << 21), (62u << kOpcodeShift) | (1 << 21), "bnezc", "Sb" },  // TODO: de-dup?
+  { kITypeMask | (1 << 22), (62u << kOpcodeShift) | (1 << 22), "bnezc", "Sb" },
+  { kITypeMask | (1 << 23), (62u << kOpcodeShift) | (1 << 23), "bnezc", "Sb" },
+  { kITypeMask | (1 << 24), (62u << kOpcodeShift) | (1 << 24), "bnezc", "Sb" },
+  { kITypeMask | (1 << 25), (62u << kOpcodeShift) | (1 << 25), "bnezc", "Sb" },
   { kITypeMask, 63u << kOpcodeShift, "sd", "TO", },
 
   // Floating point.
@@ -241,12 +338,21 @@ size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* instr_ptr) {
       opcode = gMipsInstructions[i].name;
       for (const char* args_fmt = gMipsInstructions[i].args_fmt; *args_fmt; ++args_fmt) {
         switch (*args_fmt) {
-          case 'A':  // sa (shift amount).
+          case 'A':  // sa (shift amount or [d]ext position).
             args << sa;
             break;
           case 'B':  // Branch offset.
             {
               int32_t offset = static_cast<int16_t>(instruction & 0xffff);
+              offset <<= 2;
+              offset += 4;  // Delay slot.
+              args << FormatInstructionPointer(instr_ptr + offset)
+                   << StringPrintf("  ; %+d", offset);
+            }
+            break;
+          case 'b':  // 21-bit branch offset.
+            {
+              int32_t offset = (instruction & 0x1fffff) - ((instruction & 0x100000) << 1);
               offset <<= 2;
               offset += 4;  // Delay slot.
               args << FormatInstructionPointer(instr_ptr + offset)
@@ -302,6 +408,7 @@ size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* instr_ptr) {
           case 's': args << 'f' << rs; break;
           case 'T': args << 'r' << rt; break;
           case 't': args << 'f' << rt; break;
+          case 'Z': args << rd; break;   // sz ([d]ext size).
         }
         if (*(args_fmt + 1)) {
           args << ", ";
@@ -311,9 +418,36 @@ size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* instr_ptr) {
     }
   }
 
+  // Special cases for sequences of:
+  //   pc-relative +/- 2GB branch:
+  //     auipc  reg, imm
+  //     jic    reg, imm
+  //   pc-relative +/- 2GB branch and link:
+  //     auipc  reg, imm
+  //     daddiu reg, reg, imm
+  //     jialc  reg, 0
+  if (((op == 0x36 && rs == 0 && rt != 0) ||  // jic
+       (op == 0x19 && rs == rt && rt != 0)) &&  // daddiu
+      last_ptr_ && (intptr_t)instr_ptr - (intptr_t)last_ptr_ == 4 &&
+      (last_instr_ & 0xFC1F0000) == 0xEC1E0000 &&  // auipc
+      ((last_instr_ >> 21) & 0x1F) == rt) {
+    uint32_t offset = (last_instr_ << 16) | (instruction & 0xFFFF);
+    offset -= (offset & 0x8000) << 1;
+    offset -= 4;
+    if (op == 0x36) {
+      args << "  ; b ";
+    } else {
+      args << "  ; move r" << rt << ", ";
+    }
+    args << FormatInstructionPointer(instr_ptr + (int32_t)offset);
+    args << StringPrintf("  ; %+d", (int32_t)offset);
+  }
+
   os << FormatInstructionPointer(instr_ptr)
      << StringPrintf(": %08x\t%-7s ", instruction, opcode.c_str())
      << args.str() << '\n';
+  last_ptr_ = instr_ptr;
+  last_instr_ = instruction;
   return 4;
 }
 

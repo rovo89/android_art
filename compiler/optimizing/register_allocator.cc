@@ -80,6 +80,7 @@ bool RegisterAllocator::CanAllocateRegistersFor(const HGraph& graph ATTRIBUTE_UN
                                                 InstructionSet instruction_set) {
   return instruction_set == kArm64
       || instruction_set == kX86_64
+      || instruction_set == kMips64
       || instruction_set == kArm
       || instruction_set == kX86
       || instruction_set == kThumb2;
