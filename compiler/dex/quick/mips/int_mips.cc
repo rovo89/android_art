@@ -258,13 +258,19 @@ void MipsMir2Lir::OpRegCopyWide(RegStorage r_dest, RegStorage r_src) {
         }
       } else {
         // Here if both src and dest are core registers.
-        // Handle overlap.
-        if (r_src.GetHighReg() == r_dest.GetLowReg()) {
+        // Handle overlap
+        if (r_src.GetHighReg() != r_dest.GetLowReg()) {
+          OpRegCopy(r_dest.GetLow(), r_src.GetLow());
+          OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
+        } else if (r_src.GetLowReg() != r_dest.GetHighReg()) {
           OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
           OpRegCopy(r_dest.GetLow(), r_src.GetLow());
         } else {
+          RegStorage r_tmp = AllocTemp();
+          OpRegCopy(r_tmp, r_src.GetHigh());
           OpRegCopy(r_dest.GetLow(), r_src.GetLow());
-          OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
+          OpRegCopy(r_dest.GetHigh(), r_tmp);
+          FreeTemp(r_tmp);
         }
       }
     }
