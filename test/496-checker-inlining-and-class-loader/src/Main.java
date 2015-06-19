@@ -106,7 +106,7 @@ class LoadedByMyClassLoader {
   }
 }
 
-class Main {
+public class Main {
   public static void main(String[] args) throws Exception {
     MyClassLoader o = new MyClassLoader();
     Class foo = o.loadClass("LoadedByMyClassLoader");
