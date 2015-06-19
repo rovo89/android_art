@@ -222,7 +222,11 @@ class HGraphBuilder : public ValueObject {
 
   void MaybeRecordStat(MethodCompilationStat compilation_stat);
 
+  // Returns the outer-most compiling method's class.
   mirror::Class* GetOutermostCompilingClass() const;
+
+  // Returns the class whose method is being compiled.
+  mirror::Class* GetCompilingClass() const;
 
   // Returns whether `type_index` points to the outer-most compiling method's class.
   bool IsOutermostCompilingClass(uint16_t type_index) const;
