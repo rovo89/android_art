@@ -152,6 +152,10 @@ class ImageSpace : public MemMapSpace {
   // the ClassLinker during it's initialization.
   std::unique_ptr<OatFile> oat_file_;
 
+  // There are times when we need to find the boot image oat file. As
+  // we release ownership during startup, keep a non-owned reference.
+  const OatFile* oat_file_non_owned_;
+
   const std::string image_location_;
 
   DISALLOW_COPY_AND_ASSIGN(ImageSpace);

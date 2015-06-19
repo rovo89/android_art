@@ -19,7 +19,6 @@
 
 #include <stdint.h>
 #include <cstddef>
-#include <map>
 #include <memory>
 
 #include "linker/relative_patcher.h"  // For linker::RelativePatcherTargetProvider.
@@ -82,8 +81,6 @@ class TimingLogger;
 //
 class OatWriter {
  public:
-  typedef std::map<std::string, std::unique_ptr<std::vector<uintptr_t>>> PatchLocationsMap;
-
   OatWriter(const std::vector<const DexFile*>& dex_files,
             uint32_t image_file_location_oat_checksum,
             uintptr_t image_file_location_oat_begin,
@@ -105,17 +102,8 @@ class OatWriter {
     return bss_size_;
   }
 
-  const PatchLocationsMap& GetAbsolutePatchLocations() const {
+  const std::vector<uintptr_t>& GetAbsolutePatchLocations() const {
     return absolute_patch_locations_;
-  }
-
-  std::vector<uintptr_t>* GetAbsolutePatchLocationsFor(const char* section_name) {
-    auto it = absolute_patch_locations_.emplace(
-        std::string(section_name), std::unique_ptr<std::vector<uintptr_t>>());
-    if (it.second) {  // Inserted new item.
-      it.first->second.reset(new std::vector<uintptr_t>());
-    }
-    return it.first->second.get();
   }
 
   bool WriteRodata(OutputStream* out);
@@ -339,9 +327,8 @@ class OatWriter {
 
   std::unique_ptr<linker::RelativePatcher> relative_patcher_;
 
-  // The locations of absolute patches relative to the start of section.
-  // The map's key is the ELF's section name (including the dot).
-  PatchLocationsMap absolute_patch_locations_;
+  // The locations of absolute patches relative to the start of the executable section.
+  std::vector<uintptr_t> absolute_patch_locations_;
 
   // Map method reference to assigned offset.
   // Wrap the map in a class implementing linker::RelativePatcherTargetProvider.

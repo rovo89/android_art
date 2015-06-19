@@ -21,6 +21,9 @@
 #include <unistd.h>
 
 #include <cstdlib>
+#ifndef __APPLE__
+#include <link.h>  // for dl_iterate_phdr.
+#endif
 #include <sstream>
 
 // dlopen_ext support from bionic.
@@ -35,6 +38,7 @@
 #include "elf_file.h"
 #include "elf_utils.h"
 #include "oat.h"
+#include "mem_map.h"
 #include "mirror/class.h"
 #include "mirror/object-inl.h"
 #include "os.h"
@@ -45,13 +49,13 @@
 namespace art {
 
 // Whether OatFile::Open will try DlOpen() first. Fallback is our own ELF loader.
-static constexpr bool kUseDlopen = false;
+static constexpr bool kUseDlopen = true;
 
 // Whether OatFile::Open will try DlOpen() on the host. On the host we're not linking against
 // bionic, so cannot take advantage of the support for changed semantics (loading the same soname
 // multiple times). However, if/when we switch the above, we likely want to switch this, too,
 // to get test coverage of the code paths.
-static constexpr bool kUseDlopenOnHost = false;
+static constexpr bool kUseDlopenOnHost = true;
 
 // For debugging, Open will print DlOpen error message if set to true.
 static constexpr bool kPrintDlOpenErrorMessage = false;
@@ -210,6 +214,15 @@ OatFile::~OatFile() {
 
 bool OatFile::Dlopen(const std::string& elf_filename, uint8_t* requested_base,
                      const char* abs_dex_location, std::string* error_msg) {
+#ifdef __APPLE__
+  // The dl_iterate_phdr syscall is missing.  There is similar API on OSX,
+  // but let's fallback to the custom loading code for the time being.
+  UNUSED(elf_filename);
+  UNUSED(requested_base);
+  UNUSED(abs_dex_location);
+  UNUSED(error_msg);
+  return false;
+#else
   std::unique_ptr<char> absolute_path(realpath(elf_filename.c_str(), nullptr));
   if (absolute_path == nullptr) {
     *error_msg = StringPrintf("Failed to find absolute path for '%s'", elf_filename.c_str());
@@ -217,7 +230,7 @@ bool OatFile::Dlopen(const std::string& elf_filename, uint8_t* requested_base,
   }
 #ifdef HAVE_ANDROID_OS
   android_dlextinfo extinfo;
-  extinfo.flags = ANDROID_DLEXT_FORCE_LOAD;
+  extinfo.flags = ANDROID_DLEXT_FORCE_LOAD | ANDROID_DLEXT_FORCE_FIXED_VADDR;
   dlopen_handle_ = android_dlopen_ext(absolute_path.get(), RTLD_NOW, &extinfo);
 #else
   dlopen_handle_ = dlopen(absolute_path.get(), RTLD_NOW);
@@ -264,7 +277,49 @@ bool OatFile::Dlopen(const std::string& elf_filename, uint8_t* requested_base,
     bss_end_ += sizeof(uint32_t);
   }
 
+  // Ask the linker where it mmaped the file and notify our mmap wrapper of the regions.
+  struct dl_iterate_context {
+    static int callback(struct dl_phdr_info *info, size_t /* size */, void *data) {
+      auto* context = reinterpret_cast<dl_iterate_context*>(data);
+      // See whether this callback corresponds to the file which we have just loaded.
+      bool contains_begin = false;
+      for (int i = 0; i < info->dlpi_phnum; i++) {
+        if (info->dlpi_phdr[i].p_type == PT_LOAD) {
+          uint8_t* vaddr = reinterpret_cast<uint8_t*>(info->dlpi_addr +
+                                                      info->dlpi_phdr[i].p_vaddr);
+          size_t memsz = info->dlpi_phdr[i].p_memsz;
+          if (vaddr <= context->begin_ && context->begin_ < vaddr + memsz) {
+            contains_begin = true;
+            break;
+          }
+        }
+      }
+      // Add dummy mmaps for this file.
+      if (contains_begin) {
+        for (int i = 0; i < info->dlpi_phnum; i++) {
+          if (info->dlpi_phdr[i].p_type == PT_LOAD) {
+            uint8_t* vaddr = reinterpret_cast<uint8_t*>(info->dlpi_addr +
+                                                        info->dlpi_phdr[i].p_vaddr);
+            size_t memsz = info->dlpi_phdr[i].p_memsz;
+            MemMap* mmap = MemMap::MapDummy(info->dlpi_name, vaddr, memsz);
+            context->dlopen_mmaps_->push_back(std::unique_ptr<MemMap>(mmap));
+          }
+        }
+        return 1;  // Stop iteration and return 1 from dl_iterate_phdr.
+      }
+      return 0;  // Continue iteration and return 0 from dl_iterate_phdr when finished.
+    }
+    const uint8_t* const begin_;
+    std::vector<std::unique_ptr<MemMap>>* const dlopen_mmaps_;
+  } context = { begin_, &dlopen_mmaps_ };
+
+  if (dl_iterate_phdr(dl_iterate_context::callback, &context) == 0) {
+    PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
+    LOG(ERROR) << "File " << elf_filename << " loaded with dlopen but can not find its mmaps.";
+  }
+
   return Setup(abs_dex_location, error_msg);
+#endif  // __APPLE__
 }
 
 bool OatFile::ElfFileOpen(File* file, uint8_t* requested_base, uint8_t* oat_file_begin,
