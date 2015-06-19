@@ -213,6 +213,8 @@ class BoundsCheckSlowPathARM64 : public SlowPathCodeARM64 {
     CheckEntrypointTypes<kQuickThrowArrayBounds, void, int32_t, int32_t>();
   }
 
+  const char* GetDescription() const OVERRIDE { return "BoundsCheckSlowPathARM64"; }
+
  private:
   HBoundsCheck* const instruction_;
   const Location index_location_;
@@ -232,6 +234,8 @@ class DivZeroCheckSlowPathARM64 : public SlowPathCodeARM64 {
         QUICK_ENTRY_POINT(pThrowDivZero), instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickThrowDivZero, void, void>();
   }
+
+  const char* GetDescription() const OVERRIDE { return "DivZeroCheckSlowPathARM64"; }
 
  private:
   HDivZeroCheck* const instruction_;
@@ -278,6 +282,8 @@ class LoadClassSlowPathARM64 : public SlowPathCodeARM64 {
     __ B(GetExitLabel());
   }
 
+  const char* GetDescription() const OVERRIDE { return "LoadClassSlowPathARM64"; }
+
  private:
   // The class this slow path will load.
   HLoadClass* const cls_;
@@ -319,6 +325,8 @@ class LoadStringSlowPathARM64 : public SlowPathCodeARM64 {
     __ B(GetExitLabel());
   }
 
+  const char* GetDescription() const OVERRIDE { return "LoadStringSlowPathARM64"; }
+
  private:
   HLoadString* const instruction_;
 
@@ -336,6 +344,8 @@ class NullCheckSlowPathARM64 : public SlowPathCodeARM64 {
         QUICK_ENTRY_POINT(pThrowNullPointer), instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickThrowNullPointer, void, void>();
   }
+
+  const char* GetDescription() const OVERRIDE { return "NullCheckSlowPathARM64"; }
 
  private:
   HNullCheck* const instruction_;
@@ -372,6 +382,8 @@ class SuspendCheckSlowPathARM64 : public SlowPathCodeARM64 {
   HBasicBlock* GetSuccessor() const {
     return successor_;
   }
+
+  const char* GetDescription() const OVERRIDE { return "SuspendCheckSlowPathARM64"; }
 
  private:
   HSuspendCheck* const instruction_;
@@ -429,6 +441,8 @@ class TypeCheckSlowPathARM64 : public SlowPathCodeARM64 {
     __ B(GetExitLabel());
   }
 
+  const char* GetDescription() const OVERRIDE { return "TypeCheckSlowPathARM64"; }
+
  private:
   HInstruction* const instruction_;
   const Location class_to_check_;
@@ -452,6 +466,8 @@ class DeoptimizationSlowPathARM64 : public SlowPathCodeARM64 {
     CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
     arm64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pDeoptimize), instruction_, dex_pc, this);
   }
+
+  const char* GetDescription() const OVERRIDE { return "DeoptimizationSlowPathARM64"; }
 
  private:
   HInstruction* const instruction_;
