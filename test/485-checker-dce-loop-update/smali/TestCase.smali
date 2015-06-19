@@ -141,7 +141,7 @@
 ## CHECK-DAG:                    If [<<ArgY>>]                              loop:<<HeaderY>>
 ## CHECK-DAG:                    If [<<ArgZ>>]                              loop:<<HeaderY>>
 ## CHECK-DAG:     <<Mul9:i\d+>>  Mul [<<PhiX1>>,<<Cst9>>]                   loop:<<HeaderY>>
-## CHECK-DAG:     <<PhiX2:i\d+>> Phi [<<Mul9>>,<<PhiX1>>]                   loop:<<HeaderY>>
+## CHECK-DAG:     <<PhiX2:i\d+>> Phi [<<PhiX1>>,<<Mul9>>]                   loop:<<HeaderY>>
 ## CHECK-DAG:                    If [<<Cst1>>]                              loop:<<HeaderY>>
 ## CHECK-DAG:     <<Add5>>       Add [<<PhiX2>>,<<Cst5>>]                   loop:<<HeaderY>>
 ## CHECK-DAG:     <<Add7>>       Add [<<PhiX1>>,<<Cst7>>]                   loop:<<HeaderY>>
@@ -158,7 +158,7 @@
 ## CHECK-DAG:     <<Add7>>       Add [<<PhiX1>>,<<Cst7>>]                   loop:<<HeaderY>>
 ## CHECK-DAG:                    If [<<ArgZ>>]                              loop:none
 ## CHECK-DAG:     <<Mul9:i\d+>>  Mul [<<PhiX1>>,<<Cst9>>]                   loop:none
-## CHECK-DAG:     <<PhiX2:i\d+>> Phi [<<Mul9>>,<<PhiX1>>]                   loop:none
+## CHECK-DAG:     <<PhiX2:i\d+>> Phi [<<PhiX1>>,<<Mul9>>]                   loop:none
 ## CHECK-DAG:                    Return [<<PhiX2>>]                         loop:none
 
 .method public static testExitPredecessors(IZZ)I
