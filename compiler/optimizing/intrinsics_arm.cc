@@ -121,6 +121,8 @@ class IntrinsicSlowPathARM : public SlowPathCodeARM {
     __ b(GetExitLabel());
   }
 
+  const char* GetDescription() const OVERRIDE { return "IntrinsicSlowPathARM"; }
+
  private:
   // The instruction where this slow path is happening.
   HInvoke* const invoke_;
