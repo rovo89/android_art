@@ -359,9 +359,13 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
                && is_after_pass_) {
       if (instruction->GetType() == Primitive::kPrimNot) {
         if (instruction->IsLoadClass()) {
+          ReferenceTypeInfo info = instruction->AsLoadClass()->GetLoadedClassRTI();
           ScopedObjectAccess soa(Thread::Current());
-          StartAttributeStream("klass")
-              << PrettyClass(instruction->AsLoadClass()->GetLoadedClassRTI().GetTypeHandle().Get());
+          if (info.GetTypeHandle().GetReference() != nullptr) {
+            StartAttributeStream("klass") << info.GetTypeHandle().Get();
+          } else {
+            StartAttributeStream("klass") << "unresolved";
+          }
         } else {
           ReferenceTypeInfo info = instruction->GetReferenceTypeInfo();
           if (info.IsTop()) {
