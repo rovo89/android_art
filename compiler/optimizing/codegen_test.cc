@@ -20,6 +20,8 @@
 #include "arch/arm/instruction_set_features_arm.h"
 #include "arch/arm/registers_arm.h"
 #include "arch/arm64/instruction_set_features_arm64.h"
+#include "arch/mips64/instruction_set_features_mips64.h"
+#include "arch/mips64/registers_mips64.h"
 #include "arch/x86/instruction_set_features_x86.h"
 #include "arch/x86/registers_x86.h"
 #include "arch/x86_64/instruction_set_features_x86_64.h"
@@ -27,6 +29,7 @@
 #include "builder.h"
 #include "code_generator_arm.h"
 #include "code_generator_arm64.h"
+#include "code_generator_mips64.h"
 #include "code_generator_x86.h"
 #include "code_generator_x86_64.h"
 #include "common_compiler_test.h"
@@ -40,6 +43,7 @@
 #include "ssa_liveness_analysis.h"
 #include "utils.h"
 #include "utils/arm/managed_register_arm.h"
+#include "utils/mips64/managed_register_mips64.h"
 #include "utils/x86/managed_register_x86.h"
 
 #include "gtest/gtest.h"
@@ -172,6 +176,14 @@ static void RunCodeBaseline(HGraph* graph, bool has_result, Expected expected) {
   if (kRuntimeISA == kArm64) {
     Run(allocator, codegenARM64, has_result, expected);
   }
+
+  std::unique_ptr<const Mips64InstructionSetFeatures> features_mips64(
+      Mips64InstructionSetFeatures::FromCppDefines());
+  mips64::CodeGeneratorMIPS64 codegenMIPS64(graph, *features_mips64.get(), compiler_options);
+  codegenMIPS64.CompileBaseline(&allocator, true);
+  if (kRuntimeISA == kMips64) {
+    Run(allocator, codegenMIPS64, has_result, expected);
+  }
 }
 
 template <typename Expected>
@@ -219,6 +231,11 @@ static void RunCodeOptimized(HGraph* graph,
         X86_64InstructionSetFeatures::FromCppDefines());
     x86_64::CodeGeneratorX86_64 codegenX86_64(graph, *features_x86_64.get(), compiler_options);
     RunCodeOptimized(&codegenX86_64, graph, hook_before_codegen, has_result, expected);
+  } else if (kRuntimeISA == kMips64) {
+    std::unique_ptr<const Mips64InstructionSetFeatures> features_mips64(
+        Mips64InstructionSetFeatures::FromCppDefines());
+    mips64::CodeGeneratorMIPS64 codegenMIPS64(graph, *features_mips64.get(), compiler_options);
+    RunCodeOptimized(&codegenMIPS64, graph, hook_before_codegen, has_result, expected);
   }
 }
 
