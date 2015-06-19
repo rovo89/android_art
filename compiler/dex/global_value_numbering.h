@@ -194,7 +194,9 @@ class GlobalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
     return mir_graph_->GetBasicBlock(bb_id);
   }
 
-  static bool HasNullCheckLastInsn(const BasicBlock* pred_bb, BasicBlockId succ_id);
+  static bool HasNullCheckLastInsn(const BasicBlock* pred_bb, BasicBlockId succ_id) {
+    return pred_bb->BranchesToSuccessorOnlyIfNotZero(succ_id);
+  }
 
   bool NullCheckedInAllPredecessors(const ScopedArenaVector<uint16_t>& merge_names) const;
 
