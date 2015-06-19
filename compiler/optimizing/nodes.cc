@@ -180,8 +180,9 @@ void HGraph::SplitCriticalEdge(HBasicBlock* block, HBasicBlock* successor) {
   HBasicBlock* new_block = new (arena_) HBasicBlock(this, successor->GetDexPc());
   AddBlock(new_block);
   new_block->AddInstruction(new (arena_) HGoto());
-  block->ReplaceSuccessor(successor, new_block);
-  new_block->AddSuccessor(successor);
+  // Use `InsertBetween` to ensure the predecessor index and successor index of
+  // `block` and `successor` are preserved.
+  new_block->InsertBetween(block, successor);
   if (successor->IsLoopHeader()) {
     // If we split at a back edge boundary, make the new block the back edge.
     HLoopInformation* info = successor->GetLoopInformation();

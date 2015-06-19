@@ -89,8 +89,8 @@ TEST(DeadCodeElimination, AdditionAndConditionalJump) {
     "  9: If(8)\n"
     "BasicBlock 2, pred: 1, succ: 3\n"
     "  12: Goto 3\n"
-    "BasicBlock 3, pred: 2, 5, succ: 4\n"
-    "  22: Phi(3, 5) [15]\n"
+    "BasicBlock 3, pred: 5, 2, succ: 4\n"
+    "  22: Phi(5, 3) [15]\n"
     "  15: Add(22, 3)\n"
     "  17: ReturnVoid\n"
     "BasicBlock 4, pred: 3\n"
@@ -101,7 +101,7 @@ TEST(DeadCodeElimination, AdditionAndConditionalJump) {
   // Expected difference after dead code elimination.
   diff_t expected_diff = {
     { "  3: IntConstant [15, 22, 8]\n", "  3: IntConstant [22, 8]\n" },
-    { "  22: Phi(3, 5) [15]\n",         "  22: Phi(3, 5)\n" },
+    { "  22: Phi(5, 3) [15]\n",         "  22: Phi(5, 3)\n" },
     { "  15: Add(22, 3)\n",             removed }
   };
   std::string expected_after = Patch(expected_before, expected_diff);
