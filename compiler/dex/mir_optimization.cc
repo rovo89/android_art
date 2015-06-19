@@ -978,18 +978,12 @@ bool MIRGraph::EliminateNullChecks(BasicBlock* bb) {
       BasicBlock* pred_bb = GetBasicBlock(pred_id);
       DCHECK(pred_bb != nullptr);
       MIR* null_check_insn = nullptr;
-      if (pred_bb->block_type == kDalvikByteCode) {
-        // Check to see if predecessor had an explicit null-check.
-        MIR* last_insn = pred_bb->last_mir_insn;
-        if (last_insn != nullptr) {
-          Instruction::Code last_opcode = last_insn->dalvikInsn.opcode;
-          if ((last_opcode == Instruction::IF_EQZ && pred_bb->fall_through == bb->id) ||
-              (last_opcode == Instruction::IF_NEZ && pred_bb->taken == bb->id)) {
-            // Remember the null check insn if there's no other predecessor requiring null check.
-            if (!copied_first || !vregs_to_check->IsBitSet(last_insn->dalvikInsn.vA)) {
-              null_check_insn = last_insn;
-            }
-          }
+      // Check to see if predecessor had an explicit null-check.
+      if (pred_bb->BranchesToSuccessorOnlyIfNotZero(bb->id)) {
+        // Remember the null check insn if there's no other predecessor requiring null check.
+        if (!copied_first || !vregs_to_check->IsBitSet(pred_bb->last_mir_insn->dalvikInsn.vA)) {
+          null_check_insn = pred_bb->last_mir_insn;
+          DCHECK(null_check_insn != nullptr);
         }
       }
       if (!copied_first) {
