@@ -471,13 +471,18 @@ void ArmMir2Lir::OpRegCopyWide(RegStorage r_dest, RegStorage r_src) {
         NewLIR3(kThumb2Fmrrd, r_dest.GetLowReg(), r_dest.GetHighReg(), r_src.GetReg());
       } else {
         // Handle overlap
-        if (r_src.GetHighReg() == r_dest.GetLowReg()) {
-          DCHECK_NE(r_src.GetLowReg(), r_dest.GetHighReg());
+        if (r_src.GetHighReg() != r_dest.GetLowReg()) {
+          OpRegCopy(r_dest.GetLow(), r_src.GetLow());
+          OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
+        } else if (r_src.GetLowReg() != r_dest.GetHighReg()) {
           OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
           OpRegCopy(r_dest.GetLow(), r_src.GetLow());
         } else {
+          RegStorage r_tmp = AllocTemp();
+          OpRegCopy(r_tmp, r_src.GetHigh());
           OpRegCopy(r_dest.GetLow(), r_src.GetLow());
-          OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
+          OpRegCopy(r_dest.GetHigh(), r_tmp);
+          FreeTemp(r_tmp);
         }
       }
     }
