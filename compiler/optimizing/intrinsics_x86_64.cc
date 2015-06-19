@@ -149,6 +149,8 @@ class IntrinsicSlowPathX86_64 : public SlowPathCodeX86_64 {
     __ jmp(GetExitLabel());
   }
 
+  const char* GetDescription() const OVERRIDE { return "IntrinsicSlowPathX86_64"; }
+
  private:
   // The instruction where this slow path is happening.
   HInvoke* const invoke_;
