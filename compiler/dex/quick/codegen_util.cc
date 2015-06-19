@@ -670,7 +670,7 @@ bool Mir2Lir::VerifyCatchEntries() {
 
 
 void Mir2Lir::CreateMappingTables() {
-  bool generate_src_map = cu_->compiler_driver->GetCompilerOptions().GetIncludeDebugSymbols();
+  bool generate_src_map = cu_->compiler_driver->GetCompilerOptions().GetGenerateDebugInfo();
 
   uint32_t pc2dex_data_size = 0u;
   uint32_t pc2dex_entries = 0u;
@@ -1071,7 +1071,7 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       pc_rel_temp_(nullptr),
       dex_cache_arrays_min_offset_(std::numeric_limits<uint32_t>::max()),
       cfi_(&last_lir_insn_,
-           cu->compiler_driver->GetCompilerOptions().GetIncludeCFI(),
+           cu->compiler_driver->GetCompilerOptions().GetGenerateDebugInfo(),
            arena),
       in_to_reg_storage_mapping_(arena) {
   switch_tables_.reserve(4);

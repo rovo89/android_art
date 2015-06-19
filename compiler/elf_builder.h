@@ -166,6 +166,10 @@ class ElfBuilder FINAL {
           patched_(false), patch_(patch), patch_base_section_(patch_base_section) {
     }
 
+    RawSection(const std::string& name, Elf_Word type)
+        : RawSection(name, type, 0, nullptr, 0, 1, 0, nullptr, nullptr) {
+    }
+
     Elf_Word GetSize() const OVERRIDE {
       return buffer_.size();
     }
@@ -263,7 +267,7 @@ class ElfBuilder FINAL {
   class StrtabSection FINAL : public Section {
    public:
     StrtabSection(const std::string& name, Elf_Word flags)
-        : Section(name, SHT_STRTAB, flags, nullptr, 0, 1, 1) {
+        : Section(name, SHT_STRTAB, flags, nullptr, 0, 1, 0) {
       buffer_.reserve(4 * KB);
       // The first entry of strtab must be empty string.
       buffer_ += '\0';
@@ -306,7 +310,7 @@ class ElfBuilder FINAL {
 
     SymtabSection(const std::string& name, Elf_Word type, Elf_Word flags,
                   StrtabSection* strtab)
-        : Section(name, type, flags, strtab, 0, sizeof(Elf_Word), sizeof(Elf_Sym)),
+        : Section(name, type, flags, strtab, 0, sizeof(Elf_Off), sizeof(Elf_Sym)),
           strtab_(strtab) {
     }
 
@@ -499,7 +503,7 @@ class ElfBuilder FINAL {
       text_(".text", SHT_PROGBITS, SHF_ALLOC | SHF_EXECINSTR,
             nullptr, 0, kPageSize, 0, text_size, text_writer),
       bss_(".bss", bss_size),
-      dynamic_(".dynamic", &dynsym_),
+      dynamic_(".dynamic", &dynstr_),
       strtab_(".strtab", 0),
       symtab_(".symtab", SHT_SYMTAB, 0, &strtab_),
       shstrtab_(".shstrtab", 0) {
@@ -641,11 +645,10 @@ class ElfBuilder FINAL {
     // It is easiest to just reserve a fixed amount of space for them.
     constexpr size_t kMaxProgramHeaders = 8;
     constexpr size_t kProgramHeadersOffset = sizeof(Elf_Ehdr);
-    constexpr size_t kProgramHeadersSize = sizeof(Elf_Phdr) * kMaxProgramHeaders;
 
     // Layout of all sections - determine the final file offsets and addresses.
     // This must be done after we have built all sections and know their size.
-    Elf_Off file_offset = kProgramHeadersOffset + kProgramHeadersSize;
+    Elf_Off file_offset = kProgramHeadersOffset + sizeof(Elf_Phdr) * kMaxProgramHeaders;
     Elf_Addr load_address = file_offset;
     std::vector<Elf_Shdr> section_headers;
     section_headers.reserve(1u + sections.size());
@@ -674,7 +677,7 @@ class ElfBuilder FINAL {
       // Collect section headers into continuous array for convenience.
       section_headers.push_back(*header);
     }
-    Elf_Off section_headers_offset = RoundUp(file_offset, sizeof(Elf_Word));
+    Elf_Off section_headers_offset = RoundUp(file_offset, sizeof(Elf_Off));
 
     // Create program headers now that we know the layout of the whole file.
     // Each segment contains one or more sections which are mapped together.
@@ -682,8 +685,7 @@ class ElfBuilder FINAL {
     // PT_LOAD does the mapping.  Other PT_* types allow the program to locate
     // interesting parts of memory and their addresses overlap with PT_LOAD.
     std::vector<Elf_Phdr> program_headers;
-    program_headers.push_back(MakeProgramHeader(PT_PHDR, PF_R,
-      kProgramHeadersOffset, kProgramHeadersSize, sizeof(Elf_Word)));
+    program_headers.push_back(Elf_Phdr());  // Placeholder for PT_PHDR.
     // Create the main LOAD R segment which spans all sections up to .rodata.
     const Elf_Shdr* rodata = rodata_.GetHeader();
     program_headers.push_back(MakeProgramHeader(PT_LOAD, PF_R,
@@ -709,6 +711,9 @@ class ElfBuilder FINAL {
         program_headers.push_back(MakeProgramHeader(PT_GNU_EH_FRAME, PF_R, *eh_frame_hdr));
       }
     }
+    DCHECK_EQ(program_headers[0].p_type, 0u);  // Check placeholder.
+    program_headers[0] = MakeProgramHeader(PT_PHDR, PF_R,
+      kProgramHeadersOffset, program_headers.size() * sizeof(Elf_Phdr), sizeof(Elf_Off));
     CHECK_LE(program_headers.size(), kMaxProgramHeaders);
 
     // Create the main ELF header.
@@ -777,10 +782,12 @@ class ElfBuilder FINAL {
 
   template<typename T>
   static bool WriteArray(File* elf_file, const T* data, size_t count) {
-    DCHECK(data != nullptr);
-    if (!elf_file->WriteFully(data, count * sizeof(T))) {
-      PLOG(ERROR) << "Failed to write to file " << elf_file->GetPath();
-      return false;
+    if (count != 0) {
+      DCHECK(data != nullptr);
+      if (!elf_file->WriteFully(data, count * sizeof(T))) {
+        PLOG(ERROR) << "Failed to write to file " << elf_file->GetPath();
+        return false;
+      }
     }
     return true;
   }

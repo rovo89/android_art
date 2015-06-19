@@ -68,7 +68,7 @@ class DwarfTest : public CommonRuntimeTest {
     RawSection debug_abbrev(".debug_abbrev", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
     RawSection debug_str(".debug_str", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
     RawSection debug_line(".debug_line", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
-    RawSection eh_frame(".eh_frame", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0);
+    RawSection debug_frame(".debug_frame", SHT_PROGBITS, 0, nullptr, 0, 8, 0);
     if (!debug_info_data_.empty()) {
       debug_info.SetBuffer(debug_info_data_);
       builder.RegisterSection(&debug_info);
@@ -85,9 +85,9 @@ class DwarfTest : public CommonRuntimeTest {
       debug_line.SetBuffer(debug_line_data_);
       builder.RegisterSection(&debug_line);
     }
-    if (!eh_frame_data_.empty()) {
-      eh_frame.SetBuffer(eh_frame_data_);
-      builder.RegisterSection(&eh_frame);
+    if (!debug_frame_data_.empty()) {
+      debug_frame.SetBuffer(debug_frame_data_);
+      builder.RegisterSection(&debug_frame);
     }
     ScratchFile file;
     builder.Write(file.GetFile());
@@ -166,7 +166,7 @@ class DwarfTest : public CommonRuntimeTest {
   }
 
   // Buffers which are going to assembled into ELF file and passed to objdump.
-  std::vector<uint8_t> eh_frame_data_;
+  std::vector<uint8_t> debug_frame_data_;
   std::vector<uint8_t> debug_info_data_;
   std::vector<uint8_t> debug_abbrev_data_;
   std::vector<uint8_t> debug_str_data_;

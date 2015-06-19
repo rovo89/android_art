@@ -19,6 +19,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "base/casts.h"
 #include "base/logging.h"
 #include "base/unix_file/fd_file.h"
 #include "compiled_method.h"
@@ -37,6 +38,23 @@
 
 namespace art {
 
+// .eh_frame and .debug_frame are almost identical.
+// Except for some minor formatting differences, the main difference
+// is that .eh_frame is allocated within the running program because
+// it is used by C++ exception handling (which we do not use so we
+// can choose either).  C++ compilers generally tend to use .eh_frame
+// because if they need it sometimes, they might as well always use it.
+constexpr dwarf::CFIFormat kCFIFormat = dwarf::DW_EH_FRAME_FORMAT;
+
+// The ARM specification defines three special mapping symbols
+// $a, $t and $d which mark ARM, Thumb and data ranges respectively.
+// These symbols can be used by tools, for example, to pretty
+// print instructions correctly.  Objdump will use them if they
+// exist, but it will still work well without them.
+// However, these extra symbols take space, so let's just generate
+// one symbol which marks the whole .text section as code.
+constexpr bool kGenerateSingleArmMappingSymbol = true;
+
 template <typename ElfTypes>
 bool ElfWriterQuick<ElfTypes>::Create(File* elf_file,
                                       OatWriter* oat_writer,
@@ -51,36 +69,17 @@ bool ElfWriterQuick<ElfTypes>::Create(File* elf_file,
 template <typename ElfTypes>
 static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder, OatWriter* oat_writer);
 
-// Encode patch locations in .oat_patches format.
+// Encode patch locations as LEB128 list of deltas between consecutive addresses.
 template <typename ElfTypes>
-void ElfWriterQuick<ElfTypes>::EncodeOatPatches(
-    const OatWriter::PatchLocationsMap& sections,
-    std::vector<uint8_t>* buffer) {
-  for (const auto& section : sections) {
-    const std::string& name = section.first;
-    std::vector<uintptr_t>* locations = section.second.get();
-    DCHECK(!name.empty());
-    std::sort(locations->begin(), locations->end());
-    // Reserve buffer space - guess 2 bytes per ULEB128.
-    buffer->reserve(buffer->size() + name.size() + locations->size() * 2);
-    // Write null-terminated section name.
-    const uint8_t* name_data = reinterpret_cast<const uint8_t*>(name.c_str());
-    buffer->insert(buffer->end(), name_data, name_data + name.size() + 1);
-    // Write placeholder for data length.
-    size_t length_pos = buffer->size();
-    EncodeUnsignedLeb128(buffer, UINT32_MAX);
-    // Write LEB128 encoded list of advances (deltas between consequtive addresses).
-    size_t data_pos = buffer->size();
-    uintptr_t address = 0;  // relative to start of section.
-    for (uintptr_t location : *locations) {
-      DCHECK_LT(location - address, UINT32_MAX) << "Large gap between patch locations";
-      EncodeUnsignedLeb128(buffer, location - address);
-      address = location;
-    }
-    // Update length.
-    UpdateUnsignedLeb128(buffer->data() + length_pos, buffer->size() - data_pos);
+void ElfWriterQuick<ElfTypes>::EncodeOatPatches(const std::vector<uintptr_t>& locations,
+                                                std::vector<uint8_t>* buffer) {
+  buffer->reserve(buffer->size() + locations.size() * 2);  // guess 2 bytes per ULEB128.
+  uintptr_t address = 0;  // relative to start of section.
+  for (uintptr_t location : locations) {
+    DCHECK_GE(location, address) << "Patch locations are not in sorted order";
+    EncodeUnsignedLeb128(buffer, dchecked_integral_cast<uint32_t>(location - address));
+    address = location;
   }
-  buffer->push_back(0);  // End of sections.
 }
 
 class RodataWriter FINAL : public CodeOutput {
@@ -156,61 +155,95 @@ bool ElfWriterQuick<ElfTypes>::Write(
       isa, rodata_size, &rodata_writer, text_size, &text_writer, bss_size));
 
   // Add debug sections.
-  // They are stack allocated here (in the same scope as the builder),
-  // but they are registred with the builder only if they are used.
+  // They are allocated here (in the same scope as the builder),
+  // but they are registered with the builder only if they are used.
   using RawSection = typename ElfBuilder<ElfTypes>::RawSection;
   const auto* text = builder->GetText();
   const bool is64bit = Is64BitInstructionSet(isa);
-  RawSection eh_frame(".eh_frame", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0,
-                      is64bit ? Patch<Elf_Addr, uint64_t, kPointerRelativeAddress> :
-                                Patch<Elf_Addr, uint32_t, kPointerRelativeAddress>,
-                      text);
-  RawSection eh_frame_hdr(".eh_frame_hdr", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, 4, 0,
-                          Patch<Elf_Addr, uint32_t, kSectionRelativeAddress>, text);
-  RawSection debug_info(".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0,
-                        Patch<Elf_Addr, uint32_t, kAbsoluteAddress>, text);
-  RawSection debug_abbrev(".debug_abbrev", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
-  RawSection debug_str(".debug_str", SHT_PROGBITS, 0, nullptr, 0, 1, 0);
-  RawSection debug_line(".debug_line", SHT_PROGBITS, 0, nullptr, 0, 1, 0,
-                        Patch<Elf_Addr, uint32_t, kAbsoluteAddress>, text);
+  const int pointer_size = GetInstructionSetPointerSize(isa);
+  std::unique_ptr<RawSection> eh_frame(new RawSection(
+      ".eh_frame", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0,
+      is64bit ? Patch<Elf_Addr, uint64_t, kPointerRelativeAddress> :
+                Patch<Elf_Addr, uint32_t, kPointerRelativeAddress>,
+      text));
+  std::unique_ptr<RawSection> eh_frame_hdr(new RawSection(
+      ".eh_frame_hdr", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, 4, 0,
+      Patch<Elf_Addr, uint32_t, kSectionRelativeAddress>, text));
+  std::unique_ptr<RawSection> debug_frame(new RawSection(
+      ".debug_frame", SHT_PROGBITS, 0, nullptr, 0, pointer_size, 0,
+      is64bit ? Patch<Elf_Addr, uint64_t, kAbsoluteAddress> :
+                Patch<Elf_Addr, uint32_t, kAbsoluteAddress>,
+      text));
+  std::unique_ptr<RawSection> debug_frame_oat_patches(new RawSection(
+      ".debug_frame.oat_patches", SHT_OAT_PATCH));
+  std::unique_ptr<RawSection> debug_info(new RawSection(
+      ".debug_info", SHT_PROGBITS, 0, nullptr, 0, 1, 0,
+      Patch<Elf_Addr, uint32_t, kAbsoluteAddress>, text));
+  std::unique_ptr<RawSection> debug_info_oat_patches(new RawSection(
+      ".debug_info.oat_patches", SHT_OAT_PATCH));
+  std::unique_ptr<RawSection> debug_abbrev(new RawSection(
+      ".debug_abbrev", SHT_PROGBITS));
+  std::unique_ptr<RawSection> debug_str(new RawSection(
+      ".debug_str", SHT_PROGBITS));
+  std::unique_ptr<RawSection> debug_line(new RawSection(
+      ".debug_line", SHT_PROGBITS, 0, nullptr, 0, 1, 0,
+      Patch<Elf_Addr, uint32_t, kAbsoluteAddress>, text));
+  std::unique_ptr<RawSection> debug_line_oat_patches(new RawSection(
+      ".debug_line.oat_patches", SHT_OAT_PATCH));
   if (!oat_writer->GetMethodDebugInfo().empty()) {
-    if (compiler_driver_->GetCompilerOptions().GetIncludeCFI()) {
-      dwarf::WriteEhFrame(
-          compiler_driver_, oat_writer, dwarf::DW_EH_PE_pcrel,
-          eh_frame.GetBuffer(), eh_frame.GetPatchLocations(),
-          eh_frame_hdr.GetBuffer(), eh_frame_hdr.GetPatchLocations());
-      builder->RegisterSection(&eh_frame);
-      builder->RegisterSection(&eh_frame_hdr);
-    }
-    if (compiler_driver_->GetCompilerOptions().GetIncludeDebugSymbols()) {
+    if (compiler_driver_->GetCompilerOptions().GetGenerateDebugInfo()) {
+      // Generate CFI (stack unwinding information).
+      if (kCFIFormat == dwarf::DW_EH_FRAME_FORMAT) {
+        dwarf::WriteCFISection(
+            compiler_driver_, oat_writer,
+            dwarf::DW_EH_PE_pcrel, kCFIFormat,
+            eh_frame->GetBuffer(), eh_frame->GetPatchLocations(),
+            eh_frame_hdr->GetBuffer(), eh_frame_hdr->GetPatchLocations());
+        builder->RegisterSection(eh_frame.get());
+        builder->RegisterSection(eh_frame_hdr.get());
+      } else {
+        DCHECK(kCFIFormat == dwarf::DW_DEBUG_FRAME_FORMAT);
+        dwarf::WriteCFISection(
+            compiler_driver_, oat_writer,
+            dwarf::DW_EH_PE_absptr, kCFIFormat,
+            debug_frame->GetBuffer(), debug_frame->GetPatchLocations(),
+            nullptr, nullptr);
+        builder->RegisterSection(debug_frame.get());
+        EncodeOatPatches(*debug_frame->GetPatchLocations(),
+                         debug_frame_oat_patches->GetBuffer());
+        builder->RegisterSection(debug_frame_oat_patches.get());
+      }
       // Add methods to .symtab.
       WriteDebugSymbols(builder.get(), oat_writer);
       // Generate DWARF .debug_* sections.
       dwarf::WriteDebugSections(
           compiler_driver_, oat_writer,
-          debug_info.GetBuffer(), debug_info.GetPatchLocations(),
-          debug_abbrev.GetBuffer(),
-          debug_str.GetBuffer(),
-          debug_line.GetBuffer(), debug_line.GetPatchLocations());
-      builder->RegisterSection(&debug_info);
-      builder->RegisterSection(&debug_abbrev);
-      builder->RegisterSection(&debug_str);
-      builder->RegisterSection(&debug_line);
-      *oat_writer->GetAbsolutePatchLocationsFor(".debug_info") =
-          *debug_info.GetPatchLocations();
-      *oat_writer->GetAbsolutePatchLocationsFor(".debug_line") =
-          *debug_line.GetPatchLocations();
+          debug_info->GetBuffer(), debug_info->GetPatchLocations(),
+          debug_abbrev->GetBuffer(),
+          debug_str->GetBuffer(),
+          debug_line->GetBuffer(), debug_line->GetPatchLocations());
+      builder->RegisterSection(debug_info.get());
+      EncodeOatPatches(*debug_info->GetPatchLocations(),
+                       debug_info_oat_patches->GetBuffer());
+      builder->RegisterSection(debug_info_oat_patches.get());
+      builder->RegisterSection(debug_abbrev.get());
+      builder->RegisterSection(debug_str.get());
+      builder->RegisterSection(debug_line.get());
+      EncodeOatPatches(*debug_line->GetPatchLocations(),
+                       debug_line_oat_patches->GetBuffer());
+      builder->RegisterSection(debug_line_oat_patches.get());
     }
   }
 
-  // Add relocation section.
-  RawSection oat_patches(".oat_patches", SHT_OAT_PATCH, 0, nullptr, 0, 1, 0);
-  if (compiler_driver_->GetCompilerOptions().GetIncludePatchInformation() ||
-      // ElfWriter::Fixup will be called regardless and it needs to be able
-      // to patch debug sections so we have to include patches for them.
-      compiler_driver_->GetCompilerOptions().GetIncludeDebugSymbols()) {
-    EncodeOatPatches(oat_writer->GetAbsolutePatchLocations(), oat_patches.GetBuffer());
-    builder->RegisterSection(&oat_patches);
+  // Add relocation section for .text.
+  std::unique_ptr<RawSection> text_oat_patches(new RawSection(
+      ".text.oat_patches", SHT_OAT_PATCH));
+  if (compiler_driver_->GetCompilerOptions().GetIncludePatchInformation()) {
+    // Note that ElfWriter::Fixup will be called regardless and therefore
+    // we need to include oat_patches for debug sections unconditionally.
+    EncodeOatPatches(oat_writer->GetAbsolutePatchLocations(),
+                     text_oat_patches->GetBuffer());
+    builder->RegisterSection(text_oat_patches.get());
   }
 
   return builder->Write(elf_file_);
@@ -219,6 +252,7 @@ bool ElfWriterQuick<ElfTypes>::Write(
 template <typename ElfTypes>
 static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder, OatWriter* oat_writer) {
   const std::vector<OatWriter::DebugInfo>& method_info = oat_writer->GetMethodDebugInfo();
+  bool generated_mapping_symbol = false;
 
   // Find all addresses (low_pc) which contain deduped methods.
   // The first instance of method is not marked deduped_, but the rest is.
@@ -247,9 +281,14 @@ static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder, OatWriter* oat_writ
 
     // Conforming to aaelf, add $t mapping symbol to indicate start of a sequence of thumb2
     // instructions, so that disassembler tools can correctly disassemble.
+    // Note that even if we generate just a single mapping symbol, ARM's Streamline
+    // requires it to match function symbol.  Just address 0 does not work.
     if (it->compiled_method_->GetInstructionSet() == kThumb2) {
-      symtab->AddSymbol("$t", builder->GetText(), it->low_pc_ & ~1, true,
-                        0, STB_LOCAL, STT_NOTYPE);
+      if (!generated_mapping_symbol || !kGenerateSingleArmMappingSymbol) {
+        symtab->AddSymbol("$t", builder->GetText(), it->low_pc_ & ~1, true,
+                          0, STB_LOCAL, STT_NOTYPE);
+        generated_mapping_symbol = true;
+      }
     }
   }
 }
