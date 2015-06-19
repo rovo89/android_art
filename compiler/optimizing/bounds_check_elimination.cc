@@ -335,12 +335,12 @@ class ArrayAccessInsideLoopFinder : public ValueObject {
           continue;
         }
 
-        DCHECK(!length_value->IsPhi());
         if (length_value->IsPhi()) {
-          // Outer loop shouldn't collect bounds checks inside inner
-          // loop because the inner loop body doen't dominate
-          // outer loop's back edges. However just to be on the safe side,
-          // if there are any such cases, we just skip over them.
+          // When adding deoptimizations in outer loops, we might create
+          // a phi for the array length, and update all uses of the
+          // length in the loop to that phi. Therefore, inner loops having
+          // bounds checks on the same array will use that phi.
+          // TODO: handle these cases.
           continue;
         }
 
