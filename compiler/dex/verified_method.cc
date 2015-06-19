@@ -89,14 +89,15 @@ bool VerifiedMethod::GenerateGcMap(verifier::MethodVerifier* method_verifier) {
   DCHECK(dex_gc_map_.empty());
   size_t num_entries, ref_bitmap_bits, pc_bits;
   ComputeGcMapSizes(method_verifier, &num_entries, &ref_bitmap_bits, &pc_bits);
-  // There's a single byte to encode the size of each bitmap.
-  if (ref_bitmap_bits >= kBitsPerByte * 8192 /* 13-bit size */) {
+  const size_t ref_bitmap_bytes = RoundUp(ref_bitmap_bits, kBitsPerByte) / kBitsPerByte;
+  static constexpr size_t kFormatBits = 3;
+  // We have 16 - kFormatBits available for the ref_bitmap_bytes.
+  if ((ref_bitmap_bytes >> (16u - kFormatBits)) != 0) {
     LOG(WARNING) << "Cannot encode GC map for method with " << ref_bitmap_bits << " registers: "
                  << PrettyMethod(method_verifier->GetMethodReference().dex_method_index,
                                  *method_verifier->GetMethodReference().dex_file);
     return false;
   }
-  size_t ref_bitmap_bytes = RoundUp(ref_bitmap_bits, kBitsPerByte) / kBitsPerByte;
   // There are 2 bytes to encode the number of entries.
   if (num_entries >= 65536) {
     LOG(WARNING) << "Cannot encode GC map for method with " << num_entries << " entries: "
@@ -122,7 +123,7 @@ bool VerifiedMethod::GenerateGcMap(verifier::MethodVerifier* method_verifier) {
   size_t table_size = ((pc_bytes + ref_bitmap_bytes) * num_entries) + 4;
   dex_gc_map_.reserve(table_size);
   // Write table header.
-  dex_gc_map_.push_back(format | ((ref_bitmap_bytes & ~0xFF) >> 5));
+  dex_gc_map_.push_back(format | ((ref_bitmap_bytes & ~0xFF) >> (kBitsPerByte - kFormatBits)));
   dex_gc_map_.push_back(ref_bitmap_bytes & 0xFF);
   dex_gc_map_.push_back(num_entries & 0xFF);
   dex_gc_map_.push_back((num_entries >> 8) & 0xFF);
@@ -147,7 +148,7 @@ void VerifiedMethod::VerifyGcMap(verifier::MethodVerifier* method_verifier,
   // Check that for every GC point there is a map entry, there aren't entries for non-GC points,
   // that the table data is well formed and all references are marked (or not) in the bitmap.
   verifier::DexPcToReferenceMap map(&data[0]);
-  DCHECK_EQ(data.size(), map.RawSize());
+  CHECK_EQ(data.size(), map.RawSize()) << map.NumEntries() << " " << map.RegWidth();
   size_t map_index = 0;
   const DexFile::CodeItem* code_item = method_verifier->CodeItem();
   for (size_t i = 0; i < code_item->insns_size_in_code_units_; i++) {
