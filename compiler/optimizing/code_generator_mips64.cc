@@ -138,6 +138,8 @@ class BoundsCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
     CheckEntrypointTypes<kQuickThrowArrayBounds, void, int32_t, int32_t>();
   }
 
+  const char* GetDescription() const OVERRIDE { return "BoundsCheckSlowPathMIPS64"; }
+
  private:
   HBoundsCheck* const instruction_;
   const Location index_location_;
@@ -159,6 +161,8 @@ class DivZeroCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
                                   this);
     CheckEntrypointTypes<kQuickThrowDivZero, void, void>();
   }
+
+  const char* GetDescription() const OVERRIDE { return "DivZeroCheckSlowPathMIPS64"; }
 
  private:
   HDivZeroCheck* const instruction_;
@@ -205,6 +209,8 @@ class LoadClassSlowPathMIPS64 : public SlowPathCodeMIPS64 {
     __ B(GetExitLabel());
   }
 
+  const char* GetDescription() const OVERRIDE { return "LoadClassSlowPathMIPS64"; }
+
  private:
   // The class this slow path will load.
   HLoadClass* const cls_;
@@ -250,6 +256,8 @@ class LoadStringSlowPathMIPS64 : public SlowPathCodeMIPS64 {
     __ B(GetExitLabel());
   }
 
+  const char* GetDescription() const OVERRIDE { return "LoadStringSlowPathMIPS64"; }
+
  private:
   HLoadString* const instruction_;
 
@@ -269,6 +277,8 @@ class NullCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
                                   this);
     CheckEntrypointTypes<kQuickThrowNullPointer, void, void>();
   }
+
+  const char* GetDescription() const OVERRIDE { return "NullCheckSlowPathMIPS64"; }
 
  private:
   HNullCheck* const instruction_;
@@ -303,6 +313,8 @@ class SuspendCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
     DCHECK(successor_ == nullptr);
     return &return_label_;
   }
+
+  const char* GetDescription() const OVERRIDE { return "SuspendCheckSlowPathMIPS64"; }
 
  private:
   HSuspendCheck* const instruction_;
@@ -367,6 +379,8 @@ class TypeCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
     __ B(GetExitLabel());
   }
 
+  const char* GetDescription() const OVERRIDE { return "TypeCheckSlowPathMIPS64"; }
+
  private:
   HInstruction* const instruction_;
   const Location class_to_check_;
@@ -390,6 +404,8 @@ class DeoptimizationSlowPathMIPS64 : public SlowPathCodeMIPS64 {
     CodeGeneratorMIPS64* mips64_codegen = down_cast<CodeGeneratorMIPS64*>(codegen);
     mips64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pDeoptimize), instruction_, dex_pc, this);
   }
+
+  const char* GetDescription() const OVERRIDE { return "DeoptimizationSlowPathMIPS64"; }
 
  private:
   HInstruction* const instruction_;
