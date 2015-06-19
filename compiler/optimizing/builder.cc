@@ -661,7 +661,7 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
         (target_method.dex_method_index == outer_compilation_unit_->GetDexMethodIndex())
         && (target_method.dex_file == outer_compilation_unit_->GetDexFile());
 
-    if (optimized_invoke_type == kStatic) {
+    if (optimized_invoke_type == kStatic && !is_string_init) {
       ScopedObjectAccess soa(Thread::Current());
       StackHandleScope<4> hs(soa.Self());
       Handle<mirror::DexCache> dex_cache(hs.NewHandle(
