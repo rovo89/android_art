@@ -1667,15 +1667,9 @@ void MIRGraph::StringChange() {
       if (opcode == Instruction::NEW_INSTANCE) {
         uint32_t type_idx = mir->dalvikInsn.vB;
         if (cu_->compiler_driver->IsStringTypeIndex(type_idx, cu_->dex_file)) {
-          // Change NEW_INSTANCE and throwing half of the insn (if it exists) into CONST_4 of 0
+          // Change NEW_INSTANCE into CONST_4 of 0
           mir->dalvikInsn.opcode = Instruction::CONST_4;
           mir->dalvikInsn.vB = 0;
-          MIR* check_mir = GetBasicBlock(bb->predecessors[0])->last_mir_insn;
-          if (check_mir != nullptr &&
-              static_cast<int>(check_mir->dalvikInsn.opcode) == kMirOpCheck) {
-            check_mir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
-            check_mir->dalvikInsn.vB = 0;
-          }
         }
       } else if ((opcode == Instruction::INVOKE_DIRECT) ||
                  (opcode == Instruction::INVOKE_DIRECT_RANGE)) {
