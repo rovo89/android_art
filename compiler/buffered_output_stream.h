@@ -28,6 +28,7 @@ class BufferedOutputStream FINAL : public OutputStream {
   explicit BufferedOutputStream(OutputStream* out);
 
   virtual ~BufferedOutputStream() {
+    Flush();
     delete out_;
   }
 
