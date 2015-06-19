@@ -244,7 +244,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
     endif
   endif
 
-  LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime
+  LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime art/disassembler
 
   ifeq ($$(art_target_or_host),host)
     # For compiler driver TLS.

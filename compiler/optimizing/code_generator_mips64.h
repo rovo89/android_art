@@ -228,6 +228,7 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
   HGraphVisitor* GetLocationBuilder() OVERRIDE { return &location_builder_; }
   HGraphVisitor* GetInstructionVisitor() OVERRIDE { return &instruction_visitor_; }
   Mips64Assembler* GetAssembler() OVERRIDE { return &assembler_; }
+  const Mips64Assembler& GetAssembler() const OVERRIDE { return assembler_; }
 
   void MarkGCCard(GpuRegister object, GpuRegister value);
 

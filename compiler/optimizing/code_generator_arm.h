@@ -254,6 +254,10 @@ class CodeGeneratorARM : public CodeGenerator {
     return &assembler_;
   }
 
+  const ArmAssembler& GetAssembler() const OVERRIDE {
+    return assembler_;
+  }
+
   uintptr_t GetAddressOf(HBasicBlock* block) const OVERRIDE {
     return GetLabelOf(block)->Position();
   }
