@@ -56,6 +56,8 @@ class NullCheckSlowPathX86 : public SlowPathCodeX86 {
     RecordPcInfo(codegen, instruction_, instruction_->GetDexPc());
   }
 
+  const char* GetDescription() const OVERRIDE { return "NullCheckSlowPathX86"; }
+
  private:
   HNullCheck* const instruction_;
   DISALLOW_COPY_AND_ASSIGN(NullCheckSlowPathX86);
@@ -70,6 +72,8 @@ class DivZeroCheckSlowPathX86 : public SlowPathCodeX86 {
     __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pThrowDivZero)));
     RecordPcInfo(codegen, instruction_, instruction_->GetDexPc());
   }
+
+  const char* GetDescription() const OVERRIDE { return "DivZeroCheckSlowPathX86"; }
 
  private:
   HDivZeroCheck* const instruction_;
@@ -89,6 +93,8 @@ class DivRemMinusOneSlowPathX86 : public SlowPathCodeX86 {
     }
     __ jmp(GetExitLabel());
   }
+
+  const char* GetDescription() const OVERRIDE { return "DivRemMinusOneSlowPathX86"; }
 
  private:
   Register reg_;
@@ -121,6 +127,8 @@ class BoundsCheckSlowPathX86 : public SlowPathCodeX86 {
     __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pThrowArrayBounds)));
     RecordPcInfo(codegen, instruction_, instruction_->GetDexPc());
   }
+
+  const char* GetDescription() const OVERRIDE { return "BoundsCheckSlowPathX86"; }
 
  private:
   HBoundsCheck* const instruction_;
@@ -158,6 +166,8 @@ class SuspendCheckSlowPathX86 : public SlowPathCodeX86 {
     return successor_;
   }
 
+  const char* GetDescription() const OVERRIDE { return "SuspendCheckSlowPathX86"; }
+
  private:
   HSuspendCheck* const instruction_;
   HBasicBlock* const successor_;
@@ -187,6 +197,8 @@ class LoadStringSlowPathX86 : public SlowPathCodeX86 {
 
     __ jmp(GetExitLabel());
   }
+
+  const char* GetDescription() const OVERRIDE { return "LoadStringSlowPathX86"; }
 
  private:
   HLoadString* const instruction_;
@@ -227,6 +239,8 @@ class LoadClassSlowPathX86 : public SlowPathCodeX86 {
     RestoreLiveRegisters(codegen, locations);
     __ jmp(GetExitLabel());
   }
+
+  const char* GetDescription() const OVERRIDE { return "LoadClassSlowPathX86"; }
 
  private:
   // The class this slow path will load.
@@ -293,6 +307,8 @@ class TypeCheckSlowPathX86 : public SlowPathCodeX86 {
     __ jmp(GetExitLabel());
   }
 
+  const char* GetDescription() const OVERRIDE { return "TypeCheckSlowPathX86"; }
+
  private:
   HInstruction* const instruction_;
   const Location class_to_check_;
@@ -317,6 +333,8 @@ class DeoptimizationSlowPathX86 : public SlowPathCodeX86 {
     uint32_t dex_pc = deoptimize->GetDexPc();
     codegen->RecordPcInfo(instruction_, dex_pc, this);
   }
+
+  const char* GetDescription() const OVERRIDE { return "DeoptimizationSlowPathX86"; }
 
  private:
   HInstruction* const instruction_;

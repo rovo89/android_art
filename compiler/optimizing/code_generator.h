@@ -97,6 +97,8 @@ class SlowPathCode : public ArenaObject<kArenaAllocSlowPaths> {
     return saved_fpu_stack_offsets_[reg];
   }
 
+  virtual const char* GetDescription() const = 0;
+
  protected:
   static constexpr size_t kMaximumNumberOfExpectedRegisters = 32;
   static constexpr uint32_t kRegisterNotSaved = -1;
