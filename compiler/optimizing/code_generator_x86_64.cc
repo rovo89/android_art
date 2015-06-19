@@ -372,7 +372,7 @@ void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
 
   if (invoke->IsStringInit()) {
     // temp = thread->string_init_entrypoint
-    __ gs()->movl(temp, Address::Absolute(invoke->GetStringInitOffset()));
+    __ gs()->movq(temp, Address::Absolute(invoke->GetStringInitOffset(), true));
     // (temp + offset_of_quick_compiled_code)()
     __ call(Address(temp, ArtMethod::EntryPointFromQuickCompiledCodeOffset(
         kX86_64WordSize).SizeValue()));
