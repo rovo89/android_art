@@ -160,20 +160,10 @@ uint16_t GlobalValueNumbering::GetArrayLocation(uint16_t base, uint16_t index) {
   return location;
 }
 
-bool GlobalValueNumbering::HasNullCheckLastInsn(const BasicBlock* pred_bb,
-                                                BasicBlockId succ_id) {
-  if (pred_bb->block_type != kDalvikByteCode || pred_bb->last_mir_insn == nullptr) {
-    return false;
-  }
-  Instruction::Code last_opcode = pred_bb->last_mir_insn->dalvikInsn.opcode;
-  return ((last_opcode == Instruction::IF_EQZ && pred_bb->fall_through == succ_id) ||
-      (last_opcode == Instruction::IF_NEZ && pred_bb->taken == succ_id));
-}
-
 bool GlobalValueNumbering::NullCheckedInAllPredecessors(
     const ScopedArenaVector<uint16_t>& merge_names) const {
   // Implicit parameters:
-  //   - *work_lvn: the LVN for which we're checking predecessors.
+  //   - *work_lvn_: the LVN for which we're checking predecessors.
   //   - merge_lvns_: the predecessor LVNs.
   DCHECK_EQ(merge_lvns_.size(), merge_names.size());
   for (size_t i = 0, size = merge_lvns_.size(); i != size; ++i) {
@@ -198,7 +188,7 @@ bool GlobalValueNumbering::NullCheckedInAllPredecessors(
 bool GlobalValueNumbering::DivZeroCheckedInAllPredecessors(
     const ScopedArenaVector<uint16_t>& merge_names) const {
   // Implicit parameters:
-  //   - *work_lvn: the LVN for which we're checking predecessors.
+  //   - *work_lvn_: the LVN for which we're checking predecessors.
   //   - merge_lvns_: the predecessor LVNs.
   DCHECK_EQ(merge_lvns_.size(), merge_names.size());
   for (size_t i = 0, size = merge_lvns_.size(); i != size; ++i) {
@@ -217,15 +207,11 @@ bool GlobalValueNumbering::IsBlockEnteredOnTrue(uint16_t cond, BasicBlockId bb_i
   if (bb->predecessors.size() == 1u) {
     BasicBlockId pred_id = bb->predecessors[0];
     BasicBlock* pred_bb = mir_graph_->GetBasicBlock(pred_id);
-    if (pred_bb->last_mir_insn != nullptr) {
-      Instruction::Code opcode = pred_bb->last_mir_insn->dalvikInsn.opcode;
-      if ((opcode == Instruction::IF_NEZ && pred_bb->taken == bb_id) ||
-          (opcode == Instruction::IF_EQZ && pred_bb->fall_through == bb_id)) {
-        DCHECK(lvns_[pred_id] != nullptr);
-        uint16_t operand = lvns_[pred_id]->GetSregValue(pred_bb->last_mir_insn->ssa_rep->uses[0]);
-        if (operand == cond) {
-          return true;
-        }
+    if (pred_bb->BranchesToSuccessorOnlyIfNotZero(bb_id)) {
+      DCHECK(lvns_[pred_id] != nullptr);
+      uint16_t operand = lvns_[pred_id]->GetSregValue(pred_bb->last_mir_insn->ssa_rep->uses[0]);
+      if (operand == cond) {
+        return true;
       }
     }
   }

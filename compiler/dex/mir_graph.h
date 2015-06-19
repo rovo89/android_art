@@ -452,6 +452,21 @@ class BasicBlock : public DeletableArenaObject<kArenaAllocBB> {
   MIR* GetFirstNonPhiInsn();
 
   /**
+   * @brief Checks whether the block ends with if-nez or if-eqz that branches to
+   *        the given successor only if the register in not zero.
+   */
+  bool BranchesToSuccessorOnlyIfNotZero(BasicBlockId succ_id) const {
+    if (last_mir_insn == nullptr) {
+      return false;
+    }
+    Instruction::Code last_opcode = last_mir_insn->dalvikInsn.opcode;
+    return ((last_opcode == Instruction::IF_EQZ && fall_through == succ_id) ||
+        (last_opcode == Instruction::IF_NEZ && taken == succ_id)) &&
+        // Make sure the other successor isn't the same (empty if), b/21614284.
+        (fall_through != taken);
+  }
+
+  /**
    * @brief Used to obtain the next MIR that follows unconditionally.
    * @details The implementation does not guarantee that a MIR does not
    * follow even if this method returns nullptr.
