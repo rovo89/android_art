@@ -141,7 +141,7 @@
 # CHECK-DAG:                    If [ [[ArgY]] ]                              loop_header:[[HeaderY]]
 # CHECK-DAG:                    If [ [[ArgZ]] ]                              loop_header:[[HeaderY]]
 # CHECK-DAG:     [[Mul9:i\d+]]  Mul [ [[PhiX1]] [[Cst9]] ]                   loop_header:[[HeaderY]]
-# CHECK-DAG:     [[PhiX2:i\d+]] Phi [ [[Mul9]] [[PhiX1]] ]                   loop_header:[[HeaderY]]
+# CHECK-DAG:     [[PhiX2:i\d+]] Phi [ [[PhiX1]] [[Mul9]] ]                   loop_header:[[HeaderY]]
 # CHECK-DAG:                    If [ [[Cst1]] ]                              loop_header:[[HeaderY]]
 # CHECK-DAG:     [[Add5]]       Add [ [[PhiX2]] [[Cst5]] ]                   loop_header:[[HeaderY]]
 # CHECK-DAG:     [[Add7]]       Add [ [[PhiX1]] [[Cst7]] ]                   loop_header:[[HeaderY]]
@@ -158,7 +158,7 @@
 # CHECK-DAG:     [[Add7]]       Add [ [[PhiX1]] [[Cst7]] ]                   loop_header:[[HeaderY]]
 # CHECK-DAG:                    If [ [[ArgZ]] ]                              loop_header:null
 # CHECK-DAG:     [[Mul9:i\d+]]  Mul [ [[PhiX1]] [[Cst9]] ]                   loop_header:null
-# CHECK-DAG:     [[PhiX2:i\d+]] Phi [ [[Mul9]] [[PhiX1]] ]                   loop_header:null
+# CHECK-DAG:     [[PhiX2:i\d+]] Phi [ [[PhiX1]] [[Mul9]] ]                   loop_header:null
 # CHECK-DAG:                    Return [ [[PhiX2]] ]                         loop_header:null
 
 .method public static testExitPredecessors(IZZ)I
