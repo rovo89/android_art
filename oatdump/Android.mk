@@ -47,12 +47,28 @@ dump-oat-core-host: $(HOST_CORE_IMG_OUTS) $(OATDUMP)
 	@echo Output in $(ART_DUMP_OAT_PATH)/core.host.oatdump.txt
 endif
 
-.PHONY: dump-oat-core-target
+.PHONY: dump-oat-core-target-$(TARGET_ARCH)
 ifeq ($(ART_BUILD_TARGET),true)
-dump-oat-core-target: $(TARGET_CORE_IMAGE_default_no-pic_32) $(OATDUMP)
+dump-oat-core-target-$(TARGET_ARCH): $(TARGET_CORE_IMAGE_default_no-pic_$(ART_PHONY_TEST_TARGET_SUFFIX)) $(OATDUMP)
 	$(OATDUMP) --image=$(TARGET_CORE_IMG_LOCATION) \
-	  --output=$(ART_DUMP_OAT_PATH)/core.target.oatdump.txt --instruction-set=$(TARGET_ARCH)
-	@echo Output in $(ART_DUMP_OAT_PATH)/core.target.oatdump.txt
+	  --output=$(ART_DUMP_OAT_PATH)/core.target.$(TARGET_ARCH).oatdump.txt --instruction-set=$(TARGET_ARCH)
+	@echo Output in $(ART_DUMP_OAT_PATH)/core.target.$(TARGET_ARCH).oatdump.txt
+endif
+
+ifdef TARGET_2ND_ARCH
+.PHONY: dump-oat-core-target-$(TARGET_2ND_ARCH)
+ifeq ($(ART_BUILD_TARGET),true)
+dump-oat-core-target-$(TARGET_2ND_ARCH): $(TARGET_CORE_IMAGE_default_no-pic_$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)) $(OATDUMP)
+	$(OATDUMP) --image=$(TARGET_CORE_IMG_LOCATION) \
+	  --output=$(ART_DUMP_OAT_PATH)/core.target.$(TARGET_2ND_ARCH).oatdump.txt --instruction-set=$(TARGET_2ND_ARCH)
+	@echo Output in $(ART_DUMP_OAT_PATH)/core.target.$(TARGET_2ND_ARCH).oatdump.txt
+endif
+endif
+
+.PHONY: dump-oat-core-target
+dump-oat-core-target: dump-oat-core-target-$(TARGET_ARCH)
+ifdef TARGET_2ND_ARCH
+dump-oat-core-target: dump-oat-core-target-$(TARGET_2ND_ARCH)
 endif
 
 .PHONY: dump-oat-boot-$(TARGET_ARCH)
