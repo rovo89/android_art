@@ -54,9 +54,19 @@ void WriteDebugFrameCIE(bool is64bit,
   writer.PushUleb128(return_address_register.num());  // ubyte in DWARF2.
   writer.PushUleb128(1);  // z: Augmentation data size.
   if (is64bit) {
-    writer.PushUint8(address_type | DW_EH_PE_udata8);  // R: Pointer encoding.
+    if (address_type == DW_EH_PE_pcrel) {
+      writer.PushUint8(DW_EH_PE_pcrel | DW_EH_PE_sdata8);   // R: Pointer encoding.
+    } else {
+      DCHECK(address_type == DW_EH_PE_absptr);
+      writer.PushUint8(DW_EH_PE_absptr | DW_EH_PE_udata8);  // R: Pointer encoding.
+    }
   } else {
-    writer.PushUint8(address_type | DW_EH_PE_udata4);  // R: Pointer encoding.
+    if (address_type == DW_EH_PE_pcrel) {
+      writer.PushUint8(DW_EH_PE_pcrel | DW_EH_PE_sdata4);   // R: Pointer encoding.
+    } else {
+      DCHECK(address_type == DW_EH_PE_absptr);
+      writer.PushUint8(DW_EH_PE_absptr | DW_EH_PE_udata4);  // R: Pointer encoding.
+    }
   }
   writer.PushData(opcodes.data());
   writer.Pad(is64bit ? 8 : 4);
