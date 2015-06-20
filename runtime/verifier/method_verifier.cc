@@ -1291,13 +1291,22 @@ static bool IsPrimitiveDescriptor(char descriptor) {
 
 bool MethodVerifier::SetTypesFromSignature() {
   RegisterLine* reg_line = reg_table_.GetLine(0);
-  int arg_start = code_item_->registers_size_ - code_item_->ins_size_;
+
+  // Should have been verified earlier.
+  DCHECK_GE(code_item_->registers_size_, code_item_->ins_size_);
+
+  uint32_t arg_start = code_item_->registers_size_ - code_item_->ins_size_;
   size_t expected_args = code_item_->ins_size_;   /* long/double count as two */
 
-  DCHECK_GE(arg_start, 0);      /* should have been verified earlier */
   // Include the "this" pointer.
   size_t cur_arg = 0;
   if (!IsStatic()) {
+    if (expected_args == 0) {
+      // Expect at least a receiver.
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected 0 args, but method is not static";
+      return false;
+    }
+
     // If this is a constructor for a class other than java.lang.Object, mark the first ("this")
     // argument as uninitialized. This restricts field access until the superclass constructor is
     // called.
