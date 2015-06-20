@@ -682,26 +682,29 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
       const DexFile& outer_dex_file = *outer_compilation_unit_->GetDexFile();
       Handle<mirror::DexCache> outer_dex_cache(hs.NewHandle(
           outer_compilation_unit_->GetClassLinker()->FindDexCache(outer_dex_file)));
-      Handle<mirror::Class> referrer_class(hs.NewHandle(GetOutermostCompilingClass()));
+      Handle<mirror::Class> outer_class(hs.NewHandle(GetOutermostCompilingClass()));
 
       // The index at which the method's class is stored in the DexCache's type array.
       uint32_t storage_index = DexFile::kDexNoIndex;
-      bool is_referrer_class = (resolved_method->GetDeclaringClass() == referrer_class.Get());
-      if (is_referrer_class) {
-        storage_index = referrer_class->GetDexTypeIndex();
+      bool is_outer_class = (resolved_method->GetDeclaringClass() == outer_class.Get());
+      if (is_outer_class) {
+        storage_index = outer_class->GetDexTypeIndex();
       } else if (outer_dex_cache.Get() == dex_cache.Get()) {
         // Get `storage_index` from IsClassOfStaticMethodAvailableToReferrer.
         compiler_driver_->IsClassOfStaticMethodAvailableToReferrer(outer_dex_cache.Get(),
-                                                                   referrer_class.Get(),
+                                                                   GetCompilingClass(),
                                                                    resolved_method,
                                                                    method_idx,
                                                                    &storage_index);
       }
 
-      if (referrer_class.Get()->IsSubClass(resolved_method->GetDeclaringClass())) {
-        // If the referrer class is the declaring class or a subclass
+      if (outer_class.Get()->IsSubClass(resolved_method->GetDeclaringClass())) {
+        // If the outer class is the declaring class or a subclass
         // of the declaring class, no class initialization is needed
         // before the static method call.
+        // Note that in case of inlining, we do not need to add clinit checks
+        // to calls that satisfy this subclass check with any inlined methods. This
+        // will be detected by the optimization passes.
         clinit_check_requirement = HInvokeStaticOrDirect::ClinitCheckRequirement::kNone;
       } else if (storage_index != DexFile::kDexNoIndex) {
         // If the method's class type index is available, check
@@ -719,7 +722,7 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
         } else {
           clinit_check_requirement = HInvokeStaticOrDirect::ClinitCheckRequirement::kExplicit;
           HLoadClass* load_class =
-              new (arena_) HLoadClass(storage_index, is_referrer_class, dex_pc);
+              new (arena_) HLoadClass(storage_index, is_outer_class, dex_pc);
           current_block_->AddInstruction(load_class);
           clinit_check = new (arena_) HClinitCheck(load_class, dex_pc);
           current_block_->AddInstruction(clinit_check);
@@ -892,9 +895,9 @@ bool HGraphBuilder::IsOutermostCompilingClass(uint16_t type_index) const {
       soa.Decode<mirror::ClassLoader*>(dex_compilation_unit_->GetClassLoader())));
   Handle<mirror::Class> cls(hs.NewHandle(compiler_driver_->ResolveClass(
       soa, dex_cache, class_loader, type_index, dex_compilation_unit_)));
-  Handle<mirror::Class> compiling_class(hs.NewHandle(GetOutermostCompilingClass()));
+  Handle<mirror::Class> outer_class(hs.NewHandle(GetOutermostCompilingClass()));
 
-  return compiling_class.Get() == cls.Get();
+  return outer_class.Get() == cls.Get();
 }
 
 bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
