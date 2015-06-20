@@ -409,6 +409,10 @@ else
     export DYLD_LIBRARY_PATH="${ANDROID_ROOT}/lib"
     export PATH="$PATH:${ANDROID_ROOT}/bin"
 
+    # Temporarily disable address space layout randomization (ASLR).
+    # This is needed on the host so that the linker loads core.oat at the necessary address.
+    export LD_USE_LOAD_BIAS=1
+
     cmdline="$dalvikvm_cmdline"
 
     if [ "$TIME_OUT" = "y" ]; then
