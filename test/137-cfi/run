@@ -14,8 +14,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Temporarily disable address space layout randomization (ASLR).
-# This is need on host so that the linker loads core.oat at fixed address.
-export LD_USE_LOAD_BIAS=1
-
 exec ${RUN} "$@"
