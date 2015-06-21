@@ -41,7 +41,7 @@ else
 ART_HOST_TEST_DIR := /tmp/test-art-$(shell echo $$PPID)
 endif
 
-# Core.oat location on the device.
+# core.oat location on the device.
 TARGET_CORE_OAT := $(ART_TARGET_TEST_DIR)/$(DEX2OAT_TARGET_ARCH)/core.oat
 ifdef TARGET_2ND_ARCH
 2ND_TARGET_CORE_OAT := $(ART_TARGET_TEST_DIR)/$($(TARGET_2ND_ARCH_VAR_PREFIX)DEX2OAT_TARGET_ARCH)/core.oat
@@ -49,7 +49,7 @@ endif
 
 CORE_OAT_SUFFIX := .oat
 
-# Core.oat locations under the out directory.
+# core.oat locations under the out directory.
 HOST_CORE_OAT_OUT_BASE := $(HOST_OUT_JAVA_LIBRARIES)/$(ART_HOST_ARCH)/core
 ifneq ($(HOST_PREFER_32_BIT),true)
 2ND_HOST_CORE_OAT_OUT_BASE := $(HOST_OUT_JAVA_LIBRARIES)/$(2ND_ART_HOST_ARCH)/core
@@ -63,7 +63,7 @@ TARGET_CORE_OAT_OUTS :=
 
 CORE_IMG_SUFFIX := .art
 
-# Core.art locations under the out directory.
+# core.art locations under the out directory.
 HOST_CORE_IMG_OUT_BASE := $(HOST_OUT_JAVA_LIBRARIES)/$(ART_HOST_ARCH)/core
 ifneq ($(HOST_PREFER_32_BIT),true)
 2ND_HOST_CORE_IMG_OUT_BASE := $(HOST_OUT_JAVA_LIBRARIES)/$(2ND_ART_HOST_ARCH)/core
