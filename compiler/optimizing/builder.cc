@@ -773,6 +773,7 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
   // Add move-result for StringFactory method.
   if (is_string_init) {
     uint32_t orig_this_reg = is_range ? register_index : args[0];
+    UpdateLocal(orig_this_reg, invoke);
     const VerifiedMethod* verified_method =
         compiler_driver_->GetVerifiedMethod(dex_file_, dex_compilation_unit_->GetDexMethodIndex());
     if (verified_method == nullptr) {
@@ -786,10 +787,10 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
     if (map_it != string_init_map.end()) {
       std::set<uint32_t> reg_set = map_it->second;
       for (auto set_it = reg_set.begin(); set_it != reg_set.end(); ++set_it) {
-        UpdateLocal(*set_it, invoke);
+        HInstruction* load_local = LoadLocal(orig_this_reg, Primitive::kPrimNot);
+        UpdateLocal(*set_it, load_local);
       }
     }
-    UpdateLocal(orig_this_reg, invoke);
   }
   return true;
 }
