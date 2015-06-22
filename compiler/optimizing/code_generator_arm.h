@@ -32,6 +32,7 @@ class SlowPathCodeARM;
 
 // Use a local definition to prevent copying mistakes.
 static constexpr size_t kArmWordSize = kArmPointerSize;
+static constexpr size_t kArmBitsPerWord = kArmWordSize * kBitsPerByte;
 
 static constexpr Register kParameterCoreRegisters[] = { R1, R2, R3 };
 static constexpr size_t kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
