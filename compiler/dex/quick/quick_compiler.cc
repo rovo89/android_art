@@ -382,8 +382,8 @@ static int kAllOpcodes[] = {
     Instruction::UNUSED_F5,
     Instruction::CREATE_LAMBDA,
     Instruction::UNUSED_F7,
-    Instruction::UNUSED_F8,
-    Instruction::UNUSED_F9,
+    Instruction::BOX_LAMBDA,
+    Instruction::UNBOX_LAMBDA,
     Instruction::UNUSED_FA,
     Instruction::UNUSED_FB,
     Instruction::UNUSED_FC,
@@ -425,6 +425,8 @@ static int kInvokeOpcodes[] = {
 static const int kUnsupportedLambdaOpcodes[] = {
     Instruction::INVOKE_LAMBDA,
     Instruction::CREATE_LAMBDA,
+    Instruction::BOX_LAMBDA,
+    Instruction::UNBOX_LAMBDA,
 };
 
 // Unsupported opcodes. Null can be used when everything is supported. Size of the lists is

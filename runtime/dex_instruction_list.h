@@ -267,8 +267,8 @@
   /* TODO(iam): get rid of the unused 'false' column */ \
   V(0xF6, CREATE_LAMBDA, "create-lambda", k21c, false_UNUSED, kMethodRef, kContinue | kThrow | kExperimental, kVerifyRegA | kVerifyRegBMethod) \
   V(0xF7, UNUSED_F7, "unused-f7", k10x, false, kUnknown, 0, kVerifyError) \
-  V(0xF8, UNUSED_F8, "unused-f8", k10x, false, kUnknown, 0, kVerifyError) \
-  V(0xF9, UNUSED_F9, "unused-f9", k10x, false, kUnknown, 0, kVerifyError) \
+  V(0xF8, BOX_LAMBDA, "box-lambda", k22x, true, kNone, kContinue | kExperimental, kVerifyRegA | kVerifyRegB) \
+  V(0xF9, UNBOX_LAMBDA, "unbox-lambda", k22c, true, kTypeRef, kContinue | kThrow | kExperimental, kVerifyRegA | kVerifyRegB | kVerifyRegCType) \
   V(0xFA, UNUSED_FA, "unused-fa", k10x, false, kUnknown, 0, kVerifyError) \
   V(0xFB, UNUSED_FB, "unused-fb", k10x, false, kUnknown, 0, kVerifyError) \
   V(0xFC, UNUSED_FC, "unused-fc", k10x, false, kUnknown, 0, kVerifyError) \
