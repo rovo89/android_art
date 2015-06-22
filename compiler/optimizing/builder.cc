@@ -862,17 +862,25 @@ bool HGraphBuilder::BuildInstanceFieldAccess(const Instruction& instruction,
   return true;
 }
 
-mirror::Class* HGraphBuilder::GetOutermostCompilingClass() const {
+static mirror::Class* GetClassFrom(CompilerDriver* driver,
+                                   const DexCompilationUnit& compilation_unit) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<2> hs(soa.Self());
-  const DexFile& outer_dex_file = *outer_compilation_unit_->GetDexFile();
+  const DexFile& dex_file = *compilation_unit.GetDexFile();
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
-      soa.Decode<mirror::ClassLoader*>(dex_compilation_unit_->GetClassLoader())));
-  Handle<mirror::DexCache> outer_dex_cache(hs.NewHandle(
-      outer_compilation_unit_->GetClassLinker()->FindDexCache(outer_dex_file)));
+      soa.Decode<mirror::ClassLoader*>(compilation_unit.GetClassLoader())));
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(
+      compilation_unit.GetClassLinker()->FindDexCache(dex_file)));
 
-  return compiler_driver_->ResolveCompilingMethodsClass(
-      soa, outer_dex_cache, class_loader, outer_compilation_unit_);
+  return driver->ResolveCompilingMethodsClass(soa, dex_cache, class_loader, &compilation_unit);
+}
+
+mirror::Class* HGraphBuilder::GetOutermostCompilingClass() const {
+  return GetClassFrom(compiler_driver_, *outer_compilation_unit_);
+}
+
+mirror::Class* HGraphBuilder::GetCompilingClass() const {
+  return GetClassFrom(compiler_driver_, *dex_compilation_unit_);
 }
 
 bool HGraphBuilder::IsOutermostCompilingClass(uint16_t type_index) const {
@@ -912,20 +920,20 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
   const DexFile& outer_dex_file = *outer_compilation_unit_->GetDexFile();
   Handle<mirror::DexCache> outer_dex_cache(hs.NewHandle(
       outer_compilation_unit_->GetClassLinker()->FindDexCache(outer_dex_file)));
-  Handle<mirror::Class> referrer_class(hs.NewHandle(GetOutermostCompilingClass()));
+  Handle<mirror::Class> outer_class(hs.NewHandle(GetOutermostCompilingClass()));
 
   // The index at which the field's class is stored in the DexCache's type array.
   uint32_t storage_index;
-  bool is_referrer_class = (referrer_class.Get() == resolved_field->GetDeclaringClass());
-  if (is_referrer_class) {
-    storage_index = referrer_class->GetDexTypeIndex();
+  bool is_outer_class = (outer_class.Get() == resolved_field->GetDeclaringClass());
+  if (is_outer_class) {
+    storage_index = outer_class->GetDexTypeIndex();
   } else if (outer_dex_cache.Get() != dex_cache.Get()) {
     // The compiler driver cannot currently understand multiple dex caches involved. Just bailout.
     return false;
   } else {
     std::pair<bool, bool> pair = compiler_driver_->IsFastStaticField(
         outer_dex_cache.Get(),
-        referrer_class.Get(),
+        GetCompilingClass(),
         resolved_field,
         field_index,
         &storage_index);
@@ -940,11 +948,11 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
       *outer_compilation_unit_->GetDexFile(), storage_index);
   bool is_initialized = resolved_field->GetDeclaringClass()->IsInitialized() && is_in_dex_cache;
 
-  HLoadClass* constant = new (arena_) HLoadClass(storage_index, is_referrer_class, dex_pc);
+  HLoadClass* constant = new (arena_) HLoadClass(storage_index, is_outer_class, dex_pc);
   current_block_->AddInstruction(constant);
 
   HInstruction* cls = constant;
-  if (!is_initialized && !is_referrer_class) {
+  if (!is_initialized && !is_outer_class) {
     cls = new (arena_) HClinitCheck(constant, dex_pc);
     current_block_->AddInstruction(cls);
   }
