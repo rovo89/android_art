@@ -391,7 +391,7 @@ inline bool Heap::ShouldAllocLargeObject(mirror::Class* c, size_t byte_count) co
   // Zygote resulting in it being prematurely freed.
   // We can only do this for primitive objects since large objects will not be within the card table
   // range. This also means that we rely on SetClass not dirtying the object's card.
-  return byte_count >= large_object_threshold_ && c->IsPrimitiveArray();
+  return byte_count >= large_object_threshold_ && (c->IsPrimitiveArray() || c->IsStringClass());
 }
 
 template <bool kGrow>
