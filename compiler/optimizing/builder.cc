@@ -697,7 +697,8 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
                                                                    &storage_index);
       }
 
-      if (outer_class.Get()->IsSubClass(resolved_method->GetDeclaringClass())) {
+      if (!outer_class->IsInterface()
+          && outer_class->IsSubClass(resolved_method->GetDeclaringClass())) {
         // If the outer class is the declaring class or a subclass
         // of the declaring class, no class initialization is needed
         // before the static method call.
