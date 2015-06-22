@@ -172,6 +172,15 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                                                         bool allow_soft_failures,
                                                         std::string* error) {
   DCHECK(class_def != nullptr);
+
+  // A class must not be abstract and final.
+  if ((class_def->access_flags_ & (kAccAbstract | kAccFinal)) == (kAccAbstract | kAccFinal)) {
+    *error = "Verifier rejected class ";
+    *error += PrettyDescriptor(dex_file->GetClassDescriptor(*class_def));
+    *error += ": class is abstract and final.";
+    return kHardFailure;
+  }
+
   const uint8_t* class_data = dex_file->GetClassData(*class_def);
   if (class_data == nullptr) {
     // empty class, probably a marker interface
