@@ -35,6 +35,7 @@
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "handle_scope-inl.h"
 #include "mirror/class-inl.h"
+#include "mirror/method.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
@@ -131,6 +132,23 @@ static inline bool IsValidLambdaTargetOrThrow(ArtMethod* called_method)
   return success;
 }
 
+// Write out the 'ArtMethod*' into vreg and vreg+1
+static inline void WriteLambdaClosureIntoVRegs(ShadowFrame& shadow_frame,
+                                               const ArtMethod& called_method,
+                                               uint32_t vreg) {
+  // Split the method into a lo and hi 32 bits so we can encode them into 2 virtual registers.
+  uint32_t called_method_lo = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&called_method));
+  uint32_t called_method_hi = static_cast<uint32_t>(reinterpret_cast<uint64_t>(&called_method)
+                                                    >> BitSizeOf<uint32_t>());
+  // Use uint64_t instead of uintptr_t to allow shifting past the max on 32-bit.
+  static_assert(sizeof(uint64_t) >= sizeof(uintptr_t), "Impossible");
+
+  DCHECK_NE(called_method_lo | called_method_hi, 0u);
+
+  shadow_frame.SetVReg(vreg, called_method_lo);
+  shadow_frame.SetVReg(vreg + 1, called_method_hi);
+}
+
 // Handles create-lambda instructions.
 // Returns true on success, otherwise throws an exception and returns false.
 // (Exceptions are thrown by creating a new exception and then being put in the thread TLS)
@@ -161,18 +179,41 @@ static inline bool DoCreateLambda(Thread* self, ShadowFrame& shadow_frame,
     return false;
   }
 
-  // Split the method into a lo and hi 32 bits so we can encode them into 2 virtual registers.
-  uint32_t called_method_lo = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(called_method));
-  uint32_t called_method_hi = static_cast<uint32_t>(reinterpret_cast<uint64_t>(called_method)
-                                                    >> BitSizeOf<uint32_t>());
-  // Use uint64_t instead of uintptr_t to allow shifting past the max on 32-bit.
-  static_assert(sizeof(uint64_t) >= sizeof(uintptr_t), "Impossible");
-
-  DCHECK_NE(called_method_lo | called_method_hi, 0u);
-
-  shadow_frame.SetVReg(vregA, called_method_lo);
-  shadow_frame.SetVReg(vregA + 1, called_method_hi);
+  WriteLambdaClosureIntoVRegs(shadow_frame, *called_method, vregA);
   return true;
+}
+
+// Reads out the 'ArtMethod*' stored inside of vreg and vreg+1
+//
+// Validates that the art method points to a valid lambda function, otherwise throws
+// an exception and returns null.
+// (Exceptions are thrown by creating a new exception and then being put in the thread TLS)
+static inline ArtMethod* ReadLambdaClosureFromVRegsOrThrow(ShadowFrame& shadow_frame,
+                                                           uint32_t vreg)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  // TODO(iam): Introduce a closure abstraction that will contain the captured variables
+  // instead of just an ArtMethod.
+  // This is temporarily using 2 vregs because a native ArtMethod can be up to 64-bit,
+  // but once proper variable capture is implemented it will only use 1 vreg.
+  uint32_t vc_value_lo = shadow_frame.GetVReg(vreg);
+  uint32_t vc_value_hi = shadow_frame.GetVReg(vreg + 1);
+
+  uint64_t vc_value_ptr = (static_cast<uint64_t>(vc_value_hi) << BitSizeOf<uint32_t>())
+                           | vc_value_lo;
+
+  // Use uint64_t instead of uintptr_t to allow left-shifting past the max on 32-bit.
+  static_assert(sizeof(uint64_t) >= sizeof(uintptr_t), "Impossible");
+  ArtMethod* const called_method = reinterpret_cast<ArtMethod* const>(vc_value_ptr);
+
+  // Guard against the user passing a null closure, which is odd but (sadly) semantically valid.
+  if (UNLIKELY(called_method == nullptr)) {
+    ThrowNullPointerExceptionFromInterpreter();
+    return nullptr;
+  } else if (UNLIKELY(!IsValidLambdaTargetOrThrow(called_method))) {
+    return nullptr;
+  }
+
+  return called_method;
 }
 
 template<bool do_access_check>
@@ -188,34 +229,18 @@ static inline bool DoInvokeLambda(Thread* self, ShadowFrame& shadow_frame, const
    * - reading var-args for 0x25 gets us vD,vE,vF,vG (but not vB)
    */
   uint32_t vC = inst->VRegC_25x();
+  ArtMethod* const called_method = ReadLambdaClosureFromVRegsOrThrow(shadow_frame, vC);
 
-  // TODO(iam): Introduce a closure abstraction that will contain the captured variables
-  // instead of just an ArtMethod. We also should only need to use 1 register instead of 2.
-  uint32_t vc_value_lo = shadow_frame.GetVReg(vC);
-  uint32_t vc_value_hi = shadow_frame.GetVReg(vC + 1);
-
-  uint64_t vc_value_ptr = (static_cast<uint64_t>(vc_value_hi) << BitSizeOf<uint32_t>())
-                           | vc_value_lo;
-
-  // Use uint64_t instead of uintptr_t to allow left-shifting past the max on 32-bit.
-  static_assert(sizeof(uint64_t) >= sizeof(uintptr_t), "Impossible");
-  ArtMethod* const called_method = reinterpret_cast<ArtMethod* const>(vc_value_ptr);
-
-  // Guard against the user passing a null closure, which is odd but (sadly) semantically valid.
+  // Failed lambda target runtime check, an exception was raised.
   if (UNLIKELY(called_method == nullptr)) {
-    ThrowNullPointerExceptionFromInterpreter();
-    result->SetJ(0);
-    return false;
-  }
-
-  if (UNLIKELY(!IsValidLambdaTargetOrThrow(called_method))) {
     CHECK(self->IsExceptionPending());
     result->SetJ(0);
     return false;
-  } else {
-    return DoLambdaCall<false, do_access_check>(called_method, self, shadow_frame, inst, inst_data,
-                                                result);
   }
+
+  // Invoke a non-range lambda
+  return DoLambdaCall<false, do_access_check>(called_method, self, shadow_frame, inst, inst_data,
+                                              result);
 }
 
 // Handles invoke-XXX/range instructions.
@@ -469,6 +494,89 @@ static inline int32_t DoSparseSwitch(const Instruction* inst, const ShadowFrame&
   return 3;
 }
 
+template <bool _do_check>
+static inline bool DoBoxLambda(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst,
+                               uint16_t inst_data) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  /*
+   * box-lambda vA, vB /// opcode 0xf8, format 22x
+   * - vA is the target register where the Object representation of the closure will be stored into
+   * - vB is a closure (made by create-lambda)
+   *   (also reads vB + 1)
+   */
+  uint32_t vreg_target_object = inst->VRegA_22x(inst_data);
+  uint32_t vreg_source_closure = inst->VRegB_22x();
+
+  ArtMethod* const closure_method = ReadLambdaClosureFromVRegsOrThrow(shadow_frame,
+                                                                      vreg_source_closure);
+
+  // Failed lambda target runtime check, an exception was raised.
+  if (UNLIKELY(closure_method == nullptr)) {
+    CHECK(self->IsExceptionPending());
+    return false;
+  }
+
+  // Convert the ArtMethod into a java.lang.reflect.Method which will serve
+  // as the temporary 'boxed' version of the lambda. This is good enough
+  // to check all the basic object identities that a boxed lambda must retain.
+
+  // TODO: Boxing an innate lambda (i.e. made with create-lambda) should make a proxy class
+  // TODO: Boxing a learned lambda (i.e. made with unbox-lambda) should return the original object
+  // TODO: Repeated boxing should return the same object reference
+  mirror::Method* method_as_object =
+      mirror::Method::CreateFromArtMethod(self, closure_method);
+
+  if (UNLIKELY(method_as_object == nullptr)) {
+    // Most likely an OOM has occurred.
+    CHECK(self->IsExceptionPending());
+    return false;
+  }
+
+  shadow_frame.SetVRegReference(vreg_target_object, method_as_object);
+  return true;
+}
+
+template <bool _do_check> SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+static inline bool DoUnboxLambda(Thread* self ATTRIBUTE_UNUSED,
+                                 ShadowFrame& shadow_frame,
+                                 const Instruction* inst,
+                                 uint16_t inst_data) {
+  /*
+   * unbox-lambda vA, vB, [type id] /// opcode 0xf9, format 22c
+   * - vA is the target register where the closure will be written into
+   *   (also writes vA + 1)
+   * - vB is the Object representation of the closure (made by box-lambda)
+   */
+  uint32_t vreg_target_closure = inst->VRegA_22c(inst_data);
+  uint32_t vreg_source_object = inst->VRegB_22c();
+
+  // Raise NullPointerException if object is null
+  mirror::Object* boxed_closure_object = shadow_frame.GetVRegReference(vreg_source_object);
+  if (UNLIKELY(boxed_closure_object == nullptr)) {
+    ThrowNullPointerExceptionFromInterpreter();
+    return false;
+  }
+
+  // Raise ClassCastException if object is not instanceof java.lang.reflect.Method
+  if (UNLIKELY(!boxed_closure_object->InstanceOf(mirror::Method::StaticClass()))) {
+    ThrowClassCastException(mirror::Method::StaticClass(), boxed_closure_object->GetClass());
+    return false;
+  }
+
+  // TODO(iam): We must check that the closure object extends/implements the type
+  // specified in [type id]. This is not currently implemented since it's always a Method.
+
+  // If we got this far, the inputs are valid.
+  // Write out the java.lang.reflect.Method's embedded ArtMethod* into the vreg target.
+  mirror::AbstractMethod* boxed_closure_as_method =
+      down_cast<mirror::AbstractMethod*>(boxed_closure_object);
+
+  ArtMethod* unboxed_closure = boxed_closure_as_method->GetArtMethod();
+  DCHECK(unboxed_closure != nullptr);
+
+  WriteLambdaClosureIntoVRegs(shadow_frame, *unboxed_closure, vreg_target_closure);
+  return true;
+}
+
 uint32_t FindNextInstructionFollowingException(Thread* self, ShadowFrame& shadow_frame,
     uint32_t dex_pc, const instrumentation::Instrumentation* instrumentation)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -560,6 +668,26 @@ bool DoInvokeLambda<_do_check>(Thread* self, ShadowFrame& shadow_frame, const In
 EXPLICIT_DO_INVOKE_LAMBDA_DECL(false);  // invoke-lambda
 EXPLICIT_DO_INVOKE_LAMBDA_DECL(true);   // invoke-lambda
 #undef EXPLICIT_DO_INVOKE_LAMBDA_DECL
+
+// Explicitly instantiate all DoBoxLambda functions.
+#define EXPLICIT_DO_BOX_LAMBDA_DECL(_do_check)                                                \
+template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                          \
+bool DoBoxLambda<_do_check>(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst, \
+                            uint16_t inst_data);
+
+EXPLICIT_DO_BOX_LAMBDA_DECL(false);  // box-lambda
+EXPLICIT_DO_BOX_LAMBDA_DECL(true);   // box-lambda
+#undef EXPLICIT_DO_BOX_LAMBDA_DECL
+
+// Explicitly instantiate all DoUnBoxLambda functions.
+#define EXPLICIT_DO_UNBOX_LAMBDA_DECL(_do_check)                                                \
+template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                            \
+bool DoUnboxLambda<_do_check>(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst, \
+                              uint16_t inst_data);
+
+EXPLICIT_DO_UNBOX_LAMBDA_DECL(false);  // unbox-lambda
+EXPLICIT_DO_UNBOX_LAMBDA_DECL(true);   // unbox-lambda
+#undef EXPLICIT_DO_BOX_LAMBDA_DECL
 
 
 }  // namespace interpreter
