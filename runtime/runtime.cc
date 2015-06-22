@@ -144,7 +144,10 @@ struct TraceConfig {
 };
 
 Runtime::Runtime()
-    : instruction_set_(kNone),
+    : resolution_method_(nullptr),
+      imt_conflict_method_(nullptr),
+      imt_unimplemented_method_(nullptr),
+      instruction_set_(kNone),
       compiler_callbacks_(nullptr),
       is_zygote_(false),
       must_relocate_(false),
@@ -873,6 +876,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
                        xgc_option.verify_pre_gc_rosalloc_,
                        xgc_option.verify_pre_sweeping_rosalloc_,
                        xgc_option.verify_post_gc_rosalloc_,
+                       xgc_option.gcstress_,
                        runtime_options.GetOrDefault(Opt::EnableHSpaceCompactForOOM),
                        runtime_options.GetOrDefault(Opt::HSpaceCompactForOOMMinIntervalsMs));
   ATRACE_END();
