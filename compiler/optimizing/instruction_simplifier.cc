@@ -221,14 +221,15 @@ void InstructionSimplifierVisitor::VisitEqual(HEqual* equal) {
     HInstruction* input_value = equal->GetLeastConstantLeft();
     if (input_value->GetType() == Primitive::kPrimBoolean && input_const->IsIntConstant()) {
       HBasicBlock* block = equal->GetBlock();
+      // We are comparing the boolean to a constant which is of type int and can
+      // be any constant.
       if (input_const->AsIntConstant()->IsOne()) {
         // Replace (bool_value == true) with bool_value
         equal->ReplaceWith(input_value);
         block->RemoveInstruction(equal);
         RecordSimplification();
-      } else {
+      } else if (input_const->AsIntConstant()->IsZero()) {
         // Replace (bool_value == false) with !bool_value
-        DCHECK(input_const->AsIntConstant()->IsZero());
         block->ReplaceAndRemoveInstructionWith(
             equal, new (block->GetGraph()->GetArena()) HBooleanNot(input_value));
         RecordSimplification();
@@ -243,14 +244,15 @@ void InstructionSimplifierVisitor::VisitNotEqual(HNotEqual* not_equal) {
     HInstruction* input_value = not_equal->GetLeastConstantLeft();
     if (input_value->GetType() == Primitive::kPrimBoolean && input_const->IsIntConstant()) {
       HBasicBlock* block = not_equal->GetBlock();
+      // We are comparing the boolean to a constant which is of type int and can
+      // be any constant.
       if (input_const->AsIntConstant()->IsOne()) {
         // Replace (bool_value != true) with !bool_value
         block->ReplaceAndRemoveInstructionWith(
             not_equal, new (block->GetGraph()->GetArena()) HBooleanNot(input_value));
         RecordSimplification();
-      } else {
+      } else if (input_const->AsIntConstant()->IsZero()) {
         // Replace (bool_value != false) with bool_value
-        DCHECK(input_const->AsIntConstant()->IsZero());
         not_equal->ReplaceWith(input_value);
         block->RemoveInstruction(not_equal);
         RecordSimplification();
