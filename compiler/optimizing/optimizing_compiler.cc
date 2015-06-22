@@ -337,6 +337,7 @@ static void RunOptimizations(HGraph* graph,
   BoundsCheckElimination bce(graph);
   ReferenceTypePropagation type_propagation(graph, dex_file, dex_compilation_unit, handles);
   InstructionSimplifier simplify2(graph, stats, "instruction_simplifier_after_types");
+  InstructionSimplifier simplify3(graph, stats, "instruction_simplifier_before_codegen");
 
   IntrinsicsRecognizer intrinsics(graph, dex_compilation_unit.GetDexFile(), driver);
 
@@ -357,6 +358,10 @@ static void RunOptimizations(HGraph* graph,
     &type_propagation,
     &simplify2,
     &dce2,
+    // The codegen has a few assumptions that only the instruction simplifier can
+    // satisfy. For example, the code generator does not expect to see a
+    // HTypeConversion from a type to the same type.
+    &simplify3,
   };
 
   RunOptimizations(optimizations, arraysize(optimizations), pass_info_printer);
