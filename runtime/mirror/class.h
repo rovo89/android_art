@@ -1030,8 +1030,12 @@ class MANAGED Class FINAL : public Object {
   }
 
   static Class* GetJavaLangClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(!java_lang_Class_.IsNull());
+    DCHECK(HasJavaLangClass());
     return java_lang_Class_.Read();
+  }
+
+  static bool HasJavaLangClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return !java_lang_Class_.IsNull();
   }
 
   // Can't call this SetClass or else gets called instead of Object::SetClass in places.

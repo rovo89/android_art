@@ -19,6 +19,7 @@
 
 #include <iosfwd>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "allocator_type.h"
@@ -181,7 +182,8 @@ class Heap {
                 bool ignore_max_footprint, bool use_tlab,
                 bool verify_pre_gc_heap, bool verify_pre_sweeping_heap, bool verify_post_gc_heap,
                 bool verify_pre_gc_rosalloc, bool verify_pre_sweeping_rosalloc,
-                bool verify_post_gc_rosalloc, bool use_homogeneous_space_compaction,
+                bool verify_post_gc_rosalloc, bool gc_stress_mode,
+                bool use_homogeneous_space_compaction,
                 uint64_t min_interval_homogeneous_space_compaction_by_oom);
 
   ~Heap();
@@ -909,6 +911,10 @@ class Heap {
 
   void UpdateGcCountRateHistograms() EXCLUSIVE_LOCKS_REQUIRED(gc_complete_lock_);
 
+  // GC stress mode attempts to do one GC per unique backtrace.
+  void CheckGcStressMode(Thread* self, mirror::Object** obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // All-known continuous spaces, where objects lie within fixed bounds.
   std::vector<space::ContinuousSpace*> continuous_spaces_;
 
@@ -1064,6 +1070,7 @@ class Heap {
   bool verify_pre_gc_rosalloc_;
   bool verify_pre_sweeping_rosalloc_;
   bool verify_post_gc_rosalloc_;
+  const bool gc_stress_mode_;
 
   // RAII that temporarily disables the rosalloc verification during
   // the zygote fork.
@@ -1218,6 +1225,14 @@ class Heap {
   Atomic<bool> alloc_tracking_enabled_;
   std::unique_ptr<AllocRecordObjectMap> allocation_records_
       GUARDED_BY(Locks::alloc_tracker_lock_);
+
+  // GC stress related data structures.
+  Mutex* backtrace_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  // Debugging variables, seen backtraces vs unique backtraces.
+  Atomic<uint64_t> seen_backtrace_count_;
+  Atomic<uint64_t> unique_backtrace_count_;
+  // Stack trace hashes that we already saw,
+  std::unordered_set<uint64_t> seen_backtraces_ GUARDED_BY(backtrace_lock_);
 
   friend class CollectorTransitionTask;
   friend class collector::GarbageCollector;
