@@ -355,7 +355,7 @@ class OatDumper {
       disassembler_(Disassembler::Create(instruction_set_,
                                          new DisassemblerOptions(options_.absolute_addresses_,
                                                                  oat_file.Begin(),
-                                                                 true /* can_read_litals_ */))) {
+                                                                 true /* can_read_literals_ */))) {
     CHECK(options_.class_loader_ != nullptr);
     CHECK(options_.class_filter_ != nullptr);
     CHECK(options_.method_filter_ != nullptr);
