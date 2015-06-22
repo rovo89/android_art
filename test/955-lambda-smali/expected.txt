@@ -2,3 +2,7 @@ SanityCheck
 Hello world! (0-args, no closure)
 ABCD Hello world! (4-args, no closure)
 Caught NPE
+(BoxUnbox) Hello boxing world! (0-args, no closure)
+(BoxUnbox) Caught NPE for unbox-lambda
+(BoxUnbox) Caught NPE for box-lambda
+(BoxUnbox) Caught ClassCastException for unbox-lambda

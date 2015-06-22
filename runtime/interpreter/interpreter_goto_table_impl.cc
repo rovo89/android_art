@@ -2415,6 +2415,18 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   }
   HANDLE_EXPERIMENTAL_INSTRUCTION_END();
 
+  HANDLE_EXPERIMENTAL_INSTRUCTION_START(BOX_LAMBDA) {
+    bool success = DoBoxLambda<do_access_check>(self, shadow_frame, inst, inst_data);
+    POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
+  }
+  HANDLE_EXPERIMENTAL_INSTRUCTION_END();
+
+  HANDLE_EXPERIMENTAL_INSTRUCTION_START(UNBOX_LAMBDA) {
+    bool success = DoUnboxLambda<do_access_check>(self, shadow_frame, inst, inst_data);
+    POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
+  }
+  HANDLE_EXPERIMENTAL_INSTRUCTION_END();
+
   HANDLE_INSTRUCTION_START(UNUSED_3E)
     UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
@@ -2456,14 +2468,6 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_F7)
-    UnexpectedOpcode(inst, shadow_frame);
-  HANDLE_INSTRUCTION_END();
-
-  HANDLE_INSTRUCTION_START(UNUSED_F8)
-    UnexpectedOpcode(inst, shadow_frame);
-  HANDLE_INSTRUCTION_END();
-
-  HANDLE_INSTRUCTION_START(UNUSED_F9)
     UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
