@@ -1410,7 +1410,9 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
       is_in_image = IsImageClass(method->GetDeclaringClassDescriptor());
     } else {
       is_in_image = instruction_set_ != kX86 && instruction_set_ != kX86_64 &&
-                    heap->FindSpaceFromObject(method->GetDeclaringClass(), false)->IsImageSpace();
+                    heap->FindSpaceFromObject(method->GetDeclaringClass(), false)->IsImageSpace() &&
+                    !cl->IsQuickToInterpreterBridge(
+                        reinterpret_cast<const void*>(compiler_->GetEntryPointOf(method)));
     }
     if (!is_in_image) {
       // We can only branch directly to Methods that are resolved in the DexCache.
