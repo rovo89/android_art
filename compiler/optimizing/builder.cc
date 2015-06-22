@@ -1427,21 +1427,16 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     }
 
     case Instruction::RETURN: {
-      DCHECK_NE(return_type_, Primitive::kPrimNot);
-      DCHECK_NE(return_type_, Primitive::kPrimLong);
-      DCHECK_NE(return_type_, Primitive::kPrimDouble);
       BuildReturn(instruction, return_type_);
       break;
     }
 
     case Instruction::RETURN_OBJECT: {
-      DCHECK(return_type_ == Primitive::kPrimNot);
       BuildReturn(instruction, return_type_);
       break;
     }
 
     case Instruction::RETURN_WIDE: {
-      DCHECK(return_type_ == Primitive::kPrimDouble || return_type_ == Primitive::kPrimLong);
       BuildReturn(instruction, return_type_);
       break;
     }
