@@ -927,6 +927,36 @@ public class Main {
     return (false == arg) ? 3 : 5;
   }
 
+  /// CHECK-START: boolean Main.EqualBoolVsIntConst(boolean) instruction_simplifier_after_bce (before)
+  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
+  /// CHECK-DAG:     <<Const2:i\d+>>   IntConstant 2
+  /// CHECK-DAG:     <<BoolNot:z\d+>>  BooleanNot [<<Arg>>]
+  /// CHECK-DAG:     <<Cond:z\d+>>     Equal [<<BoolNot>>,<<Const2>>]
+  /// CHECK-DAG:                       Return [<<Cond>>]
+
+  /// CHECK-START: boolean Main.EqualBoolVsIntConst(boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-DAG:     <<False:i\d+>>    IntConstant 0
+  /// CHECK-DAG:                       Return [<<False>>]
+
+  public static boolean EqualBoolVsIntConst(boolean arg) {
+    return (arg ? 0 : 1) == 2;
+  }
+
+  /// CHECK-START: boolean Main.NotEqualBoolVsIntConst(boolean) instruction_simplifier_after_bce (before)
+  /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
+  /// CHECK-DAG:     <<Const2:i\d+>>   IntConstant 2
+  /// CHECK-DAG:     <<BoolNot:z\d+>>  BooleanNot [<<Arg>>]
+  /// CHECK-DAG:     <<Cond:z\d+>>     NotEqual [<<BoolNot>>,<<Const2>>]
+  /// CHECK-DAG:                       Return [<<Cond>>]
+
+  /// CHECK-START: boolean Main.NotEqualBoolVsIntConst(boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-DAG:     <<True:i\d+>>     IntConstant 1
+  /// CHECK-DAG:                       Return [<<True>>]
+
+  public static boolean NotEqualBoolVsIntConst(boolean arg) {
+    return (arg ? 0 : 1) != 2;
+  }
+
   /*
    * Test simplification of double Boolean negation. Note that sometimes
    * both negations can be removed but we only expect the simplifier to

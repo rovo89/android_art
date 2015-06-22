@@ -324,6 +324,11 @@ void InstructionSimplifierVisitor::VisitEqual(HEqual* equal) {
         block->ReplaceAndRemoveInstructionWith(
             equal, new (block->GetGraph()->GetArena()) HBooleanNot(input_value));
         RecordSimplification();
+      } else {
+        // Replace (bool_value == integer_not_zero_nor_one_constant) with false
+        equal->ReplaceWith(GetGraph()->GetIntConstant(0));
+        block->RemoveInstruction(equal);
+        RecordSimplification();
       }
     }
   }
@@ -345,6 +350,11 @@ void InstructionSimplifierVisitor::VisitNotEqual(HNotEqual* not_equal) {
       } else if (input_const->AsIntConstant()->IsZero()) {
         // Replace (bool_value != false) with bool_value
         not_equal->ReplaceWith(input_value);
+        block->RemoveInstruction(not_equal);
+        RecordSimplification();
+      } else {
+        // Replace (bool_value != integer_not_zero_nor_one_constant) with true
+        not_equal->ReplaceWith(GetGraph()->GetIntConstant(1));
         block->RemoveInstruction(not_equal);
         RecordSimplification();
       }
