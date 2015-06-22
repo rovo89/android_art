@@ -3789,8 +3789,9 @@ void MethodVerifier::VerifyAPut(const Instruction* inst,
   } else {
     const RegType& array_type = work_line_->GetRegisterType(this, inst->VRegB_23x());
     if (array_type.IsZero()) {
-      // Null array type; this code path will fail at runtime. Infer a merge-able type from the
-      // instruction type.
+      // Null array type; this code path will fail at runtime.
+      // Still check that the given value matches the instruction's type.
+      work_line_->VerifyRegisterType(this, inst->VRegA_23x(), insn_type);
     } else if (!array_type.IsArrayTypes()) {
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "not array type " << array_type << " with aput";
     } else {
