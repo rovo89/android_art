@@ -1562,6 +1562,27 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
   return true;
 }
 
+// Returns the index of the first final instance field of the given class, or kDexNoIndex if there
+// is no such field.
+static uint32_t GetFirstFinalInstanceFieldIndex(const DexFile& dex_file, uint16_t type_idx) {
+  const DexFile::ClassDef* class_def = dex_file.FindClassDef(type_idx);
+  DCHECK(class_def != nullptr);
+  const uint8_t* class_data = dex_file.GetClassData(*class_def);
+  DCHECK(class_data != nullptr);
+  ClassDataItemIterator it(dex_file, class_data);
+  // Skip static fields.
+  while (it.HasNextStaticField()) {
+    it.Next();
+  }
+  while (it.HasNextInstanceField()) {
+    if ((it.GetFieldAccessFlags() & kAccFinal) != 0) {
+      return it.GetMemberIndex();
+    }
+    it.Next();
+  }
+  return DexFile::kDexNoIndex;
+}
+
 bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   // If we're doing FindLocksAtDexPc, check whether we're at the dex pc we care about.
   // We want the state _before_ the instruction, for the case where the dex pc we're
@@ -2776,6 +2797,17 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::RETURN_VOID_NO_BARRIER:
       if (IsConstructor() && !IsStatic()) {
         auto& declaring_class = GetDeclaringClass();
+        if (declaring_class.IsUnresolvedReference()) {
+          // We must iterate over the fields, even if we cannot use mirror classes to do so. Do it
+          // manually over the underlying dex file.
+          uint32_t first_index = GetFirstFinalInstanceFieldIndex(*dex_file_,
+              dex_file_->GetMethodId(dex_method_idx_).class_idx_);
+          if (first_index != DexFile::kDexNoIndex) {
+            Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "return-void-no-barrier not expected for field "
+                              << first_index;
+          }
+          break;
+        }
         auto* klass = declaring_class.GetClass();
         for (uint32_t i = 0, num_fields = klass->NumInstanceFields(); i < num_fields; ++i) {
           if (klass->GetInstanceField(i)->IsFinal()) {
