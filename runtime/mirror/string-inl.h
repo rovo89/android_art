@@ -162,8 +162,8 @@ inline String* String::Alloc(Thread* self, int32_t utf16_length, gc::AllocatorTy
   }
   gc::Heap* heap = Runtime::Current()->GetHeap();
   return down_cast<String*>(
-      heap->AllocObjectWithAllocator<kIsInstrumented, false>(self, string_class, size,
-                                                             allocator_type, pre_fence_visitor));
+      heap->AllocObjectWithAllocator<kIsInstrumented, true>(self, string_class, size,
+                                                            allocator_type, pre_fence_visitor));
 }
 
 template <bool kIsInstrumented>
