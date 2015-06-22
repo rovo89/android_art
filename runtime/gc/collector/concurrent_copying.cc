@@ -412,6 +412,11 @@ void ConcurrentCopying::MarkingPhase() {
     // the mark stack here once again.
     ProcessMarkStack();
     CheckEmptyMarkQueue();
+    if (kVerboseMode) {
+      LOG(INFO) << "AllowNewSystemWeaks";
+    }
+    Runtime::Current()->AllowNewSystemWeaks();
+    IssueEmptyCheckpoint();
     // Disable marking.
     if (kUseTableLookupReadBarrier) {
       heap_->rb_table_->ClearAll();
@@ -419,10 +424,6 @@ void ConcurrentCopying::MarkingPhase() {
     }
     is_mark_queue_push_disallowed_.StoreSequentiallyConsistent(1);
     is_marking_ = false;
-    if (kVerboseMode) {
-      LOG(INFO) << "AllowNewSystemWeaks";
-    }
-    Runtime::Current()->AllowNewSystemWeaks();
     CheckEmptyMarkQueue();
   }
 
