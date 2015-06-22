@@ -250,8 +250,10 @@ inline bool CompilerDriver::CanAssumeClassIsInitialized(mirror::Class* klass) {
 
 inline bool CompilerDriver::CanReferrerAssumeClassIsInitialized(mirror::Class* referrer_class,
                                                                 mirror::Class* klass) {
-  return (referrer_class != nullptr && referrer_class->IsSubClass(klass)) ||
-      CanAssumeClassIsInitialized(klass);
+  return (referrer_class != nullptr
+          && !referrer_class->IsInterface()
+          && referrer_class->IsSubClass(klass))
+      || CanAssumeClassIsInitialized(klass);
 }
 
 inline bool CompilerDriver::IsStaticFieldsClassInitialized(mirror::Class* referrer_class,
