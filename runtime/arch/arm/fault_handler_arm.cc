@@ -70,7 +70,7 @@ void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo ATTRIBUTE_UNUSED
   struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
   struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
   *out_sp = static_cast<uintptr_t>(sc->arm_sp);
-  VLOG(signals) << "sp: " << *out_sp;
+  VLOG(signals) << "sp: " << std::hex << *out_sp;
   if (*out_sp == 0) {
     return;
   }
