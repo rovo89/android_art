@@ -63,6 +63,10 @@ class Disassembler {
   // Dump instructions within a range.
   virtual void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end) = 0;
 
+  const DisassemblerOptions* GetDisassemblerOptions() const {
+    return disassembler_options_;
+  }
+
  protected:
   explicit Disassembler(DisassemblerOptions* disassembler_options)
       : disassembler_options_(disassembler_options) {
@@ -79,6 +83,9 @@ class Disassembler {
 static inline bool HasBitSet(uint32_t value, uint32_t bit) {
   return (value & (1 << bit)) != 0;
 }
+
+extern "C"
+Disassembler* create_disassembler(InstructionSet instruction_set, DisassemblerOptions* options);
 
 }  // namespace art
 

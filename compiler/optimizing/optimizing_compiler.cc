@@ -92,19 +92,21 @@ class PassInfoPrinter : public ValueObject {
  public:
   PassInfoPrinter(HGraph* graph,
                   const char* method_name,
-                  const CodeGenerator& codegen,
+                  CodeGenerator* codegen,
                   std::ostream* visualizer_output,
                   CompilerDriver* compiler_driver)
       : method_name_(method_name),
         timing_logger_enabled_(compiler_driver->GetDumpPasses()),
         timing_logger_(method_name, true, true),
+        disasm_info_(graph->GetArena()),
         visualizer_enabled_(!compiler_driver->GetDumpCfgFileName().empty()),
-        visualizer_(visualizer_output, graph, codegen) {
+        visualizer_(visualizer_output, graph, *codegen) {
     if (strstr(method_name, kStringFilter) == nullptr) {
       timing_logger_enabled_ = visualizer_enabled_ = false;
     }
     if (visualizer_enabled_) {
       visualizer_.PrintHeader(method_name_);
+      codegen->SetDisassemblyInformation(&disasm_info_);
     }
   }
 
@@ -112,6 +114,12 @@ class PassInfoPrinter : public ValueObject {
     if (timing_logger_enabled_) {
       LOG(INFO) << "TIMINGS " << method_name_;
       LOG(INFO) << Dumpable<TimingLogger>(timing_logger_);
+    }
+  }
+
+  void DumpDisassembly() const {
+    if (visualizer_enabled_) {
+      visualizer_.DumpGraphWithDisassembly();
     }
   }
 
@@ -140,6 +148,8 @@ class PassInfoPrinter : public ValueObject {
 
   bool timing_logger_enabled_;
   TimingLogger timing_logger_;
+
+  DisassemblyInformation disasm_info_;
 
   bool visualizer_enabled_;
   HGraphVisualizer visualizer_;
@@ -224,12 +234,13 @@ class OptimizingCompiler FINAL : public Compiler {
                                    CodeGenerator* codegen,
                                    CompilerDriver* driver,
                                    const DexCompilationUnit& dex_compilation_unit,
-                                   PassInfoPrinter* pass_info) const;
+                                   PassInfoPrinter* pass_info_printer) const;
 
   // Just compile without doing optimizations.
   CompiledMethod* CompileBaseline(CodeGenerator* codegen,
                                   CompilerDriver* driver,
-                                  const DexCompilationUnit& dex_compilation_unit) const;
+                                  const DexCompilationUnit& dex_compilation_unit,
+                                  PassInfoPrinter* pass_info_printer) const;
 
   std::unique_ptr<OptimizingCompilerStats> compilation_stats_;
 
@@ -429,7 +440,7 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
 
   MaybeRecordStat(MethodCompilationStat::kCompiledOptimized);
 
-  return CompiledMethod::SwapAllocCompiledMethod(
+  CompiledMethod* compiled_method = CompiledMethod::SwapAllocCompiledMethod(
       compiler_driver,
       codegen->GetInstructionSet(),
       ArrayRef<const uint8_t>(allocator.GetMemory()),
@@ -445,12 +456,15 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
       ArrayRef<const uint8_t>(),  // native_gc_map.
       ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data()),
       ArrayRef<const LinkerPatch>());
+  pass_info_printer->DumpDisassembly();
+  return compiled_method;
 }
 
 CompiledMethod* OptimizingCompiler::CompileBaseline(
     CodeGenerator* codegen,
     CompilerDriver* compiler_driver,
-    const DexCompilationUnit& dex_compilation_unit) const {
+    const DexCompilationUnit& dex_compilation_unit,
+    PassInfoPrinter* pass_info_printer) const {
   CodeVectorAllocator allocator;
   codegen->CompileBaseline(&allocator);
 
@@ -466,7 +480,7 @@ CompiledMethod* OptimizingCompiler::CompileBaseline(
   codegen->BuildNativeGCMap(&gc_map, dex_compilation_unit);
 
   MaybeRecordStat(MethodCompilationStat::kCompiledBaseline);
-  return CompiledMethod::SwapAllocCompiledMethod(
+  CompiledMethod* compiled_method = CompiledMethod::SwapAllocCompiledMethod(
       compiler_driver,
       codegen->GetInstructionSet(),
       ArrayRef<const uint8_t>(allocator.GetMemory()),
@@ -482,6 +496,8 @@ CompiledMethod* OptimizingCompiler::CompileBaseline(
       AlignVectorSize(gc_map),
       ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data()),
       ArrayRef<const LinkerPatch>());
+  pass_info_printer->DumpDisassembly();
+  return compiled_method;
 }
 
 CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_item,
@@ -557,7 +573,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
 
   PassInfoPrinter pass_info_printer(graph,
                                     method_name.c_str(),
-                                    *codegen.get(),
+                                    codegen.get(),
                                     visualizer_output_.get(),
                                     compiler_driver);
 
@@ -617,7 +633,10 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
       MaybeRecordStat(MethodCompilationStat::kNotOptimizedRegisterAllocator);
     }
 
-    return CompileBaseline(codegen.get(), compiler_driver, dex_compilation_unit);
+    return CompileBaseline(codegen.get(),
+                           compiler_driver,
+                           dex_compilation_unit,
+                           &pass_info_printer);
   } else {
     return nullptr;
   }

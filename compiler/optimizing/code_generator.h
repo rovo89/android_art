@@ -22,6 +22,7 @@
 #include "base/bit_field.h"
 #include "driver/compiler_options.h"
 #include "globals.h"
+#include "graph_visualizer.h"
 #include "locations.h"
 #include "memory_region.h"
 #include "nodes.h"
@@ -162,6 +163,7 @@ class CodeGenerator {
   virtual void Bind(HBasicBlock* block) = 0;
   virtual void Move(HInstruction* instruction, Location location, HInstruction* move_for) = 0;
   virtual Assembler* GetAssembler() = 0;
+  virtual const Assembler& GetAssembler() const = 0;
   virtual size_t GetWordSize() const = 0;
   virtual size_t GetFloatingPointSpillSlotSize() const = 0;
   virtual uintptr_t GetAddressOf(HBasicBlock* block) const = 0;
@@ -340,6 +342,9 @@ class CodeGenerator {
   static void CreateCommonInvokeLocationSummary(
       HInvoke* invoke, InvokeDexCallingConventionVisitor* visitor);
 
+  void SetDisassemblyInformation(DisassemblyInformation* info) { disasm_info_ = info; }
+  DisassemblyInformation* GetDisassemblyInformation() const { return disasm_info_; }
+
  protected:
   CodeGenerator(HGraph* graph,
                 size_t number_of_core_registers,
@@ -363,6 +368,7 @@ class CodeGenerator {
         stack_map_stream_(graph->GetArena()),
         block_order_(nullptr),
         is_baseline_(false),
+        disasm_info_(nullptr),
         graph_(graph),
         compiler_options_(compiler_options),
         slow_paths_(graph->GetArena(), 8),
@@ -446,9 +452,12 @@ class CodeGenerator {
   // Whether we are using baseline.
   bool is_baseline_;
 
+  DisassemblyInformation* disasm_info_;
+
  private:
   void InitLocationsBaseline(HInstruction* instruction);
   size_t GetStackOffsetOfSavedRegister(size_t index);
+  void GenerateSlowPaths();
   void CompileInternal(CodeAllocator* allocator, bool is_baseline);
   void BlockIfInRegister(Location location, bool is_out = false) const;
   void EmitEnvironment(HEnvironment* environment, SlowPathCode* slow_path);
