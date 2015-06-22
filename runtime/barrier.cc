@@ -16,6 +16,7 @@
 
 #include "barrier.h"
 
+#include "base/logging.h"
 #include "base/mutex.h"
 #include "base/time_utils.h"
 #include "thread.h"
@@ -87,7 +88,14 @@ void Barrier::SetCountLocked(Thread* self, int count) {
 }
 
 Barrier::~Barrier() {
-  CHECK_EQ(count_, 0) << "Attempted to destroy barrier with non zero count";
+  if (gAborting == 0) {
+    // Only check when not aborting.
+    CHECK_EQ(count_, 0) << "Attempted to destroy barrier with non zero count";
+  } else {
+    if (count_ != 0) {
+      LOG(WARNING) << "Attempted to destroy barrier with non zero count " << count_;
+    }
+  }
 }
 
 }  // namespace art
