@@ -1759,7 +1759,9 @@ class BCEVisitor : public HGraphVisitor {
     ValueBound lower_bound = range->GetLower();
     DCHECK(lower_bound.IsConstant());
     DCHECK(const_instr->GetValue() <= kMaxConstantForAddingDeoptimize);
-    DCHECK_EQ(lower_bound.GetConstant(), const_instr->GetValue() + 1);
+    // Note that the lower bound of the array length may have been refined
+    // through other instructions (such as `HNewArray(length - 4)`).
+    DCHECK_LE(const_instr->GetValue() + 1, lower_bound.GetConstant());
 
     // If array_length is less than lower_const, deoptimize.
     HBoundsCheck* bounds_check = first_constant_index_bounds_check_map_.Get(
