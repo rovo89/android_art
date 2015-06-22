@@ -250,7 +250,7 @@ inline bool CompilerDriver::CanAssumeClassIsInitialized(mirror::Class* klass) {
 
 inline bool CompilerDriver::CanReferrerAssumeClassIsInitialized(mirror::Class* referrer_class,
                                                                 mirror::Class* klass) {
-  return (referrer_class != nullptr && referrer_class->IsSubClass(klass)) ||
+  return (referrer_class != nullptr && klass->IsAssignableFrom(referrer_class)) ||
       CanAssumeClassIsInitialized(klass);
 }
 
