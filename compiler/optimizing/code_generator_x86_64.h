@@ -245,6 +245,10 @@ class CodeGeneratorX86_64 : public CodeGenerator {
     return &assembler_;
   }
 
+  const X86_64Assembler& GetAssembler() const OVERRIDE {
+    return assembler_;
+  }
+
   ParallelMoveResolverX86_64* GetMoveResolver() OVERRIDE {
     return &move_resolver_;
   }
