@@ -2245,12 +2245,32 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
       }
       case Instruction::UNUSED_F4:
       case Instruction::UNUSED_F5:
-      case Instruction::UNUSED_F7 ... Instruction::UNUSED_F9: {
+      case Instruction::UNUSED_F7: {
         if (!IsExperimentalInstructionEnabled(inst)) {
           UnexpectedOpcode(inst, shadow_frame);
         }
 
         CHECK(false);  // TODO(iam): Implement opcodes for lambdas
+        break;
+      }
+      case Instruction::BOX_LAMBDA: {
+        if (!IsExperimentalInstructionEnabled(inst)) {
+          UnexpectedOpcode(inst, shadow_frame);
+        }
+
+        PREAMBLE();
+        bool success = DoBoxLambda<do_access_check>(self, shadow_frame, inst, inst_data);
+        POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
+        break;
+      }
+      case Instruction::UNBOX_LAMBDA: {
+        if (!IsExperimentalInstructionEnabled(inst)) {
+          UnexpectedOpcode(inst, shadow_frame);
+        }
+
+        PREAMBLE();
+        bool success = DoUnboxLambda<do_access_check>(self, shadow_frame, inst, inst_data);
+        POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
         break;
       }
       case Instruction::UNUSED_3E ... Instruction::UNUSED_43:
