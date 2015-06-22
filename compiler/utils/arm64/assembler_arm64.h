@@ -77,7 +77,8 @@ class Arm64Assembler FINAL : public Assembler {
   void FinalizeCode() OVERRIDE;
 
   // Size of generated code.
-  size_t CodeSize() const;
+  size_t CodeSize() const OVERRIDE;
+  const uint8_t* CodeBufferBaseAddress() const OVERRIDE;
 
   // Copy instructions out of assembly buffer into the given region of memory.
   void FinalizeInstructions(const MemoryRegion& region);

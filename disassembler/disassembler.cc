@@ -55,4 +55,8 @@ std::string Disassembler::FormatInstructionPointer(const uint8_t* begin) {
   }
 }
 
+Disassembler* create_disassembler(InstructionSet instruction_set, DisassemblerOptions* options) {
+  return Disassembler::Create(instruction_set, options);
+}
+
 }  // namespace art

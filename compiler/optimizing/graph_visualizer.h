@@ -19,6 +19,8 @@
 
 #include <ostream>
 
+#include "arch/instruction_set.h"
+#include "base/arena_containers.h"
 #include "base/value_object.h"
 
 namespace art {
@@ -26,11 +28,75 @@ namespace art {
 class CodeGenerator;
 class DexCompilationUnit;
 class HGraph;
+class HInstruction;
+class SlowPathCode;
 
 /**
  * This class outputs the HGraph in the C1visualizer format.
  * Note: Currently only works if the compiler is single threaded.
  */
+struct GeneratedCodeInterval {
+  size_t start;
+  size_t end;
+};
+
+struct SlowPathCodeInfo {
+  const SlowPathCode* slow_path;
+  GeneratedCodeInterval code_interval;
+};
+
+// This information is filled by the code generator. It will be used by the
+// graph visualizer to associate disassembly of the generated code with the
+// instructions and slow paths. We assume that the generated code follows the
+// following structure:
+//   - frame entry
+//   - instructions
+//   - slow paths
+class DisassemblyInformation {
+ public:
+  explicit DisassemblyInformation(ArenaAllocator* allocator)
+      : frame_entry_interval_({0, 0}),
+        instruction_intervals_(std::less<const HInstruction*>(), allocator->Adapter()),
+        slow_path_intervals_(allocator->Adapter()) {}
+
+  void SetFrameEntryInterval(size_t start, size_t end) {
+    frame_entry_interval_ = {start, end};
+  }
+
+  void AddInstructionInterval(HInstruction* instr, size_t start, size_t end) {
+    instruction_intervals_.Put(instr, {start, end});
+  }
+
+  void AddSlowPathInterval(SlowPathCode* slow_path, size_t start, size_t end) {
+    slow_path_intervals_.push_back({slow_path, {start, end}});
+  }
+
+  GeneratedCodeInterval GetFrameEntryInterval() const {
+    return frame_entry_interval_;
+  }
+
+  GeneratedCodeInterval* GetFrameEntryInterval() {
+    return &frame_entry_interval_;
+  }
+
+  const ArenaSafeMap<const HInstruction*, GeneratedCodeInterval>& GetInstructionIntervals() const {
+    return instruction_intervals_;
+  }
+
+  ArenaSafeMap<const HInstruction*, GeneratedCodeInterval>* GetInstructionIntervals() {
+    return &instruction_intervals_;
+  }
+
+  const ArenaVector<SlowPathCodeInfo>& GetSlowPathIntervals() const { return slow_path_intervals_; }
+
+  ArenaVector<SlowPathCodeInfo>* GetSlowPathIntervals() { return &slow_path_intervals_; }
+
+ private:
+  GeneratedCodeInterval frame_entry_interval_;
+  ArenaSafeMap<const HInstruction*, GeneratedCodeInterval> instruction_intervals_;
+  ArenaVector<SlowPathCodeInfo> slow_path_intervals_;
+};
+
 class HGraphVisualizer : public ValueObject {
  public:
   HGraphVisualizer(std::ostream* output,
@@ -39,6 +105,7 @@ class HGraphVisualizer : public ValueObject {
 
   void PrintHeader(const char* method_name) const;
   void DumpGraph(const char* pass_name, bool is_after_pass = true) const;
+  void DumpGraphWithDisassembly() const;
 
  private:
   std::ostream* const output_;

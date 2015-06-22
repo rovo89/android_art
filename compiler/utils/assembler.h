@@ -386,6 +386,7 @@ class Assembler {
 
   // Size of generated code
   virtual size_t CodeSize() const { return buffer_.Size(); }
+  virtual const uint8_t* CodeBufferBaseAddress() const { return buffer_.contents(); }
 
   // Copy instructions out of assembly buffer into the given region of memory
   virtual void FinalizeInstructions(const MemoryRegion& region) {
