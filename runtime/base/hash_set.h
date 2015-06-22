@@ -469,8 +469,6 @@ class HashSet {
     }
     // Resize based on the minimum load factor.
     Resize(min_index);
-    // When we hit elements_until_expand_, we are at the max load factor and must expand again.
-    elements_until_expand_ = NumBuckets() * max_load_factor_;
   }
 
   // Expand / shrink the table to the new specified size.
@@ -493,11 +491,18 @@ class HashSet {
     if (owned_data) {
       allocfn_.deallocate(old_data, old_num_buckets);
     }
+
+    // When we hit elements_until_expand_, we are at the max load factor and must expand again.
+    elements_until_expand_ = NumBuckets() * max_load_factor_;
   }
 
   ALWAYS_INLINE size_t FirstAvailableSlot(size_t index) const {
+    DCHECK_LT(index, NumBuckets());  // Don't try to get a slot out of range.
+    size_t non_empty_count = 0;
     while (!emptyfn_.IsEmpty(data_[index])) {
       index = NextIndex(index);
+      non_empty_count++;
+      DCHECK_LE(non_empty_count, NumBuckets());  // Don't loop forever.
     }
     return index;
   }
@@ -526,7 +531,7 @@ class HashSet {
   Pred pred_;  // Equals function.
   size_t num_elements_;  // Number of inserted elements.
   size_t num_buckets_;  // Number of hash table buckets.
-  size_t elements_until_expand_;  // Maxmimum number of elements until we expand the table.
+  size_t elements_until_expand_;  // Maximum number of elements until we expand the table.
   bool owns_data_;  // If we own data_ and are responsible for freeing it.
   T* data_;  // Backing storage.
   double min_load_factor_;

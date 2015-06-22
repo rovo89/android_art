@@ -156,6 +156,38 @@ TEST_F(HashSetTest, TestSwap) {
   }
 }
 
+TEST_F(HashSetTest, TestShrink) {
+  HashSet<std::string, IsEmptyFnString> hash_set;
+  std::vector<std::string> strings = {"a", "b", "c", "d", "e", "f", "g"};
+  for (size_t i = 0; i < strings.size(); ++i) {
+    // Insert some strings into the beginning of our hash set to establish an initial size
+    hash_set.Insert(strings[i]);
+  }
+
+  hash_set.ShrinkToMaximumLoad();
+  const double initial_load = hash_set.CalculateLoadFactor();
+
+  // Insert a bunch of random strings to guarantee that we grow the capacity.
+  std::vector<std::string> random_strings;
+  static constexpr size_t count = 1000;
+  for (size_t i = 0; i < count; ++i) {
+    random_strings.push_back(RandomString(10));
+    hash_set.Insert(random_strings[i]);
+  }
+
+  // Erase all the extra strings which guarantees that our load factor will be really bad.
+  for (size_t i = 0; i < count; ++i) {
+    hash_set.Erase(hash_set.Find(random_strings[i]));
+  }
+
+  const double bad_load = hash_set.CalculateLoadFactor();
+  EXPECT_GT(initial_load, bad_load);
+
+  // Shrink again, the load factor should be good again.
+  hash_set.ShrinkToMaximumLoad();
+  EXPECT_DOUBLE_EQ(initial_load, hash_set.CalculateLoadFactor());
+}
+
 TEST_F(HashSetTest, TestStress) {
   HashSet<std::string, IsEmptyFnString> hash_set;
   std::unordered_multiset<std::string> std_set;
