@@ -1382,6 +1382,7 @@ void Runtime::VisitConstantRoots(RootVisitor* visitor) {
 void Runtime::VisitConcurrentRoots(RootVisitor* visitor, VisitRootFlags flags) {
   intern_table_->VisitRoots(visitor, flags);
   class_linker_->VisitRoots(visitor, flags);
+  heap_->VisitAllocationRecords(visitor);
   if ((flags & kVisitRootFlagNewRoots) == 0) {
     // Guaranteed to have no new roots in the constant roots.
     VisitConstantRoots(visitor);
