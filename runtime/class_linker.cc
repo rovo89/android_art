@@ -4928,8 +4928,7 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
             }
           }
           if (miranda_method == nullptr) {
-            size_t size = ArtMethod::ObjectSize(image_pointer_size_);
-            miranda_method = reinterpret_cast<ArtMethod*>(allocator.Alloc(size));
+            miranda_method = reinterpret_cast<ArtMethod*>(allocator.Alloc(method_size));
             CHECK(miranda_method != nullptr);
             // Point the interface table at a phantom slot.
             new(miranda_method) ArtMethod(*interface_method, image_pointer_size_);
@@ -4968,34 +4967,42 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
         ++out;
       }
     }
+    StrideIterator<ArtMethod> out(
+        reinterpret_cast<uintptr_t>(virtuals) + old_method_count * method_size, method_size);
+    // Copy over miranda methods before copying vtable since CopyOf may cause thread suspension and
+    // we want the roots of the miranda methods to get visited.
+    for (ArtMethod* mir_method : miranda_methods) {
+      out->CopyFrom(mir_method, image_pointer_size_);
+      out->SetAccessFlags(out->GetAccessFlags() | kAccMiranda);
+      move_table.emplace(mir_method, &*out);
+      ++out;
+    }
     UpdateClassVirtualMethods(klass.Get(), virtuals, new_method_count);
-    // Done copying methods, they are all reachable from the class now, so we can end the no thread
+    // Done copying methods, they are all roots in the class now, so we can end the no thread
     // suspension assert.
     self->EndAssertNoThreadSuspension(old_cause);
 
-    size_t old_vtable_count = vtable->GetLength();
+    const size_t old_vtable_count = vtable->GetLength();
     const size_t new_vtable_count = old_vtable_count + miranda_methods.size();
+    miranda_methods.clear();
     vtable.Assign(down_cast<mirror::PointerArray*>(vtable->CopyOf(self, new_vtable_count)));
     if (UNLIKELY(vtable.Get() == nullptr)) {
       self->AssertPendingOOMException();
       return false;
     }
-    StrideIterator<ArtMethod> out(
+    out = StrideIterator<ArtMethod>(
         reinterpret_cast<uintptr_t>(virtuals) + old_method_count * method_size, method_size);
-    for (auto* mir_method : miranda_methods) {
-      ArtMethod* out_method = &*out;
-      out->CopyFrom(mir_method, image_pointer_size_);
+    size_t vtable_pos = old_vtable_count;
+    for (size_t i = old_method_count; i < new_method_count; ++i) {
       // Leave the declaring class alone as type indices are relative to it
-      out_method->SetAccessFlags(out_method->GetAccessFlags() | kAccMiranda);
-      out_method->SetMethodIndex(0xFFFF & old_vtable_count);
-      vtable->SetElementPtrSize(old_vtable_count, out_method, image_pointer_size_);
-      move_table.emplace(mir_method, out_method);
+      out->SetMethodIndex(0xFFFF & vtable_pos);
+      vtable->SetElementPtrSize(vtable_pos, &*out, image_pointer_size_);
       ++out;
-      ++old_vtable_count;
+      ++vtable_pos;
     }
-
+    CHECK_EQ(vtable_pos, new_vtable_count);
     // Update old vtable methods.
-    for (size_t i = 0; i < old_vtable_count - miranda_methods.size(); ++i) {
+    for (size_t i = 0; i < old_vtable_count; ++i) {
       auto* m = vtable->GetElementPtrSize<ArtMethod*>(i, image_pointer_size_);
       DCHECK(m != nullptr) << PrettyClass(klass.Get());
       auto it = move_table.find(m);
@@ -5006,7 +5013,6 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
       }
     }
     klass->SetVTable(vtable.Get());
-    CHECK_EQ(old_vtable_count, new_vtable_count);
     // Go fix up all the stale miranda pointers.
     for (size_t i = 0; i < ifcount; ++i) {
       for (size_t j = 0, count = iftable->GetMethodArrayCount(i); j < count; ++j) {
