@@ -823,9 +823,14 @@ class Hprof : public SingleRootVisitor {
     CHECK(records != nullptr);
     HprofStackTraceSerialNumber next_trace_sn = kHprofNullStackTrace + 1;
     HprofStackFrameId next_frame_id = 0;
+    size_t count = 0;
 
     for (auto it = records->Begin(), end = records->End(); it != end; ++it) {
       const mirror::Object* obj = it->first.Read();
+      if (obj == nullptr) {
+        continue;
+      }
+      ++count;
       const gc::AllocRecordStackTrace* trace = it->second->GetStackTrace();
 
       // Copy the pair into a real hash map to speed up look up.
@@ -849,6 +854,7 @@ class Hprof : public SingleRootVisitor {
     }
     CHECK_EQ(traces_.size(), next_trace_sn - kHprofNullStackTrace - 1);
     CHECK_EQ(frames_.size(), next_frame_id);
+    VLOG(heap) << "hprof: found " << count << " objects with allocation stack traces";
   }
 
   // If direct_to_ddms_ is set, "filename_" and "fd" will be ignored.
