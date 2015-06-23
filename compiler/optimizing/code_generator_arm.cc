@@ -3402,7 +3402,8 @@ void InstructionCodeGeneratorARM::VisitArrayGet(HArrayGet* instruction) {
 
     case Primitive::kPrimInt:
     case Primitive::kPrimNot: {
-      DCHECK_EQ(sizeof(mirror::HeapReference<mirror::Object>), sizeof(int32_t));
+      static_assert(sizeof(mirror::HeapReference<mirror::Object>) == sizeof(int32_t),
+                    "art::mirror::HeapReference<mirror::Object> and int32_t have different sizes.");
       uint32_t data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
       Register out = locations->Out().AsRegister<Register>();
       if (index.IsConstant()) {
