@@ -3923,7 +3923,7 @@ void Dbg::ExecuteMethodWithoutPendingException(ScopedObjectAccess& soa, DebugInv
              << " arg_count=" << pReq->arg_count;
   CHECK(m != nullptr);
 
-  CHECK_EQ(sizeof(jvalue), sizeof(uint64_t));
+  static_assert(sizeof(jvalue) == sizeof(uint64_t), "jvalue and uint64_t have different sizes.");
 
   // Invoke the method.
   ScopedLocalRef<jobject> ref(soa.Env(), soa.AddLocalReference<jobject>(pReq->receiver.Read()));

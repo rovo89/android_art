@@ -552,7 +552,8 @@ inline void Class::SetName(String* name) {
 
 template<VerifyObjectFlags kVerifyFlags>
 inline Primitive::Type Class::GetPrimitiveType() {
-  DCHECK_EQ(sizeof(Primitive::Type), sizeof(int32_t));
+  static_assert(sizeof(Primitive::Type) == sizeof(int32_t),
+                "art::Primitive::Type and int32_t have different sizes.");
   int32_t v32 = GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, primitive_type_));
   Primitive::Type type = static_cast<Primitive::Type>(v32 & 0xFFFF);
   DCHECK_EQ(static_cast<size_t>(v32 >> 16), Primitive::ComponentSizeShift(type));
@@ -561,7 +562,8 @@ inline Primitive::Type Class::GetPrimitiveType() {
 
 template<VerifyObjectFlags kVerifyFlags>
 inline size_t Class::GetPrimitiveTypeSizeShift() {
-  DCHECK_EQ(sizeof(Primitive::Type), sizeof(int32_t));
+  static_assert(sizeof(Primitive::Type) == sizeof(int32_t),
+                "art::Primitive::Type and int32_t have different sizes.");
   int32_t v32 = GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, primitive_type_));
   size_t size_shift = static_cast<Primitive::Type>(v32 >> 16);
   DCHECK_EQ(size_shift, Primitive::ComponentSizeShift(static_cast<Primitive::Type>(v32 & 0xFFFF)));
