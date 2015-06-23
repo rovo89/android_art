@@ -96,7 +96,7 @@ typedef Disassembler* create_disasm_prototype(InstructionSet instruction_set,
 class HGraphVisualizerDisassembler {
  public:
   HGraphVisualizerDisassembler(InstructionSet instruction_set, const uint8_t* base_address)
-      : instruction_set_(instruction_set) {
+      : instruction_set_(instruction_set), disassembler_(nullptr) {
     libart_disassembler_handle_ =
         dlopen(kIsDebugBuild ? "libartd-disassembler.so" : "libart-disassembler.so", RTLD_NOW);
     if (libart_disassembler_handle_ == nullptr) {
@@ -128,6 +128,10 @@ class HGraphVisualizerDisassembler {
   }
 
   void Disassemble(std::ostream& output, size_t start, size_t end) const {
+    if (disassembler_ == nullptr) {
+      return;
+    }
+
     const uint8_t* base = disassembler_->GetDisassemblerOptions()->base_address_;
     if (instruction_set_ == kThumb2) {
       // ARM and Thumb-2 use the same disassembler. The bottom bit of the
