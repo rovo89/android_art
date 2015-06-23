@@ -1116,15 +1116,16 @@ void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass) {
   size_t size_patch_offset = output_->Length();
   __ AddU4(0x77777777);
 
-  // Write the instance data;  fields for this class, followed by super class fields,
-  // and so on. Don't write the klass or monitor fields of Object.class.
-  mirror::Class* orig_klass = klass;
+  // What we will use for the string value if the object is a string.
+  mirror::Object* string_value = nullptr;
+
+  // Write the instance data;  fields for this class, followed by super class fields, and so on.
   do {
-    int ifieldCount = klass->NumInstanceFields();
-    for (int i = 0; i < ifieldCount; ++i) {
+    const size_t instance_fields = klass->NumInstanceFields();
+    for (size_t i = 0; i < instance_fields; ++i) {
       ArtField* f = klass->GetInstanceField(i);
       size_t size;
-      auto t = SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), &size);
+      HprofBasicType t = SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), &size);
       switch (t) {
       case hprof_basic_byte:
         __ AddU1(f->GetByte(obj));
@@ -1149,34 +1150,35 @@ void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass) {
         break;
       }
     }
+    // Add value field for String if necessary.
+    if (klass->IsStringClass()) {
+      mirror::String* s = obj->AsString();
+      if (s->GetLength() == 0) {
+        // If string is empty, use an object-aligned address within the string for the value.
+        string_value = reinterpret_cast<mirror::Object*>(
+            reinterpret_cast<uintptr_t>(s) + kObjectAlignment);
+      } else {
+        string_value = reinterpret_cast<mirror::Object*>(s->GetValue());
+      }
+      __ AddObjectId(string_value);
+    }
 
     klass = klass->GetSuperClass();
   } while (klass != nullptr);
 
+  // Patch the instance field length.
+  __ UpdateU4(size_patch_offset, output_->Length() - (size_patch_offset + 4));
+
   // Output native value character array for strings.
-  if (orig_klass->IsStringClass()) {
+  CHECK_EQ(obj->IsString(), string_value != nullptr);
+  if (string_value != nullptr) {
     mirror::String* s = obj->AsString();
-    mirror::Object* value;
-    if (s->GetLength() == 0) {
-      // If string is empty, use an object-aligned address within the string for the value.
-      value = reinterpret_cast<mirror::Object*>(reinterpret_cast<uintptr_t>(s) + kObjectAlignment);
-    } else {
-      value = reinterpret_cast<mirror::Object*>(s->GetValue());
-    }
-    __ AddObjectId(value);
-
-    // Patch the instance field length.
-    __ UpdateU4(size_patch_offset, output_->Length() - (size_patch_offset + 4));
-
     __ AddU1(HPROF_PRIMITIVE_ARRAY_DUMP);
-    __ AddObjectId(value);
+    __ AddObjectId(string_value);
     __ AddU4(StackTraceSerialNumber(obj));
     __ AddU4(s->GetLength());
     __ AddU1(hprof_basic_char);
     __ AddU2List(s->GetValue(), s->GetLength());
-  } else {
-    // Patch the instance field length.
-    __ UpdateU4(size_patch_offset, output_->Length() - (size_patch_offset + 4));
   }
 }
 
