@@ -1310,7 +1310,7 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
 // reinit references to when reinitializing a ClassLinker from a
 // mapped image.
 void ClassLinker::VisitRoots(RootVisitor* visitor, VisitRootFlags flags) {
-  class_roots_.VisitRoot(visitor, RootInfo(kRootVMInternal));
+  class_roots_.VisitRootIfNonNull(visitor, RootInfo(kRootVMInternal));
   Thread* const self = Thread::Current();
   {
     ReaderMutexLock mu(self, dex_lock_);
@@ -1333,9 +1333,9 @@ void ClassLinker::VisitRoots(RootVisitor* visitor, VisitRootFlags flags) {
     }
   }
   VisitClassRoots(visitor, flags);
-  array_iftable_.VisitRoot(visitor, RootInfo(kRootVMInternal));
-  for (size_t i = 0; i < kFindArrayCacheSize; ++i) {
-    find_array_class_cache_[i].VisitRootIfNonNull(visitor, RootInfo(kRootVMInternal));
+  array_iftable_.VisitRootIfNonNull(visitor, RootInfo(kRootVMInternal));
+  for (GcRoot<mirror::Class>& root : find_array_class_cache_) {
+    root.VisitRootIfNonNull(visitor, RootInfo(kRootVMInternal));
   }
 }
 

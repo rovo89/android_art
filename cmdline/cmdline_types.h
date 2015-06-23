@@ -472,6 +472,7 @@ struct XGcOption {
   bool verify_pre_gc_rosalloc_ = kIsDebugBuild;
   bool verify_pre_sweeping_rosalloc_ = false;
   bool verify_post_gc_rosalloc_ = false;
+  bool gcstress_ = false;
 };
 
 template <>
@@ -509,6 +510,10 @@ struct CmdlineType<XGcOption> : CmdlineTypeParser<XGcOption> {
         xgc.verify_post_gc_rosalloc_ = true;
       } else if (gc_option == "nopostverify_rosalloc") {
         xgc.verify_post_gc_rosalloc_ = false;
+      } else if (gc_option == "gcstress") {
+        xgc.gcstress_ = true;
+      } else if (gc_option == "nogcstress") {
+        xgc.gcstress_ = false;
       } else if ((gc_option == "precise") ||
                  (gc_option == "noprecise") ||
                  (gc_option == "verifycardtable") ||
