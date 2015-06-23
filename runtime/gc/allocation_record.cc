@@ -45,10 +45,29 @@ void AllocRecordObjectMap::SetProperties() {
                  << "' --- invalid";
     } else {
       alloc_record_max_ = value;
+      if (recent_record_max_ > value) {
+        recent_record_max_ = value;
+      }
+    }
+  }
+  // Check whether there's a system property overriding the number of recent records.
+  propertyName = "dalvik.vm.recentAllocMax";
+  char recentAllocMaxString[PROPERTY_VALUE_MAX];
+  if (property_get(propertyName, recentAllocMaxString, "") > 0) {
+    char* end;
+    size_t value = strtoul(recentAllocMaxString, &end, 10);
+    if (*end != '\0') {
+      LOG(ERROR) << "Ignoring  " << propertyName << " '" << recentAllocMaxString
+                 << "' --- invalid";
+    } else if (value > alloc_record_max_) {
+      LOG(ERROR) << "Ignoring  " << propertyName << " '" << recentAllocMaxString
+                 << "' --- should be less than " << alloc_record_max_;
+    } else {
+      recent_record_max_ = value;
     }
   }
   // Check whether there's a system property overriding the max depth of stack trace.
-  propertyName = "dalvik.vm.allocStackDepth";
+  propertyName = "debug.allocTracker.stackDepth";
   char stackDepthString[PROPERTY_VALUE_MAX];
   if (property_get(propertyName, stackDepthString, "") > 0) {
     char* end;
@@ -56,6 +75,10 @@ void AllocRecordObjectMap::SetProperties() {
     if (*end != '\0') {
       LOG(ERROR) << "Ignoring  " << propertyName << " '" << stackDepthString
                  << "' --- invalid";
+    } else if (value > kMaxSupportedStackDepth) {
+      LOG(WARNING) << propertyName << " '" << stackDepthString << "' too large, using "
+                   << kMaxSupportedStackDepth;
+      max_stack_depth_ = kMaxSupportedStackDepth;
     } else {
       max_stack_depth_ = value;
     }
@@ -65,6 +88,20 @@ void AllocRecordObjectMap::SetProperties() {
 
 AllocRecordObjectMap::~AllocRecordObjectMap() {
   STLDeleteValues(&entries_);
+}
+
+void AllocRecordObjectMap::VisitRoots(RootVisitor* visitor) {
+  CHECK_LE(recent_record_max_, alloc_record_max_);
+  BufferedRootVisitor<kDefaultBufferedRootCount> buffered_visitor(visitor, RootInfo(kRootDebugger));
+  size_t count = recent_record_max_;
+  // Only visit the last recent_record_max_ number of objects in entries_.
+  // They need to be retained for DDMS's recent allocation tracking.
+  // TODO: This will cause 098-ddmc test to run out of memory for GC stress test.
+  // There should be an option that do not keep these objects live if allocation tracking is only
+  // for the purpose of an HPROF dump. b/20037135
+  for (auto it = entries_.rbegin(), end = entries_.rend(); count > 0 && it != end; count--, ++it) {
+    buffered_visitor.VisitRoot(it->first);
+  }
 }
 
 void AllocRecordObjectMap::SweepAllocationRecords(IsMarkedCallback* callback, void* arg) {
@@ -139,6 +176,7 @@ void AllocRecordObjectMap::SetAllocTrackingEnabled(bool enable) {
       if (self_name == "JDWP") {
         records->alloc_ddm_thread_id_ = self->GetTid();
       }
+      records->scratch_trace_.SetDepth(records->max_stack_depth_);
       size_t sz = sizeof(AllocRecordStackTraceElement) * records->max_stack_depth_ +
                   sizeof(AllocRecord) + sizeof(AllocRecordStackTrace);
       LOG(INFO) << "Enabling alloc tracker (" << records->alloc_record_max_ << " entries of "
@@ -181,19 +219,14 @@ void AllocRecordObjectMap::RecordAllocation(Thread* self, mirror::Object* obj, s
 
   DCHECK_LE(records->Size(), records->alloc_record_max_);
 
-  // Remove oldest record.
-  if (records->Size() == records->alloc_record_max_) {
-    records->RemoveOldest();
-  }
-
   // Get stack trace.
-  const size_t max_depth = records->max_stack_depth_;
-  AllocRecordStackTrace* trace = new AllocRecordStackTrace(self->GetTid(), max_depth);
-  // add scope to make "visitor" destroyed promptly, in order to set the trace->depth_
+  // add scope to make "visitor" destroyed promptly, in order to set the scratch_trace_->depth_
   {
-    AllocRecordStackVisitor visitor(self, trace, max_depth);
+    AllocRecordStackVisitor visitor(self, &records->scratch_trace_, records->max_stack_depth_);
     visitor.WalkStack();
   }
+  records->scratch_trace_.SetTid(self->GetTid());
+  AllocRecordStackTrace* trace = new AllocRecordStackTrace(records->scratch_trace_);
 
   // Fill in the basics.
   AllocRecord* record = new AllocRecord(byte_count, trace);

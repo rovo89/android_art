@@ -3698,6 +3698,15 @@ void Heap::SetAllocationRecords(AllocRecordObjectMap* records) {
   allocation_records_.reset(records);
 }
 
+void Heap::VisitAllocationRecords(RootVisitor* visitor) const {
+  if (IsAllocTrackingEnabled()) {
+    MutexLock mu(Thread::Current(), *Locks::alloc_tracker_lock_);
+    if (IsAllocTrackingEnabled()) {
+      GetAllocationRecords()->VisitRoots(visitor);
+    }
+  }
+}
+
 void Heap::SweepAllocationRecords(IsMarkedCallback* visitor, void* arg) const {
   if (IsAllocTrackingEnabled()) {
     MutexLock mu(Thread::Current(), *Locks::alloc_tracker_lock_);

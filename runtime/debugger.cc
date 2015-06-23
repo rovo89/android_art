@@ -54,10 +54,6 @@
 #include "verifier/method_verifier-inl.h"
 #include "well_known_classes.h"
 
-#ifdef HAVE_ANDROID_OS
-#include "cutils/properties.h"
-#endif
-
 namespace art {
 
 // The key identifying the debugger to update instrumentation.
@@ -65,22 +61,7 @@ static constexpr const char* kDbgInstrumentationKey = "Debugger";
 
 // Limit alloc_record_count to the 2BE value (64k-1) that is the limit of the current protocol.
 static uint16_t CappedAllocRecordCount(size_t alloc_record_count) {
-  size_t cap = 0xffff;
-#ifdef HAVE_ANDROID_OS
-  // Check whether there's a system property overriding the number of recent records.
-  const char* propertyName = "dalvik.vm.recentAllocMax";
-  char recentAllocMaxString[PROPERTY_VALUE_MAX];
-  if (property_get(propertyName, recentAllocMaxString, "") > 0) {
-    char* end;
-    size_t value = strtoul(recentAllocMaxString, &end, 10);
-    if (*end != '\0') {
-      LOG(ERROR) << "Ignoring  " << propertyName << " '" << recentAllocMaxString
-                 << "' --- invalid";
-    } else {
-      cap = value;
-    }
-  }
-#endif
+  const size_t cap = 0xffff;
   if (alloc_record_count > cap) {
     return cap;
   }
@@ -4725,7 +4706,7 @@ void Dbg::DumpRecentAllocations() {
   gc::AllocRecordObjectMap* records = Runtime::Current()->GetHeap()->GetAllocationRecords();
   CHECK(records != nullptr);
 
-  const uint16_t capped_count = CappedAllocRecordCount(records->Size());
+  const uint16_t capped_count = CappedAllocRecordCount(records->GetRecentAllocationSize());
   uint16_t count = capped_count;
 
   LOG(INFO) << "Tracked allocations, (count=" << count << ")";
@@ -4863,7 +4844,7 @@ jbyteArray Dbg::GetRecentAllocations() {
     StringTable method_names;
     StringTable filenames;
 
-    const uint16_t capped_count = CappedAllocRecordCount(records->Size());
+    const uint16_t capped_count = CappedAllocRecordCount(records->GetRecentAllocationSize());
     uint16_t count = capped_count;
     for (auto it = records->RBegin(), end = records->REnd();
          count > 0 && it != end; count--, it++) {
