@@ -1370,7 +1370,9 @@ void Mir2Lir::InitReferenceVRegs(BasicBlock* bb, BitVector* references) {
   DCHECK(first_bb->data_flow_info->vreg_to_ssa_map_exit != nullptr);
   const int32_t* first_vreg_to_ssa_map = first_bb->data_flow_info->vreg_to_ssa_map_exit;
   references->ClearAllBits();
-  for (uint32_t vreg = 0, num_vregs = mir_graph_->GetNumOfCodeVRs(); vreg != num_vregs; ++vreg) {
+  for (uint32_t vreg = 0,
+       num_vregs = mir_graph_->GetNumOfCodeVRs() + mir_graph_->GetNumUsedCompilerTemps();
+       vreg != num_vregs; ++vreg) {
     int32_t sreg = first_vreg_to_ssa_map[vreg];
     if (sreg != INVALID_SREG && mir_graph_->reg_location_[sreg].ref &&
         !mir_graph_->IsConstantNullRef(mir_graph_->reg_location_[sreg])) {
