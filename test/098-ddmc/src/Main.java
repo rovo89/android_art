@@ -43,23 +43,13 @@ public class Main {
 
         System.out.println("Confirm when we overflow, we don't roll over to zero. b/17392248");
         final int overflowAllocations = 64 * 1024;  // Won't fit in unsigned 16-bit value.
-        // TODO: Temporary fix. Keep the new objects live so they are not garbage collected.
-        // This will cause OOM exception for GC stress tests. The root cause is changed behaviour of
-        // getRecentAllocations(). Working on restoring its old behaviour. b/20037135
-        Object[] objects = new Object[overflowAllocations];
         for (int i = 0; i < overflowAllocations; i++) {
-            objects[i] = new Object();
+            new Object();
         }
         Allocations after = new Allocations(DdmVmInternal.getRecentAllocations());
         System.out.println("before < overflowAllocations=" + (before.numberOfEntries < overflowAllocations));
         System.out.println("after > before=" + (after.numberOfEntries > before.numberOfEntries));
         System.out.println("after.numberOfEntries=" + after.numberOfEntries);
-
-        // TODO: Temporary fix as above. b/20037135
-        objects = null;
-        Runtime.getRuntime().gc();
-        final int fillerStrings = 16 * 1024;
-        String[] strings = new String[fillerStrings];
 
         System.out.println("Disable and confirm back to empty");
         DdmVmInternal.enableRecentAllocations(false);
@@ -76,8 +66,8 @@ public class Main {
         System.out.println("Confirm we can reenable twice in a row without losing allocations");
         DdmVmInternal.enableRecentAllocations(true);
         System.out.println("status=" + DdmVmInternal.getRecentAllocationStatus());
-        for (int i = 0; i < fillerStrings; i++) {
-            strings[i] = new String("fnord");
+        for (int i = 0; i < 16 * 1024; i++) {
+            new String("fnord");
         }
         Allocations first = new Allocations(DdmVmInternal.getRecentAllocations());
         DdmVmInternal.enableRecentAllocations(true);
