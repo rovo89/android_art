@@ -35,12 +35,9 @@
 
 namespace art {
 
-namespace mirror {
-  class DexCache;
-}  // namespace mirror
-
 class ArtField;
 class ArtMethod;
+class DexFile;
 class Thread;
 
 using DexIndexBitSet = std::bitset<65536>;
@@ -126,15 +123,18 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
 
   // Stop tracing. This will finish the trace and write it to file/send it via DDMS.
   static void Stop()
-        LOCKS_EXCLUDED(Locks::mutator_lock_,
-                       Locks::thread_list_lock_,
-                       Locks::trace_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_,
+                     Locks::thread_list_lock_,
+                     Locks::trace_lock_);
   // Abort tracing. This will just stop tracing and *not* write/send the collected data.
   static void Abort()
       LOCKS_EXCLUDED(Locks::mutator_lock_,
                      Locks::thread_list_lock_,
                      Locks::trace_lock_);
-  static void Shutdown() LOCKS_EXCLUDED(Locks::trace_lock_);
+  static void Shutdown()
+      LOCKS_EXCLUDED(Locks::mutator_lock_,
+                     Locks::thread_list_lock_,
+                     Locks::trace_lock_);
   static TracingMode GetMethodTracingMode() LOCKS_EXCLUDED(Locks::trace_lock_);
 
   bool UseWallClock();
@@ -188,7 +188,10 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
   // The sampling interval in microseconds is passed as an argument.
   static void* RunSamplingThread(void* arg) LOCKS_EXCLUDED(Locks::trace_lock_);
 
-  static void StopTracing(bool finish_tracing, bool flush_file);
+  static void StopTracing(bool finish_tracing, bool flush_file)
+      LOCKS_EXCLUDED(Locks::mutator_lock_,
+                     Locks::thread_list_lock_,
+                     Locks::trace_lock_);
   void FinishTracing() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void ReadClocks(Thread* thread, uint32_t* thread_clock_diff, uint32_t* wall_clock_diff);
@@ -279,12 +282,12 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
   // Streaming mode data.
   std::string streaming_file_name_;
   Mutex* streaming_lock_;
-  std::map<mirror::DexCache*, DexIndexBitSet*> seen_methods_;
+  std::map<const DexFile*, DexIndexBitSet*> seen_methods_;
   std::unique_ptr<ThreadIDBitSet> seen_threads_;
 
   // Bijective map from ArtMethod* to index.
   // Map from ArtMethod* to index in unique_methods_;
-  Mutex* unique_methods_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  Mutex* unique_methods_lock_ ACQUIRED_AFTER(streaming_lock_);
   std::unordered_map<ArtMethod*, uint32_t> art_method_id_map_ GUARDED_BY(unique_methods_lock_);
   std::vector<ArtMethod*> unique_methods_ GUARDED_BY(unique_methods_lock_);
 
