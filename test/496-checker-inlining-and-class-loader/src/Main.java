@@ -82,7 +82,7 @@ class LoadedByMyClassLoader {
   /// CHECK-START: void LoadedByMyClassLoader.bar() inliner (after)
   /// CHECK:      LoadClass
   /// CHECK-NEXT: ClinitCheck
-                /* We inlined Main.$inline$bar */
+                /* We inlined FirstSeenByMyClassLoader.$inline$bar */
   /// CHECK-NEXT: LoadClass
   /// CHECK-NEXT: ClinitCheck
   /// CHECK-NEXT: StaticFieldGet
@@ -91,7 +91,7 @@ class LoadedByMyClassLoader {
   /// CHECK-NEXT: InvokeVirtual
 
   /// CHECK-START: void LoadedByMyClassLoader.bar() register (before)
-                /* Load and initialize Main */
+                /* Load and initialize FirstSeenByMyClassLoader */
   /// CHECK:      LoadClass gen_clinit_check:true
                 /* Load and initialize System */
   /// CHECK-NEXT: LoadClass gen_clinit_check:true
@@ -100,9 +100,9 @@ class LoadedByMyClassLoader {
   /// CHECK-NEXT: NullCheck
   /// CHECK-NEXT: InvokeVirtual
   public static void bar() {
-    Main.$inline$bar();
+    FirstSeenByMyClassLoader.$inline$bar();
     System.out.println("In between the two calls.");
-    Main.$noinline$bar();
+    FirstSeenByMyClassLoader.$noinline$bar();
   }
 }
 
@@ -112,14 +112,5 @@ public class Main {
     Class foo = o.loadClass("LoadedByMyClassLoader");
     Method m = foo.getDeclaredMethod("bar");
     m.invoke(null);
-  }
-
-  public static void $inline$bar() {
-  }
-
-  public static void $noinline$bar() {
-    try {
-      System.out.println("In $noinline$bar");
-    } catch (Throwable t) { /* Ignore */ }
   }
 }
