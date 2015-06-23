@@ -1,4 +1,4 @@
 Request for LoadedByMyClassLoader
-Request for Main
+Request for FirstSeenByMyClassLoader
 In between the two calls.
 In $noinline$bar
