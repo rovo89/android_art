@@ -2402,9 +2402,9 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         StackHandleScope<1> hs(self_);
         mirror::Class* return_type_class = called_method->GetReturnType(can_load_classes_);
         if (return_type_class != nullptr) {
-          return_type = &reg_types_.FromClass(called_method->GetReturnTypeDescriptor(),
-                                              return_type_class,
-                                              return_type_class->CannotBeAssignedFromOtherTypes());
+          return_type = &FromClass(called_method->GetReturnTypeDescriptor(),
+                                   return_type_class,
+                                   return_type_class->CannotBeAssignedFromOtherTypes());
         } else {
           DCHECK(!can_load_classes_ || self_->IsExceptionPending());
           self_->ClearException();
@@ -2444,9 +2444,9 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         StackHandleScope<1> hs(self_);
         mirror::Class* return_type_class = called_method->GetReturnType(can_load_classes_);
         if (return_type_class != nullptr) {
-          return_type = &reg_types_.FromClass(return_type_descriptor,
-                                              return_type_class,
-                                              return_type_class->CannotBeAssignedFromOtherTypes());
+          return_type = &FromClass(return_type_descriptor,
+                                   return_type_class,
+                                   return_type_class->CannotBeAssignedFromOtherTypes());
         } else {
           DCHECK(!can_load_classes_ || self_->IsExceptionPending());
           self_->ClearException();
@@ -3195,7 +3195,7 @@ const RegType& MethodVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
   const RegType& referrer = GetDeclaringClass();
   mirror::Class* klass = dex_cache_->GetResolvedType(class_idx);
   const RegType& result = klass != nullptr ?
-      reg_types_.FromClass(descriptor, klass, klass->CannotBeAssignedFromOtherTypes()) :
+      FromClass(descriptor, klass, klass->CannotBeAssignedFromOtherTypes()) :
       reg_types_.FromDescriptor(GetClassLoader(), descriptor, false);
   if (result.IsConflict()) {
     Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "accessing broken descriptor '" << descriptor
@@ -3414,8 +3414,8 @@ ArtMethod* MethodVerifier::VerifyInvocationArgsFromIterator(
       if (res_method != nullptr && !res_method->IsMiranda()) {
         mirror::Class* klass = res_method->GetDeclaringClass();
         std::string temp;
-        res_method_class = &reg_types_.FromClass(klass->GetDescriptor(&temp), klass,
-                                                 klass->CannotBeAssignedFromOtherTypes());
+        res_method_class = &FromClass(klass->GetDescriptor(&temp), klass,
+                                      klass->CannotBeAssignedFromOtherTypes());
       } else {
         const uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
         const uint16_t class_idx = dex_file_->GetMethodId(method_idx).class_idx_;
@@ -3672,8 +3672,7 @@ ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instruction* inst,
     mirror::Class* klass = res_method->GetDeclaringClass();
     std::string temp;
     const RegType& res_method_class =
-        reg_types_.FromClass(klass->GetDescriptor(&temp), klass,
-                             klass->CannotBeAssignedFromOtherTypes());
+        FromClass(klass->GetDescriptor(&temp), klass, klass->CannotBeAssignedFromOtherTypes());
     if (!res_method_class.IsAssignableFrom(actual_arg_type)) {
       Fail(actual_arg_type.IsUnresolvedTypes() ? VERIFY_ERROR_NO_CLASS :
           VERIFY_ERROR_BAD_CLASS_SOFT) << "'this' argument '" << actual_arg_type
@@ -3983,8 +3982,8 @@ ArtField* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_id
   } else {
     mirror::Class* klass = field->GetDeclaringClass();
     const RegType& field_klass =
-        reg_types_.FromClass(dex_file_->GetFieldDeclaringClassDescriptor(field_id),
-                             klass, klass->CannotBeAssignedFromOtherTypes());
+        FromClass(dex_file_->GetFieldDeclaringClassDescriptor(field_id),
+                  klass, klass->CannotBeAssignedFromOtherTypes());
     if (obj_type.IsUninitializedTypes() &&
         (!IsConstructor() || GetDeclaringClass().Equals(obj_type) ||
             !field_klass.Equals(GetDeclaringClass()))) {
@@ -4034,8 +4033,8 @@ void MethodVerifier::VerifyISFieldAccess(const Instruction* inst, const RegType&
     mirror::Class* field_type_class =
         can_load_classes_ ? field->GetType<true>() : field->GetType<false>();
     if (field_type_class != nullptr) {
-      field_type = &reg_types_.FromClass(field->GetTypeDescriptor(), field_type_class,
-                                         field_type_class->CannotBeAssignedFromOtherTypes());
+      field_type = &FromClass(field->GetTypeDescriptor(), field_type_class,
+                              field_type_class->CannotBeAssignedFromOtherTypes());
     } else {
       DCHECK(!can_load_classes_ || self_->IsExceptionPending());
       self_->ClearException();
@@ -4146,8 +4145,8 @@ void MethodVerifier::VerifyQuickFieldAccess(const Instruction* inst, const RegTy
         field->GetType<false>();
 
     if (field_type_class != nullptr) {
-      field_type = &reg_types_.FromClass(field->GetTypeDescriptor(), field_type_class,
-                                         field_type_class->CannotBeAssignedFromOtherTypes());
+      field_type = &FromClass(field->GetTypeDescriptor(), field_type_class,
+                              field_type_class->CannotBeAssignedFromOtherTypes());
     } else {
       Thread* self = Thread::Current();
       DCHECK(!can_load_classes_ || self->IsExceptionPending());
@@ -4339,9 +4338,9 @@ const RegType& MethodVerifier::GetMethodReturnType() {
     if (mirror_method_ != nullptr) {
       mirror::Class* return_type_class = mirror_method_->GetReturnType(can_load_classes_);
       if (return_type_class != nullptr) {
-        return_type_ = &reg_types_.FromClass(mirror_method_->GetReturnTypeDescriptor(),
-                                             return_type_class,
-                                             return_type_class->CannotBeAssignedFromOtherTypes());
+        return_type_ = &FromClass(mirror_method_->GetReturnTypeDescriptor(),
+                                  return_type_class,
+                                  return_type_class->CannotBeAssignedFromOtherTypes());
       } else {
         DCHECK(!can_load_classes_ || self_->IsExceptionPending());
         self_->ClearException();
@@ -4365,8 +4364,8 @@ const RegType& MethodVerifier::GetDeclaringClass() {
         = dex_file_->GetTypeDescriptor(dex_file_->GetTypeId(method_id.class_idx_));
     if (mirror_method_ != nullptr) {
       mirror::Class* klass = mirror_method_->GetDeclaringClass();
-      declaring_class_ = &reg_types_.FromClass(descriptor, klass,
-                                               klass->CannotBeAssignedFromOtherTypes());
+      declaring_class_ = &FromClass(descriptor, klass,
+                                    klass->CannotBeAssignedFromOtherTypes());
     } else {
       declaring_class_ = &reg_types_.FromDescriptor(GetClassLoader(), descriptor, false);
     }
@@ -4464,6 +4463,18 @@ void MethodVerifier::VisitStaticRoots(RootVisitor* visitor) {
 
 void MethodVerifier::VisitRoots(RootVisitor* visitor, const RootInfo& root_info) {
   reg_types_.VisitRoots(visitor, root_info);
+}
+
+const RegType& MethodVerifier::FromClass(const char* descriptor,
+                                         mirror::Class* klass,
+                                         bool precise) {
+  DCHECK(klass != nullptr);
+  if (precise && !klass->IsInstantiable() && !klass->IsPrimitive()) {
+    Fail(VerifyError::VERIFY_ERROR_NO_CLASS) << "Could not create precise reference for "
+        << "non-instantiable klass " << descriptor;
+    precise = false;
+  }
+  return reg_types_.FromClass(descriptor, klass, precise);
 }
 
 }  // namespace verifier
