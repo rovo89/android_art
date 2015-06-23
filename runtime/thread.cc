@@ -1277,7 +1277,8 @@ Thread::Thread(bool daemon) : tls32_(daemon), wait_monitor_(nullptr), interrupte
   tlsPtr_.name = new std::string(kThreadNameDuringStartup);
   tlsPtr_.nested_signal_state = static_cast<jmp_buf*>(malloc(sizeof(jmp_buf)));
 
-  CHECK_EQ((sizeof(Thread) % 4), 0U) << sizeof(Thread);
+  static_assert((sizeof(Thread) % 4) == 0U,
+                "art::Thread has a size which is not a multiple of 4.");
   tls32_.state_and_flags.as_struct.flags = 0;
   tls32_.state_and_flags.as_struct.state = kNative;
   memset(&tlsPtr_.held_mutexes[0], 0, sizeof(tlsPtr_.held_mutexes));
