@@ -660,6 +660,14 @@ class MethodVerifier {
   const RegType& DetermineCat1Constant(int32_t value, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Try to create a register type from the given class. In case a precise type is requested, but
+  // the class is not instantiable, a soft error (of type NO_CLASS) will be enqueued and a
+  // non-precise reference will be returned.
+  // Note: we reuse NO_CLASS as this will throw an exception at runtime, when the failing class is
+  //       actually touched.
+  const RegType& FromClass(const char* descriptor, mirror::Class* klass, bool precise)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // The thread we're verifying on.
   Thread* const self_;
 
