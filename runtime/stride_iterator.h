@@ -22,7 +22,7 @@
 namespace art {
 
 template<typename T>
-class StrideIterator : public std::iterator<std::random_access_iterator_tag, T> {
+class StrideIterator : public std::iterator<std::forward_iterator_tag, T> {
  public:
   StrideIterator(const StrideIterator&) = default;
   StrideIterator(StrideIterator&&) = default;
