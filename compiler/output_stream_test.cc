@@ -47,11 +47,12 @@ class OutputStreamTest : public CommonRuntimeTest {
     CheckOffset(6);
     EXPECT_TRUE(output_stream_->WriteFully(buf, 4));
     CheckOffset(10);
+    EXPECT_TRUE(output_stream_->WriteFully(buf, 6));
   }
 
   void CheckTestOutput(const std::vector<uint8_t>& actual) {
     uint8_t expected[] = {
-        0, 0, 1, 2, 0, 0, 1, 2, 3, 4
+        0, 0, 1, 2, 0, 0, 1, 2, 3, 4, 1, 2, 3, 4, 5, 6
     };
     EXPECT_EQ(sizeof(expected), actual.size());
     EXPECT_EQ(0, memcmp(expected, &actual[0], actual.size()));
@@ -75,11 +76,13 @@ TEST_F(OutputStreamTest, File) {
 
 TEST_F(OutputStreamTest, Buffered) {
   ScratchFile tmp;
-  std::unique_ptr<FileOutputStream> file_output_stream(new FileOutputStream(tmp.GetFile()));
-  CHECK(file_output_stream.get() != nullptr);
-  BufferedOutputStream buffered_output_stream(file_output_stream.release());
-  SetOutputStream(buffered_output_stream);
-  GenerateTestOutput();
+  {
+    std::unique_ptr<FileOutputStream> file_output_stream(new FileOutputStream(tmp.GetFile()));
+    CHECK(file_output_stream.get() != nullptr);
+    BufferedOutputStream buffered_output_stream(file_output_stream.release());
+    SetOutputStream(buffered_output_stream);
+    GenerateTestOutput();
+  }
   std::unique_ptr<File> in(OS::OpenFileForReading(tmp.GetFilename().c_str()));
   EXPECT_TRUE(in.get() != nullptr);
   std::vector<uint8_t> actual(in->GetLength());
