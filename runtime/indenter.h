@@ -27,36 +27,67 @@ const size_t kIndentBy1Count = 2;
 class Indenter : public std::streambuf {
  public:
   Indenter(std::streambuf* out, char text, size_t count)
-      : indent_next_(true), out_sbuf_(out), text_(text), count_(count) {}
+      : indent_next_(true), out_sbuf_(out),
+        text_{text, text, text, text, text, text, text, text},  // NOLINT(whitespace/braces)
+        count_(count) {}
 
  private:
-  int_type overflow(int_type c) {
+  std::streamsize xsputn(const char* s, std::streamsize n) OVERRIDE {
+    std::streamsize result = n;  // Aborts on failure.
+    const char* eol = static_cast<const char*>(memchr(s, '\n', n));
+    while (eol != nullptr) {
+      size_t to_write = eol + 1 - s;
+      Write(s, to_write);
+      s += to_write;
+      n -= to_write;
+      indent_next_ = true;
+      eol = static_cast<const char*>(memchr(s, '\n', n));
+    }
+    if (n != 0u) {
+      Write(s, n);
+    }
+    return result;
+  }
+
+  int_type overflow(int_type c) OVERRIDE {
     if (UNLIKELY(c == std::char_traits<char>::eof())) {
       out_sbuf_->pubsync();
       return c;
     }
-    if (indent_next_) {
-      for (size_t i = 0; i < count_; ++i) {
-        int_type r = out_sbuf_->sputc(text_);
-        if (UNLIKELY(r != text_)) {
-          out_sbuf_->pubsync();
-          r = out_sbuf_->sputc(text_);
-          CHECK_EQ(r, text_) << "Error writing to buffer. Disk full?";
-        }
-      }
-    }
+    char data[1] = { static_cast<char>(c) };
+    Write(data, 1u);
     indent_next_ = (c == '\n');
-    int_type r = out_sbuf_->sputc(c);
-    if (UNLIKELY(r != c)) {
-      out_sbuf_->pubsync();
-      r = out_sbuf_->sputc(c);
-      CHECK_EQ(r, c) << "Error writing to buffer. Disk full?";
-    }
-    return r;
+    return c;
   }
 
   int sync() {
     return out_sbuf_->pubsync();
+  }
+
+  void Write(const char* s, std::streamsize n) {
+    if (indent_next_) {
+      size_t remaining = count_;
+      while (remaining != 0u) {
+        size_t to_write = std::min(remaining, sizeof(text_));
+        RawWrite(text_, to_write);
+        remaining -= to_write;
+      }
+      indent_next_ = false;
+    }
+    RawWrite(s, n);
+  }
+
+  void RawWrite(const char* s, std::streamsize n) {
+    size_t written = out_sbuf_->sputn(s, n);
+    s += written;
+    n -= written;
+    while (n != 0u) {
+      out_sbuf_->pubsync();
+      written = out_sbuf_->sputn(s, n);
+      CHECK_NE(written, 0u) << "Error writing to buffer. Disk full?";
+      s += written;
+      n -= written;
+    }
   }
 
   bool indent_next_;
@@ -65,7 +96,7 @@ class Indenter : public std::streambuf {
   std::streambuf* const out_sbuf_;
 
   // Text output as indent.
-  const char text_;
+  const char text_[8];
 
   // Number of times text is output.
   const size_t count_;
