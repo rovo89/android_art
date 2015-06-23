@@ -46,7 +46,9 @@ enum RootType {
   kRootMonitorUsed,
   kRootThreadObject,
   kRootInternedString,
+  kRootFinalizing,  // used for HPROF's conversion to HprofHeapTag
   kRootDebugger,
+  kRootReferenceCleanup,  // used for HPROF's conversion to HprofHeapTag
   kRootVMInternal,
   kRootJNIMonitor,
 };
