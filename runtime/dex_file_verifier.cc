@@ -684,25 +684,52 @@ bool DexFileVerifier::CheckIntraClassDataItem() {
   ClassDataItemIterator it(*dex_file_, ptr_);
 
   // These calls use the raw access flags to check whether the whole dex field is valid.
-
+  uint32_t prev_index = 0;
   for (; it.HasNextStaticField(); it.Next()) {
-    if (!CheckClassDataItemField(it.GetMemberIndex(), it.GetRawMemberAccessFlags(), true)) {
+    uint32_t curr_index = it.GetMemberIndex();
+    if (curr_index < prev_index) {
+      ErrorStringPrintf("out-of-order static field indexes %d and %d", prev_index, curr_index);
+      return false;
+    }
+    prev_index = curr_index;
+    if (!CheckClassDataItemField(curr_index, it.GetRawMemberAccessFlags(), true)) {
       return false;
     }
   }
+  prev_index = 0;
   for (; it.HasNextInstanceField(); it.Next()) {
-    if (!CheckClassDataItemField(it.GetMemberIndex(), it.GetRawMemberAccessFlags(), false)) {
+    uint32_t curr_index = it.GetMemberIndex();
+    if (curr_index < prev_index) {
+      ErrorStringPrintf("out-of-order instance field indexes %d and %d", prev_index, curr_index);
+      return false;
+    }
+    prev_index = curr_index;
+    if (!CheckClassDataItemField(curr_index, it.GetRawMemberAccessFlags(), false)) {
       return false;
     }
   }
+  prev_index = 0;
   for (; it.HasNextDirectMethod(); it.Next()) {
-    if (!CheckClassDataItemMethod(it.GetMemberIndex(), it.GetRawMemberAccessFlags(),
+    uint32_t curr_index = it.GetMemberIndex();
+    if (curr_index < prev_index) {
+      ErrorStringPrintf("out-of-order direct method indexes %d and %d", prev_index, curr_index);
+      return false;
+    }
+    prev_index = curr_index;
+    if (!CheckClassDataItemMethod(curr_index, it.GetRawMemberAccessFlags(),
         it.GetMethodCodeItemOffset(), true)) {
       return false;
     }
   }
+  prev_index = 0;
   for (; it.HasNextVirtualMethod(); it.Next()) {
-    if (!CheckClassDataItemMethod(it.GetMemberIndex(), it.GetRawMemberAccessFlags(),
+    uint32_t curr_index = it.GetMemberIndex();
+    if (curr_index < prev_index) {
+      ErrorStringPrintf("out-of-order virtual method indexes %d and %d", prev_index, curr_index);
+      return false;
+    }
+    prev_index = curr_index;
+    if (!CheckClassDataItemMethod(curr_index, it.GetRawMemberAccessFlags(),
         it.GetMethodCodeItemOffset(), false)) {
       return false;
     }
