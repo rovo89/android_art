@@ -79,7 +79,8 @@ void Thread::InitCpu() {
   }
 #else
   // Read current LDT entries.
-  CHECK_EQ((size_t)LDT_ENTRY_SIZE, sizeof(uint64_t));
+  static_assert(static_cast<size_t>(LDT_ENTRY_SIZE) == sizeof(uint64_t),
+                "LDT_ENTRY_SIZE is different from sizeof(uint64_t).");
   std::vector<uint64_t> ldt(LDT_ENTRIES);
   size_t ldt_size(sizeof(uint64_t) * ldt.size());
   memset(&ldt[0], 0, ldt_size);

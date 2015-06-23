@@ -129,7 +129,8 @@ inline void ObjectArray<T>::AssignableMemmove(int32_t dst_pos, ObjectArray<T>* s
     }
   }
   // Perform the memmove using int memmove then perform the write barrier.
-  CHECK_EQ(sizeof(HeapReference<T>), sizeof(uint32_t));
+  static_assert(sizeof(HeapReference<T>) == sizeof(uint32_t),
+                "art::mirror::HeapReference<T> and uint32_t have different sizes.");
   IntArray* dstAsIntArray = reinterpret_cast<IntArray*>(this);
   IntArray* srcAsIntArray = reinterpret_cast<IntArray*>(src);
   if (kUseReadBarrier) {
@@ -172,7 +173,8 @@ inline void ObjectArray<T>::AssignableMemcpy(int32_t dst_pos, ObjectArray<T>* sr
     }
   }
   // Perform the memmove using int memcpy then perform the write barrier.
-  CHECK_EQ(sizeof(HeapReference<T>), sizeof(uint32_t));
+  static_assert(sizeof(HeapReference<T>) == sizeof(uint32_t),
+                "art::mirror::HeapReference<T> and uint32_t have different sizes.");
   IntArray* dstAsIntArray = reinterpret_cast<IntArray*>(this);
   IntArray* srcAsIntArray = reinterpret_cast<IntArray*>(src);
   if (kUseReadBarrier) {
