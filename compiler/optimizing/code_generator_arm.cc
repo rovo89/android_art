@@ -2616,7 +2616,9 @@ void LocationsBuilderARM::HandleShift(HBinaryOperation* op) {
     case Primitive::kPrimInt: {
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::RegisterOrConstant(op->InputAt(1)));
-      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      // Make the output overlap, as it will be used to hold the masked
+      // second input.
+      locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
       break;
     }
     case Primitive::kPrimLong: {
@@ -2647,13 +2649,13 @@ void InstructionCodeGeneratorARM::HandleShift(HBinaryOperation* op) {
       // Arm doesn't mask the shift count so we need to do it ourselves.
       if (second.IsRegister()) {
         Register second_reg = second.AsRegister<Register>();
-        __ and_(second_reg, second_reg, ShifterOperand(kMaxIntShiftValue));
+        __ and_(out_reg, second_reg, ShifterOperand(kMaxIntShiftValue));
         if (op->IsShl()) {
-          __ Lsl(out_reg, first_reg, second_reg);
+          __ Lsl(out_reg, first_reg, out_reg);
         } else if (op->IsShr()) {
-          __ Asr(out_reg, first_reg, second_reg);
+          __ Asr(out_reg, first_reg, out_reg);
         } else {
-          __ Lsr(out_reg, first_reg, second_reg);
+          __ Lsr(out_reg, first_reg, out_reg);
         }
       } else {
         int32_t cst = second.GetConstant()->AsIntConstant()->GetValue();
@@ -2682,44 +2684,44 @@ void InstructionCodeGeneratorARM::HandleShift(HBinaryOperation* op) {
       Register second_reg = second.AsRegister<Register>();
 
       if (op->IsShl()) {
+        __ and_(o_l, second_reg, ShifterOperand(kMaxLongShiftValue));
         // Shift the high part
-        __ and_(second_reg, second_reg, ShifterOperand(63));
-        __ Lsl(o_h, high, second_reg);
+        __ Lsl(o_h, high, o_l);
         // Shift the low part and `or` what overflew on the high part
-        __ rsb(temp, second_reg, ShifterOperand(32));
+        __ rsb(temp, o_l, ShifterOperand(kArmBitsPerWord));
         __ Lsr(temp, low, temp);
         __ orr(o_h, o_h, ShifterOperand(temp));
         // If the shift is > 32 bits, override the high part
-        __ subs(temp, second_reg, ShifterOperand(32));
+        __ subs(temp, o_l, ShifterOperand(kArmBitsPerWord));
         __ it(PL);
         __ Lsl(o_h, low, temp, false, PL);
         // Shift the low part
-        __ Lsl(o_l, low, second_reg);
+        __ Lsl(o_l, low, o_l);
       } else if (op->IsShr()) {
+        __ and_(o_h, second_reg, ShifterOperand(kMaxLongShiftValue));
         // Shift the low part
-        __ and_(second_reg, second_reg, ShifterOperand(63));
-        __ Lsr(o_l, low, second_reg);
+        __ Lsr(o_l, low, o_h);
         // Shift the high part and `or` what underflew on the low part
-        __ rsb(temp, second_reg, ShifterOperand(32));
+        __ rsb(temp, o_h, ShifterOperand(kArmBitsPerWord));
         __ Lsl(temp, high, temp);
         __ orr(o_l, o_l, ShifterOperand(temp));
         // If the shift is > 32 bits, override the low part
-        __ subs(temp, second_reg, ShifterOperand(32));
+        __ subs(temp, o_h, ShifterOperand(kArmBitsPerWord));
         __ it(PL);
         __ Asr(o_l, high, temp, false, PL);
         // Shift the high part
-        __ Asr(o_h, high, second_reg);
+        __ Asr(o_h, high, o_h);
       } else {
+        __ and_(o_h, second_reg, ShifterOperand(kMaxLongShiftValue));
         // same as Shr except we use `Lsr`s and not `Asr`s
-        __ and_(second_reg, second_reg, ShifterOperand(63));
-        __ Lsr(o_l, low, second_reg);
-        __ rsb(temp, second_reg, ShifterOperand(32));
+        __ Lsr(o_l, low, o_h);
+        __ rsb(temp, o_h, ShifterOperand(kArmBitsPerWord));
         __ Lsl(temp, high, temp);
         __ orr(o_l, o_l, ShifterOperand(temp));
-        __ subs(temp, second_reg, ShifterOperand(32));
+        __ subs(temp, o_h, ShifterOperand(kArmBitsPerWord));
         __ it(PL);
         __ Lsr(o_l, high, temp, false, PL);
-        __ Lsr(o_h, high, second_reg);
+        __ Lsr(o_h, high, o_h);
       }
       break;
     }
