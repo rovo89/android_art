@@ -80,6 +80,8 @@ enum LockLevel {
   kMarkSweepMarkStackLock,
   kInternTableLock,
   kOatFileSecondaryLookupLock,
+  kTracingUniqueMethodsLock,
+  kTracingStreamingLock,
   kDefaultMutexLevel,
   kMarkSweepLargeObjectLock,
   kPinTableLock,
