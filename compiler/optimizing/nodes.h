@@ -160,6 +160,8 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   const GrowableArray<HBasicBlock*>& GetBlocks() const { return blocks_; }
   HBasicBlock* GetBlock(size_t id) const { return blocks_.Get(id); }
 
+  bool IsInSsaForm() const { return in_ssa_form_; }
+
   HBasicBlock* GetEntryBlock() const { return entry_block_; }
   HBasicBlock* GetExitBlock() const { return exit_block_; }
   bool HasExitBlock() const { return exit_block_ != nullptr; }

@@ -31,7 +31,7 @@ class DexFile;
 class IntrinsicsRecognizer : public HOptimization {
  public:
   IntrinsicsRecognizer(HGraph* graph, CompilerDriver* driver)
-      : HOptimization(graph, true, kIntrinsicsRecognizerPassName),
+      : HOptimization(graph, kIntrinsicsRecognizerPassName),
         driver_(driver) {}
 
   void Run() OVERRIDE;
