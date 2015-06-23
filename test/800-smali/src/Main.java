@@ -95,6 +95,8 @@ public class Main {
                 new VerifyError(), 0));
         testCases.add(new TestCase("b/22045582 (wide)", "B22045582Wide", "run", null,
                 new VerifyError(), 0));
+        testCases.add(new TestCase("b/21886894", "B21886894", "test", null, new VerifyError(),
+            null));
     }
 
     public void runTests() {
