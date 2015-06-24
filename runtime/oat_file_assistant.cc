@@ -151,7 +151,7 @@ OatFileAssistant::DexOptNeeded OatFileAssistant::GetDexOptNeeded() {
     return kSelfPatchOatNeeded;
   }
 
-  return kDex2OatNeeded;
+  return HasOriginalDexFiles() ? kDex2OatNeeded : kNoDexOptNeeded;
 }
 
 bool OatFileAssistant::MakeUpToDate(std::string* error_msg) {
@@ -239,6 +239,14 @@ std::vector<std::unique_ptr<const DexFile>> OatFileAssistant::LoadDexFiles(
     dex_files.push_back(std::move(dex_file));
   }
   return dex_files;
+}
+
+bool OatFileAssistant::HasOriginalDexFiles() {
+  // Ensure GetRequiredDexChecksum has been run so that
+  // has_original_dex_files_ is initialized. We don't care about the result of
+  // GetRequiredDexChecksum.
+  GetRequiredDexChecksum();
+  return has_original_dex_files_;
 }
 
 const std::string* OatFileAssistant::OdexFileName() {
@@ -817,17 +825,19 @@ std::string OatFileAssistant::ImageLocation() {
 }
 
 const uint32_t* OatFileAssistant::GetRequiredDexChecksum() {
-  if (!required_dex_checksum_attempted) {
-    required_dex_checksum_attempted = true;
-    required_dex_checksum_found = false;
+  if (!required_dex_checksum_attempted_) {
+    required_dex_checksum_attempted_ = true;
+    required_dex_checksum_found_ = false;
     std::string error_msg;
     CHECK(dex_location_ != nullptr) << "OatFileAssistant provided no dex location";
-    if (DexFile::GetChecksum(dex_location_, &cached_required_dex_checksum, &error_msg)) {
-      required_dex_checksum_found = true;
+    if (DexFile::GetChecksum(dex_location_, &cached_required_dex_checksum_, &error_msg)) {
+      required_dex_checksum_found_ = true;
+      has_original_dex_files_ = true;
     } else {
       // This can happen if the original dex file has been stripped from the
       // apk.
       VLOG(oat) << "OatFileAssistant: " << error_msg;
+      has_original_dex_files_ = false;
 
       // Get the checksum from the odex if we can.
       const OatFile* odex_file = GetOdexFile();
@@ -835,13 +845,13 @@ const uint32_t* OatFileAssistant::GetRequiredDexChecksum() {
         const OatFile::OatDexFile* odex_dex_file = odex_file->GetOatDexFile(
             dex_location_, nullptr, false);
         if (odex_dex_file != nullptr) {
-          cached_required_dex_checksum = odex_dex_file->GetDexFileLocationChecksum();
-          required_dex_checksum_found = true;
+          cached_required_dex_checksum_ = odex_dex_file->GetDexFileLocationChecksum();
+          required_dex_checksum_found_ = true;
         }
       }
     }
   }
-  return required_dex_checksum_found ? &cached_required_dex_checksum : nullptr;
+  return required_dex_checksum_found_ ? &cached_required_dex_checksum_ : nullptr;
 }
 
 const OatFile* OatFileAssistant::GetOdexFile() {
