@@ -1050,9 +1050,8 @@ HBasicBlock* HBasicBlock::SplitAfter(HInstruction* cursor) {
 
 bool HBasicBlock::IsSingleGoto() const {
   HLoopInformation* loop_info = GetLoopInformation();
-  // TODO: Remove the null check b/19084197.
-  return GetFirstInstruction() != nullptr
-         && GetPhis().IsEmpty()
+  DCHECK(EndsWithControlFlowInstruction());
+  return GetPhis().IsEmpty()
          && GetFirstInstruction() == GetLastInstruction()
          && GetLastInstruction()->IsGoto()
          // Back edges generate the suspend check.
