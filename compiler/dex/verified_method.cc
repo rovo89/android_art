@@ -41,6 +41,7 @@ const VerifiedMethod* VerifiedMethod::Create(verifier::MethodVerifier* method_ve
                                              bool compile) {
   std::unique_ptr<VerifiedMethod> verified_method(new VerifiedMethod);
   verified_method->has_verification_failures_ = method_verifier->HasFailures();
+  verified_method->has_runtime_throw_ = method_verifier->HasInstructionThatWillThrow();
   if (compile) {
     /* Generate a register map. */
     if (!verified_method->GenerateGcMap(method_verifier)) {

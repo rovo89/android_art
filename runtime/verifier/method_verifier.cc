@@ -3728,6 +3728,7 @@ void MethodVerifier::VerifyAGet(const Instruction* inst,
   } else {
     const RegType& array_type = work_line_->GetRegisterType(this, inst->VRegB_23x());
     if (array_type.IsZero()) {
+      have_pending_runtime_throw_failure_ = true;
       // Null array class; this code path will fail at runtime. Infer a merge-able type from the
       // instruction type. TODO: have a proper notion of bottom here.
       if (!is_primitive || insn_type.IsCategory1Types()) {

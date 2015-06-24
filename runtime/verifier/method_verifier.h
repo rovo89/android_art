@@ -244,6 +244,10 @@ class MethodVerifier {
   bool HasCheckCasts() const;
   bool HasVirtualOrInterfaceInvokes() const;
   bool HasFailures() const;
+  bool HasInstructionThatWillThrow() const {
+    return have_pending_runtime_throw_failure_;
+  }
+
   const RegType& ResolveCheckedClass(uint32_t class_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Returns the method of a quick invoke or null if it cannot be found.
