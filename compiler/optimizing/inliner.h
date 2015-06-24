@@ -37,7 +37,7 @@ class HInliner : public HOptimization {
            StackHandleScopeCollection* handles,
            OptimizingCompilerStats* stats,
            size_t depth = 0)
-      : HOptimization(outer_graph, true, kInlinerPassName, stats),
+      : HOptimization(outer_graph, kInlinerPassName, stats),
         outer_compilation_unit_(outer_compilation_unit),
         caller_compilation_unit_(caller_compilation_unit),
         compiler_driver_(compiler_driver),

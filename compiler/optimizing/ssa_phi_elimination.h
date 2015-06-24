@@ -29,7 +29,7 @@ namespace art {
 class SsaDeadPhiElimination : public HOptimization {
  public:
   explicit SsaDeadPhiElimination(HGraph* graph)
-      : HOptimization(graph, true, kSsaDeadPhiEliminationPassName),
+      : HOptimization(graph, kSsaDeadPhiEliminationPassName),
         worklist_(graph->GetArena(), kDefaultWorklistSize) {}
 
   void Run() OVERRIDE;
@@ -56,7 +56,7 @@ class SsaDeadPhiElimination : public HOptimization {
 class SsaRedundantPhiElimination : public HOptimization {
  public:
   explicit SsaRedundantPhiElimination(HGraph* graph)
-      : HOptimization(graph, true, kSsaRedundantPhiEliminationPassName),
+      : HOptimization(graph, kSsaRedundantPhiEliminationPassName),
         worklist_(graph->GetArena(), kDefaultWorklistSize) {}
 
   void Run() OVERRIDE;
