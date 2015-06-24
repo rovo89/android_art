@@ -31,7 +31,7 @@ namespace art {
 class ReferenceTypePropagation : public HOptimization {
  public:
   ReferenceTypePropagation(HGraph* graph, StackHandleScopeCollection* handles)
-    : HOptimization(graph, true, kReferenceTypePropagationPassName),
+    : HOptimization(graph, kReferenceTypePropagationPassName),
       handles_(handles),
       worklist_(graph->GetArena(), kDefaultWorklistSize) {}
 

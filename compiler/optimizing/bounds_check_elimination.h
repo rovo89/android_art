@@ -24,7 +24,7 @@ namespace art {
 class BoundsCheckElimination : public HOptimization {
  public:
   explicit BoundsCheckElimination(HGraph* graph)
-      : HOptimization(graph, true, kBoundsCheckEliminiationPassName) {}
+      : HOptimization(graph, kBoundsCheckEliminiationPassName) {}
 
   void Run() OVERRIDE;
 
