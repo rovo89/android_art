@@ -2062,8 +2062,13 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     case Instruction::MOVE_RESULT:
     case Instruction::MOVE_RESULT_WIDE:
     case Instruction::MOVE_RESULT_OBJECT:
-      UpdateLocal(instruction.VRegA(), latest_result_);
-      latest_result_ = nullptr;
+      if (latest_result_ == nullptr) {
+        // Only dead code can lead to this situation, where the verifier
+        // does not reject the method.
+      } else {
+        UpdateLocal(instruction.VRegA(), latest_result_);
+        latest_result_ = nullptr;
+      }
       break;
 
     case Instruction::CMP_LONG: {
