@@ -29,12 +29,10 @@ namespace art {
 class HOptimization : public ArenaObject<kArenaAllocMisc> {
  public:
   HOptimization(HGraph* graph,
-                bool is_in_ssa_form,
                 const char* pass_name,
                 OptimizingCompilerStats* stats = nullptr)
       : graph_(graph),
         stats_(stats),
-        is_in_ssa_form_(is_in_ssa_form),
         pass_name_(pass_name) {}
 
   virtual ~HOptimization() {}
@@ -45,9 +43,6 @@ class HOptimization : public ArenaObject<kArenaAllocMisc> {
   // Peform the analysis itself.
   virtual void Run() = 0;
 
-  // Verify the graph; abort if it is not valid.
-  void Check();
-
  protected:
   void MaybeRecordStat(MethodCompilationStat compilation_stat, size_t count = 1) const;
 
@@ -56,8 +51,6 @@ class HOptimization : public ArenaObject<kArenaAllocMisc> {
   OptimizingCompilerStats* const stats_;
 
  private:
-  // Does the analyzed graph use the SSA form?
-  const bool is_in_ssa_form_;
   // Optimization pass name.
   const char* pass_name_;
 
