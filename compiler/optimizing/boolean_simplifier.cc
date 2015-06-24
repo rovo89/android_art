@@ -141,6 +141,12 @@ void HBooleanSimplifier::TryRemovingBooleanSelection(HBasicBlock* block) {
   block->MergeWith(false_block);
   block->MergeWith(merge_block);
 
+  // No need to update any dominance information, as we are simplifying
+  // a simple diamond shape, where the join block is merged with the
+  // entry block. Any following blocks would have had the join block
+  // as a dominator, and `MergeWith` handles changing that to the
+  // entry block.
+
   // Remove the original condition if it is now unused.
   if (!if_condition->HasUses()) {
     if_condition->GetBlock()->RemoveInstructionOrPhi(if_condition);
