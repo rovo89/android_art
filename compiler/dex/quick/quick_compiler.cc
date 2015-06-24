@@ -33,6 +33,7 @@
 #include "dex/pass_driver_me_post_opt.h"
 #include "dex/pass_manager.h"
 #include "dex/quick/mir_to_lir.h"
+#include "dex/verified_method.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
 #include "elf_writer_quick.h"
@@ -621,6 +622,10 @@ CompiledMethod* QuickCompiler::Compile(const DexFile::CodeItem* code_item,
 
   VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
   if (Compiler::IsPathologicalCase(*code_item, method_idx, dex_file)) {
+    return nullptr;
+  }
+
+  if (driver->GetVerifiedMethod(&dex_file, method_idx)->HasRuntimeThrow()) {
     return nullptr;
   }
 
