@@ -1,0 +1,3 @@
+Regression test for Quick and Optimizing that used
+to crash on an aget-object + int-to-byte sequence
+(accepted by the verifier in the case the array was null).
