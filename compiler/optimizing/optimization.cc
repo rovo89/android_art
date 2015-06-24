@@ -16,34 +16,11 @@
 
 #include "optimization.h"
 
-#include "base/dumpable.h"
-#include "graph_checker.h"
-
 namespace art {
 
 void HOptimization::MaybeRecordStat(MethodCompilationStat compilation_stat, size_t count) const {
   if (stats_ != nullptr) {
     stats_->RecordStat(compilation_stat, count);
-  }
-}
-
-void HOptimization::Check() {
-  if (kIsDebugBuild) {
-    if (is_in_ssa_form_) {
-      SSAChecker checker(graph_->GetArena(), graph_);
-      checker.Run();
-      if (!checker.IsValid()) {
-        LOG(FATAL) << "Error after " << GetPassName() << ": "
-                   << Dumpable<SSAChecker>(checker);
-      }
-    } else {
-      GraphChecker checker(graph_->GetArena(), graph_);
-      checker.Run();
-      if (!checker.IsValid()) {
-        LOG(FATAL) << "Error after " << GetPassName() << ": "
-                   << Dumpable<GraphChecker>(checker);
-      }
-    }
   }
 }
 
