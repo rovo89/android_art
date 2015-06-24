@@ -41,7 +41,6 @@ inline mirror::Class* ClassLinker::FindArrayClass(Thread* self, mirror::Class** 
       return array_class;
     }
   }
-  DCHECK(!(*element_class)->IsPrimitiveVoid());
   std::string descriptor = "[";
   std::string temp;
   descriptor += (*element_class)->GetDescriptor(&temp);
@@ -49,10 +48,15 @@ inline mirror::Class* ClassLinker::FindArrayClass(Thread* self, mirror::Class** 
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle((*element_class)->GetClassLoader()));
   HandleWrapper<mirror::Class> h_element_class(hs.NewHandleWrapper(element_class));
   mirror::Class* array_class = FindClass(self, descriptor.c_str(), class_loader);
-  // Benign races in storing array class and incrementing index.
-  size_t victim_index = find_array_class_cache_next_victim_;
-  find_array_class_cache_[victim_index] = GcRoot<mirror::Class>(array_class);
-  find_array_class_cache_next_victim_ = (victim_index + 1) % kFindArrayCacheSize;
+  if (array_class != nullptr) {
+    // Benign races in storing array class and incrementing index.
+    size_t victim_index = find_array_class_cache_next_victim_;
+    find_array_class_cache_[victim_index] = GcRoot<mirror::Class>(array_class);
+    find_array_class_cache_next_victim_ = (victim_index + 1) % kFindArrayCacheSize;
+  } else {
+    // We should have a NoClassDefFoundError.
+    self->AssertPendingException();
+  }
   return array_class;
 }
 
