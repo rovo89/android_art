@@ -165,6 +165,7 @@ class JniCompilerTest : public CommonCompilerTest {
   void StackArgsIntsFirstImpl();
   void StackArgsFloatsFirstImpl();
   void StackArgsMixedImpl();
+  void StackArgsSignExtendedMips64Impl();
 
   JNIEnv* env_;
   jmethodID jmethod_;
@@ -1714,5 +1715,50 @@ void JniCompilerTest::StackArgsMixedImpl() {
 }
 
 JNI_TEST(StackArgsMixed)
+
+void Java_MyClassNatives_stackArgsSignExtendedMips64(JNIEnv*, jclass, jint i1, jint i2, jint i3,
+                                                     jint i4, jint i5, jint i6, jint i7, jint i8) {
+  EXPECT_EQ(i1, 1);
+  EXPECT_EQ(i2, 2);
+  EXPECT_EQ(i3, 3);
+  EXPECT_EQ(i4, 4);
+  EXPECT_EQ(i5, 5);
+  EXPECT_EQ(i6, 6);
+  EXPECT_EQ(i7, 7);
+  EXPECT_EQ(i8, -8);
+
+#if defined(__mips__) && defined(__LP64__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+  // Mips64 ABI requires that arguments passed through stack be sign-extended 8B slots.
+  // First 8 arguments are passed through registers, check i7 and i8.
+  uint32_t stack1_high = *(&i7 + 1);
+  uint32_t stack2_high = *(&i8 + 1);
+
+  EXPECT_EQ(stack1_high, static_cast<uint32_t>(0));
+  EXPECT_EQ(stack2_high, static_cast<uint32_t>(0xffffffff));
+#else
+  LOG(INFO) << "Skipping stackArgsSignExtendedMips64 as there is nothing to be done on "
+            << kRuntimeISA;
+  // Force-print to std::cout so it's also outside the logcat.
+  std::cout << "Skipping stackArgsSignExtendedMips64 as there is nothing to be done on "
+            << kRuntimeISA << std::endl;
+#endif
+}
+
+void JniCompilerTest::StackArgsSignExtendedMips64Impl() {
+  SetUpForTest(true, "stackArgsSignExtendedMips64", "(IIIIIIII)V",
+               reinterpret_cast<void*>(&Java_MyClassNatives_stackArgsSignExtendedMips64));
+  jint i1 = 1;
+  jint i2 = 2;
+  jint i3 = 3;
+  jint i4 = 4;
+  jint i5 = 5;
+  jint i6 = 6;
+  jint i7 = 7;
+  jint i8 = -8;
+
+  env_->CallStaticVoidMethod(jklass_, jmethod_, i1, i2, i3, i4, i5, i6, i7, i8);
+}
+
+JNI_TEST(StackArgsSignExtendedMips64)
 
 }  // namespace art
