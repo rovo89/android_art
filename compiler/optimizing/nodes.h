@@ -170,6 +170,9 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
     return true;
   }
 
+  void ComputeDominanceInformation();
+  void ClearDominanceInformation();
+
   void BuildDominatorTree();
   void TransformToSsa();
   void SimplifyCFG();
@@ -547,11 +550,10 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
     LOG(FATAL) << "Unreachable";
     UNREACHABLE();
   }
+  void ClearDominanceInformation();
 
   int NumberOfBackEdges() const {
-    return loop_information_ == nullptr
-        ? 0
-        : loop_information_->NumberOfBackEdges();
+    return IsLoopHeader() ? loop_information_->NumberOfBackEdges() : 0;
   }
 
   HInstruction* GetFirstInstruction() const { return instructions_.first_instruction_; }

@@ -116,9 +116,24 @@ void HGraph::BuildDominatorTree() {
   //     dominators and the reverse post order.
   SimplifyCFG();
 
-  // (5) Compute the immediate dominator of each block. We visit
-  //     the successors of a block only when all its forward branches
-  //     have been processed.
+  // (5) Compute the dominance information and the reverse post order.
+  ComputeDominanceInformation();
+}
+
+void HGraph::ClearDominanceInformation() {
+  for (HReversePostOrderIterator it(*this); !it.Done(); it.Advance()) {
+    it.Current()->ClearDominanceInformation();
+  }
+  reverse_post_order_.Reset();
+}
+
+void HBasicBlock::ClearDominanceInformation() {
+  dominated_blocks_.Reset();
+  dominator_ = nullptr;
+}
+
+void HGraph::ComputeDominanceInformation() {
+  DCHECK(reverse_post_order_.IsEmpty());
   GrowableArray<size_t> visits(arena_, blocks_.Size());
   visits.SetSize(blocks_.Size());
   reverse_post_order_.Add(entry_block_);
@@ -1037,8 +1052,7 @@ void HBasicBlock::DisconnectAndDelete() {
   }
   predecessors_.Reset();
 
-  // Disconnect the block from its successors and update their dominators
-  // and phis.
+  // Disconnect the block from its successors and update their phis.
   for (size_t i = 0, e = successors_.Size(); i < e; ++i) {
     HBasicBlock* successor = successors_.Get(i);
     // Delete this block from the list of predecessors.
@@ -1048,19 +1062,6 @@ void HBasicBlock::DisconnectAndDelete() {
     // Check that `successor` has other predecessors, otherwise `this` is the
     // dominator of `successor` which violates the order DCHECKed at the top.
     DCHECK(!successor->predecessors_.IsEmpty());
-
-    // Recompute the successor's dominator.
-    HBasicBlock* old_dominator = successor->GetDominator();
-    HBasicBlock* new_dominator = successor->predecessors_.Get(0);
-    for (size_t j = 1, f = successor->predecessors_.Size(); j < f; ++j) {
-      new_dominator = graph_->FindCommonDominator(
-          new_dominator, successor->predecessors_.Get(j));
-    }
-    if (old_dominator != new_dominator) {
-      successor->SetDominator(new_dominator);
-      old_dominator->RemoveDominatedBlock(successor);
-      new_dominator->AddDominatedBlock(successor);
-    }
 
     // Remove this block's entries in the successor's phis.
     if (successor->predecessors_.Size() == 1u) {

@@ -67,6 +67,7 @@ void HDeadCodeElimination::RemoveDeadBlocks() {
   ArenaBitVector affected_loops(allocator, graph_->GetBlocks().Size(), false);
 
   MarkReachableBlocks(graph_->GetEntryBlock(), &live_blocks);
+  bool removed_one_or_more_blocks = false;
 
   // Remove all dead blocks. Iterate in post order because removal needs the
   // block's chain of dominators and nested loops need to be updated from the
@@ -83,7 +84,15 @@ void HDeadCodeElimination::RemoveDeadBlocks() {
       MaybeRecordDeadBlock(block);
       MarkLoopHeadersContaining(*block, &affected_loops);
       block->DisconnectAndDelete();
+      removed_one_or_more_blocks = true;
     }
+  }
+
+  // If we removed at least one block, we need to recompute the full
+  // dominator tree.
+  if (removed_one_or_more_blocks) {
+    graph_->ClearDominanceInformation();
+    graph_->ComputeDominanceInformation();
   }
 
   // Connect successive blocks created by dead branches. Order does not matter.
