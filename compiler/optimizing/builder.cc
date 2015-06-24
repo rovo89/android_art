@@ -378,15 +378,15 @@ bool HGraphBuilder::ComputeBranchTargets(const uint16_t* code_ptr,
       dex_pc += instruction.SizeInCodeUnits();
       code_ptr += instruction.SizeInCodeUnits();
 
-      if (code_ptr >= code_end) {
-        if (instruction.CanFlowThrough()) {
+      if (instruction.CanFlowThrough()) {
+        if (code_ptr >= code_end) {
           // In the normal case we should never hit this but someone can artificially forge a dex
           // file to fall-through out the method code. In this case we bail out compilation.
           return false;
+        } else if (FindBlockStartingAt(dex_pc) == nullptr) {
+          block = new (arena_) HBasicBlock(graph_, dex_pc);
+          branch_targets_.Put(dex_pc, block);
         }
-      } else if (FindBlockStartingAt(dex_pc) == nullptr) {
-        block = new (arena_) HBasicBlock(graph_, dex_pc);
-        branch_targets_.Put(dex_pc, block);
       }
     } else if (instruction.IsSwitch()) {
       SwitchTable table(instruction, dex_pc, instruction.Opcode() == Instruction::SPARSE_SWITCH);
