@@ -906,9 +906,9 @@ void DexFile::DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32
 
           local_in_reg[reg].name_ = StringDataByIdx(name_idx);
           local_in_reg[reg].descriptor_ = StringByTypeIdx(descriptor_idx);
-          if (opcode == DBG_START_LOCAL_EXTENDED) {
-            local_in_reg[reg].signature_ = StringDataByIdx(signature_idx);
-          }
+          local_in_reg[reg].signature_ =
+              (opcode == DBG_START_LOCAL_EXTENDED) ? StringDataByIdx(signature_idx)
+                                                   : nullptr;
           local_in_reg[reg].start_address_ = address;
           local_in_reg[reg].is_live_ = true;
         }
