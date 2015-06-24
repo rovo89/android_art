@@ -1373,7 +1373,7 @@ ENTRY art_quick_imt_conflict_trampoline
     dla     $t9, art_quick_invoke_interface_trampoline
     .cpreturn
     jalr    $zero, $t9
-    lwu     $a0, MIRROR_LONG_ARRAY_DATA_OFFSET($a0)  # load the target method
+    ld      $a0, MIRROR_LONG_ARRAY_DATA_OFFSET($a0)  # load the target method
 END art_quick_imt_conflict_trampoline
 
     .extern artQuickResolutionTrampoline
