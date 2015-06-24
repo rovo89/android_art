@@ -84,7 +84,7 @@ while true; do
     # Increase the timeout, as vogar cannot set individual test
     # timeout when being asked to run packages, and some tests go above
     # the default timeout.
-    vogar_args="$vogar_args --timeout 180"
+    vogar_args="$vogar_args --timeout 240"
     shift
   elif [[ "$1" == "" ]]; then
     break
