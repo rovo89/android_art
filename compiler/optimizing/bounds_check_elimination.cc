@@ -1386,7 +1386,7 @@ class BCEVisitor : public HGraphVisitor {
     if (array_length->IsPhi()) {
       // Input 1 of the phi contains the real array.length once the loop body is
       // entered. That value will be used for bound analysis. The graph is still
-      // strickly in SSA form.
+      // strictly in SSA form.
       array_length = array_length->AsPhi()->InputAt(1)->AsArrayLength();
     }
 
@@ -1782,7 +1782,13 @@ class BCEVisitor : public HGraphVisitor {
          it != first_constant_index_bounds_check_map_.end();
          ++it) {
       HBoundsCheck* bounds_check = it->second;
-      HArrayLength* array_length = bounds_check->InputAt(1)->AsArrayLength();
+      HInstruction* array_length = bounds_check->InputAt(1);
+      if (!array_length->IsArrayLength()) {
+        // Prior deoptimizations may have changed the array length to a phi.
+        // TODO(mingyao): propagate the range to the phi?
+        DCHECK(array_length->IsPhi()) << array_length->DebugName();
+        continue;
+      }
       HIntConstant* lower_bound_const_instr = nullptr;
       int32_t lower_bound_const = INT_MIN;
       size_t counter = 0;
