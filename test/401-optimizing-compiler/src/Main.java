@@ -110,6 +110,11 @@ public class Main {
     if (result != 42) {
       throw new Error("Unexpected result: " + result);
     }
+
+    String s = $opt$StringInit();
+    if (!s.equals("hello world")) {
+      throw new Error("Unexpected string: " + s);
+    }
   }
 
   public static void invokePrivate() {
@@ -228,6 +233,10 @@ public class Main {
 
   public static int $opt$ArrayLengthOfNull(int[] array) {
     return array.length;
+  }
+
+  public static String $opt$StringInit() {
+    return new String("hello world");
   }
 
   Object o;
