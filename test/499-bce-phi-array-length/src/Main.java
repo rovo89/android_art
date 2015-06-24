@@ -32,11 +32,33 @@ public class Main {
     return result;
   }
 
+  public static int bar(int start, int[] array) {
+    int result = 0;
+    for (int i = start; i < 3; i++) {
+      result += array[i];
+      for (int j = 0; j < 2; ++j) {
+        result += array[j];
+        // The following operations would lead to BCE wanting to add another
+        // deoptimization, but it crashed assuming the input of a `HBoundsCheck`
+        // must be a `HArrayLength`.
+        result += array[0];
+        result += array[1];
+        result += array[2];
+      }
+    }
+    return result;
+  }
+
   public static void main(String[] args) {
     int[] a = new int[] { 1, 2, 3, 4, 5 };
     int result = foo(1, a);
     if (result != 11) {
       throw new Error("Got " + result + ", expected " + 11);
+    }
+
+    result = bar(1, a);
+    if (result != 35) {
+      throw new Error("Got " + result + ", expected " + 35);
     }
   }
 }
