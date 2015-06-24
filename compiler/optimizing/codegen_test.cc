@@ -192,7 +192,10 @@ static void RunCodeOptimized(CodeGenerator* codegen,
                              std::function<void(HGraph*)> hook_before_codegen,
                              bool has_result,
                              Expected expected) {
-  graph->BuildDominatorTree();
+  // Tests may have already computed it.
+  if (graph->GetReversePostOrder().IsEmpty()) {
+    graph->BuildDominatorTree();
+  }
   SsaLivenessAnalysis liveness(graph, codegen);
   liveness.Analyze();
 
