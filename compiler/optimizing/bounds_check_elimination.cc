@@ -1180,9 +1180,7 @@ class BCEVisitor : public HGraphVisitor {
       }
     }
     ValueRange* narrowed_range = existing_range->Narrow(range);
-    if (narrowed_range != nullptr) {
-      GetValueRangeMap(successor)->Overwrite(instruction->GetId(), narrowed_range);
-    }
+    GetValueRangeMap(successor)->Overwrite(instruction->GetId(), narrowed_range);
   }
 
   // Special case that we may simultaneously narrow two MonotonicValueRange's to
@@ -1730,6 +1728,10 @@ class BCEVisitor : public HGraphVisitor {
         ValueBound upper = ValueBound(new_array, -right_const);
         ValueRange* range = new (GetGraph()->GetArena())
             ValueRange(GetGraph()->GetArena(), lower, upper);
+        ValueRange* existing_range = LookupValueRange(left, new_array->GetBlock());
+        if (existing_range != nullptr) {
+          range = existing_range->Narrow(range);
+        }
         GetValueRangeMap(new_array->GetBlock())->Overwrite(left->GetId(), range);
       }
     }
