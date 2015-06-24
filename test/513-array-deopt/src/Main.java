@@ -19,19 +19,36 @@ public class Main {
     a[0] = 0;
     a[1] = 0;
     a[2] = 0;
-    // Up to this point, we record that the lower bound is 2.
+    // Up to this point, we record that the lower bound (inclusive) is 3.
     // The next instruction will record that the lower bound is 5.
     // The deoptimization code used to assume the lower bound has
-    // to be check it will add for the deoptimization (here, it
-    // would be 2).
+    // to be the one it will add for the deoptimization check (here, it
+    // would be 3).
     return new int[a.length - 5];
+  }
+
+  public static int[] foo(int[] a) {
+    a[0] = 0;
+    a[1] = 0;
+    a[2] = 0;
+    // Up to this point, we record that the lower bound (inclusive) is 3.
+    // The next instruction will record that the lower bound is 1.
+    // The deoptimization code used to assume the lower bound has
+    // to be the one it will add for the deoptimization check (here, it
+    // would be 3).
+    return new int[a.length - 1];
   }
 
   public static void main(String[] args) {
     int[] a = new int[5];
-    a = bar(a);
-    if (a.length != 0) {
-      throw new Error("Expected 0, got " + a.length);
+    int[] result = bar(a);
+    if (result.length != 0) {
+      throw new Error("Expected 0, got " + result.length);
+    }
+
+    result = foo(a);
+    if (result.length != 4) {
+      throw new Error("Expected 5, got " + result.length);
     }
   }
 }
