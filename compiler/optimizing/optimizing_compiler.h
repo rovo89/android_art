@@ -24,6 +24,11 @@ class CompilerDriver;
 
 Compiler* CreateOptimizingCompiler(CompilerDriver* driver);
 
+// Returns whether we are compiling against a "core" image, which
+// is an indicative we are running tests. The compiler will use that
+// information for checking invariants.
+bool IsCompilingWithCoreImage();
+
 }  // namespace art
 
 #endif  // ART_COMPILER_OPTIMIZING_OPTIMIZING_COMPILER_H_
