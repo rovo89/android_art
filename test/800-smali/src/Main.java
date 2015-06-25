@@ -83,12 +83,14 @@ public class Main {
                 0));
         testCases.add(new TestCase("b/21873167", "B21873167", "test", null, null, null));
         testCases.add(new TestCase("b/21614284", "B21614284", "test", new Object[] { null },
-            new NullPointerException(), null));
+                new NullPointerException(), null));
         testCases.add(new TestCase("b/21902684", "B21902684", "test", null, null, null));
         testCases.add(new TestCase("b/21863767", "B21863767", "run", null, null,
                 null));
         testCases.add(new TestCase("b/21886894", "B21886894", "test", null, new VerifyError(),
-            null));
+                null));
+        testCases.add(new TestCase("b/22080519", "B22080519", "run", null,
+                new NullPointerException(), null));
     }
 
     public void runTests() {
