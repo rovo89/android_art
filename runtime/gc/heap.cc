@@ -746,7 +746,7 @@ void Heap::IncrementDisableMovingGC(Thread* self) {
 
 void Heap::DecrementDisableMovingGC(Thread* self) {
   MutexLock mu(self, *gc_complete_lock_);
-  CHECK_GE(disable_moving_gc_count_, 0U);
+  CHECK_GT(disable_moving_gc_count_, 0U);
   --disable_moving_gc_count_;
 }
 

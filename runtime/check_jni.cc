@@ -1188,7 +1188,7 @@ class GuardedCopy {
    * Create an over-sized buffer to hold the contents of "buf".  Copy it in,
    * filling in the area around it with guard data.
    */
-  static void* Create(const void* original_buf, size_t len, bool mod_okay) {
+  static void* Create(void* original_buf, size_t len, bool mod_okay) {
     const size_t new_len = LengthIncludingRedZones(len);
     uint8_t* const new_buf = DebugAlloc(new_len);
 
@@ -1227,13 +1227,14 @@ class GuardedCopy {
    * Create a guarded copy of a primitive array.  Modifications to the copied
    * data are allowed.  Returns a pointer to the copied data.
    */
-  static void* CreateGuardedPACopy(JNIEnv* env, const jarray java_array, jboolean* is_copy) {
+  static void* CreateGuardedPACopy(JNIEnv* env, const jarray java_array, jboolean* is_copy,
+                                   void* original_ptr) {
     ScopedObjectAccess soa(env);
 
     mirror::Array* a = soa.Decode<mirror::Array*>(java_array);
     size_t component_size = a->GetClass()->GetComponentSize();
     size_t byte_count = a->GetLength() * component_size;
-    void* result = Create(a->GetRawData(component_size, 0), byte_count, true);
+    void* result = Create(original_ptr, byte_count, true);
     if (is_copy != nullptr) {
       *is_copy = JNI_TRUE;
     }
@@ -1244,22 +1245,22 @@ class GuardedCopy {
    * Perform the array "release" operation, which may or may not copy data
    * back into the managed heap, and may or may not release the underlying storage.
    */
-  static void* ReleaseGuardedPACopy(const char* function_name, JNIEnv* env, jarray java_array,
-                                   void* embedded_buf, int mode) {
+  static void* ReleaseGuardedPACopy(const char* function_name, JNIEnv* env,
+                                    jarray java_array ATTRIBUTE_UNUSED, void* embedded_buf,
+                                    int mode) {
     ScopedObjectAccess soa(env);
-    mirror::Array* a = soa.Decode<mirror::Array*>(java_array);
-
     if (!GuardedCopy::Check(function_name, embedded_buf, true)) {
       return nullptr;
     }
+    GuardedCopy* const copy = FromEmbedded(embedded_buf);
+    void* original_ptr = copy->original_ptr_;
     if (mode != JNI_ABORT) {
-      size_t len = FromEmbedded(embedded_buf)->original_length_;
-      memcpy(a->GetRawData(a->GetClass()->GetComponentSize(), 0), embedded_buf, len);
+      memcpy(original_ptr, embedded_buf, copy->original_length_);
     }
     if (mode != JNI_COMMIT) {
-      return Destroy(embedded_buf);
+      Destroy(embedded_buf);
     }
-    return embedded_buf;
+    return original_ptr;
   }
 
 
@@ -1286,7 +1287,7 @@ class GuardedCopy {
   }
 
  private:
-  GuardedCopy(const void* original_buf, size_t len, uLong adler) :
+  GuardedCopy(void* original_buf, size_t len, uLong adler) :
     magic_(kGuardMagic), adler_(adler), original_ptr_(original_buf), original_length_(len) {
   }
 
@@ -1414,7 +1415,7 @@ class GuardedCopy {
 
   const uint32_t magic_;
   const uLong adler_;
-  const void* const original_ptr_;
+  void* const original_ptr_;
   const size_t original_length_;
 };
 const char* const GuardedCopy::kCanary = "JNI BUFFER RED ZONE";
@@ -2307,10 +2308,11 @@ class CheckJNI {
     JniValueType args[3] = {{.E = env}, {.a = array}, {.p = is_copy}};
     if (sc.Check(soa, true, "Eap", args)) {
       JniValueType result;
-      result.p = baseEnv(env)->GetPrimitiveArrayCritical(env, array, is_copy);
-      if (result.p != nullptr && soa.ForceCopy()) {
-        result.p = GuardedCopy::CreateGuardedPACopy(env, array, is_copy);
+      void* ptr = baseEnv(env)->GetPrimitiveArrayCritical(env, array, is_copy);
+      if (ptr != nullptr && soa.ForceCopy()) {
+        ptr = GuardedCopy::CreateGuardedPACopy(env, array, is_copy, ptr);
       }
+      result.p = ptr;
       if (sc.Check(soa, false, "p", &result)) {
         return const_cast<void*>(result.p);
       }
@@ -2325,7 +2327,7 @@ class CheckJNI {
     JniValueType args[4] = {{.E = env}, {.a = array}, {.p = carray}, {.r = mode}};
     if (sc.Check(soa, true, "Eapr", args)) {
       if (soa.ForceCopy()) {
-        GuardedCopy::ReleaseGuardedPACopy(__FUNCTION__, env, array, carray, mode);
+        carray = GuardedCopy::ReleaseGuardedPACopy(__FUNCTION__, env, array, carray, mode);
       }
       baseEnv(env)->ReleasePrimitiveArrayCritical(env, array, carray, mode);
       JniValueType result;
@@ -3062,26 +3064,26 @@ class CheckJNI {
     JniValueType args[3] = {{.E = env}, {.s = string}, {.p = is_copy}};
     if (sc.Check(soa, true, "Esp", args)) {
       JniValueType result;
+      void* ptr;
       if (utf) {
         CHECK(!critical);
-        result.u = baseEnv(env)->GetStringUTFChars(env, string, is_copy);
+        ptr = const_cast<char*>(baseEnv(env)->GetStringUTFChars(env, string, is_copy));
+        result.u = reinterpret_cast<char*>(ptr);
       } else {
-        if (critical) {
-          result.p = baseEnv(env)->GetStringCritical(env, string, is_copy);
-        } else {
-          result.p = baseEnv(env)->GetStringChars(env, string, is_copy);
-        }
+        ptr = const_cast<jchar*>(critical ? baseEnv(env)->GetStringCritical(env, string, is_copy) :
+            baseEnv(env)->GetStringChars(env, string, is_copy));
+        result.p = ptr;
       }
       // TODO: could we be smarter about not copying when local_is_copy?
-      if (result.p != nullptr && soa.ForceCopy()) {
+      if (ptr != nullptr && soa.ForceCopy()) {
         if (utf) {
           size_t length_in_bytes = strlen(result.u) + 1;
           result.u =
-              reinterpret_cast<const char*>(GuardedCopy::Create(result.u, length_in_bytes, false));
+              reinterpret_cast<const char*>(GuardedCopy::Create(ptr, length_in_bytes, false));
         } else {
           size_t length_in_bytes = baseEnv(env)->GetStringLength(env, string) * 2;
           result.p =
-              reinterpret_cast<const jchar*>(GuardedCopy::Create(result.p, length_in_bytes, false));
+              reinterpret_cast<const jchar*>(GuardedCopy::Create(ptr, length_in_bytes, false));
         }
         if (is_copy != nullptr) {
           *is_copy = JNI_TRUE;
@@ -3175,47 +3177,43 @@ class CheckJNI {
     JniValueType args[3] = {{.E = env}, {.a = array}, {.p = is_copy}};
     if (sc.Check(soa, true, "Eap", args) && sc.CheckPrimitiveArrayType(soa, array, type)) {
       JniValueType result;
+      void* ptr = nullptr;
       switch (type) {
         case Primitive::kPrimBoolean:
-          result.p = baseEnv(env)->GetBooleanArrayElements(env, down_cast<jbooleanArray>(array),
-                                                           is_copy);
+          ptr = baseEnv(env)->GetBooleanArrayElements(env, down_cast<jbooleanArray>(array),
+                                                      is_copy);
           break;
         case Primitive::kPrimByte:
-          result.p = baseEnv(env)->GetByteArrayElements(env, down_cast<jbyteArray>(array),
-                                                        is_copy);
+          ptr = baseEnv(env)->GetByteArrayElements(env, down_cast<jbyteArray>(array), is_copy);
           break;
         case Primitive::kPrimChar:
-          result.p = baseEnv(env)->GetCharArrayElements(env, down_cast<jcharArray>(array),
-                                                        is_copy);
+          ptr = baseEnv(env)->GetCharArrayElements(env, down_cast<jcharArray>(array), is_copy);
           break;
         case Primitive::kPrimShort:
-          result.p = baseEnv(env)->GetShortArrayElements(env, down_cast<jshortArray>(array),
-                                                         is_copy);
+          ptr = baseEnv(env)->GetShortArrayElements(env, down_cast<jshortArray>(array), is_copy);
           break;
         case Primitive::kPrimInt:
-          result.p = baseEnv(env)->GetIntArrayElements(env, down_cast<jintArray>(array), is_copy);
+          ptr = baseEnv(env)->GetIntArrayElements(env, down_cast<jintArray>(array), is_copy);
           break;
         case Primitive::kPrimLong:
-          result.p = baseEnv(env)->GetLongArrayElements(env, down_cast<jlongArray>(array),
-                                                        is_copy);
+          ptr = baseEnv(env)->GetLongArrayElements(env, down_cast<jlongArray>(array), is_copy);
           break;
         case Primitive::kPrimFloat:
-          result.p = baseEnv(env)->GetFloatArrayElements(env, down_cast<jfloatArray>(array),
-                                                         is_copy);
+          ptr = baseEnv(env)->GetFloatArrayElements(env, down_cast<jfloatArray>(array), is_copy);
           break;
         case Primitive::kPrimDouble:
-          result.p = baseEnv(env)->GetDoubleArrayElements(env, down_cast<jdoubleArray>(array),
-                                                          is_copy);
+          ptr = baseEnv(env)->GetDoubleArrayElements(env, down_cast<jdoubleArray>(array), is_copy);
           break;
         default:
           LOG(FATAL) << "Unexpected primitive type: " << type;
       }
-      if (result.p != nullptr && soa.ForceCopy()) {
-        result.p = GuardedCopy::CreateGuardedPACopy(env, array, is_copy);
+      if (ptr != nullptr && soa.ForceCopy()) {
+        ptr = GuardedCopy::CreateGuardedPACopy(env, array, is_copy, ptr);
         if (is_copy != nullptr) {
           *is_copy = JNI_TRUE;
         }
       }
+      result.p = ptr;
       if (sc.Check(soa, false, "p", &result)) {
         return const_cast<void*>(result.p);
       }
