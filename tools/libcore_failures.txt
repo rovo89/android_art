@@ -110,9 +110,8 @@
   bug: 18869265
 },
 {
-  description: "Test sometimes timeouts on volantis",
+  description: "Test sometimes timeouts on volantis, and on most modes in debug mode",
   result: EXEC_TIMEOUT,
-  modes_variants: [[device,X64]],
   names: ["libcore.java.lang.SystemTest#testArrayCopyConcurrentModification"],
   bug: 19165288
 },
