@@ -987,13 +987,18 @@ std::vector<std::unique_ptr<const DexFile>> ClassLinker::OpenDexFilesFromOat(
   // Fall back to running out of the original dex file if we couldn't load any
   // dex_files from the oat file.
   if (dex_files.empty()) {
-    if (Runtime::Current()->IsDexFileFallbackEnabled()) {
-      if (!DexFile::Open(dex_location, dex_location, &error_msg, &dex_files)) {
-        LOG(WARNING) << error_msg;
-        error_msgs->push_back("Failed to open dex files from " + std::string(dex_location));
+    if (oat_file_assistant.HasOriginalDexFiles()) {
+      if (Runtime::Current()->IsDexFileFallbackEnabled()) {
+        if (!DexFile::Open(dex_location, dex_location, &error_msg, &dex_files)) {
+          LOG(WARNING) << error_msg;
+          error_msgs->push_back("Failed to open dex files from " + std::string(dex_location));
+        }
+      } else {
+        error_msgs->push_back("Fallback mode disabled, skipping dex files.");
       }
     } else {
-      error_msgs->push_back("Fallback mode disabled, skipping dex files.");
+      error_msgs->push_back("No original dex files found for dex location "
+          + std::string(dex_location));
     }
   }
   return dex_files;
