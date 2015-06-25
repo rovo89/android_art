@@ -530,12 +530,14 @@ static inline bool DoCallCommon(ArtMethod* called_method,
   // (at this point the ArtMethod has already been replaced,
   // so we just need to fix-up the arguments)
   uint32_t string_init_vreg_this = is_range ? vregC : arg[0];
-  if (UNLIKELY(code_item == nullptr && string_init)) {
-    DCHECK(called_method->IsNative() || called_method->IsProxyMethod());
-
+  if (UNLIKELY(string_init)) {
     DCHECK_GT(num_regs, 0u);  // As the method is an instance method, there should be at least 1.
+
     // The new StringFactory call is static and has one fewer argument.
-    num_regs--;
+    if (code_item == nullptr) {
+      DCHECK(called_method->IsNative() || called_method->IsProxyMethod());
+      num_regs--;
+    }  // else ... don't need to change num_regs since it comes up from the string_init's code item
     number_of_inputs--;
 
     // Rewrite the var-args, dropping the 0th argument ("this")
@@ -583,11 +585,13 @@ static inline bool DoCallCommon(ArtMethod* called_method,
       new_shadow_frame->SetVRegReference(dest_reg, shadow_frame.GetVRegReference(receiver_reg));
       ++dest_reg;
       ++arg_offset;
+      DCHECK(!string_init);  // All StringFactory methods are static.
     }
 
     // Copy the caller's invoke-* arguments into the callee's parameter registers.
     for (uint32_t shorty_pos = 0; dest_reg < num_regs; ++shorty_pos, ++dest_reg, ++arg_offset) {
-      DCHECK_LT(shorty_pos + 1, shorty_len);
+      // Skip the 0th 'shorty' type since it represents the return type.
+      DCHECK_LT(shorty_pos + 1, shorty_len) << "for shorty '" << shorty << "'";
       const size_t src_reg = (is_range) ? vregC + arg_offset : arg[arg_offset];
       switch (shorty[shorty_pos + 1]) {
         // Handle Object references. 1 virtual register slot.
