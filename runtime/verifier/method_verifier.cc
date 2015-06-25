@@ -400,6 +400,7 @@ MethodVerifier::MethodVerifier(Thread* self,
       monitor_enter_dex_pcs_(nullptr),
       have_pending_hard_failure_(false),
       have_pending_runtime_throw_failure_(false),
+      have_any_pending_runtime_throw_failure_(false),
       new_instance_count_(0),
       monitor_enter_count_(0),
       can_load_classes_(can_load_classes),
@@ -1637,6 +1638,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   } else if (kIsDebugBuild) {
     saved_line_->FillWithGarbage();
   }
+  DCHECK(!have_pending_runtime_throw_failure_);  // Per-instruction flag, should not be set here.
 
 
   // We need to ensure the work line is consistent while performing validation. When we spot a
@@ -2971,6 +2973,10 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   } else if (have_pending_runtime_throw_failure_) {
     /* checking interpreter will throw, mark following code as unreachable */
     opcode_flags = Instruction::kThrow;
+    have_any_pending_runtime_throw_failure_ = true;
+    // Reset the pending_runtime_throw flag. The flag is a global to decouple Fail and is per
+    // instruction.
+    have_pending_runtime_throw_failure_ = false;
   }
   /*
    * If we didn't just set the result register, clear it out. This ensures that you can only use
