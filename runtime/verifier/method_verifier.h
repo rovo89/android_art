@@ -255,7 +255,7 @@ class MethodVerifier {
   bool HasVirtualOrInterfaceInvokes() const;
   bool HasFailures() const;
   bool HasInstructionThatWillThrow() const {
-    return have_pending_runtime_throw_failure_;
+    return have_any_pending_runtime_throw_failure_;
   }
 
   const RegType& ResolveCheckedClass(uint32_t class_idx)
@@ -730,7 +730,11 @@ class MethodVerifier {
   // would fail at runtime throwing an exception. Such an instruction causes the following code
   // to be unreachable. This is set by Fail and used to ensure we don't process unreachable
   // instructions that would hard fail the verification.
+  // Note: this flag is reset after processing each instruction.
   bool have_pending_runtime_throw_failure_;
+
+  // A version of the above that is not reset and thus captures if there were *any* throw failures.
+  bool have_any_pending_runtime_throw_failure_;
 
   // Info message log use primarily for verifier diagnostics.
   std::ostringstream info_messages_;
