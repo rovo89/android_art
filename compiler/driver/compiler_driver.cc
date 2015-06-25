@@ -1971,7 +1971,13 @@ static void SetVerifiedClass(const ParallelCompilationManager* manager, size_t c
     if (klass->IsResolved()) {
       if (klass->GetStatus() < mirror::Class::kStatusVerified) {
         ObjectLock<mirror::Class> lock(soa.Self(), klass);
+        // Set class status to verified.
         mirror::Class::SetStatus(klass, mirror::Class::kStatusVerified, soa.Self());
+        // Mark methods as pre-verified. If we don't do this, the interpreter will run with
+        // access checks.
+        klass->SetPreverifiedFlagOnAllMethods(
+            GetInstructionSetPointerSize(manager->GetCompiler()->GetInstructionSet()));
+        klass->SetPreverified();
       }
       // Record the final class status if necessary.
       ClassReference ref(manager->GetDexFile(), class_def_index);
