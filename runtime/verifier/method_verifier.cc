@@ -1790,9 +1790,13 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           DCHECK(!return_type.IsUninitializedReference());
           const uint32_t vregA = inst->VRegA_11x();
           const RegType& reg_type = work_line_->GetRegisterType(this, vregA);
-          // Disallow returning uninitialized values and verify that the reference in vAA is an
-          // instance of the "return_type"
-          if (reg_type.IsUninitializedTypes()) {
+          // Disallow returning undefined, conflict & uninitialized values and verify that the
+          // reference in vAA is an instance of the "return_type."
+          if (reg_type.IsUndefined()) {
+            Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "returning undefined register";
+          } else if (reg_type.IsConflict()) {
+            Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "returning register with conflict";
+          } else if (reg_type.IsUninitializedTypes()) {
             Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "returning uninitialized object '"
                                               << reg_type << "'";
           } else if (!return_type.IsAssignableFrom(reg_type)) {
