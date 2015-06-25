@@ -558,7 +558,8 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   {
     PassInfo pass_info(HGraphBuilder::kBuilderPassName, &pass_info_printer);
     if (!builder.BuildGraph(*code_item)) {
-      CHECK(!shouldCompile) << "Could not build graph in optimizing compiler";
+      DCHECK(!(IsCompilingWithCoreImage() && shouldCompile))
+          << "Could not build graph in optimizing compiler";
       return nullptr;
     }
   }
@@ -644,6 +645,11 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
 
 Compiler* CreateOptimizingCompiler(CompilerDriver* driver) {
   return new OptimizingCompiler(driver);
+}
+
+bool IsCompilingWithCoreImage() {
+  const std::string& image = Runtime::Current()->GetImageLocation();
+  return EndsWith(image, "core.art") || EndsWith(image, "core-optimizing.art");
 }
 
 }  // namespace art

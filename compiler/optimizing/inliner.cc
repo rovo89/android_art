@@ -27,6 +27,7 @@
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache.h"
 #include "nodes.h"
+#include "optimizing_compiler.h"
 #include "register_allocator.h"
 #include "ssa_phi_elimination.h"
 #include "scoped_thread_state_change.h"
@@ -56,7 +57,7 @@ void HInliner::Run() {
         // We use the original invoke type to ensure the resolution of the called method
         // works properly.
         if (!TryInline(call, call->GetDexMethodIndex())) {
-          if (kIsDebugBuild) {
+          if (kIsDebugBuild && IsCompilingWithCoreImage()) {
             std::string callee_name =
                 PrettyMethod(call->GetDexMethodIndex(), *outer_compilation_unit_.GetDexFile());
             bool should_inline = callee_name.find("$inline$") != std::string::npos;
