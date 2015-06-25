@@ -174,6 +174,12 @@ class OatFileAssistant {
   static std::vector<std::unique_ptr<const DexFile>> LoadDexFiles(
       const OatFile& oat_file, const char* dex_location);
 
+  // Returns true if there are dex files in the original dex location that can
+  // be compiled with dex2oat for this dex location.
+  // Returns false if there is no original dex file, or if the original dex
+  // file is an apk/zip without a classes.dex entry.
+  bool HasOriginalDexFiles();
+
   // If the dex file has been installed with a compiled oat file alongside
   // it, the compiled oat file will have the extension .odex, and is referred
   // to as the odex file. It is called odex for legacy reasons; the file is
@@ -312,6 +318,8 @@ class OatFileAssistant {
   // Returns dex_checksum if a required checksum was located. Returns
   // null if the required checksum was not found.
   // The caller shouldn't clean up or free the returned pointer.
+  // This sets the has_original_dex_files_ field to true if a checksum was
+  // found for the dex_location_ dex file.
   const uint32_t* GetRequiredDexChecksum();
 
   // Returns the loaded odex file.
@@ -374,9 +382,10 @@ class OatFileAssistant {
 
   // Cached value of the required dex checksum.
   // This should be accessed only by the GetRequiredDexChecksum() method.
-  uint32_t cached_required_dex_checksum;
-  bool required_dex_checksum_attempted = false;
-  bool required_dex_checksum_found;
+  uint32_t cached_required_dex_checksum_;
+  bool required_dex_checksum_attempted_ = false;
+  bool required_dex_checksum_found_;
+  bool has_original_dex_files_;
 
   // Cached value of the odex file name.
   // This should be accessed only by the OdexFileName() method.
