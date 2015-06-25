@@ -94,39 +94,78 @@ void AllocRecordObjectMap::VisitRoots(RootVisitor* visitor) {
   CHECK_LE(recent_record_max_, alloc_record_max_);
   BufferedRootVisitor<kDefaultBufferedRootCount> buffered_visitor(visitor, RootInfo(kRootDebugger));
   size_t count = recent_record_max_;
-  // Only visit the last recent_record_max_ number of objects in entries_.
-  // They need to be retained for DDMS's recent allocation tracking.
-  // TODO: This will cause 098-ddmc test to run out of memory for GC stress test.
-  // There should be an option that do not keep these objects live if allocation tracking is only
-  // for the purpose of an HPROF dump. b/20037135
+  // Only visit the last recent_record_max_ number of allocation records in entries_ and mark the
+  // klass_ fields as strong roots.
   for (auto it = entries_.rbegin(), end = entries_.rend(); count > 0 && it != end; count--, ++it) {
-    buffered_visitor.VisitRoot(it->first);
+    buffered_visitor.VisitRoot(it->second->GetClassGcRoot());
+  }
+}
+
+static inline void SweepClassObject(AllocRecord* record, IsMarkedCallback* callback, void* arg)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+    EXCLUSIVE_LOCKS_REQUIRED(Locks::alloc_tracker_lock_) {
+  GcRoot<mirror::Class>& klass = record->GetClassGcRoot();
+  // This does not need a read barrier because this is called by GC.
+  mirror::Object* old_object = klass.Read<kWithoutReadBarrier>();
+  mirror::Object* new_object = callback(old_object, arg);
+  if (UNLIKELY(old_object != new_object)) {
+    mirror::Class* new_klass = (UNLIKELY(new_object == nullptr) ? nullptr : new_object->AsClass());
+    klass = GcRoot<mirror::Class>(new_klass);
   }
 }
 
 void AllocRecordObjectMap::SweepAllocationRecords(IsMarkedCallback* callback, void* arg) {
   VLOG(heap) << "Start SweepAllocationRecords()";
-  size_t count_deleted = 0, count_moved = 0;
+  size_t count_deleted = 0, count_moved = 0, count = 0;
+  // Only the first (size - recent_record_max_) number of records can be deleted.
+  size_t delete_bound;
+  if (entries_.size() <= recent_record_max_) {
+    delete_bound = 0;
+  } else {
+    delete_bound = entries_.size() - recent_record_max_;
+  }
   for (auto it = entries_.begin(), end = entries_.end(); it != end;) {
+    ++count;
     // This does not need a read barrier because this is called by GC.
     mirror::Object* old_object = it->first.Read<kWithoutReadBarrier>();
     AllocRecord* record = it->second;
     mirror::Object* new_object = callback(old_object, arg);
     if (new_object == nullptr) {
-      delete record;
-      it = entries_.erase(it);
-      ++count_deleted;
+      if (count > delete_bound) {
+        it->first = GcRoot<mirror::Object>(nullptr);
+        SweepClassObject(record, callback, arg);
+        ++it;
+      } else {
+        delete record;
+        it = entries_.erase(it);
+        ++count_deleted;
+      }
     } else {
       if (old_object != new_object) {
         it->first = GcRoot<mirror::Object>(new_object);
         ++count_moved;
       }
+      SweepClassObject(record, callback, arg);
       ++it;
     }
   }
   VLOG(heap) << "Deleted " << count_deleted << " allocation records";
   VLOG(heap) << "Updated " << count_moved << " allocation records";
 }
+
+void AllocRecordObjectMap::AllowNewAllocationRecords() {
+  allow_new_record_ = true;
+  new_record_condition_.Broadcast(Thread::Current());
+}
+
+void AllocRecordObjectMap::DisallowNewAllocationRecords() {
+  allow_new_record_ = false;
+}
+
+void AllocRecordObjectMap::EnsureNewAllocationRecordsDisallowed() {
+  CHECK(!allow_new_record_);
+}
+
 
 struct AllocRecordStackVisitor : public StackVisitor {
   AllocRecordStackVisitor(Thread* thread, AllocRecordStackTrace* trace_in, size_t max)
@@ -201,7 +240,8 @@ void AllocRecordObjectMap::SetAllocTrackingEnabled(bool enable) {
   }
 }
 
-void AllocRecordObjectMap::RecordAllocation(Thread* self, mirror::Object* obj, size_t byte_count) {
+void AllocRecordObjectMap::RecordAllocation(Thread* self, mirror::Object* obj, mirror::Class* klass,
+                                            size_t byte_count) {
   MutexLock mu(self, *Locks::alloc_tracker_lock_);
   Heap* heap = Runtime::Current()->GetHeap();
   if (!heap->IsAllocTrackingEnabled()) {
@@ -217,6 +257,11 @@ void AllocRecordObjectMap::RecordAllocation(Thread* self, mirror::Object* obj, s
     return;
   }
 
+  // Wait for GC's sweeping to complete and allow new records
+  while (UNLIKELY(!records->allow_new_record_)) {
+    records->new_record_condition_.WaitHoldingLocks(self);
+  }
+
   DCHECK_LE(records->Size(), records->alloc_record_max_);
 
   // Get stack trace.
@@ -229,7 +274,7 @@ void AllocRecordObjectMap::RecordAllocation(Thread* self, mirror::Object* obj, s
   AllocRecordStackTrace* trace = new AllocRecordStackTrace(records->scratch_trace_);
 
   // Fill in the basics.
-  AllocRecord* record = new AllocRecord(byte_count, trace);
+  AllocRecord* record = new AllocRecord(byte_count, klass, trace);
 
   records->Put(obj, record);
   DCHECK_LE(records->Size(), records->alloc_record_max_);

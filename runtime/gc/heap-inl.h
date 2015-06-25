@@ -170,7 +170,8 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
   }
   if (kInstrumented) {
     if (IsAllocTrackingEnabled()) {
-      AllocRecordObjectMap::RecordAllocation(self, obj, bytes_allocated);
+      // Use obj->GetClass() instead of klass, because PushOnAllocationStack() could move klass
+      AllocRecordObjectMap::RecordAllocation(self, obj, obj->GetClass(), bytes_allocated);
     }
   } else {
     DCHECK(!IsAllocTrackingEnabled());

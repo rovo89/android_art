@@ -1483,17 +1483,14 @@ void Runtime::DisallowNewSystemWeaks() {
   monitor_list_->DisallowNewMonitors();
   intern_table_->DisallowNewInterns();
   java_vm_->DisallowNewWeakGlobals();
-  // TODO: add a similar call for heap.allocation_records_, otherwise some of the newly allocated
-  // objects that are not marked might be swept from the records, making the records incomplete.
-  // It is safe for now since the only effect is that those objects do not have allocation records.
-  // The number of such objects should be small, and current allocation tracker cannot collect
-  // allocation records for all objects anyway.
+  heap_->DisallowNewAllocationRecords();
 }
 
 void Runtime::AllowNewSystemWeaks() {
   monitor_list_->AllowNewMonitors();
   intern_table_->AllowNewInterns();
   java_vm_->AllowNewWeakGlobals();
+  heap_->AllowNewAllocationRecords();
 }
 
 void Runtime::EnsureNewSystemWeaksDisallowed() {
@@ -1502,6 +1499,7 @@ void Runtime::EnsureNewSystemWeaksDisallowed() {
   monitor_list_->EnsureNewMonitorsDisallowed();
   intern_table_->EnsureNewInternsDisallowed();
   java_vm_->EnsureNewWeakGlobalsDisallowed();
+  heap_->EnsureNewAllocationRecordsDisallowed();
 }
 
 void Runtime::SetInstructionSet(InstructionSet instruction_set) {
