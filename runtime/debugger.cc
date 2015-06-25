@@ -4715,7 +4715,7 @@ void Dbg::DumpRecentAllocations() {
     const gc::AllocRecord* record = it->second;
 
     LOG(INFO) << StringPrintf(" Thread %-2d %6zd bytes ", record->GetTid(), record->ByteCount())
-              << PrettyClass(it->first.Read()->GetClass());
+              << PrettyClass(record->GetClass());
 
     for (size_t stack_frame = 0, depth = record->GetDepth(); stack_frame < depth; ++stack_frame) {
       const gc::AllocRecordStackTraceElement& stack_element = record->StackElement(stack_frame);
@@ -4850,7 +4850,7 @@ jbyteArray Dbg::GetRecentAllocations() {
          count > 0 && it != end; count--, it++) {
       const gc::AllocRecord* record = it->second;
       std::string temp;
-      class_names.Add(it->first.Read()->GetClass()->GetDescriptor(&temp));
+      class_names.Add(record->GetClass()->GetDescriptor(&temp));
       for (size_t i = 0, depth = record->GetDepth(); i < depth; i++) {
         ArtMethod* m = record->StackElement(i).GetMethod();
         class_names.Add(m->GetDeclaringClassDescriptor());
@@ -4902,7 +4902,7 @@ jbyteArray Dbg::GetRecentAllocations() {
       const gc::AllocRecord* record = it->second;
       size_t stack_depth = record->GetDepth();
       size_t allocated_object_class_name_index =
-          class_names.IndexOf(it->first.Read()->GetClass()->GetDescriptor(&temp));
+          class_names.IndexOf(record->GetClass()->GetDescriptor(&temp));
       JDWP::Append4BE(bytes, record->ByteCount());
       JDWP::Append2BE(bytes, static_cast<uint16_t>(record->GetTid()));
       JDWP::Append2BE(bytes, allocated_object_class_name_index);
