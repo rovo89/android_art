@@ -1052,9 +1052,12 @@ art_quick_instrumentation_exit:
     .cfi_adjust_cfa_offset 8
     .cfi_rel_offset r0, 0
     .cfi_rel_offset r1, 4
-    sub   sp, #8         @ space for return value argument
+    vpush {d0}           @ save fp return value
     .cfi_adjust_cfa_offset 8
-    strd r0, [sp]        @ r0/r1 -> [sp] for fpr_res
+    sub   sp, #8         @ space for return value argument. Note: AAPCS stack alignment is 8B, no
+                         @ need to align by 16.
+    .cfi_adjust_cfa_offset 8
+    vstr  d0, [sp]       @ d0 -> [sp] for fpr_res
     mov   r2, r0         @ pass return value as gpr_res
     mov   r3, r1
     mov   r0, r9         @ pass Thread::Current
@@ -1065,6 +1068,8 @@ art_quick_instrumentation_exit:
 
     mov   r2, r0         @ link register saved by instrumentation
     mov   lr, r1         @ r1 is holding link register if we're to bounce to deoptimize
+    vpop  {d0}           @ restore fp return value
+    .cfi_adjust_cfa_offset -8
     pop   {r0, r1}       @ restore return value
     .cfi_adjust_cfa_offset -8
     .cfi_restore r0
