@@ -161,8 +161,8 @@ template <typename T> struct EqAllocRecordTypesPtr {
 class AllocRecord {
  public:
   // All instances of AllocRecord should be managed by an instance of AllocRecordObjectMap.
-  AllocRecord(size_t count, AllocRecordStackTrace* trace)
-      : byte_count_(count), trace_(trace) {}
+  AllocRecord(size_t count, mirror::Class* klass, AllocRecordStackTrace* trace)
+      : byte_count_(count), klass_(klass), trace_(trace) {}
 
   ~AllocRecord() {
     delete trace_;
@@ -184,12 +184,22 @@ class AllocRecord {
     return trace_->GetTid();
   }
 
+  mirror::Class* GetClass() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return klass_.Read();
+  }
+
+  GcRoot<mirror::Class>& GetClassGcRoot() {
+    return klass_;
+  }
+
   const AllocRecordStackTraceElement& StackElement(size_t index) const {
     return trace_->GetStackElement(index);
   }
 
  private:
   const size_t byte_count_;
+  // The klass_ could be a strong or weak root for GC
+  GcRoot<mirror::Class> klass_;
   // TODO: Currently trace_ is like a std::unique_ptr,
   // but in future with deduplication it could be a std::shared_ptr.
   const AllocRecordStackTrace* const trace_;
@@ -197,14 +207,17 @@ class AllocRecord {
 
 class AllocRecordObjectMap {
  public:
-  // Since the entries contain weak roots, they need a read barrier. Do not directly access
-  // the mirror::Object pointers in it. Use functions that contain read barriers.
-  // No need for "const AllocRecord*" in the list, because all fields of AllocRecord are const.
+  // GcRoot<mirror::Object> pointers in the list are weak roots, and the last recent_record_max_
+  // number of AllocRecord::klass_ pointers are strong roots (and the rest of klass_ pointers are
+  // weak roots). The last recent_record_max_ number of pairs in the list are always kept for DDMS's
+  // recent allocation tracking, but GcRoot<mirror::Object> pointers in these pairs can become null.
+  // Both types of pointers need read barriers, do not directly access them.
   typedef std::list<std::pair<GcRoot<mirror::Object>, AllocRecord*>> EntryList;
 
   // "static" because it is part of double-checked locking. It needs to check a bool first,
   // in order to make sure the AllocRecordObjectMap object is not null.
-  static void RecordAllocation(Thread* self, mirror::Object* obj, size_t byte_count)
+  static void RecordAllocation(Thread* self, mirror::Object* obj, mirror::Class* klass,
+                               size_t byte_count)
       LOCKS_EXCLUDED(Locks::alloc_tracker_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -215,7 +228,9 @@ class AllocRecordObjectMap {
         recent_record_max_(kDefaultNumRecentRecords),
         max_stack_depth_(kDefaultAllocStackDepth),
         scratch_trace_(kMaxSupportedStackDepth),
-        alloc_ddm_thread_id_(0) {}
+        alloc_ddm_thread_id_(0),
+        allow_new_record_(true),
+        new_record_condition_("New allocation record condition", *Locks::alloc_tracker_lock_) {}
 
   ~AllocRecordObjectMap();
 
@@ -244,6 +259,16 @@ class AllocRecordObjectMap {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::alloc_tracker_lock_);
 
   void SweepAllocationRecords(IsMarkedCallback* callback, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::alloc_tracker_lock_);
+
+  void DisallowNewAllocationRecords()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::alloc_tracker_lock_);
+  void AllowNewAllocationRecords()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::alloc_tracker_lock_);
+  void EnsureNewAllocationRecordsDisallowed()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::alloc_tracker_lock_);
 
@@ -282,6 +307,9 @@ class AllocRecordObjectMap {
   size_t max_stack_depth_ GUARDED_BY(Locks::alloc_tracker_lock_);
   AllocRecordStackTrace scratch_trace_ GUARDED_BY(Locks::alloc_tracker_lock_);
   pid_t alloc_ddm_thread_id_ GUARDED_BY(Locks::alloc_tracker_lock_);
+  bool allow_new_record_ GUARDED_BY(Locks::alloc_tracker_lock_);
+  ConditionVariable new_record_condition_ GUARDED_BY(Locks::alloc_tracker_lock_);
+  // see the comment in typedef of EntryList
   EntryList entries_ GUARDED_BY(Locks::alloc_tracker_lock_);
 
   void SetProperties() EXCLUSIVE_LOCKS_REQUIRED(Locks::alloc_tracker_lock_);
