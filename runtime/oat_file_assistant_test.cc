@@ -309,16 +309,24 @@ TEST_F(OatFileAssistantTest, DexNoOat) {
   EXPECT_FALSE(oat_file_assistant.OatFileNeedsRelocation());
   EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
   EXPECT_EQ(OatFileAssistant::kOatOutOfDate, oat_file_assistant.OatFileStatus());
+  EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 }
 
 // Case: We have no DEX file and no OAT file.
-// Expect: Status is kDex2OatNeeded. Loading should fail, but not crash.
+// Expect: Status is kNoDexOptNeeded. Loading should fail, but not crash.
 TEST_F(OatFileAssistantTest, NoDexNoOat) {
   std::string dex_location = GetScratchDir() + "/NoDexNoOat.jar";
 
   OatFileAssistant oat_file_assistant(dex_location.c_str(), kRuntimeISA, true);
 
-  EXPECT_EQ(OatFileAssistant::kDex2OatNeeded, oat_file_assistant.GetDexOptNeeded());
+  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded, oat_file_assistant.GetDexOptNeeded());
+  EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
+
+  // Trying to make the oat file up to date should not fail or crash.
+  std::string error_msg;
+  EXPECT_TRUE(oat_file_assistant.MakeUpToDate(&error_msg));
+
+  // Trying to get the best oat file should fail, but not crash.
   std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
   EXPECT_EQ(nullptr, oat_file.get());
 }
@@ -342,6 +350,7 @@ TEST_F(OatFileAssistantTest, OatUpToDate) {
   EXPECT_FALSE(oat_file_assistant.OatFileNeedsRelocation());
   EXPECT_TRUE(oat_file_assistant.OatFileIsUpToDate());
   EXPECT_EQ(OatFileAssistant::kOatUpToDate, oat_file_assistant.OatFileStatus());
+  EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 }
 
 // Case: We have a MultiDEX file and up-to-date OAT file for it.
@@ -353,6 +362,7 @@ TEST_F(OatFileAssistantTest, MultiDexOatUpToDate) {
 
   OatFileAssistant oat_file_assistant(dex_location.c_str(), kRuntimeISA, true);
   EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded, oat_file_assistant.GetDexOptNeeded());
+  EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 
   // Verify we can load both dex files.
   std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
@@ -378,6 +388,7 @@ TEST_F(OatFileAssistantTest, MultiDexSecondaryOutOfDate) {
 
   OatFileAssistant oat_file_assistant(dex_location.c_str(), kRuntimeISA, true);
   EXPECT_EQ(OatFileAssistant::kDex2OatNeeded, oat_file_assistant.GetDexOptNeeded());
+  EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 }
 
 // Case: We have a MultiDEX file and up-to-date OAT file for it with relative
@@ -432,6 +443,7 @@ TEST_F(OatFileAssistantTest, OatOutOfDate) {
   EXPECT_TRUE(oat_file_assistant.OatFileExists());
   EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
   EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 }
 
 // Case: We have a DEX file and an ODEX file, but no OAT file.
@@ -457,6 +469,7 @@ TEST_F(OatFileAssistantTest, DexOdexNoOat) {
   EXPECT_FALSE(oat_file_assistant.OatFileExists());
   EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
   EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 }
 
 // Case: We have a stripped DEX file and an ODEX file, but no OAT file.
@@ -484,6 +497,7 @@ TEST_F(OatFileAssistantTest, StrippedDexOdexNoOat) {
   EXPECT_FALSE(oat_file_assistant.OatFileExists());
   EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
   EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
 
   // Make the oat file up to date.
   std::string error_msg;
@@ -498,6 +512,7 @@ TEST_F(OatFileAssistantTest, StrippedDexOdexNoOat) {
   EXPECT_TRUE(oat_file_assistant.OatFileExists());
   EXPECT_FALSE(oat_file_assistant.OatFileIsOutOfDate());
   EXPECT_TRUE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
 
   // Verify we can load the dex files from it.
   std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
@@ -538,6 +553,7 @@ TEST_F(OatFileAssistantTest, StrippedDexOdexOat) {
   EXPECT_TRUE(oat_file_assistant.OatFileExists());
   EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
   EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
 
   // Make the oat file up to date.
   std::string error_msg;
@@ -554,6 +570,7 @@ TEST_F(OatFileAssistantTest, StrippedDexOdexOat) {
   EXPECT_FALSE(oat_file_assistant.OatFileIsOutOfDate());
   EXPECT_FALSE(oat_file_assistant.OatFileNeedsRelocation());
   EXPECT_TRUE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
 
   // Verify we can load the dex files from it.
   std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
@@ -562,6 +579,45 @@ TEST_F(OatFileAssistantTest, StrippedDexOdexOat) {
   std::vector<std::unique_ptr<const DexFile>> dex_files;
   dex_files = oat_file_assistant.LoadDexFiles(*oat_file, dex_location.c_str());
   EXPECT_EQ(1u, dex_files.size());
+}
+
+// Case: We have a stripped (or resource-only) DEX file, no ODEX file and no
+// OAT file. Expect: The status is kNoDexOptNeeded.
+TEST_F(OatFileAssistantTest, ResourceOnlyDex) {
+  std::string dex_location = GetScratchDir() + "/ResourceOnlyDex.jar";
+
+  Copy(GetStrippedDexSrc1(), dex_location);
+
+  // Verify the status.
+  OatFileAssistant oat_file_assistant(dex_location.c_str(), kRuntimeISA, true);
+
+  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded, oat_file_assistant.GetDexOptNeeded());
+
+  EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
+  EXPECT_FALSE(oat_file_assistant.OdexFileExists());
+  EXPECT_TRUE(oat_file_assistant.OdexFileIsOutOfDate());
+  EXPECT_FALSE(oat_file_assistant.OdexFileNeedsRelocation());
+  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
+  EXPECT_FALSE(oat_file_assistant.OatFileExists());
+  EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
+  EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
+
+  // Make the oat file up to date. This should have no effect.
+  std::string error_msg;
+  EXPECT_TRUE(oat_file_assistant.MakeUpToDate(&error_msg)) << error_msg;
+
+  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded, oat_file_assistant.GetDexOptNeeded());
+
+  EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
+  EXPECT_FALSE(oat_file_assistant.OdexFileExists());
+  EXPECT_TRUE(oat_file_assistant.OdexFileIsOutOfDate());
+  EXPECT_FALSE(oat_file_assistant.OdexFileNeedsRelocation());
+  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
+  EXPECT_FALSE(oat_file_assistant.OatFileExists());
+  EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
+  EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
 }
 
 // Case: We have a DEX file, no ODEX file and an OAT file that needs
@@ -589,6 +645,7 @@ TEST_F(OatFileAssistantTest, SelfRelocation) {
   EXPECT_TRUE(oat_file_assistant.OatFileNeedsRelocation());
   EXPECT_FALSE(oat_file_assistant.OatFileIsOutOfDate());
   EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 
   // Make the oat file up to date.
   std::string error_msg;
@@ -605,6 +662,7 @@ TEST_F(OatFileAssistantTest, SelfRelocation) {
   EXPECT_FALSE(oat_file_assistant.OatFileIsOutOfDate());
   EXPECT_FALSE(oat_file_assistant.OatFileNeedsRelocation());
   EXPECT_TRUE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 
   std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
   ASSERT_TRUE(oat_file.get() != nullptr);
@@ -643,6 +701,7 @@ TEST_F(OatFileAssistantTest, OdexOatOverlap) {
   EXPECT_TRUE(oat_file_assistant.OatFileExists());
   EXPECT_FALSE(oat_file_assistant.OatFileIsOutOfDate());
   EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 
   // Things aren't relocated, so it should fall back to interpreted.
   std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
@@ -688,6 +747,7 @@ TEST_F(OatFileAssistantTest, DexPicOdexNoOat) {
   EXPECT_FALSE(oat_file_assistant.OatFileExists());
   EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
   EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 }
 
 // Case: We have a DEX file and up-to-date OAT file for it.
@@ -756,27 +816,6 @@ TEST_F(OatFileAssistantTest, LoadDexNoAlternateOat) {
   EXPECT_FALSE(ofm.OatFileExists());
 }
 
-// Case: Non-existent Dex location.
-// Expect: The dex code is out of date, and trying to update it fails.
-TEST_F(OatFileAssistantTest, NonExsistentDexLocation) {
-  std::string dex_location = GetScratchDir() + "/BadDexLocation.jar";
-
-  OatFileAssistant oat_file_assistant(dex_location.c_str(), kRuntimeISA, true);
-
-  EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
-  EXPECT_EQ(OatFileAssistant::kDex2OatNeeded, oat_file_assistant.GetDexOptNeeded());
-  EXPECT_FALSE(oat_file_assistant.OdexFileExists());
-  EXPECT_FALSE(oat_file_assistant.OatFileExists());
-  EXPECT_TRUE(oat_file_assistant.OdexFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
-  EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
-  EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
-
-  std::string error_msg;
-  EXPECT_FALSE(oat_file_assistant.MakeUpToDate(&error_msg));
-  EXPECT_FALSE(error_msg.empty());
-}
-
 // Turn an absolute path into a path relative to the current working
 // directory.
 static std::string MakePathRelative(std::string target) {
@@ -833,24 +872,26 @@ TEST_F(OatFileAssistantTest, NonAbsoluteDexLocation) {
 }
 
 // Case: Very short, non-existent Dex location.
-// Expect: Dex code is out of date, and trying to update it fails.
+// Expect: kNoDexOptNeeded.
 TEST_F(OatFileAssistantTest, ShortDexLocation) {
   std::string dex_location = "/xx";
 
   OatFileAssistant oat_file_assistant(dex_location.c_str(), kRuntimeISA, true);
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
-  EXPECT_EQ(OatFileAssistant::kDex2OatNeeded, oat_file_assistant.GetDexOptNeeded());
+  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded, oat_file_assistant.GetDexOptNeeded());
   EXPECT_FALSE(oat_file_assistant.OdexFileExists());
   EXPECT_FALSE(oat_file_assistant.OatFileExists());
   EXPECT_TRUE(oat_file_assistant.OdexFileIsOutOfDate());
   EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
   EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
   EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+  EXPECT_FALSE(oat_file_assistant.HasOriginalDexFiles());
 
+  // Trying to make it up to date should have no effect.
   std::string error_msg;
-  EXPECT_FALSE(oat_file_assistant.MakeUpToDate(&error_msg));
-  EXPECT_FALSE(error_msg.empty());
+  EXPECT_TRUE(oat_file_assistant.MakeUpToDate(&error_msg));
+  EXPECT_TRUE(error_msg.empty());
 }
 
 // Case: Non-standard extension for dex file.
