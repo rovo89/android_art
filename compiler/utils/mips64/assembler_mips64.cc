@@ -839,7 +839,7 @@ void Mips64Assembler::Copy(FrameOffset dest, FrameOffset src,
   CHECK(size == 4 || size == 8) << size;
   if (size == 4) {
     LoadFromOffset(kLoadWord, scratch.AsGpuRegister(), SP, src.Int32Value());
-    StoreToOffset(kStoreWord, scratch.AsGpuRegister(), SP, dest.Int32Value());
+    StoreToOffset(kStoreDoubleword, scratch.AsGpuRegister(), SP, dest.Int32Value());
   } else if (size == 8) {
     LoadFromOffset(kLoadDoubleword, scratch.AsGpuRegister(), SP, src.Int32Value());
     StoreToOffset(kStoreDoubleword, scratch.AsGpuRegister(), SP, dest.Int32Value());
@@ -855,7 +855,7 @@ void Mips64Assembler::Copy(FrameOffset dest, ManagedRegister src_base, Offset sr
   if (size == 4) {
     LoadFromOffset(kLoadWord, scratch, src_base.AsMips64().AsGpuRegister(),
                    src_offset.Int32Value());
-    StoreToOffset(kStoreWord, scratch, SP, dest.Int32Value());
+    StoreToOffset(kStoreDoubleword, scratch, SP, dest.Int32Value());
   } else if (size == 8) {
     LoadFromOffset(kLoadDoubleword, scratch, src_base.AsMips64().AsGpuRegister(),
                    src_offset.Int32Value());
@@ -871,7 +871,7 @@ void Mips64Assembler::Copy(ManagedRegister dest_base, Offset dest_offset, FrameO
   CHECK(size == 4 || size == 8) << size;
   if (size == 4) {
     LoadFromOffset(kLoadWord, scratch, SP, src.Int32Value());
-    StoreToOffset(kStoreWord, scratch, dest_base.AsMips64().AsGpuRegister(),
+    StoreToOffset(kStoreDoubleword, scratch, dest_base.AsMips64().AsGpuRegister(),
                   dest_offset.Int32Value());
   } else if (size == 8) {
     LoadFromOffset(kLoadDoubleword, scratch, SP, src.Int32Value());
@@ -894,7 +894,7 @@ void Mips64Assembler::Copy(ManagedRegister dest, Offset dest_offset,
   CHECK(size == 4 || size == 8) << size;
   if (size == 4) {
     LoadFromOffset(kLoadWord, scratch, src.AsMips64().AsGpuRegister(), src_offset.Int32Value());
-    StoreToOffset(kStoreWord, scratch, dest.AsMips64().AsGpuRegister(), dest_offset.Int32Value());
+    StoreToOffset(kStoreDoubleword, scratch, dest.AsMips64().AsGpuRegister(), dest_offset.Int32Value());
   } else if (size == 8) {
     LoadFromOffset(kLoadDoubleword, scratch, src.AsMips64().AsGpuRegister(),
                    src_offset.Int32Value());

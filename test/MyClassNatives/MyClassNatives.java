@@ -94,6 +94,9 @@ class MyClassNatives {
         float f4, int i5, float f5, int i6, float f6, int i7, float f7, int i8, float f8, int i9,
         float f9, int i10, float f10);
 
+    native static void stackArgsSignExtendedMips64(int i1, int i2, int i3, int i4, int i5, int i6,
+        int i7, int i8);
+
     static native double logD(double d);
     static native float logF(float f);
     static native boolean returnTrue();
