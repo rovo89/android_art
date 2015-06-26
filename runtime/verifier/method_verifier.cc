@@ -349,27 +349,29 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(Thread* self, uint32_t 
   return result;
 }
 
-MethodVerifier* MethodVerifier::VerifyMethodAndDump(Thread* self, std::ostream& os, uint32_t dex_method_idx,
-                                         const DexFile* dex_file,
-                                         Handle<mirror::DexCache> dex_cache,
-                                         Handle<mirror::ClassLoader> class_loader,
-                                         const DexFile::ClassDef* class_def,
-                                         const DexFile::CodeItem* code_item,
-                                         ArtMethod* method,
-                                         uint32_t method_access_flags) {
+MethodVerifier* MethodVerifier::VerifyMethodAndDump(Thread* self,
+                                                    VariableIndentationOutputStream* vios,
+                                                    uint32_t dex_method_idx,
+                                                    const DexFile* dex_file,
+                                                    Handle<mirror::DexCache> dex_cache,
+                                                    Handle<mirror::ClassLoader> class_loader,
+                                                    const DexFile::ClassDef* class_def,
+                                                    const DexFile::CodeItem* code_item,
+                                                    ArtMethod* method,
+                                                    uint32_t method_access_flags) {
   MethodVerifier* verifier = new MethodVerifier(self, dex_file, dex_cache, class_loader,
                                                 class_def, code_item, dex_method_idx, method,
                                                 method_access_flags, true, true, true, true);
   verifier->Verify();
-  verifier->DumpFailures(os);
-  os << verifier->info_messages_.str();
+  verifier->DumpFailures(vios->Stream());
+  vios->Stream() << verifier->info_messages_.str();
   // Only dump and return if no hard failures. Otherwise the verifier may be not fully initialized
   // and querying any info is dangerous/can abort.
   if (verifier->have_pending_hard_failure_) {
     delete verifier;
     return nullptr;
   } else {
-    verifier->Dump(os);
+    verifier->Dump(vios);
     return verifier;
   }
 }
@@ -1280,32 +1282,36 @@ std::ostream& MethodVerifier::DumpFailures(std::ostream& os) {
 }
 
 void MethodVerifier::Dump(std::ostream& os) {
+  VariableIndentationOutputStream vios(&os);
+  Dump(&vios);
+}
+
+void MethodVerifier::Dump(VariableIndentationOutputStream* vios) {
   if (code_item_ == nullptr) {
-    os << "Native method\n";
+    vios->Stream() << "Native method\n";
     return;
   }
   {
-    os << "Register Types:\n";
-    Indenter indent_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
-    std::ostream indent_os(&indent_filter);
-    reg_types_.Dump(indent_os);
+    vios->Stream() << "Register Types:\n";
+    ScopedIndentation indent1(vios);
+    reg_types_.Dump(vios->Stream());
   }
-  os << "Dumping instructions and register lines:\n";
-  Indenter indent_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
-  std::ostream indent_os(&indent_filter);
+  vios->Stream() << "Dumping instructions and register lines:\n";
+  ScopedIndentation indent1(vios);
   const Instruction* inst = Instruction::At(code_item_->insns_);
   for (size_t dex_pc = 0; dex_pc < code_item_->insns_size_in_code_units_;
       dex_pc += inst->SizeInCodeUnits()) {
     RegisterLine* reg_line = reg_table_.GetLine(dex_pc);
     if (reg_line != nullptr) {
-      indent_os << reg_line->Dump(this) << "\n";
+      vios->Stream() << reg_line->Dump(this) << "\n";
     }
-    indent_os << StringPrintf("0x%04zx", dex_pc) << ": " << insn_flags_[dex_pc].ToString() << " ";
+    vios->Stream()
+        << StringPrintf("0x%04zx", dex_pc) << ": " << insn_flags_[dex_pc].ToString() << " ";
     const bool kDumpHexOfInstruction = false;
     if (kDumpHexOfInstruction) {
-      indent_os << inst->DumpHex(5) << " ";
+      vios->Stream() << inst->DumpHex(5) << " ";
     }
-    indent_os << inst->DumpString(dex_file_) << "\n";
+    vios->Stream() << inst->DumpString(dex_file_) << "\n";
     inst = inst->Next();
   }
 }
