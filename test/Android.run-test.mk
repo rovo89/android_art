@@ -104,6 +104,9 @@ TRACE_TYPES := ntrace
 ifeq ($(ART_TEST_TRACE),true)
   TRACE_TYPES += trace
 endif
+ifeq ($(ART_TEST_TRACE_STREAM),true)
+  TRACE_TYPES += stream
+endif
 GC_TYPES := cms
 ifeq ($(ART_TEST_GC_STRESS),true)
   GC_TYPES += gcstress
@@ -313,9 +316,9 @@ TEST_ART_BROKEN_TRACING_RUN_TESTS := \
   137-cfi \
   802-deoptimization
 
-ifneq (,$(filter trace,$(TRACE_TYPES)))
+ifneq (,$(filter trace stream,$(TRACE_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
-      $(COMPILER_TYPES),$(RELOCATE_TYPES),trace,$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES), \
+      $(COMPILER_TYPES),$(RELOCATE_TYPES),trace stream,$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES), \
       $(PICTEST_TYPES),$(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_TRACING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
 endif
 
@@ -671,7 +674,13 @@ define define-test-art-run-test
     ifeq ($(6),ntrace)
       test_groups += ART_RUN_TEST_$$(uc_host_or_target)_NO_TRACE_RULES
     else
-      $$(error found $(6) expected $(TRACE_TYPES))
+      ifeq ($(6),stream)
+        # Group streaming under normal tracing rules.
+        test_groups += ART_RUN_TEST_$$(uc_host_or_target)_TRACE_RULES
+        run_test_options += --trace --stream
+      else
+        $$(error found $(6) expected $(TRACE_TYPES))
+      endif
     endif
   endif
   ifeq ($(7),gcverify)

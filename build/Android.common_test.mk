@@ -61,6 +61,9 @@ ART_TEST_PIC_TEST ?= $(ART_TEST_FULL)
 # Do you want tracing tests run?
 ART_TEST_TRACE ?= $(ART_TEST_FULL)
 
+# Do you want tracing tests (streaming mode) run?
+ART_TEST_TRACE_STREAM ?= $(ART_TEST_FULL)
+
 # Do you want tests with GC verification enabled run?
 ART_TEST_GC_VERIFY ?= $(ART_TEST_FULL)
 
