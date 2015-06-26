@@ -37,7 +37,7 @@ class CompilerOptions FINAL {
     kSpace,               // Maximize space savings.
     kBalanced,            // Try to get the best performance return on compilation investment.
     kSpeed,               // Maximize runtime performance.
-    kEverything,          // Force compilation (Note: excludes compilation of class initializers).
+    kEverything,          // Force compilation of everything capable of being compiled.
     kTime,                // Compile methods, but minimize compilation time.
   };
 
