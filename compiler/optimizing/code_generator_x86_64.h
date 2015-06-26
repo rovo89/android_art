@@ -202,7 +202,6 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
                              Label* true_target,
                              Label* false_target,
                              Label* always_true_target);
-  void HandleGoto(HInstruction* got, HBasicBlock* successor);
 
   X86_64Assembler* const assembler_;
   CodeGeneratorX86_64* const codegen_;
