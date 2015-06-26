@@ -427,7 +427,7 @@ void Trace::StopTracing(bool finish_tracing, bool flush_file) {
       // Do not try to erase, so flush and close explicitly.
       if (flush_file) {
         if (the_trace->trace_file_->Flush() != 0) {
-          PLOG(ERROR) << "Could not flush trace file.";
+          PLOG(WARNING) << "Could not flush trace file.";
         }
       } else {
         the_trace->trace_file_->MarkUnchecked();  // Do not trigger guard.
@@ -581,7 +581,7 @@ Trace::Trace(File* trace_file, const char* trace_name, size_t buffer_size, int f
       buffer_size_(std::max(kMinBufSize, buffer_size)),
       start_time_(MicroTime()), clock_overhead_ns_(GetClockOverheadNanoSeconds()), cur_offset_(0),
       overflow_(false), interval_us_(0), streaming_lock_(nullptr),
-      unique_methods_lock_(new Mutex("unique methods lock")) {
+      unique_methods_lock_(new Mutex("unique methods lock", kTracingUniqueMethodsLock)) {
   uint16_t trace_version = GetTraceVersion(clock_source_);
   if (output_mode == TraceOutputMode::kStreaming) {
     trace_version |= 0xF0U;
@@ -603,13 +603,14 @@ Trace::Trace(File* trace_file, const char* trace_name, size_t buffer_size, int f
 
   if (output_mode == TraceOutputMode::kStreaming) {
     streaming_file_name_ = trace_name;
-    streaming_lock_ = new Mutex("tracing lock");
+    streaming_lock_ = new Mutex("tracing lock", LockLevel::kTracingStreamingLock);
     seen_threads_.reset(new ThreadIDBitSet());
   }
 }
 
 Trace::~Trace() {
   delete streaming_lock_;
+  delete unique_methods_lock_;
 }
 
 static uint64_t ReadBytes(uint8_t* buf, size_t bytes) {
@@ -634,13 +635,15 @@ void Trace::DumpBuf(uint8_t* buf, size_t buf_size, TraceClockSource clock_source
 }
 
 static void GetVisitedMethodsFromBitSets(
-    const std::map<mirror::DexCache*, DexIndexBitSet*>& seen_methods,
+    const std::map<const DexFile*, DexIndexBitSet*>& seen_methods,
     std::set<ArtMethod*>* visited_methods) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   for (auto& e : seen_methods) {
     DexIndexBitSet* bit_set = e.second;
+    mirror::DexCache* dex_cache = class_linker->FindDexCache(*e.first);
     for (uint32_t i = 0; i < bit_set->size(); ++i) {
       if ((*bit_set)[i]) {
-        visited_methods->insert(e.first->GetResolvedMethod(i, sizeof(void*)));
+        visited_methods->insert(dex_cache->GetResolvedMethod(i, sizeof(void*)));
       }
     }
   }
@@ -819,15 +822,16 @@ void Trace::ReadClocks(Thread* thread, uint32_t* thread_clock_diff, uint32_t* wa
 
 bool Trace::RegisterMethod(ArtMethod* method) {
   mirror::DexCache* dex_cache = method->GetDexCache();
+  const DexFile* dex_file = dex_cache->GetDexFile();
   auto* resolved_method = dex_cache->GetResolvedMethod(method->GetDexMethodIndex(), sizeof(void*));
   if (resolved_method != method) {
     DCHECK(resolved_method == nullptr);
     dex_cache->SetResolvedMethod(method->GetDexMethodIndex(), method, sizeof(void*));
   }
-  if (seen_methods_.find(dex_cache) == seen_methods_.end()) {
-    seen_methods_.insert(std::make_pair(dex_cache, new DexIndexBitSet()));
+  if (seen_methods_.find(dex_file) == seen_methods_.end()) {
+    seen_methods_.insert(std::make_pair(dex_file, new DexIndexBitSet()));
   }
-  DexIndexBitSet* bit_set = seen_methods_.find(dex_cache)->second;
+  DexIndexBitSet* bit_set = seen_methods_.find(dex_file)->second;
   if (!(*bit_set)[method->GetDexMethodIndex()]) {
     bit_set->set(method->GetDexMethodIndex());
     return true;
