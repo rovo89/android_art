@@ -131,5 +131,11 @@
   result: EXEC_FAILED,
   names: ["libcore.javax.crypto.CipherTest#testCipher_ShortBlock_Failure",
           "libcore.javax.crypto.CipherTest#testCipher_Success"]
+},
+{
+  description: "Flake when running with libartd.so or interpreter",
+  result: EXEC_FAILED,
+  bug:22106064,
+  name: "libcore.java.lang.OldThreadGroupTest#test_enumerateLThreadArrayLZtest_enumerateLThreadArrayLZ"
 }
 ]
