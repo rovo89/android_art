@@ -1938,12 +1938,7 @@ void InstructionCodeGeneratorMIPS64::VisitFloatConstant(HFloatConstant* constant
   // Will be generated at use site.
 }
 
-void LocationsBuilderMIPS64::VisitGoto(HGoto* got) {
-  got->SetLocations(nullptr);
-}
-
-void InstructionCodeGeneratorMIPS64::VisitGoto(HGoto* got) {
-  HBasicBlock* successor = got->GetSuccessor();
+void InstructionCodeGeneratorMIPS64::HandleGoto(HInstruction* got, HBasicBlock* successor) {
   DCHECK(!successor->IsExitBlock());
   HBasicBlock* block = got->GetBlock();
   HInstruction* previous = got->GetPrevious();
@@ -1959,6 +1954,25 @@ void InstructionCodeGeneratorMIPS64::VisitGoto(HGoto* got) {
   }
   if (!codegen_->GoesToNextBlock(block, successor)) {
     __ B(codegen_->GetLabelOf(successor));
+  }
+}
+
+void LocationsBuilderMIPS64::VisitGoto(HGoto* got) {
+  got->SetLocations(nullptr);
+}
+
+void InstructionCodeGeneratorMIPS64::VisitGoto(HGoto* got) {
+  HandleGoto(got, got->GetSuccessor());
+}
+
+void LocationsBuilderMIPS64::VisitTryBoundary(HTryBoundary* try_boundary) {
+  try_boundary->SetLocations(nullptr);
+}
+
+void InstructionCodeGeneratorMIPS64::VisitTryBoundary(HTryBoundary* try_boundary) {
+  HBasicBlock* successor = try_boundary->GetNormalFlowSuccessor();
+  if (!successor->IsExitBlock()) {
+    HandleGoto(try_boundary, successor);
   }
 }
 
