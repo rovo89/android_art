@@ -211,7 +211,6 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
   void DivRemByPowerOfTwo(HBinaryOperation* instruction);
   void GenerateDivRemWithAnyConstant(HBinaryOperation* instruction);
   void GenerateDivRemConstantIntegral(HBinaryOperation* instruction);
-  void HandleGoto(HInstruction* got, HBasicBlock* successor);
 
   ArmAssembler* const assembler_;
   CodeGeneratorARM* const codegen_;
