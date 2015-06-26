@@ -146,7 +146,7 @@ bool CodeGenerator::GoesToNextBlock(HBasicBlock* current, HBasicBlock* next) con
 HBasicBlock* CodeGenerator::GetNextBlockToEmit() const {
   for (size_t i = current_block_index_ + 1; i < block_order_->Size(); ++i) {
     HBasicBlock* block = block_order_->Get(i);
-    if (!block->IsSingleJump()) {
+    if (!block->IsSingleGoto()) {
       return block;
     }
   }
@@ -154,7 +154,7 @@ HBasicBlock* CodeGenerator::GetNextBlockToEmit() const {
 }
 
 HBasicBlock* CodeGenerator::FirstNonEmptyBlock(HBasicBlock* block) const {
-  while (block->IsSingleJump()) {
+  while (block->IsSingleGoto()) {
     block = block->GetSuccessors().Get(0);
   }
   return block;
@@ -214,7 +214,7 @@ void CodeGenerator::CompileInternal(CodeAllocator* allocator, bool is_baseline) 
     // Don't generate code for an empty block. Its predecessors will branch to its successor
     // directly. Also, the label of that block will not be emitted, so this helps catch
     // errors where we reference that label.
-    if (block->IsSingleJump()) continue;
+    if (block->IsSingleGoto()) continue;
     Bind(block);
     for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
