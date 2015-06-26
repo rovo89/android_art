@@ -467,11 +467,11 @@ bool HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
     code_ptr += instruction.SizeInCodeUnits();
   }
 
+  // Add Exit to the exit block.
+  exit_block_->AddInstruction(new (arena_) HExit());
   // Add the suspend check to the entry block.
   entry_block_->AddInstruction(new (arena_) HSuspendCheck(0));
   entry_block_->AddInstruction(new (arena_) HGoto());
-  // Add Exit to the exit block.
-  exit_block_->AddInstruction(new (arena_) HExit());
 
   // Iterate over blocks covered by TryItems and insert TryBoundaries at entry
   // and exit points. This requires all control-flow instructions and
