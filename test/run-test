@@ -92,6 +92,7 @@ usage="no"
 build_only="no"
 suffix64=""
 trace="false"
+trace_stream="false"
 basic_verify="false"
 gc_verify="false"
 gc_stress="false"
@@ -267,6 +268,9 @@ while true; do
     elif [ "x$1" = "x--trace" ]; then
         trace="true"
         shift
+    elif [ "x$1" = "x--stream" ]; then
+        trace_stream="true"
+        shift
     elif [ "x$1" = "x--always-clean" ]; then
         always_clean="yes"
         shift
@@ -303,7 +307,19 @@ if [ "$gc_stress" = "true" ]; then
   run_args="${run_args} --runtime-option -Xgc:SS --runtime-option -Xms2m --runtime-option -Xmx2m"
 fi
 if [ "$trace" = "true" ]; then
-    run_args="${run_args} --runtime-option -Xmethod-trace --runtime-option -Xmethod-trace-file:${DEX_LOCATION}/trace.bin --runtime-option -Xmethod-trace-file-size:2000000"
+    run_args="${run_args} --runtime-option -Xmethod-trace --runtime-option -Xmethod-trace-file-size:2000000"
+    if [ "$trace_stream" = "true" ]; then
+        # Streaming mode uses the file size as the buffer size. So output gets really large. Drop
+        # the ability to analyze the file and just write to /dev/null.
+        run_args="${run_args} --runtime-option -Xmethod-trace-file:/dev/null"
+        # Enable streaming mode.
+        run_args="${run_args} --runtime-option -Xmethod-trace-stream"
+    else
+        run_args="${run_args} --runtime-option -Xmethod-trace-file:${DEX_LOCATION}/trace.bin"
+    fi
+elif [ "$trace_stream" = "true" ]; then
+    echo "Cannot use --stream without --trace."
+    exit 1
 fi
 
 # Most interesting target architecture variables are Makefile variables, not environment variables.
@@ -469,6 +485,7 @@ if [ "$usage" = "yes" ]; then
              "files."
         echo "    --64                  Run the test in 64-bit mode"
         echo "    --trace               Run with method tracing"
+        echo "    --stream              Run method tracing in streaming mode (requires --trace)"
         echo "    --gcstress            Run with gc stress testing"
         echo "    --gcverify            Run with gc verification"
         echo "    --always-clean        Delete the test files even if the test fails."
