@@ -2314,22 +2314,47 @@ void ClassLinker::LoadClassMembers(Thread* self, const DexFile& dex_file,
     // Class::VisitFieldRoots may miss some fields or methods.
     ScopedAssertNoThreadSuspension nts(self, __FUNCTION__);
     // Load static fields.
+    // We allow duplicate definitions of the same field in a class_data_item
+    // but ignore the repeated indexes here, b/21868015.
     ClassDataItemIterator it(dex_file, class_data);
-    const size_t num_sfields = it.NumStaticFields();
-    ArtField* sfields = num_sfields != 0 ? AllocArtFieldArray(self, num_sfields) : nullptr;
-    for (size_t i = 0; it.HasNextStaticField(); i++, it.Next()) {
-      CHECK_LT(i, num_sfields);
-      LoadField(it, klass, &sfields[i]);
+    ArtField* sfields =
+        it.NumStaticFields() != 0 ? AllocArtFieldArray(self, it.NumStaticFields()) : nullptr;
+    size_t num_sfields = 0;
+    uint32_t last_field_idx = 0u;
+    for (; it.HasNextStaticField(); it.Next()) {
+      uint32_t field_idx = it.GetMemberIndex();
+      DCHECK_GE(field_idx, last_field_idx);  // Ordering enforced by DexFileVerifier.
+      if (num_sfields == 0 || LIKELY(field_idx > last_field_idx)) {
+        DCHECK_LT(num_sfields, it.NumStaticFields());
+        LoadField(it, klass, &sfields[num_sfields]);
+        ++num_sfields;
+        last_field_idx = field_idx;
+      }
     }
     klass->SetSFields(sfields);
     klass->SetNumStaticFields(num_sfields);
     DCHECK_EQ(klass->NumStaticFields(), num_sfields);
     // Load instance fields.
-    const size_t num_ifields = it.NumInstanceFields();
-    ArtField* ifields = num_ifields != 0 ? AllocArtFieldArray(self, num_ifields) : nullptr;
-    for (size_t i = 0; it.HasNextInstanceField(); i++, it.Next()) {
-      CHECK_LT(i, num_ifields);
-      LoadField(it, klass, &ifields[i]);
+    ArtField* ifields =
+        it.NumInstanceFields() != 0 ? AllocArtFieldArray(self, it.NumInstanceFields()) : nullptr;
+    size_t num_ifields = 0u;
+    last_field_idx = 0u;
+    for (; it.HasNextInstanceField(); it.Next()) {
+      uint32_t field_idx = it.GetMemberIndex();
+      DCHECK_GE(field_idx, last_field_idx);  // Ordering enforced by DexFileVerifier.
+      if (num_ifields == 0 || LIKELY(field_idx > last_field_idx)) {
+        DCHECK_LT(num_ifields, it.NumInstanceFields());
+        LoadField(it, klass, &ifields[num_ifields]);
+        ++num_ifields;
+        last_field_idx = field_idx;
+      }
+    }
+    if (UNLIKELY(num_sfields != it.NumStaticFields()) ||
+        UNLIKELY(num_ifields != it.NumInstanceFields())) {
+      LOG(WARNING) << "Duplicate fields in class " << PrettyDescriptor(klass.Get())
+          << " (unique static fields: " << num_sfields << "/" << it.NumStaticFields()
+          << ", unique instance fields: " << num_ifields << "/" << it.NumInstanceFields() << ")";
+      // NOTE: Not shrinking the over-allocated sfields/ifields.
     }
     klass->SetIFields(ifields);
     klass->SetNumInstanceFields(num_ifields);

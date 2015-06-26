@@ -1113,9 +1113,8 @@ void ClassDataItemIterator::ReadClassDataHeader() {
 void ClassDataItemIterator::ReadClassDataField() {
   field_.field_idx_delta_ = DecodeUnsignedLeb128(&ptr_pos_);
   field_.access_flags_ = DecodeUnsignedLeb128(&ptr_pos_);
-  if (last_idx_ != 0 && field_.field_idx_delta_ == 0) {
-    LOG(WARNING) << "Duplicate field in " << dex_file_.GetLocation();
-  }
+  // The user of the iterator is responsible for checking if there
+  // are unordered or duplicate indexes.
 }
 
 void ClassDataItemIterator::ReadClassDataMethod() {
