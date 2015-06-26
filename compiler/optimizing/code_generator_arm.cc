@@ -431,7 +431,7 @@ void CodeGeneratorARM::Finalize(CodeAllocator* allocator) {
     // FirstNonEmptyBlock() which could lead to adjusting a label more than once.
     DCHECK_LT(static_cast<size_t>(block->GetBlockId()), block_labels_.Size());
     Label* block_label = &block_labels_.GetRawStorage()[block->GetBlockId()];
-    DCHECK_EQ(block_label->IsBound(), !block->IsSingleJump());
+    DCHECK_EQ(block_label->IsBound(), !block->IsSingleGoto());
     if (block_label->IsBound()) {
       __ AdjustLabelPosition(block_label);
     }
@@ -962,7 +962,12 @@ void CodeGeneratorARM::InvokeRuntime(int32_t entry_point_offset,
       || !IsLeafMethod());
 }
 
-void InstructionCodeGeneratorARM::HandleGoto(HInstruction* got, HBasicBlock* successor) {
+void LocationsBuilderARM::VisitGoto(HGoto* got) {
+  got->SetLocations(nullptr);
+}
+
+void InstructionCodeGeneratorARM::VisitGoto(HGoto* got) {
+  HBasicBlock* successor = got->GetSuccessor();
   DCHECK(!successor->IsExitBlock());
 
   HBasicBlock* block = got->GetBlock();
@@ -980,25 +985,6 @@ void InstructionCodeGeneratorARM::HandleGoto(HInstruction* got, HBasicBlock* suc
   }
   if (!codegen_->GoesToNextBlock(got->GetBlock(), successor)) {
     __ b(codegen_->GetLabelOf(successor));
-  }
-}
-
-void LocationsBuilderARM::VisitGoto(HGoto* got) {
-  got->SetLocations(nullptr);
-}
-
-void InstructionCodeGeneratorARM::VisitGoto(HGoto* got) {
-  HandleGoto(got, got->GetSuccessor());
-}
-
-void LocationsBuilderARM::VisitTryBoundary(HTryBoundary* try_boundary) {
-  try_boundary->SetLocations(nullptr);
-}
-
-void InstructionCodeGeneratorARM::VisitTryBoundary(HTryBoundary* try_boundary) {
-  HBasicBlock* successor = try_boundary->GetNormalFlowSuccessor();
-  if (!successor->IsExitBlock()) {
-    HandleGoto(try_boundary, successor);
   }
 }
 
