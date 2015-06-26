@@ -842,12 +842,7 @@ void CodeGeneratorX86::Move(HInstruction* instruction, Location location, HInstr
   }
 }
 
-void LocationsBuilderX86::VisitGoto(HGoto* got) {
-  got->SetLocations(nullptr);
-}
-
-void InstructionCodeGeneratorX86::VisitGoto(HGoto* got) {
-  HBasicBlock* successor = got->GetSuccessor();
+void InstructionCodeGeneratorX86::HandleGoto(HInstruction* got, HBasicBlock* successor) {
   DCHECK(!successor->IsExitBlock());
 
   HBasicBlock* block = got->GetBlock();
@@ -864,6 +859,25 @@ void InstructionCodeGeneratorX86::VisitGoto(HGoto* got) {
   }
   if (!codegen_->GoesToNextBlock(got->GetBlock(), successor)) {
     __ jmp(codegen_->GetLabelOf(successor));
+  }
+}
+
+void LocationsBuilderX86::VisitGoto(HGoto* got) {
+  got->SetLocations(nullptr);
+}
+
+void InstructionCodeGeneratorX86::VisitGoto(HGoto* got) {
+  HandleGoto(got, got->GetSuccessor());
+}
+
+void LocationsBuilderX86::VisitTryBoundary(HTryBoundary* try_boundary) {
+  try_boundary->SetLocations(nullptr);
+}
+
+void InstructionCodeGeneratorX86::VisitTryBoundary(HTryBoundary* try_boundary) {
+  HBasicBlock* successor = try_boundary->GetNormalFlowSuccessor();
+  if (!successor->IsExitBlock()) {
+    HandleGoto(try_boundary, successor);
   }
 }
 

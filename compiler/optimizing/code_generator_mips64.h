@@ -208,6 +208,7 @@ class InstructionCodeGeneratorMIPS64 : public HGraphVisitor {
                              Label* true_target,
                              Label* false_target,
                              Label* always_true_target);
+  void HandleGoto(HInstruction* got, HBasicBlock* successor);
 
   Mips64Assembler* const assembler_;
   CodeGeneratorMIPS64* const codegen_;
