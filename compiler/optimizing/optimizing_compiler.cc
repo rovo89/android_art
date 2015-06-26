@@ -491,6 +491,16 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     instruction_set = kThumb2;
   }
 
+  // `run_optimizations_` is set explicitly (either through a compiler filter
+  // or the debuggable flag). If it is set, we can run baseline. Otherwise, we
+  // fall back to Quick.
+  bool should_use_baseline = !run_optimizations_;
+  bool can_optimize = CanOptimize(*code_item);
+  if (!can_optimize && !should_use_baseline) {
+    // We know we will not compile this method. Bail out before doing any work.
+    return nullptr;
+  }
+
   // Do not attempt to compile on architectures we do not support.
   if (!IsInstructionSetSupported(instruction_set)) {
     MaybeRecordStat(MethodCompilationStat::kNotCompiledUnsupportedIsa);
@@ -564,13 +574,8 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     }
   }
 
-  bool can_optimize = CanOptimize(*code_item);
   bool can_allocate_registers = RegisterAllocator::CanAllocateRegistersFor(*graph, instruction_set);
 
-  // `run_optimizations_` is set explicitly (either through a compiler filter
-  // or the debuggable flag). If it is set, we can run baseline. Otherwise, we fall back
-  // to Quick.
-  bool can_use_baseline = !run_optimizations_;
   if (run_optimizations_ && can_optimize && can_allocate_registers) {
     VLOG(compiler) << "Optimizing " << method_name;
 
@@ -593,7 +598,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   } else if (shouldOptimize && can_allocate_registers) {
     LOG(FATAL) << "Could not allocate registers in optimizing compiler";
     UNREACHABLE();
-  } else if (can_use_baseline) {
+  } else if (should_use_baseline) {
     VLOG(compiler) << "Compile baseline " << method_name;
 
     if (!run_optimizations_) {
