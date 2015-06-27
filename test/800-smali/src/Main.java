@@ -91,6 +91,8 @@ public class Main {
                 null));
         testCases.add(new TestCase("b/22080519", "B22080519", "run", null,
                 new NullPointerException(), null));
+        testCases.add(new TestCase("b/21645819", "B21645819", "run", new Object[] { null },
+                null, null));
     }
 
     public void runTests() {
