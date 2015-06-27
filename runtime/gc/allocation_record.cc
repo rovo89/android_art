@@ -107,9 +107,10 @@ static inline void SweepClassObject(AllocRecord* record, IsMarkedCallback* callb
   GcRoot<mirror::Class>& klass = record->GetClassGcRoot();
   // This does not need a read barrier because this is called by GC.
   mirror::Object* old_object = klass.Read<kWithoutReadBarrier>();
-  mirror::Object* new_object = callback(old_object, arg);
+  mirror::Object* new_object = UNLIKELY(old_object == nullptr) ?
+      nullptr : callback(old_object, arg);
   if (UNLIKELY(old_object != new_object)) {
-    mirror::Class* new_klass = (UNLIKELY(new_object == nullptr) ? nullptr : new_object->AsClass());
+    mirror::Class* new_klass = UNLIKELY(new_object == nullptr) ? nullptr : new_object->AsClass();
     klass = GcRoot<mirror::Class>(new_klass);
   }
 }
@@ -129,7 +130,7 @@ void AllocRecordObjectMap::SweepAllocationRecords(IsMarkedCallback* callback, vo
     // This does not need a read barrier because this is called by GC.
     mirror::Object* old_object = it->first.Read<kWithoutReadBarrier>();
     AllocRecord* record = it->second;
-    mirror::Object* new_object = callback(old_object, arg);
+    mirror::Object* new_object = old_object == nullptr ? nullptr : callback(old_object, arg);
     if (new_object == nullptr) {
       if (count > delete_bound) {
         it->first = GcRoot<mirror::Object>(nullptr);
