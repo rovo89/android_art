@@ -1134,6 +1134,8 @@ DEFINE_FUNCTION art_quick_check_cast
     CFI_ADJUST_CFA_OFFSET(-16)
 
     ret
+
+    CFI_ADJUST_CFA_OFFSET(16 + 4 * 8)  // Reset unwind info so following code unwinds.
 1:
     RESTORE_FP_CALLEE_SAVE_FRAME
     POP rsi                           // Pop arguments
