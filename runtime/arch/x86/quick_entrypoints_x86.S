@@ -1105,6 +1105,8 @@ DEFINE_FUNCTION art_quick_check_cast
     addl LITERAL(12), %esp        // pop arguments
     CFI_ADJUST_CFA_OFFSET(-12)
     ret
+
+    CFI_ADJUST_CFA_OFFSET(12)     // Reset unwind info so following code unwinds.
 1:
     POP eax                       // pop arguments
     POP ecx
