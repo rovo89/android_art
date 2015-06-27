@@ -385,7 +385,7 @@ MethodVerifier::MethodVerifier(Thread* self,
                                bool allow_thread_suspension)
     : self_(self),
       reg_types_(can_load_classes),
-      work_insn_idx_(-1),
+      work_insn_idx_(DexFile::kDexNoIndex),
       dex_method_idx_(dex_method_idx),
       mirror_method_(method),
       method_access_flags_(method_access_flags),
@@ -409,7 +409,8 @@ MethodVerifier::MethodVerifier(Thread* self,
       has_check_casts_(false),
       has_virtual_or_interface_invokes_(false),
       verify_to_dump_(verify_to_dump),
-      allow_thread_suspension_(allow_thread_suspension) {
+      allow_thread_suspension_(allow_thread_suspension),
+      link_(nullptr) {
   self->PushVerifier(this);
   DCHECK(class_def != nullptr);
 }
@@ -600,12 +601,16 @@ std::ostream& MethodVerifier::Fail(VerifyError error) {
         // We need to save the work_line if the instruction wasn't throwing before. Otherwise we'll
         // try to merge garbage.
         // Note: this assumes that Fail is called before we do any work_line modifications.
-        const uint16_t* insns = code_item_->insns_ + work_insn_idx_;
-        const Instruction* inst = Instruction::At(insns);
-        int opcode_flags = Instruction::FlagsOf(inst->Opcode());
+        // Note: this can fail before we touch any instruction, for the signature of a method. So
+        //       add a check.
+        if (work_insn_idx_ < DexFile::kDexNoIndex) {
+          const uint16_t* insns = code_item_->insns_ + work_insn_idx_;
+          const Instruction* inst = Instruction::At(insns);
+          int opcode_flags = Instruction::FlagsOf(inst->Opcode());
 
-        if ((opcode_flags & Instruction::kThrow) == 0 && CurrentInsnFlags()->IsInTry()) {
-          saved_line_->CopyFromLine(work_line_.get());
+          if ((opcode_flags & Instruction::kThrow) == 0 && CurrentInsnFlags()->IsInTry()) {
+            saved_line_->CopyFromLine(work_line_.get());
+          }
         }
       }
       break;
@@ -1237,6 +1242,9 @@ bool MethodVerifier::VerifyCodeFlow() {
     PrependToLastFailMessage(prepend);
     return false;
   }
+  // We may have a runtime failure here, clear.
+  have_pending_runtime_throw_failure_ = false;
+
   /* Perform code flow verification. */
   if (!CodeFlowVerifyMethod()) {
     DCHECK_NE(failures_.size(), 0U);
