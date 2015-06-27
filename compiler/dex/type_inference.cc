@@ -572,15 +572,21 @@ void TypeInference::Finish() {
 
   if (type_conflict) {
     /*
-     * We don't normally expect to see a Dalvik register definition used both as a
-     * floating point and core value, though technically it could happen with constants.
-     * Until we have proper typing, detect this situation and disable register promotion
-     * (which relies on the distinction between core a fp usages).
+     * Each dalvik register definition should be used either as a reference, or an
+     * integer or a floating point value. We don't normally expect to see a Dalvik
+     * register definition used in two or three of these roles though technically it
+     * could happen with constants (0 for all three roles, non-zero for integer and
+     * FP). Detect this situation and disable optimizations that rely on correct
+     * typing, i.e. register promotion, GVN/LVN and GVN-based DCE.
      */
     LOG(WARNING) << PrettyMethod(cu_->method_idx, *cu_->dex_file)
                  << " has type conflict block for sreg " << conflict_s_reg
                  << ", disabling register promotion.";
-    cu_->disable_opt |= (1 << kPromoteRegs);
+    cu_->disable_opt |=
+        (1u << kPromoteRegs) |
+        (1u << kGlobalValueNumbering) |
+        (1u << kGvnDeadCodeElimination) |
+        (1u << kLocalValueNumbering);
   }
 }
 
