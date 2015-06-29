@@ -462,7 +462,7 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
           ReferenceTypeInfo info = instruction->AsLoadClass()->GetLoadedClassRTI();
           ScopedObjectAccess soa(Thread::Current());
           if (info.GetTypeHandle().GetReference() != nullptr) {
-            StartAttributeStream("klass") << PrettyClass(info.GetTypeHandle().Get());
+            StartAttributeStream("klass") << info.GetTypeHandle().Get();
           } else {
             StartAttributeStream("klass") << "unresolved";
           }
