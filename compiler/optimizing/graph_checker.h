@@ -48,6 +48,10 @@ class GraphChecker : public HGraphDelegateVisitor {
   // Check that the HasBoundsChecks() flag is set for bounds checks.
   void VisitBoundsCheck(HBoundsCheck* check) OVERRIDE;
 
+  // Check that HCheckCast and HInstanceOf have HLoadClass as second input.
+  void VisitCheckCast(HCheckCast* check) OVERRIDE;
+  void VisitInstanceOf(HInstanceOf* check) OVERRIDE;
+
   // Was the last visit of the graph valid?
   bool IsValid() const {
     return errors_.empty();
