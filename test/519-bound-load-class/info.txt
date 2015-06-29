@@ -1,3 +1,0 @@
-Regression test for the optimizing compiler that
-used to crash when a `HCheckCast` did not have a `HLoadClass`
-as second input.
