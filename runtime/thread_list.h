@@ -155,6 +155,8 @@ class ThreadList {
 
   bool Contains(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_);
   bool Contains(pid_t tid) EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_);
+  size_t RunCheckpoint(Closure* checkpoint_function, bool includeSuspended)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::thread_suspend_count_lock_);
 
   void DumpUnattachedThreads(std::ostream& os)
       LOCKS_EXCLUDED(Locks::thread_list_lock_);
@@ -163,6 +165,11 @@ class ThreadList {
       LOCKS_EXCLUDED(Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
   void WaitForOtherNonDaemonThreadsToExit()
+      LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_);
+
+  void SuspendAllInternal(Thread* self, Thread* ignore1, Thread* ignore2 = nullptr,
+                          bool debug_suspend = false)
       LOCKS_EXCLUDED(Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
 

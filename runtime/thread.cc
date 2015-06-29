@@ -74,6 +74,14 @@
 #include "vmap_table.h"
 #include "well_known_classes.h"
 
+#if ART_USE_FUTEXES
+#include "linux/futex.h"
+#include "sys/syscall.h"
+#ifndef SYS_futex
+#define SYS_futex __NR_futex
+#endif
+#endif  // ART_USE_FUTEXES
+
 namespace art {
 
 bool Thread::is_started_ = false;
@@ -758,7 +766,8 @@ static void UnsafeLogFatalForSuspendCount(Thread* self, Thread* thread) NO_THREA
   LOG(FATAL) << ss.str();
 }
 
-void Thread::ModifySuspendCount(Thread* self, int delta, bool for_debugger) {
+bool Thread::ModifySuspendCount(Thread* self, int delta, AtomicInteger* suspend_barrier,
+                                bool for_debugger) {
   if (kIsDebugBuild) {
     DCHECK(delta == -1 || delta == +1 || delta == -tls32_.debug_suspend_count)
           << delta << " " << tls32_.debug_suspend_count << " " << this;
@@ -770,7 +779,24 @@ void Thread::ModifySuspendCount(Thread* self, int delta, bool for_debugger) {
   }
   if (UNLIKELY(delta < 0 && tls32_.suspend_count <= 0)) {
     UnsafeLogFatalForSuspendCount(self, this);
-    return;
+    return false;
+  }
+
+  uint16_t flags = kSuspendRequest;
+  if (delta > 0 && suspend_barrier != nullptr) {
+    uint32_t available_barrier = kMaxSuspendBarriers;
+    for (uint32_t i = 0; i < kMaxSuspendBarriers; ++i) {
+      if (tlsPtr_.active_suspend_barriers[i] == nullptr) {
+        available_barrier = i;
+        break;
+      }
+    }
+    if (available_barrier == kMaxSuspendBarriers) {
+      // No barrier spaces available, we can't add another.
+      return false;
+    }
+    tlsPtr_.active_suspend_barriers[available_barrier] = suspend_barrier;
+    flags |= kActiveSuspendBarrier;
   }
 
   tls32_.suspend_count += delta;
@@ -781,8 +807,75 @@ void Thread::ModifySuspendCount(Thread* self, int delta, bool for_debugger) {
   if (tls32_.suspend_count == 0) {
     AtomicClearFlag(kSuspendRequest);
   } else {
-    AtomicSetFlag(kSuspendRequest);
+    // Two bits might be set simultaneously.
+    tls32_.state_and_flags.as_atomic_int.FetchAndOrSequentiallyConsistent(flags);
     TriggerSuspend();
+  }
+  return true;
+}
+
+bool Thread::PassActiveSuspendBarriers(Thread* self) {
+  // Grab the suspend_count lock and copy the current set of
+  // barriers. Then clear the list and the flag. The ModifySuspendCount
+  // function requires the lock so we prevent a race between setting
+  // the kActiveSuspendBarrier flag and clearing it.
+  AtomicInteger* pass_barriers[kMaxSuspendBarriers];
+  {
+    MutexLock mu(self, *Locks::thread_suspend_count_lock_);
+    if (!ReadFlag(kActiveSuspendBarrier)) {
+      // quick exit test: the barriers have already been claimed - this is
+      // possible as there may be a race to claim and it doesn't matter
+      // who wins.
+      // All of the callers of this function (except the SuspendAllInternal)
+      // will first test the kActiveSuspendBarrier flag without lock. Here
+      // double-check whether the barrier has been passed with the
+      // suspend_count lock.
+      return false;
+    }
+
+    for (uint32_t i = 0; i < kMaxSuspendBarriers; ++i) {
+      pass_barriers[i] = tlsPtr_.active_suspend_barriers[i];
+      tlsPtr_.active_suspend_barriers[i] = nullptr;
+    }
+    AtomicClearFlag(kActiveSuspendBarrier);
+  }
+
+  uint32_t barrier_count = 0;
+  for (uint32_t i = 0; i < kMaxSuspendBarriers; i++) {
+    AtomicInteger* pending_threads = pass_barriers[i];
+    if (pending_threads != nullptr) {
+      bool done = false;
+      do {
+        int32_t cur_val = pending_threads->LoadRelaxed();
+        CHECK_GT(cur_val, 0) << "Unexpected value for PassActiveSuspendBarriers(): " << cur_val;
+        // Reduce value by 1.
+        done = pending_threads->CompareExchangeWeakRelaxed(cur_val, cur_val - 1);
+#if ART_USE_FUTEXES
+        if (done && (cur_val - 1) == 0) {  // Weak CAS may fail spuriously.
+          futex(pending_threads->Address(), FUTEX_WAKE, -1, nullptr, nullptr, 0);
+        }
+#endif
+      } while (!done);
+      ++barrier_count;
+    }
+  }
+  CHECK_GT(barrier_count, 0U);
+  return true;
+}
+
+void Thread::ClearSuspendBarrier(AtomicInteger* target) {
+  CHECK(ReadFlag(kActiveSuspendBarrier));
+  bool clear_flag = true;
+  for (uint32_t i = 0; i < kMaxSuspendBarriers; ++i) {
+    AtomicInteger* ptr = tlsPtr_.active_suspend_barriers[i];
+    if (ptr == target) {
+      tlsPtr_.active_suspend_barriers[i] = nullptr;
+    } else if (ptr != nullptr) {
+      clear_flag = false;
+    }
+  }
+  if (LIKELY(clear_flag)) {
+    AtomicClearFlag(kActiveSuspendBarrier);
   }
 }
 
@@ -1287,6 +1380,9 @@ Thread::Thread(bool daemon) : tls32_(daemon), wait_monitor_(nullptr), interrupte
             gc::allocator::RosAlloc::GetDedicatedFullRun());
   for (uint32_t i = 0; i < kMaxCheckpoints; ++i) {
     tlsPtr_.checkpoint_functions[i] = nullptr;
+  }
+  for (uint32_t i = 0; i < kMaxSuspendBarriers; ++i) {
+    tlsPtr_.active_suspend_barriers[i] = nullptr;
   }
   tlsPtr_.flip_function = nullptr;
   tls32_.suspended_at_suspend_check = false;
