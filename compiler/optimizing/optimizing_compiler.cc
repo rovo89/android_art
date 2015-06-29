@@ -291,6 +291,7 @@ bool OptimizingCompiler::CanCompileMethod(uint32_t method_idx ATTRIBUTE_UNUSED,
 static bool IsInstructionSetSupported(InstructionSet instruction_set) {
   return instruction_set == kArm64
       || (instruction_set == kThumb2 && !kArm32QuickCodeUseSoftFloat)
+      || instruction_set == kMips64
       || instruction_set == kX86
       || instruction_set == kX86_64;
 }
