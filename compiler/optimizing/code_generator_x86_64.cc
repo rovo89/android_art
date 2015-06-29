@@ -5232,6 +5232,12 @@ void ParallelMoveResolverX86_64::Exchange32(int mem1, int mem2) {
           CpuRegister(ensure_scratch.GetRegister()));
 }
 
+void ParallelMoveResolverX86_64::Exchange64(CpuRegister reg1, CpuRegister reg2) {
+  __ movq(CpuRegister(TMP), reg1);
+  __ movq(reg1, reg2);
+  __ movq(reg2, CpuRegister(TMP));
+}
+
 void ParallelMoveResolverX86_64::Exchange64(CpuRegister reg, int mem) {
   __ movq(CpuRegister(TMP), Address(CpuRegister(RSP), mem));
   __ movq(Address(CpuRegister(RSP), mem), reg);
@@ -5269,7 +5275,7 @@ void ParallelMoveResolverX86_64::EmitSwap(size_t index) {
   Location destination = move->GetDestination();
 
   if (source.IsRegister() && destination.IsRegister()) {
-    __ xchgq(destination.AsRegister<CpuRegister>(), source.AsRegister<CpuRegister>());
+    Exchange64(source.AsRegister<CpuRegister>(), destination.AsRegister<CpuRegister>());
   } else if (source.IsRegister() && destination.IsStackSlot()) {
     Exchange32(source.AsRegister<CpuRegister>(), destination.GetStackIndex());
   } else if (source.IsStackSlot() && destination.IsRegister()) {
