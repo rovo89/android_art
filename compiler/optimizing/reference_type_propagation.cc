@@ -151,6 +151,15 @@ void ReferenceTypePropagation::BoundTypeForIfInstanceOf(HBasicBlock* block) {
   HBoundType* bound_type = nullptr;
 
   HInstruction* obj = instanceOf->InputAt(0);
+  if (obj->GetReferenceTypeInfo().IsExact() && !obj->IsPhi()) {
+    // This method is being called while doing a fixed-point calculation
+    // over phis. Non-phis instruction whose type is already known do
+    // not need to be bound to another type.
+    // Not that this also prevents replacing `HLoadClass` with a `HBoundType`.
+    // `HCheckCast` and `HInstanceOf` expect a `HLoadClass` as a second
+    // input.
+    return;
+  }
   for (HUseIterator<HInstruction*> it(obj->GetUses()); !it.Done(); it.Advance()) {
     HInstruction* user = it.Current()->GetUser();
     if (instanceOfTrueBlock->Dominates(user->GetBlock())) {
