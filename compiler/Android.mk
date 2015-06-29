@@ -103,6 +103,7 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/code_generator.cc \
 	optimizing/code_generator_arm.cc \
 	optimizing/code_generator_arm64.cc \
+	optimizing/code_generator_mips64.cc \
 	optimizing/code_generator_x86.cc \
 	optimizing/code_generator_x86_64.cc \
 	optimizing/code_generator_utils.cc \

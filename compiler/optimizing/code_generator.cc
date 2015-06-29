@@ -20,6 +20,7 @@
 #include "code_generator_arm64.h"
 #include "code_generator_x86.h"
 #include "code_generator_x86_64.h"
+#include "code_generator_mips64.h"
 #include "compiled_method.h"
 #include "dex/verified_method.h"
 #include "driver/dex_compilation_unit.h"
@@ -459,6 +460,11 @@ CodeGenerator* CodeGenerator::Create(HGraph* graph,
     }
     case kMips:
       return nullptr;
+    case kMips64: {
+      return new mips64::CodeGeneratorMIPS64(graph,
+          *isa_features.AsMips64InstructionSetFeatures(),
+          compiler_options);
+    }
     case kX86: {
       return new x86::CodeGeneratorX86(graph,
            *isa_features.AsX86InstructionSetFeatures(),
@@ -629,18 +635,18 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
                                  uint32_t dex_pc,
                                  SlowPathCode* slow_path) {
   if (instruction != nullptr) {
-    // The code generated for some type conversions may call the
-    // runtime, thus normally requiring a subsequent call to this
-    // method.  However, the method verifier does not produce PC
-    // information for certain instructions, which are considered "atomic"
-    // (they cannot join a GC).
+    // The code generated for some type conversions and comparisons
+    // may call the runtime, thus normally requiring a subsequent
+    // call to this method. However, the method verifier does not
+    // produce PC information for certain instructions, which are
+    // considered "atomic" (they cannot join a GC).
     // Therefore we do not currently record PC information for such
     // instructions.  As this may change later, we added this special
     // case so that code generators may nevertheless call
     // CodeGenerator::RecordPcInfo without triggering an error in
     // CodeGenerator::BuildNativeGCMap ("Missing ref for dex pc 0x")
     // thereafter.
-    if (instruction->IsTypeConversion()) {
+    if (instruction->IsTypeConversion() || instruction->IsCompare()) {
       return;
     }
     if (instruction->IsRem()) {

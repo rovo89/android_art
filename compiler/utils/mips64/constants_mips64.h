@@ -67,7 +67,7 @@ class Instr {
   static const uint32_t kBreakPointInstruction = 0x0000000D;
 
   bool IsBreakPoint() {
-    return ((*reinterpret_cast<const uint32_t*>(this)) & 0xFC0000CF) == kBreakPointInstruction;
+    return ((*reinterpret_cast<const uint32_t*>(this)) & 0xFC00003F) == kBreakPointInstruction;
   }
 
   // Instructions are read out of a code stream. The only way to get a
