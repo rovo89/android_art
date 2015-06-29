@@ -257,6 +257,7 @@ void GraphChecker::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
 }
 
 void GraphChecker::VisitReturn(HReturn* ret) {
+  VisitInstruction(ret);
   if (!ret->GetBlock()->GetSingleSuccessor()->IsExitBlock()) {
     AddError(StringPrintf("%s:%d does not jump to the exit block.",
                           ret->DebugName(),
@@ -265,10 +266,35 @@ void GraphChecker::VisitReturn(HReturn* ret) {
 }
 
 void GraphChecker::VisitReturnVoid(HReturnVoid* ret) {
+  VisitInstruction(ret);
   if (!ret->GetBlock()->GetSingleSuccessor()->IsExitBlock()) {
     AddError(StringPrintf("%s:%d does not jump to the exit block.",
                           ret->DebugName(),
                           ret->GetId()));
+  }
+}
+
+void GraphChecker::VisitCheckCast(HCheckCast* check) {
+  VisitInstruction(check);
+  HInstruction* input = check->InputAt(1);
+  if (!input->IsLoadClass()) {
+    AddError(StringPrintf("%s:%d expects a HLoadClass as second input, not %s:%d.",
+                          check->DebugName(),
+                          check->GetId(),
+                          input->DebugName(),
+                          input->GetId()));
+  }
+}
+
+void GraphChecker::VisitInstanceOf(HInstanceOf* instruction) {
+  VisitInstruction(instruction);
+  HInstruction* input = instruction->InputAt(1);
+  if (!input->IsLoadClass()) {
+    AddError(StringPrintf("%s:%d expects a HLoadClass as second input, not %s:%d.",
+                          instruction->DebugName(),
+                          instruction->GetId(),
+                          input->DebugName(),
+                          input->GetId()));
   }
 }
 
