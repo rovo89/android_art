@@ -1206,6 +1206,7 @@ ENTRY art_quick_aput_obj
     lsr x0, x0, #7
     strb w3, [x3, x0]
     ret
+    .cfi_adjust_cfa_offset 32  // 4 restores after cbz for unwinding.
 .Lthrow_array_store_exception:
     ldp x2, x30, [sp, #16]
     .cfi_restore x2
