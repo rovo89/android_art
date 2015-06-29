@@ -1243,6 +1243,7 @@ DEFINE_FUNCTION art_quick_aput_obj
     movb %dl, (%rdx, %rdi)                       // Note: this assumes that top 32b of %rdi are zero
 //  movb %dl, (%rdx, %rdi)
     ret
+    CFI_ADJUST_CFA_OFFSET(32 + 4 * 8)  // Reset unwind info so following code unwinds.
 .Lthrow_array_store_exception:
     RESTORE_FP_CALLEE_SAVE_FRAME
     // Restore arguments.
