@@ -1185,9 +1185,9 @@ DEFINE_FUNCTION art_quick_aput_obj
     pushl MIRROR_OBJECT_CLASS_OFFSET(%edx)  // pass arg2 - type of the value to be stored
 #endif
     CFI_ADJUST_CFA_OFFSET(4)
-    PUSH ebx                     // pass arg1 - component type of the array
+    PUSH ebx                      // pass arg1 - component type of the array
     call SYMBOL(artIsAssignableFromCode)  // (Class* a, Class* b)
-    addl LITERAL(16), %esp       // pop arguments
+    addl LITERAL(16), %esp        // pop arguments
     CFI_ADJUST_CFA_OFFSET(-16)
     testl %eax, %eax
     jz   .Lthrow_array_store_exception
@@ -1200,6 +1200,7 @@ DEFINE_FUNCTION art_quick_aput_obj
     shrl LITERAL(7), %eax
     movb %dl, (%edx, %eax)
     ret
+    CFI_ADJUST_CFA_OFFSET(12)     // 3 POP after the jz for unwinding.
 .Lthrow_array_store_exception:
     POP  edx
     POP  ecx
