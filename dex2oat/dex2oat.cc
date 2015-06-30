@@ -1038,6 +1038,10 @@ class Dex2Oat FINAL {
   bool OpenFile() {
     bool create_file = !oat_unstripped_.empty();  // as opposed to using open file descriptor
     if (create_file) {
+      // We're supposed to create this file. If the file already exists, it may be in use currently.
+      // We must not change the content of that file, then. So unlink it first.
+      unlink(oat_unstripped_.c_str());
+
       oat_file_.reset(OS::CreateEmptyFile(oat_unstripped_.c_str()));
       if (oat_location_.empty()) {
         oat_location_ = oat_filename_;
