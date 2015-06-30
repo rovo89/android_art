@@ -306,6 +306,22 @@ void HGraphBuilder::CreateBlocksForTryCatch(const DexFile::CodeItem& code_item) 
   }
 }
 
+void HGraphBuilder::SplitTryBoundaryEdge(HBasicBlock* predecessor,
+                                         HBasicBlock* successor,
+                                         HTryBoundary::BoundaryKind kind,
+                                         const DexFile::CodeItem& code_item,
+                                         const DexFile::TryItem& try_item) {
+  // Split the edge with a single TryBoundary instruction.
+  HTryBoundary* try_boundary = new (arena_) HTryBoundary(kind);
+  HBasicBlock* try_entry_block = graph_->SplitEdge(predecessor, successor);
+  try_entry_block->AddInstruction(try_boundary);
+
+  // Link the TryBoundary to the handlers of `try_item`.
+  for (CatchHandlerIterator it(code_item, try_item); it.HasNext(); it.Next()) {
+    try_boundary->AddExceptionHandler(FindBlockStartingAt(it.GetHandlerAddress()));
+  }
+}
+
 void HGraphBuilder::InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item) {
   if (code_item.tries_size_ == 0) {
     return;
@@ -326,47 +342,46 @@ void HGraphBuilder::InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item) 
         continue;
       }
 
-      // Find predecessors which are not covered by the same TryItem range. Such
-      // edges enter the try block and will have a TryBoundary inserted.
-      for (size_t i = 0; i < try_block->GetPredecessors().Size(); ++i) {
-        HBasicBlock* predecessor = try_block->GetPredecessors().Get(i);
-        HTryBoundary* try_boundary = nullptr;
-        if (predecessor->IsSingleTryBoundary()) {
-          try_boundary = predecessor->GetLastInstruction()->AsTryBoundary();
-          if (try_boundary->GetNormalFlowSuccessor() == try_block
-              && try_block->IsFirstIndexOfPredecessor(predecessor, i)) {
+      if (try_block->IsCatchBlock()) {
+        // Catch blocks are always considered an entry point into the TryItem in
+        // order to avoid splitting exceptional edges (they might not have been
+        // created yet). We separate the move-exception (if present) from the
+        // rest of the block and insert a TryBoundary after it.
+        HInstruction* split_position = try_block->GetFirstInstruction();
+        if (split_position->IsLoadException()) {
+          DCHECK(split_position->GetNext()->IsStoreLocal());
+          split_position = split_position->GetNext()->GetNext();
+        }
+        DCHECK(split_position != nullptr);
+        HBasicBlock* catch_block = try_block;
+        try_block = catch_block->SplitBefore(split_position);
+        SplitTryBoundaryEdge(catch_block, try_block, HTryBoundary::kEntry, code_item, *try_item);
+      } else {
+        // For non-catch blocks, find predecessors which are not covered by the
+        // same TryItem range. Such edges enter the try block and will have
+        // a TryBoundary inserted.
+        for (size_t i = 0; i < try_block->GetPredecessors().Size(); ++i) {
+          HBasicBlock* predecessor = try_block->GetPredecessors().Get(i);
+          if (predecessor->IsSingleTryBoundary()) {
             // The edge was already split because of an exit from a neighbouring
-            // TryItem and `predecessor` is the block with a TryBoundary created
-            // between the two original blocks. We do not split the edge again.
-            DCHECK(!IsBlockInPcRange(predecessor->GetSinglePredecessor(), try_start, try_end));
-            DCHECK(try_boundary->IsTryExit());
-            DCHECK(!try_boundary->IsTryEntry());
-            try_boundary->SetIsTryEntry();
+            // TryItem. We split it again and insert an entry point.
+            if (kIsDebugBuild) {
+              HTryBoundary* last_insn = predecessor->GetLastInstruction()->AsTryBoundary();
+              DCHECK(!last_insn->IsEntry());
+              DCHECK_EQ(last_insn->GetNormalFlowSuccessor(), try_block);
+              DCHECK(try_block->IsFirstIndexOfPredecessor(predecessor, i));
+              DCHECK(!IsBlockInPcRange(predecessor->GetSinglePredecessor(), try_start, try_end));
+            }
+          } else if (!IsBlockInPcRange(predecessor, try_start, try_end)) {
+            // This is an entry point into the TryItem and the edge has not been
+            // split yet. That means that `predecessor` is not in a TryItem, or
+            // it is in a different TryItem and we happened to iterate over this
+            // block first. We split the edge and insert an entry point.
           } else {
-            // This is an edge between a previously created TryBoundary and its
-            // handler. We skip it because it is exceptional flow.
-            DCHECK(try_block->IsCatchBlock());
-            DCHECK(try_boundary->HasExceptionHandler(try_block));
+            // Not an edge on the boundary of the try block.
             continue;
           }
-        } else if (!IsBlockInPcRange(predecessor, try_start, try_end)) {
-          // This is an entry point into the TryItem and the edge has not been
-          // split yet. That means that either `predecessor` is not in a TryItem,
-          // or it is in a different TryItem and we happened to iterate over
-          // this block first. We split the edge and `predecessor` may add its
-          // own exception handlers later.
-          try_boundary = new (arena_) HTryBoundary(/* is_entry */ true, /* is_exit */ false);
-          HBasicBlock* try_entry_block = graph_->SplitEdge(predecessor, try_block);
-          try_entry_block->AddInstruction(try_boundary);
-        } else {
-          // Not an edge on the boundary of the try block.
-          continue;
-        }
-        DCHECK(try_boundary != nullptr);
-
-        // Link the TryBoundary block to the handlers of this TryItem.
-        for (CatchHandlerIterator it(code_item, *try_item); it.HasNext(); it.Next()) {
-          try_boundary->AddExceptionHandler(FindBlockStartingAt(it.GetHandlerAddress()));
+          SplitTryBoundaryEdge(predecessor, try_block, HTryBoundary::kEntry, code_item, *try_item);
         }
       }
 
@@ -374,45 +389,37 @@ void HGraphBuilder::InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item) 
       // edges exit the try block and will have a TryBoundary inserted.
       for (size_t i = 0; i < try_block->GetSuccessors().Size(); ++i) {
         HBasicBlock* successor = try_block->GetSuccessors().Get(i);
-        HTryBoundary* try_boundary = nullptr;
-        if (successor->IsSingleTryBoundary()) {
+        if (successor->IsCatchBlock()) {
+          // A catch block is always considered an entry point into its TryItem.
+          // We therefore assume this is an exit point, regardless of whether
+          // the catch block is in a different TryItem or not.
+        } else if (successor->IsSingleTryBoundary()) {
           // The edge was already split because of an entry into a neighbouring
-          // TryItem. We do not split the edge again.
-          try_boundary = successor->GetLastInstruction()->AsTryBoundary();
-          DCHECK_EQ(try_block, successor->GetSinglePredecessor());
-          DCHECK(try_boundary->IsTryEntry());
-          DCHECK(!try_boundary->IsTryExit());
-          DCHECK(!IsBlockInPcRange(try_boundary->GetNormalFlowSuccessor(), try_start, try_end));
-          try_boundary->SetIsTryExit();
+          // TryItem. We split it again and insert an exit.
+          if (kIsDebugBuild) {
+            HTryBoundary* last_insn = successor->GetLastInstruction()->AsTryBoundary();
+            DCHECK_EQ(try_block, successor->GetSinglePredecessor());
+            DCHECK(last_insn->IsEntry());
+            DCHECK(!IsBlockInPcRange(last_insn->GetNormalFlowSuccessor(), try_start, try_end));
+          }
         } else if (!IsBlockInPcRange(successor, try_start, try_end)) {
           // This is an exit out of the TryItem and the edge has not been split
           // yet. That means that either `successor` is not in a TryItem, or it
           // is in a different TryItem and we happened to iterate over this
-          // block first. We split the edge and `successor` may add its own
-          // exception handlers later.
+          // block first. We split the edge and insert an exit.
           HInstruction* last_instruction = try_block->GetLastInstruction();
           if (last_instruction->IsReturn() || last_instruction->IsReturnVoid()) {
             DCHECK_EQ(successor, exit_block_);
             // Control flow exits the try block with a Return(Void). Because
             // splitting the edge would invalidate the invariant that Return
             // always jumps to Exit, we move the Return outside the try block.
-            HBasicBlock* return_block = try_block->SplitBefore(last_instruction);
-            graph_->AddBlock(return_block);
-            successor = return_block;
+            successor = try_block->SplitBefore(last_instruction);
           }
-          try_boundary = new (arena_) HTryBoundary(/* is_entry */ false, /* is_exit */ true);
-          HBasicBlock* try_exit_block = graph_->SplitEdge(try_block, successor);
-          try_exit_block->AddInstruction(try_boundary);
         } else {
           // Not an edge on the boundary of the try block.
           continue;
         }
-        DCHECK(try_boundary != nullptr);
-
-        // Link the TryBoundary block to the handlers of this TryItem.
-        for (CatchHandlerIterator it(code_item, *try_item); it.HasNext(); it.Next()) {
-          try_boundary->AddExceptionHandler(FindBlockStartingAt(it.GetHandlerAddress()));
-        }
+        SplitTryBoundaryEdge(try_block, successor, HTryBoundary::kExit, code_item, *try_item);
       }
     }
   }
