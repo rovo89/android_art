@@ -668,7 +668,7 @@ class CompilerDriver {
   bool dedupe_enabled_;
   bool dump_stats_;
   const bool dump_passes_;
-  const std::string& dump_cfg_file_name_;
+  const std::string dump_cfg_file_name_;
 
   CumulativeLogger* const timings_logger_;
 
