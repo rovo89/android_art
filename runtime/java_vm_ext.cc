@@ -132,6 +132,8 @@ class SharedLibrary {
   }
 
   void* FindSymbol(const std::string& symbol_name) {
+    CHECK(!NeedsNativeBridge());
+
     return dlsym(handle_, symbol_name.c_str());
   }
 
@@ -233,9 +235,6 @@ class Libraries {
         if (fn == nullptr) {
           fn = library->FindSymbol(jni_long_name);
         }
-      }
-      if (fn == nullptr) {
-        fn = library->FindSymbol(jni_long_name);
       }
       if (fn != nullptr) {
         VLOG(jni) << "[Found native code for " << PrettyMethod(m)
