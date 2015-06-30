@@ -45,6 +45,7 @@ class ImageTest : public CommonCompilerTest {
 };
 
 TEST_F(ImageTest, WriteRead) {
+  TEST_DISABLED_FOR_NON_PIC_COMPILING_WITH_OPTIMIZING();
   // Create a generic location tmp file, to be the base of the .art and .oat temporary files.
   ScratchFile location;
   ScratchFile image_location(location, ".art");
