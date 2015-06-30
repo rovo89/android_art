@@ -182,13 +182,11 @@ void CommonCompilerTest::SetUp() {
       }
     }
 
-    // TODO: make selectable
-    Compiler::Kind compiler_kind = Compiler::kQuick;
     timer_.reset(new CumulativeLogger("Compilation times"));
     compiler_driver_.reset(new CompilerDriver(compiler_options_.get(),
                                               verification_results_.get(),
                                               method_inliner_map_.get(),
-                                              compiler_kind, instruction_set,
+                                              compiler_kind_, instruction_set,
                                               instruction_set_features_.get(),
                                               true,
                                               GetImageClasses(),
@@ -209,6 +207,14 @@ void CommonCompilerTest::SetUpRuntimeOptions(RuntimeOptions* options) {
   callbacks_.reset(new QuickCompilerCallbacks(verification_results_.get(),
                                               method_inliner_map_.get(),
                                               CompilerCallbacks::CallbackMode::kCompileApp));
+}
+
+Compiler::Kind CommonCompilerTest::GetCompilerKind() const {
+  return compiler_kind_;
+}
+
+void CommonCompilerTest::SetCompilerKind(Compiler::Kind compiler_kind) {
+  compiler_kind_ = compiler_kind;
 }
 
 void CommonCompilerTest::TearDown() {
