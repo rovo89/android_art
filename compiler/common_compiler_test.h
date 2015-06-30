@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "common_runtime_test.h"
+#include "compiler.h"
 #include "oat_file.h"
 
 namespace art {
@@ -55,7 +56,10 @@ class CommonCompilerTest : public CommonRuntimeTest {
  protected:
   virtual void SetUp();
 
-  virtual void SetUpRuntimeOptions(RuntimeOptions *options);
+  virtual void SetUpRuntimeOptions(RuntimeOptions* options);
+
+  Compiler::Kind GetCompilerKind() const;
+  void SetCompilerKind(Compiler::Kind compiler_kind);
 
   // Get the set of image classes given to the compiler-driver in SetUp. Note: the compiler
   // driver assumes ownership of the set, so the test should properly release the set.
@@ -88,6 +92,7 @@ class CommonCompilerTest : public CommonRuntimeTest {
 
   void UnreserveImageSpace();
 
+  Compiler::Kind compiler_kind_ = kUseOptimizingCompiler ? Compiler::kOptimizing : Compiler::kQuick;
   std::unique_ptr<CompilerOptions> compiler_options_;
   std::unique_ptr<VerificationResults> verification_results_;
   std::unique_ptr<DexFileToMethodInlinerMap> method_inliner_map_;
@@ -102,6 +107,13 @@ class CommonCompilerTest : public CommonRuntimeTest {
   // Chunks must not move their storage after being created - use the node-based std::list.
   std::list<std::vector<uint8_t>> header_code_and_maps_chunks_;
 };
+
+// TODO: When non-PIC works with all compilers in use, get rid of this.
+#define TEST_DISABLED_FOR_NON_PIC_COMPILING_WITH_OPTIMIZING() \
+  if (GetCompilerKind() == Compiler::kOptimizing) { \
+    printf("WARNING: TEST DISABLED FOR NON-PIC COMPILING WITH OPTIMIZING\n"); \
+    return; \
+  }
 
 }  // namespace art
 
