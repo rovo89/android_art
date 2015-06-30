@@ -407,6 +407,70 @@ inline size_t Object::SizeOf() {
 }
 
 template<VerifyObjectFlags kVerifyFlags, bool kIsVolatile>
+inline int8_t Object::GetField8(MemberOffset field_offset) {
+  if (kVerifyFlags & kVerifyThis) {
+    VerifyObject(this);
+  }
+  const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset.Int32Value();
+  const int8_t* word_addr = reinterpret_cast<const int8_t*>(raw_addr);
+  if (UNLIKELY(kIsVolatile)) {
+    return reinterpret_cast<const Atomic<int8_t>*>(word_addr)->LoadSequentiallyConsistent();
+  } else {
+    return reinterpret_cast<const Atomic<int8_t>*>(word_addr)->LoadJavaData();
+  }
+}
+
+template<bool kCheckTransaction, VerifyObjectFlags kVerifyFlags,
+    bool kIsVolatile>
+inline void Object::SetField8(MemberOffset field_offset, int8_t new_value) {
+  if (kCheckTransaction) {
+    DCHECK_EQ(false, Runtime::Current()->IsActiveTransaction());
+  }
+  if (kVerifyFlags & kVerifyThis) {
+    VerifyObject(this);
+  }
+  byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
+  int8_t* word_addr = reinterpret_cast<int8_t*>(raw_addr);
+  if (kIsVolatile) {
+    reinterpret_cast<Atomic<int8_t>*>(word_addr)->StoreSequentiallyConsistent(new_value);
+  } else {
+    reinterpret_cast<Atomic<int8_t>*>(word_addr)->StoreJavaData(new_value);
+  }
+}
+
+template<VerifyObjectFlags kVerifyFlags, bool kIsVolatile>
+inline int16_t Object::GetField16(MemberOffset field_offset) {
+  if (kVerifyFlags & kVerifyThis) {
+    VerifyObject(this);
+  }
+  const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset.Int32Value();
+  const int16_t* word_addr = reinterpret_cast<const int16_t*>(raw_addr);
+  if (UNLIKELY(kIsVolatile)) {
+    return reinterpret_cast<const Atomic<int16_t>*>(word_addr)->LoadSequentiallyConsistent();
+  } else {
+    return reinterpret_cast<const Atomic<int16_t>*>(word_addr)->LoadJavaData();
+  }
+}
+
+template<bool kCheckTransaction, VerifyObjectFlags kVerifyFlags,
+    bool kIsVolatile>
+inline void Object::SetField16(MemberOffset field_offset, int16_t new_value) {
+  if (kCheckTransaction) {
+    DCHECK_EQ(false, Runtime::Current()->IsActiveTransaction());
+  }
+  if (kVerifyFlags & kVerifyThis) {
+    VerifyObject(this);
+  }
+  byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
+  int16_t* word_addr = reinterpret_cast<int16_t*>(raw_addr);
+  if (kIsVolatile) {
+    reinterpret_cast<Atomic<int16_t>*>(word_addr)->StoreSequentiallyConsistent(new_value);
+  } else {
+    reinterpret_cast<Atomic<int16_t>*>(word_addr)->StoreJavaData(new_value);
+  }
+}
+
+template<VerifyObjectFlags kVerifyFlags, bool kIsVolatile>
 inline int32_t Object::GetField32(MemberOffset field_offset) {
   if (kVerifyFlags & kVerifyThis) {
     VerifyObject(this);

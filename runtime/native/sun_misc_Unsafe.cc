@@ -372,67 +372,55 @@ static void Unsafe_copyMemoryFromPrimitiveArray(JNIEnv *env,
     }
 }
 static jboolean Unsafe_getBoolean(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
-  // TODO(haaawk): Fix this.
-  //ScopedFastNativeObjectAccess soa(env);
-  //mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  //return obj->GetField8(MemberOffset(offset));
-  return 0;
+    ScopedFastNativeObjectAccess soa(env);
+    mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+    return obj->GetField8(MemberOffset(offset));
 }
 
 static void Unsafe_putBoolean(JNIEnv* env, jobject, jobject javaObj, jlong offset, jboolean newValue) {
-  // TODO(haaawk): Fix this.
-  //ScopedFastNativeObjectAccess soa(env);
-  //mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  // JNI must use non transactional mode.
-  //obj->SetField8<false>(MemberOffset(offset), newValue);
+    ScopedFastNativeObjectAccess soa(env);
+    mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+    // JNI must use non transactional mode (SetField8 is non-transactional).
+    obj->SetField8(MemberOffset(offset), newValue);
 }
 
 static jbyte Unsafe_getByte(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
-  // TODO(haaawk): Fix this.
-  //ScopedFastNativeObjectAccess soa(env);
-  //mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  //return obj->GetField8(MemberOffset(offset));
-  return 0;
+    ScopedFastNativeObjectAccess soa(env);
+    mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+    return obj->GetField8(MemberOffset(offset));
 }
 
 static void Unsafe_putByte(JNIEnv* env, jobject, jobject javaObj, jlong offset, jbyte newValue) {
-  // TODO(haaawk): Fix this.
-  //ScopedFastNativeObjectAccess soa(env);
-  //mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  // JNI must use non transactional mode.
-  //obj->SetField8<false>(MemberOffset(offset), newValue);
+    ScopedFastNativeObjectAccess soa(env);
+    mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+    // JNI must use non transactional mode.
+    obj->SetField8(MemberOffset(offset), newValue);
 }
 
 static jchar Unsafe_getChar(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
-  // TODO(haaawk): Fix this.
-  //ScopedFastNativeObjectAccess soa(env);
-  //mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  //return obj->GetField16(MemberOffset(offset));
-  return 0;
+    ScopedFastNativeObjectAccess soa(env);
+    mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+    return obj->GetField16(MemberOffset(offset));
 }
 
 static void Unsafe_putChar(JNIEnv* env, jobject, jobject javaObj, jlong offset, jchar newValue) {
-  // TODO(haaawk): Fix this.
-  //ScopedFastNativeObjectAccess soa(env);
-  //mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  // JNI must use non transactional mode.
-  //obj->SetField16<false>(MemberOffset(offset), newValue);
+    ScopedFastNativeObjectAccess soa(env);
+    mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+    // JNI must use non transactional mode.
+    obj->SetField16(MemberOffset(offset), newValue);
 }
 
 static jshort Unsafe_getShort(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
-  // TODO(haaawk): Fix this.
-  //ScopedFastNativeObjectAccess soa(env);
-  //mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  //return obj->GetField16(MemberOffset(offset));
-  return 0;
+    ScopedFastNativeObjectAccess soa(env);
+    mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+    return obj->GetField16(MemberOffset(offset));
 }
 
 static void Unsafe_putShort(JNIEnv* env, jobject, jobject javaObj, jlong offset, jshort newValue) {
-  // TODO(haaawk): Fix this.
-  //ScopedFastNativeObjectAccess soa(env);
-  //mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  // JNI must use non transactional mode.
-  //obj->SetField16<false>(MemberOffset(offset), newValue);
+    ScopedFastNativeObjectAccess soa(env);
+    mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+    // JNI must use non transactional mode.
+    obj->SetField16<false>(MemberOffset(offset), newValue);
 }
 
 static jfloat Unsafe_getFloat(JNIEnv* env, jobject, jobject javaObj, jlong offset) {

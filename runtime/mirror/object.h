@@ -247,6 +247,24 @@ class MANAGED LOCKABLE Object {
   HeapReference<Object>* GetFieldObjectReferenceAddr(MemberOffset field_offset);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>
+  ALWAYS_INLINE int8_t GetField8(MemberOffset field_offset)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  template<bool kCheckTransaction = true,
+      VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>
+  ALWAYS_INLINE void SetField8(MemberOffset field_offset, int8_t new_value)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>
+  ALWAYS_INLINE int16_t GetField16(MemberOffset field_offset)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  template<bool kCheckTransaction = true,
+      VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>
+  ALWAYS_INLINE void SetField16(MemberOffset field_offset, int16_t new_value)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>
   ALWAYS_INLINE int32_t GetField32(MemberOffset field_offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
