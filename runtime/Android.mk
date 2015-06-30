@@ -478,7 +478,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
     # For liblog, atrace, properties, ashmem, set_sched_policy and socket_peer_is_trusted.
     LOCAL_SHARED_LIBRARIES += libcutils
   else # host
-    LOCAL_SHARED_LIBRARIES += libziparchive-host
+    LOCAL_SHARED_LIBRARIES += libziparchive-host libz-host
     # For ashmem_create_region.
     LOCAL_SHARED_LIBRARIES += libcutils
   endif
