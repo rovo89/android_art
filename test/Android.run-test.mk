@@ -233,7 +233,10 @@ endif
 TEST_ART_BROKEN_NO_RELOCATE_TESTS :=
 
 # Tests that are broken with GC stress.
-TEST_ART_BROKEN_GCSTRESS_RUN_TESTS :=
+# 137-cfi needs to unwind a second forked process. We're using a primitive sleep to wait till we
+# hope the second process got into the expected state. The slowness of gcstress makes this bad.
+TEST_ART_BROKEN_GCSTRESS_RUN_TESTS := \
+  137-cfi
 
 ifneq (,$(filter gcstress,$(GC_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
