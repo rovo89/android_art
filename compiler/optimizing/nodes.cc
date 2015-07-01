@@ -1636,11 +1636,25 @@ void HGraph::TransformLoopHeaderForBCE(HBasicBlock* header) {
   }
 }
 
+void HInstruction::SetReferenceTypeInfo(ReferenceTypeInfo rti) {
+  if (kIsDebugBuild) {
+    DCHECK_EQ(GetType(), Primitive::kPrimNot);
+    ScopedObjectAccess soa(Thread::Current());
+    DCHECK(rti.IsValid()) << "Invalid RTI for " << DebugName();
+    if (IsBoundType()) {
+      // Having the test here spares us from making the method virtual just for
+      // the sake of a DCHECK.
+      DCHECK(AsBoundType()->GetBoundType().IsSupertypeOf(rti));
+    }
+  }
+  reference_type_info_ = rti;
+}
+
 std::ostream& operator<<(std::ostream& os, const ReferenceTypeInfo& rhs) {
   ScopedObjectAccess soa(Thread::Current());
   os << "["
-     << " is_top=" << rhs.IsTop()
-     << " type=" << (rhs.IsTop() ? "?" : PrettyClass(rhs.GetTypeHandle().Get()))
+     << " is_valid=" << rhs.IsValid()
+     << " type=" << (!rhs.IsValid() ? "?" : PrettyClass(rhs.GetTypeHandle().Get()))
      << " is_exact=" << rhs.IsExact()
      << " ]";
   return os;
