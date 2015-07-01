@@ -1030,9 +1030,8 @@ void InstructionCodeGeneratorARM::GenerateTestAndBranch(HInstruction* instructio
     if (!cond->IsCondition() || cond->AsCondition()->NeedsMaterialization()) {
       // Condition has been materialized, compare the output to 0
       DCHECK(instruction->GetLocations()->InAt(0).IsRegister());
-      __ cmp(instruction->GetLocations()->InAt(0).AsRegister<Register>(),
-             ShifterOperand(0));
-      __ b(true_target, NE);
+      __ CompareAndBranchIfNonZero(instruction->GetLocations()->InAt(0).AsRegister<Register>(),
+                                   true_target);
     } else {
       // Condition has not been materialized, use its inputs as the
       // comparison and its condition as the branch condition.
@@ -2591,8 +2590,7 @@ void InstructionCodeGeneratorARM::VisitDivZeroCheck(HDivZeroCheck* instruction) 
   switch (instruction->GetType()) {
     case Primitive::kPrimInt: {
       if (value.IsRegister()) {
-        __ cmp(value.AsRegister<Register>(), ShifterOperand(0));
-        __ b(slow_path->GetEntryLabel(), EQ);
+        __ CompareAndBranchIfZero(value.AsRegister<Register>(), slow_path->GetEntryLabel());
       } else {
         DCHECK(value.IsConstant()) << value;
         if (value.GetConstant()->AsIntConstant()->GetValue() == 0) {
@@ -3011,8 +3009,7 @@ void InstructionCodeGeneratorARM::GenerateWideAtomicStore(Register addr,
   __ ldrexd(temp1, temp2, addr);
   codegen_->MaybeRecordImplicitNullCheck(instruction);
   __ strexd(temp1, value_lo, value_hi, addr);
-  __ cmp(temp1, ShifterOperand(0));
-  __ b(&fail, NE);
+  __ CompareAndBranchIfNonZero(temp1, &fail);
 }
 
 void LocationsBuilderARM::HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info) {
@@ -3328,8 +3325,7 @@ void InstructionCodeGeneratorARM::GenerateExplicitNullCheck(HNullCheck* instruct
   LocationSummary* locations = instruction->GetLocations();
   Location obj = locations->InAt(0);
 
-  __ cmp(obj.AsRegister<Register>(), ShifterOperand(0));
-  __ b(slow_path->GetEntryLabel(), EQ);
+  __ CompareAndBranchIfZero(obj.AsRegister<Register>(), slow_path->GetEntryLabel());
 }
 
 void InstructionCodeGeneratorARM::VisitNullCheck(HNullCheck* instruction) {
@@ -3746,13 +3742,11 @@ void InstructionCodeGeneratorARM::GenerateSuspendCheck(HSuspendCheck* instructio
 
   __ LoadFromOffset(
       kLoadUnsignedHalfword, IP, TR, Thread::ThreadFlagsOffset<kArmWordSize>().Int32Value());
-  __ cmp(IP, ShifterOperand(0));
-  // TODO: Figure out the branch offsets and use cbz/cbnz.
   if (successor == nullptr) {
-    __ b(slow_path->GetEntryLabel(), NE);
+    __ CompareAndBranchIfNonZero(IP, slow_path->GetEntryLabel());
     __ Bind(slow_path->GetReturnLabel());
   } else {
-    __ b(codegen_->GetLabelOf(successor), EQ);
+    __ CompareAndBranchIfZero(IP, codegen_->GetLabelOf(successor));
     __ b(slow_path->GetEntryLabel());
   }
 }
@@ -4004,8 +3998,7 @@ void InstructionCodeGeneratorARM::VisitLoadClass(HLoadClass* cls) {
     SlowPathCodeARM* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathARM(
         cls, cls, cls->GetDexPc(), cls->MustGenerateClinitCheck());
     codegen_->AddSlowPath(slow_path);
-    __ cmp(out, ShifterOperand(0));
-    __ b(slow_path->GetEntryLabel(), EQ);
+    __ CompareAndBranchIfZero(out, slow_path->GetEntryLabel());
     if (cls->MustGenerateClinitCheck()) {
       GenerateClassInitializationCheck(slow_path, out);
     } else {
@@ -4061,8 +4054,7 @@ void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
       kLoadWord, out, current_method, ArtMethod::DeclaringClassOffset().Int32Value());
   __ LoadFromOffset(kLoadWord, out, out, mirror::Class::DexCacheStringsOffset().Int32Value());
   __ LoadFromOffset(kLoadWord, out, out, CodeGenerator::GetCacheOffset(load->GetStringIndex()));
-  __ cmp(out, ShifterOperand(0));
-  __ b(slow_path->GetEntryLabel(), EQ);
+  __ CompareAndBranchIfZero(out, slow_path->GetEntryLabel());
   __ Bind(slow_path->GetExitLabel());
 }
 
