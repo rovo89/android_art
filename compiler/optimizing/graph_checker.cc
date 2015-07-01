@@ -253,6 +253,30 @@ void GraphChecker::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
   }
 }
 
+void GraphChecker::VisitCheckCast(HCheckCast* check) {
+  VisitInstruction(check);
+  HInstruction* input = check->InputAt(1);
+  if (!input->IsLoadClass()) {
+    AddError(StringPrintf("%s:%d expects a HLoadClass as second input, not %s:%d.",
+                          check->DebugName(),
+                          check->GetId(),
+                          input->DebugName(),
+                          input->GetId()));
+  }
+}
+
+void GraphChecker::VisitInstanceOf(HInstanceOf* instruction) {
+  VisitInstruction(instruction);
+  HInstruction* input = instruction->InputAt(1);
+  if (!input->IsLoadClass()) {
+    AddError(StringPrintf("%s:%d expects a HLoadClass as second input, not %s:%d.",
+                          instruction->DebugName(),
+                          instruction->GetId(),
+                          input->DebugName(),
+                          input->GetId()));
+  }
+}
+
 void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
   super_type::VisitBasicBlock(block);
 
