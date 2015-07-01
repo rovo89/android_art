@@ -1195,13 +1195,9 @@ void ClassLinker::InitFromImage() {
       if (kIsDebugBuild && !method->IsRuntimeMethod()) {
         CHECK(method->GetDeclaringClass() != nullptr);
       }
-      if (!method->IsNative()) {
-        method->SetEntryPointFromInterpreterPtrSize(
-            artInterpreterToInterpreterBridge, image_pointer_size_);
-        if (!method->IsRuntimeMethod() && method != runtime->GetResolutionMethod()) {
-          method->SetEntryPointFromQuickCompiledCodePtrSize(GetQuickToInterpreterBridge(),
-                                                            image_pointer_size_);
-        }
+      if (!method->IsNative() && !method->IsRuntimeMethod() && !method->IsResolutionMethod()) {
+        method->SetEntryPointFromQuickCompiledCodePtrSize(GetQuickToInterpreterBridge(),
+                                                          image_pointer_size_);
       }
     }
   }
@@ -2206,11 +2202,6 @@ void ClassLinker::LinkCode(ArtMethod* method, const OatFile::OatClass* oat_class
 
   // Install entry point from interpreter.
   bool enter_interpreter = NeedsInterpreter(method, method->GetEntryPointFromQuickCompiledCode());
-  if (enter_interpreter && !method->IsNative()) {
-    method->SetEntryPointFromInterpreter(artInterpreterToInterpreterBridge);
-  } else {
-    method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
-  }
 
   if (method->IsAbstract()) {
     method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
@@ -3516,7 +3507,6 @@ void ClassLinker::CreateProxyMethod(Handle<mirror::Class> klass, ArtMethod* prot
   // At runtime the method looks like a reference and argument saving method, clone the code
   // related parameters from this method.
   out->SetEntryPointFromQuickCompiledCode(GetQuickProxyInvokeHandler());
-  out->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
 }
 
 void ClassLinker::CheckProxyMethod(ArtMethod* method, ArtMethod* prototype) const {
@@ -5647,18 +5637,15 @@ void ClassLinker::SetEntryPointsToCompiledCode(ArtMethod* method,
                                                const void* method_code) const {
   OatFile::OatMethod oat_method = CreateOatMethod(method_code);
   oat_method.LinkMethod(method);
-  method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
 }
 
 void ClassLinker::SetEntryPointsToInterpreter(ArtMethod* method) const {
   if (!method->IsNative()) {
-    method->SetEntryPointFromInterpreter(artInterpreterToInterpreterBridge);
     method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
   } else {
     const void* quick_method_code = GetQuickGenericJniStub();
     OatFile::OatMethod oat_method = CreateOatMethod(quick_method_code);
     oat_method.LinkMethod(method);
-    method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
   }
 }
 
