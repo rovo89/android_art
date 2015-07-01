@@ -213,7 +213,13 @@ void SsaBuilder::EquivalentPhisCleanup() {
       HPhi* phi = it.Current()->AsPhi();
       HPhi* next = phi->GetNextEquivalentPhiWithSameType();
       if (next != nullptr) {
-        phi->ReplaceWith(next);
+        // Make sure we do not replace a live phi with a dead phi. A live phi has been
+        // handled by the type propagation phase, unlike a dead phi.
+        if (next->IsLive()) {
+          phi->ReplaceWith(next);
+        } else {
+          next->ReplaceWith(phi);
+        }
         DCHECK(next->GetNextEquivalentPhiWithSameType() == nullptr)
             << "More then one phi equivalent with type " << phi->GetType()
             << " found for phi" << phi->GetId();
