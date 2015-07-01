@@ -374,8 +374,8 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
 
   void VisitInvoke(HInvoke* invoke) OVERRIDE {
     StartAttributeStream("dex_file_index") << invoke->GetDexMethodIndex();
-    StartAttributeStream("method_name")
-        << PrettyMethod(invoke->GetDexMethodIndex(), GetGraph()->GetDexFile());
+    StartAttributeStream("method_name") << PrettyMethod(
+        invoke->GetDexMethodIndex(), GetGraph()->GetDexFile(), /* with_signature */ false);
   }
 
   void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE {
