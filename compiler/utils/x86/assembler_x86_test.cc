@@ -218,4 +218,16 @@ TEST_F(AssemblerX86Test, Repecmpsl) {
   DriverStr(expected, "Repecmpsl");
 }
 
+TEST_F(AssemblerX86Test, RepneScasw) {
+  GetAssembler()->repne_scasw();
+  const char* expected = "repne scasw\n";
+  DriverStr(expected, "repne_scasw");
+}
+
+TEST_F(AssemblerX86Test, RepMovsw) {
+  GetAssembler()->rep_movsw();
+  const char* expected = "rep movsw\n";
+  DriverStr(expected, "rep_movsw");
+}
+
 }  // namespace art

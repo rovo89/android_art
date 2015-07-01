@@ -2006,6 +2006,14 @@ void X86_64Assembler::jmp(Label* label) {
 }
 
 
+void X86_64Assembler::rep_movsw() {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0xF3);
+  EmitUint8(0xA5);
+}
+
+
 X86_64Assembler* X86_64Assembler::lock() {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xF0);
