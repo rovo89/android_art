@@ -107,7 +107,9 @@ void Mir2Lir::LoadValueDirectWideFixed(RegLocation rl_src, RegStorage r_dest) {
 }
 
 RegLocation Mir2Lir::LoadValue(RegLocation rl_src, RegisterClass op_kind) {
-  DCHECK(!rl_src.ref || op_kind == kRefReg);
+  // If op_kind isn't a reference, rl_src should not be marked as a reference either
+  // unless we've seen type conflicts (i.e. register promotion is disabled).
+  DCHECK(op_kind == kRefReg || (!rl_src.ref || (cu_->disable_opt & (1u << kPromoteRegs)) != 0u));
   rl_src = UpdateLoc(rl_src);
   if (rl_src.location == kLocPhysReg) {
     if (!RegClassMatches(op_kind, rl_src.reg)) {
