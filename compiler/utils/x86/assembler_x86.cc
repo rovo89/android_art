@@ -1910,12 +1910,12 @@ void X86Assembler::LoadRef(ManagedRegister mdest, FrameOffset src) {
 }
 
 void X86Assembler::LoadRef(ManagedRegister mdest, ManagedRegister base, MemberOffset offs,
-                           bool poison_reference) {
+                           bool unpoison_reference) {
   X86ManagedRegister dest = mdest.AsX86();
   CHECK(dest.IsCpuRegister() && dest.IsCpuRegister());
   movl(dest.AsCpuRegister(), Address(base.AsX86().AsCpuRegister(), offs));
-  if (kPoisonHeapReferences && poison_reference) {
-    negl(dest.AsCpuRegister());
+  if (unpoison_reference) {
+    MaybeUnpoisonHeapReference(dest.AsCpuRegister());
   }
 }
 
