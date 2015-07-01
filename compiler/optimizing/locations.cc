@@ -51,16 +51,17 @@ Location Location::RegisterOrConstant(HInstruction* instruction) {
 }
 
 Location Location::RegisterOrInt32LongConstant(HInstruction* instruction) {
-  if (!instruction->IsConstant() || !instruction->AsConstant()->IsLongConstant()) {
+  if (instruction->IsIntConstant() || instruction->IsNullConstant()) {
+    return Location::ConstantLocation(instruction->AsConstant());
+  } else if (instruction->IsLongConstant()) {
+    // Does the long constant fit in a 32 bit int?
+    int64_t value = instruction->AsLongConstant()->GetValue();
+    return IsInt<32>(value)
+        ? Location::ConstantLocation(instruction->AsConstant())
+        : Location::RequiresRegister();
+  } else {
     return Location::RequiresRegister();
   }
-
-  // Does the long constant fit in a 32 bit int?
-  int64_t value = instruction->AsConstant()->AsLongConstant()->GetValue();
-
-  return IsInt<32>(value)
-      ? Location::ConstantLocation(instruction->AsConstant())
-      : Location::RequiresRegister();
 }
 
 Location Location::ByteRegisterOrConstant(int reg, HInstruction* instruction) {

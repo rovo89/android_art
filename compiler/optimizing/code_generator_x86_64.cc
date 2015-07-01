@@ -3337,7 +3337,7 @@ void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
     case Primitive::kPrimNot: {
       if (value.IsConstant()) {
         int32_t v = CodeGenerator::GetInt32ValueOf(value.GetConstant());
-        __ movw(Address(base, offset), Immediate(v));
+        __ movl(Address(base, offset), Immediate(v));
       } else {
         __ movl(Address(base, offset), value.AsRegister<CpuRegister>());
       }
