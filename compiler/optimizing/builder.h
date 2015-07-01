@@ -98,9 +98,19 @@ class HGraphBuilder : public ValueObject {
   HBasicBlock* FindBlockStartingAt(int32_t dex_pc) const;
   HBasicBlock* FindOrCreateBlockStartingAt(int32_t dex_pc);
 
+  // Returns whether the dex_pc of `block` lies within the given range.
   bool IsBlockInPcRange(HBasicBlock* block, uint32_t dex_pc_start, uint32_t dex_pc_end);
+
+  // Adds new blocks to `branch_targets_` starting at the limits of TryItems and
+  // their exception handlers.
   void CreateBlocksForTryCatch(const DexFile::CodeItem& code_item);
+
+  // Splits edges which cross the boundaries of TryItems, inserts TryBoundary
+  // instructions and links them to the corresponding catch blocks.
   void InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item);
+
+  // Splits a single edge, inserting a TryBoundary of given `kind` and linking
+  // it to exception handlers of `try_item`.
   void SplitTryBoundaryEdge(HBasicBlock* predecessor,
                             HBasicBlock* successor,
                             HTryBoundary::BoundaryKind kind,
