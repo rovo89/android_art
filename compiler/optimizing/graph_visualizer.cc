@@ -386,12 +386,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
   }
 
   void VisitTryBoundary(HTryBoundary* try_boundary) OVERRIDE {
-    StartAttributeStream("is_entry") << std::boolalpha
-                                     << try_boundary->IsTryEntry()
-                                     << std::noboolalpha;
-    StartAttributeStream("is_exit") << std::boolalpha
-                                    << try_boundary->IsTryExit()
-                                    << std::noboolalpha;
+    StartAttributeStream("kind") << (try_boundary->IsEntry() ? "entry" : "exit");
   }
 
   bool IsPass(const char* name) {
