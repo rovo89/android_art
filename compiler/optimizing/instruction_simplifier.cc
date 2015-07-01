@@ -398,6 +398,10 @@ void InstructionSimplifierVisitor::VisitArraySet(HArraySet* instruction) {
     }
   }
 
+  if (value->IsNullConstant()) {
+    instruction->ClearNeedsTypeCheck();
+  }
+
   if (!value->CanBeNull()) {
     instruction->ClearValueCanBeNull();
   }
