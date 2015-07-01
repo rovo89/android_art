@@ -1050,6 +1050,7 @@ HBasicBlock* HBasicBlock::SplitBefore(HInstruction* cursor) {
   successors_.Reset();
   AddSuccessor(new_block);
 
+  GetGraph()->AddBlock(new_block);
   return new_block;
 }
 
