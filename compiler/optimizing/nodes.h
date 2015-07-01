@@ -729,9 +729,10 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   bool IsExceptionalSuccessor(size_t idx) const;
 
   // Split the block into two blocks just before `cursor`. Returns the newly
-  // created, latter block. Note that this method will create a Goto at the end
-  // of the former block and will create an edge between them. It will not,
-  // however, update the graph, reverse post order or loop information.
+  // created, latter block. Note that this method will add the block to the
+  // graph, create a Goto at the end of the former block and will create an edge
+  // between the blocks. It will not, however, update the reverse post order or
+  // loop information.
   HBasicBlock* SplitBefore(HInstruction* cursor);
 
   // Split the block into two blocks just after `cursor`. Returns the newly
@@ -1946,10 +1947,17 @@ class HIf : public HTemplateInstruction<1> {
 // higher indices in no particular order.
 class HTryBoundary : public HTemplateInstruction<0> {
  public:
-  HTryBoundary(bool is_entry, bool is_exit)
-      : HTemplateInstruction(SideEffects::None()), is_entry_(is_entry), is_exit_(is_exit) {}
+  enum BoundaryKind {
+    kEntry,
+    kExit,
+  };
+
+  explicit HTryBoundary(BoundaryKind kind)
+      : HTemplateInstruction(SideEffects::None()), kind_(kind) {}
 
   bool IsControlFlow() const OVERRIDE { return true; }
+
+  bool CanThrow() const OVERRIDE { return true; }
 
   // Returns the block's non-exceptional successor (index zero).
   HBasicBlock* GetNormalFlowSuccessor() const { return GetBlock()->GetSuccessors().Get(0); }
@@ -1977,21 +1985,12 @@ class HTryBoundary : public HTemplateInstruction<0> {
     }
   }
 
-  bool IsTryEntry() const { return is_entry_; }
-  bool IsTryExit() const { return is_exit_; }
+  bool IsEntry() const { return kind_ == BoundaryKind::kEntry; }
 
   DECLARE_INSTRUCTION(TryBoundary);
 
  private:
-  // Only for debugging purposes.
-  bool is_entry_;
-  bool is_exit_;
-
-  // Only set by HGraphBuilder.
-  void SetIsTryEntry() { is_entry_ = true; }
-  void SetIsTryExit() { is_exit_ = true; }
-
-  friend HGraphBuilder;
+  const BoundaryKind kind_;
 
   DISALLOW_COPY_AND_ASSIGN(HTryBoundary);
 };
