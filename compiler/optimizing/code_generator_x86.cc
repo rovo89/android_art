@@ -3856,7 +3856,7 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
           } else {
             DCHECK(value.IsConstant()) << value;
             __ movl(Address(obj, offset),
-                    Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
+                    Immediate(CodeGenerator::GetInt32ValueOf(value.GetConstant())));
           }
         } else {
           DCHECK(index.IsRegister()) << index;
@@ -3866,7 +3866,7 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
           } else {
             DCHECK(value.IsConstant()) << value;
             __ movl(Address(obj, index.AsRegister<Register>(), TIMES_4, data_offset),
-                    Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
+                    Immediate(CodeGenerator::GetInt32ValueOf(value.GetConstant())));
           }
         }
         codegen_->MaybeRecordImplicitNullCheck(instruction);
