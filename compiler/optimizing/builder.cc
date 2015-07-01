@@ -346,11 +346,19 @@ void HGraphBuilder::InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item) 
         // Catch blocks are always considered an entry point into the TryItem in
         // order to avoid splitting exceptional edges (they might not have been
         // created yet). We separate the move-exception (if present) from the
-        // rest of the block and insert a TryBoundary after it.
-        HInstruction* split_position = try_block->GetFirstInstruction();
-        if (split_position->IsLoadException()) {
-          DCHECK(split_position->GetNext()->IsStoreLocal());
-          split_position = split_position->GetNext()->GetNext();
+        // rest of the block and insert a TryBoundary after it, creating a
+        // landing pad for the exceptional edges.
+        HInstruction* first_insn = try_block->GetFirstInstruction();
+        HInstruction* split_position = nullptr;
+        if (first_insn->IsLoadException()) {
+          // Catch block starts with a LoadException. Split the block after the
+          // StoreLocal that must come after the load.
+          DCHECK(first_insn->GetNext()->IsStoreLocal());
+          split_position = first_insn->GetNext()->GetNext();
+        } else {
+          // Catch block does not obtain the exception. Split at the beginning
+          // to create an empty catch block.
+          split_position = first_insn;
         }
         DCHECK(split_position != nullptr);
         HBasicBlock* catch_block = try_block;

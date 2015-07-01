@@ -1957,8 +1957,6 @@ class HTryBoundary : public HTemplateInstruction<0> {
 
   bool IsControlFlow() const OVERRIDE { return true; }
 
-  bool CanThrow() const OVERRIDE { return true; }
-
   // Returns the block's non-exceptional successor (index zero).
   HBasicBlock* GetNormalFlowSuccessor() const { return GetBlock()->GetSuccessors().Get(0); }
 
