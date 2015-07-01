@@ -152,7 +152,7 @@ class HGraphVisualizerDisassembler {
 /**
  * HGraph visitor to generate a file suitable for the c1visualizer tool and IRHydra.
  */
-class HGraphVisualizerPrinter : public HGraphVisitor {
+class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
  public:
   HGraphVisualizerPrinter(HGraph* graph,
                           std::ostream& output,
@@ -160,7 +160,7 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
                           bool is_after_pass,
                           const CodeGenerator& codegen,
                           const DisassemblyInformation* disasm_info = nullptr)
-      : HGraphVisitor(graph),
+      : HGraphDelegateVisitor(graph),
         output_(output),
         pass_name_(pass_name),
         is_after_pass_(is_after_pass),
@@ -372,8 +372,14 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
         << instance_of->MustDoNullCheck() << std::noboolalpha;
   }
 
-  void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE {
+  void VisitInvoke(HInvoke* invoke) OVERRIDE {
     StartAttributeStream("dex_file_index") << invoke->GetDexMethodIndex();
+    StartAttributeStream("method_name")
+        << PrettyMethod(invoke->GetDexMethodIndex(), GetGraph()->GetDexFile());
+  }
+
+  void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE {
+    VisitInvoke(invoke);
     StartAttributeStream("recursive") << std::boolalpha
                                       << invoke->IsRecursive()
                                       << std::noboolalpha;
