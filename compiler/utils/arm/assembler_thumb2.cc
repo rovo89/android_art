@@ -3341,7 +3341,7 @@ void Thumb2Assembler::dmb(DmbOptions flavor) {
 
 
 void Thumb2Assembler::CompareAndBranchIfZero(Register r, Label* label) {
-  if (CanRelocateBranches() && IsLowRegister(r)) {
+  if (CanRelocateBranches() && IsLowRegister(r) && !label->IsBound()) {
     cbz(r, label);
   } else {
     cmp(r, ShifterOperand(0));
@@ -3351,7 +3351,7 @@ void Thumb2Assembler::CompareAndBranchIfZero(Register r, Label* label) {
 
 
 void Thumb2Assembler::CompareAndBranchIfNonZero(Register r, Label* label) {
-  if (CanRelocateBranches() && IsLowRegister(r)) {
+  if (CanRelocateBranches() && IsLowRegister(r) && !label->IsBound()) {
     cbnz(r, label);
   } else {
     cmp(r, ShifterOperand(0));
