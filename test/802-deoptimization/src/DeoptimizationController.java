@@ -22,24 +22,27 @@ import java.lang.reflect.Method;
  * Controls deoptimization using dalvik.system.VMDebug class.
  */
 public class DeoptimizationController {
+  private static final String TEMP_FILE_NAME_PREFIX = "test";
+  private static final String TEMP_FILE_NAME_SUFFIX = ".trace";
+
   private static File createTempFile() throws Exception {
     try {
-      return  File.createTempFile("test", ".trace");
+      return  File.createTempFile(TEMP_FILE_NAME_PREFIX, TEMP_FILE_NAME_SUFFIX);
     } catch (IOException e) {
       System.setProperty("java.io.tmpdir", "/data/local/tmp");
       try {
-        return File.createTempFile("test", ".trace");
+        return File.createTempFile(TEMP_FILE_NAME_PREFIX, TEMP_FILE_NAME_SUFFIX);
       } catch (IOException e2) {
         System.setProperty("java.io.tmpdir", "/sdcard");
-        return File.createTempFile("test", ".trace");
+        return File.createTempFile(TEMP_FILE_NAME_PREFIX, TEMP_FILE_NAME_SUFFIX);
       }
     }
   }
 
   public static void startDeoptimization() {
+    File tempFile = null;
     try {
-      File tempFile = createTempFile();
-      tempFile.deleteOnExit();
+      tempFile = createTempFile();
       String tempFileName = tempFile.getPath();
 
       VMDebug.startMethodTracing(tempFileName, 0, 0, false, 1000);
@@ -48,6 +51,10 @@ public class DeoptimizationController {
       }
     } catch (Exception exc) {
       exc.printStackTrace(System.err);
+    } finally {
+      if (tempFile != null) {
+        tempFile.delete();
+      }
     }
   }
 
