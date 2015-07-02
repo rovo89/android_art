@@ -43,6 +43,14 @@ Instruction::Format const Instruction::kInstructionFormats[] = {
 #undef INSTRUCTION_FORMAT
 };
 
+Instruction::IndexType const Instruction::kInstructionIndexTypes[] = {
+#define INSTRUCTION_INDEX_TYPE(o, c, p, f, r, index, a, v) index,
+#include "dex_instruction_list.h"
+  DEX_INSTRUCTION_LIST(INSTRUCTION_INDEX_TYPE)
+#undef DEX_INSTRUCTION_LIST
+#undef INSTRUCTION_FLAGS
+};
+
 int const Instruction::kInstructionFlags[] = {
 #define INSTRUCTION_FLAGS(o, c, p, f, r, i, flags, v) flags,
 #include "dex_instruction_list.h"
