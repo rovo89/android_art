@@ -104,7 +104,9 @@ static Runtime* StartRuntime(const char* boot_image_location,
   options.push_back(
       std::make_pair("imageinstructionset",
                      reinterpret_cast<const void*>(GetInstructionSetString(instruction_set))));
-
+  // None of the command line tools need sig chain. If this changes we'll need
+  // to upgrade this option to a proper parameter.
+  options.push_back(std::make_pair("-Xno-sig-chain", nullptr));
   if (!Runtime::Create(options, false)) {
     fprintf(stderr, "Failed to create runtime\n");
     return nullptr;
