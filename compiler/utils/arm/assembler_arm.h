@@ -774,7 +774,7 @@ class ArmAssembler : public Assembler {
   void LoadRef(ManagedRegister dest, FrameOffset src) OVERRIDE;
 
   void LoadRef(ManagedRegister dest, ManagedRegister base, MemberOffset offs,
-               bool poison_reference) OVERRIDE;
+               bool unpoison_reference) OVERRIDE;
 
   void LoadRawPtr(ManagedRegister dest, ManagedRegister base, Offset offs) OVERRIDE;
 
@@ -855,6 +855,27 @@ class ArmAssembler : public Assembler {
 
   static bool IsHighRegister(Register r) {
      return r >= R8;
+  }
+
+  //
+  // Heap poisoning.
+  //
+
+  // Poison a heap reference contained in `reg`.
+  void PoisonHeapReference(Register reg) {
+    // reg = -reg.
+    rsb(reg, reg, ShifterOperand(0));
+  }
+  // Unpoison a heap reference contained in `reg`.
+  void UnpoisonHeapReference(Register reg) {
+    // reg = -reg.
+    rsb(reg, reg, ShifterOperand(0));
+  }
+  // Unpoison a heap reference contained in `reg` if heap poisoning is enabled.
+  void MaybeUnpoisonHeapReference(Register reg) {
+    if (kPoisonHeapReferences) {
+      UnpoisonHeapReference(reg);
+    }
   }
 
  protected:

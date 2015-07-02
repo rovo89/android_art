@@ -108,6 +108,13 @@ class CommonCompilerTest : public CommonRuntimeTest {
   std::list<std::vector<uint8_t>> header_code_and_maps_chunks_;
 };
 
+// TODO: When heap reference poisoning works with all compilers in use, get rid of this.
+#define TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING_WITH_QUICK() \
+  if (kPoisonHeapReferences && GetCompilerKind() == Compiler::kQuick) { \
+    printf("WARNING: TEST DISABLED FOR HEAP REFERENCE POISONING WITH QUICK\n"); \
+    return; \
+  }
+
 // TODO: When non-PIC works with all compilers in use, get rid of this.
 #define TEST_DISABLED_FOR_NON_PIC_COMPILING_WITH_OPTIMIZING() \
   if (GetCompilerKind() == Compiler::kOptimizing) { \

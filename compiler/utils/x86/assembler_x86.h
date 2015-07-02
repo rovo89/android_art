@@ -541,7 +541,7 @@ class X86Assembler FINAL : public Assembler {
   void LoadRef(ManagedRegister dest, FrameOffset src) OVERRIDE;
 
   void LoadRef(ManagedRegister dest, ManagedRegister base, MemberOffset offs,
-               bool poison_reference) OVERRIDE;
+               bool unpoison_reference) OVERRIDE;
 
   void LoadRawPtr(ManagedRegister dest, ManagedRegister base, Offset offs) OVERRIDE;
 
@@ -615,6 +615,21 @@ class X86Assembler FINAL : public Assembler {
   // Generate code to check if Thread::Current()->exception_ is non-null
   // and branch to a ExceptionSlowPath if it is.
   void ExceptionPoll(ManagedRegister scratch, size_t stack_adjust) OVERRIDE;
+
+  //
+  // Heap poisoning.
+  //
+
+  // Poison a heap reference contained in `reg`.
+  void PoisonHeapReference(Register reg) { negl(reg); }
+  // Unpoison a heap reference contained in `reg`.
+  void UnpoisonHeapReference(Register reg) { negl(reg); }
+  // Unpoison a heap reference contained in `reg` if heap poisoning is enabled.
+  void MaybeUnpoisonHeapReference(Register reg) {
+    if (kPoisonHeapReferences) {
+      UnpoisonHeapReference(reg);
+    }
+  }
 
  private:
   inline void EmitUint8(uint8_t value);
