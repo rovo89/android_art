@@ -35,6 +35,15 @@ ART_BUILD_HOST_NDEBUG ?= true
 ART_BUILD_HOST_DEBUG ?= true
 ART_BUILD_HOST_STATIC ?= true
 
+# Asan does not support static linkage
+ifdef SANITIZE_HOST
+  ART_BUILD_HOST_STATIC := false
+endif
+
+ifneq ($$(HOST_OS),linux)
+  ART_BUILD_HOST_STATIC := false
+endif
+
 ifeq ($(ART_BUILD_TARGET_NDEBUG),false)
 $(info Disabling ART_BUILD_TARGET_NDEBUG)
 endif
