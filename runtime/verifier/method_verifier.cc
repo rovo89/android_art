@@ -1023,12 +1023,21 @@ bool MethodVerifier::CheckArrayData(uint32_t cur_offset) {
   }
   /* offset to array data table is a relative branch-style offset */
   array_data = insns + array_data_offset;
-  /* make sure the table is 32-bit aligned */
-  if ((reinterpret_cast<uintptr_t>(array_data) & 0x03) != 0) {
+  // Make sure the table is at an even dex pc, that is, 32-bit aligned.
+  if (!IsAligned<4>(array_data)) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unaligned array data table: at " << cur_offset
                                       << ", data offset " << array_data_offset;
     return false;
   }
+  // Make sure the array-data is marked as an opcode. This ensures that it was reached when
+  // traversing the code item linearly. It is an approximation for a by-spec padding value.
+  if (!insn_flags_[cur_offset + array_data_offset].IsOpcode()) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "array data table at " << cur_offset
+                                      << ", data offset " << array_data_offset
+                                      << " not correctly visited, probably bad padding.";
+    return false;
+  }
+
   uint32_t value_width = array_data[1];
   uint32_t value_count = *reinterpret_cast<const uint32_t*>(&array_data[2]);
   uint32_t table_size = 4 + (value_width * value_count + 1) / 2;
@@ -1126,12 +1135,21 @@ bool MethodVerifier::CheckSwitchTargets(uint32_t cur_offset) {
   }
   /* offset to switch table is a relative branch-style offset */
   const uint16_t* switch_insns = insns + switch_offset;
-  /* make sure the table is 32-bit aligned */
-  if ((reinterpret_cast<uintptr_t>(switch_insns) & 0x03) != 0) {
+  // Make sure the table is at an even dex pc, that is, 32-bit aligned.
+  if (!IsAligned<4>(switch_insns)) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unaligned switch table: at " << cur_offset
                                       << ", switch offset " << switch_offset;
     return false;
   }
+  // Make sure the switch data is marked as an opcode. This ensures that it was reached when
+  // traversing the code item linearly. It is an approximation for a by-spec padding value.
+  if (!insn_flags_[cur_offset + switch_offset].IsOpcode()) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "switch table at " << cur_offset
+                                      << ", switch offset " << switch_offset
+                                      << " not correctly visited, probably bad padding.";
+    return false;
+  }
+
   uint32_t switch_count = switch_insns[1];
   int32_t keys_offset, targets_offset;
   uint16_t expected_signature;
