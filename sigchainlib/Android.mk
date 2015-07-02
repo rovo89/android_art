@@ -76,3 +76,19 @@ LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
 LOCAL_LDLIBS = -ldl
 LOCAL_MULTILIB := both
 include $(BUILD_HOST_STATIC_LIBRARY)
+
+# Create a dummy version of libsigchain which expose the necessary symbols
+# but throws when called. This can be used to get static binaries which don't
+# need the real functionality of the sig chain but need to please the linker.
+include $(CLEAR_VARS)
+LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
+LOCAL_MODULE_TAGS := optional
+LOCAL_IS_HOST_MODULE := true
+LOCAL_CFLAGS += $(ART_HOST_CFLAGS)
+LOCAL_CLANG = $(ART_HOST_CLANG)
+LOCAL_SRC_FILES := sigchain_dummy.cc
+LOCAL_MODULE:= libsigchain_dummy
+LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
+LOCAL_LDLIBS = -ldl
+LOCAL_MULTILIB := both
+include $(BUILD_HOST_STATIC_LIBRARY)
