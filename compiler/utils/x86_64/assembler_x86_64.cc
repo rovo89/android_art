@@ -2597,12 +2597,12 @@ void X86_64Assembler::LoadRef(ManagedRegister mdest, FrameOffset src) {
 }
 
 void X86_64Assembler::LoadRef(ManagedRegister mdest, ManagedRegister base, MemberOffset offs,
-                              bool poison_reference) {
+                              bool unpoison_reference) {
   X86_64ManagedRegister dest = mdest.AsX86_64();
   CHECK(dest.IsCpuRegister() && dest.IsCpuRegister());
   movl(dest.AsCpuRegister(), Address(base.AsX86_64().AsCpuRegister(), offs));
-  if (kPoisonHeapReferences && poison_reference) {
-    negl(dest.AsCpuRegister());
+  if (unpoison_reference) {
+    MaybeUnpoisonHeapReference(dest.AsCpuRegister());
   }
 }
 

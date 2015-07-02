@@ -498,18 +498,45 @@ endif
 
 TEST_ART_BROKEN_READ_BARRIER_RUN_TESTS :=
 
-# Tests that should fail in the heap poisoning configuration.
-# 137: Heap poisoning forces interpreter. Cannot run this with the interpreter.
-TEST_ART_BROKEN_HEAP_POISONING_RUN_TESTS := \
+# Tests that should fail in the heap poisoning configuration with the default (Quick) compiler.
+# 137: Quick punts to the interpreter, and this test cannot run this with the interpreter.
+TEST_ART_BROKEN_DEFAULT_HEAP_POISONING_RUN_TESTS := \
+  137-cfi
+# Tests that should fail in the heap poisoning configuration with the Optimizing compiler.
+# 055-enum-performance: Exceeds run time limits due to heap poisoning instrumentation.
+TEST_ART_BROKEN_OPTIMIZING_HEAP_POISONING_RUN_TESTS := \
+  055-enum-performance
+# Tests that should fail in the heap poisoning configuration with the interpreter.
+# 137: Cannot run this with the interpreter.
+TEST_ART_BROKEN_INTERPRETER_HEAP_POISONING_RUN_TESTS := \
   137-cfi
 
 ifeq ($(ART_HEAP_POISONING),true)
-  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
-      $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-      $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES),$(TEST_ART_BROKEN_HEAP_POISONING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+  ifneq (,$(filter default,$(COMPILER_TYPES)))
+    ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
+        $(PREBUILD_TYPES),default,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+        $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
+        $(TEST_ART_BROKEN_DEFAULT_HEAP_POISONING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+  endif
+
+  ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
+    ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
+        $(PREBUILD_TYPES),optimizing,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+        $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
+        $(TEST_ART_BROKEN_OPTIMIZING_HEAP_POISONING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+  endif
+
+  ifneq (,$(filter interpreter,$(COMPILER_TYPES)))
+    ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
+        $(PREBUILD_TYPES),interpreter,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+        $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
+        $(TEST_ART_BROKEN_INTERPRETER_HEAP_POISONING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+  endif
 endif
 
-TEST_ART_BROKEN_HEAP_POISONING_RUN_TESTS :=
+TEST_ART_BROKEN_INTERPRETER_HEAP_POISONING_RUN_TESTS :=
+TEST_ART_BROKEN_OPTIMIZING_HEAP_POISONING_RUN_TESTS :=
+TEST_ART_BROKEN_DEFAULT_HEAP_POISONING_RUN_TESTS :=
 
 # Clear variables ahead of appending to them when defining tests.
 $(foreach target, $(TARGET_TYPES), $(eval ART_RUN_TEST_$(call name-to-var,$(target))_RULES :=))

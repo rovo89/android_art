@@ -697,12 +697,12 @@ void MipsAssembler::LoadRef(ManagedRegister mdest, FrameOffset src) {
 }
 
 void MipsAssembler::LoadRef(ManagedRegister mdest, ManagedRegister base, MemberOffset offs,
-                            bool poison_reference) {
+                            bool unpoison_reference) {
   MipsManagedRegister dest = mdest.AsMips();
   CHECK(dest.IsCoreRegister() && dest.IsCoreRegister());
   LoadFromOffset(kLoadWord, dest.AsCoreRegister(),
                  base.AsMips().AsCoreRegister(), offs.Int32Value());
-  if (kPoisonHeapReferences && poison_reference) {
+  if (kPoisonHeapReferences && unpoison_reference) {
     Subu(dest.AsCoreRegister(), ZERO, dest.AsCoreRegister());
   }
 }

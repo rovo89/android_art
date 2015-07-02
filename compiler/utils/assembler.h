@@ -441,9 +441,9 @@ class Assembler {
   virtual void LoadFromThread64(ManagedRegister dest, ThreadOffset<8> src, size_t size);
 
   virtual void LoadRef(ManagedRegister dest, FrameOffset src) = 0;
-  // If poison_reference is true and kPoisonReference is true, then we negate the read reference.
+  // If unpoison_reference is true and kPoisonReference is true, then we negate the read reference.
   virtual void LoadRef(ManagedRegister dest, ManagedRegister base, MemberOffset offs,
-                       bool poison_reference) = 0;
+                       bool unpoison_reference) = 0;
 
   virtual void LoadRawPtr(ManagedRegister dest, ManagedRegister base, Offset offs) = 0;
 

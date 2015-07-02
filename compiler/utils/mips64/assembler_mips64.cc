@@ -1242,12 +1242,12 @@ void Mips64Assembler::LoadRef(ManagedRegister mdest, FrameOffset src) {
 }
 
 void Mips64Assembler::LoadRef(ManagedRegister mdest, ManagedRegister base, MemberOffset offs,
-                              bool poison_reference) {
+                              bool unpoison_reference) {
   Mips64ManagedRegister dest = mdest.AsMips64();
   CHECK(dest.IsGpuRegister() && base.AsMips64().IsGpuRegister());
   LoadFromOffset(kLoadUnsignedWord, dest.AsGpuRegister(),
                  base.AsMips64().AsGpuRegister(), offs.Int32Value());
-  if (kPoisonHeapReferences && poison_reference) {
+  if (kPoisonHeapReferences && unpoison_reference) {
     // TODO: review
     // Negate the 32-bit ref
     Dsubu(dest.AsGpuRegister(), ZERO, dest.AsGpuRegister());
