@@ -3437,6 +3437,7 @@ class HLoadClass : public HExpression<0> {
   uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
   uint16_t GetTypeIndex() const { return type_index_; }
   bool IsReferrersClass() const { return is_referrers_class_; }
+  bool CanBeNull() const OVERRIDE { return false; }
 
   bool NeedsEnvironment() const OVERRIDE {
     // Will call runtime and load the class if the class is not loaded yet.

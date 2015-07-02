@@ -78,6 +78,12 @@ void ReferenceTypePropagation::BoundTypeForIfNotNull(HBasicBlock* block) {
     return;
   }
 
+  if (!obj->CanBeNull() || obj->IsNullConstant()) {
+    // Null check is dead code and will be removed by DCE.
+    return;
+  }
+  DCHECK(!obj->IsLoadClass()) << "We should not replace HLoadClass instructions";
+
   // We only need to bound the type if we have uses in the relevant block.
   // So start with null and create the HBoundType lazily, only if it's needed.
   HBoundType* bound_type = nullptr;
@@ -139,6 +145,7 @@ void ReferenceTypePropagation::BoundTypeForIfInstanceOf(HBasicBlock* block) {
     // input.
     return;
   }
+  DCHECK(!obj->IsLoadClass()) << "We should not replace HLoadClass instructions";
   for (HUseIterator<HInstruction*> it(obj->GetUses()); !it.Done(); it.Advance()) {
     HInstruction* user = it.Current()->GetUser();
     if (instanceOfTrueBlock->Dominates(user->GetBlock())) {
