@@ -16,8 +16,23 @@
 
 public class Main {
   public static void main(String[] args) {
+    testInstanceOf();
+    try {
+      testNull();
+      throw new Error("Expected ClassClastException");
+    } catch (ClassCastException e) { /* ignore */ }
+  }
+
+  public static void testInstanceOf() {
     Object o = Main.class;
     if (o instanceof Main) {
+      System.out.println((Main)o);
+    }
+  }
+
+  public static void testNull() {
+    Object o = Main.class;
+    if (o != null) {
       System.out.println((Main)o);
     }
   }
