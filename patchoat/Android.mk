@@ -30,16 +30,16 @@ else
 endif
 
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
-  $(eval $(call build-art-executable,patchoat,$(PATCHOAT_SRC_FILES),libcutils,art/compiler,target,ndebug,$(patchoat_arch)))
+  $(eval $(call build-art-executable,patchoat,$(PATCHOAT_SRC_FILES),libcutils libsigchain,art/compiler,target,ndebug,$(patchoat_arch)))
 endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
-  $(eval $(call build-art-executable,patchoat,$(PATCHOAT_SRC_FILES),libcutils,art/compiler,target,debug,$(patchoat_arch)))
+  $(eval $(call build-art-executable,patchoat,$(PATCHOAT_SRC_FILES),libcutils libsigchain,art/compiler,target,debug,$(patchoat_arch)))
 endif
 
 # We always build patchoat and dependencies, even if the host build is otherwise disabled, since they are used to cross compile for the target.
 ifeq ($(ART_BUILD_HOST_NDEBUG),true)
-  $(eval $(call build-art-executable,patchoat,$(PATCHOAT_SRC_FILES),libcutils,art/compiler,host,ndebug))
+  $(eval $(call build-art-executable,patchoat,$(PATCHOAT_SRC_FILES),libcutils libsigchain,art/compiler,host,ndebug))
 endif
 ifeq ($(ART_BUILD_HOST_DEBUG),true)
-  $(eval $(call build-art-executable,patchoat,$(PATCHOAT_SRC_FILES),libcutils,art/compiler,host,debug))
+  $(eval $(call build-art-executable,patchoat,$(PATCHOAT_SRC_FILES),libcutils libsigchain,art/compiler,host,debug))
 endif
