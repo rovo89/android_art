@@ -21,7 +21,9 @@
 #include "base/logging.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "dex/reg_storage_eq.h"
+#include "dex/mir_graph.h"
 #include "driver/compiler_driver.h"
+#include "driver/compiler_options.h"
 #include "mips_lir.h"
 
 namespace art {
@@ -828,6 +830,22 @@ LIR* MipsMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStora
     }
   }
   return res;
+}
+
+void MipsMir2Lir::ForceImplicitNullCheck(RegStorage reg, int opt_flags, bool is_wide) {
+  if (cu_->compiler_driver->GetCompilerOptions().GetImplicitNullChecks()) {
+    if (!(cu_->disable_opt & (1 << kNullCheckElimination)) && (opt_flags & MIR_IGNORE_NULL_CHECK)) {
+      return;
+    }
+    // Force an implicit null check by performing a memory operation (load) from the given
+    // register with offset 0.  This will cause a signal if the register contains 0 (null).
+    LIR* load = Load32Disp(reg, LOWORD_OFFSET, rs_rZERO);
+    MarkSafepointPC(load);
+    if (is_wide) {
+      load = Load32Disp(reg, HIWORD_OFFSET, rs_rZERO);
+      MarkSafepointPC(load);
+    }
+  }
 }
 
 LIR* MipsMir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size,
