@@ -193,8 +193,7 @@ JNIEXPORT jint JVM_Sync(jint fd)
 JNIEXPORT void* JVM_FindLibraryEntry(void* handle, const char* name)
 {
     LOG(DEBUG) << "JVM_FindLibraryEntry handle=" << handle << " name=" << name;
-    // class loader should use Art version
-    return NULL;
+    return dlsym(handle, name);
 }
 
 JNIEXPORT jlong JVM_CurrentTimeMillis(JNIEnv* env, jclass unused)
