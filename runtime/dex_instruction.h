@@ -116,6 +116,17 @@ class Instruction {
     k51l,  // op vAA, #+BBBBBBBBBBBBBBBB
   };
 
+  enum IndexType {
+    kIndexUnknown = 0,
+    kIndexNone,          // has no index
+    kIndexTypeRef,       // type reference index
+    kIndexStringRef,     // string reference index
+    kIndexMethodRef,     // method reference index
+    kIndexFieldRef,      // field reference index
+    kIndexFieldOffset,   // field offset (for static linked fields)
+    kIndexVtableOffset   // vtable offset (for static linked methods)
+  };
+
   enum Flags {
     kBranch              = 0x0000001,  // conditional or unconditional branch
     kContinue            = 0x0000002,  // flow can continue to next statement
@@ -446,6 +457,11 @@ class Instruction {
     return kInstructionFormats[opcode];
   }
 
+  // Returns the index type of the given opcode.
+  static IndexType IndexTypeOf(Code opcode) {
+    return kInstructionIndexTypes[opcode];
+  }
+
   // Returns the flags for the given opcode.
   static int FlagsOf(Code opcode) {
     return kInstructionFlags[opcode];
@@ -583,6 +599,7 @@ class Instruction {
 
   static const char* const kInstructionNames[];
   static Format const kInstructionFormats[];
+  static IndexType const kInstructionIndexTypes[];
   static int const kInstructionFlags[];
   static int const kInstructionVerifyFlags[];
   static int const kInstructionSizeInCodeUnits[];
