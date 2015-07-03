@@ -791,6 +791,7 @@ LIR* MipsMir2Lir::GenAtomic64Load(RegStorage r_base, int displacement, RegStorag
   RegStorage reg_ptr = TargetReg(kArg0);
   OpRegRegImm(kOpAdd, reg_ptr, r_base, displacement);
   RegStorage r_tgt = LoadHelper(kQuickA64Load);
+  ForceImplicitNullCheck(reg_ptr, 0, true);  // is_wide = true
   LIR *ret = OpReg(kOpBlx, r_tgt);
   RegStorage reg_ret;
   if (cu_->target64) {
@@ -813,6 +814,7 @@ LIR* MipsMir2Lir::GenAtomic64Store(RegStorage r_base, int displacement, RegStora
   LockCallTemps();  // Using fixed registers.
   RegStorage temp_ptr = AllocTemp();
   OpRegRegImm(kOpAdd, temp_ptr, r_base, displacement);
+  ForceImplicitNullCheck(temp_ptr, 0, true);  // is_wide = true
   RegStorage temp_value = AllocTempWide();
   OpRegCopyWide(temp_value, r_src);
   if (cu_->target64) {
