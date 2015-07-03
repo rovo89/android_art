@@ -691,6 +691,9 @@ void MipsMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
     reg_len = AllocTemp();
     // Get len.
     Load32Disp(rl_array.reg, len_offset, reg_len);
+    MarkPossibleNullPointerException(opt_flags);
+  } else {
+    ForceImplicitNullCheck(rl_array.reg, opt_flags, false);
   }
   // reg_ptr -> array data.
   OpRegRegImm(kOpAdd, reg_ptr, rl_array.reg, data_offset);
@@ -781,6 +784,9 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     // NOTE: max live temps(4) here.
     // Get len.
     Load32Disp(rl_array.reg, len_offset, reg_len);
+    MarkPossibleNullPointerException(opt_flags);
+  } else {
+    ForceImplicitNullCheck(rl_array.reg, opt_flags, false);
   }
   // reg_ptr -> array data.
   OpRegImm(kOpAdd, reg_ptr, data_offset);
