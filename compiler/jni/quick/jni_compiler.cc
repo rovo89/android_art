@@ -138,7 +138,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
     FrameOffset handle_scope_offset = main_jni_conv->CurrentParamHandleScopeEntryOffset();
     // Check handle scope offset is within frame
     CHECK_LT(handle_scope_offset.Uint32Value(), frame_size);
-    // Note this LoadRef() doesn't need heap poisoning since its from the ArtMethod.
+    // Note this LoadRef() doesn't need heap unpoisoning since it's from the ArtMethod.
     // Note this LoadRef() does not include read barrier. It will be handled below.
     __ LoadRef(main_jni_conv->InterproceduralScratchRegister(),
                mr_conv->MethodRegister(), ArtMethod::DeclaringClassOffset(), false);

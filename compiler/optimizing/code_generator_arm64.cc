@@ -1250,6 +1250,7 @@ void LocationsBuilderARM64::HandleFieldGet(HInstruction* instruction) {
 void InstructionCodeGeneratorARM64::HandleFieldGet(HInstruction* instruction,
                                                    const FieldInfo& field_info) {
   DCHECK(instruction->IsInstanceFieldGet() || instruction->IsStaticFieldGet());
+  Primitive::Type field_type = field_info.GetFieldType();
   BlockPoolsScope block_pools(GetVIXLAssembler());
 
   MemOperand field = HeapOperand(InputRegisterAt(instruction, 0), field_info.GetFieldOffset());
@@ -1260,14 +1261,18 @@ void InstructionCodeGeneratorARM64::HandleFieldGet(HInstruction* instruction,
       // NB: LoadAcquire will record the pc info if needed.
       codegen_->LoadAcquire(instruction, OutputCPURegister(instruction), field);
     } else {
-      codegen_->Load(field_info.GetFieldType(), OutputCPURegister(instruction), field);
+      codegen_->Load(field_type, OutputCPURegister(instruction), field);
       codegen_->MaybeRecordImplicitNullCheck(instruction);
       // For IRIW sequential consistency kLoadAny is not sufficient.
       GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
     }
   } else {
-    codegen_->Load(field_info.GetFieldType(), OutputCPURegister(instruction), field);
+    codegen_->Load(field_type, OutputCPURegister(instruction), field);
     codegen_->MaybeRecordImplicitNullCheck(instruction);
+  }
+
+  if (field_type == Primitive::kPrimNot) {
+    GetAssembler()->MaybeUnpoisonHeapReference(OutputCPURegister(instruction).W());
   }
 }
 
@@ -1290,23 +1295,38 @@ void InstructionCodeGeneratorARM64::HandleFieldSet(HInstruction* instruction,
 
   Register obj = InputRegisterAt(instruction, 0);
   CPURegister value = InputCPURegisterAt(instruction, 1);
+  CPURegister source = value;
   Offset offset = field_info.GetFieldOffset();
   Primitive::Type field_type = field_info.GetFieldType();
   bool use_acquire_release = codegen_->GetInstructionSetFeatures().PreferAcquireRelease();
 
-  if (field_info.IsVolatile()) {
-    if (use_acquire_release) {
-      codegen_->StoreRelease(field_type, value, HeapOperand(obj, offset));
-      codegen_->MaybeRecordImplicitNullCheck(instruction);
-    } else {
-      GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
-      codegen_->Store(field_type, value, HeapOperand(obj, offset));
-      codegen_->MaybeRecordImplicitNullCheck(instruction);
-      GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
+  {
+    // We use a block to end the scratch scope before the write barrier, thus
+    // freeing the temporary registers so they can be used in `MarkGCCard`.
+    UseScratchRegisterScope temps(GetVIXLAssembler());
+
+    if (kPoisonHeapReferences && field_type == Primitive::kPrimNot) {
+      DCHECK(value.IsW());
+      Register temp = temps.AcquireW();
+      __ Mov(temp, value.W());
+      GetAssembler()->PoisonHeapReference(temp.W());
+      source = temp;
     }
-  } else {
-    codegen_->Store(field_type, value, HeapOperand(obj, offset));
-    codegen_->MaybeRecordImplicitNullCheck(instruction);
+
+    if (field_info.IsVolatile()) {
+      if (use_acquire_release) {
+        codegen_->StoreRelease(field_type, source, HeapOperand(obj, offset));
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
+      } else {
+        GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
+        codegen_->Store(field_type, source, HeapOperand(obj, offset));
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
+        GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
+      }
+    } else {
+      codegen_->Store(field_type, source, HeapOperand(obj, offset));
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
+    }
   }
 
   if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->InputAt(1))) {
@@ -1464,6 +1484,10 @@ void InstructionCodeGeneratorARM64::VisitArrayGet(HArrayGet* instruction) {
 
   codegen_->Load(type, OutputCPURegister(instruction), source);
   codegen_->MaybeRecordImplicitNullCheck(instruction);
+
+  if (type == Primitive::kPrimNot) {
+    GetAssembler()->MaybeUnpoisonHeapReference(OutputCPURegister(instruction).W());
+  }
 }
 
 void LocationsBuilderARM64::VisitArrayLength(HArrayLength* instruction) {
@@ -1506,12 +1530,15 @@ void InstructionCodeGeneratorARM64::VisitArraySet(HArraySet* instruction) {
   bool needs_runtime_call = locations->WillCall();
 
   if (needs_runtime_call) {
+    // Note: if heap poisoning is enabled, pAputObject takes cares
+    // of poisoning the reference.
     codegen_->InvokeRuntime(
         QUICK_ENTRY_POINT(pAputObject), instruction, instruction->GetDexPc(), nullptr);
     CheckEntrypointTypes<kQuickAputObject, void, mirror::Array*, int32_t, mirror::Object*>();
   } else {
     Register obj = InputRegisterAt(instruction, 0);
     CPURegister value = InputCPURegisterAt(instruction, 2);
+    CPURegister source = value;
     Location index = locations->InAt(1);
     size_t offset = mirror::Array::DataOffset(Primitive::ComponentSize(value_type)).Uint32Value();
     MemOperand destination = HeapOperand(obj);
@@ -1521,6 +1548,14 @@ void InstructionCodeGeneratorARM64::VisitArraySet(HArraySet* instruction) {
       // We use a block to end the scratch scope before the write barrier, thus
       // freeing the temporary registers so they can be used in `MarkGCCard`.
       UseScratchRegisterScope temps(masm);
+
+      if (kPoisonHeapReferences && value_type == Primitive::kPrimNot) {
+        DCHECK(value.IsW());
+        Register temp = temps.AcquireW();
+        __ Mov(temp, value.W());
+        GetAssembler()->PoisonHeapReference(temp.W());
+        source = temp;
+      }
 
       if (index.IsConstant()) {
         offset += Int64ConstantFrom(index) << Primitive::ComponentSizeShift(value_type);
@@ -1532,7 +1567,7 @@ void InstructionCodeGeneratorARM64::VisitArraySet(HArraySet* instruction) {
         destination = HeapOperand(temp, offset);
       }
 
-      codegen_->Store(value_type, value, destination);
+      codegen_->Store(value_type, source, destination);
       codegen_->MaybeRecordImplicitNullCheck(instruction);
     }
     if (CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue())) {
@@ -1585,7 +1620,10 @@ void InstructionCodeGeneratorARM64::VisitCheckCast(HCheckCast* instruction) {
   }
   // Compare the class of `obj` with `cls`.
   __ Ldr(obj_cls, HeapOperand(obj, mirror::Object::ClassOffset()));
+  GetAssembler()->MaybeUnpoisonHeapReference(obj_cls.W());
   __ Cmp(obj_cls, cls);
+  // The checkcast succeeds if the classes are equal (fast path).
+  // Otherwise, we need to go into the slow path to check the types.
   __ B(ne, slow_path->GetEntryLabel());
   __ Bind(slow_path->GetExitLabel());
 }
@@ -2152,6 +2190,7 @@ void InstructionCodeGeneratorARM64::VisitInstanceOf(HInstanceOf* instruction) {
 
   // Compare the class of `obj` with `cls`.
   __ Ldr(out, HeapOperand(obj, mirror::Object::ClassOffset()));
+  GetAssembler()->MaybeUnpoisonHeapReference(out.W());
   __ Cmp(out, cls);
   if (instruction->IsClassFinal()) {
     // Classes must be equal for the instanceof to succeed.
@@ -2225,6 +2264,7 @@ void InstructionCodeGeneratorARM64::VisitInvokeInterface(HInvokeInterface* invok
     __ Ldr(temp.W(), HeapOperandFrom(receiver, class_offset));
   }
   codegen_->MaybeRecordImplicitNullCheck(invoke);
+  GetAssembler()->MaybeUnpoisonHeapReference(temp.W());
   // temp = temp->GetImtEntryAt(method_offset);
   __ Ldr(temp, MemOperand(temp, method_offset));
   // lr = temp->GetEntryPoint();
@@ -2350,6 +2390,7 @@ void InstructionCodeGeneratorARM64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
   DCHECK(receiver.IsRegister());
   __ Ldr(temp.W(), HeapOperandFrom(receiver, class_offset));
   codegen_->MaybeRecordImplicitNullCheck(invoke);
+  GetAssembler()->MaybeUnpoisonHeapReference(temp.W());
   // temp = temp->GetMethodAt(method_offset);
   __ Ldr(temp, MemOperand(temp, method_offset));
   // lr = temp->GetEntryPoint();
@@ -2379,6 +2420,7 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
     DCHECK(cls->CanCallRuntime());
     __ Ldr(out, MemOperand(current_method, ArtMethod::DexCacheResolvedTypesOffset().Int32Value()));
     __ Ldr(out, HeapOperand(out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex())));
+    GetAssembler()->MaybeUnpoisonHeapReference(out.W());
 
     SlowPathCodeARM64* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathARM64(
         cls, cls, cls->GetDexPc(), cls->MustGenerateClinitCheck());
@@ -2428,7 +2470,9 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
   Register current_method = InputRegisterAt(load, 0);
   __ Ldr(out, MemOperand(current_method, ArtMethod::DeclaringClassOffset().Int32Value()));
   __ Ldr(out, HeapOperand(out, mirror::Class::DexCacheStringsOffset()));
+  GetAssembler()->MaybeUnpoisonHeapReference(out.W());
   __ Ldr(out, HeapOperand(out, CodeGenerator::GetCacheOffset(load->GetStringIndex())));
+  GetAssembler()->MaybeUnpoisonHeapReference(out.W());
   __ Cbz(out, slow_path->GetEntryLabel());
   __ Bind(slow_path->GetExitLabel());
 }
@@ -2563,6 +2607,8 @@ void InstructionCodeGeneratorARM64::VisitNewArray(HNewArray* instruction) {
   Register type_index = RegisterFrom(locations->GetTemp(0), Primitive::kPrimInt);
   DCHECK(type_index.Is(w0));
   __ Mov(type_index, instruction->GetTypeIndex());
+  // Note: if heap poisoning is enabled, the entry point takes cares
+  // of poisoning the reference.
   codegen_->InvokeRuntime(
       GetThreadOffset<kArm64WordSize>(instruction->GetEntrypoint()).Int32Value(),
       instruction,
@@ -2586,6 +2632,8 @@ void InstructionCodeGeneratorARM64::VisitNewInstance(HNewInstance* instruction) 
   Register type_index = RegisterFrom(locations->GetTemp(0), Primitive::kPrimInt);
   DCHECK(type_index.Is(w0));
   __ Mov(type_index, instruction->GetTypeIndex());
+  // Note: if heap poisoning is enabled, the entry point takes cares
+  // of poisoning the reference.
   codegen_->InvokeRuntime(
       GetThreadOffset<kArm64WordSize>(instruction->GetEntrypoint()).Int32Value(),
       instruction,

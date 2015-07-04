@@ -505,6 +505,7 @@ class ReflectionTest : public CommonCompilerTest {
 };
 
 TEST_F(ReflectionTest, StaticMainMethod) {
+  TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING_WITH_QUICK();
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("Main");
   StackHandleScope<1> hs(soa.Self());

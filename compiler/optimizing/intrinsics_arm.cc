@@ -510,6 +510,11 @@ static void GenUnsafeGet(HInvoke* invoke,
   if (is_volatile) {
     __ dmb(ISH);
   }
+
+  if (type == Primitive::kPrimNot) {
+    Register trg = locations->Out().AsRegister<Register>();
+    __ MaybeUnpoisonHeapReference(trg);
+  }
 }
 
 static void CreateIntIntIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke) {
@@ -649,8 +654,15 @@ static void GenUnsafePut(LocationSummary* locations,
       __ strd(value_lo, Address(IP));
     }
   } else {
-    value =  locations->InAt(3).AsRegister<Register>();
-    __ str(value, Address(base, offset));
+    value = locations->InAt(3).AsRegister<Register>();
+    Register source = value;
+    if (kPoisonHeapReferences && type == Primitive::kPrimNot) {
+      Register temp = locations->GetTemp(0).AsRegister<Register>();
+      __ Mov(temp, value);
+      __ PoisonHeapReference(temp);
+      source = temp;
+    }
+    __ str(source, Address(base, offset));
   }
 
   if (is_volatile) {
@@ -738,6 +750,11 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
 
   __ add(tmp_ptr, base, ShifterOperand(offset));
 
+  if (kPoisonHeapReferences && type == Primitive::kPrimNot) {
+    codegen->GetAssembler()->PoisonHeapReference(expected_lo);
+    codegen->GetAssembler()->PoisonHeapReference(value_lo);
+  }
+
   // do {
   //   tmp = [r_ptr] - expected;
   // } while (tmp == 0 && failure([r_ptr] <- r_new_value));
@@ -761,6 +778,11 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
   __ rsbs(out, tmp_lo, ShifterOperand(1));
   __ it(CC);
   __ mov(out, ShifterOperand(0), CC);
+
+  if (kPoisonHeapReferences && type == Primitive::kPrimNot) {
+    codegen->GetAssembler()->UnpoisonHeapReference(value_lo);
+    codegen->GetAssembler()->UnpoisonHeapReference(expected_lo);
+  }
 }
 
 void IntrinsicLocationsBuilderARM::VisitUnsafeCASInt(HInvoke* invoke) {
@@ -1046,6 +1068,10 @@ UNIMPLEMENTED_INTRINSIC(UnsafeCASLong)     // High register pressure.
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
 UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
+
+#undef UNIMPLEMENTED_INTRINSIC
+
+#undef __
 
 }  // namespace arm
 }  // namespace art

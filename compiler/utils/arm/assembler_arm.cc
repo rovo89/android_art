@@ -529,13 +529,13 @@ void ArmAssembler::CopyRef(FrameOffset dest, FrameOffset src,
 }
 
 void ArmAssembler::LoadRef(ManagedRegister mdest, ManagedRegister base, MemberOffset offs,
-                           bool poison_reference) {
+                           bool unpoison_reference) {
   ArmManagedRegister dst = mdest.AsArm();
   CHECK(dst.IsCoreRegister() && dst.IsCoreRegister()) << dst;
   LoadFromOffset(kLoadWord, dst.AsCoreRegister(),
                  base.AsArm().AsCoreRegister(), offs.Int32Value());
-  if (kPoisonHeapReferences && poison_reference) {
-    rsb(dst.AsCoreRegister(), dst.AsCoreRegister(), ShifterOperand(0));
+  if (unpoison_reference) {
+    MaybeUnpoisonHeapReference(dst.AsCoreRegister());
   }
 }
 

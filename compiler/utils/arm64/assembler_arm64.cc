@@ -298,15 +298,15 @@ void Arm64Assembler::LoadRef(ManagedRegister m_dst, FrameOffset offs) {
 }
 
 void Arm64Assembler::LoadRef(ManagedRegister m_dst, ManagedRegister m_base, MemberOffset offs,
-                             bool poison_reference) {
+                             bool unpoison_reference) {
   Arm64ManagedRegister dst = m_dst.AsArm64();
   Arm64ManagedRegister base = m_base.AsArm64();
   CHECK(dst.IsXRegister() && base.IsXRegister());
   LoadWFromOffset(kLoadWord, dst.AsOverlappingWRegister(), base.AsXRegister(),
                   offs.Int32Value());
-  if (kPoisonHeapReferences && poison_reference) {
+  if (unpoison_reference) {
     WRegister ref_reg = dst.AsOverlappingWRegister();
-    ___ Neg(reg_w(ref_reg), vixl::Operand(reg_w(ref_reg)));
+    MaybeUnpoisonHeapReference(reg_w(ref_reg));
   }
 }
 
@@ -783,6 +783,26 @@ void Arm64Assembler::RemoveFrame(size_t frame_size,
   cfi_.RestoreState();
   cfi_.DefCFAOffset(frame_size);
 }
+
+void Arm64Assembler::PoisonHeapReference(vixl::Register reg) {
+  DCHECK(reg.IsW());
+  // reg = -reg.
+  ___ Neg(reg, vixl::Operand(reg));
+}
+
+void Arm64Assembler::UnpoisonHeapReference(vixl::Register reg) {
+  DCHECK(reg.IsW());
+  // reg = -reg.
+  ___ Neg(reg, vixl::Operand(reg));
+}
+
+void Arm64Assembler::MaybeUnpoisonHeapReference(vixl::Register reg) {
+  if (kPoisonHeapReferences) {
+    UnpoisonHeapReference(reg);
+  }
+}
+
+#undef ___
 
 }  // namespace arm64
 }  // namespace art

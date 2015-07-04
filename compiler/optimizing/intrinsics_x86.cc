@@ -1335,9 +1335,14 @@ static void GenUnsafeGet(LocationSummary* locations, Primitive::Type type,
 
   switch (type) {
     case Primitive::kPrimInt:
-    case Primitive::kPrimNot:
-      __ movl(output.AsRegister<Register>(), Address(base, offset, ScaleFactor::TIMES_1, 0));
+    case Primitive::kPrimNot: {
+      Register output_reg = output.AsRegister<Register>();
+      __ movl(output_reg, Address(base, offset, ScaleFactor::TIMES_1, 0));
+      if (type == Primitive::kPrimNot) {
+        __ MaybeUnpoisonHeapReference(output_reg);
+      }
       break;
+    }
 
     case Primitive::kPrimLong: {
         Register output_lo = output.AsRegisterPairLow<Register>();
@@ -1436,7 +1441,7 @@ static void CreateIntIntIntIntToVoidPlusTempsLocations(ArenaAllocator* arena,
   locations->SetInAt(3, Location::RequiresRegister());
   if (type == Primitive::kPrimNot) {
     // Need temp registers for card-marking.
-    locations->AddTemp(Location::RequiresRegister());
+    locations->AddTemp(Location::RequiresRegister());  // Possibly used for reference poisoning too.
     // Ensure the value is in a byte register.
     locations->AddTemp(Location::RegisterLocation(ECX));
   } else if (type == Primitive::kPrimLong && is_volatile) {
@@ -1498,6 +1503,11 @@ static void GenUnsafePut(LocationSummary* locations,
       __ movl(Address(base, offset, ScaleFactor::TIMES_1, 0), value_lo);
       __ movl(Address(base, offset, ScaleFactor::TIMES_1, 4), value_hi);
     }
+  } else if (kPoisonHeapReferences && type == Primitive::kPrimNot) {
+    Register temp = locations->GetTemp(0).AsRegister<Register>();
+    __ movl(temp, value_loc.AsRegister<Register>());
+    __ PoisonHeapReference(temp);
+    __ movl(Address(base, offset, ScaleFactor::TIMES_1, 0), temp);
   } else {
     __ movl(Address(base, offset, ScaleFactor::TIMES_1, 0), value_loc.AsRegister<Register>());
   }
@@ -1604,7 +1614,8 @@ static void GenCAS(Primitive::Type type, HInvoke* invoke, CodeGeneratorX86* code
     __ LockCmpxchg8b(Address(base, offset, TIMES_1, 0));
   } else {
     // Integer or object.
-    DCHECK_EQ(locations->InAt(3).AsRegister<Register>(), EAX);
+    Register expected = locations->InAt(3).AsRegister<Register>();
+    DCHECK_EQ(expected, EAX);
     Register value = locations->InAt(4).AsRegister<Register>();
     if (type == Primitive::kPrimNot) {
       // Mark card for object assuming new value is stored.
@@ -1614,6 +1625,11 @@ static void GenCAS(Primitive::Type type, HInvoke* invoke, CodeGeneratorX86* code
                           base,
                           value,
                           value_can_be_null);
+
+      if (kPoisonHeapReferences) {
+        __ PoisonHeapReference(expected);
+        __ PoisonHeapReference(value);
+      }
     }
 
     __ LockCmpxchgl(Address(base, offset, TIMES_1, 0), value);
@@ -1625,6 +1641,13 @@ static void GenCAS(Primitive::Type type, HInvoke* invoke, CodeGeneratorX86* code
   // Convert ZF into the boolean result.
   __ setb(kZero, out.AsRegister<Register>());
   __ movzxb(out.AsRegister<Register>(), out.AsRegister<ByteRegister>());
+
+  if (kPoisonHeapReferences && type == Primitive::kPrimNot) {
+    Register value = locations->InAt(4).AsRegister<Register>();
+    __ UnpoisonHeapReference(value);
+    // Do not unpoison the reference contained in register `expected`,
+    // as it is the same as register `out`.
+  }
 }
 
 void IntrinsicCodeGeneratorX86::VisitUnsafeCASInt(HInvoke* invoke) {
@@ -1733,6 +1756,10 @@ UNIMPLEMENTED_INTRINSIC(MathRoundDouble)
 UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
+
+#undef UNIMPLEMENTED_INTRINSIC
+
+#undef __
 
 }  // namespace x86
 }  // namespace art

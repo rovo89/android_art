@@ -192,7 +192,7 @@ class MipsAssembler FINAL : public Assembler {
   void LoadRef(ManagedRegister dest, FrameOffset src) OVERRIDE;
 
   void LoadRef(ManagedRegister mdest, ManagedRegister base, MemberOffset offs,
-               bool poison_reference) OVERRIDE;
+               bool unpoison_reference) OVERRIDE;
 
   void LoadRawPtr(ManagedRegister mdest, ManagedRegister base, Offset offs) OVERRIDE;
 
