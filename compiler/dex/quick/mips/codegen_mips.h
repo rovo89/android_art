@@ -79,6 +79,7 @@ class MipsMir2Lir FINAL : public Mir2Lir {
   OVERRIDE;
   LIR* CheckSuspendUsingLoad() OVERRIDE;
   RegStorage LoadHelper(QuickEntrypointEnum trampoline) OVERRIDE;
+  void ForceImplicitNullCheck(RegStorage reg, int opt_flags, bool is_wide);
   LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size,
                     VolatileKind is_volatile) OVERRIDE;
   LIR* LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest, int scale,

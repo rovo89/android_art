@@ -24,6 +24,7 @@
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "driver/compiler_driver.h"
+#include "driver/compiler_options.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "gc/accounting/card_table.h"
 #include "mips_lir.h"
@@ -285,12 +286,25 @@ void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) 
   RegStorage check_reg = AllocPtrSizeTemp();
   RegStorage new_sp = AllocPtrSizeTemp();
   const RegStorage rs_sp = TargetPtrReg(kSp);
+  const size_t kStackOverflowReservedUsableBytes = GetStackOverflowReservedBytes(target);
+  const bool large_frame = static_cast<size_t>(frame_size_) > kStackOverflowReservedUsableBytes;
+  bool generate_explicit_stack_overflow_check = large_frame ||
+    !cu_->compiler_driver->GetCompilerOptions().GetImplicitStackOverflowChecks();
+
   if (!skip_overflow_check) {
-    // Load stack limit.
-    if (cu_->target64) {
-      LoadWordDisp(TargetPtrReg(kSelf), Thread::StackEndOffset<8>().Int32Value(), check_reg);
+    if (generate_explicit_stack_overflow_check) {
+      // Load stack limit.
+      if (cu_->target64) {
+        LoadWordDisp(TargetPtrReg(kSelf), Thread::StackEndOffset<8>().Int32Value(), check_reg);
+      } else {
+        Load32Disp(TargetPtrReg(kSelf), Thread::StackEndOffset<4>().Int32Value(), check_reg);
+      }
     } else {
-      Load32Disp(TargetPtrReg(kSelf), Thread::StackEndOffset<4>().Int32Value(), check_reg);
+      // Implicit stack overflow check.
+      // Generate a load from [sp, #-overflowsize].  If this is in the stack
+      // redzone we will get a segmentation fault.
+      Load32Disp(rs_sp, -kStackOverflowReservedUsableBytes, rs_rZERO);
+      MarkPossibleStackOverflowException();
     }
   }
   // Spill core callee saves.
@@ -298,7 +312,7 @@ void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) 
   // NOTE: promotion of FP regs currently unsupported, thus no FP spill.
   DCHECK_EQ(num_fp_spills_, 0);
   const int frame_sub = frame_size_ - spill_count * ptr_size;
-  if (!skip_overflow_check) {
+  if (!skip_overflow_check && generate_explicit_stack_overflow_check) {
     class StackOverflowSlowPath : public LIRSlowPath {
      public:
       StackOverflowSlowPath(Mir2Lir* m2l, LIR* branch, size_t sp_displace)
@@ -329,6 +343,8 @@ void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) 
     OpRegCopy(rs_sp, new_sp);  // Establish stack.
     cfi_.AdjustCFAOffset(frame_sub);
   } else {
+    // Here if skip_overflow_check or doing implicit stack overflow check.
+    // Just make room on the stack for the frame now.
     OpRegImm(kOpSub, rs_sp, frame_sub);
     cfi_.AdjustCFAOffset(frame_sub);
   }
