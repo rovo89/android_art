@@ -55,7 +55,6 @@ define build-art-executable
   LOCAL_SRC_FILES := $$(art_source)
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime art/cmdline $$(art_c_includes)
   LOCAL_SHARED_LIBRARIES += $$(art_shared_libraries)
-  LOCAL_WHOLE_STATIC_LIBRARIES += libsigchain
 
   ifeq ($$(art_ndebug_or_debug),ndebug)
     LOCAL_MODULE := $$(art_executable)
