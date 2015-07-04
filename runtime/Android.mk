@@ -369,6 +369,7 @@ endif
 
 # $(1): target or host
 # $(2): ndebug or debug
+# $(3): static or shared (empty means shared, applies only for host)
 define build-libart
   ifneq ($(1),target)
     ifneq ($(1),host)
@@ -383,6 +384,7 @@ define build-libart
 
   art_target_or_host := $(1)
   art_ndebug_or_debug := $(2)
+  art_static_or_shared := $(3)
 
   include $$(CLEAR_VARS)
   # Clang assembler has problem with macros in asm_support_x86.S, http://b/17443165,
@@ -403,7 +405,12 @@ define build-libart
   endif
 
   LOCAL_MODULE_TAGS := optional
-  LOCAL_MODULE_CLASS := SHARED_LIBRARIES
+
+  ifeq ($$(art_static_or_shared),static)
+    LOCAL_MODULE_CLASS := STATIC_LIBRARIES
+  else
+    LOCAL_MODULE_CLASS := SHARED_LIBRARIES
+  endif
 
   ifeq ($$(art_target_or_host),target)
     LOCAL_SRC_FILES := $$(LIBART_TARGET_SRC_FILES)
@@ -431,8 +438,11 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   LOCAL_LDFLAGS := $$(LIBART_LDFLAGS)
   ifeq ($$(art_target_or_host),target)
     LOCAL_LDFLAGS += $$(LIBART_TARGET_LDFLAGS)
-  else
+  else #host
     LOCAL_LDFLAGS += $$(LIBART_HOST_LDFLAGS)
+    ifeq ($$(art_static_or_shared),static)
+      LOCAL_LDFLAGS += -static
+    endif
   endif
   $$(foreach arch,$$(ART_TARGET_SUPPORTED_ARCH), \
     $$(eval LOCAL_LDFLAGS_$$(arch) := $$(LIBART_TARGET_LDFLAGS_$$(arch))))
@@ -467,8 +477,12 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   LOCAL_C_INCLUDES += art/sigchainlib
   LOCAL_C_INCLUDES += art
 
-  LOCAL_SHARED_LIBRARIES := libnativehelper libnativebridge libsigchain
-  LOCAL_SHARED_LIBRARIES += libbacktrace
+  ifeq ($$(art_static_or_shared),static)
+    LOCAL_STATIC_LIBRARIES := libnativehelper libnativebridge libsigchain_dummy libbacktrace
+  else
+    LOCAL_SHARED_LIBRARIES := libnativehelper libnativebridge libsigchain libbacktrace
+  endif
+
   ifeq ($$(art_target_or_host),target)
     LOCAL_SHARED_LIBRARIES += libdl
     # ZipArchive support, the order matters here to get all symbols.
@@ -478,9 +492,15 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
     # For liblog, atrace, properties, ashmem, set_sched_policy and socket_peer_is_trusted.
     LOCAL_SHARED_LIBRARIES += libcutils
   else # host
-    LOCAL_SHARED_LIBRARIES += libziparchive-host libz-host
-    # For ashmem_create_region.
-    LOCAL_SHARED_LIBRARIES += libcutils
+    ifeq ($$(art_static_or_shared),static)
+      LOCAL_STATIC_LIBRARIES += libziparchive-host libz
+      # For ashmem_create_region.
+      LOCAL_STATIC_LIBRARIES += libcutils
+    else
+      LOCAL_SHARED_LIBRARIES += libziparchive-host libz-host
+      # For ashmem_create_region.
+      LOCAL_SHARED_LIBRARIES += libcutils
+    endif
   endif
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $$(LOCAL_PATH)/Android.mk
@@ -499,7 +519,11 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
     endif
     include $$(BUILD_SHARED_LIBRARY)
   else # host
-    include $$(BUILD_HOST_SHARED_LIBRARY)
+    ifeq ($$(art_static_or_shared),static)
+      include $$(BUILD_HOST_STATIC_LIBRARY)
+    else
+      include $$(BUILD_HOST_SHARED_LIBRARY)
+    endif
   endif
 
   # Clear locally defined variables.
@@ -508,15 +532,22 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   ENUM_OPERATOR_OUT_GEN :=
   art_target_or_host :=
   art_ndebug_or_debug :=
+  art_static_or_shared :=
 endef
 
 # We always build dex2oat and dependencies, even if the host build is otherwise disabled, since
 # they are used to cross compile for the target.
 ifeq ($(ART_BUILD_HOST_NDEBUG),true)
   $(eval $(call build-libart,host,ndebug))
+  ifeq ($(ART_BUILD_HOST_STATIC),true)
+    $(eval $(call build-libart,host,ndebug,static))
+  endif
 endif
 ifeq ($(ART_BUILD_HOST_DEBUG),true)
   $(eval $(call build-libart,host,debug))
+  ifeq ($(ART_BUILD_HOST_STATIC),true)
+    $(eval $(call build-libart,host,debug,static))
+  endif
 endif
 
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
