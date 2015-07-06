@@ -929,6 +929,8 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
     case kX86:
     case kArm64:
     case kX86_64:
+    case kMips:
+    case kMips64:
       implicit_null_checks_ = true;
       // Installing stack protection does not play well with valgrind.
       implicit_so_checks_ = (RUNNING_ON_VALGRIND == 0);
