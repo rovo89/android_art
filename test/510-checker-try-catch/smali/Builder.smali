@@ -630,6 +630,165 @@
     goto :return
 .end method
 
+## CHECK-START: int Builder.testSwitchTryEnter(int, int, int, int) builder (after)
+
+## CHECK:  name             "B0"
+## CHECK:  successors       "<<BPSwitch0:B\d+>>"
+
+## CHECK:  name             "<<BPSwitch0>>"
+## CHECK:  predecessors     "B0"
+## CHECK:  successors       "<<BEnterTry2:B\d+>>" "<<BPSwitch1:B\d+>>"
+## CHECK:  If
+
+## CHECK:  name             "<<BPSwitch1>>"
+## CHECK:  predecessors     "<<BPSwitch0>>"
+## CHECK:  successors       "<<BOutside:B\d+>>" "<<BEnterTry1:B\d+>>"
+## CHECK:  If
+
+## CHECK:  name             "<<BTry1:B\d+>>"
+## CHECK:  predecessors     "<<BEnterTry1>>"
+## CHECK:  successors       "<<BTry2:B\d+>>"
+## CHECK:  Div
+
+## CHECK:  name             "<<BTry2>>"
+## CHECK:  predecessors     "<<BEnterTry2>>" "<<BTry1>>"
+## CHECK:  successors       "<<BExitTry:B\d+>>"
+## CHECK:  Div
+
+## CHECK:  name             "<<BOutside>>"
+## CHECK:  predecessors     "<<BPSwitch1>>" "<<BExitTry>>"
+## CHECK:  successors       "<<BCatchReturn:B\d+>>"
+## CHECK:  Div
+
+## CHECK:  name             "<<BCatchReturn>>"
+## CHECK:  predecessors     "<<BOutside>>" "<<BEnterTry1>>" "<<BEnterTry2>>" "<<BExitTry>>"
+## CHECK:  flags            "catch_block"
+## CHECK:  Return
+
+## CHECK:  name             "<<BEnterTry1>>"
+## CHECK:  predecessors     "<<BPSwitch1>>"
+## CHECK:  successors       "<<BTry1>>"
+## CHECK:  xhandlers        "<<BCatchReturn>>"
+## CHECK:  TryBoundary      kind:entry
+
+## CHECK:  name             "<<BEnterTry2>>"
+## CHECK:  predecessors     "<<BPSwitch0>>"
+## CHECK:  successors       "<<BTry2>>"
+## CHECK:  xhandlers        "<<BCatchReturn>>"
+## CHECK:  TryBoundary      kind:entry
+
+## CHECK:  name             "<<BExitTry>>"
+## CHECK:  predecessors     "<<BTry2>>"
+## CHECK:  successors       "<<BOutside>>"
+## CHECK:  xhandlers        "<<BCatchReturn>>"
+## CHECK:  TryBoundary      kind:exit
+
+.method public static testSwitchTryEnter(IIII)I
+    .registers 4
+
+    packed-switch p0, :pswitch_data
+
+    :try_start
+    div-int/2addr p0, p1
+
+    :pswitch1
+    div-int/2addr p0, p2
+    goto :pswitch2
+
+    :pswitch_data
+    .packed-switch 0x0
+        :pswitch1
+        :pswitch2
+    .end packed-switch
+    :try_end
+    .catchall {:try_start .. :try_end} :catch_all
+
+    :pswitch2
+    div-int/2addr p0, p3
+
+    :catch_all
+    return p0
+.end method
+
+## CHECK-START: int Builder.testSwitchTryExit(int, int, int, int) builder (after)
+
+## CHECK:  name             "B0"
+## CHECK:  successors       "<<BEnterTry:B\d+>>"
+
+## CHECK:  name             "<<BPSwitch0:B\d+>>"
+## CHECK:  predecessors     "<<BEnterTry>>"
+## CHECK:  successors       "<<BTry2:B\d+>>" "<<BPSwitch1:B\d+>>"
+## CHECK:  If
+
+## CHECK:  name             "<<BPSwitch1>>"
+## CHECK:  predecessors     "<<BPSwitch0>>"
+## CHECK:  successors       "<<BExitTry1:B\d+>>" "<<BTry1:B\d+>>"
+## CHECK:  If
+
+## CHECK:  name             "<<BTry1>>"
+## CHECK:  predecessors     "<<BPSwitch1>>"
+## CHECK:  successors       "<<BTry2>>"
+## CHECK:  Div
+
+## CHECK:  name             "<<BTry2>>"
+## CHECK:  predecessors     "<<BPSwitch0>>"
+## CHECK:  successors       "<<BExitTry2:B\d+>>"
+## CHECK:  Div
+
+## CHECK:  name             "<<BOutside:B\d+>>"
+## CHECK:  predecessors     "<<BExitTry1>>" "<<BExitTry2>>"
+## CHECK:  successors       "<<BCatchReturn:B\d+>>"
+## CHECK:  Div
+
+## CHECK:  name             "<<BCatchReturn>>"
+## CHECK:  predecessors     "<<BOutside>>" "<<BEnterTry>>" "<<BExitTry1>>" "<<BExitTry2>>"
+## CHECK:  flags            "catch_block"
+## CHECK:  Return
+
+## CHECK:  name             "<<BEnterTry>>"
+## CHECK:  predecessors     "B0"
+## CHECK:  successors       "<<BPSwitch0>>"
+## CHECK:  xhandlers        "<<BCatchReturn>>"
+## CHECK:  TryBoundary      kind:entry
+
+## CHECK:  name             "<<BExitTry1>>"
+## CHECK:  predecessors     "<<BPSwitch1>>"
+## CHECK:  successors       "<<BOutside>>"
+## CHECK:  xhandlers        "<<BCatchReturn>>"
+## CHECK:  TryBoundary      kind:exit
+
+## CHECK:  name             "<<BExitTry2>>"
+## CHECK:  predecessors     "<<BTry2>>"
+## CHECK:  successors       "<<BOutside>>"
+## CHECK:  xhandlers        "<<BCatchReturn>>"
+## CHECK:  TryBoundary      kind:exit
+
+.method public static testSwitchTryExit(IIII)I
+    .registers 4
+
+    :try_start
+    packed-switch p0, :pswitch_data
+
+    div-int/2addr p0, p1
+
+    :pswitch1
+    div-int/2addr p0, p2
+    :try_end
+    .catchall {:try_start .. :try_end} :catch_all
+
+    :pswitch2
+    div-int/2addr p0, p3
+
+    :catch_all
+    return p0
+
+    :pswitch_data
+    .packed-switch 0x0
+        :pswitch1
+        :pswitch2
+    .end packed-switch
+.end method
+
 # Test that a TryBoundary is inserted between a Throw instruction and the exit
 # block when covered by a try range.
 
