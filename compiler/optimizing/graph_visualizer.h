@@ -104,7 +104,7 @@ class HGraphVisualizer : public ValueObject {
                    const CodeGenerator& codegen);
 
   void PrintHeader(const char* method_name) const;
-  void DumpGraph(const char* pass_name, bool is_after_pass = true) const;
+  void DumpGraph(const char* pass_name, bool is_after_pass, bool graph_in_bad_state) const;
   void DumpGraphWithDisassembly() const;
 
  private:
