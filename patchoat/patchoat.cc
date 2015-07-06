@@ -138,6 +138,7 @@ bool PatchOat::Patch(const std::string& image_location, off_t delta,
   std::string img = "-Ximage:" + image_location;
   options.push_back(std::make_pair(img.c_str(), nullptr));
   options.push_back(std::make_pair("imageinstructionset", reinterpret_cast<const void*>(isa_name)));
+  options.push_back(std::make_pair("-Xno-sig-chain", nullptr));
   if (!Runtime::Create(options, false)) {
     LOG(ERROR) << "Unable to initialize runtime";
     return false;
@@ -233,6 +234,7 @@ bool PatchOat::Patch(File* input_oat, const std::string& image_location, off_t d
   std::string img = "-Ximage:" + image_location;
   options.push_back(std::make_pair(img.c_str(), nullptr));
   options.push_back(std::make_pair("imageinstructionset", reinterpret_cast<const void*>(isa_name)));
+  options.push_back(std::make_pair("-Xno-sig-chain", nullptr));
   if (!Runtime::Create(options, false)) {
     LOG(ERROR) << "Unable to initialize runtime";
     return false;
