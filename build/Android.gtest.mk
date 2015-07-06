@@ -93,6 +93,17 @@ ART_GTEST_oat_file_assistant_test_TARGET_DEPS := \
 # TODO: document why this is needed.
 ART_GTEST_proxy_test_HOST_DEPS := $(HOST_CORE_IMAGE_default_no-pic_64) $(HOST_CORE_IMAGE_default_no-pic_32)
 
+# The dexdump test requires an image and the dexdump utility.
+# TODO: rename into dexdump when migration completes
+ART_GTEST_dexdump_test_HOST_DEPS := \
+  $(HOST_CORE_IMAGE_default_no-pic_64) \
+  $(HOST_CORE_IMAGE_default_no-pic_32) \
+  $(HOST_OUT_EXECUTABLES)/dexdump2
+ART_GTEST_dexdump_test_TARGET_DEPS := \
+  $(TARGET_CORE_IMAGE_default_no-pic_64) \
+  $(TARGET_CORE_IMAGE_default_no-pic_32) \
+  dexdump2
+
 # The imgdiag test has dependencies on core.oat since it needs to load it during the test.
 # For the host, also add the installed tool (in the base size, that should suffice). For the
 # target, just the module is fine, the sync will happen late enough.
