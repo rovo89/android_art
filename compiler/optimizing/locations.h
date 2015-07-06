@@ -427,11 +427,11 @@ class RegisterSet : public ValueObject {
     }
   }
 
-  bool ContainsCoreRegister(uint32_t id) {
+  bool ContainsCoreRegister(uint32_t id) const {
     return Contains(core_registers_, id);
   }
 
-  bool ContainsFloatingPointRegister(uint32_t id) {
+  bool ContainsFloatingPointRegister(uint32_t id) const {
     return Contains(floating_point_registers_, id);
   }
 
