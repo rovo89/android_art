@@ -174,13 +174,6 @@ class CheckJniAbortCatcher {
   DISALLOW_COPY_AND_ASSIGN(CheckJniAbortCatcher);
 };
 
-// TODO: When heap reference poisoning works with the compiler, get rid of this.
-#define TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING() \
-  if (kPoisonHeapReferences) { \
-    printf("WARNING: TEST DISABLED FOR HEAP REFERENCE POISONING\n"); \
-    return; \
-  }
-
 // TODO: When read barrier works with the compiler, get rid of this.
 #define TEST_DISABLED_FOR_READ_BARRIER() \
   if (kUseReadBarrier) { \

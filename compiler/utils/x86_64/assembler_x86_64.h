@@ -669,7 +669,7 @@ class X86_64Assembler FINAL : public Assembler {
   void LoadRef(ManagedRegister dest, FrameOffset  src) OVERRIDE;
 
   void LoadRef(ManagedRegister dest, ManagedRegister base, MemberOffset offs,
-               bool poison_reference) OVERRIDE;
+               bool unpoison_reference) OVERRIDE;
 
   void LoadRawPtr(ManagedRegister dest, ManagedRegister base, Offset offs) OVERRIDE;
 
@@ -766,6 +766,21 @@ class X86_64Assembler FINAL : public Assembler {
 
   // Is the constant area empty? Return true if there are no literals in the constant area.
   bool IsConstantAreaEmpty() const { return constant_area_.GetSize() == 0; }
+
+  //
+  // Heap poisoning.
+  //
+
+  // Poison a heap reference contained in `reg`.
+  void PoisonHeapReference(CpuRegister reg) { negl(reg); }
+  // Unpoison a heap reference contained in `reg`.
+  void UnpoisonHeapReference(CpuRegister reg) { negl(reg); }
+  // Unpoison a heap reference contained in `reg` if heap poisoning is enabled.
+  void MaybeUnpoisonHeapReference(CpuRegister reg) {
+    if (kPoisonHeapReferences) {
+      UnpoisonHeapReference(reg);
+    }
+  }
 
  private:
   void EmitUint8(uint8_t value);

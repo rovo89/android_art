@@ -683,6 +683,11 @@ static void GenUnsafeGet(HInvoke* invoke,
   } else {
     codegen->Load(type, trg, mem_op);
   }
+
+  if (type == Primitive::kPrimNot) {
+    DCHECK(trg.IsW());
+    codegen->GetAssembler()->MaybeUnpoisonHeapReference(trg);
+  }
 }
 
 static void CreateIntIntIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke) {
@@ -781,22 +786,37 @@ static void GenUnsafePut(LocationSummary* locations,
   Register base = WRegisterFrom(locations->InAt(1));    // Object pointer.
   Register offset = XRegisterFrom(locations->InAt(2));  // Long offset.
   Register value = RegisterFrom(locations->InAt(3), type);
+  Register source = value;
   bool use_acquire_release = codegen->GetInstructionSetFeatures().PreferAcquireRelease();
 
   MemOperand mem_op(base.X(), offset);
 
-  if (is_volatile || is_ordered) {
-    if (use_acquire_release) {
-      codegen->StoreRelease(type, value, mem_op);
-    } else {
-      __ Dmb(InnerShareable, BarrierAll);
-      codegen->Store(type, value, mem_op);
-      if (is_volatile) {
-        __ Dmb(InnerShareable, BarrierReads);
-      }
+  {
+    // We use a block to end the scratch scope before the write barrier, thus
+    // freeing the temporary registers so they can be used in `MarkGCCard`.
+    UseScratchRegisterScope temps(masm);
+
+    if (kPoisonHeapReferences && type == Primitive::kPrimNot) {
+      DCHECK(value.IsW());
+      Register temp = temps.AcquireW();
+      __ Mov(temp.W(), value.W());
+      codegen->GetAssembler()->PoisonHeapReference(temp.W());
+      source = temp;
     }
-  } else {
-    codegen->Store(type, value, mem_op);
+
+    if (is_volatile || is_ordered) {
+      if (use_acquire_release) {
+        codegen->StoreRelease(type, source, mem_op);
+      } else {
+        __ Dmb(InnerShareable, BarrierAll);
+        codegen->Store(type, source, mem_op);
+        if (is_volatile) {
+          __ Dmb(InnerShareable, BarrierReads);
+        }
+      }
+    } else {
+      codegen->Store(type, source, mem_op);
+    }
   }
 
   if (type == Primitive::kPrimNot) {
@@ -872,6 +892,11 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
 
   __ Add(tmp_ptr, base.X(), Operand(offset));
 
+  if (kPoisonHeapReferences && type == Primitive::kPrimNot) {
+    codegen->GetAssembler()->PoisonHeapReference(expected);
+    codegen->GetAssembler()->PoisonHeapReference(value);
+  }
+
   // do {
   //   tmp_value = [tmp_ptr] - expected;
   // } while (tmp_value == 0 && failure([tmp_ptr] <- r_new_value));
@@ -897,6 +922,11 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
   }
   __ Bind(&exit_loop);
   __ Cset(out, eq);
+
+  if (kPoisonHeapReferences && type == Primitive::kPrimNot) {
+    codegen->GetAssembler()->UnpoisonHeapReference(value);
+    codegen->GetAssembler()->UnpoisonHeapReference(expected);
+  }
 }
 
 void IntrinsicLocationsBuilderARM64::VisitUnsafeCASInt(HInvoke* invoke) {
@@ -1172,6 +1202,10 @@ void IntrinsicCodeGeneratorARM64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
 UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
+
+#undef UNIMPLEMENTED_INTRINSIC
+
+#undef __
 
 }  // namespace arm64
 }  // namespace art
