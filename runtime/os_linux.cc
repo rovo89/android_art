@@ -36,6 +36,10 @@ File* OS::OpenFileReadWrite(const char* name) {
 }
 
 File* OS::CreateEmptyFile(const char* name) {
+  // In case the file exists, unlink it so we get a new file. This is necessary as the previous
+  // file may be in use and must not be changed.
+  unlink(name);
+
   return OpenFileWithFlags(name, O_RDWR | O_CREAT | O_TRUNC);
 }
 
