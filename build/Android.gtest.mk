@@ -120,6 +120,7 @@ LOCAL_PATH := art
 
 RUNTIME_GTEST_COMMON_SRC_FILES := \
   cmdline/cmdline_parser_test.cc \
+  dexdump/dexdump_test.cc \
   imgdiag/imgdiag_test.cc \
   oatdump/oatdump_test.cc \
   runtime/arch/arch_test.cc \
