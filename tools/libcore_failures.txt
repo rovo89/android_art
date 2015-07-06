@@ -137,5 +137,12 @@
   result: EXEC_FAILED,
   bug:22106064,
   name: "libcore.java.lang.OldThreadGroupTest#test_enumerateLThreadArrayLZtest_enumerateLThreadArrayLZ"
+},
+{
+  description: "test_xattr fails on arm64 on the buildbots only: needs investigation",
+  result: EXEC_FAILED,
+  modes: [device],
+  names: ["libcore.io.OsTest#test_xattr"],
+  bug: 22258911
 }
 ]
