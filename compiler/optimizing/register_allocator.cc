@@ -209,6 +209,8 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
     Location temp = locations->GetTemp(i);
     if (temp.IsRegister() || temp.IsFpuRegister()) {
       BlockRegister(temp, position, position + 1);
+      // Ensure that an explicit temporary register is marked as being allocated.
+      codegen_->AddAllocatedRegister(temp);
     } else {
       DCHECK(temp.IsUnallocated());
       switch (temp.GetPolicy()) {
@@ -507,6 +509,9 @@ bool RegisterAllocator::ValidateIntervals(const GrowableArray<LiveInterval*>& in
       }
 
       if (current->HasRegister()) {
+        if (kIsDebugBuild && !current->IsFixed()) {
+          DCHECK(codegen.HasAllocatedRegister(processing_core_registers, current->GetRegister()));
+        }
         BitVector* liveness_of_register = liveness_of_values.Get(current->GetRegister());
         for (size_t j = it.CurrentRange()->GetStart(); j < it.CurrentRange()->GetEnd(); ++j) {
           if (liveness_of_register->IsBitSet(j)) {
