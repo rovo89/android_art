@@ -294,6 +294,12 @@ class CodeGenerator {
     allocated_registers_.Add(location);
   }
 
+  bool HasAllocatedRegister(bool is_core, int reg) const {
+    return is_core
+        ? allocated_registers_.ContainsCoreRegister(reg)
+        : allocated_registers_.ContainsFloatingPointRegister(reg);
+  }
+
   void AllocateLocations(HInstruction* instruction);
 
   // Tells whether the stack frame of the compiled method is
