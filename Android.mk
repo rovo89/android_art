@@ -167,7 +167,8 @@ test-art-host-vixl: $(VIXL_TEST_DEPENDENCY)
 
 # "mm test-art-host" to build and run all host tests.
 .PHONY: test-art-host
-test-art-host: test-art-host-gtest test-art-host-run-test test-art-host-vixl
+test-art-host: test-art-host-gtest test-art-host-run-test \
+               test-art-host-vixl test-art-host-dexdump
 	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
 
 # All host tests that run solely with the default compiler.
@@ -235,6 +236,11 @@ test-art-host-interpreter$(2ND_ART_PHONY_TEST_HOST_SUFFIX): test-art-host-run-te
 test-art-host-jit$(2ND_ART_PHONY_TEST_HOST_SUFFIX): test-art-host-run-test-jit$(2ND_ART_PHONY_TEST_HOST_SUFFIX)
 	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
 endif
+
+# Dexdump regression test.
+.PHONY: test-art-host-dexdump
+test-art-host-dexdump: dexdump2
+	art/test/dexdump/run-all-tests
 
 # Valgrind. Currently only 32b gtests.
 .PHONY: valgrind-test-art-host
