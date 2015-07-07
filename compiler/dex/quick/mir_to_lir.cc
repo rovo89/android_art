@@ -193,7 +193,8 @@ void Mir2Lir::LoadArgDirect(size_t in_position, RegLocation rl_dest) {
   }
 
   if (!reg_arg.Valid()) {
-    LoadBaseDisp(TargetPtrReg(kSp), offset, rl_dest.reg, rl_dest.wide ? k64 : k32, kNotVolatile);
+    OpSize op_size = rl_dest.wide ? k64 : (rl_dest.ref ? kReference : k32);
+    LoadBaseDisp(TargetPtrReg(kSp), offset, rl_dest.reg, op_size, kNotVolatile);
   } else {
     if (rl_dest.wide) {
       OpRegCopyWide(rl_dest.reg, reg_arg);
