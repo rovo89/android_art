@@ -1889,10 +1889,14 @@ class ImageDumper {
         state->stats_.pc_mapping_table_bytes += pc_mapping_table_bytes;
       }
 
-      size_t vmap_table_bytes = state->ComputeOatSize(
-          method->GetVmapTable(image_pointer_size), &first_occurrence);
-      if (first_occurrence) {
-        state->stats_.vmap_table_bytes += vmap_table_bytes;
+      size_t vmap_table_bytes = 0u;
+      if (!method->IsOptimized(image_pointer_size)) {
+        // Method compiled with the optimizing compiler have no vmap table.
+        vmap_table_bytes = state->ComputeOatSize(
+            method->GetVmapTable(image_pointer_size), &first_occurrence);
+        if (first_occurrence) {
+          state->stats_.vmap_table_bytes += vmap_table_bytes;
+        }
       }
 
       const void* quick_oat_code_begin = state->GetQuickOatCodeBegin(method);
