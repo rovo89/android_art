@@ -151,6 +151,15 @@ static inline vixl::MemOperand HeapOperand(const vixl::Register& base, size_t of
   return vixl::MemOperand(base.X(), offset);
 }
 
+static inline vixl::MemOperand HeapOperand(const vixl::Register& base,
+                                           const vixl::Register& regoffset,
+                                           vixl::Shift shift = vixl::LSL,
+                                           unsigned shift_amount = 0) {
+  // A heap reference must be 32bit, so fit in a W register.
+  DCHECK(base.IsW());
+  return vixl::MemOperand(base.X(), regoffset, shift, shift_amount);
+}
+
 static inline vixl::MemOperand HeapOperand(const vixl::Register& base, Offset offset) {
   return HeapOperand(base, offset.SizeValue());
 }
