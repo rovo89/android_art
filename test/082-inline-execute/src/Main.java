@@ -1000,6 +1000,45 @@ public class Main {
     Assert.assertEquals(Long.reverse(0x8765432187654321L), 0x84c2a6e184c2a6e1L);
     Assert.assertEquals(Long.reverse(Long.MAX_VALUE), 0xfffffffffffffffeL);
     Assert.assertEquals(Long.reverse(Long.MIN_VALUE), 1L);
+
+    Assert.assertEquals(test_Long_reverse_b22324327(0xaaaaaaaaaaaaaaaaL, 0x5555555555555555L),
+            157472205507277347L);
+  }
+
+  // A bit more complicated than the above. Use local variables to stress register allocation.
+  private static long test_Long_reverse_b22324327(long l1, long l2) {
+    // A couple of local integers. Use them in a loop, so they get promoted.
+    int i1 = 0, i2 = 1, i3 = 2, i4 = 3, i5 = 4, i6 = 5, i7 = 6, i8 = 7;
+    for (int k = 0; k < 10; k++) {
+      i1 += 1;
+      i2 += 2;
+      i3 += 3;
+      i4 += 4;
+      i5 += 5;
+      i6 += 6;
+      i7 += 7;
+      i8 += 8;
+    }
+
+    // Do the Long.reverse() calls, save the results.
+    long r1 = Long.reverse(l1);
+    long r2 = Long.reverse(l2);
+
+    // Some more looping with the ints.
+    for (int k = 0; k < 10; k++) {
+      i1 += 1;
+      i2 += 2;
+      i3 += 3;
+      i4 += 4;
+      i5 += 5;
+      i6 += 6;
+      i7 += 7;
+      i8 += 8;
+    }
+
+    // Include everything in the result, so things are kept live. Try to be a little bit clever to
+    // avoid things being folded somewhere.
+    return (r1 / i1) + (r2 / i2) + i3 + i4 + i5 + i6 + i7 + i8;
   }
 
   static Object runtime;
