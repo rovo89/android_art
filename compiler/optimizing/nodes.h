@@ -4136,14 +4136,8 @@ class HMonitorOperation : public HTemplateInstruction<1> {
   }
 
   // Instruction may throw a Java exception, so we need an environment.
-  bool NeedsEnvironment() const OVERRIDE { return CanThrow(); }
-
-  bool CanThrow() const OVERRIDE {
-    // Verifier guarantees that monitor-exit cannot throw.
-    // This is important because it allows the HGraphBuilder to remove
-    // a dead throw-catch loop generated for `synchronized` blocks/methods.
-    return IsEnter();
-  }
+  bool NeedsEnvironment() const OVERRIDE { return true; }
+  bool CanThrow() const OVERRIDE { return true; }
 
   uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
 
