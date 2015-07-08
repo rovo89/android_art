@@ -94,24 +94,26 @@ ART_GTEST_oat_file_assistant_test_TARGET_DEPS := \
 ART_GTEST_proxy_test_HOST_DEPS := $(HOST_CORE_IMAGE_default_no-pic_64) $(HOST_CORE_IMAGE_default_no-pic_32)
 
 # The dexdump test requires an image and the dexdump utility.
+# TODO: rename into dexdump when migration completes
 ART_GTEST_dexdump_test_HOST_DEPS := \
   $(HOST_CORE_IMAGE_default_no-pic_64) \
   $(HOST_CORE_IMAGE_default_no-pic_32) \
-  $(HOST_OUT_EXECUTABLES)/dexdump
+  $(HOST_OUT_EXECUTABLES)/dexdump2
 ART_GTEST_dexdump_test_TARGET_DEPS := \
   $(TARGET_CORE_IMAGE_default_no-pic_64) \
   $(TARGET_CORE_IMAGE_default_no-pic_32) \
-  dexdump
+  dexdump2
 
 # The dexlist test requires an image and the dexlist utility.
+# TODO: rename into dexlist when migration completes
 ART_GTEST_dexlist_test_HOST_DEPS := \
   $(HOST_CORE_IMAGE_default_no-pic_64) \
   $(HOST_CORE_IMAGE_default_no-pic_32) \
-  $(HOST_OUT_EXECUTABLES)/dexlist
+  $(HOST_OUT_EXECUTABLES)/dexlist2
 ART_GTEST_dexlist_test_TARGET_DEPS := \
   $(TARGET_CORE_IMAGE_default_no-pic_64) \
   $(TARGET_CORE_IMAGE_default_no-pic_32) \
-  dexlist
+  dexlist2
 
 # The imgdiag test has dependencies on core.oat since it needs to load it during the test.
 # For the host, also add the installed tool (in the base size, that should suffice). For the
