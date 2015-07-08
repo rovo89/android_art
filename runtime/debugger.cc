@@ -4836,6 +4836,9 @@ jbyteArray Dbg::GetRecentAllocations() {
       CHECK(!Runtime::Current()->GetHeap()->IsAllocTrackingEnabled());
       records = &dummy;
     }
+    // We don't need to wait on the condition variable records->new_record_condition_, because this
+    // function only reads the class objects, which are already marked so it doesn't change their
+    // reachability.
 
     //
     // Part 1: generate string tables.
@@ -4850,7 +4853,7 @@ jbyteArray Dbg::GetRecentAllocations() {
          count > 0 && it != end; count--, it++) {
       const gc::AllocRecord* record = it->second;
       std::string temp;
-      class_names.Add(record->GetClass()->GetDescriptor(&temp));
+      class_names.Add(record->GetClassDescriptor(&temp));
       for (size_t i = 0, depth = record->GetDepth(); i < depth; i++) {
         ArtMethod* m = record->StackElement(i).GetMethod();
         class_names.Add(m->GetDeclaringClassDescriptor());
@@ -4902,7 +4905,7 @@ jbyteArray Dbg::GetRecentAllocations() {
       const gc::AllocRecord* record = it->second;
       size_t stack_depth = record->GetDepth();
       size_t allocated_object_class_name_index =
-          class_names.IndexOf(record->GetClass()->GetDescriptor(&temp));
+          class_names.IndexOf(record->GetClassDescriptor(&temp));
       JDWP::Append4BE(bytes, record->ByteCount());
       JDWP::Append2BE(bytes, static_cast<uint16_t>(record->GetTid()));
       JDWP::Append2BE(bytes, allocated_object_class_name_index);

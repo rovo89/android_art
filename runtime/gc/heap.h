@@ -721,10 +721,6 @@ class Heap {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::alloc_tracker_lock_);
 
-  void EnsureNewAllocationRecordsDisallowed() const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      LOCKS_EXCLUDED(Locks::alloc_tracker_lock_);
-
  private:
   class ConcurrentGCTask;
   class CollectorTransitionTask;
