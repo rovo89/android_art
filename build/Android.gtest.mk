@@ -104,6 +104,17 @@ ART_GTEST_dexdump_test_TARGET_DEPS := \
   $(TARGET_CORE_IMAGE_default_no-pic_32) \
   dexdump2
 
+# The dexlist test requires an image and the dexlist utility.
+# TODO: rename into dexlist when migration completes
+ART_GTEST_dexlist_test_HOST_DEPS := \
+  $(HOST_CORE_IMAGE_default_no-pic_64) \
+  $(HOST_CORE_IMAGE_default_no-pic_32) \
+  $(HOST_OUT_EXECUTABLES)/dexlist2
+ART_GTEST_dexlist_test_TARGET_DEPS := \
+  $(TARGET_CORE_IMAGE_default_no-pic_64) \
+  $(TARGET_CORE_IMAGE_default_no-pic_32) \
+  dexlist2
+
 # The imgdiag test has dependencies on core.oat since it needs to load it during the test.
 # For the host, also add the installed tool (in the base size, that should suffice). For the
 # target, just the module is fine, the sync will happen late enough.
@@ -132,6 +143,7 @@ LOCAL_PATH := art
 RUNTIME_GTEST_COMMON_SRC_FILES := \
   cmdline/cmdline_parser_test.cc \
   dexdump/dexdump_test.cc \
+  dexlist/dexlist_test.cc \
   imgdiag/imgdiag_test.cc \
   oatdump/oatdump_test.cc \
   runtime/arch/arch_test.cc \
