@@ -14,6 +14,8 @@
 
 # TODO(ajcbik): Art-i-fy this makefile
 
+# TODO(ajcbik): rename dexlist2 into dexlist when Dalvik version is removed
+
 LOCAL_PATH:= $(call my-dir)
 
 dexlist_src_files := dexlist.cc
@@ -31,7 +33,7 @@ LOCAL_SRC_FILES := $(dexlist_src_files)
 LOCAL_C_INCLUDES := $(dexlist_c_includes)
 LOCAL_CFLAGS += -Wall
 LOCAL_SHARED_LIBRARIES += $(dexlist_libraries)
-LOCAL_MODULE := dexlist
+LOCAL_MODULE := dexlist2
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE_PATH := $(TARGET_OUT_OPTIONAL_EXECUTABLES)
 include $(BUILD_EXECUTABLE)
@@ -47,6 +49,6 @@ LOCAL_SRC_FILES := $(dexlist_src_files)
 LOCAL_C_INCLUDES := $(dexlist_c_includes)
 LOCAL_CFLAGS += -Wall
 LOCAL_SHARED_LIBRARIES += $(dexlist_libraries)
-LOCAL_MODULE := dexlist
+LOCAL_MODULE := dexlist2
 LOCAL_MODULE_TAGS := optional
 include $(BUILD_HOST_EXECUTABLE)
