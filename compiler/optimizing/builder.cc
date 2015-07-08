@@ -272,11 +272,7 @@ static const DexFile::TryItem* GetTryItem(HBasicBlock* block,
 
   // Instructions in the block may throw. Find a TryItem covering this block.
   int32_t try_item_idx = DexFile::FindTryItem(code_item, block->GetDexPc());
-  if (try_item_idx == -1) {
-    return nullptr;
-  } else {
-    return DexFile::GetTryItems(code_item, try_item_idx);
-  }
+  return (try_item_idx == -1) ? nullptr : DexFile::GetTryItems(code_item, try_item_idx);
 }
 
 void HGraphBuilder::CreateBlocksForTryCatch(const DexFile::CodeItem& code_item) {
@@ -357,13 +353,9 @@ void HGraphBuilder::InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item) 
   //   (c) link the new blocks to corresponding exception handlers.
   // We cannot iterate only over blocks in `branch_targets_` because switch-case
   // blocks share the same dex_pc.
-  for (size_t block_id = 1; block_id < num_blocks - 1; ++block_id) {
+  for (size_t block_id = 0; block_id < num_blocks; ++block_id) {
     HBasicBlock* try_block = graph_->GetBlocks().Get(block_id);
 
-    // Iteration starts from 1 to skip the entry block.
-    DCHECK_NE(try_block, entry_block_);
-    // Iteration ends at num_blocks - 1 to skip the exit block.
-    DCHECK_NE(try_block, exit_block_);
     // TryBoundary blocks are added at the end of the list and not iterated over.
     DCHECK(!try_block->IsSingleTryBoundary());
 
