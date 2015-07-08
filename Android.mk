@@ -240,8 +240,8 @@ endif
 
 # Dexdump/list regression test.
 .PHONY: test-art-host-dexdump
-test-art-host-dexdump: dexdump2 dexlist2
-	art/test/dexdump/run-all-tests
+test-art-host-dexdump: $(addprefix $(HOST_OUT_EXECUTABLES)/, dexdump2 dexlist2)
+	ANDROID_HOST_OUT=$(realpath $(HOST_OUT)) art/test/dexdump/run-all-tests
 
 # Valgrind. Currently only 32b gtests.
 .PHONY: valgrind-test-art-host
