@@ -1336,9 +1336,24 @@ bool X86Mir2Lir::GenInlinedReverseBits(CallInfo* info, OpSize size) {
     }
     OpRegReg(kOpRev, rl_result.reg.GetLow(), rl_i.reg.GetHigh());
     OpRegReg(kOpRev, rl_result.reg.GetHigh(), r_i_low);
+    // Free up at least one input register if it was a temp. Otherwise we may be in the bad
+    // situation of not having a temp available for SwapBits. Make sure it's not overlapping
+    // with the output, though.
     if (rl_i.reg.GetLowReg() == rl_result.reg.GetLowReg()) {
+      // There's definitely a free temp after this.
       FreeTemp(r_i_low);
+    } else {
+      // We opportunistically release both here. That saves duplication of the register state
+      // lookup (to see if it's actually a temp).
+      if (rl_i.reg.GetLowReg() != rl_result.reg.GetHighReg()) {
+        FreeTemp(rl_i.reg.GetLow());
+      }
+      if (rl_i.reg.GetHighReg() != rl_result.reg.GetLowReg() &&
+          rl_i.reg.GetHighReg() != rl_result.reg.GetHighReg()) {
+        FreeTemp(rl_i.reg.GetHigh());
+      }
     }
+
     SwapBits(rl_result.reg.GetLow(), 1, 0x55555555);
     SwapBits(rl_result.reg.GetLow(), 2, 0x33333333);
     SwapBits(rl_result.reg.GetLow(), 4, 0x0f0f0f0f);
