@@ -657,7 +657,7 @@ void HGraphBuilder::Binop_23x_shift(const Instruction& instruction,
 
 void HGraphBuilder::Binop_23x_cmp(const Instruction& instruction,
                                   Primitive::Type type,
-                                  HCompare::Bias bias,
+                                  ComparisonBias bias,
                                   uint32_t dex_pc) {
   HInstruction* first = LoadLocal(instruction.VRegB(), type);
   HInstruction* second = LoadLocal(instruction.VRegC(), type);
@@ -2311,27 +2311,27 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     }
 
     case Instruction::CMP_LONG: {
-      Binop_23x_cmp(instruction, Primitive::kPrimLong, HCompare::kNoBias, dex_pc);
+      Binop_23x_cmp(instruction, Primitive::kPrimLong, kNoBias, dex_pc);
       break;
     }
 
     case Instruction::CMPG_FLOAT: {
-      Binop_23x_cmp(instruction, Primitive::kPrimFloat, HCompare::kGtBias, dex_pc);
+      Binop_23x_cmp(instruction, Primitive::kPrimFloat, kGtBias, dex_pc);
       break;
     }
 
     case Instruction::CMPG_DOUBLE: {
-      Binop_23x_cmp(instruction, Primitive::kPrimDouble, HCompare::kGtBias, dex_pc);
+      Binop_23x_cmp(instruction, Primitive::kPrimDouble, kGtBias, dex_pc);
       break;
     }
 
     case Instruction::CMPL_FLOAT: {
-      Binop_23x_cmp(instruction, Primitive::kPrimFloat, HCompare::kLtBias, dex_pc);
+      Binop_23x_cmp(instruction, Primitive::kPrimFloat, kLtBias, dex_pc);
       break;
     }
 
     case Instruction::CMPL_DOUBLE: {
-      Binop_23x_cmp(instruction, Primitive::kPrimDouble, HCompare::kLtBias, dex_pc);
+      Binop_23x_cmp(instruction, Primitive::kPrimDouble, kLtBias, dex_pc);
       break;
     }
 
