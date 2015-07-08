@@ -177,7 +177,7 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
   void DivRemOneOrMinusOne(HBinaryOperation* instruction);
   void DivByPowerOfTwo(HDiv* instruction);
   void GenerateDivRemWithAnyConstant(HBinaryOperation* instruction);
-  void GenerateRemFP(HRem *rem);
+  void GenerateRemFP(HRem* rem);
   void HandleShift(HBinaryOperation* instruction);
   void GenerateShlLong(const Location& loc, Register shifter);
   void GenerateShrLong(const Location& loc, Register shifter);
@@ -201,6 +201,13 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
                              Label* true_target,
                              Label* false_target,
                              Label* always_true_target);
+  void GenerateCompareTestAndBranch(HIf* if_inst,
+                                    HCondition* condition,
+                                    Label* true_target,
+                                    Label* false_target,
+                                    Label* always_true_target);
+  void GenerateFPJumps(HCondition* cond, Label* true_label, Label* false_label);
+  void GenerateLongComparesAndJumps(HCondition* cond, Label* true_label, Label* false_label);
   void HandleGoto(HInstruction* got, HBasicBlock* successor);
 
   X86Assembler* const assembler_;

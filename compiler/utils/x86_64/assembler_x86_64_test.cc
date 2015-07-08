@@ -953,6 +953,48 @@ TEST_F(AssemblerX86_64Test, Orpd) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::orpd, "orpd %{reg2}, %{reg1}"), "orpd");
 }
 
+TEST_F(AssemblerX86_64Test, UcomissAddress) {
+  GetAssembler()->ucomiss(x86_64::XmmRegister(x86_64::XMM0), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12));
+  GetAssembler()->ucomiss(x86_64::XmmRegister(x86_64::XMM1), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_4, 12));
+  GetAssembler()->ucomiss(x86_64::XmmRegister(x86_64::XMM2), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_4, 12));
+  GetAssembler()->ucomiss(x86_64::XmmRegister(x86_64::XMM3), x86_64::Address(
+      x86_64::CpuRegister(x86_64::R13), 0));
+  GetAssembler()->ucomiss(x86_64::XmmRegister(x86_64::XMM4), x86_64::Address(
+      x86_64::CpuRegister(x86_64::R13), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_1, 0));
+  const char* expected =
+    "ucomiss 0xc(%RDI,%RBX,4), %xmm0\n"
+    "ucomiss 0xc(%RDI,%R9,4), %xmm1\n"
+    "ucomiss 0xc(%RDI,%R9,4), %xmm2\n"
+    "ucomiss (%R13), %xmm3\n"
+    "ucomiss (%R13,%R9,1), %xmm4\n";
+
+  DriverStr(expected, "ucomiss_address");
+}
+
+TEST_F(AssemblerX86_64Test, UcomisdAddress) {
+  GetAssembler()->ucomisd(x86_64::XmmRegister(x86_64::XMM0), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12));
+  GetAssembler()->ucomisd(x86_64::XmmRegister(x86_64::XMM1), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_4, 12));
+  GetAssembler()->ucomisd(x86_64::XmmRegister(x86_64::XMM2), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_4, 12));
+  GetAssembler()->ucomisd(x86_64::XmmRegister(x86_64::XMM3), x86_64::Address(
+      x86_64::CpuRegister(x86_64::R13), 0));
+  GetAssembler()->ucomisd(x86_64::XmmRegister(x86_64::XMM4), x86_64::Address(
+      x86_64::CpuRegister(x86_64::R13), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_1, 0));
+  const char* expected =
+    "ucomisd 0xc(%RDI,%RBX,4), %xmm0\n"
+    "ucomisd 0xc(%RDI,%R9,4), %xmm1\n"
+    "ucomisd 0xc(%RDI,%R9,4), %xmm2\n"
+    "ucomisd (%R13), %xmm3\n"
+    "ucomisd (%R13,%R9,1), %xmm4\n";
+
+  DriverStr(expected, "ucomisd_address");
+}
+
 // X87
 
 std::string x87_fn(AssemblerX86_64Test::Base* assembler_test ATTRIBUTE_UNUSED,
