@@ -109,10 +109,8 @@ static ArtMethod* FindVirtualOrInterfaceTarget(HInvoke* invoke, ArtMethod* resol
     receiver = receiver->InputAt(0);
   }
   ReferenceTypeInfo info = receiver->GetReferenceTypeInfo();
-  if (info.IsTop()) {
-    // We have no information on the receiver.
-    return nullptr;
-  } else if (!info.IsExact()) {
+  DCHECK(info.IsValid()) << "Invalid RTI for " << receiver->DebugName();
+  if (!info.IsExact()) {
     // We currently only support inlining with known receivers.
     // TODO: Remove this check, we should be able to inline final methods
     // on unknown receivers.
