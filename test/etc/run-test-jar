@@ -458,7 +458,9 @@ else
       # When running under gdb, we cannot do piping and grepping...
       $cmdline "$@"
     else
-      $cmdline "$@" 2>&1
+      trap 'kill -INT -$pid' INT
+      $cmdline "$@" 2>&1 & pid=$!
+      wait $pid
       # Add extra detail if time out is enabled.
       if [ ${PIPESTATUS[0]} = 124 ] && [ "$TIME_OUT" = "y" ]; then
         echo -e "\e[91mTEST TIMED OUT!\e[0m" >&2
