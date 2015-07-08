@@ -108,8 +108,8 @@ int dexdumpDriver(int argc, char** argv) {
       default:
         wantUsage = true;
         break;
-    }
-  }
+    }  // switch
+  }  // while
 
   // Detect early problems.
   if (optind == argc) {
@@ -138,7 +138,7 @@ int dexdumpDriver(int argc, char** argv) {
   int result = 0;
   while (optind < argc) {
     result |= processFile(argv[optind++]);
-  }
+  }  // while
   return result != 0;
 }
 
