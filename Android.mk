@@ -79,6 +79,7 @@ include $(art_path)/build/Android.cpplint.mk
 include $(art_path)/runtime/Android.mk
 include $(art_path)/compiler/Android.mk
 include $(art_path)/dexdump/Android.mk
+include $(art_path)/dexlist/Android.mk
 include $(art_path)/dex2oat/Android.mk
 include $(art_path)/disassembler/Android.mk
 include $(art_path)/oatdump/Android.mk
@@ -237,9 +238,9 @@ test-art-host-jit$(2ND_ART_PHONY_TEST_HOST_SUFFIX): test-art-host-run-test-jit$(
 	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
 endif
 
-# Dexdump regression test.
+# Dexdump/list regression test.
 .PHONY: test-art-host-dexdump
-test-art-host-dexdump: dexdump2
+test-art-host-dexdump: dexdump2 dexlist2
 	art/test/dexdump/run-all-tests
 
 # Valgrind. Currently only 32b gtests.
