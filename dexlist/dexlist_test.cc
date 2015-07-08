@@ -42,11 +42,12 @@ class DexListTest : public CommonRuntimeTest {
 
   // Runs test with given arguments.
   bool Exec(const std::vector<std::string>& args, std::string* error_msg) {
+    // TODO(ajcbik): dexlist2 -> dexlist
     std::string file_path = GetTestAndroidRoot();
     if (IsHost()) {
-      file_path += "/bin/dexlist";
+      file_path += "/bin/dexlist2";
     } else {
-      file_path += "/xbin/dexlist";
+      file_path += "/xbin/dexlist2";
     }
     EXPECT_TRUE(OS::FileExists(file_path.c_str())) << file_path << " should be a valid file path";
     std::vector<std::string> exec_argv = { file_path };
