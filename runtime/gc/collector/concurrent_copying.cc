@@ -334,6 +334,8 @@ void ConcurrentCopying::MarkingPhase() {
       }
     }
   }
+  // TODO: Other garbage collectors uses Runtime::VisitConcurrentRoots(), refactor this part
+  // to also use the same function.
   {
     TimingLogger::ScopedTiming split2("VisitConstantRoots", GetTimings());
     Runtime::Current()->VisitConstantRoots(this);
@@ -351,6 +353,7 @@ void ConcurrentCopying::MarkingPhase() {
     TimingLogger::ScopedTiming split5("VisitNonThreadRoots", GetTimings());
     Runtime::Current()->VisitNonThreadRoots(this);
   }
+  Runtime::Current()->GetHeap()->VisitAllocationRecords(this);
 
   // Immune spaces.
   for (auto& space : heap_->GetContinuousSpaces()) {

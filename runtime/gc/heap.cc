@@ -3734,17 +3734,6 @@ void Heap::DisallowNewAllocationRecords() const {
   }
 }
 
-void Heap::EnsureNewAllocationRecordsDisallowed() const {
-  if (IsAllocTrackingEnabled()) {
-    // Lock and unlock once to ensure that no threads are still in the
-    // middle of adding new allocation records.
-    MutexLock mu(Thread::Current(), *Locks::alloc_tracker_lock_);
-    if (IsAllocTrackingEnabled()) {
-      GetAllocationRecords()->EnsureNewAllocationRecordsDisallowed();
-    }
-  }
-}
-
 // Based on debug malloc logic from libc/bionic/debug_stacktrace.cpp.
 class StackCrawlState {
  public:
