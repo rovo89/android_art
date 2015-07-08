@@ -14,6 +14,8 @@
 
 # TODO(ajcbik): Art-i-fy this makefile
 
+# TODO(ajcbik): rename dexdump2 into dexdump when Dalvik version is removed
+
 LOCAL_PATH:= $(call my-dir)
 
 dexdump_src_files := dexdump_main.cc dexdump.cc
@@ -31,7 +33,7 @@ LOCAL_SRC_FILES := $(dexdump_src_files)
 LOCAL_C_INCLUDES := $(dexdump_c_includes)
 LOCAL_CFLAGS += -Wall
 LOCAL_SHARED_LIBRARIES += $(dexdump_libraries)
-LOCAL_MODULE := dexdump
+LOCAL_MODULE := dexdump2
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE_PATH := $(TARGET_OUT_OPTIONAL_EXECUTABLES)
 include $(BUILD_EXECUTABLE)
@@ -47,6 +49,6 @@ LOCAL_SRC_FILES := $(dexdump_src_files)
 LOCAL_C_INCLUDES := $(dexdump_c_includes)
 LOCAL_CFLAGS += -Wall
 LOCAL_SHARED_LIBRARIES += $(dexdump_libraries)
-LOCAL_MODULE := dexdump
+LOCAL_MODULE := dexdump2
 LOCAL_MODULE_TAGS := optional
 include $(BUILD_HOST_EXECUTABLE)
