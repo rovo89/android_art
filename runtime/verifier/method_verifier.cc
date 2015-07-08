@@ -4061,7 +4061,9 @@ void MethodVerifier::VerifyISFieldAccess(const Instruction* inst, const RegType&
                     << " to be compatible with type '" << insn_type
                     << "' but found type '" << *field_type
                     << "' in get-object";
-        work_line_->SetRegisterType(this, vregA, reg_types_.Conflict());
+        if (error != VERIFY_ERROR_BAD_CLASS_HARD) {
+          work_line_->SetRegisterType(this, vregA, reg_types_.Conflict());
+        }
         return;
       }
     }
