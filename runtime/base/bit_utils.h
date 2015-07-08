@@ -137,7 +137,7 @@ static inline T* AlignUp(T* x, uintptr_t n) {
 }
 
 template<int n, typename T>
-static inline bool IsAligned(T x) {
+static constexpr bool IsAligned(T x) {
   static_assert((n & (n - 1)) == 0, "n is not a power of two");
   return (x & (n - 1)) == 0;
 }
