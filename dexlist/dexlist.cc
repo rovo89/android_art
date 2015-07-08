@@ -51,11 +51,8 @@ static FILE* gOutFile = stdout;
  * Data types that match the definitions in the VM specification.
  */
 typedef uint8_t  u1;
-typedef uint16_t u2;
 typedef uint32_t u4;
 typedef uint64_t u8;
-typedef int32_t  s4;
-typedef int64_t  s8;
 
 /*
  * Returns a newly-allocated string for the "dot version" of the class
@@ -246,7 +243,7 @@ int dexlistDriver(int argc, char** argv) {
         gOptions.outputFileName = optarg;
         break;
       case 'm':
-        // If -m X.Y.Z is given, then find all instances of the
+        // If -m p.c.m is given, then find all instances of the
         // fully-qualified method name. This isn't really what
         // dexlist is for, but it's easy to do it here.
         {
