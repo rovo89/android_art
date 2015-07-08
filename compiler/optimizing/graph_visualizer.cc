@@ -357,6 +357,10 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
     StartAttributeStream("kind") << barrier->GetBarrierKind();
   }
 
+  void VisitMonitorOperation(HMonitorOperation* monitor) OVERRIDE {
+    StartAttributeStream("kind") << (monitor->IsEnter() ? "enter" : "exit");
+  }
+
   void VisitLoadClass(HLoadClass* load_class) OVERRIDE {
     StartAttributeStream("gen_clinit_check") << std::boolalpha
         << load_class->MustGenerateClinitCheck() << std::noboolalpha;
