@@ -99,19 +99,6 @@ static void UpdateEntrypoints(ArtMethod* method, const void* quick_code)
     }
   }
   method->SetEntryPointFromQuickCompiledCode(quick_code);
-  if (!method->IsResolutionMethod()) {
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    if (class_linker->IsQuickToInterpreterBridge(quick_code) ||
-        (class_linker->IsQuickResolutionStub(quick_code) &&
-         Runtime::Current()->GetInstrumentation()->IsForcedInterpretOnly() &&
-         !method->IsNative() && !method->IsProxyMethod())) {
-      DCHECK(!method->IsNative()) << PrettyMethod(method);
-      DCHECK(!method->IsProxyMethod()) << PrettyMethod(method);
-      method->SetEntryPointFromInterpreter(art::artInterpreterToInterpreterBridge);
-    } else {
-      method->SetEntryPointFromInterpreter(art::artInterpreterToCompiledCodeBridge);
-    }
-  }
 }
 
 void Instrumentation::InstallStubsForMethod(ArtMethod* method) {

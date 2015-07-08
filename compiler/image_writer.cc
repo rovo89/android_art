@@ -989,6 +989,8 @@ void ImageWriter::CreateHeader(size_t oat_loaded_size, size_t oat_data_offset) {
   CHECK_EQ(image_objects_offset_begin_ + bin_slot_previous_sizes_[kBinArtMethodClean],
            methods_section->Offset());
   cur_pos = methods_section->End();
+  // Round up to the alignment the string table expects. See HashSet::WriteToMemory.
+  cur_pos = RoundUp(cur_pos, sizeof(uint64_t));
   // Calculate the size of the interned strings.
   auto* interned_strings_section = &sections[ImageHeader::kSectionInternedStrings];
   *interned_strings_section = ImageSection(cur_pos, intern_table_bytes_);
@@ -1417,9 +1419,6 @@ void ImageWriter::CopyAndFixupMethod(ArtMethod* orig, ArtMethod* copy) {
     if (UNLIKELY(orig->IsAbstract())) {
       copy->SetEntryPointFromQuickCompiledCodePtrSize(
           GetOatAddress(quick_to_interpreter_bridge_offset_), target_ptr_size_);
-      copy->SetEntryPointFromInterpreterPtrSize(
-          reinterpret_cast<EntryPointFromInterpreter*>(const_cast<uint8_t*>(
-                  GetOatAddress(interpreter_to_interpreter_bridge_offset_))), target_ptr_size_);
     } else {
       bool quick_is_interpreted;
       const uint8_t* quick_code = GetQuickCode(orig, &quick_is_interpreted);
@@ -1432,16 +1431,6 @@ void ImageWriter::CopyAndFixupMethod(ArtMethod* orig, ArtMethod* copy) {
         copy->SetEntryPointFromJniPtrSize(
             GetOatAddress(jni_dlsym_lookup_offset_), target_ptr_size_);
       }
-
-      // Interpreter entrypoint:
-      // Set the interpreter entrypoint depending on whether there is compiled code or not.
-      uint32_t interpreter_code = (quick_is_interpreted)
-          ? interpreter_to_interpreter_bridge_offset_
-          : interpreter_to_compiled_code_bridge_offset_;
-      EntryPointFromInterpreter* interpreter_entrypoint =
-          reinterpret_cast<EntryPointFromInterpreter*>(
-              const_cast<uint8_t*>(GetOatAddress(interpreter_code)));
-      copy->SetEntryPointFromInterpreterPtrSize(interpreter_entrypoint, target_ptr_size_);
     }
   }
 }
