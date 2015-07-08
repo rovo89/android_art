@@ -43,9 +43,6 @@ class Class;
 class PointerArray;
 }  // namespace mirror
 
-typedef void (EntryPointFromInterpreter)(Thread* self, const DexFile::CodeItem* code_item,
-                                         ShadowFrame* shadow_frame, JValue* result);
-
 class ArtMethod FINAL {
  public:
   ArtMethod() : access_flags_(0), dex_code_item_offset_(0), dex_method_index_(0),
@@ -272,23 +269,6 @@ class ArtMethod FINAL {
   void Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result, const char* shorty)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  EntryPointFromInterpreter* GetEntryPointFromInterpreter() {
-    return GetEntryPointFromInterpreterPtrSize(sizeof(void*));
-  }
-  EntryPointFromInterpreter* GetEntryPointFromInterpreterPtrSize(size_t pointer_size) {
-    return GetEntryPoint<EntryPointFromInterpreter*>(
-        EntryPointFromInterpreterOffset(pointer_size), pointer_size);
-  }
-
-  void SetEntryPointFromInterpreter(EntryPointFromInterpreter* entry_point_from_interpreter) {
-    SetEntryPointFromInterpreterPtrSize(entry_point_from_interpreter, sizeof(void*));
-  }
-  void SetEntryPointFromInterpreterPtrSize(EntryPointFromInterpreter* entry_point_from_interpreter,
-                                           size_t pointer_size) {
-    SetEntryPoint(EntryPointFromInterpreterOffset(pointer_size), entry_point_from_interpreter,
-                  pointer_size);
-  }
-
   const void* GetEntryPointFromQuickCompiledCode() {
     return GetEntryPointFromQuickCompiledCodePtrSize(sizeof(void*));
   }
@@ -397,11 +377,6 @@ class ArtMethod FINAL {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void UnregisterNative() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  static MemberOffset EntryPointFromInterpreterOffset(size_t pointer_size) {
-    return MemberOffset(PtrSizedFieldsOffset(pointer_size) + OFFSETOF_MEMBER(
-        PtrSizedFields, entry_point_from_interpreter_) / sizeof(void*) * pointer_size);
-  }
 
   static MemberOffset EntryPointFromJniOffset(size_t pointer_size) {
     return MemberOffset(PtrSizedFieldsOffset(pointer_size) + OFFSETOF_MEMBER(
@@ -573,10 +548,6 @@ class ArtMethod FINAL {
   // PACKED(4) is necessary for the correctness of
   // RoundUp(OFFSETOF_MEMBER(ArtMethod, ptr_sized_fields_), pointer_size).
   struct PACKED(4) PtrSizedFields {
-    // Method dispatch from the interpreter invokes this pointer which may cause a bridge into
-    // compiled code.
-    void* entry_point_from_interpreter_;
-
     // Pointer to JNI function registered to this method, or a function to resolve the JNI function.
     void* entry_point_from_jni_;
 
