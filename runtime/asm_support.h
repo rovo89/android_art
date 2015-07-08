@@ -189,11 +189,11 @@ ADD_TEST_EQ(ART_METHOD_DEX_CACHE_METHODS_OFFSET,
 ADD_TEST_EQ(ART_METHOD_DEX_CACHE_TYPES_OFFSET,
             art::ArtMethod::DexCacheResolvedTypesOffset().Int32Value())
 
-#define ART_METHOD_QUICK_CODE_OFFSET_32 36
+#define ART_METHOD_QUICK_CODE_OFFSET_32 32
 ADD_TEST_EQ(ART_METHOD_QUICK_CODE_OFFSET_32,
             art::ArtMethod::EntryPointFromQuickCompiledCodeOffset(4).Int32Value())
 
-#define ART_METHOD_QUICK_CODE_OFFSET_64 48
+#define ART_METHOD_QUICK_CODE_OFFSET_64 40
 ADD_TEST_EQ(ART_METHOD_QUICK_CODE_OFFSET_64,
             art::ArtMethod::EntryPointFromQuickCompiledCodeOffset(8).Int32Value())
 

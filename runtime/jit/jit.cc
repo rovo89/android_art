@@ -132,11 +132,7 @@ bool Jit::CompileMethod(ArtMethod* method, Thread* self) {
     VLOG(jit) << "JIT not compiling " << PrettyMethod(method) << " due to breakpoint";
     return false;
   }
-  const bool result = jit_compile_method_(jit_compiler_handle_, method, self);
-  if (result) {
-    method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
-  }
-  return result;
+  return jit_compile_method_(jit_compiler_handle_, method, self);
 }
 
 void Jit::CreateThreadPool() {
