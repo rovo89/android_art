@@ -940,6 +940,9 @@ HConstant* HBinaryOperation::TryStaticEvaluation() const {
                              GetRight()->AsLongConstant()->GetValue());
     if (GetResultType() == Primitive::kPrimLong) {
       return GetBlock()->GetGraph()->GetLongConstant(value);
+    } else if (GetResultType() == Primitive::kPrimBoolean) {
+      // This can be the result of an HCondition evaluation.
+      return GetBlock()->GetGraph()->GetIntConstant(static_cast<int32_t>(value));
     } else {
       DCHECK_EQ(GetResultType(), Primitive::kPrimInt);
       return GetBlock()->GetGraph()->GetIntConstant(static_cast<int32_t>(value));
@@ -1645,6 +1648,40 @@ std::ostream& operator<<(std::ostream& os, const ReferenceTypeInfo& rhs) {
      << " is_exact=" << rhs.IsExact()
      << " ]";
   return os;
+}
+
+bool HInstruction::HasAnyEnvironmentUseBefore(HInstruction* other) {
+  // For now, assume that instructions in different blocks may use the
+  // environment.
+  // TODO: Use the control flow to decide if this is true.
+  if (GetBlock() != other->GetBlock()) {
+    return true;
+  }
+
+  // We know that we are in the same block. Walk from 'this' to 'other',
+  // checking to see if there is any instruction with an environment.
+  HInstruction* current = this;
+  for (; current != other && current != nullptr; current = current->GetNext()) {
+    // This is a conservative check, as the instruction result may not be in
+    // the referenced environment.
+    if (current->HasEnvironment()) {
+      return true;
+    }
+  }
+
+  // We should have been called with 'this' before 'other' in the block.
+  // Just confirm this.
+  DCHECK(current != nullptr);
+  return false;
+}
+
+void HInstruction::RemoveEnvironmentUsers() {
+  for (HUseIterator<HEnvironment*> use_it(GetEnvUses()); !use_it.Done(); use_it.Advance()) {
+    HUseListNode<HEnvironment*>* user_node = use_it.Current();
+    HEnvironment* user = user_node->GetUser();
+    user->SetRawEnvAt(user_node->GetIndex(), nullptr);
+  }
+  env_uses_.Clear();
 }
 
 }  // namespace art

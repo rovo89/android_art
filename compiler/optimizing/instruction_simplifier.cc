@@ -54,6 +54,11 @@ class InstructionSimplifierVisitor : public HGraphVisitor {
   void VisitCheckCast(HCheckCast* instruction) OVERRIDE;
   void VisitAdd(HAdd* instruction) OVERRIDE;
   void VisitAnd(HAnd* instruction) OVERRIDE;
+  void VisitCondition(HCondition* instruction) OVERRIDE;
+  void VisitGreaterThan(HGreaterThan* condition) OVERRIDE;
+  void VisitGreaterThanOrEqual(HGreaterThanOrEqual* condition) OVERRIDE;
+  void VisitLessThan(HLessThan* condition) OVERRIDE;
+  void VisitLessThanOrEqual(HLessThanOrEqual* condition) OVERRIDE;
   void VisitDiv(HDiv* instruction) OVERRIDE;
   void VisitMul(HMul* instruction) OVERRIDE;
   void VisitNeg(HNeg* instruction) OVERRIDE;
@@ -330,7 +335,11 @@ void InstructionSimplifierVisitor::VisitEqual(HEqual* equal) {
         block->RemoveInstruction(equal);
         RecordSimplification();
       }
+    } else {
+      VisitCondition(equal);
     }
+  } else {
+    VisitCondition(equal);
   }
 }
 
@@ -358,7 +367,11 @@ void InstructionSimplifierVisitor::VisitNotEqual(HNotEqual* not_equal) {
         block->RemoveInstruction(not_equal);
         RecordSimplification();
       }
+    } else {
+      VisitCondition(not_equal);
     }
+  } else {
+    VisitCondition(not_equal);
   }
 }
 
@@ -483,6 +496,76 @@ void InstructionSimplifierVisitor::VisitAnd(HAnd* instruction) {
     instruction->ReplaceWith(instruction->GetLeft());
     instruction->GetBlock()->RemoveInstruction(instruction);
   }
+}
+
+void InstructionSimplifierVisitor::VisitGreaterThan(HGreaterThan* condition) {
+  VisitCondition(condition);
+}
+
+void InstructionSimplifierVisitor::VisitGreaterThanOrEqual(HGreaterThanOrEqual* condition) {
+  VisitCondition(condition);
+}
+
+void InstructionSimplifierVisitor::VisitLessThan(HLessThan* condition) {
+  VisitCondition(condition);
+}
+
+void InstructionSimplifierVisitor::VisitLessThanOrEqual(HLessThanOrEqual* condition) {
+  VisitCondition(condition);
+}
+
+void InstructionSimplifierVisitor::VisitCondition(HCondition* condition) {
+  // Try to fold an HCompare into this HCondition.
+
+  // This simplification is currently only supported on x86 and x86_64.
+  // TODO: Implement it for ARM, ARM64 and MIPS64.
+  InstructionSet instruction_set = GetGraph()->GetInstructionSet();
+  if (instruction_set != kX86 && instruction_set != kX86_64) {
+    return;
+  }
+
+  HInstruction* left = condition->GetLeft();
+  HInstruction* right = condition->GetRight();
+  // We can only replace an HCondition which compares a Compare to 0.
+  // Both 'dx' and 'jack' generate a compare to 0 when compiling a
+  // condition with a long, float or double comparison as input.
+  if (!left->IsCompare() || !right->IsConstant() || right->AsIntConstant()->GetValue() != 0) {
+    // Conversion is not possible.
+    return;
+  }
+
+  // Is the Compare only used for this purpose?
+  if (!left->GetUses().HasOnlyOneUse()) {
+    // Someone else also wants the result of the compare.
+    return;
+  }
+
+  if (!left->GetEnvUses().IsEmpty()) {
+    // There is a reference to the compare result in an environment. Do we really need it?
+    if (GetGraph()->IsDebuggable()) {
+      return;
+    }
+
+    // We have to ensure that there are no deopt points in the sequence.
+    if (left->HasAnyEnvironmentUseBefore(condition)) {
+      return;
+    }
+  }
+
+  // Clean up any environment uses from the HCompare, if any.
+  left->RemoveEnvironmentUsers();
+
+  // We have decided to fold the HCompare into the HCondition. Transfer the information.
+  condition->SetBias(left->AsCompare()->GetBias());
+
+  // Replace the operands of the HCondition.
+  condition->ReplaceInput(left->InputAt(0), 0);
+  condition->ReplaceInput(left->InputAt(1), 1);
+
+  // Remove the HCompare.
+  left->GetBlock()->RemoveInstruction(left);
+
+  RecordSimplification();
 }
 
 void InstructionSimplifierVisitor::VisitDiv(HDiv* instruction) {

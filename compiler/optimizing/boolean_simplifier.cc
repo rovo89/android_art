@@ -119,6 +119,14 @@ void HBooleanSimplifier::TryRemovingBooleanSelection(HBasicBlock* block) {
   // Check if the selection negates/preserves the value of the condition and
   // if so, generate a suitable replacement instruction.
   HInstruction* if_condition = if_instruction->InputAt(0);
+
+  // Don't change FP compares.  The definition of compares involving NaNs forces
+  // the compares to be done as written by the user.
+  if (if_condition->IsCondition() &&
+      Primitive::IsFloatingPointType(if_condition->InputAt(0)->GetType())) {
+    return;
+  }
+
   HInstruction* replacement;
   if (NegatesCondition(true_value, false_value)) {
     replacement = GetOppositeCondition(if_condition);

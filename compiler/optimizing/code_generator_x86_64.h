@@ -183,7 +183,7 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
   void GenerateSuspendCheck(HSuspendCheck* instruction, HBasicBlock* successor);
   void GenerateClassInitializationCheck(SlowPathCodeX86_64* slow_path, CpuRegister class_reg);
   void HandleBitwiseOperation(HBinaryOperation* operation);
-  void GenerateRemFP(HRem *rem);
+  void GenerateRemFP(HRem* rem);
   void DivRemOneOrMinusOne(HBinaryOperation* instruction);
   void DivByPowerOfTwo(HDiv* instruction);
   void GenerateDivRemWithAnyConstant(HBinaryOperation* instruction);
@@ -202,6 +202,12 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
                              Label* true_target,
                              Label* false_target,
                              Label* always_true_target);
+  void GenerateCompareTestAndBranch(HIf* if_inst,
+                                    HCondition* condition,
+                                    Label* true_target,
+                                    Label* false_target,
+                                    Label* always_true_target);
+  void GenerateFPJumps(HCondition* cond, Label* true_label, Label* false_label);
   void HandleGoto(HInstruction* got, HBasicBlock* successor);
 
   X86_64Assembler* const assembler_;
