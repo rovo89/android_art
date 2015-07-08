@@ -37,10 +37,14 @@ prog="${progdir}"/`basename "${prog}"`
 tmpdir=/tmp/test-$$
 mkdir ${tmpdir}
 
-# Set up binary and flags to test.
+# Set up dexdump binary and flags to test.
 DEXD="${ANDROID_HOST_OUT}/bin/dexdump2"
-FLAGS1="-dfh"
-FLAGS2="-l xml"
+DEXDFLAGS1="-dfh"
+DEXDFLAGS2="-l xml"
+
+# Set up dexlist binary and flags to test.
+DEXL="${ANDROID_HOST_OUT}/bin/dexlist2"
+DEXLFLAGS=""
 
 # Run the tests.
 passed=0
@@ -50,18 +54,28 @@ for i in *.dex; do
     basenm=`basename "${i}" .dex`
     txtfile=${basenm}.txt
     xmlfile=${basenm}.xml
-    genfile1=${tmpdir}/${txtfile}
-    genfile2=${tmpdir}/${xmlfile}
-    ${DEXD} ${FLAGS1} ${i} > ${genfile1}
-    cmp ${txtfile} ${genfile1}
+    lstfile=${basenm}.lst
+    gentxtfile=${tmpdir}/${txtfile}
+    genxmlfile=${tmpdir}/${xmlfile}
+    genlstfile=${tmpdir}/${lstfile}
+    ${DEXD} ${DEXDFLAGS1} ${i} > ${gentxtfile}
+    cmp ${txtfile} ${gentxtfile}
     if [ "$?" = "0" ]; then
         ((passed += 1))
     else
         ((failed += 1))
         echo failed: ${i}
     fi
-    ${DEXD} ${FLAGS2} ${i} > ${genfile2}
-    cmp ${xmlfile} ${genfile2}
+    ${DEXD} ${DEXDFLAGS2} ${i} > ${genxmlfile}
+    cmp ${xmlfile} ${genxmlfile}
+    if [ "$?" = "0" ]; then
+        ((passed += 1))
+    else
+        ((failed += 1))
+        echo failed: ${i}
+    fi
+    ${DEXL} ${DEXLFLAGS} ${i} > ${genlstfile}
+    cmp ${lstfile} ${genlstfile}
     if [ "$?" = "0" ]; then
         ((passed += 1))
     else
@@ -77,7 +91,7 @@ echo "failed: ${failed} test(s)"
 echo
 
 # Clean up, cd back to original dir.
-#rm -rf ${tmpdir}
+rm -rf ${tmpdir}
 cd ${oldwd}
 
 # Return status.
