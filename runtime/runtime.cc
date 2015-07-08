@@ -1510,7 +1510,6 @@ void Runtime::EnsureNewSystemWeaksDisallowed() {
   monitor_list_->EnsureNewMonitorsDisallowed();
   intern_table_->EnsureNewInternsDisallowed();
   java_vm_->EnsureNewWeakGlobalsDisallowed();
-  heap_->EnsureNewAllocationRecordsDisallowed();
 }
 
 void Runtime::SetInstructionSet(InstructionSet instruction_set) {
