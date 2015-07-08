@@ -713,20 +713,20 @@
 ## CHECK-START: int Builder.testSwitchTryExit(int, int, int, int) builder (after)
 
 ## CHECK:  name             "B0"
-## CHECK:  successors       "<<BEnterTry1:B\d+>>"
+## CHECK:  successors       "<<BEnterTry:B\d+>>"
 
 ## CHECK:  name             "<<BPSwitch0:B\d+>>"
-## CHECK:  predecessors     "<<BEnterTry1>>"
-## CHECK:  successors       "<<BTry2:B\d+>>" "<<BExitTry1:B\d+>>"
+## CHECK:  predecessors     "<<BEnterTry>>"
+## CHECK:  successors       "<<BTry2:B\d+>>" "<<BPSwitch1:B\d+>>"
 ## CHECK:  If
 
-## CHECK:  name             "<<BPSwitch1:B\d+>>"
-## CHECK:  predecessors     "<<BExitTry1>>"
-## CHECK:  successors       "<<BOutside:B\d+>>" "<<BEnterTry2:B\d+>>"
+## CHECK:  name             "<<BPSwitch1>>"
+## CHECK:  predecessors     "<<BPSwitch0>>"
+## CHECK:  successors       "<<BExitTry1:B\d+>>" "<<BTry1:B\d+>>"
 ## CHECK:  If
 
-## CHECK:  name             "<<BTry1:B\d+>>"
-## CHECK:  predecessors     "<<BEnterTry2>>"
+## CHECK:  name             "<<BTry1>>"
+## CHECK:  predecessors     "<<BPSwitch1>>"
 ## CHECK:  successors       "<<BTry2>>"
 ## CHECK:  Div
 
@@ -735,33 +735,27 @@
 ## CHECK:  successors       "<<BExitTry2:B\d+>>"
 ## CHECK:  Div
 
-## CHECK:  name             "<<BOutside>>"
-## CHECK:  predecessors     "<<BPSwitch1>>" "<<BExitTry2>>"
+## CHECK:  name             "<<BOutside:B\d+>>"
+## CHECK:  predecessors     "<<BExitTry1>>" "<<BExitTry2>>"
 ## CHECK:  successors       "<<BCatchReturn:B\d+>>"
 ## CHECK:  Div
 
 ## CHECK:  name             "<<BCatchReturn>>"
-## CHECK:  predecessors     "<<BOutside>>" "<<BEnterTry1>>" "<<BExitTry1>>" "<<BEnterTry2>>" "<<BExitTry2>>"
+## CHECK:  predecessors     "<<BOutside>>" "<<BEnterTry>>" "<<BExitTry1>>" "<<BExitTry2>>"
 ## CHECK:  flags            "catch_block"
 ## CHECK:  Return
 
-## CHECK:  name             "<<BEnterTry1>>"
+## CHECK:  name             "<<BEnterTry>>"
 ## CHECK:  predecessors     "B0"
 ## CHECK:  successors       "<<BPSwitch0>>"
 ## CHECK:  xhandlers        "<<BCatchReturn>>"
 ## CHECK:  TryBoundary      kind:entry
 
 ## CHECK:  name             "<<BExitTry1>>"
-## CHECK:  predecessors     "<<BPSwitch0>>"
-## CHECK:  successors       "<<BPSwitch1>>"
+## CHECK:  predecessors     "<<BPSwitch1>>"
+## CHECK:  successors       "<<BOutside>>"
 ## CHECK:  xhandlers        "<<BCatchReturn>>"
 ## CHECK:  TryBoundary      kind:exit
-
-## CHECK:  name             "<<BEnterTry2>>"
-## CHECK:  predecessors     "<<BPSwitch1>>"
-## CHECK:  successors       "<<BTry1>>"
-## CHECK:  xhandlers        "<<BCatchReturn>>"
-## CHECK:  TryBoundary      kind:entry
 
 ## CHECK:  name             "<<BExitTry2>>"
 ## CHECK:  predecessors     "<<BTry2>>"
@@ -773,7 +767,6 @@
     .registers 4
 
     :try_start
-    div-int/2addr p0, p1
     packed-switch p0, :pswitch_data
 
     div-int/2addr p0, p1
@@ -816,10 +809,6 @@
 ## CHECK:  flags            "catch_block"
 ## CHECK:  StoreLocal       [v0,<<Minus1>>]
 
-## CHECK:  name             "<<BExit>>"
-## CHECK:  predecessors     "<<BExitTry>>" "<<BCatch>>"
-## CHECK:  Exit
-
 ## CHECK:  name             "<<BEnterTry>>"
 ## CHECK:  predecessors     "B0"
 ## CHECK:  successors       "<<BTry>>"
@@ -831,6 +820,10 @@
 ## CHECK:  successors       "<<BExit>>"
 ## CHECK:  xhandlers        "<<BCatch>>"
 ## CHECK:  TryBoundary      kind:exit
+
+## CHECK:  name             "<<BExit>>"
+## CHECK:  predecessors     "<<BExitTry>>" "<<BCatch>>"
+## CHECK:  Exit
 
 .method public static testThrow(Ljava/lang/Exception;)I
     .registers 2
@@ -859,9 +852,6 @@
 
 ## CHECK:  name             "<<BReturn:B\d+>>"
 ## CHECK:  predecessors     "<<BExitTry>>"
-## CHECK:  successors       "<<BExit:B\d+>>"
-
-## CHECK:  name             "<<BExit>>"
 
 ## CHECK:  name             "<<BTry:B\d+>>"
 ## CHECK:  predecessors     "<<BEnterTry>>"
@@ -966,51 +956,48 @@
 ## CHECK:  successors       "<<BCatch1:B\d+>>"
 
 ## CHECK:  name             "<<BCatch1>>"
-## CHECK:  predecessors     "B0" "<<BEnterTry2:B\d+>>" "<<BExitTry2:B\d+>>"
-## CHECK:  successors       "<<BEnterTry1:B\d+>>"
+## CHECK:  predecessors     "B0" "<<BEnter2:B\d+>>" "<<BExit2:B\d+>>"
+## CHECK:  successors       "<<BEnter1:B\d+>>"
 ## CHECK:  flags            "catch_block"
 
 ## CHECK:  name             "<<BCatch2:B\d+>>"
-## CHECK:  predecessors     "<<BExitTry1:B\d+>>" "<<BEnterTry1>>" "<<BExitTry1>>"
-## CHECK:  successors       "<<BEnterTry2>>"
+## CHECK:  predecessors     "<<BExit1:B\d+>>" "<<BEnter1>>" "<<BExit1>>"
+## CHECK:  successors       "<<BEnter2>>"
 ## CHECK:  flags            "catch_block"
 
 ## CHECK:  name             "<<BReturn:B\d+>>"
-## CHECK:  predecessors     "<<BExitTry2>>"
-## CHECK:  successors       "<<BExit:B\d+>>"
+## CHECK:  predecessors     "<<BExit2>>"
 ## CHECK:  Return
 
-## CHECK:  name             "<<BExit>>"
-
 ## CHECK:  name             "<<BTry1:B\d+>>"
-## CHECK:  predecessors     "<<BEnterTry1>>"
-## CHECK:  successors       "<<BExitTry1>>"
+## CHECK:  predecessors     "<<BEnter1>>"
+## CHECK:  successors       "<<BExit1>>"
 ## CHECK:  Div
 
-## CHECK:  name             "<<BEnterTry1>>"
+## CHECK:  name             "<<BEnter1>>"
 ## CHECK:  predecessors     "<<BCatch1>>"
 ## CHECK:  successors       "<<BTry1>>"
 ## CHECK:  xhandlers        "<<BCatch2>>"
 ## CHECK:  TryBoundary      kind:entry
 
-## CHECK:  name             "<<BExitTry1>>"
+## CHECK:  name             "<<BExit1>>"
 ## CHECK:  predecessors     "<<BTry1>>"
 ## CHECK:  successors       "<<BCatch2>>"
 ## CHECK:  xhandlers        "<<BCatch2>>"
 ## CHECK:  TryBoundary      kind:exit
 
 ## CHECK:  name             "<<BTry2:B\d+>>"
-## CHECK:  predecessors     "<<BEnterTry2>>"
-## CHECK:  successors       "<<BExitTry2>>"
+## CHECK:  predecessors     "<<BEnter2>>"
+## CHECK:  successors       "<<BExit2>>"
 ## CHECK:  Div
 
-## CHECK:  name             "<<BEnterTry2>>"
+## CHECK:  name             "<<BEnter2>>"
 ## CHECK:  predecessors     "<<BCatch2>>"
 ## CHECK:  successors       "<<BTry2>>"
 ## CHECK:  xhandlers        "<<BCatch1>>"
 ## CHECK:  TryBoundary      kind:entry
 
-## CHECK:  name             "<<BExitTry2>>"
+## CHECK:  name             "<<BExit2>>"
 ## CHECK:  predecessors     "<<BTry2>>"
 ## CHECK:  successors       "<<BReturn>>"
 ## CHECK:  xhandlers        "<<BCatch1>>"
@@ -1143,30 +1130,4 @@
     nop
     :try_end
     .catchall {:try_start .. :try_end} :catch_all
-.end method
-
-## CHECK-START: int Builder.testSynchronized(java.lang.Object) builder (after)
-## CHECK:      flags "catch_block"
-## CHECK-NOT:  end_block
-## CHECK:      MonitorOperation kind:exit
-
-.method public static testSynchronized(Ljava/lang/Object;)I
-  .registers 2
-
-  monitor-enter p0
-
-  :try_start_9
-  invoke-virtual {p0}, Ljava/lang/Object;->hashCode()I
-  move-result v0
-
-  monitor-exit p0
-  return v0
-
-  :catchall_11
-  move-exception v0
-  monitor-exit p0
-  :try_end_15
-  .catchall {:try_start_9 .. :try_end_15} :catchall_11
-
-  throw v0
 .end method
