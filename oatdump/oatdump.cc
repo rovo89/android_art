@@ -1618,7 +1618,8 @@ class ImageDumper {
     stats_.alignment_bytes += bitmap_section.Offset() - image_header_.GetImageSize();
     stats_.bitmap_bytes += bitmap_section.Size();
     stats_.art_field_bytes += field_section.Size();
-    stats_.art_method_bytes += method_section.Size();
+    // RoundUp to 8 bytes to match the intern table alignment expectation.
+    stats_.art_method_bytes += RoundUp(method_section.Size(), sizeof(uint64_t));
     stats_.interned_strings_bytes += intern_section.Size();
     stats_.Dump(os);
     os << "\n";
