@@ -651,8 +651,6 @@ void PatchOat::FixupMethod(ArtMethod* object, ArtMethod* copy) {
   copy->SetDexCacheResolvedTypes(RelocatedAddressOfPointer(object->GetDexCacheResolvedTypes()));
   copy->SetEntryPointFromQuickCompiledCodePtrSize(RelocatedAddressOfPointer(
       object->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size)), pointer_size);
-  copy->SetEntryPointFromInterpreterPtrSize(RelocatedAddressOfPointer(
-      object->GetEntryPointFromInterpreterPtrSize(pointer_size)), pointer_size);
   copy->SetEntryPointFromJniPtrSize(RelocatedAddressOfPointer(
       object->GetEntryPointFromJniPtrSize(pointer_size)), pointer_size);
 }
