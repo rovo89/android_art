@@ -139,7 +139,7 @@ class HGraphBuilder : public ValueObject {
 
   void Binop_23x_cmp(const Instruction& instruction,
                      Primitive::Type type,
-                     HCompare::Bias bias,
+                     ComparisonBias bias,
                      uint32_t dex_pc);
 
   template<typename T>
