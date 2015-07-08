@@ -4131,13 +4131,19 @@ class HMonitorOperation : public HTemplateInstruction<1> {
   };
 
   HMonitorOperation(HInstruction* object, OperationKind kind, uint32_t dex_pc)
-    : HTemplateInstruction(SideEffects::None()), kind_(kind), dex_pc_(dex_pc) {
+    : HTemplateInstruction(SideEffects::ChangesSomething()), kind_(kind), dex_pc_(dex_pc) {
     SetRawInputAt(0, object);
   }
 
   // Instruction may throw a Java exception, so we need an environment.
-  bool NeedsEnvironment() const OVERRIDE { return true; }
-  bool CanThrow() const OVERRIDE { return true; }
+  bool NeedsEnvironment() const OVERRIDE { return CanThrow(); }
+
+  bool CanThrow() const OVERRIDE {
+    // Verifier guarantees that monitor-exit cannot throw.
+    // This is important because it allows the HGraphBuilder to remove
+    // a dead throw-catch loop generated for `synchronized` blocks/methods.
+    return IsEnter();
+  }
 
   uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
 
