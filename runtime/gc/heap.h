@@ -26,22 +26,17 @@
 #include "arch/instruction_set.h"
 #include "atomic.h"
 #include "base/time_utils.h"
-#include "base/timing_logger.h"
 #include "gc/accounting/atomic_stack.h"
 #include "gc/accounting/card_table.h"
 #include "gc/accounting/read_barrier_table.h"
 #include "gc/gc_cause.h"
-#include "gc/collector/garbage_collector.h"
 #include "gc/collector/gc_type.h"
 #include "gc/collector_type.h"
 #include "gc/space/large_object_space.h"
 #include "globals.h"
-#include "jni.h"
 #include "object_callbacks.h"
 #include "offsets.h"
-#include "reference_processor.h"
 #include "safe_map.h"
-#include "thread_pool.h"
 #include "verify_object.h"
 
 namespace art {
@@ -50,6 +45,7 @@ class ConditionVariable;
 class Mutex;
 class StackVisitor;
 class Thread;
+class ThreadPool;
 class TimingLogger;
 
 namespace mirror {
@@ -631,7 +627,7 @@ class Heap {
   bool HasImageSpace() const;
 
   ReferenceProcessor* GetReferenceProcessor() {
-    return &reference_processor_;
+    return reference_processor_.get();
   }
   TaskProcessor* GetTaskProcessor() {
     return task_processor_.get();
@@ -1015,7 +1011,7 @@ class Heap {
   std::unique_ptr<ConditionVariable> gc_complete_cond_ GUARDED_BY(gc_complete_lock_);
 
   // Reference processor;
-  ReferenceProcessor reference_processor_;
+  std::unique_ptr<ReferenceProcessor> reference_processor_;
 
   // Task processor, proxies heap trim requests to the daemon threads.
   std::unique_ptr<TaskProcessor> task_processor_;
