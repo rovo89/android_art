@@ -53,18 +53,19 @@ public class Main implements Runnable {
         }
 
         // Allocate objects to definitely run GC before quitting.
-        ArrayList<Object> l = new ArrayList<Object>();
-        try {
-            for (int i = 0; i < 100000; i++) {
-                l.add(new ArrayList<Object>(i));
-            }
-        } catch (OutOfMemoryError oom) {
-        }
-        // Make the (outer) ArrayList unreachable. Note it may still
-        // be reachable under an interpreter or a compiler without a
-        // liveness analysis.
-        l = null;
+        allocateObjectsToRunGc();
+
         new ArrayList<Object>(50);
+    }
+
+    private static void allocateObjectsToRunGc() {
+      ArrayList<Object> l = new ArrayList<Object>();
+      try {
+          for (int i = 0; i < 100000; i++) {
+              l.add(new ArrayList<Object>(i));
+          }
+      } catch (OutOfMemoryError oom) {
+      }
     }
 
     private Main(CyclicBarrier startBarrier) {
