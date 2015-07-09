@@ -22,6 +22,7 @@
 INTERACTIVE="no"
 if [ "x$1" = "x--interactive" ] ; then
   INTERACTIVE="yes"
+  shift
 fi
 
 # Pull the file from the device and symbolize it.
@@ -57,4 +58,15 @@ function all() {
   done
 }
 
-all
+if [ "x$1" = "x" ] ; then
+  # No further arguments, iterate over all oat files on device.
+  all
+else
+  # Take the parameters as a list of paths on device.
+  while (($#)); do
+    DIR=$(dirname $1)
+    NAME=$(basename $1)
+    one $DIR $NAME
+    shift
+  done
+fi
