@@ -914,6 +914,14 @@
 ## CHECK:  name             "<<BReturn:B\d+>>"
 ## CHECK:  predecessors     "<<BExitTry2>>"
 
+## CHECK:  name             "{{B\d+}}"
+## CHECK:  Exit
+
+## CHECK:  name             "<<BTry2:B\d+>>"
+## CHECK:  predecessors     "<<BEnterTry2>>"
+## CHECK:  successors       "<<BExitTry2>>"
+## CHECK:  Div
+
 ## CHECK:  name             "<<BEnterTry1>>"
 ## CHECK:  predecessors     "B0"
 ## CHECK:  successors       "<<BTry1>>"
@@ -925,11 +933,6 @@
 ## CHECK:  successors       "<<BCatch>>"
 ## CHECK:  xhandlers        "<<BCatch>>"
 ## CHECK:  TryBoundary      kind:exit
-
-## CHECK:  name             "<<BTry2:B\d+>>"
-## CHECK:  predecessors     "<<BEnterTry2>>"
-## CHECK:  successors       "<<BExitTry2>>"
-## CHECK:  Div
 
 ## CHECK:  name             "<<BEnterTry2>>"
 ## CHECK:  predecessors     "<<BCatch>>"
@@ -987,6 +990,11 @@
 ## CHECK:  successors       "<<BExitTry1>>"
 ## CHECK:  Div
 
+## CHECK:  name             "<<BTry2:B\d+>>"
+## CHECK:  predecessors     "<<BEnterTry2>>"
+## CHECK:  successors       "<<BExitTry2>>"
+## CHECK:  Div
+
 ## CHECK:  name             "<<BEnterTry1>>"
 ## CHECK:  predecessors     "<<BCatch1>>"
 ## CHECK:  successors       "<<BTry1>>"
@@ -998,11 +1006,6 @@
 ## CHECK:  successors       "<<BCatch2>>"
 ## CHECK:  xhandlers        "<<BCatch2>>"
 ## CHECK:  TryBoundary      kind:exit
-
-## CHECK:  name             "<<BTry2:B\d+>>"
-## CHECK:  predecessors     "<<BEnterTry2>>"
-## CHECK:  successors       "<<BExitTry2>>"
-## CHECK:  Div
 
 ## CHECK:  name             "<<BEnterTry2>>"
 ## CHECK:  predecessors     "<<BCatch2>>"
