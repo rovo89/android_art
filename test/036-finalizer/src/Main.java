@@ -68,14 +68,17 @@ public class Main {
         return s[0];
     }
 
+    private static void printWeakReference(WeakReference<FinalizerTest> wimp) {
+        // Reference ft so we are sure the WeakReference cannot be cleared.
+        FinalizerTest keepLive = wimp.get();
+        System.out.println("wimp: " + wimpString(wimp));
+    }
+
     public static void main(String[] args) {
         WeakReference<FinalizerTest> wimp = makeRef();
-        FinalizerTest keepLive = wimp.get();
-
-        System.out.println("wimp: " + wimpString(wimp));
+        printWeakReference(wimp);
 
         /* this will try to collect and finalize ft */
-        keepLive = null;
         System.out.println("gc");
         Runtime.getRuntime().gc();
 
