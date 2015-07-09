@@ -38,10 +38,9 @@ inline bool RegisterLine::SetRegisterType(MethodVerifier* verifier, uint32_t vds
     verifier->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Expected category1 register type not '"
         << new_type << "'";
     return false;
-  } else if (new_type.IsConflict()) {  // should only be set during a merge
-    verifier->Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "Set register to unknown type " << new_type;
-    return false;
   } else {
+    // Note: previously we failed when asked to set a conflict. However, conflicts are OK as long
+    //       as they are not accessed, and our backends can handle this nowadays.
     line_[vdst] = new_type.GetId();
   }
   // Clear the monitor entry bits for this register.
@@ -93,8 +92,9 @@ inline void RegisterLine::CopyRegister1(MethodVerifier* verifier, uint32_t vdst,
   if (!SetRegisterType(verifier, vdst, type)) {
     return;
   }
-  if ((cat == kTypeCategory1nr && !type.IsCategory1Types()) ||
-      (cat == kTypeCategoryRef && !type.IsReferenceTypes())) {
+  if (!type.IsConflict() &&                                  // Allow conflicts to be copied around.
+      ((cat == kTypeCategory1nr && !type.IsCategory1Types()) ||
+       (cat == kTypeCategoryRef && !type.IsReferenceTypes()))) {
     verifier->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "copy1 v" << vdst << "<-v" << vsrc << " type=" << type
                                                  << " cat=" << static_cast<int>(cat);
   } else if (cat == kTypeCategoryRef) {
