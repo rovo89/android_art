@@ -97,6 +97,10 @@ public class Main {
                 null, "abc"));
         testCases.add(new TestCase("b/22331663", "B22331663", "run", new Object[] { false },
                 null, null));
+        testCases.add(new TestCase("b/22331663 (pass)", "B22331663Pass", "run",
+                new Object[] { false }, null, null));
+        testCases.add(new TestCase("b/22331663 (fail)", "B22331663Fail", "run",
+                new Object[] { false }, new VerifyError(), null));
     }
 
     public void runTests() {
