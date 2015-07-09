@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright (C) 2008 The Android Open Source Project
+# Copyright (C) 2015 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,18 +17,10 @@
 # Stop if something fails.
 set -e
 
-# Write out a bunch of interface source files.
-gcc -Wall -Werror -o iface-gen iface-gen.c
-./iface-gen
-
-if [ ${USE_JACK} = "true" ]; then
-  # Use the default Jack commands
-  ./default-build
-else
-  mkdir classes
-  ${JAVAC} -d classes src/*.java
-
-  # dx needs more memory for that test so do not pass Xmx option here.
-  ${DX} --debug --dex --dump-to=classes.lst --output=classes.dex classes
-  zip $TEST_NAME.jar classes.dex
-fi
+# The test relies on DEX file produced by javac+dx so keep building with them for now
+# (see b/19467889)
+mkdir classes
+${JAVAC} -d classes `find src -name '*.java'`
+${DX} -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex \
+  --dump-width=1000 ${DX_FLAGS} classes
+zip $TEST_NAME.jar classes.dex
