@@ -40,7 +40,7 @@ ifdef SANITIZE_HOST
   ART_BUILD_HOST_STATIC := false
 endif
 
-ifneq ($$(HOST_OS),linux)
+ifneq ($(HOST_OS),linux)
   ART_BUILD_HOST_STATIC := false
 endif
 
