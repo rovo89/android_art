@@ -19,6 +19,7 @@
 #include <dirent.h>
 #include <sys/statvfs.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #include <random>
 
@@ -33,10 +34,6 @@
 #include "os.h"
 #include "space-inl.h"
 #include "utils.h"
-
-#ifdef HAVE_ANDROID_OS
-#include <cutils/properties.h>
-#endif
 
 namespace art {
 namespace gc {
@@ -121,40 +118,54 @@ static void RealPruneDalvikCache(const std::string& cache_dir_path) {
   CHECK_EQ(0, TEMP_FAILURE_RETRY(closedir(cache_dir))) << "Unable to close directory.";
 }
 
-// We write out an empty file to the zygote's ISA specific cache dir at the start of
-// every zygote boot and delete it when the boot completes. If we find a file already
-// present, it usually means the boot didn't complete. We wipe the entire dalvik
-// cache if that's the case.
-static void MarkZygoteStart(const InstructionSet isa) {
+// We write out a file with the number of failed boots to the zygote's ISA specific cache dir
+// at the start of every zygote boot and delete it when the boot completes. If we find a file
+// already present, we check if the number of failed boots is greater than the maximum failed
+// boots allowed, and wipe the entire dalvik cache if that's the case.
+static void MarkZygoteStart(const InstructionSet isa, const uint32_t max_failed_boots) {
   const std::string isa_subdir = GetDalvikCacheOrDie(GetInstructionSetString(isa), false);
   const std::string boot_marker = isa_subdir + "/.booting";
-  bool pruned_image_cache = true;
+  const char* file_name = boot_marker.c_str();
 
-#ifdef HAVE_ANDROID_OS
-  int8_t prune_image_cache = property_get_bool("persist.art.pruneimagecache", 1);
-#else
-  int8_t prune_image_cache = 1;
-#endif
+  uint32_t num_failed_boots = 0;
+  std::unique_ptr<File> file(OS::OpenFileReadWrite(file_name));
+  if (file.get() == nullptr) {
+    file.reset(OS::CreateEmptyFile(file_name));
 
-  if (OS::FileExists(boot_marker.c_str())) {
-    if (!prune_image_cache) {
-      LOG(WARNING) << "Incomplete boot detected. Skipped prunning of dalvik cache due to property";
-      pruned_image_cache = false;
-    } else {
-      LOG(WARNING) << "Incomplete boot detected. Pruning dalvik cache";
-      RealPruneDalvikCache(isa_subdir);
-      pruned_image_cache = true;
+    if (file.get() == nullptr) {
+      PLOG(WARNING) << "Failed to create boot marker.";
+      return;
+    }
+  } else {
+    if (!file->ReadFully(&num_failed_boots, sizeof(num_failed_boots))) {
+      PLOG(WARNING) << "Failed to read boot marker.";
+      file->Erase();
+      return;
     }
   }
 
-  if (pruned_image_cache || !OS::FileExists(boot_marker.c_str())) {
-    VLOG(startup) << "Creating boot start marker: " << boot_marker;
-    std::unique_ptr<File> f(OS::CreateEmptyFile(boot_marker.c_str()));
-    if (f.get() != nullptr) {
-      if (f->FlushCloseOrErase() != 0) {
-        PLOG(WARNING) << "Failed to write boot marker.";
-      }
-    }
+  if (max_failed_boots != 0 && num_failed_boots >= max_failed_boots) {
+    LOG(WARNING) << "Incomplete boot detected. Pruning dalvik cache";
+    RealPruneDalvikCache(isa_subdir);
+  }
+
+  ++num_failed_boots;
+  VLOG(startup) << "Number of failed boots on : " << boot_marker << " = " << num_failed_boots;
+
+  if (lseek(file->Fd(), 0, SEEK_SET) == -1) {
+    PLOG(WARNING) << "Failed to write boot marker.";
+    file->Erase();
+    return;
+  }
+
+  if (!file->WriteFully(&num_failed_boots, sizeof(num_failed_boots))) {
+    PLOG(WARNING) << "Failed to write boot marker.";
+    file->Erase();
+    return;
+  }
+
+  if (file->FlushCloseOrErase() != 0) {
+    PLOG(WARNING) << "Failed to flush boot marker.";
   }
 }
 
@@ -484,7 +495,7 @@ ImageSpace* ImageSpace::Create(const char* image_location,
                                              &has_cache, &is_global_cache);
 
   if (Runtime::Current()->IsZygote()) {
-    MarkZygoteStart(image_isa);
+    MarkZygoteStart(image_isa, 10);
   }
 
   ImageSpace* space;
