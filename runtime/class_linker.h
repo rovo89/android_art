@@ -17,7 +17,6 @@
 #ifndef ART_RUNTIME_CLASS_LINKER_H_
 #define ART_RUNTIME_CLASS_LINKER_H_
 
-#include <deque>
 #include <string>
 #include <utility>
 #include <vector>
