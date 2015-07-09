@@ -46,6 +46,7 @@ export JAVAC="javac -g"
 export RUN="${progdir}/etc/run-test-jar"
 export DEX_LOCATION=/data/run-test/${test_dir}
 export NEED_DEX="true"
+export USE_JACK="false"
 
 # If dx was not set by the environment variable, assume it is in the path.
 if [ -z "$DX" ]; then
@@ -67,6 +68,46 @@ if [ -z "$DXMERGER" ]; then
   export DXMERGER="dexmerger"
 fi
 
+# If jack was not set by the environment variable, assume it is in the path.
+if [ -z "$JACK" ]; then
+  export JACK="jack"
+fi
+
+# If the tree is compiled with Jack, build test with Jack by default.
+if [ "$ANDROID_COMPILE_WITH_JACK" = "true" ]; then
+  USE_JACK="true"
+fi
+
+# ANDROID_BUILD_TOP is not set in a build environment.
+if [ -z "$ANDROID_BUILD_TOP" ]; then
+    export ANDROID_BUILD_TOP=$oldwd
+fi
+
+# If JACK_VM_COMMAND is not set, assume it launches the prebuilt jack-launcher.
+if [ -z "$JACK_VM_COMMAND" ]; then
+  if [ ! -z "$TMPDIR" ]; then
+    jack_temp_dir="-Djava.io.tmpdir=$TMPDIR"
+  fi
+  export JACK_VM_COMMAND="java -Dfile.encoding=UTF-8 -Xms2560m -XX:+TieredCompilation $jack_temp_dir -jar $ANDROID_BUILD_TOP/prebuilts/sdk/tools/jack-launcher.jar"
+fi
+
+# If JACK_CLASSPATH is not set, assume it only contains core-libart.
+if [ -z "$JACK_CLASSPATH" ]; then
+  export JACK_CLASSPATH="$ANDROID_BUILD_TOP/out/host/common/obj/JAVA_LIBRARIES/core-libart-hostdex_intermediates/classes.jack"
+fi
+
+# If JACK_JAR is not set, assume it is located in the prebuilts directory.
+if [ -z "$JACK_JAR" ]; then
+  export JACK_JAR="$ANDROID_BUILD_TOP/prebuilts/sdk/tools/jack.jar"
+fi
+
+# If JILL_JAR is not set, assume it is located in the prebuilts directory.
+if [ -z "$JILL_JAR" ]; then
+  export JILL_JAR="$ANDROID_BUILD_TOP/prebuilts/sdk/tools/jill.jar"
+fi
+
+export JACK="$JACK -g -cp $JACK_CLASSPATH"
+export JILL="java -jar $JILL_JAR"
 
 info="info.txt"
 build="build"
@@ -115,6 +156,7 @@ while true; do
         runtime="jvm"
         prebuild_mode="no"
         NEED_DEX="false"
+        USE_JACK="false"
         run_args="${run_args} --jvm"
         shift
     elif [ "x$1" = "x-O" ]; then
@@ -235,6 +277,12 @@ while true; do
         shift
     elif [ "x$1" = "x--build-only" ]; then
         build_only="yes"
+        shift
+    elif [ "x$1" = "x--build-with-javac-dx" ]; then
+        USE_JACK="false"
+        shift
+    elif [ "x$1" = "x--build-with-jack" ]; then
+        USE_JACK="true"
         shift
     elif [ "x$1" = "x--output-path" ]; then
         shift
@@ -365,10 +413,7 @@ if [ "$runtime" = "dalvik" ]; then
     fi
 elif [ "$runtime" = "art" ]; then
     if [ "$target_mode" = "no" ]; then
-        # ANDROID_BUILD_TOP and ANDROID_HOST_OUT are not set in a build environment.
-        if [ -z "$ANDROID_BUILD_TOP" ]; then
-            export ANDROID_BUILD_TOP=$oldwd
-        fi
+        # ANDROID_HOST_OUT is not set in a build environment.
         if [ -z "$ANDROID_HOST_OUT" ]; then
             export ANDROID_HOST_OUT=$ANDROID_BUILD_TOP/out/host/linux-x86
         fi
@@ -458,6 +503,8 @@ if [ "$usage" = "yes" ]; then
         echo "    --debuggable          Whether to compile Java code for a debugger."
         echo "    --gdb                 Run under gdb; incompatible with some tests."
         echo "    --build-only          Build test files only (off by default)."
+        echo "    --build-with-javac-dx Build test files with javac and dx (on by default)."
+        echo "    --build-with-jack     Build test files with jack and jill (off by default)."
         echo "    --interpreter         Enable interpreter only mode (off by default)."
         echo "    --jit                 Enable jit (off by default)."
         echo "    --optimizing          Enable optimizing compiler (default)."
@@ -545,6 +592,10 @@ if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]]; then
   # if Checker is not invoked and the test only runs the program.
   build_args="${build_args} --dx-option --no-optimize"
 
+  # Jack does not necessarily generate the same DEX output than dx. Because these tests depend
+  # on a particular DEX output, keep building them with dx for now (b/19467889).
+  USE_JACK="false"
+
   if [ "$runtime" = "art" -a "$image_suffix" = "-optimizing" -a "$target_mode" = "no" -a "$debuggable" = "no" ]; then
     run_checker="yes"
     run_args="${run_args} -Xcompiler-option --dump-cfg=$tmp_dir/$cfg_output \
@@ -553,14 +604,20 @@ if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]]; then
 fi
 
 # To cause tests to fail fast, limit the file sizes created by dx, dex2oat and ART output to 2MB.
-file_size_limit=2048
+build_file_size_limit=2048
+run_file_size_limit=2048
 if echo "$test_dir" | grep 089; then
-  file_size_limit=5120
+  build_file_size_limit=5120
+  run_file_size_limit=5120
 elif echo "$test_dir" | grep 083; then
-  file_size_limit=5120
+  build_file_size_limit=5120
+  run_file_size_limit=5120
 fi
-if ! ulimit -S "$file_size_limit"; then
-   echo "ulimit file size setting failed"
+if [ ${USE_JACK} = "false" ]; then
+  # Set ulimit if we build with dx only, Jack can generate big temp files.
+  if ! ulimit -S "$build_file_size_limit"; then
+    echo "ulimit file size setting failed"
+  fi
 fi
 
 good="no"
@@ -571,6 +628,9 @@ if [ "$dev_mode" = "yes" ]; then
     build_exit="$?"
     echo "build exit status: $build_exit" 1>&2
     if [ "$build_exit" = '0' ]; then
+        if ! ulimit -S "$run_file_size_limit"; then
+          echo "ulimit file size setting failed"
+        fi
         echo "${test_dir}: running..." 1>&2
         "./${run}" $run_args "$@" 2>&1
         run_exit="$?"
@@ -593,6 +653,9 @@ elif [ "$update_mode" = "yes" ]; then
     "./${build}" $build_args >"$build_output" 2>&1
     build_exit="$?"
     if [ "$build_exit" = '0' ]; then
+        if ! ulimit -S "$run_file_size_limit"; then
+          echo "ulimit file size setting failed"
+        fi
         echo "${test_dir}: running..." 1>&2
         "./${run}" $run_args "$@" >"$output" 2>&1
         if [ "$run_checker" = "yes" ]; then
@@ -624,6 +687,9 @@ else
     "./${build}" $build_args >"$build_output" 2>&1
     build_exit="$?"
     if [ "$build_exit" = '0' ]; then
+        if ! ulimit -S "$run_file_size_limit"; then
+          echo "ulimit file size setting failed"
+        fi
         echo "${test_dir}: running..." 1>&2
         "./${run}" $run_args "$@" >"$output" 2>&1
         run_exit="$?"

@@ -25,4 +25,11 @@ ${JAVAC} -d classes `find src -name '*.java'`
 # ...but not at run time.
 rm 'classes/MissingClass.class'
 rm 'classes/Main$MissingInnerClass.class'
-${DX} -JXmx256m --debug --dex --output=$TEST_NAME.jar classes
+
+if [ ${USE_JACK} = "true" ]; then
+  ${JILL} classes --output classes.jack
+  ${JACK} --import classes.jack --output-dex .
+else
+  ${DX} -JXmx256m --debug --dex --output=classes.dex classes
+fi
+zip $TEST_NAME.jar classes.dex

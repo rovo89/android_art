@@ -21,8 +21,14 @@ set -e
 gcc -Wall -Werror -o iface-gen iface-gen.c
 ./iface-gen
 
-mkdir classes
-${JAVAC} -d classes src/*.java
+if [ ${USE_JACK} = "true" ]; then
+  ${JACK} --output-dex . src
+else
+  mkdir classes
+  ${JAVAC} -d classes src/*.java
 
-${DX} --debug --dex --dump-to=classes.lst --output=classes.dex classes
+  # dx needs more memory for that test so do not pass Xmx option here.
+  ${DX} --debug --dex --dump-to=classes.lst --output=classes.dex classes
+fi
+
 zip $TEST_NAME.jar classes.dex

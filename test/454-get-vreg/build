@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright (C) 2012 The Android Open Source Project
+# Copyright (C) 2015 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,20 +17,10 @@
 # Stop if something fails.
 set -e
 
+# The test relies on DEX file produced by javac+dx so keep building with them for now
+# (see b/19467889)
 mkdir classes
-
-# android.test.anno.MissingAnnotation is available at compile time...
 ${JAVAC} -d classes `find src -name '*.java'`
-
-# ...but not at run time.
-rm 'classes/android/test/anno/MissingAnnotation.class'
-rm 'classes/android/test/anno/ClassWithInnerAnnotationClass$MissingInnerAnnotationClass.class'
-
-if [ ${USE_JACK} = "true" ]; then
-  ${JILL} classes --output classes.jack
-  ${JACK} --import classes.jack --output-dex .
-else
-  ${DX} -JXmx256m --debug --dex --output=classes.dex classes
-fi
-
+${DX} -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex \
+  --dump-width=1000 ${DX_FLAGS} classes
 zip $TEST_NAME.jar classes.dex

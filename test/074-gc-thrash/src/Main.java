@@ -218,17 +218,7 @@ class Deep extends Thread {
             return;
         }
 
-        /*
-         * Check the results of the last trip through.  Everything in
-         * "weak" should be matched in "strong", and the two should be
-         * equivalent (object-wise, not just string-equality-wise).
-         */
-        for (int i = 0; i < MAX_DEPTH; i++) {
-            if (strong[i] != weak[i].get()) {
-                System.err.println("Deep: " + i + " strong=" + strong[i] +
-                    ", weak=" + weak[i].get());
-            }
-        }
+        checkStringReferences();
 
         /*
          * Wipe "strong", do a GC, see if "weak" got collected.
@@ -246,6 +236,26 @@ class Deep extends Thread {
 
         if (Main.DEBUG)
             System.out.println("Deep: iters=" + iter / MAX_DEPTH);
+    }
+
+
+    /**
+     * Check the results of the last trip through.  Everything in
+     * "weak" should be matched in "strong", and the two should be
+     * equivalent (object-wise, not just string-equality-wise).
+     *
+     * We do that check in a separate method to avoid retaining these
+     * String references in local DEX registers. In interpreter mode,
+     * they would retain these references until the end of the method
+     * or until they are updated to another value.
+     */
+    private static void checkStringReferences() {
+      for (int i = 0; i < MAX_DEPTH; i++) {
+          if (strong[i] != weak[i].get()) {
+              System.err.println("Deep: " + i + " strong=" + strong[i] +
+                  ", weak=" + weak[i].get());
+          }
+      }
     }
 
     /**
