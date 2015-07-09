@@ -103,6 +103,8 @@ public class Main {
                 null, null));
         testCases.add(new TestCase("b/22244733", "B22244733", "run", new Object[] { "abc" },
                 null, "abc"));
+        testCases.add(new TestCase("b/22331663", "B22331663", "run", new Object[] { false },
+                null, null));
     }
 
     public void runTests() {
