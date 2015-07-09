@@ -283,6 +283,16 @@ ART_HOST_CFLAGS += $(art_cflags) -DART_BASE_ADDRESS=$(LIBART_IMG_HOST_BASE_ADDRE
 ART_HOST_CFLAGS += -DART_DEFAULT_INSTRUCTION_SET_FEATURES=default
 ART_HOST_ASFLAGS += $(art_asflags)
 
+# Disable -Wpessimizing-move: triggered for art/runtime/base/variant_map.h:261
+# Adding this flag to art_clang_cflags doesn't work because -Wall gets added to
+# ART_HOST_CFLAGS (as a part of art_cflags) after
+# -Wno-pessimizing-move.  Instead, add the flag here to both
+# ART_TARGET_CLANG_CFLAGS and ART_HOST_CFLAGS
+ifeq ($(ART_HOST_CLANG),true)
+ART_HOST_CFLAGS += -Wno-pessimizing-move
+endif
+ART_TARGET_CLANG_CFLAGS += -Wno-pessimizing-move
+
 ifndef LIBART_IMG_TARGET_BASE_ADDRESS
   $(error LIBART_IMG_TARGET_BASE_ADDRESS unset)
 endif
