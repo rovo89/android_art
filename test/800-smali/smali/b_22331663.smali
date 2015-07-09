@@ -4,6 +4,9 @@
 
 .method public static run(Z)V
 .registers 6
+       # Make v4 defined, just use null.
+       const v4, 0
+
        if-eqz v5, :Label2
 
 :Label1
