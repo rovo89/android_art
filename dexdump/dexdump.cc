@@ -52,7 +52,7 @@ namespace art {
 struct Options gOptions;
 
 /*
- * Output file. Defaults to stdout, but tests can modify.
+ * Output file. Defaults to stdout.
  */
 FILE* gOutFile = stdout;
 
@@ -63,8 +63,6 @@ typedef uint8_t  u1;
 typedef uint16_t u2;
 typedef uint32_t u4;
 typedef uint64_t u8;
-typedef int8_t   s1;
-typedef int16_t  s2;
 typedef int32_t  s4;
 typedef int64_t  s8;
 
@@ -1274,23 +1272,14 @@ int processFile(const char* fileName) {
     return -1;
   }
 
-  // Determine if opening file yielded a single dex file. On failure,
-  // the parse error message of the original dexdump utility is shown.
-  //
-  // TODO(ajcbik): this restriction is not really needed, but kept
-  //               for now to stay close to original dexdump; we can
-  //               later relax this!
-  //
-  if (dex_files.size() != 1) {
-    fprintf(stderr, "ERROR: DEX parse failed\n");
-    return -1;
-  }
-
-  // Success. Either report checksum verification or process dex file.
+  // Success. Either report checksum verification or process
+  // all dex files found in given file.
   if (gOptions.checksumOnly) {
     fprintf(gOutFile, "Checksum verified\n");
   } else {
-    processDexFile(fileName, dex_files[0].get());
+    for (size_t i = 0; i < dex_files.size(); i++) {
+      processDexFile(fileName, dex_files[i].get());
+    }
   }
   return 0;
 }
