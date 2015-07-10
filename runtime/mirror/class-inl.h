@@ -832,11 +832,21 @@ void mirror::Class::VisitNativeRoots(Visitor& visitor, size_t pointer_size) {
       f->VisitRoots(visitor);
     }
   }
-  for (auto& m : GetDirectMethods(pointer_size)) {
-    m.VisitRoots(visitor);
+  // We may see GetDirectMethodsPtr() == null with NumDirectMethods() != 0 if the root marking
+  // thread reads a null DirectMethodsBegin() but a non null DirectMethodsBegin() due to a race
+  // SetDirectMethodsPtr from class linking. Same for virtual methods.
+  // In this case, it is safe to avoid marking the roots since we must be either the CC or CMS. If
+  // we are CMS then the roots are already marked through other sources, otherwise the roots are
+  // already marked due to the to-space invariant.
+  if (GetDirectMethodsPtr() != nullptr) {
+    for (auto& m : GetDirectMethods(pointer_size)) {
+      m.VisitRoots(visitor);
+    }
   }
-  for (auto& m : GetVirtualMethods(pointer_size)) {
-    m.VisitRoots(visitor);
+  if (GetVirtualMethodsPtr() != nullptr) {
+    for (auto& m : GetVirtualMethods(pointer_size)) {
+      m.VisitRoots(visitor);
+    }
   }
 }
 
