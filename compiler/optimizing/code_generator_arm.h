@@ -207,6 +207,14 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
                              Label* true_target,
                              Label* false_target,
                              Label* always_true_target);
+  void GenerateCompareWithImmediate(Register left, int32_t right);
+  void GenerateCompareTestAndBranch(HIf* if_instr,
+                                    HCondition* condition,
+                                    Label* true_target,
+                                    Label* false_target,
+                                    Label* always_true_target);
+  void GenerateFPJumps(HCondition* cond, Label* true_label, Label* false_label);
+  void GenerateLongComparesAndJumps(HCondition* cond, Label* true_label, Label* false_label);
   void DivRemOneOrMinusOne(HBinaryOperation* instruction);
   void DivRemByPowerOfTwo(HBinaryOperation* instruction);
   void GenerateDivRemWithAnyConstant(HBinaryOperation* instruction);

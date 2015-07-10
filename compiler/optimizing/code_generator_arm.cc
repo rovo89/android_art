@@ -334,7 +334,7 @@ class DeoptimizationSlowPathARM : public SlowPathCodeARM {
 #undef __
 #define __ down_cast<ArmAssembler*>(GetAssembler())->
 
-inline Condition ARMCondition(IfCondition cond) {
+inline Condition ARMSignedOrFPCondition(IfCondition cond) {
   switch (cond) {
     case kCondEQ: return EQ;
     case kCondNE: return NE;
@@ -342,24 +342,22 @@ inline Condition ARMCondition(IfCondition cond) {
     case kCondLE: return LE;
     case kCondGT: return GT;
     case kCondGE: return GE;
-    default:
-      LOG(FATAL) << "Unknown if condition";
   }
-  return EQ;        // Unreachable.
+  LOG(FATAL) << "Unreachable";
+  UNREACHABLE();
 }
 
-inline Condition ARMOppositeCondition(IfCondition cond) {
+inline Condition ARMUnsignedCondition(IfCondition cond) {
   switch (cond) {
-    case kCondEQ: return NE;
-    case kCondNE: return EQ;
-    case kCondLT: return GE;
-    case kCondLE: return GT;
-    case kCondGT: return LE;
-    case kCondGE: return LT;
-    default:
-      LOG(FATAL) << "Unknown if condition";
+    case kCondEQ: return EQ;
+    case kCondNE: return NE;
+    case kCondLT: return LO;
+    case kCondLE: return LS;
+    case kCondGT: return HI;
+    case kCondGE: return HS;
   }
-  return EQ;        // Unreachable.
+  LOG(FATAL) << "Unreachable";
+  UNREACHABLE();
 }
 
 void CodeGeneratorARM::DumpCoreRegister(std::ostream& stream, int reg) const {
@@ -1008,6 +1006,142 @@ void InstructionCodeGeneratorARM::VisitExit(HExit* exit) {
   UNUSED(exit);
 }
 
+void InstructionCodeGeneratorARM::GenerateCompareWithImmediate(Register left, int32_t right) {
+  ShifterOperand operand;
+  if (GetAssembler()->ShifterOperandCanHold(R0, left, CMP, right, &operand)) {
+    __ cmp(left, operand);
+  } else {
+    Register temp = IP;
+    __ LoadImmediate(temp, right);
+    __ cmp(left, ShifterOperand(temp));
+  }
+}
+
+void InstructionCodeGeneratorARM::GenerateFPJumps(HCondition* cond,
+                                                  Label* true_label,
+                                                  Label* false_label) {
+  __ vmstat();  // transfer FP status register to ARM APSR.
+  if (cond->IsFPConditionTrueIfNaN()) {
+    __ b(true_label, VS);  // VS for unordered.
+  } else if (cond->IsFPConditionFalseIfNaN()) {
+    __ b(false_label, VS);  // VS for unordered.
+  }
+  __ b(true_label, ARMSignedOrFPCondition(cond->GetCondition()));
+}
+
+void InstructionCodeGeneratorARM::GenerateLongComparesAndJumps(HCondition* cond,
+                                                               Label* true_label,
+                                                               Label* false_label) {
+  LocationSummary* locations = cond->GetLocations();
+  Location left = locations->InAt(0);
+  Location right = locations->InAt(1);
+  IfCondition if_cond = cond->GetCondition();
+
+  Register left_high = left.AsRegisterPairHigh<Register>();
+  Register left_low = left.AsRegisterPairLow<Register>();
+  IfCondition true_high_cond = if_cond;
+  IfCondition false_high_cond = cond->GetOppositeCondition();
+  Condition final_condition = ARMUnsignedCondition(if_cond);
+
+  // Set the conditions for the test, remembering that == needs to be
+  // decided using the low words.
+  switch (if_cond) {
+    case kCondEQ:
+    case kCondNE:
+      // Nothing to do.
+      break;
+    case kCondLT:
+      false_high_cond = kCondGT;
+      break;
+    case kCondLE:
+      true_high_cond = kCondLT;
+      break;
+    case kCondGT:
+      false_high_cond = kCondLT;
+      break;
+    case kCondGE:
+      true_high_cond = kCondGT;
+      break;
+  }
+  if (right.IsConstant()) {
+    int64_t value = right.GetConstant()->AsLongConstant()->GetValue();
+    int32_t val_low = Low32Bits(value);
+    int32_t val_high = High32Bits(value);
+
+    GenerateCompareWithImmediate(left_high, val_high);
+    if (if_cond == kCondNE) {
+      __ b(true_label, ARMSignedOrFPCondition(true_high_cond));
+    } else if (if_cond == kCondEQ) {
+      __ b(false_label, ARMSignedOrFPCondition(false_high_cond));
+    } else {
+      __ b(true_label, ARMSignedOrFPCondition(true_high_cond));
+      __ b(false_label, ARMSignedOrFPCondition(false_high_cond));
+    }
+    // Must be equal high, so compare the lows.
+    GenerateCompareWithImmediate(left_low, val_low);
+  } else {
+    Register right_high = right.AsRegisterPairHigh<Register>();
+    Register right_low = right.AsRegisterPairLow<Register>();
+
+    __ cmp(left_high, ShifterOperand(right_high));
+    if (if_cond == kCondNE) {
+      __ b(true_label, ARMSignedOrFPCondition(true_high_cond));
+    } else if (if_cond == kCondEQ) {
+      __ b(false_label, ARMSignedOrFPCondition(false_high_cond));
+    } else {
+      __ b(true_label, ARMSignedOrFPCondition(true_high_cond));
+      __ b(false_label, ARMSignedOrFPCondition(false_high_cond));
+    }
+    // Must be equal high, so compare the lows.
+    __ cmp(left_low, ShifterOperand(right_low));
+  }
+  // The last comparison might be unsigned.
+  __ b(true_label, final_condition);
+}
+
+void InstructionCodeGeneratorARM::GenerateCompareTestAndBranch(HIf* if_instr,
+                                                               HCondition* condition,
+                                                               Label* true_target,
+                                                               Label* false_target,
+                                                               Label* always_true_target) {
+  LocationSummary* locations = condition->GetLocations();
+  Location left = locations->InAt(0);
+  Location right = locations->InAt(1);
+
+  // We don't want true_target as a nullptr.
+  if (true_target == nullptr) {
+    true_target = always_true_target;
+  }
+  bool falls_through = (false_target == nullptr);
+
+  // FP compares don't like null false_targets.
+  if (false_target == nullptr) {
+    false_target = codegen_->GetLabelOf(if_instr->IfFalseSuccessor());
+  }
+
+  Primitive::Type type = condition->InputAt(0)->GetType();
+  switch (type) {
+    case Primitive::kPrimLong:
+      GenerateLongComparesAndJumps(condition, true_target, false_target);
+      break;
+    case Primitive::kPrimFloat:
+      __ vcmps(left.AsFpuRegister<SRegister>(), right.AsFpuRegister<SRegister>());
+      GenerateFPJumps(condition, true_target, false_target);
+      break;
+    case Primitive::kPrimDouble:
+      __ vcmpd(FromLowSToD(left.AsFpuRegisterPairLow<SRegister>()),
+               FromLowSToD(right.AsFpuRegisterPairLow<SRegister>()));
+      GenerateFPJumps(condition, true_target, false_target);
+      break;
+    default:
+      LOG(FATAL) << "Unexpected compare type " << type;
+  }
+
+  if (!falls_through) {
+    __ b(false_target);
+  }
+}
+
 void InstructionCodeGeneratorARM::GenerateTestAndBranch(HInstruction* instruction,
                                                         Label* true_target,
                                                         Label* false_target,
@@ -1033,25 +1167,27 @@ void InstructionCodeGeneratorARM::GenerateTestAndBranch(HInstruction* instructio
     } else {
       // Condition has not been materialized, use its inputs as the
       // comparison and its condition as the branch condition.
+      Primitive::Type type =
+          cond->IsCondition() ? cond->InputAt(0)->GetType() : Primitive::kPrimInt;
+      // Is this a long or FP comparison that has been folded into the HCondition?
+      if (type == Primitive::kPrimLong || Primitive::IsFloatingPointType(type)) {
+        // Generate the comparison directly.
+        GenerateCompareTestAndBranch(instruction->AsIf(), cond->AsCondition(),
+                                     true_target, false_target, always_true_target);
+        return;
+      }
+
       LocationSummary* locations = cond->GetLocations();
       DCHECK(locations->InAt(0).IsRegister()) << locations->InAt(0);
       Register left = locations->InAt(0).AsRegister<Register>();
-      if (locations->InAt(1).IsRegister()) {
-        __ cmp(left, ShifterOperand(locations->InAt(1).AsRegister<Register>()));
+      Location right = locations->InAt(1);
+      if (right.IsRegister()) {
+        __ cmp(left, ShifterOperand(right.AsRegister<Register>()));
       } else {
-        DCHECK(locations->InAt(1).IsConstant());
-        HConstant* constant = locations->InAt(1).GetConstant();
-        int32_t value = CodeGenerator::GetInt32ValueOf(constant);
-        ShifterOperand operand;
-        if (GetAssembler()->ShifterOperandCanHold(R0, left, CMP, value, &operand)) {
-          __ cmp(left, operand);
-        } else {
-          Register temp = IP;
-          __ LoadImmediate(temp, value);
-          __ cmp(left, ShifterOperand(temp));
-        }
+        DCHECK(right.IsConstant());
+        GenerateCompareWithImmediate(left, CodeGenerator::GetInt32ValueOf(right.GetConstant()));
       }
-      __ b(true_target, ARMCondition(cond->AsCondition()->GetCondition()));
+      __ b(true_target, ARMSignedOrFPCondition(cond->AsCondition()->GetCondition()));
     }
   }
   if (false_target != nullptr) {
@@ -1104,37 +1240,88 @@ void InstructionCodeGeneratorARM::VisitDeoptimize(HDeoptimize* deoptimize) {
 void LocationsBuilderARM::VisitCondition(HCondition* cond) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(cond, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RegisterOrConstant(cond->InputAt(1)));
-  if (cond->NeedsMaterialization()) {
-    locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+  // Handle the long/FP comparisons made in instruction simplification.
+  switch (cond->InputAt(0)->GetType()) {
+    case Primitive::kPrimLong:
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(cond->InputAt(1)));
+      if (cond->NeedsMaterialization()) {
+        locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+      }
+      break;
+
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+      locations->SetInAt(0, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::RequiresFpuRegister());
+      if (cond->NeedsMaterialization()) {
+        locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      }
+      break;
+
+    default:
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(cond->InputAt(1)));
+      if (cond->NeedsMaterialization()) {
+        locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      }
   }
 }
 
 void InstructionCodeGeneratorARM::VisitCondition(HCondition* cond) {
-  if (!cond->NeedsMaterialization()) return;
-  LocationSummary* locations = cond->GetLocations();
-  Register left = locations->InAt(0).AsRegister<Register>();
-
-  if (locations->InAt(1).IsRegister()) {
-    __ cmp(left, ShifterOperand(locations->InAt(1).AsRegister<Register>()));
-  } else {
-    DCHECK(locations->InAt(1).IsConstant());
-    int32_t value = CodeGenerator::GetInt32ValueOf(locations->InAt(1).GetConstant());
-    ShifterOperand operand;
-    if (GetAssembler()->ShifterOperandCanHold(R0, left, CMP, value, &operand)) {
-      __ cmp(left, operand);
-    } else {
-      Register temp = IP;
-      __ LoadImmediate(temp, value);
-      __ cmp(left, ShifterOperand(temp));
-    }
+  if (!cond->NeedsMaterialization()) {
+    return;
   }
-  __ it(ARMCondition(cond->GetCondition()), kItElse);
-  __ mov(locations->Out().AsRegister<Register>(), ShifterOperand(1),
-         ARMCondition(cond->GetCondition()));
-  __ mov(locations->Out().AsRegister<Register>(), ShifterOperand(0),
-         ARMOppositeCondition(cond->GetCondition()));
+
+  LocationSummary* locations = cond->GetLocations();
+  Location left = locations->InAt(0);
+  Location right = locations->InAt(1);
+  Register out = locations->Out().AsRegister<Register>();
+  Label true_label, false_label;
+
+  switch (cond->InputAt(0)->GetType()) {
+    default: {
+      // Integer case.
+      if (right.IsRegister()) {
+        __ cmp(left.AsRegister<Register>(), ShifterOperand(right.AsRegister<Register>()));
+      } else {
+        DCHECK(right.IsConstant());
+        GenerateCompareWithImmediate(left.AsRegister<Register>(),
+                                     CodeGenerator::GetInt32ValueOf(right.GetConstant()));
+      }
+      __ it(ARMSignedOrFPCondition(cond->GetCondition()), kItElse);
+      __ mov(locations->Out().AsRegister<Register>(), ShifterOperand(1),
+             ARMSignedOrFPCondition(cond->GetCondition()));
+      __ mov(locations->Out().AsRegister<Register>(), ShifterOperand(0),
+             ARMSignedOrFPCondition(cond->GetOppositeCondition()));
+      return;
+    }
+    case Primitive::kPrimLong:
+      GenerateLongComparesAndJumps(cond, &true_label, &false_label);
+      break;
+    case Primitive::kPrimFloat:
+      __ vcmps(left.AsFpuRegister<SRegister>(), right.AsFpuRegister<SRegister>());
+      GenerateFPJumps(cond, &true_label, &false_label);
+      break;
+    case Primitive::kPrimDouble:
+      __ vcmpd(FromLowSToD(left.AsFpuRegisterPairLow<SRegister>()),
+               FromLowSToD(right.AsFpuRegisterPairLow<SRegister>()));
+      GenerateFPJumps(cond, &true_label, &false_label);
+      break;
+  }
+
+  // Convert the jumps into the result.
+  Label done_label;
+
+  // False case: result = 0.
+  __ Bind(&false_label);
+  __ LoadImmediate(out, 0);
+  __ b(&done_label);
+
+  // True case: result = 1.
+  __ Bind(&true_label);
+  __ LoadImmediate(out, 1);
+  __ Bind(&done_label);
 }
 
 void LocationsBuilderARM::VisitEqual(HEqual* comp) {
@@ -2913,7 +3100,7 @@ void InstructionCodeGeneratorARM::VisitCompare(HCompare* compare) {
              ShifterOperand(right.AsRegisterPairHigh<Register>()));  // Signed compare.
       __ b(&less, LT);
       __ b(&greater, GT);
-      // Do LoadImmediate before any `cmp`, as LoadImmediate might affect the status flags.
+      // Do LoadImmediate before the last `cmp`, as LoadImmediate might affect the status flags.
       __ LoadImmediate(out, 0);
       __ cmp(left.AsRegisterPairLow<Register>(),
              ShifterOperand(right.AsRegisterPairLow<Register>()));  // Unsigned compare.
@@ -2936,7 +3123,7 @@ void InstructionCodeGeneratorARM::VisitCompare(HCompare* compare) {
       LOG(FATAL) << "Unexpected compare type " << type;
   }
   __ b(&done, EQ);
-  __ b(&less, CC);  // CC is for both: unsigned compare for longs and 'less than' for floats.
+  __ b(&less, LO);  // LO is for both: unsigned compare for longs and 'less than' for floats.
 
   __ Bind(&greater);
   __ LoadImmediate(out, 1);
@@ -3710,7 +3897,7 @@ void InstructionCodeGeneratorARM::VisitBoundsCheck(HBoundsCheck* instruction) {
   Register length = locations->InAt(1).AsRegister<Register>();
 
   __ cmp(index, ShifterOperand(length));
-  __ b(slow_path->GetEntryLabel(), CS);
+  __ b(slow_path->GetEntryLabel(), HS);
 }
 
 void CodeGeneratorARM::MarkGCCard(Register temp,

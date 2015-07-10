@@ -363,7 +363,7 @@ class DeoptimizationSlowPathX86_64 : public SlowPathCodeX86_64 {
 #undef __
 #define __ down_cast<X86_64Assembler*>(GetAssembler())->
 
-inline Condition X86_64Condition(IfCondition cond) {
+inline Condition X86_64IntegerCondition(IfCondition cond) {
   switch (cond) {
     case kCondEQ: return kEqual;
     case kCondNE: return kNotEqual;
@@ -371,10 +371,22 @@ inline Condition X86_64Condition(IfCondition cond) {
     case kCondLE: return kLessEqual;
     case kCondGT: return kGreater;
     case kCondGE: return kGreaterEqual;
-    default:
-      LOG(FATAL) << "Unknown if condition";
   }
-  return kEqual;
+  LOG(FATAL) << "Unreachable";
+  UNREACHABLE();
+}
+
+inline Condition X86_64FPCondition(IfCondition cond) {
+  switch (cond) {
+    case kCondEQ: return kEqual;
+    case kCondNE: return kNotEqual;
+    case kCondLT: return kBelow;
+    case kCondLE: return kBelowEqual;
+    case kCondGT: return kAbove;
+    case kCondGE: return kAboveEqual;
+  };
+  LOG(FATAL) << "Unreachable";
+  UNREACHABLE();
 }
 
 void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
@@ -836,46 +848,12 @@ void InstructionCodeGeneratorX86_64::VisitExit(HExit* exit) {
 void InstructionCodeGeneratorX86_64::GenerateFPJumps(HCondition* cond,
                                                      Label* true_label,
                                                      Label* false_label) {
-  bool gt_bias = cond->IsGtBias();
-  IfCondition if_cond = cond->GetCondition();
-  Condition ccode = X86_64Condition(if_cond);
-  switch (if_cond) {
-    case kCondEQ:
-      if (!gt_bias) {
-        __ j(kParityEven, false_label);
-      }
-      break;
-    case kCondNE:
-      if (!gt_bias) {
-        __ j(kParityEven, true_label);
-      }
-      break;
-    case kCondLT:
-      if (gt_bias) {
-        __ j(kParityEven, false_label);
-      }
-      ccode = kBelow;
-      break;
-    case kCondLE:
-      if (gt_bias) {
-        __ j(kParityEven, false_label);
-      }
-      ccode = kBelowEqual;
-      break;
-    case kCondGT:
-      if (gt_bias) {
-        __ j(kParityEven, true_label);
-      }
-      ccode = kAbove;
-      break;
-    case kCondGE:
-      if (gt_bias) {
-        __ j(kParityEven, true_label);
-      }
-      ccode = kAboveEqual;
-      break;
+  if (cond->IsFPConditionTrueIfNaN()) {
+    __ j(kUnordered, true_label);
+  } else if (cond->IsFPConditionFalseIfNaN()) {
+    __ j(kUnordered, false_label);
   }
-  __ j(ccode, true_label);
+  __ j(X86_64FPCondition(cond->GetCondition()), true_label);
 }
 
 void InstructionCodeGeneratorX86_64::GenerateCompareTestAndBranch(HIf* if_instr,
@@ -911,7 +889,7 @@ void InstructionCodeGeneratorX86_64::GenerateCompareTestAndBranch(HIf* if_instr,
             __ cmpq(left_reg, Immediate(static_cast<int32_t>(value)));
           }
         } else {
-          // Value won't fit in an 32-bit integer.
+          // Value won't fit in a 32-bit integer.
           __ cmpq(left_reg, codegen_->LiteralInt64Address(value));
         }
       } else if (right.IsDoubleStackSlot()) {
@@ -919,7 +897,7 @@ void InstructionCodeGeneratorX86_64::GenerateCompareTestAndBranch(HIf* if_instr,
       } else {
         __ cmpq(left_reg, right.AsRegister<CpuRegister>());
       }
-      __ j(X86_64Condition(condition->GetCondition()), true_target);
+      __ j(X86_64IntegerCondition(condition->GetCondition()), true_target);
       break;
     }
     case Primitive::kPrimFloat: {
@@ -978,7 +956,7 @@ void InstructionCodeGeneratorX86_64::GenerateTestAndBranch(HInstruction* instruc
       DCHECK_EQ(cond_value, 0);
     }
   } else {
-    bool materialized =
+    bool is_materialized =
         !cond->IsCondition() || cond->AsCondition()->NeedsMaterialization();
     // Moves do not affect the eflags register, so if the condition is
     // evaluated just before the if, we don't need to evaluate it
@@ -989,7 +967,7 @@ void InstructionCodeGeneratorX86_64::GenerateTestAndBranch(HInstruction* instruc
         && cond->AsCondition()->IsBeforeWhenDisregardMoves(instruction)
         && !Primitive::IsFloatingPointType(type);
 
-    if (materialized) {
+    if (is_materialized) {
       if (!eflags_set) {
         // Materialized condition, compare against 0.
         Location lhs = instruction->GetLocations()->InAt(0);
@@ -1001,16 +979,20 @@ void InstructionCodeGeneratorX86_64::GenerateTestAndBranch(HInstruction* instruc
         }
         __ j(kNotEqual, true_target);
       } else {
-        __ j(X86_64Condition(cond->AsCondition()->GetCondition()), true_target);
+        __ j(X86_64IntegerCondition(cond->AsCondition()->GetCondition()), true_target);
       }
     } else {
+      // Condition has not been materialized, use its inputs as the
+      // comparison and its condition as the branch condition.
+
       // Is this a long or FP comparison that has been folded into the HCondition?
       if (type == Primitive::kPrimLong || Primitive::IsFloatingPointType(type)) {
-        // Generate the comparison directly
+        // Generate the comparison directly.
         GenerateCompareTestAndBranch(instruction->AsIf(), cond->AsCondition(),
                                      true_target, false_target, always_true_target);
         return;
       }
+
       Location lhs = cond->GetLocations()->InAt(0);
       Location rhs = cond->GetLocations()->InAt(1);
       if (rhs.IsRegister()) {
@@ -1026,7 +1008,7 @@ void InstructionCodeGeneratorX86_64::GenerateTestAndBranch(HInstruction* instruc
         __ cmpl(lhs.AsRegister<CpuRegister>(),
                 Address(CpuRegister(RSP), rhs.GetStackIndex()));
       }
-      __ j(X86_64Condition(cond->AsCondition()->GetCondition()), true_target);
+      __ j(X86_64IntegerCondition(cond->AsCondition()->GetCondition()), true_target);
     }
   }
   if (false_target != nullptr) {
@@ -1175,7 +1157,7 @@ void InstructionCodeGeneratorX86_64::VisitCondition(HCondition* cond) {
       } else {
         __ cmpl(lhs.AsRegister<CpuRegister>(), Address(CpuRegister(RSP), rhs.GetStackIndex()));
       }
-      __ setcc(X86_64Condition(cond->GetCondition()), reg);
+      __ setcc(X86_64IntegerCondition(cond->GetCondition()), reg);
       return;
     case Primitive::kPrimLong:
       // Clear output register: setcc only sets the low byte.
@@ -1198,7 +1180,7 @@ void InstructionCodeGeneratorX86_64::VisitCondition(HCondition* cond) {
       } else {
         __ cmpq(lhs.AsRegister<CpuRegister>(), Address(CpuRegister(RSP), rhs.GetStackIndex()));
       }
-      __ setcc(X86_64Condition(cond->GetCondition()), reg);
+      __ setcc(X86_64IntegerCondition(cond->GetCondition()), reg);
       return;
     case Primitive::kPrimFloat: {
       XmmRegister lhs_reg = lhs.AsFpuRegister<XmmRegister>();
@@ -1231,12 +1213,12 @@ void InstructionCodeGeneratorX86_64::VisitCondition(HCondition* cond) {
   // Convert the jumps into the result.
   Label done_label;
 
-  // false case: result = 0;
+  // False case: result = 0.
   __ Bind(&false_label);
   __ xorl(reg, reg);
   __ jmp(&done_label);
 
-  // True case: result = 1
+  // True case: result = 1.
   __ Bind(&true_label);
   __ movl(reg, Immediate(1));
   __ Bind(&done_label);
