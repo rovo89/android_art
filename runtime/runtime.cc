@@ -75,6 +75,7 @@
 #include "jit/jit.h"
 #include "jni_internal.h"
 #include "linear_alloc.h"
+#include "lambda/box_table.h"
 #include "mirror/array.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
@@ -408,6 +409,7 @@ void Runtime::SweepSystemWeaks(IsMarkedVisitor* visitor) {
   GetMonitorList()->SweepMonitorList(visitor);
   GetJavaVM()->SweepJniWeakGlobals(visitor);
   GetHeap()->SweepAllocationRecords(visitor);
+  GetLambdaBoxTable()->SweepWeakBoxedLambdas(visitor);
 }
 
 bool Runtime::Create(const RuntimeOptions& options, bool ignore_unrecognized) {
@@ -911,6 +913,9 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
     // null and we don't create the jit.
     jit_options_->SetUseJIT(false);
   }
+
+  // Allocate a global table of boxed lambda objects <-> closures.
+  lambda_box_table_ = MakeUnique<lambda::BoxTable>();
 
   // Use MemMap arena pool for jit, malloc otherwise. Malloc arenas are faster to allocate but
   // can't be trimmed as easily.
@@ -1500,6 +1505,7 @@ void Runtime::DisallowNewSystemWeaks() {
   intern_table_->ChangeWeakRootState(gc::kWeakRootStateNoReadsOrWrites);
   java_vm_->DisallowNewWeakGlobals();
   heap_->DisallowNewAllocationRecords();
+  lambda_box_table_->DisallowNewWeakBoxedLambdas();
 }
 
 void Runtime::AllowNewSystemWeaks() {
@@ -1507,6 +1513,7 @@ void Runtime::AllowNewSystemWeaks() {
   intern_table_->ChangeWeakRootState(gc::kWeakRootStateNormal);  // TODO: Do this in the sweeping?
   java_vm_->AllowNewWeakGlobals();
   heap_->AllowNewAllocationRecords();
+  lambda_box_table_->AllowNewWeakBoxedLambdas();
 }
 
 void Runtime::EnsureNewSystemWeaksDisallowed() {
@@ -1515,6 +1522,7 @@ void Runtime::EnsureNewSystemWeaksDisallowed() {
   monitor_list_->EnsureNewMonitorsDisallowed();
   intern_table_->EnsureNewWeakInternsDisallowed();
   java_vm_->EnsureNewWeakGlobalsDisallowed();
+  lambda_box_table_->EnsureNewWeakBoxedLambdasDisallowed();
 }
 
 void Runtime::BroadcastForNewSystemWeaks() {

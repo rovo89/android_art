@@ -231,9 +231,23 @@ class HashSet {
     return ret;
   }
 
+  // Lower case for c++11 for each. const version.
+  ConstIterator begin() const {
+    ConstIterator ret(this, 0);
+    if (num_buckets_ != 0 && IsFreeSlot(ret.index_)) {
+      ++ret;  // Skip all the empty slots.
+    }
+    return ret;
+  }
+
   // Lower case for c++11 for each.
   Iterator end() {
     return Iterator(this, NumBuckets());
+  }
+
+  // Lower case for c++11 for each. const version.
+  ConstIterator end() const {
+    return ConstIterator(this, NumBuckets());
   }
 
   bool Empty() {
@@ -242,8 +256,8 @@ class HashSet {
 
   // Erase algorithm:
   // Make an empty slot where the iterator is pointing.
-  // Scan fowards until we hit another empty slot.
-  // If an element inbetween doesn't rehash to the range from the current empty slot to the
+  // Scan forwards until we hit another empty slot.
+  // If an element in between doesn't rehash to the range from the current empty slot to the
   // iterator. It must be before the empty slot, in that case we can move it to the empty slot
   // and set the empty slot to be the location we just moved from.
   // Relies on maintaining the invariant that there's no empty slots from the 'ideal' index of an
@@ -299,23 +313,23 @@ class HashSet {
   // Set of Class* sorted by name, want to find a class with a name but can't allocate a dummy
   // object in the heap for performance solution.
   template <typename K>
-  Iterator Find(const K& element) {
-    return FindWithHash(element, hashfn_(element));
+  Iterator Find(const K& key) {
+    return FindWithHash(key, hashfn_(key));
   }
 
   template <typename K>
-  ConstIterator Find(const K& element) const {
-    return FindWithHash(element, hashfn_(element));
+  ConstIterator Find(const K& key) const {
+    return FindWithHash(key, hashfn_(key));
   }
 
   template <typename K>
-  Iterator FindWithHash(const K& element, size_t hash) {
-    return Iterator(this, FindIndex(element, hash));
+  Iterator FindWithHash(const K& key, size_t hash) {
+    return Iterator(this, FindIndex(key, hash));
   }
 
   template <typename K>
-  ConstIterator FindWithHash(const K& element, size_t hash) const {
-    return ConstIterator(this, FindIndex(element, hash));
+  ConstIterator FindWithHash(const K& key, size_t hash) const {
+    return ConstIterator(this, FindIndex(key, hash));
   }
 
   // Insert an element, allows duplicates.
@@ -399,6 +413,10 @@ class HashSet {
   }
 
   size_t IndexForHash(size_t hash) const {
+    // Protect against undefined behavior (division by zero).
+    if (UNLIKELY(num_buckets_ == 0)) {
+      return 0;
+    }
     return hash % num_buckets_;
   }
 
@@ -414,6 +432,10 @@ class HashSet {
   // This value for not found is important so that Iterator(this, FindIndex(...)) == end().
   template <typename K>
   size_t FindIndex(const K& element, size_t hash) const {
+    // Guard against failing to get an element for a non-existing index.
+    if (UNLIKELY(NumBuckets() == 0)) {
+      return 0;
+    }
     DCHECK_EQ(hashfn_(element), hash);
     size_t index = IndexForHash(hash);
     while (true) {
