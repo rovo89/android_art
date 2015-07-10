@@ -1455,6 +1455,20 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
           }  // else unknown instruction
           break;
         }
+        case 0x2B: {  // 0101011
+          //  CLZ - 111 11 0101011 mmmm 1111 dddd 1000 mmmm
+          if ((instr & 0xf0f0) == 0xf080) {
+            opcode << "clz";
+            ArmRegister Rm(instr, 0);
+            ArmRegister Rd(instr, 8);
+            args << Rd << ", " << Rm;
+            ArmRegister Rm2(instr, 16);
+            if (Rm.r != Rm2.r || Rm.r == 13 || Rm.r == 15 || Rd.r == 13 || Rd.r == 15) {
+              args << " (UNPREDICTABLE)";
+            }
+          }
+          break;
+        }
       default:      // more formats
         if ((op2 >> 4) == 2) {      // 010xxxx
           // data processing (register)

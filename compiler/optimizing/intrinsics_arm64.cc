@@ -260,6 +260,33 @@ void IntrinsicCodeGeneratorARM64::VisitShortReverseBytes(HInvoke* invoke) {
   GenReverseBytes(invoke->GetLocations(), Primitive::kPrimShort, GetVIXLAssembler());
 }
 
+static void GenNumberOfLeadingZeros(LocationSummary* locations,
+                                    Primitive::Type type,
+                                    vixl::MacroAssembler* masm) {
+  DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong);
+
+  Location in = locations->InAt(0);
+  Location out = locations->Out();
+
+  __ Clz(RegisterFrom(out, type), RegisterFrom(in, type));
+}
+
+void IntrinsicLocationsBuilderARM64::VisitIntegerNumberOfLeadingZeros(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitIntegerNumberOfLeadingZeros(HInvoke* invoke) {
+  GenNumberOfLeadingZeros(invoke->GetLocations(), Primitive::kPrimInt, GetVIXLAssembler());
+}
+
+void IntrinsicLocationsBuilderARM64::VisitLongNumberOfLeadingZeros(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitLongNumberOfLeadingZeros(HInvoke* invoke) {
+  GenNumberOfLeadingZeros(invoke->GetLocations(), Primitive::kPrimLong, GetVIXLAssembler());
+}
+
 static void GenReverse(LocationSummary* locations,
                        Primitive::Type type,
                        vixl::MacroAssembler* masm) {

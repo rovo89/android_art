@@ -38,6 +38,7 @@ static constexpr bool kIntrinsicIsStatic[] = {
     true,   // kIntrinsicFloatCvt
     true,   // kIntrinsicReverseBits
     true,   // kIntrinsicReverseBytes
+    true,   // kIntrinsicNumberOfLeadingZeros
     true,   // kIntrinsicAbsInt
     true,   // kIntrinsicAbsLong
     true,   // kIntrinsicAbsFloat
@@ -75,6 +76,8 @@ static_assert(kIntrinsicIsStatic[kIntrinsicDoubleCvt], "DoubleCvt must be static
 static_assert(kIntrinsicIsStatic[kIntrinsicFloatCvt], "FloatCvt must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicReverseBits], "ReverseBits must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicReverseBytes], "ReverseBytes must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicNumberOfLeadingZeros],
+              "NumberOfLeadingZeros must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicAbsInt], "AbsInt must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicAbsLong], "AbsLong must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicAbsFloat], "AbsFloat must be static");
@@ -225,6 +228,7 @@ const char* const DexFileMethodInliner::kNameCacheNames[] = {
     "putObjectVolatile",     // kNameCachePutObjectVolatile
     "putOrderedObject",      // kNameCachePutOrderedObject
     "arraycopy",             // kNameCacheArrayCopy
+    "numberOfLeadingZeros",  // kNameCacheNumberOfLeadingZeros
 };
 
 const DexFileMethodInliner::ProtoDef DexFileMethodInliner::kProtoCacheDefs[] = {
@@ -367,6 +371,9 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
     INTRINSIC(JavaLangShort, ReverseBytes, S_S, kIntrinsicReverseBytes, kSignedHalf),
     INTRINSIC(JavaLangInteger, Reverse, I_I, kIntrinsicReverseBits, k32),
     INTRINSIC(JavaLangLong, Reverse, J_J, kIntrinsicReverseBits, k64),
+
+    INTRINSIC(JavaLangInteger, NumberOfLeadingZeros, I_I, kIntrinsicNumberOfLeadingZeros, k32),
+    INTRINSIC(JavaLangLong, NumberOfLeadingZeros, J_I, kIntrinsicNumberOfLeadingZeros, k64),
 
     INTRINSIC(JavaLangMath,       Abs, I_I, kIntrinsicAbsInt, 0),
     INTRINSIC(JavaLangStrictMath, Abs, I_I, kIntrinsicAbsInt, 0),
@@ -614,6 +621,8 @@ bool DexFileMethodInliner::GenIntrinsic(Mir2Lir* backend, CallInfo* info) {
                                           intrinsic.d.data & kIntrinsicFlagIsOrdered);
     case kIntrinsicSystemArrayCopyCharArray:
       return backend->GenInlinedArrayCopyCharArray(info);
+    case kIntrinsicNumberOfLeadingZeros:
+      return false;  // not implemented in quick
     default:
       LOG(FATAL) << "Unexpected intrinsic opcode: " << intrinsic.opcode;
       return false;  // avoid warning "control reaches end of non-void function"

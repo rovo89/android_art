@@ -27,8 +27,10 @@
   V(FloatIntBitsToFloat, kStatic) \
   V(IntegerReverse, kStatic) \
   V(IntegerReverseBytes, kStatic) \
+  V(IntegerNumberOfLeadingZeros, kStatic) \
   V(LongReverse, kStatic) \
   V(LongReverseBytes, kStatic) \
+  V(LongNumberOfLeadingZeros, kStatic) \
   V(ShortReverseBytes, kStatic) \
   V(MathAbsDouble, kStatic) \
   V(MathAbsFloat, kStatic) \
