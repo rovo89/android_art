@@ -517,10 +517,10 @@ void InstructionSimplifierVisitor::VisitLessThanOrEqual(HLessThanOrEqual* condit
 void InstructionSimplifierVisitor::VisitCondition(HCondition* condition) {
   // Try to fold an HCompare into this HCondition.
 
-  // This simplification is currently only supported on x86, x86_64 and ARM.
-  // TODO: Implement it for ARM64 and MIPS64.
+  // This simplification is currently supported on x86, x86_64, ARM and ARM64.
+  // TODO: Implement it for MIPS64.
   InstructionSet instruction_set = GetGraph()->GetInstructionSet();
-  if (instruction_set != kX86 && instruction_set != kX86_64 && instruction_set != kThumb2) {
+  if (instruction_set == kMips64) {
     return;
   }
 
