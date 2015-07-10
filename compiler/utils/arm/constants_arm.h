@@ -32,8 +32,9 @@ namespace arm {
 // Defines constants and accessor classes to assemble, disassemble and
 // simulate ARM instructions.
 //
-// Section references in the code refer to the "ARM Architecture Reference
-// Manual" from July 2005 (available at http://www.arm.com/miscPDFs/14128.pdf)
+// Section references in the code refer to the "ARM Architecture
+// Reference Manual ARMv7-A and ARMv7-R edition", issue C.b (24 July
+// 2012).
 //
 // Constants for specific fields are defined in their respective named enums.
 // General constants are in an anonymous enum in class Instr.
@@ -97,26 +98,32 @@ enum DRegister {  // private marker to avoid generate-operator-out.py from proce
 std::ostream& operator<<(std::ostream& os, const DRegister& rhs);
 
 
-// Values for the condition field as defined in section A3.2.
+// Values for the condition field as defined in Table A8-1 "Condition
+// codes" (refer to Section A8.3 "Conditional execution").
 enum Condition {  // private marker to avoid generate-operator-out.py from processing.
   kNoCondition = -1,
-  EQ = 0,   // equal
-  NE = 1,   // not equal
-  CS = 2,   // carry set/unsigned higher or same
-  CC = 3,   // carry clear/unsigned lower
-  MI = 4,   // minus/negative
-  PL = 5,   // plus/positive or zero
-  VS = 6,   // overflow
-  VC = 7,   // no overflow
-  HI = 8,   // unsigned higher
-  LS = 9,   // unsigned lower or same
-  GE = 10,  // signed greater than or equal
-  LT = 11,  // signed less than
-  GT = 12,  // signed greater than
-  LE = 13,  // signed less than or equal
-  AL = 14,  // always (unconditional)
-  kSpecialCondition = 15,  // special condition (refer to section A3.2.1)
+  //           Meaning (integer)                      | Meaning (floating-point)
+  //           ---------------------------------------+-----------------------------------------
+  EQ = 0,   // Equal                                  | Equal
+  NE = 1,   // Not equal                              | Not equal, or unordered
+  CS = 2,   // Carry set                              | Greater than, equal, or unordered
+  CC = 3,   // Carry clear                            | Less than
+  MI = 4,   // Minus, negative                        | Less than
+  PL = 5,   // Plus, positive or zero                 | Greater than, equal, or unordered
+  VS = 6,   // Overflow                               | Unordered (i.e. at least one NaN operand)
+  VC = 7,   // No overflow                            | Not unordered
+  HI = 8,   // Unsigned higher                        | Greater than, or unordered
+  LS = 9,   // Unsigned lower or same                 | Less than or equal
+  GE = 10,  // Signed greater than or equal           | Greater than or equal
+  LT = 11,  // Signed less than                       | Less than, or unordered
+  GT = 12,  // Signed greater than                    | Greater than
+  LE = 13,  // Signed less than or equal              | Less than, equal, or unordered
+  AL = 14,  // Always (unconditional)                 | Always (unconditional)
+  kSpecialCondition = 15,  // Special condition (refer to Section A8.3 "Conditional execution").
   kMaxCondition = 16,
+
+  HS = CS,  // HS (unsigned higher or same) is a synonym for CS.
+  LO = CC   // LO (unsigned lower) is a synonym for CC.
 };
 std::ostream& operator<<(std::ostream& os, const Condition& rhs);
 

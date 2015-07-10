@@ -31,7 +31,7 @@ class InstructionSimplifier : public HOptimization {
   InstructionSimplifier(HGraph* graph,
                         OptimizingCompilerStats* stats = nullptr,
                         const char* name = kInstructionSimplifierPassName)
-    : HOptimization(graph, name, stats) {}
+      : HOptimization(graph, name, stats) {}
 
   static constexpr const char* kInstructionSimplifierPassName = "instruction_simplifier";
 
