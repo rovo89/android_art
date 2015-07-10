@@ -2329,27 +2329,27 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     }
 
     case Instruction::CMP_LONG: {
-      Binop_23x_cmp(instruction, Primitive::kPrimLong, kNoBias, dex_pc);
+      Binop_23x_cmp(instruction, Primitive::kPrimLong, ComparisonBias::kNoBias, dex_pc);
       break;
     }
 
     case Instruction::CMPG_FLOAT: {
-      Binop_23x_cmp(instruction, Primitive::kPrimFloat, kGtBias, dex_pc);
+      Binop_23x_cmp(instruction, Primitive::kPrimFloat, ComparisonBias::kGtBias, dex_pc);
       break;
     }
 
     case Instruction::CMPG_DOUBLE: {
-      Binop_23x_cmp(instruction, Primitive::kPrimDouble, kGtBias, dex_pc);
+      Binop_23x_cmp(instruction, Primitive::kPrimDouble, ComparisonBias::kGtBias, dex_pc);
       break;
     }
 
     case Instruction::CMPL_FLOAT: {
-      Binop_23x_cmp(instruction, Primitive::kPrimFloat, kLtBias, dex_pc);
+      Binop_23x_cmp(instruction, Primitive::kPrimFloat, ComparisonBias::kLtBias, dex_pc);
       break;
     }
 
     case Instruction::CMPL_DOUBLE: {
-      Binop_23x_cmp(instruction, Primitive::kPrimDouble, kLtBias, dex_pc);
+      Binop_23x_cmp(instruction, Primitive::kPrimDouble, ComparisonBias::kLtBias, dex_pc);
       break;
     }
 
