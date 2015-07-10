@@ -585,7 +585,15 @@ const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_ty
   DCHECK(!Equals(incoming_type));  // Trivial equality handled by caller
   // Perform pointer equality tests for conflict to avoid virtual method dispatch.
   const ConflictType& conflict = reg_types->Conflict();
-  if (this == &conflict) {
+  if (IsUndefined() || incoming_type.IsUndefined()) {
+    // There is a difference between undefined and conflict. Conflicts may be copied around, but
+    // not used. Undefined registers must not be copied. So any merge with undefined should return
+    // undefined.
+    if (IsUndefined()) {
+      return *this;
+    }
+    return incoming_type;
+  } else if (this == &conflict) {
     DCHECK(IsConflict());
     return *this;  // Conflict MERGE * => Conflict
   } else if (&incoming_type == &conflict) {
