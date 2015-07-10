@@ -144,58 +144,6 @@ class ThreadPool {
   DISALLOW_COPY_AND_ASSIGN(ThreadPool);
 };
 
-class WorkStealingTask : public Task {
- public:
-  WorkStealingTask() : ref_count_(0) {}
-
-  size_t GetRefCount() const {
-    return ref_count_;
-  }
-
-  virtual void StealFrom(Thread* self, WorkStealingTask* source) = 0;
-
- private:
-  // How many people are referencing this task.
-  size_t ref_count_;
-
-  friend class WorkStealingWorker;
-};
-
-class WorkStealingWorker : public ThreadPoolWorker {
- public:
-  virtual ~WorkStealingWorker();
-
-  bool IsRunningTask() const {
-    return task_ != nullptr;
-  }
-
- protected:
-  WorkStealingTask* task_;
-
-  WorkStealingWorker(ThreadPool* thread_pool, const std::string& name, size_t stack_size);
-  virtual void Run();
-
- private:
-  friend class WorkStealingThreadPool;
-  DISALLOW_COPY_AND_ASSIGN(WorkStealingWorker);
-};
-
-class WorkStealingThreadPool : public ThreadPool {
- public:
-  explicit WorkStealingThreadPool(const char* name, size_t num_threads);
-  virtual ~WorkStealingThreadPool();
-
- private:
-  Mutex work_steal_lock_;
-  // Which thread we are stealing from (round robin).
-  size_t steal_index_;
-
-  // Find a task to steal from
-  WorkStealingTask* FindTaskToStealFrom() EXCLUSIVE_LOCKS_REQUIRED(work_steal_lock_);
-
-  friend class WorkStealingWorker;
-};
-
 }  // namespace art
 
 #endif  // ART_RUNTIME_THREAD_POOL_H_
