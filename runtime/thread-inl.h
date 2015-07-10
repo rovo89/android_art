@@ -25,6 +25,7 @@
 #include "base/mutex-inl.h"
 #include "gc/heap.h"
 #include "jni_env_ext.h"
+#include "thread_pool.h"
 
 namespace art {
 
