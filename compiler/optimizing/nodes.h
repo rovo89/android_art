@@ -38,6 +38,7 @@ class HBasicBlock;
 class HCurrentMethod;
 class HDoubleConstant;
 class HEnvironment;
+class HFakeString;
 class HFloatConstant;
 class HGraphBuilder;
 class HGraphVisitor;
@@ -914,6 +915,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(DoubleConstant, Constant)                                           \
   M(Equal, Condition)                                                   \
   M(Exit, Instruction)                                                  \
+  M(FakeString, Instruction)                                            \
   M(FloatConstant, Constant)                                            \
   M(Goto, Instruction)                                                  \
   M(GreaterThan, Condition)                                             \
@@ -1339,8 +1341,7 @@ class HEnvironment : public ArenaObject<kArenaAllocMisc> {
   const uint32_t dex_pc_;
   const InvokeType invoke_type_;
 
-  // The instruction that holds this environment. Only used in debug mode
-  // to ensure the graph is consistent.
+  // The instruction that holds this environment.
   HInstruction* const holder_;
 
   friend class HInstruction;
@@ -2730,9 +2731,11 @@ class HInvokeStaticOrDirect : public HInvoke {
                         ClinitCheckRequirement clinit_check_requirement)
       : HInvoke(arena,
                 number_of_arguments,
-                // There is one extra argument for the  HCurrentMethod node, and
-                // potentially one other if the clinit check is explicit.
-                clinit_check_requirement == ClinitCheckRequirement::kExplicit ? 2u : 1u,
+                // There is one extra argument for the HCurrentMethod node, and
+                // potentially one other if the clinit check is explicit, and one other
+                // if the method is a string factory.
+                1u + (clinit_check_requirement == ClinitCheckRequirement::kExplicit ? 1u : 0u)
+                   + (string_init_offset ? 1u : 0u),
                 return_type,
                 dex_pc,
                 dex_method_index,
@@ -2775,6 +2778,23 @@ class HInvokeStaticOrDirect : public HInvoke {
     inputs_.DeleteAt(last_input_index);
     clinit_check_requirement_ = ClinitCheckRequirement::kImplicit;
     DCHECK(IsStaticWithImplicitClinitCheck());
+  }
+
+  bool IsStringFactoryFor(HFakeString* str) const {
+    if (!IsStringInit()) return false;
+    // +1 for the current method.
+    if (InputCount() == (number_of_arguments_ + 1)) return false;
+    return InputAt(InputCount() - 1)->AsFakeString() == str;
+  }
+
+  void RemoveFakeStringArgumentAsLastInput() {
+    DCHECK(IsStringInit());
+    size_t last_input_index = InputCount() - 1;
+    HInstruction* last_input = InputAt(last_input_index);
+    DCHECK(last_input != nullptr);
+    DCHECK(last_input->IsFakeString()) << last_input->DebugName();
+    RemoveAsUserOfInput(last_input_index);
+    inputs_.DeleteAt(last_input_index);
   }
 
   // Is this a call to a static method whose declaring class has an
@@ -4157,6 +4177,25 @@ class HMonitorOperation : public HTemplateInstruction<1> {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HMonitorOperation);
+};
+
+/**
+ * A HInstruction used as a marker for the replacement of new + <init>
+ * of a String to a call to a StringFactory. Only baseline will see
+ * the node at code generation, where it will be be treated as null.
+ * When compiling non-baseline, `HFakeString` instructions are being removed
+ * in the instruction simplifier.
+ */
+class HFakeString : public HTemplateInstruction<0> {
+ public:
+  HFakeString() : HTemplateInstruction(SideEffects::None()) {}
+
+  Primitive::Type GetType() const OVERRIDE { return Primitive::kPrimNot; }
+
+  DECLARE_INSTRUCTION(FakeString);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HFakeString);
 };
 
 class MoveOperands : public ArenaObject<kArenaAllocMisc> {

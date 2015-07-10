@@ -4365,6 +4365,18 @@ void InstructionCodeGeneratorARM::VisitBoundType(HBoundType* instruction) {
   LOG(FATAL) << "Unreachable";
 }
 
+void LocationsBuilderARM::VisitFakeString(HFakeString* instruction) {
+  DCHECK(codegen_->IsBaseline());
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  locations->SetOut(Location::ConstantLocation(GetGraph()->GetNullConstant()));
+}
+
+void InstructionCodeGeneratorARM::VisitFakeString(HFakeString* instruction ATTRIBUTE_UNUSED) {
+  DCHECK(codegen_->IsBaseline());
+  // Will be generated at use site.
+}
+
 #undef __
 #undef QUICK_ENTRY_POINT
 
