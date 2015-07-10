@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_GC_SPACE_ROSALLOC_SPACE_INL_H_
 #define ART_RUNTIME_GC_SPACE_ROSALLOC_SPACE_INL_H_
 
+#include <valgrind.h>
+
 #include "gc/allocator/rosalloc-inl.h"
 #include "gc/space/valgrind_settings.h"
 #include "rosalloc_space.h"

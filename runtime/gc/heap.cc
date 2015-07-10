@@ -37,13 +37,12 @@
 #include "gc/accounting/atomic_stack.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/heap_bitmap-inl.h"
-#include "gc/accounting/mod_union_table.h"
 #include "gc/accounting/mod_union_table-inl.h"
 #include "gc/accounting/remembered_set.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/collector/concurrent_copying.h"
 #include "gc/collector/mark_compact.h"
-#include "gc/collector/mark_sweep-inl.h"
+#include "gc/collector/mark_sweep.h"
 #include "gc/collector/partial_mark_sweep.h"
 #include "gc/collector/semi_space.h"
 #include "gc/collector/sticky_mark_sweep.h"
@@ -62,7 +61,6 @@
 #include "image.h"
 #include "intern_table.h"
 #include "mirror/class-inl.h"
-#include "mirror/object.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/reference-inl.h"
@@ -467,6 +465,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   gc_complete_cond_.reset(new ConditionVariable("GC complete condition variable",
                                                 *gc_complete_lock_));
   task_processor_.reset(new TaskProcessor());
+  reference_processor_.reset(new ReferenceProcessor());
   pending_task_lock_ = new Mutex("Pending task lock");
   if (ignore_max_footprint_) {
     SetIdealFootprint(std::numeric_limits<size_t>::max());
@@ -1865,7 +1864,7 @@ HomogeneousSpaceCompactResult Heap::PerformHomogeneousSpaceCompact() {
              static_cast<double>(space_size_before_compaction);
   tl->ResumeAll();
   // Finish GC.
-  reference_processor_.EnqueueClearedReferences(self);
+  reference_processor_->EnqueueClearedReferences(self);
   GrowForUtilization(semi_space_collector_);
   LogGC(kGcCauseHomogeneousSpaceCompact, collector);
   FinishGC(self, collector::kGcTypeFull);
@@ -1998,7 +1997,7 @@ void Heap::TransitionCollector(CollectorType collector_type) {
   ChangeCollector(collector_type);
   tl->ResumeAll();
   // Can't call into java code with all threads suspended.
-  reference_processor_.EnqueueClearedReferences(self);
+  reference_processor_->EnqueueClearedReferences(self);
   uint64_t duration = NanoTime() - start_time;
   GrowForUtilization(semi_space_collector_);
   DCHECK(collector != nullptr);
@@ -2472,7 +2471,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   total_bytes_freed_ever_ += GetCurrentGcIteration()->GetFreedBytes();
   RequestTrim(self);
   // Enqueue cleared references.
-  reference_processor_.EnqueueClearedReferences(self);
+  reference_processor_->EnqueueClearedReferences(self);
   // Grow the heap so that we know when to perform the next GC.
   GrowForUtilization(collector, bytes_allocated_before_gc);
   LogGC(gc_cause, collector);

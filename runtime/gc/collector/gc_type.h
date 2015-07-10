@@ -17,7 +17,7 @@
 #ifndef ART_RUNTIME_GC_COLLECTOR_GC_TYPE_H_
 #define ART_RUNTIME_GC_COLLECTOR_GC_TYPE_H_
 
-#include <ostream>
+#include <iosfwd>
 
 namespace art {
 namespace gc {

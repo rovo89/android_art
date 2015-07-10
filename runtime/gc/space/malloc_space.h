@@ -20,8 +20,6 @@
 #include "space.h"
 
 #include <ostream>
-#include <valgrind.h>
-#include <memcheck/memcheck.h>
 
 namespace art {
 namespace gc {
