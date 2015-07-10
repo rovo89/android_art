@@ -51,11 +51,8 @@ static FILE* gOutFile = stdout;
  * Data types that match the definitions in the VM specification.
  */
 typedef uint8_t  u1;
-typedef uint16_t u2;
 typedef uint32_t u4;
 typedef uint64_t u8;
-typedef int32_t  s4;
-typedef int64_t  s8;
 
 /*
  * Returns a newly-allocated string for the "dot version" of the class
@@ -193,23 +190,15 @@ static int processFile(const char* fileName) {
     return -1;
   }
 
-  // Determine if opening file yielded a single dex file.
-  //
-  // TODO(ajcbik): this restriction is not really needed, but kept
-  //               for now to stay close to original dexlist; we can
-  //               later relax this!
-  //
-  if (dex_files.size() != 1) {
-    fprintf(stderr, "ERROR: DEX parse failed\n");
-    return -1;
-  }
-  const DexFile* pDexFile = dex_files[0].get();
-
-  // Success. Iterate over all classes.
+  // Success. Iterate over all dex files found in given file.
   fprintf(gOutFile, "#%s\n", fileName);
-  const u4 classDefsSize = pDexFile->GetHeader().class_defs_size_;
-  for (u4 idx = 0; idx < classDefsSize; idx++) {
-    dumpClass(pDexFile, idx);
+  for (size_t i = 0; i < dex_files.size(); i++) {
+    // Iterate over all classes in one dex file.
+    const DexFile* pDexFile = dex_files[i].get();
+    const u4 classDefsSize = pDexFile->GetHeader().class_defs_size_;
+    for (u4 idx = 0; idx < classDefsSize; idx++) {
+      dumpClass(pDexFile, idx);
+    }
   }
   return 0;
 }
@@ -246,7 +235,7 @@ int dexlistDriver(int argc, char** argv) {
         gOptions.outputFileName = optarg;
         break;
       case 'm':
-        // If -m X.Y.Z is given, then find all instances of the
+        // If -m x.y.z is given, then find all instances of the
         // fully-qualified method name. This isn't really what
         // dexlist is for, but it's easy to do it here.
         {
