@@ -72,6 +72,10 @@
 #include "verifier/method_verifier.h"
 #include "well_known_classes.h"
 
+#ifdef HAVE_ANDROID_OS
+#include "cutils/properties.h"
+#endif
+
 namespace art {
 
 static void ThrowNoClassDefFoundError(const char* fmt, ...)
@@ -663,6 +667,17 @@ bool ClassLinker::GenerateOatFile(const char* dex_filename,
   for (size_t i = 0; i < compiler_options.size(); ++i) {
     argv.push_back(compiler_options[i].c_str());
   }
+
+#ifdef HAVE_ANDROID_OS
+  const char* propertyName = "ro.sys.fw.dex2oat_thread_count";
+  char count[PROPERTY_VALUE_MAX];
+  if (property_get(propertyName, count, "") > 0) {
+    std::string thread_count("-j");
+    StringAppendF(&thread_count, "%s", count);
+    argv.push_back(thread_count);
+    LOG(INFO) << "Adjust thread count for runtime dex2oat";
+  }
+#endif
 
   if (!Exec(argv, error_msg)) {
     // Manually delete the file. Ensures there is no garbage left over if the process unexpectedly
