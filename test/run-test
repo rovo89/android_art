@@ -262,6 +262,10 @@ while true; do
     elif [ "x$1" = "x--no-verify" ]; then
         run_args="${run_args} --no-verify"
         shift
+    elif [ "x$1" = "x--verify-soft-fail" ]; then
+        run_args="${run_args} --verify-soft-fail"
+        image_suffix="-interpreter-access-checks"
+        shift
     elif [ "x$1" = "x--no-optimize" ]; then
         run_args="${run_args} --no-optimize"
         shift
@@ -520,6 +524,9 @@ if [ "$usage" = "yes" ]; then
         echo "    --optimizing          Enable optimizing compiler (default)."
         echo "    --quick               Use Quick compiler (off by default)."
         echo "    --no-verify           Turn off verification (on by default)."
+        echo "    --verify-soft-fail    Force soft fail verification (off by default)."
+        echo "                          Verification is enabled if neither --no-verify"
+        echo "                          nor --verify-soft-fail is specified."
         echo "    --no-optimize         Turn off optimization (on by default)."
         echo "    --no-precise          Turn off precise GC (on by default)."
         echo "    --zygote              Spawn the process from the Zygote." \
