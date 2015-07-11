@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 
 public class Main {
     public static void main(String[] args) {
@@ -35,6 +37,7 @@ public class Main {
         testCallNonvirtual();
         testNewStringObject();
         testRemoveLocalObject();
+        testProxyGetMethodID();
     }
 
     private static native void testFindClassOnAttachedNativeThread();
@@ -194,6 +197,31 @@ public class Main {
     private static native void testCallNonvirtual();
 
     private static native void testNewStringObject();
+
+    private interface SimpleInterface {
+        void a();
+    }
+
+    private static class DummyInvocationHandler implements InvocationHandler {
+        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+            return null;
+        }
+    }
+
+    private static void testProxyGetMethodID() {
+        InvocationHandler handler = new DummyInvocationHandler();
+        SimpleInterface proxy =
+                (SimpleInterface) Proxy.newProxyInstance(SimpleInterface.class.getClassLoader(),
+                        new Class[] {SimpleInterface.class}, handler);
+        if (testGetMethodID(SimpleInterface.class) == 0) {
+            throw new AssertionError();
+        }
+        if (testGetMethodID(proxy.getClass()) == 0) {
+            throw new AssertionError();
+        }
+    }
+
+    private static native long testGetMethodID(Class<?> c);
 }
 
 class JniCallNonvirtualTest {
