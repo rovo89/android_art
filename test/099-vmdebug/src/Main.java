@@ -17,6 +17,8 @@
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Map;
 
 public class Main {
@@ -30,7 +32,9 @@ public class Main {
             return;
         }
         testMethodTracing();
+        testCountInstances();
         testRuntimeStat();
+        testRuntimeStats();
     }
 
     private static File createTempFile() throws Exception {
@@ -220,12 +224,39 @@ public class Main {
         checkHistogram(blocking_gc_count_rate_histogram);
     }
 
+    static class ClassA { }
+    static class ClassB { }
+    static class ClassC extends ClassA { }
+
+    private static void testCountInstances() throws Exception {
+        ArrayList<Object> l = new ArrayList<Object>();
+        l.add(new ClassA());
+        l.add(new ClassB());
+        l.add(new ClassA());
+        l.add(new ClassC());
+        Runtime.getRuntime().gc();
+        System.out.println("Instances of ClassA " +
+                VMDebug.countInstancesofClass(ClassA.class, false));
+        System.out.println("Instances of ClassB " +
+                VMDebug.countInstancesofClass(ClassB.class, false));
+        System.out.println("Instances of null " + VMDebug.countInstancesofClass(null, false));
+        System.out.println("Instances of ClassA assignable " +
+                VMDebug.countInstancesofClass(ClassA.class, true));
+        Class[] classes = new Class[]{ClassA.class, ClassB.class, null};
+        long[] counts = VMDebug.countInstancesofClasses(classes, false);
+        System.out.println("Array counts " + Arrays.toString(counts));
+        counts = VMDebug.countInstancesofClasses(classes, true);
+        System.out.println("Array counts assignable " + Arrays.toString(counts));
+    }
+
     private static class VMDebug {
         private static final Method startMethodTracingMethod;
         private static final Method stopMethodTracingMethod;
         private static final Method getMethodTracingModeMethod;
         private static final Method getRuntimeStatMethod;
         private static final Method getRuntimeStatsMethod;
+        private static final Method countInstancesOfClassMethod;
+        private static final Method countInstancesOfClassesMethod;
         static {
             try {
                 Class c = Class.forName("dalvik.system.VMDebug");
@@ -235,6 +266,10 @@ public class Main {
                 getMethodTracingModeMethod = c.getDeclaredMethod("getMethodTracingMode");
                 getRuntimeStatMethod = c.getDeclaredMethod("getRuntimeStat", String.class);
                 getRuntimeStatsMethod = c.getDeclaredMethod("getRuntimeStats");
+                countInstancesOfClassMethod = c.getDeclaredMethod("countInstancesOfClass",
+                        Class.class, Boolean.TYPE);
+                countInstancesOfClassesMethod = c.getDeclaredMethod("countInstancesOfClasses",
+                        Class[].class, Boolean.TYPE);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -256,6 +291,14 @@ public class Main {
         }
         public static Map<String, String> getRuntimeStats() throws Exception {
             return (Map<String, String>) getRuntimeStatsMethod.invoke(null);
+        }
+        public static long countInstancesofClass(Class c, boolean assignable) throws Exception {
+            return (long) countInstancesOfClassMethod.invoke(null, new Object[]{c, assignable});
+        }
+        public static long[] countInstancesofClasses(Class[] classes, boolean assignable)
+                throws Exception {
+            return (long[]) countInstancesOfClassesMethod.invoke(
+                    null, new Object[]{classes, assignable});
         }
     }
 }

@@ -1704,11 +1704,12 @@ class InstanceCounter {
     mirror::Class* instance_class = obj->GetClass();
     CHECK(instance_class != nullptr);
     for (size_t i = 0; i < instance_counter->classes_.size(); ++i) {
+      mirror::Class* klass = instance_counter->classes_[i];
       if (instance_counter->use_is_assignable_from_) {
-        if (instance_counter->classes_[i]->IsAssignableFrom(instance_class)) {
+        if (klass != nullptr && klass->IsAssignableFrom(instance_class)) {
           ++instance_counter->counts_[i];
         }
-      } else if (instance_class == instance_counter->classes_[i]) {
+      } else if (instance_class == klass) {
         ++instance_counter->counts_[i];
       }
     }
