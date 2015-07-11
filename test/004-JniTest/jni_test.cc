@@ -626,3 +626,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_testNewStringObject(JNIEnv* env, jcl
   assert(strcmp(test_array, chars6) == 0);
   env->ReleaseStringUTFChars(s6, chars6);
 }
+
+extern "C" JNIEXPORT jlong JNICALL Java_Main_testGetMethodID(JNIEnv* env, jclass, jclass c) {
+  return reinterpret_cast<jlong>(env->GetMethodID(c, "a", "()V"));
+}
