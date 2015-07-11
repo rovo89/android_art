@@ -17,3 +17,9 @@ Test tracing with bogus (< 1024 && != 0) filesize
 Got expected exception
 Test sampling with bogus (<= 0) interval
 Got expected exception
+Instances of ClassA 2
+Instances of ClassB 1
+Instances of null 0
+Instances of ClassA assignable 3
+Array counts [2, 1, 0]
+Array counts assignable [3, 1, 0]
