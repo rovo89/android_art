@@ -388,6 +388,24 @@ void Thread::InstallImplicitProtection() {
 void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_size, bool is_daemon) {
   CHECK(java_peer != nullptr);
   Thread* self = static_cast<JNIEnvExt*>(env)->self;
+
+  if (VLOG_IS_ON(threads)) {
+    ScopedObjectAccess soa(env);
+
+    ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_name);
+    mirror::String* java_name = reinterpret_cast<mirror::String*>(f->GetObject(
+        soa.Decode<mirror::Object*>(java_peer)));
+    std::string thread_name;
+    if (java_name != nullptr) {
+      thread_name = java_name->ToModifiedUtf8();
+    } else {
+      thread_name = "(Unnamed)";
+    }
+
+    VLOG(threads) << "Creating native thread for " << thread_name;
+    self->Dump(LOG(INFO));
+  }
+
   Runtime* runtime = Runtime::Current();
 
   // Atomically start the birth of the thread ensuring the runtime isn't shutting down.
@@ -554,6 +572,16 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_g
     } else if (self->GetJniEnv()->check_jni) {
       LOG(WARNING) << *Thread::Current() << " attached without supplying a name";
     }
+  }
+
+  if (VLOG_IS_ON(threads)) {
+    if (thread_name != nullptr) {
+      VLOG(threads) << "Attaching thread " << thread_name;
+    } else {
+      VLOG(threads) << "Attaching unnamed thread.";
+    }
+    ScopedObjectAccess soa(self);
+    self->Dump(LOG(INFO));
   }
 
   {
