@@ -199,7 +199,7 @@ class ImageWriter FINAL {
   const uint8_t* GetOatAddress(uint32_t offset) const {
     // With Quick, code is within the OatFile, as there are all in one
     // .o ELF object.
-    DCHECK_LT(offset, oat_file_->Size());
+    DCHECK_LE(offset, oat_file_->Size());
     DCHECK(oat_data_begin_ != nullptr);
     return offset == 0u ? nullptr : oat_data_begin_ + offset;
   }
