@@ -18,7 +18,6 @@
 #include "art_method-inl.h"
 #include "base/logging.h"
 #include "base/mutex.h"
-#include "compiled_method.h"
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
 #include "driver/compiler_driver.h"
@@ -35,13 +34,6 @@ const bool kEnableQuickening = true;
 // Control check-cast elision.
 const bool kEnableCheckCastEllision = true;
 
-struct QuickenedInfo {
-  QuickenedInfo(uint32_t pc, uint16_t index) : dex_pc(pc), dex_member_index(index) {}
-
-  uint32_t dex_pc;
-  uint16_t dex_member_index;
-};
-
 class DexCompiler {
  public:
   DexCompiler(art::CompilerDriver& compiler,
@@ -54,10 +46,6 @@ class DexCompiler {
   ~DexCompiler() {}
 
   void Compile();
-
-  const std::vector<QuickenedInfo>& GetQuickenedInfo() const {
-    return quickened_info_;
-  }
 
  private:
   const DexFile& GetDexFile() const {
@@ -98,11 +86,6 @@ class DexCompiler {
   CompilerDriver& driver_;
   const DexCompilationUnit& unit_;
   const DexToDexCompilationLevel dex_to_dex_compilation_level_;
-
-  // Filled by the compiler when quickening, in order to encode that information
-  // in the .oat file. The runtime will use that information to get to the original
-  // opcodes.
-  std::vector<QuickenedInfo> quickened_info_;
 
   DISALLOW_COPY_AND_ASSIGN(DexCompiler);
 };
@@ -265,7 +248,6 @@ void DexCompiler::CompileInstanceFieldAccess(Instruction* inst,
     inst->SetOpcode(new_opcode);
     // Replace field index by field offset.
     inst->SetVRegC_22c(static_cast<uint16_t>(field_offset.Int32Value()));
-    quickened_info_.push_back(QuickenedInfo(dex_pc, field_idx));
   }
 }
 
@@ -305,60 +287,24 @@ void DexCompiler::CompileInvokeVirtual(Instruction* inst, uint32_t dex_pc,
       } else {
         inst->SetVRegB_35c(static_cast<uint16_t>(vtable_idx));
       }
-      quickened_info_.push_back(QuickenedInfo(dex_pc, method_idx));
     }
   }
 }
 
-extern "C" CompiledMethod* ArtCompileDEX(
-    art::CompilerDriver& driver,
-    const art::DexFile::CodeItem* code_item,
-    uint32_t access_flags,
-    art::InvokeType invoke_type ATTRIBUTE_UNUSED,
-    uint16_t class_def_idx,
-    uint32_t method_idx,
-    jobject class_loader,
-    const art::DexFile& dex_file,
-    art::DexToDexCompilationLevel dex_to_dex_compilation_level) {
+}  // namespace optimizer
+}  // namespace art
+
+extern "C" void ArtCompileDEX(art::CompilerDriver& driver, const art::DexFile::CodeItem* code_item,
+                              uint32_t access_flags, art::InvokeType invoke_type,
+                              uint16_t class_def_idx, uint32_t method_idx, jobject class_loader,
+                              const art::DexFile& dex_file,
+                              art::DexToDexCompilationLevel dex_to_dex_compilation_level) {
+  UNUSED(invoke_type);
   if (dex_to_dex_compilation_level != art::kDontDexToDexCompile) {
     art::DexCompilationUnit unit(nullptr, class_loader, art::Runtime::Current()->GetClassLinker(),
                                  dex_file, code_item, class_def_idx, method_idx, access_flags,
                                  driver.GetVerifiedMethod(&dex_file, method_idx));
     art::optimizer::DexCompiler dex_compiler(driver, unit, dex_to_dex_compilation_level);
     dex_compiler.Compile();
-    if (dex_compiler.GetQuickenedInfo().empty()) {
-      // No need to create a CompiledMethod if there are no quickened opcodes.
-      return nullptr;
-    }
-
-    // Create a `CompiledMethod`, with the quickened information in the vmap table.
-    Leb128EncodingVector builder;
-    for (QuickenedInfo info : dex_compiler.GetQuickenedInfo()) {
-      builder.PushBackUnsigned(info.dex_pc);
-      builder.PushBackUnsigned(info.dex_member_index);
-    }
-    InstructionSet instruction_set = driver.GetInstructionSet();
-    if (instruction_set == kThumb2) {
-      // Don't use the thumb2 instruction set to avoid the one off code delta.
-      instruction_set = kArm;
-    }
-    return CompiledMethod::SwapAllocCompiledMethod(
-        &driver,
-        instruction_set,
-        ArrayRef<const uint8_t>(),                   // no code
-        0,
-        0,
-        0,
-        nullptr,                                     // src_mapping_table
-        ArrayRef<const uint8_t>(),                   // mapping_table
-        ArrayRef<const uint8_t>(builder.GetData()),  // vmap_table
-        ArrayRef<const uint8_t>(),                   // gc_map
-        ArrayRef<const uint8_t>(),                   // cfi data
-        ArrayRef<const LinkerPatch>());
   }
-  return nullptr;
 }
-
-}  // namespace optimizer
-
-}  // namespace art
