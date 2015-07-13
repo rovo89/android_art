@@ -288,6 +288,8 @@ class Thread {
     return tls32_.daemon;
   }
 
+  size_t NumberOfHeldMutexes() const;
+
   bool HoldsLock(mirror::Object*) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*

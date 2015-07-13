@@ -311,13 +311,14 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
   dex_instruction.h \
   dex_instruction_utils.h \
   gc_root.h \
-  gc/allocator/rosalloc.h \
-  gc/collector/gc_type.h \
   gc/allocator_type.h \
+  gc/allocator/rosalloc.h \
   gc/collector_type.h \
+  gc/collector/gc_type.h \
+  gc/heap.h \
   gc/space/region_space.h \
   gc/space/space.h \
-  gc/heap.h \
+  gc/weak_root_state.h \
   image.h \
   instrumentation.h \
   indirect_reference_table.h \
