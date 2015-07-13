@@ -23,6 +23,7 @@ DEFINE_FUNCTION art_jni_dlsym_lookup_stub
     subl LITERAL(8), %esp         // align stack
     CFI_ADJUST_CFA_OFFSET(8)
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    CFI_ADJUST_CFA_OFFSET(4)
     call SYMBOL(artFindNativeMethod)  // (Thread*)
     addl LITERAL(12), %esp        // remove argument & padding
     CFI_ADJUST_CFA_OFFSET(-12)
