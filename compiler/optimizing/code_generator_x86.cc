@@ -4964,6 +4964,18 @@ void InstructionCodeGeneratorX86::VisitBoundType(HBoundType* instruction) {
   LOG(FATAL) << "Unreachable";
 }
 
+void LocationsBuilderX86::VisitFakeString(HFakeString* instruction) {
+  DCHECK(codegen_->IsBaseline());
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  locations->SetOut(Location::ConstantLocation(GetGraph()->GetNullConstant()));
+}
+
+void InstructionCodeGeneratorX86::VisitFakeString(HFakeString* instruction ATTRIBUTE_UNUSED) {
+  DCHECK(codegen_->IsBaseline());
+  // Will be generated at use site.
+}
+
 #undef __
 
 }  // namespace x86
