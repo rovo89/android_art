@@ -27,7 +27,8 @@ CompiledCode::CompiledCode(CompilerDriver* compiler_driver, InstructionSet instr
 }
 
 void CompiledCode::SetCode(const ArrayRef<const uint8_t>* quick_code) {
-  if (quick_code != nullptr && !quick_code->empty()) {
+  if (quick_code != nullptr) {
+    CHECK(!quick_code->empty());
     if (owns_code_array_) {
       // If we are supposed to own the code, don't deduplicate it.
       CHECK(quick_code_ == nullptr);
