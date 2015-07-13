@@ -1107,11 +1107,13 @@ DEFINE_FUNCTION art_quick_check_cast
     addl LITERAL(12), %esp        // pop arguments
     CFI_ADJUST_CFA_OFFSET(-12)
     ret
+
+    CFI_ADJUST_CFA_OFFSET(12)     // Reset unwind info so following code unwinds.
 1:
     POP eax                       // pop arguments
     POP ecx
     addl LITERAL(4), %esp
-    CFI_ADJUST_CFA_OFFSET(-12)
+    CFI_ADJUST_CFA_OFFSET(-4)
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  ebx, ebx  // save all registers as basis for long jump context
     // Outgoing argument set up
     PUSH eax                      // alignment padding
@@ -1416,6 +1418,7 @@ DEFINE_FUNCTION art_quick_resolution_trampoline
     call SYMBOL(artQuickResolutionTrampoline) // (Method* called, receiver, Thread*, SP)
     movl %eax, %edi               // remember code pointer in EDI
     addl LITERAL(16), %esp        // pop arguments
+    CFI_ADJUST_CFA_OFFSET(-16)
     test %eax, %eax               // if code pointer is null goto deliver pending exception
     jz 1f
     RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME_AND_JUMP
@@ -1546,6 +1549,7 @@ DEFINE_FUNCTION art_quick_instrumentation_entry
     PUSH eax                      // Pass Method*.
     call SYMBOL(artInstrumentationMethodEntryFromCode) // (Method*, Object*, Thread*, LR)
     addl LITERAL(28), %esp        // Pop arguments upto saved Method*.
+    CFI_ADJUST_CFA_OFFSET(-28)
     movl 60(%esp), %edi           // Restore edi.
     movl %eax, 60(%esp)           // Place code* over edi, just under return pc.
     movl SYMBOL(art_quick_instrumentation_exit)@GOT(%ebx), %ebx
@@ -1565,11 +1569,13 @@ DEFINE_FUNCTION art_quick_instrumentation_entry
     movl 52(%esp), %ebp           // Restore ebp.
     movl 56(%esp), %esi           // Restore esi.
     addl LITERAL(60), %esp        // Wind stack back upto code*.
+    CFI_ADJUST_CFA_OFFSET(-60)
     ret                           // Call method (and pop).
 END_FUNCTION art_quick_instrumentation_entry
 
 DEFINE_FUNCTION art_quick_instrumentation_exit
     pushl LITERAL(0)              // Push a fake return PC as there will be none on the stack.
+    CFI_ADJUST_CFA_OFFSET(4)
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME ebx, ebx
     mov  %esp, %ecx               // Remember SP
     subl LITERAL(8), %esp         // Save float return value.
@@ -1598,6 +1604,7 @@ DEFINE_FUNCTION art_quick_instrumentation_exit
     CFI_ADJUST_CFA_OFFSET(-8)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
     addl LITERAL(4), %esp         // Remove fake return pc.
+    CFI_ADJUST_CFA_OFFSET(-4)
     jmp   *%ecx                   // Return.
 END_FUNCTION art_quick_instrumentation_exit
 
@@ -1606,7 +1613,7 @@ END_FUNCTION art_quick_instrumentation_exit
      * will long jump to the upcall with a special exception of -1.
      */
 DEFINE_FUNCTION art_quick_deoptimize
-    pushl %ebx                    // Entry point for a jump. Fake that we were called.
+    PUSH ebx                      // Entry point for a jump. Fake that we were called.
 .globl SYMBOL(art_quick_deoptimize_from_compiled_slow_path)  // Entry point for real calls
                                                              // from compiled slow paths.
 SYMBOL(art_quick_deoptimize_from_compiled_slow_path):
@@ -1669,8 +1676,8 @@ END_FUNCTION art_quick_string_compareto
 DEFINE_FUNCTION art_nested_signal_return
     SETUP_GOT_NOSAVE ebx            // sets %ebx for call into PLT
     movl LITERAL(1), %ecx
-    pushl %ecx                      // second arg to longjmp (1)
-    pushl %eax                      // first arg to longjmp (jmp_buf)
+    PUSH ecx                        // second arg to longjmp (1)
+    PUSH eax                        // first arg to longjmp (jmp_buf)
     call PLT_SYMBOL(longjmp)
     int3                            // won't get here.
 END_FUNCTION art_nested_signal_return
