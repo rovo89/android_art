@@ -2291,16 +2291,10 @@ void CompilerDriver::CompileMethod(Thread* self, const DexFile::CodeItem* code_i
       // TODO: add a command-line option to disable DEX-to-DEX compilation ?
       // Do not optimize if a VerifiedMethod is missing. SafeCast elision, for example, relies on
       // it.
-      compiled_method = (*dex_to_dex_compiler_)(
-          *this,
-          code_item,
-          access_flags,
-          invoke_type,
-          class_def_idx,
-          method_idx,
-          class_loader,
-          dex_file,
-          has_verified_method ? dex_to_dex_compilation_level : kRequired);
+      (*dex_to_dex_compiler_)(*this, code_item, access_flags,
+                              invoke_type, class_def_idx,
+                              method_idx, class_loader, dex_file,
+                              has_verified_method ? dex_to_dex_compilation_level : kRequired);
     }
   }
   if (kTimeCompileMethod) {
