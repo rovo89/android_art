@@ -77,10 +77,9 @@ inline Condition ARM64Condition(IfCondition cond) {
     case kCondLE: return le;
     case kCondGT: return gt;
     case kCondGE: return ge;
-    default:
-      LOG(FATAL) << "Unknown if condition";
   }
-  return nv;  // Unreachable.
+  LOG(FATAL) << "Unreachable";
+  UNREACHABLE();
 }
 
 Location ARM64ReturnLocation(Primitive::Type return_type) {
@@ -1645,6 +1644,11 @@ void InstructionCodeGeneratorARM64::VisitClinitCheck(HClinitCheck* check) {
   GenerateClassInitializationCheck(slow_path, InputRegisterAt(check, 0));
 }
 
+static bool IsFloatingPointZeroConstant(HInstruction* instruction) {
+  return (instruction->IsFloatConstant() && (instruction->AsFloatConstant()->GetValue() == 0.0f))
+      || (instruction->IsDoubleConstant() && (instruction->AsDoubleConstant()->GetValue() == 0.0));
+}
+
 void LocationsBuilderARM64::VisitCompare(HCompare* compare) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(compare, LocationSummary::kNoCall);
@@ -1659,13 +1663,10 @@ void LocationsBuilderARM64::VisitCompare(HCompare* compare) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
-      HInstruction* right = compare->InputAt(1);
-      if ((right->IsFloatConstant() && (right->AsFloatConstant()->GetValue() == 0.0f)) ||
-          (right->IsDoubleConstant() && (right->AsDoubleConstant()->GetValue() == 0.0))) {
-        locations->SetInAt(1, Location::ConstantLocation(right->AsConstant()));
-      } else {
-        locations->SetInAt(1, Location::RequiresFpuRegister());
-      }
+      locations->SetInAt(1,
+                         IsFloatingPointZeroConstant(compare->InputAt(1))
+                             ? Location::ConstantLocation(compare->InputAt(1)->AsConstant())
+                             : Location::RequiresFpuRegister());
       locations->SetOut(Location::RequiresRegister());
       break;
     }
@@ -1696,12 +1697,8 @@ void InstructionCodeGeneratorARM64::VisitCompare(HCompare* compare) {
       Register result = OutputRegister(compare);
       FPRegister left = InputFPRegisterAt(compare, 0);
       if (compare->GetLocations()->InAt(1).IsConstant()) {
-        if (kIsDebugBuild) {
-          HInstruction* right = compare->GetLocations()->InAt(1).GetConstant();
-          DCHECK((right->IsFloatConstant() && (right->AsFloatConstant()->GetValue() == 0.0f)) ||
-                  (right->IsDoubleConstant() && (right->AsDoubleConstant()->GetValue() == 0.0)));
-        }
-        // 0.0 is the only immediate that can be encoded directly in a FCMP instruction.
+        DCHECK(IsFloatingPointZeroConstant(compare->GetLocations()->InAt(1).GetConstant()));
+        // 0.0 is the only immediate that can be encoded directly in an FCMP instruction.
         __ Fcmp(left, 0.0);
       } else {
         __ Fcmp(left, InputFPRegisterAt(compare, 1));
@@ -1721,8 +1718,19 @@ void InstructionCodeGeneratorARM64::VisitCompare(HCompare* compare) {
 
 void LocationsBuilderARM64::VisitCondition(HCondition* instruction) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, ARM64EncodableConstantOrRegister(instruction->InputAt(1), instruction));
+
+  if (Primitive::IsFloatingPointType(instruction->InputAt(0)->GetType())) {
+    locations->SetInAt(0, Location::RequiresFpuRegister());
+    locations->SetInAt(1,
+                       IsFloatingPointZeroConstant(instruction->InputAt(1))
+                           ? Location::ConstantLocation(instruction->InputAt(1)->AsConstant())
+                           : Location::RequiresFpuRegister());
+  } else {
+    // Integer cases.
+    locations->SetInAt(0, Location::RequiresRegister());
+    locations->SetInAt(1, ARM64EncodableConstantOrRegister(instruction->InputAt(1), instruction));
+  }
+
   if (instruction->NeedsMaterialization()) {
     locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
   }
@@ -1734,13 +1742,34 @@ void InstructionCodeGeneratorARM64::VisitCondition(HCondition* instruction) {
   }
 
   LocationSummary* locations = instruction->GetLocations();
-  Register lhs = InputRegisterAt(instruction, 0);
-  Operand rhs = InputOperandAt(instruction, 1);
   Register res = RegisterFrom(locations->Out(), instruction->GetType());
-  Condition cond = ARM64Condition(instruction->GetCondition());
+  IfCondition if_cond = instruction->GetCondition();
+  Condition arm64_cond = ARM64Condition(if_cond);
 
-  __ Cmp(lhs, rhs);
-  __ Cset(res, cond);
+  if (Primitive::IsFloatingPointType(instruction->InputAt(0)->GetType())) {
+    FPRegister lhs = InputFPRegisterAt(instruction, 0);
+    if (locations->InAt(1).IsConstant()) {
+      DCHECK(IsFloatingPointZeroConstant(locations->InAt(1).GetConstant()));
+      // 0.0 is the only immediate that can be encoded directly in an FCMP instruction.
+      __ Fcmp(lhs, 0.0);
+    } else {
+      __ Fcmp(lhs, InputFPRegisterAt(instruction, 1));
+    }
+    __ Cset(res, arm64_cond);
+    if (instruction->IsFPConditionTrueIfNaN()) {
+      // res = IsUnordered(arm64_cond) ? 1 : res  <=>  res = IsNotUnordered(arm64_cond) ? res : 1
+      __ Csel(res, res, Operand(1), vc);  // VC for "not unordered".
+    } else if (instruction->IsFPConditionFalseIfNaN()) {
+      // res = IsUnordered(arm64_cond) ? 0 : res  <=>  res = IsNotUnordered(arm64_cond) ? res : 0
+      __ Csel(res, res, Operand(0), vc);  // VC for "not unordered".
+    }
+  } else {
+    // Integer cases.
+    Register lhs = InputRegisterAt(instruction, 0);
+    Operand rhs = InputOperandAt(instruction, 1);
+    __ Cmp(lhs, rhs);
+    __ Cset(res, arm64_cond);
+  }
 }
 
 #define FOR_EACH_CONDITION_INSTRUCTION(M)                                                \
@@ -2072,33 +2101,58 @@ void InstructionCodeGeneratorARM64::GenerateTestAndBranch(HInstruction* instruct
   } else {
     // The condition instruction has not been materialized, use its inputs as
     // the comparison and its condition as the branch condition.
-    Register lhs = InputRegisterAt(condition, 0);
-    Operand rhs = InputOperandAt(condition, 1);
-    Condition arm64_cond = ARM64Condition(condition->GetCondition());
-    if ((arm64_cond != gt && arm64_cond != le) && rhs.IsImmediate() && (rhs.immediate() == 0)) {
-      switch (arm64_cond) {
-        case eq:
-          __ Cbz(lhs, true_target);
-          break;
-        case ne:
-          __ Cbnz(lhs, true_target);
-          break;
-        case lt:
-          // Test the sign bit and branch accordingly.
-          __ Tbnz(lhs, (lhs.IsX() ? kXRegSize : kWRegSize) - 1, true_target);
-          break;
-        case ge:
-          // Test the sign bit and branch accordingly.
-          __ Tbz(lhs, (lhs.IsX() ? kXRegSize : kWRegSize) - 1, true_target);
-          break;
-        default:
-          // Without the `static_cast` the compiler throws an error for
-          // `-Werror=sign-promo`.
-          LOG(FATAL) << "Unexpected condition: " << static_cast<int>(arm64_cond);
+    Primitive::Type type =
+        cond->IsCondition() ? cond->InputAt(0)->GetType() : Primitive::kPrimInt;
+
+    if (Primitive::IsFloatingPointType(type)) {
+      // FP compares don't like null false_targets.
+      if (false_target == nullptr) {
+        false_target = codegen_->GetLabelOf(instruction->AsIf()->IfFalseSuccessor());
       }
+      FPRegister lhs = InputFPRegisterAt(condition, 0);
+      if (condition->GetLocations()->InAt(1).IsConstant()) {
+        DCHECK(IsFloatingPointZeroConstant(condition->GetLocations()->InAt(1).GetConstant()));
+        // 0.0 is the only immediate that can be encoded directly in an FCMP instruction.
+        __ Fcmp(lhs, 0.0);
+      } else {
+        __ Fcmp(lhs, InputFPRegisterAt(condition, 1));
+      }
+      if (condition->IsFPConditionTrueIfNaN()) {
+        __ B(vs, true_target);  // VS for unordered.
+      } else if (condition->IsFPConditionFalseIfNaN()) {
+        __ B(vs, false_target);  // VS for unordered.
+      }
+      __ B(ARM64Condition(condition->GetCondition()), true_target);
     } else {
-      __ Cmp(lhs, rhs);
-      __ B(arm64_cond, true_target);
+      // Integer cases.
+      Register lhs = InputRegisterAt(condition, 0);
+      Operand rhs = InputOperandAt(condition, 1);
+      Condition arm64_cond = ARM64Condition(condition->GetCondition());
+      if ((arm64_cond != gt && arm64_cond != le) && rhs.IsImmediate() && (rhs.immediate() == 0)) {
+        switch (arm64_cond) {
+          case eq:
+            __ Cbz(lhs, true_target);
+            break;
+          case ne:
+            __ Cbnz(lhs, true_target);
+            break;
+          case lt:
+            // Test the sign bit and branch accordingly.
+            __ Tbnz(lhs, (lhs.IsX() ? kXRegSize : kWRegSize) - 1, true_target);
+            break;
+          case ge:
+            // Test the sign bit and branch accordingly.
+            __ Tbz(lhs, (lhs.IsX() ? kXRegSize : kWRegSize) - 1, true_target);
+            break;
+          default:
+            // Without the `static_cast` the compiler throws an error for
+            // `-Werror=sign-promo`.
+            LOG(FATAL) << "Unexpected condition: " << static_cast<int>(arm64_cond);
+        }
+      } else {
+        __ Cmp(lhs, rhs);
+        __ B(arm64_cond, true_target);
+      }
     }
   }
   if (false_target != nullptr) {
