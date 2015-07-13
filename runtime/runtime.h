@@ -552,6 +552,8 @@ class Runtime {
     return method_ref_string_init_reg_map_;
   }
 
+  bool IsDebuggable() const;
+
  private:
   static void InitPlatformSignalHandlers();
 

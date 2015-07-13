@@ -680,6 +680,11 @@ bool Runtime::IsShuttingDown(Thread* self) {
   return IsShuttingDownLocked();
 }
 
+bool Runtime::IsDebuggable() const {
+  const OatFile* oat_file = GetClassLinker()->GetPrimaryOatFile();
+  return oat_file != nullptr && oat_file->IsDebuggable();
+}
+
 void Runtime::StartDaemonThreads() {
   VLOG(startup) << "Runtime::StartDaemonThreads entering";
 

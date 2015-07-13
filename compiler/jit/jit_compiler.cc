@@ -71,18 +71,18 @@ JitCompiler::JitCompiler() : total_time_(0) {
       CompilerOptions::kDefaultSmallMethodThreshold,
       CompilerOptions::kDefaultTinyMethodThreshold,
       CompilerOptions::kDefaultNumDexMethodsThreshold,
-      false,
+      /* include_patch_information */ false,
       CompilerOptions::kDefaultTopKProfileThreshold,
-      false,  // TODO: Think about debuggability of JIT-compiled code.
+      Runtime::Current()->IsDebuggable(),
       CompilerOptions::kDefaultGenerateDebugInfo,
-      false,
-      false,
-      false,
-      false,  // pic
-      nullptr,
+      /* implicit_null_checks */ true,
+      /* implicit_so_checks */ true,
+      /* implicit_suspend_checks */ false,
+      /* pic */ true,  // TODO: Support non-PIC in optimizing.
+      /* verbose_methods */ nullptr,
       pass_manager_options,
-      nullptr,
-      false));
+      /* init_failure_output */ nullptr,
+      /* abort_on_hard_verifier_failure */ false));
   const InstructionSet instruction_set = kRuntimeISA;
   instruction_set_features_.reset(InstructionSetFeatures::FromCppDefines());
   cumulative_logger_.reset(new CumulativeLogger("jit times"));
@@ -92,10 +92,23 @@ JitCompiler::JitCompiler() : total_time_(0) {
                                               method_inliner_map_.get(),
                                               CompilerCallbacks::CallbackMode::kCompileApp));
   compiler_driver_.reset(new CompilerDriver(
-      compiler_options_.get(), verification_results_.get(), method_inliner_map_.get(),
-      Compiler::kQuick, instruction_set, instruction_set_features_.get(), false,
-      nullptr, nullptr, nullptr, 1, false, true,
-      std::string(), cumulative_logger_.get(), -1, std::string()));
+      compiler_options_.get(),
+      verification_results_.get(),
+      method_inliner_map_.get(),
+      Compiler::kOptimizing,
+      instruction_set,
+      instruction_set_features_.get(),
+      /* image */ false,
+      /* image_classes */ nullptr,
+      /* compiled_classes */ nullptr,
+      /* compiled_methods */ nullptr,
+      /* thread_count */ 1,
+      /* dump_stats */ false,
+      /* dump_passes */ false,
+      /* dump_cfg_file_name */ "",
+      cumulative_logger_.get(),
+      /* swap_fd */ -1,
+      /* profile_file */ ""));
   // Disable dedupe so we can remove compiled methods.
   compiler_driver_->SetDedupeEnabled(false);
   compiler_driver_->SetSupportBootImageFixup(false);
@@ -195,9 +208,14 @@ uint8_t* JitCompiler::WriteMethodHeaderAndCode(const CompiledMethod* compiled_me
   std::copy(quick_code->data(), quick_code->data() + code_size, code_ptr);
   // After we are done writing we need to update the method header.
   // Write out the method header last.
-  method_header = new(method_header)OatQuickMethodHeader(
-      code_ptr - mapping_table, code_ptr - vmap_table, code_ptr - gc_map, frame_size_in_bytes,
-      core_spill_mask, fp_spill_mask, code_size);
+  method_header = new(method_header) OatQuickMethodHeader(
+      (mapping_table == nullptr) ? 0 : code_ptr - mapping_table,
+      (vmap_table == nullptr) ? 0 : code_ptr - vmap_table,
+      (gc_map == nullptr) ? 0 : code_ptr - gc_map,
+      frame_size_in_bytes,
+      core_spill_mask,
+      fp_spill_mask,
+      code_size);
   // Return the code ptr.
   return code_ptr;
 }
@@ -216,23 +234,35 @@ bool JitCompiler::AddToCodeCache(ArtMethod* method, const CompiledMethod* compil
   auto* const mapping_table = compiled_method->GetMappingTable();
   auto* const vmap_table = compiled_method->GetVmapTable();
   auto* const gc_map = compiled_method->GetGcMap();
-  CHECK(gc_map != nullptr) << PrettyMethod(method);
-  // Write out pre-header stuff.
-  uint8_t* const mapping_table_ptr = code_cache->AddDataArray(
-      self, mapping_table->data(), mapping_table->data() + mapping_table->size());
-  if (mapping_table_ptr == nullptr) {
-    return false;  // Out of data cache.
+  uint8_t* mapping_table_ptr = nullptr;
+  uint8_t* vmap_table_ptr = nullptr;
+  uint8_t* gc_map_ptr = nullptr;
+
+  if (mapping_table != nullptr) {
+    // Write out pre-header stuff.
+    mapping_table_ptr = code_cache->AddDataArray(
+        self, mapping_table->data(), mapping_table->data() + mapping_table->size());
+    if (mapping_table_ptr == nullptr) {
+      return false;  // Out of data cache.
+    }
   }
-  uint8_t* const vmap_table_ptr = code_cache->AddDataArray(
-      self, vmap_table->data(), vmap_table->data() + vmap_table->size());
-  if (vmap_table_ptr == nullptr) {
-    return false;  // Out of data cache.
+
+  if (vmap_table != nullptr) {
+    vmap_table_ptr = code_cache->AddDataArray(
+        self, vmap_table->data(), vmap_table->data() + vmap_table->size());
+    if (vmap_table_ptr == nullptr) {
+      return false;  // Out of data cache.
+    }
   }
-  uint8_t* const gc_map_ptr = code_cache->AddDataArray(
-      self, gc_map->data(), gc_map->data() + gc_map->size());
-  if (gc_map_ptr == nullptr) {
-    return false;  // Out of data cache.
+
+  if (gc_map != nullptr) {
+    gc_map_ptr = code_cache->AddDataArray(
+        self, gc_map->data(), gc_map->data() + gc_map->size());
+    if (gc_map_ptr == nullptr) {
+      return false;  // Out of data cache.
+    }
   }
+
   // Don't touch this until you protect / unprotect the code.
   const size_t reserve_size = sizeof(OatQuickMethodHeader) + quick_code->size() + 32;
   uint8_t* const code_reserve = code_cache->ReserveCode(self, reserve_size);
