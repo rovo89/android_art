@@ -627,7 +627,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   // `run_optimizations_` is set explicitly (either through a compiler filter
   // or the debuggable flag). If it is set, we can run baseline. Otherwise, we fall back
   // to Quick.
-  bool can_use_baseline = !run_optimizations_;
+  bool can_use_baseline = !run_optimizations_ && builder.CanUseBaselineForStringInit();
   if (run_optimizations_ && can_optimize && can_allocate_registers) {
     VLOG(compiler) << "Optimizing " << method_name;
 
