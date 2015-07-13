@@ -434,20 +434,6 @@ endif
 
 TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS :=
 
-# Known broken tests for the MIPS64 optimizing compiler backend in 64-bit mode.  b/21555893
-TEST_ART_BROKEN_OPTIMIZING_MIPS64_64BIT_RUN_TESTS := \
-  449-checker-bce
-
-ifeq ($(TARGET_ARCH),mips64)
-  ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
-    ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
-        optimizing,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-        $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES),$(TEST_ART_BROKEN_OPTIMIZING_MIPS64_64BIT_RUN_TESTS),64)
-  endif
-endif
-
-TEST_ART_BROKEN_OPTIMIZING_MIPS64_64BIT_RUN_TESTS :=
-
 # Known broken tests for the optimizing compiler.
 TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS :=
 
