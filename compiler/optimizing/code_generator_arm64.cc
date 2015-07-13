@@ -657,6 +657,13 @@ void CodeGeneratorARM64::Move(HInstruction* instruction,
   Primitive::Type type = instruction->GetType();
   DCHECK_NE(type, Primitive::kPrimVoid);
 
+  if (instruction->IsFakeString()) {
+    // The fake string is an alias for null.
+    DCHECK(IsBaseline());
+    instruction = locations->Out().GetConstant();
+    DCHECK(instruction->IsNullConstant()) << instruction->DebugName();
+  }
+
   if (instruction->IsCurrentMethod()) {
     MoveLocation(location, Location::DoubleStackSlot(kCurrentMethodStackOffset));
   } else if (locations != nullptr && locations->Out().Equals(location)) {
@@ -905,7 +912,7 @@ void CodeGeneratorARM64::MoveLocation(Location destination, Location source, Pri
              (source.IsFpuRegister() == Primitive::IsFloatingPointType(type)));
       __ Str(CPURegisterFrom(source, type), StackOperandFrom(destination));
     } else if (source.IsConstant()) {
-      DCHECK(unspecified_type || CoherentConstantAndType(source, type));
+      DCHECK(unspecified_type || CoherentConstantAndType(source, type)) << source << " " << type;
       UseScratchRegisterScope temps(GetVIXLAssembler());
       HConstant* src_cst = source.GetConstant();
       CPURegister temp;
