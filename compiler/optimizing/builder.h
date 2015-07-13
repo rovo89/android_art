@@ -54,6 +54,7 @@ class HGraphBuilder : public ValueObject {
         return_type_(Primitive::GetType(dex_compilation_unit_->GetShorty()[0])),
         code_start_(nullptr),
         latest_result_(nullptr),
+        can_use_baseline_for_string_init_(true),
         compilation_stats_(compiler_stats) {}
 
   // Only for unit testing.
@@ -72,9 +73,14 @@ class HGraphBuilder : public ValueObject {
         return_type_(return_type),
         code_start_(nullptr),
         latest_result_(nullptr),
+        can_use_baseline_for_string_init_(true),
         compilation_stats_(nullptr) {}
 
   bool BuildGraph(const DexFile::CodeItem& code);
+
+  bool CanUseBaselineForStringInit() const {
+    return can_use_baseline_for_string_init_;
+  }
 
   static constexpr const char* kBuilderPassName = "builder";
 
@@ -251,6 +257,10 @@ class HGraphBuilder : public ValueObject {
   // Returns whether `type_index` points to the outer-most compiling method's class.
   bool IsOutermostCompilingClass(uint16_t type_index) const;
 
+  void PotentiallySimplifyFakeString(uint16_t original_dex_register,
+                                     uint32_t dex_pc,
+                                     HInvoke* invoke);
+
   ArenaAllocator* const arena_;
 
   // A list of the size of the dex code holding block information for
@@ -289,6 +299,11 @@ class HGraphBuilder : public ValueObject {
   // The last invoke or fill-new-array being built. Only to be
   // used by move-result instructions.
   HInstruction* latest_result_;
+
+  // We need to know whether we have built a graph that has calls to StringFactory
+  // and hasn't gone through the verifier. If the following flag is `false`, then
+  // we cannot compile with baseline.
+  bool can_use_baseline_for_string_init_;
 
   OptimizingCompilerStats* compilation_stats_;
 
