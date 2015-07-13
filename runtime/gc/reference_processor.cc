@@ -53,15 +53,27 @@ void ReferenceProcessor::DisableSlowPath(Thread* self) {
   condition_.Broadcast(self);
 }
 
+void ReferenceProcessor::BroadcastForSlowPath(Thread* self) {
+  CHECK(kUseReadBarrier);
+  MutexLock mu(self, *Locks::reference_processor_lock_);
+  condition_.Broadcast(self);
+}
+
 mirror::Object* ReferenceProcessor::GetReferent(Thread* self, mirror::Reference* reference) {
-  mirror::Object* const referent = reference->GetReferent();
-  // If the referent is null then it is already cleared, we can just return null since there is no
-  // scenario where it becomes non-null during the reference processing phase.
-  if (UNLIKELY(!SlowPathEnabled()) || referent == nullptr) {
-    return referent;
+  if (!kUseReadBarrier || self->GetWeakRefAccessEnabled()) {
+    // Under read barrier / concurrent copying collector, it's not safe to call GetReferent() when
+    // weak ref access is disabled as the call includes a read barrier which may push a ref onto the
+    // mark stack and interfere with termination of marking.
+    mirror::Object* const referent = reference->GetReferent();
+    // If the referent is null then it is already cleared, we can just return null since there is no
+    // scenario where it becomes non-null during the reference processing phase.
+    if (UNLIKELY(!SlowPathEnabled()) || referent == nullptr) {
+      return referent;
+    }
   }
   MutexLock mu(self, *Locks::reference_processor_lock_);
-  while (SlowPathEnabled()) {
+  while ((!kUseReadBarrier && SlowPathEnabled()) ||
+         (kUseReadBarrier && !self->GetWeakRefAccessEnabled())) {
     mirror::HeapReference<mirror::Object>* const referent_addr =
         reference->GetReferentReferenceAddr();
     // If the referent became cleared, return it. Don't need barrier since thread roots can't get
@@ -128,7 +140,12 @@ void ReferenceProcessor::ProcessReferences(bool concurrent, TimingLogger* timing
     process_references_args_.is_marked_callback_ = is_marked_callback;
     process_references_args_.mark_callback_ = mark_object_callback;
     process_references_args_.arg_ = arg;
-    CHECK_EQ(SlowPathEnabled(), concurrent) << "Slow path must be enabled iff concurrent";
+    if (!kUseReadBarrier) {
+      CHECK_EQ(SlowPathEnabled(), concurrent) << "Slow path must be enabled iff concurrent";
+    } else {
+      // Weak ref access is enabled at Zygote compaction by SemiSpace (concurrent == false).
+      CHECK_EQ(!self->GetWeakRefAccessEnabled(), concurrent);
+    }
   }
   // Unless required to clear soft references with white references, preserve some white referents.
   if (!clear_soft_references) {
@@ -178,9 +195,11 @@ void ReferenceProcessor::ProcessReferences(bool concurrent, TimingLogger* timing
     // starts since there is a small window of time where slow_path_enabled_ is enabled but the
     // callback isn't yet set.
     process_references_args_.is_marked_callback_ = nullptr;
-    if (concurrent) {
-      // Done processing, disable the slow path and broadcast to the waiters.
-      DisableSlowPath(self);
+    if (!kUseReadBarrier) {
+      if (concurrent) {
+        // Done processing, disable the slow path and broadcast to the waiters.
+        DisableSlowPath(self);
+      }
     }
   }
 }
@@ -264,7 +283,8 @@ bool ReferenceProcessor::MakeCircularListIfUnenqueued(mirror::FinalizerReference
   Thread* self = Thread::Current();
   MutexLock mu(self, *Locks::reference_processor_lock_);
   // Wait untul we are done processing reference.
-  while (SlowPathEnabled()) {
+  while ((!kUseReadBarrier && SlowPathEnabled()) ||
+         (kUseReadBarrier && !self->GetWeakRefAccessEnabled())) {
     condition_.WaitHoldingLocks(self);
   }
   // At this point, since the sentinel of the reference is live, it is guaranteed to not be
