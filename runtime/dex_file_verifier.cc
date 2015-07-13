@@ -794,12 +794,12 @@ bool DexFileVerifier::CheckIntraCodeItem() {
   }
 
   const DexFile::TryItem* try_items = DexFile::GetTryItems(*code_item, 0);
-  ptr_ = DexFile::GetCatchHandlerData(*code_item, 0);
-  uint32_t handlers_size = DecodeUnsignedLeb128(&ptr_);
-
   if (!CheckListSize(try_items, try_items_size, sizeof(DexFile::TryItem), "try_items size")) {
     return false;
   }
+
+  ptr_ = DexFile::GetCatchHandlerData(*code_item, 0);
+  uint32_t handlers_size = DecodeUnsignedLeb128(&ptr_);
 
   if (UNLIKELY((handlers_size == 0) || (handlers_size >= 65536))) {
     ErrorStringPrintf("Invalid handlers_size: %ud", handlers_size);
