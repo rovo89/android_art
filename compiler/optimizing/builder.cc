@@ -756,6 +756,35 @@ void HGraphBuilder::BuildReturn(const Instruction& instruction, Primitive::Type 
   current_block_ = nullptr;
 }
 
+void HGraphBuilder::PotentiallySimplifyFakeString(uint16_t original_dex_register,
+                                                  uint32_t dex_pc,
+                                                  HInvoke* actual_string) {
+  if (!graph_->IsDebuggable()) {
+    // Notify that we cannot compile with baseline. The dex registers aliasing
+    // with `original_dex_register` will be handled when we optimize
+    // (see HInstructionSimplifer::VisitFakeString).
+    can_use_baseline_for_string_init_ = false;
+    return;
+  }
+  const VerifiedMethod* verified_method =
+      compiler_driver_->GetVerifiedMethod(dex_file_, dex_compilation_unit_->GetDexMethodIndex());
+  if (verified_method != nullptr) {
+    UpdateLocal(original_dex_register, actual_string);
+    const SafeMap<uint32_t, std::set<uint32_t>>& string_init_map =
+        verified_method->GetStringInitPcRegMap();
+    auto map_it = string_init_map.find(dex_pc);
+    if (map_it != string_init_map.end()) {
+      std::set<uint32_t> reg_set = map_it->second;
+      for (auto set_it = reg_set.begin(); set_it != reg_set.end(); ++set_it) {
+        HInstruction* load_local = LoadLocal(original_dex_register, Primitive::kPrimNot);
+        UpdateLocal(*set_it, load_local);
+      }
+    }
+  } else {
+    can_use_baseline_for_string_init_ = false;
+  }
+}
+
 bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
                                 uint32_t dex_pc,
                                 uint32_t method_idx,
@@ -997,34 +1026,23 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
   if (clinit_check_requirement == HInvokeStaticOrDirect::ClinitCheckRequirement::kExplicit) {
     // Add the class initialization check as last input of `invoke`.
     DCHECK(clinit_check != nullptr);
+    DCHECK(!is_string_init);
     invoke->SetArgumentAt(argument_index, clinit_check);
+    argument_index++;
   }
-
-  current_block_->AddInstruction(invoke);
-  latest_result_ = invoke;
 
   // Add move-result for StringFactory method.
   if (is_string_init) {
     uint32_t orig_this_reg = is_range ? register_index : args[0];
-    UpdateLocal(orig_this_reg, invoke);
-    const VerifiedMethod* verified_method =
-        compiler_driver_->GetVerifiedMethod(dex_file_, dex_compilation_unit_->GetDexMethodIndex());
-    if (verified_method == nullptr) {
-      LOG(WARNING) << "No verified method for method calling String.<init>: "
-                   << PrettyMethod(dex_compilation_unit_->GetDexMethodIndex(), *dex_file_);
-      return false;
-    }
-    const SafeMap<uint32_t, std::set<uint32_t>>& string_init_map =
-        verified_method->GetStringInitPcRegMap();
-    auto map_it = string_init_map.find(dex_pc);
-    if (map_it != string_init_map.end()) {
-      std::set<uint32_t> reg_set = map_it->second;
-      for (auto set_it = reg_set.begin(); set_it != reg_set.end(); ++set_it) {
-        HInstruction* load_local = LoadLocal(orig_this_reg, Primitive::kPrimNot);
-        UpdateLocal(*set_it, load_local);
-      }
-    }
+    HInstruction* fake_string = LoadLocal(orig_this_reg, Primitive::kPrimNot);
+    invoke->SetArgumentAt(argument_index, fake_string);
+    current_block_->AddInstruction(invoke);
+    PotentiallySimplifyFakeString(orig_this_reg, dex_pc, invoke);
+  } else {
+    current_block_->AddInstruction(invoke);
   }
+  latest_result_ = invoke;
+
   return true;
 }
 
@@ -2239,10 +2257,10 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     case Instruction::NEW_INSTANCE: {
       uint16_t type_index = instruction.VRegB_21c();
       if (compiler_driver_->IsStringTypeIndex(type_index, dex_file_)) {
-        // Turn new-instance of string into a const 0.
         int32_t register_index = instruction.VRegA();
-        HNullConstant* constant = graph_->GetNullConstant();
-        UpdateLocal(register_index, constant);
+        HFakeString* fake_string = new (arena_) HFakeString();
+        current_block_->AddInstruction(fake_string);
+        UpdateLocal(register_index, fake_string);
       } else {
         QuickEntrypointEnum entrypoint = NeedsAccessCheck(type_index)
             ? kQuickAllocObjectWithAccessCheck
