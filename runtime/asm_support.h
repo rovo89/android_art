@@ -89,7 +89,7 @@ ADD_TEST_EQ(THREAD_ID_OFFSET,
             art::Thread::ThinLockIdOffset<__SIZEOF_POINTER__>().Int32Value())
 
 // Offset of field Thread::tlsPtr_.card_table.
-#define THREAD_CARD_TABLE_OFFSET 128
+#define THREAD_CARD_TABLE_OFFSET 136
 ADD_TEST_EQ(THREAD_CARD_TABLE_OFFSET,
             art::Thread::CardTableOffset<__SIZEOF_POINTER__>().Int32Value())
 

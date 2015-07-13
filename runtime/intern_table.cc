@@ -231,13 +231,21 @@ void InternTable::EnsureNewInternsDisallowed() {
   CHECK(!allow_new_interns_);
 }
 
+void InternTable::BroadcastForNewInterns() {
+  CHECK(kUseReadBarrier);
+  Thread* self = Thread::Current();
+  MutexLock mu(self, *Locks::intern_table_lock_);
+  new_intern_condition_.Broadcast(self);
+}
+
 mirror::String* InternTable::Insert(mirror::String* s, bool is_strong) {
   if (s == nullptr) {
     return nullptr;
   }
   Thread* self = Thread::Current();
   MutexLock mu(self, *Locks::intern_table_lock_);
-  while (UNLIKELY(!allow_new_interns_)) {
+  while (UNLIKELY((!kUseReadBarrier && !allow_new_interns_) ||
+                  (kUseReadBarrier && !self->GetWeakRefAccessEnabled()))) {
     new_intern_condition_.WaitHoldingLocks(self);
   }
   // Check the strong table for a match.

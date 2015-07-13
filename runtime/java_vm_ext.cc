@@ -473,7 +473,8 @@ jweak JavaVMExt::AddWeakGlobalRef(Thread* self, mirror::Object* obj) {
     return nullptr;
   }
   MutexLock mu(self, weak_globals_lock_);
-  while (UNLIKELY(!allow_new_weak_globals_)) {
+  while (UNLIKELY((!kUseReadBarrier && !allow_new_weak_globals_) ||
+                  (kUseReadBarrier && !self->GetWeakRefAccessEnabled()))) {
     weak_globals_add_condition_.WaitHoldingLocks(self);
   }
   IndirectRef ref = weak_globals_.Add(IRT_FIRST_SEGMENT, obj);
@@ -559,6 +560,13 @@ void JavaVMExt::EnsureNewWeakGlobalsDisallowed() {
   CHECK(!allow_new_weak_globals_);
 }
 
+void JavaVMExt::BroadcastForNewWeakGlobals() {
+  CHECK(kUseReadBarrier);
+  Thread* self = Thread::Current();
+  MutexLock mu(self, weak_globals_lock_);
+  weak_globals_add_condition_.Broadcast(self);
+}
+
 mirror::Object* JavaVMExt::DecodeGlobal(Thread* self, IndirectRef ref) {
   return globals_.SynchronizedGet(self, &globals_lock_, ref);
 }
@@ -570,7 +578,8 @@ void JavaVMExt::UpdateGlobal(Thread* self, IndirectRef ref, mirror::Object* resu
 
 mirror::Object* JavaVMExt::DecodeWeakGlobal(Thread* self, IndirectRef ref) {
   MutexLock mu(self, weak_globals_lock_);
-  while (UNLIKELY(!allow_new_weak_globals_)) {
+  while (UNLIKELY((!kUseReadBarrier && !allow_new_weak_globals_) ||
+                  (kUseReadBarrier && !self->GetWeakRefAccessEnabled()))) {
     weak_globals_add_condition_.WaitHoldingLocks(self);
   }
   return weak_globals_.Get(ref);

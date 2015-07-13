@@ -32,6 +32,7 @@
 #include "base/time_utils.h"
 #include "base/timing_logger.h"
 #include "debugger.h"
+#include "gc/collector/concurrent_copying.h"
 #include "jni_internal.h"
 #include "lock_word.h"
 #include "monitor.h"
@@ -1101,6 +1102,12 @@ void ThreadList::Register(Thread* self) {
   }
   CHECK(!Contains(self));
   list_.push_back(self);
+  if (kUseReadBarrier) {
+    // Initialize this according to the state of the CC collector.
+    bool weak_ref_access_enabled =
+        Runtime::Current()->GetHeap()->ConcurrentCopyingCollector()->IsWeakRefAccessEnabled();
+    self->SetWeakRefAccessEnabled(weak_ref_access_enabled);
+  }
 }
 
 void ThreadList::Unregister(Thread* self) {

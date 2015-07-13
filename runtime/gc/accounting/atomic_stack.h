@@ -156,6 +156,10 @@ class AtomicStack {
     return Size() == 0;
   }
 
+  bool IsFull() const {
+    return Size() == growth_limit_;
+  }
+
   size_t Size() const {
     DCHECK_LE(front_index_.LoadRelaxed(), back_index_.LoadRelaxed());
     return back_index_.LoadRelaxed() - front_index_.LoadRelaxed();
