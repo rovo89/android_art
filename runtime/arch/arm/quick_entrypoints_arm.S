@@ -331,9 +331,7 @@ ENTRY \c_name
     SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME r2, r3  @ save callee saves in case allocation triggers GC
     mov    r2, r9                         @ pass Thread::Current
     mov    r3, sp
-    .cfi_adjust_cfa_offset 16
     bl     \cxx_name                      @ (method_idx, this, caller, Thread*, SP)
-    .cfi_adjust_cfa_offset -16
     mov    r12, r1                        @ save Method*->code_
     RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
     cbz    r0, 1f                         @ did we find the target? if not go to exception delivery
