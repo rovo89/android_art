@@ -33,7 +33,7 @@ art_debugee="sh /data/local/tmp/system/bin/art"
 # We use Quick's image on target because optimizing's image is not compiled debuggable.
 image="-Ximage:/data/art-test/core.art"
 args=$@
-debuggee_args="-Xcompiler-option --compiler-backend=Optimizing -Xcompiler-option --debuggable"
+debuggee_args="-Xcompiler-option --debuggable"
 device_dir="--device-dir=/data/local/tmp"
 # We use the art script on target to ensure the runner and the debuggee share the same
 # image.
@@ -92,6 +92,5 @@ vogar $vm_command \
       --vm-arg -Djpda.settings.transportAddress=127.0.0.1:55107 \
       --vm-arg -Djpda.settings.debuggeeJavaPath="\"$art_debugee $image $debuggee_args\"" \
       --classpath $test_jar \
-      --vm-arg -Xcompiler-option --vm-arg --compiler-backend=Optimizing \
       --vm-arg -Xcompiler-option --vm-arg --debuggable \
       org.apache.harmony.jpda.tests.share.AllTests
