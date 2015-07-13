@@ -1163,7 +1163,7 @@ void MonitorList::Add(Monitor* m) {
   list_.push_front(m);
 }
 
-void MonitorList::SweepMonitorList(IsMarkedCallback* callback, void* arg) {
+void MonitorList::SweepMonitorList(IsMarkedVisitor* visitor) {
   Thread* self = Thread::Current();
   MutexLock mu(self, monitor_list_lock_);
   for (auto it = list_.begin(); it != list_.end(); ) {
@@ -1171,7 +1171,7 @@ void MonitorList::SweepMonitorList(IsMarkedCallback* callback, void* arg) {
     // Disable the read barrier in GetObject() as this is called by GC.
     mirror::Object* obj = m->GetObject<kWithoutReadBarrier>();
     // The object of a monitor can be null if we have deflated it.
-    mirror::Object* new_obj = obj != nullptr ? callback(obj, arg) : nullptr;
+    mirror::Object* new_obj = obj != nullptr ? visitor->IsMarked(obj) : nullptr;
     if (new_obj == nullptr) {
       VLOG(monitor) << "freeing monitor " << m << " belonging to unmarked object "
                     << obj;
@@ -1184,29 +1184,30 @@ void MonitorList::SweepMonitorList(IsMarkedCallback* callback, void* arg) {
   }
 }
 
-struct MonitorDeflateArgs {
-  MonitorDeflateArgs() : self(Thread::Current()), deflate_count(0) {}
-  Thread* const self;
-  size_t deflate_count;
+class MonitorDeflateVisitor : public IsMarkedVisitor {
+ public:
+  MonitorDeflateVisitor() : self_(Thread::Current()), deflate_count_(0) {}
+
+  virtual mirror::Object* IsMarked(mirror::Object* object) OVERRIDE
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (Monitor::Deflate(self_, object)) {
+      DCHECK_NE(object->GetLockWord(true).GetState(), LockWord::kFatLocked);
+      ++deflate_count_;
+      // If we deflated, return null so that the monitor gets removed from the array.
+      return nullptr;
+    }
+    return object;  // Monitor was not deflated.
+  }
+
+  Thread* const self_;
+  size_t deflate_count_;
 };
 
-static mirror::Object* MonitorDeflateCallback(mirror::Object* object, void* arg)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  MonitorDeflateArgs* args = reinterpret_cast<MonitorDeflateArgs*>(arg);
-  if (Monitor::Deflate(args->self, object)) {
-    DCHECK_NE(object->GetLockWord(true).GetState(), LockWord::kFatLocked);
-    ++args->deflate_count;
-    // If we deflated, return null so that the monitor gets removed from the array.
-    return nullptr;
-  }
-  return object;  // Monitor was not deflated.
-}
-
 size_t MonitorList::DeflateMonitors() {
-  MonitorDeflateArgs args;
-  Locks::mutator_lock_->AssertExclusiveHeld(args.self);
-  SweepMonitorList(MonitorDeflateCallback, &args);
-  return args.deflate_count;
+  MonitorDeflateVisitor visitor;
+  Locks::mutator_lock_->AssertExclusiveHeld(visitor.self_);
+  SweepMonitorList(&visitor);
+  return visitor.deflate_count_;
 }
 
 MonitorInfo::MonitorInfo(mirror::Object* obj) : owner_(nullptr), entry_count_(0) {

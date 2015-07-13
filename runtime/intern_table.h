@@ -68,7 +68,7 @@ class InternTable {
   // Interns a potentially new string in the 'weak' table. (See above.)
   mirror::String* InternWeak(mirror::String* s) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SweepInternTableWeaks(IsMarkedCallback* callback, void* arg)
+  void SweepInternTableWeaks(IsMarkedVisitor* visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool ContainsWeak(mirror::String* s) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -143,7 +143,7 @@ class InternTable {
     void VisitRoots(RootVisitor* visitor)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
         EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-    void SweepWeaks(IsMarkedCallback* callback, void* arg)
+    void SweepWeaks(IsMarkedVisitor* visitor)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
         EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
     void SwapPostZygoteWithPreZygote() EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
@@ -163,7 +163,7 @@ class InternTable {
     typedef HashSet<GcRoot<mirror::String>, GcRootEmptyFn, StringHashEquals, StringHashEquals,
         TrackingAllocator<GcRoot<mirror::String>, kAllocatorTagInternTable>> UnorderedSet;
 
-    void SweepWeaks(UnorderedSet* set, IsMarkedCallback* callback, void* arg)
+    void SweepWeaks(UnorderedSet* set, IsMarkedVisitor* visitor)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
         EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
 
