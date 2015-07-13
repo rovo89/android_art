@@ -32,6 +32,7 @@ namespace art {
 class Instruction;
 struct ReferenceMap2Visitor;
 class Thread;
+class VariableIndentationOutputStream;
 
 namespace verifier {
 
@@ -157,7 +158,9 @@ class MethodVerifier {
                                  bool allow_soft_failures, std::string* error)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static MethodVerifier* VerifyMethodAndDump(Thread* self, std::ostream& os, uint32_t method_idx,
+  static MethodVerifier* VerifyMethodAndDump(Thread* self,
+                                             VariableIndentationOutputStream* vios,
+                                             uint32_t method_idx,
                                              const DexFile* dex_file,
                                              Handle<mirror::DexCache> dex_cache,
                                              Handle<mirror::ClassLoader> class_loader,
@@ -191,6 +194,7 @@ class MethodVerifier {
   // Dump the state of the verifier, namely each instruction, what flags are set on it, register
   // information
   void Dump(std::ostream& os) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void Dump(VariableIndentationOutputStream* vios) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Fills 'monitor_enter_dex_pcs' with the dex pcs of the monitor-enter instructions corresponding
   // to the locks held at 'dex_pc' in method 'm'.

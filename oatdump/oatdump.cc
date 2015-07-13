@@ -599,6 +599,9 @@ class OatDumper {
       os << std::flush;
       return false;
     }
+
+    VariableIndentationOutputStream vios(&os);
+    ScopedIndentation indent1(&vios);
     for (size_t class_def_index = 0;
          class_def_index < dex_file->NumClassDefs();
          class_def_index++) {
@@ -617,10 +620,8 @@ class OatDumper {
          << " (" << oat_class.GetStatus() << ")"
          << " (" << oat_class.GetType() << ")\n";
       // TODO: include bitmap here if type is kOatClassSomeCompiled?
-      Indenter indent_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
-      std::ostream indented_os(&indent_filter);
       if (options_.list_classes_) continue;
-      if (!DumpOatClass(indented_os, oat_class, *(dex_file.get()), class_def, &stop_analysis)) {
+      if (!DumpOatClass(&vios, oat_class, *(dex_file.get()), class_def, &stop_analysis)) {
         success = false;
       }
       if (stop_analysis) {
@@ -720,20 +721,21 @@ class OatDumper {
     }
   }
 
-  bool DumpOatClass(std::ostream& os, const OatFile::OatClass& oat_class, const DexFile& dex_file,
+  bool DumpOatClass(VariableIndentationOutputStream* vios,
+                    const OatFile::OatClass& oat_class, const DexFile& dex_file,
                     const DexFile::ClassDef& class_def, bool* stop_analysis) {
     bool success = true;
     bool addr_found = false;
     const uint8_t* class_data = dex_file.GetClassData(class_def);
     if (class_data == nullptr) {  // empty class such as a marker interface?
-      os << std::flush;
+      vios->Stream() << std::flush;
       return success;
     }
     ClassDataItemIterator it(dex_file, class_data);
     SkipAllFields(it);
     uint32_t class_method_index = 0;
     while (it.HasNextDirectMethod()) {
-      if (!DumpOatMethod(os, class_def, class_method_index, oat_class, dex_file,
+      if (!DumpOatMethod(vios, class_def, class_method_index, oat_class, dex_file,
                          it.GetMemberIndex(), it.GetMethodCodeItem(),
                          it.GetRawMemberAccessFlags(), &addr_found)) {
         success = false;
@@ -746,7 +748,7 @@ class OatDumper {
       it.Next();
     }
     while (it.HasNextVirtualMethod()) {
-      if (!DumpOatMethod(os, class_def, class_method_index, oat_class, dex_file,
+      if (!DumpOatMethod(vios, class_def, class_method_index, oat_class, dex_file,
                          it.GetMemberIndex(), it.GetMethodCodeItem(),
                          it.GetRawMemberAccessFlags(), &addr_found)) {
         success = false;
@@ -759,7 +761,7 @@ class OatDumper {
       it.Next();
     }
     DCHECK(!it.HasNext());
-    os << std::flush;
+    vios->Stream() << std::flush;
     return success;
   }
 
@@ -768,7 +770,8 @@ class OatDumper {
   // When this was picked, the largest arm method was 55,256 bytes and arm64 was 50,412 bytes.
   static constexpr uint32_t kMaxCodeSize = 100 * 1000;
 
-  bool DumpOatMethod(std::ostream& os, const DexFile::ClassDef& class_def,
+  bool DumpOatMethod(VariableIndentationOutputStream* vios,
+                     const DexFile::ClassDef& class_def,
                      uint32_t class_method_index,
                      const OatFile::OatClass& oat_class, const DexFile& dex_file,
                      uint32_t dex_method_idx, const DexFile::CodeItem* code_item,
@@ -782,15 +785,10 @@ class OatDumper {
     }
 
     std::string pretty_method = PrettyMethod(dex_method_idx, dex_file, true);
-    os << StringPrintf("%d: %s (dex_method_idx=%d)\n",
-                       class_method_index, pretty_method.c_str(),
-                       dex_method_idx);
+    vios->Stream() << StringPrintf("%d: %s (dex_method_idx=%d)\n",
+                                   class_method_index, pretty_method.c_str(),
+                                   dex_method_idx);
     if (options_.list_methods_) return success;
-
-    Indenter indent1_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
-    std::unique_ptr<std::ostream> indent1_os(new std::ostream(&indent1_filter));
-    Indenter indent2_filter(indent1_os->rdbuf(), kIndentChar, kIndentBy1Count);
-    std::unique_ptr<std::ostream> indent2_os(new std::ostream(&indent2_filter));
 
     uint32_t oat_method_offsets_offset = oat_class.GetOatMethodOffsetsOffset(class_method_index);
     const OatMethodOffsets* oat_method_offsets = oat_class.GetOatMethodOffsets(class_method_index);
@@ -805,137 +803,147 @@ class OatDumper {
       }
     }
 
+    // Everything below is indented at least once.
+    ScopedIndentation indent1(vios);
+
     {
-      *indent1_os << "DEX CODE:\n";
-      DumpDexCode(*indent2_os, dex_file, code_item);
+      vios->Stream() << "DEX CODE:\n";
+      ScopedIndentation indent2(vios);
+      DumpDexCode(vios->Stream(), dex_file, code_item);
     }
 
     std::unique_ptr<verifier::MethodVerifier> verifier;
     if (Runtime::Current() != nullptr) {
-      *indent1_os << "VERIFIER TYPE ANALYSIS:\n";
-      verifier.reset(DumpVerifier(*indent2_os, dex_method_idx, &dex_file, class_def, code_item,
+      vios->Stream() << "VERIFIER TYPE ANALYSIS:\n";
+      ScopedIndentation indent2(vios);
+      verifier.reset(DumpVerifier(vios,
+                                  dex_method_idx, &dex_file, class_def, code_item,
                                   method_access_flags));
     }
     {
-      *indent1_os << "OatMethodOffsets ";
+      vios->Stream() << "OatMethodOffsets ";
       if (options_.absolute_addresses_) {
-        *indent1_os << StringPrintf("%p ", oat_method_offsets);
+        vios->Stream() << StringPrintf("%p ", oat_method_offsets);
       }
-      *indent1_os << StringPrintf("(offset=0x%08x)\n", oat_method_offsets_offset);
+      vios->Stream() << StringPrintf("(offset=0x%08x)\n", oat_method_offsets_offset);
       if (oat_method_offsets_offset > oat_file_.Size()) {
-        *indent1_os << StringPrintf(
+        vios->Stream() << StringPrintf(
             "WARNING: oat method offsets offset 0x%08x is past end of file 0x%08zx.\n",
             oat_method_offsets_offset, oat_file_.Size());
         // If we can't read OatMethodOffsets, the rest of the data is dangerous to read.
-        os << std::flush;
+        vios->Stream() << std::flush;
         return false;
       }
 
-      *indent2_os << StringPrintf("code_offset: 0x%08x ", code_offset);
+      ScopedIndentation indent2(vios);
+      vios->Stream() << StringPrintf("code_offset: 0x%08x ", code_offset);
       uint32_t aligned_code_begin = AlignCodeOffset(oat_method.GetCodeOffset());
       if (aligned_code_begin > oat_file_.Size()) {
-        *indent2_os << StringPrintf("WARNING: "
-                                    "code offset 0x%08x is past end of file 0x%08zx.\n",
-                                    aligned_code_begin, oat_file_.Size());
+        vios->Stream() << StringPrintf("WARNING: "
+                                       "code offset 0x%08x is past end of file 0x%08zx.\n",
+                                       aligned_code_begin, oat_file_.Size());
         success = false;
       }
-      *indent2_os << "\n";
+      vios->Stream() << "\n";
 
-      *indent2_os << "gc_map: ";
+      vios->Stream() << "gc_map: ";
       if (options_.absolute_addresses_) {
-        *indent2_os << StringPrintf("%p ", oat_method.GetGcMap());
+        vios->Stream() << StringPrintf("%p ", oat_method.GetGcMap());
       }
       uint32_t gc_map_offset = oat_method.GetGcMapOffset();
-      *indent2_os << StringPrintf("(offset=0x%08x)\n", gc_map_offset);
+      vios->Stream() << StringPrintf("(offset=0x%08x)\n", gc_map_offset);
       if (gc_map_offset > oat_file_.Size()) {
-        *indent2_os << StringPrintf("WARNING: "
-                                    "gc map table offset 0x%08x is past end of file 0x%08zx.\n",
-                                    gc_map_offset, oat_file_.Size());
+        vios->Stream() << StringPrintf("WARNING: "
+                           "gc map table offset 0x%08x is past end of file 0x%08zx.\n",
+                           gc_map_offset, oat_file_.Size());
         success = false;
       } else if (options_.dump_raw_gc_map_) {
-        Indenter indent3_filter(indent2_os->rdbuf(), kIndentChar, kIndentBy1Count);
-        std::ostream indent3_os(&indent3_filter);
-        DumpGcMap(indent3_os, oat_method, code_item);
+        ScopedIndentation indent3(vios);
+        DumpGcMap(vios->Stream(), oat_method, code_item);
       }
     }
     {
-      *indent1_os << "OatQuickMethodHeader ";
+      vios->Stream() << "OatQuickMethodHeader ";
       uint32_t method_header_offset = oat_method.GetOatQuickMethodHeaderOffset();
       const OatQuickMethodHeader* method_header = oat_method.GetOatQuickMethodHeader();
 
       if (options_.absolute_addresses_) {
-        *indent1_os << StringPrintf("%p ", method_header);
+        vios->Stream() << StringPrintf("%p ", method_header);
       }
-      *indent1_os << StringPrintf("(offset=0x%08x)\n", method_header_offset);
+      vios->Stream() << StringPrintf("(offset=0x%08x)\n", method_header_offset);
       if (method_header_offset > oat_file_.Size()) {
-        *indent1_os << StringPrintf(
+        vios->Stream() << StringPrintf(
             "WARNING: oat quick method header offset 0x%08x is past end of file 0x%08zx.\n",
             method_header_offset, oat_file_.Size());
         // If we can't read the OatQuickMethodHeader, the rest of the data is dangerous to read.
-        os << std::flush;
+        vios->Stream() << std::flush;
         return false;
       }
 
-      *indent2_os << "mapping_table: ";
+      ScopedIndentation indent2(vios);
+      vios->Stream() << "mapping_table: ";
       if (options_.absolute_addresses_) {
-        *indent2_os << StringPrintf("%p ", oat_method.GetMappingTable());
+        vios->Stream() << StringPrintf("%p ", oat_method.GetMappingTable());
       }
       uint32_t mapping_table_offset = oat_method.GetMappingTableOffset();
-      *indent2_os << StringPrintf("(offset=0x%08x)\n", oat_method.GetMappingTableOffset());
+      vios->Stream() << StringPrintf("(offset=0x%08x)\n", oat_method.GetMappingTableOffset());
       if (mapping_table_offset > oat_file_.Size()) {
-        *indent2_os << StringPrintf("WARNING: "
-                                    "mapping table offset 0x%08x is past end of file 0x%08zx. "
-                                    "mapping table offset was loaded from offset 0x%08x.\n",
-                                    mapping_table_offset, oat_file_.Size(),
-                                    oat_method.GetMappingTableOffsetOffset());
+        vios->Stream() << StringPrintf("WARNING: "
+                                       "mapping table offset 0x%08x is past end of file 0x%08zx. "
+                                       "mapping table offset was loaded from offset 0x%08x.\n",
+                                       mapping_table_offset, oat_file_.Size(),
+                                       oat_method.GetMappingTableOffsetOffset());
         success = false;
       } else if (options_.dump_raw_mapping_table_) {
-        Indenter indent3_filter(indent2_os->rdbuf(), kIndentChar, kIndentBy1Count);
-        std::ostream indent3_os(&indent3_filter);
-        DumpMappingTable(indent3_os, oat_method);
+        ScopedIndentation indent3(vios);
+        DumpMappingTable(vios, oat_method);
       }
 
-      *indent2_os << "vmap_table: ";
+      vios->Stream() << "vmap_table: ";
       if (options_.absolute_addresses_) {
-        *indent2_os << StringPrintf("%p ", oat_method.GetVmapTable());
+        vios->Stream() << StringPrintf("%p ", oat_method.GetVmapTable());
       }
       uint32_t vmap_table_offset = oat_method.GetVmapTableOffset();
-      *indent2_os << StringPrintf("(offset=0x%08x)\n", vmap_table_offset);
+      vios->Stream() << StringPrintf("(offset=0x%08x)\n", vmap_table_offset);
       if (vmap_table_offset > oat_file_.Size()) {
-        *indent2_os << StringPrintf("WARNING: "
-                                    "vmap table offset 0x%08x is past end of file 0x%08zx. "
-                                    "vmap table offset was loaded from offset 0x%08x.\n",
-                                    vmap_table_offset, oat_file_.Size(),
-                                    oat_method.GetVmapTableOffsetOffset());
+        vios->Stream() << StringPrintf("WARNING: "
+                                       "vmap table offset 0x%08x is past end of file 0x%08zx. "
+                                       "vmap table offset was loaded from offset 0x%08x.\n",
+                                       vmap_table_offset, oat_file_.Size(),
+                                       oat_method.GetVmapTableOffsetOffset());
         success = false;
       } else if (options_.dump_vmap_) {
-        DumpVmapData(*indent2_os, oat_method, code_item);
+        DumpVmapData(vios, oat_method, code_item);
       }
     }
     {
-      *indent1_os << "QuickMethodFrameInfo\n";
+      vios->Stream() << "QuickMethodFrameInfo\n";
 
-      *indent2_os << StringPrintf("frame_size_in_bytes: %zd\n", oat_method.GetFrameSizeInBytes());
-      *indent2_os << StringPrintf("core_spill_mask: 0x%08x ", oat_method.GetCoreSpillMask());
-      DumpSpillMask(*indent2_os, oat_method.GetCoreSpillMask(), false);
-      *indent2_os << "\n";
-      *indent2_os << StringPrintf("fp_spill_mask: 0x%08x ", oat_method.GetFpSpillMask());
-      DumpSpillMask(*indent2_os, oat_method.GetFpSpillMask(), true);
-      *indent2_os << "\n";
+      ScopedIndentation indent2(vios);
+      vios->Stream()
+          << StringPrintf("frame_size_in_bytes: %zd\n", oat_method.GetFrameSizeInBytes());
+      vios->Stream() << StringPrintf("core_spill_mask: 0x%08x ", oat_method.GetCoreSpillMask());
+      DumpSpillMask(vios->Stream(), oat_method.GetCoreSpillMask(), false);
+      vios->Stream() << "\n";
+      vios->Stream() << StringPrintf("fp_spill_mask: 0x%08x ", oat_method.GetFpSpillMask());
+      DumpSpillMask(vios->Stream(), oat_method.GetFpSpillMask(), true);
+      vios->Stream() << "\n";
     }
     {
-        // Based on spill masks from QuickMethodFrameInfo so placed
-        // after it is dumped, but useful for understanding quick
-        // code, so dumped here.
-        DumpVregLocations(*indent2_os, oat_method, code_item);
+      // Based on spill masks from QuickMethodFrameInfo so placed
+      // after it is dumped, but useful for understanding quick
+      // code, so dumped here.
+      ScopedIndentation indent2(vios);
+      DumpVregLocations(vios->Stream(), oat_method, code_item);
     }
     {
-      *indent1_os << "CODE: ";
+      vios->Stream() << "CODE: ";
       uint32_t code_size_offset = oat_method.GetQuickCodeSizeOffset();
       if (code_size_offset > oat_file_.Size()) {
-        *indent2_os << StringPrintf("WARNING: "
-                                    "code size offset 0x%08x is past end of file 0x%08zx.",
-                                    code_size_offset, oat_file_.Size());
+        ScopedIndentation indent2(vios);
+        vios->Stream() << StringPrintf("WARNING: "
+                                       "code size offset 0x%08x is past end of file 0x%08zx.",
+                                       code_size_offset, oat_file_.Size());
         success = false;
       } else {
         const void* code = oat_method.GetQuickCode();
@@ -943,49 +951,52 @@ class OatDumper {
         uint64_t aligned_code_end = aligned_code_begin + code_size;
 
         if (options_.absolute_addresses_) {
-          *indent1_os << StringPrintf("%p ", code);
+          vios->Stream() << StringPrintf("%p ", code);
         }
-        *indent1_os << StringPrintf("(code_offset=0x%08x size_offset=0x%08x size=%u)%s\n",
-                                    code_offset,
-                                    code_size_offset,
-                                    code_size,
-                                    code != nullptr ? "..." : "");
+        vios->Stream() << StringPrintf("(code_offset=0x%08x size_offset=0x%08x size=%u)%s\n",
+                                       code_offset,
+                                       code_size_offset,
+                                       code_size,
+                                       code != nullptr ? "..." : "");
 
+        ScopedIndentation indent2(vios);
         if (aligned_code_begin > oat_file_.Size()) {
-          *indent2_os << StringPrintf("WARNING: "
-                                      "start of code at 0x%08x is past end of file 0x%08zx.",
-                                      aligned_code_begin, oat_file_.Size());
+          vios->Stream() << StringPrintf("WARNING: "
+                                         "start of code at 0x%08x is past end of file 0x%08zx.",
+                                         aligned_code_begin, oat_file_.Size());
           success = false;
         } else if (aligned_code_end > oat_file_.Size()) {
-          *indent2_os << StringPrintf("WARNING: "
-                                      "end of code at 0x%08" PRIx64 " is past end of file 0x%08zx. "
-                                      "code size is 0x%08x loaded from offset 0x%08x.\n",
-                                      aligned_code_end, oat_file_.Size(),
-                                      code_size, code_size_offset);
+          vios->Stream() << StringPrintf(
+              "WARNING: "
+              "end of code at 0x%08" PRIx64 " is past end of file 0x%08zx. "
+              "code size is 0x%08x loaded from offset 0x%08x.\n",
+              aligned_code_end, oat_file_.Size(),
+              code_size, code_size_offset);
           success = false;
           if (options_.disassemble_code_) {
             if (code_size_offset + kPrologueBytes <= oat_file_.Size()) {
-              DumpCode(*indent2_os, verifier.get(), oat_method, code_item, true, kPrologueBytes);
+              DumpCode(vios, verifier.get(), oat_method, code_item, true, kPrologueBytes);
             }
           }
         } else if (code_size > kMaxCodeSize) {
-          *indent2_os << StringPrintf("WARNING: "
-                                      "code size %d is bigger than max expected threshold of %d. "
-                                      "code size is 0x%08x loaded from offset 0x%08x.\n",
-                                      code_size, kMaxCodeSize,
-                                      code_size, code_size_offset);
+          vios->Stream() << StringPrintf(
+              "WARNING: "
+              "code size %d is bigger than max expected threshold of %d. "
+              "code size is 0x%08x loaded from offset 0x%08x.\n",
+              code_size, kMaxCodeSize,
+              code_size, code_size_offset);
           success = false;
           if (options_.disassemble_code_) {
             if (code_size_offset + kPrologueBytes <= oat_file_.Size()) {
-              DumpCode(*indent2_os, verifier.get(), oat_method, code_item, true, kPrologueBytes);
+              DumpCode(vios, verifier.get(), oat_method, code_item, true, kPrologueBytes);
             }
           }
         } else if (options_.disassemble_code_) {
-          DumpCode(*indent2_os, verifier.get(), oat_method, code_item, !success, 0);
+          DumpCode(vios, verifier.get(), oat_method, code_item, !success, 0);
         }
       }
     }
-    os << std::flush;
+    vios->Stream() << std::flush;
     return success;
   }
 
@@ -1013,7 +1024,7 @@ class OatDumper {
   }
 
   // Display data stored at the the vmap offset of an oat method.
-  void DumpVmapData(std::ostream& os,
+  void DumpVmapData(VariableIndentationOutputStream* vios,
                     const OatFile::OatMethod& oat_method,
                     const DexFile::CodeItem* code_item) {
     if (IsMethodGeneratedByOptimizingCompiler(oat_method, code_item)) {
@@ -1022,24 +1033,25 @@ class OatDumper {
       if (raw_code_info != nullptr) {
         CodeInfo code_info(raw_code_info);
         DCHECK(code_item != nullptr);
-        DumpCodeInfo(os, code_info, oat_method, *code_item);
+        ScopedIndentation indent1(vios);
+        DumpCodeInfo(vios, code_info, oat_method, *code_item);
       }
     } else {
       // Otherwise, display the vmap table.
       const uint8_t* raw_table = oat_method.GetVmapTable();
       if (raw_table != nullptr) {
         VmapTable vmap_table(raw_table);
-        DumpVmapTable(os, oat_method, vmap_table);
+        DumpVmapTable(vios->Stream(), oat_method, vmap_table);
       }
     }
   }
 
   // Display a CodeInfo object emitted by the optimizing compiler.
-  void DumpCodeInfo(std::ostream& os,
+  void DumpCodeInfo(VariableIndentationOutputStream* vios,
                     const CodeInfo& code_info,
                     const OatFile::OatMethod& oat_method,
                     const DexFile::CodeItem& code_item) {
-    code_info.Dump(os,
+    code_info.Dump(vios,
                    oat_method.GetCodeOffset(),
                    code_item.registers_size_,
                    options_.dump_code_info_stack_maps_);
@@ -1177,48 +1189,50 @@ class OatDumper {
     }
   }
 
-  void DumpMappingTable(std::ostream& os, const OatFile::OatMethod& oat_method) {
+  void DumpMappingTable(VariableIndentationOutputStream* vios,
+                        const OatFile::OatMethod& oat_method) {
     const void* quick_code = oat_method.GetQuickCode();
     if (quick_code == nullptr) {
       return;
     }
     MappingTable table(oat_method.GetMappingTable());
     if (table.TotalSize() != 0) {
-      Indenter indent_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
-      std::ostream indent_os(&indent_filter);
       if (table.PcToDexSize() != 0) {
         typedef MappingTable::PcToDexIterator It;
-        os << "suspend point mappings {\n";
+        vios->Stream() << "suspend point mappings {\n";
         for (It cur = table.PcToDexBegin(), end = table.PcToDexEnd(); cur != end; ++cur) {
-          indent_os << StringPrintf("0x%04x -> 0x%04x\n", cur.NativePcOffset(), cur.DexPc());
+          ScopedIndentation indent1(vios);
+          vios->Stream() << StringPrintf("0x%04x -> 0x%04x\n", cur.NativePcOffset(), cur.DexPc());
         }
-        os << "}\n";
+        vios->Stream() << "}\n";
       }
       if (table.DexToPcSize() != 0) {
         typedef MappingTable::DexToPcIterator It;
-        os << "catch entry mappings {\n";
+        vios->Stream() << "catch entry mappings {\n";
         for (It cur = table.DexToPcBegin(), end = table.DexToPcEnd(); cur != end; ++cur) {
-          indent_os << StringPrintf("0x%04x -> 0x%04x\n", cur.NativePcOffset(), cur.DexPc());
+          ScopedIndentation indent1(vios);
+          vios->Stream() << StringPrintf("0x%04x -> 0x%04x\n", cur.NativePcOffset(), cur.DexPc());
         }
-        os << "}\n";
+        vios->Stream() << "}\n";
       }
     }
   }
 
-  uint32_t DumpInformationAtOffset(std::ostream& os,
+  uint32_t DumpInformationAtOffset(VariableIndentationOutputStream* vios,
                                    const OatFile::OatMethod& oat_method,
                                    const DexFile::CodeItem* code_item,
                                    size_t offset,
                                    bool suspend_point_mapping) {
     if (IsMethodGeneratedByOptimizingCompiler(oat_method, code_item)) {
       if (suspend_point_mapping) {
-        DumpDexRegisterMapAtOffset(os, oat_method, code_item, offset);
+        ScopedIndentation indent1(vios);
+        DumpDexRegisterMapAtOffset(vios, oat_method, code_item, offset);
       }
       // The return value is not used in the case of a method compiled
       // with the optimizing compiler.
       return DexFile::kDexNoIndex;
     } else {
-      return DumpMappingAtOffset(os, oat_method, offset, suspend_point_mapping);
+      return DumpMappingAtOffset(vios->Stream(), oat_method, offset, suspend_point_mapping);
     }
   }
 
@@ -1334,7 +1348,7 @@ class OatDumper {
     return oat_method.GetGcMap() == nullptr && code_item != nullptr;
   }
 
-  void DumpDexRegisterMapAtOffset(std::ostream& os,
+  void DumpDexRegisterMapAtOffset(VariableIndentationOutputStream* vios,
                                   const OatFile::OatMethod& oat_method,
                                   const DexFile::CodeItem* code_item,
                                   size_t offset) {
@@ -1349,13 +1363,14 @@ class OatDumper {
       StackMapEncoding encoding = code_info.ExtractEncoding();
       StackMap stack_map = code_info.GetStackMapForNativePcOffset(offset, encoding);
       if (stack_map.IsValid()) {
-        stack_map.Dump(
-            os, code_info, encoding, oat_method.GetCodeOffset(), code_item->registers_size_);
+        stack_map.Dump(vios, code_info, encoding, oat_method.GetCodeOffset(),
+                       code_item->registers_size_);
       }
     }
   }
 
-  verifier::MethodVerifier* DumpVerifier(std::ostream& os, uint32_t dex_method_idx,
+  verifier::MethodVerifier* DumpVerifier(VariableIndentationOutputStream* vios,
+                                         uint32_t dex_method_idx,
                                          const DexFile* dex_file,
                                          const DexFile::ClassDef& class_def,
                                          const DexFile::CodeItem* code_item,
@@ -1367,14 +1382,15 @@ class OatDumper {
           hs.NewHandle(Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file)));
       DCHECK(options_.class_loader_ != nullptr);
       return verifier::MethodVerifier::VerifyMethodAndDump(
-          soa.Self(), os, dex_method_idx, dex_file, dex_cache, *options_.class_loader_, &class_def,
-          code_item, nullptr, method_access_flags);
+          soa.Self(), vios, dex_method_idx, dex_file, dex_cache, *options_.class_loader_,
+          &class_def, code_item, nullptr, method_access_flags);
     }
 
     return nullptr;
   }
 
-  void DumpCode(std::ostream& os, verifier::MethodVerifier* verifier,
+  void DumpCode(VariableIndentationOutputStream* vios,
+                verifier::MethodVerifier* verifier,
                 const OatFile::OatMethod& oat_method, const DexFile::CodeItem* code_item,
                 bool bad_input, size_t code_size) {
     const void* quick_code = oat_method.GetQuickCode();
@@ -1383,22 +1399,23 @@ class OatDumper {
       code_size = oat_method.GetQuickCodeSize();
     }
     if (code_size == 0 || quick_code == nullptr) {
-      os << "NO CODE!\n";
+      vios->Stream() << "NO CODE!\n";
       return;
     } else {
       const uint8_t* quick_native_pc = reinterpret_cast<const uint8_t*>(quick_code);
       size_t offset = 0;
       while (offset < code_size) {
         if (!bad_input) {
-          DumpInformationAtOffset(os, oat_method, code_item, offset, false);
+          DumpInformationAtOffset(vios, oat_method, code_item, offset, false);
         }
-        offset += disassembler_->Dump(os, quick_native_pc + offset);
+        offset += disassembler_->Dump(vios->Stream(), quick_native_pc + offset);
         if (!bad_input) {
-          uint32_t dex_pc = DumpInformationAtOffset(os, oat_method, code_item, offset, true);
+          uint32_t dex_pc =
+              DumpInformationAtOffset(vios, oat_method, code_item, offset, true);
           if (dex_pc != DexFile::kDexNoIndex) {
-            DumpGcMapAtNativePcOffset(os, oat_method, code_item, offset);
+            DumpGcMapAtNativePcOffset(vios->Stream(), oat_method, code_item, offset);
             if (verifier != nullptr) {
-              DumpVRegsAtDexPc(os, verifier, oat_method, code_item, dex_pc);
+              DumpVRegsAtDexPc(vios->Stream(), verifier, oat_method, code_item, dex_pc);
             }
           }
         }
@@ -1420,12 +1437,16 @@ class ImageDumper {
   explicit ImageDumper(std::ostream* os, gc::space::ImageSpace& image_space,
                        const ImageHeader& image_header, OatDumperOptions* oat_dumper_options)
       : os_(os),
+        vios_(os),
+        indent1_(&vios_),
         image_space_(image_space),
         image_header_(image_header),
         oat_dumper_options_(oat_dumper_options) {}
 
   bool Dump() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::ostream& os = *os_;
+    std::ostream& indent_os = vios_.Stream();
+
     os << "MAGIC: " << image_header_.GetMagic() << "\n\n";
 
     os << "IMAGE BEGIN: " << reinterpret_cast<void*>(image_header_.GetImageBegin()) << "\n\n";
@@ -1453,20 +1474,17 @@ class ImageDumper {
 
     {
       os << "ROOTS: " << reinterpret_cast<void*>(image_header_.GetImageRoots()) << "\n";
-      Indenter indent1_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
-      std::ostream indent1_os(&indent1_filter);
       static_assert(arraysize(image_roots_descriptions_) ==
           static_cast<size_t>(ImageHeader::kImageRootsMax), "sizes must match");
       for (int i = 0; i < ImageHeader::kImageRootsMax; i++) {
         ImageHeader::ImageRoot image_root = static_cast<ImageHeader::ImageRoot>(i);
         const char* image_root_description = image_roots_descriptions_[i];
         mirror::Object* image_root_object = image_header_.GetImageRoot(image_root);
-        indent1_os << StringPrintf("%s: %p\n", image_root_description, image_root_object);
+        indent_os << StringPrintf("%s: %p\n", image_root_description, image_root_object);
         if (image_root_object->IsObjectArray()) {
-          Indenter indent2_filter(indent1_os.rdbuf(), kIndentChar, kIndentBy1Count);
-          std::ostream indent2_os(&indent2_filter);
           mirror::ObjectArray<mirror::Object>* image_root_object_array
               = image_root_object->AsObjectArray<mirror::Object>();
+          ScopedIndentation indent2(&vios_);
           for (int j = 0; j < image_root_object_array->GetLength(); j++) {
             mirror::Object* value = image_root_object_array->Get(j);
             size_t run = 0;
@@ -1478,20 +1496,22 @@ class ImageDumper {
               }
             }
             if (run == 0) {
-              indent2_os << StringPrintf("%d: ", j);
+              indent_os << StringPrintf("%d: ", j);
             } else {
-              indent2_os << StringPrintf("%d to %zd: ", j, j + run);
+              indent_os << StringPrintf("%d to %zd: ", j, j + run);
               j = j + run;
             }
             if (value != nullptr) {
-              PrettyObjectValue(indent2_os, value->GetClass(), value);
+              PrettyObjectValue(indent_os, value->GetClass(), value);
             } else {
-              indent2_os << j << ": null\n";
+              indent_os << j << ": null\n";
             }
           }
         }
       }
+    }
 
+    {
       os << "METHOD ROOTS\n";
       static_assert(arraysize(image_methods_descriptions_) ==
           static_cast<size_t>(ImageHeader::kImageMethodsCount), "sizes must match");
@@ -1499,7 +1519,7 @@ class ImageDumper {
         auto image_root = static_cast<ImageHeader::ImageMethod>(i);
         const char* description = image_methods_descriptions_[i];
         auto* image_method = image_header_.GetImageMethod(image_root);
-        indent1_os << StringPrintf("%s: %p\n", description, image_method);
+        indent_os << StringPrintf("%s: %p\n", description, image_method);
       }
     }
     os << "\n";
@@ -1556,11 +1576,6 @@ class ImageDumper {
       }
     }
     {
-      std::ostream* saved_os = os_;
-      Indenter indent_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
-      std::ostream indent_os(&indent_filter);
-      os_ = &indent_os;
-
       // Mark dex caches.
       dex_cache_arrays_.clear();
       {
@@ -1596,7 +1611,6 @@ class ImageDumper {
       // Dump the large objects separately.
       heap->GetLargeObjectsSpace()->GetLiveBitmap()->Walk(ImageDumper::Callback, this);
       indent_os << "\n";
-      os_ = saved_os;
     }
     os << "STATS:\n" << std::flush;
     std::unique_ptr<File> file(OS::OpenFileForReading(image_filename.c_str()));
@@ -1621,7 +1635,7 @@ class ImageDumper {
     // RoundUp to 8 bytes to match the intern table alignment expectation.
     stats_.art_method_bytes += RoundUp(method_section.Size(), sizeof(uint64_t));
     stats_.interned_strings_bytes += intern_section.Size();
-    stats_.Dump(os);
+    stats_.Dump(os, indent_os);
     os << "\n";
 
     os << std::flush;
@@ -1760,7 +1774,8 @@ class ImageDumper {
     state->stats_.object_bytes += object_bytes;
     state->stats_.alignment_bytes += alignment_bytes;
 
-    std::ostream& os = *state->os_;
+    std::ostream& os = state->vios_.Stream();
+
     mirror::Class* obj_class = obj->GetClass();
     if (obj_class->IsArrayClass()) {
       os << StringPrintf("%p: %s length:%d\n", obj, PrettyDescriptor(obj_class).c_str(),
@@ -1775,9 +1790,8 @@ class ImageDumper {
     } else {
       os << StringPrintf("%p: %s\n", obj, PrettyDescriptor(obj_class).c_str());
     }
-    Indenter indent_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
-    std::ostream indent_os(&indent_filter);
-    DumpFields(indent_os, obj, obj_class);
+    ScopedIndentation indent1(&state->vios_);
+    DumpFields(os, obj, obj_class);
     const auto image_pointer_size =
         InstructionSetPointerSize(state->oat_dumper_->GetOatInstructionSet());
     if (obj->IsObjectArray()) {
@@ -1793,25 +1807,24 @@ class ImageDumper {
           }
         }
         if (run == 0) {
-          indent_os << StringPrintf("%d: ", i);
+          os << StringPrintf("%d: ", i);
         } else {
-          indent_os << StringPrintf("%d to %zd: ", i, i + run);
+          os << StringPrintf("%d to %zd: ", i, i + run);
           i = i + run;
         }
         mirror::Class* value_class =
             (value == nullptr) ? obj_class->GetComponentType() : value->GetClass();
-        PrettyObjectValue(indent_os, value_class, value);
+        PrettyObjectValue(os, value_class, value);
       }
     } else if (obj->IsClass()) {
       mirror::Class* klass = obj->AsClass();
       ArtField* sfields = klass->GetSFields();
       const size_t num_fields = klass->NumStaticFields();
       if (num_fields != 0) {
-        indent_os << "STATICS:\n";
-        Indenter indent2_filter(indent_os.rdbuf(), kIndentChar, kIndentBy1Count);
-        std::ostream indent2_os(&indent2_filter);
+        os << "STATICS:\n";
+        ScopedIndentation indent2(&state->vios_);
         for (size_t i = 0; i < num_fields; i++) {
-          PrintField(indent2_os, &sfields[i], sfields[i].GetDeclaringClass());
+          PrintField(os, &sfields[i], sfields[i].GetDeclaringClass());
         }
       }
     } else {
@@ -1827,9 +1840,9 @@ class ImageDumper {
           for (int32_t j = i + 1; j < length &&
               elem == arr->GetElementPtrSize<void*>(j, image_pointer_size); j++, run++) { }
           if (run == 0) {
-            indent_os << StringPrintf("%d: ", i);
+            os << StringPrintf("%d: ", i);
           } else {
-            indent_os << StringPrintf("%d to %zd: ", i, i + run);
+            os << StringPrintf("%d to %zd: ", i, i + run);
             i = i + run;
           }
           auto offset = reinterpret_cast<uint8_t*>(elem) - state->image_space_.Begin();
@@ -1841,7 +1854,7 @@ class ImageDumper {
           } else {
             msg = "Unknown type";
           }
-          indent_os << StringPrintf("%p   %s\n", elem, msg.c_str());
+          os << StringPrintf("%p   %s\n", elem, msg.c_str());
         }
       }
     }
@@ -1920,7 +1933,7 @@ class ImageDumper {
 
       indent_os << StringPrintf("OAT CODE: %p-%p\n", quick_oat_code_begin, quick_oat_code_end);
       indent_os << StringPrintf("SIZE: Dex Instructions=%zd GC=%zd Mapping=%zd\n",
-      dex_instruction_bytes, gc_map_bytes, pc_mapping_table_bytes);
+                                dex_instruction_bytes, gc_map_bytes, pc_mapping_table_bytes);
 
       size_t total_size = dex_instruction_bytes + gc_map_bytes + pc_mapping_table_bytes +
           vmap_table_bytes + quick_oat_code_size + ArtMethod::ObjectSize(image_pointer_size);
@@ -2135,12 +2148,11 @@ class ImageDumper {
       os << "\n" << std::flush;
     }
 
-    void Dump(std::ostream& os) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    void Dump(std::ostream& os, std::ostream& indent_os)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       {
         os << "art_file_bytes = " << PrettySize(file_bytes) << "\n\n"
            << "art_file_bytes = header_bytes + object_bytes + alignment_bytes\n";
-        Indenter indent_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
-        std::ostream indent_os(&indent_filter);
         indent_os << StringPrintf("header_bytes          =  %8zd (%2.0f%% of art file bytes)\n"
                                   "object_bytes          =  %8zd (%2.0f%% of art file bytes)\n"
                                   "art_field_bytes       =  %8zd (%2.0f%% of art file bytes)\n"
@@ -2233,7 +2245,13 @@ class ImageDumper {
     // threshold, we assume 2 bytes per instruction and 2 instructions per block.
     kLargeMethodDexBytes = 16000
   };
+
+  // For performance, use the *os_ directly for anything that doesn't need indentation
+  // and prepare an indentation stream with default indentation 1.
   std::ostream* os_;
+  VariableIndentationOutputStream vios_;
+  ScopedIndentation indent1_;
+
   gc::space::ImageSpace& image_space_;
   const ImageHeader& image_header_;
   std::unique_ptr<OatDumper> oat_dumper_;

@@ -17,6 +17,8 @@
 #include "gtest/gtest.h"
 #include "indenter.h"
 
+namespace art {
+
 TEST(IndenterTest, MultiLineTest) {
   std::ostringstream output;
   Indenter indent_filter(output.rdbuf(), '\t', 2);
@@ -33,3 +35,5 @@ TEST(IndenterTest, MultiLineTest) {
   input << "\n";
   EXPECT_EQ(output.str(), "\t\thello\n\t\thello again\n");
 }
+
+}  // namespace art

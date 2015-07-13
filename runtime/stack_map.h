@@ -23,6 +23,8 @@
 
 namespace art {
 
+class VariableIndentationOutputStream;
+
 // Size of a frame slot, in bytes.  This constant is a signed value,
 // to please the compiler in arithmetic operations involving int32_t
 // (signed) values.
@@ -357,7 +359,7 @@ class DexRegisterLocationCatalog {
     return region_.size();
   }
 
-  void Dump(std::ostream& os, const CodeInfo& code_info);
+  void Dump(VariableIndentationOutputStream* vios, const CodeInfo& code_info);
 
   // Special (invalid) Dex register location catalog entry index meaning
   // that there is no location for a given Dex register (i.e., it is
@@ -610,7 +612,8 @@ class DexRegisterMap {
     return region_.size();
   }
 
-  void Dump(std::ostream& o, const CodeInfo& code_info, uint16_t number_of_dex_registers) const;
+  void Dump(VariableIndentationOutputStream* vios,
+            const CodeInfo& code_info, uint16_t number_of_dex_registers) const;
 
  private:
   // Return the index in the Dex register map corresponding to the Dex
@@ -837,7 +840,7 @@ class StackMap {
        && region_.size() == other.region_.size();
   }
 
-  void Dump(std::ostream& os,
+  void Dump(VariableIndentationOutputStream* vios,
             const CodeInfo& code_info,
             const StackMapEncoding& encoding,
             uint32_t code_offset,
@@ -931,7 +934,8 @@ class InlineInfo {
     return kFixedEntrySize;
   }
 
-  void Dump(std::ostream& os, const CodeInfo& info, uint16_t* number_of_dex_registers) const;
+  void Dump(VariableIndentationOutputStream* vios,
+            const CodeInfo& info, uint16_t* number_of_dex_registers) const;
 
  private:
   // TODO: Instead of plain types such as "uint8_t", introduce
@@ -1120,7 +1124,7 @@ class CodeInfo {
   // number of Dex virtual registers used in this method.  If
   // `dump_stack_maps` is true, also dump the stack maps and the
   // associated Dex register maps.
-  void Dump(std::ostream& os,
+  void Dump(VariableIndentationOutputStream* vios,
             uint32_t code_offset,
             uint16_t number_of_dex_registers,
             bool dump_stack_maps) const;

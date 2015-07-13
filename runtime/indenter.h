@@ -19,10 +19,13 @@
 
 #include "base/logging.h"
 #include "base/macros.h"
+#include <ostream>
 #include <streambuf>
 
-const char kIndentChar =' ';
-const size_t kIndentBy1Count = 2;
+namespace art {
+
+constexpr char kIndentChar =' ';
+constexpr size_t kIndentBy1Count = 2;
 
 class Indenter : public std::streambuf {
  public:
@@ -99,9 +102,60 @@ class Indenter : public std::streambuf {
   const char text_[8];
 
   // Number of times text is output.
-  const size_t count_;
+  size_t count_;
+
+  friend class VariableIndentationOutputStream;
 
   DISALLOW_COPY_AND_ASSIGN(Indenter);
 };
+
+class VariableIndentationOutputStream {
+ public:
+  explicit VariableIndentationOutputStream(std::ostream* os, char text = kIndentChar)
+      : indenter_(os->rdbuf(), text, 0u),
+        indented_os_(&indenter_) {
+  }
+
+  std::ostream& Stream() {
+    return indented_os_;
+  }
+
+  void IncreaseIndentation(size_t adjustment) {
+    indenter_.count_ += adjustment;
+  }
+
+  void DecreaseIndentation(size_t adjustment) {
+    DCHECK_GE(indenter_.count_, adjustment);
+    indenter_.count_ -= adjustment;
+  }
+
+ private:
+  Indenter indenter_;
+  std::ostream indented_os_;
+
+  DISALLOW_COPY_AND_ASSIGN(VariableIndentationOutputStream);
+};
+
+class ScopedIndentation {
+ public:
+  explicit ScopedIndentation(VariableIndentationOutputStream* vios,
+                             size_t adjustment = kIndentBy1Count)
+      : vios_(vios),
+        adjustment_(adjustment) {
+    vios_->IncreaseIndentation(adjustment_);
+  }
+
+  ~ScopedIndentation() {
+    vios_->DecreaseIndentation(adjustment_);
+  }
+
+ private:
+  VariableIndentationOutputStream* const vios_;
+  const size_t adjustment_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedIndentation);
+};
+
+}  // namespace art
 
 #endif  // ART_RUNTIME_INDENTER_H_
