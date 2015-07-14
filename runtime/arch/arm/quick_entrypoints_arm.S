@@ -325,23 +325,25 @@ ONE_ARG_RUNTIME_EXCEPTION art_quick_throw_no_such_method, artThrowNoSuchMethodFr
      * On success this wrapper will restore arguments and *jump* to the target, leaving the lr
      * pointing back to the original caller.
      */
-.macro INVOKE_TRAMPOLINE c_name, cxx_name
+.macro INVOKE_TRAMPOLINE_BODY cxx_name
     .extern \cxx_name
-ENTRY \c_name
     SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME r2, r3  @ save callee saves in case allocation triggers GC
     mov    r2, r9                         @ pass Thread::Current
     mov    r3, sp
-    bl     \cxx_name                      @ (method_idx, this, caller, Thread*, SP)
+    bl     \cxx_name                      @ (method_idx, this, Thread*, SP)
     mov    r12, r1                        @ save Method*->code_
     RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
     cbz    r0, 1f                         @ did we find the target? if not go to exception delivery
     bx     r12                            @ tail call to target
 1:
     DELIVER_PENDING_EXCEPTION
+.endm
+.macro INVOKE_TRAMPOLINE c_name, cxx_name
+ENTRY \c_name
+    INVOKE_TRAMPOLINE_BODY \cxx_name
 END \c_name
 .endm
 
-INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline, artInvokeInterfaceTrampoline
 INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline_with_access_check, artInvokeInterfaceTrampolineWithAccessCheck
 
 INVOKE_TRAMPOLINE art_quick_invoke_static_trampoline_with_access_check, artInvokeStaticTrampolineWithAccessCheck
@@ -894,7 +896,7 @@ END art_quick_proxy_invoke_handler
      */
 ENTRY art_quick_imt_conflict_trampoline
     mov    r0, r12
-    b art_quick_invoke_interface_trampoline
+    INVOKE_TRAMPOLINE_BODY artInvokeInterfaceTrampoline
 END art_quick_imt_conflict_trampoline
 
     .extern artQuickResolutionTrampoline
