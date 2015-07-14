@@ -23,20 +23,12 @@ CompiledCode::CompiledCode(CompilerDriver* compiler_driver, InstructionSet instr
                            const ArrayRef<const uint8_t>& quick_code, bool owns_code_array)
     : compiler_driver_(compiler_driver), instruction_set_(instruction_set),
       owns_code_array_(owns_code_array), quick_code_(nullptr) {
-  SetCode(&quick_code);
-}
-
-void CompiledCode::SetCode(const ArrayRef<const uint8_t>* quick_code) {
-  if (quick_code != nullptr) {
-    CHECK(!quick_code->empty());
-    if (owns_code_array_) {
-      // If we are supposed to own the code, don't deduplicate it.
-      CHECK(quick_code_ == nullptr);
-      quick_code_ = new SwapVector<uint8_t>(quick_code->begin(), quick_code->end(),
-                                            compiler_driver_->GetSwapSpaceAllocator());
-    } else {
-      quick_code_ = compiler_driver_->DeduplicateCode(*quick_code);
-    }
+  if (owns_code_array_) {
+    // If we are supposed to own the code, don't deduplicate it.
+    quick_code_ = new SwapVector<uint8_t>(quick_code.begin(), quick_code.end(),
+                                          compiler_driver_->GetSwapSpaceAllocator());
+  } else {
+    quick_code_ = compiler_driver_->DeduplicateCode(quick_code);
   }
 }
 
