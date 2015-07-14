@@ -450,9 +450,8 @@ ONE_ARG_RUNTIME_EXCEPTION art_quick_throw_no_such_method, artThrowNoSuchMethodFr
      *
      * Clobbers xIP0.
      */
-.macro INVOKE_TRAMPOLINE c_name, cxx_name
+.macro INVOKE_TRAMPOLINE_BODY cxx_name
     .extern \cxx_name
-ENTRY \c_name
     SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME  // save callee saves in case allocation triggers GC
     // Helper signature is always
     // (method_idx, *this_object, *caller_method, *self, sp)
@@ -466,10 +465,13 @@ ENTRY \c_name
     br     xIP0                           // tail call to target
 1:
     DELIVER_PENDING_EXCEPTION
+.endm
+.macro INVOKE_TRAMPOLINE c_name, cxx_name
+ENTRY \c_name
+    INVOKE_TRAMPOLINE_BODY \cxx_name
 END \c_name
 .endm
 
-INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline, artInvokeInterfaceTrampoline
 INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline_with_access_check, artInvokeInterfaceTrampolineWithAccessCheck
 
 INVOKE_TRAMPOLINE art_quick_invoke_static_trampoline_with_access_check, artInvokeStaticTrampolineWithAccessCheck
@@ -1429,9 +1431,10 @@ END art_quick_proxy_invoke_handler
      * Called to resolve an imt conflict. xIP1 is a hidden argument that holds the target method's
      * dex method index.
      */
+    .extern artInvokeInterfaceTrampoline
 ENTRY art_quick_imt_conflict_trampoline
     mov    x0, xIP1
-    b art_quick_invoke_interface_trampoline
+    INVOKE_TRAMPOLINE_BODY artInvokeInterfaceTrampoline
 END art_quick_imt_conflict_trampoline
 
 ENTRY art_quick_resolution_trampoline
