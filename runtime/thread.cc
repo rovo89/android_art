@@ -35,6 +35,7 @@
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/bit_utils.h"
+#include "base/memory_tool.h"
 #include "base/mutex.h"
 #include "base/timing_logger.h"
 #include "base/to_str.h"
@@ -80,6 +81,12 @@ bool Thread::is_started_ = false;
 pthread_key_t Thread::pthread_key_self_;
 ConditionVariable* Thread::resume_cond_ = nullptr;
 const size_t Thread::kStackOverflowImplicitCheckSize = GetStackOverflowReservedBytes(kRuntimeISA);
+
+// For implicit overflow checks we reserve an extra piece of memory at the bottom
+// of the stack (lowest memory).  The higher portion of the memory
+// is protected against reads and the lower is available for use while
+// throwing the StackOverflow exception.
+constexpr size_t kStackOverflowProtectedSize = 4 * kMemoryToolStackGuardSizeScale * KB;
 
 static const char* kThreadNameDuringStartup = "<native thread without managed peer>";
 

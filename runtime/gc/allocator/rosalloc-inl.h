@@ -24,7 +24,7 @@ namespace gc {
 namespace allocator {
 
 inline ALWAYS_INLINE bool RosAlloc::ShouldCheckZeroMemory() {
-  return kCheckZeroMemory && !running_on_valgrind_;
+  return kCheckZeroMemory && !is_running_on_memory_tool_;
 }
 
 template<bool kThreadSafe>

@@ -23,11 +23,11 @@
 #include "mem_map.h"
 #include "mutex.h"
 #include "thread-inl.h"
-#include <memcheck/memcheck.h>
+#include "base/memory_tool.h"
 
 namespace art {
 
-static constexpr size_t kValgrindRedZoneBytes = 8;
+static constexpr size_t kMemoryToolRedZoneBytes = 8;
 constexpr size_t Arena::kDefaultSize;
 
 template <bool kCount>
@@ -217,9 +217,9 @@ size_t ArenaPool::GetBytesAllocated() const {
 }
 
 void ArenaPool::FreeArenaChain(Arena* first) {
-  if (UNLIKELY(RUNNING_ON_VALGRIND > 0)) {
+  if (UNLIKELY(RUNNING_ON_MEMORY_TOOL > 0)) {
     for (Arena* arena = first; arena != nullptr; arena = arena->next_) {
-      VALGRIND_MAKE_MEM_UNDEFINED(arena->memory_, arena->bytes_allocated_);
+      MEMORY_TOOL_MAKE_UNDEFINED(arena->memory_, arena->bytes_allocated_);
     }
   }
   if (first != nullptr) {
@@ -255,7 +255,7 @@ ArenaAllocator::ArenaAllocator(ArenaPool* pool)
     end_(nullptr),
     ptr_(nullptr),
     arena_head_(nullptr),
-    running_on_valgrind_(RUNNING_ON_VALGRIND > 0) {
+    is_running_on_memory_tool_(RUNNING_ON_MEMORY_TOOL) {
 }
 
 void ArenaAllocator::UpdateBytesAllocated() {
@@ -267,7 +267,7 @@ void ArenaAllocator::UpdateBytesAllocated() {
 }
 
 void* ArenaAllocator::AllocValgrind(size_t bytes, ArenaAllocKind kind) {
-  size_t rounded_bytes = RoundUp(bytes + kValgrindRedZoneBytes, 8);
+  size_t rounded_bytes = RoundUp(bytes + kMemoryToolRedZoneBytes, 8);
   if (UNLIKELY(ptr_ + rounded_bytes > end_)) {
     // Obtain a new block.
     ObtainNewArenaForAllocation(rounded_bytes);
@@ -282,7 +282,7 @@ void* ArenaAllocator::AllocValgrind(size_t bytes, ArenaAllocKind kind) {
   for (uint8_t* ptr = ret; ptr < ptr_; ++ptr) {
     CHECK_EQ(*ptr, 0U);
   }
-  VALGRIND_MAKE_MEM_NOACCESS(ret + bytes, rounded_bytes - bytes);
+  MEMORY_TOOL_MAKE_NOACCESS(ret + bytes, rounded_bytes - bytes);
   return ret;
 }
 
