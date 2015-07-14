@@ -1183,8 +1183,8 @@ DEFINE_FUNCTION art_quick_aput_obj
     PUSH eax
 #else
     pushl MIRROR_OBJECT_CLASS_OFFSET(%edx)  // pass arg2 - type of the value to be stored
-#endif
     CFI_ADJUST_CFA_OFFSET(4)
+#endif
     PUSH ebx                      // pass arg1 - component type of the array
     call SYMBOL(artIsAssignableFromCode)  // (Class* a, Class* b)
     addl LITERAL(16), %esp        // pop arguments
