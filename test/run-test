@@ -117,6 +117,7 @@ check_cmd="check"
 output="output.txt"
 build_output="build-output.txt"
 cfg_output="graph.cfg"
+strace_output="strace-output.txt"
 lib="libartd.so"
 run_args="--quiet"
 build_args=""
@@ -137,6 +138,7 @@ trace_stream="false"
 basic_verify="false"
 gc_verify="false"
 gc_stress="false"
+strace="false"
 always_clean="no"
 never_clean="no"
 have_dex2oat="yes"
@@ -234,6 +236,10 @@ while true; do
     elif [ "x$1" = "x--gdb" ]; then
         run_args="${run_args} --gdb"
         dev_mode="yes"
+        shift
+    elif [ "x$1" = "x--strace" ]; then
+        strace="yes"
+        run_args="${run_args} --invoke-with strace --invoke-with -o --invoke-with $tmp_dir/$strace_output"
         shift
     elif [ "x$1" = "x--zygote" ]; then
         run_args="${run_args} --zygote"
@@ -750,6 +756,11 @@ fi
         echo '#################### diffs'
         diff --strip-trailing-cr -u "$expected" "$output" | tail -n 2000
         echo '####################'
+        if [ "$strace" = "yes" ]; then
+            echo '#################### strace output'
+            tail -n 2000 "$tmp_dir/$strace_output"
+            echo '####################'
+        fi
         echo ' '
     fi
 
