@@ -299,6 +299,7 @@ class Runtime {
   void DisallowNewSystemWeaks() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void AllowNewSystemWeaks() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void EnsureNewSystemWeaksDisallowed() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void BroadcastForNewSystemWeaks() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Visit all the roots. If only_dirty is true then non-dirty roots won't be visited. If
   // clean_dirty is true then dirty roots will be marked as non-dirty after visiting.

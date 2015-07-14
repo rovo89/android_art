@@ -1146,10 +1146,18 @@ void MonitorList::EnsureNewMonitorsDisallowed() {
   CHECK(!allow_new_monitors_);
 }
 
+void MonitorList::BroadcastForNewMonitors() {
+  CHECK(kUseReadBarrier);
+  Thread* self = Thread::Current();
+  MutexLock mu(self, monitor_list_lock_);
+  monitor_add_condition_.Broadcast(self);
+}
+
 void MonitorList::Add(Monitor* m) {
   Thread* self = Thread::Current();
   MutexLock mu(self, monitor_list_lock_);
-  while (UNLIKELY(!allow_new_monitors_)) {
+  while (UNLIKELY((!kUseReadBarrier && !allow_new_monitors_) ||
+                  (kUseReadBarrier && !self->GetWeakRefAccessEnabled()))) {
     monitor_add_condition_.WaitHoldingLocks(self);
   }
   list_.push_front(m);
