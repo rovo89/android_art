@@ -293,8 +293,7 @@ TWO_ARG_RUNTIME_EXCEPTION art_quick_throw_array_bounds, artThrowArrayBoundsFromC
      * On success this wrapper will restore arguments and *jump* to the target, leaving the lr
      * pointing back to the original caller.
      */
-MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
-    DEFINE_FUNCTION RAW_VAR(c_name, 0)
+MACRO1(INVOKE_TRAMPOLINE_BODY, cxx_name)
     SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME ebx, ebx
     movl %esp, %edx  // remember SP
 
@@ -334,10 +333,13 @@ MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
     addl MACRO_LITERAL(4), %esp   // Pop code pointer off stack
     CFI_ADJUST_CFA_OFFSET(-4)
     DELIVER_PENDING_EXCEPTION
+END_MACRO
+MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
+    DEFINE_FUNCTION RAW_VAR(c_name, 0)
+    INVOKE_TRAMPOLINE_BODY(cxx_name)
     END_FUNCTION RAW_VAR(c_name, 0)
 END_MACRO
 
-INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline, artInvokeInterfaceTrampoline
 INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline_with_access_check, artInvokeInterfaceTrampolineWithAccessCheck
 
 INVOKE_TRAMPOLINE art_quick_invoke_static_trampoline_with_access_check, artInvokeStaticTrampolineWithAccessCheck
@@ -1415,7 +1417,7 @@ END_FUNCTION art_quick_proxy_invoke_handler
      */
 DEFINE_FUNCTION art_quick_imt_conflict_trampoline
     movd %xmm7, %eax              // get target method index stored in xmm7
-    jmp SYMBOL(art_quick_invoke_interface_trampoline)
+    INVOKE_TRAMPOLINE_BODY(artInvokeInterfaceTrampoline)
 END_FUNCTION art_quick_imt_conflict_trampoline
 
 DEFINE_FUNCTION art_quick_resolution_trampoline
