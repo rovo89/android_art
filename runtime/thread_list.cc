@@ -585,8 +585,10 @@ void ThreadList::SuspendAllInternal(Thread* self, Thread* ignore1, Thread* ignor
 
   // Wait for the barrier to be passed by all runnable threads. This wait
   // is done with a timeout so that we can detect problems.
+#if ART_USE_FUTEXES
   timespec wait_timeout;
   InitTimeSpec(true, CLOCK_MONOTONIC, 10000, 0, &wait_timeout);
+#endif
   while (true) {
     int32_t cur_val = pending_threads.LoadRelaxed();
     if (LIKELY(cur_val > 0)) {
