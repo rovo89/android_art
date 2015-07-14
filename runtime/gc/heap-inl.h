@@ -92,7 +92,7 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
   } else if (!kInstrumented && allocator == kAllocatorTypeRosAlloc &&
              (obj = rosalloc_space_->AllocThreadLocal(self, byte_count, &bytes_allocated)) &&
              LIKELY(obj != nullptr)) {
-    DCHECK(!running_on_valgrind_);
+    DCHECK(!is_running_on_memory_tool_);
     obj->SetClass(klass);
     if (kUseBakerOrBrooksReadBarrier) {
       if (kUseBrooksReadBarrier) {
@@ -244,8 +244,8 @@ inline mirror::Object* Heap::TryToAllocate(Thread* self, AllocatorType allocator
       break;
     }
     case kAllocatorTypeRosAlloc: {
-      if (kInstrumented && UNLIKELY(running_on_valgrind_)) {
-        // If running on valgrind, we should be using the instrumented path.
+      if (kInstrumented && UNLIKELY(is_running_on_memory_tool_)) {
+        // If running on valgrind or asan, we should be using the instrumented path.
         size_t max_bytes_tl_bulk_allocated = rosalloc_space_->MaxBytesBulkAllocatedFor(alloc_size);
         if (UNLIKELY(IsOutOfMemoryOnAllocation<kGrow>(allocator_type,
                                                       max_bytes_tl_bulk_allocated))) {
@@ -254,7 +254,7 @@ inline mirror::Object* Heap::TryToAllocate(Thread* self, AllocatorType allocator
         ret = rosalloc_space_->Alloc(self, alloc_size, bytes_allocated, usable_size,
                                      bytes_tl_bulk_allocated);
       } else {
-        DCHECK(!running_on_valgrind_);
+        DCHECK(!is_running_on_memory_tool_);
         size_t max_bytes_tl_bulk_allocated =
             rosalloc_space_->MaxBytesBulkAllocatedForNonvirtual(alloc_size);
         if (UNLIKELY(IsOutOfMemoryOnAllocation<kGrow>(allocator_type,
@@ -270,12 +270,12 @@ inline mirror::Object* Heap::TryToAllocate(Thread* self, AllocatorType allocator
       break;
     }
     case kAllocatorTypeDlMalloc: {
-      if (kInstrumented && UNLIKELY(running_on_valgrind_)) {
+      if (kInstrumented && UNLIKELY(is_running_on_memory_tool_)) {
         // If running on valgrind, we should be using the instrumented path.
         ret = dlmalloc_space_->Alloc(self, alloc_size, bytes_allocated, usable_size,
                                      bytes_tl_bulk_allocated);
       } else {
-        DCHECK(!running_on_valgrind_);
+        DCHECK(!is_running_on_memory_tool_);
         ret = dlmalloc_space_->AllocNonvirtual(self, alloc_size, bytes_allocated, usable_size,
                                                bytes_tl_bulk_allocated);
       }

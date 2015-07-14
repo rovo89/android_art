@@ -253,7 +253,7 @@ class RosAlloc {
     // Dump the run metadata for debugging.
     std::string Dump();
     // Verify for debugging.
-    void Verify(Thread* self, RosAlloc* rosalloc, bool running_on_valgrind)
+    void Verify(Thread* self, RosAlloc* rosalloc, bool running_on_memory_tool)
         EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
         EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_);
 
@@ -503,7 +503,7 @@ class RosAlloc {
   const size_t page_release_size_threshold_;
 
   // Whether this allocator is running under Valgrind.
-  bool running_on_valgrind_;
+  bool is_running_on_memory_tool_;
 
   // The base address of the memory region that's managed by this allocator.
   uint8_t* Begin() { return base_; }
@@ -561,7 +561,7 @@ class RosAlloc {
  public:
   RosAlloc(void* base, size_t capacity, size_t max_capacity,
            PageReleaseMode page_release_mode,
-           bool running_on_valgrind,
+           bool running_on_memory_tool,
            size_t page_release_size_threshold = kDefaultPageReleaseSizeThreshold);
   ~RosAlloc();
 

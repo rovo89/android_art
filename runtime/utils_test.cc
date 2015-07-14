@@ -26,7 +26,7 @@
 #include "scoped_thread_state_change.h"
 #include "handle_scope-inl.h"
 
-#include <valgrind.h>
+#include "base/memory_tool.h"
 
 namespace art {
 
@@ -358,7 +358,7 @@ TEST_F(UtilsTest, ExecSuccess) {
     command.push_back("/usr/bin/id");
   }
   std::string error_msg;
-  if (RUNNING_ON_VALGRIND == 0) {
+  if (!(RUNNING_ON_MEMORY_TOOL && kMemoryToolDetectsLeaks)) {
     // Running on valgrind fails due to some memory that leaks in thread alternate signal stacks.
     EXPECT_TRUE(Exec(command, &error_msg));
   }
@@ -372,7 +372,7 @@ TEST_F(UtilsTest, ExecError) {
   std::vector<std::string> command;
   command.push_back("bogus");
   std::string error_msg;
-  if (RUNNING_ON_VALGRIND == 0) {
+  if (!(RUNNING_ON_MEMORY_TOOL && kMemoryToolDetectsLeaks)) {
     // Running on valgrind fails due to some memory that leaks in thread alternate signal stacks.
     EXPECT_FALSE(Exec(command, &error_msg));
     EXPECT_NE(0U, error_msg.size());

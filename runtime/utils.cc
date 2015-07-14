@@ -1094,7 +1094,7 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
     ArtMethod* current_method, void* ucontext_ptr) {
 #if __linux__
   // b/18119146
-  if (RUNNING_ON_VALGRIND != 0) {
+  if (RUNNING_ON_MEMORY_TOOL != 0) {
     return;
   }
 

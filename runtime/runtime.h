@@ -512,8 +512,8 @@ class Runtime {
     return cpu_abilist_;
   }
 
-  bool RunningOnValgrind() const {
-    return running_on_valgrind_;
+  bool IsRunningOnMemoryTool() const {
+    return is_running_on_memory_tool_;
   }
 
   void SetTargetSdkVersion(int32_t version) {
@@ -678,7 +678,7 @@ class Runtime {
   bool stats_enabled_;
   RuntimeStats stats_;
 
-  const bool running_on_valgrind_;
+  const bool is_running_on_memory_tool_;
 
   std::string profile_output_filename_;
   ProfilerOptions profiler_options_;
