@@ -471,7 +471,8 @@ ArtMethod* Class::FindDirectMethod(
 ArtMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name, const StringPiece& signature,
                                             size_t pointer_size) {
   for (auto& method : GetVirtualMethods(pointer_size)) {
-    if (name == method.GetName() && method.GetSignature() == signature) {
+    ArtMethod* const np_method = method.GetInterfaceMethodIfProxy(pointer_size);
+    if (name == np_method->GetName() && np_method->GetSignature() == signature) {
       return &method;
     }
   }
@@ -481,7 +482,8 @@ ArtMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name, const Strin
 ArtMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name, const Signature& signature,
                                             size_t pointer_size) {
   for (auto& method : GetVirtualMethods(pointer_size)) {
-    if (name == method.GetName() && signature == method.GetSignature()) {
+    ArtMethod* const np_method = method.GetInterfaceMethodIfProxy(pointer_size);
+    if (name == np_method->GetName() && signature == np_method->GetSignature()) {
       return &method;
     }
   }
