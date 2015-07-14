@@ -14,24 +14,22 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_GC_SPACE_VALGRIND_MALLOC_SPACE_H_
-#define ART_RUNTIME_GC_SPACE_VALGRIND_MALLOC_SPACE_H_
+#ifndef ART_RUNTIME_GC_SPACE_MEMORY_TOOL_MALLOC_SPACE_H_
+#define ART_RUNTIME_GC_SPACE_MEMORY_TOOL_MALLOC_SPACE_H_
 
 #include "malloc_space.h"
-
-#include <valgrind.h>
 
 namespace art {
 namespace gc {
 namespace space {
 
-// A specialization of DlMallocSpace/RosAllocSpace that places valgrind red zones around
-// allocations.
+// A specialization of DlMallocSpace/RosAllocSpace that places memory tool red
+// zones around allocations.
 template <typename BaseMallocSpaceType,
-          size_t kValgrindRedZoneBytes,
+          size_t kMemoryToolRedZoneBytes,
           bool kAdjustForRedzoneInAllocSize,
           bool kUseObjSizeForUsable>
-class ValgrindMallocSpace FINAL : public BaseMallocSpaceType {
+class MemoryToolMallocSpace FINAL : public BaseMallocSpaceType {
  public:
   mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes, size_t* bytes_allocated,
                                   size_t* usable_size, size_t* bytes_tl_bulk_allocated)
@@ -57,15 +55,15 @@ class ValgrindMallocSpace FINAL : public BaseMallocSpaceType {
   size_t MaxBytesBulkAllocatedFor(size_t num_bytes) OVERRIDE;
 
   template <typename... Params>
-  explicit ValgrindMallocSpace(MemMap* mem_map, size_t initial_size, Params... params);
-  virtual ~ValgrindMallocSpace() {}
+  explicit MemoryToolMallocSpace(MemMap* mem_map, size_t initial_size, Params... params);
+  virtual ~MemoryToolMallocSpace() {}
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(ValgrindMallocSpace);
+  DISALLOW_COPY_AND_ASSIGN(MemoryToolMallocSpace);
 };
 
 }  // namespace space
 }  // namespace gc
 }  // namespace art
 
-#endif  // ART_RUNTIME_GC_SPACE_VALGRIND_MALLOC_SPACE_H_
+#endif  // ART_RUNTIME_GC_SPACE_MEMORY_TOOL_MALLOC_SPACE_H_

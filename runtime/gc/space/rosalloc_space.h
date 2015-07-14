@@ -31,7 +31,7 @@ namespace collector {
 namespace space {
 
 // An alloc space implemented using a runs-of-slots memory allocator. Not final as may be
-// overridden by a ValgrindMallocSpace.
+// overridden by a MemoryToolMallocSpace.
 class RosAllocSpace : public MallocSpace {
  public:
   // Create a RosAllocSpace with the requested sizes. The requested
@@ -95,7 +95,7 @@ class RosAllocSpace : public MallocSpace {
   ALWAYS_INLINE size_t MaxBytesBulkAllocatedForNonvirtual(size_t num_bytes);
 
   // TODO: NO_THREAD_SAFETY_ANALYSIS because SizeOf() requires that mutator_lock is held.
-  template<bool kMaybeRunningOnValgrind>
+  template<bool kMaybeIsRunningOnMemoryTool>
   size_t AllocationSizeNonvirtual(mirror::Object* obj, size_t* usable_size)
       NO_THREAD_SAFETY_ANALYSIS;
 
@@ -158,11 +158,11 @@ class RosAllocSpace : public MallocSpace {
   void* CreateAllocator(void* base, size_t morecore_start, size_t initial_size,
                         size_t maximum_size, bool low_memory_mode) OVERRIDE {
     return CreateRosAlloc(base, morecore_start, initial_size, maximum_size, low_memory_mode,
-                          RUNNING_ON_VALGRIND != 0);
+                          RUNNING_ON_MEMORY_TOOL != 0);
   }
   static allocator::RosAlloc* CreateRosAlloc(void* base, size_t morecore_start, size_t initial_size,
                                              size_t maximum_size, bool low_memory_mode,
-                                             bool running_on_valgrind);
+                                             bool running_on_memory_tool);
 
   void InspectAllRosAlloc(void (*callback)(void *start, void *end, size_t num_bytes, void* callback_arg),
                           void* arg, bool do_null_callback_at_end)

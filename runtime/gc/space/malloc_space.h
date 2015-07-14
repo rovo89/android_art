@@ -20,6 +20,7 @@
 #include "space.h"
 
 #include <ostream>
+#include "base/memory_tool.h"
 
 namespace art {
 namespace gc {

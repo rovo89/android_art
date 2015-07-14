@@ -16,6 +16,7 @@
 
 #include "mem_map.h"
 
+#include "base/memory_tool.h"
 #include <backtrace/BacktraceMap.h>
 #include <inttypes.h>
 
@@ -481,6 +482,12 @@ MemMap* MemMap::MapFileAtAddress(uint8_t* expected_ptr, size_t byte_count, int p
   uint8_t* page_aligned_expected =
       (expected_ptr == nullptr) ? nullptr : (expected_ptr - page_offset);
 
+  size_t redzone_size = 0;
+  if (RUNNING_ON_MEMORY_TOOL && kMemoryToolAddsRedzones && expected_ptr == nullptr) {
+    redzone_size = kPageSize;
+    page_aligned_byte_count += redzone_size;
+  }
+
   uint8_t* actual = reinterpret_cast<uint8_t*>(mmap(page_aligned_expected,
                                               page_aligned_byte_count,
                                               prot,
@@ -503,15 +510,35 @@ MemMap* MemMap::MapFileAtAddress(uint8_t* expected_ptr, size_t byte_count, int p
   if (!CheckMapRequest(expected_ptr, actual, page_aligned_byte_count, error_msg)) {
     return nullptr;
   }
+  if (redzone_size != 0) {
+    const uint8_t *real_start = actual + page_offset;
+    const uint8_t *real_end = actual + page_offset + byte_count;
+    const uint8_t *mapping_end = actual + page_aligned_byte_count;
+
+    MEMORY_TOOL_MAKE_NOACCESS(actual, real_start - actual);
+    MEMORY_TOOL_MAKE_NOACCESS(real_end, mapping_end - real_end);
+    page_aligned_byte_count -= redzone_size;
+  }
+
   return new MemMap(filename, actual + page_offset, byte_count, actual, page_aligned_byte_count,
-                    prot, reuse);
+                    prot, reuse, redzone_size);
 }
 
 MemMap::~MemMap() {
   if (base_begin_ == nullptr && base_size_ == 0) {
     return;
   }
+
+  // Unlike Valgrind, AddressSanitizer requires that all manually poisoned memory is unpoisoned
+  // before it is returned to the system.
+  if (redzone_size_ != 0) {
+    MEMORY_TOOL_MAKE_UNDEFINED(
+        reinterpret_cast<char*>(base_begin_) + base_size_ - redzone_size_,
+        redzone_size_);
+  }
+
   if (!reuse_) {
+    MEMORY_TOOL_MAKE_UNDEFINED(base_begin_, base_size_);
     int result = munmap(base_begin_, base_size_);
     if (result == -1) {
       PLOG(FATAL) << "munmap failed";
@@ -534,9 +561,9 @@ MemMap::~MemMap() {
 }
 
 MemMap::MemMap(const std::string& name, uint8_t* begin, size_t size, void* base_begin,
-               size_t base_size, int prot, bool reuse)
+               size_t base_size, int prot, bool reuse, size_t redzone_size)
     : name_(name), begin_(begin), size_(size), base_begin_(base_begin), base_size_(base_size),
-      prot_(prot), reuse_(reuse) {
+      prot_(prot), reuse_(reuse), redzone_size_(redzone_size) {
   if (size_ == 0) {
     CHECK(begin_ == nullptr);
     CHECK(base_begin_ == nullptr);
@@ -595,6 +622,8 @@ MemMap* MemMap::RemapAtEnd(uint8_t* new_end, const char* tail_name, int tail_pro
   int flags = MAP_PRIVATE | MAP_ANONYMOUS;
 #endif
 
+
+  MEMORY_TOOL_MAKE_UNDEFINED(tail_base_begin, tail_base_size);
   // Unmap/map the tail region.
   int result = munmap(tail_base_begin, tail_base_size);
   if (result == -1) {
@@ -778,6 +807,10 @@ void MemMap::SetSize(size_t new_size) {
   CHECK_ALIGNED(new_size, kPageSize);
   CHECK_EQ(base_size_, size_) << "Unsupported";
   CHECK_LE(new_size, base_size_);
+  MEMORY_TOOL_MAKE_UNDEFINED(
+      reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(BaseBegin()) +
+                              new_size),
+      base_size_ - new_size);
   CHECK_EQ(munmap(reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(BaseBegin()) + new_size),
                   base_size_ - new_size), 0) << new_size << " " << base_size_;
   base_size_ = new_size;

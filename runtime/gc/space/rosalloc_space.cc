@@ -30,7 +30,7 @@
 #include "thread.h"
 #include "thread_list.h"
 #include "utils.h"
-#include "valgrind_malloc_space-inl.h"
+#include "memory_tool_malloc_space-inl.h"
 
 namespace art {
 namespace gc {
@@ -43,7 +43,7 @@ static constexpr size_t kPrefetchLookAhead = 8;
 static constexpr bool kVerifyFreedBytes = false;
 
 // TODO: Fix
-// template class ValgrindMallocSpace<RosAllocSpace, allocator::RosAlloc*>;
+// template class MemoryToolMallocSpace<RosAllocSpace, allocator::RosAlloc*>;
 
 RosAllocSpace::RosAllocSpace(MemMap* mem_map, size_t initial_size, const std::string& name,
                              art::gc::allocator::RosAlloc* rosalloc, uint8_t* begin, uint8_t* end,
@@ -61,10 +61,10 @@ RosAllocSpace* RosAllocSpace::CreateFromMemMap(MemMap* mem_map, const std::strin
                                                bool low_memory_mode, bool can_move_objects) {
   DCHECK(mem_map != nullptr);
 
-  bool running_on_valgrind = Runtime::Current()->RunningOnValgrind();
+  bool running_on_memory_tool = Runtime::Current()->IsRunningOnMemoryTool();
 
   allocator::RosAlloc* rosalloc = CreateRosAlloc(mem_map->Begin(), starting_size, initial_size,
-                                                 capacity, low_memory_mode, running_on_valgrind);
+                                                 capacity, low_memory_mode, running_on_memory_tool);
   if (rosalloc == nullptr) {
     LOG(ERROR) << "Failed to initialize rosalloc for alloc space (" << name << ")";
     return nullptr;
@@ -78,10 +78,10 @@ RosAllocSpace* RosAllocSpace::CreateFromMemMap(MemMap* mem_map, const std::strin
 
   // Everything is set so record in immutable structure and leave
   uint8_t* begin = mem_map->Begin();
-  // TODO: Fix RosAllocSpace to support valgrind. There is currently some issues with
+  // TODO: Fix RosAllocSpace to support Valgrind/ASan. There is currently some issues with
   // AllocationSize caused by redzones. b/12944686
-  if (running_on_valgrind) {
-    return new ValgrindMallocSpace<RosAllocSpace, kDefaultValgrindRedZoneBytes, false, true>(
+  if (running_on_memory_tool) {
+    return new MemoryToolMallocSpace<RosAllocSpace, kDefaultMemoryToolRedZoneBytes, false, true>(
         mem_map, initial_size, name, rosalloc, begin, end, begin + capacity, growth_limit,
         can_move_objects, starting_size, low_memory_mode);
   } else {
@@ -134,7 +134,7 @@ RosAllocSpace* RosAllocSpace::Create(const std::string& name, size_t initial_siz
 allocator::RosAlloc* RosAllocSpace::CreateRosAlloc(void* begin, size_t morecore_start,
                                                    size_t initial_size,
                                                    size_t maximum_size, bool low_memory_mode,
-                                                   bool running_on_valgrind) {
+                                                   bool running_on_memory_tool) {
   // clear errno to allow PLOG on error
   errno = 0;
   // create rosalloc using our backing storage starting at begin and
@@ -145,7 +145,7 @@ allocator::RosAlloc* RosAllocSpace::CreateRosAlloc(void* begin, size_t morecore_
       low_memory_mode ?
           art::gc::allocator::RosAlloc::kPageReleaseModeAll :
           art::gc::allocator::RosAlloc::kPageReleaseModeSizeAndEnd,
-      running_on_valgrind);
+      running_on_memory_tool);
   if (rosalloc != nullptr) {
     rosalloc->SetFootprintLimit(initial_size);
   } else {
@@ -180,8 +180,8 @@ MallocSpace* RosAllocSpace::CreateInstance(MemMap* mem_map, const std::string& n
                                            void* allocator, uint8_t* begin, uint8_t* end,
                                            uint8_t* limit, size_t growth_limit,
                                            bool can_move_objects) {
-  if (Runtime::Current()->RunningOnValgrind()) {
-    return new ValgrindMallocSpace<RosAllocSpace, kDefaultValgrindRedZoneBytes, false, true>(
+  if (Runtime::Current()->IsRunningOnMemoryTool()) {
+    return new MemoryToolMallocSpace<RosAllocSpace, kDefaultMemoryToolRedZoneBytes, false, true>(
         mem_map, initial_size_, name, reinterpret_cast<allocator::RosAlloc*>(allocator), begin, end,
         limit, growth_limit, can_move_objects, starting_size_, low_memory_mode_);
   } else {
@@ -370,7 +370,7 @@ void RosAllocSpace::Clear() {
   delete rosalloc_;
   rosalloc_ = CreateRosAlloc(mem_map_->Begin(), starting_size_, initial_size_,
                              NonGrowthLimitCapacity(), low_memory_mode_,
-                             Runtime::Current()->RunningOnValgrind());
+                             Runtime::Current()->IsRunningOnMemoryTool());
   SetFootprintLimit(footprint_limit);
 }
 
