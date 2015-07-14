@@ -192,7 +192,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       total_allocation_time_(0),
       verify_object_mode_(kVerifyObjectModeDisabled),
       disable_moving_gc_count_(0),
-      running_on_valgrind_(Runtime::Current()->RunningOnValgrind()),
+      is_running_on_memory_tool_(Runtime::Current()->IsRunningOnMemoryTool()),
       use_tlab_(use_tlab),
       main_space_backup_(nullptr),
       min_interval_homogeneous_space_compaction_by_oom_(
@@ -518,7 +518,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   if (gc_stress_mode_) {
     backtrace_lock_ = new Mutex("GC complete lock");
   }
-  if (running_on_valgrind_ || gc_stress_mode_) {
+  if (is_running_on_memory_tool_ || gc_stress_mode_) {
     instrumentation->InstrumentQuickAllocEntryPoints();
   }
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
@@ -2077,9 +2077,12 @@ void Heap::ChangeCollector(CollectorType collector_type) {
 // Special compacting collector which uses sub-optimal bin packing to reduce zygote space size.
 class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
  public:
-  explicit ZygoteCompactingCollector(gc::Heap* heap) : SemiSpace(heap, false, "zygote collector"),
-      bin_live_bitmap_(nullptr), bin_mark_bitmap_(nullptr) {
-  }
+  explicit ZygoteCompactingCollector(gc::Heap* heap,
+                                     bool is_running_on_memory_tool)
+      : SemiSpace(heap, false, "zygote collector"),
+        bin_live_bitmap_(nullptr),
+        bin_mark_bitmap_(nullptr),
+        is_running_on_memory_tool_(is_running_on_memory_tool) {}
 
   void BuildBins(space::ContinuousSpace* space) {
     bin_live_bitmap_ = space->GetLiveBitmap();
@@ -2105,6 +2108,7 @@ class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
   accounting::ContinuousSpaceBitmap* bin_live_bitmap_;
   // Mark bitmap of the space which contains the bins.
   accounting::ContinuousSpaceBitmap* bin_mark_bitmap_;
+  const bool is_running_on_memory_tool_;
 
   static void Callback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -2119,6 +2123,9 @@ class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
   }
 
   void AddBin(size_t size, uintptr_t position) {
+    if (is_running_on_memory_tool_) {
+      MEMORY_TOOL_MAKE_DEFINED(reinterpret_cast<void*>(position), size);
+    }
     if (size != 0) {
       bins_.insert(std::make_pair(size, position));
     }
@@ -2212,7 +2219,7 @@ void Heap::PreZygoteFork() {
     // Temporarily disable rosalloc verification because the zygote
     // compaction will mess up the rosalloc internal metadata.
     ScopedDisableRosAllocVerification disable_rosalloc_verif(this);
-    ZygoteCompactingCollector zygote_collector(this);
+    ZygoteCompactingCollector zygote_collector(this, is_running_on_memory_tool_);
     zygote_collector.BuildBins(non_moving_space_);
     // Create a new bump pointer space which we will compact into.
     space::BumpPointerSpace target_space("zygote bump space", non_moving_space_->End(),

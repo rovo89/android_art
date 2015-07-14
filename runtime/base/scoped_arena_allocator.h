@@ -64,7 +64,7 @@ class ArenaStack : private DebugStackRefCounter {
 
   // Private - access via ScopedArenaAllocator or ScopedArenaAllocatorAdapter.
   void* Alloc(size_t bytes, ArenaAllocKind kind) ALWAYS_INLINE {
-    if (UNLIKELY(running_on_valgrind_)) {
+    if (UNLIKELY(is_running_on_memory_tool_)) {
       return AllocValgrind(bytes, kind);
     }
     size_t rounded_bytes = RoundUp(bytes, 8);
@@ -88,7 +88,7 @@ class ArenaStack : private DebugStackRefCounter {
   uint8_t* top_ptr_;
   uint8_t* top_end_;
 
-  const bool running_on_valgrind_;
+  const bool is_running_on_memory_tool_;
 
   friend class ScopedArenaAllocator;
   template <typename T>

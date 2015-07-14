@@ -18,7 +18,7 @@
 #define ART_COMPILER_IMAGE_WRITER_H_
 
 #include <stdint.h>
-#include <valgrind.h>
+#include "base/memory_tool.h"
 
 #include <cstddef>
 #include <memory>
