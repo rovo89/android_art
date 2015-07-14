@@ -30,6 +30,7 @@
 #define MEMORY_TOOL_MAKE_NOACCESS(p, s) __asan_poison_memory_region(p, s)
 #define MEMORY_TOOL_MAKE_UNDEFINED(p, s) __asan_unpoison_memory_region(p, s)
 #define MEMORY_TOOL_MAKE_DEFINED(p, s) __asan_unpoison_memory_region(p, s)
+#define ATTRIBUTE_NO_SANITIZE_ADDRESS __attribute__((no_sanitize_address))
 #define RUNNING_ON_MEMORY_TOOL 1U
 constexpr bool kMemoryToolIsValgrind = false;
 constexpr bool kMemoryToolDetectsLeaks = true;
@@ -43,6 +44,7 @@ constexpr size_t kMemoryToolStackGuardSizeScale = 2;
 #define MEMORY_TOOL_MAKE_NOACCESS(p, s) VALGRIND_MAKE_MEM_NOACCESS(p, s)
 #define MEMORY_TOOL_MAKE_UNDEFINED(p, s) VALGRIND_MAKE_MEM_UNDEFINED(p, s)
 #define MEMORY_TOOL_MAKE_DEFINED(p, s) VALGRIND_MAKE_MEM_DEFINED(p, s)
+#define ATTRIBUTE_NO_SANITIZE_ADDRESS
 #define RUNNING_ON_MEMORY_TOOL RUNNING_ON_VALGRIND
 constexpr bool kMemoryToolIsValgrind = true;
 constexpr bool kMemoryToolDetectsLeaks = true;

@@ -358,6 +358,10 @@ uint8_t dont_optimize_this;
 // to make sure the pages for the stack are mapped in before we call mprotect.  We do
 // this by reading every page from the stack bottom (highest address) to the stack top.
 // We then madvise this away.
+
+// AddressSanitizer does not like the part of this functions that reads every stack page.
+// Looks a lot like an out-of-bounds access.
+ATTRIBUTE_NO_SANITIZE_ADDRESS
 void Thread::InstallImplicitProtection() {
   uint8_t* pregion = tlsPtr_.stack_begin - kStackOverflowProtectedSize;
   uint8_t* stack_himem = tlsPtr_.stack_end;
