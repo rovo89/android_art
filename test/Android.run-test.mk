@@ -46,6 +46,10 @@ ifeq ($(ANDROID_COMPILE_WITH_JACK),true)
     $(JILL_JAR)
 endif
 
+ifeq ($(ART_TEST_DEBUG_GC),true)
+  ART_TEST_WITH_STRACE := true
+endif
+
 # Helper to create individual build targets for tests. Must be called with $(eval).
 # $(1): the test number
 define define-build-art-run-test
