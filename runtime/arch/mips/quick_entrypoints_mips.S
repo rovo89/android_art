@@ -459,9 +459,8 @@ END art_quick_throw_no_such_method
      * On success this wrapper will restore arguments and *jump* to the target, leaving the lr
      * pointing back to the original caller.
      */
-.macro INVOKE_TRAMPOLINE c_name, cxx_name
+.macro INVOKE_TRAMPOLINE_BODY cxx_name
     .extern \cxx_name
-ENTRY \c_name
     SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME  # save callee saves in case allocation triggers GC
     move  $a2, rSELF                       # pass Thread::Current
     jal   \cxx_name                        # (method_idx, this, Thread*, $sp)
@@ -474,10 +473,13 @@ ENTRY \c_name
     nop
 1:
     DELIVER_PENDING_EXCEPTION
+.endm
+.macro INVOKE_TRAMPOLINE c_name, cxx_name
+ENTRY \c_name
+    INVOKE_TRAMPOLINE_BODY \cxx_name
 END \c_name
 .endm
 
-INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline, artInvokeInterfaceTrampoline
 INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline_with_access_check, artInvokeInterfaceTrampolineWithAccessCheck
 
 INVOKE_TRAMPOLINE art_quick_invoke_static_trampoline_with_access_check, artInvokeStaticTrampolineWithAccessCheck
@@ -1103,9 +1105,8 @@ END art_quick_proxy_invoke_handler
      * dex method index.
      */
 ENTRY art_quick_imt_conflict_trampoline
-    la      $t9, art_quick_invoke_interface_trampoline
-    jalr    $zero, $t9
     move    $a0, $t0
+    INVOKE_TRAMPOLINE_BODY artInvokeInterfaceTrampoline
 END art_quick_imt_conflict_trampoline
 
     .extern artQuickResolutionTrampoline
