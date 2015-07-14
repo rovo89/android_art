@@ -46,6 +46,9 @@
 namespace art {
 
 namespace gc {
+namespace accounting {
+  template<class T> class AtomicStack;
+}  // namespace accounting
 namespace collector {
   class SemiSpace;
 }  // namespace collector
@@ -231,6 +234,15 @@ class Thread {
 
   void SetFlipFunction(Closure* function);
   Closure* GetFlipFunction();
+
+  gc::accounting::AtomicStack<mirror::Object>* GetThreadLocalMarkStack() {
+    CHECK(kUseReadBarrier);
+    return tlsPtr_.thread_local_mark_stack;
+  }
+  void SetThreadLocalMarkStack(gc::accounting::AtomicStack<mirror::Object>* stack) {
+    CHECK(kUseReadBarrier);
+    tlsPtr_.thread_local_mark_stack = stack;
+  }
 
   // Called when thread detected that the thread_suspend_count_ was non-zero. Gives up share of
   // mutator_lock_ and waits until it is resumed and thread_suspend_count_ is zero.
@@ -772,6 +784,16 @@ class Thread {
     tls32_.debug_method_entry_ = false;
   }
 
+  bool GetWeakRefAccessEnabled() const {
+    CHECK(kUseReadBarrier);
+    return tls32_.weak_ref_access_enabled;
+  }
+
+  void SetWeakRefAccessEnabled(bool enabled) {
+    CHECK(kUseReadBarrier);
+    tls32_.weak_ref_access_enabled = enabled;
+  }
+
   // Activates single step control for debugging. The thread takes the
   // ownership of the given SingleStepControl*. It is deleted by a call
   // to DeactivateSingleStepControl or upon thread destruction.
@@ -1060,7 +1082,7 @@ class Thread {
       daemon(is_daemon), throwing_OutOfMemoryError(false), no_thread_suspension(0),
       thread_exit_check_count(0), handling_signal_(false),
       deoptimization_return_value_is_reference(false), suspended_at_suspend_check(false),
-      ready_for_debug_invoke(false), debug_method_entry_(false) {
+      ready_for_debug_invoke(false), debug_method_entry_(false), weak_ref_access_enabled(true) {
     }
 
     union StateAndFlags state_and_flags;
@@ -1117,6 +1139,15 @@ class Thread {
     // True if the thread enters a method. This is used to detect method entry
     // event for the debugger.
     bool32_t debug_method_entry_;
+
+    // True if the thread is allowed to access a weak ref (Reference::GetReferent() and system
+    // weaks) and to potentially mark an object alive/gray. This is used for concurrent reference
+    // processing of the CC collector only. This is thread local so that we can enable/disable weak
+    // ref access by using a checkpoint and avoid a race around the time weak ref access gets
+    // disabled and concurrent reference processing begins (if weak ref access is disabled during a
+    // pause, this is not an issue.) Other collectors use Runtime::DisallowNewSystemWeaks() and
+    // ReferenceProcessor::EnableSlowPath().
+    bool32_t weak_ref_access_enabled;
   } tls32_;
 
   struct PACKED(8) tls_64bit_sized_values {
@@ -1268,6 +1299,9 @@ class Thread {
 
     // Current method verifier, used for root marking.
     verifier::MethodVerifier* method_verifier;
+
+    // Thread-local mark stack for the concurrent copying collector.
+    gc::accounting::AtomicStack<mirror::Object>* thread_local_mark_stack;
   } tlsPtr_;
 
   // Guards the 'interrupted_' and 'wait_monitor_' members.

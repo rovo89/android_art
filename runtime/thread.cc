@@ -1317,6 +1317,7 @@ Thread::Thread(bool daemon) : tls32_(daemon), wait_monitor_(nullptr), interrupte
     tlsPtr_.checkpoint_functions[i] = nullptr;
   }
   tlsPtr_.flip_function = nullptr;
+  tlsPtr_.thread_local_mark_stack = nullptr;
   tls32_.suspended_at_suspend_check = false;
 }
 
@@ -1435,6 +1436,9 @@ void Thread::Destroy() {
   {
     ScopedObjectAccess soa(self);
     Runtime::Current()->GetHeap()->RevokeThreadLocalBuffers(this);
+    if (kUseReadBarrier) {
+      Runtime::Current()->GetHeap()->ConcurrentCopyingCollector()->RevokeThreadLocalMarkStack(this);
+    }
   }
 }
 

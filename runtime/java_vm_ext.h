@@ -108,6 +108,7 @@ class JavaVMExt : public JavaVM {
   void DisallowNewWeakGlobals() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void AllowNewWeakGlobals() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void EnsureNewWeakGlobalsDisallowed() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void BroadcastForNewWeakGlobals() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   jobject AddGlobalRef(Thread* self, mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
