@@ -615,6 +615,9 @@ define define-test-art-run-test
   else
     run_test_options += --build-with-javac-dx
   endif
+  ifeq ($(ART_TEST_WITH_STRACE),true)
+    run_test_options += --strace
+  endif
   ifeq ($(ART_TEST_RUN_TEST_ALWAYS_CLEAN),true)
     run_test_options += --always-clean
   endif
