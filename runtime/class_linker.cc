@@ -194,7 +194,9 @@ struct FieldGapsComparator {
   bool operator() (const FieldGap& lhs, const FieldGap& rhs)
       NO_THREAD_SAFETY_ANALYSIS {
     // Sort by gap size, largest first. Secondary sort by starting offset.
-    return lhs.size > rhs.size || (lhs.size == rhs.size && lhs.start_offset < rhs.start_offset);
+    // Note that the priority queue returns the largest element, so operator()
+    // should return true if lhs is less than rhs.
+    return lhs.size < rhs.size || (lhs.size == rhs.size && lhs.start_offset > rhs.start_offset);
   }
 };
 typedef std::priority_queue<FieldGap, std::vector<FieldGap>, FieldGapsComparator> FieldGaps;
