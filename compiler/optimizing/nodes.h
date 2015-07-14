@@ -1155,13 +1155,25 @@ class HUserRecord : public ValueObject {
   HUseListNode<T>* use_node_;
 };
 
-// TODO: Add better documentation to this class and maybe refactor with more suggestive names.
-// - Has(All)SideEffects suggests that all the side effects are present but only ChangesSomething
-//   flag is consider.
-// - DependsOn suggests that there is a real dependency between side effects but it only
-//   checks DependendsOnSomething flag.
-//
-// Represents the side effects an instruction may have.
+/**
+ * Side-effects representation for write/read dependences on fields/arrays.
+ *
+ * The dependence analysis uses type disambiguation (e.g. a float field write
+ * cannot modify the value of an integer field read) and the access type (e.g.
+ * a reference array write cannot modify the value of a reference field read
+ * [although it may modify the reference fetch prior to reading the field,
+ * which is represented by its own write/read dependence]). The analysis
+ * makes conservative points-to assumptions on reference types (e.g. two same
+ * typed arrays are assumed to be the same, and any reference read depends
+ * on any reference read without further regard of its type).
+ *
+ * The internal representation uses the following 36-bit flags assignments:
+ *
+ *   |ARRAY-R  |FIELD-R  |ARRAY-W  |FIELD-W  |
+ *   +---------+---------+---------+---------+
+ *   |543210987|654321098|765432109|876543210|
+ *   |DFJISCBZL|DFJISCBZL|DFJISCBZL|DFJISCBZL|
+ */
 class SideEffects : public ValueObject {
  public:
   SideEffects() : flags_(0) {}
@@ -1171,57 +1183,113 @@ class SideEffects : public ValueObject {
   }
 
   static SideEffects All() {
-    return SideEffects(ChangesSomething().flags_ | DependsOnSomething().flags_);
+    return SideEffects(kAllWrites | kAllReads);
   }
 
-  static SideEffects ChangesSomething() {
-    return SideEffects((1 << kFlagChangesCount) - 1);
+  static SideEffects FieldWriteOfType(Primitive::Type type) {
+    return SideEffects(TypeFlagWithAlias(type, kFieldWriteOffset));
   }
 
-  static SideEffects DependsOnSomething() {
-    int count = kFlagDependsOnCount - kFlagChangesCount;
-    return SideEffects(((1 << count) - 1) << kFlagChangesCount);
+  static SideEffects ArrayWriteOfType(Primitive::Type type) {
+    return SideEffects(TypeFlagWithAlias(type, kArrayWriteOffset));
   }
 
+  static SideEffects FieldReadOfType(Primitive::Type type) {
+    return SideEffects(TypeFlagWithAlias(type, kFieldReadOffset));
+  }
+
+  static SideEffects ArrayReadOfType(Primitive::Type type) {
+    return SideEffects(TypeFlagWithAlias(type, kArrayReadOffset));
+  }
+
+  // Combines the side-effects of this and the other.
   SideEffects Union(SideEffects other) const {
     return SideEffects(flags_ | other.flags_);
   }
 
-  bool HasSideEffects() const {
-    size_t all_bits_set = (1 << kFlagChangesCount) - 1;
-    return (flags_ & all_bits_set) != 0;
+  // Returns true if something is written.
+  bool DoesAnyWrite() const {
+    return (flags_ & kAllWrites);
   }
 
-  bool HasAllSideEffects() const {
-    size_t all_bits_set = (1 << kFlagChangesCount) - 1;
-    return all_bits_set == (flags_ & all_bits_set);
+  // Returns true if something is read.
+  bool DoesAnyRead() const {
+    return (flags_ & kAllReads);
   }
 
-  bool DependsOn(SideEffects other) const {
-    size_t depends_flags = other.ComputeDependsFlags();
-    return (flags_ & depends_flags) != 0;
+  // Returns true if nothing is written or read.
+  bool DoesNothing() const {
+    return flags_ == 0;
   }
 
-  bool HasDependencies() const {
-    int count = kFlagDependsOnCount - kFlagChangesCount;
-    size_t all_bits_set = (1 << count) - 1;
-    return ((flags_ >> kFlagChangesCount) & all_bits_set) != 0;
+  // Returns true if potentially everything is written and read
+  // (every type and every kind of access).
+  bool DoesAll() const {
+    return flags_ == (kAllWrites | kAllReads);
+  }
+
+  // Returns true if this may read something written by other.
+  bool MayDependOn(SideEffects other) const {
+    const uint64_t reads = (flags_ & kAllReads) >> kFieldReadOffset;
+    return (other.flags_ & reads);
+  }
+
+  // Returns string representation of flags (for debugging only).
+  // Format: |DFJISCBZL|DFJISCBZL|DFJISCBZL|DFJISCBZL|
+  std::string ToString() const {
+    static const char *kDebug = "LZBCSIJFD";
+    std::string flags = "|";
+    for (int s = 35; s >= 0; s--) {
+      const int t = s % kBits;
+      if ((flags_ >> s) & 1)
+        flags += kDebug[t];
+      if (t == 0)
+        flags += "|";
+    }
+    return flags;
   }
 
  private:
-  static constexpr int kFlagChangesSomething = 0;
-  static constexpr int kFlagChangesCount = kFlagChangesSomething + 1;
+  static constexpr int kBits = 9;
+  static constexpr int kFieldWriteOffset = 0 * kBits;
+  static constexpr int kArrayWriteOffset = 1 * kBits;
+  static constexpr int kFieldReadOffset  = 2 * kBits;
+  static constexpr int kArrayReadOffset  = 3 * kBits;
 
-  static constexpr int kFlagDependsOnSomething = kFlagChangesCount;
-  static constexpr int kFlagDependsOnCount = kFlagDependsOnSomething + 1;
+  static constexpr uint64_t kAllWrites = 0x0003ffff;
+  static constexpr uint64_t kAllReads  = kAllWrites << kFieldReadOffset;
 
-  explicit SideEffects(size_t flags) : flags_(flags) {}
-
-  size_t ComputeDependsFlags() const {
-    return flags_ << kFlagChangesCount;
+  // Work around the fact that HIR aliases I/F and J/D.
+  // TODO: remove this interceptor once HIR types are clean
+  static uint64_t TypeFlagWithAlias(Primitive::Type type, int offset) {
+    switch (type) {
+      case Primitive::kPrimInt:
+      case Primitive::kPrimFloat:
+        return TypeFlag(Primitive::kPrimInt, offset) |
+               TypeFlag(Primitive::kPrimFloat, offset);
+      case Primitive::kPrimLong:
+      case Primitive::kPrimDouble:
+        return TypeFlag(Primitive::kPrimLong, offset) |
+               TypeFlag(Primitive::kPrimDouble, offset);
+      default:
+        return TypeFlag(type, offset);
+    }
   }
 
-  size_t flags_;
+  // Translates type to bit flag.
+  static uint64_t TypeFlag(Primitive::Type type, int offset) {
+    CHECK_NE(type, Primitive::kPrimVoid);
+    const uint64_t one = 1;
+    const int shift = type;  // 0-based consecutive enum
+    DCHECK_LE(kFieldWriteOffset, shift);
+    DCHECK_LT(shift, kArrayWriteOffset);
+    return one << (type + offset);
+  }
+
+  // Private constructor on direct flags value.
+  explicit SideEffects(uint64_t flags) : flags_(flags) {}
+
+  uint64_t flags_;
 };
 
 // A HEnvironment object contains the values of virtual registers at a given location.
@@ -1484,7 +1552,8 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
   }
   virtual bool IsControlFlow() const { return false; }
   virtual bool CanThrow() const { return false; }
-  bool HasSideEffects() const { return side_effects_.HasSideEffects(); }
+
+  bool DoesAnyWrite() const { return side_effects_.DoesAnyWrite(); }
 
   // Does not apply for all instructions, but having this at top level greatly
   // simplifies the null check elimination.
@@ -2692,7 +2761,7 @@ class HInvoke : public HInstruction {
           uint32_t dex_pc,
           uint32_t dex_method_index,
           InvokeType original_invoke_type)
-    : HInstruction(SideEffects::All()),
+    : HInstruction(SideEffects::All()),  // assume write/read on all fields/arrays
       number_of_arguments_(number_of_arguments),
       inputs_(arena, number_of_arguments),
       return_type_(return_type),
@@ -3482,7 +3551,7 @@ class HInstanceFieldGet : public HExpression<1> {
                     bool is_volatile,
                     uint32_t field_idx,
                     const DexFile& dex_file)
-      : HExpression(field_type, SideEffects::DependsOnSomething()),
+      : HExpression(field_type, SideEffects::SideEffects::FieldReadOfType(field_type)),
         field_info_(field_offset, field_type, is_volatile, field_idx, dex_file) {
     SetRawInputAt(0, value);
   }
@@ -3524,7 +3593,7 @@ class HInstanceFieldSet : public HTemplateInstruction<2> {
                     bool is_volatile,
                     uint32_t field_idx,
                     const DexFile& dex_file)
-      : HTemplateInstruction(SideEffects::ChangesSomething()),
+      : HTemplateInstruction(SideEffects::FieldWriteOfType(field_type)),
         field_info_(field_offset, field_type, is_volatile, field_idx, dex_file),
         value_can_be_null_(true) {
     SetRawInputAt(0, object);
@@ -3555,7 +3624,7 @@ class HInstanceFieldSet : public HTemplateInstruction<2> {
 class HArrayGet : public HExpression<2> {
  public:
   HArrayGet(HInstruction* array, HInstruction* index, Primitive::Type type)
-      : HExpression(type, SideEffects::DependsOnSomething()) {
+      : HExpression(type, SideEffects::ArrayReadOfType(type)) {
     SetRawInputAt(0, array);
     SetRawInputAt(1, index);
   }
@@ -3593,7 +3662,7 @@ class HArraySet : public HTemplateInstruction<3> {
             HInstruction* value,
             Primitive::Type expected_component_type,
             uint32_t dex_pc)
-      : HTemplateInstruction(SideEffects::ChangesSomething()),
+      : HTemplateInstruction(SideEffects::ArrayWriteOfType(expected_component_type)),
         dex_pc_(dex_pc),
         expected_component_type_(expected_component_type),
         needs_type_check_(value->GetType() == Primitive::kPrimNot),
@@ -3892,7 +3961,9 @@ class HLoadString : public HExpression<1> {
 class HClinitCheck : public HExpression<1> {
  public:
   explicit HClinitCheck(HLoadClass* constant, uint32_t dex_pc)
-      : HExpression(Primitive::kPrimNot, SideEffects::ChangesSomething()),
+      : HExpression(
+          Primitive::kPrimNot,
+          SideEffects::All()),  // assume write/read on all fields/arrays
         dex_pc_(dex_pc) {
     SetRawInputAt(0, constant);
   }
@@ -3928,7 +3999,7 @@ class HStaticFieldGet : public HExpression<1> {
                   bool is_volatile,
                   uint32_t field_idx,
                   const DexFile& dex_file)
-      : HExpression(field_type, SideEffects::DependsOnSomething()),
+      : HExpression(field_type, SideEffects::SideEffects::FieldReadOfType(field_type)),
         field_info_(field_offset, field_type, is_volatile, field_idx, dex_file) {
     SetRawInputAt(0, cls);
   }
@@ -3967,7 +4038,7 @@ class HStaticFieldSet : public HTemplateInstruction<2> {
                   bool is_volatile,
                   uint32_t field_idx,
                   const DexFile& dex_file)
-      : HTemplateInstruction(SideEffects::ChangesSomething()),
+      : HTemplateInstruction(SideEffects::FieldWriteOfType(field_type)),
         field_info_(field_offset, field_type, is_volatile, field_idx, dex_file),
         value_can_be_null_(true) {
     SetRawInputAt(0, cls);
@@ -4163,7 +4234,8 @@ class HMonitorOperation : public HTemplateInstruction<1> {
   };
 
   HMonitorOperation(HInstruction* object, OperationKind kind, uint32_t dex_pc)
-    : HTemplateInstruction(SideEffects::ChangesSomething()), kind_(kind), dex_pc_(dex_pc) {
+    : HTemplateInstruction(SideEffects::All()),  // assume write/read on all fields/arrays
+      kind_(kind), dex_pc_(dex_pc) {
     SetRawInputAt(0, object);
   }
 

@@ -115,7 +115,7 @@ void LICM::Run() {
         HInstruction* instruction = inst_it.Current();
         if (instruction->CanBeMoved()
             && (!instruction->CanThrow() || !found_first_non_hoisted_throwing_instruction_in_loop)
-            && !instruction->GetSideEffects().DependsOn(loop_effects)
+            && !instruction->GetSideEffects().MayDependOn(loop_effects)
             && InputsAreDefinedBeforeLoop(instruction)) {
           // We need to update the environment if the instruction has a loop header
           // phi in it.

@@ -264,6 +264,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/optimizing/parallel_move_test.cc \
   compiler/optimizing/pretty_printer_test.cc \
   compiler/optimizing/register_allocator_test.cc \
+  compiler/optimizing/side_effects_test.cc \
   compiler/optimizing/ssa_test.cc \
   compiler/optimizing/stack_map_test.cc \
   compiler/optimizing/suspend_check_test.cc \
