@@ -16,8 +16,9 @@
 
 #include "rosalloc.h"
 
+#include "base/memory_tool.h"
 #include "base/mutex-inl.h"
-#include "gc/space/valgrind_settings.h"
+#include "gc/space/memory_tool_settings.h"
 #include "mem_map.h"
 #include "mirror/class-inl.h"
 #include "mirror/object.h"
@@ -50,7 +51,7 @@ RosAlloc::Run* RosAlloc::dedicated_full_run_ =
     reinterpret_cast<RosAlloc::Run*>(dedicated_full_run_storage_);
 
 RosAlloc::RosAlloc(void* base, size_t capacity, size_t max_capacity,
-                   PageReleaseMode page_release_mode, bool running_on_valgrind,
+                   PageReleaseMode page_release_mode, bool running_on_memory_tool,
                    size_t page_release_size_threshold)
     : base_(reinterpret_cast<uint8_t*>(base)), footprint_(capacity),
       capacity_(capacity), max_capacity_(max_capacity),
@@ -58,7 +59,7 @@ RosAlloc::RosAlloc(void* base, size_t capacity, size_t max_capacity,
       bulk_free_lock_("rosalloc bulk free lock", kRosAllocBulkFreeLock),
       page_release_mode_(page_release_mode),
       page_release_size_threshold_(page_release_size_threshold),
-      running_on_valgrind_(running_on_valgrind) {
+      is_running_on_memory_tool_(running_on_memory_tool) {
   DCHECK_EQ(RoundUp(capacity, kPageSize), capacity);
   DCHECK_EQ(RoundUp(max_capacity, kPageSize), max_capacity);
   CHECK_LE(capacity, max_capacity);
@@ -109,6 +110,9 @@ RosAlloc::RosAlloc(void* base, size_t capacity, size_t max_capacity,
 RosAlloc::~RosAlloc() {
   for (size_t i = 0; i < kNumOfSizeBrackets; i++) {
     delete size_bracket_locks_[i];
+  }
+  if (is_running_on_memory_tool_) {
+    MEMORY_TOOL_MAKE_DEFINED(base_, capacity_);
   }
 }
 
@@ -1897,8 +1901,8 @@ void RosAlloc::Verify() {
     MutexLock lock_mu(self, lock_);
     size_t pm_end = page_map_size_;
     size_t i = 0;
-    size_t valgrind_modifier =  running_on_valgrind_ ?
-        2 * ::art::gc::space::kDefaultValgrindRedZoneBytes :  // Redzones before and after.
+    size_t memory_tool_modifier =  is_running_on_memory_tool_ ?
+        2 * ::art::gc::space::kDefaultMemoryToolRedZoneBytes :  // Redzones before and after.
         0;
     while (i < pm_end) {
       uint8_t pm = page_map_[i];
@@ -1938,15 +1942,15 @@ void RosAlloc::Verify() {
             idx++;
           }
           uint8_t* start = base_ + i * kPageSize;
-          if (running_on_valgrind_) {
-            start += ::art::gc::space::kDefaultValgrindRedZoneBytes;
+          if (is_running_on_memory_tool_) {
+            start += ::art::gc::space::kDefaultMemoryToolRedZoneBytes;
           }
           mirror::Object* obj = reinterpret_cast<mirror::Object*>(start);
           size_t obj_size = obj->SizeOf();
-          CHECK_GT(obj_size + valgrind_modifier, kLargeSizeThreshold)
+          CHECK_GT(obj_size + memory_tool_modifier, kLargeSizeThreshold)
               << "A rosalloc large object size must be > " << kLargeSizeThreshold;
-          CHECK_EQ(num_pages, RoundUp(obj_size + valgrind_modifier, kPageSize) / kPageSize)
-              << "A rosalloc large object size " << obj_size + valgrind_modifier
+          CHECK_EQ(num_pages, RoundUp(obj_size + memory_tool_modifier, kPageSize) / kPageSize)
+              << "A rosalloc large object size " << obj_size + memory_tool_modifier
               << " does not match the page map table " << (num_pages * kPageSize)
               << std::endl << DumpPageMap();
           i += num_pages;
@@ -2011,11 +2015,11 @@ void RosAlloc::Verify() {
   }
   // Call Verify() here for the lock order.
   for (auto& run : runs) {
-    run->Verify(self, this, running_on_valgrind_);
+    run->Verify(self, this, is_running_on_memory_tool_);
   }
 }
 
-void RosAlloc::Run::Verify(Thread* self, RosAlloc* rosalloc, bool running_on_valgrind) {
+void RosAlloc::Run::Verify(Thread* self, RosAlloc* rosalloc, bool running_on_memory_tool) {
   DCHECK_EQ(magic_num_, kMagicNum) << "Bad magic number : " << Dump();
   const size_t idx = size_bracket_idx_;
   CHECK_LT(idx, kNumOfSizeBrackets) << "Out of range size bracket index : " << Dump();
@@ -2098,8 +2102,8 @@ void RosAlloc::Run::Verify(Thread* self, RosAlloc* rosalloc, bool running_on_val
   }
   // Check each slot.
   size_t slots = 0;
-  size_t valgrind_modifier = running_on_valgrind ?
-      2 * ::art::gc::space::kDefaultValgrindRedZoneBytes :
+  size_t memory_tool_modifier = running_on_memory_tool ?
+      2 * ::art::gc::space::kDefaultMemoryToolRedZoneBytes :
       0U;
   for (size_t v = 0; v < num_vec; v++, slots += 32) {
     DCHECK_GE(num_slots, slots) << "Out of bounds";
@@ -2113,16 +2117,16 @@ void RosAlloc::Run::Verify(Thread* self, RosAlloc* rosalloc, bool running_on_val
       bool is_thread_local_freed = IsThreadLocal() && ((thread_local_free_vec >> i) & 0x1) != 0;
       if (is_allocated && !is_thread_local_freed) {
         uint8_t* slot_addr = slot_base + (slots + i) * bracket_size;
-        if (running_on_valgrind) {
-          slot_addr += ::art::gc::space::kDefaultValgrindRedZoneBytes;
+        if (running_on_memory_tool) {
+          slot_addr += ::art::gc::space::kDefaultMemoryToolRedZoneBytes;
         }
         mirror::Object* obj = reinterpret_cast<mirror::Object*>(slot_addr);
         size_t obj_size = obj->SizeOf();
-        CHECK_LE(obj_size + valgrind_modifier, kLargeSizeThreshold)
+        CHECK_LE(obj_size + memory_tool_modifier, kLargeSizeThreshold)
             << "A run slot contains a large object " << Dump();
-        CHECK_EQ(SizeToIndex(obj_size + valgrind_modifier), idx)
+        CHECK_EQ(SizeToIndex(obj_size + memory_tool_modifier), idx)
             << PrettyTypeOf(obj) << " "
-            << "obj_size=" << obj_size << "(" << obj_size + valgrind_modifier << "), idx=" << idx
+            << "obj_size=" << obj_size << "(" << obj_size + memory_tool_modifier << "), idx=" << idx
             << " A run slot contains an object with wrong size " << Dump();
       }
     }

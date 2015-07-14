@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_GC_SPACE_VALGRIND_SETTINGS_H_
-#define ART_RUNTIME_GC_SPACE_VALGRIND_SETTINGS_H_
+#ifndef ART_RUNTIME_GC_SPACE_MEMORY_TOOL_SETTINGS_H_
+#define ART_RUNTIME_GC_SPACE_MEMORY_TOOL_SETTINGS_H_
 
 namespace art {
 namespace gc {
@@ -23,10 +23,10 @@ namespace space {
 
 // Default number of bytes to use as a red zone (rdz). A red zone of this size will be placed before
 // and after each allocation. 8 bytes provides long/double alignment.
-static constexpr size_t kDefaultValgrindRedZoneBytes = 8;
+static constexpr size_t kDefaultMemoryToolRedZoneBytes = 8;
 
 }  // namespace space
 }  // namespace gc
 }  // namespace art
 
-#endif  // ART_RUNTIME_GC_SPACE_VALGRIND_SETTINGS_H_
+#endif  // ART_RUNTIME_GC_SPACE_MEMORY_TOOL_SETTINGS_H_

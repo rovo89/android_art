@@ -153,7 +153,7 @@ class MemMap {
 
  private:
   MemMap(const std::string& name, uint8_t* begin, size_t size, void* base_begin, size_t base_size,
-         int prot, bool reuse) LOCKS_EXCLUDED(Locks::mem_maps_lock_);
+         int prot, bool reuse, size_t redzone_size = 0) LOCKS_EXCLUDED(Locks::mem_maps_lock_);
 
   static void DumpMapsLocked(std::ostream& os, bool terse)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mem_maps_lock_);
@@ -174,6 +174,8 @@ class MemMap {
   // and we do not take ownership and are not responsible for
   // unmapping.
   const bool reuse_;
+
+  const size_t redzone_size_;
 
 #if USE_ART_LOW_4G_ALLOCATOR
   static uintptr_t next_mem_pos_;   // Next memory location to check for low_4g extent.

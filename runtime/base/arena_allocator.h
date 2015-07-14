@@ -207,7 +207,7 @@ class ArenaAllocator : private DebugStackRefCounter, private ArenaAllocatorStats
 
   // Returns zeroed memory.
   void* Alloc(size_t bytes, ArenaAllocKind kind = kArenaAllocMisc) ALWAYS_INLINE {
-    if (UNLIKELY(running_on_valgrind_)) {
+    if (UNLIKELY(is_running_on_memory_tool_)) {
       return AllocValgrind(bytes, kind);
     }
     bytes = RoundUp(bytes, kAlignment);
@@ -280,7 +280,7 @@ class ArenaAllocator : private DebugStackRefCounter, private ArenaAllocatorStats
   uint8_t* end_;
   uint8_t* ptr_;
   Arena* arena_head_;
-  bool running_on_valgrind_;
+  bool is_running_on_memory_tool_;
 
   template <typename U>
   friend class ArenaAllocatorAdapter;

@@ -1173,7 +1173,7 @@ class Heap {
   collector::MarkCompact* mark_compact_collector_;
   collector::ConcurrentCopying* concurrent_copying_collector_;
 
-  const bool running_on_valgrind_;
+  const bool is_running_on_memory_tool_;
   const bool use_tlab_;
 
   // Pointer to the space which becomes the new main space when we do homogeneous space compaction.
