@@ -44,6 +44,7 @@
 namespace art {
 
 class LOCKABLE ReaderWriterMutex;
+class LOCKABLE MutatorMutex;
 class ScopedContentionRecorder;
 class Thread;
 
@@ -138,6 +139,7 @@ class BaseMutex {
 
   virtual bool IsMutex() const { return false; }
   virtual bool IsReaderWriterMutex() const { return false; }
+  virtual bool IsMutatorMutex() const { return false; }
 
   virtual void Dump(std::ostream& os) const = 0;
 
@@ -385,6 +387,36 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
   DISALLOW_COPY_AND_ASSIGN(ReaderWriterMutex);
 };
 
+// MutatorMutex is a special kind of ReaderWriterMutex created specifically for the
+// Locks::mutator_lock_ mutex. The behaviour is identical to the ReaderWriterMutex except that
+// thread state changes also play a part in lock ownership. The mutator_lock_ will not be truly
+// held by any mutator threads. However, a thread in the kRunnable state is considered to have
+// shared ownership of the mutator lock and therefore transitions in and out of the kRunnable
+// state have associated implications on lock ownership. Extra methods to handle the state
+// transitions have been added to the interface but are only accessible to the methods dealing
+// with state transitions. The thread state and flags attributes are used to ensure thread state
+// transitions are consistent with the permitted behaviour of the mutex.
+//
+// *) The most important consequence of this behaviour is that all threads must be in one of the
+// suspended states before exclusive ownership of the mutator mutex is sought.
+//
+std::ostream& operator<<(std::ostream& os, const MutatorMutex& mu);
+class LOCKABLE MutatorMutex : public ReaderWriterMutex {
+ public:
+  explicit MutatorMutex(const char* name, LockLevel level = kDefaultMutexLevel)
+    : ReaderWriterMutex(name, level) {}
+  ~MutatorMutex() {}
+
+  virtual bool IsMutatorMutex() const { return true; }
+
+ private:
+  friend class Thread;
+  void TransitionFromRunnableToSuspended(Thread* self) UNLOCK_FUNCTION() ALWAYS_INLINE;
+  void TransitionFromSuspendedToRunnable(Thread* self) SHARED_LOCK_FUNCTION() ALWAYS_INLINE;
+
+  DISALLOW_COPY_AND_ASSIGN(MutatorMutex);
+};
+
 // ConditionVariables allow threads to queue and sleep. Threads may then be resumed individually
 // (Signal) or all at once (Broadcast).
 class ConditionVariable {
@@ -495,35 +527,28 @@ class Locks {
   // Guards allocation entrypoint instrumenting.
   static Mutex* instrument_entrypoints_lock_;
 
-  // The mutator_lock_ is used to allow mutators to execute in a shared (reader) mode or to block
-  // mutators by having an exclusive (writer) owner. In normal execution each mutator thread holds
-  // a share on the mutator_lock_. The garbage collector may also execute with shared access but
-  // at times requires exclusive access to the heap (not to be confused with the heap meta-data
-  // guarded by the heap_lock_ below). When the garbage collector requires exclusive access it asks
-  // the mutators to suspend themselves which also involves usage of the thread_suspend_count_lock_
-  // to cover weaknesses in using ReaderWriterMutexes with ConditionVariables. We use a condition
-  // variable to wait upon in the suspension logic as releasing and then re-acquiring a share on
-  // the mutator lock doesn't necessarily allow the exclusive user (e.g the garbage collector)
-  // chance to acquire the lock.
+  // A barrier is used to synchronize the GC/Debugger thread with mutator threads. When GC/Debugger
+  // thread wants to suspend all mutator threads, it needs to wait for all mutator threads to pass
+  // a barrier. Threads that are already suspended will get their barrier passed by the GC/Debugger
+  // thread; threads in the runnable state will pass the barrier when they transit to the suspended
+  // state. GC/Debugger thread will be woken up when all mutator threads are suspended.
   //
   // Thread suspension:
-  // Shared users                                  | Exclusive user
-  // (holding mutator lock and in kRunnable state) |   .. running ..
+  // mutator thread                                | GC/Debugger
+  //   .. running ..                               |   .. running ..
   //   .. running ..                               | Request thread suspension by:
   //   .. running ..                               |   - acquiring thread_suspend_count_lock_
   //   .. running ..                               |   - incrementing Thread::suspend_count_ on
   //   .. running ..                               |     all mutator threads
   //   .. running ..                               |   - releasing thread_suspend_count_lock_
-  //   .. running ..                               | Block trying to acquire exclusive mutator lock
+  //   .. running ..                               | Block wait for all threads to pass a barrier
   // Poll Thread::suspend_count_ and enter full    |   .. blocked ..
   // suspend code.                                 |   .. blocked ..
-  // Change state to kSuspended                    |   .. blocked ..
-  // x: Release share on mutator_lock_             | Carry out exclusive access
-  // Acquire thread_suspend_count_lock_            |   .. exclusive ..
-  // while Thread::suspend_count_ > 0              |   .. exclusive ..
-  //   - wait on Thread::resume_cond_              |   .. exclusive ..
-  //     (releases thread_suspend_count_lock_)     |   .. exclusive ..
-  //   .. waiting ..                               | Release mutator_lock_
+  // Change state to kSuspended (pass the barrier) | Wake up when all threads pass the barrier
+  // x: Acquire thread_suspend_count_lock_         |   .. running ..
+  // while Thread::suspend_count_ > 0              |   .. running ..
+  //   - wait on Thread::resume_cond_              |   .. running ..
+  //     (releases thread_suspend_count_lock_)     |   .. running ..
   //   .. waiting ..                               | Request thread resumption by:
   //   .. waiting ..                               |   - acquiring thread_suspend_count_lock_
   //   .. waiting ..                               |   - decrementing Thread::suspend_count_ on
@@ -531,29 +556,13 @@ class Locks {
   //   .. waiting ..                               |   - notifying on Thread::resume_cond_
   //    - re-acquire thread_suspend_count_lock_    |   - releasing thread_suspend_count_lock_
   // Release thread_suspend_count_lock_            |  .. running ..
-  // Acquire share on mutator_lock_                |  .. running ..
-  //  - This could block but the thread still      |  .. running ..
-  //    has a state of kSuspended and so this      |  .. running ..
-  //    isn't an issue.                            |  .. running ..
-  // Acquire thread_suspend_count_lock_            |  .. running ..
-  //  - we poll here as we're transitioning into   |  .. running ..
-  //    kRunnable and an individual thread suspend |  .. running ..
-  //    request (e.g for debugging) won't try      |  .. running ..
-  //    to acquire the mutator lock (which would   |  .. running ..
-  //    block as we hold the mutator lock). This   |  .. running ..
-  //    poll ensures that if the suspender thought |  .. running ..
-  //    we were suspended by incrementing our      |  .. running ..
-  //    Thread::suspend_count_ and then reading    |  .. running ..
-  //    our state we go back to waiting on         |  .. running ..
-  //    Thread::resume_cond_.                      |  .. running ..
-  // can_go_runnable = Thread::suspend_count_ == 0 |  .. running ..
-  // Release thread_suspend_count_lock_            |  .. running ..
-  // if can_go_runnable                            |  .. running ..
-  //   Change state to kRunnable                   |  .. running ..
-  // else                                          |  .. running ..
-  //   Goto x                                      |  .. running ..
+  // Change to kRunnable                           |  .. running ..
+  //  - this uses a CAS operation to ensure the    |  .. running ..
+  //    suspend request flag isn't raised as the   |  .. running ..
+  //    state is changed                           |  .. running ..
+  //  - if the CAS operation fails then goto x     |  .. running ..
   //  .. running ..                                |  .. running ..
-  static ReaderWriterMutex* mutator_lock_ ACQUIRED_AFTER(instrument_entrypoints_lock_);
+  static MutatorMutex* mutator_lock_ ACQUIRED_AFTER(instrument_entrypoints_lock_);
 
   // Allow reader-writer mutual exclusion on the mark and live bitmaps of the heap.
   static ReaderWriterMutex* heap_bitmap_lock_ ACQUIRED_AFTER(mutator_lock_);
