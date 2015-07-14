@@ -218,6 +218,16 @@ inline uint64_t ReaderWriterMutex::GetExclusiveOwnerTid() const {
 #endif
 }
 
+inline void MutatorMutex::TransitionFromRunnableToSuspended(Thread* self) {
+  AssertSharedHeld(self);
+  RegisterAsUnlocked(self);
+}
+
+inline void MutatorMutex::TransitionFromSuspendedToRunnable(Thread* self) {
+  RegisterAsLocked(self);
+  AssertSharedHeld(self);
+}
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_BASE_MUTEX_INL_H_

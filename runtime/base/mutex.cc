@@ -47,7 +47,7 @@ Mutex* Locks::jni_libraries_lock_ = nullptr;
 Mutex* Locks::logging_lock_ = nullptr;
 Mutex* Locks::mem_maps_lock_ = nullptr;
 Mutex* Locks::modify_ldt_lock_ = nullptr;
-ReaderWriterMutex* Locks::mutator_lock_ = nullptr;
+MutatorMutex* Locks::mutator_lock_ = nullptr;
 Mutex* Locks::profiler_lock_ = nullptr;
 Mutex* Locks::reference_processor_lock_ = nullptr;
 Mutex* Locks::reference_queue_cleared_references_lock_ = nullptr;
@@ -738,6 +738,11 @@ std::ostream& operator<<(std::ostream& os, const ReaderWriterMutex& mu) {
   return os;
 }
 
+std::ostream& operator<<(std::ostream& os, const MutatorMutex& mu) {
+  mu.Dump(os);
+  return os;
+}
+
 ConditionVariable::ConditionVariable(const char* name, Mutex& guard)
     : name_(name), guard_(guard) {
 #if ART_USE_FUTEXES
@@ -958,7 +963,7 @@ void Locks::Init() {
 
     UPDATE_CURRENT_LOCK_LEVEL(kMutatorLock);
     DCHECK(mutator_lock_ == nullptr);
-    mutator_lock_ = new ReaderWriterMutex("mutator lock", current_lock_level);
+    mutator_lock_ = new MutatorMutex("mutator lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kHeapBitmapLock);
     DCHECK(heap_bitmap_lock_ == nullptr);
