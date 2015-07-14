@@ -2066,4 +2066,31 @@ TEST_F(GvnDeadCodeEliminationTestSimple, UnusedRegs2) {
   }
 }
 
+TEST_F(GvnDeadCodeEliminationTestSimple, ArrayLengthThrows) {
+  static const MIRDef mirs[] = {
+      DEF_CONST(3, Instruction::CONST, 0u, 0),              // null
+      DEF_UNOP(3, Instruction::ARRAY_LENGTH, 1u, 0u),       // null.length
+      DEF_CONST(3, Instruction::CONST, 2u, 1000u),          // Overwrite the array-length dest.
+  };
+
+  static const int32_t sreg_to_vreg_map[] = { 0, 1, 1 };
+  PrepareSRegToVRegMap(sreg_to_vreg_map);
+
+  PrepareMIRs(mirs);
+  PerformGVN_DCE();
+
+  ASSERT_EQ(arraysize(mirs), value_names_.size());
+  static const size_t diff_indexes[] = { 0, 1, 2 };
+  ExpectValueNamesNE(diff_indexes);
+
+  static const bool eliminated[] = {
+      false, false, false,
+  };
+  static_assert(arraysize(eliminated) == arraysize(mirs), "array size mismatch");
+  for (size_t i = 0; i != arraysize(eliminated); ++i) {
+    bool actually_eliminated = (static_cast<int>(mirs_[i].dalvikInsn.opcode) == kMirOpNop);
+    EXPECT_EQ(eliminated[i], actually_eliminated) << i;
+  }
+}
+
 }  // namespace art
