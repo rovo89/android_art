@@ -353,8 +353,7 @@ TWO_ARG_RUNTIME_EXCEPTION art_quick_throw_array_bounds, artThrowArrayBoundsFromC
      *
      * Adapted from x86 code.
      */
-MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
-    DEFINE_FUNCTION VAR(c_name, 0)
+MACRO1(INVOKE_TRAMPOLINE_BODY, cxx_name)
     SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME  // save callee saves in case allocation triggers GC
     // Helper signature is always
     // (method_idx, *this_object, *caller_method, *self, sp)
@@ -375,10 +374,13 @@ MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
     jmp *%rax
 1:
     DELIVER_PENDING_EXCEPTION
+END_MACRO
+MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
+    DEFINE_FUNCTION VAR(c_name, 0)
+    INVOKE_TRAMPOLINE_BODY(cxx_name)
     END_FUNCTION VAR(c_name, 0)
 END_MACRO
 
-INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline, artInvokeInterfaceTrampoline
 INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline_with_access_check, artInvokeInterfaceTrampolineWithAccessCheck
 
 INVOKE_TRAMPOLINE art_quick_invoke_static_trampoline_with_access_check, artInvokeStaticTrampolineWithAccessCheck
@@ -1352,7 +1354,7 @@ DEFINE_FUNCTION art_quick_imt_conflict_trampoline
     int3
 #else
     movq %rax, %rdi
-    jmp art_quick_invoke_interface_trampoline
+    INVOKE_TRAMPOLINE_BODY(artInvokeInterfaceTrampoline)
 #endif  // __APPLE__
 END_FUNCTION art_quick_imt_conflict_trampoline
 
