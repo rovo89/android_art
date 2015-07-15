@@ -379,7 +379,8 @@ static void RunOptimizations(HGraph* graph,
   InstructionSimplifier* simplify3 = new (arena) InstructionSimplifier(
       graph, stats, "instruction_simplifier_after_bce");
   ReferenceTypePropagation* type_propagation2 =
-      new (arena) ReferenceTypePropagation(graph, handles);
+      new (arena) ReferenceTypePropagation(
+          graph, handles, "reference_type_propagation_after_inlining");
   InstructionSimplifier* simplify4 = new (arena) InstructionSimplifier(
       graph, stats, "instruction_simplifier_before_codegen");
 
