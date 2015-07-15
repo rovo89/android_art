@@ -138,7 +138,8 @@ void ReferenceProcessor::ProcessReferences(bool concurrent, TimingLogger* timing
     if (concurrent) {
       StartPreservingReferences(self);
     }
-    // TODO: Add smarter logic for preserving soft references.
+    // TODO: Add smarter logic for preserving soft references. The behavior should be a conditional
+    // mark if the SoftReference is supposed to be preserved.
     soft_reference_queue_.ForwardSoftReferences(collector);
     collector->ProcessMarkStack();
     if (concurrent) {

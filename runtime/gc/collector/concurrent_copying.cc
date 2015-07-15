@@ -78,6 +78,7 @@ void ConcurrentCopying::MarkHeapReference(mirror::HeapReference<mirror::Object>*
   // no other threads which can trigger read barriers on the same referent during reference
   // processing.
   from_ref->Assign(Mark(from_ref->AsMirrorPtr()));
+  DCHECK(!from_ref->IsNull());
 }
 
 ConcurrentCopying::~ConcurrentCopying() {
