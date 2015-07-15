@@ -73,6 +73,12 @@ ConcurrentCopying::ConcurrentCopying(Heap* heap, const std::string& name_prefix)
   }
 }
 
+void ConcurrentCopying::MarkHeapReference(
+    mirror::HeapReference<mirror::Object>* from_ref ATTRIBUTE_UNUSED) {
+  // Unused, usually called from mod union tables.
+  UNIMPLEMENTED(FATAL);
+}
+
 ConcurrentCopying::~ConcurrentCopying() {
   STLDeleteElements(&pooled_mark_stacks_);
 }
@@ -308,7 +314,7 @@ class ConcurrentCopyingImmuneSpaceObjVisitor {
   }
 
  private:
-  ConcurrentCopying* collector_;
+  ConcurrentCopying* const collector_;
 };
 
 class EmptyCheckpoint : public Closure {
@@ -429,7 +435,7 @@ void ConcurrentCopying::MarkingPhase() {
       LOG(INFO) << "ProcessReferences";
     }
     // Process weak references. This may produce new refs to process and have them processed via
-    // ProcessMarkStackCallback (in the GC exclusive mark stack mode).
+    // ProcessMarkStack (in the GC exclusive mark stack mode).
     ProcessReferences(self);
     CheckEmptyMarkStack();
     if (kVerboseMode) {
@@ -644,7 +650,7 @@ class ConcurrentCopyingVerifyNoFromSpaceRefsFieldVisitor {
   }
 
  private:
-  ConcurrentCopying* collector_;
+  ConcurrentCopying* const collector_;
 };
 
 class ConcurrentCopyingVerifyNoFromSpaceRefsObjectVisitor {
@@ -732,16 +738,9 @@ class ConcurrentCopyingAssertToSpaceInvariantRefsVisitor {
     }
     collector_->AssertToSpaceInvariant(nullptr, MemberOffset(0), ref);
   }
-  static void RootCallback(mirror::Object** root, void *arg, const RootInfo& /*root_info*/)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    ConcurrentCopying* collector = reinterpret_cast<ConcurrentCopying*>(arg);
-    ConcurrentCopyingAssertToSpaceInvariantRefsVisitor visitor(collector);
-    DCHECK(root != nullptr);
-    visitor(*root);
-  }
 
  private:
-  ConcurrentCopying* collector_;
+  ConcurrentCopying* const collector_;
 };
 
 class ConcurrentCopyingAssertToSpaceInvariantFieldVisitor {
@@ -762,7 +761,7 @@ class ConcurrentCopyingAssertToSpaceInvariantFieldVisitor {
   }
 
  private:
-  ConcurrentCopying* collector_;
+  ConcurrentCopying* const collector_;
 };
 
 class ConcurrentCopyingAssertToSpaceInvariantObjectVisitor {
@@ -785,7 +784,7 @@ class ConcurrentCopyingAssertToSpaceInvariantObjectVisitor {
   }
 
  private:
-  ConcurrentCopying* collector_;
+  ConcurrentCopying* const collector_;
 };
 
 class RevokeThreadLocalMarkStackCheckpoint : public Closure {
@@ -1088,7 +1087,7 @@ void ConcurrentCopying::CheckEmptyMarkStack() {
 void ConcurrentCopying::SweepSystemWeaks(Thread* self) {
   TimingLogger::ScopedTiming split("SweepSystemWeaks", GetTimings());
   ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-  Runtime::Current()->SweepSystemWeaks(IsMarkedCallback, this);
+  Runtime::Current()->SweepSystemWeaks(this);
 }
 
 void ConcurrentCopying::Sweep(bool swap_bitmaps) {
@@ -1293,7 +1292,7 @@ class ConcurrentCopyingComputeUnevacFromSpaceLiveRatioVisitor {
   }
 
  private:
-  ConcurrentCopying* collector_;
+  ConcurrentCopying* const collector_;
 };
 
 // Compute how much live objects are left in regions.
@@ -2029,14 +2028,9 @@ void ConcurrentCopying::FinishPhase() {
   heap_->ClearMarkedObjects();
 }
 
-mirror::Object* ConcurrentCopying::IsMarkedCallback(mirror::Object* from_ref, void* arg) {
-  return reinterpret_cast<ConcurrentCopying*>(arg)->IsMarked(from_ref);
-}
-
-bool ConcurrentCopying::IsHeapReferenceMarkedCallback(
-    mirror::HeapReference<mirror::Object>* field, void* arg) {
+bool ConcurrentCopying::IsMarkedHeapReference(mirror::HeapReference<mirror::Object>* field) {
   mirror::Object* from_ref = field->AsMirrorPtr();
-  mirror::Object* to_ref = reinterpret_cast<ConcurrentCopying*>(arg)->IsMarked(from_ref);
+  mirror::Object* to_ref = IsMarked(from_ref);
   if (to_ref == nullptr) {
     return false;
   }
@@ -2048,18 +2042,12 @@ bool ConcurrentCopying::IsHeapReferenceMarkedCallback(
   return true;
 }
 
-mirror::Object* ConcurrentCopying::MarkCallback(mirror::Object* from_ref, void* arg) {
-  return reinterpret_cast<ConcurrentCopying*>(arg)->Mark(from_ref);
-}
-
-void ConcurrentCopying::ProcessMarkStackCallback(void* arg) {
-  ConcurrentCopying* concurrent_copying = reinterpret_cast<ConcurrentCopying*>(arg);
-  concurrent_copying->ProcessMarkStack();
+mirror::Object* ConcurrentCopying::MarkObject(mirror::Object* from_ref) {
+  return Mark(from_ref);
 }
 
 void ConcurrentCopying::DelayReferenceReferent(mirror::Class* klass, mirror::Reference* reference) {
-  heap_->GetReferenceProcessor()->DelayReferenceReferent(
-      klass, reference, &IsHeapReferenceMarkedCallback, this);
+  heap_->GetReferenceProcessor()->DelayReferenceReferent(klass, reference, this);
 }
 
 void ConcurrentCopying::ProcessReferences(Thread* self) {
@@ -2067,8 +2055,7 @@ void ConcurrentCopying::ProcessReferences(Thread* self) {
   // We don't really need to lock the heap bitmap lock as we use CAS to mark in bitmaps.
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   GetHeap()->GetReferenceProcessor()->ProcessReferences(
-      true /*concurrent*/, GetTimings(), GetCurrentIteration()->GetClearSoftReferences(),
-      &IsHeapReferenceMarkedCallback, &MarkCallback, &ProcessMarkStackCallback, this);
+      true /*concurrent*/, GetTimings(), GetCurrentIteration()->GetClearSoftReferences(), this);
 }
 
 void ConcurrentCopying::RevokeAllThreadLocalBuffers() {

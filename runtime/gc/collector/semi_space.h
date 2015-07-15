@@ -103,6 +103,12 @@ class SemiSpace : public GarbageCollector {
   void MarkObject(mirror::ObjectReference<kPoisonReferences, mirror::Object>* obj_ptr)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
+  virtual mirror::Object* MarkObject(mirror::Object* root) OVERRIDE
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+
+  virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>* obj_ptr) OVERRIDE
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+
   void ScanObject(mirror::Object* obj)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
@@ -140,19 +146,6 @@ class SemiSpace : public GarbageCollector {
                           const RootInfo& info) OVERRIDE
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
-  static mirror::Object* MarkObjectCallback(mirror::Object* root, void* arg)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
-  static void MarkHeapReferenceCallback(mirror::HeapReference<mirror::Object>* obj_ptr, void* arg)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
-  static void ProcessMarkStackCallback(void* arg)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
-
-  static void DelayReferenceReferentCallback(mirror::Class* klass, mirror::Reference* ref,
-                                             void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
   virtual mirror::Object* MarkNonForwardedObject(mirror::Object* obj)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
@@ -163,15 +156,11 @@ class SemiSpace : public GarbageCollector {
  protected:
   // Returns null if the object is not marked, otherwise returns the forwarding address (same as
   // object for non movable things).
-  mirror::Object* GetMarkedForwardAddress(mirror::Object* object) const
+  virtual mirror::Object* IsMarked(mirror::Object* object) OVERRIDE
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  static bool HeapReferenceMarkedCallback(mirror::HeapReference<mirror::Object>* object, void* arg)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
-  static mirror::Object* MarkedForwardingAddressCallback(mirror::Object* object, void* arg)
+  virtual bool IsMarkedHeapReference(mirror::HeapReference<mirror::Object>* object) OVERRIDE
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 

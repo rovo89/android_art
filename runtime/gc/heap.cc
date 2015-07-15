@@ -3055,8 +3055,13 @@ void Heap::ProcessCards(TimingLogger* timings, bool use_rem_sets, bool process_a
   }
 }
 
-static void IdentityMarkHeapReferenceCallback(mirror::HeapReference<mirror::Object>*, void*) {
-}
+struct IdentityMarkHeapReferenceVisitor : public MarkObjectVisitor {
+  virtual mirror::Object* MarkObject(mirror::Object* obj) OVERRIDE {
+    return obj;
+  }
+  virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>*) OVERRIDE {
+  }
+};
 
 void Heap::PreGcVerificationPaused(collector::GarbageCollector* gc) {
   Thread* const self = Thread::Current();
@@ -3085,7 +3090,8 @@ void Heap::PreGcVerificationPaused(collector::GarbageCollector* gc) {
     ReaderMutexLock reader_lock(self, *Locks::heap_bitmap_lock_);
     for (const auto& table_pair : mod_union_tables_) {
       accounting::ModUnionTable* mod_union_table = table_pair.second;
-      mod_union_table->UpdateAndMarkReferences(IdentityMarkHeapReferenceCallback, nullptr);
+      IdentityMarkHeapReferenceVisitor visitor;
+      mod_union_table->UpdateAndMarkReferences(&visitor);
       mod_union_table->Verify();
     }
   }
@@ -3714,11 +3720,11 @@ void Heap::VisitAllocationRecords(RootVisitor* visitor) const {
   }
 }
 
-void Heap::SweepAllocationRecords(IsMarkedCallback* visitor, void* arg) const {
+void Heap::SweepAllocationRecords(IsMarkedVisitor* visitor) const {
   if (IsAllocTrackingEnabled()) {
     MutexLock mu(Thread::Current(), *Locks::alloc_tracker_lock_);
     if (IsAllocTrackingEnabled()) {
-      GetAllocationRecords()->SweepAllocationRecords(visitor, arg);
+      GetAllocationRecords()->SweepAllocationRecords(visitor);
     }
   }
 }
