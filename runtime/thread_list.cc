@@ -381,23 +381,7 @@ size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_c
   Locks::thread_suspend_count_lock_->AssertNotHeld(self);
   CHECK_NE(self->GetState(), kRunnable);
 
-  std::vector<Thread*> runnable_threads;
-  std::vector<Thread*> other_threads;
-
-  // Suspend all threads once.
-  {
-    MutexLock mu(self, *Locks::thread_list_lock_);
-    MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
-    // Update global suspend all state for attaching threads.
-    ++suspend_all_count_;
-    // Increment everybody's suspend count (except our own).
-    for (const auto& thread : list_) {
-      if (thread == self) {
-        continue;
-      }
-      thread->ModifySuspendCount(self, +1, nullptr, false);
-    }
-  }
+  SuspendAllInternal(self, self, nullptr);
 
   // Run the flip callback for the collector.
   Locks::mutator_lock_->ExclusiveLock(self);
@@ -406,6 +390,8 @@ size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_c
   collector->RegisterPause(NanoTime() - start_time);
 
   // Resume runnable threads.
+  std::vector<Thread*> runnable_threads;
+  std::vector<Thread*> other_threads;
   {
     MutexLock mu(self, *Locks::thread_list_lock_);
     MutexLock mu2(self, *Locks::thread_suspend_count_lock_);

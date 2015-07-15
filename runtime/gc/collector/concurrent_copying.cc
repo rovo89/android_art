@@ -73,10 +73,11 @@ ConcurrentCopying::ConcurrentCopying(Heap* heap, const std::string& name_prefix)
   }
 }
 
-void ConcurrentCopying::MarkHeapReference(
-    mirror::HeapReference<mirror::Object>* from_ref ATTRIBUTE_UNUSED) {
-  // Unused, usually called from mod union tables.
-  UNIMPLEMENTED(FATAL);
+void ConcurrentCopying::MarkHeapReference(mirror::HeapReference<mirror::Object>* from_ref) {
+  // Used for preserving soft references, should be OK to not have a CAS here since there should be
+  // no other threads which can trigger read barriers on the same referent during reference
+  // processing.
+  from_ref->Assign(Mark(from_ref->AsMirrorPtr()));
 }
 
 ConcurrentCopying::~ConcurrentCopying() {
