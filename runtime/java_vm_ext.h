@@ -120,7 +120,7 @@ class JavaVMExt : public JavaVM {
 
   void DeleteWeakGlobalRef(Thread* self, jweak obj);
 
-  void SweepJniWeakGlobals(IsMarkedCallback* callback, void* arg)
+  void SweepJniWeakGlobals(IsMarkedVisitor* visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::Object* DecodeGlobal(Thread* self, IndirectRef ref)
