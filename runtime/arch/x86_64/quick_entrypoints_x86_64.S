@@ -361,7 +361,7 @@ MACRO1(INVOKE_TRAMPOLINE_BODY, cxx_name)
     movq %gs:THREAD_SELF_OFFSET, %rdx                      // pass Thread
     movq %rsp, %rcx                                        // pass SP
 
-    call VAR(cxx_name, 1)                   // cxx_name(arg1, arg2, Thread*, SP)
+    call VAR(cxx_name, 0)                   // cxx_name(arg1, arg2, Thread*, SP)
                                                            // save the code pointer
     movq %rax, %rdi
     movq %rdx, %rax
@@ -376,9 +376,9 @@ MACRO1(INVOKE_TRAMPOLINE_BODY, cxx_name)
     DELIVER_PENDING_EXCEPTION
 END_MACRO
 MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
-    DEFINE_FUNCTION VAR(c_name, 0)
-    INVOKE_TRAMPOLINE_BODY(cxx_name)
-    END_FUNCTION VAR(c_name, 0)
+    DEFINE_FUNCTION RAW_VAR(c_name, 0)
+    INVOKE_TRAMPOLINE_BODY RAW_VAR(cxx_name, 1)
+    END_FUNCTION RAW_VAR(c_name, 0)
 END_MACRO
 
 INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline_with_access_check, artInvokeInterfaceTrampolineWithAccessCheck
@@ -1354,7 +1354,7 @@ DEFINE_FUNCTION art_quick_imt_conflict_trampoline
     int3
 #else
     movq %rax, %rdi
-    INVOKE_TRAMPOLINE_BODY(artInvokeInterfaceTrampoline)
+    INVOKE_TRAMPOLINE_BODY artInvokeInterfaceTrampoline
 #endif  // __APPLE__
 END_FUNCTION art_quick_imt_conflict_trampoline
 
