@@ -62,14 +62,14 @@ class ArrayRef {
   }
 
   template <size_t size>
-  constexpr ArrayRef(T (&array)[size])
+  explicit constexpr ArrayRef(T (&array)[size])
     : array_(array), size_(size) {
   }
 
   template <typename U, size_t size>
-  constexpr ArrayRef(U (&array)[size],
-                     typename std::enable_if<std::is_same<T, const U>::value, tag>::type
-                         t ATTRIBUTE_UNUSED = tag())
+  explicit constexpr ArrayRef(U (&array)[size],
+                              typename std::enable_if<std::is_same<T, const U>::value, tag>::type
+                                  t ATTRIBUTE_UNUSED = tag())
     : array_(array), size_(size) {
   }
 
@@ -83,9 +83,9 @@ class ArrayRef {
   }
 
   template <typename U, typename Alloc>
-  ArrayRef(const std::vector<U, Alloc>& v,
-           typename std::enable_if<std::is_same<T, const U>::value, tag>::type
-               t ATTRIBUTE_UNUSED = tag())
+  explicit ArrayRef(const std::vector<U, Alloc>& v,
+                    typename std::enable_if<std::is_same<T, const U>::value, tag>::type
+                        t ATTRIBUTE_UNUSED = tag())
       : array_(v.data()), size_(v.size()) {
   }
 
