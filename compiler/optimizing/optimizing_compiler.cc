@@ -132,7 +132,7 @@ class PassObserver : public ValueObject {
   void StartPass(const char* pass_name) {
     // Dump graph first, then start timer.
     if (visualizer_enabled_) {
-      visualizer_.DumpGraph(pass_name, /* is_after_pass */ false);
+      visualizer_.DumpGraph(pass_name, /* is_after_pass */ false, graph_in_bad_state_);
     }
     if (timing_logger_enabled_) {
       timing_logger_.StartTiming(pass_name);
@@ -145,7 +145,7 @@ class PassObserver : public ValueObject {
       timing_logger_.EndTiming();
     }
     if (visualizer_enabled_) {
-      visualizer_.DumpGraph(pass_name, /* is_after_pass */ true);
+      visualizer_.DumpGraph(pass_name, /* is_after_pass */ true, graph_in_bad_state_);
     }
 
     // Validate the HGraph if running in debug mode.
@@ -628,7 +628,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   // or the debuggable flag). If it is set, we can run baseline. Otherwise, we fall back
   // to Quick.
   bool can_use_baseline = !run_optimizations_ && builder.CanUseBaselineForStringInit();
-  if (run_optimizations_ && can_optimize && can_allocate_registers) {
+  if (run_optimizations_ && can_allocate_registers) {
     VLOG(compiler) << "Optimizing " << method_name;
 
     {
@@ -637,16 +637,21 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
         // We could not transform the graph to SSA, bailout.
         LOG(INFO) << "Skipping compilation of " << method_name << ": it contains a non natural loop";
         MaybeRecordStat(MethodCompilationStat::kNotCompiledCannotBuildSSA);
+        pass_observer.SetGraphInBadState();
         return nullptr;
       }
     }
 
-    return CompileOptimized(graph,
-                            codegen.get(),
-                            compiler_driver,
-                            dex_compilation_unit,
-                            &pass_observer);
-  } else if (shouldOptimize && can_allocate_registers) {
+    if (can_optimize) {
+      return CompileOptimized(graph,
+                              codegen.get(),
+                              compiler_driver,
+                              dex_compilation_unit,
+                              &pass_observer);
+    }
+  }
+
+  if (shouldOptimize && can_allocate_registers) {
     LOG(FATAL) << "Could not allocate registers in optimizing compiler";
     UNREACHABLE();
   } else if (can_use_baseline) {

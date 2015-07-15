@@ -49,6 +49,7 @@ class HLongConstant;
 class HNullConstant;
 class HPhi;
 class HSuspendCheck;
+class HTryBoundary;
 class LiveInterval;
 class LocationSummary;
 class SlowPathCode;
@@ -182,6 +183,10 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
     // visit for eliminating dead phis: a dead phi can only have loop header phi
     // users remaining when being visited.
     if (!AnalyzeNaturalLoops()) return false;
+    // Precompute per-block try membership before entering the SSA builder,
+    // which needs the information to build catch block phis from values of
+    // locals at throwing instructions inside try blocks.
+    ComputeTryBlockInformation();
     TransformToSsa();
     in_ssa_form_ = true;
     return true;
@@ -193,11 +198,16 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   void BuildDominatorTree();
   void TransformToSsa();
   void SimplifyCFG();
+  void SimplifyCatchBlocks();
 
   // Analyze all natural loops in this graph. Returns false if one
   // loop is not natural, that is the header does not dominate the
   // back edge.
   bool AnalyzeNaturalLoops() const;
+
+  // Iterate over blocks to compute try block membership. Needs reverse post
+  // order and loop information.
+  void ComputeTryBlockInformation();
 
   // Inline this graph in `outer_graph`, replacing the given `invoke` instruction.
   void InlineInto(HGraph* outer_graph, HInvoke* invoke);
@@ -730,8 +740,11 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
     return GetPredecessorIndexOf(predecessor) == idx;
   }
 
-  // Returns whether successor at index `idx` is an exception handler.
-  bool IsExceptionalSuccessor(size_t idx) const;
+  // Returns the number of non-exceptional successors. SsaChecker ensures that
+  // these are stored at the beginning of the successor list.
+  size_t NumberOfNormalSuccessors() const {
+    return EndsWithTryBoundary() ? 1 : GetSuccessors().Size();
+  }
 
   // Split the block into two blocks just before `cursor`. Returns the newly
   // created, latter block. Note that this method will add the block to the
@@ -830,6 +843,15 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
 
   bool IsInLoop() const { return loop_information_ != nullptr; }
 
+  HTryBoundary* GetTryEntry() const { return try_entry_; }
+  void SetTryEntry(HTryBoundary* try_entry) { try_entry_ = try_entry; }
+  bool IsInTry() const { return try_entry_ != nullptr; }
+
+  // Returns the try entry that this block's successors should have. They will
+  // be in the same try, unless the block ends in a try boundary. In that case,
+  // the appropriate try entry will be returned.
+  HTryBoundary* ComputeTryEntryOfSuccessors() const;
+
   // Returns whether this block dominates the blocked passed as parameter.
   bool Dominates(HBasicBlock* block) const;
 
@@ -846,6 +868,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
 
   bool EndsWithControlFlowInstruction() const;
   bool EndsWithIf() const;
+  bool EndsWithTryBoundary() const;
   bool HasSinglePhi() const;
 
  private:
@@ -863,6 +886,10 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   size_t lifetime_start_;
   size_t lifetime_end_;
   bool is_catch_block_;
+
+  // If this block is in a try block, `try_entry_` stores one of, possibly
+  // several, TryBoundary instructions entering it.
+  HTryBoundary* try_entry_;
 
   friend class HGraph;
   friend class HInstruction;
@@ -1975,28 +2002,23 @@ class HTryBoundary : public HTemplateInstruction<0> {
 
   // Returns whether `handler` is among its exception handlers (non-zero index
   // successors).
-  bool HasExceptionHandler(HBasicBlock* handler) const {
-    DCHECK(handler->IsCatchBlock());
-    return GetBlock()->GetSuccessors().Contains(handler, /* start_from */ 1);
-  }
-
-  // Returns whether successor at index `idx` is an exception handler.
-  bool IsExceptionalSuccessor(size_t idx) const {
-    DCHECK_LT(idx, GetBlock()->GetSuccessors().Size());
-    bool is_handler = (idx != 0);
-    DCHECK(!is_handler || GetBlock()->GetSuccessors().Get(idx)->IsCatchBlock());
-    return is_handler;
+  bool HasExceptionHandler(const HBasicBlock& handler) const {
+    DCHECK(handler.IsCatchBlock());
+    return GetBlock()->GetSuccessors().Contains(
+        const_cast<HBasicBlock*>(&handler), /* start_from */ 1);
   }
 
   // If not present already, adds `handler` to its block's list of exception
   // handlers.
   void AddExceptionHandler(HBasicBlock* handler) {
-    if (!HasExceptionHandler(handler)) {
+    if (!HasExceptionHandler(*handler)) {
       GetBlock()->AddSuccessor(handler);
     }
   }
 
   bool IsEntry() const { return kind_ == BoundaryKind::kEntry; }
+
+  bool HasSameExceptionHandlersAs(const HTryBoundary& other) const;
 
   DECLARE_INSTRUCTION(TryBoundary);
 
@@ -2006,6 +2028,24 @@ class HTryBoundary : public HTemplateInstruction<0> {
   DISALLOW_COPY_AND_ASSIGN(HTryBoundary);
 };
 
+// Iterator over exception handlers of a given HTryBoundary, i.e. over
+// exceptional successors of its basic block.
+class HExceptionHandlerIterator : public ValueObject {
+ public:
+  explicit HExceptionHandlerIterator(const HTryBoundary& try_boundary)
+    : block_(*try_boundary.GetBlock()), index_(block_.NumberOfNormalSuccessors()) {}
+
+  bool Done() const { return index_ == block_.GetSuccessors().Size(); }
+  HBasicBlock* Current() const { return block_.GetSuccessors().Get(index_); }
+  size_t CurrentSuccessorIndex() const { return index_; }
+  void Advance() { ++index_; }
+
+ private:
+  const HBasicBlock& block_;
+  size_t index_;
+
+  DISALLOW_COPY_AND_ASSIGN(HExceptionHandlerIterator);
+};
 
 // Deoptimize to interpreter, upon checking a condition.
 class HDeoptimize : public HTemplateInstruction<1> {
@@ -3366,6 +3406,8 @@ class HPhi : public HInstruction {
         return type;
     }
   }
+
+  bool IsCatchPhi() const { return GetBlock()->IsCatchBlock(); }
 
   size_t InputCount() const OVERRIDE { return inputs_.Size(); }
 

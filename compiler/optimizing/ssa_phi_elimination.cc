@@ -114,6 +114,12 @@ void SsaRedundantPhiElimination::Run() {
       continue;
     }
 
+    if (phi->InputCount() == 0) {
+      DCHECK(phi->IsCatchPhi());
+      DCHECK(phi->IsDead());
+      continue;
+    }
+
     // Find if the inputs of the phi are the same instruction.
     HInstruction* candidate = phi->InputAt(0);
     // A loop phi cannot have itself as the first phi. Note that this
@@ -134,6 +140,11 @@ void SsaRedundantPhiElimination::Run() {
 
     // If the inputs are not the same, continue.
     if (candidate == nullptr) {
+      continue;
+    }
+
+    // The candidate may not dominate a phi in a catch block.
+    if (phi->IsCatchPhi() && !candidate->StrictlyDominates(phi)) {
       continue;
     }
 
