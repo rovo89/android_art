@@ -427,6 +427,7 @@ use-art-full:
 	adb shell setprop dalvik.vm.dex2oat-filter \"\"
 	adb shell setprop dalvik.vm.image-dex2oat-filter \"\"
 	adb shell setprop persist.sys.dalvik.vm.lib.2 libart.so
+	adb shell setprop dalvik.vm.usejit false
 	adb shell start
 
 .PHONY: use-artd-full
@@ -437,16 +438,18 @@ use-artd-full:
 	adb shell setprop dalvik.vm.dex2oat-filter \"\"
 	adb shell setprop dalvik.vm.image-dex2oat-filter \"\"
 	adb shell setprop persist.sys.dalvik.vm.lib.2 libartd.so
+	adb shell setprop dalvik.vm.usejit false
 	adb shell start
 
-.PHONY: use-art-verify-at-runtime
-use-art-verify-at-runtime:
+.PHONY: use-art-jit
+use-art-jit:
 	adb root
 	adb wait-for-device shell stop
 	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*
 	adb shell setprop dalvik.vm.dex2oat-filter "verify-at-runtime"
 	adb shell setprop dalvik.vm.image-dex2oat-filter "verify-at-runtime"
 	adb shell setprop persist.sys.dalvik.vm.lib.2 libart.so
+	adb shell setprop dalvik.vm.usejit true
 	adb shell start
 
 .PHONY: use-art-interpret-only
@@ -457,6 +460,7 @@ use-art-interpret-only:
 	adb shell setprop dalvik.vm.dex2oat-filter "interpret-only"
 	adb shell setprop dalvik.vm.image-dex2oat-filter "interpret-only"
 	adb shell setprop persist.sys.dalvik.vm.lib.2 libart.so
+	adb shell setprop dalvik.vm.usejit false
 	adb shell start
 
 .PHONY: use-artd-interpret-only
@@ -467,6 +471,7 @@ use-artd-interpret-only:
 	adb shell setprop dalvik.vm.dex2oat-filter "interpret-only"
 	adb shell setprop dalvik.vm.image-dex2oat-filter "interpret-only"
 	adb shell setprop persist.sys.dalvik.vm.lib.2 libartd.so
+	adb shell setprop dalvik.vm.usejit false
 	adb shell start
 
 .PHONY: use-art-verify-none
@@ -477,6 +482,7 @@ use-art-verify-none:
 	adb shell setprop dalvik.vm.dex2oat-filter "verify-none"
 	adb shell setprop dalvik.vm.image-dex2oat-filter "verify-none"
 	adb shell setprop persist.sys.dalvik.vm.lib.2 libart.so
+	adb shell setprop dalvik.vm.usejit false
 	adb shell start
 
 ########################################################################
