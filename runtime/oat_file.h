@@ -100,13 +100,9 @@ class OatFile FINAL {
    public:
     void LinkMethod(ArtMethod* method) const;
 
-    uint32_t GetCodeOffset() const {
-      return code_offset_;
-    }
+    uint32_t GetCodeOffset() const;
 
-    const void* GetQuickCode() const {
-      return GetOatPointer<const void*>(code_offset_);
-    }
+    const void* GetQuickCode() const;
 
     // Returns size of quick code.
     uint32_t GetQuickCodeSize() const;

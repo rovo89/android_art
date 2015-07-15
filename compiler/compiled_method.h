@@ -47,8 +47,6 @@ class CompiledCode {
     return quick_code_;
   }
 
-  void SetCode(const ArrayRef<const uint8_t>* quick_code);
-
   bool operator==(const CompiledCode& rhs) const;
 
   // To align an offset from a page-aligned value to make it suitable
