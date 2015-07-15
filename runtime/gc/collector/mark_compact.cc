@@ -142,7 +142,7 @@ class BitmapSetSlowPathVisitor {
 
 inline mirror::Object* MarkCompact::MarkObject(mirror::Object* obj) {
   if (obj == nullptr) {
-    return obj;
+    return nullptr;
   }
   if (kUseBakerOrBrooksReadBarrier) {
     // Verify all the objects have the correct forward pointer installed.
