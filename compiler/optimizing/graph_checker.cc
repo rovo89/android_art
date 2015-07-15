@@ -136,6 +136,33 @@ void GraphChecker::VisitBoundsCheck(HBoundsCheck* check) {
   VisitInstruction(check);
 }
 
+void GraphChecker::VisitTryBoundary(HTryBoundary* try_boundary) {
+  // Ensure that all exception handlers are catch blocks and that handlers
+  // are not listed multiple times.
+  // Note that a normal-flow successor may be a catch block before CFG
+  // simplification. We only test normal-flow successors in SsaChecker.
+  for (HExceptionHandlerIterator it(*try_boundary); !it.Done(); it.Advance()) {
+    HBasicBlock* handler = it.Current();
+    if (!handler->IsCatchBlock()) {
+      AddError(StringPrintf("Block %d with %s:%d has exceptional successor %d which "
+                            "is not a catch block.",
+                            current_block_->GetBlockId(),
+                            try_boundary->DebugName(),
+                            try_boundary->GetId(),
+                            handler->GetBlockId()));
+    }
+    if (current_block_->GetSuccessors().Contains(
+            handler, /* start_from */ it.CurrentSuccessorIndex() + 1)) {
+      AddError(StringPrintf("Exception handler block %d of %s:%d is listed multiple times.",
+                            handler->GetBlockId(),
+                            try_boundary->DebugName(),
+                            try_boundary->GetId()));
+    }
+  }
+
+  VisitInstruction(try_boundary);
+}
+
 void GraphChecker::VisitInstruction(HInstruction* instruction) {
   if (seen_ids_.IsBitSet(instruction->GetId())) {
     AddError(StringPrintf("Instruction id %d is duplicate in graph.",
@@ -301,11 +328,32 @@ void GraphChecker::VisitInstanceOf(HInstanceOf* instruction) {
 void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
   super_type::VisitBasicBlock(block);
 
+  // Ensure that catch blocks are not normal successors, and normal blocks are
+  // never exceptional successors.
+  const size_t num_normal_successors = block->NumberOfNormalSuccessors();
+  for (size_t j = 0; j < num_normal_successors; ++j) {
+    HBasicBlock* successor = block->GetSuccessors().Get(j);
+    if (successor->IsCatchBlock()) {
+      AddError(StringPrintf("Catch block %d is a normal successor of block %d.",
+                            successor->GetBlockId(),
+                            block->GetBlockId()));
+    }
+  }
+  for (size_t j = num_normal_successors, e = block->GetSuccessors().Size(); j < e; ++j) {
+    HBasicBlock* successor = block->GetSuccessors().Get(j);
+    if (!successor->IsCatchBlock()) {
+      AddError(StringPrintf("Normal block %d is an exceptional successor of block %d.",
+                            successor->GetBlockId(),
+                            block->GetBlockId()));
+    }
+  }
+
   // Ensure there is no critical edge (i.e., an edge connecting a
   // block with multiple successors to a block with multiple
-  // predecessors).
-  if (block->GetSuccessors().Size() > 1) {
-    for (size_t j = 0; j < block->GetSuccessors().Size(); ++j) {
+  // predecessors). Exceptional edges are synthesized and hence
+  // not accounted for.
+  if (block->NumberOfNormalSuccessors() > 1) {
+    for (size_t j = 0, e = block->NumberOfNormalSuccessors(); j < e; ++j) {
       HBasicBlock* successor = block->GetSuccessors().Get(j);
       if (successor->GetPredecessors().Size() > 1) {
         AddError(StringPrintf("Critical edge between blocks %d and %d.",
@@ -323,6 +371,54 @@ void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
       type_str << phi->GetType();
       AddError(StringPrintf("Equivalent phi (%d) found for VReg %d with type: %s",
           phi->GetId(), phi->GetRegNumber(), type_str.str().c_str()));
+    }
+  }
+
+  // Ensure try membership information is consistent.
+  HTryBoundary* try_entry = block->GetTryEntry();
+  if (block->IsCatchBlock()) {
+    if (try_entry != nullptr) {
+      AddError(StringPrintf("Catch blocks should not be try blocks but catch block %d "
+                            "has try entry %s:%d.",
+                            block->GetBlockId(),
+                            try_entry->DebugName(),
+                            try_entry->GetId()));
+    }
+
+    if (block->IsLoopHeader()) {
+      AddError(StringPrintf("Catch blocks should not be loop headers but catch block %d is.",
+                            block->GetBlockId()));
+    }
+  } else {
+    for (size_t i = 0; i < block->GetPredecessors().Size(); ++i) {
+      HBasicBlock* predecessor = block->GetPredecessors().Get(i);
+      HTryBoundary* incoming_try_entry = predecessor->ComputeTryEntryOfSuccessors();
+      if (try_entry == nullptr) {
+        if (incoming_try_entry != nullptr) {
+          AddError(StringPrintf("Block %d has no try entry but try entry %s:%d follows "
+                                "from predecessor %d.",
+                                block->GetBlockId(),
+                                incoming_try_entry->DebugName(),
+                                incoming_try_entry->GetId(),
+                                predecessor->GetBlockId()));
+        }
+      } else if (incoming_try_entry == nullptr) {
+        AddError(StringPrintf("Block %d has try entry %s:%d but no try entry follows "
+                              "from predecessor %d.",
+                              block->GetBlockId(),
+                              try_entry->DebugName(),
+                              try_entry->GetId(),
+                              predecessor->GetBlockId()));
+      } else if (!incoming_try_entry->HasSameExceptionHandlersAs(*try_entry)) {
+        AddError(StringPrintf("Block %d has try entry %s:%d which is not consistent "
+                              "with %s:%d that follows from predecessor %d.",
+                              block->GetBlockId(),
+                              try_entry->DebugName(),
+                              try_entry->GetId(),
+                              incoming_try_entry->DebugName(),
+                              incoming_try_entry->GetId(),
+                              predecessor->GetBlockId()));
+      }
     }
   }
 
@@ -472,32 +568,6 @@ void SSAChecker::VisitPhi(HPhi* phi) {
                           phi->GetBlock()->GetBlockId()));
   }
 
-  // Ensure the number of inputs of a phi is the same as the number of
-  // its predecessors.
-  const GrowableArray<HBasicBlock*>& predecessors =
-    phi->GetBlock()->GetPredecessors();
-  if (phi->InputCount() != predecessors.Size()) {
-    AddError(StringPrintf(
-        "Phi %d in block %d has %zu inputs, "
-        "but block %d has %zu predecessors.",
-        phi->GetId(), phi->GetBlock()->GetBlockId(), phi->InputCount(),
-        phi->GetBlock()->GetBlockId(), predecessors.Size()));
-  } else {
-    // Ensure phi input at index I either comes from the Ith
-    // predecessor or from a block that dominates this predecessor.
-    for (size_t i = 0, e = phi->InputCount(); i < e; ++i) {
-      HInstruction* input = phi->InputAt(i);
-      HBasicBlock* predecessor = predecessors.Get(i);
-      if (!(input->GetBlock() == predecessor
-            || input->GetBlock()->Dominates(predecessor))) {
-        AddError(StringPrintf(
-            "Input %d at index %zu of phi %d from block %d is not defined in "
-            "predecessor number %zu nor in a block dominating it.",
-            input->GetId(), i, phi->GetId(), phi->GetBlock()->GetBlockId(),
-            i));
-      }
-    }
-  }
   // Ensure that the inputs have the same primitive kind as the phi.
   for (size_t i = 0, e = phi->InputCount(); i < e; ++i) {
     HInstruction* input = phi->InputAt(i);
@@ -515,6 +585,38 @@ void SSAChecker::VisitPhi(HPhi* phi) {
                           phi->GetId(),
                           phi->GetBlock()->GetBlockId(),
                           Primitive::PrettyDescriptor(phi->GetType())));
+  }
+
+  if (phi->IsCatchPhi()) {
+    // The number of inputs of a catch phi corresponds to the total number of
+    // throwing instructions caught by this catch block.
+  } else {
+    // Ensure the number of inputs of a non-catch phi is the same as the number
+    // of its predecessors.
+    const GrowableArray<HBasicBlock*>& predecessors =
+      phi->GetBlock()->GetPredecessors();
+    if (phi->InputCount() != predecessors.Size()) {
+      AddError(StringPrintf(
+          "Phi %d in block %d has %zu inputs, "
+          "but block %d has %zu predecessors.",
+          phi->GetId(), phi->GetBlock()->GetBlockId(), phi->InputCount(),
+          phi->GetBlock()->GetBlockId(), predecessors.Size()));
+    } else {
+      // Ensure phi input at index I either comes from the Ith
+      // predecessor or from a block that dominates this predecessor.
+      for (size_t i = 0, e = phi->InputCount(); i < e; ++i) {
+        HInstruction* input = phi->InputAt(i);
+        HBasicBlock* predecessor = predecessors.Get(i);
+        if (!(input->GetBlock() == predecessor
+              || input->GetBlock()->Dominates(predecessor))) {
+          AddError(StringPrintf(
+              "Input %d at index %zu of phi %d from block %d is not defined in "
+              "predecessor number %zu nor in a block dominating it.",
+              input->GetId(), i, phi->GetId(), phi->GetBlock()->GetBlockId(),
+              i));
+        }
+      }
+    }
   }
 }
 

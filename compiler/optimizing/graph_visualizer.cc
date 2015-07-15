@@ -158,12 +158,14 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
                           std::ostream& output,
                           const char* pass_name,
                           bool is_after_pass,
+                          bool graph_in_bad_state,
                           const CodeGenerator& codegen,
                           const DisassemblyInformation* disasm_info = nullptr)
       : HGraphDelegateVisitor(graph),
         output_(output),
         pass_name_(pass_name),
         is_after_pass_(is_after_pass),
+        graph_in_bad_state_(graph_in_bad_state),
         codegen_(codegen),
         disasm_info_(disasm_info),
         disassembler_(disasm_info_ != nullptr
@@ -251,11 +253,9 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
   void PrintSuccessors(HBasicBlock* block) {
     AddIndent();
     output_ << "successors";
-    for (size_t i = 0, e = block->GetSuccessors().Size(); i < e; ++i) {
-      if (!block->IsExceptionalSuccessor(i)) {
-        HBasicBlock* successor = block->GetSuccessors().Get(i);
-        output_ << " \"B" << successor->GetBlockId() << "\" ";
-      }
+    for (size_t i = 0; i < block->NumberOfNormalSuccessors(); ++i) {
+      HBasicBlock* successor = block->GetSuccessors().Get(i);
+      output_ << " \"B" << successor->GetBlockId() << "\" ";
     }
     output_<< std::endl;
   }
@@ -263,11 +263,9 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
   void PrintExceptionHandlers(HBasicBlock* block) {
     AddIndent();
     output_ << "xhandlers";
-    for (size_t i = 0, e = block->GetSuccessors().Size(); i < e; ++i) {
-      if (block->IsExceptionalSuccessor(i)) {
-        HBasicBlock* handler = block->GetSuccessors().Get(i);
-        output_ << " \"B" << handler->GetBlockId() << "\" ";
-      }
+    for (size_t i = block->NumberOfNormalSuccessors(); i < block->GetSuccessors().Size(); ++i) {
+      HBasicBlock* handler = block->GetSuccessors().Get(i);
+      output_ << " \"B" << handler->GetBlockId() << "\" ";
     }
     if (block->IsExitBlock() &&
         (disasm_info_ != nullptr) &&
@@ -351,6 +349,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
 
   void VisitPhi(HPhi* phi) OVERRIDE {
     StartAttributeStream("reg") << phi->GetRegNumber();
+    StartAttributeStream("is_catch_phi") << std::boolalpha << phi->IsCatchPhi() << std::noboolalpha;
   }
 
   void VisitMemoryBarrier(HMemoryBarrier* barrier) OVERRIDE {
@@ -582,7 +581,11 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
 
   void Run() {
     StartTag("cfg");
-    std::string pass_desc = std::string(pass_name_) + (is_after_pass_ ? " (after)" : " (before)");
+    std::string pass_desc = std::string(pass_name_)
+                          + " ("
+                          + (is_after_pass_ ? "after" : "before")
+                          + (graph_in_bad_state_ ? ", bad_state" : "")
+                          + ")";
     PrintProperty("name", pass_desc.c_str());
     if (disasm_info_ != nullptr) {
       DumpDisassemblyBlockForFrameEntry();
@@ -651,6 +654,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
   std::ostream& output_;
   const char* pass_name_;
   const bool is_after_pass_;
+  const bool graph_in_bad_state_;
   const CodeGenerator& codegen_;
   const DisassemblyInformation* disasm_info_;
   std::unique_ptr<HGraphVisualizerDisassembler> disassembler_;
@@ -666,7 +670,7 @@ HGraphVisualizer::HGraphVisualizer(std::ostream* output,
 
 void HGraphVisualizer::PrintHeader(const char* method_name) const {
   DCHECK(output_ != nullptr);
-  HGraphVisualizerPrinter printer(graph_, *output_, "", true, codegen_);
+  HGraphVisualizerPrinter printer(graph_, *output_, "", true, false, codegen_);
   printer.StartTag("compilation");
   printer.PrintProperty("name", method_name);
   printer.PrintProperty("method", method_name);
@@ -674,10 +678,17 @@ void HGraphVisualizer::PrintHeader(const char* method_name) const {
   printer.EndTag("compilation");
 }
 
-void HGraphVisualizer::DumpGraph(const char* pass_name, bool is_after_pass) const {
+void HGraphVisualizer::DumpGraph(const char* pass_name,
+                                 bool is_after_pass,
+                                 bool graph_in_bad_state) const {
   DCHECK(output_ != nullptr);
   if (!graph_->GetBlocks().IsEmpty()) {
-    HGraphVisualizerPrinter printer(graph_, *output_, pass_name, is_after_pass, codegen_);
+    HGraphVisualizerPrinter printer(graph_,
+                                    *output_,
+                                    pass_name,
+                                    is_after_pass,
+                                    graph_in_bad_state,
+                                    codegen_);
     printer.Run();
   }
 }
@@ -685,8 +696,13 @@ void HGraphVisualizer::DumpGraph(const char* pass_name, bool is_after_pass) cons
 void HGraphVisualizer::DumpGraphWithDisassembly() const {
   DCHECK(output_ != nullptr);
   if (!graph_->GetBlocks().IsEmpty()) {
-    HGraphVisualizerPrinter printer(
-        graph_, *output_, "disassembly", true, codegen_, codegen_.GetDisassemblyInformation());
+    HGraphVisualizerPrinter printer(graph_,
+                                    *output_,
+                                    "disassembly",
+                                    /* is_after_pass */ true,
+                                    /* graph_in_bad_state */ false,
+                                    codegen_,
+                                    codegen_.GetDisassemblyInformation());
     printer.Run();
   }
 }
