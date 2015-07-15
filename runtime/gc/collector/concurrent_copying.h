@@ -121,7 +121,7 @@ class ConcurrentCopying : public GarbageCollector {
   void VerifyNoFromSpaceReferences() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   accounting::ObjectStack* GetAllocationStack();
   accounting::ObjectStack* GetLiveStack();
-  void ProcessMarkStack() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual void ProcessMarkStack() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool ProcessMarkStackOnce() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void ProcessMarkStackRef(mirror::Object* to_ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   size_t ProcessThreadLocalMarkStacks(bool disable_weak_ref_access)
