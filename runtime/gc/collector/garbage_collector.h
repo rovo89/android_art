@@ -17,6 +17,9 @@
 #ifndef ART_RUNTIME_GC_COLLECTOR_GARBAGE_COLLECTOR_H_
 #define ART_RUNTIME_GC_COLLECTOR_GARBAGE_COLLECTOR_H_
 
+#include <stdint.h>
+#include <vector>
+
 #include "base/histogram.h"
 #include "base/mutex.h"
 #include "base/timing_logger.h"
@@ -24,10 +27,16 @@
 #include "gc/gc_cause.h"
 #include "gc_root.h"
 #include "gc_type.h"
-#include <stdint.h>
-#include <vector>
+#include "object_callbacks.h"
 
 namespace art {
+
+namespace mirror {
+class Class;
+class Object;
+class Reference;
+}  // namespace mirror
+
 namespace gc {
 
 class Heap;
@@ -113,7 +122,7 @@ class Iteration {
   DISALLOW_COPY_AND_ASSIGN(Iteration);
 };
 
-class GarbageCollector : public RootVisitor {
+class GarbageCollector : public RootVisitor, public IsMarkedVisitor, public MarkObjectVisitor {
  public:
   class SCOPED_LOCKABLE ScopedPause {
    public:
@@ -171,6 +180,22 @@ class GarbageCollector : public RootVisitor {
   // Record a free of large objects.
   void RecordFreeLOS(const ObjectBytePair& freed);
   void DumpPerformanceInfo(std::ostream& os) LOCKS_EXCLUDED(pause_histogram_lock_);
+
+  // Helper functions for querying if objects are marked at compile time. These are used for
+  // reading system weaks, processing references.
+  virtual mirror::Object* IsMarked(mirror::Object* obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
+  virtual bool IsMarkedHeapReference(mirror::HeapReference<mirror::Object>* obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
+  // Used by reference processor.
+  virtual void ProcessMarkStack() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
+  // Force mark an object.
+  virtual mirror::Object* MarkObject(mirror::Object* obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
+  virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>* obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
+  virtual void DelayReferenceReferent(mirror::Class* klass, mirror::Reference* reference)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
 
  protected:
   // Run all of the GC phases.

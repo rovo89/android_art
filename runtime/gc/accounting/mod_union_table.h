@@ -76,7 +76,7 @@ class ModUnionTable {
   // Update the mod-union table using data stored by ClearCards. There may be multiple ClearCards
   // before a call to update, for example, back-to-back sticky GCs. Also mark references to other
   // spaces which are stored in the mod-union table.
-  virtual void UpdateAndMarkReferences(MarkHeapReferenceCallback* callback, void* arg) = 0;
+  virtual void UpdateAndMarkReferences(MarkObjectVisitor* visitor) = 0;
 
   // Verification, sanity checks that we don't have clean cards which conflict with out cached data
   // for said cards. Exclusive lock is required since verify sometimes uses
@@ -117,7 +117,7 @@ class ModUnionTableReferenceCache : public ModUnionTable {
   void ClearCards() OVERRIDE;
 
   // Update table based on cleared cards and mark all references to the other spaces.
-  void UpdateAndMarkReferences(MarkHeapReferenceCallback* callback, void* arg) OVERRIDE
+  void UpdateAndMarkReferences(MarkObjectVisitor* visitor) OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
@@ -157,7 +157,7 @@ class ModUnionTableCardCache : public ModUnionTable {
   virtual void ClearCards() OVERRIDE;
 
   // Mark all references to the alloc space(s).
-  virtual void UpdateAndMarkReferences(MarkHeapReferenceCallback* callback, void* arg) OVERRIDE
+  virtual void UpdateAndMarkReferences(MarkObjectVisitor* visitor) OVERRIDE
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

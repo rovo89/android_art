@@ -170,18 +170,9 @@ class MarkSweep : public GarbageCollector {
 
   // Verify that an object is live, either in a live bitmap or in the allocation stack.
   void VerifyIsLive(const mirror::Object* obj)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
-  static mirror::Object* MarkObjectCallback(mirror::Object* obj, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
-  static void MarkHeapReferenceCallback(mirror::HeapReference<mirror::Object>* ref, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
-  static bool HeapReferenceMarkedCallback(mirror::HeapReference<mirror::Object>* ref, void* arg)
+  virtual bool IsMarkedHeapReference(mirror::HeapReference<mirror::Object>* ref) OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
@@ -194,13 +185,14 @@ class MarkSweep : public GarbageCollector {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  static void ProcessMarkStackCallback(void* arg)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   // Marks an object.
-  void MarkObject(mirror::Object* obj, mirror::Object* holder = nullptr,
-                  MemberOffset offset = MemberOffset(0))
+  virtual mirror::Object* MarkObject(mirror::Object* obj) OVERRIDE
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  void MarkObject(mirror::Object* obj, mirror::Object* holder, MemberOffset offset)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>* ref) OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
@@ -214,14 +206,8 @@ class MarkSweep : public GarbageCollector {
 
  protected:
   // Returns true if the object has its bit set in the mark bitmap.
-  bool IsMarked(const mirror::Object* object) const
+  virtual mirror::Object* IsMarked(mirror::Object* object) OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
-  static mirror::Object* IsMarkedCallback(mirror::Object* object, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
-  static void VerifyImageRootVisitor(mirror::Object* root, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   void MarkObjectNonNull(mirror::Object* obj, mirror::Object* holder = nullptr,
                          MemberOffset offset = MemberOffset(0))
@@ -233,7 +219,7 @@ class MarkSweep : public GarbageCollector {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns true if we need to add obj to a mark stack.
-  bool MarkObjectParallel(const mirror::Object* obj) NO_THREAD_SAFETY_ANALYSIS;
+  bool MarkObjectParallel(mirror::Object* obj) NO_THREAD_SAFETY_ANALYSIS;
 
   // Verify the roots of the heap and print out information related to any invalid roots.
   // Called in MarkObject, so may we may not hold the mutator lock.
@@ -257,6 +243,11 @@ class MarkSweep : public GarbageCollector {
   void ScanGrayObjects(bool paused, uint8_t minimum_age)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  virtual void ProcessMarkStack() OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    ProcessMarkStack(false);
+  }
 
   // Recursively blackens objects on the mark stack.
   void ProcessMarkStack(bool paused)

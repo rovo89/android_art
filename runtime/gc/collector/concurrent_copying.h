@@ -130,18 +130,16 @@ class ConcurrentCopying : public GarbageCollector {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SwitchToSharedMarkStackMode() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SwitchToGcExclusiveMarkStackMode() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void DelayReferenceReferent(mirror::Class* klass, mirror::Reference* reference)
+  virtual void DelayReferenceReferent(mirror::Class* klass, mirror::Reference* reference) OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void ProcessReferences(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::Object* IsMarked(mirror::Object* from_ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static mirror::Object* MarkCallback(mirror::Object* from_ref, void* arg)
+  virtual mirror::Object* MarkObject(mirror::Object* from_ref) OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static mirror::Object* IsMarkedCallback(mirror::Object* from_ref, void* arg)
+  virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>* from_ref) OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static bool IsHeapReferenceMarkedCallback(
-      mirror::HeapReference<mirror::Object>* field, void* arg)
+  virtual mirror::Object* IsMarked(mirror::Object* from_ref) OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void ProcessMarkStackCallback(void* arg)
+  virtual bool IsMarkedHeapReference(mirror::HeapReference<mirror::Object>* field) OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SweepSystemWeaks(Thread* self)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
