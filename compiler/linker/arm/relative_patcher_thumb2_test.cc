@@ -242,8 +242,10 @@ TEST_F(Thumb2RelativePatcherTest, CallOtherAlmostTooFarAfter) {
   };
 
   constexpr uint32_t max_positive_disp = 16 * MB - 2u + 4u /* PC adjustment */;
-  bool thunk_in_gap = Create2MethodsWithGap(method1_code, method1_patches,
-                                            kNopCode, ArrayRef<const LinkerPatch>(),
+  bool thunk_in_gap = Create2MethodsWithGap(method1_code,
+                                            ArrayRef<const LinkerPatch>(method1_patches),
+                                            kNopCode,
+                                            ArrayRef<const LinkerPatch>(),
                                             bl_offset_in_method1 + max_positive_disp);
   ASSERT_FALSE(thunk_in_gap);  // There should be no thunk.
 
@@ -262,8 +264,10 @@ TEST_F(Thumb2RelativePatcherTest, CallOtherAlmostTooFarBefore) {
   };
 
   constexpr uint32_t just_over_max_negative_disp = 16 * MB - 4u /* PC adjustment */;
-  bool thunk_in_gap = Create2MethodsWithGap(kNopCode, ArrayRef<const LinkerPatch>(),
-                                            method3_code, method3_patches,
+  bool thunk_in_gap = Create2MethodsWithGap(kNopCode,
+                                            ArrayRef<const LinkerPatch>(),
+                                            method3_code,
+                                            ArrayRef<const LinkerPatch>(method3_patches),
                                             just_over_max_negative_disp - bl_offset_in_method3);
   ASSERT_FALSE(thunk_in_gap);  // There should be no thunk.
 
@@ -282,8 +286,10 @@ TEST_F(Thumb2RelativePatcherTest, CallOtherJustTooFarAfter) {
   };
 
   constexpr uint32_t just_over_max_positive_disp = 16 * MB + 4u /* PC adjustment */;
-  bool thunk_in_gap = Create2MethodsWithGap(method1_code, method1_patches,
-                                            kNopCode, ArrayRef<const LinkerPatch>(),
+  bool thunk_in_gap = Create2MethodsWithGap(method1_code,
+                                            ArrayRef<const LinkerPatch>(method1_patches),
+                                            kNopCode,
+                                            ArrayRef<const LinkerPatch>(),
                                             bl_offset_in_method1 + just_over_max_positive_disp);
   ASSERT_TRUE(thunk_in_gap);
 
@@ -311,8 +317,10 @@ TEST_F(Thumb2RelativePatcherTest, CallOtherJustTooFarBefore) {
   };
 
   constexpr uint32_t just_over_max_negative_disp = 16 * MB + 2 - 4u /* PC adjustment */;
-  bool thunk_in_gap = Create2MethodsWithGap(kNopCode, ArrayRef<const LinkerPatch>(),
-                                            method3_code, method3_patches,
+  bool thunk_in_gap = Create2MethodsWithGap(kNopCode,
+                                            ArrayRef<const LinkerPatch>(),
+                                            method3_code,
+                                            ArrayRef<const LinkerPatch>(method3_patches),
                                             just_over_max_negative_disp - bl_offset_in_method3);
   ASSERT_FALSE(thunk_in_gap);  // There should be a thunk but it should be after the method2.
 
