@@ -583,24 +583,20 @@ static const RegType& SelectNonConstant(const RegType& a, const RegType& b) {
 
 const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_types) const {
   DCHECK(!Equals(incoming_type));  // Trivial equality handled by caller
-  // Perform pointer equality tests for conflict to avoid virtual method dispatch.
+  // Perform pointer equality tests for undefined and conflict to avoid virtual method dispatch.
+  const UndefinedType& undefined = reg_types->Undefined();
   const ConflictType& conflict = reg_types->Conflict();
-  if (IsUndefined() || incoming_type.IsUndefined()) {
+  DCHECK_EQ(this == &undefined, IsUndefined());
+  DCHECK_EQ(&incoming_type == &undefined, incoming_type.IsUndefined());
+  DCHECK_EQ(this == &conflict, IsConflict());
+  DCHECK_EQ(&incoming_type == &conflict, incoming_type.IsConflict());
+  if (this == &undefined || &incoming_type == &undefined) {
     // There is a difference between undefined and conflict. Conflicts may be copied around, but
     // not used. Undefined registers must not be copied. So any merge with undefined should return
     // undefined.
-    if (IsUndefined()) {
-      return *this;
-    }
-    return incoming_type;
-  } else if (this == &conflict) {
-    DCHECK(IsConflict());
-    return *this;  // Conflict MERGE * => Conflict
-  } else if (&incoming_type == &conflict) {
-    DCHECK(incoming_type.IsConflict());
-    return incoming_type;  // * MERGE Conflict => Conflict
-  } else if (IsUndefined() || incoming_type.IsUndefined()) {
-    return conflict;  // Unknown MERGE * => Conflict
+    return undefined;
+  } else if (this == &conflict || &incoming_type == &conflict) {
+    return conflict;  // (Conflict MERGE *) or (* MERGE Conflict) => Conflict
   } else if (IsConstant() && incoming_type.IsConstant()) {
     const ConstantType& type1 = *down_cast<const ConstantType*>(this);
     const ConstantType& type2 = *down_cast<const ConstantType*>(&incoming_type);
