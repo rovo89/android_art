@@ -119,9 +119,6 @@ public class Main {
   /// CHECK-DAG:     <<Cond:z\d+>>     LessThan [<<ParamX>>,<<ParamY>>]
   /// CHECK-DAG:                       Return [<<Cond>>]
 
-  /// CHECK-START: boolean Main.LessThan(int, int) boolean_simplifier (after)
-  /// CHECK-NOT:                       GreaterThanOrEqual
-
   public static boolean LessThan(int x, int y) {
     return (x < y) ? true : false;
   }
