@@ -26,15 +26,15 @@ MACRO2(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME, got_reg, temp_reg)
     PUSH edi  // Save callee saves (ebx is saved/restored by the upcall)
     PUSH esi
     PUSH ebp
-    subl  MACRO_LITERAL(12), %esp  // Grow stack by 3 words.
+    subl MACRO_LITERAL(12), %esp  // Grow stack by 3 words.
     CFI_ADJUST_CFA_OFFSET(12)
-    SETUP_GOT_NOSAVE RAW_VAR(got_reg, 0)
+    SETUP_GOT_NOSAVE RAW_VAR(got_reg)
     // Load Runtime::instance_ from GOT.
-    movl SYMBOL(_ZN3art7Runtime9instance_E)@GOT(REG_VAR(got_reg, 0)), REG_VAR(temp_reg, 1)
-    movl (REG_VAR(temp_reg, 1)), REG_VAR(temp_reg, 1)
+    movl SYMBOL(_ZN3art7Runtime9instance_E)@GOT(REG_VAR(got_reg)), REG_VAR(temp_reg)
+    movl (REG_VAR(temp_reg)), REG_VAR(temp_reg)
     // Push save all callee-save method.
     THIS_LOAD_REQUIRES_READ_BARRIER
-    pushl RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET(REG_VAR(temp_reg, 1))
+    pushl RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET(REG_VAR(temp_reg))
     CFI_ADJUST_CFA_OFFSET(4)
     // Store esp as the top quick frame.
     movl %esp, %fs:THREAD_TOP_QUICK_FRAME_OFFSET
@@ -53,15 +53,15 @@ MACRO2(SETUP_REFS_ONLY_CALLEE_SAVE_FRAME, got_reg, temp_reg)
     PUSH edi  // Save callee saves (ebx is saved/restored by the upcall)
     PUSH esi
     PUSH ebp
-    subl  MACRO_LITERAL(12), %esp  // Grow stack by 3 words.
+    subl MACRO_LITERAL(12), %esp  // Grow stack by 3 words.
     CFI_ADJUST_CFA_OFFSET(12)
-    SETUP_GOT_NOSAVE VAR(got_reg, 0)
+    SETUP_GOT_NOSAVE RAW_VAR(got_reg)
     // Load Runtime::instance_ from GOT.
-    movl SYMBOL(_ZN3art7Runtime9instance_E)@GOT(REG_VAR(got_reg, 0)), REG_VAR(temp_reg, 1)
-    movl (REG_VAR(temp_reg, 1)), REG_VAR(temp_reg, 1)
+    movl SYMBOL(_ZN3art7Runtime9instance_E)@GOT(REG_VAR(got_reg)), REG_VAR(temp_reg)
+    movl (REG_VAR(temp_reg)), REG_VAR(temp_reg)
     // Push save all callee-save method.
     THIS_LOAD_REQUIRES_READ_BARRIER
-    pushl RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET(REG_VAR(temp_reg, 1))
+    pushl RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET(REG_VAR(temp_reg))
     CFI_ADJUST_CFA_OFFSET(4)
     // Store esp as the top quick frame.
     movl %esp, %fs:THREAD_TOP_QUICK_FRAME_OFFSET
@@ -101,13 +101,13 @@ MACRO2(SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME, got_reg, temp_reg)
     movsd %xmm2, 16(%esp)
     movsd %xmm3, 24(%esp)
 
-    SETUP_GOT_NOSAVE VAR(got_reg, 0)
+    SETUP_GOT_NOSAVE RAW_VAR(got_reg)
     // Load Runtime::instance_ from GOT.
-    movl SYMBOL(_ZN3art7Runtime9instance_E)@GOT(REG_VAR(got_reg, 0)), REG_VAR(temp_reg, 1)
-    movl (REG_VAR(temp_reg, 1)), REG_VAR(temp_reg, 1)
+    movl SYMBOL(_ZN3art7Runtime9instance_E)@GOT(REG_VAR(got_reg)), REG_VAR(temp_reg)
+    movl (REG_VAR(temp_reg)), REG_VAR(temp_reg)
     // Push save all callee-save method.
     THIS_LOAD_REQUIRES_READ_BARRIER
-    pushl RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET(REG_VAR(temp_reg, 1))
+    pushl RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET(REG_VAR(temp_reg))
     CFI_ADJUST_CFA_OFFSET(4)
     // Store esp as the stop quick frame.
     movl %esp, %fs:THREAD_TOP_QUICK_FRAME_OFFSET
@@ -157,10 +157,10 @@ MACRO0(RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME)
     addl MACRO_LITERAL(36), %esp  // Remove FPRs and EAX.
     CFI_ADJUST_CFA_OFFSET(-36)
 
-    POP ecx  // Restore args except eax
+    POP ecx                       // Restore args except eax
     POP edx
     POP ebx
-    POP ebp  // Restore callee saves
+    POP ebp                       // Restore callee saves
     POP esi
     POP edi
 END_MACRO
@@ -196,54 +196,54 @@ END_MACRO
 MACRO0(DELIVER_PENDING_EXCEPTION)
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME ebx, ebx  // save callee saves for throw
     // Outgoing argument set up
-    subl  MACRO_LITERAL(12), %esp              // Alignment padding
+    subl MACRO_LITERAL(12), %esp              // Alignment padding
     CFI_ADJUST_CFA_OFFSET(12)
     pushl %fs:THREAD_SELF_OFFSET               // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
     call SYMBOL(artDeliverPendingExceptionFromCode)  // artDeliverPendingExceptionFromCode(Thread*)
-    int3                                       // unreached
+    UNREACHABLE
 END_MACRO
 
 MACRO2(NO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
-    DEFINE_FUNCTION RAW_VAR(c_name, 0)
+    DEFINE_FUNCTION VAR(c_name)
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  ebx, ebx  // save all registers as basis for long jump context
     // Outgoing argument set up
-    subl  MACRO_LITERAL(12), %esp  // alignment padding
+    subl MACRO_LITERAL(12), %esp                // alignment padding
     CFI_ADJUST_CFA_OFFSET(12)
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %fs:THREAD_SELF_OFFSET                // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
-    call VAR(cxx_name, 1)         // cxx_name(Thread*)
-    int3                          // unreached
-    END_FUNCTION RAW_VAR(c_name, 0)
+    call CALLVAR(cxx_name)                      // cxx_name(Thread*)
+    UNREACHABLE
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO2(ONE_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
-    DEFINE_FUNCTION RAW_VAR(c_name, 0)
+    DEFINE_FUNCTION VAR(c_name)
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME ebx, ebx  // save all registers as basis for long jump context
     mov %esp, %ecx
     // Outgoing argument set up
-    subl  MACRO_LITERAL(8), %esp  // alignment padding
+    subl MACRO_LITERAL(8), %esp               // alignment padding
     CFI_ADJUST_CFA_OFFSET(8)
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %fs:THREAD_SELF_OFFSET               // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
-    PUSH eax                      // pass arg1
-    call VAR(cxx_name, 1)         // cxx_name(arg1, Thread*)
-    int3                          // unreached
-    END_FUNCTION RAW_VAR(c_name, 0)
+    PUSH eax                                   // pass arg1
+    call CALLVAR(cxx_name)                     // cxx_name(arg1, Thread*)
+    UNREACHABLE
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO2(TWO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
-    DEFINE_FUNCTION RAW_VAR(c_name, 0)
+    DEFINE_FUNCTION VAR(c_name)
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME ebx, ebx  // save all registers as basis for long jump context
     // Outgoing argument set up
-    PUSH eax                      // alignment padding
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    PUSH eax                                   // alignment padding
+    pushl %fs:THREAD_SELF_OFFSET               // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
-    PUSH ecx                      // pass arg2
-    PUSH eax                      // pass arg1
-    call VAR(cxx_name, 1)         // cxx_name(arg1, arg2, Thread*)
-    int3                          // unreached
-    END_FUNCTION RAW_VAR(c_name, 0)
+    PUSH ecx                                   // pass arg2
+    PUSH eax                                   // pass arg1
+    call CALLVAR(cxx_name)                     // cxx_name(arg1, arg2, Thread*)
+    UNREACHABLE
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
     /*
@@ -303,7 +303,7 @@ MACRO1(INVOKE_TRAMPOLINE_BODY, cxx_name)
     CFI_ADJUST_CFA_OFFSET(4)
     PUSH ecx                      // pass arg2
     PUSH eax                      // pass arg1
-    call VAR(cxx_name, 0)         // cxx_name(arg1, arg2, arg3, Thread*, SP)
+    call CALLVAR(cxx_name)        // cxx_name(arg1, arg2, Thread*, SP)
     movl %edx, %edi               // save code pointer in EDI
     addl MACRO_LITERAL(20), %esp  // Pop arguments skip eax
     CFI_ADJUST_CFA_OFFSET(-20)
@@ -335,9 +335,9 @@ MACRO1(INVOKE_TRAMPOLINE_BODY, cxx_name)
     DELIVER_PENDING_EXCEPTION
 END_MACRO
 MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
-    DEFINE_FUNCTION RAW_VAR(c_name, 0)
-    INVOKE_TRAMPOLINE_BODY RAW_VAR(cxx_name, 1)
-    END_FUNCTION RAW_VAR(c_name, 0)
+    DEFINE_FUNCTION VAR(c_name)
+    INVOKE_TRAMPOLINE_BODY RAW_VAR(cxx_name)
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
 INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline_with_access_check, artInvokeInterfaceTrampolineWithAccessCheck
@@ -354,27 +354,27 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
      */
 MACRO5(LOOP_OVER_SHORTY_LOADING_XMMS, xmm_reg, shorty, arg_array, temp_char, finished)
 1: // LOOP
-    movb (REG_VAR(shorty, 1)), REG_VAR(temp_char, 3)  // temp_char := *shorty
-    addl MACRO_LITERAL(1), REG_VAR(shorty, 1)         // shorty++
-    cmpb MACRO_LITERAL(0), REG_VAR(temp_char, 3)      // if (temp_char == '\0')
-    je RAW_VAR(finished, 4)                           //   goto finished
-    cmpb MACRO_LITERAL(68), REG_VAR(temp_char, 3)     // if (temp_char == 'D')
-    je 2f                                             //   goto FOUND_DOUBLE
-    cmpb MACRO_LITERAL(70), REG_VAR(temp_char, 3)     // if (temp_char == 'F')
-    je 3f                                             //   goto FOUND_FLOAT
-    addl MACRO_LITERAL(4), REG_VAR(arg_array, 2)      // arg_array++
+    movb (REG_VAR(shorty)), REG_VAR(temp_char)     // temp_char := *shorty
+    addl MACRO_LITERAL(1), REG_VAR(shorty)         // shorty++
+    cmpb MACRO_LITERAL(0), REG_VAR(temp_char)      // if (temp_char == '\0')
+    je VAR(finished)                               //   goto finished
+    cmpb MACRO_LITERAL(68), REG_VAR(temp_char)     // if (temp_char == 'D')
+    je 2f                                          //   goto FOUND_DOUBLE
+    cmpb MACRO_LITERAL(70), REG_VAR(temp_char)     // if (temp_char == 'F')
+    je 3f                                          //   goto FOUND_FLOAT
+    addl MACRO_LITERAL(4), REG_VAR(arg_array)      // arg_array++
     //  Handle extra space in arg array taken by a long.
-    cmpb MACRO_LITERAL(74), REG_VAR(temp_char, 3)     // if (temp_char != 'J')
-    jne 1b                                            //   goto LOOP
-    addl MACRO_LITERAL(4), REG_VAR(arg_array, 2)      // arg_array++
-    jmp 1b                                            // goto LOOP
+    cmpb MACRO_LITERAL(74), REG_VAR(temp_char)     // if (temp_char != 'J')
+    jne 1b                                         //   goto LOOP
+    addl MACRO_LITERAL(4), REG_VAR(arg_array)      // arg_array++
+    jmp 1b                                         // goto LOOP
 2:  // FOUND_DOUBLE
-    movsd (REG_VAR(arg_array, 2)), REG_VAR(xmm_reg, 0)
-    addl MACRO_LITERAL(8), REG_VAR(arg_array, 2)      // arg_array+=2
+    movsd (REG_VAR(arg_array)), REG_VAR(xmm_reg)
+    addl MACRO_LITERAL(8), REG_VAR(arg_array)      // arg_array+=2
     jmp 4f
 3:  // FOUND_FLOAT
-    movss (REG_VAR(arg_array, 2)), REG_VAR(xmm_reg, 0)
-    addl MACRO_LITERAL(4), REG_VAR(arg_array, 2)      // arg_array++
+    movss (REG_VAR(arg_array)), REG_VAR(xmm_reg)
+    addl MACRO_LITERAL(4), REG_VAR(arg_array)      // arg_array++
 4:
 END_MACRO
 
@@ -385,21 +385,21 @@ END_MACRO
      */
 MACRO4(SKIP_OVER_FLOATS, shorty, arg_array, temp_char, finished)
 1: // LOOP:
-    movb (REG_VAR(shorty, 0)), REG_VAR(temp_char, 2)  // temp_char := *shorty
-    addl MACRO_LITERAL(1), REG_VAR(shorty, 0)         // shorty++
-    cmpb MACRO_LITERAL(0), REG_VAR(temp_char, 2)      // if (temp_char == '\0')
-    je RAW_VAR(finished, 3)                           //   goto finished
-    cmpb MACRO_LITERAL(70), REG_VAR(temp_char, 2)     // if (temp_char == 'F')
-    je 3f                                             //   goto SKIP_FLOAT
-    cmpb MACRO_LITERAL(68), REG_VAR(temp_char, 2)     // if (temp_char == 'D')
-    je 4f                                             //   goto SKIP_DOUBLE
-    jmp 5f                                            // goto end
+    movb (REG_VAR(shorty)), REG_VAR(temp_char)     // temp_char := *shorty
+    addl MACRO_LITERAL(1), REG_VAR(shorty)         // shorty++
+    cmpb MACRO_LITERAL(0), REG_VAR(temp_char)      // if (temp_char == '\0')
+    je VAR(finished)                               //   goto finished
+    cmpb MACRO_LITERAL(70), REG_VAR(temp_char)     // if (temp_char == 'F')
+    je 3f                                          //   goto SKIP_FLOAT
+    cmpb MACRO_LITERAL(68), REG_VAR(temp_char)     // if (temp_char == 'D')
+    je 4f                                          //   goto SKIP_DOUBLE
+    jmp 5f                                         // goto end
 3:  // SKIP_FLOAT
-    addl MACRO_LITERAL(4), REG_VAR(arg_array, 1)      // arg_array++
-    jmp 1b                                            // goto LOOP
+    addl MACRO_LITERAL(4), REG_VAR(arg_array)      // arg_array++
+    jmp 1b                                         // goto LOOP
 4:  // SKIP_DOUBLE
-    addl MACRO_LITERAL(8), REG_VAR(arg_array, 1)      // arg_array+=2
-    jmp 1b                                            // goto LOOP
+    addl MACRO_LITERAL(8), REG_VAR(arg_array)      // arg_array+=2
+    jmp 1b                                         // goto LOOP
 5:
 END_MACRO
 
@@ -619,147 +619,148 @@ DEFINE_FUNCTION art_quick_invoke_static_stub
 END_FUNCTION art_quick_invoke_static_stub
 
 MACRO3(NO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION RAW_VAR(c_name, 0)
+    DEFINE_FUNCTION VAR(c_name)
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME ebx, ebx  // save ref containing registers for GC
     // Outgoing argument set up
-    subl MACRO_LITERAL(12), %esp  // push padding
+    subl MACRO_LITERAL(12), %esp                // push padding
     CFI_ADJUST_CFA_OFFSET(12)
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %fs:THREAD_SELF_OFFSET                // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
-    call VAR(cxx_name, 1)         // cxx_name(Thread*)
-    addl MACRO_LITERAL(16), %esp  // pop arguments
+    call CALLVAR(cxx_name)                      // cxx_name(Thread*)
+    addl MACRO_LITERAL(16), %esp                // pop arguments
     CFI_ADJUST_CFA_OFFSET(-16)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    CALL_MACRO(return_macro, 2)   // return or deliver exception
-    END_FUNCTION RAW_VAR(c_name, 0)
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME         // restore frame up to return address
+    CALL_MACRO(return_macro)                    // return or deliver exception
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO3(ONE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION RAW_VAR(c_name, 0)
+    DEFINE_FUNCTION VAR(c_name)
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  ebx, ebx  // save ref containing registers for GC
     // Outgoing argument set up
-    subl MACRO_LITERAL(8), %esp   // push padding
+    subl MACRO_LITERAL(8), %esp                  // push padding
     CFI_ADJUST_CFA_OFFSET(8)
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %fs:THREAD_SELF_OFFSET                 // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
-    PUSH eax                      // pass arg1
-    call VAR(cxx_name, 1)         // cxx_name(arg1, Thread*)
-    addl MACRO_LITERAL(16), %esp  // pop arguments
+    PUSH eax                                     // pass arg1
+    call CALLVAR(cxx_name)                       // cxx_name(arg1, Thread*)
+    addl MACRO_LITERAL(16), %esp                 // pop arguments
     CFI_ADJUST_CFA_OFFSET(-16)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    CALL_MACRO(return_macro, 2)   // return or deliver exception
-    END_FUNCTION RAW_VAR(c_name, 0)
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME          // restore frame up to return address
+    CALL_MACRO(return_macro)                     // return or deliver exception
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO3(TWO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION RAW_VAR(c_name, 0)
+    DEFINE_FUNCTION VAR(c_name)
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  ebx, ebx  // save ref containing registers for GC
     // Outgoing argument set up
-    PUSH eax                      // push padding
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    PUSH eax                                     // push padding
+    pushl %fs:THREAD_SELF_OFFSET                 // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
-    PUSH ecx                      // pass arg2
-    PUSH eax                      // pass arg1
-    call VAR(cxx_name, 1)         // cxx_name(arg1, arg2, Thread*)
-    addl MACRO_LITERAL(16), %esp  // pop arguments
+    PUSH ecx                                     // pass arg2
+    PUSH eax                                     // pass arg1
+    call CALLVAR(cxx_name)                       // cxx_name(arg1, arg2, Thread*)
+    addl MACRO_LITERAL(16), %esp                 // pop arguments
     CFI_ADJUST_CFA_OFFSET(-16)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    CALL_MACRO(return_macro, 2)   // return or deliver exception
-    END_FUNCTION RAW_VAR(c_name, 0)
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME          // restore frame up to return address
+    CALL_MACRO(return_macro)                     // return or deliver exception
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO3(THREE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION RAW_VAR(c_name, 0)
+    DEFINE_FUNCTION VAR(c_name)
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  ebx, ebx  // save ref containing registers for GC
     // Outgoing argument set up
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %fs:THREAD_SELF_OFFSET                 // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
-    PUSH edx                      // pass arg3
-    PUSH ecx                      // pass arg2
-    PUSH eax                      // pass arg1
-    call VAR(cxx_name, 1)         // cxx_name(arg1, arg2, arg3, Thread*)
-    addl MACRO_LITERAL(16), %esp  // pop arguments
+    PUSH edx                                     // pass arg3
+    PUSH ecx                                     // pass arg2
+    PUSH eax                                     // pass arg1
+    call CALLVAR(cxx_name)                       // cxx_name(arg1, arg2, arg3, Thread*)
+    addl MACRO_LITERAL(16), %esp                 // pop arguments
     CFI_ADJUST_CFA_OFFSET(-16)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    CALL_MACRO(return_macro, 2)   // return or deliver exception
-    END_FUNCTION RAW_VAR(c_name, 0)
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME          // restore frame up to return address
+    CALL_MACRO(return_macro)                     // return or deliver exception
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO3(FOUR_ARG_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION RAW_VAR(c_name, 0)
+    DEFINE_FUNCTION VAR(c_name)
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  ebx, ebx  // save ref containing registers for GC
     // Outgoing argument set up
-    subl MACRO_LITERAL(12), %esp  // alignment padding
+    subl MACRO_LITERAL(12), %esp                 // alignment padding
     CFI_ADJUST_CFA_OFFSET(12)
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %fs:THREAD_SELF_OFFSET                 // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
-    PUSH ebx                      // pass arg4
-    PUSH edx                      // pass arg3
-    PUSH ecx                      // pass arg2
-    PUSH eax                      // pass arg1
-    call VAR(cxx_name, 1)         // cxx_name(arg1, arg2, arg3, arg4, Thread*)
-    addl MACRO_LITERAL(32), %esp  // pop arguments
+    PUSH ebx                                     // pass arg4
+    PUSH edx                                     // pass arg3
+    PUSH ecx                                     // pass arg2
+    PUSH eax                                     // pass arg1
+    call CALLVAR(cxx_name)                       // cxx_name(arg1, arg2, arg3, arg4, Thread*)
+    addl MACRO_LITERAL(32), %esp                 // pop arguments
     CFI_ADJUST_CFA_OFFSET(-32)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    CALL_MACRO(return_macro, 2)   // return or deliver exception
-    END_FUNCTION RAW_VAR(c_name, 0)
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME          // restore frame up to return address
+    CALL_MACRO(return_macro)                     // return or deliver exception
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO3(ONE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION RAW_VAR(c_name, 0)
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  ebx, ebx // save ref containing registers for GC
+    DEFINE_FUNCTION VAR(c_name)
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  ebx, ebx       // save ref containing registers for GC
     // Outgoing argument set up
     mov FRAME_SIZE_REFS_ONLY_CALLEE_SAVE(%esp), %ecx  // get referrer
-    PUSH eax                      // push padding
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    PUSH eax                                          // push padding
+    pushl %fs:THREAD_SELF_OFFSET                      // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
-    PUSH ecx                      // pass referrer
-    PUSH eax                      // pass arg1
-    call VAR(cxx_name, 1)         // cxx_name(arg1, referrer, Thread*)
-    addl MACRO_LITERAL(16), %esp  // pop arguments
+    PUSH ecx                                          // pass referrer
+    PUSH eax                                          // pass arg1
+    call CALLVAR(cxx_name)                            // cxx_name(arg1, referrer, Thread*)
+    addl MACRO_LITERAL(16), %esp                      // pop arguments
     CFI_ADJUST_CFA_OFFSET(-16)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    CALL_MACRO(return_macro, 2)   // return or deliver exception
-    END_FUNCTION RAW_VAR(c_name, 0)
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME               // restore frame up to return address
+    CALL_MACRO(return_macro)                          // return or deliver exception
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO3(TWO_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION RAW_VAR(c_name, 0)
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME ebx, ebx // save ref containing registers for GC
+    DEFINE_FUNCTION VAR(c_name)
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME ebx, ebx        // save ref containing registers for GC
     // Outgoing argument set up
     mov FRAME_SIZE_REFS_ONLY_CALLEE_SAVE(%esp), %edx  // get referrer
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %fs:THREAD_SELF_OFFSET                      // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
-    PUSH edx                      // pass referrer
-    PUSH ecx                      // pass arg2
-    PUSH eax                      // pass arg1
-    call VAR(cxx_name, 1)         // cxx_name(arg1, arg2, referrer, Thread*)
-    addl MACRO_LITERAL(16), %esp  // pop arguments
+    PUSH edx                                          // pass referrer
+    PUSH ecx                                          // pass arg2
+    PUSH eax                                          // pass arg1
+    call CALLVAR(cxx_name)                            // cxx_name(arg1, arg2, referrer, Thread*)
+    addl MACRO_LITERAL(16), %esp                      // pop arguments
     CFI_ADJUST_CFA_OFFSET(-16)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    CALL_MACRO(return_macro, 2)   // return or deliver exception
-    END_FUNCTION RAW_VAR(c_name, 0)
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME               // restore frame up to return address
+    CALL_MACRO(return_macro)                          // return or deliver exception
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO3(THREE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION RAW_VAR(c_name, 0)
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME ebx, ebx  // save ref containing registers for GC
+    DEFINE_FUNCTION VAR(c_name)
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME ebx, ebx        // save ref containing registers for GC
     // Outgoing argument set up
     mov FRAME_SIZE_REFS_ONLY_CALLEE_SAVE(%esp), %ebx  // get referrer
-    subl MACRO_LITERAL(12), %esp  // alignment padding
+    subl MACRO_LITERAL(12), %esp                      // alignment padding
     CFI_ADJUST_CFA_OFFSET(12)
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %fs:THREAD_SELF_OFFSET                      // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
-    PUSH ebx                      // pass referrer
-    PUSH edx                      // pass arg3
-    PUSH ecx                      // pass arg2
-    PUSH eax                      // pass arg1
-    call VAR(cxx_name, 1)         // cxx_name(arg1, arg2, arg3, referrer, Thread*)
-    addl LITERAL(32), %esp        // pop arguments
+    PUSH ebx                                          // pass referrer
+    PUSH edx                                          // pass arg3
+    PUSH ecx                                          // pass arg2
+    PUSH eax                                          // pass arg1
+    call CALLVAR(cxx_name)                            // cxx_name(arg1, arg2, arg3, referrer,
+                                                      //          Thread*)
+    addl LITERAL(32), %esp                            // pop arguments
     CFI_ADJUST_CFA_OFFSET(-32)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
-    CALL_MACRO(return_macro, 2)   // return or deliver exception
-    END_FUNCTION RAW_VAR(c_name, 0)
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME               // restore frame up to return address
+    CALL_MACRO(return_macro)                          // return or deliver exception
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO0(RETURN_IF_RESULT_IS_NON_ZERO)
@@ -780,9 +781,9 @@ END_MACRO
 
 MACRO0(RETURN_OR_DELIVER_PENDING_EXCEPTION)
     cmpl MACRO_LITERAL(0),%fs:THREAD_EXCEPTION_OFFSET // exception field == 0 ?
-    jne 1f                         // if exception field != 0 goto 1
-    ret                            // return
-1:                                 // deliver exception on current thread
+    jne 1f                                            // if exception field != 0 goto 1
+    ret                                               // return
+1:                                                    // deliver exception on current thread
     DELIVER_PENDING_EXCEPTION
 END_MACRO
 
@@ -1020,15 +1021,15 @@ DEFINE_FUNCTION art_quick_lock_object
 .Lslow_lock:
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  ebx, ebx  // save ref containing registers for GC
     // Outgoing argument set up
-    subl LITERAL(8), %esp         // alignment padding
+    subl LITERAL(8), %esp                 // alignment padding
     CFI_ADJUST_CFA_OFFSET(8)
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %fs:THREAD_SELF_OFFSET          // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
-    PUSH eax                      // pass object
-    call SYMBOL(artLockObjectFromCode)  // artLockObjectFromCode(object, Thread*)
-    addl LITERAL(16), %esp  // pop arguments
+    PUSH eax                              // pass object
+    call SYMBOL(artLockObjectFromCode)    // artLockObjectFromCode(object, Thread*)
+    addl LITERAL(16), %esp                // pop arguments
     CFI_ADJUST_CFA_OFFSET(-16)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME   // restore frame up to return address
     RETURN_IF_EAX_ZERO
 END_FUNCTION art_quick_lock_object
 
@@ -1075,54 +1076,54 @@ DEFINE_FUNCTION art_quick_unlock_object
 .Lslow_unlock:
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  ebx, ebx  // save ref containing registers for GC
     // Outgoing argument set up
-    subl LITERAL(8), %esp         // alignment padding
+    subl LITERAL(8), %esp                 // alignment padding
     CFI_ADJUST_CFA_OFFSET(8)
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %fs:THREAD_SELF_OFFSET          // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
-    PUSH eax                      // pass object
+    PUSH eax                              // pass object
     call SYMBOL(artUnlockObjectFromCode)  // artUnlockObjectFromCode(object, Thread*)
-    addl LITERAL(16), %esp  // pop arguments
+    addl LITERAL(16), %esp                // pop arguments
     CFI_ADJUST_CFA_OFFSET(-16)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME   // restore frame up to return address
     RETURN_IF_EAX_ZERO
 END_FUNCTION art_quick_unlock_object
 
 DEFINE_FUNCTION art_quick_is_assignable
-    PUSH eax                     // alignment padding
-    PUSH ecx                     // pass arg2 - obj->klass
-    PUSH eax                     // pass arg1 - checked class
+    PUSH eax                              // alignment padding
+    PUSH ecx                              // pass arg2 - obj->klass
+    PUSH eax                              // pass arg1 - checked class
     call SYMBOL(artIsAssignableFromCode)  // (Class* klass, Class* ref_klass)
-    addl LITERAL(12), %esp        // pop arguments
+    addl LITERAL(12), %esp                // pop arguments
     CFI_ADJUST_CFA_OFFSET(-12)
     ret
 END_FUNCTION art_quick_is_assignable
 
 DEFINE_FUNCTION art_quick_check_cast
-    PUSH eax                     // alignment padding
-    PUSH ecx                     // pass arg2 - obj->klass
-    PUSH eax                     // pass arg1 - checked class
+    PUSH eax                              // alignment padding
+    PUSH ecx                              // pass arg2 - obj->klass
+    PUSH eax                              // pass arg1 - checked class
     call SYMBOL(artIsAssignableFromCode)  // (Class* klass, Class* ref_klass)
     testl %eax, %eax
-    jz 1f                         // jump forward if not assignable
-    addl LITERAL(12), %esp        // pop arguments
+    jz 1f                                 // jump forward if not assignable
+    addl LITERAL(12), %esp                // pop arguments
     CFI_ADJUST_CFA_OFFSET(-12)
     ret
 
-    CFI_ADJUST_CFA_OFFSET(12)     // Reset unwind info so following code unwinds.
+    CFI_ADJUST_CFA_OFFSET(12)             // Reset unwind info so following code unwinds.
 1:
-    POP eax                       // pop arguments
+    POP eax                               // pop arguments
     POP ecx
     addl LITERAL(4), %esp
     CFI_ADJUST_CFA_OFFSET(-4)
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  ebx, ebx  // save all registers as basis for long jump context
     // Outgoing argument set up
-    PUSH eax                      // alignment padding
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    PUSH eax                              // alignment padding
+    pushl %fs:THREAD_SELF_OFFSET          // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
-    PUSH ecx                      // pass arg2
-    PUSH eax                      // pass arg1
+    PUSH ecx                              // pass arg2
+    PUSH eax                              // pass arg1
     call SYMBOL(artThrowClassCastException) // (Class* a, Class* b, Thread*)
-    int3                          // unreached
+    UNREACHABLE
 END_FUNCTION art_quick_check_cast
 
     /*
@@ -1174,10 +1175,10 @@ DEFINE_FUNCTION art_quick_aput_obj
     movl %edx, MIRROR_OBJECT_ARRAY_DATA_OFFSET(%eax, %ecx, 4)
     ret
 .Lcheck_assignability:
-    PUSH eax                     // save arguments
+    PUSH eax                      // save arguments
     PUSH ecx
     PUSH edx
-    subl LITERAL(8), %esp        // alignment padding
+    subl LITERAL(8), %esp         // alignment padding
     CFI_ADJUST_CFA_OFFSET(8)
 #ifdef USE_HEAP_POISONING
     movl MIRROR_OBJECT_CLASS_OFFSET(%edx), %eax  // pass arg2 - type of the value to be stored
@@ -1215,7 +1216,7 @@ DEFINE_FUNCTION art_quick_aput_obj
     PUSH edx                      // pass arg2 - value
     PUSH eax                      // pass arg1 - array
     call SYMBOL(artThrowArrayStoreException) // (array, value, Thread*)
-    int3                          // unreached
+    UNREACHABLE
 END_FUNCTION art_quick_aput_obj
 
 DEFINE_FUNCTION art_quick_memcpy
@@ -1252,37 +1253,37 @@ DEFINE_FUNCTION art_quick_f2l
 END_FUNCTION art_quick_f2l
 
 DEFINE_FUNCTION art_quick_ldiv
-    subl LITERAL(12), %esp       // alignment padding
+    subl LITERAL(12), %esp        // alignment padding
     CFI_ADJUST_CFA_OFFSET(12)
-    PUSH ebx                     // pass arg4 b.hi
-    PUSH edx                     // pass arg3 b.lo
-    PUSH ecx                     // pass arg2 a.hi
-    PUSH eax                     // pass arg1 a.lo
-    call SYMBOL(artLdiv)     // (jlong a, jlong b)
-    addl LITERAL(28), %esp       // pop arguments
+    PUSH ebx                      // pass arg4 b.hi
+    PUSH edx                      // pass arg3 b.lo
+    PUSH ecx                      // pass arg2 a.hi
+    PUSH eax                      // pass arg1 a.lo
+    call SYMBOL(artLdiv)          // (jlong a, jlong b)
+    addl LITERAL(28), %esp        // pop arguments
     CFI_ADJUST_CFA_OFFSET(-28)
     ret
 END_FUNCTION art_quick_ldiv
 
 DEFINE_FUNCTION art_quick_lmod
-    subl LITERAL(12), %esp       // alignment padding
+    subl LITERAL(12), %esp        // alignment padding
     CFI_ADJUST_CFA_OFFSET(12)
-    PUSH ebx                     // pass arg4 b.hi
-    PUSH edx                     // pass arg3 b.lo
-    PUSH ecx                     // pass arg2 a.hi
-    PUSH eax                     // pass arg1 a.lo
-    call SYMBOL(artLmod)     // (jlong a, jlong b)
-    addl LITERAL(28), %esp       // pop arguments
+    PUSH ebx                      // pass arg4 b.hi
+    PUSH edx                      // pass arg3 b.lo
+    PUSH ecx                      // pass arg2 a.hi
+    PUSH eax                      // pass arg1 a.lo
+    call SYMBOL(artLmod)          // (jlong a, jlong b)
+    addl LITERAL(28), %esp        // pop arguments
     CFI_ADJUST_CFA_OFFSET(-28)
     ret
 END_FUNCTION art_quick_lmod
 
 DEFINE_FUNCTION art_quick_lmul
-    imul %eax, %ebx              // ebx = a.lo(eax) * b.hi(ebx)
-    imul %edx, %ecx              // ecx = b.lo(edx) * a.hi(ecx)
-    mul  %edx                    // edx:eax = a.lo(eax) * b.lo(edx)
+    imul %eax, %ebx               // ebx = a.lo(eax) * b.hi(ebx)
+    imul %edx, %ecx               // ecx = b.lo(edx) * a.hi(ecx)
+    mul  %edx                     // edx:eax = a.lo(eax) * b.lo(edx)
     add  %ebx, %ecx
-    add  %ecx, %edx              // edx += (a.lo * b.hi) + (b.lo * a.hi)
+    add  %ecx, %edx               // edx += (a.lo * b.hi) + (b.lo * a.hi)
     ret
 END_FUNCTION art_quick_lmul
 
@@ -1442,7 +1443,7 @@ END_FUNCTION art_quick_resolution_trampoline
 
 DEFINE_FUNCTION art_quick_generic_jni_trampoline
     SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_WITH_METHOD_IN_EAX
-    movl %esp, %ebp                 // save SP at callee-save frame
+    movl %esp, %ebp               // save SP at callee-save frame
     CFI_DEF_CFA_REGISTER(ebp)
     subl LITERAL(5120), %esp
     // prepare for artQuickGenericJniTrampoline call
@@ -1477,7 +1478,7 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     //  (esp)    4(esp)  12(esp)    <= C calling convention
     //  fs:...  eax:edx   fp0      <= where they are
 
-    subl LITERAL(20), %esp         // Padding & pass float result.
+    subl LITERAL(20), %esp        // Padding & pass float result.
     fstpl (%esp)
     pushl %edx                    // Pass int result.
     pushl %eax
@@ -1500,7 +1501,7 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     CFI_ADJUST_CFA_OFFSET(-(4 + 4 * 8))
 
     POP ecx
-    addl LITERAL(4), %esp     // Avoid edx, as it may be part of the result.
+    addl LITERAL(4), %esp         // Avoid edx, as it may be part of the result.
     CFI_ADJUST_CFA_OFFSET(-4)
     POP ebx
     POP ebp  // Restore callee saves
@@ -1539,7 +1540,7 @@ DEFINE_FUNCTION art_quick_to_interpreter_bridge
     addl LITERAL(48), %esp        // Remove FPRs and EAX, ECX, EDX, EBX.
     CFI_ADJUST_CFA_OFFSET(-48)
 
-    POP ebp  // Restore callee saves
+    POP ebp                       // Restore callee saves
     POP esi
     POP edi
 
@@ -1636,7 +1637,7 @@ SYMBOL(art_quick_deoptimize_from_compiled_slow_path):
     pushl %fs:THREAD_SELF_OFFSET  // Pass Thread::Current().
     CFI_ADJUST_CFA_OFFSET(4)
     call SYMBOL(artDeoptimize)    // artDeoptimize(Thread*)
-    int3                          // Unreachable.
+    UNREACHABLE
 END_FUNCTION art_quick_deoptimize
 
     /*
@@ -1647,8 +1648,8 @@ END_FUNCTION art_quick_deoptimize
      *    ecx:   comp string object (known non-null)
      */
 DEFINE_FUNCTION art_quick_string_compareto
-    PUSH esi                    // push callee save reg
-    PUSH edi                    // push callee save reg
+    PUSH esi                      // push callee save reg
+    PUSH edi                      // push callee save reg
     mov MIRROR_STRING_COUNT_OFFSET(%eax), %edx
     mov MIRROR_STRING_COUNT_OFFSET(%ecx), %ebx
     lea MIRROR_STRING_VALUE_OFFSET(%eax), %esi
@@ -1692,7 +1693,7 @@ DEFINE_FUNCTION art_nested_signal_return
     PUSH ecx                        // second arg to longjmp (1)
     PUSH eax                        // first arg to longjmp (jmp_buf)
     call PLT_SYMBOL(longjmp)
-    int3                            // won't get here.
+    UNREACHABLE
 END_FUNCTION art_nested_signal_return
 
     // TODO: implement these!
