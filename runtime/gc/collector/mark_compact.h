@@ -121,23 +121,6 @@ class MarkCompact : public GarbageCollector {
                           const RootInfo& info)
       OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
-  static mirror::Object* MarkObjectCallback(mirror::Object* root, void* arg)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
-  static void MarkHeapReferenceCallback(mirror::HeapReference<mirror::Object>* obj_ptr, void* arg)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
-  static bool HeapReferenceMarkedCallback(mirror::HeapReference<mirror::Object>* ref_ptr,
-                                          void* arg)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
-  static void ProcessMarkStackCallback(void* arg)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
-
-  static void DelayReferenceReferentCallback(mirror::Class* klass, mirror::Reference* ref,
-                                             void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
   // Schedules an unmarked object for reference processing.
   void DelayReferenceReferent(mirror::Class* klass, mirror::Reference* reference)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
@@ -145,11 +128,7 @@ class MarkCompact : public GarbageCollector {
  protected:
   // Returns null if the object is not marked, otherwise returns the forwarding address (same as
   // object for non movable things).
-  mirror::Object* GetMarkedForwardAddress(mirror::Object* object) const
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
-  static mirror::Object* MarkedForwardingAddressCallback(mirror::Object* object, void* arg)
+  mirror::Object* GetMarkedForwardAddress(mirror::Object* object)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
@@ -184,28 +163,25 @@ class MarkCompact : public GarbageCollector {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
   // Update the references of objects by using the forwarding addresses.
   void UpdateReferences() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
-  static void UpdateRootCallback(mirror::Object** root, void* arg, const RootInfo& /*root_info*/)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
   // Move objects and restore lock words.
   void MoveObjects() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Move a single object to its forward address.
   void MoveObject(mirror::Object* obj, size_t len) EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Mark a single object.
-  void MarkObject(mirror::Object* obj) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
-                                                                Locks::mutator_lock_);
-  bool IsMarked(const mirror::Object* obj) const
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-  static mirror::Object* IsMarkedCallback(mirror::Object* object, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  virtual mirror::Object* MarkObject(mirror::Object* obj) OVERRIDE
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+  virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>* obj_ptr) OVERRIDE
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+  virtual mirror::Object* IsMarked(mirror::Object* obj) OVERRIDE
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual bool IsMarkedHeapReference(mirror::HeapReference<mirror::Object>* obj) OVERRIDE
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   void ForwardObject(mirror::Object* obj) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
                                                                    Locks::mutator_lock_);
   // Update a single heap reference.
   void UpdateHeapReference(mirror::HeapReference<mirror::Object>* reference)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void UpdateHeapReferenceCallback(mirror::HeapReference<mirror::Object>* reference,
-                                          void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Update all of the references of a single object.
@@ -241,6 +217,9 @@ class MarkCompact : public GarbageCollector {
   std::unique_ptr<accounting::ContinuousSpaceBitmap> objects_with_lockword_;
   // Which lock words we need to restore as we are moving objects.
   std::deque<LockWord> lock_words_to_restore_;
+
+  // State whether or not we are updating references.
+  bool updating_references_;
 
  private:
   friend class BitmapSetSlowPathVisitor;

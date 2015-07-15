@@ -28,6 +28,7 @@ namespace art {
 class TimingLogger;
 
 namespace mirror {
+class Class;
 class FinalizerReference;
 class Object;
 class Reference;
@@ -35,18 +36,18 @@ class Reference;
 
 namespace gc {
 
+namespace collector {
+class GarbageCollector;
+}  // namespace collector
+
 class Heap;
 
 // Used to process java.lang.References concurrently or paused.
 class ReferenceProcessor {
  public:
   explicit ReferenceProcessor();
-  static bool PreserveSoftReferenceCallback(mirror::HeapReference<mirror::Object>* obj, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void ProcessReferences(bool concurrent, TimingLogger* timings, bool clear_soft_references,
-                         IsHeapReferenceMarkedCallback* is_marked_callback,
-                         MarkObjectCallback* mark_object_callback,
-                         ProcessMarkStackCallback* process_mark_stack_callback, void* arg)
+                         gc::collector::GarbageCollector* collector)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       LOCKS_EXCLUDED(Locks::reference_processor_lock_);
@@ -60,9 +61,9 @@ class ReferenceProcessor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(Locks::reference_processor_lock_);
   void EnqueueClearedReferences(Thread* self) LOCKS_EXCLUDED(Locks::mutator_lock_);
   void DelayReferenceReferent(mirror::Class* klass, mirror::Reference* ref,
-                              IsHeapReferenceMarkedCallback* is_marked_callback, void* arg)
+                              collector::GarbageCollector* collector)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void UpdateRoots(IsMarkedCallback* callback, void* arg)
+  void UpdateRoots(IsMarkedVisitor* visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
   // Make a circular list with reference if it is not enqueued. Uses the finalizer queue lock.
   bool MakeCircularListIfUnenqueued(mirror::FinalizerReference* reference)
@@ -71,21 +72,6 @@ class ReferenceProcessor {
                      Locks::reference_queue_finalizer_references_lock_);
 
  private:
-  class ProcessReferencesArgs {
-   public:
-    ProcessReferencesArgs(IsHeapReferenceMarkedCallback* is_marked_callback,
-                          MarkObjectCallback* mark_callback, void* arg)
-        : is_marked_callback_(is_marked_callback), mark_callback_(mark_callback), arg_(arg) {
-    }
-
-    // The is marked callback is null when the args aren't set up.
-    IsHeapReferenceMarkedCallback* is_marked_callback_;
-    MarkObjectCallback* mark_callback_;
-    void* arg_;
-
-   private:
-    DISALLOW_IMPLICIT_CONSTRUCTORS(ProcessReferencesArgs);
-  };
   bool SlowPathEnabled() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Called by ProcessReferences.
   void DisableSlowPath(Thread* self) EXCLUSIVE_LOCKS_REQUIRED(Locks::reference_processor_lock_)
@@ -95,8 +81,9 @@ class ReferenceProcessor {
   // referents.
   void StartPreservingReferences(Thread* self) LOCKS_EXCLUDED(Locks::reference_processor_lock_);
   void StopPreservingReferences(Thread* self) LOCKS_EXCLUDED(Locks::reference_processor_lock_);
-  // Process args, used by the GetReferent to return referents which are already marked.
-  ProcessReferencesArgs process_references_args_ GUARDED_BY(Locks::reference_processor_lock_);
+  // Collector which is clearing references, used by the GetReferent to return referents which are
+  // already marked.
+  collector::GarbageCollector* collector_ GUARDED_BY(Locks::reference_processor_lock_);
   // Boolean for whether or not we are preserving references (either soft references or finalizers).
   // If this is true, then we cannot return a referent (see comment in GetReferent).
   bool preserving_references_ GUARDED_BY(Locks::reference_processor_lock_);

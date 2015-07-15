@@ -110,23 +110,24 @@ void AllocRecordObjectMap::VisitRoots(RootVisitor* visitor) {
   }
 }
 
-static inline void SweepClassObject(AllocRecord* record, IsMarkedCallback* callback, void* arg)
+static inline void SweepClassObject(AllocRecord* record, IsMarkedVisitor* visitor)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
     EXCLUSIVE_LOCKS_REQUIRED(Locks::alloc_tracker_lock_) {
   GcRoot<mirror::Class>& klass = record->GetClassGcRoot();
   // This does not need a read barrier because this is called by GC.
   mirror::Object* old_object = klass.Read<kWithoutReadBarrier>();
-  // The class object can become null if we implement class unloading.
-  // In that case we might still want to keep the class name string (not implemented).
-  mirror::Object* new_object = UNLIKELY(old_object == nullptr) ?
-      nullptr : callback(old_object, arg);
-  if (UNLIKELY(old_object != new_object)) {
-    mirror::Class* new_klass = UNLIKELY(new_object == nullptr) ? nullptr : new_object->AsClass();
-    klass = GcRoot<mirror::Class>(new_klass);
+  if (old_object != nullptr) {
+    // The class object can become null if we implement class unloading.
+    // In that case we might still want to keep the class name string (not implemented).
+    mirror::Object* new_object = visitor->IsMarked(old_object);
+    DCHECK(new_object != nullptr);
+    if (UNLIKELY(old_object != new_object)) {
+      klass = GcRoot<mirror::Class>(new_object->AsClass());
+    }
   }
 }
 
-void AllocRecordObjectMap::SweepAllocationRecords(IsMarkedCallback* callback, void* arg) {
+void AllocRecordObjectMap::SweepAllocationRecords(IsMarkedVisitor* visitor) {
   VLOG(heap) << "Start SweepAllocationRecords()";
   size_t count_deleted = 0, count_moved = 0, count = 0;
   // Only the first (size - recent_record_max_) number of records can be deleted.
@@ -141,11 +142,11 @@ void AllocRecordObjectMap::SweepAllocationRecords(IsMarkedCallback* callback, vo
     // This does not need a read barrier because this is called by GC.
     mirror::Object* old_object = it->first.Read<kWithoutReadBarrier>();
     AllocRecord* record = it->second;
-    mirror::Object* new_object = old_object == nullptr ? nullptr : callback(old_object, arg);
+    mirror::Object* new_object = old_object == nullptr ? nullptr : visitor->IsMarked(old_object);
     if (new_object == nullptr) {
       if (count > delete_bound) {
         it->first = GcRoot<mirror::Object>(nullptr);
-        SweepClassObject(record, callback, arg);
+        SweepClassObject(record, visitor);
         ++it;
       } else {
         delete record;
@@ -157,7 +158,7 @@ void AllocRecordObjectMap::SweepAllocationRecords(IsMarkedCallback* callback, vo
         it->first = GcRoot<mirror::Object>(new_object);
         ++count_moved;
       }
-      SweepClassObject(record, callback, arg);
+      SweepClassObject(record, visitor);
       ++it;
     }
   }

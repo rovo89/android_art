@@ -37,7 +37,6 @@
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/heap.h"
 #include "gc/reference_processor.h"
-#include "gc/space/image_space.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
 #include "mark_sweep-inl.h"
@@ -46,8 +45,6 @@
 #include "scoped_thread_state_change.h"
 #include "thread-inl.h"
 #include "thread_list.h"
-
-using ::art::mirror::Object;
 
 namespace art {
 namespace gc {
@@ -175,8 +172,7 @@ void MarkSweep::RunPhases() {
 void MarkSweep::ProcessReferences(Thread* self) {
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   GetHeap()->GetReferenceProcessor()->ProcessReferences(
-      true, GetTimings(), GetCurrentIteration()->GetClearSoftReferences(),
-      &HeapReferenceMarkedCallback, &MarkObjectCallback, &ProcessMarkStackCallback, this);
+      true, GetTimings(), GetCurrentIteration()->GetClearSoftReferences(), this);
 }
 
 void MarkSweep::PausePhase() {
@@ -273,7 +269,7 @@ void MarkSweep::UpdateAndMarkModUnion() {
       TimingLogger::ScopedTiming t(name, GetTimings());
       accounting::ModUnionTable* mod_union_table = heap_->FindModUnionTableFromSpace(space);
       CHECK(mod_union_table != nullptr);
-      mod_union_table->UpdateAndMarkReferences(MarkHeapReferenceCallback, this);
+      mod_union_table->UpdateAndMarkReferences(this);
     }
   }
 }
@@ -333,7 +329,7 @@ void MarkSweep::ResizeMarkStack(size_t new_size) {
     // Someone else acquired the lock and expanded the mark stack before us.
     return;
   }
-  std::vector<StackReference<Object>> temp(mark_stack_->Begin(), mark_stack_->End());
+  std::vector<StackReference<mirror::Object>> temp(mark_stack_->Begin(), mark_stack_->End());
   CHECK_LE(mark_stack_->Size(), new_size);
   mark_stack_->Resize(new_size);
   for (auto& obj : temp) {
@@ -341,7 +337,7 @@ void MarkSweep::ResizeMarkStack(size_t new_size) {
   }
 }
 
-inline void MarkSweep::MarkObjectNonNullParallel(Object* obj) {
+inline void MarkSweep::MarkObjectNonNullParallel(mirror::Object* obj) {
   DCHECK(obj != nullptr);
   if (MarkObjectParallel(obj)) {
     MutexLock mu(Thread::Current(), mark_stack_lock_);
@@ -353,28 +349,18 @@ inline void MarkSweep::MarkObjectNonNullParallel(Object* obj) {
   }
 }
 
-mirror::Object* MarkSweep::MarkObjectCallback(mirror::Object* obj, void* arg) {
-  MarkSweep* mark_sweep = reinterpret_cast<MarkSweep*>(arg);
-  mark_sweep->MarkObject(obj);
-  return obj;
-}
-
-void MarkSweep::MarkHeapReferenceCallback(mirror::HeapReference<mirror::Object>* ref, void* arg) {
-  reinterpret_cast<MarkSweep*>(arg)->MarkObject(ref->AsMirrorPtr());
-}
-
-bool MarkSweep::HeapReferenceMarkedCallback(mirror::HeapReference<mirror::Object>* ref, void* arg) {
-  return reinterpret_cast<MarkSweep*>(arg)->IsMarked(ref->AsMirrorPtr());
+bool MarkSweep::IsMarkedHeapReference(mirror::HeapReference<mirror::Object>* ref) {
+  return IsMarked(ref->AsMirrorPtr());
 }
 
 class MarkSweepMarkObjectSlowPath {
  public:
-  explicit MarkSweepMarkObjectSlowPath(MarkSweep* mark_sweep, Object* holder = nullptr,
+  explicit MarkSweepMarkObjectSlowPath(MarkSweep* mark_sweep, mirror::Object* holder = nullptr,
                                        MemberOffset offset = MemberOffset(0))
       : mark_sweep_(mark_sweep), holder_(holder), offset_(offset) {
   }
 
-  void operator()(const Object* obj) const ALWAYS_INLINE NO_THREAD_SAFETY_ANALYSIS {
+  void operator()(const mirror::Object* obj) const ALWAYS_INLINE NO_THREAD_SAFETY_ANALYSIS {
     if (kProfileLargeObjects) {
       // TODO: Differentiate between marking and testing somehow.
       ++mark_sweep_->large_object_test_;
@@ -450,7 +436,8 @@ class MarkSweepMarkObjectSlowPath {
   MemberOffset offset_;
 };
 
-inline void MarkSweep::MarkObjectNonNull(Object* obj, Object* holder, MemberOffset offset) {
+inline void MarkSweep::MarkObjectNonNull(mirror::Object* obj, mirror::Object* holder,
+                                         MemberOffset offset) {
   DCHECK(obj != nullptr);
   if (kUseBakerOrBrooksReadBarrier) {
     // Verify all the objects have the correct pointer installed.
@@ -481,7 +468,7 @@ inline void MarkSweep::MarkObjectNonNull(Object* obj, Object* holder, MemberOffs
   }
 }
 
-inline void MarkSweep::PushOnMarkStack(Object* obj) {
+inline void MarkSweep::PushOnMarkStack(mirror::Object* obj) {
   if (UNLIKELY(mark_stack_->Size() >= mark_stack_->Capacity())) {
     // Lock is not needed but is here anyways to please annotalysis.
     MutexLock mu(Thread::Current(), mark_stack_lock_);
@@ -491,14 +478,14 @@ inline void MarkSweep::PushOnMarkStack(Object* obj) {
   mark_stack_->PushBack(obj);
 }
 
-inline bool MarkSweep::MarkObjectParallel(const Object* obj) {
+inline bool MarkSweep::MarkObjectParallel(mirror::Object* obj) {
   DCHECK(obj != nullptr);
   if (kUseBakerOrBrooksReadBarrier) {
     // Verify all the objects have the correct pointer installed.
     obj->AssertReadBarrierPointer();
   }
   if (immune_region_.ContainsObject(obj)) {
-    DCHECK(IsMarked(obj));
+    DCHECK(IsMarked(obj) != nullptr);
     return false;
   }
   // Try to take advantage of locality of references within a space, failing this find the space
@@ -511,8 +498,18 @@ inline bool MarkSweep::MarkObjectParallel(const Object* obj) {
   return !mark_bitmap_->AtomicTestAndSet(obj, visitor);
 }
 
+mirror::Object* MarkSweep::MarkObject(mirror::Object* obj) {
+  MarkObject(obj, nullptr, MemberOffset(0));
+  return obj;
+}
+
+void MarkSweep::MarkHeapReference(mirror::HeapReference<mirror::Object>* ref) {
+  MarkObject(ref->AsMirrorPtr(), nullptr, MemberOffset(0));
+}
+
 // Used to mark objects when processing the mark stack. If an object is null, it is not marked.
-inline void MarkSweep::MarkObject(Object* obj, Object* holder, MemberOffset offset) {
+inline void MarkSweep::MarkObject(mirror::Object* obj, mirror::Object* holder,
+                                  MemberOffset offset) {
   if (obj != nullptr) {
     MarkObjectNonNull(obj, holder, offset);
   } else if (kCountMarkedObjects) {
@@ -526,7 +523,7 @@ class VerifyRootMarkedVisitor : public SingleRootVisitor {
 
   void VisitRoot(mirror::Object* root, const RootInfo& info) OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
-    CHECK(collector_->IsMarked(root)) << info.ToString();
+    CHECK(collector_->IsMarked(root) != nullptr) << info.ToString();
   }
 
  private:
@@ -599,7 +596,8 @@ class ScanObjectVisitor {
   explicit ScanObjectVisitor(MarkSweep* const mark_sweep) ALWAYS_INLINE
       : mark_sweep_(mark_sweep) {}
 
-  void operator()(Object* obj) const ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+  void operator()(mirror::Object* obj) const ALWAYS_INLINE
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     if (kCheckLocks) {
       Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
@@ -631,7 +629,7 @@ template <bool kUseFinger = false>
 class MarkStackTask : public Task {
  public:
   MarkStackTask(ThreadPool* thread_pool, MarkSweep* mark_sweep, size_t mark_stack_size,
-                StackReference<Object>* mark_stack)
+                StackReference<mirror::Object>* mark_stack)
       : mark_sweep_(mark_sweep),
         thread_pool_(thread_pool),
         mark_stack_pos_(mark_stack_size) {
@@ -655,7 +653,7 @@ class MarkStackTask : public Task {
                                        MarkSweep* mark_sweep) ALWAYS_INLINE
             : chunk_task_(chunk_task), mark_sweep_(mark_sweep) {}
 
-    void operator()(Object* obj, MemberOffset offset, bool /* static */) const ALWAYS_INLINE
+    void operator()(mirror::Object* obj, MemberOffset offset, bool /* static */) const ALWAYS_INLINE
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset);
       if (ref != nullptr && mark_sweep_->MarkObjectParallel(ref)) {
@@ -681,7 +679,7 @@ class MarkStackTask : public Task {
         : chunk_task_(chunk_task) {}
 
     // No thread safety analysis since multiple threads will use this visitor.
-    void operator()(Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+    void operator()(mirror::Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
         EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
       MarkSweep* const mark_sweep = chunk_task_->mark_sweep_;
       MarkObjectParallelVisitor mark_visitor(chunk_task_, mark_sweep);
@@ -704,11 +702,12 @@ class MarkStackTask : public Task {
   MarkSweep* const mark_sweep_;
   ThreadPool* const thread_pool_;
   // Thread local mark stack for this task.
-  StackReference<Object> mark_stack_[kMaxSize];
+  StackReference<mirror::Object> mark_stack_[kMaxSize];
   // Mark stack position.
   size_t mark_stack_pos_;
 
-  ALWAYS_INLINE void MarkStackPush(Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ALWAYS_INLINE void MarkStackPush(mirror::Object* obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (UNLIKELY(mark_stack_pos_ == kMaxSize)) {
       // Mark stack overflow, give 1/2 the stack to the thread pool as a new work task.
       mark_stack_pos_ /= 2;
@@ -732,12 +731,12 @@ class MarkStackTask : public Task {
     ScanObjectParallelVisitor visitor(this);
     // TODO: Tune this.
     static const size_t kFifoSize = 4;
-    BoundedFifoPowerOfTwo<Object*, kFifoSize> prefetch_fifo;
+    BoundedFifoPowerOfTwo<mirror::Object*, kFifoSize> prefetch_fifo;
     for (;;) {
-      Object* obj = nullptr;
+      mirror::Object* obj = nullptr;
       if (kUseMarkStackPrefetch) {
         while (mark_stack_pos_ != 0 && prefetch_fifo.size() < kFifoSize) {
-          Object* const mark_stack_obj = mark_stack_[--mark_stack_pos_].AsMirrorPtr();
+          mirror::Object* const mark_stack_obj = mark_stack_[--mark_stack_pos_].AsMirrorPtr();
           DCHECK(mark_stack_obj != nullptr);
           __builtin_prefetch(mark_stack_obj);
           prefetch_fifo.push_back(mark_stack_obj);
@@ -764,7 +763,7 @@ class CardScanTask : public MarkStackTask<false> {
   CardScanTask(ThreadPool* thread_pool, MarkSweep* mark_sweep,
                accounting::ContinuousSpaceBitmap* bitmap,
                uint8_t* begin, uint8_t* end, uint8_t minimum_age, size_t mark_stack_size,
-               StackReference<Object>* mark_stack_obj, bool clear_card)
+               StackReference<mirror::Object>* mark_stack_obj, bool clear_card)
       : MarkStackTask<false>(thread_pool, mark_sweep, mark_stack_size, mark_stack_obj),
         bitmap_(bitmap),
         begin_(begin),
@@ -815,8 +814,8 @@ void MarkSweep::ScanGrayObjects(bool paused, uint8_t minimum_age) {
     TimingLogger::ScopedTiming t(paused ? "(Paused)ScanGrayObjects" : __FUNCTION__,
         GetTimings());
     // Try to take some of the mark stack since we can pass this off to the worker tasks.
-    StackReference<Object>* mark_stack_begin = mark_stack_->Begin();
-    StackReference<Object>* mark_stack_end = mark_stack_->End();
+    StackReference<mirror::Object>* mark_stack_begin = mark_stack_->Begin();
+    StackReference<mirror::Object>* mark_stack_end = mark_stack_->End();
     const size_t mark_stack_size = mark_stack_end - mark_stack_begin;
     // Estimated number of work tasks we will create.
     const size_t mark_stack_tasks = GetHeap()->GetContinuousSpaces().size() * thread_count;
@@ -988,13 +987,6 @@ void MarkSweep::RecursiveMark() {
   ProcessMarkStack(false);
 }
 
-mirror::Object* MarkSweep::IsMarkedCallback(mirror::Object* object, void* arg) {
-  if (reinterpret_cast<MarkSweep*>(arg)->IsMarked(object)) {
-    return object;
-  }
-  return nullptr;
-}
-
 void MarkSweep::RecursiveMarkDirtyObjects(bool paused, uint8_t minimum_age) {
   ScanGrayObjects(paused, minimum_age);
   ProcessMarkStack(paused);
@@ -1015,16 +1007,23 @@ void MarkSweep::ReMarkRoots() {
 void MarkSweep::SweepSystemWeaks(Thread* self) {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-  Runtime::Current()->SweepSystemWeaks(IsMarkedCallback, this);
+  Runtime::Current()->SweepSystemWeaks(this);
 }
 
-mirror::Object* MarkSweep::VerifySystemWeakIsLiveCallback(Object* obj, void* arg) {
-  reinterpret_cast<MarkSweep*>(arg)->VerifyIsLive(obj);
-  // We don't actually want to sweep the object, so lets return "marked"
-  return obj;
-}
+class VerifySystemWeakVisitor : public IsMarkedVisitor {
+ public:
+  explicit VerifySystemWeakVisitor(MarkSweep* mark_sweep) : mark_sweep_(mark_sweep) {}
 
-void MarkSweep::VerifyIsLive(const Object* obj) {
+  virtual mirror::Object* IsMarked(mirror::Object* obj) OVERRIDE
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+    mark_sweep_->VerifyIsLive(obj);
+    return obj;
+  }
+
+  MarkSweep* const mark_sweep_;
+};
+
+void MarkSweep::VerifyIsLive(const mirror::Object* obj) {
   if (!heap_->GetLiveBitmap()->Test(obj)) {
     // TODO: Consider live stack? Has this code bitrotted?
     CHECK(!heap_->allocation_stack_->Contains(obj))
@@ -1035,7 +1034,8 @@ void MarkSweep::VerifyIsLive(const Object* obj) {
 void MarkSweep::VerifySystemWeaks() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   // Verify system weaks, uses a special object visitor which returns the input object.
-  Runtime::Current()->SweepSystemWeaks(VerifySystemWeakIsLiveCallback, this);
+  VerifySystemWeakVisitor visitor(this);
+  Runtime::Current()->SweepSystemWeaks(&visitor);
 }
 
 class CheckpointMarkThreadRoots : public Closure, public RootVisitor {
@@ -1122,7 +1122,7 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
   ObjectBytePair freed;
   ObjectBytePair freed_los;
   // How many objects are left in the array, modified after each space is swept.
-  StackReference<Object>* objects = allocations->Begin();
+  StackReference<mirror::Object>* objects = allocations->Begin();
   size_t count = allocations->Size();
   // Change the order to ensure that the non-moving space last swept as an optimization.
   std::vector<space::ContinuousSpace*> sweep_spaces;
@@ -1150,9 +1150,9 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
     if (swap_bitmaps) {
       std::swap(live_bitmap, mark_bitmap);
     }
-    StackReference<Object>* out = objects;
+    StackReference<mirror::Object>* out = objects;
     for (size_t i = 0; i < count; ++i) {
-      Object* const obj = objects[i].AsMirrorPtr();
+      mirror::Object* const obj = objects[i].AsMirrorPtr();
       if (kUseThreadLocalAllocationStack && obj == nullptr) {
         continue;
       }
@@ -1191,7 +1191,7 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
       std::swap(large_live_objects, large_mark_objects);
     }
     for (size_t i = 0; i < count; ++i) {
-      Object* const obj = objects[i].AsMirrorPtr();
+      mirror::Object* const obj = objects[i].AsMirrorPtr();
       // Handle large objects.
       if (kUseThreadLocalAllocationStack && obj == nullptr) {
         continue;
@@ -1250,16 +1250,15 @@ void MarkSweep::DelayReferenceReferent(mirror::Class* klass, mirror::Reference* 
   if (kCountJavaLangRefs) {
     ++reference_count_;
   }
-  heap_->GetReferenceProcessor()->DelayReferenceReferent(klass, ref, &HeapReferenceMarkedCallback,
-                                                         this);
+  heap_->GetReferenceProcessor()->DelayReferenceReferent(klass, ref, this);
 }
 
-class MarkObjectVisitor {
+class MarkVisitor {
  public:
-  explicit MarkObjectVisitor(MarkSweep* const mark_sweep) ALWAYS_INLINE : mark_sweep_(mark_sweep) {
+  explicit MarkVisitor(MarkSweep* const mark_sweep) ALWAYS_INLINE : mark_sweep_(mark_sweep) {
   }
 
-  void operator()(Object* obj, MemberOffset offset, bool /* is_static */) const
+  void operator()(mirror::Object* obj, MemberOffset offset, bool /* is_static */) const
       ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     if (kCheckLocks) {
@@ -1275,14 +1274,10 @@ class MarkObjectVisitor {
 
 // Scans an object reference.  Determines the type of the reference
 // and dispatches to a specialized scanning routine.
-void MarkSweep::ScanObject(Object* obj) {
-  MarkObjectVisitor mark_visitor(this);
+void MarkSweep::ScanObject(mirror::Object* obj) {
+  MarkVisitor mark_visitor(this);
   DelayReferenceReferentVisitor ref_visitor(this);
   ScanObjectVisit(obj, mark_visitor, ref_visitor);
-}
-
-void MarkSweep::ProcessMarkStackCallback(void* arg) {
-  reinterpret_cast<MarkSweep*>(arg)->ProcessMarkStack(false);
 }
 
 void MarkSweep::ProcessMarkStackParallel(size_t thread_count) {
@@ -1317,12 +1312,12 @@ void MarkSweep::ProcessMarkStack(bool paused) {
   } else {
     // TODO: Tune this.
     static const size_t kFifoSize = 4;
-    BoundedFifoPowerOfTwo<Object*, kFifoSize> prefetch_fifo;
+    BoundedFifoPowerOfTwo<mirror::Object*, kFifoSize> prefetch_fifo;
     for (;;) {
-      Object* obj = nullptr;
+      mirror::Object* obj = nullptr;
       if (kUseMarkStackPrefetch) {
         while (!mark_stack_->IsEmpty() && prefetch_fifo.size() < kFifoSize) {
-          Object* mark_stack_obj = mark_stack_->PopBack();
+          mirror::Object* mark_stack_obj = mark_stack_->PopBack();
           DCHECK(mark_stack_obj != nullptr);
           __builtin_prefetch(mark_stack_obj);
           prefetch_fifo.push_back(mark_stack_obj);
@@ -1344,14 +1339,14 @@ void MarkSweep::ProcessMarkStack(bool paused) {
   }
 }
 
-inline bool MarkSweep::IsMarked(const Object* object) const {
+inline mirror::Object* MarkSweep::IsMarked(mirror::Object* object) {
   if (immune_region_.ContainsObject(object)) {
-    return true;
+    return object;
   }
   if (current_space_bitmap_->HasAddress(object)) {
-    return current_space_bitmap_->Test(object);
+    return current_space_bitmap_->Test(object) ? object : nullptr;
   }
-  return mark_bitmap_->Test(object);
+  return mark_bitmap_->Test(object) ? object : nullptr;
 }
 
 void MarkSweep::FinishPhase() {

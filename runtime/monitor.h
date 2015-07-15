@@ -287,7 +287,7 @@ class MonitorList {
 
   void Add(Monitor* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SweepMonitorList(IsMarkedCallback* callback, void* arg)
+  void SweepMonitorList(IsMarkedVisitor* visitor)
       LOCKS_EXCLUDED(monitor_list_lock_) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DisallowNewMonitors() LOCKS_EXCLUDED(monitor_list_lock_);
   void AllowNewMonitors() LOCKS_EXCLUDED(monitor_list_lock_);

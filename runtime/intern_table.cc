@@ -19,6 +19,7 @@
 #include <memory>
 
 #include "gc_root-inl.h"
+#include "gc/collector/garbage_collector.h"
 #include "gc/space/image_space.h"
 #include "mirror/dex_cache.h"
 #include "mirror/object_array-inl.h"
@@ -296,9 +297,9 @@ bool InternTable::ContainsWeak(mirror::String* s) {
   return LookupWeak(s) == s;
 }
 
-void InternTable::SweepInternTableWeaks(IsMarkedCallback* callback, void* arg) {
+void InternTable::SweepInternTableWeaks(IsMarkedVisitor* visitor) {
   MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
-  weak_interns_.SweepWeaks(callback, arg);
+  weak_interns_.SweepWeaks(visitor);
 }
 
 void InternTable::AddImageInternTable(gc::space::ImageSpace* image_space) {
@@ -401,16 +402,16 @@ void InternTable::Table::VisitRoots(RootVisitor* visitor) {
   }
 }
 
-void InternTable::Table::SweepWeaks(IsMarkedCallback* callback, void* arg) {
-  SweepWeaks(&pre_zygote_table_, callback, arg);
-  SweepWeaks(&post_zygote_table_, callback, arg);
+void InternTable::Table::SweepWeaks(IsMarkedVisitor* visitor) {
+  SweepWeaks(&pre_zygote_table_, visitor);
+  SweepWeaks(&post_zygote_table_, visitor);
 }
 
-void InternTable::Table::SweepWeaks(UnorderedSet* set, IsMarkedCallback* callback, void* arg) {
+void InternTable::Table::SweepWeaks(UnorderedSet* set, IsMarkedVisitor* visitor) {
   for (auto it = set->begin(), end = set->end(); it != end;) {
     // This does not need a read barrier because this is called by GC.
     mirror::Object* object = it->Read<kWithoutReadBarrier>();
-    mirror::Object* new_object = callback(object, arg);
+    mirror::Object* new_object = visitor->IsMarked(object);
     if (new_object == nullptr) {
       it = set->Erase(it);
     } else {

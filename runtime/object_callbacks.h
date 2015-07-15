@@ -21,31 +21,30 @@
 
 namespace art {
 namespace mirror {
-  class Class;
   class Object;
   template<class MirrorType> class HeapReference;
-  class Reference;
 }  // namespace mirror
-class StackVisitor;
 
 // A callback for visiting an object in the heap.
 typedef void (ObjectCallback)(mirror::Object* obj, void* arg);
-// A callback used for marking an object, returns the new address of the object if the object moved.
-typedef mirror::Object* (MarkObjectCallback)(mirror::Object* obj, void* arg) WARN_UNUSED;
 
-typedef void (MarkHeapReferenceCallback)(mirror::HeapReference<mirror::Object>* ref, void* arg);
-typedef void (DelayReferenceReferentCallback)(mirror::Class* klass, mirror::Reference* ref,
-    void* arg);
+class IsMarkedVisitor {
+ public:
+  virtual ~IsMarkedVisitor() {}
+  // Return null if an object is not marked, otherwise returns the new address of that object.
+  // May return the same address as the input if the object did not move.
+  virtual mirror::Object* IsMarked(mirror::Object* obj) = 0;
+};
 
-// A callback for testing if an object is marked, returns null if not marked, otherwise the new
-// address the object (if the object didn't move, returns the object input parameter).
-typedef mirror::Object* (IsMarkedCallback)(mirror::Object* object, void* arg) WARN_UNUSED;
-
-// Returns true if the object in the heap reference is marked, if it is marked and has moved the
-// callback updates the heap reference contain the new value.
-typedef bool (IsHeapReferenceMarkedCallback)(mirror::HeapReference<mirror::Object>* object,
-    void* arg) WARN_UNUSED;
-typedef void (ProcessMarkStackCallback)(void* arg);
+class MarkObjectVisitor {
+ public:
+  virtual ~MarkObjectVisitor() {}
+  // Mark an object and return the new address of an object.
+  // May return the same address as the input if the object did not move.
+  virtual mirror::Object* MarkObject(mirror::Object* obj) = 0;
+  // Mark an object and update the value stored in the heap reference if the object moved.
+  virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>* obj) = 0;
+};
 
 }  // namespace art
 

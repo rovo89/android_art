@@ -60,9 +60,9 @@ TEST_F(InternTableTest, Size) {
   EXPECT_EQ(2U, t.Size());
 }
 
-class TestPredicate {
+class TestPredicate : public IsMarkedVisitor {
  public:
-  bool IsMarked(const mirror::Object* s) const {
+  mirror::Object* IsMarked(mirror::Object* s) OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     bool erased = false;
     for (auto it = expected_.begin(), end = expected_.end(); it != end; ++it) {
       if (*it == s) {
@@ -72,7 +72,7 @@ class TestPredicate {
       }
     }
     EXPECT_TRUE(erased);
-    return false;
+    return nullptr;
   }
 
   void Expect(const mirror::String* s) {
@@ -86,13 +86,6 @@ class TestPredicate {
  private:
   mutable std::vector<const mirror::String*> expected_;
 };
-
-mirror::Object* IsMarkedSweepingCallback(mirror::Object* object, void* arg) {
-  if (reinterpret_cast<TestPredicate*>(arg)->IsMarked(object)) {
-    return object;
-  }
-  return nullptr;
-}
 
 TEST_F(InternTableTest, SweepInternTableWeaks) {
   ScopedObjectAccess soa(Thread::Current());
@@ -115,7 +108,7 @@ TEST_F(InternTableTest, SweepInternTableWeaks) {
   p.Expect(s1.Get());
   {
     ReaderMutexLock mu(soa.Self(), *Locks::heap_bitmap_lock_);
-    t.SweepInternTableWeaks(IsMarkedSweepingCallback, &p);
+    t.SweepInternTableWeaks(&p);
   }
 
   EXPECT_EQ(2U, t.Size());

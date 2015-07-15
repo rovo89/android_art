@@ -30,6 +30,7 @@
 namespace art {
 
 namespace mirror {
+  class Class;
   class Object;
 }  // namespace mirror
 class MemMap;

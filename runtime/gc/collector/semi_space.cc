@@ -157,8 +157,7 @@ void SemiSpace::InitializePhase() {
 void SemiSpace::ProcessReferences(Thread* self) {
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   GetHeap()->GetReferenceProcessor()->ProcessReferences(
-      false, GetTimings(), GetCurrentIteration()->GetClearSoftReferences(),
-      &HeapReferenceMarkedCallback, &MarkObjectCallback, &ProcessMarkStackCallback, this);
+      false, GetTimings(), GetCurrentIteration()->GetClearSoftReferences(), this);
 }
 
 void SemiSpace::MarkingPhase() {
@@ -336,7 +335,7 @@ void SemiSpace::MarkReachableObjects() {
           space->IsZygoteSpace() ? "UpdateAndMarkZygoteModUnionTable" :
                                    "UpdateAndMarkImageModUnionTable",
                                    GetTimings());
-      table->UpdateAndMarkReferences(MarkHeapReferenceCallback, this);
+      table->UpdateAndMarkReferences(this);
       DCHECK(GetHeap()->FindRememberedSetFromSpace(space) == nullptr);
     } else if (collect_from_space_only_ && space->GetLiveBitmap() != nullptr) {
       // If the space has no mod union table (the non-moving space and main spaces when the bump
@@ -351,8 +350,7 @@ void SemiSpace::MarkReachableObjects() {
       CHECK_EQ(rem_set != nullptr, kUseRememberedSet);
       if (rem_set != nullptr) {
         TimingLogger::ScopedTiming t2("UpdateAndMarkRememberedSet", GetTimings());
-        rem_set->UpdateAndMarkReferences(MarkHeapReferenceCallback, DelayReferenceReferentCallback,
-                                         from_space_, this);
+        rem_set->UpdateAndMarkReferences(from_space_, this);
         if (kIsDebugBuild) {
           // Verify that there are no from-space references that
           // remain in the space, that is, the remembered set (and the
@@ -583,24 +581,14 @@ mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
   return forward_address;
 }
 
-void SemiSpace::ProcessMarkStackCallback(void* arg) {
-  reinterpret_cast<SemiSpace*>(arg)->ProcessMarkStack();
-}
-
-mirror::Object* SemiSpace::MarkObjectCallback(mirror::Object* root, void* arg) {
+mirror::Object* SemiSpace::MarkObject(mirror::Object* root) {
   auto ref = StackReference<mirror::Object>::FromMirrorPtr(root);
-  reinterpret_cast<SemiSpace*>(arg)->MarkObject(&ref);
+  MarkObject(&ref);
   return ref.AsMirrorPtr();
 }
 
-void SemiSpace::MarkHeapReferenceCallback(mirror::HeapReference<mirror::Object>* obj_ptr,
-                                          void* arg) {
-  reinterpret_cast<SemiSpace*>(arg)->MarkObject(obj_ptr);
-}
-
-void SemiSpace::DelayReferenceReferentCallback(mirror::Class* klass, mirror::Reference* ref,
-                                               void* arg) {
-  reinterpret_cast<SemiSpace*>(arg)->DelayReferenceReferent(klass, ref);
+void SemiSpace::MarkHeapReference(mirror::HeapReference<mirror::Object>* obj_ptr) {
+  MarkObject(obj_ptr);
 }
 
 void SemiSpace::VisitRoots(mirror::Object*** roots, size_t count,
@@ -628,29 +616,9 @@ void SemiSpace::MarkRoots() {
   Runtime::Current()->VisitRoots(this);
 }
 
-bool SemiSpace::HeapReferenceMarkedCallback(mirror::HeapReference<mirror::Object>* object,
-                                            void* arg) {
-  mirror::Object* obj = object->AsMirrorPtr();
-  mirror::Object* new_obj =
-      reinterpret_cast<SemiSpace*>(arg)->GetMarkedForwardAddress(obj);
-  if (new_obj == nullptr) {
-    return false;
-  }
-  if (new_obj != obj) {
-    // Write barrier is not necessary since it still points to the same object, just at a different
-    // address.
-    object->Assign(new_obj);
-  }
-  return true;
-}
-
-mirror::Object* SemiSpace::MarkedForwardingAddressCallback(mirror::Object* object, void* arg) {
-  return reinterpret_cast<SemiSpace*>(arg)->GetMarkedForwardAddress(object);
-}
-
 void SemiSpace::SweepSystemWeaks() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
-  Runtime::Current()->SweepSystemWeaks(MarkedForwardingAddressCallback, this);
+  Runtime::Current()->SweepSystemWeaks(this);
 }
 
 bool SemiSpace::ShouldSweepSpace(space::ContinuousSpace* space) const {
@@ -688,8 +656,7 @@ void SemiSpace::SweepLargeObjects(bool swap_bitmaps) {
 // Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been
 // marked, put it on the appropriate list in the heap for later processing.
 void SemiSpace::DelayReferenceReferent(mirror::Class* klass, mirror::Reference* reference) {
-  heap_->GetReferenceProcessor()->DelayReferenceReferent(klass, reference,
-                                                         &HeapReferenceMarkedCallback, this);
+  heap_->GetReferenceProcessor()->DelayReferenceReferent(klass, reference, this);
 }
 
 class SemiSpaceMarkObjectVisitor {
@@ -746,8 +713,7 @@ void SemiSpace::ProcessMarkStack() {
   }
 }
 
-inline Object* SemiSpace::GetMarkedForwardAddress(mirror::Object* obj) const
-    SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+mirror::Object* SemiSpace::IsMarked(mirror::Object* obj) {
   // All immune objects are assumed marked.
   if (from_space_->HasAddress(obj)) {
     // Returns either the forwarding address or null.
@@ -757,6 +723,20 @@ inline Object* SemiSpace::GetMarkedForwardAddress(mirror::Object* obj) const
     return obj;  // Already forwarded, must be marked.
   }
   return mark_bitmap_->Test(obj) ? obj : nullptr;
+}
+
+bool SemiSpace::IsMarkedHeapReference(mirror::HeapReference<mirror::Object>* object) {
+  mirror::Object* obj = object->AsMirrorPtr();
+  mirror::Object* new_obj = IsMarked(obj);
+  if (new_obj == nullptr) {
+    return false;
+  }
+  if (new_obj != obj) {
+    // Write barrier is not necessary since it still points to the same object, just at a different
+    // address.
+    object->Assign(new_obj);
+  }
+  return true;
 }
 
 void SemiSpace::SetToSpace(space::ContinuousMemMapAllocSpace* to_space) {
