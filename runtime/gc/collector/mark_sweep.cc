@@ -498,11 +498,6 @@ inline bool MarkSweep::MarkObjectParallel(mirror::Object* obj) {
   return !mark_bitmap_->AtomicTestAndSet(obj, visitor);
 }
 
-mirror::Object* MarkSweep::MarkObject(mirror::Object* obj) {
-  MarkObject(obj, nullptr, MemberOffset(0));
-  return obj;
-}
-
 void MarkSweep::MarkHeapReference(mirror::HeapReference<mirror::Object>* ref) {
   MarkObject(ref->AsMirrorPtr(), nullptr, MemberOffset(0));
 }
