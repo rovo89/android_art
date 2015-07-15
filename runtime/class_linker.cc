@@ -55,6 +55,7 @@
 #include "linear_alloc.h"
 #include "oat.h"
 #include "oat_file.h"
+#include "oat_file-inl.h"
 #include "oat_file_assistant.h"
 #include "object_lock.h"
 #include "mirror/class.h"
