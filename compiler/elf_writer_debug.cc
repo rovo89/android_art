@@ -249,16 +249,16 @@ void WriteDebugSections(const CompilerDriver* compiler,
   // Find all addresses (low_pc) which contain deduped methods.
   // The first instance of method is not marked deduped_, but the rest is.
   std::unordered_set<uint32_t> deduped_addresses;
-  for (auto it = method_infos.begin(); it != method_infos.end(); ++it) {
-    if (it->deduped_) {
-      deduped_addresses.insert(it->low_pc_);
+  for (const OatWriter::DebugInfo& mi : method_infos) {
+    if (mi.deduped_) {
+      deduped_addresses.insert(mi.low_pc_);
     }
   }
 
   // Group the methods into compilation units based on source file.
   std::vector<std::vector<const OatWriter::DebugInfo*>> compilation_units;
   const char* last_source_file = nullptr;
-  for (const auto& mi : method_infos) {
+  for (const OatWriter::DebugInfo& mi : method_infos) {
     // Attribute given instruction range only to single method.
     // Otherwise the debugger might get really confused.
     if (!mi.deduped_) {

@@ -41,6 +41,7 @@
 #include "mem_map.h"
 #include "mirror/class.h"
 #include "mirror/object-inl.h"
+#include "oat_file-inl.h"
 #include "os.h"
 #include "runtime.h"
 #include "utils.h"
