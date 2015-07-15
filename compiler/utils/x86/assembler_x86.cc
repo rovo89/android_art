@@ -145,6 +145,13 @@ void X86Assembler::movl(const Address& dst, Label* lbl) {
   EmitLabel(lbl, dst.length_ + 5);
 }
 
+void X86Assembler::movntl(const Address& dst, Register src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x0F);
+  EmitUint8(0xC3);
+  EmitOperand(src, dst);
+}
+
 void X86Assembler::bswapl(Register dst) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x0F);

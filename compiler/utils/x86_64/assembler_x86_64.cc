@@ -194,6 +194,21 @@ void X86_64Assembler::movl(const Address& dst, const Immediate& imm) {
   EmitImmediate(imm);
 }
 
+void X86_64Assembler::movntl(const Address& dst, CpuRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOptionalRex32(src, dst);
+  EmitUint8(0x0F);
+  EmitUint8(0xC3);
+  EmitOperand(src.LowBits(), dst);
+}
+
+void X86_64Assembler::movntq(const Address& dst, CpuRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(src, dst);
+  EmitUint8(0x0F);
+  EmitUint8(0xC3);
+  EmitOperand(src.LowBits(), dst);
+}
 
 void X86_64Assembler::cmov(Condition c, CpuRegister dst, CpuRegister src) {
   cmov(c, dst, src, true);
