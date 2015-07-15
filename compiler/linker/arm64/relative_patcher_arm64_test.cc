@@ -396,8 +396,10 @@ TEST_F(Arm64RelativePatcherTestDefault, CallOtherAlmostTooFarAfter) {
   };
 
   constexpr uint32_t max_positive_disp = 128 * MB - 4u;
-  uint32_t last_method_idx = Create2MethodsWithGap(method1_code, method1_patches,
-                                                   kNopCode, ArrayRef<const LinkerPatch>(),
+  uint32_t last_method_idx = Create2MethodsWithGap(method1_code,
+                                                   ArrayRef<const LinkerPatch>(method1_patches),
+                                                   kNopCode,
+                                                   ArrayRef<const LinkerPatch>(),
                                                    bl_offset_in_method1 + max_positive_disp);
   ASSERT_EQ(expected_last_method_idx, last_method_idx);
 
@@ -420,8 +422,10 @@ TEST_F(Arm64RelativePatcherTestDefault, CallOtherAlmostTooFarBefore) {
   };
 
   constexpr uint32_t max_negative_disp = 128 * MB;
-  uint32_t last_method_idx = Create2MethodsWithGap(kNopCode, ArrayRef<const LinkerPatch>(),
-                                                   last_method_code, last_method_patches,
+  uint32_t last_method_idx = Create2MethodsWithGap(kNopCode,
+                                                   ArrayRef<const LinkerPatch>(),
+                                                   last_method_code,
+                                                   ArrayRef<const LinkerPatch>(last_method_patches),
                                                    max_negative_disp - bl_offset_in_last_method);
   uint32_t method1_offset = GetMethodOffset(1u);
   uint32_t last_method_offset = GetMethodOffset(last_method_idx);
@@ -445,7 +449,10 @@ TEST_F(Arm64RelativePatcherTestDefault, CallOtherJustTooFarAfter) {
 
   constexpr uint32_t just_over_max_positive_disp = 128 * MB;
   uint32_t last_method_idx = Create2MethodsWithGap(
-      method1_code, method1_patches, kNopCode, ArrayRef<const LinkerPatch>(),
+      method1_code,
+      ArrayRef<const LinkerPatch>(method1_patches),
+      kNopCode,
+      ArrayRef<const LinkerPatch>(),
       bl_offset_in_method1 + just_over_max_positive_disp);
   ASSERT_EQ(expected_last_method_idx, last_method_idx);
 
@@ -474,7 +481,8 @@ TEST_F(Arm64RelativePatcherTestDefault, CallOtherJustTooFarBefore) {
 
   constexpr uint32_t just_over_max_negative_disp = 128 * MB + 4;
   uint32_t last_method_idx = Create2MethodsWithGap(
-      kNopCode, ArrayRef<const LinkerPatch>(), last_method_code, last_method_patches,
+      kNopCode, ArrayRef<const LinkerPatch>(), last_method_code,
+      ArrayRef<const LinkerPatch>(last_method_patches),
       just_over_max_negative_disp - bl_offset_in_last_method);
   uint32_t method1_offset = GetMethodOffset(1u);
   uint32_t last_method_offset = GetMethodOffset(last_method_idx);
