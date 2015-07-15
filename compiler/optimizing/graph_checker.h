@@ -48,6 +48,9 @@ class GraphChecker : public HGraphDelegateVisitor {
   // Check that the HasBoundsChecks() flag is set for bounds checks.
   void VisitBoundsCheck(HBoundsCheck* check) OVERRIDE;
 
+  // Check successors of blocks ending in TryBoundary.
+  void VisitTryBoundary(HTryBoundary* try_boundary) OVERRIDE;
+
   // Check that HCheckCast and HInstanceOf have HLoadClass as second input.
   void VisitCheckCast(HCheckCast* check) OVERRIDE;
   void VisitInstanceOf(HInstanceOf* check) OVERRIDE;

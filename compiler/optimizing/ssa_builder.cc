@@ -350,7 +350,9 @@ HInstruction* SsaBuilder::ValueOfLocal(HBasicBlock* block, size_t local) {
 void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
   current_locals_ = GetLocalsFor(block);
 
-  if (block->IsLoopHeader()) {
+  if (block->IsCatchBlock()) {
+    // Catch phis were already created and inputs collected from throwing sites.
+  } else if (block->IsLoopHeader()) {
     // If the block is a loop header, we know we only have visited the pre header
     // because we are visiting in reverse post order. We create phis for all initialized
     // locals from the pre header. Their inputs will be populated at the end of
@@ -551,19 +553,32 @@ void SsaBuilder::VisitStoreLocal(HStoreLocal* store) {
 }
 
 void SsaBuilder::VisitInstruction(HInstruction* instruction) {
-  if (!instruction->NeedsEnvironment()) {
-    return;
+  if (instruction->NeedsEnvironment()) {
+    HEnvironment* environment = new (GetGraph()->GetArena()) HEnvironment(
+        GetGraph()->GetArena(),
+        current_locals_->Size(),
+        GetGraph()->GetDexFile(),
+        GetGraph()->GetMethodIdx(),
+        instruction->GetDexPc(),
+        GetGraph()->GetInvokeType(),
+        instruction);
+    environment->CopyFrom(*current_locals_);
+    instruction->SetRawEnvironment(environment);
   }
-  HEnvironment* environment = new (GetGraph()->GetArena()) HEnvironment(
-      GetGraph()->GetArena(),
-      current_locals_->Size(),
-      GetGraph()->GetDexFile(),
-      GetGraph()->GetMethodIdx(),
-      instruction->GetDexPc(),
-      GetGraph()->GetInvokeType(),
-      instruction);
-  environment->CopyFrom(*current_locals_);
-  instruction->SetRawEnvironment(environment);
+
+  // If in a try block, propagate values of locals into catch blocks.
+  if (instruction->GetBlock()->IsInTry() && instruction->CanThrow()) {
+    HTryBoundary* try_block = instruction->GetBlock()->GetTryEntry();
+    for (HExceptionHandlerIterator it(*try_block); !it.Done(); it.Advance()) {
+      GrowableArray<HInstruction*>* handler_locals = GetLocalsFor(it.Current());
+      for (size_t i = 0, e = current_locals_->Size(); i < e; ++i) {
+        HInstruction* local_value = current_locals_->Get(i);
+        if (local_value != nullptr) {
+          handler_locals->Get(i)->AsPhi()->AddInput(local_value);
+        }
+      }
+    }
+  }
 }
 
 void SsaBuilder::VisitTemporary(HTemporary* temp) {
