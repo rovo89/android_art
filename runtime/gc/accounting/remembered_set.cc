@@ -61,11 +61,10 @@ void RememberedSet::ClearCards() {
 
 class RememberedSetReferenceVisitor {
  public:
-  RememberedSetReferenceVisitor(MarkHeapReferenceCallback* callback,
-                                DelayReferenceReferentCallback* ref_callback,
-                                space::ContinuousSpace* target_space,
-                                bool* const contains_reference_to_target_space, void* arg)
-      : callback_(callback), ref_callback_(ref_callback), target_space_(target_space), arg_(arg),
+  RememberedSetReferenceVisitor(space::ContinuousSpace* target_space,
+                                bool* const contains_reference_to_target_space,
+                                collector::GarbageCollector* collector)
+      : collector_(collector), target_space_(target_space),
         contains_reference_to_target_space_(contains_reference_to_target_space) {}
 
   void operator()(mirror::Object* obj, MemberOffset offset, bool /* is_static */) const
@@ -74,7 +73,7 @@ class RememberedSetReferenceVisitor {
     mirror::HeapReference<mirror::Object>* ref_ptr = obj->GetFieldObjectReferenceAddr(offset);
     if (target_space_->HasAddress(ref_ptr->AsMirrorPtr())) {
       *contains_reference_to_target_space_ = true;
-      callback_(ref_ptr, arg_);
+      collector_->MarkHeapReference(ref_ptr);
       DCHECK(!target_space_->HasAddress(ref_ptr->AsMirrorPtr()));
     }
   }
@@ -84,49 +83,43 @@ class RememberedSetReferenceVisitor {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     if (target_space_->HasAddress(ref->GetReferent())) {
       *contains_reference_to_target_space_ = true;
-      ref_callback_(klass, ref, arg_);
+      collector_->DelayReferenceReferent(klass, ref);
     }
   }
 
  private:
-  MarkHeapReferenceCallback* const callback_;
-  DelayReferenceReferentCallback* const ref_callback_;
+  collector::GarbageCollector* const collector_;
   space::ContinuousSpace* const target_space_;
-  void* const arg_;
   bool* const contains_reference_to_target_space_;
 };
 
 class RememberedSetObjectVisitor {
  public:
-  RememberedSetObjectVisitor(MarkHeapReferenceCallback* callback,
-                             DelayReferenceReferentCallback* ref_callback,
-                             space::ContinuousSpace* target_space,
-                             bool* const contains_reference_to_target_space, void* arg)
-      : callback_(callback), ref_callback_(ref_callback), target_space_(target_space), arg_(arg),
+  RememberedSetObjectVisitor(space::ContinuousSpace* target_space,
+                             bool* const contains_reference_to_target_space,
+                             collector::GarbageCollector* collector)
+      : collector_(collector), target_space_(target_space),
         contains_reference_to_target_space_(contains_reference_to_target_space) {}
 
   void operator()(mirror::Object* obj) const EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    RememberedSetReferenceVisitor visitor(callback_, ref_callback_, target_space_,
-                                          contains_reference_to_target_space_, arg_);
+    RememberedSetReferenceVisitor visitor(target_space_, contains_reference_to_target_space_,
+                                          collector_);
     obj->VisitReferences<kMovingClasses>(visitor, visitor);
   }
 
  private:
-  MarkHeapReferenceCallback* const callback_;
-  DelayReferenceReferentCallback* const ref_callback_;
+  collector::GarbageCollector* const collector_;
   space::ContinuousSpace* const target_space_;
-  void* const arg_;
   bool* const contains_reference_to_target_space_;
 };
 
-void RememberedSet::UpdateAndMarkReferences(MarkHeapReferenceCallback* callback,
-                                            DelayReferenceReferentCallback* ref_callback,
-                                            space::ContinuousSpace* target_space, void* arg) {
+void RememberedSet::UpdateAndMarkReferences(space::ContinuousSpace* target_space,
+                                            collector::GarbageCollector* collector) {
   CardTable* card_table = heap_->GetCardTable();
   bool contains_reference_to_target_space = false;
-  RememberedSetObjectVisitor obj_visitor(callback, ref_callback, target_space,
-                                         &contains_reference_to_target_space, arg);
+  RememberedSetObjectVisitor obj_visitor(target_space, &contains_reference_to_target_space,
+                                         collector);
   ContinuousSpaceBitmap* bitmap = space_->GetLiveBitmap();
   CardSet remove_card_set;
   for (uint8_t* const card_addr : dirty_cards_) {

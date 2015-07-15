@@ -261,7 +261,7 @@ class AllocRecordObjectMap {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::alloc_tracker_lock_);
 
-  void SweepAllocationRecords(IsMarkedCallback* callback, void* arg)
+  void SweepAllocationRecords(IsMarkedVisitor* visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::alloc_tracker_lock_);
 

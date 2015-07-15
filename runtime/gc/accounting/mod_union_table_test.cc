@@ -93,12 +93,24 @@ class ModUnionTableTest : public CommonRuntimeTest {
 };
 
 // Collect visited objects into container.
-static void CollectVisitedCallback(mirror::HeapReference<mirror::Object>* ref, void* arg)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  DCHECK(ref != nullptr);
-  DCHECK(arg != nullptr);
-  reinterpret_cast<std::set<mirror::Object*>*>(arg)->insert(ref->AsMirrorPtr());
-}
+class CollectVisitedVisitor : public MarkObjectVisitor {
+ public:
+  explicit CollectVisitedVisitor(std::set<mirror::Object*>* out) : out_(out) {}
+  virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>* ref) OVERRIDE
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(ref != nullptr);
+    MarkObject(ref->AsMirrorPtr());
+  }
+  virtual mirror::Object* MarkObject(mirror::Object* obj) OVERRIDE
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(obj != nullptr);
+    out_->insert(obj);
+    return obj;
+  }
+
+ private:
+  std::set<mirror::Object*>* const out_;
+};
 
 // A mod union table that only holds references to a specified target space.
 class ModUnionTableRefCacheToSpace : public ModUnionTableReferenceCache {
@@ -199,7 +211,8 @@ void ModUnionTableTest::RunTest(ModUnionTableFactory::TableType type) {
   obj2->Set(3, other_space_ref2);
   table->ClearCards();
   std::set<mirror::Object*> visited_before;
-  table->UpdateAndMarkReferences(&CollectVisitedCallback, &visited_before);
+  CollectVisitedVisitor collector_before(&visited_before);
+  table->UpdateAndMarkReferences(&collector_before);
   // Check that we visited all the references in other spaces only.
   ASSERT_GE(visited_before.size(), 2u);
   ASSERT_TRUE(visited_before.find(other_space_ref1) != visited_before.end());
@@ -230,7 +243,8 @@ void ModUnionTableTest::RunTest(ModUnionTableFactory::TableType type) {
   }
   // Visit again and make sure the cards got cleared back to their sane state.
   std::set<mirror::Object*> visited_after;
-  table->UpdateAndMarkReferences(&CollectVisitedCallback, &visited_after);
+  CollectVisitedVisitor collector_after(&visited_after);
+  table->UpdateAndMarkReferences(&collector_after);
   // Check that we visited a superset after.
   for (auto* obj : visited_before) {
     ASSERT_TRUE(visited_after.find(obj) != visited_after.end()) << obj;

@@ -336,7 +336,7 @@ class Runtime {
 
   // Sweep system weaks, the system weak is deleted if the visitor return null. Otherwise, the
   // system weak is updated to be the visitor's returned value.
-  void SweepSystemWeaks(IsMarkedCallback* visitor, void* arg)
+  void SweepSystemWeaks(IsMarkedVisitor* visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Constant roots are the roots which never change after the runtime is initialized, they only

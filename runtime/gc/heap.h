@@ -705,7 +705,7 @@ class Heap {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::alloc_tracker_lock_);
 
-  void SweepAllocationRecords(IsMarkedCallback* visitor, void* arg) const
+  void SweepAllocationRecords(IsMarkedVisitor* visitor) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::alloc_tracker_lock_);
 
