@@ -303,7 +303,7 @@ MACRO1(INVOKE_TRAMPOLINE_BODY, cxx_name)
     CFI_ADJUST_CFA_OFFSET(4)
     PUSH ecx                      // pass arg2
     PUSH eax                      // pass arg1
-    call VAR(cxx_name, 1)         // cxx_name(arg1, arg2, arg3, Thread*, SP)
+    call VAR(cxx_name, 0)         // cxx_name(arg1, arg2, arg3, Thread*, SP)
     movl %edx, %edi               // save code pointer in EDI
     addl MACRO_LITERAL(20), %esp  // Pop arguments skip eax
     CFI_ADJUST_CFA_OFFSET(-20)
@@ -336,7 +336,7 @@ MACRO1(INVOKE_TRAMPOLINE_BODY, cxx_name)
 END_MACRO
 MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
     DEFINE_FUNCTION RAW_VAR(c_name, 0)
-    INVOKE_TRAMPOLINE_BODY(cxx_name)
+    INVOKE_TRAMPOLINE_BODY RAW_VAR(cxx_name, 1)
     END_FUNCTION RAW_VAR(c_name, 0)
 END_MACRO
 
@@ -1417,7 +1417,7 @@ END_FUNCTION art_quick_proxy_invoke_handler
      */
 DEFINE_FUNCTION art_quick_imt_conflict_trampoline
     movd %xmm7, %eax              // get target method index stored in xmm7
-    INVOKE_TRAMPOLINE_BODY(artInvokeInterfaceTrampoline)
+    INVOKE_TRAMPOLINE_BODY artInvokeInterfaceTrampoline
 END_FUNCTION art_quick_imt_conflict_trampoline
 
 DEFINE_FUNCTION art_quick_resolution_trampoline
