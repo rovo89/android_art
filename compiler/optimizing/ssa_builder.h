@@ -61,9 +61,22 @@ class SsaBuilder : public HGraphVisitor {
   GrowableArray<HInstruction*>* GetLocalsFor(HBasicBlock* block) {
     GrowableArray<HInstruction*>* locals = locals_for_.Get(block->GetBlockId());
     if (locals == nullptr) {
-      locals = new (GetGraph()->GetArena()) GrowableArray<HInstruction*>(
-          GetGraph()->GetArena(), GetGraph()->GetNumberOfVRegs());
-      locals->SetSize(GetGraph()->GetNumberOfVRegs());
+      const size_t vregs = GetGraph()->GetNumberOfVRegs();
+      ArenaAllocator* arena = GetGraph()->GetArena();
+      locals = new (arena) GrowableArray<HInstruction*>(arena, vregs);
+      locals->SetSize(vregs);
+
+      if (block->IsCatchBlock()) {
+        // We record incoming inputs of catch phis at throwing instructions and
+        // must therefore eagerly create the phis. Unused phis will be removed
+        // in the dead phi analysis.
+        for (size_t i = 0; i < vregs; ++i) {
+          HPhi* phi = new (arena) HPhi(arena, i, 0, Primitive::kPrimVoid);
+          block->AddPhi(phi);
+          locals->Put(i, phi);
+        }
+      }
+
       locals_for_.Put(block->GetBlockId(), locals);
     }
     return locals;
