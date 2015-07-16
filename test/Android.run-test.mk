@@ -198,7 +198,7 @@ endef  # all-run-test-names
 # To generate a full list or tests:
 # $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES),$(COMPILER_TYPES), \
 #        $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES), \
-#        $(DEBUGGABLE_TYPES) $(TEST_ART_RUN_TESTS), $(ALL_ADDRESS_SIZES)
+#        $(PICTEST_TYPES),$(DEBUGGABLE_TYPES),$(TEST_ART_RUN_TESTS),$(ALL_ADDRESS_SIZES))
 
 # Convert's a rule name to the form used in variables, e.g. no-relocate to NO_RELOCATE
 define name-to-var
