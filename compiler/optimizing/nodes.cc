@@ -1640,11 +1640,39 @@ void HGraph::TransformLoopHeaderForBCE(HBasicBlock* header) {
   }
 }
 
+void HInstruction::SetReferenceTypeInfo(ReferenceTypeInfo rti) {
+  if (kIsDebugBuild) {
+    DCHECK_EQ(GetType(), Primitive::kPrimNot);
+    ScopedObjectAccess soa(Thread::Current());
+    DCHECK(rti.IsValid()) << "Invalid RTI for " << DebugName();
+    if (IsBoundType()) {
+      // Having the test here spares us from making the method virtual just for
+      // the sake of a DCHECK.
+      ReferenceTypeInfo upper_bound_rti = AsBoundType()->GetUpperBound();
+      DCHECK(upper_bound_rti.IsSupertypeOf(rti))
+          << " upper_bound_rti: " << upper_bound_rti
+          << " rti: " << rti;
+      DCHECK(!upper_bound_rti.GetTypeHandle()->IsFinal() || rti.IsExact());
+    }
+  }
+  reference_type_info_ = rti;
+}
+
+ReferenceTypeInfo::ReferenceTypeInfo() : type_handle_(TypeHandle()), is_exact_(false) {}
+
+ReferenceTypeInfo::ReferenceTypeInfo(TypeHandle type_handle, bool is_exact)
+    : type_handle_(type_handle), is_exact_(is_exact) {
+  if (kIsDebugBuild) {
+    ScopedObjectAccess soa(Thread::Current());
+    DCHECK(IsValidHandle(type_handle));
+  }
+}
+
 std::ostream& operator<<(std::ostream& os, const ReferenceTypeInfo& rhs) {
   ScopedObjectAccess soa(Thread::Current());
   os << "["
-     << " is_top=" << rhs.IsTop()
-     << " type=" << (rhs.IsTop() ? "?" : PrettyClass(rhs.GetTypeHandle().Get()))
+     << " is_valid=" << rhs.IsValid()
+     << " type=" << (!rhs.IsValid() ? "?" : PrettyClass(rhs.GetTypeHandle().Get()))
      << " is_exact=" << rhs.IsExact()
      << " ]";
   return os;
