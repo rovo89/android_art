@@ -144,5 +144,11 @@
   modes: [device],
   names: ["libcore.io.OsTest#test_xattr"],
   bug: 22258911
+},
+{
+  description: "fails on L builds: needs investigation",
+  result: EXEC_FAILED,
+  modes: [device],
+  names: ["org.apache.harmony.tests.java.lang.ClassTest#test_forNameLjava_lang_String"]
 }
 ]
