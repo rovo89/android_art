@@ -1192,7 +1192,6 @@ bool GvnDeadCodeElimination::RecordMIR(MIR* mir) {
     case Instruction::CONST_WIDE_32:
     case Instruction::CONST_WIDE:
     case Instruction::CONST_WIDE_HIGH16:
-    case Instruction::ARRAY_LENGTH:
     case Instruction::CMPL_FLOAT:
     case Instruction::CMPG_FLOAT:
     case Instruction::CMPL_DOUBLE:
@@ -1311,6 +1310,13 @@ bool GvnDeadCodeElimination::RecordMIR(MIR* mir) {
     case Instruction::DIV_INT_LIT8:
     case Instruction::REM_INT_LIT8:
       if (mir->dalvikInsn.vC == 0) {  // Explicit division by 0?
+        must_keep = true;
+        uses_all_vregs = true;
+      }
+      break;
+
+    case Instruction::ARRAY_LENGTH:
+      if ((mir->optimization_flags & MIR_IGNORE_NULL_CHECK) == 0) {
         must_keep = true;
         uses_all_vregs = true;
       }
