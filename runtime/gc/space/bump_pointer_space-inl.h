@@ -63,7 +63,7 @@ inline mirror::Object* BumpPointerSpace::AllocThreadUnsafe(Thread* self, size_t 
 }
 
 inline mirror::Object* BumpPointerSpace::AllocNonvirtualWithoutAccounting(size_t num_bytes) {
-  DCHECK(IsAligned<kAlignment>(num_bytes));
+  DCHECK_ALIGNED(num_bytes, kAlignment);
   uint8_t* old_end;
   uint8_t* new_end;
   do {

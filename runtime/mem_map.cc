@@ -585,10 +585,10 @@ MemMap* MemMap::RemapAtEnd(uint8_t* new_end, const char* tail_name, int tail_pro
   DCHECK_GE(new_end, Begin());
   DCHECK_LE(new_end, End());
   DCHECK_LE(begin_ + size_, reinterpret_cast<uint8_t*>(base_begin_) + base_size_);
-  DCHECK(IsAligned<kPageSize>(begin_));
-  DCHECK(IsAligned<kPageSize>(base_begin_));
-  DCHECK(IsAligned<kPageSize>(reinterpret_cast<uint8_t*>(base_begin_) + base_size_));
-  DCHECK(IsAligned<kPageSize>(new_end));
+  DCHECK_ALIGNED(begin_, kPageSize);
+  DCHECK_ALIGNED(base_begin_, kPageSize);
+  DCHECK_ALIGNED(reinterpret_cast<uint8_t*>(base_begin_) + base_size_, kPageSize);
+  DCHECK_ALIGNED(new_end, kPageSize);
   uint8_t* old_end = begin_ + size_;
   uint8_t* old_base_end = reinterpret_cast<uint8_t*>(base_begin_) + base_size_;
   uint8_t* new_base_end = new_end;
@@ -603,7 +603,7 @@ MemMap* MemMap::RemapAtEnd(uint8_t* new_end, const char* tail_name, int tail_pro
   uint8_t* tail_base_begin = new_base_end;
   size_t tail_base_size = old_base_end - new_base_end;
   DCHECK_EQ(tail_base_begin + tail_base_size, old_base_end);
-  DCHECK(IsAligned<kPageSize>(tail_base_size));
+  DCHECK_ALIGNED(tail_base_size, kPageSize);
 
 #ifdef USE_ASHMEM
   // android_os_Debug.cpp read_mapinfo assumes all ashmem regions associated with the VM are
@@ -726,7 +726,7 @@ void MemMap::DumpMapsLocked(std::ostream& os, bool terse) {
     size_t num_gaps = 0;
     size_t num = 1u;
     size_t size = map->BaseSize();
-    CHECK(IsAligned<kPageSize>(size));
+    CHECK_ALIGNED(size, kPageSize);
     void* end = map->BaseEnd();
     while (it != maps_end &&
         it->second->GetProtect() == map->GetProtect() &&
@@ -740,12 +740,12 @@ void MemMap::DumpMapsLocked(std::ostream& os, bool terse) {
         }
         size_t gap =
             reinterpret_cast<uintptr_t>(it->second->BaseBegin()) - reinterpret_cast<uintptr_t>(end);
-        CHECK(IsAligned<kPageSize>(gap));
+        CHECK_ALIGNED(gap, kPageSize);
         os << "~0x" << std::hex << (gap / kPageSize) << "P";
         num = 0u;
         size = 0u;
       }
-      CHECK(IsAligned<kPageSize>(it->second->BaseSize()));
+      CHECK_ALIGNED(it->second->BaseSize(), kPageSize);
       ++num;
       size += it->second->BaseSize();
       end = it->second->BaseEnd();

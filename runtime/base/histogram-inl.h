@@ -66,7 +66,7 @@ inline void Histogram<Value>::GrowBuckets(Value new_max) {
   while (max_ < new_max) {
     // If we have reached the maximum number of buckets, merge buckets together.
     if (frequency_.size() >= max_buckets_) {
-      CHECK(IsAligned<2>(frequency_.size()));
+      CHECK_ALIGNED(frequency_.size(), 2);
       // We double the width of each bucket to reduce the number of buckets by a factor of 2.
       bucket_width_ *= 2;
       const size_t limit = frequency_.size() / 2;

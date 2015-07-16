@@ -287,7 +287,7 @@ void RegionSpace::Dump(std::ostream& os) const {
 
 void RegionSpace::FreeLarge(mirror::Object* large_obj, size_t bytes_allocated) {
   DCHECK(Contains(large_obj));
-  DCHECK(IsAligned<kRegionSize>(large_obj));
+  DCHECK_ALIGNED(large_obj, kRegionSize);
   MutexLock mu(Thread::Current(), region_lock_);
   uint8_t* begin_addr = reinterpret_cast<uint8_t*>(large_obj);
   uint8_t* end_addr = AlignUp(reinterpret_cast<uint8_t*>(large_obj) + bytes_allocated, kRegionSize);
@@ -366,7 +366,7 @@ void RegionSpace::RevokeThreadLocalBuffersLocked(Thread* thread) {
   uint8_t* tlab_start = thread->GetTlabStart();
   DCHECK_EQ(thread->HasTlab(), tlab_start != nullptr);
   if (tlab_start != nullptr) {
-    DCHECK(IsAligned<kRegionSize>(tlab_start));
+    DCHECK_ALIGNED(tlab_start, kRegionSize);
     Region* r = RefToRegionLocked(reinterpret_cast<mirror::Object*>(tlab_start));
     DCHECK(r->IsAllocated());
     DCHECK_EQ(thread->GetThreadLocalBytesAllocated(), kRegionSize);
