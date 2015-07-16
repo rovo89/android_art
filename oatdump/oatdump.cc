@@ -1036,6 +1036,11 @@ class OatDumper {
         ScopedIndentation indent1(vios);
         DumpCodeInfo(vios, code_info, oat_method, *code_item);
       }
+    } else if (IsMethodGeneratedByDexToDexCompiler(oat_method, code_item)) {
+      // We don't encode the size in the table, so just emit that we have quickened
+      // information.
+      ScopedIndentation indent(vios);
+      vios->Stream() << "quickened data\n";
     } else {
       // Otherwise, display the vmap table.
       const uint8_t* raw_table = oat_method.GetVmapTable();
@@ -1345,7 +1350,21 @@ class OatDumper {
     // If the native GC map is null and the Dex `code_item` is not
     // null, then this method has been compiled with the optimizing
     // compiler.
-    return oat_method.GetGcMap() == nullptr && code_item != nullptr;
+    return oat_method.GetQuickCode() != nullptr &&
+           oat_method.GetGcMap() == nullptr &&
+           code_item != nullptr;
+  }
+
+  // Has `oat_method` -- corresponding to the Dex `code_item` -- been compiled by
+  // the dextodex compiler?
+  static bool IsMethodGeneratedByDexToDexCompiler(const OatFile::OatMethod& oat_method,
+                                                  const DexFile::CodeItem* code_item) {
+    // If the quick code is null, the Dex `code_item` is not
+    // null, and the vmap table is not null, then this method has been compiled
+    // with the dextodex compiler.
+    return oat_method.GetQuickCode() == nullptr &&
+           oat_method.GetVmapTable() != nullptr &&
+           code_item != nullptr;
   }
 
   void DumpDexRegisterMapAtOffset(VariableIndentationOutputStream* vios,
