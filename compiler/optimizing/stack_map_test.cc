@@ -55,8 +55,7 @@ TEST(StackMapTest, Test1) {
   ASSERT_EQ(0u, encoding.NumberOfBytesForStackMask());
   ASSERT_EQ(1u, code_info.GetNumberOfStackMaps());
 
-  uint32_t number_of_location_catalog_entries =
-      code_info.GetNumberOfDexRegisterLocationCatalogEntries();
+  uint32_t number_of_location_catalog_entries = code_info.GetNumberOfLocationCatalogEntries();
   ASSERT_EQ(2u, number_of_location_catalog_entries);
   DexRegisterLocationCatalog location_catalog = code_info.GetDexRegisterLocationCatalog(encoding);
   // The Dex register location catalog contains:
@@ -154,8 +153,7 @@ TEST(StackMapTest, Test2) {
   ASSERT_EQ(2u, encoding.NumberOfBytesForStackMask());
   ASSERT_EQ(2u, code_info.GetNumberOfStackMaps());
 
-  uint32_t number_of_location_catalog_entries =
-      code_info.GetNumberOfDexRegisterLocationCatalogEntries();
+  uint32_t number_of_location_catalog_entries = code_info.GetNumberOfLocationCatalogEntries();
   ASSERT_EQ(4u, number_of_location_catalog_entries);
   DexRegisterLocationCatalog location_catalog = code_info.GetDexRegisterLocationCatalog(encoding);
   // The Dex register location catalog contains:
@@ -304,8 +302,7 @@ TEST(StackMapTest, TestNonLiveDexRegisters) {
   ASSERT_EQ(0u, encoding.NumberOfBytesForStackMask());
   ASSERT_EQ(1u, code_info.GetNumberOfStackMaps());
 
-  uint32_t number_of_location_catalog_entries =
-      code_info.GetNumberOfDexRegisterLocationCatalogEntries();
+  uint32_t number_of_location_catalog_entries = code_info.GetNumberOfLocationCatalogEntries();
   ASSERT_EQ(1u, number_of_location_catalog_entries);
   DexRegisterLocationCatalog location_catalog = code_info.GetDexRegisterLocationCatalog(encoding);
   // The Dex register location catalog contains:
@@ -398,8 +395,7 @@ TEST(StackMapTest, DexRegisterMapOffsetOverflow) {
   // The location catalog contains two entries (DexRegisterLocation(kConstant, 0)
   // and DexRegisterLocation(kConstant, 1)), therefore the location catalog index
   // has a size of 1 bit.
-  uint32_t number_of_location_catalog_entries =
-      code_info.GetNumberOfDexRegisterLocationCatalogEntries();
+  uint32_t number_of_location_catalog_entries = code_info.GetNumberOfLocationCatalogEntries();
   ASSERT_EQ(2u, number_of_location_catalog_entries);
   ASSERT_EQ(1u, DexRegisterMap::SingleEntrySizeInBits(number_of_location_catalog_entries));
 
@@ -501,8 +497,7 @@ TEST(StackMapTest, TestNoDexRegisterMap) {
   ASSERT_EQ(0u, encoding.NumberOfBytesForStackMask());
   ASSERT_EQ(1u, code_info.GetNumberOfStackMaps());
 
-  uint32_t number_of_location_catalog_entries =
-      code_info.GetNumberOfDexRegisterLocationCatalogEntries();
+  uint32_t number_of_location_catalog_entries = code_info.GetNumberOfLocationCatalogEntries();
   ASSERT_EQ(0u, number_of_location_catalog_entries);
   DexRegisterLocationCatalog location_catalog = code_info.GetDexRegisterLocationCatalog(encoding);
   ASSERT_EQ(0u, location_catalog.Size());
