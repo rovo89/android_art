@@ -337,6 +337,11 @@ void MarkSweep::ResizeMarkStack(size_t new_size) {
   }
 }
 
+mirror::Object* MarkSweep::MarkObject(mirror::Object* obj) {
+  MarkObject(obj, nullptr, MemberOffset(0));
+  return obj;
+}
+
 inline void MarkSweep::MarkObjectNonNullParallel(mirror::Object* obj) {
   DCHECK(obj != nullptr);
   if (MarkObjectParallel(obj)) {
