@@ -34,7 +34,7 @@ class BitmapSetSlowPathVisitor {
   void operator()(const mirror::Object* obj) const {
     CHECK(!semi_space_->to_space_->HasAddress(obj)) << "Marking " << obj << " in to_space_";
     // Marking a large object, make sure its aligned as a sanity check.
-    CHECK(IsAligned<kPageSize>(obj));
+    CHECK_ALIGNED(obj, kPageSize);
   }
 
  private:

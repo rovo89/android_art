@@ -446,10 +446,10 @@ static inline int32_t DoPackedSwitch(const Instruction* inst, const ShadowFrame&
     return 3;
   }
   const int32_t* keys = reinterpret_cast<const int32_t*>(&switch_data[2]);
-  DCHECK(IsAligned<4>(keys));
+  DCHECK_ALIGNED(keys, 4);
   int32_t first_key = keys[0];
   const int32_t* targets = reinterpret_cast<const int32_t*>(&switch_data[4]);
-  DCHECK(IsAligned<4>(targets));
+  DCHECK_ALIGNED(targets, 4);
   int32_t index = test_val - first_key;
   if (index >= 0 && index < size) {
     return targets[index];
@@ -474,9 +474,9 @@ static inline int32_t DoSparseSwitch(const Instruction* inst, const ShadowFrame&
     return 3;
   }
   const int32_t* keys = reinterpret_cast<const int32_t*>(&switch_data[2]);
-  DCHECK(IsAligned<4>(keys));
+  DCHECK_ALIGNED(keys, 4);
   const int32_t* entries = keys + size;
-  DCHECK(IsAligned<4>(entries));
+  DCHECK_ALIGNED(entries, 4);
   int lo = 0;
   int hi = size - 1;
   while (lo <= hi) {

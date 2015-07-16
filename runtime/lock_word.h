@@ -118,7 +118,7 @@ class LockWord {
   }
 
   static LockWord FromForwardingAddress(size_t target) {
-    DCHECK(IsAligned < 1 << kStateSize>(target));
+    DCHECK_ALIGNED(target, (1 << kStateSize));
     return LockWord((target >> kStateSize) | (kStateForwardingAddress << kStateShift));
   }
 

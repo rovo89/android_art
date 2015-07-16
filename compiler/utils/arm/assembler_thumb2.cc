@@ -101,7 +101,7 @@ uint32_t Thumb2Assembler::AdjustFixups() {
   }
 
   // Adjust literal pool labels for padding.
-  DCHECK_EQ(current_code_size & 1u, 0u);
+  DCHECK_ALIGNED(current_code_size, 2);
   uint32_t literals_adjustment = current_code_size + (current_code_size & 2) - buffer_.Size();
   if (literals_adjustment != 0u) {
     for (Literal& literal : literals_) {
@@ -152,7 +152,7 @@ void Thumb2Assembler::EmitLiterals() {
     // Load literal instructions (LDR, LDRD, VLDR) require 4-byte alignment.
     // We don't support byte and half-word literals.
     uint32_t code_size = buffer_.Size();
-    DCHECK_EQ(code_size & 1u, 0u);
+    DCHECK_ALIGNED(code_size, 2);
     if ((code_size & 2u) != 0u) {
       Emit16(0);
     }
@@ -168,7 +168,7 @@ void Thumb2Assembler::EmitLiterals() {
 }
 
 inline int16_t Thumb2Assembler::BEncoding16(int32_t offset, Condition cond) {
-  DCHECK_EQ(offset & 1, 0);
+  DCHECK_ALIGNED(offset, 2);
   int16_t encoding = B15 | B14;
   if (cond != AL) {
     DCHECK(IsInt<9>(offset));
@@ -181,7 +181,7 @@ inline int16_t Thumb2Assembler::BEncoding16(int32_t offset, Condition cond) {
 }
 
 inline int32_t Thumb2Assembler::BEncoding32(int32_t offset, Condition cond) {
-  DCHECK_EQ(offset & 1, 0);
+  DCHECK_ALIGNED(offset, 2);
   int32_t s = (offset >> 31) & 1;   // Sign bit.
   int32_t encoding = B31 | B30 | B29 | B28 | B15 |
       (s << 26) |                   // Sign bit goes to bit 26.
@@ -205,7 +205,7 @@ inline int32_t Thumb2Assembler::BEncoding32(int32_t offset, Condition cond) {
 
 inline int16_t Thumb2Assembler::CbxzEncoding16(Register rn, int32_t offset, Condition cond) {
   DCHECK(!IsHighRegister(rn));
-  DCHECK_EQ(offset & 1, 0);
+  DCHECK_ALIGNED(offset, 2);
   DCHECK(IsUint<7>(offset));
   DCHECK(cond == EQ || cond == NE);
   return B15 | B13 | B12 | B8 | (cond == NE ? B11 : 0) | static_cast<int32_t>(rn) |
@@ -250,7 +250,7 @@ inline int32_t Thumb2Assembler::MovModImmEncoding32(Register rd, int32_t value) 
 
 inline int16_t Thumb2Assembler::LdrLitEncoding16(Register rt, int32_t offset) {
   DCHECK(!IsHighRegister(rt));
-  DCHECK_EQ(offset & 3, 0);
+  DCHECK_ALIGNED(offset, 4);
   DCHECK(IsUint<10>(offset));
   return B14 | B11 | (static_cast<int32_t>(rt) << 8) | (offset >> 2);
 }
@@ -261,7 +261,7 @@ inline int32_t Thumb2Assembler::LdrLitEncoding32(Register rt, int32_t offset) {
 }
 
 inline int32_t Thumb2Assembler::LdrdEncoding32(Register rt, Register rt2, Register rn, int32_t offset) {
-  DCHECK_EQ(offset & 3, 0);
+  DCHECK_ALIGNED(offset, 4);
   CHECK(IsUint<10>(offset));
   return B31 | B30 | B29 | B27 |
       B24 /* P = 1 */ | B23 /* U = 1 */ | B22 | 0 /* W = 0 */ | B20 |
@@ -270,7 +270,7 @@ inline int32_t Thumb2Assembler::LdrdEncoding32(Register rt, Register rt2, Regist
 }
 
 inline int32_t Thumb2Assembler::VldrsEncoding32(SRegister sd, Register rn, int32_t offset) {
-  DCHECK_EQ(offset & 3, 0);
+  DCHECK_ALIGNED(offset, 4);
   CHECK(IsUint<10>(offset));
   return B31 | B30 | B29 | B27 | B26 | B24 |
       B23 /* U = 1 */ | B20 | B11 | B9 |
@@ -281,7 +281,7 @@ inline int32_t Thumb2Assembler::VldrsEncoding32(SRegister sd, Register rn, int32
 }
 
 inline int32_t Thumb2Assembler::VldrdEncoding32(DRegister dd, Register rn, int32_t offset) {
-  DCHECK_EQ(offset & 3, 0);
+  DCHECK_ALIGNED(offset, 4);
   CHECK(IsUint<10>(offset));
   return B31 | B30 | B29 | B27 | B26 | B24 |
       B23 /* U = 1 */ | B20 | B11 | B9 | B8 |
@@ -294,7 +294,7 @@ inline int32_t Thumb2Assembler::VldrdEncoding32(DRegister dd, Register rn, int32
 inline int16_t Thumb2Assembler::LdrRtRnImm5Encoding16(Register rt, Register rn, int32_t offset) {
   DCHECK(!IsHighRegister(rt));
   DCHECK(!IsHighRegister(rn));
-  DCHECK_EQ(offset & 3, 0);
+  DCHECK_ALIGNED(offset, 4);
   DCHECK(IsUint<7>(offset));
   return B14 | B13 | B11 |
       (static_cast<int32_t>(rn) << 3) | static_cast<int32_t>(rt) |
@@ -1423,7 +1423,7 @@ void Thumb2Assembler::Emit16BitAddSub(Condition cond ATTRIBUTE_UNUSED,
           thumb_opcode = 3U /* 0b11 */;
           opcode_shift = 12;
           CHECK_LT(immediate, (1u << 9));
-          CHECK_EQ((immediate & 3u /* 0b11 */), 0u);
+          CHECK_ALIGNED(immediate, 4);
 
           // Remove rd and rn from instruction by orring it with immed and clearing bits.
           rn = R0;
@@ -1437,7 +1437,7 @@ void Thumb2Assembler::Emit16BitAddSub(Condition cond ATTRIBUTE_UNUSED,
           thumb_opcode = 5U /* 0b101 */;
           opcode_shift = 11;
           CHECK_LT(immediate, (1u << 10));
-          CHECK_EQ((immediate & 3u /* 0b11 */), 0u);
+          CHECK_ALIGNED(immediate, 4);
 
           // Remove rn from instruction.
           rn = R0;
@@ -1474,7 +1474,7 @@ void Thumb2Assembler::Emit16BitAddSub(Condition cond ATTRIBUTE_UNUSED,
            thumb_opcode = 0x61 /* 0b1100001 */;
            opcode_shift = 7;
            CHECK_LT(immediate, (1u << 9));
-           CHECK_EQ((immediate & 3u /* 0b11 */), 0u);
+           CHECK_ALIGNED(immediate, 4);
 
            // Remove rd and rn from instruction by orring it with immed and clearing bits.
            rn = R0;
@@ -1652,7 +1652,7 @@ inline uint32_t Thumb2Assembler::Fixup::GetSizeInBytes() const {
 
 inline size_t Thumb2Assembler::Fixup::LiteralPoolPaddingSize(uint32_t current_code_size) {
   // The code size must be a multiple of 2.
-  DCHECK_EQ(current_code_size & 1u, 0u);
+  DCHECK_ALIGNED(current_code_size, 2);
   // If it isn't a multiple of 4, we need to add a 2-byte padding before the literal pool.
   return current_code_size & 2;
 }
@@ -1697,7 +1697,7 @@ inline int32_t Thumb2Assembler::Fixup::GetOffset(uint32_t current_code_size) con
       // Load literal instructions round down the PC+4 to a multiple of 4, so if the PC
       // isn't a multiple of 2, we need to adjust. Since we already adjusted for the target
       // being aligned, current PC alignment can be inferred from diff.
-      DCHECK_EQ(diff & 1, 0);
+      DCHECK_ALIGNED(diff, 2);
       diff = diff + (diff & 2);
       DCHECK_GE(diff, 0);
       break;
@@ -2045,7 +2045,7 @@ void Thumb2Assembler::EmitLoadStore(Condition cond,
       if (sp_relative) {
         // SP relative, 10 bit offset.
         CHECK_LT(offset, (1 << 10));
-        CHECK_EQ((offset & 3 /* 0b11 */), 0);
+        CHECK_ALIGNED(offset, 4);
         encoding |= rd << 8 | offset >> 2;
       } else {
         // No SP relative.  The offset is shifted right depending on
@@ -2058,12 +2058,12 @@ void Thumb2Assembler::EmitLoadStore(Condition cond,
         } else if (half) {
           // 6 bit offset, shifted by 1.
           CHECK_LT(offset, (1 << 6));
-          CHECK_EQ((offset & 1 /* 0b1 */), 0);
+          CHECK_ALIGNED(offset, 2);
           offset >>= 1;
         } else {
           // 7 bit offset, shifted by 2.
           CHECK_LT(offset, (1 << 7));
-          CHECK_EQ((offset & 3 /* 0b11 */), 0);
+          CHECK_ALIGNED(offset, 4);
           offset >>= 2;
         }
         encoding |= rn << 3 | offset  << 6;

@@ -50,7 +50,7 @@ class Thumb2RelativePatcherTest : public RelativePatcherTest {
 
     // We want to put the method3 at a very precise offset.
     const uint32_t method3_offset = method1_offset + distance_without_thunks;
-    CHECK(IsAligned<kArmAlignment>(method3_offset - sizeof(OatQuickMethodHeader)));
+    CHECK_ALIGNED(method3_offset - sizeof(OatQuickMethodHeader), kArmAlignment);
 
     // Calculate size of method2 so that we put method3 at the correct place.
     const uint32_t method2_offset =
