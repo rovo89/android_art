@@ -249,13 +249,13 @@ static void ShuffleForward(size_t* current_field_idx,
     if (!gaps->empty() && gaps->top().size >= n) {
       FieldGap gap = gaps->top();
       gaps->pop();
-      DCHECK(IsAligned<n>(gap.start_offset));
+      DCHECK_ALIGNED(gap.start_offset, n);
       field->SetOffset(MemberOffset(gap.start_offset));
       if (gap.size > n) {
         AddFieldGap(gap.start_offset + n, gap.start_offset + gap.size, gaps);
       }
     } else {
-      DCHECK(IsAligned<n>(field_offset->Uint32Value()));
+      DCHECK_ALIGNED(field_offset->Uint32Value(), n);
       field->SetOffset(*field_offset);
       *field_offset = MemberOffset(field_offset->Uint32Value() + n);
     }
@@ -5174,7 +5174,7 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
       field_offset = MemberOffset(RoundUp(field_offset.Uint32Value(), 4));
       AddFieldGap(old_offset.Uint32Value(), field_offset.Uint32Value(), &gaps);
     }
-    DCHECK(IsAligned<sizeof(mirror::HeapReference<mirror::Object>)>(field_offset.Uint32Value()));
+    DCHECK_ALIGNED(field_offset.Uint32Value(), sizeof(mirror::HeapReference<mirror::Object>));
     grouped_and_sorted_fields.pop_front();
     num_reference_fields++;
     field->SetOffset(field_offset);

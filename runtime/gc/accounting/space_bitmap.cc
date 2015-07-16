@@ -79,7 +79,7 @@ SpaceBitmap<kAlignment>* SpaceBitmap<kAlignment>::Create(
 
 template<size_t kAlignment>
 void SpaceBitmap<kAlignment>::SetHeapLimit(uintptr_t new_end) {
-  DCHECK(IsAligned<kBitsPerIntPtrT * kAlignment>(new_end));
+  DCHECK_ALIGNED(new_end, kBitsPerIntPtrT * kAlignment);
   size_t new_size = OffsetToIndex(new_end - heap_begin_) * sizeof(intptr_t);
   if (new_size < bitmap_size_) {
     bitmap_size_ = new_size;

@@ -51,8 +51,8 @@ class ReadBarrierTable {
   void Clear(uint8_t* start_addr, uint8_t* end_addr) {
     DCHECK(IsValidHeapAddr(start_addr)) << start_addr;
     DCHECK(IsValidHeapAddr(end_addr)) << end_addr;
-    DCHECK(IsAligned<kRegionSize>(start_addr));
-    DCHECK(IsAligned<kRegionSize>(end_addr));
+    DCHECK_ALIGNED(start_addr, kRegionSize);
+    DCHECK_ALIGNED(end_addr, kRegionSize);
     uint8_t* entry_start = EntryFromAddr(start_addr);
     uint8_t* entry_end = EntryFromAddr(end_addr);
     memset(reinterpret_cast<void*>(entry_start), 0, entry_end - entry_start);

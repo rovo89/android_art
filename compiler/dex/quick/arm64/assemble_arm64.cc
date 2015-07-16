@@ -909,7 +909,7 @@ void Arm64Mir2Lir::AssembleLIR() {
           CodeOffset target = target_lir->offset +
               ((target_lir->flags.generation == lir->flags.generation) ? 0 : offset_adjustment);
           int32_t delta = target - pc;
-          DCHECK_EQ(delta & 0x3, 0);
+          DCHECK_ALIGNED(delta, 4);
           if (!IS_SIGNED_IMM26(delta >> 2)) {
             LOG(FATAL) << "Invalid jump range in kFixupT1Branch";
           }
@@ -933,7 +933,7 @@ void Arm64Mir2Lir::AssembleLIR() {
           CodeOffset target = target_lir->offset +
             ((target_lir->flags.generation == lir->flags.generation) ? 0 : offset_adjustment);
           int32_t delta = target - pc;
-          DCHECK_EQ(delta & 0x3, 0);
+          DCHECK_ALIGNED(delta, 4);
           if (!IS_SIGNED_IMM19(delta >> 2)) {
             LOG(FATAL) << "Invalid jump range in kFixupLoad";
           }
@@ -965,7 +965,7 @@ void Arm64Mir2Lir::AssembleLIR() {
           CodeOffset target = target_lir->offset +
               ((target_lir->flags.generation == lir->flags.generation) ? 0 : offset_adjustment);
           int32_t delta = target - pc;
-          DCHECK_EQ(delta & 0x3, 0);
+          DCHECK_ALIGNED(delta, 4);
           // Check if branch offset can be encoded in tbz/tbnz.
           if (!IS_SIGNED_IMM14(delta >> 2)) {
             DexOffset dalvik_offset = lir->dalvik_offset;

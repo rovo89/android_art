@@ -331,7 +331,7 @@ bool FaultManager::IsInGeneratedCode(siginfo_t* siginfo, void* context, bool che
   // If we don't have a potential method, we're outta here.
   VLOG(signals) << "potential method: " << method_obj;
   // TODO: Check linear alloc and image.
-  DCHECK(IsAligned<sizeof(void*)>(ArtMethod::ObjectSize(sizeof(void*))))
+  DCHECK_ALIGNED(ArtMethod::ObjectSize(sizeof(void*)), sizeof(void*))
       << "ArtMethod is not pointer aligned";
   if (method_obj == nullptr || !IsAligned<sizeof(void*)>(method_obj)) {
     VLOG(signals) << "no method";

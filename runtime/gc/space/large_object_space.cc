@@ -440,7 +440,7 @@ size_t FreeListSpace::Free(Thread* self, mirror::Object* obj) {
       AllocationInfo* next_next_info = next_info->GetNextInfo();
       // Next next info can't be free since we always coalesce.
       DCHECK(!next_next_info->IsFree());
-      DCHECK(IsAligned<kAlignment>(next_next_info->ByteSize()));
+      DCHECK_ALIGNED(next_next_info->ByteSize(), kAlignment);
       new_free_info = next_next_info;
       new_free_size += next_next_info->GetPrevFreeBytes();
       RemoveFreePrev(next_next_info);
