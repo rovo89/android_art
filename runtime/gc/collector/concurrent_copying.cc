@@ -1585,7 +1585,7 @@ void ConcurrentCopying::VisitRoots(
 // Fill the given memory block with a dummy object. Used to fill in a
 // copy of objects that was lost in race.
 void ConcurrentCopying::FillWithDummyObject(mirror::Object* dummy_obj, size_t byte_size) {
-  CHECK(IsAligned<kObjectAlignment>(byte_size));
+  CHECK_ALIGNED(byte_size, kObjectAlignment);
   memset(dummy_obj, 0, byte_size);
   mirror::Class* int_array_class = mirror::IntArray::GetArrayClass();
   CHECK(int_array_class != nullptr);
@@ -1618,7 +1618,7 @@ void ConcurrentCopying::FillWithDummyObject(mirror::Object* dummy_obj, size_t by
 // Reuse the memory blocks that were copy of objects that were lost in race.
 mirror::Object* ConcurrentCopying::AllocateInSkippedBlock(size_t alloc_size) {
   // Try to reuse the blocks that were unused due to CAS failures.
-  CHECK(IsAligned<space::RegionSpace::kAlignment>(alloc_size));
+  CHECK_ALIGNED(alloc_size, space::RegionSpace::kAlignment);
   Thread* self = Thread::Current();
   size_t min_object_size = RoundUp(sizeof(mirror::Object), space::RegionSpace::kAlignment);
   MutexLock mu(self, skipped_blocks_lock_);
@@ -1637,7 +1637,7 @@ mirror::Object* ConcurrentCopying::AllocateInSkippedBlock(size_t alloc_size) {
         // Not found.
         return nullptr;
       }
-      CHECK(IsAligned<space::RegionSpace::kAlignment>(it->first - alloc_size));
+      CHECK_ALIGNED(it->first - alloc_size, space::RegionSpace::kAlignment);
       CHECK_GE(it->first - alloc_size, min_object_size)
           << "byte_size=" << byte_size << " it->first=" << it->first << " alloc_size=" << alloc_size;
     }
@@ -1648,7 +1648,7 @@ mirror::Object* ConcurrentCopying::AllocateInSkippedBlock(size_t alloc_size) {
   uint8_t* addr = it->second;
   CHECK_GE(byte_size, alloc_size);
   CHECK(region_space_->IsInToSpace(reinterpret_cast<mirror::Object*>(addr)));
-  CHECK(IsAligned<space::RegionSpace::kAlignment>(byte_size));
+  CHECK_ALIGNED(byte_size, space::RegionSpace::kAlignment);
   if (kVerboseMode) {
     LOG(INFO) << "Reusing skipped bytes : " << reinterpret_cast<void*>(addr) << ", " << byte_size;
   }
@@ -1656,7 +1656,7 @@ mirror::Object* ConcurrentCopying::AllocateInSkippedBlock(size_t alloc_size) {
   memset(addr, 0, byte_size);
   if (byte_size > alloc_size) {
     // Return the remainder to the map.
-    CHECK(IsAligned<space::RegionSpace::kAlignment>(byte_size - alloc_size));
+    CHECK_ALIGNED(byte_size - alloc_size, space::RegionSpace::kAlignment);
     CHECK_GE(byte_size - alloc_size, min_object_size);
     FillWithDummyObject(reinterpret_cast<mirror::Object*>(addr + alloc_size),
                         byte_size - alloc_size);

@@ -46,8 +46,8 @@ MallocSpace::MallocSpace(const std::string& name, MemMap* mem_map,
   if (create_bitmaps) {
     size_t bitmap_index = bitmap_index_++;
     static const uintptr_t kGcCardSize = static_cast<uintptr_t>(accounting::CardTable::kCardSize);
-    CHECK(IsAligned<kGcCardSize>(reinterpret_cast<uintptr_t>(mem_map->Begin())));
-    CHECK(IsAligned<kGcCardSize>(reinterpret_cast<uintptr_t>(mem_map->End())));
+    CHECK_ALIGNED(reinterpret_cast<uintptr_t>(mem_map->Begin()), kGcCardSize);
+    CHECK_ALIGNED(reinterpret_cast<uintptr_t>(mem_map->End()), kGcCardSize);
     live_bitmap_.reset(accounting::ContinuousSpaceBitmap::Create(
         StringPrintf("allocspace %s live-bitmap %d", name.c_str(), static_cast<int>(bitmap_index)),
         Begin(), NonGrowthLimitCapacity()));
@@ -164,10 +164,10 @@ ZygoteSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
   // alloc spaces.
   RevokeAllThreadLocalBuffers();
   SetEnd(reinterpret_cast<uint8_t*>(RoundUp(reinterpret_cast<uintptr_t>(End()), kPageSize)));
-  DCHECK(IsAligned<accounting::CardTable::kCardSize>(begin_));
-  DCHECK(IsAligned<accounting::CardTable::kCardSize>(End()));
-  DCHECK(IsAligned<kPageSize>(begin_));
-  DCHECK(IsAligned<kPageSize>(End()));
+  DCHECK_ALIGNED(begin_, accounting::CardTable::kCardSize);
+  DCHECK_ALIGNED(End(), accounting::CardTable::kCardSize);
+  DCHECK_ALIGNED(begin_, kPageSize);
+  DCHECK_ALIGNED(End(), kPageSize);
   size_t size = RoundUp(Size(), kPageSize);
   // Trimming the heap should be done by the caller since we may have invalidated the accounting
   // stored in between objects.

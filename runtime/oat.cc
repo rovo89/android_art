@@ -97,7 +97,7 @@ OatHeader::OatHeader(InstructionSet instruction_set,
   image_file_location_oat_checksum_ = image_file_location_oat_checksum;
   UpdateChecksum(&image_file_location_oat_checksum_, sizeof(image_file_location_oat_checksum_));
 
-  CHECK(IsAligned<kPageSize>(image_file_location_oat_data_begin));
+  CHECK_ALIGNED(image_file_location_oat_data_begin, kPageSize);
   image_file_location_oat_data_begin_ = image_file_location_oat_data_begin;
   UpdateChecksum(&image_file_location_oat_data_begin_, sizeof(image_file_location_oat_data_begin_));
 

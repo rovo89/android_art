@@ -66,7 +66,7 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
     // We want to put the method3 at a very precise offset.
     const uint32_t last_method_offset = method1_offset + distance_without_thunks;
     const uint32_t gap_end = last_method_offset - sizeof(OatQuickMethodHeader);
-    CHECK(IsAligned<kArm64Alignment>(gap_end));
+    CHECK_ALIGNED(gap_end, kArm64Alignment);
 
     // Fill the gap with intermediate methods in chunks of 2MiB and the last in [2MiB, 4MiB).
     // (This allows deduplicating the small chunks to avoid using 256MiB of memory for +-128MiB
