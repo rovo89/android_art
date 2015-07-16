@@ -63,7 +63,7 @@ RosAlloc::RosAlloc(void* base, size_t capacity, size_t max_capacity,
   DCHECK_EQ(RoundUp(capacity, kPageSize), capacity);
   DCHECK_EQ(RoundUp(max_capacity, kPageSize), max_capacity);
   CHECK_LE(capacity, max_capacity);
-  CHECK(IsAligned<kPageSize>(page_release_size_threshold_));
+  CHECK_ALIGNED(page_release_size_threshold_, kPageSize);
   if (!initialized_) {
     Initialize();
   }
@@ -349,7 +349,7 @@ size_t RosAlloc::FreePages(Thread* self, void* ptr, bool already_zero) {
     fpr->magic_num_ = kMagicNumFree;
   }
   fpr->SetByteSize(this, byte_size);
-  DCHECK(IsAligned<kPageSize>(fpr->ByteSize(this)));
+  DCHECK_ALIGNED(fpr->ByteSize(this), kPageSize);
 
   DCHECK(free_page_runs_.find(fpr) == free_page_runs_.end());
   if (!free_page_runs_.empty()) {
@@ -1567,7 +1567,7 @@ void RosAlloc::InspectAll(void (*handler)(void* start, void* end, size_t used_by
         FreePageRun* fpr = reinterpret_cast<FreePageRun*>(base_ + i * kPageSize);
         DCHECK(free_page_runs_.find(fpr) != free_page_runs_.end());
         size_t fpr_size = fpr->ByteSize(this);
-        DCHECK(IsAligned<kPageSize>(fpr_size));
+        DCHECK_ALIGNED(fpr_size, kPageSize);
         void* start = fpr;
         if (kIsDebugBuild) {
           // In the debug build, the first page of a free page run
@@ -1916,7 +1916,7 @@ void RosAlloc::Verify() {
           CHECK(free_page_runs_.find(fpr) != free_page_runs_.end())
               << "An empty page must belong to the free page run set";
           size_t fpr_size = fpr->ByteSize(this);
-          CHECK(IsAligned<kPageSize>(fpr_size))
+          CHECK_ALIGNED(fpr_size, kPageSize)
               << "A free page run size isn't page-aligned : " << fpr_size;
           size_t num_pages = fpr_size / kPageSize;
           CHECK_GT(num_pages, static_cast<uintptr_t>(0))
@@ -2163,7 +2163,7 @@ size_t RosAlloc::ReleasePages() {
           // to the next page.
           if (free_page_runs_.find(fpr) != free_page_runs_.end()) {
             size_t fpr_size = fpr->ByteSize(this);
-            DCHECK(IsAligned<kPageSize>(fpr_size));
+            DCHECK_ALIGNED(fpr_size, kPageSize);
             uint8_t* start = reinterpret_cast<uint8_t*>(fpr);
             reclaimed_bytes += ReleasePageRange(start, start + fpr_size);
             size_t pages = fpr_size / kPageSize;

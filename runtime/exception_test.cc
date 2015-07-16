@@ -93,7 +93,7 @@ class ExceptionTest : public CommonRuntimeTest {
 
     // NOTE: Don't align the code (it will not be executed) but check that the Thumb2
     // adjustment will be a NOP, see ArtMethod::EntryPointToCodePointer().
-    CHECK_EQ(mapping_table_offset & 1u, 0u);
+    CHECK_ALIGNED(mapping_table_offset, 2);
     const uint8_t* code_ptr = &fake_header_code_and_maps_[gc_map_offset];
 
     method_f_ = my_klass_->FindVirtualMethod("f", "()I", sizeof(void*));

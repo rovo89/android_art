@@ -1431,10 +1431,10 @@ void Heap::VerifyObjectBody(mirror::Object* obj) {
   if (UNLIKELY(static_cast<size_t>(num_bytes_allocated_.LoadRelaxed()) < 10 * KB)) {
     return;
   }
-  CHECK(IsAligned<kObjectAlignment>(obj)) << "Object isn't aligned: " << obj;
+  CHECK_ALIGNED(obj, kObjectAlignment) << "Object isn't aligned";
   mirror::Class* c = obj->GetFieldObject<mirror::Class, kVerifyNone>(mirror::Object::ClassOffset());
   CHECK(c != nullptr) << "Null class in object " << obj;
-  CHECK(IsAligned<kObjectAlignment>(c)) << "Class " << c << " not aligned in object " << obj;
+  CHECK_ALIGNED(c, kObjectAlignment) << "Class " << c << " not aligned in object " << obj;
   CHECK(VerifyClassClass(c));
 
   if (verify_object_mode_ > kVerifyObjectModeFast) {

@@ -714,7 +714,7 @@ LIR* MipsMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStora
         } else {
           opcode = kMipsFldc1;
         }
-        DCHECK_EQ((displacement & 0x3), 0);
+        DCHECK_ALIGNED(displacement, 4);
         break;
       }
       is64bit = true;
@@ -736,15 +736,15 @@ LIR* MipsMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStora
           DCHECK(r_dest.IsDouble());
         }
       }
-      DCHECK_EQ((displacement & 0x3), 0);
+      DCHECK_ALIGNED(displacement, 4);
       break;
     case kUnsignedHalf:
       opcode = kMipsLhu;
-      DCHECK_EQ((displacement & 0x1), 0);
+      DCHECK_ALIGNED(displacement, 2);
       break;
     case kSignedHalf:
       opcode = kMipsLh;
-      DCHECK_EQ((displacement & 0x1), 0);
+      DCHECK_ALIGNED(displacement, 2);
       break;
     case kUnsignedByte:
       opcode = kMipsLbu;
@@ -891,7 +891,7 @@ LIR* MipsMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStor
         } else {
           opcode = kMipsFsdc1;
         }
-        DCHECK_EQ((displacement & 0x3), 0);
+        DCHECK_ALIGNED(displacement, 4);
         break;
       }
       is64bit = true;
@@ -913,12 +913,12 @@ LIR* MipsMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStor
           DCHECK(r_src.IsDouble());
         }
       }
-      DCHECK_EQ((displacement & 0x3), 0);
+      DCHECK_ALIGNED(displacement, 4);
       break;
     case kUnsignedHalf:
     case kSignedHalf:
       opcode = kMipsSh;
-      DCHECK_EQ((displacement & 0x1), 0);
+      DCHECK_ALIGNED(displacement, 2);
       break;
     case kUnsignedByte:
     case kSignedByte:
