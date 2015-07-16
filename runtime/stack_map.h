@@ -33,6 +33,11 @@ static constexpr ssize_t kFrameSlotSize = 4;
 // Size of Dex virtual registers.
 static constexpr size_t kVRegSize = 4;
 
+// We encode the number of bytes needed for writing a value on 3 bits
+// (i.e. up to 8 values), for values that we know are maximum 32-bit
+// long.
+static constexpr size_t kNumberOfBitForNumberOfBytesForEncoding = 3;
+
 class CodeInfo;
 class StackMapEncoding;
 
@@ -991,17 +996,11 @@ class CodeInfo {
   }
 
   void SetEncodingAt(size_t bit_offset, size_t number_of_bytes) {
-    // We encode the number of bytes needed for writing a value on 3 bits,
-    // for values that we know are maximum 32bits.
-    region_.StoreBit(bit_offset, (number_of_bytes & 1));
-    region_.StoreBit(bit_offset + 1, (number_of_bytes & 2));
-    region_.StoreBit(bit_offset + 2, (number_of_bytes & 4));
+    region_.StoreBits(bit_offset, number_of_bytes, kNumberOfBitForNumberOfBytesForEncoding);
   }
 
   size_t GetNumberOfBytesForEncoding(size_t bit_offset) const {
-    return region_.LoadBit(bit_offset)
-        + (region_.LoadBit(bit_offset + 1) << 1)
-        + (region_.LoadBit(bit_offset + 2) << 2);
+    return region_.LoadBits(bit_offset, kNumberOfBitForNumberOfBytesForEncoding);
   }
 
   bool HasInlineInfo() const {
@@ -1143,10 +1142,14 @@ class CodeInfo {
 
   static constexpr int kHasInlineInfoBitOffset = (kEncodingInfoOffset * kBitsPerByte);
   static constexpr int kInlineInfoBitOffset = kHasInlineInfoBitOffset + 1;
-  static constexpr int kDexRegisterMapBitOffset = kInlineInfoBitOffset + 3;
-  static constexpr int kDexPcBitOffset = kDexRegisterMapBitOffset + 3;
-  static constexpr int kNativePcBitOffset = kDexPcBitOffset + 3;
-  static constexpr int kRegisterMaskBitOffset = kNativePcBitOffset + 3;
+  static constexpr int kDexRegisterMapBitOffset =
+      kInlineInfoBitOffset + kNumberOfBitForNumberOfBytesForEncoding;
+  static constexpr int kDexPcBitOffset =
+      kDexRegisterMapBitOffset + kNumberOfBitForNumberOfBytesForEncoding;
+  static constexpr int kNativePcBitOffset =
+      kDexPcBitOffset + kNumberOfBitForNumberOfBytesForEncoding;
+  static constexpr int kRegisterMaskBitOffset =
+      kNativePcBitOffset + kNumberOfBitForNumberOfBytesForEncoding;
 
   MemoryRegion GetStackMaps(const StackMapEncoding& encoding) const {
     return region_.size() == 0
