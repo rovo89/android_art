@@ -188,10 +188,7 @@ class MarkSweep : public GarbageCollector {
   // Marks an object.
   virtual mirror::Object* MarkObject(mirror::Object* obj) OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
-    MarkObject(obj, nullptr, MemberOffset(0));
-    return obj;
-  }
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
   void MarkObject(mirror::Object* obj, mirror::Object* holder, MemberOffset offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
