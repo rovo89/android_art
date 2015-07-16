@@ -27,9 +27,17 @@
 
 #include <sanitizer/asan_interface.h>
 #define ADDRESS_SANITIZER
+
+#ifdef ART_ENABLE_ADDRESS_SANITIZER
 #define MEMORY_TOOL_MAKE_NOACCESS(p, s) __asan_poison_memory_region(p, s)
 #define MEMORY_TOOL_MAKE_UNDEFINED(p, s) __asan_unpoison_memory_region(p, s)
 #define MEMORY_TOOL_MAKE_DEFINED(p, s) __asan_unpoison_memory_region(p, s)
+#else
+#define MEMORY_TOOL_MAKE_NOACCESS(p, s) do { (void)(p); (void)(s); } while (0)
+#define MEMORY_TOOL_MAKE_UNDEFINED(p, s) do { (void)(p); (void)(s); } while (0)
+#define MEMORY_TOOL_MAKE_DEFINED(p, s) do { (void)(p); (void)(s); } while (0)
+#endif
+
 #define ATTRIBUTE_NO_SANITIZE_ADDRESS __attribute__((no_sanitize_address))
 #define RUNNING_ON_MEMORY_TOOL 1U
 constexpr bool kMemoryToolIsValgrind = false;
