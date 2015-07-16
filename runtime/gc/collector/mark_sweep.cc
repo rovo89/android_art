@@ -831,8 +831,8 @@ void MarkSweep::ScanGrayObjects(bool paused, uint8_t minimum_age) {
       // Align up the end address. For example, the image space's end
       // may not be card-size-aligned.
       card_end = AlignUp(card_end, accounting::CardTable::kCardSize);
-      DCHECK(IsAligned<accounting::CardTable::kCardSize>(card_begin));
-      DCHECK(IsAligned<accounting::CardTable::kCardSize>(card_end));
+      DCHECK_ALIGNED(card_begin, accounting::CardTable::kCardSize);
+      DCHECK_ALIGNED(card_end, accounting::CardTable::kCardSize);
       // Calculate how many bytes of heap we will scan,
       const size_t address_range = card_end - card_begin;
       // Calculate how much address range each task gets.

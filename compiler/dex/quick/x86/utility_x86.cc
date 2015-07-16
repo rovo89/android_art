@@ -659,7 +659,7 @@ LIR* X86Mir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int 
         opcode = is_array ? kX86Mov32RA  : kX86Mov32RM;
       }
       // TODO: double store is to unaligned address
-      DCHECK_EQ((displacement & 0x3), 0);
+      DCHECK_ALIGNED(displacement, 4);
       break;
     case kWord:
       if (cu_->target64) {
@@ -677,15 +677,15 @@ LIR* X86Mir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int 
         opcode = is_array ? kX86MovssRA : kX86MovssRM;
         DCHECK(r_dest.IsFloat());
       }
-      DCHECK_EQ((displacement & 0x3), 0);
+      DCHECK_ALIGNED(displacement, 4);
       break;
     case kUnsignedHalf:
       opcode = is_array ? kX86Movzx16RA : kX86Movzx16RM;
-      DCHECK_EQ((displacement & 0x1), 0);
+      DCHECK_ALIGNED(displacement, 2);
       break;
     case kSignedHalf:
       opcode = is_array ? kX86Movsx16RA : kX86Movsx16RM;
-      DCHECK_EQ((displacement & 0x1), 0);
+      DCHECK_ALIGNED(displacement, 2);
       break;
     case kUnsignedByte:
       opcode = is_array ? kX86Movzx8RA : kX86Movzx8RM;
@@ -812,7 +812,7 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int
         opcode = is_array ? kX86Mov32AR  : kX86Mov32MR;
       }
       // TODO: double store is to unaligned address
-      DCHECK_EQ((displacement & 0x3), 0);
+      DCHECK_ALIGNED(displacement, 4);
       break;
     case kWord:
       if (cu_->target64) {
@@ -831,13 +831,13 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int
         opcode = is_array ? kX86MovssAR : kX86MovssMR;
         DCHECK(r_src.IsSingle());
       }
-      DCHECK_EQ((displacement & 0x3), 0);
+      DCHECK_ALIGNED(displacement, 4);
       consider_non_temporal = true;
       break;
     case kUnsignedHalf:
     case kSignedHalf:
       opcode = is_array ? kX86Mov16AR : kX86Mov16MR;
-      DCHECK_EQ((displacement & 0x1), 0);
+      DCHECK_ALIGNED(displacement, 2);
       break;
     case kUnsignedByte:
     case kSignedByte:

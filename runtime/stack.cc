@@ -904,7 +904,7 @@ int StackVisitor::GetVRegOffsetFromQuickCode(const DexFile::CodeItem* code_item,
       CHECK_EQ(runtime->GetClassLinker()->GetImagePointerSize(), pointer_size);
     }
   }
-  DCHECK_EQ(frame_size & (kStackAlignment - 1), 0U);
+  DCHECK_ALIGNED(frame_size, kStackAlignment);
   DCHECK_NE(reg, -1);
   int spill_size = POPCOUNT(core_spills) * GetBytesPerGprSpillLocation(isa)
       + POPCOUNT(fp_spills) * GetBytesPerFprSpillLocation(isa)

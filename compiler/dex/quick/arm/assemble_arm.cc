@@ -1298,7 +1298,7 @@ void ArmMir2Lir::AssembleLIR() {
              */
             delta &= ~0x3;
           }
-          DCHECK_EQ((delta & 0x3), 0);
+          DCHECK_ALIGNED(delta, 4);
           // First, a sanity check for cases we shouldn't see now
           if (kIsDebugBuild && (((lir->opcode == kThumbAddPcRel) && (delta > 1020)) ||
               ((lir->opcode == kThumbLdrPcRel) && (delta > 1020)))) {
