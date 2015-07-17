@@ -146,11 +146,6 @@ void HBooleanSimplifier::TryRemovingBooleanSelection(HBasicBlock* block) {
   // entry block. Any following blocks would have had the join block
   // as a dominator, and `MergeWith` handles changing that to the
   // entry block.
-
-  // Remove the original condition if it is now unused.
-  if (!if_condition->HasUses()) {
-    if_condition->GetBlock()->RemoveInstructionOrPhi(if_condition);
-  }
 }
 
 void HBooleanSimplifier::Run() {
