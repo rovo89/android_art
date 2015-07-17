@@ -488,6 +488,12 @@ class Instruction {
   // Returns true if the instruction allows control flow to go to the following instruction.
   bool CanFlowThrough() const;
 
+  // Returns true if the instruction is a quickened instruction.
+  bool IsQuickened() const {
+    return (kInstructionIndexTypes[Opcode()] == kIndexFieldOffset) ||
+        (kInstructionIndexTypes[Opcode()] == kIndexVtableOffset);
+  }
+
   // Returns true if this instruction is a switch.
   bool IsSwitch() const {
     return (kInstructionFlags[Opcode()] & kSwitch) != 0;
