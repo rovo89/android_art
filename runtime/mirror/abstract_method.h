@@ -60,9 +60,8 @@ class MANAGED AbstractMethod : public AccessibleObject {
 
   HeapReference<mirror::Class> declaring_class_;
   HeapReference<mirror::Class> declaring_class_of_overridden_method_;
-  uint32_t padding_;
-  uint64_t art_method_;
   uint32_t access_flags_;
+  uint64_t art_method_;
   uint32_t dex_method_index_;
 
   friend struct art::AbstractMethodOffsets;  // for verifying offset information
