@@ -1461,7 +1461,7 @@ class ReferenceTypeInfo : ValueObject {
   typedef Handle<mirror::Class> TypeHandle;
 
   static ReferenceTypeInfo Create(TypeHandle type_handle, bool is_exact)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     if (type_handle->IsObjectClass()) {
       // Override the type handle to be consistent with the case when we get to
       // Top but don't have the Object class available. It avoids having to guess
@@ -1478,13 +1478,13 @@ class ReferenceTypeInfo : ValueObject {
 
   bool IsExact() const { return is_exact_; }
   bool IsTop() const { return is_top_; }
-  bool IsInterface() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool IsInterface() const SHARED_REQUIRES(Locks::mutator_lock_) {
     return !IsTop() && GetTypeHandle()->IsInterface();
   }
 
   Handle<mirror::Class> GetTypeHandle() const { return type_handle_; }
 
-  bool IsSupertypeOf(ReferenceTypeInfo rti) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool IsSupertypeOf(ReferenceTypeInfo rti) const SHARED_REQUIRES(Locks::mutator_lock_) {
     if (IsTop()) {
       // Top (equivalent for java.lang.Object) is supertype of anything.
       return true;
@@ -1499,7 +1499,7 @@ class ReferenceTypeInfo : ValueObject {
   // Returns true if the type information provide the same amount of details.
   // Note that it does not mean that the instructions have the same actual type
   // (e.g. tops are equal but they can be the result of a merge).
-  bool IsEqual(ReferenceTypeInfo rti) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool IsEqual(ReferenceTypeInfo rti) SHARED_REQUIRES(Locks::mutator_lock_) {
     if (IsExact() != rti.IsExact()) {
       return false;
     }

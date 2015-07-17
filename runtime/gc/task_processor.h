@@ -54,17 +54,17 @@ class TaskProcessor {
  public:
   TaskProcessor();
   virtual ~TaskProcessor();
-  void AddTask(Thread* self, HeapTask* task) LOCKS_EXCLUDED(lock_);
-  HeapTask* GetTask(Thread* self) LOCKS_EXCLUDED(lock_);
-  void Start(Thread* self) LOCKS_EXCLUDED(lock_);
+  void AddTask(Thread* self, HeapTask* task) REQUIRES(!*lock_);
+  HeapTask* GetTask(Thread* self) REQUIRES(!*lock_);
+  void Start(Thread* self) REQUIRES(!*lock_);
   // Stop tells the RunAllTasks to finish up the remaining tasks as soon as
   // possible then return.
-  void Stop(Thread* self) LOCKS_EXCLUDED(lock_);
-  void RunAllTasks(Thread* self) LOCKS_EXCLUDED(lock_);
-  bool IsRunning() const LOCKS_EXCLUDED(lock_);
+  void Stop(Thread* self) REQUIRES(!*lock_);
+  void RunAllTasks(Thread* self) REQUIRES(!*lock_);
+  bool IsRunning() const REQUIRES(!*lock_);
   void UpdateTargetRunTime(Thread* self, HeapTask* target_time, uint64_t new_target_time)
-      LOCKS_EXCLUDED(lock_);
-  Thread* GetRunningThread() const LOCKS_EXCLUDED(lock_);
+      REQUIRES(!*lock_);
+  Thread* GetRunningThread() const REQUIRES(!*lock_);
 
  private:
   class CompareByTargetRunTime {

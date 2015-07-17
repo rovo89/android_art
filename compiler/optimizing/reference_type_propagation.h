@@ -42,8 +42,8 @@ class ReferenceTypePropagation : public HOptimization {
  private:
   void VisitPhi(HPhi* phi);
   void VisitBasicBlock(HBasicBlock* block);
-  void UpdateBoundType(HBoundType* bound_type) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void UpdatePhi(HPhi* phi) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void UpdateBoundType(HBoundType* bound_type) SHARED_REQUIRES(Locks::mutator_lock_);
+  void UpdatePhi(HPhi* phi) SHARED_REQUIRES(Locks::mutator_lock_);
   void BoundTypeForIfNotNull(HBasicBlock* block);
   void BoundTypeForIfInstanceOf(HBasicBlock* block);
   void ProcessWorklist();
@@ -54,7 +54,7 @@ class ReferenceTypePropagation : public HOptimization {
   bool UpdateReferenceTypeInfo(HInstruction* instr);
 
   ReferenceTypeInfo MergeTypes(const ReferenceTypeInfo& a, const ReferenceTypeInfo& b)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   StackHandleScopeCollection* handles_;
 

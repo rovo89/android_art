@@ -298,7 +298,7 @@ static void ThrowIllegalMonitorStateExceptionF(const char* fmt, ...)
                                               __attribute__((format(printf, 1, 2)));
 
 static void ThrowIllegalMonitorStateExceptionF(const char* fmt, ...)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   va_list args;
   va_start(args, fmt);
   Thread* self = Thread::Current();
@@ -667,11 +667,9 @@ void Monitor::InflateThinLocked(Thread* self, Handle<mirror::Object> obj, LockWo
     // Suspend the owner, inflate. First change to blocked and give up mutator_lock_.
     self->SetMonitorEnterObject(obj.Get());
     bool timed_out;
-    Thread* owner;
-    {
-      ScopedThreadStateChange tsc(self, kBlocked);
-      owner = thread_list->SuspendThreadByThreadId(owner_thread_id, false, &timed_out);
-    }
+    self->TransitionFromRunnableToSuspended(kBlocked);
+    Thread* owner = thread_list->SuspendThreadByThreadId(owner_thread_id, false, &timed_out);
+    self->TransitionFromSuspendedToRunnable();
     if (owner != nullptr) {
       // We succeeded in suspending the thread, check the lock's status didn't change.
       lock_word = obj->GetLockWord(true);
@@ -1083,7 +1081,7 @@ bool Monitor::IsValidLockWord(LockWord lock_word) {
   }
 }
 
-bool Monitor::IsLocked() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+bool Monitor::IsLocked() SHARED_REQUIRES(Locks::mutator_lock_) {
   MutexLock mu(Thread::Current(), monitor_lock_);
   return owner_ != nullptr;
 }
@@ -1189,7 +1187,7 @@ class MonitorDeflateVisitor : public IsMarkedVisitor {
   MonitorDeflateVisitor() : self_(Thread::Current()), deflate_count_(0) {}
 
   virtual mirror::Object* IsMarked(mirror::Object* object) OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     if (Monitor::Deflate(self_, object)) {
       DCHECK_NE(object->GetLockWord(true).GetState(), LockWord::kFatLocked);
       ++deflate_count_;

@@ -48,30 +48,28 @@ class BoxTable FINAL {
 
   // Boxes a closure into an object. Returns null and throws an exception on failure.
   mirror::Object* BoxLambda(const ClosureType& closure)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      LOCKS_EXCLUDED(Locks::lambda_table_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Locks::lambda_table_lock_);
 
   // Unboxes an object back into the lambda. Returns false and throws an exception on failure.
   bool UnboxLambda(mirror::Object* object, ClosureType* out_closure)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Sweep weak references to lambda boxes. Update the addresses if the objects have been
   // moved, and delete them from the table if the objects have been cleaned up.
   void SweepWeakBoxedLambdas(IsMarkedVisitor* visitor)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      LOCKS_EXCLUDED(Locks::lambda_table_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Locks::lambda_table_lock_);
 
   // GC callback: Temporarily block anyone from touching the map.
   void DisallowNewWeakBoxedLambdas()
-      LOCKS_EXCLUDED(Locks::lambda_table_lock_);
+      REQUIRES(!Locks::lambda_table_lock_);
 
   // GC callback: Unblock any readers who have been queued waiting to touch the map.
   void AllowNewWeakBoxedLambdas()
-      LOCKS_EXCLUDED(Locks::lambda_table_lock_);
+      REQUIRES(!Locks::lambda_table_lock_);
 
   // GC callback: Verify that the state is now blocking anyone from touching the map.
   void EnsureNewWeakBoxedLambdasDisallowed()
-      LOCKS_EXCLUDED(Locks::lambda_table_lock_);
+      REQUIRES(!Locks::lambda_table_lock_);
 
   BoxTable();
   ~BoxTable() = default;
@@ -93,11 +91,11 @@ class BoxTable FINAL {
 
   // Attempt to look up the lambda in the map, or return null if it's not there yet.
   ValueType FindBoxedLambda(const ClosureType& closure) const
-      SHARED_LOCKS_REQUIRED(Locks::lambda_table_lock_);
+      SHARED_REQUIRES(Locks::lambda_table_lock_);
 
   // If the GC has come in and temporarily disallowed touching weaks, block until is it allowed.
   void BlockUntilWeaksAllowed()
-      SHARED_LOCKS_REQUIRED(Locks::lambda_table_lock_);
+      SHARED_REQUIRES(Locks::lambda_table_lock_);
 
   // EmptyFn implementation for art::HashMap
   struct EmptyFn {

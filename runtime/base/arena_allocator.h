@@ -182,12 +182,12 @@ class ArenaPool {
  public:
   explicit ArenaPool(bool use_malloc = true, bool low_4gb = false);
   ~ArenaPool();
-  Arena* AllocArena(size_t size) LOCKS_EXCLUDED(lock_);
-  void FreeArenaChain(Arena* first) LOCKS_EXCLUDED(lock_);
-  size_t GetBytesAllocated() const LOCKS_EXCLUDED(lock_);
+  Arena* AllocArena(size_t size) REQUIRES(!lock_);
+  void FreeArenaChain(Arena* first) REQUIRES(!lock_);
+  size_t GetBytesAllocated() const REQUIRES(!lock_);
   // Trim the maps in arenas by madvising, used by JIT to reduce memory usage. This only works
   // use_malloc is false.
-  void TrimMaps() LOCKS_EXCLUDED(lock_);
+  void TrimMaps() REQUIRES(!lock_);
 
  private:
   const bool use_malloc_;

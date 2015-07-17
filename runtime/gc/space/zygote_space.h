@@ -33,7 +33,7 @@ class ZygoteSpace FINAL : public ContinuousMemMapAllocSpace {
   static ZygoteSpace* Create(const std::string& name, MemMap* mem_map,
                              accounting::ContinuousSpaceBitmap* live_bitmap,
                              accounting::ContinuousSpaceBitmap* mark_bitmap)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   void Dump(std::ostream& os) const;
 
@@ -77,7 +77,7 @@ class ZygoteSpace FINAL : public ContinuousMemMapAllocSpace {
   }
 
   void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes) OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
  protected:
   virtual accounting::ContinuousSpaceBitmap::SweepCallback* GetSweepCallback() {

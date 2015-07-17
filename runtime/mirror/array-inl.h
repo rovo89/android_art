@@ -101,7 +101,7 @@ class SetLengthVisitor {
   }
 
   void operator()(Object* obj, size_t usable_size) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     UNUSED(usable_size);
     // Avoid AsArray as object is not yet in live bitmap or allocation stack.
     Array* array = down_cast<Array*>(obj);
@@ -126,7 +126,7 @@ class SetLengthToUsableSizeVisitor {
   }
 
   void operator()(Object* obj, size_t usable_size) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     // Avoid AsArray as object is not yet in live bitmap or allocation stack.
     Array* array = down_cast<Array*>(obj);
     // DCHECK(array->IsArrayInstance());

@@ -38,7 +38,7 @@ static inline mirror::Class* CheckFilledNewArrayAlloc(uint32_t type_idx,
                                                       ArtMethod* referrer,
                                                       Thread* self,
                                                       bool access_check)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   if (UNLIKELY(component_count < 0)) {
     ThrowNegativeArraySizeException(component_count);
     return nullptr;  // Failure

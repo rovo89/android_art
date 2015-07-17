@@ -48,12 +48,12 @@ class MANAGED DexCache FINAL : public Object {
 
   void Init(const DexFile* dex_file, String* location, ObjectArray<String>* strings,
             ObjectArray<Class>* types, PointerArray* methods, PointerArray* fields,
-            size_t pointer_size) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+            size_t pointer_size) SHARED_REQUIRES(Locks::mutator_lock_);
 
   void Fixup(ArtMethod* trampoline, size_t pointer_size)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
-  String* GetLocation() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  String* GetLocation() SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(DexCache, location_));
   }
 
@@ -73,76 +73,76 @@ class MANAGED DexCache FINAL : public Object {
     return OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_methods_);
   }
 
-  size_t NumStrings() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  size_t NumStrings() SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetStrings()->GetLength();
   }
 
-  size_t NumResolvedTypes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  size_t NumResolvedTypes() SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetResolvedTypes()->GetLength();
   }
 
-  size_t NumResolvedMethods() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  size_t NumResolvedMethods() SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetResolvedMethods()->GetLength();
   }
 
-  size_t NumResolvedFields() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  size_t NumResolvedFields() SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetResolvedFields()->GetLength();
   }
 
-  String* GetResolvedString(uint32_t string_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  String* GetResolvedString(uint32_t string_idx) SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetStrings()->Get(string_idx);
   }
 
   void SetResolvedString(uint32_t string_idx, String* resolved) ALWAYS_INLINE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     // TODO default transaction support.
     GetStrings()->Set(string_idx, resolved);
   }
 
   Class* GetResolvedType(uint32_t type_idx) ALWAYS_INLINE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetResolvedTypes()->Get(type_idx);
   }
 
   void SetResolvedType(uint32_t type_idx, Class* resolved)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   ALWAYS_INLINE ArtMethod* GetResolvedMethod(uint32_t method_idx, size_t ptr_size)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   ALWAYS_INLINE void SetResolvedMethod(uint32_t method_idx, ArtMethod* resolved, size_t ptr_size)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Pointer sized variant, used for patching.
   ALWAYS_INLINE ArtField* GetResolvedField(uint32_t idx, size_t ptr_size)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Pointer sized variant, used for patching.
   ALWAYS_INLINE void SetResolvedField(uint32_t idx, ArtField* field, size_t ptr_size)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ObjectArray<String>* GetStrings() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ObjectArray<String>* GetStrings() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldObject<ObjectArray<String>>(StringsOffset());
   }
 
-  ObjectArray<Class>* GetResolvedTypes() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ObjectArray<Class>* GetResolvedTypes() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldObject<ObjectArray<Class>>(
         OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_types_));
   }
 
-  PointerArray* GetResolvedMethods() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  PointerArray* GetResolvedMethods() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldObject<PointerArray>(ResolvedMethodsOffset());
   }
 
-  PointerArray* GetResolvedFields() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  PointerArray* GetResolvedFields() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldObject<PointerArray>(ResolvedFieldsOffset());
   }
 
-  const DexFile* GetDexFile() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const DexFile* GetDexFile() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldPtr<const DexFile*>(OFFSET_OF_OBJECT_MEMBER(DexCache, dex_file_));
   }
 
-  void SetDexFile(const DexFile* dex_file) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+  void SetDexFile(const DexFile* dex_file) SHARED_REQUIRES(Locks::mutator_lock_)
       ALWAYS_INLINE {
     return SetFieldPtr<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, dex_file_), dex_file);
   }

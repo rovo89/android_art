@@ -215,7 +215,7 @@ class OatFile FINAL {
   const OatDexFile* GetOatDexFile(const char* dex_location,
                                   const uint32_t* const dex_location_checksum,
                                   bool exception_if_not_found = true) const
-      LOCKS_EXCLUDED(secondary_lookup_lock_);
+      REQUIRES(!secondary_lookup_lock_);
 
   const std::vector<const OatDexFile*>& GetOatDexFiles() const {
     return oat_dex_files_storage_;

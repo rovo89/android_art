@@ -63,13 +63,13 @@ JDWP::ObjectId ObjectRegistry::Add(Handle<T> obj_h) {
 
 // Explicit template instantiation.
 template
-SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::thread_suspend_count_lock_)
+SHARED_REQUIRES(Locks::mutator_lock_)
+REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_)
 JDWP::ObjectId ObjectRegistry::Add(Handle<mirror::Object> obj_h);
 
 template
-SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::thread_suspend_count_lock_)
+SHARED_REQUIRES(Locks::mutator_lock_)
+REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_)
 JDWP::ObjectId ObjectRegistry::Add(Handle<mirror::Throwable> obj_h);
 
 template<class T>

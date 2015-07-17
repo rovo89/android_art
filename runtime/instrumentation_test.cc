@@ -44,7 +44,7 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
                      mirror::Object* this_object ATTRIBUTE_UNUSED,
                      ArtMethod* method ATTRIBUTE_UNUSED,
                      uint32_t dex_pc ATTRIBUTE_UNUSED)
-      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     received_method_enter_event = true;
   }
 
@@ -53,7 +53,7 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
                     ArtMethod* method ATTRIBUTE_UNUSED,
                     uint32_t dex_pc ATTRIBUTE_UNUSED,
                     const JValue& return_value ATTRIBUTE_UNUSED)
-      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     received_method_exit_event = true;
   }
 
@@ -61,7 +61,7 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
                     mirror::Object* this_object ATTRIBUTE_UNUSED,
                     ArtMethod* method ATTRIBUTE_UNUSED,
                     uint32_t dex_pc ATTRIBUTE_UNUSED)
-      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     received_method_unwind_event = true;
   }
 
@@ -69,7 +69,7 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
                   mirror::Object* this_object ATTRIBUTE_UNUSED,
                   ArtMethod* method ATTRIBUTE_UNUSED,
                   uint32_t new_dex_pc ATTRIBUTE_UNUSED)
-      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     received_dex_pc_moved_event = true;
   }
 
@@ -78,7 +78,7 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
                  ArtMethod* method ATTRIBUTE_UNUSED,
                  uint32_t dex_pc ATTRIBUTE_UNUSED,
                  ArtField* field ATTRIBUTE_UNUSED)
-      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     received_field_read_event = true;
   }
 
@@ -88,20 +88,20 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
                     uint32_t dex_pc ATTRIBUTE_UNUSED,
                     ArtField* field ATTRIBUTE_UNUSED,
                     const JValue& field_value ATTRIBUTE_UNUSED)
-      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     received_field_written_event = true;
   }
 
   void ExceptionCaught(Thread* thread ATTRIBUTE_UNUSED,
                        mirror::Throwable* exception_object ATTRIBUTE_UNUSED)
-      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     received_exception_caught_event = true;
   }
 
   void BackwardBranch(Thread* thread ATTRIBUTE_UNUSED,
                       ArtMethod* method ATTRIBUTE_UNUSED,
                       int32_t dex_pc_offset ATTRIBUTE_UNUSED)
-      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     received_backward_branch_event = true;
   }
 
@@ -198,7 +198,7 @@ class InstrumentationTest : public CommonRuntimeTest {
   }
 
   void DeoptimizeMethod(Thread* self, ArtMethod* method, bool enable_deoptimization)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
     self->TransitionFromRunnableToSuspended(kSuspended);
@@ -213,7 +213,7 @@ class InstrumentationTest : public CommonRuntimeTest {
 
   void UndeoptimizeMethod(Thread* self, ArtMethod* method,
                           const char* key, bool disable_deoptimization)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
     self->TransitionFromRunnableToSuspended(kSuspended);
@@ -227,7 +227,7 @@ class InstrumentationTest : public CommonRuntimeTest {
   }
 
   void DeoptimizeEverything(Thread* self, const char* key, bool enable_deoptimization)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+        SHARED_REQUIRES(Locks::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
     self->TransitionFromRunnableToSuspended(kSuspended);
@@ -241,7 +241,7 @@ class InstrumentationTest : public CommonRuntimeTest {
   }
 
   void UndeoptimizeEverything(Thread* self, const char* key, bool disable_deoptimization)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+        SHARED_REQUIRES(Locks::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
     self->TransitionFromRunnableToSuspended(kSuspended);
@@ -255,7 +255,7 @@ class InstrumentationTest : public CommonRuntimeTest {
   }
 
   void EnableMethodTracing(Thread* self, const char* key, bool needs_interpreter)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+        SHARED_REQUIRES(Locks::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
     self->TransitionFromRunnableToSuspended(kSuspended);
@@ -266,7 +266,7 @@ class InstrumentationTest : public CommonRuntimeTest {
   }
 
   void DisableMethodTracing(Thread* self, const char* key)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+        SHARED_REQUIRES(Locks::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
     self->TransitionFromRunnableToSuspended(kSuspended);
@@ -278,7 +278,7 @@ class InstrumentationTest : public CommonRuntimeTest {
 
  private:
   static bool HasEventListener(const instrumentation::Instrumentation* instr, uint32_t event_type)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     switch (event_type) {
       case instrumentation::Instrumentation::kMethodEntered:
         return instr->HasMethodEntryListeners();
@@ -305,7 +305,7 @@ class InstrumentationTest : public CommonRuntimeTest {
   static void ReportEvent(const instrumentation::Instrumentation* instr, uint32_t event_type,
                           Thread* self, ArtMethod* method, mirror::Object* obj,
                           uint32_t dex_pc)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     switch (event_type) {
       case instrumentation::Instrumentation::kMethodEntered:
         instr->MethodEnterEvent(self, obj, method, dex_pc);

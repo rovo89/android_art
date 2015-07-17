@@ -46,7 +46,7 @@ class ModUnionTableTest : public CommonRuntimeTest {
   }
   mirror::ObjectArray<mirror::Object>* AllocObjectArray(
       Thread* self, space::ContinuousMemMapAllocSpace* space, size_t component_count)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     auto* klass = GetObjectArrayClass(self, space);
     const size_t size = mirror::ComputeArraySize(component_count, 2);
     size_t bytes_allocated = 0, bytes_tl_bulk_allocated;
@@ -67,7 +67,7 @@ class ModUnionTableTest : public CommonRuntimeTest {
 
  private:
   mirror::Class* GetObjectArrayClass(Thread* self, space::ContinuousMemMapAllocSpace* space)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     if (java_lang_object_array_ == nullptr) {
       java_lang_object_array_ =
           Runtime::Current()->GetClassLinker()->GetClassRoot(ClassLinker::kObjectArrayClass);
@@ -97,12 +97,12 @@ class CollectVisitedVisitor : public MarkObjectVisitor {
  public:
   explicit CollectVisitedVisitor(std::set<mirror::Object*>* out) : out_(out) {}
   virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>* ref) OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(ref != nullptr);
     MarkObject(ref->AsMirrorPtr());
   }
   virtual mirror::Object* MarkObject(mirror::Object* obj) OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(obj != nullptr);
     out_->insert(obj);
     return obj;

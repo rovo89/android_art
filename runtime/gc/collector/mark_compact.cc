@@ -89,7 +89,7 @@ class CalculateObjectForwardingAddressVisitor {
  public:
   explicit CalculateObjectForwardingAddressVisitor(MarkCompact* collector)
       : collector_(collector) {}
-  void operator()(mirror::Object* obj) const EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_,
+  void operator()(mirror::Object* obj) const REQUIRES(Locks::mutator_lock_,
                                                                       Locks::heap_bitmap_lock_) {
     DCHECK_ALIGNED(obj, space::BumpPointerSpace::kAlignment);
     DCHECK(collector_->IsMarked(obj) != nullptr);
@@ -301,8 +301,8 @@ class UpdateRootVisitor : public RootVisitor {
   }
 
   void VisitRoots(mirror::Object*** roots, size_t count, const RootInfo& info ATTRIBUTE_UNUSED)
-      OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+      OVERRIDE REQUIRES(Locks::mutator_lock_)
+      SHARED_REQUIRES(Locks::heap_bitmap_lock_) {
     for (size_t i = 0; i < count; ++i) {
       mirror::Object* obj = *roots[i];
       mirror::Object* new_obj = collector_->GetMarkedForwardAddress(obj);
@@ -315,8 +315,8 @@ class UpdateRootVisitor : public RootVisitor {
 
   void VisitRoots(mirror::CompressedReference<mirror::Object>** roots, size_t count,
                   const RootInfo& info ATTRIBUTE_UNUSED)
-      OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+      OVERRIDE REQUIRES(Locks::mutator_lock_)
+      SHARED_REQUIRES(Locks::heap_bitmap_lock_) {
     for (size_t i = 0; i < count; ++i) {
       mirror::Object* obj = roots[i]->AsMirrorPtr();
       mirror::Object* new_obj = collector_->GetMarkedForwardAddress(obj);
@@ -335,8 +335,8 @@ class UpdateObjectReferencesVisitor {
  public:
   explicit UpdateObjectReferencesVisitor(MarkCompact* collector) : collector_(collector) {
   }
-  void operator()(mirror::Object* obj) const SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-          EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
+  void operator()(mirror::Object* obj) const SHARED_REQUIRES(Locks::heap_bitmap_lock_)
+          REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE {
     collector_->UpdateObjectReferences(obj);
   }
 
@@ -428,12 +428,12 @@ class UpdateReferenceVisitor {
   }
 
   void operator()(mirror::Object* obj, MemberOffset offset, bool /*is_static*/) const
-      ALWAYS_INLINE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+      ALWAYS_INLINE REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     collector_->UpdateHeapReference(obj->GetFieldObjectReferenceAddr<kVerifyNone>(offset));
   }
 
   void operator()(mirror::Class* /*klass*/, mirror::Reference* ref) const
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+      REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     collector_->UpdateHeapReference(
         ref->GetFieldObjectReferenceAddr<kVerifyNone>(mirror::Reference::ReferentOffset()));
   }
@@ -491,8 +491,8 @@ class MoveObjectVisitor {
  public:
   explicit MoveObjectVisitor(MarkCompact* collector) : collector_(collector) {
   }
-  void operator()(mirror::Object* obj) const SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-          EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
+  void operator()(mirror::Object* obj) const SHARED_REQUIRES(Locks::heap_bitmap_lock_)
+          REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE {
       collector_->MoveObject(obj, obj->SizeOf());
   }
 
@@ -564,14 +564,14 @@ class MarkCompactMarkObjectVisitor {
   }
 
   void operator()(mirror::Object* obj, MemberOffset offset, bool /*is_static*/) const ALWAYS_INLINE
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+      REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     // Object was already verified when we scanned it.
     collector_->MarkObject(obj->GetFieldObject<mirror::Object, kVerifyNone>(offset));
   }
 
   void operator()(mirror::Class* klass, mirror::Reference* ref) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(Locks::heap_bitmap_lock_) {
     collector_->DelayReferenceReferent(klass, ref);
   }
 

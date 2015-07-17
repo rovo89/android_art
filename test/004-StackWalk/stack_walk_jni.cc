@@ -29,10 +29,10 @@ static int gJava_StackWalk_refmap_calls = 0;
 
 class TestReferenceMapVisitor : public CheckReferenceMapVisitor {
  public:
-  explicit TestReferenceMapVisitor(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+  explicit TestReferenceMapVisitor(Thread* thread) SHARED_REQUIRES(Locks::mutator_lock_)
       : CheckReferenceMapVisitor(thread) {}
 
-  bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool VisitFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
     if (CheckReferenceMapVisitor::VisitFrame()) {
       return true;
     }

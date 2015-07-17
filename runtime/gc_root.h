@@ -91,24 +91,24 @@ class RootVisitor {
 
   // Single root version, not overridable.
   ALWAYS_INLINE void VisitRoot(mirror::Object** roots, const RootInfo& info)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     VisitRoots(&roots, 1, info);
   }
 
   // Single root version, not overridable.
   ALWAYS_INLINE void VisitRootIfNonNull(mirror::Object** roots, const RootInfo& info)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     if (*roots != nullptr) {
       VisitRoot(roots, info);
     }
   }
 
   virtual void VisitRoots(mirror::Object*** roots, size_t count, const RootInfo& info)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
+      SHARED_REQUIRES(Locks::mutator_lock_) = 0;
 
   virtual void VisitRoots(mirror::CompressedReference<mirror::Object>** roots, size_t count,
                           const RootInfo& info)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
+      SHARED_REQUIRES(Locks::mutator_lock_) = 0;
 };
 
 // Only visits roots one at a time, doesn't handle updating roots. Used when performance isn't
@@ -116,7 +116,7 @@ class RootVisitor {
 class SingleRootVisitor : public RootVisitor {
  private:
   void VisitRoots(mirror::Object*** roots, size_t count, const RootInfo& info) OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     for (size_t i = 0; i < count; ++i) {
       VisitRoot(*roots[i], info);
     }
@@ -124,7 +124,7 @@ class SingleRootVisitor : public RootVisitor {
 
   void VisitRoots(mirror::CompressedReference<mirror::Object>** roots, size_t count,
                           const RootInfo& info) OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     for (size_t i = 0; i < count; ++i) {
       VisitRoot(roots[i]->AsMirrorPtr(), info);
     }
@@ -169,10 +169,10 @@ class GcRoot {
  public:
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ALWAYS_INLINE MirrorType* Read(GcRootSource* gc_root_source = nullptr) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   void VisitRoot(RootVisitor* visitor, const RootInfo& info) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(!IsNull());
     mirror::CompressedReference<mirror::Object>* roots[1] = { &root_ };
     visitor->VisitRoots(roots, 1u, info);
@@ -180,7 +180,7 @@ class GcRoot {
   }
 
   void VisitRootIfNonNull(RootVisitor* visitor, const RootInfo& info) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     if (!IsNull()) {
       VisitRoot(visitor, info);
     }
@@ -195,7 +195,7 @@ class GcRoot {
     return root_.IsNull();
   }
 
-  ALWAYS_INLINE GcRoot(MirrorType* ref = nullptr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE GcRoot(MirrorType* ref = nullptr) SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
   // Root visitors take pointers to root_ and place the min CompressedReference** arrays. We use a
@@ -222,7 +222,7 @@ class BufferedRootVisitor {
 
   template <class MirrorType>
   ALWAYS_INLINE void VisitRootIfNonNull(GcRoot<MirrorType>& root)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     if (!root.IsNull()) {
       VisitRoot(root);
     }
@@ -230,27 +230,27 @@ class BufferedRootVisitor {
 
   template <class MirrorType>
   ALWAYS_INLINE void VisitRootIfNonNull(mirror::CompressedReference<MirrorType>* root)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     if (!root->IsNull()) {
       VisitRoot(root);
     }
   }
 
   template <class MirrorType>
-  void VisitRoot(GcRoot<MirrorType>& root) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void VisitRoot(GcRoot<MirrorType>& root) SHARED_REQUIRES(Locks::mutator_lock_) {
     VisitRoot(root.AddressWithoutBarrier());
   }
 
   template <class MirrorType>
   void VisitRoot(mirror::CompressedReference<MirrorType>* root)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     if (UNLIKELY(buffer_pos_ >= kBufferSize)) {
       Flush();
     }
     roots_[buffer_pos_++] = root;
   }
 
-  void Flush() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void Flush() SHARED_REQUIRES(Locks::mutator_lock_) {
     visitor_->VisitRoots(roots_, buffer_pos_, root_info_);
     buffer_pos_ = 0;
   }

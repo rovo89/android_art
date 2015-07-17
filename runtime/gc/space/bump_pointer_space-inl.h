@@ -87,7 +87,7 @@ inline mirror::Object* BumpPointerSpace::AllocNonvirtual(size_t num_bytes) {
 }
 
 inline size_t BumpPointerSpace::AllocationSizeNonvirtual(mirror::Object* obj, size_t* usable_size)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   size_t num_bytes = obj->SizeOf();
   if (usable_size != nullptr) {
     *usable_size = RoundUp(num_bytes, kAlignment);

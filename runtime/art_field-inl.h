@@ -253,7 +253,7 @@ inline void ArtField::SetObject(mirror::Object* object, mirror::Object* l) {
   SetObj<kTransactionActive>(object, l);
 }
 
-inline const char* ArtField::GetName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+inline const char* ArtField::GetName() SHARED_REQUIRES(Locks::mutator_lock_) {
   uint32_t field_index = GetDexFieldIndex();
   if (UNLIKELY(GetDeclaringClass()->IsProxyClass())) {
     DCHECK(IsStatic());
@@ -264,7 +264,7 @@ inline const char* ArtField::GetName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock
   return dex_file->GetFieldName(dex_file->GetFieldId(field_index));
 }
 
-inline const char* ArtField::GetTypeDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+inline const char* ArtField::GetTypeDescriptor() SHARED_REQUIRES(Locks::mutator_lock_) {
   uint32_t field_index = GetDexFieldIndex();
   if (UNLIKELY(GetDeclaringClass()->IsProxyClass())) {
     DCHECK(IsStatic());
@@ -278,11 +278,11 @@ inline const char* ArtField::GetTypeDescriptor() SHARED_LOCKS_REQUIRED(Locks::mu
 }
 
 inline Primitive::Type ArtField::GetTypeAsPrimitiveType()
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   return Primitive::GetType(GetTypeDescriptor()[0]);
 }
 
-inline bool ArtField::IsPrimitiveType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+inline bool ArtField::IsPrimitiveType() SHARED_REQUIRES(Locks::mutator_lock_) {
   return GetTypeAsPrimitiveType() != Primitive::kPrimNot;
 }
 
@@ -304,15 +304,15 @@ inline mirror::Class* ArtField::GetType() {
   return type;
 }
 
-inline size_t ArtField::FieldSize() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+inline size_t ArtField::FieldSize() SHARED_REQUIRES(Locks::mutator_lock_) {
   return Primitive::ComponentSize(GetTypeAsPrimitiveType());
 }
 
-inline mirror::DexCache* ArtField::GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+inline mirror::DexCache* ArtField::GetDexCache() SHARED_REQUIRES(Locks::mutator_lock_) {
   return GetDeclaringClass()->GetDexCache();
 }
 
-inline const DexFile* ArtField::GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+inline const DexFile* ArtField::GetDexFile() SHARED_REQUIRES(Locks::mutator_lock_) {
   return GetDexCache()->GetDexFile();
 }
 

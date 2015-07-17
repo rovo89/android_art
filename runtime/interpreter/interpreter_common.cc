@@ -192,7 +192,7 @@ EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL(Primitive::kPrimNot);      // iget-object-q
 
 template<Primitive::Type field_type>
 static JValue GetFieldValue(const ShadowFrame& shadow_frame, uint32_t vreg)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   JValue field_value;
   switch (field_type) {
     case Primitive::kPrimBoolean:
@@ -450,7 +450,7 @@ void UnexpectedOpcode(const Instruction* inst, const ShadowFrame& shadow_frame) 
 // Assign register 'src_reg' from shadow_frame to register 'dest_reg' into new_shadow_frame.
 static inline void AssignRegister(ShadowFrame* new_shadow_frame, const ShadowFrame& shadow_frame,
                                   size_t dest_reg, size_t src_reg)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   // Uint required, so that sign extension does not make this wrong on 64b systems
   uint32_t src_value = shadow_frame.GetVReg(src_reg);
   mirror::Object* o = shadow_frame.GetVRegReference<kVerifyNone>(src_reg);
@@ -482,7 +482,7 @@ void AbortTransactionV(Thread* self, const char* fmt, va_list args) {
 }
 
 // Separate declaration is required solely for the attributes.
-template<bool is_range, bool do_assignability_check> SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+template<bool is_range, bool do_assignability_check> SHARED_REQUIRES(Locks::mutator_lock_)
 static inline bool DoCallCommon(ArtMethod* called_method,
                                 Thread* self,
                                 ShadowFrame& shadow_frame,
@@ -491,7 +491,7 @@ static inline bool DoCallCommon(ArtMethod* called_method,
                                 uint32_t arg[Instruction::kMaxVarArgRegs],
                                 uint32_t vregC) ALWAYS_INLINE;
 
-SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+SHARED_REQUIRES(Locks::mutator_lock_)
 static inline bool NeedsInterpreter(Thread* self, ShadowFrame* new_shadow_frame) ALWAYS_INLINE;
 
 static inline bool NeedsInterpreter(Thread* self, ShadowFrame* new_shadow_frame) {
@@ -834,7 +834,7 @@ bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
   return true;
 }
 
-// TODO fix thread analysis: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_).
+// TODO fix thread analysis: should be SHARED_REQUIRES(Locks::mutator_lock_).
 template<typename T>
 static void RecordArrayElementsInTransactionImpl(mirror::PrimitiveArray<T>* array, int32_t count)
     NO_THREAD_SAFETY_ANALYSIS {
@@ -845,7 +845,7 @@ static void RecordArrayElementsInTransactionImpl(mirror::PrimitiveArray<T>* arra
 }
 
 void RecordArrayElementsInTransaction(mirror::Array* array, int32_t count)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   DCHECK(Runtime::Current()->IsActiveTransaction());
   DCHECK(array != nullptr);
   DCHECK_LE(count, array->GetLength());
@@ -884,7 +884,7 @@ void RecordArrayElementsInTransaction(mirror::Array* array, int32_t count)
 
 // Explicit DoCall template function declarations.
 #define EXPLICIT_DO_CALL_TEMPLATE_DECL(_is_range, _do_assignability_check)                      \
-  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                          \
+  template SHARED_REQUIRES(Locks::mutator_lock_)                                          \
   bool DoCall<_is_range, _do_assignability_check>(ArtMethod* method, Thread* self,              \
                                                   ShadowFrame& shadow_frame,                    \
                                                   const Instruction* inst, uint16_t inst_data,  \
@@ -897,7 +897,7 @@ EXPLICIT_DO_CALL_TEMPLATE_DECL(true, true);
 
 // Explicit DoLambdaCall template function declarations.
 #define EXPLICIT_DO_LAMBDA_CALL_TEMPLATE_DECL(_is_range, _do_assignability_check)               \
-  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                          \
+  template SHARED_REQUIRES(Locks::mutator_lock_)                                          \
   bool DoLambdaCall<_is_range, _do_assignability_check>(ArtMethod* method, Thread* self,        \
                                                         ShadowFrame& shadow_frame,              \
                                                         const Instruction* inst,                \
@@ -911,7 +911,7 @@ EXPLICIT_DO_LAMBDA_CALL_TEMPLATE_DECL(true, true);
 
 // Explicit DoFilledNewArray template function declarations.
 #define EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(_is_range_, _check, _transaction_active)       \
-  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                            \
+  template SHARED_REQUIRES(Locks::mutator_lock_)                                            \
   bool DoFilledNewArray<_is_range_, _check, _transaction_active>(const Instruction* inst,         \
                                                                  const ShadowFrame& shadow_frame, \
                                                                  Thread* self, JValue* result)
