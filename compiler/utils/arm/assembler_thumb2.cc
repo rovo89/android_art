@@ -25,6 +25,58 @@
 namespace art {
 namespace arm {
 
+void Thumb2Assembler::Fixup::PrepareDependents(Thumb2Assembler* assembler) {
+  // For each Fixup, it's easy to find the Fixups that it depends on as they are either
+  // the following or the preceding Fixups until we find the target. However, for fixup
+  // adjustment we need the reverse lookup, i.e. what Fixups depend on a given Fixup.
+  // This function creates a compact representation of this relationship, where we have
+  // all the dependents in a single array and Fixups reference their ranges by start
+  // index and count. (Instead of having a per-fixup vector.)
+
+  // Count the number of dependents of each Fixup.
+  const FixupId end_id = assembler->fixups_.size();
+  Fixup* fixups = assembler->fixups_.data();
+  for (FixupId fixup_id = 0u; fixup_id != end_id; ++fixup_id) {
+    uint32_t target = fixups[fixup_id].target_;
+    if (target > fixups[fixup_id].location_) {
+      for (FixupId id = fixup_id + 1u; id != end_id && fixups[id].location_ < target; ++id) {
+        fixups[id].dependents_count_ += 1u;
+      }
+    } else {
+      for (FixupId id = fixup_id; id != 0u && fixups[id - 1u].location_ >= target; --id) {
+        fixups[id - 1u].dependents_count_ += 1u;
+      }
+    }
+  }
+  // Assign index ranges in fixup_dependents_ to individual fixups. Record the end of the
+  // range in dependents_start_, we shall later decrement it as we fill in fixup_dependents_.
+  uint32_t number_of_dependents = 0u;
+  for (FixupId fixup_id = 0u; fixup_id != end_id; ++fixup_id) {
+    number_of_dependents += fixups[fixup_id].dependents_count_;
+    fixups[fixup_id].dependents_start_ = number_of_dependents;
+  }
+  if (number_of_dependents == 0u) {
+    return;
+  }
+  // Create and fill in the fixup_dependents_.
+  assembler->fixup_dependents_.reset(new FixupId[number_of_dependents]);
+  FixupId* dependents = assembler->fixup_dependents_.get();
+  for (FixupId fixup_id = 0u; fixup_id != end_id; ++fixup_id) {
+    uint32_t target = fixups[fixup_id].target_;
+    if (target > fixups[fixup_id].location_) {
+      for (FixupId id = fixup_id + 1u; id != end_id && fixups[id].location_ < target; ++id) {
+        fixups[id].dependents_start_ -= 1u;
+        dependents[fixups[id].dependents_start_] = fixup_id;
+      }
+    } else {
+      for (FixupId id = fixup_id; id != 0u && fixups[id - 1u].location_ >= target; --id) {
+        fixups[id - 1u].dependents_start_ -= 1u;
+        dependents[fixups[id - 1u].dependents_start_] = fixup_id;
+      }
+    }
+  }
+}
+
 void Thumb2Assembler::BindLabel(Label* label, uint32_t bound_pc) {
   CHECK(!label->IsBound());
 
@@ -32,10 +84,6 @@ void Thumb2Assembler::BindLabel(Label* label, uint32_t bound_pc) {
     FixupId fixup_id = label->Position();                     // The id for linked Fixup.
     Fixup* fixup = GetFixup(fixup_id);                        // Get the Fixup at this id.
     fixup->Resolve(bound_pc);                                 // Fixup can be resolved now.
-    // Add this fixup as a dependency of all later fixups.
-    for (FixupId id = fixup_id + 1u, end = fixups_.size(); id != end; ++id) {
-      GetFixup(id)->AddDependent(fixup_id);
-    }
     uint32_t fixup_location = fixup->GetLocation();
     uint16_t next = buffer_.Load<uint16_t>(fixup_location);   // Get next in chain.
     buffer_.Store<int16_t>(fixup_location, 0);
@@ -59,7 +107,7 @@ void Thumb2Assembler::AdjustFixupIfNeeded(Fixup* fixup, uint32_t* current_code_s
   uint32_t adjustment = fixup->AdjustSizeIfNeeded(*current_code_size);
   if (adjustment != 0u) {
     *current_code_size += adjustment;
-    for (FixupId dependent_id : fixup->Dependents()) {
+    for (FixupId dependent_id : fixup->Dependents(*this)) {
       Fixup* dependent = GetFixup(dependent_id);
       dependent->IncreaseAdjustment(adjustment);
       if (buffer_.Load<int16_t>(dependent->GetLocation()) == 0) {
@@ -71,6 +119,7 @@ void Thumb2Assembler::AdjustFixupIfNeeded(Fixup* fixup, uint32_t* current_code_s
 }
 
 uint32_t Thumb2Assembler::AdjustFixups() {
+  Fixup::PrepareDependents(this);
   uint32_t current_code_size = buffer_.Size();
   std::deque<FixupId> fixups_to_recalculate;
   if (kIsDebugBuild) {
@@ -2220,17 +2269,7 @@ void Thumb2Assembler::EmitBranch(Condition cond, Label* label, bool link, bool x
 
   if (label->IsBound()) {
     // The branch is to a bound label which means that it's a backwards branch.
-    // Record this branch as a dependency of all Fixups between the label and the branch.
     GetFixup(branch_id)->Resolve(label->Position());
-    for (FixupId fixup_id = branch_id; fixup_id != 0u; ) {
-      --fixup_id;
-      Fixup* fixup = GetFixup(fixup_id);
-      DCHECK_GE(label->Position(), 0);
-      if (fixup->GetLocation() < static_cast<uint32_t>(label->Position())) {
-        break;
-      }
-      fixup->AddDependent(branch_id);
-    }
     Emit16(0);
   } else {
     // Branch target is an unbound label. Add it to a singly-linked list maintained within
