@@ -35,7 +35,6 @@
 #include "dex/verified_method.h"
 #include "dex/verification_results.h"
 #include "driver/compiler_driver.h"
-#include "driver/compiler_driver-inl.h"
 #include "driver/compiler_options.h"
 #include "driver/dex_compilation_unit.h"
 #include "elf_writer_quick.h"
@@ -566,7 +565,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   }
 
   DexCompilationUnit dex_compilation_unit(
-    nullptr, class_loader, Runtime::Current()->GetClassLinker(), dex_file, code_item,
+    nullptr, class_loader, art::Runtime::Current()->GetClassLinker(), dex_file, code_item,
     class_def_idx, method_idx, access_flags,
     compiler_driver->GetVerifiedMethod(&dex_file, method_idx));
 
@@ -603,25 +602,12 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
                              visualizer_output_.get(),
                              compiler_driver);
 
-  const uint8_t* interpreter_metadata = nullptr;
-  {
-    ScopedObjectAccess soa(Thread::Current());
-    StackHandleScope<4> hs(soa.Self());
-    ClassLinker* class_linker = dex_compilation_unit.GetClassLinker();
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(dex_file)));
-    Handle<mirror::ClassLoader> loader(hs.NewHandle(
-        soa.Decode<mirror::ClassLoader*>(class_loader)));
-    ArtMethod* art_method = compiler_driver->ResolveMethod(
-        soa, dex_cache, loader, &dex_compilation_unit, method_idx, invoke_type);
-    interpreter_metadata = art_method->GetQuickenedInfo();
-  }
   HGraphBuilder builder(graph,
                         &dex_compilation_unit,
                         &dex_compilation_unit,
                         &dex_file,
                         compiler_driver,
-                        compilation_stats_.get(),
-                        interpreter_metadata);
+                        compilation_stats_.get());
 
   VLOG(compiler) << "Building " << method_name;
 
