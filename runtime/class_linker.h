@@ -406,9 +406,6 @@ class ClassLinker {
   const void* GetOatMethodQuickCodeFor(ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  const OatFile::OatMethod FindOatMethodFor(ArtMethod* method, bool* found)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   pid_t GetClassesLockOwner();  // For SignalCatcher.
   pid_t GetDexLockOwner();  // For SignalCatcher.
 
@@ -487,6 +484,9 @@ class ClassLinker {
   void DropFindArrayClassCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
+  const OatFile::OatMethod FindOatMethodFor(ArtMethod* method, bool* found)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   OatFile& GetImageOatFile(gc::space::ImageSpace* space)
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

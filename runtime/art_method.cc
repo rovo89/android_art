@@ -35,7 +35,6 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/string.h"
-#include "oat_file-inl.h"
 #include "scoped_thread_state_change.h"
 #include "well_known_classes.h"
 
@@ -560,16 +559,6 @@ bool ArtMethod::EqualParameters(Handle<mirror::ObjectArray<mirror::Class>> param
     }
   }
   return true;
-}
-
-const uint8_t* ArtMethod::GetQuickenedInfo() {
-  bool found = false;
-  OatFile::OatMethod oat_method =
-      Runtime::Current()->GetClassLinker()->FindOatMethodFor(this, &found);
-  if (!found || (oat_method.GetQuickCode() != nullptr)) {
-    return nullptr;
-  }
-  return oat_method.GetVmapTable();
 }
 
 }  // namespace art
