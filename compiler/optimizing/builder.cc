@@ -804,7 +804,9 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
       invoke_type = kDirect;
       break;
     case Instruction::INVOKE_VIRTUAL:
+    case Instruction::INVOKE_VIRTUAL_QUICK:
     case Instruction::INVOKE_VIRTUAL_RANGE:
+    case Instruction::INVOKE_VIRTUAL_RANGE_QUICK:
       invoke_type = kVirtual;
       break;
     case Instruction::INVOKE_INTERFACE:
@@ -1051,7 +1053,15 @@ bool HGraphBuilder::BuildInstanceFieldAccess(const Instruction& instruction,
                                              bool is_put) {
   uint32_t source_or_dest_reg = instruction.VRegA_22c();
   uint32_t obj_reg = instruction.VRegB_22c();
-  uint16_t field_index = instruction.VRegC_22c();
+  uint16_t field_index;
+  if (instruction.IsQuickened()) {
+    if (!CanDecodeQuickenedInfo()) {
+      return false;
+    }
+    field_index = LookupQuickenedInfo(dex_pc);
+  } else {
+    field_index = instruction.VRegC_22c();
+  }
 
   ScopedObjectAccess soa(Thread::Current());
   ArtField* resolved_field =
@@ -1560,6 +1570,17 @@ void HGraphBuilder::PotentiallyAddSuspendCheck(HBasicBlock* target, uint32_t dex
   }
 }
 
+bool HGraphBuilder::CanDecodeQuickenedInfo() const {
+  return interpreter_metadata_ != nullptr;
+}
+
+uint16_t HGraphBuilder::LookupQuickenedInfo(uint32_t dex_pc) {
+  DCHECK(interpreter_metadata_ != nullptr);
+  uint32_t dex_pc_in_map = DecodeUnsignedLeb128(&interpreter_metadata_);
+  DCHECK_EQ(dex_pc, dex_pc_in_map);
+  return DecodeUnsignedLeb128(&interpreter_metadata_);
+}
+
 bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32_t dex_pc) {
   if (current_block_ == nullptr) {
     return true;  // Dead code
@@ -1657,6 +1678,7 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
     }
 
+    case Instruction::RETURN_VOID_NO_BARRIER:
     case Instruction::RETURN_VOID: {
       BuildReturn(instruction, Primitive::kPrimVoid);
       break;
@@ -1705,8 +1727,17 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     case Instruction::INVOKE_INTERFACE:
     case Instruction::INVOKE_STATIC:
     case Instruction::INVOKE_SUPER:
-    case Instruction::INVOKE_VIRTUAL: {
-      uint32_t method_idx = instruction.VRegB_35c();
+    case Instruction::INVOKE_VIRTUAL:
+    case Instruction::INVOKE_VIRTUAL_QUICK: {
+      uint16_t method_idx;
+      if (instruction.Opcode() == Instruction::INVOKE_VIRTUAL_QUICK) {
+        if (!CanDecodeQuickenedInfo()) {
+          return false;
+        }
+        method_idx = LookupQuickenedInfo(dex_pc);
+      } else {
+        method_idx = instruction.VRegB_35c();
+      }
       uint32_t number_of_vreg_arguments = instruction.VRegA_35c();
       uint32_t args[5];
       instruction.GetVarArgs(args);
@@ -1721,8 +1752,17 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     case Instruction::INVOKE_INTERFACE_RANGE:
     case Instruction::INVOKE_STATIC_RANGE:
     case Instruction::INVOKE_SUPER_RANGE:
-    case Instruction::INVOKE_VIRTUAL_RANGE: {
-      uint32_t method_idx = instruction.VRegB_3rc();
+    case Instruction::INVOKE_VIRTUAL_RANGE:
+    case Instruction::INVOKE_VIRTUAL_RANGE_QUICK: {
+      uint16_t method_idx;
+      if (instruction.Opcode() == Instruction::INVOKE_VIRTUAL_RANGE_QUICK) {
+        if (!CanDecodeQuickenedInfo()) {
+          return false;
+        }
+        method_idx = LookupQuickenedInfo(dex_pc);
+      } else {
+        method_idx = instruction.VRegB_3rc();
+      }
       uint32_t number_of_vreg_arguments = instruction.VRegA_3rc();
       uint32_t register_index = instruction.VRegC();
       if (!BuildInvoke(instruction, dex_pc, method_idx,
@@ -2375,12 +2415,19 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
 
     case Instruction::IGET:
+    case Instruction::IGET_QUICK:
     case Instruction::IGET_WIDE:
+    case Instruction::IGET_WIDE_QUICK:
     case Instruction::IGET_OBJECT:
+    case Instruction::IGET_OBJECT_QUICK:
     case Instruction::IGET_BOOLEAN:
+    case Instruction::IGET_BOOLEAN_QUICK:
     case Instruction::IGET_BYTE:
+    case Instruction::IGET_BYTE_QUICK:
     case Instruction::IGET_CHAR:
-    case Instruction::IGET_SHORT: {
+    case Instruction::IGET_CHAR_QUICK:
+    case Instruction::IGET_SHORT:
+    case Instruction::IGET_SHORT_QUICK: {
       if (!BuildInstanceFieldAccess(instruction, dex_pc, false)) {
         return false;
       }
@@ -2388,12 +2435,19 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     }
 
     case Instruction::IPUT:
+    case Instruction::IPUT_QUICK:
     case Instruction::IPUT_WIDE:
+    case Instruction::IPUT_WIDE_QUICK:
     case Instruction::IPUT_OBJECT:
+    case Instruction::IPUT_OBJECT_QUICK:
     case Instruction::IPUT_BOOLEAN:
+    case Instruction::IPUT_BOOLEAN_QUICK:
     case Instruction::IPUT_BYTE:
+    case Instruction::IPUT_BYTE_QUICK:
     case Instruction::IPUT_CHAR:
-    case Instruction::IPUT_SHORT: {
+    case Instruction::IPUT_CHAR_QUICK:
+    case Instruction::IPUT_SHORT:
+    case Instruction::IPUT_SHORT_QUICK: {
       if (!BuildInstanceFieldAccess(instruction, dex_pc, true)) {
         return false;
       }
