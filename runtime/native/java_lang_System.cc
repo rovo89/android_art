@@ -105,14 +105,20 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
         dstArray->AsShortSizedArray()->Memmove(dstPos, srcArray->AsShortSizedArray(), srcPos, count);
         return;
       case Primitive::kPrimInt:
-      case Primitive::kPrimFloat:
         DCHECK_EQ(Primitive::ComponentSize(dstComponentPrimitiveType), 4U);
         dstArray->AsIntArray()->Memmove(dstPos, srcArray->AsIntArray(), srcPos, count);
         return;
+      case Primitive::kPrimFloat:
+        DCHECK_EQ(Primitive::ComponentSize(dstComponentPrimitiveType), 4U);
+        dstArray->AsFloatArray()->Memmove(dstPos, srcArray->AsFloatArray(), srcPos, count);
+        return;
       case Primitive::kPrimLong:
-      case Primitive::kPrimDouble:
         DCHECK_EQ(Primitive::ComponentSize(dstComponentPrimitiveType), 8U);
         dstArray->AsLongArray()->Memmove(dstPos, srcArray->AsLongArray(), srcPos, count);
+        return;
+      case Primitive::kPrimDouble:
+        DCHECK_EQ(Primitive::ComponentSize(dstComponentPrimitiveType), 8U);
+        dstArray->AsDoubleArray()->Memmove(dstPos, srcArray->AsDoubleArray(), srcPos, count);
         return;
       case Primitive::kPrimNot: {
         mirror::ObjectArray<mirror::Object>* dstObjArray = dstArray->AsObjectArray<mirror::Object>();
