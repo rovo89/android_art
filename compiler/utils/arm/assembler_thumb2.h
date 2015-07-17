@@ -24,6 +24,7 @@
 #include "constants_arm.h"
 #include "utils/arm/managed_register_arm.h"
 #include "utils/arm/assembler_arm.h"
+#include "utils/array_ref.h"
 #include "offsets.h"
 
 namespace art {
@@ -37,6 +38,7 @@ class Thumb2Assembler FINAL : public ArmAssembler {
         it_cond_index_(kNoItCondition),
         next_condition_(AL),
         fixups_(),
+        fixup_dependents_(),
         literals_(),
         last_position_adjustment_(0u),
         last_old_position_(0u),
@@ -507,12 +509,12 @@ class Thumb2Assembler FINAL : public ArmAssembler {
       return adjustment_;
     }
 
-    const std::vector<FixupId>& Dependents() const {
-      return dependents_;
-    }
+    // Prepare the assembler->fixup_dependents_ and each Fixup's dependents_start_/count_.
+    static void PrepareDependents(Thumb2Assembler* assembler);
 
-    void AddDependent(FixupId dependent_id) {
-      dependents_.push_back(dependent_id);
+    ArrayRef<FixupId> Dependents(const Thumb2Assembler& assembler) const {
+      return ArrayRef<FixupId>(assembler.fixup_dependents_.get() + dependents_start_,
+                               dependents_count_);
     }
 
     // Resolve a branch when the target is known.
@@ -557,7 +559,8 @@ class Thumb2Assembler FINAL : public ArmAssembler {
           location_(location),
           target_(kUnresolved),
           adjustment_(0u),
-          dependents_() {
+          dependents_count_(0u),
+          dependents_start_(0u) {
     }
     static size_t SizeInBytes(Size size);
 
@@ -584,7 +587,10 @@ class Thumb2Assembler FINAL : public ArmAssembler {
     uint32_t location_;     // Offset into assembler buffer in bytes.
     uint32_t target_;       // Offset into assembler buffer in bytes.
     uint32_t adjustment_;   // The number of extra bytes inserted between location_ and target_.
-    std::vector<FixupId> dependents_;  // Fixups that require adjustment when current size changes.
+    // Fixups that require adjustment when current size changes are stored in a single
+    // array in the assembler and we store only the start index and count here.
+    uint32_t dependents_count_;
+    uint32_t dependents_start_;
   };
 
   // Emit a single 32 or 16 bit data processing instruction.
@@ -760,6 +766,7 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   static int32_t LdrRtRnImm12Encoding(Register rt, Register rn, int32_t offset);
 
   std::vector<Fixup> fixups_;
+  std::unique_ptr<FixupId[]> fixup_dependents_;
 
   // Use std::deque<> for literal labels to allow insertions at the end
   // without invalidating pointers and references to existing elements.
