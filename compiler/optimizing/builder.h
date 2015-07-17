@@ -39,7 +39,8 @@ class HGraphBuilder : public ValueObject {
                 const DexCompilationUnit* const outer_compilation_unit,
                 const DexFile* dex_file,
                 CompilerDriver* driver,
-                OptimizingCompilerStats* compiler_stats)
+                OptimizingCompilerStats* compiler_stats,
+                const uint8_t* interpreter_metadata)
       : arena_(graph->GetArena()),
         branch_targets_(graph->GetArena(), 0),
         locals_(graph->GetArena(), 0),
@@ -55,7 +56,8 @@ class HGraphBuilder : public ValueObject {
         code_start_(nullptr),
         latest_result_(nullptr),
         can_use_baseline_for_string_init_(true),
-        compilation_stats_(compiler_stats) {}
+        compilation_stats_(compiler_stats),
+        interpreter_metadata_(interpreter_metadata) {}
 
   // Only for unit testing.
   HGraphBuilder(HGraph* graph, Primitive::Type return_type = Primitive::kPrimInt)
@@ -119,6 +121,9 @@ class HGraphBuilder : public ValueObject {
                             HTryBoundary::BoundaryKind kind,
                             const DexFile::CodeItem& code_item,
                             const DexFile::TryItem& try_item);
+
+  bool CanDecodeQuickenedInfo() const;
+  uint16_t LookupQuickenedInfo(uint32_t dex_pc);
 
   void InitializeLocals(uint16_t count);
   HLocal* GetLocalAt(int register_index) const;
@@ -306,6 +311,8 @@ class HGraphBuilder : public ValueObject {
   bool can_use_baseline_for_string_init_;
 
   OptimizingCompilerStats* compilation_stats_;
+
+  const uint8_t* interpreter_metadata_;
 
   DISALLOW_COPY_AND_ASSIGN(HGraphBuilder);
 };
