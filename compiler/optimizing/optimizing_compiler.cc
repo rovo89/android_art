@@ -514,8 +514,8 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   }
 
   // Implementation of the space filter: do not compile a code item whose size in
-  // code units is bigger than 256.
-  static constexpr size_t kSpaceFilterOptimizingThreshold = 256;
+  // code units is bigger than 128.
+  static constexpr size_t kSpaceFilterOptimizingThreshold = 128;
   const CompilerOptions& compiler_options = compiler_driver->GetCompilerOptions();
   if ((compiler_options.GetCompilerFilter() == CompilerOptions::kSpace)
       && (code_item->insns_size_in_code_units_ > kSpaceFilterOptimizingThreshold)) {
