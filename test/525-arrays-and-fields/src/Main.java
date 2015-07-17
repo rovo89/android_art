@@ -213,6 +213,64 @@ public class Main {
   }
 
   //
+  // Loops on static arrays with a cross-over reference.
+  //
+
+  private static void SCrossOverLoopZ() {
+    for (int i = 0; i < sArrZ.length; i++) {
+      sArrZ[i] = !sArrZ[20];
+    }
+  }
+
+  private static void SCrossOverLoopB() {
+    for (int i = 0; i < sArrB.length; i++) {
+      sArrB[i] = (byte)(sArrB[20] + 2);
+    }
+  }
+
+  private static void SCrossOverLoopC() {
+    for (int i = 0; i < sArrC.length; i++) {
+      sArrC[i] = (char)(sArrC[20] + 2);
+    }
+  }
+
+  private static void SCrossOverLoopS() {
+    for (int i = 0; i < sArrS.length; i++) {
+      sArrS[i] = (short)(sArrS[20] + 2);
+    }
+  }
+
+  private static void SCrossOverLoopI() {
+    for (int i = 0; i < sArrI.length; i++) {
+      sArrI[i] = sArrI[20] + 2;
+    }
+  }
+
+  private static void SCrossOverLoopJ() {
+    for (int i = 0; i < sArrJ.length; i++) {
+      sArrJ[i] = sArrJ[20] + 2;
+    }
+  }
+
+  private static void SCrossOverLoopF() {
+    for (int i = 0; i < sArrF.length; i++) {
+      sArrF[i] = sArrF[20] + 2;
+    }
+  }
+
+  private static void SCrossOverLoopD() {
+    for (int i = 0; i < sArrD.length; i++) {
+      sArrD[i] = sArrD[20] + 2;
+    }
+  }
+
+  private static void SCrossOverLoopL() {
+    for (int i = 0; i < sArrL.length; i++) {
+      sArrL[i] = (sArrL[20] == anObject) ? anotherObject : anObject;
+    }
+  }
+
+  //
   // Loops on instance arrays with invariant instance field references.
   //
 
@@ -345,6 +403,65 @@ public class Main {
         mL = anotherObject;
     }
   }
+
+  //
+  // Loops on instance arrays with a cross-over reference.
+  //
+
+  private void CrossOverLoopZ() {
+    for (int i = 0; i < mArrZ.length; i++) {
+      mArrZ[i] = !mArrZ[20];
+    }
+  }
+
+  private void CrossOverLoopB() {
+    for (int i = 0; i < mArrB.length; i++) {
+      mArrB[i] = (byte)(mArrB[20] + 2);
+    }
+  }
+
+  private void CrossOverLoopC() {
+    for (int i = 0; i < mArrC.length; i++) {
+      mArrC[i] = (char)(mArrC[20] + 2);
+    }
+  }
+
+  private void CrossOverLoopS() {
+    for (int i = 0; i < mArrS.length; i++) {
+      mArrS[i] = (short)(mArrS[20] + 2);
+    }
+  }
+
+  private void CrossOverLoopI() {
+    for (int i = 0; i < mArrI.length; i++) {
+      mArrI[i] = mArrI[20] + 2;
+    }
+  }
+
+  private void CrossOverLoopJ() {
+    for (int i = 0; i < mArrJ.length; i++) {
+      mArrJ[i] = mArrJ[20] + 2;
+    }
+  }
+
+  private void CrossOverLoopF() {
+    for (int i = 0; i < mArrF.length; i++) {
+      mArrF[i] = mArrF[20] + 2;
+    }
+  }
+
+  private void CrossOverLoopD() {
+    for (int i = 0; i < mArrD.length; i++) {
+      mArrD[i] = mArrD[20] + 2;
+    }
+  }
+
+  private void CrossOverLoopL() {
+    for (int i = 0; i < mArrL.length; i++) {
+      mArrL[i] = (mArrL[20] == anObject) ? anotherObject : anObject;
+    }
+  }
+
   //
   // Driver and testers.
   //
@@ -366,6 +483,10 @@ public class Main {
     for (int i = 0; i < sArrZ.length; i++) {
       expectEquals(i <= 10, sArrZ[i]);
     }
+    SCrossOverLoopZ();
+    for (int i = 0; i < sArrZ.length; i++) {
+      expectEquals(i <= 20, sArrZ[i]);
+    }
     // Type B.
     sB = 1;
     sArrB = new byte[100];
@@ -376,6 +497,10 @@ public class Main {
     SVarLoopB();
     for (int i = 0; i < sArrB.length; i++) {
       expectEquals(i <= 10 ? 1 : 2, sArrB[i]);
+    }
+    SCrossOverLoopB();
+    for (int i = 0; i < sArrB.length; i++) {
+      expectEquals(i <= 20 ? 4 : 6, sArrB[i]);
     }
     // Type C.
     sC = 2;
@@ -388,6 +513,10 @@ public class Main {
     for (int i = 0; i < sArrC.length; i++) {
       expectEquals(i <= 10 ? 2 : 3, sArrC[i]);
     }
+    SCrossOverLoopC();
+    for (int i = 0; i < sArrC.length; i++) {
+      expectEquals(i <= 20 ? 5 : 7, sArrC[i]);
+    }
     // Type S.
     sS = 3;
     sArrS = new short[100];
@@ -398,6 +527,10 @@ public class Main {
     SVarLoopS();
     for (int i = 0; i < sArrS.length; i++) {
       expectEquals(i <= 10 ? 3 : 4, sArrS[i]);
+    }
+    SCrossOverLoopS();
+    for (int i = 0; i < sArrS.length; i++) {
+      expectEquals(i <= 20 ? 6 : 8, sArrS[i]);
     }
     // Type I.
     sI = 4;
@@ -410,6 +543,10 @@ public class Main {
     for (int i = 0; i < sArrI.length; i++) {
       expectEquals(i <= 10 ? 4 : 5, sArrI[i]);
     }
+    SCrossOverLoopI();
+    for (int i = 0; i < sArrI.length; i++) {
+      expectEquals(i <= 20 ? 7 : 9, sArrI[i]);
+    }
     // Type J.
     sJ = 5;
     sArrJ = new long[100];
@@ -420,6 +557,10 @@ public class Main {
     SVarLoopJ();
     for (int i = 0; i < sArrJ.length; i++) {
       expectEquals(i <= 10 ? 5 : 6, sArrJ[i]);
+    }
+    SCrossOverLoopJ();
+    for (int i = 0; i < sArrJ.length; i++) {
+      expectEquals(i <= 20 ? 8 : 10, sArrJ[i]);
     }
     // Type F.
     sF = 6.0f;
@@ -432,6 +573,10 @@ public class Main {
     for (int i = 0; i < sArrF.length; i++) {
       expectEquals(i <= 10 ? 6 : 7, sArrF[i]);
     }
+    SCrossOverLoopF();
+    for (int i = 0; i < sArrF.length; i++) {
+      expectEquals(i <= 20 ? 9 : 11, sArrF[i]);
+    }
     // Type D.
     sD = 7.0;
     sArrD = new double[100];
@@ -443,6 +588,10 @@ public class Main {
     for (int i = 0; i < sArrD.length; i++) {
       expectEquals(i <= 10 ? 7 : 8, sArrD[i]);
     }
+    SCrossOverLoopD();
+    for (int i = 0; i < sArrD.length; i++) {
+      expectEquals(i <= 20 ? 10 : 12, sArrD[i]);
+    }
     // Type L.
     sL = anObject;
     sArrL = new Object[100];
@@ -453,6 +602,10 @@ public class Main {
     SVarLoopL();
     for (int i = 0; i < sArrL.length; i++) {
       expectEquals(i <= 10 ? anObject : anotherObject, sArrL[i]);
+    }
+    SCrossOverLoopL();
+    for (int i = 0; i < sArrL.length; i++) {
+      expectEquals(i <= 20 ? anObject : anotherObject, sArrL[i]);
     }
   }
 
@@ -468,6 +621,10 @@ public class Main {
     for (int i = 0; i < mArrZ.length; i++) {
       expectEquals(i <= 10, mArrZ[i]);
     }
+    CrossOverLoopZ();
+    for (int i = 0; i < mArrZ.length; i++) {
+      expectEquals(i <= 20, mArrZ[i]);
+    }
     // Type B.
     mB = 1;
     mArrB = new byte[100];
@@ -478,6 +635,10 @@ public class Main {
     VarLoopB();
     for (int i = 0; i < mArrB.length; i++) {
       expectEquals(i <= 10 ? 1 : 2, mArrB[i]);
+    }
+    CrossOverLoopB();
+    for (int i = 0; i < mArrB.length; i++) {
+      expectEquals(i <= 20 ? 4 : 6, mArrB[i]);
     }
     // Type C.
     mC = 2;
@@ -490,6 +651,10 @@ public class Main {
     for (int i = 0; i < mArrC.length; i++) {
       expectEquals(i <= 10 ? 2 : 3, mArrC[i]);
     }
+    CrossOverLoopC();
+    for (int i = 0; i < mArrC.length; i++) {
+      expectEquals(i <= 20 ? 5 : 7, mArrC[i]);
+    }
     // Type S.
     mS = 3;
     mArrS = new short[100];
@@ -500,6 +665,10 @@ public class Main {
     VarLoopS();
     for (int i = 0; i < mArrS.length; i++) {
       expectEquals(i <= 10 ? 3 : 4, mArrS[i]);
+    }
+    CrossOverLoopS();
+    for (int i = 0; i < mArrS.length; i++) {
+      expectEquals(i <= 20 ? 6 : 8, mArrS[i]);
     }
     // Type I.
     mI = 4;
@@ -512,6 +681,10 @@ public class Main {
     for (int i = 0; i < mArrI.length; i++) {
       expectEquals(i <= 10 ? 4 : 5, mArrI[i]);
     }
+    CrossOverLoopI();
+    for (int i = 0; i < mArrI.length; i++) {
+      expectEquals(i <= 20 ? 7 : 9, mArrI[i]);
+    }
     // Type J.
     mJ = 5;
     mArrJ = new long[100];
@@ -522,6 +695,10 @@ public class Main {
     VarLoopJ();
     for (int i = 0; i < mArrJ.length; i++) {
       expectEquals(i <= 10 ? 5 : 6, mArrJ[i]);
+    }
+    CrossOverLoopJ();
+    for (int i = 0; i < mArrJ.length; i++) {
+      expectEquals(i <= 20 ? 8 : 10, mArrJ[i]);
     }
     // Type F.
     mF = 6.0f;
@@ -534,6 +711,10 @@ public class Main {
     for (int i = 0; i < mArrF.length; i++) {
       expectEquals(i <= 10 ? 6 : 7, mArrF[i]);
     }
+    CrossOverLoopF();
+    for (int i = 0; i < mArrF.length; i++) {
+      expectEquals(i <= 20 ? 9 : 11, mArrF[i]);
+    }
     // Type D.
     mD = 7.0;
     mArrD = new double[100];
@@ -545,6 +726,10 @@ public class Main {
     for (int i = 0; i < mArrD.length; i++) {
       expectEquals(i <= 10 ? 7 : 8, mArrD[i]);
     }
+    CrossOverLoopD();
+    for (int i = 0; i < mArrD.length; i++) {
+      expectEquals(i <= 20 ? 10 : 12, mArrD[i]);
+    }
     // Type L.
     mL = anObject;
     mArrL = new Object[100];
@@ -555,6 +740,10 @@ public class Main {
     VarLoopL();
     for (int i = 0; i < mArrL.length; i++) {
       expectEquals(i <= 10 ? anObject : anotherObject, mArrL[i]);
+    }
+    CrossOverLoopL();
+    for (int i = 0; i < mArrL.length; i++) {
+      expectEquals(i <= 20 ? anObject : anotherObject, mArrL[i]);
     }
   }
 
