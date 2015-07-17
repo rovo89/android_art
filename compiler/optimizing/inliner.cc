@@ -326,7 +326,8 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
                         &outer_compilation_unit_,
                         resolved_method->GetDexFile(),
                         compiler_driver_,
-                        &inline_stats);
+                        &inline_stats,
+                        resolved_method->GetQuickenedInfo());
 
   if (!builder.BuildGraph(*code_item)) {
     VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
