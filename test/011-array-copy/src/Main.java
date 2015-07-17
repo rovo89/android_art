@@ -23,6 +23,7 @@ public class Main {
     public static void main(String args[]) {
         testObjectCopy();
         testOverlappingMoves();
+        testFloatAndDouble();
     }
 
     public static void testObjectCopy() {
@@ -142,5 +143,14 @@ public class Main {
 
         /* copy forward, mixed alignment, trivial length */
         makeCopies(0, 5, 1);
+    }
+
+    private static void testFloatAndDouble() {
+        // Float & double copies have the same implementation as int & long. However, there are
+        // protective DCHECKs in the code (there is nothing unifying like ByteSizedArray or
+        // ShortSizedArray). Just test that we don't fail those checks.
+        final int len = 10;
+        System.arraycopy(new float[len], 0, new float[len], 0, len);
+        System.arraycopy(new double[len], 0, new double[len], 0, len);
     }
 }
