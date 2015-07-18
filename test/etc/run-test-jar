@@ -42,7 +42,7 @@ TIME_OUT="y"
 TIME_OUT_VALUE=10
 USE_GDB="n"
 USE_JVM="n"
-VERIFY="y"
+VERIFY="y" # y=yes,n=no,s=softfail
 ZYGOTE=""
 DEX_VERIFY=""
 USE_DEX2OAT_AND_PATCHOAT="y"
@@ -149,6 +149,9 @@ while true; do
     elif [ "x$1" = "x--no-verify" ]; then
         VERIFY="n"
         shift
+    elif [ "x$1" = "x--verify-soft-fail" ]; then
+        VERIFY="s"
+        shift
     elif [ "x$1" = "x--no-optimize" ]; then
         OPTIMIZE="n"
         shift
@@ -201,7 +204,11 @@ if [ "$ZYGOTE" = "" ]; then
     if [ "$VERIFY" = "y" ]; then
         JVM_VERIFY_ARG="-Xverify:all"
         msg "Performing verification"
-    else
+    elif [ "$VERIFY" = "s" ]; then
+        JVM_VERIFY_ARG="Xverify:all"
+        DEX_VERIFY="-Xverify:softfail"
+        msg "Forcing verification to be soft fail"
+    else # VERIFY = "n"
         DEX_VERIFY="-Xverify:none"
         JVM_VERIFY_ARG="-Xverify:none"
         msg "Skipping verification"
@@ -263,7 +270,10 @@ if [ "$INTERPRETER" = "y" ]; then
     INT_OPTS="-Xint"
     if [ "$VERIFY" = "y" ] ; then
       COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=interpret-only"
-    else
+    elif [ "$VERIFY" = "s" ]; then
+      COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=verify-at-runtime"
+      DEX_VERIFY="${DEX_VERIFY} -Xverify:softfail"
+    else # VERIFY = "n"
       COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=verify-none"
       DEX_VERIFY="${DEX_VERIFY} -Xverify:none"
     fi

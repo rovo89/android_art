@@ -32,6 +32,7 @@
 #include "gc/space/large_object_space.h"
 #include "profiler_options.h"
 #include "arch/instruction_set.h"
+#include "verifier/verify_mode.h"
 #include <stdio.h>
 #include <stdarg.h>
 

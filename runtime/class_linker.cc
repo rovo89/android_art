@@ -3040,6 +3040,18 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
     mirror::Class::SetStatus(klass, mirror::Class::kStatusVerifyingAtRuntime, self);
   }
 
+  // Skip verification if we are forcing a soft fail.
+  // This has to be before the normal verification enabled check,
+  // since technically verification is disabled in this mode.
+  if (UNLIKELY(Runtime::Current()->IsVerificationSoftFail())) {
+    // Force verification to be a 'soft failure'.
+    mirror::Class::SetStatus(klass, mirror::Class::kStatusVerified, self);
+    // As this is a fake verified status, make sure the methods are _not_ marked preverified
+    // later.
+    klass->SetPreverified();
+    return;
+  }
+
   // Skip verification if disabled.
   if (!Runtime::Current()->IsVerificationEnabled()) {
     mirror::Class::SetStatus(klass, mirror::Class::kStatusVerified, self);

@@ -64,6 +64,7 @@ namespace mirror {
 }  // namespace mirror
 namespace verifier {
   class MethodVerifier;
+  enum class VerifyMode : int8_t;
 }  // namespace verifier
 class ArenaPool;
 class ArtMethod;
@@ -500,9 +501,8 @@ class Runtime {
     return !implicit_so_checks_;
   }
 
-  bool IsVerificationEnabled() const {
-    return verify_;
-  }
+  bool IsVerificationEnabled() const;
+  bool IsVerificationSoftFail() const;
 
   bool IsDexFileFallbackEnabled() const {
     return allow_dex_file_fallback_;
@@ -700,8 +700,8 @@ class Runtime {
   // Transaction used for pre-initializing classes at compilation time.
   Transaction* preinitialization_transaction_;
 
-  // If false, verification is disabled. True by default.
-  bool verify_;
+  // If kNone, verification is disabled. kEnable by default.
+  verifier::VerifyMode verify_;
 
   // If true, the runtime may use dex files directly with the interpreter if an oat file is not
   // available/usable.
