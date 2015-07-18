@@ -45,6 +45,7 @@ ART_TEST_DEFAULT_COMPILER ?= true
 
 # Do you want interpreter tests run?
 ART_TEST_INTERPRETER ?= $(ART_TEST_FULL)
+ART_TEST_INTERPRETER_ACCESS_CHECKS ?= $(ART_TEST_FULL)
 
 # Do you want JIT tests run?
 ART_TEST_JIT ?= $(ART_TEST_FULL)
