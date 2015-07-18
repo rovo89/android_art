@@ -106,7 +106,8 @@ RUNTIME_OPTIONS_KEY (std::vector<std::string>, \
                                           CompilerOptions)  // -Xcompiler-option ...
 RUNTIME_OPTIONS_KEY (std::vector<std::string>, \
                                           ImageCompilerOptions)  // -Ximage-compiler-option ...
-RUNTIME_OPTIONS_KEY (bool,                Verify,                         true)
+RUNTIME_OPTIONS_KEY (verifier::VerifyMode, \
+                                          Verify,                         verifier::VerifyMode::kEnable)
 RUNTIME_OPTIONS_KEY (std::string,         NativeBridge)
 RUNTIME_OPTIONS_KEY (unsigned int,        ZygoteMaxFailedBoots,           10)
 RUNTIME_OPTIONS_KEY (Unit,                NoDexFileFallback)

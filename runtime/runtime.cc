@@ -185,7 +185,7 @@ Runtime::Runtime()
       system_class_loader_(nullptr),
       dump_gc_performance_on_shutdown_(false),
       preinitialization_transaction_(nullptr),
-      verify_(false),
+      verify_(verifier::VerifyMode::kNone),
       allow_dex_file_fallback_(true),
       target_sdk_version_(0),
       implicit_null_checks_(false),
@@ -1755,6 +1755,14 @@ void Runtime::SetImtUnimplementedMethod(ArtMethod* method) {
   CHECK(method != nullptr);
   CHECK(method->IsRuntimeMethod());
   imt_unimplemented_method_ = method;
+}
+
+bool Runtime::IsVerificationEnabled() const {
+  return verify_ == verifier::VerifyMode::kEnable;
+}
+
+bool Runtime::IsVerificationSoftFail() const {
+  return verify_ == verifier::VerifyMode::kSoftFail;
 }
 
 }  // namespace art
