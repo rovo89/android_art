@@ -112,6 +112,9 @@ COMPILER_TYPES :=
 ifeq ($(ART_TEST_DEFAULT_COMPILER),true)
   COMPILER_TYPES += default
 endif
+ifeq ($(ART_TEST_INTERPRETER_ACCESS_CHECKS),true)
+  COMPILER_TYPES += interpreter-access-checks
+endif
 ifeq ($(ART_TEST_INTERPRETER),true)
   COMPILER_TYPES += interpreter
 endif
@@ -259,6 +262,28 @@ ifneq (,$(filter no-relocate,$(RELOCATE_TYPES)))
 endif
 
 TEST_ART_BROKEN_NO_RELOCATE_TESTS :=
+
+# Temporarily disable some broken tests when forcing access checks in interpreter b/22414682
+TEST_ART_BROKEN_INTERPRETER_ACCESS_CHECK_TESTS := \
+  004-JniTest \
+  005-annotations \
+  044-proxy \
+  073-mismatched-field \
+  088-monitor-verification \
+  135-MirandaDispatch \
+  137-cfi \
+  412-new-array \
+  471-uninitialized-locals \
+  506-verify-aput \
+  800-smali
+
+ifneq (,$(filter interpreter-access-checks,$(COMPILER_TYPES)))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
+      interpreter-access-checks,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      $(IMAGE_TYPES), $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_INTERPRETER_ACCESS_CHECK_TESTS), $(ALL_ADDRESS_SIZES))
+endif
+
+TEST_ART_BROKEN_INTERPRETER_ACCESS_CHECK_TESTS :=
 
 # Tests that are broken with GC stress.
 # 137-cfi needs to unwind a second forked process. We're using a primitive sleep to wait till we
@@ -604,7 +629,8 @@ endif
 
 # Create a rule to build and run a tests following the form:
 # test-art-{1: host or target}-run-test-{2: debug ndebug}-{3: prebuild no-prebuild no-dex2oat}-
-#    {4: interpreter default optimizing jit}-{5: relocate nrelocate relocate-npatchoat}-
+#    {4: interpreter default optimizing jit interpreter-access-checks}-
+#    {5: relocate nrelocate relocate-npatchoat}-
 #    {6: trace or ntrace}-{7: gcstress gcverify cms}-{8: forcecopy checkjni jni}-
 #    {9: no-image image picimage}-{10: pictest npictest}-
 #    {11: ndebuggable debuggable}-{12: test name}{13: 32 or 64}
@@ -674,6 +700,9 @@ define define-test-art-run-test
     ifeq ($(4),interpreter)
       test_groups += ART_RUN_TEST_$$(uc_host_or_target)_INTERPRETER_RULES
       run_test_options += --interpreter
+    else ifeq ($(4),interpreter-access-checks)
+      test_groups += ART_RUN_TEST_$$(uc_host_or_target)_INTERPRETER_ACCESS_CHECKS_RULES
+      run_test_options += --interpreter --verify-soft-fail
     else
       ifeq ($(4),default)
         test_groups += ART_RUN_TEST_$$(uc_host_or_target)_DEFAULT_RULES
