@@ -1497,14 +1497,14 @@ ArtMethod* Runtime::CreateCalleeSaveMethod() {
 
 void Runtime::DisallowNewSystemWeaks() {
   monitor_list_->DisallowNewMonitors();
-  intern_table_->DisallowNewInterns();
+  intern_table_->ChangeWeakRootState(gc::kWeakRootStateNoReadsOrWrites);
   java_vm_->DisallowNewWeakGlobals();
   heap_->DisallowNewAllocationRecords();
 }
 
 void Runtime::AllowNewSystemWeaks() {
   monitor_list_->AllowNewMonitors();
-  intern_table_->AllowNewInterns();
+  intern_table_->ChangeWeakRootState(gc::kWeakRootStateNormal);  // TODO: Do this in the sweeping?
   java_vm_->AllowNewWeakGlobals();
   heap_->AllowNewAllocationRecords();
 }
@@ -1513,7 +1513,7 @@ void Runtime::EnsureNewSystemWeaksDisallowed() {
   // Lock and unlock the system weak locks once to ensure that no
   // threads are still in the middle of adding new system weaks.
   monitor_list_->EnsureNewMonitorsDisallowed();
-  intern_table_->EnsureNewInternsDisallowed();
+  intern_table_->EnsureNewWeakInternsDisallowed();
   java_vm_->EnsureNewWeakGlobalsDisallowed();
 }
 

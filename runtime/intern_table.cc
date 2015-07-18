@@ -21,6 +21,7 @@
 #include "gc_root-inl.h"
 #include "gc/collector/garbage_collector.h"
 #include "gc/space/image_space.h"
+#include "gc/weak_root_state.h"
 #include "mirror/dex_cache.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
@@ -32,8 +33,8 @@ namespace art {
 
 InternTable::InternTable()
     : image_added_to_intern_table_(false), log_new_roots_(false),
-      allow_new_interns_(true),
-      new_intern_condition_("New intern condition", *Locks::intern_table_lock_) {
+      weak_intern_condition_("New intern condition", *Locks::intern_table_lock_),
+      weak_root_state_(gc::kWeakRootStateNormal) {
 }
 
 size_t InternTable::Size() const {
@@ -89,6 +90,7 @@ mirror::String* InternTable::LookupStrong(mirror::String* s) {
 }
 
 mirror::String* InternTable::LookupWeak(mirror::String* s) {
+  // TODO: Return only if marked.
   return weak_interns_.Find(s);
 }
 
@@ -183,8 +185,7 @@ void InternTable::AddImageStringsToTable(gc::space::ImageSpace* image_space) {
   }
 }
 
-mirror::String* InternTable::LookupStringFromImage(mirror::String* s)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+mirror::String* InternTable::LookupStringFromImage(mirror::String* s) {
   if (image_added_to_intern_table_) {
     return nullptr;
   }
@@ -212,48 +213,61 @@ mirror::String* InternTable::LookupStringFromImage(mirror::String* s)
   return nullptr;
 }
 
-void InternTable::AllowNewInterns() {
-  Thread* self = Thread::Current();
-  MutexLock mu(self, *Locks::intern_table_lock_);
-  allow_new_interns_ = true;
-  new_intern_condition_.Broadcast(self);
-}
-
-void InternTable::DisallowNewInterns() {
-  Thread* self = Thread::Current();
-  MutexLock mu(self, *Locks::intern_table_lock_);
-  allow_new_interns_ = false;
-}
-
-void InternTable::EnsureNewInternsDisallowed() {
+void InternTable::EnsureNewWeakInternsDisallowed() {
   // Lock and unlock once to ensure that no threads are still in the
   // middle of adding new interns.
   MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
-  CHECK(!allow_new_interns_);
+  CHECK_EQ(weak_root_state_, gc::kWeakRootStateNoReadsOrWrites);
 }
 
 void InternTable::BroadcastForNewInterns() {
   CHECK(kUseReadBarrier);
   Thread* self = Thread::Current();
   MutexLock mu(self, *Locks::intern_table_lock_);
-  new_intern_condition_.Broadcast(self);
+  weak_intern_condition_.Broadcast(self);
 }
 
-mirror::String* InternTable::Insert(mirror::String* s, bool is_strong) {
+void InternTable::WaitUntilAccessible(Thread* self) {
+  Locks::intern_table_lock_->ExclusiveUnlock(self);
+  self->TransitionFromRunnableToSuspended(kWaitingWeakRootRead);
+  Locks::intern_table_lock_->ExclusiveLock(self);
+  while (weak_root_state_ == gc::kWeakRootStateNoReadsOrWrites) {
+    weak_intern_condition_.Wait(self);
+  }
+  Locks::intern_table_lock_->ExclusiveUnlock(self);
+  self->TransitionFromSuspendedToRunnable();
+  Locks::intern_table_lock_->ExclusiveLock(self);
+}
+
+mirror::String* InternTable::Insert(mirror::String* s, bool is_strong, bool holding_locks) {
   if (s == nullptr) {
     return nullptr;
   }
-  Thread* self = Thread::Current();
+  Thread* const self = Thread::Current();
   MutexLock mu(self, *Locks::intern_table_lock_);
-  while (UNLIKELY((!kUseReadBarrier && !allow_new_interns_) ||
-                  (kUseReadBarrier && !self->GetWeakRefAccessEnabled()))) {
-    new_intern_condition_.WaitHoldingLocks(self);
+  if (kDebugLocking && !holding_locks) {
+    Locks::mutator_lock_->AssertSharedHeld(self);
+    CHECK_EQ(2u, self->NumberOfHeldMutexes()) << "may only safely hold the mutator lock";
   }
-  // Check the strong table for a match.
-  mirror::String* strong = LookupStrong(s);
-  if (strong != nullptr) {
-    return strong;
+  while (true) {
+    // Check the strong table for a match.
+    mirror::String* strong = LookupStrong(s);
+    if (strong != nullptr) {
+      return strong;
+    }
+    // weak_root_state_ is set to gc::kWeakRootStateNoReadsOrWrites in the GC pause but is only
+    // cleared after SweepSystemWeaks has completed. This is why we need to wait until it is
+    // cleared.
+    if (weak_root_state_ != gc::kWeakRootStateNoReadsOrWrites) {
+      break;
+    }
+    CHECK(!holding_locks);
+    StackHandleScope<1> hs(self);
+    auto h = hs.NewHandleWrapper(&s);
+    WaitUntilAccessible(self);
   }
+  CHECK_NE(weak_root_state_, gc::kWeakRootStateNoReadsOrWrites);
+  DCHECK_NE(weak_root_state_, gc::kWeakRootStateMarkNewRoots) << "Unsupported";
   // There is no match in the strong table, check the weak table.
   mirror::String* weak = LookupWeak(s);
   if (weak != nullptr) {
@@ -284,12 +298,17 @@ mirror::String* InternTable::InternStrong(const char* utf8_data) {
   return InternStrong(mirror::String::AllocFromModifiedUtf8(Thread::Current(), utf8_data));
 }
 
+mirror::String* InternTable::InternImageString(mirror::String* s) {
+  // May be holding the heap bitmap lock.
+  return Insert(s, true, true);
+}
+
 mirror::String* InternTable::InternStrong(mirror::String* s) {
-  return Insert(s, true);
+  return Insert(s, true, false);
 }
 
 mirror::String* InternTable::InternWeak(mirror::String* s) {
-  return Insert(s, false);
+  return Insert(s, false, false);
 }
 
 bool InternTable::ContainsWeak(mirror::String* s) {
@@ -300,6 +319,8 @@ bool InternTable::ContainsWeak(mirror::String* s) {
 void InternTable::SweepInternTableWeaks(IsMarkedVisitor* visitor) {
   MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
   weak_interns_.SweepWeaks(visitor);
+  // Done sweeping, back to a normal state.
+  ChangeWeakRootStateLocked(gc::kWeakRootStateNormal);
 }
 
 void InternTable::AddImageInternTable(gc::space::ImageSpace* image_space) {
@@ -423,6 +444,18 @@ void InternTable::Table::SweepWeaks(UnorderedSet* set, IsMarkedVisitor* visitor)
 
 size_t InternTable::Table::Size() const {
   return pre_zygote_table_.Size() + post_zygote_table_.Size();
+}
+
+void InternTable::ChangeWeakRootState(gc::WeakRootState new_state) {
+  MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
+  ChangeWeakRootStateLocked(new_state);
+}
+
+void InternTable::ChangeWeakRootStateLocked(gc::WeakRootState new_state) {
+  weak_root_state_ = new_state;
+  if (new_state != gc::kWeakRootStateNoReadsOrWrites) {
+    weak_intern_condition_.Broadcast(Thread::Current());
+  }
 }
 
 }  // namespace art
