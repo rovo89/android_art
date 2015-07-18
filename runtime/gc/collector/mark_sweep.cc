@@ -1006,7 +1006,7 @@ void MarkSweep::ReMarkRoots() {
 
 void MarkSweep::SweepSystemWeaks(Thread* self) {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
-  WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+  ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
   Runtime::Current()->SweepSystemWeaks(this);
 }
 
