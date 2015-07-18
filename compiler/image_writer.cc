@@ -715,8 +715,10 @@ void ImageWriter::CalculateObjectBinSlots(Object* obj) {
       DCHECK_EQ(obj, obj->AsString()->Intern());
       return;
     }
-    mirror::String* const interned = Runtime::Current()->GetInternTable()->InternStrong(
-        obj->AsString()->Intern());
+    // InternImageString allows us to intern while holding the heap bitmap lock. This is safe since
+    // we are guaranteed to not have GC during image writing.
+    mirror::String* const interned = Runtime::Current()->GetInternTable()->InternImageString(
+        obj->AsString());
     if (obj != interned) {
       if (!IsImageBinSlotAssigned(interned)) {
         // interned obj is after us, allocate its location early
