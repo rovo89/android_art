@@ -244,10 +244,11 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
           .AppendValues()
           .IntoKey(M::ImageCompilerOptions)
       .Define("-Xverify:_")
-          .WithType<bool>()
-          .WithValueMap({{"none", false},
-                         {"remote", true},
-                         {"all", true}})
+          .WithType<verifier::VerifyMode>()
+          .WithValueMap({{"none",     verifier::VerifyMode::kNone},
+                         {"remote",   verifier::VerifyMode::kEnable},
+                         {"all",      verifier::VerifyMode::kEnable},
+                         {"softfail", verifier::VerifyMode::kSoftFail}})
           .IntoKey(M::Verify)
       .Define("-XX:NativeBridge=_")
           .WithType<std::string>()
@@ -686,7 +687,7 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -esa\n");
   UsageMessage(stream, "  -dsa\n");
   UsageMessage(stream, "   (-enablesystemassertions, -disablesystemassertions)\n");
-  UsageMessage(stream, "  -Xverify:{none,remote,all}\n");
+  UsageMessage(stream, "  -Xverify:{none,remote,all,softfail}\n");
   UsageMessage(stream, "  -Xrs\n");
   UsageMessage(stream, "  -Xint:portable, -Xint:fast, -Xint:jit\n");
   UsageMessage(stream, "  -Xdexopt:{none,verified,all,full}\n");

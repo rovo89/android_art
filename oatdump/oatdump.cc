@@ -1950,9 +1950,12 @@ class ImageDumper {
       }
       state->stats_.managed_code_bytes_ignoring_deduplication += quick_oat_code_size;
 
+      uint32_t method_access_flags = method->GetAccessFlags();
+
       indent_os << StringPrintf("OAT CODE: %p-%p\n", quick_oat_code_begin, quick_oat_code_end);
-      indent_os << StringPrintf("SIZE: Dex Instructions=%zd GC=%zd Mapping=%zd\n",
-                                dex_instruction_bytes, gc_map_bytes, pc_mapping_table_bytes);
+      indent_os << StringPrintf("SIZE: Dex Instructions=%zd GC=%zd Mapping=%zd AccessFlags=0x%x\n",
+                                dex_instruction_bytes, gc_map_bytes, pc_mapping_table_bytes,
+                                method_access_flags);
 
       size_t total_size = dex_instruction_bytes + gc_map_bytes + pc_mapping_table_bytes +
           vmap_table_bytes + quick_oat_code_size + ArtMethod::ObjectSize(image_pointer_size);

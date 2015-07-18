@@ -216,9 +216,6 @@ TEST_F(CmdlineParserTest, TestSimpleSuccesses) {
   EXPECT_SINGLE_PARSE_EXISTS("-Xzygote", M::Zygote);
   EXPECT_SINGLE_PARSE_VALUE_STR("/hello/world", "-Xbootclasspath:/hello/world", M::BootClassPath);
   EXPECT_SINGLE_PARSE_VALUE("/hello/world", "-Xbootclasspath:/hello/world", M::BootClassPath);
-  EXPECT_SINGLE_PARSE_VALUE(false, "-Xverify:none", M::Verify);
-  EXPECT_SINGLE_PARSE_VALUE(true, "-Xverify:remote", M::Verify);
-  EXPECT_SINGLE_PARSE_VALUE(true, "-Xverify:all", M::Verify);
   EXPECT_SINGLE_PARSE_VALUE(Memory<1>(234), "-Xss234", M::StackSize);
   EXPECT_SINGLE_PARSE_VALUE(MemoryKiB(1234*MB), "-Xms1234m", M::MemoryInitialSize);
   EXPECT_SINGLE_PARSE_VALUE(true, "-XX:EnableHSpaceCompactForOOM", M::EnableHSpaceCompactForOOM);
@@ -548,6 +545,14 @@ TEST_F(CmdlineParserTest, TestExperimentalLambdas) {
   EXPECT_SINGLE_PARSE_VALUE(true,
                             "-Xexperimental-lambdas",
                             M::ExperimentalLambdas);
+}
+
+// -Xverify:_
+TEST_F(CmdlineParserTest, TestVerify) {
+  EXPECT_SINGLE_PARSE_VALUE(verifier::VerifyMode::kNone,     "-Xverify:none",     M::Verify);
+  EXPECT_SINGLE_PARSE_VALUE(verifier::VerifyMode::kEnable,   "-Xverify:remote",   M::Verify);
+  EXPECT_SINGLE_PARSE_VALUE(verifier::VerifyMode::kEnable,   "-Xverify:all",      M::Verify);
+  EXPECT_SINGLE_PARSE_VALUE(verifier::VerifyMode::kSoftFail, "-Xverify:softfail", M::Verify);
 }
 
 TEST_F(CmdlineParserTest, TestIgnoreUnrecognized) {
