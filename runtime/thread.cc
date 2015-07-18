@@ -2734,4 +2734,12 @@ void Thread::PopVerifier(verifier::MethodVerifier* verifier) {
   tlsPtr_.method_verifier = verifier->link_;
 }
 
+size_t Thread::NumberOfHeldMutexes() const {
+  size_t count = 0;
+  for (BaseMutex* mu : tlsPtr_.held_mutexes) {
+    count += static_cast<size_t>(mu != nullptr);
+  }
+  return count;
+}
+
 }  // namespace art
