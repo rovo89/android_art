@@ -24,10 +24,9 @@
     .extern artDeliverPendingException
 
     /*
-     * Macro that sets up the callee save frame to conform with
-     * Runtime::CreateCalleeSaveMethod(kSaveAll)
+     * Macro to spill the GPRs.
      */
-.macro SETUP_SAVE_ALL_CALLEE_SAVE_FRAME rTemp1, rTemp2
+.macro SPILL_ALL_CALLEE_SAVE_GPRS
     push {r4-r11, lr}                             @ 9 words (36 bytes) of callee saves.
     .cfi_adjust_cfa_offset 36
     .cfi_rel_offset r4, 0
@@ -39,6 +38,14 @@
     .cfi_rel_offset r10, 24
     .cfi_rel_offset r11, 28
     .cfi_rel_offset lr, 32
+.endm
+
+    /*
+     * Macro that sets up the callee save frame to conform with
+     * Runtime::CreateCalleeSaveMethod(kSaveAll)
+     */
+.macro SETUP_SAVE_ALL_CALLEE_SAVE_FRAME rTemp1, rTemp2
+    SPILL_ALL_CALLEE_SAVE_GPRS                    @ 9 words (36 bytes) of callee saves.
     vpush {s16-s31}                               @ 16 words (64 bytes) of floats.
     .cfi_adjust_cfa_offset 64
     sub sp, #12                                   @ 3 words of space, bottom word will hold Method*
@@ -380,17 +387,7 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
      *  +-------------------------+
      */
 ENTRY art_quick_invoke_stub_internal
-    push   {r4, r5, r6, r7, r8, r9, r10, r11, lr}               @ spill regs
-    .cfi_adjust_cfa_offset 16
-    .cfi_rel_offset r4, 0
-    .cfi_rel_offset r5, 4
-    .cfi_rel_offset r6, 8
-    .cfi_rel_offset r7, 12
-    .cfi_rel_offset r8, 16
-    .cfi_rel_offset r9, 20
-    .cfi_rel_offset r10, 24
-    .cfi_rel_offset r11, 28
-    .cfi_rel_offset lr, 32
+    SPILL_ALL_CALLEE_SAVE_GPRS             @ spill regs (9)
     mov    r11, sp                         @ save the stack pointer
     .cfi_def_cfa_register r11
 
