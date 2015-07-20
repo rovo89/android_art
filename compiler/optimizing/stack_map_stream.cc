@@ -248,7 +248,7 @@ void StackMapStream::FillIn(MemoryRegion region) {
   DCHECK_EQ(code_info.GetStackMapsSize(code_info.ExtractEncoding()), stack_maps_size_);
 
   // Set the Dex register location catalog.
-  code_info.SetNumberOfDexRegisterLocationCatalogEntries(location_catalog_entries_.Size());
+  code_info.SetNumberOfLocationCatalogEntries(location_catalog_entries_.Size());
   MemoryRegion dex_register_location_catalog_region = region.Subregion(
       dex_register_location_catalog_start_, dex_register_location_catalog_size_);
   DexRegisterLocationCatalog dex_register_location_catalog(dex_register_location_catalog_region);
