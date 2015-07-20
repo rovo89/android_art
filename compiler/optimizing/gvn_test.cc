@@ -206,7 +206,7 @@ TEST(GVNTest, LoopFieldElimination) {
   // and the body to be GVN'ed.
   loop_body->AddInstruction(new (&allocator) HInstanceFieldSet(parameter,
                                                                parameter,
-                                                               Primitive::kPrimNot,
+                                                               Primitive::kPrimBoolean,
                                                                MemberOffset(42),
                                                                false,
                                                                kUnknownFieldIndex,
@@ -323,9 +323,10 @@ TEST(GVNTest, LoopSideEffects) {
     SideEffectsAnalysis side_effects(graph);
     side_effects.Run();
 
-    ASSERT_TRUE(side_effects.GetBlockEffects(entry).HasSideEffects());
-    ASSERT_FALSE(side_effects.GetLoopEffects(outer_loop_header).HasSideEffects());
-    ASSERT_FALSE(side_effects.GetLoopEffects(inner_loop_header).HasSideEffects());
+    ASSERT_TRUE(side_effects.GetBlockEffects(entry).DoesAnyWrite());
+    ASSERT_FALSE(side_effects.GetBlockEffects(outer_loop_body).DoesAnyWrite());
+    ASSERT_FALSE(side_effects.GetLoopEffects(outer_loop_header).DoesAnyWrite());
+    ASSERT_FALSE(side_effects.GetLoopEffects(inner_loop_header).DoesAnyWrite());
   }
 
   // Check that the side effects of the outer loop does not affect the inner loop.
@@ -343,10 +344,10 @@ TEST(GVNTest, LoopSideEffects) {
     SideEffectsAnalysis side_effects(graph);
     side_effects.Run();
 
-    ASSERT_TRUE(side_effects.GetBlockEffects(entry).HasSideEffects());
-    ASSERT_TRUE(side_effects.GetBlockEffects(outer_loop_body).HasSideEffects());
-    ASSERT_TRUE(side_effects.GetLoopEffects(outer_loop_header).HasSideEffects());
-    ASSERT_FALSE(side_effects.GetLoopEffects(inner_loop_header).HasSideEffects());
+    ASSERT_TRUE(side_effects.GetBlockEffects(entry).DoesAnyWrite());
+    ASSERT_TRUE(side_effects.GetBlockEffects(outer_loop_body).DoesAnyWrite());
+    ASSERT_TRUE(side_effects.GetLoopEffects(outer_loop_header).DoesAnyWrite());
+    ASSERT_FALSE(side_effects.GetLoopEffects(inner_loop_header).DoesAnyWrite());
   }
 
   // Check that the side effects of the inner loop affects the outer loop.
@@ -365,10 +366,10 @@ TEST(GVNTest, LoopSideEffects) {
     SideEffectsAnalysis side_effects(graph);
     side_effects.Run();
 
-    ASSERT_TRUE(side_effects.GetBlockEffects(entry).HasSideEffects());
-    ASSERT_FALSE(side_effects.GetBlockEffects(outer_loop_body).HasSideEffects());
-    ASSERT_TRUE(side_effects.GetLoopEffects(outer_loop_header).HasSideEffects());
-    ASSERT_TRUE(side_effects.GetLoopEffects(inner_loop_header).HasSideEffects());
+    ASSERT_TRUE(side_effects.GetBlockEffects(entry).DoesAnyWrite());
+    ASSERT_FALSE(side_effects.GetBlockEffects(outer_loop_body).DoesAnyWrite());
+    ASSERT_TRUE(side_effects.GetLoopEffects(outer_loop_header).DoesAnyWrite());
+    ASSERT_TRUE(side_effects.GetLoopEffects(inner_loop_header).DoesAnyWrite());
   }
 }
 }  // namespace art
