@@ -2946,6 +2946,12 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       // If the code would've normally hard-failed, then the interpreter will throw the
       // appropriate verification errors at runtime.
       Fail(VERIFY_ERROR_FORCE_INTERPRETER);  // TODO(iam): implement box-lambda verification
+
+      // Partial verification. Sets the resulting type to always be an object, which
+      // is good enough for some other verification to occur without hard-failing.
+      const uint32_t vreg_target_object = inst->VRegA_22x();  // box-lambda vA, vB
+      const RegType& reg_type = reg_types_.JavaLangObject(need_precise_constants_);
+      work_line_->SetRegisterType(this, vreg_target_object, reg_type);
       break;
     }
 
