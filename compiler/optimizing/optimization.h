@@ -40,7 +40,7 @@ class HOptimization : public ArenaObject<kArenaAllocMisc> {
   // Return the name of the pass.
   const char* GetPassName() const { return pass_name_; }
 
-  // Peform the analysis itself.
+  // Perform the analysis itself.
   virtual void Run() = 0;
 
  protected:
