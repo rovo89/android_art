@@ -186,6 +186,12 @@ TEST_F(HashSetTest, TestShrink) {
   // Shrink again, the load factor should be good again.
   hash_set.ShrinkToMaximumLoad();
   EXPECT_DOUBLE_EQ(initial_load, hash_set.CalculateLoadFactor());
+
+  // Make sure all the initial elements we had are still there
+  for (const std::string& initial_string : strings) {
+    EXPECT_NE(hash_set.end(), hash_set.Find(initial_string))
+        << "expected to find " << initial_string;
+  }
 }
 
 TEST_F(HashSetTest, TestStress) {

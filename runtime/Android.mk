@@ -98,6 +98,7 @@ LIBART_COMMON_SRC_FILES := \
   jit/jit.cc \
   jit/jit_code_cache.cc \
   jit/jit_instrumentation.cc \
+  lambda/box_table.cc \
   jni_internal.cc \
   jobject_comparator.cc \
   linear_alloc.cc \
