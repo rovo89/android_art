@@ -120,7 +120,7 @@ class ValueSet : public ArenaObject<kArenaAllocMisc> {
   // Removes all instructions in the set affected by the given side effects.
   void Kill(SideEffects side_effects) {
     DeleteAllImpureWhich([side_effects](Node* node) {
-      return node->GetInstruction()->GetSideEffects().DependsOn(side_effects);
+      return node->GetInstruction()->GetSideEffects().MayDependOn(side_effects);
     });
   }
 
@@ -264,7 +264,7 @@ class ValueSet : public ArenaObject<kArenaAllocMisc> {
   // odd buckets to speed up deletion.
   size_t HashCode(HInstruction* instruction) const {
     size_t hash_code = instruction->ComputeHashCode();
-    if (instruction->GetSideEffects().HasDependencies()) {
+    if (instruction->GetSideEffects().DoesAnyRead()) {
       return (hash_code << 1) | 0;
     } else {
       return (hash_code << 1) | 1;
