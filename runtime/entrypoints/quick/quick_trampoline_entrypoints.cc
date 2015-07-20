@@ -640,8 +640,8 @@ extern "C" uint64_t artQuickProxyInvokeHandler(mirror::ArtMethod* proxy_method,
   BuildQuickArgumentVisitor local_ref_visitor(sp, is_static, shorty, shorty_len, &soa, &args);
 
   local_ref_visitor.VisitArguments();
-  DCHECK_GT(args.size(), 0U) << PrettyMethod(proxy_method);
   if (!is_static) {
+    DCHECK_GT(args.size(), 0U) << PrettyMethod(proxy_method);
     args.erase(args.begin());
   }
 

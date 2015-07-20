@@ -475,7 +475,7 @@ class Dex2Oat {
   }
 
   void SetRuntimeRecompiling(bool new_value) {
-    runtime_->SetRecompiling(true);
+    runtime_->SetRecompiling(new_value);
   }
 
  private:
