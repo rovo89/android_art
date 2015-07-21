@@ -579,10 +579,23 @@ static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
       continue;
     }
     if (EndsWith(dex_filename, ".oat") || EndsWith(dex_filename, ".odex")) {
-        const OatFile* oat_file = OatFile::Open(dex_filename, dex_location, nullptr, false, &error_msg);
+      std::unique_ptr<File> file(OS::OpenFileForReading(dex_filename));
+      if (file.get() == nullptr) {
+        LOG(WARNING) << "Failed to open file '" << dex_filename << "': " << strerror(errno);;
+        ++failure_count;
+        continue;
+      }
+      std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file.release(), PROT_READ | PROT_WRITE, MAP_PRIVATE, &error_msg));
+      if (elf_file.get() == nullptr) {
+        LOG(WARNING) << "Failed to open ELF file from '" << dex_filename << "': " << error_msg;
+        ++failure_count;
+        continue;
+      }
+      const OatFile* oat_file = OatFile::OpenWithElfFile(elf_file.release(), dex_filename, &error_msg);
       if (oat_file == nullptr) {
         LOG(WARNING) << "Failed to open oat file from '" << dex_filename << "': " << error_msg;
         ++failure_count;
+        continue;
       } else {
         for (const OatFile::OatDexFile* oat_dex_file : oat_file->GetOatDexFiles()) {
           CHECK(oat_dex_file != nullptr);
