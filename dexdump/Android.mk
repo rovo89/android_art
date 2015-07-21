@@ -50,5 +50,5 @@ LOCAL_C_INCLUDES := $(dexdump_c_includes)
 LOCAL_CFLAGS += -Wall
 LOCAL_SHARED_LIBRARIES += $(dexdump_libraries)
 LOCAL_MODULE := dexdump2
-LOCAL_MODULE_TAGS := optional
+LOCAL_MULTILIB := $(ART_MULTILIB_OVERRIDE_host)
 include $(BUILD_HOST_EXECUTABLE)
