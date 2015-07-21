@@ -690,6 +690,11 @@ const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_ty
   } else if (IsReferenceTypes() && incoming_type.IsReferenceTypes()) {
     if (IsZero() || incoming_type.IsZero()) {
       return SelectNonConstant(*this, incoming_type);  // 0 MERGE ref => ref
+    } else if (IsUninitializedTypes() || incoming_type.IsUninitializedTypes()) {
+      // Something that is uninitialized hasn't had its constructor called. Unitialized types are
+      // special. They may only ever be merged with themselves (must be taken care of by the
+      // caller of Merge(), see the DCHECK on entry). So mark any other merge as conflicting here.
+      return conflict;
     } else if (IsJavaLangObject() || incoming_type.IsJavaLangObject()) {
       return reg_types->JavaLangObject(false);  // Object MERGE ref => Object
     } else if (IsUnresolvedTypes() || incoming_type.IsUnresolvedTypes()) {
@@ -698,11 +703,6 @@ const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_ty
       // type that reflects our lack of knowledge and that allows the rest of the unresolved
       // mechanics to continue.
       return reg_types->FromUnresolvedMerge(*this, incoming_type);
-    } else if (IsUninitializedTypes() || incoming_type.IsUninitializedTypes()) {
-      // Something that is uninitialized hasn't had its constructor called. Mark any merge
-      // of this type with something that is initialized as conflicting. The cases of a merge
-      // with itself, 0 or Object are handled above.
-      return conflict;
     } else {  // Two reference types, compute Join
       mirror::Class* c1 = GetClass();
       mirror::Class* c2 = incoming_type.GetClass();
