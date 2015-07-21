@@ -20,6 +20,7 @@
 #include "art_method.h"
 
 #include "art_field.h"
+#include "base/logging.h"
 #include "dex_file.h"
 #include "dex_file-inl.h"
 #include "gc_root-inl.h"
@@ -314,7 +315,9 @@ inline uintptr_t ArtMethod::NativeQuickPcOffset(const uintptr_t pc) {
 
 inline QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo(const void* code_pointer) {
   DCHECK(code_pointer != nullptr);
-  DCHECK_EQ(code_pointer, GetQuickOatCodePointer(sizeof(void*)));
+  if (kIsDebugBuild && !IsProxyMethod()) {
+    CHECK_EQ(code_pointer, GetQuickOatCodePointer(sizeof(void*)));
+  }
   return reinterpret_cast<const OatQuickMethodHeader*>(code_pointer)[-1].frame_info_;
 }
 
