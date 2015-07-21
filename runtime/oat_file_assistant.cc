@@ -165,6 +165,11 @@ bool OatFileAssistant::MakeUpToDate(std::string* error_msg) {
 }
 
 std::unique_ptr<OatFile> OatFileAssistant::GetBestOatFile() {
+  // The best oat files are, in descending order of bestness:
+  // 1. Properly relocated files. These may be opened executable.
+  // 2. Not out-of-date files that are already opened non-executable.
+  // 3. Not out-of-date files that we must reopen non-executable.
+
   if (OatFileIsUpToDate()) {
     oat_file_released_ = true;
     return std::move(cached_oat_file_);
@@ -175,26 +180,36 @@ std::unique_ptr<OatFile> OatFileAssistant::GetBestOatFile() {
     return std::move(cached_odex_file_);
   }
 
-  if (load_executable_) {
-    VLOG(oat) << "Oat File Assistant: No relocated oat file found,"
-      << " attempting to fall back to interpreting oat file instead.";
+  VLOG(oat) << "Oat File Assistant: No relocated oat file found,"
+    << " attempting to fall back to interpreting oat file instead.";
 
+  if (!OatFileIsOutOfDate() && !OatFileIsExecutable()) {
+    oat_file_released_ = true;
+    return std::move(cached_oat_file_);
+  }
+
+  if (!OdexFileIsOutOfDate() && !OdexFileIsExecutable()) {
+    oat_file_released_ = true;
+    return std::move(cached_odex_file_);
+  }
+
+  if (!OatFileIsOutOfDate()) {
+    load_executable_ = false;
+    ClearOatFileCache();
     if (!OatFileIsOutOfDate()) {
-      load_executable_ = false;
-      ClearOatFileCache();
-      if (!OatFileIsOutOfDate()) {
-        oat_file_released_ = true;
-        return std::move(cached_oat_file_);
-      }
+      CHECK(!OatFileIsExecutable());
+      oat_file_released_ = true;
+      return std::move(cached_oat_file_);
     }
+  }
 
+  if (!OdexFileIsOutOfDate()) {
+    load_executable_ = false;
+    ClearOdexFileCache();
     if (!OdexFileIsOutOfDate()) {
-      load_executable_ = false;
-      ClearOdexFileCache();
-      if (!OdexFileIsOutOfDate()) {
-        oat_file_released_ = true;
-        return std::move(cached_odex_file_);
-      }
+      CHECK(!OdexFileIsExecutable());
+      oat_file_released_ = true;
+      return std::move(cached_odex_file_);
     }
   }
 
@@ -868,6 +883,11 @@ const OatFile* OatFileAssistant::GetOdexFile() {
   return cached_odex_file_.get();
 }
 
+bool OatFileAssistant::OdexFileIsExecutable() {
+  const OatFile* odex_file = GetOdexFile();
+  return (odex_file != nullptr && odex_file->IsExecutable());
+}
+
 void OatFileAssistant::ClearOdexFileCache() {
   odex_file_load_attempted_ = false;
   cached_odex_file_.reset();
@@ -892,6 +912,11 @@ const OatFile* OatFileAssistant::GetOatFile() {
     }
   }
   return cached_oat_file_.get();
+}
+
+bool OatFileAssistant::OatFileIsExecutable() {
+  const OatFile* oat_file = GetOatFile();
+  return (oat_file != nullptr && oat_file->IsExecutable());
 }
 
 void OatFileAssistant::ClearOatFileCache() {

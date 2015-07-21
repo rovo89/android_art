@@ -327,6 +327,9 @@ class OatFileAssistant {
   // The caller shouldn't clean up or free the returned pointer.
   const OatFile* GetOdexFile();
 
+  // Returns true if the odex file is opened executable.
+  bool OdexFileIsExecutable();
+
   // Clear any cached information about the odex file that depends on the
   // contents of the file.
   void ClearOdexFileCache();
@@ -335,6 +338,9 @@ class OatFileAssistant {
   // Loads the file if needed. Returns null if the file failed to load.
   // The caller shouldn't clean up or free the returned pointer.
   const OatFile* GetOatFile();
+
+  // Returns true if the oat file is opened executable.
+  bool OatFileIsExecutable();
 
   // Clear any cached information about the oat file that depends on the
   // contents of the file.
