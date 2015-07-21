@@ -34,6 +34,7 @@
 #include "dex_instruction-inl.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "handle_scope-inl.h"
+#include "lambda/box_table.h"
 #include "mirror/class-inl.h"
 #include "mirror/method.h"
 #include "mirror/object-inl.h"
@@ -506,8 +507,8 @@ static inline bool DoBoxLambda(Thread* self, ShadowFrame& shadow_frame, const In
   uint32_t vreg_target_object = inst->VRegA_22x(inst_data);
   uint32_t vreg_source_closure = inst->VRegB_22x();
 
-  ArtMethod* const closure_method = ReadLambdaClosureFromVRegsOrThrow(shadow_frame,
-                                                                      vreg_source_closure);
+  ArtMethod* closure_method = ReadLambdaClosureFromVRegsOrThrow(shadow_frame,
+                                                                vreg_source_closure);
 
   // Failed lambda target runtime check, an exception was raised.
   if (UNLIKELY(closure_method == nullptr)) {
@@ -515,28 +516,21 @@ static inline bool DoBoxLambda(Thread* self, ShadowFrame& shadow_frame, const In
     return false;
   }
 
-  // Convert the ArtMethod into a java.lang.reflect.Method which will serve
-  // as the temporary 'boxed' version of the lambda. This is good enough
-  // to check all the basic object identities that a boxed lambda must retain.
+  mirror::Object* closure_as_object =
+      Runtime::Current()->GetLambdaBoxTable()->BoxLambda(closure_method);
 
-  // TODO: Boxing an innate lambda (i.e. made with create-lambda) should make a proxy class
-  // TODO: Boxing a learned lambda (i.e. made with unbox-lambda) should return the original object
-  // TODO: Repeated boxing should return the same object reference
-  mirror::Method* method_as_object =
-      mirror::Method::CreateFromArtMethod(self, closure_method);
-
-  if (UNLIKELY(method_as_object == nullptr)) {
-    // Most likely an OOM has occurred.
+  // Failed to box the lambda, an exception was raised.
+  if (UNLIKELY(closure_as_object == nullptr)) {
     CHECK(self->IsExceptionPending());
     return false;
   }
 
-  shadow_frame.SetVRegReference(vreg_target_object, method_as_object);
+  shadow_frame.SetVRegReference(vreg_target_object, closure_as_object);
   return true;
 }
 
 template <bool _do_check> SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-static inline bool DoUnboxLambda(Thread* self ATTRIBUTE_UNUSED,
+static inline bool DoUnboxLambda(Thread* self,
                                  ShadowFrame& shadow_frame,
                                  const Instruction* inst,
                                  uint16_t inst_data) {
@@ -556,23 +550,15 @@ static inline bool DoUnboxLambda(Thread* self ATTRIBUTE_UNUSED,
     return false;
   }
 
-  // Raise ClassCastException if object is not instanceof java.lang.reflect.Method
-  if (UNLIKELY(!boxed_closure_object->InstanceOf(mirror::Method::StaticClass()))) {
-    ThrowClassCastException(mirror::Method::StaticClass(), boxed_closure_object->GetClass());
+  ArtMethod* unboxed_closure = nullptr;
+  // Raise an exception if unboxing fails.
+  if (!Runtime::Current()->GetLambdaBoxTable()->UnboxLambda(boxed_closure_object,
+                                                            &unboxed_closure)) {
+    CHECK(self->IsExceptionPending());
     return false;
   }
 
-  // TODO(iam): We must check that the closure object extends/implements the type
-  // specified in [type id]. This is not currently implemented since it's always a Method.
-
-  // If we got this far, the inputs are valid.
-  // Write out the java.lang.reflect.Method's embedded ArtMethod* into the vreg target.
-  mirror::AbstractMethod* boxed_closure_as_method =
-      down_cast<mirror::AbstractMethod*>(boxed_closure_object);
-
-  ArtMethod* unboxed_closure = boxed_closure_as_method->GetArtMethod();
   DCHECK(unboxed_closure != nullptr);
-
   WriteLambdaClosureIntoVRegs(shadow_frame, *unboxed_closure, vreg_target_closure);
   return true;
 }
