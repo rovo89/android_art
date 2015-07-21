@@ -109,6 +109,16 @@ public class Main {
                 new Object[] { false }, null, null));
         testCases.add(new TestCase("b/22331663 (fail)", "B22331663Fail", "run",
                 new Object[] { false }, new VerifyError(), null));
+        testCases.add(new TestCase("b/22411633 (1)", "B22411633_1", "run", new Object[] { false },
+                null, null));
+        testCases.add(new TestCase("b/22411633 (2)", "B22411633_2", "run", new Object[] { false },
+                new VerifyError(), null));
+        testCases.add(new TestCase("b/22411633 (3)", "B22411633_3", "run", new Object[] { false },
+                null, null));
+        testCases.add(new TestCase("b/22411633 (4)", "B22411633_4", "run", new Object[] { false },
+                new VerifyError(), null));
+        testCases.add(new TestCase("b/22411633 (5)", "B22411633_5", "run", new Object[] { false },
+                null, null));
     }
 
     public void runTests() {
