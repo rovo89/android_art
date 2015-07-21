@@ -90,8 +90,6 @@ HOST_CORE_DEX_FILES   := $(foreach jar,$(HOST_CORE_JARS),  $(call intermediates-
 TARGET_CORE_DEX_FILES := $(foreach jar,$(TARGET_CORE_JARS),$(call intermediates-dir-for,JAVA_LIBRARIES,$(jar), ,COMMON)/javalib.jar)
 
 # Classpath for Jack compilation: we only need core-libart.
-HOST_JACK_CLASSPATH_DEPENDENCY   := $(call intermediates-dir-for,JAVA_LIBRARIES,core-libart-hostdex,t,COMMON)/classes.jack
-HOST_JACK_CLASSPATH              := $(abspath $(HOST_JACK_CLASSPATH_DEPENDENCY))
-TARGET_JACK_CLASSPATH_DEPENDENCY := $(call intermediates-dir-for,JAVA_LIBRARIES,core-libart, ,COMMON)/classes.jack
-TARGET_JACK_CLASSPATH            := $(abspath $(TARGET_JACK_CLASSPATH_DEPENDENCY))
+HOST_JACK_CLASSPATH   := $(abspath $(call intermediates-dir-for,JAVA_LIBRARIES,core-libart-hostdex,t,COMMON)/classes.jack)
+TARGET_JACK_CLASSPATH := $(abspath $(call intermediates-dir-for,JAVA_LIBRARIES,core-libart, ,COMMON)/classes.jack)
 endif # ART_ANDROID_COMMON_PATH_MK
