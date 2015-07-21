@@ -275,33 +275,33 @@ MACRO0(DELIVER_PENDING_EXCEPTION)
 END_MACRO
 
 MACRO2(NO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
-    DEFINE_FUNCTION VAR(c_name, 0)
-    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
+    DEFINE_FUNCTION VAR(c_name)
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME   // save all registers as basis for long jump context
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rdi  // pass Thread::Current()
-    call VAR(cxx_name, 1)     // cxx_name(Thread*)
+    call VAR(cxx_name)                 // cxx_name(Thread*)
     UNREACHABLE
-    END_FUNCTION VAR(c_name, 0)
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO2(ONE_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
-    DEFINE_FUNCTION VAR(c_name, 0)
-    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
+    DEFINE_FUNCTION VAR(c_name)
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME   // save all registers as basis for long jump context
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rsi  // pass Thread::Current()
-    call VAR(cxx_name, 1)     // cxx_name(arg1, Thread*)
+    call VAR(cxx_name)                 // cxx_name(arg1, Thread*)
     UNREACHABLE
-    END_FUNCTION VAR(c_name, 0)
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO2(TWO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
-    DEFINE_FUNCTION VAR(c_name, 0)
-    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
+    DEFINE_FUNCTION VAR(c_name)
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME   // save all registers as basis for long jump context
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rdx  // pass Thread::Current()
-    call VAR(cxx_name, 1)     // cxx_name(Thread*)
+    call VAR(cxx_name)                 // cxx_name(Thread*)
     UNREACHABLE
-    END_FUNCTION VAR(c_name, 0)
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
     /*
@@ -361,7 +361,7 @@ MACRO1(INVOKE_TRAMPOLINE_BODY, cxx_name)
     movq %gs:THREAD_SELF_OFFSET, %rdx                      // pass Thread
     movq %rsp, %rcx                                        // pass SP
 
-    call VAR(cxx_name, 0)                   // cxx_name(arg1, arg2, Thread*, SP)
+    call VAR(cxx_name)                                     // cxx_name(arg1, arg2, Thread*, SP)
                                                            // save the code pointer
     movq %rax, %rdi
     movq %rdx, %rax
@@ -376,9 +376,9 @@ MACRO1(INVOKE_TRAMPOLINE_BODY, cxx_name)
     DELIVER_PENDING_EXCEPTION
 END_MACRO
 MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
-    DEFINE_FUNCTION RAW_VAR(c_name, 0)
-    INVOKE_TRAMPOLINE_BODY RAW_VAR(cxx_name, 1)
-    END_FUNCTION RAW_VAR(c_name, 0)
+    DEFINE_FUNCTION VAR(c_name)
+    INVOKE_TRAMPOLINE_BODY RAW_VAR(cxx_name)
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
 INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline_with_access_check, artInvokeInterfaceTrampolineWithAccessCheck
@@ -399,7 +399,7 @@ MACRO2(LOOP_OVER_SHORTY_LOADING_XMMS, xmm_reg, finished)
     movb (%r10), %al              // al := *shorty
     addq MACRO_LITERAL(1), %r10   // shorty++
     cmpb MACRO_LITERAL(0), %al    // if (al == '\0') goto xmm_setup_finished
-    je VAR(finished, 1)
+    je VAR(finished)
     cmpb MACRO_LITERAL(68), %al   // if (al == 'D') goto FOUND_DOUBLE
     je 2f
     cmpb MACRO_LITERAL(70), %al   // if (al == 'F') goto FOUND_FLOAT
@@ -411,11 +411,11 @@ MACRO2(LOOP_OVER_SHORTY_LOADING_XMMS, xmm_reg, finished)
     addq MACRO_LITERAL(4), %r11   // arg_array++
     jmp 1b                        // goto LOOP
 2:  // FOUND_DOUBLE
-    movsd (%r11), REG_VAR(xmm_reg, 0)
+    movsd (%r11), REG_VAR(xmm_reg)
     addq MACRO_LITERAL(8), %r11   // arg_array+=2
     jmp 4f
 3:  // FOUND_FLOAT
-    movss (%r11), REG_VAR(xmm_reg, 0)
+    movss (%r11), REG_VAR(xmm_reg)
     addq MACRO_LITERAL(4), %r11   // arg_array++
 4:
 END_MACRO
@@ -430,18 +430,18 @@ MACRO3(LOOP_OVER_SHORTY_LOADING_GPRS, gpr_reg64, gpr_reg32, finished)
     movb (%r10), %al              // al := *shorty
     addq MACRO_LITERAL(1), %r10   // shorty++
     cmpb MACRO_LITERAL(0), %al    // if (al == '\0') goto gpr_setup_finished
-    je  VAR(finished, 2)
+    je  VAR(finished)
     cmpb MACRO_LITERAL(74), %al   // if (al == 'J') goto FOUND_LONG
     je 2f
     cmpb MACRO_LITERAL(70), %al   // if (al == 'F') goto SKIP_FLOAT
     je 3f
     cmpb MACRO_LITERAL(68), %al   // if (al == 'D') goto SKIP_DOUBLE
     je 4f
-    movl (%r11), REG_VAR(gpr_reg32, 1)
+    movl (%r11), REG_VAR(gpr_reg32)
     addq MACRO_LITERAL(4), %r11   // arg_array++
     jmp 5f
 2:  // FOUND_LONG
-    movq (%r11), REG_VAR(gpr_reg64, 0)
+    movq (%r11), REG_VAR(gpr_reg64)
     addq MACRO_LITERAL(8), %r11   // arg_array+=2
     jmp 5f
 3:  // SKIP_FLOAT
@@ -693,94 +693,94 @@ DEFINE_FUNCTION art_quick_do_long_jump
 END_FUNCTION art_quick_do_long_jump
 
 MACRO3(NO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION VAR(c_name, 0)
+    DEFINE_FUNCTION VAR(c_name)
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    // save ref containing registers for GC
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rdi    // pass Thread::Current()
-    call VAR(cxx_name, 1)                // cxx_name(Thread*)
+    call VAR(cxx_name)                   // cxx_name(Thread*)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    CALL_MACRO(return_macro, 2)          // return or deliver exception
-    END_FUNCTION VAR(c_name, 0)
+    CALL_MACRO(return_macro)             // return or deliver exception
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO3(ONE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION VAR(c_name, 0)
+    DEFINE_FUNCTION VAR(c_name)
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    // save ref containing registers for GC
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rsi    // pass Thread::Current()
-    call VAR(cxx_name, 1)                // cxx_name(arg0, Thread*)
+    call VAR(cxx_name)                   // cxx_name(arg0, Thread*)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    CALL_MACRO(return_macro, 2)          // return or deliver exception
-    END_FUNCTION VAR(c_name, 0)
+    CALL_MACRO(return_macro)             // return or deliver exception
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO3(TWO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION VAR(c_name, 0)
+    DEFINE_FUNCTION VAR(c_name)
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    // save ref containing registers for GC
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rdx    // pass Thread::Current()
-    call VAR(cxx_name, 1)                // cxx_name(arg0, arg1, Thread*)
+    call VAR(cxx_name)                   // cxx_name(arg0, arg1, Thread*)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    CALL_MACRO(return_macro, 2)          // return or deliver exception
-    END_FUNCTION VAR(c_name, 0)
+    CALL_MACRO(return_macro)             // return or deliver exception
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO3(THREE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION VAR(c_name, 0)
+    DEFINE_FUNCTION VAR(c_name)
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME   // save ref containing registers for GC
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rcx   // pass Thread::Current()
-    call VAR(cxx_name, 1)               // cxx_name(arg0, arg1, arg2, Thread*)
+    call VAR(cxx_name)                  // cxx_name(arg0, arg1, arg2, Thread*)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
-    CALL_MACRO(return_macro, 2)         // return or deliver exception
-    END_FUNCTION VAR(c_name, 0)
+    CALL_MACRO(return_macro)            // return or deliver exception
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO3(FOUR_ARG_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION VAR(c_name, 0)
+    DEFINE_FUNCTION VAR(c_name)
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME   // save ref containing registers for GC
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %r8    // pass Thread::Current()
-    call VAR(cxx_name, 1)               // cxx_name(arg1, arg2, arg3, arg4, Thread*)
+    call VAR(cxx_name)                  // cxx_name(arg1, arg2, arg3, arg4, Thread*)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
-    CALL_MACRO(return_macro, 2)         // return or deliver exception
-    END_FUNCTION VAR(c_name, 0)
+    CALL_MACRO(return_macro)            // return or deliver exception
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO3(ONE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION VAR(c_name, 0)
+    DEFINE_FUNCTION VAR(c_name)
     movq 8(%rsp), %rsi                  // pass referrer
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
                                         // arg0 is in rdi
     movq %gs:THREAD_SELF_OFFSET, %rdx   // pass Thread::Current()
-    call VAR(cxx_name, 1)               // cxx_name(arg0, referrer, Thread*)
+    call VAR(cxx_name)                  // cxx_name(arg0, referrer, Thread*)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
-    CALL_MACRO(return_macro, 2)
-    END_FUNCTION VAR(c_name, 0)
+    CALL_MACRO(return_macro)
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO3(TWO_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION VAR(c_name, 0)
+    DEFINE_FUNCTION VAR(c_name)
     movq 8(%rsp), %rdx                  // pass referrer
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
                                         // arg0 and arg1 are in rdi/rsi
     movq %gs:THREAD_SELF_OFFSET, %rcx   // pass Thread::Current()
-    call VAR(cxx_name, 1)               // (arg0, arg1, referrer, Thread*)
+    call VAR(cxx_name)                  // (arg0, arg1, referrer, Thread*)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
-    CALL_MACRO(return_macro, 2)
-    END_FUNCTION VAR(c_name, 0)
+    CALL_MACRO(return_macro)
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO3(THREE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION VAR(c_name, 0)
+    DEFINE_FUNCTION VAR(c_name)
     movq 8(%rsp), %rcx                  // pass referrer
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
                                         // arg0, arg1, and arg2 are in rdi/rsi/rdx
     movq %gs:THREAD_SELF_OFFSET, %r8    // pass Thread::Current()
-    call VAR(cxx_name, 1)               // cxx_name(arg0, arg1, arg2, referrer, Thread*)
+    call VAR(cxx_name)                  // cxx_name(arg0, arg1, arg2, referrer, Thread*)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
-    CALL_MACRO(return_macro, 2)         // return or deliver exception
-    END_FUNCTION VAR(c_name, 0)
+    CALL_MACRO(return_macro)            // return or deliver exception
+    END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO0(RETURN_IF_RESULT_IS_NON_ZERO)
@@ -1145,7 +1145,7 @@ DEFINE_FUNCTION art_quick_check_cast
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
     mov %gs:THREAD_SELF_OFFSET, %rdx  // pass Thread::Current()
     call SYMBOL(artThrowClassCastException) // (Class* a, Class* b, Thread*)
-    int3                              // unreached
+    UNREACHABLE
 END_FUNCTION art_quick_check_cast
 
 
@@ -1275,7 +1275,7 @@ DEFINE_FUNCTION art_quick_aput_obj
     movq %gs:THREAD_SELF_OFFSET, %rdx       // Pass arg 3 = Thread::Current().
                                             // Pass arg 1 = array.
     call SYMBOL(artThrowArrayStoreException) // (array, value, Thread*)
-    int3                          // unreached
+    UNREACHABLE
 END_FUNCTION art_quick_aput_obj
 
 // TODO: This is quite silly on X86_64 now.
@@ -1672,7 +1672,7 @@ SYMBOL(art_quick_deoptimize_from_compiled_slow_path):
                                    // Stack should be aligned now.
     movq %gs:THREAD_SELF_OFFSET, %rdi         // Pass Thread.
     call SYMBOL(artDeoptimize) // artDeoptimize(Thread*)
-    int3                           // Unreachable.
+    UNREACHABLE
 END_FUNCTION art_quick_deoptimize
 
     /*
@@ -1731,5 +1731,5 @@ DEFINE_FUNCTION art_nested_signal_return
                                     // first arg to longjmp is already in correct register
     movq LITERAL(1), %rsi           // second arg to longjmp (1)
     call PLT_SYMBOL(longjmp)
-    int3                            // won't get here
+    UNREACHABLE
 END_FUNCTION art_nested_signal_return
