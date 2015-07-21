@@ -1213,16 +1213,28 @@ class SideEffects : public ValueObject {
     return SideEffects(kAllWrites | kAllReads);
   }
 
-  static SideEffects FieldWriteOfType(Primitive::Type type) {
-    return SideEffects(TypeFlagWithAlias(type, kFieldWriteOffset));
+  static SideEffects AllWrites() {
+    return SideEffects(kAllWrites);
+  }
+
+  static SideEffects AllReads() {
+    return SideEffects(kAllReads);
+  }
+
+  static SideEffects FieldWriteOfType(Primitive::Type type, bool is_volatile) {
+    return is_volatile
+        ? All()
+        : SideEffects(TypeFlagWithAlias(type, kFieldWriteOffset));
   }
 
   static SideEffects ArrayWriteOfType(Primitive::Type type) {
     return SideEffects(TypeFlagWithAlias(type, kArrayWriteOffset));
   }
 
-  static SideEffects FieldReadOfType(Primitive::Type type) {
-    return SideEffects(TypeFlagWithAlias(type, kFieldReadOffset));
+  static SideEffects FieldReadOfType(Primitive::Type type, bool is_volatile) {
+    return is_volatile
+        ? All()
+        : SideEffects(TypeFlagWithAlias(type, kFieldReadOffset));
   }
 
   static SideEffects ArrayReadOfType(Primitive::Type type) {
@@ -3593,7 +3605,9 @@ class HInstanceFieldGet : public HExpression<1> {
                     bool is_volatile,
                     uint32_t field_idx,
                     const DexFile& dex_file)
-      : HExpression(field_type, SideEffects::SideEffects::FieldReadOfType(field_type)),
+      : HExpression(
+            field_type,
+            SideEffects::SideEffects::FieldReadOfType(field_type, is_volatile)),
         field_info_(field_offset, field_type, is_volatile, field_idx, dex_file) {
     SetRawInputAt(0, value);
   }
@@ -3635,7 +3649,8 @@ class HInstanceFieldSet : public HTemplateInstruction<2> {
                     bool is_volatile,
                     uint32_t field_idx,
                     const DexFile& dex_file)
-      : HTemplateInstruction(SideEffects::FieldWriteOfType(field_type)),
+      : HTemplateInstruction(
+          SideEffects::FieldWriteOfType(field_type, is_volatile)),
         field_info_(field_offset, field_type, is_volatile, field_idx, dex_file),
         value_can_be_null_(true) {
     SetRawInputAt(0, object);
@@ -4005,7 +4020,7 @@ class HClinitCheck : public HExpression<1> {
   explicit HClinitCheck(HLoadClass* constant, uint32_t dex_pc)
       : HExpression(
           Primitive::kPrimNot,
-          SideEffects::All()),  // assume write/read on all fields/arrays
+          SideEffects::AllWrites()),  // assume write on all fields/arrays
         dex_pc_(dex_pc) {
     SetRawInputAt(0, constant);
   }
@@ -4041,7 +4056,9 @@ class HStaticFieldGet : public HExpression<1> {
                   bool is_volatile,
                   uint32_t field_idx,
                   const DexFile& dex_file)
-      : HExpression(field_type, SideEffects::SideEffects::FieldReadOfType(field_type)),
+      : HExpression(
+            field_type,
+            SideEffects::SideEffects::FieldReadOfType(field_type, is_volatile)),
         field_info_(field_offset, field_type, is_volatile, field_idx, dex_file) {
     SetRawInputAt(0, cls);
   }
@@ -4080,7 +4097,8 @@ class HStaticFieldSet : public HTemplateInstruction<2> {
                   bool is_volatile,
                   uint32_t field_idx,
                   const DexFile& dex_file)
-      : HTemplateInstruction(SideEffects::FieldWriteOfType(field_type)),
+      : HTemplateInstruction(
+          SideEffects::FieldWriteOfType(field_type, is_volatile)),
         field_info_(field_offset, field_type, is_volatile, field_idx, dex_file),
         value_can_be_null_(true) {
     SetRawInputAt(0, cls);
@@ -4255,7 +4273,8 @@ class HCheckCast : public HTemplateInstruction<2> {
 class HMemoryBarrier : public HTemplateInstruction<0> {
  public:
   explicit HMemoryBarrier(MemBarrierKind barrier_kind)
-      : HTemplateInstruction(SideEffects::None()),
+      : HTemplateInstruction(
+          SideEffects::All()),  // assume write/read on all fields/arrays
         barrier_kind_(barrier_kind) {}
 
   MemBarrierKind GetBarrierKind() { return barrier_kind_; }
