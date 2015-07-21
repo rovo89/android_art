@@ -1048,6 +1048,7 @@ struct StackDumpVisitor : public StackVisitor {
     if (m->IsRuntimeMethod()) {
       return true;
     }
+    m = m->GetInterfaceMethodIfProxy(sizeof(void*));
     const int kMaxRepetition = 3;
     mirror::Class* c = m->GetDeclaringClass();
     mirror::DexCache* dex_cache = c->GetDexCache();
