@@ -470,6 +470,10 @@ TEST_F(OatFileAssistantTest, DexOdexNoOat) {
   EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
   EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
+
+  // We should still be able to get the non-executable odex file to run from.
+  std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
+  ASSERT_TRUE(oat_file.get() != nullptr);
 }
 
 // Case: We have a stripped DEX file and an ODEX file, but no OAT file.
