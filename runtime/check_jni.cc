@@ -1206,6 +1206,8 @@ class GuardedCopy {
       const_cast<char*>(copy->StartRedZone())[i] = kCanary[j];
       if (kCanary[j] == '\0') {
         j = 0;
+      } else {
+        j++;
       }
     }
 
@@ -1217,6 +1219,8 @@ class GuardedCopy {
       const_cast<char*>(copy->EndRedZone())[i] = kCanary[j];
       if (kCanary[j] == '\0') {
         j = 0;
+      } else {
+        j++;
       }
     }
 
@@ -1367,6 +1371,8 @@ class GuardedCopy {
       }
       if (kCanary[j] == '\0') {
         j = 0;
+      } else {
+        j++;
       }
     }
 
@@ -1381,6 +1387,8 @@ class GuardedCopy {
       }
       if (kCanary[j] == '\0') {
         j = 0;
+      } else {
+        j++;
       }
     }
     return true;
