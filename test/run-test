@@ -83,22 +83,9 @@ if [ -z "$ANDROID_BUILD_TOP" ]; then
     export ANDROID_BUILD_TOP=$oldwd
 fi
 
-# If JACK_VM_COMMAND is not set, assume it launches the prebuilt jack-launcher.
-if [ -z "$JACK_VM_COMMAND" ]; then
-  if [ ! -z "$TMPDIR" ]; then
-    jack_temp_dir="-Djava.io.tmpdir=$TMPDIR"
-  fi
-  export JACK_VM_COMMAND="java -Dfile.encoding=UTF-8 -Xms2560m -XX:+TieredCompilation $jack_temp_dir -jar $ANDROID_BUILD_TOP/prebuilts/sdk/tools/jack-launcher.jar"
-fi
-
 # If JACK_CLASSPATH is not set, assume it only contains core-libart.
 if [ -z "$JACK_CLASSPATH" ]; then
   export JACK_CLASSPATH="$ANDROID_BUILD_TOP/out/host/common/obj/JAVA_LIBRARIES/core-libart-hostdex_intermediates/classes.jack"
-fi
-
-# If JACK_JAR is not set, assume it is located in the prebuilts directory.
-if [ -z "$JACK_JAR" ]; then
-  export JACK_JAR="$ANDROID_BUILD_TOP/prebuilts/sdk/tools/jack.jar"
 fi
 
 # If JILL_JAR is not set, assume it is located in the prebuilts directory.

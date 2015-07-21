@@ -41,8 +41,7 @@ TEST_ART_RUN_TEST_DEPENDENCIES := \
 
 ifeq ($(ANDROID_COMPILE_WITH_JACK),true)
   TEST_ART_RUN_TEST_DEPENDENCIES += \
-    $(JACK_JAR) \
-    $(JACK_LAUNCHER_JAR) \
+    $(JACK) \
     $(JILL_JAR)
 endif
 
@@ -61,15 +60,13 @@ define define-build-art-run-test
     run_test_options += --build-with-javac-dx
   endif
 $$(dmart_target): PRIVATE_RUN_TEST_OPTIONS := $$(run_test_options)
-$$(dmart_target): $(TEST_ART_RUN_TEST_DEPENDENCIES)
+$$(dmart_target): $(TEST_ART_RUN_TEST_DEPENDENCIES) $(TARGET_JACK_CLASSPATH_DEPENDENCY)
 	$(hide) rm -rf $$(dir $$@) && mkdir -p $$(dir $$@)
 	$(hide) DX=$(abspath $(DX)) JASMIN=$(abspath $(HOST_OUT_EXECUTABLES)/jasmin) \
 	  SMALI=$(abspath $(HOST_OUT_EXECUTABLES)/smali) \
 	  DXMERGER=$(abspath $(HOST_OUT_EXECUTABLES)/dexmerger) \
 	  JACK=$(abspath $(JACK)) \
-	  JACK_VM_COMMAND="$(JACK_VM) $(DEFAULT_JACK_VM_ARGS) $(JAVA_TMPDIR_ARG) -jar $(abspath $(JACK_LAUNCHER_JAR)) " \
 	  JACK_CLASSPATH=$(TARGET_JACK_CLASSPATH) \
-	  JACK_JAR=$(abspath $(JACK_JAR)) \
 	  JILL_JAR=$(abspath $(JILL_JAR)) \
 	  $(LOCAL_PATH)/run-test $$(PRIVATE_RUN_TEST_OPTIONS) --output-path $$(abspath $$(dir $$@)) $(1)
 	$(hide) touch $$@
@@ -655,13 +652,13 @@ define define-test-art-run-test
     uc_host_or_target := HOST
     test_groups := ART_RUN_TEST_HOST_RULES
     run_test_options += --host
-    prereq_rule := $(ART_TEST_HOST_RUN_TEST_DEPENDENCIES)
+    prereq_rule := $(ART_TEST_HOST_RUN_TEST_DEPENDENCIES) $(HOST_JACK_CLASSPATH_DEPENDENCY)
     jack_classpath := $(HOST_JACK_CLASSPATH)
   else
     ifeq ($(1),target)
       uc_host_or_target := TARGET
       test_groups := ART_RUN_TEST_TARGET_RULES
-      prereq_rule := test-art-target-sync
+      prereq_rule := test-art-target-sync $(TARGET_JACK_CLASSPATH_DEPENDENCY)
       jack_classpath := $(TARGET_JACK_CLASSPATH)
     else
       $$(error found $(1) expected $(TARGET_TYPES))
@@ -869,9 +866,7 @@ $$(run_test_rule_name): $(TEST_ART_RUN_TEST_DEPENDENCIES) $(HOST_OUT_EXECUTABLES
 	    SMALI=$(abspath $(HOST_OUT_EXECUTABLES)/smali) \
 	    DXMERGER=$(abspath $(HOST_OUT_EXECUTABLES)/dexmerger) \
 	    JACK=$(abspath $(JACK)) \
-	    JACK_VM_COMMAND="$(JACK_VM) $(DEFAULT_JACK_VM_ARGS) $(JAVA_TMPDIR_ARG) -jar $(abspath $(JACK_LAUNCHER_JAR)) " \
 	    JACK_CLASSPATH=$$(PRIVATE_JACK_CLASSPATH) \
-	    JACK_JAR=$(abspath $(JACK_JAR)) \
 	    JILL_JAR=$(abspath $(JILL_JAR)) \
 	    art/test/run-test $$(PRIVATE_RUN_TEST_OPTIONS) $(12) \
 	      && $$(call ART_TEST_PASSED,$$@) || $$(call ART_TEST_FAILED,$$@)
