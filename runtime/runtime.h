@@ -53,6 +53,10 @@ namespace jit {
   class JitOptions;
 }  // namespace jit
 
+namespace lambda {
+  class BoxTable;
+}  // namespace lambda
+
 namespace mirror {
   class ClassLoader;
   class Array;
@@ -532,6 +536,10 @@ class Runtime {
     return experimental_lambdas_;
   }
 
+  lambda::BoxTable* GetLambdaBoxTable() const {
+    return lambda_box_table_.get();
+  }
+
   // Create the JIT and instrumentation and code cache.
   void CreateJit();
 
@@ -645,6 +653,8 @@ class Runtime {
 
   std::unique_ptr<jit::Jit> jit_;
   std::unique_ptr<jit::JitOptions> jit_options_;
+
+  std::unique_ptr<lambda::BoxTable> lambda_box_table_;
 
   // Fault message, printed when we get a SIGSEGV.
   Mutex fault_message_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
