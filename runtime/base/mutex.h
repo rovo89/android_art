@@ -60,6 +60,7 @@ enum LockLevel {
   kUnexpectedSignalLock,
   kThreadSuspendCountLock,
   kAbortLock,
+  kLambdaTableLock,
   kJdwpSocketLock,
   kRegionSpaceRegionLock,
   kTransactionLogLock,
@@ -648,6 +649,10 @@ class Locks {
 
   // Have an exclusive logging thread.
   static Mutex* logging_lock_ ACQUIRED_AFTER(unexpected_signal_lock_);
+
+  // Allow reader-writer mutual exclusion on the boxed table of lambda objects.
+  // TODO: this should be a RW mutex lock, except that ConditionVariables don't work with it.
+  static Mutex* lambda_table_lock_ ACQUIRED_AFTER(mutator_lock_);
 };
 
 }  // namespace art

@@ -61,6 +61,7 @@ ConditionVariable* Locks::thread_exit_cond_ = nullptr;
 Mutex* Locks::thread_suspend_count_lock_ = nullptr;
 Mutex* Locks::trace_lock_ = nullptr;
 Mutex* Locks::unexpected_signal_lock_ = nullptr;
+Mutex* Locks::lambda_table_lock_ = nullptr;
 
 struct AllMutexData {
   // A guard for all_mutexes_ that's not a mutex (Mutexes must CAS to acquire and busy wait).
@@ -946,6 +947,7 @@ void Locks::Init() {
     DCHECK(thread_suspend_count_lock_ != nullptr);
     DCHECK(trace_lock_ != nullptr);
     DCHECK(unexpected_signal_lock_ != nullptr);
+    DCHECK(lambda_table_lock_ != nullptr);
   } else {
     // Create global locks in level order from highest lock level to lowest.
     LockLevel current_lock_level = kInstrumentEntrypointsLock;
@@ -1047,6 +1049,10 @@ void Locks::Init() {
     UPDATE_CURRENT_LOCK_LEVEL(kReferenceQueueSoftReferencesLock);
     DCHECK(reference_queue_soft_references_lock_ == nullptr);
     reference_queue_soft_references_lock_ = new Mutex("ReferenceQueue soft references lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kLambdaTableLock);
+    DCHECK(lambda_table_lock_ == nullptr);
+    lambda_table_lock_ = new Mutex("lambda table lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kAbortLock);
     DCHECK(abort_lock_ == nullptr);
