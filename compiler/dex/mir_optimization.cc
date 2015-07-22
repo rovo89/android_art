@@ -1724,7 +1724,8 @@ void MIRGraph::StringChange() {
 
 
 bool MIRGraph::EliminateSuspendChecksGate() {
-  if ((cu_->disable_opt & (1 << kSuspendCheckElimination)) != 0 ||  // Disabled.
+  if (kLeafOptimization ||           // Incompatible (could create loops without suspend checks).
+      (cu_->disable_opt & (1 << kSuspendCheckElimination)) != 0 ||  // Disabled.
       GetMaxNestedLoops() == 0u ||   // Nothing to do.
       GetMaxNestedLoops() >= 32u ||  // Only 32 bits in suspend_checks_in_loops_[.].
                                      // Exclude 32 as well to keep bit shifts well-defined.
