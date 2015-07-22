@@ -1596,7 +1596,6 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
 
   // Does not apply for all instructions, but having this at top level greatly
   // simplifies the null check elimination.
-  // TODO: Consider merging can_be_null into ReferenceTypeInfo.
   virtual bool CanBeNull() const {
     DCHECK_EQ(GetType(), Primitive::kPrimNot) << "CanBeNull only applies to reference types";
     return true;
@@ -4202,39 +4201,27 @@ class HInstanceOf : public HExpression<2> {
 
 class HBoundType : public HExpression<1> {
  public:
-  HBoundType(HInstruction* input, ReferenceTypeInfo upper_bound, bool upper_can_be_null)
+  HBoundType(HInstruction* input, ReferenceTypeInfo bound_type)
       : HExpression(Primitive::kPrimNot, SideEffects::None()),
-        upper_bound_(upper_bound),
-        upper_can_be_null_(upper_can_be_null) {
+        bound_type_(bound_type) {
     DCHECK_EQ(input->GetType(), Primitive::kPrimNot);
     SetRawInputAt(0, input);
   }
 
-  // GetUpper* should only be used in reference type propagation.
-  const ReferenceTypeInfo& GetUpperBound() const { return upper_bound_; }
-  bool GetUpperCanBeNull() const { return upper_can_be_null_; }
+  const ReferenceTypeInfo& GetBoundType() const { return bound_type_; }
 
-  void SetCanBeNull(bool can_be_null) {
-    DCHECK(upper_can_be_null_ || !can_be_null);
-    can_be_null_ = can_be_null;
+  bool CanBeNull() const OVERRIDE {
+    // `null instanceof ClassX` always return false so we can't be null.
+    return false;
   }
-
-  bool CanBeNull() const OVERRIDE { return can_be_null_; }
 
   DECLARE_INSTRUCTION(BoundType);
 
  private:
   // Encodes the most upper class that this instruction can have. In other words
-  // it is always the case that GetUpperBound().IsSupertypeOf(GetReferenceType()).
-  // It is used to bound the type in cases like:
-  //   if (x instanceof ClassX) {
-  //     // uper_bound_ will be ClassX
-  //   }
-  const ReferenceTypeInfo upper_bound_;
-  // Represents the top constraint that can_be_null_ cannot exceed (i.e. if this
-  // is false then can_be_null_ cannot be true).
-  const bool upper_can_be_null_;
-  bool can_be_null_;
+  // it is always the case that GetBoundType().IsSupertypeOf(GetReferenceType()).
+  // It is used to bound the type in cases like `if (x instanceof ClassX) {}`
+  const ReferenceTypeInfo bound_type_;
 
   DISALLOW_COPY_AND_ASSIGN(HBoundType);
 };
