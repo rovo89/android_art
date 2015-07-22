@@ -38,6 +38,7 @@ class RTPVisitor : public HGraphDelegateVisitor {
   void VisitStaticFieldGet(HStaticFieldGet* instr) OVERRIDE;
   void VisitInvoke(HInvoke* instr) OVERRIDE;
   void VisitArrayGet(HArrayGet* instr) OVERRIDE;
+  void VisitCheckCast(HCheckCast* instr) OVERRIDE;
   void UpdateReferenceTypeInfo(HInstruction* instr,
                                uint16_t type_idx,
                                const DexFile& dex_file,
@@ -78,6 +79,72 @@ void ReferenceTypePropagation::VisitBasicBlock(HBasicBlock* block) {
   BoundTypeForIfInstanceOf(block);
 }
 
+// Create a bound type for the given object narrowing the type as much as possible.
+// The BoundType upper values for the super type and can_be_null will be taken from
+// load_class.GetLoadedClassRTI() and upper_can_be_null.
+static HBoundType* CreateBoundType(ArenaAllocator* arena,
+                                   HInstruction* obj,
+                                   HLoadClass* load_class,
+                                   bool upper_can_be_null)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ReferenceTypeInfo obj_rti = obj->GetReferenceTypeInfo();
+  ReferenceTypeInfo class_rti = load_class->GetLoadedClassRTI();
+  HBoundType* bound_type = new (arena) HBoundType(obj, class_rti, upper_can_be_null);
+  // Narrow the type as much as possible.
+  if (load_class->IsResolved() && class_rti.GetTypeHandle()->IsFinal()) {
+    bound_type->SetReferenceTypeInfo(
+        ReferenceTypeInfo::Create(class_rti.GetTypeHandle(), /* is_exact */ true));
+  } else if (!load_class->IsResolved() || class_rti.IsSupertypeOf(obj_rti)) {
+    bound_type->SetReferenceTypeInfo(obj_rti);
+  } else {
+    bound_type->SetReferenceTypeInfo(
+        ReferenceTypeInfo::Create(class_rti.GetTypeHandle(), /* is_exact */ false));
+  }
+  return bound_type;
+}
+
+// Check if we should create a bound type for the given object at the specified
+// position. Because of inlining and the fact we run RTP more than once and we
+// might have a HBoundType already. If we do, we should not create a new one.
+// In this case we also assert that there are no other uses of the object (except
+// the bound type) dominated by the specified dominator_instr or dominator_block.
+static bool ShouldCreateBoundType(HInstruction* position,
+                                  HInstruction* obj,
+                                  ReferenceTypeInfo upper_bound,
+                                  HInstruction* dominator_instr,
+                                  HBasicBlock* dominator_block)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  // If the position where we should insert the bound type is not already a
+  // a bound type then we need to create one.
+  if (position == nullptr || !position->IsBoundType()) {
+    return true;
+  }
+
+  HBoundType* existing_bound_type = position->AsBoundType();
+  if (existing_bound_type->GetUpperBound().IsSupertypeOf(upper_bound)) {
+    if (kIsDebugBuild) {
+      // Check that the existing HBoundType dominates all the uses.
+      for (HUseIterator<HInstruction*> it(obj->GetUses()); !it.Done(); it.Advance()) {
+        HInstruction* user = it.Current()->GetUser();
+        if (dominator_instr != nullptr) {
+          DCHECK(!dominator_instr->StrictlyDominates(user)
+              || user == existing_bound_type
+              || existing_bound_type->StrictlyDominates(user));
+        } else if (dominator_block != nullptr) {
+          DCHECK(!dominator_block->Dominates(user->GetBlock())
+              || user == existing_bound_type
+              || existing_bound_type->StrictlyDominates(user));
+        }
+      }
+    }
+  } else {
+    // TODO: if the current bound type is a refinement we could update the
+    // existing_bound_type with the a new upper limit. However, we also need to
+    // update its users and have access to the work list.
+  }
+  return false;
+}
+
 void ReferenceTypePropagation::BoundTypeForIfNotNull(HBasicBlock* block) {
   HIf* ifInstruction = block->GetLastInstruction()->AsIf();
   if (ifInstruction == nullptr) {
@@ -116,8 +183,19 @@ void ReferenceTypePropagation::BoundTypeForIfNotNull(HBasicBlock* block) {
     HInstruction* user = it.Current()->GetUser();
     if (notNullBlock->Dominates(user->GetBlock())) {
       if (bound_type == nullptr) {
-        bound_type = new (graph_->GetArena()) HBoundType(obj, ReferenceTypeInfo::CreateTop(false));
-        notNullBlock->InsertInstructionBefore(bound_type, notNullBlock->GetFirstInstruction());
+        ScopedObjectAccess soa(Thread::Current());
+        HInstruction* insert_point = notNullBlock->GetFirstInstruction();
+        ReferenceTypeInfo object_rti = ReferenceTypeInfo::CreateTop(false);
+        if (ShouldCreateBoundType(insert_point, obj, object_rti, nullptr, notNullBlock)) {
+          bound_type = new (graph_->GetArena()) HBoundType(
+              obj, object_rti, /* bound_can_be_null */ false);
+          notNullBlock->InsertInstructionBefore(bound_type, insert_point);
+        } else {
+          // We already have a bound type on the position we would need to insert
+          // the new one. The existing bound type should dominate all the users
+          // (dchecked) so there's no need to continue.
+          break;
+        }
       }
       user->ReplaceInput(bound_type, it.Current()->GetIndex());
     }
@@ -171,25 +249,23 @@ void ReferenceTypePropagation::BoundTypeForIfInstanceOf(HBasicBlock* block) {
     HInstruction* user = it.Current()->GetUser();
     if (instanceOfTrueBlock->Dominates(user->GetBlock())) {
       if (bound_type == nullptr) {
+        ScopedObjectAccess soa(Thread::Current());
         HLoadClass* load_class = instanceOf->InputAt(1)->AsLoadClass();
-
-        ReferenceTypeInfo obj_rti = obj->GetReferenceTypeInfo();
         ReferenceTypeInfo class_rti = load_class->GetLoadedClassRTI();
-        bound_type = new (graph_->GetArena()) HBoundType(obj, class_rti);
-
-        // Narrow the type as much as possible.
-        {
-          ScopedObjectAccess soa(Thread::Current());
-          if (!load_class->IsResolved() || class_rti.IsSupertypeOf(obj_rti)) {
-            bound_type->SetReferenceTypeInfo(obj_rti);
-          } else {
-            bound_type->SetReferenceTypeInfo(
-                ReferenceTypeInfo::Create(class_rti.GetTypeHandle(), /* is_exact */ false));
-          }
+        HInstruction* insert_point = instanceOfTrueBlock->GetFirstInstruction();
+        if (ShouldCreateBoundType(insert_point, obj, class_rti, nullptr, instanceOfTrueBlock)) {
+          bound_type = CreateBoundType(
+              graph_->GetArena(),
+              obj,
+              load_class,
+              false /* InstanceOf ensures the object is not null. */);
+          instanceOfTrueBlock->InsertInstructionBefore(bound_type, insert_point);
+        } else {
+          // We already have a bound type on the position we would need to insert
+          // the new one. The existing bound type should dominate all the users
+          // (dchecked) so there's no need to continue.
+          break;
         }
-
-        instanceOfTrueBlock->InsertInstructionBefore(
-            bound_type, instanceOfTrueBlock->GetFirstInstruction());
       }
       user->ReplaceInput(bound_type, it.Current()->GetIndex());
     }
@@ -264,6 +340,35 @@ void RTPVisitor::VisitLoadClass(HLoadClass* instr) {
   }
   Handle<mirror::Class> class_handle = handles_->NewHandle(mirror::Class::GetJavaLangClass());
   instr->SetReferenceTypeInfo(ReferenceTypeInfo::Create(class_handle, /* is_exact */ true));
+}
+
+void RTPVisitor::VisitCheckCast(HCheckCast* check_cast) {
+  HInstruction* obj = check_cast->InputAt(0);
+  HBoundType* bound_type = nullptr;
+  for (HUseIterator<HInstruction*> it(obj->GetUses()); !it.Done(); it.Advance()) {
+    HInstruction* user = it.Current()->GetUser();
+    if (check_cast->StrictlyDominates(user)) {
+      if (bound_type == nullptr) {
+        ScopedObjectAccess soa(Thread::Current());
+        HLoadClass* load_class = check_cast->InputAt(1)->AsLoadClass();
+        ReferenceTypeInfo class_rti = load_class->GetLoadedClassRTI();
+        if (ShouldCreateBoundType(check_cast->GetNext(), obj, class_rti, check_cast, nullptr)) {
+          bound_type = CreateBoundType(
+              GetGraph()->GetArena(),
+              obj,
+              load_class,
+              true /* CheckCast succeeds for nulls. */);
+          check_cast->GetBlock()->InsertInstructionAfter(bound_type, check_cast);
+        } else {
+          // We already have a bound type on the position we would need to insert
+          // the new one. The existing bound type should dominate all the users
+          // (dchecked) so there's no need to continue.
+          break;
+        }
+      }
+      user->ReplaceInput(bound_type, it.Current()->GetIndex());
+    }
+  }
 }
 
 void ReferenceTypePropagation::VisitPhi(HPhi* phi) {
@@ -362,9 +467,9 @@ void RTPVisitor::VisitArrayGet(HArrayGet* instr) {
 void ReferenceTypePropagation::UpdateBoundType(HBoundType* instr) {
   ReferenceTypeInfo new_rti = instr->InputAt(0)->GetReferenceTypeInfo();
   // Be sure that we don't go over the bounded type.
-  ReferenceTypeInfo bound_rti = instr->GetBoundType();
-  if (!bound_rti.IsSupertypeOf(new_rti)) {
-    new_rti = bound_rti;
+  ReferenceTypeInfo upper_bound_rti = instr->GetUpperBound();
+  if (!upper_bound_rti.IsSupertypeOf(new_rti)) {
+    new_rti = upper_bound_rti;
   }
   instr->SetReferenceTypeInfo(new_rti);
 }
@@ -394,19 +499,22 @@ void ReferenceTypePropagation::UpdatePhi(HPhi* instr) {
 bool ReferenceTypePropagation::UpdateNullability(HInstruction* instr) {
   DCHECK(instr->IsPhi() || instr->IsBoundType());
 
-  if (!instr->IsPhi()) {
-    return false;
+  bool existing_can_be_null = instr->CanBeNull();
+  if (instr->IsPhi()) {
+    HPhi* phi = instr->AsPhi();
+    bool new_can_be_null = false;
+    for (size_t i = 0; i < phi->InputCount(); i++) {
+      if (phi->InputAt(i)->CanBeNull()) {
+        new_can_be_null = true;
+        break;
+      }
+    }
+    phi->SetCanBeNull(new_can_be_null);
+  } else if (instr->IsBoundType()) {
+    HBoundType* bound_type = instr->AsBoundType();
+    bound_type->SetCanBeNull(instr->InputAt(0)->CanBeNull() && bound_type->GetUpperCanBeNull());
   }
-
-  HPhi* phi = instr->AsPhi();
-  bool existing_can_be_null = phi->CanBeNull();
-  bool new_can_be_null = false;
-  for (size_t i = 0; i < phi->InputCount(); i++) {
-    new_can_be_null |= phi->InputAt(i)->CanBeNull();
-  }
-  phi->SetCanBeNull(new_can_be_null);
-
-  return existing_can_be_null != new_can_be_null;
+  return existing_can_be_null != instr->CanBeNull();
 }
 
 void ReferenceTypePropagation::ProcessWorklist() {
