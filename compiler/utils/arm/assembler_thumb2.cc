@@ -133,14 +133,27 @@ uint32_t Thumb2Assembler::AdjustFixups() {
     AdjustFixupIfNeeded(&fixup, &current_code_size, &fixups_to_recalculate);
   }
   while (!fixups_to_recalculate.empty()) {
-    // Pop the fixup.
-    FixupId fixup_id = fixups_to_recalculate.front();
-    fixups_to_recalculate.pop_front();
-    Fixup* fixup = GetFixup(fixup_id);
-    DCHECK_NE(buffer_.Load<int16_t>(fixup->GetLocation()), 0);
-    buffer_.Store<int16_t>(fixup->GetLocation(), 0);
-    // See if it needs adjustment.
-    AdjustFixupIfNeeded(fixup, &current_code_size, &fixups_to_recalculate);
+    do {
+      // Pop the fixup.
+      FixupId fixup_id = fixups_to_recalculate.front();
+      fixups_to_recalculate.pop_front();
+      Fixup* fixup = GetFixup(fixup_id);
+      DCHECK_NE(buffer_.Load<int16_t>(fixup->GetLocation()), 0);
+      buffer_.Store<int16_t>(fixup->GetLocation(), 0);
+      // See if it needs adjustment.
+      AdjustFixupIfNeeded(fixup, &current_code_size, &fixups_to_recalculate);
+    } while (!fixups_to_recalculate.empty());
+
+    if ((current_code_size & 2) != 0 && !literals_.empty()) {
+      // If we need to add padding before literals, this may just push some out of range,
+      // so recalculate all load literals. This makes up for the fact that we don't mark
+      // load literal as a dependency of all previous Fixups even though it actually is.
+      for (Fixup& fixup : fixups_) {
+        if (fixup.IsLoadLiteral()) {
+          AdjustFixupIfNeeded(&fixup, &current_code_size, &fixups_to_recalculate);
+        }
+      }
+    }
   }
   if (kIsDebugBuild) {
     // Check that no fixup is marked as being in fixups_to_recalculate anymore.

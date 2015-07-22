@@ -950,4 +950,65 @@ TEST_F(AssemblerThumb2Test, LoadLiteralDoubleFar) {
             __ GetAdjustedPosition(label.Position()));
 }
 
+TEST_F(AssemblerThumb2Test, LoadLiteralBeyondMax1KiBDueToAlignmentOnSecondPass) {
+  // First part: as TwoCbzBeyondMaxOffset but add one 16-bit instruction to the end,
+  // so that the size is not Aligned<4>(.). On the first pass, the assembler resizes
+  // the second CBZ because it's out of range, then it will resize the first CBZ
+  // which has been pushed out of range. Thus, after the first pass, the code size
+  // will appear Aligned<4>(.) but the final size will not be.
+  Label label0, label1, label2;
+  __ cbz(arm::R0, &label1);
+  constexpr size_t kLdrR0R0Count1 = 63;
+  for (size_t i = 0; i != kLdrR0R0Count1; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ Bind(&label0);
+  __ cbz(arm::R0, &label2);
+  __ Bind(&label1);
+  constexpr size_t kLdrR0R0Count2 = 65;
+  for (size_t i = 0; i != kLdrR0R0Count2; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+  __ Bind(&label2);
+  __ ldr(arm::R0, arm::Address(arm::R0));
+
+  std::string expected_part1 =
+      "cmp r0, #0\n"              // cbz r0, label1
+      "beq.n 1f\n" +
+      RepeatInsn(kLdrR0R0Count1, "ldr r0, [r0]\n") +
+      "0:\n"
+      "cmp r0, #0\n"              // cbz r0, label2
+      "beq.n 2f\n"
+      "1:\n" +
+      RepeatInsn(kLdrR0R0Count2, "ldr r0, [r0]\n") +
+      "2:\n"                      // Here the offset is Aligned<4>(.).
+      "ldr r0, [r0]\n";           // Make the first part
+
+  // Second part: as LoadLiteralMax1KiB with the caveat that the offset of the load
+  // literal will not be Aligned<4>(.) but it will appear to be when we process the
+  // instruction during the first pass, so the literal will need a padding and it
+  // will push the literal out of range, so we shall end up with "ldr.w".
+  arm::Literal* literal = __ NewLiteral<int32_t>(0x12345678);
+  __ LoadLiteral(arm::R0, literal);
+  Label label;
+  __ Bind(&label);
+  constexpr size_t kLdrR0R0Count = 511;
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  std::string expected =
+      expected_part1 +
+      "1:\n"
+      "ldr.w r0, [pc, #((2f - 1b - 2) & ~2)]\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".align 2, 0\n"
+      "2:\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadLiteralMax1KiB");
+
+  EXPECT_EQ(static_cast<uint32_t>(label.Position()) + 6u,
+            __ GetAdjustedPosition(label.Position()));
+}
+
 }  // namespace art
