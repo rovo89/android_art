@@ -397,11 +397,6 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
     return strcmp(pass_name_, name) == 0;
   }
 
-  bool IsReferenceTypePropagationPass() {
-    return strstr(pass_name_, ReferenceTypePropagation::kReferenceTypePropagationPassName)
-        != nullptr;
-  }
-
   void PrintInstruction(HInstruction* instruction) {
     output_ << instruction->DebugName();
     if (instruction->InputCount() > 0) {
@@ -465,13 +460,14 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
       } else {
         StartAttributeStream("loop") << "B" << info->GetHeader()->GetBlockId();
       }
-    } else if (IsReferenceTypePropagationPass() && is_after_pass_) {
+    } else if (IsPass(ReferenceTypePropagation::kReferenceTypePropagationPassName)
+               && is_after_pass_) {
       if (instruction->GetType() == Primitive::kPrimNot) {
         if (instruction->IsLoadClass()) {
           ReferenceTypeInfo info = instruction->AsLoadClass()->GetLoadedClassRTI();
           ScopedObjectAccess soa(Thread::Current());
           if (info.GetTypeHandle().GetReference() != nullptr) {
-            StartAttributeStream("klass") << PrettyDescriptor(info.GetTypeHandle().Get());
+            StartAttributeStream("klass") << PrettyClass(info.GetTypeHandle().Get());
           } else {
             StartAttributeStream("klass") << "unresolved";
           }
@@ -481,7 +477,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
             StartAttributeStream("klass") << "java.lang.Object";
           } else {
             ScopedObjectAccess soa(Thread::Current());
-            StartAttributeStream("klass") << PrettyDescriptor(info.GetTypeHandle().Get());
+            StartAttributeStream("klass") << PrettyClass(info.GetTypeHandle().Get());
           }
           StartAttributeStream("exact") << std::boolalpha << info.IsExact() << std::noboolalpha;
         }
