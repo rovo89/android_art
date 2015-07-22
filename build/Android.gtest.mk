@@ -255,6 +255,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/optimizing/graph_checker_test.cc \
   compiler/optimizing/graph_test.cc \
   compiler/optimizing/gvn_test.cc \
+  compiler/optimizing/licm_test.cc \
   compiler/optimizing/linearize_test.cc \
   compiler/optimizing/liveness_test.cc \
   compiler/optimizing/live_interval_test.cc \
