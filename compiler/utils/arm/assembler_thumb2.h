@@ -489,6 +489,10 @@ class Thumb2Assembler FINAL : public ArmAssembler {
       return type_;
     }
 
+    bool IsLoadLiteral() const {
+      return GetType() >= kLoadLiteralNarrow;
+    }
+
     Size GetOriginalSize() const {
       return original_size_;
     }
