@@ -157,6 +157,31 @@ public class Main {
     return x;
   }
 
+  /// CHECK-START: int Main.returnAbs(int) intrinsics_recognition (before)
+  /// CHECK-DAG:     <<Result:i\d+>>      InvokeStaticOrDirect
+  /// CHECK-DAG:                          Return [<<Result>>]
+
+  /// CHECK-START: int Main.returnAbs(int) intrinsics_recognition (after)
+  /// CHECK-DAG:     <<Result:i\d+>>      InvokeStaticOrDirect intrinsic:MathAbsInt
+  /// CHECK-DAG:                          Return [<<Result>>]
+
+  private static int returnAbs(int i) {
+    return Math.abs(i);
+  }
+
+  /// CHECK-START: int Main.InlinedIntrinsicsAreStillIntrinsic() inliner (before)
+  /// CHECK-DAG:     <<ConstMinus1:i\d+>> IntConstant -1
+  /// CHECK-DAG:     <<Result:i\d+>>      InvokeStaticOrDirect
+  /// CHECK-DAG:                          Return [<<Result>>]
+
+  /// CHECK-START: int Main.InlinedIntrinsicsAreStillIntrinsic() inliner (after)
+  /// CHECK-DAG:     <<ConstMinus1:i\d+>> IntConstant -1
+  /// CHECK-DAG:     <<Result:i\d+>>      InvokeStaticOrDirect intrinsic:MathAbsInt
+  /// CHECK-DAG:                          Return [<<Result>>]
+
+  public static int InlinedIntrinsicsAreStillIntrinsic() {
+    return returnAbs(-1);
+  }
 
   private static void returnVoid() {
     return;
@@ -236,6 +261,14 @@ public class Main {
     }
 
     if (InlineWithControlFlow(false) != 2) {
+      throw new Error();
+    }
+
+    if (InlinedIntrinsicsAreStillIntrinsic() != 1) {
+      throw new Error();
+    }
+
+    if (returnAbs(-1) != 1) {
       throw new Error();
     }
   }
