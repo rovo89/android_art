@@ -469,19 +469,14 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
         if (instruction->IsLoadClass()) {
           ReferenceTypeInfo info = instruction->AsLoadClass()->GetLoadedClassRTI();
           ScopedObjectAccess soa(Thread::Current());
-          if (info.GetTypeHandle().GetReference() != nullptr) {
-            StartAttributeStream("klass") << PrettyDescriptor(info.GetTypeHandle().Get());
-          } else {
-            StartAttributeStream("klass") << "unresolved";
-          }
+          DCHECK(info.IsValid()) << "Invalid RTI for " << instruction->DebugName();
+          StartAttributeStream("klass") << PrettyDescriptor(info.GetTypeHandle().Get());
+          StartAttributeStream("exact") << std::boolalpha << info.IsExact() << std::noboolalpha;
         } else {
           ReferenceTypeInfo info = instruction->GetReferenceTypeInfo();
-          if (info.IsTop()) {
-            StartAttributeStream("klass") << "java.lang.Object";
-          } else {
-            ScopedObjectAccess soa(Thread::Current());
-            StartAttributeStream("klass") << PrettyDescriptor(info.GetTypeHandle().Get());
-          }
+          ScopedObjectAccess soa(Thread::Current());
+          DCHECK(info.IsValid()) << "Invalid RTI for " << instruction->DebugName();
+          StartAttributeStream("klass") << PrettyDescriptor(info.GetTypeHandle().Get());
           StartAttributeStream("exact") << std::boolalpha << info.IsExact() << std::noboolalpha;
         }
       }
