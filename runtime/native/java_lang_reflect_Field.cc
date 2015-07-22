@@ -32,7 +32,7 @@ namespace art {
 template<bool kIsSet>
 ALWAYS_INLINE inline static bool VerifyFieldAccess(Thread* self, mirror::Field* field,
                                                    mirror::Object* obj)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   if (kIsSet && field->IsFinal()) {
     ThrowIllegalAccessException(
             StringPrintf("Cannot set %s field %s of class %s",
@@ -60,7 +60,7 @@ ALWAYS_INLINE inline static bool VerifyFieldAccess(Thread* self, mirror::Field* 
 template<bool kAllowReferences>
 ALWAYS_INLINE inline static bool GetFieldValue(mirror::Object* o, mirror::Field* f,
                                                Primitive::Type field_type, JValue* value)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   DCHECK_EQ(value->GetJ(), INT64_C(0));
   MemberOffset offset(f->GetOffset());
   const bool is_volatile = f->IsVolatile();
@@ -105,7 +105,7 @@ ALWAYS_INLINE inline static bool GetFieldValue(mirror::Object* o, mirror::Field*
 ALWAYS_INLINE inline static bool CheckReceiver(const ScopedFastNativeObjectAccess& soa,
                                                jobject j_rcvr, mirror::Field** f,
                                                mirror::Object** class_or_rcvr)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   soa.Self()->AssertThreadSuspensionIsAllowable();
   mirror::Class* declaringClass = (*f)->GetDeclaringClass();
   if ((*f)->IsStatic()) {
@@ -232,7 +232,7 @@ static jshort Field_getShort(JNIEnv* env, jobject javaField, jobject javaObj) {
 ALWAYS_INLINE inline static void SetFieldValue(mirror::Object* o, mirror::Field* f,
                                                Primitive::Type field_type, bool allow_references,
                                                const JValue& new_value)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   DCHECK(f->GetDeclaringClass()->IsInitialized());
   MemberOffset offset(f->GetOffset());
   const bool is_volatile = f->IsVolatile();

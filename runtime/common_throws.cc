@@ -34,7 +34,7 @@
 namespace art {
 
 static void AddReferrerLocation(std::ostream& os, mirror::Class* referrer)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   if (referrer != nullptr) {
     std::string location(referrer->GetLocation());
     if (!location.empty()) {
@@ -46,7 +46,7 @@ static void AddReferrerLocation(std::ostream& os, mirror::Class* referrer)
 
 static void ThrowException(const char* exception_descriptor,
                            mirror::Class* referrer, const char* fmt, va_list* args = nullptr)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   std::ostringstream msg;
   if (args != nullptr) {
     std::string vmsg;
@@ -62,7 +62,7 @@ static void ThrowException(const char* exception_descriptor,
 
 static void ThrowWrappedException(const char* exception_descriptor,
                                   mirror::Class* referrer, const char* fmt, va_list* args = nullptr)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   std::ostringstream msg;
   if (args != nullptr) {
     std::string vmsg;
@@ -336,7 +336,7 @@ void ThrowNullPointerExceptionForFieldAccess(ArtField* field, bool is_read) {
 static void ThrowNullPointerExceptionForMethodAccessImpl(uint32_t method_idx,
                                                          const DexFile& dex_file,
                                                          InvokeType type)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   std::ostringstream msg;
   msg << "Attempt to invoke " << type << " method '"
       << PrettyMethod(method_idx, dex_file, true) << "' on a null object reference";

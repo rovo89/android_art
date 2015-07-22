@@ -77,7 +77,7 @@ void ConvertUtf16ToModifiedUtf8(char* utf8_out, const uint16_t* utf16_in, size_t
  * The java.lang.String hashCode() algorithm.
  */
 int32_t ComputeUtf16Hash(mirror::CharArray* chars, int32_t offset, size_t char_count)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+    SHARED_REQUIRES(Locks::mutator_lock_);
 int32_t ComputeUtf16Hash(const uint16_t* chars, size_t char_count);
 
 // Compute a hash code of a modified UTF-8 string. Not the standard java hash since it returns a

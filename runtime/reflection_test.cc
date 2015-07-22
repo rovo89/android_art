@@ -85,7 +85,7 @@ class ReflectionTest : public CommonCompilerTest {
                                     mirror::Object** receiver,
                                     bool is_static, const char* method_name,
                                     const char* method_signature)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     const char* class_name = is_static ? "StaticLeafMethods" : "NonStaticLeafMethods";
     jobject jclass_loader(LoadDex(class_name));
     Thread* self = Thread::Current();

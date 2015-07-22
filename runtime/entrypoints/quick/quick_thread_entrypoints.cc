@@ -19,7 +19,7 @@
 
 namespace art {
 
-extern "C" void artTestSuspendFromCode(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+extern "C" void artTestSuspendFromCode(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_) {
   // Called when suspend count check value is 0 and thread->suspend_count_ != 0
   ScopedQuickEntrypointChecks sqec(self);
   self->CheckSuspend();

@@ -55,7 +55,7 @@ extern "C" void jit_unload(void* handle) {
 }
 
 extern "C" bool jit_compile_method(void* handle, ArtMethod* method, Thread* self)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   auto* jit_compiler = reinterpret_cast<JitCompiler*>(handle);
   DCHECK(jit_compiler != nullptr);
   return jit_compiler->CompileMethod(self, method);

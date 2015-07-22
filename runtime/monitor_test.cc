@@ -60,7 +60,7 @@ static const size_t kMaxHandles = 1000000;  // Use arbitrary large amount for no
 static void FillHeap(Thread* self, ClassLinker* class_linker,
                      std::unique_ptr<StackHandleScope<kMaxHandles>>* hsp,
                      std::vector<MutableHandle<mirror::Object>>* handles)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   Runtime::Current()->GetHeap()->SetIdealFootprint(1 * GB);
 
   hsp->reset(new StackHandleScope<kMaxHandles>(self));

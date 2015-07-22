@@ -47,9 +47,9 @@ class JitInstrumentationCache {
  public:
   explicit JitInstrumentationCache(size_t hot_method_threshold);
   void AddSamples(Thread* self, ArtMethod* method, size_t samples)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!lock_);
   void SignalCompiled(Thread* self, ArtMethod* method)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!lock_);
   void CreateThreadPool();
   void DeleteThreadPool();
 
@@ -68,7 +68,7 @@ class JitInstrumentationListener : public instrumentation::InstrumentationListen
 
   virtual void MethodEntered(Thread* thread, mirror::Object* /*this_object*/,
                              ArtMethod* method, uint32_t /*dex_pc*/)
-      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     instrumentation_cache_->AddSamples(thread, method, 1);
   }
   virtual void MethodExited(Thread* /*thread*/, mirror::Object* /*this_object*/,
@@ -92,7 +92,7 @@ class JitInstrumentationListener : public instrumentation::InstrumentationListen
 
   // We only care about how many dex instructions were executed in the Jit.
   virtual void BackwardBranch(Thread* thread, ArtMethod* method, int32_t dex_pc_offset)
-      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     CHECK_LE(dex_pc_offset, 0);
     instrumentation_cache_->AddSamples(thread, method, 1);
   }

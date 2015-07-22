@@ -61,7 +61,7 @@ class ThreadPoolWorker {
 
  protected:
   ThreadPoolWorker(ThreadPool* thread_pool, const std::string& name, size_t stack_size);
-  static void* Callback(void* arg) LOCKS_EXCLUDED(Locks::mutator_lock_);
+  static void* Callback(void* arg) REQUIRES(!Locks::mutator_lock_);
   virtual void Run();
 
   ThreadPool* const thread_pool_;
@@ -82,22 +82,22 @@ class ThreadPool {
   }
 
   // Broadcast to the workers and tell them to empty out the work queue.
-  void StartWorkers(Thread* self);
+  void StartWorkers(Thread* self) REQUIRES(!task_queue_lock_);
 
   // Do not allow workers to grab any new tasks.
-  void StopWorkers(Thread* self);
+  void StopWorkers(Thread* self) REQUIRES(!task_queue_lock_);
 
   // Add a new task, the first available started worker will process it. Does not delete the task
   // after running it, it is the caller's responsibility.
-  void AddTask(Thread* self, Task* task);
+  void AddTask(Thread* self, Task* task) REQUIRES(!task_queue_lock_);
 
   explicit ThreadPool(const char* name, size_t num_threads);
   virtual ~ThreadPool();
 
   // Wait for all tasks currently on queue to get completed.
-  void Wait(Thread* self, bool do_work, bool may_hold_locks);
+  void Wait(Thread* self, bool do_work, bool may_hold_locks) REQUIRES(!task_queue_lock_);
 
-  size_t GetTaskCount(Thread* self);
+  size_t GetTaskCount(Thread* self) REQUIRES(!task_queue_lock_);
 
   // Returns the total amount of workers waited for tasks.
   uint64_t GetWaitTime() const {
@@ -106,18 +106,18 @@ class ThreadPool {
 
   // Provides a way to bound the maximum number of worker threads, threads must be less the the
   // thread count of the thread pool.
-  void SetMaxActiveWorkers(size_t threads);
+  void SetMaxActiveWorkers(size_t threads) REQUIRES(!task_queue_lock_);
 
  protected:
   // get a task to run, blocks if there are no tasks left
-  virtual Task* GetTask(Thread* self);
+  virtual Task* GetTask(Thread* self) REQUIRES(!task_queue_lock_);
 
   // Try to get a task, returning null if there is none available.
-  Task* TryGetTask(Thread* self);
-  Task* TryGetTaskLocked() EXCLUSIVE_LOCKS_REQUIRED(task_queue_lock_);
+  Task* TryGetTask(Thread* self) REQUIRES(!task_queue_lock_);
+  Task* TryGetTaskLocked() REQUIRES(task_queue_lock_);
 
   // Are we shutting down?
-  bool IsShuttingDown() const EXCLUSIVE_LOCKS_REQUIRED(task_queue_lock_) {
+  bool IsShuttingDown() const REQUIRES(task_queue_lock_) {
     return shutting_down_;
   }
 

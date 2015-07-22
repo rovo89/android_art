@@ -62,14 +62,15 @@ class ConcurrentCopying : public GarbageCollector {
   ConcurrentCopying(Heap* heap, const std::string& name_prefix = "");
   ~ConcurrentCopying();
 
-  virtual void RunPhases() OVERRIDE;
-  void InitializePhase() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void MarkingPhase() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void ReclaimPhase() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FinishPhase();
+  virtual void RunPhases() OVERRIDE REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_);
+  void InitializePhase() SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!mark_stack_lock_);
+  void MarkingPhase() SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_);
+  void ReclaimPhase() SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!mark_stack_lock_);
+  void FinishPhase() REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_);
 
-  void BindBitmaps() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
+  void BindBitmaps() SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!Locks::heap_bitmap_lock_);
   virtual GcType GetGcType() const OVERRIDE {
     return kGcTypePartial;
   }
@@ -85,14 +86,15 @@ class ConcurrentCopying : public GarbageCollector {
     return region_space_;
   }
   void AssertToSpaceInvariant(mirror::Object* obj, MemberOffset offset, mirror::Object* ref)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   void AssertToSpaceInvariant(GcRootSource* gc_root_source, mirror::Object* ref)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool IsInToSpace(mirror::Object* ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  bool IsInToSpace(mirror::Object* ref) SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(ref != nullptr);
     return IsMarked(ref) == ref;
   }
-  mirror::Object* Mark(mirror::Object* from_ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::Object* Mark(mirror::Object* from_ref) SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_);
   bool IsMarking() const {
     return is_marking_;
   }
@@ -105,68 +107,77 @@ class ConcurrentCopying : public GarbageCollector {
   bool IsWeakRefAccessEnabled() {
     return weak_ref_access_enabled_.LoadRelaxed();
   }
-  void RevokeThreadLocalMarkStack(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void RevokeThreadLocalMarkStack(Thread* thread) SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!mark_stack_lock_);
 
  private:
-  void PushOntoMarkStack(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::Object* Copy(mirror::Object* from_ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void Scan(mirror::Object* to_ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void PushOntoMarkStack(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!mark_stack_lock_);
+  mirror::Object* Copy(mirror::Object* from_ref) SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!skipped_blocks_lock_, !mark_stack_lock_);
+  void Scan(mirror::Object* to_ref) SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!mark_stack_lock_);
   void Process(mirror::Object* obj, MemberOffset offset)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!mark_stack_lock_ , !skipped_blocks_lock_);
   virtual void VisitRoots(mirror::Object*** roots, size_t count, const RootInfo& info)
-      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_);
   virtual void VisitRoots(mirror::CompressedReference<mirror::Object>** roots, size_t count,
                           const RootInfo& info)
-      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void VerifyNoFromSpaceReferences() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_);
+  void VerifyNoFromSpaceReferences() REQUIRES(Locks::mutator_lock_);
   accounting::ObjectStack* GetAllocationStack();
   accounting::ObjectStack* GetLiveStack();
-  virtual void ProcessMarkStack() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool ProcessMarkStackOnce() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void ProcessMarkStackRef(mirror::Object* to_ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual void ProcessMarkStack() OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!mark_stack_lock_);
+  bool ProcessMarkStackOnce() SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!mark_stack_lock_);
+  void ProcessMarkStackRef(mirror::Object* to_ref) SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!mark_stack_lock_);
   size_t ProcessThreadLocalMarkStacks(bool disable_weak_ref_access)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!mark_stack_lock_);
   void RevokeThreadLocalMarkStacks(bool disable_weak_ref_access)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SwitchToSharedMarkStackMode() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SwitchToGcExclusiveMarkStackMode() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  void SwitchToSharedMarkStackMode() SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!mark_stack_lock_);
+  void SwitchToGcExclusiveMarkStackMode() SHARED_REQUIRES(Locks::mutator_lock_);
   virtual void DelayReferenceReferent(mirror::Class* klass, mirror::Reference* reference) OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void ProcessReferences(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  void ProcessReferences(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_);
   virtual mirror::Object* MarkObject(mirror::Object* from_ref) OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_);
   virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>* from_ref) OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_);
   virtual mirror::Object* IsMarked(mirror::Object* from_ref) OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   virtual bool IsMarkedHeapReference(mirror::HeapReference<mirror::Object>* field) OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   void SweepSystemWeaks(Thread* self)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Locks::heap_bitmap_lock_);
   void Sweep(bool swap_bitmaps)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_, !mark_stack_lock_);
   void SweepLargeObjects(bool swap_bitmaps)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_);
   void ClearBlackPtrs()
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_);
   void FillWithDummyObject(mirror::Object* dummy_obj, size_t byte_size)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   mirror::Object* AllocateInSkippedBlock(size_t alloc_size)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void CheckEmptyMarkStack() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void IssueEmptyCheckpoint() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool IsOnAllocStack(mirror::Object* ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!skipped_blocks_lock_);
+  void CheckEmptyMarkStack() SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!mark_stack_lock_);
+  void IssueEmptyCheckpoint() SHARED_REQUIRES(Locks::mutator_lock_);
+  bool IsOnAllocStack(mirror::Object* ref) SHARED_REQUIRES(Locks::mutator_lock_);
   mirror::Object* GetFwdPtr(mirror::Object* from_ref)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FlipThreadRoots() LOCKS_EXCLUDED(Locks::mutator_lock_);
-  void SwapStacks(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  void FlipThreadRoots() REQUIRES(!Locks::mutator_lock_);
+  void SwapStacks(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_);
   void RecordLiveStackFreezeSize(Thread* self);
   void ComputeUnevacFromSpaceLiveRatio();
   void LogFromSpaceRefHolder(mirror::Object* obj, MemberOffset offset)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   void AssertToSpaceInvariantInNonMovingSpace(mirror::Object* obj, mirror::Object* ref)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void ReenableWeakRefAccess(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  void ReenableWeakRefAccess(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_);
 
   space::RegionSpace* region_space_;      // The underlying region space.
   std::unique_ptr<Barrier> gc_barrier_;

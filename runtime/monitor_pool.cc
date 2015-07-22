@@ -90,7 +90,7 @@ void MonitorPool::AllocateChunk() {
 
 Monitor* MonitorPool::CreateMonitorInPool(Thread* self, Thread* owner, mirror::Object* obj,
                                           int32_t hash_code)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   // We are gonna allocate, so acquire the writer lock.
   MutexLock mu(self, *Locks::allocated_monitor_ids_lock_);
 

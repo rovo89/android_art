@@ -62,7 +62,7 @@ void ReferenceTable::Remove(mirror::Object* obj) {
 
 // If "obj" is an array, return the number of elements in the array.
 // Otherwise, return zero.
-static size_t GetElementCount(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static size_t GetElementCount(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_) {
   // We assume the special cleared value isn't an array in the if statement below.
   DCHECK(!Runtime::Current()->GetClearedJniWeakGlobal()->IsArrayInstance());
   if (obj == nullptr || !obj->IsArrayInstance()) {
@@ -78,7 +78,7 @@ static size_t GetElementCount(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::
 // or equivalent to the original.
 static void DumpSummaryLine(std::ostream& os, mirror::Object* obj, size_t element_count,
                             int identical, int equiv)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   if (obj == nullptr) {
     os << "    null reference (count=" << equiv << ")\n";
     return;

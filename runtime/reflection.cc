@@ -72,7 +72,7 @@ class ArgArray {
     num_bytes_ += 4;
   }
 
-  void Append(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void Append(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_) {
     Append(StackReference<mirror::Object>::FromMirrorPtr(obj).AsVRegValue());
   }
 
@@ -96,7 +96,7 @@ class ArgArray {
 
   void BuildArgArrayFromVarArgs(const ScopedObjectAccessAlreadyRunnable& soa,
                                 mirror::Object* receiver, va_list ap)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     // Set receiver if non-null (method is not static)
     if (receiver != nullptr) {
       Append(receiver);
@@ -132,7 +132,7 @@ class ArgArray {
 
   void BuildArgArrayFromJValues(const ScopedObjectAccessAlreadyRunnable& soa,
                                 mirror::Object* receiver, jvalue* args)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     // Set receiver if non-null (method is not static)
     if (receiver != nullptr) {
       Append(receiver);
@@ -171,7 +171,7 @@ class ArgArray {
   }
 
   void BuildArgArrayFromFrame(ShadowFrame* shadow_frame, uint32_t arg_offset)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     // Set receiver if non-null (method is not static)
     size_t cur_arg = arg_offset;
     if (!shadow_frame->GetMethod()->IsStatic()) {
@@ -206,7 +206,7 @@ class ArgArray {
 
   static void ThrowIllegalPrimitiveArgumentException(const char* expected,
                                                      const char* found_descriptor)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     ThrowIllegalArgumentException(
         StringPrintf("Invalid primitive conversion from %s to %s", expected,
                      PrettyDescriptor(found_descriptor).c_str()).c_str());
@@ -214,7 +214,7 @@ class ArgArray {
 
   bool BuildArgArrayFromObjectArray(mirror::Object* receiver,
                                     mirror::ObjectArray<mirror::Object>* args, ArtMethod* m)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     const DexFile::TypeList* classes = m->GetParameterTypeList();
     // Set receiver if non-null (method is not static)
     if (receiver != nullptr) {
@@ -343,7 +343,7 @@ class ArgArray {
 };
 
 static void CheckMethodArguments(JavaVMExt* vm, ArtMethod* m, uint32_t* args)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   const DexFile::TypeList* params = m->GetParameterTypeList();
   if (params == nullptr) {
     return;  // No arguments so nothing to check.
@@ -418,7 +418,7 @@ static void CheckMethodArguments(JavaVMExt* vm, ArtMethod* m, uint32_t* args)
 }
 
 static ArtMethod* FindVirtualMethod(mirror::Object* receiver, ArtMethod* method)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   return receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(method, sizeof(void*));
 }
 
@@ -426,7 +426,7 @@ static ArtMethod* FindVirtualMethod(mirror::Object* receiver, ArtMethod* method)
 static void InvokeWithArgArray(const ScopedObjectAccessAlreadyRunnable& soa,
                                ArtMethod* method, ArgArray* arg_array, JValue* result,
                                const char* shorty)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   uint32_t* args = arg_array->GetArray();
   if (UNLIKELY(soa.Env()->check_jni)) {
     CheckMethodArguments(soa.Vm(), method->GetInterfaceMethodIfProxy(sizeof(void*)), args);
@@ -436,7 +436,7 @@ static void InvokeWithArgArray(const ScopedObjectAccessAlreadyRunnable& soa,
 
 JValue InvokeWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa, jobject obj, jmethodID mid,
                          va_list args)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   // We want to make sure that the stack is not within a small distance from the
   // protected region in case we are calling into a leaf function whose stack
   // check has been elided.
@@ -730,7 +730,7 @@ mirror::Object* BoxPrimitive(Primitive::Type src_class, const JValue& value) {
 }
 
 static std::string UnboxingFailureKind(ArtField* f)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   if (f != nullptr) {
     return "field " + PrettyField(f, false);
   }
@@ -740,7 +740,7 @@ static std::string UnboxingFailureKind(ArtField* f)
 static bool UnboxPrimitive(mirror::Object* o,
                            mirror::Class* dst_class, ArtField* f,
                            JValue* unboxed_value)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   bool unbox_for_result = (f == nullptr);
   if (!dst_class->IsPrimitive()) {
     if (UNLIKELY(o != nullptr && !o->InstanceOf(dst_class))) {

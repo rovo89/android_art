@@ -199,7 +199,7 @@ union IRTSegmentState {
 static const size_t kIRTPrevCount = kIsDebugBuild ? 7 : 3;
 class IrtEntry {
  public:
-  void Add(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void Add(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_) {
     ++serial_;
     if (serial_ == kIRTPrevCount) {
       serial_ = 0;
@@ -228,11 +228,11 @@ static_assert(sizeof(IrtEntry) == (1 + kIRTPrevCount) * sizeof(uint32_t),
 class IrtIterator {
  public:
   explicit IrtIterator(IrtEntry* table, size_t i, size_t capacity)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_)
       : table_(table), i_(i), capacity_(capacity) {
   }
 
-  IrtIterator& operator++() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  IrtIterator& operator++() SHARED_REQUIRES(Locks::mutator_lock_) {
     ++i_;
     return *this;
   }
@@ -278,7 +278,7 @@ class IndirectReferenceTable {
    * failed during expansion).
    */
   IndirectRef Add(uint32_t cookie, mirror::Object* obj)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   /*
    * Given an IndirectRef in the table, return the Object it refers to.
@@ -286,14 +286,14 @@ class IndirectReferenceTable {
    * Returns kInvalidIndirectRefObject if iref is invalid.
    */
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  mirror::Object* Get(IndirectRef iref) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+  mirror::Object* Get(IndirectRef iref) const SHARED_REQUIRES(Locks::mutator_lock_)
       ALWAYS_INLINE;
 
   // Synchronized get which reads a reference, acquiring a lock if necessary.
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   mirror::Object* SynchronizedGet(Thread* /*self*/, ReaderWriterMutex* /*mutex*/,
                                   IndirectRef iref) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     return Get<kReadBarrierOption>(iref);
   }
 
@@ -302,7 +302,7 @@ class IndirectReferenceTable {
    *
    * Updates an existing indirect reference to point to a new object.
    */
-  void Update(IndirectRef iref, mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void Update(IndirectRef iref, mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_);
 
   /*
    * Remove an existing entry.
@@ -317,7 +317,7 @@ class IndirectReferenceTable {
 
   void AssertEmpty();
 
-  void Dump(std::ostream& os) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void Dump(std::ostream& os) const SHARED_REQUIRES(Locks::mutator_lock_);
 
   /*
    * Return the #of entries in the entire table.  This includes holes, and
@@ -337,7 +337,7 @@ class IndirectReferenceTable {
   }
 
   void VisitRoots(RootVisitor* visitor, const RootInfo& root_info)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   uint32_t GetSegmentState() const {
     return segment_state_.all;
@@ -352,7 +352,7 @@ class IndirectReferenceTable {
   }
 
   // Release pages past the end of the table that may have previously held references.
-  void Trim() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void Trim() SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
   // Extract the table index from an indirect reference.

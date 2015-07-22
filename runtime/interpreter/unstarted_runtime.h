@@ -52,14 +52,14 @@ class UnstartedRuntime {
                      ShadowFrame* shadow_frame,
                      JValue* result,
                      size_t arg_offset)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   static void Jni(Thread* self,
                   ArtMethod* method,
                   mirror::Object* receiver,
                   uint32_t* args,
                   JValue* result)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
   // Methods that intercept available libcore implementations.
@@ -68,7 +68,7 @@ class UnstartedRuntime {
                                      ShadowFrame* shadow_frame, \
                                      JValue* result,            \
                                      size_t arg_offset)         \
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 #include "unstarted_runtime_list.h"
   UNSTARTED_RUNTIME_DIRECT_LIST(UNSTARTED_DIRECT)
 #undef UNSTARTED_RUNTIME_DIRECT_LIST
@@ -82,7 +82,7 @@ class UnstartedRuntime {
                                         mirror::Object* receiver,  \
                                         uint32_t* args,            \
                                         JValue* result)            \
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 #include "unstarted_runtime_list.h"
   UNSTARTED_RUNTIME_JNI_LIST(UNSTARTED_JNI)
 #undef UNSTARTED_RUNTIME_DIRECT_LIST

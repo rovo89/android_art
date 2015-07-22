@@ -35,34 +35,34 @@ namespace accounting {
 
 class HeapBitmap {
  public:
-  bool Test(const mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-  void Clear(const mirror::Object* obj) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  bool Test(const mirror::Object* obj) SHARED_REQUIRES(Locks::heap_bitmap_lock_);
+  void Clear(const mirror::Object* obj) REQUIRES(Locks::heap_bitmap_lock_);
   template<typename LargeObjectSetVisitor>
   bool Set(const mirror::Object* obj, const LargeObjectSetVisitor& visitor)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) ALWAYS_INLINE;
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(Locks::heap_bitmap_lock_) ALWAYS_INLINE;
   template<typename LargeObjectSetVisitor>
   bool AtomicTestAndSet(const mirror::Object* obj, const LargeObjectSetVisitor& visitor)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) ALWAYS_INLINE;
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(Locks::heap_bitmap_lock_) ALWAYS_INLINE;
   ContinuousSpaceBitmap* GetContinuousSpaceBitmap(const mirror::Object* obj) const;
   LargeObjectBitmap* GetLargeObjectBitmap(const mirror::Object* obj) const;
 
   void Walk(ObjectCallback* callback, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      SHARED_REQUIRES(Locks::heap_bitmap_lock_);
 
   template <typename Visitor>
   void Visit(const Visitor& visitor)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      REQUIRES(Locks::heap_bitmap_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Find and replace a bitmap pointer, this is used by for the bitmap swapping in the GC.
   void ReplaceBitmap(ContinuousSpaceBitmap* old_bitmap, ContinuousSpaceBitmap* new_bitmap)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      REQUIRES(Locks::heap_bitmap_lock_);
 
   // Find and replace a object set pointer, this is used by for the bitmap swapping in the GC.
   void ReplaceLargeObjectBitmap(LargeObjectBitmap* old_bitmap, LargeObjectBitmap* new_bitmap)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      REQUIRES(Locks::heap_bitmap_lock_);
 
   explicit HeapBitmap(Heap* heap) : heap_(heap) {}
 

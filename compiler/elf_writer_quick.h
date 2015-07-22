@@ -33,7 +33,7 @@ class ElfWriterQuick FINAL : public ElfWriter {
                      const std::string& android_root,
                      bool is_host,
                      const CompilerDriver& driver)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   static void EncodeOatPatches(const std::vector<uintptr_t>& locations,
                                std::vector<uint8_t>* buffer);
@@ -44,7 +44,7 @@ class ElfWriterQuick FINAL : public ElfWriter {
              const std::string& android_root,
              bool is_host)
       OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
   ElfWriterQuick(const CompilerDriver& driver, File* elf_file)

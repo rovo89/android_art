@@ -447,7 +447,7 @@ static bool PatternMatch(const char* pattern, const std::string& target) {
  * need to do this even if later mods cause us to ignore the event.
  */
 static bool ModsMatch(JdwpEvent* pEvent, const ModBasket& basket)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   JdwpEventMod* pMod = pEvent->mods;
 
   for (int i = pEvent->modCount; i > 0; i--, pMod++) {
@@ -784,7 +784,7 @@ void JdwpState::PostVMStart() {
 
 static void LogMatchingEventsAndThread(const std::vector<JdwpEvent*> match_list,
                                        ObjectId thread_id)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   for (size_t i = 0, e = match_list.size(); i < e; ++i) {
     JdwpEvent* pEvent = match_list[i];
     VLOG(jdwp) << "EVENT #" << i << ": " << pEvent->eventKind
@@ -800,7 +800,7 @@ static void LogMatchingEventsAndThread(const std::vector<JdwpEvent*> match_list,
 
 static void SetJdwpLocationFromEventLocation(const JDWP::EventLocation* event_location,
                                              JDWP::JdwpLocation* jdwp_location)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   DCHECK(event_location != nullptr);
   DCHECK(jdwp_location != nullptr);
   Dbg::SetJdwpLocation(jdwp_location, event_location->method, event_location->dex_pc);

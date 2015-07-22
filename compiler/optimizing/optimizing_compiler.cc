@@ -256,7 +256,7 @@ class OptimizingCompiler FINAL : public Compiler {
   }
 
   uintptr_t GetEntryPointOf(ArtMethod* method) const OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     return reinterpret_cast<uintptr_t>(method->GetEntryPointFromQuickCompiledCodePtrSize(
         InstructionSetPointerSize(GetCompilerDriver()->GetInstructionSet())));
   }

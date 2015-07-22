@@ -28,11 +28,11 @@ namespace {
 class TestVisitor : public StackVisitor {
  public:
   TestVisitor(Thread* thread, Context* context, mirror::Object* this_value)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_)
       : StackVisitor(thread, context, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         this_value_(this_value) {}
 
-  bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool VisitFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
     ArtMethod* m = GetMethod();
     std::string m_name(m->GetName());
 

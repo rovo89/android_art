@@ -33,17 +33,17 @@ class CumulativeLogger {
   explicit CumulativeLogger(const std::string& name);
   ~CumulativeLogger();
   void Start();
-  void End() LOCKS_EXCLUDED(lock_);
-  void Reset() LOCKS_EXCLUDED(lock_);
-  void Dump(std::ostream& os) const LOCKS_EXCLUDED(lock_);
+  void End() REQUIRES(!lock_);
+  void Reset() REQUIRES(!lock_);
+  void Dump(std::ostream& os) const REQUIRES(!lock_);
   uint64_t GetTotalNs() const {
     return GetTotalTime() * kAdjust;
   }
   // Allow the name to be modified, particularly when the cumulative logger is a field within a
   // parent class that is unable to determine the "name" of a sub-class.
-  void SetName(const std::string& name) LOCKS_EXCLUDED(lock_);
-  void AddLogger(const TimingLogger& logger) LOCKS_EXCLUDED(lock_);
-  size_t GetIterations() const;
+  void SetName(const std::string& name) REQUIRES(!lock_);
+  void AddLogger(const TimingLogger& logger) REQUIRES(!lock_);
+  size_t GetIterations() const REQUIRES(!lock_);
 
  private:
   class HistogramComparator {
@@ -58,8 +58,8 @@ class CumulativeLogger {
   static constexpr size_t kInitialBucketSize = 50;  // 50 microseconds.
 
   void AddPair(const std::string &label, uint64_t delta_time)
-      EXCLUSIVE_LOCKS_REQUIRED(lock_);
-  void DumpHistogram(std::ostream &os) const EXCLUSIVE_LOCKS_REQUIRED(lock_);
+      REQUIRES(lock_);
+  void DumpHistogram(std::ostream &os) const REQUIRES(lock_);
   uint64_t GetTotalTime() const {
     return total_time_;
   }

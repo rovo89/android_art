@@ -835,7 +835,7 @@ class CopyClassVisitor {
   }
 
   void operator()(mirror::Object* obj, size_t usable_size ATTRIBUTE_UNUSED) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     StackHandleScope<1> hs(self_);
     Handle<mirror::Class> h_new_class_obj(hs.NewHandle(obj->AsClass()));
     mirror::Object::CopyObject(self_, h_new_class_obj.Get(), orig_->Get(), copy_bytes_);

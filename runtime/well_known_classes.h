@@ -38,7 +38,7 @@ struct WellKnownClasses {
   static jmethodID StringInitToStringFactoryMethodID(jmethodID string_init);
 
   static mirror::Class* ToClass(jclass global_jclass)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   static jclass com_android_dex_Dex;
   static jclass dalvik_system_DexFile;

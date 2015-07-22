@@ -43,7 +43,7 @@ class MonitorPool {
   }
 
   static Monitor* CreateMonitor(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
 #ifndef __LP64__
     Monitor* mon = new Monitor(self, owner, obj, hash_code);
     DCHECK_ALIGNED(mon, LockWord::kMonitorIdAlignment);
@@ -110,10 +110,10 @@ class MonitorPool {
   // analysis.
   MonitorPool() NO_THREAD_SAFETY_ANALYSIS;
 
-  void AllocateChunk() EXCLUSIVE_LOCKS_REQUIRED(Locks::allocated_monitor_ids_lock_);
+  void AllocateChunk() REQUIRES(Locks::allocated_monitor_ids_lock_);
 
   Monitor* CreateMonitorInPool(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   void ReleaseMonitorToPool(Thread* self, Monitor* monitor);
   void ReleaseMonitorsToPool(Thread* self, MonitorList::Monitors* monitors);

@@ -143,7 +143,6 @@ SpaceChunk SwapSpace::NewFileChunk(size_t min_size) {
     LOG(ERROR) << "Unable to mmap new swap file chunk.";
     LOG(ERROR) << "Current size: " << size_ << " requested: " << next_part << "/" << min_size;
     LOG(ERROR) << "Free list:";
-    MutexLock lock(Thread::Current(), lock_);
     DumpFreeMap(free_by_size_);
     LOG(ERROR) << "In free list: " << CollectFree(free_by_start_, free_by_size_);
     LOG(FATAL) << "Aborting...";

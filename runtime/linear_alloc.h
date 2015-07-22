@@ -28,24 +28,24 @@ class LinearAlloc {
  public:
   explicit LinearAlloc(ArenaPool* pool);
 
-  void* Alloc(Thread* self, size_t size) LOCKS_EXCLUDED(lock_);
+  void* Alloc(Thread* self, size_t size) REQUIRES(!lock_);
 
   // Realloc never frees the input pointer, it is the caller's job to do this if necessary.
-  void* Realloc(Thread* self, void* ptr, size_t old_size, size_t new_size) LOCKS_EXCLUDED(lock_);
+  void* Realloc(Thread* self, void* ptr, size_t old_size, size_t new_size) REQUIRES(!lock_);
 
   // Allocate and construct an array of structs of type T.
   template<class T>
-  T* AllocArray(Thread* self, size_t elements) {
+  T* AllocArray(Thread* self, size_t elements) REQUIRES(!lock_) {
     return reinterpret_cast<T*>(Alloc(self, elements * sizeof(T)));
   }
 
   // Return the number of bytes used in the allocator.
-  size_t GetUsedMemory() const LOCKS_EXCLUDED(lock_);
+  size_t GetUsedMemory() const REQUIRES(!lock_);
 
-  ArenaPool* GetArenaPool() LOCKS_EXCLUDED(lock_);
+  ArenaPool* GetArenaPool() REQUIRES(!lock_);
 
   // Return true if the linear alloc contrains an address.
-  bool Contains(void* ptr) const;
+  bool Contains(void* ptr) const REQUIRES(!lock_);
 
  private:
   mutable Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
