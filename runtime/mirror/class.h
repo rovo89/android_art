@@ -403,7 +403,9 @@ class MANAGED Class FINAL : public Object {
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  bool IsArrayClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool IsArrayClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetComponentType<kVerifyFlags, kReadBarrierOption>() != nullptr;
+  }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
@@ -420,7 +422,9 @@ class MANAGED Class FINAL : public Object {
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  Class* GetComponentType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  Class* GetComponentType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetFieldObject<Class, kVerifyFlags, kReadBarrierOption>(ComponentTypeOffset());
+  }
 
   void SetComponentType(Class* new_component_type) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(GetComponentType() == nullptr);
@@ -612,7 +616,22 @@ class MANAGED Class FINAL : public Object {
   // downcast would be necessary. Similarly for interfaces, a class that implements (or an interface
   // that extends) another can be assigned to its parent, but not vice-versa. All Classes may assign
   // to themselves. Classes for primitive types may not assign to each other.
-  ALWAYS_INLINE bool IsAssignableFrom(Class* src) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE bool IsAssignableFrom(Class* src) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(src != nullptr);
+    if (this == src) {
+      // Can always assign to things of the same type.
+      return true;
+    } else if (IsObjectClass()) {
+      // Can assign any reference to java.lang.Object.
+      return !src->IsPrimitive();
+    } else if (IsInterface()) {
+      return src->Implements(this);
+    } else if (src->IsArrayClass()) {
+      return IsAssignableFromArray(src);
+    } else {
+      return !src->IsInterface() && src->IsSubClass(this);
+    }
+  }
 
   ALWAYS_INLINE Class* GetSuperClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
