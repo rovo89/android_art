@@ -1460,79 +1460,63 @@ class ReferenceTypeInfo : ValueObject {
  public:
   typedef Handle<mirror::Class> TypeHandle;
 
-  static ReferenceTypeInfo Create(TypeHandle type_handle, bool is_exact)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (type_handle->IsObjectClass()) {
-      // Override the type handle to be consistent with the case when we get to
-      // Top but don't have the Object class available. It avoids having to guess
-      // what value the type_handle has when it's Top.
-      return ReferenceTypeInfo(TypeHandle(), is_exact, true);
-    } else {
-      return ReferenceTypeInfo(type_handle, is_exact, false);
-    }
+  static ReferenceTypeInfo Create(TypeHandle type_handle, bool is_exact) {
+    // The constructor will check that the type_handle is valid.
+    return ReferenceTypeInfo(type_handle, is_exact);
   }
 
-  static ReferenceTypeInfo CreateTop(bool is_exact) {
-    return ReferenceTypeInfo(TypeHandle(), is_exact, true);
+  static ReferenceTypeInfo CreateInvalid() { return ReferenceTypeInfo(); }
+
+  static bool IsValidHandle(TypeHandle handle) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return handle.GetReference() != nullptr;
   }
 
+  bool IsValid() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return IsValidHandle(type_handle_);
+  }
   bool IsExact() const { return is_exact_; }
-  bool IsTop() const { return is_top_; }
+  bool IsObjectClass() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(IsValid());
+    return GetTypeHandle()->IsObjectClass();
+  }
   bool IsInterface() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return !IsTop() && GetTypeHandle()->IsInterface();
+    DCHECK(IsValid());
+    return GetTypeHandle()->IsInterface();
   }
 
   Handle<mirror::Class> GetTypeHandle() const { return type_handle_; }
 
   bool IsSupertypeOf(ReferenceTypeInfo rti) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (IsTop()) {
-      // Top (equivalent for java.lang.Object) is supertype of anything.
-      return true;
-    }
-    if (rti.IsTop()) {
-      // If we get here `this` is not Top() so it can't be a supertype.
-      return false;
-    }
+    DCHECK(IsValid());
+    DCHECK(rti.IsValid());
     return GetTypeHandle()->IsAssignableFrom(rti.GetTypeHandle().Get());
   }
 
   // Returns true if the type information provide the same amount of details.
   // Note that it does not mean that the instructions have the same actual type
-  // (e.g. tops are equal but they can be the result of a merge).
+  // (because the type can be the result of a merge).
   bool IsEqual(ReferenceTypeInfo rti) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (IsExact() != rti.IsExact()) {
-      return false;
-    }
-    if (IsTop() && rti.IsTop()) {
-      // `Top` means java.lang.Object, so the types are equivalent.
+    if (!IsValid() && !rti.IsValid()) {
+      // Invalid types are equal.
       return true;
     }
-    if (IsTop() || rti.IsTop()) {
-      // If only one is top or object than they are not equivalent.
-      // NB: We need this extra check because the type_handle of `Top` is invalid
-      // and we cannot inspect its reference.
+    if (!IsValid() || !rti.IsValid()) {
+      // One is valid, the other not.
       return false;
     }
-
-    // Finally check the types.
-    return GetTypeHandle().Get() == rti.GetTypeHandle().Get();
+    return IsExact() == rti.IsExact()
+        && GetTypeHandle().Get() == rti.GetTypeHandle().Get();
   }
 
  private:
-  ReferenceTypeInfo() : ReferenceTypeInfo(TypeHandle(), false, true) {}
-  ReferenceTypeInfo(TypeHandle type_handle, bool is_exact, bool is_top)
-      : type_handle_(type_handle), is_exact_(is_exact), is_top_(is_top) {}
+  ReferenceTypeInfo();
+  ReferenceTypeInfo(TypeHandle type_handle, bool is_exact);
 
   // The class of the object.
   TypeHandle type_handle_;
   // Whether or not the type is exact or a superclass of the actual type.
   // Whether or not we have any information about this type.
   bool is_exact_;
-  // A true value here means that the object type should be java.lang.Object.
-  // We don't have access to the corresponding mirror object every time so this
-  // flag acts as a substitute. When true, the TypeHandle refers to a null
-  // pointer and should not be used.
-  bool is_top_;
 };
 
 std::ostream& operator<<(std::ostream& os, const ReferenceTypeInfo& rhs);
@@ -1550,7 +1534,7 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
         live_interval_(nullptr),
         lifetime_position_(kNoLifetime),
         side_effects_(side_effects),
-        reference_type_info_(ReferenceTypeInfo::CreateTop(/* is_exact */ false)) {}
+        reference_type_info_(ReferenceTypeInfo::CreateInvalid()) {}
 
   virtual ~HInstruction() {}
 
@@ -1607,10 +1591,7 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
     return false;
   }
 
-  void SetReferenceTypeInfo(ReferenceTypeInfo reference_type_info) {
-    DCHECK_EQ(GetType(), Primitive::kPrimNot);
-    reference_type_info_ = reference_type_info;
-  }
+  void SetReferenceTypeInfo(ReferenceTypeInfo rti);
 
   ReferenceTypeInfo GetReferenceTypeInfo() const {
     DCHECK_EQ(GetType(), Primitive::kPrimNot);
@@ -3905,7 +3886,7 @@ class HLoadClass : public HExpression<1> {
         is_referrers_class_(is_referrers_class),
         dex_pc_(dex_pc),
         generate_clinit_check_(false),
-        loaded_class_rti_(ReferenceTypeInfo::CreateTop(/* is_exact */ false)) {
+        loaded_class_rti_(ReferenceTypeInfo::CreateInvalid()) {
     SetRawInputAt(0, current_method);
   }
 
@@ -3954,10 +3935,6 @@ class HLoadClass : public HExpression<1> {
     // Make sure we only set exact types (the loaded class should never be merged).
     DCHECK(rti.IsExact());
     loaded_class_rti_ = rti;
-  }
-
-  bool IsResolved() {
-    return loaded_class_rti_.IsExact();
   }
 
   const DexFile& GetDexFile() { return dex_file_; }
@@ -4202,12 +4179,15 @@ class HInstanceOf : public HExpression<2> {
 
 class HBoundType : public HExpression<1> {
  public:
+  // Constructs an HBoundType with the given upper_bound.
+  // Ensures that the upper_bound is valid.
   HBoundType(HInstruction* input, ReferenceTypeInfo upper_bound, bool upper_can_be_null)
       : HExpression(Primitive::kPrimNot, SideEffects::None()),
         upper_bound_(upper_bound),
         upper_can_be_null_(upper_can_be_null) {
     DCHECK_EQ(input->GetType(), Primitive::kPrimNot);
     SetRawInputAt(0, input);
+    SetReferenceTypeInfo(upper_bound_);
   }
 
   // GetUpper* should only be used in reference type propagation.
