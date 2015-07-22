@@ -467,8 +467,17 @@ class SuspendCheckEliminationTest : public MirOptimizationTest {
     cu_.mir_graph->ComputeDominators();
     cu_.mir_graph->ComputeTopologicalSortOrder();
     cu_.mir_graph->SSATransformationEnd();
+
     bool gate_result = cu_.mir_graph->EliminateSuspendChecksGate();
-    ASSERT_TRUE(gate_result);
+    ASSERT_NE(gate_result, kLeafOptimization);
+    if (kLeafOptimization) {
+      // Even with kLeafOptimization on and Gate() refusing to allow SCE, we want
+      // to run the SCE test to avoid bitrot, so we need to initialize explicitly.
+      cu_.mir_graph->suspend_checks_in_loops_ =
+          cu_.mir_graph->arena_->AllocArray<uint32_t>(cu_.mir_graph->GetNumBlocks(),
+                                                      kArenaAllocMisc);
+    }
+
     TopologicalSortIterator iterator(cu_.mir_graph.get());
     bool change = false;
     for (BasicBlock* bb = iterator.Next(change); bb != nullptr; bb = iterator.Next(change)) {
