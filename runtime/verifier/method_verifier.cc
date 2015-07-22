@@ -329,14 +329,21 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(Thread* self, uint32_t 
   } else {
     // Bad method data.
     CHECK_NE(verifier.failures_.size(), 0U);
-    CHECK(verifier.have_pending_hard_failure_);
-    verifier.DumpFailures(LOG(INFO) << "Verification error in "
-                                    << PrettyMethod(method_idx, *dex_file) << "\n");
+
+    if (UNLIKELY(verifier.have_pending_experimental_failure_)) {
+      // Failed due to being forced into interpreter. This is ok because
+      // we just want to skip verification.
+      result = kSoftFailure;
+    } else {
+      CHECK(verifier.have_pending_hard_failure_);
+      verifier.DumpFailures(LOG(INFO) << "Verification error in "
+                                      << PrettyMethod(method_idx, *dex_file) << "\n");
+      result = kHardFailure;
+    }
     if (gDebugVerify) {
       std::cout << "\n" << verifier.info_messages_.str();
       verifier.Dump(std::cout);
     }
-    result = kHardFailure;
   }
   if (kTimeVerifyMethod) {
     uint64_t duration_ns = NanoTime() - start_ns;
@@ -402,6 +409,7 @@ MethodVerifier::MethodVerifier(Thread* self,
       monitor_enter_dex_pcs_(nullptr),
       have_pending_hard_failure_(false),
       have_pending_runtime_throw_failure_(false),
+      have_pending_experimental_failure_(false),
       have_any_pending_runtime_throw_failure_(false),
       new_instance_count_(0),
       monitor_enter_count_(0),
@@ -813,6 +821,17 @@ bool MethodVerifier::VerifyInstructions() {
 }
 
 bool MethodVerifier::VerifyInstruction(const Instruction* inst, uint32_t code_offset) {
+  if (UNLIKELY(inst->IsExperimental())) {
+    // Experimental instructions don't yet have verifier support implementation.
+    // While it is possible to use them by themselves, when we try to use stable instructions
+    // with a virtual register that was created by an experimental instruction,
+    // the data flow analysis will fail.
+    Fail(VERIFY_ERROR_FORCE_INTERPRETER)
+        << "experimental instruction is not supported by verifier; skipping verification";
+    have_pending_experimental_failure_ = true;
+    return false;
+  }
+
   bool result = true;
   switch (inst->GetVerifyTypeArgumentA()) {
     case Instruction::kVerifyRegA:

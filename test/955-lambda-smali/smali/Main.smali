@@ -23,6 +23,7 @@
     invoke-static {}, LSanityCheck;->run()I
     invoke-static {}, LTrivialHelloWorld;->run()V
     invoke-static {}, LBoxUnbox;->run()V
+    invoke-static {}, LMoveResult;->run()V
 
 # TODO: add tests when verification fails
 
