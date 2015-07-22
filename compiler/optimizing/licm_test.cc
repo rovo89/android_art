@@ -109,11 +109,11 @@ TEST_F(LICMTest, ConstantHoisting) {
       parameter_, constant_, constant, Primitive::kPrimDouble, 0);
   loop_body_->InsertInstructionBefore(set_array, loop_body_->GetLastInstruction());
 
-  CHECK_EQ(constant->GetBlock(), loop_body_);
-  CHECK_EQ(set_array->GetBlock(), loop_body_);
+  EXPECT_EQ(constant->GetBlock(), loop_body_);
+  EXPECT_EQ(set_array->GetBlock(), loop_body_);
   PerformLICM();
-  CHECK_EQ(constant->GetBlock(), loop_preheader_);
-  CHECK_EQ(set_array->GetBlock(), loop_body_);
+  EXPECT_EQ(constant->GetBlock(), loop_preheader_);
+  EXPECT_EQ(set_array->GetBlock(), loop_body_);
 }
 
 TEST_F(LICMTest, FieldHoisting) {
@@ -129,11 +129,11 @@ TEST_F(LICMTest, FieldHoisting) {
       false, kUnknownFieldIndex, graph_->GetDexFile());
   loop_body_->InsertInstructionBefore(set_field, loop_body_->GetLastInstruction());
 
-  CHECK_EQ(get_field->GetBlock(), loop_body_);
-  CHECK_EQ(set_field->GetBlock(), loop_body_);
+  EXPECT_EQ(get_field->GetBlock(), loop_body_);
+  EXPECT_EQ(set_field->GetBlock(), loop_body_);
   PerformLICM();
-  CHECK_EQ(get_field->GetBlock(), loop_preheader_);
-  CHECK_EQ(set_field->GetBlock(), loop_body_);
+  EXPECT_EQ(get_field->GetBlock(), loop_preheader_);
+  EXPECT_EQ(set_field->GetBlock(), loop_body_);
 }
 
 TEST_F(LICMTest, NoFieldHoisting) {
@@ -149,11 +149,11 @@ TEST_F(LICMTest, NoFieldHoisting) {
       false, kUnknownFieldIndex, graph_->GetDexFile());
   loop_body_->InsertInstructionBefore(set_field, loop_body_->GetLastInstruction());
 
-  CHECK_EQ(get_field->GetBlock(), loop_body_);
-  CHECK_EQ(set_field->GetBlock(), loop_body_);
+  EXPECT_EQ(get_field->GetBlock(), loop_body_);
+  EXPECT_EQ(set_field->GetBlock(), loop_body_);
   PerformLICM();
-  CHECK_EQ(get_field->GetBlock(), loop_body_);
-  CHECK_EQ(set_field->GetBlock(), loop_body_);
+  EXPECT_EQ(get_field->GetBlock(), loop_body_);
+  EXPECT_EQ(set_field->GetBlock(), loop_body_);
 }
 
 TEST_F(LICMTest, ArrayHoisting) {
@@ -167,11 +167,11 @@ TEST_F(LICMTest, ArrayHoisting) {
       parameter_, constant_, constant_, Primitive::kPrimInt, 0);
   loop_body_->InsertInstructionBefore(set_array, loop_body_->GetLastInstruction());
 
-  CHECK_EQ(get_array->GetBlock(), loop_body_);
-  CHECK_EQ(set_array->GetBlock(), loop_body_);
+  EXPECT_EQ(get_array->GetBlock(), loop_body_);
+  EXPECT_EQ(set_array->GetBlock(), loop_body_);
   PerformLICM();
-  CHECK_EQ(get_array->GetBlock(), loop_preheader_);
-  CHECK_EQ(set_array->GetBlock(), loop_body_);
+  EXPECT_EQ(get_array->GetBlock(), loop_preheader_);
+  EXPECT_EQ(set_array->GetBlock(), loop_body_);
 }
 
 TEST_F(LICMTest, NoArrayHoisting) {
@@ -185,11 +185,11 @@ TEST_F(LICMTest, NoArrayHoisting) {
       parameter_, get_array, constant_, Primitive::kPrimLong, 0);
   loop_body_->InsertInstructionBefore(set_array, loop_body_->GetLastInstruction());
 
-  CHECK_EQ(get_array->GetBlock(), loop_body_);
-  CHECK_EQ(set_array->GetBlock(), loop_body_);
+  EXPECT_EQ(get_array->GetBlock(), loop_body_);
+  EXPECT_EQ(set_array->GetBlock(), loop_body_);
   PerformLICM();
-  CHECK_EQ(get_array->GetBlock(), loop_body_);
-  CHECK_EQ(set_array->GetBlock(), loop_body_);
+  EXPECT_EQ(get_array->GetBlock(), loop_body_);
+  EXPECT_EQ(set_array->GetBlock(), loop_body_);
 }
 
 }  // namespace art
