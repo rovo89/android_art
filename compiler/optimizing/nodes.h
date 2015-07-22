@@ -3607,7 +3607,7 @@ class HInstanceFieldGet : public HExpression<1> {
                     const DexFile& dex_file)
       : HExpression(
             field_type,
-            SideEffects::SideEffects::FieldReadOfType(field_type, is_volatile)),
+            SideEffects::FieldReadOfType(field_type, is_volatile)),
         field_info_(field_offset, field_type, is_volatile, field_idx, dex_file) {
     SetRawInputAt(0, value);
   }
@@ -4058,7 +4058,7 @@ class HStaticFieldGet : public HExpression<1> {
                   const DexFile& dex_file)
       : HExpression(
             field_type,
-            SideEffects::SideEffects::FieldReadOfType(field_type, is_volatile)),
+            SideEffects::FieldReadOfType(field_type, is_volatile)),
         field_info_(field_offset, field_type, is_volatile, field_idx, dex_file) {
     SetRawInputAt(0, cls);
   }
