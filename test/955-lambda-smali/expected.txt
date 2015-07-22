@@ -7,3 +7,12 @@ Caught NPE
 (BoxUnbox) Caught NPE for unbox-lambda
 (BoxUnbox) Caught NPE for box-lambda
 (BoxUnbox) Caught ClassCastException for unbox-lambda
+(MoveResult) testZ success
+(MoveResult) testB success
+(MoveResult) testS success
+(MoveResult) testI success
+(MoveResult) testC success
+(MoveResult) testJ success
+(MoveResult) testF success
+(MoveResult) testD success
+(MoveResult) testL success
