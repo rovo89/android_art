@@ -608,9 +608,13 @@ if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]]; then
   USE_JACK="false"
 
   if [ "$runtime" = "art" -a "$image_suffix" = "-optimizing" -a "$target_mode" = "no" -a "$debuggable" = "no" ]; then
-    run_checker="yes"
-    run_args="${run_args} -Xcompiler-option --dump-cfg=$tmp_dir/$cfg_output \
-                          -Xcompiler-option -j1"
+    # In no-prebuild mode, the compiler is only invoked if both dex2oat and
+    # patchoat are available. Disable Checker otherwise (b/22552692).
+    if [ "$prebuild_mode" = "yes" ] || [ "$have_patchoat" = "yes" -a "$have_dex2oat" = "yes" ]; then
+      run_checker="yes"
+      run_args="${run_args} -Xcompiler-option --dump-cfg=$tmp_dir/$cfg_output \
+                            -Xcompiler-option -j1"
+    fi
   fi
 fi
 
