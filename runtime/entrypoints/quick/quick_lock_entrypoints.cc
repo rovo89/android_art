@@ -21,7 +21,7 @@
 namespace art {
 
 extern "C" int artLockObjectFromCode(mirror::Object* obj, Thread* self)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+    SHARED_REQUIRES(Locks::mutator_lock_)
     NO_THREAD_SAFETY_ANALYSIS /* EXCLUSIVE_LOCK_FUNCTION(Monitor::monitor_lock_) */ {
   ScopedQuickEntrypointChecks sqec(self);
   if (UNLIKELY(obj == nullptr)) {
@@ -41,7 +41,7 @@ extern "C" int artLockObjectFromCode(mirror::Object* obj, Thread* self)
 }
 
 extern "C" int artUnlockObjectFromCode(mirror::Object* obj, Thread* self)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+    SHARED_REQUIRES(Locks::mutator_lock_)
     NO_THREAD_SAFETY_ANALYSIS /* UNLOCK_FUNCTION(Monitor::monitor_lock_) */ {
   ScopedQuickEntrypointChecks sqec(self);
   if (UNLIKELY(obj == nullptr)) {

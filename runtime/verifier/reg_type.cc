@@ -46,19 +46,19 @@ const DoubleHiType* DoubleHiType::instance_ = nullptr;
 const IntegerType* IntegerType::instance_ = nullptr;
 
 PrimitiveType::PrimitiveType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+    SHARED_REQUIRES(Locks::mutator_lock_)
     : RegType(klass, descriptor, cache_id) {
   CHECK(klass != nullptr);
   CHECK(!descriptor.empty());
 }
 
 Cat1Type::Cat1Type(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+    SHARED_REQUIRES(Locks::mutator_lock_)
     : PrimitiveType(klass, descriptor, cache_id) {
 }
 
 Cat2Type::Cat2Type(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+    SHARED_REQUIRES(Locks::mutator_lock_)
     : PrimitiveType(klass, descriptor, cache_id) {
 }
 
@@ -280,7 +280,7 @@ void BooleanType::Destroy() {
   }
 }
 
-std::string UndefinedType::Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+std::string UndefinedType::Dump() const SHARED_REQUIRES(Locks::mutator_lock_) {
   return "Undefined";
 }
 
@@ -538,7 +538,7 @@ const RegType& RegType::GetSuperClass(RegTypeCache* cache) const {
   }
 }
 
-bool RegType::IsObjectArrayTypes() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+bool RegType::IsObjectArrayTypes() const SHARED_REQUIRES(Locks::mutator_lock_) {
   if (IsUnresolvedTypes() && !IsUnresolvedMergedReference() && !IsUnresolvedSuperClass()) {
     // Primitive arrays will always resolve
     DCHECK(descriptor_[1] == 'L' || descriptor_[1] == '[');
@@ -551,11 +551,11 @@ bool RegType::IsObjectArrayTypes() const SHARED_LOCKS_REQUIRED(Locks::mutator_lo
   }
 }
 
-bool RegType::IsJavaLangObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+bool RegType::IsJavaLangObject() const SHARED_REQUIRES(Locks::mutator_lock_) {
   return IsReference() && GetClass()->IsObjectClass();
 }
 
-bool RegType::IsArrayTypes() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+bool RegType::IsArrayTypes() const SHARED_REQUIRES(Locks::mutator_lock_) {
   if (IsUnresolvedTypes() && !IsUnresolvedMergedReference() && !IsUnresolvedSuperClass()) {
     return descriptor_[0] == '[';
   } else if (HasClass()) {

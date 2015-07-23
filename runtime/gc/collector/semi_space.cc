@@ -273,8 +273,7 @@ void SemiSpace::MarkingPhase() {
 class SemiSpaceScanObjectVisitor {
  public:
   explicit SemiSpaceScanObjectVisitor(SemiSpace* ss) : semi_space_(ss) {}
-  void operator()(Object* obj) const EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_,
-                                                              Locks::heap_bitmap_lock_) {
+  void operator()(Object* obj) const REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     DCHECK(obj != nullptr);
     semi_space_->ScanObject(obj);
   }
@@ -289,7 +288,7 @@ class SemiSpaceVerifyNoFromSpaceReferencesVisitor {
       from_space_(from_space) {}
 
   void operator()(Object* obj, MemberOffset offset, bool /* is_static */) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
+      SHARED_REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE {
     mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset);
     if (from_space_->HasAddress(ref)) {
       Runtime::Current()->GetHeap()->DumpObject(LOG(INFO), obj);
@@ -310,7 +309,7 @@ class SemiSpaceVerifyNoFromSpaceReferencesObjectVisitor {
  public:
   explicit SemiSpaceVerifyNoFromSpaceReferencesObjectVisitor(SemiSpace* ss) : semi_space_(ss) {}
   void operator()(Object* obj) const
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
     DCHECK(obj != nullptr);
     semi_space_->VerifyNoFromSpaceReferences(obj);
   }
@@ -665,14 +664,14 @@ class SemiSpaceMarkObjectVisitor {
   }
 
   void operator()(Object* obj, MemberOffset offset, bool /* is_static */) const ALWAYS_INLINE
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+      REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     // Object was already verified when we scanned it.
     collector_->MarkObject(obj->GetFieldObjectReferenceAddr<kVerifyNone>(offset));
   }
 
   void operator()(mirror::Class* klass, mirror::Reference* ref) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(Locks::heap_bitmap_lock_) {
     collector_->DelayReferenceReferent(klass, ref);
   }
 

@@ -33,7 +33,7 @@ struct NthCallerVisitor : public StackVisitor {
         count(0),
         caller(nullptr) {}
 
-  bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool VisitFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
     ArtMethod* m = GetMethod();
     bool do_count = false;
     if (m == nullptr || m->IsRuntimeMethod()) {

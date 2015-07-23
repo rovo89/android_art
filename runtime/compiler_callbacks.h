@@ -38,7 +38,7 @@ class CompilerCallbacks {
   virtual ~CompilerCallbacks() { }
 
   virtual bool MethodVerified(verifier::MethodVerifier* verifier)
-  SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
+  SHARED_REQUIRES(Locks::mutator_lock_) = 0;
   virtual void ClassRejected(ClassReference ref) = 0;
 
   // Return true if we should attempt to relocate to a random base address if we have not already

@@ -48,7 +48,7 @@ class ObjectTest : public CommonRuntimeTest {
                     const char* utf8_in,
                     const char* utf16_expected_le,
                     int32_t expected_hash)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     std::unique_ptr<uint16_t[]> utf16_expected(new uint16_t[expected_utf16_length]);
     for (int32_t i = 0; i < expected_utf16_length; i++) {
       uint16_t ch = (((utf16_expected_le[i*2 + 0] & 0xff) << 8) |

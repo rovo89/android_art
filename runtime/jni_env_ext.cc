@@ -63,14 +63,14 @@ JNIEnvExt::JNIEnvExt(Thread* self_in, JavaVMExt* vm_in)
 JNIEnvExt::~JNIEnvExt() {
 }
 
-jobject JNIEnvExt::NewLocalRef(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+jobject JNIEnvExt::NewLocalRef(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_) {
   if (obj == nullptr) {
     return nullptr;
   }
   return reinterpret_cast<jobject>(locals.Add(local_ref_cookie, obj));
 }
 
-void JNIEnvExt::DeleteLocalRef(jobject obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+void JNIEnvExt::DeleteLocalRef(jobject obj) SHARED_REQUIRES(Locks::mutator_lock_) {
   if (obj != nullptr) {
     locals.Remove(local_ref_cookie, reinterpret_cast<IndirectRef>(obj));
   }
@@ -86,14 +86,14 @@ void JNIEnvExt::DumpReferenceTables(std::ostream& os) {
   monitors.Dump(os);
 }
 
-void JNIEnvExt::PushFrame(int capacity) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+void JNIEnvExt::PushFrame(int capacity) SHARED_REQUIRES(Locks::mutator_lock_) {
   UNUSED(capacity);  // cpplint gets confused with (int) and thinks its a cast.
   // TODO: take 'capacity' into account.
   stacked_local_ref_cookies.push_back(local_ref_cookie);
   local_ref_cookie = locals.GetSegmentState();
 }
 
-void JNIEnvExt::PopFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+void JNIEnvExt::PopFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
   locals.SetSegmentState(local_ref_cookie);
   local_ref_cookie = stacked_local_ref_cookies.back();
   stacked_local_ref_cookies.pop_back();

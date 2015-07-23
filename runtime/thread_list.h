@@ -46,27 +46,25 @@ class ThreadList {
   ~ThreadList();
 
   void DumpForSigQuit(std::ostream& os)
-      LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::mutator_lock_);
+      REQUIRES(!Locks::thread_list_lock_, !Locks::mutator_lock_);
   // For thread suspend timeout dumps.
   void Dump(std::ostream& os)
-      LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::thread_suspend_count_lock_);
+      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
   pid_t GetLockOwner();  // For SignalCatcher.
 
   // Thread suspension support.
   void ResumeAll()
       UNLOCK_FUNCTION(Locks::mutator_lock_)
-      LOCKS_EXCLUDED(Locks::thread_list_lock_,
-                     Locks::thread_suspend_count_lock_);
+      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
   void Resume(Thread* thread, bool for_debugger = false)
-      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_);
+      REQUIRES(!Locks::thread_suspend_count_lock_);
 
   // Suspends all threads and gets exclusive access to the mutator_lock_.
   // If long suspend is true, then other people who try to suspend will never timeout. Long suspend
   // is currenly used for hprof since large heaps take a long time.
   void SuspendAll(const char* cause, bool long_suspend = false)
       EXCLUSIVE_LOCK_FUNCTION(Locks::mutator_lock_)
-      LOCKS_EXCLUDED(Locks::thread_list_lock_,
-                     Locks::thread_suspend_count_lock_);
+      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
 
   // Suspend a thread using a peer, typically used by the debugger. Returns the thread on success,
@@ -76,18 +74,16 @@ class ThreadList {
   // is set to true.
   Thread* SuspendThreadByPeer(jobject peer, bool request_suspension, bool debug_suspension,
                               bool* timed_out)
-      LOCKS_EXCLUDED(Locks::mutator_lock_,
-                     Locks::thread_list_lock_,
-                     Locks::thread_suspend_count_lock_);
+      REQUIRES(!Locks::mutator_lock_, !Locks::thread_list_lock_,
+               !Locks::thread_suspend_count_lock_);
 
   // Suspend a thread using its thread id, typically used by lock/monitor inflation. Returns the
   // thread on success else null. The thread id is used to identify the thread to avoid races with
   // the thread terminating. Note that as thread ids are recycled this may not suspend the expected
   // thread, that may be terminating. If the suspension times out then *timeout is set to true.
   Thread* SuspendThreadByThreadId(uint32_t thread_id, bool debug_suspension, bool* timed_out)
-      LOCKS_EXCLUDED(Locks::mutator_lock_,
-                     Locks::thread_list_lock_,
-                     Locks::thread_suspend_count_lock_);
+      REQUIRES(!Locks::mutator_lock_, !Locks::thread_list_lock_,
+               !Locks::thread_suspend_count_lock_);
 
   // Find an already suspended thread (or self) by its id.
   Thread* FindThreadByThreadId(uint32_t thin_lock_id);
@@ -95,87 +91,78 @@ class ThreadList {
   // Run a checkpoint on threads, running threads are not suspended but run the checkpoint inside
   // of the suspend check. Returns how many checkpoints we should expect to run.
   size_t RunCheckpoint(Closure* checkpoint_function)
-      LOCKS_EXCLUDED(Locks::thread_list_lock_,
-                     Locks::thread_suspend_count_lock_);
+      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
   size_t RunCheckpointOnRunnableThreads(Closure* checkpoint_function)
-  LOCKS_EXCLUDED(Locks::thread_list_lock_,
-                 Locks::thread_suspend_count_lock_);
+      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
   // Flip thread roots from from-space refs to to-space refs. Used by
   // the concurrent copying collector.
   size_t FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_callback,
                          gc::collector::GarbageCollector* collector)
-      LOCKS_EXCLUDED(Locks::mutator_lock_,
-                     Locks::thread_list_lock_,
-                     Locks::thread_suspend_count_lock_);
+      REQUIRES(!Locks::mutator_lock_, !Locks::thread_list_lock_,
+               !Locks::thread_suspend_count_lock_);
 
   // Suspends all threads
   void SuspendAllForDebugger()
-      LOCKS_EXCLUDED(Locks::mutator_lock_,
-                     Locks::thread_list_lock_,
-                     Locks::thread_suspend_count_lock_);
+      REQUIRES(!Locks::mutator_lock_, !Locks::thread_list_lock_,
+               !Locks::thread_suspend_count_lock_);
 
   void SuspendSelfForDebugger()
-      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_);
+      REQUIRES(!Locks::thread_suspend_count_lock_);
 
   // Resume all threads
   void ResumeAllForDebugger()
-      LOCKS_EXCLUDED(Locks::thread_list_lock_,
-                     Locks::thread_suspend_count_lock_);
+      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
   void UndoDebuggerSuspensions()
-      LOCKS_EXCLUDED(Locks::thread_list_lock_,
-                     Locks::thread_suspend_count_lock_);
+      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
   // Iterates over all the threads.
   void ForEach(void (*callback)(Thread*, void*), void* context)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_);
+      REQUIRES(Locks::thread_list_lock_);
 
   // Add/remove current thread from list.
   void Register(Thread* self)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_)
-      LOCKS_EXCLUDED(Locks::mutator_lock_, Locks::thread_list_lock_);
-  void Unregister(Thread* self) LOCKS_EXCLUDED(Locks::mutator_lock_, Locks::thread_list_lock_);
+      REQUIRES(Locks::runtime_shutdown_lock_, !Locks::mutator_lock_, !Locks::thread_list_lock_,
+               !Locks::thread_suspend_count_lock_);
+  void Unregister(Thread* self) REQUIRES(!Locks::mutator_lock_, !Locks::thread_list_lock_,
+                                         !Locks::thread_suspend_count_lock_);
 
   void VisitRoots(RootVisitor* visitor) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Return a copy of the thread list.
-  std::list<Thread*> GetList() EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_) {
+  std::list<Thread*> GetList() REQUIRES(Locks::thread_list_lock_) {
     return list_;
   }
 
   void DumpNativeStacks(std::ostream& os)
-      LOCKS_EXCLUDED(Locks::thread_list_lock_);
+      REQUIRES(!Locks::thread_list_lock_);
 
  private:
   uint32_t AllocThreadId(Thread* self);
-  void ReleaseThreadId(Thread* self, uint32_t id) LOCKS_EXCLUDED(Locks::allocated_thread_ids_lock_);
+  void ReleaseThreadId(Thread* self, uint32_t id) REQUIRES(!Locks::allocated_thread_ids_lock_);
 
-  bool Contains(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_);
-  bool Contains(pid_t tid) EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_);
+  bool Contains(Thread* thread) REQUIRES(Locks::thread_list_lock_);
+  bool Contains(pid_t tid) REQUIRES(Locks::thread_list_lock_);
   size_t RunCheckpoint(Closure* checkpoint_function, bool includeSuspended)
-      LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::thread_suspend_count_lock_);
+      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
   void DumpUnattachedThreads(std::ostream& os)
-      LOCKS_EXCLUDED(Locks::thread_list_lock_);
+      REQUIRES(!Locks::thread_list_lock_);
 
   void SuspendAllDaemonThreads()
-      LOCKS_EXCLUDED(Locks::thread_list_lock_,
-                     Locks::thread_suspend_count_lock_);
+      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
   void WaitForOtherNonDaemonThreadsToExit()
-      LOCKS_EXCLUDED(Locks::thread_list_lock_,
-                     Locks::thread_suspend_count_lock_);
+      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
   void SuspendAllInternal(Thread* self, Thread* ignore1, Thread* ignore2 = nullptr,
                           bool debug_suspend = false)
-      LOCKS_EXCLUDED(Locks::thread_list_lock_,
-                     Locks::thread_suspend_count_lock_);
+      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
   void AssertThreadsAreSuspended(Thread* self, Thread* ignore1, Thread* ignore2 = nullptr)
-      LOCKS_EXCLUDED(Locks::thread_list_lock_,
-                     Locks::thread_suspend_count_lock_);
+      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
   std::bitset<kMaxThreadId> allocated_ids_ GUARDED_BY(Locks::allocated_thread_ids_lock_);
 

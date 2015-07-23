@@ -219,7 +219,7 @@ class AllocSpace {
   virtual mirror::Object* AllocThreadUnsafe(Thread* self, size_t num_bytes, size_t* bytes_allocated,
                                             size_t* usable_size,
                                             size_t* bytes_tl_bulk_allocated)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      REQUIRES(Locks::mutator_lock_) {
     return Alloc(self, num_bytes, bytes_allocated, usable_size, bytes_tl_bulk_allocated);
   }
 
@@ -420,10 +420,9 @@ class ContinuousMemMapAllocSpace : public MemMapSpace, public AllocSpace {
     return this;
   }
 
-  bool HasBoundBitmaps() const EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-  void BindLiveToMarkBitmap()
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-  void UnBindBitmaps() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  bool HasBoundBitmaps() const REQUIRES(Locks::heap_bitmap_lock_);
+  void BindLiveToMarkBitmap() REQUIRES(Locks::heap_bitmap_lock_);
+  void UnBindBitmaps() REQUIRES(Locks::heap_bitmap_lock_);
   // Swap the live and mark bitmaps of this space. This is used by the GC for concurrent sweeping.
   void SwapBitmaps();
 

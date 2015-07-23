@@ -45,14 +45,14 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
  public:
   CatchBlockStackVisitor(Thread* self, Context* context, Handle<mirror::Throwable>* exception,
                          QuickExceptionHandler* exception_handler)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_)
       : StackVisitor(self, context, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         self_(self),
         exception_(exception),
         exception_handler_(exception_handler) {
   }
 
-  bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool VisitFrame() OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     ArtMethod* method = GetMethod();
     exception_handler_->SetHandlerFrameDepth(GetFrameDepth());
     if (method == nullptr) {
@@ -83,7 +83,7 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
 
  private:
   bool HandleTryItems(ArtMethod* method)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     uint32_t dex_pc = DexFile::kDexNoIndex;
     if (!method->IsNative()) {
       dex_pc = GetDexPc();
@@ -159,7 +159,7 @@ void QuickExceptionHandler::FindCatch(mirror::Throwable* exception) {
 class DeoptimizeStackVisitor FINAL : public StackVisitor {
  public:
   DeoptimizeStackVisitor(Thread* self, Context* context, QuickExceptionHandler* exception_handler)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_)
       : StackVisitor(self, context, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         self_(self),
         exception_handler_(exception_handler),
@@ -167,7 +167,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
         stacked_shadow_frame_pushed_(false) {
   }
 
-  bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool VisitFrame() OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     exception_handler_->SetHandlerFrameDepth(GetFrameDepth());
     ArtMethod* method = GetMethod();
     if (method == nullptr) {
@@ -196,7 +196,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
     return static_cast<VRegKind>(kinds.at(reg * 2));
   }
 
-  bool HandleDeoptimization(ArtMethod* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool HandleDeoptimization(ArtMethod* m) SHARED_REQUIRES(Locks::mutator_lock_) {
     const DexFile::CodeItem* code_item = m->GetCodeItem();
     CHECK(code_item != nullptr);
     uint16_t num_regs = code_item->registers_size_;
@@ -350,14 +350,14 @@ void QuickExceptionHandler::DeoptimizeStack() {
 class InstrumentationStackVisitor : public StackVisitor {
  public:
   InstrumentationStackVisitor(Thread* self, size_t frame_depth)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_)
       : StackVisitor(self, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         frame_depth_(frame_depth),
         instrumentation_frames_to_pop_(0) {
     CHECK_NE(frame_depth_, kInvalidFrameDepth);
   }
 
-  bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool VisitFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
     size_t current_frame_depth = GetFrameDepth();
     if (current_frame_depth < frame_depth_) {
       CHECK(GetMethod() != nullptr);

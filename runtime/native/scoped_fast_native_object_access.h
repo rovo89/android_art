@@ -27,7 +27,7 @@ namespace art {
 class ScopedFastNativeObjectAccess : public ScopedObjectAccessAlreadyRunnable {
  public:
   explicit ScopedFastNativeObjectAccess(JNIEnv* env)
-    LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
+    REQUIRES(!Locks::thread_suspend_count_lock_)
     SHARED_LOCK_FUNCTION(Locks::mutator_lock_) ALWAYS_INLINE
      : ScopedObjectAccessAlreadyRunnable(env) {
     Locks::mutator_lock_->AssertSharedHeld(Self());

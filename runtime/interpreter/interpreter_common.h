@@ -72,7 +72,7 @@ extern JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item,
                               ShadowFrame& shadow_frame, JValue result_register);
 
 void ThrowNullPointerExceptionFromInterpreter()
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+    SHARED_REQUIRES(Locks::mutator_lock_);
 
 static inline void DoMonitorEnter(Thread* self, Object* ref) NO_THREAD_SAFETY_ANALYSIS {
   ref->MonitorEnter(self);
@@ -84,13 +84,13 @@ static inline void DoMonitorExit(Thread* self, Object* ref) NO_THREAD_SAFETY_ANA
 
 void AbortTransactionF(Thread* self, const char* fmt, ...)
     __attribute__((__format__(__printf__, 2, 3)))
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+    SHARED_REQUIRES(Locks::mutator_lock_);
 
 void AbortTransactionV(Thread* self, const char* fmt, va_list args)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+    SHARED_REQUIRES(Locks::mutator_lock_);
 
 void RecordArrayElementsInTransaction(mirror::Array* array, int32_t count)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+    SHARED_REQUIRES(Locks::mutator_lock_);
 
 // Invokes the given method. This is part of the invocation support and is used by DoInvoke and
 // DoInvokeVirtualQuick functions.
@@ -114,7 +114,7 @@ bool DoLambdaCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_fr
 //
 // If the validation fails, return false and raise an exception.
 static inline bool IsValidLambdaTargetOrThrow(ArtMethod* called_method)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   bool success = false;
 
   if (UNLIKELY(called_method == nullptr)) {
@@ -191,7 +191,7 @@ static inline bool DoCreateLambda(Thread* self, ShadowFrame& shadow_frame,
 // (Exceptions are thrown by creating a new exception and then being put in the thread TLS)
 static inline ArtMethod* ReadLambdaClosureFromVRegsOrThrow(ShadowFrame& shadow_frame,
                                                            uint32_t vreg)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   // TODO(iam): Introduce a closure abstraction that will contain the captured variables
   // instead of just an ArtMethod.
   // This is temporarily using 2 vregs because a native ArtMethod can be up to 64-bit,
@@ -306,32 +306,32 @@ static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
 // Returns true on success, otherwise throws an exception and returns false.
 template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check>
 bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst,
-                uint16_t inst_data) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+                uint16_t inst_data) SHARED_REQUIRES(Locks::mutator_lock_);
 
 // Handles iget-quick, iget-wide-quick and iget-object-quick instructions.
 // Returns true on success, otherwise throws an exception and returns false.
 template<Primitive::Type field_type>
 bool DoIGetQuick(ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+    SHARED_REQUIRES(Locks::mutator_lock_);
 
 // Handles iput-XXX and sput-XXX instructions.
 // Returns true on success, otherwise throws an exception and returns false.
 template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check,
          bool transaction_active>
 bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction* inst,
-                uint16_t inst_data) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+                uint16_t inst_data) SHARED_REQUIRES(Locks::mutator_lock_);
 
 // Handles iput-quick, iput-wide-quick and iput-object-quick instructions.
 // Returns true on success, otherwise throws an exception and returns false.
 template<Primitive::Type field_type, bool transaction_active>
 bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+    SHARED_REQUIRES(Locks::mutator_lock_);
 
 
 // Handles string resolution for const-string and const-string-jumbo instructions. Also ensures the
 // java.lang.String class is initialized.
 static inline String* ResolveString(Thread* self, ShadowFrame& shadow_frame, uint32_t string_idx)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   Class* java_lang_string_class = String::GetJavaLangString();
   if (UNLIKELY(!java_lang_string_class->IsInitialized())) {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -358,7 +358,7 @@ static inline String* ResolveString(Thread* self, ShadowFrame& shadow_frame, uin
 // Returns true on success, otherwise throws a java.lang.ArithmeticException and return false.
 static inline bool DoIntDivide(ShadowFrame& shadow_frame, size_t result_reg,
                                int32_t dividend, int32_t divisor)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   constexpr int32_t kMinInt = std::numeric_limits<int32_t>::min();
   if (UNLIKELY(divisor == 0)) {
     ThrowArithmeticExceptionDivideByZero();
@@ -376,7 +376,7 @@ static inline bool DoIntDivide(ShadowFrame& shadow_frame, size_t result_reg,
 // Returns true on success, otherwise throws a java.lang.ArithmeticException and return false.
 static inline bool DoIntRemainder(ShadowFrame& shadow_frame, size_t result_reg,
                                   int32_t dividend, int32_t divisor)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   constexpr int32_t kMinInt = std::numeric_limits<int32_t>::min();
   if (UNLIKELY(divisor == 0)) {
     ThrowArithmeticExceptionDivideByZero();
@@ -394,7 +394,7 @@ static inline bool DoIntRemainder(ShadowFrame& shadow_frame, size_t result_reg,
 // Returns true on success, otherwise throws a java.lang.ArithmeticException and return false.
 static inline bool DoLongDivide(ShadowFrame& shadow_frame, size_t result_reg,
                                 int64_t dividend, int64_t divisor)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   const int64_t kMinLong = std::numeric_limits<int64_t>::min();
   if (UNLIKELY(divisor == 0)) {
     ThrowArithmeticExceptionDivideByZero();
@@ -412,7 +412,7 @@ static inline bool DoLongDivide(ShadowFrame& shadow_frame, size_t result_reg,
 // Returns true on success, otherwise throws a java.lang.ArithmeticException and return false.
 static inline bool DoLongRemainder(ShadowFrame& shadow_frame, size_t result_reg,
                                    int64_t dividend, int64_t divisor)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   const int64_t kMinLong = std::numeric_limits<int64_t>::min();
   if (UNLIKELY(divisor == 0)) {
     ThrowArithmeticExceptionDivideByZero();
@@ -436,7 +436,7 @@ bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
 // Returns the branch offset to the next instruction to execute.
 static inline int32_t DoPackedSwitch(const Instruction* inst, const ShadowFrame& shadow_frame,
                                      uint16_t inst_data)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   DCHECK(inst->Opcode() == Instruction::PACKED_SWITCH);
   const uint16_t* switch_data = reinterpret_cast<const uint16_t*>(inst) + inst->VRegB_31t();
   int32_t test_val = shadow_frame.GetVReg(inst->VRegA_31t(inst_data));
@@ -464,7 +464,7 @@ static inline int32_t DoPackedSwitch(const Instruction* inst, const ShadowFrame&
 // Returns the branch offset to the next instruction to execute.
 static inline int32_t DoSparseSwitch(const Instruction* inst, const ShadowFrame& shadow_frame,
                                      uint16_t inst_data)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   DCHECK(inst->Opcode() == Instruction::SPARSE_SWITCH);
   const uint16_t* switch_data = reinterpret_cast<const uint16_t*>(inst) + inst->VRegB_31t();
   int32_t test_val = shadow_frame.GetVReg(inst->VRegA_31t(inst_data));
@@ -497,7 +497,7 @@ static inline int32_t DoSparseSwitch(const Instruction* inst, const ShadowFrame&
 
 template <bool _do_check>
 static inline bool DoBoxLambda(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst,
-                               uint16_t inst_data) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+                               uint16_t inst_data) SHARED_REQUIRES(Locks::mutator_lock_) {
   /*
    * box-lambda vA, vB /// opcode 0xf8, format 22x
    * - vA is the target register where the Object representation of the closure will be stored into
@@ -529,7 +529,7 @@ static inline bool DoBoxLambda(Thread* self, ShadowFrame& shadow_frame, const In
   return true;
 }
 
-template <bool _do_check> SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+template <bool _do_check> SHARED_REQUIRES(Locks::mutator_lock_)
 static inline bool DoUnboxLambda(Thread* self,
                                  ShadowFrame& shadow_frame,
                                  const Instruction* inst,
@@ -565,15 +565,15 @@ static inline bool DoUnboxLambda(Thread* self,
 
 uint32_t FindNextInstructionFollowingException(Thread* self, ShadowFrame& shadow_frame,
     uint32_t dex_pc, const instrumentation::Instrumentation* instrumentation)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+        SHARED_REQUIRES(Locks::mutator_lock_);
 
 NO_RETURN void UnexpectedOpcode(const Instruction* inst, const ShadowFrame& shadow_frame)
   __attribute__((cold))
-  SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  SHARED_REQUIRES(Locks::mutator_lock_);
 
 static inline void TraceExecution(const ShadowFrame& shadow_frame, const Instruction* inst,
                                   const uint32_t dex_pc)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   constexpr bool kTracing = false;
   if (kTracing) {
 #define TRACE_LOG std::cerr
@@ -605,7 +605,7 @@ static inline bool IsBackwardBranch(int32_t branch_offset) {
 
 // Explicitly instantiate all DoInvoke functions.
 #define EXPLICIT_DO_INVOKE_TEMPLATE_DECL(_type, _is_range, _do_check)                      \
-  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                     \
+  template SHARED_REQUIRES(Locks::mutator_lock_)                                     \
   bool DoInvoke<_type, _is_range, _do_check>(Thread* self, ShadowFrame& shadow_frame,      \
                                              const Instruction* inst, uint16_t inst_data,  \
                                              JValue* result)
@@ -626,7 +626,7 @@ EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kInterface)   // invoke-interface/range.
 
 // Explicitly instantiate all DoInvokeVirtualQuick functions.
 #define EXPLICIT_DO_INVOKE_VIRTUAL_QUICK_TEMPLATE_DECL(_is_range)                    \
-  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                               \
+  template SHARED_REQUIRES(Locks::mutator_lock_)                               \
   bool DoInvokeVirtualQuick<_is_range>(Thread* self, ShadowFrame& shadow_frame,      \
                                        const Instruction* inst, uint16_t inst_data,  \
                                        JValue* result)
@@ -637,7 +637,7 @@ EXPLICIT_DO_INVOKE_VIRTUAL_QUICK_TEMPLATE_DECL(true);   // invoke-virtual-quick-
 
 // Explicitly instantiate all DoCreateLambda functions.
 #define EXPLICIT_DO_CREATE_LAMBDA_DECL(_do_check)                                    \
-template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                 \
+template SHARED_REQUIRES(Locks::mutator_lock_)                                 \
 bool DoCreateLambda<_do_check>(Thread* self, ShadowFrame& shadow_frame,              \
                         const Instruction* inst)
 
@@ -647,7 +647,7 @@ EXPLICIT_DO_CREATE_LAMBDA_DECL(true);   // create-lambda
 
 // Explicitly instantiate all DoInvokeLambda functions.
 #define EXPLICIT_DO_INVOKE_LAMBDA_DECL(_do_check)                                    \
-template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                 \
+template SHARED_REQUIRES(Locks::mutator_lock_)                                 \
 bool DoInvokeLambda<_do_check>(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst, \
                                uint16_t inst_data, JValue* result);
 
@@ -657,7 +657,7 @@ EXPLICIT_DO_INVOKE_LAMBDA_DECL(true);   // invoke-lambda
 
 // Explicitly instantiate all DoBoxLambda functions.
 #define EXPLICIT_DO_BOX_LAMBDA_DECL(_do_check)                                                \
-template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                          \
+template SHARED_REQUIRES(Locks::mutator_lock_)                                          \
 bool DoBoxLambda<_do_check>(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst, \
                             uint16_t inst_data);
 
@@ -667,7 +667,7 @@ EXPLICIT_DO_BOX_LAMBDA_DECL(true);   // box-lambda
 
 // Explicitly instantiate all DoUnBoxLambda functions.
 #define EXPLICIT_DO_UNBOX_LAMBDA_DECL(_do_check)                                                \
-template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                            \
+template SHARED_REQUIRES(Locks::mutator_lock_)                                            \
 bool DoUnboxLambda<_do_check>(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst, \
                               uint16_t inst_data);
 

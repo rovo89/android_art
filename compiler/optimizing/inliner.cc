@@ -86,7 +86,7 @@ void HInliner::Run() {
 }
 
 static bool IsMethodOrDeclaringClassFinal(ArtMethod* method)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   return method->IsFinal() || method->GetDeclaringClass()->IsFinal();
 }
 
@@ -96,7 +96,7 @@ static bool IsMethodOrDeclaringClassFinal(ArtMethod* method)
  * Return nullptr if the runtime target cannot be proven.
  */
 static ArtMethod* FindVirtualOrInterfaceTarget(HInvoke* invoke, ArtMethod* resolved_method)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   if (IsMethodOrDeclaringClassFinal(resolved_method)) {
     // No need to lookup further, the resolved method will be the target.
     return resolved_method;
@@ -164,7 +164,7 @@ static ArtMethod* FindVirtualOrInterfaceTarget(HInvoke* invoke, ArtMethod* resol
 static uint32_t FindMethodIndexIn(ArtMethod* method,
                                   const DexFile& dex_file,
                                   uint32_t referrer_index)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   if (method->GetDexFile()->GetLocation().compare(dex_file.GetLocation()) == 0) {
     return method->GetDexMethodIndex();
   } else {

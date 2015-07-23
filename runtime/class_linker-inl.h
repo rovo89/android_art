@@ -187,7 +187,7 @@ inline mirror::IfTable* ClassLinker::AllocIfTable(Thread* self, size_t ifcount) 
 }
 
 inline mirror::Class* ClassLinker::GetClassRoot(ClassRoot class_root)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   DCHECK(!class_roots_.IsNull());
   mirror::ObjectArray<mirror::Class>* class_roots = class_roots_.Read();
   mirror::Class* klass = class_roots->Get(class_root);

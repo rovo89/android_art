@@ -99,7 +99,7 @@ class MirMethodLoweringInfo : public MirMethodInfo {
   // path methods, retrieve the method's vtable index and direct code and method when applicable.
   static void Resolve(CompilerDriver* compiler_driver, const DexCompilationUnit* mUnit,
                       MirMethodLoweringInfo* method_infos, size_t count)
-      LOCKS_EXCLUDED(Locks::mutator_lock_);
+      REQUIRES(!Locks::mutator_lock_);
 
   MirMethodLoweringInfo(uint16_t method_idx, InvokeType type, bool is_quickened)
       : MirMethodInfo(method_idx,

@@ -57,7 +57,7 @@ class BuildStackTraceVisitor : public StackVisitor {
       : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         method_trace_(Trace::AllocStackTrace()) {}
 
-  bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool VisitFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
     ArtMethod* m = GetMethod();
     // Ignore runtime frames (in particular callee save).
     if (!m->IsRuntimeMethod()) {
@@ -218,7 +218,7 @@ static void Append8LE(uint8_t* buf, uint64_t val) {
   *buf++ = static_cast<uint8_t>(val >> 56);
 }
 
-static void GetSample(Thread* thread, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static void GetSample(Thread* thread, void* arg) SHARED_REQUIRES(Locks::mutator_lock_) {
   BuildStackTraceVisitor build_trace_visitor(thread);
   build_trace_visitor.WalkStack();
   std::vector<ArtMethod*>* stack_trace = build_trace_visitor.GetStackTrace();
@@ -636,7 +636,7 @@ void Trace::DumpBuf(uint8_t* buf, size_t buf_size, TraceClockSource clock_source
 
 static void GetVisitedMethodsFromBitSets(
     const std::map<const DexFile*, DexIndexBitSet*>& seen_methods,
-    std::set<ArtMethod*>* visited_methods) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    std::set<ArtMethod*>* visited_methods) SHARED_REQUIRES(Locks::mutator_lock_) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   for (auto& e : seen_methods) {
     DexIndexBitSet* bit_set = e.second;
@@ -749,7 +749,7 @@ void Trace::DexPcMoved(Thread* thread, mirror::Object* this_object,
 
 void Trace::FieldRead(Thread* thread, mirror::Object* this_object,
                        ArtMethod* method, uint32_t dex_pc, ArtField* field)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   UNUSED(thread, this_object, method, dex_pc, field);
   // We're not recorded to listen to this kind of event, so complain.
   LOG(ERROR) << "Unexpected field read event in tracing " << PrettyMethod(method) << " " << dex_pc;
@@ -758,7 +758,7 @@ void Trace::FieldRead(Thread* thread, mirror::Object* this_object,
 void Trace::FieldWritten(Thread* thread, mirror::Object* this_object,
                           ArtMethod* method, uint32_t dex_pc, ArtField* field,
                           const JValue& field_value)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   UNUSED(thread, this_object, method, dex_pc, field, field_value);
   // We're not recorded to listen to this kind of event, so complain.
   LOG(ERROR) << "Unexpected field write event in tracing " << PrettyMethod(method) << " " << dex_pc;
@@ -793,14 +793,14 @@ void Trace::MethodUnwind(Thread* thread, mirror::Object* this_object ATTRIBUTE_U
 }
 
 void Trace::ExceptionCaught(Thread* thread, mirror::Throwable* exception_object)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   UNUSED(thread, exception_object);
   LOG(ERROR) << "Unexpected exception caught event in tracing";
 }
 
 void Trace::BackwardBranch(Thread* /*thread*/, ArtMethod* method,
                            int32_t /*dex_pc_offset*/)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
   LOG(ERROR) << "Unexpected backward branch event in tracing" << PrettyMethod(method);
 }
 

@@ -42,29 +42,31 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
 
   // Allocate num_bytes, returns null if the space is full.
   mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
-                        size_t* usable_size, size_t* bytes_tl_bulk_allocated) OVERRIDE;
+                        size_t* usable_size, size_t* bytes_tl_bulk_allocated)
+      OVERRIDE REQUIRES(!region_lock_);
   // Thread-unsafe allocation for when mutators are suspended, used by the semispace collector.
   mirror::Object* AllocThreadUnsafe(Thread* self, size_t num_bytes, size_t* bytes_allocated,
                                     size_t* usable_size, size_t* bytes_tl_bulk_allocated)
-      OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+      OVERRIDE REQUIRES(Locks::mutator_lock_) REQUIRES(!region_lock_);
   // The main allocation routine.
   template<bool kForEvac>
   ALWAYS_INLINE mirror::Object* AllocNonvirtual(size_t num_bytes, size_t* bytes_allocated,
                                                 size_t* usable_size,
-                                                size_t* bytes_tl_bulk_allocated);
+                                                size_t* bytes_tl_bulk_allocated)
+      REQUIRES(!region_lock_);
   // Allocate/free large objects (objects that are larger than the region size.)
   template<bool kForEvac>
   mirror::Object* AllocLarge(size_t num_bytes, size_t* bytes_allocated, size_t* usable_size,
-                             size_t* bytes_tl_bulk_allocated);
-  void FreeLarge(mirror::Object* large_obj, size_t bytes_allocated);
+                             size_t* bytes_tl_bulk_allocated) REQUIRES(!region_lock_);
+  void FreeLarge(mirror::Object* large_obj, size_t bytes_allocated) REQUIRES(!region_lock_);
 
   // Return the storage space required by obj.
   size_t AllocationSize(mirror::Object* obj, size_t* usable_size) OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!region_lock_) {
     return AllocationSizeNonvirtual(obj, usable_size);
   }
   size_t AllocationSizeNonvirtual(mirror::Object* obj, size_t* usable_size)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!region_lock_);
 
   size_t Free(Thread*, mirror::Object*) OVERRIDE {
     UNIMPLEMENTED(FATAL);
@@ -83,19 +85,19 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
     return nullptr;
   }
 
-  void Clear() OVERRIDE LOCKS_EXCLUDED(region_lock_);
+  void Clear() OVERRIDE REQUIRES(!region_lock_);
 
   void Dump(std::ostream& os) const;
-  void DumpRegions(std::ostream& os);
-  void DumpNonFreeRegions(std::ostream& os);
+  void DumpRegions(std::ostream& os) REQUIRES(!region_lock_);
+  void DumpNonFreeRegions(std::ostream& os) REQUIRES(!region_lock_);
 
-  size_t RevokeThreadLocalBuffers(Thread* thread) LOCKS_EXCLUDED(region_lock_);
-  void RevokeThreadLocalBuffersLocked(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(region_lock_);
-  size_t RevokeAllThreadLocalBuffers() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_,
-                                                      Locks::thread_list_lock_);
-  void AssertThreadLocalBuffersAreRevoked(Thread* thread) LOCKS_EXCLUDED(region_lock_);
-  void AssertAllThreadLocalBuffersAreRevoked() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_,
-                                                              Locks::thread_list_lock_);
+  size_t RevokeThreadLocalBuffers(Thread* thread) REQUIRES(!region_lock_);
+  void RevokeThreadLocalBuffersLocked(Thread* thread) REQUIRES(region_lock_);
+  size_t RevokeAllThreadLocalBuffers()
+      REQUIRES(!Locks::runtime_shutdown_lock_, !Locks::thread_list_lock_, !region_lock_);
+  void AssertThreadLocalBuffersAreRevoked(Thread* thread) REQUIRES(!region_lock_);
+  void AssertAllThreadLocalBuffersAreRevoked()
+      REQUIRES(!Locks::runtime_shutdown_lock_, !Locks::thread_list_lock_, !region_lock_);
 
   enum class RegionType : uint8_t {
     kRegionTypeAll,              // All types.
@@ -112,24 +114,24 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
     kRegionStateLargeTail,       // Large tail (non-first regions of a large allocation).
   };
 
-  template<RegionType kRegionType> uint64_t GetBytesAllocatedInternal();
-  template<RegionType kRegionType> uint64_t GetObjectsAllocatedInternal();
-  uint64_t GetBytesAllocated() {
+  template<RegionType kRegionType> uint64_t GetBytesAllocatedInternal() REQUIRES(!region_lock_);
+  template<RegionType kRegionType> uint64_t GetObjectsAllocatedInternal() REQUIRES(!region_lock_);
+  uint64_t GetBytesAllocated() REQUIRES(!region_lock_) {
     return GetBytesAllocatedInternal<RegionType::kRegionTypeAll>();
   }
-  uint64_t GetObjectsAllocated() {
+  uint64_t GetObjectsAllocated() REQUIRES(!region_lock_) {
     return GetObjectsAllocatedInternal<RegionType::kRegionTypeAll>();
   }
-  uint64_t GetBytesAllocatedInFromSpace() {
+  uint64_t GetBytesAllocatedInFromSpace() REQUIRES(!region_lock_) {
     return GetBytesAllocatedInternal<RegionType::kRegionTypeFromSpace>();
   }
-  uint64_t GetObjectsAllocatedInFromSpace() {
+  uint64_t GetObjectsAllocatedInFromSpace() REQUIRES(!region_lock_) {
     return GetObjectsAllocatedInternal<RegionType::kRegionTypeFromSpace>();
   }
-  uint64_t GetBytesAllocatedInUnevacFromSpace() {
+  uint64_t GetBytesAllocatedInUnevacFromSpace() REQUIRES(!region_lock_) {
     return GetBytesAllocatedInternal<RegionType::kRegionTypeUnevacFromSpace>();
   }
-  uint64_t GetObjectsAllocatedInUnevacFromSpace() {
+  uint64_t GetObjectsAllocatedInUnevacFromSpace() REQUIRES(!region_lock_) {
     return GetObjectsAllocatedInternal<RegionType::kRegionTypeUnevacFromSpace>();
   }
 
@@ -148,12 +150,12 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
 
   // Go through all of the blocks and visit the continuous objects.
   void Walk(ObjectCallback* callback, void* arg)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      REQUIRES(Locks::mutator_lock_) {
     WalkInternal<false>(callback, arg);
   }
 
   void WalkToSpace(ObjectCallback* callback, void* arg)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      REQUIRES(Locks::mutator_lock_) {
     WalkInternal<true>(callback, arg);
   }
 
@@ -161,7 +163,7 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
     return nullptr;
   }
   void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes) OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!region_lock_);
 
   // Object alignment within the space.
   static constexpr size_t kAlignment = kObjectAlignment;
@@ -201,22 +203,22 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
   }
 
   void SetFromSpace(accounting::ReadBarrierTable* rb_table, bool force_evacuate_all)
-      LOCKS_EXCLUDED(region_lock_);
+      REQUIRES(!region_lock_);
 
-  size_t FromSpaceSize();
-  size_t UnevacFromSpaceSize();
-  size_t ToSpaceSize();
-  void ClearFromSpace();
+  size_t FromSpaceSize() REQUIRES(!region_lock_);
+  size_t UnevacFromSpaceSize() REQUIRES(!region_lock_);
+  size_t ToSpaceSize() REQUIRES(!region_lock_);
+  void ClearFromSpace() REQUIRES(!region_lock_);
 
   void AddLiveBytes(mirror::Object* ref, size_t alloc_size) {
     Region* reg = RefToRegionUnlocked(ref);
     reg->AddLiveBytes(alloc_size);
   }
 
-  void AssertAllRegionLiveBytesZeroOrCleared();
+  void AssertAllRegionLiveBytesZeroOrCleared() REQUIRES(!region_lock_);
 
-  void RecordAlloc(mirror::Object* ref);
-  bool AllocNewTlab(Thread* self);
+  void RecordAlloc(mirror::Object* ref) REQUIRES(!region_lock_);
+  bool AllocNewTlab(Thread* self) REQUIRES(!region_lock_);
 
   uint32_t Time() {
     return time_;
@@ -476,7 +478,7 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
     friend class RegionSpace;
   };
 
-  Region* RefToRegion(mirror::Object* ref) LOCKS_EXCLUDED(region_lock_) {
+  Region* RefToRegion(mirror::Object* ref) REQUIRES(!region_lock_) {
     MutexLock mu(Thread::Current(), region_lock_);
     return RefToRegionLocked(ref);
   }
@@ -492,7 +494,7 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
     return RefToRegionLocked(ref);
   }
 
-  Region* RefToRegionLocked(mirror::Object* ref) EXCLUSIVE_LOCKS_REQUIRED(region_lock_) {
+  Region* RefToRegionLocked(mirror::Object* ref) REQUIRES(region_lock_) {
     DCHECK(HasAddress(ref));
     uintptr_t offset = reinterpret_cast<uintptr_t>(ref) - reinterpret_cast<uintptr_t>(Begin());
     size_t reg_idx = offset / kRegionSize;
@@ -504,7 +506,7 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
   }
 
   mirror::Object* GetNextObject(mirror::Object* obj)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   Mutex region_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 

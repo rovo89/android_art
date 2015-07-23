@@ -51,7 +51,7 @@ class RosAlloc {
     bool IsFree() const {
       return !kIsDebugBuild || magic_num_ == kMagicNumFree;
     }
-    size_t ByteSize(RosAlloc* rosalloc) const EXCLUSIVE_LOCKS_REQUIRED(rosalloc->lock_) {
+    size_t ByteSize(RosAlloc* rosalloc) const REQUIRES(rosalloc->lock_) {
       const uint8_t* fpr_base = reinterpret_cast<const uint8_t*>(this);
       size_t pm_idx = rosalloc->ToPageMapIndex(fpr_base);
       size_t byte_size = rosalloc->free_page_run_size_map_[pm_idx];
@@ -60,7 +60,7 @@ class RosAlloc {
       return byte_size;
     }
     void SetByteSize(RosAlloc* rosalloc, size_t byte_size)
-        EXCLUSIVE_LOCKS_REQUIRED(rosalloc->lock_) {
+        REQUIRES(rosalloc->lock_) {
       DCHECK_EQ(byte_size % kPageSize, static_cast<size_t>(0));
       uint8_t* fpr_base = reinterpret_cast<uint8_t*>(this);
       size_t pm_idx = rosalloc->ToPageMapIndex(fpr_base);
@@ -69,20 +69,20 @@ class RosAlloc {
     void* Begin() {
       return reinterpret_cast<void*>(this);
     }
-    void* End(RosAlloc* rosalloc) EXCLUSIVE_LOCKS_REQUIRED(rosalloc->lock_) {
+    void* End(RosAlloc* rosalloc) REQUIRES(rosalloc->lock_) {
       uint8_t* fpr_base = reinterpret_cast<uint8_t*>(this);
       uint8_t* end = fpr_base + ByteSize(rosalloc);
       return end;
     }
     bool IsLargerThanPageReleaseThreshold(RosAlloc* rosalloc)
-        EXCLUSIVE_LOCKS_REQUIRED(rosalloc->lock_) {
+        REQUIRES(rosalloc->lock_) {
       return ByteSize(rosalloc) >= rosalloc->page_release_size_threshold_;
     }
     bool IsAtEndOfSpace(RosAlloc* rosalloc)
-        EXCLUSIVE_LOCKS_REQUIRED(rosalloc->lock_) {
+        REQUIRES(rosalloc->lock_) {
       return reinterpret_cast<uint8_t*>(this) + ByteSize(rosalloc) == rosalloc->base_ + rosalloc->footprint_;
     }
-    bool ShouldReleasePages(RosAlloc* rosalloc) EXCLUSIVE_LOCKS_REQUIRED(rosalloc->lock_) {
+    bool ShouldReleasePages(RosAlloc* rosalloc) REQUIRES(rosalloc->lock_) {
       switch (rosalloc->page_release_mode_) {
         case kPageReleaseModeNone:
           return false;
@@ -99,7 +99,7 @@ class RosAlloc {
           return false;
       }
     }
-    void ReleasePages(RosAlloc* rosalloc) EXCLUSIVE_LOCKS_REQUIRED(rosalloc->lock_) {
+    void ReleasePages(RosAlloc* rosalloc) REQUIRES(rosalloc->lock_) {
       uint8_t* start = reinterpret_cast<uint8_t*>(this);
       size_t byte_size = ByteSize(rosalloc);
       DCHECK_EQ(byte_size % kPageSize, static_cast<size_t>(0));
@@ -254,8 +254,8 @@ class RosAlloc {
     std::string Dump();
     // Verify for debugging.
     void Verify(Thread* self, RosAlloc* rosalloc, bool running_on_memory_tool)
-        EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
-        EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_);
+        REQUIRES(Locks::mutator_lock_)
+        REQUIRES(Locks::thread_list_lock_);
 
    private:
     // The common part of MarkFreeBitMap() and MarkThreadLocalFreeBitMap(). Returns the bracket
@@ -512,51 +512,51 @@ class RosAlloc {
 
   // Page-granularity alloc/free
   void* AllocPages(Thread* self, size_t num_pages, uint8_t page_map_type)
-      EXCLUSIVE_LOCKS_REQUIRED(lock_);
+      REQUIRES(lock_);
   // Returns how many bytes were freed.
-  size_t FreePages(Thread* self, void* ptr, bool already_zero) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  size_t FreePages(Thread* self, void* ptr, bool already_zero) REQUIRES(lock_);
 
   // Allocate/free a run slot.
   void* AllocFromRun(Thread* self, size_t size, size_t* bytes_allocated, size_t* usable_size,
                      size_t* bytes_tl_bulk_allocated)
-      LOCKS_EXCLUDED(lock_);
+      REQUIRES(!lock_);
   // Allocate/free a run slot without acquiring locks.
-  // TODO: EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+  // TODO: REQUIRES(Locks::mutator_lock_)
   void* AllocFromRunThreadUnsafe(Thread* self, size_t size, size_t* bytes_allocated,
                                  size_t* usable_size, size_t* bytes_tl_bulk_allocated)
-      LOCKS_EXCLUDED(lock_);
-  void* AllocFromCurrentRunUnlocked(Thread* self, size_t idx);
+      REQUIRES(!lock_);
+  void* AllocFromCurrentRunUnlocked(Thread* self, size_t idx) REQUIRES(!lock_);
 
   // Returns the bracket size.
   size_t FreeFromRun(Thread* self, void* ptr, Run* run)
-      LOCKS_EXCLUDED(lock_);
+      REQUIRES(!lock_);
 
   // Used to allocate a new thread local run for a size bracket.
-  Run* AllocRun(Thread* self, size_t idx) LOCKS_EXCLUDED(lock_);
+  Run* AllocRun(Thread* self, size_t idx) REQUIRES(!lock_);
 
   // Used to acquire a new/reused run for a size bracket. Used when a
   // thread-local or current run gets full.
-  Run* RefillRun(Thread* self, size_t idx) LOCKS_EXCLUDED(lock_);
+  Run* RefillRun(Thread* self, size_t idx) REQUIRES(!lock_);
 
   // The internal of non-bulk Free().
-  size_t FreeInternal(Thread* self, void* ptr) LOCKS_EXCLUDED(lock_);
+  size_t FreeInternal(Thread* self, void* ptr) REQUIRES(!lock_);
 
   // Allocates large objects.
   void* AllocLargeObject(Thread* self, size_t size, size_t* bytes_allocated,
                          size_t* usable_size, size_t* bytes_tl_bulk_allocated)
-      LOCKS_EXCLUDED(lock_);
+      REQUIRES(!lock_);
 
   // Revoke a run by adding it to non_full_runs_ or freeing the pages.
-  void RevokeRun(Thread* self, size_t idx, Run* run);
+  void RevokeRun(Thread* self, size_t idx, Run* run) REQUIRES(!lock_);
 
   // Revoke the current runs which share an index with the thread local runs.
-  void RevokeThreadUnsafeCurrentRuns();
+  void RevokeThreadUnsafeCurrentRuns() REQUIRES(!lock_);
 
   // Release a range of pages.
-  size_t ReleasePageRange(uint8_t* start, uint8_t* end) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  size_t ReleasePageRange(uint8_t* start, uint8_t* end) REQUIRES(lock_);
 
   // Dumps the page map for debugging.
-  std::string DumpPageMap() EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  std::string DumpPageMap() REQUIRES(lock_);
 
  public:
   RosAlloc(void* base, size_t capacity, size_t max_capacity,
@@ -570,11 +570,11 @@ class RosAlloc {
   template<bool kThreadSafe = true>
   void* Alloc(Thread* self, size_t size, size_t* bytes_allocated, size_t* usable_size,
               size_t* bytes_tl_bulk_allocated)
-      LOCKS_EXCLUDED(lock_);
+      REQUIRES(!lock_);
   size_t Free(Thread* self, void* ptr)
-      LOCKS_EXCLUDED(bulk_free_lock_);
+      REQUIRES(!bulk_free_lock_, !lock_);
   size_t BulkFree(Thread* self, void** ptrs, size_t num_ptrs)
-      LOCKS_EXCLUDED(bulk_free_lock_);
+      REQUIRES(!bulk_free_lock_, !lock_);
 
   // Returns true if the given allocation request can be allocated in
   // an existing thread local run without allocating a new run.
@@ -589,7 +589,7 @@ class RosAlloc {
   ALWAYS_INLINE size_t MaxBytesBulkAllocatedFor(size_t size);
 
   // Returns the size of the allocated slot for a given allocated memory chunk.
-  size_t UsableSize(const void* ptr);
+  size_t UsableSize(const void* ptr) REQUIRES(!lock_);
   // Returns the size of the allocated slot for a given size.
   size_t UsableSize(size_t bytes) {
     if (UNLIKELY(bytes > kLargeSizeThreshold)) {
@@ -600,33 +600,33 @@ class RosAlloc {
   }
   // Try to reduce the current footprint by releasing the free page
   // run at the end of the memory region, if any.
-  bool Trim();
+  bool Trim() REQUIRES(!lock_);
   // Iterates over all the memory slots and apply the given function.
   void InspectAll(void (*handler)(void* start, void* end, size_t used_bytes, void* callback_arg),
                   void* arg)
-      LOCKS_EXCLUDED(lock_);
+      REQUIRES(!lock_);
 
   // Release empty pages.
-  size_t ReleasePages() LOCKS_EXCLUDED(lock_);
+  size_t ReleasePages() REQUIRES(!lock_);
   // Returns the current footprint.
-  size_t Footprint() LOCKS_EXCLUDED(lock_);
+  size_t Footprint() REQUIRES(!lock_);
   // Returns the current capacity, maximum footprint.
-  size_t FootprintLimit() LOCKS_EXCLUDED(lock_);
+  size_t FootprintLimit() REQUIRES(!lock_);
   // Update the current capacity.
-  void SetFootprintLimit(size_t bytes) LOCKS_EXCLUDED(lock_);
+  void SetFootprintLimit(size_t bytes) REQUIRES(!lock_);
 
   // Releases the thread-local runs assigned to the given thread back to the common set of runs.
   // Returns the total bytes of free slots in the revoked thread local runs. This is to be
   // subtracted from Heap::num_bytes_allocated_ to cancel out the ahead-of-time counting.
-  size_t RevokeThreadLocalRuns(Thread* thread);
+  size_t RevokeThreadLocalRuns(Thread* thread) REQUIRES(!lock_, !bulk_free_lock_);
   // Releases the thread-local runs assigned to all the threads back to the common set of runs.
   // Returns the total bytes of free slots in the revoked thread local runs. This is to be
   // subtracted from Heap::num_bytes_allocated_ to cancel out the ahead-of-time counting.
-  size_t RevokeAllThreadLocalRuns() LOCKS_EXCLUDED(Locks::thread_list_lock_);
+  size_t RevokeAllThreadLocalRuns() REQUIRES(!Locks::thread_list_lock_, !lock_, !bulk_free_lock_);
   // Assert the thread local runs of a thread are revoked.
-  void AssertThreadLocalRunsAreRevoked(Thread* thread);
+  void AssertThreadLocalRunsAreRevoked(Thread* thread) REQUIRES(!bulk_free_lock_);
   // Assert all the thread local runs are revoked.
-  void AssertAllThreadLocalRunsAreRevoked() LOCKS_EXCLUDED(Locks::thread_list_lock_);
+  void AssertAllThreadLocalRunsAreRevoked() REQUIRES(!Locks::thread_list_lock_, !bulk_free_lock_);
 
   static Run* GetDedicatedFullRun() {
     return dedicated_full_run_;
@@ -647,9 +647,11 @@ class RosAlloc {
   }
 
   // Verify for debugging.
-  void Verify() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void Verify() REQUIRES(Locks::mutator_lock_, !Locks::thread_list_lock_, !bulk_free_lock_,
+                         !lock_);
 
-  void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes);
+  void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes)
+      REQUIRES(!bulk_free_lock_, !lock_);
 
  private:
   friend std::ostream& operator<<(std::ostream& os, const RosAlloc::PageMapKind& rhs);

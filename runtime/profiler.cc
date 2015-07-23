@@ -59,13 +59,13 @@ class BoundedStackVisitor : public StackVisitor {
  public:
   BoundedStackVisitor(std::vector<std::pair<ArtMethod*, uint32_t>>* stack,
       Thread* thread, uint32_t max_depth)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_)
       : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         stack_(stack),
         max_depth_(max_depth),
         depth_(0) {}
 
-  bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool VisitFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
     ArtMethod* m = GetMethod();
     if (m->IsRuntimeMethod()) {
       return true;
@@ -88,7 +88,7 @@ class BoundedStackVisitor : public StackVisitor {
 
 // This is called from either a thread list traversal or from a checkpoint.  Regardless
 // of which caller, the mutator lock must be held.
-static void GetSample(Thread* thread, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static void GetSample(Thread* thread, void* arg) SHARED_REQUIRES(Locks::mutator_lock_) {
   BackgroundMethodSamplingProfiler* profiler =
       reinterpret_cast<BackgroundMethodSamplingProfiler*>(arg);
   const ProfilerOptions profile_options = profiler->GetProfilerOptions();

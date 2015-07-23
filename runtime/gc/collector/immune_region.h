@@ -41,7 +41,7 @@ class ImmuneRegion {
   ImmuneRegion();
   void Reset();
   bool AddContinuousSpace(space::ContinuousSpace* space)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      REQUIRES(Locks::heap_bitmap_lock_);
   bool ContainsSpace(const space::ContinuousSpace* space) const;
   // Returns true if an object is inside of the immune region (assumed to be marked).
   bool ContainsObject(const mirror::Object* obj) const ALWAYS_INLINE {

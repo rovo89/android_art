@@ -43,7 +43,7 @@ namespace mirror {
 static Array* RecursiveCreateMultiArray(Thread* self,
                                         Handle<Class> array_class, int current_dimension,
                                         Handle<mirror::IntArray> dimensions)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   int32_t array_length = dimensions->Get(current_dimension);
   StackHandleScope<1> hs(self);
   Handle<Array> new_array(

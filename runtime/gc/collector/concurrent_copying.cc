@@ -185,7 +185,7 @@ class ThreadFlipVisitor : public Closure {
       : concurrent_copying_(concurrent_copying), use_tlab_(use_tlab) {
   }
 
-  virtual void Run(Thread* thread) OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  virtual void Run(Thread* thread) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     // Note: self is not necessarily equal to thread since thread may be suspended.
     Thread* self = Thread::Current();
     CHECK(thread == self || thread->IsSuspended() || thread->GetState() == kWaitingPerformingGc)
@@ -221,7 +221,7 @@ class FlipCallback : public Closure {
       : concurrent_copying_(concurrent_copying) {
   }
 
-  virtual void Run(Thread* thread) OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  virtual void Run(Thread* thread) OVERRIDE REQUIRES(Locks::mutator_lock_) {
     ConcurrentCopying* cc = concurrent_copying_;
     TimingLogger::ScopedTiming split("(Paused)FlipCallback", cc->GetTimings());
     // Note: self is not necessarily equal to thread since thread may be suspended.
@@ -290,8 +290,8 @@ class ConcurrentCopyingImmuneSpaceObjVisitor {
   explicit ConcurrentCopyingImmuneSpaceObjVisitor(ConcurrentCopying* cc)
       : collector_(cc) {}
 
-  void operator()(mirror::Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+  void operator()(mirror::Object* obj) const SHARED_REQUIRES(Locks::mutator_lock_)
+      SHARED_REQUIRES(Locks::heap_bitmap_lock_) {
     DCHECK(obj != nullptr);
     DCHECK(collector_->immune_region_.ContainsObject(obj));
     accounting::ContinuousSpaceBitmap* cc_bitmap =
@@ -599,7 +599,7 @@ class ConcurrentCopyingVerifyNoFromSpaceRefsVisitor : public SingleRootVisitor {
       : collector_(collector) {}
 
   void operator()(mirror::Object* ref) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
+      SHARED_REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE {
     if (ref == nullptr) {
       // OK.
       return;
@@ -624,7 +624,7 @@ class ConcurrentCopyingVerifyNoFromSpaceRefsVisitor : public SingleRootVisitor {
   }
 
   void VisitRoot(mirror::Object* root, const RootInfo& info ATTRIBUTE_UNUSED)
-      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(root != nullptr);
     operator()(root);
   }
@@ -639,14 +639,14 @@ class ConcurrentCopyingVerifyNoFromSpaceRefsFieldVisitor {
       : collector_(collector) {}
 
   void operator()(mirror::Object* obj, MemberOffset offset, bool /* is_static */) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
+      SHARED_REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE {
     mirror::Object* ref =
         obj->GetFieldObject<mirror::Object, kDefaultVerifyFlags, kWithoutReadBarrier>(offset);
     ConcurrentCopyingVerifyNoFromSpaceRefsVisitor visitor(collector_);
     visitor(ref);
   }
   void operator()(mirror::Class* klass, mirror::Reference* ref) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
+      SHARED_REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE {
     CHECK(klass->IsTypeOfReferenceClass());
     this->operator()(ref, mirror::Reference::ReferentOffset(), false);
   }
@@ -660,11 +660,11 @@ class ConcurrentCopyingVerifyNoFromSpaceRefsObjectVisitor {
   explicit ConcurrentCopyingVerifyNoFromSpaceRefsObjectVisitor(ConcurrentCopying* collector)
       : collector_(collector) {}
   void operator()(mirror::Object* obj) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     ObjectCallback(obj, collector_);
   }
   static void ObjectCallback(mirror::Object* obj, void *arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     CHECK(obj != nullptr);
     ConcurrentCopying* collector = reinterpret_cast<ConcurrentCopying*>(arg);
     space::RegionSpace* region_space = collector->RegionSpace();
@@ -733,7 +733,7 @@ class ConcurrentCopyingAssertToSpaceInvariantRefsVisitor {
       : collector_(collector) {}
 
   void operator()(mirror::Object* ref) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
+      SHARED_REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE {
     if (ref == nullptr) {
       // OK.
       return;
@@ -751,14 +751,14 @@ class ConcurrentCopyingAssertToSpaceInvariantFieldVisitor {
       : collector_(collector) {}
 
   void operator()(mirror::Object* obj, MemberOffset offset, bool /* is_static */) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
+      SHARED_REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE {
     mirror::Object* ref =
         obj->GetFieldObject<mirror::Object, kDefaultVerifyFlags, kWithoutReadBarrier>(offset);
     ConcurrentCopyingAssertToSpaceInvariantRefsVisitor visitor(collector_);
     visitor(ref);
   }
   void operator()(mirror::Class* klass, mirror::Reference* /* ref */) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
+      SHARED_REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE {
     CHECK(klass->IsTypeOfReferenceClass());
   }
 
@@ -771,11 +771,11 @@ class ConcurrentCopyingAssertToSpaceInvariantObjectVisitor {
   explicit ConcurrentCopyingAssertToSpaceInvariantObjectVisitor(ConcurrentCopying* collector)
       : collector_(collector) {}
   void operator()(mirror::Object* obj) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     ObjectCallback(obj, collector_);
   }
   static void ObjectCallback(mirror::Object* obj, void *arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     CHECK(obj != nullptr);
     ConcurrentCopying* collector = reinterpret_cast<ConcurrentCopying*>(arg);
     space::RegionSpace* region_space = collector->RegionSpace();
@@ -1130,8 +1130,8 @@ class ConcurrentCopyingClearBlackPtrsVisitor {
 #ifndef USE_BAKER_OR_BROOKS_READ_BARRIER
   NO_RETURN
 #endif
-  void operator()(mirror::Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+  void operator()(mirror::Object* obj) const SHARED_REQUIRES(Locks::mutator_lock_)
+      SHARED_REQUIRES(Locks::heap_bitmap_lock_) {
     DCHECK(obj != nullptr);
     DCHECK(collector_->heap_->GetMarkBitmap()->Test(obj)) << obj;
     DCHECK_EQ(obj->GetReadBarrierPointer(), ReadBarrier::BlackPtr()) << obj;
@@ -1277,8 +1277,8 @@ class ConcurrentCopyingComputeUnevacFromSpaceLiveRatioVisitor {
  public:
   explicit ConcurrentCopyingComputeUnevacFromSpaceLiveRatioVisitor(ConcurrentCopying* cc)
       : collector_(cc) {}
-  void operator()(mirror::Object* ref) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+  void operator()(mirror::Object* ref) const SHARED_REQUIRES(Locks::mutator_lock_)
+      SHARED_REQUIRES(Locks::heap_bitmap_lock_) {
     DCHECK(ref != nullptr);
     DCHECK(collector_->region_space_bitmap_->Test(ref)) << ref;
     DCHECK(collector_->region_space_->IsInUnevacFromSpace(ref)) << ref;
@@ -1335,7 +1335,7 @@ class RootPrinter {
 
   template <class MirrorType>
   ALWAYS_INLINE void VisitRootIfNonNull(mirror::CompressedReference<MirrorType>* root)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     if (!root->IsNull()) {
       VisitRoot(root);
     }
@@ -1343,13 +1343,13 @@ class RootPrinter {
 
   template <class MirrorType>
   void VisitRoot(mirror::Object** root)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     LOG(INTERNAL_FATAL) << "root=" << root << " ref=" << *root;
   }
 
   template <class MirrorType>
   void VisitRoot(mirror::CompressedReference<MirrorType>* root)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     LOG(INTERNAL_FATAL) << "root=" << root << " ref=" << root->AsMirrorPtr();
   }
 };
@@ -1489,13 +1489,13 @@ class ConcurrentCopyingRefFieldsVisitor {
       : collector_(collector) {}
 
   void operator()(mirror::Object* obj, MemberOffset offset, bool /* is_static */)
-      const ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+      const ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_)
+      SHARED_REQUIRES(Locks::heap_bitmap_lock_) {
     collector_->Process(obj, offset);
   }
 
   void operator()(mirror::Class* klass, mirror::Reference* ref) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
+      SHARED_REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE {
     CHECK(klass->IsTypeOfReferenceClass());
     collector_->DelayReferenceReferent(klass, ref);
   }
