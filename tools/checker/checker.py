@@ -62,7 +62,7 @@ def DumpPass(outputFilename, passName):
 def FindCheckerFiles(path):
   """ Returns a list of files to scan for check annotations in the given path.
       Path to a file is returned as a single-element list, directories are
-      recursively traversed and all '.java' files returned.
+      recursively traversed and all '.java' and '.smali' files returned.
   """
   if not path:
     Logger.fail("No source path provided")

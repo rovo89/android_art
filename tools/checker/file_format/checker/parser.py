@@ -76,7 +76,7 @@ def __processLine(line, lineNo, prefix, fileName):
   if notLine is not None:
     return (notLine, TestAssertion.Variant.Not, lineNo), None
 
-  Logger.fail("Checker assertion could not be parsed", fileName, lineNo)
+  Logger.fail("Checker assertion could not be parsed: '" + line + "'", fileName, lineNo)
 
 def __isMatchAtStart(match):
   """ Tests if the given Match occurred at the beginning of the line. """
