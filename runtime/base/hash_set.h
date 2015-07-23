@@ -470,31 +470,31 @@ class HashSet {
   }
 
   void DeallocateStorage() {
-    if (num_buckets_ != 0) {
-      if (owns_data_) {
-        for (size_t i = 0; i < NumBuckets(); ++i) {
-          allocfn_.destroy(allocfn_.address(data_[i]));
-        }
-        allocfn_.deallocate(data_, NumBuckets());
-        owns_data_ = false;
+    if (owns_data_) {
+      for (size_t i = 0; i < NumBuckets(); ++i) {
+        allocfn_.destroy(allocfn_.address(data_[i]));
       }
-      data_ = nullptr;
-      num_buckets_ = 0;
+      if (data_ != nullptr) {
+        allocfn_.deallocate(data_, NumBuckets());
+      }
+      owns_data_ = false;
     }
+    data_ = nullptr;
+    num_buckets_ = 0;
   }
 
   // Expand the set based on the load factors.
   void Expand() {
     size_t min_index = static_cast<size_t>(Size() / min_load_factor_);
-    if (min_index < kMinBuckets) {
-      min_index = kMinBuckets;
-    }
     // Resize based on the minimum load factor.
     Resize(min_index);
   }
 
   // Expand / shrink the table to the new specified size.
   void Resize(size_t new_size) {
+    if (new_size < kMinBuckets) {
+      new_size = kMinBuckets;
+    }
     DCHECK_GE(new_size, Size());
     T* const old_data = data_;
     size_t old_num_buckets = num_buckets_;
