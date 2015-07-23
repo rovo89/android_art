@@ -253,12 +253,13 @@ class Thread {
   // Transition from runnable into a state where mutator privileges are denied. Releases share of
   // mutator lock.
   void TransitionFromRunnableToSuspended(ThreadState new_state)
-      REQUIRES(!Locks::thread_suspend_count_lock_)
+      REQUIRES(!Locks::thread_suspend_count_lock_, !Roles::uninterruptible_)
       UNLOCK_FUNCTION(Locks::mutator_lock_)
       ALWAYS_INLINE;
 
   // Once called thread suspension will cause an assertion failure.
-  const char* StartAssertNoThreadSuspension(const char* cause) {
+  const char* StartAssertNoThreadSuspension(const char* cause) ACQUIRE(Roles::uninterruptible_) {
+    Roles::uninterruptible_.Acquire();  // No-op.
     if (kIsDebugBuild) {
       CHECK(cause != nullptr);
       const char* previous_cause = tlsPtr_.last_no_thread_suspension_cause;
@@ -271,13 +272,14 @@ class Thread {
   }
 
   // End region where no thread suspension is expected.
-  void EndAssertNoThreadSuspension(const char* old_cause) {
+  void EndAssertNoThreadSuspension(const char* old_cause) RELEASE(Roles::uninterruptible_) {
     if (kIsDebugBuild) {
       CHECK(old_cause != nullptr || tls32_.no_thread_suspension == 1);
       CHECK_GT(tls32_.no_thread_suspension, 0U);
       tls32_.no_thread_suspension--;
       tlsPtr_.last_no_thread_suspension_cause = old_cause;
     }
+    Roles::uninterruptible_.Release();  // No-op.
   }
 
   void AssertThreadSuspensionIsAllowable(bool check_locks = true) const;
@@ -1342,12 +1344,12 @@ class Thread {
   DISALLOW_COPY_AND_ASSIGN(Thread);
 };
 
-class ScopedAssertNoThreadSuspension {
+class SCOPED_CAPABILITY ScopedAssertNoThreadSuspension {
  public:
-  ScopedAssertNoThreadSuspension(Thread* self, const char* cause)
+  ScopedAssertNoThreadSuspension(Thread* self, const char* cause) ACQUIRE(Roles::uninterruptible_)
       : self_(self), old_cause_(self->StartAssertNoThreadSuspension(cause)) {
   }
-  ~ScopedAssertNoThreadSuspension() {
+  ~ScopedAssertNoThreadSuspension() RELEASE(Roles::uninterruptible_) {
     self_->EndAssertNoThreadSuspension(old_cause_);
   }
   Thread* Self() {

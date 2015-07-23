@@ -195,16 +195,16 @@ class ClassLinker {
   // result in the DexCache. The referrer is used to identity the
   // target DexCache and ClassLoader to use for resolution.
   mirror::Class* ResolveType(const DexFile& dex_file, uint16_t type_idx, mirror::Class* referrer)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
   // Resolve a Type with the given index from the DexFile, storing the
   // result in the DexCache. The referrer is used to identify the
   // target DexCache and ClassLoader to use for resolution.
   mirror::Class* ResolveType(uint16_t type_idx, ArtMethod* referrer)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
   mirror::Class* ResolveType(uint16_t type_idx, ArtField* referrer)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
   // Resolve a type with the given ID from the DexFile, storing the
   // result in DexCache. The ClassLoader is used to search for the
@@ -213,7 +213,7 @@ class ClassLinker {
   mirror::Class* ResolveType(const DexFile& dex_file, uint16_t type_idx,
                              Handle<mirror::DexCache> dex_cache,
                              Handle<mirror::ClassLoader> class_loader)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
   // Resolve a method with a given ID from the DexFile, storing the
   // result in DexCache. The ClassLinker and ClassLoader are used as
@@ -224,19 +224,19 @@ class ClassLinker {
                            Handle<mirror::DexCache> dex_cache,
                            Handle<mirror::ClassLoader> class_loader, ArtMethod* referrer,
                            InvokeType type)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
   ArtMethod* GetResolvedMethod(uint32_t method_idx, ArtMethod* referrer)
       SHARED_REQUIRES(Locks::mutator_lock_);
   ArtMethod* ResolveMethod(Thread* self, uint32_t method_idx, ArtMethod* referrer, InvokeType type)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
   ArtField* GetResolvedField(uint32_t field_idx, mirror::Class* field_declaring_class)
       SHARED_REQUIRES(Locks::mutator_lock_);
   ArtField* GetResolvedField(uint32_t field_idx, mirror::DexCache* dex_cache)
       SHARED_REQUIRES(Locks::mutator_lock_);
   ArtField* ResolveField(uint32_t field_idx, ArtMethod* referrer, bool is_static)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
   // Resolve a field with a given ID from the DexFile, storing the
   // result in DexCache. The ClassLinker and ClassLoader are used as
@@ -246,7 +246,7 @@ class ClassLinker {
   ArtField* ResolveField(const DexFile& dex_file, uint32_t field_idx,
                          Handle<mirror::DexCache> dex_cache,
                          Handle<mirror::ClassLoader> class_loader, bool is_static)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
   // Resolve a field with a given ID from the DexFile, storing the
   // result in DexCache. The ClassLinker and ClassLoader are used as
@@ -255,7 +255,7 @@ class ClassLinker {
   ArtField* ResolveFieldJLS(const DexFile& dex_file, uint32_t field_idx,
                             Handle<mirror::DexCache> dex_cache,
                             Handle<mirror::ClassLoader> class_loader)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
   // Get shorty from method index without resolution. Used to do handlerization.
   const char* MethodShorty(uint32_t method_idx, ArtMethod* referrer, uint32_t* length)
@@ -266,11 +266,12 @@ class ClassLinker {
   // given the restriction that no <clinit> execution is possible.
   bool EnsureInitialized(Thread* self, Handle<mirror::Class> c, bool can_init_fields,
                          bool can_init_parents)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
   // Initializes classes that have instances in the image but that have
   // <clinit> methods so they could not be initialized by the compiler.
-  void RunRootClinits() SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_);
+  void RunRootClinits() SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
   void RegisterDexFile(const DexFile& dex_file)
       REQUIRES(!dex_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
@@ -330,33 +331,33 @@ class ClassLinker {
       REQUIRES(!dex_lock_, !Locks::mutator_lock_);
 
   // Allocate an instance of a java.lang.Object.
-  mirror::Object* AllocObject(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_);
+  mirror::Object* AllocObject(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!Roles::uninterruptible_);
 
   // TODO: replace this with multiple methods that allocate the correct managed type.
   template <class T>
   mirror::ObjectArray<T>* AllocObjectArray(Thread* self, size_t length)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   mirror::ObjectArray<mirror::Class>* AllocClassArray(Thread* self, size_t length)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   mirror::ObjectArray<mirror::String>* AllocStringArray(Thread* self, size_t length)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
+
+  ArtField* AllocArtFieldArray(Thread* self, size_t length);
 
   ArtMethod* AllocArtMethodArray(Thread* self, size_t length);
 
   mirror::PointerArray* AllocPointerArray(Thread* self, size_t length)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   mirror::IfTable* AllocIfTable(Thread* self, size_t ifcount)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
-  ArtField* AllocArtFieldArray(Thread* self, size_t length)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  mirror::ObjectArray<mirror::StackTraceElement>* AllocStackTraceElementArray(Thread* self,
-                                                                              size_t length)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+  mirror::ObjectArray<mirror::StackTraceElement>* AllocStackTraceElementArray(
+      Thread* self, size_t length) SHARED_REQUIRES(Locks::mutator_lock_)
+          REQUIRES(!Roles::uninterruptible_);
 
   void VerifyClass(Thread* self, Handle<mirror::Class> klass)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_);
@@ -479,28 +480,29 @@ class ClassLinker {
       REQUIRES(!dex_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void FinishInit(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_);
+  void FinishInit(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
   // For early bootstrapping by Init
   mirror::Class* AllocClass(Thread* self, mirror::Class* java_lang_Class, uint32_t class_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   // Alloc* convenience functions to avoid needing to pass in mirror::Class*
   // values that are known to the ClassLinker such as
   // kObjectArrayClass and kJavaLangString etc.
   mirror::Class* AllocClass(Thread* self, uint32_t class_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
   mirror::DexCache* AllocDexCache(Thread* self, const DexFile& dex_file)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   mirror::Class* CreatePrimitiveClass(Thread* self, Primitive::Type type)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
   mirror::Class* InitializePrimitiveClass(mirror::Class* primitive_class, Primitive::Type type)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   mirror::Class* CreateArrayClass(Thread* self, const char* descriptor, size_t hash,
                                   Handle<mirror::ClassLoader> class_loader)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
   void AppendToBootClassPath(Thread* self, const DexFile& dex_file)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_);

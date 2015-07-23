@@ -479,12 +479,12 @@ class MANAGED Class FINAL : public Object {
   // Creates a raw object instance but does not invoke the default constructor.
   template<bool kIsInstrumented, bool kCheckAddFinalizer = true>
   ALWAYS_INLINE Object* Alloc(Thread* self, gc::AllocatorType allocator_type)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   Object* AllocObject(Thread* self)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
   Object* AllocNonMovableObject(Thread* self)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
