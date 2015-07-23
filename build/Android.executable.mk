@@ -127,6 +127,10 @@ define build-art-executable
     LOCAL_MODULE_TARGET_ARCH := $(ART_SUPPORTED_ARCH)
   endif
 
+  ifdef ART_MULTILIB_OVERRIDE_$$(art_target_or_host)
+    art_multilib := $$(ART_MULTILIB_OVERRIDE_$$(art_target_or_host))
+  endif
+
   LOCAL_MULTILIB := $$(art_multilib)
   art_out_binary_name := $$(LOCAL_MODULE)
 

@@ -50,5 +50,5 @@ LOCAL_C_INCLUDES := $(dexlist_c_includes)
 LOCAL_CFLAGS += -Wall
 LOCAL_SHARED_LIBRARIES += $(dexlist_libraries)
 LOCAL_MODULE := dexlist2
-LOCAL_MODULE_TAGS := optional
+LOCAL_MULTILIB := $(ART_MULTILIB_OVERRIDE_host)
 include $(BUILD_HOST_EXECUTABLE)
