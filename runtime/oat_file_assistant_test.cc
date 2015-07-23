@@ -38,6 +38,28 @@
 
 namespace art {
 
+// Some tests very occasionally fail: we expect to have an unrelocated non-pic
+// odex file that is reported as needing relocation, but it is reported
+// instead as being up to date (b/22599792).
+//
+// This function adds extra checks for diagnosing why the given oat file is
+// reported up to date, when it should be non-pic needing relocation.
+// These extra diagnostics checks should be removed once b/22599792 has been
+// resolved.
+static void DiagnoseFlakyTestFailure(const OatFile& oat_file) {
+  Runtime* runtime = Runtime::Current();
+  const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
+  ASSERT_TRUE(image_space != nullptr);
+  const ImageHeader& image_header = image_space->GetImageHeader();
+  const OatHeader& oat_header = oat_file.GetOatHeader();
+  EXPECT_FALSE(oat_file.IsPic());
+  EXPECT_EQ(image_header.GetOatChecksum(), oat_header.GetImageFileLocationOatChecksum());
+  EXPECT_NE(reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin()),
+      oat_header.GetImageFileLocationOatDataBegin());
+  EXPECT_NE(image_header.GetPatchDelta(), oat_header.GetImagePatchDelta());
+}
+
+
 class OatFileAssistantTest : public CommonRuntimeTest {
  public:
   virtual void SetUp() {
@@ -186,6 +208,7 @@ class OatFileAssistantTest : public CommonRuntimeTest {
 
   // Generate an odex file for the purposes of test.
   // If pic is true, generates a PIC odex.
+  // The generated odex file will be un-relocated.
   void GenerateOdexForTest(const std::string& dex_location,
                            const std::string& odex_location,
                            bool pic = false) {
@@ -210,6 +233,16 @@ class OatFileAssistantTest : public CommonRuntimeTest {
     std::string error_msg;
     ASSERT_TRUE(OatFileAssistant::Dex2Oat(args, &error_msg)) << error_msg;
     setenv("ANDROID_DATA", android_data_.c_str(), 1);
+
+    // Verify the odex file was generated as expected.
+    std::unique_ptr<OatFile> odex_file(OatFile::Open(
+        odex_location.c_str(), odex_location.c_str(), nullptr, nullptr,
+        false, dex_location.c_str(), &error_msg));
+    ASSERT_TRUE(odex_file.get() != nullptr) << error_msg;
+
+    if (!pic) {
+      DiagnoseFlakyTestFailure(*odex_file);
+    }
   }
 
   void GeneratePicOdexForTest(const std::string& dex_location,
@@ -444,27 +477,6 @@ TEST_F(OatFileAssistantTest, OatOutOfDate) {
   EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
   EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
-}
-
-// Some tests very occasionally fail: we expect to have an unrelocated non-pic
-// odex file that is reported as needing relocation, but it is reported
-// instead as being up to date (b/22599792).
-//
-// This function adds extra checks for diagnosing why the given oat file is
-// reported up to date, when it should be non-pic needing relocation.
-// These extra diagnostics checks should be removed once b/22599792 has been
-// resolved.
-static void DiagnoseFlakyTestFailure(const OatFile& oat_file) {
-  Runtime* runtime = Runtime::Current();
-  const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
-  ASSERT_TRUE(image_space != nullptr);
-  const ImageHeader& image_header = image_space->GetImageHeader();
-  const OatHeader& oat_header = oat_file.GetOatHeader();
-  EXPECT_FALSE(oat_file.IsPic());
-  EXPECT_EQ(image_header.GetOatChecksum(), oat_header.GetImageFileLocationOatChecksum());
-  EXPECT_NE(reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin()),
-      oat_header.GetImageFileLocationOatDataBegin());
-  EXPECT_NE(image_header.GetPatchDelta(), oat_header.GetImagePatchDelta());
 }
 
 // Case: We have a DEX file and an ODEX file, but no OAT file.
