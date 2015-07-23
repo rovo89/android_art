@@ -62,6 +62,7 @@ Mutex* Locks::thread_suspend_count_lock_ = nullptr;
 Mutex* Locks::trace_lock_ = nullptr;
 Mutex* Locks::unexpected_signal_lock_ = nullptr;
 Mutex* Locks::lambda_table_lock_ = nullptr;
+Uninterruptible Roles::uninterruptible_;
 
 struct AllMutexData {
   // A guard for all_mutexes_ that's not a mutex (Mutexes must CAS to acquire and busy wait).
