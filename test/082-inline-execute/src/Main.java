@@ -78,6 +78,14 @@ public class Main {
     test_Memory_pokeShort();
     test_Memory_pokeInt();
     test_Memory_pokeLong();
+    test_Integer_numberOfTrailingZeros();
+    test_Long_numberOfTrailingZeros();
+    test_Integer_rotateRight();
+    test_Long_rotateRight();
+    test_Integer_rotateLeft();
+    test_Long_rotateLeft();
+    test_Integer_rotateRightLeft();
+    test_Long_rotateRightLeft();
   }
 
   /**
@@ -1359,5 +1367,137 @@ public class Main {
 
     poke_long.invoke(null, address + 1, (long)0x2122232425262728L, false);
     Assert.assertTrue(Arrays.equals(ru, b));
+  }
+
+  public static void test_Integer_numberOfTrailingZeros() {
+    Assert.assertEquals(Integer.numberOfTrailingZeros(0), Integer.SIZE);
+    for (int i = 0; i < Integer.SIZE; i++) {
+      Assert.assertEquals(
+        Integer.numberOfTrailingZeros(0x80000000 >> i),
+        Integer.SIZE - 1 - i);
+      Assert.assertEquals(
+        Integer.numberOfTrailingZeros((0x80000000 >> i) | 0x80000000),
+        Integer.SIZE - 1 - i);
+      Assert.assertEquals(Integer.numberOfTrailingZeros(1 << i), i);
+    }
+  }
+
+  public static void test_Long_numberOfTrailingZeros() {
+    Assert.assertEquals(Long.numberOfTrailingZeros(0), Long.SIZE);
+    for (int i = 0; i < Long.SIZE; i++) {
+      Assert.assertEquals(
+        Long.numberOfTrailingZeros(0x8000000000000000L >> i),
+        Long.SIZE - 1 - i);
+      Assert.assertEquals(
+        Long.numberOfTrailingZeros((0x8000000000000000L >> i) | 0x8000000000000000L),
+        Long.SIZE - 1 - i);
+      Assert.assertEquals(Long.numberOfTrailingZeros(1L << i), i);
+    }
+  }
+
+  public static void test_Integer_rotateRight() throws Exception {
+    Assert.assertEquals(Integer.rotateRight(0x11, 0), 0x11);
+
+    Assert.assertEquals(Integer.rotateRight(0x11, 1), 0x80000008);
+    Assert.assertEquals(Integer.rotateRight(0x11, Integer.SIZE - 1), 0x22);
+    Assert.assertEquals(Integer.rotateRight(0x11, Integer.SIZE), 0x11);
+    Assert.assertEquals(Integer.rotateRight(0x11, Integer.SIZE + 1), 0x80000008);
+
+    Assert.assertEquals(Integer.rotateRight(0x11, -1), 0x22);
+    Assert.assertEquals(Integer.rotateRight(0x11, -(Integer.SIZE - 1)), 0x80000008);
+    Assert.assertEquals(Integer.rotateRight(0x11, -Integer.SIZE), 0x11);
+    Assert.assertEquals(Integer.rotateRight(0x11, -(Integer.SIZE + 1)), 0x22);
+
+    Assert.assertEquals(Integer.rotateRight(0x80000000, 1), 0x40000000);
+
+    for (int i = 0; i < Integer.SIZE; i++) {
+      Assert.assertEquals(
+        Integer.rotateRight(0xBBAAAADD, i),
+        (0xBBAAAADD >>> i) | (0xBBAAAADD << (Integer.SIZE - i)));
+    }
+  }
+
+  public static void test_Long_rotateRight() throws Exception {
+    Assert.assertEquals(Long.rotateRight(0x11, 0), 0x11);
+
+    Assert.assertEquals(Long.rotateRight(0x11, 1), 0x8000000000000008L);
+    Assert.assertEquals(Long.rotateRight(0x11, Long.SIZE - 1), 0x22);
+    Assert.assertEquals(Long.rotateRight(0x11, Long.SIZE), 0x11);
+    Assert.assertEquals(Long.rotateRight(0x11, Long.SIZE + 1), 0x8000000000000008L);
+
+    Assert.assertEquals(Long.rotateRight(0x11, -1), 0x22);
+    Assert.assertEquals(Long.rotateRight(0x11, -(Long.SIZE - 1)), 0x8000000000000008L);
+    Assert.assertEquals(Long.rotateRight(0x11, -Long.SIZE), 0x11);
+    Assert.assertEquals(Long.rotateRight(0x11, -(Long.SIZE + 1)), 0x22);
+
+    Assert.assertEquals(Long.rotateRight(0x8000000000000000L, 1), 0x4000000000000000L);
+
+    for (int i = 0; i < Long.SIZE; i++) {
+      Assert.assertEquals(
+        Long.rotateRight(0xBBAAAADDFF0000DDL, i),
+        (0xBBAAAADDFF0000DDL >>> i) | (0xBBAAAADDFF0000DDL << (Long.SIZE - i)));
+    }
+  }
+
+  public static void test_Integer_rotateLeft() throws Exception {
+    Assert.assertEquals(Integer.rotateLeft(0x11, 0), 0x11);
+
+    Assert.assertEquals(Integer.rotateLeft(0x11, 1), 0x22);
+    Assert.assertEquals(Integer.rotateLeft(0x11, Integer.SIZE - 1), 0x80000008);
+    Assert.assertEquals(Integer.rotateLeft(0x11, Integer.SIZE), 0x11);
+    Assert.assertEquals(Integer.rotateLeft(0x11, Integer.SIZE + 1), 0x22);
+
+    Assert.assertEquals(Integer.rotateLeft(0x11, -1), 0x80000008);
+    Assert.assertEquals(Integer.rotateLeft(0x11, -(Integer.SIZE - 1)), 0x22);
+    Assert.assertEquals(Integer.rotateLeft(0x11, -Integer.SIZE), 0x11);
+    Assert.assertEquals(Integer.rotateLeft(0x11, -(Integer.SIZE + 1)), 0x80000008);
+
+    Assert.assertEquals(Integer.rotateLeft(0xC0000000, 1), 0x80000001);
+
+    for (int i = 0; i < Integer.SIZE; i++) {
+      Assert.assertEquals(
+        Integer.rotateLeft(0xBBAAAADD, i),
+        (0xBBAAAADD << i) | (0xBBAAAADD >>> (Integer.SIZE - i)));
+    }
+  }
+
+  public static void test_Long_rotateLeft() throws Exception {
+    Assert.assertEquals(Long.rotateLeft(0x11, 0), 0x11);
+
+    Assert.assertEquals(Long.rotateLeft(0x11, 1), 0x22);
+    Assert.assertEquals(Long.rotateLeft(0x11, Long.SIZE - 1), 0x8000000000000008L);
+    Assert.assertEquals(Long.rotateLeft(0x11, Long.SIZE), 0x11);
+    Assert.assertEquals(Long.rotateLeft(0x11, Long.SIZE + 1), 0x22);
+
+    Assert.assertEquals(Long.rotateLeft(0x11, -1), 0x8000000000000008L);
+    Assert.assertEquals(Long.rotateLeft(0x11, -(Long.SIZE - 1)), 0x22);
+    Assert.assertEquals(Long.rotateLeft(0x11, -Long.SIZE), 0x11);
+    Assert.assertEquals(Long.rotateLeft(0x11, -(Long.SIZE + 1)), 0x8000000000000008L);
+
+    Assert.assertEquals(Long.rotateLeft(0xC000000000000000L, 1), 0x8000000000000001L);
+
+    for (int i = 0; i < Long.SIZE; i++) {
+      Assert.assertEquals(
+        Long.rotateLeft(0xBBAAAADDFF0000DDL, i),
+        (0xBBAAAADDFF0000DDL << i) | (0xBBAAAADDFF0000DDL >>> (Long.SIZE - i)));
+    }
+  }
+
+  public static void test_Integer_rotateRightLeft() throws Exception {
+    for (int i = 0; i < Integer.SIZE * 2; i++) {
+      Assert.assertEquals(Integer.rotateLeft(0xBBAAAADD, i),
+                          Integer.rotateRight(0xBBAAAADD, -i));
+      Assert.assertEquals(Integer.rotateLeft(0xBBAAAADD, -i),
+                          Integer.rotateRight(0xBBAAAADD, i));
+    }
+  }
+
+  public static void test_Long_rotateRightLeft() throws Exception {
+    for (int i = 0; i < Long.SIZE * 2; i++) {
+      Assert.assertEquals(Long.rotateLeft(0xBBAAAADDFF0000DDL, i),
+                          Long.rotateRight(0xBBAAAADDFF0000DDL, -i));
+      Assert.assertEquals(Long.rotateLeft(0xBBAAAADDFF0000DDL, -i),
+                          Long.rotateRight(0xBBAAAADDFF0000DDL, i));
+    }
   }
 }

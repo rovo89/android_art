@@ -120,12 +120,44 @@ static Intrinsics GetIntrinsic(InlineMethod method, InstructionSet instruction_s
           LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
           UNREACHABLE();
       }
+    case kIntrinsicRotateRight:
+      switch (GetType(method.d.data, true)) {
+        case Primitive::kPrimInt:
+          return Intrinsics::kIntegerRotateRight;
+        case Primitive::kPrimLong:
+          return Intrinsics::kLongRotateRight;
+        default:
+          LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
+          UNREACHABLE();
+      }
+    case kIntrinsicRotateLeft:
+      switch (GetType(method.d.data, true)) {
+        case Primitive::kPrimInt:
+          return Intrinsics::kIntegerRotateLeft;
+        case Primitive::kPrimLong:
+          return Intrinsics::kLongRotateLeft;
+        default:
+          LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
+          UNREACHABLE();
+      }
+
+    // Misc data processing.
     case kIntrinsicNumberOfLeadingZeros:
       switch (GetType(method.d.data, true)) {
         case Primitive::kPrimInt:
           return Intrinsics::kIntegerNumberOfLeadingZeros;
         case Primitive::kPrimLong:
           return Intrinsics::kLongNumberOfLeadingZeros;
+        default:
+          LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
+          UNREACHABLE();
+      }
+    case kIntrinsicNumberOfTrailingZeros:
+      switch (GetType(method.d.data, true)) {
+        case Primitive::kPrimInt:
+          return Intrinsics::kIntegerNumberOfTrailingZeros;
+        case Primitive::kPrimLong:
+          return Intrinsics::kLongNumberOfTrailingZeros;
         default:
           LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
           UNREACHABLE();

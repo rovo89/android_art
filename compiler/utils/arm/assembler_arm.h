@@ -495,6 +495,7 @@ class ArmAssembler : public Assembler {
   virtual void clz(Register rd, Register rm, Condition cond = AL) = 0;
   virtual void movw(Register rd, uint16_t imm16, Condition cond = AL) = 0;
   virtual void movt(Register rd, uint16_t imm16, Condition cond = AL) = 0;
+  virtual void rbit(Register rd, Register rm, Condition cond = AL) = 0;
 
   // Multiply instructions.
   virtual void mul(Register rd, Register rn, Register rm, Condition cond = AL) = 0;

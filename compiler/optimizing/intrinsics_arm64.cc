@@ -41,11 +41,11 @@ using helpers::DRegisterFrom;
 using helpers::FPRegisterFrom;
 using helpers::HeapOperand;
 using helpers::LocationFrom;
+using helpers::OperandFrom;
 using helpers::RegisterFrom;
 using helpers::SRegisterFrom;
 using helpers::WRegisterFrom;
 using helpers::XRegisterFrom;
-
 
 namespace {
 
@@ -285,6 +285,131 @@ void IntrinsicLocationsBuilderARM64::VisitLongNumberOfLeadingZeros(HInvoke* invo
 
 void IntrinsicCodeGeneratorARM64::VisitLongNumberOfLeadingZeros(HInvoke* invoke) {
   GenNumberOfLeadingZeros(invoke->GetLocations(), Primitive::kPrimLong, GetVIXLAssembler());
+}
+
+static void GenNumberOfTrailingZeros(LocationSummary* locations,
+                                     Primitive::Type type,
+                                     vixl::MacroAssembler* masm) {
+  DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong);
+
+  Location in = locations->InAt(0);
+  Location out = locations->Out();
+
+  __ Rbit(RegisterFrom(out, type), RegisterFrom(in, type));
+  __ Clz(RegisterFrom(out, type), RegisterFrom(out, type));
+}
+
+void IntrinsicLocationsBuilderARM64::VisitIntegerNumberOfTrailingZeros(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitIntegerNumberOfTrailingZeros(HInvoke* invoke) {
+  GenNumberOfTrailingZeros(invoke->GetLocations(), Primitive::kPrimInt, GetVIXLAssembler());
+}
+
+void IntrinsicLocationsBuilderARM64::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
+  GenNumberOfTrailingZeros(invoke->GetLocations(), Primitive::kPrimLong, GetVIXLAssembler());
+}
+
+static void GenRotateRight(LocationSummary* locations,
+                           Primitive::Type type,
+                           vixl::MacroAssembler* masm) {
+  DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong);
+
+  Location in = locations->InAt(0);
+  Location out = locations->Out();
+  Operand rhs = OperandFrom(locations->InAt(1), type);
+
+  if (rhs.IsImmediate()) {
+    uint32_t shift = rhs.immediate() & (RegisterFrom(in, type).SizeInBits() - 1);
+    __ Ror(RegisterFrom(out, type),
+           RegisterFrom(in, type),
+           shift);
+  } else {
+    DCHECK(rhs.shift() == vixl::LSL && rhs.shift_amount() == 0);
+    __ Ror(RegisterFrom(out, type),
+           RegisterFrom(in, type),
+           rhs.reg());
+  }
+}
+
+void IntrinsicLocationsBuilderARM64::VisitIntegerRotateRight(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitIntegerRotateRight(HInvoke* invoke) {
+  GenRotateRight(invoke->GetLocations(), Primitive::kPrimInt, GetVIXLAssembler());
+}
+
+void IntrinsicLocationsBuilderARM64::VisitLongRotateRight(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitLongRotateRight(HInvoke* invoke) {
+  GenRotateRight(invoke->GetLocations(), Primitive::kPrimLong, GetVIXLAssembler());
+}
+
+static void GenRotateLeft(LocationSummary* locations,
+                           Primitive::Type type,
+                           vixl::MacroAssembler* masm) {
+  DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong);
+
+  Location in = locations->InAt(0);
+  Location out = locations->Out();
+  Operand rhs = OperandFrom(locations->InAt(1), type);
+
+  if (rhs.IsImmediate()) {
+    uint32_t regsize = RegisterFrom(in, type).SizeInBits();
+    uint32_t shift = (regsize - rhs.immediate()) & (regsize - 1);
+    __ Ror(RegisterFrom(out, type), RegisterFrom(in, type), shift);
+  } else {
+    DCHECK(rhs.shift() == vixl::LSL && rhs.shift_amount() == 0);
+    __ Neg(RegisterFrom(out, type),
+           Operand(RegisterFrom(locations->InAt(1), type)));
+    __ Ror(RegisterFrom(out, type),
+           RegisterFrom(in, type),
+           RegisterFrom(out, type));
+  }
+}
+
+void IntrinsicLocationsBuilderARM64::VisitIntegerRotateLeft(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
+  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitIntegerRotateLeft(HInvoke* invoke) {
+  GenRotateLeft(invoke->GetLocations(), Primitive::kPrimInt, GetVIXLAssembler());
+}
+
+void IntrinsicLocationsBuilderARM64::VisitLongRotateLeft(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
+  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitLongRotateLeft(HInvoke* invoke) {
+  GenRotateLeft(invoke->GetLocations(), Primitive::kPrimLong, GetVIXLAssembler());
 }
 
 static void GenReverse(LocationSummary* locations,

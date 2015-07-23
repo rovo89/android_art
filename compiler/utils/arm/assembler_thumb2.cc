@@ -2426,6 +2426,25 @@ void Thumb2Assembler::movt(Register rd, uint16_t imm16, Condition cond) {
 }
 
 
+void Thumb2Assembler::rbit(Register rd, Register rm, Condition cond) {
+  CHECK_NE(rd, kNoRegister);
+  CHECK_NE(rm, kNoRegister);
+  CheckCondition(cond);
+  CHECK_NE(rd, PC);
+  CHECK_NE(rm, PC);
+  CHECK_NE(rd, SP);
+  CHECK_NE(rm, SP);
+  int32_t encoding = B31 | B30 | B29 | B28 | B27 |
+      B25 | B23 | B20 |
+      static_cast<uint32_t>(rm) << 16 |
+      0xf << 12 |
+      static_cast<uint32_t>(rd) << 8 |
+      B7 | B5 |
+      static_cast<uint32_t>(rm);
+  Emit32(encoding);
+}
+
+
 void Thumb2Assembler::ldrex(Register rt, Register rn, uint16_t imm, Condition cond) {
   CHECK_NE(rn, kNoRegister);
   CHECK_NE(rt, kNoRegister);

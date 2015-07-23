@@ -883,4 +883,8 @@ TEST_F(AssemblerArm32Test, strexd) {
   DriverStr(expected, "strexd");
 }
 
+TEST_F(AssemblerArm32Test, rbit) {
+  T3Helper(&arm::Arm32Assembler::rbit, true, "rbit{cond} {reg1}, {reg2}", "rbit");
+}
+
 }  // namespace art
