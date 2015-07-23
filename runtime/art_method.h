@@ -447,8 +447,9 @@ class ArtMethod FINAL {
                           bool* has_no_move_exception)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // NO_THREAD_SAFETY_ANALYSIS since we don't know what the callback requires.
   template<typename RootVisitorType>
-  void VisitRoots(RootVisitorType& visitor) SHARED_REQUIRES(Locks::mutator_lock_);
+  void VisitRoots(RootVisitorType& visitor) NO_THREAD_SAFETY_ANALYSIS;
 
   const DexFile* GetDexFile() SHARED_REQUIRES(Locks::mutator_lock_);
 

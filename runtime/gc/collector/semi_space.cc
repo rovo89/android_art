@@ -295,8 +295,26 @@ class SemiSpaceVerifyNoFromSpaceReferencesVisitor {
       LOG(FATAL) << ref << " found in from space";
     }
   }
+
+  // TODO: Remove NO_THREAD_SAFETY_ANALYSIS when clang better understands visitors.
+  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
+      NO_THREAD_SAFETY_ANALYSIS {
+    if (!root->IsNull()) {
+      VisitRoot(root);
+    }
+  }
+
+  void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
+      NO_THREAD_SAFETY_ANALYSIS {
+    if (kIsDebugBuild) {
+      Locks::mutator_lock_->AssertExclusiveHeld(Thread::Current());
+      Locks::heap_bitmap_lock_->AssertExclusiveHeld(Thread::Current());
+    }
+    CHECK(!from_space_->HasAddress(root->AsMirrorPtr()));
+  }
+
  private:
-  space::ContinuousMemMapAllocSpace* from_space_;
+  space::ContinuousMemMapAllocSpace* const from_space_;
 };
 
 void SemiSpace::VerifyNoFromSpaceReferences(Object* obj) {
@@ -313,6 +331,7 @@ class SemiSpaceVerifyNoFromSpaceReferencesObjectVisitor {
     DCHECK(obj != nullptr);
     semi_space_->VerifyNoFromSpaceReferences(obj);
   }
+
  private:
   SemiSpace* const semi_space_;
 };
@@ -670,9 +689,25 @@ class SemiSpaceMarkObjectVisitor {
   }
 
   void operator()(mirror::Class* klass, mirror::Reference* ref) const
-      SHARED_REQUIRES(Locks::mutator_lock_)
-      REQUIRES(Locks::heap_bitmap_lock_) {
+      REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     collector_->DelayReferenceReferent(klass, ref);
+  }
+
+  // TODO: Remove NO_THREAD_SAFETY_ANALYSIS when clang better understands visitors.
+  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
+      NO_THREAD_SAFETY_ANALYSIS {
+    if (!root->IsNull()) {
+      VisitRoot(root);
+    }
+  }
+
+  void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
+      NO_THREAD_SAFETY_ANALYSIS {
+    if (kIsDebugBuild) {
+      Locks::mutator_lock_->AssertExclusiveHeld(Thread::Current());
+      Locks::heap_bitmap_lock_->AssertExclusiveHeld(Thread::Current());
+    }
+    collector_->MarkObject(root);
   }
 
  private:
