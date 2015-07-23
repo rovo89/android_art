@@ -32,10 +32,10 @@ class MANAGED ObjectArray: public Array {
 
   static ObjectArray<T>* Alloc(Thread* self, Class* object_array_class, int32_t length,
                                gc::AllocatorType allocator_type)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   static ObjectArray<T>* Alloc(Thread* self, Class* object_array_class, int32_t length)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   T* Get(int32_t i) ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -81,7 +81,7 @@ class MANAGED ObjectArray: public Array {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ObjectArray<T>* CopyOf(Thread* self, int32_t new_length)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   // TODO fix thread safety analysis broken by the use of template. This should be
   // SHARED_REQUIRES(Locks::mutator_lock_).
