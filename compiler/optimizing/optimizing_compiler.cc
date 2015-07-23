@@ -86,7 +86,7 @@ class CodeVectorAllocator FINAL : public CodeAllocator {
  * Filter to apply to the visualizer. Methods whose name contain that filter will
  * be dumped.
  */
-static const char* kStringFilter = "";
+static constexpr const char kStringFilter[] = "";
 
 class PassScope;
 
@@ -105,12 +105,14 @@ class PassObserver : public ValueObject {
         visualizer_enabled_(!compiler_driver->GetDumpCfgFileName().empty()),
         visualizer_(visualizer_output, graph, *codegen),
         graph_in_bad_state_(false) {
-    if (strstr(method_name, kStringFilter) == nullptr) {
-      timing_logger_enabled_ = visualizer_enabled_ = false;
-    }
-    if (visualizer_enabled_) {
-      visualizer_.PrintHeader(method_name_);
-      codegen->SetDisassemblyInformation(&disasm_info_);
+    if (timing_logger_enabled_ || visualizer_enabled_) {
+      if (!IsVerboseMethod(compiler_driver, method_name)) {
+        timing_logger_enabled_ = visualizer_enabled_ = false;
+      }
+      if (visualizer_enabled_) {
+        visualizer_.PrintHeader(method_name_);
+        codegen->SetDisassemblyInformation(&disasm_info_);
+      }
     }
   }
 
@@ -167,6 +169,23 @@ class PassObserver : public ValueObject {
         }
       }
     }
+  }
+
+  static bool IsVerboseMethod(CompilerDriver* compiler_driver, const char* method_name) {
+    // Test an exact match to --verbose-methods. If verbose-methods is set, this overrides an
+    // empty kStringFilter matching all methods.
+    if (compiler_driver->GetCompilerOptions().HasVerboseMethods()) {
+      return compiler_driver->GetCompilerOptions().IsVerboseMethod(method_name);
+    }
+
+    // Test the kStringFilter sub-string. constexpr helper variable to silence unreachable-code
+    // warning when the string is empty.
+    constexpr bool kStringFilterEmpty = arraysize(kStringFilter) <= 1;
+    if (kStringFilterEmpty || strstr(method_name, kStringFilter) != nullptr) {
+      return true;
+    }
+
+    return false;
   }
 
   HGraph* const graph_;
