@@ -189,7 +189,8 @@ class Heap {
   mirror::Object* AllocObject(Thread* self, mirror::Class* klass, size_t num_bytes,
                               const PreFenceVisitor& pre_fence_visitor)
       SHARED_REQUIRES(Locks::mutator_lock_)
-      REQUIRES(!*gc_complete_lock_, !*pending_task_lock_, !*backtrace_lock_) {
+      REQUIRES(!*gc_complete_lock_, !*pending_task_lock_, !*backtrace_lock_,
+               !Roles::uninterruptible_) {
     return AllocObjectWithAllocator<kInstrumented, true>(
         self, klass, num_bytes, GetCurrentAllocator(), pre_fence_visitor);
   }
@@ -198,7 +199,8 @@ class Heap {
   mirror::Object* AllocNonMovableObject(Thread* self, mirror::Class* klass, size_t num_bytes,
                                         const PreFenceVisitor& pre_fence_visitor)
       SHARED_REQUIRES(Locks::mutator_lock_)
-      REQUIRES(!*gc_complete_lock_, !*pending_task_lock_, !*backtrace_lock_) {
+      REQUIRES(!*gc_complete_lock_, !*pending_task_lock_, !*backtrace_lock_,
+               !Roles::uninterruptible_) {
     return AllocObjectWithAllocator<kInstrumented, true>(
         self, klass, num_bytes, GetCurrentNonMovingAllocator(), pre_fence_visitor);
   }
@@ -208,7 +210,8 @@ class Heap {
       Thread* self, mirror::Class* klass, size_t byte_count, AllocatorType allocator,
       const PreFenceVisitor& pre_fence_visitor)
       SHARED_REQUIRES(Locks::mutator_lock_)
-      REQUIRES(!*gc_complete_lock_, !*pending_task_lock_, !*backtrace_lock_);
+      REQUIRES(!*gc_complete_lock_, !*pending_task_lock_, !*backtrace_lock_,
+               !Roles::uninterruptible_);
 
   AllocatorType GetCurrentAllocator() const {
     return current_allocator_;

@@ -39,11 +39,11 @@ class MANAGED Array : public Object {
   template <bool kIsInstrumented, bool kFillUsable = false>
   ALWAYS_INLINE static Array* Alloc(Thread* self, Class* array_class, int32_t component_count,
                                     size_t component_size_shift, gc::AllocatorType allocator_type)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   static Array* CreateMultiArray(Thread* self, Handle<Class> element_class,
                                  Handle<IntArray> dimensions)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
@@ -84,7 +84,8 @@ class MANAGED Array : public Object {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   ALWAYS_INLINE bool CheckIsValidIndex(int32_t index) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  Array* CopyOf(Thread* self, int32_t new_length) SHARED_REQUIRES(Locks::mutator_lock_);
+  Array* CopyOf(Thread* self, int32_t new_length) SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!Roles::uninterruptible_);
 
  protected:
   void ThrowArrayStoreException(Object* object) SHARED_REQUIRES(Locks::mutator_lock_);
@@ -107,7 +108,7 @@ class MANAGED PrimitiveArray : public Array {
   typedef T ElementType;
 
   static PrimitiveArray<T>* Alloc(Thread* self, size_t length)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   const T* GetData() const ALWAYS_INLINE  SHARED_REQUIRES(Locks::mutator_lock_) {
     return reinterpret_cast<const T*>(GetRawData(sizeof(T), 0));
