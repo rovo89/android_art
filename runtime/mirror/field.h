@@ -95,7 +95,7 @@ class MANAGED Field : public AccessibleObject {
   template <bool kTransactionActive = false>
   static mirror::Field* CreateFromArtField(Thread* self, ArtField* field,
                                            bool force_resolve)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
  private:
   HeapReference<mirror::Class> declaring_class_;

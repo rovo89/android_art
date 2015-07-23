@@ -50,7 +50,7 @@ class MANAGED StackTraceElement FINAL : public Object {
   static StackTraceElement* Alloc(Thread* self, Handle<String> declaring_class,
                                   Handle<String> method_name, Handle<String> file_name,
                                   int32_t line_number)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   static void SetClass(Class* java_lang_StackTraceElement);
   static void ResetClass();
