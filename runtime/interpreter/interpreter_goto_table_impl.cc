@@ -2536,16 +2536,16 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 }  // NOLINT(readability/fn_size)
 
 // Explicit definitions of ExecuteGotoImpl.
-template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) HOT_ATTR
+template SHARED_REQUIRES(Locks::mutator_lock_) HOT_ATTR
 JValue ExecuteGotoImpl<true, false>(Thread* self, const DexFile::CodeItem* code_item,
                                     ShadowFrame& shadow_frame, JValue result_register);
-template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) HOT_ATTR
+template SHARED_REQUIRES(Locks::mutator_lock_) HOT_ATTR
 JValue ExecuteGotoImpl<false, false>(Thread* self, const DexFile::CodeItem* code_item,
                                      ShadowFrame& shadow_frame, JValue result_register);
-template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+template SHARED_REQUIRES(Locks::mutator_lock_)
 JValue ExecuteGotoImpl<true, true>(Thread* self, const DexFile::CodeItem* code_item,
                                    ShadowFrame& shadow_frame, JValue result_register);
-template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+template SHARED_REQUIRES(Locks::mutator_lock_)
 JValue ExecuteGotoImpl<false, true>(Thread* self, const DexFile::CodeItem* code_item,
                                     ShadowFrame& shadow_frame, JValue result_register);
 

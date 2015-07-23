@@ -92,7 +92,7 @@ class MemMap {
                                   std::string* error_msg);
 
   // Releases the memory mapping.
-  ~MemMap() LOCKS_EXCLUDED(Locks::mem_maps_lock_);
+  ~MemMap() REQUIRES(!Locks::mem_maps_lock_);
 
   const std::string& GetName() const {
     return name_;
@@ -142,25 +142,25 @@ class MemMap {
                      std::string* error_msg);
 
   static bool CheckNoGaps(MemMap* begin_map, MemMap* end_map)
-      LOCKS_EXCLUDED(Locks::mem_maps_lock_);
+      REQUIRES(!Locks::mem_maps_lock_);
   static void DumpMaps(std::ostream& os, bool terse = false)
-      LOCKS_EXCLUDED(Locks::mem_maps_lock_);
+      REQUIRES(!Locks::mem_maps_lock_);
 
   typedef AllocationTrackingMultiMap<void*, MemMap*, kAllocatorTagMaps> Maps;
 
-  static void Init() LOCKS_EXCLUDED(Locks::mem_maps_lock_);
-  static void Shutdown() LOCKS_EXCLUDED(Locks::mem_maps_lock_);
+  static void Init() REQUIRES(!Locks::mem_maps_lock_);
+  static void Shutdown() REQUIRES(!Locks::mem_maps_lock_);
 
  private:
   MemMap(const std::string& name, uint8_t* begin, size_t size, void* base_begin, size_t base_size,
-         int prot, bool reuse, size_t redzone_size = 0) LOCKS_EXCLUDED(Locks::mem_maps_lock_);
+         int prot, bool reuse, size_t redzone_size = 0) REQUIRES(!Locks::mem_maps_lock_);
 
   static void DumpMapsLocked(std::ostream& os, bool terse)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mem_maps_lock_);
+      REQUIRES(Locks::mem_maps_lock_);
   static bool HasMemMap(MemMap* map)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mem_maps_lock_);
+      REQUIRES(Locks::mem_maps_lock_);
   static MemMap* GetLargestMemMapAt(void* address)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mem_maps_lock_);
+      REQUIRES(Locks::mem_maps_lock_);
 
   const std::string name_;
   uint8_t* const begin_;  // Start of data.

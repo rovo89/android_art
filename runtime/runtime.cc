@@ -590,7 +590,7 @@ bool Runtime::Start() {
   return true;
 }
 
-void Runtime::EndThreadBirth() EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_) {
+void Runtime::EndThreadBirth() REQUIRES(Locks::runtime_shutdown_lock_) {
   DCHECK_GT(threads_being_born_, 0U);
   threads_being_born_--;
   if (shutting_down_started_ && threads_being_born_ == 0) {

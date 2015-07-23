@@ -28,7 +28,7 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(ArtMethod* method,
                                                              mirror::Object* this_object,
                                                              Thread* self,
                                                              uintptr_t lr)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   // Instrumentation changes the stack. Thus, when exiting, the stack cannot be verified, so skip
   // that part.
   ScopedQuickEntrypointChecks sqec(self, kIsDebugBuild, false);
@@ -50,7 +50,7 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(ArtMethod* method,
 extern "C" TwoWordReturn artInstrumentationMethodExitFromCode(Thread* self, ArtMethod** sp,
                                                               uint64_t gpr_result,
                                                               uint64_t fpr_result)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   // Compute address of return PC and sanity check that it currently holds 0.
   size_t return_pc_offset = GetCalleeSaveReturnPcOffset(kRuntimeISA, Runtime::kRefsOnly);
   uintptr_t* return_pc = reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(sp) +

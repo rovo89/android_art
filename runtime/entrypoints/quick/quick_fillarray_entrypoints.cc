@@ -26,7 +26,7 @@ namespace art {
  */
 extern "C" int artHandleFillArrayDataFromCode(uint32_t payload_offset, mirror::Array* array,
                                               ArtMethod* method, Thread* self)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
   const uint16_t* const insns = method->GetCodeItem()->insns_;
   const Instruction::ArrayDataPayload* payload =

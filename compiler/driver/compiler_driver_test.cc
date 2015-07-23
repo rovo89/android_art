@@ -37,7 +37,7 @@ namespace art {
 
 class CompilerDriverTest : public CommonCompilerTest {
  protected:
-  void CompileAll(jobject class_loader) LOCKS_EXCLUDED(Locks::mutator_lock_) {
+  void CompileAll(jobject class_loader) REQUIRES(!Locks::mutator_lock_) {
     TimingLogger timings("CompilerDriverTest::CompileAll", false, false);
     TimingLogger::ScopedTiming t(__FUNCTION__, &timings);
     compiler_driver_->CompileAll(class_loader,
@@ -49,7 +49,7 @@ class CompilerDriverTest : public CommonCompilerTest {
 
   void EnsureCompiled(jobject class_loader, const char* class_name, const char* method,
                       const char* signature, bool is_virtual)
-      LOCKS_EXCLUDED(Locks::mutator_lock_) {
+      REQUIRES(!Locks::mutator_lock_) {
     CompileAll(class_loader);
     Thread::Current()->TransitionFromSuspendedToRunnable();
     bool started = runtime_->Start();

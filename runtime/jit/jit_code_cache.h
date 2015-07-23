@@ -78,27 +78,27 @@ class JitCodeCache {
 
   // Return true if the code cache contains the code pointer which si the entrypoint of the method.
   bool ContainsMethod(ArtMethod* method) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Return true if the code cache contains a code ptr.
   bool ContainsCodePtr(const void* ptr) const;
 
   // Reserve a region of code of size at least "size". Returns null if there is no more room.
-  uint8_t* ReserveCode(Thread* self, size_t size) LOCKS_EXCLUDED(lock_);
+  uint8_t* ReserveCode(Thread* self, size_t size) REQUIRES(!lock_);
 
   // Add a data array of size (end - begin) with the associated contents, returns null if there
   // is no more room.
   uint8_t* AddDataArray(Thread* self, const uint8_t* begin, const uint8_t* end)
-      LOCKS_EXCLUDED(lock_);
+      REQUIRES(!lock_);
 
   // Get code for a method, returns null if it is not in the jit cache.
   const void* GetCodeFor(ArtMethod* method)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!lock_);
 
   // Save the compiled code for a method so that GetCodeFor(method) will return old_code_ptr if the
   // entrypoint isn't within the cache.
   void SaveCompiledCode(ArtMethod* method, const void* old_code_ptr)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!lock_);
 
  private:
   // Takes ownership of code_mem_map.

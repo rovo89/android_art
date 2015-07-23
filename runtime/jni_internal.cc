@@ -89,7 +89,7 @@ static std::string NormalizeJniClassDescriptor(const char* name) {
 
 static void ThrowNoSuchMethodError(ScopedObjectAccess& soa, mirror::Class* c,
                                    const char* name, const char* sig, const char* kind)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   std::string temp;
   soa.Self()->ThrowNewExceptionF("Ljava/lang/NoSuchMethodError;",
                                  "no %s method \"%s.%s%s\"",
@@ -98,7 +98,7 @@ static void ThrowNoSuchMethodError(ScopedObjectAccess& soa, mirror::Class* c,
 
 static void ReportInvalidJNINativeMethod(const ScopedObjectAccess& soa, mirror::Class* c,
                                          const char* kind, jint idx, bool return_errors)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   LOG(return_errors ? ERROR : FATAL) << "Failed to register native method in "
       << PrettyDescriptor(c) << " in " << c->GetDexCache()->GetLocation()->ToModifiedUtf8()
       << ": " << kind << " is null at index " << idx;
@@ -107,7 +107,7 @@ static void ReportInvalidJNINativeMethod(const ScopedObjectAccess& soa, mirror::
 }
 
 static mirror::Class* EnsureInitialized(Thread* self, mirror::Class* klass)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   if (LIKELY(klass->IsInitialized())) {
     return klass;
   }
@@ -121,7 +121,7 @@ static mirror::Class* EnsureInitialized(Thread* self, mirror::Class* klass)
 
 static jmethodID FindMethodID(ScopedObjectAccess& soa, jclass jni_class,
                               const char* name, const char* sig, bool is_static)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   mirror::Class* c = EnsureInitialized(soa.Self(), soa.Decode<mirror::Class*>(jni_class));
   if (c == nullptr) {
     return nullptr;
@@ -148,7 +148,7 @@ static jmethodID FindMethodID(ScopedObjectAccess& soa, jclass jni_class,
 }
 
 static mirror::ClassLoader* GetClassLoader(const ScopedObjectAccess& soa)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   ArtMethod* method = soa.Self()->GetCurrentMethod(nullptr);
   // If we are running Runtime.nativeLoad, use the overriding ClassLoader it set.
   if (method == soa.DecodeMethod(WellKnownClasses::java_lang_Runtime_nativeLoad)) {
@@ -179,7 +179,7 @@ static mirror::ClassLoader* GetClassLoader(const ScopedObjectAccess& soa)
 
 static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, const char* name,
                             const char* sig, bool is_static)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   StackHandleScope<2> hs(soa.Self());
   Handle<mirror::Class> c(
       hs.NewHandle(EnsureInitialized(soa.Self(), soa.Decode<mirror::Class*>(jni_class))));
@@ -227,7 +227,7 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
 
 static void ThrowAIOOBE(ScopedObjectAccess& soa, mirror::Array* array, jsize start,
                         jsize length, const char* identifier)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   std::string type(PrettyTypeOf(array));
   soa.Self()->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
                                  "%s offset=%d length=%d %s.length=%d",
@@ -236,14 +236,14 @@ static void ThrowAIOOBE(ScopedObjectAccess& soa, mirror::Array* array, jsize sta
 
 static void ThrowSIOOBE(ScopedObjectAccess& soa, jsize start, jsize length,
                         jsize array_length)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   soa.Self()->ThrowNewExceptionF("Ljava/lang/StringIndexOutOfBoundsException;",
                                  "offset=%d length=%d string.length()=%d", start, length,
                                  array_length);
 }
 
 int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobject cause)
-    LOCKS_EXCLUDED(Locks::mutator_lock_) {
+    REQUIRES(!Locks::mutator_lock_) {
   // Turn the const char* into a java.lang.String.
   ScopedLocalRef<jstring> s(env, env->NewStringUTF(msg));
   if (msg != nullptr && s.get() == nullptr) {
@@ -314,7 +314,7 @@ static JavaVMExt* JavaVmExtFromEnv(JNIEnv* env) {
 
 template <bool kNative>
 static ArtMethod* FindMethod(mirror::Class* c, const StringPiece& name, const StringPiece& sig)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   auto pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   for (auto& method : c->GetDirectMethods(pointer_size)) {
     if (kNative == method.IsNative() && name == method.GetName() && method.GetSignature() == sig) {
@@ -2321,7 +2321,7 @@ class JNI {
  private:
   static jint EnsureLocalCapacityInternal(ScopedObjectAccess& soa, jint desired_capacity,
                                           const char* caller)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     // TODO: we should try to expand the table if necessary.
     if (desired_capacity < 0 || desired_capacity > static_cast<jint>(kLocalsMax)) {
       LOG(ERROR) << "Invalid capacity given to " << caller << ": " << desired_capacity;
@@ -2350,7 +2350,7 @@ class JNI {
   template <typename JArrayT, typename ElementT, typename ArtArrayT>
   static ArtArrayT* DecodeAndCheckArrayType(ScopedObjectAccess& soa, JArrayT java_array,
                                            const char* fn_name, const char* operation)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     ArtArrayT* array = soa.Decode<ArtArrayT*>(java_array);
     if (UNLIKELY(ArtArrayT::GetArrayClass() != array->GetClass())) {
       soa.Vm()->JniAbortF(fn_name,
@@ -2407,7 +2407,7 @@ class JNI {
 
   static void ReleasePrimitiveArray(ScopedObjectAccess& soa, mirror::Array* array,
                                     size_t component_size, void* elements, jint mode)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     void* array_data = array->GetRawData(component_size, 0);
     gc::Heap* heap = Runtime::Current()->GetHeap();
     bool is_copy = array_data != elements;

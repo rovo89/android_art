@@ -132,7 +132,7 @@ ART_TARGET_CLANG_CFLAGS_arm64  += \
   -DNVALGRIND
 
 # Warn about thread safety violations with clang.
-art_clang_cflags := -Wthread-safety
+art_clang_cflags := -Wthread-safety -Wthread-safety-negative
 
 # Warn if switch fallthroughs aren't annotated.
 art_clang_cflags += -Wimplicit-fallthrough

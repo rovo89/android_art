@@ -2283,16 +2283,16 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
 }  // NOLINT(readability/fn_size)
 
 // Explicit definitions of ExecuteSwitchImpl.
-template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) HOT_ATTR
+template SHARED_REQUIRES(Locks::mutator_lock_) HOT_ATTR
 JValue ExecuteSwitchImpl<true, false>(Thread* self, const DexFile::CodeItem* code_item,
                                       ShadowFrame& shadow_frame, JValue result_register);
-template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) HOT_ATTR
+template SHARED_REQUIRES(Locks::mutator_lock_) HOT_ATTR
 JValue ExecuteSwitchImpl<false, false>(Thread* self, const DexFile::CodeItem* code_item,
                                        ShadowFrame& shadow_frame, JValue result_register);
-template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+template SHARED_REQUIRES(Locks::mutator_lock_)
 JValue ExecuteSwitchImpl<true, true>(Thread* self, const DexFile::CodeItem* code_item,
                                      ShadowFrame& shadow_frame, JValue result_register);
-template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+template SHARED_REQUIRES(Locks::mutator_lock_)
 JValue ExecuteSwitchImpl<false, true>(Thread* self, const DexFile::CodeItem* code_item,
                                       ShadowFrame& shadow_frame, JValue result_register);
 

@@ -50,19 +50,19 @@ class Handle : public ValueObject {
   ALWAYS_INLINE explicit Handle(StackReference<T>* reference) : reference_(reference) {
   }
 
-  ALWAYS_INLINE T& operator*() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ALWAYS_INLINE T& operator*() const SHARED_REQUIRES(Locks::mutator_lock_) {
     return *Get();
   }
 
-  ALWAYS_INLINE T* operator->() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ALWAYS_INLINE T* operator->() const SHARED_REQUIRES(Locks::mutator_lock_) {
     return Get();
   }
 
-  ALWAYS_INLINE T* Get() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ALWAYS_INLINE T* Get() const SHARED_REQUIRES(Locks::mutator_lock_) {
     return down_cast<T*>(reference_->AsMirrorPtr());
   }
 
-  ALWAYS_INLINE jobject ToJObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ALWAYS_INLINE jobject ToJObject() const SHARED_REQUIRES(Locks::mutator_lock_) {
     if (UNLIKELY(reference_->AsMirrorPtr() == nullptr)) {
       // Special case so that we work with NullHandles.
       return nullptr;
@@ -71,12 +71,12 @@ class Handle : public ValueObject {
   }
 
   ALWAYS_INLINE StackReference<mirror::Object>* GetReference()
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     return reference_;
   }
 
   ALWAYS_INLINE const StackReference<mirror::Object>* GetReference() const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     return reference_;
   }
 
@@ -108,22 +108,22 @@ class MutableHandle : public Handle<T> {
   }
 
   ALWAYS_INLINE MutableHandle(const MutableHandle<T>& handle)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_)
       : Handle<T>(handle.reference_) {
   }
 
   ALWAYS_INLINE MutableHandle<T>& operator=(const MutableHandle<T>& handle)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     Handle<T>::operator=(handle);
     return *this;
   }
 
   ALWAYS_INLINE explicit MutableHandle(StackReference<T>* reference)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_)
       : Handle<T>(reference) {
   }
 
-  ALWAYS_INLINE T* Assign(T* reference) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ALWAYS_INLINE T* Assign(T* reference) SHARED_REQUIRES(Locks::mutator_lock_) {
     StackReference<mirror::Object>* ref = Handle<T>::GetReference();
     T* old = down_cast<T*>(ref->AsMirrorPtr());
     ref->Assign(reference);
@@ -131,12 +131,12 @@ class MutableHandle : public Handle<T> {
   }
 
   template<typename S>
-  explicit MutableHandle(const MutableHandle<S>& handle) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+  explicit MutableHandle(const MutableHandle<S>& handle) SHARED_REQUIRES(Locks::mutator_lock_)
       : Handle<T>(handle) {
   }
 
   template<typename S>
-  explicit MutableHandle(StackReference<S>* reference) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+  explicit MutableHandle(StackReference<S>* reference) SHARED_REQUIRES(Locks::mutator_lock_)
       : Handle<T>(reference) {
   }
 

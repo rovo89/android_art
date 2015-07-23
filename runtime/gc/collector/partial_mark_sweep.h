@@ -37,7 +37,7 @@ class PartialMarkSweep : public MarkSweep {
   // Bind the live bits to the mark bits of bitmaps for spaces that aren't collected for partial
   // collections, ie the Zygote space. Also mark this space is immune. Virtual as overridden by
   // StickyMarkSweep.
-  virtual void BindBitmaps() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual void BindBitmaps() OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
   DISALLOW_IMPLICIT_CONSTRUCTORS(PartialMarkSweep);

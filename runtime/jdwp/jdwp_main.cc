@@ -256,12 +256,12 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
     default:
       LOG(FATAL) << "Unknown transport: " << options->transport;
   }
-
   {
     /*
      * Grab a mutex before starting the thread.  This ensures they
      * won't signal the cond var before we're waiting.
      */
+    state->thread_start_lock_.AssertNotHeld(self);
     MutexLock thread_start_locker(self, state->thread_start_lock_);
 
     /*

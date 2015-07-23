@@ -31,7 +31,7 @@ uint16_t RegTypeCache::primitive_count_ = 0;
 const PreciseConstType* RegTypeCache::small_precise_constants_[kMaxSmallConstant - kMinSmallConstant + 1];
 
 static bool MatchingPrecisionForClass(const RegType* entry, bool precise)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   if (entry->IsPreciseReference() == precise) {
     // We were or weren't looking for a precise reference and we found what we need.
     return true;

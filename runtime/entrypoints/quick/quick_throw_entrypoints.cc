@@ -25,14 +25,14 @@ namespace art {
 
 // Deliver an exception that's pending on thread helping set up a callee save frame on the way.
 extern "C" NO_RETURN void artDeliverPendingExceptionFromCode(Thread* self)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
   self->QuickDeliverException();
 }
 
 // Called by generated call to throw an exception.
 extern "C" NO_RETURN void artDeliverExceptionFromCode(mirror::Throwable* exception, Thread* self)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   /*
    * exception may be null, in which case this routine should
    * throw NPE.  NOTE: this is a convenience for generated code,
@@ -51,7 +51,7 @@ extern "C" NO_RETURN void artDeliverExceptionFromCode(mirror::Throwable* excepti
 
 // Called by generated call to throw a NPE exception.
 extern "C" NO_RETURN void artThrowNullPointerExceptionFromCode(Thread* self)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
   self->NoteSignalBeingHandled();
   ThrowNullPointerExceptionFromDexPC();
@@ -61,7 +61,7 @@ extern "C" NO_RETURN void artThrowNullPointerExceptionFromCode(Thread* self)
 
 // Called by generated call to throw an arithmetic divide by zero exception.
 extern "C" NO_RETURN void artThrowDivZeroFromCode(Thread* self)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
   ThrowArithmeticExceptionDivideByZero();
   self->QuickDeliverException();
@@ -69,14 +69,14 @@ extern "C" NO_RETURN void artThrowDivZeroFromCode(Thread* self)
 
 // Called by generated call to throw an array index out of bounds exception.
 extern "C" NO_RETURN void artThrowArrayBoundsFromCode(int index, int length, Thread* self)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
   ThrowArrayIndexOutOfBoundsException(index, length);
   self->QuickDeliverException();
 }
 
 extern "C" NO_RETURN void artThrowStackOverflowFromCode(Thread* self)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
   self->NoteSignalBeingHandled();
   ThrowStackOverflowError(self);
@@ -85,7 +85,7 @@ extern "C" NO_RETURN void artThrowStackOverflowFromCode(Thread* self)
 }
 
 extern "C" NO_RETURN void artThrowNoSuchMethodFromCode(int32_t method_idx, Thread* self)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
   ThrowNoSuchMethodError(method_idx);
   self->QuickDeliverException();
@@ -94,7 +94,7 @@ extern "C" NO_RETURN void artThrowNoSuchMethodFromCode(int32_t method_idx, Threa
 extern "C" NO_RETURN void artThrowClassCastException(mirror::Class* dest_type,
                                                      mirror::Class* src_type,
                                                      Thread* self)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
   DCHECK(!dest_type->IsAssignableFrom(src_type));
   ThrowClassCastException(dest_type, src_type);
@@ -103,7 +103,7 @@ extern "C" NO_RETURN void artThrowClassCastException(mirror::Class* dest_type,
 
 extern "C" NO_RETURN void artThrowArrayStoreException(mirror::Object* array, mirror::Object* value,
                                                       Thread* self)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
   ThrowArrayStoreException(value->GetClass(), array->GetClass());
   self->QuickDeliverException();

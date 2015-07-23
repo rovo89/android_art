@@ -445,7 +445,7 @@ class FixupRootVisitor : public RootVisitor {
   }
 
   void VisitRoots(mirror::Object*** roots, size_t count, const RootInfo& info ATTRIBUTE_UNUSED)
-      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     for (size_t i = 0; i < count; ++i) {
       *roots[i] = patch_oat_->RelocatedAddressOfPointer(*roots[i]);
     }
@@ -453,7 +453,7 @@ class FixupRootVisitor : public RootVisitor {
 
   void VisitRoots(mirror::CompressedReference<mirror::Object>** roots, size_t count,
                   const RootInfo& info ATTRIBUTE_UNUSED)
-      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     for (size_t i = 0; i < count; ++i) {
       roots[i]->Assign(patch_oat_->RelocatedAddressOfPointer(roots[i]->AsMirrorPtr()));
     }

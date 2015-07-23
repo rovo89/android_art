@@ -73,7 +73,7 @@ static constexpr bool kBinObjects = true;
 static constexpr bool kComputeEagerResolvedStrings = false;
 
 static void CheckNoDexObjectsCallback(Object* obj, void* arg ATTRIBUTE_UNUSED)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   Class* klass = obj->GetClass();
   CHECK_NE(PrettyClass(klass), "com.android.dex.Dex");
 }
@@ -1035,7 +1035,7 @@ class FixupRootVisitor : public RootVisitor {
   }
 
   void VisitRoots(mirror::Object*** roots, size_t count, const RootInfo& info ATTRIBUTE_UNUSED)
-      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     for (size_t i = 0; i < count; ++i) {
       *roots[i] = ImageAddress(*roots[i]);
     }
@@ -1043,7 +1043,7 @@ class FixupRootVisitor : public RootVisitor {
 
   void VisitRoots(mirror::CompressedReference<mirror::Object>** roots, size_t count,
                   const RootInfo& info ATTRIBUTE_UNUSED)
-      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     for (size_t i = 0; i < count; ++i) {
       roots[i]->Assign(ImageAddress(roots[i]->AsMirrorPtr()));
     }
@@ -1052,7 +1052,7 @@ class FixupRootVisitor : public RootVisitor {
  private:
   ImageWriter* const image_writer_;
 
-  mirror::Object* ImageAddress(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::Object* ImageAddress(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_) {
     const size_t offset = image_writer_->GetImageOffset(obj);
     auto* const dest = reinterpret_cast<Object*>(image_writer_->image_begin_ + offset);
     VLOG(compiler) << "Update root from " << obj << " to " << dest;
@@ -1190,7 +1190,7 @@ class FixupVisitor {
   }
 
   void operator()(Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+      REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     Object* ref = obj->GetFieldObject<Object, kVerifyNone>(offset);
     // Use SetFieldObjectWithoutWriteBarrier to avoid card marking since we are writing to the
     // image.
@@ -1200,8 +1200,8 @@ class FixupVisitor {
 
   // java.lang.ref.Reference visitor.
   void operator()(mirror::Class* klass ATTRIBUTE_UNUSED, mirror::Reference* ref) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(Locks::heap_bitmap_lock_) {
     copy_->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(
         mirror::Reference::ReferentOffset(), image_writer_->GetImageAddress(ref->GetReferent()));
   }
@@ -1217,15 +1217,15 @@ class FixupClassVisitor FINAL : public FixupVisitor {
   }
 
   void operator()(Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+      REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     DCHECK(obj->IsClass());
     FixupVisitor::operator()(obj, offset, /*is_static*/false);
   }
 
   void operator()(mirror::Class* klass ATTRIBUTE_UNUSED,
                   mirror::Reference* ref ATTRIBUTE_UNUSED) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(Locks::heap_bitmap_lock_) {
     LOG(FATAL) << "Reference not expected here.";
   }
 };

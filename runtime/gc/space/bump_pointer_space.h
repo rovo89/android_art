@@ -51,14 +51,14 @@ class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
   // Thread-unsafe allocation for when mutators are suspended, used by the semispace collector.
   mirror::Object* AllocThreadUnsafe(Thread* self, size_t num_bytes, size_t* bytes_allocated,
                                     size_t* usable_size, size_t* bytes_tl_bulk_allocated)
-      OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+      OVERRIDE REQUIRES(Locks::mutator_lock_);
 
   mirror::Object* AllocNonvirtual(size_t num_bytes);
   mirror::Object* AllocNonvirtualWithoutAccounting(size_t num_bytes);
 
   // Return the storage space required by obj.
   size_t AllocationSize(mirror::Object* obj, size_t* usable_size) OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     return AllocationSizeNonvirtual(obj, usable_size);
   }
 
@@ -72,7 +72,7 @@ class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
   }
 
   size_t AllocationSizeNonvirtual(mirror::Object* obj, size_t* usable_size)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Removes the fork time growth limit on capacity, allowing the application to allocate up to the
   // maximum reserved size of the heap.
@@ -99,19 +99,21 @@ class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
   }
 
   // Reset the space to empty.
-  void Clear() OVERRIDE LOCKS_EXCLUDED(block_lock_);
+  void Clear() OVERRIDE REQUIRES(!block_lock_);
 
   void Dump(std::ostream& os) const;
 
-  size_t RevokeThreadLocalBuffers(Thread* thread) LOCKS_EXCLUDED(block_lock_);
-  size_t RevokeAllThreadLocalBuffers() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_,
-                                                      Locks::thread_list_lock_);
-  void AssertThreadLocalBuffersAreRevoked(Thread* thread) LOCKS_EXCLUDED(block_lock_);
-  void AssertAllThreadLocalBuffersAreRevoked() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_,
-                                                              Locks::thread_list_lock_);
+  size_t RevokeThreadLocalBuffers(Thread* thread) REQUIRES(!block_lock_);
+  size_t RevokeAllThreadLocalBuffers()
+      REQUIRES(!Locks::runtime_shutdown_lock_, !Locks::thread_list_lock_, !block_lock_);
+  void AssertThreadLocalBuffersAreRevoked(Thread* thread) REQUIRES(!block_lock_);
+  void AssertAllThreadLocalBuffersAreRevoked()
+      REQUIRES(!Locks::runtime_shutdown_lock_, !Locks::thread_list_lock_, !block_lock_);
 
-  uint64_t GetBytesAllocated() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  uint64_t GetObjectsAllocated() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  uint64_t GetBytesAllocated() SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!*Locks::runtime_shutdown_lock_, !*Locks::thread_list_lock_, !block_lock_);
+  uint64_t GetObjectsAllocated() SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!*Locks::runtime_shutdown_lock_, !*Locks::thread_list_lock_, !block_lock_);
   bool IsEmpty() const {
     return Begin() == End();
   }
@@ -130,10 +132,10 @@ class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
 
   // Return the object which comes after obj, while ensuring alignment.
   static mirror::Object* GetNextObject(mirror::Object* obj)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Allocate a new TLAB, returns false if the allocation failed.
-  bool AllocNewTlab(Thread* self, size_t bytes);
+  bool AllocNewTlab(Thread* self, size_t bytes) REQUIRES(!block_lock_);
 
   BumpPointerSpace* AsBumpPointerSpace() OVERRIDE {
     return this;
@@ -141,7 +143,7 @@ class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
 
   // Go through all of the blocks and visit the continuous objects.
   void Walk(ObjectCallback* callback, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!block_lock_);
 
   accounting::ContinuousSpaceBitmap::SweepCallback* GetSweepCallback() OVERRIDE;
 
@@ -152,7 +154,7 @@ class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
   }
 
   void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes) OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Object alignment within the space.
   static constexpr size_t kAlignment = 8;
@@ -161,13 +163,13 @@ class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
   BumpPointerSpace(const std::string& name, MemMap* mem_map);
 
   // Allocate a raw block of bytes.
-  uint8_t* AllocBlock(size_t bytes) EXCLUSIVE_LOCKS_REQUIRED(block_lock_);
-  void RevokeThreadLocalBuffersLocked(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(block_lock_);
+  uint8_t* AllocBlock(size_t bytes) REQUIRES(block_lock_);
+  void RevokeThreadLocalBuffersLocked(Thread* thread) REQUIRES(block_lock_);
 
   // The main block is an unbounded block where objects go when there are no other blocks. This
   // enables us to maintain tightly packed objects when you are not using thread local buffers for
   // allocation. The main block starts at the space Begin().
-  void UpdateMainBlock() EXCLUSIVE_LOCKS_REQUIRED(block_lock_);
+  void UpdateMainBlock() REQUIRES(block_lock_);
 
   uint8_t* growth_end_;
   AtomicInteger objects_allocated_;  // Accumulated from revoked thread local regions.

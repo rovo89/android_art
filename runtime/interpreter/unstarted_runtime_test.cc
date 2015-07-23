@@ -42,7 +42,7 @@ class UnstartedRuntimeTest : public CommonRuntimeTest {
                                 ShadowFrame* shadow_frame, \
                                 JValue* result,            \
                                 size_t arg_offset)         \
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {        \
+      SHARED_REQUIRES(Locks::mutator_lock_) {        \
     interpreter::UnstartedRuntime::Unstarted ## Name(self, shadow_frame, result, arg_offset); \
   }
 #include "unstarted_runtime_list.h"
@@ -58,7 +58,7 @@ class UnstartedRuntimeTest : public CommonRuntimeTest {
                                    mirror::Object* receiver,  \
                                    uint32_t* args,            \
                                    JValue* result)            \
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {           \
+      SHARED_REQUIRES(Locks::mutator_lock_) {           \
     interpreter::UnstartedRuntime::UnstartedJNI ## Name(self, method, receiver, args, result); \
   }
 #include "unstarted_runtime_list.h"

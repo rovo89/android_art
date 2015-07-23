@@ -28,15 +28,15 @@ class Thread;
 template <typename T>
 class ObjectLock {
  public:
-  ObjectLock(Thread* self, Handle<T> object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ObjectLock(Thread* self, Handle<T> object) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ~ObjectLock() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ~ObjectLock() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void WaitIgnoringInterrupts() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void WaitIgnoringInterrupts() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void Notify() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void Notify() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void NotifyAll() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void NotifyAll() SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
   Thread* const self_;

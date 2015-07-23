@@ -69,15 +69,15 @@ class ImageWriter FINAL {
   }
 
   template <typename T>
-  T* GetImageAddress(T* object) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  T* GetImageAddress(T* object) const SHARED_REQUIRES(Locks::mutator_lock_) {
     return object == nullptr ? nullptr :
         reinterpret_cast<T*>(image_begin_ + GetImageOffset(object));
   }
 
-  ArtMethod* GetImageMethodAddress(ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ArtMethod* GetImageMethodAddress(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_);
 
   mirror::HeapReference<mirror::Object>* GetDexCacheArrayElementImageAddress(
-      const DexFile* dex_file, uint32_t offset) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      const DexFile* dex_file, uint32_t offset) const SHARED_REQUIRES(Locks::mutator_lock_) {
     auto it = dex_cache_array_starts_.find(dex_file);
     DCHECK(it != dex_cache_array_starts_.end());
     return reinterpret_cast<mirror::HeapReference<mirror::Object>*>(
@@ -88,7 +88,7 @@ class ImageWriter FINAL {
 
   bool Write(const std::string& image_filename, const std::string& oat_filename,
              const std::string& oat_location)
-      LOCKS_EXCLUDED(Locks::mutator_lock_);
+      REQUIRES(!Locks::mutator_lock_);
 
   uintptr_t GetOatDataBegin() {
     return reinterpret_cast<uintptr_t>(oat_data_begin_);
@@ -98,7 +98,7 @@ class ImageWriter FINAL {
   bool AllocMemory();
 
   // Mark the objects defined in this space in the given live bitmap.
-  void RecordImageAllocations() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void RecordImageAllocations() SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Classify different kinds of bins that objects end up getting packed into during image writing.
   enum Bin {
@@ -165,32 +165,32 @@ class ImageWriter FINAL {
 
   // We use the lock word to store the offset of the object in the image.
   void AssignImageOffset(mirror::Object* object, BinSlot bin_slot)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   void SetImageOffset(mirror::Object* object, size_t offset)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   bool IsImageOffsetAssigned(mirror::Object* object) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  size_t GetImageOffset(mirror::Object* object) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  size_t GetImageOffset(mirror::Object* object) const SHARED_REQUIRES(Locks::mutator_lock_);
   void UpdateImageOffset(mirror::Object* obj, uintptr_t offset)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void PrepareDexCacheArraySlots() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void AssignImageBinSlot(mirror::Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void PrepareDexCacheArraySlots() SHARED_REQUIRES(Locks::mutator_lock_);
+  void AssignImageBinSlot(mirror::Object* object) SHARED_REQUIRES(Locks::mutator_lock_);
   void SetImageBinSlot(mirror::Object* object, BinSlot bin_slot)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   bool IsImageBinSlotAssigned(mirror::Object* object) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  BinSlot GetImageBinSlot(mirror::Object* object) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  BinSlot GetImageBinSlot(mirror::Object* object) const SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void AddMethodPointerArray(mirror::PointerArray* arr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void AddMethodPointerArray(mirror::PointerArray* arr) SHARED_REQUIRES(Locks::mutator_lock_);
 
   static void* GetImageAddressCallback(void* writer, mirror::Object* obj)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     return reinterpret_cast<ImageWriter*>(writer)->GetImageAddress(obj);
   }
 
   mirror::Object* GetLocalAddress(mirror::Object* object) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     size_t offset = GetImageOffset(object);
     uint8_t* dst = image_->Begin() + offset;
     return reinterpret_cast<mirror::Object*>(dst);
@@ -209,74 +209,74 @@ class ImageWriter FINAL {
   }
 
   // Returns true if the class was in the original requested image classes list.
-  bool IsImageClass(mirror::Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool IsImageClass(mirror::Class* klass) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Debug aid that list of requested image classes.
   void DumpImageClasses();
 
   // Preinitializes some otherwise lazy fields (such as Class name) to avoid runtime image dirtying.
   void ComputeLazyFieldsForImageClasses()
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   static bool ComputeLazyFieldsForClassesVisitor(mirror::Class* klass, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Wire dex cache resolved strings to strings in the image to avoid runtime resolution.
-  void ComputeEagerResolvedStrings() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void ComputeEagerResolvedStrings() SHARED_REQUIRES(Locks::mutator_lock_);
   static void ComputeEagerResolvedStringsCallback(mirror::Object* obj, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Remove unwanted classes from various roots.
-  void PruneNonImageClasses() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void PruneNonImageClasses() SHARED_REQUIRES(Locks::mutator_lock_);
   static bool NonImageClassesVisitor(mirror::Class* c, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Verify unwanted classes removed.
-  void CheckNonImageClassesRemoved() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void CheckNonImageClassesRemoved() SHARED_REQUIRES(Locks::mutator_lock_);
   static void CheckNonImageClassesRemovedCallback(mirror::Object* obj, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Lays out where the image objects will be at runtime.
   void CalculateNewObjectOffsets()
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   void CreateHeader(size_t oat_loaded_size, size_t oat_data_offset)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::Object>* CreateImageRoots() const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   void CalculateObjectBinSlots(mirror::Object* obj)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   void UnbinObjectsIntoOffset(mirror::Object* obj)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   void WalkInstanceFields(mirror::Object* obj, mirror::Class* klass)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   void WalkFieldsInOrder(mirror::Object* obj)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   static void WalkFieldsCallback(mirror::Object* obj, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   static void UnbinObjectsIntoOffsetCallback(mirror::Object* obj, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Creates the contiguous image in memory and adjusts pointers.
-  void CopyAndFixupNativeData() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void CopyAndFixupObjects() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void CopyAndFixupNativeData() SHARED_REQUIRES(Locks::mutator_lock_);
+  void CopyAndFixupObjects() SHARED_REQUIRES(Locks::mutator_lock_);
   static void CopyAndFixupObjectsCallback(mirror::Object* obj, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void CopyAndFixupObject(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  void CopyAndFixupObject(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_);
   void CopyAndFixupMethod(ArtMethod* orig, ArtMethod* copy)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   void FixupClass(mirror::Class* orig, mirror::Class* copy)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   void FixupObject(mirror::Object* orig, mirror::Object* copy)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   void FixupPointerArray(mirror::Object* dst, mirror::PointerArray* arr, mirror::Class* klass,
-                         Bin array_type) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+                         Bin array_type) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Get quick code for non-resolution/imt_conflict/abstract method.
   const uint8_t* GetQuickCode(ArtMethod* method, bool* quick_is_interpreted)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   const uint8_t* GetQuickEntryPoint(ArtMethod* method)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Patches references in OatFile to expect runtime addresses.
   void SetOatChecksumFromElfFile(File* elf_file);
@@ -285,10 +285,10 @@ class ImageWriter FINAL {
   size_t GetBinSizeSum(Bin up_to = kBinSize) const;
 
   // Return true if a method is likely to be dirtied at runtime.
-  bool WillMethodBeDirty(ArtMethod* m) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool WillMethodBeDirty(ArtMethod* m) const SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Assign the offset for an ArtMethod.
-  void AssignMethodOffset(ArtMethod* method, Bin bin) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void AssignMethodOffset(ArtMethod* method, Bin bin) SHARED_REQUIRES(Locks::mutator_lock_);
 
   const CompilerDriver& compiler_driver_;
 

@@ -237,7 +237,7 @@ class LogMessage {
  public:
   LogMessage(const char* file, unsigned int line, LogSeverity severity, int error);
 
-  ~LogMessage();  // TODO: enable LOCKS_EXCLUDED(Locks::logging_lock_).
+  ~LogMessage();  // TODO: enable REQUIRES(!Locks::logging_lock_).
 
   // Returns the stream associated with the message, the LogMessage performs output when it goes
   // out of scope.

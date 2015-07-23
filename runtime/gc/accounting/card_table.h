@@ -107,8 +107,8 @@ class CardTable {
   size_t Scan(SpaceBitmap<kObjectAlignment>* bitmap, uint8_t* scan_begin, uint8_t* scan_end,
               const Visitor& visitor,
               const uint8_t minimum_age = kCardDirty) const
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      REQUIRES(Locks::heap_bitmap_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Assertion used to check the given address is covered by the card table
   void CheckAddrIsInCardTable(const uint8_t* addr) const;

@@ -25,34 +25,34 @@ namespace mirror {
 
 class MANAGED IfTable FINAL : public ObjectArray<Object> {
  public:
-  ALWAYS_INLINE Class* GetInterface(int32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ALWAYS_INLINE Class* GetInterface(int32_t i) SHARED_REQUIRES(Locks::mutator_lock_) {
     Class* interface = GetWithoutChecks((i * kMax) + kInterface)->AsClass();
     DCHECK(interface != nullptr);
     return interface;
   }
 
   ALWAYS_INLINE void SetInterface(int32_t i, Class* interface)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
-  PointerArray* GetMethodArray(int32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  PointerArray* GetMethodArray(int32_t i) SHARED_REQUIRES(Locks::mutator_lock_) {
     auto* method_array = down_cast<PointerArray*>(Get((i * kMax) + kMethodArray));
     DCHECK(method_array != nullptr);
     return method_array;
   }
 
-  size_t GetMethodArrayCount(int32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  size_t GetMethodArrayCount(int32_t i) SHARED_REQUIRES(Locks::mutator_lock_) {
     auto* method_array = down_cast<PointerArray*>(Get((i * kMax) + kMethodArray));
     return method_array == nullptr ? 0u : method_array->GetLength();
   }
 
-  void SetMethodArray(int32_t i, PointerArray* arr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void SetMethodArray(int32_t i, PointerArray* arr) SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(arr != nullptr);
     auto idx = i * kMax + kMethodArray;
     DCHECK(Get(idx) == nullptr);
     Set<false>(idx, arr);
   }
 
-  size_t Count() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  size_t Count() SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetLength() / kMax;
   }
 

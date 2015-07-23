@@ -499,7 +499,7 @@ class OatDumper {
     return oat_file_.GetOatHeader().GetInstructionSet();
   }
 
-  const void* GetQuickOatCode(ArtMethod* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const void* GetQuickOatCode(ArtMethod* m) SHARED_REQUIRES(Locks::mutator_lock_) {
     for (size_t i = 0; i < oat_dex_files_.size(); i++) {
       const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
       CHECK(oat_dex_file != nullptr);
@@ -1462,7 +1462,7 @@ class ImageDumper {
         image_header_(image_header),
         oat_dumper_options_(oat_dumper_options) {}
 
-  bool Dump() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool Dump() SHARED_REQUIRES(Locks::mutator_lock_) {
     std::ostream& os = *os_;
     std::ostream& indent_os = vios_.Stream();
 
@@ -1664,7 +1664,7 @@ class ImageDumper {
 
  private:
   static void PrettyObjectValue(std::ostream& os, mirror::Class* type, mirror::Object* value)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     CHECK(type != nullptr);
     if (value == nullptr) {
       os << StringPrintf("null   %s\n", PrettyDescriptor(type).c_str());
@@ -1681,7 +1681,7 @@ class ImageDumper {
   }
 
   static void PrintField(std::ostream& os, ArtField* field, mirror::Object* obj)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     os << StringPrintf("%s: ", field->GetName());
     switch (field->GetTypeAsPrimitiveType()) {
       case Primitive::kPrimLong:
@@ -1734,7 +1734,7 @@ class ImageDumper {
   }
 
   static void DumpFields(std::ostream& os, mirror::Object* obj, mirror::Class* klass)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     mirror::Class* super = klass->GetSuperClass();
     if (super != nullptr) {
       DumpFields(os, obj, super);
@@ -1750,7 +1750,7 @@ class ImageDumper {
   }
 
   const void* GetQuickOatCodeBegin(ArtMethod* m)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     const void* quick_code = m->GetEntryPointFromQuickCompiledCodePtrSize(
         InstructionSetPointerSize(oat_dumper_->GetOatInstructionSet()));
     if (Runtime::Current()->GetClassLinker()->IsQuickResolutionStub(quick_code)) {
@@ -1763,7 +1763,7 @@ class ImageDumper {
   }
 
   uint32_t GetQuickOatCodeSize(ArtMethod* m)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     const uint32_t* oat_code_begin = reinterpret_cast<const uint32_t*>(GetQuickOatCodeBegin(m));
     if (oat_code_begin == nullptr) {
       return 0;
@@ -1772,7 +1772,7 @@ class ImageDumper {
   }
 
   const void* GetQuickOatCodeEnd(ArtMethod* m)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     const uint8_t* oat_code_begin = reinterpret_cast<const uint8_t*>(GetQuickOatCodeBegin(m));
     if (oat_code_begin == nullptr) {
       return nullptr;
@@ -1780,7 +1780,7 @@ class ImageDumper {
     return oat_code_begin + GetQuickOatCodeSize(m);
   }
 
-  static void Callback(mirror::Object* obj, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  static void Callback(mirror::Object* obj, void* arg) SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(obj != nullptr);
     DCHECK(arg != nullptr);
     ImageDumper* state = reinterpret_cast<ImageDumper*>(arg);
@@ -1882,7 +1882,7 @@ class ImageDumper {
   }
 
   void DumpMethod(ArtMethod* method, ImageDumper* state, std::ostream& indent_os)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(method != nullptr);
     const auto image_pointer_size =
         InstructionSetPointerSize(state->oat_dumper_->GetOatInstructionSet());
@@ -2070,7 +2070,7 @@ class ImageDumper {
     }
 
     void DumpOutliers(std::ostream& os)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+        SHARED_REQUIRES(Locks::mutator_lock_) {
       size_t sum_of_sizes = 0;
       size_t sum_of_sizes_squared = 0;
       size_t sum_of_expansion = 0;
@@ -2171,7 +2171,7 @@ class ImageDumper {
     }
 
     void Dump(std::ostream& os, std::ostream& indent_os)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+        SHARED_REQUIRES(Locks::mutator_lock_) {
       {
         os << "art_file_bytes = " << PrettySize(file_bytes) << "\n\n"
            << "art_file_bytes = header_bytes + object_bytes + alignment_bytes\n";
