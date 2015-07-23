@@ -414,23 +414,24 @@ class Thread {
 
   // If 'msg' is null, no detail message is set.
   void ThrowNewException(const char* exception_class_descriptor, const char* msg)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   // If 'msg' is null, no detail message is set. An exception must be pending, and will be
   // used as the new exception's cause.
   void ThrowNewWrappedException(const char* exception_class_descriptor, const char* msg)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   void ThrowNewExceptionF(const char* exception_class_descriptor, const char* fmt, ...)
       __attribute__((format(printf, 3, 4)))
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   void ThrowNewExceptionV(const char* exception_class_descriptor, const char* fmt, va_list ap)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   // OutOfMemoryError is special, because we need to pre-allocate an instance.
   // Only the GC should call this.
-  void ThrowOutOfMemoryError(const char* msg) SHARED_REQUIRES(Locks::mutator_lock_);
+  void ThrowOutOfMemoryError(const char* msg) SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!Roles::uninterruptible_);
 
   static void Startup();
   static void FinishStartup();

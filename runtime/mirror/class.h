@@ -135,7 +135,7 @@ class MANAGED Class FINAL : public Object {
 
   // This is static because 'this' may be moved by GC.
   static void SetStatus(Handle<Class> h_this, Status new_status, Thread* self)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   static MemberOffset StatusOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Class, status_);
@@ -314,7 +314,8 @@ class MANAGED Class FINAL : public Object {
   String* GetName() SHARED_REQUIRES(Locks::mutator_lock_);  // Returns the cached name.
   void SetName(String* name) SHARED_REQUIRES(Locks::mutator_lock_);  // Sets the cached name.
   // Computes the name, then sets the cached value.
-  static String* ComputeName(Handle<Class> h_this) SHARED_REQUIRES(Locks::mutator_lock_);
+  static String* ComputeName(Handle<Class> h_this) SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!Roles::uninterruptible_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsProxyClass() SHARED_REQUIRES(Locks::mutator_lock_) {
@@ -682,7 +683,7 @@ class MANAGED Class FINAL : public Object {
   ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetDirectMethods(size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ArtMethod* GetDirectMethodsPtr() SHARED_REQUIRES(Locks::mutator_lock_);\
+  ArtMethod* GetDirectMethodsPtr() SHARED_REQUIRES(Locks::mutator_lock_);
 
   void SetDirectMethodsPtr(ArtMethod* new_direct_methods)
       SHARED_REQUIRES(Locks::mutator_lock_);
@@ -1090,7 +1091,8 @@ class MANAGED Class FINAL : public Object {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   Class* CopyOf(Thread* self, int32_t new_length, ArtMethod* const (&imt)[mirror::Class::kImtSize],
-                size_t pointer_size) SHARED_REQUIRES(Locks::mutator_lock_);
+                size_t pointer_size)
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   // For proxy class only.
   ObjectArray<Class>* GetInterfaces() SHARED_REQUIRES(Locks::mutator_lock_);
