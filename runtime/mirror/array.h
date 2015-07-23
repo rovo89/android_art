@@ -88,7 +88,8 @@ class MANAGED Array : public Object {
       REQUIRES(!Roles::uninterruptible_);
 
  protected:
-  void ThrowArrayStoreException(Object* object) SHARED_REQUIRES(Locks::mutator_lock_);
+  void ThrowArrayStoreException(Object* object) SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!Roles::uninterruptible_);
 
  private:
   void ThrowArrayIndexOutOfBoundsException(int32_t index)

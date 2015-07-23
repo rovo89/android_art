@@ -34,7 +34,8 @@ namespace mirror {
 class MANAGED AbstractMethod : public AccessibleObject {
  public:
   // Called from Constructor::CreateFromArtMethod, Method::CreateFromArtMethod.
-  bool CreateFromArtMethod(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_);
+  bool CreateFromArtMethod(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!Roles::uninterruptible_);
 
   ArtMethod* GetArtMethod() SHARED_REQUIRES(Locks::mutator_lock_);
   // Only used by the image writer.

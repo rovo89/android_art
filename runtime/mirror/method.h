@@ -29,7 +29,7 @@ class Class;
 class MANAGED Method : public AbstractMethod {
  public:
   static Method* CreateFromArtMethod(Thread* self, ArtMethod* method)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   static mirror::Class* StaticClass() SHARED_REQUIRES(Locks::mutator_lock_) {
     return static_class_.Read();
@@ -60,7 +60,7 @@ class MANAGED Method : public AbstractMethod {
 class MANAGED Constructor: public AbstractMethod {
  public:
   static Constructor* CreateFromArtMethod(Thread* self, ArtMethod* method)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   static mirror::Class* StaticClass() SHARED_REQUIRES(Locks::mutator_lock_) {
     return static_class_.Read();
