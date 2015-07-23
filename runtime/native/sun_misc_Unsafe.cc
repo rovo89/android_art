@@ -293,22 +293,28 @@ static void Unsafe_copyMemory(JNIEnv *env, jobject unsafe, jlong src, jlong dst,
 }
 
 template<typename T>
-static void copyToArray(jlong srcAddr, mirror::PrimitiveArray<T>* array, size_t size)
+static void copyToArray(jlong srcAddr, mirror::PrimitiveArray<T>* array,
+                        size_t array_offset,
+                        size_t size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const T* src = reinterpret_cast<T*>(srcAddr);
     size_t sz = size / sizeof(T);
+    size_t of = array_offset / sizeof(T);
     for (size_t i = 0; i < sz; ++i) {
-        array->Set(i, *(src + i));
+        array->Set(i + of, *(src + i));
     }
 }
 
 template<typename T>
-static void copyFromArray(jlong dstAddr, mirror::PrimitiveArray<T>* array, size_t size)
+static void copyFromArray(jlong dstAddr, mirror::PrimitiveArray<T>* array,
+                          size_t array_offset,
+                          size_t size)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_){
     T* dst = reinterpret_cast<T*>(dstAddr);
     size_t sz = size / sizeof(T);
+    size_t of = array_offset / sizeof(T);
     for (size_t i = 0; i < sz; ++i) {
-        *(dst + i) = array->Get(i);
+        *(dst + i) = array->Get(i + of);
     }
 }
 
@@ -327,16 +333,17 @@ static void Unsafe_copyMemoryToPrimitiveArray(JNIEnv *env,
         ThrowIllegalAccessException(nullptr, "wrong number of bytes");
     }
     size_t sz = (size_t)size;
+    size_t dst_offset = (size_t)dstOffset;
     mirror::Object* dst = soa.Decode<mirror::Object*>(dstObj);
     mirror::Class* component_type = dst->GetClass()->GetComponentType();
     if (component_type->IsPrimitiveByte() || component_type->IsPrimitiveBoolean()) {
-        copyToArray(srcAddr, dst->AsByteSizedArray(), sz);
+        copyToArray(srcAddr, dst->AsByteSizedArray(), dst_offset, sz);
     } else if (component_type->IsPrimitiveShort() || component_type->IsPrimitiveChar()) {
-        copyToArray(srcAddr, dst->AsShortSizedArray(), sz);
+        copyToArray(srcAddr, dst->AsShortSizedArray(), dst_offset, sz);
     } else if (component_type->IsPrimitiveInt() || component_type->IsPrimitiveFloat()) {
-        copyToArray(srcAddr, dst->AsIntArray(), sz);
+        copyToArray(srcAddr, dst->AsIntArray(), dst_offset, sz);
     } else if (component_type->IsPrimitiveLong() || component_type->IsPrimitiveDouble()) {
-        copyToArray(srcAddr, dst->AsLongArray(), sz);
+        copyToArray(srcAddr, dst->AsLongArray(), dst_offset, sz);
     } else {
         ThrowIllegalAccessException(nullptr, "not a primitive array");
     }
@@ -357,16 +364,17 @@ static void Unsafe_copyMemoryFromPrimitiveArray(JNIEnv *env,
         ThrowIllegalAccessException(nullptr, "wrong number of bytes");
     }
     size_t sz = (size_t)size;
+    size_t src_offset = (size_t)srcOffset;
     mirror::Object* src = soa.Decode<mirror::Object*>(srcObj);
     mirror::Class* component_type = src->GetClass()->GetComponentType();
     if (component_type->IsPrimitiveByte() || component_type->IsPrimitiveBoolean()) {
-        copyFromArray(dstAddr, src->AsByteSizedArray(), sz);
+        copyFromArray(dstAddr, src->AsByteSizedArray(), src_offset, sz);
     } else if (component_type->IsPrimitiveShort() || component_type->IsPrimitiveChar()) {
-        copyFromArray(dstAddr, src->AsShortSizedArray(), sz);
+        copyFromArray(dstAddr, src->AsShortSizedArray(), src_offset, sz);
     } else if (component_type->IsPrimitiveInt() || component_type->IsPrimitiveFloat()) {
-        copyFromArray(dstAddr, src->AsIntArray(), sz);
+        copyFromArray(dstAddr, src->AsIntArray(), src_offset, sz);
     } else if (component_type->IsPrimitiveLong() || component_type->IsPrimitiveDouble()) {
-        copyFromArray(dstAddr, src->AsLongArray(), sz);
+        copyFromArray(dstAddr, src->AsLongArray(), src_offset, sz);
     } else {
         ThrowIllegalAccessException(nullptr, "not a primitive array");
     }
