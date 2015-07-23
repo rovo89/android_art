@@ -1808,26 +1808,23 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
         trace_(nullptr),
         pointer_size_(Runtime::Current()->GetClassLinker()->GetImagePointerSize()) {}
 
-  bool Init(int depth)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool Init(int depth) SHARED_REQUIRES(Locks::mutator_lock_) ACQUIRE(Roles::uninterruptible_) {
     // Allocate method trace with format [method pointers][pcs].
     auto* cl = Runtime::Current()->GetClassLinker();
     trace_ = cl->AllocPointerArray(self_, depth * 2);
+    const char* last_no_suspend_cause =
+        self_->StartAssertNoThreadSuspension("Building internal stack trace");
     if (trace_ == nullptr) {
       self_->AssertPendingOOMException();
       return false;
     }
     // If We are called from native, use non-transactional mode.
-    const char* last_no_suspend_cause =
-        self_->StartAssertNoThreadSuspension("Building internal stack trace");
     CHECK(last_no_suspend_cause == nullptr) << last_no_suspend_cause;
     return true;
   }
 
-  virtual ~BuildInternalStackTraceVisitor() {
-    if (trace_ != nullptr) {
-      self_->EndAssertNoThreadSuspension(nullptr);
-    }
+  virtual ~BuildInternalStackTraceVisitor() RELEASE(Roles::uninterruptible_) {
+    self_->EndAssertNoThreadSuspension(nullptr);
   }
 
   bool VisitFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
