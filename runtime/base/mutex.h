@@ -471,11 +471,11 @@ class ConditionVariable {
 // upon destruction.
 class SCOPED_CAPABILITY MutexLock {
  public:
-  explicit MutexLock(Thread* self, Mutex& mu) EXCLUSIVE_LOCK_FUNCTION(mu) : self_(self), mu_(mu) {
+  explicit MutexLock(Thread* self, Mutex& mu) ACQUIRE(mu) : self_(self), mu_(mu) {
     mu_.ExclusiveLock(self_);
   }
 
-  ~MutexLock() UNLOCK_FUNCTION() {
+  ~MutexLock() RELEASE() {
     mu_.ExclusiveUnlock(self_);
   }
 
@@ -491,12 +491,12 @@ class SCOPED_CAPABILITY MutexLock {
 // construction and releases it upon destruction.
 class SCOPED_CAPABILITY ReaderMutexLock {
  public:
-  explicit ReaderMutexLock(Thread* self, ReaderWriterMutex& mu) EXCLUSIVE_LOCK_FUNCTION(mu) :
+  explicit ReaderMutexLock(Thread* self, ReaderWriterMutex& mu) ACQUIRE(mu) :
       self_(self), mu_(mu) {
     mu_.SharedLock(self_);
   }
 
-  ~ReaderMutexLock() UNLOCK_FUNCTION() {
+  ~ReaderMutexLock() RELEASE() {
     mu_.SharedUnlock(self_);
   }
 
@@ -530,6 +530,17 @@ class SCOPED_CAPABILITY WriterMutexLock {
 // Catch bug where variable name is omitted. "WriterMutexLock (lock);" instead of
 // "WriterMutexLock mu(lock)".
 #define WriterMutexLock(x) static_assert(0, "WriterMutexLock declaration missing variable name")
+
+// For StartNoThreadSuspension and EndNoThreadSuspension.
+class CAPABILITY("role") Role {
+ public:
+  void Acquire() ACQUIRE() {}
+  void Release() RELEASE() {}
+  const Role& operator!() const { return *this; }
+};
+
+class Uninterruptible : public Role {
+};
 
 // Global mutexes corresponding to the levels above.
 class Locks {
@@ -664,6 +675,11 @@ class Locks {
   // Allow reader-writer mutual exclusion on the boxed table of lambda objects.
   // TODO: this should be a RW mutex lock, except that ConditionVariables don't work with it.
   static Mutex* lambda_table_lock_ ACQUIRED_AFTER(mutator_lock_);
+};
+
+class Roles {
+ public:
+  static Uninterruptible uninterruptible_;
 };
 
 }  // namespace art

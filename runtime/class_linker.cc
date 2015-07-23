@@ -3447,8 +3447,7 @@ std::string ClassLinker::GetDescriptorForProxy(mirror::Class* proxy_class) {
   return DotToDescriptor(name->ToModifiedUtf8().c_str());
 }
 
-ArtMethod* ClassLinker::FindMethodForProxy(mirror::Class* proxy_class,
-                                                   ArtMethod* proxy_method) {
+ArtMethod* ClassLinker::FindMethodForProxy(mirror::Class* proxy_class, ArtMethod* proxy_method) {
   DCHECK(proxy_class->IsProxyClass());
   DCHECK(proxy_method->IsProxyMethod());
   {
@@ -4984,6 +4983,7 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
         self, old_virtuals, old_method_count * method_size, new_method_count * method_size));
     if (UNLIKELY(virtuals == nullptr)) {
       self->AssertPendingOOMException();
+      self->EndAssertNoThreadSuspension(old_cause);
       return false;
     }
     ScopedArenaUnorderedMap<ArtMethod*, ArtMethod*> move_table(allocator.Adapter());
