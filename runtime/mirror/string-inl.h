@@ -42,7 +42,7 @@ class SetStringCountVisitor {
   }
 
   void operator()(Object* obj, size_t usable_size ATTRIBUTE_UNUSED) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     // Avoid AsString as object is not yet in live bitmap or allocation stack.
     String* string = down_cast<String*>(obj);
     string->SetCount(count_);
@@ -61,7 +61,7 @@ class SetStringCountAndBytesVisitor {
   }
 
   void operator()(Object* obj, size_t usable_size ATTRIBUTE_UNUSED) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     // Avoid AsString as object is not yet in live bitmap or allocation stack.
     String* string = down_cast<String*>(obj);
     string->SetCount(count_);
@@ -88,7 +88,7 @@ class SetStringCountAndValueVisitorFromCharArray {
   }
 
   void operator()(Object* obj, size_t usable_size ATTRIBUTE_UNUSED) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     // Avoid AsString as object is not yet in live bitmap or allocation stack.
     String* string = down_cast<String*>(obj);
     string->SetCount(count_);
@@ -111,7 +111,7 @@ class SetStringCountAndValueVisitorFromString {
   }
 
   void operator()(Object* obj, size_t usable_size ATTRIBUTE_UNUSED) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     // Avoid AsString as object is not yet in live bitmap or allocation stack.
     String* string = down_cast<String*>(obj);
     string->SetCount(count_);

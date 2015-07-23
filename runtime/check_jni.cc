@@ -155,7 +155,7 @@ class ScopedCheck {
    * Assumes "jobj" has already been validated.
    */
   bool CheckInstanceFieldID(ScopedObjectAccess& soa, jobject java_object, jfieldID fid)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     mirror::Object* o = soa.Decode<mirror::Object*>(java_object);
     if (o == nullptr) {
       AbortF("field operation on NULL object: %p", java_object);
@@ -199,7 +199,7 @@ class ScopedCheck {
    */
   bool CheckMethodAndSig(ScopedObjectAccess& soa, jobject jobj, jclass jc,
                          jmethodID mid, Primitive::Type type, InvokeType invoke)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     ArtMethod* m = CheckMethodID(soa, mid);
     if (m == nullptr) {
       return false;
@@ -246,7 +246,7 @@ class ScopedCheck {
    * Assumes "java_class" has already been validated.
    */
   bool CheckStaticFieldID(ScopedObjectAccess& soa, jclass java_class, jfieldID fid)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     mirror::Class* c = soa.Decode<mirror::Class*>(java_class);
     ArtField* f = CheckFieldID(soa, fid);
     if (f == nullptr) {
@@ -269,7 +269,7 @@ class ScopedCheck {
    * Instances of "java_class" must be instances of the method's declaring class.
    */
   bool CheckStaticMethod(ScopedObjectAccess& soa, jclass java_class, jmethodID mid)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     ArtMethod* m = CheckMethodID(soa, mid);
     if (m == nullptr) {
       return false;
@@ -290,7 +290,7 @@ class ScopedCheck {
    * will be handled automatically by the instanceof check.)
    */
   bool CheckVirtualMethod(ScopedObjectAccess& soa, jobject java_object, jmethodID mid)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     ArtMethod* m = CheckMethodID(soa, mid);
     if (m == nullptr) {
       return false;
@@ -343,7 +343,7 @@ class ScopedCheck {
    * Use the kFlag_NullableUtf flag where 'u' field(s) are nullable.
    */
   bool Check(ScopedObjectAccess& soa, bool entry, const char* fmt, JniValueType* args)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     ArtMethod* traceMethod = nullptr;
     if (has_method_ && soa.Vm()->IsTracingEnabled()) {
       // We need to guard some of the invocation interface's calls: a bad caller might
@@ -443,7 +443,7 @@ class ScopedCheck {
   }
 
   bool CheckReflectedMethod(ScopedObjectAccess& soa, jobject jmethod)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     mirror::Object* method = soa.Decode<mirror::Object*>(jmethod);
     if (method == nullptr) {
       AbortF("expected non-null method");
@@ -461,7 +461,7 @@ class ScopedCheck {
   }
 
   bool CheckConstructor(ScopedObjectAccess& soa, jmethodID mid)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     ArtMethod* method = soa.DecodeMethod(mid);
     if (method == nullptr) {
       AbortF("expected non-null constructor");
@@ -475,7 +475,7 @@ class ScopedCheck {
   }
 
   bool CheckReflectedField(ScopedObjectAccess& soa, jobject jfield)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     mirror::Object* field = soa.Decode<mirror::Object*>(jfield);
     if (field == nullptr) {
       AbortF("expected non-null java.lang.reflect.Field");
@@ -491,7 +491,7 @@ class ScopedCheck {
   }
 
   bool CheckThrowable(ScopedObjectAccess& soa, jthrowable jobj)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     mirror::Object* obj = soa.Decode<mirror::Object*>(jobj);
     if (!obj->GetClass()->IsThrowableClass()) {
       AbortF("expected java.lang.Throwable but got object of type "
@@ -502,7 +502,7 @@ class ScopedCheck {
   }
 
   bool CheckThrowableClass(ScopedObjectAccess& soa, jclass jc)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     mirror::Class* c = soa.Decode<mirror::Class*>(jc);
     if (!c->IsThrowableClass()) {
       AbortF("expected java.lang.Throwable class but got object of "
@@ -533,7 +533,7 @@ class ScopedCheck {
   }
 
   bool CheckInstantiableNonArray(ScopedObjectAccess& soa, jclass jc)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     mirror::Class* c = soa.Decode<mirror::Class*>(jc);
     if (!c->IsInstantiableNonArray()) {
       AbortF("can't make objects of type %s: %p", PrettyDescriptor(c).c_str(), c);
@@ -543,7 +543,7 @@ class ScopedCheck {
   }
 
   bool CheckPrimitiveArrayType(ScopedObjectAccess& soa, jarray array, Primitive::Type type)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     if (!CheckArray(soa, array)) {
       return false;
     }
@@ -558,7 +558,7 @@ class ScopedCheck {
 
   bool CheckFieldAccess(ScopedObjectAccess& soa, jobject obj, jfieldID fid, bool is_static,
                         Primitive::Type type)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     if (is_static && !CheckStaticFieldID(soa, down_cast<jclass>(obj), fid)) {
       return false;
     }
@@ -619,7 +619,7 @@ class ScopedCheck {
    * to "running" mode before doing the checks.
    */
   bool CheckInstance(ScopedObjectAccess& soa, InstanceKind kind, jobject java_object, bool null_ok)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     const char* what = nullptr;
     switch (kind) {
     case kClass:
@@ -715,7 +715,7 @@ class ScopedCheck {
   }
 
   bool CheckPossibleHeapValue(ScopedObjectAccess& soa, char fmt, JniValueType arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     switch (fmt) {
       case 'a':  // jarray
         return CheckArray(soa, arg.a);
@@ -785,7 +785,7 @@ class ScopedCheck {
 
   void TracePossibleHeapValue(ScopedObjectAccess& soa, bool entry, char fmt, JniValueType arg,
                               std::string* msg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     switch (fmt) {
       case 'L':  // jobject fall-through.
       case 'a':  // jarray fall-through.
@@ -946,7 +946,7 @@ class ScopedCheck {
    * Since we're dealing with objects, switch to "running" mode.
    */
   bool CheckArray(ScopedObjectAccess& soa, jarray java_array)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     if (UNLIKELY(java_array == nullptr)) {
       AbortF("jarray was NULL");
       return false;
@@ -983,7 +983,7 @@ class ScopedCheck {
   }
 
   ArtField* CheckFieldID(ScopedObjectAccess& soa, jfieldID fid)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     if (fid == nullptr) {
       AbortF("jfieldID was NULL");
       return nullptr;
@@ -999,7 +999,7 @@ class ScopedCheck {
   }
 
   ArtMethod* CheckMethodID(ScopedObjectAccess& soa, jmethodID mid)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     if (mid == nullptr) {
       AbortF("jmethodID was NULL");
       return nullptr;
@@ -1014,7 +1014,7 @@ class ScopedCheck {
     return m;
   }
 
-  bool CheckThread(JNIEnv* env) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool CheckThread(JNIEnv* env) SHARED_REQUIRES(Locks::mutator_lock_) {
     Thread* self = Thread::Current();
     if (self == nullptr) {
       AbortF("a thread (tid %d) is making JNI calls without being attached", GetTid());
@@ -2670,7 +2670,7 @@ class CheckJNI {
 
   static bool CheckCallArgs(ScopedObjectAccess& soa, ScopedCheck& sc, JNIEnv* env, jobject obj,
                             jclass c, jmethodID mid, InvokeType invoke)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     bool checked;
     switch (invoke) {
       case kVirtual: {

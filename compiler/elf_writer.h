@@ -57,7 +57,7 @@ class ElfWriter {
                      const std::vector<const DexFile*>& dex_files,
                      const std::string& android_root,
                      bool is_host)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
+      SHARED_REQUIRES(Locks::mutator_lock_) = 0;
 
   const CompilerDriver* const compiler_driver_;
   File* const elf_file_;

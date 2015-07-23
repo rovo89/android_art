@@ -39,10 +39,10 @@ class Barrier {
   virtual ~Barrier();
 
   // Pass through the barrier, decrement the count but do not block.
-  void Pass(Thread* self);
+  void Pass(Thread* self) REQUIRES(!lock_);
 
   // Wait on the barrier, decrement the count.
-  void Wait(Thread* self);
+  void Wait(Thread* self) REQUIRES(!lock_);
 
   // The following three calls are only safe if we somehow know that no other thread both
   // - has been woken up, and
@@ -51,18 +51,18 @@ class Barrier {
   // to sleep, resulting in a deadlock.
 
   // Increment the count by delta, wait on condition if count is non zero.
-  void Increment(Thread* self, int delta) LOCKS_EXCLUDED(lock_);
+  void Increment(Thread* self, int delta) REQUIRES(!lock_);;
 
   // Increment the count by delta, wait on condition if count is non zero, with a timeout. Returns
   // true if time out occurred.
-  bool Increment(Thread* self, int delta, uint32_t timeout_ms) LOCKS_EXCLUDED(lock_);
+  bool Increment(Thread* self, int delta, uint32_t timeout_ms) REQUIRES(!lock_);
 
   // Set the count to a new value.  This should only be used if there is no possibility that
   // another thread is still in Wait().  See above.
-  void Init(Thread* self, int count);
+  void Init(Thread* self, int count) REQUIRES(!lock_);
 
  private:
-  void SetCountLocked(Thread* self, int count) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  void SetCountLocked(Thread* self, int count) REQUIRES(lock_);
 
   // Counter, when this reaches 0 all people blocked on the barrier are signalled.
   int count_ GUARDED_BY(lock_);

@@ -82,7 +82,7 @@ class ModUnionTable {
   // for said cards. Exclusive lock is required since verify sometimes uses
   // SpaceBitmap::VisitMarkedRange and VisitMarkedRange can't know if the callback will modify the
   // bitmap or not.
-  virtual void Verify() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) = 0;
+  virtual void Verify() REQUIRES(Locks::heap_bitmap_lock_) = 0;
 
   // Returns true if a card is marked inside the mod union table. Used for testing. The address
   // doesn't need to be aligned.
@@ -118,21 +118,21 @@ class ModUnionTableReferenceCache : public ModUnionTable {
 
   // Update table based on cleared cards and mark all references to the other spaces.
   void UpdateAndMarkReferences(MarkObjectVisitor* visitor) OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(Locks::heap_bitmap_lock_);
 
   // Exclusive lock is required since verify uses SpaceBitmap::VisitMarkedRange and
   // VisitMarkedRange can't know if the callback will modify the bitmap or not.
   void Verify() OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(Locks::heap_bitmap_lock_);
 
   // Function that tells whether or not to add a reference to the table.
   virtual bool ShouldAddReference(const mirror::Object* ref) const = 0;
 
   virtual bool ContainsCardFor(uintptr_t addr) OVERRIDE;
 
-  virtual void Dump(std::ostream& os) OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual void Dump(std::ostream& os) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
 
   virtual void SetCards() OVERRIDE;
 
@@ -158,8 +158,8 @@ class ModUnionTableCardCache : public ModUnionTable {
 
   // Mark all references to the alloc space(s).
   virtual void UpdateAndMarkReferences(MarkObjectVisitor* visitor) OVERRIDE
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      REQUIRES(Locks::heap_bitmap_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Nothing to verify.
   virtual void Verify() OVERRIDE {}

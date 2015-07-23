@@ -150,7 +150,7 @@ uint32_t StackVisitor::GetDexPc(bool abort_on_failure) const {
 }
 
 extern "C" mirror::Object* artQuickGetProxyThisObject(ArtMethod** sp)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+    SHARED_REQUIRES(Locks::mutator_lock_);
 
 mirror::Object* StackVisitor::GetThisObject() const {
   DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), sizeof(void*));
@@ -655,7 +655,7 @@ bool StackVisitor::GetNextMethodAndDexPc(ArtMethod** next_method, uint32_t* next
           next_dex_pc_(0) {
     }
 
-    bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    bool VisitFrame() OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
       if (found_frame_) {
         ArtMethod* method = GetMethod();
         if (method != nullptr && !method->IsRuntimeMethod()) {
@@ -688,7 +688,7 @@ void StackVisitor::DescribeStack(Thread* thread) {
     explicit DescribeStackVisitor(Thread* thread_in)
         : StackVisitor(thread_in, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames) {}
 
-    bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    bool VisitFrame() OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
       LOG(INFO) << "Frame Id=" << GetFrameId() << " " << DescribeLocation();
       return true;
     }

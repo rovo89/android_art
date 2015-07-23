@@ -122,12 +122,12 @@ class CommonRuntimeTest : public testing::Test {
   std::string GetTestDexFileName(const char* name);
 
   std::vector<std::unique_ptr<const DexFile>> OpenTestDexFiles(const char* name)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   std::unique_ptr<const DexFile> OpenTestDexFile(const char* name)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
-  jobject LoadDex(const char* dex_name) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  jobject LoadDex(const char* dex_name) SHARED_REQUIRES(Locks::mutator_lock_);
 
   std::string android_data_;
   std::string dalvik_cache_;

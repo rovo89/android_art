@@ -240,7 +240,7 @@ class EndianOutput {
   }
 
   void AddIdList(mirror::ObjectArray<mirror::Object>* values)
-  SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     const int32_t length = values->GetLength();
     for (int32_t i = 0; i < length; ++i) {
       AddObjectId(values->GetWithoutChecks(i));
@@ -429,8 +429,7 @@ class Hprof : public SingleRootVisitor {
   }
 
   void Dump()
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
-      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_, Locks::alloc_tracker_lock_) {
+    REQUIRES(Locks::mutator_lock_, !Locks::heap_bitmap_lock_, !Locks::alloc_tracker_lock_) {
     {
       MutexLock mu(Thread::Current(), *Locks::alloc_tracker_lock_);
       if (Runtime::Current()->GetHeap()->IsAllocTrackingEnabled()) {
@@ -471,26 +470,26 @@ class Hprof : public SingleRootVisitor {
 
  private:
   static void VisitObjectCallback(mirror::Object* obj, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(obj != nullptr);
     DCHECK(arg != nullptr);
     reinterpret_cast<Hprof*>(arg)->DumpHeapObject(obj);
   }
 
   void DumpHeapObject(mirror::Object* obj)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   void DumpHeapClass(mirror::Class* klass)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   void DumpHeapArray(mirror::Array* obj, mirror::Class* klass)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   void DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   void ProcessHeap(bool header_first)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      REQUIRES(Locks::mutator_lock_) {
     // Reset current heap and object count.
     current_heap_ = HPROF_HEAP_DEFAULT;
     objects_in_segment_ = 0;
@@ -504,7 +503,7 @@ class Hprof : public SingleRootVisitor {
     }
   }
 
-  void ProcessBody() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void ProcessBody() REQUIRES(Locks::mutator_lock_) {
     Runtime* const runtime = Runtime::Current();
     // Walk the roots and the heap.
     output_->StartNewRecord(HPROF_TAG_HEAP_DUMP_SEGMENT, kHprofTime);
@@ -517,7 +516,7 @@ class Hprof : public SingleRootVisitor {
     output_->EndRecord();
   }
 
-  void ProcessHeader(bool string_first) EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void ProcessHeader(bool string_first) REQUIRES(Locks::mutator_lock_) {
     // Write the header.
     WriteFixedHeader();
     // Write the string and class tables, and any stack traces, to the header.
@@ -536,7 +535,7 @@ class Hprof : public SingleRootVisitor {
     output_->EndRecord();
   }
 
-  void WriteClassTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void WriteClassTable() SHARED_REQUIRES(Locks::mutator_lock_) {
     for (const auto& p : classes_) {
       mirror::Class* c = p.first;
       HprofClassSerialNumber sn = p.second;
@@ -585,11 +584,11 @@ class Hprof : public SingleRootVisitor {
   }
 
   void VisitRoot(mirror::Object* obj, const RootInfo& root_info)
-      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
   void MarkRootObject(const mirror::Object* obj, jobject jni_obj, HprofHeapTag heap_tag,
                       uint32_t thread_serial);
 
-  HprofClassObjectId LookupClassId(mirror::Class* c) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  HprofClassObjectId LookupClassId(mirror::Class* c) SHARED_REQUIRES(Locks::mutator_lock_) {
     if (c != nullptr) {
       auto it = classes_.find(c);
       if (it == classes_.end()) {
@@ -604,7 +603,7 @@ class Hprof : public SingleRootVisitor {
   }
 
   HprofStackTraceSerialNumber LookupStackTraceSerialNumber(const mirror::Object* obj)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     auto r = allocation_records_.find(obj);
     if (r == allocation_records_.end()) {
       return kHprofNullStackTrace;
@@ -616,7 +615,7 @@ class Hprof : public SingleRootVisitor {
     }
   }
 
-  HprofStringId LookupStringId(mirror::String* string) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  HprofStringId LookupStringId(mirror::String* string) SHARED_REQUIRES(Locks::mutator_lock_) {
     return LookupStringId(string->ToModifiedUtf8());
   }
 
@@ -634,7 +633,7 @@ class Hprof : public SingleRootVisitor {
     return id;
   }
 
-  HprofStringId LookupClassNameId(mirror::Class* c) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  HprofStringId LookupClassNameId(mirror::Class* c) SHARED_REQUIRES(Locks::mutator_lock_) {
     return LookupStringId(PrettyDescriptor(c));
   }
 
@@ -662,7 +661,7 @@ class Hprof : public SingleRootVisitor {
     __ AddU4(static_cast<uint32_t>(nowMs & 0xFFFFFFFF));
   }
 
-  void WriteStackTraces() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void WriteStackTraces() SHARED_REQUIRES(Locks::mutator_lock_) {
     // Write a dummy stack trace record so the analysis tools don't freak out.
     output_->StartNewRecord(HPROF_TAG_STACK_TRACE, kHprofTime);
     __ AddStackTraceSerialNumber(kHprofNullStackTrace);
@@ -725,7 +724,7 @@ class Hprof : public SingleRootVisitor {
   }
 
   bool DumpToDdmsBuffered(size_t overall_size ATTRIBUTE_UNUSED, size_t max_length ATTRIBUTE_UNUSED)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      REQUIRES(Locks::mutator_lock_) {
     LOG(FATAL) << "Unimplemented";
     UNREACHABLE();
     //        // Send the data off to DDMS.
@@ -738,7 +737,7 @@ class Hprof : public SingleRootVisitor {
   }
 
   bool DumpToFile(size_t overall_size, size_t max_length)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      REQUIRES(Locks::mutator_lock_) {
     // Where exactly are we writing to?
     int out_fd;
     if (fd_ >= 0) {
@@ -787,7 +786,7 @@ class Hprof : public SingleRootVisitor {
   }
 
   bool DumpToDdmsDirect(size_t overall_size, size_t max_length, uint32_t chunk_type)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      REQUIRES(Locks::mutator_lock_) {
     CHECK(direct_to_ddms_);
     JDWP::JdwpState* state = Dbg::GetJdwpState();
     CHECK(state != nullptr);
@@ -818,7 +817,7 @@ class Hprof : public SingleRootVisitor {
   }
 
   void PopulateAllocationTrackingTraces()
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::alloc_tracker_lock_) {
+      REQUIRES(Locks::mutator_lock_, Locks::alloc_tracker_lock_) {
     gc::AllocRecordObjectMap* records = Runtime::Current()->GetHeap()->GetAllocationRecords();
     CHECK(records != nullptr);
     HprofStackTraceSerialNumber next_trace_sn = kHprofNullStackTrace + 1;

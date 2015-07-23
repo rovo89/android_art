@@ -62,49 +62,49 @@ class MANAGED Reference : public Object {
     return OFFSET_OF_OBJECT_MEMBER(Reference, referent_);
   }
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  Object* GetReferent() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  Object* GetReferent() SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldObjectVolatile<Object, kDefaultVerifyFlags, kReadBarrierOption>(
         ReferentOffset());
   }
   template<bool kTransactionActive>
-  void SetReferent(Object* referent) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void SetReferent(Object* referent) SHARED_REQUIRES(Locks::mutator_lock_) {
     SetFieldObjectVolatile<kTransactionActive>(ReferentOffset(), referent);
   }
   template<bool kTransactionActive>
-  void ClearReferent() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void ClearReferent() SHARED_REQUIRES(Locks::mutator_lock_) {
     SetFieldObjectVolatile<kTransactionActive>(ReferentOffset(), nullptr);
   }
   // Volatile read/write is not necessary since the java pending next is only accessed from
   // the java threads for cleared references. Once these cleared references have a null referent,
   // we never end up reading their pending next from the GC again.
-  Reference* GetPendingNext() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  Reference* GetPendingNext() SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldObject<Reference>(PendingNextOffset());
   }
   template<bool kTransactionActive>
-  void SetPendingNext(Reference* pending_next) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void SetPendingNext(Reference* pending_next) SHARED_REQUIRES(Locks::mutator_lock_) {
     SetFieldObject<kTransactionActive>(PendingNextOffset(), pending_next);
   }
 
-  bool IsEnqueued() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool IsEnqueued() SHARED_REQUIRES(Locks::mutator_lock_) {
     // Since the references are stored as cyclic lists it means that once enqueued, the pending
     // next is always non-null.
     return GetPendingNext() != nullptr;
   }
 
-  bool IsEnqueuable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool IsEnqueuable() SHARED_REQUIRES(Locks::mutator_lock_);
 
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  static Class* GetJavaLangRefReference() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  static Class* GetJavaLangRefReference() SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(!java_lang_ref_Reference_.IsNull());
     return java_lang_ref_Reference_.Read<kReadBarrierOption>();
   }
   static void SetClass(Class* klass);
   static void ResetClass();
-  static void VisitRoots(RootVisitor* visitor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static void VisitRoots(RootVisitor* visitor) SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
   // Note: This avoids a read barrier, it should only be used by the GC.
-  HeapReference<Object>* GetReferentReferenceAddr() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  HeapReference<Object>* GetReferentReferenceAddr() SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldObjectReferenceAddr<kDefaultVerifyFlags>(ReferentOffset());
   }
 
@@ -130,10 +130,10 @@ class MANAGED FinalizerReference : public Reference {
   }
 
   template<bool kTransactionActive>
-  void SetZombie(Object* zombie) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void SetZombie(Object* zombie) SHARED_REQUIRES(Locks::mutator_lock_) {
     return SetFieldObjectVolatile<kTransactionActive>(ZombieOffset(), zombie);
   }
-  Object* GetZombie() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  Object* GetZombie() SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldObjectVolatile<Object>(ZombieOffset());
   }
 

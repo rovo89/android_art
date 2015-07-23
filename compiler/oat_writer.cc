@@ -365,7 +365,7 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
   bool VisitMethod(size_t class_def_method_index, const ClassDataItemIterator& it)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     OatClass* oat_class = writer_->oat_classes_[oat_class_index_];
     CompiledMethod* compiled_method = oat_class->GetCompiledMethod(class_def_method_index);
 
@@ -560,7 +560,7 @@ class OatWriter::InitMapMethodVisitor : public OatDexMethodVisitor {
   }
 
   bool VisitMethod(size_t class_def_method_index, const ClassDataItemIterator& it ATTRIBUTE_UNUSED)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     OatClass* oat_class = writer_->oat_classes_[oat_class_index_];
     CompiledMethod* compiled_method = oat_class->GetCompiledMethod(class_def_method_index);
 
@@ -601,7 +601,7 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
   }
 
   bool VisitMethod(size_t class_def_method_index, const ClassDataItemIterator& it)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     OatClass* oat_class = writer_->oat_classes_[oat_class_index_];
     CompiledMethod* compiled_method = oat_class->GetCompiledMethod(class_def_method_index);
 
@@ -665,7 +665,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
   bool StartClass(const DexFile* dex_file, size_t class_def_index)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     OatDexMethodVisitor::StartClass(dex_file, class_def_index);
     if (dex_cache_ == nullptr || dex_cache_->GetDexFile() != dex_file) {
       dex_cache_ = class_linker_->FindDexCache(*dex_file);
@@ -673,7 +673,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
     return true;
   }
 
-  bool EndClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool EndClass() SHARED_REQUIRES(Locks::mutator_lock_) {
     bool result = OatDexMethodVisitor::EndClass();
     if (oat_class_index_ == writer_->oat_classes_.size()) {
       DCHECK(result);  // OatDexMethodVisitor::EndClass() never fails.
@@ -687,7 +687,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
   bool VisitMethod(size_t class_def_method_index, const ClassDataItemIterator& it)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     OatClass* oat_class = writer_->oat_classes_[oat_class_index_];
     const CompiledMethod* compiled_method = oat_class->GetCompiledMethod(class_def_method_index);
 
@@ -793,7 +793,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
   ArtMethod* GetTargetMethod(const LinkerPatch& patch)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     MethodReference ref = patch.TargetMethod();
     mirror::DexCache* dex_cache =
         (dex_file_ == ref.dex_file) ? dex_cache_ : class_linker_->FindDexCache(*ref.dex_file);
@@ -803,7 +803,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
     return method;
   }
 
-  uint32_t GetTargetOffset(const LinkerPatch& patch) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  uint32_t GetTargetOffset(const LinkerPatch& patch) SHARED_REQUIRES(Locks::mutator_lock_) {
     auto target_it = writer_->method_offset_map_.map.find(patch.TargetMethod());
     uint32_t target_offset =
         (target_it != writer_->method_offset_map_.map.end()) ? target_it->second : 0u;
@@ -828,7 +828,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
   mirror::Class* GetTargetType(const LinkerPatch& patch)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     mirror::DexCache* dex_cache = (dex_file_ == patch.TargetTypeDexFile())
         ? dex_cache_ : class_linker_->FindDexCache(*patch.TargetTypeDexFile());
     mirror::Class* type = dex_cache->GetResolvedType(patch.TargetTypeIndex());
@@ -836,7 +836,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
     return type;
   }
 
-  uint32_t GetDexCacheOffset(const LinkerPatch& patch) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  uint32_t GetDexCacheOffset(const LinkerPatch& patch) SHARED_REQUIRES(Locks::mutator_lock_) {
     if (writer_->image_writer_ != nullptr) {
       auto* element = writer_->image_writer_->GetDexCacheArrayElementImageAddress(
               patch.TargetDexCacheDexFile(), patch.TargetDexCacheElementOffset());
@@ -849,7 +849,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
   void PatchObjectAddress(std::vector<uint8_t>* code, uint32_t offset, mirror::Object* object)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     // NOTE: Direct method pointers across oat files don't use linker patches. However, direct
     // type pointers across oat files do. (TODO: Investigate why.)
     if (writer_->image_writer_ != nullptr) {
@@ -865,7 +865,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
   void PatchMethodAddress(std::vector<uint8_t>* code, uint32_t offset, ArtMethod* method)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     // NOTE: Direct method pointers across oat files don't use linker patches. However, direct
     // type pointers across oat files do. (TODO: Investigate why.)
     if (writer_->image_writer_ != nullptr) {
@@ -882,7 +882,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
   void PatchCodeAddress(std::vector<uint8_t>* code, uint32_t offset, uint32_t target_offset)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     uint32_t address = writer_->image_writer_ == nullptr ? target_offset :
         PointerToLowMemUInt32(writer_->image_writer_->GetOatFileBegin() +
                               writer_->oat_data_offset_ + target_offset);

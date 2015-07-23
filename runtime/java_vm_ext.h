@@ -77,7 +77,7 @@ class JavaVMExt : public JavaVM {
   // such as NewByteArray.
   // If -verbose:third-party-jni is on, we want to log any JNI function calls
   // made by a third-party native method.
-  bool ShouldTrace(ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool ShouldTrace(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_);
 
   /**
    * Loads the given shared library. 'path' is an absolute pathname.
@@ -93,56 +93,57 @@ class JavaVMExt : public JavaVM {
    * using dlsym(3) on every native library that's been loaded so far.
    */
   void* FindCodeForNativeMethod(ArtMethod* m)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   void DumpForSigQuit(std::ostream& os)
-      LOCKS_EXCLUDED(Locks::jni_libraries_lock_, globals_lock_, weak_globals_lock_);
+      REQUIRES(!Locks::jni_libraries_lock_, !globals_lock_, !weak_globals_lock_);
 
   void DumpReferenceTables(std::ostream& os)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!globals_lock_, !weak_globals_lock_);
 
   bool SetCheckJniEnabled(bool enabled);
 
-  void VisitRoots(RootVisitor* visitor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void VisitRoots(RootVisitor* visitor) SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!globals_lock_);
 
-  void DisallowNewWeakGlobals() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void AllowNewWeakGlobals() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void EnsureNewWeakGlobalsDisallowed() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void BroadcastForNewWeakGlobals() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void DisallowNewWeakGlobals() SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!weak_globals_lock_);
+  void AllowNewWeakGlobals() SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!weak_globals_lock_);
+  void EnsureNewWeakGlobalsDisallowed() SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!weak_globals_lock_);
+  void BroadcastForNewWeakGlobals() SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!weak_globals_lock_);
 
   jobject AddGlobalRef(Thread* self, mirror::Object* obj)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!globals_lock_);
 
   jweak AddWeakGlobalRef(Thread* self, mirror::Object* obj)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+    SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!weak_globals_lock_);
 
-  void DeleteGlobalRef(Thread* self, jobject obj);
+  void DeleteGlobalRef(Thread* self, jobject obj) REQUIRES(!globals_lock_);
 
-  void DeleteWeakGlobalRef(Thread* self, jweak obj);
+  void DeleteWeakGlobalRef(Thread* self, jweak obj) REQUIRES(!weak_globals_lock_);
 
   void SweepJniWeakGlobals(IsMarkedVisitor* visitor)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!weak_globals_lock_);
 
   mirror::Object* DecodeGlobal(Thread* self, IndirectRef ref)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   void UpdateGlobal(Thread* self, IndirectRef ref, mirror::Object* result)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      LOCKS_EXCLUDED(globals_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!globals_lock_);
 
   mirror::Object* DecodeWeakGlobal(Thread* self, IndirectRef ref)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!weak_globals_lock_);
 
   void UpdateWeakGlobal(Thread* self, IndirectRef ref, mirror::Object* result)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      LOCKS_EXCLUDED(weak_globals_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!weak_globals_lock_);
 
   const JNIInvokeInterface* GetUncheckedFunctions() const {
     return unchecked_functions_;
   }
 
-  void TrimGlobals() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      LOCKS_EXCLUDED(globals_lock_);
+  void TrimGlobals() SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!globals_lock_);
 
  private:
   Runtime* const runtime_;

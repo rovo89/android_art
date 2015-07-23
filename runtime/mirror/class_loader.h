@@ -32,7 +32,7 @@ class MANAGED ClassLoader : public Object {
   static constexpr uint32_t InstanceSize() {
     return sizeof(ClassLoader);
   }
-  ClassLoader* GetParent() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ClassLoader* GetParent() SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldObject<ClassLoader>(OFFSET_OF_OBJECT_MEMBER(ClassLoader, parent_));
   }
 

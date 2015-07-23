@@ -1695,11 +1695,11 @@ uint64_t Heap::GetBytesAllocatedEver() const {
 class InstanceCounter {
  public:
   InstanceCounter(const std::vector<mirror::Class*>& classes, bool use_is_assignable_from, uint64_t* counts)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_)
       : classes_(classes), use_is_assignable_from_(use_is_assignable_from), counts_(counts) {
   }
   static void Callback(mirror::Object* obj, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     InstanceCounter* instance_counter = reinterpret_cast<InstanceCounter*>(arg);
     mirror::Class* instance_class = obj->GetClass();
     CHECK(instance_class != nullptr);
@@ -1731,11 +1731,11 @@ void Heap::CountInstances(const std::vector<mirror::Class*>& classes, bool use_i
 class InstanceCollector {
  public:
   InstanceCollector(mirror::Class* c, int32_t max_count, std::vector<mirror::Object*>& instances)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_)
       : class_(c), max_count_(max_count), instances_(instances) {
   }
   static void Callback(mirror::Object* obj, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     DCHECK(arg != nullptr);
     InstanceCollector* instance_collector = reinterpret_cast<InstanceCollector*>(arg);
     if (obj->GetClass() == instance_collector->class_) {
@@ -1763,12 +1763,12 @@ class ReferringObjectsFinder {
  public:
   ReferringObjectsFinder(mirror::Object* object, int32_t max_count,
                          std::vector<mirror::Object*>& referring_objects)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_)
       : object_(object), max_count_(max_count), referring_objects_(referring_objects) {
   }
 
   static void Callback(mirror::Object* obj, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     reinterpret_cast<ReferringObjectsFinder*>(arg)->operator()(obj);
   }
 
@@ -1781,7 +1781,7 @@ class ReferringObjectsFinder {
 
   // For Object::VisitReferences.
   void operator()(mirror::Object* obj, MemberOffset offset, bool /* is_static */) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset);
     if (ref == object_ && (max_count_ == 0 || referring_objects_.size() < max_count_)) {
       referring_objects_.push_back(obj);
@@ -2111,7 +2111,7 @@ class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
   const bool is_running_on_memory_tool_;
 
   static void Callback(mirror::Object* obj, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(arg != nullptr);
     BinContext* context = reinterpret_cast<BinContext*>(arg);
     ZygoteCompactingCollector* collector = context->collector_;
@@ -2139,7 +2139,7 @@ class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
   }
 
   virtual mirror::Object* MarkNonForwardedObject(mirror::Object* obj)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
+      REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
     size_t obj_size = obj->SizeOf();
     size_t alloc_size = RoundUp(obj_size, kObjectAlignment);
     mirror::Object* forward_address;
@@ -2583,7 +2583,7 @@ class RootMatchesObjectVisitor : public SingleRootVisitor {
   explicit RootMatchesObjectVisitor(const mirror::Object* obj) : obj_(obj) { }
 
   void VisitRoot(mirror::Object* root, const RootInfo& info)
-      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     if (root == obj_) {
       LOG(INFO) << "Object " << obj_ << " is a root " << info.ToString();
     }
@@ -2605,7 +2605,7 @@ class ScanVisitor {
 class VerifyReferenceVisitor : public SingleRootVisitor {
  public:
   explicit VerifyReferenceVisitor(Heap* heap, Atomic<size_t>* fail_count, bool verify_referent)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_)
       : heap_(heap), fail_count_(fail_count), verify_referent_(verify_referent) {}
 
   size_t GetFailureCount() const {
@@ -2613,7 +2613,7 @@ class VerifyReferenceVisitor : public SingleRootVisitor {
   }
 
   void operator()(mirror::Class* klass, mirror::Reference* ref) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     UNUSED(klass);
     if (verify_referent_) {
       VerifyReference(ref, ref->GetReferent(), mirror::Reference::ReferentOffset());
@@ -2621,7 +2621,7 @@ class VerifyReferenceVisitor : public SingleRootVisitor {
   }
 
   void operator()(mirror::Object* obj, MemberOffset offset, bool /*is_static*/) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     VerifyReference(obj, obj->GetFieldObject<mirror::Object>(offset), offset);
   }
 
@@ -2630,7 +2630,7 @@ class VerifyReferenceVisitor : public SingleRootVisitor {
   }
 
   void VisitRoot(mirror::Object* root, const RootInfo& root_info) OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     if (root == nullptr) {
       LOG(ERROR) << "Root is null with info " << root_info.GetType();
     } else if (!VerifyReference(nullptr, root, MemberOffset(0))) {
@@ -2748,7 +2748,7 @@ class VerifyObjectVisitor {
   }
 
   void operator()(mirror::Object* obj) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     // Note: we are verifying the references in obj but not obj itself, this is because obj must
     // be live or else how did we find it in the live bitmap?
     VerifyReferenceVisitor visitor(heap_, fail_count_, verify_referent_);
@@ -2757,13 +2757,13 @@ class VerifyObjectVisitor {
   }
 
   static void VisitCallback(mirror::Object* obj, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     VerifyObjectVisitor* visitor = reinterpret_cast<VerifyObjectVisitor*>(arg);
     visitor->operator()(obj);
   }
 
-  void VerifyRoots() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_) {
+  void VerifyRoots() SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!Locks::heap_bitmap_lock_) {
     ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
     VerifyReferenceVisitor visitor(heap_, fail_count_, verify_referent_);
     Runtime::Current()->VisitRoots(&visitor);
@@ -2855,7 +2855,7 @@ size_t Heap::VerifyHeapReferences(bool verify_referents) {
 class VerifyReferenceCardVisitor {
  public:
   VerifyReferenceCardVisitor(Heap* heap, bool* failed)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_,
+      SHARED_REQUIRES(Locks::mutator_lock_,
                             Locks::heap_bitmap_lock_)
       : heap_(heap), failed_(failed) {
   }
@@ -2932,7 +2932,7 @@ class VerifyLiveStackReferences {
         failed_(false) {}
 
   void operator()(mirror::Object* obj) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     VerifyReferenceCardVisitor visitor(heap_, const_cast<bool*>(&failed_));
     obj->VisitReferences<true>(visitor, VoidFunctor());
   }
@@ -3425,7 +3425,7 @@ class Heap::ConcurrentGCTask : public HeapTask {
   const bool force_full_;  // If true, force full (or partial) collection.
 };
 
-static bool CanAddHeapTask(Thread* self) LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_) {
+static bool CanAddHeapTask(Thread* self) REQUIRES(!Locks::runtime_shutdown_lock_) {
   Runtime* runtime = Runtime::Current();
   return runtime != nullptr && runtime->IsFinishedStarting() && !runtime->IsShuttingDown(self) &&
       !self->IsHandlingStackOverflow();
