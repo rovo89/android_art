@@ -44,7 +44,7 @@ class ImageSpace : public MemMapSpace {
   // used to transfer ownership of the OatFile to the ClassLinker when
   // it is initialized.
   static ImageSpace* Create(const char* image, InstructionSet image_isa, std::string* error_msg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Reads the image header from the specified image location for the
   // instruction set image_isa or dies trying.
@@ -64,10 +64,10 @@ class ImageSpace : public MemMapSpace {
   // Releases the OatFile from the ImageSpace so it can be transfer to
   // the caller, presumably the ClassLinker.
   OatFile* ReleaseOatFile()
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   void VerifyImageAllocations()
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   const ImageHeader& GetImageHeader() const {
     return *reinterpret_cast<ImageHeader*>(Begin());
@@ -130,13 +130,13 @@ class ImageSpace : public MemMapSpace {
   // the OatFile in /data/dalvik-cache if necessary.
   static ImageSpace* Init(const char* image_filename, const char* image_location,
                           bool validate_oat_file, std::string* error_msg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   OatFile* OpenOatFile(const char* image, std::string* error_msg) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   bool ValidateOatFile(std::string* error_msg) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   friend class Space;
 

@@ -48,7 +48,7 @@ class Jit {
   virtual ~Jit();
   static Jit* Create(JitOptions* options, std::string* error_msg);
   bool CompileMethod(ArtMethod* method, Thread* self)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   void CreateInstrumentationCache(size_t compile_threshold);
   void CreateThreadPool();
   CompilerCallbacks* GetCompilerCallbacks() {

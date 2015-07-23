@@ -36,12 +36,12 @@ class MANAGED AccessibleObject : public Object {
   }
 
   template<bool kTransactionActive>
-  void SetAccessible(bool value) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void SetAccessible(bool value) SHARED_REQUIRES(Locks::mutator_lock_) {
     UNUSED(padding_);
     return SetFieldBoolean<kTransactionActive>(FlagOffset(), value ? 1u : 0u);
   }
 
-  bool IsAccessible() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool IsAccessible() SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldBoolean(FlagOffset());
   }
 

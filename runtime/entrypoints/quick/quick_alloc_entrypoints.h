@@ -31,10 +31,10 @@ void ResetQuickAllocEntryPoints(QuickEntryPoints* qpoints);
 // holding the runtime shutdown lock and the mutator lock when we update the entrypoints.
 
 void SetQuickAllocEntryPointsAllocator(gc::AllocatorType allocator)
-    EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::runtime_shutdown_lock_);
+    REQUIRES(Locks::mutator_lock_, Locks::runtime_shutdown_lock_);
 
 void SetQuickAllocEntryPointsInstrumented(bool instrumented)
-    EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::runtime_shutdown_lock_);
+    REQUIRES(Locks::mutator_lock_, Locks::runtime_shutdown_lock_);
 
 }  // namespace art
 

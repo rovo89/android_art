@@ -39,7 +39,7 @@ struct JNIEnvExt : public JNIEnv {
   ~JNIEnvExt();
 
   void DumpReferenceTables(std::ostream& os)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   void SetCheckJniEnabled(bool enabled);
 
@@ -48,7 +48,7 @@ struct JNIEnvExt : public JNIEnv {
 
   template<typename T>
   T AddLocalReference(mirror::Object* obj)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   static Offset SegmentStateOffset();
 
@@ -60,8 +60,8 @@ struct JNIEnvExt : public JNIEnv {
     return Offset(OFFSETOF_MEMBER(JNIEnvExt, self));
   }
 
-  jobject NewLocalRef(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void DeleteLocalRef(jobject obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  jobject NewLocalRef(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_);
+  void DeleteLocalRef(jobject obj) SHARED_REQUIRES(Locks::mutator_lock_);
 
   Thread* const self;
   JavaVMExt* const vm;

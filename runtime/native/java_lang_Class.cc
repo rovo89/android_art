@@ -41,7 +41,7 @@ namespace art {
 
 ALWAYS_INLINE static inline mirror::Class* DecodeClass(
     const ScopedFastNativeObjectAccess& soa, jobject java_class)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   mirror::Class* c = soa.Decode<mirror::Class*>(java_class);
   DCHECK(c != nullptr);
   DCHECK(c->IsClass());
@@ -108,7 +108,7 @@ static jobjectArray Class_getProxyInterfaces(JNIEnv* env, jobject javaThis) {
 
 static mirror::ObjectArray<mirror::Field>* GetDeclaredFields(
     Thread* self, mirror::Class* klass, bool public_only, bool force_resolve)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
   StackHandleScope<1> hs(self);
   auto* ifields = klass->GetIFields();
   auto* sfields = klass->GetSFields();
@@ -189,7 +189,7 @@ static jobjectArray Class_getPublicDeclaredFields(JNIEnv* env, jobject javaThis)
 // fast.
 ALWAYS_INLINE static inline ArtField* FindFieldByName(
     Thread* self ATTRIBUTE_UNUSED, mirror::String* name, ArtField* fields, size_t num_fields)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   size_t low = 0;
   size_t high = num_fields;
   const uint16_t* const data = name->GetValue();
@@ -218,7 +218,7 @@ ALWAYS_INLINE static inline ArtField* FindFieldByName(
 
 ALWAYS_INLINE static inline mirror::Field* GetDeclaredField(
     Thread* self, mirror::Class* c, mirror::String* name)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   auto* instance_fields = c->GetIFields();
   auto* art_field = FindFieldByName(self, name, instance_fields, c->NumInstanceFields());
   if (art_field != nullptr) {
@@ -274,7 +274,7 @@ static jobject Class_getDeclaredConstructorInternal(
 }
 
 static ALWAYS_INLINE inline bool MethodMatchesConstructor(ArtMethod* m, bool public_only)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   DCHECK(m != nullptr);
   return (!public_only || m->IsPublic()) && !m->IsStatic() && m->IsConstructor();
 }

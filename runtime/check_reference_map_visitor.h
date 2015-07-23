@@ -28,10 +28,10 @@ namespace art {
 // holding references.
 class CheckReferenceMapVisitor : public StackVisitor {
  public:
-  explicit CheckReferenceMapVisitor(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+  explicit CheckReferenceMapVisitor(Thread* thread) SHARED_REQUIRES(Locks::mutator_lock_)
       : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames) {}
 
-  bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool VisitFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
     ArtMethod* m = GetMethod();
     if (m->IsCalleeSaveMethod() || m->IsNative()) {
       CHECK_EQ(GetDexPc(), DexFile::kDexNoIndex);
@@ -52,7 +52,7 @@ class CheckReferenceMapVisitor : public StackVisitor {
   }
 
   void CheckReferences(int* registers, int number_of_references, uint32_t native_pc_offset)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     if (GetMethod()->IsOptimized(sizeof(void*))) {
       CheckOptimizedMethod(registers, number_of_references, native_pc_offset);
     } else {
@@ -62,7 +62,7 @@ class CheckReferenceMapVisitor : public StackVisitor {
 
  private:
   void CheckOptimizedMethod(int* registers, int number_of_references, uint32_t native_pc_offset)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     ArtMethod* m = GetMethod();
     CodeInfo code_info = m->GetOptimizedCodeInfo();
     StackMapEncoding encoding = code_info.ExtractEncoding();
@@ -104,7 +104,7 @@ class CheckReferenceMapVisitor : public StackVisitor {
   }
 
   void CheckQuickMethod(int* registers, int number_of_references, uint32_t native_pc_offset)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     ArtMethod* m = GetMethod();
     NativePcOffsetToReferenceMap map(m->GetNativeGcMap(sizeof(void*)));
     const uint8_t* ref_bitmap = map.FindBitMap(native_pc_offset);

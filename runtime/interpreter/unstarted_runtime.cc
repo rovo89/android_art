@@ -46,7 +46,7 @@ namespace interpreter {
 
 static void AbortTransactionOrFail(Thread* self, const char* fmt, ...)
     __attribute__((__format__(__printf__, 2, 3)))
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+    SHARED_REQUIRES(Locks::mutator_lock_);
 
 static void AbortTransactionOrFail(Thread* self, const char* fmt, ...) {
   va_list args;
@@ -69,7 +69,7 @@ static void UnstartedRuntimeFindClass(Thread* self, Handle<mirror::String> class
                                       Handle<mirror::ClassLoader> class_loader, JValue* result,
                                       const std::string& method_name, bool initialize_class,
                                       bool abort_if_not_found)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   CHECK(className.Get() != nullptr);
   std::string descriptor(DotToDescriptor(className->ToModifiedUtf8().c_str()));
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -99,7 +99,7 @@ static void UnstartedRuntimeFindClass(Thread* self, Handle<mirror::String> class
 // actually the transaction abort exception. This must not be wrapped, as it signals an
 // initialization abort.
 static void CheckExceptionGenerateClassNotFound(Thread* self)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   if (self->IsExceptionPending()) {
     // If it is not the transaction abort exception, wrap it.
     std::string type(PrettyTypeOf(self->GetException()));
@@ -111,7 +111,7 @@ static void CheckExceptionGenerateClassNotFound(Thread* self)
 }
 
 static mirror::String* GetClassName(Thread* self, ShadowFrame* shadow_frame, size_t arg_offset)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   mirror::Object* param = shadow_frame->GetVRegReference(arg_offset);
   if (param == nullptr) {
     AbortTransactionOrFail(self, "Null-pointer in Class.forName.");
@@ -294,7 +294,7 @@ static void PrimitiveArrayCopy(Thread* self,
                                mirror::Array* src_array, int32_t src_pos,
                                mirror::Array* dst_array, int32_t dst_pos,
                                int32_t length)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   if (src_array->GetClass()->GetComponentType() != dst_array->GetClass()->GetComponentType()) {
     AbortTransactionOrFail(self, "Types mismatched in arraycopy: %s vs %s.",
                            PrettyDescriptor(src_array->GetClass()->GetComponentType()).c_str(),
@@ -490,7 +490,7 @@ void UnstartedRuntime::UnstartedDoubleDoubleToRawLongBits(
 }
 
 static mirror::Object* GetDexFromDexCache(Thread* self, mirror::DexCache* dex_cache)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   const DexFile* dex_file = dex_cache->GetDexFile();
   if (dex_file == nullptr) {
     return nullptr;
@@ -601,7 +601,7 @@ void UnstartedRuntime::UnstartedMemoryPeekLong(
 
 static void UnstartedMemoryPeekArray(
     Primitive::Type type, Thread* self, ShadowFrame* shadow_frame, size_t arg_offset)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   int64_t address_long = shadow_frame->GetVRegLong(arg_offset);
   mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset + 2);
   if (obj == nullptr) {
@@ -840,7 +840,7 @@ void UnstartedRuntime::UnstartedStringFastSubstring(
 // This allows getting the char array for new style of String objects during compilation.
 void UnstartedRuntime::UnstartedStringToCharArray(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   mirror::String* string = shadow_frame->GetVRegReference(arg_offset)->AsString();
   if (string == nullptr) {
     AbortTransactionOrFail(self, "String.charAt with null object");

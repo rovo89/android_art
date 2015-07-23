@@ -157,7 +157,7 @@ class InlineMethodAnalyser {
    * @return true if the method is a candidate for inlining, false otherwise.
    */
   static bool AnalyseMethodCode(verifier::MethodVerifier* verifier, InlineMethod* method)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   static constexpr bool IsInstructionIGet(Instruction::Code opcode) {
     return Instruction::IGET <= opcode && opcode <= Instruction::IGET_SHORT;
@@ -182,16 +182,16 @@ class InlineMethodAnalyser {
   static bool AnalyseReturnMethod(const DexFile::CodeItem* code_item, InlineMethod* result);
   static bool AnalyseConstMethod(const DexFile::CodeItem* code_item, InlineMethod* result);
   static bool AnalyseIGetMethod(verifier::MethodVerifier* verifier, InlineMethod* result)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   static bool AnalyseIPutMethod(verifier::MethodVerifier* verifier, InlineMethod* result)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Can we fast path instance field access in a verified accessor?
   // If yes, computes field's offset and volatility and whether the method is static or not.
   static bool ComputeSpecialAccessorInfo(uint32_t field_idx, bool is_put,
                                          verifier::MethodVerifier* verifier,
                                          InlineIGetIPutData* result)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 };
 
 }  // namespace art

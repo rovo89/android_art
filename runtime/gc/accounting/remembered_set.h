@@ -56,8 +56,8 @@ class RememberedSet {
   // Mark through all references to the target space.
   void UpdateAndMarkReferences(space::ContinuousSpace* target_space,
                                collector::GarbageCollector* collector)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      REQUIRES(Locks::heap_bitmap_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   void Dump(std::ostream& os);
 

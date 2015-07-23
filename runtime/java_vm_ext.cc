@@ -87,7 +87,7 @@ class SharedLibrary {
    * If the call has not yet finished in another thread, wait for it.
    */
   bool CheckOnLoadResult()
-      LOCKS_EXCLUDED(jni_on_load_lock_) {
+      REQUIRES(!jni_on_load_lock_) {
     Thread* self = Thread::Current();
     bool okay;
     {
@@ -112,7 +112,7 @@ class SharedLibrary {
     return okay;
   }
 
-  void SetResult(bool result) LOCKS_EXCLUDED(jni_on_load_lock_) {
+  void SetResult(bool result) REQUIRES(!jni_on_load_lock_) {
     Thread* self = Thread::Current();
     MutexLock mu(self, jni_on_load_lock_);
 
@@ -210,8 +210,8 @@ class Libraries {
 
   // See section 11.3 "Linking Native Methods" of the JNI spec.
   void* FindNativeMethod(ArtMethod* m, std::string& detail)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::jni_libraries_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      REQUIRES(Locks::jni_libraries_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     std::string jni_short_name(JniShortName(m));
     std::string jni_long_name(JniLongName(m));
     const mirror::ClassLoader* declaring_class_loader = m->GetDeclaringClass()->GetClassLoader();

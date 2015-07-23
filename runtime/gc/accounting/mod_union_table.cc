@@ -100,7 +100,7 @@ class ModUnionUpdateObjectReferencesVisitor {
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
   void operator()(Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     // Only add the reference if it is non null and fits our criteria.
     mirror::HeapReference<Object>* const obj_ptr = obj->GetFieldObjectReferenceAddr(offset);
     mirror::Object* ref = obj_ptr->AsMirrorPtr();
@@ -131,8 +131,8 @@ class ModUnionScanImageRootVisitor {
         contains_reference_to_other_space_(contains_reference_to_other_space) {}
 
   void operator()(Object* root) const
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      REQUIRES(Locks::heap_bitmap_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(root != nullptr);
     ModUnionUpdateObjectReferencesVisitor ref_visitor(visitor_, from_space_, immune_space_,
                                                       contains_reference_to_other_space_);
@@ -164,7 +164,7 @@ class AddToReferenceArrayVisitor {
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
   void operator()(Object* obj, MemberOffset offset, bool /*is_static*/) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     mirror::HeapReference<Object>* ref_ptr = obj->GetFieldObjectReferenceAddr(offset);
     mirror::Object* ref = ref_ptr->AsMirrorPtr();
     // Only add the reference if it is non null and fits our criteria.
@@ -188,7 +188,7 @@ class ModUnionReferenceVisitor {
   }
 
   void operator()(Object* obj) const
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
     // We don't have an early exit since we use the visitor pattern, an early
     // exit should significantly speed this up.
     AddToReferenceArrayVisitor visitor(mod_union_table_, references_);
@@ -209,7 +209,7 @@ class CheckReferenceVisitor {
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
   void operator()(Object* obj, MemberOffset offset, bool /*is_static*/) const
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
     mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset);
     if (ref != nullptr && mod_union_table_->ShouldAddReference(ref) &&
         references_.find(ref) == references_.end()) {
@@ -237,7 +237,7 @@ class ModUnionCheckReferences {
  public:
   explicit ModUnionCheckReferences(ModUnionTableReferenceCache* mod_union_table,
                                    const std::set<const Object*>& references)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      REQUIRES(Locks::heap_bitmap_lock_)
       : mod_union_table_(mod_union_table), references_(references) {
   }
 

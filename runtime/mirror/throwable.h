@@ -31,38 +31,38 @@ namespace mirror {
 // C++ mirror of java.lang.Throwable
 class MANAGED Throwable : public Object {
  public:
-  void SetDetailMessage(String* new_detail_message) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetDetailMessage(String* new_detail_message) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  String* GetDetailMessage() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  String* GetDetailMessage() SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_));
   }
 
-  std::string Dump() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  std::string Dump() SHARED_REQUIRES(Locks::mutator_lock_);
 
   // This is a runtime version of initCause, you shouldn't use it if initCause may have been
   // overridden. Also it asserts rather than throwing exceptions. Currently this is only used
   // in cases like the verifier where the checks cannot fail and initCause isn't overridden.
-  void SetCause(Throwable* cause) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SetStackState(Object* state) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool IsCheckedException() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetCause(Throwable* cause) SHARED_REQUIRES(Locks::mutator_lock_);
+  void SetStackState(Object* state) SHARED_REQUIRES(Locks::mutator_lock_);
+  bool IsCheckedException() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  static Class* GetJavaLangThrowable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  static Class* GetJavaLangThrowable() SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(!java_lang_Throwable_.IsNull());
     return java_lang_Throwable_.Read();
   }
 
-  int32_t GetStackDepth() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  int32_t GetStackDepth() SHARED_REQUIRES(Locks::mutator_lock_);
 
   static void SetClass(Class* java_lang_Throwable);
   static void ResetClass();
   static void VisitRoots(RootVisitor* visitor)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
-  Object* GetStackState() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  Object* GetStackState() SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldObjectVolatile<Object>(OFFSET_OF_OBJECT_MEMBER(Throwable, stack_state_));
   }
-  Object* GetStackTrace() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  Object* GetStackTrace() SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldObjectVolatile<Object>(OFFSET_OF_OBJECT_MEMBER(Throwable, stack_trace_));
   }
 

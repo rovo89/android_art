@@ -58,7 +58,7 @@ class Compiler {
                                      const DexFile& dex_file) const = 0;
 
   virtual uintptr_t GetEntryPointOf(ArtMethod* method) const
-     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
+     SHARED_REQUIRES(Locks::mutator_lock_) = 0;
 
   uint64_t GetMaximumCompilationTimeBeforeWarning() const {
     return maximum_compilation_time_before_warning_;

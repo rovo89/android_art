@@ -94,7 +94,7 @@ size_t ArtMethod::NumArgRegisters(const StringPiece& shorty) {
 }
 
 static bool HasSameNameAndSignature(ArtMethod* method1, ArtMethod* method2)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   ScopedAssertNoThreadSuspension ants(Thread::Current(), "HasSameNameAndSignature");
   const DexFile* dex_file = method1->GetDexFile();
   const DexFile::MethodId& mid = dex_file->GetMethodId(method1->GetDexMethodIndex());
@@ -455,7 +455,7 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
 // Counts the number of references in the parameter list of the corresponding method.
 // Note: Thus does _not_ include "this" for non-static methods.
 static uint32_t GetNumberOfReferenceArgsWithoutReceiver(ArtMethod* method)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   uint32_t shorty_len;
   const char* shorty = method->GetShorty(&shorty_len);
   uint32_t refs = 0;

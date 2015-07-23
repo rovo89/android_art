@@ -53,7 +53,7 @@ void Throwable::SetCause(Throwable* cause) {
   }
 }
 
-void Throwable::SetStackState(Object* state) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+void Throwable::SetStackState(Object* state) SHARED_REQUIRES(Locks::mutator_lock_) {
   CHECK(state != nullptr);
   if (Runtime::Current()->IsActiveTransaction()) {
     SetFieldObjectVolatile<true>(OFFSET_OF_OBJECT_MEMBER(Throwable, stack_state_), state);

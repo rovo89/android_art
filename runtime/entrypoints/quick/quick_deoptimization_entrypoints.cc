@@ -28,7 +28,7 @@
 
 namespace art {
 
-extern "C" NO_RETURN void artDeoptimize(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+extern "C" NO_RETURN void artDeoptimize(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
 
   if (VLOG_IS_ON(deopt)) {

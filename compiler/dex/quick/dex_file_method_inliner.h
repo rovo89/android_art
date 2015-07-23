@@ -62,49 +62,49 @@ class DexFileMethodInliner {
      * @return true if the method is a candidate for inlining, false otherwise.
      */
     bool AnalyseMethodCode(verifier::MethodVerifier* verifier)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(lock_);
+        SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!lock_);
 
     /**
      * Check whether a particular method index corresponds to an intrinsic or special function.
      */
-    InlineMethodFlags IsIntrinsicOrSpecial(uint32_t method_index) LOCKS_EXCLUDED(lock_);
+    InlineMethodFlags IsIntrinsicOrSpecial(uint32_t method_index) REQUIRES(!lock_);
 
     /**
      * Check whether a particular method index corresponds to an intrinsic function.
      */
-    bool IsIntrinsic(uint32_t method_index, InlineMethod* intrinsic) LOCKS_EXCLUDED(lock_);
+    bool IsIntrinsic(uint32_t method_index, InlineMethod* intrinsic) REQUIRES(!lock_);
 
     /**
      * Generate code for an intrinsic function invocation.
      */
-    bool GenIntrinsic(Mir2Lir* backend, CallInfo* info) LOCKS_EXCLUDED(lock_);
+    bool GenIntrinsic(Mir2Lir* backend, CallInfo* info) REQUIRES(!lock_);
 
     /**
      * Check whether a particular method index corresponds to a special function.
      */
-    bool IsSpecial(uint32_t method_index) LOCKS_EXCLUDED(lock_);
+    bool IsSpecial(uint32_t method_index) REQUIRES(!lock_);
 
     /**
      * Generate code for a special function.
      */
-    bool GenSpecial(Mir2Lir* backend, uint32_t method_idx) LOCKS_EXCLUDED(lock_);
+    bool GenSpecial(Mir2Lir* backend, uint32_t method_idx) REQUIRES(!lock_);
 
     /**
      * Try to inline an invoke.
      */
     bool GenInline(MIRGraph* mir_graph, BasicBlock* bb, MIR* invoke, uint32_t method_idx)
-        LOCKS_EXCLUDED(lock_);
+        REQUIRES(!lock_);
 
     /**
      * Gets the thread pointer entrypoint offset for a string init method index and pointer size.
      */
     uint32_t GetOffsetForStringInit(uint32_t method_index, size_t pointer_size)
-        LOCKS_EXCLUDED(lock_);
+        REQUIRES(!lock_);
 
     /**
      * Check whether a particular method index is a string init.
      */
-    bool IsStringInitMethodIndex(uint32_t method_index) LOCKS_EXCLUDED(lock_);
+    bool IsStringInitMethodIndex(uint32_t method_index) REQUIRES(!lock_);
 
     /**
      * To avoid multiple lookups of a class by its descriptor, we cache its
@@ -351,11 +351,11 @@ class DexFileMethodInliner {
      *
      * Only DexFileToMethodInlinerMap may call this function to initialize the inliner.
      */
-    void FindIntrinsics(const DexFile* dex_file) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+    void FindIntrinsics(const DexFile* dex_file) REQUIRES(lock_);
 
     friend class DexFileToMethodInlinerMap;
 
-    bool AddInlineMethod(int32_t method_idx, const InlineMethod& method) LOCKS_EXCLUDED(lock_);
+    bool AddInlineMethod(int32_t method_idx, const InlineMethod& method) REQUIRES(!lock_);
 
     static bool GenInlineConst(MIRGraph* mir_graph, BasicBlock* bb, MIR* invoke,
                                MIR* move_result, const InlineMethod& method);

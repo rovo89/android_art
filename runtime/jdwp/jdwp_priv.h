@@ -86,8 +86,8 @@ class JdwpNetStateBase {
 
   void Close();
 
-  ssize_t WritePacket(ExpandBuf* pReply, size_t length) LOCKS_EXCLUDED(socket_lock_);
-  ssize_t WriteBufferedPacket(const std::vector<iovec>& iov) LOCKS_EXCLUDED(socket_lock_);
+  ssize_t WritePacket(ExpandBuf* pReply, size_t length) REQUIRES(!socket_lock_);
+  ssize_t WriteBufferedPacket(const std::vector<iovec>& iov) REQUIRES(!socket_lock_);
   Mutex* GetSocketLock() {
     return &socket_lock_;
   }

@@ -165,9 +165,9 @@ class OatWriter {
   size_t InitOatClasses(size_t offset);
   size_t InitOatMaps(size_t offset);
   size_t InitOatCode(size_t offset)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   size_t InitOatCodeDexFiles(size_t offset)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   bool WriteTables(OutputStream* out, const size_t file_offset);
   size_t WriteMaps(OutputStream* out, const size_t file_offset, size_t relative_offset);

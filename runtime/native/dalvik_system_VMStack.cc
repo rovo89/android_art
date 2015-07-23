@@ -29,7 +29,7 @@
 namespace art {
 
 static jobject GetThreadStack(const ScopedFastNativeObjectAccess& soa, jobject peer)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   jobject trace = nullptr;
   if (soa.Decode<mirror::Object*>(peer) == soa.Self()->GetPeer()) {
     trace = soa.Self()->CreateInternalStackTrace<false>(soa);
@@ -87,7 +87,7 @@ static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass) {
       : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         class_loader(nullptr) {}
 
-    bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    bool VisitFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
       DCHECK(class_loader == nullptr);
       mirror::Class* c = GetMethod()->GetDeclaringClass();
       // c is null for runtime methods.

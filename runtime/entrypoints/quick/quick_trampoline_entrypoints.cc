@@ -280,7 +280,7 @@ class QuickArgumentVisitor {
   // kRefAndArgs runtime method. Since 'this' is a reference, it is located in the
   // 1st GPR.
   static mirror::Object* GetProxyThisObject(ArtMethod** sp)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     CHECK((*sp)->IsProxyMethod());
     CHECK_EQ(kQuickCalleeSaveFrame_RefAndArgs_FrameSize, (*sp)->GetFrameSizeInBytes());
     CHECK_GT(kNumQuickGprArgs, 0u);
@@ -291,19 +291,19 @@ class QuickArgumentVisitor {
     return reinterpret_cast<StackReference<mirror::Object>*>(this_arg_address)->AsMirrorPtr();
   }
 
-  static ArtMethod* GetCallingMethod(ArtMethod** sp) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  static ArtMethod* GetCallingMethod(ArtMethod** sp) SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK((*sp)->IsCalleeSaveMethod());
     return GetCalleeSaveMethodCaller(sp, Runtime::kRefsAndArgs);
   }
 
-  static ArtMethod* GetOuterMethod(ArtMethod** sp) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  static ArtMethod* GetOuterMethod(ArtMethod** sp) SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK((*sp)->IsCalleeSaveMethod());
     uint8_t* previous_sp =
         reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_FrameSize;
     return *reinterpret_cast<ArtMethod**>(previous_sp);
   }
 
-  static uint32_t GetCallingDexPc(ArtMethod** sp) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  static uint32_t GetCallingDexPc(ArtMethod** sp) SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK((*sp)->IsCalleeSaveMethod());
     const size_t callee_frame_size = GetCalleeSaveFrameSize(kRuntimeISA, Runtime::kRefsAndArgs);
     ArtMethod** caller_sp = reinterpret_cast<ArtMethod**>(
@@ -329,14 +329,14 @@ class QuickArgumentVisitor {
   }
 
   // For the given quick ref and args quick frame, return the caller's PC.
-  static uintptr_t GetCallingPc(ArtMethod** sp) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  static uintptr_t GetCallingPc(ArtMethod** sp) SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK((*sp)->IsCalleeSaveMethod());
     uint8_t* lr = reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_LrOffset;
     return *reinterpret_cast<uintptr_t*>(lr);
   }
 
   QuickArgumentVisitor(ArtMethod** sp, bool is_static, const char* shorty,
-                       uint32_t shorty_len) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) :
+                       uint32_t shorty_len) SHARED_REQUIRES(Locks::mutator_lock_) :
           is_static_(is_static), shorty_(shorty), shorty_len_(shorty_len),
           gpr_args_(reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset),
           fpr_args_(reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset),
@@ -421,7 +421,7 @@ class QuickArgumentVisitor {
     }
   }
 
-  void VisitArguments() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void VisitArguments() SHARED_REQUIRES(Locks::mutator_lock_) {
     // (a) 'stack_args_' should point to the first method's argument
     // (b) whatever the argument type it is, the 'stack_index_' should
     //     be moved forward along with every visiting.
@@ -571,7 +571,7 @@ class QuickArgumentVisitor {
 // Returns the 'this' object of a proxy method. This function is only used by StackVisitor. It
 // allows to use the QuickArgumentVisitor constants without moving all the code in its own module.
 extern "C" mirror::Object* artQuickGetProxyThisObject(ArtMethod** sp)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   return QuickArgumentVisitor::GetProxyThisObject(sp);
 }
 
@@ -582,7 +582,7 @@ class BuildQuickShadowFrameVisitor FINAL : public QuickArgumentVisitor {
                                uint32_t shorty_len, ShadowFrame* sf, size_t first_arg_reg) :
       QuickArgumentVisitor(sp, is_static, shorty, shorty_len), sf_(sf), cur_reg_(first_arg_reg) {}
 
-  void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
+  void Visit() SHARED_REQUIRES(Locks::mutator_lock_) OVERRIDE;
 
  private:
   ShadowFrame* const sf_;
@@ -625,7 +625,7 @@ void BuildQuickShadowFrameVisitor::Visit() {
 }
 
 extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self, ArtMethod** sp)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   // Ensure we don't get thread suspension until the object arguments are safely in the shadow
   // frame.
   ScopedQuickEntrypointChecks sqec(self);
@@ -692,9 +692,9 @@ class BuildQuickArgumentVisitor FINAL : public QuickArgumentVisitor {
                             ScopedObjectAccessUnchecked* soa, std::vector<jvalue>* args) :
       QuickArgumentVisitor(sp, is_static, shorty, shorty_len), soa_(soa), args_(args) {}
 
-  void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
+  void Visit() SHARED_REQUIRES(Locks::mutator_lock_) OVERRIDE;
 
-  void FixupReferences() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void FixupReferences() SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
   ScopedObjectAccessUnchecked* const soa_;
@@ -753,7 +753,7 @@ void BuildQuickArgumentVisitor::FixupReferences() {
 // field within the proxy object, which will box the primitive arguments and deal with error cases.
 extern "C" uint64_t artQuickProxyInvokeHandler(
     ArtMethod* proxy_method, mirror::Object* receiver, Thread* self, ArtMethod** sp)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   DCHECK(proxy_method->IsProxyMethod()) << PrettyMethod(proxy_method);
   DCHECK(receiver->GetClass()->IsProxyClass()) << PrettyMethod(proxy_method);
   // Ensure we don't get thread suspension until the object arguments are safely in jobjects.
@@ -809,9 +809,9 @@ class RememberForGcArgumentVisitor FINAL : public QuickArgumentVisitor {
                                uint32_t shorty_len, ScopedObjectAccessUnchecked* soa) :
       QuickArgumentVisitor(sp, is_static, shorty, shorty_len), soa_(soa) {}
 
-  void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
+  void Visit() SHARED_REQUIRES(Locks::mutator_lock_) OVERRIDE;
 
-  void FixupReferences() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void FixupReferences() SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
   ScopedObjectAccessUnchecked* const soa_;
@@ -842,7 +842,7 @@ void RememberForGcArgumentVisitor::FixupReferences() {
 // Lazily resolve a method for quick. Called by stub code.
 extern "C" const void* artQuickResolutionTrampoline(
     ArtMethod* called, mirror::Object* receiver, Thread* self, ArtMethod** sp)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   // The resolution trampoline stashes the resolved method into the callee-save frame to transport
   // it. Thus, when exiting, the stack cannot be verified (as the resolved method most likely
   // does not have the same stack layout as the callee-save method).
@@ -1196,7 +1196,7 @@ template<class T> class BuildNativeCallFrameStateMachine {
     return gpr_index_ > 0;
   }
 
-  void AdvanceHandleScope(mirror::Object* ptr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void AdvanceHandleScope(mirror::Object* ptr) SHARED_REQUIRES(Locks::mutator_lock_) {
     uintptr_t handle = PushHandle(ptr);
     if (HaveHandleScopeGpr()) {
       gpr_index_--;
@@ -1384,7 +1384,7 @@ template<class T> class BuildNativeCallFrameStateMachine {
   void PushStack(uintptr_t val) {
     delegate_->PushStack(val);
   }
-  uintptr_t PushHandle(mirror::Object* ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  uintptr_t PushHandle(mirror::Object* ref) SHARED_REQUIRES(Locks::mutator_lock_) {
     return delegate_->PushHandle(ref);
   }
 
@@ -1443,11 +1443,11 @@ class ComputeNativeCallFrameSize {
   }
 
   virtual void WalkHeader(BuildNativeCallFrameStateMachine<ComputeNativeCallFrameSize>* sm)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     UNUSED(sm);
   }
 
-  void Walk(const char* shorty, uint32_t shorty_len) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void Walk(const char* shorty, uint32_t shorty_len) SHARED_REQUIRES(Locks::mutator_lock_) {
     BuildNativeCallFrameStateMachine<ComputeNativeCallFrameSize> sm(this);
 
     WalkHeader(&sm);
@@ -1519,7 +1519,7 @@ class ComputeGenericJniFrameSize FINAL : public ComputeNativeCallFrameSize {
   //
   // Note: assumes ComputeAll() has been run before.
   void LayoutCalleeSaveFrame(Thread* self, ArtMethod*** m, void* sp, HandleScope** handle_scope)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     ArtMethod* method = **m;
 
     DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), sizeof(void*));
@@ -1560,7 +1560,7 @@ class ComputeGenericJniFrameSize FINAL : public ComputeNativeCallFrameSize {
   // Re-layout the callee-save frame (insert a handle-scope). Then add space for the cookie.
   // Returns the new bottom. Note: this may be unaligned.
   uint8_t* LayoutJNISaveFrame(Thread* self, ArtMethod*** m, void* sp, HandleScope** handle_scope)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     // First, fix up the layout of the callee-save frame.
     // We have to squeeze in the HandleScope, and relocate the method pointer.
     LayoutCalleeSaveFrame(self, m, sp, handle_scope);
@@ -1578,7 +1578,7 @@ class ComputeGenericJniFrameSize FINAL : public ComputeNativeCallFrameSize {
   uint8_t* ComputeLayout(Thread* self, ArtMethod*** m, const char* shorty, uint32_t shorty_len,
                          HandleScope** handle_scope, uintptr_t** start_stack, uintptr_t** start_gpr,
                          uint32_t** start_fpr)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     Walk(shorty, shorty_len);
 
     // JNI part.
@@ -1594,7 +1594,7 @@ class ComputeGenericJniFrameSize FINAL : public ComputeNativeCallFrameSize {
 
   // Add JNIEnv* and jobj/jclass before the shorty-derived elements.
   void WalkHeader(BuildNativeCallFrameStateMachine<ComputeNativeCallFrameSize>* sm) OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
   uint32_t num_handle_scope_references_;
@@ -1650,7 +1650,7 @@ class FillNativeCall {
     cur_stack_arg_++;
   }
 
-  virtual uintptr_t PushHandle(mirror::Object*) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  virtual uintptr_t PushHandle(mirror::Object*) SHARED_REQUIRES(Locks::mutator_lock_) {
     LOG(FATAL) << "(Non-JNI) Native call does not use handles.";
     UNREACHABLE();
   }
@@ -1688,16 +1688,16 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
     }
   }
 
-  void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
+  void Visit() SHARED_REQUIRES(Locks::mutator_lock_) OVERRIDE;
 
-  void FinalizeHandleScope(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void FinalizeHandleScope(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_);
 
   StackReference<mirror::Object>* GetFirstHandleScopeEntry()
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     return handle_scope_->GetHandle(0).GetReference();
   }
 
-  jobject GetFirstHandleScopeJObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  jobject GetFirstHandleScopeJObject() const SHARED_REQUIRES(Locks::mutator_lock_) {
     return handle_scope_->GetHandle(0).ToJObject();
   }
 
@@ -1713,7 +1713,7 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
                 HandleScope* handle_scope) : FillNativeCall(gpr_regs, fpr_regs, stack_args),
                                              handle_scope_(handle_scope), cur_entry_(0) {}
 
-    uintptr_t PushHandle(mirror::Object* ref) OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+    uintptr_t PushHandle(mirror::Object* ref) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
 
     void Reset(uintptr_t* gpr_regs, uint32_t* fpr_regs, uintptr_t* stack_args, HandleScope* scope) {
       FillNativeCall::Reset(gpr_regs, fpr_regs, stack_args);
@@ -1721,7 +1721,7 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
       cur_entry_ = 0U;
     }
 
-    void ResetRemainingScopeSlots() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    void ResetRemainingScopeSlots() SHARED_REQUIRES(Locks::mutator_lock_) {
       // Initialize padding entries.
       size_t expected_slots = handle_scope_->NumberOfReferences();
       while (cur_entry_ < expected_slots) {
@@ -1841,7 +1841,7 @@ void artQuickGenericJniEndJNINonRef(Thread* self, uint32_t cookie, jobject lock)
  * 2) An error, if the value is negative.
  */
 extern "C" TwoWordReturn artQuickGenericJniTrampoline(Thread* self, ArtMethod** sp)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   ArtMethod* called = *sp;
   DCHECK(called->IsNative()) << PrettyMethod(called, true);
   uint32_t shorty_len = 0;
@@ -1914,7 +1914,7 @@ extern "C" TwoWordReturn artQuickGenericJniTrampoline(Thread* self, ArtMethod** 
  * unlocking.
  */
 extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self, jvalue result, uint64_t result_f)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   ArtMethod** sp = self->GetManagedStack()->GetTopQuickFrame();
   uint32_t* sp32 = reinterpret_cast<uint32_t*>(sp);
   ArtMethod* called = *sp;
@@ -1971,7 +1971,7 @@ extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self, jvalue result,
 // for the method pointer.
 //
 // It is valid to use this, as at the usage points here (returns from C functions) we are assuming
-// to hold the mutator lock (see SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) annotations).
+// to hold the mutator lock (see SHARED_REQUIRES(Locks::mutator_lock_) annotations).
 
 template<InvokeType type, bool access_check>
 static TwoWordReturn artInvokeCommon(uint32_t method_idx, mirror::Object* this_object, Thread* self,
@@ -2013,7 +2013,7 @@ static TwoWordReturn artInvokeCommon(uint32_t method_idx, mirror::Object* this_o
 
 // Explicit artInvokeCommon template function declarations to please analysis tool.
 #define EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(type, access_check)                                \
-  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                          \
+  template SHARED_REQUIRES(Locks::mutator_lock_)                                          \
   TwoWordReturn artInvokeCommon<type, access_check>(                                            \
       uint32_t method_idx, mirror::Object* this_object, Thread* self, ArtMethod** sp)
 
@@ -2032,31 +2032,31 @@ EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(kSuper, true);
 // See comments in runtime_support_asm.S
 extern "C" TwoWordReturn artInvokeInterfaceTrampolineWithAccessCheck(
     uint32_t method_idx, mirror::Object* this_object, Thread* self, ArtMethod** sp)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   return artInvokeCommon<kInterface, true>(method_idx, this_object, self, sp);
 }
 
 extern "C" TwoWordReturn artInvokeDirectTrampolineWithAccessCheck(
     uint32_t method_idx, mirror::Object* this_object, Thread* self, ArtMethod** sp)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   return artInvokeCommon<kDirect, true>(method_idx, this_object, self, sp);
 }
 
 extern "C" TwoWordReturn artInvokeStaticTrampolineWithAccessCheck(
     uint32_t method_idx, mirror::Object* this_object, Thread* self, ArtMethod** sp)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   return artInvokeCommon<kStatic, true>(method_idx, this_object, self, sp);
 }
 
 extern "C" TwoWordReturn artInvokeSuperTrampolineWithAccessCheck(
     uint32_t method_idx, mirror::Object* this_object, Thread* self, ArtMethod** sp)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   return artInvokeCommon<kSuper, true>(method_idx, this_object, self, sp);
 }
 
 extern "C" TwoWordReturn artInvokeVirtualTrampolineWithAccessCheck(
     uint32_t method_idx, mirror::Object* this_object, Thread* self, ArtMethod** sp)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   return artInvokeCommon<kVirtual, true>(method_idx, this_object, self, sp);
 }
 
@@ -2064,7 +2064,7 @@ extern "C" TwoWordReturn artInvokeVirtualTrampolineWithAccessCheck(
 extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t dex_method_idx,
                                                       mirror::Object* this_object,
                                                       Thread* self, ArtMethod** sp)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
   // The optimizing compiler currently does not inline methods that have an interface
   // invocation. We use the outer method directly to avoid fetching a stack map, which is

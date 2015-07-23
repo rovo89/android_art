@@ -262,7 +262,7 @@ class PreloadDexCachesStringsVisitor : public SingleRootVisitor {
   explicit PreloadDexCachesStringsVisitor(StringTable* table) : table_(table) { }
 
   void VisitRoot(mirror::Object* root, const RootInfo& info ATTRIBUTE_UNUSED)
-      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     mirror::String* string = root->AsString();
     table_->operator[](string->ToModifiedUtf8()) = string;
   }
@@ -274,7 +274,7 @@ class PreloadDexCachesStringsVisitor : public SingleRootVisitor {
 // Based on ClassLinker::ResolveString.
 static void PreloadDexCachesResolveString(
     Handle<mirror::DexCache> dex_cache, uint32_t string_idx, StringTable& strings)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   mirror::String* string = dex_cache->GetResolvedString(string_idx);
   if (string != nullptr) {
     return;
@@ -292,7 +292,7 @@ static void PreloadDexCachesResolveString(
 // Based on ClassLinker::ResolveType.
 static void PreloadDexCachesResolveType(
     Thread* self, mirror::DexCache* dex_cache, uint32_t type_idx)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   mirror::Class* klass = dex_cache->GetResolvedType(type_idx);
   if (klass != nullptr) {
     return;
@@ -321,7 +321,7 @@ static void PreloadDexCachesResolveType(
 // Based on ClassLinker::ResolveField.
 static void PreloadDexCachesResolveField(Handle<mirror::DexCache> dex_cache, uint32_t field_idx,
                                          bool is_static)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   ArtField* field = dex_cache->GetResolvedField(field_idx, sizeof(void*));
   if (field != nullptr) {
     return;
@@ -349,7 +349,7 @@ static void PreloadDexCachesResolveField(Handle<mirror::DexCache> dex_cache, uin
 // Based on ClassLinker::ResolveMethod.
 static void PreloadDexCachesResolveMethod(Handle<mirror::DexCache> dex_cache, uint32_t method_idx,
                                           InvokeType invoke_type)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   ArtMethod* method = dex_cache->GetResolvedMethod(method_idx, sizeof(void*));
   if (method != nullptr) {
     return;
@@ -423,7 +423,7 @@ static void PreloadDexCachesStatsTotal(DexCacheStats* total) {
 }
 
 static void PreloadDexCachesStatsFilled(DexCacheStats* filled)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   if (!kPreloadDexCachesCollectStats) {
       return;
   }

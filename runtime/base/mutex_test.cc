@@ -101,17 +101,17 @@ struct RecursiveLockWait {
       : mu("test mutex", kDefaultMutexLevel, true), cv("test condition variable", mu) {
   }
 
-  static void* Callback(void* arg) {
-    RecursiveLockWait* state = reinterpret_cast<RecursiveLockWait*>(arg);
-    state->mu.Lock(Thread::Current());
-    state->cv.Signal(Thread::Current());
-    state->mu.Unlock(Thread::Current());
-    return nullptr;
-  }
-
   Mutex mu;
   ConditionVariable cv;
 };
+
+static void* RecursiveLockWaitCallback(void* arg) {
+  RecursiveLockWait* state = reinterpret_cast<RecursiveLockWait*>(arg);
+  state->mu.Lock(Thread::Current());
+  state->cv.Signal(Thread::Current());
+  state->mu.Unlock(Thread::Current());
+  return nullptr;
+}
 
 // GCC has trouble with our mutex tests, so we have to turn off thread safety analysis.
 static void RecursiveLockWaitTest() NO_THREAD_SAFETY_ANALYSIS {
@@ -120,8 +120,7 @@ static void RecursiveLockWaitTest() NO_THREAD_SAFETY_ANALYSIS {
   state.mu.Lock(Thread::Current());
 
   pthread_t pthread;
-  int pthread_create_result = pthread_create(&pthread, nullptr, RecursiveLockWait::Callback,
-                                             &state);
+  int pthread_create_result = pthread_create(&pthread, nullptr, RecursiveLockWaitCallback, &state);
   ASSERT_EQ(0, pthread_create_result);
 
   state.cv.Wait(Thread::Current());

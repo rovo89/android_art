@@ -43,15 +43,15 @@ class VerificationResults {
     ~VerificationResults();
 
     bool ProcessVerifiedMethod(verifier::MethodVerifier* method_verifier)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-        LOCKS_EXCLUDED(verified_methods_lock_);
+        SHARED_REQUIRES(Locks::mutator_lock_)
+        REQUIRES(!verified_methods_lock_);
 
     const VerifiedMethod* GetVerifiedMethod(MethodReference ref)
-        LOCKS_EXCLUDED(verified_methods_lock_);
-    void RemoveVerifiedMethod(MethodReference ref) LOCKS_EXCLUDED(verified_methods_lock_);
+        REQUIRES(!verified_methods_lock_);
+    void RemoveVerifiedMethod(MethodReference ref) REQUIRES(!verified_methods_lock_);
 
-    void AddRejectedClass(ClassReference ref) LOCKS_EXCLUDED(rejected_classes_lock_);
-    bool IsClassRejected(ClassReference ref) LOCKS_EXCLUDED(rejected_classes_lock_);
+    void AddRejectedClass(ClassReference ref) REQUIRES(!rejected_classes_lock_);
+    bool IsClassRejected(ClassReference ref) REQUIRES(!rejected_classes_lock_);
 
     bool IsCandidateForCompilation(MethodReference& method_ref,
                                    const uint32_t access_flags);

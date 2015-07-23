@@ -28,7 +28,7 @@ namespace interpreter {
 
 static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& shorty,
                            Object* receiver, uint32_t* args, JValue* result)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   // TODO: The following enters JNI code using a typedef-ed function rather than the JNI compiler,
   //       it should be removed and JNI compiled stubs used instead.
   ScopedObjectAccessUnchecked soa(self);
@@ -240,23 +240,23 @@ JValue ExecuteGotoImpl(Thread*, const DexFile::CodeItem*, ShadowFrame&, JValue) 
   UNREACHABLE();
 }
 // Explicit definitions of ExecuteGotoImpl.
-template<> SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+template<> SHARED_REQUIRES(Locks::mutator_lock_)
 JValue ExecuteGotoImpl<true, false>(Thread* self, const DexFile::CodeItem* code_item,
                                     ShadowFrame& shadow_frame, JValue result_register);
-template<> SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+template<> SHARED_REQUIRES(Locks::mutator_lock_)
 JValue ExecuteGotoImpl<false, false>(Thread* self, const DexFile::CodeItem* code_item,
                                      ShadowFrame& shadow_frame, JValue result_register);
-template<> SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+template<> SHARED_REQUIRES(Locks::mutator_lock_)
 JValue ExecuteGotoImpl<true, true>(Thread* self,  const DexFile::CodeItem* code_item,
                                    ShadowFrame& shadow_frame, JValue result_register);
-template<> SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+template<> SHARED_REQUIRES(Locks::mutator_lock_)
 JValue ExecuteGotoImpl<false, true>(Thread* self, const DexFile::CodeItem* code_item,
                                     ShadowFrame& shadow_frame, JValue result_register);
 #endif
 
 static JValue Execute(Thread* self, const DexFile::CodeItem* code_item, ShadowFrame& shadow_frame,
                       JValue result_register)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+    SHARED_REQUIRES(Locks::mutator_lock_);
 
 static inline JValue Execute(Thread* self, const DexFile::CodeItem* code_item,
                              ShadowFrame& shadow_frame, JValue result_register) {
@@ -395,7 +395,7 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
 }
 
 void EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame* shadow_frame, JValue* ret_val)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
   JValue value;
   // Set value to last known result in case the shadow frame chain is empty.
   value.SetJ(ret_val->GetJ());

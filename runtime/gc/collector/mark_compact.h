@@ -64,13 +64,13 @@ class MarkCompact : public GarbageCollector {
 
   virtual void RunPhases() OVERRIDE NO_THREAD_SAFETY_ANALYSIS;
   void InitializePhase();
-  void MarkingPhase() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
-      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
-  void ReclaimPhase() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
-      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
-  void FinishPhase() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void MarkingPhase() REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!Locks::heap_bitmap_lock_);
+  void ReclaimPhase() REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!Locks::heap_bitmap_lock_);
+  void FinishPhase() REQUIRES(Locks::mutator_lock_);
   void MarkReachableObjects()
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
+      REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
   virtual GcType GetGcType() const OVERRIDE {
     return kGcTypePartial;
   }
@@ -88,106 +88,106 @@ class MarkCompact : public GarbageCollector {
   void FindDefaultMarkBitmap();
 
   void ScanObject(mirror::Object* obj)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+      REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // Marks the root set at the start of a garbage collection.
   void MarkRoots()
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+      REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // Bind the live bits to the mark bits of bitmaps for spaces that are never collected, ie
   // the image. Mark that portion of the heap as immune.
-  void BindBitmaps() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
+  void BindBitmaps() SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!Locks::heap_bitmap_lock_);
 
   void UnBindBitmaps()
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      REQUIRES(Locks::heap_bitmap_lock_);
 
-  void ProcessReferences(Thread* self) EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  // Sweeps unmarked objects to complete the garbage collection.
-  void Sweep(bool swap_bitmaps) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  void ProcessReferences(Thread* self) REQUIRES(Locks::mutator_lock_)
+      REQUIRES(Locks::mutator_lock_);
 
   // Sweeps unmarked objects to complete the garbage collection.
-  void SweepLargeObjects(bool swap_bitmaps) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  void Sweep(bool swap_bitmaps) REQUIRES(Locks::heap_bitmap_lock_);
+
+  // Sweeps unmarked objects to complete the garbage collection.
+  void SweepLargeObjects(bool swap_bitmaps) REQUIRES(Locks::heap_bitmap_lock_);
 
   void SweepSystemWeaks()
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   virtual void VisitRoots(mirror::Object*** roots, size_t count, const RootInfo& info)
-      OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
+      OVERRIDE REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
   virtual void VisitRoots(mirror::CompressedReference<mirror::Object>** roots, size_t count,
                           const RootInfo& info)
-      OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
+      OVERRIDE REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
   // Schedules an unmarked object for reference processing.
   void DelayReferenceReferent(mirror::Class* klass, mirror::Reference* reference)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
  protected:
   // Returns null if the object is not marked, otherwise returns the forwarding address (same as
   // object for non movable things).
   mirror::Object* GetMarkedForwardAddress(mirror::Object* object)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      REQUIRES(Locks::mutator_lock_)
+      SHARED_REQUIRES(Locks::heap_bitmap_lock_);
 
   // Marks or unmarks a large object based on whether or not set is true. If set is true, then we
   // mark, otherwise we unmark.
   bool MarkLargeObject(const mirror::Object* obj)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      REQUIRES(Locks::heap_bitmap_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Expand mark stack to 2x its current size.
-  void ResizeMarkStack(size_t new_size) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void ResizeMarkStack(size_t new_size) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Returns true if we should sweep the space.
   bool ShouldSweepSpace(space::ContinuousSpace* space) const;
 
   // Push an object onto the mark stack.
-  void MarkStackPush(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void MarkStackPush(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_);
 
   void UpdateAndMarkModUnion()
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      REQUIRES(Locks::heap_bitmap_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Recursively blackens objects on the mark stack.
   void ProcessMarkStack()
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
+      REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
   // 3 pass mark compact approach.
-  void Compact() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
+  void Compact() REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
   // Calculate the forwarding address of objects marked as "live" in the objects_before_forwarding
   // bitmap.
   void CalculateObjectForwardingAddresses()
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
+      REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
   // Update the references of objects by using the forwarding addresses.
-  void UpdateReferences() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
+  void UpdateReferences() REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
   // Move objects and restore lock words.
-  void MoveObjects() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void MoveObjects() REQUIRES(Locks::mutator_lock_);
   // Move a single object to its forward address.
-  void MoveObject(mirror::Object* obj, size_t len) EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void MoveObject(mirror::Object* obj, size_t len) REQUIRES(Locks::mutator_lock_);
   // Mark a single object.
   virtual mirror::Object* MarkObject(mirror::Object* obj) OVERRIDE
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+      REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
   virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>* obj_ptr) OVERRIDE
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+      REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
   virtual mirror::Object* IsMarked(mirror::Object* obj) OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::heap_bitmap_lock_)
+      REQUIRES(Locks::mutator_lock_);
   virtual bool IsMarkedHeapReference(mirror::HeapReference<mirror::Object>* obj) OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void ForwardObject(mirror::Object* obj) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
+      SHARED_REQUIRES(Locks::heap_bitmap_lock_)
+      REQUIRES(Locks::mutator_lock_);
+  void ForwardObject(mirror::Object* obj) REQUIRES(Locks::heap_bitmap_lock_,
                                                                    Locks::mutator_lock_);
   // Update a single heap reference.
   void UpdateHeapReference(mirror::HeapReference<mirror::Object>* reference)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::heap_bitmap_lock_)
+      REQUIRES(Locks::mutator_lock_);
   // Update all of the references of a single object.
   void UpdateObjectReferences(mirror::Object* obj)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::heap_bitmap_lock_)
+      REQUIRES(Locks::mutator_lock_);
 
   // Revoke all the thread-local buffers.
   void RevokeAllThreadLocalBuffers();

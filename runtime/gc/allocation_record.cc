@@ -111,8 +111,8 @@ void AllocRecordObjectMap::VisitRoots(RootVisitor* visitor) {
 }
 
 static inline void SweepClassObject(AllocRecord* record, IsMarkedVisitor* visitor)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-    EXCLUSIVE_LOCKS_REQUIRED(Locks::alloc_tracker_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_)
+    REQUIRES(Locks::alloc_tracker_lock_) {
   GcRoot<mirror::Class>& klass = record->GetClassGcRoot();
   // This does not need a read barrier because this is called by GC.
   mirror::Object* old_object = klass.Read<kWithoutReadBarrier>();
@@ -177,7 +177,7 @@ void AllocRecordObjectMap::DisallowNewAllocationRecords() {
 
 struct AllocRecordStackVisitor : public StackVisitor {
   AllocRecordStackVisitor(Thread* thread, AllocRecordStackTrace* trace_in, size_t max)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_)
       : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         trace(trace_in),
         depth(0),

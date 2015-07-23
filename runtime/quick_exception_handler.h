@@ -36,17 +36,17 @@ class ShadowFrame;
 class QuickExceptionHandler {
  public:
   QuickExceptionHandler(Thread* self, bool is_deoptimization)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   NO_RETURN ~QuickExceptionHandler() {
     LOG(FATAL) << "UNREACHABLE";  // Expected to take long jump.
     UNREACHABLE();
   }
 
-  void FindCatch(mirror::Throwable* exception) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void DeoptimizeStack() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void UpdateInstrumentationStack() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  NO_RETURN void DoLongJump() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void FindCatch(mirror::Throwable* exception) SHARED_REQUIRES(Locks::mutator_lock_);
+  void DeoptimizeStack() SHARED_REQUIRES(Locks::mutator_lock_);
+  void UpdateInstrumentationStack() SHARED_REQUIRES(Locks::mutator_lock_);
+  NO_RETURN void DoLongJump() SHARED_REQUIRES(Locks::mutator_lock_);
 
   void SetHandlerQuickFrame(ArtMethod** handler_quick_frame) {
     handler_quick_frame_ = handler_quick_frame;

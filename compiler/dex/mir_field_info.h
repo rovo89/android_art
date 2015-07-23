@@ -135,7 +135,7 @@ class MirIFieldLoweringInfo : public MirFieldInfo {
   // with IGET/IPUT. For fast path fields, retrieve the field offset.
   static void Resolve(CompilerDriver* compiler_driver, const DexCompilationUnit* mUnit,
                       MirIFieldLoweringInfo* field_infos, size_t count)
-      LOCKS_EXCLUDED(Locks::mutator_lock_);
+      REQUIRES(!Locks::mutator_lock_);
 
   // Construct an unresolved instance field lowering info.
   explicit MirIFieldLoweringInfo(uint16_t field_idx, DexMemAccessType type, bool is_quickened)
@@ -192,7 +192,7 @@ class MirSFieldLoweringInfo : public MirFieldInfo {
   // and the type index of the declaring class in the compiled method's dex file.
   static void Resolve(CompilerDriver* compiler_driver, const DexCompilationUnit* mUnit,
                       MirSFieldLoweringInfo* field_infos, size_t count)
-      LOCKS_EXCLUDED(Locks::mutator_lock_);
+      REQUIRES(!Locks::mutator_lock_);
 
   // Construct an unresolved static field lowering info.
   explicit MirSFieldLoweringInfo(uint16_t field_idx, DexMemAccessType type)

@@ -49,7 +49,7 @@ class ReadBarrier {
             bool kMaybeDuringStartup = false>
   ALWAYS_INLINE static MirrorType* Barrier(
       mirror::Object* obj, MemberOffset offset, mirror::HeapReference<MirrorType>* ref_addr)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // It's up to the implementation whether the given root gets updated
   // whereas the return value must be an updated reference.
@@ -57,7 +57,7 @@ class ReadBarrier {
             bool kMaybeDuringStartup = false>
   ALWAYS_INLINE static MirrorType* BarrierForRoot(MirrorType** root,
                                                   GcRootSource* gc_root_source = nullptr)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // It's up to the implementation whether the given root gets updated
   // whereas the return value must be an updated reference.
@@ -65,24 +65,24 @@ class ReadBarrier {
             bool kMaybeDuringStartup = false>
   ALWAYS_INLINE static MirrorType* BarrierForRoot(mirror::CompressedReference<MirrorType>* root,
                                                   GcRootSource* gc_root_source = nullptr)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   static bool IsDuringStartup();
 
   // Without the holder object.
   static void AssertToSpaceInvariant(mirror::Object* ref)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     AssertToSpaceInvariant(nullptr, MemberOffset(0), ref);
   }
   // With the holder object.
   static void AssertToSpaceInvariant(mirror::Object* obj, MemberOffset offset,
                                      mirror::Object* ref)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
   // With GcRootSource.
   static void AssertToSpaceInvariant(GcRootSource* gc_root_source, mirror::Object* ref)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
-  static mirror::Object* Mark(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static mirror::Object* Mark(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_);
 
   static mirror::Object* WhitePtr() {
     return reinterpret_cast<mirror::Object*>(white_ptr_);
@@ -96,7 +96,7 @@ class ReadBarrier {
 
   ALWAYS_INLINE static bool HasGrayReadBarrierPointer(mirror::Object* obj,
                                                       uintptr_t* out_rb_ptr_high_bits)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Note: These couldn't be constexpr pointers as reinterpret_cast isn't compatible with them.
   static constexpr uintptr_t white_ptr_ = 0x0;    // Not marked.

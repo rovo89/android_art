@@ -138,8 +138,7 @@ inline mirror::Object* RegionSpace::Region::Alloc(size_t num_bytes, size_t* byte
   return reinterpret_cast<mirror::Object*>(old_top);
 }
 
-inline size_t RegionSpace::AllocationSizeNonvirtual(mirror::Object* obj, size_t* usable_size)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+inline size_t RegionSpace::AllocationSizeNonvirtual(mirror::Object* obj, size_t* usable_size) {
   size_t num_bytes = obj->SizeOf();
   if (usable_size != nullptr) {
     if (LIKELY(num_bytes <= kRegionSize)) {

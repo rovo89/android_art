@@ -44,7 +44,7 @@ class OatTest : public CommonCompilerTest {
   void CheckMethod(ArtMethod* method,
                    const OatFile::OatMethod& oat_method,
                    const DexFile& dex_file)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      SHARED_REQUIRES(Locks::mutator_lock_) {
     const CompiledMethod* compiled_method =
         compiler_driver_->GetCompiledMethod(MethodReference(&dex_file,
                                                             method->GetDexMethodIndex()));

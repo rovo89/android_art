@@ -1660,7 +1660,7 @@ class Dex2Oat FINAL {
 
   // Let the ImageWriter write the image file. If we do not compile PIC, also fix up the oat file.
   bool CreateImageFile()
-      LOCKS_EXCLUDED(Locks::mutator_lock_) {
+      REQUIRES(!Locks::mutator_lock_) {
     CHECK(image_writer_ != nullptr);
     if (!image_writer_->Write(image_filename_, oat_unstripped_, oat_location_)) {
       LOG(ERROR) << "Failed to create image file " << image_filename_;
