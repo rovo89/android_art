@@ -1127,19 +1127,23 @@ END_FUNCTION art_quick_unlock_object
 DEFINE_FUNCTION art_quick_check_cast
     PUSH rdi                          // Save args for exc
     PUSH rsi
+    subq LITERAL(8), %rsp             // Alignment padding.
+    CFI_ADJUST_CFA_OFFSET(8)
     SETUP_FP_CALLEE_SAVE_FRAME
     call SYMBOL(artIsAssignableFromCode)  // (Class* klass, Class* ref_klass)
     testq %rax, %rax
     jz 1f                             // jump forward if not assignable
     RESTORE_FP_CALLEE_SAVE_FRAME
-    addq LITERAL(16), %rsp            // pop arguments
-    CFI_ADJUST_CFA_OFFSET(-16)
+    addq LITERAL(24), %rsp            // pop arguments
+    CFI_ADJUST_CFA_OFFSET(-24)
 
     ret
 
-    CFI_ADJUST_CFA_OFFSET(16 + 4 * 8)  // Reset unwind info so following code unwinds.
+    CFI_ADJUST_CFA_OFFSET(24 + 4 * 8)  // Reset unwind info so following code unwinds.
 1:
     RESTORE_FP_CALLEE_SAVE_FRAME
+    addq LITERAL(8), %rsp             // pop padding
+    CFI_ADJUST_CFA_OFFSET(-8)
     POP rsi                           // Pop arguments
     POP rdi
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
@@ -1226,8 +1230,6 @@ DEFINE_FUNCTION art_quick_aput_obj
     PUSH rdi
     PUSH rsi
     PUSH rdx
-    subq LITERAL(8), %rsp        // Alignment padding.
-    CFI_ADJUST_CFA_OFFSET(8)
     SETUP_FP_CALLEE_SAVE_FRAME
 
                                   // "Uncompress" = do nothing, as already zero-extended on load.
@@ -1243,8 +1245,6 @@ DEFINE_FUNCTION art_quick_aput_obj
 
     RESTORE_FP_CALLEE_SAVE_FRAME
     // Restore arguments.
-    addq LITERAL(8), %rsp
-    CFI_ADJUST_CFA_OFFSET(-8)
     POP  rdx
     POP  rsi
     POP  rdi
@@ -1258,12 +1258,10 @@ DEFINE_FUNCTION art_quick_aput_obj
     movb %dl, (%rdx, %rdi)                       // Note: this assumes that top 32b of %rdi are zero
 //  movb %dl, (%rdx, %rdi)
     ret
-    CFI_ADJUST_CFA_OFFSET(32 + 4 * 8)  // Reset unwind info so following code unwinds.
+    CFI_ADJUST_CFA_OFFSET(24 + 4 * 8)  // Reset unwind info so following code unwinds.
 .Lthrow_array_store_exception:
     RESTORE_FP_CALLEE_SAVE_FRAME
     // Restore arguments.
-    addq LITERAL(8), %rsp
-    CFI_ADJUST_CFA_OFFSET(-8)
     POP  rdx
     POP  rsi
     POP  rdi
@@ -1717,7 +1715,11 @@ UNIMPLEMENTED art_quick_memcmp16
 
 DEFINE_FUNCTION art_quick_assignable_from_code
     SETUP_FP_CALLEE_SAVE_FRAME
+    subq LITERAL(8), %rsp                      // Alignment padding.
+    CFI_ADJUST_CFA_OFFSET(8)
     call SYMBOL(artIsAssignableFromCode)       // (const mirror::Class*, const mirror::Class*)
+    addq LITERAL(8), %rsp
+    CFI_ADJUST_CFA_OFFSET(-8)
     RESTORE_FP_CALLEE_SAVE_FRAME
     ret
 END_FUNCTION art_quick_assignable_from_code
