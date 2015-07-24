@@ -438,6 +438,19 @@ class UpdateReferenceVisitor {
         ref->GetFieldObjectReferenceAddr<kVerifyNone>(mirror::Reference::ReferentOffset()));
   }
 
+  // TODO: Remove NO_THREAD_SAFETY_ANALYSIS when clang better understands visitors.
+  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
+      NO_THREAD_SAFETY_ANALYSIS {
+    if (!root->IsNull()) {
+      VisitRoot(root);
+    }
+  }
+
+  void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
+      NO_THREAD_SAFETY_ANALYSIS {
+    root->Assign(collector_->GetMarkedForwardAddress(root->AsMirrorPtr()));
+  }
+
  private:
   MarkCompact* const collector_;
 };
@@ -573,6 +586,19 @@ class MarkCompactMarkObjectVisitor {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(Locks::heap_bitmap_lock_) {
     collector_->DelayReferenceReferent(klass, ref);
+  }
+
+  // TODO: Remove NO_THREAD_SAFETY_ANALYSIS when clang better understands visitors.
+  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
+      NO_THREAD_SAFETY_ANALYSIS {
+    if (!root->IsNull()) {
+      VisitRoot(root);
+    }
+  }
+
+  void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
+      NO_THREAD_SAFETY_ANALYSIS {
+    collector_->MarkObject(root->AsMirrorPtr());
   }
 
  private:

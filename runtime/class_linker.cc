@@ -1252,8 +1252,7 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
     // There is 3 GC cases to handle:
     // Non moving concurrent:
     // This case is easy to handle since the reference members of ArtMethod and ArtFields are held
-    // live by the class and class roots. In this case we probably don't even need to call
-    // VisitNativeRoots.
+    // live by the class and class roots.
     //
     // Moving non-concurrent:
     // This case needs to call visit VisitNativeRoots in case the classes or dex cache arrays move.
@@ -1266,23 +1265,14 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
     // marked concurrently and we don't hold the classlinker_classes_lock_ when we do the copy.
     for (GcRoot<mirror::Class>& root : class_table_) {
       buffered_visitor.VisitRoot(root);
-      if ((flags & kVisitRootFlagNonMoving) == 0) {
-        // Don't bother visiting ArtField and ArtMethod if kVisitRootFlagNonMoving is set since
-        // these roots are all reachable from the class or dex cache.
-        root.Read()->VisitNativeRoots(buffered_visitor, image_pointer_size_);
-      }
     }
     // PreZygote classes can't move so we won't need to update fields' declaring classes.
     for (GcRoot<mirror::Class>& root : pre_zygote_class_table_) {
       buffered_visitor.VisitRoot(root);
-      if ((flags & kVisitRootFlagNonMoving) == 0) {
-        root.Read()->VisitNativeRoots(buffered_visitor, image_pointer_size_);
-      }
     }
   } else if ((flags & kVisitRootFlagNewRoots) != 0) {
     for (auto& root : new_class_roots_) {
       mirror::Class* old_ref = root.Read<kWithoutReadBarrier>();
-      old_ref->VisitNativeRoots(buffered_visitor, image_pointer_size_);
       root.VisitRoot(visitor, RootInfo(kRootStickyClass));
       mirror::Class* new_ref = root.Read<kWithoutReadBarrier>();
       if (UNLIKELY(new_ref != old_ref)) {
