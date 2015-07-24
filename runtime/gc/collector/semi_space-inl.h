@@ -83,6 +83,14 @@ inline void SemiSpace::MarkObject(
   }
 }
 
+template<bool kPoisonReferences>
+inline void SemiSpace::MarkObjectIfNotInToSpace(
+    mirror::ObjectReference<kPoisonReferences, mirror::Object>* obj_ptr) {
+  if (!to_space_->HasAddress(obj_ptr->AsMirrorPtr())) {
+    MarkObject(obj_ptr);
+  }
+}
+
 }  // namespace collector
 }  // namespace gc
 }  // namespace art
