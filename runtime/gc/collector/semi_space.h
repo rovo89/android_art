@@ -103,6 +103,10 @@ class SemiSpace : public GarbageCollector {
   void MarkObject(mirror::ObjectReference<kPoisonReferences, mirror::Object>* obj_ptr)
       REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
+  template<bool kPoisonReferences>
+  void MarkObjectIfNotInToSpace(mirror::ObjectReference<kPoisonReferences, mirror::Object>* obj_ptr)
+      REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+
   virtual mirror::Object* MarkObject(mirror::Object* root) OVERRIDE
       REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 

@@ -707,7 +707,9 @@ class SemiSpaceMarkObjectVisitor {
       Locks::mutator_lock_->AssertExclusiveHeld(Thread::Current());
       Locks::heap_bitmap_lock_->AssertExclusiveHeld(Thread::Current());
     }
-    collector_->MarkObject(root);
+    // We may visit the same root multiple times, so avoid marking things in the to-space since
+    // this is not handled by the GC.
+    collector_->MarkObjectIfNotInToSpace(root);
   }
 
  private:
