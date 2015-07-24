@@ -883,8 +883,13 @@ class ClinitImageUpdate {
   }
 
   // java.lang.Reference visitor for VisitReferences.
-  void operator()(mirror::Class* /* klass */, mirror::Reference* /* ref */) const {
-  }
+  void operator()(mirror::Class* klass ATTRIBUTE_UNUSED, mirror::Reference* ref ATTRIBUTE_UNUSED)
+      const {}
+
+  // Ignore class native roots.
+  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED)
+      const {}
+  void VisitRoot(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED) const {}
 
   void Walk() SHARED_REQUIRES(Locks::mutator_lock_) {
     // Use the initial classes as roots for a search.

@@ -680,6 +680,8 @@ inline void Class::VisitReferences(mirror::Class* klass, const Visitor& visitor)
     // linked yet.
     VisitStaticFieldsReferences<kVisitClass>(this, visitor);
   }
+  // Since this class is reachable, we must also visit the associated roots when we scan it.
+  VisitNativeRoots(visitor, Runtime::Current()->GetClassLinker()->GetImagePointerSize());
 }
 
 template<ReadBarrierOption kReadBarrierOption>
@@ -816,20 +818,22 @@ void mirror::Class::VisitNativeRoots(Visitor& visitor, size_t pointer_size) {
   if (sfields != nullptr) {
     for (size_t i = 0, count = NumStaticFields(); i < count; ++i) {
       auto* f = &sfields[i];
+      // Visit roots first in case the declaring class gets moved.
+      f->VisitRoots(visitor);
       if (kIsDebugBuild && IsResolved()) {
         CHECK_EQ(f->GetDeclaringClass(), this) << GetStatus();
       }
-      f->VisitRoots(visitor);
     }
   }
   ArtField* const ifields = GetIFieldsUnchecked();
   if (ifields != nullptr) {
     for (size_t i = 0, count = NumInstanceFields(); i < count; ++i) {
       auto* f = &ifields[i];
+      // Visit roots first in case the declaring class gets moved.
+      f->VisitRoots(visitor);
       if (kIsDebugBuild && IsResolved()) {
         CHECK_EQ(f->GetDeclaringClass(), this) << GetStatus();
       }
-      f->VisitRoots(visitor);
     }
   }
   // We may see GetDirectMethodsPtr() == null with NumDirectMethods() != 0 if the root marking
