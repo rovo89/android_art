@@ -58,12 +58,12 @@ class MarkSweep : public GarbageCollector {
 
   ~MarkSweep() {}
 
-  virtual void RunPhases() OVERRIDE NO_THREAD_SAFETY_ANALYSIS;
+  virtual void RunPhases() OVERRIDE REQUIRES(!mark_stack_lock_);
   void InitializePhase();
-  void MarkingPhase() SHARED_REQUIRES(Locks::mutator_lock_, !mark_stack_lock_);
+  void MarkingPhase() SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!mark_stack_lock_);
   void PausePhase() REQUIRES(Locks::mutator_lock_, !mark_stack_lock_);
   void ReclaimPhase() SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!mark_stack_lock_);
-  void FinishPhase() SHARED_REQUIRES(Locks::mutator_lock_);
+  void FinishPhase();
   virtual void MarkReachableObjects()
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_, !mark_stack_lock_);
 

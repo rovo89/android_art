@@ -638,7 +638,7 @@ class ConcurrentCopyingVerifyNoFromSpaceRefsFieldVisitor {
   explicit ConcurrentCopyingVerifyNoFromSpaceRefsFieldVisitor(ConcurrentCopying* collector)
       : collector_(collector) {}
 
-  void operator()(mirror::Object* obj, MemberOffset offset, bool /* is_static */) const
+  void operator()(mirror::Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
       SHARED_REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE {
     mirror::Object* ref =
         obj->GetFieldObject<mirror::Object, kDefaultVerifyFlags, kWithoutReadBarrier>(offset);
@@ -649,6 +649,19 @@ class ConcurrentCopyingVerifyNoFromSpaceRefsFieldVisitor {
       SHARED_REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE {
     CHECK(klass->IsTypeOfReferenceClass());
     this->operator()(ref, mirror::Reference::ReferentOffset(), false);
+  }
+
+  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    if (!root->IsNull()) {
+      VisitRoot(root);
+    }
+  }
+
+  void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    ConcurrentCopyingVerifyNoFromSpaceRefsVisitor visitor(collector_);
+    visitor(root->AsMirrorPtr());
   }
 
  private:
@@ -750,16 +763,29 @@ class ConcurrentCopyingAssertToSpaceInvariantFieldVisitor {
   explicit ConcurrentCopyingAssertToSpaceInvariantFieldVisitor(ConcurrentCopying* collector)
       : collector_(collector) {}
 
-  void operator()(mirror::Object* obj, MemberOffset offset, bool /* is_static */) const
+  void operator()(mirror::Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
       SHARED_REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE {
     mirror::Object* ref =
         obj->GetFieldObject<mirror::Object, kDefaultVerifyFlags, kWithoutReadBarrier>(offset);
     ConcurrentCopyingAssertToSpaceInvariantRefsVisitor visitor(collector_);
     visitor(ref);
   }
-  void operator()(mirror::Class* klass, mirror::Reference* /* ref */) const
+  void operator()(mirror::Class* klass, mirror::Reference* ref ATTRIBUTE_UNUSED) const
       SHARED_REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE {
     CHECK(klass->IsTypeOfReferenceClass());
+  }
+
+  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    if (!root->IsNull()) {
+      VisitRoot(root);
+    }
+  }
+
+  void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    ConcurrentCopyingAssertToSpaceInvariantRefsVisitor visitor(collector_);
+    visitor(root->AsMirrorPtr());
   }
 
  private:
@@ -1500,6 +1526,18 @@ class ConcurrentCopyingRefFieldsVisitor {
     collector_->DelayReferenceReferent(klass, ref);
   }
 
+  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    if (!root->IsNull()) {
+      VisitRoot(root);
+    }
+  }
+
+  void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    collector_->MarkRoot(root);
+  }
+
  private:
   ConcurrentCopying* const collector_;
 };
@@ -1513,7 +1551,8 @@ void ConcurrentCopying::Scan(mirror::Object* to_ref) {
 
 // Process a field.
 inline void ConcurrentCopying::Process(mirror::Object* obj, MemberOffset offset) {
-  mirror::Object* ref = obj->GetFieldObject<mirror::Object, kVerifyNone, kWithoutReadBarrier, false>(offset);
+  mirror::Object* ref = obj->GetFieldObject<
+      mirror::Object, kVerifyNone, kWithoutReadBarrier, false>(offset);
   if (ref == nullptr || region_space_->IsInToSpace(ref)) {
     return;
   }
@@ -1530,8 +1569,8 @@ inline void ConcurrentCopying::Process(mirror::Object* obj, MemberOffset offset)
       // It was updated by the mutator.
       break;
     }
-  } while (!obj->CasFieldWeakSequentiallyConsistentObjectWithoutWriteBarrier<false, false, kVerifyNone>(
-      offset, expected_ref, new_ref));
+  } while (!obj->CasFieldWeakSequentiallyConsistentObjectWithoutWriteBarrier<
+      false, false, kVerifyNone>(offset, expected_ref, new_ref));
 }
 
 // Process some roots.
@@ -1559,28 +1598,35 @@ void ConcurrentCopying::VisitRoots(
   }
 }
 
-void ConcurrentCopying::VisitRoots(
-    mirror::CompressedReference<mirror::Object>** roots, size_t count,
-    const RootInfo& info ATTRIBUTE_UNUSED) {
-  for (size_t i = 0; i < count; ++i) {
-    mirror::CompressedReference<mirror::Object>* root = roots[i];
-    mirror::Object* ref = root->AsMirrorPtr();
-    if (ref == nullptr || region_space_->IsInToSpace(ref)) {
-      continue;
-    }
-    mirror::Object* to_ref = Mark(ref);
-    if (to_ref == ref) {
-      continue;
-    }
+void ConcurrentCopying::MarkRoot(mirror::CompressedReference<mirror::Object>* root) {
+  DCHECK(!root->IsNull());
+  mirror::Object* const ref = root->AsMirrorPtr();
+  if (region_space_->IsInToSpace(ref)) {
+    return;
+  }
+  mirror::Object* to_ref = Mark(ref);
+  if (to_ref != ref) {
     auto* addr = reinterpret_cast<Atomic<mirror::CompressedReference<mirror::Object>>*>(root);
     auto expected_ref = mirror::CompressedReference<mirror::Object>::FromMirrorPtr(ref);
     auto new_ref = mirror::CompressedReference<mirror::Object>::FromMirrorPtr(to_ref);
+    // If the cas fails, then it was updated by the mutator.
     do {
       if (ref != addr->LoadRelaxed().AsMirrorPtr()) {
         // It was updated by the mutator.
         break;
       }
     } while (!addr->CompareExchangeWeakSequentiallyConsistent(expected_ref, new_ref));
+  }
+}
+
+void ConcurrentCopying::VisitRoots(
+    mirror::CompressedReference<mirror::Object>** roots, size_t count,
+    const RootInfo& info ATTRIBUTE_UNUSED) {
+  for (size_t i = 0; i < count; ++i) {
+    mirror::CompressedReference<mirror::Object>* const root = roots[i];
+    if (!root->IsNull()) {
+      MarkRoot(root);
+    }
   }
 }
 

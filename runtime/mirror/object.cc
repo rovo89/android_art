@@ -63,6 +63,11 @@ class CopyReferenceFieldsWithReadBarrierVisitor {
     this->operator()(ref, mirror::Reference::ReferentOffset(), false);
   }
 
+  // Unused since we don't copy class native roots.
+  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED)
+      const {}
+  void VisitRoot(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED) const {}
+
  private:
   Object* const dest_obj_;
 };
