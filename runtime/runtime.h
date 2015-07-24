@@ -548,6 +548,11 @@ class Runtime {
     return method_ref_string_init_reg_map_;
   }
 
+  // Returns the build fingerprint, if set. Otherwise an empty string is returned.
+  std::string GetFingerprint() {
+    return fingerprint_;
+  }
+
  private:
   static void InitPlatformSignalHandlers();
 
@@ -728,6 +733,9 @@ class Runtime {
   uint32_t zygote_max_failed_boots_;
 
   MethodRefToStringInitRegMap method_ref_string_init_reg_map_;
+
+  // Contains the build fingerprint, if given as a parameter.
+  std::string fingerprint_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
