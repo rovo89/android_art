@@ -563,6 +563,11 @@ class Runtime {
 
   bool IsDebuggable() const;
 
+  // Returns the build fingerprint, if set. Otherwise an empty string is returned.
+  std::string GetFingerprint() {
+    return fingerprint_;
+  }
+
  private:
   static void InitPlatformSignalHandlers();
 
@@ -756,6 +761,9 @@ class Runtime {
   bool experimental_lambdas_;
 
   MethodRefToStringInitRegMap method_ref_string_init_reg_map_;
+
+  // Contains the build fingerprint, if given as a parameter.
+  std::string fingerprint_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };

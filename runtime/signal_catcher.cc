@@ -133,8 +133,11 @@ void SignalCatcher::HandleSigQuit() {
 
   DumpCmdLine(os);
 
-  // Note: The string "ABI:" is chosen to match the format used by debuggerd.
-  os << "ABI: " << GetInstructionSetString(runtime->GetInstructionSet()) << "\n";
+  // Note: The strings "Build fingerprint:" and "ABI:" are chosen to match the format used by
+  // debuggerd. This allows, for example, the stack tool to work.
+  std::string fingerprint = runtime->GetFingerprint();
+  os << "Build fingerprint: '" << (fingerprint.empty() ? "unknown" : fingerprint) << "'\n";
+  os << "ABI: '" << GetInstructionSetString(runtime->GetInstructionSet()) << "'\n";
 
   os << "Build type: " << (kIsDebugBuild ? "debug" : "optimized") << "\n";
 
