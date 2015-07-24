@@ -122,6 +122,8 @@ class ConcurrentCopying : public GarbageCollector {
   virtual void VisitRoots(mirror::Object*** roots, size_t count, const RootInfo& info)
       OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_);
+  void MarkRoot(mirror::CompressedReference<mirror::Object>* root)
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_);
   virtual void VisitRoots(mirror::CompressedReference<mirror::Object>** roots, size_t count,
                           const RootInfo& info)
       OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_)

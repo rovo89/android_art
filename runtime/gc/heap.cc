@@ -1780,13 +1780,17 @@ class ReferringObjectsFinder {
   }
 
   // For Object::VisitReferences.
-  void operator()(mirror::Object* obj, MemberOffset offset, bool /* is_static */) const
+  void operator()(mirror::Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
       SHARED_REQUIRES(Locks::mutator_lock_) {
     mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset);
     if (ref == object_ && (max_count_ == 0 || referring_objects_.size() < max_count_)) {
       referring_objects_.push_back(obj);
     }
   }
+
+  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED)
+      const {}
+  void VisitRoot(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED) const {}
 
  private:
   const mirror::Object* const object_;
@@ -2612,15 +2616,14 @@ class VerifyReferenceVisitor : public SingleRootVisitor {
     return fail_count_->LoadSequentiallyConsistent();
   }
 
-  void operator()(mirror::Class* klass, mirror::Reference* ref) const
+  void operator()(mirror::Class* klass ATTRIBUTE_UNUSED, mirror::Reference* ref) const
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    UNUSED(klass);
     if (verify_referent_) {
       VerifyReference(ref, ref->GetReferent(), mirror::Reference::ReferentOffset());
     }
   }
 
-  void operator()(mirror::Object* obj, MemberOffset offset, bool /*is_static*/) const
+  void operator()(mirror::Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
       SHARED_REQUIRES(Locks::mutator_lock_) {
     VerifyReference(obj, obj->GetFieldObject<mirror::Object>(offset), offset);
   }
@@ -2629,7 +2632,19 @@ class VerifyReferenceVisitor : public SingleRootVisitor {
     return heap_->IsLiveObjectLocked(obj, true, false, true);
   }
 
-  void VisitRoot(mirror::Object* root, const RootInfo& root_info) OVERRIDE
+  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    if (!root->IsNull()) {
+      VisitRoot(root);
+    }
+  }
+  void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    const_cast<VerifyReferenceVisitor*>(this)->VisitRoot(
+        root->AsMirrorPtr(), RootInfo(kRootVMInternal));
+  }
+
+  virtual void VisitRoot(mirror::Object* root, const RootInfo& root_info) OVERRIDE
       SHARED_REQUIRES(Locks::mutator_lock_) {
     if (root == nullptr) {
       LOG(ERROR) << "Root is null with info " << root_info.GetType();
@@ -2747,7 +2762,7 @@ class VerifyObjectVisitor {
       : heap_(heap), fail_count_(fail_count), verify_referent_(verify_referent) {
   }
 
-  void operator()(mirror::Object* obj) const
+  void operator()(mirror::Object* obj)
       SHARED_REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     // Note: we are verifying the references in obj but not obj itself, this is because obj must
     // be live or else how did we find it in the live bitmap?
@@ -2762,8 +2777,7 @@ class VerifyObjectVisitor {
     visitor->operator()(obj);
   }
 
-  void VerifyRoots() SHARED_REQUIRES(Locks::mutator_lock_)
-      REQUIRES(!Locks::heap_bitmap_lock_) {
+  void VerifyRoots() SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Locks::heap_bitmap_lock_) {
     ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
     VerifyReferenceVisitor visitor(heap_, fail_count_, verify_referent_);
     Runtime::Current()->VisitRoots(&visitor);
@@ -2859,6 +2873,11 @@ class VerifyReferenceCardVisitor {
                             Locks::heap_bitmap_lock_)
       : heap_(heap), failed_(failed) {
   }
+
+  // There is no card marks for native roots on a class.
+  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED)
+      const {}
+  void VisitRoot(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED) const {}
 
   // TODO: Fix lock analysis to not use NO_THREAD_SAFETY_ANALYSIS, requires support for
   // annotalysis on visitors.

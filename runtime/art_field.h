@@ -151,8 +151,9 @@ class ArtField FINAL {
   void SetObj(mirror::Object* object, mirror::Object* new_value)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // NO_THREAD_SAFETY_ANALYSIS since we don't know what the callback requires.
   template<typename RootVisitorType>
-  void VisitRoots(RootVisitorType& visitor) SHARED_REQUIRES(Locks::mutator_lock_);
+  void VisitRoots(RootVisitorType& visitor) NO_THREAD_SAFETY_ANALYSIS;
 
   bool IsVolatile() SHARED_REQUIRES(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccVolatile) != 0;
