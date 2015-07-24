@@ -260,6 +260,9 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
       .Define("--cpu-abilist=_")
           .WithType<std::string>()
           .IntoKey(M::CpuAbiList)
+      .Define("-Xfingerprint:_")
+          .WithType<std::string>()
+          .IntoKey(M::Fingerprint)
       .Ignore({
           "-ea", "-da", "-enableassertions", "-disableassertions", "--runtime-arg", "-esa",
           "-dsa", "-enablesystemassertions", "-disablesystemassertions", "-Xrs", "-Xint:_",

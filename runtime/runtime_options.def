@@ -122,5 +122,6 @@ RUNTIME_OPTIONS_KEY (void (*)(int32_t status), \
 RUNTIME_OPTIONS_KEY (void (*)(),          HookAbort,                      nullptr)
 RUNTIME_OPTIONS_KEY (unsigned int,        ZygoteMaxFailedBoots,           10)
 RUNTIME_OPTIONS_KEY (Unit,                NoDexFileFallback)
+RUNTIME_OPTIONS_KEY (std::string,         Fingerprint)
 
 #undef RUNTIME_OPTIONS_KEY
