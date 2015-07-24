@@ -32,6 +32,8 @@ public class Main {
                 new InfiniteWhileLoopWithSpecialPutOrNop(new SpecialMethods2()),
                 new InfiniteWhileLoopWithSpecialConstOrIGet(new SpecialMethods1()),
                 new InfiniteWhileLoopWithSpecialConstOrIGet(new SpecialMethods2()),
+                new InfiniteWhileLoopWithSpecialConstOrIGetInTryCatch(new SpecialMethods1()),
+                new InfiniteWhileLoopWithSpecialConstOrIGetInTryCatch(new SpecialMethods2()),
         };
         doWhileLoopWithLong.start();
         for (SimpleLoopThread loop : simpleLoops) {
@@ -132,6 +134,21 @@ class InfiniteWhileLoopWithSpecialConstOrIGet extends SimpleLoopThread {
     while (keepGoing) {
       i += smi.ConstOrIGet();
     }
+  }
+}
+
+class InfiniteWhileLoopWithSpecialConstOrIGetInTryCatch extends SimpleLoopThread {
+  private SpecialMethodInterface smi;
+  public InfiniteWhileLoopWithSpecialConstOrIGetInTryCatch(SpecialMethodInterface smi) {
+    this.smi = smi;
+  }
+  public void run() {
+    try {
+      long i = 0L;
+      while (keepGoing) {
+        i += smi.ConstOrIGet();
+      }
+    } catch (Throwable ignored) { }
   }
 }
 

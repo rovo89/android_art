@@ -173,7 +173,17 @@ enum OatMethodAttributes {
 
 typedef uint16_t BasicBlockId;
 static const BasicBlockId NullBasicBlockId = 0;
-static constexpr bool kLeafOptimization = false;
+
+// Leaf optimization is basically the removal of suspend checks from leaf methods.
+// This is incompatible with SuspendCheckElimination (SCE) which eliminates suspend
+// checks from loops that call any non-intrinsic method, since a loop that calls
+// only a leaf method would end up without any suspend checks at all. So turning
+// this on automatically disables the SCE in MIRGraph::EliminateSuspendChecksGate().
+//
+// Since the Optimizing compiler is actually applying the same optimization, Quick
+// must not run SCE anyway, so we enable this optimization as a way to disable SCE
+// while keeping a consistent behavior across the backends, b/22657404.
+static constexpr bool kLeafOptimization = true;
 
 /*
  * In general, vreg/sreg describe Dalvik registers that originated with dx.  However,
