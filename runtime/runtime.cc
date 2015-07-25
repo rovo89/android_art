@@ -607,14 +607,14 @@ bool Runtime::InitZygote() {
   // See storage config details at http://source.android.com/tech/storage/
   // Create private mount namespace shared by all children
   if (unshare(CLONE_NEWNS) == -1) {
-    PLOG(WARNING) << "Failed to unshare()";
+    PLOG(ERROR) << "Failed to unshare()";
     return false;
   }
 
   // Mark rootfs as being a slave so that changes from default
   // namespace only flow into our children.
   if (mount("rootfs", "/", nullptr, (MS_SLAVE | MS_REC), nullptr) == -1) {
-    PLOG(WARNING) << "Failed to mount() rootfs as MS_SLAVE";
+    PLOG(ERROR) << "Failed to mount() rootfs as MS_SLAVE";
     return false;
   }
 
@@ -625,7 +625,7 @@ bool Runtime::InitZygote() {
   if (target_base != nullptr) {
     if (mount("tmpfs", target_base, "tmpfs", MS_NOSUID | MS_NODEV,
               "uid=0,gid=1028,mode=0751") == -1) {
-      LOG(WARNING) << "Failed to mount tmpfs to " << target_base;
+      PLOG(ERROR) << "Failed to mount tmpfs to " << target_base;
       return false;
     }
   }
