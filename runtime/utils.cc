@@ -1130,9 +1130,13 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
     os << prefix << StringPrintf("#%02zu pc ", it->num);
     bool try_addr2line = false;
     if (!BacktraceMap::IsValid(it->map)) {
-      os << StringPrintf("%08" PRIxPTR "  ???", it->pc);
+      os << StringPrintf(Is64BitInstructionSet(kRuntimeISA) ? "%016" PRIxPTR "  ???"
+                                                            : "%08" PRIxPTR "  ???",
+                         it->pc);
     } else {
-      os << StringPrintf("%08" PRIxPTR "  ", BacktraceMap::GetRelativePc(it->map, it->pc));
+      os << StringPrintf(Is64BitInstructionSet(kRuntimeISA) ? "%016" PRIxPTR "  "
+                                                            : "%08" PRIxPTR "  ",
+                         BacktraceMap::GetRelativePc(it->map, it->pc));
       os << it->map.name;
       os << " (";
       if (!it->func_name.empty()) {
