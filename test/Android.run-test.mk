@@ -113,7 +113,7 @@ ifeq ($(ART_TEST_DEFAULT_COMPILER),true)
   COMPILER_TYPES += default
 endif
 ifeq ($(ART_TEST_INTERPRETER_ACCESS_CHECKS),true)
-  COMPILER_TYPES += interpreter-access-checks
+  COMPILER_TYPES += interp-ac
 endif
 ifeq ($(ART_TEST_INTERPRETER),true)
   COMPILER_TYPES += interpreter
@@ -277,9 +277,9 @@ TEST_ART_BROKEN_INTERPRETER_ACCESS_CHECK_TESTS := \
   506-verify-aput \
   800-smali
 
-ifneq (,$(filter interpreter-access-checks,$(COMPILER_TYPES)))
+ifneq (,$(filter interp-ac,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
-      interpreter-access-checks,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      interp-ac,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
       $(IMAGE_TYPES), $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_INTERPRETER_ACCESS_CHECK_TESTS), $(ALL_ADDRESS_SIZES))
 endif
 
@@ -629,7 +629,7 @@ endif
 
 # Create a rule to build and run a tests following the form:
 # test-art-{1: host or target}-run-test-{2: debug ndebug}-{3: prebuild no-prebuild no-dex2oat}-
-#    {4: interpreter default optimizing jit interpreter-access-checks}-
+#    {4: interpreter default optimizing jit interp-ac}-
 #    {5: relocate nrelocate relocate-npatchoat}-
 #    {6: trace or ntrace}-{7: gcstress gcverify cms}-{8: forcecopy checkjni jni}-
 #    {9: no-image image picimage}-{10: pictest npictest}-
@@ -700,7 +700,7 @@ define define-test-art-run-test
     ifeq ($(4),interpreter)
       test_groups += ART_RUN_TEST_$$(uc_host_or_target)_INTERPRETER_RULES
       run_test_options += --interpreter
-    else ifeq ($(4),interpreter-access-checks)
+    else ifeq ($(4),interp-ac)
       test_groups += ART_RUN_TEST_$$(uc_host_or_target)_INTERPRETER_ACCESS_CHECKS_RULES
       run_test_options += --interpreter --verify-soft-fail
     else
