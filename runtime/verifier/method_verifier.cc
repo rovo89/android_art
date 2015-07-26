@@ -3383,7 +3383,14 @@ mirror::ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instructio
   mirror::ArtMethod* res_method = GetQuickInvokedMethod(inst, work_line_.get(),
                                                              is_range);
   if (res_method == nullptr) {
-    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Cannot infer method from " << inst->Name();
+    if (((method_access_flags_ & kAccConstructor) != 0) && ((method_access_flags_ & kAccStatic) != 0)) {
+      // Class initializers are never compiled, but always interpreted.
+      // The interpreter might throw a NPE, so this error can be ignored.
+      LOG(WARNING) << "Cannot infer method from " << inst->Name()
+                   << " ignored in " << PrettyMethod(dex_method_idx_, *dex_file_, false);
+    } else {
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Cannot infer method from " << inst->Name();
+    }
     return nullptr;
   }
   if (FailOrAbort(this, !res_method->IsDirect(), "Quick-invoked method is direct at ",
