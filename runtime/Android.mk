@@ -39,6 +39,7 @@ LIBART_COMMON_SRC_FILES := \
   base/unix_file/random_access_file_utils.cc \
   check_jni.cc \
   class_linker.cc \
+  class_table.cc \
   common_throws.cc \
   debugger.cc \
   dex_file.cc \
