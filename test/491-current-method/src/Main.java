@@ -16,7 +16,7 @@
 
 class Main {
 
-  // The code below is written in a way that will crash
+  // The code below is written in a way that would crash
   // the generated code at the time of submission of this test.
   // Therefore, changes to the register allocator may
   // affect the reproducibility of the crash.
@@ -25,8 +25,8 @@ class Main {
     // to put the ART current method.
     c = c / 42;
     // We use the empty string for forcing the slow path.
-    // The slow path for charAt when it is intrinsified, will
-    // move the parameter to ECX, and therefore overwrite the ART
+    // The slow path for charAt, when it is intrinsified, will
+    // move the parameter to ECX and therefore overwrite the ART
     // current method.
     "".charAt(c);
 
