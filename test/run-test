@@ -251,7 +251,7 @@ while true; do
         shift
     elif [ "x$1" = "x--verify-soft-fail" ]; then
         run_args="${run_args} --verify-soft-fail"
-        image_suffix="-interpreter-access-checks"
+        image_suffix="-interp-ac"
         shift
     elif [ "x$1" = "x--no-optimize" ]; then
         run_args="${run_args} --no-optimize"
