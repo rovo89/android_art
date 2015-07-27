@@ -195,6 +195,155 @@ public class Main {
 
 
   /**
+   * Exercise constant folding on multiplication.
+   */
+
+  /// CHECK-START: int Main.IntMultiplication() constant_folding (before)
+  /// CHECK-DAG:     <<Const7:i\d+>>  IntConstant 7
+  /// CHECK-DAG:     <<Const3:i\d+>>  IntConstant 3
+  /// CHECK-DAG:     <<Mul:i\d+>>     Mul [<<Const7>>,<<Const3>>]
+  /// CHECK-DAG:                      Return [<<Mul>>]
+
+  /// CHECK-START: int Main.IntMultiplication() constant_folding (after)
+  /// CHECK-DAG:     <<Const21:i\d+>> IntConstant 21
+  /// CHECK-DAG:                      Return [<<Const21>>]
+
+  /// CHECK-START: int Main.IntMultiplication() constant_folding (after)
+  /// CHECK-NOT:                      Mul
+
+  public static int IntMultiplication() {
+    int a, b, c;
+    a = 7;
+    b = 3;
+    c = a * b;
+    return c;
+  }
+
+  /// CHECK-START: long Main.LongMultiplication() constant_folding (before)
+  /// CHECK-DAG:     <<Const7:j\d+>>  LongConstant 7
+  /// CHECK-DAG:     <<Const3:j\d+>>  LongConstant 3
+  /// CHECK-DAG:     <<Mul:j\d+>>     Mul [<<Const7>>,<<Const3>>]
+  /// CHECK-DAG:                      Return [<<Mul>>]
+
+  /// CHECK-START: long Main.LongMultiplication() constant_folding (after)
+  /// CHECK-DAG:     <<Const21:j\d+>> LongConstant 21
+  /// CHECK-DAG:                      Return [<<Const21>>]
+
+  /// CHECK-START: long Main.LongMultiplication() constant_folding (after)
+  /// CHECK-NOT:                      Mul
+
+  public static long LongMultiplication() {
+    long a, b, c;
+    a = 7L;
+    b = 3L;
+    c = a * b;
+    return c;
+  }
+
+
+  /**
+   * Exercise constant folding on division.
+   */
+
+  /// CHECK-START: int Main.IntDivision() constant_folding (before)
+  /// CHECK-DAG:     <<Const8:i\d+>>   IntConstant 8
+  /// CHECK-DAG:     <<Const3:i\d+>>   IntConstant 3
+  /// CHECK-DAG:     <<Div0Chk:i\d+>>  DivZeroCheck [<<Const3>>]
+  /// CHECK-DAG:     <<Div:i\d+>>      Div [<<Const8>>,<<Div0Chk>>]
+  /// CHECK-DAG:                       Return [<<Div>>]
+
+  /// CHECK-START: int Main.IntDivision() constant_folding (after)
+  /// CHECK-DAG:     <<Const2:i\d+>>   IntConstant 2
+  /// CHECK-DAG:                       Return [<<Const2>>]
+
+  /// CHECK-START: int Main.IntDivision() constant_folding (after)
+  /// CHECK-NOT:                       DivZeroCheck
+  /// CHECK-NOT:                       Div
+
+  public static int IntDivision() {
+    int a, b, c;
+    a = 8;
+    b = 3;
+    c = a / b;
+    return c;
+  }
+
+  /// CHECK-START: long Main.LongDivision() constant_folding (before)
+  /// CHECK-DAG:     <<Const8:j\d+>>   LongConstant 8
+  /// CHECK-DAG:     <<Const3:j\d+>>   LongConstant 3
+  /// CHECK-DAG:     <<Div0Chk:j\d+>>  DivZeroCheck [<<Const3>>]
+  /// CHECK-DAG:     <<Div:j\d+>>      Div [<<Const8>>,<<Div0Chk>>]
+  /// CHECK-DAG:                       Return [<<Div>>]
+
+  /// CHECK-START: long Main.LongDivision() constant_folding (after)
+  /// CHECK-DAG:     <<Const2:j\d+>>   LongConstant 2
+  /// CHECK-DAG:                       Return [<<Const2>>]
+
+  /// CHECK-START: long Main.LongDivision() constant_folding (after)
+  /// CHECK-NOT:                       DivZeroCheck
+  /// CHECK-NOT:                       Div
+
+  public static long LongDivision() {
+    long a, b, c;
+    a = 8L;
+    b = 3L;
+    c = a / b;
+    return c;
+  }
+
+
+  /**
+   * Exercise constant folding on remainder.
+   */
+
+  /// CHECK-START: int Main.IntRemainder() constant_folding (before)
+  /// CHECK-DAG:     <<Const8:i\d+>>   IntConstant 8
+  /// CHECK-DAG:     <<Const3:i\d+>>   IntConstant 3
+  /// CHECK-DAG:     <<Div0Chk:i\d+>>  DivZeroCheck [<<Const3>>]
+  /// CHECK-DAG:     <<Rem:i\d+>>      Rem [<<Const8>>,<<Div0Chk>>]
+  /// CHECK-DAG:                       Return [<<Rem>>]
+
+  /// CHECK-START: int Main.IntRemainder() constant_folding (after)
+  /// CHECK-DAG:     <<Const2:i\d+>>   IntConstant 2
+  /// CHECK-DAG:                       Return [<<Const2>>]
+
+  /// CHECK-START: int Main.IntRemainder() constant_folding (after)
+  /// CHECK-NOT:                       DivZeroCheck
+  /// CHECK-NOT:                       Rem
+
+  public static int IntRemainder() {
+    int a, b, c;
+    a = 8;
+    b = 3;
+    c = a % b;
+    return c;
+  }
+
+  /// CHECK-START: long Main.LongRemainder() constant_folding (before)
+  /// CHECK-DAG:     <<Const8:j\d+>>   LongConstant 8
+  /// CHECK-DAG:     <<Const3:j\d+>>   LongConstant 3
+  /// CHECK-DAG:     <<Div0Chk:j\d+>>  DivZeroCheck [<<Const3>>]
+  /// CHECK-DAG:     <<Rem:j\d+>>      Rem [<<Const8>>,<<Div0Chk>>]
+  /// CHECK-DAG:                       Return [<<Rem>>]
+
+  /// CHECK-START: long Main.LongRemainder() constant_folding (after)
+  /// CHECK-DAG:     <<Const2:j\d+>>   LongConstant 2
+  /// CHECK-DAG:                       Return [<<Const2>>]
+
+  /// CHECK-START: long Main.LongRemainder() constant_folding (after)
+  /// CHECK-NOT:                       DivZeroCheck
+  /// CHECK-NOT:                       Rem
+
+  public static long LongRemainder() {
+    long a, b, c;
+    a = 8L;
+    b = 3L;
+    c = a % b;
+    return c;
+  }
+
+
+  /**
    * Exercise constant folding on constant (static) condition.
    */
 
@@ -724,6 +873,15 @@ public class Main {
 
     assertIntEquals(4, IntSubtraction());
     assertLongEquals(4L, LongSubtraction());
+
+    assertIntEquals(21, IntMultiplication());
+    assertLongEquals(21L, LongMultiplication());
+
+    assertIntEquals(2, IntDivision());
+    assertLongEquals(2L, LongDivision());
+
+    assertIntEquals(2, IntRemainder());
+    assertLongEquals(2L, LongRemainder());
 
     assertIntEquals(5, StaticCondition());
 
