@@ -1263,4 +1263,10 @@ TEST_F(AssemblerX86_64Test, Repnescasw) {
   DriverStr(expected, "Repnescasw");
 }
 
+TEST_F(AssemblerX86_64Test, Repecmpsw) {
+  GetAssembler()->repe_cmpsw();
+  const char* expected = "repe cmpsw\n";
+  DriverStr(expected, "Repecmpsw");
+}
+
 }  // namespace art
