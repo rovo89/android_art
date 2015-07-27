@@ -1194,11 +1194,26 @@ void X86Assembler::imull(Register dst, Register src) {
 }
 
 
-void X86Assembler::imull(Register reg, const Immediate& imm) {
+void X86Assembler::imull(Register dst, Register src, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  EmitUint8(0x69);
-  EmitOperand(reg, Operand(reg));
-  EmitImmediate(imm);
+  // See whether imm can be represented as a sign-extended 8bit value.
+  int32_t v32 = static_cast<int32_t>(imm.value());
+  if (IsInt<8>(v32)) {
+    // Sign-extension works.
+    EmitUint8(0x6B);
+    EmitOperand(dst, Operand(src));
+    EmitUint8(static_cast<uint8_t>(v32 & 0xFF));
+  } else {
+    // Not representable, use full immediate.
+    EmitUint8(0x69);
+    EmitOperand(dst, Operand(src));
+    EmitImmediate(imm);
+  }
+}
+
+
+void X86Assembler::imull(Register reg, const Immediate& imm) {
+  imull(reg, reg, imm);
 }
 
 

@@ -2535,13 +2535,19 @@ void LocationsBuilderX86_64::VisitMul(HMul* mul) {
     case Primitive::kPrimInt: {
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::Any());
-      locations->SetOut(Location::SameAsFirstInput());
+      if (mul->InputAt(1)->IsIntConstant()) {
+        // Can use 3 operand multiply.
+        locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      } else {
+        locations->SetOut(Location::SameAsFirstInput());
+      }
       break;
     }
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::RegisterOrInt32LongConstant(mul->InputAt(1)));
-      if (locations->InAt(1).IsConstant()) {
+      locations->SetInAt(1, Location::Any());
+      if (mul->InputAt(1)->IsLongConstant() &&
+          IsInt<32>(mul->InputAt(1)->AsLongConstant()->GetValue())) {
         // Can use 3 operand multiply.
         locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       } else {
@@ -2566,37 +2572,51 @@ void InstructionCodeGeneratorX86_64::VisitMul(HMul* mul) {
   LocationSummary* locations = mul->GetLocations();
   Location first = locations->InAt(0);
   Location second = locations->InAt(1);
+  Location out = locations->Out();
   switch (mul->GetResultType()) {
-    case Primitive::kPrimInt: {
-      DCHECK(first.Equals(locations->Out()));
-      if (second.IsRegister()) {
+    case Primitive::kPrimInt:
+      // The constant may have ended up in a register, so test explicitly to avoid
+      // problems where the output may not be the same as the first operand.
+      if (mul->InputAt(1)->IsIntConstant()) {
+        Immediate imm(mul->InputAt(1)->AsIntConstant()->GetValue());
+        __ imull(out.AsRegister<CpuRegister>(), first.AsRegister<CpuRegister>(), imm);
+      } else if (second.IsRegister()) {
+        DCHECK(first.Equals(out));
         __ imull(first.AsRegister<CpuRegister>(), second.AsRegister<CpuRegister>());
-      } else if (second.IsConstant()) {
-        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue());
-        __ imull(first.AsRegister<CpuRegister>(), imm);
       } else {
+        DCHECK(first.Equals(out));
         DCHECK(second.IsStackSlot());
         __ imull(first.AsRegister<CpuRegister>(),
                  Address(CpuRegister(RSP), second.GetStackIndex()));
       }
       break;
-    }
     case Primitive::kPrimLong: {
-      if (second.IsConstant()) {
-        int64_t value = second.GetConstant()->AsLongConstant()->GetValue();
-        DCHECK(IsInt<32>(value));
-        __ imulq(locations->Out().AsRegister<CpuRegister>(),
-                 first.AsRegister<CpuRegister>(),
-                 Immediate(static_cast<int32_t>(value)));
-      } else {
-        DCHECK(first.Equals(locations->Out()));
+      // The constant may have ended up in a register, so test explicitly to avoid
+      // problems where the output may not be the same as the first operand.
+      if (mul->InputAt(1)->IsLongConstant()) {
+        int64_t value = mul->InputAt(1)->AsLongConstant()->GetValue();
+        if (IsInt<32>(value)) {
+          __ imulq(out.AsRegister<CpuRegister>(), first.AsRegister<CpuRegister>(),
+                   Immediate(static_cast<int32_t>(value)));
+        } else {
+          // Have to use the constant area.
+          DCHECK(first.Equals(out));
+          __ imulq(first.AsRegister<CpuRegister>(), codegen_->LiteralInt64Address(value));
+        }
+      } else if (second.IsRegister()) {
+        DCHECK(first.Equals(out));
         __ imulq(first.AsRegister<CpuRegister>(), second.AsRegister<CpuRegister>());
+      } else {
+        DCHECK(second.IsDoubleStackSlot());
+        DCHECK(first.Equals(out));
+        __ imulq(first.AsRegister<CpuRegister>(),
+                 Address(CpuRegister(RSP), second.GetStackIndex()));
       }
       break;
     }
 
     case Primitive::kPrimFloat: {
-      DCHECK(first.Equals(locations->Out()));
+      DCHECK(first.Equals(out));
       if (second.IsFpuRegister()) {
         __ mulss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
       } else if (second.IsConstant()) {
@@ -2611,7 +2631,7 @@ void InstructionCodeGeneratorX86_64::VisitMul(HMul* mul) {
     }
 
     case Primitive::kPrimDouble: {
-      DCHECK(first.Equals(locations->Out()));
+      DCHECK(first.Equals(out));
       if (second.IsFpuRegister()) {
         __ mulsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
       } else if (second.IsConstant()) {
