@@ -16,6 +16,14 @@
 
 public class Main {
 
+  static class Foo {
+    int field0;
+    int field1;
+    int field2;
+    int field3;
+    int field4;
+  };
+
   /// CHECK-START: void Main.test1(boolean, int, int, int, int, int) register (after)
   /// CHECK:       name "B0"
   /// CHECK-NOT:     ParallelMove
@@ -25,7 +33,7 @@ public class Main {
   /// CHECK-NOT:     ParallelMove
   /// CHECK:       name "B3"
   /// CHECK-NOT:   end_block
-  /// CHECK:         ArraySet
+  /// CHECK:         InstanceFieldSet
   // We could check here that there is a parallel move, but it's only valid
   // for some architectures (for example x86), as other architectures may
   // not do move at all.
@@ -36,19 +44,19 @@ public class Main {
     int e = live1;
     int f = live2;
     int g = live3;
+    int j = live0;
     if (z) {
     } else {
       // Create enough live instructions to force spilling on x86.
       int h = live4;
       int i = live5;
-      array[2] = e + i + h;
-      array[3] = f + i + h;
-      array[4] = g + i + h;
-      array[0] = h;
-      array[1] = i + h;
-
+      foo.field2 = e + i + h;
+      foo.field3 = f + i + h;
+      foo.field4 = g + i + h;
+      foo.field0 = h;
+      foo.field1 = i + h;
     }
-    live1 = e + f + g;
+    live1 = e + f + g + j;
   }
 
   /// CHECK-START: void Main.test2(boolean, int, int, int, int, int) register (after)
@@ -60,7 +68,7 @@ public class Main {
   /// CHECK-NOT:     ParallelMove
   /// CHECK:       name "B3"
   /// CHECK-NOT:   end_block
-  /// CHECK:         ArraySet
+  /// CHECK:         InstanceFieldSet
   // We could check here that there is a parallel move, but it's only valid
   // for some architectures (for example x86), as other architectures may
   // not do move at all.
@@ -71,18 +79,19 @@ public class Main {
     int e = live1;
     int f = live2;
     int g = live3;
+    int j = live0;
     if (z) {
       if (y) {
         int h = live4;
         int i = live5;
-        array[2] = e + i + h;
-        array[3] = f + i + h;
-        array[4] = g + i + h;
-        array[0] = h;
-        array[1] = i + h;
+        foo.field2 = e + i + h;
+        foo.field3 = f + i + h;
+        foo.field4 = g + i + h;
+        foo.field0 = h;
+        foo.field1 = i + h;
       }
     }
-    live1 = e + f + g;
+    live1 = e + f + g + j;
   }
 
   /// CHECK-START: void Main.test3(boolean, int, int, int, int, int) register (after)
@@ -94,7 +103,7 @@ public class Main {
   /// CHECK-NOT:     ParallelMove
   /// CHECK:       name "B6"
   /// CHECK-NOT:   end_block
-  /// CHECK:         ArraySet
+  /// CHECK:         InstanceFieldSet
   // We could check here that there is a parallel move, but it's only valid
   // for some architectures (for example x86), as other architectures may
   // not do move at all.
@@ -107,6 +116,7 @@ public class Main {
     int e = live1;
     int f = live2;
     int g = live3;
+    int j = live0;
     if (z) {
       live1 = e;
     } else {
@@ -115,24 +125,25 @@ public class Main {
       } else {
         int h = live4;
         int i = live5;
-        array[2] = e + i + h;
-        array[3] = f + i + h;
-        array[4] = g + i + h;
-        array[0] = h;
-        array[1] = i + h;
+        foo.field2 = e + i + h;
+        foo.field3 = f + i + h;
+        foo.field4 = g + i + h;
+        foo.field0 = h;
+        foo.field1 = i + h;
       }
     }
-    live1 = e + f + g;
+    live1 = e + f + g + j;
   }
 
   public static void main(String[] args) {
   }
 
   static boolean y;
+  static int live0;
   static int live1;
   static int live2;
   static int live3;
   static int live4;
   static int live5;
-  static int[] array;
+  static Foo foo;
 }
