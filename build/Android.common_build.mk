@@ -33,7 +33,13 @@ ART_BUILD_TARGET_NDEBUG ?= true
 ART_BUILD_TARGET_DEBUG ?= true
 ART_BUILD_HOST_NDEBUG ?= true
 ART_BUILD_HOST_DEBUG ?= true
-ART_BUILD_HOST_STATIC ?= true
+
+# Enable the static builds only for checkbuilds.
+ifneq (,$(filter checkbuild,$(MAKECMDGOALS)))
+  ART_BUILD_HOST_STATIC ?= true
+else
+  ART_BUILD_HOST_STATIC ?= false
+endif
 
 # Asan does not support static linkage
 ifdef SANITIZE_HOST
