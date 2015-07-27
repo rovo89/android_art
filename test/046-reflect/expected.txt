@@ -24,7 +24,7 @@ Method name is myMethod
 SuperTarget constructor ()V
 Target constructor ()V
 Before, float is 3.1415925
-myMethod: hi there 3.1415925 Q !
+myMethod: hi there 3.1415925 ✔ !
 Result of invoke: 7
 Calling no-arg void-return method
 myNoargMethod ()V
