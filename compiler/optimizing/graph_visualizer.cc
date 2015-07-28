@@ -464,28 +464,19 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
       } else {
         StartAttributeStream("loop") << "B" << info->GetHeader()->GetBlockId();
       }
-    } else if (IsReferenceTypePropagationPass() && is_after_pass_) {
-      if (instruction->GetType() == Primitive::kPrimNot) {
-        if (instruction->IsLoadClass()) {
-          ReferenceTypeInfo info = instruction->AsLoadClass()->GetLoadedClassRTI();
-          ScopedObjectAccess soa(Thread::Current());
-          if (info.GetTypeHandle().GetReference() != nullptr) {
-            StartAttributeStream("klass") << PrettyDescriptor(info.GetTypeHandle().Get());
-          } else {
-            StartAttributeStream("klass") << "unresolved";
-          }
-        } else {
-          ReferenceTypeInfo info = instruction->GetReferenceTypeInfo();
-          if (info.IsTop()) {
-            StartAttributeStream("klass") << "java.lang.Object";
-          } else {
-            ScopedObjectAccess soa(Thread::Current());
-            StartAttributeStream("klass") << PrettyDescriptor(info.GetTypeHandle().Get());
-          }
-          StartAttributeStream("can_be_null")
-              << std::boolalpha << instruction->CanBeNull() << std::noboolalpha;
-          StartAttributeStream("exact") << std::boolalpha << info.IsExact() << std::noboolalpha;
-        }
+    } else if (IsReferenceTypePropagationPass()
+        && (instruction->GetType() == Primitive::kPrimNot)) {
+      ReferenceTypeInfo info = instruction->IsLoadClass()
+        ? instruction->AsLoadClass()->GetLoadedClassRTI()
+        : instruction->GetReferenceTypeInfo();
+      ScopedObjectAccess soa(Thread::Current());
+      if (info.IsValid()) {
+        StartAttributeStream("klass") << PrettyDescriptor(info.GetTypeHandle().Get());
+        StartAttributeStream("can_be_null")
+            << std::boolalpha << instruction->CanBeNull() << std::noboolalpha;
+        StartAttributeStream("exact") << std::boolalpha << info.IsExact() << std::noboolalpha;
+      } else {
+        DCHECK(!is_after_pass_) << "Type info should be valid after reference type propagation";
       }
     }
     if (disasm_info_ != nullptr) {
