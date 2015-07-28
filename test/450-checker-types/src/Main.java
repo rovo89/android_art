@@ -415,11 +415,11 @@ public class Main {
   }
 
   /// CHECK-START: SubclassC Main.inlineGenerics() reference_type_propagation (after)
-  /// CHECK:      <<Invoke:l\d+>>    InvokeStaticOrDirect klass:SubclassC exact:false
+  /// CHECK:      <<Invoke:l\d+>>    InvokeStaticOrDirect klass:SubclassC
   /// CHECK-NEXT:                    Return [<<Invoke>>]
 
   /// CHECK-START: SubclassC Main.inlineGenerics() reference_type_propagation_after_inlining (after)
-  /// CHECK:      <<BoundType:l\d+>> BoundType klass:SubclassC exact:false
+  /// CHECK:      <<BoundType:l\d+>> BoundType klass:SubclassC
   /// CHECK:                         Return [<<BoundType>>]
   private SubclassC inlineGenerics() {
     SubclassC c = get();
@@ -462,25 +462,6 @@ public class Main {
   private Final boundOnlyOnceCheckCast(Generic<Final> o) {
     Final f = o.get();
     return f;
-  }
-
-  private Super getSuper() {
-    return new SubclassA();
-  }
-
-  /// CHECK-START: void Main.updateNodesInTheSameBlockAsPhi(boolean) reference_type_propagation (after)
-  /// CHECK:      <<Phi:l\d+>> Phi klass:Super
-  /// CHECK:                   NullCheck [<<Phi>>] klass:Super
-
-  /// CHECK-START: void Main.updateNodesInTheSameBlockAsPhi(boolean) reference_type_propagation_after_inlining (after)
-  /// CHECK:      <<Phi:l\d+>> Phi klass:SubclassA
-  /// CHECK:                   NullCheck [<<Phi>>] klass:SubclassA
-  private void updateNodesInTheSameBlockAsPhi(boolean cond) {
-    Super s = getSuper();
-    if (cond) {
-      s = new SubclassA();
-    }
-    s.$noinline$f();
   }
 
   /// CHECK-START: java.lang.String Main.checkcastPreserveNullCheck(java.lang.Object) reference_type_propagation_after_inlining (after)
