@@ -913,33 +913,6 @@ inline void Class::CheckPointerSize(size_t pointer_size) {
   DCHECK_EQ(pointer_size, Runtime::Current()->GetClassLinker()->GetImagePointerSize());
 }
 
-template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
-inline Class* Class::GetComponentType() {
-  return GetFieldObject<Class, kVerifyFlags, kReadBarrierOption>(ComponentTypeOffset());
-}
-
-template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
-inline bool Class::IsArrayClass() {
-  return GetComponentType<kVerifyFlags, kReadBarrierOption>() != nullptr;
-}
-
-inline bool Class::IsAssignableFrom(Class* src) {
-  DCHECK(src != nullptr);
-  if (this == src) {
-    // Can always assign to things of the same type.
-    return true;
-  } else if (IsObjectClass()) {
-    // Can assign any reference to java.lang.Object.
-    return !src->IsPrimitive();
-  } else if (IsInterface()) {
-    return src->Implements(this);
-  } else if (src->IsArrayClass()) {
-    return IsAssignableFromArray(src);
-  } else {
-    return !src->IsInterface() && src->IsSubClass(this);
-  }
-}
-
 }  // namespace mirror
 }  // namespace art
 
