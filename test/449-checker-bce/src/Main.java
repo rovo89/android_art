@@ -1101,6 +1101,28 @@ public class Main {
 
   }
 
+  public void testExceptionMessage() {
+    short[] B1 = new short[5];
+    int[] B2 = new int[5];
+    Exception err = null;
+    try {
+      testExceptionMessage1(B1, B2, null, -1, 6);
+    } catch (Exception e) {
+      err = e;
+    }
+    System.out.println(err);
+  }
+
+  void testExceptionMessage1(short[] a1, int[] a2, long a3[], int start, int finish) {
+    int j = finish + 77;
+    // Bug: 22665511
+    // A deoptimization will be triggered here right before the loop. Need to make
+    // sure the value of j is preserved for the interpreter.
+    for (int i = start; i <= finish; i++) {
+      a2[j - 1] = a1[i + 1];
+    }
+  }
+
   // Make sure this method is compiled with optimizing.
   // CHECK-START: void Main.main(java.lang.String[]) register (after)
   // CHECK: ParallelMove
@@ -1141,6 +1163,7 @@ public class Main {
     };
 
     testUnknownBounds();
+    new Main().testExceptionMessage();
   }
 
 }
