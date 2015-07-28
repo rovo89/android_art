@@ -2073,6 +2073,14 @@ void X86_64Assembler::repne_scasw() {
 }
 
 
+void X86_64Assembler::repe_cmpsw() {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0xF3);
+  EmitUint8(0xA7);
+}
+
+
 void X86_64Assembler::LoadDoubleConstant(XmmRegister dst, double value) {
   // TODO: Need to have a code constants table.
   int64_t constant = bit_cast<int64_t, double>(value);

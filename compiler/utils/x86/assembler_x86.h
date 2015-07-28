@@ -465,6 +465,7 @@ class X86Assembler FINAL : public Assembler {
   void jmp(Label* label);
 
   void repne_scasw();
+  void repe_cmpsw();
 
   X86Assembler* lock();
   void cmpxchgl(const Address& address, Register reg);

@@ -1515,6 +1515,14 @@ void X86Assembler::repne_scasw() {
 }
 
 
+void X86Assembler::repe_cmpsw() {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0xF3);
+  EmitUint8(0xA7);
+}
+
+
 X86Assembler* X86Assembler::lock() {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xF0);
