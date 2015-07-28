@@ -1236,11 +1236,8 @@ void ClassLinker::InitFromImage() {
 
 bool ClassLinker::ClassInClassTable(mirror::Class* klass) {
   ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-  auto it = class_table_.Find(GcRoot<mirror::Class>(klass));
-  if (it == class_table_.end()) {
-    return false;
-  }
-  return it->Read() == klass;
+  ClassTable* const class_table = ClassTableForClassLoader(klass->GetClassLoader());
+  return class_table != nullptr && class_table->Contains(klass);
 }
 
 void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
@@ -1263,26 +1260,30 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
     // Moving concurrent:
     // Need to make sure to not copy ArtMethods without doing read barriers since the roots are
     // marked concurrently and we don't hold the classlinker_classes_lock_ when we do the copy.
-    for (GcRoot<mirror::Class>& root : class_table_) {
-      buffered_visitor.VisitRoot(root);
+    std::vector<std::pair<GcRoot<mirror::ClassLoader>, ClassTable*>> reinsert;
+    for (auto it = classes_.begin(); it != classes_.end(); ) {
+      it->second->VisitRoots(visitor, flags);
+      const GcRoot<mirror::ClassLoader>& root = it->first;
+      mirror::ClassLoader* old_ref = root.Read<kWithoutReadBarrier>();
+      root.VisitRootIfNonNull(visitor, RootInfo(kRootVMInternal));
+      mirror::ClassLoader* new_ref = root.Read<kWithoutReadBarrier>();
+      if (new_ref != old_ref) {
+        reinsert.push_back(*it);
+        it = classes_.erase(it);
+      } else {
+        ++it;
+      }
     }
-    // PreZygote classes can't move so we won't need to update fields' declaring classes.
-    for (GcRoot<mirror::Class>& root : pre_zygote_class_table_) {
-      buffered_visitor.VisitRoot(root);
+    for (auto& pair : reinsert) {
+      classes_.Put(pair.first, pair.second);
     }
   } else if ((flags & kVisitRootFlagNewRoots) != 0) {
     for (auto& root : new_class_roots_) {
       mirror::Class* old_ref = root.Read<kWithoutReadBarrier>();
       root.VisitRoot(visitor, RootInfo(kRootStickyClass));
       mirror::Class* new_ref = root.Read<kWithoutReadBarrier>();
-      if (UNLIKELY(new_ref != old_ref)) {
-        // Uh ohes, GC moved a root in the log. Need to search the class_table and update the
-        // corresponding object. This is slow, but luckily for us, this may only happen with a
-        // concurrent moving GC.
-        auto it = class_table_.Find(GcRoot<mirror::Class>(old_ref));
-        DCHECK(it != class_table_.end());
-        *it = GcRoot<mirror::Class>(new_ref);
-      }
+      // Concurrent moving GC marked new roots through the to-space invariant.
+      CHECK_EQ(new_ref, old_ref);
     }
   }
   buffered_visitor.Flush();  // Flush before clearing new_class_roots_.
@@ -1331,21 +1332,27 @@ void ClassLinker::VisitRoots(RootVisitor* visitor, VisitRootFlags flags) {
   }
 }
 
+void ClassLinker::VisitClassesInternal(ClassVisitor* visitor, void* arg) {
+  for (auto& pair : classes_) {
+    ClassTable* const class_table = pair.second;
+    if (!class_table->Visit(visitor, arg)) {
+      return;
+    }
+  }
+}
+
 void ClassLinker::VisitClasses(ClassVisitor* visitor, void* arg) {
   if (dex_cache_image_class_lookup_required_) {
     MoveImageClassesToClassTable();
   }
-  // TODO: why isn't this a ReaderMutexLock?
-  WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-  for (GcRoot<mirror::Class>& root : class_table_) {
-    if (!visitor(root.Read(), arg)) {
-      return;
-    }
-  }
-  for (GcRoot<mirror::Class>& root : pre_zygote_class_table_) {
-    if (!visitor(root.Read(), arg)) {
-      return;
-    }
+  Thread* const self = Thread::Current();
+  ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);
+  // Not safe to have thread suspension when we are holding a lock.
+  if (self != nullptr) {
+    ScopedAssertNoThreadSuspension nts(self, __FUNCTION__);
+    VisitClassesInternal(visitor, arg);
+  } else {
+    VisitClassesInternal(visitor, arg);
   }
 }
 
@@ -1399,7 +1406,7 @@ void ClassLinker::VisitClassesWithoutClassesLock(ClassVisitor* visitor, void* ar
       size_t class_table_size;
       {
         ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);
-        class_table_size = class_table_.Size() + pre_zygote_class_table_.Size();
+        class_table_size = NumZygoteClasses() + NumNonZygoteClasses();
       }
       mirror::Class* class_type = mirror::Class::GetJavaLangClass();
       mirror::Class* array_of_class = FindArrayClass(self, &class_type);
@@ -1443,6 +1450,7 @@ ClassLinker::~ClassLinker() {
   mirror::LongArray::ResetArrayClass();
   mirror::ShortArray::ResetArrayClass();
   STLDeleteElements(&oat_files_);
+  STLDeleteValues(&classes_);
 }
 
 mirror::PointerArray* ClassLinker::AllocPointerArray(Thread* self, size_t length) {
@@ -2458,8 +2466,8 @@ void ClassLinker::AppendToBootClassPath(const DexFile& dex_file,
 
 bool ClassLinker::IsDexFileRegisteredLocked(const DexFile& dex_file) {
   dex_lock_.AssertSharedHeld(Thread::Current());
-  for (size_t i = 0; i != dex_caches_.size(); ++i) {
-    mirror::DexCache* dex_cache = GetDexCache(i);
+  for (GcRoot<mirror::DexCache>& root : dex_caches_) {
+    mirror::DexCache* dex_cache = root.Read();
     if (dex_cache->GetDexFile() == &dex_file) {
       return true;
     }
@@ -2757,8 +2765,7 @@ mirror::Class* ClassLinker::FindPrimitiveClass(char type) {
   return nullptr;
 }
 
-mirror::Class* ClassLinker::InsertClass(const char* descriptor, mirror::Class* klass,
-                                        size_t hash) {
+mirror::Class* ClassLinker::InsertClass(const char* descriptor, mirror::Class* klass, size_t hash) {
   if (VLOG_IS_ON(class_linker)) {
     mirror::DexCache* dex_cache = klass->GetDexCache();
     std::string source;
@@ -2769,11 +2776,13 @@ mirror::Class* ClassLinker::InsertClass(const char* descriptor, mirror::Class* k
     LOG(INFO) << "Loaded class " << descriptor << source;
   }
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-  mirror::Class* existing = LookupClassFromTableLocked(descriptor, klass->GetClassLoader(), hash);
+  mirror::ClassLoader* const class_loader = klass->GetClassLoader();
+  ClassTable* const class_table = InsertClassTableForClassLoader(class_loader);
+  mirror::Class* existing = class_table->Lookup(descriptor, hash);
   if (existing != nullptr) {
     return existing;
   }
-  if (kIsDebugBuild && !klass->IsTemp() && klass->GetClassLoader() == nullptr &&
+  if (kIsDebugBuild && !klass->IsTemp() && class_loader == nullptr &&
       dex_cache_image_class_lookup_required_) {
     // Check a class loaded with the system class loader matches one in the image if the class
     // is in the image.
@@ -2783,7 +2792,7 @@ mirror::Class* ClassLinker::InsertClass(const char* descriptor, mirror::Class* k
     }
   }
   VerifyObject(klass);
-  class_table_.InsertWithHash(GcRoot<mirror::Class>(klass), hash);
+  class_table->InsertWithHash(klass, hash);
   if (log_new_class_table_roots_) {
     new_class_roots_.push_back(GcRoot<mirror::Class>(klass));
   }
@@ -2802,95 +2811,41 @@ void ClassLinker::UpdateClassVirtualMethods(mirror::Class* klass, ArtMethod* new
   }
 }
 
-mirror::Class* ClassLinker::UpdateClass(const char* descriptor, mirror::Class* klass,
-                                        size_t hash) {
-  WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-  auto existing_it = class_table_.FindWithHash(std::make_pair(descriptor, klass->GetClassLoader()),
-                                               hash);
-  CHECK(existing_it != class_table_.end());
-  mirror::Class* existing = existing_it->Read();
-  CHECK_NE(existing, klass) << descriptor;
-  CHECK(!existing->IsResolved()) << descriptor;
-  CHECK_EQ(klass->GetStatus(), mirror::Class::kStatusResolving) << descriptor;
-
-  CHECK(!klass->IsTemp()) << descriptor;
-  if (kIsDebugBuild && klass->GetClassLoader() == nullptr &&
-      dex_cache_image_class_lookup_required_) {
-    // Check a class loaded with the system class loader matches one in the image if the class
-    // is in the image.
-    existing = LookupClassFromImage(descriptor);
-    if (existing != nullptr) {
-      CHECK_EQ(klass, existing) << descriptor;
-    }
-  }
-  VerifyObject(klass);
-
-  // Update the element in the hash set.
-  *existing_it = GcRoot<mirror::Class>(klass);
-  if (log_new_class_table_roots_) {
-    new_class_roots_.push_back(GcRoot<mirror::Class>(klass));
-  }
-
-  return existing;
-}
-
 bool ClassLinker::RemoveClass(const char* descriptor, mirror::ClassLoader* class_loader) {
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-  auto pair = std::make_pair(descriptor, class_loader);
-  auto it = class_table_.Find(pair);
-  if (it != class_table_.end()) {
-    class_table_.Erase(it);
-    return true;
-  }
-  it = pre_zygote_class_table_.Find(pair);
-  if (it != pre_zygote_class_table_.end()) {
-    pre_zygote_class_table_.Erase(it);
-    return true;
-  }
-  return false;
+  ClassTable* const class_table = ClassTableForClassLoader(class_loader);
+  return class_table != nullptr && class_table->Remove(descriptor);
 }
 
 mirror::Class* ClassLinker::LookupClass(Thread* self, const char* descriptor, size_t hash,
                                         mirror::ClassLoader* class_loader) {
   {
     ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);
-    mirror::Class* result = LookupClassFromTableLocked(descriptor, class_loader, hash);
-    if (result != nullptr) {
-      return result;
+    ClassTable* const class_table = ClassTableForClassLoader(class_loader);
+    if (class_table != nullptr) {
+      mirror::Class* result = class_table->Lookup(descriptor, hash);
+      if (result != nullptr) {
+        return result;
+      }
     }
   }
   if (class_loader != nullptr || !dex_cache_image_class_lookup_required_) {
     return nullptr;
+  }
+  // Lookup failed but need to search dex_caches_.
+  mirror::Class* result = LookupClassFromImage(descriptor);
+  if (result != nullptr) {
+    result = InsertClass(descriptor, result, hash);
   } else {
-    // Lookup failed but need to search dex_caches_.
-    mirror::Class* result = LookupClassFromImage(descriptor);
-    if (result != nullptr) {
-      InsertClass(descriptor, result, hash);
-    } else {
-      // Searching the image dex files/caches failed, we don't want to get into this situation
-      // often as map searches are faster, so after kMaxFailedDexCacheLookups move all image
-      // classes into the class table.
-      constexpr uint32_t kMaxFailedDexCacheLookups = 1000;
-      if (++failed_dex_cache_class_lookups_ > kMaxFailedDexCacheLookups) {
-        MoveImageClassesToClassTable();
-      }
-    }
-    return result;
-  }
-}
-
-mirror::Class* ClassLinker::LookupClassFromTableLocked(const char* descriptor,
-                                                       mirror::ClassLoader* class_loader,
-                                                       size_t hash) {
-  auto descriptor_pair = std::make_pair(descriptor, class_loader);
-  auto it = pre_zygote_class_table_.FindWithHash(descriptor_pair, hash);
-  if (it == pre_zygote_class_table_.end()) {
-    it = class_table_.FindWithHash(descriptor_pair, hash);
-    if (it == class_table_.end()) {
-      return nullptr;
+    // Searching the image dex files/caches failed, we don't want to get into this situation
+    // often as map searches are faster, so after kMaxFailedDexCacheLookups move all image
+    // classes into the class table.
+    constexpr uint32_t kMaxFailedDexCacheLookups = 1000;
+    if (++failed_dex_cache_class_lookups_ > kMaxFailedDexCacheLookups) {
+      MoveImageClassesToClassTable();
     }
   }
-  return it->Read();
+  return result;
 }
 
 static mirror::ObjectArray<mirror::DexCache>* GetImageDexCaches()
@@ -2910,6 +2865,7 @@ void ClassLinker::MoveImageClassesToClassTable() {
   ScopedAssertNoThreadSuspension ants(self, "Moving image classes to class table");
   mirror::ObjectArray<mirror::DexCache>* dex_caches = GetImageDexCaches();
   std::string temp;
+  ClassTable* const class_table = InsertClassTableForClassLoader(nullptr);
   for (int32_t i = 0; i < dex_caches->GetLength(); i++) {
     mirror::DexCache* dex_cache = dex_caches->Get(i);
     mirror::ObjectArray<mirror::Class>* types = dex_cache->GetResolvedTypes();
@@ -2919,12 +2875,12 @@ void ClassLinker::MoveImageClassesToClassTable() {
         DCHECK(klass->GetClassLoader() == nullptr);
         const char* descriptor = klass->GetDescriptor(&temp);
         size_t hash = ComputeModifiedUtf8Hash(descriptor);
-        mirror::Class* existing = LookupClassFromTableLocked(descriptor, nullptr, hash);
+        mirror::Class* existing = class_table->Lookup(descriptor, hash);
         if (existing != nullptr) {
           CHECK_EQ(existing, klass) << PrettyClassAndClassLoader(existing) << " != "
               << PrettyClassAndClassLoader(klass);
         } else {
-          class_table_.Insert(GcRoot<mirror::Class>(klass));
+          class_table->Insert(klass);
           if (log_new_class_table_roots_) {
             new_class_roots_.push_back(GcRoot<mirror::Class>(klass));
           }
@@ -2937,9 +2893,9 @@ void ClassLinker::MoveImageClassesToClassTable() {
 
 void ClassLinker::MoveClassTableToPreZygote() {
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-  DCHECK(pre_zygote_class_table_.Empty());
-  pre_zygote_class_table_ = std::move(class_table_);
-  class_table_.Clear();
+  for (auto& class_table : classes_) {
+    class_table.second->FreezeSnapshot();
+  }
 }
 
 mirror::Class* ClassLinker::LookupClassFromImage(const char* descriptor) {
@@ -2971,31 +2927,13 @@ void ClassLinker::LookupClasses(const char* descriptor, std::vector<mirror::Clas
     MoveImageClassesToClassTable();
   }
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-  while (true) {
-    auto it = class_table_.Find(descriptor);
-    if (it == class_table_.end()) {
-      break;
+  for (auto& pair : classes_) {
+    // There can only be one class with the same descriptor per class loader.
+    ClassTable* const class_table  = pair.second;
+    mirror::Class* klass = class_table->Lookup(descriptor, ComputeModifiedUtf8Hash(descriptor));
+    if (klass != nullptr) {
+      result.push_back(klass);
     }
-    result.push_back(it->Read());
-    class_table_.Erase(it);
-  }
-  for (mirror::Class* k : result) {
-    class_table_.Insert(GcRoot<mirror::Class>(k));
-  }
-  size_t pre_zygote_start = result.size();
-  // Now handle the pre zygote table.
-  // Note: This dirties the pre-zygote table but shouldn't be an issue since LookupClasses is only
-  // called from the debugger.
-  while (true) {
-    auto it = pre_zygote_class_table_.Find(descriptor);
-    if (it == pre_zygote_class_table_.end()) {
-      break;
-    }
-    result.push_back(it->Read());
-    pre_zygote_class_table_.Erase(it);
-  }
-  for (size_t i = pre_zygote_start; i < result.size(); ++i) {
-    pre_zygote_class_table_.Insert(GcRoot<mirror::Class>(result[i]));
   }
 }
 
@@ -3303,7 +3241,7 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   klass->SetDexCache(GetClassRoot(kJavaLangReflectProxy)->GetDexCache());
   mirror::Class::SetStatus(klass, mirror::Class::kStatusIdx, self);
   std::string descriptor(GetDescriptorForProxy(klass.Get()));
-  size_t hash = ComputeModifiedUtf8Hash(descriptor.c_str());
+  const size_t hash = ComputeModifiedUtf8Hash(descriptor.c_str());
 
   // Insert the class before loading the fields as the field roots
   // (ArtField::declaring_class_) are only visited from the class
@@ -4046,6 +3984,25 @@ void ClassLinker::FixupTemporaryDeclaringClass(mirror::Class* temp_class,
   }
 }
 
+ClassTable* ClassLinker::InsertClassTableForClassLoader(mirror::ClassLoader* class_loader) {
+  auto it = classes_.find(GcRoot<mirror::ClassLoader>(class_loader));
+  if (it != classes_.end()) {
+    return it->second;
+  }
+  // Class table for loader not found, add it to the table.
+  auto* const class_table = new ClassTable;
+  classes_.Put(GcRoot<mirror::ClassLoader>(class_loader), class_table);
+  return class_table;
+}
+
+ClassTable* ClassLinker::ClassTableForClassLoader(mirror::ClassLoader* class_loader) {
+  auto it = classes_.find(GcRoot<mirror::ClassLoader>(class_loader));
+  if (it != classes_.end()) {
+    return it->second;
+  }
+  return nullptr;
+}
+
 bool ClassLinker::LinkClass(Thread* self, const char* descriptor, Handle<mirror::Class> klass,
                             Handle<mirror::ObjectArray<mirror::Class>> interfaces,
                             MutableHandle<mirror::Class>* h_new_class_out) {
@@ -4096,9 +4053,26 @@ bool ClassLinker::LinkClass(Thread* self, const char* descriptor, Handle<mirror:
     CHECK_EQ(h_new_class->GetClassSize(), class_size);
     ObjectLock<mirror::Class> lock(self, h_new_class);
     FixupTemporaryDeclaringClass(klass.Get(), h_new_class.Get());
-    mirror::Class* existing = UpdateClass(descriptor, h_new_class.Get(),
-                                          ComputeModifiedUtf8Hash(descriptor));
-    CHECK(existing == nullptr || existing == klass.Get());
+
+    {
+      WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
+      mirror::ClassLoader* const class_loader = h_new_class.Get()->GetClassLoader();
+      ClassTable* const table = InsertClassTableForClassLoader(class_loader);
+      mirror::Class* existing = table->UpdateClass(descriptor, h_new_class.Get(),
+                                                   ComputeModifiedUtf8Hash(descriptor));
+      CHECK_EQ(existing, klass.Get());
+      if (kIsDebugBuild && class_loader == nullptr && dex_cache_image_class_lookup_required_) {
+        // Check a class loaded with the system class loader matches one in the image if the class
+        // is in the image.
+        mirror::Class* const image_class = LookupClassFromImage(descriptor);
+        if (image_class != nullptr) {
+          CHECK_EQ(klass.Get(), existing) << descriptor;
+        }
+      }
+      if (log_new_class_table_roots_) {
+        new_class_roots_.push_back(GcRoot<mirror::Class>(h_new_class.Get()));
+      }
+    }
 
     // This will notify waiters on temp class that saw the not yet resolved class in the
     // class_table_ during EnsureResolved.
@@ -5589,23 +5563,13 @@ const char* ClassLinker::MethodShorty(uint32_t method_idx, ArtMethod* referrer,
   return dex_file.GetMethodShorty(method_id, length);
 }
 
-void ClassLinker::DumpAllClasses(int flags) {
-  if (dex_cache_image_class_lookup_required_) {
-    MoveImageClassesToClassTable();
-  }
-  // TODO: at the time this was written, it wasn't safe to call PrettyField with the ClassLinker
-  // lock held, because it might need to resolve a field's type, which would try to take the lock.
-  std::vector<mirror::Class*> all_classes;
-  {
-    ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-    for (GcRoot<mirror::Class>& it : class_table_) {
-      all_classes.push_back(it.Read());
-    }
-  }
+bool DumpClassVisitor(mirror::Class* klass, void* arg) SHARED_REQUIRES(Locks::mutator_lock_) {
+  klass->DumpClass(LOG(ERROR), reinterpret_cast<ssize_t>(arg));
+  return true;
+}
 
-  for (size_t i = 0; i < all_classes.size(); ++i) {
-    all_classes[i]->DumpClass(std::cerr, flags);
-  }
+void ClassLinker::DumpAllClasses(int flags) {
+  VisitClasses(&DumpClassVisitor, reinterpret_cast<void*>(flags));
 }
 
 static OatFile::OatMethod CreateOatMethod(const void* code) {
@@ -5658,8 +5622,24 @@ void ClassLinker::DumpForSigQuit(std::ostream& os) {
     MoveImageClassesToClassTable();
   }
   ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);
-  os << "Zygote loaded classes=" << pre_zygote_class_table_.Size() << " post zygote classes="
-     << class_table_.Size() << "\n";
+  os << "Zygote loaded classes=" << NumZygoteClasses() << " post zygote classes="
+     << NumNonZygoteClasses() << "\n";
+}
+
+size_t ClassLinker::NumZygoteClasses() const {
+  size_t sum = 0;
+  for (auto& pair : classes_) {
+    sum += pair.second->NumZygoteClasses();
+  }
+  return sum;
+}
+
+size_t ClassLinker::NumNonZygoteClasses() const {
+  size_t sum = 0;
+  for (auto& pair : classes_) {
+    sum += pair.second->NumNonZygoteClasses();
+  }
+  return sum;
 }
 
 size_t ClassLinker::NumLoadedClasses() {
@@ -5668,7 +5648,7 @@ size_t ClassLinker::NumLoadedClasses() {
   }
   ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   // Only return non zygote classes since these are the ones which apps which care about.
-  return class_table_.Size();
+  return NumNonZygoteClasses();
 }
 
 pid_t ClassLinker::GetClassesLockOwner() {
@@ -5737,43 +5717,6 @@ const char* ClassLinker::GetClassRootDescriptor(ClassRoot class_root) {
   const char* descriptor = class_roots_descriptors[class_root];
   CHECK(descriptor != nullptr);
   return descriptor;
-}
-
-std::size_t ClassLinker::ClassDescriptorHashEquals::operator()(const GcRoot<mirror::Class>& root)
-    const {
-  std::string temp;
-  return ComputeModifiedUtf8Hash(root.Read()->GetDescriptor(&temp));
-}
-
-bool ClassLinker::ClassDescriptorHashEquals::operator()(const GcRoot<mirror::Class>& a,
-                                                        const GcRoot<mirror::Class>& b) const {
-  if (a.Read()->GetClassLoader() != b.Read()->GetClassLoader()) {
-    return false;
-  }
-  std::string temp;
-  return a.Read()->DescriptorEquals(b.Read()->GetDescriptor(&temp));
-}
-
-std::size_t ClassLinker::ClassDescriptorHashEquals::operator()(
-    const std::pair<const char*, mirror::ClassLoader*>& element) const {
-  return ComputeModifiedUtf8Hash(element.first);
-}
-
-bool ClassLinker::ClassDescriptorHashEquals::operator()(
-    const GcRoot<mirror::Class>& a, const std::pair<const char*, mirror::ClassLoader*>& b) const {
-  if (a.Read()->GetClassLoader() != b.second) {
-    return false;
-  }
-  return a.Read()->DescriptorEquals(b.first);
-}
-
-bool ClassLinker::ClassDescriptorHashEquals::operator()(const GcRoot<mirror::Class>& a,
-                                                        const char* descriptor) const {
-  return a.Read()->DescriptorEquals(descriptor);
-}
-
-std::size_t ClassLinker::ClassDescriptorHashEquals::operator()(const char* descriptor) const {
-  return ComputeModifiedUtf8Hash(descriptor);
 }
 
 bool ClassLinker::MayBeCalledWithDirectCodePointer(ArtMethod* m) {
