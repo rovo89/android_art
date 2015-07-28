@@ -79,7 +79,6 @@
 
     lw $t0, %got(_ZN3art7Runtime9instance_E)($gp)
     lw $t0, 0($t0)
-    THIS_LOAD_REQUIRES_READ_BARRIER
     lw $t0, RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET($t0)
     sw $t0, 0($sp)                                # Place Method* at bottom of stack.
     sw $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)  # Place sp in Thread::Current()->top_quick_frame.
@@ -127,7 +126,6 @@
 
     lw $t0, %got(_ZN3art7Runtime9instance_E)($gp)
     lw $t0, 0($t0)
-    THIS_LOAD_REQUIRES_READ_BARRIER
     lw $t0, RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET($t0)
     sw $t0, 0($sp)                                # Place Method* at bottom of stack.
     sw $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)  # Place sp in Thread::Current()->top_quick_frame.
@@ -219,7 +217,6 @@
     SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_REGISTERS_ONLY
     lw $t0, %got(_ZN3art7Runtime9instance_E)($gp)
     lw $t0, 0($t0)
-    THIS_LOAD_REQUIRES_READ_BARRIER
     lw $t0, RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET($t0)
     sw $t0, 0($sp)                                # Place Method* at bottom of stack.
     sw $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)  # Place sp in Thread::Current()->top_quick_frame.
@@ -627,6 +624,76 @@ ENTRY art_quick_check_cast
 END art_quick_check_cast
 
     /*
+     * Restore rReg's value from offset($sp) if rReg is not the same as rExclude.
+     * nReg is the register number for rReg.
+     */
+.macro POP_REG_NE rReg, nReg, offset, rExclude
+    .ifnc \rReg, \rExclude
+        lw \rReg, \offset($sp)      # restore rReg
+        .cfi_restore \nReg
+    .endif
+.endm
+
+    /*
+     * Macro to insert read barrier, only used in art_quick_aput_obj.
+     * rObj and rDest are registers, offset is a defined literal such as MIRROR_OBJECT_CLASS_OFFSET.
+     * TODO: When read barrier has a fast path, add heap unpoisoning support for the fast path.
+     */
+.macro READ_BARRIER rDest, rObj, offset
+#ifdef USE_READ_BARRIER
+    # saved registers used in art_quick_aput_obj: a0-a2, t0-t1, t9, ra. 8 words for 16B alignment.
+    addiu  $sp, $sp, -32
+    .cfi_adjust_cfa_offset 32
+    sw     $ra, 28($sp)
+    .cfi_rel_offset 31, 28
+    sw     $t9, 24($sp)
+    .cfi_rel_offset 25, 24
+    sw     $t1, 20($sp)
+    .cfi_rel_offset 9, 20
+    sw     $t0, 16($sp)
+    .cfi_rel_offset 8, 16
+    sw     $a2, 8($sp)              # padding slot at offset 12 (padding can be any slot in the 32B)
+    .cfi_rel_offset 6, 8
+    sw     $a1, 4($sp)
+    .cfi_rel_offset 5, 4
+    sw     $a0, 0($sp)
+    .cfi_rel_offset 4, 0
+
+    # move $a0, $a0                 # pass ref in a0 (no-op for now since parameter ref is unused)
+    .ifnc \rObj, $a1
+        move $a1, \rObj             # pass rObj
+    .endif
+    addiu $a2, $zero, \offset       # pass offset
+    jal artReadBarrierSlow          # artReadBarrierSlow(ref, rObj, offset)
+    addiu  $sp, $sp, -16            # Use branch delay slot to reserve argument slots on the stack
+                                    # before the call to artReadBarrierSlow.
+    addiu  $sp, $sp, 16             # restore stack after call to artReadBarrierSlow
+    # No need to unpoison return value in v0, artReadBarrierSlow() would do the unpoisoning.
+    move \rDest, $v0                # save return value in rDest
+                                    # (rDest cannot be v0 in art_quick_aput_obj)
+
+    lw     $a0, 0($sp)              # restore registers except rDest
+                                    # (rDest can only be t0 or t1 in art_quick_aput_obj)
+    .cfi_restore 4
+    lw     $a1, 4($sp)
+    .cfi_restore 5
+    lw     $a2, 8($sp)
+    .cfi_restore 6
+    POP_REG_NE $t0, 8, 16, \rDest
+    POP_REG_NE $t1, 9, 20, \rDest
+    lw     $t9, 24($sp)
+    .cfi_restore 25
+    lw     $ra, 28($sp)             # restore $ra
+    .cfi_restore 31
+    addiu  $sp, $sp, 32
+    .cfi_adjust_cfa_offset -32
+#else
+    lw     \rDest, \offset(\rObj)
+    UNPOISON_HEAP_REF \rDest
+#endif  // USE_READ_BARRIER
+.endm
+
+    /*
      * Entry from managed code for array put operations of objects where the value being stored
      * needs to be checked for compatibility.
      * a0 = array, a1 = index, a2 = value
@@ -648,15 +715,15 @@ ENTRY art_quick_aput_obj_with_bound_check
     move $a1, $t0
 END art_quick_aput_obj_with_bound_check
 
+#ifdef USE_READ_BARRIER
+    .extern artReadBarrierSlow
+#endif
 ENTRY art_quick_aput_obj
     beqz $a2, .Ldo_aput_null
     nop
-    lw $t0, MIRROR_OBJECT_CLASS_OFFSET($a0)
-    UNPOISON_HEAP_REF $t0
-    lw $t1, MIRROR_OBJECT_CLASS_OFFSET($a2)
-    UNPOISON_HEAP_REF $t1
-    lw $t0, MIRROR_CLASS_COMPONENT_TYPE_OFFSET($t0)
-    UNPOISON_HEAP_REF $t0
+    READ_BARRIER $t0, $a0, MIRROR_OBJECT_CLASS_OFFSET
+    READ_BARRIER $t1, $a2, MIRROR_OBJECT_CLASS_OFFSET
+    READ_BARRIER $t0, $t0, MIRROR_CLASS_COMPONENT_TYPE_OFFSET
     bne $t1, $t0, .Lcheck_assignability  # value's type == array's component type - trivial assignability
     nop
 .Ldo_aput:
