@@ -147,7 +147,7 @@ public class Main {
             Object[] argList = new Object[] {
                 new String[] { "hi there" },
                 new Float(3.1415926f),
-                new Character('Q')
+                new Character('\u2714')
             };
             System.out.println("Before, float is "
                 + ((Float)argList[1]).floatValue());

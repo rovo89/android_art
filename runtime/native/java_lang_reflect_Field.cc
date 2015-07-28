@@ -253,9 +253,9 @@ ALWAYS_INLINE inline static void SetFieldValue(mirror::Object* o, mirror::Field*
     break;
   case Primitive::kPrimChar:
     if (is_volatile) {
-      o->SetFieldBooleanVolatile<false>(offset, new_value.GetC());
+      o->SetFieldCharVolatile<false>(offset, new_value.GetC());
     } else {
-      o->SetFieldBoolean<false>(offset, new_value.GetC());
+      o->SetFieldChar<false>(offset, new_value.GetC());
     }
     break;
   case Primitive::kPrimInt:
