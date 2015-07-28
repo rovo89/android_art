@@ -603,6 +603,7 @@ class X86_64Assembler FINAL : public Assembler {
   void bswapq(CpuRegister dst);
 
   void repne_scasw();
+  void repe_cmpsw();
 
   //
   // Macros for High-level operations.
