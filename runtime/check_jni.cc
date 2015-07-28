@@ -16,6 +16,7 @@
 
 #include "check_jni.h"
 
+#include <iomanip>
 #include <sys/mman.h>
 #include <zlib.h>
 
@@ -1083,10 +1084,29 @@ class ScopedCheck {
     }
 
     const char* errorKind = nullptr;
-    uint8_t utf8 = CheckUtfBytes(bytes, &errorKind);
+    const uint8_t* utf8 = CheckUtfBytes(bytes, &errorKind);
     if (errorKind != nullptr) {
+      // This is an expensive loop that will resize often, but this isn't supposed to hit in
+      // practice anyways.
+      std::ostringstream oss;
+      oss << std::hex;
+      const uint8_t* tmp = reinterpret_cast<const uint8_t*>(bytes);
+      while (*tmp != 0) {
+        if (tmp == utf8) {
+          oss << "<";
+        }
+        oss << "0x" << std::setfill('0') << std::setw(2) << static_cast<uint32_t>(*tmp);
+        if (tmp == utf8) {
+          oss << '>';
+        }
+        tmp++;
+        if (*tmp != 0) {
+          oss << ' ';
+        }
+      }
+
       AbortF("input is not valid Modified UTF-8: illegal %s byte %#x\n"
-          "    string: '%s'", errorKind, utf8, bytes);
+          "    string: '%s'\n    input: '%s'", errorKind, *utf8, bytes, oss.str().c_str());
       return false;
     }
     return true;
@@ -1094,11 +1114,11 @@ class ScopedCheck {
 
   // Checks whether |bytes| is valid modified UTF-8. We also accept 4 byte UTF
   // sequences in place of encoded surrogate pairs.
-  static uint8_t CheckUtfBytes(const char* bytes, const char** errorKind) {
+  static const uint8_t* CheckUtfBytes(const char* bytes, const char** errorKind) {
     while (*bytes != '\0') {
-      uint8_t utf8 = *(bytes++);
+      const uint8_t* utf8 = reinterpret_cast<const uint8_t*>(bytes++);
       // Switch on the high four bits.
-      switch (utf8 >> 4) {
+      switch (*utf8 >> 4) {
       case 0x00:
       case 0x01:
       case 0x02:
@@ -1118,11 +1138,11 @@ class ScopedCheck {
         return utf8;
       case 0x0f:
         // Bit pattern 1111, which might be the start of a 4 byte sequence.
-        if ((utf8 & 0x08) == 0) {
+        if ((*utf8 & 0x08) == 0) {
           // Bit pattern 1111 0xxx, which is the start of a 4 byte sequence.
           // We consume one continuation byte here, and fall through to consume two more.
-          utf8 = *(bytes++);
-          if ((utf8 & 0xc0) != 0x80) {
+          utf8 = reinterpret_cast<const uint8_t*>(bytes++);
+          if ((*utf8 & 0xc0) != 0x80) {
             *errorKind = "continuation";
             return utf8;
           }
@@ -1135,8 +1155,8 @@ class ScopedCheck {
         FALLTHROUGH_INTENDED;
       case 0x0e:
         // Bit pattern 1110, so there are two additional bytes.
-        utf8 = *(bytes++);
-        if ((utf8 & 0xc0) != 0x80) {
+        utf8 = reinterpret_cast<const uint8_t*>(bytes++);
+        if ((*utf8 & 0xc0) != 0x80) {
           *errorKind = "continuation";
           return utf8;
         }
@@ -1146,8 +1166,8 @@ class ScopedCheck {
       case 0x0c:
       case 0x0d:
         // Bit pattern 110x, so there is one additional byte.
-        utf8 = *(bytes++);
-        if ((utf8 & 0xc0) != 0x80) {
+        utf8 = reinterpret_cast<const uint8_t*>(bytes++);
+        if ((*utf8 & 0xc0) != 0x80) {
           *errorKind = "continuation";
           return utf8;
         }
