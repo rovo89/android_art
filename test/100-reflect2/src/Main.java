@@ -20,7 +20,7 @@ import java.util.*;
 class Main {
   private static boolean z = true;
   private static byte b = 8;
-  private static char c = 'x';
+  private static char c = '\u2714';
   private static double d = Math.PI;
   private static float f = 3.14f;
   private static int i = 32;
@@ -144,7 +144,7 @@ class Main {
     /*
     private static boolean z = true;
     private static byte b = 8;
-    private static char c = 'x';
+    private static char c = '\u2714';
     private static double d = Math.PI;
     private static float f = 3.14f;
     private static int i = 32;
@@ -263,7 +263,7 @@ class Main {
     show(ctor.newInstance((Object[]) null));
 
     ctor = String.class.getConstructor(char[].class, int.class, int.class);
-    show(ctor.newInstance(new char[] { 'x', 'y', 'z', '!' }, 1, 2));
+    show(ctor.newInstance(new char[] { '\u2714', 'y', 'z', '!' }, 1, 2));
   }
 
   private static void testPackagePrivateConstructor() {
