@@ -95,7 +95,11 @@ class RememberedSetReferenceVisitor {
 
   void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK(!target_space_->HasAddress(root->AsMirrorPtr()));
+    if (target_space_->HasAddress(root->AsMirrorPtr())) {
+      *contains_reference_to_target_space_ = true;
+      root->Assign(collector_->MarkObject(root->AsMirrorPtr()));
+      DCHECK(!target_space_->HasAddress(root->AsMirrorPtr()));
+    }
   }
 
  private:
