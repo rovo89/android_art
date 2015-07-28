@@ -311,8 +311,9 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
                          sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromStringBuilder, pReadBarrierJni,
                          sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pReadBarrierJni, pReadBarrierSlow, sizeof(void*));
 
-    CHECKED(OFFSETOF_MEMBER(QuickEntryPoints, pReadBarrierJni)
+    CHECKED(OFFSETOF_MEMBER(QuickEntryPoints, pReadBarrierSlow)
             + sizeof(void*) == sizeof(QuickEntryPoints), QuickEntryPoints_all);
   }
 };

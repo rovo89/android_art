@@ -24,6 +24,7 @@
 #define MACRO1(macro_name, macro_arg1) .macro macro_name macro_arg1
 #define MACRO2(macro_name, macro_arg1, macro_arg2) .macro macro_name macro_arg1, macro_arg2
 #define MACRO3(macro_name, macro_arg1, macro_arg2, macro_arg3) .macro macro_name macro_arg1, macro_arg2, macro_arg3
+#define MACRO4(macro_name, macro_arg1, macro_arg2, macro_arg3, macro_arg4) .macro macro_name macro_arg1, macro_arg2, macro_arg3, macro_arg4
 #define END_MACRO .endm
 
 #if defined(__clang__)

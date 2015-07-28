@@ -29,6 +29,9 @@ namespace art {
 extern "C" uint32_t art_quick_assignable_from_code(const mirror::Class* klass,
                                                    const mirror::Class* ref_class);
 
+// Read barrier entrypoints.
+extern "C" mirror::Object* art_quick_read_barrier_slow(mirror::Object*, mirror::Object*, uint32_t);
+
 void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
                      QuickEntryPoints* qpoints) {
 #if defined(__APPLE__)
@@ -145,6 +148,7 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
 
   // Read barrier
   qpoints->pReadBarrierJni = ReadBarrierJni;
+  qpoints->pReadBarrierSlow = art_quick_read_barrier_slow;
 #endif  // __APPLE__
 };
 
