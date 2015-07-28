@@ -1124,8 +1124,6 @@ TEST_F(StubTest, CheckCast) {
 
 
 TEST_F(StubTest, APutObj) {
-  TEST_DISABLED_FOR_READ_BARRIER();
-
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
   Thread* self = Thread::Current();
@@ -1258,8 +1256,6 @@ TEST_F(StubTest, APutObj) {
 }
 
 TEST_F(StubTest, AllocObject) {
-  TEST_DISABLED_FOR_READ_BARRIER();
-
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
   // This will lead to OOM  error messages in the log.
@@ -1385,8 +1381,6 @@ TEST_F(StubTest, AllocObject) {
 }
 
 TEST_F(StubTest, AllocObjectArray) {
-  TEST_DISABLED_FOR_READ_BARRIER();
-
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
   // TODO: Check the "Unresolved" allocation stubs
@@ -1474,8 +1468,6 @@ TEST_F(StubTest, AllocObjectArray) {
 
 
 TEST_F(StubTest, StringCompareTo) {
-  TEST_DISABLED_FOR_READ_BARRIER();
-
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   // TODO: Check the "Unresolved" allocation stubs
 
@@ -2152,8 +2144,6 @@ static void TestFields(Thread* self, StubTest* test, Primitive::Type test_type) 
 }
 
 TEST_F(StubTest, Fields8) {
-  TEST_DISABLED_FOR_READ_BARRIER();
-
   Thread* self = Thread::Current();
 
   self->TransitionFromSuspendedToRunnable();
@@ -2166,8 +2156,6 @@ TEST_F(StubTest, Fields8) {
 }
 
 TEST_F(StubTest, Fields16) {
-  TEST_DISABLED_FOR_READ_BARRIER();
-
   Thread* self = Thread::Current();
 
   self->TransitionFromSuspendedToRunnable();
@@ -2180,8 +2168,6 @@ TEST_F(StubTest, Fields16) {
 }
 
 TEST_F(StubTest, Fields32) {
-  TEST_DISABLED_FOR_READ_BARRIER();
-
   Thread* self = Thread::Current();
 
   self->TransitionFromSuspendedToRunnable();
@@ -2193,8 +2179,6 @@ TEST_F(StubTest, Fields32) {
 }
 
 TEST_F(StubTest, FieldsObj) {
-  TEST_DISABLED_FOR_READ_BARRIER();
-
   Thread* self = Thread::Current();
 
   self->TransitionFromSuspendedToRunnable();
@@ -2206,8 +2190,6 @@ TEST_F(StubTest, FieldsObj) {
 }
 
 TEST_F(StubTest, Fields64) {
-  TEST_DISABLED_FOR_READ_BARRIER();
-
   Thread* self = Thread::Current();
 
   self->TransitionFromSuspendedToRunnable();
@@ -2221,8 +2203,6 @@ TEST_F(StubTest, Fields64) {
 TEST_F(StubTest, IMT) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
-  TEST_DISABLED_FOR_READ_BARRIER();
-
   Thread* self = Thread::Current();
 
   ScopedObjectAccess soa(self);
@@ -2342,8 +2322,6 @@ TEST_F(StubTest, IMT) {
 
 TEST_F(StubTest, StringIndexOf) {
 #if defined(__arm__) || defined(__aarch64__)
-  TEST_DISABLED_FOR_READ_BARRIER();
-
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
   // garbage is created during ClassLinker::Init
@@ -2413,6 +2391,42 @@ TEST_F(StubTest, StringIndexOf) {
   LOG(INFO) << "Skipping indexof as I don't know how to do that on " << kRuntimeISA;
   // Force-print to std::cout so it's also outside the logcat.
   std::cout << "Skipping indexof as I don't know how to do that on " << kRuntimeISA << std::endl;
+#endif
+}
+
+TEST_F(StubTest, ReadBarrier) {
+#if defined(ART_USE_READ_BARRIER) && (defined(__i386__) || defined(__arm__) || \
+      defined(__aarch64__) || defined(__mips__) || (defined(__x86_64__) && !defined(__APPLE__)))
+  Thread* self = Thread::Current();
+
+  const uintptr_t readBarrierSlow = StubTest::GetEntrypoint(self, kQuickReadBarrierSlow);
+
+  // Create an object
+  ScopedObjectAccess soa(self);
+  // garbage is created during ClassLinker::Init
+
+  StackHandleScope<2> hs(soa.Self());
+  Handle<mirror::Class> c(
+      hs.NewHandle(class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;")));
+
+  // Build an object instance
+  Handle<mirror::Object> obj(hs.NewHandle(c->AllocObject(soa.Self())));
+
+  EXPECT_FALSE(self->IsExceptionPending());
+
+  size_t result = Invoke3(0U, reinterpret_cast<size_t>(obj.Get()),
+                          mirror::Object::ClassOffset().SizeValue(), readBarrierSlow, self);
+
+  EXPECT_FALSE(self->IsExceptionPending());
+  EXPECT_NE(reinterpret_cast<size_t>(nullptr), result);
+  mirror::Class* klass = reinterpret_cast<mirror::Class*>(result);
+  EXPECT_EQ(klass, obj->GetClass());
+
+  // Tests done.
+#else
+  LOG(INFO) << "Skipping read_barrier_slow";
+  // Force-print to std::cout so it's also outside the logcat.
+  std::cout << "Skipping read_barrier_slow" << std::endl;
 #endif
 }
 

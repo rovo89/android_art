@@ -47,9 +47,4 @@
 #error "Only one of Baker or Brooks can be enabled at a time."
 #endif
 
-// A placeholder marker to indicate places to add read barriers in the
-// assembly code. This is a development time aid and to be removed
-// after read barriers are added.
-#define THIS_LOAD_REQUIRES_READ_BARRIER
-
 #endif  // ART_RUNTIME_READ_BARRIER_C_H_
