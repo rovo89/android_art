@@ -31,8 +31,6 @@
     ldr xIP0, [xIP0]  // xIP0 = & (art::Runtime * art::Runtime.instance_) .
 
     // xIP0 = (ArtMethod*) Runtime.instance_.callee_save_methods[kRefAndArgs]  .
-    THIS_LOAD_REQUIRES_READ_BARRIER
-
     // Loads appropriate callee-save-method.
     ldr xIP0, [xIP0, RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET ]
 
@@ -95,8 +93,6 @@
     ldr xIP0, [xIP0]  // xIP0 = & (art::Runtime * art::Runtime.instance_) .
 
     // xIP0 = (ArtMethod*) Runtime.instance_.callee_save_methods[kRefOnly]  .
-    THIS_LOAD_REQUIRES_READ_BARRIER
-
     // Loads appropriate callee-save-method.
     ldr xIP0, [xIP0, RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET ]
 
@@ -251,7 +247,6 @@
     ldr xIP0, [xIP0]  // xIP0 = & (art::Runtime * art::Runtime.instance_) .
 
     // xIP0 = (ArtMethod*) Runtime.instance_.callee_save_methods[kRefAndArgs]  .
-    THIS_LOAD_REQUIRES_READ_BARRIER
     ldr xIP0, [xIP0, RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET ]
 
     SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_INTERNAL
@@ -1119,6 +1114,62 @@ ENTRY art_quick_check_cast
     brk 0                             // We should not return here...
 END art_quick_check_cast
 
+// Restore xReg's value from [sp, #offset] if xReg is not the same as xExclude.
+.macro POP_REG_NE xReg, offset, xExclude
+    .ifnc \xReg, \xExclude
+        ldr \xReg, [sp, #\offset]     // restore xReg
+        .cfi_restore \xReg
+    .endif
+.endm
+
+    /*
+     * Macro to insert read barrier, only used in art_quick_aput_obj.
+     * xDest, wDest and xObj are registers, offset is a defined literal such as
+     * MIRROR_OBJECT_CLASS_OFFSET. Dest needs both x and w versions of the same register to handle
+     * name mismatch between instructions. This macro uses the lower 32b of register when possible.
+     * TODO: When read barrier has a fast path, add heap unpoisoning support for the fast path.
+     */
+.macro READ_BARRIER xDest, wDest, xObj, offset
+#ifdef USE_READ_BARRIER
+    // Store registers used in art_quick_aput_obj (x0-x4, LR), stack is 16B aligned.
+    stp x0, x1, [sp, #-48]!
+    .cfi_adjust_cfa_offset 48
+    .cfi_rel_offset x0, 0
+    .cfi_rel_offset x1, 8
+    stp x2, x3, [sp, #16]
+    .cfi_rel_offset x2, 16
+    .cfi_rel_offset x3, 24
+    stp x4, xLR, [sp, #32]
+    .cfi_rel_offset x4, 32
+    .cfi_rel_offset x30, 40
+
+    // mov x0, x0                   // pass ref in x0 (no-op for now since parameter ref is unused)
+    .ifnc \xObj, x1
+        mov x1, \xObj               // pass xObj
+    .endif
+    mov w2, #\offset                // pass offset
+    bl artReadBarrierSlow           // artReadBarrierSlow(ref, xObj, offset)
+    // No need to unpoison return value in w0, artReadBarrierSlow() would do the unpoisoning.
+    .ifnc \wDest, w0
+        mov \wDest, w0              // save return value in wDest
+    .endif
+
+    // Conditionally restore saved registers
+    POP_REG_NE x0, 0, \xDest
+    POP_REG_NE x1, 8, \xDest
+    POP_REG_NE x2, 16, \xDest
+    POP_REG_NE x3, 24, \xDest
+    POP_REG_NE x4, 32, \xDest
+    ldr xLR, [sp, #40]
+    .cfi_restore x30
+    add sp, sp, #48
+    .cfi_adjust_cfa_offset -48
+#else
+    ldr \wDest, [\xObj, #\offset]   // Heap reference = 32b. This also zero-extends to \xDest.
+    UNPOISON_HEAP_REF \wDest
+#endif  // USE_READ_BARRIER
+.endm
+
     /*
      * Entry from managed code for array put operations of objects where the value being stored
      * needs to be checked for compatibility.
@@ -1146,17 +1197,17 @@ ENTRY art_quick_aput_obj_with_bound_check
     b art_quick_throw_array_bounds
 END art_quick_aput_obj_with_bound_check
 
+#ifdef USE_READ_BARRIER
+    .extern artReadBarrierSlow
+#endif
 ENTRY art_quick_aput_obj
     cbz x2, .Ldo_aput_null
-    ldr w3, [x0, #MIRROR_OBJECT_CLASS_OFFSET]            // Heap reference = 32b
+    READ_BARRIER x3, w3, x0, MIRROR_OBJECT_CLASS_OFFSET     // Heap reference = 32b
                                                          // This also zero-extends to x3
-    UNPOISON_HEAP_REF w3
-    ldr w4, [x2, #MIRROR_OBJECT_CLASS_OFFSET]            // Heap reference = 32b
+    READ_BARRIER x4, w4, x2, MIRROR_OBJECT_CLASS_OFFSET     // Heap reference = 32b
                                                          // This also zero-extends to x4
-    UNPOISON_HEAP_REF w4
-    ldr w3, [x3, #MIRROR_CLASS_COMPONENT_TYPE_OFFSET]    // Heap reference = 32b
+    READ_BARRIER x3, w3, x3, MIRROR_CLASS_COMPONENT_TYPE_OFFSET // Heap reference = 32b
                                                          // This also zero-extends to x3
-    UNPOISON_HEAP_REF w3
     cmp w3, w4  // value's type == array's component type - trivial assignability
     bne .Lcheck_assignability
 .Ldo_aput:
