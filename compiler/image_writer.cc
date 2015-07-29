@@ -539,16 +539,19 @@ bool ImageWriter::AllocMemory() {
   return true;
 }
 
+class ComputeLazyFieldsForClassesVisitor : public ClassVisitor {
+ public:
+  bool Visit(Class* c) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    StackHandleScope<1> hs(Thread::Current());
+    mirror::Class::ComputeName(hs.NewHandle(c));
+    return true;
+  }
+};
+
 void ImageWriter::ComputeLazyFieldsForImageClasses() {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  class_linker->VisitClassesWithoutClassesLock(ComputeLazyFieldsForClassesVisitor, nullptr);
-}
-
-bool ImageWriter::ComputeLazyFieldsForClassesVisitor(Class* c, void* /*arg*/) {
-  Thread* self = Thread::Current();
-  StackHandleScope<1> hs(self);
-  mirror::Class::ComputeName(hs.NewHandle(c));
-  return true;
+  ComputeLazyFieldsForClassesVisitor visitor;
+  class_linker->VisitClassesWithoutClassesLock(&visitor);
 }
 
 void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg ATTRIBUTE_UNUSED) {
@@ -592,9 +595,20 @@ bool ImageWriter::IsImageClass(Class* klass) {
   return compiler_driver_.IsImageClass(klass->GetDescriptor(&temp));
 }
 
-struct NonImageClasses {
-  ImageWriter* image_writer;
-  std::set<std::string>* non_image_classes;
+class NonImageClassesVisitor : public ClassVisitor {
+ public:
+  explicit NonImageClassesVisitor(ImageWriter* image_writer) : image_writer_(image_writer) {}
+
+  bool Visit(Class* klass) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    if (!image_writer_->IsImageClass(klass)) {
+      std::string temp;
+      non_image_classes_.insert(klass->GetDescriptor(&temp));
+    }
+    return true;
+  }
+
+  std::set<std::string> non_image_classes_;
+  ImageWriter* const image_writer_;
 };
 
 void ImageWriter::PruneNonImageClasses() {
@@ -606,14 +620,11 @@ void ImageWriter::PruneNonImageClasses() {
   Thread* self = Thread::Current();
 
   // Make a list of classes we would like to prune.
-  std::set<std::string> non_image_classes;
-  NonImageClasses context;
-  context.image_writer = this;
-  context.non_image_classes = &non_image_classes;
-  class_linker->VisitClasses(NonImageClassesVisitor, &context);
+  NonImageClassesVisitor visitor(this);
+  class_linker->VisitClasses(&visitor);
 
   // Remove the undesired classes from the class roots.
-  for (const std::string& it : non_image_classes) {
+  for (const std::string& it : visitor.non_image_classes_) {
     bool result = class_linker->RemoveClass(it.c_str(), nullptr);
     DCHECK(result);
   }
@@ -667,15 +678,6 @@ void ImageWriter::PruneNonImageClasses() {
 
   // Drop the array class cache in the ClassLinker, as these are roots holding those classes live.
   class_linker->DropFindArrayClassCache();
-}
-
-bool ImageWriter::NonImageClassesVisitor(Class* klass, void* arg) {
-  NonImageClasses* context = reinterpret_cast<NonImageClasses*>(arg);
-  if (!context->image_writer->IsImageClass(klass)) {
-    std::string temp;
-    context->non_image_classes->insert(klass->GetDescriptor(&temp));
-  }
-  return true;
 }
 
 void ImageWriter::CheckNonImageClassesRemoved() {

@@ -948,33 +948,27 @@ JDWP::JdwpError Dbg::GetReflectedType(JDWP::RefTypeId class_id, JDWP::ExpandBuf*
   return JDWP::ERR_NONE;
 }
 
+// Get the complete list of reference classes (i.e. all classes except
+// the primitive types).
+// Returns a newly-allocated buffer full of RefTypeId values.
+class ClassListCreator : public ClassVisitor {
+ public:
+  explicit ClassListCreator(std::vector<JDWP::RefTypeId>* classes) : classes_(classes) {}
+
+  bool Visit(mirror::Class* c) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    if (!c->IsPrimitive()) {
+      classes_->push_back(Dbg::GetObjectRegistry()->AddRefType(c));
+    }
+    return true;
+  }
+
+ private:
+  std::vector<JDWP::RefTypeId>* const classes_;
+};
+
 void Dbg::GetClassList(std::vector<JDWP::RefTypeId>* classes) {
-  // Get the complete list of reference classes (i.e. all classes except
-  // the primitive types).
-  // Returns a newly-allocated buffer full of RefTypeId values.
-  struct ClassListCreator {
-    explicit ClassListCreator(std::vector<JDWP::RefTypeId>* classes_in) : classes(classes_in) {
-    }
-
-    static bool Visit(mirror::Class* c, void* arg) {
-      return reinterpret_cast<ClassListCreator*>(arg)->Visit(c);
-    }
-
-    // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
-    // annotalysis.
-    bool Visit(mirror::Class* c) NO_THREAD_SAFETY_ANALYSIS {
-      if (!c->IsPrimitive()) {
-        classes->push_back(gRegistry->AddRefType(c));
-      }
-      return true;
-    }
-
-    std::vector<JDWP::RefTypeId>* const classes;
-  };
-
   ClassListCreator clc(classes);
-  Runtime::Current()->GetClassLinker()->VisitClassesWithoutClassesLock(ClassListCreator::Visit,
-                                                                       &clc);
+  Runtime::Current()->GetClassLinker()->VisitClassesWithoutClassesLock(&clc);
 }
 
 JDWP::JdwpError Dbg::GetClassInfo(JDWP::RefTypeId class_id, JDWP::JdwpTypeTag* pTypeTag,
