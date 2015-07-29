@@ -440,8 +440,10 @@ void RTPVisitor::VisitLoadClass(HLoadClass* instr) {
       Runtime::Current()->GetClassLinker()->FindDexCache(instr->GetDexFile());
   // Get type from dex cache assuming it was populated by the verifier.
   mirror::Class* resolved_class = dex_cache->GetResolvedType(instr->GetTypeIndex());
-  DCHECK(resolved_class != nullptr);
-  ReferenceTypeInfo::TypeHandle handle = handles_->NewHandle(resolved_class);
+  // TODO: investigating why we are still getting unresolved classes: b/22821472.
+  ReferenceTypeInfo::TypeHandle handle = (resolved_class != nullptr)
+    ? handles_->NewHandle(resolved_class)
+    : object_class_handle_;
   instr->SetLoadedClassRTI(ReferenceTypeInfo::Create(handle, /* is_exact */ true));
   instr->SetReferenceTypeInfo(ReferenceTypeInfo::Create(class_class_handle_, /* is_exact */ true));
 }
