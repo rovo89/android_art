@@ -71,10 +71,10 @@ void ClassTable::VisitRoots(RootVisitor* visitor, VisitRootFlags flags ATTRIBUTE
   }
 }
 
-bool ClassTable::Visit(ClassVisitor* visitor, void* arg) {
+bool ClassTable::Visit(ClassVisitor* visitor) {
   for (ClassSet& class_set : classes_) {
     for (GcRoot<mirror::Class>& root : class_set) {
-      if (!visitor(root.Read(), arg)) {
+      if (!visitor->Visit(root.Read())) {
         return false;
       }
     }

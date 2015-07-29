@@ -36,7 +36,12 @@ namespace mirror {
   class ClassLoader;
 }  // namespace mirror
 
-typedef bool (ClassVisitor)(mirror::Class* c, void* arg);
+class ClassVisitor {
+ public:
+  virtual ~ClassVisitor() {}
+  // Return true to continue visiting.
+  virtual bool Visit(mirror::Class* klass) = 0;
+};
 
 // Each loader has a ClassTable
 class ClassTable {
@@ -66,7 +71,7 @@ class ClassTable {
       REQUIRES(Locks::classlinker_classes_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Return false if the callback told us to exit.
-  bool Visit(ClassVisitor* visitor, void* arg)
+  bool Visit(ClassVisitor* visitor)
       REQUIRES(Locks::classlinker_classes_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
 
   mirror::Class* Lookup(const char* descriptor, size_t hash)

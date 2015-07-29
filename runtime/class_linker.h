@@ -288,14 +288,14 @@ class ClassLinker {
   const OatFile* GetPrimaryOatFile()
       REQUIRES(!dex_lock_);
 
-  void VisitClasses(ClassVisitor* visitor, void* arg)
+  void VisitClasses(ClassVisitor* visitor)
       REQUIRES(!Locks::classlinker_classes_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Less efficient variant of VisitClasses that copies the class_table_ into secondary storage
   // so that it can visit individual classes without holding the doesn't hold the
   // Locks::classlinker_classes_lock_. As the Locks::classlinker_classes_lock_ isn't held this code
   // can race with insertion and deletion of classes while the visitor is being called.
-  void VisitClassesWithoutClassesLock(ClassVisitor* visitor, void* arg)
+  void VisitClassesWithoutClassesLock(ClassVisitor* visitor)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_);
 
   void VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags)
@@ -486,7 +486,7 @@ class ClassLinker {
   typedef SafeMap<GcRoot<mirror::ClassLoader>, ClassTable*, CompareClassLoaderGcRoot>
       ClassLoaderClassTable;
 
-  void VisitClassesInternal(ClassVisitor* visitor, void* arg)
+  void VisitClassesInternal(ClassVisitor* visitor)
       REQUIRES(Locks::classlinker_classes_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Returns the number of zygote and image classes.
