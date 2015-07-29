@@ -39,6 +39,8 @@ class QuickAssembleX86TestBase : public testing::Test {
         CompilerOptions::kDefaultSmallMethodThreshold,
         CompilerOptions::kDefaultTinyMethodThreshold,
         CompilerOptions::kDefaultNumDexMethodsThreshold,
+        CompilerOptions::kDefaultInlineDepthLimit,
+        CompilerOptions::kDefaultInlineMaxCodeUnits,
         false,
         CompilerOptions::kDefaultTopKProfileThreshold,
         false,
