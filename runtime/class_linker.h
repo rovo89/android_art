@@ -25,6 +25,7 @@
 #include "base/hash_set.h"
 #include "base/macros.h"
 #include "base/mutex.h"
+#include "class_table.h"
 #include "dex_file.h"
 #include "gc_root.h"
 #include "jni.h"
@@ -55,8 +56,6 @@ template<class T> class ObjectLock;
 class Runtime;
 class ScopedObjectAccessAlreadyRunnable;
 template<size_t kNumReferences> class PACKED(4) StackHandleScope;
-
-typedef bool (ClassVisitor)(mirror::Class* c, void* arg);
 
 enum VisitRootFlags : uint8_t;
 
@@ -476,9 +475,28 @@ class ClassLinker {
   void DropFindArrayClassCache() SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
+  class CompareClassLoaderGcRoot {
+   public:
+    bool operator()(const GcRoot<mirror::ClassLoader>& a, const GcRoot<mirror::ClassLoader>& b)
+        const SHARED_REQUIRES(Locks::mutator_lock_) {
+      return a.Read() < b.Read();
+    }
+  };
+
+  typedef SafeMap<GcRoot<mirror::ClassLoader>, ClassTable*, CompareClassLoaderGcRoot>
+      ClassLoaderClassTable;
+
+  void VisitClassesInternal(ClassVisitor* visitor, void* arg)
+      REQUIRES(Locks::classlinker_classes_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Returns the number of zygote and image classes.
+  size_t NumZygoteClasses() const REQUIRES(Locks::classlinker_classes_lock_);
+
+  // Returns the number of non zygote nor image classes.
+  size_t NumNonZygoteClasses() const REQUIRES(Locks::classlinker_classes_lock_);
+
   OatFile& GetImageOatFile(gc::space::ImageSpace* space)
-      REQUIRES(!dex_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES(!dex_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
 
   void FinishInit(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!dex_lock_, !Roles::uninterruptible_);
@@ -543,8 +561,7 @@ class ClassLinker {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   void RegisterDexFileLocked(const DexFile& dex_file, Handle<mirror::DexCache> dex_cache)
-      REQUIRES(dex_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES(dex_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
   bool IsDexFileRegisteredLocked(const DexFile& dex_file)
       SHARED_REQUIRES(dex_lock_, Locks::mutator_lock_);
 
@@ -568,7 +585,7 @@ class ClassLinker {
   bool LinkClass(Thread* self, const char* descriptor, Handle<mirror::Class> klass,
                  Handle<mirror::ObjectArray<mirror::Class>> interfaces,
                  MutableHandle<mirror::Class>* h_new_class_out)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Locks::classlinker_classes_lock_);
 
   bool LinkSuperClass(Handle<mirror::Class> klass)
       SHARED_REQUIRES(Locks::mutator_lock_);
@@ -576,7 +593,8 @@ class ClassLinker {
   bool LoadSuperAndInterfaces(Handle<mirror::Class> klass, const DexFile& dex_file)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_);
 
-  bool LinkMethods(Thread* self, Handle<mirror::Class> klass,
+  bool LinkMethods(Thread* self,
+                   Handle<mirror::Class> klass,
                    Handle<mirror::ObjectArray<mirror::Class>> interfaces,
                    ArtMethod** out_imt)
       SHARED_REQUIRES(Locks::mutator_lock_);
@@ -632,17 +650,15 @@ class ClassLinker {
   void EnsurePreverifiedMethods(Handle<mirror::Class> c)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  mirror::Class* LookupClassFromTableLocked(const char* descriptor,
-                                            mirror::ClassLoader* class_loader,
-                                            size_t hash)
-      SHARED_REQUIRES(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
-
-  mirror::Class* UpdateClass(const char* descriptor, mirror::Class* klass, size_t hash)
-      REQUIRES(!Locks::classlinker_classes_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
   mirror::Class* LookupClassFromImage(const char* descriptor)
       SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Returns null if not found.
+  ClassTable* ClassTableForClassLoader(mirror::ClassLoader* class_loader)
+      SHARED_REQUIRES(Locks::mutator_lock_, Locks::classlinker_classes_lock_);
+  // Insert a new class table if not found.
+  ClassTable* InsertClassTableForClassLoader(mirror::ClassLoader* class_loader)
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(Locks::classlinker_classes_lock_);
 
   // EnsureResolved is called to make sure that a class in the class_table_ has been resolved
   // before returning it to the caller. Its the responsibility of the thread that placed the class
@@ -690,43 +706,11 @@ class ClassLinker {
   std::vector<GcRoot<mirror::DexCache>> dex_caches_ GUARDED_BY(dex_lock_);
   std::vector<const OatFile*> oat_files_ GUARDED_BY(dex_lock_);
 
-  class ClassDescriptorHashEquals {
-   public:
-    // Same class loader and descriptor.
-    std::size_t operator()(const GcRoot<mirror::Class>& root) const NO_THREAD_SAFETY_ANALYSIS;
-    bool operator()(const GcRoot<mirror::Class>& a, const GcRoot<mirror::Class>& b) const
-        NO_THREAD_SAFETY_ANALYSIS;
-    // Same class loader and descriptor.
-    std::size_t operator()(const std::pair<const char*, mirror::ClassLoader*>& element) const
-        NO_THREAD_SAFETY_ANALYSIS;
-    bool operator()(const GcRoot<mirror::Class>& a,
-                    const std::pair<const char*, mirror::ClassLoader*>& b) const
-        NO_THREAD_SAFETY_ANALYSIS;
-    // Same descriptor.
-    bool operator()(const GcRoot<mirror::Class>& a, const char* descriptor) const
-        NO_THREAD_SAFETY_ANALYSIS;
-    std::size_t operator()(const char* descriptor) const NO_THREAD_SAFETY_ANALYSIS;
-  };
-  class GcRootEmptyFn {
-   public:
-    void MakeEmpty(GcRoot<mirror::Class>& item) const {
-      item = GcRoot<mirror::Class>();
-    }
-    bool IsEmpty(const GcRoot<mirror::Class>& item) const {
-      return item.IsNull();
-    }
-  };
+  // This contains strong roots. To enable concurrent root scanning of the class table.
+  ClassLoaderClassTable classes_ GUARDED_BY(Locks::classlinker_classes_lock_);
 
-  // hash set which hashes class descriptor, and compares descriptors nad class loaders. Results
-  // should be compared for a matching Class descriptor and class loader.
-  typedef HashSet<GcRoot<mirror::Class>, GcRootEmptyFn, ClassDescriptorHashEquals,
-      ClassDescriptorHashEquals, TrackingAllocator<GcRoot<mirror::Class>, kAllocatorTagClassTable>>
-      Table;
-  // This contains strong roots. To enable concurrent root scanning of
-  // the class table, be careful to use a read barrier when accessing this.
-  Table class_table_ GUARDED_BY(Locks::classlinker_classes_lock_);
-  Table pre_zygote_class_table_ GUARDED_BY(Locks::classlinker_classes_lock_);
-  std::vector<GcRoot<mirror::Class>> new_class_roots_;
+  // New class roots, only used by CMS since the GC needs to mark these in the pause.
+  std::vector<GcRoot<mirror::Class>> new_class_roots_ GUARDED_BY(Locks::classlinker_classes_lock_);
 
   // Do we need to search dex caches to find image classes?
   bool dex_cache_image_class_lookup_required_;
