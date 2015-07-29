@@ -49,12 +49,20 @@ constexpr bool kVerboseInstrumentation = false;
 static constexpr StackVisitor::StackWalkKind kInstrumentationStackWalk =
     StackVisitor::StackWalkKind::kSkipInlinedFrames;
 
-static bool InstallStubsClassVisitor(mirror::Class* klass, void* arg)
-    REQUIRES(Locks::mutator_lock_) {
-  Instrumentation* instrumentation = reinterpret_cast<Instrumentation*>(arg);
-  instrumentation->InstallStubsForClass(klass);
-  return true;  // we visit all classes.
-}
+class InstallStubsClassVisitor : public ClassVisitor {
+ public:
+  explicit InstallStubsClassVisitor(Instrumentation* instrumentation)
+      : instrumentation_(instrumentation) {}
+
+  bool Visit(mirror::Class* klass) OVERRIDE REQUIRES(Locks::mutator_lock_) {
+    instrumentation_->InstallStubsForClass(klass);
+    return true;  // we visit all classes.
+  }
+
+ private:
+  Instrumentation* const instrumentation_;
+};
+
 
 Instrumentation::Instrumentation()
     : instrumentation_stubs_installed_(false), entry_exit_stubs_installed_(false),
@@ -563,14 +571,16 @@ void Instrumentation::ConfigureStubs(const char* key, InstrumentationLevel desir
       entry_exit_stubs_installed_ = true;
       interpreter_stubs_installed_ = false;
     }
-    runtime->GetClassLinker()->VisitClasses(InstallStubsClassVisitor, this);
+    InstallStubsClassVisitor visitor(this);
+    runtime->GetClassLinker()->VisitClasses(&visitor);
     instrumentation_stubs_installed_ = true;
     MutexLock mu(self, *Locks::thread_list_lock_);
     runtime->GetThreadList()->ForEach(InstrumentationInstallStack, this);
   } else {
     interpreter_stubs_installed_ = false;
     entry_exit_stubs_installed_ = false;
-    runtime->GetClassLinker()->VisitClasses(InstallStubsClassVisitor, this);
+    InstallStubsClassVisitor visitor(this);
+    runtime->GetClassLinker()->VisitClasses(&visitor);
     // Restore stack only if there is no method currently deoptimized.
     bool empty;
     {

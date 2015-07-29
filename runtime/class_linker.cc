@@ -1332,16 +1332,16 @@ void ClassLinker::VisitRoots(RootVisitor* visitor, VisitRootFlags flags) {
   }
 }
 
-void ClassLinker::VisitClassesInternal(ClassVisitor* visitor, void* arg) {
+void ClassLinker::VisitClassesInternal(ClassVisitor* visitor) {
   for (auto& pair : classes_) {
     ClassTable* const class_table = pair.second;
-    if (!class_table->Visit(visitor, arg)) {
+    if (!class_table->Visit(visitor)) {
       return;
     }
   }
 }
 
-void ClassLinker::VisitClasses(ClassVisitor* visitor, void* arg) {
+void ClassLinker::VisitClasses(ClassVisitor* visitor) {
   if (dex_cache_image_class_lookup_required_) {
     MoveImageClassesToClassTable();
   }
@@ -1350,79 +1350,85 @@ void ClassLinker::VisitClasses(ClassVisitor* visitor, void* arg) {
   // Not safe to have thread suspension when we are holding a lock.
   if (self != nullptr) {
     ScopedAssertNoThreadSuspension nts(self, __FUNCTION__);
-    VisitClassesInternal(visitor, arg);
+    VisitClassesInternal(visitor);
   } else {
-    VisitClassesInternal(visitor, arg);
+    VisitClassesInternal(visitor);
   }
 }
 
-static bool GetClassesVisitorSet(mirror::Class* c, void* arg) {
-  std::set<mirror::Class*>* classes = reinterpret_cast<std::set<mirror::Class*>*>(arg);
-  classes->insert(c);
-  return true;
-}
-
-struct GetClassesVisitorArrayArg {
-  Handle<mirror::ObjectArray<mirror::Class>>* classes;
-  int32_t index;
-  bool success;
+class GetClassesInToVector : public ClassVisitor {
+ public:
+  bool Visit(mirror::Class* klass) OVERRIDE {
+    classes_.push_back(klass);
+    return true;
+  }
+  std::vector<mirror::Class*> classes_;
 };
 
-static bool GetClassesVisitorArray(mirror::Class* c, void* varg)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
-  GetClassesVisitorArrayArg* arg = reinterpret_cast<GetClassesVisitorArrayArg*>(varg);
-  if (arg->index < (*arg->classes)->GetLength()) {
-    (*arg->classes)->Set(arg->index, c);
-    arg->index++;
-    return true;
-  } else {
-    arg->success = false;
+class GetClassInToObjectArray : public ClassVisitor {
+ public:
+  explicit GetClassInToObjectArray(mirror::ObjectArray<mirror::Class>* arr)
+      : arr_(arr), index_(0) {}
+
+  bool Visit(mirror::Class* klass) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    ++index_;
+    if (index_ <= arr_->GetLength()) {
+      arr_->Set(index_ - 1, klass);
+      return true;
+    }
     return false;
   }
-}
 
-void ClassLinker::VisitClassesWithoutClassesLock(ClassVisitor* visitor, void* arg) {
+  bool Succeeded() const SHARED_REQUIRES(Locks::mutator_lock_) {
+    return index_ <= arr_->GetLength();
+  }
+
+ private:
+  mirror::ObjectArray<mirror::Class>* const arr_;
+  int32_t index_;
+};
+
+void ClassLinker::VisitClassesWithoutClassesLock(ClassVisitor* visitor) {
   // TODO: it may be possible to avoid secondary storage if we iterate over dex caches. The problem
   // is avoiding duplicates.
   if (!kMovingClasses) {
-    std::set<mirror::Class*> classes;
-    VisitClasses(GetClassesVisitorSet, &classes);
-    for (mirror::Class* klass : classes) {
-      if (!visitor(klass, arg)) {
+    GetClassesInToVector accumulator;
+    VisitClasses(&accumulator);
+    for (mirror::Class* klass : accumulator.classes_) {
+      if (!visitor->Visit(klass)) {
         return;
       }
     }
   } else {
-    Thread* self = Thread::Current();
+    Thread* const self = Thread::Current();
     StackHandleScope<1> hs(self);
-    MutableHandle<mirror::ObjectArray<mirror::Class>> classes =
-        hs.NewHandle<mirror::ObjectArray<mirror::Class>>(nullptr);
-    GetClassesVisitorArrayArg local_arg;
-    local_arg.classes = &classes;
-    local_arg.success = false;
+    auto classes = hs.NewHandle<mirror::ObjectArray<mirror::Class>>(nullptr);
     // We size the array assuming classes won't be added to the class table during the visit.
     // If this assumption fails we iterate again.
-    while (!local_arg.success) {
+    while (true) {
       size_t class_table_size;
       {
         ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);
-        class_table_size = NumZygoteClasses() + NumNonZygoteClasses();
+        // Add 100 in case new classes get loaded when we are filling in the object array.
+        class_table_size = NumZygoteClasses() + NumNonZygoteClasses() + 100;
       }
       mirror::Class* class_type = mirror::Class::GetJavaLangClass();
       mirror::Class* array_of_class = FindArrayClass(self, &class_type);
       classes.Assign(
           mirror::ObjectArray<mirror::Class>::Alloc(self, array_of_class, class_table_size));
       CHECK(classes.Get() != nullptr);  // OOME.
-      local_arg.index = 0;
-      local_arg.success = true;
-      VisitClasses(GetClassesVisitorArray, &local_arg);
+      GetClassInToObjectArray accumulator(classes.Get());
+      VisitClasses(&accumulator);
+      if (accumulator.Succeeded()) {
+        break;
+      }
     }
     for (int32_t i = 0; i < classes->GetLength(); ++i) {
       // If the class table shrank during creation of the clases array we expect null elements. If
       // the class table grew then the loop repeats. If classes are created after the loop has
       // finished then we don't visit.
       mirror::Class* klass = classes->Get(i);
-      if (klass != nullptr && !visitor(klass, arg)) {
+      if (klass != nullptr && !visitor->Visit(klass)) {
         return;
       }
     }
@@ -5563,13 +5569,22 @@ const char* ClassLinker::MethodShorty(uint32_t method_idx, ArtMethod* referrer,
   return dex_file.GetMethodShorty(method_id, length);
 }
 
-bool DumpClassVisitor(mirror::Class* klass, void* arg) SHARED_REQUIRES(Locks::mutator_lock_) {
-  klass->DumpClass(LOG(ERROR), reinterpret_cast<ssize_t>(arg));
-  return true;
-}
+class DumpClassVisitor : public ClassVisitor {
+ public:
+  explicit DumpClassVisitor(int flags) : flags_(flags) {}
+
+  bool Visit(mirror::Class* klass) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    klass->DumpClass(LOG(ERROR), flags_);
+    return true;
+  }
+
+ private:
+  const int flags_;
+};
 
 void ClassLinker::DumpAllClasses(int flags) {
-  VisitClasses(&DumpClassVisitor, reinterpret_cast<void*>(flags));
+  DumpClassVisitor visitor(flags);
+  VisitClasses(&visitor);
 }
 
 static OatFile::OatMethod CreateOatMethod(const void* code) {
