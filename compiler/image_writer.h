@@ -217,8 +217,6 @@ class ImageWriter FINAL {
   // Preinitializes some otherwise lazy fields (such as Class name) to avoid runtime image dirtying.
   void ComputeLazyFieldsForImageClasses()
       SHARED_REQUIRES(Locks::mutator_lock_);
-  static bool ComputeLazyFieldsForClassesVisitor(mirror::Class* klass, void* arg)
-      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Wire dex cache resolved strings to strings in the image to avoid runtime resolution.
   void ComputeEagerResolvedStrings() SHARED_REQUIRES(Locks::mutator_lock_);
@@ -227,8 +225,6 @@ class ImageWriter FINAL {
 
   // Remove unwanted classes from various roots.
   void PruneNonImageClasses() SHARED_REQUIRES(Locks::mutator_lock_);
-  static bool NonImageClassesVisitor(mirror::Class* c, void* arg)
-      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Verify unwanted classes removed.
   void CheckNonImageClassesRemoved() SHARED_REQUIRES(Locks::mutator_lock_);
@@ -376,6 +372,7 @@ class ImageWriter FINAL {
   friend class FixupClassVisitor;
   friend class FixupRootVisitor;
   friend class FixupVisitor;
+  friend class NonImageClassesVisitor;
   DISALLOW_COPY_AND_ASSIGN(ImageWriter);
 };
 

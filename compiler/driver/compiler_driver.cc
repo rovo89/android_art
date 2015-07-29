@@ -690,66 +690,76 @@ bool CompilerDriver::IsMethodToCompile(const MethodReference& method_ref) const 
   return methods_to_compile_->find(tmp.c_str()) != methods_to_compile_->end();
 }
 
-static void ResolveExceptionsForMethod(
-    ArtMethod* method_handle, std::set<std::pair<uint16_t, const DexFile*>>& exceptions_to_resolve)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
-  const DexFile::CodeItem* code_item = method_handle->GetCodeItem();
-  if (code_item == nullptr) {
-    return;  // native or abstract method
-  }
-  if (code_item->tries_size_ == 0) {
-    return;  // nothing to process
-  }
-  const uint8_t* encoded_catch_handler_list = DexFile::GetCatchHandlerData(*code_item, 0);
-  size_t num_encoded_catch_handlers = DecodeUnsignedLeb128(&encoded_catch_handler_list);
-  for (size_t i = 0; i < num_encoded_catch_handlers; i++) {
-    int32_t encoded_catch_handler_size = DecodeSignedLeb128(&encoded_catch_handler_list);
-    bool has_catch_all = false;
-    if (encoded_catch_handler_size <= 0) {
-      encoded_catch_handler_size = -encoded_catch_handler_size;
-      has_catch_all = true;
+class ResolveCatchBlockExceptionsClassVisitor : public ClassVisitor {
+ public:
+  ResolveCatchBlockExceptionsClassVisitor(
+      std::set<std::pair<uint16_t, const DexFile*>>& exceptions_to_resolve)
+     : exceptions_to_resolve_(exceptions_to_resolve) {}
+
+  void ResolveExceptionsForMethod(ArtMethod* method_handle) SHARED_REQUIRES(Locks::mutator_lock_) {
+    const DexFile::CodeItem* code_item = method_handle->GetCodeItem();
+    if (code_item == nullptr) {
+      return;  // native or abstract method
     }
-    for (int32_t j = 0; j < encoded_catch_handler_size; j++) {
-      uint16_t encoded_catch_handler_handlers_type_idx =
-          DecodeUnsignedLeb128(&encoded_catch_handler_list);
-      // Add to set of types to resolve if not already in the dex cache resolved types
-      if (!method_handle->IsResolvedTypeIdx(encoded_catch_handler_handlers_type_idx)) {
-        exceptions_to_resolve.insert(
-            std::pair<uint16_t, const DexFile*>(encoded_catch_handler_handlers_type_idx,
-                                                method_handle->GetDexFile()));
+    if (code_item->tries_size_ == 0) {
+      return;  // nothing to process
+    }
+    const uint8_t* encoded_catch_handler_list = DexFile::GetCatchHandlerData(*code_item, 0);
+    size_t num_encoded_catch_handlers = DecodeUnsignedLeb128(&encoded_catch_handler_list);
+    for (size_t i = 0; i < num_encoded_catch_handlers; i++) {
+      int32_t encoded_catch_handler_size = DecodeSignedLeb128(&encoded_catch_handler_list);
+      bool has_catch_all = false;
+      if (encoded_catch_handler_size <= 0) {
+        encoded_catch_handler_size = -encoded_catch_handler_size;
+        has_catch_all = true;
       }
-      // ignore address associated with catch handler
-      DecodeUnsignedLeb128(&encoded_catch_handler_list);
+      for (int32_t j = 0; j < encoded_catch_handler_size; j++) {
+        uint16_t encoded_catch_handler_handlers_type_idx =
+            DecodeUnsignedLeb128(&encoded_catch_handler_list);
+        // Add to set of types to resolve if not already in the dex cache resolved types
+        if (!method_handle->IsResolvedTypeIdx(encoded_catch_handler_handlers_type_idx)) {
+          exceptions_to_resolve_.emplace(encoded_catch_handler_handlers_type_idx,
+                                         method_handle->GetDexFile());
+        }
+        // ignore address associated with catch handler
+        DecodeUnsignedLeb128(&encoded_catch_handler_list);
+      }
+      if (has_catch_all) {
+        // ignore catch all address
+        DecodeUnsignedLeb128(&encoded_catch_handler_list);
+      }
     }
-    if (has_catch_all) {
-      // ignore catch all address
-      DecodeUnsignedLeb128(&encoded_catch_handler_list);
+  }
+
+  virtual bool Visit(mirror::Class* c) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    const auto pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+    for (auto& m : c->GetVirtualMethods(pointer_size)) {
+      ResolveExceptionsForMethod(&m);
     }
+    for (auto& m : c->GetDirectMethods(pointer_size)) {
+      ResolveExceptionsForMethod(&m);
+    }
+    return true;
   }
-}
 
-static bool ResolveCatchBlockExceptionsClassVisitor(mirror::Class* c, void* arg)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
-  auto* exceptions_to_resolve =
-      reinterpret_cast<std::set<std::pair<uint16_t, const DexFile*>>*>(arg);
-  const auto pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
-  for (auto& m : c->GetVirtualMethods(pointer_size)) {
-    ResolveExceptionsForMethod(&m, *exceptions_to_resolve);
-  }
-  for (auto& m : c->GetDirectMethods(pointer_size)) {
-    ResolveExceptionsForMethod(&m, *exceptions_to_resolve);
-  }
-  return true;
-}
+ private:
+  std::set<std::pair<uint16_t, const DexFile*>>& exceptions_to_resolve_;
+};
 
-static bool RecordImageClassesVisitor(mirror::Class* klass, void* arg)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
-  std::unordered_set<std::string>* image_classes =
-      reinterpret_cast<std::unordered_set<std::string>*>(arg);
-  std::string temp;
-  image_classes->insert(klass->GetDescriptor(&temp));
-  return true;
-}
+class RecordImageClassesVisitor : public ClassVisitor {
+ public:
+  explicit RecordImageClassesVisitor(std::unordered_set<std::string>* image_classes)
+      : image_classes_(image_classes) {}
+
+  bool Visit(mirror::Class* klass) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    std::string temp;
+    image_classes_->insert(klass->GetDescriptor(&temp));
+    return true;
+  }
+
+ private:
+  std::unordered_set<std::string>* const image_classes_;
+};
 
 // Make a list of descriptors for classes to include in the image
 void CompilerDriver::LoadImageClasses(TimingLogger* timings) {
@@ -787,8 +797,8 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings) {
       hs.NewHandle(class_linker->FindSystemClass(self, "Ljava/lang/Throwable;")));
   do {
     unresolved_exception_types.clear();
-    class_linker->VisitClasses(ResolveCatchBlockExceptionsClassVisitor,
-                               &unresolved_exception_types);
+    ResolveCatchBlockExceptionsClassVisitor visitor(unresolved_exception_types);
+    class_linker->VisitClasses(&visitor);
     for (const std::pair<uint16_t, const DexFile*>& exception_type : unresolved_exception_types) {
       uint16_t exception_type_idx = exception_type.first;
       const DexFile* dex_file = exception_type.second;
@@ -811,7 +821,8 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings) {
   // We walk the roots looking for classes so that we'll pick up the
   // above classes plus any classes them depend on such super
   // classes, interfaces, and the required ClassLinker roots.
-  class_linker->VisitClasses(RecordImageClassesVisitor, image_classes_.get());
+  RecordImageClassesVisitor visitor(image_classes_.get());
+  class_linker->VisitClasses(&visitor);
 
   CHECK_NE(image_classes_->size(), 0U);
 }
@@ -899,6 +910,29 @@ class ClinitImageUpdate {
   }
 
  private:
+  class FindImageClassesVisitor : public ClassVisitor {
+   public:
+    explicit FindImageClassesVisitor(ClinitImageUpdate* data) : data_(data) {}
+
+    bool Visit(mirror::Class* klass) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+      std::string temp;
+      const char* name = klass->GetDescriptor(&temp);
+      if (data_->image_class_descriptors_->find(name) != data_->image_class_descriptors_->end()) {
+        data_->image_classes_.push_back(klass);
+      } else {
+        // Check whether it is initialized and has a clinit. They must be kept, too.
+        if (klass->IsInitialized() && klass->FindClassInitializer(
+            Runtime::Current()->GetClassLinker()->GetImagePointerSize()) != nullptr) {
+          data_->image_classes_.push_back(klass);
+        }
+      }
+      return true;
+    }
+
+   private:
+    ClinitImageUpdate* const data_;
+  };
+
   ClinitImageUpdate(std::unordered_set<std::string>* image_class_descriptors, Thread* self,
                     ClassLinker* linker)
       SHARED_REQUIRES(Locks::mutator_lock_) :
@@ -915,25 +949,8 @@ class ClinitImageUpdate {
 
     // Find all the already-marked classes.
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-    linker->VisitClasses(FindImageClasses, this);
-  }
-
-  static bool FindImageClasses(mirror::Class* klass, void* arg)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
-    ClinitImageUpdate* data = reinterpret_cast<ClinitImageUpdate*>(arg);
-    std::string temp;
-    const char* name = klass->GetDescriptor(&temp);
-    if (data->image_class_descriptors_->find(name) != data->image_class_descriptors_->end()) {
-      data->image_classes_.push_back(klass);
-    } else {
-      // Check whether it is initialized and has a clinit. They must be kept, too.
-      if (klass->IsInitialized() && klass->FindClassInitializer(
-          Runtime::Current()->GetClassLinker()->GetImagePointerSize()) != nullptr) {
-        data->image_classes_.push_back(klass);
-      }
-    }
-
-    return true;
+    FindImageClassesVisitor visitor(this);
+    linker->VisitClasses(&visitor);
   }
 
   void VisitClinitClassesObject(mirror::Object* object) const
@@ -1731,7 +1748,7 @@ class ResolveClassFieldsAndMethodsVisitor : public CompilationVisitor {
   explicit ResolveClassFieldsAndMethodsVisitor(const ParallelCompilationManager* manager)
       : manager_(manager) {}
 
-  virtual void Visit(size_t class_def_index) OVERRIDE REQUIRES(!Locks::mutator_lock_) {
+  void Visit(size_t class_def_index) OVERRIDE REQUIRES(!Locks::mutator_lock_) {
     ATRACE_CALL();
     Thread* const self = Thread::Current();
     jobject jclass_loader = manager_->GetClassLoader();
