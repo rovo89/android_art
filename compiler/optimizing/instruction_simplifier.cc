@@ -195,16 +195,17 @@ bool InstructionSimplifierVisitor::IsDominatedByInputNullCheck(HInstruction* ins
 // Returns whether doing a type test between the class of `object` against `klass` has
 // a statically known outcome. The result of the test is stored in `outcome`.
 static bool TypeCheckHasKnownOutcome(HLoadClass* klass, HInstruction* object, bool* outcome) {
-  if (!klass->IsResolved()) {
-    // If the class couldn't be resolve it's not safe to compare against it. It's
-    // default type would be Top which might be wider that the actual class type
-    // and thus producing wrong results.
+  DCHECK(!object->IsNullConstant()) << "Null constants should be special cased";
+  ReferenceTypeInfo obj_rti = object->GetReferenceTypeInfo();
+  ScopedObjectAccess soa(Thread::Current());
+  if (!obj_rti.IsValid()) {
+    // We run the simplifier before the reference type propagation so type info might not be
+    // available.
     return false;
   }
 
-  ReferenceTypeInfo obj_rti = object->GetReferenceTypeInfo();
   ReferenceTypeInfo class_rti = klass->GetLoadedClassRTI();
-  ScopedObjectAccess soa(Thread::Current());
+  DCHECK(class_rti.IsValid() && class_rti.IsExact());
   if (class_rti.IsSupertypeOf(obj_rti)) {
     *outcome = true;
     return true;
