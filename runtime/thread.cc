@@ -527,7 +527,11 @@ bool Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm, JNIEnvExt* jni_en
   InitCardTable();
   InitTid();
 
+#ifdef HAVE_ANDROID_OS
+  __get_tls()[TLS_SLOT_ART_THREAD_SELF] = this;
+#else
   CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, this), "attach self");
+#endif
   DCHECK_EQ(Thread::Current(), this);
 
   tls32_.thin_lock_thread_id = thread_list->AllocThreadId(this);
