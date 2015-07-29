@@ -22,6 +22,7 @@
 #include "constant_folding.h"
 #include "dead_code_elimination.h"
 #include "driver/compiler_driver-inl.h"
+#include "driver/compiler_options.h"
 #include "driver/dex_compilation_unit.h"
 #include "instruction_simplifier.h"
 #include "intrinsics.h"
@@ -38,9 +39,6 @@
 #include "dex/verification_results.h"
 
 namespace art {
-
-static constexpr int kMaxInlineCodeUnits = 18;
-static constexpr int kDepthLimit = 3;
 
 void HInliner::Run() {
   if (graph_->IsDebuggable()) {
@@ -220,7 +218,8 @@ bool HInliner::TryInline(HInvoke* invoke_instruction, uint32_t method_index) con
     return false;
   }
 
-  if (code_item->insns_size_in_code_units_ > kMaxInlineCodeUnits) {
+  size_t inline_max_code_units = compiler_driver_->GetCompilerOptions().GetInlineMaxCodeUnits();
+  if (code_item->insns_size_in_code_units_ > inline_max_code_units) {
     VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
                    << " is too big to inline";
     return false;
@@ -372,7 +371,7 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
     optimization->Run();
   }
 
-  if (depth_ + 1 < kDepthLimit) {
+  if (depth_ + 1 < compiler_driver_->GetCompilerOptions().GetInlineDepthLimit()) {
     HInliner inliner(callee_graph,
                      outer_compilation_unit_,
                      dex_compilation_unit,
