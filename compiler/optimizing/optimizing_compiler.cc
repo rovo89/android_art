@@ -369,6 +369,36 @@ static void RunOptimizations(HOptimization* optimizations[],
   }
 }
 
+static void MaybeRunInliner(HGraph* graph,
+                            CompilerDriver* driver,
+                            OptimizingCompilerStats* stats,
+                            const DexCompilationUnit& dex_compilation_unit,
+                            PassObserver* pass_observer,
+                            StackHandleScopeCollection* handles) {
+  const CompilerOptions& compiler_options = driver->GetCompilerOptions();
+  bool should_inline = (compiler_options.GetInlineDepthLimit() > 0)
+      && (compiler_options.GetInlineMaxCodeUnits() > 0);
+  if (!should_inline) {
+    return;
+  }
+
+  ArenaAllocator* arena = graph->GetArena();
+  HInliner* inliner = new (arena) HInliner(
+    graph, dex_compilation_unit, dex_compilation_unit, driver, handles, stats);
+  ReferenceTypePropagation* type_propagation =
+    new (arena) ReferenceTypePropagation(graph, handles,
+        "reference_type_propagation_after_inlining");
+
+  HOptimization* optimizations[] = {
+    inliner,
+    // Run another type propagation phase: inlining will open up more opportunities
+    // to remove checkcast/instanceof and null checks.
+    type_propagation,
+  };
+
+  RunOptimizations(optimizations, arraysize(optimizations), pass_observer);
+}
+
 static void RunOptimizations(HGraph* graph,
                              CompilerDriver* driver,
                              OptimizingCompilerStats* stats,
@@ -383,10 +413,6 @@ static void RunOptimizations(HGraph* graph,
   HConstantFolding* fold1 = new (arena) HConstantFolding(graph);
   InstructionSimplifier* simplify1 = new (arena) InstructionSimplifier(graph, stats);
   HBooleanSimplifier* boolean_simplify = new (arena) HBooleanSimplifier(graph);
-
-  HInliner* inliner = new (arena) HInliner(
-      graph, dex_compilation_unit, dex_compilation_unit, driver, handles, stats);
-
   HConstantFolding* fold2 = new (arena) HConstantFolding(graph, "constant_folding_after_inlining");
   SideEffectsAnalysis* side_effects = new (arena) SideEffectsAnalysis(graph);
   GVNOptimization* gvn = new (arena) GVNOptimization(graph, *side_effects);
@@ -398,29 +424,29 @@ static void RunOptimizations(HGraph* graph,
       graph, stats, "instruction_simplifier_after_types");
   InstructionSimplifier* simplify3 = new (arena) InstructionSimplifier(
       graph, stats, "instruction_simplifier_after_bce");
-  ReferenceTypePropagation* type_propagation2 =
-      new (arena) ReferenceTypePropagation(
-          graph, handles, "reference_type_propagation_after_inlining");
   InstructionSimplifier* simplify4 = new (arena) InstructionSimplifier(
       graph, stats, "instruction_simplifier_before_codegen");
 
   IntrinsicsRecognizer* intrinsics = new (arena) IntrinsicsRecognizer(graph, driver);
 
-  HOptimization* optimizations[] = {
+  HOptimization* optimizations1[] = {
     intrinsics,
     fold1,
     simplify1,
     type_propagation,
     dce1,
-    simplify2,
-    inliner,
-    // Run another type propagation phase: inlining will open up more opprotunities
-    // to remove checkast/instanceof and null checks.
-    type_propagation2,
+    simplify2
+  };
+
+  RunOptimizations(optimizations1, arraysize(optimizations1), pass_observer);
+
+  MaybeRunInliner(graph, driver, stats, dex_compilation_unit, pass_observer, handles);
+
+  HOptimization* optimizations2[] = {
     // BooleanSimplifier depends on the InstructionSimplifier removing redundant
     // suspend checks to recognize empty blocks.
     boolean_simplify,
-    fold2,
+    fold2,  // TODO: if we don't inline we can also skip fold2.
     side_effects,
     gvn,
     licm,
@@ -433,7 +459,7 @@ static void RunOptimizations(HGraph* graph,
     simplify4,
   };
 
-  RunOptimizations(optimizations, arraysize(optimizations), pass_observer);
+  RunOptimizations(optimizations2, arraysize(optimizations2), pass_observer);
 }
 
 // The stack map we generate must be 4-byte aligned on ARM. Since existing

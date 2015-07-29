@@ -71,6 +71,8 @@ JitCompiler::JitCompiler() : total_time_(0) {
       CompilerOptions::kDefaultSmallMethodThreshold,
       CompilerOptions::kDefaultTinyMethodThreshold,
       CompilerOptions::kDefaultNumDexMethodsThreshold,
+      CompilerOptions::kDefaultInlineDepthLimit,
+      CompilerOptions::kDefaultInlineMaxCodeUnits,
       /* include_patch_information */ false,
       CompilerOptions::kDefaultTopKProfileThreshold,
       Runtime::Current()->IsDebuggable(),
