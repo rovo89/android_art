@@ -280,6 +280,18 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("      Example: --num-dex-method=%d", CompilerOptions::kDefaultNumDexMethodsThreshold);
   UsageError("      Default: %d", CompilerOptions::kDefaultNumDexMethodsThreshold);
   UsageError("");
+  UsageError("  --inline-depth-limit=<depth-limit>: the depth limit of inlining for fine tuning");
+  UsageError("      the compiler. A zero value will disable inlining. Honored only by Optimizing.");
+  UsageError("      Example: --inline-depth-limit=%d", CompilerOptions::kDefaultInlineDepthLimit);
+  UsageError("      Default: %d", CompilerOptions::kDefaultInlineDepthLimit);
+  UsageError("");
+  UsageError("  --inline-max-code-units=<code-units-count>: the maximum code units that a method");
+  UsageError("      can have to be considered for inlining. A zero value will disable inlining.");
+  UsageError("      Honored only by Optimizing.");
+  UsageError("      Example: --inline-max-code-units=%d",
+             CompilerOptions::kDefaultInlineMaxCodeUnits);
+  UsageError("      Default: %d", CompilerOptions::kDefaultInlineMaxCodeUnits);
+  UsageError("");
   UsageError("  --dump-timing: display a breakdown of where time was spent");
   UsageError("");
   UsageError("  --include-patch-information: Include patching information so the generated code");
@@ -550,6 +562,8 @@ class Dex2Oat FINAL {
     int small_method_threshold = CompilerOptions::kDefaultSmallMethodThreshold;
     int tiny_method_threshold = CompilerOptions::kDefaultTinyMethodThreshold;
     int num_dex_methods_threshold = CompilerOptions::kDefaultNumDexMethodsThreshold;
+    int inline_depth_limit = CompilerOptions::kDefaultInlineDepthLimit;
+    int inline_max_code_units = CompilerOptions::kDefaultInlineMaxCodeUnits;
 
     // Profile file to use
     double top_k_profile_threshold = CompilerOptions::kDefaultTopKProfileThreshold;
@@ -719,6 +733,22 @@ class Dex2Oat FINAL {
         }
         if (num_dex_methods_threshold < 0) {
           Usage("--num-dex-methods passed a negative value %s", num_dex_methods_threshold);
+        }
+      } else if (option.starts_with("--inline-depth-limit=")) {
+        const char* limit = option.substr(strlen("--inline-depth-limit=")).data();
+        if (!ParseInt(limit, &inline_depth_limit)) {
+          Usage("Failed to parse --inline-depth-limit '%s' as an integer", limit);
+        }
+        if (inline_depth_limit < 0) {
+          Usage("--inline-depth-limit passed a negative value %s", inline_depth_limit);
+        }
+      } else if (option.starts_with("--inline-max-code-units=")) {
+        const char* code_units = option.substr(strlen("--inline-max-code-units=")).data();
+        if (!ParseInt(code_units, &inline_max_code_units)) {
+          Usage("Failed to parse --inline-max-code-units '%s' as an integer", code_units);
+        }
+        if (inline_max_code_units < 0) {
+          Usage("--inline-max-code-units passed a negative value %s", inline_max_code_units);
         }
       } else if (option == "--host") {
         is_host_ = true;
@@ -992,6 +1022,8 @@ class Dex2Oat FINAL {
                                                 small_method_threshold,
                                                 tiny_method_threshold,
                                                 num_dex_methods_threshold,
+                                                inline_depth_limit,
+                                                inline_max_code_units,
                                                 include_patch_information,
                                                 top_k_profile_threshold,
                                                 debuggable,

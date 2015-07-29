@@ -71,6 +71,8 @@ JitCompiler::JitCompiler() : total_time_(0) {
       CompilerOptions::kDefaultSmallMethodThreshold,
       CompilerOptions::kDefaultTinyMethodThreshold,
       CompilerOptions::kDefaultNumDexMethodsThreshold,
+      CompilerOptions::kDefaultInlineDepthLimit,
+      CompilerOptions::kDefaultInlineMaxCodeUnits,
       false,
       CompilerOptions::kDefaultTopKProfileThreshold,
       false,  // TODO: Think about debuggability of JIT-compiled code.
