@@ -119,6 +119,8 @@ public class Main {
                 new VerifyError(), null));
         testCases.add(new TestCase("b/22411633 (5)", "B22411633_5", "run", new Object[] { false },
                 null, null));
+        testCases.add(new TestCase("b/22777307", "B22777307", "run", null, new InstantiationError(),
+                null));
     }
 
     public void runTests() {
