@@ -1485,7 +1485,7 @@ void HGraph::DeleteDeadBlock(HBasicBlock* block) {
   blocks_.Put(block->GetBlockId(), nullptr);
 }
 
-void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
+HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
   DCHECK(HasExitBlock()) << "Unimplemented scenario";
   // Update the environments in this graph to have the invoke's environment
   // as parent.
@@ -1510,6 +1510,7 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     outer_graph->SetHasBoundsChecks(true);
   }
 
+  HInstruction* return_value = nullptr;
   if (GetBlocks().Size() == 3) {
     // Simple case of an entry block, a body block, and an exit block.
     // Put the body block's instruction into `invoke`'s block.
@@ -1524,7 +1525,8 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
 
     // Replace the invoke with the return value of the inlined graph.
     if (last->IsReturn()) {
-      invoke->ReplaceWith(last->InputAt(0));
+      return_value = last->InputAt(0);
+      invoke->ReplaceWith(return_value);
     } else {
       DCHECK(last->IsReturnVoid());
     }
@@ -1546,7 +1548,6 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
 
     // Update all predecessors of the exit block (now the `to` block)
     // to not `HReturn` but `HGoto` instead.
-    HInstruction* return_value = nullptr;
     bool returns_void = to->GetPredecessors().Get(0)->GetLastInstruction()->IsReturnVoid();
     if (to->GetPredecessors().Size() == 1) {
       HBasicBlock* predecessor = to->GetPredecessors().Get(0);
@@ -1680,6 +1681,8 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
 
   // Finally remove the invoke from the caller.
   invoke->GetBlock()->RemoveInstruction(invoke);
+
+  return return_value;
 }
 
 /*
@@ -1757,11 +1760,39 @@ void HGraph::TransformLoopHeaderForBCE(HBasicBlock* header) {
   }
 }
 
+void HInstruction::SetReferenceTypeInfo(ReferenceTypeInfo rti) {
+  if (kIsDebugBuild) {
+    DCHECK_EQ(GetType(), Primitive::kPrimNot);
+    ScopedObjectAccess soa(Thread::Current());
+    DCHECK(rti.IsValid()) << "Invalid RTI for " << DebugName();
+    if (IsBoundType()) {
+      // Having the test here spares us from making the method virtual just for
+      // the sake of a DCHECK.
+      ReferenceTypeInfo upper_bound_rti = AsBoundType()->GetUpperBound();
+      DCHECK(upper_bound_rti.IsSupertypeOf(rti))
+          << " upper_bound_rti: " << upper_bound_rti
+          << " rti: " << rti;
+      DCHECK(!upper_bound_rti.GetTypeHandle()->IsFinal() || rti.IsExact());
+    }
+  }
+  reference_type_info_ = rti;
+}
+
+ReferenceTypeInfo::ReferenceTypeInfo() : type_handle_(TypeHandle()), is_exact_(false) {}
+
+ReferenceTypeInfo::ReferenceTypeInfo(TypeHandle type_handle, bool is_exact)
+    : type_handle_(type_handle), is_exact_(is_exact) {
+  if (kIsDebugBuild) {
+    ScopedObjectAccess soa(Thread::Current());
+    DCHECK(IsValidHandle(type_handle));
+  }
+}
+
 std::ostream& operator<<(std::ostream& os, const ReferenceTypeInfo& rhs) {
   ScopedObjectAccess soa(Thread::Current());
   os << "["
-     << " is_top=" << rhs.IsTop()
-     << " type=" << (rhs.IsTop() ? "?" : PrettyClass(rhs.GetTypeHandle().Get()))
+     << " is_valid=" << rhs.IsValid()
+     << " type=" << (!rhs.IsValid() ? "?" : PrettyClass(rhs.GetTypeHandle().Get()))
      << " is_exact=" << rhs.IsExact()
      << " ]";
   return os;
