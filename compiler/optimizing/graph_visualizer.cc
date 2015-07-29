@@ -386,6 +386,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
     StartAttributeStream("recursive") << std::boolalpha
                                       << invoke->IsRecursive()
                                       << std::noboolalpha;
+    StartAttributeStream("intrinsic") << invoke->GetIntrinsic();
   }
 
   void VisitTryBoundary(HTryBoundary* try_boundary) OVERRIDE {

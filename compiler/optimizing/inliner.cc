@@ -24,6 +24,7 @@
 #include "driver/compiler_driver-inl.h"
 #include "driver/dex_compilation_unit.h"
 #include "instruction_simplifier.h"
+#include "intrinsics.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache.h"
 #include "nodes.h"
@@ -358,8 +359,10 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
   HConstantFolding fold(callee_graph);
   ReferenceTypePropagation type_propagation(callee_graph, handles_);
   InstructionSimplifier simplify(callee_graph, stats_);
+  IntrinsicsRecognizer intrinsics(callee_graph, compiler_driver_);
 
   HOptimization* optimizations[] = {
+    &intrinsics,
     &dce,
     &fold,
     &type_propagation,
