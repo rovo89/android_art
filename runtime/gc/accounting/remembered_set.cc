@@ -88,7 +88,7 @@ class RememberedSetReferenceVisitor {
 
   void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    if (kIsDebugBuild && !root->IsNull()) {
+    if (!root->IsNull()) {
       VisitRoot(root);
     }
   }
