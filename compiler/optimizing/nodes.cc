@@ -564,6 +564,13 @@ bool HBasicBlock::Dominates(HBasicBlock* other) const {
   return false;
 }
 
+void HBasicBlock::AddExceptionalPredecessor(HInstruction* exceptional_predecessor) {
+  DCHECK(exceptional_predecessor->CanThrow());
+  DCHECK(exceptional_predecessor->GetBlock()->IsInTry());
+  DCHECK(exceptional_predecessor->GetBlock()->GetTryEntry()->HasExceptionHandler(*this));
+  exceptional_predecessors_.Add(exceptional_predecessor);
+}
+
 static void UpdateInputsUsers(HInstruction* instruction) {
   for (size_t i = 0, e = instruction->InputCount(); i < e; ++i) {
     instruction->InputAt(i)->AddUseAt(instruction, i);
@@ -1225,10 +1232,12 @@ bool HTryBoundary::HasSameExceptionHandlersAs(const HTryBoundary& other) const {
     return false;
   }
 
-  // Exception handler lists cannot contain duplicates, which makes it
-  // sufficient to test inclusion only in one direction.
-  for (HExceptionHandlerIterator it(other); !it.Done(); it.Advance()) {
-    if (!HasExceptionHandler(*it.Current())) {
+  // Exception handlers need to be stored in the same order.
+  for (HExceptionHandlerIterator it1(*this), it2(other);
+       !it1.Done();
+       it1.Advance(), it2.Advance()) {
+    DCHECK(!it2.Done());
+    if (it1.Current() != it2.Current()) {
       return false;
     }
   }
