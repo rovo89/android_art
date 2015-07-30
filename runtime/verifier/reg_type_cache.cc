@@ -427,9 +427,18 @@ const RegType& RegTypeCache::FromUninitialized(const RegType& uninit_type) {
         }
       }
       entry = new ReferenceType(klass, "", entries_.size());
-    } else if (klass->IsInstantiable()) {
+    } else if (!klass->IsPrimitive()) {
       // We're uninitialized because of allocation, look or create a precise type as allocations
       // may only create objects of that type.
+      // Note: we do not check whether the given klass is actually instantiable (besides being
+      //       primitive), that is, we allow interfaces and abstract classes here. The reasoning is
+      //       twofold:
+      //       1) The "new-instance" instruction to generate the uninitialized type will already
+      //          queue an instantiation error. This is a soft error that must be thrown at runtime,
+      //          and could potentially change if the class is resolved differently at runtime.
+      //       2) Checking whether the klass is instantiable and using conflict may produce a hard
+      //          error when the value is used, which leads to a VerifyError, which is not the
+      //          correct semantics.
       for (size_t i = primitive_count_; i < entries_.size(); i++) {
         const RegType* cur_entry = entries_[i];
         if (cur_entry->IsPreciseReference() && cur_entry->GetClass() == klass) {
