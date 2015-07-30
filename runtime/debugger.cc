@@ -4626,7 +4626,7 @@ void Dbg::DdmSendHeapSegments(bool native) {
   // Send a series of heap segment chunks.
   HeapChunkContext context(what == HPSG_WHAT_MERGED_OBJECTS, native);
   if (native) {
-#if defined(HAVE_ANDROID_OS) && defined(USE_DLMALLOC)
+#if defined(__ANDROID__) && defined(USE_DLMALLOC)
     dlmalloc_inspect_all(HeapChunkContext::HeapChunkNativeCallback, &context);
     HeapChunkContext::HeapChunkNativeCallback(nullptr, nullptr, 0, &context);  // Indicate end of a space.
 #else

@@ -20,7 +20,7 @@
 #include "base/stl_util.h"
 #include "stack.h"
 
-#ifdef HAVE_ANDROID_OS
+#ifdef __ANDROID__
 #include "cutils/properties.h"
 #endif
 
@@ -42,7 +42,7 @@ const char* AllocRecord::GetClassDescriptor(std::string* storage) const {
 }
 
 void AllocRecordObjectMap::SetProperties() {
-#ifdef HAVE_ANDROID_OS
+#ifdef __ANDROID__
   // Check whether there's a system property overriding the max number of records.
   const char* propertyName = "dalvik.vm.allocTrackerMax";
   char allocMaxString[PROPERTY_VALUE_MAX];

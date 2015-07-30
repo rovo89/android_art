@@ -35,7 +35,7 @@
 #include "../../bionic/libc/upstream-dlmalloc/malloc.h"
 #pragma GCC diagnostic pop
 
-#ifdef HAVE_ANDROID_OS
+#ifdef __ANDROID__
 // Define dlmalloc routines from bionic that cannot be included directly because of redefining
 // symbols from the include above.
 extern "C" void dlmalloc_inspect_all(void(*handler)(void*, void *, size_t, void*), void* arg);

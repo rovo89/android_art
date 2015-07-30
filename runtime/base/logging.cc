@@ -26,7 +26,7 @@
 #include "utils.h"
 
 // Headers for LogMessage::LogLine.
-#ifdef HAVE_ANDROID_OS
+#ifdef __ANDROID__
 #include "cutils/log.h"
 #else
 #include <sys/types.h>
@@ -47,7 +47,7 @@ static std::unique_ptr<std::string> gProgramInvocationShortName;
 // Print INTERNAL_FATAL messages directly instead of at destruction time. This only works on the
 // host right now: for the device, a stream buf collating output into lines and calling LogLine or
 // lower-level logging is necessary.
-#ifdef HAVE_ANDROID_OS
+#ifdef __ANDROID__
 static constexpr bool kPrintInternalFatalDirectly = false;
 #else
 static constexpr bool kPrintInternalFatalDirectly = !kIsTargetBuild;
@@ -234,7 +234,7 @@ std::ostream& LogMessage::stream() {
   return data_->GetBuffer();
 }
 
-#ifdef HAVE_ANDROID_OS
+#ifdef __ANDROID__
 static const android_LogPriority kLogSeverityToAndroidLogPriority[] = {
   ANDROID_LOG_VERBOSE, ANDROID_LOG_DEBUG, ANDROID_LOG_INFO, ANDROID_LOG_WARN,
   ANDROID_LOG_ERROR, ANDROID_LOG_FATAL, ANDROID_LOG_FATAL
@@ -245,7 +245,7 @@ static_assert(arraysize(kLogSeverityToAndroidLogPriority) == INTERNAL_FATAL + 1,
 
 void LogMessage::LogLine(const char* file, unsigned int line, LogSeverity log_severity,
                          const char* message) {
-#ifdef HAVE_ANDROID_OS
+#ifdef __ANDROID__
   const char* tag = ProgramInvocationShortName();
   int priority = kLogSeverityToAndroidLogPriority[log_severity];
   if (priority == ANDROID_LOG_FATAL) {
@@ -264,7 +264,7 @@ void LogMessage::LogLine(const char* file, unsigned int line, LogSeverity log_se
 
 void LogMessage::LogLineLowStack(const char* file, unsigned int line, LogSeverity log_severity,
                                  const char* message) {
-#ifdef HAVE_ANDROID_OS
+#ifdef __ANDROID__
   // Use android_writeLog() to avoid stack-based buffers used by android_printLog().
   const char* tag = ProgramInvocationShortName();
   int priority = kLogSeverityToAndroidLogPriority[log_severity];
