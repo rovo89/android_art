@@ -36,7 +36,7 @@
 namespace art {
 
 // Run the tests only on host.
-#ifndef HAVE_ANDROID_OS
+#ifndef __ANDROID__
 
 class QuickCFITest : public CFITest {
  public:
@@ -136,6 +136,6 @@ TEST_ISA(kX86_64)
 TEST_ISA(kMips)
 TEST_ISA(kMips64)
 
-#endif  // HAVE_ANDROID_OS
+#endif  // __ANDROID__
 
 }  // namespace art

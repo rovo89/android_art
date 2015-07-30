@@ -44,7 +44,7 @@ static constexpr int kHostAltSigStackSize =
 
 void Thread::SetUpAlternateSignalStack() {
   // Create and set an alternate signal stack.
-#ifdef HAVE_ANDROID_OS
+#ifdef __ANDROID__
   LOG(FATAL) << "Invalid use of alternate signal stack on Android";
 #endif
   stack_t ss;
