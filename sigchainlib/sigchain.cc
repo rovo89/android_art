@@ -337,14 +337,16 @@ extern "C" void SetSpecialSignalHandlerFn(int signal, SpecialSignalHandlerFn fn)
   // In case the chain isn't claimed, claim it for ourself so we can ensure the managed handler
   // goes first.
   if (!user_sigactions[signal].IsClaimed()) {
-    struct sigaction tmp;
-    tmp.sa_sigaction = sigchainlib_managed_handler_sigaction;
-    sigemptyset(&tmp.sa_mask);
-    tmp.sa_flags = SA_SIGINFO | SA_ONSTACK;
+    struct sigaction act, old_act;
+    act.sa_sigaction = sigchainlib_managed_handler_sigaction;
+    sigemptyset(&act.sa_mask);
+    act.sa_flags = SA_SIGINFO | SA_ONSTACK;
 #if !defined(__APPLE__) && !defined(__mips__)
-    tmp.sa_restorer = nullptr;
+    act.sa_restorer = nullptr;
 #endif
-    user_sigactions[signal].Claim(tmp);
+    if (sigaction(signal, &act, &old_act) != -1) {
+      user_sigactions[signal].Claim(old_act);
+    }
   }
 }
 
