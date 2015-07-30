@@ -553,7 +553,7 @@ static inline bool DoUnboxLambda(Thread* self,
   ArtMethod* unboxed_closure = nullptr;
   // Raise an exception if unboxing fails.
   if (!Runtime::Current()->GetLambdaBoxTable()->UnboxLambda(boxed_closure_object,
-                                                            &unboxed_closure)) {
+                                                            outof(unboxed_closure))) {
     CHECK(self->IsExceptionPending());
     return false;
   }
