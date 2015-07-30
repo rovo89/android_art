@@ -61,3 +61,4 @@ Getting trampoline for Java_Main_testNewStringObject with shorty V.
 trampoline_Java_Main_testNewStringObject called!
 Getting trampoline for Java_Main_testSignal with shorty I.
 NB signal handler with signal 11.
+NB signal handler with signal 4.
