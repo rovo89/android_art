@@ -56,6 +56,8 @@ class QuickCFITest : public CFITest {
       CompilerOptions::kDefaultSmallMethodThreshold,
       CompilerOptions::kDefaultTinyMethodThreshold,
       CompilerOptions::kDefaultNumDexMethodsThreshold,
+      CompilerOptions::kDefaultInlineDepthLimit,
+      CompilerOptions::kDefaultInlineMaxCodeUnits,
       false,
       CompilerOptions::kDefaultTopKProfileThreshold,
       false,
