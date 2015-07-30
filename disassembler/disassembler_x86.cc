@@ -1117,6 +1117,9 @@ DISASSEMBLER_ENTRY(cmp,
       opcode1 = opcode_tmp.c_str();
     }
     break;
+  case 0xA7:
+    opcode1 = (prefix[2] == 0x66 ? "cmpsw" : "cmpsl");
+    break;
   case 0xAF:
     opcode1 = (prefix[2] == 0x66 ? "scasw" : "scasl");
     break;
