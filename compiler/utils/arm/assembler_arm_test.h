@@ -21,7 +21,13 @@
 
 namespace art {
 
-template<typename Ass, typename Reg, typename FPReg, typename Imm, typename SOp, typename Cond>
+template<typename Ass,
+         typename Reg,
+         typename FPReg,
+         typename Imm,
+         typename SOp,
+         typename Cond,
+         typename SetCc>
 class AssemblerArmTest : public AssemblerTest<Ass, Reg, FPReg, Imm> {
  public:
   typedef AssemblerTest<Ass, Reg, FPReg, Imm> Base;
@@ -94,7 +100,7 @@ class AssemblerArmTest : public AssemblerTest<Ass, Reg, FPReg, Imm> {
 
       size_t cond_index = after_cond.find(COND_TOKEN);
       if (cond_index != std::string::npos) {
-        after_cond.replace(cond_index, ConstexprStrLen(IMM1_TOKEN), GetConditionString(c));
+        after_cond.replace(cond_index, ConstexprStrLen(COND_TOKEN), GetConditionString(c));
       }
 
       for (Imm i : immediates1) {
@@ -185,7 +191,7 @@ class AssemblerArmTest : public AssemblerTest<Ass, Reg, FPReg, Imm> {
 
       size_t cond_index = after_cond.find(COND_TOKEN);
       if (cond_index != std::string::npos) {
-        after_cond.replace(cond_index, ConstexprStrLen(IMM1_TOKEN), GetConditionString(c));
+        after_cond.replace(cond_index, ConstexprStrLen(COND_TOKEN), GetConditionString(c));
       }
 
       for (std::pair<Imm, Imm>& pair : immediates) {
@@ -271,7 +277,7 @@ class AssemblerArmTest : public AssemblerTest<Ass, Reg, FPReg, Imm> {
 
       size_t cond_index = after_cond.find(COND_TOKEN);
       if (cond_index != std::string::npos) {
-        after_cond.replace(cond_index, ConstexprStrLen(IMM1_TOKEN), GetConditionString(c));
+        after_cond.replace(cond_index, ConstexprStrLen(COND_TOKEN), GetConditionString(c));
       }
 
       for (auto reg1 : reg1_registers) {
@@ -337,7 +343,7 @@ class AssemblerArmTest : public AssemblerTest<Ass, Reg, FPReg, Imm> {
 
       size_t cond_index = after_cond.find(COND_TOKEN);
       if (cond_index != std::string::npos) {
-        after_cond.replace(cond_index, ConstexprStrLen(IMM1_TOKEN), GetConditionString(c));
+        after_cond.replace(cond_index, ConstexprStrLen(COND_TOKEN), GetConditionString(c));
       }
 
       for (auto reg1 : reg1_registers) {
@@ -401,7 +407,7 @@ class AssemblerArmTest : public AssemblerTest<Ass, Reg, FPReg, Imm> {
 
       size_t cond_index = after_cond.find(COND_TOKEN);
       if (cond_index != std::string::npos) {
-        after_cond.replace(cond_index, ConstexprStrLen(IMM1_TOKEN), GetConditionString(c));
+        after_cond.replace(cond_index, ConstexprStrLen(COND_TOKEN), GetConditionString(c));
       }
 
       for (const SOp& shift : shifts) {
@@ -457,7 +463,7 @@ class AssemblerArmTest : public AssemblerTest<Ass, Reg, FPReg, Imm> {
 
       size_t cond_index = after_cond.find(COND_TOKEN);
       if (cond_index != std::string::npos) {
-        after_cond.replace(cond_index, ConstexprStrLen(IMM1_TOKEN), GetConditionString(c));
+        after_cond.replace(cond_index, ConstexprStrLen(COND_TOKEN), GetConditionString(c));
       }
 
       for (const SOp& shift : shifts) {
@@ -511,6 +517,9 @@ class AssemblerArmTest : public AssemblerTest<Ass, Reg, FPReg, Imm> {
   virtual std::vector<Cond>& GetConditions() = 0;
   virtual std::string GetConditionString(Cond c) = 0;
 
+  virtual std::vector<SetCc>& GetSetCcs() = 0;
+  virtual std::string GetSetCcString(SetCc s) = 0;
+
   virtual std::vector<SOp>& GetShiftOperands() = 0;
   virtual std::string GetShiftString(SOp sop) = 0;
 
@@ -534,6 +543,7 @@ class AssemblerArmTest : public AssemblerTest<Ass, Reg, FPReg, Imm> {
   static constexpr const char* REG3_TOKEN = "{reg3}";
   static constexpr const char* REG4_TOKEN = "{reg4}";
   static constexpr const char* COND_TOKEN = "{cond}";
+  static constexpr const char* SET_CC_TOKEN = "{s}";
   static constexpr const char* SHIFT_TOKEN = "{shift}";
 
  private:
