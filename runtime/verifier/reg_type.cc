@@ -302,7 +302,9 @@ void UndefinedType::Destroy() {
 PreciseReferenceType::PreciseReferenceType(mirror::Class* klass, const std::string& descriptor,
                                            uint16_t cache_id)
     : RegType(klass, descriptor, cache_id) {
-  DCHECK(klass->IsInstantiable());
+  // Note: no check for IsInstantiable() here. We may produce this in case an InstantiationError
+  //       would be thrown at runtime, but we need to continue verification and *not* create a
+  //       hard failure or abort.
 }
 
 std::string UnresolvedMergedType::Dump() const {
