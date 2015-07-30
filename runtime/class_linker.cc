@@ -2391,6 +2391,8 @@ void ClassLinker::LoadClassMembers(Thread* self, const DexFile& dex_file,
     }
     DCHECK(!it.HasNext());
   }
+  // Ensure that the card is marked so that remembered sets pick up native roots.
+  Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(klass.Get());
   self->AllowThreadSuspension();
 }
 
@@ -2807,14 +2809,11 @@ mirror::Class* ClassLinker::InsertClass(const char* descriptor, mirror::Class* k
 
 void ClassLinker::UpdateClassVirtualMethods(mirror::Class* klass, ArtMethod* new_methods,
                                             size_t new_num_methods) {
-  // classlinker_classes_lock_ is used to guard against races between root marking and changing the
-  // direct and virtual method pointers.
-  WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
+  // TODO: Fix the race condition here. b/22832610
   klass->SetNumVirtualMethods(new_num_methods);
   klass->SetVirtualMethodsPtr(new_methods);
-  if (log_new_class_table_roots_) {
-    new_class_roots_.push_back(GcRoot<mirror::Class>(klass));
-  }
+  // Need to mark the card so that the remembered sets and mod union tables get update.
+  Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(klass);
 }
 
 bool ClassLinker::RemoveClass(const char* descriptor, mirror::ClassLoader* class_loader) {
@@ -3960,7 +3959,7 @@ bool ClassLinker::EnsureInitialized(Thread* self, Handle<mirror::Class> c, bool 
 void ClassLinker::FixupTemporaryDeclaringClass(mirror::Class* temp_class,
                                                mirror::Class* new_class) {
   ArtField* fields = new_class->GetIFields();
-  DCHECK_EQ(temp_class->NumInstanceFields(), new_class->NumInstanceFields());
+  DCHECK_EQ(temp_class->NumInstanceFields(), 0u);
   for (size_t i = 0, count = new_class->NumInstanceFields(); i < count; i++) {
     if (fields[i].GetDeclaringClass() == temp_class) {
       fields[i].SetDeclaringClass(new_class);
@@ -3968,26 +3967,30 @@ void ClassLinker::FixupTemporaryDeclaringClass(mirror::Class* temp_class,
   }
 
   fields = new_class->GetSFields();
-  DCHECK_EQ(temp_class->NumStaticFields(), new_class->NumStaticFields());
+  DCHECK_EQ(temp_class->NumStaticFields(), 0u);
   for (size_t i = 0, count = new_class->NumStaticFields(); i < count; i++) {
     if (fields[i].GetDeclaringClass() == temp_class) {
       fields[i].SetDeclaringClass(new_class);
     }
   }
 
-  DCHECK_EQ(temp_class->NumDirectMethods(), new_class->NumDirectMethods());
+  DCHECK_EQ(temp_class->NumDirectMethods(), 0u);
   for (auto& method : new_class->GetDirectMethods(image_pointer_size_)) {
     if (method.GetDeclaringClass() == temp_class) {
       method.SetDeclaringClass(new_class);
     }
   }
 
-  DCHECK_EQ(temp_class->NumVirtualMethods(), new_class->NumVirtualMethods());
+  DCHECK_EQ(temp_class->NumVirtualMethods(), 0u);
   for (auto& method : new_class->GetVirtualMethods(image_pointer_size_)) {
     if (method.GetDeclaringClass() == temp_class) {
       method.SetDeclaringClass(new_class);
     }
   }
+
+  // Make sure the remembered set and mod-union tables know that we updated some of the native
+  // roots.
+  Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(new_class);
 }
 
 ClassTable* ClassLinker::InsertClassTableForClassLoader(mirror::ClassLoader* class_loader) {
@@ -4050,6 +4053,14 @@ bool ClassLinker::LinkClass(Thread* self, const char* descriptor, Handle<mirror:
     // Retire the temporary class and create the correctly sized resolved class.
     StackHandleScope<1> hs(self);
     auto h_new_class = hs.NewHandle(klass->CopyOf(self, class_size, imt, image_pointer_size_));
+    // Set array lengths to 0 since we don't want the GC to visit two different classes with the
+    // same ArtFields with the same If this occurs, it causes bugs in remembered sets since the GC
+    // may not see any references to the from space and clean the card. Though there was references
+    // to the from space that got marked by the first class.
+    klass->SetNumDirectMethods(0);
+    klass->SetNumVirtualMethods(0);
+    klass->SetNumStaticFields(0);
+    klass->SetNumInstanceFields(0);
     if (UNLIKELY(h_new_class.Get() == nullptr)) {
       self->AssertPendingOOMException();
       mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
@@ -4061,7 +4072,7 @@ bool ClassLinker::LinkClass(Thread* self, const char* descriptor, Handle<mirror:
     FixupTemporaryDeclaringClass(klass.Get(), h_new_class.Get());
 
     {
-      WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
+      WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
       mirror::ClassLoader* const class_loader = h_new_class.Get()->GetClassLoader();
       ClassTable* const table = InsertClassTableForClassLoader(class_loader);
       mirror::Class* existing = table->UpdateClass(descriptor, h_new_class.Get(),
