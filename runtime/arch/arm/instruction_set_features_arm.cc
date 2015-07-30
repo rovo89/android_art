@@ -16,7 +16,7 @@
 
 #include "instruction_set_features_arm.h"
 
-#if defined(HAVE_ANDROID_OS) && defined(__arm__)
+#if defined(__ANDROID__) && defined(__arm__)
 #include <sys/auxv.h>
 #include <asm/hwcap.h>
 #endif
@@ -166,7 +166,7 @@ const ArmInstructionSetFeatures* ArmInstructionSetFeatures::FromHwcap() {
   bool has_div = false;
   bool has_lpae = false;
 
-#if defined(HAVE_ANDROID_OS) && defined(__arm__)
+#if defined(__ANDROID__) && defined(__arm__)
   uint64_t hwcaps = getauxval(AT_HWCAP);
   LOG(INFO) << "hwcaps=" << hwcaps;
   if ((hwcaps & HWCAP_IDIVT) != 0) {

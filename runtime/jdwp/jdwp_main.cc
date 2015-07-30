@@ -248,7 +248,7 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
     case kJdwpTransportSocket:
       InitSocketTransport(state.get(), options);
       break;
-#ifdef HAVE_ANDROID_OS
+#ifdef __ANDROID__
     case kJdwpTransportAndroidAdb:
       InitAdbTransport(state.get(), options);
       break;
