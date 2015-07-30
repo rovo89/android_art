@@ -29,6 +29,8 @@
 
 namespace art {
 
+static constexpr bool kDumpStackOnNonLocalReference = false;
+
 template<typename T>
 class MutatorLockedDumpable {
  public:
@@ -184,7 +186,9 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
       if (env->check_jni) {
         ScopedObjectAccess soa(self);
         LOG(WARNING) << "Attempt to remove non-JNI local reference, dumping thread";
-        self->Dump(LOG(WARNING));
+        if (kDumpStackOnNonLocalReference) {
+          self->Dump(LOG(WARNING));
+        }
       }
       return true;
     }
