@@ -280,7 +280,7 @@ MemMap* MemMap::MapAnonymous(const char* name, uint8_t* expected_ptr, size_t byt
   ScopedFd fd(-1);
 
 #ifdef USE_ASHMEM
-#ifdef HAVE_ANDROID_OS
+#ifdef __ANDROID__
   const bool use_ashmem = true;
 #else
   // When not on Android ashmem is faked using files in /tmp. Ensure that such files won't

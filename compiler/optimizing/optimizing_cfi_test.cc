@@ -29,7 +29,7 @@
 namespace art {
 
 // Run the tests only on host.
-#ifndef HAVE_ANDROID_OS
+#ifndef __ANDROID__
 
 class OptimizingCFITest : public CFITest {
  public:
@@ -125,6 +125,6 @@ TEST_ISA(kArm64)
 TEST_ISA(kX86)
 TEST_ISA(kX86_64)
 
-#endif  // HAVE_ANDROID_OS
+#endif  // __ANDROID__
 
 }  // namespace art
