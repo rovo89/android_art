@@ -1229,14 +1229,105 @@ bool Mir2Lir::GenInlinedReferenceGetReferent(CallInfo* info) {
 }
 
 bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
-  // Temporary disabled intrinsic.
-  return false;
+  if (cu_->instruction_set == kMips) {
+    // TODO - add Mips implementation
+    return false;
+  }
+  // Location of reference to data array
+  int value_offset = mirror::String::ValueOffset().Int32Value();
+  // Location of count
+  int value_count_offset = mirror::CharArray::LengthOffset().Int32Value();
+  // Start of char data with array_
+  int data_offset = mirror::Array::DataOffset(sizeof(uint16_t)).Int32Value();
+
+  RegLocation rl_obj = info->args[0];
+  RegLocation rl_idx = info->args[1];
+  rl_obj = LoadValue(rl_obj, kRefReg);
+  rl_idx = LoadValue(rl_idx, kCoreReg);
+  RegStorage reg_max;
+  GenNullCheck(rl_obj.reg, info->opt_flags);
+  bool range_check = (!(info->opt_flags & MIR_IGNORE_RANGE_CHECK));
+  LIR* range_check_branch = nullptr;
+  RegStorage reg_ptr;
+  reg_ptr = AllocTempRef();
+
+  LoadRefDisp(rl_obj.reg, value_offset, reg_ptr, kNotVolatile);
+  MarkPossibleNullPointerException(info->opt_flags);
+
+  reg_max = AllocTemp();
+  GenNullCheck(reg_ptr, info->opt_flags);
+  Load32Disp(reg_ptr, value_count_offset, reg_max);
+  MarkPossibleNullPointerException(info->opt_flags);
+
+  if (range_check) {
+    // Set up a slow path to allow retry in case of bounds violation
+    OpRegReg(kOpCmp, rl_idx.reg, reg_max);
+    range_check_branch = OpCondBranch(kCondUge, nullptr);
+  }
+  FreeTemp(reg_max);
+
+  RegLocation rl_dest = InlineTarget(info);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+
+  if (rl_idx.is_const) {
+    LoadBaseDisp(reg_ptr, data_offset+mir_graph_->ConstantValue(rl_idx.orig_sreg)*2,
+                 rl_result.reg, kUnsignedHalf, kNotVolatile);
+  } else {
+    OpRegImm(kOpAdd, reg_ptr, data_offset);
+    LoadBaseIndexed(reg_ptr, rl_idx.reg, rl_result.reg, 1, kUnsignedHalf);
+  }
+  FreeTemp(rl_obj.reg);
+  if (rl_idx.location == kLocPhysReg) {
+    FreeTemp(rl_idx.reg);
+  }
+  FreeTemp(reg_ptr);
+  StoreValue(rl_dest, rl_result);
+  if (range_check) {
+    DCHECK(range_check_branch != nullptr);
+    info->opt_flags |= MIR_IGNORE_NULL_CHECK;  // Record that we've already null checked.
+    AddIntrinsicSlowPath(info, range_check_branch);
+  }
+  return true;
 }
 
 // Generates an inlined String.is_empty or String.length.
 bool Mir2Lir::GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty) {
-  // Temporary disabled intrinsic.
-  return false;
+  if (cu_->instruction_set == kMips) {
+    // TODO - add Mips implementation
+    return false;
+  }
+  // dst = src.length();
+  RegLocation rl_obj = info->args[0];
+  rl_obj = LoadValue(rl_obj, kRefReg);
+  RegLocation rl_dest = InlineTarget(info);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  GenNullCheck(rl_obj.reg, info->opt_flags);
+  RegStorage reg_ptr = AllocTempRef();
+  LoadRefDisp(rl_obj.reg, mirror::String::ValueOffset().Int32Value(), reg_ptr, kNotVolatile);
+  MarkPossibleNullPointerException(info->opt_flags);
+
+  GenNullCheck(reg_ptr, info->opt_flags);
+  Load32Disp(reg_ptr, mirror::CharArray::LengthOffset().Int32Value(), rl_result.reg);
+  MarkPossibleNullPointerException(info->opt_flags);
+  FreeTemp(reg_ptr);
+
+  if (is_empty) {
+    // dst = (dst == 0);
+    if (cu_->instruction_set == kThumb2) {
+      RegStorage t_reg = AllocTemp();
+      OpRegReg(kOpNeg, t_reg, rl_result.reg);
+      OpRegRegReg(kOpAdc, rl_result.reg, rl_result.reg, t_reg);
+    } else if (cu_->instruction_set == kArm64) {
+      OpRegImm(kOpSub, rl_result.reg, 1);
+      OpRegRegImm(kOpLsr, rl_result.reg, rl_result.reg, 31);
+    } else {
+      DCHECK(cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64);
+      OpRegImm(kOpSub, rl_result.reg, 1);
+      OpRegImm(kOpLsr, rl_result.reg, 31);
+    }
+  }
+  StoreValue(rl_dest, rl_result);
+  return true;
 }
 
 bool Mir2Lir::GenInlinedReverseBytes(CallInfo* info, OpSize size) {

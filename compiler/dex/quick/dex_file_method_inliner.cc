@@ -341,14 +341,15 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
 
     INTRINSIC(JavaLangRefReference, ReferenceGetReferent, _Object, kIntrinsicReferenceGetReferent, 0),
 
-    // Temporarily disable String intrinsics.
+    INTRINSIC(JavaLangString, CharAt, I_C, kIntrinsicCharAt, 0),
+    INTRINSIC(JavaLangString, IsEmpty, _Z, kIntrinsicIsEmptyOrLength, kIntrinsicFlagIsEmpty),
+    INTRINSIC(JavaLangString, Length, _I, kIntrinsicIsEmptyOrLength, kIntrinsicFlagLength),
+
+    // TODO: Reenable these other intrinsics.
     //
-    // INTRINSIC(JavaLangString, CharAt, I_C, kIntrinsicCharAt, 0),
     // INTRINSIC(JavaLangString, CompareTo, String_I, kIntrinsicCompareTo, 0),
-    // INTRINSIC(JavaLangString, IsEmpty, _Z, kIntrinsicIsEmptyOrLength, kIntrinsicFlagIsEmpty),
     // INTRINSIC(JavaLangString, IndexOf, II_I, kIntrinsicIndexOf, kIntrinsicFlagNone),
     // INTRINSIC(JavaLangString, IndexOf, I_I, kIntrinsicIndexOf, kIntrinsicFlagBase0),
-    // INTRINSIC(JavaLangString, Length, _I, kIntrinsicIsEmptyOrLength, kIntrinsicFlagLength),
 
     INTRINSIC(JavaLangThread, CurrentThread, _Thread, kIntrinsicCurrentThread, 0),
 
