@@ -18,7 +18,7 @@
 
 #include <gtest/gtest.h>
 
-#ifdef HAVE_ANDROID_OS
+#ifdef __ANDROID__
 #include "cutils/properties.h"
 #endif
 
@@ -26,7 +26,7 @@
 
 namespace art {
 
-#ifdef HAVE_ANDROID_OS
+#ifdef __ANDROID__
 #if defined(__aarch64__)
 TEST(InstructionSetFeaturesTest, DISABLED_FeaturesFromSystemPropertyVariant) {
   LOG(WARNING) << "Test disabled due to no CPP define for A53 erratum 835769";
@@ -111,7 +111,7 @@ TEST(InstructionSetFeaturesTest, FeaturesFromCpuInfo) {
 }
 #endif
 
-#ifndef HAVE_ANDROID_OS
+#ifndef __ANDROID__
 TEST(InstructionSetFeaturesTest, HostFeaturesFromCppDefines) {
   std::string error_msg;
   std::unique_ptr<const InstructionSetFeatures> default_features(

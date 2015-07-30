@@ -31,10 +31,10 @@
 #include "verify_object-inl.h"
 
 #include <sstream>
-#ifdef HAVE_ANDROID_OS
+#ifdef __ANDROID__
 // This function is provided by android linker.
 extern "C" void android_update_LD_LIBRARY_PATH(const char* ld_library_path);
-#endif  // HAVE_ANDROID_OS
+#endif  // __ANDROID__
 
 namespace art {
 
@@ -53,7 +53,7 @@ NO_RETURN static void Runtime_nativeExit(JNIEnv*, jclass, jint status) {
 }
 
 static void SetLdLibraryPath(JNIEnv* env, jstring javaLdLibraryPathJstr) {
-#ifdef HAVE_ANDROID_OS
+#ifdef __ANDROID__
   if (javaLdLibraryPathJstr != nullptr) {
     ScopedUtfChars ldLibraryPath(env, javaLdLibraryPathJstr);
     if (ldLibraryPath.c_str() != nullptr) {
