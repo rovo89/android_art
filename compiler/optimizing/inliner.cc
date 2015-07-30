@@ -41,6 +41,11 @@
 namespace art {
 
 void HInliner::Run() {
+  const CompilerOptions& compiler_options = compiler_driver_->GetCompilerOptions();
+  if ((compiler_options.GetInlineDepthLimit() == 0)
+      || (compiler_options.GetInlineMaxCodeUnits() == 0)) {
+    return;
+  }
   if (graph_->IsDebuggable()) {
     // For simplicity, we currently never inline when the graph is debuggable. This avoids
     // doing some logic in the runtime to discover if a method could have been inlined.
