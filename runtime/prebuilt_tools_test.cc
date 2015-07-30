@@ -23,7 +23,7 @@
 namespace art {
 
 // Run the tests only on host.
-#ifndef HAVE_ANDROID_OS
+#ifndef __ANDROID__
 
 class PrebuiltToolsTest : public CommonRuntimeTest {
 };
@@ -61,6 +61,6 @@ TEST_F(PrebuiltToolsTest, CheckTargetTools) {
   }
 }
 
-#endif  // HAVE_ANDROID_OS
+#endif  // __ANDROID__
 
 }  // namespace art

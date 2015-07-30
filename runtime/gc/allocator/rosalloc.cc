@@ -1170,7 +1170,7 @@ size_t RosAlloc::BulkFree(Thread* self, void** ptrs, size_t num_ptrs) {
 
   // First mark slots to free in the bulk free bit map without locking the
   // size bracket locks. On host, unordered_set is faster than vector + flag.
-#ifdef HAVE_ANDROID_OS
+#ifdef __ANDROID__
   std::vector<Run*> runs;
 #else
   std::unordered_set<Run*, hash_run, eq_run> runs;
@@ -1237,7 +1237,7 @@ size_t RosAlloc::BulkFree(Thread* self, void** ptrs, size_t num_ptrs) {
     DCHECK_EQ(run->magic_num_, kMagicNum);
     // Set the bit in the bulk free bit map.
     freed_bytes += run->MarkBulkFreeBitMap(ptr);
-#ifdef HAVE_ANDROID_OS
+#ifdef __ANDROID__
     if (!run->to_be_bulk_freed_) {
       run->to_be_bulk_freed_ = true;
       runs.push_back(run);
@@ -1252,7 +1252,7 @@ size_t RosAlloc::BulkFree(Thread* self, void** ptrs, size_t num_ptrs) {
   // union the bulk free bit map into the thread-local free bit map
   // (for thread-local runs.)
   for (Run* run : runs) {
-#ifdef HAVE_ANDROID_OS
+#ifdef __ANDROID__
     DCHECK(run->to_be_bulk_freed_);
     run->to_be_bulk_freed_ = false;
 #endif

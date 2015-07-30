@@ -27,7 +27,7 @@
 #include <sstream>
 
 // dlopen_ext support from bionic.
-#ifdef HAVE_ANDROID_OS
+#ifdef __ANDROID__
 #include "android/dlext.h"
 #endif
 
@@ -229,7 +229,7 @@ bool OatFile::Dlopen(const std::string& elf_filename, uint8_t* requested_base,
     *error_msg = StringPrintf("Failed to find absolute path for '%s'", elf_filename.c_str());
     return false;
   }
-#ifdef HAVE_ANDROID_OS
+#ifdef __ANDROID__
   android_dlextinfo extinfo;
   extinfo.flags = ANDROID_DLEXT_FORCE_LOAD | ANDROID_DLEXT_FORCE_FIXED_VADDR;
   dlopen_handle_ = android_dlopen_ext(absolute_path.get(), RTLD_NOW, &extinfo);

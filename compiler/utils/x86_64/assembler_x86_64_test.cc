@@ -35,7 +35,7 @@ TEST(AssemblerX86_64, CreateBuffer) {
   ASSERT_EQ(static_cast<size_t>(5), buffer.Size());
 }
 
-#ifdef HAVE_ANDROID_OS
+#ifdef __ANDROID__
 static constexpr size_t kRandomIterations = 1000;  // Devices might be puny, don't stress them...
 #else
 static constexpr size_t kRandomIterations = 100000;  // Hosts are pretty powerful.
