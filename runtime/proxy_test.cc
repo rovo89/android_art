@@ -160,10 +160,9 @@ TEST_F(ProxyTest, ProxyFieldHelper) {
   ASSERT_TRUE(proxyClass->IsProxyClass());
   ASSERT_TRUE(proxyClass->IsInitialized());
 
-  ArtField* instance_fields = proxyClass->GetIFields();
-  EXPECT_TRUE(instance_fields == nullptr);
+  EXPECT_TRUE(proxyClass->GetIFieldsPtr() == nullptr);
 
-  ArtField* static_fields = proxyClass->GetSFields();
+  LengthPrefixedArray<ArtField>* static_fields = proxyClass->GetSFieldsPtr();
   ASSERT_TRUE(static_fields != nullptr);
   ASSERT_EQ(2u, proxyClass->NumStaticFields());
 
@@ -175,7 +174,7 @@ TEST_F(ProxyTest, ProxyFieldHelper) {
   ASSERT_TRUE(throwsFieldClass.Get() != nullptr);
 
   // Test "Class[] interfaces" field.
-  ArtField* field = &static_fields[0];
+  ArtField* field = &static_fields->At(0);
   EXPECT_STREQ("interfaces", field->GetName());
   EXPECT_STREQ("[Ljava/lang/Class;", field->GetTypeDescriptor());
   EXPECT_EQ(interfacesFieldClass.Get(), field->GetType<true>());
@@ -184,7 +183,7 @@ TEST_F(ProxyTest, ProxyFieldHelper) {
   EXPECT_FALSE(field->IsPrimitiveType());
 
   // Test "Class[][] throws" field.
-  field = &static_fields[1];
+  field = &static_fields->At(1);
   EXPECT_STREQ("throws", field->GetName());
   EXPECT_STREQ("[[Ljava/lang/Class;", field->GetTypeDescriptor());
   EXPECT_EQ(throwsFieldClass.Get(), field->GetType<true>());
@@ -215,30 +214,30 @@ TEST_F(ProxyTest, CheckArtMirrorFieldsOfProxyStaticFields) {
   ASSERT_TRUE(proxyClass1->IsProxyClass());
   ASSERT_TRUE(proxyClass1->IsInitialized());
 
-  ArtField* static_fields0 = proxyClass0->GetSFields();
+  LengthPrefixedArray<ArtField>* static_fields0 = proxyClass0->GetSFieldsPtr();
   ASSERT_TRUE(static_fields0 != nullptr);
-  ASSERT_EQ(2u, proxyClass0->NumStaticFields());
-  ArtField* static_fields1 = proxyClass1->GetSFields();
+  ASSERT_EQ(2u, static_fields0->Length());
+  LengthPrefixedArray<ArtField>* static_fields1 = proxyClass1->GetSFieldsPtr();
   ASSERT_TRUE(static_fields1 != nullptr);
-  ASSERT_EQ(2u, proxyClass1->NumStaticFields());
+  ASSERT_EQ(2u, static_fields1->Length());
 
-  EXPECT_EQ(static_fields0[0].GetDeclaringClass(), proxyClass0.Get());
-  EXPECT_EQ(static_fields0[1].GetDeclaringClass(), proxyClass0.Get());
-  EXPECT_EQ(static_fields1[0].GetDeclaringClass(), proxyClass1.Get());
-  EXPECT_EQ(static_fields1[1].GetDeclaringClass(), proxyClass1.Get());
+  EXPECT_EQ(static_fields0->At(0).GetDeclaringClass(), proxyClass0.Get());
+  EXPECT_EQ(static_fields0->At(1).GetDeclaringClass(), proxyClass0.Get());
+  EXPECT_EQ(static_fields1->At(0).GetDeclaringClass(), proxyClass1.Get());
+  EXPECT_EQ(static_fields1->At(1).GetDeclaringClass(), proxyClass1.Get());
 
   Handle<mirror::Field> field00 =
-      hs.NewHandle(mirror::Field::CreateFromArtField(soa.Self(), &static_fields0[0], true));
+      hs.NewHandle(mirror::Field::CreateFromArtField(soa.Self(), &static_fields0->At(0), true));
   Handle<mirror::Field> field01 =
-      hs.NewHandle(mirror::Field::CreateFromArtField(soa.Self(), &static_fields0[1], true));
+      hs.NewHandle(mirror::Field::CreateFromArtField(soa.Self(), &static_fields0->At(1), true));
   Handle<mirror::Field> field10 =
-      hs.NewHandle(mirror::Field::CreateFromArtField(soa.Self(), &static_fields1[0], true));
+      hs.NewHandle(mirror::Field::CreateFromArtField(soa.Self(), &static_fields1->At(0), true));
   Handle<mirror::Field> field11 =
-      hs.NewHandle(mirror::Field::CreateFromArtField(soa.Self(), &static_fields1[1], true));
-  EXPECT_EQ(field00->GetArtField(), &static_fields0[0]);
-  EXPECT_EQ(field01->GetArtField(), &static_fields0[1]);
-  EXPECT_EQ(field10->GetArtField(), &static_fields1[0]);
-  EXPECT_EQ(field11->GetArtField(), &static_fields1[1]);
+      hs.NewHandle(mirror::Field::CreateFromArtField(soa.Self(), &static_fields1->At(1), true));
+  EXPECT_EQ(field00->GetArtField(), &static_fields0->At(0));
+  EXPECT_EQ(field01->GetArtField(), &static_fields0->At(1));
+  EXPECT_EQ(field10->GetArtField(), &static_fields1->At(0));
+  EXPECT_EQ(field11->GetArtField(), &static_fields1->At(1));
 }
 
 }  // namespace art

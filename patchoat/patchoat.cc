@@ -419,24 +419,44 @@ bool PatchOat::ReplaceOatFileWithSymlink(const std::string& input_oat_filename,
   return true;
 }
 
-void PatchOat::PatchArtFields(const ImageHeader* image_header) {
-  const auto& section = image_header->GetImageSection(ImageHeader::kSectionArtFields);
-  for (size_t pos = 0; pos < section.Size(); pos += sizeof(ArtField)) {
-    auto* src = reinterpret_cast<ArtField*>(heap_->Begin() + section.Offset() + pos);
-    auto* dest = RelocatedCopyOf(src);
-    dest->SetDeclaringClass(RelocatedAddressOfPointer(src->GetDeclaringClass()));
+class PatchOatArtFieldVisitor : public ArtFieldVisitor {
+ public:
+  explicit PatchOatArtFieldVisitor(PatchOat* patch_oat) : patch_oat_(patch_oat) {}
+
+  void Visit(ArtField* field) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    ArtField* const dest = patch_oat_->RelocatedCopyOf(field);
+    dest->SetDeclaringClass(patch_oat_->RelocatedAddressOfPointer(field->GetDeclaringClass()));
   }
+
+ private:
+  PatchOat* const patch_oat_;
+};
+
+void PatchOat::PatchArtFields(const ImageHeader* image_header) {
+  PatchOatArtFieldVisitor visitor(this);
+  const auto& section = image_header->GetImageSection(ImageHeader::kSectionArtFields);
+  section.VisitPackedArtFields(&visitor, heap_->Begin());
 }
+
+class PatchOatArtMethodVisitor : public ArtMethodVisitor {
+ public:
+  explicit PatchOatArtMethodVisitor(PatchOat* patch_oat) : patch_oat_(patch_oat) {}
+
+  void Visit(ArtMethod* method) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    ArtMethod* const dest = patch_oat_->RelocatedCopyOf(method);
+    patch_oat_->FixupMethod(method, dest);
+  }
+
+ private:
+  PatchOat* const patch_oat_;
+};
 
 void PatchOat::PatchArtMethods(const ImageHeader* image_header) {
   const auto& section = image_header->GetMethodsSection();
   const size_t pointer_size = InstructionSetPointerSize(isa_);
-  size_t method_size = ArtMethod::ObjectSize(pointer_size);
-  for (size_t pos = 0; pos < section.Size(); pos += method_size) {
-    auto* src = reinterpret_cast<ArtMethod*>(heap_->Begin() + section.Offset() + pos);
-    auto* dest = RelocatedCopyOf(src);
-    FixupMethod(src, dest);
-  }
+  const size_t method_size = ArtMethod::ObjectSize(pointer_size);
+  PatchOatArtMethodVisitor visitor(this);
+  section.VisitPackedArtMethods(&visitor, heap_->Begin(), method_size);
 }
 
 class FixupRootVisitor : public RootVisitor {
@@ -601,8 +621,8 @@ void PatchOat::VisitObject(mirror::Object* object) {
   if (object->IsClass<kVerifyNone>()) {
     auto* klass = object->AsClass();
     auto* copy_klass = down_cast<mirror::Class*>(copy);
-    copy_klass->SetSFieldsUnchecked(RelocatedAddressOfPointer(klass->GetSFields()));
-    copy_klass->SetIFieldsUnchecked(RelocatedAddressOfPointer(klass->GetIFields()));
+    copy_klass->SetSFieldsPtrUnchecked(RelocatedAddressOfPointer(klass->GetSFieldsPtr()));
+    copy_klass->SetIFieldsPtrUnchecked(RelocatedAddressOfPointer(klass->GetIFieldsPtr()));
     copy_klass->SetDirectMethodsPtrUnchecked(
         RelocatedAddressOfPointer(klass->GetDirectMethodsPtr()));
     copy_klass->SetVirtualMethodsPtr(RelocatedAddressOfPointer(klass->GetVirtualMethodsPtr()));

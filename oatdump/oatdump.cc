@@ -1615,16 +1615,12 @@ class ImageDumper {
           // TODO: Dump fields.
           // Dump methods after.
           const auto& methods_section = image_header_.GetMethodsSection();
-          const auto pointer_size =
+          const size_t pointer_size =
               InstructionSetPointerSize(oat_dumper_->GetOatInstructionSet());
-          const auto method_size = ArtMethod::ObjectSize(pointer_size);
-          for (size_t pos = 0; pos < methods_section.Size(); pos += method_size) {
-            auto* method = reinterpret_cast<ArtMethod*>(
-                image_space->Begin() + pos + methods_section.Offset());
-            indent_os << method << " " << " ArtMethod: " << PrettyMethod(method) << "\n";
-            DumpMethod(method, this, indent_os);
-            indent_os << "\n";
-          }
+          DumpArtMethodVisitor visitor(this);
+          methods_section.VisitPackedArtMethods(&visitor,
+                                                image_space->Begin(),
+                                                ArtMethod::ObjectSize(pointer_size));
         }
       }
       // Dump the large objects separately.
@@ -1663,6 +1659,21 @@ class ImageDumper {
   }
 
  private:
+  class DumpArtMethodVisitor : public ArtMethodVisitor {
+   public:
+    explicit DumpArtMethodVisitor(ImageDumper* image_dumper) : image_dumper_(image_dumper) {}
+
+    virtual void Visit(ArtMethod* method) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+      std::ostream& indent_os = image_dumper_->vios_.Stream();
+      indent_os << method << " " << " ArtMethod: " << PrettyMethod(method) << "\n";
+      image_dumper_->DumpMethod(method, image_dumper_, indent_os);
+      indent_os << "\n";
+    }
+
+   private:
+    ImageDumper* const image_dumper_;
+  };
+
   static void PrettyObjectValue(std::ostream& os, mirror::Class* type, mirror::Object* value)
       SHARED_REQUIRES(Locks::mutator_lock_) {
     CHECK(type != nullptr);
@@ -1739,9 +1750,8 @@ class ImageDumper {
     if (super != nullptr) {
       DumpFields(os, obj, super);
     }
-    ArtField* fields = klass->GetIFields();
-    for (size_t i = 0, count = klass->NumInstanceFields(); i < count; i++) {
-      PrintField(os, &fields[i], obj);
+    for (ArtField& field : klass->GetIFields()) {
+      PrintField(os, &field, obj);
     }
   }
 
@@ -1837,13 +1847,11 @@ class ImageDumper {
       }
     } else if (obj->IsClass()) {
       mirror::Class* klass = obj->AsClass();
-      ArtField* sfields = klass->GetSFields();
-      const size_t num_fields = klass->NumStaticFields();
-      if (num_fields != 0) {
+      if (klass->NumStaticFields() != 0) {
         os << "STATICS:\n";
         ScopedIndentation indent2(&state->vios_);
-        for (size_t i = 0; i < num_fields; i++) {
-          PrintField(os, &sfields[i], sfields[i].GetDeclaringClass());
+        for (ArtField& field : klass->GetSFields()) {
+          PrintField(os, &field, field.GetDeclaringClass());
         }
       }
     } else {

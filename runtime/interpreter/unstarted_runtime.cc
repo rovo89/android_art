@@ -229,20 +229,16 @@ void UnstartedRuntime::UnstartedClassGetDeclaredField(
   mirror::Class* klass = shadow_frame->GetVRegReference(arg_offset)->AsClass();
   mirror::String* name2 = shadow_frame->GetVRegReference(arg_offset + 1)->AsString();
   ArtField* found = nullptr;
-  ArtField* fields = klass->GetIFields();
-  for (int32_t i = 0, count = klass->NumInstanceFields(); i < count; ++i) {
-    ArtField* f = &fields[i];
-    if (name2->Equals(f->GetName())) {
-      found = f;
+  for (ArtField& field : klass->GetIFields()) {
+    if (name2->Equals(field.GetName())) {
+      found = &field;
       break;
     }
   }
   if (found == nullptr) {
-    fields = klass->GetSFields();
-    for (int32_t i = 0, count = klass->NumStaticFields(); i < count; ++i) {
-      ArtField* f = &fields[i];
-      if (name2->Equals(f->GetName())) {
-        found = f;
+    for (ArtField& field : klass->GetSFields()) {
+      if (name2->Equals(field.GetName())) {
+        found = &field;
         break;
       }
     }
