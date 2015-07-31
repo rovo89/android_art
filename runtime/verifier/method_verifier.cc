@@ -2874,6 +2874,13 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           }
         }
       }
+      // Handle this like a RETURN_VOID now. Code is duplicated to separate standard from
+      // quickened opcodes (otherwise this could be a fall-through).
+      if (!IsConstructor()) {
+        if (!GetMethodReturnType().IsConflict()) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "return-void not expected";
+        }
+      }
       break;
     // Note: the following instructions encode offsets derived from class linking.
     // As such they use Class*/Field*/AbstractMethod* as these offsets only have
