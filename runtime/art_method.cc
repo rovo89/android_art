@@ -19,6 +19,7 @@
 #include "arch/context.h"
 #include "art_field-inl.h"
 #include "art_method-inl.h"
+#include "base/out.h"
 #include "base/stringpiece.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
@@ -565,7 +566,7 @@ bool ArtMethod::EqualParameters(Handle<mirror::ObjectArray<mirror::Class>> param
 const uint8_t* ArtMethod::GetQuickenedInfo() {
   bool found = false;
   OatFile::OatMethod oat_method =
-      Runtime::Current()->GetClassLinker()->FindOatMethodFor(this, &found);
+      Runtime::Current()->GetClassLinker()->FindOatMethodFor(this, outof(found));
   if (!found || (oat_method.GetQuickCode() != nullptr)) {
     return nullptr;
   }
