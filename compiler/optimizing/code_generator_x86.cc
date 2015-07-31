@@ -4535,7 +4535,11 @@ void ParallelMoveResolverX86::EmitSwap(size_t index) {
   Location destination = move->GetDestination();
 
   if (source.IsRegister() && destination.IsRegister()) {
-    __ xchgl(destination.AsRegister<Register>(), source.AsRegister<Register>());
+    // Use XOR swap algorithm to avoid serializing XCHG instruction or using a temporary.
+    DCHECK_NE(destination.AsRegister<Register>(), source.AsRegister<Register>());
+    __ xorl(destination.AsRegister<Register>(), source.AsRegister<Register>());
+    __ xorl(source.AsRegister<Register>(), destination.AsRegister<Register>());
+    __ xorl(destination.AsRegister<Register>(), source.AsRegister<Register>());
   } else if (source.IsRegister() && destination.IsStackSlot()) {
     Exchange(source.AsRegister<Register>(), destination.GetStackIndex());
   } else if (source.IsStackSlot() && destination.IsRegister()) {
