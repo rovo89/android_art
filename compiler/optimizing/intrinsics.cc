@@ -359,7 +359,7 @@ void IntrinsicsRecognizer::Run() {
 std::ostream& operator<<(std::ostream& os, const Intrinsics& intrinsic) {
   switch (intrinsic) {
     case Intrinsics::kNone:
-      os << "No intrinsic.";
+      os << "None";
       break;
 #define OPTIMIZING_INTRINSICS(Name, IsStatic) \
     case Intrinsics::k ## Name: \
