@@ -690,7 +690,7 @@ static void CreateSSE41FPToIntLocations(ArenaAllocator* arena,
                                                               LocationSummary::kNoCall,
                                                               kIntrinsified);
     locations->SetInAt(0, Location::RequiresFpuRegister());
-    locations->SetOut(Location::RequiresFpuRegister());
+    locations->SetOut(Location::RequiresRegister());
     locations->AddTemp(Location::RequiresFpuRegister());
     return;
   }
@@ -731,6 +731,9 @@ void IntrinsicCodeGeneratorX86_64::VisitMathRoundFloat(HInvoke* invoke) {
 
   // And truncate to an integer.
   __ roundss(inPlusPointFive, inPlusPointFive, Immediate(1));
+
+  // Load maxInt into out.
+  codegen_->Load64BitValue(out, kPrimIntMax);
 
   // if inPlusPointFive >= maxInt goto done
   __ comiss(inPlusPointFive, codegen_->LiteralFloatAddress(static_cast<float>(kPrimIntMax)));
@@ -775,6 +778,9 @@ void IntrinsicCodeGeneratorX86_64::VisitMathRoundDouble(HInvoke* invoke) {
 
   // And truncate to an integer.
   __ roundsd(inPlusPointFive, inPlusPointFive, Immediate(1));
+
+  // Load maxLong into out.
+  codegen_->Load64BitValue(out, kPrimLongMax);
 
   // if inPlusPointFive >= maxLong goto done
   __ comisd(inPlusPointFive, codegen_->LiteralDoubleAddress(static_cast<double>(kPrimLongMax)));
