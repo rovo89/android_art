@@ -85,7 +85,6 @@ TEST_F(ObjectTest, AsmConstants) {
   EXPECT_EQ(OBJECT_ARRAY_DATA_OFFSET, Array::DataOffset(sizeof(HeapReference<Object>)).Int32Value());
 
   EXPECT_EQ(STRING_VALUE_OFFSET, String::ValueOffset().Int32Value());
-  EXPECT_EQ(STRING_DATA_OFFSET, Array::DataOffset(sizeof(uint16_t)).Int32Value());
 
   EXPECT_EQ(METHOD_DEX_CACHE_METHODS_OFFSET,
             ArtMethod::DexCacheResolvedMethodsOffset().Int32Value());

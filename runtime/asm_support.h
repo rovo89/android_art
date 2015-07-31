@@ -38,6 +38,7 @@
 
 // Offsets within java.lang.String.
 #define STRING_VALUE_OFFSET 8
+// TODO(pszczepaniak): Remove these:
 #define STRING_COUNT_OFFSET 12
 #define STRING_OFFSET_OFFSET 20
 #define STRING_DATA_OFFSET 12
@@ -62,6 +63,7 @@
 
 // Offsets within java.lang.String.
 #define STRING_VALUE_OFFSET 16
+// TODO(pszczepaniak): Remove these:
 #define STRING_COUNT_OFFSET 20
 #define STRING_OFFSET_OFFSET 28
 #define STRING_DATA_OFFSET 20
