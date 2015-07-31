@@ -458,18 +458,6 @@ endif
 
 TEST_ART_BROKEN_OPTIMIZING_MIPS_RUN_TESTS :=
 
-# Known broken tests for the optimizing compiler.
-TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS := \
-  455-set-vreg \
-
-ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
-  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
-      optimizing,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-      $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES),$(TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
-endif
-
-TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS :=
-
 # Tests that should fail when the optimizing compiler compiles them non-debuggable.
 TEST_ART_BROKEN_OPTIMIZING_NONDEBUGGABLE_RUN_TESTS := \
   454-get-vreg \

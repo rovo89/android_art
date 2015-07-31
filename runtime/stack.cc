@@ -481,52 +481,10 @@ bool StackVisitor::GetRegisterPairIfAccessible(uint32_t reg_lo, uint32_t reg_hi,
   return true;
 }
 
-bool StackVisitor::SetVReg(ArtMethod* m, uint16_t vreg, uint32_t new_value,
+bool StackVisitor::SetVReg(ArtMethod* m,
+                           uint16_t vreg,
+                           uint32_t new_value,
                            VRegKind kind) {
-  if (cur_quick_frame_ != nullptr) {
-    DCHECK(context_ != nullptr);  // You can't reliably write registers without a context.
-    DCHECK(m == GetMethod());
-    if (cur_oat_quick_method_header_->IsOptimized()) {
-      return false;
-    } else {
-      return SetVRegFromQuickCode(m, vreg, new_value, kind);
-    }
-  } else {
-    cur_shadow_frame_->SetVReg(vreg, new_value);
-    return true;
-  }
-}
-
-bool StackVisitor::SetVRegFromQuickCode(ArtMethod* m, uint16_t vreg, uint32_t new_value,
-                                        VRegKind kind) {
-  DCHECK(context_ != nullptr);  // You can't reliably write registers without a context.
-  DCHECK(m == GetMethod());
-  const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
-  QuickMethodFrameInfo frame_info = method_header->GetFrameInfo();
-  const VmapTable vmap_table(method_header->GetVmapTable());
-  uint32_t vmap_offset;
-  // TODO: IsInContext stops before spotting floating point registers.
-  if (vmap_table.IsInContext(vreg, kind, &vmap_offset)) {
-    bool is_float = (kind == kFloatVReg) || (kind == kDoubleLoVReg) || (kind == kDoubleHiVReg);
-    uint32_t spill_mask = is_float ? frame_info.FpSpillMask() : frame_info.CoreSpillMask();
-    uint32_t reg = vmap_table.ComputeRegister(spill_mask, vmap_offset, kind);
-    return SetRegisterIfAccessible(reg, new_value, kind);
-  } else {
-    const DexFile::CodeItem* code_item = m->GetCodeItem();
-    DCHECK(code_item != nullptr) << PrettyMethod(m);  // Can't be null or how would we compile
-                                                      // its instructions?
-    uint32_t* addr = GetVRegAddrFromQuickCode(
-        cur_quick_frame_, code_item, frame_info.CoreSpillMask(),
-        frame_info.FpSpillMask(), frame_info.FrameSizeInBytes(), vreg);
-    *addr = new_value;
-    return true;
-  }
-}
-
-bool StackVisitor::SetVRegFromDebugger(ArtMethod* m,
-                                       uint16_t vreg,
-                                       uint32_t new_value,
-                                       VRegKind kind) {
   const DexFile::CodeItem* code_item = m->GetCodeItem();
   if (code_item == nullptr) {
     return false;
@@ -551,93 +509,11 @@ bool StackVisitor::SetVRegFromDebugger(ArtMethod* m,
   return true;
 }
 
-bool StackVisitor::SetRegisterIfAccessible(uint32_t reg, uint32_t new_value, VRegKind kind) {
-  const bool is_float = (kind == kFloatVReg) || (kind == kDoubleLoVReg) || (kind == kDoubleHiVReg);
-  if (!IsAccessibleRegister(reg, is_float)) {
-    return false;
-  }
-  const bool target64 = Is64BitInstructionSet(kRuntimeISA);
-
-  // Create a new value that can hold both low 32 and high 32 bits, in
-  // case we are running 64 bits.
-  uintptr_t full_new_value = new_value;
-  // Deal with 32 or 64-bit wide registers in a way that builds on all targets.
-  if (target64) {
-    bool wide_lo = (kind == kLongLoVReg) || (kind == kDoubleLoVReg);
-    bool wide_hi = (kind == kLongHiVReg) || (kind == kDoubleHiVReg);
-    if (wide_lo || wide_hi) {
-      uintptr_t old_reg_val = GetRegister(reg, is_float);
-      uint64_t new_vreg_portion = static_cast<uint64_t>(new_value);
-      uint64_t old_reg_val_as_wide = static_cast<uint64_t>(old_reg_val);
-      uint64_t mask = 0xffffffff;
-      if (wide_lo) {
-        mask = mask << 32;
-      } else {
-        new_vreg_portion = new_vreg_portion << 32;
-      }
-      full_new_value = static_cast<uintptr_t>((old_reg_val_as_wide & mask) | new_vreg_portion);
-    }
-  }
-  SetRegister(reg, full_new_value, is_float);
-  return true;
-}
-
-bool StackVisitor::SetVRegPair(ArtMethod* m, uint16_t vreg, uint64_t new_value,
-                               VRegKind kind_lo, VRegKind kind_hi) {
-  if (kind_lo == kLongLoVReg) {
-    DCHECK_EQ(kind_hi, kLongHiVReg);
-  } else if (kind_lo == kDoubleLoVReg) {
-    DCHECK_EQ(kind_hi, kDoubleHiVReg);
-  } else {
-    LOG(FATAL) << "Expected long or double: kind_lo=" << kind_lo << ", kind_hi=" << kind_hi;
-  }
-  if (cur_quick_frame_ != nullptr) {
-    DCHECK(context_ != nullptr);  // You can't reliably write registers without a context.
-    DCHECK(m == GetMethod());
-    if (cur_oat_quick_method_header_->IsOptimized()) {
-      return false;
-    } else {
-      return SetVRegPairFromQuickCode(m, vreg, new_value, kind_lo, kind_hi);
-    }
-  } else {
-    DCHECK(cur_shadow_frame_ != nullptr);
-    cur_shadow_frame_->SetVRegLong(vreg, new_value);
-    return true;
-  }
-}
-
-bool StackVisitor::SetVRegPairFromQuickCode(
-    ArtMethod* m, uint16_t vreg, uint64_t new_value, VRegKind kind_lo, VRegKind kind_hi) {
-  DCHECK_EQ(m, GetMethod());
-  const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
-  QuickMethodFrameInfo frame_info = method_header->GetFrameInfo();
-  const VmapTable vmap_table(method_header->GetVmapTable());
-  uint32_t vmap_offset_lo, vmap_offset_hi;
-  // TODO: IsInContext stops before spotting floating point registers.
-  if (vmap_table.IsInContext(vreg, kind_lo, &vmap_offset_lo) &&
-      vmap_table.IsInContext(vreg + 1, kind_hi, &vmap_offset_hi)) {
-    bool is_float = (kind_lo == kDoubleLoVReg);
-    uint32_t spill_mask = is_float ? frame_info.FpSpillMask() : frame_info.CoreSpillMask();
-    uint32_t reg_lo = vmap_table.ComputeRegister(spill_mask, vmap_offset_lo, kind_lo);
-    uint32_t reg_hi = vmap_table.ComputeRegister(spill_mask, vmap_offset_hi, kind_hi);
-    return SetRegisterPairIfAccessible(reg_lo, reg_hi, new_value, is_float);
-  } else {
-    const DexFile::CodeItem* code_item = m->GetCodeItem();
-    DCHECK(code_item != nullptr) << PrettyMethod(m);  // Can't be null or how would we compile
-                                                      // its instructions?
-    uint32_t* addr = GetVRegAddrFromQuickCode(
-        cur_quick_frame_, code_item, frame_info.CoreSpillMask(),
-        frame_info.FpSpillMask(), frame_info.FrameSizeInBytes(), vreg);
-    *reinterpret_cast<uint64_t*>(addr) = new_value;
-    return true;
-  }
-}
-
-bool StackVisitor::SetVRegPairFromDebugger(ArtMethod* m,
-                                           uint16_t vreg,
-                                           uint64_t new_value,
-                                           VRegKind kind_lo,
-                                           VRegKind kind_hi) {
+bool StackVisitor::SetVRegPair(ArtMethod* m,
+                               uint16_t vreg,
+                               uint64_t new_value,
+                               VRegKind kind_lo,
+                               VRegKind kind_hi) {
   if (kind_lo == kLongLoVReg) {
     DCHECK_EQ(kind_hi, kLongHiVReg);
   } else if (kind_lo == kDoubleLoVReg) {
@@ -666,25 +542,6 @@ bool StackVisitor::SetVRegPairFromDebugger(ArtMethod* m,
   return true;
 }
 
-bool StackVisitor::SetRegisterPairIfAccessible(uint32_t reg_lo, uint32_t reg_hi,
-                                               uint64_t new_value, bool is_float) {
-  if (!IsAccessibleRegister(reg_lo, is_float) || !IsAccessibleRegister(reg_hi, is_float)) {
-    return false;
-  }
-  uintptr_t new_value_lo = static_cast<uintptr_t>(new_value & 0xFFFFFFFF);
-  uintptr_t new_value_hi = static_cast<uintptr_t>(new_value >> 32);
-  bool target64 = Is64BitInstructionSet(kRuntimeISA);
-  // Deal with 32 or 64-bit wide registers in a way that builds on all targets.
-  if (target64) {
-    DCHECK_EQ(reg_lo, reg_hi);
-    SetRegister(reg_lo, new_value, is_float);
-  } else {
-    SetRegister(reg_lo, new_value_lo, is_float);
-    SetRegister(reg_hi, new_value_hi, is_float);
-  }
-  return true;
-}
-
 bool StackVisitor::IsAccessibleGPR(uint32_t reg) const {
   DCHECK(context_ != nullptr);
   return context_->IsAccessibleGPR(reg);
@@ -702,12 +559,6 @@ uintptr_t StackVisitor::GetGPR(uint32_t reg) const {
   return context_->GetGPR(reg);
 }
 
-void StackVisitor::SetGPR(uint32_t reg, uintptr_t value) {
-  DCHECK(cur_quick_frame_ != nullptr) << "This is a quick frame routine";
-  DCHECK(context_ != nullptr);
-  context_->SetGPR(reg, value);
-}
-
 bool StackVisitor::IsAccessibleFPR(uint32_t reg) const {
   DCHECK(context_ != nullptr);
   return context_->IsAccessibleFPR(reg);
@@ -717,12 +568,6 @@ uintptr_t StackVisitor::GetFPR(uint32_t reg) const {
   DCHECK(cur_quick_frame_ != nullptr) << "This is a quick frame routine";
   DCHECK(context_ != nullptr);
   return context_->GetFPR(reg);
-}
-
-void StackVisitor::SetFPR(uint32_t reg, uintptr_t value) {
-  DCHECK(cur_quick_frame_ != nullptr) << "This is a quick frame routine";
-  DCHECK(context_ != nullptr);
-  context_->SetFPR(reg, value);
 }
 
 uintptr_t StackVisitor::GetReturnPc() const {
