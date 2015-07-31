@@ -26,6 +26,7 @@
 #include <gtest/gtest.h>
 
 #include "art_field-inl.h"
+#include "base/out.h"
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "compiler_callbacks.h"
@@ -958,7 +959,9 @@ class RaceGenerateTask : public Task {
     ClassLinker* linker = Runtime::Current()->GetClassLinker();
     std::vector<std::unique_ptr<const DexFile>> dex_files;
     std::vector<std::string> error_msgs;
-    dex_files = linker->OpenDexFilesFromOat(dex_location_.c_str(), oat_location_.c_str(), &error_msgs);
+    dex_files = linker->OpenDexFilesFromOat(dex_location_.c_str(),
+                                            oat_location_.c_str(),
+                                            outof(error_msgs));
     CHECK(!dex_files.empty()) << Join(error_msgs, '\n');
     CHECK(dex_files[0]->GetOatDexFile() != nullptr) << dex_files[0]->GetLocation();
     loaded_oat_file_ = dex_files[0]->GetOatDexFile()->GetOatFile();
