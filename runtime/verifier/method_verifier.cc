@@ -2873,6 +2873,10 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
             break;
           }
         }
+      } else {
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+            << "return-void-no-barrier not expected for non-constructor method "
+            << PrettyMethod(dex_method_idx_, *dex_file_, true);
       }
       break;
     // Note: the following instructions encode offsets derived from class linking.
