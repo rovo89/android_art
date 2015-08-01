@@ -22,6 +22,7 @@
 
 #include <jni.h>
 
+#include "base/out_fwd.h"
 #include "globals.h"
 #include "gc/collector_type.h"
 #include "gc/space/large_object_space.h"
@@ -50,8 +51,9 @@ class ParsedOptions {
   static std::unique_ptr<RuntimeParser> MakeParser(bool ignore_unrecognized);
 
   // returns true if parsing succeeds, and stores the resulting options into runtime_options
-  static ParsedOptions* Create(const RuntimeOptions& options, bool ignore_unrecognized,
-                               RuntimeArgumentMap* runtime_options);
+  static ParsedOptions* Create(const RuntimeOptions& options,
+                               bool ignore_unrecognized,
+                               out<RuntimeArgumentMap> runtime_options);
 
   bool (*hook_is_sensitive_thread_)();
   jint (*hook_vfprintf_)(FILE* stream, const char* format, va_list ap);
@@ -63,6 +65,7 @@ class ParsedOptions {
 
   bool ProcessSpecialOptions(const RuntimeOptions& options,
                              RuntimeArgumentMap* runtime_options,
+                             // Optional out:
                              std::vector<std::string>* out_options);
 
   void Usage(const char* fmt, ...);
@@ -72,8 +75,9 @@ class ParsedOptions {
   void Exit(int status);
   void Abort();
 
-  bool Parse(const RuntimeOptions& options,  bool ignore_unrecognized,
-             RuntimeArgumentMap* runtime_options);
+  bool Parse(const RuntimeOptions& options,
+             bool ignore_unrecognized,
+             out<RuntimeArgumentMap> runtime_options);
 };
 
 }  // namespace art

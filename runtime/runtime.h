@@ -28,6 +28,7 @@
 
 #include "arch/instruction_set.h"
 #include "base/macros.h"
+#include "base/out.h"
 #include "gc_root.h"
 #include "instrumentation.h"
 #include "jobject_comparator.h"
@@ -224,7 +225,9 @@ class Runtime {
   jobject GetSystemClassLoader() const;
 
   // Attaches the calling native thread to the runtime.
-  bool AttachCurrentThread(const char* thread_name, bool as_daemon, jobject thread_group,
+  bool AttachCurrentThread(const char* thread_name,
+                           bool as_daemon,
+                           jobject thread_group,
                            bool create_peer);
 
   void CallExitHook(jint status);
@@ -286,8 +289,7 @@ class Runtime {
 
   mirror::Throwable* GetPreAllocatedOutOfMemoryError() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  mirror::Throwable* GetPreAllocatedNoClassDefFoundError()
-      SHARED_REQUIRES(Locks::mutator_lock_);
+  mirror::Throwable* GetPreAllocatedNoClassDefFoundError() SHARED_REQUIRES(Locks::mutator_lock_);
 
   const std::vector<std::string>& GetProperties() const {
     return properties_;
@@ -316,8 +318,7 @@ class Runtime {
   void VisitImageRoots(RootVisitor* visitor) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Visit all of the roots we can do safely do concurrently.
-  void VisitConcurrentRoots(RootVisitor* visitor,
-                            VisitRootFlags flags = kVisitRootFlagAllRoots)
+  void VisitConcurrentRoots(RootVisitor* visitor, VisitRootFlags flags = kVisitRootFlagAllRoots)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Visit all of the non thread roots, we can do this with mutators unpaused.
@@ -331,7 +332,8 @@ class Runtime {
   void VisitThreadRoots(RootVisitor* visitor) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Flip thread roots from from-space refs to to-space refs.
-  size_t FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_callback,
+  size_t FlipThreadRoots(Closure* thread_flip_visitor,
+                         Closure* flip_callback,
                          gc::collector::GarbageCollector* collector)
       REQUIRES(!Locks::mutator_lock_);
 
@@ -467,20 +469,34 @@ class Runtime {
   void ThrowTransactionAbortError(Thread* self)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void RecordWriteFieldBoolean(mirror::Object* obj, MemberOffset field_offset, uint8_t value,
+  void RecordWriteFieldBoolean(mirror::Object* obj,
+                               MemberOffset field_offset,
+                               uint8_t value,
                                bool is_volatile) const;
-  void RecordWriteFieldByte(mirror::Object* obj, MemberOffset field_offset, int8_t value,
+  void RecordWriteFieldByte(mirror::Object* obj,
+                            MemberOffset field_offset,
+                            int8_t value,
                             bool is_volatile) const;
-  void RecordWriteFieldChar(mirror::Object* obj, MemberOffset field_offset, uint16_t value,
+  void RecordWriteFieldChar(mirror::Object* obj,
+                            MemberOffset field_offset,
+                            uint16_t value,
                             bool is_volatile) const;
-  void RecordWriteFieldShort(mirror::Object* obj, MemberOffset field_offset, int16_t value,
+  void RecordWriteFieldShort(mirror::Object* obj,
+                             MemberOffset field_offset,
+                             int16_t value,
                           bool is_volatile) const;
-  void RecordWriteField32(mirror::Object* obj, MemberOffset field_offset, uint32_t value,
+  void RecordWriteField32(mirror::Object* obj,
+                          MemberOffset field_offset,
+                          uint32_t value,
                           bool is_volatile) const;
-  void RecordWriteField64(mirror::Object* obj, MemberOffset field_offset, uint64_t value,
+  void RecordWriteField64(mirror::Object* obj,
+                          MemberOffset field_offset,
+                          uint64_t value,
                           bool is_volatile) const;
-  void RecordWriteFieldReference(mirror::Object* obj, MemberOffset field_offset,
-                                 mirror::Object* value, bool is_volatile) const;
+  void RecordWriteFieldReference(mirror::Object* obj,
+                                 MemberOffset field_offset,
+                                 mirror::Object* value,
+                                 bool is_volatile) const;
   void RecordWriteArray(mirror::Array* array, size_t index, uint64_t value) const
       SHARED_REQUIRES(Locks::mutator_lock_);
   void RecordStrongStringInsertion(mirror::String* s) const
@@ -499,7 +515,7 @@ class Runtime {
     return fault_message_;
   }
 
-  void AddCurrentRuntimeFeaturesAsDex2OatArguments(std::vector<std::string>* arg_vector) const;
+  void AddCurrentRuntimeFeaturesAsDex2OatArguments(out<std::vector<std::string>> arg_vector) const;
 
   bool ExplicitStackOverflowChecks() const {
     return !implicit_so_checks_;
