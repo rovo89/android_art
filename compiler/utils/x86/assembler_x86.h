@@ -409,6 +409,7 @@ class X86Assembler FINAL : public Assembler {
 
   void imull(Register dst, Register src);
   void imull(Register reg, const Immediate& imm);
+  void imull(Register dst, Register src, const Immediate& imm);
   void imull(Register reg, const Address& address);
 
   void imull(Register reg);

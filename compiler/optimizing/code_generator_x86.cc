@@ -2348,7 +2348,12 @@ void LocationsBuilderX86::VisitMul(HMul* mul) {
     case Primitive::kPrimInt:
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::Any());
-      locations->SetOut(Location::SameAsFirstInput());
+      if (mul->InputAt(1)->IsIntConstant()) {
+        // Can use 3 operand multiply.
+        locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      } else {
+        locations->SetOut(Location::SameAsFirstInput());
+      }
       break;
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
@@ -2376,21 +2381,24 @@ void InstructionCodeGeneratorX86::VisitMul(HMul* mul) {
   LocationSummary* locations = mul->GetLocations();
   Location first = locations->InAt(0);
   Location second = locations->InAt(1);
-  DCHECK(first.Equals(locations->Out()));
+  Location out = locations->Out();
 
   switch (mul->GetResultType()) {
-    case Primitive::kPrimInt: {
-      if (second.IsRegister()) {
+    case Primitive::kPrimInt:
+      // The constant may have ended up in a register, so test explicitly to avoid
+      // problems where the output may not be the same as the first operand.
+      if (mul->InputAt(1)->IsIntConstant()) {
+        Immediate imm(mul->InputAt(1)->AsIntConstant()->GetValue());
+        __ imull(out.AsRegister<Register>(), first.AsRegister<Register>(), imm);
+      } else if (second.IsRegister()) {
+        DCHECK(first.Equals(out));
         __ imull(first.AsRegister<Register>(), second.AsRegister<Register>());
-      } else if (second.IsConstant()) {
-        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue());
-        __ imull(first.AsRegister<Register>(), imm);
       } else {
         DCHECK(second.IsStackSlot());
+        DCHECK(first.Equals(out));
         __ imull(first.AsRegister<Register>(), Address(ESP, second.GetStackIndex()));
       }
       break;
-    }
 
     case Primitive::kPrimLong: {
       Register in1_hi = first.AsRegisterPairHigh<Register>();
