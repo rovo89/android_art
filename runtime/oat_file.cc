@@ -32,6 +32,7 @@
 #endif
 
 #include "art_method-inl.h"
+#include "base/out.h"
 #include "base/bit_vector.h"
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
@@ -88,16 +89,16 @@ void OatFile::CheckLocation(const std::string& location) {
 OatFile* OatFile::OpenWithElfFile(ElfFile* elf_file,
                                   const std::string& location,
                                   const char* abs_dex_location,
-                                  std::string* error_msg) {
+                                  out<std::string> error_msg) {
   std::unique_ptr<OatFile> oat_file(new OatFile(location, false));
   oat_file->elf_file_.reset(elf_file);
   uint64_t offset, size;
-  bool has_section = elf_file->GetSectionOffsetAndSize(".rodata", &offset, &size);
+  bool has_section = elf_file->GetSectionOffsetAndSize(".rodata", outof(offset), outof(size));
   CHECK(has_section);
   oat_file->begin_ = elf_file->Begin() + offset;
   oat_file->end_ = elf_file->Begin() + size + offset;
   // Ignore the optional .bss section when opening non-executable.
-  return oat_file->Setup(abs_dex_location, error_msg) ? oat_file.release() : nullptr;
+  return oat_file->Setup(abs_dex_location, outof_forward(error_msg)) ? oat_file.release() : nullptr;
 }
 
 OatFile* OatFile::Open(const std::string& filename,
@@ -106,7 +107,7 @@ OatFile* OatFile::Open(const std::string& filename,
                        uint8_t* oat_file_begin,
                        bool executable,
                        const char* abs_dex_location,
-                       std::string* error_msg) {
+                       out<std::string> error_msg) {
   CHECK(!filename.empty()) << location;
   CheckLocation(location);
   std::unique_ptr<OatFile> ret;
@@ -154,27 +155,34 @@ OatFile* OatFile::Open(const std::string& filename,
   return ret.release();
 }
 
-OatFile* OatFile::OpenWritable(File* file, const std::string& location,
+OatFile* OatFile::OpenWritable(File* file,
+                               const std::string& location,
                                const char* abs_dex_location,
-                               std::string* error_msg) {
+                               out<std::string> error_msg) {
   CheckLocation(location);
-  return OpenElfFile(file, location, nullptr, nullptr, true, false, abs_dex_location, error_msg);
+  return OpenElfFile(file, location, nullptr, nullptr, true, false, abs_dex_location,
+                     outof_forward(error_msg));
 }
 
-OatFile* OatFile::OpenReadable(File* file, const std::string& location,
+OatFile* OatFile::OpenReadable(File* file,
+                               const std::string& location,
                                const char* abs_dex_location,
-                               std::string* error_msg) {
+                               out<std::string> error_msg) {
   CheckLocation(location);
-  return OpenElfFile(file, location, nullptr, nullptr, false, false, abs_dex_location, error_msg);
+  return OpenElfFile(file, location, nullptr, nullptr, false, false, abs_dex_location,
+                     outof_forward(error_msg));
 }
 
 OatFile* OatFile::OpenDlopen(const std::string& elf_filename,
                              const std::string& location,
                              uint8_t* requested_base,
                              const char* abs_dex_location,
-                             std::string* error_msg) {
+                             out<std::string> error_msg) {
   std::unique_ptr<OatFile> oat_file(new OatFile(location, true));
-  bool success = oat_file->Dlopen(elf_filename, requested_base, abs_dex_location, error_msg);
+  bool success = oat_file->Dlopen(elf_filename,
+                                  requested_base,
+                                  abs_dex_location,
+                                  outof_forward(error_msg));
   if (!success) {
     return nullptr;
   }
@@ -188,10 +196,10 @@ OatFile* OatFile::OpenElfFile(File* file,
                               bool writable,
                               bool executable,
                               const char* abs_dex_location,
-                              std::string* error_msg) {
+                              out<std::string> error_msg) {
   std::unique_ptr<OatFile> oat_file(new OatFile(location, executable));
   bool success = oat_file->ElfFileOpen(file, requested_base, oat_file_begin, writable, executable,
-                                       abs_dex_location, error_msg);
+                                       abs_dex_location, outof_forward(error_msg));
   if (!success) {
     CHECK(!error_msg->empty());
     return nullptr;
@@ -200,8 +208,13 @@ OatFile* OatFile::OpenElfFile(File* file,
 }
 
 OatFile::OatFile(const std::string& location, bool is_executable)
-    : location_(location), begin_(nullptr), end_(nullptr), bss_begin_(nullptr), bss_end_(nullptr),
-      is_executable_(is_executable), dlopen_handle_(nullptr),
+    : location_(location),
+      begin_(nullptr),
+      end_(nullptr),
+      bss_begin_(nullptr),
+      bss_end_(nullptr),
+      is_executable_(is_executable),
+      dlopen_handle_(nullptr),
       secondary_lookup_lock_("OatFile secondary lookup lock", kOatFileSecondaryLookupLock) {
   CHECK(!location_.empty());
 }
@@ -213,8 +226,10 @@ OatFile::~OatFile() {
   }
 }
 
-bool OatFile::Dlopen(const std::string& elf_filename, uint8_t* requested_base,
-                     const char* abs_dex_location, std::string* error_msg) {
+bool OatFile::Dlopen(const std::string& elf_filename,
+                     uint8_t* requested_base,
+                     const char* abs_dex_location,
+                     out<std::string> error_msg) {
 #ifdef __APPLE__
   // The dl_iterate_phdr syscall is missing.  There is similar API on OSX,
   // but let's fallback to the custom loading code for the time being.
@@ -319,22 +334,28 @@ bool OatFile::Dlopen(const std::string& elf_filename, uint8_t* requested_base,
     LOG(ERROR) << "File " << elf_filename << " loaded with dlopen but can not find its mmaps.";
   }
 
-  return Setup(abs_dex_location, error_msg);
+  return Setup(abs_dex_location, outof_forward(error_msg));
 #endif  // __APPLE__
 }
 
-bool OatFile::ElfFileOpen(File* file, uint8_t* requested_base, uint8_t* oat_file_begin,
-                          bool writable, bool executable,
+bool OatFile::ElfFileOpen(File* file,
+                          uint8_t* requested_base,
+                          uint8_t* oat_file_begin,
+                          bool writable,
+                          bool executable,
                           const char* abs_dex_location,
-                          std::string* error_msg) {
+                          out<std::string> error_msg) {
   // TODO: rename requested_base to oat_data_begin
-  elf_file_.reset(ElfFile::Open(file, writable, /*program_header_only*/true, error_msg,
+  elf_file_.reset(ElfFile::Open(file,
+                                writable,
+                                /*program_header_only*/true,
+                                outof_forward(error_msg),
                                 oat_file_begin));
   if (elf_file_ == nullptr) {
     DCHECK(!error_msg->empty());
     return false;
   }
-  bool loaded = elf_file_->Load(executable, error_msg);
+  bool loaded = elf_file_->Load(executable, outof_forward(error_msg));
   if (!loaded) {
     DCHECK(!error_msg->empty());
     return false;
@@ -375,10 +396,10 @@ bool OatFile::ElfFileOpen(File* file, uint8_t* requested_base, uint8_t* oat_file
     bss_end_ += sizeof(uint32_t);
   }
 
-  return Setup(abs_dex_location, error_msg);
+  return Setup(abs_dex_location, outof_forward(error_msg));
 }
 
-bool OatFile::Setup(const char* abs_dex_location, std::string* error_msg) {
+bool OatFile::Setup(const char* abs_dex_location, out<std::string> error_msg) {
   if (!GetOatHeader().IsValid()) {
     std::string cause = GetOatHeader().GetValidationErrorMessage();
     *error_msg = StringPrintf("Invalid oat header for '%s': %s", GetLocation().c_str(),
@@ -617,9 +638,9 @@ size_t OatFile::OatDexFile::FileSize() const {
   return reinterpret_cast<const DexFile::Header*>(dex_file_pointer_)->file_size_;
 }
 
-std::unique_ptr<const DexFile> OatFile::OatDexFile::OpenDexFile(std::string* error_msg) const {
+std::unique_ptr<const DexFile> OatFile::OatDexFile::OpenDexFile(out<std::string> error_msg) const {
   return DexFile::Open(dex_file_pointer_, FileSize(), dex_file_location_,
-                       dex_file_location_checksum_, this, error_msg);
+                       dex_file_location_checksum_, this, outof_forward(error_msg));
 }
 
 uint32_t OatFile::OatDexFile::GetOatClassOffset(uint16_t class_def_index) const {
@@ -777,7 +798,7 @@ std::string OatFile::EncodeDexFileDependencies(const std::vector<const DexFile*>
   return out.str();
 }
 
-bool OatFile::CheckStaticDexFileDependencies(const char* dex_dependencies, std::string* msg) {
+bool OatFile::CheckStaticDexFileDependencies(const char* dex_dependencies, out<std::string> msg) {
   if (dex_dependencies == nullptr || dex_dependencies[0] == 0) {
     // No dependencies.
     return true;
@@ -786,7 +807,7 @@ bool OatFile::CheckStaticDexFileDependencies(const char* dex_dependencies, std::
   // Assumption: this is not performance-critical. So it's OK to do this with a std::string and
   //             Split() instead of manual parsing of the combined char*.
   std::vector<std::string> split;
-  Split(dex_dependencies, kDexClassPathEncodingSeparator, &split);
+  Split(dex_dependencies, kDexClassPathEncodingSeparator, outof(split));
   if (split.size() % 2 != 0) {
     // Expected pairs of location and checksum.
     *msg = StringPrintf("Odd number of elements in dependency list %s", dex_dependencies);
@@ -806,8 +827,8 @@ bool OatFile::CheckStaticDexFileDependencies(const char* dex_dependencies, std::
     uint32_t dex_checksum;
     std::string error_msg;
     if (DexFile::GetChecksum(DexFile::GetDexCanonicalLocation(location.c_str()).c_str(),
-                             &dex_checksum,
-                             &error_msg)) {
+                             outof(dex_checksum),
+                             outof(error_msg))) {
       if (converted != dex_checksum) {
         *msg = StringPrintf("Checksums don't match for %s: %" PRId64 " vs %u",
                             location.c_str(), converted, dex_checksum);
@@ -826,8 +847,7 @@ bool OatFile::CheckStaticDexFileDependencies(const char* dex_dependencies, std::
 }
 
 bool OatFile::GetDexLocationsFromDependencies(const char* dex_dependencies,
-                                              std::vector<std::string>* locations) {
-  DCHECK(locations != nullptr);
+                                              out<std::vector<std::string>> locations) {
   if (dex_dependencies == nullptr || dex_dependencies[0] == 0) {
     return true;
   }
@@ -835,7 +855,7 @@ bool OatFile::GetDexLocationsFromDependencies(const char* dex_dependencies,
   // Assumption: this is not performance-critical. So it's OK to do this with a std::string and
   //             Split() instead of manual parsing of the combined char*.
   std::vector<std::string> split;
-  Split(dex_dependencies, kDexClassPathEncodingSeparator, &split);
+  Split(dex_dependencies, kDexClassPathEncodingSeparator, outof(split));
   if (split.size() % 2 != 0) {
     // Expected pairs of location and checksum.
     return false;

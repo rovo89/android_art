@@ -88,7 +88,7 @@ class OatFileAssistantTest : public CommonRuntimeTest {
       << "Expected dex file to be at: " << GetDexSrc1();
     ASSERT_TRUE(OS::FileExists(GetStrippedDexSrc1().c_str()))
       << "Expected stripped dex file to be at: " << GetStrippedDexSrc1();
-    ASSERT_FALSE(DexFile::GetChecksum(GetStrippedDexSrc1().c_str(), &checksum, &error_msg))
+    ASSERT_FALSE(DexFile::GetChecksum(GetStrippedDexSrc1().c_str(), &checksum, outof(error_msg)))
       << "Expected stripped dex file to be stripped: " << GetStrippedDexSrc1();
     ASSERT_TRUE(OS::FileExists(GetDexSrc2().c_str()))
       << "Expected dex file to be at: " << GetDexSrc2();
@@ -97,12 +97,12 @@ class OatFileAssistantTest : public CommonRuntimeTest {
     // GetMultiDexSrc1, but a different secondary dex checksum.
     std::vector<std::unique_ptr<const DexFile>> multi1;
     ASSERT_TRUE(DexFile::Open(GetMultiDexSrc1().c_str(),
-          GetMultiDexSrc1().c_str(), &error_msg, &multi1)) << error_msg;
+          GetMultiDexSrc1().c_str(), outof(error_msg), &multi1)) << error_msg;
     ASSERT_GT(multi1.size(), 1u);
 
     std::vector<std::unique_ptr<const DexFile>> multi2;
     ASSERT_TRUE(DexFile::Open(GetMultiDexSrc2().c_str(),
-          GetMultiDexSrc2().c_str(), &error_msg, &multi2)) << error_msg;
+          GetMultiDexSrc2().c_str(), outof(error_msg), &multi2)) << error_msg;
     ASSERT_GT(multi2.size(), 1u);
 
     ASSERT_EQ(multi1[0]->GetLocationChecksum(), multi2[0]->GetLocationChecksum());
@@ -232,13 +232,13 @@ class OatFileAssistantTest : public CommonRuntimeTest {
     args.push_back("--runtime-arg");
     args.push_back("-Xnorelocate");
     std::string error_msg;
-    ASSERT_TRUE(OatFileAssistant::Dex2Oat(args, &error_msg)) << error_msg;
+    ASSERT_TRUE(OatFileAssistant::Dex2Oat(args, outof(error_msg))) << error_msg;
     setenv("ANDROID_DATA", android_data_.c_str(), 1);
 
     // Verify the odex file was generated as expected.
     std::unique_ptr<OatFile> odex_file(OatFile::Open(
         odex_location.c_str(), odex_location.c_str(), nullptr, nullptr,
-        false, dex_location.c_str(), &error_msg));
+        false, dex_location.c_str(), outof(error_msg)));
     ASSERT_TRUE(odex_file.get() != nullptr) << error_msg;
 
     if (!pic) {
@@ -284,7 +284,7 @@ class OatFileAssistantTest : public CommonRuntimeTest {
       image_reservation_.push_back(std::unique_ptr<MemMap>(
           MemMap::MapAnonymous("image reservation",
               reinterpret_cast<uint8_t*>(start), end - start,
-              PROT_NONE, false, false, &error_msg)));
+              PROT_NONE, false, false, outof(error_msg))));
       ASSERT_TRUE(image_reservation_.back().get() != nullptr) << error_msg;
       LOG(INFO) << "Reserved space for image " <<
         reinterpret_cast<void*>(image_reservation_.back()->Begin()) << "-" <<
@@ -319,7 +319,7 @@ static void GenerateOatForTest(const char* dex_location) {
   OatFileAssistant oat_file_assistant(dex_location, kRuntimeISA, false);
 
   std::string error_msg;
-  ASSERT_TRUE(oat_file_assistant.GenerateOatFile(&error_msg)) << error_msg;
+  ASSERT_TRUE(oat_file_assistant.GenerateOatFile(outof(error_msg))) << error_msg;
 }
 
 // Case: We have a DEX file, but no OAT file for it.
@@ -358,7 +358,7 @@ TEST_F(OatFileAssistantTest, NoDexNoOat) {
 
   // Trying to make the oat file up to date should not fail or crash.
   std::string error_msg;
-  EXPECT_TRUE(oat_file_assistant.MakeUpToDate(&error_msg));
+  EXPECT_TRUE(oat_file_assistant.MakeUpToDate(outof(error_msg)));
 
   // Trying to get the best oat file should fail, but not crash.
   std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
@@ -442,7 +442,7 @@ TEST_F(OatFileAssistantTest, RelativeEncodedDexLocation) {
   args.push_back("--oat-file=" + oat_location);
 
   std::string error_msg;
-  ASSERT_TRUE(OatFileAssistant::Dex2Oat(args, &error_msg)) << error_msg;
+  ASSERT_TRUE(OatFileAssistant::Dex2Oat(args, outof(error_msg))) << error_msg;
 
   // Verify we can load both dex files.
   OatFileAssistant oat_file_assistant(dex_location.c_str(),
@@ -541,7 +541,7 @@ TEST_F(OatFileAssistantTest, StrippedDexOdexNoOat) {
 
   // Make the oat file up to date.
   std::string error_msg;
-  ASSERT_TRUE(oat_file_assistant.MakeUpToDate(&error_msg)) << error_msg;
+  ASSERT_TRUE(oat_file_assistant.MakeUpToDate(outof(error_msg))) << error_msg;
 
   EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded, oat_file_assistant.GetDexOptNeeded());
 
@@ -597,7 +597,7 @@ TEST_F(OatFileAssistantTest, StrippedDexOdexOat) {
 
   // Make the oat file up to date.
   std::string error_msg;
-  ASSERT_TRUE(oat_file_assistant.MakeUpToDate(&error_msg)) << error_msg;
+  ASSERT_TRUE(oat_file_assistant.MakeUpToDate(outof(error_msg))) << error_msg;
 
   EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded, oat_file_assistant.GetDexOptNeeded());
 
@@ -645,7 +645,7 @@ TEST_F(OatFileAssistantTest, ResourceOnlyDex) {
 
   // Make the oat file up to date. This should have no effect.
   std::string error_msg;
-  EXPECT_TRUE(oat_file_assistant.MakeUpToDate(&error_msg)) << error_msg;
+  EXPECT_TRUE(oat_file_assistant.MakeUpToDate(outof(error_msg))) << error_msg;
 
   EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded, oat_file_assistant.GetDexOptNeeded());
 
@@ -689,7 +689,7 @@ TEST_F(OatFileAssistantTest, SelfRelocation) {
 
   // Make the oat file up to date.
   std::string error_msg;
-  ASSERT_TRUE(oat_file_assistant.MakeUpToDate(&error_msg)) << error_msg;
+  ASSERT_TRUE(oat_file_assistant.MakeUpToDate(outof(error_msg))) << error_msg;
 
   EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded, oat_file_assistant.GetDexOptNeeded());
 
@@ -830,7 +830,7 @@ TEST_F(OatFileAssistantTest, LoadDexNoAlternateOat) {
   OatFileAssistant oat_file_assistant(
       dex_location.c_str(), oat_location.c_str(), kRuntimeISA, true);
   std::string error_msg;
-  ASSERT_TRUE(oat_file_assistant.MakeUpToDate(&error_msg)) << error_msg;
+  ASSERT_TRUE(oat_file_assistant.MakeUpToDate(outof(error_msg))) << error_msg;
 
   std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
   ASSERT_TRUE(oat_file.get() != nullptr);
@@ -920,7 +920,7 @@ TEST_F(OatFileAssistantTest, ShortDexLocation) {
 
   // Trying to make it up to date should have no effect.
   std::string error_msg;
-  EXPECT_TRUE(oat_file_assistant.MakeUpToDate(&error_msg));
+  EXPECT_TRUE(oat_file_assistant.MakeUpToDate(outof(error_msg)));
   EXPECT_TRUE(error_msg.empty());
 }
 
@@ -1058,17 +1058,17 @@ TEST(OatFileAssistantUtilsTest, DexFilenameToOdexFilename) {
   std::string odex_file;
 
   EXPECT_TRUE(OatFileAssistant::DexFilenameToOdexFilename(
-        "/foo/bar/baz.jar", kArm, &odex_file, &error_msg)) << error_msg;
+        "/foo/bar/baz.jar", kArm, &odex_file, outof(error_msg))) << error_msg;
   EXPECT_EQ("/foo/bar/oat/arm/baz.odex", odex_file);
 
   EXPECT_TRUE(OatFileAssistant::DexFilenameToOdexFilename(
-        "/foo/bar/baz.funnyext", kArm, &odex_file, &error_msg)) << error_msg;
+        "/foo/bar/baz.funnyext", kArm, &odex_file, outof(error_msg))) << error_msg;
   EXPECT_EQ("/foo/bar/oat/arm/baz.odex", odex_file);
 
   EXPECT_FALSE(OatFileAssistant::DexFilenameToOdexFilename(
-        "nopath.jar", kArm, &odex_file, &error_msg));
+        "nopath.jar", kArm, &odex_file, outof(error_msg)));
   EXPECT_FALSE(OatFileAssistant::DexFilenameToOdexFilename(
-        "/foo/bar/baz_noext", kArm, &odex_file, &error_msg));
+        "/foo/bar/baz_noext", kArm, &odex_file, outof(error_msg)));
 }
 
 // Verify the dexopt status values from dalvik.system.DexFile

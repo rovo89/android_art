@@ -782,7 +782,7 @@ static void AddDexFilesFromOat(const OatFile* oat_file,
   const std::vector<const OatDexFile*>& oat_dex_files = oat_file->GetOatDexFiles();
   for (const OatDexFile* oat_dex_file : oat_dex_files) {
     std::string error;
-    std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(&error);
+    std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(outof(error));
     if (dex_file.get() == nullptr) {
       LOG(WARNING) << "Could not create dex file from oat file: " << error;
     } else {
@@ -1146,7 +1146,7 @@ void ClassLinker::InitFromImage() {
                                                                      nullptr);
     CHECK(oat_dex_file != nullptr) << oat_file.GetLocation() << " " << dex_file_location;
     std::string error_msg;
-    std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(&error_msg);
+    std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(outof(error_msg));
     if (dex_file.get() == nullptr) {
       LOG(FATAL) << "Failed to open dex file " << dex_file_location
                  << " from within oat file " << oat_file.GetLocation()
