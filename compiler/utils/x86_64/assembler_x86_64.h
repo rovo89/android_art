@@ -539,6 +539,7 @@ class X86_64Assembler FINAL : public Assembler {
 
   void imull(CpuRegister dst, CpuRegister src);
   void imull(CpuRegister reg, const Immediate& imm);
+  void imull(CpuRegister dst, CpuRegister src, const Immediate& imm);
   void imull(CpuRegister reg, const Address& address);
 
   void imulq(CpuRegister src);
