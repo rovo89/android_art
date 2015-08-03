@@ -16,6 +16,7 @@
 
 #include "arch/instruction_set_features.h"
 #include "art_method-inl.h"
+#include "base/out.h"
 #include "class_linker.h"
 #include "common_compiler_test.h"
 #include "compiled_method.h"
@@ -83,7 +84,7 @@ TEST_F(OatTest, WriteRead) {
 
   std::string error_msg;
   std::unique_ptr<const InstructionSetFeatures> insn_features(
-      InstructionSetFeatures::FromVariant(insn_set, "default", &error_msg));
+      InstructionSetFeatures::FromVariant(insn_set, "default", outof(error_msg)));
   ASSERT_TRUE(insn_features.get() != nullptr) << error_msg;
   compiler_options_.reset(new CompilerOptions);
   verification_results_.reset(new VerificationResults(compiler_options_.get()));
@@ -123,7 +124,7 @@ TEST_F(OatTest, WriteRead) {
     compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), &timings);
   }
   std::unique_ptr<OatFile> oat_file(OatFile::Open(tmp.GetFilename(), tmp.GetFilename(), nullptr,
-                                                  nullptr, false, nullptr, &error_msg));
+                                                  nullptr, false, nullptr, outof(error_msg)));
   ASSERT_TRUE(oat_file.get() != nullptr) << error_msg;
   const OatHeader& oat_header = oat_file->GetOatHeader();
   ASSERT_TRUE(oat_header.IsValid());
@@ -190,7 +191,7 @@ TEST_F(OatTest, OatHeaderIsValid) {
     InstructionSet insn_set = kX86;
     std::string error_msg;
     std::unique_ptr<const InstructionSetFeatures> insn_features(
-        InstructionSetFeatures::FromVariant(insn_set, "default", &error_msg));
+        InstructionSetFeatures::FromVariant(insn_set, "default", outof(error_msg)));
     ASSERT_TRUE(insn_features.get() != nullptr) << error_msg;
     std::vector<const DexFile*> dex_files;
     uint32_t image_file_location_oat_checksum = 0;
