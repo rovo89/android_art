@@ -29,6 +29,7 @@
 #include <set>
 
 #include "base/logging.h"
+#include "base/out.h"
 #include "base/stringprintf.h"
 #include "class_linker.h"
 #include "gc/heap.h"
@@ -230,7 +231,7 @@ std::vector<std::unique_ptr<const DexFile>> OatFileAssistant::LoadDexFiles(
     return std::vector<std::unique_ptr<const DexFile>>();
   }
 
-  std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(&error_msg);
+  std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(outof(error_msg));
   if (dex_file.get() == nullptr) {
     LOG(WARNING) << "Failed to open dex file from oat dex file: " << error_msg;
     return std::vector<std::unique_ptr<const DexFile>>();
@@ -246,7 +247,7 @@ std::vector<std::unique_ptr<const DexFile>> OatFileAssistant::LoadDexFiles(
       break;
     }
 
-    dex_file = oat_dex_file->OpenDexFile(&error_msg);
+    dex_file = oat_dex_file->OpenDexFile(outof(error_msg));
     if (dex_file.get() == nullptr) {
       LOG(WARNING) << "Failed to open dex file from oat dex file: " << error_msg;
       return std::vector<std::unique_ptr<const DexFile>>();
@@ -271,7 +272,7 @@ const std::string* OatFileAssistant::OdexFileName() {
 
     std::string error_msg;
     cached_odex_file_name_found_ = DexFilenameToOdexFilename(
-        dex_location_, isa_, &cached_odex_file_name_, &error_msg);
+        dex_location_, isa_, &cached_odex_file_name_, outof(error_msg));
     if (!cached_odex_file_name_found_) {
       // If we can't figure out the odex file, we treat it as if the odex
       // file was inaccessible.
@@ -339,7 +340,7 @@ const std::string* OatFileAssistant::OatFileName() {
         DalvikCacheDirectory().c_str(), GetInstructionSetString(isa_));
     std::string error_msg;
     cached_oat_file_name_found_ = GetDalvikCacheFilename(dex_location_,
-        cache_dir.c_str(), &cached_oat_file_name_, &error_msg);
+        cache_dir.c_str(), &cached_oat_file_name_, outof(error_msg));
     if (!cached_oat_file_name_found_) {
       // If we can't determine the oat file name, we treat the oat file as
       // inaccessible.
@@ -432,7 +433,7 @@ bool OatFileAssistant::GivenOatFileIsOutOfDate(const OatFile& file) {
     std::string error_msg;
     uint32_t expected_secondary_checksum = 0;
     if (DexFile::GetChecksum(secondary_dex_location.c_str(),
-          &expected_secondary_checksum, &error_msg)) {
+          &expected_secondary_checksum, outof(error_msg))) {
       uint32_t actual_secondary_checksum
         = secondary_oat_dex_file->GetDexFileLocationChecksum();
       if (expected_secondary_checksum != actual_secondary_checksum) {
@@ -722,7 +723,7 @@ bool OatFileAssistant::Dex2Oat(const std::vector<std::string>& args,
   if (runtime->IsDebuggable()) {
     argv.push_back("--debuggable");
   }
-  runtime->AddCurrentRuntimeFeaturesAsDex2OatArguments(&argv);
+  runtime->AddCurrentRuntimeFeaturesAsDex2OatArguments(outof(argv));
 
   if (!runtime->IsVerificationEnabled()) {
     argv.push_back("--compiler-filter=verify-none");
@@ -873,7 +874,7 @@ const OatFile* OatFileAssistant::GetOdexFile() {
       std::string error_msg;
       cached_odex_file_.reset(OatFile::Open(odex_file_name.c_str(),
             odex_file_name.c_str(), nullptr, nullptr, load_executable_,
-            dex_location_, &error_msg));
+            dex_location_, outof(error_msg)));
       if (cached_odex_file_.get() == nullptr) {
         VLOG(oat) << "OatFileAssistant test for existing pre-compiled oat file "
           << odex_file_name << ": " << error_msg;
@@ -904,7 +905,7 @@ const OatFile* OatFileAssistant::GetOatFile() {
       std::string error_msg;
       cached_oat_file_.reset(OatFile::Open(oat_file_name.c_str(),
             oat_file_name.c_str(), nullptr, nullptr, load_executable_,
-            dex_location_, &error_msg));
+            dex_location_, outof(error_msg)));
       if (cached_oat_file_.get() == nullptr) {
         VLOG(oat) << "OatFileAssistant test for existing oat file "
           << oat_file_name << ": " << error_msg;
