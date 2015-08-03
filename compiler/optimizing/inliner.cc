@@ -496,8 +496,9 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
       // TODO: we could be more precise by merging the phi inputs but that requires
       // some functionality from the reference type propagation.
       DCHECK(return_replacement->IsPhi());
+      size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
       ReferenceTypeInfo::TypeHandle return_handle =
-        handles_->NewHandle(resolved_method->GetReturnType());
+        handles_->NewHandle(resolved_method->GetReturnType(true /* resolve */, pointer_size));
       return_replacement->SetReferenceTypeInfo(ReferenceTypeInfo::Create(
          return_handle, return_handle->IsFinal() /* is_exact */));
     }

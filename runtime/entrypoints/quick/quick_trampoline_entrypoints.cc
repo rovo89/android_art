@@ -980,7 +980,7 @@ extern "C" const void* artQuickResolutionTrampoline(
       // FindVirtualMethodFor... This is ok for FindDexMethodIndexInOtherDexFile that only cares
       // about the name and signature.
       uint32_t update_dex_cache_method_index = called->GetDexMethodIndex();
-      if (!called->HasSameDexCacheResolvedMethods(caller)) {
+      if (!called->HasSameDexCacheResolvedMethods(caller, sizeof(void*))) {
         // Calling from one dex file to another, need to compute the method index appropriate to
         // the caller's dex file. Since we get here only if the original called was a runtime
         // method, we've got the correct dex_file and a dex_method_idx from above.

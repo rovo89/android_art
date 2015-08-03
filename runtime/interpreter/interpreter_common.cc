@@ -616,9 +616,10 @@ static inline bool DoCallCommon(ArtMethod* called_method,
         case 'L': {
           Object* o = shadow_frame.GetVRegReference(src_reg);
           if (do_assignability_check && o != nullptr) {
+            size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
             Class* arg_type =
                 new_shadow_frame->GetMethod()->GetClassFromTypeIndex(
-                    params->GetTypeItem(shorty_pos).type_idx_, true);
+                    params->GetTypeItem(shorty_pos).type_idx_, true /* resolve */, pointer_size);
             if (arg_type == nullptr) {
               CHECK(self->IsExceptionPending());
               return false;

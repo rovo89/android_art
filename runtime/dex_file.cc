@@ -1227,7 +1227,9 @@ mirror::Object* DexFile::GetAnnotationDefaultValue(ArtMethod* method) const {
   AnnotationValue annotation_value;
   StackHandleScope<2> hs(Thread::Current());
   Handle<mirror::Class> h_klass(hs.NewHandle(klass));
-  Handle<mirror::Class> return_type(hs.NewHandle(method->GetReturnType()));
+  size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+  Handle<mirror::Class> return_type(hs.NewHandle(
+      method->GetReturnType(true /* resolve */, pointer_size)));
   if (!ProcessAnnotationValue(h_klass, &annotation, &annotation_value, return_type, kAllObjects)) {
     return nullptr;
   }
@@ -1343,7 +1345,9 @@ mirror::Object* DexFile::CreateAnnotationMember(Handle<mirror::Class> klass,
   if (annotation_method == nullptr) {
     return nullptr;
   }
-  Handle<mirror::Class> method_return(hs.NewHandle(annotation_method->GetReturnType()));
+  size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+  Handle<mirror::Class> method_return(hs.NewHandle(
+      annotation_method->GetReturnType(true /* resolve */, pointer_size)));
 
   AnnotationValue annotation_value;
   if (!ProcessAnnotationValue(klass, annotation, &annotation_value, method_return, kAllObjects)) {

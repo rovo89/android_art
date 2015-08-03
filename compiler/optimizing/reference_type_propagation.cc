@@ -637,9 +637,9 @@ void RTPVisitor::VisitInvoke(HInvoke* instr) {
   ScopedObjectAccess soa(Thread::Current());
   ClassLinker* cl = Runtime::Current()->GetClassLinker();
   mirror::DexCache* dex_cache = cl->FindDexCache(soa.Self(), instr->GetDexFile());
-  ArtMethod* method = dex_cache->GetResolvedMethod(
-      instr->GetDexMethodIndex(), cl->GetImagePointerSize());
-  mirror::Class* klass = (method == nullptr) ? nullptr : method->GetReturnType(false);
+  size_t pointer_size = cl->GetImagePointerSize();
+  ArtMethod* method = dex_cache->GetResolvedMethod(instr->GetDexMethodIndex(), pointer_size);
+  mirror::Class* klass = (method == nullptr) ? nullptr : method->GetReturnType(false, pointer_size);
   SetClassAsTypeInfo(instr, klass, /* is_exact */ false);
 }
 

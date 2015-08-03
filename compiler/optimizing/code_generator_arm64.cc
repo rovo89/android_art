@@ -2446,8 +2446,9 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
       }
 
       // temp = current_method->dex_cache_resolved_methods_;
-      __ Ldr(reg.W(), MemOperand(method_reg.X(),
-                                 ArtMethod::DexCacheResolvedMethodsOffset().Int32Value()));
+      __ Ldr(reg.X(),
+             MemOperand(method_reg.X(),
+                        ArtMethod::DexCacheResolvedMethodsOffset(kArm64WordSize).Int32Value()));
       // temp = temp[index_in_cache];
       uint32_t index_in_cache = invoke->GetTargetMethod().dex_method_index;
     __ Ldr(reg.X(), MemOperand(reg.X(), GetCachePointerOffset(index_in_cache)));
@@ -2620,9 +2621,10 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
     __ Ldr(out, MemOperand(current_method, ArtMethod::DeclaringClassOffset().Int32Value()));
   } else {
     DCHECK(cls->CanCallRuntime());
-    __ Ldr(out, MemOperand(current_method, ArtMethod::DexCacheResolvedTypesOffset().Int32Value()));
-    __ Ldr(out, HeapOperand(out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex())));
-    GetAssembler()->MaybeUnpoisonHeapReference(out.W());
+    MemberOffset resolved_types_offset = ArtMethod::DexCacheResolvedTypesOffset(kArm64PointerSize);
+    __ Ldr(out.X(), MemOperand(current_method, resolved_types_offset.Int32Value()));
+    __ Ldr(out, MemOperand(out.X(), CodeGenerator::GetCacheOffset(cls->GetTypeIndex())));
+    // TODO: We will need a read barrier here.
 
     SlowPathCodeARM64* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathARM64(
         cls, cls, cls->GetDexPc(), cls->MustGenerateClinitCheck());
@@ -2681,10 +2683,9 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
   Register out = OutputRegister(load);
   Register current_method = InputRegisterAt(load, 0);
   __ Ldr(out, MemOperand(current_method, ArtMethod::DeclaringClassOffset().Int32Value()));
-  __ Ldr(out, HeapOperand(out, mirror::Class::DexCacheStringsOffset()));
-  GetAssembler()->MaybeUnpoisonHeapReference(out.W());
-  __ Ldr(out, HeapOperand(out, CodeGenerator::GetCacheOffset(load->GetStringIndex())));
-  GetAssembler()->MaybeUnpoisonHeapReference(out.W());
+  __ Ldr(out.X(), HeapOperand(out, mirror::Class::DexCacheStringsOffset()));
+  __ Ldr(out, MemOperand(out.X(), CodeGenerator::GetCacheOffset(load->GetStringIndex())));
+  // TODO: We will need a read barrier here.
   __ Cbz(out, slow_path->GetEntryLabel());
   __ Bind(slow_path->GetExitLabel());
 }

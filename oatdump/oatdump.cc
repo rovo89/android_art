@@ -44,6 +44,7 @@
 #include "mapping_table.h"
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
+#include "mirror/dex_cache-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "oat.h"
@@ -1615,15 +1616,14 @@ class ImageDumper {
     }
     {
       // Mark dex caches.
-      dex_cache_arrays_.clear();
+      dex_caches_.clear();
       {
         ReaderMutexLock mu(self, *class_linker->DexLock());
         for (jobject weak_root : class_linker->GetDexCaches()) {
           mirror::DexCache* dex_cache =
               down_cast<mirror::DexCache*>(self->DecodeJObject(weak_root));
           if (dex_cache != nullptr) {
-            dex_cache_arrays_.insert(dex_cache->GetResolvedFields());
-            dex_cache_arrays_.insert(dex_cache->GetResolvedMethods());
+            dex_caches_.insert(dex_cache);
           }
         }
       }
@@ -1659,22 +1659,25 @@ class ImageDumper {
     const auto& bitmap_section = image_header_.GetImageSection(ImageHeader::kSectionImageBitmap);
     const auto& field_section = image_header_.GetImageSection(ImageHeader::kSectionArtFields);
     const auto& method_section = image_header_.GetMethodsSection();
+    const auto& dex_cache_arrays_section = image_header_.GetImageSection(
+        ImageHeader::kSectionDexCacheArrays);
     const auto& intern_section = image_header_.GetImageSection(
         ImageHeader::kSectionInternedStrings);
     stats_.header_bytes = header_bytes;
     stats_.alignment_bytes += RoundUp(header_bytes, kObjectAlignment) - header_bytes;
     // Add padding between the field and method section.
     // (Field section is 4-byte aligned, method section is 8-byte aligned on 64-bit targets.)
-    stats_.alignment_bytes +=
-        method_section.Offset() - (field_section.Offset() + field_section.Size());
-    // Add padding between the method section and the intern table.
-    // (Method section is 4-byte aligned on 32-bit targets, intern table is 8-byte aligned.)
-    stats_.alignment_bytes +=
-        intern_section.Offset() - (method_section.Offset() + method_section.Size());
+    stats_.alignment_bytes += method_section.Offset() -
+        (field_section.Offset() + field_section.Size());
+    // Add padding between the dex cache arrays section and the intern table. (Dex cache
+    // arrays section is 4-byte aligned on 32-bit targets, intern table is 8-byte aligned.)
+    stats_.alignment_bytes += intern_section.Offset() -
+        (dex_cache_arrays_section.Offset() + dex_cache_arrays_section.Size());
     stats_.alignment_bytes += bitmap_section.Offset() - image_header_.GetImageSize();
     stats_.bitmap_bytes += bitmap_section.Size();
     stats_.art_field_bytes += field_section.Size();
     stats_.art_method_bytes += method_section.Size();
+    stats_.dex_cache_arrays_bytes += dex_cache_arrays_section.Size();
     stats_.interned_strings_bytes += intern_section.Size();
     stats_.Dump(os, indent_os);
     os << "\n";
@@ -1881,33 +1884,73 @@ class ImageDumper {
         }
       }
     } else {
-      auto it = state->dex_cache_arrays_.find(obj);
-      if (it != state->dex_cache_arrays_.end()) {
+      auto it = state->dex_caches_.find(obj);
+      if (it != state->dex_caches_.end()) {
+        auto* dex_cache = down_cast<mirror::DexCache*>(obj);
         const auto& field_section = state->image_header_.GetImageSection(
             ImageHeader::kSectionArtFields);
         const auto& method_section = state->image_header_.GetMethodsSection();
-        auto* arr = down_cast<mirror::PointerArray*>(obj);
-        for (int32_t i = 0, length = arr->GetLength(); i < length; i++) {
-          void* elem = arr->GetElementPtrSize<void*>(i, image_pointer_size);
-          size_t run = 0;
-          for (int32_t j = i + 1; j < length &&
-              elem == arr->GetElementPtrSize<void*>(j, image_pointer_size); j++, run++) { }
-          if (run == 0) {
-            os << StringPrintf("%d: ", i);
-          } else {
-            os << StringPrintf("%d to %zd: ", i, i + run);
-            i = i + run;
+        size_t num_methods = dex_cache->NumResolvedMethods();
+        if (num_methods != 0u) {
+          os << "Methods (size=" << num_methods << "):";
+          ScopedIndentation indent2(&state->vios_);
+          auto* resolved_methods = dex_cache->GetResolvedMethods();
+          for (size_t i = 0, length = dex_cache->NumResolvedMethods(); i < length; ++i) {
+            auto* elem = mirror::DexCache::GetElementPtrSize(resolved_methods, i, image_pointer_size);
+            size_t run = 0;
+            for (size_t j = i + 1;
+                j != length && elem == mirror::DexCache::GetElementPtrSize(resolved_methods,
+                                                                           j,
+                                                                           image_pointer_size);
+                ++j, ++run) {}
+            if (run == 0) {
+              os << StringPrintf("%zd: ", i);
+            } else {
+              os << StringPrintf("%zd to %zd: ", i, i + run);
+              i = i + run;
+            }
+            std::string msg;
+            if (elem == nullptr) {
+              msg = "null";
+            } else if (method_section.Contains(
+                reinterpret_cast<uint8_t*>(elem) - state->image_space_.Begin())) {
+              msg = PrettyMethod(reinterpret_cast<ArtMethod*>(elem));
+            } else {
+              msg = "<not in method section>";
+            }
+            os << StringPrintf("%p   %s\n", elem, msg.c_str());
           }
-          auto offset = reinterpret_cast<uint8_t*>(elem) - state->image_space_.Begin();
-          std::string msg;
-          if (field_section.Contains(offset)) {
-            msg = PrettyField(reinterpret_cast<ArtField*>(elem));
-          } else if (method_section.Contains(offset)) {
-            msg = PrettyMethod(reinterpret_cast<ArtMethod*>(elem));
-          } else {
-            msg = "Unknown type";
+        }
+        size_t num_fields = dex_cache->NumResolvedFields();
+        if (num_fields != 0u) {
+          os << "Fields (size=" << num_fields << "):";
+          ScopedIndentation indent2(&state->vios_);
+          auto* resolved_fields = dex_cache->GetResolvedFields();
+          for (size_t i = 0, length = dex_cache->NumResolvedFields(); i < length; ++i) {
+            auto* elem = mirror::DexCache::GetElementPtrSize(resolved_fields, i, image_pointer_size);
+            size_t run = 0;
+            for (size_t j = i + 1;
+                j != length && elem == mirror::DexCache::GetElementPtrSize(resolved_fields,
+                                                                           j,
+                                                                           image_pointer_size);
+                ++j, ++run) {}
+            if (run == 0) {
+              os << StringPrintf("%zd: ", i);
+            } else {
+              os << StringPrintf("%zd to %zd: ", i, i + run);
+              i = i + run;
+            }
+            std::string msg;
+            if (elem == nullptr) {
+              msg = "null";
+            } else if (field_section.Contains(
+                reinterpret_cast<uint8_t*>(elem) - state->image_space_.Begin())) {
+              msg = PrettyField(reinterpret_cast<ArtField*>(elem));
+            } else {
+              msg = "<not in field section>";
+            }
+            os << StringPrintf("%p   %s\n", elem, msg.c_str());
           }
-          os << StringPrintf("%p   %s\n", elem, msg.c_str());
         }
       }
     }
@@ -2022,6 +2065,7 @@ class ImageDumper {
     size_t object_bytes;
     size_t art_field_bytes;
     size_t art_method_bytes;
+    size_t dex_cache_arrays_bytes;
     size_t interned_strings_bytes;
     size_t bitmap_bytes;
     size_t alignment_bytes;
@@ -2052,6 +2096,7 @@ class ImageDumper {
           object_bytes(0),
           art_field_bytes(0),
           art_method_bytes(0),
+          dex_cache_arrays_bytes(0),
           interned_strings_bytes(0),
           bitmap_bytes(0),
           alignment_bytes(0),
@@ -2209,24 +2254,27 @@ class ImageDumper {
       {
         os << "art_file_bytes = " << PrettySize(file_bytes) << "\n\n"
            << "art_file_bytes = header_bytes + object_bytes + alignment_bytes\n";
-        indent_os << StringPrintf("header_bytes          =  %8zd (%2.0f%% of art file bytes)\n"
-                                  "object_bytes          =  %8zd (%2.0f%% of art file bytes)\n"
-                                  "art_field_bytes       =  %8zd (%2.0f%% of art file bytes)\n"
-                                  "art_method_bytes      =  %8zd (%2.0f%% of art file bytes)\n"
-                                  "interned_string_bytes =  %8zd (%2.0f%% of art file bytes)\n"
-                                  "bitmap_bytes          =  %8zd (%2.0f%% of art file bytes)\n"
-                                  "alignment_bytes       =  %8zd (%2.0f%% of art file bytes)\n\n",
+        indent_os << StringPrintf("header_bytes           =  %8zd (%2.0f%% of art file bytes)\n"
+                                  "object_bytes           =  %8zd (%2.0f%% of art file bytes)\n"
+                                  "art_field_bytes        =  %8zd (%2.0f%% of art file bytes)\n"
+                                  "art_method_bytes       =  %8zd (%2.0f%% of art file bytes)\n"
+                                  "dex_cache_arrays_bytes =  %8zd (%2.0f%% of art file bytes)\n"
+                                  "interned_string_bytes  =  %8zd (%2.0f%% of art file bytes)\n"
+                                  "bitmap_bytes           =  %8zd (%2.0f%% of art file bytes)\n"
+                                  "alignment_bytes        =  %8zd (%2.0f%% of art file bytes)\n\n",
                                   header_bytes, PercentOfFileBytes(header_bytes),
                                   object_bytes, PercentOfFileBytes(object_bytes),
                                   art_field_bytes, PercentOfFileBytes(art_field_bytes),
                                   art_method_bytes, PercentOfFileBytes(art_method_bytes),
+                                  dex_cache_arrays_bytes,
+                                  PercentOfFileBytes(dex_cache_arrays_bytes),
                                   interned_strings_bytes,
                                   PercentOfFileBytes(interned_strings_bytes),
                                   bitmap_bytes, PercentOfFileBytes(bitmap_bytes),
                                   alignment_bytes, PercentOfFileBytes(alignment_bytes))
             << std::flush;
         CHECK_EQ(file_bytes, header_bytes + object_bytes + art_field_bytes + art_method_bytes +
-                 interned_strings_bytes + bitmap_bytes + alignment_bytes);
+                 dex_cache_arrays_bytes + interned_strings_bytes + bitmap_bytes + alignment_bytes);
       }
 
       os << "object_bytes breakdown:\n";
@@ -2312,7 +2360,7 @@ class ImageDumper {
   const ImageHeader& image_header_;
   std::unique_ptr<OatDumper> oat_dumper_;
   OatDumperOptions* oat_dumper_options_;
-  std::set<mirror::Object*> dex_cache_arrays_;
+  std::set<mirror::Object*> dex_caches_;
 
   DISALLOW_COPY_AND_ASSIGN(ImageDumper);
 };

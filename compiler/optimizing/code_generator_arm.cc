@@ -4231,9 +4231,9 @@ void InstructionCodeGeneratorARM::VisitLoadClass(HLoadClass* cls) {
     __ LoadFromOffset(kLoadWord,
                       out,
                       current_method,
-                      ArtMethod::DexCacheResolvedTypesOffset().Int32Value());
+                      ArtMethod::DexCacheResolvedTypesOffset(kArmPointerSize).Int32Value());
     __ LoadFromOffset(kLoadWord, out, out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex()));
-    __ MaybeUnpoisonHeapReference(out);
+    // TODO: We will need a read barrier here.
 
     SlowPathCodeARM* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathARM(
         cls, cls, cls->GetDexPc(), cls->MustGenerateClinitCheck());
@@ -4293,9 +4293,8 @@ void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
   __ LoadFromOffset(
       kLoadWord, out, current_method, ArtMethod::DeclaringClassOffset().Int32Value());
   __ LoadFromOffset(kLoadWord, out, out, mirror::Class::DexCacheStringsOffset().Int32Value());
-  __ MaybeUnpoisonHeapReference(out);
   __ LoadFromOffset(kLoadWord, out, out, CodeGenerator::GetCacheOffset(load->GetStringIndex()));
-  __ MaybeUnpoisonHeapReference(out);
+  // TODO: We will need a read barrier here.
   __ CompareAndBranchIfZero(out, slow_path->GetEntryLabel());
   __ Bind(slow_path->GetExitLabel());
 }
@@ -4570,7 +4569,8 @@ void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
       }
       // temp = current_method->dex_cache_resolved_methods_;
       __ LoadFromOffset(
-          kLoadWord, reg, method_reg, ArtMethod::DexCacheResolvedMethodsOffset().Int32Value());
+          kLoadWord, reg, method_reg, ArtMethod::DexCacheResolvedMethodsOffset(
+              kArmPointerSize).Int32Value());
       // temp = temp[index_in_cache]
       uint32_t index_in_cache = invoke->GetTargetMethod().dex_method_index;
       __ LoadFromOffset(kLoadWord, reg, reg, CodeGenerator::GetCachePointerOffset(index_in_cache));

@@ -22,7 +22,7 @@
 #include "gc/collector/garbage_collector.h"
 #include "gc/space/image_space.h"
 #include "gc/weak_root_state.h"
-#include "mirror/dex_cache.h"
+#include "mirror/dex_cache-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/string-inl.h"
@@ -165,8 +165,7 @@ void InternTable::AddImageStringsToTable(gc::space::ImageSpace* image_space) {
       mirror::ObjectArray<mirror::DexCache>* dex_caches = root->AsObjectArray<mirror::DexCache>();
       for (int32_t i = 0; i < dex_caches->GetLength(); ++i) {
         mirror::DexCache* dex_cache = dex_caches->Get(i);
-        const DexFile* dex_file = dex_cache->GetDexFile();
-        const size_t num_strings = dex_file->NumStringIds();
+        const size_t num_strings = dex_cache->NumStrings();
         for (size_t j = 0; j < num_strings; ++j) {
           mirror::String* image_string = dex_cache->GetResolvedString(j);
           if (image_string != nullptr) {

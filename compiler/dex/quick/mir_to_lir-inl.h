@@ -21,6 +21,7 @@
 
 #include "base/logging.h"
 #include "dex/compiler_ir.h"
+#include "gc_root.h"
 #include "utils.h"
 
 namespace art {
@@ -276,6 +277,14 @@ inline void Mir2Lir::CheckRegStorage(RegStorage rs, WidenessCheck wide, RefCheck
   if (kFailOnSizeError || kReportSizeError) {
     CheckRegStorageImpl(rs, wide, ref, fp, kFailOnSizeError, kReportSizeError);
   }
+}
+
+inline size_t Mir2Lir::GetCacheOffset(uint32_t index) {
+  return sizeof(GcRoot<mirror::Object>) * index;
+}
+
+inline size_t Mir2Lir::GetCachePointerOffset(uint32_t index, size_t pointer_size) {
+  return pointer_size * index;
 }
 
 inline Mir2Lir::ShortyIterator::ShortyIterator(const char* shorty, bool is_static)

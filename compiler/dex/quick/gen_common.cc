@@ -88,24 +88,30 @@ void Mir2Lir::GenIfNullUseHelperImm(RegStorage r_result, QuickEntrypointEnum tra
                                                        r_result));
 }
 
+void Mir2Lir::LoadTypeFromCache(uint32_t type_index, RegStorage class_reg) {
+  if (CanUseOpPcRelDexCacheArrayLoad()) {
+    uint32_t offset = dex_cache_arrays_layout_.TypeOffset(type_index);
+    OpPcRelDexCacheArrayLoad(cu_->dex_file, offset, class_reg, false);
+  } else {
+    RegStorage r_method = LoadCurrMethodWithHint(class_reg);
+    MemberOffset resolved_types_offset = ArtMethod::DexCacheResolvedTypesOffset(
+        GetInstructionSetPointerSize(cu_->instruction_set));
+    LoadBaseDisp(r_method, resolved_types_offset.Int32Value(), class_reg,
+                 cu_->target64 ? k64 : k32, kNotVolatile);
+    int32_t offset_of_type = GetCacheOffset(type_index);
+    LoadRefDisp(class_reg, offset_of_type, class_reg, kNotVolatile);
+  }
+}
+
 RegStorage Mir2Lir::GenGetOtherTypeForSgetSput(const MirSFieldLoweringInfo& field_info,
                                                int opt_flags) {
   DCHECK_NE(field_info.StorageIndex(), DexFile::kDexNoIndex);
   // May do runtime call so everything to home locations.
   FlushAllRegs();
+  // Using fixed register to sync with possible call to runtime support.
   RegStorage r_base = TargetReg(kArg0, kRef);
   LockTemp(r_base);
-  if (CanUseOpPcRelDexCacheArrayLoad()) {
-    uint32_t offset = dex_cache_arrays_layout_.TypeOffset(field_info.StorageIndex());
-    OpPcRelDexCacheArrayLoad(cu_->dex_file, offset, r_base, false);
-  } else {
-    // Using fixed register to sync with possible call to runtime support.
-    RegStorage r_method = LoadCurrMethodWithHint(r_base);
-    LoadRefDisp(r_method, ArtMethod::DexCacheResolvedTypesOffset().Int32Value(), r_base,
-                kNotVolatile);
-    int32_t offset_of_field = ObjArray::OffsetOfElement(field_info.StorageIndex()).Int32Value();
-    LoadRefDisp(r_base, offset_of_field, r_base, kNotVolatile);
-  }
+  LoadTypeFromCache(field_info.StorageIndex(), r_base);
   // r_base now points at static storage (Class*) or null if the type is not yet resolved.
   LIR* unresolved_branch = nullptr;
   if (!field_info.IsClassInDexCache() && (opt_flags & MIR_CLASS_IS_IN_DEX_CACHE) == 0) {
@@ -1029,19 +1035,7 @@ void Mir2Lir::GenConstClass(uint32_t type_idx, RegLocation rl_dest) {
   } else {
     rl_result = EvalLoc(rl_dest, kRefReg, true);
     // We don't need access checks, load type from dex cache
-    if (CanUseOpPcRelDexCacheArrayLoad()) {
-      size_t offset = dex_cache_arrays_layout_.TypeOffset(type_idx);
-      OpPcRelDexCacheArrayLoad(cu_->dex_file, offset, rl_result.reg, false);
-    } else {
-      int32_t dex_cache_offset =
-          ArtMethod::DexCacheResolvedTypesOffset().Int32Value();
-      RegStorage res_reg = AllocTempRef();
-      RegStorage r_method = LoadCurrMethodWithHint(res_reg);
-      LoadRefDisp(r_method, dex_cache_offset, res_reg, kNotVolatile);
-      int32_t offset_of_type = ClassArray::OffsetOfElement(type_idx).Int32Value();
-      LoadRefDisp(res_reg, offset_of_type, rl_result.reg, kNotVolatile);
-      FreeTemp(res_reg);
-    }
+    LoadTypeFromCache(type_idx, rl_result.reg);
     if (!cu_->compiler_driver->CanAssumeTypeIsPresentInDexCache(*cu_->dex_file,
         type_idx) || ForceSlowTypePath(cu_)) {
       // Slow path, at runtime test if type is null and if so initialize
@@ -1054,8 +1048,7 @@ void Mir2Lir::GenConstClass(uint32_t type_idx, RegLocation rl_dest) {
 
 void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
   /* NOTE: Most strings should be available at compile time */
-  int32_t offset_of_string = mirror::ObjectArray<mirror::String>::OffsetOfElement(string_idx).
-                                                                                      Int32Value();
+  int32_t offset_of_string = GetCacheOffset(string_idx);
   if (!cu_->compiler_driver->CanAssumeStringIsPresentInDexCache(
       *cu_->dex_file, string_idx) || ForceSlowStringPath(cu_)) {
     // slow path, resolve string if not in dex cache
@@ -1073,7 +1066,8 @@ void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
       RegStorage r_method = LoadCurrMethodWithHint(arg0);
       LoadRefDisp(r_method, ArtMethod::DeclaringClassOffset().Int32Value(), arg0, kNotVolatile);
       // Declaring class to dex cache strings.
-      LoadRefDisp(arg0, mirror::Class::DexCacheStringsOffset().Int32Value(), arg0, kNotVolatile);
+      LoadBaseDisp(arg0, mirror::Class::DexCacheStringsOffset().Int32Value(), arg0,
+                   cu_->target64 ? k64 : k32, kNotVolatile);
 
       LoadRefDisp(arg0, offset_of_string, ret0, kNotVolatile);
     }
@@ -1091,8 +1085,8 @@ void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
       RegStorage res_reg = AllocTempRef();
       LoadRefDisp(rl_method.reg, ArtMethod::DeclaringClassOffset().Int32Value(), res_reg,
                   kNotVolatile);
-      LoadRefDisp(res_reg, mirror::Class::DexCacheStringsOffset().Int32Value(), res_reg,
-                  kNotVolatile);
+      LoadBaseDisp(res_reg, mirror::Class::DexCacheStringsOffset().Int32Value(), res_reg,
+                   cu_->target64 ? k64 : k32, kNotVolatile);
       LoadRefDisp(res_reg, offset_of_string, rl_result.reg, kNotVolatile);
       FreeTemp(res_reg);
     }
@@ -1176,19 +1170,10 @@ void Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx, Re
                 kNotVolatile);
     LoadRefDisp(object.reg,  mirror::Object::ClassOffset().Int32Value(), object_class,
                 kNotVolatile);
-  } else if (CanUseOpPcRelDexCacheArrayLoad()) {
-    size_t offset = dex_cache_arrays_layout_.TypeOffset(type_idx);
-    OpPcRelDexCacheArrayLoad(cu_->dex_file, offset, check_class, false);
-    LoadRefDisp(object.reg,  mirror::Object::ClassOffset().Int32Value(), object_class,
-                kNotVolatile);
   } else {
-    RegStorage r_method = LoadCurrMethodWithHint(check_class);
-    LoadRefDisp(r_method, ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
-                check_class, kNotVolatile);
+    LoadTypeFromCache(type_idx, check_class);
     LoadRefDisp(object.reg,  mirror::Object::ClassOffset().Int32Value(), object_class,
                 kNotVolatile);
-    int32_t offset_of_type = ClassArray::OffsetOfElement(type_idx).Int32Value();
-    LoadRefDisp(check_class, offset_of_type, check_class, kNotVolatile);
   }
 
   // FIXME: what should we be comparing here? compressed or decompressed references?
@@ -1239,17 +1224,8 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
       LoadValueDirectFixed(rl_src, ref_reg);  // kArg0 <= ref
     }
 
-    if (CanUseOpPcRelDexCacheArrayLoad()) {
-      size_t offset = dex_cache_arrays_layout_.TypeOffset(type_idx);
-      OpPcRelDexCacheArrayLoad(cu_->dex_file, offset, class_reg, false);
-    } else {
-      RegStorage r_method = LoadCurrMethodWithHint(class_reg);
-      // Load dex cache entry into class_reg (kArg2)
-      LoadRefDisp(r_method, ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
-                  class_reg, kNotVolatile);
-      int32_t offset_of_type = ClassArray::OffsetOfElement(type_idx).Int32Value();
-      LoadRefDisp(class_reg, offset_of_type, class_reg, kNotVolatile);
-    }
+    // Load dex cache entry into class_reg (kArg2)
+    LoadTypeFromCache(type_idx, class_reg);
     if (!can_assume_type_is_in_dex_cache) {
       GenIfNullUseHelperImm(class_reg, kQuickInitializeType, type_idx);
 
@@ -1370,17 +1346,7 @@ void Mir2Lir::GenCheckCast(int opt_flags, uint32_t insn_idx, uint32_t type_idx,
                 class_reg, kNotVolatile);
   } else {
     // Load dex cache entry into class_reg (kArg2)
-    if (CanUseOpPcRelDexCacheArrayLoad()) {
-      size_t offset = dex_cache_arrays_layout_.TypeOffset(type_idx);
-      OpPcRelDexCacheArrayLoad(cu_->dex_file, offset, class_reg, false);
-    } else {
-      RegStorage r_method = LoadCurrMethodWithHint(class_reg);
-
-      LoadRefDisp(r_method, ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
-                  class_reg, kNotVolatile);
-      int32_t offset_of_type = ClassArray::OffsetOfElement(type_idx).Int32Value();
-      LoadRefDisp(class_reg, offset_of_type, class_reg, kNotVolatile);
-    }
+    LoadTypeFromCache(type_idx, class_reg);
     if (!cu_->compiler_driver->CanAssumeTypeIsPresentInDexCache(*cu_->dex_file, type_idx)) {
       // Need to test presence of type in dex cache at runtime
       GenIfNullUseHelperImm(class_reg, kQuickInitializeType, type_idx);

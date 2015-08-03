@@ -129,12 +129,12 @@ static bool CheckTypeConsistency(HInstruction* instruction) {
 }
 
 size_t CodeGenerator::GetCacheOffset(uint32_t index) {
-  return mirror::ObjectArray<mirror::Object>::OffsetOfElement(index).SizeValue();
+  return sizeof(GcRoot<mirror::Object>) * index;
 }
 
 size_t CodeGenerator::GetCachePointerOffset(uint32_t index) {
   auto pointer_size = InstructionSetPointerSize(GetInstructionSet());
-  return mirror::Array::DataOffset(pointer_size).Uint32Value() + pointer_size * index;
+  return pointer_size * index;
 }
 
 void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {

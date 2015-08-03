@@ -3545,7 +3545,8 @@ void CodeGeneratorX86::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
         __ movl(reg, Address(ESP, kCurrentMethodStackOffset));
       }
       // temp = temp->dex_cache_resolved_methods_;
-      __ movl(reg, Address(method_reg, ArtMethod::DexCacheResolvedMethodsOffset().Int32Value()));
+      __ movl(reg, Address(method_reg,
+                           ArtMethod::DexCacheResolvedMethodsOffset(kX86PointerSize).Int32Value()));
       // temp = temp[index_in_cache]
       uint32_t index_in_cache = invoke->GetTargetMethod().dex_method_index;
       __ movl(reg, Address(reg, CodeGenerator::GetCachePointerOffset(index_in_cache)));
@@ -4719,9 +4720,9 @@ void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) {
   } else {
     DCHECK(cls->CanCallRuntime());
     __ movl(out, Address(
-        current_method, ArtMethod::DexCacheResolvedTypesOffset().Int32Value()));
+        current_method, ArtMethod::DexCacheResolvedTypesOffset(kX86PointerSize).Int32Value()));
     __ movl(out, Address(out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex())));
-    __ MaybeUnpoisonHeapReference(out);
+    // TODO: We will need a read barrier here.
 
     SlowPathCodeX86* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathX86(
         cls, cls, cls->GetDexPc(), cls->MustGenerateClinitCheck());
@@ -4779,9 +4780,8 @@ void InstructionCodeGeneratorX86::VisitLoadString(HLoadString* load) {
   Register current_method = locations->InAt(0).AsRegister<Register>();
   __ movl(out, Address(current_method, ArtMethod::DeclaringClassOffset().Int32Value()));
   __ movl(out, Address(out, mirror::Class::DexCacheStringsOffset().Int32Value()));
-  __ MaybeUnpoisonHeapReference(out);
   __ movl(out, Address(out, CodeGenerator::GetCacheOffset(load->GetStringIndex())));
-  __ MaybeUnpoisonHeapReference(out);
+  // TODO: We will need a read barrier here.
   __ testl(out, out);
   __ j(kEqual, slow_path->GetEntryLabel());
   __ Bind(slow_path->GetExitLabel());

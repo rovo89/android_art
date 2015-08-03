@@ -2445,10 +2445,10 @@ void CodeGeneratorMIPS64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
       }
 
       // temp = temp->dex_cache_resolved_methods_;
-      __ LoadFromOffset(kLoadUnsignedWord,
+      __ LoadFromOffset(kLoadDoubleword,
                         reg,
                         method_reg,
-                        ArtMethod::DexCacheResolvedMethodsOffset().Int32Value());
+                        ArtMethod::DexCacheResolvedMethodsOffset(kMips64PointerSize).Int32Value());
       // temp = temp[index_in_cache]
       uint32_t index_in_cache = invoke->GetTargetMethod().dex_method_index;
       __ LoadFromOffset(kLoadDoubleword,
@@ -2549,9 +2549,10 @@ void InstructionCodeGeneratorMIPS64::VisitLoadClass(HLoadClass* cls) {
                       ArtMethod::DeclaringClassOffset().Int32Value());
   } else {
     DCHECK(cls->CanCallRuntime());
-    __ LoadFromOffset(kLoadUnsignedWord, out, current_method,
-                      ArtMethod::DexCacheResolvedTypesOffset().Int32Value());
+    __ LoadFromOffset(kLoadDoubleword, out, current_method,
+                      ArtMethod::DexCacheResolvedTypesOffset(kMips64PointerSize).Int32Value());
     __ LoadFromOffset(kLoadUnsignedWord, out, out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex()));
+    // TODO: We will need a read barrier here.
     SlowPathCodeMIPS64* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathMIPS64(
         cls,
         cls,
@@ -2614,8 +2615,9 @@ void InstructionCodeGeneratorMIPS64::VisitLoadString(HLoadString* load) {
   GpuRegister current_method = locations->InAt(0).AsRegister<GpuRegister>();
   __ LoadFromOffset(kLoadUnsignedWord, out, current_method,
                     ArtMethod::DeclaringClassOffset().Int32Value());
-  __ LoadFromOffset(kLoadUnsignedWord, out, out, mirror::Class::DexCacheStringsOffset().Int32Value());
+  __ LoadFromOffset(kLoadDoubleword, out, out, mirror::Class::DexCacheStringsOffset().Int32Value());
   __ LoadFromOffset(kLoadUnsignedWord, out, out, CodeGenerator::GetCacheOffset(load->GetStringIndex()));
+  // TODO: We will need a read barrier here.
   __ Beqzc(out, slow_path->GetEntryLabel());
   __ Bind(slow_path->GetExitLabel());
 }
