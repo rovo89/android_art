@@ -17,7 +17,7 @@
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
-// Note that $opt$ is a marker for the optimizing compiler to ensure
+// Note that $opt$ is a marker for the optimizing compiler to test
 // it does compile the method.
 
 public class Main extends TestCase {
