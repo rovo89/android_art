@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// Note that $opt$reg$ is a marker for the optimizing compiler to ensure
+// Note that $opt$reg$ is a marker for the optimizing compiler to test
 // it does use its register allocator.
 
 public class Main {
