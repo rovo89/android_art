@@ -16,6 +16,7 @@
 
 #include "java_lang_VMClassLoader.h"
 
+#include "base/out.h"
 #include "class_linker.h"
 #include "jni_internal.h"
 #include "mirror/class_loader.h"
@@ -45,7 +46,7 @@ static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoa
     // Try the common case.
     StackHandleScope<1> hs(soa.Self());
     cl->FindClassInPathClassLoader(soa, soa.Self(), descriptor.c_str(), descriptor_hash,
-                                   hs.NewHandle(loader), &c);
+                                   hs.NewHandle(loader), outof(c));
     if (c != nullptr) {
       return soa.AddLocalReference<jclass>(c);
     }
