@@ -105,6 +105,16 @@ TEST_F(AssemblerX86Test, Movl) {
   DriverStr(expected, "movl");
 }
 
+TEST_F(AssemblerX86Test, Movntl) {
+  GetAssembler()->movntl(x86::Address(x86::EDI, x86::EBX, x86::TIMES_4, 12), x86::EAX);
+  GetAssembler()->movntl(x86::Address(x86::EDI, 0), x86::EAX);
+  const char* expected =
+    "movntil %EAX, 0xc(%EDI,%EBX,4)\n"
+    "movntil %EAX, (%EDI)\n";
+
+  DriverStr(expected, "movntl");
+}
+
 TEST_F(AssemblerX86Test, psrlq) {
   GetAssembler()->psrlq(x86::XMM0, CreateImmediate(32));
   const char* expected = "psrlq $0x20, %xmm0\n";
