@@ -153,6 +153,11 @@ struct out {
     return param_;
   }
 
+  // Model dereferencing fields/methods on a pointer.
+  inline T* operator->() {
+    return std::addressof(param_);
+  }
+
   //
   // Comparison against this or other pointers.
   //
@@ -266,7 +271,7 @@ inline out_convertible<T> outof_ptr(T* ptr) {
 // Forwards an out parameter from one function into another.
 template <typename T>
 inline out_convertible<T> outof_forward(out<T>& out_param) {
-  T& param = std::addressof(*out_param);
+  T& param = *out_param;
   return out_convertible<T>(param);
 }
 
