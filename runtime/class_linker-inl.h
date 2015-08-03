@@ -117,8 +117,10 @@ inline ArtMethod* ClassLinker::GetResolvedMethod(uint32_t method_idx, ArtMethod*
   return resolved_method;
 }
 
-inline ArtMethod* ClassLinker::ResolveMethod(Thread* self, uint32_t method_idx,
-                                             ArtMethod* referrer, InvokeType type) {
+inline ArtMethod* ClassLinker::ResolveMethod(Thread* self,
+                                             uint32_t method_idx,
+                                             ArtMethod* referrer,
+                                             InvokeType type) {
   ArtMethod* resolved_method = GetResolvedMethod(method_idx, referrer);
   if (UNLIKELY(resolved_method == nullptr)) {
     mirror::Class* declaring_class = referrer->GetDeclaringClass();
@@ -143,7 +145,8 @@ inline ArtField* ClassLinker::GetResolvedField(
   return GetResolvedField(field_idx, field_declaring_class->GetDexCache());
 }
 
-inline ArtField* ClassLinker::ResolveField(uint32_t field_idx, ArtMethod* referrer,
+inline ArtField* ClassLinker::ResolveField(uint32_t field_idx,
+                                           ArtMethod* referrer,
                                            bool is_static) {
   mirror::Class* declaring_class = referrer->GetDeclaringClass();
   ArtField* resolved_field = GetResolvedField(field_idx, declaring_class);
