@@ -126,7 +126,7 @@ class StubTest : public CommonRuntimeTest {
           // Use the result from r0
         : [arg0] "r"(arg0), [arg1] "r"(arg1), [arg2] "r"(arg2), [code] "r"(code), [self] "r"(self),
           [referrer] "r"(referrer)
-        : "memory");  // clobber.
+        : "r0", "memory");  // clobber.
 #elif defined(__aarch64__)
     __asm__ __volatile__(
         // Spill x0-x7 which we say we don't clobber. May contain args.
@@ -479,7 +479,7 @@ class StubTest : public CommonRuntimeTest {
           // Use the result from r0
         : [arg0] "r"(arg0), [arg1] "r"(arg1), [arg2] "r"(arg2), [code] "r"(code), [self] "r"(self),
           [referrer] "r"(referrer), [hidden] "r"(hidden)
-        : "memory");  // clobber.
+        : "r0", "memory");  // clobber.
 #elif defined(__aarch64__)
     __asm__ __volatile__(
         // Spill x0-x7 which we say we don't clobber. May contain args.
