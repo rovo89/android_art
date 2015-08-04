@@ -609,6 +609,7 @@ class X86_64Assembler FINAL : public Assembler {
   void repne_scasw();
   void repe_cmpsw();
   void repe_cmpsl();
+  void repe_cmpsq();
 
   //
   // Macros for High-level operations.
