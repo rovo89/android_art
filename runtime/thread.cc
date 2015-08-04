@@ -2736,7 +2736,7 @@ void Thread::PopVerifier(verifier::MethodVerifier* verifier) {
 size_t Thread::NumberOfHeldMutexes() const {
   size_t count = 0;
   for (BaseMutex* mu : tlsPtr_.held_mutexes) {
-    count += static_cast<size_t>(mu != nullptr);
+    count += mu != nullptr ? 1 : 0;
   }
   return count;
 }

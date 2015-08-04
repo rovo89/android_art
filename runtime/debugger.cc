@@ -2094,7 +2094,7 @@ JDWP::JdwpThreadStatus Dbg::ToJdwpThreadStatus(ThreadState state) {
     case kWaitingInMainDebuggerLoop:
     case kWaitingInMainSignalCatcherLoop:
     case kWaitingPerformingGc:
-    case kWaitingWeakRootRead:
+    case kWaitingWeakGcRootRead:
     case kWaiting:
       return JDWP::TS_WAIT;
       // Don't add a 'default' here so the compiler can spot incompatible enum changes.
