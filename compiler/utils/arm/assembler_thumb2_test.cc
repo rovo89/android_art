@@ -1011,4 +1011,12 @@ TEST_F(AssemblerThumb2Test, LoadLiteralBeyondMax1KiBDueToAlignmentOnSecondPass) 
             __ GetAdjustedPosition(label.Position()));
 }
 
+TEST_F(AssemblerThumb2Test, Clz) {
+  __ clz(arm::R0, arm::R1);
+
+  const char* expected = "clz r0, r1\n";
+
+  DriverStr(expected, "clz");
+}
+
 }  // namespace art

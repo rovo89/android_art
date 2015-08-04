@@ -45,6 +45,8 @@ public class Main {
     test_Long_reverseBytes();
     test_Integer_reverse();
     test_Long_reverse();
+    test_Integer_numberOfLeadingZeros();
+    test_Long_numberOfLeadingZeros();
     test_StrictMath_abs_I();
     test_StrictMath_abs_J();
     test_StrictMath_min_I();
@@ -1039,6 +1041,24 @@ public class Main {
     // Include everything in the result, so things are kept live. Try to be a little bit clever to
     // avoid things being folded somewhere.
     return (r1 / i1) + (r2 / i2) + i3 + i4 + i5 + i6 + i7 + i8;
+  }
+
+  public static void test_Integer_numberOfLeadingZeros() {
+    Assert.assertEquals(Integer.numberOfLeadingZeros(0), Integer.SIZE);
+    for (int i = 0; i < Integer.SIZE; i++) {
+        Assert.assertEquals(Integer.numberOfLeadingZeros(1 << i), Integer.SIZE - 1 - i);
+        Assert.assertEquals(Integer.numberOfLeadingZeros((1 << i) | 1), Integer.SIZE - 1 - i);
+        Assert.assertEquals(Integer.numberOfLeadingZeros(0xFFFFFFFF >>> i), i);
+    }
+  }
+
+  public static void test_Long_numberOfLeadingZeros() {
+    Assert.assertEquals(Long.numberOfLeadingZeros(0L), Long.SIZE);
+    for (int i = 0; i < Long.SIZE; i++) {
+        Assert.assertEquals(Long.numberOfLeadingZeros(1L << i), Long.SIZE - 1 - i);
+        Assert.assertEquals(Long.numberOfLeadingZeros((1L << i) | 1L), Long.SIZE - 1 - i);
+        Assert.assertEquals(Long.numberOfLeadingZeros(0xFFFFFFFFFFFFFFFFL >>> i), i);
+    }
   }
 
   static Object runtime;
