@@ -434,27 +434,35 @@ static void Unsafe_putShort(JNIEnv* env, jobject, jobject javaObj, jlong offset,
 static jfloat Unsafe_getFloat(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  return obj->GetField32(MemberOffset(offset));
+  union {int32_t val; jfloat converted;} conv;
+  conv.val = obj->GetField32(MemberOffset(offset));
+  return conv.converted;
 }
 
 static void Unsafe_putFloat(JNIEnv* env, jobject, jobject javaObj, jlong offset, jfloat newValue) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  union {int32_t converted; jfloat val;} conv;
+  conv.val = newValue;
   // JNI must use non transactional mode.
-  obj->SetField32<false>(MemberOffset(offset), newValue);
+  obj->SetField32<false>(MemberOffset(offset), conv.converted);
 }
 
 static jdouble Unsafe_getDouble(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  return obj->GetField64(MemberOffset(offset));
+  union {int64_t val; jdouble converted;} conv;
+  conv.val = obj->GetField64(MemberOffset(offset));
+  return conv.converted;
 }
 
 static void Unsafe_putDouble(JNIEnv* env, jobject, jobject javaObj, jlong offset, jdouble newValue) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  union {int64_t converted; jdouble val;} conv;
+  conv.val = newValue;
   // JNI must use non transactional mode.
-  obj->SetField64<false>(MemberOffset(offset), newValue);
+  obj->SetField64<false>(MemberOffset(offset), conv.converted);
 }
 
 static JNINativeMethod gMethods[] = {
