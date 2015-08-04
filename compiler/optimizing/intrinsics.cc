@@ -103,6 +103,16 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
           LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
           UNREACHABLE();
       }
+    case kIntrinsicNumberOfLeadingZeros:
+      switch (GetType(method.d.data, true)) {
+        case Primitive::kPrimInt:
+          return Intrinsics::kIntegerNumberOfLeadingZeros;
+        case Primitive::kPrimLong:
+          return Intrinsics::kLongNumberOfLeadingZeros;
+        default:
+          LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
+          UNREACHABLE();
+      }
 
     // Abs.
     case kIntrinsicAbsDouble:

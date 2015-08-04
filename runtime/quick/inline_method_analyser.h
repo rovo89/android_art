@@ -39,6 +39,7 @@ enum InlineMethodOpcode : uint16_t {
   kIntrinsicFloatCvt,
   kIntrinsicReverseBits,
   kIntrinsicReverseBytes,
+  kIntrinsicNumberOfLeadingZeros,
   kIntrinsicAbsInt,
   kIntrinsicAbsLong,
   kIntrinsicAbsFloat,

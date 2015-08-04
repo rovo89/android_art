@@ -206,6 +206,7 @@ class DexFileMethodInliner {
       kNameCachePutObjectVolatile,
       kNameCachePutOrderedObject,
       kNameCacheArrayCopy,
+      kNameCacheNumberOfLeadingZeros,
       kNameCacheLast
     };
 
