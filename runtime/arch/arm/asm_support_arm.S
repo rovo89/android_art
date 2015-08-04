@@ -50,6 +50,11 @@
 // generated at END.
 .macro DEF_ENTRY thumb_or_arm, name
     \thumb_or_arm
+// Clang ignores .thumb_func and requires an explicit .thumb. Investigate whether we should still
+// carry around the .thumb_func.
+    .ifc \thumb_or_arm, .thumb_func
+        .thumb
+    .endif
     .type \name, #function
     .hidden \name  // Hide this as a global symbol, so we do not incur plt calls.
     .global \name
