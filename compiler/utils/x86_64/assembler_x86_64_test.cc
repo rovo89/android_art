@@ -1315,4 +1315,10 @@ TEST_F(AssemblerX86_64Test, Repecmpsl) {
   DriverStr(expected, "Repecmpsl");
 }
 
+TEST_F(AssemblerX86_64Test, Repecmpsq) {
+  GetAssembler()->repe_cmpsq();
+  const char* expected = "repe cmpsq\n";
+  DriverStr(expected, "Repecmpsq");
+}
+
 }  // namespace art
