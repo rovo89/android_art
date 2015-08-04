@@ -56,7 +56,6 @@
 #include "atomic.h"
 #include "base/arena_allocator.h"
 #include "base/dumpable.h"
-#include "base/out.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker-inl.h"
 #include "compiler_callbacks.h"
@@ -308,8 +307,8 @@ struct AbortState {
     Thread* self = Thread::Current();
     if (self == nullptr) {
       os << "(Aborting thread was not attached to runtime!)\n";
-      DumpKernelStack(os, GetTid(), "  kernel: ", false /* don't include count */);
-      DumpNativeStack(os, GetTid(), "  native: ", nullptr /* no ucontext ptr */);
+      DumpKernelStack(os, GetTid(), "  kernel: ", false);
+      DumpNativeStack(os, GetTid(), "  native: ", nullptr);
     } else {
       os << "Aborting thread:\n";
       if (Locks::mutator_lock_->IsExclusiveHeld(self) || Locks::mutator_lock_->IsSharedHeld(self)) {
@@ -418,7 +417,7 @@ bool Runtime::Create(const RuntimeOptions& options, bool ignore_unrecognized) {
   if (Runtime::instance_ != nullptr) {
     return false;
   }
-  InitLogging(nullptr /* no argv */);  // Calls Locks::Init() as a side effect.
+  InitLogging(nullptr);  // Calls Locks::Init() as a side effect.
   instance_ = new Runtime;
   if (!instance_->Init(options, ignore_unrecognized)) {
     // TODO: Currently deleting the instance will abort the runtime on destruction. Now This will
@@ -660,7 +659,7 @@ void Runtime::DidForkFromZygote(JNIEnv* env, NativeBridgeAction action, const ch
   // before fork aren't attributed to an app.
   heap_->ResetGcPerformanceInfo();
 
-  if (jit_ == nullptr && jit_options_->UseJIT()) {
+  if (jit_.get() == nullptr && jit_options_->UseJIT()) {
     // Create the JIT if the flag is set and we haven't already create it (happens for run-tests).
     CreateJit();
   }
@@ -708,8 +707,9 @@ void Runtime::StartDaemonThreads() {
 }
 
 static bool OpenDexFilesFromImage(const std::string& image_location,
-                                  out<std::vector<std::unique_ptr<const DexFile>>> dex_files,
-                                  out<size_t> failures) {
+                                  std::vector<std::unique_ptr<const DexFile>>* dex_files,
+                                  size_t* failures) {
+  DCHECK(dex_files != nullptr) << "OpenDexFilesFromImage: out-param is nullptr";
   std::string system_filename;
   bool has_system = false;
   std::string cache_filename_unused;
@@ -718,12 +718,12 @@ static bool OpenDexFilesFromImage(const std::string& image_location,
   bool is_global_cache_unused;
   bool found_image = gc::space::ImageSpace::FindImageFilename(image_location.c_str(),
                                                               kRuntimeISA,
-                                                              outof(system_filename),
-                                                              outof(has_system),
-                                                              outof(cache_filename_unused),
-                                                              outof(dalvik_cache_exists_unused),
-                                                              outof(has_cache_unused),
-                                                              outof(is_global_cache_unused));
+                                                              &system_filename,
+                                                              &has_system,
+                                                              &cache_filename_unused,
+                                                              &dalvik_cache_exists_unused,
+                                                              &has_cache_unused,
+                                                              &is_global_cache_unused);
   *failures = 0;
   if (!found_image || !has_system) {
     return false;
@@ -737,12 +737,12 @@ static bool OpenDexFilesFromImage(const std::string& image_location,
   if (file.get() == nullptr) {
     return false;
   }
-  std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file.release(), false, false, outof(error_msg)));
+  std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file.release(), false, false, &error_msg));
   if (elf_file.get() == nullptr) {
     return false;
   }
   std::unique_ptr<OatFile> oat_file(OatFile::OpenWithElfFile(elf_file.release(), oat_location,
-                                                             nullptr, outof(error_msg)));
+                                                             nullptr, &error_msg));
   if (oat_file.get() == nullptr) {
     LOG(INFO) << "Unable to use '" << oat_filename << "' because " << error_msg;
     return false;
@@ -753,7 +753,7 @@ static bool OpenDexFilesFromImage(const std::string& image_location,
       *failures += 1;
       continue;
     }
-    std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(outof(error_msg));
+    std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(&error_msg);
     if (dex_file.get() == nullptr) {
       *failures += 1;
     } else {
@@ -768,11 +768,10 @@ static bool OpenDexFilesFromImage(const std::string& image_location,
 static size_t OpenDexFiles(const std::vector<std::string>& dex_filenames,
                            const std::vector<std::string>& dex_locations,
                            const std::string& image_location,
-                           out<std::vector<std::unique_ptr<const DexFile>>> dex_files) {
+                           std::vector<std::unique_ptr<const DexFile>>* dex_files) {
+  DCHECK(dex_files != nullptr) << "OpenDexFiles: out-param is nullptr";
   size_t failure_count = 0;
-  if (!image_location.empty() && OpenDexFilesFromImage(image_location,
-                                                       outof_forward(dex_files),
-                                                       outof(failure_count))) {
+  if (!image_location.empty() && OpenDexFilesFromImage(image_location, dex_files, &failure_count)) {
     return failure_count;
   }
   failure_count = 0;
@@ -784,7 +783,7 @@ static size_t OpenDexFiles(const std::vector<std::string>& dex_filenames,
       LOG(WARNING) << "Skipping non-existent dex file '" << dex_filename << "'";
       continue;
     }
-    if (!DexFile::Open(dex_filename, dex_location, outof(error_msg), outof_forward(dex_files))) {
+    if (!DexFile::Open(dex_filename, dex_location, &error_msg, dex_files)) {
       LOG(WARNING) << "Failed to open .dex from file '" << dex_filename << "': " << error_msg;
       ++failure_count;
     }
@@ -801,7 +800,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   using Opt = RuntimeArgumentMap;
   RuntimeArgumentMap runtime_options;
   std::unique_ptr<ParsedOptions> parsed_options(
-      ParsedOptions::Create(raw_options, ignore_unrecognized, outof(runtime_options)));
+      ParsedOptions::Create(raw_options, ignore_unrecognized, &runtime_options));
   if (parsed_options.get() == nullptr) {
     LOG(ERROR) << "Failed to parse options";
     ATRACE_END();
@@ -1039,7 +1038,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
     OpenDexFiles(dex_filenames,
                  dex_locations,
                  runtime_options.GetOrDefault(Opt::Image),
-                 outof(boot_class_path));
+                 &boot_class_path);
     instruction_set_ = runtime_options.GetOrDefault(Opt::ImageInstructionSet);
     class_linker_->InitWithoutImage(std::move(boot_class_path));
 
@@ -1168,7 +1167,7 @@ void Runtime::InitNativeMethods() {
   // the library that implements System.loadLibrary!
   {
     std::string reason;
-    if (!java_vm_->LoadNativeLibrary(env, "libjavacore.so", nullptr, outof(reason))) {
+    if (!java_vm_->LoadNativeLibrary(env, "libjavacore.so", nullptr, &reason)) {
       LOG(FATAL) << "LoadNativeLibrary failed for \"libjavacore.so\": " << reason;
     }
   }
@@ -1331,9 +1330,7 @@ void Runtime::BlockSignals() {
   signals.Block();
 }
 
-bool Runtime::AttachCurrentThread(const char* thread_name,
-                                  bool as_daemon,
-                                  jobject thread_group,
+bool Runtime::AttachCurrentThread(const char* thread_name, bool as_daemon, jobject thread_group,
                                   bool create_peer) {
   return Thread::Attach(thread_name, as_daemon, thread_group, create_peer) != nullptr;
 }
@@ -1439,8 +1436,7 @@ void Runtime::VisitThreadRoots(RootVisitor* visitor) {
   thread_list_->VisitRoots(visitor);
 }
 
-size_t Runtime::FlipThreadRoots(Closure* thread_flip_visitor,
-                                Closure* flip_callback,
+size_t Runtime::FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_callback,
                                 gc::collector::GarbageCollector* collector) {
   return thread_list_->FlipThreadRoots(thread_flip_visitor, flip_callback, collector);
 }
@@ -1627,64 +1623,50 @@ void Runtime::ThrowTransactionAbortError(Thread* self) {
   preinitialization_transaction_->ThrowAbortError(self, nullptr);
 }
 
-void Runtime::RecordWriteFieldBoolean(mirror::Object* obj,
-                                      MemberOffset field_offset,
-                                      uint8_t value,
-                                      bool is_volatile) const {
+void Runtime::RecordWriteFieldBoolean(mirror::Object* obj, MemberOffset field_offset,
+                                      uint8_t value, bool is_volatile) const {
   DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWriteFieldBoolean(obj, field_offset, value, is_volatile);
 }
 
-void Runtime::RecordWriteFieldByte(mirror::Object* obj,
-                                   MemberOffset field_offset,
-                                   int8_t value,
-                                   bool is_volatile) const {
+void Runtime::RecordWriteFieldByte(mirror::Object* obj, MemberOffset field_offset,
+                                   int8_t value, bool is_volatile) const {
   DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWriteFieldByte(obj, field_offset, value, is_volatile);
 }
 
-void Runtime::RecordWriteFieldChar(mirror::Object* obj,
-                                   MemberOffset field_offset,
-                                   uint16_t value,
-                                   bool is_volatile) const {
+void Runtime::RecordWriteFieldChar(mirror::Object* obj, MemberOffset field_offset,
+                                   uint16_t value, bool is_volatile) const {
   DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWriteFieldChar(obj, field_offset, value, is_volatile);
 }
 
-void Runtime::RecordWriteFieldShort(mirror::Object* obj,
-                                    MemberOffset field_offset,
-                                    int16_t value,
-                                    bool is_volatile) const {
+void Runtime::RecordWriteFieldShort(mirror::Object* obj, MemberOffset field_offset,
+                                    int16_t value, bool is_volatile) const {
   DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWriteFieldShort(obj, field_offset, value, is_volatile);
 }
 
-void Runtime::RecordWriteField32(mirror::Object* obj,
-                                 MemberOffset field_offset,
-                                 uint32_t value,
-                                 bool is_volatile) const {
+void Runtime::RecordWriteField32(mirror::Object* obj, MemberOffset field_offset,
+                                 uint32_t value, bool is_volatile) const {
   DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWriteField32(obj, field_offset, value, is_volatile);
 }
 
-void Runtime::RecordWriteField64(mirror::Object* obj,
-                                 MemberOffset field_offset,
-                                 uint64_t value,
-                                 bool is_volatile) const {
+void Runtime::RecordWriteField64(mirror::Object* obj, MemberOffset field_offset,
+                                 uint64_t value, bool is_volatile) const {
   DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWriteField64(obj, field_offset, value, is_volatile);
 }
 
-void Runtime::RecordWriteFieldReference(mirror::Object* obj,
-                                        MemberOffset field_offset,
-                                        mirror::Object* value,
-                                        bool is_volatile) const {
+void Runtime::RecordWriteFieldReference(mirror::Object* obj, MemberOffset field_offset,
+                                        mirror::Object* value, bool is_volatile) const {
   DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWriteFieldReference(obj, field_offset, value, is_volatile);
@@ -1725,7 +1707,7 @@ void Runtime::SetFaultMessage(const std::string& message) {
   fault_message_ = message;
 }
 
-void Runtime::AddCurrentRuntimeFeaturesAsDex2OatArguments(out<std::vector<std::string>> argv)
+void Runtime::AddCurrentRuntimeFeaturesAsDex2OatArguments(std::vector<std::string>* argv)
     const {
   if (GetInstrumentation()->InterpretOnly() || UseJit()) {
     argv->push_back("--compiler-filter=interpret-only");

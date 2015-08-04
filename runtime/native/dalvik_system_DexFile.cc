@@ -17,7 +17,6 @@
 #include "dalvik_system_DexFile.h"
 
 #include "base/logging.h"
-#include "base/out.h"
 #include "base/stl_util.h"
 #include "base/stringprintf.h"
 #include "class_linker.h"
@@ -165,8 +164,7 @@ static jobject DexFile_openDexFileNative(
   std::vector<std::unique_ptr<const DexFile>> dex_files;
   std::vector<std::string> error_msgs;
 
-  dex_files =
-      linker->OpenDexFilesFromOat(sourceName.c_str(), outputName.c_str(), outof(error_msgs));
+  dex_files = linker->OpenDexFilesFromOat(sourceName.c_str(), outputName.c_str(), &error_msgs);
 
   if (!dex_files.empty()) {
     jlongArray array = ConvertNativeToJavaArray(env, dex_files);
