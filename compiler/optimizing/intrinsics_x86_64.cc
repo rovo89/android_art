@@ -1615,6 +1615,8 @@ void IntrinsicCodeGeneratorX86_64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSE
 UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
+UNIMPLEMENTED_INTRINSIC(IntegerNumberOfLeadingZeros)
+UNIMPLEMENTED_INTRINSIC(LongNumberOfLeadingZeros)
 
 #undef UNIMPLEMENTED_INTRINSIC
 
