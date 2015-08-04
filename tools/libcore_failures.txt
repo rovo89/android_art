@@ -153,9 +153,9 @@
 },
 {
   description: "TimeZoneTest.testAllDisplayNames times out, needs investigation",
-  result: EXEC_FAILED,
+  result: EXEC_TIMEOUT,
   modes: [device],
-  names: ["libcore.java.util.TimeZoneTest.testAllDisplayNames"],
+  names: ["libcore.java.util.TimeZoneTest#testAllDisplayNames"],
   bug: 22786792
 }
 ]
