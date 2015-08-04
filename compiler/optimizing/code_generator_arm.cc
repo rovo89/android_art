@@ -4290,6 +4290,10 @@ void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
   __ Bind(slow_path->GetExitLabel());
 }
 
+static int32_t GetExceptionTlsOffset() {
+  return Thread::ExceptionOffset<kArmWordSize>().Int32Value();
+}
+
 void LocationsBuilderARM::VisitLoadException(HLoadException* load) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(load, LocationSummary::kNoCall);
@@ -4298,10 +4302,16 @@ void LocationsBuilderARM::VisitLoadException(HLoadException* load) {
 
 void InstructionCodeGeneratorARM::VisitLoadException(HLoadException* load) {
   Register out = load->GetLocations()->Out().AsRegister<Register>();
-  int32_t offset = Thread::ExceptionOffset<kArmWordSize>().Int32Value();
-  __ LoadFromOffset(kLoadWord, out, TR, offset);
+  __ LoadFromOffset(kLoadWord, out, TR, GetExceptionTlsOffset());
+}
+
+void LocationsBuilderARM::VisitClearException(HClearException* clear) {
+  new (GetGraph()->GetArena()) LocationSummary(clear, LocationSummary::kNoCall);
+}
+
+void InstructionCodeGeneratorARM::VisitClearException(HClearException* clear ATTRIBUTE_UNUSED) {
   __ LoadImmediate(IP, 0);
-  __ StoreToOffset(kStoreWord, IP, TR, offset);
+  __ StoreToOffset(kStoreWord, IP, TR, GetExceptionTlsOffset());
 }
 
 void LocationsBuilderARM::VisitThrow(HThrow* instruction) {
