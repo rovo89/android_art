@@ -25,7 +25,6 @@
 
 #include "art_method.h"
 #include "base/macros.h"
-#include "base/out.h"
 #include "base/stl_util.h"
 #include "base/scoped_flock.h"
 #include "base/time_utils.h"
@@ -208,7 +207,7 @@ static bool GenerateImage(const std::string& image_filename, InstructionSet imag
   // Note: we do not generate a fully debuggable boot image so we do not pass the
   // compiler flag --debuggable here.
 
-  Runtime::Current()->AddCurrentRuntimeFeaturesAsDex2OatArguments(outof(arg_vector));
+  Runtime::Current()->AddCurrentRuntimeFeaturesAsDex2OatArguments(&arg_vector);
   CHECK_EQ(image_isa, kRuntimeISA)
       << "We should always be generating an image for the current isa.";
 
@@ -790,13 +789,10 @@ OatFile* ImageSpace::OpenOatFile(const char* image_path, std::string* error_msg)
 
   CHECK(image_header.GetOatDataBegin() != nullptr);
 
-  OatFile* oat_file = OatFile::Open(oat_filename,
-                                    oat_filename,
-                                    image_header.GetOatDataBegin(),
+  OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, image_header.GetOatDataBegin(),
                                     image_header.GetOatFileBegin(),
                                     !Runtime::Current()->IsAotCompiler(),
-                                    nullptr /* no abs dex location */,
-                                    outof_ptr(error_msg));
+                                    nullptr, error_msg);
   if (oat_file == nullptr) {
     *error_msg = StringPrintf("Failed to open oat file '%s' referenced from image %s: %s",
                               oat_filename.c_str(), GetName(), error_msg->c_str());

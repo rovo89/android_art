@@ -19,7 +19,6 @@
 #include "arch/context.h"
 #include "art_method-inl.h"
 #include "base/hex_dump.h"
-#include "base/out.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc_map.h"
@@ -181,7 +180,7 @@ mirror::Object* StackVisitor::GetThisObject() const {
     } else {
       uint16_t reg = code_item->registers_size_ - code_item->ins_size_;
       uint32_t value = 0;
-      bool success = GetVReg(m, reg, kReferenceVReg, outof(value));
+      bool success = GetVReg(m, reg, kReferenceVReg, &value);
       // We currently always guarantee the `this` object is live throughout the method.
       CHECK(success) << "Failed to read the this object in " << PrettyMethod(m);
       return reinterpret_cast<mirror::Object*>(value);
@@ -376,8 +375,8 @@ bool StackVisitor::GetVRegPairFromQuickCode(ArtMethod* m, uint16_t vreg, VRegKin
   QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo(code_pointer);
   uint32_t vmap_offset_lo, vmap_offset_hi;
   // TODO: IsInContext stops before spotting floating point registers.
-  if (vmap_table.IsInContext(vreg, kind_lo, outof(vmap_offset_lo)) &&
-      vmap_table.IsInContext(vreg + 1, kind_hi, outof(vmap_offset_hi))) {
+  if (vmap_table.IsInContext(vreg, kind_lo, &vmap_offset_lo) &&
+      vmap_table.IsInContext(vreg + 1, kind_hi, &vmap_offset_hi)) {
     bool is_float = (kind_lo == kDoubleLoVReg);
     uint32_t spill_mask = is_float ? frame_info.FpSpillMask() : frame_info.CoreSpillMask();
     uint32_t reg_lo = vmap_table.ComputeRegister(spill_mask, vmap_offset_lo, kind_lo);
@@ -400,8 +399,8 @@ bool StackVisitor::GetVRegPairFromOptimizedCode(ArtMethod* m, uint16_t vreg,
                                                 uint64_t* val) const {
   uint32_t low_32bits;
   uint32_t high_32bits;
-  bool success = GetVRegFromOptimizedCode(m, vreg, kind_lo, outof(low_32bits));
-  success &= GetVRegFromOptimizedCode(m, vreg + 1, kind_hi, outof(high_32bits));
+  bool success = GetVRegFromOptimizedCode(m, vreg, kind_lo, &low_32bits);
+  success &= GetVRegFromOptimizedCode(m, vreg + 1, kind_hi, &high_32bits);
   if (success) {
     *val = (static_cast<uint64_t>(high_32bits) << 32) | static_cast<uint64_t>(low_32bits);
   }
@@ -453,7 +452,7 @@ bool StackVisitor::SetVRegFromQuickCode(ArtMethod* m, uint16_t vreg, uint32_t ne
   QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo(code_pointer);
   uint32_t vmap_offset;
   // TODO: IsInContext stops before spotting floating point registers.
-  if (vmap_table.IsInContext(vreg, kind, outof(vmap_offset))) {
+  if (vmap_table.IsInContext(vreg, kind, &vmap_offset)) {
     bool is_float = (kind == kFloatVReg) || (kind == kDoubleLoVReg) || (kind == kDoubleHiVReg);
     uint32_t spill_mask = is_float ? frame_info.FpSpillMask() : frame_info.CoreSpillMask();
     uint32_t reg = vmap_table.ComputeRegister(spill_mask, vmap_offset, kind);
@@ -533,8 +532,8 @@ bool StackVisitor::SetVRegPairFromQuickCode(
   QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo(code_pointer);
   uint32_t vmap_offset_lo, vmap_offset_hi;
   // TODO: IsInContext stops before spotting floating point registers.
-  if (vmap_table.IsInContext(vreg, kind_lo, outof(vmap_offset_lo)) &&
-      vmap_table.IsInContext(vreg + 1, kind_hi, outof(vmap_offset_hi))) {
+  if (vmap_table.IsInContext(vreg, kind_lo, &vmap_offset_lo) &&
+      vmap_table.IsInContext(vreg + 1, kind_hi, &vmap_offset_hi)) {
     bool is_float = (kind_lo == kDoubleLoVReg);
     uint32_t spill_mask = is_float ? frame_info.FpSpillMask() : frame_info.CoreSpillMask();
     uint32_t reg_lo = vmap_table.ComputeRegister(spill_mask, vmap_offset_lo, kind_lo);
