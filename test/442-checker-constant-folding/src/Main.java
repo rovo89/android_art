@@ -363,6 +363,273 @@ public class Main {
 
 
   /**
+   * Exercise constant folding on left shift.
+   */
+
+  /// CHECK-START: int Main.ShlIntLong() constant_folding (before)
+  /// CHECK-DAG:     <<Const1:i\d+>>   IntConstant 1
+  /// CHECK-DAG:     <<Const2L:j\d+>>  LongConstant 2
+  /// CHECK-DAG:     <<TypeConv:i\d+>> TypeConversion [<<Const2L>>]
+  /// CHECK-DAG:     <<Shl:i\d+>>      Shl [<<Const1>>,<<TypeConv>>]
+  /// CHECK-DAG:                       Return [<<Shl>>]
+
+  /// CHECK-START: int Main.ShlIntLong() constant_folding (after)
+  /// CHECK-DAG:     <<Const4:i\d+>>   IntConstant 4
+  /// CHECK-DAG:                       Return [<<Const4>>]
+
+  /// CHECK-START: int Main.ShlIntLong() constant_folding (after)
+  /// CHECK-NOT:                       Shl
+
+  public static int ShlIntLong() {
+    int lhs = 1;
+    long rhs = 2;
+    return lhs << rhs;
+  }
+
+  /// CHECK-START: long Main.ShlLongInt() constant_folding (before)
+  /// CHECK-DAG:     <<Const3L:j\d+>>  LongConstant 3
+  /// CHECK-DAG:     <<Const2:i\d+>>   IntConstant 2
+  /// CHECK-DAG:     <<Shl:j\d+>>      Shl [<<Const3L>>,<<Const2>>]
+  /// CHECK-DAG:                       Return [<<Shl>>]
+
+  /// CHECK-START: long Main.ShlLongInt() constant_folding (after)
+  /// CHECK-DAG:     <<Const12L:j\d+>> LongConstant 12
+  /// CHECK-DAG:                       Return [<<Const12L>>]
+
+  /// CHECK-START: long Main.ShlLongInt() constant_folding (after)
+  /// CHECK-NOT:                       Shl
+
+  public static long ShlLongInt() {
+    long lhs = 3;
+    int rhs = 2;
+    return lhs << rhs;
+  }
+
+
+  /**
+   * Exercise constant folding on right shift.
+   */
+
+  /// CHECK-START: int Main.ShrIntLong() constant_folding (before)
+  /// CHECK-DAG:     <<Const7:i\d+>>   IntConstant 7
+  /// CHECK-DAG:     <<Const2L:j\d+>>  LongConstant 2
+  /// CHECK-DAG:     <<TypeConv:i\d+>> TypeConversion [<<Const2L>>]
+  /// CHECK-DAG:     <<Shr:i\d+>>      Shr [<<Const7>>,<<TypeConv>>]
+  /// CHECK-DAG:                       Return [<<Shr>>]
+
+  /// CHECK-START: int Main.ShrIntLong() constant_folding (after)
+  /// CHECK-DAG:     <<Const1:i\d+>>   IntConstant 1
+  /// CHECK-DAG:                       Return [<<Const1>>]
+
+  /// CHECK-START: int Main.ShrIntLong() constant_folding (after)
+  /// CHECK-NOT:                       Shr
+
+  public static int ShrIntLong() {
+    int lhs = 7;
+    long rhs = 2;
+    return lhs >> rhs;
+  }
+
+  /// CHECK-START: long Main.ShrLongInt() constant_folding (before)
+  /// CHECK-DAG:     <<Const9L:j\d+>>  LongConstant 9
+  /// CHECK-DAG:     <<Const2:i\d+>>   IntConstant 2
+  /// CHECK-DAG:     <<Shr:j\d+>>      Shr [<<Const9L>>,<<Const2>>]
+  /// CHECK-DAG:                       Return [<<Shr>>]
+
+  /// CHECK-START: long Main.ShrLongInt() constant_folding (after)
+  /// CHECK-DAG:     <<Const2L:j\d+>>  LongConstant 2
+  /// CHECK-DAG:                       Return [<<Const2L>>]
+
+  /// CHECK-START: long Main.ShrLongInt() constant_folding (after)
+  /// CHECK-NOT:                       Shr
+
+  public static long ShrLongInt() {
+    long lhs = 9;
+    int rhs = 2;
+    return lhs >> rhs;
+  }
+
+
+  /**
+   * Exercise constant folding on unsigned right shift.
+   */
+
+  /// CHECK-START: int Main.UShrIntLong() constant_folding (before)
+  /// CHECK-DAG:     <<ConstM7:i\d+>>  IntConstant -7
+  /// CHECK-DAG:     <<Const2L:j\d+>>  LongConstant 2
+  /// CHECK-DAG:     <<TypeConv:i\d+>> TypeConversion [<<Const2L>>]
+  /// CHECK-DAG:     <<UShr:i\d+>>     UShr [<<ConstM7>>,<<TypeConv>>]
+  /// CHECK-DAG:                       Return [<<UShr>>]
+
+  /// CHECK-START: int Main.UShrIntLong() constant_folding (after)
+  /// CHECK-DAG:     <<ConstRes:i\d+>> IntConstant 1073741822
+  /// CHECK-DAG:                       Return [<<ConstRes>>]
+
+  /// CHECK-START: int Main.UShrIntLong() constant_folding (after)
+  /// CHECK-NOT:                       UShr
+
+  public static int UShrIntLong() {
+    int lhs = -7;
+    long rhs = 2;
+    return lhs >>> rhs;
+  }
+
+  /// CHECK-START: long Main.UShrLongInt() constant_folding (before)
+  /// CHECK-DAG:     <<ConstM9L:j\d+>> LongConstant -9
+  /// CHECK-DAG:     <<Const2:i\d+>>   IntConstant 2
+  /// CHECK-DAG:     <<UShr:j\d+>>     UShr [<<ConstM9L>>,<<Const2>>]
+  /// CHECK-DAG:                       Return [<<UShr>>]
+
+  /// CHECK-START: long Main.UShrLongInt() constant_folding (after)
+  /// CHECK-DAG:     <<ConstRes:j\d+>> LongConstant 4611686018427387901
+  /// CHECK-DAG:                       Return [<<ConstRes>>]
+
+  /// CHECK-START: long Main.UShrLongInt() constant_folding (after)
+  /// CHECK-NOT:                       UShr
+
+  public static long UShrLongInt() {
+    long lhs = -9;
+    int rhs = 2;
+    return lhs >>> rhs;
+  }
+
+
+  /**
+   * Exercise constant folding on logical and.
+   */
+
+  /// CHECK-START: long Main.AndIntLong() constant_folding (before)
+  /// CHECK-DAG:     <<Const10:i\d+>>  IntConstant 10
+  /// CHECK-DAG:     <<Const3L:j\d+>>  LongConstant 3
+  /// CHECK-DAG:     <<TypeConv:j\d+>> TypeConversion [<<Const10>>]
+  /// CHECK-DAG:     <<And:j\d+>>      And [<<TypeConv>>,<<Const3L>>]
+  /// CHECK-DAG:                       Return [<<And>>]
+
+  /// CHECK-START: long Main.AndIntLong() constant_folding (after)
+  /// CHECK-DAG:     <<Const2:j\d+>>   LongConstant 2
+  /// CHECK-DAG:                       Return [<<Const2>>]
+
+  /// CHECK-START: long Main.AndIntLong() constant_folding (after)
+  /// CHECK-NOT:                       And
+
+  public static long AndIntLong() {
+    int lhs = 10;
+    long rhs = 3;
+    return lhs & rhs;
+  }
+
+  /// CHECK-START: long Main.AndLongInt() constant_folding (before)
+  /// CHECK-DAG:     <<Const10L:j\d+>> LongConstant 10
+  /// CHECK-DAG:     <<Const3:i\d+>>   IntConstant 3
+  /// CHECK-DAG:     <<TypeConv:j\d+>> TypeConversion [<<Const3>>]
+  /// CHECK-DAG:     <<And:j\d+>>      And [<<Const10L>>,<<TypeConv>>]
+  /// CHECK-DAG:                       Return [<<And>>]
+
+  /// CHECK-START: long Main.AndLongInt() constant_folding (after)
+  /// CHECK-DAG:     <<Const2:j\d+>>   LongConstant 2
+  /// CHECK-DAG:                       Return [<<Const2>>]
+
+  /// CHECK-START: long Main.AndLongInt() constant_folding (after)
+  /// CHECK-NOT:                       And
+
+  public static long AndLongInt() {
+    long lhs = 10;
+    int rhs = 3;
+    return lhs & rhs;
+  }
+
+
+  /**
+   * Exercise constant folding on logical or.
+   */
+
+  /// CHECK-START: long Main.OrIntLong() constant_folding (before)
+  /// CHECK-DAG:     <<Const10:i\d+>>  IntConstant 10
+  /// CHECK-DAG:     <<Const3L:j\d+>>  LongConstant 3
+  /// CHECK-DAG:     <<TypeConv:j\d+>> TypeConversion [<<Const10>>]
+  /// CHECK-DAG:     <<Or:j\d+>>       Or [<<TypeConv>>,<<Const3L>>]
+  /// CHECK-DAG:                       Return [<<Or>>]
+
+  /// CHECK-START: long Main.OrIntLong() constant_folding (after)
+  /// CHECK-DAG:     <<Const11:j\d+>>  LongConstant 11
+  /// CHECK-DAG:                       Return [<<Const11>>]
+
+  /// CHECK-START: long Main.OrIntLong() constant_folding (after)
+  /// CHECK-NOT:                       Or
+
+  public static long OrIntLong() {
+    int lhs = 10;
+    long rhs = 3;
+    return lhs | rhs;
+  }
+
+  /// CHECK-START: long Main.OrLongInt() constant_folding (before)
+  /// CHECK-DAG:     <<Const10L:j\d+>> LongConstant 10
+  /// CHECK-DAG:     <<Const3:i\d+>>   IntConstant 3
+  /// CHECK-DAG:     <<TypeConv:j\d+>> TypeConversion [<<Const3>>]
+  /// CHECK-DAG:     <<Or:j\d+>>       Or [<<Const10L>>,<<TypeConv>>]
+  /// CHECK-DAG:                       Return [<<Or>>]
+
+  /// CHECK-START: long Main.OrLongInt() constant_folding (after)
+  /// CHECK-DAG:     <<Const11:j\d+>>  LongConstant 11
+  /// CHECK-DAG:                       Return [<<Const11>>]
+
+  /// CHECK-START: long Main.OrLongInt() constant_folding (after)
+  /// CHECK-NOT:                       Or
+
+  public static long OrLongInt() {
+    long lhs = 10;
+    int rhs = 3;
+    return lhs | rhs;
+  }
+
+
+  /**
+   * Exercise constant folding on logical exclusive or.
+   */
+
+  /// CHECK-START: long Main.XorIntLong() constant_folding (before)
+  /// CHECK-DAG:     <<Const10:i\d+>>  IntConstant 10
+  /// CHECK-DAG:     <<Const3L:j\d+>>  LongConstant 3
+  /// CHECK-DAG:     <<TypeConv:j\d+>> TypeConversion [<<Const10>>]
+  /// CHECK-DAG:     <<Xor:j\d+>>      Xor [<<TypeConv>>,<<Const3L>>]
+  /// CHECK-DAG:                       Return [<<Xor>>]
+
+  /// CHECK-START: long Main.XorIntLong() constant_folding (after)
+  /// CHECK-DAG:     <<Const9:j\d+>>   LongConstant 9
+  /// CHECK-DAG:                       Return [<<Const9>>]
+
+  /// CHECK-START: long Main.XorIntLong() constant_folding (after)
+  /// CHECK-NOT:                       Xor
+
+  public static long XorIntLong() {
+    int lhs = 10;
+    long rhs = 3;
+    return lhs ^ rhs;
+  }
+
+  /// CHECK-START: long Main.XorLongInt() constant_folding (before)
+  /// CHECK-DAG:     <<Const10L:j\d+>> LongConstant 10
+  /// CHECK-DAG:     <<Const3:i\d+>>   IntConstant 3
+  /// CHECK-DAG:     <<TypeConv:j\d+>> TypeConversion [<<Const3>>]
+  /// CHECK-DAG:     <<Xor:j\d+>>      Xor [<<Const10L>>,<<TypeConv>>]
+  /// CHECK-DAG:                       Return [<<Xor>>]
+
+  /// CHECK-START: long Main.XorLongInt() constant_folding (after)
+  /// CHECK-DAG:     <<Const9:j\d+>>   LongConstant 9
+  /// CHECK-DAG:                       Return [<<Const9>>]
+
+  /// CHECK-START: long Main.XorLongInt() constant_folding (after)
+  /// CHECK-NOT:                       Xor
+
+  public static long XorLongInt() {
+    long lhs = 10;
+    int rhs = 3;
+    return lhs ^ rhs;
+  }
+
+
+  /**
    * Exercise constant folding on constant (static) condition.
    */
 
@@ -556,6 +823,25 @@ public class Main {
 
   public static int Shl0(int arg) {
     return 0 << arg;
+  }
+
+  /// CHECK-START: long Main.ShlLong0WithInt(int) constant_folding (before)
+  /// CHECK-DAG:     <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:     <<Const0L:j\d+>>  LongConstant 0
+  /// CHECK-DAG:     <<Shl:j\d+>>      Shl [<<Const0L>>,<<Arg>>]
+  /// CHECK-DAG:                       Return [<<Shl>>]
+
+  /// CHECK-START: long Main.ShlLong0WithInt(int) constant_folding (after)
+  /// CHECK-DAG:     <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:     <<Const0L:j\d+>>  LongConstant 0
+  /// CHECK-DAG:                       Return [<<Const0L>>]
+
+  /// CHECK-START: long Main.ShlLong0WithInt(int) constant_folding (after)
+  /// CHECK-NOT:                       Shl
+
+  public static long ShlLong0WithInt(int arg) {
+    long long_zero = 0;
+    return long_zero << arg;
   }
 
   /// CHECK-START: long Main.Shr0(int) constant_folding (before)
@@ -903,6 +1189,24 @@ public class Main {
     assertIntEquals(2, IntRemainder());
     assertLongEquals(2L, LongRemainder());
 
+    assertIntEquals(4, ShlIntLong());
+    assertLongEquals(12L, ShlLongInt());
+
+    assertIntEquals(1, ShrIntLong());
+    assertLongEquals(2L, ShrLongInt());
+
+    assertIntEquals(1073741822, UShrIntLong());
+    assertLongEquals(4611686018427387901L, UShrLongInt());
+
+    assertLongEquals(2, AndIntLong());
+    assertLongEquals(2, AndLongInt());
+
+    assertLongEquals(11, OrIntLong());
+    assertLongEquals(11, OrLongInt());
+
+    assertLongEquals(9, XorIntLong());
+    assertLongEquals(9, XorLongInt());
+
     assertIntEquals(5, StaticCondition());
 
     assertIntEquals(7, JumpsAndConditionals(true));
@@ -917,6 +1221,7 @@ public class Main {
     assertIntEquals(0, Rem1(arbitrary));
     assertLongEquals(0, RemN1(arbitrary));
     assertIntEquals(0, Shl0(arbitrary));
+    assertLongEquals(0, ShlLong0WithInt(arbitrary));
     assertLongEquals(0, Shr0(arbitrary));
     assertLongEquals(0, SubSameLong(arbitrary));
     assertIntEquals(0, UShr0(arbitrary));

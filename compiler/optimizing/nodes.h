@@ -17,6 +17,8 @@
 #ifndef ART_COMPILER_OPTIMIZING_NODES_H_
 #define ART_COMPILER_OPTIMIZING_NODES_H_
 
+#include <type_traits>
+
 #include "base/arena_containers.h"
 #include "base/arena_object.h"
 #include "dex/compiler_enums.h"
@@ -1582,6 +1584,7 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
   HInstruction* GetPreviousDisregardingMoves() const;
 
   HBasicBlock* GetBlock() const { return block_; }
+  ArenaAllocator* GetArena() const { return block_->GetGraph()->GetArena(); }
   void SetBlock(HBasicBlock* block) { block_ = block; }
   bool IsInBlock() const { return block_ != nullptr; }
   bool IsInLoop() const { return block_->IsInLoop(); }
@@ -2048,6 +2051,95 @@ class HGoto : public HTemplateInstruction<0> {
   DISALLOW_COPY_AND_ASSIGN(HGoto);
 };
 
+class HConstant : public HExpression<0> {
+ public:
+  explicit HConstant(Primitive::Type type) : HExpression(type, SideEffects::None()) {}
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+
+  virtual bool IsMinusOne() const { return false; }
+  virtual bool IsZero() const { return false; }
+  virtual bool IsOne() const { return false; }
+
+  DECLARE_INSTRUCTION(Constant);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HConstant);
+};
+
+class HNullConstant : public HConstant {
+ public:
+  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
+    return true;
+  }
+
+  size_t ComputeHashCode() const OVERRIDE { return 0; }
+
+  DECLARE_INSTRUCTION(NullConstant);
+
+ private:
+  HNullConstant() : HConstant(Primitive::kPrimNot) {}
+
+  friend class HGraph;
+  DISALLOW_COPY_AND_ASSIGN(HNullConstant);
+};
+
+// Constants of the type int. Those can be from Dex instructions, or
+// synthesized (for example with the if-eqz instruction).
+class HIntConstant : public HConstant {
+ public:
+  int32_t GetValue() const { return value_; }
+
+  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+    DCHECK(other->IsIntConstant());
+    return other->AsIntConstant()->value_ == value_;
+  }
+
+  size_t ComputeHashCode() const OVERRIDE { return GetValue(); }
+
+  bool IsMinusOne() const OVERRIDE { return GetValue() == -1; }
+  bool IsZero() const OVERRIDE { return GetValue() == 0; }
+  bool IsOne() const OVERRIDE { return GetValue() == 1; }
+
+  DECLARE_INSTRUCTION(IntConstant);
+
+ private:
+  explicit HIntConstant(int32_t value) : HConstant(Primitive::kPrimInt), value_(value) {}
+  explicit HIntConstant(bool value) : HConstant(Primitive::kPrimInt), value_(value ? 1 : 0) {}
+
+  const int32_t value_;
+
+  friend class HGraph;
+  ART_FRIEND_TEST(GraphTest, InsertInstructionBefore);
+  ART_FRIEND_TYPED_TEST(ParallelMoveTest, ConstantLast);
+  DISALLOW_COPY_AND_ASSIGN(HIntConstant);
+};
+
+class HLongConstant : public HConstant {
+ public:
+  int64_t GetValue() const { return value_; }
+
+  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+    DCHECK(other->IsLongConstant());
+    return other->AsLongConstant()->value_ == value_;
+  }
+
+  size_t ComputeHashCode() const OVERRIDE { return static_cast<size_t>(GetValue()); }
+
+  bool IsMinusOne() const OVERRIDE { return GetValue() == -1; }
+  bool IsZero() const OVERRIDE { return GetValue() == 0; }
+  bool IsOne() const OVERRIDE { return GetValue() == 1; }
+
+  DECLARE_INSTRUCTION(LongConstant);
+
+ private:
+  explicit HLongConstant(int64_t value) : HConstant(Primitive::kPrimLong), value_(value) {}
+
+  const int64_t value_;
+
+  friend class HGraph;
+  DISALLOW_COPY_AND_ASSIGN(HLongConstant);
+};
 
 // Conditional branch. A block ending with an HIf instruction must have
 // two successors.
@@ -2197,8 +2289,8 @@ class HUnaryOperation : public HExpression<1> {
   HConstant* TryStaticEvaluation() const;
 
   // Apply this operation to `x`.
-  virtual int32_t Evaluate(int32_t x) const = 0;
-  virtual int64_t Evaluate(int64_t x) const = 0;
+  virtual HConstant* Evaluate(HIntConstant* x) const = 0;
+  virtual HConstant* Evaluate(HLongConstant* x) const = 0;
 
   DECLARE_INSTRUCTION(UnaryOperation);
 
@@ -2265,8 +2357,18 @@ class HBinaryOperation : public HExpression<2> {
   HConstant* TryStaticEvaluation() const;
 
   // Apply this operation to `x` and `y`.
-  virtual int32_t Evaluate(int32_t x, int32_t y) const = 0;
-  virtual int64_t Evaluate(int64_t x, int64_t y) const = 0;
+  virtual HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const = 0;
+  virtual HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const = 0;
+  virtual HConstant* Evaluate(HIntConstant* x ATTRIBUTE_UNUSED,
+                              HLongConstant* y ATTRIBUTE_UNUSED) const {
+    VLOG(compiler) << DebugName() << " is not defined for the (int, long) case.";
+    return nullptr;
+  }
+  virtual HConstant* Evaluate(HLongConstant* x ATTRIBUTE_UNUSED,
+                              HIntConstant* y ATTRIBUTE_UNUSED) const {
+    VLOG(compiler) << DebugName() << " is not defined for the (long, int) case.";
+    return nullptr;
+  }
 
   // Returns an input that can legally be used as the right input and is
   // constant, or null.
@@ -2349,11 +2451,13 @@ class HEqual : public HCondition {
 
   bool IsCommutative() const OVERRIDE { return true; }
 
-  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
-    return x == y ? 1 : 0;
+  template <typename T> bool Compute(T x, T y) const { return x == y; }
+
+  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue(), y->GetValue()));
   }
-  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
-    return x == y ? 1 : 0;
+  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue(), y->GetValue()));
   }
 
   DECLARE_INSTRUCTION(Equal);
@@ -2377,11 +2481,13 @@ class HNotEqual : public HCondition {
 
   bool IsCommutative() const OVERRIDE { return true; }
 
-  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
-    return x != y ? 1 : 0;
+  template <typename T> bool Compute(T x, T y) const { return x != y; }
+
+  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue(), y->GetValue()));
   }
-  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
-    return x != y ? 1 : 0;
+  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue(), y->GetValue()));
   }
 
   DECLARE_INSTRUCTION(NotEqual);
@@ -2403,11 +2509,13 @@ class HLessThan : public HCondition {
   HLessThan(HInstruction* first, HInstruction* second)
       : HCondition(first, second) {}
 
-  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
-    return x < y ? 1 : 0;
+  template <typename T> bool Compute(T x, T y) const { return x < y; }
+
+  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue(), y->GetValue()));
   }
-  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
-    return x < y ? 1 : 0;
+  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue(), y->GetValue()));
   }
 
   DECLARE_INSTRUCTION(LessThan);
@@ -2429,11 +2537,13 @@ class HLessThanOrEqual : public HCondition {
   HLessThanOrEqual(HInstruction* first, HInstruction* second)
       : HCondition(first, second) {}
 
-  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
-    return x <= y ? 1 : 0;
+  template <typename T> bool Compute(T x, T y) const { return x <= y; }
+
+  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue(), y->GetValue()));
   }
-  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
-    return x <= y ? 1 : 0;
+  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue(), y->GetValue()));
   }
 
   DECLARE_INSTRUCTION(LessThanOrEqual);
@@ -2455,11 +2565,13 @@ class HGreaterThan : public HCondition {
   HGreaterThan(HInstruction* first, HInstruction* second)
       : HCondition(first, second) {}
 
-  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
-    return x > y ? 1 : 0;
+  template <typename T> bool Compute(T x, T y) const { return x > y; }
+
+  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue(), y->GetValue()));
   }
-  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
-    return x > y ? 1 : 0;
+  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue(), y->GetValue()));
   }
 
   DECLARE_INSTRUCTION(GreaterThan);
@@ -2481,11 +2593,13 @@ class HGreaterThanOrEqual : public HCondition {
   HGreaterThanOrEqual(HInstruction* first, HInstruction* second)
       : HCondition(first, second) {}
 
-  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
-    return x >= y ? 1 : 0;
+  template <typename T> bool Compute(T x, T y) const { return x >= y; }
+
+  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue(), y->GetValue()));
   }
-  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
-    return x >= y ? 1 : 0;
+  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue(), y->GetValue()));
   }
 
   DECLARE_INSTRUCTION(GreaterThanOrEqual);
@@ -2517,18 +2631,14 @@ class HCompare : public HBinaryOperation {
     DCHECK_EQ(type, second->GetType());
   }
 
-  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
-    return
-      x == y ? 0 :
-      x > y ? 1 :
-      -1;
-  }
+  template <typename T>
+  int32_t Compute(T x, T y) const { return x == y ? 0 : x > y ? 1 : -1; }
 
-  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
-    return
-      x == y ? 0 :
-      x > y ? 1 :
-      -1;
+  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue(), y->GetValue()));
+  }
+  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue(), y->GetValue()));
   }
 
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
@@ -2600,27 +2710,12 @@ class HStoreLocal : public HTemplateInstruction<2> {
   DISALLOW_COPY_AND_ASSIGN(HStoreLocal);
 };
 
-class HConstant : public HExpression<0> {
- public:
-  explicit HConstant(Primitive::Type type) : HExpression(type, SideEffects::None()) {}
-
-  bool CanBeMoved() const OVERRIDE { return true; }
-
-  virtual bool IsMinusOne() const { return false; }
-  virtual bool IsZero() const { return false; }
-  virtual bool IsOne() const { return false; }
-
-  DECLARE_INSTRUCTION(Constant);
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(HConstant);
-};
-
 class HFloatConstant : public HConstant {
  public:
   float GetValue() const { return value_; }
 
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+    DCHECK(other->IsFloatConstant());
     return bit_cast<uint32_t, float>(other->AsFloatConstant()->value_) ==
         bit_cast<uint32_t, float>(value_);
   }
@@ -2660,6 +2755,7 @@ class HDoubleConstant : public HConstant {
   double GetValue() const { return value_; }
 
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+    DCHECK(other->IsDoubleConstant());
     return bit_cast<uint64_t, double>(other->AsDoubleConstant()->value_) ==
         bit_cast<uint64_t, double>(value_);
   }
@@ -2692,77 +2788,6 @@ class HDoubleConstant : public HConstant {
   friend class SsaBuilder;
   friend class HGraph;
   DISALLOW_COPY_AND_ASSIGN(HDoubleConstant);
-};
-
-class HNullConstant : public HConstant {
- public:
-  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
-    return true;
-  }
-
-  size_t ComputeHashCode() const OVERRIDE { return 0; }
-
-  DECLARE_INSTRUCTION(NullConstant);
-
- private:
-  HNullConstant() : HConstant(Primitive::kPrimNot) {}
-
-  friend class HGraph;
-  DISALLOW_COPY_AND_ASSIGN(HNullConstant);
-};
-
-// Constants of the type int. Those can be from Dex instructions, or
-// synthesized (for example with the if-eqz instruction).
-class HIntConstant : public HConstant {
- public:
-  int32_t GetValue() const { return value_; }
-
-  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
-    return other->AsIntConstant()->value_ == value_;
-  }
-
-  size_t ComputeHashCode() const OVERRIDE { return GetValue(); }
-
-  bool IsMinusOne() const OVERRIDE { return GetValue() == -1; }
-  bool IsZero() const OVERRIDE { return GetValue() == 0; }
-  bool IsOne() const OVERRIDE { return GetValue() == 1; }
-
-  DECLARE_INSTRUCTION(IntConstant);
-
- private:
-  explicit HIntConstant(int32_t value) : HConstant(Primitive::kPrimInt), value_(value) {}
-
-  const int32_t value_;
-
-  friend class HGraph;
-  ART_FRIEND_TEST(GraphTest, InsertInstructionBefore);
-  ART_FRIEND_TYPED_TEST(ParallelMoveTest, ConstantLast);
-  DISALLOW_COPY_AND_ASSIGN(HIntConstant);
-};
-
-class HLongConstant : public HConstant {
- public:
-  int64_t GetValue() const { return value_; }
-
-  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
-    return other->AsLongConstant()->value_ == value_;
-  }
-
-  size_t ComputeHashCode() const OVERRIDE { return static_cast<size_t>(GetValue()); }
-
-  bool IsMinusOne() const OVERRIDE { return GetValue() == -1; }
-  bool IsZero() const OVERRIDE { return GetValue() == 0; }
-  bool IsOne() const OVERRIDE { return GetValue() == 1; }
-
-  DECLARE_INSTRUCTION(LongConstant);
-
- private:
-  explicit HLongConstant(int64_t value) : HConstant(Primitive::kPrimLong), value_(value) {}
-
-  const int64_t value_;
-
-  friend class HGraph;
-  DISALLOW_COPY_AND_ASSIGN(HLongConstant);
 };
 
 enum class Intrinsics {
@@ -3083,8 +3108,14 @@ class HNeg : public HUnaryOperation {
   explicit HNeg(Primitive::Type result_type, HInstruction* input)
       : HUnaryOperation(result_type, input) {}
 
-  int32_t Evaluate(int32_t x) const OVERRIDE { return -x; }
-  int64_t Evaluate(int64_t x) const OVERRIDE { return -x; }
+  template <typename T> T Compute(T x) const { return -x; }
+
+  HConstant* Evaluate(HIntConstant* x) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue()));
+  }
+  HConstant* Evaluate(HLongConstant* x) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(Compute(x->GetValue()));
+  }
 
   DECLARE_INSTRUCTION(Neg);
 
@@ -3141,11 +3172,13 @@ class HAdd : public HBinaryOperation {
 
   bool IsCommutative() const OVERRIDE { return true; }
 
-  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
-    return x + y;
+  template <typename T> T Compute(T x, T y) const { return x + y; }
+
+  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue(), y->GetValue()));
   }
-  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
-    return x + y;
+  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(Compute(x->GetValue(), y->GetValue()));
   }
 
   DECLARE_INSTRUCTION(Add);
@@ -3159,11 +3192,13 @@ class HSub : public HBinaryOperation {
   HSub(Primitive::Type result_type, HInstruction* left, HInstruction* right)
       : HBinaryOperation(result_type, left, right) {}
 
-  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
-    return x - y;
+  template <typename T> T Compute(T x, T y) const { return x - y; }
+
+  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue(), y->GetValue()));
   }
-  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
-    return x - y;
+  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(Compute(x->GetValue(), y->GetValue()));
   }
 
   DECLARE_INSTRUCTION(Sub);
@@ -3179,8 +3214,14 @@ class HMul : public HBinaryOperation {
 
   bool IsCommutative() const OVERRIDE { return true; }
 
-  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE { return x * y; }
-  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE { return x * y; }
+  template <typename T> T Compute(T x, T y) const { return x * y; }
+
+  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue(), y->GetValue()));
+  }
+  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(Compute(x->GetValue(), y->GetValue()));
+  }
 
   DECLARE_INSTRUCTION(Mul);
 
@@ -3193,17 +3234,20 @@ class HDiv : public HBinaryOperation {
   HDiv(Primitive::Type result_type, HInstruction* left, HInstruction* right, uint32_t dex_pc)
       : HBinaryOperation(result_type, left, right), dex_pc_(dex_pc) {}
 
-  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
-    // Our graph structure ensures we never have 0 for `y` during constant folding.
+  template <typename T>
+  T Compute(T x, T y) const {
+    // Our graph structure ensures we never have 0 for `y` during
+    // constant folding.
     DCHECK_NE(y, 0);
     // Special case -1 to avoid getting a SIGFPE on x86(_64).
     return (y == -1) ? -x : x / y;
   }
 
-  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
-    DCHECK_NE(y, 0);
-    // Special case -1 to avoid getting a SIGFPE on x86(_64).
-    return (y == -1) ? -x : x / y;
+  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue(), y->GetValue()));
+  }
+  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(Compute(x->GetValue(), y->GetValue()));
   }
 
   uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
@@ -3221,16 +3265,20 @@ class HRem : public HBinaryOperation {
   HRem(Primitive::Type result_type, HInstruction* left, HInstruction* right, uint32_t dex_pc)
       : HBinaryOperation(result_type, left, right), dex_pc_(dex_pc) {}
 
-  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
+  template <typename T>
+  T Compute(T x, T y) const {
+    // Our graph structure ensures we never have 0 for `y` during
+    // constant folding.
     DCHECK_NE(y, 0);
     // Special case -1 to avoid getting a SIGFPE on x86(_64).
     return (y == -1) ? 0 : x % y;
   }
 
-  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
-    DCHECK_NE(y, 0);
-    // Special case -1 to avoid getting a SIGFPE on x86(_64).
-    return (y == -1) ? 0 : x % y;
+  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue(), y->GetValue()));
+  }
+  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(Compute(x->GetValue(), y->GetValue()));
   }
 
   uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
@@ -3275,8 +3323,27 @@ class HShl : public HBinaryOperation {
   HShl(Primitive::Type result_type, HInstruction* left, HInstruction* right)
       : HBinaryOperation(result_type, left, right) {}
 
-  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE { return x << (y & kMaxIntShiftValue); }
-  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE { return x << (y & kMaxLongShiftValue); }
+  template <typename T, typename U, typename V>
+  T Compute(T x, U y, V max_shift_value) const {
+    static_assert(std::is_same<V, typename std::make_unsigned<T>::type>::value,
+                  "V is not the unsigned integer type corresponding to T");
+    return x << (y & max_shift_value);
+  }
+
+  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(
+        Compute(x->GetValue(), y->GetValue(), kMaxIntShiftValue));
+  }
+  // There is no `Evaluate(HIntConstant* x, HLongConstant* y)`, as this
+  // case is handled as `x << static_cast<int>(y)`.
+  HConstant* Evaluate(HLongConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(
+        Compute(x->GetValue(), y->GetValue(), kMaxLongShiftValue));
+  }
+  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(
+        Compute(x->GetValue(), y->GetValue(), kMaxLongShiftValue));
+  }
 
   DECLARE_INSTRUCTION(Shl);
 
@@ -3289,8 +3356,27 @@ class HShr : public HBinaryOperation {
   HShr(Primitive::Type result_type, HInstruction* left, HInstruction* right)
       : HBinaryOperation(result_type, left, right) {}
 
-  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE { return x >> (y & kMaxIntShiftValue); }
-  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE { return x >> (y & kMaxLongShiftValue); }
+  template <typename T, typename U, typename V>
+  T Compute(T x, U y, V max_shift_value) const {
+    static_assert(std::is_same<V, typename std::make_unsigned<T>::type>::value,
+                  "V is not the unsigned integer type corresponding to T");
+    return x >> (y & max_shift_value);
+  }
+
+  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(
+        Compute(x->GetValue(), y->GetValue(), kMaxIntShiftValue));
+  }
+  // There is no `Evaluate(HIntConstant* x, HLongConstant* y)`, as this
+  // case is handled as `x >> static_cast<int>(y)`.
+  HConstant* Evaluate(HLongConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(
+        Compute(x->GetValue(), y->GetValue(), kMaxLongShiftValue));
+  }
+  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(
+        Compute(x->GetValue(), y->GetValue(), kMaxLongShiftValue));
+  }
 
   DECLARE_INSTRUCTION(Shr);
 
@@ -3303,16 +3389,27 @@ class HUShr : public HBinaryOperation {
   HUShr(Primitive::Type result_type, HInstruction* left, HInstruction* right)
       : HBinaryOperation(result_type, left, right) {}
 
-  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
-    uint32_t ux = static_cast<uint32_t>(x);
-    uint32_t uy = static_cast<uint32_t>(y) & kMaxIntShiftValue;
-    return static_cast<int32_t>(ux >> uy);
+  template <typename T, typename U, typename V>
+  T Compute(T x, U y, V max_shift_value) const {
+    static_assert(std::is_same<V, typename std::make_unsigned<T>::type>::value,
+                  "V is not the unsigned integer type corresponding to T");
+    V ux = static_cast<V>(x);
+    return static_cast<T>(ux >> (y & max_shift_value));
   }
 
-  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
-    uint64_t ux = static_cast<uint64_t>(x);
-    uint64_t uy = static_cast<uint64_t>(y) & kMaxLongShiftValue;
-    return static_cast<int64_t>(ux >> uy);
+  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(
+        Compute(x->GetValue(), y->GetValue(), kMaxIntShiftValue));
+  }
+  // There is no `Evaluate(HIntConstant* x, HLongConstant* y)`, as this
+  // case is handled as `x >>> static_cast<int>(y)`.
+  HConstant* Evaluate(HLongConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(
+        Compute(x->GetValue(), y->GetValue(), kMaxLongShiftValue));
+  }
+  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(
+        Compute(x->GetValue(), y->GetValue(), kMaxLongShiftValue));
   }
 
   DECLARE_INSTRUCTION(UShr);
@@ -3328,8 +3425,21 @@ class HAnd : public HBinaryOperation {
 
   bool IsCommutative() const OVERRIDE { return true; }
 
-  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE { return x & y; }
-  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE { return x & y; }
+  template <typename T, typename U>
+  auto Compute(T x, U y) const -> decltype(x & y) { return x & y; }
+
+  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue(), y->GetValue()));
+  }
+  HConstant* Evaluate(HIntConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(Compute(x->GetValue(), y->GetValue()));
+  }
+  HConstant* Evaluate(HLongConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(Compute(x->GetValue(), y->GetValue()));
+  }
+  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(Compute(x->GetValue(), y->GetValue()));
+  }
 
   DECLARE_INSTRUCTION(And);
 
@@ -3344,8 +3454,21 @@ class HOr : public HBinaryOperation {
 
   bool IsCommutative() const OVERRIDE { return true; }
 
-  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE { return x | y; }
-  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE { return x | y; }
+  template <typename T, typename U>
+  auto Compute(T x, U y) const -> decltype(x | y) { return x | y; }
+
+  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue(), y->GetValue()));
+  }
+  HConstant* Evaluate(HIntConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(Compute(x->GetValue(), y->GetValue()));
+  }
+  HConstant* Evaluate(HLongConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(Compute(x->GetValue(), y->GetValue()));
+  }
+  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(Compute(x->GetValue(), y->GetValue()));
+  }
 
   DECLARE_INSTRUCTION(Or);
 
@@ -3360,8 +3483,21 @@ class HXor : public HBinaryOperation {
 
   bool IsCommutative() const OVERRIDE { return true; }
 
-  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE { return x ^ y; }
-  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE { return x ^ y; }
+  template <typename T, typename U>
+  auto Compute(T x, U y) const -> decltype(x ^ y) { return x ^ y; }
+
+  HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue(), y->GetValue()));
+  }
+  HConstant* Evaluate(HIntConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(Compute(x->GetValue(), y->GetValue()));
+  }
+  HConstant* Evaluate(HLongConstant* x, HIntConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(Compute(x->GetValue(), y->GetValue()));
+  }
+  HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(Compute(x->GetValue(), y->GetValue()));
+  }
 
   DECLARE_INSTRUCTION(Xor);
 
@@ -3406,8 +3542,14 @@ class HNot : public HUnaryOperation {
     return true;
   }
 
-  int32_t Evaluate(int32_t x) const OVERRIDE { return ~x; }
-  int64_t Evaluate(int64_t x) const OVERRIDE { return ~x; }
+  template <typename T> T Compute(T x) const { return ~x; }
+
+  HConstant* Evaluate(HIntConstant* x) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue()));
+  }
+  HConstant* Evaluate(HLongConstant* x) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetLongConstant(Compute(x->GetValue()));
+  }
 
   DECLARE_INSTRUCTION(Not);
 
@@ -3426,13 +3568,16 @@ class HBooleanNot : public HUnaryOperation {
     return true;
   }
 
-  int32_t Evaluate(int32_t x) const OVERRIDE {
+  template <typename T> bool Compute(T x) const {
     DCHECK(IsUint<1>(x));
     return !x;
   }
 
-  int64_t Evaluate(int64_t x ATTRIBUTE_UNUSED) const OVERRIDE {
-    LOG(FATAL) << DebugName() << " cannot be used with 64-bit values";
+  HConstant* Evaluate(HIntConstant* x) const OVERRIDE {
+    return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue()));
+  }
+  HConstant* Evaluate(HLongConstant* x ATTRIBUTE_UNUSED) const OVERRIDE {
+    LOG(FATAL) << DebugName() << " is not defined for long values";
     UNREACHABLE();
   }
 
