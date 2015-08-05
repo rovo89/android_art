@@ -19,10 +19,6 @@
 
 #include "thread.h"
 
-#ifdef HAVE_ANDROID_OS
-#include <bionic_tls.h>  // Access to our own TLS slot.
-#endif
-
 #include <pthread.h>
 
 #include "base/casts.h"
@@ -45,11 +41,7 @@ inline Thread* Thread::Current() {
   if (!is_started_) {
     return nullptr;
   } else {
-#ifdef HAVE_ANDROID_OS
-    void* thread = __get_tls()[TLS_SLOT_ART_THREAD_SELF];
-#else
     void* thread = pthread_getspecific(Thread::pthread_key_self_);
-#endif
     return reinterpret_cast<Thread*>(thread);
   }
 }
