@@ -209,6 +209,11 @@ ART_C_INCLUDES := \
   external/vixl/src \
   external/zlib \
 
+# We optimize Thread::Current() with a direct TLS access. This requires access to a private
+# Bionic header.
+# Note: technically we only need this on device, but this avoids the duplication of the includes.
+ART_C_INCLUDES += bionic/libc/private
+
 # Base set of cflags used by all things ART.
 art_cflags := \
   -fno-rtti \
