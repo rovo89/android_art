@@ -171,6 +171,7 @@ LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES := \
   dex/quick/mips/mips_lir.h \
   dex/quick/resource_mask.h \
   dex/compiler_enums.h \
+  dex/dex_to_dex_compiler.h \
   dex/global_value_numbering.h \
   dex/pass_me.h \
   driver/compiler_driver.h \
