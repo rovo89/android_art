@@ -18,7 +18,6 @@
 
 #include <memory>
 
-#include "base/out.h"
 #include "common_runtime_test.h"
 
 namespace art {
@@ -61,7 +60,7 @@ TEST_F(ParsedOptionsTest, ParsedOptions) {
   options.push_back(std::make_pair("exit", test_exit));
 
   RuntimeArgumentMap map;
-  std::unique_ptr<ParsedOptions> parsed(ParsedOptions::Create(options, false, outof(map)));
+  std::unique_ptr<ParsedOptions> parsed(ParsedOptions::Create(options, false, &map));
   ASSERT_TRUE(parsed.get() != nullptr);
   ASSERT_NE(0u, map.Size());
 
@@ -103,7 +102,7 @@ TEST_F(ParsedOptionsTest, ParsedOptionsGc) {
   options.push_back(std::make_pair("-Xgc:MC", nullptr));
 
   RuntimeArgumentMap map;
-  std::unique_ptr<ParsedOptions> parsed(ParsedOptions::Create(options, false, outof(map)));
+  std::unique_ptr<ParsedOptions> parsed(ParsedOptions::Create(options, false, &map));
   ASSERT_TRUE(parsed.get() != nullptr);
   ASSERT_NE(0u, map.Size());
 
