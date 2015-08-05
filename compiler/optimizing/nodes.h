@@ -961,6 +961,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(BoundsCheck, Instruction)                                           \
   M(BoundType, Instruction)                                             \
   M(CheckCast, Instruction)                                             \
+  M(ClearException, Instruction)                                        \
   M(ClinitCheck, Instruction)                                           \
   M(Compare, BinaryOperation)                                           \
   M(Condition, BinaryOperation)                                         \
@@ -4140,6 +4141,18 @@ class HLoadException : public HExpression<0> {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HLoadException);
+};
+
+// Implicit part of move-exception which clears thread-local exception storage.
+// Must not be removed because the runtime expects the TLS to get cleared.
+class HClearException : public HTemplateInstruction<0> {
+ public:
+  HClearException() : HTemplateInstruction(SideEffects::AllWrites()) {}
+
+  DECLARE_INSTRUCTION(ClearException);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HClearException);
 };
 
 class HThrow : public HTemplateInstruction<1> {

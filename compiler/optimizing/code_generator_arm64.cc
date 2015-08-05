@@ -2496,6 +2496,10 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
   }
 }
 
+static MemOperand GetExceptionTlsAddress() {
+  return MemOperand(tr, Thread::ExceptionOffset<kArm64WordSize>().Int32Value());
+}
+
 void LocationsBuilderARM64::VisitLoadException(HLoadException* load) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(load, LocationSummary::kNoCall);
@@ -2503,9 +2507,15 @@ void LocationsBuilderARM64::VisitLoadException(HLoadException* load) {
 }
 
 void InstructionCodeGeneratorARM64::VisitLoadException(HLoadException* instruction) {
-  MemOperand exception = MemOperand(tr, Thread::ExceptionOffset<kArm64WordSize>().Int32Value());
-  __ Ldr(OutputRegister(instruction), exception);
-  __ Str(wzr, exception);
+  __ Ldr(OutputRegister(instruction), GetExceptionTlsAddress());
+}
+
+void LocationsBuilderARM64::VisitClearException(HClearException* clear) {
+  new (GetGraph()->GetArena()) LocationSummary(clear, LocationSummary::kNoCall);
+}
+
+void InstructionCodeGeneratorARM64::VisitClearException(HClearException* clear ATTRIBUTE_UNUSED) {
+  __ Str(wzr, GetExceptionTlsAddress());
 }
 
 void LocationsBuilderARM64::VisitLoadLocal(HLoadLocal* load) {

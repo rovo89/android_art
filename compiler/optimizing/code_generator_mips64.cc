@@ -2544,6 +2544,10 @@ void InstructionCodeGeneratorMIPS64::VisitLoadClass(HLoadClass* cls) {
   }
 }
 
+static int32_t GetExceptionTlsOffset() {
+  return Thread::ExceptionOffset<kMips64WordSize>().Int32Value();
+}
+
 void LocationsBuilderMIPS64::VisitLoadException(HLoadException* load) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(load, LocationSummary::kNoCall);
@@ -2552,8 +2556,15 @@ void LocationsBuilderMIPS64::VisitLoadException(HLoadException* load) {
 
 void InstructionCodeGeneratorMIPS64::VisitLoadException(HLoadException* load) {
   GpuRegister out = load->GetLocations()->Out().AsRegister<GpuRegister>();
-  __ LoadFromOffset(kLoadUnsignedWord, out, TR, Thread::ExceptionOffset<kMips64WordSize>().Int32Value());
-  __ StoreToOffset(kStoreWord, ZERO, TR, Thread::ExceptionOffset<kMips64WordSize>().Int32Value());
+  __ LoadFromOffset(kLoadUnsignedWord, out, TR, GetExceptionTlsOffset());
+}
+
+void LocationsBuilderMIPS64::VisitClearException(HClearException* clear) {
+  new (GetGraph()->GetArena()) LocationSummary(clear, LocationSummary::kNoCall);
+}
+
+void InstructionCodeGeneratorMIPS64::VisitClearException(HClearException* clear ATTRIBUTE_UNUSED) {
+  __ StoreToOffset(kStoreWord, ZERO, TR, GetExceptionTlsOffset());
 }
 
 void LocationsBuilderMIPS64::VisitLoadLocal(HLoadLocal* load) {
