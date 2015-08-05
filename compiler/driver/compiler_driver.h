@@ -80,13 +80,6 @@ enum EntryPointCallingConvention {
   kQuickAbi
 };
 
-enum DexToDexCompilationLevel {
-  kDontDexToDexCompile,   // Only meaning wrt image time interpretation.
-  kRequired,              // Dex-to-dex compilation required for correctness.
-  kOptimize               // Perform required transformation and peep-hole optimizations.
-};
-std::ostream& operator<<(std::ostream& os, const DexToDexCompilationLevel& rhs);
-
 static constexpr bool kUseMurmur3Hash = true;
 
 class CompilerDriver {
@@ -116,7 +109,7 @@ class CompilerDriver {
                   TimingLogger* timings)
       REQUIRES(!Locks::mutator_lock_, !compiled_classes_lock_);
 
-  CompiledMethod* CompileMethod(Thread* self, ArtMethod*)
+  CompiledMethod* CompileArtMethod(Thread* self, ArtMethod*)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!compiled_methods_lock_) WARN_UNUSED;
 
   // Compile a single Method.
@@ -185,6 +178,11 @@ class CompilerDriver {
   size_t GetNonRelativeLinkerPatchCount() const
       REQUIRES(!compiled_methods_lock_);
 
+  // Add a compiled method.
+  void AddCompiledMethod(const MethodReference& method_ref,
+                         CompiledMethod* const compiled_method,
+                         size_t non_relative_linker_patch_count)
+      REQUIRES(!compiled_methods_lock_);
   // Remove and delete a compiled method.
   void RemoveCompiledMethod(const MethodReference& method_ref) REQUIRES(!compiled_methods_lock_);
 
@@ -476,6 +474,10 @@ class CompilerDriver {
     had_hard_verifier_failure_ = true;
   }
 
+  Compiler::Kind GetCompilerKind() {
+    return compiler_kind_;
+  }
+
  private:
   // Return whether the declaring class of `resolved_member` is
   // available to `referrer_class` for read or write access using two
@@ -546,10 +548,6 @@ class CompilerDriver {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
-  DexToDexCompilationLevel GetDexToDexCompilationlevel(
-      Thread* self, Handle<mirror::ClassLoader> class_loader, const DexFile& dex_file,
-      const DexFile::ClassDef& class_def) SHARED_REQUIRES(Locks::mutator_lock_);
-
   void PreCompile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
                   ThreadPool* thread_pool, TimingLogger* timings)
       REQUIRES(!Locks::mutator_lock_, !compiled_classes_lock_);
@@ -599,12 +597,6 @@ class CompilerDriver {
                       const std::vector<const DexFile*>& dex_files,
                       ThreadPool* thread_pool, TimingLogger* timings)
       REQUIRES(!Locks::mutator_lock_);
-  void CompileMethod(Thread* self, const DexFile::CodeItem* code_item, uint32_t access_flags,
-                     InvokeType invoke_type, uint16_t class_def_idx, uint32_t method_idx,
-                     jobject class_loader, const DexFile& dex_file,
-                     DexToDexCompilationLevel dex_to_dex_compilation_level,
-                     bool compilation_enabled)
-      REQUIRES(!compiled_methods_lock_);
 
   // Swap pool and allocator used for native allocations. May be file-backed. Needs to be first
   // as other fields rely on this.
@@ -634,8 +626,13 @@ class CompilerDriver {
   ClassTable compiled_classes_ GUARDED_BY(compiled_classes_lock_);
 
   typedef SafeMap<const MethodReference, CompiledMethod*, MethodReferenceComparator> MethodTable;
-  // All method references that this compiler has compiled.
+
+ public:
+  // Lock is public so that non-members can have lock annotations.
   mutable Mutex compiled_methods_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+
+ private:
+  // All method references that this compiler has compiled.
   MethodTable compiled_methods_ GUARDED_BY(compiled_methods_lock_);
   // Number of non-relative patches in all compiled methods. These patches need space
   // in the .oat_patches ELF section if requested in the compiler options.
@@ -674,15 +671,6 @@ class CompilerDriver {
 
   typedef void (*CompilerCallbackFn)(CompilerDriver& driver);
   typedef MutexLock* (*CompilerMutexLockFn)(CompilerDriver& driver);
-
-  typedef CompiledMethod* (*DexToDexCompilerFn)(
-      CompilerDriver& driver,
-      const DexFile::CodeItem* code_item,
-      uint32_t access_flags, InvokeType invoke_type,
-      uint32_t class_dex_idx, uint32_t method_idx,
-      jobject class_loader, const DexFile& dex_file,
-      DexToDexCompilationLevel dex_to_dex_compilation_level);
-  DexToDexCompilerFn dex_to_dex_compiler_;
 
   void* compiler_context_;
 

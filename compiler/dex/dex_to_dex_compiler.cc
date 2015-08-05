@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "dex_to_dex_compiler.h"
+
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/logging.h"
@@ -65,7 +67,7 @@ class DexCompiler {
   }
 
   bool PerformOptimizations() const {
-    return dex_to_dex_compilation_level_ >= kOptimize;
+    return dex_to_dex_compilation_level_ >= DexToDexCompilationLevel::kOptimize;
   }
 
   // Compiles a RETURN-VOID into a RETURN-VOID-BARRIER within a constructor where
@@ -108,7 +110,7 @@ class DexCompiler {
 };
 
 void DexCompiler::Compile() {
-  DCHECK_GE(dex_to_dex_compilation_level_, kRequired);
+  DCHECK_GE(dex_to_dex_compilation_level_, DexToDexCompilationLevel::kRequired);
   const DexFile::CodeItem* code_item = unit_.GetCodeItem();
   const uint16_t* insns = code_item->insns_;
   const uint32_t insns_size = code_item->insns_size_in_code_units_;
@@ -310,21 +312,22 @@ void DexCompiler::CompileInvokeVirtual(Instruction* inst, uint32_t dex_pc,
   }
 }
 
-extern "C" CompiledMethod* ArtCompileDEX(
-    art::CompilerDriver& driver,
-    const art::DexFile::CodeItem* code_item,
+CompiledMethod* ArtCompileDEX(
+    CompilerDriver* driver,
+    const DexFile::CodeItem* code_item,
     uint32_t access_flags,
-    art::InvokeType invoke_type ATTRIBUTE_UNUSED,
+    InvokeType invoke_type ATTRIBUTE_UNUSED,
     uint16_t class_def_idx,
     uint32_t method_idx,
     jobject class_loader,
-    const art::DexFile& dex_file,
-    art::DexToDexCompilationLevel dex_to_dex_compilation_level) {
-  if (dex_to_dex_compilation_level != art::kDontDexToDexCompile) {
+    const DexFile& dex_file,
+    DexToDexCompilationLevel dex_to_dex_compilation_level) {
+  DCHECK(driver != nullptr);
+  if (dex_to_dex_compilation_level != DexToDexCompilationLevel::kDontDexToDexCompile) {
     art::DexCompilationUnit unit(nullptr, class_loader, art::Runtime::Current()->GetClassLinker(),
                                  dex_file, code_item, class_def_idx, method_idx, access_flags,
-                                 driver.GetVerifiedMethod(&dex_file, method_idx));
-    art::optimizer::DexCompiler dex_compiler(driver, unit, dex_to_dex_compilation_level);
+                                 driver->GetVerifiedMethod(&dex_file, method_idx));
+    art::optimizer::DexCompiler dex_compiler(*driver, unit, dex_to_dex_compilation_level);
     dex_compiler.Compile();
     if (dex_compiler.GetQuickenedInfo().empty()) {
       // No need to create a CompiledMethod if there are no quickened opcodes.
@@ -337,13 +340,13 @@ extern "C" CompiledMethod* ArtCompileDEX(
       builder.PushBackUnsigned(info.dex_pc);
       builder.PushBackUnsigned(info.dex_member_index);
     }
-    InstructionSet instruction_set = driver.GetInstructionSet();
+    InstructionSet instruction_set = driver->GetInstructionSet();
     if (instruction_set == kThumb2) {
       // Don't use the thumb2 instruction set to avoid the one off code delta.
       instruction_set = kArm;
     }
     return CompiledMethod::SwapAllocCompiledMethod(
-        &driver,
+        driver,
         instruction_set,
         ArrayRef<const uint8_t>(),                   // no code
         0,
