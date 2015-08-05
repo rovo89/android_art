@@ -107,13 +107,14 @@ class ClassTable {
       return item.IsNull();
     }
   };
-  // hash set which hashes class descriptor, and compares descriptors nad class loaders. Results
+  // hash set which hashes class descriptor, and compares descriptors and class loaders. Results
   // should be compared for a matching Class descriptor and class loader.
   typedef HashSet<GcRoot<mirror::Class>, GcRootEmptyFn, ClassDescriptorHashEquals,
       ClassDescriptorHashEquals, TrackingAllocator<GcRoot<mirror::Class>, kAllocatorTagClassTable>>
       ClassSet;
 
   // TODO: shard lock to have one per class loader.
+  // We have a vector to help prevent dirty pages after the zygote forks by calling FreezeSnapshot.
   std::vector<ClassSet> classes_ GUARDED_BY(Locks::classlinker_classes_lock_);
 };
 
