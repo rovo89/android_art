@@ -70,6 +70,25 @@ public class Main {
     return y;
   }
 
+  /// CHECK-START: long Main.LongNegation() constant_folding (before)
+  /// CHECK-DAG:     <<Const42:j\d+>>  LongConstant 42
+  /// CHECK-DAG:     <<Neg:j\d+>>      Neg [<<Const42>>]
+  /// CHECK-DAG:                       Return [<<Neg>>]
+
+  /// CHECK-START: long Main.LongNegation() constant_folding (after)
+  /// CHECK-DAG:     <<ConstN42:j\d+>> LongConstant -42
+  /// CHECK-DAG:                       Return [<<ConstN42>>]
+
+  /// CHECK-START: long Main.LongNegation() constant_folding (after)
+  /// CHECK-NOT:                       Neg
+
+  public static long LongNegation() {
+    long x, y;
+    x = 42L;
+    y = -x;
+    return y;
+  }
+
 
   /**
    * Exercise constant folding on addition.
@@ -866,6 +885,7 @@ public class Main {
 
   public static void main(String[] args) {
     assertIntEquals(-42, IntNegation());
+    assertLongEquals(-42L, LongNegation());
 
     assertIntEquals(3, IntAddition1());
     assertIntEquals(14, IntAddition2());
