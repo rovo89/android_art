@@ -128,6 +128,9 @@ struct JdwpState {
    * the debugger.
    *
    * Returns a newly-allocated JdwpState struct on success, or nullptr on failure.
+   *
+   * NO_THREAD_SAFETY_ANALYSIS since we can't annotate that we do not have
+   * state->thread_start_lock_ held.
    */
   static JdwpState* Create(const JdwpOptions* options)
       REQUIRES(!Locks::mutator_lock_) NO_THREAD_SAFETY_ANALYSIS;

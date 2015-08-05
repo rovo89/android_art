@@ -1516,7 +1516,7 @@ void Runtime::DisallowNewSystemWeaks() {
 
 void Runtime::AllowNewSystemWeaks() {
   monitor_list_->AllowNewMonitors();
-  intern_table_->ChangeWeakRootState(gc::kWeakRootStateNormal);  // TODO: Do this in the sweeping?
+  intern_table_->ChangeWeakRootState(gc::kWeakRootStateNormal);  // TODO: Do this in the sweeping.
   java_vm_->AllowNewWeakGlobals();
   heap_->AllowNewAllocationRecords();
   lambda_box_table_->AllowNewWeakBoxedLambdas();

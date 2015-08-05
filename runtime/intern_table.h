@@ -61,8 +61,10 @@ class InternTable {
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   // Only used by image writer. Special version that may not cause thread suspension since the GC
-  // can not be running while we are doing image writing.
-  mirror::String* InternImageString(mirror::String* s) SHARED_REQUIRES(Locks::mutator_lock_);
+  // can not be running while we are doing image writing. Maybe be called while while holding a
+  // lock since there will not be thread suspension.
+  mirror::String* InternStrongImageString(mirror::String* s)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Interns a potentially new string in the 'strong' table. May cause thread suspension.
   mirror::String* InternStrong(const char* utf8_data) SHARED_REQUIRES(Locks::mutator_lock_)
@@ -184,7 +186,9 @@ class InternTable {
     UnorderedSet post_zygote_table_;
   };
 
-  // Insert if non null, otherwise return null.
+  // Insert if non null, otherwise return null. Must be called holding the mutator lock.
+  // If holding_locks is true, then we may also hold other locks. If holding_locks is true, then we
+  // require GC is not running since it is not safe to wait while holding locks.
   mirror::String* Insert(mirror::String* s, bool is_strong, bool holding_locks)
       REQUIRES(!Locks::intern_table_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
 

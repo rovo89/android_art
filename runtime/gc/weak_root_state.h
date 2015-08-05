@@ -28,6 +28,8 @@ enum WeakRootState {
   // Need to wait until we can read weak roots.
   kWeakRootStateNoReadsOrWrites,
   // Need to mark new weak roots to make sure they don't get swept.
+  // kWeakRootStateMarkNewRoots is currently unused but I was planning on using to allow adding new
+  // weak roots during the CMS reference processing phase.
   kWeakRootStateMarkNewRoots,
 };
 

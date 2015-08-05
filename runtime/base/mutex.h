@@ -332,36 +332,40 @@ class SHARED_LOCKABLE ReaderWriterMutex : public BaseMutex {
   bool IsExclusiveHeld(const Thread* self) const;
 
   // Assert the current thread has exclusive access to the ReaderWriterMutex.
-  void AssertExclusiveHeld(const Thread* self) {
+  void AssertExclusiveHeld(const Thread* self) ASSERT_CAPABILITY(this) {
     if (kDebugLocking && (gAborting == 0)) {
       CHECK(IsExclusiveHeld(self)) << *this;
     }
   }
-  void AssertWriterHeld(const Thread* self) { AssertExclusiveHeld(self); }
+  void AssertWriterHeld(const Thread* self) ASSERT_CAPABILITY(this) { AssertExclusiveHeld(self); }
 
   // Assert the current thread doesn't have exclusive access to the ReaderWriterMutex.
-  void AssertNotExclusiveHeld(const Thread* self) {
+  void AssertNotExclusiveHeld(const Thread* self) ASSERT_CAPABILITY(!this) {
     if (kDebugLocking && (gAborting == 0)) {
       CHECK(!IsExclusiveHeld(self)) << *this;
     }
   }
-  void AssertNotWriterHeld(const Thread* self) { AssertNotExclusiveHeld(self); }
+  void AssertNotWriterHeld(const Thread* self) ASSERT_CAPABILITY(!this) {
+    AssertNotExclusiveHeld(self);
+  }
 
   // Is the current thread a shared holder of the ReaderWriterMutex.
   bool IsSharedHeld(const Thread* self) const;
 
   // Assert the current thread has shared access to the ReaderWriterMutex.
-  void AssertSharedHeld(const Thread* self) {
+  void AssertSharedHeld(const Thread* self) ASSERT_SHARED_CAPABILITY(this) {
     if (kDebugLocking && (gAborting == 0)) {
       // TODO: we can only assert this well when self != null.
       CHECK(IsSharedHeld(self) || self == nullptr) << *this;
     }
   }
-  void AssertReaderHeld(const Thread* self) { AssertSharedHeld(self); }
+  void AssertReaderHeld(const Thread* self) ASSERT_SHARED_CAPABILITY(this) {
+    AssertSharedHeld(self);
+  }
 
   // Assert the current thread doesn't hold this ReaderWriterMutex either in shared or exclusive
   // mode.
-  void AssertNotHeld(const Thread* self) {
+  void AssertNotHeld(const Thread* self) ASSERT_SHARED_CAPABILITY(!this) {
     if (kDebugLocking && (gAborting == 0)) {
       CHECK(!IsSharedHeld(self)) << *this;
     }
@@ -679,6 +683,7 @@ class Locks {
 
 class Roles {
  public:
+  // Uninterruptible means that the thread may not become suspended.
   static Uninterruptible uninterruptible_;
 };
 
