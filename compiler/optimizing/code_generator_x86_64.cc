@@ -4527,6 +4527,10 @@ void InstructionCodeGeneratorX86_64::VisitLoadString(HLoadString* load) {
   __ Bind(slow_path->GetExitLabel());
 }
 
+static Address GetExceptionTlsAddress() {
+  return Address::Absolute(Thread::ExceptionOffset<kX86_64WordSize>().Int32Value(), true);
+}
+
 void LocationsBuilderX86_64::VisitLoadException(HLoadException* load) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(load, LocationSummary::kNoCall);
@@ -4534,10 +4538,15 @@ void LocationsBuilderX86_64::VisitLoadException(HLoadException* load) {
 }
 
 void InstructionCodeGeneratorX86_64::VisitLoadException(HLoadException* load) {
-  Address address = Address::Absolute(
-      Thread::ExceptionOffset<kX86_64WordSize>().Int32Value(), true);
-  __ gs()->movl(load->GetLocations()->Out().AsRegister<CpuRegister>(), address);
-  __ gs()->movl(address, Immediate(0));
+  __ gs()->movl(load->GetLocations()->Out().AsRegister<CpuRegister>(), GetExceptionTlsAddress());
+}
+
+void LocationsBuilderX86_64::VisitClearException(HClearException* clear) {
+  new (GetGraph()->GetArena()) LocationSummary(clear, LocationSummary::kNoCall);
+}
+
+void InstructionCodeGeneratorX86_64::VisitClearException(HClearException* clear ATTRIBUTE_UNUSED) {
+  __ gs()->movl(GetExceptionTlsAddress(), Immediate(0));
 }
 
 void LocationsBuilderX86_64::VisitThrow(HThrow* instruction) {
