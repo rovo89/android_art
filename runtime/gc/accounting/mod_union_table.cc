@@ -101,28 +101,34 @@ class ModUnionUpdateObjectReferencesVisitor {
   // Extra parameters are required since we use this same visitor signature for checking objects.
   void operator()(Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    // Only add the reference if it is non null and fits our criteria.
-    mirror::HeapReference<Object>* const obj_ptr = obj->GetFieldObjectReferenceAddr(offset);
-    mirror::Object* ref = obj_ptr->AsMirrorPtr();
-    if (ref != nullptr && !from_space_->HasAddress(ref) && !immune_space_->HasAddress(ref)) {
-      *contains_reference_to_other_space_ = true;
-      visitor_->MarkHeapReference(obj_ptr);
-    }
+    MarkReference(obj->GetFieldObjectReferenceAddr(offset));
   }
 
   void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    if (kIsDebugBuild && !root->IsNull()) {
-      VisitRoot(root);
-    }
+    VisitRoot(root);
   }
 
   void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK(from_space_->HasAddress(root->AsMirrorPtr()));
+    MarkReference(root);
   }
 
  private:
+  template<bool kPoisonReferences>
+  void MarkReference(mirror::ObjectReference<kPoisonReferences, mirror::Object>* obj_ptr) const
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    // Only add the reference if it is non null and fits our criteria.
+    mirror::Object* ref = obj_ptr->AsMirrorPtr();
+    if (ref != nullptr && !from_space_->HasAddress(ref) && !immune_space_->HasAddress(ref)) {
+      *contains_reference_to_other_space_ = true;
+      mirror::Object* new_object = visitor_->MarkObject(ref);
+      if (ref != new_object) {
+        obj_ptr->Assign(new_object);
+      }
+    }
+  }
+
   MarkObjectVisitor* const visitor_;
   // Space which we are scanning
   space::ContinuousSpace* const from_space_;
