@@ -22,6 +22,7 @@
 namespace art {
 
 struct ClassLoaderOffsets;
+class ClassTable;
 
 namespace mirror {
 
@@ -35,12 +36,23 @@ class MANAGED ClassLoader : public Object {
   ClassLoader* GetParent() SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldObject<ClassLoader>(OFFSET_OF_OBJECT_MEMBER(ClassLoader, parent_));
   }
+  ClassTable* GetClassTable() SHARED_REQUIRES(Locks::mutator_lock_) {
+    return reinterpret_cast<ClassTable*>(
+        GetField64(OFFSET_OF_OBJECT_MEMBER(ClassLoader, class_table_)));
+  }
+  void SetClassTable(ClassTable* class_table) SHARED_REQUIRES(Locks::mutator_lock_) {
+    SetField64<false>(OFFSET_OF_OBJECT_MEMBER(ClassLoader, class_table_),
+                      reinterpret_cast<uint64_t>(class_table));
+  }
 
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   HeapReference<Object> packages_;
   HeapReference<ClassLoader> parent_;
   HeapReference<Object> proxyCache_;
+  // Native pointer to class table, need to zero this out when image writing.
+  uint32_t padding_ ATTRIBUTE_UNUSED;
+  uint64_t class_table_;
 
   friend struct art::ClassLoaderOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(ClassLoader);
