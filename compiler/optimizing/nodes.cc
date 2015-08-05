@@ -1012,31 +1012,25 @@ HConstant* HTypeConversion::TryStaticEvaluation() const {
 
 HConstant* HUnaryOperation::TryStaticEvaluation() const {
   if (GetInput()->IsIntConstant()) {
-    int32_t value = Evaluate(GetInput()->AsIntConstant()->GetValue());
-    return GetBlock()->GetGraph()->GetIntConstant(value);
+    return Evaluate(GetInput()->AsIntConstant());
   } else if (GetInput()->IsLongConstant()) {
-    int64_t value = Evaluate(GetInput()->AsLongConstant()->GetValue());
-    return GetBlock()->GetGraph()->GetLongConstant(value);
+    return Evaluate(GetInput()->AsLongConstant());
   }
   return nullptr;
 }
 
 HConstant* HBinaryOperation::TryStaticEvaluation() const {
-  if (GetLeft()->IsIntConstant() && GetRight()->IsIntConstant()) {
-    int32_t value = Evaluate(GetLeft()->AsIntConstant()->GetValue(),
-                             GetRight()->AsIntConstant()->GetValue());
-    return GetBlock()->GetGraph()->GetIntConstant(value);
-  } else if (GetLeft()->IsLongConstant() && GetRight()->IsLongConstant()) {
-    int64_t value = Evaluate(GetLeft()->AsLongConstant()->GetValue(),
-                             GetRight()->AsLongConstant()->GetValue());
-    if (GetResultType() == Primitive::kPrimLong) {
-      return GetBlock()->GetGraph()->GetLongConstant(value);
-    } else if (GetResultType() == Primitive::kPrimBoolean) {
-      // This can be the result of an HCondition evaluation.
-      return GetBlock()->GetGraph()->GetIntConstant(static_cast<int32_t>(value));
-    } else {
-      DCHECK_EQ(GetResultType(), Primitive::kPrimInt);
-      return GetBlock()->GetGraph()->GetIntConstant(static_cast<int32_t>(value));
+  if (GetLeft()->IsIntConstant()) {
+    if (GetRight()->IsIntConstant()) {
+      return Evaluate(GetLeft()->AsIntConstant(), GetRight()->AsIntConstant());
+    } else if (GetRight()->IsLongConstant()) {
+      return Evaluate(GetLeft()->AsIntConstant(), GetRight()->AsLongConstant());
+    }
+  } else if (GetLeft()->IsLongConstant()) {
+    if (GetRight()->IsIntConstant()) {
+      return Evaluate(GetLeft()->AsLongConstant(), GetRight()->AsIntConstant());
+    } else if (GetRight()->IsLongConstant()) {
+      return Evaluate(GetLeft()->AsLongConstant(), GetRight()->AsLongConstant());
     }
   }
   return nullptr;
