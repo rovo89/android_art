@@ -51,7 +51,7 @@ class Barrier {
   // to sleep, resulting in a deadlock.
 
   // Increment the count by delta, wait on condition if count is non zero.
-  void Increment(Thread* self, int delta) REQUIRES(!lock_);;
+  void Increment(Thread* self, int delta) REQUIRES(!lock_);
 
   // Increment the count by delta, wait on condition if count is non zero, with a timeout. Returns
   // true if time out occurred.
