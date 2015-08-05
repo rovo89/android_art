@@ -153,7 +153,7 @@ bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method) {
   CompiledMethod* compiled_method = nullptr;
   {
     TimingLogger::ScopedTiming t2("Compiling", &logger);
-    compiled_method = compiler_driver_->CompileMethod(self, method);
+    compiled_method = compiler_driver_->CompileArtMethod(self, method);
   }
   {
     TimingLogger::ScopedTiming t2("TrimMaps", &logger);
