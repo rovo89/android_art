@@ -38,6 +38,20 @@ void ParallelMoveResolverWithSwap::EmitNativeCode(HParallelMove* parallel_move) 
   // Build up a worklist of moves.
   BuildInitialMoveList(parallel_move);
 
+  // Move stack/stack slot to take advantage of a free register on constrained machines.
+  for (size_t i = 0; i < moves_.Size(); ++i) {
+    const MoveOperands& move = *moves_.Get(i);
+    // Ignore constants and moves already eliminated.
+    if (move.IsEliminated() || move.GetSource().IsConstant()) {
+      continue;
+    }
+
+    if ((move.GetSource().IsStackSlot() || move.GetSource().IsDoubleStackSlot()) &&
+        (move.GetDestination().IsStackSlot() || move.GetDestination().IsDoubleStackSlot())) {
+      PerformMove(i);
+    }
+  }
+
   for (size_t i = 0; i < moves_.Size(); ++i) {
     const MoveOperands& move = *moves_.Get(i);
     // Skip constants to perform them last.  They don't block other moves
