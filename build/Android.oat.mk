@@ -23,11 +23,17 @@
 
 include art/build/Android.common_build.mk
 
+LOCAL_DEX2OAT_HOST_INSTRUCTION_SET_FEATURES_OPTION :=
 ifeq ($(DEX2OAT_HOST_INSTRUCTION_SET_FEATURES),)
-  DEX2OAT_HOST_INSTRUCTION_SET_FEATURES := default
+  LOCAL_DEX2OAT_HOST_INSTRUCTION_SET_FEATURES_OPTION := --instruction-set-features=default
+else
+  LOCAL_DEX2OAT_HOST_INSTRUCTION_SET_FEATURES_OPTION := --instruction-set-features=$(DEX2OAT_HOST_INSTRUCTION_SET_FEATURES)
 endif
+LOCAL_$(HOST_2ND_ARCH_VAR_PREFIX)DEX2OAT_HOST_INSTRUCTION_SET_FEATURES_OPTION :=
 ifeq ($($(HOST_2ND_ARCH_VAR_PREFIX)DEX2OAT_HOST_INSTRUCTION_SET_FEATURES),)
-  $(HOST_2ND_ARCH_VAR_PREFIX)DEX2OAT_HOST_INSTRUCTION_SET_FEATURES := default
+  LOCAL_$(HOST_2ND_ARCH_VAR_PREFIX)DEX2OAT_HOST_INSTRUCTION_SET_FEATURES_OPTION := --instruction-set-features=default
+else
+  LOCAL_$(HOST_2ND_ARCH_VAR_PREFIX)DEX2OAT_HOST_INSTRUCTION_SET_FEATURES_OPTION := --instruction-set-features=$($(HOST_2ND_ARCH_VAR_PREFIX)DEX2OAT_HOST_INSTRUCTION_SET_FEATURES)
 endif
 
 # Use dex2oat debug version for better error reporting
@@ -116,7 +122,7 @@ $$(core_image_name): $$(HOST_CORE_DEX_LOCATIONS) $$(core_dex2oat_dependency)
 	  $$(addprefix --dex-location=,$$(HOST_CORE_DEX_LOCATIONS)) --oat-file=$$(PRIVATE_CORE_OAT_NAME) \
 	  --oat-location=$$(PRIVATE_CORE_OAT_NAME) --image=$$(PRIVATE_CORE_IMG_NAME) \
 	  --base=$$(LIBART_IMG_HOST_BASE_ADDRESS) --instruction-set=$$($(3)ART_HOST_ARCH) \
-	  --instruction-set-features=$$($(3)DEX2OAT_HOST_INSTRUCTION_SET_FEATURES) \
+	  $$(LOCAL_$(3)DEX2OAT_HOST_INSTRUCTION_SET_FEATURES_OPTION) \
 	  --host --android-root=$$(HOST_OUT) --include-patch-information --generate-debug-info \
 	  $$(PRIVATE_CORE_COMPILE_OPTIONS)
 

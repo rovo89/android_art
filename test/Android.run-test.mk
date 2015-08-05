@@ -853,6 +853,19 @@ define define-test-art-run-test
       $$(error found $(13) expected $(ALL_ADDRESS_SIZES))
     endif
   endif
+  # Override of host instruction-set-features. Required to test advanced x86 intrinsics. The
+  # conditionals aren't really correct, they will fail to do the right thing on a 32-bit only
+  # host. However, this isn't common enough to worry here and make the conditions complicated.
+  ifneq ($(DEX2OAT_HOST_INSTRUCTION_SET_FEATURES),)
+    ifeq ($(13),64)
+      run_test_options += --instruction-set-features $(DEX2OAT_HOST_INSTRUCTION_SET_FEATURES)
+    endif
+  endif
+  ifneq ($($(HOST_2ND_ARCH_VAR_PREFIX)DEX2OAT_HOST_INSTRUCTION_SET_FEATURES),)
+    ifeq ($(13),32)
+      run_test_options += --instruction-set-features $($(HOST_2ND_ARCH_VAR_PREFIX)DEX2OAT_HOST_INSTRUCTION_SET_FEATURES)
+    endif
+  endif
   run_test_rule_name := test-art-$(1)-run-test-$(2)-$(3)-$(4)-$(5)-$(6)-$(7)-$(8)-$(9)-$(10)-$(11)-$(12)$(13)
   run_test_options := --output-path $(ART_HOST_TEST_DIR)/run-test-output/$$(run_test_rule_name) \
       $$(run_test_options)
