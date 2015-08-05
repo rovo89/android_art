@@ -357,9 +357,10 @@ void HGraphBuilder::InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item) 
         HInstruction* first_insn = block->GetFirstInstruction();
         if (first_insn->IsLoadException()) {
           // Catch block starts with a LoadException. Split the block after the
-          // StoreLocal that must come after the load.
+          // StoreLocal and ClearException which must come after the load.
           DCHECK(first_insn->GetNext()->IsStoreLocal());
-          block = block->SplitBefore(first_insn->GetNext()->GetNext());
+          DCHECK(first_insn->GetNext()->GetNext()->IsClearException());
+          block = block->SplitBefore(first_insn->GetNext()->GetNext()->GetNext());
         } else {
           // Catch block does not load the exception. Split at the beginning to
           // create an empty catch block.
@@ -2552,6 +2553,7 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     case Instruction::MOVE_EXCEPTION: {
       current_block_->AddInstruction(new (arena_) HLoadException());
       UpdateLocal(instruction.VRegA_11x(), current_block_->GetLastInstruction());
+      current_block_->AddInstruction(new (arena_) HClearException());
       break;
     }
 
