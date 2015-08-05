@@ -884,7 +884,7 @@ void RecordArrayElementsInTransaction(mirror::Array* array, int32_t count)
 
 // Explicit DoCall template function declarations.
 #define EXPLICIT_DO_CALL_TEMPLATE_DECL(_is_range, _do_assignability_check)                      \
-  template SHARED_REQUIRES(Locks::mutator_lock_)                                          \
+  template SHARED_REQUIRES(Locks::mutator_lock_)                                                \
   bool DoCall<_is_range, _do_assignability_check>(ArtMethod* method, Thread* self,              \
                                                   ShadowFrame& shadow_frame,                    \
                                                   const Instruction* inst, uint16_t inst_data,  \
@@ -897,7 +897,7 @@ EXPLICIT_DO_CALL_TEMPLATE_DECL(true, true);
 
 // Explicit DoLambdaCall template function declarations.
 #define EXPLICIT_DO_LAMBDA_CALL_TEMPLATE_DECL(_is_range, _do_assignability_check)               \
-  template SHARED_REQUIRES(Locks::mutator_lock_)                                          \
+  template SHARED_REQUIRES(Locks::mutator_lock_)                                                \
   bool DoLambdaCall<_is_range, _do_assignability_check>(ArtMethod* method, Thread* self,        \
                                                         ShadowFrame& shadow_frame,              \
                                                         const Instruction* inst,                \
@@ -911,7 +911,7 @@ EXPLICIT_DO_LAMBDA_CALL_TEMPLATE_DECL(true, true);
 
 // Explicit DoFilledNewArray template function declarations.
 #define EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(_is_range_, _check, _transaction_active)       \
-  template SHARED_REQUIRES(Locks::mutator_lock_)                                            \
+  template SHARED_REQUIRES(Locks::mutator_lock_)                                                  \
   bool DoFilledNewArray<_is_range_, _check, _transaction_active>(const Instruction* inst,         \
                                                                  const ShadowFrame& shadow_frame, \
                                                                  Thread* self, JValue* result)

@@ -90,7 +90,6 @@ mirror::String* InternTable::LookupStrong(mirror::String* s) {
 }
 
 mirror::String* InternTable::LookupWeak(mirror::String* s) {
-  // TODO: Return only if marked.
   return weak_interns_.Find(s);
 }
 
@@ -229,7 +228,7 @@ void InternTable::BroadcastForNewInterns() {
 
 void InternTable::WaitUntilAccessible(Thread* self) {
   Locks::intern_table_lock_->ExclusiveUnlock(self);
-  self->TransitionFromRunnableToSuspended(kWaitingWeakRootRead);
+  self->TransitionFromRunnableToSuspended(kWaitingWeakGcRootRead);
   Locks::intern_table_lock_->ExclusiveLock(self);
   while (weak_root_state_ == gc::kWeakRootStateNoReadsOrWrites) {
     weak_intern_condition_.Wait(self);
@@ -250,24 +249,35 @@ mirror::String* InternTable::Insert(mirror::String* s, bool is_strong, bool hold
     CHECK_EQ(2u, self->NumberOfHeldMutexes()) << "may only safely hold the mutator lock";
   }
   while (true) {
+    if (holding_locks) {
+      if (!kUseReadBarrier) {
+        CHECK_EQ(weak_root_state_, gc::kWeakRootStateNormal);
+      } else {
+        CHECK(self->GetWeakRefAccessEnabled());
+      }
+    }
     // Check the strong table for a match.
     mirror::String* strong = LookupStrong(s);
     if (strong != nullptr) {
       return strong;
     }
+    if ((!kUseReadBarrier && weak_root_state_ != gc::kWeakRootStateNoReadsOrWrites) ||
+        (kUseReadBarrier && self->GetWeakRefAccessEnabled())) {
+      break;
+    }
     // weak_root_state_ is set to gc::kWeakRootStateNoReadsOrWrites in the GC pause but is only
     // cleared after SweepSystemWeaks has completed. This is why we need to wait until it is
     // cleared.
-    if (weak_root_state_ != gc::kWeakRootStateNoReadsOrWrites) {
-      break;
-    }
     CHECK(!holding_locks);
     StackHandleScope<1> hs(self);
     auto h = hs.NewHandleWrapper(&s);
     WaitUntilAccessible(self);
   }
-  CHECK_NE(weak_root_state_, gc::kWeakRootStateNoReadsOrWrites);
-  DCHECK_NE(weak_root_state_, gc::kWeakRootStateMarkNewRoots) << "Unsupported";
+  if (!kUseReadBarrier) {
+    CHECK_EQ(weak_root_state_, gc::kWeakRootStateNormal);
+  } else {
+    CHECK(self->GetWeakRefAccessEnabled());
+  }
   // There is no match in the strong table, check the weak table.
   mirror::String* weak = LookupWeak(s);
   if (weak != nullptr) {
@@ -298,7 +308,7 @@ mirror::String* InternTable::InternStrong(const char* utf8_data) {
   return InternStrong(mirror::String::AllocFromModifiedUtf8(Thread::Current(), utf8_data));
 }
 
-mirror::String* InternTable::InternImageString(mirror::String* s) {
+mirror::String* InternTable::InternStrongImageString(mirror::String* s) {
   // May be holding the heap bitmap lock.
   return Insert(s, true, true);
 }
@@ -319,8 +329,6 @@ bool InternTable::ContainsWeak(mirror::String* s) {
 void InternTable::SweepInternTableWeaks(IsMarkedVisitor* visitor) {
   MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
   weak_interns_.SweepWeaks(visitor);
-  // Done sweeping, back to a normal state.
-  ChangeWeakRootStateLocked(gc::kWeakRootStateNormal);
 }
 
 void InternTable::AddImageInternTable(gc::space::ImageSpace* image_space) {
