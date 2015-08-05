@@ -94,7 +94,8 @@ mirror::Object* BoxTable::BoxLambda(const ClosureType& closure) {
   return method_as_object;
 }
 
-bool BoxTable::UnboxLambda(mirror::Object* object, out<ClosureType> out_closure) {
+bool BoxTable::UnboxLambda(mirror::Object* object, ClosureType* out_closure) {
+  DCHECK(object != nullptr);
   *out_closure = nullptr;
 
   // Note that we do not need to access lambda_table_lock_ here

@@ -18,7 +18,6 @@
 
 #include <sstream>
 
-#include "base/out.h"
 #include "base/stringpiece.h"
 #include "debugger.h"
 #include "gc/heap.h"
@@ -42,11 +41,12 @@ ParsedOptions::ParsedOptions()
                                                     // Runtime::Abort
 }
 
-ParsedOptions* ParsedOptions::Create(const RuntimeOptions& options,
-                                     bool ignore_unrecognized,
-                                     out<RuntimeArgumentMap> runtime_options) {
+ParsedOptions* ParsedOptions::Create(const RuntimeOptions& options, bool ignore_unrecognized,
+                                     RuntimeArgumentMap* runtime_options) {
+  CHECK(runtime_options != nullptr);
+
   std::unique_ptr<ParsedOptions> parsed(new ParsedOptions());
-  if (parsed->Parse(options, ignore_unrecognized, outof_forward(runtime_options))) {
+  if (parsed->Parse(options, ignore_unrecognized, runtime_options)) {
     return parsed.release();
   }
   return nullptr;
@@ -293,7 +293,6 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
 // As a side-effect, populate the hooks from options.
 bool ParsedOptions::ProcessSpecialOptions(const RuntimeOptions& options,
                                           RuntimeArgumentMap* runtime_options,
-                                          // TODO: should be an optional_out here.
                                           std::vector<std::string>* out_options) {
   using M = RuntimeArgumentMap;
 
@@ -400,7 +399,7 @@ static void MaybeOverrideVerbosity() {
 }
 
 bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognized,
-                          out<RuntimeArgumentMap> runtime_options) {
+                          RuntimeArgumentMap* runtime_options) {
   for (size_t i = 0; i < options.size(); ++i) {
     if (true && options[0].first == "-Xzygote") {
       LOG(INFO) << "option[" << i << "]=" << options[i].first;
@@ -411,9 +410,7 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
 
   // Convert to a simple string list (without the magic pointer options)
   std::vector<std::string> argv_list;
-  if (!ProcessSpecialOptions(options,
-                             nullptr,  // No runtime argument map
-                             outof(argv_list))) {
+  if (!ProcessSpecialOptions(options, nullptr, &argv_list)) {
     return false;
   }
 
