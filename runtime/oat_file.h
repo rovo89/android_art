@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "base/mutex.h"
-#include "base/out_fwd.h"
 #include "base/stringpiece.h"
 #include "dex_file.h"
 #include "invoke_type.h"
@@ -46,10 +45,9 @@ class OatFile FINAL {
 
   // Opens an oat file contained within the given elf file. This is always opened as
   // non-executable at the moment.
-  static OatFile* OpenWithElfFile(ElfFile* elf_file,
-                                  const std::string& location,
+  static OatFile* OpenWithElfFile(ElfFile* elf_file, const std::string& location,
                                   const char* abs_dex_location,
-                                  out<std::string> error_msg);
+                                  std::string* error_msg);
   // Open an oat file. Returns null on failure.  Requested base can
   // optionally be used to request where the file should be loaded.
   // See the ResolveRelativeEncodedDexLocation for a description of how the
@@ -60,22 +58,20 @@ class OatFile FINAL {
                        uint8_t* oat_file_begin,
                        bool executable,
                        const char* abs_dex_location,
-                       out<std::string> error_msg);
+                       std::string* error_msg);
 
   // Open an oat file from an already opened File.
   // Does not use dlopen underneath so cannot be used for runtime use
   // where relocations may be required. Currently used from
   // ImageWriter which wants to open a writable version from an existing
   // file descriptor for patching.
-  static OatFile* OpenWritable(File* file,
-                               const std::string& location,
+  static OatFile* OpenWritable(File* file, const std::string& location,
                                const char* abs_dex_location,
-                               out<std::string> error_msg);
+                               std::string* error_msg);
   // Opens an oat file from an already opened File. Maps it PROT_READ, MAP_PRIVATE.
-  static OatFile* OpenReadable(File* file,
-                               const std::string& location,
+  static OatFile* OpenReadable(File* file, const std::string& location,
                                const char* abs_dex_location,
-                               out<std::string> error_msg);
+                               std::string* error_msg);
 
   ~OatFile();
 
@@ -256,13 +252,12 @@ class OatFile FINAL {
 
   // Check the given dependency list against their dex files - thus the name "Static," this does
   // not check the class-loader environment, only whether there have been file updates.
-  static bool CheckStaticDexFileDependencies(const char* dex_dependencies,
-                                             out<std::string> error_msg);
+  static bool CheckStaticDexFileDependencies(const char* dex_dependencies, std::string* msg);
 
   // Get the dex locations of a dependency list. Note: this is *not* cleaned for synthetic
   // locations of multidex files.
   static bool GetDexLocationsFromDependencies(const char* dex_dependencies,
-                                              out<std::vector<std::string>> locations);
+                                              std::vector<std::string>* locations);
 
  private:
   static void CheckLocation(const std::string& location);
@@ -271,7 +266,7 @@ class OatFile FINAL {
                              const std::string& location,
                              uint8_t* requested_base,
                              const char* abs_dex_location,
-                             out<std::string> error_msg);
+                             std::string* error_msg);
 
   static OatFile* OpenElfFile(File* file,
                               const std::string& location,
@@ -280,22 +275,18 @@ class OatFile FINAL {
                               bool writable,
                               bool executable,
                               const char* abs_dex_location,
-                              out<std::string> error_msg);
+                              std::string* error_msg);
 
   explicit OatFile(const std::string& filename, bool executable);
-  bool Dlopen(const std::string& elf_filename,
-              uint8_t* requested_base,
-              const char* abs_dex_location,
-              out<std::string> error_msg);
-  bool ElfFileOpen(File* file,
-                   uint8_t* requested_base,
+  bool Dlopen(const std::string& elf_filename, uint8_t* requested_base,
+              const char* abs_dex_location, std::string* error_msg);
+  bool ElfFileOpen(File* file, uint8_t* requested_base,
                    uint8_t* oat_file_begin,  // Override where the file is loaded to if not null
-                   bool writable,
-                   bool executable,
+                   bool writable, bool executable,
                    const char* abs_dex_location,
-                   out<std::string> error_msg);
+                   std::string* error_msg);
 
-  bool Setup(const char* abs_dex_location, out<std::string> error_msg);
+  bool Setup(const char* abs_dex_location, std::string* error_msg);
 
   // The oat file name.
   //
@@ -374,7 +365,7 @@ class OatFile FINAL {
 class OatDexFile FINAL {
  public:
   // Opens the DexFile referred to by this OatDexFile from within the containing OatFile.
-  std::unique_ptr<const DexFile> OpenDexFile(out<std::string> error_msg) const;
+  std::unique_ptr<const DexFile> OpenDexFile(std::string* error_msg) const;
 
   const OatFile* GetOatFile() const {
     return oat_file_;

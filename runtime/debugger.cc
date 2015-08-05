@@ -24,7 +24,6 @@
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/time_utils.h"
-#include "base/out.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
@@ -1001,7 +1000,7 @@ JDWP::JdwpError Dbg::GetClassInfo(JDWP::RefTypeId class_id, JDWP::JdwpTypeTag* p
 
 void Dbg::FindLoadedClassBySignature(const char* descriptor, std::vector<JDWP::RefTypeId>* ids) {
   std::vector<mirror::Class*> classes;
-  Runtime::Current()->GetClassLinker()->LookupClasses(descriptor, outof(classes));
+  Runtime::Current()->GetClassLinker()->LookupClasses(descriptor, classes);
   ids->clear();
   for (size_t i = 0; i < classes.size(); ++i) {
     ids->push_back(gRegistry->Add(classes[i]));
