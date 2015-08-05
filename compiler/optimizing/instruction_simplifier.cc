@@ -438,9 +438,14 @@ void InstructionSimplifierVisitor::VisitAdd(HAdd* instruction) {
     //    ADD dst, src, 0
     // with
     //    src
-    instruction->ReplaceWith(input_other);
-    instruction->GetBlock()->RemoveInstruction(instruction);
-    return;
+    // Note that we cannot optimize `x + 0.0` to `x` for floating-point. When
+    // `x` is `-0.0`, the former expression yields `0.0`, while the later
+    // yields `-0.0`.
+    if (Primitive::IsIntegralType(instruction->GetType())) {
+      instruction->ReplaceWith(input_other);
+      instruction->GetBlock()->RemoveInstruction(instruction);
+      return;
+    }
   }
 
   HInstruction* left = instruction->GetLeft();
@@ -800,18 +805,21 @@ void InstructionSimplifierVisitor::VisitSub(HSub* instruction) {
   HConstant* input_cst = instruction->GetConstantRight();
   HInstruction* input_other = instruction->GetLeastConstantLeft();
 
+  Primitive::Type type = instruction->GetType();
+  if (Primitive::IsFloatingPointType(type)) {
+    return;
+  }
+
   if ((input_cst != nullptr) && input_cst->IsZero()) {
     // Replace code looking like
     //    SUB dst, src, 0
     // with
     //    src
+    // Note that we cannot optimize `x - 0.0` to `x` for floating-point. When
+    // `x` is `-0.0`, the former expression yields `0.0`, while the later
+    // yields `-0.0`.
     instruction->ReplaceWith(input_other);
     instruction->GetBlock()->RemoveInstruction(instruction);
-    return;
-  }
-
-  Primitive::Type type = instruction->GetType();
-  if (!Primitive::IsIntegralType(type)) {
     return;
   }
 
