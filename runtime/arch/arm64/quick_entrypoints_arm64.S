@@ -1628,9 +1628,8 @@ END art_quick_deoptimize
      *    w2:   Starting offset in string data
      */
 ENTRY art_quick_indexof
-    ldr   w3, [x0, #STRING_COUNT_OFFSET]
-    ldr   w4, [x0, #STRING_OFFSET_OFFSET]
     ldr   w0, [x0, #STRING_VALUE_OFFSET] // x0 ?
+    ldr   w3, [x0, #ARRAY_LENGTH_OFFSET]
 
     /* Clamp start to [0..count] */
     cmp   w2, #0
@@ -1639,8 +1638,7 @@ ENTRY art_quick_indexof
     csel  w2, w3, w2, gt
 
     /* Build a pointer to the start of the string data */
-    add   x0, x0, #STRING_DATA_OFFSET
-    add   x0, x0, x4, lsl #1
+    add   x0, x0, #OBJECT_ARRAY_DATA_OFFSET
 
     /* Save a copy to compute result */
     mov   x5, x0
@@ -1733,17 +1731,16 @@ ENTRY art_quick_string_compareto
     ret
 1:                        // Different string objects.
 
-    ldr    w6, [x2, #STRING_OFFSET_OFFSET]
-    ldr    w5, [x1, #STRING_OFFSET_OFFSET]
-    ldr    w4, [x2, #STRING_COUNT_OFFSET]
-    ldr    w3, [x1, #STRING_COUNT_OFFSET]
     ldr    w2, [x2, #STRING_VALUE_OFFSET]
     ldr    w1, [x1, #STRING_VALUE_OFFSET]
 
+    ldr    w4, [x2, #ARRAY_LENGTH_OFFSET]
+    ldr    w3, [x1, #ARRAY_LENGTH_OFFSET]
+
     /*
-     * Now:           CharArray*    Offset   Count
-     *    first arg      x2          w6        w4
-     *   second arg      x1          w5        w3
+     * Now:           CharArray*       Count
+     *    first arg      x2              w4
+     *   second arg      x1              w3
      */
 
     // x0 := str1.length(w4) - str2.length(w3). ldr zero-extended w3/w4 into x3/x4.
@@ -1753,13 +1750,10 @@ ENTRY art_quick_string_compareto
 
     // Build pointer into string data.
 
-    // Add offset in array (substr etc.) (sign extend and << 1).
-    add x2, x2, w6, sxtw #1
-    add x1, x1, w5, sxtw #1
 
     // Add offset in CharArray to array.
-    add x2, x2, #STRING_DATA_OFFSET
-    add x1, x1, #STRING_DATA_OFFSET
+    add x2, x2, #OBJECT_ARRAY_DATA_OFFSET
+    add x1, x1, #OBJECT_ARRAY_DATA_OFFSET
 
     // TODO: Tune this value.
     // Check for long string, do memcmp16 for them.
