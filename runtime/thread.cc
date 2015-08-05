@@ -527,7 +527,11 @@ bool Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm, JNIEnvExt* jni_en
   InitCardTable();
   InitTid();
 
+#ifdef __ANDROID__
+  __get_tls()[TLS_SLOT_ART_THREAD_SELF] = this;
+#else
   CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, this), "attach self");
+#endif
   DCHECK_EQ(Thread::Current(), this);
 
   tls32_.thin_lock_thread_id = thread_list->AllocThreadId(this);
@@ -1349,7 +1353,11 @@ void Thread::ThreadExitCallback(void* arg) {
     LOG(WARNING) << "Native thread exiting without having called DetachCurrentThread (maybe it's "
         "going to use a pthread_key_create destructor?): " << *self;
     CHECK(is_started_);
+#ifdef __ANDROID__
+    __get_tls()[TLS_SLOT_ART_THREAD_SELF] = self;
+#else
     CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, self), "reattach self");
+#endif
     self->tls32_.thread_exit_check_count = 1;
   } else {
     LOG(FATAL) << "Native thread exited without calling DetachCurrentThread: " << *self;
