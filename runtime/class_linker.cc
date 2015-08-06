@@ -1097,6 +1097,28 @@ static void SanityCheckObjectsCallback(mirror::Object* obj, void* arg ATTRIBUTE_
   }
 }
 
+// Set image methods' entry point to interpreter.
+class SetInterpreterEntrypointArtMethodVisitor : public ArtMethodVisitor {
+ public:
+  explicit SetInterpreterEntrypointArtMethodVisitor(size_t image_pointer_size)
+    : image_pointer_size_(image_pointer_size) {}
+
+  void Visit(ArtMethod* method) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    if (kIsDebugBuild && !method->IsRuntimeMethod()) {
+      CHECK(method->GetDeclaringClass() != nullptr);
+    }
+    if (!method->IsNative() && !method->IsRuntimeMethod() && !method->IsResolutionMethod()) {
+      method->SetEntryPointFromQuickCompiledCodePtrSize(GetQuickToInterpreterBridge(),
+                                                        image_pointer_size_);
+    }
+  }
+
+ private:
+  const size_t image_pointer_size_;
+
+  DISALLOW_COPY_AND_ASSIGN(SetInterpreterEntrypointArtMethodVisitor);
+};
+
 void ClassLinker::InitFromImage() {
   VLOG(startup) << "ClassLinker::InitFromImage entering";
   CHECK(!init_done_);
@@ -1187,19 +1209,11 @@ void ClassLinker::InitFromImage() {
 
   // Set entry point to interpreter if in InterpretOnly mode.
   if (!runtime->IsAotCompiler() && runtime->GetInstrumentation()->InterpretOnly()) {
-    const auto& header = space->GetImageHeader();
-    const auto& methods = header.GetMethodsSection();
-    const auto art_method_size = ArtMethod::ObjectSize(image_pointer_size_);
-    for (uintptr_t pos = 0; pos < methods.Size(); pos += art_method_size) {
-      auto* method = reinterpret_cast<ArtMethod*>(space->Begin() + pos + methods.Offset());
-      if (kIsDebugBuild && !method->IsRuntimeMethod()) {
-        CHECK(method->GetDeclaringClass() != nullptr);
-      }
-      if (!method->IsNative() && !method->IsRuntimeMethod() && !method->IsResolutionMethod()) {
-        method->SetEntryPointFromQuickCompiledCodePtrSize(GetQuickToInterpreterBridge(),
-                                                          image_pointer_size_);
-      }
-    }
+    const ImageHeader& header = space->GetImageHeader();
+    const ImageSection& methods = header.GetMethodsSection();
+    const size_t art_method_size = ArtMethod::ObjectSize(image_pointer_size_);
+    SetInterpreterEntrypointArtMethodVisitor visitor(image_pointer_size_);
+    methods.VisitPackedArtMethods(&visitor, space->Begin(), art_method_size);
   }
 
   // reinit class_roots_
