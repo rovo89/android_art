@@ -55,6 +55,9 @@ static constexpr uint32_t kAccDontInline =           0x00400000;  // method (dex
 // Special runtime-only flags.
 // Note: if only kAccClassIsReference is set, we have a soft reference.
 
+// class is ClassLoader or one of its subclasses
+static constexpr uint32_t kAccClassIsClassLoaderClass   = 0x10000000;
+
 // class/ancestor overrides finalize()
 static constexpr uint32_t kAccClassIsFinalizable        = 0x80000000;
 // class is a soft/weak/phantom ref

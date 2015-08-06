@@ -236,6 +236,15 @@ class MANAGED Class FINAL : public Object {
     SetAccessFlags(flags | kAccClassIsStringClass);
   }
 
+  ALWAYS_INLINE bool IsClassLoaderClass() SHARED_REQUIRES(Locks::mutator_lock_) {
+    return (GetField32(AccessFlagsOffset()) & kAccClassIsClassLoaderClass) != 0;
+  }
+
+  ALWAYS_INLINE void SetClassLoaderClass() SHARED_REQUIRES(Locks::mutator_lock_) {
+    uint32_t flags = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_));
+    SetAccessFlags(flags | kAccClassIsClassLoaderClass);
+  }
+
   // Returns true if the class is abstract.
   ALWAYS_INLINE bool IsAbstract() SHARED_REQUIRES(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccAbstract) != 0;
