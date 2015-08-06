@@ -26,6 +26,9 @@ class CheckerFile(PrintableMixin):
   def addTestCase(self, new_test_case):
     self.testCases.append(new_test_case)
 
+  def testCasesForArch(self, targetArch):
+    return [t for t in self.testCases if t.testArch == targetArch]
+
   def __eq__(self, other):
     return isinstance(other, self.__class__) \
        and self.testCases == other.testCases
@@ -33,13 +36,14 @@ class CheckerFile(PrintableMixin):
 
 class TestCase(PrintableMixin):
 
-  def __init__(self, parent, name, startLineNo):
+  def __init__(self, parent, name, startLineNo, testArch = None):
     assert isinstance(parent, CheckerFile)
 
     self.parent = parent
     self.name = name
     self.assertions = []
     self.startLineNo = startLineNo
+    self.testArch = testArch
 
     if not self.name:
       Logger.fail("Test case does not have a name", self.fileName, self.startLineNo)
