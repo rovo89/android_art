@@ -24,6 +24,8 @@ public class Main {
       }
 
       System.out.println(f);
+      System.out.println(f + 0f);
+      System.out.println(f - (-0f));
     }
 
     public static void doubleTest() {
@@ -35,6 +37,8 @@ public class Main {
       }
 
       System.out.println(d);
+      System.out.println(d + 0f);
+      System.out.println(d - (-0f));
     }
 
     public static void main(String[] args) {
