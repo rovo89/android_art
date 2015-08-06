@@ -1391,7 +1391,7 @@ static JdwpError DDM_Chunk(JdwpState* state, Request* request, ExpandBuf* pReply
     // heap requirements is probably more valuable than the efficiency.
     CHECK_GT(replyLen, 0);
     memcpy(expandBufAddSpace(pReply, replyLen), replyBuf, replyLen);
-    free(replyBuf);
+    delete[] replyBuf;
   }
   return ERR_NONE;
 }
