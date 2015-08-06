@@ -1058,12 +1058,11 @@ static void SanityCheckObjectsCallback(mirror::Object* obj, void* arg ATTRIBUTE_
   CHECK(obj->GetClass()->GetClass() != nullptr) << "Null class class " << obj;
   if (obj->IsClass()) {
     auto klass = obj->AsClass();
-    ArtField* fields[2] = { klass->GetSFields(), klass->GetIFields() };
-    size_t num_fields[2] = { klass->NumStaticFields(), klass->NumInstanceFields() };
-    for (size_t i = 0; i < 2; ++i) {
-      for (size_t j = 0; j < num_fields[i]; ++j) {
-        CHECK_EQ(fields[i][j].GetDeclaringClass(), klass);
-      }
+    for (ArtField& field : klass->GetIFields()) {
+      CHECK_EQ(field.GetDeclaringClass(), klass);
+    }
+    for (ArtField& field : klass->GetSFields()) {
+      CHECK_EQ(field.GetDeclaringClass(), klass);
     }
     auto* runtime = Runtime::Current();
     auto* image_space = runtime->GetHeap()->GetImageSpace();
@@ -2282,23 +2281,31 @@ void ClassLinker::LoadClass(Thread* self, const DexFile& dex_file,
   }
 }
 
-ArtField* ClassLinker::AllocArtFieldArray(Thread* self, size_t length) {
-  auto* const la = Runtime::Current()->GetLinearAlloc();
-  auto* ptr = reinterpret_cast<ArtField*>(la->AllocArray<ArtField>(self, length));
-  CHECK(ptr!= nullptr);
-  std::uninitialized_fill_n(ptr, length, ArtField());
-  return ptr;
+LengthPrefixedArray<ArtField>* ClassLinker::AllocArtFieldArray(Thread* self, size_t length) {
+  if (length == 0) {
+    return nullptr;
+  }
+  auto* ret = new(Runtime::Current()->GetLinearAlloc()->Alloc(
+      self, LengthPrefixedArray<ArtField>::ComputeSize(length))) LengthPrefixedArray<ArtField>(
+          length);
+  CHECK(ret != nullptr);
+  std::uninitialized_fill_n(&ret->At(0), length, ArtField());
+  return ret;
 }
 
-ArtMethod* ClassLinker::AllocArtMethodArray(Thread* self, size_t length) {
-  const size_t method_size = ArtMethod::ObjectSize(image_pointer_size_);
-  uintptr_t ptr = reinterpret_cast<uintptr_t>(
-      Runtime::Current()->GetLinearAlloc()->Alloc(self, method_size * length));
-  CHECK_NE(ptr, 0u);
-  for (size_t i = 0; i < length; ++i) {
-    new(reinterpret_cast<void*>(ptr + i * method_size)) ArtMethod;
+LengthPrefixedArray<ArtMethod>* ClassLinker::AllocArtMethodArray(Thread* self, size_t length) {
+  if (length == 0) {
+    return nullptr;
   }
-  return reinterpret_cast<ArtMethod*>(ptr);
+  const size_t method_size = ArtMethod::ObjectSize(image_pointer_size_);
+  auto* ret = new (Runtime::Current()->GetLinearAlloc()->Alloc(
+      self, LengthPrefixedArray<ArtMethod>::ComputeSize(length, method_size)))
+          LengthPrefixedArray<ArtMethod>(length);
+  CHECK(ret != nullptr);
+  for (size_t i = 0; i < length; ++i) {
+    new(reinterpret_cast<void*>(&ret->At(i, method_size))) ArtMethod;
+  }
+  return ret;
 }
 
 void ClassLinker::LoadClassMembers(Thread* self, const DexFile& dex_file,
@@ -2313,8 +2320,7 @@ void ClassLinker::LoadClassMembers(Thread* self, const DexFile& dex_file,
     // We allow duplicate definitions of the same field in a class_data_item
     // but ignore the repeated indexes here, b/21868015.
     ClassDataItemIterator it(dex_file, class_data);
-    ArtField* sfields =
-        it.NumStaticFields() != 0 ? AllocArtFieldArray(self, it.NumStaticFields()) : nullptr;
+    LengthPrefixedArray<ArtField>* sfields = AllocArtFieldArray(self, it.NumStaticFields());
     size_t num_sfields = 0;
     uint32_t last_field_idx = 0u;
     for (; it.HasNextStaticField(); it.Next()) {
@@ -2322,17 +2328,15 @@ void ClassLinker::LoadClassMembers(Thread* self, const DexFile& dex_file,
       DCHECK_GE(field_idx, last_field_idx);  // Ordering enforced by DexFileVerifier.
       if (num_sfields == 0 || LIKELY(field_idx > last_field_idx)) {
         DCHECK_LT(num_sfields, it.NumStaticFields());
-        LoadField(it, klass, &sfields[num_sfields]);
+        LoadField(it, klass, &sfields->At(num_sfields));
         ++num_sfields;
         last_field_idx = field_idx;
       }
     }
-    klass->SetSFields(sfields);
-    klass->SetNumStaticFields(num_sfields);
+    klass->SetSFieldsPtr(sfields);
     DCHECK_EQ(klass->NumStaticFields(), num_sfields);
     // Load instance fields.
-    ArtField* ifields =
-        it.NumInstanceFields() != 0 ? AllocArtFieldArray(self, it.NumInstanceFields()) : nullptr;
+    LengthPrefixedArray<ArtField>* ifields = AllocArtFieldArray(self, it.NumInstanceFields());
     size_t num_ifields = 0u;
     last_field_idx = 0u;
     for (; it.HasNextInstanceField(); it.Next()) {
@@ -2340,7 +2344,7 @@ void ClassLinker::LoadClassMembers(Thread* self, const DexFile& dex_file,
       DCHECK_GE(field_idx, last_field_idx);  // Ordering enforced by DexFileVerifier.
       if (num_ifields == 0 || LIKELY(field_idx > last_field_idx)) {
         DCHECK_LT(num_ifields, it.NumInstanceFields());
-        LoadField(it, klass, &ifields[num_ifields]);
+        LoadField(it, klass, &ifields->At(num_ifields));
         ++num_ifields;
         last_field_idx = field_idx;
       }
@@ -2352,18 +2356,11 @@ void ClassLinker::LoadClassMembers(Thread* self, const DexFile& dex_file,
           << ", unique instance fields: " << num_ifields << "/" << it.NumInstanceFields() << ")";
       // NOTE: Not shrinking the over-allocated sfields/ifields.
     }
-    klass->SetIFields(ifields);
-    klass->SetNumInstanceFields(num_ifields);
+    klass->SetIFieldsPtr(ifields);
     DCHECK_EQ(klass->NumInstanceFields(), num_ifields);
     // Load methods.
-    if (it.NumDirectMethods() != 0) {
-      klass->SetDirectMethodsPtr(AllocArtMethodArray(self, it.NumDirectMethods()));
-    }
-    klass->SetNumDirectMethods(it.NumDirectMethods());
-    if (it.NumVirtualMethods() != 0) {
-      klass->SetVirtualMethodsPtr(AllocArtMethodArray(self, it.NumVirtualMethods()));
-    }
-    klass->SetNumVirtualMethods(it.NumVirtualMethods());
+    klass->SetDirectMethodsPtr(AllocArtMethodArray(self, it.NumDirectMethods()));
+    klass->SetVirtualMethodsPtr(AllocArtMethodArray(self, it.NumVirtualMethods()));
     size_t class_def_method_index = 0;
     uint32_t last_dex_method_index = DexFile::kDexNoIndex;
     size_t last_class_def_method_index = 0;
@@ -2807,12 +2804,10 @@ mirror::Class* ClassLinker::InsertClass(const char* descriptor, mirror::Class* k
   return nullptr;
 }
 
-void ClassLinker::UpdateClassVirtualMethods(mirror::Class* klass, ArtMethod* new_methods,
-                                            size_t new_num_methods) {
-  // TODO: Fix the race condition here. b/22832610
-  klass->SetNumVirtualMethods(new_num_methods);
+void ClassLinker::UpdateClassVirtualMethods(mirror::Class* klass,
+                                            LengthPrefixedArray<ArtMethod>* new_methods) {
   klass->SetVirtualMethodsPtr(new_methods);
-  // Need to mark the card so that the remembered sets and mod union tables get update.
+  // Need to mark the card so that the remembered sets and mod union tables get updated.
   Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(klass);
 }
 
@@ -3257,25 +3252,24 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
 
   // Instance fields are inherited, but we add a couple of static fields...
   const size_t num_fields = 2;
-  ArtField* sfields = AllocArtFieldArray(self, num_fields);
-  klass->SetSFields(sfields);
-  klass->SetNumStaticFields(num_fields);
+  LengthPrefixedArray<ArtField>* sfields = AllocArtFieldArray(self, num_fields);
+  klass->SetSFieldsPtr(sfields);
 
   // 1. Create a static field 'interfaces' that holds the _declared_ interfaces implemented by
   // our proxy, so Class.getInterfaces doesn't return the flattened set.
-  ArtField* interfaces_sfield = &sfields[0];
-  interfaces_sfield->SetDexFieldIndex(0);
-  interfaces_sfield->SetDeclaringClass(klass.Get());
-  interfaces_sfield->SetAccessFlags(kAccStatic | kAccPublic | kAccFinal);
+  ArtField& interfaces_sfield = sfields->At(0);
+  interfaces_sfield.SetDexFieldIndex(0);
+  interfaces_sfield.SetDeclaringClass(klass.Get());
+  interfaces_sfield.SetAccessFlags(kAccStatic | kAccPublic | kAccFinal);
 
   // 2. Create a static field 'throws' that holds exceptions thrown by our methods.
-  ArtField* throws_sfield = &sfields[1];
-  throws_sfield->SetDexFieldIndex(1);
-  throws_sfield->SetDeclaringClass(klass.Get());
-  throws_sfield->SetAccessFlags(kAccStatic | kAccPublic | kAccFinal);
+  ArtField& throws_sfield = sfields->At(1);
+  throws_sfield.SetDexFieldIndex(1);
+  throws_sfield.SetDeclaringClass(klass.Get());
+  throws_sfield.SetAccessFlags(kAccStatic | kAccPublic | kAccFinal);
 
   // Proxies have 1 direct method, the constructor
-  auto* directs = AllocArtMethodArray(self, 1);
+  LengthPrefixedArray<ArtMethod>* directs = AllocArtMethodArray(self, 1);
   // Currently AllocArtMethodArray cannot return null, but the OOM logic is left there in case we
   // want to throw OOM in the future.
   if (UNLIKELY(directs == nullptr)) {
@@ -3283,13 +3277,12 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
     return nullptr;
   }
   klass->SetDirectMethodsPtr(directs);
-  klass->SetNumDirectMethods(1u);
   CreateProxyConstructor(klass, klass->GetDirectMethodUnchecked(0, image_pointer_size_));
 
   // Create virtual method using specified prototypes.
   auto h_methods = hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Method>*>(methods));
   DCHECK_EQ(h_methods->GetClass(), mirror::Method::ArrayClass())
-    << PrettyClass(h_methods->GetClass());
+      << PrettyClass(h_methods->GetClass());
   const size_t num_virtual_methods = h_methods->GetLength();
   auto* virtuals = AllocArtMethodArray(self, num_virtual_methods);
   // Currently AllocArtMethodArray cannot return null, but the OOM logic is left there in case we
@@ -3299,7 +3292,6 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
     return nullptr;
   }
   klass->SetVirtualMethodsPtr(virtuals);
-  klass->SetNumVirtualMethods(num_virtual_methods);
   for (size_t i = 0; i < num_virtual_methods; ++i) {
     auto* virtual_method = klass->GetVirtualMethodUnchecked(i, image_pointer_size_);
     auto* prototype = h_methods->Get(i)->GetArtMethod();
@@ -3331,12 +3323,12 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   CHECK_NE(klass.Get(), new_class.Get());
   klass.Assign(new_class.Get());
 
-  CHECK_EQ(interfaces_sfield->GetDeclaringClass(), klass.Get());
-  interfaces_sfield->SetObject<false>(klass.Get(),
-                                      soa.Decode<mirror::ObjectArray<mirror::Class>*>(interfaces));
-  CHECK_EQ(throws_sfield->GetDeclaringClass(), klass.Get());
-  throws_sfield->SetObject<false>(klass.Get(),
-      soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class> >*>(throws));
+  CHECK_EQ(interfaces_sfield.GetDeclaringClass(), klass.Get());
+  interfaces_sfield.SetObject<false>(klass.Get(),
+                                     soa.Decode<mirror::ObjectArray<mirror::Class>*>(interfaces));
+  CHECK_EQ(throws_sfield.GetDeclaringClass(), klass.Get());
+  throws_sfield.SetObject<false>(
+      klass.Get(), soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class> >*>(throws));
 
   {
     // Lock on klass is released. Lock new class object.
@@ -3346,7 +3338,7 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
 
   // sanity checks
   if (kIsDebugBuild) {
-    CHECK(klass->GetIFields() == nullptr);
+    CHECK(klass->GetIFieldsPtr() == nullptr);
     CheckProxyConstructor(klass->GetDirectMethod(0, image_pointer_size_));
 
     for (size_t i = 0; i < num_virtual_methods; ++i) {
@@ -3958,19 +3950,17 @@ bool ClassLinker::EnsureInitialized(Thread* self, Handle<mirror::Class> c, bool 
 
 void ClassLinker::FixupTemporaryDeclaringClass(mirror::Class* temp_class,
                                                mirror::Class* new_class) {
-  ArtField* fields = new_class->GetIFields();
   DCHECK_EQ(temp_class->NumInstanceFields(), 0u);
-  for (size_t i = 0, count = new_class->NumInstanceFields(); i < count; i++) {
-    if (fields[i].GetDeclaringClass() == temp_class) {
-      fields[i].SetDeclaringClass(new_class);
+  for (ArtField& field : new_class->GetIFields()) {
+    if (field.GetDeclaringClass() == temp_class) {
+      field.SetDeclaringClass(new_class);
     }
   }
 
-  fields = new_class->GetSFields();
   DCHECK_EQ(temp_class->NumStaticFields(), 0u);
-  for (size_t i = 0, count = new_class->NumStaticFields(); i < count; i++) {
-    if (fields[i].GetDeclaringClass() == temp_class) {
-      fields[i].SetDeclaringClass(new_class);
+  for (ArtField& field : new_class->GetSFields()) {
+    if (field.GetDeclaringClass() == temp_class) {
+      field.SetDeclaringClass(new_class);
     }
   }
 
@@ -4057,10 +4047,10 @@ bool ClassLinker::LinkClass(Thread* self, const char* descriptor, Handle<mirror:
     // same ArtFields with the same If this occurs, it causes bugs in remembered sets since the GC
     // may not see any references to the from space and clean the card. Though there was references
     // to the from space that got marked by the first class.
-    klass->SetNumDirectMethods(0);
-    klass->SetNumVirtualMethods(0);
-    klass->SetNumStaticFields(0);
-    klass->SetNumInstanceFields(0);
+    klass->SetDirectMethodsPtrUnchecked(nullptr);
+    klass->SetVirtualMethodsPtr(nullptr);
+    klass->SetSFieldsPtrUnchecked(nullptr);
+    klass->SetIFieldsPtrUnchecked(nullptr);
     if (UNLIKELY(h_new_class.Get() == nullptr)) {
       self->AssertPendingOOMException();
       mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
@@ -4863,7 +4853,7 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
       const bool super_interface = is_super && extend_super_iftable;
       auto method_array(hs2.NewHandle(iftable->GetMethodArray(i)));
 
-      ArtMethod* input_virtual_methods = nullptr;
+      LengthPrefixedArray<ArtMethod>* input_virtual_methods = nullptr;
       Handle<mirror::PointerArray> input_vtable_array = NullHandle<mirror::PointerArray>();
       int32_t input_array_length = 0;
       if (super_interface) {
@@ -4898,8 +4888,7 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
         // matter which direction we go.  We walk it backward anyway.)
         for (k = input_array_length - 1; k >= 0; --k) {
           ArtMethod* vtable_method = input_virtual_methods != nullptr ?
-              reinterpret_cast<ArtMethod*>(
-                  reinterpret_cast<uintptr_t>(input_virtual_methods) + method_size * k) :
+              &input_virtual_methods->At(k, method_size) :
               input_vtable_array->GetElementPtrSize<ArtMethod*>(k, image_pointer_size_);
           ArtMethod* vtable_method_for_name_comparison =
               vtable_method->GetInterfaceMethodIfProxy(image_pointer_size_);
@@ -4955,13 +4944,17 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
     const size_t old_method_count = klass->NumVirtualMethods();
     const size_t new_method_count = old_method_count + miranda_methods.size();
     // Attempt to realloc to save RAM if possible.
-    ArtMethod* old_virtuals = klass->GetVirtualMethodsPtr();
+    LengthPrefixedArray<ArtMethod>* old_virtuals = klass->GetVirtualMethodsPtr();
     // The Realloced virtual methods aren't visiblef from the class roots, so there is no issue
     // where GCs could attempt to mark stale pointers due to memcpy. And since we overwrite the
     // realloced memory with out->CopyFrom, we are guaranteed to have objects in the to space since
     // CopyFrom has internal read barriers.
-    auto* virtuals = reinterpret_cast<ArtMethod*>(runtime->GetLinearAlloc()->Realloc(
-        self, old_virtuals, old_method_count * method_size, new_method_count * method_size));
+    const size_t old_size = old_virtuals != nullptr ?
+        LengthPrefixedArray<ArtMethod>::ComputeSize(old_method_count, method_size) : 0u;
+    const size_t new_size = LengthPrefixedArray<ArtMethod>::ComputeSize(new_method_count,
+                                                                        method_size);
+    auto* virtuals = new(runtime->GetLinearAlloc()->Realloc(
+        self, old_virtuals, old_size, new_size))LengthPrefixedArray<ArtMethod>(new_method_count);
     if (UNLIKELY(virtuals == nullptr)) {
       self->AssertPendingOOMException();
       self->EndAssertNoThreadSuspension(old_cause);
@@ -4970,7 +4963,7 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
     ScopedArenaUnorderedMap<ArtMethod*, ArtMethod*> move_table(allocator.Adapter());
     if (virtuals != old_virtuals) {
       // Maps from heap allocated miranda method to linear alloc miranda method.
-      StrideIterator<ArtMethod> out(reinterpret_cast<uintptr_t>(virtuals), method_size);
+      StrideIterator<ArtMethod> out = virtuals->Begin(method_size);
       // Copy over the old methods + miranda methods.
       for (auto& m : klass->GetVirtualMethods(image_pointer_size_)) {
         move_table.emplace(&m, &*out);
@@ -4980,8 +4973,7 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
         ++out;
       }
     }
-    StrideIterator<ArtMethod> out(
-        reinterpret_cast<uintptr_t>(virtuals) + old_method_count * method_size, method_size);
+    StrideIterator<ArtMethod> out(virtuals->Begin(method_size) + old_method_count);
     // Copy over miranda methods before copying vtable since CopyOf may cause thread suspension and
     // we want the roots of the miranda methods to get visited.
     for (ArtMethod* mir_method : miranda_methods) {
@@ -4990,7 +4982,7 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
       move_table.emplace(mir_method, &*out);
       ++out;
     }
-    UpdateClassVirtualMethods(klass.Get(), virtuals, new_method_count);
+    UpdateClassVirtualMethods(klass.Get(), virtuals);
     // Done copying methods, they are all roots in the class now, so we can end the no thread
     // suspension assert.
     self->EndAssertNoThreadSuspension(old_cause);
@@ -5003,8 +4995,7 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
       self->AssertPendingOOMException();
       return false;
     }
-    out = StrideIterator<ArtMethod>(
-        reinterpret_cast<uintptr_t>(virtuals) + old_method_count * method_size, method_size);
+    out = StrideIterator<ArtMethod>(virtuals->Begin(method_size) + old_method_count);
     size_t vtable_pos = old_vtable_count;
     for (size_t i = old_method_count; i < new_method_count; ++i) {
       // Leave the declaring class alone as type indices are relative to it
@@ -5058,7 +5049,7 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
     }
     // Put some random garbage in old virtuals to help find stale pointers.
     if (virtuals != old_virtuals) {
-      memset(old_virtuals, 0xFEu, ArtMethod::ObjectSize(image_pointer_size_) * old_method_count);
+      memset(old_virtuals, 0xFEu, old_size);
     }
   } else {
     self->EndAssertNoThreadSuspension(old_cause);
@@ -5120,7 +5111,8 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
                              size_t* class_size) {
   self->AllowThreadSuspension();
   const size_t num_fields = is_static ? klass->NumStaticFields() : klass->NumInstanceFields();
-  ArtField* const fields = is_static ? klass->GetSFields() : klass->GetIFields();
+  LengthPrefixedArray<ArtField>* const fields = is_static ? klass->GetSFieldsPtr() :
+      klass->GetIFieldsPtr();
 
   // Initialize field_offset
   MemberOffset field_offset(0);
@@ -5143,7 +5135,7 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
   const char* old_no_suspend_cause = self->StartAssertNoThreadSuspension(
       "Naked ArtField references in deque");
   for (size_t i = 0; i < num_fields; i++) {
-    grouped_and_sorted_fields.push_back(&fields[i]);
+    grouped_and_sorted_fields.push_back(&fields->At(i));
   }
   std::sort(grouped_and_sorted_fields.begin(), grouped_and_sorted_fields.end(),
             LinkFieldsComparator());
@@ -5188,7 +5180,8 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
     // We know there are no non-reference fields in the Reference classes, and we know
     // that 'referent' is alphabetically last, so this is easy...
     CHECK_EQ(num_reference_fields, num_fields) << PrettyClass(klass.Get());
-    CHECK_STREQ(fields[num_fields - 1].GetName(), "referent") << PrettyClass(klass.Get());
+    CHECK_STREQ(fields->At(num_fields - 1).GetName(), "referent")
+        << PrettyClass(klass.Get());
     --num_reference_fields;
   }
 
@@ -5222,15 +5215,15 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
                                     sizeof(mirror::HeapReference<mirror::Object>));
     MemberOffset current_ref_offset = start_ref_offset;
     for (size_t i = 0; i < num_fields; i++) {
-      ArtField* field = &fields[i];
+      ArtField* field = &fields->At(i);
       VLOG(class_linker) << "LinkFields: " << (is_static ? "static" : "instance")
           << " class=" << PrettyClass(klass.Get()) << " field=" << PrettyField(field) << " offset="
           << field->GetOffsetDuringLinking();
       if (i != 0) {
-        ArtField* const prev_field = &fields[i - 1];
+        ArtField* const prev_field = &fields->At(i - 1);
         // NOTE: The field names can be the same. This is not possible in the Java language
         // but it's valid Java/dex bytecode and for example proguard can generate such bytecode.
-        CHECK_LE(strcmp(prev_field->GetName(), field->GetName()), 0);
+        DCHECK_LE(strcmp(prev_field->GetName(), field->GetName()), 0);
       }
       Primitive::Type type = field->GetTypeAsPrimitiveType();
       bool is_primitive = type != Primitive::kPrimNot;
@@ -5868,7 +5861,8 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self, std::vector<const DexFi
 }
 
 ArtMethod* ClassLinker::CreateRuntimeMethod() {
-  ArtMethod* method = AllocArtMethodArray(Thread::Current(), 1);
+  const size_t method_size = ArtMethod::ObjectSize(image_pointer_size_);
+  ArtMethod* method = &AllocArtMethodArray(Thread::Current(), 1)->At(0, method_size);
   CHECK(method != nullptr);
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
   CHECK(method->IsRuntimeMethod());

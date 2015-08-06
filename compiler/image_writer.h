@@ -30,6 +30,7 @@
 #include "base/macros.h"
 #include "driver/compiler_driver.h"
 #include "gc/space/space.h"
+#include "length_prefixed_array.h"
 #include "lock_word.h"
 #include "mem_map.h"
 #include "oat_file.h"
@@ -54,7 +55,8 @@ class ImageWriter FINAL {
         quick_to_interpreter_bridge_offset_(0), compile_pic_(compile_pic),
         target_ptr_size_(InstructionSetPointerSize(compiler_driver_.GetInstructionSet())),
         bin_slot_sizes_(), bin_slot_previous_sizes_(), bin_slot_count_(),
-        intern_table_bytes_(0u), dirty_methods_(0u), clean_methods_(0u) {
+        intern_table_bytes_(0u), image_method_array_(ImageHeader::kImageMethodsCount),
+        dirty_methods_(0u), clean_methods_(0u) {
     CHECK_NE(image_begin, 0U);
     std::fill(image_methods_, image_methods_ + arraysize(image_methods_), nullptr);
   }
@@ -129,8 +131,17 @@ class ImageWriter FINAL {
     // Number of bins which are for mirror objects.
     kBinMirrorCount = kBinArtField,
   };
-
   friend std::ostream& operator<<(std::ostream& stream, const Bin& bin);
+
+  enum NativeObjectRelocationType {
+    kNativeObjectRelocationTypeArtField,
+    kNativeObjectRelocationTypeArtFieldArray,
+    kNativeObjectRelocationTypeArtMethodClean,
+    kNativeObjectRelocationTypeArtMethodArrayClean,
+    kNativeObjectRelocationTypeArtMethodDirty,
+    kNativeObjectRelocationTypeArtMethodArrayDirty,
+  };
+  friend std::ostream& operator<<(std::ostream& stream, const NativeObjectRelocationType& type);
 
   static constexpr size_t kBinBits = MinimumBitsToStore<uint32_t>(kBinMirrorCount - 1);
   // uint32 = typeof(lockword_)
@@ -202,10 +213,6 @@ class ImageWriter FINAL {
     DCHECK_LE(offset, oat_file_->Size());
     DCHECK(oat_data_begin_ != nullptr);
     return offset == 0u ? nullptr : oat_data_begin_ + offset;
-  }
-
-  static bool IsArtMethodBin(Bin bin) {
-    return bin == kBinArtMethodClean || bin == kBinArtMethodDirty;
   }
 
   // Returns true if the class was in the original requested image classes list.
@@ -284,7 +291,12 @@ class ImageWriter FINAL {
   bool WillMethodBeDirty(ArtMethod* m) const SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Assign the offset for an ArtMethod.
-  void AssignMethodOffset(ArtMethod* method, Bin bin) SHARED_REQUIRES(Locks::mutator_lock_);
+  void AssignMethodOffset(ArtMethod* method, NativeObjectRelocationType type)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
+  static Bin BinTypeForNativeRelocationType(NativeObjectRelocationType type);
+
+  void* NativeLocationInImage(void* obj);
 
   const CompilerDriver& compiler_driver_;
 
@@ -356,14 +368,21 @@ class ImageWriter FINAL {
   // ArtField, ArtMethod relocating map. These are allocated as array of structs but we want to
   // have one entry per art field for convenience. ArtFields are placed right after the end of the
   // image objects (aka sum of bin_slot_sizes_). ArtMethods are placed right after the ArtFields.
-  struct NativeObjectReloc {
+  struct NativeObjectRelocation {
     uintptr_t offset;
-    Bin bin_type;
+    NativeObjectRelocationType type;
+
+    bool IsArtMethodRelocation() const {
+      return type == kNativeObjectRelocationTypeArtMethodClean ||
+          type == kNativeObjectRelocationTypeArtMethodDirty;
+    }
   };
-  std::unordered_map<void*, NativeObjectReloc> native_object_reloc_;
+  std::unordered_map<void*, NativeObjectRelocation> native_object_relocations_;
 
   // Runtime ArtMethods which aren't reachable from any Class but need to be copied into the image.
   ArtMethod* image_methods_[ImageHeader::kImageMethodsCount];
+  // Fake length prefixed array for image methods.
+  LengthPrefixedArray<ArtMethod> image_method_array_;
 
   // Counters for measurements, used for logging only.
   uint64_t dirty_methods_;

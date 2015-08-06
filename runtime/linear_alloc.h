@@ -33,7 +33,7 @@ class LinearAlloc {
   // Realloc never frees the input pointer, it is the caller's job to do this if necessary.
   void* Realloc(Thread* self, void* ptr, size_t old_size, size_t new_size) REQUIRES(!lock_);
 
-  // Allocate and construct an array of structs of type T.
+  // Allocate an array of structs of type T.
   template<class T>
   T* AllocArray(Thread* self, size_t elements) REQUIRES(!lock_) {
     return reinterpret_cast<T*>(Alloc(self, elements * sizeof(T)));
