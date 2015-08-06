@@ -326,6 +326,10 @@ while true; do
     elif [ "x$1" = "x--dex2oat-swap" ]; then
         run_args="${run_args} --dex2oat-swap"
         shift
+    elif [ "x$1" = "x--instruction-set-features" ]; then
+        shift
+        run_args="${run_args} --instruction-set-features $1"
+        shift
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
         echo "unknown $0 option: $1" 1>&2
         usage="yes"
@@ -543,6 +547,8 @@ if [ "$usage" = "yes" ]; then
         echo "    --never-clean         Keep the test files even if the test succeeds."
         echo "    --android-root [path] The path on target for the android root. (/system by default)."
         echo "    --dex2oat-swap        Use a dex2oat swap file."
+        echo "    --instruction-set-features [string]"
+        echo "                          Set instruction-set-features for compilation."
     ) 1>&2
     exit 1
 fi
