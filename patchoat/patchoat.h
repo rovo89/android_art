@@ -207,6 +207,8 @@ class PatchOat {
   TimingLogger* timings_;
 
   friend class FixupRootVisitor;
+  friend class PatchOatArtFieldVisitor;
+  friend class PatchOatArtMethodVisitor;
   DISALLOW_IMPLICIT_CONSTRUCTORS(PatchOat);
 };
 

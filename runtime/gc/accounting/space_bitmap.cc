@@ -195,11 +195,9 @@ void SpaceBitmap<kAlignment>::WalkInstanceFields(SpaceBitmap<kAlignment>* visite
     WalkInstanceFields(visited, callback, obj, super, arg);
   }
   // Walk instance fields
-  auto* fields = klass->GetIFields();
-  for (size_t i = 0, count = klass->NumInstanceFields(); i < count; ++i) {
-    ArtField* field = &fields[i];
-    if (!field->IsPrimitiveType()) {
-      mirror::Object* value = field->GetObj(obj);
+  for (ArtField& field : klass->GetIFields()) {
+    if (!field.IsPrimitiveType()) {
+      mirror::Object* value = field.GetObj(obj);
       if (value != nullptr) {
         WalkFieldsInOrder(visited, callback, value, arg);
       }
@@ -222,11 +220,9 @@ void SpaceBitmap<kAlignment>::WalkFieldsInOrder(SpaceBitmap<kAlignment>* visited
   WalkInstanceFields(visited, callback, obj, klass, arg);
   // Walk static fields of a Class
   if (obj->IsClass()) {
-    auto* sfields = klass->GetSFields();
-    for (size_t i = 0, count = klass->NumStaticFields(); i < count; ++i) {
-      ArtField* field = &sfields[i];
-      if (!field->IsPrimitiveType()) {
-        mirror::Object* value = field->GetObj(nullptr);
+    for (ArtField& field : klass->GetSFields()) {
+      if (!field.IsPrimitiveType()) {
+        mirror::Object* value = field.GetObj(nullptr);
         if (value != nullptr) {
           WalkFieldsInOrder(visited, callback, value, arg);
         }
