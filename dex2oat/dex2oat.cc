@@ -76,6 +76,9 @@
 #include "vector_output_stream.h"
 #include "well_known_classes.h"
 #include "zip_archive.h"
+#ifdef HAVE_ANDROID_OS
+#include "cutils/properties.h"
+#endif
 
 namespace art {
 
@@ -841,6 +844,18 @@ class Dex2Oat FINAL {
         LOG(WARNING) << StringPrintf("Unknown argument %s", option.data());
       }
     }
+
+    // Override the number of compiler threads with optimal value (thru system property)
+    #ifdef HAVE_ANDROID_OS
+    const char* propertyName = "ro.sys.fw.dex2oat_thread_count";
+    char thread_count_str[PROPERTY_VALUE_MAX];
+
+    if (property_get(propertyName, thread_count_str, "") > 0) {
+        if (ParseUint(thread_count_str, &thread_count_)) {
+            LOG(INFO) << "Adjusted thread count (for runtime dex2oat): " << thread_count_ << ", " << thread_count_str;
+        }
+    }
+    #endif
 
     image_ = (!image_filename_.empty());
     if (!requested_specific_compiler && !kUseOptimizingCompiler) {

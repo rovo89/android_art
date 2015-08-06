@@ -21,6 +21,10 @@ include art/build/Android.executable.mk
 DEX2OAT_SRC_FILES := \
 	dex2oat.cc
 
+ifeq ($$(art_target_or_host),target)
+LOCAL_SHARED_LIBRARIES += libcutils
+endif
+
 # TODO: Remove this when the framework (installd) supports pushing the
 # right instruction-set parameter for the primary architecture.
 ifneq ($(filter ro.zygote=zygote64,$(PRODUCT_DEFAULT_PROPERTY_OVERRIDES)),)
