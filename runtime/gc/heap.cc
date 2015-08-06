@@ -2912,14 +2912,10 @@ class VerifyReferenceCardVisitor {
           if (!obj->IsObjectArray()) {
             mirror::Class* klass = is_static ? obj->AsClass() : obj->GetClass();
             CHECK(klass != nullptr);
-            auto* fields = is_static ? klass->GetSFields() : klass->GetIFields();
-            auto num_fields = is_static ? klass->NumStaticFields() : klass->NumInstanceFields();
-            CHECK_EQ(fields == nullptr, num_fields == 0u);
-            for (size_t i = 0; i < num_fields; ++i) {
-              ArtField* cur = &fields[i];
-              if (cur->GetOffset().Int32Value() == offset.Int32Value()) {
+            for (ArtField& field : is_static ? klass->GetSFields() : klass->GetIFields()) {
+              if (field.GetOffset().Int32Value() == offset.Int32Value()) {
                 LOG(ERROR) << (is_static ? "Static " : "") << "field in the live stack is "
-                          << PrettyField(cur);
+                           << PrettyField(&field);
                 break;
               }
             }

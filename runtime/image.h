@@ -24,6 +24,23 @@
 
 namespace art {
 
+class ArtField;
+class ArtMethod;
+
+class ArtMethodVisitor {
+ public:
+  virtual ~ArtMethodVisitor() {}
+
+  virtual void Visit(ArtMethod* method) = 0;
+};
+
+class ArtFieldVisitor {
+ public:
+  virtual ~ArtFieldVisitor() {}
+
+  virtual void Visit(ArtField* method) = 0;
+};
+
 class PACKED(4) ImageSection {
  public:
   ImageSection() : offset_(0), size_(0) { }
@@ -46,6 +63,12 @@ class PACKED(4) ImageSection {
   bool Contains(uint64_t offset) const {
     return offset - offset_ < size_;
   }
+
+  // Visit ArtMethods in the section starting at base.
+  void VisitPackedArtMethods(ArtMethodVisitor* visitor, uint8_t* base, size_t method_size) const;
+
+  // Visit ArtMethods in the section starting at base.
+  void VisitPackedArtFields(ArtFieldVisitor* visitor, uint8_t* base) const;
 
  private:
   uint32_t offset_;
