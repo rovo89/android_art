@@ -825,35 +825,68 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
         field_offset = MemberOffset(field_offset.Uint32Value() +
                                     sizeof(mirror::HeapReference<mirror::Object>));
       }
-      // Visit and assign offsets for fields.
+      // Visit and assign offsets for fields and field arrays.
       auto* as_klass = h_obj->AsClass();
-      ArtField* fields[] = { as_klass->GetSFields(), as_klass->GetIFields() };
-      size_t num_fields[] = { as_klass->NumStaticFields(), as_klass->NumInstanceFields() };
-      for (size_t i = 0; i < 2; ++i) {
-        for (size_t j = 0; j < num_fields[i]; ++j) {
-          auto* field = fields[i] + j;
-          auto it = native_object_reloc_.find(field);
-          CHECK(it == native_object_reloc_.end()) << "Field at index " << i << ":" << j
-              << " already assigned " << PrettyField(field);
-          native_object_reloc_.emplace(
-              field, NativeObjectReloc { bin_slot_sizes_[kBinArtField], kBinArtField });
-          bin_slot_sizes_[kBinArtField] += sizeof(ArtField);
+      LengthPrefixedArray<ArtField>* fields[] = {
+          as_klass->GetSFieldsPtr(), as_klass->GetIFieldsPtr(),
+      };
+      for (LengthPrefixedArray<ArtField>* cur_fields : fields) {
+        // Total array length including header.
+        if (cur_fields != nullptr) {
+          const size_t header_size = LengthPrefixedArray<ArtField>::ComputeSize(0);
+          // Forward the entire array at once.
+          auto it = native_object_relocations_.find(cur_fields);
+          CHECK(it == native_object_relocations_.end()) << "Field array " << cur_fields
+                                                  << " already forwarded";
+          size_t& offset = bin_slot_sizes_[kBinArtField];
+          native_object_relocations_.emplace(
+              cur_fields, NativeObjectRelocation {
+                  offset, kNativeObjectRelocationTypeArtFieldArray });
+          offset += header_size;
+          // Forward individual fields so that we can quickly find where they belong.
+          for (size_t i = 0, count = cur_fields->Length(); i < count; ++i) {
+            // Need to forward arrays separate of fields.
+            ArtField* field = &cur_fields->At(i);
+            auto it2 = native_object_relocations_.find(field);
+            CHECK(it2 == native_object_relocations_.end()) << "Field at index=" << i
+                << " already assigned " << PrettyField(field) << " static=" << field->IsStatic();
+            native_object_relocations_.emplace(
+                field, NativeObjectRelocation {offset, kNativeObjectRelocationTypeArtField });
+            offset += sizeof(ArtField);
+          }
         }
       }
       // Visit and assign offsets for methods.
-      IterationRange<StrideIterator<ArtMethod>> method_arrays[] = {
-          as_klass->GetDirectMethods(target_ptr_size_),
-          as_klass->GetVirtualMethods(target_ptr_size_)
+      LengthPrefixedArray<ArtMethod>* method_arrays[] = {
+          as_klass->GetDirectMethodsPtr(), as_klass->GetVirtualMethodsPtr(),
       };
-      for (auto& array : method_arrays) {
+      for (LengthPrefixedArray<ArtMethod>* array : method_arrays) {
+        if (array == nullptr) {
+          continue;
+        }
         bool any_dirty = false;
         size_t count = 0;
-        for (auto& m : array) {
+        const size_t method_size = ArtMethod::ObjectSize(target_ptr_size_);
+        auto iteration_range = MakeIterationRangeFromLengthPrefixedArray(array, method_size);
+        for (auto& m : iteration_range) {
           any_dirty = any_dirty || WillMethodBeDirty(&m);
           ++count;
         }
-        for (auto& m : array) {
-          AssignMethodOffset(&m, any_dirty ? kBinArtMethodDirty : kBinArtMethodClean);
+        NativeObjectRelocationType type = any_dirty ? kNativeObjectRelocationTypeArtMethodDirty :
+            kNativeObjectRelocationTypeArtMethodClean;
+        Bin bin_type = BinTypeForNativeRelocationType(type);
+        // Forward the entire array at once, but header first.
+        const size_t header_size = LengthPrefixedArray<ArtMethod>::ComputeSize(0, method_size);
+        auto it = native_object_relocations_.find(array);
+        CHECK(it == native_object_relocations_.end()) << "Method array " << array
+            << " already forwarded";
+        size_t& offset = bin_slot_sizes_[bin_type];
+        native_object_relocations_.emplace(array, NativeObjectRelocation { offset,
+            any_dirty ? kNativeObjectRelocationTypeArtMethodArrayDirty :
+                kNativeObjectRelocationTypeArtMethodArrayClean });
+        offset += header_size;
+        for (auto& m : iteration_range) {
+          AssignMethodOffset(&m, type);
         }
         (any_dirty ? dirty_methods_ : clean_methods_) += count;
       }
@@ -871,12 +904,13 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
   }
 }
 
-void ImageWriter::AssignMethodOffset(ArtMethod* method, Bin bin) {
-  auto it = native_object_reloc_.find(method);
-  CHECK(it == native_object_reloc_.end()) << "Method " << method << " already assigned "
+void ImageWriter::AssignMethodOffset(ArtMethod* method, NativeObjectRelocationType type) {
+  auto it = native_object_relocations_.find(method);
+  CHECK(it == native_object_relocations_.end()) << "Method " << method << " already assigned "
       << PrettyMethod(method);
-  native_object_reloc_.emplace(method, NativeObjectReloc { bin_slot_sizes_[bin], bin });
-  bin_slot_sizes_[bin] += ArtMethod::ObjectSize(target_ptr_size_);
+  size_t& offset = bin_slot_sizes_[BinTypeForNativeRelocationType(type)];
+  native_object_relocations_.emplace(method, NativeObjectRelocation { offset, type });
+  offset += ArtMethod::ObjectSize(target_ptr_size_);
 }
 
 void ImageWriter::WalkFieldsCallback(mirror::Object* obj, void* arg) {
@@ -930,10 +964,20 @@ void ImageWriter::CalculateNewObjectOffsets() {
       runtime->GetCalleeSaveMethod(Runtime::kRefsOnly);
   image_methods_[ImageHeader::kRefsAndArgsSaveMethod] =
       runtime->GetCalleeSaveMethod(Runtime::kRefsAndArgs);
+
+  // Add room for fake length prefixed array.
+  const auto image_method_type = kNativeObjectRelocationTypeArtMethodArrayClean;
+  auto it = native_object_relocations_.find(&image_method_array_);
+  CHECK(it == native_object_relocations_.end());
+  size_t& offset = bin_slot_sizes_[BinTypeForNativeRelocationType(image_method_type)];
+  native_object_relocations_.emplace(&image_method_array_,
+                                     NativeObjectRelocation { offset, image_method_type });
+  CHECK_EQ(sizeof(image_method_array_), 8u);
+  offset += sizeof(image_method_array_);
   for (auto* m : image_methods_) {
     CHECK(m != nullptr);
     CHECK(m->IsRuntimeMethod());
-    AssignMethodOffset(m, kBinArtMethodDirty);
+    AssignMethodOffset(m, kNativeObjectRelocationTypeArtMethodClean);
   }
 
   // Calculate cumulative bin slot sizes.
@@ -953,10 +997,10 @@ void ImageWriter::CalculateNewObjectOffsets() {
   image_roots_address_ = PointerToLowMemUInt32(GetImageAddress(image_roots.Get()));
 
   // Update the native relocations by adding their bin sums.
-  for (auto& pair : native_object_reloc_) {
-    auto& native_reloc = pair.second;
-    native_reloc.offset += image_objects_offset_begin_ +
-        bin_slot_previous_sizes_[native_reloc.bin_type];
+  for (auto& pair : native_object_relocations_) {
+    NativeObjectRelocation& relocation = pair.second;
+    Bin bin_type = BinTypeForNativeRelocationType(relocation.type);
+    relocation.offset += image_objects_offset_begin_ + bin_slot_previous_sizes_[bin_type];
   }
 
   // Calculate how big the intern table will be after being serialized.
@@ -1025,8 +1069,8 @@ void ImageWriter::CreateHeader(size_t oat_loaded_size, size_t oat_data_offset) {
 }
 
 ArtMethod* ImageWriter::GetImageMethodAddress(ArtMethod* method) {
-  auto it = native_object_reloc_.find(method);
-  CHECK(it != native_object_reloc_.end()) << PrettyMethod(method) << " @ " << method;
+  auto it = native_object_relocations_.find(method);
+  CHECK(it != native_object_relocations_.end()) << PrettyMethod(method) << " @ " << method;
   CHECK_GE(it->second.offset, image_end_) << "ArtMethods should be after Objects";
   return reinterpret_cast<ArtMethod*>(image_begin_ + it->second.offset);
 }
@@ -1064,20 +1108,34 @@ class FixupRootVisitor : public RootVisitor {
 
 void ImageWriter::CopyAndFixupNativeData() {
   // Copy ArtFields and methods to their locations and update the array for convenience.
-  for (auto& pair : native_object_reloc_) {
-    auto& native_reloc = pair.second;
-    if (native_reloc.bin_type == kBinArtField) {
-      auto* dest = image_->Begin() + native_reloc.offset;
-      DCHECK_GE(dest, image_->Begin() + image_end_);
-      memcpy(dest, pair.first, sizeof(ArtField));
-      reinterpret_cast<ArtField*>(dest)->SetDeclaringClass(
-          GetImageAddress(reinterpret_cast<ArtField*>(pair.first)->GetDeclaringClass()));
-    } else {
-      CHECK(IsArtMethodBin(native_reloc.bin_type)) << native_reloc.bin_type;
-      auto* dest = image_->Begin() + native_reloc.offset;
-      DCHECK_GE(dest, image_->Begin() + image_end_);
-      CopyAndFixupMethod(reinterpret_cast<ArtMethod*>(pair.first),
-                         reinterpret_cast<ArtMethod*>(dest));
+  for (auto& pair : native_object_relocations_) {
+    NativeObjectRelocation& relocation = pair.second;
+    auto* dest = image_->Begin() + relocation.offset;
+    DCHECK_GE(dest, image_->Begin() + image_end_);
+    switch (relocation.type) {
+      case kNativeObjectRelocationTypeArtField: {
+        memcpy(dest, pair.first, sizeof(ArtField));
+        reinterpret_cast<ArtField*>(dest)->SetDeclaringClass(
+            GetImageAddress(reinterpret_cast<ArtField*>(pair.first)->GetDeclaringClass()));
+        break;
+      }
+      case kNativeObjectRelocationTypeArtMethodClean:
+      case kNativeObjectRelocationTypeArtMethodDirty: {
+        CopyAndFixupMethod(reinterpret_cast<ArtMethod*>(pair.first),
+                           reinterpret_cast<ArtMethod*>(dest));
+        break;
+      }
+      // For arrays, copy just the header since the elements will get copied by their corresponding
+      // relocations.
+      case kNativeObjectRelocationTypeArtFieldArray: {
+        memcpy(dest, pair.first, LengthPrefixedArray<ArtField>::ComputeSize(0));
+        break;
+      }
+      case kNativeObjectRelocationTypeArtMethodArrayClean:
+      case kNativeObjectRelocationTypeArtMethodArrayDirty: {
+        memcpy(dest, pair.first, LengthPrefixedArray<ArtMethod>::ComputeSize(0));
+        break;
+      }
     }
   }
   // Fixup the image method roots.
@@ -1086,12 +1144,12 @@ void ImageWriter::CopyAndFixupNativeData() {
   for (size_t i = 0; i < ImageHeader::kImageMethodsCount; ++i) {
     auto* m = image_methods_[i];
     CHECK(m != nullptr);
-    auto it = native_object_reloc_.find(m);
-    CHECK(it != native_object_reloc_.end()) << "No fowarding for " << PrettyMethod(m);
-    auto& native_reloc = it->second;
-    CHECK(methods_section.Contains(native_reloc.offset)) << native_reloc.offset << " not in "
+    auto it = native_object_relocations_.find(m);
+    CHECK(it != native_object_relocations_.end()) << "No fowarding for " << PrettyMethod(m);
+    NativeObjectRelocation& relocation = it->second;
+    CHECK(methods_section.Contains(relocation.offset)) << relocation.offset << " not in "
         << methods_section;
-    CHECK(IsArtMethodBin(native_reloc.bin_type)) << native_reloc.bin_type;
+    CHECK(relocation.IsArtMethodRelocation()) << relocation.type;
     auto* dest = reinterpret_cast<ArtMethod*>(image_begin_ + it->second.offset);
     image_header->SetImageMethod(static_cast<ImageHeader::ImageMethod>(i), dest);
   }
@@ -1143,9 +1201,9 @@ void ImageWriter::FixupPointerArray(mirror::Object* dst, mirror::PointerArray* a
   for (size_t i = 0, count = num_elements; i < count; ++i) {
     auto* elem = arr->GetElementPtrSize<void*>(i, target_ptr_size_);
     if (elem != nullptr) {
-      auto it = native_object_reloc_.find(elem);
-      if (it == native_object_reloc_.end()) {
-        if (IsArtMethodBin(array_type)) {
+      auto it = native_object_relocations_.find(elem);
+      if (it == native_object_relocations_.end()) {
+        if (true) {
           auto* method = reinterpret_cast<ArtMethod*>(elem);
           LOG(FATAL) << "No relocation entry for ArtMethod " << PrettyMethod(method) << " @ "
               << method << " idx=" << i << "/" << num_elements << " with declaring class "
@@ -1237,51 +1295,38 @@ class FixupClassVisitor FINAL : public FixupVisitor {
   }
 };
 
+void* ImageWriter::NativeLocationInImage(void* obj) {
+  if (obj == nullptr) {
+    return nullptr;
+  }
+  auto it = native_object_relocations_.find(obj);
+  const NativeObjectRelocation& relocation = it->second;
+  CHECK(it != native_object_relocations_.end()) << obj;
+  return reinterpret_cast<void*>(image_begin_ + relocation.offset);
+}
+
 void ImageWriter::FixupClass(mirror::Class* orig, mirror::Class* copy) {
-  // Copy and fix up ArtFields in the class.
-  ArtField* fields[2] = { orig->GetSFields(), orig->GetIFields() };
-  size_t num_fields[2] = { orig->NumStaticFields(), orig->NumInstanceFields() };
   // Update the field arrays.
-  for (size_t i = 0; i < 2; ++i) {
-    if (num_fields[i] == 0) {
-      CHECK(fields[i] == nullptr);
-      continue;
-    }
-    auto it = native_object_reloc_.find(fields[i]);
-    CHECK(it != native_object_reloc_.end()) << PrettyClass(orig) << " : " << PrettyField(fields[i]);
-    auto* image_fields = reinterpret_cast<ArtField*>(image_begin_ + it->second.offset);
-    if (i == 0) {
-      copy->SetSFieldsUnchecked(image_fields);
-    } else {
-      copy->SetIFieldsUnchecked(image_fields);
-    }
-  }
-  // Update direct / virtual method arrays.
-  auto* direct_methods = orig->GetDirectMethodsPtr();
-  if (direct_methods != nullptr) {
-    auto it = native_object_reloc_.find(direct_methods);
-    CHECK(it != native_object_reloc_.end()) << PrettyClass(orig);
-    copy->SetDirectMethodsPtrUnchecked(
-        reinterpret_cast<ArtMethod*>(image_begin_ + it->second.offset));
-  }
-  auto* virtual_methods = orig->GetVirtualMethodsPtr();
-  if (virtual_methods != nullptr) {
-    auto it = native_object_reloc_.find(virtual_methods);
-    CHECK(it != native_object_reloc_.end()) << PrettyClass(orig);
-    copy->SetVirtualMethodsPtr(
-        reinterpret_cast<ArtMethod*>(image_begin_ + it->second.offset));
-  }
+  copy->SetSFieldsPtrUnchecked(reinterpret_cast<LengthPrefixedArray<ArtField>*>(
+      NativeLocationInImage(orig->GetSFieldsPtr())));
+  copy->SetIFieldsPtrUnchecked(reinterpret_cast<LengthPrefixedArray<ArtField>*>(
+      NativeLocationInImage(orig->GetIFieldsPtr())));
+  // Update direct and virtual method arrays.
+  copy->SetDirectMethodsPtrUnchecked(reinterpret_cast<LengthPrefixedArray<ArtMethod>*>(
+      NativeLocationInImage(orig->GetDirectMethodsPtr())));
+  copy->SetVirtualMethodsPtr(reinterpret_cast<LengthPrefixedArray<ArtMethod>*>(
+      NativeLocationInImage(orig->GetVirtualMethodsPtr())));
   // Fix up embedded tables.
   if (orig->ShouldHaveEmbeddedImtAndVTable()) {
     for (int32_t i = 0; i < orig->GetEmbeddedVTableLength(); ++i) {
-      auto it = native_object_reloc_.find(orig->GetEmbeddedVTableEntry(i, target_ptr_size_));
-      CHECK(it != native_object_reloc_.end()) << PrettyClass(orig);
+      auto it = native_object_relocations_.find(orig->GetEmbeddedVTableEntry(i, target_ptr_size_));
+      CHECK(it != native_object_relocations_.end()) << PrettyClass(orig);
       copy->SetEmbeddedVTableEntryUnchecked(
           i, reinterpret_cast<ArtMethod*>(image_begin_ + it->second.offset), target_ptr_size_);
     }
     for (size_t i = 0; i < mirror::Class::kImtSize; ++i) {
-      auto it = native_object_reloc_.find(orig->GetEmbeddedImTableEntry(i, target_ptr_size_));
-      CHECK(it != native_object_reloc_.end()) << PrettyClass(orig);
+      auto it = native_object_relocations_.find(orig->GetEmbeddedImTableEntry(i, target_ptr_size_));
+      CHECK(it != native_object_relocations_.end()) << PrettyClass(orig);
       copy->SetEmbeddedImTableEntry(
           i, reinterpret_cast<ArtMethod*>(image_begin_ + it->second.offset), target_ptr_size_);
     }
@@ -1322,9 +1367,9 @@ void ImageWriter::FixupObject(Object* orig, Object* copy) {
       auto* dest = down_cast<mirror::AbstractMethod*>(copy);
       auto* src = down_cast<mirror::AbstractMethod*>(orig);
       ArtMethod* src_method = src->GetArtMethod();
-      auto it = native_object_reloc_.find(src_method);
-      CHECK(it != native_object_reloc_.end()) << "Missing relocation for AbstractMethod.artMethod "
-          << PrettyMethod(src_method);
+      auto it = native_object_relocations_.find(src_method);
+      CHECK(it != native_object_relocations_.end())
+          << "Missing relocation for AbstractMethod.artMethod " << PrettyMethod(src_method);
       dest->SetArtMethod(
           reinterpret_cast<ArtMethod*>(image_begin_ + it->second.offset));
     }
@@ -1502,6 +1547,21 @@ uint8_t* ImageWriter::GetOatFileBegin() const {
   return image_begin_ + RoundUp(
       image_end_ + bin_slot_sizes_[kBinArtField] + bin_slot_sizes_[kBinArtMethodDirty] +
       bin_slot_sizes_[kBinArtMethodClean] + intern_table_bytes_, kPageSize);
+}
+
+ImageWriter::Bin ImageWriter::BinTypeForNativeRelocationType(NativeObjectRelocationType type) {
+  switch (type) {
+    case kNativeObjectRelocationTypeArtField:
+    case kNativeObjectRelocationTypeArtFieldArray:
+      return kBinArtField;
+    case kNativeObjectRelocationTypeArtMethodClean:
+    case kNativeObjectRelocationTypeArtMethodArrayClean:
+      return kBinArtMethodClean;
+    case kNativeObjectRelocationTypeArtMethodDirty:
+    case kNativeObjectRelocationTypeArtMethodArrayDirty:
+      return kBinArtMethodDirty;
+  }
+  UNREACHABLE();
 }
 
 }  // namespace art

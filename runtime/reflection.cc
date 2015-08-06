@@ -780,7 +780,7 @@ static bool UnboxPrimitive(mirror::Object* o,
   mirror::Class* klass = o->GetClass();
   mirror::Class* src_class = nullptr;
   ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
-  ArtField* primitive_field = &klass->GetIFields()[0];
+  ArtField* primitive_field = &klass->GetIFieldsPtr()->At(0);
   if (klass->DescriptorEquals("Ljava/lang/Boolean;")) {
     src_class = class_linker->FindPrimitiveClass('Z');
     boxed_value.SetZ(primitive_field->GetBoolean(o));
