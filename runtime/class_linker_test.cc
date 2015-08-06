@@ -500,14 +500,10 @@ struct ClassOffsets : public CheckOffsets<mirror::Class> {
     addOffset(OFFSETOF_MEMBER(mirror::Class, ifields_), "iFields");
     addOffset(OFFSETOF_MEMBER(mirror::Class, iftable_), "ifTable");
     addOffset(OFFSETOF_MEMBER(mirror::Class, name_), "name");
-    addOffset(OFFSETOF_MEMBER(mirror::Class, num_direct_methods_), "numDirectMethods");
-    addOffset(OFFSETOF_MEMBER(mirror::Class, num_instance_fields_), "numInstanceFields");
     addOffset(OFFSETOF_MEMBER(mirror::Class, num_reference_instance_fields_),
               "numReferenceInstanceFields");
     addOffset(OFFSETOF_MEMBER(mirror::Class, num_reference_static_fields_),
               "numReferenceStaticFields");
-    addOffset(OFFSETOF_MEMBER(mirror::Class, num_static_fields_), "numStaticFields");
-    addOffset(OFFSETOF_MEMBER(mirror::Class, num_virtual_methods_), "numVirtualMethods");
     addOffset(OFFSETOF_MEMBER(mirror::Class, object_size_), "objectSize");
     addOffset(OFFSETOF_MEMBER(mirror::Class, primitive_type_), "primitiveType");
     addOffset(OFFSETOF_MEMBER(mirror::Class, reference_instance_offsets_),
@@ -841,21 +837,21 @@ TEST_F(ClassLinkerTest, ValidateBoxedTypes) {
   NullHandle<mirror::ClassLoader> class_loader;
   mirror::Class* c;
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Boolean;", class_loader);
-  EXPECT_STREQ("value", c->GetIFields()[0].GetName());
+  EXPECT_STREQ("value", c->GetIFieldsPtr()->At(0).GetName());
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Byte;", class_loader);
-  EXPECT_STREQ("value", c->GetIFields()[0].GetName());
+  EXPECT_STREQ("value", c->GetIFieldsPtr()->At(0).GetName());
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Character;", class_loader);
-  EXPECT_STREQ("value", c->GetIFields()[0].GetName());
+  EXPECT_STREQ("value", c->GetIFieldsPtr()->At(0).GetName());
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Double;", class_loader);
-  EXPECT_STREQ("value", c->GetIFields()[0].GetName());
+  EXPECT_STREQ("value", c->GetIFieldsPtr()->At(0).GetName());
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Float;", class_loader);
-  EXPECT_STREQ("value", c->GetIFields()[0].GetName());
+  EXPECT_STREQ("value", c->GetIFieldsPtr()->At(0).GetName());
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Integer;", class_loader);
-  EXPECT_STREQ("value", c->GetIFields()[0].GetName());
+  EXPECT_STREQ("value", c->GetIFieldsPtr()->At(0).GetName());
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Long;", class_loader);
-  EXPECT_STREQ("value", c->GetIFields()[0].GetName());
+  EXPECT_STREQ("value", c->GetIFieldsPtr()->At(0).GetName());
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Short;", class_loader);
-  EXPECT_STREQ("value", c->GetIFields()[0].GetName());
+  EXPECT_STREQ("value", c->GetIFieldsPtr()->At(0).GetName());
 }
 
 TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {

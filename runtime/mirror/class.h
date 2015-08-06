@@ -41,7 +41,7 @@ class ArtField;
 class ArtMethod;
 struct ClassOffsets;
 template<class T> class Handle;
-template<class T> class Handle;
+template<typename T> class LengthPrefixedArray;
 class Signature;
 class StringPiece;
 template<size_t kNumReferences> class PACKED(4) StackHandleScope;
@@ -656,21 +656,15 @@ class MANAGED Class FINAL : public Object {
   // Also updates the dex_cache_strings_ variable from new_dex_cache.
   void SetDexCache(DexCache* new_dex_cache) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ALWAYS_INLINE StrideIterator<ArtMethod> DirectMethodsBegin(size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  ALWAYS_INLINE StrideIterator<ArtMethod> DirectMethodsEnd(size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
   ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetDirectMethods(size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ArtMethod* GetDirectMethodsPtr() SHARED_REQUIRES(Locks::mutator_lock_);
+  LengthPrefixedArray<ArtMethod>* GetDirectMethodsPtr() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void SetDirectMethodsPtr(ArtMethod* new_direct_methods)
+  void SetDirectMethodsPtr(LengthPrefixedArray<ArtMethod>* new_direct_methods)
       SHARED_REQUIRES(Locks::mutator_lock_);
   // Used by image writer.
-  void SetDirectMethodsPtrUnchecked(ArtMethod* new_direct_methods)
+  void SetDirectMethodsPtrUnchecked(LengthPrefixedArray<ArtMethod>* new_direct_methods)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ALWAYS_INLINE ArtMethod* GetDirectMethod(size_t i, size_t pointer_size)
@@ -683,35 +677,20 @@ class MANAGED Class FINAL : public Object {
         SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Returns the number of static, private, and constructor methods.
-  ALWAYS_INLINE uint32_t NumDirectMethods() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_direct_methods_));
-  }
-  void SetNumDirectMethods(uint32_t num) SHARED_REQUIRES(Locks::mutator_lock_) {
-    return SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, num_direct_methods_), num);
-  }
+  ALWAYS_INLINE uint32_t NumDirectMethods() SHARED_REQUIRES(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE ArtMethod* GetVirtualMethodsPtr() SHARED_REQUIRES(Locks::mutator_lock_);
-
-  ALWAYS_INLINE StrideIterator<ArtMethod> VirtualMethodsBegin(size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  ALWAYS_INLINE StrideIterator<ArtMethod> VirtualMethodsEnd(size_t pointer_size)
+  ALWAYS_INLINE LengthPrefixedArray<ArtMethod>* GetVirtualMethodsPtr()
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetVirtualMethods(size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void SetVirtualMethodsPtr(ArtMethod* new_virtual_methods)
+  void SetVirtualMethodsPtr(LengthPrefixedArray<ArtMethod>* new_virtual_methods)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Returns the number of non-inherited virtual methods.
-  ALWAYS_INLINE uint32_t NumVirtualMethods() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_virtual_methods_));
-  }
-  void SetNumVirtualMethods(uint32_t num) SHARED_REQUIRES(Locks::mutator_lock_) {
-    return SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, num_virtual_methods_), num);
-  }
+  ALWAYS_INLINE uint32_t NumVirtualMethods() SHARED_REQUIRES(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   ArtMethod* GetVirtualMethod(size_t i, size_t pointer_size)
@@ -859,21 +838,19 @@ class MANAGED Class FINAL : public Object {
   ALWAYS_INLINE void SetIfTable(IfTable* new_iftable) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Get instance fields of the class (See also GetSFields).
-  ArtField* GetIFields() SHARED_REQUIRES(Locks::mutator_lock_);
+  LengthPrefixedArray<ArtField>* GetIFieldsPtr() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void SetIFields(ArtField* new_ifields) SHARED_REQUIRES(Locks::mutator_lock_);
+  ALWAYS_INLINE IterationRange<StrideIterator<ArtField>> GetIFields()
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
+  void SetIFieldsPtr(LengthPrefixedArray<ArtField>* new_ifields)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Unchecked edition has no verification flags.
-  void SetIFieldsUnchecked(ArtField* new_sfields) SHARED_REQUIRES(Locks::mutator_lock_);
+  void SetIFieldsPtrUnchecked(LengthPrefixedArray<ArtField>* new_sfields)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
-  uint32_t NumInstanceFields() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_instance_fields_));
-  }
-
-  void SetNumInstanceFields(uint32_t num) SHARED_REQUIRES(Locks::mutator_lock_) {
-    return SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, num_instance_fields_), num);
-  }
-
+  uint32_t NumInstanceFields() SHARED_REQUIRES(Locks::mutator_lock_);
   ArtField* GetInstanceField(uint32_t i) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Returns the number of instance fields containing reference types.
@@ -927,20 +904,18 @@ class MANAGED Class FINAL : public Object {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Gets the static fields of the class.
-  ArtField* GetSFields() SHARED_REQUIRES(Locks::mutator_lock_);
+  LengthPrefixedArray<ArtField>* GetSFieldsPtr() SHARED_REQUIRES(Locks::mutator_lock_);
+  ALWAYS_INLINE IterationRange<StrideIterator<ArtField>> GetSFields()
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void SetSFields(ArtField* new_sfields) SHARED_REQUIRES(Locks::mutator_lock_);
+  void SetSFieldsPtr(LengthPrefixedArray<ArtField>* new_sfields)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Unchecked edition has no verification flags.
-  void SetSFieldsUnchecked(ArtField* new_sfields) SHARED_REQUIRES(Locks::mutator_lock_);
+  void SetSFieldsPtrUnchecked(LengthPrefixedArray<ArtField>* new_sfields)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
-  uint32_t NumStaticFields() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_static_fields_));
-  }
-
-  void SetNumStaticFields(uint32_t num) SHARED_REQUIRES(Locks::mutator_lock_) {
-    return SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, num_static_fields_), num);
-  }
+  uint32_t NumStaticFields() SHARED_REQUIRES(Locks::mutator_lock_);
 
   // TODO: uint16_t
   ArtField* GetStaticField(uint32_t i) SHARED_REQUIRES(Locks::mutator_lock_);
@@ -1129,10 +1104,10 @@ class MANAGED Class FINAL : public Object {
     return pointer_size;
   }
 
-  ALWAYS_INLINE ArtMethod* GetDirectMethodsPtrUnchecked()
+  ALWAYS_INLINE LengthPrefixedArray<ArtMethod>* GetDirectMethodsPtrUnchecked()
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ALWAYS_INLINE ArtMethod* GetVirtualMethodsPtrUnchecked()
+  ALWAYS_INLINE LengthPrefixedArray<ArtMethod>* GetVirtualMethodsPtrUnchecked()
       SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
@@ -1154,8 +1129,12 @@ class MANAGED Class FINAL : public Object {
   void CheckObjectAlloc() SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Unchecked editions is for root visiting.
-  ArtField* GetSFieldsUnchecked() SHARED_REQUIRES(Locks::mutator_lock_);
-  ArtField* GetIFieldsUnchecked() SHARED_REQUIRES(Locks::mutator_lock_);
+  LengthPrefixedArray<ArtField>* GetSFieldsPtrUnchecked() SHARED_REQUIRES(Locks::mutator_lock_);
+  IterationRange<StrideIterator<ArtField>> GetSFieldsUnchecked()
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  LengthPrefixedArray<ArtField>* GetIFieldsPtrUnchecked() SHARED_REQUIRES(Locks::mutator_lock_);
+  IterationRange<StrideIterator<ArtField>> GetIFieldsUnchecked()
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   bool ProxyDescriptorEquals(const char* match) SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -1216,7 +1195,7 @@ class MANAGED Class FINAL : public Object {
   // Note: Shuffled back.
   uint32_t access_flags_;
 
-  // static, private, and <init> methods. Pointer to an ArtMethod array.
+  // static, private, and <init> methods. Pointer to an ArtMethod length-prefixed array.
   uint64_t direct_methods_;
 
   // instance fields
@@ -1229,10 +1208,11 @@ class MANAGED Class FINAL : public Object {
   // ArtField arrays are allocated as an array of fields, and not an array of fields pointers.
   uint64_t ifields_;
 
-  // Static fields
+  // Static fields length-prefixed array.
   uint64_t sfields_;
 
-  // Virtual methods defined in this class; invoked through vtable. Pointer to an ArtMethod array.
+  // Virtual methods defined in this class; invoked through vtable. Pointer to an ArtMethod
+  // length-prefixed array.
   uint64_t virtual_methods_;
 
   // Total size of the Class instance; used when allocating storage on gc heap.
@@ -1250,23 +1230,11 @@ class MANAGED Class FINAL : public Object {
   // TODO: really 16bits
   int32_t dex_type_idx_;
 
-  // Number of direct fields.
-  uint32_t num_direct_methods_;
-
-  // Number of instance fields.
-  uint32_t num_instance_fields_;
-
   // Number of instance fields that are object refs.
   uint32_t num_reference_instance_fields_;
 
   // Number of static fields that are object refs,
   uint32_t num_reference_static_fields_;
-
-  // Number of static fields.
-  uint32_t num_static_fields_;
-
-  // Number of virtual methods.
-  uint32_t num_virtual_methods_;
 
   // Total object size; used when allocating storage on gc heap.
   // (For interfaces and abstract classes this will be zero.)

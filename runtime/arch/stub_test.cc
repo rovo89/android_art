@@ -2063,37 +2063,34 @@ static void TestFields(Thread* self, StubTest* test, Primitive::Type test_type) 
   // Play with it...
 
   // Static fields.
-  ArtField* fields = c->GetSFields();
-  size_t num_fields = c->NumStaticFields();
-  for (size_t i = 0; i < num_fields; ++i) {
-    ArtField* f = &fields[i];
-    Primitive::Type type = f->GetTypeAsPrimitiveType();
+  for (ArtField& f : c->GetSFields()) {
+    Primitive::Type type = f.GetTypeAsPrimitiveType();
     if (test_type != type) {
      continue;
     }
     switch (type) {
       case Primitive::Type::kPrimBoolean:
-        GetSetBooleanStatic(f, self, m, test);
+        GetSetBooleanStatic(&f, self, m, test);
         break;
       case Primitive::Type::kPrimByte:
-        GetSetByteStatic(f, self, m, test);
+        GetSetByteStatic(&f, self, m, test);
         break;
       case Primitive::Type::kPrimChar:
-        GetSetCharStatic(f, self, m, test);
+        GetSetCharStatic(&f, self, m, test);
         break;
       case Primitive::Type::kPrimShort:
-        GetSetShortStatic(f, self, m, test);
+        GetSetShortStatic(&f, self, m, test);
         break;
       case Primitive::Type::kPrimInt:
-        GetSet32Static(f, self, m, test);
+        GetSet32Static(&f, self, m, test);
         break;
       case Primitive::Type::kPrimLong:
-        GetSet64Static(f, self, m, test);
+        GetSet64Static(&f, self, m, test);
         break;
       case Primitive::Type::kPrimNot:
         // Don't try array.
-        if (f->GetTypeDescriptor()[0] != '[') {
-          GetSetObjStatic(f, self, m, test);
+        if (f.GetTypeDescriptor()[0] != '[') {
+          GetSetObjStatic(&f, self, m, test);
         }
         break;
       default:
@@ -2102,37 +2099,34 @@ static void TestFields(Thread* self, StubTest* test, Primitive::Type test_type) 
   }
 
   // Instance fields.
-  fields = c->GetIFields();
-  num_fields = c->NumInstanceFields();
-  for (size_t i = 0; i < num_fields; ++i) {
-    ArtField* f = &fields[i];
-    Primitive::Type type = f->GetTypeAsPrimitiveType();
+  for (ArtField& f : c->GetIFields()) {
+    Primitive::Type type = f.GetTypeAsPrimitiveType();
     if (test_type != type) {
       continue;
     }
     switch (type) {
       case Primitive::Type::kPrimBoolean:
-        GetSetBooleanInstance(&obj, f, self, m, test);
+        GetSetBooleanInstance(&obj, &f, self, m, test);
         break;
       case Primitive::Type::kPrimByte:
-        GetSetByteInstance(&obj, f, self, m, test);
+        GetSetByteInstance(&obj, &f, self, m, test);
         break;
       case Primitive::Type::kPrimChar:
-        GetSetCharInstance(&obj, f, self, m, test);
+        GetSetCharInstance(&obj, &f, self, m, test);
         break;
       case Primitive::Type::kPrimShort:
-        GetSetShortInstance(&obj, f, self, m, test);
+        GetSetShortInstance(&obj, &f, self, m, test);
         break;
       case Primitive::Type::kPrimInt:
-        GetSet32Instance(&obj, f, self, m, test);
+        GetSet32Instance(&obj, &f, self, m, test);
         break;
       case Primitive::Type::kPrimLong:
-        GetSet64Instance(&obj, f, self, m, test);
+        GetSet64Instance(&obj, &f, self, m, test);
         break;
       case Primitive::Type::kPrimNot:
         // Don't try array.
-        if (f->GetTypeDescriptor()[0] != '[') {
-          GetSetObjInstance(&obj, f, self, m, test);
+        if (f.GetTypeDescriptor()[0] != '[') {
+          GetSetObjInstance(&obj, &f, self, m, test);
         }
         break;
       default:
