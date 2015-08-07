@@ -276,12 +276,12 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
     nullptr,
     caller_compilation_unit_.GetClassLoader(),
     class_linker,
-    *resolved_method->GetDexFile(),
+    callee_dex_file,
     code_item,
     resolved_method->GetDeclaringClass()->GetDexClassDefIndex(),
-    resolved_method->GetDexMethodIndex(),
+    method_index,
     resolved_method->GetAccessFlags(),
-    nullptr);
+    compiler_driver_->GetVerifiedMethod(&callee_dex_file, method_index));
 
   bool requires_ctor_barrier = false;
 
