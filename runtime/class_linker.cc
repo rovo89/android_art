@@ -1273,22 +1273,15 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
     // Moving concurrent:
     // Need to make sure to not copy ArtMethods without doing read barriers since the roots are
     // marked concurrently and we don't hold the classlinker_classes_lock_ when we do the copy.
-    std::vector<std::pair<GcRoot<mirror::ClassLoader>, ClassTable*>> reinsert;
-    for (auto it = classes_.begin(); it != classes_.end(); ) {
-      it->second->VisitRoots(visitor, flags);
-      const GcRoot<mirror::ClassLoader>& root = it->first;
-      mirror::ClassLoader* old_ref = root.Read<kWithoutReadBarrier>();
-      root.VisitRootIfNonNull(visitor, RootInfo(kRootVMInternal));
-      mirror::ClassLoader* new_ref = root.Read<kWithoutReadBarrier>();
-      if (new_ref != old_ref) {
-        reinsert.push_back(*it);
-        it = classes_.erase(it);
-      } else {
-        ++it;
+    boot_class_table_.VisitRoots(visitor, flags);
+    for (GcRoot<mirror::ClassLoader>& root : class_loaders_) {
+      // May be null for boot ClassLoader.
+      root.VisitRoot(visitor, RootInfo(kRootVMInternal));
+      ClassTable* const class_table = root.Read()->GetClassTable();
+      if (class_table != nullptr) {
+        // May be null if we have no classes.
+        class_table->VisitRoots(visitor, flags);
       }
-    }
-    for (auto& pair : reinsert) {
-      classes_.Put(pair.first, pair.second);
     }
   } else if ((flags & kVisitRootFlagNewRoots) != 0) {
     for (auto& root : new_class_roots_) {
@@ -1346,10 +1339,12 @@ void ClassLinker::VisitRoots(RootVisitor* visitor, VisitRootFlags flags) {
 }
 
 void ClassLinker::VisitClassesInternal(ClassVisitor* visitor) {
-  for (auto& pair : classes_) {
-    ClassTable* const class_table = pair.second;
-    if (!class_table->Visit(visitor)) {
-      return;
+  if (boot_class_table_.Visit(visitor)) {
+    for (GcRoot<mirror::ClassLoader>& root : class_loaders_) {
+      ClassTable* const class_table = root.Read()->GetClassTable();
+      if (class_table != nullptr && !class_table->Visit(visitor)) {
+        return;
+      }
     }
   }
 }
@@ -1469,7 +1464,10 @@ ClassLinker::~ClassLinker() {
   mirror::LongArray::ResetArrayClass();
   mirror::ShortArray::ResetArrayClass();
   STLDeleteElements(&oat_files_);
-  STLDeleteValues(&classes_);
+  for (GcRoot<mirror::ClassLoader>& root : class_loaders_) {
+    ClassTable* const class_table = root.Read()->GetClassTable();
+    delete class_table;
+  }
 }
 
 mirror::PointerArray* ClassLinker::AllocPointerArray(Thread* self, size_t length) {
@@ -2907,8 +2905,12 @@ void ClassLinker::MoveImageClassesToClassTable() {
 
 void ClassLinker::MoveClassTableToPreZygote() {
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-  for (auto& class_table : classes_) {
-    class_table.second->FreezeSnapshot();
+  boot_class_table_.FreezeSnapshot();
+  for (GcRoot<mirror::ClassLoader>& root : class_loaders_) {
+    ClassTable* const class_table = root.Read()->GetClassTable();
+    if (class_table != nullptr) {
+      class_table->FreezeSnapshot();
+    }
   }
 }
 
@@ -2941,10 +2943,15 @@ void ClassLinker::LookupClasses(const char* descriptor, std::vector<mirror::Clas
     MoveImageClassesToClassTable();
   }
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-  for (auto& pair : classes_) {
+  const size_t hash = ComputeModifiedUtf8Hash(descriptor);
+  mirror::Class* klass = boot_class_table_.Lookup(descriptor, hash);
+  if (klass != nullptr) {
+    result.push_back(klass);
+  }
+  for (GcRoot<mirror::ClassLoader>& root : class_loaders_) {
     // There can only be one class with the same descriptor per class loader.
-    ClassTable* const class_table  = pair.second;
-    mirror::Class* klass = class_table->Lookup(descriptor, ComputeModifiedUtf8Hash(descriptor));
+    ClassTable* const class_table = root.Read()->GetClassTable();
+    klass = class_table->Lookup(descriptor, hash);
     if (klass != nullptr) {
       result.push_back(klass);
     }
@@ -3998,22 +4005,21 @@ void ClassLinker::FixupTemporaryDeclaringClass(mirror::Class* temp_class,
 }
 
 ClassTable* ClassLinker::InsertClassTableForClassLoader(mirror::ClassLoader* class_loader) {
-  auto it = classes_.find(GcRoot<mirror::ClassLoader>(class_loader));
-  if (it != classes_.end()) {
-    return it->second;
+  if (class_loader == nullptr) {
+    return &boot_class_table_;
   }
-  // Class table for loader not found, add it to the table.
-  auto* const class_table = new ClassTable;
-  classes_.Put(GcRoot<mirror::ClassLoader>(class_loader), class_table);
+  ClassTable* class_table = class_loader->GetClassTable();
+  if (class_table == nullptr) {
+    class_table = new ClassTable;
+    class_loaders_.push_back(class_loader);
+    // Don't already have a class table, add it to the class loader.
+    class_loader->SetClassTable(class_table);
+  }
   return class_table;
 }
 
 ClassTable* ClassLinker::ClassTableForClassLoader(mirror::ClassLoader* class_loader) {
-  auto it = classes_.find(GcRoot<mirror::ClassLoader>(class_loader));
-  if (it != classes_.end()) {
-    return it->second;
-  }
-  return nullptr;
+  return class_loader == nullptr ? &boot_class_table_ : class_loader->GetClassTable();
 }
 
 bool ClassLinker::LinkClass(Thread* self, const char* descriptor, Handle<mirror::Class> klass,
@@ -5649,28 +5655,33 @@ void ClassLinker::SetEntryPointsToInterpreter(ArtMethod* method) const {
 }
 
 void ClassLinker::DumpForSigQuit(std::ostream& os) {
-  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(Thread::Current());
   if (dex_cache_image_class_lookup_required_) {
-    ScopedObjectAccess soa(self);
     MoveImageClassesToClassTable();
   }
-  ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);
+  ReaderMutexLock mu(soa.Self(), *Locks::classlinker_classes_lock_);
   os << "Zygote loaded classes=" << NumZygoteClasses() << " post zygote classes="
      << NumNonZygoteClasses() << "\n";
 }
 
 size_t ClassLinker::NumZygoteClasses() const {
-  size_t sum = 0;
-  for (auto& pair : classes_) {
-    sum += pair.second->NumZygoteClasses();
+  size_t sum = boot_class_table_.NumZygoteClasses();
+  for (const GcRoot<mirror::ClassLoader>& root : class_loaders_) {
+    ClassTable* const class_table = root.Read()->GetClassTable();
+    if (class_table != nullptr) {
+      sum += class_table->NumZygoteClasses();
+    }
   }
   return sum;
 }
 
 size_t ClassLinker::NumNonZygoteClasses() const {
-  size_t sum = 0;
-  for (auto& pair : classes_) {
-    sum += pair.second->NumNonZygoteClasses();
+  size_t sum = boot_class_table_.NumNonZygoteClasses();
+  for (const GcRoot<mirror::ClassLoader>& root : class_loaders_) {
+    ClassTable* const class_table = root.Read()->GetClassTable();
+    if (class_table != nullptr) {
+      sum += class_table->NumNonZygoteClasses();
+    }
   }
   return sum;
 }

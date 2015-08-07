@@ -1372,6 +1372,11 @@ void ImageWriter::FixupObject(Object* orig, Object* copy) {
           << "Missing relocation for AbstractMethod.artMethod " << PrettyMethod(src_method);
       dest->SetArtMethod(
           reinterpret_cast<ArtMethod*>(image_begin_ + it->second.offset));
+    } else if (!klass->IsArrayClass() && klass->IsSubClass(down_cast<mirror::Class*>(
+        Thread::Current()->DecodeJObject(WellKnownClasses::java_lang_ClassLoader)))) {
+      // If src is a ClassLoader, set the class table to null so that it gets recreated by the
+      // ClassLoader.
+      down_cast<mirror::ClassLoader*>(copy)->SetClassTable(nullptr);
     }
     FixupVisitor visitor(this, copy);
     orig->VisitReferences<true /*visit class*/>(visitor, visitor);
