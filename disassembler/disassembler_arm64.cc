@@ -94,7 +94,7 @@ void CustomDisassembler::VisitLoadStoreUnsignedOffset(const vixl::Instruction* i
     int64_t offset = instr->ImmLSUnsigned() << instr->SizeLS();
     std::ostringstream tmp_stream;
     Thread::DumpThreadOffset<8>(tmp_stream, static_cast<uint32_t>(offset));
-    AppendToOutput(" (%s)", tmp_stream.str().c_str());
+    AppendToOutput(" ; %s", tmp_stream.str().c_str());
   }
 }
 

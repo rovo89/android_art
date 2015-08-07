@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from common.archs               import archs_list
 from common.testing             import ToUnicode
 from file_format.checker.parser import ParseCheckerStream
 from file_format.checker.struct import CheckerFile, TestCase, TestAssertion, RegexExpression
@@ -280,3 +281,51 @@ class CheckerParser_FileLayoutTest(unittest.TestCase):
           /// CHECK-START: Example Group
           /// CHECK-NEXT: bar
         """)
+
+
+class CheckerParser_ArchTests(unittest.TestCase):
+
+  noarch_block = """
+                  /// CHECK-START: Group
+                  /// CHECK:       foo
+                  /// CHECK-NEXT:  bar
+                  /// CHECK-NOT:   baz
+                  /// CHECK-DAG:   yoyo
+                """
+
+  arch_block = """
+                  /// CHECK-START-{test_arch}: Group
+                  /// CHECK:       foo
+                  /// CHECK-NEXT:  bar
+                  /// CHECK-NOT:   baz
+                  /// CHECK-DAG:   yoyo
+                """
+
+  def test_NonArchTests(self):
+    for arch in [None] + archs_list:
+      checkerFile = ParseCheckerStream("<test-file>",
+                                       "CHECK",
+                                       io.StringIO(ToUnicode(self.noarch_block)))
+      self.assertEqual(len(checkerFile.testCases), 1)
+      self.assertEqual(len(checkerFile.testCases[0].assertions), 4)
+
+  def test_IgnoreNonTargetArch(self):
+    for targetArch in archs_list:
+      for testArch in [a for a in archs_list if a != targetArch]:
+        checkerText = self.arch_block.format(test_arch = testArch)
+        checkerFile = ParseCheckerStream("<test-file>",
+                                         "CHECK",
+                                         io.StringIO(ToUnicode(checkerText)))
+        self.assertEqual(len(checkerFile.testCases), 1)
+        self.assertEqual(len(checkerFile.testCasesForArch(testArch)), 1)
+        self.assertEqual(len(checkerFile.testCasesForArch(targetArch)), 0)
+
+  def test_Arch(self):
+    for arch in archs_list:
+      checkerText = self.arch_block.format(test_arch = arch)
+      checkerFile = ParseCheckerStream("<test-file>",
+                                       "CHECK",
+                                       io.StringIO(ToUnicode(checkerText)))
+      self.assertEqual(len(checkerFile.testCases), 1)
+      self.assertEqual(len(checkerFile.testCasesForArch(arch)), 1)
+      self.assertEqual(len(checkerFile.testCases[0].assertions), 4)
