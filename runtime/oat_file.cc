@@ -26,6 +26,7 @@
 #include "base/unix_file/fd_file.h"
 #include "elf_file.h"
 #include "elf_utils.h"
+#include "lgalmond.h"
 #include "oat.h"
 #include "mirror/art_method.h"
 #include "mirror/art_method-inl.h"
@@ -50,6 +51,14 @@ OatFile* OatFile::OpenWithElfFile(ElfFile* elf_file,
   Elf32_Shdr* hdr = elf_file->FindSectionByName(".rodata");
   oat_file->begin_ = elf_file->Begin() + hdr->sh_offset;
   oat_file->end_ = elf_file->Begin() + hdr->sh_size + hdr->sh_offset;
+
+  if (UNLIKELY(LGAlmond::IsEncryptedOat(oat_file->begin_))) {
+    LOG(INFO) << "LG Almond Protected OAT";
+    if (!LGAlmond::DecryptOat(const_cast<byte*>(oat_file->begin_), elf_file->GetFile(), error_msg)) {
+      return false;
+    }
+  }
+
   return oat_file->Setup(error_msg) ? oat_file.release() : nullptr;
 }
 

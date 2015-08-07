@@ -87,6 +87,7 @@ LIBART_COMMON_SRC_FILES := \
   jdwp/jdwp_request.cc \
   jdwp/jdwp_socket.cc \
   jdwp/object_registry.cc \
+  lgalmond.cc \
   jni_internal.cc \
   jobject_comparator.cc \
   mem_map.cc \
