@@ -16,6 +16,7 @@
 
 #include "reg_type-inl.h"
 
+#include "base/bit_vector-inl.h"
 #include "base/casts.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
@@ -307,13 +308,17 @@ PreciseReferenceType::PreciseReferenceType(mirror::Class* klass, const std::stri
 
 std::string UnresolvedMergedType::Dump() const {
   std::stringstream result;
-  std::set<uint16_t> types = GetMergedTypes();
-  result << "UnresolvedMergedReferences(";
-  auto it = types.begin();
-  result << reg_type_cache_->GetFromId(*it).Dump();
-  for (++it; it != types.end(); ++it) {
-    result << ", ";
-    result << reg_type_cache_->GetFromId(*it).Dump();
+  result << "UnresolvedMergedReferences(" << GetResolvedPart().Dump() << " | ";
+  const BitVector& types = GetUnresolvedTypes();
+
+  bool first = true;
+  for (uint32_t idx : types.Indexes()) {
+    if (!first) {
+      result << ", ";
+    } else {
+      first = false;
+    }
+    result << reg_type_cache_->GetFromId(idx).Dump();
   }
   result << ")";
   return result.str();
@@ -488,32 +493,6 @@ bool UninitializedType::IsNonZeroReferenceTypes() const {
 
 bool UnresolvedType::IsNonZeroReferenceTypes() const {
   return true;
-}
-
-std::set<uint16_t> UnresolvedMergedType::GetMergedTypes() const {
-  std::pair<uint16_t, uint16_t> refs = GetTopMergedTypes();
-  const RegType& left = reg_type_cache_->GetFromId(refs.first);
-  const RegType& right = reg_type_cache_->GetFromId(refs.second);
-
-  std::set<uint16_t> types;
-  if (left.IsUnresolvedMergedReference()) {
-    types = down_cast<const UnresolvedMergedType*>(&left)->GetMergedTypes();
-  } else {
-    types.insert(refs.first);
-  }
-  if (right.IsUnresolvedMergedReference()) {
-    std::set<uint16_t> right_types =
-        down_cast<const UnresolvedMergedType*>(&right)->GetMergedTypes();
-    types.insert(right_types.begin(), right_types.end());
-  } else {
-    types.insert(refs.second);
-  }
-  if (kIsDebugBuild) {
-    for (const auto& type : types) {
-      CHECK(!reg_type_cache_->GetFromId(type).IsUnresolvedMergedReference());
-    }
-  }
-  return types;
 }
 
 const RegType& RegType::GetSuperClass(RegTypeCache* cache) const {
@@ -805,12 +784,24 @@ void UnresolvedUninitializedRefType::CheckInvariants() const {
   CHECK(klass_.IsNull()) << *this;
 }
 
+UnresolvedMergedType::UnresolvedMergedType(const RegType& resolved,
+                                           const BitVector& unresolved,
+                                           const RegTypeCache* reg_type_cache,
+                                           uint16_t cache_id)
+    : UnresolvedType("", cache_id),
+      reg_type_cache_(reg_type_cache),
+      resolved_part_(resolved),
+      unresolved_types_(unresolved, false, unresolved.GetAllocator()) {
+  if (kIsDebugBuild) {
+    CheckInvariants();
+  }
+}
 void UnresolvedMergedType::CheckInvariants() const {
   // Unresolved merged types: merged types should be defined.
   CHECK(descriptor_.empty()) << *this;
   CHECK(klass_.IsNull()) << *this;
-  CHECK_NE(merged_types_.first, 0U) << *this;
-  CHECK_NE(merged_types_.second, 0U) << *this;
+  CHECK(resolved_part_.IsReferenceTypes());
+  CHECK(!resolved_part_.IsUnresolvedTypes());
 }
 
 void UnresolvedReferenceType::CheckInvariants() const {

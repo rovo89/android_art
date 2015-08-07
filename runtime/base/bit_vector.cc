@@ -24,11 +24,7 @@
 
 namespace art {
 
-// TODO: replace excessive argument defaulting when we are at gcc 4.7
-// or later on host with delegating constructor support. Specifically,
-// starts_bits and storage_size/storage are mutually exclusive.
-BitVector::BitVector(uint32_t start_bits,
-                     bool expandable,
+BitVector::BitVector(bool expandable,
                      Allocator* allocator,
                      uint32_t storage_size,
                      uint32_t* storage)
@@ -36,12 +32,31 @@ BitVector::BitVector(uint32_t start_bits,
     storage_size_(storage_size),
     allocator_(allocator),
     expandable_(expandable) {
+  DCHECK(storage_ != nullptr);
+
   static_assert(sizeof(*storage_) == kWordBytes, "word bytes");
   static_assert(sizeof(*storage_) * 8u == kWordBits, "word bits");
-  if (storage_ == nullptr) {
-    storage_size_ = BitsToWords(start_bits);
-    storage_ = static_cast<uint32_t*>(allocator_->Alloc(storage_size_ * kWordBytes));
-  }
+}
+
+BitVector::BitVector(uint32_t start_bits,
+                     bool expandable,
+                     Allocator* allocator)
+  : BitVector(expandable,
+              allocator,
+              BitsToWords(start_bits),
+              static_cast<uint32_t*>(allocator->Alloc(BitsToWords(start_bits) * kWordBytes))) {
+}
+
+
+BitVector::BitVector(const BitVector& src,
+                     bool expandable,
+                     Allocator* allocator)
+  : BitVector(expandable,
+              allocator,
+              src.storage_size_,
+              static_cast<uint32_t*>(allocator->Alloc(src.storage_size_ * kWordBytes))) {
+  // Direct memcpy would be faster, but this should be fine too and is cleaner.
+  Copy(&src);
 }
 
 BitVector::~BitVector() {
@@ -355,6 +370,10 @@ void BitVector::EnsureSize(uint32_t idx) {
     storage_ = new_storage;
     storage_size_ = new_size;
   }
+}
+
+Allocator* BitVector::GetAllocator() const {
+  return allocator_;
 }
 
 }  // namespace art

@@ -316,6 +316,20 @@ if [ "$PREBUILD" = "y" ]; then
                       --dex-file=$DEX_LOCATION/$TEST_NAME.jar \
                       --oat-file=$DEX_LOCATION/dalvik-cache/$ISA/$(echo $DEX_LOCATION/$TEST_NAME.jar/classes.dex | cut -d/ -f 2- | sed "s:/:@:g") \
                       --instruction-set=$ISA"
+  if [ "x$INSTRUCTION_SET_FEATURES" != "x" ] ; then
+    dex2oat_cmdline="${dex2oat_cmdline} --instruction-set-features=${INSTRUCTION_SET_FEATURES}"
+  fi
+
+  # Add in a timeout. This is important for testing the compilation/verification time of
+  # pathological cases.
+  # Note: as we don't know how decent targets are (e.g., emulator), only do this on the host for
+  #       now. We should try to improve this.
+  #       The current value is rather arbitrary. run-tests should compile quickly.
+  if [ "$HOST" != "n" ]; then
+    # Use SIGRTMIN+2 to try to dump threads.
+    # Use -k 1m to SIGKILL it a minute later if it hasn't ended.
+    dex2oat_cmdline="timeout -k 1m -s SIGRTMIN+2 1m ${dex2oat_cmdline}"
+  fi
 fi
 
 dalvikvm_cmdline="$INVOKE_WITH $GDB $ANDROID_ROOT/bin/$DALVIKVM \

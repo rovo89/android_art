@@ -317,39 +317,62 @@ void RegTypeCache::CreatePrimitiveAndSmallConstantTypes() {
 }
 
 const RegType& RegTypeCache::FromUnresolvedMerge(const RegType& left, const RegType& right) {
-  std::set<uint16_t> types;
+  BitVector types(1,                                    // Allocate at least a word.
+                  true,                                 // Is expandable.
+                  Allocator::GetMallocAllocator());     // TODO: Arenas in the verifier.
+  const RegType* left_resolved;
   if (left.IsUnresolvedMergedReference()) {
-    RegType& non_const(const_cast<RegType&>(left));
-    types = (down_cast<UnresolvedMergedType*>(&non_const))->GetMergedTypes();
+    const UnresolvedMergedType* left_merge = down_cast<const UnresolvedMergedType*>(&left);
+    types.Copy(&left_merge->GetUnresolvedTypes());
+    left_resolved = &left_merge->GetResolvedPart();
+  } else if (left.IsUnresolvedReference()) {
+    types.SetBit(left.GetId());
+    left_resolved = &Zero();
   } else {
-    types.insert(left.GetId());
+    left_resolved = &left;
   }
+
+  const RegType* right_resolved;
   if (right.IsUnresolvedMergedReference()) {
-    RegType& non_const(const_cast<RegType&>(right));
-    std::set<uint16_t> right_types = (down_cast<UnresolvedMergedType*>(&non_const))->GetMergedTypes();
-    types.insert(right_types.begin(), right_types.end());
+    const UnresolvedMergedType* right_merge = down_cast<const UnresolvedMergedType*>(&right);
+    types.Union(&right_merge->GetUnresolvedTypes());
+    right_resolved = &right_merge->GetResolvedPart();
+  } else if (right.IsUnresolvedReference()) {
+    types.SetBit(right.GetId());
+    right_resolved = &Zero();
   } else {
-    types.insert(right.GetId());
+    right_resolved = &right;
   }
+
+  // Merge the resolved parts. Left and right might be equal, so use SafeMerge.
+  const RegType& resolved_parts_merged = left_resolved->SafeMerge(*right_resolved, this);
+  // If we get a conflict here, the merge result is a conflict, not an unresolved merge type.
+  if (resolved_parts_merged.IsConflict()) {
+    return Conflict();
+  }
+
   // Check if entry already exists.
   for (size_t i = primitive_count_; i < entries_.size(); i++) {
     const RegType* cur_entry = entries_[i];
     if (cur_entry->IsUnresolvedMergedReference()) {
-      std::set<uint16_t> cur_entry_types =
-          (down_cast<const UnresolvedMergedType*>(cur_entry))->GetMergedTypes();
-      if (cur_entry_types == types) {
+      const UnresolvedMergedType* cmp_type = down_cast<const UnresolvedMergedType*>(cur_entry);
+      const RegType& resolved_part = cmp_type->GetResolvedPart();
+      const BitVector& unresolved_part = cmp_type->GetUnresolvedTypes();
+      // Use SameBitsSet. "types" is expandable to allow merging in the components, but the
+      // BitVector in the final RegType will be made non-expandable.
+      if (&resolved_part == &resolved_parts_merged &&
+              types.SameBitsSet(&unresolved_part)) {
         return *cur_entry;
       }
     }
   }
+
   // Create entry.
-  RegType* entry = new UnresolvedMergedType(left.GetId(), right.GetId(), this, entries_.size());
+  RegType* entry = new UnresolvedMergedType(resolved_parts_merged,
+                                            types,
+                                            this,
+                                            entries_.size());
   AddEntry(entry);
-  if (kIsDebugBuild) {
-    UnresolvedMergedType* tmp_entry = down_cast<UnresolvedMergedType*>(entry);
-    std::set<uint16_t> check_types = tmp_entry->GetMergedTypes();
-    CHECK(check_types == types);
-  }
   return *entry;
 }
 

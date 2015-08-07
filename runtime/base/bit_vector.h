@@ -112,9 +112,16 @@ class BitVector {
 
   BitVector(uint32_t start_bits,
             bool expandable,
+            Allocator* allocator);
+
+  BitVector(bool expandable,
             Allocator* allocator,
-            uint32_t storage_size = 0,
-            uint32_t* storage = nullptr);
+            uint32_t storage_size,
+            uint32_t* storage);
+
+  BitVector(const BitVector& src,
+            bool expandable,
+            Allocator* allocator);
 
   virtual ~BitVector();
 
@@ -230,6 +237,8 @@ class BitVector {
   static uint32_t NumSetBits(const uint32_t* storage, uint32_t end);
 
   void Dump(std::ostream& os, const char* prefix) const;
+
+  Allocator* GetAllocator() const;
 
  private:
   /**
