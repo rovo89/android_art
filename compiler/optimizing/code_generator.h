@@ -98,6 +98,8 @@ class SlowPathCode : public ArenaObject<kArenaAllocSlowPaths> {
     return saved_fpu_stack_offsets_[reg];
   }
 
+  virtual bool IsFatal() const { return false; }
+
   virtual const char* GetDescription() const = 0;
 
  protected:

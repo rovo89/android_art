@@ -232,6 +232,12 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
   size_t RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
 
+  // Generate code to invoke a runtime entry point.
+  void InvokeRuntime(Address entry_point,
+                     HInstruction* instruction,
+                     uint32_t dex_pc,
+                     SlowPathCode* slow_path);
+
   size_t GetWordSize() const OVERRIDE {
     return kX86_64WordSize;
   }
