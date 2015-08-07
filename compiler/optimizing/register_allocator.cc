@@ -949,7 +949,16 @@ bool RegisterAllocator::PotentiallyRemoveOtherHalf(LiveInterval* interval,
 // we spill `current` instead.
 bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
   size_t first_register_use = current->FirstRegisterUse();
-  if (first_register_use == kNoLifetime) {
+  if (current->HasRegister()) {
+    DCHECK(current->IsHighInterval());
+    // The low interval has allocated the register for the high interval. In
+    // case the low interval had to split both intervals, we may end up in a
+    // situation where the high interval does not have a register use anymore.
+    // We must still proceed in order to split currently active and inactive
+    // uses of the high interval's register, and put the high interval in the
+    // active set.
+    DCHECK(first_register_use != kNoLifetime || (current->GetNextSibling() != nullptr));
+  } else if (first_register_use == kNoLifetime) {
     AllocateSpillSlotFor(current);
     return false;
   }
@@ -1016,7 +1025,7 @@ bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
     // When allocating the low part, we made sure the high register was available.
     DCHECK_LT(first_use, next_use[reg]);
   } else if (current->IsLowInterval()) {
-    reg = FindAvailableRegisterPair(next_use, first_register_use);
+    reg = FindAvailableRegisterPair(next_use, first_use);
     // We should spill if both registers are not available.
     should_spill = (first_use >= next_use[reg])
       || (first_use >= next_use[GetHighForLowRegister(reg)]);
@@ -1030,16 +1039,28 @@ bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
   if (should_spill) {
     DCHECK(!current->IsHighInterval());
     bool is_allocation_at_use_site = (current->GetStart() >= (first_register_use - 1));
-    if (current->IsLowInterval()
-        && is_allocation_at_use_site
-        && TrySplitNonPairOrUnalignedPairIntervalAt(current->GetStart(),
-                                                    first_register_use,
-                                                    next_use)) {
+    if (is_allocation_at_use_site) {
+      if (!current->IsLowInterval()) {
+        DumpInterval(std::cerr, current);
+        DumpAllIntervals(std::cerr);
+        // This situation has the potential to infinite loop, so we make it a non-debug CHECK.
+        HInstruction* at = liveness_.GetInstructionFromPosition(first_register_use / 2);
+        CHECK(false) << "There is not enough registers available for "
+          << current->GetParent()->GetDefinedBy()->DebugName() << " "
+          << current->GetParent()->GetDefinedBy()->GetId()
+          << " at " << first_register_use - 1 << " "
+          << (at == nullptr ? "" : at->DebugName());
+      }
+
       // If we're allocating a register for `current` because the instruction at
       // that position requires it, but we think we should spill, then there are
       // non-pair intervals or unaligned pair intervals blocking the allocation.
       // We split the first interval found, and put ourselves first in the
       // `unhandled_` list.
+      bool success = TrySplitNonPairOrUnalignedPairIntervalAt(current->GetStart(),
+                                                              first_register_use,
+                                                              next_use);
+      DCHECK(success);
       LiveInterval* existing = unhandled_->Peek();
       DCHECK(existing->IsHighInterval());
       DCHECK_EQ(existing->GetLowInterval(), current);
@@ -1049,17 +1070,7 @@ bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
       // register, we split this interval just before its first register use.
       AllocateSpillSlotFor(current);
       LiveInterval* split = SplitBetween(current, current->GetStart(), first_register_use - 1);
-      if (current == split) {
-        DumpInterval(std::cerr, current);
-        DumpAllIntervals(std::cerr);
-        // This situation has the potential to infinite loop, so we make it a non-debug CHECK.
-        HInstruction* at = liveness_.GetInstructionFromPosition(first_register_use / 2);
-        CHECK(false) << "There is not enough registers available for "
-          << split->GetParent()->GetDefinedBy()->DebugName() << " "
-          << split->GetParent()->GetDefinedBy()->GetId()
-          << " at " << first_register_use - 1 << " "
-          << (at == nullptr ? "" : at->DebugName());
-      }
+      DCHECK(current != split);
       AddSorted(unhandled_, split);
     }
     return false;
@@ -1240,7 +1251,9 @@ LiveInterval* RegisterAllocator::Split(LiveInterval* interval, size_t position) 
 
 void RegisterAllocator::AllocateSpillSlotFor(LiveInterval* interval) {
   if (interval->IsHighInterval()) {
-    // The low interval will contain the spill slot.
+    // The low interval already took care of allocating the spill slot.
+    DCHECK(!interval->GetLowInterval()->HasRegister());
+    DCHECK(interval->GetLowInterval()->GetParent()->HasSpillSlot());
     return;
   }
 
