@@ -546,6 +546,7 @@ struct StackTraceElementOffsets : public CheckOffsets<mirror::StackTraceElement>
 
 struct ClassLoaderOffsets : public CheckOffsets<mirror::ClassLoader> {
   ClassLoaderOffsets() : CheckOffsets<mirror::ClassLoader>(false, "Ljava/lang/ClassLoader;") {
+    addOffset(OFFSETOF_MEMBER(mirror::ClassLoader, class_table_), "classTable");
     addOffset(OFFSETOF_MEMBER(mirror::ClassLoader, packages_), "packages");
     addOffset(OFFSETOF_MEMBER(mirror::ClassLoader, parent_), "parent");
     addOffset(OFFSETOF_MEMBER(mirror::ClassLoader, proxyCache_), "proxyCache");
