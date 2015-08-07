@@ -138,6 +138,8 @@ class BoundsCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
     CheckEntrypointTypes<kQuickThrowArrayBounds, void, int32_t, int32_t>();
   }
 
+  bool IsFatal() const OVERRIDE { return true; }
+
   const char* GetDescription() const OVERRIDE { return "BoundsCheckSlowPathMIPS64"; }
 
  private:
@@ -161,6 +163,8 @@ class DivZeroCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
                                   this);
     CheckEntrypointTypes<kQuickThrowDivZero, void, void>();
   }
+
+  bool IsFatal() const OVERRIDE { return true; }
 
   const char* GetDescription() const OVERRIDE { return "DivZeroCheckSlowPathMIPS64"; }
 
@@ -277,6 +281,8 @@ class NullCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
                                   this);
     CheckEntrypointTypes<kQuickThrowNullPointer, void, void>();
   }
+
+  bool IsFatal() const OVERRIDE { return true; }
 
   const char* GetDescription() const OVERRIDE { return "NullCheckSlowPathMIPS64"; }
 
@@ -971,6 +977,14 @@ void CodeGeneratorMIPS64::InvokeRuntime(int32_t entry_point_offset,
                                         HInstruction* instruction,
                                         uint32_t dex_pc,
                                         SlowPathCode* slow_path) {
+  // Ensure that the call kind indication given to the register allocator is
+  // coherent with the runtime call generated.
+  if (slow_path == nullptr) {
+    DCHECK(instruction->GetLocations()->WillCall());
+  } else {
+    DCHECK(instruction->GetLocations()->OnlyCallsOnSlowPath() || slow_path->IsFatal());
+  }
+
   // TODO: anything related to T9/GP/GOT/PIC/.so's?
   __ LoadFromOffset(kLoadDoubleword, T9, TR, entry_point_offset);
   __ Jalr(T9);
