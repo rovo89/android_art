@@ -475,25 +475,18 @@ class ClassLinker {
   void DropFindArrayClassCache() SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
-  class CompareClassLoaderGcRoot {
-   public:
-    bool operator()(const GcRoot<mirror::ClassLoader>& a, const GcRoot<mirror::ClassLoader>& b)
-        const SHARED_REQUIRES(Locks::mutator_lock_) {
-      return a.Read() < b.Read();
-    }
-  };
-
-  typedef SafeMap<GcRoot<mirror::ClassLoader>, ClassTable*, CompareClassLoaderGcRoot>
-      ClassLoaderClassTable;
-
   void VisitClassesInternal(ClassVisitor* visitor)
       REQUIRES(Locks::classlinker_classes_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Returns the number of zygote and image classes.
-  size_t NumZygoteClasses() const REQUIRES(Locks::classlinker_classes_lock_);
+  size_t NumZygoteClasses() const
+      REQUIRES(Locks::classlinker_classes_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Returns the number of non zygote nor image classes.
-  size_t NumNonZygoteClasses() const REQUIRES(Locks::classlinker_classes_lock_);
+  size_t NumNonZygoteClasses() const
+      REQUIRES(Locks::classlinker_classes_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   OatFile& GetImageOatFile(gc::space::ImageSpace* space)
       REQUIRES(!dex_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
@@ -707,8 +700,13 @@ class ClassLinker {
   std::vector<GcRoot<mirror::DexCache>> dex_caches_ GUARDED_BY(dex_lock_);
   std::vector<const OatFile*> oat_files_ GUARDED_BY(dex_lock_);
 
-  // This contains strong roots. To enable concurrent root scanning of the class table.
-  ClassLoaderClassTable classes_ GUARDED_BY(Locks::classlinker_classes_lock_);
+  // This contains the class laoders which have class tables. It is populated by
+  // InsertClassTableForClassLoader.
+  std::vector<GcRoot<mirror::ClassLoader>> class_loaders_
+      GUARDED_BY(Locks::classlinker_classes_lock_);
+
+  // Boot class path table. Since the class loader for this is null.
+  ClassTable boot_class_table_ GUARDED_BY(Locks::classlinker_classes_lock_);
 
   // New class roots, only used by CMS since the GC needs to mark these in the pause.
   std::vector<GcRoot<mirror::Class>> new_class_roots_ GUARDED_BY(Locks::classlinker_classes_lock_);
