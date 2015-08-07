@@ -69,6 +69,8 @@ class NullCheckSlowPathARM : public SlowPathCodeARM {
         QUICK_ENTRY_POINT(pThrowNullPointer), instruction_, instruction_->GetDexPc(), this);
   }
 
+  bool IsFatal() const OVERRIDE { return true; }
+
   const char* GetDescription() const OVERRIDE { return "NullCheckSlowPathARM"; }
 
  private:
@@ -86,6 +88,8 @@ class DivZeroCheckSlowPathARM : public SlowPathCodeARM {
     arm_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pThrowDivZero), instruction_, instruction_->GetDexPc(), this);
   }
+
+  bool IsFatal() const OVERRIDE { return true; }
 
   const char* GetDescription() const OVERRIDE { return "DivZeroCheckSlowPathARM"; }
 
@@ -160,6 +164,8 @@ class BoundsCheckSlowPathARM : public SlowPathCodeARM {
     arm_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pThrowArrayBounds), instruction_, instruction_->GetDexPc(), this);
   }
+
+  bool IsFatal() const OVERRIDE { return true; }
 
   const char* GetDescription() const OVERRIDE { return "BoundsCheckSlowPathARM"; }
 
@@ -947,6 +953,14 @@ void CodeGeneratorARM::InvokeRuntime(int32_t entry_point_offset,
                                      HInstruction* instruction,
                                      uint32_t dex_pc,
                                      SlowPathCode* slow_path) {
+  // Ensure that the call kind indication given to the register allocator is
+  // coherent with the runtime call generated.
+  if (slow_path == nullptr) {
+    DCHECK(instruction->GetLocations()->WillCall());
+  } else {
+    DCHECK(instruction->GetLocations()->OnlyCallsOnSlowPath() || slow_path->IsFatal());
+  }
+
   __ LoadFromOffset(kLoadWord, LR, TR, entry_point_offset);
   __ blx(LR);
   RecordPcInfo(instruction, dex_pc, slow_path);
