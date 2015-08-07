@@ -54,6 +54,10 @@ class CompilerOptions FINAL {
   static const size_t kDefaultInlineDepthLimit = 5;
   static const size_t kDefaultInlineMaxCodeUnits = 100;
 
+  // Default inlining settings when the space filter is used.
+  static constexpr size_t kSpaceFilterInlineDepthLimit = 5;
+  static constexpr size_t kSpaceFilterInlineMaxCodeUnits = 10;
+
   CompilerOptions();
   ~CompilerOptions();
 

@@ -282,12 +282,15 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("");
   UsageError("  --inline-depth-limit=<depth-limit>: the depth limit of inlining for fine tuning");
   UsageError("      the compiler. A zero value will disable inlining. Honored only by Optimizing.");
+  UsageError("      Has priority over the --compiler-filter option. Intended for ");
+  UsageError("      development/experimental use.");
   UsageError("      Example: --inline-depth-limit=%d", CompilerOptions::kDefaultInlineDepthLimit);
   UsageError("      Default: %d", CompilerOptions::kDefaultInlineDepthLimit);
   UsageError("");
   UsageError("  --inline-max-code-units=<code-units-count>: the maximum code units that a method");
   UsageError("      can have to be considered for inlining. A zero value will disable inlining.");
-  UsageError("      Honored only by Optimizing.");
+  UsageError("      Honored only by Optimizing. Has priority over the --compiler-filter option.");
+  UsageError("      Intended for development/experimental use.");
   UsageError("      Example: --inline-max-code-units=%d",
              CompilerOptions::kDefaultInlineMaxCodeUnits);
   UsageError("      Default: %d", CompilerOptions::kDefaultInlineMaxCodeUnits);
@@ -562,8 +565,10 @@ class Dex2Oat FINAL {
     int small_method_threshold = CompilerOptions::kDefaultSmallMethodThreshold;
     int tiny_method_threshold = CompilerOptions::kDefaultTinyMethodThreshold;
     int num_dex_methods_threshold = CompilerOptions::kDefaultNumDexMethodsThreshold;
-    int inline_depth_limit = CompilerOptions::kDefaultInlineDepthLimit;
-    int inline_max_code_units = CompilerOptions::kDefaultInlineMaxCodeUnits;
+    static constexpr int kUnsetInlineDepthLimit = -1;
+    int inline_depth_limit = kUnsetInlineDepthLimit;
+    static constexpr int kUnsetInlineMaxCodeUnits = -1;
+    int inline_max_code_units = kUnsetInlineMaxCodeUnits;
 
     // Profile file to use
     double top_k_profile_threshold = CompilerOptions::kDefaultTopKProfileThreshold;
@@ -992,6 +997,22 @@ class Dex2Oat FINAL {
       compiler_filter = CompilerOptions::kTime;
     } else {
       Usage("Unknown --compiler-filter value %s", compiler_filter_string);
+    }
+
+    // It they are not set, use default values for inlining settings.
+    // TODO: We should rethink the compiler filter. We mostly save
+    // time here, which is orthogonal to space.
+    if (inline_depth_limit == kUnsetInlineDepthLimit) {
+      inline_depth_limit = (compiler_filter == CompilerOptions::kSpace)
+          // Implementation of the space filter: limit inlining depth.
+          ? CompilerOptions::kSpaceFilterInlineDepthLimit
+          : CompilerOptions::kDefaultInlineDepthLimit;
+    }
+    if (inline_max_code_units == kUnsetInlineMaxCodeUnits) {
+      inline_max_code_units = (compiler_filter == CompilerOptions::kSpace)
+          // Implementation of the space filter: limit inlining max code units.
+          ? CompilerOptions::kSpaceFilterInlineMaxCodeUnits
+          : CompilerOptions::kDefaultInlineMaxCodeUnits;
     }
 
     // Checks are all explicit until we know the architecture.
