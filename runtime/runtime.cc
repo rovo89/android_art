@@ -56,6 +56,7 @@
 #include "instrumentation.h"
 #include "intern_table.h"
 #include "jni_internal.h"
+#include "lgalmond.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/array.h"
@@ -794,6 +795,8 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
       new JavaStackTraceHandler(&fault_manager);
     }
   }
+
+  LGAlmond::Init();
 
   java_vm_ = new JavaVMExt(this, options.get());
 
