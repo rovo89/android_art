@@ -887,9 +887,6 @@ class DexFile {
   //     the dex_location where it's file name part has been made canonical.
   static std::string GetDexCanonicalLocation(const char* dex_location);
 
-  // Initializes the LG Almond encryption library, if available.
-  static void InitLGAlmond();
-
  private:
   // Opens a .dex file
   static const DexFile* OpenFile(int fd, const char* location, bool verify, std::string* error_msg);

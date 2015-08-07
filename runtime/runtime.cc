@@ -779,8 +779,6 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
     }
   }
 
-  DexFile::InitLGAlmond();
-
   java_vm_ = new JavaVMExt(this, options.get());
 
   Thread::Startup();
