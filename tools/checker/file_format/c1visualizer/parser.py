@@ -27,10 +27,12 @@ class C1ParserState:
 
 def __parseC1Line(line, lineNo, state, fileName):
   """ This function is invoked on each line of the output file and returns
-      a pair which instructs the parser how the line should be handled. If the
+      a triplet which instructs the parser how the line should be handled. If the
       line is to be included in the current group, it is returned in the first
       value. If the line starts a new output group, the name of the group is
-      returned in the second value.
+      returned in the second value. The third value is only here to make the
+      function prototype compatible with `SplitStream` and is always set to
+      `None` here.
   """
   if state.currentState == C1ParserState.StartingCfgBlock:
     # Previous line started a new 'cfg' block which means that this one must
@@ -39,16 +41,16 @@ def __parseC1Line(line, lineNo, state, fileName):
       # Extract the pass name, prepend it with the name of the method and
       # return as the beginning of a new group.
       state.currentState = C1ParserState.InsideCfgBlock
-      return (None, state.lastMethodName + " " + line.split("\"")[1])
+      return (None, state.lastMethodName + " " + line.split("\"")[1], None)
     else:
       Logger.fail("Expected output group name", fileName, lineNo)
 
   elif state.currentState == C1ParserState.InsideCfgBlock:
     if line == "end_cfg":
       state.currentState = C1ParserState.OutsideBlock
-      return (None, None)
+      return (None, None, None)
     else:
-      return (line, None)
+      return (line, None, None)
 
   elif state.currentState == C1ParserState.InsideCompilationBlock:
     # Search for the method's name. Format: method "<name>"
@@ -59,7 +61,7 @@ def __parseC1Line(line, lineNo, state, fileName):
       state.lastMethodName = methodName
     elif line == "end_compilation":
       state.currentState = C1ParserState.OutsideBlock
-    return (None, None)
+    return (None, None, None)
 
   else:
     assert state.currentState == C1ParserState.OutsideBlock
@@ -69,10 +71,10 @@ def __parseC1Line(line, lineNo, state, fileName):
       if state.lastMethodName is None:
         Logger.fail("Expected method header", fileName, lineNo)
       state.currentState = C1ParserState.StartingCfgBlock
-      return (None, None)
+      return (None, None, None)
     elif line == "begin_compilation":
       state.currentState = C1ParserState.InsideCompilationBlock
-      return (None, None)
+      return (None, None, None)
     else:
       Logger.fail("C1visualizer line not inside a group", fileName, lineNo)
 
@@ -82,6 +84,7 @@ def ParseC1visualizerStream(fileName, stream):
   fnProcessLine = lambda line, lineNo: __parseC1Line(line, lineNo, state, fileName)
   fnLineOutsideChunk = lambda line, lineNo: \
       Logger.fail("C1visualizer line not inside a group", fileName, lineNo)
-  for passName, passLines, startLineNo in SplitStream(stream, fnProcessLine, fnLineOutsideChunk):
+  for passName, passLines, startLineNo, testArch in \
+      SplitStream(stream, fnProcessLine, fnLineOutsideChunk):
     C1visualizerPass(c1File, passName, passLines, startLineNo + 1)
   return c1File
