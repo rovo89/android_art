@@ -169,7 +169,7 @@ static inline bool DoCreateLambda(Thread* self, ShadowFrame& shadow_frame,
   mirror::Object* receiver = nullptr;  // Always static. (see 'kStatic')
   ArtMethod* sf_method = shadow_frame.GetMethod();
   ArtMethod* const called_method = FindMethodFromCode<kStatic, do_access_check>(
-      method_idx, &receiver, &sf_method, self);
+      method_idx, &receiver, sf_method, self);
 
   uint32_t vregA = inst->VRegA_21c();
 
@@ -254,7 +254,7 @@ static inline bool DoInvoke(Thread* self, ShadowFrame& shadow_frame, const Instr
   Object* receiver = (type == kStatic) ? nullptr : shadow_frame.GetVRegReference(vregC);
   ArtMethod* sf_method = shadow_frame.GetMethod();
   ArtMethod* const called_method = FindMethodFromCode<type, do_access_check>(
-      method_idx, &receiver, &sf_method, self);
+      method_idx, &receiver, sf_method, self);
   // The shadow frame should already be pushed, so we don't need to update it.
   if (UNLIKELY(called_method == nullptr)) {
     CHECK(self->IsExceptionPending());
