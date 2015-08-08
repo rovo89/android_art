@@ -138,7 +138,7 @@ inline ArtField* FindFieldFromCode(
 
 template<InvokeType type, bool access_check>
 inline ArtMethod* FindMethodFromCode(
-    uint32_t method_idx, mirror::Object** this_object, ArtMethod** referrer, Thread* self)
+    uint32_t method_idx, mirror::Object** this_object, ArtMethod* referrer, Thread* self)
     SHARED_REQUIRES(Locks::mutator_lock_);
 
 // Fast path field resolution that can't initialize classes or throw exceptions.
