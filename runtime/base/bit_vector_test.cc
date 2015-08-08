@@ -71,7 +71,7 @@ TEST(BitVector, NoopAllocator) {
   uint32_t bits[kWords];
   memset(bits, 0, sizeof(bits));
 
-  BitVector bv(0U, false, Allocator::GetNoopAllocator(), kWords, bits);
+  BitVector bv(false, Allocator::GetNoopAllocator(), kWords, bits);
   EXPECT_EQ(kWords, bv.GetStorageSize());
   EXPECT_EQ(kWords * sizeof(uint32_t), bv.GetSizeOf());
   EXPECT_EQ(bits, bv.GetRawStorage());
@@ -128,7 +128,7 @@ TEST(BitVector, SetInitialBits) {
   uint32_t bits[kWords];
   memset(bits, 0, sizeof(bits));
 
-  BitVector bv(0U, false, Allocator::GetNoopAllocator(), kWords, bits);
+  BitVector bv(false, Allocator::GetNoopAllocator(), kWords, bits);
   bv.SetInitialBits(0u);
   EXPECT_EQ(0u, bv.NumSetBits());
   bv.SetInitialBits(1u);
