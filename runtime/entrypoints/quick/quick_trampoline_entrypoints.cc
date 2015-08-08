@@ -1989,7 +1989,7 @@ static TwoWordReturn artInvokeCommon(uint32_t method_idx, mirror::Object* this_o
       ScopedObjectAccessUnchecked soa(self->GetJniEnv());
       RememberForGcArgumentVisitor visitor(sp, type == kStatic, shorty, shorty_len, &soa);
       visitor.VisitArguments();
-      method = FindMethodFromCode<type, access_check>(method_idx, &this_object, &caller_method,
+      method = FindMethodFromCode<type, access_check>(method_idx, &this_object, caller_method,
                                                       self);
       visitor.FixupReferences();
     }
@@ -2112,7 +2112,7 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t dex_method_idx,
       ScopedObjectAccessUnchecked soa(self->GetJniEnv());
       RememberForGcArgumentVisitor visitor(sp, false, shorty, shorty_len, &soa);
       visitor.VisitArguments();
-      method = FindMethodFromCode<kInterface, false>(dex_method_idx, &this_object, &caller_method,
+      method = FindMethodFromCode<kInterface, false>(dex_method_idx, &this_object, caller_method,
                                                      self);
       visitor.FixupReferences();
     }
