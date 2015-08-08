@@ -613,12 +613,19 @@ if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]]; then
   # on a particular DEX output, keep building them with dx for now (b/19467889).
   USE_JACK="false"
 
-  if [ "$runtime" = "art" -a "$image_suffix" = "-optimizing" -a "$target_mode" = "no" -a "$debuggable" = "no" ]; then
+  if [ "$runtime" = "art" -a "$image_suffix" = "-optimizing" -a "$debuggable" = "no" ]; then
     # In no-prebuild mode, the compiler is only invoked if both dex2oat and
     # patchoat are available. Disable Checker otherwise (b/22552692).
     if [ "$prebuild_mode" = "yes" ] || [ "$have_patchoat" = "yes" -a "$have_dex2oat" = "yes" ]; then
       run_checker="yes"
-      run_args="${run_args} -Xcompiler-option --dump-cfg=$tmp_dir/$cfg_output \
+      if [ "$target_mode" = "no" ]; then
+        cfg_output_dir="$tmp_dir"
+        checker_arch_option=
+      else
+        cfg_output_dir="$DEX_LOCATION"
+        checker_arch_option="--arch=${target_arch_name^^}"
+      fi
+      run_args="${run_args} -Xcompiler-option --dump-cfg=$cfg_output_dir/$cfg_output \
                             -Xcompiler-option -j1"
     fi
   fi
@@ -633,6 +640,12 @@ if echo "$test_dir" | grep 089; then
 elif echo "$test_dir" | grep 083; then
   build_file_size_limit=5120
   run_file_size_limit=5120
+fi
+if [ "$run_checker" = "yes" -a "$target_mode" = "yes" ]; then
+  # We will need to `adb pull` the .cfg output from the target onto the host to
+  # run checker on it. This file can be big.
+  build_file_size_limit=16384
+  run_file_size_limit=16384
 fi
 if [ ${USE_JACK} = "false" ]; then
   # Set ulimit if we build with dx only, Jack can generate big temp files.
@@ -658,7 +671,10 @@ if [ "$dev_mode" = "yes" ]; then
 
         if [ "$run_exit" = "0" ]; then
             if [ "$run_checker" = "yes" ]; then
-                "$checker" "$cfg_output" "$tmp_dir" 2>&1
+                if [ "$target_mode" = "yes" ]; then
+                  adb pull $cfg_output_dir/$cfg_output &> /dev/null
+                fi
+                "$checker" $checker_arch_option "$cfg_output" "$tmp_dir" 2>&1
                 checker_exit="$?"
                 if [ "$checker_exit" = "0" ]; then
                     good="yes"
@@ -680,7 +696,10 @@ elif [ "$update_mode" = "yes" ]; then
         echo "${test_dir}: running..." 1>&2
         "./${run}" $run_args "$@" >"$output" 2>&1
         if [ "$run_checker" = "yes" ]; then
-          "$checker" -q "$cfg_output" "$tmp_dir" >> "$output" 2>&1
+          if [ "$target_mode" = "yes" ]; then
+            adb pull $cfg_output_dir/$cfg_output &> /dev/null
+          fi
+          "$checker" -q $checker_arch_option "$cfg_output" "$tmp_dir" >> "$output" 2>&1
         fi
         sed -e 's/[[:cntrl:]]$//g' < "$output" >"${td_expected}"
         good="yes"
@@ -718,7 +737,10 @@ else
             echo "run exit status: $run_exit" 1>&2
             good_run="no"
         elif [ "$run_checker" = "yes" ]; then
-            "$checker" -q "$cfg_output" "$tmp_dir" >> "$output" 2>&1
+            if [ "$target_mode" = "yes" ]; then
+              adb pull $cfg_output_dir/$cfg_output &> /dev/null
+            fi
+            "$checker" -q $checker_arch_option "$cfg_output" "$tmp_dir" >> "$output" 2>&1
             checker_exit="$?"
             if [ "$checker_exit" != "0" ]; then
                 echo "checker exit status: $checker_exit" 1>&2
