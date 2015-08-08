@@ -74,7 +74,7 @@ inline void GvnDeadCodeElimination::MIRData::RemovePrevChange(int v_reg, MIRData
 GvnDeadCodeElimination::VRegChains::VRegChains(uint32_t num_vregs, ScopedArenaAllocator* alloc)
     : num_vregs_(num_vregs),
       vreg_data_(alloc->AllocArray<VRegValue>(num_vregs, kArenaAllocMisc)),
-      vreg_high_words_(num_vregs, false, Allocator::GetNoopAllocator(),
+      vreg_high_words_(false, Allocator::GetNoopAllocator(),
                        BitVector::BitsToWords(num_vregs),
                        alloc->AllocArray<uint32_t>(BitVector::BitsToWords(num_vregs))),
       mir_data_(alloc->Adapter()) {
