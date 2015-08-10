@@ -4063,10 +4063,10 @@ bool ClassLinker::LinkClass(Thread* self, const char* descriptor, Handle<mirror:
     // Retire the temporary class and create the correctly sized resolved class.
     StackHandleScope<1> hs(self);
     auto h_new_class = hs.NewHandle(klass->CopyOf(self, class_size, imt, image_pointer_size_));
-    // Set array lengths to 0 since we don't want the GC to visit two different classes with the
-    // same ArtFields with the same If this occurs, it causes bugs in remembered sets since the GC
-    // may not see any references to the from space and clean the card. Though there was references
-    // to the from space that got marked by the first class.
+    // Set arrays to null since we don't want to have multiple classes with the same ArtField or
+    // ArtMethod array pointers. If this occurs, it causes bugs in remembered sets since the GC
+    // may not see any references to the target space and clean the card for a class if another
+    // class had the same array pointer.
     klass->SetDirectMethodsPtrUnchecked(nullptr);
     klass->SetVirtualMethodsPtr(nullptr);
     klass->SetSFieldsPtrUnchecked(nullptr);
