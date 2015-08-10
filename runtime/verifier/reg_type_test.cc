@@ -18,6 +18,7 @@
 
 #include <set>
 
+#include "base/bit_vector.h"
 #include "base/casts.h"
 #include "common_runtime_test.h"
 #include "reg_type_cache-inl.h"
@@ -421,7 +422,7 @@ TEST_F(RegTypeReferenceTest, Dump) {
   EXPECT_EQ(expected, resolved_unintialiesd.Dump());
   expected = "Unresolved And Uninitialized Reference: java.lang.DoesNotExist Allocation PC: 12";
   EXPECT_EQ(expected, unresolved_unintialized.Dump());
-  expected = "UnresolvedMergedReferences(Unresolved Reference: java.lang.DoesNotExist, Unresolved Reference: java.lang.DoesNotExistEither)";
+  expected = "UnresolvedMergedReferences(Zero/null | Unresolved Reference: java.lang.DoesNotExist, Unresolved Reference: java.lang.DoesNotExistEither)";
   EXPECT_EQ(expected, unresolved_merged.Dump());
 }
 
@@ -477,9 +478,10 @@ TEST_F(RegTypeReferenceTest, Merging) {
   EXPECT_TRUE(merged.IsUnresolvedMergedReference());
   RegType& merged_nonconst = const_cast<RegType&>(merged);
 
-  std::set<uint16_t> merged_ids = (down_cast<UnresolvedMergedType*>(&merged_nonconst))->GetMergedTypes();
-  EXPECT_EQ(ref_type_0.GetId(), *(merged_ids.begin()));
-  EXPECT_EQ(ref_type_1.GetId(), *((++merged_ids.begin())));
+  const BitVector& unresolved_parts =
+      down_cast<UnresolvedMergedType*>(&merged_nonconst)->GetUnresolvedTypes();
+  EXPECT_TRUE(unresolved_parts.IsBitSet(ref_type_0.GetId()));
+  EXPECT_TRUE(unresolved_parts.IsBitSet(ref_type_1.GetId()));
 }
 
 TEST_F(RegTypeTest, MergingFloat) {
