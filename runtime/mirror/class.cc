@@ -824,6 +824,34 @@ void Class::PopulateEmbeddedImtAndVTable(ArtMethod* const (&methods)[kImtSize],
   }
 }
 
+class ReadBarrierOnNativeRootsVisitor {
+ public:
+  void operator()(mirror::Object* obj ATTRIBUTE_UNUSED,
+                  MemberOffset offset ATTRIBUTE_UNUSED,
+                  bool is_static ATTRIBUTE_UNUSED) const {}
+
+  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    if (!root->IsNull()) {
+      VisitRoot(root);
+    }
+  }
+
+  void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    mirror::Object* old_ref = root->AsMirrorPtr();
+    mirror::Object* new_ref = ReadBarrier::BarrierForRoot(root);
+    if (old_ref != new_ref) {
+      // Update the field atomically. This may fail if mutator updates before us, but it's ok.
+      auto* atomic_root =
+          reinterpret_cast<Atomic<mirror::CompressedReference<mirror::Object>>*>(root);
+      atomic_root->CompareExchangeStrongSequentiallyConsistent(
+          mirror::CompressedReference<mirror::Object>::FromMirrorPtr(old_ref),
+          mirror::CompressedReference<mirror::Object>::FromMirrorPtr(new_ref));
+    }
+  }
+};
+
 // The pre-fence visitor for Class::CopyOf().
 class CopyClassVisitor {
  public:
@@ -842,6 +870,10 @@ class CopyClassVisitor {
     mirror::Class::SetStatus(h_new_class_obj, Class::kStatusResolving, self_);
     h_new_class_obj->PopulateEmbeddedImtAndVTable(imt_, pointer_size_);
     h_new_class_obj->SetClassSize(new_length_);
+    // Visit all of the references to make sure there is no from space references in the native
+    // roots.
+    h_new_class_obj->VisitReferences<true>(h_new_class_obj->GetClass(),
+                                           ReadBarrierOnNativeRootsVisitor());
   }
 
  private:
