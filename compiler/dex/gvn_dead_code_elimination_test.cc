@@ -1933,6 +1933,78 @@ TEST_F(GvnDeadCodeEliminationTestDiamond, LongOverlaps1) {
   }
 }
 
+TEST_F(GvnDeadCodeEliminationTestSimple, LongOverlaps2) {
+  static const MIRDef mirs[] = {
+      DEF_CONST_WIDE(3, Instruction::CONST_WIDE, 0u, 1000u),
+      DEF_MOVE_WIDE(3, Instruction::MOVE_WIDE, 2u, 0u),
+      DEF_MOVE_WIDE(3, Instruction::MOVE_WIDE, 4u, 2u),
+  };
+
+  // The last insn should overlap the first and second.
+  static const int32_t sreg_to_vreg_map[] = { 0, 1, 2, 3, 1, 2 };
+  PrepareSRegToVRegMap(sreg_to_vreg_map);
+
+  PrepareMIRs(mirs);
+  static const int32_t wide_sregs[] = { 0, 2, 4 };
+  MarkAsWideSRegs(wide_sregs);
+  PerformGVN_DCE();
+
+  ASSERT_EQ(arraysize(mirs), value_names_.size());
+  EXPECT_EQ(value_names_[0], value_names_[1]);
+  EXPECT_EQ(value_names_[0], value_names_[2]);
+
+  static const bool eliminated[] = {
+      false, true, true,
+  };
+  static_assert(arraysize(eliminated) == arraysize(mirs), "array size mismatch");
+  for (size_t i = 0; i != arraysize(eliminated); ++i) {
+    bool actually_eliminated = (static_cast<int>(mirs_[i].dalvikInsn.opcode) == kMirOpNop);
+    EXPECT_EQ(eliminated[i], actually_eliminated) << i;
+  }
+  // Check that the CONST_WIDE registers have been correctly renamed.
+  MIR* const_wide = &mirs_[0];
+  ASSERT_EQ(2u, const_wide->ssa_rep->num_defs);
+  EXPECT_EQ(4, const_wide->ssa_rep->defs[0]);
+  EXPECT_EQ(5, const_wide->ssa_rep->defs[1]);
+  EXPECT_EQ(1u, const_wide->dalvikInsn.vA);
+}
+
+TEST_F(GvnDeadCodeEliminationTestSimple, LongOverlaps3) {
+  static const MIRDef mirs[] = {
+      DEF_CONST_WIDE(3, Instruction::CONST_WIDE, 0u, 1000u),
+      DEF_MOVE_WIDE(3, Instruction::MOVE_WIDE, 2u, 0u),
+      DEF_MOVE_WIDE(3, Instruction::MOVE_WIDE, 4u, 2u),
+  };
+
+  // The last insn should overlap the first and second.
+  static const int32_t sreg_to_vreg_map[] = { 2, 3, 0, 1, 1, 2 };
+  PrepareSRegToVRegMap(sreg_to_vreg_map);
+
+  PrepareMIRs(mirs);
+  static const int32_t wide_sregs[] = { 0, 2, 4 };
+  MarkAsWideSRegs(wide_sregs);
+  PerformGVN_DCE();
+
+  ASSERT_EQ(arraysize(mirs), value_names_.size());
+  EXPECT_EQ(value_names_[0], value_names_[1]);
+  EXPECT_EQ(value_names_[0], value_names_[2]);
+
+  static const bool eliminated[] = {
+      false, true, true,
+  };
+  static_assert(arraysize(eliminated) == arraysize(mirs), "array size mismatch");
+  for (size_t i = 0; i != arraysize(eliminated); ++i) {
+    bool actually_eliminated = (static_cast<int>(mirs_[i].dalvikInsn.opcode) == kMirOpNop);
+    EXPECT_EQ(eliminated[i], actually_eliminated) << i;
+  }
+  // Check that the CONST_WIDE registers have been correctly renamed.
+  MIR* const_wide = &mirs_[0];
+  ASSERT_EQ(2u, const_wide->ssa_rep->num_defs);
+  EXPECT_EQ(4, const_wide->ssa_rep->defs[0]);
+  EXPECT_EQ(5, const_wide->ssa_rep->defs[1]);
+  EXPECT_EQ(1u, const_wide->dalvikInsn.vA);
+}
+
 TEST_F(GvnDeadCodeEliminationTestSimple, MixedOverlaps1) {
   static const MIRDef mirs[] = {
       DEF_CONST(3, Instruction::CONST, 0u, 1000u),
@@ -2085,6 +2157,39 @@ TEST_F(GvnDeadCodeEliminationTestSimple, ArrayLengthThrows) {
 
   static const bool eliminated[] = {
       false, false, false,
+  };
+  static_assert(arraysize(eliminated) == arraysize(mirs), "array size mismatch");
+  for (size_t i = 0; i != arraysize(eliminated); ++i) {
+    bool actually_eliminated = (static_cast<int>(mirs_[i].dalvikInsn.opcode) == kMirOpNop);
+    EXPECT_EQ(eliminated[i], actually_eliminated) << i;
+  }
+}
+
+TEST_F(GvnDeadCodeEliminationTestSimple, Dependancy) {
+  static const MIRDef mirs[] = {
+      DEF_MOVE(3, Instruction::MOVE, 5u, 1u),                 // move v5,v1
+      DEF_MOVE(3, Instruction::MOVE, 6u, 1u),                 // move v12,v1
+      DEF_MOVE(3, Instruction::MOVE, 7u, 0u),                 // move v13,v0
+      DEF_MOVE_WIDE(3, Instruction::MOVE_WIDE, 8u, 2u),       // move v0_1,v2_3
+      DEF_MOVE(3, Instruction::MOVE, 10u, 6u),                // move v3,v12
+      DEF_MOVE(3, Instruction::MOVE, 11u, 4u),                // move v2,v4
+      DEF_MOVE(3, Instruction::MOVE, 12u, 7u),                // move v4,v13
+      DEF_MOVE(3, Instruction::MOVE, 13, 11u),                // move v12,v2
+      DEF_MOVE(3, Instruction::MOVE, 14u, 10u),               // move v2,v3
+      DEF_MOVE(3, Instruction::MOVE, 15u, 5u),                // move v3,v5
+      DEF_MOVE(3, Instruction::MOVE, 16u, 12u),               // move v5,v4
+  };
+
+  static const int32_t sreg_to_vreg_map[] = { 0, 1, 2, 3, 4, 5, 12, 13, 0, 1, 3, 2, 4, 12, 2, 3, 5 };
+  PrepareSRegToVRegMap(sreg_to_vreg_map);
+
+  PrepareMIRs(mirs);
+  static const int32_t wide_sregs[] = { 2, 8 };
+  MarkAsWideSRegs(wide_sregs);
+  PerformGVN_DCE();
+
+  static const bool eliminated[] = {
+      false, false, false, false, false, false, false, true, true, false, false,
   };
   static_assert(arraysize(eliminated) == arraysize(mirs), "array size mismatch");
   for (size_t i = 0; i != arraysize(eliminated); ++i) {
