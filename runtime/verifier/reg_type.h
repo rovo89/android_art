@@ -22,6 +22,7 @@
 #include <set>
 #include <string>
 
+#include "base/bit_vector.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "gc_root.h"
@@ -230,6 +231,14 @@ class RegType {
   // from another.
   const RegType& Merge(const RegType& incoming_type, RegTypeCache* reg_types) const
       SHARED_REQUIRES(Locks::mutator_lock_);
+  // Same as above, but also handles the case where incoming_type == this.
+  const RegType& SafeMerge(const RegType& incoming_type, RegTypeCache* reg_types) const
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    if (Equals(incoming_type)) {
+      return *this;
+    }
+    return Merge(incoming_type, reg_types);
+  }
 
   /*
    * A basic Join operation on classes. For a pair of types S and T the Join,
@@ -868,30 +877,23 @@ class UnresolvedSuperClass FINAL : public UnresolvedType {
   const RegTypeCache* const reg_type_cache_;
 };
 
-// A merge of two unresolved types. If the types were resolved this may be
-// Conflict or another
-// known ReferenceType.
+// A merge of unresolved (and resolved) types. If the types were resolved this may be
+// Conflict or another known ReferenceType.
 class UnresolvedMergedType FINAL : public UnresolvedType {
  public:
-  UnresolvedMergedType(uint16_t left_id, uint16_t right_id,
+  // Note: the constructor will copy the unresolved BitVector, not use it directly.
+  UnresolvedMergedType(const RegType& resolved, const BitVector& unresolved,
                        const RegTypeCache* reg_type_cache, uint16_t cache_id)
-      SHARED_REQUIRES(Locks::mutator_lock_)
-      : UnresolvedType("", cache_id),
-        reg_type_cache_(reg_type_cache),
-        merged_types_(left_id, right_id) {
-    if (kIsDebugBuild) {
-      CheckInvariants();
-    }
-  }
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // The top of a tree of merged types.
-  std::pair<uint16_t, uint16_t> GetTopMergedTypes() const {
-    DCHECK(IsUnresolvedMergedReference());
-    return merged_types_;
+  // The resolved part. See description below.
+  const RegType& GetResolvedPart() const {
+    return resolved_part_;
   }
-
-  // The complete set of merged types.
-  std::set<uint16_t> GetMergedTypes() const;
+  // The unresolved part.
+  const BitVector& GetUnresolvedTypes() const {
+    return unresolved_types_;
+  }
 
   bool IsUnresolvedMergedReference() const OVERRIDE { return true; }
 
@@ -903,7 +905,16 @@ class UnresolvedMergedType FINAL : public UnresolvedType {
   void CheckInvariants() const SHARED_REQUIRES(Locks::mutator_lock_);
 
   const RegTypeCache* const reg_type_cache_;
-  const std::pair<uint16_t, uint16_t> merged_types_;
+
+  // The original implementation of merged types was a binary tree. Collection of the flattened
+  // types ("leaves") can be expensive, so we store the expanded list now, as two components:
+  // 1) A resolved component. We use Zero when there is no resolved component, as that will be
+  //    an identity merge.
+  // 2) A bitvector of the unresolved reference types. A bitvector was chosen with the assumption
+  //    that there should not be too many types in flight in practice. (We also bias the index
+  //    against the index of Zero, which is one of the later default entries in any cache.)
+  const RegType& resolved_part_;
+  const BitVector unresolved_types_;
 };
 
 std::ostream& operator<<(std::ostream& os, const RegType& rhs)
