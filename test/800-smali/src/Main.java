@@ -121,6 +121,7 @@ public class Main {
                 null, null));
         testCases.add(new TestCase("b/22777307", "B22777307", "run", null, new InstantiationError(),
                 null));
+        testCases.add(new TestCase("b/22881413", "B22881413", "run", null, null, null));
     }
 
     public void runTests() {
