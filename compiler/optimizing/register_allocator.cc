@@ -782,7 +782,10 @@ bool RegisterAllocator::TryAllocateFreeReg(LiveInterval* current) {
   } else {
     DCHECK(!current->IsHighInterval());
     int hint = current->FindFirstRegisterHint(free_until, liveness_);
-    if (hint != kNoRegister) {
+    if ((hint != kNoRegister)
+        // For simplicity, if the hint we are getting for a pair cannot be used,
+        // we are just going to allocate a new pair.
+        && !(current->IsLowInterval() && IsBlocked(GetHighForLowRegister(hint)))) {
       DCHECK(!IsBlocked(hint));
       reg = hint;
     } else if (current->IsLowInterval()) {
