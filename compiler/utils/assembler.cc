@@ -19,13 +19,25 @@
 #include <algorithm>
 #include <vector>
 
+#ifdef ART_ENABLE_CODEGEN_arm
 #include "arm/assembler_arm32.h"
 #include "arm/assembler_thumb2.h"
+#endif
+#ifdef ART_ENABLE_CODEGEN_arm64
 #include "arm64/assembler_arm64.h"
+#endif
+#ifdef ART_ENABLE_CODEGEN_mips
 #include "mips/assembler_mips.h"
+#endif
+#ifdef ART_ENABLE_CODEGEN_mips64
 #include "mips64/assembler_mips64.h"
+#endif
+#ifdef ART_ENABLE_CODEGEN_x86
 #include "x86/assembler_x86.h"
+#endif
+#ifdef ART_ENABLE_CODEGEN_x86_64
 #include "x86_64/assembler_x86_64.h"
+#endif
 #include "globals.h"
 #include "memory_region.h"
 
@@ -112,20 +124,32 @@ void DebugFrameOpCodeWriterForAssembler::ImplicitlyAdvancePC() {
 
 Assembler* Assembler::Create(InstructionSet instruction_set) {
   switch (instruction_set) {
+#ifdef ART_ENABLE_CODEGEN_arm
     case kArm:
       return new arm::Arm32Assembler();
     case kThumb2:
       return new arm::Thumb2Assembler();
+#endif
+#ifdef ART_ENABLE_CODEGEN_arm64
     case kArm64:
       return new arm64::Arm64Assembler();
+#endif
+#ifdef ART_ENABLE_CODEGEN_mips
     case kMips:
       return new mips::MipsAssembler();
+#endif
+#ifdef ART_ENABLE_CODEGEN_mips64
     case kMips64:
       return new mips64::Mips64Assembler();
+#endif
+#ifdef ART_ENABLE_CODEGEN_x86
     case kX86:
       return new x86::X86Assembler();
+#endif
+#ifdef ART_ENABLE_CODEGEN_x86_64
     case kX86_64:
       return new x86_64::X86_64Assembler();
+#endif
     default:
       LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;
       return nullptr;

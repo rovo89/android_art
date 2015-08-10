@@ -231,6 +231,59 @@ art_cflags := \
   -fvisibility=protected \
   $(art_default_gc_type_cflags)
 
+# The architectures the compiled tools are able to run on. Setting this to 'all' will cause all
+# architectures to be included.
+ART_TARGET_CODEGEN_ARCHS ?= all
+ART_HOST_CODEGEN_ARCHS ?= all
+
+ifeq ($(ART_TARGET_CODEGEN_ARCHS),all)
+  ART_TARGET_CODEGEN_ARCHS := $(sort $(ART_TARGET_SUPPORTED_ARCH) $(ART_HOST_SUPPORTED_ARCH))
+  # We need to handle the fact that some compiler tests mix code from different architectures.
+  ART_TARGET_COMPILER_TESTS ?= true
+else
+  ART_TARGET_COMPILER_TESTS := false
+  ifeq ($(ART_TARGET_CODEGEN_ARCHS),svelte)
+    ART_TARGET_CODEGEN_ARCHS := $(sort $(ART_TARGET_ARCH_64) $(ART_TARGET_ARCH_32))
+  endif
+endif
+ifeq ($(ART_HOST_CODEGEN_ARCHS),all)
+  ART_HOST_CODEGEN_ARCHS := $(sort $(ART_TARGET_SUPPORTED_ARCH) $(ART_HOST_SUPPORTED_ARCH))
+  ART_HOST_COMPILER_TESTS ?= true
+else
+  ART_HOST_COMPILER_TESTS := false
+  ifeq ($(ART_HOST_CODEGEN_ARCHS),svelte)
+    ART_HOST_CODEGEN_ARCHS := $(sort $(ART_TARGET_CODEGEN_ARCHS) $(ART_HOST_ARCH_64) $(ART_HOST_ARCH_32))
+  endif
+endif
+
+ifneq (,$(filter arm64,$(ART_TARGET_CODEGEN_ARCHS)))
+  ART_TARGET_CODEGEN_ARCHS += arm
+endif
+ifneq (,$(filter mips64,$(ART_TARGET_CODEGEN_ARCHS)))
+  ART_TARGET_CODEGEN_ARCHS += mips
+endif
+ifneq (,$(filter x86_64,$(ART_TARGET_CODEGEN_ARCHS)))
+  ART_TARGET_CODEGEN_ARCHS += x86
+endif
+ART_TARGET_CODEGEN_ARCHS := $(sort $(ART_TARGET_CODEGEN_ARCHS))
+ifneq (,$(filter arm64,$(ART_HOST_CODEGEN_ARCHS)))
+  ART_HOST_CODEGEN_ARCHS += arm
+endif
+ifneq (,$(filter mips64,$(ART_HOST_CODEGEN_ARCHS)))
+  ART_HOST_CODEGEN_ARCHS += mips
+endif
+ifneq (,$(filter x86_64,$(ART_HOST_CODEGEN_ARCHS)))
+  ART_HOST_CODEGEN_ARCHS += x86
+endif
+ART_HOST_CODEGEN_ARCHS := $(sort $(ART_HOST_CODEGEN_ARCHS))
+
+# Base set of cflags used by target build only
+art_target_cflags := \
+  $(foreach target_arch,$(strip $(ART_TARGET_CODEGEN_ARCHS)), -DART_ENABLE_CODEGEN_$(target_arch))
+# Base set of cflags used by host build only
+art_host_cflags := \
+  $(foreach host_arch,$(strip $(ART_HOST_CODEGEN_ARCHS)), -DART_ENABLE_CODEGEN_$(host_arch))
+
 # Base set of asflags used by all things ART.
 art_asflags :=
 
@@ -296,13 +349,14 @@ ifndef LIBART_IMG_HOST_BASE_ADDRESS
   $(error LIBART_IMG_HOST_BASE_ADDRESS unset)
 endif
 ART_HOST_CFLAGS += $(art_cflags) -DART_BASE_ADDRESS=$(LIBART_IMG_HOST_BASE_ADDRESS)
-ART_HOST_CFLAGS += -DART_DEFAULT_INSTRUCTION_SET_FEATURES=default
+ART_HOST_CFLAGS += -DART_DEFAULT_INSTRUCTION_SET_FEATURES=default $(art_host_cflags)
 ART_HOST_ASFLAGS += $(art_asflags)
 
 ifndef LIBART_IMG_TARGET_BASE_ADDRESS
   $(error LIBART_IMG_TARGET_BASE_ADDRESS unset)
 endif
 ART_TARGET_CFLAGS += $(art_cflags) -DART_TARGET -DART_BASE_ADDRESS=$(LIBART_IMG_TARGET_BASE_ADDRESS)
+ART_TARGET_CFLAGS += $(art_target_cflags)
 ART_TARGET_ASFLAGS += $(art_asflags)
 
 ART_HOST_NON_DEBUG_CFLAGS := $(art_host_non_debug_cflags)
@@ -334,6 +388,8 @@ ART_TARGET_CFLAGS += -DART_BASE_ADDRESS_MAX_DELTA=$(LIBART_IMG_TARGET_MAX_BASE_A
 # Clear locals now they've served their purpose.
 art_cflags :=
 art_asflags :=
+art_host_cflags :=
+art_target_cflags :=
 art_debug_cflags :=
 art_non_debug_cflags :=
 art_host_non_debug_cflags :=

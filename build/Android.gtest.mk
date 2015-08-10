@@ -19,6 +19,7 @@ LOCAL_PATH := art/test
 
 include art/build/Android.common_test.mk
 include art/build/Android.common_path.mk
+include art/build/Android.common_build.mk
 
 # Subdirectories in art/test which contain dex files used as inputs for gtests.
 GTEST_DEX_DIRECTORIES := \
@@ -233,38 +234,24 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/dex/local_value_numbering_test.cc \
   compiler/dex/mir_graph_test.cc \
   compiler/dex/mir_optimization_test.cc \
-  compiler/dex/quick/quick_cfi_test.cc \
   compiler/dex/type_inference_test.cc \
   compiler/dwarf/dwarf_test.cc \
   compiler/driver/compiler_driver_test.cc \
   compiler/elf_writer_test.cc \
   compiler/image_test.cc \
-  compiler/jni/jni_cfi_test.cc \
   compiler/jni/jni_compiler_test.cc \
-  compiler/linker/arm64/relative_patcher_arm64_test.cc \
-  compiler/linker/arm/relative_patcher_thumb2_test.cc \
-  compiler/linker/x86/relative_patcher_x86_test.cc \
-  compiler/linker/x86_64/relative_patcher_x86_64_test.cc \
   compiler/oat_test.cc \
   compiler/optimizing/bounds_check_elimination_test.cc \
-  compiler/optimizing/codegen_test.cc \
-  compiler/optimizing/dead_code_elimination_test.cc \
-  compiler/optimizing/constant_folding_test.cc \
   compiler/optimizing/dominator_test.cc \
   compiler/optimizing/find_loops_test.cc \
   compiler/optimizing/graph_checker_test.cc \
   compiler/optimizing/graph_test.cc \
   compiler/optimizing/gvn_test.cc \
   compiler/optimizing/licm_test.cc \
-  compiler/optimizing/linearize_test.cc \
-  compiler/optimizing/liveness_test.cc \
   compiler/optimizing/live_interval_test.cc \
-  compiler/optimizing/live_ranges_test.cc \
   compiler/optimizing/nodes_test.cc \
-  compiler/optimizing/optimizing_cfi_test.cc \
   compiler/optimizing/parallel_move_test.cc \
   compiler/optimizing/pretty_printer_test.cc \
-  compiler/optimizing/register_allocator_test.cc \
   compiler/optimizing/side_effects_test.cc \
   compiler/optimizing/ssa_test.cc \
   compiler/optimizing/stack_map_test.cc \
@@ -274,9 +261,37 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/utils/dedupe_set_test.cc \
   compiler/utils/swap_space_test.cc \
   compiler/utils/test_dex_file_builder_test.cc \
+
+COMPILER_GTEST_COMMON_SRC_FILES_all := \
+  compiler/dex/quick/quick_cfi_test.cc \
+  compiler/jni/jni_cfi_test.cc \
+  compiler/optimizing/codegen_test.cc \
+  compiler/optimizing/constant_folding_test.cc \
+  compiler/optimizing/dead_code_elimination_test.cc \
+  compiler/optimizing/linearize_test.cc \
+  compiler/optimizing/liveness_test.cc \
+  compiler/optimizing/live_ranges_test.cc \
+  compiler/optimizing/optimizing_cfi_test.cc \
+  compiler/optimizing/register_allocator_test.cc \
+
+COMPILER_GTEST_COMMON_SRC_FILES_arm := \
+  compiler/linker/arm/relative_patcher_thumb2_test.cc \
   compiler/utils/arm/managed_register_arm_test.cc \
+
+COMPILER_GTEST_COMMON_SRC_FILES_arm64 := \
+  compiler/linker/arm64/relative_patcher_arm64_test.cc \
   compiler/utils/arm64/managed_register_arm64_test.cc \
+
+COMPILER_GTEST_COMMON_SRC_FILES_mips := \
+
+COMPILER_GTEST_COMMON_SRC_FILES_mips64 := \
+
+COMPILER_GTEST_COMMON_SRC_FILES_x86 := \
+  compiler/linker/x86/relative_patcher_x86_test.cc \
   compiler/utils/x86/managed_register_x86_test.cc \
+
+COMPILER_GTEST_COMMON_SRC_FILES_x86_64 := \
+  compiler/linker/x86_64/relative_patcher_x86_64_test.cc \
 
 RUNTIME_GTEST_TARGET_SRC_FILES := \
   $(RUNTIME_GTEST_COMMON_SRC_FILES)
@@ -287,14 +302,66 @@ RUNTIME_GTEST_HOST_SRC_FILES := \
 COMPILER_GTEST_TARGET_SRC_FILES := \
   $(COMPILER_GTEST_COMMON_SRC_FILES)
 
+COMPILER_GTEST_TARGET_SRC_FILES_all := \
+  $(COMPILER_GTEST_COMMON_SRC_FILES_all) \
+
+COMPILER_GTEST_TARGET_SRC_FILES_arm := \
+  $(COMPILER_GTEST_COMMON_SRC_FILES_arm) \
+
+COMPILER_GTEST_TARGET_SRC_FILES_arm64 := \
+  $(COMPILER_GTEST_COMMON_SRC_FILES_arm64) \
+
+COMPILER_GTEST_TARGET_SRC_FILES_mips := \
+  $(COMPILER_GTEST_COMMON_SRC_FILES_mips) \
+
+COMPILER_GTEST_TARGET_SRC_FILES_mips64 := \
+  $(COMPILER_GTEST_COMMON_SRC_FILES_mips64) \
+
+COMPILER_GTEST_TARGET_SRC_FILES_x86 := \
+  $(COMPILER_GTEST_COMMON_SRC_FILES_x86) \
+
+COMPILER_GTEST_TARGET_SRC_FILES_x86_64 := \
+  $(COMPILER_GTEST_COMMON_SRC_FILES_x86_64) \
+
+$(foreach arch,$(ART_TARGET_CODEGEN_ARCHS),$(eval COMPILER_GTEST_TARGET_SRC_FILES += $$(COMPILER_GTEST_TARGET_SRC_FILES_$(arch))))
+ifeq (true,$(ART_TARGET_COMPILER_TESTS))
+  COMPILER_GTEST_TARGET_SRC_FILES += $(COMPILER_GTEST_TARGET_SRC_FILES_all)
+endif
+
 COMPILER_GTEST_HOST_SRC_FILES := \
   $(COMPILER_GTEST_COMMON_SRC_FILES) \
-  compiler/dex/quick/x86/quick_assemble_x86_test.cc \
+
+COMPILER_GTEST_HOST_SRC_FILES_all := \
+  $(COMPILER_GTEST_COMMON_SRC_FILES_all) \
+
+COMPILER_GTEST_HOST_SRC_FILES_arm := \
+  $(COMPILER_GTEST_COMMON_SRC_FILES_arm) \
   compiler/utils/arm/assembler_arm32_test.cc \
   compiler/utils/arm/assembler_thumb2_test.cc \
   compiler/utils/assembler_thumb_test.cc \
+
+COMPILER_GTEST_HOST_SRC_FILES_arm64 := \
+  $(COMPILER_GTEST_COMMON_SRC_FILES_arm64) \
+
+COMPILER_GTEST_HOST_SRC_FILES_mips := \
+  $(COMPILER_GTEST_COMMON_SRC_FILES_mips) \
+
+COMPILER_GTEST_HOST_SRC_FILES_mips64 := \
+  $(COMPILER_GTEST_COMMON_SRC_FILES_mips64) \
+
+COMPILER_GTEST_HOST_SRC_FILES_x86 := \
+  $(COMPILER_GTEST_COMMON_SRC_FILES_x86) \
+  compiler/dex/quick/x86/quick_assemble_x86_test.cc \
   compiler/utils/x86/assembler_x86_test.cc \
+
+COMPILER_GTEST_HOST_SRC_FILES_x86_64 := \
+  $(COMPILER_GTEST_COMMON_SRC_FILES_x86_64) \
   compiler/utils/x86_64/assembler_x86_64_test.cc
+
+$(foreach arch,$(ART_HOST_CODEGEN_ARCHS),$(eval COMPILER_GTEST_HOST_SRC_FILES += $$(COMPILER_GTEST_HOST_SRC_FILES_$(arch))))
+ifeq (true,$(ART_HOST_COMPILER_TESTS))
+  COMPILER_GTEST_HOST_SRC_FILES += $(COMPILER_GTEST_HOST_SRC_FILES_all)
+endif
 
 ART_TEST_CFLAGS :=
 
@@ -557,6 +624,7 @@ valgrind-test-art-host-gtest-$$(art_gtest_name): $$(ART_TEST_HOST_VALGRIND_GTEST
   library_path :=
   2nd_library_path :=
 endef  # define-art-gtest
+
 
 ifeq ($(ART_BUILD_TARGET),true)
   $(foreach file,$(RUNTIME_GTEST_TARGET_SRC_FILES), $(eval $(call define-art-gtest,target,$(file),,libbacktrace)))

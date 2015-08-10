@@ -16,11 +16,26 @@
 
 #include "code_generator.h"
 
+#ifdef ART_ENABLE_CODEGEN_arm
 #include "code_generator_arm.h"
+#endif
+
+#ifdef ART_ENABLE_CODEGEN_arm64
 #include "code_generator_arm64.h"
+#endif
+
+#ifdef ART_ENABLE_CODEGEN_x86
 #include "code_generator_x86.h"
+#endif
+
+#ifdef ART_ENABLE_CODEGEN_x86_64
 #include "code_generator_x86_64.h"
+#endif
+
+#ifdef ART_ENABLE_CODEGEN_mips64
 #include "code_generator_mips64.h"
+#endif
+
 #include "compiled_method.h"
 #include "dex/verified_method.h"
 #include "driver/dex_compilation_unit.h"
@@ -31,6 +46,7 @@
 #include "mirror/array-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object_reference.h"
+#include "parallel_move_resolver.h"
 #include "ssa_liveness_analysis.h"
 #include "utils/assembler.h"
 #include "verifier/dex_gc_map.h"
@@ -516,34 +532,49 @@ CodeGenerator* CodeGenerator::Create(HGraph* graph,
                                      const InstructionSetFeatures& isa_features,
                                      const CompilerOptions& compiler_options) {
   switch (instruction_set) {
+#ifdef ART_ENABLE_CODEGEN_arm
     case kArm:
     case kThumb2: {
       return new arm::CodeGeneratorARM(graph,
           *isa_features.AsArmInstructionSetFeatures(),
           compiler_options);
     }
+#endif
+#ifdef ART_ENABLE_CODEGEN_arm64
     case kArm64: {
       return new arm64::CodeGeneratorARM64(graph,
           *isa_features.AsArm64InstructionSetFeatures(),
           compiler_options);
     }
+#endif
+#ifdef ART_ENABLE_CODEGEN_mips
     case kMips:
+      UNUSED(compiler_options);
+      UNUSED(graph);
+      UNUSED(isa_features);
       return nullptr;
+#endif
+#ifdef ART_ENABLE_CODEGEN_mips64
     case kMips64: {
       return new mips64::CodeGeneratorMIPS64(graph,
           *isa_features.AsMips64InstructionSetFeatures(),
           compiler_options);
     }
+#endif
+#ifdef ART_ENABLE_CODEGEN_x86
     case kX86: {
       return new x86::CodeGeneratorX86(graph,
            *isa_features.AsX86InstructionSetFeatures(),
            compiler_options);
     }
+#endif
+#ifdef ART_ENABLE_CODEGEN_x86_64
     case kX86_64: {
       return new x86_64::CodeGeneratorX86_64(graph,
           *isa_features.AsX86_64InstructionSetFeatures(),
           compiler_options);
     }
+#endif
     default:
       return nullptr;
   }
