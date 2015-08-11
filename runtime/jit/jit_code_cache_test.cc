@@ -50,7 +50,7 @@ TEST_F(JitCodeCacheTest, TestCoverage) {
   ASSERT_TRUE(code_cache->ContainsCodePtr(reserved_code));
   ASSERT_EQ(code_cache->NumMethods(), 1u);
   ClassLinker* const cl = Runtime::Current()->GetClassLinker();
-  ArtMethod* method = &cl->AllocArtMethodArray(soa.Self(), 1)->At(0, 0);
+  ArtMethod* method = &cl->AllocArtMethodArray(soa.Self(), 1)->At(0);
   ASSERT_FALSE(code_cache->ContainsMethod(method));
   method->SetEntryPointFromQuickCompiledCode(reserved_code);
   ASSERT_TRUE(code_cache->ContainsMethod(method));
