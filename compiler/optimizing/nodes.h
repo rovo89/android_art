@@ -3298,6 +3298,8 @@ class HDivZeroCheck : public HExpression<1> {
     SetRawInputAt(0, value);
   }
 
+  Primitive::Type GetType() const OVERRIDE { return InputAt(0)->GetType(); }
+
   bool CanBeMoved() const OVERRIDE { return true; }
 
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
