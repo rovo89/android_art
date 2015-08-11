@@ -48,16 +48,22 @@ class LengthPrefixedArray {
     return offsetof(LengthPrefixedArray<T>, data_) + index * element_size;
   }
 
+  // Alignment is the caller's responsibility.
   static size_t ComputeSize(size_t num_elements, size_t element_size = sizeof(T)) {
-    return sizeof(LengthPrefixedArray<T>) + num_elements * element_size;
+    return OffsetOfElement(num_elements, element_size);
   }
 
   uint64_t Length() const {
     return length_;
   }
 
+  // Update the length but does not reallocate storage.
+  void SetLength(uint64_t length) {
+    length_ = length;
+  }
+
  private:
-  uint64_t length_;  // 64 bits for padding reasons.
+  uint64_t length_;  // 64 bits for 8 byte alignment of data_.
   uint8_t data_[0];
 };
 

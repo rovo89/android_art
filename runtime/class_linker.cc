@@ -4973,8 +4973,8 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
         LengthPrefixedArray<ArtMethod>::ComputeSize(old_method_count, method_size) : 0u;
     const size_t new_size = LengthPrefixedArray<ArtMethod>::ComputeSize(new_method_count,
                                                                         method_size);
-    auto* virtuals = new(runtime->GetLinearAlloc()->Realloc(
-        self, old_virtuals, old_size, new_size))LengthPrefixedArray<ArtMethod>(new_method_count);
+    auto* virtuals = reinterpret_cast<LengthPrefixedArray<ArtMethod>*>(
+        runtime->GetLinearAlloc()->Realloc(self, old_virtuals, old_size, new_size));
     if (UNLIKELY(virtuals == nullptr)) {
       self->AssertPendingOOMException();
       self->EndAssertNoThreadSuspension(old_cause);
@@ -5002,6 +5002,7 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
       move_table.emplace(mir_method, &*out);
       ++out;
     }
+    virtuals->SetLength(new_method_count);
     UpdateClassVirtualMethods(klass.Get(), virtuals);
     // Done copying methods, they are all roots in the class now, so we can end the no thread
     // suspension assert.
