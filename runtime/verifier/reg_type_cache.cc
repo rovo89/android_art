@@ -325,7 +325,7 @@ const RegType& RegTypeCache::FromUnresolvedMerge(const RegType& left, const RegT
     const UnresolvedMergedType* left_merge = down_cast<const UnresolvedMergedType*>(&left);
     types.Copy(&left_merge->GetUnresolvedTypes());
     left_resolved = &left_merge->GetResolvedPart();
-  } else if (left.IsUnresolvedReference()) {
+  } else if (left.IsUnresolvedTypes()) {
     types.SetBit(left.GetId());
     left_resolved = &Zero();
   } else {
@@ -337,7 +337,7 @@ const RegType& RegTypeCache::FromUnresolvedMerge(const RegType& left, const RegT
     const UnresolvedMergedType* right_merge = down_cast<const UnresolvedMergedType*>(&right);
     types.Union(&right_merge->GetUnresolvedTypes());
     right_resolved = &right_merge->GetResolvedPart();
-  } else if (right.IsUnresolvedReference()) {
+  } else if (right.IsUnresolvedTypes()) {
     types.SetBit(right.GetId());
     right_resolved = &Zero();
   } else {
