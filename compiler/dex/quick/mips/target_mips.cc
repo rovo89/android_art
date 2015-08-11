@@ -49,9 +49,11 @@ static constexpr RegStorage reserved_regs_arr_32[] =
 static constexpr RegStorage core_temps_arr_32[] =
     {rs_rV0, rs_rV1, rs_rA0, rs_rA1, rs_rA2, rs_rA3, rs_rT0_32, rs_rT1_32, rs_rT2_32, rs_rT3_32,
      rs_rT4_32, rs_rT5_32, rs_rT6_32, rs_rT7_32, rs_rT8};
-static constexpr RegStorage sp_temps_arr_32[] =
+static constexpr RegStorage sp_fr0_temps_arr_32[] =
     {rs_rF0, rs_rF1, rs_rF2, rs_rF3, rs_rF4, rs_rF5, rs_rF6, rs_rF7, rs_rF8, rs_rF9, rs_rF10,
      rs_rF11, rs_rF12, rs_rF13, rs_rF14, rs_rF15};
+static constexpr RegStorage sp_fr1_temps_arr_32[] =
+    {rs_rF0, rs_rF2, rs_rF4, rs_rF6, rs_rF8, rs_rF10, rs_rF12, rs_rF14};
 static constexpr RegStorage dp_fr0_temps_arr_32[] =
     {rs_rD0_fr0, rs_rD1_fr0, rs_rD2_fr0, rs_rD3_fr0, rs_rD4_fr0, rs_rD5_fr0, rs_rD6_fr0,
      rs_rD7_fr0};
@@ -130,7 +132,8 @@ static constexpr ArrayRef<const RegStorage> dp_fr0_regs_32(dp_fr0_regs_arr_32);
 static constexpr ArrayRef<const RegStorage> dp_fr1_regs_32(dp_fr1_regs_arr_32);
 static constexpr ArrayRef<const RegStorage> reserved_regs_32(reserved_regs_arr_32);
 static constexpr ArrayRef<const RegStorage> core_temps_32(core_temps_arr_32);
-static constexpr ArrayRef<const RegStorage> sp_temps_32(sp_temps_arr_32);
+static constexpr ArrayRef<const RegStorage> sp_fr0_temps_32(sp_fr0_temps_arr_32);
+static constexpr ArrayRef<const RegStorage> sp_fr1_temps_32(sp_fr1_temps_arr_32);
 static constexpr ArrayRef<const RegStorage> dp_fr0_temps_32(dp_fr0_temps_arr_32);
 static constexpr ArrayRef<const RegStorage> dp_fr1_temps_32(dp_fr1_temps_arr_32);
 
@@ -591,22 +594,22 @@ void MipsMir2Lir::ClobberCallerSave() {
     Clobber(rs_rFP);
     Clobber(rs_rRA);
     Clobber(rs_rF0);
-    Clobber(rs_rF1);
     Clobber(rs_rF2);
-    Clobber(rs_rF3);
     Clobber(rs_rF4);
-    Clobber(rs_rF5);
     Clobber(rs_rF6);
-    Clobber(rs_rF7);
     Clobber(rs_rF8);
-    Clobber(rs_rF9);
     Clobber(rs_rF10);
-    Clobber(rs_rF11);
     Clobber(rs_rF12);
-    Clobber(rs_rF13);
     Clobber(rs_rF14);
-    Clobber(rs_rF15);
     if (fpuIs32Bit_) {
+      Clobber(rs_rF1);
+      Clobber(rs_rF3);
+      Clobber(rs_rF5);
+      Clobber(rs_rF7);
+      Clobber(rs_rF9);
+      Clobber(rs_rF11);
+      Clobber(rs_rF13);
+      Clobber(rs_rF15);
       Clobber(rs_rD0_fr0);
       Clobber(rs_rD1_fr0);
       Clobber(rs_rD2_fr0);
@@ -717,24 +720,26 @@ void MipsMir2Lir::CompilerInitializeRegAlloc() {
                                               fpuIs32Bit_ ? dp_fr0_regs_32 : dp_fr1_regs_32,
                                               reserved_regs_32, empty_pool,  // reserved64
                                               core_temps_32, empty_pool,  // core64_temps
-                                              sp_temps_32,
+                                              fpuIs32Bit_ ? sp_fr0_temps_32 : sp_fr1_temps_32,
                                               fpuIs32Bit_ ? dp_fr0_temps_32 : dp_fr1_temps_32));
 
     // Alias single precision floats to appropriate half of overlapping double.
     for (RegisterInfo* info : reg_pool_->sp_regs_) {
       int sp_reg_num = info->GetReg().GetRegNum();
       int dp_reg_num = sp_reg_num & ~1;
-      RegStorage dp_reg = RegStorage::Solo64(RegStorage::kFloatingPoint | dp_reg_num);
-      RegisterInfo* dp_reg_info = GetRegInfo(dp_reg);
-      // Double precision register's master storage should refer to itself.
-      DCHECK_EQ(dp_reg_info, dp_reg_info->Master());
-      // Redirect single precision's master storage to master.
-      info->SetMaster(dp_reg_info);
-      // Singles should show a single 32-bit mask bit, at first referring to the low half.
-      DCHECK_EQ(info->StorageMask(), 0x1U);
-      if (sp_reg_num & 1) {
-        // For odd singles, change to user the high word of the backing double.
-        info->SetStorageMask(0x2);
+      if (fpuIs32Bit_ || (sp_reg_num == dp_reg_num)) {
+        RegStorage dp_reg = RegStorage::Solo64(RegStorage::kFloatingPoint | dp_reg_num);
+        RegisterInfo* dp_reg_info = GetRegInfo(dp_reg);
+        // Double precision register's master storage should refer to itself.
+        DCHECK_EQ(dp_reg_info, dp_reg_info->Master());
+        // Redirect single precision's master storage to master.
+        info->SetMaster(dp_reg_info);
+        // Singles should show a single 32-bit mask bit, at first referring to the low half.
+        DCHECK_EQ(info->StorageMask(), 0x1U);
+        if (sp_reg_num & 1) {
+          // For odd singles, change to user the high word of the backing double.
+          info->SetStorageMask(0x2);
+        }
       }
     }
   }
