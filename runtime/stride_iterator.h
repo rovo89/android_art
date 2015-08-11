@@ -31,7 +31,7 @@ class StrideIterator : public std::iterator<std::forward_iterator_tag, T> {
 
   StrideIterator(T* ptr, size_t stride)
       : ptr_(reinterpret_cast<uintptr_t>(ptr)),
-        stride_(reinterpret_cast<uintptr_t>(stride)) {}
+        stride_(stride) {}
 
   bool operator==(const StrideIterator& other) const {
     DCHECK_EQ(stride_, other.stride_);
@@ -48,15 +48,20 @@ class StrideIterator : public std::iterator<std::forward_iterator_tag, T> {
   }
 
   StrideIterator operator++(int) {
-    auto temp = *this;
+    StrideIterator<T> temp = *this;
     ptr_ += stride_;
     return temp;
   }
 
   StrideIterator operator+(ssize_t delta) const {
-    auto temp = *this;
-    temp.ptr_ += static_cast<ssize_t>(stride_) * delta;
+    StrideIterator<T> temp = *this;
+    temp += delta;
     return temp;
+  }
+
+  StrideIterator& operator+=(ssize_t delta) {
+    ptr_ += static_cast<ssize_t>(stride_) * delta;
+    return *this;
   }
 
   T& operator*() const {

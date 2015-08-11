@@ -381,7 +381,8 @@ class ImageWriter FINAL {
 
   // Runtime ArtMethods which aren't reachable from any Class but need to be copied into the image.
   ArtMethod* image_methods_[ImageHeader::kImageMethodsCount];
-  // Fake length prefixed array for image methods.
+  // Fake length prefixed array for image methods. This array does not contain the actual
+  // ArtMethods. We only use it for the header and relocation addresses.
   LengthPrefixedArray<ArtMethod> image_method_array_;
 
   // Counters for measurements, used for logging only.

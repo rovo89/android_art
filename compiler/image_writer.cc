@@ -972,8 +972,10 @@ void ImageWriter::CalculateNewObjectOffsets() {
   size_t& offset = bin_slot_sizes_[BinTypeForNativeRelocationType(image_method_type)];
   native_object_relocations_.emplace(&image_method_array_,
                                      NativeObjectRelocation { offset, image_method_type });
-  CHECK_EQ(sizeof(image_method_array_), 8u);
-  offset += sizeof(image_method_array_);
+  const size_t array_size = LengthPrefixedArray<ArtMethod>::ComputeSize(
+      0, ArtMethod::ObjectSize(target_ptr_size_));
+  CHECK_ALIGNED(array_size, 8u);
+  offset += array_size;
   for (auto* m : image_methods_) {
     CHECK(m != nullptr);
     CHECK(m->IsRuntimeMethod());
@@ -1203,7 +1205,7 @@ void ImageWriter::FixupPointerArray(mirror::Object* dst, mirror::PointerArray* a
     if (elem != nullptr) {
       auto it = native_object_relocations_.find(elem);
       if (it == native_object_relocations_.end()) {
-        if (true) {
+        if (it->second.IsArtMethodRelocation()) {
           auto* method = reinterpret_cast<ArtMethod*>(elem);
           LOG(FATAL) << "No relocation entry for ArtMethod " << PrettyMethod(method) << " @ "
               << method << " idx=" << i << "/" << num_elements << " with declaring class "
@@ -1300,8 +1302,8 @@ void* ImageWriter::NativeLocationInImage(void* obj) {
     return nullptr;
   }
   auto it = native_object_relocations_.find(obj);
-  const NativeObjectRelocation& relocation = it->second;
   CHECK(it != native_object_relocations_.end()) << obj;
+  const NativeObjectRelocation& relocation = it->second;
   return reinterpret_cast<void*>(image_begin_ + relocation.offset);
 }
 
