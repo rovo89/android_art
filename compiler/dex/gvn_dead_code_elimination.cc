@@ -715,6 +715,7 @@ void GvnDeadCodeElimination::RecordPassTryToKillOverwrittenMoveOrMoveSrc(uint16_
     // Try to find a MOVE to a vreg that wasn't changed since check_change.
     uint16_t value_name =
         data->wide_def ? lvn_->GetSregValueWide(dest_s_reg) : lvn_->GetSregValue(dest_s_reg);
+    uint32_t dest_v_reg = mir_graph_->SRegToVReg(dest_s_reg);
     for (size_t c = check_change + 1u, size = vreg_chains_.NumMIRs(); c != size; ++c) {
       MIRData* d = vreg_chains_.GetMIRData(c);
       if (d->is_move && d->wide_def == data->wide_def &&
@@ -731,8 +732,21 @@ void GvnDeadCodeElimination::RecordPassTryToKillOverwrittenMoveOrMoveSrc(uint16_
           if (!vreg_chains_.IsVRegUsed(check_change + 1u, c, new_dest_v_reg, mir_graph_) &&
               (!d->wide_def ||
                !vreg_chains_.IsVRegUsed(check_change + 1u, c, new_dest_v_reg + 1, mir_graph_))) {
-            RecordPassKillMoveByRenamingSrcDef(check_change, c);
-            return;
+            // If the move's destination vreg changed, check if the vreg we're trying
+            // to rename is unused after that change.
+            uint16_t dest_change = vreg_chains_.FindFirstChangeAfter(new_dest_v_reg, c);
+            if (d->wide_def) {
+              uint16_t dest_change_high = vreg_chains_.FindFirstChangeAfter(new_dest_v_reg + 1, c);
+              if (dest_change_high != kNPos &&
+                  (dest_change == kNPos || dest_change_high < dest_change)) {
+                dest_change = dest_change_high;
+              }
+            }
+            if (dest_change == kNPos ||
+                !vreg_chains_.IsVRegUsed(dest_change + 1u, size, dest_v_reg, mir_graph_)) {
+              RecordPassKillMoveByRenamingSrcDef(check_change, c);
+              return;
+            }
           }
         }
       }
