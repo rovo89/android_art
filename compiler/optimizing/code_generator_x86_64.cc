@@ -3179,6 +3179,9 @@ void InstructionCodeGeneratorX86_64::VisitDivZeroCheck(HDivZeroCheck* instructio
   Location value = locations->InAt(0);
 
   switch (instruction->GetType()) {
+    case Primitive::kPrimByte:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
     case Primitive::kPrimInt: {
       if (value.IsRegister()) {
         __ testl(value.AsRegister<CpuRegister>(), value.AsRegister<CpuRegister>());
