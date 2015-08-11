@@ -1205,7 +1205,8 @@ class MANAGED Class FINAL : public Object {
   // listed in ifields; fields declared by a superclass are listed in
   // the superclass's Class.ifields.
   //
-  // ArtField arrays are allocated as an array of fields, and not an array of fields pointers.
+  // ArtFields are allocated as a length prefixed ArtField array, and not an array of pointers to
+  // ArtFields.
   uint64_t ifields_;
 
   // Static fields length-prefixed array.
