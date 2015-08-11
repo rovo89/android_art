@@ -47,6 +47,10 @@
        # v8 = int, v9 = boolean, v10 = boolean
 
        sget-object v0, LB22881413;->unresBase0:La/b/c/dBase0;
+
+# Test an UnresolvedUninitializedReference type.
+       new-instance v0, La/b/c/dBaseInit;
+
        const v1, 0
        const v2, 0
 
