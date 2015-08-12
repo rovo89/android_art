@@ -191,7 +191,7 @@ void MarkCompact::MarkingPhase() {
     heap_->RevokeAllThreadLocalAllocationStacks(self);
   }
   t.NewTiming("SwapStacks");
-  heap_->SwapStacks(self);
+  heap_->SwapStacks();
   {
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
     MarkRoots();
