@@ -32,6 +32,7 @@ import java.util.Set;
 //
 // ThreadStress command line parameters:
 //    -n X ............ number of threads
+//    -d X ............ number of daemon threads
 //    -o X ............ number of overall operations
 //    -t X ............ number of operations per thread
 //    --dumpmap ....... print the frequency map
@@ -301,6 +302,7 @@ public class Main implements Runnable {
 
     public static void parseAndRun(String[] args) throws Exception {
         int numberOfThreads = -1;
+        int numberOfDaemons = -1;
         int totalOperations = -1;
         int operationsPerThread = -1;
         Object lock = new Object();
@@ -312,6 +314,9 @@ public class Main implements Runnable {
                 if (args[i].equals("-n")) {
                     i++;
                     numberOfThreads = Integer.parseInt(args[i]);
+                } else if (args[i].equals("-d")) {
+                    i++;
+                    numberOfDaemons = Integer.parseInt(args[i]);
                 } else if (args[i].equals("-o")) {
                     i++;
                     totalOperations = Integer.parseInt(args[i]);
@@ -338,6 +343,10 @@ public class Main implements Runnable {
             numberOfThreads = 5;
         }
 
+        if (numberOfDaemons == -1) {
+            numberOfDaemons = 3;
+        }
+
         if (totalOperations == -1) {
             totalOperations = 1000;
         }
@@ -355,14 +364,16 @@ public class Main implements Runnable {
             System.out.println(frequencyMap);
         }
 
-        runTest(numberOfThreads, operationsPerThread, lock, frequencyMap);
+        runTest(numberOfThreads, numberOfDaemons, operationsPerThread, lock, frequencyMap);
     }
 
-    public static void runTest(final int numberOfThreads, final int operationsPerThread,
-                               final Object lock, Map<Operation, Double> frequencyMap)
-                                   throws Exception {
-        // Each thread is going to do operationsPerThread
-        // operations. The distribution of operations is determined by
+    public static void runTest(final int numberOfThreads, final int numberOfDaemons,
+                               final int operationsPerThread, final Object lock,
+                               Map<Operation, Double> frequencyMap) throws Exception {
+        // Each normal thread is going to do operationsPerThread
+        // operations. Each daemon thread will loop over all
+        // the operations and will not stop.
+        // The distribution of operations is determined by
         // the Operation.frequency values. We fill out an Operation[]
         // for each thread with the operations it is to perform. The
         // Operation[] is shuffled so that there is more random
@@ -371,7 +382,9 @@ public class Main implements Runnable {
         // Fill in the Operation[] array for each thread by laying
         // down references to operation according to their desired
         // frequency.
-        final Main[] threadStresses = new Main[numberOfThreads];
+        // The first numberOfThreads elements are normal threads, the last
+        // numberOfDaemons elements are daemon threads.
+        final Main[] threadStresses = new Main[numberOfThreads + numberOfDaemons];
         for (int t = 0; t < threadStresses.length; t++) {
             Operation[] operations = new Operation[operationsPerThread];
             int o = 0;
@@ -388,9 +401,10 @@ public class Main implements Runnable {
                     }
                 }
             }
-            // Randomize the oepration order
+            // Randomize the operation order
             Collections.shuffle(Arrays.asList(operations));
-            threadStresses[t] = new Main(lock, t, operations);
+            threadStresses[t] = t < numberOfThreads ? new Main(lock, t, operations) :
+                                                      new Daemon(lock, t, operations);
         }
 
         // Enable to dump operation counts per thread to make sure its
@@ -459,6 +473,14 @@ public class Main implements Runnable {
             notifier.start();
         }
 
+        // Create and start the daemon threads.
+        for (int r = 0; r < numberOfDaemons; r++) {
+            Main daemon = threadStresses[numberOfThreads + r];
+            Thread t = new Thread(daemon, "Daemon thread " + daemon.id);
+            t.setDaemon(true);
+            t.start();
+        }
+
         for (int r = 0; r < runners.length; r++) {
             runners[r].start();
         }
@@ -467,9 +489,9 @@ public class Main implements Runnable {
         }
     }
 
-    private final Operation[] operations;
+    protected final Operation[] operations;
     private final Object lock;
-    private final int id;
+    protected final int id;
 
     private int nextOperation;
 
@@ -499,6 +521,35 @@ public class Main implements Runnable {
         } finally {
             if (DEBUG) {
                 System.out.println("Finishing ThreadStress for " + id);
+            }
+        }
+    }
+
+    private static class Daemon extends Main {
+        private Daemon(Object lock, int id, Operation[] operations) {
+            super(lock, id, operations);
+        }
+
+        public void run() {
+            try {
+                if (DEBUG) {
+                    System.out.println("Starting ThreadStress Daemon " + id);
+                }
+                int i = 0;
+                while (true) {
+                    Operation operation = operations[i];
+                    if (DEBUG) {
+                        System.out.println("ThreadStress Daemon " + id
+                                           + " operation " + i
+                                           + " is " + operation);
+                    }
+                    operation.perform();
+                    i = (i + 1) % operations.length;
+                }
+            } finally {
+                if (DEBUG) {
+                    System.out.println("Finishing ThreadStress Daemon for " + id);
+                }
             }
         }
     }
