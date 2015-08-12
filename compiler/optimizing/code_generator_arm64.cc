@@ -1103,23 +1103,11 @@ void CodeGeneratorARM64::InvokeRuntime(int32_t entry_point_offset,
                                        HInstruction* instruction,
                                        uint32_t dex_pc,
                                        SlowPathCode* slow_path) {
-  // Ensure that the call kind indication given to the register allocator is
-  // coherent with the runtime call generated.
-  if (slow_path == nullptr) {
-    DCHECK(instruction->GetLocations()->WillCall());
-  } else {
-    DCHECK(instruction->GetLocations()->OnlyCallsOnSlowPath() || slow_path->IsFatal());
-  }
-
+  ValidateInvokeRuntime(instruction, slow_path);
   BlockPoolsScope block_pools(GetVIXLAssembler());
   __ Ldr(lr, MemOperand(tr, entry_point_offset));
   __ Blr(lr);
   RecordPcInfo(instruction, dex_pc, slow_path);
-  DCHECK(instruction->IsSuspendCheck()
-         || instruction->IsBoundsCheck()
-         || instruction->IsNullCheck()
-         || instruction->IsDivZeroCheck()
-         || !IsLeafMethod());
 }
 
 void InstructionCodeGeneratorARM64::GenerateClassInitializationCheck(SlowPathCodeARM64* slow_path,
