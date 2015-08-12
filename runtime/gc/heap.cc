@@ -229,7 +229,8 @@ Heap::Heap(size_t initial_size,
       alloc_tracking_enabled_(false),
       backtrace_lock_(nullptr),
       seen_backtrace_count_(0u),
-      unique_backtrace_count_(0u) {
+      unique_backtrace_count_(0u),
+      gc_disabled_for_shutdown_(false) {
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() entering";
   }
@@ -2401,11 +2402,6 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type,
                                                bool clear_soft_references) {
   Thread* self = Thread::Current();
   Runtime* runtime = Runtime::Current();
-  // Don't allow the GC to start if the runtime is shutting down. This can occur if a Daemon thread
-  // is still allocating.
-  if (runtime->IsShuttingDown(self)) {
-    return collector::kGcTypeNone;
-  }
   // If the heap can't run the GC, silently fail and return that no GC was run.
   switch (gc_type) {
     case collector::kGcTypePartial: {
@@ -2437,6 +2433,9 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type,
     // GC can be disabled if someone has a used GetPrimitiveArrayCritical.
     if (compacting_gc && disable_moving_gc_count_ != 0) {
       LOG(WARNING) << "Skipping GC due to disable moving GC count " << disable_moving_gc_count_;
+      return collector::kGcTypeNone;
+    }
+    if (gc_disabled_for_shutdown_) {
       return collector::kGcTypeNone;
     }
     collector_type_running_ = collector_type_;
@@ -3850,6 +3849,13 @@ void Heap::CheckGcStressMode(Thread* self, mirror::Object** obj) {
       seen_backtrace_count_.FetchAndAddSequentiallyConsistent(1);
     }
   }
+}
+
+void Heap::DisableGCForShutdown() {
+  Thread* const self = Thread::Current();
+  CHECK(Runtime::Current()->IsShuttingDown(self));
+  MutexLock mu(self, *gc_complete_lock_);
+  gc_disabled_for_shutdown_ = true;
 }
 
 }  // namespace gc
