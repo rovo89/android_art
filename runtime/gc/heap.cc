@@ -2401,6 +2401,11 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type,
                                                bool clear_soft_references) {
   Thread* self = Thread::Current();
   Runtime* runtime = Runtime::Current();
+  // Don't allow the GC to start if the runtime is shutting down. This can occur if a Daemon thread
+  // is still allocating.
+  if (runtime->IsShuttingDown(self)) {
+    return collector::kGcTypeNone;
+  }
   // If the heap can't run the GC, silently fail and return that no GC was run.
   switch (gc_type) {
     case collector::kGcTypePartial: {
