@@ -1005,6 +1005,31 @@ void CodeGenerator::EmitParallelMoves(Location from1,
   GetMoveResolver()->EmitNativeCode(&parallel_move);
 }
 
+void CodeGenerator::ValidateInvokeRuntime(HInstruction* instruction, SlowPathCode* slow_path) {
+  // Ensure that the call kind indication given to the register allocator is
+  // coherent with the runtime call generated, and that the GC side effect is
+  // set when required.
+  if (slow_path == nullptr) {
+    DCHECK(instruction->GetLocations()->WillCall());
+    DCHECK(instruction->GetSideEffects().Includes(SideEffects::CanTriggerGC()));
+  } else {
+    DCHECK(instruction->GetLocations()->OnlyCallsOnSlowPath() || slow_path->IsFatal());
+    DCHECK(instruction->GetSideEffects().Includes(SideEffects::CanTriggerGC()) ||
+           // Control flow would not come back into the code if a fatal slow
+           // path is taken, so we do not care if it triggers GC.
+           slow_path->IsFatal() ||
+           // HDeoptimize is a special case: we know we are not coming back from
+           // it into the code.
+           instruction->IsDeoptimize());
+  }
+
+  // Check the coherency of leaf information.
+  DCHECK(instruction->IsSuspendCheck()
+         || ((slow_path != nullptr) && slow_path->IsFatal())
+         || instruction->GetLocations()->CanCall()
+         || !IsLeafMethod());
+}
+
 void SlowPathCode::RecordPcInfo(CodeGenerator* codegen, HInstruction* instruction, uint32_t dex_pc) {
   codegen->RecordPcInfo(instruction, dex_pc, this);
 }

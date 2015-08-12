@@ -266,6 +266,8 @@ TEST(GVNTest, LoopSideEffects) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
 
+  static const SideEffects kCanTriggerGC = SideEffects::CanTriggerGC();
+
   HGraph* graph = CreateGraph(&allocator);
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
@@ -309,7 +311,7 @@ TEST(GVNTest, LoopSideEffects) {
   ASSERT_TRUE(inner_loop_header->GetLoopInformation()->IsIn(
       *outer_loop_header->GetLoopInformation()));
 
-  // Check that the loops don't have side effects.
+  // Check that the only side effect of loops is to potentially trigger GC.
   {
     // Make one block with a side effect.
     entry->AddInstruction(new (&allocator) HInstanceFieldSet(parameter,
@@ -327,6 +329,8 @@ TEST(GVNTest, LoopSideEffects) {
     ASSERT_FALSE(side_effects.GetBlockEffects(outer_loop_body).DoesAnyWrite());
     ASSERT_FALSE(side_effects.GetLoopEffects(outer_loop_header).DoesAnyWrite());
     ASSERT_FALSE(side_effects.GetLoopEffects(inner_loop_header).DoesAnyWrite());
+    ASSERT_TRUE(side_effects.GetLoopEffects(outer_loop_header).Equals(kCanTriggerGC));
+    ASSERT_TRUE(side_effects.GetLoopEffects(inner_loop_header).Equals(kCanTriggerGC));
   }
 
   // Check that the side effects of the outer loop does not affect the inner loop.
@@ -348,6 +352,7 @@ TEST(GVNTest, LoopSideEffects) {
     ASSERT_TRUE(side_effects.GetBlockEffects(outer_loop_body).DoesAnyWrite());
     ASSERT_TRUE(side_effects.GetLoopEffects(outer_loop_header).DoesAnyWrite());
     ASSERT_FALSE(side_effects.GetLoopEffects(inner_loop_header).DoesAnyWrite());
+    ASSERT_TRUE(side_effects.GetLoopEffects(inner_loop_header).Equals(kCanTriggerGC));
   }
 
   // Check that the side effects of the inner loop affects the outer loop.

@@ -77,7 +77,7 @@ TEST(SideEffectsTest, All) {
   EXPECT_TRUE(all.DoesAnyWrite());
   EXPECT_TRUE(all.DoesAnyRead());
   EXPECT_FALSE(all.DoesNothing());
-  EXPECT_TRUE(all.DoesAll());
+  EXPECT_TRUE(all.DoesAllReadWrite());
 }
 
 TEST(SideEffectsTest, None) {
@@ -85,7 +85,7 @@ TEST(SideEffectsTest, None) {
   EXPECT_FALSE(none.DoesAnyWrite());
   EXPECT_FALSE(none.DoesAnyRead());
   EXPECT_TRUE(none.DoesNothing());
-  EXPECT_FALSE(none.DoesAll());
+  EXPECT_FALSE(none.DoesAllReadWrite());
 }
 
 TEST(SideEffectsTest, DependencesAndNoDependences) {
@@ -176,33 +176,53 @@ TEST(SideEffectsTest, AllWritesAndReads) {
     s = s.Union(SideEffects::FieldReadOfType(type, false));
     s = s.Union(SideEffects::ArrayReadOfType(type));
   }
-  EXPECT_TRUE(s.DoesAll());
+  EXPECT_TRUE(s.DoesAllReadWrite());
+}
+
+TEST(SideEffectsTest, GC) {
+  SideEffects can_trigger_gc = SideEffects::CanTriggerGC();
+  SideEffects depends_on_gc = SideEffects::DependsOnGC();
+  SideEffects all_changes = SideEffects::AllChanges();
+  SideEffects all_dependencies = SideEffects::AllDependencies();
+
+  EXPECT_TRUE(depends_on_gc.MayDependOn(can_trigger_gc));
+  EXPECT_TRUE(depends_on_gc.Union(can_trigger_gc).MayDependOn(can_trigger_gc));
+  EXPECT_FALSE(can_trigger_gc.MayDependOn(depends_on_gc));
+
+  EXPECT_TRUE(depends_on_gc.MayDependOn(all_changes));
+  EXPECT_TRUE(depends_on_gc.Union(can_trigger_gc).MayDependOn(all_changes));
+  EXPECT_FALSE(can_trigger_gc.MayDependOn(all_changes));
+
+  EXPECT_TRUE(all_changes.Includes(can_trigger_gc));
+  EXPECT_FALSE(all_changes.Includes(depends_on_gc));
+  EXPECT_TRUE(all_dependencies.Includes(depends_on_gc));
+  EXPECT_FALSE(all_dependencies.Includes(can_trigger_gc));
 }
 
 TEST(SideEffectsTest, BitStrings) {
   EXPECT_STREQ(
-      "|||||",
+      "|||||||",
       SideEffects::None().ToString().c_str());
   EXPECT_STREQ(
-      "|DFJISCBZL|DFJISCBZL|DFJISCBZL|DFJISCBZL|",
+      "|GC|DFJISCBZL|DFJISCBZL|GC|DFJISCBZL|DFJISCBZL|",
       SideEffects::All().ToString().c_str());
   EXPECT_STREQ(
-      "|||DFJISCBZL|DFJISCBZL|",
+      "|||||DFJISCBZL|DFJISCBZL|",
       SideEffects::AllWrites().ToString().c_str());
   EXPECT_STREQ(
-      "|DFJISCBZL|DFJISCBZL|||",
+      "||DFJISCBZL|DFJISCBZL||||",
       SideEffects::AllReads().ToString().c_str());
   EXPECT_STREQ(
-      "||||L|",
+      "||||||L|",
       SideEffects::FieldWriteOfType(Primitive::kPrimNot, false).ToString().c_str());
   EXPECT_STREQ(
-      "|||Z||",
+      "|||||Z||",
       SideEffects::ArrayWriteOfType(Primitive::kPrimBoolean).ToString().c_str());
   EXPECT_STREQ(
-      "||B|||",
+      "|||B||||",
       SideEffects::FieldReadOfType(Primitive::kPrimByte, false).ToString().c_str());
   EXPECT_STREQ(
-      "|DJ||||",  // note: DJ alias
+      "||DJ|||||",  // note: DJ alias
       SideEffects::ArrayReadOfType(Primitive::kPrimDouble).ToString().c_str());
   SideEffects s = SideEffects::None();
   s = s.Union(SideEffects::FieldWriteOfType(Primitive::kPrimChar, false));
@@ -212,7 +232,7 @@ TEST(SideEffectsTest, BitStrings) {
   s = s.Union(SideEffects::ArrayReadOfType(Primitive::kPrimFloat));
   s = s.Union(SideEffects::ArrayReadOfType(Primitive::kPrimDouble));
   EXPECT_STREQ(
-      "|DFJI|FI|S|DJC|",   // note: DJ/FI alias.
+      "||DFJI|FI||S|DJC|",   // note: DJ/FI alias.
       s.ToString().c_str());
 }
 

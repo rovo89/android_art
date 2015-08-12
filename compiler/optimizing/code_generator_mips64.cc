@@ -977,23 +977,11 @@ void CodeGeneratorMIPS64::InvokeRuntime(int32_t entry_point_offset,
                                         HInstruction* instruction,
                                         uint32_t dex_pc,
                                         SlowPathCode* slow_path) {
-  // Ensure that the call kind indication given to the register allocator is
-  // coherent with the runtime call generated.
-  if (slow_path == nullptr) {
-    DCHECK(instruction->GetLocations()->WillCall());
-  } else {
-    DCHECK(instruction->GetLocations()->OnlyCallsOnSlowPath() || slow_path->IsFatal());
-  }
-
+  ValidateInvokeRuntime(instruction, slow_path);
   // TODO: anything related to T9/GP/GOT/PIC/.so's?
   __ LoadFromOffset(kLoadDoubleword, T9, TR, entry_point_offset);
   __ Jalr(T9);
   RecordPcInfo(instruction, dex_pc, slow_path);
-  DCHECK(instruction->IsSuspendCheck()
-      || instruction->IsBoundsCheck()
-      || instruction->IsNullCheck()
-      || instruction->IsDivZeroCheck()
-      || !IsLeafMethod());
 }
 
 void InstructionCodeGeneratorMIPS64::GenerateClassInitializationCheck(SlowPathCodeMIPS64* slow_path,
