@@ -114,6 +114,7 @@ class RegisterLine {
     memcpy(&line_, &src->line_, num_regs_ * sizeof(uint16_t));
     monitors_ = src->monitors_;
     reg_to_lock_depths_ = src->reg_to_lock_depths_;
+    this_initialized_ = src->this_initialized_;
   }
 
   std::string Dump(MethodVerifier* verifier) const SHARED_REQUIRES(Locks::mutator_lock_);
@@ -149,6 +150,14 @@ class RegisterLine {
   void MarkAllRegistersAsConflictsExcept(MethodVerifier* verifier, uint32_t vsrc);
   void MarkAllRegistersAsConflictsExceptWide(MethodVerifier* verifier, uint32_t vsrc);
 
+  void SetThisInitialized() {
+    this_initialized_ = true;
+  }
+
+  void CopyThisInitialized(const RegisterLine& src) {
+    this_initialized_ = src.this_initialized_;
+  }
+
   /*
    * Check constraints on constructor return. Specifically, make sure that the "this" argument got
    * initialized.
@@ -157,18 +166,6 @@ class RegisterLine {
    * somehow didn't get initialized.
    */
   bool CheckConstructorReturn(MethodVerifier* verifier) const;
-
-  /*
-   * Check if an UninitializedThis at the specified location has been overwritten before
-   * being correctly initialized.
-   */
-  bool WasUninitializedThisOverwritten(MethodVerifier* verifier, size_t this_loc,
-                                       bool was_invoke_direct) const;
-
-  /*
-   * Get the first location of an UninitializedThis type, or return kInvalidVreg if there are none.
-   */
-  bool GetUninitializedThisLoc(MethodVerifier* verifier, size_t* vreg) const;
 
   // Compare two register lines. Returns 0 if they match.
   // Using this for a sort is unwise, since the value can change based on machine endianness.
@@ -354,7 +351,7 @@ class RegisterLine {
   }
 
   RegisterLine(size_t num_regs, MethodVerifier* verifier)
-      : num_regs_(num_regs) {
+      : num_regs_(num_regs), this_initialized_(false) {
     memset(&line_, 0, num_regs_ * sizeof(uint16_t));
     SetResultTypeToUnknown(verifier);
   }
@@ -371,6 +368,9 @@ class RegisterLine {
   // stack we verify that monitor-enter/exit are correctly nested. That is, if there was a
   // monitor-enter on v5 and then on v6, we expect the monitor-exit to be on v6 then on v5.
   AllocationTrackingSafeMap<uint32_t, uint32_t, kAllocatorTagVerifier> reg_to_lock_depths_;
+
+  // Whether "this" initialization (a constructor supercall) has happened.
+  bool this_initialized_;
 
   // An array of RegType Ids associated with each dex register.
   uint16_t line_[0];
