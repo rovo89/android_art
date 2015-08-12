@@ -205,7 +205,6 @@ Heap::Heap(size_t initial_size,
       target_utilization_(target_utilization),
       foreground_heap_growth_multiplier_(foreground_heap_growth_multiplier),
       total_wait_time_(0),
-      total_allocation_time_(0),
       verify_object_mode_(kVerifyObjectModeDisabled),
       disable_moving_gc_count_(0),
       is_running_on_memory_tool_(Runtime::Current()->IsRunningOnMemoryTool()),
@@ -981,8 +980,6 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
     total_paused_time += collector->GetTotalPausedTimeNs();
     collector->DumpPerformanceInfo(os);
   }
-  uint64_t allocation_time =
-      static_cast<uint64_t>(total_allocation_time_.LoadRelaxed()) * kTimeAdjust;
   if (total_duration != 0) {
     const double total_seconds = static_cast<double>(total_duration / 1000) / 1000000.0;
     os << "Total time spent in GC: " << PrettyDuration(total_duration) << "\n";
@@ -1000,11 +997,6 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
   os << "Free memory until OOME " << PrettySize(GetFreeMemoryUntilOOME()) << "\n";
   os << "Total memory " << PrettySize(GetTotalMemory()) << "\n";
   os << "Max memory " << PrettySize(GetMaxMemory()) << "\n";
-  if (kMeasureAllocationTime) {
-    os << "Total time spent allocating: " << PrettyDuration(allocation_time) << "\n";
-    os << "Mean allocation time: " << PrettyDuration(allocation_time / total_objects_allocated)
-       << "\n";
-  }
   if (HasZygoteSpace()) {
     os << "Zygote space size " << PrettySize(zygote_space_->Size()) << "\n";
   }
@@ -1037,7 +1029,6 @@ void Heap::ResetGcPerformanceInfo() {
   for (auto& collector : garbage_collectors_) {
     collector->ResetMeasurements();
   }
-  total_allocation_time_.StoreRelaxed(0);
   total_bytes_freed_ever_ = 0;
   total_objects_freed_ever_ = 0;
   total_wait_time_ = 0;
