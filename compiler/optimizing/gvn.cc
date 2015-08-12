@@ -264,7 +264,7 @@ class ValueSet : public ArenaObject<kArenaAllocMisc> {
   // odd buckets to speed up deletion.
   size_t HashCode(HInstruction* instruction) const {
     size_t hash_code = instruction->ComputeHashCode();
-    if (instruction->GetSideEffects().DoesAnyRead()) {
+    if (instruction->GetSideEffects().HasDependencies()) {
       return (hash_code << 1) | 0;
     } else {
       return (hash_code << 1) | 1;
