@@ -170,7 +170,7 @@ class MallocArena FINAL : public Arena {
 
 class MemMapArena FINAL : public Arena {
  public:
-  explicit MemMapArena(size_t size, bool low_4gb);
+  MemMapArena(size_t size, bool low_4gb);
   virtual ~MemMapArena();
   void Release() OVERRIDE;
 

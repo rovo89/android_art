@@ -89,7 +89,7 @@ class Compiler {
                                  const DexFile& dex_file);
 
  protected:
-  explicit Compiler(CompilerDriver* driver, uint64_t warning) :
+  Compiler(CompilerDriver* driver, uint64_t warning) :
       driver_(driver), maximum_compilation_time_before_warning_(warning) {
   }
 

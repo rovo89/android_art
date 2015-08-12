@@ -107,7 +107,7 @@ Object* Object::CopyObject(Thread* self, mirror::Object* dest, mirror::Object* s
 // An allocation pre-fence visitor that copies the object.
 class CopyObjectVisitor {
  public:
-  explicit CopyObjectVisitor(Thread* self, Handle<Object>* orig, size_t num_bytes)
+  CopyObjectVisitor(Thread* self, Handle<Object>* orig, size_t num_bytes)
       : self_(self), orig_(orig), num_bytes_(num_bytes) {
   }
 

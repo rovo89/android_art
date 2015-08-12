@@ -54,7 +54,7 @@ namespace collector {
 
 class MarkSweep : public GarbageCollector {
  public:
-  explicit MarkSweep(Heap* heap, bool is_concurrent, const std::string& name_prefix = "");
+  MarkSweep(Heap* heap, bool is_concurrent, const std::string& name_prefix = "");
 
   ~MarkSweep() {}
 

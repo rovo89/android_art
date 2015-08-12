@@ -3105,7 +3105,7 @@ class HNewInstance : public HExpression<1> {
 
 class HNeg : public HUnaryOperation {
  public:
-  explicit HNeg(Primitive::Type result_type, HInstruction* input)
+  HNeg(Primitive::Type result_type, HInstruction* input)
       : HUnaryOperation(result_type, input) {}
 
   template <typename T> T Compute(T x) const { return -x; }
@@ -3535,7 +3535,7 @@ class HParameterValue : public HExpression<0> {
 
 class HNot : public HUnaryOperation {
  public:
-  explicit HNot(Primitive::Type result_type, HInstruction* input)
+  HNot(Primitive::Type result_type, HInstruction* input)
       : HUnaryOperation(result_type, input) {}
 
   bool CanBeMoved() const OVERRIDE { return true; }
@@ -4173,7 +4173,7 @@ class HLoadString : public HExpression<1> {
  */
 class HClinitCheck : public HExpression<1> {
  public:
-  explicit HClinitCheck(HLoadClass* constant, uint32_t dex_pc)
+  HClinitCheck(HLoadClass* constant, uint32_t dex_pc)
       : HExpression(
           Primitive::kPrimNot,
           SideEffects::AllWrites()),  // assume write on all fields/arrays

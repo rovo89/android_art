@@ -40,12 +40,11 @@ class LazyDebugFrameOpCodeWriter FINAL
 
   const ArenaVector<uint8_t>* Patch(size_t code_size);
 
-  explicit LazyDebugFrameOpCodeWriter(LIR** last_lir_insn, bool enable_writes,
-                                      ArenaAllocator* allocator)
-    : Base(enable_writes, allocator->Adapter()),
-      last_lir_insn_(last_lir_insn),
-      advances_(allocator->Adapter()),
-      patched_(false) {
+  LazyDebugFrameOpCodeWriter(LIR** last_lir_insn, bool enable_writes, ArenaAllocator* allocator)
+      : Base(enable_writes, allocator->Adapter()),
+        last_lir_insn_(last_lir_insn),
+        advances_(allocator->Adapter()),
+        patched_(false) {
   }
 
  private:

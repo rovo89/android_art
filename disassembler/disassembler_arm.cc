@@ -201,14 +201,13 @@ std::ostream& operator<<(std::ostream& os, const RegisterList& rhs) {
 }
 
 struct FpRegister {
-  explicit FpRegister(uint32_t instr, uint16_t at_bit, uint16_t extra_at_bit) {
+  FpRegister(uint32_t instr, uint16_t at_bit, uint16_t extra_at_bit) {
     size = (instr >> 8) & 1;
     uint32_t Vn = (instr >> at_bit) & 0xF;
     uint32_t N = (instr >> extra_at_bit) & 1;
     r = (size != 0 ? ((N << 4) | Vn) : ((Vn << 1) | N));
   }
-  explicit FpRegister(uint32_t instr, uint16_t at_bit, uint16_t extra_at_bit,
-                      uint32_t forced_size) {
+  FpRegister(uint32_t instr, uint16_t at_bit, uint16_t extra_at_bit, uint32_t forced_size) {
     size = forced_size;
     uint32_t Vn = (instr >> at_bit) & 0xF;
     uint32_t N = (instr >> extra_at_bit) & 1;

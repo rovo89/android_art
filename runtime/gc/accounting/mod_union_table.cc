@@ -54,8 +54,7 @@ class ModUnionAddToCardSetVisitor {
 
 class ModUnionAddToCardBitmapVisitor {
  public:
-  explicit ModUnionAddToCardBitmapVisitor(ModUnionTable::CardBitmap* bitmap,
-                                          CardTable* card_table)
+  ModUnionAddToCardBitmapVisitor(ModUnionTable::CardBitmap* bitmap, CardTable* card_table)
       : bitmap_(bitmap), card_table_(card_table) {
   }
 
@@ -175,9 +174,9 @@ void ModUnionTableReferenceCache::ClearCards() {
 
 class AddToReferenceArrayVisitor {
  public:
-  explicit AddToReferenceArrayVisitor(ModUnionTableReferenceCache* mod_union_table,
-                                      std::vector<mirror::HeapReference<Object>*>* references)
-    : mod_union_table_(mod_union_table), references_(references) {
+  AddToReferenceArrayVisitor(ModUnionTableReferenceCache* mod_union_table,
+                             std::vector<mirror::HeapReference<Object>*>* references)
+      : mod_union_table_(mod_union_table), references_(references) {
   }
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
@@ -211,10 +210,10 @@ class AddToReferenceArrayVisitor {
 
 class ModUnionReferenceVisitor {
  public:
-  explicit ModUnionReferenceVisitor(ModUnionTableReferenceCache* const mod_union_table,
-                                    std::vector<mirror::HeapReference<Object>*>* references)
-    : mod_union_table_(mod_union_table),
-      references_(references) {
+  ModUnionReferenceVisitor(ModUnionTableReferenceCache* const mod_union_table,
+                           std::vector<mirror::HeapReference<Object>*>* references)
+      : mod_union_table_(mod_union_table),
+        references_(references) {
   }
 
   void operator()(Object* obj) const
@@ -231,10 +230,10 @@ class ModUnionReferenceVisitor {
 
 class CheckReferenceVisitor {
  public:
-  explicit CheckReferenceVisitor(ModUnionTableReferenceCache* mod_union_table,
-                                 const std::set<const Object*>& references)
-    : mod_union_table_(mod_union_table),
-      references_(references) {
+  CheckReferenceVisitor(ModUnionTableReferenceCache* mod_union_table,
+                        const std::set<const Object*>& references)
+      : mod_union_table_(mod_union_table),
+        references_(references) {
   }
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
@@ -277,8 +276,8 @@ class CheckReferenceVisitor {
 
 class ModUnionCheckReferences {
  public:
-  explicit ModUnionCheckReferences(ModUnionTableReferenceCache* mod_union_table,
-                                   const std::set<const Object*>& references)
+  ModUnionCheckReferences(ModUnionTableReferenceCache* mod_union_table,
+                          const std::set<const Object*>& references)
       REQUIRES(Locks::heap_bitmap_lock_)
       : mod_union_table_(mod_union_table), references_(references) {
   }

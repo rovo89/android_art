@@ -134,7 +134,7 @@ class ArenaAllocatorAdapter : private ArenaAllocatorAdapterKind {
     typedef ArenaAllocatorAdapter<U> other;
   };
 
-  explicit ArenaAllocatorAdapter(ArenaAllocator* arena_allocator, ArenaAllocKind kind)
+  ArenaAllocatorAdapter(ArenaAllocator* arena_allocator, ArenaAllocKind kind)
       : ArenaAllocatorAdapterKind(kind),
         arena_allocator_(arena_allocator) {
   }

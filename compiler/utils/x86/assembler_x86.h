@@ -205,7 +205,7 @@ class Address : public Operand {
 
 class X86Assembler FINAL : public Assembler {
  public:
-  explicit X86Assembler() {}
+  X86Assembler() {}
   virtual ~X86Assembler() {}
 
   /*
