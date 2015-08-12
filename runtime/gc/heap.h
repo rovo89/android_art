@@ -126,7 +126,6 @@ std::ostream& operator<<(std::ostream& os, const ProcessState& process_state);
 class Heap {
  public:
   // If true, measure the total allocation time.
-  static constexpr bool kMeasureAllocationTime = false;
   static constexpr size_t kDefaultStartingSize = kPageSize;
   static constexpr size_t kDefaultInitialSize = 2 * MB;
   static constexpr size_t kDefaultMaximumSize = 256 * MB;
@@ -1213,9 +1212,6 @@ class Heap {
   // Total time which mutators are paused or waiting for GC to complete.
   uint64_t total_wait_time_;
 
-  // Total number of objects allocated in microseconds.
-  AtomicInteger total_allocation_time_;
-
   // The current state of heap verification, may be enabled or disabled.
   VerifyObjectMode verify_object_mode_;
 
@@ -1308,18 +1304,6 @@ class Heap {
   friend class VerifyReferenceVisitor;
   friend class VerifyObjectVisitor;
   friend class space::SpaceTest;
-
-  class AllocationTimer {
-   public:
-    ALWAYS_INLINE AllocationTimer(Heap* heap, mirror::Object** allocated_obj_ptr);
-    ALWAYS_INLINE ~AllocationTimer();
-   private:
-    Heap* const heap_;
-    mirror::Object** allocated_obj_ptr_;
-    const uint64_t allocation_start_time_;
-
-    DISALLOW_IMPLICIT_CONSTRUCTORS(AllocationTimer);
-  };
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Heap);
 };
