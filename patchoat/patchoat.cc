@@ -454,9 +454,8 @@ class PatchOatArtMethodVisitor : public ArtMethodVisitor {
 void PatchOat::PatchArtMethods(const ImageHeader* image_header) {
   const auto& section = image_header->GetMethodsSection();
   const size_t pointer_size = InstructionSetPointerSize(isa_);
-  const size_t method_size = ArtMethod::ObjectSize(pointer_size);
   PatchOatArtMethodVisitor visitor(this);
-  section.VisitPackedArtMethods(&visitor, heap_->Begin(), method_size);
+  section.VisitPackedArtMethods(&visitor, heap_->Begin(), pointer_size);
 }
 
 class FixupRootVisitor : public RootVisitor {
