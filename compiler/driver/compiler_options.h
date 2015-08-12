@@ -52,7 +52,7 @@ class CompilerOptions FINAL {
   static const bool kDefaultGenerateDebugInfo = kIsDebugBuild;
   static const bool kDefaultIncludePatchInformation = false;
   static const size_t kDefaultInlineDepthLimit = 3;
-  static const size_t kDefaultInlineMaxCodeUnits = 18;
+  static const size_t kDefaultInlineMaxCodeUnits = 20;
 
   // Default inlining settings when the space filter is used.
   static constexpr size_t kSpaceFilterInlineDepthLimit = 3;
