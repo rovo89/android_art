@@ -128,7 +128,7 @@ void HDeadCodeElimination::RemoveDeadInstructions() {
     for (i.Advance(); !i.Done(); i.Advance()) {
       HInstruction* inst = i.Current();
       DCHECK(!inst->IsControlFlow());
-      if (!inst->DoesAnyWrite()
+      if (!inst->HasSideEffects()
           && !inst->CanThrow()
           && !inst->IsSuspendCheck()
           // If we added an explicit barrier then we should keep it.
