@@ -322,6 +322,9 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   // Load a 64 bit value into a register in the most efficient manner.
   void Load64BitValue(CpuRegister dest, int64_t value);
 
+  // Store a 64 bit value into a DoubleStackSlot in the most efficient manner.
+  void Store64BitValueToStack(Location dest, int64_t value);
+
  private:
   // Labels for each block that will be compiled.
   GrowableArray<Label> block_labels_;
