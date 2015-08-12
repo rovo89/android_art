@@ -96,11 +96,7 @@ namespace space {
 class AgeCardVisitor {
  public:
   uint8_t operator()(uint8_t card) const {
-    if (card == accounting::CardTable::kCardDirty) {
-      return card - 1;
-    } else {
-      return 0;
-    }
+    return (card == accounting::CardTable::kCardDirty) ? card - 1 : 0;
   }
 };
 
@@ -165,20 +161,34 @@ class Heap {
   // Create a heap with the requested sizes. The possible empty
   // image_file_names names specify Spaces to load based on
   // ImageWriter output.
-  explicit Heap(size_t initial_size, size_t growth_limit, size_t min_free,
-                size_t max_free, double target_utilization,
-                double foreground_heap_growth_multiplier, size_t capacity,
+  explicit Heap(size_t initial_size,
+                size_t growth_limit,
+                size_t min_free,
+                size_t max_free,
+                double target_utilization,
+                double foreground_heap_growth_multiplier,
+                size_t capacity,
                 size_t non_moving_space_capacity,
                 const std::string& original_image_file_name,
                 InstructionSet image_instruction_set,
-                CollectorType foreground_collector_type, CollectorType background_collector_type,
-                space::LargeObjectSpaceType large_object_space_type, size_t large_object_threshold,
-                size_t parallel_gc_threads, size_t conc_gc_threads, bool low_memory_mode,
-                size_t long_pause_threshold, size_t long_gc_threshold,
-                bool ignore_max_footprint, bool use_tlab,
-                bool verify_pre_gc_heap, bool verify_pre_sweeping_heap, bool verify_post_gc_heap,
-                bool verify_pre_gc_rosalloc, bool verify_pre_sweeping_rosalloc,
-                bool verify_post_gc_rosalloc, bool gc_stress_mode,
+                CollectorType foreground_collector_type,
+                CollectorType background_collector_type,
+                space::LargeObjectSpaceType large_object_space_type,
+                size_t large_object_threshold,
+                size_t parallel_gc_threads,
+                size_t conc_gc_threads,
+                bool low_memory_mode,
+                size_t long_pause_threshold,
+                size_t long_gc_threshold,
+                bool ignore_max_footprint,
+                bool use_tlab,
+                bool verify_pre_gc_heap,
+                bool verify_pre_sweeping_heap,
+                bool verify_post_gc_heap,
+                bool verify_pre_gc_rosalloc,
+                bool verify_pre_sweeping_rosalloc,
+                bool verify_post_gc_rosalloc,
+                bool gc_stress_mode,
                 bool use_homogeneous_space_compaction,
                 uint64_t min_interval_homogeneous_space_compaction_by_oom);
 
@@ -186,7 +196,9 @@ class Heap {
 
   // Allocates and initializes storage for an object instance.
   template <bool kInstrumented, typename PreFenceVisitor>
-  mirror::Object* AllocObject(Thread* self, mirror::Class* klass, size_t num_bytes,
+  mirror::Object* AllocObject(Thread* self,
+                              mirror::Class* klass,
+                              size_t num_bytes,
                               const PreFenceVisitor& pre_fence_visitor)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!*gc_complete_lock_, !*pending_task_lock_, !*backtrace_lock_,
@@ -196,7 +208,9 @@ class Heap {
   }
 
   template <bool kInstrumented, typename PreFenceVisitor>
-  mirror::Object* AllocNonMovableObject(Thread* self, mirror::Class* klass, size_t num_bytes,
+  mirror::Object* AllocNonMovableObject(Thread* self,
+                                        mirror::Class* klass,
+                                        size_t num_bytes,
                                         const PreFenceVisitor& pre_fence_visitor)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!*gc_complete_lock_, !*pending_task_lock_, !*backtrace_lock_,
@@ -206,9 +220,11 @@ class Heap {
   }
 
   template <bool kInstrumented, bool kCheckLargeObject, typename PreFenceVisitor>
-  ALWAYS_INLINE mirror::Object* AllocObjectWithAllocator(
-      Thread* self, mirror::Class* klass, size_t byte_count, AllocatorType allocator,
-      const PreFenceVisitor& pre_fence_visitor)
+  ALWAYS_INLINE mirror::Object* AllocObjectWithAllocator(Thread* self,
+                                                         mirror::Class* klass,
+                                                         size_t byte_count,
+                                                         AllocatorType allocator,
+                                                         const PreFenceVisitor& pre_fence_visitor)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!*gc_complete_lock_, !*pending_task_lock_, !*backtrace_lock_,
                !Roles::uninterruptible_);
@@ -263,8 +279,7 @@ class Heap {
   // A weaker test than IsLiveObject or VerifyObject that doesn't require the heap lock,
   // and doesn't abort on error, allowing the caller to report more
   // meaningful diagnostics.
-  bool IsValidObjectAddress(const mirror::Object* obj) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+  bool IsValidObjectAddress(const mirror::Object* obj) const SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Faster alternative to IsHeapAddress since finding if an object is in the large object space is
   // very slow.
@@ -273,8 +288,10 @@ class Heap {
 
   // Returns true if 'obj' is a live heap object, false otherwise (including for invalid addresses).
   // Requires the heap lock to be held.
-  bool IsLiveObjectLocked(mirror::Object* obj, bool search_allocation_stack = true,
-                          bool search_live_stack = true, bool sorted = false)
+  bool IsLiveObjectLocked(mirror::Object* obj,
+                          bool search_allocation_stack = true,
+                          bool search_live_stack = true,
+                          bool sorted = false)
       SHARED_REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // Returns true if there is any chance that the object (obj) will move.
@@ -298,7 +315,8 @@ class Heap {
 
   // Implements VMDebug.countInstancesOfClass and JDWP VM_InstanceCount.
   // The boolean decides whether to use IsAssignableFrom or == when comparing classes.
-  void CountInstances(const std::vector<mirror::Class*>& classes, bool use_is_assignable_from,
+  void CountInstances(const std::vector<mirror::Class*>& classes,
+                      bool use_is_assignable_from,
                       uint64_t* counts)
       REQUIRES(!Locks::heap_bitmap_lock_, !*gc_complete_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
@@ -307,7 +325,8 @@ class Heap {
       REQUIRES(!Locks::heap_bitmap_lock_, !*gc_complete_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
   // Implements JDWP OR_ReferringObjects.
-  void GetReferringObjects(mirror::Object* o, int32_t max_count,
+  void GetReferringObjects(mirror::Object* o,
+                           int32_t max_count,
                            std::vector<mirror::Object*>& referring_objects)
       REQUIRES(!Locks::heap_bitmap_lock_, !*gc_complete_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
@@ -347,8 +366,7 @@ class Heap {
 
   // Blocks the caller until the garbage collector becomes idle and returns the type of GC we
   // waited for.
-  collector::GcType WaitForGcToComplete(GcCause cause, Thread* self)
-      REQUIRES(!*gc_complete_lock_);
+  collector::GcType WaitForGcToComplete(GcCause cause, Thread* self) REQUIRES(!*gc_complete_lock_);
 
   // Update the heap's process state to a new value, may cause compaction to occur.
   void UpdateProcessState(ProcessState process_state)
@@ -405,14 +423,17 @@ class Heap {
 
   // Must be called if a field of an Object in the heap changes, and before any GC safe-point.
   // The call is not needed if null is stored in the field.
-  ALWAYS_INLINE void WriteBarrierField(const mirror::Object* dst, MemberOffset /*offset*/,
-                                       const mirror::Object* /*new_value*/) {
+  ALWAYS_INLINE void WriteBarrierField(const mirror::Object* dst,
+                                       MemberOffset offset ATTRIBUTE_UNUSED,
+                                       const mirror::Object* new_value ATTRIBUTE_UNUSED) {
     card_table_->MarkCard(dst);
   }
 
   // Write barrier for array operations that update many field positions
-  ALWAYS_INLINE void WriteBarrierArray(const mirror::Object* dst, int /*start_offset*/,
-                                       size_t /*length TODO: element_count or byte_count?*/) {
+  ALWAYS_INLINE void WriteBarrierArray(const mirror::Object* dst,
+                                       int start_offset ATTRIBUTE_UNUSED,
+                                       // TODO: element_count or byte_count?
+                                       size_t length ATTRIBUTE_UNUSED) {
     card_table_->MarkCard(dst);
   }
 
@@ -436,7 +457,8 @@ class Heap {
   }
 
   // Returns the number of objects currently allocated.
-  size_t GetObjectsAllocated() const REQUIRES(!Locks::heap_bitmap_lock_);
+  size_t GetObjectsAllocated() const
+      REQUIRES(!Locks::heap_bitmap_lock_);
 
   // Returns the total number of objects allocated since the heap was created.
   uint64_t GetObjectsAllocatedEver() const;
@@ -540,11 +562,13 @@ class Heap {
                       accounting::SpaceBitmap<kObjectAlignment>* bitmap2,
                       accounting::SpaceBitmap<kLargeObjectAlignment>* large_objects,
                       accounting::ObjectStack* stack)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(Locks::heap_bitmap_lock_);
 
   // Mark the specified allocation stack as live.
   void MarkAllocStackAsLive(accounting::ObjectStack* stack)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(Locks::heap_bitmap_lock_);
 
   // Unbind any bound bitmaps.
   void UnBindBitmaps() REQUIRES(Locks::heap_bitmap_lock_);
@@ -758,15 +782,20 @@ class Heap {
         allocator_type != kAllocatorTypeTLAB;
   }
   static bool IsMovingGc(CollectorType collector_type) {
-    return collector_type == kCollectorTypeSS || collector_type == kCollectorTypeGSS ||
-        collector_type == kCollectorTypeCC || collector_type == kCollectorTypeMC ||
+    return
+        collector_type == kCollectorTypeSS ||
+        collector_type == kCollectorTypeGSS ||
+        collector_type == kCollectorTypeCC ||
+        collector_type == kCollectorTypeMC ||
         collector_type == kCollectorTypeHomogeneousSpaceCompact;
   }
   bool ShouldAllocLargeObject(mirror::Class* c, size_t byte_count) const
       SHARED_REQUIRES(Locks::mutator_lock_);
-  ALWAYS_INLINE void CheckConcurrentGC(Thread* self, size_t new_num_bytes_allocated,
+  ALWAYS_INLINE void CheckConcurrentGC(Thread* self,
+                                       size_t new_num_bytes_allocated,
                                        mirror::Object** obj)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!*pending_task_lock_, !*gc_complete_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!*pending_task_lock_, !*gc_complete_lock_);
 
   accounting::ObjectStack* GetMarkStack() {
     return mark_stack_.get();
@@ -774,22 +803,29 @@ class Heap {
 
   // We don't force this to be inlined since it is a slow path.
   template <bool kInstrumented, typename PreFenceVisitor>
-  mirror::Object* AllocLargeObject(Thread* self, mirror::Class** klass, size_t byte_count,
+  mirror::Object* AllocLargeObject(Thread* self,
+                                   mirror::Class** klass,
+                                   size_t byte_count,
                                    const PreFenceVisitor& pre_fence_visitor)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!*gc_complete_lock_, !*pending_task_lock_, !*backtrace_lock_);
 
   // Handles Allocate()'s slow allocation path with GC involved after
   // an initial allocation attempt failed.
-  mirror::Object* AllocateInternalWithGc(Thread* self, AllocatorType allocator, size_t num_bytes,
-                                         size_t* bytes_allocated, size_t* usable_size,
+  mirror::Object* AllocateInternalWithGc(Thread* self,
+                                         AllocatorType allocator,
+                                         size_t num_bytes,
+                                         size_t* bytes_allocated,
+                                         size_t* usable_size,
                                          size_t* bytes_tl_bulk_allocated,
                                          mirror::Class** klass)
       REQUIRES(!Locks::thread_suspend_count_lock_, !*gc_complete_lock_, !*pending_task_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Allocate into a specific space.
-  mirror::Object* AllocateInto(Thread* self, space::AllocSpace* space, mirror::Class* c,
+  mirror::Object* AllocateInto(Thread* self,
+                               space::AllocSpace* space,
+                               mirror::Class* c,
                                size_t bytes)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -800,8 +836,10 @@ class Heap {
   // Try to allocate a number of bytes, this function never does any GCs. Needs to be inlined so
   // that the switch statement is constant optimized in the entrypoints.
   template <const bool kInstrumented, const bool kGrow>
-  ALWAYS_INLINE mirror::Object* TryToAllocate(Thread* self, AllocatorType allocator_type,
-                                              size_t alloc_size, size_t* bytes_allocated,
+  ALWAYS_INLINE mirror::Object* TryToAllocate(Thread* self,
+                                              AllocatorType allocator_type,
+                                              size_t alloc_size,
+                                              size_t* bytes_allocated,
                                               size_t* usable_size,
                                               size_t* bytes_tl_bulk_allocated)
       SHARED_REQUIRES(Locks::mutator_lock_);
@@ -828,12 +866,14 @@ class Heap {
       REQUIRES(!*pending_task_lock_);
 
   void RequestConcurrentGCAndSaveObject(Thread* self, bool force_full, mirror::Object** obj)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!*pending_task_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!*pending_task_lock_);
   bool IsGCRequestPending() const;
 
   // Sometimes CollectGarbageInternal decides to run a different Gc than you requested. Returns
   // which type of Gc was actually ran.
-  collector::GcType CollectGarbageInternal(collector::GcType gc_plan, GcCause gc_cause,
+  collector::GcType CollectGarbageInternal(collector::GcType gc_plan,
+                                           GcCause gc_cause,
                                            bool clear_soft_references)
       REQUIRES(!*gc_complete_lock_, !Locks::heap_bitmap_lock_, !Locks::thread_suspend_count_lock_,
                !*pending_task_lock_);
@@ -862,13 +902,18 @@ class Heap {
   HomogeneousSpaceCompactResult PerformHomogeneousSpaceCompact() REQUIRES(!*gc_complete_lock_);
 
   // Create the main free list malloc space, either a RosAlloc space or DlMalloc space.
-  void CreateMainMallocSpace(MemMap* mem_map, size_t initial_size, size_t growth_limit,
+  void CreateMainMallocSpace(MemMap* mem_map,
+                             size_t initial_size,
+                             size_t growth_limit,
                              size_t capacity);
 
   // Create a malloc space based on a mem map. Does not set the space as default.
-  space::MallocSpace* CreateMallocSpaceFromMemMap(MemMap* mem_map, size_t initial_size,
-                                                  size_t growth_limit, size_t capacity,
-                                                  const char* name, bool can_move_objects);
+  space::MallocSpace* CreateMallocSpaceFromMemMap(MemMap* mem_map,
+                                                  size_t initial_size,
+                                                  size_t growth_limit,
+                                                  size_t capacity,
+                                                  const char* name,
+                                                  bool can_move_objects);
 
   // Given the current contents of the alloc space, increase the allowed heap footprint to match
   // the target utilization ratio.  This should only be called immediately after a full garbage
@@ -883,21 +928,26 @@ class Heap {
       SHARED_REQUIRES(Locks::heap_bitmap_lock_);
 
   // Swap the allocation stack with the live stack.
-  void SwapStacks(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_);
+  void SwapStacks() SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Clear cards and update the mod union table. When process_alloc_space_cards is true,
   // if clear_alloc_space_cards is true, then we clear cards instead of ageing them. We do
   // not process the alloc space if process_alloc_space_cards is false.
-  void ProcessCards(TimingLogger* timings, bool use_rem_sets, bool process_alloc_space_cards,
+  void ProcessCards(TimingLogger* timings,
+                    bool use_rem_sets,
+                    bool process_alloc_space_cards,
                     bool clear_alloc_space_cards);
 
   // Push an object onto the allocation stack.
   void PushOnAllocationStack(Thread* self, mirror::Object** obj)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!*gc_complete_lock_, !*pending_task_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!*gc_complete_lock_, !*pending_task_lock_);
   void PushOnAllocationStackWithInternalGC(Thread* self, mirror::Object** obj)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!*gc_complete_lock_, !*pending_task_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!*gc_complete_lock_, !*pending_task_lock_);
   void PushOnThreadLocalAllocationStackWithInternalGC(Thread* thread, mirror::Object** obj)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!*gc_complete_lock_, !*pending_task_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!*gc_complete_lock_, !*pending_task_lock_);
 
   void ClearConcurrentGCRequest();
   void ClearPendingTrim(Thread* self) REQUIRES(!*pending_task_lock_);
@@ -1257,7 +1307,6 @@ class Heap {
   friend class VerifyReferenceCardVisitor;
   friend class VerifyReferenceVisitor;
   friend class VerifyObjectVisitor;
-  friend class ScopedHeapFill;
   friend class space::SpaceTest;
 
   class AllocationTimer {
