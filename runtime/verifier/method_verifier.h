@@ -283,6 +283,10 @@ class MethodVerifier {
     return (method_access_flags_ & kAccStatic) != 0;
   }
 
+  bool IsInstanceConstructor() const {
+    return IsConstructor() && !IsStatic();
+  }
+
   SafeMap<uint32_t, std::set<uint32_t>>& GetStringInitPcRegMap() {
     return string_init_pc_reg_map_;
   }

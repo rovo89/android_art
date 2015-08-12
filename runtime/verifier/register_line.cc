@@ -25,59 +25,23 @@
 namespace art {
 namespace verifier {
 
-bool RegisterLine::WasUninitializedThisOverwritten(MethodVerifier* verifier,
-                                                   size_t this_loc,
-                                                   bool was_invoke_direct) const {
-  DCHECK(verifier->IsConstructor());
-
-  // Is the UnintializedThis type still there?
-  if (GetRegisterType(verifier, this_loc).IsUninitializedThisReference() ||
-      GetRegisterType(verifier, this_loc).IsUnresolvedAndUninitializedThisReference()) {
-    return false;
-  }
-
-  // If there is an initialized reference here now, did we just perform an invoke-direct? Note that
-  // this is the correct approach for dex bytecode: results of invoke-direct are stored in the
-  // result register. Overwriting "this_loc" can only be done by a constructor call.
-  if (GetRegisterType(verifier, this_loc).IsReferenceTypes() && was_invoke_direct) {
-    return false;
-    // Otherwise we could have just copied a different initialized reference to this location.
-  }
-
-  // The UnintializedThis in the register is gone, so check to see if it's somewhere else now.
-  for (size_t i = 0; i < num_regs_; i++) {
-    if (GetRegisterType(verifier, i).IsUninitializedThisReference() ||
-        GetRegisterType(verifier, i).IsUnresolvedAndUninitializedThisReference()) {
-      // We found it somewhere else...
-      return false;
-    }
-  }
-
-  // The UninitializedThis is gone from the original register, and now we can't find it.
-  return true;
-}
-
-bool RegisterLine::GetUninitializedThisLoc(MethodVerifier* verifier, size_t* vreg) const {
-  for (size_t i = 0; i < num_regs_; i++) {
-    if (GetRegisterType(verifier, i).IsUninitializedThisReference() ||
-        GetRegisterType(verifier, i).IsUnresolvedAndUninitializedThisReference()) {
-      *vreg = i;
-      return true;
-    }
-  }
-  return false;
-}
-
 bool RegisterLine::CheckConstructorReturn(MethodVerifier* verifier) const {
-  for (size_t i = 0; i < num_regs_; i++) {
-    if (GetRegisterType(verifier, i).IsUninitializedThisReference() ||
-        GetRegisterType(verifier, i).IsUnresolvedAndUninitializedThisReference()) {
-      verifier->Fail(VERIFY_ERROR_BAD_CLASS_SOFT)
-          << "Constructor returning without calling superclass constructor";
-      return false;
+  if (kIsDebugBuild && this_initialized_) {
+    // Ensure that there is no UninitializedThisReference type anymore if this_initialized_ is true.
+    for (size_t i = 0; i < num_regs_; i++) {
+      const RegType& type = GetRegisterType(verifier, i);
+      CHECK(!type.IsUninitializedThisReference() &&
+            !type.IsUnresolvedAndUninitializedThisReference())
+          << i << ": " << type.IsUninitializedThisReference() << " in "
+          << PrettyMethod(verifier->GetMethodReference().dex_method_index,
+                          *verifier->GetMethodReference().dex_file);
     }
   }
-  return true;
+  if (!this_initialized_) {
+    verifier->Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+        << "Constructor returning without calling superclass constructor";
+  }
+  return this_initialized_;
 }
 
 const RegType& RegisterLine::GetInvocationThis(MethodVerifier* verifier, const Instruction* inst,
@@ -147,6 +111,11 @@ void RegisterLine::MarkRefsAsInitialized(MethodVerifier* verifier, const RegType
         }
       }
     }
+  }
+  // Is this initializing "this"?
+  if (uninit_type.IsUninitializedThisReference() ||
+      uninit_type.IsUnresolvedAndUninitializedThisReference()) {
+    this_initialized_ = true;
   }
   DCHECK_GT(changed, 0u);
 }
@@ -431,6 +400,11 @@ bool RegisterLine::MergeRegisters(MethodVerifier* verifier, const RegisterLine* 
         }
       }
     }
+  }
+  // Check whether "this" was initialized in both paths.
+  if (this_initialized_ && !incoming_line->this_initialized_) {
+    this_initialized_ = false;
+    changed = true;
   }
   return changed;
 }
