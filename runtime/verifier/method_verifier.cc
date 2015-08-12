@@ -107,7 +107,7 @@ ALWAYS_INLINE static inline bool FailOrAbort(MethodVerifier* verifier, bool cond
 }
 
 static void SafelyMarkAllRegistersAsConflicts(MethodVerifier* verifier, RegisterLine* reg_line) {
-  if (verifier->IsConstructor()) {
+  if (verifier->IsInstanceConstructor()) {
     // Before we mark all regs as conflicts, check that we don't have an uninitialized this.
     reg_line->CheckConstructorReturn(verifier);
   }
@@ -1329,9 +1329,15 @@ bool MethodVerifier::SetTypesFromSignature() {
     // argument as uninitialized. This restricts field access until the superclass constructor is
     // called.
     const RegType& declaring_class = GetDeclaringClass();
-    if (IsConstructor() && !declaring_class.IsJavaLangObject()) {
-      reg_line->SetRegisterType(this, arg_start + cur_arg,
-                                reg_types_.UninitializedThisArgument(declaring_class));
+    if (IsConstructor()) {
+      if (declaring_class.IsJavaLangObject()) {
+        // "this" is implicitly initialized.
+        reg_line->SetThisInitialized();
+        reg_line->SetRegisterType(this, arg_start + cur_arg, declaring_class);
+      } else {
+        reg_line->SetRegisterType(this, arg_start + cur_arg,
+                                  reg_types_.UninitializedThisArgument(declaring_class));
+      }
     } else {
       reg_line->SetRegisterType(this, arg_start + cur_arg, declaring_class);
     }
@@ -1654,16 +1660,6 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   std::unique_ptr<RegisterLine> branch_line;
   std::unique_ptr<RegisterLine> fallthrough_line;
 
-  /*
-   * If we are in a constructor, and we currently have an UninitializedThis type
-   * in a register somewhere, we need to make sure it isn't overwritten.
-   */
-  bool track_uninitialized_this = false;
-  size_t uninitialized_this_loc = 0;
-  if (IsConstructor()) {
-    track_uninitialized_this = work_line_->GetUninitializedThisLoc(this, &uninitialized_this_loc);
-  }
-
   switch (inst->Opcode()) {
     case Instruction::NOP:
       /*
@@ -1741,14 +1737,14 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       break;
     }
     case Instruction::RETURN_VOID:
-      if (!IsConstructor() || work_line_->CheckConstructorReturn(this)) {
+      if (!IsInstanceConstructor() || work_line_->CheckConstructorReturn(this)) {
         if (!GetMethodReturnType().IsConflict()) {
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "return-void not expected";
         }
       }
       break;
     case Instruction::RETURN:
-      if (!IsConstructor() || work_line_->CheckConstructorReturn(this)) {
+      if (!IsInstanceConstructor() || work_line_->CheckConstructorReturn(this)) {
         /* check the method signature */
         const RegType& return_type = GetMethodReturnType();
         if (!return_type.IsCategory1Types()) {
@@ -1773,7 +1769,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       }
       break;
     case Instruction::RETURN_WIDE:
-      if (!IsConstructor() || work_line_->CheckConstructorReturn(this)) {
+      if (!IsInstanceConstructor() || work_line_->CheckConstructorReturn(this)) {
         /* check the method signature */
         const RegType& return_type = GetMethodReturnType();
         if (!return_type.IsCategory2Types()) {
@@ -1789,7 +1785,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       }
       break;
     case Instruction::RETURN_OBJECT:
-      if (!IsConstructor() || work_line_->CheckConstructorReturn(this)) {
+      if (!IsInstanceConstructor() || work_line_->CheckConstructorReturn(this)) {
         const RegType& return_type = GetMethodReturnType();
         if (!return_type.IsReferenceTypes()) {
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "return-object not expected";
@@ -2911,20 +2907,6 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
      * complain if an instruction is missing (which is desirable).
      */
   }  // end - switch (dec_insn.opcode)
-
-  /*
-   * If we are in a constructor, and we had an UninitializedThis type
-   * in a register somewhere, we need to make sure it wasn't overwritten.
-   */
-  if (track_uninitialized_this) {
-    bool was_invoke_direct = (inst->Opcode() == Instruction::INVOKE_DIRECT ||
-                              inst->Opcode() == Instruction::INVOKE_DIRECT_RANGE);
-    if (work_line_->WasUninitializedThisOverwritten(this, uninitialized_this_loc,
-                                                    was_invoke_direct)) {
-      Fail(VERIFY_ERROR_BAD_CLASS_HARD)
-          << "Constructor failed to initialize this object";
-    }
-  }
 
   if (have_pending_hard_failure_) {
     if (Runtime::Current()->IsAotCompiler()) {
@@ -4268,6 +4250,10 @@ bool MethodVerifier::UpdateRegisters(uint32_t next_insn, RegisterLine* merge_lin
       const Instruction* ret_inst = Instruction::At(code_item_->insns_ + next_insn);
       Instruction::Code opcode = ret_inst->Opcode();
       if (opcode == Instruction::RETURN_VOID || opcode == Instruction::RETURN_VOID_NO_BARRIER) {
+        // Explicitly copy the this-initialized flag from the merge-line, as we didn't copy its
+        // state. Must be done before SafelyMarkAllRegistersAsConflicts as that will do the
+        // super-constructor-call checking.
+        target_line->CopyThisInitialized(*merge_line);
         SafelyMarkAllRegistersAsConflicts(this, target_line);
       } else {
         target_line->CopyFromLine(merge_line);
