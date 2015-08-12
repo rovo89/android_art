@@ -67,7 +67,6 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
     // non moving space). This can happen if there is significant virtual address space
     // fragmentation.
   }
-  AllocationTimer alloc_timer(this, &obj);
   // bytes allocated for the (individual) object.
   size_t bytes_allocated;
   size_t usable_size;
@@ -384,22 +383,6 @@ inline mirror::Object* Heap::TryToAllocate(Thread* self,
     }
   }
   return ret;
-}
-
-inline Heap::AllocationTimer::AllocationTimer(Heap* heap, mirror::Object** allocated_obj_ptr)
-    : heap_(heap), allocated_obj_ptr_(allocated_obj_ptr),
-      allocation_start_time_(kMeasureAllocationTime ? NanoTime() / kTimeAdjust : 0u) { }
-
-inline Heap::AllocationTimer::~AllocationTimer() {
-  if (kMeasureAllocationTime) {
-    mirror::Object* allocated_obj = *allocated_obj_ptr_;
-    // Only if the allocation succeeded, record the time.
-    if (allocated_obj != nullptr) {
-      uint64_t allocation_end_time = NanoTime() / kTimeAdjust;
-      heap_->total_allocation_time_.FetchAndAddSequentiallyConsistent(
-          allocation_end_time - allocation_start_time_);
-    }
-  }
 }
 
 inline bool Heap::ShouldAllocLargeObject(mirror::Class* c, size_t byte_count) const {
