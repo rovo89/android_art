@@ -1215,23 +1215,33 @@ class HUserRecord : public ValueObject {
 };
 
 /**
- * Side-effects representation for write/read dependences on fields/arrays.
+ * Side-effects representation.
  *
- * The dependence analysis uses type disambiguation (e.g. a float field write
- * cannot modify the value of an integer field read) and the access type (e.g.
- * a reference array write cannot modify the value of a reference field read
- * [although it may modify the reference fetch prior to reading the field,
- * which is represented by its own write/read dependence]). The analysis
- * makes conservative points-to assumptions on reference types (e.g. two same
- * typed arrays are assumed to be the same, and any reference read depends
- * on any reference read without further regard of its type).
+ * For write/read dependences on fields/arrays, the dependence analysis uses
+ * type disambiguation (e.g. a float field write cannot modify the value of an
+ * integer field read) and the access type (e.g.  a reference array write cannot
+ * modify the value of a reference field read [although it may modify the
+ * reference fetch prior to reading the field, which is represented by its own
+ * write/read dependence]). The analysis makes conservative points-to
+ * assumptions on reference types (e.g. two same typed arrays are assumed to be
+ * the same, and any reference read depends on any reference read without
+ * further regard of its type).
  *
- * The internal representation uses the following 36-bit flags assignments:
+ * The internal representation uses 38-bit and is described in the table below.
+ * The first line indicates the side effect, and for field/array accesses the
+ * second line indicates the type of the access (in the order of the
+ * Primitive::Type enum).
+ * The two numbered lines below indicate the bit position in the bitfield (read
+ * vertically).
  *
- *   |ARRAY-R  |FIELD-R  |ARRAY-W  |FIELD-W  |
- *   +---------+---------+---------+---------+
- *   |543210987|654321098|765432109|876543210|
- *   |DFJISCBZL|DFJISCBZL|DFJISCBZL|DFJISCBZL|
+ *   |Depends on GC|ARRAY-R  |FIELD-R  |Can trigger GC|ARRAY-W  |FIELD-W  |
+ *   +-------------+---------+---------+--------------+---------+---------+
+ *   |             |DFJISCBZL|DFJISCBZL|              |DFJISCBZL|DFJISCBZL|
+ *   |      3      |333333322|222222221|       1      |111111110|000000000|
+ *   |      7      |654321098|765432109|       8      |765432109|876543210|
+ *
+ * Note that, to ease the implementation, 'changes' bits are least significant
+ * bits, while 'dependency' bits are most significant bits.
  */
 class SideEffects : public ValueObject {
  public:
@@ -1242,6 +1252,22 @@ class SideEffects : public ValueObject {
   }
 
   static SideEffects All() {
+    return SideEffects(kAllChangeBits | kAllDependOnBits);
+  }
+
+  static SideEffects AllChanges() {
+    return SideEffects(kAllChangeBits);
+  }
+
+  static SideEffects AllDependencies() {
+    return SideEffects(kAllDependOnBits);
+  }
+
+  static SideEffects AllExceptGCDependency() {
+    return AllWritesAndReads().Union(SideEffects::CanTriggerGC());
+  }
+
+  static SideEffects AllWritesAndReads() {
     return SideEffects(kAllWrites | kAllReads);
   }
 
@@ -1255,7 +1281,7 @@ class SideEffects : public ValueObject {
 
   static SideEffects FieldWriteOfType(Primitive::Type type, bool is_volatile) {
     return is_volatile
-        ? All()
+        ? AllWritesAndReads()
         : SideEffects(TypeFlagWithAlias(type, kFieldWriteOffset));
   }
 
@@ -1265,7 +1291,7 @@ class SideEffects : public ValueObject {
 
   static SideEffects FieldReadOfType(Primitive::Type type, bool is_volatile) {
     return is_volatile
-        ? All()
+        ? AllWritesAndReads()
         : SideEffects(TypeFlagWithAlias(type, kFieldReadOffset));
   }
 
@@ -1273,9 +1299,38 @@ class SideEffects : public ValueObject {
     return SideEffects(TypeFlagWithAlias(type, kArrayReadOffset));
   }
 
+  static SideEffects CanTriggerGC() {
+    return SideEffects(1ULL << kCanTriggerGCBit);
+  }
+
+  static SideEffects DependsOnGC() {
+    return SideEffects(1ULL << kDependsOnGCBit);
+  }
+
   // Combines the side-effects of this and the other.
   SideEffects Union(SideEffects other) const {
     return SideEffects(flags_ | other.flags_);
+  }
+
+  SideEffects Exclusion(SideEffects other) const {
+    return SideEffects(flags_ & ~other.flags_);
+  }
+
+  bool Includes(SideEffects other) const {
+    return (other.flags_ & flags_) == other.flags_;
+  }
+
+  bool HasSideEffects() const {
+    return (flags_ & kAllChangeBits);
+  }
+
+  bool HasDependencies() const {
+    return (flags_ & kAllDependOnBits);
+  }
+
+  // Returns true if there are no side effects or dependencies.
+  bool DoesNothing() const {
+    return flags_ == 0;
   }
 
   // Returns true if something is written.
@@ -1288,47 +1343,81 @@ class SideEffects : public ValueObject {
     return (flags_ & kAllReads);
   }
 
-  // Returns true if nothing is written or read.
-  bool DoesNothing() const {
-    return flags_ == 0;
-  }
-
   // Returns true if potentially everything is written and read
   // (every type and every kind of access).
+  bool DoesAllReadWrite() const {
+    return (flags_ & (kAllWrites | kAllReads)) == (kAllWrites | kAllReads);
+  }
+
   bool DoesAll() const {
-    return flags_ == (kAllWrites | kAllReads);
+    return flags_ == (kAllChangeBits | kAllDependOnBits);
   }
 
   // Returns true if this may read something written by other.
   bool MayDependOn(SideEffects other) const {
-    const uint64_t reads = (flags_ & kAllReads) >> kFieldReadOffset;
-    return (other.flags_ & reads);
+    const uint64_t depends_on_flags = (flags_ & kAllDependOnBits) >> kChangeBits;
+    return (other.flags_ & depends_on_flags);
   }
 
   // Returns string representation of flags (for debugging only).
-  // Format: |DFJISCBZL|DFJISCBZL|DFJISCBZL|DFJISCBZL|
+  // Format: |x|DFJISCBZL|DFJISCBZL|y|DFJISCBZL|DFJISCBZL|
   std::string ToString() const {
-    static const char *kDebug = "LZBCSIJFD";
     std::string flags = "|";
-    for (int s = 35; s >= 0; s--) {
-      const int t = s % kBits;
-      if ((flags_ >> s) & 1)
-        flags += kDebug[t];
-      if (t == 0)
+    for (int s = kLastBit; s >= 0; s--) {
+      bool current_bit_is_set = ((flags_ >> s) & 1) != 0;
+      if ((s == kDependsOnGCBit) || (s == kCanTriggerGCBit)) {
+        // This is a bit for the GC side effect.
+        if (current_bit_is_set) {
+          flags += "GC";
+        }
         flags += "|";
+      } else {
+        // This is a bit for the array/field analysis.
+        // The underscore character stands for the 'can trigger GC' bit.
+        static const char *kDebug = "LZBCSIJFDLZBCSIJFD_LZBCSIJFDLZBCSIJFD";
+        if (current_bit_is_set) {
+          flags += kDebug[s];
+        }
+        if ((s == kFieldWriteOffset) || (s == kArrayWriteOffset) ||
+            (s == kFieldReadOffset) || (s == kArrayReadOffset)) {
+          flags += "|";
+        }
+      }
     }
     return flags;
   }
 
- private:
-  static constexpr int kBits = 9;
-  static constexpr int kFieldWriteOffset = 0 * kBits;
-  static constexpr int kArrayWriteOffset = 1 * kBits;
-  static constexpr int kFieldReadOffset  = 2 * kBits;
-  static constexpr int kArrayReadOffset  = 3 * kBits;
+  bool Equals(const SideEffects& other) const { return flags_ == other.flags_; }
 
-  static constexpr uint64_t kAllWrites = 0x0003ffff;
-  static constexpr uint64_t kAllReads  = kAllWrites << kFieldReadOffset;
+ private:
+  static constexpr int kFieldArrayAnalysisBits = 9;
+
+  static constexpr int kFieldWriteOffset = 0;
+  static constexpr int kArrayWriteOffset = kFieldWriteOffset + kFieldArrayAnalysisBits;
+  static constexpr int kLastBitForWrites = kArrayWriteOffset + kFieldArrayAnalysisBits - 1;
+  static constexpr int kCanTriggerGCBit = kLastBitForWrites + 1;
+
+  static constexpr int kChangeBits = kCanTriggerGCBit + 1;
+
+  static constexpr int kFieldReadOffset = kCanTriggerGCBit + 1;
+  static constexpr int kArrayReadOffset = kFieldReadOffset + kFieldArrayAnalysisBits;
+  static constexpr int kLastBitForReads = kArrayReadOffset + kFieldArrayAnalysisBits - 1;
+  static constexpr int kDependsOnGCBit = kLastBitForReads + 1;
+
+  static constexpr int kLastBit = kDependsOnGCBit;
+  static constexpr int kDependOnBits = kLastBit + 1 - kChangeBits;
+
+  // Aliases.
+
+  static_assert(kChangeBits == kDependOnBits,
+                "the 'change' bits should match the 'depend on' bits.");
+
+  static constexpr uint64_t kAllChangeBits = ((1ULL << kChangeBits) - 1);
+  static constexpr uint64_t kAllDependOnBits = ((1ULL << kDependOnBits) - 1) << kChangeBits;
+  static constexpr uint64_t kAllWrites =
+      ((1ULL << (kLastBitForWrites + 1 - kFieldWriteOffset)) - 1) << kFieldWriteOffset;
+  static constexpr uint64_t kAllReads =
+      ((1ULL << (kLastBitForReads + 1 - kFieldReadOffset)) - 1) << kFieldReadOffset;
 
   // Work around the fact that HIR aliases I/F and J/D.
   // TODO: remove this interceptor once HIR types are clean
@@ -1610,6 +1699,7 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
   virtual bool IsControlFlow() const { return false; }
   virtual bool CanThrow() const { return false; }
 
+  bool HasSideEffects() const { return side_effects_.HasSideEffects(); }
   bool DoesAnyWrite() const { return side_effects_.DoesAnyWrite(); }
 
   // Does not apply for all instructions, but having this at top level greatly
@@ -2302,7 +2392,9 @@ class HBinaryOperation : public HExpression<2> {
  public:
   HBinaryOperation(Primitive::Type result_type,
                    HInstruction* left,
-                   HInstruction* right) : HExpression(result_type, SideEffects::None()) {
+                   HInstruction* right,
+                   SideEffects side_effects = SideEffects::None())
+      : HExpression(result_type, side_effects) {
     SetRawInputAt(0, left);
     SetRawInputAt(1, right);
   }
@@ -2626,7 +2718,9 @@ class HCompare : public HBinaryOperation {
            HInstruction* second,
            ComparisonBias bias,
            uint32_t dex_pc)
-      : HBinaryOperation(Primitive::kPrimInt, first, second), bias_(bias), dex_pc_(dex_pc) {
+      : HBinaryOperation(Primitive::kPrimInt, first, second, SideEffectsForArchRuntimeCalls(type)),
+        bias_(bias),
+        dex_pc_(dex_pc) {
     DCHECK_EQ(type, first->GetType());
     DCHECK_EQ(type, second->GetType());
   }
@@ -2649,7 +2743,12 @@ class HCompare : public HBinaryOperation {
 
   bool IsGtBias() { return bias_ == ComparisonBias::kGtBias; }
 
-  uint32_t GetDexPc() const { return dex_pc_; }
+  uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
+
+  static SideEffects SideEffectsForArchRuntimeCalls(Primitive::Type type) {
+    // MIPS64 uses a runtime call for FP comparisons.
+    return Primitive::IsFloatingPointType(type) ? SideEffects::CanTriggerGC() : SideEffects::None();
+  }
 
   DECLARE_INSTRUCTION(Compare);
 
@@ -2851,7 +2950,8 @@ class HInvoke : public HInstruction {
           uint32_t dex_pc,
           uint32_t dex_method_index,
           InvokeType original_invoke_type)
-    : HInstruction(SideEffects::All()),  // assume write/read on all fields/arrays
+    : HInstruction(
+          SideEffects::AllExceptGCDependency()),  // Assume write/read on all fields/arrays.
       number_of_arguments_(number_of_arguments),
       inputs_(arena, number_of_arguments),
       return_type_(return_type),
@@ -3068,7 +3168,7 @@ class HNewInstance : public HExpression<1> {
                uint16_t type_index,
                const DexFile& dex_file,
                QuickEntrypointEnum entrypoint)
-      : HExpression(Primitive::kPrimNot, SideEffects::None()),
+      : HExpression(Primitive::kPrimNot, SideEffects::CanTriggerGC()),
         dex_pc_(dex_pc),
         type_index_(type_index),
         dex_file_(dex_file),
@@ -3131,7 +3231,7 @@ class HNewArray : public HExpression<2> {
             uint16_t type_index,
             const DexFile& dex_file,
             QuickEntrypointEnum entrypoint)
-      : HExpression(Primitive::kPrimNot, SideEffects::None()),
+      : HExpression(Primitive::kPrimNot, SideEffects::CanTriggerGC()),
         dex_pc_(dex_pc),
         type_index_(type_index),
         dex_file_(dex_file),
@@ -3232,7 +3332,8 @@ class HMul : public HBinaryOperation {
 class HDiv : public HBinaryOperation {
  public:
   HDiv(Primitive::Type result_type, HInstruction* left, HInstruction* right, uint32_t dex_pc)
-      : HBinaryOperation(result_type, left, right), dex_pc_(dex_pc) {}
+      : HBinaryOperation(result_type, left, right, SideEffectsForArchRuntimeCalls()),
+        dex_pc_(dex_pc) {}
 
   template <typename T>
   T Compute(T x, T y) const {
@@ -3252,6 +3353,11 @@ class HDiv : public HBinaryOperation {
 
   uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
 
+  static SideEffects SideEffectsForArchRuntimeCalls() {
+    // The generated code can use a runtime call.
+    return SideEffects::CanTriggerGC();
+  }
+
   DECLARE_INSTRUCTION(Div);
 
  private:
@@ -3263,7 +3369,8 @@ class HDiv : public HBinaryOperation {
 class HRem : public HBinaryOperation {
  public:
   HRem(Primitive::Type result_type, HInstruction* left, HInstruction* right, uint32_t dex_pc)
-      : HBinaryOperation(result_type, left, right), dex_pc_(dex_pc) {}
+      : HBinaryOperation(result_type, left, right, SideEffectsForArchRuntimeCalls()),
+        dex_pc_(dex_pc) {}
 
   template <typename T>
   T Compute(T x, T y) const {
@@ -3282,6 +3389,10 @@ class HRem : public HBinaryOperation {
   }
 
   uint32_t GetDexPc() const OVERRIDE { return dex_pc_; }
+
+  static SideEffects SideEffectsForArchRuntimeCalls() {
+    return SideEffects::CanTriggerGC();
+  }
 
   DECLARE_INSTRUCTION(Rem);
 
@@ -3593,7 +3704,8 @@ class HTypeConversion : public HExpression<1> {
  public:
   // Instantiate a type conversion of `input` to `result_type`.
   HTypeConversion(Primitive::Type result_type, HInstruction* input, uint32_t dex_pc)
-      : HExpression(result_type, SideEffects::None()), dex_pc_(dex_pc) {
+      : HExpression(result_type, SideEffectsForArchRuntimeCalls(input->GetType(), result_type)),
+        dex_pc_(dex_pc) {
     SetRawInputAt(0, input);
     DCHECK_NE(input->GetType(), result_type);
   }
@@ -3612,6 +3724,19 @@ class HTypeConversion : public HExpression<1> {
   // Try to statically evaluate the conversion and return a HConstant
   // containing the result.  If the input cannot be converted, return nullptr.
   HConstant* TryStaticEvaluation() const;
+
+  static SideEffects SideEffectsForArchRuntimeCalls(Primitive::Type input_type,
+                                                    Primitive::Type result_type) {
+    // Some architectures may not require the 'GC' side effects, but at this point
+    // in the compilation process we do not know what architecture we will
+    // generate code for, so we must be conservative.
+    if (((input_type == Primitive::kPrimFloat || input_type == Primitive::kPrimDouble)
+         && result_type == Primitive::kPrimLong)
+        || (input_type == Primitive::kPrimLong && result_type == Primitive::kPrimFloat)) {
+      return SideEffects::CanTriggerGC();
+    }
+    return SideEffects::None();
+  }
 
   DECLARE_INSTRUCTION(TypeConversion);
 
@@ -3879,7 +4004,9 @@ class HArraySet : public HTemplateInstruction<3> {
             HInstruction* value,
             Primitive::Type expected_component_type,
             uint32_t dex_pc)
-      : HTemplateInstruction(SideEffects::ArrayWriteOfType(expected_component_type)),
+      : HTemplateInstruction(
+            SideEffects::ArrayWriteOfType(expected_component_type).Union(
+                SideEffectsForArchRuntimeCalls(value->GetType()))),
         dex_pc_(dex_pc),
         expected_component_type_(expected_component_type),
         needs_type_check_(value->GetType() == Primitive::kPrimNot),
@@ -3930,6 +4057,10 @@ class HArraySet : public HTemplateInstruction<3> {
     return ((value_type == Primitive::kPrimFloat) || (value_type == Primitive::kPrimDouble))
         ? value_type
         : expected_component_type_;
+  }
+
+  static SideEffects SideEffectsForArchRuntimeCalls(Primitive::Type value_type) {
+    return (value_type == Primitive::kPrimNot) ? SideEffects::CanTriggerGC() : SideEffects::None();
   }
 
   DECLARE_INSTRUCTION(ArraySet);
@@ -4026,7 +4157,7 @@ class HTemporary : public HTemplateInstruction<0> {
 class HSuspendCheck : public HTemplateInstruction<0> {
  public:
   explicit HSuspendCheck(uint32_t dex_pc)
-      : HTemplateInstruction(SideEffects::None()), dex_pc_(dex_pc), slow_path_(nullptr) {}
+      : HTemplateInstruction(SideEffects::CanTriggerGC()), dex_pc_(dex_pc), slow_path_(nullptr) {}
 
   bool NeedsEnvironment() const OVERRIDE {
     return true;
@@ -4058,7 +4189,7 @@ class HLoadClass : public HExpression<1> {
              const DexFile& dex_file,
              bool is_referrers_class,
              uint32_t dex_pc)
-      : HExpression(Primitive::kPrimNot, SideEffects::None()),
+      : HExpression(Primitive::kPrimNot, SideEffectsForArchRuntimeCalls()),
         type_index_(type_index),
         dex_file_(dex_file),
         is_referrers_class_(is_referrers_class),
@@ -4119,6 +4250,10 @@ class HLoadClass : public HExpression<1> {
 
   bool NeedsDexCache() const OVERRIDE { return !is_referrers_class_; }
 
+  static SideEffects SideEffectsForArchRuntimeCalls() {
+    return SideEffects::CanTriggerGC();
+  }
+
   DECLARE_INSTRUCTION(LoadClass);
 
  private:
@@ -4138,7 +4273,7 @@ class HLoadClass : public HExpression<1> {
 class HLoadString : public HExpression<1> {
  public:
   HLoadString(HCurrentMethod* current_method, uint32_t string_index, uint32_t dex_pc)
-      : HExpression(Primitive::kPrimNot, SideEffects::None()),
+      : HExpression(Primitive::kPrimNot, SideEffectsForArchRuntimeCalls()),
         string_index_(string_index),
         dex_pc_(dex_pc) {
     SetRawInputAt(0, current_method);
@@ -4159,6 +4294,10 @@ class HLoadString : public HExpression<1> {
   bool NeedsEnvironment() const OVERRIDE { return false; }
   bool NeedsDexCache() const OVERRIDE { return true; }
 
+  static SideEffects SideEffectsForArchRuntimeCalls() {
+    return SideEffects::CanTriggerGC();
+  }
+
   DECLARE_INSTRUCTION(LoadString);
 
  private:
@@ -4175,8 +4314,8 @@ class HClinitCheck : public HExpression<1> {
  public:
   explicit HClinitCheck(HLoadClass* constant, uint32_t dex_pc)
       : HExpression(
-          Primitive::kPrimNot,
-          SideEffects::AllWrites()),  // assume write on all fields/arrays
+            Primitive::kPrimNot,
+            SideEffects::AllChanges()),  // Assume write/read on all fields/arrays.
         dex_pc_(dex_pc) {
     SetRawInputAt(0, constant);
   }
@@ -4305,7 +4444,7 @@ class HClearException : public HTemplateInstruction<0> {
 class HThrow : public HTemplateInstruction<1> {
  public:
   HThrow(HInstruction* exception, uint32_t dex_pc)
-      : HTemplateInstruction(SideEffects::None()), dex_pc_(dex_pc) {
+      : HTemplateInstruction(SideEffects::CanTriggerGC()), dex_pc_(dex_pc) {
     SetRawInputAt(0, exception);
   }
 
@@ -4331,7 +4470,7 @@ class HInstanceOf : public HExpression<2> {
               HLoadClass* constant,
               bool class_is_final,
               uint32_t dex_pc)
-      : HExpression(Primitive::kPrimBoolean, SideEffects::None()),
+      : HExpression(Primitive::kPrimBoolean, SideEffectsForArchRuntimeCalls(class_is_final)),
         class_is_final_(class_is_final),
         must_do_null_check_(true),
         dex_pc_(dex_pc) {
@@ -4356,6 +4495,10 @@ class HInstanceOf : public HExpression<2> {
   // Used only in code generation.
   bool MustDoNullCheck() const { return must_do_null_check_; }
   void ClearMustDoNullCheck() { must_do_null_check_ = false; }
+
+  static SideEffects SideEffectsForArchRuntimeCalls(bool class_is_final) {
+    return class_is_final ? SideEffects::None() : SideEffects::CanTriggerGC();
+  }
 
   DECLARE_INSTRUCTION(InstanceOf);
 
@@ -4416,7 +4559,7 @@ class HCheckCast : public HTemplateInstruction<2> {
              HLoadClass* constant,
              bool class_is_final,
              uint32_t dex_pc)
-      : HTemplateInstruction(SideEffects::None()),
+      : HTemplateInstruction(SideEffects::CanTriggerGC()),
         class_is_final_(class_is_final),
         must_do_null_check_(true),
         dex_pc_(dex_pc) {
@@ -4458,7 +4601,7 @@ class HMemoryBarrier : public HTemplateInstruction<0> {
  public:
   explicit HMemoryBarrier(MemBarrierKind barrier_kind)
       : HTemplateInstruction(
-          SideEffects::All()),  // assume write/read on all fields/arrays
+            SideEffects::AllWritesAndReads()),  // Assume write/read on all fields/arrays.
         barrier_kind_(barrier_kind) {}
 
   MemBarrierKind GetBarrierKind() { return barrier_kind_; }
@@ -4479,7 +4622,8 @@ class HMonitorOperation : public HTemplateInstruction<1> {
   };
 
   HMonitorOperation(HInstruction* object, OperationKind kind, uint32_t dex_pc)
-    : HTemplateInstruction(SideEffects::All()),  // assume write/read on all fields/arrays
+    : HTemplateInstruction(
+          SideEffects::AllExceptGCDependency()),  // Assume write/read on all fields/arrays.
       kind_(kind), dex_pc_(dex_pc) {
     SetRawInputAt(0, object);
   }

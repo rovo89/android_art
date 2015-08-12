@@ -47,8 +47,8 @@ void SideEffectsAnalysis::Run() {
          inst_it.Advance()) {
       HInstruction* instruction = inst_it.Current();
       effects = effects.Union(instruction->GetSideEffects());
-      // If every possible write/read is represented, scanning further
-      // will not add any more information to side-effects of this block.
+      // If all side effects are represented, scanning further will not add any
+      // more information to side-effects of this block.
       if (effects.DoesAll()) {
         break;
       }
