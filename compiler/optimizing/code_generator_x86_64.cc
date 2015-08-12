@@ -104,7 +104,7 @@ class DivRemMinusOneSlowPathX86_64 : public SlowPathCodeX86_64 {
       if (is_div_) {
         __ negl(cpu_reg_);
       } else {
-        __ movl(cpu_reg_, Immediate(0));
+        __ xorl(cpu_reg_, cpu_reg_);
       }
 
     } else {
@@ -749,8 +749,7 @@ void CodeGeneratorX86_64::Move(Location destination, Location source) {
         DCHECK(constant->IsLongConstant());
         value = constant->AsLongConstant()->GetValue();
       }
-      Load64BitValue(CpuRegister(TMP), value);
-      __ movq(Address(CpuRegister(RSP), destination.GetStackIndex()), CpuRegister(TMP));
+      Store64BitValueToStack(destination, value);
     } else {
       DCHECK(source.IsDoubleStackSlot());
       __ movq(CpuRegister(TMP), Address(CpuRegister(RSP), source.GetStackIndex()));
@@ -784,8 +783,7 @@ void CodeGeneratorX86_64::Move(HInstruction* instruction,
       if (location.IsRegister()) {
         Load64BitValue(location.AsRegister<CpuRegister>(), value);
       } else if (location.IsDoubleStackSlot()) {
-        Load64BitValue(CpuRegister(TMP), value);
-        __ movq(Address(CpuRegister(RSP), location.GetStackIndex()), CpuRegister(TMP));
+        Store64BitValueToStack(location, value);
       } else {
         DCHECK(location.IsConstant());
         DCHECK_EQ(location.GetConstant(), const_to_move);
@@ -1849,14 +1847,12 @@ void LocationsBuilderX86_64::VisitTypeConversion(HTypeConversion* conversion) {
           // Processing a Dex `float-to-int' instruction.
           locations->SetInAt(0, Location::RequiresFpuRegister());
           locations->SetOut(Location::RequiresRegister());
-          locations->AddTemp(Location::RequiresFpuRegister());
           break;
 
         case Primitive::kPrimDouble:
           // Processing a Dex `double-to-int' instruction.
           locations->SetInAt(0, Location::RequiresFpuRegister());
           locations->SetOut(Location::RequiresRegister());
-          locations->AddTemp(Location::RequiresFpuRegister());
           break;
 
         default:
@@ -1884,14 +1880,12 @@ void LocationsBuilderX86_64::VisitTypeConversion(HTypeConversion* conversion) {
           // Processing a Dex `float-to-long' instruction.
           locations->SetInAt(0, Location::RequiresFpuRegister());
           locations->SetOut(Location::RequiresRegister());
-          locations->AddTemp(Location::RequiresFpuRegister());
           break;
 
         case Primitive::kPrimDouble:
           // Processing a Dex `double-to-long' instruction.
           locations->SetInAt(0, Location::RequiresFpuRegister());
           locations->SetOut(Location::RequiresRegister());
-          locations->AddTemp(Location::RequiresFpuRegister());
           break;
 
         default:
@@ -2067,14 +2061,11 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           // Processing a Dex `float-to-int' instruction.
           XmmRegister input = in.AsFpuRegister<XmmRegister>();
           CpuRegister output = out.AsRegister<CpuRegister>();
-          XmmRegister temp = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
           Label done, nan;
 
           __ movl(output, Immediate(kPrimIntMax));
-          // temp = int-to-float(output)
-          __ cvtsi2ss(temp, output, false);
-          // if input >= temp goto done
-          __ comiss(input, temp);
+          // if input >= (float)INT_MAX goto done
+          __ comiss(input, codegen_->LiteralFloatAddress(kPrimIntMax));
           __ j(kAboveEqual, &done);
           // if input == NaN goto nan
           __ j(kUnordered, &nan);
@@ -2092,14 +2083,11 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           // Processing a Dex `double-to-int' instruction.
           XmmRegister input = in.AsFpuRegister<XmmRegister>();
           CpuRegister output = out.AsRegister<CpuRegister>();
-          XmmRegister temp = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
           Label done, nan;
 
           __ movl(output, Immediate(kPrimIntMax));
-          // temp = int-to-double(output)
-          __ cvtsi2sd(temp, output);
-          // if input >= temp goto done
-          __ comisd(input, temp);
+          // if input >= (double)INT_MAX goto done
+          __ comisd(input, codegen_->LiteralDoubleAddress(kPrimIntMax));
           __ j(kAboveEqual, &done);
           // if input == NaN goto nan
           __ j(kUnordered, &nan);
@@ -2137,14 +2125,11 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           // Processing a Dex `float-to-long' instruction.
           XmmRegister input = in.AsFpuRegister<XmmRegister>();
           CpuRegister output = out.AsRegister<CpuRegister>();
-          XmmRegister temp = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
           Label done, nan;
 
           codegen_->Load64BitValue(output, kPrimLongMax);
-          // temp = long-to-float(output)
-          __ cvtsi2ss(temp, output, true);
-          // if input >= temp goto done
-          __ comiss(input, temp);
+          // if input >= (float)LONG_MAX goto done
+          __ comiss(input, codegen_->LiteralFloatAddress(kPrimLongMax));
           __ j(kAboveEqual, &done);
           // if input == NaN goto nan
           __ j(kUnordered, &nan);
@@ -2162,14 +2147,11 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           // Processing a Dex `double-to-long' instruction.
           XmmRegister input = in.AsFpuRegister<XmmRegister>();
           CpuRegister output = out.AsRegister<CpuRegister>();
-          XmmRegister temp = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
           Label done, nan;
 
           codegen_->Load64BitValue(output, kPrimLongMax);
-          // temp = long-to-double(output)
-          __ cvtsi2sd(temp, output, true);
-          // if input >= temp goto done
-          __ comisd(input, temp);
+          // if input >= (double)LONG_MAX goto done
+          __ comisd(input, codegen_->LiteralDoubleAddress(kPrimLongMax));
           __ j(kAboveEqual, &done);
           // if input == NaN goto nan
           __ j(kUnordered, &nan);
@@ -4339,8 +4321,7 @@ void ParallelMoveResolverX86_64::EmitMove(size_t index) {
         codegen_->Load64BitValue(destination.AsRegister<CpuRegister>(), value);
       } else {
         DCHECK(destination.IsDoubleStackSlot()) << destination;
-        codegen_->Load64BitValue(CpuRegister(TMP), value);
-        __ movq(Address(CpuRegister(RSP), destination.GetStackIndex()), CpuRegister(TMP));
+        codegen_->Store64BitValueToStack(destination, value);
       }
     } else if (constant->IsFloatConstant()) {
       float fp_value = constant->AsFloatConstant()->GetValue();
@@ -4371,8 +4352,7 @@ void ParallelMoveResolverX86_64::EmitMove(size_t index) {
         }
       } else {
         DCHECK(destination.IsDoubleStackSlot()) << destination;
-        codegen_->Load64BitValue(CpuRegister(TMP), value);
-        __ movq(Address(CpuRegister(RSP), destination.GetStackIndex()), CpuRegister(TMP));
+        codegen_->Store64BitValueToStack(destination, value);
       }
     }
   } else if (source.IsFpuRegister()) {
@@ -4871,6 +4851,18 @@ void CodeGeneratorX86_64::Load64BitValue(CpuRegister dest, int64_t value) {
     __ movl(dest, Immediate(static_cast<int32_t>(value)));
   } else {
     __ movq(dest, Immediate(value));
+  }
+}
+
+void CodeGeneratorX86_64::Store64BitValueToStack(Location dest, int64_t value) {
+  DCHECK(dest.IsDoubleStackSlot());
+  if (IsInt<32>(value)) {
+    // Can move directly as an int32 constant.
+    __ movq(Address(CpuRegister(RSP), dest.GetStackIndex()),
+            Immediate(static_cast<int32_t>(value)));
+  } else {
+    Load64BitValue(CpuRegister(TMP), value);
+    __ movq(Address(CpuRegister(RSP), dest.GetStackIndex()), CpuRegister(TMP));
   }
 }
 
