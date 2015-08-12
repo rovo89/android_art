@@ -226,7 +226,7 @@ void SemiSpace::MarkingPhase() {
     TimingLogger::ScopedTiming t2("RevokeAllThreadLocalAllocationStacks", GetTimings());
     heap_->RevokeAllThreadLocalAllocationStacks(self_);
   }
-  heap_->SwapStacks(self_);
+  heap_->SwapStacks();
   {
     WriterMutexLock mu(self_, *Locks::heap_bitmap_lock_);
     MarkRoots();

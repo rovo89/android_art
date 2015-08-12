@@ -39,8 +39,10 @@ namespace art {
 namespace gc {
 
 template <bool kInstrumented, bool kCheckLargeObject, typename PreFenceVisitor>
-inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Class* klass,
-                                                      size_t byte_count, AllocatorType allocator,
+inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
+                                                      mirror::Class* klass,
+                                                      size_t byte_count,
+                                                      AllocatorType allocator,
                                                       const PreFenceVisitor& pre_fence_visitor) {
   if (kIsDebugBuild) {
     CheckPreconditionsForAllocObject(klass, byte_count);
@@ -209,7 +211,8 @@ inline void Heap::PushOnAllocationStack(Thread* self, mirror::Object** obj) {
 }
 
 template <bool kInstrumented, typename PreFenceVisitor>
-inline mirror::Object* Heap::AllocLargeObject(Thread* self, mirror::Class** klass,
+inline mirror::Object* Heap::AllocLargeObject(Thread* self,
+                                              mirror::Class** klass,
                                               size_t byte_count,
                                               const PreFenceVisitor& pre_fence_visitor) {
   // Save and restore the class in case it moves.
@@ -221,11 +224,14 @@ inline mirror::Object* Heap::AllocLargeObject(Thread* self, mirror::Class** klas
 }
 
 template <const bool kInstrumented, const bool kGrow>
-inline mirror::Object* Heap::TryToAllocate(Thread* self, AllocatorType allocator_type,
-                                           size_t alloc_size, size_t* bytes_allocated,
+inline mirror::Object* Heap::TryToAllocate(Thread* self,
+                                           AllocatorType allocator_type,
+                                           size_t alloc_size,
+                                           size_t* bytes_allocated,
                                            size_t* usable_size,
                                            size_t* bytes_tl_bulk_allocated) {
-  if (allocator_type != kAllocatorTypeTLAB && allocator_type != kAllocatorTypeRegionTLAB &&
+  if (allocator_type != kAllocatorTypeTLAB &&
+      allocator_type != kAllocatorTypeRegionTLAB &&
       allocator_type != kAllocatorTypeRosAlloc &&
       UNLIKELY(IsOutOfMemoryOnAllocation<kGrow>(allocator_type, alloc_size))) {
     return nullptr;
@@ -390,7 +396,8 @@ inline Heap::AllocationTimer::~AllocationTimer() {
     // Only if the allocation succeeded, record the time.
     if (allocated_obj != nullptr) {
       uint64_t allocation_end_time = NanoTime() / kTimeAdjust;
-      heap_->total_allocation_time_.FetchAndAddSequentiallyConsistent(allocation_end_time - allocation_start_time_);
+      heap_->total_allocation_time_.FetchAndAddSequentiallyConsistent(
+          allocation_end_time - allocation_start_time_);
     }
   }
 }
@@ -423,7 +430,8 @@ inline bool Heap::IsOutOfMemoryOnAllocation(AllocatorType allocator_type, size_t
   return false;
 }
 
-inline void Heap::CheckConcurrentGC(Thread* self, size_t new_num_bytes_allocated,
+inline void Heap::CheckConcurrentGC(Thread* self,
+                                    size_t new_num_bytes_allocated,
                                     mirror::Object** obj) {
   if (UNLIKELY(new_num_bytes_allocated >= concurrent_start_bytes_)) {
     RequestConcurrentGCAndSaveObject(self, false, obj);

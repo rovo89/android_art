@@ -229,7 +229,7 @@ class FlipCallback : public Closure {
     CHECK(thread == self);
     Locks::mutator_lock_->AssertExclusiveHeld(self);
     cc->region_space_->SetFromSpace(cc->rb_table_, cc->force_evacuate_all_);
-    cc->SwapStacks(self);
+    cc->SwapStacks();
     if (ConcurrentCopying::kEnableFromSpaceAccountingCheck) {
       cc->RecordLiveStackFreezeSize(self);
       cc->from_space_num_objects_at_first_pause_ = cc->region_space_->GetObjectsAllocated();
@@ -275,8 +275,8 @@ void ConcurrentCopying::FlipThreadRoots() {
   }
 }
 
-void ConcurrentCopying::SwapStacks(Thread* self) {
-  heap_->SwapStacks(self);
+void ConcurrentCopying::SwapStacks() {
+  heap_->SwapStacks();
 }
 
 void ConcurrentCopying::RecordLiveStackFreezeSize(Thread* self) {
