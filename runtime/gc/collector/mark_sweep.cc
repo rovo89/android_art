@@ -190,7 +190,7 @@ void MarkSweep::PausePhase() {
   {
     TimingLogger::ScopedTiming t2("SwapStacks", GetTimings());
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-    heap_->SwapStacks(self);
+    heap_->SwapStacks();
     live_stack_freeze_size_ = heap_->GetLiveStack()->Size();
     // Need to revoke all the thread local allocation stacks since we just swapped the allocation
     // stacks and don't want anybody to allocate into the live stack.
