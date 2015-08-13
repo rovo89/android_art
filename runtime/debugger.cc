@@ -3588,10 +3588,10 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
 
   // Find the dex_pc values that correspond to the current line, for line-based single-stepping.
   struct DebugCallbackContext {
-    explicit DebugCallbackContext(SingleStepControl* single_step_control_cb,
-                                  int32_t line_number_cb, const DexFile::CodeItem* code_item)
-      : single_step_control_(single_step_control_cb), line_number_(line_number_cb),
-        code_item_(code_item), last_pc_valid(false), last_pc(0) {
+    DebugCallbackContext(SingleStepControl* single_step_control_cb,
+                         int32_t line_number_cb, const DexFile::CodeItem* code_item)
+        : single_step_control_(single_step_control_cb), line_number_(line_number_cb),
+          code_item_(code_item), last_pc_valid(false), last_pc(0) {
     }
 
     static bool Callback(void* raw_context, uint32_t address, uint32_t line_number_cb) {

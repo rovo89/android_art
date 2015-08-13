@@ -48,7 +48,7 @@ class Arm64ManagedRuntimeCallingConvention FINAL : public ManagedRuntimeCallingC
 
 class Arm64JniCallingConvention FINAL : public JniCallingConvention {
  public:
-  explicit Arm64JniCallingConvention(bool is_static, bool is_synchronized, const char* shorty);
+  Arm64JniCallingConvention(bool is_static, bool is_synchronized, const char* shorty);
   ~Arm64JniCallingConvention() OVERRIDE {}
   // Calling convention
   ManagedRegister ReturnRegister() OVERRIDE;

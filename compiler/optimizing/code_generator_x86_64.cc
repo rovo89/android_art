@@ -95,7 +95,7 @@ class DivZeroCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
 
 class DivRemMinusOneSlowPathX86_64 : public SlowPathCodeX86_64 {
  public:
-  explicit DivRemMinusOneSlowPathX86_64(Register reg, Primitive::Type type, bool is_div)
+  DivRemMinusOneSlowPathX86_64(Register reg, Primitive::Type type, bool is_div)
       : cpu_reg_(CpuRegister(reg)), type_(type), is_div_(is_div) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
@@ -129,7 +129,7 @@ class DivRemMinusOneSlowPathX86_64 : public SlowPathCodeX86_64 {
 
 class SuspendCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
  public:
-  explicit SuspendCheckSlowPathX86_64(HSuspendCheck* instruction, HBasicBlock* successor)
+  SuspendCheckSlowPathX86_64(HSuspendCheck* instruction, HBasicBlock* successor)
       : instruction_(instruction), successor_(successor) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {

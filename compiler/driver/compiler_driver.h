@@ -89,19 +89,19 @@ class CompilerDriver {
   // enabled.  "image_classes" lets the compiler know what classes it
   // can assume will be in the image, with null implying all available
   // classes.
-  explicit CompilerDriver(const CompilerOptions* compiler_options,
-                          VerificationResults* verification_results,
-                          DexFileToMethodInlinerMap* method_inliner_map,
-                          Compiler::Kind compiler_kind,
-                          InstructionSet instruction_set,
-                          const InstructionSetFeatures* instruction_set_features,
-                          bool image, std::unordered_set<std::string>* image_classes,
-                          std::unordered_set<std::string>* compiled_classes,
-                          std::unordered_set<std::string>* compiled_methods,
-                          size_t thread_count, bool dump_stats, bool dump_passes,
-                          const std::string& dump_cfg_file_name,
-                          CumulativeLogger* timer, int swap_fd,
-                          const std::string& profile_file);
+  CompilerDriver(const CompilerOptions* compiler_options,
+                 VerificationResults* verification_results,
+                 DexFileToMethodInlinerMap* method_inliner_map,
+                 Compiler::Kind compiler_kind,
+                 InstructionSet instruction_set,
+                 const InstructionSetFeatures* instruction_set_features,
+                 bool image, std::unordered_set<std::string>* image_classes,
+                 std::unordered_set<std::string>* compiled_classes,
+                 std::unordered_set<std::string>* compiled_methods,
+                 size_t thread_count, bool dump_stats, bool dump_passes,
+                 const std::string& dump_cfg_file_name,
+                 CumulativeLogger* timer, int swap_fd,
+                 const std::string& profile_file);
 
   ~CompilerDriver();
 

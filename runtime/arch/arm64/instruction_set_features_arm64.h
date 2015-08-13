@@ -83,9 +83,7 @@ class Arm64InstructionSetFeatures FINAL : public InstructionSetFeatures {
                                  std::string* error_msg) const OVERRIDE;
 
  private:
-  explicit Arm64InstructionSetFeatures(bool smp,
-                                       bool needs_a53_835769_fix,
-                                       bool needs_a53_843419_fix)
+  Arm64InstructionSetFeatures(bool smp, bool needs_a53_835769_fix, bool needs_a53_843419_fix)
       : InstructionSetFeatures(smp),
         fix_cortex_a53_835769_(needs_a53_835769_fix),
         fix_cortex_a53_843419_(needs_a53_843419_fix) {

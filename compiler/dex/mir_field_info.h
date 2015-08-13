@@ -138,7 +138,7 @@ class MirIFieldLoweringInfo : public MirFieldInfo {
       REQUIRES(!Locks::mutator_lock_);
 
   // Construct an unresolved instance field lowering info.
-  explicit MirIFieldLoweringInfo(uint16_t field_idx, DexMemAccessType type, bool is_quickened)
+  MirIFieldLoweringInfo(uint16_t field_idx, DexMemAccessType type, bool is_quickened)
       : MirFieldInfo(field_idx,
                      kFlagIsVolatile | (is_quickened ? kFlagIsQuickened : 0u),
                      type),  // Without kFlagIsStatic.
@@ -195,7 +195,7 @@ class MirSFieldLoweringInfo : public MirFieldInfo {
       REQUIRES(!Locks::mutator_lock_);
 
   // Construct an unresolved static field lowering info.
-  explicit MirSFieldLoweringInfo(uint16_t field_idx, DexMemAccessType type)
+  MirSFieldLoweringInfo(uint16_t field_idx, DexMemAccessType type)
       : MirFieldInfo(field_idx, kFlagIsVolatile | kFlagIsStatic, type),
         field_offset_(0u),
         storage_index_(DexFile::kDexNoIndex) {

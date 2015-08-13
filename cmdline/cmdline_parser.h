@@ -497,11 +497,10 @@ struct CmdlineParser {
   friend struct Builder;
 
   // Construct a new parser from the builder. Move all the arguments.
-  explicit CmdlineParser(bool ignore_unrecognized,
-                         std::vector<const char*>&& ignore_list,
-                         std::shared_ptr<SaveDestination> save_destination,
-                         std::vector<std::unique_ptr<detail::CmdlineParseArgumentAny>>&&
-                             completed_arguments)
+  CmdlineParser(bool ignore_unrecognized,
+                std::vector<const char*>&& ignore_list,
+                std::shared_ptr<SaveDestination> save_destination,
+                std::vector<std::unique_ptr<detail::CmdlineParseArgumentAny>>&& completed_arguments)
     : ignore_unrecognized_(ignore_unrecognized),
       ignore_list_(std::move(ignore_list)),
       save_destination_(save_destination),
