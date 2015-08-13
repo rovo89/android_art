@@ -67,6 +67,9 @@ class ArtMethod FINAL {
   void SetDeclaringClass(mirror::Class *new_declaring_class)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  bool CASDeclaringClass(mirror::Class* expected_class, mirror::Class* desired_class)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   static MemberOffset DeclaringClassOffset() {
     return MemberOffset(OFFSETOF_MEMBER(ArtMethod, declaring_class_));
   }
