@@ -1010,27 +1010,34 @@ void CodeGenerator::ValidateInvokeRuntime(HInstruction* instruction, SlowPathCod
   // coherent with the runtime call generated, and that the GC side effect is
   // set when required.
   if (slow_path == nullptr) {
-    DCHECK(instruction->GetLocations()->WillCall());
-    DCHECK(instruction->GetSideEffects().Includes(SideEffects::CanTriggerGC()));
+    DCHECK(instruction->GetLocations()->WillCall()) << instruction->DebugName();
+    DCHECK(instruction->GetSideEffects().Includes(SideEffects::CanTriggerGC()))
+        << instruction->DebugName() << instruction->GetSideEffects().ToString();
   } else {
-    DCHECK(instruction->GetLocations()->OnlyCallsOnSlowPath() || slow_path->IsFatal());
+    DCHECK(instruction->GetLocations()->OnlyCallsOnSlowPath() || slow_path->IsFatal())
+        << instruction->DebugName() << slow_path->GetDescription();
     DCHECK(instruction->GetSideEffects().Includes(SideEffects::CanTriggerGC()) ||
            // Control flow would not come back into the code if a fatal slow
            // path is taken, so we do not care if it triggers GC.
            slow_path->IsFatal() ||
            // HDeoptimize is a special case: we know we are not coming back from
            // it into the code.
-           instruction->IsDeoptimize());
+           instruction->IsDeoptimize())
+        << instruction->DebugName() << instruction->GetSideEffects().ToString()
+        << slow_path->GetDescription();
   }
 
   // Check the coherency of leaf information.
   DCHECK(instruction->IsSuspendCheck()
          || ((slow_path != nullptr) && slow_path->IsFatal())
          || instruction->GetLocations()->CanCall()
-         || !IsLeafMethod());
+         || !IsLeafMethod())
+      << instruction->DebugName() << ((slow_path != nullptr) ? slow_path->GetDescription() : "");
 }
 
-void SlowPathCode::RecordPcInfo(CodeGenerator* codegen, HInstruction* instruction, uint32_t dex_pc) {
+void SlowPathCode::RecordPcInfo(CodeGenerator* codegen,
+                                HInstruction* instruction,
+                                uint32_t dex_pc) {
   codegen->RecordPcInfo(instruction, dex_pc, this);
 }
 

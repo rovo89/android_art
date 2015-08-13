@@ -3742,9 +3742,8 @@ class HTypeConversion : public HExpression<1> {
     // Some architectures may not require the 'GC' side effects, but at this point
     // in the compilation process we do not know what architecture we will
     // generate code for, so we must be conservative.
-    if (((input_type == Primitive::kPrimFloat || input_type == Primitive::kPrimDouble)
-         && result_type == Primitive::kPrimLong)
-        || (input_type == Primitive::kPrimLong && result_type == Primitive::kPrimFloat)) {
+    if ((Primitive::IsFloatingPointType(input_type) && Primitive::IsIntegralType(result_type))
+        || (input_type == Primitive::kPrimLong && Primitive::IsFloatingPointType(result_type))) {
       return SideEffects::CanTriggerGC();
     }
     return SideEffects::None();
