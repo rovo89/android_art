@@ -25,6 +25,7 @@
 #include "array-inl.h"
 #include "class.h"
 #include "class_linker.h"
+#include "class_loader-inl.h"
 #include "lock_word-inl.h"
 #include "monitor.h"
 #include "object_array-inl.h"
@@ -997,6 +998,18 @@ inline void Object::VisitStaticFieldsReferences(mirror::Class* klass, const Visi
   klass->VisitFieldsReferences<kVisitClass, true>(0, visitor);
 }
 
+
+template<VerifyObjectFlags kVerifyFlags>
+inline bool Object::IsClassLoader() {
+  return GetClass<kVerifyFlags>()->IsClassLoaderClass();
+}
+
+template<VerifyObjectFlags kVerifyFlags>
+inline mirror::ClassLoader* Object::AsClassLoader() {
+  DCHECK(IsClassLoader<kVerifyFlags>());
+  return down_cast<mirror::ClassLoader*>(this);
+}
+
 template <const bool kVisitClass, VerifyObjectFlags kVerifyFlags, typename Visitor,
     typename JavaLangRefVisitor>
 inline void Object::VisitReferences(const Visitor& visitor,
@@ -1010,6 +1023,9 @@ inline void Object::VisitReferences(const Visitor& visitor,
     } else if (kVisitClass) {
       visitor(this, ClassOffset(), false);
     }
+  } else if (klass->IsClassLoaderClass()) {
+    mirror::ClassLoader* class_loader = AsClassLoader<kVerifyFlags>();
+    class_loader->VisitReferences<kVisitClass, kVerifyFlags>(klass, visitor);
   } else {
     DCHECK(!klass->IsVariableSize());
     VisitInstanceFieldsReferences<kVisitClass>(klass, visitor);
