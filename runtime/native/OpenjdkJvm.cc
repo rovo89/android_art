@@ -618,66 +618,18 @@ JNIEXPORT void JVM_ArrayCopy(JNIEnv* env, jclass unused, jobject javaSrc,
 }
 
 JNIEXPORT jint JVM_FindSignal(const char* name) {
-  static const char* names[] = {
-        "", "HUP", "INT", "QUIT",
-        "ILL", "TRAP", "ABRT", "BUS",
-        "FPE", "KILL", "USR1", "SEGV",
-        "USR2", "PIPE", "ALRM", "TERM",
-        NULL
-    };
-
-    int i = 0;
-    while (names[++i] != NULL) {
-        if (strcmp(name, names[i]) == 0) {
-            return i;
-        }
-    }
-    LOG(WARNING) << "Signal '" << name << "' not found";
-    assert(false);
-    return 0;
+  LOG(FATAL) << "JVM_FindSignal is not implemented";
+  return 0;
 }
 
-/* signal handler */
-static void internalSignalHandler(int sig)
-{
-    /*
-     * This is expected to invoke sun.misc.Signal.dispatch().  We really
-     * don't want to do that directly from a signal handler, so if we
-     * decide we need this we should hook it into the safe-point mechanism.
-     */
+JNIEXPORT void* JVM_RegisterSignal(jint signum, void* handler) {
+  LOG(FATAL) << "JVM_RegisterSignal is not implemented";
+  return nullptr;
 }
 
-JNIEXPORT void* JVM_RegisterSignal(jint signum, void* handler)
-{
-    LOG(INFO) << "SIGNAL: signum=" << signum << ", handler=" << handler;
-
-    struct sigaction act, oldact;
-
-    /* OpenJDK code makes these assumptions */
-    assert(SIG_DFL == (void*)0);
-    assert(SIG_IGN == (void*)1);
-
-    if (handler == (void*) 2) {
-        /* magic value indicating we should use our internal handler */
-        handler = (void*) internalSignalHandler;
-    }
-
-    act.sa_handler = (void (*)(int))handler;
-    sigemptyset(&act.sa_mask);
-    act.sa_flags = SA_RESTART;
-    sigaction(signum, &act, &oldact);
-
-    if (oldact.sa_handler == internalSignalHandler) {
-        return (void*) 2;
-    } else {
-        return (void*) oldact.sa_handler;
-    }
-}
-
-JNIEXPORT jboolean JVM_RaiseSignal(jint signum)
-{
-    raise(signum);
-    return JNI_TRUE;
+JNIEXPORT jboolean JVM_RaiseSignal(jint signum) {
+  LOG(FATAL) << "JVM_RaiseSignal is not implemented";
+  return JNI_FALSE;
 }
 
 JNIEXPORT void JVM_Halt(jint code) {
