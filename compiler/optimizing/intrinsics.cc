@@ -84,7 +84,10 @@ static Primitive::Type GetType(uint64_t data, bool is_op_size) {
   }
 }
 
-static Intrinsics GetIntrinsic(InlineMethod method) {
+static Intrinsics GetIntrinsic(InlineMethod method, InstructionSet instruction_set) {
+  if (instruction_set == kMips || instruction_set == kMips64) {
+    return Intrinsics::kNone;
+  }
   switch (method.opcode) {
     // Floating-point conversions.
     case kIntrinsicDoubleCvt:
@@ -365,7 +368,7 @@ void IntrinsicsRecognizer::Run() {
             driver_->GetMethodInlinerMap()->GetMethodInliner(&invoke->GetDexFile());
         DCHECK(inliner != nullptr);
         if (inliner->IsIntrinsic(invoke->GetDexMethodIndex(), &method)) {
-          Intrinsics intrinsic = GetIntrinsic(method);
+          Intrinsics intrinsic = GetIntrinsic(method, graph_->GetInstructionSet());
 
           if (intrinsic != Intrinsics::kNone) {
             if (!CheckInvokeType(intrinsic, invoke)) {
