@@ -36,7 +36,7 @@ namespace art {
 
 class ArgArray {
  public:
-  explicit ArgArray(const char* shorty, uint32_t shorty_len)
+  ArgArray(const char* shorty, uint32_t shorty_len)
       : shorty_(shorty), shorty_len_(shorty_len), num_bytes_(0) {
     size_t num_slots = shorty_len + 1;  // +1 in case of receiver.
     if (LIKELY((num_slots * 2) < kSmallArgArraySize)) {

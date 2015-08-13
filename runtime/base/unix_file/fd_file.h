@@ -35,8 +35,8 @@ class FdFile : public RandomAccessFile {
   FdFile();
   // Creates an FdFile using the given file descriptor. Takes ownership of the
   // file descriptor. (Use DisableAutoClose to retain ownership.)
-  explicit FdFile(int fd, bool checkUsage);
-  explicit FdFile(int fd, const std::string& path, bool checkUsage);
+  FdFile(int fd, bool checkUsage);
+  FdFile(int fd, const std::string& path, bool checkUsage);
 
   // Destroys an FdFile, closing the file descriptor if Close hasn't already
   // been called. (If you care about the return value of Close, call it

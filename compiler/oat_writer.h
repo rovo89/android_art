@@ -178,7 +178,7 @@ class OatWriter {
 
   class OatDexFile {
    public:
-    explicit OatDexFile(size_t offset, const DexFile& dex_file);
+    OatDexFile(size_t offset, const DexFile& dex_file);
     size_t SizeOf() const;
     void UpdateChecksum(OatHeader* oat_header) const;
     bool Write(OatWriter* oat_writer, OutputStream* out, const size_t file_offset) const;
@@ -200,10 +200,10 @@ class OatWriter {
 
   class OatClass {
    public:
-    explicit OatClass(size_t offset,
-                      const std::vector<CompiledMethod*>& compiled_methods,
-                      uint32_t num_non_null_compiled_methods,
-                      mirror::Class::Status status);
+    OatClass(size_t offset,
+             const std::vector<CompiledMethod*>& compiled_methods,
+             uint32_t num_non_null_compiled_methods,
+             mirror::Class::Status status);
     ~OatClass();
     size_t GetOatMethodOffsetsOffsetFromOatHeader(size_t class_def_method_index_) const;
     size_t GetOatMethodOffsetsOffsetFromOatClass(size_t class_def_method_index_) const;

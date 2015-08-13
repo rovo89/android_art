@@ -227,8 +227,7 @@ static_assert(sizeof(IrtEntry) == (1 + kIRTPrevCount) * sizeof(uint32_t),
 
 class IrtIterator {
  public:
-  explicit IrtIterator(IrtEntry* table, size_t i, size_t capacity)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+  IrtIterator(IrtEntry* table, size_t i, size_t capacity) SHARED_REQUIRES(Locks::mutator_lock_)
       : table_(table), i_(i), capacity_(capacity) {
   }
 

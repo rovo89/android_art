@@ -191,7 +191,7 @@ class InstructionCodeGeneratorARM64 : public HGraphVisitor {
 
 class LocationsBuilderARM64 : public HGraphVisitor {
  public:
-  explicit LocationsBuilderARM64(HGraph* graph, CodeGeneratorARM64* codegen)
+  LocationsBuilderARM64(HGraph* graph, CodeGeneratorARM64* codegen)
       : HGraphVisitor(graph), codegen_(codegen) {}
 
 #define DECLARE_VISIT_INSTRUCTION(name, super) \

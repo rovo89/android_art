@@ -95,7 +95,7 @@ class ManagedRegisterSpill : public ManagedRegister {
   explicit ManagedRegisterSpill(const ManagedRegister& other)
       : ManagedRegister(other), size_(-1), spill_offset_(-1) { }
 
-  explicit ManagedRegisterSpill(const ManagedRegister& other, int32_t size)
+  ManagedRegisterSpill(const ManagedRegister& other, int32_t size)
       : ManagedRegister(other), size_(size), spill_offset_(-1) { }
 
   int32_t getSpillOffset() {

@@ -55,7 +55,7 @@ class MemoryToolMallocSpace FINAL : public BaseMallocSpaceType {
   size_t MaxBytesBulkAllocatedFor(size_t num_bytes) OVERRIDE;
 
   template <typename... Params>
-  explicit MemoryToolMallocSpace(MemMap* mem_map, size_t initial_size, Params... params);
+  MemoryToolMallocSpace(MemMap* mem_map, size_t initial_size, Params... params);
   virtual ~MemoryToolMallocSpace() {}
 
  private:

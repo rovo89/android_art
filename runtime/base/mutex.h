@@ -437,7 +437,7 @@ class SHARED_LOCKABLE MutatorMutex : public ReaderWriterMutex {
 // (Signal) or all at once (Broadcast).
 class ConditionVariable {
  public:
-  explicit ConditionVariable(const char* name, Mutex& mutex);
+  ConditionVariable(const char* name, Mutex& mutex);
   ~ConditionVariable();
 
   void Broadcast(Thread* self);
@@ -475,7 +475,7 @@ class ConditionVariable {
 // upon destruction.
 class SCOPED_CAPABILITY MutexLock {
  public:
-  explicit MutexLock(Thread* self, Mutex& mu) ACQUIRE(mu) : self_(self), mu_(mu) {
+  MutexLock(Thread* self, Mutex& mu) ACQUIRE(mu) : self_(self), mu_(mu) {
     mu_.ExclusiveLock(self_);
   }
 
@@ -495,7 +495,7 @@ class SCOPED_CAPABILITY MutexLock {
 // construction and releases it upon destruction.
 class SCOPED_CAPABILITY ReaderMutexLock {
  public:
-  explicit ReaderMutexLock(Thread* self, ReaderWriterMutex& mu) ACQUIRE(mu) :
+  ReaderMutexLock(Thread* self, ReaderWriterMutex& mu) ACQUIRE(mu) :
       self_(self), mu_(mu) {
     mu_.SharedLock(self_);
   }
@@ -517,7 +517,7 @@ class SCOPED_CAPABILITY ReaderMutexLock {
 // construction and releases it upon destruction.
 class SCOPED_CAPABILITY WriterMutexLock {
  public:
-  explicit WriterMutexLock(Thread* self, ReaderWriterMutex& mu) EXCLUSIVE_LOCK_FUNCTION(mu) :
+  WriterMutexLock(Thread* self, ReaderWriterMutex& mu) EXCLUSIVE_LOCK_FUNCTION(mu) :
       self_(self), mu_(mu) {
     mu_.ExclusiveLock(self_);
   }

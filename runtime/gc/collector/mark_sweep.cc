@@ -648,8 +648,8 @@ class MarkStackTask : public Task {
  protected:
   class MarkObjectParallelVisitor {
    public:
-    ALWAYS_INLINE explicit MarkObjectParallelVisitor(MarkStackTask<kUseFinger>* chunk_task,
-                                                     MarkSweep* mark_sweep)
+    ALWAYS_INLINE MarkObjectParallelVisitor(MarkStackTask<kUseFinger>* chunk_task,
+                                            MarkSweep* mark_sweep)
         : chunk_task_(chunk_task), mark_sweep_(mark_sweep) {}
 
     void operator()(mirror::Object* obj, MemberOffset offset, bool /* static */) const
@@ -1058,8 +1058,8 @@ void MarkSweep::VerifySystemWeaks() {
 
 class CheckpointMarkThreadRoots : public Closure, public RootVisitor {
  public:
-  explicit CheckpointMarkThreadRoots(MarkSweep* mark_sweep,
-                                     bool revoke_ros_alloc_thread_local_buffers_at_checkpoint)
+  CheckpointMarkThreadRoots(MarkSweep* mark_sweep,
+                            bool revoke_ros_alloc_thread_local_buffers_at_checkpoint)
       : mark_sweep_(mark_sweep),
         revoke_ros_alloc_thread_local_buffers_at_checkpoint_(
             revoke_ros_alloc_thread_local_buffers_at_checkpoint) {

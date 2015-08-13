@@ -354,7 +354,7 @@ class Mips64Assembler FINAL : public Assembler {
 // Slowpath entered when Thread::Current()->_exception is non-null
 class Mips64ExceptionSlowPath FINAL : public SlowPath {
  public:
-  explicit Mips64ExceptionSlowPath(Mips64ManagedRegister scratch, size_t stack_adjust)
+  Mips64ExceptionSlowPath(Mips64ManagedRegister scratch, size_t stack_adjust)
       : scratch_(scratch), stack_adjust_(stack_adjust) {}
   virtual void Emit(Assembler *sp_asm) OVERRIDE;
  private:

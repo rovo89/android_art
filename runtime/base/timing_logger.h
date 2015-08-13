@@ -131,7 +131,7 @@ class TimingLogger {
     friend class TimingLogger;
   };
 
-  explicit TimingLogger(const char* name, bool precise, bool verbose);
+  TimingLogger(const char* name, bool precise, bool verbose);
   ~TimingLogger();
   // Verify that all open timings have related closed timings.
   void Verify();
@@ -156,7 +156,7 @@ class TimingLogger {
   // starts and ends.
   class ScopedTiming {
    public:
-    explicit ScopedTiming(const char* label, TimingLogger* logger) : logger_(logger) {
+    ScopedTiming(const char* label, TimingLogger* logger) : logger_(logger) {
       logger_->StartTiming(label);
     }
     ~ScopedTiming() {

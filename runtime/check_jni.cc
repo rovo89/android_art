@@ -130,7 +130,7 @@ union JniValueType {
 
 class ScopedCheck {
  public:
-  explicit ScopedCheck(int flags, const char* functionName, bool has_method = true)
+  ScopedCheck(int flags, const char* functionName, bool has_method = true)
       : function_name_(functionName), flags_(flags), indent_(0), has_method_(has_method) {
   }
 

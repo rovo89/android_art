@@ -348,8 +348,8 @@ class JniCallingConvention : public CallingConvention {
     kObjectOrClass = 1
   };
 
-  explicit JniCallingConvention(bool is_static, bool is_synchronized, const char* shorty,
-                                size_t frame_pointer_size)
+  JniCallingConvention(bool is_static, bool is_synchronized, const char* shorty,
+                       size_t frame_pointer_size)
       : CallingConvention(is_static, is_synchronized, shorty, frame_pointer_size) {}
 
   // Number of stack slots for outgoing arguments, above which the handle scope is

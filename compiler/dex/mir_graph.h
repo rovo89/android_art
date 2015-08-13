@@ -261,7 +261,7 @@ class MIR : public ArenaObject<kArenaAllocMIR> {
     uint32_t arg[5];         /* vC/D/E/F/G in invoke or filled-new-array */
     Instruction::Code opcode;
 
-    explicit DecodedInstruction():vA(0), vB(0), vB_wide(0), vC(0), opcode(Instruction::NOP) {
+    DecodedInstruction() : vA(0), vB(0), vB_wide(0), vC(0), opcode(Instruction::NOP) {
     }
 
     /*
@@ -353,7 +353,7 @@ class MIR : public ArenaObject<kArenaAllocMIR> {
     uint32_t method_lowering_info;
   } meta;
 
-  explicit MIR() : offset(0), optimization_flags(0), m_unit_index(0), bb(NullBasicBlockId),
+  MIR() : offset(0), optimization_flags(0), m_unit_index(0), bb(NullBasicBlockId),
                  next(nullptr), ssa_rep(nullptr) {
     memset(&meta, 0, sizeof(meta));
   }
