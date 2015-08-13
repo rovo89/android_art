@@ -41,7 +41,7 @@ class IntrinsicLocationsBuilderARM64 FINAL : public IntrinsicVisitor {
 
   // Define visitor methods.
 
-#define OPTIMIZING_INTRINSICS(Name, IsStatic)   \
+#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironment)   \
   void Visit ## Name(HInvoke* invoke) OVERRIDE;
 #include "intrinsics_list.h"
 INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
@@ -65,7 +65,7 @@ class IntrinsicCodeGeneratorARM64 FINAL : public IntrinsicVisitor {
 
   // Define visitor methods.
 
-#define OPTIMIZING_INTRINSICS(Name, IsStatic)   \
+#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironment)   \
   void Visit ## Name(HInvoke* invoke) OVERRIDE;
 #include "intrinsics_list.h"
 INTRINSICS_LIST(OPTIMIZING_INTRINSICS)

@@ -18,75 +18,76 @@
 #define ART_COMPILER_OPTIMIZING_INTRINSICS_LIST_H_
 
 // All intrinsics supported by the optimizing compiler. Format is name, then whether it is expected
-// to be a HInvokeStaticOrDirect node (compared to HInvokeVirtual).
+// to be a HInvokeStaticOrDirect node (compared to HInvokeVirtual), then whether it requires an
+// environment.
 
 #define INTRINSICS_LIST(V) \
-  V(DoubleDoubleToRawLongBits, kStatic) \
-  V(DoubleLongBitsToDouble, kStatic) \
-  V(FloatFloatToRawIntBits, kStatic) \
-  V(FloatIntBitsToFloat, kStatic) \
-  V(IntegerReverse, kStatic) \
-  V(IntegerReverseBytes, kStatic) \
-  V(IntegerNumberOfLeadingZeros, kStatic) \
-  V(LongReverse, kStatic) \
-  V(LongReverseBytes, kStatic) \
-  V(LongNumberOfLeadingZeros, kStatic) \
-  V(ShortReverseBytes, kStatic) \
-  V(MathAbsDouble, kStatic) \
-  V(MathAbsFloat, kStatic) \
-  V(MathAbsLong, kStatic) \
-  V(MathAbsInt, kStatic) \
-  V(MathMinDoubleDouble, kStatic) \
-  V(MathMinFloatFloat, kStatic) \
-  V(MathMinLongLong, kStatic) \
-  V(MathMinIntInt, kStatic) \
-  V(MathMaxDoubleDouble, kStatic) \
-  V(MathMaxFloatFloat, kStatic) \
-  V(MathMaxLongLong, kStatic) \
-  V(MathMaxIntInt, kStatic) \
-  V(MathSqrt, kStatic) \
-  V(MathCeil, kStatic) \
-  V(MathFloor, kStatic) \
-  V(MathRint, kStatic) \
-  V(MathRoundDouble, kStatic) \
-  V(MathRoundFloat, kStatic) \
-  V(SystemArrayCopyChar, kStatic) \
-  V(ThreadCurrentThread, kStatic) \
-  V(MemoryPeekByte, kStatic) \
-  V(MemoryPeekIntNative, kStatic) \
-  V(MemoryPeekLongNative, kStatic) \
-  V(MemoryPeekShortNative, kStatic) \
-  V(MemoryPokeByte, kStatic) \
-  V(MemoryPokeIntNative, kStatic) \
-  V(MemoryPokeLongNative, kStatic) \
-  V(MemoryPokeShortNative, kStatic) \
-  V(StringCharAt, kDirect) \
-  V(StringCompareTo, kDirect) \
-  V(StringGetCharsNoCheck, kDirect) \
-  V(StringIndexOf, kDirect) \
-  V(StringIndexOfAfter, kDirect) \
-  V(StringNewStringFromBytes, kStatic) \
-  V(StringNewStringFromChars, kStatic) \
-  V(StringNewStringFromString, kStatic) \
-  V(UnsafeCASInt, kDirect) \
-  V(UnsafeCASLong, kDirect) \
-  V(UnsafeCASObject, kDirect) \
-  V(UnsafeGet, kDirect) \
-  V(UnsafeGetVolatile, kDirect) \
-  V(UnsafeGetObject, kDirect) \
-  V(UnsafeGetObjectVolatile, kDirect) \
-  V(UnsafeGetLong, kDirect) \
-  V(UnsafeGetLongVolatile, kDirect) \
-  V(UnsafePut, kDirect) \
-  V(UnsafePutOrdered, kDirect) \
-  V(UnsafePutVolatile, kDirect) \
-  V(UnsafePutObject, kDirect) \
-  V(UnsafePutObjectOrdered, kDirect) \
-  V(UnsafePutObjectVolatile, kDirect) \
-  V(UnsafePutLong, kDirect) \
-  V(UnsafePutLongOrdered, kDirect) \
-  V(UnsafePutLongVolatile, kDirect) \
-  V(ReferenceGetReferent, kDirect)
+  V(DoubleDoubleToRawLongBits, kStatic, kNeedsEnvironment) \
+  V(DoubleLongBitsToDouble, kStatic, kNeedsEnvironment) \
+  V(FloatFloatToRawIntBits, kStatic, kNeedsEnvironment) \
+  V(FloatIntBitsToFloat, kStatic, kNeedsEnvironment) \
+  V(IntegerReverse, kStatic, kNeedsEnvironment) \
+  V(IntegerReverseBytes, kStatic, kNeedsEnvironment) \
+  V(IntegerNumberOfLeadingZeros, kStatic, kNeedsEnvironment) \
+  V(LongReverse, kStatic, kNeedsEnvironment) \
+  V(LongReverseBytes, kStatic, kNeedsEnvironment) \
+  V(LongNumberOfLeadingZeros, kStatic, kNeedsEnvironment) \
+  V(ShortReverseBytes, kStatic, kNeedsEnvironment) \
+  V(MathAbsDouble, kStatic, kNeedsEnvironment) \
+  V(MathAbsFloat, kStatic, kNeedsEnvironment) \
+  V(MathAbsLong, kStatic, kNeedsEnvironment) \
+  V(MathAbsInt, kStatic, kNeedsEnvironment) \
+  V(MathMinDoubleDouble, kStatic, kNeedsEnvironment) \
+  V(MathMinFloatFloat, kStatic, kNeedsEnvironment) \
+  V(MathMinLongLong, kStatic, kNeedsEnvironment) \
+  V(MathMinIntInt, kStatic, kNeedsEnvironment) \
+  V(MathMaxDoubleDouble, kStatic, kNeedsEnvironment) \
+  V(MathMaxFloatFloat, kStatic, kNeedsEnvironment) \
+  V(MathMaxLongLong, kStatic, kNeedsEnvironment) \
+  V(MathMaxIntInt, kStatic, kNeedsEnvironment) \
+  V(MathSqrt, kStatic, kNeedsEnvironment) \
+  V(MathCeil, kStatic, kNeedsEnvironment) \
+  V(MathFloor, kStatic, kNeedsEnvironment) \
+  V(MathRint, kStatic, kNeedsEnvironment) \
+  V(MathRoundDouble, kStatic, kNeedsEnvironment) \
+  V(MathRoundFloat, kStatic, kNeedsEnvironment) \
+  V(SystemArrayCopyChar, kStatic, kNeedsEnvironment) \
+  V(ThreadCurrentThread, kStatic, kNeedsEnvironment) \
+  V(MemoryPeekByte, kStatic, kNeedsEnvironment) \
+  V(MemoryPeekIntNative, kStatic, kNeedsEnvironment) \
+  V(MemoryPeekLongNative, kStatic, kNeedsEnvironment) \
+  V(MemoryPeekShortNative, kStatic, kNeedsEnvironment) \
+  V(MemoryPokeByte, kStatic, kNeedsEnvironment) \
+  V(MemoryPokeIntNative, kStatic, kNeedsEnvironment) \
+  V(MemoryPokeLongNative, kStatic, kNeedsEnvironment) \
+  V(MemoryPokeShortNative, kStatic, kNeedsEnvironment) \
+  V(StringCharAt, kDirect, kNeedsEnvironment) \
+  V(StringCompareTo, kDirect, kNeedsEnvironment) \
+  V(StringGetCharsNoCheck, kDirect, kNeedsEnvironment) \
+  V(StringIndexOf, kDirect, kNeedsEnvironment) \
+  V(StringIndexOfAfter, kDirect, kNeedsEnvironment) \
+  V(StringNewStringFromBytes, kStatic, kNeedsEnvironment) \
+  V(StringNewStringFromChars, kStatic, kNeedsEnvironment) \
+  V(StringNewStringFromString, kStatic, kNeedsEnvironment) \
+  V(UnsafeCASInt, kDirect, kNeedsEnvironment) \
+  V(UnsafeCASLong, kDirect, kNeedsEnvironment) \
+  V(UnsafeCASObject, kDirect, kNeedsEnvironment) \
+  V(UnsafeGet, kDirect, kNeedsEnvironment) \
+  V(UnsafeGetVolatile, kDirect, kNeedsEnvironment) \
+  V(UnsafeGetObject, kDirect, kNeedsEnvironment) \
+  V(UnsafeGetObjectVolatile, kDirect, kNeedsEnvironment) \
+  V(UnsafeGetLong, kDirect, kNeedsEnvironment) \
+  V(UnsafeGetLongVolatile, kDirect, kNeedsEnvironment) \
+  V(UnsafePut, kDirect, kNeedsEnvironment) \
+  V(UnsafePutOrdered, kDirect, kNeedsEnvironment) \
+  V(UnsafePutVolatile, kDirect, kNeedsEnvironment) \
+  V(UnsafePutObject, kDirect, kNeedsEnvironment) \
+  V(UnsafePutObjectOrdered, kDirect, kNeedsEnvironment) \
+  V(UnsafePutObjectVolatile, kDirect, kNeedsEnvironment) \
+  V(UnsafePutLong, kDirect, kNeedsEnvironment) \
+  V(UnsafePutLongOrdered, kDirect, kNeedsEnvironment) \
+  V(UnsafePutLongVolatile, kDirect, kNeedsEnvironment) \
+  V(ReferenceGetReferent, kDirect, kNeedsEnvironment)
 
 #endif  // ART_COMPILER_OPTIMIZING_INTRINSICS_LIST_H_
 #undef ART_COMPILER_OPTIMIZING_INTRINSICS_LIST_H_   // #define is only for lint.
