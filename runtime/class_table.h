@@ -67,8 +67,15 @@ class ClassTable {
   mirror::Class* UpdateClass(const char* descriptor, mirror::Class* new_klass, size_t hash)
       REQUIRES(Locks::classlinker_classes_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void VisitRoots(RootVisitor* visitor, VisitRootFlags flags)
-      REQUIRES(Locks::classlinker_classes_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
+  // NO_THREAD_SAFETY_ANALYSIS for object marking requiring heap bitmap lock.
+  template<class Visitor>
+  void VisitRoots(Visitor& visitor)
+      SHARED_REQUIRES(Locks::classlinker_classes_lock_, Locks::mutator_lock_)
+      NO_THREAD_SAFETY_ANALYSIS;
+  template<class Visitor>
+  void VisitRoots(const Visitor& visitor)
+      SHARED_REQUIRES(Locks::classlinker_classes_lock_, Locks::mutator_lock_)
+      NO_THREAD_SAFETY_ANALYSIS;
 
   // Return false if the callback told us to exit.
   bool Visit(ClassVisitor* visitor)
