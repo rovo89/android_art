@@ -36,7 +36,7 @@ class PassManagerOptions;
 
 class PassDriverME: public PassDriver {
  public:
-  explicit PassDriverME(const PassManager* const pass_manager, CompilationUnit* cu)
+  PassDriverME(const PassManager* const pass_manager, CompilationUnit* cu)
       : PassDriver(pass_manager), pass_me_data_holder_(), dump_cfg_folder_("/sdcard/") {
         pass_me_data_holder_.bb = nullptr;
         pass_me_data_holder_.c_unit = cu;
@@ -314,4 +314,3 @@ class PassDriverME: public PassDriver {
 };
 }  // namespace art
 #endif  // ART_COMPILER_DEX_PASS_DRIVER_ME_H_
-

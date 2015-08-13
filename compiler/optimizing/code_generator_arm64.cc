@@ -360,8 +360,7 @@ class NullCheckSlowPathARM64 : public SlowPathCodeARM64 {
 
 class SuspendCheckSlowPathARM64 : public SlowPathCodeARM64 {
  public:
-  explicit SuspendCheckSlowPathARM64(HSuspendCheck* instruction,
-                                     HBasicBlock* successor)
+  SuspendCheckSlowPathARM64(HSuspendCheck* instruction, HBasicBlock* successor)
       : instruction_(instruction), successor_(successor) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {

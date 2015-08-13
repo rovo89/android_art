@@ -37,7 +37,7 @@ class DexCacheArraysLayout {
   }
 
   // Construct a layout for a particular dex file.
-  explicit DexCacheArraysLayout(size_t pointer_size, const DexFile* dex_file);
+  DexCacheArraysLayout(size_t pointer_size, const DexFile* dex_file);
 
   bool Valid() const {
     return Size() != 0u;

@@ -888,7 +888,7 @@ class ArmAssembler : public Assembler {
 // Slowpath entered when Thread::Current()->_exception is non-null
 class ArmExceptionSlowPath FINAL : public SlowPath {
  public:
-  explicit ArmExceptionSlowPath(ArmManagedRegister scratch, size_t stack_adjust)
+  ArmExceptionSlowPath(ArmManagedRegister scratch, size_t stack_adjust)
       : scratch_(scratch), stack_adjust_(stack_adjust) {
   }
   void Emit(Assembler *sp_asm) OVERRIDE;

@@ -45,7 +45,7 @@ struct TokenRange {
 
   // Copying-from-iterator constructor
   template <typename ForwardIterator>
-  explicit TokenRange(ForwardIterator it_begin, ForwardIterator it_end)
+  TokenRange(ForwardIterator it_begin, ForwardIterator it_end)
     : token_list_(new TokenList(it_begin, it_end)),
       begin_(token_list_->begin()),
       end_(token_list_->end())

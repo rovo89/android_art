@@ -107,7 +107,7 @@ class OatSymbolizer FINAL {
     const OatFile* oat_file_;
   };
 
-  explicit OatSymbolizer(const OatFile* oat_file, const std::string& output_name) :
+  OatSymbolizer(const OatFile* oat_file, const std::string& output_name) :
       oat_file_(oat_file), builder_(nullptr),
       output_name_(output_name.empty() ? "symbolized.oat" : output_name) {
   }
@@ -346,7 +346,7 @@ class OatDumperOptions {
 
 class OatDumper {
  public:
-  explicit OatDumper(const OatFile& oat_file, const OatDumperOptions& options)
+  OatDumper(const OatFile& oat_file, const OatDumperOptions& options)
     : oat_file_(oat_file),
       oat_dex_files_(oat_file.GetOatDexFiles()),
       options_(options),
@@ -1453,8 +1453,8 @@ class OatDumper {
 
 class ImageDumper {
  public:
-  explicit ImageDumper(std::ostream* os, gc::space::ImageSpace& image_space,
-                       const ImageHeader& image_header, OatDumperOptions* oat_dumper_options)
+  ImageDumper(std::ostream* os, gc::space::ImageSpace& image_space,
+              const ImageHeader& image_header, OatDumperOptions* oat_dumper_options)
       : os_(os),
         vios_(os),
         indent1_(&vios_),
@@ -2019,7 +2019,7 @@ class ImageDumper {
     std::vector<double> method_outlier_expansion;
     std::vector<std::pair<std::string, size_t>> oat_dex_file_sizes;
 
-    explicit Stats()
+    Stats()
         : oat_file_bytes(0),
           file_bytes(0),
           header_bytes(0),

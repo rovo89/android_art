@@ -48,7 +48,7 @@ class Mips64ManagedRuntimeCallingConvention FINAL : public ManagedRuntimeCalling
 
 class Mips64JniCallingConvention FINAL : public JniCallingConvention {
  public:
-  explicit Mips64JniCallingConvention(bool is_static, bool is_synchronized, const char* shorty);
+  Mips64JniCallingConvention(bool is_static, bool is_synchronized, const char* shorty);
   ~Mips64JniCallingConvention() OVERRIDE {}
   // Calling convention
   ManagedRegister ReturnRegister() OVERRIDE;
