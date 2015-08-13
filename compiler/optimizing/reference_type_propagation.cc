@@ -167,6 +167,9 @@ static HBoundType* CreateBoundType(ArenaAllocator* arena,
     bound_type->SetReferenceTypeInfo(
         ReferenceTypeInfo::Create(class_rti.GetTypeHandle(), /* is_exact */ false));
   }
+  if (upper_can_be_null) {
+    bound_type->SetCanBeNull(obj->CanBeNull());
+  }
   return bound_type;
 }
 
@@ -485,6 +488,10 @@ void RTPVisitor::VisitCheckCast(HCheckCast* check_cast) {
               true /* CheckCast succeeds for nulls. */);
           check_cast->GetBlock()->InsertInstructionAfter(bound_type, check_cast);
         } else {
+          // Update nullability of the existing bound type, which may not have known
+          // that its input was not null when it was being created.
+          bound_type = check_cast->GetNext()->AsBoundType();
+          bound_type->SetCanBeNull(obj->CanBeNull());
           // We already have a bound type on the position we would need to insert
           // the new one. The existing bound type should dominate all the users
           // (dchecked) so there's no need to continue.
