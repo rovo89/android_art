@@ -20,6 +20,7 @@
 
 #include "arch/x86_64/instruction_set_features_x86_64.h"
 #include "art_method-inl.h"
+#include "base/bit_utils.h"
 #include "code_generator_x86_64.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "intrinsics.h"
@@ -1685,6 +1686,84 @@ void IntrinsicCodeGeneratorX86_64::VisitLongReverse(HInvoke* invoke) {
   SwapBits64(reg, temp1, temp2, 4, INT64_C(0x0f0f0f0f0f0f0f0f), assembler);
 }
 
+static void CreateLeadingZeroLocations(ArenaAllocator* arena, HInvoke* invoke) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::Any());
+  locations->SetOut(Location::RequiresRegister());
+}
+
+static void GenLeadingZeros(X86_64Assembler* assembler, HInvoke* invoke, bool is_long) {
+  LocationSummary* locations = invoke->GetLocations();
+  Location src = locations->InAt(0);
+  CpuRegister out = locations->Out().AsRegister<CpuRegister>();
+
+  int zero_value_result = is_long ? 64 : 32;
+  if (invoke->InputAt(0)->IsConstant()) {
+    // Evaluate this at compile time.
+    int64_t value = Int64FromConstant(invoke->InputAt(0)->AsConstant());
+    if (value == 0) {
+      value = zero_value_result;
+    } else {
+      value = is_long ? CLZ(static_cast<uint64_t>(value)) : CLZ(static_cast<uint32_t>(value));
+    }
+    if (value == 0) {
+      __ xorl(out, out);
+    } else {
+      __ movl(out, Immediate(value));
+    }
+    return;
+  }
+
+  // Handle the non-constant cases.
+  if (src.IsRegister()) {
+    if (is_long) {
+      __ bsrq(out, src.AsRegister<CpuRegister>());
+    } else {
+      __ bsrl(out, src.AsRegister<CpuRegister>());
+    }
+  } else if (is_long) {
+    DCHECK(src.IsDoubleStackSlot());
+    __ bsrq(out, Address(CpuRegister(RSP), src.GetStackIndex()));
+  } else {
+    DCHECK(src.IsStackSlot());
+    __ bsrl(out, Address(CpuRegister(RSP), src.GetStackIndex()));
+  }
+
+  // BSR sets ZF if the input was zero, and the output is undefined.
+  Label is_zero, done;
+  __ j(kEqual, &is_zero);
+
+  // Correct the result from BSR to get the CLZ result.
+  __ xorl(out, Immediate(zero_value_result - 1));
+  __ jmp(&done);
+
+  // Fix the zero case with the expected result.
+  __ Bind(&is_zero);
+  __ movl(out, Immediate(zero_value_result));
+
+  __ Bind(&done);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitIntegerNumberOfLeadingZeros(HInvoke* invoke) {
+  CreateLeadingZeroLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitIntegerNumberOfLeadingZeros(HInvoke* invoke) {
+  X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen_->GetAssembler());
+  GenLeadingZeros(assembler, invoke, /* is_long */ false);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitLongNumberOfLeadingZeros(HInvoke* invoke) {
+  CreateLeadingZeroLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitLongNumberOfLeadingZeros(HInvoke* invoke) {
+  X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen_->GetAssembler());
+  GenLeadingZeros(assembler, invoke, /* is_long */ true);
+}
+
 // Unimplemented intrinsics.
 
 #define UNIMPLEMENTED_INTRINSIC(Name)                                                   \
@@ -1696,8 +1775,6 @@ void IntrinsicCodeGeneratorX86_64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSE
 UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
-UNIMPLEMENTED_INTRINSIC(IntegerNumberOfLeadingZeros)
-UNIMPLEMENTED_INTRINSIC(LongNumberOfLeadingZeros)
 
 #undef UNIMPLEMENTED_INTRINSIC
 
