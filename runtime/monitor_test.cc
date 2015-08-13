@@ -106,8 +106,7 @@ static void FillHeap(Thread* self, ClassLinker* class_linker,
 
 class CreateTask : public Task {
  public:
-  explicit CreateTask(MonitorTest* monitor_test, uint64_t initial_sleep, int64_t millis,
-                      bool expected) :
+  CreateTask(MonitorTest* monitor_test, uint64_t initial_sleep, int64_t millis, bool expected) :
       monitor_test_(monitor_test), initial_sleep_(initial_sleep), millis_(millis),
       expected_(expected) {}
 

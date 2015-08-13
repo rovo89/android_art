@@ -300,9 +300,9 @@ namespace art {
     // be able to parse arguments.
     template <typename TArg>
     struct CmdlineParseArgument : CmdlineParseArgumentAny {
-      explicit CmdlineParseArgument(CmdlineParserArgumentInfo<TArg>&& argument_info,
-                                    std::function<void(TArg&)>&& save_argument,
-                                    std::function<TArg&(void)>&& load_argument)
+      CmdlineParseArgument(CmdlineParserArgumentInfo<TArg>&& argument_info,
+                           std::function<void(TArg&)>&& save_argument,
+                           std::function<TArg&(void)>&& load_argument)
           : argument_info_(std::forward<decltype(argument_info)>(argument_info)),
             save_argument_(std::forward<decltype(save_argument)>(save_argument)),
             load_argument_(std::forward<decltype(load_argument)>(load_argument)) {

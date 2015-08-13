@@ -93,7 +93,7 @@ class DivZeroCheckSlowPathX86 : public SlowPathCodeX86 {
 
 class DivRemMinusOneSlowPathX86 : public SlowPathCodeX86 {
  public:
-  explicit DivRemMinusOneSlowPathX86(Register reg, bool is_div) : reg_(reg), is_div_(is_div) {}
+  DivRemMinusOneSlowPathX86(Register reg, bool is_div) : reg_(reg), is_div_(is_div) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     __ Bind(GetEntryLabel());

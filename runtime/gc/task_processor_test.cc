@@ -102,7 +102,7 @@ TEST_F(TaskProcessorTest, Interrupt) {
 
 class TestOrderTask : public HeapTask {
  public:
-  explicit TestOrderTask(uint64_t expected_time, size_t expected_counter, size_t* counter)
+  TestOrderTask(uint64_t expected_time, size_t expected_counter, size_t* counter)
      : HeapTask(expected_time), expected_counter_(expected_counter), counter_(counter) {
   }
   virtual void Run(Thread* thread) OVERRIDE {

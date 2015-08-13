@@ -1808,7 +1808,7 @@ class CountStackDepthVisitor : public StackVisitor {
 template<bool kTransactionActive>
 class BuildInternalStackTraceVisitor : public StackVisitor {
  public:
-  explicit BuildInternalStackTraceVisitor(Thread* self, Thread* thread, int skip_depth)
+  BuildInternalStackTraceVisitor(Thread* self, Thread* thread, int skip_depth)
       : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         self_(self),
         skip_depth_(skip_depth),

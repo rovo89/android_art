@@ -126,7 +126,7 @@ struct CmdlineParseResult : CmdlineResult {
     : CmdlineResult(kSuccess), value_(value), has_value_(true) {}
   explicit CmdlineParseResult(T&& value)
     : CmdlineResult(kSuccess), value_(std::forward<T>(value)), has_value_(true) {}
-  explicit CmdlineParseResult()
+  CmdlineParseResult()
     : CmdlineResult(kSuccess), value_(), has_value_(false) {}
 
   T value_;

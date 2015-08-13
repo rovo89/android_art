@@ -28,7 +28,7 @@ class PassDataHolder;
 
 class PassDriverMEPostOpt : public PassDriverME {
  public:
-  explicit PassDriverMEPostOpt(const PassManager* const manager, CompilationUnit* cu)
+  PassDriverMEPostOpt(const PassManager* const manager, CompilationUnit* cu)
       : PassDriverME(manager, cu) {
   }
 

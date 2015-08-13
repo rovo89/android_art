@@ -26,7 +26,7 @@ namespace jit {
 
 class JitCompileTask : public Task {
  public:
-  explicit JitCompileTask(ArtMethod* method, JitInstrumentationCache* cache)
+  JitCompileTask(ArtMethod* method, JitInstrumentationCache* cache)
       : method_(method), cache_(cache) {
   }
 

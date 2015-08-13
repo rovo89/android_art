@@ -30,7 +30,7 @@ class StickyMarkSweep FINAL : public PartialMarkSweep {
     return kGcTypeSticky;
   }
 
-  explicit StickyMarkSweep(Heap* heap, bool is_concurrent, const std::string& name_prefix = "");
+  StickyMarkSweep(Heap* heap, bool is_concurrent, const std::string& name_prefix = "");
   ~StickyMarkSweep() {}
 
  protected:

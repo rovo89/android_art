@@ -99,7 +99,7 @@ class DedupeSet {
     return hashed_key.store_ptr;
   }
 
-  explicit DedupeSet(const char* set_name, SwapAllocator<void>& alloc)
+  DedupeSet(const char* set_name, SwapAllocator<void>& alloc)
       : allocator_(alloc), hash_time_(0) {
     for (HashType i = 0; i < kShard; ++i) {
       std::ostringstream oss;

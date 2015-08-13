@@ -855,9 +855,9 @@ class ReadBarrierOnNativeRootsVisitor {
 // The pre-fence visitor for Class::CopyOf().
 class CopyClassVisitor {
  public:
-  explicit CopyClassVisitor(Thread* self, Handle<mirror::Class>* orig, size_t new_length,
-                            size_t copy_bytes, ArtMethod* const (&imt)[mirror::Class::kImtSize],
-                            size_t pointer_size)
+  CopyClassVisitor(Thread* self, Handle<mirror::Class>* orig, size_t new_length,
+                   size_t copy_bytes, ArtMethod* const (&imt)[mirror::Class::kImtSize],
+                   size_t pointer_size)
       : self_(self), orig_(orig), new_length_(new_length),
         copy_bytes_(copy_bytes), imt_(imt), pointer_size_(pointer_size) {
   }

@@ -181,7 +181,7 @@ void ConcurrentCopying::InitializePhase() {
 // Used to switch the thread roots of a thread from from-space refs to to-space refs.
 class ThreadFlipVisitor : public Closure {
  public:
-  explicit ThreadFlipVisitor(ConcurrentCopying* concurrent_copying, bool use_tlab)
+  ThreadFlipVisitor(ConcurrentCopying* concurrent_copying, bool use_tlab)
       : concurrent_copying_(concurrent_copying), use_tlab_(use_tlab) {
   }
 
@@ -817,8 +817,8 @@ class ConcurrentCopyingAssertToSpaceInvariantObjectVisitor {
 
 class RevokeThreadLocalMarkStackCheckpoint : public Closure {
  public:
-  explicit RevokeThreadLocalMarkStackCheckpoint(ConcurrentCopying* concurrent_copying,
-                                                bool disable_weak_ref_access)
+  RevokeThreadLocalMarkStackCheckpoint(ConcurrentCopying* concurrent_copying,
+                                       bool disable_weak_ref_access)
       : concurrent_copying_(concurrent_copying),
         disable_weak_ref_access_(disable_weak_ref_access) {
   }

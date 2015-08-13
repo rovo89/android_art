@@ -2100,7 +2100,7 @@ void Heap::ChangeCollector(CollectorType collector_type) {
 // Special compacting collector which uses sub-optimal bin packing to reduce zygote space size.
 class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
  public:
-  explicit ZygoteCompactingCollector(gc::Heap* heap, bool is_running_on_memory_tool)
+  ZygoteCompactingCollector(gc::Heap* heap, bool is_running_on_memory_tool)
       : SemiSpace(heap, false, "zygote collector"),
         bin_live_bitmap_(nullptr),
         bin_mark_bitmap_(nullptr),
@@ -2629,7 +2629,7 @@ class ScanVisitor {
 // Verify a reference from an object.
 class VerifyReferenceVisitor : public SingleRootVisitor {
  public:
-  explicit VerifyReferenceVisitor(Heap* heap, Atomic<size_t>* fail_count, bool verify_referent)
+  VerifyReferenceVisitor(Heap* heap, Atomic<size_t>* fail_count, bool verify_referent)
       SHARED_REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_)
       : heap_(heap), fail_count_(fail_count), verify_referent_(verify_referent) {}
 
@@ -2779,7 +2779,7 @@ class VerifyReferenceVisitor : public SingleRootVisitor {
 // Verify all references within an object, for use with HeapBitmap::Visit.
 class VerifyObjectVisitor {
  public:
-  explicit VerifyObjectVisitor(Heap* heap, Atomic<size_t>* fail_count, bool verify_referent)
+  VerifyObjectVisitor(Heap* heap, Atomic<size_t>* fail_count, bool verify_referent)
       : heap_(heap), fail_count_(fail_count), verify_referent_(verify_referent) {}
 
   void operator()(mirror::Object* obj)
@@ -3448,8 +3448,8 @@ void Heap::RequestConcurrentGCAndSaveObject(Thread* self, bool force_full, mirro
 
 class Heap::ConcurrentGCTask : public HeapTask {
  public:
-  explicit ConcurrentGCTask(uint64_t target_time, bool force_full)
-    : HeapTask(target_time), force_full_(force_full) { }
+  ConcurrentGCTask(uint64_t target_time, bool force_full)
+      : HeapTask(target_time), force_full_(force_full) { }
   virtual void Run(Thread* self) OVERRIDE {
     gc::Heap* heap = Runtime::Current()->GetHeap();
     heap->ConcurrentGC(self, force_full_);

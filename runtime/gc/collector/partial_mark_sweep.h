@@ -30,7 +30,7 @@ class PartialMarkSweep : public MarkSweep {
     return kGcTypePartial;
   }
 
-  explicit PartialMarkSweep(Heap* heap, bool is_concurrent, const std::string& name_prefix = "");
+  PartialMarkSweep(Heap* heap, bool is_concurrent, const std::string& name_prefix = "");
   ~PartialMarkSweep() {}
 
  protected:

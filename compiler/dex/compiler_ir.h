@@ -129,7 +129,7 @@ struct OptionContent {
    * Union containing the option value of either type.
    */
   union OptionContainer {
-    explicit OptionContainer(const OptionContainer& c, OptionType t) {
+    OptionContainer(const OptionContainer& c, OptionType t) {
       if (t == kString) {
         DCHECK(c.s != nullptr);
         s = strndup(c.s, kOptionStringMaxLength);

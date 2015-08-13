@@ -106,7 +106,7 @@ class PACKED(4) HandleScope {
   }
 
   // Semi-hidden constructor. Construction expected by generated code and StackHandleScope.
-  explicit HandleScope(HandleScope* link, uint32_t num_references) :
+  HandleScope(HandleScope* link, uint32_t num_references) :
       link_(link), number_of_references_(num_references) {
   }
 
