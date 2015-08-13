@@ -129,6 +129,26 @@ public class Main {
     return $inline$interfaceTypeTest(finalUnrelatedField);
   }
 
+  // Check that we remove the LoadClass instruction from the graph.
+  /// CHECK-START: boolean Main.knownTestWithLoadedClass() register (after)
+  /// CHECK-NOT: LoadClass
+  public static boolean knownTestWithLoadedClass() {
+    return new String() instanceof String;
+  }
+
+  // Check that we do not remove the LoadClass instruction from the graph.
+  /// CHECK-START: boolean Main.knownTestWithUnloadedClass() register (after)
+  /// CHECK: <<Const:i\d+>> IntConstant 0
+  /// CHECK:                LoadClass
+  /// CHECK:                Return [<<Const>>]
+  public static boolean knownTestWithUnloadedClass() {
+    return $inline$returnMain() instanceof String;
+  }
+
+  public static Object $inline$returnMain() {
+    return new Main();
+  }
+
   public static void expect(boolean expected, boolean actual) {
     if (expected != actual) {
       throw new Error("Unexpected result");
