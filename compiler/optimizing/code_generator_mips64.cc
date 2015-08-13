@@ -419,7 +419,8 @@ class DeoptimizationSlowPathMIPS64 : public SlowPathCodeMIPS64 {
 
 CodeGeneratorMIPS64::CodeGeneratorMIPS64(HGraph* graph,
                                          const Mips64InstructionSetFeatures& isa_features,
-                                         const CompilerOptions& compiler_options)
+                                         const CompilerOptions& compiler_options,
+                                         OptimizingCompilerStats* stats)
     : CodeGenerator(graph,
                     kNumberOfGpuRegisters,
                     kNumberOfFpuRegisters,
@@ -428,7 +429,8 @@ CodeGeneratorMIPS64::CodeGeneratorMIPS64(HGraph* graph,
                                         arraysize(kCoreCalleeSaves)),
                     ComputeRegisterMask(reinterpret_cast<const int*>(kFpuCalleeSaves),
                                         arraysize(kFpuCalleeSaves)),
-                    compiler_options),
+                    compiler_options,
+                    stats),
       block_labels_(graph->GetArena(), 0),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),

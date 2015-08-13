@@ -220,7 +220,8 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
  public:
   CodeGeneratorMIPS64(HGraph* graph,
                       const Mips64InstructionSetFeatures& isa_features,
-                      const CompilerOptions& compiler_options);
+                      const CompilerOptions& compiler_options,
+                      OptimizingCompilerStats* stats = nullptr);
   virtual ~CodeGeneratorMIPS64() {}
 
   void GenerateFrameEntry() OVERRIDE;

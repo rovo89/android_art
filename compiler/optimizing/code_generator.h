@@ -26,6 +26,7 @@
 #include "locations.h"
 #include "memory_region.h"
 #include "nodes.h"
+#include "optimizing_compiler_stats.h"
 #include "stack_map_stream.h"
 
 namespace art {
@@ -143,7 +144,8 @@ class CodeGenerator {
   static CodeGenerator* Create(HGraph* graph,
                                InstructionSet instruction_set,
                                const InstructionSetFeatures& isa_features,
-                               const CompilerOptions& compiler_options);
+                               const CompilerOptions& compiler_options,
+                               OptimizingCompilerStats* stats = nullptr);
   virtual ~CodeGenerator() {}
 
   HGraph* GetGraph() const { return graph_; }
@@ -207,6 +209,8 @@ class CodeGenerator {
   virtual InstructionSet GetInstructionSet() const = 0;
 
   const CompilerOptions& GetCompilerOptions() const { return compiler_options_; }
+
+  void MaybeRecordStat(MethodCompilationStat compilation_stat, size_t count = 1) const;
 
   // Saves the register in the stack. Returns the size taken on stack.
   virtual size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) = 0;
@@ -375,7 +379,8 @@ class CodeGenerator {
                 size_t number_of_register_pairs,
                 uint32_t core_callee_save_mask,
                 uint32_t fpu_callee_save_mask,
-                const CompilerOptions& compiler_options)
+                const CompilerOptions& compiler_options,
+                OptimizingCompilerStats* stats)
       : frame_size_(0),
         core_spill_mask_(0),
         fpu_spill_mask_(0),
@@ -392,6 +397,7 @@ class CodeGenerator {
         block_order_(nullptr),
         is_baseline_(false),
         disasm_info_(nullptr),
+        stats_(stats),
         graph_(graph),
         compiler_options_(compiler_options),
         slow_paths_(graph->GetArena(), 8),
@@ -484,6 +490,8 @@ class CodeGenerator {
   void CompileInternal(CodeAllocator* allocator, bool is_baseline);
   void BlockIfInRegister(Location location, bool is_out = false) const;
   void EmitEnvironment(HEnvironment* environment, SlowPathCode* slow_path);
+
+  OptimizingCompilerStats* stats_;
 
   HGraph* const graph_;
   const CompilerOptions& compiler_options_;
