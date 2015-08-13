@@ -31,7 +31,7 @@ static inline InvokeType GetIntrinsicInvokeType(Intrinsics i) {
   switch (i) {
     case Intrinsics::kNone:
       return kInterface;  // Non-sensical for intrinsic.
-#define OPTIMIZING_INTRINSICS(Name, IsStatic) \
+#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironment) \
     case Intrinsics::k ## Name:               \
       return IsStatic;
 #include "intrinsics_list.h"
@@ -42,7 +42,21 @@ INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
   return kInterface;
 }
 
-
+// Function that returns whether an intrinsic needs an environment or not.
+static inline IntrinsicNeedsEnvironment IntrinsicNeedsEnvironment(Intrinsics i) {
+  switch (i) {
+    case Intrinsics::kNone:
+      return kNeedsEnvironment;  // Non-sensical for intrinsic.
+#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironment) \
+    case Intrinsics::k ## Name:               \
+      return NeedsEnvironment;
+#include "intrinsics_list.h"
+INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
+#undef INTRINSICS_LIST
+#undef OPTIMIZING_INTRINSICS
+  }
+  return kNeedsEnvironment;
+}
 
 static Primitive::Type GetType(uint64_t data, bool is_op_size) {
   if (is_op_size) {
@@ -357,7 +371,7 @@ void IntrinsicsRecognizer::Run() {
                            << intrinsic << " for "
                            << PrettyMethod(invoke->GetDexMethodIndex(), invoke->GetDexFile());
             } else {
-              invoke->SetIntrinsic(intrinsic);
+              invoke->SetIntrinsic(intrinsic, IntrinsicNeedsEnvironment(intrinsic));
             }
           }
         }
@@ -371,7 +385,7 @@ std::ostream& operator<<(std::ostream& os, const Intrinsics& intrinsic) {
     case Intrinsics::kNone:
       os << "None";
       break;
-#define OPTIMIZING_INTRINSICS(Name, IsStatic) \
+#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironment) \
     case Intrinsics::k ## Name: \
       os << # Name; \
       break;
