@@ -63,6 +63,7 @@
   V(MemoryPokeShortNative, kStatic, kNeedsEnvironment) \
   V(StringCharAt, kDirect, kNeedsEnvironment) \
   V(StringCompareTo, kDirect, kNeedsEnvironment) \
+  V(StringEquals, kDirect, kNeedsEnvironment) \
   V(StringGetCharsNoCheck, kDirect, kNeedsEnvironment) \
   V(StringIndexOf, kDirect, kNeedsEnvironment) \
   V(StringIndexOfAfter, kDirect, kNeedsEnvironment) \
