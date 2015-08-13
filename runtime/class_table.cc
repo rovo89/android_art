@@ -61,16 +61,6 @@ mirror::Class* ClassTable::UpdateClass(const char* descriptor, mirror::Class* kl
   return existing;
 }
 
-void ClassTable::VisitRoots(RootVisitor* visitor, VisitRootFlags flags ATTRIBUTE_UNUSED) {
-  BufferedRootVisitor<kDefaultBufferedRootCount> buffered_visitor(
-      visitor, RootInfo(kRootStickyClass));
-  for (ClassSet& class_set : classes_) {
-    for (GcRoot<mirror::Class>& root : class_set) {
-      buffered_visitor.VisitRoot(root);
-    }
-  }
-}
-
 bool ClassTable::Visit(ClassVisitor* visitor) {
   for (ClassSet& class_set : classes_) {
     for (GcRoot<mirror::Class>& root : class_set) {

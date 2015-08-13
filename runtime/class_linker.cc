@@ -37,6 +37,7 @@
 #include "base/unix_file/fd_file.h"
 #include "base/value_object.h"
 #include "class_linker-inl.h"
+#include "class_table-inl.h"
 #include "compiler_callbacks.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
@@ -582,6 +583,7 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
 
   // Setup the ClassLoader, verifying the object_size_.
   class_root = FindSystemClass(self, "Ljava/lang/ClassLoader;");
+  class_root->SetClassLoaderClass();
   CHECK_EQ(class_root->GetObjectSize(), mirror::ClassLoader::InstanceSize());
   SetClassRoot(kJavaLangClassLoader, class_root);
 
@@ -1273,15 +1275,10 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
     // Moving concurrent:
     // Need to make sure to not copy ArtMethods without doing read barriers since the roots are
     // marked concurrently and we don't hold the classlinker_classes_lock_ when we do the copy.
-    boot_class_table_.VisitRoots(visitor, flags);
+    boot_class_table_.VisitRoots(buffered_visitor);
     for (GcRoot<mirror::ClassLoader>& root : class_loaders_) {
       // May be null for boot ClassLoader.
       root.VisitRoot(visitor, RootInfo(kRootVMInternal));
-      ClassTable* const class_table = root.Read()->GetClassTable();
-      if (class_table != nullptr) {
-        // May be null if we have no classes.
-        class_table->VisitRoots(visitor, flags);
-      }
     }
   } else if ((flags & kVisitRootFlagNewRoots) != 0) {
     for (auto& root : new_class_roots_) {
@@ -2810,6 +2807,10 @@ mirror::Class* ClassLinker::InsertClass(const char* descriptor, mirror::Class* k
   }
   VerifyObject(klass);
   class_table->InsertWithHash(klass, hash);
+  if (class_loader != nullptr) {
+    // This is necessary because we need to have the card dirtied for remembered sets.
+    Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader);
+  }
   if (log_new_class_table_roots_) {
     new_class_roots_.push_back(GcRoot<mirror::Class>(klass));
   }
@@ -4373,6 +4374,11 @@ bool ClassLinker::LinkSuperClass(Handle<mirror::Class> klass) {
   // class doesn't override finalize.
   if (super->IsFinalizable()) {
     klass->SetFinalizable();
+  }
+
+  // Inherit class loader flag form super class.
+  if (super->IsClassLoaderClass()) {
+    klass->SetClassLoaderClass();
   }
 
   // Inherit reference flags (if any) from the superclass.

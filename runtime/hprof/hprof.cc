@@ -883,6 +883,7 @@ class Hprof : public SingleRootVisitor {
                      gc::EqAllocRecordTypesPtr<gc::AllocRecordStackTraceElement>> frames_;
   std::unordered_map<const mirror::Object*, const gc::AllocRecordStackTrace*> allocation_records_;
 
+  friend class GcRootVisitor;
   DISALLOW_COPY_AND_ASSIGN(Hprof);
 };
 
@@ -1023,11 +1024,46 @@ void Hprof::MarkRootObject(const mirror::Object* obj, jobject jni_obj, HprofHeap
   ++objects_in_segment_;
 }
 
+// Use for visiting the GcRoots held live by ArtFields, ArtMethods, and ClassLoaders.
+class GcRootVisitor {
+ public:
+  explicit GcRootVisitor(Hprof* hprof) : hprof_(hprof) {}
+
+  void operator()(mirror::Object* obj ATTRIBUTE_UNUSED,
+                  MemberOffset offset ATTRIBUTE_UNUSED,
+                  bool is_static ATTRIBUTE_UNUSED) const {}
+
+  // Note that these don't have read barriers. Its OK however since the GC is guaranteed to not be
+  // running during the hprof dumping process.
+  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    if (!root->IsNull()) {
+      VisitRoot(root);
+    }
+  }
+
+  void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    mirror::Object* obj = root->AsMirrorPtr();
+    // The two cases are either classes or dex cache arrays. If it is a dex cache array, then use
+    // VM internal. Otherwise the object is a declaring class of an ArtField or ArtMethod or a
+    // class from a ClassLoader.
+    hprof_->VisitRoot(obj, RootInfo(obj->IsClass() ? kRootStickyClass : kRootVMInternal));
+  }
+
+
+ private:
+  Hprof* const hprof_;
+};
+
 void Hprof::DumpHeapObject(mirror::Object* obj) {
   // Ignore classes that are retired.
   if (obj->IsClass() && obj->AsClass()->IsRetired()) {
     return;
   }
+
+  GcRootVisitor visitor(this);
+  obj->VisitReferences<true>(visitor, VoidFunctor());
 
   gc::Heap* const heap = Runtime::Current()->GetHeap();
   const gc::space::ContinuousSpace* const space = heap->FindContinuousSpaceFromObject(obj, true);

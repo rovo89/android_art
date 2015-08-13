@@ -829,6 +829,18 @@ class ResolveCatchBlockExceptionsClassVisitor : public ClassVisitor {
       std::set<std::pair<uint16_t, const DexFile*>>& exceptions_to_resolve)
      : exceptions_to_resolve_(exceptions_to_resolve) {}
 
+  virtual bool Visit(mirror::Class* c) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    const auto pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+    for (auto& m : c->GetVirtualMethods(pointer_size)) {
+      ResolveExceptionsForMethod(&m);
+    }
+    for (auto& m : c->GetDirectMethods(pointer_size)) {
+      ResolveExceptionsForMethod(&m);
+    }
+    return true;
+  }
+
+ private:
   void ResolveExceptionsForMethod(ArtMethod* method_handle) SHARED_REQUIRES(Locks::mutator_lock_) {
     const DexFile::CodeItem* code_item = method_handle->GetCodeItem();
     if (code_item == nullptr) {
@@ -864,18 +876,6 @@ class ResolveCatchBlockExceptionsClassVisitor : public ClassVisitor {
     }
   }
 
-  virtual bool Visit(mirror::Class* c) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
-    const auto pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
-    for (auto& m : c->GetVirtualMethods(pointer_size)) {
-      ResolveExceptionsForMethod(&m);
-    }
-    for (auto& m : c->GetDirectMethods(pointer_size)) {
-      ResolveExceptionsForMethod(&m);
-    }
-    return true;
-  }
-
- private:
   std::set<std::pair<uint16_t, const DexFile*>>& exceptions_to_resolve_;
 };
 
