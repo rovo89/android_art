@@ -1276,7 +1276,7 @@ class MarkVisitor {
   explicit MarkVisitor(MarkSweep* const mark_sweep) ALWAYS_INLINE : mark_sweep_(mark_sweep) {
   }
 
-  void operator()(mirror::Object* obj, MemberOffset offset, bool /* is_static */) const
+  void operator()(mirror::Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
       ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(Locks::heap_bitmap_lock_) {
     if (kCheckLocks) {
