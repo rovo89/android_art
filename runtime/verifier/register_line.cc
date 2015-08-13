@@ -18,7 +18,7 @@
 
 #include "base/stringprintf.h"
 #include "dex_instruction-inl.h"
-#include "method_verifier.h"
+#include "method_verifier-inl.h"
 #include "register_line-inl.h"
 #include "reg_type-inl.h"
 
