@@ -3023,6 +3023,10 @@ class HInvokeStaticOrDirect : public HInvoke {
     return false;
   }
 
+  bool CanBeNull() const OVERRIDE {
+    return return_type_ == Primitive::kPrimNot && !IsStringInit();
+  }
+
   InvokeType GetInvokeType() const { return invoke_type_; }
   bool IsRecursive() const { return is_recursive_; }
   bool NeedsDexCache() const OVERRIDE { return !IsRecursive(); }
