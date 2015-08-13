@@ -211,6 +211,8 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
       return Intrinsics::kStringCharAt;
     case kIntrinsicCompareTo:
       return Intrinsics::kStringCompareTo;
+    case kIntrinsicEquals:
+      return Intrinsics::kStringEquals;
     case kIntrinsicGetCharsNoCheck:
       return Intrinsics::kStringGetCharsNoCheck;
     case kIntrinsicIsEmptyOrLength:
