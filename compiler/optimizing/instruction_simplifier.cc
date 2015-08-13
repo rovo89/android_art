@@ -238,11 +238,18 @@ void InstructionSimplifierVisitor::VisitCheckCast(HCheckCast* check_cast) {
   }
 
   bool outcome;
-  if (TypeCheckHasKnownOutcome(check_cast->InputAt(1)->AsLoadClass(), object, &outcome)) {
+  HLoadClass* load_class = check_cast->InputAt(1)->AsLoadClass();
+  if (TypeCheckHasKnownOutcome(load_class, object, &outcome)) {
     if (outcome) {
       check_cast->GetBlock()->RemoveInstruction(check_cast);
       if (stats_ != nullptr) {
         stats_->RecordStat(MethodCompilationStat::kRemovedCheckedCast);
+      }
+      if (!load_class->HasUses()) {
+        // We cannot rely on DCE to remove the class because the `HLoadClass` thinks it can throw.
+        // However, here we know that it cannot because the checkcast was successfull, hence
+        // the class was already loaded.
+        load_class->GetBlock()->RemoveInstruction(load_class);
       }
     } else {
       // Don't do anything for exceptional cases for now. Ideally we should remove
@@ -268,7 +275,8 @@ void InstructionSimplifierVisitor::VisitInstanceOf(HInstanceOf* instruction) {
   }
 
   bool outcome;
-  if (TypeCheckHasKnownOutcome(instruction->InputAt(1)->AsLoadClass(), object, &outcome)) {
+  HLoadClass* load_class = instruction->InputAt(1)->AsLoadClass();
+  if (TypeCheckHasKnownOutcome(load_class, object, &outcome)) {
     if (outcome && can_be_null) {
       // Type test will succeed, we just need a null test.
       HNotEqual* test = new (graph->GetArena()) HNotEqual(graph->GetNullConstant(), object);
@@ -280,6 +288,12 @@ void InstructionSimplifierVisitor::VisitInstanceOf(HInstanceOf* instruction) {
     }
     RecordSimplification();
     instruction->GetBlock()->RemoveInstruction(instruction);
+    if (outcome && !load_class->HasUses()) {
+      // We cannot rely on DCE to remove the class because the `HLoadClass` thinks it can throw.
+      // However, here we know that it cannot because the instanceof check was successfull, hence
+      // the class was already loaded.
+      load_class->GetBlock()->RemoveInstruction(load_class);
+    }
   }
 }
 

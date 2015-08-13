@@ -112,6 +112,33 @@ public class Main {
     return $inline$interfaceTypeTest(finalUnrelatedField);
   }
 
+  /// CHECK-START: java.lang.String Main.knownTestWithLoadedClass() register (after)
+  /// CHECK-NOT: LoadClass
+  public static String knownTestWithLoadedClass() {
+    return (String)$inline$getString();
+  }
+
+  /// CHECK-START: Itf Main.knownTestWithUnloadedClass() register (after)
+  /// CHECK: LoadClass
+  public static Itf knownTestWithUnloadedClass() {
+    return (Itf)$inline$getString();
+  }
+
+  public static Object $inline$getString() {
+    return new String();
+  }
+
+  public static Object $inline$getMain() {
+    return new Main();
+  }
+
+  /// CHECK-START: void Main.nonNullBoundType() register (after)
+  /// CHECK-NOT: NullCheck
+  public static void nonNullBoundType() {
+    Main main = (Main)$inline$getMain();
+    main.getClass();
+  }
+
   public static void main(String[] args) {
     classTypeTestNull();
     try {
