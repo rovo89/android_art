@@ -546,6 +546,9 @@ public class Main implements Runnable {
                     operation.perform();
                     i = (i + 1) % operations.length;
                 }
+            } catch (OutOfMemoryError e) {
+                // Catch OutOfMemoryErrors since these can cause the test to fail it they print
+                // the stack trace after "Finishing worker".
             } finally {
                 if (DEBUG) {
                     System.out.println("Finishing ThreadStress Daemon for " + id);
