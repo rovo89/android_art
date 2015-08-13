@@ -254,7 +254,7 @@ class Arm64Assembler FINAL : public Assembler {
 
 class Arm64Exception {
  private:
-  explicit Arm64Exception(Arm64ManagedRegister scratch, size_t stack_adjust)
+  Arm64Exception(Arm64ManagedRegister scratch, size_t stack_adjust)
       : scratch_(scratch), stack_adjust_(stack_adjust) {
     }
 

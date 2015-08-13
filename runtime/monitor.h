@@ -151,10 +151,10 @@ class Monitor {
 #endif
 
  private:
-  explicit Monitor(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code)
-        SHARED_REQUIRES(Locks::mutator_lock_);
-  explicit Monitor(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code,
-                   MonitorId id) SHARED_REQUIRES(Locks::mutator_lock_);
+  Monitor(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  Monitor(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code, MonitorId id)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Install the monitor into its object, may fail if another thread installs a different monitor
   // first.

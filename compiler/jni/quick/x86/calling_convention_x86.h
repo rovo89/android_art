@@ -26,8 +26,7 @@ constexpr size_t kFramePointerSize = 4;
 
 class X86ManagedRuntimeCallingConvention FINAL : public ManagedRuntimeCallingConvention {
  public:
-  explicit X86ManagedRuntimeCallingConvention(bool is_static, bool is_synchronized,
-                                              const char* shorty)
+  X86ManagedRuntimeCallingConvention(bool is_static, bool is_synchronized, const char* shorty)
       : ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize),
         gpr_arg_count_(0) {}
   ~X86ManagedRuntimeCallingConvention() OVERRIDE {}
@@ -51,7 +50,7 @@ class X86ManagedRuntimeCallingConvention FINAL : public ManagedRuntimeCallingCon
 
 class X86JniCallingConvention FINAL : public JniCallingConvention {
  public:
-  explicit X86JniCallingConvention(bool is_static, bool is_synchronized, const char* shorty);
+  X86JniCallingConvention(bool is_static, bool is_synchronized, const char* shorty);
   ~X86JniCallingConvention() OVERRIDE {}
   // Calling convention
   ManagedRegister ReturnRegister() OVERRIDE;

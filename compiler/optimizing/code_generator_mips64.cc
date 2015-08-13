@@ -294,8 +294,7 @@ class NullCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
 
 class SuspendCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
  public:
-  explicit SuspendCheckSlowPathMIPS64(HSuspendCheck* instruction,
-                                      HBasicBlock* successor)
+  SuspendCheckSlowPathMIPS64(HSuspendCheck* instruction, HBasicBlock* successor)
       : instruction_(instruction), successor_(successor) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {

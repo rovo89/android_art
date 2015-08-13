@@ -283,7 +283,7 @@ class MipsAssembler FINAL : public Assembler {
 // Slowpath entered when Thread::Current()->_exception is non-null
 class MipsExceptionSlowPath FINAL : public SlowPath {
  public:
-  explicit MipsExceptionSlowPath(MipsManagedRegister scratch, size_t stack_adjust)
+  MipsExceptionSlowPath(MipsManagedRegister scratch, size_t stack_adjust)
       : scratch_(scratch), stack_adjust_(stack_adjust) {}
   virtual void Emit(Assembler *sp_asm) OVERRIDE;
  private:

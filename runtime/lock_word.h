@@ -197,7 +197,7 @@ class LockWord {
   size_t ForwardingAddress() const;
 
   // Constructor a lock word for inflation to use a Monitor.
-  explicit LockWord(Monitor* mon, uint32_t rb_state);
+  LockWord(Monitor* mon, uint32_t rb_state);
 
   // Return the hash code stored in the lock word, must be kHashCode state.
   int32_t GetHashCode() const;

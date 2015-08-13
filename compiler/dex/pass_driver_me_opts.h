@@ -29,9 +29,9 @@ class PassManager;
 
 class PassDriverMEOpts : public PassDriverME {
  public:
-  explicit PassDriverMEOpts(const PassManager* const manager,
-                            const PassManager* const post_opt_pass_manager,
-                            CompilationUnit* cu)
+  PassDriverMEOpts(const PassManager* const manager,
+                   const PassManager* const post_opt_pass_manager,
+                   CompilationUnit* cu)
       : PassDriverME(manager, cu), post_opt_pass_manager_(post_opt_pass_manager) {
   }
 
