@@ -745,6 +745,8 @@ class Heap {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!Locks::alloc_tracker_lock_);
 
+  void DisableGCForShutdown() REQUIRES(!*gc_complete_lock_);
+
  private:
   class ConcurrentGCTask;
   class CollectorTransitionTask;
@@ -1292,6 +1294,10 @@ class Heap {
   Atomic<uint64_t> unique_backtrace_count_;
   // Stack trace hashes that we already saw,
   std::unordered_set<uint64_t> seen_backtraces_ GUARDED_BY(backtrace_lock_);
+
+  // We disable GC when we are shutting down the runtime in case there are daemon threads still
+  // allocating.
+  bool gc_disabled_for_shutdown_ GUARDED_BY(gc_complete_lock_);
 
   friend class CollectorTransitionTask;
   friend class collector::GarbageCollector;
