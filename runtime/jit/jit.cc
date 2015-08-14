@@ -19,6 +19,7 @@
 #include <dlfcn.h>
 
 #include "art_method-inl.h"
+#include "debugger.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "interpreter/interpreter.h"
 #include "jit_code_cache.h"
