@@ -324,6 +324,9 @@ static inline constexpr bool ValidPointerSize(size_t pointer_size) {
   return pointer_size == 4 || pointer_size == 8;
 }
 
+void DumpMethodCFG(ArtMethod* method, std::ostream& os) SHARED_REQUIRES(Locks::mutator_lock_);
+void DumpMethodCFG(const DexFile* dex_file, uint32_t dex_method_idx, std::ostream& os);
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_UTILS_H_
