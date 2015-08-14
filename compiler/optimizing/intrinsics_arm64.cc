@@ -1055,6 +1055,102 @@ void IntrinsicCodeGeneratorARM64::VisitStringCompareTo(HInvoke* invoke) {
   __ Bind(slow_path->GetExitLabel());
 }
 
+void IntrinsicLocationsBuilderARM64::VisitStringEquals(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kNoCall,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  // Temporary registers to store lengths of strings and for calculations.
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+
+  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitStringEquals(HInvoke* invoke) {
+  vixl::MacroAssembler* masm = GetVIXLAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  Register str = WRegisterFrom(locations->InAt(0));
+  Register arg = WRegisterFrom(locations->InAt(1));
+  Register out = XRegisterFrom(locations->Out());
+
+  UseScratchRegisterScope scratch_scope(masm);
+  Register temp = scratch_scope.AcquireW();
+  Register temp1 = WRegisterFrom(locations->GetTemp(0));
+  Register temp2 = WRegisterFrom(locations->GetTemp(1));
+
+  vixl::Label loop;
+  vixl::Label end;
+  vixl::Label return_true;
+  vixl::Label return_false;
+
+  // Get offsets of count, value, and class fields within a string object.
+  const int32_t count_offset = mirror::String::CountOffset().Int32Value();
+  const int32_t value_offset = mirror::String::ValueOffset().Int32Value();
+  const int32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+
+  // Note that the null check must have been done earlier.
+  DCHECK(!invoke->CanDoImplicitNullCheckOn(invoke->InputAt(0)));
+
+  // Check if input is null, return false if it is.
+  __ Cbz(arg, &return_false);
+
+  // Reference equality check, return true if same reference.
+  __ Cmp(str, arg);
+  __ B(&return_true, eq);
+
+  // Instanceof check for the argument by comparing class fields.
+  // All string objects must have the same type since String cannot be subclassed.
+  // Receiver must be a string object, so its class field is equal to all strings' class fields.
+  // If the argument is a string object, its class field must be equal to receiver's class field.
+  __ Ldr(temp, MemOperand(str.X(), class_offset));
+  __ Ldr(temp1, MemOperand(arg.X(), class_offset));
+  __ Cmp(temp, temp1);
+  __ B(&return_false, ne);
+
+  // Load lengths of this and argument strings.
+  __ Ldr(temp, MemOperand(str.X(), count_offset));
+  __ Ldr(temp1, MemOperand(arg.X(), count_offset));
+  // Check if lengths are equal, return false if they're not.
+  __ Cmp(temp, temp1);
+  __ B(&return_false, ne);
+  // Store offset of string value in preparation for comparison loop
+  __ Mov(temp1, value_offset);
+  // Return true if both strings are empty.
+  __ Cbz(temp, &return_true);
+
+  // Assertions that must hold in order to compare strings 4 characters at a time.
+  DCHECK_ALIGNED(value_offset, 8);
+  static_assert(IsAligned<8>(kObjectAlignment), "String of odd length is not zero padded");
+
+  temp1 = temp1.X();
+  temp2 = temp2.X();
+
+  // Loop to compare strings 4 characters at a time starting at the beginning of the string.
+  // Ok to do this because strings are zero-padded to be 8-byte aligned.
+  __ Bind(&loop);
+  __ Ldr(out, MemOperand(str.X(), temp1));
+  __ Ldr(temp2, MemOperand(arg.X(), temp1));
+  __ Add(temp1, temp1, Operand(sizeof(uint64_t)));
+  __ Cmp(out, temp2);
+  __ B(&return_false, ne);
+  __ Sub(temp, temp, Operand(4), SetFlags);
+  __ B(&loop, gt);
+
+  // Return true and exit the function.
+  // If loop does not result in returning false, we return true.
+  __ Bind(&return_true);
+  __ Mov(out, 1);
+  __ B(&end);
+
+  // Return false and exit the function.
+  __ Bind(&return_false);
+  __ Mov(out, 0);
+  __ Bind(&end);
+}
+
 static void GenerateVisitStringIndexOf(HInvoke* invoke,
                                        vixl::MacroAssembler* masm,
                                        CodeGeneratorARM64* codegen,
@@ -1229,7 +1325,6 @@ void IntrinsicCodeGeneratorARM64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
 UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
-UNIMPLEMENTED_INTRINSIC(StringEquals)
 
 #undef UNIMPLEMENTED_INTRINSIC
 
