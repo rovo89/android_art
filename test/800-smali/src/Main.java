@@ -123,6 +123,10 @@ public class Main {
                 null));
         testCases.add(new TestCase("b/22881413", "B22881413", "run", null, null, null));
         testCases.add(new TestCase("b/20843113", "B20843113", "run", null, null, null));
+        testCases.add(new TestCase("b/23201502 (float)", "B23201502", "runFloat", null,
+                new NullPointerException(), null));
+        testCases.add(new TestCase("b/23201502 (double)", "B23201502", "runDouble", null,
+                new NullPointerException(), null));
     }
 
     public void runTests() {
