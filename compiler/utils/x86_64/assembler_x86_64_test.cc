@@ -836,6 +836,18 @@ TEST_F(AssemblerX86_64Test, Xorq) {
   DriverStr(expected, "xorq");
 }
 
+TEST_F(AssemblerX86_64Test, RepneScasw) {
+  GetAssembler()->repne_scasw();
+  const char* expected = "repne scasw\n";
+  DriverStr(expected, "repne_scasw");
+}
+
+TEST_F(AssemblerX86_64Test, RepMovsw) {
+  GetAssembler()->rep_movsw();
+  const char* expected = "rep movsw\n";
+  DriverStr(expected, "rep_movsw");
+}
+
 TEST_F(AssemblerX86_64Test, Movsxd) {
   DriverStr(RepeatRr(&x86_64::X86_64Assembler::movsxd, "movsxd %{reg2}, %{reg1}"), "movsxd");
 }
