@@ -614,7 +614,9 @@ void SemiSpace::VisitRoots(mirror::Object*** roots, size_t count,
   for (size_t i = 0; i < count; ++i) {
     auto* root = roots[i];
     auto ref = StackReference<mirror::Object>::FromMirrorPtr(*root);
-    MarkObject(&ref);
+    // The root can be in the to-space since we may visit the declaring class of an ArtMethod
+    // multiple times if it is on the call stack.
+    MarkObjectIfNotInToSpace(&ref);
     if (*root != ref.AsMirrorPtr()) {
       *root = ref.AsMirrorPtr();
     }
@@ -624,7 +626,7 @@ void SemiSpace::VisitRoots(mirror::Object*** roots, size_t count,
 void SemiSpace::VisitRoots(mirror::CompressedReference<mirror::Object>** roots, size_t count,
                            const RootInfo& info ATTRIBUTE_UNUSED) {
   for (size_t i = 0; i < count; ++i) {
-    MarkObject(roots[i]);
+    MarkObjectIfNotInToSpace(roots[i]);
   }
 }
 
