@@ -38,11 +38,14 @@
 #include <inttypes.h>
 #include <stdio.h>
 
+#include <iostream>
 #include <memory>
+#include <sstream>
 #include <vector>
 
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
+#include "utils.h"
 
 namespace art {
 
@@ -1046,6 +1049,49 @@ static void dumpIField(const DexFile* pDexFile, u4 idx, u4 flags, int i) {
 }
 
 /*
+ * Dumping a CFG. Note that this will do duplicate work. utils.h doesn't expose the code-item
+ * version, so the DumpMethodCFG code will have to iterate again to find it. But dexdump is a
+ * tool, so this is not performance-critical.
+ */
+
+static void dumpCfg(const DexFile* dex_file,
+                    uint32_t dex_method_idx,
+                    const DexFile::CodeItem* code_item) {
+  if (code_item != nullptr) {
+    std::ostringstream oss;
+    DumpMethodCFG(dex_file, dex_method_idx, oss);
+    fprintf(gOutFile, "%s", oss.str().c_str());
+  }
+}
+
+static void dumpCfg(const DexFile* dex_file, int idx) {
+  const DexFile::ClassDef& class_def = dex_file->GetClassDef(idx);
+  const uint8_t* class_data = dex_file->GetClassData(class_def);
+  if (class_data == nullptr) {  // empty class such as a marker interface?
+    return;
+  }
+  ClassDataItemIterator it(*dex_file, class_data);
+  while (it.HasNextStaticField()) {
+    it.Next();
+  }
+  while (it.HasNextInstanceField()) {
+    it.Next();
+  }
+  while (it.HasNextDirectMethod()) {
+    dumpCfg(dex_file,
+            it.GetMemberIndex(),
+            it.GetMethodCodeItem());
+    it.Next();
+  }
+  while (it.HasNextVirtualMethod()) {
+    dumpCfg(dex_file,
+                it.GetMemberIndex(),
+                it.GetMethodCodeItem());
+    it.Next();
+  }
+}
+
+/*
  * Dumps the class.
  *
  * Note "idx" is a DexClassDef index, not a DexTypeId index.
@@ -1058,6 +1104,11 @@ static void dumpClass(const DexFile* pDexFile, int idx, char** pLastPackage) {
 
   // Omitting non-public class.
   if (gOptions.exportsOnly && (pClassDef.access_flags_ & kAccPublic) == 0) {
+    return;
+  }
+
+  if (gOptions.cfg) {
+    dumpCfg(pDexFile, idx);
     return;
   }
 

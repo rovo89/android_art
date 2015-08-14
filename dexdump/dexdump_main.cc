@@ -46,6 +46,7 @@ static void usage(void) {
   fprintf(stderr, " -c : verify checksum and exit\n");
   fprintf(stderr, " -d : disassemble code sections\n");
   fprintf(stderr, " -f : display summary information from file header\n");
+  fprintf(stderr, " -g : dump CFG for dex\n");
   fprintf(stderr, " -h : display file header details\n");
   fprintf(stderr, " -i : ignore checksum failures\n");
   fprintf(stderr, " -l : output layout, either 'plain' or 'xml'\n");
@@ -68,7 +69,7 @@ int dexdumpDriver(int argc, char** argv) {
 
   // Parse all arguments.
   while (1) {
-    const int ic = getopt(argc, argv, "cdfhil:t:o:");
+    const int ic = getopt(argc, argv, "cdfghil:t:o:");
     if (ic < 0) {
       break;  // done
     }
@@ -81,6 +82,9 @@ int dexdumpDriver(int argc, char** argv) {
         break;
       case 'f':  // dump outer file header
         gOptions.showFileHeaders = true;
+        break;
+      case 'g':  // dump cfg
+        gOptions.cfg = true;
         break;
       case 'h':  // dump section headers, i.e. all meta-data
         gOptions.showSectionHeaders = true;
