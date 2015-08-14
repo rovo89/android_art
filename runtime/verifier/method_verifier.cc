@@ -53,6 +53,9 @@ static constexpr bool kTimeVerifyMethod = !kIsDebugBuild;
 static constexpr bool gDebugVerify = false;
 // TODO: Add a constant to method_verifier to turn on verbose logging?
 
+// On VLOG(verifier), should we dump the whole state when we run into a hard failure?
+static constexpr bool kDumpRegLinesOnHardFailureIfVLOG = true;
+
 void PcToRegisterLineTable::Init(RegisterTrackingMode mode, InstructionFlags* flags,
                                  uint32_t insns_size, uint16_t registers_size,
                                  MethodVerifier* verifier) {
@@ -638,6 +641,12 @@ std::ostream& MethodVerifier::Fail(VerifyError error) {
         Runtime::Current()->GetCompilerCallbacks()->ClassRejected(ref);
       }
       have_pending_hard_failure_ = true;
+      if (VLOG_IS_ON(verifier) && kDumpRegLinesOnHardFailureIfVLOG) {
+        ScopedObjectAccess soa(Thread::Current());
+        std::ostringstream oss;
+        Dump(oss);
+        LOG(ERROR) << oss.str();
+      }
       break;
     }
   }
@@ -1319,7 +1328,7 @@ void MethodVerifier::Dump(VariableIndentationOutputStream* vios) {
   ScopedIndentation indent1(vios);
   const Instruction* inst = Instruction::At(code_item_->insns_);
   for (size_t dex_pc = 0; dex_pc < code_item_->insns_size_in_code_units_;
-      dex_pc += inst->SizeInCodeUnits()) {
+      dex_pc += inst->SizeInCodeUnits(), inst = inst->Next()) {
     RegisterLine* reg_line = reg_table_.GetLine(dex_pc);
     if (reg_line != nullptr) {
       vios->Stream() << reg_line->Dump(this) << "\n";
@@ -1331,7 +1340,6 @@ void MethodVerifier::Dump(VariableIndentationOutputStream* vios) {
       vios->Stream() << inst->DumpHex(5) << " ";
     }
     vios->Stream() << inst->DumpString(dex_file_) << "\n";
-    inst = inst->Next();
   }
 }
 
