@@ -3938,7 +3938,24 @@ void MethodVerifier::VerifyAPut(const Instruction* inst,
     if (array_type.IsZero()) {
       // Null array type; this code path will fail at runtime.
       // Still check that the given value matches the instruction's type.
-      work_line_->VerifyRegisterType(this, inst->VRegA_23x(), insn_type);
+      // Note: this is, as usual, complicated by the fact the the instruction isn't fully typed
+      //       and fits multiple register types.
+      const RegType* modified_reg_type = &insn_type;
+      if ((modified_reg_type == &reg_types_.Integer()) ||
+          (modified_reg_type == &reg_types_.LongLo())) {
+        // May be integer or float | long or double. Overwrite insn_type accordingly.
+        const RegType& value_type = work_line_->GetRegisterType(this, inst->VRegA_23x());
+        if (modified_reg_type == &reg_types_.Integer()) {
+          if (&value_type == &reg_types_.Float()) {
+            modified_reg_type = &value_type;
+          }
+        } else {
+          if (&value_type == &reg_types_.DoubleLo()) {
+            modified_reg_type = &value_type;
+          }
+        }
+      }
+      work_line_->VerifyRegisterType(this, inst->VRegA_23x(), *modified_reg_type);
     } else if (!array_type.IsArrayTypes()) {
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "not array type " << array_type << " with aput";
     } else {
