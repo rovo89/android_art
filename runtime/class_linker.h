@@ -278,7 +278,7 @@ class ClassLinker {
   void RunRootClinits() SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
-  void RegisterDexFile(const DexFile& dex_file)
+  mirror::DexCache* RegisterDexFile(const DexFile& dex_file)
       REQUIRES(!dex_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
   void RegisterDexFile(const DexFile& dex_file, Handle<mirror::DexCache> dex_cache)
       REQUIRES(!dex_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
@@ -309,9 +309,7 @@ class ClassLinker {
   void VisitRoots(RootVisitor* visitor, VisitRootFlags flags)
       REQUIRES(!dex_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  mirror::DexCache* FindDexCache(const DexFile& dex_file)
-      REQUIRES(!dex_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
-  bool IsDexFileRegistered(const DexFile& dex_file)
+  mirror::DexCache* FindDexCache(const DexFile& dex_file, bool allow_failure = false)
       REQUIRES(!dex_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
   void FixupDexCaches(ArtMethod* resolution_method)
       REQUIRES(!dex_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
@@ -471,7 +469,7 @@ class ClassLinker {
 
   // Used by image writer for checking.
   bool ClassInClassTable(mirror::Class* klass)
-      REQUIRES(!Locks::classlinker_classes_lock_)
+      REQUIRES(Locks::classlinker_classes_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ArtMethod* CreateRuntimeMethod();
@@ -561,8 +559,9 @@ class ClassLinker {
 
   void RegisterDexFileLocked(const DexFile& dex_file, Handle<mirror::DexCache> dex_cache)
       REQUIRES(dex_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
-  bool IsDexFileRegisteredLocked(const DexFile& dex_file)
-      SHARED_REQUIRES(dex_lock_, Locks::mutator_lock_);
+  mirror::DexCache* FindDexCacheLocked(const DexFile& dex_file, bool allow_failure)
+      REQUIRES(dex_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   bool InitializeClass(Thread* self, Handle<mirror::Class> klass, bool can_run_clinit,
                        bool can_init_parents)
@@ -631,7 +630,9 @@ class ClassLinker {
   size_t GetDexCacheCount() SHARED_REQUIRES(Locks::mutator_lock_, dex_lock_) {
     return dex_caches_.size();
   }
-  mirror::DexCache* GetDexCache(size_t idx) SHARED_REQUIRES(Locks::mutator_lock_, dex_lock_);
+  const std::list<jobject>& GetDexCaches() SHARED_REQUIRES(Locks::mutator_lock_, dex_lock_) {
+    return dex_caches_;
+  }
 
   const OatFile* FindOpenedOatFileFromOatLocation(const std::string& oat_location)
       REQUIRES(!dex_lock_);
@@ -702,8 +703,9 @@ class ClassLinker {
   std::vector<std::unique_ptr<const DexFile>> opened_dex_files_;
 
   mutable ReaderWriterMutex dex_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  std::vector<size_t> new_dex_cache_roots_ GUARDED_BY(dex_lock_);
-  std::vector<GcRoot<mirror::DexCache>> dex_caches_ GUARDED_BY(dex_lock_);
+  // JNI weak globals to allow dex caches to get unloaded. We lazily delete weak globals when we
+  // register new dex files.
+  std::list<jobject> dex_caches_ GUARDED_BY(dex_lock_);
   std::vector<const OatFile*> oat_files_ GUARDED_BY(dex_lock_);
 
   // This contains the class laoders which have class tables. It is populated by
@@ -736,7 +738,6 @@ class ClassLinker {
   size_t find_array_class_cache_next_victim_;
 
   bool init_done_;
-  bool log_new_dex_caches_roots_ GUARDED_BY(dex_lock_);
   bool log_new_class_table_roots_ GUARDED_BY(Locks::classlinker_classes_lock_);
 
   InternTable* intern_table_;

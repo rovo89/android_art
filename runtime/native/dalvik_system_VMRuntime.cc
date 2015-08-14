@@ -425,14 +425,16 @@ static void PreloadDexCachesStatsTotal(DexCacheStats* total) {
 static void PreloadDexCachesStatsFilled(DexCacheStats* filled)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   if (!kPreloadDexCachesCollectStats) {
-      return;
+    return;
   }
-  ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  const std::vector<const DexFile*>& boot_class_path = linker->GetBootClassPath();
-  for (size_t i = 0; i< boot_class_path.size(); i++) {
-    const DexFile* dex_file = boot_class_path[i];
+  ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
+  for (const DexFile* dex_file : class_linker->GetBootClassPath()) {
     CHECK(dex_file != nullptr);
-    mirror::DexCache* dex_cache = linker->FindDexCache(*dex_file);
+    mirror::DexCache* const dex_cache = class_linker->FindDexCache(*dex_file, true);
+    // If dex cache was deallocated, just continue.
+    if (dex_cache == nullptr) {
+      continue;
+    }
     for (size_t j = 0; j < dex_cache->NumStrings(); j++) {
       mirror::String* string = dex_cache->GetResolvedString(j);
       if (string != nullptr) {
@@ -446,7 +448,7 @@ static void PreloadDexCachesStatsFilled(DexCacheStats* filled)
       }
     }
     for (size_t j = 0; j < dex_cache->NumResolvedFields(); j++) {
-      ArtField* field = linker->GetResolvedField(j, dex_cache);
+      ArtField* field = class_linker->GetResolvedField(j, dex_cache);
       if (field != nullptr) {
         filled->num_fields++;
       }
@@ -490,11 +492,11 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
   }
 
   const std::vector<const DexFile*>& boot_class_path = linker->GetBootClassPath();
-  for (size_t i = 0; i< boot_class_path.size(); i++) {
+  for (size_t i = 0; i < boot_class_path.size(); i++) {
     const DexFile* dex_file = boot_class_path[i];
     CHECK(dex_file != nullptr);
     StackHandleScope<1> hs(soa.Self());
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(linker->FindDexCache(*dex_file)));
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(linker->RegisterDexFile(*dex_file)));
 
     if (kPreloadDexCachesStrings) {
       for (size_t j = 0; j < dex_cache->NumStrings(); j++) {

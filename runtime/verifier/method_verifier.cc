@@ -3361,6 +3361,7 @@ const RegType& MethodVerifier::GetCaughtExceptionType() {
 ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
     uint32_t dex_method_idx, MethodType method_type) {
   const DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx);
+  // LOG(INFO) << dex_file_->NumTypeIds() << " " << dex_file_->NumClassDefs();
   const RegType& klass_type = ResolveClassAndCheckAccess(method_id.class_idx_);
   if (klass_type.IsConflict()) {
     std::string append(" in attempt to access method ");

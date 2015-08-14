@@ -791,6 +791,12 @@ static size_t OpenDexFiles(const std::vector<std::string>& dex_filenames,
   return failure_count;
 }
 
+void Runtime::SetSentinel(mirror::Object* sentinel) {
+  CHECK(sentinel_.Read() == nullptr);
+  CHECK(sentinel != nullptr);
+  sentinel_ = GcRoot<mirror::Object>(sentinel);
+}
+
 bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) {
   ATRACE_BEGIN("Runtime::Init");
   CHECK_EQ(sysconf(_SC_PAGE_SIZE), kPageSize);
@@ -1053,10 +1059,6 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   }
 
   CHECK(class_linker_ != nullptr);
-
-  // Initialize the special sentinel_ value early.
-  sentinel_ = GcRoot<mirror::Object>(class_linker_->AllocObject(self));
-  CHECK(sentinel_.Read() != nullptr);
 
   verifier::MethodVerifier::Init();
 
