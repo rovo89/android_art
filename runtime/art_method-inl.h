@@ -63,6 +63,15 @@ inline void ArtMethod::SetDeclaringClass(mirror::Class* new_declaring_class) {
   declaring_class_ = GcRoot<mirror::Class>(new_declaring_class);
 }
 
+inline bool ArtMethod::CASDeclaringClass(mirror::Class* expected_class,
+                                         mirror::Class* desired_class) {
+  GcRoot<mirror::Class> expected_root(expected_class);
+  GcRoot<mirror::Class> desired_root(desired_class);
+  return reinterpret_cast<Atomic<GcRoot<mirror::Class>>*>(&declaring_class_)->
+      CompareExchangeStrongSequentiallyConsistent(
+          expected_root, desired_root);
+}
+
 inline uint32_t ArtMethod::GetAccessFlags() {
   DCHECK(IsRuntimeMethod() || GetDeclaringClass()->IsIdxLoaded() ||
          GetDeclaringClass()->IsErroneous());
