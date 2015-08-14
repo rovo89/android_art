@@ -2419,6 +2419,7 @@ class ReferenceMapVisitor : public StackVisitor {
 
   void VisitShadowFrame(ShadowFrame* shadow_frame) SHARED_REQUIRES(Locks::mutator_lock_) {
     ArtMethod* m = shadow_frame->GetMethod();
+    VisitDeclaringClass(m);
     DCHECK(m != nullptr);
     size_t num_regs = shadow_frame->NumberOfVRegs();
     if (m->IsNative() || shadow_frame->HasReferenceArray()) {
@@ -2459,10 +2460,25 @@ class ReferenceMapVisitor : public StackVisitor {
   }
 
  private:
+  // Visiting the declaring class is necessary so that we don't unload the class of a method that
+  // is executing. We need to ensure that the code stays mapped.
+  void VisitDeclaringClass(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_) {
+    mirror::Class* klass = method->GetDeclaringClassNoBarrier();
+    // klass can be null for runtime methods.
+    if (klass != nullptr) {
+      mirror::Object* new_ref = klass;
+      visitor_(&new_ref, -1, this);
+      if (new_ref != klass) {
+        method->CASDeclaringClass(klass, new_ref->AsClass());
+      }
+    }
+  }
+
   void VisitQuickFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
-    auto* cur_quick_frame = GetCurrentQuickFrame();
+    ArtMethod** cur_quick_frame = GetCurrentQuickFrame();
     DCHECK(cur_quick_frame != nullptr);
-    auto* m = *cur_quick_frame;
+    ArtMethod* m = *cur_quick_frame;
+    VisitDeclaringClass(m);
 
     // Process register map (which native and runtime methods don't have)
     if (!m->IsNative() && !m->IsRuntimeMethod() && !m->IsProxyMethod()) {
