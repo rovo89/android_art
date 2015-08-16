@@ -121,6 +121,15 @@ inline std::pair<bool, bool> CompilerDriver::IsFastInstanceField(
     ArtField* resolved_field, uint16_t field_idx) {
   DCHECK(!resolved_field->IsStatic());
   mirror::Class* fields_class = resolved_field->GetDeclaringClass();
+  // Keep these classes in sync with prepareSubclassReplacement() calls in libxposed-art.
+  mirror::Class* super_class = fields_class->GetSuperClass();
+  while (super_class != nullptr) {
+    if (super_class->DescriptorEquals("Landroid/content/res/TypedArray;")) {
+      VLOG(compiler) << "Preventing fast access to " << PrettyField(resolved_field);
+      return std::make_pair(false, false);
+    }
+    super_class = super_class->GetSuperClass();
+  }
   bool fast_get = referrer_class != nullptr &&
       referrer_class->CanAccessResolvedField(fields_class, resolved_field,
                                              dex_cache, field_idx);
