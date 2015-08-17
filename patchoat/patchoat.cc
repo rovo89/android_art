@@ -92,6 +92,32 @@ static bool LocationToFilename(const std::string& location, InstructionSet isa,
   }
 }
 
+static const OatHeader* GetOatHeader(const ElfFile* elf_file) {
+  uint64_t off = 0;
+  if (!elf_file->GetSectionOffsetAndSize(".rodata", &off, nullptr)) {
+    return nullptr;
+  }
+
+  OatHeader* oat_header = reinterpret_cast<OatHeader*>(elf_file->Begin() + off);
+  return oat_header;
+}
+
+// This function takes an elf file and reads the current patch delta value
+// encoded in its oat header value
+static bool ReadOatPatchDelta(const ElfFile* elf_file, off_t* delta, std::string* error_msg) {
+  const OatHeader* oat_header = GetOatHeader(elf_file);
+  if (oat_header == nullptr) {
+    *error_msg = "Unable to get oat header from elf file.";
+    return false;
+  }
+  if (!oat_header->IsValid()) {
+    *error_msg = "Elf file has an invalid oat header";
+    return false;
+  }
+  *delta = oat_header->GetImagePatchDelta();
+  return true;
+}
+
 bool PatchOat::Patch(const std::string& image_location, off_t delta,
                      File* output_image, InstructionSet isa,
                      TimingLogger* timings) {
@@ -584,25 +610,6 @@ void PatchOat::PatchVisitor::operator() (mirror::Class* cls ATTRIBUTE_UNUSED,
   copy_->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(off, moved_object);
 }
 
-const OatHeader* PatchOat::GetOatHeader(const ElfFile* elf_file) {
-  if (elf_file->Is64Bit()) {
-    return GetOatHeader<ElfFileImpl64>(elf_file->GetImpl64());
-  } else {
-    return GetOatHeader<ElfFileImpl32>(elf_file->GetImpl32());
-  }
-}
-
-template <typename ElfFileImpl>
-const OatHeader* PatchOat::GetOatHeader(const ElfFileImpl* elf_file) {
-  auto rodata_sec = elf_file->FindSectionByName(".rodata");
-  if (rodata_sec == nullptr) {
-    return nullptr;
-  }
-
-  OatHeader* oat_header = reinterpret_cast<OatHeader*>(elf_file->Begin() + rodata_sec->sh_offset);
-  return oat_header;
-}
-
 // Called by BitmapCallback
 void PatchOat::VisitObject(mirror::Object* object) {
   mirror::Object* copy = RelocatedCopyOf(object);
@@ -870,11 +877,11 @@ NO_RETURN static void Usage(const char *fmt, ...) {
   UsageError("  --base-offset-delta=<delta>: Specify the amount to change the old base-offset by.");
   UsageError("      This value may be negative.");
   UsageError("");
-  UsageError("  --patched-image-file=<file.art>: Use the same patch delta as was used to patch");
-  UsageError("      the given image file.");
+  UsageError("  --patched-image-file=<file.art>: Relocate the oat file to be the same as the");
+  UsageError("      given image file.");
   UsageError("");
-  UsageError("  --patched-image-location=<file.art>: Use the same patch delta as was used to");
-  UsageError("      patch the given image location. If used one must also specify the");
+  UsageError("  --patched-image-location=<file.art>: Relocate the oat file to be the same as the");
+  UsageError("      image at the given location. If used one must also specify the");
   UsageError("      --instruction-set flag. It will search for this image in the same way that");
   UsageError("      is done when loading one.");
   UsageError("");
@@ -990,6 +997,7 @@ static int patchoat(int argc, char **argv) {
   bool orig_base_offset_set = false;
   off_t base_delta = 0;
   bool base_delta_set = false;
+  bool match_delta = false;
   std::string patched_image_filename;
   std::string patched_image_location;
   bool dump_timings = kIsDebugBuild;
@@ -1188,7 +1196,11 @@ static int patchoat(int argc, char **argv) {
       base_delta_set = true;
       base_delta = base_offset - orig_base_offset;
     } else if (!patched_image_filename.empty()) {
+      if (have_image_files) {
+        Usage("--patched-image-location should not be used when patching other images");
+      }
       base_delta_set = true;
+      match_delta = true;
       std::string error_msg;
       if (!ReadBaseDelta(patched_image_filename.c_str(), &base_delta, &error_msg)) {
         Usage(error_msg.c_str(), patched_image_filename.c_str());
@@ -1306,6 +1318,32 @@ static int patchoat(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
+  if (match_delta) {
+    CHECK(!have_image_files);  // We will not do this with images.
+    std::string error_msg;
+    // Figure out what the current delta is so we can match it to the desired delta.
+    std::unique_ptr<ElfFile> elf(ElfFile::Open(input_oat.get(), PROT_READ, MAP_PRIVATE,
+                                               &error_msg));
+    off_t current_delta = 0;
+    if (elf.get() == nullptr) {
+      LOG(ERROR) << "unable to open oat file " << input_oat->GetPath() << " : " << error_msg;
+      cleanup(false);
+      return EXIT_FAILURE;
+    } else if (!ReadOatPatchDelta(elf.get(), &current_delta, &error_msg)) {
+      LOG(ERROR) << "Unable to get current delta: " << error_msg;
+      cleanup(false);
+      return EXIT_FAILURE;
+    }
+    // Before this line base_delta is the desired final delta. We need it to be the actual amount to
+    // change everything by. We subtract the current delta from it to make it this.
+    base_delta -= current_delta;
+    if (!IsAligned<kPageSize>(base_delta)) {
+      LOG(ERROR) << "Given image file was relocated by an illegal delta";
+      cleanup(false);
+      return false;
+    }
+  }
+
   if (debug) {
     LOG(INFO) << "moving offset by " << base_delta
               << " (0x" << std::hex << base_delta << ") bytes or "
@@ -1332,18 +1370,18 @@ static int patchoat(int argc, char **argv) {
                           new_oat_out);
     // The order here doesn't matter. If the first one is successfully saved and the second one
     // erased, ImageSpace will still detect a problem and not use the files.
-    ret = ret && FinishFile(output_image.get(), ret);
-    ret = ret && FinishFile(output_oat.get(), ret);
+    ret = FinishFile(output_image.get(), ret);
+    ret = FinishFile(output_oat.get(), ret);
   } else if (have_oat_files) {
     TimingLogger::ScopedTiming pt("patch oat", &timings);
     ret = PatchOat::Patch(input_oat.get(), base_delta, output_oat.get(), &timings,
                           output_oat_fd >= 0,  // was it opened from FD?
                           new_oat_out);
-    ret = ret && FinishFile(output_oat.get(), ret);
+    ret = FinishFile(output_oat.get(), ret);
   } else if (have_image_files) {
     TimingLogger::ScopedTiming pt("patch image", &timings);
     ret = PatchOat::Patch(input_image_location, base_delta, output_image.get(), isa, &timings);
-    ret = ret && FinishFile(output_image.get(), ret);
+    ret = FinishFile(output_image.get(), ret);
   } else {
     CHECK(false);
     ret = true;
