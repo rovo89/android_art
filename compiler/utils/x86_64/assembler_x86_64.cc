@@ -2092,6 +2092,37 @@ void X86_64Assembler::bswapq(CpuRegister dst) {
   EmitUint8(0xC8 + dst.LowBits());
 }
 
+void X86_64Assembler::bsrl(CpuRegister dst, CpuRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOptionalRex32(dst, src);
+  EmitUint8(0x0F);
+  EmitUint8(0xBD);
+  EmitRegisterOperand(dst.LowBits(), src.LowBits());
+}
+
+void X86_64Assembler::bsrl(CpuRegister dst, const Address& src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOptionalRex32(dst, src);
+  EmitUint8(0x0F);
+  EmitUint8(0xBD);
+  EmitOperand(dst.LowBits(), src);
+}
+
+void X86_64Assembler::bsrq(CpuRegister dst, CpuRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(dst, src);
+  EmitUint8(0x0F);
+  EmitUint8(0xBD);
+  EmitRegisterOperand(dst.LowBits(), src.LowBits());
+}
+
+void X86_64Assembler::bsrq(CpuRegister dst, const Address& src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(dst, src);
+  EmitUint8(0x0F);
+  EmitUint8(0xBD);
+  EmitOperand(dst.LowBits(), src);
+}
 
 void X86_64Assembler::repne_scasw() {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);

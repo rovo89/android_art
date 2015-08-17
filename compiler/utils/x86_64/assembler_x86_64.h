@@ -606,6 +606,11 @@ class X86_64Assembler FINAL : public Assembler {
   void bswapl(CpuRegister dst);
   void bswapq(CpuRegister dst);
 
+  void bsrl(CpuRegister dst, CpuRegister src);
+  void bsrl(CpuRegister dst, const Address& src);
+  void bsrq(CpuRegister dst, CpuRegister src);
+  void bsrq(CpuRegister dst, const Address& src);
+
   void repne_scasw();
   void repe_cmpsw();
   void repe_cmpsl();
