@@ -513,6 +513,13 @@ class ArtMethod FINAL {
         (sizeof(PtrSizedFields) / sizeof(void*)) * pointer_size;
   }
 
+  // Alignment of an instance of this object.
+  static size_t ObjectAlignment(size_t pointer_size) {
+    // The ArtMethod alignment is the same as image pointer size. This differs from
+    // alignof(ArtMethod) if cross-compiling with image_pointer_size_ != sizeof(void*).
+    return pointer_size;
+  }
+
   void CopyFrom(const ArtMethod* src, size_t image_pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
