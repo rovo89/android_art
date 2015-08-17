@@ -1471,7 +1471,7 @@ static void DumpMethodCFGImpl(const DexFile* dex_file,
         dex_pc_is_branch_target.insert(dex_pc + inst->GetTargetOffset());
       } else if (inst->IsSwitch()) {
         const uint16_t* insns = code_item->insns_ + dex_pc;
-        int32_t switch_offset = insns[1] | ((int32_t) insns[2]) << 16;
+        int32_t switch_offset = insns[1] | (static_cast<int32_t>(insns[2]) << 16);
         const uint16_t* switch_insns = insns + switch_offset;
         uint32_t switch_count = switch_insns[1];
         int32_t targets_offset;
@@ -1483,8 +1483,9 @@ static void DumpMethodCFGImpl(const DexFile* dex_file,
           targets_offset = 2 + 2 * switch_count;
         }
         for (uint32_t targ = 0; targ < switch_count; targ++) {
-          int32_t offset = (int32_t) switch_insns[targets_offset + targ * 2] |
-              (int32_t) (switch_insns[targets_offset + targ * 2 + 1] << 16);
+          int32_t offset =
+              static_cast<int32_t>(switch_insns[targets_offset + targ * 2]) |
+              static_cast<int32_t>(switch_insns[targets_offset + targ * 2 + 1] << 16);
           dex_pc_is_branch_target.insert(dex_pc + offset);
         }
       }
@@ -1499,8 +1500,9 @@ static void DumpMethodCFGImpl(const DexFile* dex_file,
     const Instruction* inst = Instruction::At(code_item->insns_);
     bool first_in_block = true;
     bool force_new_block = false;
-    for (uint32_t dex_pc = 0; dex_pc < code_item->insns_size_in_code_units_;
-        dex_pc += inst->SizeInCodeUnits(), inst = inst->Next()) {
+    for (uint32_t dex_pc = 0;
+         dex_pc < code_item->insns_size_in_code_units_;
+         dex_pc += inst->SizeInCodeUnits(), inst = inst->Next()) {
       if (dex_pc == 0 ||
           (dex_pc_is_branch_target.find(dex_pc) != dex_pc_is_branch_target.end()) ||
           force_new_block) {
@@ -1531,7 +1533,7 @@ static void DumpMethodCFGImpl(const DexFile* dex_file,
       os << " 0x" << std::hex << dex_pc << std::dec << ": ";
       std::string inst_str = inst->DumpString(dex_file);
       size_t cur_start = 0;  // It's OK to start at zero, instruction dumps don't start with chars
-      // we need to escape.
+                             // we need to escape.
       while (cur_start != std::string::npos) {
         size_t next_escape = inst_str.find_first_of("\"{}<>", cur_start + 1);
         if (next_escape == std::string::npos) {
@@ -1645,7 +1647,7 @@ static void DumpMethodCFGImpl(const DexFile* dex_file,
           // TODO: Iterate through all switch targets.
           const uint16_t* insns = code_item->insns_ + dex_pc;
           /* make sure the start of the switch is in range */
-          int32_t switch_offset = insns[1] | ((int32_t) insns[2]) << 16;
+          int32_t switch_offset = insns[1] | (static_cast<int32_t>(insns[2]) << 16);
           /* offset to switch table is a relative branch-style offset */
           const uint16_t* switch_insns = insns + switch_offset;
           uint32_t switch_count = switch_insns[1];
@@ -1660,8 +1662,9 @@ static void DumpMethodCFGImpl(const DexFile* dex_file,
           /* make sure the end of the switch is in range */
           /* verify each switch target */
           for (uint32_t targ = 0; targ < switch_count; targ++) {
-            int32_t offset = (int32_t) switch_insns[targets_offset + targ * 2] |
-                (int32_t) (switch_insns[targets_offset + targ * 2 + 1] << 16);
+            int32_t offset =
+                static_cast<int32_t>(switch_insns[targets_offset + targ * 2]) |
+                static_cast<int32_t>(switch_insns[targets_offset + targ * 2 + 1] << 16);
             int32_t abs_offset = dex_pc + offset;
             auto target_it = dex_pc_to_node_id.find(abs_offset);
             if (target_it != dex_pc_to_node_id.end()) {
@@ -1715,7 +1718,7 @@ static void DumpMethodCFGImpl(const DexFile* dex_file,
     for (uint32_t dex_pc : blocks_with_detailed_exceptions) {
       const Instruction* inst = Instruction::At(&code_item->insns_[dex_pc]);
       uint32_t this_node_id = dex_pc_to_incl_id.find(dex_pc)->second;
-      for (;;) {
+      while (true) {
         CatchHandlerIterator catch_it(*code_item, dex_pc);
         if (catch_it.HasNext()) {
           std::set<uint32_t> handled_targets;
@@ -1739,8 +1742,8 @@ static void DumpMethodCFGImpl(const DexFile* dex_file,
           break;
         }
 
-        // Loop update. In the body to have a late break-out if the next instruction is a branch
-        // target and thus in another block.
+        // Loop update. Have a break-out if the next instruction is a branch target and thus in
+        // another block.
         dex_pc += inst->SizeInCodeUnits();
         if (dex_pc >= code_item->insns_size_in_code_units_) {
           break;

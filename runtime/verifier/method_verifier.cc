@@ -1043,8 +1043,8 @@ bool MethodVerifier::CheckArrayData(uint32_t cur_offset) {
 
   DCHECK_LT(cur_offset, insn_count);
   /* make sure the start of the array data table is in range */
-  array_data_offset = insns[1] | (((int32_t) insns[2]) << 16);
-  if ((int32_t) cur_offset + array_data_offset < 0 ||
+  array_data_offset = insns[1] | (static_cast<int32_t>(insns[2]) << 16);
+  if (static_cast<int32_t>(cur_offset) + array_data_offset < 0 ||
       cur_offset + array_data_offset + 2 >= insn_count) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid array data start: at " << cur_offset
                                       << ", data offset " << array_data_offset
@@ -1156,8 +1156,9 @@ bool MethodVerifier::CheckSwitchTargets(uint32_t cur_offset) {
   DCHECK_LT(cur_offset, insn_count);
   const uint16_t* insns = code_item_->insns_ + cur_offset;
   /* make sure the start of the switch is in range */
-  int32_t switch_offset = insns[1] | ((int32_t) insns[2]) << 16;
-  if ((int32_t) cur_offset + switch_offset < 0 || cur_offset + switch_offset + 2 > insn_count) {
+  int32_t switch_offset = insns[1] | (static_cast<int32_t>(insns[2]) << 16);
+  if (static_cast<int32_t>(cur_offset) + switch_offset < 0 ||
+      cur_offset + switch_offset + 2 > insn_count) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid switch start: at " << cur_offset
                                       << ", switch offset " << switch_offset
                                       << ", count " << insn_count;
@@ -1213,8 +1214,9 @@ bool MethodVerifier::CheckSwitchTargets(uint32_t cur_offset) {
   if (keys_offset > 0 && switch_count > 1) {
     int32_t last_key = switch_insns[keys_offset] | (switch_insns[keys_offset + 1] << 16);
     for (uint32_t targ = 1; targ < switch_count; targ++) {
-      int32_t key = (int32_t) switch_insns[keys_offset + targ * 2] |
-                    (int32_t) (switch_insns[keys_offset + targ * 2 + 1] << 16);
+      int32_t key =
+          static_cast<int32_t>(switch_insns[keys_offset + targ * 2]) |
+          static_cast<int32_t>(switch_insns[keys_offset + targ * 2 + 1] << 16);
       if (key <= last_key) {
         Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid packed switch: last key=" << last_key
                                           << ", this=" << key;
@@ -1225,11 +1227,11 @@ bool MethodVerifier::CheckSwitchTargets(uint32_t cur_offset) {
   }
   /* verify each switch target */
   for (uint32_t targ = 0; targ < switch_count; targ++) {
-    int32_t offset = (int32_t) switch_insns[targets_offset + targ * 2] |
-                     (int32_t) (switch_insns[targets_offset + targ * 2 + 1] << 16);
+    int32_t offset = static_cast<int32_t>(switch_insns[targets_offset + targ * 2]) |
+                     static_cast<int32_t>(switch_insns[targets_offset + targ * 2 + 1] << 16);
     int32_t abs_offset = cur_offset + offset;
     if (abs_offset < 0 ||
-        abs_offset >= (int32_t) insn_count ||
+        abs_offset >= static_cast<int32_t>(insn_count) ||
         !insn_flags_[abs_offset].IsOpcode()) {
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid switch target " << offset
                                         << " (-> " << reinterpret_cast<void*>(abs_offset) << ") at "
@@ -2147,7 +2149,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           } else {
             // Now verify if the element width in the table matches the element width declared in
             // the array
-            const uint16_t* array_data = insns + (insns[1] | (((int32_t) insns[2]) << 16));
+            const uint16_t* array_data =
+                insns + (insns[1] | (static_cast<int32_t>(insns[2]) << 16));
             if (array_data[0] != Instruction::kArrayDataSignature) {
               Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid magic for array-data";
             } else {
@@ -3085,7 +3088,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
    * just need to walk through and tag the targets.
    */
   if ((opcode_flags & Instruction::kSwitch) != 0) {
-    int offset_to_switch = insns[1] | (((int32_t) insns[2]) << 16);
+    int offset_to_switch = insns[1] | (static_cast<int32_t>(insns[2]) << 16);
     const uint16_t* switch_insns = insns + offset_to_switch;
     int switch_count = switch_insns[1];
     int offset_to_targets, targ;
@@ -3106,7 +3109,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
 
       /* offsets are 32-bit, and only partly endian-swapped */
       offset = switch_insns[offset_to_targets + targ * 2] |
-         (((int32_t) switch_insns[offset_to_targets + targ * 2 + 1]) << 16);
+         (static_cast<int32_t>(switch_insns[offset_to_targets + targ * 2 + 1]) << 16);
       abs_offset = work_insn_idx_ + offset;
       DCHECK_LT(abs_offset, code_item_->insns_size_in_code_units_);
       if (!CheckNotMoveExceptionOrMoveResult(code_item_->insns_, abs_offset)) {
