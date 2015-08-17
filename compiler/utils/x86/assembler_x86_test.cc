@@ -230,4 +230,17 @@ TEST_F(AssemblerX86Test, RepMovsw) {
   DriverStr(expected, "rep_movsw");
 }
 
+TEST_F(AssemblerX86Test, Bsrl) {
+  DriverStr(RepeatRR(&x86::X86Assembler::bsrl, "bsrl %{reg2}, %{reg1}"), "bsrl");
+}
+
+TEST_F(AssemblerX86Test, BsrlAddress) {
+  GetAssembler()->bsrl(x86::Register(x86::EDI), x86::Address(
+      x86::Register(x86::EDI), x86::Register(x86::EBX), x86::TIMES_4, 12));
+  const char* expected =
+    "bsrl 0xc(%EDI,%EBX,4), %EDI\n";
+
+  DriverStr(expected, "bsrl_address");
+}
+
 }  // namespace art

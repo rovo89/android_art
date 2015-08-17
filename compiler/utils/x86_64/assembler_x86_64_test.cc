@@ -1141,6 +1141,44 @@ TEST_F(AssemblerX86_64Test, Bswapq) {
   DriverStr(RepeatR(&x86_64::X86_64Assembler::bswapq, "bswap %{reg}"), "bswapq");
 }
 
+TEST_F(AssemblerX86_64Test, Bsrl) {
+  DriverStr(Repeatrr(&x86_64::X86_64Assembler::bsrl, "bsrl %{reg2}, %{reg1}"), "bsrl");
+}
+
+TEST_F(AssemblerX86_64Test, BsrlAddress) {
+  GetAssembler()->bsrl(x86_64::CpuRegister(x86_64::R10), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12));
+  GetAssembler()->bsrl(x86_64::CpuRegister(x86_64::RDI), x86_64::Address(
+      x86_64::CpuRegister(x86_64::R10), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12));
+  GetAssembler()->bsrl(x86_64::CpuRegister(x86_64::RDI), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_4, 12));
+  const char* expected =
+    "bsrl 0xc(%RDI,%RBX,4), %R10d\n"
+    "bsrl 0xc(%R10,%RBX,4), %edi\n"
+    "bsrl 0xc(%RDI,%R9,4), %edi\n";
+
+  DriverStr(expected, "bsrl_address");
+}
+
+TEST_F(AssemblerX86_64Test, Bsrq) {
+  DriverStr(RepeatRR(&x86_64::X86_64Assembler::bsrq, "bsrq %{reg2}, %{reg1}"), "bsrq");
+}
+
+TEST_F(AssemblerX86_64Test, BsrqAddress) {
+  GetAssembler()->bsrq(x86_64::CpuRegister(x86_64::R10), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12));
+  GetAssembler()->bsrq(x86_64::CpuRegister(x86_64::RDI), x86_64::Address(
+      x86_64::CpuRegister(x86_64::R10), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12));
+  GetAssembler()->bsrq(x86_64::CpuRegister(x86_64::RDI), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_4, 12));
+  const char* expected =
+    "bsrq 0xc(%RDI,%RBX,4), %R10\n"
+    "bsrq 0xc(%R10,%RBX,4), %RDI\n"
+    "bsrq 0xc(%RDI,%R9,4), %RDI\n";
+
+  DriverStr(expected, "bsrq_address");
+}
+
 std::string setcc_test_fn(AssemblerX86_64Test::Base* assembler_test,
                           x86_64::X86_64Assembler* assembler) {
   // From Condition

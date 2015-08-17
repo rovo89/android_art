@@ -928,6 +928,11 @@ DISASSEMBLER_ENTRY(cmp,
         has_modrm = true;
         load = true;
         break;
+      case 0xBD:
+        opcode1 = "bsr";
+        has_modrm = true;
+        load = true;
+        break;
       case 0xBE:
         opcode1 = "movsxb";
         has_modrm = true;
