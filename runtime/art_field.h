@@ -21,7 +21,6 @@
 
 #include "gc_root.h"
 #include "modifiers.h"
-#include "object_callbacks.h"
 #include "offsets.h"
 #include "primitive.h"
 #include "read_barrier_option.h"

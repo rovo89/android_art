@@ -22,7 +22,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "base/hash_map.h"
 #include "base/logging.h"
 #include "base/mutex.h"  // For Locks::mutator_lock_.
 #include "base/value_object.h"
@@ -43,6 +42,8 @@ namespace mirror {
 class ArtField;
 class ArtMethod;
 class ClassLinker;
+template <class Key, class Value, class EmptyFn, class HashFn, class Pred, class Alloc>
+class HashMap;
 class MemMap;
 class OatDexFile;
 class Signature;
@@ -1051,7 +1052,12 @@ class DexFile {
       return CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(a, b) == 0;
     }
   };
-  typedef HashMap<const char*, const ClassDef*, UTF16EmptyFn, UTF16HashCmp, UTF16HashCmp> Index;
+  using Index = HashMap<const char*,
+                        const ClassDef*,
+                        UTF16EmptyFn,
+                        UTF16HashCmp,
+                        UTF16HashCmp,
+                        std::allocator<std::pair<const char*, const ClassDef*>>>;
   mutable Atomic<Index*> class_def_index_;
 
   // If this dex file was loaded from an oat file, oat_dex_file_ contains a
