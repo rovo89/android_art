@@ -234,6 +234,8 @@ class X86Assembler FINAL : public Assembler {
   void movntl(const Address& dst, Register src);
 
   void bswapl(Register dst);
+  void bsrl(Register dst, Register src);
+  void bsrl(Register dst, const Address& src);
 
   void movzxb(Register dst, ByteRegister src);
   void movzxb(Register dst, const Address& src);

@@ -158,6 +158,20 @@ void X86Assembler::bswapl(Register dst) {
   EmitUint8(0xC8 + dst);
 }
 
+void X86Assembler::bsrl(Register dst, Register src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x0F);
+  EmitUint8(0xBD);
+  EmitRegisterOperand(dst, src);
+}
+
+void X86Assembler::bsrl(Register dst, const Address& src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x0F);
+  EmitUint8(0xBD);
+  EmitOperand(dst, src);
+}
+
 void X86Assembler::movzxb(Register dst, ByteRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x0F);
