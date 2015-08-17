@@ -507,16 +507,16 @@ class ArtMethod FINAL {
   bool EqualParameters(Handle<mirror::ObjectArray<mirror::Class>> params)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // Size of an instance of this object.
-  static size_t ObjectSize(size_t pointer_size) {
+  // Size of an instance of this native class.
+  static size_t Size(size_t pointer_size) {
     return RoundUp(OFFSETOF_MEMBER(ArtMethod, ptr_sized_fields_), pointer_size) +
         (sizeof(PtrSizedFields) / sizeof(void*)) * pointer_size;
   }
 
-  // Alignment of an instance of this object.
-  static size_t ObjectAlignment(size_t pointer_size) {
+  // Alignment of an instance of this native class.
+  static size_t Alignment(size_t pointer_size) {
     // The ArtMethod alignment is the same as image pointer size. This differs from
-    // alignof(ArtMethod) if cross-compiling with image_pointer_size_ != sizeof(void*).
+    // alignof(ArtMethod) if cross-compiling with pointer_size != sizeof(void*).
     return pointer_size;
   }
 

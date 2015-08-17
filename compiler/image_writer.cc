@@ -866,8 +866,8 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
         }
         bool any_dirty = false;
         size_t count = 0;
-        const size_t method_alignment = ArtMethod::ObjectAlignment(target_ptr_size_);
-        const size_t method_size = ArtMethod::ObjectSize(target_ptr_size_);
+        const size_t method_alignment = ArtMethod::Alignment(target_ptr_size_);
+        const size_t method_size = ArtMethod::Size(target_ptr_size_);
         auto iteration_range =
             MakeIterationRangeFromLengthPrefixedArray(array, method_size, method_alignment);
         for (auto& m : iteration_range) {
@@ -914,7 +914,7 @@ void ImageWriter::AssignMethodOffset(ArtMethod* method, NativeObjectRelocationTy
       << PrettyMethod(method);
   size_t& offset = bin_slot_sizes_[BinTypeForNativeRelocationType(type)];
   native_object_relocations_.emplace(method, NativeObjectRelocation { offset, type });
-  offset += ArtMethod::ObjectSize(target_ptr_size_);
+  offset += ArtMethod::Size(target_ptr_size_);
 }
 
 void ImageWriter::WalkFieldsCallback(mirror::Object* obj, void* arg) {
@@ -976,9 +976,9 @@ void ImageWriter::CalculateNewObjectOffsets() {
   size_t& offset = bin_slot_sizes_[BinTypeForNativeRelocationType(image_method_type)];
   native_object_relocations_.emplace(&image_method_array_,
                                      NativeObjectRelocation { offset, image_method_type });
-  size_t method_alignment = ArtMethod::ObjectAlignment(target_ptr_size_);
+  size_t method_alignment = ArtMethod::Alignment(target_ptr_size_);
   const size_t array_size = LengthPrefixedArray<ArtMethod>::ComputeSize(
-      0, ArtMethod::ObjectSize(target_ptr_size_), method_alignment);
+      0, ArtMethod::Size(target_ptr_size_), method_alignment);
   CHECK_ALIGNED_PARAM(array_size, method_alignment);
   offset += array_size;
   for (auto* m : image_methods_) {
@@ -1045,7 +1045,7 @@ void ImageWriter::CreateHeader(size_t oat_loaded_size, size_t oat_data_offset) {
   CHECK_EQ(bin_slot_offsets_[kBinArtField], field_section->Offset());
   cur_pos = field_section->End();
   // Round up to the alignment the required by the method section.
-  cur_pos = RoundUp(cur_pos, ArtMethod::ObjectAlignment(target_ptr_size_));
+  cur_pos = RoundUp(cur_pos, ArtMethod::Alignment(target_ptr_size_));
   // Add method section.
   auto* methods_section = &sections[ImageHeader::kSectionArtMethods];
   *methods_section = ImageSection(cur_pos, bin_slot_sizes_[kBinArtMethodClean] +
@@ -1150,8 +1150,8 @@ void ImageWriter::CopyAndFixupNativeData() {
       case kNativeObjectRelocationTypeArtMethodArrayDirty: {
         memcpy(dest, pair.first, LengthPrefixedArray<ArtMethod>::ComputeSize(
             0,
-            ArtMethod::ObjectSize(target_ptr_size_),
-            ArtMethod::ObjectAlignment(target_ptr_size_)));
+            ArtMethod::Size(target_ptr_size_),
+            ArtMethod::Alignment(target_ptr_size_)));
         break;
       }
     }
@@ -1460,7 +1460,7 @@ const uint8_t* ImageWriter::GetQuickEntryPoint(ArtMethod* method) {
 }
 
 void ImageWriter::CopyAndFixupMethod(ArtMethod* orig, ArtMethod* copy) {
-  memcpy(copy, orig, ArtMethod::ObjectSize(target_ptr_size_));
+  memcpy(copy, orig, ArtMethod::Size(target_ptr_size_));
 
   copy->SetDeclaringClass(GetImageAddress(orig->GetDeclaringClassUnchecked()));
   copy->SetDexCacheResolvedMethods(GetImageAddress(orig->GetDexCacheResolvedMethods()));
