@@ -163,13 +163,6 @@ class PatchOat {
     return ret;
   }
 
-  // Look up the oat header from any elf file.
-  static const OatHeader* GetOatHeader(const ElfFile* elf_file);
-
-  // Templatized version to actually look up the oat header
-  template <typename ElfFileImpl>
-  static const OatHeader* GetOatHeader(const ElfFileImpl* elf_file);
-
   // Walks through the old image and patches the mmap'd copy of it to the new offset. It does not
   // change the heap.
   class PatchVisitor {
