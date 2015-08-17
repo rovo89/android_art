@@ -23,7 +23,6 @@
 #include "method_reference.h"
 #include "modifiers.h"
 #include "mirror/object.h"
-#include "object_callbacks.h"
 #include "quick/quick_method_frame_info.h"
 #include "read_barrier_option.h"
 #include "stack.h"
