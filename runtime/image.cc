@@ -160,8 +160,8 @@ void ImageSection::VisitPackedArtFields(ArtFieldVisitor* visitor, uint8_t* base)
 void ImageSection::VisitPackedArtMethods(ArtMethodVisitor* visitor,
                                          uint8_t* base,
                                          size_t pointer_size) const {
-  const size_t method_alignment = ArtMethod::ObjectAlignment(pointer_size);
-  const size_t method_size = ArtMethod::ObjectSize(pointer_size);
+  const size_t method_alignment = ArtMethod::Alignment(pointer_size);
+  const size_t method_size = ArtMethod::Size(pointer_size);
   for (size_t pos = 0; pos < Size(); ) {
     auto* array = reinterpret_cast<LengthPrefixedArray<ArtMethod>*>(base + Offset() + pos);
     for (size_t i = 0; i < array->Length(); ++i) {
