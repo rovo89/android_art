@@ -1213,9 +1213,8 @@ void ClassLinker::InitFromImage() {
   if (!runtime->IsAotCompiler() && runtime->GetInstrumentation()->InterpretOnly()) {
     const ImageHeader& header = space->GetImageHeader();
     const ImageSection& methods = header.GetMethodsSection();
-    const size_t art_method_size = ArtMethod::ObjectSize(image_pointer_size_);
     SetInterpreterEntrypointArtMethodVisitor visitor(image_pointer_size_);
-    methods.VisitPackedArtMethods(&visitor, space->Begin(), art_method_size);
+    methods.VisitPackedArtMethods(&visitor, space->Begin(), image_pointer_size_);
   }
 
   // reinit class_roots_
@@ -2294,9 +2293,11 @@ LengthPrefixedArray<ArtField>* ClassLinker::AllocArtFieldArray(Thread* self, siz
   if (length == 0) {
     return nullptr;
   }
-  auto* ret = new(Runtime::Current()->GetLinearAlloc()->Alloc(
-      self, LengthPrefixedArray<ArtField>::ComputeSize(length))) LengthPrefixedArray<ArtField>(
-          length);
+  // If the ArtField alignment changes, review all uses of LengthPrefixedArray<ArtField>.
+  static_assert(alignof(ArtField) == 4, "ArtField alignment is expected to be 4.");
+  size_t storage_size = LengthPrefixedArray<ArtField>::ComputeSize(length);
+  void* array_storage = Runtime::Current()->GetLinearAlloc()->Alloc(self, storage_size);
+  auto* ret = new(array_storage) LengthPrefixedArray<ArtField>(length);
   CHECK(ret != nullptr);
   std::uninitialized_fill_n(&ret->At(0), length, ArtField());
   return ret;
@@ -2306,13 +2307,15 @@ LengthPrefixedArray<ArtMethod>* ClassLinker::AllocArtMethodArray(Thread* self, s
   if (length == 0) {
     return nullptr;
   }
+  const size_t method_alignment = ArtMethod::ObjectAlignment(image_pointer_size_);
   const size_t method_size = ArtMethod::ObjectSize(image_pointer_size_);
-  auto* ret = new (Runtime::Current()->GetLinearAlloc()->Alloc(
-      self, LengthPrefixedArray<ArtMethod>::ComputeSize(length, method_size)))
-          LengthPrefixedArray<ArtMethod>(length);
+  const size_t storage_size =
+      LengthPrefixedArray<ArtMethod>::ComputeSize(length, method_size, method_alignment);
+  void* array_storage = Runtime::Current()->GetLinearAlloc()->Alloc(self, storage_size);
+  auto* ret = new (array_storage) LengthPrefixedArray<ArtMethod>(length);
   CHECK(ret != nullptr);
   for (size_t i = 0; i < length; ++i) {
-    new(reinterpret_cast<void*>(&ret->At(i, method_size))) ArtMethod;
+    new(reinterpret_cast<void*>(&ret->At(i, method_size, method_alignment))) ArtMethod;
   }
   return ret;
 }
@@ -4689,6 +4692,7 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
   const bool have_interfaces = interfaces.Get() != nullptr;
   const size_t num_interfaces =
       have_interfaces ? interfaces->GetLength() : klass->NumDirectInterfaces();
+  const size_t method_alignment = ArtMethod::ObjectAlignment(image_pointer_size_);
   const size_t method_size = ArtMethod::ObjectSize(image_pointer_size_);
   if (num_interfaces == 0) {
     if (super_ifcount == 0) {
@@ -4914,7 +4918,7 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
         // matter which direction we go.  We walk it backward anyway.)
         for (k = input_array_length - 1; k >= 0; --k) {
           ArtMethod* vtable_method = input_virtual_methods != nullptr ?
-              &input_virtual_methods->At(k, method_size) :
+              &input_virtual_methods->At(k, method_size, method_alignment) :
               input_vtable_array->GetElementPtrSize<ArtMethod*>(k, image_pointer_size_);
           ArtMethod* vtable_method_for_name_comparison =
               vtable_method->GetInterfaceMethodIfProxy(image_pointer_size_);
@@ -4975,10 +4979,14 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
     // where GCs could attempt to mark stale pointers due to memcpy. And since we overwrite the
     // realloced memory with out->CopyFrom, we are guaranteed to have objects in the to space since
     // CopyFrom has internal read barriers.
-    const size_t old_size = old_virtuals != nullptr ?
-        LengthPrefixedArray<ArtMethod>::ComputeSize(old_method_count, method_size) : 0u;
+    const size_t old_size = old_virtuals != nullptr
+        ? LengthPrefixedArray<ArtMethod>::ComputeSize(old_method_count,
+                                                      method_size,
+                                                      method_alignment)
+        : 0u;
     const size_t new_size = LengthPrefixedArray<ArtMethod>::ComputeSize(new_method_count,
-                                                                        method_size);
+                                                                        method_size,
+                                                                        method_alignment);
     auto* virtuals = reinterpret_cast<LengthPrefixedArray<ArtMethod>*>(
         runtime->GetLinearAlloc()->Realloc(self, old_virtuals, old_size, new_size));
     if (UNLIKELY(virtuals == nullptr)) {
@@ -4989,7 +4997,7 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
     ScopedArenaUnorderedMap<ArtMethod*, ArtMethod*> move_table(allocator.Adapter());
     if (virtuals != old_virtuals) {
       // Maps from heap allocated miranda method to linear alloc miranda method.
-      StrideIterator<ArtMethod> out = virtuals->Begin(method_size);
+      StrideIterator<ArtMethod> out = virtuals->Begin(method_size, method_alignment);
       // Copy over the old methods + miranda methods.
       for (auto& m : klass->GetVirtualMethods(image_pointer_size_)) {
         move_table.emplace(&m, &*out);
@@ -4999,7 +5007,7 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
         ++out;
       }
     }
-    StrideIterator<ArtMethod> out(virtuals->Begin(method_size) + old_method_count);
+    StrideIterator<ArtMethod> out(virtuals->Begin(method_size, method_alignment) + old_method_count);
     // Copy over miranda methods before copying vtable since CopyOf may cause thread suspension and
     // we want the roots of the miranda methods to get visited.
     for (ArtMethod* mir_method : miranda_methods) {
@@ -5022,7 +5030,7 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
       self->AssertPendingOOMException();
       return false;
     }
-    out = StrideIterator<ArtMethod>(virtuals->Begin(method_size) + old_method_count);
+    out = virtuals->Begin(method_size, method_alignment) + old_method_count;
     size_t vtable_pos = old_vtable_count;
     for (size_t i = old_method_count; i < new_method_count; ++i) {
       // Leave the declaring class alone as type indices are relative to it
@@ -5893,8 +5901,10 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self, std::vector<const DexFi
 }
 
 ArtMethod* ClassLinker::CreateRuntimeMethod() {
+  const size_t method_alignment = ArtMethod::ObjectAlignment(image_pointer_size_);
   const size_t method_size = ArtMethod::ObjectSize(image_pointer_size_);
-  ArtMethod* method = &AllocArtMethodArray(Thread::Current(), 1)->At(0, method_size);
+  LengthPrefixedArray<ArtMethod>* method_array = AllocArtMethodArray(Thread::Current(), 1);
+  ArtMethod* method = &method_array->At(0, method_size, method_alignment);
   CHECK(method != nullptr);
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
   CHECK(method->IsRuntimeMethod());
