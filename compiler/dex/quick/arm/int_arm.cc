@@ -593,13 +593,20 @@ bool ArmMir2Lir::GetEasyMultiplyOp(int lit, ArmMir2Lir::EasyMultiplyOp* op) {
     return true;
   }
 
+  // At this point lit != 1 (which is a power of two).
+  DCHECK_NE(lit, 1);
   if (IsPowerOfTwo(lit - 1)) {
     op->op = kOpAdd;
     op->shift = CTZ(lit - 1);
     return true;
   }
 
-  if (IsPowerOfTwo(lit + 1)) {
+  if (lit == -1) {
+    // Can be created as neg.
+    op->op = kOpNeg;
+    op->shift = 0;
+    return true;
+  } else if (IsPowerOfTwo(lit + 1)) {
     op->op = kOpRsub;
     op->shift = CTZ(lit + 1);
     return true;
@@ -612,21 +619,26 @@ bool ArmMir2Lir::GetEasyMultiplyOp(int lit, ArmMir2Lir::EasyMultiplyOp* op) {
 
 // Try to convert *lit to 1~2 RegRegRegShift/RegRegShift forms.
 bool ArmMir2Lir::GetEasyMultiplyTwoOps(int lit, EasyMultiplyOp* ops) {
+  DCHECK_NE(lit, 1);           // A case of "1" should have been folded.
+  DCHECK_NE(lit, -1);          // A case of "-1" should have been folded.
   if (GetEasyMultiplyOp(lit, &ops[0])) {
     ops[1].op = kOpInvalid;
     ops[1].shift = 0;
     return true;
   }
 
-  int lit1 = lit;
-  uint32_t shift = CTZ(lit1);
+  DCHECK_NE(lit, 0);           // Should be handled above.
+  DCHECK(!IsPowerOfTwo(lit));  // Same.
+
+  int lit1 = lit;              // With the DCHECKs, it's clear we don't get "0", "1" or "-1" for
+  uint32_t shift = CTZ(lit1);  // lit1.
   if (GetEasyMultiplyOp(lit1 >> shift, &ops[0])) {
     ops[1].op = kOpLsl;
     ops[1].shift = shift;
     return true;
   }
 
-  lit1 = lit - 1;
+  lit1 = lit - 1;              // With the DCHECKs, it's clear we don't get "0" or "1" for lit1.
   shift = CTZ(lit1);
   if (GetEasyMultiplyOp(lit1 >> shift, &ops[0])) {
     ops[1].op = kOpAdd;
@@ -634,7 +646,7 @@ bool ArmMir2Lir::GetEasyMultiplyTwoOps(int lit, EasyMultiplyOp* ops) {
     return true;
   }
 
-  lit1 = lit + 1;
+  lit1 = lit + 1;              // With the DCHECKs, it's clear we don't get "0" here.
   shift = CTZ(lit1);
   if (GetEasyMultiplyOp(lit1 >> shift, &ops[0])) {
     ops[1].op = kOpRsub;
@@ -652,7 +664,7 @@ bool ArmMir2Lir::GetEasyMultiplyTwoOps(int lit, EasyMultiplyOp* ops) {
 // Additional temporary register is required,
 // if it need to generate 2 instructions and src/dest overlap.
 void ArmMir2Lir::GenEasyMultiplyTwoOps(RegStorage r_dest, RegStorage r_src, EasyMultiplyOp* ops) {
-  // tmp1 = ( src << shift1) + [ src | -src | 0 ]
+  // tmp1 = (( src << shift1) + [ src | -src | 0 ] ) | -src
   // dest = (tmp1 << shift2) + [ src | -src | 0 ]
 
   RegStorage r_tmp1;
@@ -674,6 +686,9 @@ void ArmMir2Lir::GenEasyMultiplyTwoOps(RegStorage r_dest, RegStorage r_src, Easy
     case kOpRsub:
       OpRegRegRegShift(kOpRsub, r_tmp1, r_src, r_src, EncodeShift(kArmLsl, ops[0].shift));
       break;
+    case kOpNeg:
+      OpRegReg(kOpNeg, r_tmp1, r_src);
+      break;
     default:
       DCHECK_EQ(ops[0].op, kOpInvalid);
       break;
@@ -691,6 +706,7 @@ void ArmMir2Lir::GenEasyMultiplyTwoOps(RegStorage r_dest, RegStorage r_src, Easy
     case kOpRsub:
       OpRegRegRegShift(kOpRsub, r_dest, r_src, r_tmp1, EncodeShift(kArmLsl, ops[1].shift));
       break;
+    // No negation allowed in second op.
     default:
       LOG(FATAL) << "Unexpected opcode passed to GenEasyMultiplyTwoOps";
       break;
