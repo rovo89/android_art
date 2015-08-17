@@ -1618,9 +1618,7 @@ class ImageDumper {
           const size_t pointer_size =
               InstructionSetPointerSize(oat_dumper_->GetOatInstructionSet());
           DumpArtMethodVisitor visitor(this);
-          methods_section.VisitPackedArtMethods(&visitor,
-                                                image_space->Begin(),
-                                                ArtMethod::ObjectSize(pointer_size));
+          methods_section.VisitPackedArtMethods(&visitor, image_space->Begin(), pointer_size);
         }
       }
       // Dump the large objects separately.
@@ -1642,13 +1640,19 @@ class ImageDumper {
     const auto& intern_section = image_header_.GetImageSection(
         ImageHeader::kSectionInternedStrings);
     stats_.header_bytes = header_bytes;
-    size_t alignment_bytes = RoundUp(header_bytes, kObjectAlignment) - header_bytes;
-    stats_.alignment_bytes += alignment_bytes;
+    stats_.alignment_bytes += RoundUp(header_bytes, kObjectAlignment) - header_bytes;
+    // Add padding between the field and method section.
+    // (Field section is 4-byte aligned, method section is 8-byte aligned on 64-bit targets.)
+    stats_.alignment_bytes +=
+        method_section.Offset() - (field_section.Offset() + field_section.Size());
+    // Add padding between the method section and the intern table.
+    // (Method section is 4-byte aligned on 32-bit targets, intern table is 8-byte aligned.)
+    stats_.alignment_bytes +=
+        intern_section.Offset() - (method_section.Offset() + method_section.Size());
     stats_.alignment_bytes += bitmap_section.Offset() - image_header_.GetImageSize();
     stats_.bitmap_bytes += bitmap_section.Size();
     stats_.art_field_bytes += field_section.Size();
-    // RoundUp to 8 bytes to match the intern table alignment expectation.
-    stats_.art_method_bytes += RoundUp(method_section.Size(), sizeof(uint64_t));
+    stats_.art_method_bytes += method_section.Size();
     stats_.interned_strings_bytes += intern_section.Size();
     stats_.Dump(os, indent_os);
     os << "\n";
