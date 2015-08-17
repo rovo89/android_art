@@ -2307,8 +2307,8 @@ LengthPrefixedArray<ArtMethod>* ClassLinker::AllocArtMethodArray(Thread* self, s
   if (length == 0) {
     return nullptr;
   }
-  const size_t method_alignment = ArtMethod::ObjectAlignment(image_pointer_size_);
-  const size_t method_size = ArtMethod::ObjectSize(image_pointer_size_);
+  const size_t method_alignment = ArtMethod::Alignment(image_pointer_size_);
+  const size_t method_size = ArtMethod::Size(image_pointer_size_);
   const size_t storage_size =
       LengthPrefixedArray<ArtMethod>::ComputeSize(length, method_size, method_alignment);
   void* array_storage = Runtime::Current()->GetLinearAlloc()->Alloc(self, storage_size);
@@ -4692,8 +4692,8 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
   const bool have_interfaces = interfaces.Get() != nullptr;
   const size_t num_interfaces =
       have_interfaces ? interfaces->GetLength() : klass->NumDirectInterfaces();
-  const size_t method_alignment = ArtMethod::ObjectAlignment(image_pointer_size_);
-  const size_t method_size = ArtMethod::ObjectSize(image_pointer_size_);
+  const size_t method_alignment = ArtMethod::Alignment(image_pointer_size_);
+  const size_t method_size = ArtMethod::Size(image_pointer_size_);
   if (num_interfaces == 0) {
     if (super_ifcount == 0) {
       // Class implements no interfaces.
@@ -5901,8 +5901,8 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self, std::vector<const DexFi
 }
 
 ArtMethod* ClassLinker::CreateRuntimeMethod() {
-  const size_t method_alignment = ArtMethod::ObjectAlignment(image_pointer_size_);
-  const size_t method_size = ArtMethod::ObjectSize(image_pointer_size_);
+  const size_t method_alignment = ArtMethod::Alignment(image_pointer_size_);
+  const size_t method_size = ArtMethod::Size(image_pointer_size_);
   LengthPrefixedArray<ArtMethod>* method_array = AllocArtMethodArray(Thread::Current(), 1);
   ArtMethod* method = &method_array->At(0, method_size, method_alignment);
   CHECK(method != nullptr);
