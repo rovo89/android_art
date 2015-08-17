@@ -208,7 +208,7 @@ ALWAYS_INLINE static inline ArtField* FindFieldByName(
     }
   }
   if (kIsDebugBuild) {
-    for (ArtField& field : MakeIterationRangeFromLengthPrefixedArray(fields, sizeof(ArtField))) {
+    for (ArtField& field : MakeIterationRangeFromLengthPrefixedArray(fields)) {
       CHECK_NE(field.GetName(), name->ToModifiedUtf8());
     }
   }

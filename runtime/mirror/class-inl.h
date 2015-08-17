@@ -92,14 +92,18 @@ inline ArtMethod* Class::GetDirectMethodUnchecked(size_t i, size_t pointer_size)
   CheckPointerSize(pointer_size);
   auto* methods = GetDirectMethodsPtrUnchecked();
   DCHECK(methods != nullptr);
-  return &methods->At(i, ArtMethod::ObjectSize(pointer_size));
+  return &methods->At(i,
+                      ArtMethod::ObjectSize(pointer_size),
+                      ArtMethod::ObjectAlignment(pointer_size));
 }
 
 inline ArtMethod* Class::GetDirectMethod(size_t i, size_t pointer_size) {
   CheckPointerSize(pointer_size);
   auto* methods = GetDirectMethodsPtr();
   DCHECK(methods != nullptr);
-  return &methods->At(i, ArtMethod::ObjectSize(pointer_size));
+  return &methods->At(i,
+                      ArtMethod::ObjectSize(pointer_size),
+                      ArtMethod::ObjectAlignment(pointer_size));
 }
 
 template<VerifyObjectFlags kVerifyFlags>
@@ -133,7 +137,9 @@ inline ArtMethod* Class::GetVirtualMethodUnchecked(size_t i, size_t pointer_size
   CheckPointerSize(pointer_size);
   LengthPrefixedArray<ArtMethod>* methods = GetVirtualMethodsPtrUnchecked();
   DCHECK(methods != nullptr);
-  return &methods->At(i, ArtMethod::ObjectSize(pointer_size));
+  return &methods->At(i,
+                      ArtMethod::ObjectSize(pointer_size),
+                      ArtMethod::ObjectAlignment(pointer_size));
 }
 
 inline PointerArray* Class::GetVTable() {
@@ -837,29 +843,31 @@ void mirror::Class::VisitNativeRoots(Visitor& visitor, size_t pointer_size) {
 inline IterationRange<StrideIterator<ArtMethod>> Class::GetDirectMethods(size_t pointer_size) {
   CheckPointerSize(pointer_size);
   return MakeIterationRangeFromLengthPrefixedArray(GetDirectMethodsPtrUnchecked(),
-                                                   ArtMethod::ObjectSize(pointer_size));
+                                                   ArtMethod::ObjectSize(pointer_size),
+                                                   ArtMethod::ObjectAlignment(pointer_size));
 }
 
 inline IterationRange<StrideIterator<ArtMethod>> Class::GetVirtualMethods(size_t pointer_size) {
   CheckPointerSize(pointer_size);
   return MakeIterationRangeFromLengthPrefixedArray(GetVirtualMethodsPtrUnchecked(),
-                                                   ArtMethod::ObjectSize(pointer_size));
+                                                   ArtMethod::ObjectSize(pointer_size),
+                                                   ArtMethod::ObjectAlignment(pointer_size));
 }
 
 inline IterationRange<StrideIterator<ArtField>> Class::GetIFields() {
-  return MakeIterationRangeFromLengthPrefixedArray(GetIFieldsPtr(), sizeof(ArtField));
+  return MakeIterationRangeFromLengthPrefixedArray(GetIFieldsPtr());
 }
 
 inline IterationRange<StrideIterator<ArtField>> Class::GetSFields() {
-  return MakeIterationRangeFromLengthPrefixedArray(GetSFieldsPtr(), sizeof(ArtField));
+  return MakeIterationRangeFromLengthPrefixedArray(GetSFieldsPtr());
 }
 
 inline IterationRange<StrideIterator<ArtField>> Class::GetIFieldsUnchecked() {
-  return MakeIterationRangeFromLengthPrefixedArray(GetIFieldsPtrUnchecked(), sizeof(ArtField));
+  return MakeIterationRangeFromLengthPrefixedArray(GetIFieldsPtrUnchecked());
 }
 
 inline IterationRange<StrideIterator<ArtField>> Class::GetSFieldsUnchecked() {
-  return MakeIterationRangeFromLengthPrefixedArray(GetSFieldsPtrUnchecked(), sizeof(ArtField));
+  return MakeIterationRangeFromLengthPrefixedArray(GetSFieldsPtrUnchecked());
 }
 
 inline MemberOffset Class::EmbeddedImTableOffset(size_t pointer_size) {
