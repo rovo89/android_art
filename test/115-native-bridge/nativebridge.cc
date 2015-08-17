@@ -203,9 +203,11 @@ static jint trampoline_Java_Main_testSignal(JNIEnv*, jclass) {
 
   // Test segv
   sigaction(SIGSEGV, &tmp, nullptr);
-#if defined(__arm__) || defined(__i386__) || defined(__x86_64__) || defined(__aarch64__)
-  // On supported architectures we cause a real SEGV.
+#if defined(__arm__) || defined(__i386__) || defined(__aarch64__)
   *go_away_compiler = 'a';
+#elif defined(__x86_64__)
+  // Cause a SEGV using an instruction known to be 3 bytes long
+  asm volatile("movl $0, %%eax;" "movb $1, (%%eax);" : : : "%eax");
 #else
   // On other architectures we simulate SEGV.
   kill(getpid(), SIGSEGV);
