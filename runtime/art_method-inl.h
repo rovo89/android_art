@@ -506,7 +506,7 @@ void ArtMethod::VisitRoots(RootVisitorType& visitor) {
 
 inline void ArtMethod::CopyFrom(const ArtMethod* src, size_t image_pointer_size) {
   memcpy(reinterpret_cast<void*>(this), reinterpret_cast<const void*>(src),
-         ObjectSize(image_pointer_size));
+         Size(image_pointer_size));
   declaring_class_ = GcRoot<mirror::Class>(const_cast<ArtMethod*>(src)->GetDeclaringClass());
   dex_cache_resolved_methods_ = GcRoot<mirror::PointerArray>(
       const_cast<ArtMethod*>(src)->GetDexCacheResolvedMethods());
