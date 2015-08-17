@@ -19,6 +19,7 @@
 
 #include "base/arena_containers.h"
 #include "base/bit_vector-inl.h"
+#include "base/hash_map.h"
 #include "base/value_object.h"
 #include "memory_region.h"
 #include "nodes.h"

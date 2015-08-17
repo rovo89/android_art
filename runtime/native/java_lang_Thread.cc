@@ -17,7 +17,6 @@
 #include "java_lang_Thread.h"
 
 #include "common_throws.h"
-#include "debugger.h"
 #include "jni_internal.h"
 #include "monitor.h"
 #include "mirror/object.h"
