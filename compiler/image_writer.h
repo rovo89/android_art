@@ -54,7 +54,7 @@ class ImageWriter FINAL {
         quick_imt_conflict_trampoline_offset_(0), quick_resolution_trampoline_offset_(0),
         quick_to_interpreter_bridge_offset_(0), compile_pic_(compile_pic),
         target_ptr_size_(InstructionSetPointerSize(compiler_driver_.GetInstructionSet())),
-        bin_slot_sizes_(), bin_slot_previous_sizes_(), bin_slot_count_(),
+        bin_slot_sizes_(), bin_slot_offsets_(), bin_slot_count_(),
         intern_table_bytes_(0u), image_method_array_(ImageHeader::kImageMethodsCount),
         dirty_methods_(0u), clean_methods_(0u) {
     CHECK_NE(image_begin, 0U);
@@ -359,7 +359,7 @@ class ImageWriter FINAL {
 
   // Bin slot tracking for dirty object packing
   size_t bin_slot_sizes_[kBinSize];  // Number of bytes in a bin
-  size_t bin_slot_previous_sizes_[kBinSize];  // Number of bytes in previous bins.
+  size_t bin_slot_offsets_[kBinSize];  // Number of bytes in previous bins.
   size_t bin_slot_count_[kBinSize];  // Number of objects in a bin
 
   // Cached size of the intern table for when we allocate memory.

@@ -158,6 +158,9 @@ static inline bool IsAlignedParam(T x, int n) {
 #define DCHECK_ALIGNED(value, alignment) \
   DCHECK(::art::IsAligned<alignment>(value)) << reinterpret_cast<const void*>(value)
 
+#define CHECK_ALIGNED_PARAM(value, alignment) \
+  CHECK(::art::IsAlignedParam(value, alignment)) << reinterpret_cast<const void*>(value)
+
 #define DCHECK_ALIGNED_PARAM(value, alignment) \
   DCHECK(::art::IsAlignedParam(value, alignment)) << reinterpret_cast<const void*>(value)
 

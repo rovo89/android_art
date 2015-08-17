@@ -21,6 +21,8 @@
 
 #include "linear_alloc.h"
 #include "stride_iterator.h"
+#include "base/bit_utils.h"
+#include "base/casts.h"
 #include "base/iteration_range.h"
 
 namespace art {
@@ -28,29 +30,35 @@ namespace art {
 template<typename T>
 class LengthPrefixedArray {
  public:
-  explicit LengthPrefixedArray(uint64_t length) : length_(length) {}
+  explicit LengthPrefixedArray(size_t length)
+      : length_(dchecked_integral_cast<uint32_t>(length)) {}
 
-  T& At(size_t index, size_t element_size = sizeof(T)) {
+  T& At(size_t index, size_t element_size = sizeof(T), size_t alignment = alignof(T)) {
     DCHECK_LT(index, length_);
-    return *reinterpret_cast<T*>(&data_[0] + index * element_size);
+    return AtUnchecked(index, element_size, alignment);
   }
 
-  StrideIterator<T> Begin(size_t element_size = sizeof(T)) {
-    return StrideIterator<T>(reinterpret_cast<T*>(&data_[0]), element_size);
+  StrideIterator<T> Begin(size_t element_size = sizeof(T), size_t alignment = alignof(T)) {
+    return StrideIterator<T>(&AtUnchecked(0, element_size, alignment), element_size);
   }
 
-  StrideIterator<T> End(size_t element_size = sizeof(T)) {
-    return StrideIterator<T>(reinterpret_cast<T*>(&data_[0] + element_size * length_),
-                             element_size);
+  StrideIterator<T> End(size_t element_size = sizeof(T), size_t alignment = alignof(T)) {
+    return StrideIterator<T>(&AtUnchecked(length_, element_size, alignment), element_size);
   }
 
-  static size_t OffsetOfElement(size_t index, size_t element_size = sizeof(T)) {
-    return offsetof(LengthPrefixedArray<T>, data_) + index * element_size;
+  static size_t OffsetOfElement(size_t index,
+                                size_t element_size = sizeof(T),
+                                size_t alignment = alignof(T)) {
+    DCHECK_ALIGNED_PARAM(element_size, alignment);
+    return RoundUp(offsetof(LengthPrefixedArray<T>, data), alignment) + index * element_size;
   }
 
-  // Alignment is the caller's responsibility.
-  static size_t ComputeSize(size_t num_elements, size_t element_size = sizeof(T)) {
-    return OffsetOfElement(num_elements, element_size);
+  static size_t ComputeSize(size_t num_elements,
+                            size_t element_size = sizeof(T),
+                            size_t alignment = alignof(T)) {
+    size_t result = OffsetOfElement(num_elements, element_size, alignment);
+    DCHECK_ALIGNED_PARAM(result, alignment);
+    return result;
   }
 
   uint64_t Length() const {
@@ -58,21 +66,26 @@ class LengthPrefixedArray {
   }
 
   // Update the length but does not reallocate storage.
-  void SetLength(uint64_t length) {
-    length_ = length;
+  void SetLength(size_t length) {
+    length_ = dchecked_integral_cast<uint32_t>(length);
   }
 
  private:
-  uint64_t length_;  // 64 bits for 8 byte alignment of data_.
-  uint8_t data_[0];
+  T& AtUnchecked(size_t index, size_t element_size, size_t alignment) {
+    return *reinterpret_cast<T*>(
+        reinterpret_cast<uintptr_t>(this) + OffsetOfElement(index, element_size, alignment));
+  }
+
+  uint32_t length_;
+  uint8_t data[0];
 };
 
 // Returns empty iteration range if the array is null.
 template<typename T>
 IterationRange<StrideIterator<T>> MakeIterationRangeFromLengthPrefixedArray(
-    LengthPrefixedArray<T>* arr, size_t element_size) {
+    LengthPrefixedArray<T>* arr, size_t element_size = sizeof(T), size_t alignment = alignof(T)) {
   return arr != nullptr ?
-      MakeIterationRange(arr->Begin(element_size), arr->End(element_size)) :
+      MakeIterationRange(arr->Begin(element_size, alignment), arr->End(element_size, alignment)) :
       MakeEmptyIterationRange(StrideIterator<T>(nullptr, 0));
 }
 
