@@ -1868,7 +1868,8 @@ const File& ElfFile::GetFile() const {
   DELEGATE_TO_IMPL(GetFile);
 }
 
-bool ElfFile::GetSectionOffsetAndSize(const char* section_name, uint64_t* offset, uint64_t* size) {
+bool ElfFile::GetSectionOffsetAndSize(const char* section_name, uint64_t* offset,
+                                      uint64_t* size) const {
   if (elf32_.get() == nullptr) {
     CHECK(elf64_.get() != nullptr);
 
