@@ -1970,7 +1970,7 @@ class ImageDumper {
                                 method_access_flags);
 
       size_t total_size = dex_instruction_bytes + gc_map_bytes + pc_mapping_table_bytes +
-          vmap_table_bytes + quick_oat_code_size + ArtMethod::ObjectSize(image_pointer_size);
+          vmap_table_bytes + quick_oat_code_size + ArtMethod::Size(image_pointer_size);
 
       double expansion =
       static_cast<double>(quick_oat_code_size) / static_cast<double>(dex_instruction_bytes);
