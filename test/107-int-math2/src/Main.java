@@ -412,7 +412,7 @@ class Main extends IntMathBase {
      */
     static int lit8Test(int x) {
 
-        int[] results = new int[8];
+        int[] results = new int[9];
 
         /* try to generate op-int/lit8" instructions */
         results[0] = x + 10;
@@ -423,6 +423,7 @@ class Main extends IntMathBase {
         results[5] = x & 10;
         results[6] = x | -10;
         results[7] = x ^ -10;
+        results[8] = x * -256;
         int minInt = -2147483648;
         int result = minInt / -1;
         if (result != minInt) {return 1; }
@@ -434,6 +435,7 @@ class Main extends IntMathBase {
         if (results[5] != 8) {return 7; }
         if (results[6] != -1) {return 8; }
         if (results[7] != 55563) {return 9; }
+        if (results[8] != 14222080) {return 10; }
         return 0;
     }
 

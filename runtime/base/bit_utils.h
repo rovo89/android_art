@@ -29,21 +29,28 @@ namespace art {
 template<typename T>
 static constexpr int CLZ(T x) {
   static_assert(std::is_integral<T>::value, "T must be integral");
-  // TODO: assert unsigned. There is currently many uses with signed values.
+  static_assert(std::is_unsigned<T>::value, "T must be unsigned");
   static_assert(sizeof(T) <= sizeof(long long),  // NOLINT [runtime/int] [4]
                 "T too large, must be smaller than long long");
-  return (sizeof(T) == sizeof(uint32_t))
-      ? __builtin_clz(x)  // TODO: __builtin_clz[ll] has undefined behavior for x=0
-      : __builtin_clzll(x);
+  return
+      DCHECK_CONSTEXPR(x != 0, "x must not be zero", T(0))
+      (sizeof(T) == sizeof(uint32_t))
+          ? __builtin_clz(x)
+          : __builtin_clzll(x);
 }
 
 template<typename T>
 static constexpr int CTZ(T x) {
   static_assert(std::is_integral<T>::value, "T must be integral");
-  // TODO: assert unsigned. There is currently many uses with signed values.
-  return (sizeof(T) == sizeof(uint32_t))
-      ? __builtin_ctz(x)
-      : __builtin_ctzll(x);
+  // It is not unreasonable to ask for trailing zeros in a negative number. As such, do not check
+  // that T is an unsigned type.
+  static_assert(sizeof(T) <= sizeof(long long),  // NOLINT [runtime/int] [4]
+                "T too large, must be smaller than long long");
+  return
+      DCHECK_CONSTEXPR(x != 0, "x must not be zero", T(0))
+      (sizeof(T) == sizeof(uint32_t))
+          ? __builtin_ctz(x)
+          : __builtin_ctzll(x);
 }
 
 template<typename T>
