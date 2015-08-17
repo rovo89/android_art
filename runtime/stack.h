@@ -21,7 +21,6 @@
 #include <string>
 
 #include "arch/instruction_set.h"
-#include "base/bit_utils.h"
 #include "dex_file.h"
 #include "gc_root.h"
 #include "mirror/object_reference.h"

@@ -20,6 +20,7 @@
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/stringpiece.h"
+#include "debugger.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
 #include "entrypoints/entrypoint_utils.h"

@@ -28,7 +28,6 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "common_throws.h"
-#include "debugger.h"
 #include "dex_file-inl.h"
 #include "instrumentation.h"
 #include "mirror/class-inl.h"
