@@ -298,7 +298,7 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
           interface_method->GetArtMethod(), sizeof(void*));
       auto* virtual_methods = proxy_class->GetVirtualMethodsPtr();
       size_t num_virtuals = proxy_class->NumVirtualMethods();
-      size_t method_size = ArtMethod::ObjectSize(sizeof(void*));
+      size_t method_size = ArtMethod::Size(sizeof(void*));
       int throws_index = (reinterpret_cast<uintptr_t>(proxy_method) -
           reinterpret_cast<uintptr_t>(virtual_methods)) / method_size;
       CHECK_LT(throws_index, static_cast<int>(num_virtuals));
