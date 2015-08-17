@@ -582,14 +582,14 @@ class Dex2Oat FINAL {
     std::string option_prefix = option_name + (is_long_option ? "=" : "");
     DCHECK(option.starts_with(option_prefix));
     const char* value_string = option.substr(option_prefix.size()).data();
-    long long int parsed_integer_value;
+    int64_t parsed_integer_value;
     if (!ParseInt(value_string, &parsed_integer_value)) {
       Usage("Failed to parse %s '%s' as an integer", option_name.c_str(), value_string);
     }
     if (parsed_integer_value < 0) {
       Usage("%s passed a negative value %d", option_name.c_str(), parsed_integer_value);
     }
-    *out = parsed_integer_value;
+    *out = dchecked_integral_cast<T>(parsed_integer_value);
   }
 
   void ParseZipFd(const StringPiece& option) {
