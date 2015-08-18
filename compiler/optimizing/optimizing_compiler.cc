@@ -359,11 +359,6 @@ static bool IsInstructionSetSupported(InstructionSet instruction_set) {
       || instruction_set == kX86_64;
 }
 
-static bool CanOptimize(const DexFile::CodeItem& code_item) {
-  // TODO: We currently cannot optimize methods with try/catch.
-  return code_item.tries_size_ == 0;
-}
-
 static void RunOptimizations(HOptimization* optimizations[],
                              size_t length,
                              PassObserver* pass_observer) {
@@ -470,6 +465,13 @@ static void RunOptimizations(HGraph* graph,
 
   RunOptimizations(optimizations1, arraysize(optimizations1), pass_observer);
 
+  if (graph->HasTryCatch()) {
+    // TODO: Update the optimizations below to work correctly under try/catch
+    //       semantics. The optimizations above suffice for running codegen
+    //       in the meanwhile.
+    return;
+  }
+
   MaybeRunInliner(graph, driver, stats, dex_compilation_unit, pass_observer, handles);
 
   HOptimization* optimizations2[] = {
@@ -528,6 +530,10 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
   StackHandleScopeCollection handles(Thread::Current());
   RunOptimizations(graph, compiler_driver, compilation_stats_.get(),
                    dex_compilation_unit, pass_observer, &handles);
+
+  if (graph->HasTryCatch()) {
+    return nullptr;
+  }
 
   AllocateRegisters(graph, codegen, pass_observer);
 
@@ -717,7 +723,6 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     }
   }
 
-  bool can_optimize = CanOptimize(*code_item);
   bool can_allocate_registers = RegisterAllocator::CanAllocateRegistersFor(*graph, instruction_set);
 
   // `run_optimizations_` is set explicitly (either through a compiler filter
@@ -738,16 +743,12 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
       }
     }
 
-    if (can_optimize) {
-      return CompileOptimized(graph,
-                              codegen.get(),
-                              compiler_driver,
-                              dex_compilation_unit,
-                              &pass_observer);
-    }
-  }
-
-  if (shouldOptimize && can_allocate_registers) {
+    return CompileOptimized(graph,
+                            codegen.get(),
+                            compiler_driver,
+                            dex_compilation_unit,
+                            &pass_observer);
+  } else if (shouldOptimize && can_allocate_registers) {
     LOG(FATAL) << "Could not allocate registers in optimizing compiler";
     UNREACHABLE();
   } else if (can_use_baseline) {
@@ -755,8 +756,6 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
 
     if (!run_optimizations_) {
       MaybeRecordStat(MethodCompilationStat::kNotOptimizedDisabled);
-    } else if (!can_optimize) {
-      MaybeRecordStat(MethodCompilationStat::kNotOptimizedTryCatch);
     } else if (!can_allocate_registers) {
       MaybeRecordStat(MethodCompilationStat::kNotOptimizedRegisterAllocator);
     }

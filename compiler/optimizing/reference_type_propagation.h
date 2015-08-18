@@ -62,6 +62,7 @@ class ReferenceTypePropagation : public HOptimization {
   ReferenceTypeInfo::TypeHandle object_class_handle_;
   ReferenceTypeInfo::TypeHandle class_class_handle_;
   ReferenceTypeInfo::TypeHandle string_class_handle_;
+  ReferenceTypeInfo::TypeHandle throwable_class_handle_;
 
   static constexpr size_t kDefaultWorklistSize = 8;
 
