@@ -175,9 +175,13 @@ void ModUnionTableReferenceCache::ClearCards() {
 class AddToReferenceArrayVisitor {
  public:
   AddToReferenceArrayVisitor(ModUnionTableReferenceCache* mod_union_table,
-                             std::vector<mirror::HeapReference<Object>*>* references)
-      : mod_union_table_(mod_union_table), references_(references) {
-  }
+                             MarkObjectVisitor* visitor,
+                             std::vector<mirror::HeapReference<Object>*>* references,
+                             bool* has_target_reference)
+      : mod_union_table_(mod_union_table),
+        visitor_(visitor),
+        references_(references),
+        has_target_reference_(has_target_reference) {}
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
   void operator()(Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
@@ -193,39 +197,54 @@ class AddToReferenceArrayVisitor {
 
   void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    if (kIsDebugBuild && !root->IsNull()) {
+    if (!root->IsNull()) {
       VisitRoot(root);
     }
   }
 
   void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK(!mod_union_table_->ShouldAddReference(root->AsMirrorPtr()));
+    if (mod_union_table_->ShouldAddReference(root->AsMirrorPtr())) {
+      *has_target_reference_ = true;
+      // TODO: Add MarkCompressedReference callback here.
+      root->Assign(visitor_->MarkObject(root->AsMirrorPtr()));
+    }
   }
 
  private:
   ModUnionTableReferenceCache* const mod_union_table_;
+  MarkObjectVisitor* const visitor_;
   std::vector<mirror::HeapReference<Object>*>* const references_;
+  bool* const has_target_reference_;
 };
 
 class ModUnionReferenceVisitor {
  public:
   ModUnionReferenceVisitor(ModUnionTableReferenceCache* const mod_union_table,
-                           std::vector<mirror::HeapReference<Object>*>* references)
+                           MarkObjectVisitor* visitor,
+                           std::vector<mirror::HeapReference<Object>*>* references,
+                           bool* has_target_reference)
       : mod_union_table_(mod_union_table),
-        references_(references) {
-  }
+        visitor_(visitor),
+        references_(references),
+        has_target_reference_(has_target_reference) {}
 
   void operator()(Object* obj) const
       SHARED_REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
     // We don't have an early exit since we use the visitor pattern, an early
     // exit should significantly speed this up.
-    AddToReferenceArrayVisitor visitor(mod_union_table_, references_);
+    AddToReferenceArrayVisitor visitor(mod_union_table_,
+                                       visitor_,
+                                       references_,
+                                       has_target_reference_);
     obj->VisitReferences<kMovingClasses>(visitor, VoidFunctor());
   }
+
  private:
   ModUnionTableReferenceCache* const mod_union_table_;
+  MarkObjectVisitor* const visitor_;
   std::vector<mirror::HeapReference<Object>*>* const references_;
+  bool* const has_target_reference_;
 };
 
 class CheckReferenceVisitor {
@@ -340,40 +359,67 @@ void ModUnionTableReferenceCache::Dump(std::ostream& os) {
 }
 
 void ModUnionTableReferenceCache::UpdateAndMarkReferences(MarkObjectVisitor* visitor) {
-  CardTable* card_table = heap_->GetCardTable();
-
+  CardTable* const card_table = heap_->GetCardTable();
   std::vector<mirror::HeapReference<Object>*> cards_references;
-  ModUnionReferenceVisitor add_visitor(this, &cards_references);
-
-  for (const auto& card : cleared_cards_) {
+  // If has_target_reference is true then there was a GcRoot compressed reference which wasn't
+  // added. In this case we need to keep the card dirty.
+  // We don't know if the GcRoot addresses will remain constant, for example, classloaders have a
+  // hash set of GcRoot which may be resized or modified.
+  bool has_target_reference;
+  ModUnionReferenceVisitor add_visitor(this, visitor, &cards_references, &has_target_reference);
+  CardSet new_cleared_cards;
+  for (uint8_t* card : cleared_cards_) {
     // Clear and re-compute alloc space references associated with this card.
     cards_references.clear();
+    has_target_reference = false;
     uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card));
     uintptr_t end = start + CardTable::kCardSize;
-    auto* space = heap_->FindContinuousSpaceFromObject(reinterpret_cast<Object*>(start), false);
+    space::ContinuousSpace* space =
+        heap_->FindContinuousSpaceFromObject(reinterpret_cast<Object*>(start), false);
     DCHECK(space != nullptr);
     ContinuousSpaceBitmap* live_bitmap = space->GetLiveBitmap();
     live_bitmap->VisitMarkedRange(start, end, add_visitor);
-
     // Update the corresponding references for the card.
     auto found = references_.find(card);
     if (found == references_.end()) {
-      if (cards_references.empty()) {
-        // No reason to add empty array.
-        continue;
+      // Don't add card for an empty reference array.
+      if (!cards_references.empty()) {
+        references_.Put(card, cards_references);
       }
-      references_.Put(card, cards_references);
     } else {
-      found->second = cards_references;
+      if (cards_references.empty()) {
+        references_.erase(found);
+      } else {
+        found->second = cards_references;
+      }
+    }
+    if (has_target_reference) {
+      // Keep this card for next time since it contains a GcRoot which matches the
+      // ShouldAddReference criteria. This usually occurs for class loaders.
+      new_cleared_cards.insert(card);
     }
   }
-  cleared_cards_.clear();
+  cleared_cards_ = std::move(new_cleared_cards);
   size_t count = 0;
-  for (const auto& ref : references_) {
-    for (mirror::HeapReference<Object>* obj_ptr : ref.second) {
-      visitor->MarkHeapReference(obj_ptr);
+  for (auto it = references_.begin(); it != references_.end();) {
+    std::vector<mirror::HeapReference<Object>*>& references = it->second;
+    // Since there is no card mark for setting a reference to null, we check each reference.
+    // If all of the references of a card are null then we can remove that card. This is racy
+    // with the mutators, but handled by rescanning dirty cards.
+    bool all_null = true;
+    for (mirror::HeapReference<Object>* obj_ptr : references) {
+      if (obj_ptr->AsMirrorPtr() != nullptr) {
+        all_null = false;
+        visitor->MarkHeapReference(obj_ptr);
+      }
     }
-    count += ref.second.size();
+    count += references.size();
+    if (!all_null) {
+      ++it;
+    } else {
+      // All null references, erase the array from the set.
+      it = references_.erase(it);
+    }
   }
   if (VLOG_IS_ON(heap)) {
     VLOG(gc) << "Marked " << count << " references in mod union table";
