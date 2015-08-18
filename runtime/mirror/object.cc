@@ -85,7 +85,7 @@ Object* Object::CopyObject(Thread* self, mirror::Object* dest, mirror::Object* s
     // object above, copy references fields one by one again with a
     // RB. TODO: Optimize this later?
     CopyReferenceFieldsWithReadBarrierVisitor visitor(dest);
-    src->VisitReferences<true>(visitor, visitor);
+    src->VisitReferences(visitor, visitor);
   }
   gc::Heap* heap = Runtime::Current()->GetHeap();
   // Perform write barriers on copied object references.

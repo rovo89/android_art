@@ -1350,7 +1350,7 @@ void ImageWriter::FixupClass(mirror::Class* orig, mirror::Class* copy) {
     }
   }
   FixupClassVisitor visitor(this, copy);
-  static_cast<mirror::Object*>(orig)->VisitReferences<true /*visit class*/>(visitor, visitor);
+  static_cast<mirror::Object*>(orig)->VisitReferences(visitor, visitor);
 }
 
 void ImageWriter::FixupObject(Object* orig, Object* copy) {
@@ -1397,7 +1397,7 @@ void ImageWriter::FixupObject(Object* orig, Object* copy) {
       down_cast<mirror::ClassLoader*>(copy)->SetClassTable(nullptr);
     }
     FixupVisitor visitor(this, copy);
-    orig->VisitReferences<true /*visit class*/>(visitor, visitor);
+    orig->VisitReferences(visitor, visitor);
   }
 }
 
