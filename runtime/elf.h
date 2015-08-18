@@ -42,7 +42,7 @@ typedef uint64_t Elf64_Xword;
 typedef int64_t  Elf64_Sxword;
 
 // Object file magic string.
-static const char ElfMagic[] = { 0x7f, 'E', 'L', 'F', '\0' };
+static constexpr char ElfMagic[] = { 0x7f, 'E', 'L', 'F', '\0' };
 
 // e_ident size and indices.
 enum {
@@ -60,10 +60,10 @@ enum {
 };
 
 // BEGIN android-added for <elf.h> compat
-const char ELFMAG0 = ElfMagic[EI_MAG0];
-const char ELFMAG1 = ElfMagic[EI_MAG1];
-const char ELFMAG2 = ElfMagic[EI_MAG2];
-const char ELFMAG3 = ElfMagic[EI_MAG3];
+constexpr char ELFMAG0 = ElfMagic[EI_MAG0];
+constexpr char ELFMAG1 = ElfMagic[EI_MAG1];
+constexpr char ELFMAG2 = ElfMagic[EI_MAG2];
+constexpr char ELFMAG3 = ElfMagic[EI_MAG3];
 // END android-added for <elf.h> compat
 
 struct Elf32_Ehdr {
