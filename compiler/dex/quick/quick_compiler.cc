@@ -43,10 +43,21 @@
 #include "runtime.h"
 
 // Specific compiler backends.
+#ifdef ART_ENABLE_CODEGEN_arm
 #include "dex/quick/arm/backend_arm.h"
+#endif
+
+#ifdef ART_ENABLE_CODEGEN_arm64
 #include "dex/quick/arm64/backend_arm64.h"
+#endif
+
+#if defined(ART_ENABLE_CODEGEN_mips) || defined(ART_ENABLE_CODEGEN_mips64)
 #include "dex/quick/mips/backend_mips.h"
+#endif
+
+#if defined(ART_ENABLE_CODEGEN_x86) || defined(ART_ENABLE_CODEGEN_x86_64)
 #include "dex/quick/x86/backend_x86.h"
+#endif
 
 namespace art {
 
@@ -844,22 +855,42 @@ Mir2Lir* QuickCompiler::GetCodeGenerator(CompilationUnit* cu, void* compilation_
   UNUSED(compilation_unit);
   Mir2Lir* mir_to_lir = nullptr;
   switch (cu->instruction_set) {
+#ifdef ART_ENABLE_CODEGEN_arm
     case kThumb2:
       mir_to_lir = ArmCodeGenerator(cu, cu->mir_graph.get(), &cu->arena);
       break;
+#endif  // ART_ENABLE_CODEGEN_arm
+#ifdef ART_ENABLE_CODEGEN_arm64
     case kArm64:
       mir_to_lir = Arm64CodeGenerator(cu, cu->mir_graph.get(), &cu->arena);
       break;
+#endif  // ART_ENABLE_CODEGEN_arm64
+#if defined(ART_ENABLE_CODEGEN_mips) || defined(ART_ENABLE_CODEGEN_mips64)
+      // Intentional 2 level ifdef. Want to fail on mips64 if it is not enabled, even if mips is
+      // and vice versa.
+#ifdef ART_ENABLE_CODEGEN_mips
     case kMips:
       // Fall-through.
+#endif  // ART_ENABLE_CODEGEN_mips
+#ifdef ART_ENABLE_CODEGEN_mips64
     case kMips64:
+#endif  // ART_ENABLE_CODEGEN_mips64
       mir_to_lir = MipsCodeGenerator(cu, cu->mir_graph.get(), &cu->arena);
       break;
+#endif  // ART_ENABLE_CODEGEN_mips || ART_ENABLE_CODEGEN_mips64
+#if defined(ART_ENABLE_CODEGEN_x86) || defined(ART_ENABLE_CODEGEN_x86_64)
+      // Intentional 2 level ifdef. Want to fail on x86_64 if it is not enabled, even if x86 is
+      // and vice versa.
+#ifdef ART_ENABLE_CODEGEN_x86
     case kX86:
       // Fall-through.
+#endif  // ART_ENABLE_CODEGEN_x86
+#ifdef ART_ENABLE_CODEGEN_x86_64
     case kX86_64:
+#endif  // ART_ENABLE_CODEGEN_x86_64
       mir_to_lir = X86CodeGenerator(cu, cu->mir_graph.get(), &cu->arena);
       break;
+#endif  // ART_ENABLE_CODEGEN_x86 || ART_ENABLE_CODEGEN_x86_64
     default:
       LOG(FATAL) << "Unexpected instruction set: " << cu->instruction_set;
   }
