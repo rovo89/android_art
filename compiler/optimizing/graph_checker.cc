@@ -89,7 +89,7 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
                           block->GetBlockId()));
   }
 
-  // Ensure that the only Return(Void) and Throw jump to Exit. An exiting
+  // Ensure that only Return(Void) and Throw jump to Exit. An exiting
   // TryBoundary may be between a Throw and the Exit if the Throw is in a try.
   if (block->IsExitBlock()) {
     for (size_t i = 0, e = block->GetPredecessors().Size(); i < e; ++i) {
@@ -355,39 +355,6 @@ void GraphChecker::VisitInstanceOf(HInstanceOf* instruction) {
 void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
   super_type::VisitBasicBlock(block);
 
-  // Ensure that only catch blocks have exceptional predecessors, and if they do
-  // these are instructions which throw into them.
-  if (block->IsCatchBlock()) {
-    for (size_t i = 0, e = block->GetExceptionalPredecessors().Size(); i < e; ++i) {
-      HInstruction* thrower = block->GetExceptionalPredecessors().Get(i);
-      HBasicBlock* try_block = thrower->GetBlock();
-      if (!thrower->CanThrow()) {
-        AddError(StringPrintf("Exceptional predecessor %s:%d of catch block %d does not throw.",
-                              thrower->DebugName(),
-                              thrower->GetId(),
-                              block->GetBlockId()));
-      } else if (!try_block->IsInTry()) {
-        AddError(StringPrintf("Exceptional predecessor %s:%d of catch block %d "
-                              "is not in a try block.",
-                              thrower->DebugName(),
-                              thrower->GetId(),
-                              block->GetBlockId()));
-      } else if (!try_block->GetTryEntry()->HasExceptionHandler(*block)) {
-        AddError(StringPrintf("Catch block %d is not an exception handler of "
-                              "its exceptional predecessor %s:%d.",
-                              block->GetBlockId(),
-                              thrower->DebugName(),
-                              thrower->GetId()));
-      }
-    }
-  } else {
-    if (!block->GetExceptionalPredecessors().IsEmpty()) {
-      AddError(StringPrintf("Normal block %d has %zu exceptional predecessors.",
-                            block->GetBlockId(),
-                            block->GetExceptionalPredecessors().Size()));
-    }
-  }
-
   // Ensure that catch blocks are not normal successors, and normal blocks are
   // never exceptional successors.
   const size_t num_normal_successors = block->NumberOfNormalSuccessors();
@@ -572,7 +539,6 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
 
 void SSAChecker::VisitInstruction(HInstruction* instruction) {
   super_type::VisitInstruction(instruction);
-  HBasicBlock* block = instruction->GetBlock();
 
   // Ensure an instruction dominates all its uses.
   for (HUseIterator<HInstruction*> use_it(instruction->GetUses());
@@ -601,24 +567,6 @@ void SSAChecker::VisitInstruction(HInstruction* instruction) {
                               instruction->GetId(),
                               current_block_->GetBlockId(),
                               instruction->GetId()));
-      }
-    }
-  }
-
-  // Ensure that throwing instructions in try blocks are listed as exceptional
-  // predecessors in their exception handlers.
-  if (instruction->CanThrow() && block->IsInTry()) {
-    for (HExceptionHandlerIterator handler_it(*block->GetTryEntry());
-         !handler_it.Done();
-         handler_it.Advance()) {
-      if (!handler_it.Current()->GetExceptionalPredecessors().Contains(instruction)) {
-        AddError(StringPrintf("Instruction %s:%d is in try block %d and can throw "
-                              "but its exception handler %d does not list it in "
-                              "its exceptional predecessors.",
-                              instruction->DebugName(),
-                              instruction->GetId(),
-                              block->GetBlockId(),
-                              handler_it.Current()->GetBlockId()));
       }
     }
   }
@@ -669,27 +617,6 @@ void SSAChecker::VisitPhi(HPhi* phi) {
   if (phi->IsCatchPhi()) {
     // The number of inputs of a catch phi corresponds to the total number of
     // throwing instructions caught by this catch block.
-    const GrowableArray<HInstruction*>& predecessors =
-        phi->GetBlock()->GetExceptionalPredecessors();
-    if (phi->InputCount() != predecessors.Size()) {
-      AddError(StringPrintf(
-          "Phi %d in catch block %d has %zu inputs, "
-          "but catch block %d has %zu exceptional predecessors.",
-          phi->GetId(), phi->GetBlock()->GetBlockId(), phi->InputCount(),
-          phi->GetBlock()->GetBlockId(), predecessors.Size()));
-    } else {
-      for (size_t i = 0, e = phi->InputCount(); i < e; ++i) {
-        HInstruction* input = phi->InputAt(i);
-        HInstruction* thrower = predecessors.Get(i);
-        if (!input->StrictlyDominates(thrower)) {
-          AddError(StringPrintf(
-              "Input %d at index %zu of phi %d from catch block %d does not "
-              "dominate the throwing instruction %s:%d.",
-              input->GetId(), i, phi->GetId(), phi->GetBlock()->GetBlockId(),
-              thrower->DebugName(), thrower->GetId()));
-        }
-      }
-    }
   } else {
     // Ensure the number of inputs of a non-catch phi is the same as the number
     // of its predecessors.
