@@ -196,8 +196,6 @@ LIBART_COMMON_SRC_FILES += \
   arch/x86/instruction_set_features_x86.cc \
   arch/x86/registers_x86.cc \
   arch/x86_64/registers_x86_64.cc \
-  simulator/code_simulator.cc \
-  simulator/code_simulator_arm64.cc \
   entrypoints/entrypoint_utils.cc \
   entrypoints/interpreter/interpreter_entrypoints.cc \
   entrypoints/jni/jni_entrypoints.cc \
@@ -496,11 +494,11 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
     LOCAL_SHARED_LIBRARIES += libcutils
   else # host
     ifeq ($$(art_static_or_shared),static)
-      LOCAL_STATIC_LIBRARIES += libziparchive-host libz libvixl
+      LOCAL_STATIC_LIBRARIES += libziparchive-host libz
       # For ashmem_create_region.
       LOCAL_STATIC_LIBRARIES += libcutils
     else
-      LOCAL_SHARED_LIBRARIES += libziparchive-host libz-host libvixl
+      LOCAL_SHARED_LIBRARIES += libziparchive-host libz-host
       # For ashmem_create_region.
       LOCAL_SHARED_LIBRARIES += libcutils
     endif
