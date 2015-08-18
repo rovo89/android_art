@@ -121,8 +121,15 @@ class InternalCodeAllocator : public CodeAllocator {
   DISALLOW_COPY_AND_ASSIGN(InternalCodeAllocator);
 };
 
+static bool CanExecuteOnHardware(InstructionSet target_isa) {
+  return (target_isa == kRuntimeISA)
+      // Handle the special case of ARM, with two instructions sets
+      // (ARM32 and Thumb-2).
+      || (kRuntimeISA == kArm && target_isa == kThumb2);
+}
+
 static bool CanExecute(InstructionSet target_isa) {
-  return (target_isa == kRuntimeISA) || CodeSimulator::CanSimulate(target_isa);
+  return CanExecuteOnHardware(target_isa) || CodeSimulator::CanSimulate(target_isa);
 }
 
 template <typename Expected>
@@ -151,7 +158,7 @@ static void VerifyGeneratedCode(InstructionSet target_isa,
                                 Expected (*f)(),
                                 bool has_result,
                                 Expected expected) {
-  ASSERT_TRUE(CanExecute(target_isa)) << "Target isa is not executable.";
+  ASSERT_TRUE(CanExecute(target_isa)) << "Target ISA is not executable " << target_isa;
 
   // Verify on simulator.
   if (CodeSimulator::CanSimulate(target_isa)) {
@@ -163,7 +170,7 @@ static void VerifyGeneratedCode(InstructionSet target_isa,
   }
 
   // Verify on hardware.
-  if (kRuntimeISA == target_isa) {
+  if (CanExecuteOnHardware(target_isa)) {
     Expected result = f();
     if (has_result) {
       ASSERT_EQ(expected, result);
