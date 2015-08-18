@@ -40,7 +40,6 @@
 #include "optimizing_unit_test.h"
 #include "prepare_for_register_allocation.h"
 #include "register_allocator.h"
-#include "simulator/code_simulator.h"
 #include "ssa_liveness_analysis.h"
 #include "utils.h"
 #include "utils/arm/managed_register_arm.h"
@@ -121,85 +120,26 @@ class InternalCodeAllocator : public CodeAllocator {
   DISALLOW_COPY_AND_ASSIGN(InternalCodeAllocator);
 };
 
-static bool CanExecuteOnHardware(InstructionSet target_isa) {
-  return (target_isa == kRuntimeISA)
-      // Handle the special case of ARM, with two instructions sets
-      // (ARM32 and Thumb-2).
-      || (kRuntimeISA == kArm && target_isa == kThumb2);
-}
-
-static bool CanExecute(InstructionSet target_isa) {
-  return CanExecuteOnHardware(target_isa) || CodeSimulator::CanSimulate(target_isa);
-}
-
-template <typename Expected>
-static Expected SimulatorExecute(CodeSimulator* simulator, Expected (*f)());
-
-template <>
-bool SimulatorExecute<bool>(CodeSimulator* simulator, bool (*f)()) {
-  simulator->RunFrom(reinterpret_cast<intptr_t>(f));
-  return simulator->GetCReturnBool();
-}
-
-template <>
-int32_t SimulatorExecute<int32_t>(CodeSimulator* simulator, int32_t (*f)()) {
-  simulator->RunFrom(reinterpret_cast<intptr_t>(f));
-  return simulator->GetCReturnInt32();
-}
-
-template <>
-int64_t SimulatorExecute<int64_t>(CodeSimulator* simulator, int64_t (*f)()) {
-  simulator->RunFrom(reinterpret_cast<intptr_t>(f));
-  return simulator->GetCReturnInt64();
-}
-
-template <typename Expected>
-static void VerifyGeneratedCode(InstructionSet target_isa,
-                                Expected (*f)(),
-                                bool has_result,
-                                Expected expected) {
-  ASSERT_TRUE(CanExecute(target_isa)) << "Target ISA is not executable " << target_isa;
-
-  // Verify on simulator.
-  if (CodeSimulator::CanSimulate(target_isa)) {
-    std::unique_ptr<CodeSimulator> simulator(CodeSimulator::CreateCodeSimulator(target_isa));
-    Expected result = SimulatorExecute<Expected>(simulator.get(), f);
-    if (has_result) {
-      ASSERT_EQ(expected, result);
-    }
-  }
-
-  // Verify on hardware.
-  if (CanExecuteOnHardware(target_isa)) {
-    Expected result = f();
-    if (has_result) {
-      ASSERT_EQ(expected, result);
-    }
-  }
-}
-
 template <typename Expected>
 static void Run(const InternalCodeAllocator& allocator,
                 const CodeGenerator& codegen,
                 bool has_result,
                 Expected expected) {
-  InstructionSet target_isa = codegen.GetInstructionSet();
-
   typedef Expected (*fptr)();
   CommonCompilerTest::MakeExecutable(allocator.GetMemory(), allocator.GetSize());
   fptr f = reinterpret_cast<fptr>(allocator.GetMemory());
-  if (target_isa == kThumb2) {
+  if (codegen.GetInstructionSet() == kThumb2) {
     // For thumb we need the bottom bit set.
     f = reinterpret_cast<fptr>(reinterpret_cast<uintptr_t>(f) + 1);
   }
-  VerifyGeneratedCode(target_isa, f, has_result, expected);
+  Expected result = f();
+  if (has_result) {
+    ASSERT_EQ(expected, result);
+  }
 }
 
 template <typename Expected>
-static void RunCodeBaseline(InstructionSet target_isa,
-                            HGraph* graph,
-                            bool has_result,
-                            Expected expected) {
+static void RunCodeBaseline(HGraph* graph, bool has_result, Expected expected) {
   InternalCodeAllocator allocator;
 
   CompilerOptions compiler_options;
@@ -209,7 +149,7 @@ static void RunCodeBaseline(InstructionSet target_isa,
   // We avoid doing a stack overflow check that requires the runtime being setup,
   // by making sure the compiler knows the methods we are running are leaf methods.
   codegenX86.CompileBaseline(&allocator, true);
-  if (target_isa == kX86) {
+  if (kRuntimeISA == kX86) {
     Run(allocator, codegenX86, has_result, expected);
   }
 
@@ -217,7 +157,7 @@ static void RunCodeBaseline(InstructionSet target_isa,
       ArmInstructionSetFeatures::FromCppDefines());
   TestCodeGeneratorARM codegenARM(graph, *features_arm.get(), compiler_options);
   codegenARM.CompileBaseline(&allocator, true);
-  if (target_isa == kArm || target_isa == kThumb2) {
+  if (kRuntimeISA == kArm || kRuntimeISA == kThumb2) {
     Run(allocator, codegenARM, has_result, expected);
   }
 
@@ -225,7 +165,7 @@ static void RunCodeBaseline(InstructionSet target_isa,
       X86_64InstructionSetFeatures::FromCppDefines());
   x86_64::CodeGeneratorX86_64 codegenX86_64(graph, *features_x86_64.get(), compiler_options);
   codegenX86_64.CompileBaseline(&allocator, true);
-  if (target_isa == kX86_64) {
+  if (kRuntimeISA == kX86_64) {
     Run(allocator, codegenX86_64, has_result, expected);
   }
 
@@ -233,7 +173,7 @@ static void RunCodeBaseline(InstructionSet target_isa,
       Arm64InstructionSetFeatures::FromCppDefines());
   arm64::CodeGeneratorARM64 codegenARM64(graph, *features_arm64.get(), compiler_options);
   codegenARM64.CompileBaseline(&allocator, true);
-  if (target_isa == kArm64) {
+  if (kRuntimeISA == kArm64) {
     Run(allocator, codegenARM64, has_result, expected);
   }
 
@@ -241,7 +181,7 @@ static void RunCodeBaseline(InstructionSet target_isa,
       Mips64InstructionSetFeatures::FromCppDefines());
   mips64::CodeGeneratorMIPS64 codegenMIPS64(graph, *features_mips64.get(), compiler_options);
   codegenMIPS64.CompileBaseline(&allocator, true);
-  if (target_isa == kMips64) {
+  if (kRuntimeISA == kMips64) {
     Run(allocator, codegenMIPS64, has_result, expected);
   }
 }
@@ -269,33 +209,32 @@ static void RunCodeOptimized(CodeGenerator* codegen,
 }
 
 template <typename Expected>
-static void RunCodeOptimized(InstructionSet target_isa,
-                             HGraph* graph,
+static void RunCodeOptimized(HGraph* graph,
                              std::function<void(HGraph*)> hook_before_codegen,
                              bool has_result,
                              Expected expected) {
   CompilerOptions compiler_options;
-  if (target_isa == kArm || target_isa == kThumb2) {
-    std::unique_ptr<const ArmInstructionSetFeatures> features_arm(
-        ArmInstructionSetFeatures::FromCppDefines());
-    TestCodeGeneratorARM codegenARM(graph, *features_arm.get(), compiler_options);
+  if (kRuntimeISA == kArm || kRuntimeISA == kThumb2) {
+    TestCodeGeneratorARM codegenARM(graph,
+                                    *ArmInstructionSetFeatures::FromCppDefines(),
+                                    compiler_options);
     RunCodeOptimized(&codegenARM, graph, hook_before_codegen, has_result, expected);
-  } else if (target_isa == kArm64) {
-    std::unique_ptr<const Arm64InstructionSetFeatures> features_arm64(
-        Arm64InstructionSetFeatures::FromCppDefines());
-    arm64::CodeGeneratorARM64 codegenARM64(graph, *features_arm64.get(), compiler_options);
+  } else if (kRuntimeISA == kArm64) {
+    arm64::CodeGeneratorARM64 codegenARM64(graph,
+                                           *Arm64InstructionSetFeatures::FromCppDefines(),
+                                           compiler_options);
     RunCodeOptimized(&codegenARM64, graph, hook_before_codegen, has_result, expected);
-  } else if (target_isa == kX86) {
+  } else if (kRuntimeISA == kX86) {
     std::unique_ptr<const X86InstructionSetFeatures> features_x86(
         X86InstructionSetFeatures::FromCppDefines());
     x86::CodeGeneratorX86 codegenX86(graph, *features_x86.get(), compiler_options);
     RunCodeOptimized(&codegenX86, graph, hook_before_codegen, has_result, expected);
-  } else if (target_isa == kX86_64) {
+  } else if (kRuntimeISA == kX86_64) {
     std::unique_ptr<const X86_64InstructionSetFeatures> features_x86_64(
         X86_64InstructionSetFeatures::FromCppDefines());
     x86_64::CodeGeneratorX86_64 codegenX86_64(graph, *features_x86_64.get(), compiler_options);
     RunCodeOptimized(&codegenX86_64, graph, hook_before_codegen, has_result, expected);
-  } else if (target_isa == kMips64) {
+  } else if (kRuntimeISA == kMips64) {
     std::unique_ptr<const Mips64InstructionSetFeatures> features_mips64(
         Mips64InstructionSetFeatures::FromCppDefines());
     mips64::CodeGeneratorMIPS64 codegenMIPS64(graph, *features_mips64.get(), compiler_options);
@@ -303,10 +242,7 @@ static void RunCodeOptimized(InstructionSet target_isa,
   }
 }
 
-static void TestCode(InstructionSet target_isa,
-                     const uint16_t* data,
-                     bool has_result = false,
-                     int32_t expected = 0) {
+static void TestCode(const uint16_t* data, bool has_result = false, int32_t expected = 0) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
   HGraph* graph = CreateGraph(&arena);
@@ -316,13 +252,10 @@ static void TestCode(InstructionSet target_isa,
   ASSERT_TRUE(graph_built);
   // Remove suspend checks, they cannot be executed in this context.
   RemoveSuspendChecks(graph);
-  RunCodeBaseline(target_isa, graph, has_result, expected);
+  RunCodeBaseline(graph, has_result, expected);
 }
 
-static void TestCodeLong(InstructionSet target_isa,
-                         const uint16_t* data,
-                         bool has_result,
-                         int64_t expected) {
+static void TestCodeLong(const uint16_t* data, bool has_result, int64_t expected) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
   HGraph* graph = CreateGraph(&arena);
@@ -332,110 +265,108 @@ static void TestCodeLong(InstructionSet target_isa,
   ASSERT_TRUE(graph_built);
   // Remove suspend checks, they cannot be executed in this context.
   RemoveSuspendChecks(graph);
-  RunCodeBaseline(target_isa, graph, has_result, expected);
+  RunCodeBaseline(graph, has_result, expected);
 }
 
-class CodegenTest: public ::testing::TestWithParam<InstructionSet> {};
-
-TEST_P(CodegenTest, ReturnVoid) {
+TEST(CodegenTest, ReturnVoid) {
   const uint16_t data[] = ZERO_REGISTER_CODE_ITEM(Instruction::RETURN_VOID);
-  TestCode(GetParam(), data);
+  TestCode(data);
 }
 
-TEST_P(CodegenTest, CFG1) {
+TEST(CodegenTest, CFG1) {
   const uint16_t data[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::GOTO | 0x100,
     Instruction::RETURN_VOID);
 
-  TestCode(GetParam(), data);
+  TestCode(data);
 }
 
-TEST_P(CodegenTest, CFG2) {
+TEST(CodegenTest, CFG2) {
   const uint16_t data[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::GOTO | 0x100,
     Instruction::GOTO | 0x100,
     Instruction::RETURN_VOID);
 
-  TestCode(GetParam(), data);
+  TestCode(data);
 }
 
-TEST_P(CodegenTest, CFG3) {
+TEST(CodegenTest, CFG3) {
   const uint16_t data1[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::GOTO | 0x200,
     Instruction::RETURN_VOID,
     Instruction::GOTO | 0xFF00);
 
-  TestCode(GetParam(), data1);
+  TestCode(data1);
 
   const uint16_t data2[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::GOTO_16, 3,
     Instruction::RETURN_VOID,
     Instruction::GOTO_16, 0xFFFF);
 
-  TestCode(GetParam(), data2);
+  TestCode(data2);
 
   const uint16_t data3[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::GOTO_32, 4, 0,
     Instruction::RETURN_VOID,
     Instruction::GOTO_32, 0xFFFF, 0xFFFF);
 
-  TestCode(GetParam(), data3);
+  TestCode(data3);
 }
 
-TEST_P(CodegenTest, CFG4) {
+TEST(CodegenTest, CFG4) {
   const uint16_t data[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::RETURN_VOID,
     Instruction::GOTO | 0x100,
     Instruction::GOTO | 0xFE00);
 
-  TestCode(GetParam(), data);
+  TestCode(data);
 }
 
-TEST_P(CodegenTest, CFG5) {
+TEST(CodegenTest, CFG5) {
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::IF_EQ, 3,
     Instruction::GOTO | 0x100,
     Instruction::RETURN_VOID);
 
-  TestCode(GetParam(), data);
+  TestCode(data);
 }
 
-TEST_P(CodegenTest, IntConstant) {
+TEST(CodegenTest, IntConstant) {
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::RETURN_VOID);
 
-  TestCode(GetParam(), data);
+  TestCode(data);
 }
 
-TEST_P(CodegenTest, Return1) {
+TEST(CodegenTest, Return1) {
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::RETURN | 0);
 
-  TestCode(GetParam(), data, true, 0);
+  TestCode(data, true, 0);
 }
 
-TEST_P(CodegenTest, Return2) {
+TEST(CodegenTest, Return2) {
   const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::CONST_4 | 0 | 1 << 8,
     Instruction::RETURN | 1 << 8);
 
-  TestCode(GetParam(), data, true, 0);
+  TestCode(data, true, 0);
 }
 
-TEST_P(CodegenTest, Return3) {
+TEST(CodegenTest, Return3) {
   const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::CONST_4 | 1 << 8 | 1 << 12,
     Instruction::RETURN | 1 << 8);
 
-  TestCode(GetParam(), data, true, 1);
+  TestCode(data, true, 1);
 }
 
-TEST_P(CodegenTest, ReturnIf1) {
+TEST(CodegenTest, ReturnIf1) {
   const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::CONST_4 | 1 << 8 | 1 << 12,
@@ -443,10 +374,10 @@ TEST_P(CodegenTest, ReturnIf1) {
     Instruction::RETURN | 0 << 8,
     Instruction::RETURN | 1 << 8);
 
-  TestCode(GetParam(), data, true, 1);
+  TestCode(data, true, 1);
 }
 
-TEST_P(CodegenTest, ReturnIf2) {
+TEST(CodegenTest, ReturnIf2) {
   const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
     Instruction::CONST_4 | 1 << 8 | 1 << 12,
@@ -454,12 +385,12 @@ TEST_P(CodegenTest, ReturnIf2) {
     Instruction::RETURN | 0 << 8,
     Instruction::RETURN | 1 << 8);
 
-  TestCode(GetParam(), data, true, 0);
+  TestCode(data, true, 0);
 }
 
 // Exercise bit-wise (one's complement) not-int instruction.
 #define NOT_INT_TEST(TEST_NAME, INPUT, EXPECTED_OUTPUT) \
-TEST_P(CodegenTest, TEST_NAME) {                        \
+TEST(CodegenTest, TEST_NAME) {                          \
   const int32_t input = INPUT;                          \
   const uint16_t input_lo = Low16Bits(input);           \
   const uint16_t input_hi = High16Bits(input);          \
@@ -468,7 +399,7 @@ TEST_P(CodegenTest, TEST_NAME) {                        \
       Instruction::NOT_INT | 1 << 8 | 0 << 12 ,         \
       Instruction::RETURN | 1 << 8);                    \
                                                         \
-  TestCode(GetParam(), data, true, EXPECTED_OUTPUT);    \
+  TestCode(data, true, EXPECTED_OUTPUT);                \
 }
 
 NOT_INT_TEST(ReturnNotIntMinus2, -2, 1)
@@ -484,7 +415,7 @@ NOT_INT_TEST(ReturnNotIntINT32_MAX, 2147483647, -2147483648)  // -(2^31)
 
 // Exercise bit-wise (one's complement) not-long instruction.
 #define NOT_LONG_TEST(TEST_NAME, INPUT, EXPECTED_OUTPUT)                 \
-TEST_P(CodegenTest, TEST_NAME) {                                         \
+TEST(CodegenTest, TEST_NAME) {                                           \
   const int64_t input = INPUT;                                           \
   const uint16_t word0 = Low16Bits(Low32Bits(input));   /* LSW. */       \
   const uint16_t word1 = High16Bits(Low32Bits(input));                   \
@@ -495,7 +426,7 @@ TEST_P(CodegenTest, TEST_NAME) {                                         \
       Instruction::NOT_LONG | 2 << 8 | 0 << 12,                          \
       Instruction::RETURN_WIDE | 2 << 8);                                \
                                                                          \
-  TestCodeLong(GetParam(), data, true, EXPECTED_OUTPUT);                 \
+  TestCodeLong(data, true, EXPECTED_OUTPUT);                             \
 }
 
 NOT_LONG_TEST(ReturnNotLongMinus2, INT64_C(-2), INT64_C(1))
@@ -534,7 +465,7 @@ NOT_LONG_TEST(ReturnNotLongINT64_MAX,
 
 #undef NOT_LONG_TEST
 
-TEST_P(CodegenTest, IntToLongOfLongToInt) {
+TEST(CodegenTest, IntToLongOfLongToInt) {
   const int64_t input = INT64_C(4294967296);             // 2^32
   const uint16_t word0 = Low16Bits(Low32Bits(input));    // LSW.
   const uint16_t word1 = High16Bits(Low32Bits(input));
@@ -548,48 +479,48 @@ TEST_P(CodegenTest, IntToLongOfLongToInt) {
       Instruction::INT_TO_LONG | 2 << 8 | 4 << 12,
       Instruction::RETURN_WIDE | 2 << 8);
 
-  TestCodeLong(GetParam(), data, true, 1);
+  TestCodeLong(data, true, 1);
 }
 
-TEST_P(CodegenTest, ReturnAdd1) {
+TEST(CodegenTest, ReturnAdd1) {
   const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
     Instruction::CONST_4 | 3 << 12 | 0,
     Instruction::CONST_4 | 4 << 12 | 1 << 8,
     Instruction::ADD_INT, 1 << 8 | 0,
     Instruction::RETURN);
 
-  TestCode(GetParam(), data, true, 7);
+  TestCode(data, true, 7);
 }
 
-TEST_P(CodegenTest, ReturnAdd2) {
+TEST(CodegenTest, ReturnAdd2) {
   const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
     Instruction::CONST_4 | 3 << 12 | 0,
     Instruction::CONST_4 | 4 << 12 | 1 << 8,
     Instruction::ADD_INT_2ADDR | 1 << 12,
     Instruction::RETURN);
 
-  TestCode(GetParam(), data, true, 7);
+  TestCode(data, true, 7);
 }
 
-TEST_P(CodegenTest, ReturnAdd3) {
+TEST(CodegenTest, ReturnAdd3) {
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 4 << 12 | 0 << 8,
     Instruction::ADD_INT_LIT8, 3 << 8 | 0,
     Instruction::RETURN);
 
-  TestCode(GetParam(), data, true, 7);
+  TestCode(data, true, 7);
 }
 
-TEST_P(CodegenTest, ReturnAdd4) {
+TEST(CodegenTest, ReturnAdd4) {
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 4 << 12 | 0 << 8,
     Instruction::ADD_INT_LIT16, 3,
     Instruction::RETURN);
 
-  TestCode(GetParam(), data, true, 7);
+  TestCode(data, true, 7);
 }
 
-TEST_P(CodegenTest, NonMaterializedCondition) {
+TEST(CodegenTest, NonMaterializedCondition) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
 
@@ -635,30 +566,30 @@ TEST_P(CodegenTest, NonMaterializedCondition) {
     block->InsertInstructionBefore(move, block->GetLastInstruction());
   };
 
-  RunCodeOptimized(GetParam(), graph, hook_before_codegen, true, 0);
+  RunCodeOptimized(graph, hook_before_codegen, true, 0);
 }
 
-TEST_P(CodegenTest, ReturnMulInt) {
+TEST(CodegenTest, ReturnMulInt) {
   const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
     Instruction::CONST_4 | 3 << 12 | 0,
     Instruction::CONST_4 | 4 << 12 | 1 << 8,
     Instruction::MUL_INT, 1 << 8 | 0,
     Instruction::RETURN);
 
-  TestCode(GetParam(), data, true, 12);
+  TestCode(data, true, 12);
 }
 
-TEST_P(CodegenTest, ReturnMulInt2addr) {
+TEST(CodegenTest, ReturnMulInt2addr) {
   const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
     Instruction::CONST_4 | 3 << 12 | 0,
     Instruction::CONST_4 | 4 << 12 | 1 << 8,
     Instruction::MUL_INT_2ADDR | 1 << 12,
     Instruction::RETURN);
 
-  TestCode(GetParam(), data, true, 12);
+  TestCode(data, true, 12);
 }
 
-TEST_P(CodegenTest, ReturnMulLong) {
+TEST(CodegenTest, ReturnMulLong) {
   const uint16_t data[] = FOUR_REGISTERS_CODE_ITEM(
     Instruction::CONST_4 | 3 << 12 | 0,
     Instruction::CONST_4 | 0 << 12 | 1 << 8,
@@ -667,10 +598,10 @@ TEST_P(CodegenTest, ReturnMulLong) {
     Instruction::MUL_LONG, 2 << 8 | 0,
     Instruction::RETURN_WIDE);
 
-  TestCodeLong(GetParam(), data, true, 12);
+  TestCodeLong(data, true, 12);
 }
 
-TEST_P(CodegenTest, ReturnMulLong2addr) {
+TEST(CodegenTest, ReturnMulLong2addr) {
   const uint16_t data[] = FOUR_REGISTERS_CODE_ITEM(
     Instruction::CONST_4 | 3 << 12 | 0 << 8,
     Instruction::CONST_4 | 0 << 12 | 1 << 8,
@@ -679,28 +610,28 @@ TEST_P(CodegenTest, ReturnMulLong2addr) {
     Instruction::MUL_LONG_2ADDR | 2 << 12,
     Instruction::RETURN_WIDE);
 
-  TestCodeLong(GetParam(), data, true, 12);
+  TestCodeLong(data, true, 12);
 }
 
-TEST_P(CodegenTest, ReturnMulIntLit8) {
+TEST(CodegenTest, ReturnMulIntLit8) {
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 4 << 12 | 0 << 8,
     Instruction::MUL_INT_LIT8, 3 << 8 | 0,
     Instruction::RETURN);
 
-  TestCode(GetParam(), data, true, 12);
+  TestCode(data, true, 12);
 }
 
-TEST_P(CodegenTest, ReturnMulIntLit16) {
+TEST(CodegenTest, ReturnMulIntLit16) {
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 4 << 12 | 0 << 8,
     Instruction::MUL_INT_LIT16, 3,
     Instruction::RETURN);
 
-  TestCode(GetParam(), data, true, 12);
+  TestCode(data, true, 12);
 }
 
-TEST_P(CodegenTest, MaterializedCondition1) {
+TEST(CodegenTest, MaterializedCondition1) {
   // Check that condition are materialized correctly. A materialized condition
   // should yield `1` if it evaluated to true, and `0` otherwise.
   // We force the materialization of comparisons for different combinations of
@@ -741,11 +672,11 @@ TEST_P(CodegenTest, MaterializedCondition1) {
       block->InsertInstructionBefore(move, block->GetLastInstruction());
     };
 
-    RunCodeOptimized(GetParam(), graph, hook_before_codegen, true, lhs[i] < rhs[i]);
+    RunCodeOptimized(graph, hook_before_codegen, true, lhs[i] < rhs[i]);
   }
 }
 
-TEST_P(CodegenTest, MaterializedCondition2) {
+TEST(CodegenTest, MaterializedCondition2) {
   // Check that HIf correctly interprets a materialized condition.
   // We force the materialization of comparisons for different combinations of
   // inputs. An HIf takes the materialized combination as input and returns a
@@ -807,53 +738,27 @@ TEST_P(CodegenTest, MaterializedCondition2) {
       block->InsertInstructionBefore(move, block->GetLastInstruction());
     };
 
-    RunCodeOptimized(GetParam(), graph, hook_before_codegen, true, lhs[i] < rhs[i]);
+    RunCodeOptimized(graph, hook_before_codegen, true, lhs[i] < rhs[i]);
   }
 }
 
-TEST_P(CodegenTest, ReturnDivIntLit8) {
+TEST(CodegenTest, ReturnDivIntLit8) {
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 4 << 12 | 0 << 8,
     Instruction::DIV_INT_LIT8, 3 << 8 | 0,
     Instruction::RETURN);
 
-  TestCode(GetParam(), data, true, 1);
+  TestCode(data, true, 1);
 }
 
-TEST_P(CodegenTest, ReturnDivInt2Addr) {
+TEST(CodegenTest, ReturnDivInt2Addr) {
   const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
     Instruction::CONST_4 | 4 << 12 | 0,
     Instruction::CONST_4 | 2 << 12 | 1 << 8,
     Instruction::DIV_INT_2ADDR | 1 << 12,
     Instruction::RETURN);
 
-  TestCode(GetParam(), data, true, 2);
+  TestCode(data, true, 2);
 }
-
-static ::std::vector<InstructionSet> GetTargetISAs() {
-  ::std::vector<InstructionSet> v;
-  // Add all ISAs that are executable on hardware or on simulator.
-  const ::std::vector<InstructionSet> executable_isa_candidates = {
-    kArm,
-    kArm64,
-    kThumb2,
-    kX86,
-    kX86_64,
-    kMips,
-    kMips64
-  };
-
-  for (auto target_isa : executable_isa_candidates) {
-    if (CanExecute(target_isa)) {
-      v.push_back(target_isa);
-    }
-  }
-
-  return v;
-}
-
-INSTANTIATE_TEST_CASE_P(MultipleTargets,
-                        CodegenTest,
-                        ::testing::ValuesIn(GetTargetISAs()));
 
 }  // namespace art
