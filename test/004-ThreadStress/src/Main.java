@@ -448,9 +448,14 @@ public class Main implements Runnable {
                             thread.join();
                         } catch (InterruptedException e) {
                         }
-                        System.out.println("Thread exited for " + id + " with "
-                                           + (operationsPerThread - threadStress.nextOperation)
-                                           + " operations remaining.");
+                        try {
+                            System.out.println("Thread exited for " + id + " with "
+                                               + (operationsPerThread - threadStress.nextOperation)
+                                               + " operations remaining.");
+                        } catch (OutOfMemoryError e) {
+                            // Ignore OOME since we need to print "Finishing worker" for the test
+                            // to pass.
+                        }
                     }
                     System.out.println("Finishing worker");
                 }
