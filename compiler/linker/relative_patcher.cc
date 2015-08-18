@@ -16,10 +16,18 @@
 
 #include "linker/relative_patcher.h"
 
+#ifdef ART_ENABLE_CODEGEN_arm
 #include "linker/arm/relative_patcher_thumb2.h"
+#endif
+#ifdef ART_ENABLE_CODEGEN_arm64
 #include "linker/arm64/relative_patcher_arm64.h"
+#endif
+#ifdef ART_ENABLE_CODEGEN_x86
 #include "linker/x86/relative_patcher_x86.h"
+#endif
+#ifdef ART_ENABLE_CODEGEN_x86_64
 #include "linker/x86_64/relative_patcher_x86_64.h"
+#endif
 #include "output_stream.h"
 
 namespace art {
@@ -64,18 +72,28 @@ std::unique_ptr<RelativePatcher> RelativePatcher::Create(
     DISALLOW_COPY_AND_ASSIGN(RelativePatcherNone);
   };
 
+  UNUSED(features);
+  UNUSED(provider);
   switch (instruction_set) {
+#ifdef ART_ENABLE_CODEGEN_x86
     case kX86:
       return std::unique_ptr<RelativePatcher>(new X86RelativePatcher());
+#endif
+#ifdef ART_ENABLE_CODEGEN_x86_64
     case kX86_64:
       return std::unique_ptr<RelativePatcher>(new X86_64RelativePatcher());
+#endif
+#ifdef ART_ENABLE_CODEGEN_arm
     case kArm:
       // Fall through: we generate Thumb2 code for "arm".
     case kThumb2:
       return std::unique_ptr<RelativePatcher>(new Thumb2RelativePatcher(provider));
+#endif
+#ifdef ART_ENABLE_CODEGEN_arm64
     case kArm64:
       return std::unique_ptr<RelativePatcher>(
           new Arm64RelativePatcher(provider, features->AsArm64InstructionSetFeatures()));
+#endif
     default:
       return std::unique_ptr<RelativePatcher>(new RelativePatcherNone);
   }
