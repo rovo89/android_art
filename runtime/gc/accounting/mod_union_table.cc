@@ -153,7 +153,7 @@ class ModUnionScanImageRootVisitor {
     DCHECK(root != nullptr);
     ModUnionUpdateObjectReferencesVisitor ref_visitor(visitor_, from_space_, immune_space_,
                                                       contains_reference_to_other_space_);
-    root->VisitReferences<kMovingClasses>(ref_visitor, VoidFunctor());
+    root->VisitReferences(ref_visitor, VoidFunctor());
   }
 
  private:
@@ -237,7 +237,7 @@ class ModUnionReferenceVisitor {
                                        visitor_,
                                        references_,
                                        has_target_reference_);
-    obj->VisitReferences<kMovingClasses>(visitor, VoidFunctor());
+    obj->VisitReferences(visitor, VoidFunctor());
   }
 
  private:
@@ -304,7 +304,7 @@ class ModUnionCheckReferences {
   void operator()(Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
     Locks::heap_bitmap_lock_->AssertSharedHeld(Thread::Current());
     CheckReferenceVisitor visitor(mod_union_table_, references_);
-    obj->VisitReferences<kMovingClasses>(visitor, VoidFunctor());
+    obj->VisitReferences(visitor, VoidFunctor());
   }
 
  private:

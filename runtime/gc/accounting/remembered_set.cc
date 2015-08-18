@@ -120,7 +120,7 @@ class RememberedSetObjectVisitor {
       SHARED_REQUIRES(Locks::mutator_lock_) {
     RememberedSetReferenceVisitor visitor(target_space_, contains_reference_to_target_space_,
                                           collector_);
-    obj->VisitReferences<kMovingClasses>(visitor, visitor);
+    obj->VisitReferences(visitor, visitor);
   }
 
  private:

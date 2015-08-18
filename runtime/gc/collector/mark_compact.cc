@@ -457,7 +457,7 @@ class UpdateReferenceVisitor {
 
 void MarkCompact::UpdateObjectReferences(mirror::Object* obj) {
   UpdateReferenceVisitor visitor(this);
-  obj->VisitReferences<kMovingClasses>(visitor, visitor);
+  obj->VisitReferences(visitor, visitor);
 }
 
 inline mirror::Object* MarkCompact::GetMarkedForwardAddress(mirror::Object* obj) {
@@ -608,7 +608,7 @@ class MarkCompactMarkObjectVisitor {
 // Visit all of the references of an object and update.
 void MarkCompact::ScanObject(mirror::Object* obj) {
   MarkCompactMarkObjectVisitor visitor(this);
-  obj->VisitReferences<kMovingClasses>(visitor, visitor);
+  obj->VisitReferences(visitor, visitor);
 }
 
 // Scan anything that's on the mark stack.

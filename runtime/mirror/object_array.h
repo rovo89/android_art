@@ -83,14 +83,15 @@ class MANAGED ObjectArray: public Array {
   ObjectArray<T>* CopyOf(Thread* self, int32_t new_length)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
-  // TODO fix thread safety analysis broken by the use of template. This should be
-  // SHARED_REQUIRES(Locks::mutator_lock_).
-  template<const bool kVisitClass, typename Visitor>
-  void VisitReferences(const Visitor& visitor) NO_THREAD_SAFETY_ANALYSIS;
-
   static MemberOffset OffsetOfElement(int32_t i);
 
  private:
+  // TODO fix thread safety analysis broken by the use of template. This should be
+  // SHARED_REQUIRES(Locks::mutator_lock_).
+  template<typename Visitor>
+  void VisitReferences(const Visitor& visitor) NO_THREAD_SAFETY_ANALYSIS;
+
+  friend class Object;  // For VisitReferences
   DISALLOW_IMPLICIT_CONSTRUCTORS(ObjectArray);
 };
 
