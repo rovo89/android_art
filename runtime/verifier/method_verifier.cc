@@ -1956,6 +1956,32 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     }
     case Instruction::MONITOR_ENTER:
       work_line_->PushMonitor(this, inst->VRegA_11x(), work_insn_idx_);
+      // Check whether the previous instruction is a move-object with vAA as a source, creating
+      // untracked lock aliasing.
+      if (0 != work_insn_idx_ && !insn_flags_[work_insn_idx_].IsBranchTarget()) {
+        uint32_t prev_idx = work_insn_idx_ - 1;
+        while (0 != prev_idx && !insn_flags_[prev_idx].IsOpcode()) {
+          prev_idx--;
+        }
+        const Instruction* prev_inst = Instruction::At(code_item_->insns_ + prev_idx);
+        switch (prev_inst->Opcode()) {
+          case Instruction::MOVE_OBJECT:
+          case Instruction::MOVE_OBJECT_16:
+          case Instruction::MOVE_OBJECT_FROM16:
+            if (prev_inst->VRegB() == inst->VRegA_11x()) {
+              // Redo the copy. This won't change the register types, but update the lock status
+              // for the aliased register.
+              work_line_->CopyRegister1(this,
+                                        prev_inst->VRegA(),
+                                        prev_inst->VRegB(),
+                                        kTypeCategoryRef);
+            }
+            break;
+
+          default:  // Other instruction types ignored.
+            break;
+        }
+      }
       break;
     case Instruction::MONITOR_EXIT:
       /*
