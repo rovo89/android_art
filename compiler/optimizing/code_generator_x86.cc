@@ -281,12 +281,10 @@ class TypeCheckSlowPathX86 : public SlowPathCodeX86 {
  public:
   TypeCheckSlowPathX86(HInstruction* instruction,
                        Location class_to_check,
-                       Location object_class,
-                       uint32_t dex_pc)
+                       Location object_class)
       : instruction_(instruction),
         class_to_check_(class_to_check),
-        object_class_(object_class),
-        dex_pc_(dex_pc) {}
+        object_class_(object_class) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
@@ -321,7 +319,6 @@ class TypeCheckSlowPathX86 : public SlowPathCodeX86 {
                                  this);
     }
 
-    RecordPcInfo(codegen, instruction_, dex_pc_);
     if (instruction_->IsInstanceOf()) {
       x86_codegen->Move32(locations->Out(), Location::RegisterLocation(EAX));
     }
@@ -336,7 +333,6 @@ class TypeCheckSlowPathX86 : public SlowPathCodeX86 {
   HInstruction* const instruction_;
   const Location class_to_check_;
   const Location object_class_;
-  const uint32_t dex_pc_;
 
   DISALLOW_COPY_AND_ASSIGN(TypeCheckSlowPathX86);
 };
@@ -347,6 +343,7 @@ class DeoptimizationSlowPathX86 : public SlowPathCodeX86 {
     : instruction_(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    DCHECK(instruction_->IsDeoptimize());
     CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, instruction_->GetLocations());
@@ -354,11 +351,6 @@ class DeoptimizationSlowPathX86 : public SlowPathCodeX86 {
                                instruction_,
                                instruction_->GetDexPc(),
                                this);
-    // No need to restore live registers.
-    DCHECK(instruction_->IsDeoptimize());
-    HDeoptimize* deoptimize = instruction_->AsDeoptimize();
-    uint32_t dex_pc = deoptimize->GetDexPc();
-    codegen->RecordPcInfo(instruction_, dex_pc, this);
   }
 
   const char* GetDescription() const OVERRIDE { return "DeoptimizationSlowPathX86"; }
@@ -2829,11 +2821,6 @@ void InstructionCodeGeneratorX86::GenerateDivRemIntegral(HBinaryOperation* instr
                                 instruction->GetDexPc(),
                                 nullptr);
       }
-      uint32_t dex_pc = is_div
-          ? instruction->AsDiv()->GetDexPc()
-          : instruction->AsRem()->GetDexPc();
-      codegen_->RecordPcInfo(instruction, dex_pc);
-
       break;
     }
 
@@ -4831,7 +4818,7 @@ void InstructionCodeGeneratorX86::VisitInstanceOf(HInstanceOf* instruction) {
     // If the classes are not equal, we go into a slow path.
     DCHECK(locations->OnlyCallsOnSlowPath());
     slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathX86(
-        instruction, locations->InAt(1), locations->Out(), instruction->GetDexPc());
+        instruction, locations->InAt(1), locations->Out());
     codegen_->AddSlowPath(slow_path);
     __ j(kNotEqual, slow_path->GetEntryLabel());
     __ movl(out, Immediate(1));
@@ -4864,7 +4851,7 @@ void InstructionCodeGeneratorX86::VisitCheckCast(HCheckCast* instruction) {
   Register temp = locations->GetTemp(0).AsRegister<Register>();
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
   SlowPathCodeX86* slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathX86(
-      instruction, locations->InAt(1), locations->GetTemp(0), instruction->GetDexPc());
+      instruction, locations->InAt(1), locations->GetTemp(0));
   codegen_->AddSlowPath(slow_path);
 
   // Avoid null check if we know obj is not null.
