@@ -339,7 +339,10 @@ void HGraph::ComputeTryBlockInformation() {
     // been visited already and had its try membership set.
     HBasicBlock* first_predecessor = block->GetPredecessors().Get(0);
     DCHECK(!block->IsLoopHeader() || !block->GetLoopInformation()->IsBackEdge(*first_predecessor));
-    block->SetTryEntry(first_predecessor->ComputeTryEntryOfSuccessors());
+    const HTryBoundary* try_entry = first_predecessor->ComputeTryEntryOfSuccessors();
+    if (try_entry != nullptr) {
+      block->SetTryCatchInformation(new (arena_) TryCatchInformation(*try_entry));
+    }
   }
 }
 
@@ -1164,19 +1167,21 @@ HBasicBlock* HBasicBlock::SplitAfter(HInstruction* cursor) {
   return new_block;
 }
 
-HTryBoundary* HBasicBlock::ComputeTryEntryOfSuccessors() const {
+const HTryBoundary* HBasicBlock::ComputeTryEntryOfSuccessors() const {
   if (EndsWithTryBoundary()) {
     HTryBoundary* try_boundary = GetLastInstruction()->AsTryBoundary();
     if (try_boundary->IsEntry()) {
-      DCHECK(try_entry_ == nullptr);
+      DCHECK(!IsTryBlock());
       return try_boundary;
     } else {
-      DCHECK(try_entry_ != nullptr);
-      DCHECK(try_entry_->HasSameExceptionHandlersAs(*try_boundary));
+      DCHECK(IsTryBlock());
+      DCHECK(try_catch_information_->GetTryEntry().HasSameExceptionHandlersAs(*try_boundary));
       return nullptr;
     }
+  } else if (IsTryBlock()) {
+    return &try_catch_information_->GetTryEntry();
   } else {
-    return try_entry_;
+    return nullptr;
   }
 }
 
