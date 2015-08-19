@@ -269,11 +269,8 @@ inline MemberOffset ObjectArray<T>::OffsetOfElement(int32_t i) {
                       (i * sizeof(HeapReference<Object>)));
 }
 
-template<class T> template<const bool kVisitClass, typename Visitor>
+template<class T> template<typename Visitor>
 void ObjectArray<T>::VisitReferences(const Visitor& visitor) {
-  if (kVisitClass) {
-    visitor(this, ClassOffset(), false);
-  }
   const size_t length = static_cast<size_t>(GetLength());
   for (size_t i = 0; i < length; ++i) {
     visitor(this, OffsetOfElement(i), false);

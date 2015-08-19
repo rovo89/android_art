@@ -1063,7 +1063,7 @@ void Hprof::DumpHeapObject(mirror::Object* obj) {
   }
 
   GcRootVisitor visitor(this);
-  obj->VisitReferences<true>(visitor, VoidFunctor());
+  obj->VisitReferences(visitor, VoidFunctor());
 
   gc::Heap* const heap = Runtime::Current()->GetHeap();
   const gc::space::ContinuousSpace* const space = heap->FindContinuousSpaceFromObject(obj, true);

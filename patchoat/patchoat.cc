@@ -623,7 +623,7 @@ void PatchOat::VisitObject(mirror::Object* object) {
     }
   }
   PatchOat::PatchVisitor visitor(this, copy);
-  object->VisitReferences<true, kVerifyNone>(visitor, visitor);
+  object->VisitReferences<kVerifyNone>(visitor, visitor);
   if (object->IsClass<kVerifyNone>()) {
     auto* klass = object->AsClass();
     auto* copy_klass = down_cast<mirror::Class*>(copy);

@@ -320,7 +320,7 @@ class SemiSpaceVerifyNoFromSpaceReferencesVisitor {
 void SemiSpace::VerifyNoFromSpaceReferences(Object* obj) {
   DCHECK(!from_space_->HasAddress(obj)) << "Scanning object " << obj << " in from space";
   SemiSpaceVerifyNoFromSpaceReferencesVisitor visitor(from_space_);
-  obj->VisitReferences<kMovingClasses>(visitor, VoidFunctor());
+  obj->VisitReferences(visitor, VoidFunctor());
 }
 
 class SemiSpaceVerifyNoFromSpaceReferencesObjectVisitor {
@@ -722,7 +722,7 @@ class SemiSpaceMarkObjectVisitor {
 void SemiSpace::ScanObject(Object* obj) {
   DCHECK(!from_space_->HasAddress(obj)) << "Scanning object " << obj << " in from space";
   SemiSpaceMarkObjectVisitor visitor(this);
-  obj->VisitReferences<kMovingClasses>(visitor, visitor);
+  obj->VisitReferences(visitor, visitor);
 }
 
 // Scan anything that's on the mark stack.

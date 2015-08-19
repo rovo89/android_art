@@ -446,8 +446,9 @@ class MANAGED LOCKABLE Object {
   }
   // TODO fix thread safety analysis broken by the use of template. This should be
   // SHARED_REQUIRES(Locks::mutator_lock_).
-  template <const bool kVisitClass, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
-      typename Visitor, typename JavaLangRefVisitor = VoidFunctor>
+  template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+            typename Visitor,
+            typename JavaLangRefVisitor = VoidFunctor>
   void VisitReferences(const Visitor& visitor, const JavaLangRefVisitor& ref_visitor)
       NO_THREAD_SAFETY_ANALYSIS;
 
@@ -481,13 +482,13 @@ class MANAGED LOCKABLE Object {
   }
 
   // TODO: Fixme when anotatalysis works with visitors.
-  template<bool kVisitClass, bool kIsStatic, typename Visitor>
+  template<bool kIsStatic, typename Visitor>
   void VisitFieldsReferences(uint32_t ref_offsets, const Visitor& visitor) HOT_ATTR
       NO_THREAD_SAFETY_ANALYSIS;
-  template<bool kVisitClass, typename Visitor>
+  template<typename Visitor>
   void VisitInstanceFieldsReferences(mirror::Class* klass, const Visitor& visitor) HOT_ATTR
       SHARED_REQUIRES(Locks::mutator_lock_);
-  template<bool kVisitClass, typename Visitor>
+  template<typename Visitor>
   void VisitStaticFieldsReferences(mirror::Class* klass, const Visitor& visitor) HOT_ATTR
       SHARED_REQUIRES(Locks::mutator_lock_);
 
