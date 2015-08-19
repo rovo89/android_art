@@ -564,13 +564,6 @@ bool HBasicBlock::Dominates(HBasicBlock* other) const {
   return false;
 }
 
-void HBasicBlock::AddExceptionalPredecessor(HInstruction* exceptional_predecessor) {
-  DCHECK(exceptional_predecessor->CanThrow());
-  DCHECK(exceptional_predecessor->GetBlock()->IsInTry());
-  DCHECK(exceptional_predecessor->GetBlock()->GetTryEntry()->HasExceptionHandler(*this));
-  exceptional_predecessors_.Add(exceptional_predecessor);
-}
-
 static void UpdateInputsUsers(HInstruction* instruction) {
   for (size_t i = 0, e = instruction->InputCount(); i < e; ++i) {
     instruction->InputAt(i)->AddUseAt(instruction, i);
