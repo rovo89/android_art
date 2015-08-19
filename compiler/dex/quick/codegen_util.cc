@@ -1152,7 +1152,7 @@ CompiledMethod* Mir2Lir::GetCompiledMethod() {
     vmap_encoder.PushBackUnsigned(0u);  // Size is 0.
   }
 
-  // Sort patches by literal offset for better deduplication.
+  // Sort patches by literal offset. Required for .oat_patches encoding.
   std::sort(patches_.begin(), patches_.end(), [](const LinkerPatch& lhs, const LinkerPatch& rhs) {
     return lhs.LiteralOffset() < rhs.LiteralOffset();
   });
