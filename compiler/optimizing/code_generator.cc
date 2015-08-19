@@ -249,10 +249,6 @@ void CodeGenerator::Finalize(CodeAllocator* allocator) {
   GetAssembler()->FinalizeInstructions(code);
 }
 
-void CodeGenerator::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches ATTRIBUTE_UNUSED) {
-  // No linker patches by default.
-}
-
 size_t CodeGenerator::FindFreeEntry(bool* array, size_t length) {
   for (size_t i = 0; i < length; ++i) {
     if (!array[i]) {
