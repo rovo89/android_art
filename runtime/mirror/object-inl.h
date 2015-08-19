@@ -942,13 +942,10 @@ inline bool Object::CasFieldStrongSequentiallyConsistentObjectWithoutWriteBarrie
   return success;
 }
 
-template<bool kVisitClass, bool kIsStatic, typename Visitor>
+template<bool kIsStatic, typename Visitor>
 inline void Object::VisitFieldsReferences(uint32_t ref_offsets, const Visitor& visitor) {
   if (!kIsStatic && (ref_offsets != mirror::Class::kClassWalkSuper)) {
     // Instance fields and not the slow-path.
-    if (kVisitClass) {
-      visitor(this, ClassOffset(), kIsStatic);
-    }
     uint32_t field_offset = mirror::kObjectHeaderSize;
     while (ref_offsets != 0) {
       if ((ref_offsets & 1) != 0) {
@@ -974,9 +971,9 @@ inline void Object::VisitFieldsReferences(uint32_t ref_offsets, const Visitor& v
           ? klass->GetFirstReferenceStaticFieldOffset(
               Runtime::Current()->GetClassLinker()->GetImagePointerSize())
           : klass->GetFirstReferenceInstanceFieldOffset();
-      for (size_t i = 0; i < num_reference_fields; ++i) {
+      for (size_t i = 0u; i < num_reference_fields; ++i) {
         // TODO: Do a simpler check?
-        if (kVisitClass || field_offset.Uint32Value() != ClassOffset().Uint32Value()) {
+        if (field_offset.Uint32Value() != ClassOffset().Uint32Value()) {
           visitor(this, field_offset, kIsStatic);
         }
         field_offset = MemberOffset(field_offset.Uint32Value() +
@@ -986,18 +983,16 @@ inline void Object::VisitFieldsReferences(uint32_t ref_offsets, const Visitor& v
   }
 }
 
-template<bool kVisitClass, typename Visitor>
+template<typename Visitor>
 inline void Object::VisitInstanceFieldsReferences(mirror::Class* klass, const Visitor& visitor) {
-  VisitFieldsReferences<kVisitClass, false>(
-      klass->GetReferenceInstanceOffsets<kVerifyNone>(), visitor);
+  VisitFieldsReferences<false>(klass->GetReferenceInstanceOffsets<kVerifyNone>(), visitor);
 }
 
-template<bool kVisitClass, typename Visitor>
+template<typename Visitor>
 inline void Object::VisitStaticFieldsReferences(mirror::Class* klass, const Visitor& visitor) {
   DCHECK(!klass->IsTemp());
-  klass->VisitFieldsReferences<kVisitClass, true>(0, visitor);
+  klass->VisitFieldsReferences<true>(0, visitor);
 }
-
 
 template<VerifyObjectFlags kVerifyFlags>
 inline bool Object::IsClassLoader() {
@@ -1010,25 +1005,23 @@ inline mirror::ClassLoader* Object::AsClassLoader() {
   return down_cast<mirror::ClassLoader*>(this);
 }
 
-template <const bool kVisitClass, VerifyObjectFlags kVerifyFlags, typename Visitor,
-    typename JavaLangRefVisitor>
+template <VerifyObjectFlags kVerifyFlags, typename Visitor, typename JavaLangRefVisitor>
 inline void Object::VisitReferences(const Visitor& visitor,
                                     const JavaLangRefVisitor& ref_visitor) {
   mirror::Class* klass = GetClass<kVerifyFlags>();
+  visitor(this, ClassOffset(), false);
   if (klass == Class::GetJavaLangClass()) {
-    AsClass<kVerifyNone>()->VisitReferences<kVisitClass>(klass, visitor);
+    AsClass<kVerifyNone>()->VisitReferences(klass, visitor);
   } else if (klass->IsArrayClass() || klass->IsStringClass()) {
     if (klass->IsObjectArrayClass<kVerifyNone>()) {
-      AsObjectArray<mirror::Object, kVerifyNone>()->VisitReferences<kVisitClass>(visitor);
-    } else if (kVisitClass) {
-      visitor(this, ClassOffset(), false);
+      AsObjectArray<mirror::Object, kVerifyNone>()->VisitReferences(visitor);
     }
   } else if (klass->IsClassLoaderClass()) {
     mirror::ClassLoader* class_loader = AsClassLoader<kVerifyFlags>();
-    class_loader->VisitReferences<kVisitClass, kVerifyFlags>(klass, visitor);
+    class_loader->VisitReferences<kVerifyFlags>(klass, visitor);
   } else {
     DCHECK(!klass->IsVariableSize());
-    VisitInstanceFieldsReferences<kVisitClass>(klass, visitor);
+    VisitInstanceFieldsReferences(klass, visitor);
     if (UNLIKELY(klass->IsTypeOfReferenceClass<kVerifyNone>())) {
       ref_visitor(klass, AsReference());
     }
