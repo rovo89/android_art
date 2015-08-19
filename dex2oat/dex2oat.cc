@@ -748,6 +748,10 @@ class Dex2Oat FINAL {
       // to compile the boot image with Quick, and the rest with Optimizing.
       compiler_kind_ = image_ ? Compiler::kQuick : Compiler::kOptimizing;
     }
+    if (compiler_kind_ == Compiler::kOptimizing) {
+      // Optimizing only supports PIC mode.
+      parser_options->compile_pic = true;
+    }
 
     if (oat_filename_.empty() && oat_fd_ == -1) {
       Usage("Output must be supplied with either --oat-file or --oat-fd");
