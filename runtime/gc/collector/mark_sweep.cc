@@ -70,7 +70,6 @@ static constexpr bool kParallelProcessMarkStack = true;
 static constexpr bool kProfileLargeObjects = false;
 static constexpr bool kMeasureOverhead = false;
 static constexpr bool kCountTasks = false;
-static constexpr bool kCountJavaLangRefs = false;
 static constexpr bool kCountMarkedObjects = false;
 
 // Turn off kCheckLocks when profiling the GC since it slows the GC down by up to 40%.
@@ -114,15 +113,17 @@ void MarkSweep::InitializePhase() {
   mark_stack_ = heap_->GetMarkStack();
   DCHECK(mark_stack_ != nullptr);
   immune_region_.Reset();
+  no_reference_class_count_.StoreRelaxed(0);
+  normal_count_.StoreRelaxed(0);
   class_count_.StoreRelaxed(0);
-  array_count_.StoreRelaxed(0);
+  object_array_count_.StoreRelaxed(0);
   other_count_.StoreRelaxed(0);
+  reference_count_.StoreRelaxed(0);
   large_object_test_.StoreRelaxed(0);
   large_object_mark_.StoreRelaxed(0);
   overhead_time_ .StoreRelaxed(0);
   work_chunks_created_.StoreRelaxed(0);
   work_chunks_deleted_.StoreRelaxed(0);
-  reference_count_.StoreRelaxed(0);
   mark_null_count_.StoreRelaxed(0);
   mark_immune_count_.StoreRelaxed(0);
   mark_fastpath_count_.StoreRelaxed(0);
@@ -1265,9 +1266,6 @@ void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
 // Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been
 // marked, put it on the appropriate list in the heap for later processing.
 void MarkSweep::DelayReferenceReferent(mirror::Class* klass, mirror::Reference* ref) {
-  if (kCountJavaLangRefs) {
-    ++reference_count_;
-  }
   heap_->GetReferenceProcessor()->DelayReferenceReferent(klass, ref, this);
 }
 
@@ -1386,8 +1384,14 @@ inline mirror::Object* MarkSweep::IsMarked(mirror::Object* object) {
 void MarkSweep::FinishPhase() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   if (kCountScannedTypes) {
-    VLOG(gc) << "MarkSweep scanned classes=" << class_count_.LoadRelaxed()
-        << " arrays=" << array_count_.LoadRelaxed() << " other=" << other_count_.LoadRelaxed();
+    VLOG(gc)
+        << "MarkSweep scanned"
+        << " no reference objects=" << no_reference_class_count_.LoadRelaxed()
+        << " normal objects=" << normal_count_.LoadRelaxed()
+        << " classes=" << class_count_.LoadRelaxed()
+        << " object arrays=" << object_array_count_.LoadRelaxed()
+        << " references=" << reference_count_.LoadRelaxed()
+        << " other=" << other_count_.LoadRelaxed();
   }
   if (kCountTasks) {
     VLOG(gc) << "Total number of work chunks allocated: " << work_chunks_created_.LoadRelaxed();
@@ -1398,9 +1402,6 @@ void MarkSweep::FinishPhase() {
   if (kProfileLargeObjects) {
     VLOG(gc) << "Large objects tested " << large_object_test_.LoadRelaxed()
         << " marked " << large_object_mark_.LoadRelaxed();
-  }
-  if (kCountJavaLangRefs) {
-    VLOG(gc) << "References scanned " << reference_count_.LoadRelaxed();
   }
   if (kCountMarkedObjects) {
     VLOG(gc) << "Marked: null=" << mark_null_count_.LoadRelaxed()
