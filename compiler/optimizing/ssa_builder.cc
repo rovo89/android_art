@@ -570,9 +570,7 @@ void SsaBuilder::VisitInstruction(HInstruction* instruction) {
   if (instruction->GetBlock()->IsInTry() && instruction->CanThrow()) {
     HTryBoundary* try_block = instruction->GetBlock()->GetTryEntry();
     for (HExceptionHandlerIterator it(*try_block); !it.Done(); it.Advance()) {
-      HBasicBlock* handler = it.Current();
-      handler->AddExceptionalPredecessor(instruction);
-      GrowableArray<HInstruction*>* handler_locals = GetLocalsFor(handler);
+      GrowableArray<HInstruction*>* handler_locals = GetLocalsFor(it.Current());
       for (size_t i = 0, e = current_locals_->Size(); i < e; ++i) {
         HInstruction* local_value = current_locals_->Get(i);
         if (local_value != nullptr) {
