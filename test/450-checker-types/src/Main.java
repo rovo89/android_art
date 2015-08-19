@@ -60,6 +60,8 @@ class Generic<A> {
 
 final class Final {}
 
+final class FinalException extends Exception {}
+
 public class Main {
 
   /// CHECK-START: void Main.testSimpleRemove() instruction_simplifier_after_types (before)
@@ -401,6 +403,40 @@ public class Main {
   public void testArrayGetSimpleRemove() {
     Super[] a = new SubclassA[10];
     ((SubclassA)a[0]).$noinline$g();
+  }
+
+  /// CHECK-START: int Main.testLoadExceptionInCatchNonExact(int, int) reference_type_propagation (after)
+  /// CHECK:         LoadException klass:java.lang.ArithmeticException can_be_null:false exact:false
+  public int testLoadExceptionInCatchNonExact(int x, int y) {
+    try {
+      return x / y;
+    } catch (ArithmeticException ex) {
+      return ex.hashCode();
+    }
+  }
+
+  /// CHECK-START: int Main.testLoadExceptionInCatchExact(int) reference_type_propagation (after)
+  /// CHECK:         LoadException klass:FinalException can_be_null:false exact:true
+  public int testLoadExceptionInCatchExact(int x) {
+    try {
+      if (x == 42) {
+        throw new FinalException();
+      } else {
+        return x;
+      }
+    } catch (FinalException ex) {
+      return ex.hashCode();
+    }
+  }
+
+  /// CHECK-START: int Main.testLoadExceptionInCatchAll(int, int) reference_type_propagation (after)
+  /// CHECK:         LoadException klass:java.lang.Throwable can_be_null:false exact:false
+  public int testLoadExceptionInCatchAll(int x, int y) {
+    try {
+      x = x / y;
+    } finally {
+      return x;
+    }
   }
 
   private Generic<SubclassC> genericC = new Generic<SubclassC>();

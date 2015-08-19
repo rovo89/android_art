@@ -30,12 +30,14 @@ class RTPVisitor : public HGraphDelegateVisitor {
              GrowableArray<HInstruction*>* worklist,
              ReferenceTypeInfo::TypeHandle object_class_handle,
              ReferenceTypeInfo::TypeHandle class_class_handle,
-             ReferenceTypeInfo::TypeHandle string_class_handle)
+             ReferenceTypeInfo::TypeHandle string_class_handle,
+             ReferenceTypeInfo::TypeHandle throwable_class_handle)
     : HGraphDelegateVisitor(graph),
       handles_(handles),
       object_class_handle_(object_class_handle),
       class_class_handle_(class_class_handle),
       string_class_handle_(string_class_handle),
+      throwable_class_handle_(throwable_class_handle),
       worklist_(worklist) {}
 
   void VisitNullConstant(HNullConstant* null_constant) OVERRIDE;
@@ -43,6 +45,7 @@ class RTPVisitor : public HGraphDelegateVisitor {
   void VisitLoadClass(HLoadClass* load_class) OVERRIDE;
   void VisitClinitCheck(HClinitCheck* clinit_check) OVERRIDE;
   void VisitLoadString(HLoadString* instr) OVERRIDE;
+  void VisitLoadException(HLoadException* instr) OVERRIDE;
   void VisitNewArray(HNewArray* instr) OVERRIDE;
   void VisitParameterValue(HParameterValue* instr) OVERRIDE;
   void UpdateFieldAccessTypeInfo(HInstruction* instr, const FieldInfo& info);
@@ -64,6 +67,7 @@ class RTPVisitor : public HGraphDelegateVisitor {
   ReferenceTypeInfo::TypeHandle object_class_handle_;
   ReferenceTypeInfo::TypeHandle class_class_handle_;
   ReferenceTypeInfo::TypeHandle string_class_handle_;
+  ReferenceTypeInfo::TypeHandle throwable_class_handle_;
   GrowableArray<HInstruction*>* worklist_;
 
   static constexpr size_t kDefaultWorklistSize = 8;
@@ -79,12 +83,15 @@ ReferenceTypePropagation::ReferenceTypePropagation(HGraph* graph,
   object_class_handle_ = handles_->NewHandle(linker->GetClassRoot(ClassLinker::kJavaLangObject));
   string_class_handle_ = handles_->NewHandle(linker->GetClassRoot(ClassLinker::kJavaLangString));
   class_class_handle_ = handles_->NewHandle(linker->GetClassRoot(ClassLinker::kJavaLangClass));
+  throwable_class_handle_ =
+      handles_->NewHandle(linker->GetClassRoot(ClassLinker::kJavaLangThrowable));
 
   if (kIsDebugBuild) {
     ScopedObjectAccess soa(Thread::Current());
     DCHECK(ReferenceTypeInfo::IsValidHandle(object_class_handle_));
     DCHECK(ReferenceTypeInfo::IsValidHandle(class_class_handle_));
     DCHECK(ReferenceTypeInfo::IsValidHandle(string_class_handle_));
+    DCHECK(ReferenceTypeInfo::IsValidHandle(throwable_class_handle_));
   }
 }
 
@@ -129,7 +136,8 @@ void ReferenceTypePropagation::VisitBasicBlock(HBasicBlock* block) {
                      &worklist_,
                      object_class_handle_,
                      class_class_handle_,
-                     string_class_handle_);
+                     string_class_handle_,
+                     throwable_class_handle_);
   // Handle Phis first as there might be instructions in the same block who depend on them.
   for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
     VisitPhi(it.Current()->AsPhi());
@@ -457,6 +465,21 @@ void RTPVisitor::VisitClinitCheck(HClinitCheck* instr) {
 
 void RTPVisitor::VisitLoadString(HLoadString* instr) {
   instr->SetReferenceTypeInfo(ReferenceTypeInfo::Create(string_class_handle_, /* is_exact */ true));
+}
+
+void RTPVisitor::VisitLoadException(HLoadException* instr) {
+  DCHECK(instr->GetBlock()->IsCatchBlock());
+  TryCatchInformation* catch_info = instr->GetBlock()->GetTryCatchInformation();
+
+  if (catch_info->IsCatchAllTypeIndex()) {
+    instr->SetReferenceTypeInfo(ReferenceTypeInfo::Create(throwable_class_handle_,
+                                /* is_exact */ false));
+  } else {
+    UpdateReferenceTypeInfo(instr,
+                            catch_info->GetCatchTypeIndex(),
+                            catch_info->GetCatchDexFile(),
+                            /* is_exact */ false);
+  }
 }
 
 void RTPVisitor::VisitNullCheck(HNullCheck* instr) {
