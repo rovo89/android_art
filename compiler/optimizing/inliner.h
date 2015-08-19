@@ -49,7 +49,7 @@ class HInliner : public HOptimization {
   static constexpr const char* kInlinerPassName = "inliner";
 
  private:
-  bool TryInline(HInvoke* invoke_instruction) const;
+  bool TryInline(HInvoke* invoke_instruction, uint32_t method_index) const;
   bool TryBuildAndInline(ArtMethod* resolved_method,
                          HInvoke* invoke_instruction,
                          bool same_dex_file) const;

@@ -19,7 +19,6 @@
 #include "arch/arm/instruction_set_features_arm.h"
 #include "art_method.h"
 #include "code_generator_utils.h"
-#include "compiled_method.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "gc/accounting/card_table.h"
 #include "intrinsics.h"
@@ -412,10 +411,7 @@ CodeGeneratorARM::CodeGeneratorARM(HGraph* graph,
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetArena(), this),
       assembler_(),
-      isa_features_(isa_features),
-      method_patches_(MethodReferenceComparator(), graph->GetArena()->Adapter()),
-      call_patches_(MethodReferenceComparator(), graph->GetArena()->Adapter()),
-      relative_call_patches_(graph->GetArena()->Adapter()) {
+      isa_features_(isa_features) {
   // Save the PC register to mimic Quick.
   AddAllocatedRegister(Location::RegisterLocation(PC));
 }
@@ -455,10 +451,6 @@ void CodeGeneratorARM::Finalize(CodeAllocator* allocator) {
       it.code_interval.start = __ GetAdjustedPosition(it.code_interval.start);
       it.code_interval.end = __ GetAdjustedPosition(it.code_interval.end);
     }
-  }
-  // Adjust pc offsets for relative call patches.
-  for (MethodPatchInfo<Label>& info : relative_call_patches_) {
-    __ AdjustLabelPosition(&info.label);
   }
 
   CodeGenerator::Finalize(allocator);
@@ -4515,154 +4507,51 @@ void InstructionCodeGeneratorARM::HandleBitwiseOperation(HBinaryOperation* instr
 }
 
 void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) {
-  // For better instruction scheduling we load the direct code pointer before the method pointer.
-  bool direct_code_loaded = false;
-  switch (invoke->GetCodePtrLocation()) {
-    case HInvokeStaticOrDirect::CodePtrLocation::kCallPCRelative:
-      if (IsSameDexFile(*invoke->GetTargetMethod().dex_file, GetGraph()->GetDexFile())) {
-        break;
-      }
-      // Calls across dex files are more likely to exceed the available BL range,
-      // so use absolute patch by falling through to kDirectCodeFixup.
-      FALLTHROUGH_INTENDED;
-    case HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup:
-      // LR = code address from literal pool with link-time patch.
-      __ LoadLiteral(LR, DeduplicateMethodCodeLiteral(invoke->GetTargetMethod()));
-      direct_code_loaded = true;
-      break;
-    case HInvokeStaticOrDirect::CodePtrLocation::kCallDirect:
-      // LR = invoke->GetDirectCodePtr();
-      __ LoadImmediate(LR, invoke->GetDirectCodePtr());
-      direct_code_loaded = true;
-      break;
-    default:
-      break;
-  }
+  // TODO: Implement all kinds of calls:
+  // 1) boot -> boot
+  // 2) app -> boot
+  // 3) app -> app
+  //
+  // Currently we implement the app -> app logic, which looks up in the resolve cache.
 
-  switch (invoke->GetMethodLoadKind()) {
-    case HInvokeStaticOrDirect::MethodLoadKind::kStringInit:
-      // temp = thread->string_init_entrypoint
-      __ LoadFromOffset(kLoadWord, temp.AsRegister<Register>(), TR, invoke->GetStringInitOffset());
-      break;
-    case HInvokeStaticOrDirect::MethodLoadKind::kRecursive:
-      // Nothing to do.
-      break;
-    case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress:
-      __ LoadImmediate(temp.AsRegister<Register>(), invoke->GetMethodAddress());
-      break;
-    case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddressWithFixup:
-      __ LoadLiteral(temp.AsRegister<Register>(),
-                     DeduplicateMethodAddressLiteral(invoke->GetTargetMethod()));
-      break;
-    case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative:
-      // TODO: Implement this type. For the moment, we fall back to kDexCacheViaMethod.
-      FALLTHROUGH_INTENDED;
-    case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
-      Location current_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
-      Register method_reg;
-      Register reg = temp.AsRegister<Register>();
-      if (current_method.IsRegister()) {
-        method_reg = current_method.AsRegister<Register>();
-      } else {
-        DCHECK(invoke->GetLocations()->Intrinsified());
-        DCHECK(!current_method.IsValid());
-        method_reg = reg;
-        __ LoadFromOffset(kLoadWord, reg, SP, kCurrentMethodStackOffset);
-      }
-      // temp = current_method->dex_cache_resolved_methods_;
-      __ LoadFromOffset(
-          kLoadWord, reg, method_reg, ArtMethod::DexCacheResolvedMethodsOffset().Int32Value());
-      // temp = temp[index_in_cache]
-      uint32_t index_in_cache = invoke->GetTargetMethod().dex_method_index;
-      __ LoadFromOffset(kLoadWord, reg, reg, CodeGenerator::GetCachePointerOffset(index_in_cache));
-      break;
+  if (invoke->IsStringInit()) {
+    Register reg = temp.AsRegister<Register>();
+    // temp = thread->string_init_entrypoint
+    __ LoadFromOffset(kLoadWord, reg, TR, invoke->GetStringInitOffset());
+    // LR = temp[offset_of_quick_compiled_code]
+    __ LoadFromOffset(kLoadWord, LR, reg,
+                      ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+                          kArmWordSize).Int32Value());
+    // LR()
+    __ blx(LR);
+  } else if (invoke->IsRecursive()) {
+    __ bl(GetFrameEntryLabel());
+  } else {
+    Location current_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
+    Register method_reg;
+    Register reg = temp.AsRegister<Register>();
+    if (current_method.IsRegister()) {
+      method_reg = current_method.AsRegister<Register>();
+    } else {
+      DCHECK(invoke->GetLocations()->Intrinsified());
+      DCHECK(!current_method.IsValid());
+      method_reg = reg;
+      __ LoadFromOffset(kLoadWord, reg, SP, kCurrentMethodStackOffset);
     }
-  }
-
-  switch (invoke->GetCodePtrLocation()) {
-    case HInvokeStaticOrDirect::CodePtrLocation::kCallSelf:
-      __ bl(GetFrameEntryLabel());
-      break;
-    case HInvokeStaticOrDirect::CodePtrLocation::kCallPCRelative:
-      if (!direct_code_loaded) {
-        relative_call_patches_.emplace_back(invoke->GetTargetMethod());
-        __ Bind(&relative_call_patches_.back().label);
-        Label label;
-        __ bl(&label);  // Arbitrarily branch to the instruction after BL, override at link time.
-        __ Bind(&label);
-        break;
-      }
-      // If we loaded the direct code above, fall through.
-      FALLTHROUGH_INTENDED;
-    case HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup:
-    case HInvokeStaticOrDirect::CodePtrLocation::kCallDirect:
-      // LR prepared above for better instruction scheduling.
-      DCHECK(direct_code_loaded);
-      // LR()
-      __ blx(LR);
-      break;
-    case HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod:
-      // LR = temp->entry_point_from_quick_compiled_code_
-      __ LoadFromOffset(
-          kLoadWord, LR, temp.AsRegister<Register>(),
-          ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArmWordSize).Int32Value());
-      // LR()
-      __ blx(LR);
-      break;
+    // reg = current_method->dex_cache_resolved_methods_;
+    __ LoadFromOffset(
+        kLoadWord, reg, method_reg, ArtMethod::DexCacheResolvedMethodsOffset().Int32Value());
+    // reg = reg[index_in_cache]
+    __ LoadFromOffset(
+        kLoadWord, reg, reg, CodeGenerator::GetCacheOffset(invoke->GetDexMethodIndex()));
+    // LR = reg[offset_of_quick_compiled_code]
+    __ LoadFromOffset(kLoadWord, LR, reg, ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+        kArmWordSize).Int32Value());
+    // LR()
+    __ blx(LR);
   }
 
   DCHECK(!IsLeafMethod());
-}
-
-void CodeGeneratorARM::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) {
-  DCHECK(linker_patches->empty());
-  size_t size = method_patches_.size() + call_patches_.size() + relative_call_patches_.size();
-  linker_patches->reserve(size);
-  for (const auto& entry : method_patches_) {
-    const MethodReference& target_method = entry.first;
-    Literal* literal = entry.second;
-    DCHECK(literal->GetLabel()->IsBound());
-    uint32_t literal_offset = literal->GetLabel()->Position();
-    linker_patches->push_back(LinkerPatch::MethodPatch(literal_offset,
-                                                       target_method.dex_file,
-                                                       target_method.dex_method_index));
-  }
-  for (const auto& entry : call_patches_) {
-    const MethodReference& target_method = entry.first;
-    Literal* literal = entry.second;
-    DCHECK(literal->GetLabel()->IsBound());
-    uint32_t literal_offset = literal->GetLabel()->Position();
-    linker_patches->push_back(LinkerPatch::CodePatch(literal_offset,
-                                                     target_method.dex_file,
-                                                     target_method.dex_method_index));
-  }
-  for (const MethodPatchInfo<Label>& info : relative_call_patches_) {
-    uint32_t literal_offset = info.label.Position();
-    linker_patches->push_back(LinkerPatch::RelativeCodePatch(literal_offset,
-                                                             info.target_method.dex_file,
-                                                             info.target_method.dex_method_index));
-  }
-}
-
-Literal* CodeGeneratorARM::DeduplicateMethodLiteral(MethodReference target_method,
-                                                    MethodToLiteralMap* map) {
-  // Look up the literal for target_method.
-  auto lb = map->lower_bound(target_method);
-  if (lb != map->end() && !map->key_comp()(target_method, lb->first)) {
-    return lb->second;
-  }
-  // We don't have a literal for this method yet, insert a new one.
-  Literal* literal = __ NewLiteral<uint32_t>(0u);
-  map->PutBefore(lb, target_method, literal);
-  return literal;
-}
-
-Literal* CodeGeneratorARM::DeduplicateMethodAddressLiteral(MethodReference target_method) {
-  return DeduplicateMethodLiteral(target_method, &method_patches_);
-}
-
-Literal* CodeGeneratorARM::DeduplicateMethodCodeLiteral(MethodReference target_method) {
-  return DeduplicateMethodLiteral(target_method, &call_patches_);
 }
 
 void LocationsBuilderARM::VisitBoundType(HBoundType* instruction) {
