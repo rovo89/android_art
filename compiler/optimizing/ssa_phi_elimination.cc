@@ -98,7 +98,8 @@ void SsaDeadPhiElimination::EliminateDeadPhis() {
 }
 
 void SsaRedundantPhiElimination::Run() {
-  // Add all phis in the worklist.
+  // Add all phis in the worklist. Order does not matter for correctness, and
+  // neither will necessarily converge faster.
   for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
@@ -148,18 +149,16 @@ void SsaRedundantPhiElimination::Run() {
       continue;
     }
 
-    if (phi->IsInLoop()) {
-      // Because we're updating the users of this phi, we may have new
-      // phis candidate for elimination if this phi is in a loop. Add phis that
-      // used this phi to the worklist.
-      for (HUseIterator<HInstruction*> it(phi->GetUses()); !it.Done(); it.Advance()) {
-        HUseListNode<HInstruction*>* current = it.Current();
-        HInstruction* user = current->GetUser();
-        if (user->IsPhi()) {
-          worklist_.Add(user->AsPhi());
-        }
+    // Because we're updating the users of this phi, we may have new candidates
+    // for elimination. Add phis that use this phi to the worklist.
+    for (HUseIterator<HInstruction*> it(phi->GetUses()); !it.Done(); it.Advance()) {
+      HUseListNode<HInstruction*>* current = it.Current();
+      HInstruction* user = current->GetUser();
+      if (user->IsPhi()) {
+        worklist_.Add(user->AsPhi());
       }
     }
+
     phi->ReplaceWith(candidate);
     phi->GetBlock()->RemovePhi(phi);
   }
