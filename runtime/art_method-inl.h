@@ -21,6 +21,7 @@
 
 #include "art_field.h"
 #include "base/logging.h"
+#include "class_linker-inl.h"
 #include "dex_file.h"
 #include "dex_file-inl.h"
 #include "gc_root-inl.h"

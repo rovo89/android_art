@@ -782,6 +782,16 @@ class Thread {
     tls32_.debug_method_entry_ = false;
   }
 
+  bool GetIsGcMarking() const {
+    CHECK(kUseReadBarrier);
+    return tls32_.is_gc_marking;
+  }
+
+  void SetIsGcMarking(bool is_marking) {
+    CHECK(kUseReadBarrier);
+    tls32_.is_gc_marking = is_marking;
+  }
+
   bool GetWeakRefAccessEnabled() const {
     CHECK(kUseReadBarrier);
     return tls32_.weak_ref_access_enabled;
@@ -1093,7 +1103,8 @@ class Thread {
       daemon(is_daemon), throwing_OutOfMemoryError(false), no_thread_suspension(0),
       thread_exit_check_count(0), handling_signal_(false),
       deoptimization_return_value_is_reference(false), suspended_at_suspend_check(false),
-      ready_for_debug_invoke(false), debug_method_entry_(false), weak_ref_access_enabled(true) {
+      ready_for_debug_invoke(false), debug_method_entry_(false), is_gc_marking(false),
+      weak_ref_access_enabled(true) {
     }
 
     union StateAndFlags state_and_flags;
@@ -1150,6 +1161,11 @@ class Thread {
     // True if the thread enters a method. This is used to detect method entry
     // event for the debugger.
     bool32_t debug_method_entry_;
+
+    // True if the GC is in the marking phase. This is used for the CC collector only. This is
+    // thread local so that we can simplify the logic to check for the fast path of read barriers of
+    // GC roots.
+    bool32_t is_gc_marking;
 
     // True if the thread is allowed to access a weak ref (Reference::GetReferent() and system
     // weaks) and to potentially mark an object alive/gray. This is used for concurrent reference
