@@ -190,6 +190,7 @@ class ThreadFlipVisitor : public Closure {
     Thread* self = Thread::Current();
     CHECK(thread == self || thread->IsSuspended() || thread->GetState() == kWaitingPerformingGc)
         << thread->GetState() << " thread " << thread << " self " << self;
+    thread->SetIsGcMarking(true);
     if (use_tlab_ && thread->HasTlab()) {
       if (ConcurrentCopying::kEnableFromSpaceAccountingCheck) {
         // This must come before the revoke.
@@ -454,17 +455,8 @@ void ConcurrentCopying::MarkingPhase() {
     CheckEmptyMarkStack();
     // Re-enable weak ref accesses.
     ReenableWeakRefAccess(self);
-    // Issue an empty checkpoint to ensure no threads are still in the middle of a read barrier
-    // which may have a from-space ref cached in a local variable.
-    IssueEmptyCheckpoint();
     // Marking is done. Disable marking.
-    if (kUseTableLookupReadBarrier) {
-      heap_->rb_table_->ClearAll();
-      DCHECK(heap_->rb_table_->IsAllCleared());
-    }
-    is_mark_stack_push_disallowed_.StoreSequentiallyConsistent(1);
-    is_marking_ = false;  // This disables the read barrier/marking of weak roots.
-    mark_stack_mode_.StoreSequentiallyConsistent(kMarkStackModeOff);
+    DisableMarking();
     CheckEmptyMarkStack();
   }
 
@@ -491,6 +483,68 @@ void ConcurrentCopying::ReenableWeakRefAccess(Thread* self) {
   // Unblock blocking threads.
   GetHeap()->GetReferenceProcessor()->BroadcastForSlowPath(self);
   Runtime::Current()->BroadcastForNewSystemWeaks();
+}
+
+class DisableMarkingCheckpoint : public Closure {
+ public:
+  explicit DisableMarkingCheckpoint(ConcurrentCopying* concurrent_copying)
+      : concurrent_copying_(concurrent_copying) {
+  }
+
+  void Run(Thread* thread) OVERRIDE NO_THREAD_SAFETY_ANALYSIS {
+    // Note: self is not necessarily equal to thread since thread may be suspended.
+    Thread* self = Thread::Current();
+    DCHECK(thread == self || thread->IsSuspended() || thread->GetState() == kWaitingPerformingGc)
+        << thread->GetState() << " thread " << thread << " self " << self;
+    // Disable the thread-local is_gc_marking flag.
+    DCHECK(thread->GetIsGcMarking());
+    thread->SetIsGcMarking(false);
+    // If thread is a running mutator, then act on behalf of the garbage collector.
+    // See the code in ThreadList::RunCheckpoint.
+    if (thread->GetState() == kRunnable) {
+      concurrent_copying_->GetBarrier().Pass(self);
+    }
+  }
+
+ private:
+  ConcurrentCopying* const concurrent_copying_;
+};
+
+void ConcurrentCopying::IssueDisableMarkingCheckpoint() {
+  Thread* self = Thread::Current();
+  DisableMarkingCheckpoint check_point(this);
+  ThreadList* thread_list = Runtime::Current()->GetThreadList();
+  gc_barrier_->Init(self, 0);
+  size_t barrier_count = thread_list->RunCheckpoint(&check_point);
+  // If there are no threads to wait which implies that all the checkpoint functions are finished,
+  // then no need to release the mutator lock.
+  if (barrier_count == 0) {
+    return;
+  }
+  // Release locks then wait for all mutator threads to pass the barrier.
+  Locks::mutator_lock_->SharedUnlock(self);
+  {
+    ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);
+    gc_barrier_->Increment(self, barrier_count);
+  }
+  Locks::mutator_lock_->SharedLock(self);
+}
+
+void ConcurrentCopying::DisableMarking() {
+  // Change the global is_marking flag to false. Do a fence before doing a checkpoint to update the
+  // thread-local flags so that a new thread starting up will get the correct is_marking flag.
+  is_marking_ = false;
+  QuasiAtomic::ThreadFenceForConstructor();
+  // Use a checkpoint to turn off the thread-local is_gc_marking flags and to ensure no threads are
+  // still in the middle of a read barrier which may have a from-space ref cached in a local
+  // variable.
+  IssueDisableMarkingCheckpoint();
+  if (kUseTableLookupReadBarrier) {
+    heap_->rb_table_->ClearAll();
+    DCHECK(heap_->rb_table_->IsAllCleared());
+  }
+  is_mark_stack_push_disallowed_.StoreSequentiallyConsistent(1);
+  mark_stack_mode_.StoreSequentiallyConsistent(kMarkStackModeOff);
 }
 
 void ConcurrentCopying::IssueEmptyCheckpoint() {
@@ -708,6 +762,14 @@ class ConcurrentCopyingVerifyNoFromSpaceRefsObjectVisitor {
 void ConcurrentCopying::VerifyNoFromSpaceReferences() {
   Thread* self = Thread::Current();
   DCHECK(Locks::mutator_lock_->IsExclusiveHeld(self));
+  // Verify all threads have is_gc_marking to be false
+  {
+    MutexLock mu(self, *Locks::thread_list_lock_);
+    std::list<Thread*> thread_list = Runtime::Current()->GetThreadList()->GetList();
+    for (Thread* thread : thread_list) {
+      CHECK(!thread->GetIsGcMarking());
+    }
+  }
   ConcurrentCopyingVerifyNoFromSpaceRefsObjectVisitor visitor(this);
   // Roots.
   {

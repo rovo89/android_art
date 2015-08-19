@@ -180,6 +180,8 @@ class ConcurrentCopying : public GarbageCollector {
   void AssertToSpaceInvariantInNonMovingSpace(mirror::Object* obj, mirror::Object* ref)
       SHARED_REQUIRES(Locks::mutator_lock_);
   void ReenableWeakRefAccess(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_);
+  void DisableMarking() SHARED_REQUIRES(Locks::mutator_lock_);
+  void IssueDisableMarkingCheckpoint() SHARED_REQUIRES(Locks::mutator_lock_);
 
   space::RegionSpace* region_space_;      // The underlying region space.
   std::unique_ptr<Barrier> gc_barrier_;

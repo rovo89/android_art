@@ -79,13 +79,9 @@ inline MirrorType* ReadBarrier::BarrierForRoot(MirrorType** root,
   MirrorType* ref = *root;
   const bool with_read_barrier = kReadBarrierOption == kWithReadBarrier;
   if (with_read_barrier && kUseBakerReadBarrier) {
-    if (kMaybeDuringStartup && IsDuringStartup()) {
-      // During startup, the heap may not be initialized yet. Just
-      // return the given ref.
-      return ref;
-    }
     // TODO: separate the read barrier code from the collector code more.
-    if (Runtime::Current()->GetHeap()->ConcurrentCopyingCollector()->IsMarking()) {
+    Thread* self = Thread::Current();
+    if (self != nullptr && self->GetIsGcMarking()) {
       ref = reinterpret_cast<MirrorType*>(Mark(ref));
     }
     AssertToSpaceInvariant(gc_root_source, ref);
@@ -120,13 +116,9 @@ inline MirrorType* ReadBarrier::BarrierForRoot(mirror::CompressedReference<Mirro
   MirrorType* ref = root->AsMirrorPtr();
   const bool with_read_barrier = kReadBarrierOption == kWithReadBarrier;
   if (with_read_barrier && kUseBakerReadBarrier) {
-    if (kMaybeDuringStartup && IsDuringStartup()) {
-      // During startup, the heap may not be initialized yet. Just
-      // return the given ref.
-      return ref;
-    }
     // TODO: separate the read barrier code from the collector code more.
-    if (Runtime::Current()->GetHeap()->ConcurrentCopyingCollector()->IsMarking()) {
+    Thread* self = Thread::Current();
+    if (self != nullptr && self->GetIsGcMarking()) {
       ref = reinterpret_cast<MirrorType*>(Mark(ref));
     }
     AssertToSpaceInvariant(gc_root_source, ref);
