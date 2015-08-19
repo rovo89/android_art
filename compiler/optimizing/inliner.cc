@@ -63,7 +63,7 @@ void HInliner::Run() {
       if (call != nullptr && call->GetIntrinsic() == Intrinsics::kNone) {
         // We use the original invoke type to ensure the resolution of the called method
         // works properly.
-        if (!TryInline(call, call->GetDexMethodIndex())) {
+        if (!TryInline(call)) {
           if (kIsDebugBuild && IsCompilingWithCoreImage()) {
             std::string callee_name =
                 PrettyMethod(call->GetDexMethodIndex(), *outer_compilation_unit_.GetDexFile());
@@ -169,15 +169,23 @@ static uint32_t FindMethodIndexIn(ArtMethod* method,
   }
 }
 
-bool HInliner::TryInline(HInvoke* invoke_instruction, uint32_t method_index) const {
+bool HInliner::TryInline(HInvoke* invoke_instruction) const {
+  uint32_t method_index = invoke_instruction->GetDexMethodIndex();
   ScopedObjectAccess soa(Thread::Current());
   const DexFile& caller_dex_file = *caller_compilation_unit_.GetDexFile();
   VLOG(compiler) << "Try inlining " << PrettyMethod(method_index, caller_dex_file);
 
   ClassLinker* class_linker = caller_compilation_unit_.GetClassLinker();
   // We can query the dex cache directly. The verifier has populated it already.
-  ArtMethod* resolved_method = class_linker->FindDexCache(caller_dex_file)->GetResolvedMethod(
-      method_index, class_linker->GetImagePointerSize());
+  ArtMethod* resolved_method;
+  if (invoke_instruction->IsInvokeStaticOrDirect()) {
+    MethodReference ref = invoke_instruction->AsInvokeStaticOrDirect()->GetTargetMethod();
+    resolved_method = class_linker->FindDexCache(*ref.dex_file)->GetResolvedMethod(
+        ref.dex_method_index, class_linker->GetImagePointerSize());
+  } else {
+    resolved_method = class_linker->FindDexCache(caller_dex_file)->GetResolvedMethod(
+        method_index, class_linker->GetImagePointerSize());
+  }
 
   if (resolved_method == nullptr) {
     // Method cannot be resolved if it is in another dex file we do not have access to.
@@ -204,11 +212,8 @@ bool HInliner::TryInline(HInvoke* invoke_instruction, uint32_t method_index) con
     }
   }
 
-  bool same_dex_file = true;
-  const DexFile& outer_dex_file = *outer_compilation_unit_.GetDexFile();
-  if (resolved_method->GetDexFile()->GetLocation().compare(outer_dex_file.GetLocation()) != 0) {
-    same_dex_file = false;
-  }
+  bool same_dex_file =
+      IsSameDexFile(*outer_compilation_unit_.GetDexFile(), *resolved_method->GetDexFile());
 
   const DexFile::CodeItem* code_item = resolved_method->GetCodeItem();
 
