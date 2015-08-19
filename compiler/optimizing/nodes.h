@@ -567,7 +567,6 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   explicit HBasicBlock(HGraph* graph, uint32_t dex_pc = kNoDexPc)
       : graph_(graph),
         predecessors_(graph->GetArena(), kDefaultNumberOfPredecessors),
-        exceptional_predecessors_(graph->GetArena(), kDefaultNumberOfExceptionalPredecessors),
         successors_(graph->GetArena(), kDefaultNumberOfSuccessors),
         loop_information_(nullptr),
         dominator_(nullptr),
@@ -580,10 +579,6 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
 
   const GrowableArray<HBasicBlock*>& GetPredecessors() const {
     return predecessors_;
-  }
-
-  const GrowableArray<HInstruction*>& GetExceptionalPredecessors() const {
-    return exceptional_predecessors_;
   }
 
   const GrowableArray<HBasicBlock*>& GetSuccessors() const {
@@ -654,8 +649,6 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   HInstruction* GetLastPhi() const { return phis_.last_instruction_; }
   const HInstructionList& GetPhis() const { return phis_; }
 
-  void AddExceptionalPredecessor(HInstruction* exceptional_predecessor);
-
   void AddSuccessor(HBasicBlock* block) {
     successors_.Add(block);
     block->predecessors_.Add(this);
@@ -695,10 +688,6 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
     predecessors_.Delete(block);
   }
 
-  void RemoveExceptionalPredecessor(HInstruction* instruction) {
-    exceptional_predecessors_.Delete(instruction);
-  }
-
   void RemoveSuccessor(HBasicBlock* block) {
     successors_.Delete(block);
   }
@@ -729,15 +718,6 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   size_t GetPredecessorIndexOf(HBasicBlock* predecessor) const {
     for (size_t i = 0, e = predecessors_.Size(); i < e; ++i) {
       if (predecessors_.Get(i) == predecessor) {
-        return i;
-      }
-    }
-    return -1;
-  }
-
-  size_t GetExceptionalPredecessorIndexOf(HInstruction* exceptional_predecessor) const {
-    for (size_t i = 0, e = exceptional_predecessors_.Size(); i < e; ++i) {
-      if (exceptional_predecessors_.Get(i) == exceptional_predecessor) {
         return i;
       }
     }
@@ -904,7 +884,6 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
  private:
   HGraph* graph_;
   GrowableArray<HBasicBlock*> predecessors_;
-  GrowableArray<HInstruction*> exceptional_predecessors_;
   GrowableArray<HBasicBlock*> successors_;
   HInstructionList instructions_;
   HInstructionList phis_;
