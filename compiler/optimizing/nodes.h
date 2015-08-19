@@ -351,6 +351,9 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
     return instruction_set_;
   }
 
+  // TODO: Remove once the full compilation pipeline is enabled for try/catch.
+  bool HasTryCatch() const;
+
  private:
   void VisitBlockForDominatorTree(HBasicBlock* block,
                                   HBasicBlock* predecessor,
@@ -4565,6 +4568,8 @@ class HStaticFieldSet : public HTemplateInstruction<2> {
 class HLoadException : public HExpression<0> {
  public:
   HLoadException() : HExpression(Primitive::kPrimNot, SideEffects::None()) {}
+
+  bool CanBeNull() const OVERRIDE { return false; }
 
   DECLARE_INSTRUCTION(LoadException);
 
