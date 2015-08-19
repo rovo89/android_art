@@ -25,10 +25,10 @@
 namespace art {
 namespace mirror {
 
-template <const bool kVisitClass, VerifyObjectFlags kVerifyFlags, typename Visitor>
+template <VerifyObjectFlags kVerifyFlags, typename Visitor>
 inline void ClassLoader::VisitReferences(mirror::Class* klass, const Visitor& visitor) {
   // Visit instance fields first.
-  VisitInstanceFieldsReferences<kVisitClass>(klass, visitor);
+  VisitInstanceFieldsReferences(klass, visitor);
   // Visit classes loaded after.
   ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   ClassTable* const class_table = GetClassTable();

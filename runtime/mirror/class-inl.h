@@ -669,9 +669,9 @@ inline uint32_t Class::ComputeClassSize(bool has_embedded_tables,
   return size;
 }
 
-template <bool kVisitClass, typename Visitor>
+template <typename Visitor>
 inline void Class::VisitReferences(mirror::Class* klass, const Visitor& visitor) {
-  VisitInstanceFieldsReferences<kVisitClass>(klass, visitor);
+  VisitInstanceFieldsReferences(klass, visitor);
   // Right after a class is allocated, but not yet loaded
   // (kStatusNotReady, see ClassLinker::LoadClass()), GC may find it
   // and scan it. IsTemp() may call Class::GetAccessFlags() but may
@@ -683,7 +683,7 @@ inline void Class::VisitReferences(mirror::Class* klass, const Visitor& visitor)
     // Temp classes don't ever populate imt/vtable or static fields and they are not even
     // allocated with the right size for those. Also, unresolved classes don't have fields
     // linked yet.
-    VisitStaticFieldsReferences<kVisitClass>(this, visitor);
+    VisitStaticFieldsReferences(this, visitor);
   }
   // Since this class is reachable, we must also visit the associated roots when we scan it.
   VisitNativeRoots(visitor, Runtime::Current()->GetClassLinker()->GetImagePointerSize());
