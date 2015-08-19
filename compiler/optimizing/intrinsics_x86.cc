@@ -20,6 +20,7 @@
 
 #include "arch/x86/instruction_set_features_x86.h"
 #include "art_method.h"
+#include "base/bit_utils.h"
 #include "code_generator_x86.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "intrinsics.h"
@@ -1835,6 +1836,115 @@ void IntrinsicCodeGeneratorX86::VisitLongReverse(HInvoke* invoke) {
   SwapBits(reg_high, temp, 4, 0x0f0f0f0f, assembler);
 }
 
+static void CreateLeadingZeroLocations(ArenaAllocator* arena, HInvoke* invoke, bool is_long) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  if (is_long) {
+    locations->SetInAt(0, Location::RequiresRegister());
+  } else {
+    locations->SetInAt(0, Location::Any());
+  }
+  locations->SetOut(Location::RequiresRegister());
+}
+
+static void GenLeadingZeros(X86Assembler* assembler, HInvoke* invoke, bool is_long) {
+  LocationSummary* locations = invoke->GetLocations();
+  Location src = locations->InAt(0);
+  Register out = locations->Out().AsRegister<Register>();
+
+  if (invoke->InputAt(0)->IsConstant()) {
+    // Evaluate this at compile time.
+    int64_t value = Int64FromConstant(invoke->InputAt(0)->AsConstant());
+    if (value == 0) {
+      value = is_long ? 64 : 32;
+    } else {
+      value = is_long ? CLZ(static_cast<uint64_t>(value)) : CLZ(static_cast<uint32_t>(value));
+    }
+    if (value == 0) {
+      __ xorl(out, out);
+    } else {
+      __ movl(out, Immediate(value));
+    }
+    return;
+  }
+
+  // Handle the non-constant cases.
+  if (!is_long) {
+    if (src.IsRegister()) {
+      __ bsrl(out, src.AsRegister<Register>());
+    } else {
+      DCHECK(src.IsStackSlot());
+      __ bsrl(out, Address(ESP, src.GetStackIndex()));
+    }
+
+    // BSR sets ZF if the input was zero, and the output is undefined.
+    Label all_zeroes, done;
+    __ j(kEqual, &all_zeroes);
+
+    // Correct the result from BSR to get the final CLZ result.
+    __ xorl(out, Immediate(31));
+    __ jmp(&done);
+
+    // Fix the zero case with the expected result.
+    __ Bind(&all_zeroes);
+    __ movl(out, Immediate(32));
+
+    __ Bind(&done);
+    return;
+  }
+
+  // 64 bit case needs to worry about both parts of the register.
+  DCHECK(src.IsRegisterPair());
+  Register src_lo = src.AsRegisterPairLow<Register>();
+  Register src_hi = src.AsRegisterPairHigh<Register>();
+  Label handle_low, done, all_zeroes;
+
+  // Is the high word zero?
+  __ testl(src_hi, src_hi);
+  __ j(kEqual, &handle_low);
+
+  // High word is not zero. We know that the BSR result is defined in this case.
+  __ bsrl(out, src_hi);
+
+  // Correct the result from BSR to get the final CLZ result.
+  __ xorl(out, Immediate(31));
+  __ jmp(&done);
+
+  // High word was zero.  We have to compute the low word count and add 32.
+  __ Bind(&handle_low);
+  __ bsrl(out, src_lo);
+  __ j(kEqual, &all_zeroes);
+
+  // We had a valid result.  Use an XOR to both correct the result and add 32.
+  __ xorl(out, Immediate(63));
+  __ jmp(&done);
+
+  // All zero case.
+  __ Bind(&all_zeroes);
+  __ movl(out, Immediate(64));
+
+  __ Bind(&done);
+}
+
+void IntrinsicLocationsBuilderX86::VisitIntegerNumberOfLeadingZeros(HInvoke* invoke) {
+  CreateLeadingZeroLocations(arena_, invoke, /* is_long */ false);
+}
+
+void IntrinsicCodeGeneratorX86::VisitIntegerNumberOfLeadingZeros(HInvoke* invoke) {
+  X86Assembler* assembler = down_cast<X86Assembler*>(codegen_->GetAssembler());
+  GenLeadingZeros(assembler, invoke, /* is_long */ false);
+}
+
+void IntrinsicLocationsBuilderX86::VisitLongNumberOfLeadingZeros(HInvoke* invoke) {
+  CreateLeadingZeroLocations(arena_, invoke, /* is_long */ true);
+}
+
+void IntrinsicCodeGeneratorX86::VisitLongNumberOfLeadingZeros(HInvoke* invoke) {
+  X86Assembler* assembler = down_cast<X86Assembler*>(codegen_->GetAssembler());
+  GenLeadingZeros(assembler, invoke, /* is_long */ true);
+}
+
 // Unimplemented intrinsics.
 
 #define UNIMPLEMENTED_INTRINSIC(Name)                                                   \
@@ -1847,8 +1957,6 @@ UNIMPLEMENTED_INTRINSIC(MathRoundDouble)
 UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
-UNIMPLEMENTED_INTRINSIC(IntegerNumberOfLeadingZeros)
-UNIMPLEMENTED_INTRINSIC(LongNumberOfLeadingZeros)
 
 #undef UNIMPLEMENTED_INTRINSIC
 
