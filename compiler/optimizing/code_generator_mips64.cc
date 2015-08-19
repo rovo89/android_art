@@ -2407,64 +2407,85 @@ static bool TryGenerateIntrinsicCode(HInvoke* invoke,
 void CodeGeneratorMIPS64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) {
   // All registers are assumed to be correctly set up per the calling convention.
 
-  // TODO: Implement all kinds of calls:
-  // 1) boot -> boot
-  // 2) app -> boot
-  // 3) app -> app
-  //
-  // Currently we implement the app -> app logic, which looks up in the resolve cache.
+  Location callee_method = temp;  // For all kinds except kRecursive, callee will be in temp.
+  switch (invoke->GetMethodLoadKind()) {
+    case HInvokeStaticOrDirect::MethodLoadKind::kStringInit:
+      // temp = thread->string_init_entrypoint
+      __ LoadFromOffset(kLoadDoubleword,
+                        temp.AsRegister<GpuRegister>(),
+                        TR,
+                        invoke->GetStringInitOffset());
+      break;
+    case HInvokeStaticOrDirect::MethodLoadKind::kRecursive:
+      callee_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
+      break;
+    case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress:
+      __ LoadConst64(temp.AsRegister<GpuRegister>(), invoke->GetMethodAddress());
+      break;
+    case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddressWithFixup:
+      // TODO: Implement this type. (Needs literal support.) At the moment, the
+      // CompilerDriver will not direct the backend to use this type for MIPS.
+      LOG(FATAL) << "Unsupported!";
+      UNREACHABLE();
+    case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative:
+      // TODO: Implement this type. For the moment, we fall back to kDexCacheViaMethod.
+      FALLTHROUGH_INTENDED;
+    case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
+      Location current_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
+      GpuRegister reg = temp.AsRegister<GpuRegister>();
+      GpuRegister method_reg;
+      if (current_method.IsRegister()) {
+        method_reg = current_method.AsRegister<GpuRegister>();
+      } else {
+        // TODO: use the appropriate DCHECK() here if possible.
+        // DCHECK(invoke->GetLocations()->Intrinsified());
+        DCHECK(!current_method.IsValid());
+        method_reg = reg;
+        __ Ld(reg, SP, kCurrentMethodStackOffset);
+      }
 
-  if (invoke->IsStringInit()) {
-    GpuRegister reg = temp.AsRegister<GpuRegister>();
-    // temp = thread->string_init_entrypoint
-    __ LoadFromOffset(kLoadDoubleword,
-                      reg,
-                      TR,
-                      invoke->GetStringInitOffset());
-    // T9 = temp->entry_point_from_quick_compiled_code_;
-    __ LoadFromOffset(kLoadDoubleword,
-                      T9,
-                      reg,
-                      ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-                          kMips64WordSize).Int32Value());
-    // T9()
-    __ Jalr(T9);
-  } else if (invoke->IsRecursive()) {
-    __ Jalr(&frame_entry_label_, T9);
-  } else {
-    Location current_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
-    GpuRegister reg = temp.AsRegister<GpuRegister>();
-    GpuRegister method_reg;
-    if (current_method.IsRegister()) {
-      method_reg = current_method.AsRegister<GpuRegister>();
-    } else {
-      // TODO: use the appropriate DCHECK() here if possible.
-      // DCHECK(invoke->GetLocations()->Intrinsified());
-      DCHECK(!current_method.IsValid());
-      method_reg = reg;
-      __ Ld(reg, SP, kCurrentMethodStackOffset);
+      // temp = temp->dex_cache_resolved_methods_;
+      __ LoadFromOffset(kLoadUnsignedWord,
+                        reg,
+                        method_reg,
+                        ArtMethod::DexCacheResolvedMethodsOffset().Int32Value());
+      // temp = temp[index_in_cache]
+      uint32_t index_in_cache = invoke->GetTargetMethod().dex_method_index;
+      __ LoadFromOffset(kLoadDoubleword,
+                        reg,
+                        reg,
+                        CodeGenerator::GetCachePointerOffset(index_in_cache));
+      break;
     }
-
-    // temp = temp->dex_cache_resolved_methods_;
-    __ LoadFromOffset(kLoadUnsignedWord,
-                      reg,
-                      method_reg,
-                      ArtMethod::DexCacheResolvedMethodsOffset().Int32Value());
-    // temp = temp[index_in_cache]
-    __ LoadFromOffset(kLoadDoubleword,
-                      reg,
-                      reg,
-                      CodeGenerator::GetCachePointerOffset(invoke->GetDexMethodIndex()));
-    // T9 = temp[offset_of_quick_compiled_code]
-    __ LoadFromOffset(kLoadDoubleword,
-                      T9,
-                      reg,
-                      ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-                          kMips64WordSize).Int32Value());
-    // T9()
-    __ Jalr(T9);
   }
 
+  switch (invoke->GetCodePtrLocation()) {
+    case HInvokeStaticOrDirect::CodePtrLocation::kCallSelf:
+      __ Jalr(&frame_entry_label_, T9);
+      break;
+    case HInvokeStaticOrDirect::CodePtrLocation::kCallDirect:
+      // LR = invoke->GetDirectCodePtr();
+      __ LoadConst64(T9, invoke->GetDirectCodePtr());
+      // LR()
+      __ Jalr(T9);
+      break;
+    case HInvokeStaticOrDirect::CodePtrLocation::kCallPCRelative:
+      // TODO: Implement kCallPCRelative. For the moment, we fall back to kMethodCode.
+      FALLTHROUGH_INTENDED;
+    case HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup:
+      // TODO: Implement kDirectCodeFixup. For the moment, we fall back to kMethodCode.
+      FALLTHROUGH_INTENDED;
+    case HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod:
+      // T9 = callee_method->entry_point_from_quick_compiled_code_;
+      __ LoadFromOffset(kLoadDoubleword,
+                        T9,
+                        callee_method.AsRegister<GpuRegister>(),
+                        ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+                            kMips64WordSize).Int32Value());
+      // T9()
+      __ Jalr(T9);
+      break;
+  }
   DCHECK(!IsLeafMethod());
 }
 
