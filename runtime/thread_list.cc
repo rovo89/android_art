@@ -1175,7 +1175,10 @@ void ThreadList::Register(Thread* self) {
   CHECK(!Contains(self));
   list_.push_back(self);
   if (kUseReadBarrier) {
-    // Initialize this according to the state of the CC collector.
+    // Initialize according to the state of the CC collector.
+    bool is_gc_marking =
+        Runtime::Current()->GetHeap()->ConcurrentCopyingCollector()->IsMarking();
+    self->SetIsGcMarking(is_gc_marking);
     bool weak_ref_access_enabled =
         Runtime::Current()->GetHeap()->ConcurrentCopyingCollector()->IsWeakRefAccessEnabled();
     self->SetWeakRefAccessEnabled(weak_ref_access_enabled);
