@@ -555,6 +555,59 @@ class HLoopInformation : public ArenaObject<kArenaAllocMisc> {
   DISALLOW_COPY_AND_ASSIGN(HLoopInformation);
 };
 
+// Stores try/catch information for basic blocks.
+// Note that HGraph is constructed so that catch blocks cannot simultaneously
+// be try blocks.
+class TryCatchInformation : public ArenaObject<kArenaAllocMisc> {
+ public:
+  // Try block information constructor.
+  explicit TryCatchInformation(const HTryBoundary& try_entry)
+      : try_entry_(&try_entry),
+        catch_dex_file_(nullptr),
+        catch_type_index_(DexFile::kDexNoIndex16) {
+    DCHECK(try_entry_ != nullptr);
+  }
+
+  // Catch block information constructor.
+  TryCatchInformation(uint16_t catch_type_index, const DexFile& dex_file)
+      : try_entry_(nullptr),
+        catch_dex_file_(&dex_file),
+        catch_type_index_(catch_type_index) {}
+
+  bool IsTryBlock() const { return try_entry_ != nullptr; }
+
+  const HTryBoundary& GetTryEntry() const {
+    DCHECK(IsTryBlock());
+    return *try_entry_;
+  }
+
+  bool IsCatchBlock() const { return catch_dex_file_ != nullptr; }
+
+  bool IsCatchAllTypeIndex() const {
+    DCHECK(IsCatchBlock());
+    return catch_type_index_ == DexFile::kDexNoIndex16;
+  }
+
+  uint16_t GetCatchTypeIndex() const {
+    DCHECK(IsCatchBlock());
+    return catch_type_index_;
+  }
+
+  const DexFile& GetCatchDexFile() const {
+    DCHECK(IsCatchBlock());
+    return *catch_dex_file_;
+  }
+
+ private:
+  // One of possibly several TryBoundary instructions entering the block's try.
+  // Only set for try blocks.
+  const HTryBoundary* try_entry_;
+
+  // Exception type information. Only set for catch blocks.
+  const DexFile* catch_dex_file_;
+  const uint16_t catch_type_index_;
+};
+
 static constexpr size_t kNoLifetime = -1;
 static constexpr uint32_t kNoDexPc = -1;
 
@@ -575,7 +628,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
         dex_pc_(dex_pc),
         lifetime_start_(kNoLifetime),
         lifetime_end_(kNoLifetime),
-        is_catch_block_(false) {}
+        try_catch_information_(nullptr) {}
 
   const GrowableArray<HBasicBlock*>& GetPredecessors() const {
     return predecessors_;
@@ -853,14 +906,24 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
 
   bool IsInLoop() const { return loop_information_ != nullptr; }
 
-  HTryBoundary* GetTryEntry() const { return try_entry_; }
-  void SetTryEntry(HTryBoundary* try_entry) { try_entry_ = try_entry; }
-  bool IsInTry() const { return try_entry_ != nullptr; }
+  TryCatchInformation* GetTryCatchInformation() const { return try_catch_information_; }
+
+  void SetTryCatchInformation(TryCatchInformation* try_catch_information) {
+    try_catch_information_ = try_catch_information;
+  }
+
+  bool IsTryBlock() const {
+    return try_catch_information_ != nullptr && try_catch_information_->IsTryBlock();
+  }
+
+  bool IsCatchBlock() const {
+    return try_catch_information_ != nullptr && try_catch_information_->IsCatchBlock();
+  }
 
   // Returns the try entry that this block's successors should have. They will
   // be in the same try, unless the block ends in a try boundary. In that case,
   // the appropriate try entry will be returned.
-  HTryBoundary* ComputeTryEntryOfSuccessors() const;
+  const HTryBoundary* ComputeTryEntryOfSuccessors() const;
 
   // Returns whether this block dominates the blocked passed as parameter.
   bool Dominates(HBasicBlock* block) const;
@@ -872,9 +935,6 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   void SetLifetimeEnd(size_t end) { lifetime_end_ = end; }
 
   uint32_t GetDexPc() const { return dex_pc_; }
-
-  bool IsCatchBlock() const { return is_catch_block_; }
-  void SetIsCatchBlock() { is_catch_block_ = true; }
 
   bool EndsWithControlFlowInstruction() const;
   bool EndsWithIf() const;
@@ -895,11 +955,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   const uint32_t dex_pc_;
   size_t lifetime_start_;
   size_t lifetime_end_;
-  bool is_catch_block_;
-
-  // If this block is in a try block, `try_entry_` stores one of, possibly
-  // several, TryBoundary instructions entering it.
-  HTryBoundary* try_entry_;
+  TryCatchInformation* try_catch_information_;
 
   friend class HGraph;
   friend class HInstruction;
@@ -1676,7 +1732,9 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
     UNREACHABLE();
   }
   virtual bool IsControlFlow() const { return false; }
+
   virtual bool CanThrow() const { return false; }
+  bool CanThrowIntoCatchBlock() const { return CanThrow() && block_->IsTryBlock(); }
 
   bool HasSideEffects() const { return side_effects_.HasSideEffects(); }
   bool DoesAnyWrite() const { return side_effects_.DoesAnyWrite(); }
