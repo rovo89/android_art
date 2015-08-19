@@ -124,7 +124,7 @@
 # Tests that phi elimination does not remove catch phis where the value does
 # not dominate the phi.
 
-## CHECK-START: int SsaBuilder.testPhiElimination(int, int) ssa_builder (after)
+## CHECK-START: int SsaBuilder.testPhiElimination_Domination(int, int) ssa_builder (after)
 ## CHECK-DAG:     <<P0:i\d+>>   ParameterValue
 ## CHECK-DAG:     <<P1:i\d+>>   ParameterValue
 ## CHECK-DAG:     <<Cst5:i\d+>> IntConstant 5
@@ -140,7 +140,7 @@
 ## CHECK-DAG:     <<Phi2:i\d+>> Phi [<<Cst5>>,<<Add2>>] reg:0 is_catch_phi:false
 ## CHECK-DAG:                   Return [<<Phi2>>]
 
-.method public static testPhiElimination(II)I
+.method public static testPhiElimination_Domination(II)I
     .registers 4
 
     :try_start
@@ -160,6 +160,38 @@
 
     :catch_all
     add-int/2addr v0, v1
+    goto :return
+.end method
+
+# Tests that phi elimination loops until no more phis can be removed.
+
+## CHECK-START: int SsaBuilder.testPhiElimination_Dependencies(int, int, int) ssa_builder (after)
+## CHECK-NOT:     Phi
+
+.method public static testPhiElimination_Dependencies(III)I
+    .registers 4
+
+    # This constant reaches Return via the normal control-flow path and both
+    # exceptional paths. Since v0 is never changed, there should be no phis.
+    const v0, 5
+
+    :try_start
+    div-int/2addr p0, p1
+    div-int/2addr p0, p2
+    :try_end
+    .catch Ljava/lang/ArithmeticException; {:try_start .. :try_end} :catch_arith
+    .catchall {:try_start .. :try_end} :catch_all
+
+    :return
+    # Phi [v0, CatchPhi1, CatchPhi2]
+    return v0
+
+    :catch_arith
+    # CatchPhi1 [v0, v0]
+    goto :return
+
+    :catch_all
+    # CatchPhi2 [v0, v0]
     goto :return
 .end method
 
