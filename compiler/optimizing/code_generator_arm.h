@@ -328,7 +328,15 @@ class CodeGeneratorARM : public CodeGenerator {
 
   void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp);
 
+  void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
+
  private:
+  using MethodToLiteralMap = ArenaSafeMap<MethodReference, Literal*, MethodReferenceComparator>;
+
+  Literal* DeduplicateMethodLiteral(MethodReference target_method, MethodToLiteralMap* map);
+  Literal* DeduplicateMethodAddressLiteral(MethodReference target_method);
+  Literal* DeduplicateMethodCodeLiteral(MethodReference target_method);
+
   // Labels for each block that will be compiled.
   GrowableArray<Label> block_labels_;
   Label frame_entry_label_;
@@ -337,6 +345,13 @@ class CodeGeneratorARM : public CodeGenerator {
   ParallelMoveResolverARM move_resolver_;
   Thumb2Assembler assembler_;
   const ArmInstructionSetFeatures& isa_features_;
+
+  // Method patch info, map MethodReference to a literal for method address and method code.
+  MethodToLiteralMap method_patches_;
+  MethodToLiteralMap call_patches_;
+  // Relative call patch info.
+  // Using ArenaDeque<> which retains element addresses on push/emplace_back().
+  ArenaDeque<MethodPatchInfo<Label>> relative_call_patches_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorARM);
 };

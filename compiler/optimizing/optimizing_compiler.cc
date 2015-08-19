@@ -488,6 +488,19 @@ static void AllocateRegisters(HGraph* graph,
   }
 }
 
+static ArenaVector<LinkerPatch> EmitAndSortLinkerPatches(CodeGenerator* codegen) {
+  ArenaVector<LinkerPatch> linker_patches(codegen->GetGraph()->GetArena()->Adapter());
+  codegen->EmitLinkerPatches(&linker_patches);
+
+  // Sort patches by literal offset. Required for .oat_patches encoding.
+  std::sort(linker_patches.begin(), linker_patches.end(),
+            [](const LinkerPatch& lhs, const LinkerPatch& rhs) {
+    return lhs.LiteralOffset() < rhs.LiteralOffset();
+  });
+
+  return linker_patches;
+}
+
 CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
                                                      CodeGenerator* codegen,
                                                      CompilerDriver* compiler_driver,
@@ -501,6 +514,8 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
 
   CodeVectorAllocator allocator;
   codegen->CompileOptimized(&allocator);
+
+  ArenaVector<LinkerPatch> linker_patches = EmitAndSortLinkerPatches(codegen);
 
   DefaultSrcMap src_mapping_table;
   if (compiler_driver->GetCompilerOptions().GetGenerateDebugInfo()) {
@@ -527,7 +542,7 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
       ArrayRef<const uint8_t>(stack_map),
       ArrayRef<const uint8_t>(),  // native_gc_map.
       ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data()),
-      ArrayRef<const LinkerPatch>());
+      ArrayRef<const LinkerPatch>(linker_patches));
   pass_observer->DumpDisassembly();
   return compiled_method;
 }
@@ -539,6 +554,8 @@ CompiledMethod* OptimizingCompiler::CompileBaseline(
     PassObserver* pass_observer) const {
   CodeVectorAllocator allocator;
   codegen->CompileBaseline(&allocator);
+
+  ArenaVector<LinkerPatch> linker_patches = EmitAndSortLinkerPatches(codegen);
 
   std::vector<uint8_t> mapping_table;
   codegen->BuildMappingTable(&mapping_table);
@@ -567,7 +584,7 @@ CompiledMethod* OptimizingCompiler::CompileBaseline(
       AlignVectorSize(vmap_table),
       AlignVectorSize(gc_map),
       ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data()),
-      ArrayRef<const LinkerPatch>());
+      ArrayRef<const LinkerPatch>(linker_patches));
   pass_observer->DumpDisassembly();
   return compiled_method;
 }

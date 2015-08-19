@@ -39,7 +39,8 @@ void X86RelativePatcher::PatchDexCacheReference(std::vector<uint8_t>* code,
   DCHECK_EQ((*code)[anchor_literal_offset] & 0xf8u, 0x58u);
 
   // Check that the patched data contains kDummy32BitOffset.
-  constexpr int kDummy32BitOffset = 256;  // Must match X86Mir2Lir::kDummy32BitOffset.
+  // Must match X86Mir2Lir::kDummy32BitOffset and CodeGeneratorX86_64::kDummy32BitOffset.
+  constexpr int kDummy32BitOffset = 256;
   DCHECK_LE(literal_offset, code->size());
   DCHECK_EQ((*code)[literal_offset + 0u], static_cast<uint8_t>(kDummy32BitOffset >> 0));
   DCHECK_EQ((*code)[literal_offset + 1u], static_cast<uint8_t>(kDummy32BitOffset >> 8));
