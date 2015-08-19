@@ -48,6 +48,7 @@ static int64_t constexpr kPrimLongMax = INT64_C(0x7fffffffffffffff);
 class Assembler;
 class CodeGenerator;
 class DexCompilationUnit;
+class LinkerPatch;
 class ParallelMoveResolver;
 class SrcMapElem;
 template <class Alloc>
@@ -160,6 +161,7 @@ class CodeGenerator {
 
   virtual void Initialize() = 0;
   virtual void Finalize(CodeAllocator* allocator);
+  virtual void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches);
   virtual void GenerateFrameEntry() = 0;
   virtual void GenerateFrameExit() = 0;
   virtual void Bind(HBasicBlock* block) = 0;
@@ -356,6 +358,17 @@ class CodeGenerator {
   DisassemblyInformation* GetDisassemblyInformation() const { return disasm_info_; }
 
  protected:
+  // Method patch info used for recording locations of required linker patches and
+  // target methods. The target method can be used for various purposes, whether for
+  // patching the address of the method or the code pointer or a PC-relative call.
+  template <typename LabelType>
+  struct MethodPatchInfo {
+    explicit MethodPatchInfo(MethodReference m) : target_method(m), label() { }
+
+    MethodReference target_method;
+    LabelType label;
+  };
+
   CodeGenerator(HGraph* graph,
                 size_t number_of_core_registers,
                 size_t number_of_fpu_registers,
@@ -427,8 +440,8 @@ class CodeGenerator {
 
   // Arm64 has its own type for a label, so we need to templatize this method
   // to share the logic.
-  template <typename T>
-  T* CommonGetLabelOf(T* raw_pointer_to_labels_array, HBasicBlock* block) const {
+  template <typename LabelType>
+  LabelType* CommonGetLabelOf(LabelType* raw_pointer_to_labels_array, HBasicBlock* block) const {
     block = FirstNonEmptyBlock(block);
     return raw_pointer_to_labels_array + block->GetBlockId();
   }
