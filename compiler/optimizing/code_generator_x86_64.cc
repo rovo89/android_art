@@ -18,6 +18,7 @@
 
 #include "art_method.h"
 #include "code_generator_utils.h"
+#include "compiled_method.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "gc/accounting/card_table.h"
 #include "intrinsics.h"
@@ -410,46 +411,110 @@ void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
                                                      Location temp) {
   // All registers are assumed to be correctly set up.
 
-  // TODO: Implement all kinds of calls:
-  // 1) boot -> boot
-  // 2) app -> boot
-  // 3) app -> app
-  //
-  // Currently we implement the app -> app logic, which looks up in the resolve cache.
-
-  if (invoke->IsStringInit()) {
-    CpuRegister reg = temp.AsRegister<CpuRegister>();
-    // temp = thread->string_init_entrypoint
-    __ gs()->movq(reg, Address::Absolute(invoke->GetStringInitOffset(), true));
-    // (temp + offset_of_quick_compiled_code)()
-    __ call(Address(reg, ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-        kX86_64WordSize).SizeValue()));
-  } else if (invoke->IsRecursive()) {
-    __ call(&frame_entry_label_);
-  } else {
-    CpuRegister reg = temp.AsRegister<CpuRegister>();
-    Location current_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
-    Register method_reg;
-    if (current_method.IsRegister()) {
-      method_reg = current_method.AsRegister<Register>();
-    } else {
-      DCHECK(invoke->GetLocations()->Intrinsified());
-      DCHECK(!current_method.IsValid());
-      method_reg = reg.AsRegister();
-      __ movq(reg, Address(CpuRegister(RSP), kCurrentMethodStackOffset));
+  Location callee_method = temp;  // For all kinds except kRecursive, callee will be in temp.
+  switch (invoke->GetMethodLoadKind()) {
+    case HInvokeStaticOrDirect::MethodLoadKind::kStringInit:
+      // temp = thread->string_init_entrypoint
+      __ gs()->movl(temp.AsRegister<CpuRegister>(),
+                    Address::Absolute(invoke->GetStringInitOffset(), true));
+      break;
+    case HInvokeStaticOrDirect::MethodLoadKind::kRecursive:
+      callee_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
+      break;
+    case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress:
+      __ movq(temp.AsRegister<CpuRegister>(), Immediate(invoke->GetMethodAddress()));
+      break;
+    case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddressWithFixup:
+      __ movl(temp.AsRegister<CpuRegister>(), Immediate(0));  // Placeholder.
+      method_patches_.emplace_back(invoke->GetTargetMethod());
+      __ Bind(&method_patches_.back().label);  // Bind the label at the end of the "movl" insn.
+      break;
+    case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative:
+      pc_rel_dex_cache_patches_.emplace_back(*invoke->GetTargetMethod().dex_file,
+                                             invoke->GetDexCacheArrayOffset());
+      __ movq(temp.AsRegister<CpuRegister>(),
+              Address::Absolute(kDummy32BitOffset, false /* no_rip */));
+      // Bind the label at the end of the "movl" insn.
+      __ Bind(&pc_rel_dex_cache_patches_.back().label);
+      break;
+    case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
+      Location current_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodInputIndex());
+      Register method_reg;
+      CpuRegister reg = temp.AsRegister<CpuRegister>();
+      if (current_method.IsRegister()) {
+        method_reg = current_method.AsRegister<Register>();
+      } else {
+        DCHECK(invoke->GetLocations()->Intrinsified());
+        DCHECK(!current_method.IsValid());
+        method_reg = reg.AsRegister();
+        __ movq(reg, Address(CpuRegister(RSP), kCurrentMethodStackOffset));
+      }
+      // temp = temp->dex_cache_resolved_methods_;
+      __ movl(reg, Address(CpuRegister(method_reg),
+                           ArtMethod::DexCacheResolvedMethodsOffset().SizeValue()));
+      // temp = temp[index_in_cache]
+      uint32_t index_in_cache = invoke->GetTargetMethod().dex_method_index;
+      __ movq(reg, Address(reg, CodeGenerator::GetCachePointerOffset(index_in_cache)));
+      break;
     }
-    // temp = temp->dex_cache_resolved_methods_;
-    __ movl(reg, Address(CpuRegister(method_reg),
-                         ArtMethod::DexCacheResolvedMethodsOffset().SizeValue()));
-    // temp = temp[index_in_cache]
-    __ movq(reg, Address(
-        reg, CodeGenerator::GetCachePointerOffset(invoke->GetDexMethodIndex())));
-    // (temp + offset_of_quick_compiled_code)()
-    __ call(Address(reg, ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-        kX86_64WordSize).SizeValue()));
+  }
+
+  switch (invoke->GetCodePtrLocation()) {
+    case HInvokeStaticOrDirect::CodePtrLocation::kCallSelf:
+      __ call(&frame_entry_label_);
+      break;
+    case HInvokeStaticOrDirect::CodePtrLocation::kCallPCRelative: {
+      relative_call_patches_.emplace_back(invoke->GetTargetMethod());
+      Label* label = &relative_call_patches_.back().label;
+      __ call(label);  // Bind to the patch label, override at link time.
+      __ Bind(label);  // Bind the label at the end of the "call" insn.
+      break;
+    }
+    case HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup:
+    case HInvokeStaticOrDirect::CodePtrLocation::kCallDirect:
+      // For direct code, we actually prefer to call via the code pointer from ArtMethod*.
+      FALLTHROUGH_INTENDED;
+    case HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod:
+      // (callee_method + offset_of_quick_compiled_code)()
+      __ call(Address(callee_method.AsRegister<CpuRegister>(),
+                      ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+                          kX86_64WordSize).SizeValue()));
+      break;
   }
 
   DCHECK(!IsLeafMethod());
+}
+
+void CodeGeneratorX86_64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) {
+  DCHECK(linker_patches->empty());
+  size_t size =
+      method_patches_.size() + relative_call_patches_.size() + pc_rel_dex_cache_patches_.size();
+  linker_patches->reserve(size);
+  for (const MethodPatchInfo<Label>& info : method_patches_) {
+    // The label points to the end of the "movl" instruction but the literal offset for method
+    // patch x86 needs to point to the embedded constant which occupies the last 4 bytes.
+    uint32_t literal_offset = info.label.Position() - 4;
+    linker_patches->push_back(LinkerPatch::MethodPatch(literal_offset,
+                                                       info.target_method.dex_file,
+                                                       info.target_method.dex_method_index));
+  }
+  for (const MethodPatchInfo<Label>& info : relative_call_patches_) {
+    // The label points to the end of the "call" instruction but the literal offset for method
+    // patch x86 needs to point to the embedded constant which occupies the last 4 bytes.
+    uint32_t literal_offset = info.label.Position() - 4;
+    linker_patches->push_back(LinkerPatch::RelativeCodePatch(literal_offset,
+                                                             info.target_method.dex_file,
+                                                             info.target_method.dex_method_index));
+  }
+  for (const PcRelativeDexCacheAccessInfo& info : pc_rel_dex_cache_patches_) {
+    // The label points to the end of the "mov" instruction but the literal offset for method
+    // patch x86 needs to point to the embedded constant which occupies the last 4 bytes.
+    uint32_t literal_offset = info.label.Position() - 4;
+    linker_patches->push_back(LinkerPatch::DexCacheArrayPatch(literal_offset,
+                                                              &info.target_dex_file,
+                                                              info.label.Position(),
+                                                              info.element_offset));
+  }
 }
 
 void CodeGeneratorX86_64::DumpCoreRegister(std::ostream& stream, int reg) const {
@@ -510,7 +575,10 @@ CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph,
         instruction_visitor_(graph, this),
         move_resolver_(graph->GetArena(), this),
         isa_features_(isa_features),
-        constant_area_start_(0) {
+        constant_area_start_(0),
+        method_patches_(graph->GetArena()->Adapter()),
+        relative_call_patches_(graph->GetArena()->Adapter()),
+        pc_rel_dex_cache_patches_(graph->GetArena()->Adapter()) {
   AddAllocatedRegister(Location::RegisterLocation(kFakeReturnRegister));
 }
 
