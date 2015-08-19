@@ -360,7 +360,32 @@ class CodeGeneratorARM64 : public CodeGenerator {
 
   void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp);
 
+  void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
+
  private:
+  using Uint64ToLiteralMap = ArenaSafeMap<uint64_t, vixl::Literal<uint64_t>*>;
+  using MethodToLiteralMap = ArenaSafeMap<MethodReference,
+                                          vixl::Literal<uint64_t>*,
+                                          MethodReferenceComparator>;
+
+  vixl::Literal<uint64_t>* DeduplicateUint64Literal(uint64_t value);
+  vixl::Literal<uint64_t>* DeduplicateMethodLiteral(MethodReference target_method,
+                                                    MethodToLiteralMap* map);
+  vixl::Literal<uint64_t>* DeduplicateMethodAddressLiteral(MethodReference target_method);
+  vixl::Literal<uint64_t>* DeduplicateMethodCodeLiteral(MethodReference target_method);
+
+  struct PcRelativeDexCacheAccessInfo {
+    PcRelativeDexCacheAccessInfo(const DexFile& dex_file, uint32_t element_off)
+        : target_dex_file(dex_file), element_offset(element_off), label(), pc_insn_label() { }
+
+    const DexFile& target_dex_file;
+    uint32_t element_offset;
+    // NOTE: Labels are bound to the end of the patched instruction because
+    // we don't know if there will be a veneer or how big it will be.
+    vixl::Label label;
+    vixl::Label* pc_insn_label;
+  };
+
   // Labels for each block that will be compiled.
   vixl::Label* block_labels_;
   vixl::Label frame_entry_label_;
@@ -370,6 +395,17 @@ class CodeGeneratorARM64 : public CodeGenerator {
   ParallelMoveResolverARM64 move_resolver_;
   Arm64Assembler assembler_;
   const Arm64InstructionSetFeatures& isa_features_;
+
+  // Deduplication map for 64-bit literals, used for non-patchable method address and method code.
+  Uint64ToLiteralMap uint64_literals_;
+  // Method patch info, map MethodReference to a literal for method address and method code.
+  MethodToLiteralMap method_patches_;
+  MethodToLiteralMap call_patches_;
+  // Relative call patch info.
+  // Using ArenaDeque<> which retains element addresses on push/emplace_back().
+  ArenaDeque<MethodPatchInfo<vixl::Label>> relative_call_patches_;
+  // PC-relative DexCache access info.
+  ArenaDeque<PcRelativeDexCacheAccessInfo> pc_rel_dex_cache_patches_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorARM64);
 };
