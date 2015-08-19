@@ -38,28 +38,6 @@
 
 namespace art {
 
-// Some tests very occasionally fail: we expect to have an unrelocated non-pic
-// odex file that is reported as needing relocation, but it is reported
-// instead as being up to date (b/22599792).
-//
-// This function adds extra checks for diagnosing why the given oat file is
-// reported up to date, when it should be non-pic needing relocation.
-// These extra diagnostics checks should be removed once b/22599792 has been
-// resolved.
-static void DiagnoseFlakyTestFailure(const OatFile& oat_file) {
-  Runtime* runtime = Runtime::Current();
-  const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
-  ASSERT_TRUE(image_space != nullptr);
-  const ImageHeader& image_header = image_space->GetImageHeader();
-  const OatHeader& oat_header = oat_file.GetOatHeader();
-  EXPECT_FALSE(oat_file.IsPic());
-  EXPECT_EQ(image_header.GetOatChecksum(), oat_header.GetImageFileLocationOatChecksum());
-  EXPECT_NE(reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin()),
-      oat_header.GetImageFileLocationOatDataBegin());
-  EXPECT_NE(image_header.GetPatchDelta(), oat_header.GetImagePatchDelta());
-}
-
-
 class OatFileAssistantTest : public CommonRuntimeTest {
  public:
   virtual void SetUp() {
@@ -206,28 +184,65 @@ class OatFileAssistantTest : public CommonRuntimeTest {
     return odex_dir_;
   }
 
-  // Generate an odex file for the purposes of test.
-  // If pic is true, generates a PIC odex.
+  // Generate a non-PIC odex file for the purposes of test.
   // The generated odex file will be un-relocated.
   void GenerateOdexForTest(const std::string& dex_location,
-                           const std::string& odex_location,
-                           bool pic = false) {
-    // For this operation, we temporarily redirect the dalvik cache so dex2oat
-    // doesn't find the relocated image file.
+                           const std::string& odex_location) {
+    // To generate an un-relocated odex file, we first compile a relocated
+    // version of the file, then manually call patchoat to make it look as if
+    // it is unrelocated.
+    std::string relocated_odex_location = odex_location + ".relocated";
+    std::vector<std::string> args;
+    args.push_back("--dex-file=" + dex_location);
+    args.push_back("--oat-file=" + relocated_odex_location);
+    args.push_back("--include-patch-information");
+
+    // We need to use the quick compiler to generate non-PIC code, because
+    // the optimizing compiler always generates PIC.
+    args.push_back("--compiler-backend=Quick");
+
+    std::string error_msg;
+    ASSERT_TRUE(OatFileAssistant::Dex2Oat(args, &error_msg)) << error_msg;
+
+    // Use patchoat to unrelocate the relocated odex file.
+    Runtime* runtime = Runtime::Current();
+    std::vector<std::string> argv;
+    argv.push_back(runtime->GetPatchoatExecutable());
+    argv.push_back("--instruction-set=" + std::string(GetInstructionSetString(kRuntimeISA)));
+    argv.push_back("--input-oat-file=" + relocated_odex_location);
+    argv.push_back("--output-oat-file=" + odex_location);
+    argv.push_back("--base-offset-delta=0x00008000");
+    std::string command_line(Join(argv, ' '));
+    ASSERT_TRUE(Exec(argv, &error_msg)) << error_msg;
+
+    // Verify the odex file was generated as expected and really is
+    // unrelocated.
+    std::unique_ptr<OatFile> odex_file(OatFile::Open(
+        odex_location.c_str(), odex_location.c_str(), nullptr, nullptr,
+        false, dex_location.c_str(), &error_msg));
+    ASSERT_TRUE(odex_file.get() != nullptr) << error_msg;
+
+    const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
+    ASSERT_TRUE(image_space != nullptr);
+    const ImageHeader& image_header = image_space->GetImageHeader();
+    const OatHeader& oat_header = odex_file->GetOatHeader();
+    EXPECT_FALSE(odex_file->IsPic());
+    EXPECT_EQ(image_header.GetOatChecksum(), oat_header.GetImageFileLocationOatChecksum());
+    EXPECT_NE(reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin()),
+        oat_header.GetImageFileLocationOatDataBegin());
+    EXPECT_NE(image_header.GetPatchDelta(), oat_header.GetImagePatchDelta());
+  }
+
+  void GeneratePicOdexForTest(const std::string& dex_location,
+                              const std::string& odex_location) {
+    // Temporarily redirect the dalvik cache so dex2oat doesn't find the
+    // relocated image file.
     std::string android_data_tmp = GetScratchDir() + "AndroidDataTmp";
     setenv("ANDROID_DATA", android_data_tmp.c_str(), 1);
     std::vector<std::string> args;
     args.push_back("--dex-file=" + dex_location);
     args.push_back("--oat-file=" + odex_location);
-    if (pic) {
-      args.push_back("--compile-pic");
-    } else {
-      args.push_back("--include-patch-information");
-
-      // We need to use the quick compiler to generate non-PIC code, because
-      // the optimizing compiler always generates PIC.
-      args.push_back("--compiler-backend=Quick");
-    }
+    args.push_back("--compile-pic");
     args.push_back("--runtime-arg");
     args.push_back("-Xnorelocate");
     std::string error_msg;
@@ -239,15 +254,7 @@ class OatFileAssistantTest : public CommonRuntimeTest {
         odex_location.c_str(), odex_location.c_str(), nullptr, nullptr,
         false, dex_location.c_str(), &error_msg));
     ASSERT_TRUE(odex_file.get() != nullptr) << error_msg;
-
-    if (!pic) {
-      DiagnoseFlakyTestFailure(*odex_file);
-    }
-  }
-
-  void GeneratePicOdexForTest(const std::string& dex_location,
-                              const std::string& odex_location) {
-    GenerateOdexForTest(dex_location, odex_location, true);
+    EXPECT_TRUE(odex_file->IsPic());
   }
 
  private:
@@ -507,8 +514,6 @@ TEST_F(OatFileAssistantTest, DexOdexNoOat) {
   // We should still be able to get the non-executable odex file to run from.
   std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
   ASSERT_TRUE(oat_file.get() != nullptr);
-
-  DiagnoseFlakyTestFailure(*oat_file);
 }
 
 // Case: We have a stripped DEX file and an ODEX file, but no OAT file.
@@ -750,8 +755,6 @@ TEST_F(OatFileAssistantTest, OdexOatOverlap) {
   std::vector<std::unique_ptr<const DexFile>> dex_files;
   dex_files = oat_file_assistant.LoadDexFiles(*oat_file, dex_location.c_str());
   EXPECT_EQ(1u, dex_files.size());
-
-  DiagnoseFlakyTestFailure(*oat_file);
 }
 
 // Case: We have a DEX file and a PIC ODEX file, but no OAT file.
