@@ -46,14 +46,15 @@ class MANAGED ClassLoader : public Object {
     SetField64<false>(OFFSET_OF_OBJECT_MEMBER(ClassLoader, class_table_),
                       reinterpret_cast<uint64_t>(class_table));
   }
+
+ private:
   // Visit instance fields of the class loader as well as its associated classes.
   // Null class loader is handled by ClassLinker::VisitClassRoots.
-  template <const bool kVisitClass, VerifyObjectFlags kVerifyFlags, typename Visitor>
+  template <VerifyObjectFlags kVerifyFlags, typename Visitor>
   void VisitReferences(mirror::Class* klass, const Visitor& visitor)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!Locks::classlinker_classes_lock_);
 
- private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   HeapReference<Object> packages_;
   HeapReference<ClassLoader> parent_;
@@ -63,6 +64,7 @@ class MANAGED ClassLoader : public Object {
   uint64_t class_table_;
 
   friend struct art::ClassLoaderOffsets;  // for verifying offset information
+  friend class Object;  // For VisitReferences
   DISALLOW_IMPLICIT_CONSTRUCTORS(ClassLoader);
 };
 

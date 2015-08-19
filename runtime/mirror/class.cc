@@ -872,8 +872,8 @@ class CopyClassVisitor {
     h_new_class_obj->SetClassSize(new_length_);
     // Visit all of the references to make sure there is no from space references in the native
     // roots.
-    h_new_class_obj->VisitReferences<true>(h_new_class_obj->GetClass(),
-                                           ReadBarrierOnNativeRootsVisitor());
+    static_cast<mirror::Object*>(h_new_class_obj.Get())->VisitReferences(
+        ReadBarrierOnNativeRootsVisitor(), VoidFunctor());
   }
 
  private:

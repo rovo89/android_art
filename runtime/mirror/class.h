@@ -1021,10 +1021,6 @@ class MANAGED Class FINAL : public Object {
   void SetPreverifiedFlagOnAllMethods(size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  template <bool kVisitClass, typename Visitor>
-  void VisitReferences(mirror::Class* klass, const Visitor& visitor)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
   // Get the descriptor of the class. In a few cases a std::string is required, rather than
   // always create one the storage argument is populated and its internal c_str() returned. We do
   // this to avoid memory allocation in the common case.
@@ -1153,6 +1149,10 @@ class MANAGED Class FINAL : public Object {
   static MemberOffset EmbeddedImTableOffset(size_t pointer_size);
   static MemberOffset EmbeddedVTableOffset(size_t pointer_size);
 
+  template <typename Visitor>
+  void VisitReferences(mirror::Class* klass, const Visitor& visitor)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   // Defining class loader, or null for the "bootstrap" system loader.
   HeapReference<ClassLoader> class_loader_;
 
@@ -1279,6 +1279,7 @@ class MANAGED Class FINAL : public Object {
   static GcRoot<Class> java_lang_Class_;
 
   friend struct art::ClassOffsets;  // for verifying offset information
+  friend class Object;  // For VisitReferences
   DISALLOW_IMPLICIT_CONSTRUCTORS(Class);
 };
 

@@ -1109,7 +1109,7 @@ class ClinitImageUpdate {
     // If it is not a DexCache, visit all references.
     mirror::Class* klass = object->GetClass();
     if (klass != dex_cache_class_) {
-      object->VisitReferences<false /* visit class */>(*this, *this);
+      object->VisitReferences(*this, *this);
     }
   }
 

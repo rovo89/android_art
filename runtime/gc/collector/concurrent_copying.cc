@@ -683,7 +683,7 @@ class ConcurrentCopyingVerifyNoFromSpaceRefsObjectVisitor {
     space::RegionSpace* region_space = collector->RegionSpace();
     CHECK(!region_space->IsInFromSpace(obj)) << "Scanning object " << obj << " in from space";
     ConcurrentCopyingVerifyNoFromSpaceRefsFieldVisitor visitor(collector);
-    obj->VisitReferences<true>(visitor, visitor);
+    obj->VisitReferences(visitor, visitor);
     if (kUseBakerReadBarrier) {
       if (collector->RegionSpace()->IsInToSpace(obj)) {
         CHECK(obj->GetReadBarrierPointer() == nullptr)
@@ -808,7 +808,7 @@ class ConcurrentCopyingAssertToSpaceInvariantObjectVisitor {
     CHECK(!region_space->IsInFromSpace(obj)) << "Scanning object " << obj << " in from space";
     collector->AssertToSpaceInvariant(nullptr, MemberOffset(0), obj);
     ConcurrentCopyingAssertToSpaceInvariantFieldVisitor visitor(collector);
-    obj->VisitReferences<true>(visitor, visitor);
+    obj->VisitReferences(visitor, visitor);
   }
 
  private:
@@ -1546,7 +1546,7 @@ class ConcurrentCopyingRefFieldsVisitor {
 void ConcurrentCopying::Scan(mirror::Object* to_ref) {
   DCHECK(!region_space_->IsInFromSpace(to_ref));
   ConcurrentCopyingRefFieldsVisitor visitor(this);
-  to_ref->VisitReferences<true>(visitor, visitor);
+  to_ref->VisitReferences(visitor, visitor);
 }
 
 // Process a field.
