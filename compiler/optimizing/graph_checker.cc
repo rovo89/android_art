@@ -402,14 +402,14 @@ void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
   }
 
   // Ensure try membership information is consistent.
-  HTryBoundary* try_entry = block->GetTryEntry();
   if (block->IsCatchBlock()) {
-    if (try_entry != nullptr) {
+    if (block->IsTryBlock()) {
+      const HTryBoundary& try_entry = block->GetTryCatchInformation()->GetTryEntry();
       AddError(StringPrintf("Catch blocks should not be try blocks but catch block %d "
                             "has try entry %s:%d.",
                             block->GetBlockId(),
-                            try_entry->DebugName(),
-                            try_entry->GetId()));
+                            try_entry.DebugName(),
+                            try_entry.GetId()));
     }
 
     if (block->IsLoopHeader()) {
@@ -419,29 +419,30 @@ void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
   } else {
     for (size_t i = 0; i < block->GetPredecessors().Size(); ++i) {
       HBasicBlock* predecessor = block->GetPredecessors().Get(i);
-      HTryBoundary* incoming_try_entry = predecessor->ComputeTryEntryOfSuccessors();
-      if (try_entry == nullptr) {
-        if (incoming_try_entry != nullptr) {
-          AddError(StringPrintf("Block %d has no try entry but try entry %s:%d follows "
+      const HTryBoundary* incoming_try_entry = predecessor->ComputeTryEntryOfSuccessors();
+      if (block->IsTryBlock()) {
+        const HTryBoundary& stored_try_entry = block->GetTryCatchInformation()->GetTryEntry();
+        if (incoming_try_entry == nullptr) {
+          AddError(StringPrintf("Block %d has try entry %s:%d but no try entry follows "
                                 "from predecessor %d.",
                                 block->GetBlockId(),
+                                stored_try_entry.DebugName(),
+                                stored_try_entry.GetId(),
+                                predecessor->GetBlockId()));
+        } else if (!incoming_try_entry->HasSameExceptionHandlersAs(stored_try_entry)) {
+          AddError(StringPrintf("Block %d has try entry %s:%d which is not consistent "
+                                "with %s:%d that follows from predecessor %d.",
+                                block->GetBlockId(),
+                                stored_try_entry.DebugName(),
+                                stored_try_entry.GetId(),
                                 incoming_try_entry->DebugName(),
                                 incoming_try_entry->GetId(),
                                 predecessor->GetBlockId()));
         }
-      } else if (incoming_try_entry == nullptr) {
-        AddError(StringPrintf("Block %d has try entry %s:%d but no try entry follows "
+      } else if (incoming_try_entry != nullptr) {
+        AddError(StringPrintf("Block %d is not a try block but try entry %s:%d follows "
                               "from predecessor %d.",
                               block->GetBlockId(),
-                              try_entry->DebugName(),
-                              try_entry->GetId(),
-                              predecessor->GetBlockId()));
-      } else if (!incoming_try_entry->HasSameExceptionHandlersAs(*try_entry)) {
-        AddError(StringPrintf("Block %d has try entry %s:%d which is not consistent "
-                              "with %s:%d that follows from predecessor %d.",
-                              block->GetBlockId(),
-                              try_entry->DebugName(),
-                              try_entry->GetId(),
                               incoming_try_entry->DebugName(),
                               incoming_try_entry->GetId(),
                               predecessor->GetBlockId()));
