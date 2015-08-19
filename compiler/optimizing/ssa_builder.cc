@@ -567,9 +567,10 @@ void SsaBuilder::VisitInstruction(HInstruction* instruction) {
   }
 
   // If in a try block, propagate values of locals into catch blocks.
-  if (instruction->GetBlock()->IsInTry() && instruction->CanThrow()) {
-    HTryBoundary* try_block = instruction->GetBlock()->GetTryEntry();
-    for (HExceptionHandlerIterator it(*try_block); !it.Done(); it.Advance()) {
+  if (instruction->CanThrowIntoCatchBlock()) {
+    const HTryBoundary& try_entry =
+        instruction->GetBlock()->GetTryCatchInformation()->GetTryEntry();
+    for (HExceptionHandlerIterator it(try_entry); !it.Done(); it.Advance()) {
       GrowableArray<HInstruction*>* handler_locals = GetLocalsFor(it.Current());
       for (size_t i = 0, e = current_locals_->Size(); i < e; ++i) {
         HInstruction* local_value = current_locals_->Get(i);
