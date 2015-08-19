@@ -142,7 +142,10 @@ void HDeadCodeElimination::RemoveDeadInstructions() {
 }
 
 void HDeadCodeElimination::Run() {
-  RemoveDeadBlocks();
+  if (!graph_->HasTryCatch()) {
+    // TODO: Update dead block elimination and enable for try/catch.
+    RemoveDeadBlocks();
+  }
   SsaRedundantPhiElimination(graph_).Run();
   RemoveDeadInstructions();
 }
