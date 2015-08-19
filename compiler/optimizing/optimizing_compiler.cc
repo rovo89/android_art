@@ -19,6 +19,10 @@
 #include <fstream>
 #include <stdint.h>
 
+#ifdef ART_ENABLE_CODEGEN_arm64
+#include "instruction_simplifier_arm64.h"
+#endif
+
 #include "art_method-inl.h"
 #include "base/arena_allocator.h"
 #include "base/dumpable.h"
@@ -399,6 +403,32 @@ static void MaybeRunInliner(HGraph* graph,
   RunOptimizations(optimizations, arraysize(optimizations), pass_observer);
 }
 
+static void RunArchOptimizations(InstructionSet instruction_set,
+                                 HGraph* graph,
+                                 OptimizingCompilerStats* stats,
+                                 PassObserver* pass_observer) {
+  ArenaAllocator* arena = graph->GetArena();
+  switch (instruction_set) {
+#ifdef ART_ENABLE_CODEGEN_arm64
+    case kArm64: {
+      arm64::InstructionSimplifierArm64* simplifier =
+          new (arena) arm64::InstructionSimplifierArm64(graph, stats);
+      SideEffectsAnalysis* side_effects = new (arena) SideEffectsAnalysis(graph);
+      GVNOptimization* gvn = new (arena) GVNOptimization(graph, *side_effects, "GVN_after_arch");
+      HOptimization* arm64_optimizations[] = {
+        simplifier,
+        side_effects,
+        gvn
+      };
+      RunOptimizations(arm64_optimizations, arraysize(arm64_optimizations), pass_observer);
+      break;
+    }
+#endif
+    default:
+      break;
+  }
+}
+
 static void RunOptimizations(HGraph* graph,
                              CompilerDriver* driver,
                              OptimizingCompilerStats* stats,
@@ -460,6 +490,8 @@ static void RunOptimizations(HGraph* graph,
   };
 
   RunOptimizations(optimizations2, arraysize(optimizations2), pass_observer);
+
+  RunArchOptimizations(driver->GetInstructionSet(), graph, stats, pass_observer);
 }
 
 // The stack map we generate must be 4-byte aligned on ARM. Since existing
