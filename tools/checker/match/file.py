@@ -17,7 +17,7 @@ from common.immutables                import ImmutableDict
 from common.logger                    import Logger
 from file_format.c1visualizer.struct  import C1visualizerFile, C1visualizerPass
 from file_format.checker.struct       import CheckerFile, TestCase, TestAssertion
-from match.line                       import MatchLines
+from match.line                       import MatchLines, EvaluateLine
 
 MatchScope = namedtuple("MatchScope", ["start", "end"])
 MatchInfo = namedtuple("MatchInfo", ["scope", "variables"])
@@ -94,6 +94,11 @@ def testNotGroup(assertions, c1Pass, scope, variables):
       if MatchLines(assertion, line, variables) is not None:
         raise MatchFailedException(assertion, i)
 
+def testEvalGroup(assertions, scope, variables):
+  for assertion in assertions:
+    if not EvaluateLine(assertion, variables):
+      raise MatchFailedException(assertion, scope.start)
+
 def MatchTestCase(testCase, c1Pass):
   """ Runs a test case against a C1visualizer graph dump.
 
@@ -132,11 +137,15 @@ def MatchTestCase(testCase, c1Pass):
       assert len(assertionGroup) == 1
       scope = MatchScope(matchFrom, matchFrom + 1)
       match = findMatchingLine(assertionGroup[0], c1Pass, scope, variables)
-    else:
+    elif assertionGroup[0].variant == TestAssertion.Variant.DAG:
       # A group of DAG assertions. Match them all starting from the same point.
-      assert assertionGroup[0].variant == TestAssertion.Variant.DAG
       scope = MatchScope(matchFrom, c1Length)
       match = matchDagGroup(assertionGroup, c1Pass, scope, variables)
+    else:
+      assert assertionGroup[0].variant == TestAssertion.Variant.Eval
+      scope = MatchScope(matchFrom, c1Length)
+      testEvalGroup(assertionGroup, scope, variables)
+      continue
 
     if pendingNotAssertions:
       # Previous group were NOT assertions. Make sure they don't match any lines
