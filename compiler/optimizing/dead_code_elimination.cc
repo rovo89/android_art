@@ -133,6 +133,7 @@ void HDeadCodeElimination::RemoveDeadInstructions() {
           && !inst->IsSuspendCheck()
           // If we added an explicit barrier then we should keep it.
           && !inst->IsMemoryBarrier()
+          && !inst->IsParameterValue()
           && !inst->HasUses()) {
         block->RemoveInstruction(inst);
         MaybeRecordStat(MethodCompilationStat::kRemovedDeadInstruction);

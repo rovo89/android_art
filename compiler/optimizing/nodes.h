@@ -3775,11 +3775,15 @@ class HXor : public HBinaryOperation {
 class HParameterValue : public HExpression<0> {
  public:
   HParameterValue(uint8_t index, Primitive::Type parameter_type, bool is_this = false)
-      : HExpression(parameter_type, SideEffects::None()), index_(index), is_this_(is_this) {}
+      : HExpression(parameter_type, SideEffects::None()),
+        index_(index),
+        is_this_(is_this),
+        can_be_null_(!is_this) {}
 
   uint8_t GetIndex() const { return index_; }
 
-  bool CanBeNull() const OVERRIDE { return !is_this_; }
+  bool CanBeNull() const OVERRIDE { return can_be_null_; }
+  void SetCanBeNull(bool can_be_null) { can_be_null_ = can_be_null; }
 
   bool IsThis() const { return is_this_; }
 
@@ -3792,6 +3796,8 @@ class HParameterValue : public HExpression<0> {
 
   // Whether or not the parameter value corresponds to 'this' argument.
   const bool is_this_;
+
+  bool can_be_null_;
 
   DISALLOW_COPY_AND_ASSIGN(HParameterValue);
 };
@@ -4444,6 +4450,7 @@ class HLoadString : public HExpression<1> {
   // TODO: Can we deopt or debug when we resolve a string?
   bool NeedsEnvironment() const OVERRIDE { return false; }
   bool NeedsDexCache() const OVERRIDE { return true; }
+  bool CanBeNull() const OVERRIDE { return false; }
 
   static SideEffects SideEffectsForArchRuntimeCalls() {
     return SideEffects::CanTriggerGC();

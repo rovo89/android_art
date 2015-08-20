@@ -99,10 +99,8 @@ public class Main {
   /// CHECK-DAG:                     Return [<<Result>>]
 
   /// CHECK-START: int Main.InlineAdd() inliner (after)
-  /// CHECK-DAG:     <<Const3:i\d+>> IntConstant 3
-  /// CHECK-DAG:     <<Const5:i\d+>> IntConstant 5
-  /// CHECK-DAG:     <<Add:i\d+>>    Add [<<Const3>>,<<Const5>>]
-  /// CHECK-DAG:                     Return [<<Add>>]
+  /// CHECK-DAG:     <<Const8:i\d+>> IntConstant 8
+  /// CHECK-DAG:                     Return [<<Const8>>]
 
   public static int InlineAdd() {
     return returnAdd(3, 5);
@@ -136,12 +134,9 @@ public class Main {
   /// CHECK-DAG:                     Return [<<Phi>>]
 
   /// CHECK-START: int Main.InlineWithControlFlow(boolean) inliner (after)
-  /// CHECK-DAG:     <<Const1:i\d+>> IntConstant 1
-  /// CHECK-DAG:     <<Const3:i\d+>> IntConstant 3
-  /// CHECK-DAG:     <<Const5:i\d+>> IntConstant 5
-  /// CHECK-DAG:     <<Add:i\d+>>    Add [<<Const1>>,<<Const3>>]
-  /// CHECK-DAG:     <<Sub:i\d+>>    Sub [<<Const5>>,<<Const3>>]
-  /// CHECK-DAG:     <<Phi:i\d+>>    Phi [<<Add>>,<<Sub>>]
+  /// CHECK-DAG:     <<Const4:i\d+>> IntConstant 4
+  /// CHECK-DAG:     <<Const2:i\d+>> IntConstant 2
+  /// CHECK-DAG:     <<Phi:i\d+>>    Phi [<<Const4>>,<<Const2>>]
   /// CHECK-DAG:                     Return [<<Phi>>]
 
   public static int InlineWithControlFlow(boolean cond) {
