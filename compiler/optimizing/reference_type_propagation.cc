@@ -475,7 +475,7 @@ void RTPVisitor::VisitLoadException(HLoadException* instr) {
 
   if (catch_info->IsCatchAllTypeIndex()) {
     instr->SetReferenceTypeInfo(ReferenceTypeInfo::Create(throwable_class_handle_,
-                                /* is_exact */ false));
+                                                          /* is_exact */ false));
   } else {
     UpdateReferenceTypeInfo(instr,
                             catch_info->GetCatchTypeIndex(),
