@@ -42,6 +42,7 @@ class HInliner : public HOptimization {
         caller_compilation_unit_(caller_compilation_unit),
         compiler_driver_(compiler_driver),
         depth_(depth),
+        number_of_inlined_instructions_(0),
         handles_(handles) {}
 
   void Run() OVERRIDE;
@@ -49,15 +50,16 @@ class HInliner : public HOptimization {
   static constexpr const char* kInlinerPassName = "inliner";
 
  private:
-  bool TryInline(HInvoke* invoke_instruction) const;
+  bool TryInline(HInvoke* invoke_instruction);
   bool TryBuildAndInline(ArtMethod* resolved_method,
                          HInvoke* invoke_instruction,
-                         bool same_dex_file) const;
+                         bool same_dex_file);
 
   const DexCompilationUnit& outer_compilation_unit_;
   const DexCompilationUnit& caller_compilation_unit_;
   CompilerDriver* const compiler_driver_;
   const size_t depth_;
+  size_t number_of_inlined_instructions_;
   StackHandleScopeCollection* const handles_;
 
   DISALLOW_COPY_AND_ASSIGN(HInliner);
