@@ -759,33 +759,221 @@ void HGraphBuilder::BuildReturn(const Instruction& instruction, Primitive::Type 
   current_block_ = nullptr;
 }
 
-void HGraphBuilder::PotentiallySimplifyFakeString(uint16_t original_dex_register,
-                                                  uint32_t dex_pc,
-                                                  HInvoke* actual_string) {
-  if (!graph_->IsDebuggable()) {
-    // Notify that we cannot compile with baseline. The dex registers aliasing
-    // with `original_dex_register` will be handled when we optimize
-    // (see HInstructionSimplifer::VisitFakeString).
-    can_use_baseline_for_string_init_ = false;
-    return;
+static InvokeType GetInvokeTypeFromOpCode(Instruction::Code opcode) {
+  switch (opcode) {
+    case Instruction::INVOKE_STATIC:
+    case Instruction::INVOKE_STATIC_RANGE:
+      return kStatic;
+    case Instruction::INVOKE_DIRECT:
+    case Instruction::INVOKE_DIRECT_RANGE:
+      return kDirect;
+    case Instruction::INVOKE_VIRTUAL:
+    case Instruction::INVOKE_VIRTUAL_QUICK:
+    case Instruction::INVOKE_VIRTUAL_RANGE:
+    case Instruction::INVOKE_VIRTUAL_RANGE_QUICK:
+      return kVirtual;
+    case Instruction::INVOKE_INTERFACE:
+    case Instruction::INVOKE_INTERFACE_RANGE:
+      return kInterface;
+    case Instruction::INVOKE_SUPER_RANGE:
+    case Instruction::INVOKE_SUPER:
+      return kSuper;
+    default:
+      LOG(FATAL) << "Unexpected invoke opcode: " << opcode;
+      UNREACHABLE();
   }
-  const VerifiedMethod* verified_method =
-      compiler_driver_->GetVerifiedMethod(dex_file_, dex_compilation_unit_->GetDexMethodIndex());
-  if (verified_method != nullptr) {
-    UpdateLocal(original_dex_register, actual_string);
-    const SafeMap<uint32_t, std::set<uint32_t>>& string_init_map =
-        verified_method->GetStringInitPcRegMap();
-    auto map_it = string_init_map.find(dex_pc);
-    if (map_it != string_init_map.end()) {
-      std::set<uint32_t> reg_set = map_it->second;
-      for (auto set_it = reg_set.begin(); set_it != reg_set.end(); ++set_it) {
-        HInstruction* load_local = LoadLocal(original_dex_register, Primitive::kPrimNot);
-        UpdateLocal(*set_it, load_local);
-      }
+}
+
+bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
+                                uint32_t dex_pc,
+                                uint32_t method_idx,
+                                uint32_t number_of_vreg_arguments,
+                                bool is_range,
+                                uint32_t* args,
+                                uint32_t register_index) {
+  InvokeType original_invoke_type = GetInvokeTypeFromOpCode(instruction.Opcode());
+  InvokeType optimized_invoke_type = original_invoke_type;
+  const char* descriptor = dex_file_->GetMethodShorty(method_idx);
+  Primitive::Type return_type = Primitive::GetType(descriptor[0]);
+
+  // Remove the return type from the 'proto'.
+  size_t number_of_arguments = strlen(descriptor) - 1;
+  if (original_invoke_type != kStatic) {  // instance call
+    // One extra argument for 'this'.
+    number_of_arguments++;
+  }
+
+  MethodReference target_method(dex_file_, method_idx);
+  int32_t table_index;
+  uintptr_t direct_code;
+  uintptr_t direct_method;
+
+  if (!compiler_driver_->ComputeInvokeInfo(dex_compilation_unit_,
+                                           dex_pc,
+                                           true /* update_stats */,
+                                           true /* enable_devirtualization */,
+                                           &optimized_invoke_type,
+                                           &target_method,
+                                           &table_index,
+                                           &direct_code,
+                                           &direct_method)) {
+    VLOG(compiler) << "Did not compile "
+                   << PrettyMethod(dex_compilation_unit_->GetDexMethodIndex(), *dex_file_)
+                   << " because a method call could not be resolved";
+    MaybeRecordStat(MethodCompilationStat::kNotCompiledUnresolvedMethod);
+    return false;
+  }
+
+  DCHECK(optimized_invoke_type != kSuper);
+
+  // Special handling for string init.
+  int32_t string_init_offset = 0;
+  bool is_string_init = compiler_driver_->IsStringInit(method_idx, dex_file_,
+                                                       &string_init_offset);
+
+  // Potential class initialization check, in the case of a static method call.
+  HClinitCheck* clinit_check = nullptr;
+  HInvoke* invoke = nullptr;
+
+  if (is_string_init
+      || optimized_invoke_type == kDirect
+      || optimized_invoke_type == kStatic) {
+    // By default, consider that the called method implicitly requires
+    // an initialization check of its declaring method.
+    HInvokeStaticOrDirect::ClinitCheckRequirement clinit_check_requirement
+        = HInvokeStaticOrDirect::ClinitCheckRequirement::kImplicit;
+    if (optimized_invoke_type == kStatic && !is_string_init) {
+      clinit_check = ProcessClinitCheckForInvoke(dex_pc, method_idx, &clinit_check_requirement);
     }
+
+    // Replace calls to String.<init> with StringFactory.
+    if (is_string_init) {
+      return_type = Primitive::kPrimNot;
+      number_of_arguments--;
+      optimized_invoke_type = kStatic;
+    }
+
+    HInvokeStaticOrDirect::DispatchInfo dispatch_info = ComputeDispatchInfo(is_string_init,
+                                                                            string_init_offset,
+                                                                            target_method,
+                                                                            direct_method,
+                                                                            direct_code);
+    invoke = new (arena_) HInvokeStaticOrDirect(arena_,
+                                                number_of_arguments,
+                                                return_type,
+                                                dex_pc,
+                                                method_idx,
+                                                target_method,
+                                                dispatch_info,
+                                                original_invoke_type,
+                                                optimized_invoke_type,
+                                                clinit_check_requirement);
+  } else if (optimized_invoke_type == kVirtual) {
+    invoke = new (arena_) HInvokeVirtual(arena_,
+                                         number_of_arguments,
+                                         return_type,
+                                         dex_pc,
+                                         method_idx,
+                                         table_index);
   } else {
-    can_use_baseline_for_string_init_ = false;
+    DCHECK_EQ(optimized_invoke_type, kInterface);
+    invoke = new (arena_) HInvokeInterface(arena_,
+                                           number_of_arguments,
+                                           return_type,
+                                           dex_pc,
+                                           method_idx,
+                                           table_index);
   }
+
+  if (!SetupArgumentsForInvoke(invoke,
+                               number_of_vreg_arguments,
+                               args,
+                               register_index,
+                               is_range,
+                               descriptor,
+                               clinit_check)) {
+    return false;
+  }
+
+  current_block_->AddInstruction(invoke);
+  latest_result_ = invoke;
+
+  return true;
+}
+
+HClinitCheck* HGraphBuilder::ProcessClinitCheckForInvoke(
+      uint32_t dex_pc,
+      uint32_t method_idx,
+      HInvokeStaticOrDirect::ClinitCheckRequirement* clinit_check_requirement) {
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScope<4> hs(soa.Self());
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(
+      dex_compilation_unit_->GetClassLinker()->FindDexCache(
+          *dex_compilation_unit_->GetDexFile())));
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
+      soa.Decode<mirror::ClassLoader*>(dex_compilation_unit_->GetClassLoader())));
+  ArtMethod* resolved_method = compiler_driver_->ResolveMethod(
+      soa, dex_cache, class_loader, dex_compilation_unit_, method_idx, InvokeType::kStatic);
+
+  DCHECK(resolved_method != nullptr);
+
+  const DexFile& outer_dex_file = *outer_compilation_unit_->GetDexFile();
+  Handle<mirror::DexCache> outer_dex_cache(hs.NewHandle(
+      outer_compilation_unit_->GetClassLinker()->FindDexCache(outer_dex_file)));
+  Handle<mirror::Class> outer_class(hs.NewHandle(GetOutermostCompilingClass()));
+
+  // The index at which the method's class is stored in the DexCache's type array.
+  uint32_t storage_index = DexFile::kDexNoIndex;
+  bool is_outer_class = (resolved_method->GetDeclaringClass() == outer_class.Get());
+  if (is_outer_class) {
+    storage_index = outer_class->GetDexTypeIndex();
+  } else if (outer_dex_cache.Get() == dex_cache.Get()) {
+    // Get `storage_index` from IsClassOfStaticMethodAvailableToReferrer.
+    compiler_driver_->IsClassOfStaticMethodAvailableToReferrer(outer_dex_cache.Get(),
+                                                               GetCompilingClass(),
+                                                               resolved_method,
+                                                               method_idx,
+                                                               &storage_index);
+  }
+
+  HClinitCheck* clinit_check = nullptr;
+
+  if (!outer_class->IsInterface()
+      && outer_class->IsSubClass(resolved_method->GetDeclaringClass())) {
+    // If the outer class is the declaring class or a subclass
+    // of the declaring class, no class initialization is needed
+    // before the static method call.
+    // Note that in case of inlining, we do not need to add clinit checks
+    // to calls that satisfy this subclass check with any inlined methods. This
+    // will be detected by the optimization passes.
+    *clinit_check_requirement = HInvokeStaticOrDirect::ClinitCheckRequirement::kNone;
+  } else if (storage_index != DexFile::kDexNoIndex) {
+    // If the method's class type index is available, check
+    // whether we should add an explicit class initialization
+    // check for its declaring class before the static method call.
+
+    // TODO: find out why this check is needed.
+    bool is_in_dex_cache = compiler_driver_->CanAssumeTypeIsPresentInDexCache(
+        *outer_compilation_unit_->GetDexFile(), storage_index);
+    bool is_initialized =
+        resolved_method->GetDeclaringClass()->IsInitialized() && is_in_dex_cache;
+
+    if (is_initialized) {
+      *clinit_check_requirement = HInvokeStaticOrDirect::ClinitCheckRequirement::kNone;
+    } else {
+      *clinit_check_requirement = HInvokeStaticOrDirect::ClinitCheckRequirement::kExplicit;
+      HLoadClass* load_class = new (arena_) HLoadClass(
+          graph_->GetCurrentMethod(),
+          storage_index,
+          *dex_compilation_unit_->GetDexFile(),
+          is_outer_class,
+          dex_pc);
+      current_block_->AddInstruction(load_class);
+      clinit_check = new (arena_) HClinitCheck(load_class, dex_pc);
+      current_block_->AddInstruction(clinit_check);
+    }
+  }
+  return clinit_check;
 }
 
 HInvokeStaticOrDirect::DispatchInfo HGraphBuilder::ComputeDispatchInfo(
@@ -859,210 +1047,40 @@ HInvokeStaticOrDirect::DispatchInfo HGraphBuilder::ComputeDispatchInfo(
     method_load_kind, code_ptr_location, method_load_data, direct_code_ptr };
 }
 
-bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
-                                uint32_t dex_pc,
-                                uint32_t method_idx,
-                                uint32_t number_of_vreg_arguments,
-                                bool is_range,
-                                uint32_t* args,
-                                uint32_t register_index) {
-  Instruction::Code opcode = instruction.Opcode();
-  InvokeType invoke_type;
-  switch (opcode) {
-    case Instruction::INVOKE_STATIC:
-    case Instruction::INVOKE_STATIC_RANGE:
-      invoke_type = kStatic;
-      break;
-    case Instruction::INVOKE_DIRECT:
-    case Instruction::INVOKE_DIRECT_RANGE:
-      invoke_type = kDirect;
-      break;
-    case Instruction::INVOKE_VIRTUAL:
-    case Instruction::INVOKE_VIRTUAL_QUICK:
-    case Instruction::INVOKE_VIRTUAL_RANGE:
-    case Instruction::INVOKE_VIRTUAL_RANGE_QUICK:
-      invoke_type = kVirtual;
-      break;
-    case Instruction::INVOKE_INTERFACE:
-    case Instruction::INVOKE_INTERFACE_RANGE:
-      invoke_type = kInterface;
-      break;
-    case Instruction::INVOKE_SUPER_RANGE:
-    case Instruction::INVOKE_SUPER:
-      invoke_type = kSuper;
-      break;
-    default:
-      LOG(FATAL) << "Unexpected invoke op: " << opcode;
-      return false;
-  }
-
-  const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
-  const DexFile::ProtoId& proto_id = dex_file_->GetProtoId(method_id.proto_idx_);
-  const char* descriptor = dex_file_->StringDataByIdx(proto_id.shorty_idx_);
-  Primitive::Type return_type = Primitive::GetType(descriptor[0]);
-  bool is_instance_call = invoke_type != kStatic;
-  // Remove the return type from the 'proto'.
-  size_t number_of_arguments = strlen(descriptor) - 1;
-  if (is_instance_call) {
-    // One extra argument for 'this'.
-    ++number_of_arguments;
-  }
-
-  MethodReference target_method(dex_file_, method_idx);
-  uintptr_t direct_code;
-  uintptr_t direct_method;
-  int table_index;
-  InvokeType optimized_invoke_type = invoke_type;
-
-  if (!compiler_driver_->ComputeInvokeInfo(dex_compilation_unit_, dex_pc, true, true,
-                                           &optimized_invoke_type, &target_method, &table_index,
-                                           &direct_code, &direct_method)) {
-    VLOG(compiler) << "Did not compile "
-                   << PrettyMethod(dex_compilation_unit_->GetDexMethodIndex(), *dex_file_)
-                   << " because a method call could not be resolved";
-    MaybeRecordStat(MethodCompilationStat::kNotCompiledUnresolvedMethod);
-    return false;
-  }
-  DCHECK(optimized_invoke_type != kSuper);
-
-  // By default, consider that the called method implicitly requires
-  // an initialization check of its declaring method.
-  HInvokeStaticOrDirect::ClinitCheckRequirement clinit_check_requirement =
-      HInvokeStaticOrDirect::ClinitCheckRequirement::kImplicit;
-  // Potential class initialization check, in the case of a static method call.
-  HClinitCheck* clinit_check = nullptr;
-  // Replace calls to String.<init> with StringFactory.
-  int32_t string_init_offset = 0;
-  bool is_string_init = compiler_driver_->IsStringInit(method_idx, dex_file_, &string_init_offset);
-  if (is_string_init) {
-    return_type = Primitive::kPrimNot;
-    is_instance_call = false;
-    number_of_arguments--;
-    invoke_type = kStatic;
-    optimized_invoke_type = kStatic;
-  }
-
-  HInvoke* invoke = nullptr;
-
-  if (optimized_invoke_type == kVirtual) {
-    invoke = new (arena_) HInvokeVirtual(
-        arena_, number_of_arguments, return_type, dex_pc, method_idx, table_index);
-  } else if (optimized_invoke_type == kInterface) {
-    invoke = new (arena_) HInvokeInterface(
-        arena_, number_of_arguments, return_type, dex_pc, method_idx, table_index);
-  } else {
-    DCHECK(optimized_invoke_type == kDirect || optimized_invoke_type == kStatic);
-
-    if (optimized_invoke_type == kStatic && !is_string_init) {
-      ScopedObjectAccess soa(Thread::Current());
-      StackHandleScope<4> hs(soa.Self());
-      Handle<mirror::DexCache> dex_cache(hs.NewHandle(
-          dex_compilation_unit_->GetClassLinker()->FindDexCache(
-              *dex_compilation_unit_->GetDexFile())));
-      Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
-          soa.Decode<mirror::ClassLoader*>(dex_compilation_unit_->GetClassLoader())));
-      ArtMethod* resolved_method = compiler_driver_->ResolveMethod(
-          soa, dex_cache, class_loader, dex_compilation_unit_, method_idx, optimized_invoke_type);
-
-      if (resolved_method == nullptr) {
-        MaybeRecordStat(MethodCompilationStat::kNotCompiledUnresolvedMethod);
-        return false;
-      }
-
-      const DexFile& outer_dex_file = *outer_compilation_unit_->GetDexFile();
-      Handle<mirror::DexCache> outer_dex_cache(hs.NewHandle(
-          outer_compilation_unit_->GetClassLinker()->FindDexCache(outer_dex_file)));
-      Handle<mirror::Class> outer_class(hs.NewHandle(GetOutermostCompilingClass()));
-
-      // The index at which the method's class is stored in the DexCache's type array.
-      uint32_t storage_index = DexFile::kDexNoIndex;
-      bool is_outer_class = (resolved_method->GetDeclaringClass() == outer_class.Get());
-      if (is_outer_class) {
-        storage_index = outer_class->GetDexTypeIndex();
-      } else if (outer_dex_cache.Get() == dex_cache.Get()) {
-        // Get `storage_index` from IsClassOfStaticMethodAvailableToReferrer.
-        compiler_driver_->IsClassOfStaticMethodAvailableToReferrer(outer_dex_cache.Get(),
-                                                                   GetCompilingClass(),
-                                                                   resolved_method,
-                                                                   method_idx,
-                                                                   &storage_index);
-      }
-
-      if (!outer_class->IsInterface()
-          && outer_class->IsSubClass(resolved_method->GetDeclaringClass())) {
-        // If the outer class is the declaring class or a subclass
-        // of the declaring class, no class initialization is needed
-        // before the static method call.
-        // Note that in case of inlining, we do not need to add clinit checks
-        // to calls that satisfy this subclass check with any inlined methods. This
-        // will be detected by the optimization passes.
-        clinit_check_requirement = HInvokeStaticOrDirect::ClinitCheckRequirement::kNone;
-      } else if (storage_index != DexFile::kDexNoIndex) {
-        // If the method's class type index is available, check
-        // whether we should add an explicit class initialization
-        // check for its declaring class before the static method call.
-
-        // TODO: find out why this check is needed.
-        bool is_in_dex_cache = compiler_driver_->CanAssumeTypeIsPresentInDexCache(
-            *outer_compilation_unit_->GetDexFile(), storage_index);
-        bool is_initialized =
-            resolved_method->GetDeclaringClass()->IsInitialized() && is_in_dex_cache;
-
-        if (is_initialized) {
-          clinit_check_requirement = HInvokeStaticOrDirect::ClinitCheckRequirement::kNone;
-        } else {
-          clinit_check_requirement = HInvokeStaticOrDirect::ClinitCheckRequirement::kExplicit;
-          HLoadClass* load_class = new (arena_) HLoadClass(
-              graph_->GetCurrentMethod(),
-              storage_index,
-              *dex_compilation_unit_->GetDexFile(),
-              is_outer_class,
-              dex_pc);
-          current_block_->AddInstruction(load_class);
-          clinit_check = new (arena_) HClinitCheck(load_class, dex_pc);
-          current_block_->AddInstruction(clinit_check);
-        }
-      }
-    }
-
-    HInvokeStaticOrDirect::DispatchInfo dispatch_info = ComputeDispatchInfo(is_string_init,
-                                                                            string_init_offset,
-                                                                            target_method,
-                                                                            direct_method,
-                                                                            direct_code);
-    invoke = new (arena_) HInvokeStaticOrDirect(arena_,
-                                                number_of_arguments,
-                                                return_type,
-                                                dex_pc,
-                                                method_idx,
-                                                target_method,
-                                                dispatch_info,
-                                                invoke_type,
-                                                optimized_invoke_type,
-                                                clinit_check_requirement);
-  }
-
+bool HGraphBuilder::SetupArgumentsForInvoke(HInvoke* invoke,
+                                            uint32_t number_of_vreg_arguments,
+                                            uint32_t* args,
+                                            uint32_t register_index,
+                                            bool is_range,
+                                            const char* descriptor,
+                                            HClinitCheck* clinit_check) {
   size_t start_index = 0;
-  Temporaries temps(graph_);
-  if (is_instance_call) {
+  size_t argument_index = 0;
+  uint32_t descriptor_index = 1;  // Skip the return type.
+
+  bool is_instance_call = invoke->GetOriginalInvokeType() != InvokeType::kStatic;
+  bool is_string_init = invoke->IsInvokeStaticOrDirect()
+      && invoke->AsInvokeStaticOrDirect()->IsStringInit();
+
+  if (is_string_init) {
+    start_index = 1;
+    argument_index = 0;
+  } else if (is_instance_call) {
+    Temporaries temps(graph_);
     HInstruction* arg = LoadLocal(is_range ? register_index : args[0], Primitive::kPrimNot);
-    HNullCheck* null_check = new (arena_) HNullCheck(arg, dex_pc);
+    HNullCheck* null_check = new (arena_) HNullCheck(arg, invoke->GetDexPc());
     current_block_->AddInstruction(null_check);
     temps.Add(null_check);
     invoke->SetArgumentAt(0, null_check);
     start_index = 1;
+    argument_index = 1;
   }
 
-  uint32_t descriptor_index = 1;  // Skip the return type.
-  uint32_t argument_index = start_index;
-  if (is_string_init) {
-    start_index = 1;
-  }
   for (size_t i = start_index;
        // Make sure we don't go over the expected arguments or over the number of
        // dex registers given. If the instruction was seen as dead by the verifier,
        // it hasn't been properly checked.
-       (i < number_of_vreg_arguments) && (argument_index < number_of_arguments);
+       (i < number_of_vreg_arguments) && (argument_index < invoke->GetNumberOfArguments());
        i++, argument_index++) {
     Primitive::Type type = Primitive::GetType(descriptor[descriptor_index++]);
     bool is_wide = (type == Primitive::kPrimLong) || (type == Primitive::kPrimDouble);
@@ -1085,7 +1103,7 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
     }
   }
 
-  if (argument_index != number_of_arguments) {
+  if (argument_index != invoke->GetNumberOfArguments()) {
     VLOG(compiler) << "Did not compile "
                    << PrettyMethod(dex_compilation_unit_->GetDexMethodIndex(), *dex_file_)
                    << " because of wrong number of arguments in invoke instruction";
@@ -1098,10 +1116,12 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
     argument_index++;
   }
 
-  if (clinit_check_requirement == HInvokeStaticOrDirect::ClinitCheckRequirement::kExplicit) {
+  if (clinit_check != nullptr) {
     // Add the class initialization check as last input of `invoke`.
-    DCHECK(clinit_check != nullptr);
     DCHECK(!is_string_init);
+    DCHECK(invoke->IsInvokeStaticOrDirect());
+    DCHECK(invoke->AsInvokeStaticOrDirect()->GetClinitCheckRequirement()
+        == HInvokeStaticOrDirect::ClinitCheckRequirement::kExplicit);
     invoke->SetArgumentAt(argument_index, clinit_check);
     argument_index++;
   }
@@ -1111,14 +1131,38 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
     uint32_t orig_this_reg = is_range ? register_index : args[0];
     HInstruction* fake_string = LoadLocal(orig_this_reg, Primitive::kPrimNot);
     invoke->SetArgumentAt(argument_index, fake_string);
-    current_block_->AddInstruction(invoke);
-    PotentiallySimplifyFakeString(orig_this_reg, dex_pc, invoke);
-  } else {
-    current_block_->AddInstruction(invoke);
+    PotentiallySimplifyFakeString(orig_this_reg, invoke->GetDexPc(), invoke);
   }
-  latest_result_ = invoke;
-
   return true;
+}
+
+void HGraphBuilder::PotentiallySimplifyFakeString(uint16_t original_dex_register,
+                                                  uint32_t dex_pc,
+                                                  HInvoke* actual_string) {
+  if (!graph_->IsDebuggable()) {
+    // Notify that we cannot compile with baseline. The dex registers aliasing
+    // with `original_dex_register` will be handled when we optimize
+    // (see HInstructionSimplifer::VisitFakeString).
+    can_use_baseline_for_string_init_ = false;
+    return;
+  }
+  const VerifiedMethod* verified_method =
+      compiler_driver_->GetVerifiedMethod(dex_file_, dex_compilation_unit_->GetDexMethodIndex());
+  if (verified_method != nullptr) {
+    UpdateLocal(original_dex_register, actual_string);
+    const SafeMap<uint32_t, std::set<uint32_t>>& string_init_map =
+        verified_method->GetStringInitPcRegMap();
+    auto map_it = string_init_map.find(dex_pc);
+    if (map_it != string_init_map.end()) {
+      std::set<uint32_t> reg_set = map_it->second;
+      for (auto set_it = reg_set.begin(); set_it != reg_set.end(); ++set_it) {
+        HInstruction* load_local = LoadLocal(original_dex_register, Primitive::kPrimNot);
+        UpdateLocal(*set_it, load_local);
+      }
+    }
+  } else {
+    can_use_baseline_for_string_init_ = false;
+  }
 }
 
 bool HGraphBuilder::BuildInstanceFieldAccess(const Instruction& instruction,
