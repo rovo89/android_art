@@ -272,6 +272,19 @@ class HGraphBuilder : public ValueObject {
                                                           uintptr_t direct_method,
                                                           uintptr_t direct_code);
 
+  bool SetupArgumentsForInvoke(HInvoke* invoke,
+                               uint32_t number_of_vreg_arguments,
+                               uint32_t* args,
+                               uint32_t register_index,
+                               bool is_range,
+                               const char* descriptor,
+                               HClinitCheck* clinit_check);
+
+  HClinitCheck* ProcessClinitCheckForInvoke(
+      uint32_t dex_pc,
+      uint32_t method_idx,
+      HInvokeStaticOrDirect::ClinitCheckRequirement* clinit_check_requirement);
+
   ArenaAllocator* const arena_;
 
   // A list of the size of the dex code holding block information for
