@@ -891,7 +891,7 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
                                     register_index,
                                     is_range,
                                     descriptor,
-                                    clinit_check));
+                                    clinit_check);
 }
 
 HClinitCheck* HGraphBuilder::ProcessClinitCheckForInvoke(
