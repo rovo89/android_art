@@ -17,7 +17,7 @@
 from common.archs               import archs_list
 from common.testing             import ToUnicode
 from file_format.checker.parser import ParseCheckerStream
-from file_format.checker.struct import CheckerFile, TestCase, TestAssertion, RegexExpression
+from file_format.checker.struct import CheckerFile, TestCase, TestAssertion, TestExpression
 
 import io
 import unittest
@@ -73,10 +73,11 @@ class CheckerParser_PrefixTest(unittest.TestCase):
     self.assertParses("    ///CHECK: foo")
     self.assertParses("///    CHECK: foo")
 
-class CheckerParser_RegexExpressionTest(unittest.TestCase):
+class CheckerParser_TestExpressionTest(unittest.TestCase):
 
   def parseAssertion(self, string, variant=""):
-    checkerText = u"/// CHECK-START: pass\n/// CHECK" + ToUnicode(variant) + u": " + ToUnicode(string)
+    checkerText = (u"/// CHECK-START: pass\n" +
+                   u"/// CHECK" + ToUnicode(variant) + u": " + ToUnicode(string))
     checkerFile = ParseCheckerStream("<test-file>", "CHECK", io.StringIO(checkerText))
     self.assertEqual(len(checkerFile.testCases), 1)
     testCase = checkerFile.testCases[0]
@@ -92,17 +93,17 @@ class CheckerParser_RegexExpressionTest(unittest.TestCase):
     self.assertEqual(expected, self.parseAssertion(string).toRegex())
 
   def assertEqualsText(self, string, text):
-    self.assertEqual(self.parseExpression(string), RegexExpression.createText(text))
+    self.assertEqual(self.parseExpression(string), TestExpression.createPatternFromPlainText(text))
 
   def assertEqualsPattern(self, string, pattern):
-    self.assertEqual(self.parseExpression(string), RegexExpression.createPattern(pattern))
+    self.assertEqual(self.parseExpression(string), TestExpression.createPattern(pattern))
 
   def assertEqualsVarRef(self, string, name):
-    self.assertEqual(self.parseExpression(string), RegexExpression.createVariableReference(name))
+    self.assertEqual(self.parseExpression(string), TestExpression.createVariableReference(name))
 
   def assertEqualsVarDef(self, string, name, pattern):
     self.assertEqual(self.parseExpression(string),
-                     RegexExpression.createVariableDefinition(name, pattern))
+                     TestExpression.createVariableDefinition(name, pattern))
 
   def assertVariantNotEqual(self, string, variant):
     self.assertNotEqual(variant, self.parseExpression(string).variant)
@@ -166,17 +167,17 @@ class CheckerParser_RegexExpressionTest(unittest.TestCase):
     self.assertEqualsVarDef("<<ABC:(a[bc])>>", "ABC", "(a[bc])")
 
   def test_Empty(self):
-    self.assertVariantNotEqual("{{}}", RegexExpression.Variant.Pattern)
-    self.assertVariantNotEqual("<<>>", RegexExpression.Variant.VarRef)
-    self.assertVariantNotEqual("<<:>>", RegexExpression.Variant.VarDef)
+    self.assertEqualsText("{{}}", "{{}}")
+    self.assertVariantNotEqual("<<>>", TestExpression.Variant.VarRef)
+    self.assertVariantNotEqual("<<:>>", TestExpression.Variant.VarDef)
 
   def test_InvalidVarName(self):
-    self.assertVariantNotEqual("<<0ABC>>", RegexExpression.Variant.VarRef)
-    self.assertVariantNotEqual("<<AB=C>>", RegexExpression.Variant.VarRef)
-    self.assertVariantNotEqual("<<ABC=>>", RegexExpression.Variant.VarRef)
-    self.assertVariantNotEqual("<<0ABC:abc>>", RegexExpression.Variant.VarDef)
-    self.assertVariantNotEqual("<<AB=C:abc>>", RegexExpression.Variant.VarDef)
-    self.assertVariantNotEqual("<<ABC=:abc>>", RegexExpression.Variant.VarDef)
+    self.assertVariantNotEqual("<<0ABC>>", TestExpression.Variant.VarRef)
+    self.assertVariantNotEqual("<<AB=C>>", TestExpression.Variant.VarRef)
+    self.assertVariantNotEqual("<<ABC=>>", TestExpression.Variant.VarRef)
+    self.assertVariantNotEqual("<<0ABC:abc>>", TestExpression.Variant.VarDef)
+    self.assertVariantNotEqual("<<AB=C:abc>>", TestExpression.Variant.VarDef)
+    self.assertVariantNotEqual("<<ABC=:abc>>", TestExpression.Variant.VarDef)
 
   def test_BodyMatchNotGreedy(self):
     self.assertEqualsRegex("{{abc}}{{def}}", "(abc)(def)")
@@ -201,7 +202,7 @@ class CheckerParser_FileLayoutTest(unittest.TestCase):
         content = assertionEntry[0]
         variant = assertionEntry[1]
         assertion = TestAssertion(testCase, variant, content, 0)
-        assertion.addExpression(RegexExpression.createText(content))
+        assertion.addExpression(TestExpression.createPatternFromPlainText(content))
     return testFile
 
   def assertParsesTo(self, checkerText, expectedData):
@@ -279,9 +280,15 @@ class CheckerParser_FileLayoutTest(unittest.TestCase):
       self.parse(
         """
           /// CHECK-START: Example Group
+          /// CHECK-EVAL: foo
           /// CHECK-NEXT: bar
         """)
-
+    with self.assertRaises(CheckerException):
+      self.parse(
+        """
+          /// CHECK-START: Example Group
+          /// CHECK-NEXT: bar
+        """)
 
 class CheckerParser_ArchTests(unittest.TestCase):
 
@@ -329,3 +336,61 @@ class CheckerParser_ArchTests(unittest.TestCase):
       self.assertEqual(len(checkerFile.testCases), 1)
       self.assertEqual(len(checkerFile.testCasesForArch(arch)), 1)
       self.assertEqual(len(checkerFile.testCases[0].assertions), 4)
+
+
+class CheckerParser_EvalTests(unittest.TestCase):
+  def parseTestCase(self, string):
+    checkerText = u"/// CHECK-START: pass\n" + ToUnicode(string)
+    checkerFile = ParseCheckerStream("<test-file>", "CHECK", io.StringIO(checkerText))
+    self.assertEqual(len(checkerFile.testCases), 1)
+    return checkerFile.testCases[0]
+
+  def parseExpressions(self, string):
+    testCase = self.parseTestCase("/// CHECK-EVAL: " + string)
+    self.assertEqual(len(testCase.assertions), 1)
+    assertion = testCase.assertions[0]
+    self.assertEqual(assertion.variant, TestAssertion.Variant.Eval)
+    self.assertEqual(assertion.originalText, string)
+    return assertion.expressions
+
+  def assertParsesToPlainText(self, text):
+    testCase = self.parseTestCase("/// CHECK-EVAL: " + text)
+    self.assertEqual(len(testCase.assertions), 1)
+    assertion = testCase.assertions[0]
+    self.assertEqual(assertion.variant, TestAssertion.Variant.Eval)
+    self.assertEqual(assertion.originalText, text)
+    self.assertEqual(len(assertion.expressions), 1)
+    expression = assertion.expressions[0]
+    self.assertEqual(expression.variant, TestExpression.Variant.PlainText)
+    self.assertEqual(expression.text, text)
+
+  def test_PlainText(self):
+    self.assertParsesToPlainText("XYZ")
+    self.assertParsesToPlainText("True")
+    self.assertParsesToPlainText("{{abc}}")
+    self.assertParsesToPlainText("<<ABC:abc>>")
+    self.assertParsesToPlainText("<<ABC=>>")
+
+  def test_VariableReference(self):
+    self.assertEqual(self.parseExpressions("<<ABC>>"),
+                     [ TestExpression.createVariableReference("ABC") ])
+    self.assertEqual(self.parseExpressions("123<<ABC>>"),
+                     [ TestExpression.createPlainText("123"),
+                       TestExpression.createVariableReference("ABC") ])
+    self.assertEqual(self.parseExpressions("123  <<ABC>>"),
+                     [ TestExpression.createPlainText("123  "),
+                       TestExpression.createVariableReference("ABC") ])
+    self.assertEqual(self.parseExpressions("<<ABC>>XYZ"),
+                     [ TestExpression.createVariableReference("ABC"),
+                       TestExpression.createPlainText("XYZ") ])
+    self.assertEqual(self.parseExpressions("<<ABC>>   XYZ"),
+                     [ TestExpression.createVariableReference("ABC"),
+                       TestExpression.createPlainText("   XYZ") ])
+    self.assertEqual(self.parseExpressions("123<<ABC>>XYZ"),
+                     [ TestExpression.createPlainText("123"),
+                       TestExpression.createVariableReference("ABC"),
+                       TestExpression.createPlainText("XYZ") ])
+    self.assertEqual(self.parseExpressions("123 <<ABC>>  XYZ"),
+                     [ TestExpression.createPlainText("123 "),
+                       TestExpression.createVariableReference("ABC"),
+                       TestExpression.createPlainText("  XYZ") ])
