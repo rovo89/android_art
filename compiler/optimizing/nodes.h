@@ -3181,6 +3181,8 @@ class HInvokeStaticOrDirect : public HInvoke {
     return dispatch_info_.direct_code_ptr;
   }
 
+  ClinitCheckRequirement GetClinitCheckRequirement() const { return clinit_check_requirement_; }
+
   // Is this instruction a call to a static method?
   bool IsStatic() const {
     return GetInvokeType() == kStatic;
