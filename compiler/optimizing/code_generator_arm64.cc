@@ -3202,6 +3202,15 @@ void InstructionCodeGeneratorARM64::VisitTypeConversion(HTypeConversion* convers
     Register source = InputRegisterAt(conversion, 0);
     if ((result_type == Primitive::kPrimChar) && (input_size < result_size)) {
       __ Ubfx(output, source, 0, result_size * kBitsPerByte);
+    } else if (result_type == Primitive::kPrimInt && input_type == Primitive::kPrimLong) {
+      // 'int' values are used directly as W registers, discarding the top
+      // bits, so we don't need to sign-extend and can just perform a move.
+      // We do not pass the `kDiscardForSameWReg` argument to force clearing the
+      // top 32 bits of the target register. We theoretically could leave those
+      // bits unchanged, but we would have to make sure that no code uses a
+      // 32bit input value as a 64bit value assuming that the top 32 bits are
+      // zero.
+      __ Mov(output.W(), source.W());
     } else if ((result_type == Primitive::kPrimChar) ||
                ((input_type == Primitive::kPrimChar) && (result_size > input_size))) {
       __ Ubfx(output, output.IsX() ? source.X() : source.W(), 0, min_size * kBitsPerByte);
