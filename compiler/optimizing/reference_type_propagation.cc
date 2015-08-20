@@ -414,7 +414,9 @@ void RTPVisitor::VisitNewArray(HNewArray* instr) {
 }
 
 void RTPVisitor::VisitParameterValue(HParameterValue* instr) {
-  if (instr->GetType() == Primitive::kPrimNot) {
+  ScopedObjectAccess soa(Thread::Current());
+  // We check if the existing type is valid: the inliner may have set it.
+  if (instr->GetType() == Primitive::kPrimNot && !instr->GetReferenceTypeInfo().IsValid()) {
     // TODO: parse the signature and add precise types for the parameters.
     SetClassAsTypeInfo(instr, nullptr, /* is_exact */ false);
   }
