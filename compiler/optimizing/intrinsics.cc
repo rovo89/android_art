@@ -31,7 +31,7 @@ static inline InvokeType GetIntrinsicInvokeType(Intrinsics i) {
   switch (i) {
     case Intrinsics::kNone:
       return kInterface;  // Non-sensical for intrinsic.
-#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironment) \
+#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironmentOrCache) \
     case Intrinsics::k ## Name:               \
       return IsStatic;
 #include "intrinsics_list.h"
@@ -43,19 +43,19 @@ INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 }
 
 // Function that returns whether an intrinsic needs an environment or not.
-static inline IntrinsicNeedsEnvironment IntrinsicNeedsEnvironment(Intrinsics i) {
+static inline IntrinsicNeedsEnvironmentOrCache NeedsEnvironmentOrCache(Intrinsics i) {
   switch (i) {
     case Intrinsics::kNone:
-      return kNeedsEnvironment;  // Non-sensical for intrinsic.
-#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironment) \
+      return kNeedsEnvironmentOrCache;  // Non-sensical for intrinsic.
+#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironmentOrCache) \
     case Intrinsics::k ## Name:               \
-      return NeedsEnvironment;
+      return NeedsEnvironmentOrCache;
 #include "intrinsics_list.h"
 INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 #undef INTRINSICS_LIST
 #undef OPTIMIZING_INTRINSICS
   }
-  return kNeedsEnvironment;
+  return kNeedsEnvironmentOrCache;
 }
 
 static Primitive::Type GetType(uint64_t data, bool is_op_size) {
@@ -376,7 +376,7 @@ void IntrinsicsRecognizer::Run() {
                            << intrinsic << " for "
                            << PrettyMethod(invoke->GetDexMethodIndex(), invoke->GetDexFile());
             } else {
-              invoke->SetIntrinsic(intrinsic, IntrinsicNeedsEnvironment(intrinsic));
+              invoke->SetIntrinsic(intrinsic, NeedsEnvironmentOrCache(intrinsic));
             }
           }
         }
@@ -390,7 +390,7 @@ std::ostream& operator<<(std::ostream& os, const Intrinsics& intrinsic) {
     case Intrinsics::kNone:
       os << "None";
       break;
-#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironment) \
+#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironmentOrCache) \
     case Intrinsics::k ## Name: \
       os << # Name; \
       break;

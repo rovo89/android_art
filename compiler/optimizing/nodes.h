@@ -2931,7 +2931,7 @@ class HDoubleConstant : public HConstant {
 };
 
 enum class Intrinsics {
-#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironment) k ## Name,
+#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironmentOrCache) k ## Name,
 #include "intrinsics_list.h"
   kNone,
   INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
@@ -2940,9 +2940,9 @@ enum class Intrinsics {
 };
 std::ostream& operator<<(std::ostream& os, const Intrinsics& intrinsic);
 
-enum IntrinsicNeedsEnvironment {
-  kNoEnvironment,        // Intrinsic does not require an environment.
-  kNeedsEnvironment      // Intrinsic requires an environment.
+enum IntrinsicNeedsEnvironmentOrCache {
+  kNoEnvironmentOrCache,        // Intrinsic does not require an environment or dex cache.
+  kNeedsEnvironmentOrCache      // Intrinsic requires an environment or requires a dex cache.
 };
 
 class HInvoke : public HInstruction {
@@ -2951,7 +2951,9 @@ class HInvoke : public HInstruction {
 
   // Runtime needs to walk the stack, so Dex -> Dex calls need to
   // know their environment.
-  bool NeedsEnvironment() const OVERRIDE { return needs_environment_ == kNeedsEnvironment; }
+  bool NeedsEnvironment() const OVERRIDE {
+    return needs_environment_or_cache_ == kNeedsEnvironmentOrCache;
+  }
 
   void SetArgumentAt(size_t index, HInstruction* argument) {
     SetRawInputAt(index, argument);
@@ -2976,9 +2978,9 @@ class HInvoke : public HInstruction {
     return intrinsic_;
   }
 
-  void SetIntrinsic(Intrinsics intrinsic, IntrinsicNeedsEnvironment needs_environment) {
+  void SetIntrinsic(Intrinsics intrinsic, IntrinsicNeedsEnvironmentOrCache needs_env_or_cache) {
     intrinsic_ = intrinsic;
-    needs_environment_ = needs_environment;
+    needs_environment_or_cache_ = needs_env_or_cache;
   }
 
   bool IsFromInlinedInvoke() const {
@@ -3006,7 +3008,7 @@ class HInvoke : public HInstruction {
       dex_method_index_(dex_method_index),
       original_invoke_type_(original_invoke_type),
       intrinsic_(Intrinsics::kNone),
-      needs_environment_(kNeedsEnvironment) {
+      needs_environment_or_cache_(kNeedsEnvironmentOrCache) {
     uint32_t number_of_inputs = number_of_arguments + number_of_other_inputs;
     inputs_.SetSize(number_of_inputs);
   }
@@ -3023,7 +3025,7 @@ class HInvoke : public HInstruction {
   const uint32_t dex_method_index_;
   const InvokeType original_invoke_type_;
   Intrinsics intrinsic_;
-  IntrinsicNeedsEnvironment needs_environment_;
+  IntrinsicNeedsEnvironmentOrCache needs_environment_or_cache_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HInvoke);
@@ -3148,7 +3150,10 @@ class HInvokeStaticOrDirect : public HInvoke {
   MethodLoadKind GetMethodLoadKind() const { return dispatch_info_.method_load_kind; }
   CodePtrLocation GetCodePtrLocation() const { return dispatch_info_.code_ptr_location; }
   bool IsRecursive() const { return GetMethodLoadKind() == MethodLoadKind::kRecursive; }
-  bool NeedsDexCache() const OVERRIDE { return !IsRecursive() && !IsStringInit(); }
+  bool NeedsDexCache() const OVERRIDE {
+    if (intrinsic_ != Intrinsics::kNone) { return needs_environment_or_cache_; }
+    return !IsRecursive() && !IsStringInit();
+  }
   bool IsStringInit() const { return GetMethodLoadKind() == MethodLoadKind::kStringInit; }
   uint32_t GetCurrentMethodInputIndex() const { return GetNumberOfArguments(); }
   bool HasMethodAddress() const { return GetMethodLoadKind() == MethodLoadKind::kDirectAddress; }
