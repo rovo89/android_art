@@ -17,9 +17,10 @@
 from common.logger                 import Logger
 from file_format.c1visualizer.test import C1visualizerParser_Test
 from file_format.checker.test      import CheckerParser_PrefixTest, \
-                                          CheckerParser_RegexExpressionTest, \
+                                          CheckerParser_TestExpressionTest, \
                                           CheckerParser_FileLayoutTest, \
-                                          CheckerParser_ArchTests
+                                          CheckerParser_ArchTests, \
+                                          CheckerParser_EvalTests
 from match.test                    import MatchLines_Test, \
                                           MatchFiles_Test
 

@@ -17,7 +17,7 @@ from common.testing                  import ToUnicode
 from file_format.c1visualizer.parser import ParseC1visualizerStream
 from file_format.c1visualizer.struct import C1visualizerFile, C1visualizerPass
 from file_format.checker.parser      import ParseCheckerStream, ParseCheckerAssertion
-from file_format.checker.struct      import CheckerFile, TestCase, TestAssertion, RegexExpression
+from file_format.checker.struct      import CheckerFile, TestCase, TestAssertion
 from match.file                      import MatchTestCase, MatchFailedException
 from match.line                      import MatchLines
 
@@ -386,3 +386,17 @@ class MatchFiles_Test(unittest.TestCase):
       abc
       bar
     """)
+
+  def test_EvalAssertions(self):
+    self.assertMatches("/// CHECK-EVAL: True", "foo")
+    self.assertDoesNotMatch("/// CHECK-EVAL: False", "foo")
+
+    self.assertMatches("/// CHECK-EVAL: 1 + 2 == 3", "foo")
+    self.assertDoesNotMatch("/// CHECK-EVAL: 1 + 2 == 4", "foo")
+
+    twoVarTestCase = """
+                       /// CHECK-DAG: <<X:\d+>> <<Y:\d+>>
+                       /// CHECK-EVAL: <<X>> > <<Y>>
+                     """
+    self.assertMatches(twoVarTestCase, "42 41");
+    self.assertDoesNotMatch(twoVarTestCase, "42 43")
