@@ -587,9 +587,17 @@ void RegisterAllocator::LinearScan() {
   while (!unhandled_->IsEmpty()) {
     // (1) Remove interval with the lowest start position from unhandled.
     LiveInterval* current = unhandled_->Pop();
+
+    // Make sure the interval is an expected state.
     DCHECK(!current->IsFixed() && !current->HasSpillSlot());
+    // Make sure we are going in the right order.
     DCHECK(unhandled_->IsEmpty() || unhandled_->Peek()->GetStart() >= current->GetStart());
+    // Make sure a low interval is always with a high.
     DCHECK(!current->IsLowInterval() || unhandled_->Peek()->IsHighInterval());
+    // Make sure a high interval is always with a low.
+    DCHECK(current->IsLowInterval() ||
+           unhandled_->IsEmpty() ||
+           !unhandled_->Peek()->IsHighInterval());
 
     size_t position = current->GetStart();
 
@@ -916,13 +924,19 @@ bool RegisterAllocator::TrySplitNonPairOrUnalignedPairIntervalAt(size_t position
     if (active->IsHighInterval()) continue;
     if (first_register_use > next_use[active->GetRegister()]) continue;
 
-    // Split the first interval found.
-    if (!active->IsLowInterval() || IsLowOfUnalignedPairInterval(active)) {
+    // Split the first interval found that is either:
+    // 1) A non-pair interval.
+    // 2) A pair interval whose high is not low + 1.
+    // 3) A pair interval whose low is not even.
+    if (!active->IsLowInterval() ||
+        IsLowOfUnalignedPairInterval(active) ||
+        !IsLowRegister(active->GetRegister())) {
       LiveInterval* split = Split(active, position);
       active_.DeleteAt(i);
       if (split != active) {
         handled_.Add(active);
       }
+      PotentiallyRemoveOtherHalf(active, &active_, i);
       AddSorted(unhandled_, split);
       return true;
     }
