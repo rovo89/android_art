@@ -74,7 +74,7 @@ class TestAssertion(PrintableMixin):
 
   class Variant(object):
     """Supported types of assertions."""
-    InOrder, NextLine, DAG, Not = range(4)
+    InOrder, NextLine, DAG, Not, Eval = range(5)
 
   def __init__(self, parent, variant, originalText, lineNo):
     assert isinstance(parent, TestCase)
@@ -92,9 +92,9 @@ class TestAssertion(PrintableMixin):
     return self.parent.fileName
 
   def addExpression(self, new_expression):
-    assert isinstance(new_expression, RegexExpression)
+    assert isinstance(new_expression, TestExpression)
     if self.variant == TestAssertion.Variant.Not:
-      if new_expression.variant == RegexExpression.Variant.VarDef:
+      if new_expression.variant == TestExpression.Variant.VarDef:
         Logger.fail("CHECK-NOT lines cannot define variables", self.fileName, self.lineNo)
     self.expressions.append(new_expression)
 
@@ -102,10 +102,10 @@ class TestAssertion(PrintableMixin):
     """ Returns a regex pattern for this entire assertion. Only used in tests. """
     regex = ""
     for expression in self.expressions:
-      if expression.variant == RegexExpression.Variant.Separator:
+      if expression.variant == TestExpression.Variant.Separator:
         regex = regex + ", "
       else:
-        regex = regex + "(" + expression.pattern + ")"
+        regex = regex + "(" + expression.text + ")"
     return regex
 
   def __eq__(self, other):
@@ -114,11 +114,11 @@ class TestAssertion(PrintableMixin):
        and self.expressions == other.expressions
 
 
-class RegexExpression(EqualityMixin, PrintableMixin):
+class TestExpression(EqualityMixin, PrintableMixin):
 
   class Variant(object):
     """Supported language constructs."""
-    Text, Pattern, VarRef, VarDef, Separator = range(5)
+    PlainText, Pattern, VarRef, VarDef, Separator = range(5)
 
   class Regex(object):
     rName = r"([a-zA-Z][a-zA-Z0-9]*)"
@@ -131,37 +131,43 @@ class RegexExpression(EqualityMixin, PrintableMixin):
 
     regexPattern = rPatternStartSym + rRegex + rPatternEndSym
     regexVariableReference = rVariableStartSym + rName + rVariableEndSym
-    regexVariableDefinition = rVariableStartSym + rName + rVariableSeparator + rRegex + rVariableEndSym
+    regexVariableDefinition = (rVariableStartSym +
+                                 rName + rVariableSeparator + rRegex +
+                               rVariableEndSym)
 
-  def __init__(self, variant, name, pattern):
+  def __init__(self, variant, name, text):
     self.variant = variant
     self.name = name
-    self.pattern = pattern
+    self.text = text
 
   def __eq__(self, other):
     return isinstance(other, self.__class__) \
        and self.variant == other.variant \
        and self.name == other.name \
-       and self.pattern == other.pattern
+       and self.text == other.text
 
   @staticmethod
   def createSeparator():
-    return RegexExpression(RegexExpression.Variant.Separator, None, None)
+    return TestExpression(TestExpression.Variant.Separator, None, None)
 
   @staticmethod
-  def createText(text):
-    return RegexExpression(RegexExpression.Variant.Text, None, re.escape(text))
+  def createPlainText(text):
+    return TestExpression(TestExpression.Variant.PlainText, None, text)
+
+  @staticmethod
+  def createPatternFromPlainText(text):
+    return TestExpression(TestExpression.Variant.Pattern, None, re.escape(text))
 
   @staticmethod
   def createPattern(pattern):
-    return RegexExpression(RegexExpression.Variant.Pattern, None, pattern)
+    return TestExpression(TestExpression.Variant.Pattern, None, pattern)
 
   @staticmethod
   def createVariableReference(name):
-    assert re.match(RegexExpression.Regex.rName, name)
-    return RegexExpression(RegexExpression.Variant.VarRef, name, None)
+    assert re.match(TestExpression.Regex.rName, name)
+    return TestExpression(TestExpression.Variant.VarRef, name, None)
 
   @staticmethod
   def createVariableDefinition(name, pattern):
-    assert re.match(RegexExpression.Regex.rName, name)
-    return RegexExpression(RegexExpression.Variant.VarDef, name, pattern)
+    assert re.match(TestExpression.Regex.rName, name)
+    return TestExpression(TestExpression.Variant.VarDef, name, pattern)
