@@ -635,3 +635,7 @@ JNIEXPORT jboolean JVM_RaiseSignal(jint signum) {
 JNIEXPORT void JVM_Halt(jint code) {
   exit(code);
 }
+
+JNIEXPORT jboolean JVM_IsNaN(jdouble d) {
+  return isnan(d);
+}
