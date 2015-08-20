@@ -643,6 +643,11 @@ class DexFile {
     return StringDataByIdx(method_id.name_idx_);
   }
 
+  // Returns the shorty of a method by its index.
+  const char* GetMethodShorty(uint32_t idx) const {
+    return StringDataByIdx(GetProtoId(GetMethodId(idx).proto_idx_).shorty_idx_);
+  }
+
   // Returns the shorty of a method id.
   const char* GetMethodShorty(const MethodId& method_id) const {
     return StringDataByIdx(GetProtoId(method_id.proto_idx_).shorty_idx_);
