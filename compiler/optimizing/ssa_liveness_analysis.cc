@@ -186,14 +186,25 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
     // as live_in.
     for (HBasicBlock* successor : block->GetSuccessors()) {
       live_in->Union(GetLiveInSet(*successor));
-      size_t phi_input_index = successor->GetPredecessorIndexOf(block);
-      for (HInstructionIterator inst_it(successor->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
-        HInstruction* phi = inst_it.Current();
-        HInstruction* input = phi->InputAt(phi_input_index);
-        input->GetLiveInterval()->AddPhiUse(phi, phi_input_index, block);
-        // A phi input whose last user is the phi dies at the end of the predecessor block,
-        // and not at the phi's lifetime position.
-        live_in->SetBit(input->GetSsaIndex());
+      if (successor->IsCatchBlock()) {
+        // Inputs of catch phis will be kept alive through their environment
+        // uses, allowing the runtime to copy their values to the corresponding
+        // catch phi spill slots when an exception is thrown.
+        // The only instructions which may not be recorded in the environments
+        // are constants created by the SSA builder as typed equivalents of
+        // untyped constants from the bytecode, or phis with only such constants
+        // as inputs (verified by SSAChecker). Their raw binary value must
+        // therefore be the same and we only need to keep alive one.
+      } else {
+        size_t phi_input_index = successor->GetPredecessorIndexOf(block);
+        for (HInstructionIterator phi_it(successor->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+          HInstruction* phi = phi_it.Current();
+          HInstruction* input = phi->InputAt(phi_input_index);
+          input->GetLiveInterval()->AddPhiUse(phi, phi_input_index, block);
+          // A phi input whose last user is the phi dies at the end of the predecessor block,
+          // and not at the phi's lifetime position.
+          live_in->SetBit(input->GetSsaIndex());
+        }
       }
     }
 
