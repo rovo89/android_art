@@ -344,6 +344,14 @@ class RegisterLine {
     } else {
       reg_to_lock_depths_.erase(it);
     }
+    // Need to unlock every register at the same lock depth. These are aliased locks.
+    uint32_t mask = 1 << depth;
+    for (auto& pair : reg_to_lock_depths_) {
+      if ((pair.second & mask) != 0) {
+        VLOG(verifier) << "Also unlocking " << pair.first;
+        pair.second ^= mask;
+      }
+    }
   }
 
   void ClearAllRegToLockDepths(size_t reg) {

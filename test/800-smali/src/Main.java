@@ -127,6 +127,8 @@ public class Main {
                 new NullPointerException(), null));
         testCases.add(new TestCase("b/23201502 (double)", "B23201502", "runDouble", null,
                 new NullPointerException(), null));
+        testCases.add(new TestCase("b/23300986", "B23300986", "runAliasAfterEnter",
+                new Object[] { new Object() }, null, null));
     }
 
     public void runTests() {
