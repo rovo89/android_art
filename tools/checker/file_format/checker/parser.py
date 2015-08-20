@@ -15,7 +15,7 @@
 from common.archs               import archs_list
 from common.logger              import Logger
 from file_format.common         import SplitStream
-from file_format.checker.struct import CheckerFile, TestCase, TestAssertion, RegexExpression
+from file_format.checker.struct import CheckerFile, TestCase, TestAssertion, TestExpression
 
 import re
 
@@ -81,6 +81,11 @@ def __processLine(line, lineNo, prefix, fileName):
   if notLine is not None:
     return (notLine, TestAssertion.Variant.Not, lineNo), None, None
 
+  # 'CHECK-EVAL' lines evaluate a Python expression.
+  evalLine = __extractLine(prefix + "-EVAL", line)
+  if evalLine is not None:
+    return (evalLine, TestAssertion.Variant.Eval, lineNo), None, None
+
   Logger.fail("Checker assertion could not be parsed: '" + line + "'", fileName, lineNo)
 
 def __isMatchAtStart(match):
@@ -97,16 +102,24 @@ def __firstMatch(matches, string):
 
 def ParseCheckerAssertion(parent, line, variant, lineNo):
   """ This method parses the content of a check line stripped of the initial
-      comment symbol and the CHECK keyword.
+      comment symbol and the CHECK-* keyword.
   """
   assertion = TestAssertion(parent, variant, line, lineNo)
+  isEvalLine = (variant == TestAssertion.Variant.Eval)
+
   # Loop as long as there is something to parse.
   while line:
     # Search for the nearest occurrence of the special markers.
-    matchWhitespace = re.search(r"\s+", line)
-    matchPattern = re.search(RegexExpression.Regex.regexPattern, line)
-    matchVariableReference = re.search(RegexExpression.Regex.regexVariableReference, line)
-    matchVariableDefinition = re.search(RegexExpression.Regex.regexVariableDefinition, line)
+    if isEvalLine:
+      # The following constructs are not supported in CHECK-EVAL lines
+      matchWhitespace = None
+      matchPattern = None
+      matchVariableDefinition = None
+    else:
+      matchWhitespace = re.search(r"\s+", line)
+      matchPattern = re.search(TestExpression.Regex.regexPattern, line)
+      matchVariableDefinition = re.search(TestExpression.Regex.regexVariableDefinition, line)
+    matchVariableReference = re.search(TestExpression.Regex.regexVariableReference, line)
 
     # If one of the above was identified at the current position, extract them
     # from the line, parse them and add to the list of line parts.
@@ -114,24 +127,24 @@ def ParseCheckerAssertion(parent, line, variant, lineNo):
       # A whitespace in the check line creates a new separator of line parts.
       # This allows for ignored output between the previous and next parts.
       line = line[matchWhitespace.end():]
-      assertion.addExpression(RegexExpression.createSeparator())
+      assertion.addExpression(TestExpression.createSeparator())
     elif __isMatchAtStart(matchPattern):
       pattern = line[0:matchPattern.end()]
       pattern = pattern[2:-2]
       line = line[matchPattern.end():]
-      assertion.addExpression(RegexExpression.createPattern(pattern))
+      assertion.addExpression(TestExpression.createPattern(pattern))
     elif __isMatchAtStart(matchVariableReference):
       var = line[0:matchVariableReference.end()]
       line = line[matchVariableReference.end():]
       name = var[2:-2]
-      assertion.addExpression(RegexExpression.createVariableReference(name))
+      assertion.addExpression(TestExpression.createVariableReference(name))
     elif __isMatchAtStart(matchVariableDefinition):
       var = line[0:matchVariableDefinition.end()]
       line = line[matchVariableDefinition.end():]
       colonPos = var.find(":")
       name = var[2:colonPos]
       body = var[colonPos+1:-2]
-      assertion.addExpression(RegexExpression.createVariableDefinition(name, body))
+      assertion.addExpression(TestExpression.createVariableDefinition(name, body))
     else:
       # If we're not currently looking at a special marker, this is a plain
       # text match all the way until the first special marker (or the end
@@ -143,7 +156,10 @@ def ParseCheckerAssertion(parent, line, variant, lineNo):
                                 line)
       text = line[0:firstMatch]
       line = line[firstMatch:]
-      assertion.addExpression(RegexExpression.createText(text))
+      if isEvalLine:
+        assertion.addExpression(TestExpression.createPlainText(text))
+      else:
+        assertion.addExpression(TestExpression.createPatternFromPlainText(text))
   return assertion
 
 def ParseCheckerStream(fileName, prefix, stream):
