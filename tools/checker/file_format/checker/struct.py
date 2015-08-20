@@ -128,12 +128,11 @@ class TestExpression(EqualityMixin, PrintableMixin):
     rVariableStartSym = r"(<<)"
     rVariableEndSym = r"(>>)"
     rVariableSeparator = r"(:)"
+    rVariableDefinitionBody = rName + rVariableSeparator + rRegex
 
     regexPattern = rPatternStartSym + rRegex + rPatternEndSym
     regexVariableReference = rVariableStartSym + rName + rVariableEndSym
-    regexVariableDefinition = (rVariableStartSym +
-                                 rName + rVariableSeparator + rRegex +
-                               rVariableEndSym)
+    regexVariableDefinition = rVariableStartSym + rVariableDefinitionBody + rVariableEndSym
 
   def __init__(self, variant, name, text):
     self.variant = variant
