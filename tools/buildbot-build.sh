@@ -24,6 +24,7 @@ android_root="/data/local/tmp/system"
 linker="linker"
 mode="target"
 j_arg="-j$(nproc)"
+showcommands=
 make_command=
 
 if [[ "$TARGET_PRODUCT" == "armv8" ]]; then
@@ -54,6 +55,9 @@ while true; do
   elif [[ "$1" == -j* ]]; then
     j_arg=$1
     shift
+  elif [[ "$1" == "--showcommands" ]]; then
+    showcommands="showcommands"
+    shift
   elif [[ "$1" == "" ]]; then
     break
   fi
@@ -70,7 +74,7 @@ elif [[ $mode == "target" ]]; then
   # Use '-e' to force the override of TARGET_GLOBAL_LDFLAGS.
   # Also, we build extra tools that will be used by tests, so that
   # they are compiled with our own linker.
-  make_command="make -e $j_arg build-art-target-tests $common_targets libjavacrypto libjavacoretests linker toybox toolbox sh"
+  make_command="make -e $j_arg $showcommands build-art-target-tests $common_targets libjavacrypto libjavacoretests linker toybox toolbox sh"
   echo "Executing env $env $make_command"
   env $env $make_command
 fi
