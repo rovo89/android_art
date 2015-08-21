@@ -44,6 +44,7 @@ void Class::SetClassClass(Class* java_lang_Class) {
       << java_lang_Class_.Read()
       << " " << java_lang_Class;
   CHECK(java_lang_Class != nullptr);
+  java_lang_Class->SetClassFlags(java_lang_Class->GetClassFlags() | mirror::kClassFlagClass);
   java_lang_Class_ = GcRoot<Class>(java_lang_Class);
 }
 

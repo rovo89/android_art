@@ -245,7 +245,7 @@ class MarkSweep : public GarbageCollector {
   void RevokeAllThreadLocalBuffers();
 
   // Whether or not we count how many of each type of object were scanned.
-  static const bool kCountScannedTypes = false;
+  static constexpr bool kCountScannedTypes = false;
 
   // Current space, we check this space first to avoid searching for the appropriate space for an
   // object.
@@ -260,18 +260,23 @@ class MarkSweep : public GarbageCollector {
 
   // Parallel finger.
   AtomicInteger atomic_finger_;
+
+  AtomicInteger no_reference_class_count_;
+  AtomicInteger normal_count_;
   // Number of classes scanned, if kCountScannedTypes.
   AtomicInteger class_count_;
-  // Number of arrays scanned, if kCountScannedTypes.
-  AtomicInteger array_count_;
+  // Number of object arrays scanned, if kCountScannedTypes.
+  AtomicInteger object_array_count_;
   // Number of non-class/arrays scanned, if kCountScannedTypes.
   AtomicInteger other_count_;
+  // Number of java.lang.ref.Reference instances.
+  AtomicInteger reference_count_;
+
   AtomicInteger large_object_test_;
   AtomicInteger large_object_mark_;
   AtomicInteger overhead_time_;
   AtomicInteger work_chunks_created_;
   AtomicInteger work_chunks_deleted_;
-  AtomicInteger reference_count_;
   AtomicInteger mark_null_count_;
   AtomicInteger mark_immune_count_;
   AtomicInteger mark_fastpath_count_;
