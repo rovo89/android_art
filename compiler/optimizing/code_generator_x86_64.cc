@@ -1303,7 +1303,7 @@ void InstructionCodeGeneratorX86_64::VisitCondition(HCondition* cond) {
   }
 
   // Convert the jumps into the result.
-  Label done_label;
+  NearLabel done_label;
 
   // False case: result = 0.
   __ Bind(&false_label);
@@ -1392,7 +1392,7 @@ void InstructionCodeGeneratorX86_64::VisitCompare(HCompare* compare) {
   Location left = locations->InAt(0);
   Location right = locations->InAt(1);
 
-  Label less, greater, done;
+  NearLabel less, greater, done;
   Primitive::Type type = compare->InputAt(0)->GetType();
   switch (type) {
     case Primitive::kPrimLong: {
@@ -2117,7 +2117,7 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           // Processing a Dex `float-to-int' instruction.
           XmmRegister input = in.AsFpuRegister<XmmRegister>();
           CpuRegister output = out.AsRegister<CpuRegister>();
-          Label done, nan;
+          NearLabel done, nan;
 
           __ movl(output, Immediate(kPrimIntMax));
           // if input >= (float)INT_MAX goto done
@@ -2139,7 +2139,7 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           // Processing a Dex `double-to-int' instruction.
           XmmRegister input = in.AsFpuRegister<XmmRegister>();
           CpuRegister output = out.AsRegister<CpuRegister>();
-          Label done, nan;
+          NearLabel done, nan;
 
           __ movl(output, Immediate(kPrimIntMax));
           // if input >= (double)INT_MAX goto done
@@ -2181,7 +2181,7 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           // Processing a Dex `float-to-long' instruction.
           XmmRegister input = in.AsFpuRegister<XmmRegister>();
           CpuRegister output = out.AsRegister<CpuRegister>();
-          Label done, nan;
+          NearLabel done, nan;
 
           codegen_->Load64BitValue(output, kPrimLongMax);
           // if input >= (float)LONG_MAX goto done
@@ -2203,7 +2203,7 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           // Processing a Dex `double-to-long' instruction.
           XmmRegister input = in.AsFpuRegister<XmmRegister>();
           CpuRegister output = out.AsRegister<CpuRegister>();
-          Label done, nan;
+          NearLabel done, nan;
 
           codegen_->Load64BitValue(output, kPrimLongMax);
           // if input >= (double)LONG_MAX goto done
@@ -2766,7 +2766,7 @@ void InstructionCodeGeneratorX86_64::GenerateRemFP(HRem *rem) {
   PushOntoFPStack(first, 0, 2 * elem_size, is_float);
 
   // Loop doing FPREM until we stabilize.
-  Label retry;
+  NearLabel retry;
   __ Bind(&retry);
   __ fprem();
 
@@ -2920,8 +2920,8 @@ void InstructionCodeGeneratorX86_64::GenerateDivRemWithAnyConstant(HBinaryOperat
 
     __ movl(numerator, eax);
 
-    Label no_div;
-    Label end;
+    NearLabel no_div;
+    NearLabel end;
     __ testl(eax, eax);
     __ j(kNotEqual, &no_div);
 
@@ -4235,7 +4235,7 @@ void CodeGeneratorX86_64::MarkGCCard(CpuRegister temp,
                                      CpuRegister object,
                                      CpuRegister value,
                                      bool value_can_be_null) {
-  Label is_null;
+  NearLabel is_null;
   if (value_can_be_null) {
     __ testl(value, value);
     __ j(kEqual, &is_null);
@@ -4662,7 +4662,7 @@ void InstructionCodeGeneratorX86_64::VisitInstanceOf(HInstanceOf* instruction) {
   Location cls = locations->InAt(1);
   CpuRegister out = locations->Out().AsRegister<CpuRegister>();
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
-  Label done, zero;
+  NearLabel done, zero;
   SlowPathCodeX86_64* slow_path = nullptr;
 
   // Return 0 if `obj` is null.

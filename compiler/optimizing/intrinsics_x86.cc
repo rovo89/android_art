@@ -508,7 +508,7 @@ static void GenMinMaxFP(LocationSummary* locations, bool is_min, bool is_double,
 
   XmmRegister op2 = op2_loc.AsFpuRegister<XmmRegister>();
 
-  Label nan, done, op2_label;
+  NearLabel nan, done, op2_label;
   if (is_double) {
     __ ucomisd(out, op2);
   } else {
@@ -842,7 +842,7 @@ void IntrinsicCodeGeneratorX86::VisitMathRoundFloat(HInvoke* invoke) {
   Register out = locations->Out().AsRegister<Register>();
   XmmRegister maxInt = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
   XmmRegister inPlusPointFive = locations->GetTemp(1).AsFpuRegister<XmmRegister>();
-  Label done, nan;
+  NearLabel done, nan;
   X86Assembler* assembler = GetAssembler();
 
   // Generate 0.5 into inPlusPointFive.
@@ -971,9 +971,7 @@ void IntrinsicCodeGeneratorX86::VisitStringEquals(HInvoke* invoke) {
   Register edi = locations->GetTemp(1).AsRegister<Register>();
   Register esi = locations->Out().AsRegister<Register>();
 
-  Label end;
-  Label return_true;
-  Label return_false;
+  NearLabel end, return_true, return_false;
 
   // Get offsets of count, value, and class fields within a string object.
   const uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
@@ -1005,8 +1003,7 @@ void IntrinsicCodeGeneratorX86::VisitStringEquals(HInvoke* invoke) {
   __ cmpl(ecx, Address(arg, count_offset));
   __ j(kNotEqual, &return_false);
   // Return true if both strings are empty.
-  __ testl(ecx, ecx);
-  __ j(kEqual, &return_true);
+  __ jecxz(&return_true);
 
   // Load starting addresses of string values into ESI/EDI as required for repe_cmpsl instruction.
   __ leal(esi, Address(str, value_offset));
@@ -1116,7 +1113,7 @@ static void GenerateStringIndexOf(HInvoke* invoke,
 
   // Do a zero-length check.
   // TODO: Support jecxz.
-  Label not_found_label;
+  NearLabel not_found_label;
   __ testl(string_length, string_length);
   __ j(kEqual, &not_found_label);
 
@@ -1159,7 +1156,7 @@ static void GenerateStringIndexOf(HInvoke* invoke,
   __ subl(string_length, counter);
   __ leal(out, Address(string_length, -1));
 
-  Label done;
+  NearLabel done;
   __ jmp(&done);
 
   // Failed to match; return -1.
@@ -1879,7 +1876,7 @@ static void GenLeadingZeros(X86Assembler* assembler, HInvoke* invoke, bool is_lo
     }
 
     // BSR sets ZF if the input was zero, and the output is undefined.
-    Label all_zeroes, done;
+    NearLabel all_zeroes, done;
     __ j(kEqual, &all_zeroes);
 
     // Correct the result from BSR to get the final CLZ result.
@@ -1898,7 +1895,7 @@ static void GenLeadingZeros(X86Assembler* assembler, HInvoke* invoke, bool is_lo
   DCHECK(src.IsRegisterPair());
   Register src_lo = src.AsRegisterPairLow<Register>();
   Register src_hi = src.AsRegisterPairHigh<Register>();
-  Label handle_low, done, all_zeroes;
+  NearLabel handle_low, done, all_zeroes;
 
   // Is the high word zero?
   __ testl(src_hi, src_hi);

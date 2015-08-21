@@ -406,7 +406,7 @@ static void GenMinMaxFP(LocationSummary* locations,
 
   XmmRegister op2 = op2_loc.AsFpuRegister<XmmRegister>();
 
-  Label nan, done, op2_label;
+  NearLabel nan, done, op2_label;
   if (is_double) {
     __ ucomisd(out, op2);
   } else {
@@ -703,7 +703,7 @@ void IntrinsicCodeGeneratorX86_64::VisitMathRoundFloat(HInvoke* invoke) {
   XmmRegister in = locations->InAt(0).AsFpuRegister<XmmRegister>();
   CpuRegister out = locations->Out().AsRegister<CpuRegister>();
   XmmRegister inPlusPointFive = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
-  Label done, nan;
+  NearLabel done, nan;
   X86_64Assembler* assembler = GetAssembler();
 
   // Load 0.5 into inPlusPointFive.
@@ -751,7 +751,7 @@ void IntrinsicCodeGeneratorX86_64::VisitMathRoundDouble(HInvoke* invoke) {
   XmmRegister in = locations->InAt(0).AsFpuRegister<XmmRegister>();
   CpuRegister out = locations->Out().AsRegister<CpuRegister>();
   XmmRegister inPlusPointFive = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
-  Label done, nan;
+  NearLabel done, nan;
   X86_64Assembler* assembler = GetAssembler();
 
   // Load 0.5 into inPlusPointFive.
@@ -880,9 +880,7 @@ void IntrinsicCodeGeneratorX86_64::VisitStringEquals(HInvoke* invoke) {
   CpuRegister rdi = locations->GetTemp(1).AsRegister<CpuRegister>();
   CpuRegister rsi = locations->Out().AsRegister<CpuRegister>();
 
-  Label end;
-  Label return_true;
-  Label return_false;
+  NearLabel end, return_true, return_false;
 
   // Get offsets of count, value, and class fields within a string object.
   const uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
@@ -914,8 +912,7 @@ void IntrinsicCodeGeneratorX86_64::VisitStringEquals(HInvoke* invoke) {
   __ cmpl(rcx, Address(arg, count_offset));
   __ j(kNotEqual, &return_false);
   // Return true if both strings are empty.
-  __ testl(rcx, rcx);
-  __ j(kEqual, &return_true);
+  __ jrcxz(&return_true);
 
   // Load starting addresses of string values into RSI/RDI as required for repe_cmpsq instruction.
   __ leal(rsi, Address(str, value_offset));
@@ -1025,7 +1022,7 @@ static void GenerateStringIndexOf(HInvoke* invoke,
 
   // Do a length check.
   // TODO: Support jecxz.
-  Label not_found_label;
+  NearLabel not_found_label;
   __ testl(string_length, string_length);
   __ j(kEqual, &not_found_label);
 
@@ -1067,7 +1064,7 @@ static void GenerateStringIndexOf(HInvoke* invoke,
   __ subl(string_length, counter);
   __ leal(out, Address(string_length, -1));
 
-  Label done;
+  NearLabel done;
   __ jmp(&done);
 
   // Failed to match; return -1.
@@ -1732,7 +1729,7 @@ static void GenLeadingZeros(X86_64Assembler* assembler, HInvoke* invoke, bool is
   }
 
   // BSR sets ZF if the input was zero, and the output is undefined.
-  Label is_zero, done;
+  NearLabel is_zero, done;
   __ j(kEqual, &is_zero);
 
   // Correct the result from BSR to get the CLZ result.
