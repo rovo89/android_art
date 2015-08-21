@@ -19,6 +19,8 @@
 
 #include <stdint.h>
 
+namespace art {
+
 static constexpr uint32_t kAccPublic =       0x0001;  // class, field, method, ic
 static constexpr uint32_t kAccPrivate =      0x0002;  // field, method, ic
 static constexpr uint32_t kAccProtected =    0x0004;  // field, method, ic
@@ -49,28 +51,8 @@ static constexpr uint32_t kAccFastNative =           0x00080000;  // method (dex
 static constexpr uint32_t kAccMiranda =              0x00200000;  // method (dex only)
 
 // Special runtime-only flags.
-// Note: if only kAccClassIsReference is set, we have a soft reference.
-
-// class is ClassLoader or one of its subclasses
-static constexpr uint32_t kAccClassIsClassLoaderClass   = 0x10000000;
-
 // class/ancestor overrides finalize()
 static constexpr uint32_t kAccClassIsFinalizable        = 0x80000000;
-// class is a soft/weak/phantom ref
-static constexpr uint32_t kAccClassIsReference          = 0x08000000;
-// class is a weak reference
-static constexpr uint32_t kAccClassIsWeakReference      = 0x04000000;
-// class is a finalizer reference
-static constexpr uint32_t kAccClassIsFinalizerReference = 0x02000000;
-// class is a phantom reference
-static constexpr uint32_t kAccClassIsPhantomReference   = 0x01000000;
-// class is the string class
-static constexpr uint32_t kAccClassIsStringClass        = 0x00800000;
-
-static constexpr uint32_t kAccReferenceFlagsMask = (kAccClassIsReference
-                                                  | kAccClassIsWeakReference
-                                                  | kAccClassIsFinalizerReference
-                                                  | kAccClassIsPhantomReference);
 
 // Valid (meaningful) bits for a field.
 static constexpr uint32_t kAccValidFieldFlags = kAccPublic | kAccPrivate | kAccProtected |
@@ -94,6 +76,8 @@ static constexpr uint32_t kAccValidClassFlags = kAccPublic | kAccFinal | kAccSup
 // Note 3. Inner classes can expose more access flags to Java programs. That is handled by libcore.
 static constexpr uint32_t kAccValidInterfaceFlags = kAccPublic | kAccInterface |
     kAccAbstract | kAccSynthetic | kAccAnnotation;
+
+}  // namespace art
 
 #endif  // ART_RUNTIME_MODIFIERS_H_
 

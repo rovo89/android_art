@@ -157,10 +157,9 @@ class MANAGED String FINAL : public Object {
     return java_lang_String_.Read();
   }
 
-  static void SetClass(Class* java_lang_String);
-  static void ResetClass();
-  static void VisitRoots(RootVisitor* visitor)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+  static void SetClass(Class* java_lang_String) SHARED_REQUIRES(Locks::mutator_lock_);
+  static void ResetClass() SHARED_REQUIRES(Locks::mutator_lock_);
+  static void VisitRoots(RootVisitor* visitor) SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
   void SetHashCode(int32_t new_hash_code) SHARED_REQUIRES(Locks::mutator_lock_) {

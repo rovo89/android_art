@@ -24,6 +24,7 @@
 #include "atomic.h"
 #include "array-inl.h"
 #include "class.h"
+#include "class_flags.h"
 #include "class_linker.h"
 #include "class_loader-inl.h"
 #include "lock_word-inl.h"
@@ -1010,20 +1011,43 @@ inline void Object::VisitReferences(const Visitor& visitor,
                                     const JavaLangRefVisitor& ref_visitor) {
   mirror::Class* klass = GetClass<kVerifyFlags>();
   visitor(this, ClassOffset(), false);
-  if (klass == Class::GetJavaLangClass()) {
-    AsClass<kVerifyNone>()->VisitReferences(klass, visitor);
-  } else if (klass->IsArrayClass() || klass->IsStringClass()) {
-    if (klass->IsObjectArrayClass<kVerifyNone>()) {
-      AsObjectArray<mirror::Object, kVerifyNone>()->VisitReferences(visitor);
-    }
-  } else if (klass->IsClassLoaderClass()) {
-    mirror::ClassLoader* class_loader = AsClassLoader<kVerifyFlags>();
-    class_loader->VisitReferences<kVerifyFlags>(klass, visitor);
-  } else {
+  const uint32_t class_flags = klass->GetClassFlags<kVerifyNone>();
+  if (LIKELY(class_flags == kClassFlagNormal)) {
     DCHECK(!klass->IsVariableSize());
     VisitInstanceFieldsReferences(klass, visitor);
-    if (UNLIKELY(klass->IsTypeOfReferenceClass<kVerifyNone>())) {
-      ref_visitor(klass, AsReference());
+    DCHECK(!klass->IsClassClass());
+  } else {
+    if ((class_flags & kClassFlagNoReferenceFields) == 0) {
+      DCHECK(!klass->IsStringClass());
+      if (class_flags == kClassFlagClass) {
+        DCHECK(klass->IsClassClass());
+        AsClass<kVerifyNone>()->VisitReferences(klass, visitor);
+      } else if (class_flags == kClassFlagObjectArray) {
+        DCHECK(klass->IsObjectArrayClass());
+        AsObjectArray<mirror::Object, kVerifyNone>()->VisitReferences(visitor);
+      } else if ((class_flags & kClassFlagReference) != 0) {
+        VisitInstanceFieldsReferences(klass, visitor);
+        ref_visitor(klass, AsReference());
+      } else {
+        mirror::ClassLoader* const class_loader = AsClassLoader<kVerifyFlags>();
+        class_loader->VisitReferences<kVerifyFlags>(klass, visitor);
+      }
+    } else if (kIsDebugBuild) {
+      CHECK(!klass->IsClassClass());
+      CHECK(!klass->IsObjectArrayClass());
+      // String still has instance fields for reflection purposes but these don't exist in
+      // actual string instances.
+      if (!klass->IsStringClass()) {
+        size_t total_reference_instance_fields = 0;
+        mirror::Class* super_class = klass;
+        do {
+          total_reference_instance_fields += super_class->NumReferenceInstanceFields();
+          super_class = super_class->GetSuperClass();
+        } while (super_class != nullptr);
+        // The only reference field should be the object's class. This field is handled at the
+        // beginning of the function.
+        CHECK_EQ(total_reference_instance_fields, 1u);
+      }
     }
   }
 }
