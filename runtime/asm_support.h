@@ -141,10 +141,10 @@ ADD_TEST_EQ(MIRROR_CLASS_COMPONENT_TYPE_OFFSET,
 #define MIRROR_CLASS_ACCESS_FLAGS_OFFSET (36 + MIRROR_OBJECT_HEADER_SIZE)
 ADD_TEST_EQ(MIRROR_CLASS_ACCESS_FLAGS_OFFSET,
             art::mirror::Class::AccessFlagsOffset().Int32Value())
-#define MIRROR_CLASS_OBJECT_SIZE_OFFSET (96 + MIRROR_OBJECT_HEADER_SIZE)
+#define MIRROR_CLASS_OBJECT_SIZE_OFFSET (100 + MIRROR_OBJECT_HEADER_SIZE)
 ADD_TEST_EQ(MIRROR_CLASS_OBJECT_SIZE_OFFSET,
             art::mirror::Class::ObjectSizeOffset().Int32Value())
-#define MIRROR_CLASS_STATUS_OFFSET (108 + MIRROR_OBJECT_HEADER_SIZE)
+#define MIRROR_CLASS_STATUS_OFFSET (112 + MIRROR_OBJECT_HEADER_SIZE)
 ADD_TEST_EQ(MIRROR_CLASS_STATUS_OFFSET,
             art::mirror::Class::StatusOffset().Int32Value())
 
@@ -153,7 +153,7 @@ ADD_TEST_EQ(static_cast<uint32_t>(MIRROR_CLASS_STATUS_INITIALIZED),
             static_cast<uint32_t>(art::mirror::Class::kStatusInitialized))
 #define ACCESS_FLAGS_CLASS_IS_FINALIZABLE 0x80000000
 ADD_TEST_EQ(static_cast<uint32_t>(ACCESS_FLAGS_CLASS_IS_FINALIZABLE),
-            static_cast<uint32_t>(kAccClassIsFinalizable))
+            static_cast<uint32_t>(art::kAccClassIsFinalizable))
 
 // Array offsets.
 #define MIRROR_ARRAY_LENGTH_OFFSET      MIRROR_OBJECT_HEADER_SIZE
