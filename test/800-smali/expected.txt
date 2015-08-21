@@ -1,6 +1,5 @@
 PackedSwitch
 b/17790197
-b/17978759
 FloatBadArgReg
 negLong
 sameFieldNames
@@ -42,4 +41,5 @@ b/20843113
 b/23201502 (float)
 b/23201502 (double)
 b/23300986
+b/23300986 (2)
 Done!
