@@ -141,7 +141,7 @@ class MipsAssembler FINAL : public Assembler {
   void LoadSFromOffset(FRegister reg, Register base, int32_t offset);
   void LoadDFromOffset(DRegister reg, Register base, int32_t offset);
   void StoreToOffset(StoreOperandType type, Register reg, Register base, int32_t offset);
-  void StoreSToOffset(FRegister reg, Register base, int32_t offset);
+  void StoreFToOffset(FRegister reg, Register base, int32_t offset);
   void StoreDToOffset(DRegister reg, Register base, int32_t offset);
 
   // Emit data (e.g. encoded instruction or immediate) to the instruction stream.
@@ -276,19 +276,6 @@ class MipsAssembler FINAL : public Assembler {
 
   int32_t EncodeBranchOffset(int offset, int32_t inst, bool is_jump);
   int DecodeBranchOffset(int32_t inst, bool is_jump);
-
-  FRegister ConvertDRegToFReg(DRegister reg) {
-    return static_cast<FRegister>(reg * 2);
-  }
-  Register ConvertDRegToReg(DRegister reg) {
-    return static_cast<Register>(reg * 2);
-  }
-  Register ConvertFRegToReg(FRegister reg) {
-    return static_cast<Register>(reg);
-  }
-  FRegister ConvertRegToFReg(Register reg) {
-    return static_cast<FRegister>(reg);
-  }
 
   DISALLOW_COPY_AND_ASSIGN(MipsAssembler);
 };
