@@ -547,6 +547,7 @@ inline uint32_t Class::GetAccessFlags() {
 inline String* Class::GetName() {
   return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(Class, name_));
 }
+
 inline void Class::SetName(String* name) {
   if (Runtime::Current()->IsActiveTransaction()) {
     SetFieldObject<true>(OFFSET_OF_OBJECT_MEMBER(Class, name_), name);
@@ -784,9 +785,17 @@ inline void Class::InitializeClassVisitor::operator()(
 inline void Class::SetAccessFlags(uint32_t new_access_flags) {
   // Called inside a transaction when setting pre-verified flag during boot image compilation.
   if (Runtime::Current()->IsActiveTransaction()) {
-    SetField32<true>(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), new_access_flags);
+    SetField32<true>(AccessFlagsOffset(), new_access_flags);
   } else {
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), new_access_flags);
+    SetField32<false>(AccessFlagsOffset(), new_access_flags);
+  }
+}
+
+inline void Class::SetClassFlags(uint32_t new_flags) {
+  if (Runtime::Current()->IsActiveTransaction()) {
+    SetField32<true>(OFFSET_OF_OBJECT_MEMBER(Class, class_flags_), new_flags);
+  } else {
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, class_flags_), new_flags);
   }
 }
 

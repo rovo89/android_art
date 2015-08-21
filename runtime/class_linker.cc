@@ -358,9 +358,9 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   // Setup String.
   Handle<mirror::Class> java_lang_String(hs.NewHandle(
       AllocClass(self, java_lang_Class.Get(), mirror::String::ClassSize(image_pointer_size_))));
+  java_lang_String->SetStringClass();
   mirror::String::SetClass(java_lang_String.Get());
   mirror::Class::SetStatus(java_lang_String, mirror::Class::kStatusResolved, self);
-  java_lang_String->SetStringClass();
 
   // Setup java.lang.ref.Reference.
   Handle<mirror::Class> java_lang_ref_Reference(hs.NewHandle(
@@ -570,16 +570,13 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   CHECK_EQ(java_lang_ref_Reference->GetClassSize(),
            mirror::Reference::ClassSize(image_pointer_size_));
   class_root = FindSystemClass(self, "Ljava/lang/ref/FinalizerReference;");
-  class_root->SetAccessFlags(class_root->GetAccessFlags() |
-                             kAccClassIsReference | kAccClassIsFinalizerReference);
+  class_root->SetClassFlags(class_root->GetClassFlags() | mirror::kClassFlagFinalizerReference);
   class_root = FindSystemClass(self, "Ljava/lang/ref/PhantomReference;");
-  class_root->SetAccessFlags(class_root->GetAccessFlags() | kAccClassIsReference |
-                             kAccClassIsPhantomReference);
+  class_root->SetClassFlags(class_root->GetClassFlags() | mirror::kClassFlagPhantomReference);
   class_root = FindSystemClass(self, "Ljava/lang/ref/SoftReference;");
-  class_root->SetAccessFlags(class_root->GetAccessFlags() | kAccClassIsReference);
+  class_root->SetClassFlags(class_root->GetClassFlags() | mirror::kClassFlagSoftReference);
   class_root = FindSystemClass(self, "Ljava/lang/ref/WeakReference;");
-  class_root->SetAccessFlags(class_root->GetAccessFlags() | kAccClassIsReference |
-                             kAccClassIsWeakReference);
+  class_root->SetClassFlags(class_root->GetClassFlags() | mirror::kClassFlagWeakReference);
 
   // Setup the ClassLoader, verifying the object_size_.
   class_root = FindSystemClass(self, "Ljava/lang/ClassLoader;");
@@ -2701,6 +2698,11 @@ mirror::Class* ClassLinker::CreateArrayClass(Thread* self, const char* descripto
   new_class->SetVTable(java_lang_Object->GetVTable());
   new_class->SetPrimitiveType(Primitive::kPrimNot);
   new_class->SetClassLoader(component_type->GetClassLoader());
+  if (component_type->IsPrimitive()) {
+    new_class->SetClassFlags(mirror::kClassFlagNoReferenceFields);
+  } else {
+    new_class->SetClassFlags(mirror::kClassFlagObjectArray);
+  }
   mirror::Class::SetStatus(new_class, mirror::Class::kStatusLoaded, self);
   {
     ArtMethod* imt[mirror::Class::kImtSize];
@@ -4385,9 +4387,9 @@ bool ClassLinker::LinkSuperClass(Handle<mirror::Class> klass) {
   }
 
   // Inherit reference flags (if any) from the superclass.
-  int reference_flags = (super->GetAccessFlags() & kAccReferenceFlagsMask);
+  int reference_flags = (super->GetClassFlags() & mirror::kClassFlagReference);
   if (reference_flags != 0) {
-    klass->SetAccessFlags(klass->GetAccessFlags() | reference_flags);
+    klass->SetClassFlags(klass->GetClassFlags() | reference_flags);
   }
   // Disallow custom direct subclasses of java.lang.ref.Reference.
   if (init_done_ && super == GetClassRoot(kJavaLangRefReference)) {
@@ -5227,6 +5229,22 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
     *class_size = size;
   } else {
     klass->SetNumReferenceInstanceFields(num_reference_fields);
+    mirror::Class* super_class = klass->GetSuperClass();
+    if (num_reference_fields == 0 || super_class == nullptr) {
+      // object has one reference field, klass, but we ignore it since we always visit the class.
+      // If the super_class is null then we are java.lang.Object.
+      if (super_class == nullptr ||
+          (super_class->GetClassFlags() & mirror::kClassFlagNoReferenceFields) != 0) {
+        klass->SetClassFlags(klass->GetClassFlags() | mirror::kClassFlagNoReferenceFields);
+      } else if (kIsDebugBuild) {
+        size_t total_reference_instance_fields = 0;
+        while (super_class != nullptr) {
+          total_reference_instance_fields += super_class->NumReferenceInstanceFields();
+          super_class = super_class->GetSuperClass();
+        }
+        CHECK_GT(total_reference_instance_fields, 1u);
+      }
+    }
     if (!klass->IsVariableSize()) {
       std::string temp;
       DCHECK_GE(size, sizeof(mirror::Object)) << klass->GetDescriptor(&temp);
