@@ -65,7 +65,6 @@ class QuickArgumentVisitor {
   static constexpr bool kAlignPairRegister = !kArm32QuickCodeUseSoftFloat;
   static constexpr bool kQuickSoftFloatAbi = kArm32QuickCodeUseSoftFloat;
   static constexpr bool kQuickDoubleRegAlignedFloatBackFilled = !kArm32QuickCodeUseSoftFloat;
-  static constexpr bool kQuickSkipOddFpRegisters = false;
   static constexpr size_t kNumQuickGprArgs = 3;
   static constexpr size_t kNumQuickFprArgs = kArm32QuickCodeUseSoftFloat ? 0 : 16;
   static constexpr bool kGprFprLockstep = false;
@@ -103,7 +102,6 @@ class QuickArgumentVisitor {
   static constexpr bool kAlignPairRegister = false;
   static constexpr bool kQuickSoftFloatAbi = false;  // This is a hard float ABI.
   static constexpr bool kQuickDoubleRegAlignedFloatBackFilled = false;
-  static constexpr bool kQuickSkipOddFpRegisters = false;
   static constexpr size_t kNumQuickGprArgs = 7;  // 7 arguments passed in GPRs.
   static constexpr size_t kNumQuickFprArgs = 8;  // 8 arguments passed in FPRs.
   static constexpr bool kGprFprLockstep = false;
@@ -130,25 +128,17 @@ class QuickArgumentVisitor {
   // | A3         |    arg3
   // | A2         |    arg2
   // | A1         |    arg1
-  // | F15        |
-  // | F14        |    f_arg1
-  // | F13        |
-  // | F12        |    f_arg0
-  // |            |    padding
   // | A0/Method* |  <- sp
-  static constexpr bool kSplitPairAcrossRegisterAndStack = false;
-  static constexpr bool kAlignPairRegister = true;
-  static constexpr bool kQuickSoftFloatAbi = false;
+  static constexpr bool kSplitPairAcrossRegisterAndStack = true;
+  static constexpr bool kAlignPairRegister = false;
+  static constexpr bool kQuickSoftFloatAbi = true;  // This is a soft float ABI.
   static constexpr bool kQuickDoubleRegAlignedFloatBackFilled = false;
-  static constexpr bool kQuickSkipOddFpRegisters = true;
   static constexpr size_t kNumQuickGprArgs = 3;  // 3 arguments passed in GPRs.
-  static constexpr size_t kNumQuickFprArgs = 4;  // 2 arguments passed in FPRs. Floats can be passed
-                                                 // only in even numbered registers and each double
-                                                 // occupies two registers.
+  static constexpr size_t kNumQuickFprArgs = 0;  // 0 arguments passed in FPRs.
   static constexpr bool kGprFprLockstep = false;
-  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 16;  // Offset of first FPR arg.
-  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 32;  // Offset of first GPR arg.
-  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 76;  // Offset of return address.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 0;  // Offset of first FPR arg.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 16;  // Offset of first GPR arg.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 60;  // Offset of return address.
   static size_t GprIndexToGprOffset(uint32_t gpr_index) {
     return gpr_index * GetBytesPerGprSpillLocation(kRuntimeISA);
   }
@@ -163,6 +153,14 @@ class QuickArgumentVisitor {
   // | Method*    | ---
   // | RA         |
   // | ...        |    callee saves
+  // | F7         |    f_arg7
+  // | F6         |    f_arg6
+  // | F5         |    f_arg5
+  // | F4         |    f_arg4
+  // | F3         |    f_arg3
+  // | F2         |    f_arg2
+  // | F1         |    f_arg1
+  // | F0         |    f_arg0
   // | A7         |    arg7
   // | A6         |    arg6
   // | A5         |    arg5
@@ -170,14 +168,6 @@ class QuickArgumentVisitor {
   // | A3         |    arg3
   // | A2         |    arg2
   // | A1         |    arg1
-  // | F19        |    f_arg7
-  // | F18        |    f_arg6
-  // | F17        |    f_arg5
-  // | F16        |    f_arg4
-  // | F15        |    f_arg3
-  // | F14        |    f_arg2
-  // | F13        |    f_arg1
-  // | F12        |    f_arg0
   // |            |    padding
   // | A0/Method* |  <- sp
   // NOTE: for Mip64, when A0 is skipped, F0 is also skipped.
@@ -185,7 +175,9 @@ class QuickArgumentVisitor {
   static constexpr bool kAlignPairRegister = false;
   static constexpr bool kQuickSoftFloatAbi = false;
   static constexpr bool kQuickDoubleRegAlignedFloatBackFilled = false;
-  static constexpr bool kQuickSkipOddFpRegisters = false;
+  // These values are set to zeros because GPR and FPR register
+  // assignments for Mips64 are interleaved, which the current VisitArguments()
+  // function does not support.
   static constexpr size_t kNumQuickGprArgs = 7;  // 7 arguments passed in GPRs.
   static constexpr size_t kNumQuickFprArgs = 7;  // 7 arguments passed in FPRs.
   static constexpr bool kGprFprLockstep = true;
@@ -219,7 +211,6 @@ class QuickArgumentVisitor {
   static constexpr bool kAlignPairRegister = false;
   static constexpr bool kQuickSoftFloatAbi = false;  // This is a hard float ABI.
   static constexpr bool kQuickDoubleRegAlignedFloatBackFilled = false;
-  static constexpr bool kQuickSkipOddFpRegisters = false;
   static constexpr size_t kNumQuickGprArgs = 3;  // 3 arguments passed in GPRs.
   static constexpr size_t kNumQuickFprArgs = 4;  // 4 arguments passed in FPRs.
   static constexpr bool kGprFprLockstep = false;
@@ -261,7 +252,6 @@ class QuickArgumentVisitor {
   static constexpr bool kAlignPairRegister = false;
   static constexpr bool kQuickSoftFloatAbi = false;  // This is a hard float ABI.
   static constexpr bool kQuickDoubleRegAlignedFloatBackFilled = false;
-  static constexpr bool kQuickSkipOddFpRegisters = false;
   static constexpr size_t kNumQuickGprArgs = 5;  // 5 arguments passed in GPRs.
   static constexpr size_t kNumQuickFprArgs = 8;  // 8 arguments passed in FPRs.
   static constexpr bool kGprFprLockstep = false;
@@ -485,8 +475,6 @@ class QuickArgumentVisitor {
                 if (fpr_index_ % 2 == 0) {
                   fpr_index_ = std::max(fpr_double_index_, fpr_index_);
                 }
-              } else if (kQuickSkipOddFpRegisters) {
-                IncFprIndex();
               }
             }
           }
@@ -495,9 +483,8 @@ class QuickArgumentVisitor {
         case Primitive::kPrimLong:
           if (kQuickSoftFloatAbi || (cur_type_ == Primitive::kPrimLong)) {
             if (cur_type_ == Primitive::kPrimLong && kAlignPairRegister && gpr_index_ == 0) {
-              // Currently, this is only for ARM and MIPS, where the first available parameter
-              // register is R1 (on ARM) or A1 (on MIPS). So we skip it, and use R2 (on ARM) or
-              // A2 (on MIPS) instead.
+              // Currently, this is only for ARM, where the first available parameter register
+              // is R1. So we skip it, and use R2 instead.
               IncGprIndex();
             }
             is_split_long_or_double_ = (GetBytesPerGprSpillLocation(kRuntimeISA) == 4) &&
