@@ -1729,7 +1729,13 @@ class JNI {
     if (heap->IsMovableObject(s)) {
       StackHandleScope<1> hs(soa.Self());
       HandleWrapper<mirror::String> h(hs.NewHandleWrapper(&s));
-      heap->IncrementDisableMovingGC(soa.Self());
+      if (!kUseReadBarrier) {
+        heap->IncrementDisableMovingGC(soa.Self());
+      } else {
+        // For the CC collector, we only need to wait for the thread flip rather than the whole GC
+        // to occur thanks to the to-space invariant.
+        heap->IncrementDisableThreadFlip(soa.Self());
+      }
     }
     if (is_copy != nullptr) {
       *is_copy = JNI_FALSE;
@@ -1744,7 +1750,11 @@ class JNI {
     gc::Heap* heap = Runtime::Current()->GetHeap();
     mirror::String* s = soa.Decode<mirror::String*>(java_string);
     if (heap->IsMovableObject(s)) {
-      heap->DecrementDisableMovingGC(soa.Self());
+      if (!kUseReadBarrier) {
+        heap->DecrementDisableMovingGC(soa.Self());
+      } else {
+        heap->DecrementDisableThreadFlip(soa.Self());
+      }
     }
   }
 
@@ -1891,7 +1901,13 @@ class JNI {
     }
     gc::Heap* heap = Runtime::Current()->GetHeap();
     if (heap->IsMovableObject(array)) {
-      heap->IncrementDisableMovingGC(soa.Self());
+      if (!kUseReadBarrier) {
+        heap->IncrementDisableMovingGC(soa.Self());
+      } else {
+        // For the CC collector, we only need to wait for the thread flip rather than the whole GC
+        // to occur thanks to the to-space invariant.
+        heap->IncrementDisableThreadFlip(soa.Self());
+      }
       // Re-decode in case the object moved since IncrementDisableGC waits for GC to complete.
       array = soa.Decode<mirror::Array*>(java_array);
     }
@@ -2437,7 +2453,11 @@ class JNI {
         delete[] reinterpret_cast<uint64_t*>(elements);
       } else if (heap->IsMovableObject(array)) {
         // Non copy to a movable object must means that we had disabled the moving GC.
-        heap->DecrementDisableMovingGC(soa.Self());
+        if (!kUseReadBarrier) {
+          heap->DecrementDisableMovingGC(soa.Self());
+        } else {
+          heap->DecrementDisableThreadFlip(soa.Self());
+        }
       }
     }
   }
