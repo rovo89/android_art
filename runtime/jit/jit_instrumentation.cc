@@ -26,16 +26,12 @@ namespace jit {
 
 class JitCompileTask : public Task {
  public:
-  JitCompileTask(ArtMethod* method, JitInstrumentationCache* cache)
-      : method_(method), cache_(cache) {
-  }
+  explicit JitCompileTask(ArtMethod* method) : method_(method) {}
 
   virtual void Run(Thread* self) OVERRIDE {
     ScopedObjectAccess soa(self);
     VLOG(jit) << "JitCompileTask compiling method " << PrettyMethod(method_);
-    if (Runtime::Current()->GetJit()->CompileMethod(method_, self)) {
-      cache_->SignalCompiled(self, method_);
-    } else {
+    if (!Runtime::Current()->GetJit()->CompileMethod(method_, self)) {
       VLOG(jit) << "Failed to compile method " << PrettyMethod(method_);
     }
   }
@@ -46,13 +42,14 @@ class JitCompileTask : public Task {
 
  private:
   ArtMethod* const method_;
-  JitInstrumentationCache* const cache_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(JitCompileTask);
 };
 
-JitInstrumentationCache::JitInstrumentationCache(size_t hot_method_threshold)
-    : lock_("jit instrumentation lock"), hot_method_threshold_(hot_method_threshold) {
+JitInstrumentationCache::JitInstrumentationCache(size_t hot_method_threshold,
+                                                 size_t warm_method_threshold)
+    : hot_method_threshold_(hot_method_threshold),
+      warm_method_threshold_(warm_method_threshold) {
 }
 
 void JitInstrumentationCache::CreateThreadPool() {
@@ -60,20 +57,11 @@ void JitInstrumentationCache::CreateThreadPool() {
 }
 
 void JitInstrumentationCache::DeleteThreadPool() {
+  DCHECK(Runtime::Current()->IsShuttingDown(Thread::Current()));
   thread_pool_.reset();
 }
 
-void JitInstrumentationCache::SignalCompiled(Thread* self, ArtMethod* method) {
-  ScopedObjectAccessUnchecked soa(self);
-  jmethodID method_id = soa.EncodeMethod(method);
-  MutexLock mu(self, lock_);
-  auto it = samples_.find(method_id);
-  if (it != samples_.end()) {
-    samples_.erase(it);
-  }
-}
-
-void JitInstrumentationCache::AddSamples(Thread* self, ArtMethod* method, size_t count) {
+void JitInstrumentationCache::AddSamples(Thread* self, ArtMethod* method, size_t) {
   ScopedObjectAccessUnchecked soa(self);
   // Since we don't have on-stack replacement, some methods can remain in the interpreter longer
   // than we want resulting in samples even after the method is compiled.
@@ -81,40 +69,39 @@ void JitInstrumentationCache::AddSamples(Thread* self, ArtMethod* method, size_t
       Runtime::Current()->GetJit()->GetCodeCache()->ContainsMethod(method)) {
     return;
   }
-  jmethodID method_id = soa.EncodeMethod(method);
-  bool is_hot = false;
-  {
-    MutexLock mu(self, lock_);
-    size_t sample_count = 0;
-    auto it = samples_.find(method_id);
-    if (it != samples_.end()) {
-      it->second += count;
-      sample_count = it->second;
-    } else {
-      sample_count = count;
-      samples_.insert(std::make_pair(method_id, count));
-    }
-    // If we have enough samples, mark as hot and request Jit compilation.
-    if (sample_count >= hot_method_threshold_ && sample_count - count < hot_method_threshold_) {
-      is_hot = true;
+  if (thread_pool_.get() == nullptr) {
+    DCHECK(Runtime::Current()->IsShuttingDown(self));
+    return;
+  }
+  uint16_t sample_count = method->IncrementCounter();
+  if (sample_count == warm_method_threshold_) {
+    ProfilingInfo* info = method->CreateProfilingInfo();
+    if (info != nullptr) {
+      VLOG(jit) << "Start profiling " << PrettyMethod(method);
     }
   }
-  if (is_hot) {
-    if (thread_pool_.get() != nullptr) {
-      thread_pool_->AddTask(self, new JitCompileTask(
-          method->GetInterfaceMethodIfProxy(sizeof(void*)), this));
-      thread_pool_->StartWorkers(self);
-    } else {
-      VLOG(jit) << "Compiling hot method " << PrettyMethod(method);
-      Runtime::Current()->GetJit()->CompileMethod(
-          method->GetInterfaceMethodIfProxy(sizeof(void*)), self);
-    }
+  if (sample_count == hot_method_threshold_) {
+    thread_pool_->AddTask(self, new JitCompileTask(
+        method->GetInterfaceMethodIfProxy(sizeof(void*))));
+    thread_pool_->StartWorkers(self);
   }
 }
 
 JitInstrumentationListener::JitInstrumentationListener(JitInstrumentationCache* cache)
     : instrumentation_cache_(cache) {
   CHECK(instrumentation_cache_ != nullptr);
+}
+
+void JitInstrumentationListener::InvokeVirtualOrInterface(Thread* thread,
+                                                          mirror::Object* this_object,
+                                                          ArtMethod* caller,
+                                                          uint32_t dex_pc,
+                                                          ArtMethod* callee ATTRIBUTE_UNUSED) {
+  DCHECK(this_object != nullptr);
+  ProfilingInfo* info = caller->GetProfilingInfo();
+  if (info != nullptr) {
+    info->AddInvokeInfo(thread, dex_pc, this_object->GetClass());
+  }
 }
 
 }  // namespace jit

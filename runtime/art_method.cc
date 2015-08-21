@@ -30,6 +30,7 @@
 #include "interpreter/interpreter.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
+#include "jit/profiling_info.h"
 #include "jni_internal.h"
 #include "mapping_table.h"
 #include "mirror/abstract_method.h"
@@ -577,6 +578,18 @@ const uint8_t* ArtMethod::GetQuickenedInfo() {
     return nullptr;
   }
   return oat_method.GetVmapTable();
+}
+
+ProfilingInfo* ArtMethod::CreateProfilingInfo() {
+  ProfilingInfo* info = ProfilingInfo::Create(this);
+  MemberOffset offset = ArtMethod::EntryPointFromJniOffset(sizeof(void*));
+  uintptr_t pointer = reinterpret_cast<uintptr_t>(this) + offset.Uint32Value();
+  if (!reinterpret_cast<Atomic<ProfilingInfo*>*>(pointer)->
+          CompareExchangeStrongSequentiallyConsistent(nullptr, info)) {
+    return GetProfilingInfo();
+  } else {
+    return info;
+  }
 }
 
 }  // namespace art
