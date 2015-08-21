@@ -659,7 +659,7 @@ END art_quick_check_cast
     sw     $a0, 0($sp)
     .cfi_rel_offset 4, 0
 
-    # move $a0, $a0                 # pass ref in a0 (no-op for now since parameter ref is unused)
+    # move $a0, \rRef               # pass ref in a0 (no-op for now since parameter ref is unused)
     .ifnc \rObj, $a1
         move $a1, \rObj             # pass rObj
     .endif

@@ -1200,9 +1200,9 @@ DEFINE_FUNCTION art_quick_aput_obj
     READ_BARRIER edx, MIRROR_OBJECT_CLASS_OFFSET, eax, false
     cmpl %eax, %ebx
     POP eax                      // restore eax from the push in the beginning of READ_BARRIER macro
+    // This asymmetric push/pop saves a push of eax and maintains stack alignment.
 #elif defined(USE_HEAP_POISONING)
     PUSH eax                     // save eax
-    // Cannot call READ_BARRIER macro here, because the above push messes up stack alignment.
     movl MIRROR_OBJECT_CLASS_OFFSET(%edx), %eax
     UNPOISON_HEAP_REF eax
     cmpl %eax, %ebx
@@ -1225,15 +1225,22 @@ DEFINE_FUNCTION art_quick_aput_obj
     PUSH eax                      // save arguments
     PUSH ecx
     PUSH edx
+#if defined(USE_READ_BARRIER)
+    subl LITERAL(4), %esp         // alignment padding
+    CFI_ADJUST_CFA_OFFSET(4)
+    READ_BARRIER edx, MIRROR_OBJECT_CLASS_OFFSET, eax, true
+    subl LITERAL(4), %esp         // alignment padding
+    CFI_ADJUST_CFA_OFFSET(4)
+    PUSH eax                      // pass arg2 - type of the value to be stored
+#elif defined(USE_HEAP_POISONING)
     subl LITERAL(8), %esp         // alignment padding
     CFI_ADJUST_CFA_OFFSET(8)
-#ifdef USE_HEAP_POISONING
-    // This load does not need read barrier, since edx is unchanged and there's no GC safe point
-    // from last read of MIRROR_OBJECT_CLASS_OFFSET(%edx).
-    movl MIRROR_OBJECT_CLASS_OFFSET(%edx), %eax  // pass arg2 - type of the value to be stored
+    movl MIRROR_OBJECT_CLASS_OFFSET(%edx), %eax
     UNPOISON_HEAP_REF eax
-    PUSH eax
+    PUSH eax                      // pass arg2 - type of the value to be stored
 #else
+    subl LITERAL(8), %esp         // alignment padding
+    CFI_ADJUST_CFA_OFFSET(8)
     pushl MIRROR_OBJECT_CLASS_OFFSET(%edx)  // pass arg2 - type of the value to be stored
     CFI_ADJUST_CFA_OFFSET(4)
 #endif
