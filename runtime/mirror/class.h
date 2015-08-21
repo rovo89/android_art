@@ -19,6 +19,7 @@
 
 #include "base/iteration_range.h"
 #include "dex_file.h"
+#include "class_flags.h"
 #include "gc_root.h"
 #include "gc/allocator_type.h"
 #include "invoke_type.h"
@@ -201,6 +202,12 @@ class MANAGED Class FINAL : public Object {
     return OFFSET_OF_OBJECT_MEMBER(Class, access_flags_);
   }
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  ALWAYS_INLINE uint32_t GetClassFlags() SHARED_REQUIRES(Locks::mutator_lock_) {
+    return GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, class_flags_));
+  }
+  void SetClassFlags(uint32_t new_flags) SHARED_REQUIRES(Locks::mutator_lock_);
+
   void SetAccessFlags(uint32_t new_access_flags) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Returns true if the class is an interface.
@@ -228,21 +235,19 @@ class MANAGED Class FINAL : public Object {
   }
 
   ALWAYS_INLINE bool IsStringClass() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return (GetField32(AccessFlagsOffset()) & kAccClassIsStringClass) != 0;
+    return (GetClassFlags() & kClassFlagString) != 0;
   }
 
   ALWAYS_INLINE void SetStringClass() SHARED_REQUIRES(Locks::mutator_lock_) {
-    uint32_t flags = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_));
-    SetAccessFlags(flags | kAccClassIsStringClass);
+    SetClassFlags(GetClassFlags() | kClassFlagString | kClassFlagNoReferenceFields);
   }
 
   ALWAYS_INLINE bool IsClassLoaderClass() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return (GetField32(AccessFlagsOffset()) & kAccClassIsClassLoaderClass) != 0;
+    return (GetClassFlags() & kClassFlagClassLoader) != 0;
   }
 
   ALWAYS_INLINE void SetClassLoaderClass() SHARED_REQUIRES(Locks::mutator_lock_) {
-    uint32_t flags = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_));
-    SetAccessFlags(flags | kAccClassIsClassLoaderClass);
+    SetClassFlags(GetClassFlags() | kClassFlagClassLoader);
   }
 
   // Returns true if the class is abstract.
@@ -272,27 +277,27 @@ class MANAGED Class FINAL : public Object {
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsTypeOfReferenceClass() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return (GetAccessFlags<kVerifyFlags>() & kAccClassIsReference) != 0;
+    return (GetClassFlags<kVerifyFlags>() & kClassFlagReference) != 0;
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsWeakReferenceClass() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return (GetAccessFlags<kVerifyFlags>() & kAccClassIsWeakReference) != 0;
+    return (GetClassFlags<kVerifyFlags>() & kClassFlagWeakReference) != 0;
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsSoftReferenceClass() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return (GetAccessFlags<kVerifyFlags>() & kAccReferenceFlagsMask) == kAccClassIsReference;
+    return (GetClassFlags<kVerifyFlags>() & kClassFlagSoftReference) != 0;
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsFinalizerReferenceClass() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return (GetAccessFlags<kVerifyFlags>() & kAccClassIsFinalizerReference) != 0;
+    return (GetClassFlags<kVerifyFlags>() & kClassFlagFinalizerReference) != 0;
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsPhantomReferenceClass() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return (GetAccessFlags<kVerifyFlags>() & kAccClassIsPhantomReference) != 0;
+    return (GetClassFlags<kVerifyFlags>() & kClassFlagPhantomReference) != 0;
   }
 
   // Can references of this type be assigned to by things of another type? For non-array types
@@ -862,7 +867,8 @@ class MANAGED Class FINAL : public Object {
   uint32_t NumInstanceFields() SHARED_REQUIRES(Locks::mutator_lock_);
   ArtField* GetInstanceField(uint32_t i) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // Returns the number of instance fields containing reference types.
+  // Returns the number of instance fields containing reference types not counting fields in the
+  // super class.
   uint32_t NumReferenceInstanceFields() SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(IsResolved() || IsErroneous());
     return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_instance_fields_));
@@ -1224,6 +1230,9 @@ class MANAGED Class FINAL : public Object {
   // Virtual methods defined in this class; invoked through vtable. Pointer to an ArtMethod
   // length-prefixed array.
   uint64_t virtual_methods_;
+
+  // Class flags to help speed up visiting object references.
+  uint32_t class_flags_;
 
   // Total size of the Class instance; used when allocating storage on gc heap.
   // See also object_size_.

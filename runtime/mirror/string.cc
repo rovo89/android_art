@@ -55,6 +55,7 @@ int32_t String::FastIndexOf(int32_t ch, int32_t start) {
 void String::SetClass(Class* java_lang_String) {
   CHECK(java_lang_String_.IsNull());
   CHECK(java_lang_String != nullptr);
+  CHECK(java_lang_String->IsStringClass());
   java_lang_String_ = GcRoot<Class>(java_lang_String);
 }
 
