@@ -35,6 +35,7 @@ jclass WellKnownClasses::dalvik_system_DexPathList;
 jclass WellKnownClasses::dalvik_system_DexPathList__Element;
 jclass WellKnownClasses::dalvik_system_PathClassLoader;
 jclass WellKnownClasses::dalvik_system_VMRuntime;
+jclass WellKnownClasses::java_lang_annotation_Annotation__array;
 jclass WellKnownClasses::java_lang_BootClassLoader;
 jclass WellKnownClasses::java_lang_ClassLoader;
 jclass WellKnownClasses::java_lang_ClassNotFoundException;
@@ -59,6 +60,8 @@ jclass WellKnownClasses::java_lang_Throwable;
 jclass WellKnownClasses::java_nio_DirectByteBuffer;
 jclass WellKnownClasses::java_util_ArrayList;
 jclass WellKnownClasses::java_util_Collections;
+jclass WellKnownClasses::libcore_reflect_AnnotationFactory;
+jclass WellKnownClasses::libcore_reflect_AnnotationMember;
 jclass WellKnownClasses::libcore_util_EmptyArray;
 jclass WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk;
 jclass WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer;
@@ -120,6 +123,8 @@ jmethodID WellKnownClasses::java_lang_Thread_run;
 jmethodID WellKnownClasses::java_lang_Thread__UncaughtExceptionHandler_uncaughtException;
 jmethodID WellKnownClasses::java_lang_ThreadGroup_removeThread;
 jmethodID WellKnownClasses::java_nio_DirectByteBuffer_init;
+jmethodID WellKnownClasses::libcore_reflect_AnnotationFactory_createAnnotation;
+jmethodID WellKnownClasses::libcore_reflect_AnnotationMember_init;
 jmethodID WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_broadcast;
 jmethodID WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_dispatch;
 
@@ -213,6 +218,7 @@ void WellKnownClasses::Init(JNIEnv* env) {
   dalvik_system_PathClassLoader = CacheClass(env, "dalvik/system/PathClassLoader");
   dalvik_system_VMRuntime = CacheClass(env, "dalvik/system/VMRuntime");
 
+  java_lang_annotation_Annotation__array = CacheClass(env, "[Ljava/lang/annotation/Annotation;");
   java_lang_BootClassLoader = CacheClass(env, "java/lang/BootClassLoader");
   java_lang_ClassLoader = CacheClass(env, "java/lang/ClassLoader");
   java_lang_ClassNotFoundException = CacheClass(env, "java/lang/ClassNotFoundException");
@@ -238,6 +244,8 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_nio_DirectByteBuffer = CacheClass(env, "java/nio/DirectByteBuffer");
   java_util_ArrayList = CacheClass(env, "java/util/ArrayList");
   java_util_Collections = CacheClass(env, "java/util/Collections");
+  libcore_reflect_AnnotationFactory = CacheClass(env, "libcore/reflect/AnnotationFactory");
+  libcore_reflect_AnnotationMember = CacheClass(env, "libcore/reflect/AnnotationMember");
   libcore_util_EmptyArray = CacheClass(env, "libcore/util/EmptyArray");
   org_apache_harmony_dalvik_ddmc_Chunk = CacheClass(env, "org/apache/harmony/dalvik/ddmc/Chunk");
   org_apache_harmony_dalvik_ddmc_DdmServer = CacheClass(env, "org/apache/harmony/dalvik/ddmc/DdmServer");
@@ -262,6 +270,8 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_Thread__UncaughtExceptionHandler_uncaughtException = CacheMethod(env, java_lang_Thread__UncaughtExceptionHandler, false, "uncaughtException", "(Ljava/lang/Thread;Ljava/lang/Throwable;)V");
   java_lang_ThreadGroup_removeThread = CacheMethod(env, java_lang_ThreadGroup, false, "removeThread", "(Ljava/lang/Thread;)V");
   java_nio_DirectByteBuffer_init = CacheMethod(env, java_nio_DirectByteBuffer, false, "<init>", "(JI)V");
+  libcore_reflect_AnnotationFactory_createAnnotation = CacheMethod(env, libcore_reflect_AnnotationFactory, true, "createAnnotation", "(Ljava/lang/Class;[Llibcore/reflect/AnnotationMember;)Ljava/lang/annotation/Annotation;");
+  libcore_reflect_AnnotationMember_init = CacheMethod(env, libcore_reflect_AnnotationMember, false, "<init>", "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/reflect/Method;)V");
   org_apache_harmony_dalvik_ddmc_DdmServer_broadcast = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "broadcast", "(I)V");
   org_apache_harmony_dalvik_ddmc_DdmServer_dispatch = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "dispatch", "(I[BII)Lorg/apache/harmony/dalvik/ddmc/Chunk;");
 
