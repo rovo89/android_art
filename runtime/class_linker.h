@@ -229,6 +229,12 @@ class ClassLinker {
       SHARED_REQUIRES(Locks::mutator_lock_);
   ArtMethod* ResolveMethod(Thread* self, uint32_t method_idx, ArtMethod* referrer, InvokeType type)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_, !Roles::uninterruptible_);
+  ArtMethod* ResolveMethodWithoutInvokeType(const DexFile& dex_file,
+                                            uint32_t method_idx,
+                                            Handle<mirror::DexCache> dex_cache,
+                                            Handle<mirror::ClassLoader> class_loader)
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
   ArtField* GetResolvedField(uint32_t field_idx, mirror::Class* field_declaring_class)
       SHARED_REQUIRES(Locks::mutator_lock_);
