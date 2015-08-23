@@ -75,6 +75,10 @@ class OatFile {
 
   bool IsPic() const;
 
+  bool IsCreatedInZygote() const {
+    return is_created_in_zygote_;
+  }
+
   ElfFile* GetElfFile() const {
     CHECK_NE(reinterpret_cast<uintptr_t>(elf_file_.get()), reinterpret_cast<uintptr_t>(nullptr))
         << "Cannot get an elf file from " << GetLocation();
@@ -326,6 +330,9 @@ class OatFile {
 
   // Was this oat_file loaded executable?
   const bool is_executable_;
+
+  // Was this file loaded in Zygote?
+  const bool is_created_in_zygote_;
 
   // Backing memory map for oat file during when opened by ElfWriter during initial compilation.
   std::unique_ptr<MemMap> mem_map_;

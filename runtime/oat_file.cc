@@ -143,7 +143,7 @@ OatFile* OatFile::OpenElfFile(File* file,
 
 OatFile::OatFile(const std::string& location, bool is_executable)
     : location_(location), begin_(NULL), end_(NULL), is_executable_(is_executable),
-      dlopen_handle_(NULL),
+      is_created_in_zygote_(Runtime::Current() != nullptr && Runtime::Current()->IsZygote()), dlopen_handle_(NULL),
       secondary_lookup_lock_("OatFile secondary lookup lock", kOatFileSecondaryLookupLock) {
   CHECK(!location_.empty());
 }
