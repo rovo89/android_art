@@ -46,7 +46,7 @@ class RelativePatcherTest : public testing::Test {
         driver_(&compiler_options_, &verification_results_, &inliner_map_,
                 Compiler::kQuick, instruction_set, nullptr,
                 false, nullptr, nullptr, nullptr, 1u,
-                false, false, "", nullptr, -1, ""),
+                false, false, "", false, nullptr, -1, ""),
         error_msg_(),
         instruction_set_(instruction_set),
         features_(InstructionSetFeatures::FromVariant(instruction_set, variant, &error_msg_)),
