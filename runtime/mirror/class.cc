@@ -511,6 +511,16 @@ ArtMethod* Class::FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t 
   return nullptr;
 }
 
+ArtMethod* Class::FindDeclaredVirtualMethodByName(const StringPiece& name, size_t pointer_size) {
+  for (auto& method : GetVirtualMethods(pointer_size)) {
+    ArtMethod* const np_method = method.GetInterfaceMethodIfProxy(pointer_size);
+    if (name == np_method->GetName()) {
+      return &method;
+    }
+  }
+  return nullptr;
+}
+
 ArtMethod* Class::FindVirtualMethod(
     const StringPiece& name, const StringPiece& signature, size_t pointer_size) {
   for (Class* klass = this; klass != nullptr; klass = klass->GetSuperClass()) {

@@ -18,6 +18,7 @@
 
 #include "art_method-inl.h"
 #include "class_linker.h"
+#include "class_linker-inl.h"
 #include "jni_internal.h"
 #include "mirror/class-inl.h"
 #include "mirror/method.h"
@@ -27,6 +28,55 @@
 #include "well_known_classes.h"
 
 namespace art {
+
+static jobject Constructor_getAnnotationNative(JNIEnv* env, jobject javaMethod,
+                                               jclass annotationType) {
+  ScopedFastNativeObjectAccess soa(env);
+  StackHandleScope<1> hs(soa.Self());
+  ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
+  Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
+  return soa.AddLocalReference<jobject>(
+      method->GetDexFile()->GetAnnotationForMethod(method, klass));
+}
+
+static jobjectArray Constructor_getDeclaredAnnotations(JNIEnv* env, jobject javaMethod) {
+  ScopedFastNativeObjectAccess soa(env);
+  ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
+  return soa.AddLocalReference<jobjectArray>(method->GetDexFile()->GetAnnotationsForMethod(method));
+}
+
+static jobjectArray Constructor_getExceptionTypes(JNIEnv* env, jobject javaMethod) {
+  ScopedFastNativeObjectAccess soa(env);
+  ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
+  mirror::ObjectArray<mirror::Object>* result_array =
+      method->GetDexFile()->GetExceptionTypesForMethod(method);
+  if (result_array == nullptr) {
+    // Return an empty array instead of a null pointer.
+    mirror::Class* class_class = mirror::Class::GetJavaLangClass();
+    mirror::Class* class_array_class =
+        Runtime::Current()->GetClassLinker()->FindArrayClass(soa.Self(), &class_class);
+    mirror::ObjectArray<mirror::Object>* empty_array =
+        mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(), class_array_class, 0);
+    return soa.AddLocalReference<jobjectArray>(empty_array);
+  } else {
+    return soa.AddLocalReference<jobjectArray>(result_array);
+  }
+}
+
+static jobjectArray Constructor_getParameterAnnotationsNative(JNIEnv* env, jobject javaMethod) {
+  ScopedFastNativeObjectAccess soa(env);
+  ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
+  return soa.AddLocalReference<jobjectArray>(method->GetDexFile()->GetParameterAnnotations(method));
+}
+
+static jboolean Constructor_isAnnotationPresentNative(JNIEnv* env, jobject javaMethod,
+                                                      jclass annotationType) {
+  ScopedFastNativeObjectAccess soa(env);
+  StackHandleScope<1> hs(soa.Self());
+  ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
+  Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
+  return method->GetDexFile()->IsMethodAnnotationPresent(method, klass);
+}
 
 /*
  * We can also safely assume the constructor isn't associated
@@ -82,6 +132,13 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
 }
 
 static JNINativeMethod gMethods[] = {
+  NATIVE_METHOD(Constructor, getAnnotationNative,
+                "!(Ljava/lang/Class;)Ljava/lang/annotation/Annotation;"),
+  NATIVE_METHOD(Constructor, getDeclaredAnnotations, "!()[Ljava/lang/annotation/Annotation;"),
+  NATIVE_METHOD(Constructor, getExceptionTypes, "!()[Ljava/lang/Class;"),
+  NATIVE_METHOD(Constructor, getParameterAnnotationsNative,
+                "!()[[Ljava/lang/annotation/Annotation;"),
+  NATIVE_METHOD(Constructor, isAnnotationPresentNative, "!(Ljava/lang/Class;)Z"),
   NATIVE_METHOD(Constructor, newInstance, "!([Ljava/lang/Object;)Ljava/lang/Object;"),
 };
 
