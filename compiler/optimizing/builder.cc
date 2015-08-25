@@ -794,10 +794,42 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
   }
 
   MethodReference target_method(dex_file_, method_idx);
-  int32_t table_index;
-  uintptr_t direct_code;
-  uintptr_t direct_method;
+  int32_t table_index = 0;
+  uintptr_t direct_code = 0;
+  uintptr_t direct_method = 0;
 
+  // Special handling for string init.
+  int32_t string_init_offset = 0;
+  bool is_string_init = compiler_driver_->IsStringInit(method_idx,
+                                                       dex_file_,
+                                                       &string_init_offset);
+  // Replace calls to String.<init> with StringFactory.
+  if (is_string_init) {
+    HInvokeStaticOrDirect::DispatchInfo dispatch_info = ComputeDispatchInfo(is_string_init,
+                                                                            string_init_offset,
+                                                                            target_method,
+                                                                            direct_method,
+                                                                            direct_code);
+    HInvoke* invoke = new (arena_) HInvokeStaticOrDirect(
+        arena_,
+        number_of_arguments - 1,
+        Primitive::kPrimNot /*return_type */,
+        dex_pc,
+        method_idx,
+        target_method,
+        dispatch_info,
+        original_invoke_type,
+        kStatic /* optimized_invoke_type */,
+        HInvokeStaticOrDirect::ClinitCheckRequirement::kImplicit);
+    return HandleStringInit(invoke,
+                            number_of_vreg_arguments,
+                            args,
+                            register_index,
+                            is_range,
+                            descriptor);
+  }
+
+  // Handle unresolved methods.
   if (!compiler_driver_->ComputeInvokeInfo(dex_compilation_unit_,
                                            dex_pc,
                                            true /* update_stats */,
@@ -814,33 +846,21 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
     return false;
   }
 
-  DCHECK(optimized_invoke_type != kSuper);
+  // Handle resolved methods (non string init).
 
-  // Special handling for string init.
-  int32_t string_init_offset = 0;
-  bool is_string_init = compiler_driver_->IsStringInit(method_idx, dex_file_,
-                                                       &string_init_offset);
+  DCHECK(optimized_invoke_type != kSuper);
 
   // Potential class initialization check, in the case of a static method call.
   HClinitCheck* clinit_check = nullptr;
   HInvoke* invoke = nullptr;
 
-  if (is_string_init
-      || optimized_invoke_type == kDirect
-      || optimized_invoke_type == kStatic) {
+  if (optimized_invoke_type == kDirect || optimized_invoke_type == kStatic) {
     // By default, consider that the called method implicitly requires
     // an initialization check of its declaring method.
     HInvokeStaticOrDirect::ClinitCheckRequirement clinit_check_requirement
         = HInvokeStaticOrDirect::ClinitCheckRequirement::kImplicit;
-    if (optimized_invoke_type == kStatic && !is_string_init) {
+    if (optimized_invoke_type == kStatic) {
       clinit_check = ProcessClinitCheckForInvoke(dex_pc, method_idx, &clinit_check_requirement);
-    }
-
-    // Replace calls to String.<init> with StringFactory.
-    if (is_string_init) {
-      return_type = Primitive::kPrimNot;
-      number_of_arguments--;
-      optimized_invoke_type = kStatic;
     }
 
     HInvokeStaticOrDirect::DispatchInfo dispatch_info = ComputeDispatchInfo(is_string_init,
@@ -875,13 +895,13 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
                                            table_index);
   }
 
-  return SetupArgumentsAndAddInvoke(invoke,
-                                    number_of_vreg_arguments,
-                                    args,
-                                    register_index,
-                                    is_range,
-                                    descriptor,
-                                    clinit_check);
+  return HandleInvoke(invoke,
+                      number_of_vreg_arguments,
+                      args,
+                      register_index,
+                      is_range,
+                      descriptor,
+                      clinit_check);
 }
 
 HClinitCheck* HGraphBuilder::ProcessClinitCheckForInvoke(
@@ -1030,42 +1050,23 @@ HInvokeStaticOrDirect::DispatchInfo HGraphBuilder::ComputeDispatchInfo(
     method_load_kind, code_ptr_location, method_load_data, direct_code_ptr };
 }
 
-bool HGraphBuilder::SetupArgumentsAndAddInvoke(HInvoke* invoke,
-                                               uint32_t number_of_vreg_arguments,
-                                               uint32_t* args,
-                                               uint32_t register_index,
-                                               bool is_range,
-                                               const char* descriptor,
-                                               HClinitCheck* clinit_check) {
-  size_t start_index = 0;
-  size_t argument_index = 0;
+bool HGraphBuilder::SetupInvokeArguments(HInvoke* invoke,
+                                         uint32_t number_of_vreg_arguments,
+                                         uint32_t* args,
+                                         uint32_t register_index,
+                                         bool is_range,
+                                         const char* descriptor,
+                                         size_t start_index,
+                                         size_t* argument_index) {
   uint32_t descriptor_index = 1;  // Skip the return type.
   uint32_t dex_pc = invoke->GetDexPc();
-
-  bool is_instance_call = invoke->GetOriginalInvokeType() != InvokeType::kStatic;
-  bool is_string_init = invoke->IsInvokeStaticOrDirect()
-      && invoke->AsInvokeStaticOrDirect()->IsStringInit();
-
-  if (is_string_init) {
-    start_index = 1;
-    argument_index = 0;
-  } else if (is_instance_call) {
-    Temporaries temps(graph_);
-    HInstruction* arg = LoadLocal(is_range ? register_index : args[0], Primitive::kPrimNot, dex_pc);
-    HNullCheck* null_check = new (arena_) HNullCheck(arg, invoke->GetDexPc());
-    current_block_->AddInstruction(null_check);
-    temps.Add(null_check);
-    invoke->SetArgumentAt(0, null_check);
-    start_index = 1;
-    argument_index = 1;
-  }
 
   for (size_t i = start_index;
        // Make sure we don't go over the expected arguments or over the number of
        // dex registers given. If the instruction was seen as dead by the verifier,
        // it hasn't been properly checked.
-       (i < number_of_vreg_arguments) && (argument_index < invoke->GetNumberOfArguments());
-       i++, argument_index++) {
+       (i < number_of_vreg_arguments) && (*argument_index < invoke->GetNumberOfArguments());
+       i++, (*argument_index)++) {
     Primitive::Type type = Primitive::GetType(descriptor[descriptor_index++]);
     bool is_wide = (type == Primitive::kPrimLong) || (type == Primitive::kPrimDouble);
     if (!is_range
@@ -1081,13 +1082,13 @@ bool HGraphBuilder::SetupArgumentsAndAddInvoke(HInvoke* invoke,
       return false;
     }
     HInstruction* arg = LoadLocal(is_range ? register_index + i : args[i], type, dex_pc);
-    invoke->SetArgumentAt(argument_index, arg);
+    invoke->SetArgumentAt(*argument_index, arg);
     if (is_wide) {
       i++;
     }
   }
 
-  if (argument_index != invoke->GetNumberOfArguments()) {
+  if (*argument_index != invoke->GetNumberOfArguments()) {
     VLOG(compiler) << "Did not compile "
                    << PrettyMethod(dex_compilation_unit_->GetDexMethodIndex(), *dex_file_)
                    << " because of wrong number of arguments in invoke instruction";
@@ -1096,13 +1097,49 @@ bool HGraphBuilder::SetupArgumentsAndAddInvoke(HInvoke* invoke,
   }
 
   if (invoke->IsInvokeStaticOrDirect()) {
-    invoke->SetArgumentAt(argument_index, graph_->GetCurrentMethod());
-    argument_index++;
+    invoke->SetArgumentAt(*argument_index, graph_->GetCurrentMethod());
+    (*argument_index)++;
+  }
+
+  return true;
+}
+
+bool HGraphBuilder::HandleInvoke(HInvoke* invoke,
+                                 uint32_t number_of_vreg_arguments,
+                                 uint32_t* args,
+                                 uint32_t register_index,
+                                 bool is_range,
+                                 const char* descriptor,
+                                 HClinitCheck* clinit_check) {
+  DCHECK(!invoke->IsInvokeStaticOrDirect() || !invoke->AsInvokeStaticOrDirect()->IsStringInit());
+
+  size_t start_index = 0;
+  size_t argument_index = 0;
+  if (invoke->GetOriginalInvokeType() != InvokeType::kStatic) {  // Instance call.
+    Temporaries temps(graph_);
+    HInstruction* arg = LoadLocal(
+        is_range ? register_index : args[0], Primitive::kPrimNot, invoke->GetDexPc());
+    HNullCheck* null_check = new (arena_) HNullCheck(arg, invoke->GetDexPc());
+    current_block_->AddInstruction(null_check);
+    temps.Add(null_check);
+    invoke->SetArgumentAt(0, null_check);
+    start_index = 1;
+    argument_index = 1;
+  }
+
+  if (!SetupInvokeArguments(invoke,
+                            number_of_vreg_arguments,
+                            args,
+                            register_index,
+                            is_range,
+                            descriptor,
+                            start_index,
+                            &argument_index)) {
+    return false;
   }
 
   if (clinit_check != nullptr) {
     // Add the class initialization check as last input of `invoke`.
-    DCHECK(!is_string_init);
     DCHECK(invoke->IsInvokeStaticOrDirect());
     DCHECK(invoke->AsInvokeStaticOrDirect()->GetClinitCheckRequirement()
         == HInvokeStaticOrDirect::ClinitCheckRequirement::kExplicit);
@@ -1110,16 +1147,40 @@ bool HGraphBuilder::SetupArgumentsAndAddInvoke(HInvoke* invoke,
     argument_index++;
   }
 
-  // Add move-result for StringFactory method.
-  if (is_string_init) {
-    uint32_t orig_this_reg = is_range ? register_index : args[0];
-    HInstruction* fake_string = LoadLocal(orig_this_reg, Primitive::kPrimNot, dex_pc);
-    invoke->SetArgumentAt(argument_index, fake_string);
-    current_block_->AddInstruction(invoke);
-    PotentiallySimplifyFakeString(orig_this_reg, invoke->GetDexPc(), invoke);
-  } else {
-    current_block_->AddInstruction(invoke);
+  current_block_->AddInstruction(invoke);
+  latest_result_ = invoke;
+
+  return true;
+}
+
+bool HGraphBuilder::HandleStringInit(HInvoke* invoke,
+                                     uint32_t number_of_vreg_arguments,
+                                     uint32_t* args,
+                                     uint32_t register_index,
+                                     bool is_range,
+                                     const char* descriptor) {
+  DCHECK(invoke->IsInvokeStaticOrDirect());
+  DCHECK(invoke->AsInvokeStaticOrDirect()->IsStringInit());
+
+  size_t start_index = 1;
+  size_t argument_index = 0;
+  if (!SetupInvokeArguments(invoke,
+                            number_of_vreg_arguments,
+                            args,
+                            register_index,
+                            is_range,
+                            descriptor,
+                            start_index,
+                            &argument_index)) {
+    return false;
   }
+
+  // Add move-result for StringFactory method.
+  uint32_t orig_this_reg = is_range ? register_index : args[0];
+  HInstruction* fake_string = LoadLocal(orig_this_reg, Primitive::kPrimNot, invoke->GetDexPc());
+  invoke->SetArgumentAt(argument_index, fake_string);
+  current_block_->AddInstruction(invoke);
+  PotentiallySimplifyFakeString(orig_this_reg, invoke->GetDexPc(), invoke);
 
   latest_result_ = invoke;
 
