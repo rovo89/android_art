@@ -87,9 +87,11 @@ class CheckReferenceMapVisitor : public StackVisitor {
           CHECK(stack_mask.LoadBit(location.GetValue() / kFrameSlotSize));
           break;
         case DexRegisterLocation::Kind::kInRegister:
+        case DexRegisterLocation::Kind::kInRegisterHigh:
           CHECK_NE(register_mask & (1 << location.GetValue()), 0u);
           break;
         case DexRegisterLocation::Kind::kInFpuRegister:
+        case DexRegisterLocation::Kind::kInFpuRegisterHigh:
           // In Fpu register, should not be a reference.
           CHECK(false);
           break;
