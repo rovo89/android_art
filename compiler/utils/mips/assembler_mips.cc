@@ -359,23 +359,19 @@ void MipsAssembler::DivS(FRegister fd, FRegister fs, FRegister ft) {
 }
 
 void MipsAssembler::AddD(DRegister fd, DRegister fs, DRegister ft) {
-  EmitFR(0x11, 0x11, static_cast<FRegister>(ft), static_cast<FRegister>(fs),
-         static_cast<FRegister>(fd), 0x0);
+  EmitFR(0x11, 0x11, ConvertDRegToFReg(ft), ConvertDRegToFReg(fs), ConvertDRegToFReg(fd), 0x0);
 }
 
 void MipsAssembler::SubD(DRegister fd, DRegister fs, DRegister ft) {
-  EmitFR(0x11, 0x11, static_cast<FRegister>(ft), static_cast<FRegister>(fs),
-         static_cast<FRegister>(fd), 0x1);
+  EmitFR(0x11, 0x11, ConvertDRegToFReg(ft), ConvertDRegToFReg(fs), ConvertDRegToFReg(fd), 0x1);
 }
 
 void MipsAssembler::MulD(DRegister fd, DRegister fs, DRegister ft) {
-  EmitFR(0x11, 0x11, static_cast<FRegister>(ft), static_cast<FRegister>(fs),
-         static_cast<FRegister>(fd), 0x2);
+  EmitFR(0x11, 0x11, ConvertDRegToFReg(ft), ConvertDRegToFReg(fs), ConvertDRegToFReg(fd), 0x2);
 }
 
 void MipsAssembler::DivD(DRegister fd, DRegister fs, DRegister ft) {
-  EmitFR(0x11, 0x11, static_cast<FRegister>(ft), static_cast<FRegister>(fs),
-         static_cast<FRegister>(fd), 0x3);
+  EmitFR(0x11, 0x11, ConvertDRegToFReg(ft), ConvertDRegToFReg(fs), ConvertDRegToFReg(fd), 0x3);
 }
 
 void MipsAssembler::MovS(FRegister fd, FRegister fs) {
@@ -383,32 +379,31 @@ void MipsAssembler::MovS(FRegister fd, FRegister fs) {
 }
 
 void MipsAssembler::MovD(DRegister fd, DRegister fs) {
-  EmitFR(0x11, 0x11, static_cast<FRegister>(0), static_cast<FRegister>(fs),
-         static_cast<FRegister>(fd), 0x6);
+  EmitFR(0x11, 0x11, static_cast<FRegister>(0), ConvertDRegToFReg(fs), ConvertDRegToFReg(fd), 0x6);
 }
 
 void MipsAssembler::Mfc1(Register rt, FRegister fs) {
-  EmitFR(0x11, 0x00, static_cast<FRegister>(rt), fs, static_cast<FRegister>(0), 0x0);
+  EmitFR(0x11, 0x00, ConvertRegToFReg(rt), fs, static_cast<FRegister>(0), 0x0);
 }
 
 void MipsAssembler::Mtc1(FRegister ft, Register rs) {
-  EmitFR(0x11, 0x04, ft, static_cast<FRegister>(rs), static_cast<FRegister>(0), 0x0);
+  EmitFR(0x11, 0x04, ft, ConvertRegToFReg(rs), static_cast<FRegister>(0), 0x0);
 }
 
 void MipsAssembler::Lwc1(FRegister ft, Register rs, uint16_t imm16) {
-  EmitI(0x31, rs, static_cast<Register>(ft), imm16);
+  EmitI(0x31, rs, ConvertFRegToReg(ft), imm16);
 }
 
 void MipsAssembler::Ldc1(DRegister ft, Register rs, uint16_t imm16) {
-  EmitI(0x35, rs, static_cast<Register>(ft), imm16);
+  EmitI(0x35, rs, ConvertDRegToReg(ft), imm16);
 }
 
 void MipsAssembler::Swc1(FRegister ft, Register rs, uint16_t imm16) {
-  EmitI(0x39, rs, static_cast<Register>(ft), imm16);
+  EmitI(0x39, rs, ConvertFRegToReg(ft), imm16);
 }
 
 void MipsAssembler::Sdc1(DRegister ft, Register rs, uint16_t imm16) {
-  EmitI(0x3d, rs, static_cast<Register>(ft), imm16);
+  EmitI(0x3d, rs, ConvertDRegToReg(ft), imm16);
 }
 
 void MipsAssembler::Break() {
@@ -529,7 +524,7 @@ void MipsAssembler::StoreToOffset(StoreOperandType type, Register reg, Register 
   }
 }
 
-void MipsAssembler::StoreFToOffset(FRegister reg, Register base, int32_t offset) {
+void MipsAssembler::StoreSToOffset(FRegister reg, Register base, int32_t offset) {
   Swc1(reg, base, offset);
 }
 
@@ -566,9 +561,22 @@ void MipsAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   StoreToOffset(kStoreWord, method_reg.AsMips().AsCoreRegister(), SP, 0);
 
   // Write out entry spills.
+  int32_t offset = frame_size + kFramePointerSize;
   for (size_t i = 0; i < entry_spills.size(); ++i) {
-    Register reg = entry_spills.at(i).AsMips().AsCoreRegister();
-    StoreToOffset(kStoreWord, reg, SP, frame_size + kFramePointerSize + (i * kFramePointerSize));
+    MipsManagedRegister reg = entry_spills.at(i).AsMips();
+    if (reg.IsNoRegister()) {
+      ManagedRegisterSpill spill = entry_spills.at(i);
+      offset += spill.getSize();
+    } else if (reg.IsCoreRegister()) {
+      StoreToOffset(kStoreWord, reg.AsCoreRegister(), SP, offset);
+      offset += 4;
+    } else if (reg.IsFRegister()) {
+      StoreSToOffset(reg.AsFRegister(), SP, offset);
+      offset += 4;
+    } else if (reg.IsDRegister()) {
+      StoreDToOffset(reg.AsDRegister(), SP, offset);
+      offset += 8;
+    }
   }
 }
 
@@ -624,7 +632,7 @@ void MipsAssembler::Store(FrameOffset dest, ManagedRegister msrc, size_t size) {
     StoreToOffset(kStoreWord, src.AsRegisterPairHigh(),
                   SP, dest.Int32Value() + 4);
   } else if (src.IsFRegister()) {
-    StoreFToOffset(src.AsFRegister(), SP, dest.Int32Value());
+    StoreSToOffset(src.AsFRegister(), SP, dest.Int32Value());
   } else {
     CHECK(src.IsDRegister());
     StoreDToOffset(src.AsDRegister(), SP, dest.Int32Value());
