@@ -1141,6 +1141,17 @@ ENTRY art_quick_deoptimize
 END art_quick_deoptimize
 
     /*
+     * Compiled code has requested that we deoptimize into the interpreter. The deoptimization
+     * will long jump to the upcall with a special exception of -1.
+     */
+    .extern artDeoptimizeFromCompiledCode
+ENTRY art_quick_deoptimize_from_compiled_code
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME r0, r1
+    mov    r0, r9                         @ Set up args.
+    blx    artDeoptimizeFromCompiledCode  @ artDeoptimizeFromCompiledCode(Thread*)
+END art_quick_deoptimize_from_compiled_code
+
+    /*
      * Signed 64-bit integer multiply.
      *
      * Consider WXxYZ (r1r0 x r3r2) with a long multiply:

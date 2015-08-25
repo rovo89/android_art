@@ -1603,5 +1603,17 @@ ENTRY art_quick_deoptimize
     move     $a0, rSELF        # pass Thread::current
 END art_quick_deoptimize
 
+    /*
+     * Compiled code has requested that we deoptimize into the interpreter. The deoptimization
+     * will long jump to the upcall with a special exception of -1.
+     */
+    .extern artDeoptimizeFromCompiledCode
+ENTRY art_quick_deoptimize_from_compiled_code
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    jal      artDeoptimizeFromCompiledCode    # artDeoptimizeFromCompiledCode(Thread*, SP)
+                                              # Returns caller method's frame size.
+    move     $a0, rSELF                       # pass Thread::current
+END art_quick_deoptimize_from_compiled_code
+
 UNIMPLEMENTED art_quick_indexof
 UNIMPLEMENTED art_quick_string_compareto

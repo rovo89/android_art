@@ -1677,9 +1677,6 @@ END_FUNCTION art_quick_instrumentation_exit
      */
 DEFINE_FUNCTION art_quick_deoptimize
     PUSH ebx                      // Entry point for a jump. Fake that we were called.
-.globl SYMBOL(art_quick_deoptimize_from_compiled_slow_path)  // Entry point for real calls
-                                                             // from compiled slow paths.
-SYMBOL(art_quick_deoptimize_from_compiled_slow_path):
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME ebx, ebx
     subl LITERAL(12), %esp        // Align stack.
     CFI_ADJUST_CFA_OFFSET(12)
@@ -1688,6 +1685,20 @@ SYMBOL(art_quick_deoptimize_from_compiled_slow_path):
     call SYMBOL(artDeoptimize)    // artDeoptimize(Thread*)
     UNREACHABLE
 END_FUNCTION art_quick_deoptimize
+
+    /*
+     * Compiled code has requested that we deoptimize into the interpreter. The deoptimization
+     * will long jump to the upcall with a special exception of -1.
+     */
+DEFINE_FUNCTION art_quick_deoptimize_from_compiled_code
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME ebx, ebx
+    subl LITERAL(12), %esp                      // Align stack.
+    CFI_ADJUST_CFA_OFFSET(12)
+    pushl %fs:THREAD_SELF_OFFSET                // Pass Thread::Current().
+    CFI_ADJUST_CFA_OFFSET(4)
+    call SYMBOL(artDeoptimizeFromCompiledCode)  // artDeoptimizeFromCompiledCode(Thread*)
+    UNREACHABLE
+END_FUNCTION art_quick_deoptimize_from_compiled_code
 
     /*
      * String's compareTo.

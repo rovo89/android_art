@@ -176,8 +176,8 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pThrowNullPointer = art_quick_throw_null_pointer_exception;
   qpoints->pThrowStackOverflow = art_quick_throw_stack_overflow;
 
-  // Deoptimize
-  qpoints->pDeoptimize = art_quick_deoptimize;
+  // Deoptimization from compiled code.
+  qpoints->pDeoptimize = art_quick_deoptimize_from_compiled_code;
 
   // TODO - use lld/scd instructions for Mips64
   // Atomic 64-bit load/store

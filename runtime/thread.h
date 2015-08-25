@@ -77,7 +77,7 @@ class ClassLinker;
 class Closure;
 class Context;
 struct DebugInvokeReq;
-class DeoptimizationReturnValueRecord;
+class DeoptimizationContextRecord;
 class DexFile;
 class JavaVMExt;
 struct JNIEnvExt;
@@ -830,19 +830,13 @@ class Thread {
   // and execute Java code, so there might be nested deoptimizations happening.
   // We need to save the ongoing deoptimization shadow frames and return
   // values on stacks.
-  void SetDeoptimizationReturnValue(const JValue& ret_val, bool is_reference) {
-    tls64_.deoptimization_return_value.SetJ(ret_val.GetJ());
-    tls32_.deoptimization_return_value_is_reference = is_reference;
-  }
-  bool IsDeoptimizationReturnValueReference() {
-    return tls32_.deoptimization_return_value_is_reference;
-  }
-  void ClearDeoptimizationReturnValue() {
-    tls64_.deoptimization_return_value.SetJ(0);
-    tls32_.deoptimization_return_value_is_reference = false;
-  }
-  void PushAndClearDeoptimizationReturnValue();
-  JValue PopDeoptimizationReturnValue();
+  void PushDeoptimizationContext(const JValue& return_value, bool is_reference,
+                                 mirror::Throwable* exception)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  void PopDeoptimizationContext(JValue* result, mirror::Throwable** exception)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  void AssertHasDeoptimizationContext()
+      SHARED_REQUIRES(Locks::mutator_lock_);
   void PushStackedShadowFrame(ShadowFrame* sf, StackedShadowFrameType type);
   ShadowFrame* PopStackedShadowFrame(StackedShadowFrameType type);
 
@@ -1102,9 +1096,8 @@ class Thread {
       suspend_count(0), debug_suspend_count(0), thin_lock_thread_id(0), tid(0),
       daemon(is_daemon), throwing_OutOfMemoryError(false), no_thread_suspension(0),
       thread_exit_check_count(0), handling_signal_(false),
-      deoptimization_return_value_is_reference(false), suspended_at_suspend_check(false),
-      ready_for_debug_invoke(false), debug_method_entry_(false), is_gc_marking(false),
-      weak_ref_access_enabled(true) {
+      suspended_at_suspend_check(false), ready_for_debug_invoke(false),
+      debug_method_entry_(false), is_gc_marking(false), weak_ref_access_enabled(true) {
     }
 
     union StateAndFlags state_and_flags;
@@ -1144,10 +1137,6 @@ class Thread {
     // True if signal is being handled by this thread.
     bool32_t handling_signal_;
 
-    // True if the return value for interpreter after deoptimization is a reference.
-    // For gc purpose.
-    bool32_t deoptimization_return_value_is_reference;
-
     // True if the thread is suspended in FullSuspendCheck(). This is
     // used to distinguish runnable threads that are suspended due to
     // a normal suspend check from other threads.
@@ -1178,14 +1167,11 @@ class Thread {
   } tls32_;
 
   struct PACKED(8) tls_64bit_sized_values {
-    tls_64bit_sized_values() : trace_clock_base(0), deoptimization_return_value() {
+    tls_64bit_sized_values() : trace_clock_base(0) {
     }
 
     // The clock base used for tracing.
     uint64_t trace_clock_base;
-
-    // Return value used by deoptimization.
-    JValue deoptimization_return_value;
 
     RuntimeStats stats;
   } tls64_;
@@ -1197,7 +1183,7 @@ class Thread {
       stack_trace_sample(nullptr), wait_next(nullptr), monitor_enter_object(nullptr),
       top_handle_scope(nullptr), class_loader_override(nullptr), long_jump_context(nullptr),
       instrumentation_stack(nullptr), debug_invoke_req(nullptr), single_step_control(nullptr),
-      stacked_shadow_frame_record(nullptr), deoptimization_return_value_stack(nullptr),
+      stacked_shadow_frame_record(nullptr), deoptimization_context_stack(nullptr),
       name(nullptr), pthread_self(0),
       last_no_thread_suspension_cause(nullptr), thread_local_start(nullptr),
       thread_local_pos(nullptr), thread_local_end(nullptr), thread_local_objects(0),
@@ -1282,7 +1268,7 @@ class Thread {
     StackedShadowFrameRecord* stacked_shadow_frame_record;
 
     // Deoptimization return value record stack.
-    DeoptimizationReturnValueRecord* deoptimization_return_value_stack;
+    DeoptimizationContextRecord* deoptimization_context_stack;
 
     // A cached copy of the java.lang.Thread's name.
     std::string* name;
