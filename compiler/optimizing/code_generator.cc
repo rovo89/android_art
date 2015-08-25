@@ -32,6 +32,10 @@
 #include "code_generator_x86_64.h"
 #endif
 
+#ifdef ART_ENABLE_CODEGEN_mips
+#include "code_generator_mips.h"
+#endif
+
 #ifdef ART_ENABLE_CODEGEN_mips64
 #include "code_generator_mips64.h"
 #endif
@@ -742,11 +746,12 @@ CodeGenerator* CodeGenerator::Create(HGraph* graph,
     }
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips
-    case kMips:
-      UNUSED(compiler_options);
-      UNUSED(graph);
-      UNUSED(isa_features);
-      return nullptr;
+    case kMips: {
+      return new mips::CodeGeneratorMIPS(graph,
+                                         *isa_features.AsMipsInstructionSetFeatures(),
+                                         compiler_options,
+                                         stats);
+    }
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips64
     case kMips64: {
