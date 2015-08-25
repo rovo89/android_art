@@ -570,12 +570,16 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   CHECK_EQ(java_lang_ref_Reference->GetClassSize(),
            mirror::Reference::ClassSize(image_pointer_size_));
   class_root = FindSystemClass(self, "Ljava/lang/ref/FinalizerReference;");
+  CHECK_EQ(class_root->GetClassFlags(), mirror::kClassFlagNormal);
   class_root->SetClassFlags(class_root->GetClassFlags() | mirror::kClassFlagFinalizerReference);
   class_root = FindSystemClass(self, "Ljava/lang/ref/PhantomReference;");
+  CHECK_EQ(class_root->GetClassFlags(), mirror::kClassFlagNormal);
   class_root->SetClassFlags(class_root->GetClassFlags() | mirror::kClassFlagPhantomReference);
   class_root = FindSystemClass(self, "Ljava/lang/ref/SoftReference;");
+  CHECK_EQ(class_root->GetClassFlags(), mirror::kClassFlagNormal);
   class_root->SetClassFlags(class_root->GetClassFlags() | mirror::kClassFlagSoftReference);
   class_root = FindSystemClass(self, "Ljava/lang/ref/WeakReference;");
+  CHECK_EQ(class_root->GetClassFlags(), mirror::kClassFlagNormal);
   class_root->SetClassFlags(class_root->GetClassFlags() | mirror::kClassFlagWeakReference);
 
   // Setup the ClassLoader, verifying the object_size_.
@@ -4387,8 +4391,9 @@ bool ClassLinker::LinkSuperClass(Handle<mirror::Class> klass) {
   }
 
   // Inherit reference flags (if any) from the superclass.
-  int reference_flags = (super->GetClassFlags() & mirror::kClassFlagReference);
+  uint32_t reference_flags = (super->GetClassFlags() & mirror::kClassFlagReference);
   if (reference_flags != 0) {
+    CHECK_EQ(klass->GetClassFlags(), 0u);
     klass->SetClassFlags(klass->GetClassFlags() | reference_flags);
   }
   // Disallow custom direct subclasses of java.lang.ref.Reference.
@@ -5232,17 +5237,26 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
     mirror::Class* super_class = klass->GetSuperClass();
     if (num_reference_fields == 0 || super_class == nullptr) {
       // object has one reference field, klass, but we ignore it since we always visit the class.
-      // If the super_class is null then we are java.lang.Object.
+      // super_class is null iff the class is java.lang.Object.
       if (super_class == nullptr ||
           (super_class->GetClassFlags() & mirror::kClassFlagNoReferenceFields) != 0) {
         klass->SetClassFlags(klass->GetClassFlags() | mirror::kClassFlagNoReferenceFields);
-      } else if (kIsDebugBuild) {
-        size_t total_reference_instance_fields = 0;
-        while (super_class != nullptr) {
-          total_reference_instance_fields += super_class->NumReferenceInstanceFields();
-          super_class = super_class->GetSuperClass();
-        }
-        CHECK_GT(total_reference_instance_fields, 1u);
+      }
+    }
+    if (kIsDebugBuild) {
+      DCHECK_EQ(super_class == nullptr, klass->DescriptorEquals("Ljava/lang/Object;"));
+      size_t total_reference_instance_fields = 0;
+      mirror::Class* cur_super = klass.Get();
+      while (cur_super != nullptr) {
+        total_reference_instance_fields += cur_super->NumReferenceInstanceFieldsDuringLinking();
+        cur_super = cur_super->GetSuperClass();
+      }
+      if (super_class == nullptr) {
+        CHECK_EQ(total_reference_instance_fields, 1u) << PrettyDescriptor(klass.Get());
+      } else {
+        // Check that there is at least num_reference_fields other than Object.class.
+        CHECK_GE(total_reference_instance_fields, 1u + num_reference_fields)
+            << PrettyClass(klass.Get());
       }
     }
     if (!klass->IsVariableSize()) {

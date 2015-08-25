@@ -239,15 +239,15 @@ class MANAGED Class FINAL : public Object {
   }
 
   ALWAYS_INLINE void SetStringClass() SHARED_REQUIRES(Locks::mutator_lock_) {
-    SetClassFlags(GetClassFlags() | kClassFlagString | kClassFlagNoReferenceFields);
+    SetClassFlags(kClassFlagString | kClassFlagNoReferenceFields);
   }
 
   ALWAYS_INLINE bool IsClassLoaderClass() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return (GetClassFlags() & kClassFlagClassLoader) != 0;
+    return GetClassFlags() == kClassFlagClassLoader;
   }
 
   ALWAYS_INLINE void SetClassLoaderClass() SHARED_REQUIRES(Locks::mutator_lock_) {
-    SetClassFlags(GetClassFlags() | kClassFlagClassLoader);
+    SetClassFlags(kClassFlagClassLoader);
   }
 
   // Returns true if the class is abstract.
@@ -282,22 +282,22 @@ class MANAGED Class FINAL : public Object {
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsWeakReferenceClass() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return (GetClassFlags<kVerifyFlags>() & kClassFlagWeakReference) != 0;
+    return GetClassFlags<kVerifyFlags>() == kClassFlagWeakReference;
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsSoftReferenceClass() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return (GetClassFlags<kVerifyFlags>() & kClassFlagSoftReference) != 0;
+    return GetClassFlags<kVerifyFlags>() == kClassFlagSoftReference;
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsFinalizerReferenceClass() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return (GetClassFlags<kVerifyFlags>() & kClassFlagFinalizerReference) != 0;
+    return GetClassFlags<kVerifyFlags>() == kClassFlagFinalizerReference;
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsPhantomReferenceClass() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return (GetClassFlags<kVerifyFlags>() & kClassFlagPhantomReference) != 0;
+    return GetClassFlags<kVerifyFlags>() == kClassFlagPhantomReference;
   }
 
   // Can references of this type be assigned to by things of another type? For non-array types
@@ -867,8 +867,8 @@ class MANAGED Class FINAL : public Object {
   uint32_t NumInstanceFields() SHARED_REQUIRES(Locks::mutator_lock_);
   ArtField* GetInstanceField(uint32_t i) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // Returns the number of instance fields containing reference types not counting fields in the
-  // super class.
+  // Returns the number of instance fields containing reference types. Does not count fields in any
+  // super classes.
   uint32_t NumReferenceInstanceFields() SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(IsResolved() || IsErroneous());
     return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_instance_fields_));
