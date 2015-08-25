@@ -589,7 +589,7 @@ bool MethodVerifier::Verify() {
 
 std::ostream& MethodVerifier::Fail(VerifyError error) {
   // Mark the error type as encountered.
-  encountered_failure_types_ |= (1U << static_cast<uint32_t>(error));
+  encountered_failure_types_ |= static_cast<uint32_t>(error);
 
   switch (error) {
     case VERIFY_ERROR_NO_CLASS:
@@ -601,6 +601,7 @@ std::ostream& MethodVerifier::Fail(VerifyError error) {
     case VERIFY_ERROR_INSTANTIATION:
     case VERIFY_ERROR_CLASS_CHANGE:
     case VERIFY_ERROR_FORCE_INTERPRETER:
+    case VERIFY_ERROR_LOCKING:
       if (Runtime::Current()->IsAotCompiler() || !can_load_classes_) {
         // If we're optimistically running verification at compile time, turn NO_xxx, ACCESS_xxx,
         // class change and instantiation errors into soft verification errors so that we re-verify
@@ -631,12 +632,14 @@ std::ostream& MethodVerifier::Fail(VerifyError error) {
         }
       }
       break;
+
       // Indication that verification should be retried at runtime.
     case VERIFY_ERROR_BAD_CLASS_SOFT:
       if (!allow_soft_failures_) {
         have_pending_hard_failure_ = true;
       }
       break;
+
       // Hard verification failures at compile time will still fail at runtime, so the class is
       // marked as rejected to prevent it from being compiled.
     case VERIFY_ERROR_BAD_CLASS_HARD: {
@@ -1655,6 +1658,33 @@ static uint32_t GetFirstFinalInstanceFieldIndex(const DexFile& dex_file, uint16_
     it.Next();
   }
   return DexFile::kDexNoIndex;
+}
+
+// Setup a register line for the given return instruction.
+static void AdjustReturnLine(MethodVerifier* verifier,
+                             const Instruction* ret_inst,
+                             RegisterLine* line) {
+  Instruction::Code opcode = ret_inst->Opcode();
+
+  switch (opcode) {
+    case Instruction::RETURN_VOID:
+    case Instruction::RETURN_VOID_NO_BARRIER:
+      SafelyMarkAllRegistersAsConflicts(verifier, line);
+      break;
+
+    case Instruction::RETURN:
+    case Instruction::RETURN_OBJECT:
+      line->MarkAllRegistersAsConflictsExcept(verifier, ret_inst->VRegA_11x());
+      break;
+
+    case Instruction::RETURN_WIDE:
+      line->MarkAllRegistersAsConflictsExceptWide(verifier, ret_inst->VRegA_11x());
+      break;
+
+    default:
+      LOG(FATAL) << "Unknown return opcode " << opcode;
+      UNREACHABLE();
+  }
 }
 
 bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
@@ -3078,10 +3108,9 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   } else if (have_pending_runtime_throw_failure_) {
     /* checking interpreter will throw, mark following code as unreachable */
     opcode_flags = Instruction::kThrow;
-    have_any_pending_runtime_throw_failure_ = true;
-    // Reset the pending_runtime_throw flag. The flag is a global to decouple Fail and is per
-    // instruction.
-    have_pending_runtime_throw_failure_ = false;
+    // Note: the flag must be reset as it is only global to decouple Fail and is semantically per
+    //       instruction. However, RETURN checking may throw LOCKING errors, so we clear at the
+    //       very end.
   }
   /*
    * If we didn't just set the result register, clear it out. This ensures that you can only use
@@ -3250,16 +3279,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     if (insn_flags_[next_insn_idx].IsReturn()) {
       // For returns we only care about the operand to the return, all other registers are dead.
       const Instruction* ret_inst = Instruction::At(code_item_->insns_ + next_insn_idx);
-      Instruction::Code opcode = ret_inst->Opcode();
-      if (opcode == Instruction::RETURN_VOID || opcode == Instruction::RETURN_VOID_NO_BARRIER) {
-        SafelyMarkAllRegistersAsConflicts(this, work_line_.get());
-      } else {
-        if (opcode == Instruction::RETURN_WIDE) {
-          work_line_->MarkAllRegistersAsConflictsExceptWide(this, ret_inst->VRegA_11x());
-        } else {
-          work_line_->MarkAllRegistersAsConflictsExcept(this, ret_inst->VRegA_11x());
-        }
-      }
+      AdjustReturnLine(this, ret_inst, work_line_.get());
     }
     RegisterLine* next_line = reg_table_.GetLine(next_insn_idx);
     if (next_line != nullptr) {
@@ -3280,9 +3300,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
 
   /* If we're returning from the method, make sure monitor stack is empty. */
   if ((opcode_flags & Instruction::kReturn) != 0) {
-    if (!work_line_->VerifyMonitorStackEmpty(this)) {
-      return false;
-    }
+    work_line_->VerifyMonitorStackEmpty(this);
   }
 
   /*
@@ -3301,6 +3319,12 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
 
   DCHECK_LT(*start_guess, code_item_->insns_size_in_code_units_);
   DCHECK(insn_flags_[*start_guess].IsOpcode());
+
+  if (have_pending_runtime_throw_failure_) {
+    have_any_pending_runtime_throw_failure_ = true;
+    // Reset the pending_runtime_throw flag now.
+    have_pending_runtime_throw_failure_ = false;
+  }
 
   return true;
 }  // NOLINT(readability/fn_size)
@@ -4425,31 +4449,15 @@ bool MethodVerifier::UpdateRegisters(uint32_t next_insn, RegisterLine* merge_lin
      * there's nothing to "merge". Copy the registers over and mark it as changed. (This is the
      * only way a register can transition out of "unknown", so this is not just an optimization.)
      */
-    if (!insn_flags_[next_insn].IsReturn()) {
-      target_line->CopyFromLine(merge_line);
-    } else {
+    target_line->CopyFromLine(merge_line);
+    if (insn_flags_[next_insn].IsReturn()) {
       // Verify that the monitor stack is empty on return.
-      if (!merge_line->VerifyMonitorStackEmpty(this)) {
-        return false;
-      }
+      merge_line->VerifyMonitorStackEmpty(this);
+
       // For returns we only care about the operand to the return, all other registers are dead.
       // Initialize them as conflicts so they don't add to GC and deoptimization information.
       const Instruction* ret_inst = Instruction::At(code_item_->insns_ + next_insn);
-      Instruction::Code opcode = ret_inst->Opcode();
-      if (opcode == Instruction::RETURN_VOID || opcode == Instruction::RETURN_VOID_NO_BARRIER) {
-        // Explicitly copy the this-initialized flag from the merge-line, as we didn't copy its
-        // state. Must be done before SafelyMarkAllRegistersAsConflicts as that will do the
-        // super-constructor-call checking.
-        target_line->CopyThisInitialized(*merge_line);
-        SafelyMarkAllRegistersAsConflicts(this, target_line);
-      } else {
-        target_line->CopyFromLine(merge_line);
-        if (opcode == Instruction::RETURN_WIDE) {
-          target_line->MarkAllRegistersAsConflictsExceptWide(this, ret_inst->VRegA_11x());
-        } else {
-          target_line->MarkAllRegistersAsConflictsExcept(this, ret_inst->VRegA_11x());
-        }
-      }
+      AdjustReturnLine(this, ret_inst, target_line);
     }
   } else {
     std::unique_ptr<RegisterLine> copy(gDebugVerify ?
