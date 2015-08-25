@@ -143,6 +143,22 @@ TEST(StackMapTest, Test2) {
   stream.AddDexRegisterEntry(Kind::kInFpuRegister, 3);   // Short location.
   stream.EndStackMapEntry();
 
+  ArenaBitVector sp_mask3(&arena, 0, true);
+  sp_mask3.SetBit(1);
+  sp_mask3.SetBit(5);
+  stream.BeginStackMapEntry(2, 192, 0xAB, &sp_mask3, number_of_dex_registers, 0);
+  stream.AddDexRegisterEntry(Kind::kInRegister, 6);       // Short location.
+  stream.AddDexRegisterEntry(Kind::kInRegisterHigh, 8);   // Short location.
+  stream.EndStackMapEntry();
+
+  ArenaBitVector sp_mask4(&arena, 0, true);
+  sp_mask4.SetBit(6);
+  sp_mask4.SetBit(7);
+  stream.BeginStackMapEntry(3, 256, 0xCD, &sp_mask4, number_of_dex_registers, 0);
+  stream.AddDexRegisterEntry(Kind::kInFpuRegister, 3);      // Short location, same in stack map 2.
+  stream.AddDexRegisterEntry(Kind::kInFpuRegisterHigh, 1);  // Short location.
+  stream.EndStackMapEntry();
+
   size_t size = stream.PrepareForFillIn();
   void* memory = arena.Alloc(size, kArenaAllocMisc);
   MemoryRegion region(memory, size);
@@ -151,15 +167,15 @@ TEST(StackMapTest, Test2) {
   CodeInfo code_info(region);
   StackMapEncoding encoding = code_info.ExtractEncoding();
   ASSERT_EQ(2u, encoding.NumberOfBytesForStackMask());
-  ASSERT_EQ(2u, code_info.GetNumberOfStackMaps());
+  ASSERT_EQ(4u, code_info.GetNumberOfStackMaps());
 
   uint32_t number_of_location_catalog_entries = code_info.GetNumberOfLocationCatalogEntries();
-  ASSERT_EQ(4u, number_of_location_catalog_entries);
+  ASSERT_EQ(7u, number_of_location_catalog_entries);
   DexRegisterLocationCatalog location_catalog = code_info.GetDexRegisterLocationCatalog(encoding);
   // The Dex register location catalog contains:
-  // - three 1-byte short Dex register locations, and
+  // - six 1-byte short Dex register locations, and
   // - one 5-byte large Dex register location.
-  size_t expected_location_catalog_size = 3u * 1u + 5u;
+  size_t expected_location_catalog_size = 6u * 1u + 5u;
   ASSERT_EQ(expected_location_catalog_size, location_catalog.Size());
 
   // First stack map.
@@ -275,6 +291,116 @@ TEST(StackMapTest, Test2) {
     ASSERT_EQ(Kind::kInFpuRegister, location1.GetInternalKind());
     ASSERT_EQ(18, location0.GetValue());
     ASSERT_EQ(3, location1.GetValue());
+
+    ASSERT_FALSE(stack_map.HasInlineInfo(encoding));
+  }
+
+  // Third stack map.
+  {
+    StackMap stack_map = code_info.GetStackMapAt(2, encoding);
+    ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForDexPc(2u, encoding)));
+    ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(192u, encoding)));
+    ASSERT_EQ(2u, stack_map.GetDexPc(encoding));
+    ASSERT_EQ(192u, stack_map.GetNativePcOffset(encoding));
+    ASSERT_EQ(0xABu, stack_map.GetRegisterMask(encoding));
+
+    MemoryRegion stack_mask = stack_map.GetStackMask(encoding);
+    ASSERT_TRUE(SameBits(stack_mask, sp_mask3));
+
+    ASSERT_TRUE(stack_map.HasDexRegisterMap(encoding));
+    DexRegisterMap dex_register_map =
+        code_info.GetDexRegisterMapOf(stack_map, encoding, number_of_dex_registers);
+    ASSERT_TRUE(dex_register_map.IsDexRegisterLive(0));
+    ASSERT_TRUE(dex_register_map.IsDexRegisterLive(1));
+    ASSERT_EQ(2u, dex_register_map.GetNumberOfLiveDexRegisters(number_of_dex_registers));
+    // The Dex register map contains:
+    // - one 1-byte live bit mask, and
+    // - one 1-byte set of location catalog entry indices composed of two 2-bit values.
+    size_t expected_dex_register_map_size = 1u + 1u;
+    ASSERT_EQ(expected_dex_register_map_size, dex_register_map.Size());
+
+    ASSERT_EQ(Kind::kInRegister, dex_register_map.GetLocationKind(
+                  0, number_of_dex_registers, code_info, encoding));
+    ASSERT_EQ(Kind::kInRegisterHigh, dex_register_map.GetLocationKind(
+                  1, number_of_dex_registers, code_info, encoding));
+    ASSERT_EQ(Kind::kInRegister, dex_register_map.GetLocationInternalKind(
+                  0, number_of_dex_registers, code_info, encoding));
+    ASSERT_EQ(Kind::kInRegisterHigh, dex_register_map.GetLocationInternalKind(
+                  1, number_of_dex_registers, code_info, encoding));
+    ASSERT_EQ(6, dex_register_map.GetMachineRegister(
+                  0, number_of_dex_registers, code_info, encoding));
+    ASSERT_EQ(8, dex_register_map.GetMachineRegister(
+                  1, number_of_dex_registers, code_info, encoding));
+
+    size_t index0 = dex_register_map.GetLocationCatalogEntryIndex(
+        0, number_of_dex_registers, number_of_location_catalog_entries);
+    size_t index1 = dex_register_map.GetLocationCatalogEntryIndex(
+        1, number_of_dex_registers, number_of_location_catalog_entries);
+    ASSERT_EQ(4u, index0);
+    ASSERT_EQ(5u, index1);
+    DexRegisterLocation location0 = location_catalog.GetDexRegisterLocation(index0);
+    DexRegisterLocation location1 = location_catalog.GetDexRegisterLocation(index1);
+    ASSERT_EQ(Kind::kInRegister, location0.GetKind());
+    ASSERT_EQ(Kind::kInRegisterHigh, location1.GetKind());
+    ASSERT_EQ(Kind::kInRegister, location0.GetInternalKind());
+    ASSERT_EQ(Kind::kInRegisterHigh, location1.GetInternalKind());
+    ASSERT_EQ(6, location0.GetValue());
+    ASSERT_EQ(8, location1.GetValue());
+
+    ASSERT_FALSE(stack_map.HasInlineInfo(encoding));
+  }
+
+  // Fourth stack map.
+  {
+    StackMap stack_map = code_info.GetStackMapAt(3, encoding);
+    ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForDexPc(3u, encoding)));
+    ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(256u, encoding)));
+    ASSERT_EQ(3u, stack_map.GetDexPc(encoding));
+    ASSERT_EQ(256u, stack_map.GetNativePcOffset(encoding));
+    ASSERT_EQ(0xCDu, stack_map.GetRegisterMask(encoding));
+
+    MemoryRegion stack_mask = stack_map.GetStackMask(encoding);
+    ASSERT_TRUE(SameBits(stack_mask, sp_mask4));
+
+    ASSERT_TRUE(stack_map.HasDexRegisterMap(encoding));
+    DexRegisterMap dex_register_map =
+        code_info.GetDexRegisterMapOf(stack_map, encoding, number_of_dex_registers);
+    ASSERT_TRUE(dex_register_map.IsDexRegisterLive(0));
+    ASSERT_TRUE(dex_register_map.IsDexRegisterLive(1));
+    ASSERT_EQ(2u, dex_register_map.GetNumberOfLiveDexRegisters(number_of_dex_registers));
+    // The Dex register map contains:
+    // - one 1-byte live bit mask, and
+    // - one 1-byte set of location catalog entry indices composed of two 2-bit values.
+    size_t expected_dex_register_map_size = 1u + 1u;
+    ASSERT_EQ(expected_dex_register_map_size, dex_register_map.Size());
+
+    ASSERT_EQ(Kind::kInFpuRegister, dex_register_map.GetLocationKind(
+                  0, number_of_dex_registers, code_info, encoding));
+    ASSERT_EQ(Kind::kInFpuRegisterHigh, dex_register_map.GetLocationKind(
+                  1, number_of_dex_registers, code_info, encoding));
+    ASSERT_EQ(Kind::kInFpuRegister, dex_register_map.GetLocationInternalKind(
+                  0, number_of_dex_registers, code_info, encoding));
+    ASSERT_EQ(Kind::kInFpuRegisterHigh, dex_register_map.GetLocationInternalKind(
+                  1, number_of_dex_registers, code_info, encoding));
+    ASSERT_EQ(3, dex_register_map.GetMachineRegister(
+                  0, number_of_dex_registers, code_info, encoding));
+    ASSERT_EQ(1, dex_register_map.GetMachineRegister(
+                  1, number_of_dex_registers, code_info, encoding));
+
+    size_t index0 = dex_register_map.GetLocationCatalogEntryIndex(
+        0, number_of_dex_registers, number_of_location_catalog_entries);
+    size_t index1 = dex_register_map.GetLocationCatalogEntryIndex(
+        1, number_of_dex_registers, number_of_location_catalog_entries);
+    ASSERT_EQ(3u, index0);  // Shared with second stack map.
+    ASSERT_EQ(6u, index1);
+    DexRegisterLocation location0 = location_catalog.GetDexRegisterLocation(index0);
+    DexRegisterLocation location1 = location_catalog.GetDexRegisterLocation(index1);
+    ASSERT_EQ(Kind::kInFpuRegister, location0.GetKind());
+    ASSERT_EQ(Kind::kInFpuRegisterHigh, location1.GetKind());
+    ASSERT_EQ(Kind::kInFpuRegister, location0.GetInternalKind());
+    ASSERT_EQ(Kind::kInFpuRegisterHigh, location1.GetInternalKind());
+    ASSERT_EQ(3, location0.GetValue());
+    ASSERT_EQ(1, location1.GetValue());
 
     ASSERT_FALSE(stack_map.HasInlineInfo(encoding));
   }
