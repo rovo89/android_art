@@ -78,6 +78,12 @@ void Class::SetStatus(Handle<Class> h_this, Status new_status, Thread* self) {
     CHECK_NE(h_this->GetStatus(), kStatusError)
         << "Attempt to set as erroneous an already erroneous class "
         << PrettyClass(h_this.Get());
+    if (VLOG_IS_ON(class_linker)) {
+      LOG(ERROR) << "Setting " << PrettyDescriptor(h_this.Get()) << " to erroneous.";
+      if (self->IsExceptionPending()) {
+        LOG(ERROR) << "Exception: " << self->GetException()->Dump();
+      }
+    }
 
     // Stash current exception.
     StackHandleScope<1> hs(self);
