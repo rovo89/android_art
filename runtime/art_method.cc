@@ -433,9 +433,16 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
         self->ClearException();
         ShadowFrame* shadow_frame =
             self->PopStackedShadowFrame(StackedShadowFrameType::kDeoptimizationShadowFrame);
-        result->SetJ(self->PopDeoptimizationReturnValue().GetJ());
+        mirror::Throwable* pending_exception = nullptr;
+        self->PopDeoptimizationContext(result, &pending_exception);
         self->SetTopOfStack(nullptr);
         self->SetTopOfShadowStack(shadow_frame);
+
+        // Restore the exception that was pending before deoptimization then interpret the
+        // deoptimized frames.
+        if (pending_exception != nullptr) {
+          self->SetException(pending_exception);
+        }
         interpreter::EnterInterpreterFromDeoptimize(self, shadow_frame, result);
       }
       if (kLogInvocationStartAndReturn) {
