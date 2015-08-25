@@ -5546,36 +5546,6 @@ ArtMethod* ClassLinker::ResolveMethod(const DexFile& dex_file, uint32_t method_i
   }
 }
 
-ArtMethod* ClassLinker::ResolveMethodWithoutInvokeType(const DexFile& dex_file,
-                                                       uint32_t method_idx,
-                                                       Handle<mirror::DexCache> dex_cache,
-                                                       Handle<mirror::ClassLoader> class_loader) {
-  ArtMethod* resolved = dex_cache->GetResolvedMethod(method_idx, image_pointer_size_);
-  if (resolved != nullptr && !resolved->IsRuntimeMethod()) {
-    DCHECK(resolved->GetDeclaringClassUnchecked() != nullptr) << resolved->GetDexMethodIndex();
-    return resolved;
-  }
-  // Fail, get the declaring class.
-  const DexFile::MethodId& method_id = dex_file.GetMethodId(method_idx);
-  mirror::Class* klass = ResolveType(dex_file, method_id.class_idx_, dex_cache, class_loader);
-  if (klass == nullptr) {
-    Thread::Current()->AssertPendingException();
-    return nullptr;
-  }
-  if (klass->IsInterface()) {
-    LOG(FATAL) << "ResolveAmbiguousMethod: unexpected method in interface: " << PrettyClass(klass);
-    return nullptr;
-  }
-
-  // Search both direct and virtual methods
-  resolved = klass->FindDirectMethod(dex_cache.Get(), method_idx, image_pointer_size_);
-  if (resolved == nullptr) {
-    resolved = klass->FindVirtualMethod(dex_cache.Get(), method_idx, image_pointer_size_);
-  }
-
-  return resolved;
-}
-
 ArtField* ClassLinker::ResolveField(const DexFile& dex_file, uint32_t field_idx,
                                     Handle<mirror::DexCache> dex_cache,
                                     Handle<mirror::ClassLoader> class_loader, bool is_static) {
