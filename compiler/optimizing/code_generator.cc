@@ -887,7 +887,7 @@ void CodeGenerator::EmitEnvironment(HEnvironment* environment, SlowPathCode* slo
         } else {
           stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInRegister, id);
           if (current->GetType() == Primitive::kPrimLong) {
-            stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInRegister, id);
+            stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInRegisterHigh, id);
             ++i;
             DCHECK_LT(i, environment_size);
           }
@@ -909,7 +909,8 @@ void CodeGenerator::EmitEnvironment(HEnvironment* environment, SlowPathCode* slo
         } else {
           stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInFpuRegister, id);
           if (current->GetType() == Primitive::kPrimDouble) {
-            stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInFpuRegister, id);
+            stack_map_stream_.AddDexRegisterEntry(
+                DexRegisterLocation::Kind::kInFpuRegisterHigh, id);
             ++i;
             DCHECK_LT(i, environment_size);
           }
