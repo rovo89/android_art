@@ -46,7 +46,6 @@ struct WellKnownClasses {
   static jclass dalvik_system_DexPathList__Element;
   static jclass dalvik_system_PathClassLoader;
   static jclass dalvik_system_VMRuntime;
-  static jclass java_lang_annotation_Annotation__array;
   static jclass java_lang_BootClassLoader;
   static jclass java_lang_ClassLoader;
   static jclass java_lang_ClassNotFoundException;
@@ -71,8 +70,6 @@ struct WellKnownClasses {
   static jclass java_util_ArrayList;
   static jclass java_util_Collections;
   static jclass java_nio_DirectByteBuffer;
-  static jclass libcore_reflect_AnnotationFactory;
-  static jclass libcore_reflect_AnnotationMember;
   static jclass libcore_util_EmptyArray;
   static jclass org_apache_harmony_dalvik_ddmc_Chunk;
   static jclass org_apache_harmony_dalvik_ddmc_DdmServer;
@@ -134,8 +131,6 @@ struct WellKnownClasses {
   static jmethodID java_lang_Thread__UncaughtExceptionHandler_uncaughtException;
   static jmethodID java_lang_ThreadGroup_removeThread;
   static jmethodID java_nio_DirectByteBuffer_init;
-  static jmethodID libcore_reflect_AnnotationFactory_createAnnotation;
-  static jmethodID libcore_reflect_AnnotationMember_init;
   static jmethodID org_apache_harmony_dalvik_ddmc_DdmServer_broadcast;
   static jmethodID org_apache_harmony_dalvik_ddmc_DdmServer_dispatch;
 
