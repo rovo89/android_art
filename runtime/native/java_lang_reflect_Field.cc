@@ -415,51 +415,16 @@ static void Field_setShort(JNIEnv* env, jobject javaField, jobject javaObj, jsho
   SetPrimitiveField<Primitive::kPrimShort>(env, javaField, javaObj, value);
 }
 
-static jobject Field_getAnnotationNative(JNIEnv* env, jobject javaField, jclass annotationType) {
-  ScopedFastNativeObjectAccess soa(env);
-  StackHandleScope<1> hs(soa.Self());
-  ArtField* field = soa.Decode<mirror::Field*>(javaField)->GetArtField();
-  Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
-  return soa.AddLocalReference<jobject>(field->GetDexFile()->GetAnnotationForField(field, klass));
-}
-
-static jobjectArray Field_getDeclaredAnnotations(JNIEnv* env, jobject javaField) {
-  ScopedFastNativeObjectAccess soa(env);
-  ArtField* field = soa.Decode<mirror::Field*>(javaField)->GetArtField();
-  return soa.AddLocalReference<jobjectArray>(field->GetDexFile()->GetAnnotationsForField(field));
-}
-
-static jobjectArray Field_getSignatureAnnotation(JNIEnv* env, jobject javaField) {
-  ScopedFastNativeObjectAccess soa(env);
-  ArtField* field = soa.Decode<mirror::Field*>(javaField)->GetArtField();
-  return soa.AddLocalReference<jobjectArray>(
-      field->GetDexFile()->GetSignatureAnnotationForField(field));
-}
-
-static jboolean Field_isAnnotationPresentNative(JNIEnv* env, jobject javaField,
-                                                jclass annotationType) {
-  ScopedFastNativeObjectAccess soa(env);
-  StackHandleScope<1> hs(soa.Self());
-  ArtField* field = soa.Decode<mirror::Field*>(javaField)->GetArtField();
-  Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
-  return field->GetDexFile()->IsFieldAnnotationPresent(field, klass);
-}
-
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Field, get,        "!(Ljava/lang/Object;)Ljava/lang/Object;"),
   NATIVE_METHOD(Field, getBoolean, "!(Ljava/lang/Object;)Z"),
   NATIVE_METHOD(Field, getByte,    "!(Ljava/lang/Object;)B"),
   NATIVE_METHOD(Field, getChar,    "!(Ljava/lang/Object;)C"),
-  NATIVE_METHOD(Field, getAnnotationNative,
-                "!(Ljava/lang/Class;)Ljava/lang/annotation/Annotation;"),
-  NATIVE_METHOD(Field, getDeclaredAnnotations, "!()[Ljava/lang/annotation/Annotation;"),
-  NATIVE_METHOD(Field, getSignatureAnnotation, "!()[Ljava/lang/String;"),
   NATIVE_METHOD(Field, getDouble,  "!(Ljava/lang/Object;)D"),
   NATIVE_METHOD(Field, getFloat,   "!(Ljava/lang/Object;)F"),
   NATIVE_METHOD(Field, getInt,     "!(Ljava/lang/Object;)I"),
   NATIVE_METHOD(Field, getLong,    "!(Ljava/lang/Object;)J"),
   NATIVE_METHOD(Field, getShort,   "!(Ljava/lang/Object;)S"),
-  NATIVE_METHOD(Field, isAnnotationPresentNative, "!(Ljava/lang/Class;)Z"),
   NATIVE_METHOD(Field, set,        "!(Ljava/lang/Object;Ljava/lang/Object;)V"),
   NATIVE_METHOD(Field, setBoolean, "!(Ljava/lang/Object;Z)V"),
   NATIVE_METHOD(Field, setByte,    "!(Ljava/lang/Object;B)V"),
