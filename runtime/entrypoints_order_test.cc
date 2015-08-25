@@ -72,12 +72,15 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
     EXPECT_OFFSET_DIFFP(Thread, tls32_, throwing_OutOfMemoryError, no_thread_suspension, 4);
     EXPECT_OFFSET_DIFFP(Thread, tls32_, no_thread_suspension, thread_exit_check_count, 4);
     EXPECT_OFFSET_DIFFP(Thread, tls32_, thread_exit_check_count, handling_signal_, 4);
+    EXPECT_OFFSET_DIFFP(Thread, tls32_, handling_signal_,
+                        deoptimization_return_value_is_reference, 4);
 
     // TODO: Better connection. Take alignment into account.
     EXPECT_OFFSET_DIFF_GT3(Thread, tls32_.thread_exit_check_count, tls64_.trace_clock_base, 4,
                            thread_tls32_to_tls64);
 
-    EXPECT_OFFSET_DIFFP(Thread, tls64_, trace_clock_base, stats, 8);
+    EXPECT_OFFSET_DIFFP(Thread, tls64_, trace_clock_base, deoptimization_return_value, 8);
+    EXPECT_OFFSET_DIFFP(Thread, tls64_, deoptimization_return_value, stats, 8);
 
     // TODO: Better connection. Take alignment into account.
     EXPECT_OFFSET_DIFF_GT3(Thread, tls64_.stats, tlsPtr_.card_table, 8, thread_tls64_to_tlsptr);
@@ -105,8 +108,8 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, single_step_control, stacked_shadow_frame_record,
                         sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, stacked_shadow_frame_record,
-                        deoptimization_context_stack, sizeof(void*));
-    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, deoptimization_context_stack, name, sizeof(void*));
+                        deoptimization_return_value_stack, sizeof(void*));
+    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, deoptimization_return_value_stack, name, sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, name, pthread_self, sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, pthread_self, last_no_thread_suspension_cause,
                         sizeof(void*));
