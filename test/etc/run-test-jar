@@ -117,6 +117,11 @@ while true; do
         shift
     elif [ "x$1" = "x--secondary" ]; then
         SECONDARY_DEX=":$DEX_LOCATION/$TEST_NAME-ex.jar"
+        # Enable cfg-append to make sure we get the dump for both dex files.
+        # (otherwise the runtime compilation of the secondary dex will overwrite
+        # the dump of the first one)
+        FLAGS="${FLAGS} -Xcompiler-option --dump-cfg-append"
+        COMPILE_FLAGS="${COMPILE_FLAGS} --dump-cfg-append"
         shift
     elif [ "x$1" = "x--debug" ]; then
         DEBUGGER="y"
