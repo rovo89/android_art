@@ -129,6 +129,10 @@ public class Main {
                 new Object[] { new Object() }, null, null));
         testCases.add(new TestCase("b/23300986 (2)", "B23300986", "runAliasBeforeEnter",
                 new Object[] { new Object() }, null, null));
+        testCases.add(new TestCase("b/23502994 (if-eqz)", "B23502994", "runIF_EQZ",
+                new Object[] { new Object() }, null, null));
+        testCases.add(new TestCase("b/23502994 (check-cast)", "B23502994", "runCHECKCAST",
+                new Object[] { "abc" }, null, null));
     }
 
     public void runTests() {
