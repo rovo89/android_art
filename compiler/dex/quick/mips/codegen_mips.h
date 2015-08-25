@@ -29,15 +29,18 @@ class MipsMir2Lir FINAL : public Mir2Lir {
  protected:
   class InToRegStorageMipsMapper : public InToRegStorageMapper {
    public:
-    explicit InToRegStorageMipsMapper(Mir2Lir* m2l) : m2l_(m2l), cur_core_reg_(0) {}
+    explicit InToRegStorageMipsMapper(Mir2Lir* m2l) : m2l_(m2l), cur_core_reg_(0), cur_fpu_reg_(0)
+        {}
     virtual RegStorage GetNextReg(ShortyArg arg);
     virtual void Reset() OVERRIDE {
       cur_core_reg_ = 0;
+      cur_fpu_reg_ = 0;
     }
    protected:
     Mir2Lir* m2l_;
    private:
     size_t cur_core_reg_;
+    size_t cur_fpu_reg_;
   };
 
   class InToRegStorageMips64Mapper : public InToRegStorageMapper {

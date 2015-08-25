@@ -25,6 +25,8 @@
 namespace art {
 namespace mips {
 
+static constexpr uint32_t kMipsCalleeSaveAlwaysSpills =
+    (1 << art::mips::RA);
 static constexpr uint32_t kMipsCalleeSaveRefSpills =
     (1 << art::mips::S2) | (1 << art::mips::S3) | (1 << art::mips::S4) | (1 << art::mips::S5) |
     (1 << art::mips::S6) | (1 << art::mips::S7) | (1 << art::mips::GP) | (1 << art::mips::FP);
@@ -32,19 +34,26 @@ static constexpr uint32_t kMipsCalleeSaveArgSpills =
     (1 << art::mips::A1) | (1 << art::mips::A2) | (1 << art::mips::A3);
 static constexpr uint32_t kMipsCalleeSaveAllSpills =
     (1 << art::mips::S0) | (1 << art::mips::S1);
+
+static constexpr uint32_t kMipsCalleeSaveFpAlwaysSpills = 0;
+static constexpr uint32_t kMipsCalleeSaveFpRefSpills = 0;
+static constexpr uint32_t kMipsCalleeSaveFpArgSpills =
+    (1 << art::mips::F12) | (1 << art::mips::F13) | (1 << art::mips::F14) | (1 << art::mips::F15);
 static constexpr uint32_t kMipsCalleeSaveAllFPSpills =
     (1 << art::mips::F20) | (1 << art::mips::F21) | (1 << art::mips::F22) | (1 << art::mips::F23) |
     (1 << art::mips::F24) | (1 << art::mips::F25) | (1 << art::mips::F26) | (1 << art::mips::F27) |
     (1 << art::mips::F28) | (1 << art::mips::F29) | (1 << art::mips::F30) | (1 << art::mips::F31);
 
 constexpr uint32_t MipsCalleeSaveCoreSpills(Runtime::CalleeSaveType type) {
-  return kMipsCalleeSaveRefSpills |
+  return kMipsCalleeSaveAlwaysSpills | kMipsCalleeSaveRefSpills |
       (type == Runtime::kRefsAndArgs ? kMipsCalleeSaveArgSpills : 0) |
-      (type == Runtime::kSaveAll ? kMipsCalleeSaveAllSpills : 0) | (1 << art::mips::RA);
+      (type == Runtime::kSaveAll ? kMipsCalleeSaveAllSpills : 0);
 }
 
 constexpr uint32_t MipsCalleeSaveFPSpills(Runtime::CalleeSaveType type) {
-  return type == Runtime::kSaveAll ? kMipsCalleeSaveAllFPSpills : 0;
+  return kMipsCalleeSaveFpAlwaysSpills | kMipsCalleeSaveFpRefSpills |
+      (type == Runtime::kRefsAndArgs ? kMipsCalleeSaveFpArgSpills : 0) |
+      (type == Runtime::kSaveAll ? kMipsCalleeSaveAllFPSpills : 0);
 }
 
 constexpr uint32_t MipsCalleeSaveFrameSize(Runtime::CalleeSaveType type) {
