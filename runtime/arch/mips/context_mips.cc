@@ -76,6 +76,11 @@ void MipsContext::SmashCallerSaves() {
   gprs_[A1] = nullptr;
   gprs_[A2] = nullptr;
   gprs_[A3] = nullptr;
+
+  fprs_[F12] = nullptr;
+  fprs_[F13] = nullptr;
+  fprs_[F14] = nullptr;
+  fprs_[F15] = nullptr;
 }
 
 extern "C" NO_RETURN void art_quick_do_long_jump(uint32_t*, uint32_t*);

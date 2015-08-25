@@ -24,17 +24,19 @@
      */
     .extern artFindNativeMethod
 ENTRY art_jni_dlsym_lookup_stub
-    addiu $sp, $sp, -32          # leave room for $a0, $a1, $a2, $a3, and $ra
-    .cfi_adjust_cfa_offset 32
-    sw     $ra, 16($sp)
-    .cfi_rel_offset 31, 16
-    sw     $a3, 12($sp)
+    addiu $sp, $sp, -48         # leave room for $f12, $f13, $f14, $f15, $a0, $a1, $a2, $a3, and $ra
+    .cfi_adjust_cfa_offset 48
+    sw    $ra, 32($sp)
+    .cfi_rel_offset 31, 32
+    SDu   $f14, $f15, 24, $sp, $t0
+    SDu   $f12, $f13, 16, $sp, $t0
+    sw    $a3, 12($sp)
     .cfi_rel_offset 7, 12
-    sw     $a2, 8($sp)
+    sw    $a2, 8($sp)
     .cfi_rel_offset 6, 8
-    sw     $a1, 4($sp)
+    sw    $a1, 4($sp)
     .cfi_rel_offset 5, 4
-    sw     $a0, 0($sp)
+    sw    $a0, 0($sp)
     .cfi_rel_offset 4, 0
     jal   artFindNativeMethod   # (Thread*)
     move  $a0, $s1              # pass Thread::Current()
@@ -42,10 +44,12 @@ ENTRY art_jni_dlsym_lookup_stub
     lw    $a1, 4($sp)
     lw    $a2, 8($sp)
     lw    $a3, 12($sp)
-    lw    $ra, 16($sp)
+    LDu   $f12, $f13, 16, $sp, $t0
+    LDu   $f14, $f15, 24, $sp, $t0
+    lw    $ra, 32($sp)
     beq   $v0, $zero, .Lno_native_code_found
-    addiu $sp, $sp, 32          # restore the stack
-    .cfi_adjust_cfa_offset -32
+    addiu $sp, $sp, 48          # restore the stack
+    .cfi_adjust_cfa_offset -48
     move  $t9, $v0              # put method code result in $t9
     jalr  $zero, $t9            # leaf call to method's code
     nop
