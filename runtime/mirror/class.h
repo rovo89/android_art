@@ -831,9 +831,6 @@ class MANAGED Class FINAL : public Object {
                                        size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ArtMethod* FindDeclaredVirtualMethodByName(const StringPiece& name, size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
   ArtMethod* FindVirtualMethod(const StringPiece& name, const StringPiece& signature,
                                size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
