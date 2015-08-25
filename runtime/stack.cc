@@ -299,7 +299,9 @@ bool StackVisitor::GetVRegFromOptimizedCode(ArtMethod* m, uint16_t vreg, VRegKin
       return true;
     }
     case DexRegisterLocation::Kind::kInRegister:
-    case DexRegisterLocation::Kind::kInFpuRegister: {
+    case DexRegisterLocation::Kind::kInRegisterHigh:
+    case DexRegisterLocation::Kind::kInFpuRegister:
+    case DexRegisterLocation::Kind::kInFpuRegisterHigh: {
       uint32_t reg =
           dex_register_map.GetMachineRegister(vreg, number_of_dex_registers, code_info, encoding);
       return GetRegisterIfAccessible(reg, kind, val);
