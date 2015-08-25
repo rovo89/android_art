@@ -47,6 +47,12 @@ enum TypeCategory {
   kTypeCategoryRef = 3,         // object reference
 };
 
+// What to do with the lock levels when setting the register type.
+enum class LockOp {
+  kClear,                       // Clear the lock levels recorded.
+  kKeep                         // Leave the lock levels alone.
+};
+
 // During verification, we associate one of these with every "interesting" instruction. We track
 // the status of all registers, and (if the method has any monitor-enter instructions) maintain a
 // stack of entered monitors (identified by code unit offset).
@@ -83,6 +89,15 @@ class RegisterLine {
   // Set the type of register N, verifying that the register is valid.  If "newType" is the "Lo"
   // part of a 64-bit value, register N+1 will be set to "newType+1".
   // The register index was validated during the static pass, so we don't need to check it here.
+  //
+  // LockOp::kClear should be used by default; it will clear the lock levels associated with the
+  // register. An example is setting the register type because an instruction writes to the
+  // register.
+  // LockOp::kKeep keeps the lock levels of the register and only changes the register type. This
+  // is typical when the underlying value did not change, but we have "different" type information
+  // available now. An example is sharpening types after a check-cast. Note that when given kKeep,
+  // the new_type is dchecked to be a reference type.
+  template <LockOp kLockOp>
   ALWAYS_INLINE bool SetRegisterType(MethodVerifier* verifier, uint32_t vdst,
                                      const RegType& new_type)
       SHARED_REQUIRES(Locks::mutator_lock_);
