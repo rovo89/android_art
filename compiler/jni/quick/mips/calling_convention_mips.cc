@@ -23,6 +23,10 @@
 namespace art {
 namespace mips {
 
+static const Register kCoreArgumentRegisters[] = { A0, A1, A2, A3 };
+static const FRegister kFArgumentRegisters[] = { F12, F14 };
+static const DRegister kDArgumentRegisters[] = { D6, D7 };
+
 // Calling convention
 ManagedRegister MipsManagedRuntimeCallingConvention::InterproceduralScratchRegister() {
   return MipsManagedRegister::FromCoreRegister(T9);
@@ -89,14 +93,49 @@ FrameOffset MipsManagedRuntimeCallingConvention::CurrentParamStackOffset() {
 const ManagedRegisterEntrySpills& MipsManagedRuntimeCallingConvention::EntrySpills() {
   // We spill the argument registers on MIPS to free them up for scratch use, we then assume
   // all arguments are on the stack.
-  if (entry_spills_.size() == 0) {
-    size_t num_spills = NumArgs() + NumLongOrDoubleArgs();
-    if (num_spills > 0) {
-      entry_spills_.push_back(MipsManagedRegister::FromCoreRegister(A1));
-      if (num_spills > 1) {
-        entry_spills_.push_back(MipsManagedRegister::FromCoreRegister(A2));
-        if (num_spills > 2) {
-          entry_spills_.push_back(MipsManagedRegister::FromCoreRegister(A3));
+  if ((entry_spills_.size() == 0) && (NumArgs() > 0)) {
+    uint32_t gpr_index = 1;  // Skip A0, it is used for ArtMethod*.
+    uint32_t fpr_index = 0;
+
+    for (ResetIterator(FrameOffset(0)); HasNext(); Next()) {
+      if (IsCurrentParamAFloatOrDouble()) {
+        if (IsCurrentParamADouble()) {
+          if (fpr_index < arraysize(kDArgumentRegisters)) {
+            entry_spills_.push_back(
+                MipsManagedRegister::FromDRegister(kDArgumentRegisters[fpr_index++]));
+          } else {
+            entry_spills_.push_back(ManagedRegister::NoRegister(), 8);
+          }
+        } else {
+          if (fpr_index < arraysize(kFArgumentRegisters)) {
+            entry_spills_.push_back(
+                MipsManagedRegister::FromFRegister(kFArgumentRegisters[fpr_index++]));
+          } else {
+            entry_spills_.push_back(ManagedRegister::NoRegister(), 4);
+          }
+        }
+      } else {
+        if (IsCurrentParamALong() && !IsCurrentParamAReference()) {
+          if (gpr_index == 1) {
+            // Don't use a1-a2 as a register pair, move to a2-a3 instead.
+            gpr_index++;
+          }
+          if (gpr_index < arraysize(kCoreArgumentRegisters) - 1) {
+            entry_spills_.push_back(
+                MipsManagedRegister::FromCoreRegister(kCoreArgumentRegisters[gpr_index++]));
+          } else if (gpr_index == arraysize(kCoreArgumentRegisters) - 1) {
+            gpr_index++;
+            entry_spills_.push_back(ManagedRegister::NoRegister(), 4);
+          } else {
+            entry_spills_.push_back(ManagedRegister::NoRegister(), 4);
+          }
+        }
+
+        if (gpr_index < arraysize(kCoreArgumentRegisters)) {
+          entry_spills_.push_back(
+            MipsManagedRegister::FromCoreRegister(kCoreArgumentRegisters[gpr_index++]));
+        } else {
+          entry_spills_.push_back(ManagedRegister::NoRegister(), 4);
         }
       }
     }
