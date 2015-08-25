@@ -1202,7 +1202,8 @@ class Thread {
       last_no_thread_suspension_cause(nullptr), thread_local_start(nullptr),
       thread_local_pos(nullptr), thread_local_end(nullptr), thread_local_objects(0),
       thread_local_alloc_stack_top(nullptr), thread_local_alloc_stack_end(nullptr),
-      nested_signal_state(nullptr), flip_function(nullptr), method_verifier(nullptr) {
+      nested_signal_state(nullptr), flip_function(nullptr), method_verifier(nullptr),
+      thread_local_mark_stack(nullptr) {
       std::fill(held_mutexes, held_mutexes + kLockLevelCount, nullptr);
     }
 

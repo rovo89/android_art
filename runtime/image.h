@@ -78,7 +78,10 @@ class PACKED(4) ImageSection {
 // header of image files written by ImageWriter, read and validated by Space.
 class PACKED(4) ImageHeader {
  public:
-  ImageHeader() : compile_pic_(0) {}
+  ImageHeader()
+      : image_begin_(0U), image_size_(0U), oat_checksum_(0U), oat_file_begin_(0U),
+        oat_data_begin_(0U), oat_data_end_(0U), oat_file_end_(0U), patch_delta_(0),
+        image_roots_(0U), pointer_size_(0U), compile_pic_(0) {}
 
   ImageHeader(uint32_t image_begin,
               uint32_t image_size_,
