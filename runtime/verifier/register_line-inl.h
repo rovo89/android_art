@@ -31,6 +31,7 @@ inline const RegType& RegisterLine::GetRegisterType(MethodVerifier* verifier, ui
   return verifier->GetRegTypeCache()->GetFromId(line_[vsrc]);
 }
 
+template <LockOp kLockOp>
 inline bool RegisterLine::SetRegisterType(MethodVerifier* verifier, uint32_t vdst,
                                           const RegType& new_type) {
   DCHECK_LT(vdst, num_regs_);
@@ -43,8 +44,16 @@ inline bool RegisterLine::SetRegisterType(MethodVerifier* verifier, uint32_t vds
     //       as they are not accessed, and our backends can handle this nowadays.
     line_[vdst] = new_type.GetId();
   }
-  // Clear the monitor entry bits for this register.
-  ClearAllRegToLockDepths(vdst);
+  switch (kLockOp) {
+    case LockOp::kClear:
+      // Clear the monitor entry bits for this register.
+      ClearAllRegToLockDepths(vdst);
+      break;
+    case LockOp::kKeep:
+      // Should only be doing this with reference types.
+      DCHECK(new_type.IsReferenceTypes());
+      break;
+  }
   return true;
 }
 
@@ -89,7 +98,7 @@ inline void RegisterLine::CopyRegister1(MethodVerifier* verifier, uint32_t vdst,
                                  TypeCategory cat) {
   DCHECK(cat == kTypeCategory1nr || cat == kTypeCategoryRef);
   const RegType& type = GetRegisterType(verifier, vsrc);
-  if (!SetRegisterType(verifier, vdst, type)) {
+  if (!SetRegisterType<LockOp::kClear>(verifier, vdst, type)) {
     return;
   }
   if (!type.IsConflict() &&                                  // Allow conflicts to be copied around.
