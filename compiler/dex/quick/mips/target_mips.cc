@@ -195,7 +195,7 @@ RegStorage MipsMir2Lir::Fp64ToSolo32(RegStorage reg) {
 // Return a target-dependent special register.
 RegStorage MipsMir2Lir::TargetReg(SpecialTargetRegister reg, WideKind wide_kind) {
   if (!cu_->target64 && wide_kind == kWide) {
-    DCHECK((kArg0 <= reg && reg < kArg7) || (kFArg0 <= reg && reg < kFArg15) || (kRet0 == reg));
+    DCHECK((kArg0 <= reg && reg < kArg7) || (kFArg0 == reg) || (kFArg2 == reg) || (kRet0 == reg));
     RegStorage ret_reg = RegStorage::MakeRegPair(TargetReg(reg),
                                      TargetReg(static_cast<SpecialTargetRegister>(reg + 1)));
     if (!fpuIs32Bit_ && ret_reg.IsFloat()) {
@@ -250,14 +250,27 @@ RegStorage MipsMir2Lir::TargetReg(SpecialTargetRegister reg) {
 RegStorage MipsMir2Lir::InToRegStorageMipsMapper::GetNextReg(ShortyArg arg) {
   const SpecialTargetRegister coreArgMappingToPhysicalReg[] = {kArg1, kArg2, kArg3};
   const size_t coreArgMappingToPhysicalRegSize = arraysize(coreArgMappingToPhysicalReg);
+  const SpecialTargetRegister fpuArgMappingToPhysicalReg[] = {kFArg0, kFArg2};
+  const size_t fpuArgMappingToPhysicalRegSize = arraysize(fpuArgMappingToPhysicalReg);
 
   RegStorage result = RegStorage::InvalidReg();
-  if (cur_core_reg_ < coreArgMappingToPhysicalRegSize) {
-    result = m2l_->TargetReg(coreArgMappingToPhysicalReg[cur_core_reg_++],
-                             arg.IsRef() ? kRef : kNotWide);
-    if (arg.IsWide() && cur_core_reg_ < coreArgMappingToPhysicalRegSize) {
-      result = RegStorage::MakeRegPair(
-          result, m2l_->TargetReg(coreArgMappingToPhysicalReg[cur_core_reg_++], kNotWide));
+  if (arg.IsFP()) {
+    if (cur_fpu_reg_ < fpuArgMappingToPhysicalRegSize) {
+      result = m2l_->TargetReg(fpuArgMappingToPhysicalReg[cur_fpu_reg_++],
+                               arg.IsWide() ? kWide : kNotWide);
+    }
+  } else {
+    if (cur_core_reg_ < coreArgMappingToPhysicalRegSize) {
+      if (arg.IsWide() && cur_core_reg_ == 0) {
+        // Don't use a1-a2 as a register pair, move to a2-a3 instead.
+        cur_core_reg_++;
+      }
+      result = m2l_->TargetReg(coreArgMappingToPhysicalReg[cur_core_reg_++],
+                               arg.IsRef() ? kRef : kNotWide);
+      if (arg.IsWide() && cur_core_reg_ < coreArgMappingToPhysicalRegSize) {
+        result = RegStorage::MakeRegPair(
+            result, m2l_->TargetReg(coreArgMappingToPhysicalReg[cur_core_reg_++], kNotWide));
+      }
     }
   }
   return result;
@@ -654,6 +667,20 @@ void MipsMir2Lir::LockCallTemps() {
     LockTemp(TargetReg(kArg5));
     LockTemp(TargetReg(kArg6));
     LockTemp(TargetReg(kArg7));
+  } else {
+    if (fpuIs32Bit_) {
+      LockTemp(TargetReg(kFArg0));
+      LockTemp(TargetReg(kFArg1));
+      LockTemp(TargetReg(kFArg2));
+      LockTemp(TargetReg(kFArg3));
+      LockTemp(rs_rD6_fr0);
+      LockTemp(rs_rD7_fr0);
+    } else {
+      LockTemp(TargetReg(kFArg0));
+      LockTemp(TargetReg(kFArg2));
+      LockTemp(rs_rD6_fr1);
+      LockTemp(rs_rD7_fr1);
+    }
   }
 }
 
@@ -668,6 +695,20 @@ void MipsMir2Lir::FreeCallTemps() {
     FreeTemp(TargetReg(kArg5));
     FreeTemp(TargetReg(kArg6));
     FreeTemp(TargetReg(kArg7));
+  } else {
+    if (fpuIs32Bit_) {
+      FreeTemp(TargetReg(kFArg0));
+      FreeTemp(TargetReg(kFArg1));
+      FreeTemp(TargetReg(kFArg2));
+      FreeTemp(TargetReg(kFArg3));
+      FreeTemp(rs_rD6_fr0);
+      FreeTemp(rs_rD7_fr0);
+    } else {
+      FreeTemp(TargetReg(kFArg0));
+      FreeTemp(TargetReg(kFArg2));
+      FreeTemp(rs_rD6_fr1);
+      FreeTemp(rs_rD7_fr1);
+    }
   }
   FreeTemp(TargetReg(kHiddenArg));
 }
