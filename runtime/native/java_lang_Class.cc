@@ -426,45 +426,6 @@ static jobjectArray Class_getDeclaredMethodsUnchecked(JNIEnv* env, jobject javaT
   return soa.AddLocalReference<jobjectArray>(ret.Get());
 }
 
-static jobject Class_getDeclaredAnnotation(JNIEnv* env, jobject javaThis, jclass annotationType) {
-  ScopedFastNativeObjectAccess soa(env);
-  StackHandleScope<2> hs(soa.Self());
-  Handle<mirror::Class> klass(hs.NewHandle(DecodeClass(soa, javaThis)));
-  if (klass->IsProxyClass()) {
-    return nullptr;
-  }
-  Handle<mirror::Class> annotation_class(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
-  return soa.AddLocalReference<jobject>(
-      klass->GetDexFile().GetAnnotationForClass(klass, annotation_class));
-}
-
-static jobjectArray Class_getDeclaredAnnotations(JNIEnv* env, jobject javaThis) {
-  ScopedFastNativeObjectAccess soa(env);
-  StackHandleScope<1> hs(soa.Self());
-  Handle<mirror::Class> klass(hs.NewHandle(DecodeClass(soa, javaThis)));
-  if (klass->IsProxyClass()) {
-    // Return an empty array instead of a null pointer
-    mirror::Class* annotation_array_class =
-        soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_annotation_Annotation__array);
-    mirror::ObjectArray<mirror::Object>* empty_array =
-        mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(), annotation_array_class, 0);
-    return soa.AddLocalReference<jobjectArray>(empty_array);
-  }
-  return soa.AddLocalReference<jobjectArray>(klass->GetDexFile().GetAnnotationsForClass(klass));
-}
-
-static jboolean Class_isDeclaredAnnotationPresent(JNIEnv* env, jobject javaThis,
-                                                  jclass annotationType) {
-  ScopedFastNativeObjectAccess soa(env);
-  StackHandleScope<2> hs(soa.Self());
-  Handle<mirror::Class> klass(hs.NewHandle(DecodeClass(soa, javaThis)));
-  if (klass->IsProxyClass()) {
-    return false;
-  }
-  Handle<mirror::Class> annotation_class(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
-  return klass->GetDexFile().IsClassAnnotationPresent(klass, annotation_class);
-}
-
 static jobject Class_newInstance(JNIEnv* env, jobject javaThis) {
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<4> hs(soa.Self());
@@ -547,9 +508,6 @@ static jobject Class_newInstance(JNIEnv* env, jobject javaThis) {
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Class, classForName,
                 "!(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;"),
-  NATIVE_METHOD(Class, getDeclaredAnnotation,
-                "!(Ljava/lang/Class;)Ljava/lang/annotation/Annotation;"),
-  NATIVE_METHOD(Class, getDeclaredAnnotations, "!()[Ljava/lang/annotation/Annotation;"),
   NATIVE_METHOD(Class, getDeclaredConstructorInternal,
                 "!([Ljava/lang/Class;)Ljava/lang/reflect/Constructor;"),
   NATIVE_METHOD(Class, getDeclaredConstructorsInternal, "!(Z)[Ljava/lang/reflect/Constructor;"),
@@ -560,11 +518,10 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Class, getDeclaredMethodInternal,
                 "!(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;"),
   NATIVE_METHOD(Class, getDeclaredMethodsUnchecked,
-                "!(Z)[Ljava/lang/reflect/Method;"),
+                  "!(Z)[Ljava/lang/reflect/Method;"),
   NATIVE_METHOD(Class, getNameNative, "!()Ljava/lang/String;"),
   NATIVE_METHOD(Class, getProxyInterfaces, "!()[Ljava/lang/Class;"),
   NATIVE_METHOD(Class, getPublicDeclaredFields, "!()[Ljava/lang/reflect/Field;"),
-  NATIVE_METHOD(Class, isDeclaredAnnotationPresent, "!(Ljava/lang/Class;)Z"),
   NATIVE_METHOD(Class, newInstance, "!()Ljava/lang/Object;"),
 };
 
