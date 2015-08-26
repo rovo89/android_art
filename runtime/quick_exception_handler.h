@@ -85,7 +85,7 @@ class QuickExceptionHandler {
   Context* const context_;
   const bool is_deoptimization_;
   // Is method tracing active?
-  const bool method_tracing_active_;
+  bool method_tracing_active_;
   // Quick frame with found handler or last frame if no handler found.
   ArtMethod** handler_quick_frame_;
   // PC to branch to for the handler.
