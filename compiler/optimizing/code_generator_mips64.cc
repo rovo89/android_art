@@ -20,7 +20,9 @@
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "gc/accounting/card_table.h"
 #include "intrinsics.h"
+#include "intrinsics_mips64.h"
 #include "art_method.h"
+#include "code_generator_utils.h"
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
 #include "offsets.h"
@@ -2395,7 +2397,11 @@ void InstructionCodeGeneratorMIPS64::VisitInvokeInterface(HInvokeInterface* invo
 }
 
 void LocationsBuilderMIPS64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
-  // TODO intrinsic function
+  IntrinsicLocationsBuilderMIPS64 intrinsic(codegen_);
+  if (intrinsic.TryDispatch(invoke)) {
+    return;
+  }
+
   HandleInvoke(invoke);
 }
 
@@ -2404,7 +2410,11 @@ void LocationsBuilderMIPS64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* in
   // invokes must have been pruned by art::PrepareForRegisterAllocation.
   DCHECK(codegen_->IsBaseline() || !invoke->IsStaticWithExplicitClinitCheck());
 
-  // TODO - intrinsic function
+  IntrinsicLocationsBuilderMIPS64 intrinsic(codegen_);
+  if (intrinsic.TryDispatch(invoke)) {
+    return;
+  }
+
   HandleInvoke(invoke);
 
   // While SetupBlockedRegisters() blocks registers S2-S8 due to their
@@ -2419,10 +2429,10 @@ void LocationsBuilderMIPS64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* in
   }
 }
 
-static bool TryGenerateIntrinsicCode(HInvoke* invoke,
-                                     CodeGeneratorMIPS64* codegen ATTRIBUTE_UNUSED) {
+static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorMIPS64* codegen) {
   if (invoke->GetLocations()->Intrinsified()) {
-    // TODO - intrinsic function
+    IntrinsicCodeGeneratorMIPS64 intrinsic(codegen);
+    intrinsic.Dispatch(invoke);
     return true;
   }
   return false;
@@ -2531,7 +2541,10 @@ void InstructionCodeGeneratorMIPS64::VisitInvokeStaticOrDirect(HInvokeStaticOrDi
 }
 
 void InstructionCodeGeneratorMIPS64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
-  // TODO: Try to generate intrinsics code.
+  if (TryGenerateIntrinsicCode(invoke, codegen_)) {
+    return;
+  }
+
   LocationSummary* locations = invoke->GetLocations();
   Location receiver = locations->InAt(0);
   GpuRegister temp = invoke->GetLocations()->GetTemp(0).AsRegister<GpuRegister>();
