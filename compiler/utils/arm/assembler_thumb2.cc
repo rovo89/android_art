@@ -3299,17 +3299,17 @@ void Thumb2Assembler::StoreToOffset(StoreOperandType type,
   Register tmp_reg = kNoRegister;
   if (!Address::CanHoldStoreOffsetThumb(type, offset)) {
     CHECK_NE(base, IP);
-    if (reg != IP &&
-        (type != kStoreWordPair || reg + 1 != IP)) {
+    if ((reg != IP) &&
+        ((type != kStoreWordPair) || (reg + 1 != IP))) {
       tmp_reg = IP;
     } else {
       // Be careful not to use IP twice (for `reg` (or `reg` + 1 in
-      // the case of a word-pair store)) and to build the Address
-      // object used by the store instruction(s) below).  Instead,
-      // save R5 on the stack (or R6 if R5 is not available), use it
-      // as secondary temporary register, and restore it after the
-      // store instruction has been emitted.
-      tmp_reg = base != R5 ? R5 : R6;
+      // the case of a word-pair store) and `base`) to build the
+      // Address object used by the store instruction(s) below.
+      // Instead, save R5 on the stack (or R6 if R5 is already used by
+      // `base`), use it as secondary temporary register, and restore
+      // it after the store instruction has been emitted.
+      tmp_reg = (base != R5) ? R5 : R6;
       Push(tmp_reg);
       if (base == SP) {
         offset += kRegisterSize;
@@ -3338,8 +3338,8 @@ void Thumb2Assembler::StoreToOffset(StoreOperandType type,
       LOG(FATAL) << "UNREACHABLE";
       UNREACHABLE();
   }
-  if (tmp_reg != kNoRegister && tmp_reg != IP) {
-    DCHECK(tmp_reg == R5 || tmp_reg == R6);
+  if ((tmp_reg != kNoRegister) && (tmp_reg != IP)) {
+    CHECK((tmp_reg == R5) || (tmp_reg == R6));
     Pop(tmp_reg);
   }
 }
