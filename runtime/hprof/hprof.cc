@@ -421,6 +421,7 @@ class Hprof : public SingleRootVisitor {
         fd_(fd),
         direct_to_ddms_(direct_to_ddms),
         start_ns_(NanoTime()),
+        output_(nullptr),
         current_heap_(HPROF_HEAP_DEFAULT),
         objects_in_segment_(0),
         next_string_id_(0x400000),
