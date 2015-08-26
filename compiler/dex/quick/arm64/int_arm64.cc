@@ -37,14 +37,12 @@ LIR* Arm64Mir2Lir::OpCmpBranch(ConditionCode cond, RegStorage src1, RegStorage s
   return OpCondBranch(cond, target);
 }
 
-LIR* Arm64Mir2Lir::OpIT(ConditionCode ccode, const char* guide) {
-  UNUSED(ccode, guide);
+LIR* Arm64Mir2Lir::OpIT(ConditionCode ccode ATTRIBUTE_UNUSED, const char* guide ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of OpIT for Arm64";
   UNREACHABLE();
 }
 
-void Arm64Mir2Lir::OpEndIT(LIR* it) {
-  UNUSED(it);
+void Arm64Mir2Lir::OpEndIT(LIR* it ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of OpEndIT for Arm64";
 }
 
@@ -188,8 +186,7 @@ void Arm64Mir2Lir::GenSelectConst32(RegStorage left_op, RegStorage right_op, Con
   GenSelect(true_val, false_val, code, rs_dest, dest_reg_class);
 }
 
-void Arm64Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
-  UNUSED(bb);
+void Arm64Mir2Lir::GenSelect(BasicBlock* bb ATTRIBUTE_UNUSED, MIR* mir) {
   RegLocation rl_src = mir_graph_->GetSrc(mir, 0);
   rl_src = LoadValue(rl_src, rl_src.ref ? kRefReg : kCoreReg);
   // rl_src may be aliased with rl_result/rl_dest, so do compare early.
@@ -413,9 +410,11 @@ static const MagicTable magic_table[] = {
 };
 
 // Integer division by constant via reciprocal multiply (Hacker's Delight, 10-4)
-bool Arm64Mir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div,
-                                      RegLocation rl_src, RegLocation rl_dest, int lit) {
-  UNUSED(dalvik_opcode);
+bool Arm64Mir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode ATTRIBUTE_UNUSED,
+                                      bool is_div,
+                                      RegLocation rl_src,
+                                      RegLocation rl_dest,
+                                      int lit) {
   if ((lit < 0) || (lit >= static_cast<int>(arraysize(magic_table)))) {
     return false;
   }
@@ -457,9 +456,11 @@ bool Arm64Mir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_d
   return true;
 }
 
-bool Arm64Mir2Lir::SmallLiteralDivRem64(Instruction::Code dalvik_opcode, bool is_div,
-                                        RegLocation rl_src, RegLocation rl_dest, int64_t lit) {
-  UNUSED(dalvik_opcode);
+bool Arm64Mir2Lir::SmallLiteralDivRem64(Instruction::Code dalvik_opcode ATTRIBUTE_UNUSED,
+                                        bool is_div,
+                                        RegLocation rl_src,
+                                        RegLocation rl_dest,
+                                        int64_t lit) {
   if ((lit < 0) || (lit >= static_cast<int>(arraysize(magic_table)))) {
     return false;
   }
@@ -599,15 +600,17 @@ bool Arm64Mir2Lir::HandleEasyDivRem64(Instruction::Code dalvik_opcode, bool is_d
   return true;
 }
 
-bool Arm64Mir2Lir::EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) {
-  UNUSED(rl_src, rl_dest, lit);
+bool Arm64Mir2Lir::EasyMultiply(RegLocation rl_src ATTRIBUTE_UNUSED,
+                                RegLocation rl_dest ATTRIBUTE_UNUSED,
+                                int lit ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of EasyMultiply for Arm64";
   UNREACHABLE();
 }
 
-RegLocation Arm64Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src1, int lit,
-                                       bool is_div) {
-  UNUSED(rl_dest, rl_src1, lit, is_div);
+RegLocation Arm64Mir2Lir::GenDivRemLit(RegLocation rl_dest ATTRIBUTE_UNUSED,
+                                       RegLocation rl_src1 ATTRIBUTE_UNUSED,
+                                       int lit ATTRIBUTE_UNUSED,
+                                       bool is_div ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of GenDivRemLit for Arm64";
   UNREACHABLE();
 }
@@ -626,9 +629,11 @@ RegLocation Arm64Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegStorage reg1, int
   return rl_result;
 }
 
-RegLocation Arm64Mir2Lir::GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
-                                    RegLocation rl_src2, bool is_div, int flags) {
-  UNUSED(rl_dest, rl_src1, rl_src2, is_div, flags);
+RegLocation Arm64Mir2Lir::GenDivRem(RegLocation rl_dest ATTRIBUTE_UNUSED,
+                                    RegLocation rl_src1 ATTRIBUTE_UNUSED,
+                                    RegLocation rl_src2 ATTRIBUTE_UNUSED,
+                                    bool is_div ATTRIBUTE_UNUSED,
+                                    int flags ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of GenDivRem for Arm64";
   UNREACHABLE();
 }
@@ -963,14 +968,12 @@ void Arm64Mir2Lir::OpPcRelDexCacheArrayLoad(const DexFile* dex_file, int offset,
   dex_cache_access_insns_.push_back(ldr);
 }
 
-LIR* Arm64Mir2Lir::OpVldm(RegStorage r_base, int count) {
-  UNUSED(r_base, count);
+LIR* Arm64Mir2Lir::OpVldm(RegStorage r_base ATTRIBUTE_UNUSED, int count ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of OpVldm for Arm64";
   UNREACHABLE();
 }
 
-LIR* Arm64Mir2Lir::OpVstm(RegStorage r_base, int count) {
-  UNUSED(r_base, count);
+LIR* Arm64Mir2Lir::OpVstm(RegStorage r_base ATTRIBUTE_UNUSED, int count ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of OpVstm for Arm64";
   UNREACHABLE();
 }

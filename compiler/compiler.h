@@ -77,9 +77,8 @@ class Compiler {
    * information.
    * @note This is used for backtrace information in generated code.
    */
-  virtual std::vector<uint8_t>* GetCallFrameInformationInitialization(const CompilerDriver& driver)
-      const {
-    UNUSED(driver);
+  virtual std::vector<uint8_t>* GetCallFrameInformationInitialization(
+      const CompilerDriver& driver ATTRIBUTE_UNUSED) const {
     return nullptr;
   }
 

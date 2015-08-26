@@ -987,8 +987,7 @@ int ArmMir2Lir::GenDalvikArgsBulkCopy(CallInfo* info, int first, int count) {
   return count;
 }
 
-void ArmMir2Lir::GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir) {
-  UNUSED(bb);
+void ArmMir2Lir::GenMachineSpecificExtendedMethodMIR(BasicBlock* bb ATTRIBUTE_UNUSED, MIR* mir) {
   DCHECK(MIR::DecodedInstruction::IsPseudoMirOp(mir->dalvikInsn.opcode));
   RegLocation rl_src[3];
   RegLocation rl_dest = mir_graph_->GetBadLoc();

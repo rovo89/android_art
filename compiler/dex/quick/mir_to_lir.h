@@ -1463,8 +1463,7 @@ class Mir2Lir {
     virtual bool InexpensiveConstantFloat(int32_t value) = 0;
     virtual bool InexpensiveConstantLong(int64_t value) = 0;
     virtual bool InexpensiveConstantDouble(int64_t value) = 0;
-    virtual bool InexpensiveConstantInt(int32_t value, Instruction::Code opcode) {
-      UNUSED(opcode);
+    virtual bool InexpensiveConstantInt(int32_t value, Instruction::Code opcode ATTRIBUTE_UNUSED) {
       return InexpensiveConstantInt(value);
     }
 

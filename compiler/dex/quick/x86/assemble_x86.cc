@@ -1629,8 +1629,8 @@ void X86Mir2Lir::EmitUnimplemented(const X86EncodingMap* entry, LIR* lir) {
  * instruction.  In those cases we will try to substitute a new code
  * sequence or request that the trace be shortened and retried.
  */
-AssemblerStatus X86Mir2Lir::AssembleInstructions(LIR* first_lir_insn, CodeOffset start_addr) {
-  UNUSED(start_addr);
+AssemblerStatus X86Mir2Lir::AssembleInstructions(LIR* first_lir_insn,
+                                                 CodeOffset start_addr ATTRIBUTE_UNUSED) {
   LIR *lir;
   AssemblerStatus res = kSuccess;  // Assume success
 

@@ -54,7 +54,7 @@ class DebugStackRefCounterImpl<false> {
 template <>
 class DebugStackReferenceImpl<false> {
  public:
-  explicit DebugStackReferenceImpl(DebugStackRefCounterImpl<false>* counter) { UNUSED(counter); }
+  explicit DebugStackReferenceImpl(DebugStackRefCounterImpl<false>* counter ATTRIBUTE_UNUSED) {}
   DebugStackReferenceImpl(const DebugStackReferenceImpl& other) = default;
   DebugStackReferenceImpl& operator=(const DebugStackReferenceImpl& other) = default;
   void CheckTop() { }
@@ -63,7 +63,7 @@ class DebugStackReferenceImpl<false> {
 template <>
 class DebugStackIndirectTopRefImpl<false> {
  public:
-  explicit DebugStackIndirectTopRefImpl(DebugStackReferenceImpl<false>* ref) { UNUSED(ref); }
+  explicit DebugStackIndirectTopRefImpl(DebugStackReferenceImpl<false>* ref ATTRIBUTE_UNUSED) {}
   DebugStackIndirectTopRefImpl(const DebugStackIndirectTopRefImpl& other) = default;
   DebugStackIndirectTopRefImpl& operator=(const DebugStackIndirectTopRefImpl& other) = default;
   void CheckTop() { }
