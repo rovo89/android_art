@@ -467,9 +467,14 @@ uint32_t BackgroundMethodSamplingProfiler::DumpProfile(std::ostream& os) {
 // Profile Table.
 // This holds a mapping of ArtMethod* to a count of how many times a sample
 // hit it at the top of the stack.
-ProfileSampleResults::ProfileSampleResults(Mutex& lock) : lock_(lock), num_samples_(0),
-    num_null_methods_(0),
-    num_boot_methods_(0) {
+ProfileSampleResults::ProfileSampleResults(Mutex& lock)
+    : lock_(lock),
+      num_samples_(0U),
+      num_null_methods_(0U),
+      num_boot_methods_(0U),
+      previous_num_samples_(0U),
+      previous_num_null_methods_(0U),
+      previous_num_boot_methods_(0U) {
   for (int i = 0; i < kHashSize; i++) {
     table[i] = nullptr;
   }
