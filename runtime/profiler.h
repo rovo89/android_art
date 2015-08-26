@@ -243,7 +243,7 @@ class ProfileFile {
  public:
   class ProfileData {
    public:
-    ProfileData() : count_(0), method_size_(0), used_percent_(0) {}
+    ProfileData() : count_(0), method_size_(0), used_percent_(0), top_k_used_percentage_(0) {}
     ProfileData(const std::string& method_name, uint32_t count, uint32_t method_size,
       double used_percent, double top_k_used_percentage) :
       method_name_(method_name), count_(count), method_size_(method_size),

@@ -76,7 +76,8 @@ class HGraphBuilder : public ValueObject {
         code_start_(nullptr),
         latest_result_(nullptr),
         can_use_baseline_for_string_init_(true),
-        compilation_stats_(nullptr) {}
+        compilation_stats_(nullptr),
+        interpreter_metadata_(nullptr) {}
 
   bool BuildGraph(const DexFile::CodeItem& code);
 
