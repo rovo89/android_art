@@ -1146,7 +1146,7 @@ END art_quick_check_cast
     .cfi_rel_offset x4, 32
     .cfi_rel_offset x30, 40
 
-    // mov x0, x0                   // pass ref in x0 (no-op for now since parameter ref is unused)
+    // mov x0, \xRef                // pass ref in x0 (no-op for now since parameter ref is unused)
     .ifnc \xObj, x1
         mov x1, \xObj               // pass xObj
     .endif
