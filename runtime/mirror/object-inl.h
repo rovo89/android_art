@@ -1016,6 +1016,9 @@ inline void Object::VisitReferences(const Visitor& visitor,
     DCHECK(!klass->IsVariableSize());
     VisitInstanceFieldsReferences(klass, visitor);
     DCHECK(!klass->IsClassClass());
+    DCHECK(!klass->IsStringClass());
+    DCHECK(!klass->IsClassLoaderClass());
+    DCHECK(!klass->IsArrayClass());
   } else {
     if ((class_flags & kClassFlagNoReferenceFields) == 0) {
       DCHECK(!klass->IsStringClass());
