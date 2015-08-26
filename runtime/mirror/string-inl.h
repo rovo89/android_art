@@ -18,8 +18,10 @@
 #define ART_RUNTIME_MIRROR_STRING_INL_H_
 
 #include "array.h"
+#include "base/bit_utils.h"
 #include "class.h"
 #include "gc/heap-inl.h"
+#include "globals.h"
 #include "intern_table.h"
 #include "runtime.h"
 #include "string.h"
@@ -142,7 +144,12 @@ inline uint16_t String::CharAt(int32_t index) {
 
 template<VerifyObjectFlags kVerifyFlags>
 inline size_t String::SizeOf() {
-  return sizeof(String) + (sizeof(uint16_t) * GetLength<kVerifyFlags>());
+  size_t size = sizeof(String) + (sizeof(uint16_t) * GetLength<kVerifyFlags>());
+  // String.equals() intrinsics assume zero-padding up to kObjectAlignment,
+  // so make sure the padding is actually zero-initialized if the allocator
+  // chooses to clear, or GC compaction chooses to copy, only SizeOf() bytes.
+  // http://b/23528461
+  return RoundUp(size, kObjectAlignment);
 }
 
 template <bool kIsInstrumented, typename PreFenceVisitor>
