@@ -22,27 +22,39 @@
 namespace art {
 namespace mirror {
 
-// Object types stored in class to help GC with faster object marking.
+// Normal instance with at least one ref field other than the class.
 static constexpr uint32_t kClassFlagNormal             = 0x00000000;
+
 // Only normal objects which have no reference fields, e.g. string or primitive array or normal
-// class instance.
+// class instance with no fields other than klass.
 static constexpr uint32_t kClassFlagNoReferenceFields  = 0x00000001;
+
+// Class is java.lang.String.class.
 static constexpr uint32_t kClassFlagString             = 0x00000004;
+
+// Class is an object array class.
 static constexpr uint32_t kClassFlagObjectArray        = 0x00000008;
+
+// Class is java.lang.Class.class.
 static constexpr uint32_t kClassFlagClass              = 0x00000010;
 
-// class is ClassLoader or one of its subclasses
+// Class is ClassLoader or one of its subclasses.
 static constexpr uint32_t kClassFlagClassLoader        = 0x00000020;
 
-// class is a soft/weak/phantom ref
+// Class is a soft/weak/phantom class.
 static constexpr uint32_t kClassFlagSoftReference      = 0x00000040;
-// class is a weak reference
+
+// Class is a weak reference class.
 static constexpr uint32_t kClassFlagWeakReference      = 0x00000080;
-// class is a finalizer reference
+
+// Class is a finalizer reference class.
 static constexpr uint32_t kClassFlagFinalizerReference = 0x00000100;
-// class is a phantom reference
+
+// Class is the phantom reference class.
 static constexpr uint32_t kClassFlagPhantomReference   = 0x00000200;
 
+// Combination of flags to figure out if the class is either the weak/soft/phantom/finalizer
+// reference class.
 static constexpr uint32_t kClassFlagReference =
     kClassFlagSoftReference |
     kClassFlagWeakReference |
