@@ -609,7 +609,7 @@ END art_quick_check_cast
     .cfi_rel_offset lr, 20
     sub sp, #8                      @ push padding
     .cfi_adjust_cfa_offset 8
-    @ mov r0, r0                    @ pass ref in r0 (no-op for now since parameter ref is unused)
+    @ mov r0, \rRef                 @ pass ref in r0 (no-op for now since parameter ref is unused)
     .ifnc \rObj, r1
         mov r1, \rObj               @ pass rObj
     .endif
