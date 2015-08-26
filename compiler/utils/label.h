@@ -70,6 +70,13 @@ class Label {
  public:
   Label() : position_(0) {}
 
+  Label(Label&& src)
+      : position_(src.position_) {
+    // We must unlink/unbind the src label when moving; if not, calling the destructor on
+    // the src label would fail.
+    src.position_ = 0;
+  }
+
   ~Label() {
     // Assert if label is being destroyed with unresolved branches pending.
     CHECK(!IsLinked());

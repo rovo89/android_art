@@ -122,7 +122,8 @@ void DebugFrameOpCodeWriterForAssembler::ImplicitlyAdvancePC() {
   this->AdvancePC(assembler_->CodeSize());
 }
 
-Assembler* Assembler::Create(InstructionSet instruction_set) {
+Assembler* Assembler::Create(InstructionSet instruction_set,
+                             const InstructionSetFeatures* instruction_set_features) {
   switch (instruction_set) {
 #ifdef ART_ENABLE_CODEGEN_arm
     case kArm:
@@ -136,7 +137,9 @@ Assembler* Assembler::Create(InstructionSet instruction_set) {
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips
     case kMips:
-      return new mips::MipsAssembler();
+      return new mips::MipsAssembler(instruction_set_features != nullptr
+                                         ? instruction_set_features->AsMipsInstructionSetFeatures()
+                                         : nullptr);
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips64
     case kMips64:
