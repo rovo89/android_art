@@ -152,6 +152,9 @@ void QuickExceptionHandler::FindCatch(mirror::Throwable* exception) {
   if (instrumentation->HasExceptionCaughtListeners()
       && self_->IsExceptionThrownByCurrentMethod(exception)) {
     instrumentation->ExceptionCaughtEvent(self_, exception_ref.Get());
+    // Instrumentation may have been updated.
+    method_tracing_active_ = is_deoptimization_ ||
+        Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled();
   }
 }
 
