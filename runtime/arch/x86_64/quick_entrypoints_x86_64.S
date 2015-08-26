@@ -918,6 +918,13 @@ DEFINE_FUNCTION art_quick_alloc_object_tlab
     // RDI: uint32_t type_idx, RSI: ArtMethod*
     // RDX, RCX, R8, R9: free. RAX: return val.
     // TODO: Add read barrier when this function is used.
+    // Note this function can/should implement read barrier fast path only
+    // (no read barrier slow path) because this is the fast path of tlab allocation.
+    // We can fall back to the allocation slow path to do the read barrier slow path.
+#if defined(USE_READ_BARRIER)
+    int3
+    int3
+#endif
     // Might need a special macro since rsi and edx is 32b/64b mismatched.
     movl ART_METHOD_DEX_CACHE_TYPES_OFFSET(%rsi), %edx  // Load dex cache resolved types array
     UNPOISON_HEAP_REF edx
@@ -1165,7 +1172,7 @@ MACRO2(POP_REG_NE, reg, exclude_reg)
 END_MACRO
 
     /*
-     * Macro to insert read barrier, used in art_quick_aput_obj and art_quick_alloc_object_tlab.
+     * Macro to insert read barrier, used in art_quick_aput_obj.
      * obj_reg and dest_reg{32|64} are registers, offset is a defined literal such as
      * MIRROR_OBJECT_CLASS_OFFSET. dest_reg needs two versions to handle the mismatch between
      * 64b PUSH/POP and 32b argument.
@@ -1182,8 +1189,8 @@ MACRO4(READ_BARRIER, obj_reg, offset, dest_reg32, dest_reg64)
     PUSH rcx
     SETUP_FP_CALLEE_SAVE_FRAME
     // Outgoing argument set up
-    // movl %edi, %edi                  // pass ref, no-op for now since parameter ref is unused
-    // // movq %rdi, %rdi
+    // movl REG_VAR(ref_reg32), %edi    // pass ref, no-op for now since parameter ref is unused
+    // // movq REG_VAR(ref_reg64), %rdi
     movl REG_VAR(obj_reg), %esi         // pass obj_reg
     // movq REG_VAR(obj_reg), %rsi
     movl MACRO_LITERAL((RAW_VAR(offset))), %edx // pass offset, double parentheses are necessary
