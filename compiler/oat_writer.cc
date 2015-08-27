@@ -691,6 +691,8 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
     OatClass* oat_class = writer_->oat_classes_[oat_class_index_];
     const CompiledMethod* compiled_method = oat_class->GetCompiledMethod(class_def_method_index);
 
+    // No thread suspension since dex_cache_ that may get invalidated if that occurs.
+    ScopedAssertNoThreadSuspension tsc(Thread::Current(), __FUNCTION__);
     if (compiled_method != nullptr) {  // ie. not an abstract method
       size_t file_offset = file_offset_;
       OutputStream* out = out_;
