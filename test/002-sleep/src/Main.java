@@ -2,8 +2,8 @@ public class Main {
     static public void main(String[] args) throws Exception {
         int millis = 1000;
 
-        if (args.length != 0) {
-            millis = Integer.parseInt(args[0]);
+        if (args.length > 1) {
+            millis = Integer.parseInt(args[1]);
         }
 
         System.out.println("Sleeping " + millis + " msec...");

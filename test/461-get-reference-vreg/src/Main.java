@@ -38,11 +38,8 @@ public class Main {
   native int doNativeCallRef();
   static native int doStaticNativeCallRef();
 
-  static {
-    System.loadLibrary("arttest");
-  }
-
   public static void main(String[] args) {
+    System.loadLibrary(args[0]);
     Main rm = new Main();
     if (rm.testThisWithInstanceCall() != 1) {
       throw new Error("Expected 1");

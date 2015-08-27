@@ -16,6 +16,8 @@
 
 public class Main {
   public static void main(String[] args) {
+    System.loadLibrary(args[0]);
+
     boolean executable_correct = (isPic() ?
                                   hasExecutableOat() == true :
                                   hasExecutableOat() == isDex2OatEnabled());
@@ -39,10 +41,6 @@ public class Main {
       ret = ret + arr[i] + " ";
     }
     return ret.substring(0, ret.length() - 1);
-  }
-
-  static {
-    System.loadLibrary("arttest");
   }
 
   private native static boolean isDex2OatEnabled();
