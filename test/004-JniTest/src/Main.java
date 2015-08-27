@@ -20,7 +20,7 @@ import java.lang.reflect.Proxy;
 
 public class Main {
     public static void main(String[] args) {
-        System.loadLibrary("arttest");
+        System.loadLibrary(args[0]);
         testFindClassOnAttachedNativeThread();
         testFindFieldOnAttachedNativeThread();
         testReflectFieldGetFromAttachedNativeThreadNative();

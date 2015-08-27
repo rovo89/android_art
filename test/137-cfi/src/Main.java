@@ -41,15 +41,12 @@ public class Main implements Comparator<Main> {
   }
 
   public static void main(String[] args) throws Exception {
+    System.loadLibrary(args[0]);
       boolean secondary = false;
       if (args.length > 0 && args[args.length - 1].equals("--secondary")) {
           secondary = true;
       }
       new Main(secondary).run();
-  }
-
-  static {
-      System.loadLibrary("arttest");
   }
 
   private void run() {

@@ -18,10 +18,6 @@ import java.lang.reflect.Field;
 import sun.misc.Unsafe;
 
 public class Main {
-  static {
-    System.loadLibrary("arttest");
-  }
-
   private static void check(int actual, int expected, String msg) {
     if (actual != expected) {
       System.out.println(msg + " : " + actual + " != " + expected);
@@ -51,6 +47,7 @@ public class Main {
   }
 
   public static void main(String[] args) throws Exception {
+    System.loadLibrary(args[0]);
     Unsafe unsafe = getUnsafe();
     check(unsafe.arrayBaseOffset(boolean[].class), vmArrayBaseOffset(boolean[].class),
         "Unsafe.arrayBaseOffset(boolean[])");

@@ -378,41 +378,6 @@ ifneq (,$(filter trace stream,$(TRACE_TYPES)))
       $(PICTEST_TYPES),$(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_TRACING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
 endif
 
-TEST_ART_BROKEN_TRACING_RUN_TESTS :=
-
-# The following tests use libarttest.so, which is linked against libartd.so, so will
-# not work when libart.so is the one loaded.
-# TODO: Find a way to run these tests in ndebug mode.
-TEST_ART_BROKEN_NDEBUG_TESTS := \
-  004-JniTest \
-  004-ReferenceMap \
-  004-SignalTest \
-  004-StackWalk \
-  004-UnsafeTest \
-  051-thread \
-  115-native-bridge \
-  116-nodex2oat \
-  117-nopatchoat \
-  118-noimage-dex2oat \
-  119-noimage-patchoat \
-  131-structural-change \
-  137-cfi \
-  139-register-natives \
-  454-get-vreg \
-  455-set-vreg \
-  457-regs \
-  461-get-reference-vreg \
-  466-get-live-vreg \
-  497-inlining-and-class-loader \
-
-ifneq (,$(filter ndebug,$(RUN_TYPES)))
-  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),ndebug,$(PREBUILD_TYPES), \
-      $(COMPILER_TYPES), $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES), \
-      $(PICTEST_TYPES),$(DEBUGGABLE_TYPES),$(TEST_ART_BROKEN_NDEBUG_TESTS),$(ALL_ADDRESS_SIZES))
-endif
-
-TEST_ART_BROKEN_NDEBUG_TESTS :=
-
 # Known broken tests for the interpreter.
 # CFI unwinding expects managed frames.
 TEST_ART_BROKEN_INTERPRETER_RUN_TESTS := \
@@ -602,8 +567,10 @@ TEST_ART_TARGET_SYNC_DEPS += $(ART_TARGET_EXECUTABLES) $(TARGET_CORE_IMG_OUTS)
 
 # Also need libarttest.
 TEST_ART_TARGET_SYNC_DEPS += $(ART_TARGET_TEST_OUT)/$(TARGET_ARCH)/libarttest.so
+TEST_ART_TARGET_SYNC_DEPS += $(ART_TARGET_TEST_OUT)/$(TARGET_ARCH)/libarttestd.so
 ifdef TARGET_2ND_ARCH
 TEST_ART_TARGET_SYNC_DEPS += $(ART_TARGET_TEST_OUT)/$(TARGET_2ND_ARCH)/libarttest.so
+TEST_ART_TARGET_SYNC_DEPS += $(ART_TARGET_TEST_OUT)/$(TARGET_2ND_ARCH)/libarttestd.so
 endif
 
 # Also need libnativebridgetest.
@@ -617,12 +584,14 @@ endif
 ART_TEST_HOST_RUN_TEST_DEPENDENCIES := \
   $(ART_HOST_EXECUTABLES) \
   $(ART_HOST_OUT_SHARED_LIBRARIES)/libarttest$(ART_HOST_SHLIB_EXTENSION) \
+  $(ART_HOST_OUT_SHARED_LIBRARIES)/libarttestd$(ART_HOST_SHLIB_EXTENSION) \
   $(ART_HOST_OUT_SHARED_LIBRARIES)/libnativebridgetest$(ART_HOST_SHLIB_EXTENSION) \
   $(ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION)
 
 ifneq ($(HOST_PREFER_32_BIT),true)
 ART_TEST_HOST_RUN_TEST_DEPENDENCIES += \
   $(2ND_ART_HOST_OUT_SHARED_LIBRARIES)/libarttest$(ART_HOST_SHLIB_EXTENSION) \
+  $(2ND_ART_HOST_OUT_SHARED_LIBRARIES)/libarttestd$(ART_HOST_SHLIB_EXTENSION) \
   $(2ND_ART_HOST_OUT_SHARED_LIBRARIES)/libnativebridgetest$(ART_HOST_SHLIB_EXTENSION) \
   $(2ND_ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION)
 endif

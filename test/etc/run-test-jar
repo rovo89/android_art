@@ -47,6 +47,7 @@ ZYGOTE=""
 DEX_VERIFY=""
 USE_DEX2OAT_AND_PATCHOAT="y"
 INSTRUCTION_SET_FEATURES=""
+ARGS=""
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
@@ -59,6 +60,14 @@ while true; do
             exit 1
         fi
         LIB="$1"
+        shift
+    elif [ "x$1" = "x--testlib" ]; then
+        shift
+        if [ "x$1" = "x" ]; then
+            echo "$0 missing argument to --testlib" 1>&2
+            exit 1
+        fi
+       	ARGS="${ARGS} $1"
         shift
     elif [ "x$1" = "x-Xcompiler-option" ]; then
         shift
@@ -369,7 +378,7 @@ dalvikvm_cmdline="$INVOKE_WITH $GDB $ANDROID_ROOT/bin/$DALVIKVM \
                   $INT_OPTS \
                   $DEBUGGER_OPTS \
                   $DALVIKVM_BOOT_OPT \
-                  -cp $DEX_LOCATION/$TEST_NAME.jar$SECONDARY_DEX $MAIN"
+                  -cp $DEX_LOCATION/$TEST_NAME.jar$SECONDARY_DEX $MAIN $ARGS"
 
 # Remove whitespace.
 dex2oat_cmdline=$(echo $dex2oat_cmdline)

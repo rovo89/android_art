@@ -19,6 +19,7 @@ import java.lang.reflect.Method;
 
 public class Main {
   public static void main(String[] args) throws Exception {
+    System.loadLibrary(args[0]);
     boolean hasImage = hasImage();
     String instructionSet = VMRuntime.getCurrentInstructionSet();
     boolean isBootClassPathOnDisk = VMRuntime.isBootClassPathOnDisk(instructionSet);
@@ -39,10 +40,6 @@ public class Main {
     }
 
     testB18485243();
-  }
-
-  static {
-    System.loadLibrary("arttest");
   }
 
   private native static boolean hasImage();

@@ -84,11 +84,8 @@ class LoadedByMyClassLoader {
 }
 
 class Main {
-  static {
-    System.loadLibrary("arttest");
-  }
-
   public static void main(String[] args) throws Exception {
+    System.loadLibrary(args[0]);
     // Clone resolved methods, to restore the original version just
     // before we walk the stack in $noinline$bar.
     savedResolvedMethods = cloneResolvedMethods(Main.class);

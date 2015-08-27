@@ -23,6 +23,7 @@ import java.lang.reflect.Method;
  */
 public class Main {
     public static void main(String[] args) {
+        System.loadLibrary(args[0]);
         new Main().run();
     }
 
@@ -47,10 +48,6 @@ public class Main {
             System.out.println("Did not get expected error.");
         }
         System.out.println("Done.");
-    }
-
-    static {
-        System.loadLibrary("arttest");
     }
 
     private native static boolean hasOat();
