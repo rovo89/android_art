@@ -53,9 +53,11 @@ namespace mips64 {
 }
 namespace x86 {
   class X86Assembler;
+  class NearLabel;
 }
 namespace x86_64 {
   class X86_64Assembler;
+  class NearLabel;
 }
 
 class ExternalLabel {
@@ -126,7 +128,9 @@ class Label {
   friend class mips::MipsAssembler;
   friend class mips64::Mips64Assembler;
   friend class x86::X86Assembler;
+  friend class x86::NearLabel;
   friend class x86_64::X86_64Assembler;
+  friend class x86_64::NearLabel;
 
   DISALLOW_COPY_AND_ASSIGN(Label);
 };

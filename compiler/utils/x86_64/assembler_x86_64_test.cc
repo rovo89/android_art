@@ -1179,6 +1179,47 @@ TEST_F(AssemblerX86_64Test, BsrqAddress) {
   DriverStr(expected, "bsrq_address");
 }
 
+/////////////////
+// Near labels //
+/////////////////
+
+TEST_F(AssemblerX86_64Test, Jrcxz) {
+  x86_64::NearLabel target;
+  GetAssembler()->jrcxz(&target);
+  GetAssembler()->addl(x86_64::CpuRegister(x86_64::RDI),
+                       x86_64::Address(x86_64::CpuRegister(x86_64::RSP), 4));
+  GetAssembler()->Bind(&target);
+  const char* expected =
+    "jrcxz 1f\n"
+    "addl 4(%RSP),%EDI\n"
+    "1:\n";
+
+  DriverStr(expected, "jrcxz");
+}
+
+TEST_F(AssemblerX86_64Test, NearLabel) {
+  // Test both forward and backward branches.
+  x86_64::NearLabel start, target;
+  GetAssembler()->Bind(&start);
+  GetAssembler()->j(x86_64::kEqual, &target);
+  GetAssembler()->jmp(&target);
+  GetAssembler()->jrcxz(&target);
+  GetAssembler()->addl(x86_64::CpuRegister(x86_64::RDI),
+                       x86_64::Address(x86_64::CpuRegister(x86_64::RSP), 4));
+  GetAssembler()->Bind(&target);
+  GetAssembler()->j(x86_64::kNotEqual, &start);
+  GetAssembler()->jmp(&start);
+  const char* expected =
+    "1: je 2f\n"
+    "jmp 2f\n"
+    "jrcxz 2f\n"
+    "addl 4(%RSP),%EDI\n"
+    "2: jne 1b\n"
+    "jmp 1b\n";
+
+  DriverStr(expected, "near_label");
+}
+
 std::string setcc_test_fn(AssemblerX86_64Test::Base* assembler_test,
                           x86_64::X86_64Assembler* assembler) {
   // From Condition
