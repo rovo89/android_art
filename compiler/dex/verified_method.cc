@@ -37,11 +37,21 @@
 
 namespace art {
 
+VerifiedMethod::VerifiedMethod(uint32_t encountered_error_types,
+                               bool has_runtime_throw,
+                               const SafeMap<uint32_t, std::set<uint32_t>>& string_init_pc_reg_map)
+    : encountered_error_types_(encountered_error_types),
+      has_runtime_throw_(has_runtime_throw),
+      string_init_pc_reg_map_(string_init_pc_reg_map) {
+}
+
 const VerifiedMethod* VerifiedMethod::Create(verifier::MethodVerifier* method_verifier,
                                              bool compile) {
-  std::unique_ptr<VerifiedMethod> verified_method(new VerifiedMethod);
-  verified_method->has_verification_failures_ = method_verifier->HasFailures();
-  verified_method->has_runtime_throw_ = method_verifier->HasInstructionThatWillThrow();
+  std::unique_ptr<VerifiedMethod> verified_method(
+      new VerifiedMethod(method_verifier->GetEncounteredFailureTypes(),
+                         method_verifier->HasInstructionThatWillThrow(),
+                         method_verifier->GetStringInitPcRegMap()));
+
   if (compile) {
     /* Generate a register map. */
     if (!verified_method->GenerateGcMap(method_verifier)) {
@@ -65,8 +75,6 @@ const VerifiedMethod* VerifiedMethod::Create(verifier::MethodVerifier* method_ve
   if (method_verifier->HasCheckCasts()) {
     verified_method->GenerateSafeCastSet(method_verifier);
   }
-
-  verified_method->SetStringInitPcRegMap(method_verifier->GetStringInitPcRegMap());
 
   return verified_method.release();
 }

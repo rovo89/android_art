@@ -416,6 +416,7 @@ MethodVerifier::MethodVerifier(Thread* self,
       have_any_pending_runtime_throw_failure_(false),
       new_instance_count_(0),
       monitor_enter_count_(0),
+      encountered_failure_types_(0),
       can_load_classes_(can_load_classes),
       allow_soft_failures_(allow_soft_failures),
       need_precise_constants_(need_precise_constants),
@@ -587,6 +588,9 @@ bool MethodVerifier::Verify() {
 }
 
 std::ostream& MethodVerifier::Fail(VerifyError error) {
+  // Mark the error type as encountered.
+  encountered_failure_types_ |= (1U << static_cast<uint32_t>(error));
+
   switch (error) {
     case VERIFY_ERROR_NO_CLASS:
     case VERIFY_ERROR_NO_FIELD:

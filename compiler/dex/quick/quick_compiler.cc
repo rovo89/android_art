@@ -679,11 +679,8 @@ CompiledMethod* QuickCompiler::Compile(const DexFile::CodeItem* code_item,
     return nullptr;
   }
 
-  if (driver->GetVerifiedMethod(&dex_file, method_idx)->HasRuntimeThrow()) {
-    return nullptr;
-  }
-
   DCHECK(driver->GetCompilerOptions().IsCompilationEnabled());
+  DCHECK(!driver->GetVerifiedMethod(&dex_file, method_idx)->HasRuntimeThrow());
 
   Runtime* const runtime = Runtime::Current();
   ClassLinker* const class_linker = runtime->GetClassLinker();
