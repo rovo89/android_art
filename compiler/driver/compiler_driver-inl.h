@@ -31,7 +31,7 @@
 namespace art {
 
 inline mirror::DexCache* CompilerDriver::GetDexCache(const DexCompilationUnit* mUnit) {
-  return mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile());
+  return mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile(), false);
 }
 
 inline mirror::ClassLoader* CompilerDriver::GetClassLoader(ScopedObjectAccess& soa,
@@ -87,7 +87,7 @@ inline ArtField* CompilerDriver::ResolveFieldWithDexFile(
 }
 
 inline mirror::DexCache* CompilerDriver::FindDexCache(const DexFile* dex_file) {
-  return Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file);
+  return Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file, false);
 }
 
 inline ArtField* CompilerDriver::ResolveField(
@@ -339,7 +339,7 @@ inline int CompilerDriver::IsFastInvoke(
     // Sharpen a virtual call into a direct call. The method_idx is into referrer's
     // dex cache, check that this resolved method is where we expect it.
     CHECK_EQ(target_method->dex_file, mUnit->GetDexFile());
-    DCHECK_EQ(dex_cache.Get(), mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile()));
+    DCHECK_EQ(dex_cache.Get(), mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile(), false));
     CHECK_EQ(referrer_class->GetDexCache()->GetResolvedMethod(
         target_method->dex_method_index, pointer_size),
              resolved_method) << PrettyMethod(resolved_method);
@@ -369,7 +369,7 @@ inline int CompilerDriver::IsFastInvoke(
           nullptr, kVirtual);
     } else {
       StackHandleScope<1> hs(soa.Self());
-      auto target_dex_cache(hs.NewHandle(class_linker->FindDexCache(*devirt_target->dex_file)));
+      auto target_dex_cache(hs.NewHandle(class_linker->RegisterDexFile(*devirt_target->dex_file)));
       called_method = class_linker->ResolveMethod(
           *devirt_target->dex_file, devirt_target->dex_method_index, target_dex_cache,
           class_loader, nullptr, kVirtual);

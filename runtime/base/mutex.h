@@ -64,6 +64,7 @@ enum LockLevel {
   kJdwpSocketLock,
   kRegionSpaceRegionLock,
   kTransactionLogLock,
+  kJniWeakGlobalsLock,
   kReferenceQueueSoftReferencesLock,
   kReferenceQueuePhantomReferencesLock,
   kReferenceQueueFinalizerReferencesLock,

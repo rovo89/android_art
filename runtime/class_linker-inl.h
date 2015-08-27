@@ -195,12 +195,6 @@ inline mirror::Class* ClassLinker::GetClassRoot(ClassRoot class_root)
   return klass;
 }
 
-inline mirror::DexCache* ClassLinker::GetDexCache(size_t idx) {
-  dex_lock_.AssertSharedHeld(Thread::Current());
-  DCHECK(idx < dex_caches_.size());
-  return dex_caches_[idx].Read();
-}
-
 }  // namespace art
 
 #endif  // ART_RUNTIME_CLASS_LINKER_INL_H_
