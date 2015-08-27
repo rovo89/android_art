@@ -20,11 +20,8 @@ import java.util.ArrayList;
  * Test some basic thread stuff.
  */
 public class Main {
-    static {
-        System.loadLibrary("arttest");
-    }
-
     public static void main(String[] args) throws Exception {
+        System.loadLibrary(args[0]);
         System.out.println("thread test starting");
         testThreadCapacity();
         testThreadDaemons();

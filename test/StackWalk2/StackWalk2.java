@@ -50,11 +50,8 @@ public class StackWalk2 {
 
   native int refmap2(int x);
 
-  static {
-    System.loadLibrary("arttest");
-  }
-
   public static void main(String[] args) {
+    System.loadLibrary(args[0]);
     StackWalk2 st = new StackWalk2();
     st.f();
   }

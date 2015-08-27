@@ -38,8 +38,10 @@ LIBARTTEST_COMMON_SRC_FILES := \
   497-inlining-and-class-loader/clear_dex_cache.cc
 
 ART_TARGET_LIBARTTEST_$(ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_TARGET_TEST_OUT)/$(TARGET_ARCH)/libarttest.so
+ART_TARGET_LIBARTTEST_$(ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_TARGET_TEST_OUT)/$(TARGET_ARCH)/libarttestd.so
 ifdef TARGET_2ND_ARCH
   ART_TARGET_LIBARTTEST_$(2ND_ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_TARGET_TEST_OUT)/$(TARGET_2ND_ARCH)/libarttest.so
+  ART_TARGET_LIBARTTEST_$(2ND_ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_TARGET_TEST_OUT)/$(TARGET_2ND_ARCH)/libarttestd.so
 endif
 
 # $(1): target or host
@@ -49,17 +51,23 @@ define build-libarttest
       $$(error expected target or host for argument 1, received $(1))
     endif
   endif
+  ifneq ($(2),d)
+    ifneq ($(2),)
+      $$(error d or empty for argument 2, received $(2))
+    endif
+  endif
 
   art_target_or_host := $(1)
+  suffix := $(2)
 
   include $(CLEAR_VARS)
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
-  LOCAL_MODULE := libarttest
+  LOCAL_MODULE := libarttest$$(suffix)
   ifeq ($$(art_target_or_host),target)
     LOCAL_MODULE_TAGS := tests
   endif
   LOCAL_SRC_FILES := $(LIBARTTEST_COMMON_SRC_FILES)
-  LOCAL_SHARED_LIBRARIES += libartd libbacktrace
+  LOCAL_SHARED_LIBRARIES += libart$$(suffix) libbacktrace
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.libarttest.mk
@@ -84,13 +92,16 @@ define build-libarttest
 
   # Clear locally used variables.
   art_target_or_host :=
+  suffix :=
 endef
 
 ifeq ($(ART_BUILD_TARGET),true)
-  $(eval $(call build-libarttest,target))
+  $(eval $(call build-libarttest,target,))
+  $(eval $(call build-libarttest,target,d))
 endif
 ifeq ($(ART_BUILD_HOST),true)
-  $(eval $(call build-libarttest,host))
+  $(eval $(call build-libarttest,host,))
+  $(eval $(call build-libarttest,host,d))
 endif
 
 # Clear locally used variables.

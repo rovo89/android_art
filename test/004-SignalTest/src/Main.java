@@ -24,8 +24,7 @@ public class Main {
     }
 
     public static void main(String[] args) {
-        System.loadLibrary("arttest");
-
+        System.loadLibrary(args[0]);
         System.out.println("init signal test");
         initSignalTest();
         try {
