@@ -1971,6 +1971,38 @@ void X86_64Assembler::j(Condition condition, Label* label) {
 }
 
 
+void X86_64Assembler::j(Condition condition, NearLabel* label) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  if (label->IsBound()) {
+    static const int kShortSize = 2;
+    int offset = label->Position() - buffer_.Size();
+    CHECK_LE(offset, 0);
+    CHECK(IsInt<8>(offset - kShortSize));
+    EmitUint8(0x70 + condition);
+    EmitUint8((offset - kShortSize) & 0xFF);
+  } else {
+    EmitUint8(0x70 + condition);
+    EmitLabelLink(label);
+  }
+}
+
+
+void X86_64Assembler::jrcxz(NearLabel* label) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  if (label->IsBound()) {
+    static const int kShortSize = 2;
+    int offset = label->Position() - buffer_.Size();
+    CHECK_LE(offset, 0);
+    CHECK(IsInt<8>(offset - kShortSize));
+    EmitUint8(0xE3);
+    EmitUint8((offset - kShortSize) & 0xFF);
+  } else {
+    EmitUint8(0xE3);
+    EmitLabelLink(label);
+  }
+}
+
+
 void X86_64Assembler::jmp(CpuRegister reg) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(reg);
@@ -2001,6 +2033,22 @@ void X86_64Assembler::jmp(Label* label) {
     }
   } else {
     EmitUint8(0xE9);
+    EmitLabelLink(label);
+  }
+}
+
+
+void X86_64Assembler::jmp(NearLabel* label) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  if (label->IsBound()) {
+    static const int kShortSize = 2;
+    int offset = label->Position() - buffer_.Size();
+    CHECK_LE(offset, 0);
+    CHECK(IsInt<8>(offset - kShortSize));
+    EmitUint8(0xEB);
+    EmitUint8((offset - kShortSize) & 0xFF);
+  } else {
+    EmitUint8(0xEB);
     EmitLabelLink(label);
   }
 }
@@ -2187,6 +2235,21 @@ void X86_64Assembler::Bind(Label* label) {
 }
 
 
+void X86_64Assembler::Bind(NearLabel* label) {
+  int bound = buffer_.Size();
+  CHECK(!label->IsBound());  // Labels can only be bound once.
+  while (label->IsLinked()) {
+    int position = label->LinkPosition();
+    uint8_t delta = buffer_.Load<uint8_t>(position);
+    int offset = bound - (position + 1);
+    CHECK(IsInt<8>(offset));
+    buffer_.Store<int8_t>(position, offset);
+    label->position_ = delta != 0u ? label->position_ - delta : 0;
+  }
+  label->BindTo(bound);
+}
+
+
 void X86_64Assembler::EmitOperand(uint8_t reg_or_opcode, const Operand& operand) {
   CHECK_GE(reg_or_opcode, 0);
   CHECK_LT(reg_or_opcode, 8);
@@ -2252,6 +2315,21 @@ void X86_64Assembler::EmitLabelLink(Label* label) {
   CHECK(!label->IsBound());
   int position = buffer_.Size();
   EmitInt32(label->position_);
+  label->LinkTo(position);
+}
+
+
+void X86_64Assembler::EmitLabelLink(NearLabel* label) {
+  CHECK(!label->IsBound());
+  int position = buffer_.Size();
+  if (label->IsLinked()) {
+    // Save the delta in the byte that we have to play with.
+    uint32_t delta = position - label->LinkPosition();
+    CHECK(IsUint<8>(delta));
+    EmitUint8(delta & 0xFF);
+  } else {
+    EmitUint8(0);
+  }
   label->LinkTo(position);
 }
 

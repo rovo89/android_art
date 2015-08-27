@@ -243,4 +243,43 @@ TEST_F(AssemblerX86Test, BsrlAddress) {
   DriverStr(expected, "bsrl_address");
 }
 
+/////////////////
+// Near labels //
+/////////////////
+
+TEST_F(AssemblerX86Test, Jecxz) {
+  x86::NearLabel target;
+  GetAssembler()->jecxz(&target);
+  GetAssembler()->addl(x86::EDI, x86::Address(x86::ESP, 4));
+  GetAssembler()->Bind(&target);
+  const char* expected =
+    "jecxz 1f\n"
+    "addl 4(%ESP),%EDI\n"
+    "1:\n";
+
+  DriverStr(expected, "jecxz");
+}
+
+TEST_F(AssemblerX86Test, NearLabel) {
+  // Test both forward and backward branches.
+  x86::NearLabel start, target;
+  GetAssembler()->Bind(&start);
+  GetAssembler()->j(x86::kEqual, &target);
+  GetAssembler()->jmp(&target);
+  GetAssembler()->jecxz(&target);
+  GetAssembler()->addl(x86::EDI, x86::Address(x86::ESP, 4));
+  GetAssembler()->Bind(&target);
+  GetAssembler()->j(x86::kNotEqual, &start);
+  GetAssembler()->jmp(&start);
+  const char* expected =
+    "1: je 2f\n"
+    "jmp 2f\n"
+    "jecxz 2f\n"
+    "addl 4(%ESP),%EDI\n"
+    "2: jne 1b\n"
+    "jmp 1b\n";
+
+  DriverStr(expected, "near_label");
+}
+
 }  // namespace art
