@@ -2540,17 +2540,10 @@ mirror::DexCache* ClassLinker::FindDexCacheLocked(const DexFile& dex_file, bool 
       return dex_cache;
     }
   }
-  // Check dex file by location, this is used for oatdump.
-  std::string location(dex_file.GetLocation());
-  for (jobject weak_root : dex_caches_) {
-    mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(self->DecodeJObject(weak_root));
-    if (dex_cache != nullptr && dex_cache->GetDexFile()->GetLocation() == location) {
-      return dex_cache;
-    }
-  }
   if (allow_failure) {
     return nullptr;
   }
+  std::string location(dex_file.GetLocation());
   // Failure, dump diagnostic and abort.
   for (jobject weak_root : dex_caches_) {
     mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(self->DecodeJObject(weak_root));
