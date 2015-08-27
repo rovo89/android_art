@@ -601,7 +601,7 @@ static void CompileMethod(Thread* self,
         // Do not have failures that should punt to the interpreter.
         !verified_method->HasRuntimeThrow() &&
         (verified_method->GetEncounteredVerificationFailures() &
-            verifier::VERIFY_ERROR_FORCE_INTERPRETER) == 0 &&
+            (verifier::VERIFY_ERROR_FORCE_INTERPRETER | verifier::VERIFY_ERROR_LOCKING)) == 0 &&
         // Is eligable for compilation by methods-to-compile filter.
         driver->IsMethodToCompile(method_ref);
     if (compile) {

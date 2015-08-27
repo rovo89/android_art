@@ -344,14 +344,22 @@ void RegisterLine::PushMonitor(MethodVerifier* verifier, uint32_t reg_idx, int32
     verifier->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "monitor-enter on non-object ("
         << reg_type << ")";
   } else if (monitors_.size() >= 32) {
-    verifier->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "monitor-enter stack overflow: "
-        << monitors_.size();
+    verifier->Fail(VERIFY_ERROR_LOCKING);
+    if (kDumpLockFailures) {
+      LOG(WARNING) << "monitor-enter stack overflow while verifying "
+                   << PrettyMethod(verifier->GetMethodReference().dex_method_index,
+                                   *verifier->GetMethodReference().dex_file);
+    }
   } else {
     if (SetRegToLockDepth(reg_idx, monitors_.size())) {
       monitors_.push_back(insn_idx);
     } else {
-      verifier->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unexpected monitor-enter on register v" <<
-          reg_idx;
+      verifier->Fail(VERIFY_ERROR_LOCKING);
+      if (kDumpLockFailures) {
+        LOG(WARNING) << "unexpected monitor-enter on register v" <<  reg_idx << " in "
+                     << PrettyMethod(verifier->GetMethodReference().dex_method_index,
+                                     *verifier->GetMethodReference().dex_file);
+      }
     }
   }
 }
@@ -361,16 +369,21 @@ void RegisterLine::PopMonitor(MethodVerifier* verifier, uint32_t reg_idx) {
   if (!reg_type.IsReferenceTypes()) {
     verifier->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "monitor-exit on non-object (" << reg_type << ")";
   } else if (monitors_.empty()) {
-    verifier->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "monitor-exit stack underflow";
+    verifier->Fail(VERIFY_ERROR_LOCKING);
+    if (kDumpLockFailures) {
+      LOG(WARNING) << "monitor-exit stack underflow while verifying "
+                   << PrettyMethod(verifier->GetMethodReference().dex_method_index,
+                                   *verifier->GetMethodReference().dex_file);
+    }
   } else {
     monitors_.pop_back();
     if (!IsSetLockDepth(reg_idx, monitors_.size())) {
-      // Bug 3215458: Locks and unlocks are on objects, if that object is a literal then before
-      // format "036" the constant collector may create unlocks on the same object but referenced
-      // via different registers.
-      ((verifier->DexFileVersion() >= 36) ? verifier->Fail(VERIFY_ERROR_BAD_CLASS_SOFT)
-                                          : verifier->LogVerifyInfo())
-            << "monitor-exit not unlocking the top of the monitor stack";
+      verifier->Fail(VERIFY_ERROR_LOCKING);
+      if (kDumpLockFailures) {
+        LOG(WARNING) << "monitor-exit not unlocking the top of the monitor stack while verifying "
+                     << PrettyMethod(verifier->GetMethodReference().dex_method_index,
+                                     *verifier->GetMethodReference().dex_file);
+      }
     } else {
       // Record the register was unlocked
       ClearRegToLockDepth(reg_idx, monitors_.size());
@@ -392,8 +405,13 @@ bool RegisterLine::MergeRegisters(MethodVerifier* verifier, const RegisterLine* 
   }
   if (monitors_.size() > 0 || incoming_line->monitors_.size() > 0) {
     if (monitors_.size() != incoming_line->monitors_.size()) {
-      LOG(WARNING) << "mismatched stack depths (depth=" << MonitorStackDepth()
-                     << ", incoming depth=" << incoming_line->MonitorStackDepth() << ")";
+      verifier->Fail(VERIFY_ERROR_LOCKING);
+      if (kDumpLockFailures) {
+        LOG(WARNING) << "mismatched stack depths (depth=" << MonitorStackDepth()
+                     << ", incoming depth=" << incoming_line->MonitorStackDepth() << ") in "
+                     << PrettyMethod(verifier->GetMethodReference().dex_method_index,
+                                     *verifier->GetMethodReference().dex_file);
+      }
     } else if (reg_to_lock_depths_ != incoming_line->reg_to_lock_depths_) {
       for (uint32_t idx = 0; idx < num_regs_; idx++) {
         size_t depths = reg_to_lock_depths_.count(idx);
@@ -402,14 +420,35 @@ bool RegisterLine::MergeRegisters(MethodVerifier* verifier, const RegisterLine* 
           if (depths == 0 || incoming_depths == 0) {
             reg_to_lock_depths_.erase(idx);
           } else {
-            LOG(WARNING) << "mismatched stack depths for register v" << idx
-                << ": " << depths  << " != " << incoming_depths;
+            verifier->Fail(VERIFY_ERROR_LOCKING);
+            if (kDumpLockFailures) {
+              LOG(WARNING) << "mismatched stack depths for register v" << idx
+                           << ": " << depths  << " != " << incoming_depths << " in "
+                           << PrettyMethod(verifier->GetMethodReference().dex_method_index,
+                                           *verifier->GetMethodReference().dex_file);
+            }
+            break;
+          }
+        } else if (depths > 0) {
+          // Check whether they're actually the same levels.
+          uint32_t locked_levels = reg_to_lock_depths_.find(idx)->second;
+          uint32_t incoming_locked_levels = incoming_line->reg_to_lock_depths_.find(idx)->second;
+          if (locked_levels != incoming_locked_levels) {
+            verifier->Fail(VERIFY_ERROR_LOCKING);
+            if (kDumpLockFailures) {
+              LOG(WARNING) << "mismatched lock levels for register v" << idx << ": "
+                  << std::hex << locked_levels << std::dec  << " != "
+                  << std::hex << incoming_locked_levels << std::dec << " in "
+                  << PrettyMethod(verifier->GetMethodReference().dex_method_index,
+                                  *verifier->GetMethodReference().dex_file);
+            }
             break;
           }
         }
       }
     }
   }
+
   // Check whether "this" was initialized in both paths.
   if (this_initialized_ && !incoming_line->this_initialized_) {
     this_initialized_ = false;

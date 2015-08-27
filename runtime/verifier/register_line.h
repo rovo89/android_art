@@ -185,7 +185,9 @@ class RegisterLine {
   // Compare two register lines. Returns 0 if they match.
   // Using this for a sort is unwise, since the value can change based on machine endianness.
   int CompareLine(const RegisterLine* line2) const {
-    DCHECK(monitors_ == line2->monitors_);
+    if (monitors_ != line2->monitors_) {
+      return 1;
+    }
     // TODO: DCHECK(reg_to_lock_depths_ == line2->reg_to_lock_depths_);
     return memcmp(&line_, &line2->line_, num_regs_ * sizeof(uint16_t));
   }
@@ -298,8 +300,8 @@ class RegisterLine {
   }
 
   // We expect no monitors to be held at certain points, such a method returns. Verify the stack
-  // is empty, failing and returning false if not.
-  bool VerifyMonitorStackEmpty(MethodVerifier* verifier) const;
+  // is empty, queueing a LOCKING error else.
+  void VerifyMonitorStackEmpty(MethodVerifier* verifier) const;
 
   bool MergeRegisters(MethodVerifier* verifier, const RegisterLine* incoming_line)
       SHARED_REQUIRES(Locks::mutator_lock_);

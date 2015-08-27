@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 
 /*
  * Entry point and tests that are expected to succeed.
@@ -38,11 +41,6 @@ public class Main {
         System.out.println("constantLock ok");
 
         m.notExcessiveNesting();
-        try {
-            TooDeep.excessiveNesting();
-            System.err.println("excessiveNesting did not throw");
-        } catch (VerifyError ve) {}
-        System.out.println("excessiveNesting ok");
 
         m.notNested();
         System.out.println("notNested ok");
@@ -55,6 +53,9 @@ public class Main {
 
         m.triplet(obj1, obj2, 0);
         System.out.println("triplet ok");
+
+        System.loadLibrary("arttest");
+        runSmaliTests();
     }
 
     /**
@@ -216,4 +217,62 @@ public class Main {
 
         doNothing(localObj);
     }
+
+    // Smali testing code.
+    private static void runSmaliTests() {
+        runTest("OK", new Object[] { new Object(), new Object() }, null);
+        runTest("TooDeep", new Object[] { new Object() }, null);
+        runTest("NotStructuredOverUnlock", new Object[] { new Object() },
+                IllegalMonitorStateException.class);
+        runTest("NotStructuredUnderUnlock", new Object[] { new Object() }, null);
+                // TODO: new IllegalMonitorStateException());
+        runTest("UnbalancedJoin", new Object[] { new Object(), new Object() }, null);
+        runTest("UnbalancedStraight", new Object[] { new Object(), new Object() }, null);
+    }
+
+    private static void runTest(String className, Object[] parameters, Class<?> excType) {
+        System.out.println(className);
+        try {
+            Class<?> c = Class.forName(className);
+
+            Method[] methods = c.getDeclaredMethods();
+
+            // For simplicity we assume that test methods are not overloaded. So searching by name
+            // will give us the method we need to run.
+            Method method = null;
+            for (Method m : methods) {
+                if (m.getName().equals("run")) {
+                    method = m;
+                    break;
+                }
+            }
+
+            if (method == null) {
+                System.out.println("Could not find test method for " + className);
+            } else if (!Modifier.isStatic(method.getModifiers())) {
+                System.out.println("Test method for " + className + " is not static.");
+            } else {
+                method.invoke(null, parameters);
+                if (excType != null) {
+                    System.out.println("Expected an exception in " + className);
+                }
+            }
+        } catch (Throwable exc) {
+            if (excType == null) {
+                System.out.println("Did not expect exception " + exc + " for " + className);
+                exc.printStackTrace(System.out);
+            } else if (exc instanceof InvocationTargetException && exc.getCause() != null &&
+                       exc.getCause().getClass().equals(excType)) {
+                // Expected exception is wrapped in InvocationTargetException.
+            } else if (!excType.equals(exc.getClass())) {
+                System.out.println("Expected " + excType.getName() + ", but got " + exc.getClass());
+            } else {
+              // Expected exception, do nothing.
+            }
+        }
+    }
+
+    // Helpers for the smali code.
+    public static native void assertCallerIsInterpreted();
+    public static native void assertCallerIsManaged();
 }
