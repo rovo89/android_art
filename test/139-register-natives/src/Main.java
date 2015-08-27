@@ -16,13 +16,10 @@
 
 public class Main {
   public static void main(String[] args) {
+    System.loadLibrary(args[0]);
     testRegistration1();
     testRegistration2();
     testRegistration3();
-  }
-
-  static {
-    System.loadLibrary("arttest");
   }
 
   // Test that a subclass' method is registered instead of a superclass' method.

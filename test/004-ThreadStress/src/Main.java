@@ -310,7 +310,8 @@ public class Main implements Runnable {
         boolean dumpMap = false;
 
         if (args != null) {
-            for (int i = 0; i < args.length; i++) {
+            // args[0] is libarttest
+            for (int i = 1; i < args.length; i++) {
                 if (args[i].equals("-n")) {
                     i++;
                     numberOfThreads = Integer.parseInt(args[i]);

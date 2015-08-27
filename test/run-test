@@ -119,6 +119,7 @@ build_output="build-output.txt"
 cfg_output="graph.cfg"
 strace_output="strace-output.txt"
 lib="libartd.so"
+testlib="arttestd"
 run_args="--quiet"
 build_args=""
 
@@ -164,6 +165,7 @@ while true; do
         shift
     elif [ "x$1" = "x-O" ]; then
         lib="libart.so"
+        testlib="arttest"
         shift
     elif [ "x$1" = "x--dalvik" ]; then
         lib="libdvm.so"
@@ -642,6 +644,10 @@ if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]]; then
                             -Xcompiler-option -j1"
     fi
   fi
+fi
+
+if [ "$runtime" != "jvm" ]; then
+  run_args="${run_args} --testlib ${testlib}"
 fi
 
 # To cause tests to fail fast, limit the file sizes created by dx, dex2oat and ART output to 2MB.
