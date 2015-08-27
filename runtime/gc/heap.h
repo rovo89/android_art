@@ -300,6 +300,12 @@ class Heap {
   void IncrementDisableMovingGC(Thread* self) REQUIRES(!*gc_complete_lock_);
   void DecrementDisableMovingGC(Thread* self) REQUIRES(!*gc_complete_lock_);
 
+  // Temporarily disable thread flip for JNI critical calls.
+  void IncrementDisableThreadFlip(Thread* self) REQUIRES(!*thread_flip_lock_);
+  void DecrementDisableThreadFlip(Thread* self) REQUIRES(!*thread_flip_lock_);
+  void ThreadFlipBegin(Thread* self) REQUIRES(!*thread_flip_lock_);
+  void ThreadFlipEnd(Thread* self) REQUIRES(!*thread_flip_lock_);
+
   // Clear all of the mark bits, doesn't clear bitmaps which have the same live bits as mark bits.
   void ClearMarkedObjects() REQUIRES(Locks::heap_bitmap_lock_);
 
@@ -1064,6 +1070,12 @@ class Heap {
   // completes.
   Mutex* gc_complete_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::unique_ptr<ConditionVariable> gc_complete_cond_ GUARDED_BY(gc_complete_lock_);
+
+  // Used to synchronize between JNI critical calls and the thread flip of the CC collector.
+  Mutex* thread_flip_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  std::unique_ptr<ConditionVariable> thread_flip_cond_ GUARDED_BY(thread_flip_lock_);
+  size_t disable_thread_flip_count_ GUARDED_BY(thread_flip_lock_);
+  bool thread_flip_running_ GUARDED_BY(thread_flip_lock_);
 
   // Reference processor;
   std::unique_ptr<ReferenceProcessor> reference_processor_;

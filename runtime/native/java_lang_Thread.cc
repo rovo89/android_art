@@ -90,6 +90,7 @@ static jint Thread_nativeGetStatus(JNIEnv* env, jobject java_thread, jboolean ha
     case kWaitingForMethodTracingStart:   return kJavaWaiting;
     case kWaitingForVisitObjects:         return kJavaWaiting;
     case kWaitingWeakGcRootRead:          return kJavaWaiting;
+    case kWaitingForGcThreadFlip:         return kJavaWaiting;
     case kSuspended:                      return kJavaRunnable;
     // Don't add a 'default' here so the compiler can spot incompatible enum changes.
   }

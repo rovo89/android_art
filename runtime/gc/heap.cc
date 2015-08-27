@@ -161,6 +161,8 @@ Heap::Heap(size_t initial_size,
       zygote_creation_lock_("zygote creation lock", kZygoteCreationLock),
       zygote_space_(nullptr),
       large_object_threshold_(large_object_threshold),
+      disable_thread_flip_count_(0),
+      thread_flip_running_(false),
       collector_type_running_(kCollectorTypeNone),
       last_gc_type_(collector::kGcTypeNone),
       next_gc_type_(collector::kGcTypePartial),
@@ -480,6 +482,9 @@ Heap::Heap(size_t initial_size,
   gc_complete_lock_ = new Mutex("GC complete lock");
   gc_complete_cond_.reset(new ConditionVariable("GC complete condition variable",
                                                 *gc_complete_lock_));
+  thread_flip_lock_ = new Mutex("GC thread flip lock");
+  thread_flip_cond_.reset(new ConditionVariable("GC thread flip condition variable",
+                                                *thread_flip_lock_));
   task_processor_.reset(new TaskProcessor());
   reference_processor_.reset(new ReferenceProcessor());
   pending_task_lock_ = new Mutex("Pending task lock");
@@ -768,6 +773,71 @@ void Heap::DecrementDisableMovingGC(Thread* self) {
   MutexLock mu(self, *gc_complete_lock_);
   CHECK_GT(disable_moving_gc_count_, 0U);
   --disable_moving_gc_count_;
+}
+
+void Heap::IncrementDisableThreadFlip(Thread* self) {
+  // Supposed to be called by mutators. If thread_flip_running_ is true, block. Otherwise, go ahead.
+  CHECK(kUseReadBarrier);
+  ScopedThreadStateChange tsc(self, kWaitingForGcThreadFlip);
+  MutexLock mu(self, *thread_flip_lock_);
+  bool has_waited = false;
+  uint64_t wait_start = NanoTime();
+  while (thread_flip_running_) {
+    has_waited = true;
+    thread_flip_cond_->Wait(self);
+  }
+  ++disable_thread_flip_count_;
+  if (has_waited) {
+    uint64_t wait_time = NanoTime() - wait_start;
+    total_wait_time_ += wait_time;
+    if (wait_time > long_pause_log_threshold_) {
+      LOG(INFO) << __FUNCTION__ << " blocked for " << PrettyDuration(wait_time);
+    }
+  }
+}
+
+void Heap::DecrementDisableThreadFlip(Thread* self) {
+  // Supposed to be called by mutators. Decrement disable_thread_flip_count_ and potentially wake up
+  // the GC waiting before doing a thread flip.
+  CHECK(kUseReadBarrier);
+  MutexLock mu(self, *thread_flip_lock_);
+  CHECK_GT(disable_thread_flip_count_, 0U);
+  --disable_thread_flip_count_;
+  thread_flip_cond_->Broadcast(self);
+}
+
+void Heap::ThreadFlipBegin(Thread* self) {
+  // Supposed to be called by GC. Set thread_flip_running_ to be true. If disable_thread_flip_count_
+  // > 0, block. Otherwise, go ahead.
+  CHECK(kUseReadBarrier);
+  ScopedThreadStateChange tsc(self, kWaitingForGcThreadFlip);
+  MutexLock mu(self, *thread_flip_lock_);
+  bool has_waited = false;
+  uint64_t wait_start = NanoTime();
+  CHECK(!thread_flip_running_);
+  // Set this to true before waiting so that a new mutator entering a JNI critical won't starve GC.
+  thread_flip_running_ = true;
+  while (disable_thread_flip_count_ > 0) {
+    has_waited = true;
+    thread_flip_cond_->Wait(self);
+  }
+  if (has_waited) {
+    uint64_t wait_time = NanoTime() - wait_start;
+    total_wait_time_ += wait_time;
+    if (wait_time > long_pause_log_threshold_) {
+      LOG(INFO) << __FUNCTION__ << " blocked for " << PrettyDuration(wait_time);
+    }
+  }
+}
+
+void Heap::ThreadFlipEnd(Thread* self) {
+  // Supposed to be called by GC. Set thread_flip_running_ to false and potentially wake up mutators
+  // waiting before doing a JNI critical.
+  CHECK(kUseReadBarrier);
+  MutexLock mu(self, *thread_flip_lock_);
+  CHECK(thread_flip_running_);
+  thread_flip_running_ = false;
+  thread_flip_cond_->Broadcast(self);
 }
 
 void Heap::UpdateProcessState(ProcessState process_state) {
