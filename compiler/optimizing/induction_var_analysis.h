@@ -25,25 +25,17 @@
 namespace art {
 
 /**
- * Induction variable analysis.
+ * Induction variable analysis. This class does not have a direct public API.
+ * Instead, the results of induction variable analysis can be queried through
+ * friend classes, such as InductionVarRange.
  *
- * Based on the paper by M. Gerlek et al.
+ * The analysis implementation is based on the paper by M. Gerlek et al.
  * "Beyond Induction Variables: Detecting and Classifying Sequences Using a Demand-Driven SSA Form"
  * (ACM Transactions on Programming Languages and Systems, Volume 17 Issue 1, Jan. 1995).
  */
 class HInductionVarAnalysis : public HOptimization {
  public:
   explicit HInductionVarAnalysis(HGraph* graph);
-
-  // TODO: design public API useful in later phases
-
-  /**
-   * Returns string representation of induction found for the instruction
-   * in the given loop (for testing and debugging only).
-   */
-  std::string InductionToString(HLoopInformation* loop, HInstruction* instruction) {
-    return InductionToString(LookupInfo(loop, instruction));
-  }
 
   void Run() OVERRIDE;
 
@@ -57,12 +49,10 @@ class HInductionVarAnalysis : public HOptimization {
   };
 
   enum InductionClass {
-    kNone,
     kInvariant,
     kLinear,
     kWrapAround,
-    kPeriodic,
-    kMonotonic
+    kPeriodic
   };
 
   enum InductionOp {
@@ -79,7 +69,7 @@ class HInductionVarAnalysis : public HOptimization {
    * Defines a detected induction as:
    *   (1) invariant:
    *         operation: a + b, a - b, -b, a * b, a / b
-   *       or
+   *       or:
    *         fetch: fetch from HIR
    *   (2) linear:
    *         nop: a * i + b
@@ -87,8 +77,6 @@ class HInductionVarAnalysis : public HOptimization {
    *         nop: a, then defined by b
    *   (4) periodic
    *         nop: a, then defined by b (repeated when exhausted)
-   *   (5) monotonic
-   *         // TODO: determine representation
    */
   struct InductionInfo : public ArenaObject<kArenaAllocMisc> {
     InductionInfo(InductionClass ic,
@@ -108,17 +96,23 @@ class HInductionVarAnalysis : public HOptimization {
     HInstruction* fetch;
   };
 
-  inline bool IsVisitedNode(int id) const {
-    return map_.find(id) != map_.end();
+  bool IsVisitedNode(HInstruction* instruction) const {
+    return map_.find(instruction) != map_.end();
   }
 
-  inline InductionInfo* NewInductionInfo(
-      InductionClass c,
-      InductionOp op,
-      InductionInfo* a,
-      InductionInfo* b,
-      HInstruction* i) {
-    return new (graph_->GetArena()) InductionInfo(c, op, a, b, i);
+  InductionInfo* NewInvariantOp(InductionOp op, InductionInfo* a, InductionInfo* b) {
+    DCHECK(((op != kNeg && a != nullptr) || (op == kNeg && a == nullptr)) && b != nullptr);
+    return new (graph_->GetArena()) InductionInfo(kInvariant, op, a, b, nullptr);
+  }
+
+  InductionInfo* NewInvariantFetch(HInstruction* f) {
+    DCHECK(f != nullptr);
+    return new (graph_->GetArena()) InductionInfo(kInvariant, kFetch, nullptr, nullptr, f);
+  }
+
+  InductionInfo* NewInduction(InductionClass ic, InductionInfo* a, InductionInfo* b) {
+    DCHECK(a != nullptr && b != nullptr);
+    return new (graph_->GetArena()) InductionInfo(ic, kNop, a, b, nullptr);
   }
 
   // Methods for analysis.
@@ -132,36 +126,46 @@ class HInductionVarAnalysis : public HOptimization {
   InductionInfo* TransferPhi(InductionInfo* a, InductionInfo* b);
   InductionInfo* TransferAddSub(InductionInfo* a, InductionInfo* b, InductionOp op);
   InductionInfo* TransferMul(InductionInfo* a, InductionInfo* b);
+  InductionInfo* TransferShl(InductionInfo* a, InductionInfo* b, Primitive::Type t);
   InductionInfo* TransferNeg(InductionInfo* a);
-  InductionInfo* TransferCycleOverPhi(HInstruction* phi);
-  InductionInfo* TransferCycleOverAddSub(HLoopInformation* loop,
-                                         HInstruction* x,
-                                         HInstruction* y,
-                                         InductionOp op,
-                                         bool first);
+
+  // Solvers.
+  InductionInfo* SolvePhi(HLoopInformation* loop,
+                          HInstruction* phi,
+                          HInstruction* instruction);
+  InductionInfo* SolveAddSub(HLoopInformation* loop,
+                             HInstruction* phi,
+                             HInstruction* instruction,
+                             HInstruction* x,
+                             HInstruction* y,
+                             InductionOp op,
+                             bool is_first_call);
+  InductionInfo* RotatePeriodicInduction(InductionInfo* induction, InductionInfo* last);
 
   // Assign and lookup.
-  void PutInfo(int loop_id, int id, InductionInfo* info);
-  InductionInfo* GetInfo(int loop_id, int id);
   void AssignInfo(HLoopInformation* loop, HInstruction* instruction, InductionInfo* info);
   InductionInfo* LookupInfo(HLoopInformation* loop, HInstruction* instruction);
-  bool InductionEqual(InductionInfo* info1, InductionInfo* info2);
-  std::string InductionToString(InductionInfo* info);
 
-  // Bookkeeping during and after analysis.
-  // TODO: fine tune data structures, only keep relevant data
+  // Helpers.
+  static bool InductionEqual(InductionInfo* info1, InductionInfo* info2);
+  static std::string InductionToString(InductionInfo* info);
 
+  // TODO: fine tune the following data structures, only keep relevant data.
+
+  // Temporary book-keeping during the analysis.
   uint32_t global_depth_;
-
   ArenaVector<HInstruction*> stack_;
   ArenaVector<HInstruction*> scc_;
+  ArenaSafeMap<HInstruction*, NodeInfo> map_;
+  ArenaSafeMap<HInstruction*, InductionInfo*> cycle_;
 
-  // Mappings of instruction id to node and induction information.
-  ArenaSafeMap<int, NodeInfo> map_;
-  ArenaSafeMap<int, InductionInfo*> cycle_;
+  /**
+   * Maintains the results of the analysis as a mapping from loops to a mapping from instructions
+   * to the induction information for that instruction in that loop.
+   */
+  ArenaSafeMap<HLoopInformation*, ArenaSafeMap<HInstruction*, InductionInfo*>> induction_;
 
-  // Mapping from loop id to mapping of instruction id to induction information.
-  ArenaSafeMap<int, ArenaSafeMap<int, InductionInfo*>> induction_;
+  friend class InductionVarAnalysisTest;
 
   DISALLOW_COPY_AND_ASSIGN(HInductionVarAnalysis);
 };
