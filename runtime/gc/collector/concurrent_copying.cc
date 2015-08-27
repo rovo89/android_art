@@ -261,8 +261,10 @@ void ConcurrentCopying::FlipThreadRoots() {
   gc_barrier_->Init(self, 0);
   ThreadFlipVisitor thread_flip_visitor(this, heap_->use_tlab_);
   FlipCallback flip_callback(this);
+  heap_->ThreadFlipBegin(self);  // Sync with JNI critical calls.
   size_t barrier_count = Runtime::Current()->FlipThreadRoots(
       &thread_flip_visitor, &flip_callback, this);
+  heap_->ThreadFlipEnd(self);
   {
     ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);
     gc_barrier_->Increment(self, barrier_count);
