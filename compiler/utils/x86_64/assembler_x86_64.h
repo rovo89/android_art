@@ -302,6 +302,30 @@ class ConstantArea {
 };
 
 
+// This is equivalent to the Label class, used in a slightly different context. We
+// inherit the functionality of the Label class, but prevent unintended
+// derived-to-base conversions by making the base class private.
+class NearLabel : private Label {
+ public:
+  NearLabel() : Label() {}
+
+  // Expose the Label routines that we need.
+  using Label::Position;
+  using Label::LinkPosition;
+  using Label::IsBound;
+  using Label::IsUnused;
+  using Label::IsLinked;
+
+ private:
+  using Label::BindTo;
+  using Label::LinkTo;
+
+  friend class x86_64::X86_64Assembler;
+
+  DISALLOW_COPY_AND_ASSIGN(NearLabel);
+};
+
+
 class X86_64Assembler FINAL : public Assembler {
  public:
   X86_64Assembler() {}
@@ -588,10 +612,13 @@ class X86_64Assembler FINAL : public Assembler {
   void hlt();
 
   void j(Condition condition, Label* label);
+  void j(Condition condition, NearLabel* label);
+  void jrcxz(NearLabel* label);
 
   void jmp(CpuRegister reg);
   void jmp(const Address& address);
   void jmp(Label* label);
+  void jmp(NearLabel* label);
 
   X86_64Assembler* lock();
   void cmpxchgl(const Address& address, CpuRegister reg);
@@ -639,6 +666,7 @@ class X86_64Assembler FINAL : public Assembler {
   int PreferredLoopAlignment() { return 16; }
   void Align(int alignment, int offset);
   void Bind(Label* label);
+  void Bind(NearLabel* label);
 
   //
   // Overridden common assembler high-level functionality
@@ -809,6 +837,7 @@ class X86_64Assembler FINAL : public Assembler {
   void EmitComplex(uint8_t rm, const Operand& operand, const Immediate& immediate);
   void EmitLabel(Label* label, int instruction_size);
   void EmitLabelLink(Label* label);
+  void EmitLabelLink(NearLabel* label);
 
   void EmitGenericShift(bool wide, int rm, CpuRegister reg, const Immediate& imm);
   void EmitGenericShift(bool wide, int rm, CpuRegister operand, CpuRegister shifter);

@@ -203,6 +203,30 @@ class Address : public Operand {
 };
 
 
+// This is equivalent to the Label class, used in a slightly different context. We
+// inherit the functionality of the Label class, but prevent unintended
+// derived-to-base conversions by making the base class private.
+class NearLabel : private Label {
+ public:
+  NearLabel() : Label() {}
+
+  // Expose the Label routines that we need.
+  using Label::Position;
+  using Label::LinkPosition;
+  using Label::IsBound;
+  using Label::IsUnused;
+  using Label::IsLinked;
+
+ private:
+  using Label::BindTo;
+  using Label::LinkTo;
+
+  friend class x86::X86Assembler;
+
+  DISALLOW_COPY_AND_ASSIGN(NearLabel);
+};
+
+
 class X86Assembler FINAL : public Assembler {
  public:
   X86Assembler() {}
@@ -464,10 +488,13 @@ class X86Assembler FINAL : public Assembler {
   void hlt();
 
   void j(Condition condition, Label* label);
+  void j(Condition condition, NearLabel* label);
+  void jecxz(NearLabel* label);
 
   void jmp(Register reg);
   void jmp(const Address& address);
   void jmp(Label* label);
+  void jmp(NearLabel* label);
 
   void repne_scasw();
   void repe_cmpsw();
@@ -506,6 +533,7 @@ class X86Assembler FINAL : public Assembler {
   int PreferredLoopAlignment() { return 16; }
   void Align(int alignment, int offset);
   void Bind(Label* label);
+  void Bind(NearLabel* label);
 
   //
   // Overridden common assembler high-level functionality
@@ -652,6 +680,7 @@ class X86Assembler FINAL : public Assembler {
   void EmitComplex(int rm, const Operand& operand, const Immediate& immediate);
   void EmitLabel(Label* label, int instruction_size);
   void EmitLabelLink(Label* label);
+  void EmitLabelLink(NearLabel* label);
 
   void EmitGenericShift(int rm, const Operand& operand, const Immediate& imm);
   void EmitGenericShift(int rm, const Operand& operand, Register shifter);
