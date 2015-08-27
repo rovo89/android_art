@@ -1,0 +1,56 @@
+<!--
+Copyright (C) 2015 The Android Open Source Project
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<head>
+<link rel="stylesheet" type="text/css" href="style.css">
+</head>
+
+<div class="menu">
+  <a href="/">overview</a> -
+  <a href="roots">roots</a> -
+  <a href="sites">allocations</a> -
+  <a href="help">help</a>
+</div>
+
+<h1>Help</h1>
+<h2>Information shown by ahat:</h2>
+<ul>
+  <li><a href="/">The total bytes retained by heap.</a></li>
+  <li><a href="/roots">A list of root objects and their retained sizes for each heap.</a></li>
+  <li>Information about each allocated object:
+    <ul>
+      <li>The allocation site (stack trace) of the object (if available).</li>
+      <li>The dominator path from a root to the object.</li>
+      <li>The class, (shallow) size, retained size, and heap of the object.</li>
+      <li>The bitmap image for the object if the object represents a bitmap.</li>
+      <li>The instance fields or array elements of the object.</li>
+      <li>The super class, class loader, and static fields of class objects.</li>
+      <li>Other objects with references to the object.</li>
+      <li>Other objects immediately dominated by the object.</li>
+    </ul>
+  </li>
+  <li>A list of objects, optionally filtered by class, allocation site, and/or
+    heap.</li>
+  <li><a href="site">Information about each allocation site:</a>
+    <ul>
+      <li>The stack trace for the allocation site.</li>
+      <li>The number of bytes allocated at the allocation site.</li>
+      <li>Child sites called from the allocation site.</li>
+      <li>The size and count of objects allocated at the site, organized by
+        heap and object type.</li>
+    </ul>
+  </li>
+</ul>
