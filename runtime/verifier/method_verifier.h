@@ -67,17 +67,17 @@ std::ostream& operator<<(std::ostream& os, const MethodType& rhs);
  * to be rewritten to fail at runtime.
  */
 enum VerifyError {
-  VERIFY_ERROR_BAD_CLASS_HARD = 0,      // VerifyError; hard error that skips compilation.
-  VERIFY_ERROR_BAD_CLASS_SOFT = 1,      // VerifyError; soft error that verifies again at runtime.
+  VERIFY_ERROR_BAD_CLASS_HARD = 1,        // VerifyError; hard error that skips compilation.
+  VERIFY_ERROR_BAD_CLASS_SOFT = 2,        // VerifyError; soft error that verifies again at runtime.
 
-  VERIFY_ERROR_NO_CLASS = 2,            // NoClassDefFoundError.
-  VERIFY_ERROR_NO_FIELD = 3,            // NoSuchFieldError.
-  VERIFY_ERROR_NO_METHOD = 4,           // NoSuchMethodError.
-  VERIFY_ERROR_ACCESS_CLASS = 5,        // IllegalAccessError.
-  VERIFY_ERROR_ACCESS_FIELD = 6,        // IllegalAccessError.
-  VERIFY_ERROR_ACCESS_METHOD = 7,       // IllegalAccessError.
-  VERIFY_ERROR_CLASS_CHANGE = 8,        // IncompatibleClassChangeError.
-  VERIFY_ERROR_INSTANTIATION = 9,       // InstantiationError.
+  VERIFY_ERROR_NO_CLASS = 4,              // NoClassDefFoundError.
+  VERIFY_ERROR_NO_FIELD = 8,              // NoSuchFieldError.
+  VERIFY_ERROR_NO_METHOD = 16,            // NoSuchMethodError.
+  VERIFY_ERROR_ACCESS_CLASS = 32,         // IllegalAccessError.
+  VERIFY_ERROR_ACCESS_FIELD = 64,         // IllegalAccessError.
+  VERIFY_ERROR_ACCESS_METHOD = 128,       // IllegalAccessError.
+  VERIFY_ERROR_CLASS_CHANGE = 256,        // IncompatibleClassChangeError.
+  VERIFY_ERROR_INSTANTIATION = 512,       // InstantiationError.
   // For opcodes that don't have complete verifier support (such as lambda opcodes),
   // we need a way to continue execution at runtime without attempting to re-verify
   // (since we know it will fail no matter what). Instead, run as the interpreter
@@ -85,9 +85,11 @@ enum VerifyError {
   // on the fly.
   //
   // TODO: Once all new opcodes have implemented full verifier support, this can be removed.
-  VERIFY_ERROR_FORCE_INTERPRETER = 10,  // Skip the verification phase at runtime;
-                                        // force the interpreter to do access checks.
-                                        // (sets a soft fail at compile time).
+  VERIFY_ERROR_FORCE_INTERPRETER = 1024,  // Skip the verification phase at runtime;
+                                          // force the interpreter to do access checks.
+                                          // (sets a soft fail at compile time).
+  VERIFY_ERROR_LOCKING = 2048,            // Could not guarantee balanced locking. This should be
+                                          // punted to the interpreter with access checks.
 };
 std::ostream& operator<<(std::ostream& os, const VerifyError& rhs);
 

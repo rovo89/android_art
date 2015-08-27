@@ -25,6 +25,10 @@
 namespace art {
 namespace verifier {
 
+// Should we dump a warning on failures to verify balanced locking? That would be an indication to
+// developers that their code will be slow.
+static constexpr bool kDumpLockFailures = true;
+
 inline const RegType& RegisterLine::GetRegisterType(MethodVerifier* verifier, uint32_t vsrc) const {
   // The register index was validated during the static pass, so we don't need to check it here.
   DCHECK_LT(vsrc, num_regs_);
@@ -167,12 +171,14 @@ inline bool RegisterLine::VerifyRegisterType(MethodVerifier* verifier, uint32_t 
   return true;
 }
 
-inline bool RegisterLine::VerifyMonitorStackEmpty(MethodVerifier* verifier) const {
+inline void RegisterLine::VerifyMonitorStackEmpty(MethodVerifier* verifier) const {
   if (MonitorStackDepth() != 0) {
-    verifier->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected empty monitor stack";
-    return false;
-  } else {
-    return true;
+    verifier->Fail(VERIFY_ERROR_LOCKING);
+    if (kDumpLockFailures) {
+      LOG(WARNING) << "expected empty monitor stack in "
+                   << PrettyMethod(verifier->GetMethodReference().dex_method_index,
+                                   *verifier->GetMethodReference().dex_file);
+    }
   }
 }
 
