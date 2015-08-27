@@ -44,6 +44,7 @@ enum ThreadState {
   kWaitingForVisitObjects,          // WAITING        TS_WAIT      waiting for visiting objects
   kWaitingForGetObjectsAllocated,   // WAITING        TS_WAIT      waiting for getting the number of allocated objects
   kWaitingWeakGcRootRead,           // WAITING        TS_WAIT      waiting on the GC to read a weak root
+  kWaitingForGcThreadFlip,          // WAITING        TS_WAIT      waiting on the GC thread flip (CC collector) to finish
   kStarting,                        // NEW            TS_WAIT      native thread started, not yet ready to run managed code
   kNative,                          // RUNNABLE       TS_RUNNING   running in a JNI native method
   kSuspended,                       // RUNNABLE       TS_RUNNING   suspended by GC or debugger
