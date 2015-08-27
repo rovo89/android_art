@@ -189,7 +189,7 @@ public class NativeBridgeMain {
     static public void main(String[] args) throws Exception {
         System.out.println("Ready for native bridge tests.");
 
-        System.loadLibrary("arttest");
+        System.loadLibrary(args[0]);
 
         Main.main(null);
     }

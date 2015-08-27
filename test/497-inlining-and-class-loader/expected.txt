@@ -1,7 +1,7 @@
 java.lang.Exception
-	at Main.$noinline$bar(Main.java:127)
+	at Main.$noinline$bar(Main.java:124)
 	at Level2.$inline$bar(Level1.java:25)
 	at Level1.$inline$bar(Level1.java:19)
 	at LoadedByMyClassLoader.bar(Main.java:82)
 	at java.lang.reflect.Method.invoke(Native Method)
-	at Main.main(Main.java:101)
+	at Main.main(Main.java:98)

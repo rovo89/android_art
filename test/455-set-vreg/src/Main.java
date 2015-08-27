@@ -40,11 +40,8 @@ public class Main {
 
   native void doNativeCallSetVReg();
 
-  static {
-    System.loadLibrary("arttest");
-  }
-
   public static void main(String[] args) {
+    System.loadLibrary(args[0]);
     Main rm = new Main();
     int intExpected = 5 - 4 - 3 - 2 - 1;
     int intResult = rm.testIntVReg(0, 0, 0, 0, 0);

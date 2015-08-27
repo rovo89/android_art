@@ -36,11 +36,8 @@ public class Main {
     return 42;
   }
 
-  static {
-    System.loadLibrary("arttest");
-  }
-
   public static void main(String[] args) {
+    System.loadLibrary(args[0]);
     Main rm = new Main();
     if (rm.testSimpleVReg(1, 1.0f, (short)2, true, (byte)3, 'c') != 43) {
       throw new Error("Expected 43");

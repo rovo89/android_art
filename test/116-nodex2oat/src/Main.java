@@ -16,6 +16,7 @@
 
 public class Main {
   public static void main(String[] args) {
+    System.loadLibrary(args[0]);
     System.out.println(
         "Has oat is " + hasOat() + ", is dex2oat enabled is " + isDex2OatEnabled() + ".");
 
@@ -24,10 +25,6 @@ public class Main {
     } else if (!hasOat() && isDex2OatEnabled()) {
       throw new Error("Application with dex2oat enabled runs without an oat file");
     }
-  }
-
-  static {
-    System.loadLibrary("arttest");
   }
 
   private native static boolean hasOat();
