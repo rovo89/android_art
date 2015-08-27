@@ -590,14 +590,18 @@ static void CompileMethod(Thread* self,
   } else if ((access_flags & kAccAbstract) != 0) {
     // Abstract methods don't have code.
   } else {
-    bool has_verified_method = driver->GetVerificationResults()
-        ->GetVerifiedMethod(method_ref) != nullptr;
+    const VerifiedMethod* verified_method =
+        driver->GetVerificationResults()->GetVerifiedMethod(method_ref);
     bool compile = compilation_enabled &&
         // Basic checks, e.g., not <clinit>.
         driver->GetVerificationResults()
             ->IsCandidateForCompilation(method_ref, access_flags) &&
         // Did not fail to create VerifiedMethod metadata.
-        has_verified_method &&
+        verified_method != nullptr &&
+        // Do not have failures that should punt to the interpreter.
+        !verified_method->HasRuntimeThrow() &&
+        (verified_method->GetEncounteredVerificationFailures() &
+            verifier::VERIFY_ERROR_FORCE_INTERPRETER) == 0 &&
         // Is eligable for compilation by methods-to-compile filter.
         driver->IsMethodToCompile(method_ref);
     if (compile) {
@@ -620,7 +624,7 @@ static void CompileMethod(Thread* self,
           method_idx,
           class_loader,
           dex_file,
-          has_verified_method
+          (verified_method != nullptr)
               ? dex_to_dex_compilation_level
               : optimizer::DexToDexCompilationLevel::kRequired);
     }
