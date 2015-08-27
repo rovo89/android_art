@@ -65,6 +65,7 @@
 #include "vector_output_stream.h"
 #include "well_known_classes.h"
 #include "zip_archive.h"
+#include "zlib.h"
 
 namespace art {
 
@@ -597,9 +598,57 @@ class Dex2Oat {
   DISALLOW_IMPLICIT_CONSTRUCTORS(Dex2Oat);
 };
 
+static File* Inflate(const std::string& filename, int out_fd, std::string* err) {
+  if (out_fd == -1) {
+    *err = "No swap file available";
+    return nullptr;
+  }
+
+  gzFile in_gzfile = gzopen(filename.c_str(), "rb");
+  if (in_gzfile == nullptr) {
+    *err = StringPrintf("Could not open gzip file: %s", strerror(errno));
+    return nullptr;
+  }
+
+  constexpr size_t INFLATE_BUFLEN = 16384;
+  std::unique_ptr<File> out_file(new File(out_fd, false));
+  std::unique_ptr<Byte[]> buf(new Byte[INFLATE_BUFLEN]);
+  int len;
+
+  while (0 < (len = gzread(in_gzfile, buf.get(), INFLATE_BUFLEN)))  {
+    if (!out_file->WriteFully(buf.get(), len)) {
+      *err = StringPrintf("Could not write to fd=%d: %s", out_fd, out_file->GetPath().c_str());
+      gzclose(in_gzfile);
+      return nullptr;
+    }
+  }
+
+  int errnum;
+  const char* gzerrstr = gzerror(in_gzfile, &errnum);
+
+  if (len < 0 || errnum != Z_OK) {
+    *err = StringPrintf("Could not inflate gzip file: %s", gzerrstr);
+    gzclose(in_gzfile);
+    return nullptr;
+  }
+
+  if ((errnum = gzclose(in_gzfile)) != Z_OK) {
+    *err = StringPrintf("Could not close gzip file: gzclose() returned %d", errnum);
+  }
+
+  if (out_file->Flush() != 0) {
+    *err = StringPrintf("Could not flush swap file fd=%d", out_fd);
+    return nullptr;
+  }
+
+  out_file->DisableAutoClose();
+  return out_file.release();
+}
+
 static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
                            const std::vector<const char*>& dex_locations,
-                           std::vector<const DexFile*>& dex_files) {
+                           std::vector<const DexFile*>& dex_files,
+                           int& swap_fd) {
   size_t failure_count = 0;
   for (size_t i = 0; i < dex_filenames.size(); i++) {
     const char* dex_filename = dex_filenames[i];
@@ -610,13 +659,24 @@ static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
       LOG(WARNING) << "Skipping non-existent dex file '" << dex_filename << "'";
       continue;
     }
+    std::unique_ptr<File> file;
     if (EndsWith(dex_filename, ".oat") || EndsWith(dex_filename, ".odex")) {
-      std::unique_ptr<File> file(OS::OpenFileForReading(dex_filename));
+      file.reset(OS::OpenFileForReading(dex_filename));
       if (file.get() == nullptr) {
-        LOG(WARNING) << "Failed to open file '" << dex_filename << "': " << strerror(errno);;
+        LOG(WARNING) << "Failed to open file '" << dex_filename << "': " << strerror(errno);
         ++failure_count;
         continue;
       }
+    } else if (EndsWith(dex_filename, ".gz.xposed")) {
+      file.reset(Inflate(dex_filename, swap_fd, &error_msg));
+      if (file.get() == nullptr) {
+        LOG(WARNING) << "Failed to inflate " << dex_filename << "': " << error_msg;
+        ++failure_count;
+        continue;
+      }
+      swap_fd = -1;
+    }
+    if (file.get() != nullptr) {
       std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file.release(), PROT_READ | PROT_WRITE, MAP_PRIVATE, &error_msg));
       if (elf_file.get() == nullptr) {
         LOG(WARNING) << "Failed to open ELF file from '" << dex_filename << "': " << error_msg;
@@ -1372,7 +1432,7 @@ static int dex2oat(int argc, char** argv) {
   std::vector<const DexFile*> boot_class_path;
   art::MemMap::Init();  // For ZipEntry::ExtractToMemMap.
   if (boot_image_option.empty()) {
-    size_t failure_count = OpenDexFiles(dex_filenames, dex_locations, boot_class_path);
+    size_t failure_count = OpenDexFiles(dex_filenames, dex_locations, boot_class_path, swap_fd);
     if (failure_count > 0) {
       LOG(ERROR) << "Failed to open some dex files: " << failure_count;
       oat_file->Erase();
@@ -1481,6 +1541,9 @@ static int dex2oat(int argc, char** argv) {
   } else {
     if (dex_filenames.empty()) {
       odex_filename = DexFilenameToOdexFilename(zip_location, instruction_set);
+      if (!OS::FileExists(odex_filename.c_str())) {
+        odex_filename += ".gz.xposed";
+      }
       if (OS::FileExists(odex_filename.c_str())) {
         LOG(INFO) << "Using '" << odex_filename << "' instead of file descriptor";
         dex_filenames.push_back(odex_filename.data());
@@ -1510,7 +1573,7 @@ static int dex2oat(int argc, char** argv) {
       }
       ATRACE_END();
     } else {
-      size_t failure_count = OpenDexFiles(dex_filenames, dex_locations, dex_files);
+      size_t failure_count = OpenDexFiles(dex_filenames, dex_locations, dex_files, swap_fd);
       if (failure_count > 0) {
         LOG(ERROR) << "Failed to open some dex files: " << failure_count;
         timings.EndTiming();
