@@ -70,7 +70,6 @@ namespace art {
 
 // Separate objects into multiple bins to optimize dirty memory use.
 static constexpr bool kBinObjects = true;
-static constexpr bool kComputeEagerResolvedStrings = false;
 
 static void CheckNoDexObjectsCallback(Object* obj, void* arg ATTRIBUTE_UNUSED)
     SHARED_REQUIRES(Locks::mutator_lock_) {
@@ -90,11 +89,6 @@ bool ImageWriter::PrepareImageAddressSpace() {
     PruneNonImageClasses();  // Remove junk
     ComputeLazyFieldsForImageClasses();  // Add useful information
 
-    // Calling this can in theory fill in some resolved strings. However, in practice it seems to
-    // never resolve any.
-    if (kComputeEagerResolvedStrings) {
-      ComputeEagerResolvedStrings();
-    }
     Thread::Current()->TransitionFromRunnableToSuspended(kNative);
   }
   gc::Heap* heap = Runtime::Current()->GetHeap();
@@ -302,11 +296,15 @@ void ImageWriter::SetImageBinSlot(mirror::Object* object, BinSlot bin_slot) {
 
 void ImageWriter::PrepareDexCacheArraySlots() {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  ReaderMutexLock mu(Thread::Current(), *class_linker->DexLock());
-  size_t dex_cache_count = class_linker->GetDexCacheCount();
+  Thread* const self = Thread::Current();
+  ReaderMutexLock mu(self, *class_linker->DexLock());
   uint32_t size = 0u;
-  for (size_t idx = 0; idx < dex_cache_count; ++idx) {
-    DexCache* dex_cache = class_linker->GetDexCache(idx);
+  for (jobject weak_root : class_linker->GetDexCaches()) {
+    mirror::DexCache* dex_cache =
+        down_cast<mirror::DexCache*>(self->DecodeJObject(weak_root));
+    if (dex_cache == nullptr) {
+      continue;
+    }
     const DexFile* dex_file = dex_cache->GetDexFile();
     dex_cache_array_starts_.Put(dex_file, size);
     DexCacheArraysLayout layout(target_ptr_size_, dex_file);
@@ -554,39 +552,6 @@ void ImageWriter::ComputeLazyFieldsForImageClasses() {
   class_linker->VisitClassesWithoutClassesLock(&visitor);
 }
 
-void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg ATTRIBUTE_UNUSED) {
-  if (!obj->GetClass()->IsStringClass()) {
-    return;
-  }
-  mirror::String* string = obj->AsString();
-  const uint16_t* utf16_string = string->GetValue();
-  size_t utf16_length = static_cast<size_t>(string->GetLength());
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  ReaderMutexLock mu(Thread::Current(), *class_linker->DexLock());
-  size_t dex_cache_count = class_linker->GetDexCacheCount();
-  for (size_t i = 0; i < dex_cache_count; ++i) {
-    DexCache* dex_cache = class_linker->GetDexCache(i);
-    const DexFile& dex_file = *dex_cache->GetDexFile();
-    const DexFile::StringId* string_id;
-    if (UNLIKELY(utf16_length == 0)) {
-      string_id = dex_file.FindStringId("");
-    } else {
-      string_id = dex_file.FindStringId(utf16_string, utf16_length);
-    }
-    if (string_id != nullptr) {
-      // This string occurs in this dex file, assign the dex cache entry.
-      uint32_t string_idx = dex_file.GetIndexForStringId(*string_id);
-      if (dex_cache->GetResolvedString(string_idx) == nullptr) {
-        dex_cache->SetResolvedString(string_idx, string);
-      }
-    }
-  }
-}
-
-void ImageWriter::ComputeEagerResolvedStrings() {
-  Runtime::Current()->GetHeap()->VisitObjects(ComputeEagerResolvedStringsCallback, this);
-}
-
 bool ImageWriter::IsImageClass(Class* klass) {
   if (klass == nullptr) {
     return false;
@@ -631,16 +596,14 @@ void ImageWriter::PruneNonImageClasses() {
 
   // Clear references to removed classes from the DexCaches.
   const ArtMethod* resolution_method = runtime->GetResolutionMethod();
-  size_t dex_cache_count;
-  {
-    ReaderMutexLock mu(self, *class_linker->DexLock());
-    dex_cache_count = class_linker->GetDexCacheCount();
-  }
-  for (size_t idx = 0; idx < dex_cache_count; ++idx) {
-    DexCache* dex_cache;
-    {
-      ReaderMutexLock mu(self, *class_linker->DexLock());
-      dex_cache = class_linker->GetDexCache(idx);
+
+  ScopedAssertNoThreadSuspension sa(self, __FUNCTION__);
+  ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);  // For ClassInClassTable
+  ReaderMutexLock mu2(self, *class_linker->DexLock());
+  for (jobject weak_root : class_linker->GetDexCaches()) {
+    mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(self->DecodeJObject(weak_root));
+    if (dex_cache == nullptr) {
+      continue;
     }
     for (size_t i = 0; i < dex_cache->NumResolvedTypes(); i++) {
       Class* klass = dex_cache->GetResolvedType(i);
@@ -762,8 +725,12 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
     ReaderMutexLock mu(self, *class_linker->DexLock());
     CHECK_EQ(dex_cache_count, class_linker->GetDexCacheCount())
         << "The number of dex caches changed.";
-    for (size_t i = 0; i < dex_cache_count; ++i) {
-      dex_caches->Set<false>(i, class_linker->GetDexCache(i));
+    size_t i = 0;
+    for (jobject weak_root : class_linker->GetDexCaches()) {
+      mirror::DexCache* dex_cache =
+          down_cast<mirror::DexCache*>(self->DecodeJObject(weak_root));
+      dex_caches->Set<false>(i, dex_cache);
+      ++i;
     }
   }
 

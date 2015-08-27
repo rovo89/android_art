@@ -171,7 +171,7 @@ static jobject DexFile_openDexFileNative(
     if (array == nullptr) {
       ScopedObjectAccess soa(env);
       for (auto& dex_file : dex_files) {
-        if (Runtime::Current()->GetClassLinker()->IsDexFileRegistered(*dex_file)) {
+        if (Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file, true) != nullptr) {
           dex_file.release();
         }
       }
@@ -209,7 +209,7 @@ static void DexFile_closeDexFile(JNIEnv* env, jclass, jobject cookie) {
   // TODO: The Runtime should support unloading of classes and freeing of the
   // dex files for those unloaded classes rather than leaking dex files here.
   for (auto& dex_file : *dex_files) {
-    if (!Runtime::Current()->GetClassLinker()->IsDexFileRegistered(*dex_file)) {
+    if (Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file, true) == nullptr) {
       delete dex_file;
     }
   }
