@@ -235,7 +235,7 @@ int dexlistDriver(int argc, char** argv) {
         gOptions.outputFileName = optarg;
         break;
       case 'm':
-        // If -m x.y.z is given, then find all instances of the
+        // If -m p.c.m is given, then find all instances of the
         // fully-qualified method name. This isn't really what
         // dexlist is for, but it's easy to do it here.
         {
