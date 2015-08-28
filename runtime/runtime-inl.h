@@ -20,7 +20,6 @@
 #include "runtime.h"
 
 #include "art_method.h"
-#include "class_linker.h"
 #include "read_barrier-inl.h"
 
 namespace art {
