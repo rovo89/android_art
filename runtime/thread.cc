@@ -2656,6 +2656,8 @@ class ReferenceMapVisitor : public StackVisitor {
         }
       }
     }
+    // Mark lock count map required for structured locking checks.
+    shadow_frame->GetLockCountData().VisitMonitors(visitor_, -1, this);
   }
 
  private:
