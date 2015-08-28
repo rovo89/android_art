@@ -26,6 +26,7 @@ public class Main {
      * Drives tests.
      */
     public static void main(String[] args) {
+        System.loadLibrary(args[0]);
         Main m = new Main();
 
         m.recursiveSync(0);
@@ -54,7 +55,6 @@ public class Main {
         m.triplet(obj1, obj2, 0);
         System.out.println("triplet ok");
 
-        System.loadLibrary("arttest");
         runSmaliTests();
     }
 
