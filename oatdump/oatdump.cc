@@ -827,15 +827,11 @@ class OatDumper {
       DumpDexCode(vios->Stream(), dex_file, code_item);
     }
 
-    std::unique_ptr<StackHandleScope<1>> hs;
     std::unique_ptr<verifier::MethodVerifier> verifier;
     if (Runtime::Current() != nullptr) {
-      // We need to have the handle scope stay live until after the verifier since the verifier has
-      // a handle to the dex cache from hs.
-      hs.reset(new StackHandleScope<1>(Thread::Current()));
       vios->Stream() << "VERIFIER TYPE ANALYSIS:\n";
       ScopedIndentation indent2(vios);
-      verifier.reset(DumpVerifier(vios, hs.get(),
+      verifier.reset(DumpVerifier(vios,
                                   dex_method_idx, &dex_file, class_def, code_item,
                                   method_access_flags));
     }
@@ -1408,7 +1404,6 @@ class OatDumper {
   }
 
   verifier::MethodVerifier* DumpVerifier(VariableIndentationOutputStream* vios,
-                                         StackHandleScope<1>* hs,
                                          uint32_t dex_method_idx,
                                          const DexFile* dex_file,
                                          const DexFile::ClassDef& class_def,
@@ -1416,8 +1411,9 @@ class OatDumper {
                                          uint32_t method_access_flags) {
     if ((method_access_flags & kAccNative) == 0) {
       ScopedObjectAccess soa(Thread::Current());
+      StackHandleScope<1> hs(soa.Self());
       Handle<mirror::DexCache> dex_cache(
-          hs->NewHandle(Runtime::Current()->GetClassLinker()->RegisterDexFile(*dex_file)));
+          hs.NewHandle(Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file)));
       DCHECK(options_.class_loader_ != nullptr);
       return verifier::MethodVerifier::VerifyMethodAndDump(
           soa.Self(), vios, dex_method_idx, dex_file, dex_cache, *options_.class_loader_,
@@ -1618,13 +1614,10 @@ class ImageDumper {
       dex_cache_arrays_.clear();
       {
         ReaderMutexLock mu(self, *class_linker->DexLock());
-        for (jobject weak_root : class_linker->GetDexCaches()) {
-          mirror::DexCache* dex_cache =
-              down_cast<mirror::DexCache*>(self->DecodeJObject(weak_root));
-          if (dex_cache != nullptr) {
-            dex_cache_arrays_.insert(dex_cache->GetResolvedFields());
-            dex_cache_arrays_.insert(dex_cache->GetResolvedMethods());
-          }
+        for (size_t i = 0; i < class_linker->GetDexCacheCount(); ++i) {
+          auto* dex_cache = class_linker->GetDexCache(i);
+          dex_cache_arrays_.insert(dex_cache->GetResolvedFields());
+          dex_cache_arrays_.insert(dex_cache->GetResolvedMethods());
         }
       }
       ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);

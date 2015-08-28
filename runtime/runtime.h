@@ -568,9 +568,6 @@ class Runtime {
     return fingerprint_;
   }
 
-  // Called from class linker.
-  void SetSentinel(mirror::Object* sentinel) SHARED_REQUIRES(Locks::mutator_lock_);
-
  private:
   static void InitPlatformSignalHandlers();
 

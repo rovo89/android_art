@@ -940,7 +940,7 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings) {
       uint16_t exception_type_idx = exception_type.first;
       const DexFile* dex_file = exception_type.second;
       StackHandleScope<2> hs2(self);
-      Handle<mirror::DexCache> dex_cache(hs2.NewHandle(class_linker->RegisterDexFile(*dex_file)));
+      Handle<mirror::DexCache> dex_cache(hs2.NewHandle(class_linker->FindDexCache(*dex_file)));
       Handle<mirror::Class> klass(hs2.NewHandle(
           class_linker->ResolveType(*dex_file, exception_type_idx, dex_cache,
                                     NullHandle<mirror::ClassLoader>())));
@@ -1174,8 +1174,7 @@ bool CompilerDriver::CanAssumeTypeIsPresentInDexCache(const DexFile& dex_file, u
       IsImageClass(dex_file.StringDataByIdx(dex_file.GetTypeId(type_idx).descriptor_idx_))) {
     {
       ScopedObjectAccess soa(Thread::Current());
-      mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(
-          dex_file, false);
+      mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
       mirror::Class* resolved_class = dex_cache->GetResolvedType(type_idx);
       if (resolved_class == nullptr) {
         // Erroneous class.
@@ -1200,9 +1199,9 @@ bool CompilerDriver::CanAssumeStringIsPresentInDexCache(const DexFile& dex_file,
     // We resolve all const-string strings when building for the image.
     ScopedObjectAccess soa(Thread::Current());
     StackHandleScope<1> hs(soa.Self());
-    ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(dex_file, false)));
-    class_linker->ResolveString(dex_file, string_idx, dex_cache);
+    Handle<mirror::DexCache> dex_cache(
+        hs.NewHandle(Runtime::Current()->GetClassLinker()->FindDexCache(dex_file)));
+    Runtime::Current()->GetClassLinker()->ResolveString(dex_file, string_idx, dex_cache);
     result = true;
   }
   if (result) {
@@ -1227,7 +1226,7 @@ bool CompilerDriver::CanAccessTypeWithoutChecks(uint32_t referrer_idx, const Dex
     *equals_referrers_class = false;
   }
   ScopedObjectAccess soa(Thread::Current());
-  mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file, false);
+  mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
   // Get type from dex cache assuming it was populated by the verifier
   mirror::Class* resolved_class = dex_cache->GetResolvedType(type_idx);
   if (resolved_class == nullptr) {
@@ -1264,8 +1263,7 @@ bool CompilerDriver::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_id
                                                             const DexFile& dex_file,
                                                             uint32_t type_idx) {
   ScopedObjectAccess soa(Thread::Current());
-  mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(
-      dex_file, false);
+  mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
   // Get type from dex cache assuming it was populated by the verifier.
   mirror::Class* resolved_class = dex_cache->GetResolvedType(type_idx);
   if (resolved_class == nullptr) {
@@ -1294,7 +1292,7 @@ bool CompilerDriver::CanEmbedTypeInCode(const DexFile& dex_file, uint32_t type_i
                                         uintptr_t* direct_type_ptr, bool* out_is_finalizable) {
   ScopedObjectAccess soa(Thread::Current());
   Runtime* runtime = Runtime::Current();
-  mirror::DexCache* dex_cache = runtime->GetClassLinker()->FindDexCache(dex_file, false);
+  mirror::DexCache* dex_cache = runtime->GetClassLinker()->FindDexCache(dex_file);
   mirror::Class* resolved_class = dex_cache->GetResolvedType(type_idx);
   if (resolved_class == nullptr) {
     return false;
@@ -1423,7 +1421,7 @@ ArtField* CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx,
   {
     StackHandleScope<2> hs(soa.Self());
     Handle<mirror::DexCache> dex_cache_handle(
-        hs.NewHandle(mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile(), false)));
+        hs.NewHandle(mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile())));
     Handle<mirror::ClassLoader> class_loader_handle(
         hs.NewHandle(soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader())));
     resolved_field =
@@ -1473,7 +1471,7 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
   {
     StackHandleScope<2> hs(soa.Self());
     Handle<mirror::DexCache> dex_cache_handle(
-        hs.NewHandle(mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile(), false)));
+        hs.NewHandle(mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile())));
     Handle<mirror::ClassLoader> class_loader_handle(
         hs.NewHandle(soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader())));
     resolved_field =
@@ -1659,7 +1657,7 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
   // Try to resolve the method and compiling method's class.
   StackHandleScope<3> hs(soa.Self());
   Handle<mirror::DexCache> dex_cache(
-      hs.NewHandle(mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile(), false)));
+      hs.NewHandle(mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile())));
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
       soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader())));
   uint32_t method_idx = target_method->dex_method_index;
@@ -1911,7 +1909,7 @@ class ResolveClassFieldsAndMethodsVisitor : public CompilationVisitor {
     StackHandleScope<2> hs(soa.Self());
     Handle<mirror::ClassLoader> class_loader(
         hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(dex_file, false)));
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(dex_file)));
     // Resolve the class.
     mirror::Class* klass = class_linker->ResolveType(dex_file, class_def.class_idx_, dex_cache,
                                                      class_loader);
@@ -2004,7 +2002,7 @@ class ResolveTypeVisitor : public CompilationVisitor {
     ClassLinker* class_linker = manager_->GetClassLinker();
     const DexFile& dex_file = *manager_->GetDexFile();
     StackHandleScope<2> hs(soa.Self());
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->RegisterDexFile(dex_file)));
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(dex_file)));
     Handle<mirror::ClassLoader> class_loader(
         hs.NewHandle(soa.Decode<mirror::ClassLoader*>(manager_->GetClassLoader())));
     mirror::Class* klass = class_linker->ResolveType(dex_file, type_idx, dex_cache, class_loader);
@@ -2090,7 +2088,7 @@ class VerifyClassVisitor : public CompilationVisitor {
        * This is to ensure the class is structurally sound for compilation. An unsound class
        * will be rejected by the verifier and later skipped during compilation in the compiler.
        */
-      Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(dex_file, false)));
+      Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(dex_file)));
       std::string error_msg;
       if (verifier::MethodVerifier::VerifyClass(soa.Self(), &dex_file, dex_cache, class_loader,
                                                 &class_def, true, &error_msg) ==
