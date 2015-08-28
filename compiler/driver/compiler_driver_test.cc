@@ -210,8 +210,8 @@ TEST_F(CompilerDriverMethodsTest, Selection) {
   CompileAll(class_loader);
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  StackHandleScope<1> hs(self);
   ScopedObjectAccess soa(self);
+  StackHandleScope<1> hs(self);
   Handle<mirror::ClassLoader> h_loader(hs.NewHandle(
       reinterpret_cast<mirror::ClassLoader*>(self->DecodeJObject(class_loader))));
   mirror::Class* klass = class_linker->FindClass(self, "LStaticLeafMethods;", h_loader);

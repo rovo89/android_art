@@ -27,11 +27,11 @@ class ReferenceQueueTest : public CommonRuntimeTest {};
 
 TEST_F(ReferenceQueueTest, EnqueueDequeue) {
   Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
   StackHandleScope<20> hs(self);
   Mutex lock("Reference queue lock");
   ReferenceQueue queue(&lock);
   ASSERT_TRUE(queue.IsEmpty());
-  ScopedObjectAccess soa(self);
   ASSERT_EQ(queue.GetLength(), 0U);
   auto ref_class = hs.NewHandle(
       Runtime::Current()->GetClassLinker()->FindClass(self, "Ljava/lang/ref/WeakReference;",
@@ -58,10 +58,10 @@ TEST_F(ReferenceQueueTest, EnqueueDequeue) {
 
 TEST_F(ReferenceQueueTest, Dump) {
   Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
   StackHandleScope<20> hs(self);
   Mutex lock("Reference queue lock");
   ReferenceQueue queue(&lock);
-  ScopedObjectAccess soa(self);
   queue.Dump(LOG(INFO));
   auto weak_ref_class = hs.NewHandle(
       Runtime::Current()->GetClassLinker()->FindClass(self, "Ljava/lang/ref/WeakReference;",

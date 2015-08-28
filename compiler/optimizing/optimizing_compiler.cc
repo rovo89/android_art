@@ -540,11 +540,14 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
                                                      CompilerDriver* compiler_driver,
                                                      const DexCompilationUnit& dex_compilation_unit,
                                                      PassObserver* pass_observer) const {
-  StackHandleScopeCollection handles(Thread::Current());
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScopeCollection handles(soa.Self());
+  soa.Self()->TransitionFromRunnableToSuspended(kNative);
   RunOptimizations(graph, compiler_driver, compilation_stats_.get(),
                    dex_compilation_unit, pass_observer, &handles);
 
   if (graph->HasTryCatch()) {
+    soa.Self()->TransitionFromSuspendedToRunnable();
     return nullptr;
   }
 
@@ -582,6 +585,8 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
       ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data()),
       ArrayRef<const LinkerPatch>(linker_patches));
   pass_observer->DumpDisassembly();
+
+  soa.Self()->TransitionFromSuspendedToRunnable();
   return compiled_method;
 }
 
