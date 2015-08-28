@@ -551,8 +551,7 @@ jobject CommonRuntimeTest::LoadDex(const char* dex_name) {
   }
 
   Thread* self = Thread::Current();
-  jobject class_loader = Runtime::Current()->GetClassLinker()->CreatePathClassLoader(self,
-                                                                                     class_path);
+  jobject class_loader = Runtime::Current()->GetClassLinker()->CreatePathClassLoader(self,                                                                                   class_path);
   self->SetClassLoaderOverride(class_loader);
   return class_loader;
 }

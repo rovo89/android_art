@@ -640,8 +640,7 @@ static void GetVisitedMethodsFromBitSets(
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   for (auto& e : seen_methods) {
     DexIndexBitSet* bit_set = e.second;
-    // TODO: Visit trace methods as roots.
-    mirror::DexCache* dex_cache = class_linker->FindDexCache(*e.first, false);
+    mirror::DexCache* dex_cache = class_linker->FindDexCache(*e.first);
     for (uint32_t i = 0; i < bit_set->size(); ++i) {
       if ((*bit_set)[i]) {
         visited_methods->insert(dex_cache->GetResolvedMethod(i, sizeof(void*)));
