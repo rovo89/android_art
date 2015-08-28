@@ -133,7 +133,16 @@ class JavaVMExt : public JavaVM {
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!globals_lock_);
 
   mirror::Object* DecodeWeakGlobal(Thread* self, IndirectRef ref)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!weak_globals_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!weak_globals_lock_);
+
+  mirror::Object* DecodeWeakGlobalLocked(Thread* self, IndirectRef ref)
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(weak_globals_lock_);
+
+  Mutex& WeakGlobalsLock() RETURN_CAPABILITY(weak_globals_lock_) {
+    return weak_globals_lock_;
+  }
 
   void UpdateWeakGlobal(Thread* self, IndirectRef ref, mirror::Object* result)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!weak_globals_lock_);

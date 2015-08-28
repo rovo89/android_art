@@ -355,7 +355,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     TestRootVisitor visitor;
     class_linker_->VisitRoots(&visitor, kVisitRootFlagAllRoots);
     // Verify the dex cache has resolution methods in all resolved method slots
-    mirror::DexCache* dex_cache = class_linker_->FindDexCache(dex);
+    mirror::DexCache* dex_cache = class_linker_->FindDexCache(Thread::Current(), dex);
     auto* resolved_methods = dex_cache->GetResolvedMethods();
     for (size_t i = 0; i < static_cast<size_t>(resolved_methods->GetLength()); i++) {
       EXPECT_TRUE(resolved_methods->GetElementPtrSize<ArtMethod*>(i, sizeof(void*)) != nullptr)

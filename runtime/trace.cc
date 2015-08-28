@@ -638,9 +638,11 @@ static void GetVisitedMethodsFromBitSets(
     const std::map<const DexFile*, DexIndexBitSet*>& seen_methods,
     std::set<ArtMethod*>* visited_methods) SHARED_REQUIRES(Locks::mutator_lock_) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Thread* const self = Thread::Current();
   for (auto& e : seen_methods) {
     DexIndexBitSet* bit_set = e.second;
-    mirror::DexCache* dex_cache = class_linker->FindDexCache(*e.first);
+    // TODO: Visit trace methods as roots.
+    mirror::DexCache* dex_cache = class_linker->FindDexCache(self, *e.first, false);
     for (uint32_t i = 0; i < bit_set->size(); ++i) {
       if ((*bit_set)[i]) {
         visited_methods->insert(dex_cache->GetResolvedMethod(i, sizeof(void*)));

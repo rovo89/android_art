@@ -902,7 +902,7 @@ HClinitCheck* HGraphBuilder::ProcessClinitCheckForInvoke(
   StackHandleScope<4> hs(soa.Self());
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(
       dex_compilation_unit_->GetClassLinker()->FindDexCache(
-          *dex_compilation_unit_->GetDexFile())));
+          soa.Self(), *dex_compilation_unit_->GetDexFile())));
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
       soa.Decode<mirror::ClassLoader*>(dex_compilation_unit_->GetClassLoader())));
   ArtMethod* resolved_method = compiler_driver_->ResolveMethod(
@@ -912,7 +912,7 @@ HClinitCheck* HGraphBuilder::ProcessClinitCheckForInvoke(
 
   const DexFile& outer_dex_file = *outer_compilation_unit_->GetDexFile();
   Handle<mirror::DexCache> outer_dex_cache(hs.NewHandle(
-      outer_compilation_unit_->GetClassLinker()->FindDexCache(outer_dex_file)));
+      outer_compilation_unit_->GetClassLinker()->FindDexCache(soa.Self(), outer_dex_file)));
   Handle<mirror::Class> outer_class(hs.NewHandle(GetOutermostCompilingClass()));
 
   // The index at which the method's class is stored in the DexCache's type array.
@@ -1228,7 +1228,7 @@ static mirror::Class* GetClassFrom(CompilerDriver* driver,
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
       soa.Decode<mirror::ClassLoader*>(compilation_unit.GetClassLoader())));
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(
-      compilation_unit.GetClassLinker()->FindDexCache(dex_file)));
+      compilation_unit.GetClassLinker()->FindDexCache(soa.Self(), dex_file)));
 
   return driver->ResolveCompilingMethodsClass(soa, dex_cache, class_loader, &compilation_unit);
 }
@@ -1245,7 +1245,8 @@ bool HGraphBuilder::IsOutermostCompilingClass(uint16_t type_index) const {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<4> hs(soa.Self());
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(
-      dex_compilation_unit_->GetClassLinker()->FindDexCache(*dex_compilation_unit_->GetDexFile())));
+      dex_compilation_unit_->GetClassLinker()->FindDexCache(
+          soa.Self(), *dex_compilation_unit_->GetDexFile())));
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
       soa.Decode<mirror::ClassLoader*>(dex_compilation_unit_->GetClassLoader())));
   Handle<mirror::Class> cls(hs.NewHandle(compiler_driver_->ResolveClass(
@@ -1264,7 +1265,8 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<4> hs(soa.Self());
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(
-      dex_compilation_unit_->GetClassLinker()->FindDexCache(*dex_compilation_unit_->GetDexFile())));
+      dex_compilation_unit_->GetClassLinker()->FindDexCache(
+          soa.Self(), *dex_compilation_unit_->GetDexFile())));
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
       soa.Decode<mirror::ClassLoader*>(dex_compilation_unit_->GetClassLoader())));
   ArtField* resolved_field = compiler_driver_->ResolveField(
@@ -1277,7 +1279,7 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
 
   const DexFile& outer_dex_file = *outer_compilation_unit_->GetDexFile();
   Handle<mirror::DexCache> outer_dex_cache(hs.NewHandle(
-      outer_compilation_unit_->GetClassLinker()->FindDexCache(outer_dex_file)));
+      outer_compilation_unit_->GetClassLinker()->FindDexCache(soa.Self(), outer_dex_file)));
   Handle<mirror::Class> outer_class(hs.NewHandle(GetOutermostCompilingClass()));
 
   // The index at which the field's class is stored in the DexCache's type array.

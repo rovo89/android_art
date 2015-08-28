@@ -617,7 +617,8 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
     // Unchecked as we hold mutator_lock_ on entry.
     ScopedObjectAccessUnchecked soa(Thread::Current());
     StackHandleScope<1> hs(soa.Self());
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(linker->FindDexCache(*dex_file_)));
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(linker->FindDexCache(
+        Thread::Current(), *dex_file_)));
     ArtMethod* method = linker->ResolveMethod(
         *dex_file_, it.GetMemberIndex(), dex_cache, NullHandle<mirror::ClassLoader>(), nullptr,
         invoke_type);
@@ -668,7 +669,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
       SHARED_REQUIRES(Locks::mutator_lock_) {
     OatDexMethodVisitor::StartClass(dex_file, class_def_index);
     if (dex_cache_ == nullptr || dex_cache_->GetDexFile() != dex_file) {
-      dex_cache_ = class_linker_->FindDexCache(*dex_file);
+      dex_cache_ = class_linker_->FindDexCache(Thread::Current(), *dex_file);
     }
     return true;
   }
@@ -691,6 +692,8 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
     OatClass* oat_class = writer_->oat_classes_[oat_class_index_];
     const CompiledMethod* compiled_method = oat_class->GetCompiledMethod(class_def_method_index);
 
+    // No thread suspension since dex_cache_ that may get invalidated if that occurs.
+    ScopedAssertNoThreadSuspension tsc(Thread::Current(), __FUNCTION__);
     if (compiled_method != nullptr) {  // ie. not an abstract method
       size_t file_offset = file_offset_;
       OutputStream* out = out_;
@@ -796,7 +799,8 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
       SHARED_REQUIRES(Locks::mutator_lock_) {
     MethodReference ref = patch.TargetMethod();
     mirror::DexCache* dex_cache =
-        (dex_file_ == ref.dex_file) ? dex_cache_ : class_linker_->FindDexCache(*ref.dex_file);
+        (dex_file_ == ref.dex_file) ? dex_cache_ : class_linker_->FindDexCache(
+            Thread::Current(), *ref.dex_file);
     ArtMethod* method = dex_cache->GetResolvedMethod(
         ref.dex_method_index, class_linker_->GetImagePointerSize());
     CHECK(method != nullptr);
@@ -830,7 +834,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   mirror::Class* GetTargetType(const LinkerPatch& patch)
       SHARED_REQUIRES(Locks::mutator_lock_) {
     mirror::DexCache* dex_cache = (dex_file_ == patch.TargetTypeDexFile())
-        ? dex_cache_ : class_linker_->FindDexCache(*patch.TargetTypeDexFile());
+        ? dex_cache_ : class_linker_->FindDexCache(Thread::Current(), *patch.TargetTypeDexFile());
     mirror::Class* type = dex_cache->GetResolvedType(patch.TargetTypeIndex());
     CHECK(type != nullptr);
     return type;

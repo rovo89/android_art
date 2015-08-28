@@ -182,10 +182,10 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
   ArtMethod* resolved_method;
   if (invoke_instruction->IsInvokeStaticOrDirect()) {
     MethodReference ref = invoke_instruction->AsInvokeStaticOrDirect()->GetTargetMethod();
-    resolved_method = class_linker->FindDexCache(*ref.dex_file)->GetResolvedMethod(
+    resolved_method = class_linker->FindDexCache(soa.Self(), *ref.dex_file)->GetResolvedMethod(
         ref.dex_method_index, class_linker->GetImagePointerSize());
   } else {
-    resolved_method = class_linker->FindDexCache(caller_dex_file)->GetResolvedMethod(
+    resolved_method = class_linker->FindDexCache(soa.Self(), caller_dex_file)->GetResolvedMethod(
         method_index, class_linker->GetImagePointerSize());
   }
 

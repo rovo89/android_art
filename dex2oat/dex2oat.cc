@@ -1207,6 +1207,14 @@ class Dex2Oat FINAL {
     oat_file_.reset();
   }
 
+  void Shutdown() {
+    ScopedObjectAccess soa(Thread::Current());
+    for (jobject dex_cache : dex_caches_) {
+      soa.Env()->DeleteLocalRef(dex_cache);
+    }
+    dex_caches_.clear();
+  }
+
   // Set up the environment for compilation. Includes starting the runtime and loading/opening the
   // boot class path.
   bool Setup() {
@@ -1320,8 +1328,9 @@ class Dex2Oat FINAL {
       compiled_methods_.reset(nullptr);  // By default compile everything.
     }
 
+    ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
     if (boot_image_option_.empty()) {
-      dex_files_ = Runtime::Current()->GetClassLinker()->GetBootClassPath();
+      dex_files_ = class_linker->GetBootClassPath();
     } else {
       if (dex_filenames_.empty()) {
         ATRACE_BEGIN("Opening zip archive from file descriptor");
@@ -1374,11 +1383,15 @@ class Dex2Oat FINAL {
         }
       }
     }
-    // Ensure opened dex files are writable for dex-to-dex transformations.
+    // Ensure opened dex files are writable for dex-to-dex transformations. Also ensure that
+    // the dex caches stay live since we don't want class unloading to occur during compilation.
     for (const auto& dex_file : dex_files_) {
       if (!dex_file->EnableWrite()) {
         PLOG(ERROR) << "Failed to make .dex file writeable '" << dex_file->GetLocation() << "'\n";
       }
+      ScopedObjectAccess soa(self);
+      dex_caches_.push_back(soa.AddLocalReference<jobject>(
+          class_linker->RegisterDexFile(*dex_file)));
     }
 
     // If we use a swap file, ensure we are above the threshold to make it necessary.
@@ -1423,6 +1436,7 @@ class Dex2Oat FINAL {
     // Handle and ClassLoader creation needs to come after Runtime::Create
     jobject class_loader = nullptr;
     Thread* self = Thread::Current();
+
     if (!boot_image_option_.empty()) {
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
       OpenClassPathFiles(runtime_->GetClassPathString(), dex_files_, &class_path_files_);
@@ -1957,6 +1971,7 @@ class Dex2Oat FINAL {
   bool is_host_;
   std::string android_root_;
   std::vector<const DexFile*> dex_files_;
+  std::vector<jobject> dex_caches_;
   std::vector<std::unique_ptr<const DexFile>> opened_dex_files_;
   std::unique_ptr<CompilerDriver> driver_;
   std::vector<std::string> verbose_methods_;
@@ -2107,11 +2122,15 @@ static int dex2oat(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  bool result;
   if (dex2oat.IsImage()) {
-    return CompileImage(dex2oat);
+    result = CompileImage(dex2oat);
   } else {
-    return CompileApp(dex2oat);
+    result = CompileApp(dex2oat);
   }
+
+  dex2oat.Shutdown();
+  return result;
 }
 }  // namespace art
 
