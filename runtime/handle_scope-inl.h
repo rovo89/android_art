@@ -19,8 +19,9 @@
 
 #include "handle_scope.h"
 
+#include "base/mutex.h"
 #include "handle.h"
-#include "thread.h"
+#include "thread-inl.h"
 #include "verify_object-inl.h"
 
 namespace art {
@@ -29,6 +30,9 @@ template<size_t kNumReferences>
 inline StackHandleScope<kNumReferences>::StackHandleScope(Thread* self, mirror::Object* fill_value)
     : HandleScope(self->GetTopHandleScope(), kNumReferences), self_(self), pos_(0) {
   DCHECK_EQ(self, Thread::Current());
+  if (kDebugLocking) {
+    Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
+  }
   static_assert(kNumReferences >= 1, "StackHandleScope must contain at least 1 reference");
   // TODO: Figure out how to use a compile assert.
   CHECK_EQ(&storage_[0], GetReferences());
@@ -42,6 +46,9 @@ template<size_t kNumReferences>
 inline StackHandleScope<kNumReferences>::~StackHandleScope() {
   HandleScope* top_handle_scope = self_->PopHandleScope();
   DCHECK_EQ(top_handle_scope, this);
+  if (kDebugLocking) {
+    Locks::mutator_lock_->AssertSharedHeld(self_);
+  }
 }
 
 inline size_t HandleScope::SizeOf(uint32_t num_references) {
@@ -59,6 +66,9 @@ inline size_t HandleScope::SizeOf(size_t pointer_size, uint32_t num_references) 
 
 inline mirror::Object* HandleScope::GetReference(size_t i) const {
   DCHECK_LT(i, number_of_references_);
+  if (kDebugLocking) {
+    Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
+  }
   return GetReferences()[i].AsMirrorPtr();
 }
 
@@ -73,6 +83,9 @@ inline MutableHandle<mirror::Object> HandleScope::GetMutableHandle(size_t i) {
 }
 
 inline void HandleScope::SetReference(size_t i, mirror::Object* object) {
+  if (kDebugLocking) {
+    Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
+  }
   DCHECK_LT(i, number_of_references_);
   GetReferences()[i].Assign(object);
 }
@@ -104,6 +117,9 @@ inline HandleWrapper<T> StackHandleScope<kNumReferences>::NewHandleWrapper(T** o
 
 template<size_t kNumReferences>
 inline void StackHandleScope<kNumReferences>::SetReference(size_t i, mirror::Object* object) {
+  if (kDebugLocking) {
+    Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
+  }
   DCHECK_LT(i, kNumReferences);
   VerifyObject(object);
   GetReferences()[i].Assign(object);
