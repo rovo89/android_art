@@ -87,6 +87,8 @@ TEST_F(ParsedOptionsTest, ParsedOptions) {
   EXPECT_FALSE(VLOG_IS_ON(jdwp));
   EXPECT_TRUE(VLOG_IS_ON(jni));
   EXPECT_FALSE(VLOG_IS_ON(monitor));
+  EXPECT_FALSE(VLOG_IS_ON(signals));
+  EXPECT_FALSE(VLOG_IS_ON(simulator));
   EXPECT_FALSE(VLOG_IS_ON(startup));
   EXPECT_FALSE(VLOG_IS_ON(third_party_jni));
   EXPECT_FALSE(VLOG_IS_ON(threads));

@@ -606,6 +606,8 @@ struct CmdlineType<LogVerbosity> : CmdlineTypeParser<LogVerbosity> {
         log_verbosity.profiler = true;
       } else if (verbose_options[j] == "signals") {
         log_verbosity.signals = true;
+      } else if (verbose_options[j] == "simulator") {
+        log_verbosity.simulator = true;
       } else if (verbose_options[j] == "startup") {
         log_verbosity.startup = true;
       } else if (verbose_options[j] == "third-party-jni") {
