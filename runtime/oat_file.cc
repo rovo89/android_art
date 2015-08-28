@@ -489,6 +489,22 @@ bool OatFile::Setup(const char* abs_dex_location, const std::string* elf_filenam
     const DexFile::Header* header = reinterpret_cast<const DexFile::Header*>(dex_file_pointer);
     const uint32_t* methods_offsets_pointer = reinterpret_cast<const uint32_t*>(oat);
 
+    /*
+     * Samsung has introduced a TypeLookupTable for each dex file in their oat files.
+     * Its relative offset is stored between the dex_file_offset and the methods_offsets_pointer.
+     * The lookup tables themselves are stored between the OatDexFiles (which we are currently
+     * iterating over) and the DexFiles. The OatClasses are stored further down the file.
+     *
+     * This means that on Samsung ROMs (with files created by Samsung's adjusted libart-compiler.so),
+     * methods_offsets_pointer[0] will actually hold the offset of the TypeLookupTable, which
+     * is lower than the DexFile. If we detect this case, we skip (and ignore) the value and
+     * adjust methods_offsets_pointer to point to the correct address.
+     */
+    if (methods_offsets_pointer[0] < dex_file_offset) {
+      oat += sizeof(uint32_t);
+      methods_offsets_pointer = reinterpret_cast<const uint32_t*>(oat);
+    }
+
     oat += (sizeof(*methods_offsets_pointer) * header->class_defs_size_);
     if (UNLIKELY(oat > End())) {
       *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd for '%s' with truncated "
