@@ -362,7 +362,7 @@ void RTPVisitor::SetClassAsTypeInfo(HInstruction* instr,
     if (kIsDebugBuild) {
       ScopedObjectAccess soa(Thread::Current());
       ClassLinker* cl = Runtime::Current()->GetClassLinker();
-      mirror::DexCache* dex_cache = cl->FindDexCache(instr->AsInvoke()->GetDexFile(), false);
+      mirror::DexCache* dex_cache = cl->FindDexCache(instr->AsInvoke()->GetDexFile());
       ArtMethod* method = dex_cache->GetResolvedMethod(
           instr->AsInvoke()->GetDexMethodIndex(), cl->GetImagePointerSize());
       DCHECK(method != nullptr);
