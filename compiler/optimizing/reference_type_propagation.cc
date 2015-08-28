@@ -79,6 +79,8 @@ ReferenceTypePropagation::ReferenceTypePropagation(HGraph* graph,
     : HOptimization(graph, name),
       handles_(handles),
       worklist_(graph->GetArena(), kDefaultWorklistSize) {
+  // Mutator lock is required for NewHandle, but annotalysis ignores constructors.
+  ScopedObjectAccess soa(Thread::Current());
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   object_class_handle_ = handles_->NewHandle(linker->GetClassRoot(ClassLinker::kJavaLangObject));
   string_class_handle_ = handles_->NewHandle(linker->GetClassRoot(ClassLinker::kJavaLangString));
@@ -87,7 +89,6 @@ ReferenceTypePropagation::ReferenceTypePropagation(HGraph* graph,
       handles_->NewHandle(linker->GetClassRoot(ClassLinker::kJavaLangThrowable));
 
   if (kIsDebugBuild) {
-    ScopedObjectAccess soa(Thread::Current());
     DCHECK(ReferenceTypeInfo::IsValidHandle(object_class_handle_));
     DCHECK(ReferenceTypeInfo::IsValidHandle(class_class_handle_));
     DCHECK(ReferenceTypeInfo::IsValidHandle(string_class_handle_));
