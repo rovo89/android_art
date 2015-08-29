@@ -671,8 +671,9 @@ class Hprof : public SingleRootVisitor {
       okay = !file_output.Errors();
 
       if (okay) {
-        // Check for expected size.
-        CHECK_EQ(file_output.SumLength(), overall_size);
+        // Check for expected size. Output is expected to be less-or-equal than first phase, see
+        // b/23521263.
+        DCHECK_LE(file_output.SumLength(), overall_size);
       }
       output_ = nullptr;
     }
@@ -716,8 +717,8 @@ class Hprof : public SingleRootVisitor {
     // Write the dump.
     ProcessHeap(true);
 
-    // Check for expected size.
-    CHECK_EQ(net_output.SumLength(), overall_size + kChunkHeaderSize);
+    // Check for expected size. See DumpToFile for comment.
+    DCHECK_LE(net_output.SumLength(), overall_size + kChunkHeaderSize);
     output_ = nullptr;
 
     return true;
