@@ -17,33 +17,58 @@
 public class Main {
     public static void floatTest() {
       float f = 0;
+      float nf = -0;
       float fc = 1f;
       for (int i = 0; i < 2; i++) {
         f -= fc;
         f = -f;
+        nf -= fc;
+        nf = -nf;
       }
 
       System.out.println(f);
+      System.out.println(nf);
       System.out.println(f + 0f);
       System.out.println(f - (-0f));
+      System.out.println(-f - (-nf));
+      System.out.println(-f + (-nf));
     }
 
     public static void doubleTest() {
       double d = 0;
+      double nd = -0;
       double dc = 1f;
       for (int i = 0; i < 2; i++) {
         d -= dc;
         d = -d;
+        nd -= dc;
+        nd = -nd;
       }
 
       System.out.println(d);
+      System.out.println(nd);
       System.out.println(d + 0f);
       System.out.println(d - (-0f));
+      System.out.println(-d - (-nd));
+      System.out.println(-d + (-nd));
+    }
+
+    public static void bug_1() {
+      int i4=18, i3=-48959;
+      float d;
+      float f=-0.0f;
+      float a=0.0f;
+
+      d = -f + (-a);
+      f += i4 * i3;
+
+      System.out.println("d " + d);
     }
 
     public static void main(String[] args) {
         doubleTest();
         floatTest();
+        bug_1();
     }
 
 }
