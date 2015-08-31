@@ -45,7 +45,7 @@ class Value {
     // Annotate Strings with their values.
     String stringValue = InstanceUtils.asString(inst);
     if (stringValue != null) {
-      link.append("\"%s\"", stringValue);
+      link.appendFormat("\"%s\"", stringValue);
     }
 
     // Annotate DexCache with its location.
@@ -54,14 +54,14 @@ class Value {
       link.append(" for " + dexCacheLocation);
     }
 
-    URI objTarget = DocString.uri("object?id=%d", inst.getId());
+    URI objTarget = DocString.formattedUri("object?id=%d", inst.getId());
     DocString formatted = DocString.link(objTarget, link);
 
     // Annotate bitmaps with a thumbnail.
     Instance bitmap = InstanceUtils.getAssociatedBitmapInstance(inst);
     String thumbnail = "";
     if (bitmap != null) {
-      URI uri = DocString.uri("bitmap?id=%d", bitmap.getId());
+      URI uri = DocString.formattedUri("bitmap?id=%d", bitmap.getId());
       formatted.appendThumbnail(uri, "bitmap image");
     }
     return formatted;
@@ -74,7 +74,7 @@ class Value {
     if (val instanceof Instance) {
       return renderInstance((Instance)val);
     } else {
-      return DocString.text("%s", val);
+      return DocString.format("%s", val);
     }
   }
 }

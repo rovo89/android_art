@@ -53,7 +53,7 @@ class ObjectsHandler extends AhatHandler {
         new Column("Object"));
     for (Instance inst : insts) {
       doc.row(
-          DocString.text("%,d", inst.getSize()),
+          DocString.format("%,d", inst.getSize()),
           DocString.text(inst.getHeap().getName()),
           Value.render(inst));
     }
