@@ -373,7 +373,7 @@ JavaVMExt::JavaVMExt(Runtime* runtime, const RuntimeArgumentMap& runtime_options
       globals_(gGlobalsInitial, gGlobalsMax, kGlobal),
       libraries_(new Libraries),
       unchecked_functions_(&gJniInvokeInterface),
-      weak_globals_lock_("JNI weak global reference table lock"),
+      weak_globals_lock_("JNI weak global reference table lock", kJniWeakGlobalsLock),
       weak_globals_(kWeakGlobalsInitial, kWeakGlobalsMax, kWeakGlobal),
       allow_new_weak_globals_(true),
       weak_globals_add_condition_("weak globals add condition", weak_globals_lock_) {
@@ -578,6 +578,13 @@ void JavaVMExt::UpdateGlobal(Thread* self, IndirectRef ref, mirror::Object* resu
 
 mirror::Object* JavaVMExt::DecodeWeakGlobal(Thread* self, IndirectRef ref) {
   MutexLock mu(self, weak_globals_lock_);
+  return DecodeWeakGlobalLocked(self, ref);
+}
+
+mirror::Object* JavaVMExt::DecodeWeakGlobalLocked(Thread* self, IndirectRef ref) {
+  if (kDebugLocking) {
+    weak_globals_lock_.AssertHeld(self);
+  }
   while (UNLIKELY((!kUseReadBarrier && !allow_new_weak_globals_) ||
                   (kUseReadBarrier && !self->GetWeakRefAccessEnabled()))) {
     weak_globals_add_condition_.WaitHoldingLocks(self);
