@@ -37,6 +37,7 @@
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
 #include "elf_writer_quick.h"
+#include "experimental_flags.h"
 #include "jni/quick/jni_compiler.h"
 #include "mir_to_lir.h"
 #include "mirror/object.h"
@@ -523,7 +524,8 @@ static bool SkipScanningUnsupportedOpcodes(InstructionSet instruction_set) {
     // All opcodes are supported no matter what. Usually not the case
     // since experimental opcodes are not implemented in the quick compiler.
     return true;
-  } else if (LIKELY(!Runtime::Current()->AreExperimentalLambdasEnabled())) {
+  } else if (LIKELY(!Runtime::Current()->
+                      AreExperimentalFlagsEnabled(ExperimentalFlags::kLambdas))) {
     // Experimental opcodes are disabled.
     //
     // If all unsupported opcodes are experimental we don't need to do scanning.

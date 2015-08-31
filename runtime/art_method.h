@@ -135,6 +135,11 @@ class ArtMethod FINAL {
     return (GetAccessFlags() & kAccMiranda) != 0;
   }
 
+  // This is set by the class linker.
+  bool IsDefault() {
+    return (GetAccessFlags() & kAccDefault) != 0;
+  }
+
   bool IsNative() {
     return (GetAccessFlags() & kAccNative) != 0;
   }
@@ -161,6 +166,11 @@ class ArtMethod FINAL {
   void SetPreverified() {
     DCHECK(!IsPreverified());
     SetAccessFlags(GetAccessFlags() | kAccPreverified);
+  }
+
+  // Returns true if this method could be overridden by a default method.
+  bool IsOverridableByDefaultMethod() {
+    return IsDefault() || IsAbstract();
   }
 
   bool CheckIncompatibleClassChange(InvokeType type) SHARED_REQUIRES(Locks::mutator_lock_);

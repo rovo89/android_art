@@ -18,6 +18,7 @@
 #define ART_RUNTIME_CLASS_LINKER_H_
 
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -648,6 +649,12 @@ class ClassLinker {
                        bool can_init_parents)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
+  bool InitializeDefaultInterfaceRecursive(Thread* self,
+                                           Handle<mirror::Class> klass,
+                                           bool can_run_clinit,
+                                           bool can_init_parents)
+      REQUIRES(!dex_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
   bool WaitForInitializeClass(Handle<mirror::Class> klass,
                               Thread* self,
                               ObjectLock<mirror::Class>& lock);
@@ -687,12 +694,65 @@ class ClassLinker {
                    ArtMethod** out_imt)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  bool LinkVirtualMethods(Thread* self, Handle<mirror::Class> klass)
+  // Links the virtual methods for the given class and records any default methods that will need to
+  // be updated later.
+  //
+  // Arguments:
+  // * self - The current thread.
+  // * klass - class, whose vtable will be filled in.
+  // * default_translations - Vtable index to new method map.
+  //                          Any vtable entries that need to be updated with new default methods
+  //                          are stored into the default_translations map. The default_translations
+  //                          map is keyed on the vtable index that needs to be updated. We use this
+  //                          map because if we override a default method with another default
+  //                          method we need to update the vtable to point to the new method.
+  //                          Unfortunately since we copy the ArtMethod* we cannot just do a simple
+  //                          scan, we therefore store the vtable index's that might need to be
+  //                          updated with the method they will turn into.
+  // TODO This whole default_translations thing is very dirty. There should be a better way.
+  bool LinkVirtualMethods(Thread* self,
+                          Handle<mirror::Class> klass,
+                          /*out*/std::unordered_map<size_t, ArtMethod*>* default_translations)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Sets up the interface lookup table (IFTable) in the correct order to allow searching for
+  // default methods.
+  bool SetupInterfaceLookupTable(Thread* self,
+                                 Handle<mirror::Class> klass,
+                                 Handle<mirror::ObjectArray<mirror::Class>> interfaces)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Find the default method implementation for 'interface_method' in 'klass', if one exists.
+  //
+  // Arguments:
+  // * self - The current thread.
+  // * target_method - The method we are trying to find a default implementation for.
+  // * klass - The class we are searching for a definition of target_method.
+  // * out_default_method - The pointer we will store the found default method to on success.
+  // * icce_message - A string we will store an appropriate IncompatibleClassChangeError message
+  //                  into in case of failure. Note we must do it this way since we do not know
+  //                  whether we can allocate the exception object, which could cause us to go to
+  //                  sleep.
+  //
+  // Return value:
+  // * True - There were no conflicting method implementations found in the class while searching
+  //          for target_method. The default method implementation is stored into out_default_method
+  //          if it was found.  Otherwise *out_default_method will be set to nullptr.
+  // * False - Conflicting method implementations were found when searching for target_method. The
+  //           value of *out_default_method is undefined and *icce_message is a string that should
+  //           be used to create an IncompatibleClassChangeError as soon as possible.
+  bool FindDefaultMethodImplementation(Thread* self,
+                                       ArtMethod* target_method,
+                                       Handle<mirror::Class> klass,
+                                       /*out*/ArtMethod** out_default_method,
+                                       /*out*/std::string* icce_message) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Sets the imt entries and fixes up the vtable for the given class by linking all the interface
+  // methods. See LinkVirtualMethods for an explanation of what default_translations is.
   bool LinkInterfaceMethods(Thread* self,
                             Handle<mirror::Class> klass,
-                            Handle<mirror::ObjectArray<mirror::Class>> interfaces,
+                            const std::unordered_map<size_t, ArtMethod*>& default_translations,
                             ArtMethod** out_imt)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
