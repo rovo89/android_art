@@ -20,6 +20,7 @@
 #include <sys/mount.h>
 #ifdef __linux__
 #include <linux/fs.h>
+#include <sys/prctl.h>
 #endif
 
 #define ATRACE_TAG ATRACE_TAG_DALVIK
@@ -491,6 +492,13 @@ bool Runtime::Start() {
   VLOG(startup) << "Runtime::Start entering";
 
   CHECK(!no_sig_chain_) << "A started runtime should have sig chain enabled";
+
+  // If a debug host build, disable ptrace restriction for debugging and test timeout thread dump.
+#if defined(__linux__) && !defined(__ANDROID__)
+  if (kIsDebugBuild) {
+    CHECK_EQ(prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY), 0);
+  }
+#endif
 
   // Restore main thread state to kNative as expected by native code.
   Thread* self = Thread::Current();
