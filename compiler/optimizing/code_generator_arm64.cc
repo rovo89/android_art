@@ -191,23 +191,19 @@ void SlowPathCodeARM64::RestoreLiveRegisters(CodeGenerator* codegen, LocationSum
 
 class BoundsCheckSlowPathARM64 : public SlowPathCodeARM64 {
  public:
-  BoundsCheckSlowPathARM64(HBoundsCheck* instruction,
-                           Location index_location,
-                           Location length_location)
-      : instruction_(instruction),
-        index_location_(index_location),
-        length_location_(length_location) {}
-
+  explicit BoundsCheckSlowPathARM64(HBoundsCheck* instruction) : instruction_(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    LocationSummary* locations = instruction_->GetLocations();
     CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
+
     __ Bind(GetEntryLabel());
     // We're moving two locations to locations that could overlap, so we need a parallel
     // move resolver.
     InvokeRuntimeCallingConvention calling_convention;
     codegen->EmitParallelMoves(
-        index_location_, LocationFrom(calling_convention.GetRegisterAt(0)), Primitive::kPrimInt,
-        length_location_, LocationFrom(calling_convention.GetRegisterAt(1)), Primitive::kPrimInt);
+        locations->InAt(0), LocationFrom(calling_convention.GetRegisterAt(0)), Primitive::kPrimInt,
+        locations->InAt(1), LocationFrom(calling_convention.GetRegisterAt(1)), Primitive::kPrimInt);
     arm64_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pThrowArrayBounds), instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickThrowArrayBounds, void, int32_t, int32_t>();
@@ -219,8 +215,6 @@ class BoundsCheckSlowPathARM64 : public SlowPathCodeARM64 {
 
  private:
   HBoundsCheck* const instruction_;
-  const Location index_location_;
-  const Location length_location_;
 
   DISALLOW_COPY_AND_ASSIGN(BoundsCheckSlowPathARM64);
 };
@@ -403,20 +397,17 @@ class SuspendCheckSlowPathARM64 : public SlowPathCodeARM64 {
 
 class TypeCheckSlowPathARM64 : public SlowPathCodeARM64 {
  public:
-  TypeCheckSlowPathARM64(HInstruction* instruction,
-                         Location class_to_check,
-                         Location object_class,
-                         uint32_t dex_pc)
-      : instruction_(instruction),
-        class_to_check_(class_to_check),
-        object_class_(object_class),
-        dex_pc_(dex_pc) {}
+  explicit TypeCheckSlowPathARM64(HInstruction* instruction) : instruction_(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
+    Location class_to_check = locations->InAt(1);
+    Location object_class = instruction_->IsCheckCast() ? locations->GetTemp(0)
+                                                        : locations->Out();
     DCHECK(instruction_->IsCheckCast()
            || !locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
     CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
+    uint32_t dex_pc = instruction_->GetDexPc();
 
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, locations);
@@ -425,12 +416,12 @@ class TypeCheckSlowPathARM64 : public SlowPathCodeARM64 {
     // move resolver.
     InvokeRuntimeCallingConvention calling_convention;
     codegen->EmitParallelMoves(
-        class_to_check_, LocationFrom(calling_convention.GetRegisterAt(0)), Primitive::kPrimNot,
-        object_class_, LocationFrom(calling_convention.GetRegisterAt(1)), Primitive::kPrimNot);
+        class_to_check, LocationFrom(calling_convention.GetRegisterAt(0)), Primitive::kPrimNot,
+        object_class, LocationFrom(calling_convention.GetRegisterAt(1)), Primitive::kPrimNot);
 
     if (instruction_->IsInstanceOf()) {
       arm64_codegen->InvokeRuntime(
-          QUICK_ENTRY_POINT(pInstanceofNonTrivial), instruction_, dex_pc_, this);
+          QUICK_ENTRY_POINT(pInstanceofNonTrivial), instruction_, dex_pc, this);
       Primitive::Type ret_type = instruction_->GetType();
       Location ret_loc = calling_convention.GetReturnLocation(ret_type);
       arm64_codegen->MoveLocation(locations->Out(), ret_loc, ret_type);
@@ -438,7 +429,7 @@ class TypeCheckSlowPathARM64 : public SlowPathCodeARM64 {
                            const mirror::Class*, const mirror::Class*>();
     } else {
       DCHECK(instruction_->IsCheckCast());
-      arm64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pCheckCast), instruction_, dex_pc_, this);
+      arm64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pCheckCast), instruction_, dex_pc, this);
       CheckEntrypointTypes<kQuickCheckCast, void, const mirror::Class*, const mirror::Class*>();
     }
 
@@ -450,9 +441,6 @@ class TypeCheckSlowPathARM64 : public SlowPathCodeARM64 {
 
  private:
   HInstruction* const instruction_;
-  const Location class_to_check_;
-  const Location object_class_;
-  uint32_t dex_pc_;
 
   DISALLOW_COPY_AND_ASSIGN(TypeCheckSlowPathARM64);
 };
@@ -1602,9 +1590,8 @@ void LocationsBuilderARM64::VisitBoundsCheck(HBoundsCheck* instruction) {
 }
 
 void InstructionCodeGeneratorARM64::VisitBoundsCheck(HBoundsCheck* instruction) {
-  LocationSummary* locations = instruction->GetLocations();
-  BoundsCheckSlowPathARM64* slow_path = new (GetGraph()->GetArena()) BoundsCheckSlowPathARM64(
-      instruction, locations->InAt(0), locations->InAt(1));
+  BoundsCheckSlowPathARM64* slow_path =
+      new (GetGraph()->GetArena()) BoundsCheckSlowPathARM64(instruction);
   codegen_->AddSlowPath(slow_path);
 
   __ Cmp(InputRegisterAt(instruction, 0), InputOperandAt(instruction, 1));
@@ -1616,17 +1603,17 @@ void LocationsBuilderARM64::VisitCheckCast(HCheckCast* instruction) {
       instruction, LocationSummary::kCallOnSlowPath);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
+  // Note that TypeCheckSlowPathARM64 uses this register too.
   locations->AddTemp(Location::RequiresRegister());
 }
 
 void InstructionCodeGeneratorARM64::VisitCheckCast(HCheckCast* instruction) {
-  LocationSummary* locations = instruction->GetLocations();
   Register obj = InputRegisterAt(instruction, 0);;
   Register cls = InputRegisterAt(instruction, 1);;
   Register obj_cls = WRegisterFrom(instruction->GetLocations()->GetTemp(0));
 
-  SlowPathCodeARM64* slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathARM64(
-      instruction, locations->InAt(1), LocationFrom(obj_cls), instruction->GetDexPc());
+  SlowPathCodeARM64* slow_path =
+      new (GetGraph()->GetArena()) TypeCheckSlowPathARM64(instruction);
   codegen_->AddSlowPath(slow_path);
 
   // Avoid null check if we know obj is not null.
@@ -2240,6 +2227,7 @@ void LocationsBuilderARM64::VisitInstanceOf(HInstanceOf* instruction) {
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
   // The output does overlap inputs.
+  // Note that TypeCheckSlowPathARM64 uses this register too.
   locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
 }
 
@@ -2269,8 +2257,7 @@ void InstructionCodeGeneratorARM64::VisitInstanceOf(HInstanceOf* instruction) {
     // If the classes are not equal, we go into a slow path.
     DCHECK(locations->OnlyCallsOnSlowPath());
     SlowPathCodeARM64* slow_path =
-        new (GetGraph()->GetArena()) TypeCheckSlowPathARM64(
-        instruction, locations->InAt(1), locations->Out(), instruction->GetDexPc());
+        new (GetGraph()->GetArena()) TypeCheckSlowPathARM64(instruction);
     codegen_->AddSlowPath(slow_path);
     __ B(ne, slow_path->GetEntryLabel());
     __ Mov(out, 1);

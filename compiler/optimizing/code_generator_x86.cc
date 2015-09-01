@@ -116,24 +116,20 @@ class DivRemMinusOneSlowPathX86 : public SlowPathCodeX86 {
 
 class BoundsCheckSlowPathX86 : public SlowPathCodeX86 {
  public:
-  BoundsCheckSlowPathX86(HBoundsCheck* instruction,
-                         Location index_location,
-                         Location length_location)
-      : instruction_(instruction),
-        index_location_(index_location),
-        length_location_(length_location) {}
+  explicit BoundsCheckSlowPathX86(HBoundsCheck* instruction) : instruction_(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    LocationSummary* locations = instruction_->GetLocations();
     CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
     __ Bind(GetEntryLabel());
     // We're moving two locations to locations that could overlap, so we need a parallel
     // move resolver.
     InvokeRuntimeCallingConvention calling_convention;
     x86_codegen->EmitParallelMoves(
-        index_location_,
+        locations->InAt(0),
         Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
         Primitive::kPrimInt,
-        length_location_,
+        locations->InAt(1),
         Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
         Primitive::kPrimInt);
     x86_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pThrowArrayBounds),
@@ -148,8 +144,6 @@ class BoundsCheckSlowPathX86 : public SlowPathCodeX86 {
 
  private:
   HBoundsCheck* const instruction_;
-  const Location index_location_;
-  const Location length_location_;
 
   DISALLOW_COPY_AND_ASSIGN(BoundsCheckSlowPathX86);
 };
@@ -280,15 +274,12 @@ class LoadClassSlowPathX86 : public SlowPathCodeX86 {
 
 class TypeCheckSlowPathX86 : public SlowPathCodeX86 {
  public:
-  TypeCheckSlowPathX86(HInstruction* instruction,
-                       Location class_to_check,
-                       Location object_class)
-      : instruction_(instruction),
-        class_to_check_(class_to_check),
-        object_class_(object_class) {}
+  explicit TypeCheckSlowPathX86(HInstruction* instruction) : instruction_(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
+    Location object_class = instruction_->IsCheckCast() ? locations->GetTemp(0)
+                                                        : locations->Out();
     DCHECK(instruction_->IsCheckCast()
            || !locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
 
@@ -300,10 +291,10 @@ class TypeCheckSlowPathX86 : public SlowPathCodeX86 {
     // move resolver.
     InvokeRuntimeCallingConvention calling_convention;
     x86_codegen->EmitParallelMoves(
-        class_to_check_,
+        locations->InAt(1),
         Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
         Primitive::kPrimNot,
-        object_class_,
+        object_class,
         Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
         Primitive::kPrimNot);
 
@@ -332,8 +323,6 @@ class TypeCheckSlowPathX86 : public SlowPathCodeX86 {
 
  private:
   HInstruction* const instruction_;
-  const Location class_to_check_;
-  const Location object_class_;
 
   DISALLOW_COPY_AND_ASSIGN(TypeCheckSlowPathX86);
 };
@@ -4357,7 +4346,7 @@ void InstructionCodeGeneratorX86::VisitBoundsCheck(HBoundsCheck* instruction) {
   Location index_loc = locations->InAt(0);
   Location length_loc = locations->InAt(1);
   SlowPathCodeX86* slow_path =
-    new (GetGraph()->GetArena()) BoundsCheckSlowPathX86(instruction, index_loc, length_loc);
+    new (GetGraph()->GetArena()) BoundsCheckSlowPathX86(instruction);
 
   if (length_loc.IsConstant()) {
     int32_t length = CodeGenerator::GetInt32ValueOf(length_loc.GetConstant());
@@ -4830,6 +4819,7 @@ void LocationsBuilderX86::VisitInstanceOf(HInstanceOf* instruction) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::Any());
+  // Note that TypeCheckSlowPathX86 uses this register too.
   locations->SetOut(Location::RequiresRegister());
 }
 
@@ -4866,8 +4856,7 @@ void InstructionCodeGeneratorX86::VisitInstanceOf(HInstanceOf* instruction) {
   } else {
     // If the classes are not equal, we go into a slow path.
     DCHECK(locations->OnlyCallsOnSlowPath());
-    slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathX86(
-        instruction, locations->InAt(1), locations->Out());
+    slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathX86(instruction);
     codegen_->AddSlowPath(slow_path);
     __ j(kNotEqual, slow_path->GetEntryLabel());
     __ movl(out, Immediate(1));
@@ -4890,6 +4879,7 @@ void LocationsBuilderX86::VisitCheckCast(HCheckCast* instruction) {
       instruction, LocationSummary::kCallOnSlowPath);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::Any());
+  // Note that TypeCheckSlowPathX86 uses this register too.
   locations->AddTemp(Location::RequiresRegister());
 }
 
@@ -4899,8 +4889,8 @@ void InstructionCodeGeneratorX86::VisitCheckCast(HCheckCast* instruction) {
   Location cls = locations->InAt(1);
   Register temp = locations->GetTemp(0).AsRegister<Register>();
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
-  SlowPathCodeX86* slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathX86(
-      instruction, locations->InAt(1), locations->GetTemp(0));
+  SlowPathCodeX86* slow_path =
+      new (GetGraph()->GetArena()) TypeCheckSlowPathX86(instruction);
   codegen_->AddSlowPath(slow_path);
 
   // Avoid null check if we know obj is not null.

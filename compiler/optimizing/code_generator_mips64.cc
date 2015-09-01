@@ -112,23 +112,19 @@ Location InvokeRuntimeCallingConvention::GetReturnLocation(Primitive::Type type)
 
 class BoundsCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
  public:
-  BoundsCheckSlowPathMIPS64(HBoundsCheck* instruction,
-                            Location index_location,
-                            Location length_location)
-      : instruction_(instruction),
-        index_location_(index_location),
-        length_location_(length_location) {}
+  explicit BoundsCheckSlowPathMIPS64(HBoundsCheck* instruction) : instruction_(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    LocationSummary* locations = instruction_->GetLocations();
     CodeGeneratorMIPS64* mips64_codegen = down_cast<CodeGeneratorMIPS64*>(codegen);
     __ Bind(GetEntryLabel());
     // We're moving two locations to locations that could overlap, so we need a parallel
     // move resolver.
     InvokeRuntimeCallingConvention calling_convention;
-    codegen->EmitParallelMoves(index_location_,
+    codegen->EmitParallelMoves(locations->InAt(0),
                                Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
                                Primitive::kPrimInt,
-                               length_location_,
+                               locations->InAt(1),
                                Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
                                Primitive::kPrimInt);
     mips64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pThrowArrayBounds),
@@ -144,8 +140,6 @@ class BoundsCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
 
  private:
   HBoundsCheck* const instruction_;
-  const Location index_location_;
-  const Location length_location_;
 
   DISALLOW_COPY_AND_ASSIGN(BoundsCheckSlowPathMIPS64);
 };
@@ -334,17 +328,13 @@ class SuspendCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
 
 class TypeCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
  public:
-  TypeCheckSlowPathMIPS64(HInstruction* instruction,
-                          Location class_to_check,
-                          Location object_class,
-                          uint32_t dex_pc)
-      : instruction_(instruction),
-        class_to_check_(class_to_check),
-        object_class_(object_class),
-        dex_pc_(dex_pc) {}
+  explicit TypeCheckSlowPathMIPS64(HInstruction* instruction) : instruction_(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
+    Location object_class = instruction_->IsCheckCast() ? locations->GetTemp(0)
+                                                        : locations->Out();
+    uint32_t dex_pc = instruction_->GetDexPc();
     DCHECK(instruction_->IsCheckCast()
            || !locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
     CodeGeneratorMIPS64* mips64_codegen = down_cast<CodeGeneratorMIPS64*>(codegen);
@@ -355,17 +345,17 @@ class TypeCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
     // We're moving two locations to locations that could overlap, so we need a parallel
     // move resolver.
     InvokeRuntimeCallingConvention calling_convention;
-    codegen->EmitParallelMoves(class_to_check_,
+    codegen->EmitParallelMoves(locations->InAt(1),
                                Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
                                Primitive::kPrimNot,
-                               object_class_,
+                               object_class,
                                Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
                                Primitive::kPrimNot);
 
     if (instruction_->IsInstanceOf()) {
       mips64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pInstanceofNonTrivial),
                                     instruction_,
-                                    dex_pc_,
+                                    dex_pc,
                                     this);
       Primitive::Type ret_type = instruction_->GetType();
       Location ret_loc = calling_convention.GetReturnLocation(ret_type);
@@ -376,7 +366,7 @@ class TypeCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
                            const mirror::Class*>();
     } else {
       DCHECK(instruction_->IsCheckCast());
-      mips64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pCheckCast), instruction_, dex_pc_, this);
+      mips64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pCheckCast), instruction_, dex_pc, this);
       CheckEntrypointTypes<kQuickCheckCast, void, const mirror::Class*, const mirror::Class*>();
     }
 
@@ -388,9 +378,6 @@ class TypeCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
 
  private:
   HInstruction* const instruction_;
-  const Location class_to_check_;
-  const Location object_class_;
-  uint32_t dex_pc_;
 
   DISALLOW_COPY_AND_ASSIGN(TypeCheckSlowPathMIPS64);
 };
@@ -1590,10 +1577,8 @@ void LocationsBuilderMIPS64::VisitBoundsCheck(HBoundsCheck* instruction) {
 
 void InstructionCodeGeneratorMIPS64::VisitBoundsCheck(HBoundsCheck* instruction) {
   LocationSummary* locations = instruction->GetLocations();
-  BoundsCheckSlowPathMIPS64* slow_path = new (GetGraph()->GetArena()) BoundsCheckSlowPathMIPS64(
-      instruction,
-      locations->InAt(0),
-      locations->InAt(1));
+  BoundsCheckSlowPathMIPS64* slow_path =
+      new (GetGraph()->GetArena()) BoundsCheckSlowPathMIPS64(instruction);
   codegen_->AddSlowPath(slow_path);
 
   GpuRegister index = locations->InAt(0).AsRegister<GpuRegister>();
@@ -1616,6 +1601,7 @@ void LocationsBuilderMIPS64::VisitCheckCast(HCheckCast* instruction) {
       LocationSummary::kCallOnSlowPath);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
+  // Note that TypeCheckSlowPathMIPS64 uses this register too.
   locations->AddTemp(Location::RequiresRegister());
 }
 
@@ -1625,11 +1611,8 @@ void InstructionCodeGeneratorMIPS64::VisitCheckCast(HCheckCast* instruction) {
   GpuRegister cls = locations->InAt(1).AsRegister<GpuRegister>();
   GpuRegister obj_cls = locations->GetTemp(0).AsRegister<GpuRegister>();
 
-  SlowPathCodeMIPS64* slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathMIPS64(
-      instruction,
-      locations->InAt(1),
-      Location::RegisterLocation(obj_cls),
-      instruction->GetDexPc());
+  SlowPathCodeMIPS64* slow_path =
+      new (GetGraph()->GetArena()) TypeCheckSlowPathMIPS64(instruction);
   codegen_->AddSlowPath(slow_path);
 
   // TODO: avoid this check if we know obj is not null.
@@ -2270,6 +2253,7 @@ void LocationsBuilderMIPS64::VisitInstanceOf(HInstanceOf* instruction) {
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
   // The output does overlap inputs.
+  // Note that TypeCheckSlowPathMIPS64 uses this register too.
   locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
 }
 
@@ -2296,10 +2280,7 @@ void InstructionCodeGeneratorMIPS64::VisitInstanceOf(HInstanceOf* instruction) {
     // If the classes are not equal, we go into a slow path.
     DCHECK(locations->OnlyCallsOnSlowPath());
     SlowPathCodeMIPS64* slow_path =
-        new (GetGraph()->GetArena()) TypeCheckSlowPathMIPS64(instruction,
-                                                             locations->InAt(1),
-                                                             locations->Out(),
-                                                             instruction->GetDexPc());
+        new (GetGraph()->GetArena()) TypeCheckSlowPathMIPS64(instruction);
     codegen_->AddSlowPath(slow_path);
     __ Bnec(out, cls, slow_path->GetEntryLabel());
     __ LoadConst32(out, 1);
