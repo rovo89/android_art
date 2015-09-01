@@ -51,6 +51,9 @@ extern "C" TwoWordReturn artInstrumentationMethodExitFromCode(Thread* self, ArtM
                                                               uint64_t gpr_result,
                                                               uint64_t fpr_result)
     SHARED_REQUIRES(Locks::mutator_lock_) {
+  // Instrumentation exit stub must not be entered with a pending exception.
+  CHECK(!self->IsExceptionPending()) << "Enter instrumentation exit stub with pending exception "
+                                     << self->GetException()->Dump();
   // Compute address of return PC and sanity check that it currently holds 0.
   size_t return_pc_offset = GetCalleeSaveReturnPcOffset(kRuntimeISA, Runtime::kRefsOnly);
   uintptr_t* return_pc = reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(sp) +

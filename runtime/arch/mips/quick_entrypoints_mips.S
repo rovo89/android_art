@@ -1542,6 +1542,18 @@ ENTRY art_quick_deoptimize
 END art_quick_deoptimize
 
     /*
+     * Compiled code has requested that we deoptimize into the interpreter. The deoptimization
+     * will long jump to the upcall with a special exception of -1.
+     */
+    .extern artDeoptimizeFromCompiledCode
+ENTRY art_quick_deoptimize_from_compiled_code
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    jal      artDeoptimizeFromCompiledCode  # artDeoptimizeFromCompiledCode(Thread*)
+                                            # Returns caller method's frame size.
+    move     $a0, rSELF                     # pass Thread::current
+END art_quick_deoptimize_from_compiled_code
+
+    /*
      * Long integer shift.  This is different from the generic 32/64-bit
      * binary operations because vAA/vBB are 64-bit but vCC (the shift
      * distance) is 32-bit.  Also, Dalvik requires us to ignore all but the low

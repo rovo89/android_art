@@ -267,8 +267,8 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pThrowStackOverflow = art_quick_throw_stack_overflow;
   static_assert(!IsDirectEntrypoint(kQuickThrowStackOverflow), "Non-direct C stub marked direct.");
 
-  // Deoptimize
-  qpoints->pDeoptimize = art_quick_deoptimize;
+  // Deoptimization from compiled code.
+  qpoints->pDeoptimize = art_quick_deoptimize_from_compiled_code;
   static_assert(!IsDirectEntrypoint(kQuickDeoptimize), "Non-direct C stub marked direct.");
 
   // Atomic 64-bit load/store
