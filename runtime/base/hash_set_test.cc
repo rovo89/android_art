@@ -17,9 +17,11 @@
 #include "hash_set.h"
 
 #include <map>
+#include <forward_list>
 #include <sstream>
 #include <string>
 #include <unordered_set>
+#include <vector>
 
 #include <gtest/gtest.h>
 #include "hash_map.h"
@@ -256,6 +258,61 @@ TEST_F(HashSetTest, TestHashMap) {
   hash_map.Erase(it);
   it = hash_map.Find(std::string("abcd"));
   ASSERT_EQ(it->second, 124);
+}
+
+struct IsEmptyFnVectorInt {
+  void MakeEmpty(std::vector<int>& item) const {
+    item.clear();
+  }
+  bool IsEmpty(const std::vector<int>& item) const {
+    return item.empty();
+  }
+};
+
+template <typename T>
+size_t HashIntSequence(T begin, T end) {
+  size_t hash = 0;
+  for (auto iter = begin; iter != end; ++iter) {
+    hash = hash * 2 + *iter;
+  }
+  return hash;
+};
+
+struct VectorIntHashEquals {
+  std::size_t operator()(const std::vector<int>& item) const {
+    return HashIntSequence(item.begin(), item.end());
+  }
+
+  std::size_t operator()(const std::forward_list<int>& item) const {
+    return HashIntSequence(item.begin(), item.end());
+  }
+
+  bool operator()(const std::vector<int>& a, const std::vector<int>& b) const {
+    return a == b;
+  }
+
+  bool operator()(const std::vector<int>& a, const std::forward_list<int>& b) const {
+    auto aiter = a.begin();
+    auto biter = b.begin();
+    while (aiter != a.end() && biter != b.end()) {
+      if (*aiter != *biter) {
+        return false;
+      }
+      aiter++;
+      biter++;
+    }
+    return (aiter == a.end() && biter == b.end());
+  }
+};
+
+TEST_F(HashSetTest, TestLookupByAlternateKeyType) {
+  HashSet<std::vector<int>, IsEmptyFnVectorInt, VectorIntHashEquals, VectorIntHashEquals> hash_set;
+  hash_set.Insert(std::vector<int>({1, 2, 3, 4}));
+  hash_set.Insert(std::vector<int>({4, 2}));
+  ASSERT_EQ(hash_set.end(), hash_set.Find(std::vector<int>({1, 1, 1, 1})));
+  ASSERT_NE(hash_set.end(), hash_set.Find(std::vector<int>({1, 2, 3, 4})));
+  ASSERT_EQ(hash_set.end(), hash_set.Find(std::forward_list<int>({1, 1, 1, 1})));
+  ASSERT_NE(hash_set.end(), hash_set.Find(std::forward_list<int>({1, 2, 3, 4})));
 }
 
 }  // namespace art
