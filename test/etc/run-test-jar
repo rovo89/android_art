@@ -463,6 +463,9 @@ else
       if [ `uname` = "Darwin" ]; then
         # Fall back to timeout on Mac.
         TIME_OUT="timeout"
+      elif [ "$ISA" = "x86" ]; then
+        # prctl call may fail in 32-bit on an older (3.2) 64-bit Linux kernel. Fall back to timeout.
+        TIME_OUT="timeout"
       else
         # Check if gdb is available.
         gdb --eval-command="quit" > /dev/null 2>&1
