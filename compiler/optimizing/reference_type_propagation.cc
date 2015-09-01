@@ -363,7 +363,8 @@ void RTPVisitor::SetClassAsTypeInfo(HInstruction* instr,
     if (kIsDebugBuild) {
       ScopedObjectAccess soa(Thread::Current());
       ClassLinker* cl = Runtime::Current()->GetClassLinker();
-      mirror::DexCache* dex_cache = cl->FindDexCache(instr->AsInvoke()->GetDexFile());
+      mirror::DexCache* dex_cache = cl->FindDexCache(
+          soa.Self(), instr->AsInvoke()->GetDexFile(), false);
       ArtMethod* method = dex_cache->GetResolvedMethod(
           instr->AsInvoke()->GetDexMethodIndex(), cl->GetImagePointerSize());
       DCHECK(method != nullptr);
@@ -394,7 +395,8 @@ void RTPVisitor::UpdateReferenceTypeInfo(HInstruction* instr,
   DCHECK_EQ(instr->GetType(), Primitive::kPrimNot);
 
   ScopedObjectAccess soa(Thread::Current());
-  mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
+  mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(
+      soa.Self(), dex_file, false);
   // Get type from dex cache assuming it was populated by the verifier.
   SetClassAsTypeInfo(instr, dex_cache->GetResolvedType(type_idx), is_exact);
 }
@@ -432,7 +434,7 @@ void RTPVisitor::UpdateFieldAccessTypeInfo(HInstruction* instr,
 
   ScopedObjectAccess soa(Thread::Current());
   ClassLinker* cl = Runtime::Current()->GetClassLinker();
-  mirror::DexCache* dex_cache = cl->FindDexCache(info.GetDexFile());
+  mirror::DexCache* dex_cache = cl->FindDexCache(soa.Self(), info.GetDexFile(), false);
   ArtField* field = cl->GetResolvedField(info.GetFieldIndex(), dex_cache);
   // TODO: There are certain cases where we can't resolve the field.
   // b/21914925 is open to keep track of a repro case for this issue.
@@ -451,7 +453,7 @@ void RTPVisitor::VisitStaticFieldGet(HStaticFieldGet* instr) {
 void RTPVisitor::VisitLoadClass(HLoadClass* instr) {
   ScopedObjectAccess soa(Thread::Current());
   mirror::DexCache* dex_cache =
-      Runtime::Current()->GetClassLinker()->FindDexCache(instr->GetDexFile());
+      Runtime::Current()->GetClassLinker()->FindDexCache(soa.Self(), instr->GetDexFile(), false);
   // Get type from dex cache assuming it was populated by the verifier.
   mirror::Class* resolved_class = dex_cache->GetResolvedType(instr->GetTypeIndex());
   // TODO: investigating why we are still getting unresolved classes: b/22821472.
@@ -634,7 +636,7 @@ void RTPVisitor::VisitInvoke(HInvoke* instr) {
 
   ScopedObjectAccess soa(Thread::Current());
   ClassLinker* cl = Runtime::Current()->GetClassLinker();
-  mirror::DexCache* dex_cache = cl->FindDexCache(instr->GetDexFile());
+  mirror::DexCache* dex_cache = cl->FindDexCache(soa.Self(), instr->GetDexFile());
   ArtMethod* method = dex_cache->GetResolvedMethod(
       instr->GetDexMethodIndex(), cl->GetImagePointerSize());
   mirror::Class* klass = (method == nullptr) ? nullptr : method->GetReturnType(false);

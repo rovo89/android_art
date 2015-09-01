@@ -105,7 +105,8 @@ void MirMethodLoweringInfo::Resolve(CompilerDriver* compiler_driver,
       // Don't devirt if we are in a different dex file since we can't have direct invokes in
       // another dex file unless we always put a direct / patch pointer.
       devirt_target = nullptr;
-      current_dex_cache.Assign(runtime->GetClassLinker()->FindDexCache(*it->target_dex_file_));
+      current_dex_cache.Assign(runtime->GetClassLinker()->FindDexCache(
+          soa.Self(), *it->target_dex_file_));
       CHECK(current_dex_cache.Get() != nullptr);
       DexCompilationUnit cu(
           mUnit->GetCompilationUnit(), mUnit->GetClassLoader(), mUnit->GetClassLinker(),

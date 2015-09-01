@@ -108,7 +108,7 @@ TEST_F(CompilerDriverTest, DISABLED_LARGE_CompileDexLibCore) {
   ScopedObjectAccess soa(Thread::Current());
   ASSERT_TRUE(java_lang_dex_file_ != nullptr);
   const DexFile& dex = *java_lang_dex_file_;
-  mirror::DexCache* dex_cache = class_linker_->FindDexCache(dex);
+  mirror::DexCache* dex_cache = class_linker_->FindDexCache(soa.Self(), dex);
   EXPECT_EQ(dex.NumStringIds(), dex_cache->NumStrings());
   for (size_t i = 0; i < dex_cache->NumStrings(); i++) {
     const mirror::String* string = dex_cache->GetResolvedString(i);
