@@ -199,6 +199,7 @@ void EmitAndCheck(arm::Thumb2Assembler* assembler, const char* testname) {
 TEST(Thumb2AssemblerTest, SimpleMov) {
   arm::Thumb2Assembler assembler;
 
+  __ movs(R0, ShifterOperand(R1));
   __ mov(R0, ShifterOperand(R1));
   __ mov(R8, ShifterOperand(R9));
 
@@ -222,8 +223,8 @@ TEST(Thumb2AssemblerTest, SimpleMovAdd) {
   arm::Thumb2Assembler assembler;
 
   __ mov(R0, ShifterOperand(R1));
-  __ add(R0, R1, ShifterOperand(R2));
-  __ add(R0, R1, ShifterOperand());
+  __ adds(R0, R1, ShifterOperand(R2));
+  __ add(R0, R1, ShifterOperand(0));
 
   EmitAndCheck(&assembler, "SimpleMovAdd");
 }
@@ -231,41 +232,132 @@ TEST(Thumb2AssemblerTest, SimpleMovAdd) {
 TEST(Thumb2AssemblerTest, DataProcessingRegister) {
   arm::Thumb2Assembler assembler;
 
+  // 32 bit variants using low registers.
+  __ mvn(R0, ShifterOperand(R1), AL, kCcKeep);
+  __ add(R0, R1, ShifterOperand(R2), AL, kCcKeep);
+  __ sub(R0, R1, ShifterOperand(R2), AL, kCcKeep);
+  __ and_(R0, R1, ShifterOperand(R2), AL, kCcKeep);
+  __ orr(R0, R1, ShifterOperand(R2), AL, kCcKeep);
+  __ eor(R0, R1, ShifterOperand(R2), AL, kCcKeep);
+  __ bic(R0, R1, ShifterOperand(R2), AL, kCcKeep);
+  __ adc(R0, R1, ShifterOperand(R2), AL, kCcKeep);
+  __ sbc(R0, R1, ShifterOperand(R2), AL, kCcKeep);
+  __ rsb(R0, R1, ShifterOperand(R2), AL, kCcKeep);
+  __ teq(R0, ShifterOperand(R1));
+
+  // 16 bit variants using low registers.
+  __ movs(R0, ShifterOperand(R1));
+  __ mov(R0, ShifterOperand(R1), AL, kCcKeep);
+  __ mvns(R0, ShifterOperand(R1));
+  __ add(R0, R0, ShifterOperand(R1), AL, kCcKeep);
+  __ adds(R0, R1, ShifterOperand(R2));
+  __ subs(R0, R1, ShifterOperand(R2));
+  __ adcs(R0, R0, ShifterOperand(R1));
+  __ sbcs(R0, R0, ShifterOperand(R1));
+  __ ands(R0, R0, ShifterOperand(R1));
+  __ orrs(R0, R0, ShifterOperand(R1));
+  __ eors(R0, R0, ShifterOperand(R1));
+  __ bics(R0, R0, ShifterOperand(R1));
+  __ tst(R0, ShifterOperand(R1));
+  __ cmp(R0, ShifterOperand(R1));
+  __ cmn(R0, ShifterOperand(R1));
+
+  // 16-bit variants using high registers.
+  __ mov(R1, ShifterOperand(R8), AL, kCcKeep);
+  __ mov(R9, ShifterOperand(R0), AL, kCcKeep);
+  __ mov(R8, ShifterOperand(R9), AL, kCcKeep);
+  __ add(R1, R1, ShifterOperand(R8), AL, kCcKeep);
+  __ add(R9, R9, ShifterOperand(R0), AL, kCcKeep);
+  __ add(R8, R8, ShifterOperand(R9), AL, kCcKeep);
+  __ cmp(R0, ShifterOperand(R9));
+  __ cmp(R8, ShifterOperand(R1));
+  __ cmp(R9, ShifterOperand(R8));
+
+  // The 16-bit RSBS Rd, Rn, #0, also known as NEGS Rd, Rn is specified using
+  // an immediate (0) but emitted without any, so we test it here.
+  __ rsbs(R0, R1, ShifterOperand(0));
+  __ rsbs(R0, R0, ShifterOperand(0));  // Check Rd == Rn code path.
+
+  // 32 bit variants using high registers that would be 16-bit if using low registers.
+  __ movs(R0, ShifterOperand(R8));
+  __ mvns(R0, ShifterOperand(R8));
+  __ add(R0, R1, ShifterOperand(R8), AL, kCcKeep);
+  __ adds(R0, R1, ShifterOperand(R8));
+  __ subs(R0, R1, ShifterOperand(R8));
+  __ adcs(R0, R0, ShifterOperand(R8));
+  __ sbcs(R0, R0, ShifterOperand(R8));
+  __ ands(R0, R0, ShifterOperand(R8));
+  __ orrs(R0, R0, ShifterOperand(R8));
+  __ eors(R0, R0, ShifterOperand(R8));
+  __ bics(R0, R0, ShifterOperand(R8));
+  __ tst(R0, ShifterOperand(R8));
+  __ cmn(R0, ShifterOperand(R8));
+  __ rsbs(R0, R8, ShifterOperand(0));  // Check that this is not emitted as 16-bit.
+  __ rsbs(R8, R8, ShifterOperand(0));  // Check that this is not emitted as 16-bit (Rd == Rn).
+
+  // 32-bit variants of instructions that would be 16-bit outside IT block.
+  __ it(arm::EQ);
+  __ mvns(R0, ShifterOperand(R1), arm::EQ);
+  __ it(arm::EQ);
+  __ adds(R0, R1, ShifterOperand(R2), arm::EQ);
+  __ it(arm::EQ);
+  __ subs(R0, R1, ShifterOperand(R2), arm::EQ);
+  __ it(arm::EQ);
+  __ adcs(R0, R0, ShifterOperand(R1), arm::EQ);
+  __ it(arm::EQ);
+  __ sbcs(R0, R0, ShifterOperand(R1), arm::EQ);
+  __ it(arm::EQ);
+  __ ands(R0, R0, ShifterOperand(R1), arm::EQ);
+  __ it(arm::EQ);
+  __ orrs(R0, R0, ShifterOperand(R1), arm::EQ);
+  __ it(arm::EQ);
+  __ eors(R0, R0, ShifterOperand(R1), arm::EQ);
+  __ it(arm::EQ);
+  __ bics(R0, R0, ShifterOperand(R1), arm::EQ);
+
+  // 16-bit variants of instructions that would be 32-bit outside IT block.
+  __ it(arm::EQ);
+  __ mvn(R0, ShifterOperand(R1), arm::EQ, kCcKeep);
+  __ it(arm::EQ);
+  __ add(R0, R1, ShifterOperand(R2), arm::EQ, kCcKeep);
+  __ it(arm::EQ);
+  __ sub(R0, R1, ShifterOperand(R2), arm::EQ, kCcKeep);
+  __ it(arm::EQ);
+  __ adc(R0, R0, ShifterOperand(R1), arm::EQ, kCcKeep);
+  __ it(arm::EQ);
+  __ sbc(R0, R0, ShifterOperand(R1), arm::EQ, kCcKeep);
+  __ it(arm::EQ);
+  __ and_(R0, R0, ShifterOperand(R1), arm::EQ, kCcKeep);
+  __ it(arm::EQ);
+  __ orr(R0, R0, ShifterOperand(R1), arm::EQ, kCcKeep);
+  __ it(arm::EQ);
+  __ eor(R0, R0, ShifterOperand(R1), arm::EQ, kCcKeep);
+  __ it(arm::EQ);
+  __ bic(R0, R0, ShifterOperand(R1), arm::EQ, kCcKeep);
+
+  // 16 bit variants selected for the default kCcDontCare.
   __ mov(R0, ShifterOperand(R1));
   __ mvn(R0, ShifterOperand(R1));
-
-  // 32 bit variants.
+  __ add(R0, R0, ShifterOperand(R1));
   __ add(R0, R1, ShifterOperand(R2));
   __ sub(R0, R1, ShifterOperand(R2));
-  __ and_(R0, R1, ShifterOperand(R2));
-  __ orr(R0, R1, ShifterOperand(R2));
-  __ eor(R0, R1, ShifterOperand(R2));
-  __ bic(R0, R1, ShifterOperand(R2));
-  __ adc(R0, R1, ShifterOperand(R2));
-  __ sbc(R0, R1, ShifterOperand(R2));
-  __ rsb(R0, R1, ShifterOperand(R2));
-
-  // 16 bit variants.
-  __ add(R0, R1, ShifterOperand());
-  __ sub(R0, R1, ShifterOperand());
+  __ adc(R0, R0, ShifterOperand(R1));
+  __ sbc(R0, R0, ShifterOperand(R1));
   __ and_(R0, R0, ShifterOperand(R1));
   __ orr(R0, R0, ShifterOperand(R1));
   __ eor(R0, R0, ShifterOperand(R1));
   __ bic(R0, R0, ShifterOperand(R1));
-  __ adc(R0, R0, ShifterOperand(R1));
-  __ sbc(R0, R0, ShifterOperand(R1));
-  __ rsb(R0, R0, ShifterOperand(R1));
+  __ mov(R1, ShifterOperand(R8));
+  __ mov(R9, ShifterOperand(R0));
+  __ mov(R8, ShifterOperand(R9));
+  __ add(R1, R1, ShifterOperand(R8));
+  __ add(R9, R9, ShifterOperand(R0));
+  __ add(R8, R8, ShifterOperand(R9));
+  __ rsb(R0, R1, ShifterOperand(0));
+  __ rsb(R0, R0, ShifterOperand(0));
 
-  __ tst(R0, ShifterOperand(R1));
-  __ teq(R0, ShifterOperand(R1));
-  __ cmp(R0, ShifterOperand(R1));
-  __ cmn(R0, ShifterOperand(R1));
-
-  __ movs(R0, ShifterOperand(R1));
-  __ mvns(R0, ShifterOperand(R1));
-
-  // 32 bit variants.
-  __ add(R12, R1, ShifterOperand(R0));
+  // And an arbitrary 32-bit instruction using IP.
+  __ add(R12, R1, ShifterOperand(R0), AL, kCcKeep);
 
   EmitAndCheck(&assembler, "DataProcessingRegister");
 }
@@ -295,6 +387,9 @@ TEST(Thumb2AssemblerTest, DataProcessingImmediate) {
 
   __ movs(R0, ShifterOperand(0x55));
   __ mvns(R0, ShifterOperand(0x55));
+
+  __ adds(R0, R1, ShifterOperand(5));
+  __ subs(R0, R1, ShifterOperand(5));
 
   EmitAndCheck(&assembler, "DataProcessingImmediate");
 }
@@ -340,18 +435,30 @@ TEST(Thumb2AssemblerTest, DataProcessingModifiedImmediates) {
 TEST(Thumb2AssemblerTest, DataProcessingShiftedRegister) {
   arm::Thumb2Assembler assembler;
 
-  __ mov(R3, ShifterOperand(R4, LSL, 4));
-  __ mov(R3, ShifterOperand(R4, LSR, 5));
-  __ mov(R3, ShifterOperand(R4, ASR, 6));
-  __ mov(R3, ShifterOperand(R4, ROR, 7));
-  __ mov(R3, ShifterOperand(R4, ROR));
+  // 16-bit variants.
+  __ movs(R3, ShifterOperand(R4, LSL, 4));
+  __ movs(R3, ShifterOperand(R4, LSR, 5));
+  __ movs(R3, ShifterOperand(R4, ASR, 6));
 
-  // 32 bit variants.
-  __ mov(R8, ShifterOperand(R4, LSL, 4));
-  __ mov(R8, ShifterOperand(R4, LSR, 5));
-  __ mov(R8, ShifterOperand(R4, ASR, 6));
-  __ mov(R8, ShifterOperand(R4, ROR, 7));
-  __ mov(R8, ShifterOperand(R4, RRX));
+  // 32-bit ROR because ROR immediate doesn't have the same 16-bit version as other shifts.
+  __ movs(R3, ShifterOperand(R4, ROR, 7));
+
+  // 32-bit RRX because RRX has no 16-bit version.
+  __ movs(R3, ShifterOperand(R4, RRX));
+
+  // 32 bit variants (not setting condition codes).
+  __ mov(R3, ShifterOperand(R4, LSL, 4), AL, kCcKeep);
+  __ mov(R3, ShifterOperand(R4, LSR, 5), AL, kCcKeep);
+  __ mov(R3, ShifterOperand(R4, ASR, 6), AL, kCcKeep);
+  __ mov(R3, ShifterOperand(R4, ROR, 7), AL, kCcKeep);
+  __ mov(R3, ShifterOperand(R4, RRX), AL, kCcKeep);
+
+  // 32 bit variants (high registers).
+  __ movs(R8, ShifterOperand(R4, LSL, 4));
+  __ movs(R8, ShifterOperand(R4, LSR, 5));
+  __ movs(R8, ShifterOperand(R4, ASR, 6));
+  __ movs(R8, ShifterOperand(R4, ROR, 7));
+  __ movs(R8, ShifterOperand(R4, RRX));
 
   EmitAndCheck(&assembler, "DataProcessingShiftedRegister");
 }
@@ -1023,7 +1130,7 @@ TEST(Thumb2AssemblerTest, MixedBranch32) {
 TEST(Thumb2AssemblerTest, Shifts) {
   arm::Thumb2Assembler assembler;
 
-  // 16 bit
+  // 16 bit selected for CcDontCare.
   __ Lsl(R0, R1, 5);
   __ Lsr(R0, R1, 5);
   __ Asr(R0, R1, 5);
@@ -1031,6 +1138,32 @@ TEST(Thumb2AssemblerTest, Shifts) {
   __ Lsl(R0, R0, R1);
   __ Lsr(R0, R0, R1);
   __ Asr(R0, R0, R1);
+  __ Ror(R0, R0, R1);
+
+  // 16 bit with kCcSet.
+  __ Lsls(R0, R1, 5);
+  __ Lsrs(R0, R1, 5);
+  __ Asrs(R0, R1, 5);
+
+  __ Lsls(R0, R0, R1);
+  __ Lsrs(R0, R0, R1);
+  __ Asrs(R0, R0, R1);
+  __ Rors(R0, R0, R1);
+
+  // 32-bit with kCcKeep.
+  __ Lsl(R0, R1, 5, AL, kCcKeep);
+  __ Lsr(R0, R1, 5, AL, kCcKeep);
+  __ Asr(R0, R1, 5, AL, kCcKeep);
+
+  __ Lsl(R0, R0, R1, AL, kCcKeep);
+  __ Lsr(R0, R0, R1, AL, kCcKeep);
+  __ Asr(R0, R0, R1, AL, kCcKeep);
+  __ Ror(R0, R0, R1, AL, kCcKeep);
+
+  // 32-bit because ROR immediate doesn't have a 16-bit version like the other shifts.
+  __ Ror(R0, R1, 5);
+  __ Rors(R0, R1, 5);
+  __ Ror(R0, R1, 5, AL, kCcKeep);
 
   // 32 bit due to high registers.
   __ Lsl(R8, R1, 5);
@@ -1052,21 +1185,21 @@ TEST(Thumb2AssemblerTest, Shifts) {
   // S bit (all 32 bit)
 
   // 32 bit due to high registers.
-  __ Lsl(R8, R1, 5, true);
-  __ Lsr(R0, R8, 5, true);
-  __ Asr(R8, R1, 5, true);
-  __ Ror(R0, R8, 5, true);
+  __ Lsls(R8, R1, 5);
+  __ Lsrs(R0, R8, 5);
+  __ Asrs(R8, R1, 5);
+  __ Rors(R0, R8, 5);
 
   // 32 bit due to different Rd and Rn.
-  __ Lsl(R0, R1, R2, true);
-  __ Lsr(R0, R1, R2, true);
-  __ Asr(R0, R1, R2, true);
-  __ Ror(R0, R1, R2, true);
+  __ Lsls(R0, R1, R2);
+  __ Lsrs(R0, R1, R2);
+  __ Asrs(R0, R1, R2);
+  __ Rors(R0, R1, R2);
 
   // 32 bit due to use of high registers.
-  __ Lsl(R8, R1, R2, true);
-  __ Lsr(R0, R8, R2, true);
-  __ Asr(R0, R1, R8, true);
+  __ Lsls(R8, R1, R2);
+  __ Lsrs(R0, R8, R2);
+  __ Asrs(R0, R1, R8);
 
   EmitAndCheck(&assembler, "Shifts");
 }
