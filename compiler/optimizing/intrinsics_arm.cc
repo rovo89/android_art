@@ -989,10 +989,7 @@ void IntrinsicCodeGeneratorARM::VisitStringEquals(HInvoke* invoke) {
   DCHECK_ALIGNED(value_offset, 4);
   static_assert(IsAligned<4>(kObjectAlignment), "String of odd length is not zero padded");
 
-  // temp cannot overflow because we cannot allocate a String object with size 4GiB or greater.
-  __ add(temp, temp, ShifterOperand(temp));
   __ LoadImmediate(temp1, value_offset);
-  __ add(temp, temp, ShifterOperand(value_offset));
 
   // Loop to compare strings 2 characters at a time starting at the front of the string.
   // Ok to do this because strings with an odd length are zero-padded.
@@ -1002,8 +999,8 @@ void IntrinsicCodeGeneratorARM::VisitStringEquals(HInvoke* invoke) {
   __ cmp(out, ShifterOperand(temp2));
   __ b(&return_false, NE);
   __ add(temp1, temp1, ShifterOperand(sizeof(uint32_t)));
-  __ cmp(temp1, ShifterOperand(temp));
-  __ b(&loop, LO);
+  __ subs(temp, temp, ShifterOperand(sizeof(uint32_t) /  sizeof(uint16_t)));
+  __ b(&loop, GT);
 
   // Return true and exit the function.
   // If loop does not result in returning false, we return true.
