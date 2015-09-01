@@ -39,25 +39,29 @@ class Arm32Assembler FINAL : public ArmAssembler {
   }
 
   // Data-processing instructions.
-  void and_(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void and_(Register rd, Register rn, const ShifterOperand& so,
+                    Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
-  void eor(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void eor(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
-  void sub(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
-  void subs(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void sub(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
-  void rsb(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
-  void rsbs(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void rsb(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
-  void add(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void add(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
-  void adds(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void adc(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
-  void adc(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void sbc(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
-  void sbc(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
-
-  void rsc(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void rsc(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
   void tst(Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
 
@@ -67,16 +71,17 @@ class Arm32Assembler FINAL : public ArmAssembler {
 
   void cmn(Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
 
-  void orr(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
-  void orrs(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void orr(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
-  void mov(Register rd, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
-  void movs(Register rd, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void mov(Register rd, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
-  void bic(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void bic(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
-  void mvn(Register rd, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
-  void mvns(Register rd, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void mvn(Register rd, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
   // Miscellaneous data-processing instructions.
   void clz(Register rd, Register rm, Condition cond = AL) OVERRIDE;
@@ -204,25 +209,25 @@ class Arm32Assembler FINAL : public ArmAssembler {
   void bl(Label* label, Condition cond = AL) OVERRIDE;
   void blx(Register rm, Condition cond = AL) OVERRIDE;
   void bx(Register rm, Condition cond = AL) OVERRIDE;
-  void Lsl(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
-           Condition cond = AL) OVERRIDE;
-  void Lsr(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
-           Condition cond = AL) OVERRIDE;
-  void Asr(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
-           Condition cond = AL) OVERRIDE;
-  void Ror(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
-           Condition cond = AL) OVERRIDE;
-  void Rrx(Register rd, Register rm, bool setcc = false,
-           Condition cond = AL) OVERRIDE;
+  virtual void Lsl(Register rd, Register rm, uint32_t shift_imm,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
+  virtual void Lsr(Register rd, Register rm, uint32_t shift_imm,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
+  virtual void Asr(Register rd, Register rm, uint32_t shift_imm,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
+  virtual void Ror(Register rd, Register rm, uint32_t shift_imm,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
+  virtual void Rrx(Register rd, Register rm,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
-  void Lsl(Register rd, Register rm, Register rn, bool setcc = false,
-           Condition cond = AL) OVERRIDE;
-  void Lsr(Register rd, Register rm, Register rn, bool setcc = false,
-           Condition cond = AL) OVERRIDE;
-  void Asr(Register rd, Register rm, Register rn, bool setcc = false,
-           Condition cond = AL) OVERRIDE;
-  void Ror(Register rd, Register rm, Register rn, bool setcc = false,
-           Condition cond = AL) OVERRIDE;
+  virtual void Lsl(Register rd, Register rm, Register rn,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
+  virtual void Lsr(Register rd, Register rm, Register rn,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
+  virtual void Asr(Register rd, Register rm, Register rn,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
+  virtual void Ror(Register rd, Register rm, Register rn,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
   void Push(Register rd, Condition cond = AL) OVERRIDE;
   void Pop(Register rd, Condition cond = AL) OVERRIDE;
@@ -305,7 +310,7 @@ class Arm32Assembler FINAL : public ArmAssembler {
   void EmitType01(Condition cond,
                   int type,
                   Opcode opcode,
-                  int set_cc,
+                  SetCc set_cc,
                   Register rn,
                   Register rd,
                   const ShifterOperand& so);

@@ -42,7 +42,8 @@ static constexpr bool kUseSparseShiftImmediates = true;
 
 class AssemblerArm32Test : public AssemblerArmTest<arm::Arm32Assembler,
                                                    arm::Register, arm::SRegister,
-                                                   uint32_t, arm::ShifterOperand, arm::Condition> {
+                                                   uint32_t, arm::ShifterOperand, arm::Condition,
+                                                   arm::SetCc> {
  protected:
   std::string GetArchitectureString() OVERRIDE {
     return "arm";
@@ -124,6 +125,10 @@ class AssemblerArm32Test : public AssemblerArmTest<arm::Arm32Assembler,
       conditions_.push_back(arm::Condition::LT);
       conditions_.push_back(arm::Condition::AL);
     }
+
+    set_ccs_.push_back(arm::kCcDontCare);
+    set_ccs_.push_back(arm::kCcSet);
+    set_ccs_.push_back(arm::kCcKeep);
 
     shifter_operands_.push_back(arm::ShifterOperand(0));
     shifter_operands_.push_back(arm::ShifterOperand(1));
@@ -238,6 +243,15 @@ class AssemblerArm32Test : public AssemblerArmTest<arm::Arm32Assembler,
     std::ostringstream oss;
     oss << c;
     return oss.str();
+  }
+
+  std::vector<arm::SetCc>& GetSetCcs() OVERRIDE {
+    return set_ccs_;
+  }
+
+  std::string GetSetCcString(arm::SetCc s) OVERRIDE {
+    // For arm32, kCcDontCare defaults to not setting condition codes.
+    return s == arm::kCcSet ? "s" : "";
   }
 
   arm::Register GetPCRegister() OVERRIDE {
@@ -369,18 +383,42 @@ class AssemblerArm32Test : public AssemblerArmTest<arm::Arm32Assembler,
 
       size_t cond_index = after_cond.find(COND_TOKEN);
       if (cond_index != std::string::npos) {
-        after_cond.replace(cond_index, ConstexprStrLen(IMM1_TOKEN), GetConditionString(c));
+        after_cond.replace(cond_index, ConstexprStrLen(COND_TOKEN), GetConditionString(c));
       }
 
       cond_index = after_cond_filter.find(COND_TOKEN);
       if (cond_index != std::string::npos) {
-        after_cond_filter.replace(cond_index, ConstexprStrLen(IMM1_TOKEN), GetConditionString(c));
+        after_cond_filter.replace(cond_index, ConstexprStrLen(COND_TOKEN), GetConditionString(c));
       }
       if (EvalFilterString(after_cond_filter)) {
         continue;
       }
 
       ExecuteAndPrint([&] () { f(c); }, after_cond, oss);
+    }
+  }
+
+  void TemplateHelper(std::function<void(arm::SetCc)> f, int depth ATTRIBUTE_UNUSED,
+                      bool without_pc ATTRIBUTE_UNUSED, std::string fmt, std::string filter,
+                      std::ostringstream& oss) {
+    for (arm::SetCc s : GetSetCcs()) {
+      std::string after_cond = fmt;
+      std::string after_cond_filter = filter;
+
+      size_t cond_index = after_cond.find(SET_CC_TOKEN);
+      if (cond_index != std::string::npos) {
+        after_cond.replace(cond_index, ConstexprStrLen(SET_CC_TOKEN), GetSetCcString(s));
+      }
+
+      cond_index = after_cond_filter.find(SET_CC_TOKEN);
+      if (cond_index != std::string::npos) {
+        after_cond_filter.replace(cond_index, ConstexprStrLen(SET_CC_TOKEN), GetSetCcString(s));
+      }
+      if (EvalFilterString(after_cond_filter)) {
+        continue;
+      }
+
+      ExecuteAndPrint([&] () { f(s); }, after_cond, oss);
     }
   }
 
@@ -449,12 +487,12 @@ class AssemblerArm32Test : public AssemblerArmTest<arm::Arm32Assembler,
 
       size_t cond_index = after_cond.find(COND_TOKEN);
       if (cond_index != std::string::npos) {
-        after_cond.replace(cond_index, ConstexprStrLen(IMM1_TOKEN), GetConditionString(c));
+        after_cond.replace(cond_index, ConstexprStrLen(COND_TOKEN), GetConditionString(c));
       }
 
       cond_index = after_cond_filter.find(COND_TOKEN);
       if (cond_index != std::string::npos) {
-        after_cond_filter.replace(cond_index, ConstexprStrLen(IMM1_TOKEN), GetConditionString(c));
+        after_cond_filter.replace(cond_index, ConstexprStrLen(COND_TOKEN), GetConditionString(c));
       }
       if (EvalFilterString(after_cond_filter)) {
         continue;
@@ -466,25 +504,51 @@ class AssemblerArm32Test : public AssemblerArmTest<arm::Arm32Assembler,
     }
   }
 
-  template <typename T1, typename T2>
-  std::function<void(T1, T2)> GetBoundFunction2(void (arm::Arm32Assembler::*f)(T1, T2)) {
+  template <typename... Args>
+  void TemplateHelper(std::function<void(arm::SetCc, Args...)> f, int depth, bool without_pc,
+                      std::string fmt, std::string filter, std::ostringstream& oss) {
+    for (arm::SetCc s : GetSetCcs()) {
+      std::string after_cond = fmt;
+      std::string after_cond_filter = filter;
+
+      size_t cond_index = after_cond.find(SET_CC_TOKEN);
+      if (cond_index != std::string::npos) {
+        after_cond.replace(cond_index, ConstexprStrLen(SET_CC_TOKEN), GetSetCcString(s));
+      }
+
+      cond_index = after_cond_filter.find(SET_CC_TOKEN);
+      if (cond_index != std::string::npos) {
+        after_cond_filter.replace(cond_index, ConstexprStrLen(SET_CC_TOKEN), GetSetCcString(s));
+      }
+      if (EvalFilterString(after_cond_filter)) {
+        continue;
+      }
+
+      auto lambda = [&] (Args... args) { f(s, args...); };  // NOLINT [readability/braces] [4]
+      TemplateHelper(std::function<void(Args...)>(lambda), depth, without_pc,
+          after_cond, after_cond_filter, oss);
+    }
+  }
+
+  template <typename Assembler, typename T1, typename T2>
+  std::function<void(T1, T2)> GetBoundFunction2(void (Assembler::*f)(T1, T2)) {
     return std::bind(f, GetAssembler(), _1, _2);
   }
 
-  template <typename T1, typename T2, typename T3>
-  std::function<void(T1, T2, T3)> GetBoundFunction3(void (arm::Arm32Assembler::*f)(T1, T2, T3)) {
+  template <typename Assembler, typename T1, typename T2, typename T3>
+  std::function<void(T1, T2, T3)> GetBoundFunction3(void (Assembler::*f)(T1, T2, T3)) {
     return std::bind(f, GetAssembler(), _1, _2, _3);
   }
 
-  template <typename T1, typename T2, typename T3, typename T4>
+  template <typename Assembler, typename T1, typename T2, typename T3, typename T4>
   std::function<void(T1, T2, T3, T4)> GetBoundFunction4(
-      void (arm::Arm32Assembler::*f)(T1, T2, T3, T4)) {
+      void (Assembler::*f)(T1, T2, T3, T4)) {
     return std::bind(f, GetAssembler(), _1, _2, _3, _4);
   }
 
-  template <typename T1, typename T2, typename T3, typename T4, typename T5>
+  template <typename Assembler, typename T1, typename T2, typename T3, typename T4, typename T5>
   std::function<void(T1, T2, T3, T4, T5)> GetBoundFunction5(
-      void (arm::Arm32Assembler::*f)(T1, T2, T3, T4, T5)) {
+      void (Assembler::*f)(T1, T2, T3, T4, T5)) {
     return std::bind(f, GetAssembler(), _1, _2, _3, _4, _5);
   }
 
@@ -503,26 +567,26 @@ class AssemblerArm32Test : public AssemblerArmTest<arm::Arm32Assembler,
     DriverStr(oss.str(), test_name);
   }
 
-  template <typename... Args>
-  void T2Helper(void (arm::Arm32Assembler::*f)(Args...), bool without_pc, std::string fmt,
+  template <typename Assembler, typename... Args>
+  void T2Helper(void (Assembler::*f)(Args...), bool without_pc, std::string fmt,
                 std::string test_name, std::string filter = "") {
     GenericTemplateHelper(GetBoundFunction2(f), without_pc, fmt, test_name, filter);
   }
 
-  template <typename... Args>
-  void T3Helper(void (arm::Arm32Assembler::*f)(Args...), bool without_pc, std::string fmt,
+  template <typename Assembler, typename... Args>
+  void T3Helper(void (Assembler::*f)(Args...), bool without_pc, std::string fmt,
       std::string test_name, std::string filter = "") {
     GenericTemplateHelper(GetBoundFunction3(f), without_pc, fmt, test_name, filter);
   }
 
-  template <typename... Args>
-  void T4Helper(void (arm::Arm32Assembler::*f)(Args...), bool without_pc, std::string fmt,
+  template <typename Assembler, typename... Args>
+  void T4Helper(void (Assembler::*f)(Args...), bool without_pc, std::string fmt,
       std::string test_name, std::string filter = "") {
     GenericTemplateHelper(GetBoundFunction4(f), without_pc, fmt, test_name, filter);
   }
 
-  template <typename... Args>
-  void T5Helper(void (arm::Arm32Assembler::*f)(Args...), bool without_pc, std::string fmt,
+  template <typename Assembler, typename... Args>
+  void T5Helper(void (Assembler::*f)(Args...), bool without_pc, std::string fmt,
       std::string test_name, std::string filter = "") {
     GenericTemplateHelper(GetBoundFunction5(f), without_pc, fmt, test_name, filter);
   }
@@ -573,6 +637,7 @@ class AssemblerArm32Test : public AssemblerArmTest<arm::Arm32Assembler,
 
   std::vector<arm::Register*> registers_;
   std::vector<arm::Condition> conditions_;
+  std::vector<arm::SetCc> set_ccs_;
   std::vector<arm::ShifterOperand> shifter_operands_;
 };
 
@@ -656,15 +721,23 @@ TEST_F(AssemblerArm32Test, Udiv) {
 }
 
 TEST_F(AssemblerArm32Test, And) {
-  T4Helper(&arm::Arm32Assembler::and_, true, "and{cond} {reg1}, {reg2}, {shift}", "and");
+  T5Helper(&arm::Arm32Assembler::and_, true, "and{cond}{s} {reg1}, {reg2}, {shift}", "and");
+}
+
+TEST_F(AssemblerArm32Test, Ands) {
+  T4Helper(&arm::Arm32Assembler::ands, true, "and{cond}s {reg1}, {reg2}, {shift}", "ands");
 }
 
 TEST_F(AssemblerArm32Test, Eor) {
-  T4Helper(&arm::Arm32Assembler::eor, true, "eor{cond} {reg1}, {reg2}, {shift}", "eor");
+  T5Helper(&arm::Arm32Assembler::eor, true, "eor{cond}{s} {reg1}, {reg2}, {shift}", "eor");
+}
+
+TEST_F(AssemblerArm32Test, Eors) {
+  T4Helper(&arm::Arm32Assembler::eors, true, "eor{cond}s {reg1}, {reg2}, {shift}", "eors");
 }
 
 TEST_F(AssemblerArm32Test, Orr) {
-  T4Helper(&arm::Arm32Assembler::orr, true, "orr{cond} {reg1}, {reg2}, {shift}", "orr");
+  T5Helper(&arm::Arm32Assembler::orr, true, "orr{cond}{s} {reg1}, {reg2}, {shift}", "orr");
 }
 
 TEST_F(AssemblerArm32Test, Orrs) {
@@ -672,11 +745,15 @@ TEST_F(AssemblerArm32Test, Orrs) {
 }
 
 TEST_F(AssemblerArm32Test, Bic) {
-  T4Helper(&arm::Arm32Assembler::bic, true, "bic{cond} {reg1}, {reg2}, {shift}", "bic");
+  T5Helper(&arm::Arm32Assembler::bic, true, "bic{cond}{s} {reg1}, {reg2}, {shift}", "bic");
+}
+
+TEST_F(AssemblerArm32Test, Bics) {
+  T4Helper(&arm::Arm32Assembler::bics, true, "bic{cond}s {reg1}, {reg2}, {shift}", "bics");
 }
 
 TEST_F(AssemblerArm32Test, Mov) {
-  T3Helper(&arm::Arm32Assembler::mov, true, "mov{cond} {reg1}, {shift}", "mov");
+  T4Helper(&arm::Arm32Assembler::mov, true, "mov{cond}{s} {reg1}, {shift}", "mov");
 }
 
 TEST_F(AssemblerArm32Test, Movs) {
@@ -684,7 +761,7 @@ TEST_F(AssemblerArm32Test, Movs) {
 }
 
 TEST_F(AssemblerArm32Test, Mvn) {
-  T3Helper(&arm::Arm32Assembler::mvn, true, "mvn{cond} {reg1}, {shift}", "mvn");
+  T4Helper(&arm::Arm32Assembler::mvn, true, "mvn{cond}{s} {reg1}, {shift}", "mvn");
 }
 
 TEST_F(AssemblerArm32Test, Mvns) {
@@ -692,7 +769,7 @@ TEST_F(AssemblerArm32Test, Mvns) {
 }
 
 TEST_F(AssemblerArm32Test, Add) {
-  T4Helper(&arm::Arm32Assembler::add, false, "add{cond} {reg1}, {reg2}, {shift}", "add");
+  T5Helper(&arm::Arm32Assembler::add, false, "add{cond}{s} {reg1}, {reg2}, {shift}", "add");
 }
 
 TEST_F(AssemblerArm32Test, Adds) {
@@ -700,11 +777,15 @@ TEST_F(AssemblerArm32Test, Adds) {
 }
 
 TEST_F(AssemblerArm32Test, Adc) {
-  T4Helper(&arm::Arm32Assembler::adc, false, "adc{cond} {reg1}, {reg2}, {shift}", "adc");
+  T5Helper(&arm::Arm32Assembler::adc, false, "adc{cond}{s} {reg1}, {reg2}, {shift}", "adc");
+}
+
+TEST_F(AssemblerArm32Test, Adcs) {
+  T4Helper(&arm::Arm32Assembler::adcs, false, "adc{cond}s {reg1}, {reg2}, {shift}", "adcs");
 }
 
 TEST_F(AssemblerArm32Test, Sub) {
-  T4Helper(&arm::Arm32Assembler::sub, false, "sub{cond} {reg1}, {reg2}, {shift}", "sub");
+  T5Helper(&arm::Arm32Assembler::sub, false, "sub{cond}{s} {reg1}, {reg2}, {shift}", "sub");
 }
 
 TEST_F(AssemblerArm32Test, Subs) {
@@ -712,11 +793,15 @@ TEST_F(AssemblerArm32Test, Subs) {
 }
 
 TEST_F(AssemblerArm32Test, Sbc) {
-  T4Helper(&arm::Arm32Assembler::sbc, false, "sbc{cond} {reg1}, {reg2}, {shift}", "sbc");
+  T5Helper(&arm::Arm32Assembler::sbc, false, "sbc{cond}{s} {reg1}, {reg2}, {shift}", "sbc");
+}
+
+TEST_F(AssemblerArm32Test, Sbcs) {
+  T4Helper(&arm::Arm32Assembler::sbcs, false, "sbc{cond}s {reg1}, {reg2}, {shift}", "sbcs");
 }
 
 TEST_F(AssemblerArm32Test, Rsb) {
-  T4Helper(&arm::Arm32Assembler::rsb, true, "rsb{cond} {reg1}, {reg2}, {shift}", "rsb");
+  T5Helper(&arm::Arm32Assembler::rsb, true, "rsb{cond}{s} {reg1}, {reg2}, {shift}", "rsb");
 }
 
 TEST_F(AssemblerArm32Test, Rsbs) {
@@ -724,7 +809,11 @@ TEST_F(AssemblerArm32Test, Rsbs) {
 }
 
 TEST_F(AssemblerArm32Test, Rsc) {
-  T4Helper(&arm::Arm32Assembler::rsc, true, "rsc{cond} {reg1}, {reg2}, {shift}", "rsc");
+  T5Helper(&arm::Arm32Assembler::rsc, true, "rsc{cond}{s} {reg1}, {reg2}, {shift}", "rsc");
+}
+
+TEST_F(AssemblerArm32Test, Rscs) {
+  T4Helper(&arm::Arm32Assembler::rscs, false, "rsc{cond}s {reg1}, {reg2}, {shift}", "rscs");
 }
 
 /* TODO: Need better filter support.
