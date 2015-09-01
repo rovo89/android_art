@@ -375,6 +375,13 @@ enum ItState {
   kItE = kItElse
 };
 
+// Set condition codes request.
+enum SetCc {
+  kCcDontCare,  // Allows prioritizing 16-bit instructions on Thumb2 whether they set CCs or not.
+  kCcSet,
+  kCcKeep,
+};
+
 constexpr uint32_t kNoItCondition = 3;
 constexpr uint32_t kInvalidModifiedImmediate = -1;
 
@@ -392,25 +399,61 @@ class ArmAssembler : public Assembler {
   virtual bool IsThumb() const = 0;
 
   // Data-processing instructions.
-  virtual void and_(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
+  virtual void and_(Register rd, Register rn, const ShifterOperand& so,
+                    Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
 
-  virtual void eor(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
+  virtual void ands(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) {
+    and_(rd, rn, so, cond, kCcSet);
+  }
 
-  virtual void sub(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
-  virtual void subs(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
+  virtual void eor(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
 
-  virtual void rsb(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
-  virtual void rsbs(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
+  virtual void eors(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) {
+    eor(rd, rn, so, cond, kCcSet);
+  }
 
-  virtual void add(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
+  virtual void sub(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
 
-  virtual void adds(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
+  virtual void subs(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) {
+    sub(rd, rn, so, cond, kCcSet);
+  }
 
-  virtual void adc(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
+  virtual void rsb(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
 
-  virtual void sbc(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
+  virtual void rsbs(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) {
+    rsb(rd, rn, so, cond, kCcSet);
+  }
 
-  virtual void rsc(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
+  virtual void add(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
+
+  virtual void adds(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) {
+    add(rd, rn, so, cond, kCcSet);
+  }
+
+  virtual void adc(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
+
+  virtual void adcs(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) {
+    adc(rd, rn, so, cond, kCcSet);
+  }
+
+  virtual void sbc(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
+
+  virtual void sbcs(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) {
+    sbc(rd, rn, so, cond, kCcSet);
+  }
+
+  virtual void rsc(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
+
+  virtual void rscs(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) {
+    rsc(rd, rn, so, cond, kCcSet);
+  }
 
   virtual void tst(Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
 
@@ -420,16 +463,33 @@ class ArmAssembler : public Assembler {
 
   virtual void cmn(Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
 
-  virtual void orr(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
-  virtual void orrs(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
+  virtual void orr(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
 
-  virtual void mov(Register rd, const ShifterOperand& so, Condition cond = AL) = 0;
-  virtual void movs(Register rd, const ShifterOperand& so, Condition cond = AL) = 0;
+  virtual void orrs(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) {
+    orr(rd, rn, so, cond, kCcSet);
+  }
 
-  virtual void bic(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) = 0;
+  virtual void mov(Register rd, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
 
-  virtual void mvn(Register rd, const ShifterOperand& so, Condition cond = AL) = 0;
-  virtual void mvns(Register rd, const ShifterOperand& so, Condition cond = AL) = 0;
+  virtual void movs(Register rd, const ShifterOperand& so, Condition cond = AL) {
+    mov(rd, so, cond, kCcSet);
+  }
+
+  virtual void bic(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
+
+  virtual void bics(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) {
+    bic(rd, rn, so, cond, kCcSet);
+  }
+
+  virtual void mvn(Register rd, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
+
+  virtual void mvns(Register rd, const ShifterOperand& so, Condition cond = AL) {
+    mvn(rd, so, cond, kCcSet);
+  }
 
   // Miscellaneous data-processing instructions.
   virtual void clz(Register rd, Register rm, Condition cond = AL) = 0;
@@ -697,25 +757,68 @@ class ArmAssembler : public Assembler {
 
   // Convenience shift instructions. Use mov instruction with shifter operand
   // for variants setting the status flags or using a register shift count.
-  virtual void Lsl(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
-                   Condition cond = AL) = 0;
-  virtual void Lsr(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
-                   Condition cond = AL) = 0;
-  virtual void Asr(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
-                   Condition cond = AL) = 0;
-  virtual void Ror(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
-                   Condition cond = AL) = 0;
-  virtual void Rrx(Register rd, Register rm, bool setcc = false,
-                   Condition cond = AL) = 0;
+  virtual void Lsl(Register rd, Register rm, uint32_t shift_imm,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
 
-  virtual void Lsl(Register rd, Register rm, Register rn, bool setcc = false,
-                   Condition cond = AL) = 0;
-  virtual void Lsr(Register rd, Register rm, Register rn, bool setcc = false,
-                   Condition cond = AL) = 0;
-  virtual void Asr(Register rd, Register rm, Register rn, bool setcc = false,
-                   Condition cond = AL) = 0;
-  virtual void Ror(Register rd, Register rm, Register rn, bool setcc = false,
-                   Condition cond = AL) = 0;
+  void Lsls(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL) {
+    Lsl(rd, rm, shift_imm, cond, kCcSet);
+  }
+
+  virtual void Lsr(Register rd, Register rm, uint32_t shift_imm,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
+
+  void Lsrs(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL) {
+    Lsr(rd, rm, shift_imm, cond, kCcSet);
+  }
+
+  virtual void Asr(Register rd, Register rm, uint32_t shift_imm,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
+
+  void Asrs(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL) {
+    Asr(rd, rm, shift_imm, cond, kCcSet);
+  }
+
+  virtual void Ror(Register rd, Register rm, uint32_t shift_imm,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
+
+  void Rors(Register rd, Register rm, uint32_t shift_imm, Condition cond = AL) {
+    Ror(rd, rm, shift_imm, cond, kCcSet);
+  }
+
+  virtual void Rrx(Register rd, Register rm,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
+
+  void Rrxs(Register rd, Register rm, Condition cond = AL) {
+    Rrx(rd, rm, cond, kCcSet);
+  }
+
+  virtual void Lsl(Register rd, Register rm, Register rn,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
+
+  void Lsls(Register rd, Register rm, Register rn, Condition cond = AL) {
+    Lsl(rd, rm, rn, cond, kCcSet);
+  }
+
+  virtual void Lsr(Register rd, Register rm, Register rn,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
+
+  void Lsrs(Register rd, Register rm, Register rn, Condition cond = AL) {
+    Lsr(rd, rm, rn, cond, kCcSet);
+  }
+
+  virtual void Asr(Register rd, Register rm, Register rn,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
+
+  void Asrs(Register rd, Register rm, Register rn, Condition cond = AL) {
+    Asr(rd, rm, rn, cond, kCcSet);
+  }
+
+  virtual void Ror(Register rd, Register rm, Register rn,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
+
+  void Rors(Register rd, Register rm, Register rn, Condition cond = AL) {
+    Ror(rd, rm, rn, cond, kCcSet);
+  }
 
   // Returns whether the `immediate` can fit in a `ShifterOperand`. If yes,
   // `shifter_op` contains the operand.

@@ -137,10 +137,14 @@ uint32_t ShifterOperand::encodingThumb() const {
         if (rs_ == kNoRegister) {
           // Immediate shift.
           if (shift_ == RRX) {
+            DCHECK_EQ(immed_, 0u);
             // RRX is encoded as an ROR with imm 0.
             return ROR << 4 | static_cast<uint32_t>(rm_);
           } else {
-            uint32_t imm3 = immed_ >> 2;
+            DCHECK((1 <= immed_ && immed_ <= 31) ||
+                   (immed_ == 0u && shift_ == LSL) ||
+                   (immed_ == 32u && (shift_ == ASR || shift_ == LSR)));
+            uint32_t imm3 = (immed_ >> 2) & 7 /* 0b111*/;
             uint32_t imm2 = immed_ & 3U /* 0b11 */;
 
             return imm3 << 12 | imm2 << 6 | shift_ << 4 |

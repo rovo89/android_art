@@ -2731,11 +2731,9 @@ void InstructionCodeGeneratorARM::VisitRem(HRem* rem) {
         Register temp = locations->GetTemp(0).AsRegister<Register>();
 
         // temp = reg1 / reg2  (integer division)
-        // temp = temp * reg2
-        // dest = reg1 - temp
+        // dest = reg1 - temp * reg2
         __ sdiv(temp, reg1, reg2);
-        __ mul(temp, temp, reg2);
-        __ sub(out.AsRegister<Register>(), reg1, ShifterOperand(temp));
+        __ mls(out.AsRegister<Register>(), temp, reg2, reg1);
       } else {
         InvokeRuntimeCallingConvention calling_convention;
         DCHECK_EQ(calling_convention.GetRegisterAt(0), first.AsRegister<Register>());
@@ -2905,7 +2903,7 @@ void InstructionCodeGeneratorARM::HandleShift(HBinaryOperation* op) {
         // If the shift is > 32 bits, override the high part
         __ subs(temp, o_l, ShifterOperand(kArmBitsPerWord));
         __ it(PL);
-        __ Lsl(o_h, low, temp, false, PL);
+        __ Lsl(o_h, low, temp, PL);
         // Shift the low part
         __ Lsl(o_l, low, o_l);
       } else if (op->IsShr()) {
@@ -2919,7 +2917,7 @@ void InstructionCodeGeneratorARM::HandleShift(HBinaryOperation* op) {
         // If the shift is > 32 bits, override the low part
         __ subs(temp, o_h, ShifterOperand(kArmBitsPerWord));
         __ it(PL);
-        __ Asr(o_l, high, temp, false, PL);
+        __ Asr(o_l, high, temp, PL);
         // Shift the high part
         __ Asr(o_h, high, o_h);
       } else {
@@ -2931,7 +2929,7 @@ void InstructionCodeGeneratorARM::HandleShift(HBinaryOperation* op) {
         __ orr(o_l, o_l, ShifterOperand(temp));
         __ subs(temp, o_h, ShifterOperand(kArmBitsPerWord));
         __ it(PL);
-        __ Lsr(o_l, high, temp, false, PL);
+        __ Lsr(o_l, high, temp, PL);
         __ Lsr(o_h, high, o_h);
       }
       break;

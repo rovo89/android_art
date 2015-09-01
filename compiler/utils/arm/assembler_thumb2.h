@@ -63,25 +63,29 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   void FinalizeCode() OVERRIDE;
 
   // Data-processing instructions.
-  void and_(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void and_(Register rd, Register rn, const ShifterOperand& so,
+                    Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
-  void eor(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void eor(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
-  void sub(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
-  void subs(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void sub(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
-  void rsb(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
-  void rsbs(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void rsb(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
-  void add(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void add(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
-  void adds(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void adc(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
-  void adc(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void sbc(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
-  void sbc(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
-
-  void rsc(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void rsc(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
   void tst(Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
 
@@ -91,16 +95,17 @@ class Thumb2Assembler FINAL : public ArmAssembler {
 
   void cmn(Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
 
-  void orr(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
-  void orrs(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void orr(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
-  void mov(Register rd, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
-  void movs(Register rd, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void mov(Register rd, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
-  void bic(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void bic(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
-  void mvn(Register rd, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
-  void mvns(Register rd, const ShifterOperand& so, Condition cond = AL) OVERRIDE;
+  virtual void mvn(Register rd, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
   // Miscellaneous data-processing instructions.
   void clz(Register rd, Register rm, Condition cond = AL) OVERRIDE;
@@ -245,25 +250,25 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   void blx(Register rm, Condition cond = AL) OVERRIDE;
   void bx(Register rm, Condition cond = AL) OVERRIDE;
 
-  void Lsl(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
-           Condition cond = AL) OVERRIDE;
-  void Lsr(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
-           Condition cond = AL) OVERRIDE;
-  void Asr(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
-           Condition cond = AL) OVERRIDE;
-  void Ror(Register rd, Register rm, uint32_t shift_imm, bool setcc = false,
-           Condition cond = AL) OVERRIDE;
-  void Rrx(Register rd, Register rm, bool setcc = false,
-           Condition cond = AL) OVERRIDE;
+  virtual void Lsl(Register rd, Register rm, uint32_t shift_imm,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
+  virtual void Lsr(Register rd, Register rm, uint32_t shift_imm,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
+  virtual void Asr(Register rd, Register rm, uint32_t shift_imm,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
+  virtual void Ror(Register rd, Register rm, uint32_t shift_imm,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
+  virtual void Rrx(Register rd, Register rm,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
-  void Lsl(Register rd, Register rm, Register rn, bool setcc = false,
-           Condition cond = AL) OVERRIDE;
-  void Lsr(Register rd, Register rm, Register rn, bool setcc = false,
-           Condition cond = AL) OVERRIDE;
-  void Asr(Register rd, Register rm, Register rn, bool setcc = false,
-           Condition cond = AL) OVERRIDE;
-  void Ror(Register rd, Register rm, Register rn, bool setcc = false,
-           Condition cond = AL) OVERRIDE;
+  virtual void Lsl(Register rd, Register rm, Register rn,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
+  virtual void Lsr(Register rd, Register rm, Register rn,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
+  virtual void Asr(Register rd, Register rm, Register rn,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
+  virtual void Ror(Register rd, Register rm, Register rn,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
   void Push(Register rd, Condition cond = AL) OVERRIDE;
   void Pop(Register rd, Condition cond = AL) OVERRIDE;
@@ -600,7 +605,7 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   // Emit a single 32 or 16 bit data processing instruction.
   void EmitDataProcessing(Condition cond,
                           Opcode opcode,
-                          bool set_cc,
+                          SetCc set_cc,
                           Register rn,
                           Register rd,
                           const ShifterOperand& so);
@@ -609,7 +614,7 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   // in 16 bits?
   bool Is32BitDataProcessing(Condition cond,
                              Opcode opcode,
-                             bool set_cc,
+                             SetCc set_cc,
                              Register rn,
                              Register rd,
                              const ShifterOperand& so);
@@ -617,7 +622,7 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   // Emit a 32 bit data processing instruction.
   void Emit32BitDataProcessing(Condition cond,
                                Opcode opcode,
-                               bool set_cc,
+                               SetCc set_cc,
                                Register rn,
                                Register rd,
                                const ShifterOperand& so);
@@ -625,14 +630,14 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   // Emit a 16 bit data processing instruction.
   void Emit16BitDataProcessing(Condition cond,
                                Opcode opcode,
-                               bool set_cc,
+                               SetCc set_cc,
                                Register rn,
                                Register rd,
                                const ShifterOperand& so);
 
   void Emit16BitAddSub(Condition cond,
                        Opcode opcode,
-                       bool set_cc,
+                       SetCc set_cc,
                        Register rn,
                        Register rd,
                        const ShifterOperand& so);
@@ -694,8 +699,10 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   static int DecodeBranchOffset(int32_t inst);
   int32_t EncodeTstOffset(int offset, int32_t inst);
   int DecodeTstOffset(int32_t inst);
-  void EmitShift(Register rd, Register rm, Shift shift, uint8_t amount, bool setcc = false);
-  void EmitShift(Register rd, Register rn, Shift shift, Register rm, bool setcc = false);
+  void EmitShift(Register rd, Register rm, Shift shift, uint8_t amount,
+                 Condition cond = AL, SetCc set_cc = kCcDontCare);
+  void EmitShift(Register rd, Register rn, Shift shift, Register rm,
+                 Condition cond = AL, SetCc set_cc = kCcDontCare);
 
   // Whether the assembler can relocate branches. If false, unresolved branches will be
   // emitted on 32bits.
