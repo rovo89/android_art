@@ -1548,23 +1548,11 @@ void LocationsBuilderX86::HandleInvoke(HInvoke* invoke) {
 }
 
 void InstructionCodeGeneratorX86::VisitInvokeVirtual(HInvokeVirtual* invoke) {
-  Register temp = invoke->GetLocations()->GetTemp(0).AsRegister<Register>();
-  uint32_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
-      invoke->GetVTableIndex(), kX86PointerSize).Uint32Value();
-  LocationSummary* locations = invoke->GetLocations();
-  Location receiver = locations->InAt(0);
-  uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
-  // temp = object->GetClass();
-  DCHECK(receiver.IsRegister());
-  __ movl(temp, Address(receiver.AsRegister<Register>(), class_offset));
-  codegen_->MaybeRecordImplicitNullCheck(invoke);
-  __ MaybeUnpoisonHeapReference(temp);
-  // temp = temp->GetMethodAt(method_offset);
-  __ movl(temp, Address(temp, method_offset));
-  // call temp->GetEntryPoint();
-  __ call(Address(
-      temp, ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86WordSize).Int32Value()));
+  if (TryGenerateIntrinsicCode(invoke, codegen_)) {
+    return;
+  }
 
+  codegen_->GenerateVirtualCall(invoke, invoke->GetLocations()->GetTemp(0));
   DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
@@ -3568,6 +3556,25 @@ void CodeGeneratorX86::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
   }
 
   DCHECK(!IsLeafMethod());
+}
+
+void CodeGeneratorX86::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp_in) {
+  Register temp = temp_in.AsRegister<Register>();
+  uint32_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
+      invoke->GetVTableIndex(), kX86PointerSize).Uint32Value();
+  LocationSummary* locations = invoke->GetLocations();
+  Location receiver = locations->InAt(0);
+  uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+  // temp = object->GetClass();
+  DCHECK(receiver.IsRegister());
+  __ movl(temp, Address(receiver.AsRegister<Register>(), class_offset));
+  MaybeRecordImplicitNullCheck(invoke);
+  __ MaybeUnpoisonHeapReference(temp);
+  // temp = temp->GetMethodAt(method_offset);
+  __ movl(temp, Address(temp, method_offset));
+  // call temp->GetEntryPoint();
+  __ call(Address(
+      temp, ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86WordSize).Int32Value()));
 }
 
 void CodeGeneratorX86::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) {

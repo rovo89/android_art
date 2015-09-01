@@ -305,6 +305,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   }
 
   void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp);
+  void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp);
 
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
 
