@@ -1071,12 +1071,6 @@ void CodeGenerator::ValidateInvokeRuntime(HInstruction* instruction, SlowPathCod
       << instruction->DebugName() << ((slow_path != nullptr) ? slow_path->GetDescription() : "");
 }
 
-void SlowPathCode::RecordPcInfo(CodeGenerator* codegen,
-                                HInstruction* instruction,
-                                uint32_t dex_pc) {
-  codegen->RecordPcInfo(instruction, dex_pc, this);
-}
-
 void SlowPathCode::SaveLiveRegisters(CodeGenerator* codegen, LocationSummary* locations) {
   RegisterSet* register_set = locations->GetLiveRegisters();
   size_t stack_offset = codegen->GetFirstRegisterSlotInSlowPath();

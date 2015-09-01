@@ -81,7 +81,6 @@ class SlowPathCode : public ArenaObject<kArenaAllocSlowPaths> {
 
   virtual void SaveLiveRegisters(CodeGenerator* codegen, LocationSummary* locations);
   virtual void RestoreLiveRegisters(CodeGenerator* codegen, LocationSummary* locations);
-  void RecordPcInfo(CodeGenerator* codegen, HInstruction* instruction, uint32_t dex_pc);
 
   bool IsCoreRegisterSaved(int reg) const {
     return saved_core_stack_offsets_[reg] != kRegisterNotSaved;
