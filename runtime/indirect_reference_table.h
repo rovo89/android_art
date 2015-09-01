@@ -290,9 +290,7 @@ class IndirectReferenceTable {
 
   // Synchronized get which reads a reference, acquiring a lock if necessary.
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  mirror::Object* SynchronizedGet(Thread* /*self*/, ReaderWriterMutex* /*mutex*/,
-                                  IndirectRef iref) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+  mirror::Object* SynchronizedGet(IndirectRef iref) const SHARED_REQUIRES(Locks::mutator_lock_) {
     return Get<kReadBarrierOption>(iref);
   }
 
