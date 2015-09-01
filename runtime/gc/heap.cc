@@ -1900,6 +1900,11 @@ void Heap::CollectGarbage(bool clear_soft_references) {
   CollectGarbageInternal(gc_plan_.back(), kGcCauseExplicit, clear_soft_references);
 }
 
+bool Heap::SupportHomogeneousSpaceCompactAndCollectorTransitions() const {
+  return main_space_backup_.get() != nullptr && main_space_ != nullptr &&
+      foreground_collector_type_ == kCollectorTypeCMS;
+}
+
 HomogeneousSpaceCompactResult Heap::PerformHomogeneousSpaceCompact() {
   Thread* self = Thread::Current();
   // Inc requested homogeneous space compaction.
@@ -1919,7 +1924,10 @@ HomogeneousSpaceCompactResult Heap::PerformHomogeneousSpaceCompact() {
     // exit.
     if (disable_moving_gc_count_ != 0 || IsMovingGc(collector_type_) ||
         !main_space_->CanMoveObjects()) {
-      return HomogeneousSpaceCompactResult::kErrorReject;
+      return kErrorReject;
+    }
+    if (!SupportHomogeneousSpaceCompactAndCollectorTransitions()) {
+      return kErrorUnsupported;
     }
     collector_type_running_ = kCollectorTypeHomogeneousSpaceCompact;
   }
