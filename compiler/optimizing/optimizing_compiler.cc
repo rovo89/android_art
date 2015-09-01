@@ -714,7 +714,8 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     ScopedObjectAccess soa(Thread::Current());
     StackHandleScope<4> hs(soa.Self());
     ClassLinker* class_linker = dex_compilation_unit.GetClassLinker();
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(dex_file)));
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(
+        soa.Self(), dex_file)));
     Handle<mirror::ClassLoader> loader(hs.NewHandle(
         soa.Decode<mirror::ClassLoader*>(class_loader)));
     ArtMethod* art_method = compiler_driver->ResolveMethod(
