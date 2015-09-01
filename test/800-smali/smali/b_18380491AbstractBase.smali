@@ -1,4 +1,4 @@
-.class public LB18380491ActractBase;
+.class public abstract LB18380491AbstractBase;
 
 .super Ljava/lang/Object;
 

@@ -262,20 +262,6 @@ class MethodVerifier {
   ArtField* GetQuickFieldAccess(const Instruction* inst, RegisterLine* reg_line)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // Is the method being verified a constructor?
-  bool IsConstructor() const {
-    return (method_access_flags_ & kAccConstructor) != 0;
-  }
-
-  // Is the method verified static?
-  bool IsStatic() const {
-    return (method_access_flags_ & kAccStatic) != 0;
-  }
-
-  bool IsInstanceConstructor() const {
-    return IsConstructor() && !IsStatic();
-  }
-
   SafeMap<uint32_t, std::set<uint32_t>>& GetStringInitPcRegMap() {
     return string_init_pc_reg_map_;
   }
@@ -284,7 +270,21 @@ class MethodVerifier {
     return encountered_failure_types_;
   }
 
+  bool IsInstanceConstructor() const {
+    return IsConstructor() && !IsStatic();
+  }
+
  private:
+  // Is the method being verified a constructor? See the comment on the field.
+  bool IsConstructor() const {
+    return is_constructor_;
+  }
+
+  // Is the method verified static?
+  bool IsStatic() const {
+    return (method_access_flags_ & kAccStatic) != 0;
+  }
+
   // Private constructor for dumping.
   MethodVerifier(Thread* self, const DexFile* dex_file, Handle<mirror::DexCache> dex_cache,
                  Handle<mirror::ClassLoader> class_loader, const DexFile::ClassDef* class_def,
@@ -779,6 +779,13 @@ class MethodVerifier {
   // thread dumping checkpoints since we may get thread suspension at an inopportune time due to
   // FindLocksAtDexPC, resulting in deadlocks.
   const bool allow_thread_suspension_;
+
+  // Whether the method seems to be a constructor. Note that this field exists as we can't trust
+  // the flags in the dex file. Some older code does not mark methods named "<init>" and "<clinit>"
+  // correctly.
+  //
+  // Note: this flag is only valid once Verify() has started.
+  bool is_constructor_;
 
   // Link, for the method verifier root linked list.
   MethodVerifier* link_;
