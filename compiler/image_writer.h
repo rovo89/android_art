@@ -225,11 +225,6 @@ class ImageWriter FINAL {
   void ComputeLazyFieldsForImageClasses()
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // Wire dex cache resolved strings to strings in the image to avoid runtime resolution.
-  void ComputeEagerResolvedStrings() SHARED_REQUIRES(Locks::mutator_lock_);
-  static void ComputeEagerResolvedStringsCallback(mirror::Object* obj, void* arg)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
   // Remove unwanted classes from various roots.
   void PruneNonImageClasses() SHARED_REQUIRES(Locks::mutator_lock_);
 
