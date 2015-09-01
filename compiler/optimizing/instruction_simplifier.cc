@@ -132,6 +132,12 @@ bool InstructionSimplifierVisitor::TryMoveNegOnInputsAfterBinop(HBinaryOperation
   // with
   //    ADD tmp, a, b
   //    NEG dst, tmp
+  // Note that we cannot optimize `(-a) + (-b)` to `-(a + b)` for floating-point.
+  // When `a` is `-0.0` and `b` is `0.0`, the former expression yields `0.0`,
+  // while the later yields `-0.0`.
+  if (!Primitive::IsIntegralType(binop->GetType())) {
+    return false;
+  }
   binop->ReplaceInput(left_neg->GetInput(), 0);
   binop->ReplaceInput(right_neg->GetInput(), 1);
   left_neg->GetBlock()->RemoveInstruction(left_neg);
