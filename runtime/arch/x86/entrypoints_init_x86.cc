@@ -140,7 +140,7 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pThrowStackOverflow = art_quick_throw_stack_overflow;
 
   // Deoptimize
-  qpoints->pDeoptimize = art_quick_deoptimize_from_compiled_slow_path;
+  qpoints->pDeoptimize = art_quick_deoptimize_from_compiled_code;
 
   // Read barrier
   qpoints->pReadBarrierJni = ReadBarrierJni;
