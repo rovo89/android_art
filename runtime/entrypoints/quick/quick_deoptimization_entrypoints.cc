@@ -28,17 +28,30 @@
 
 namespace art {
 
-extern "C" NO_RETURN void artDeoptimize(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-
+NO_RETURN static void artDeoptimizeImpl(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_) {
   if (VLOG_IS_ON(deopt)) {
     LOG(INFO) << "Deopting:";
     self->Dump(LOG(INFO));
   }
 
-  self->PushAndClearDeoptimizationReturnValue();
+  self->AssertHasDeoptimizationContext();
   self->SetException(Thread::GetDeoptimizationException());
   self->QuickDeliverException();
+}
+
+extern "C" NO_RETURN void artDeoptimize(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_) {
+  ScopedQuickEntrypointChecks sqec(self);
+  artDeoptimizeImpl(self);
+}
+
+extern "C" NO_RETURN void artDeoptimizeFromCompiledCode(Thread* self)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  ScopedQuickEntrypointChecks sqec(self);
+  // Before deoptimizing to interpreter, we must push the deoptimization context.
+  JValue return_value;
+  return_value.SetJ(0);  // we never deoptimize from compiled code with an invoke result.
+  self->PushDeoptimizationContext(return_value, false, self->GetException());
+  artDeoptimizeImpl(self);
 }
 
 }  // namespace art

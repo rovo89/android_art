@@ -70,7 +70,8 @@ static inline const void* GetQuickInstrumentationEntryPoint() {
   return reinterpret_cast<const void*>(art_quick_instrumentation_entry);
 }
 
-extern "C" void art_quick_deoptimize_from_compiled_slow_path();
+// Stub to deoptimize from compiled code.
+extern "C" void art_quick_deoptimize_from_compiled_code();
 
 // The return_pc of instrumentation exit stub.
 extern "C" void art_quick_instrumentation_exit();
