@@ -594,6 +594,54 @@ public class Main {
     Assert.assertEquals(Math.ceil(-2.5), -2.0d, 0.0);
     Assert.assertEquals(Math.ceil(-2.9), -2.0d, 0.0);
     Assert.assertEquals(Math.ceil(-3.0), -3.0d, 0.0);
+    // 2^52 - 1.5
+    Assert.assertEquals(Math.ceil(Double.longBitsToDouble(0x432FFFFFFFFFFFFDl)),
+                        Double.longBitsToDouble(0x432FFFFFFFFFFFFEl), 0.0);
+    // 2^52 - 0.5
+    Assert.assertEquals(Math.ceil(Double.longBitsToDouble(0x432FFFFFFFFFFFFFl)),
+                        Double.longBitsToDouble(0x4330000000000000l), 0.0);
+    // 2^52
+    Assert.assertEquals(Math.ceil(Double.longBitsToDouble(0x4330000000000000l)),
+                        Double.longBitsToDouble(0x4330000000000000l), 0.0);
+    // 2^53 - 1
+    Assert.assertEquals(Math.ceil(Double.longBitsToDouble(0x433FFFFFFFFFFFFFl)),
+                        Double.longBitsToDouble(0x433FFFFFFFFFFFFFl), 0.0);
+    // 2^53
+    Assert.assertEquals(Math.ceil(Double.longBitsToDouble(0x4340000000000000l)),
+                        Double.longBitsToDouble(0x4340000000000000l), 0.0);
+    // 2^63 - 2^10
+    Assert.assertEquals(Math.ceil(Double.longBitsToDouble(0x43DFFFFFFFFFFFFFl)),
+                        Double.longBitsToDouble(0x43DFFFFFFFFFFFFFl), 0.0);
+    // 2^63
+    Assert.assertEquals(Math.ceil(Double.longBitsToDouble(0x43E0000000000000l)),
+                        Double.longBitsToDouble(0x43E0000000000000l), 0.0);
+    // 2^64
+    Assert.assertEquals(Math.ceil(Double.longBitsToDouble(0x43F0000000000000l)),
+                        Double.longBitsToDouble(0x43F0000000000000l), 0.0);
+    // -(2^52 - 1.5)
+    Assert.assertEquals(Math.ceil(Double.longBitsToDouble(0xC32FFFFFFFFFFFFDl)),
+                        Double.longBitsToDouble(0xC32FFFFFFFFFFFFCl), 0.0);
+    // -(2^52 - 0.5)
+    Assert.assertEquals(Math.ceil(Double.longBitsToDouble(0xC32FFFFFFFFFFFFFl)),
+                        Double.longBitsToDouble(0xC32FFFFFFFFFFFFEl), 0.0);
+    // -2^52
+    Assert.assertEquals(Math.ceil(Double.longBitsToDouble(0xC330000000000000l)),
+                        Double.longBitsToDouble(0xC330000000000000l), 0.0);
+    // -(2^53 - 1)
+    Assert.assertEquals(Math.ceil(Double.longBitsToDouble(0xC33FFFFFFFFFFFFFl)),
+                        Double.longBitsToDouble(0xC33FFFFFFFFFFFFFl), 0.0);
+    // -2^53
+    Assert.assertEquals(Math.ceil(Double.longBitsToDouble(0xC340000000000000l)),
+                        Double.longBitsToDouble(0xC340000000000000l), 0.0);
+    // -(2^63 - 2^10)
+    Assert.assertEquals(Math.ceil(Double.longBitsToDouble(0xC3DFFFFFFFFFFFFFl)),
+                        Double.longBitsToDouble(0xC3DFFFFFFFFFFFFFl), 0.0);
+    // -2^63
+    Assert.assertEquals(Math.ceil(Double.longBitsToDouble(0xC3E0000000000000l)),
+                        Double.longBitsToDouble(0xC3E0000000000000l), 0.0);
+    // -2^64
+    Assert.assertEquals(Math.ceil(Double.longBitsToDouble(0xC3F0000000000000l)),
+                        Double.longBitsToDouble(0xC3F0000000000000l), 0.0);
     Assert.assertEquals(Math.ceil(Double.NaN), Double.NaN, 0.0);
     Assert.assertEquals(Math.ceil(Double.POSITIVE_INFINITY), Double.POSITIVE_INFINITY, 0.0);
     Assert.assertEquals(Math.ceil(Double.NEGATIVE_INFINITY), Double.NEGATIVE_INFINITY, 0.0);
@@ -613,6 +661,54 @@ public class Main {
     Assert.assertEquals(Math.floor(-2.5), -3.0d, 0.0);
     Assert.assertEquals(Math.floor(-2.9), -3.0d, 0.0);
     Assert.assertEquals(Math.floor(-3.0), -3.0d, 0.0);
+    // 2^52 - 1.5
+    Assert.assertEquals(Math.floor(Double.longBitsToDouble(0x432FFFFFFFFFFFFDl)),
+                        Double.longBitsToDouble(0x432FFFFFFFFFFFFCl), 0.0);
+    // 2^52 - 0.5
+    Assert.assertEquals(Math.floor(Double.longBitsToDouble(0x432FFFFFFFFFFFFFl)),
+                        Double.longBitsToDouble(0x432FFFFFFFFFFFFEl), 0.0);
+    // 2^52
+    Assert.assertEquals(Math.floor(Double.longBitsToDouble(0x4330000000000000l)),
+                        Double.longBitsToDouble(0x4330000000000000l), 0.0);
+    // 2^53 - 1
+    Assert.assertEquals(Math.floor(Double.longBitsToDouble(0x433FFFFFFFFFFFFFl)),
+                        Double.longBitsToDouble(0x433FFFFFFFFFFFFFl), 0.0);
+    // 2^53
+    Assert.assertEquals(Math.floor(Double.longBitsToDouble(0x4340000000000000l)),
+                        Double.longBitsToDouble(0x4340000000000000l), 0.0);
+    // 2^63 - 2^10
+    Assert.assertEquals(Math.floor(Double.longBitsToDouble(0x43DFFFFFFFFFFFFFl)),
+                        Double.longBitsToDouble(0x43DFFFFFFFFFFFFFl), 0.0);
+    // 2^63
+    Assert.assertEquals(Math.floor(Double.longBitsToDouble(0x43E0000000000000l)),
+                        Double.longBitsToDouble(0x43E0000000000000l), 0.0);
+    // 2^64
+    Assert.assertEquals(Math.floor(Double.longBitsToDouble(0x43F0000000000000l)),
+                        Double.longBitsToDouble(0x43F0000000000000l), 0.0);
+    // -(2^52 - 1.5)
+    Assert.assertEquals(Math.floor(Double.longBitsToDouble(0xC32FFFFFFFFFFFFDl)),
+                        Double.longBitsToDouble(0xC32FFFFFFFFFFFFEl), 0.0);
+    // -(2^52 - 0.5)
+    Assert.assertEquals(Math.floor(Double.longBitsToDouble(0xC32FFFFFFFFFFFFFl)),
+                        Double.longBitsToDouble(0xC330000000000000l), 0.0);
+    // -2^52
+    Assert.assertEquals(Math.floor(Double.longBitsToDouble(0xC330000000000000l)),
+                        Double.longBitsToDouble(0xC330000000000000l), 0.0);
+    // -(2^53 - 1)
+    Assert.assertEquals(Math.floor(Double.longBitsToDouble(0xC33FFFFFFFFFFFFFl)),
+                        Double.longBitsToDouble(0xC33FFFFFFFFFFFFFl), 0.0);
+    // -2^53
+    Assert.assertEquals(Math.floor(Double.longBitsToDouble(0xC340000000000000l)),
+                        Double.longBitsToDouble(0xC340000000000000l), 0.0);
+    // -(2^63 - 2^10)
+    Assert.assertEquals(Math.floor(Double.longBitsToDouble(0xC3DFFFFFFFFFFFFFl)),
+                        Double.longBitsToDouble(0xC3DFFFFFFFFFFFFFl), 0.0);
+    // -2^63
+    Assert.assertEquals(Math.floor(Double.longBitsToDouble(0xC3E0000000000000l)),
+                        Double.longBitsToDouble(0xC3E0000000000000l), 0.0);
+    // -2^64
+    Assert.assertEquals(Math.floor(Double.longBitsToDouble(0xC3F0000000000000l)),
+                        Double.longBitsToDouble(0xC3F0000000000000l), 0.0);
     Assert.assertEquals(Math.floor(Double.NaN), Double.NaN, 0.0);
     Assert.assertEquals(Math.floor(Double.POSITIVE_INFINITY), Double.POSITIVE_INFINITY, 0.0);
     Assert.assertEquals(Math.floor(Double.NEGATIVE_INFINITY), Double.NEGATIVE_INFINITY, 0.0);
@@ -632,6 +728,54 @@ public class Main {
     Assert.assertEquals(Math.rint(-2.5), -2.0d, 0.0);
     Assert.assertEquals(Math.rint(-2.9), -3.0d, 0.0);
     Assert.assertEquals(Math.rint(-3.0), -3.0d, 0.0);
+    // 2^52 - 1.5
+    Assert.assertEquals(Math.rint(Double.longBitsToDouble(0x432FFFFFFFFFFFFDl)),
+                        Double.longBitsToDouble(0x432FFFFFFFFFFFFCl), 0.0);
+    // 2^52 - 0.5
+    Assert.assertEquals(Math.rint(Double.longBitsToDouble(0x432FFFFFFFFFFFFFl)),
+                        Double.longBitsToDouble(0x4330000000000000l), 0.0);
+    // 2^52
+    Assert.assertEquals(Math.rint(Double.longBitsToDouble(0x4330000000000000l)),
+                        Double.longBitsToDouble(0x4330000000000000l), 0.0);
+    // 2^53 - 1
+    Assert.assertEquals(Math.rint(Double.longBitsToDouble(0x433FFFFFFFFFFFFFl)),
+                        Double.longBitsToDouble(0x433FFFFFFFFFFFFFl), 0.0);
+    // 2^53
+    Assert.assertEquals(Math.rint(Double.longBitsToDouble(0x4340000000000000l)),
+                        Double.longBitsToDouble(0x4340000000000000l), 0.0);
+    // 2^63 - 2^10
+    Assert.assertEquals(Math.rint(Double.longBitsToDouble(0x43DFFFFFFFFFFFFFl)),
+                        Double.longBitsToDouble(0x43DFFFFFFFFFFFFFl), 0.0);
+    // 2^63
+    Assert.assertEquals(Math.rint(Double.longBitsToDouble(0x43E0000000000000l)),
+                        Double.longBitsToDouble(0x43E0000000000000l), 0.0);
+    // 2^64
+    Assert.assertEquals(Math.rint(Double.longBitsToDouble(0x43F0000000000000l)),
+                        Double.longBitsToDouble(0x43F0000000000000l), 0.0);
+    // -(2^52 - 1.5)
+    Assert.assertEquals(Math.rint(Double.longBitsToDouble(0xC32FFFFFFFFFFFFDl)),
+                        Double.longBitsToDouble(0xC32FFFFFFFFFFFFCl), 0.0);
+    // -(2^52 - 0.5)
+    Assert.assertEquals(Math.rint(Double.longBitsToDouble(0xC32FFFFFFFFFFFFFl)),
+                        Double.longBitsToDouble(0xC330000000000000l), 0.0);
+    // -2^52
+    Assert.assertEquals(Math.rint(Double.longBitsToDouble(0xC330000000000000l)),
+                        Double.longBitsToDouble(0xC330000000000000l), 0.0);
+    // -(2^53 - 1)
+    Assert.assertEquals(Math.rint(Double.longBitsToDouble(0xC33FFFFFFFFFFFFFl)),
+                        Double.longBitsToDouble(0xC33FFFFFFFFFFFFFl), 0.0);
+    // -2^53
+    Assert.assertEquals(Math.rint(Double.longBitsToDouble(0xC340000000000000l)),
+                        Double.longBitsToDouble(0xC340000000000000l), 0.0);
+    // -(2^63 - 2^10)
+    Assert.assertEquals(Math.rint(Double.longBitsToDouble(0xC3DFFFFFFFFFFFFFl)),
+                        Double.longBitsToDouble(0xC3DFFFFFFFFFFFFFl), 0.0);
+    // -2^63
+    Assert.assertEquals(Math.rint(Double.longBitsToDouble(0xC3E0000000000000l)),
+                        Double.longBitsToDouble(0xC3E0000000000000l), 0.0);
+    // -2^64
+    Assert.assertEquals(Math.rint(Double.longBitsToDouble(0xC3F0000000000000l)),
+                        Double.longBitsToDouble(0xC3F0000000000000l), 0.0);
     Assert.assertEquals(Math.rint(Double.NaN), Double.NaN, 0.0);
     Assert.assertEquals(Math.rint(Double.POSITIVE_INFINITY), Double.POSITIVE_INFINITY, 0.0);
     Assert.assertEquals(Math.rint(Double.NEGATIVE_INFINITY), Double.NEGATIVE_INFINITY, 0.0);
