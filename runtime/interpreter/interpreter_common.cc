@@ -21,6 +21,7 @@
 #include "debugger.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "mirror/array-inl.h"
+#include "stack.h"
 #include "unstarted_runtime.h"
 #include "verifier/method_verifier.h"
 
@@ -576,9 +577,9 @@ static inline bool DoCallCommon(ArtMethod* called_method,
 
   // Allocate shadow frame on the stack.
   const char* old_cause = self->StartAssertNoThreadSuspension("DoCallCommon");
-  void* memory = alloca(ShadowFrame::ComputeSize(num_regs));
-  ShadowFrame* new_shadow_frame(ShadowFrame::Create(num_regs, &shadow_frame, called_method, 0,
-                                                    memory));
+  ShadowFrameAllocaUniquePtr shadow_frame_unique_ptr =
+      CREATE_SHADOW_FRAME(num_regs, &shadow_frame, called_method, 0);
+  ShadowFrame* new_shadow_frame = shadow_frame_unique_ptr.get();
 
   // Initialize new shadow frame by copying the registers from the callee shadow frame.
   if (do_assignability_check) {
