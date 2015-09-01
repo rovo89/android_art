@@ -105,6 +105,8 @@ enum HomogeneousSpaceCompactResult {
   kSuccess,
   // Reject due to disabled moving GC.
   kErrorReject,
+  // Unsupported due to the current configuration.
+  kErrorUnsupported,
   // System is shutting down.
   kErrorVMShuttingDown,
 };
@@ -753,6 +755,10 @@ class Heap {
 
   void DisableGCForShutdown() REQUIRES(!*gc_complete_lock_);
 
+  // Create a new alloc space and compact default alloc space to it.
+  HomogeneousSpaceCompactResult PerformHomogeneousSpaceCompact() REQUIRES(!*gc_complete_lock_);
+  bool SupportHomogeneousSpaceCompactAndCollectorTransitions() const;
+
  private:
   class ConcurrentGCTask;
   class CollectorTransitionTask;
@@ -904,9 +910,6 @@ class Heap {
 
   // Find a collector based on GC type.
   collector::GarbageCollector* FindCollectorByGcType(collector::GcType gc_type);
-
-  // Create a new alloc space and compact default alloc space to it.
-  HomogeneousSpaceCompactResult PerformHomogeneousSpaceCompact() REQUIRES(!*gc_complete_lock_);
 
   // Create the main free list malloc space, either a RosAlloc space or DlMalloc space.
   void CreateMainMallocSpace(MemMap* mem_map,
