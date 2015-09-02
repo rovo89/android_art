@@ -309,6 +309,8 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("      stripped using standard command line tools such as strip or objcopy.");
   UsageError("      (enabled by default in debug builds, disabled by default otherwise)");
   UsageError("");
+  UsageError("  --debuggable: Produce debuggable code. Implies --generate-debug-info.");
+  UsageError("");
   UsageError("  --no-generate-debug-info: Do not generate debug information for native debugging.");
   UsageError("");
   UsageError("  --runtime-arg <argument>: used to specify various arguments for the runtime,");
