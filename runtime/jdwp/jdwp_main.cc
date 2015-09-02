@@ -126,9 +126,12 @@ void JdwpNetStateBase::Close() {
  * Write a packet of "length" bytes. Grabs a mutex to assure atomicity.
  */
 ssize_t JdwpNetStateBase::WritePacket(ExpandBuf* pReply, size_t length) {
-  MutexLock mu(Thread::Current(), socket_lock_);
-  DCHECK(IsConnected()) << "Connection with debugger is closed";
   DCHECK_LE(length, expandBufGetLength(pReply));
+  if (!IsConnected()) {
+    LOG(WARNING) << "Connection with debugger is closed";
+    return -1;
+  }
+  MutexLock mu(Thread::Current(), socket_lock_);
   return TEMP_FAILURE_RETRY(write(clientSock, expandBufGetBuffer(pReply), length));
 }
 
