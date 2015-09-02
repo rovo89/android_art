@@ -139,7 +139,8 @@ BoxTable::ValueType BoxTable::FindBoxedLambda(const ClosureType& closure) const 
 
 void BoxTable::BlockUntilWeaksAllowed() {
   Thread* self = Thread::Current();
-  while (UNLIKELY(allow_new_weaks_ == false)) {
+  while (UNLIKELY((!kUseReadBarrier && !allow_new_weaks_) ||
+                  (kUseReadBarrier && !self->GetWeakRefAccessEnabled()))) {
     new_weaks_condition_.WaitHoldingLocks(self);  // wait while holding mutator lock
   }
 }
@@ -184,6 +185,7 @@ void BoxTable::SweepWeakBoxedLambdas(IsMarkedVisitor* visitor) {
 }
 
 void BoxTable::DisallowNewWeakBoxedLambdas() {
+  CHECK(!kUseReadBarrier);
   Thread* self = Thread::Current();
   MutexLock mu(self, *Locks::lambda_table_lock_);
 
@@ -191,6 +193,7 @@ void BoxTable::DisallowNewWeakBoxedLambdas() {
 }
 
 void BoxTable::AllowNewWeakBoxedLambdas() {
+  CHECK(!kUseReadBarrier);
   Thread* self = Thread::Current();
   MutexLock mu(self, *Locks::lambda_table_lock_);
 
@@ -198,10 +201,11 @@ void BoxTable::AllowNewWeakBoxedLambdas() {
   new_weaks_condition_.Broadcast(self);
 }
 
-void BoxTable::EnsureNewWeakBoxedLambdasDisallowed() {
+void BoxTable::BroadcastForNewWeakBoxedLambdas() {
+  CHECK(kUseReadBarrier);
   Thread* self = Thread::Current();
   MutexLock mu(self, *Locks::lambda_table_lock_);
-  CHECK_NE(allow_new_weaks_, false);
+  new_weaks_condition_.Broadcast(self);
 }
 
 bool BoxTable::EqualsFn::operator()(const ClosureType& lhs, const ClosureType& rhs) const {

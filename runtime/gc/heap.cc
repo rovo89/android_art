@@ -3844,6 +3844,7 @@ void Heap::SweepAllocationRecords(IsMarkedVisitor* visitor) const {
 }
 
 void Heap::AllowNewAllocationRecords() const {
+  CHECK(!kUseReadBarrier);
   if (IsAllocTrackingEnabled()) {
     MutexLock mu(Thread::Current(), *Locks::alloc_tracker_lock_);
     if (IsAllocTrackingEnabled()) {
@@ -3853,10 +3854,21 @@ void Heap::AllowNewAllocationRecords() const {
 }
 
 void Heap::DisallowNewAllocationRecords() const {
+  CHECK(!kUseReadBarrier);
   if (IsAllocTrackingEnabled()) {
     MutexLock mu(Thread::Current(), *Locks::alloc_tracker_lock_);
     if (IsAllocTrackingEnabled()) {
       GetAllocationRecords()->DisallowNewAllocationRecords();
+    }
+  }
+}
+
+void Heap::BroadcastForNewAllocationRecords() const {
+  CHECK(kUseReadBarrier);
+  if (IsAllocTrackingEnabled()) {
+    MutexLock mu(Thread::Current(), *Locks::alloc_tracker_lock_);
+    if (IsAllocTrackingEnabled()) {
+      GetAllocationRecords()->BroadcastForNewAllocationRecords();
     }
   }
 }

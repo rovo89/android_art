@@ -108,8 +108,6 @@ class JavaVMExt : public JavaVM {
 
   void DisallowNewWeakGlobals() SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!weak_globals_lock_);
   void AllowNewWeakGlobals() SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!weak_globals_lock_);
-  void EnsureNewWeakGlobalsDisallowed() SHARED_REQUIRES(Locks::mutator_lock_)
-      REQUIRES(!weak_globals_lock_);
   void BroadcastForNewWeakGlobals() SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!weak_globals_lock_);
 
