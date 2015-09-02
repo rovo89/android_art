@@ -1441,14 +1441,6 @@ bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg) {
   return true;
 }
 
-void EncodeUnsignedLeb128(uint32_t data, std::vector<uint8_t>* dst) {
-  Leb128Encoder(dst).PushBackUnsigned(data);
-}
-
-void EncodeSignedLeb128(int32_t data, std::vector<uint8_t>* dst) {
-  Leb128Encoder(dst).PushBackSigned(data);
-}
-
 std::string PrettyDescriptor(Primitive::Type type) {
   return PrettyDescriptor(Primitive::Descriptor(type));
 }

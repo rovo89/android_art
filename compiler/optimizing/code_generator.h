@@ -19,6 +19,8 @@
 
 #include "arch/instruction_set.h"
 #include "arch/instruction_set_features.h"
+#include "base/arena_containers.h"
+#include "base/arena_object.h"
 #include "base/bit_field.h"
 #include "driver/compiler_options.h"
 #include "globals.h"
@@ -236,11 +238,11 @@ class CodeGenerator {
   }
 
   void BuildSourceMap(DefaultSrcMap* src_map) const;
-  void BuildMappingTable(std::vector<uint8_t>* vector) const;
-  void BuildVMapTable(std::vector<uint8_t>* vector) const;
+  void BuildMappingTable(ArenaVector<uint8_t>* vector) const;
+  void BuildVMapTable(ArenaVector<uint8_t>* vector) const;
   void BuildNativeGCMap(
-      std::vector<uint8_t>* vector, const DexCompilationUnit& dex_compilation_unit) const;
-  void BuildStackMaps(std::vector<uint8_t>* vector);
+      ArenaVector<uint8_t>* vector, const DexCompilationUnit& dex_compilation_unit) const;
+  void BuildStackMaps(ArenaVector<uint8_t>* vector);
 
   bool IsBaseline() const {
     return is_baseline_;

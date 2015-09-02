@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_NODES_H_
 #define ART_COMPILER_OPTIMIZING_NODES_H_
 
+#include <array>
 #include <type_traits>
 
 #include "base/arena_containers.h"
@@ -81,7 +82,7 @@ enum IfCondition {
   kCondGE,
 };
 
-class HInstructionList {
+class HInstructionList : public ValueObject {
  public:
   HInstructionList() : first_instruction_(nullptr), last_instruction_(nullptr) {}
 
@@ -127,7 +128,7 @@ class HInstructionList {
 };
 
 // Control-flow graph of a method. Contains a list of basic blocks.
-class HGraph : public ArenaObject<kArenaAllocMisc> {
+class HGraph : public ArenaObject<kArenaAllocGraph> {
  public:
   HGraph(ArenaAllocator* arena,
          const DexFile& dex_file,
@@ -464,7 +465,7 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   DISALLOW_COPY_AND_ASSIGN(HGraph);
 };
 
-class HLoopInformation : public ArenaObject<kArenaAllocMisc> {
+class HLoopInformation : public ArenaObject<kArenaAllocLoopInfo> {
  public:
   HLoopInformation(HBasicBlock* header, HGraph* graph)
       : header_(header),
@@ -562,7 +563,7 @@ class HLoopInformation : public ArenaObject<kArenaAllocMisc> {
 // Stores try/catch information for basic blocks.
 // Note that HGraph is constructed so that catch blocks cannot simultaneously
 // be try blocks.
-class TryCatchInformation : public ArenaObject<kArenaAllocMisc> {
+class TryCatchInformation : public ArenaObject<kArenaAllocTryCatchInfo> {
  public:
   // Try block information constructor.
   explicit TryCatchInformation(const HTryBoundary& try_entry)
@@ -619,7 +620,7 @@ static constexpr uint32_t kNoDexPc = -1;
 // as a double linked list. Each block knows its predecessors and
 // successors.
 
-class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
+class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
  public:
   explicit HBasicBlock(HGraph* graph, uint32_t dex_pc = kNoDexPc)
       : graph_(graph),
@@ -1107,7 +1108,7 @@ FOR_EACH_INSTRUCTION(FORWARD_DECLARATION)
 template <typename T> class HUseList;
 
 template <typename T>
-class HUseListNode : public ArenaObject<kArenaAllocMisc> {
+class HUseListNode : public ArenaObject<kArenaAllocUseListNode> {
  public:
   HUseListNode* GetPrevious() const { return prev_; }
   HUseListNode* GetNext() const { return next_; }
@@ -1492,7 +1493,7 @@ class SideEffects : public ValueObject {
 };
 
 // A HEnvironment object contains the values of virtual registers at a given location.
-class HEnvironment : public ArenaObject<kArenaAllocMisc> {
+class HEnvironment : public ArenaObject<kArenaAllocEnvironment> {
  public:
   HEnvironment(ArenaAllocator* arena,
                size_t number_of_vregs,
@@ -1682,7 +1683,7 @@ class ReferenceTypeInfo : ValueObject {
 
 std::ostream& operator<<(std::ostream& os, const ReferenceTypeInfo& rhs);
 
-class HInstruction : public ArenaObject<kArenaAllocMisc> {
+class HInstruction : public ArenaObject<kArenaAllocInstruction> {
  public:
   explicit HInstruction(SideEffects side_effects)
       : previous_(nullptr),
@@ -2038,54 +2039,7 @@ class HBackwardInstructionIterator : public ValueObject {
   DISALLOW_COPY_AND_ASSIGN(HBackwardInstructionIterator);
 };
 
-// An embedded container with N elements of type T.  Used (with partial
-// specialization for N=0) because embedded arrays cannot have size 0.
-template<typename T, intptr_t N>
-class EmbeddedArray {
- public:
-  EmbeddedArray() : elements_() {}
-
-  intptr_t GetLength() const { return N; }
-
-  const T& operator[](intptr_t i) const {
-    DCHECK_LT(i, GetLength());
-    return elements_[i];
-  }
-
-  T& operator[](intptr_t i) {
-    DCHECK_LT(i, GetLength());
-    return elements_[i];
-  }
-
-  const T& At(intptr_t i) const {
-    return (*this)[i];
-  }
-
-  void SetAt(intptr_t i, const T& val) {
-    (*this)[i] = val;
-  }
-
- private:
-  T elements_[N];
-};
-
-template<typename T>
-class EmbeddedArray<T, 0> {
- public:
-  intptr_t length() const { return 0; }
-  const T& operator[](intptr_t i) const {
-    UNUSED(i);
-    LOG(FATAL) << "Unreachable";
-    UNREACHABLE();
-  }
-  T& operator[](intptr_t i) {
-    UNUSED(i);
-    LOG(FATAL) << "Unreachable";
-    UNREACHABLE();
-  }
-};
-
-template<intptr_t N>
+template<size_t N>
 class HTemplateInstruction: public HInstruction {
  public:
   HTemplateInstruction<N>(SideEffects side_effects)
@@ -2095,15 +2049,44 @@ class HTemplateInstruction: public HInstruction {
   size_t InputCount() const OVERRIDE { return N; }
 
  protected:
-  const HUserRecord<HInstruction*> InputRecordAt(size_t i) const OVERRIDE { return inputs_[i]; }
+  const HUserRecord<HInstruction*> InputRecordAt(size_t i) const OVERRIDE {
+    DCHECK_LT(i, N);
+    return inputs_[i];
+  }
 
   void SetRawInputRecordAt(size_t i, const HUserRecord<HInstruction*>& input) OVERRIDE {
+    DCHECK_LT(i, N);
     inputs_[i] = input;
   }
 
  private:
-  EmbeddedArray<HUserRecord<HInstruction*>, N> inputs_;
+  std::array<HUserRecord<HInstruction*>, N> inputs_;
 
+  friend class SsaBuilder;
+};
+
+// HTemplateInstruction specialization for N=0.
+template<>
+class HTemplateInstruction<0>: public HInstruction {
+ public:
+  explicit HTemplateInstruction(SideEffects side_effects) : HInstruction(side_effects) {}
+  virtual ~HTemplateInstruction() {}
+
+  size_t InputCount() const OVERRIDE { return 0; }
+
+ protected:
+  const HUserRecord<HInstruction*> InputRecordAt(size_t i ATTRIBUTE_UNUSED) const OVERRIDE {
+    LOG(FATAL) << "Unreachable";
+    UNREACHABLE();
+  }
+
+  void SetRawInputRecordAt(size_t i ATTRIBUTE_UNUSED,
+                           const HUserRecord<HInstruction*>& input ATTRIBUTE_UNUSED) OVERRIDE {
+    LOG(FATAL) << "Unreachable";
+    UNREACHABLE();
+  }
+
+ private:
   friend class SsaBuilder;
 };
 
@@ -4833,7 +4816,7 @@ class HFakeString : public HTemplateInstruction<0> {
   DISALLOW_COPY_AND_ASSIGN(HFakeString);
 };
 
-class MoveOperands : public ArenaObject<kArenaAllocMisc> {
+class MoveOperands : public ArenaObject<kArenaAllocMoveOperands> {
  public:
   MoveOperands(Location source,
                Location destination,
