@@ -1728,7 +1728,7 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
       result = nullptr;
     }
   } else if (kind == kGlobal) {
-    result = tlsPtr_.jni_env->vm->DecodeGlobal(const_cast<Thread*>(this), ref);
+    result = tlsPtr_.jni_env->vm->DecodeGlobal(ref);
   } else {
     DCHECK_EQ(kind, kWeakGlobal);
     result = tlsPtr_.jni_env->vm->DecodeWeakGlobal(const_cast<Thread*>(this), ref);

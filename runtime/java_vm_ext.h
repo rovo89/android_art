@@ -126,7 +126,7 @@ class JavaVMExt : public JavaVM {
   void SweepJniWeakGlobals(IsMarkedVisitor* visitor)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!weak_globals_lock_);
 
-  mirror::Object* DecodeGlobal(Thread* self, IndirectRef ref)
+  mirror::Object* DecodeGlobal(IndirectRef ref)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   void UpdateGlobal(Thread* self, IndirectRef ref, mirror::Object* result)
@@ -155,6 +155,12 @@ class JavaVMExt : public JavaVM {
       REQUIRES(!globals_lock_);
 
  private:
+  // Return true if self can currently access weak globals.
+  bool MayAccessWeakGlobalsUnlocked(Thread* self) const SHARED_REQUIRES(Locks::mutator_lock_);
+  bool MayAccessWeakGlobals(Thread* self) const
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(weak_globals_lock_);
+
   Runtime* const runtime_;
 
   // Used for testing. By default, we'll LOG(FATAL) the reason.
@@ -184,8 +190,10 @@ class JavaVMExt : public JavaVM {
   // Since weak_globals_ contain weak roots, be careful not to
   // directly access the object references in it. Use Get() with the
   // read barrier enabled.
-  IndirectReferenceTable weak_globals_ GUARDED_BY(weak_globals_lock_);
-  bool allow_new_weak_globals_ GUARDED_BY(weak_globals_lock_);
+  // Not guarded by weak_globals_lock since we may use SynchronizedGet in DecodeWeakGlobal.
+  IndirectReferenceTable weak_globals_;
+  // Not guarded by weak_globals_lock since we may use SynchronizedGet in DecodeWeakGlobal.
+  Atomic<bool> allow_accessing_weak_globals_;
   ConditionVariable weak_globals_add_condition_ GUARDED_BY(weak_globals_lock_);
 
   DISALLOW_COPY_AND_ASSIGN(JavaVMExt);
