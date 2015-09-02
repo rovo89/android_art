@@ -243,7 +243,8 @@ class OptimizingCompiler FINAL : public Compiler {
                           uint16_t class_def_idx,
                           uint32_t method_idx,
                           jobject class_loader,
-                          const DexFile& dex_file) const OVERRIDE;
+                          const DexFile& dex_file,
+                          Handle<mirror::DexCache> dex_cache) const OVERRIDE;
 
   CompiledMethod* TryCompile(const DexFile::CodeItem* code_item,
                              uint32_t access_flags,
@@ -251,7 +252,8 @@ class OptimizingCompiler FINAL : public Compiler {
                              uint16_t class_def_idx,
                              uint32_t method_idx,
                              jobject class_loader,
-                             const DexFile& dex_file) const;
+                             const DexFile& dex_file,
+                             Handle<mirror::DexCache> dex_cache) const;
 
   CompiledMethod* JniCompile(uint32_t access_flags,
                              uint32_t method_idx,
@@ -638,7 +640,8 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
                                                uint16_t class_def_idx,
                                                uint32_t method_idx,
                                                jobject class_loader,
-                                               const DexFile& dex_file) const {
+                                               const DexFile& dex_file,
+                                               Handle<mirror::DexCache> dex_cache) const {
   UNUSED(invoke_type);
   std::string method_name = PrettyMethod(method_idx, dex_file);
   MaybeRecordStat(MethodCompilationStat::kAttemptCompilation);
@@ -674,7 +677,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   DexCompilationUnit dex_compilation_unit(
     nullptr, class_loader, Runtime::Current()->GetClassLinker(), dex_file, code_item,
     class_def_idx, method_idx, access_flags,
-    compiler_driver->GetVerifiedMethod(&dex_file, method_idx));
+    compiler_driver->GetVerifiedMethod(&dex_file, method_idx), dex_cache);
 
   bool requires_barrier = dex_compilation_unit.IsConstructor()
       && compiler_driver->RequiresConstructorBarrier(Thread::Current(),
@@ -712,10 +715,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   const uint8_t* interpreter_metadata = nullptr;
   {
     ScopedObjectAccess soa(Thread::Current());
-    StackHandleScope<4> hs(soa.Self());
-    ClassLinker* class_linker = dex_compilation_unit.GetClassLinker();
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(
-        soa.Self(), dex_file)));
+    StackHandleScope<1> hs(soa.Self());
     Handle<mirror::ClassLoader> loader(hs.NewHandle(
         soa.Decode<mirror::ClassLoader*>(class_loader)));
     ArtMethod* art_method = compiler_driver->ResolveMethod(
@@ -732,7 +732,8 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
                         &dex_file,
                         compiler_driver,
                         compilation_stats_.get(),
-                        interpreter_metadata);
+                        interpreter_metadata,
+                        dex_cache);
 
   VLOG(compiler) << "Building " << method_name;
 
@@ -798,13 +799,14 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                                             uint16_t class_def_idx,
                                             uint32_t method_idx,
                                             jobject jclass_loader,
-                                            const DexFile& dex_file) const {
+                                            const DexFile& dex_file,
+                                            Handle<mirror::DexCache> dex_cache) const {
   CompilerDriver* compiler_driver = GetCompilerDriver();
   CompiledMethod* method = nullptr;
   DCHECK(!compiler_driver->GetVerifiedMethod(&dex_file, method_idx)->HasRuntimeThrow());
   if (compiler_driver->IsMethodVerifiedWithoutFailures(method_idx, class_def_idx, dex_file)) {
      method = TryCompile(code_item, access_flags, invoke_type, class_def_idx,
-                         method_idx, jclass_loader, dex_file);
+                         method_idx, jclass_loader, dex_file, dex_cache);
   } else {
     if (compiler_driver->GetCompilerOptions().VerifyAtRuntime()) {
       MaybeRecordStat(MethodCompilationStat::kNotCompiledVerifyAtRuntime);
@@ -817,7 +819,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     return method;
   }
   method = delegate_->Compile(code_item, access_flags, invoke_type, class_def_idx, method_idx,
-                              jclass_loader, dex_file);
+                              jclass_loader, dex_file, dex_cache);
 
   if (method != nullptr) {
     MaybeRecordStat(MethodCompilationStat::kCompiledQuick);

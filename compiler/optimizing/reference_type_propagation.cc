@@ -434,8 +434,7 @@ void RTPVisitor::UpdateFieldAccessTypeInfo(HInstruction* instr,
 
   ScopedObjectAccess soa(Thread::Current());
   ClassLinker* cl = Runtime::Current()->GetClassLinker();
-  mirror::DexCache* dex_cache = cl->FindDexCache(soa.Self(), info.GetDexFile(), false);
-  ArtField* field = cl->GetResolvedField(info.GetFieldIndex(), dex_cache);
+  ArtField* field = cl->GetResolvedField(info.GetFieldIndex(), info.GetDexCache().Get());
   // TODO: There are certain cases where we can't resolve the field.
   // b/21914925 is open to keep track of a repro case for this issue.
   mirror::Class* klass = (field == nullptr) ? nullptr : field->GetType<false>();

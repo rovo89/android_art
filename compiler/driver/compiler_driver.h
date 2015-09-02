@@ -226,7 +226,8 @@ class CompilerDriver {
   mirror::DexCache* GetDexCache(const DexCompilationUnit* mUnit)
     SHARED_REQUIRES(Locks::mutator_lock_);
 
-  mirror::ClassLoader* GetClassLoader(ScopedObjectAccess& soa, const DexCompilationUnit* mUnit)
+  mirror::ClassLoader* GetClassLoader(const ScopedObjectAccess& soa,
+                                      const DexCompilationUnit* mUnit)
     SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Resolve compiling method's class. Returns null on failure.

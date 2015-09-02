@@ -58,6 +58,10 @@ class LocationSummary;
 class SlowPathCode;
 class SsaBuilder;
 
+namespace mirror {
+class DexCache;
+}  // namespace mirror
+
 static const int kDefaultNumberOfBlocks = 8;
 static const int kDefaultNumberOfSuccessors = 2;
 static const int kDefaultNumberOfPredecessors = 2;
@@ -4020,25 +4024,29 @@ class FieldInfo : public ValueObject {
             Primitive::Type field_type,
             bool is_volatile,
             uint32_t index,
-            const DexFile& dex_file)
+            const DexFile& dex_file,
+            Handle<mirror::DexCache> dex_cache)
       : field_offset_(field_offset),
         field_type_(field_type),
         is_volatile_(is_volatile),
         index_(index),
-        dex_file_(dex_file) {}
+        dex_file_(dex_file),
+        dex_cache_(dex_cache) {}
 
   MemberOffset GetFieldOffset() const { return field_offset_; }
   Primitive::Type GetFieldType() const { return field_type_; }
   uint32_t GetFieldIndex() const { return index_; }
   const DexFile& GetDexFile() const { return dex_file_; }
   bool IsVolatile() const { return is_volatile_; }
+  Handle<mirror::DexCache> GetDexCache() const { return dex_cache_; }
 
  private:
   const MemberOffset field_offset_;
   const Primitive::Type field_type_;
   const bool is_volatile_;
-  uint32_t index_;
+  const uint32_t index_;
   const DexFile& dex_file_;
+  const Handle<mirror::DexCache> dex_cache_;
 };
 
 class HInstanceFieldGet : public HExpression<1> {
@@ -4048,11 +4056,12 @@ class HInstanceFieldGet : public HExpression<1> {
                     MemberOffset field_offset,
                     bool is_volatile,
                     uint32_t field_idx,
-                    const DexFile& dex_file)
+                    const DexFile& dex_file,
+                    Handle<mirror::DexCache> dex_cache)
       : HExpression(
             field_type,
             SideEffects::FieldReadOfType(field_type, is_volatile)),
-        field_info_(field_offset, field_type, is_volatile, field_idx, dex_file) {
+        field_info_(field_offset, field_type, is_volatile, field_idx, dex_file, dex_cache) {
     SetRawInputAt(0, value);
   }
 
@@ -4092,10 +4101,11 @@ class HInstanceFieldSet : public HTemplateInstruction<2> {
                     MemberOffset field_offset,
                     bool is_volatile,
                     uint32_t field_idx,
-                    const DexFile& dex_file)
+                    const DexFile& dex_file,
+                    Handle<mirror::DexCache> dex_cache)
       : HTemplateInstruction(
           SideEffects::FieldWriteOfType(field_type, is_volatile)),
-        field_info_(field_offset, field_type, is_volatile, field_idx, dex_file),
+        field_info_(field_offset, field_type, is_volatile, field_idx, dex_file, dex_cache),
         value_can_be_null_(true) {
     SetRawInputAt(0, object);
     SetRawInputAt(1, value);
@@ -4510,11 +4520,12 @@ class HStaticFieldGet : public HExpression<1> {
                   MemberOffset field_offset,
                   bool is_volatile,
                   uint32_t field_idx,
-                  const DexFile& dex_file)
+                  const DexFile& dex_file,
+                  Handle<mirror::DexCache> dex_cache)
       : HExpression(
             field_type,
             SideEffects::FieldReadOfType(field_type, is_volatile)),
-        field_info_(field_offset, field_type, is_volatile, field_idx, dex_file) {
+        field_info_(field_offset, field_type, is_volatile, field_idx, dex_file, dex_cache) {
     SetRawInputAt(0, cls);
   }
 
@@ -4551,10 +4562,11 @@ class HStaticFieldSet : public HTemplateInstruction<2> {
                   MemberOffset field_offset,
                   bool is_volatile,
                   uint32_t field_idx,
-                  const DexFile& dex_file)
+                  const DexFile& dex_file,
+                  Handle<mirror::DexCache> dex_cache)
       : HTemplateInstruction(
           SideEffects::FieldWriteOfType(field_type, is_volatile)),
-        field_info_(field_offset, field_type, is_volatile, field_idx, dex_file),
+        field_info_(field_offset, field_type, is_volatile, field_idx, dex_file, dex_cache),
         value_can_be_null_(true) {
     SetRawInputAt(0, cls);
     SetRawInputAt(1, value);
