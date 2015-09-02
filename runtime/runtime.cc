@@ -495,7 +495,8 @@ bool Runtime::Start() {
   CHECK(!no_sig_chain_) << "A started runtime should have sig chain enabled";
 
   // If a debug host build, disable ptrace restriction for debugging and test timeout thread dump.
-#if defined(__linux__) && !defined(__ANDROID__)
+  // Only 64-bit as prctl() may fail in 32 bit userspace on a 64-bit kernel.
+#if defined(__linux__) && !defined(__ANDROID__) && defined(__x86_64__)
   if (kIsDebugBuild) {
     CHECK_EQ(prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY), 0);
   }
