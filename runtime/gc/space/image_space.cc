@@ -35,6 +35,8 @@
 #include "space-inl.h"
 #include "utils.h"
 
+#include <cutils/properties.h>
+
 namespace art {
 namespace gc {
 namespace space {
@@ -144,9 +146,14 @@ static void MarkZygoteStart(const InstructionSet isa, const uint32_t max_failed_
     }
   }
 
+  int8_t prune_image_cache = property_get_bool("persist.art.pruneimagecache", 1);
   if (max_failed_boots != 0 && num_failed_boots >= max_failed_boots) {
-    LOG(WARNING) << "Incomplete boot detected. Pruning dalvik cache";
-    RealPruneDalvikCache(isa_subdir);
+    if (!prune_image_cache) {
+      LOG(WARNING) << "Incomplete boot detected. Skipped prunning of dalvik cache due to property";
+    } else {
+      LOG(WARNING) << "Incomplete boot detected. Pruning dalvik cache";
+      RealPruneDalvikCache(isa_subdir);
+    }
   }
 
   ++num_failed_boots;
