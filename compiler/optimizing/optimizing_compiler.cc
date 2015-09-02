@@ -25,6 +25,7 @@
 
 #include "art_method-inl.h"
 #include "base/arena_allocator.h"
+#include "base/arena_containers.h"
 #include "base/dumpable.h"
 #include "base/timing_logger.h"
 #include "boolean_simplifier.h"
@@ -68,7 +69,9 @@ namespace art {
  */
 class CodeVectorAllocator FINAL : public CodeAllocator {
  public:
-  CodeVectorAllocator() : size_(0) {}
+  explicit CodeVectorAllocator(ArenaAllocator* arena)
+      : memory_(arena->Adapter(kArenaAllocCodeBuffer)),
+        size_(0) {}
 
   virtual uint8_t* Allocate(size_t size) {
     size_ = size;
@@ -77,10 +80,10 @@ class CodeVectorAllocator FINAL : public CodeAllocator {
   }
 
   size_t GetSize() const { return size_; }
-  const std::vector<uint8_t>& GetMemory() const { return memory_; }
+  const ArenaVector<uint8_t>& GetMemory() const { return memory_; }
 
  private:
-  std::vector<uint8_t> memory_;
+  ArenaVector<uint8_t> memory_;
   size_t size_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeVectorAllocator);
@@ -498,7 +501,7 @@ static void RunOptimizations(HGraph* graph,
 
 // The stack map we generate must be 4-byte aligned on ARM. Since existing
 // maps are generated alongside these stack maps, we must also align them.
-static ArrayRef<const uint8_t> AlignVectorSize(std::vector<uint8_t>& vector) {
+static ArrayRef<const uint8_t> AlignVectorSize(ArenaVector<uint8_t>& vector) {
   size_t size = vector.size();
   size_t aligned_size = RoundUp(size, 4);
   for (; size < aligned_size; ++size) {
@@ -553,7 +556,8 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
 
   AllocateRegisters(graph, codegen, pass_observer);
 
-  CodeVectorAllocator allocator;
+  ArenaAllocator* arena = graph->GetArena();
+  CodeVectorAllocator allocator(arena);
   codegen->CompileOptimized(&allocator);
 
   ArenaVector<LinkerPatch> linker_patches = EmitAndSortLinkerPatches(codegen);
@@ -563,7 +567,7 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
     codegen->BuildSourceMap(&src_mapping_table);
   }
 
-  std::vector<uint8_t> stack_map;
+  ArenaVector<uint8_t> stack_map(arena->Adapter(kArenaAllocStackMaps));
   codegen->BuildStackMaps(&stack_map);
 
   MaybeRecordStat(MethodCompilationStat::kCompiledOptimized);
@@ -595,20 +599,21 @@ CompiledMethod* OptimizingCompiler::CompileBaseline(
     CompilerDriver* compiler_driver,
     const DexCompilationUnit& dex_compilation_unit,
     PassObserver* pass_observer) const {
-  CodeVectorAllocator allocator;
+  ArenaAllocator* arena = codegen->GetGraph()->GetArena();
+  CodeVectorAllocator allocator(arena);
   codegen->CompileBaseline(&allocator);
 
   ArenaVector<LinkerPatch> linker_patches = EmitAndSortLinkerPatches(codegen);
 
-  std::vector<uint8_t> mapping_table;
+  ArenaVector<uint8_t> mapping_table(arena->Adapter(kArenaAllocBaselineMaps));
   codegen->BuildMappingTable(&mapping_table);
   DefaultSrcMap src_mapping_table;
   if (compiler_driver->GetCompilerOptions().GetGenerateDebugInfo()) {
     codegen->BuildSourceMap(&src_mapping_table);
   }
-  std::vector<uint8_t> vmap_table;
+  ArenaVector<uint8_t> vmap_table(arena->Adapter(kArenaAllocBaselineMaps));
   codegen->BuildVMapTable(&vmap_table);
-  std::vector<uint8_t> gc_map;
+  ArenaVector<uint8_t> gc_map(arena->Adapter(kArenaAllocBaselineMaps));
   codegen->BuildNativeGCMap(&gc_map, dex_compilation_unit);
 
   MaybeRecordStat(MethodCompilationStat::kCompiledBaseline);
@@ -752,6 +757,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   // or the debuggable flag). If it is set, we can run baseline. Otherwise, we fall back
   // to Quick.
   bool can_use_baseline = !run_optimizations_ && builder.CanUseBaselineForStringInit();
+  CompiledMethod* compiled_method = nullptr;
   if (run_optimizations_ && can_allocate_registers) {
     VLOG(compiler) << "Optimizing " << method_name;
 
@@ -766,11 +772,11 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
       }
     }
 
-    return CompileOptimized(graph,
-                            codegen.get(),
-                            compiler_driver,
-                            dex_compilation_unit,
-                            &pass_observer);
+    compiled_method = CompileOptimized(graph,
+                                       codegen.get(),
+                                       compiler_driver,
+                                       dex_compilation_unit,
+                                       &pass_observer);
   } else if (shouldOptimize && can_allocate_registers) {
     LOG(FATAL) << "Could not allocate registers in optimizing compiler";
     UNREACHABLE();
@@ -783,13 +789,20 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
       MaybeRecordStat(MethodCompilationStat::kNotOptimizedRegisterAllocator);
     }
 
-    return CompileBaseline(codegen.get(),
-                           compiler_driver,
-                           dex_compilation_unit,
-                           &pass_observer);
-  } else {
-    return nullptr;
+    compiled_method = CompileBaseline(codegen.get(),
+                                      compiler_driver,
+                                      dex_compilation_unit,
+                                      &pass_observer);
   }
+
+  if (kArenaAllocatorCountAllocations) {
+    if (arena.BytesAllocated() > 4 * MB) {
+      MemStats mem_stats(arena.GetMemStats());
+      LOG(INFO) << PrettyMethod(method_idx, dex_file) << " " << Dumpable<MemStats>(mem_stats);
+    }
+  }
+
+  return compiled_method;
 }
 
 CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,

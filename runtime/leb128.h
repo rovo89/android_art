@@ -178,10 +178,11 @@ static inline void EncodeSignedLeb128(std::vector<uint8_t, Allocator>* dest, int
   dest->push_back(out);
 }
 
-// An encoder that pushed uint32_t data onto the given std::vector.
+// An encoder that pushes int32_t/uint32_t data onto the given std::vector.
+template <typename Allocator = std::allocator<uint8_t>>
 class Leb128Encoder {
  public:
-  explicit Leb128Encoder(std::vector<uint8_t>* data) : data_(data) {
+  explicit Leb128Encoder(std::vector<uint8_t, Allocator>* data) : data_(data) {
     DCHECK(data != nullptr);
   }
 
@@ -211,22 +212,27 @@ class Leb128Encoder {
     }
   }
 
-  const std::vector<uint8_t>& GetData() const {
+  const std::vector<uint8_t, Allocator>& GetData() const {
     return *data_;
   }
 
  protected:
-  std::vector<uint8_t>* const data_;
+  std::vector<uint8_t, Allocator>* const data_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(Leb128Encoder);
 };
 
 // An encoder with an API similar to vector<uint32_t> where the data is captured in ULEB128 format.
-class Leb128EncodingVector FINAL : private std::vector<uint8_t>, public Leb128Encoder {
+template <typename Allocator = std::allocator<uint8_t>>
+class Leb128EncodingVector FINAL : private std::vector<uint8_t, Allocator>,
+                                   public Leb128Encoder<Allocator> {
  public:
-  Leb128EncodingVector() : Leb128Encoder(this) {
-  }
+  Leb128EncodingVector() : Leb128Encoder<Allocator>(this) { }
+
+  explicit Leb128EncodingVector(const Allocator& alloc)
+    : std::vector<uint8_t, Allocator>(alloc),
+      Leb128Encoder<Allocator>(this) { }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(Leb128EncodingVector);
