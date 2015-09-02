@@ -27,9 +27,9 @@ j_arg="-j$(nproc)"
 showcommands=
 make_command=
 
-if [[ "$TARGET_PRODUCT" == "armv8" ]]; then
-  linker="linker64"
-fi
+case "$TARGET_PRODUCT" in
+  (armv8|mips64r6) linker="linker64";;
+esac
 
 if [[ "$ART_TEST_ANDROID_ROOT" != "" ]]; then
   android_root="$ART_TEST_ANDROID_ROOT"
