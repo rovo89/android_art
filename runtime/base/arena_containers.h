@@ -76,6 +76,7 @@ template <bool kCount>
 class ArenaAllocatorAdapterKindImpl {
  public:
   explicit ArenaAllocatorAdapterKindImpl(ArenaAllocKind kind) : kind_(kind) { }
+  ArenaAllocatorAdapterKindImpl(const ArenaAllocatorAdapterKindImpl&) = default;
   ArenaAllocatorAdapterKindImpl& operator=(const ArenaAllocatorAdapterKindImpl&) = default;
   ArenaAllocKind Kind() { return kind_; }
 

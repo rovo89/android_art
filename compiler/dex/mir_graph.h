@@ -368,7 +368,7 @@ class MIR : public ArenaObject<kArenaAllocMIR> {
 
 struct SuccessorBlockInfo;
 
-class BasicBlock : public DeletableArenaObject<kArenaAllocBB> {
+class BasicBlock : public DeletableArenaObject<kArenaAllocBasicBlock> {
  public:
   BasicBlock(BasicBlockId block_id, BBType type, ArenaAllocator* allocator)
       : id(block_id),

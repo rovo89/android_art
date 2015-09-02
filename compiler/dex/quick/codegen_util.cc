@@ -1115,7 +1115,7 @@ void Mir2Lir::Materialize() {
 
 CompiledMethod* Mir2Lir::GetCompiledMethod() {
   // Combine vmap tables - core regs, then fp regs - into vmap_table.
-  Leb128EncodingVector vmap_encoder;
+  Leb128EncodingVector<> vmap_encoder;
   if (frame_size_ > 0) {
     // Prefix the encoded data with its size.
     size_t size = core_vmap_table_.size() + 1 /* marker */ + fp_vmap_table_.size();
