@@ -94,7 +94,7 @@ static DecodeSignedLeb128TestCase sleb128_tests[] = {
 TEST(Leb128Test, UnsignedSinglesVector) {
   // Test individual encodings.
   for (size_t i = 0; i < arraysize(uleb128_tests); ++i) {
-    Leb128EncodingVector builder;
+    Leb128EncodingVector<> builder;
     builder.PushBackUnsigned(uleb128_tests[i].decoded);
     EXPECT_EQ(UnsignedLeb128Size(uleb128_tests[i].decoded), builder.GetData().size());
     const uint8_t* data_ptr = &uleb128_tests[i].leb128_data[0];
@@ -131,7 +131,7 @@ TEST(Leb128Test, UnsignedSingles) {
 
 TEST(Leb128Test, UnsignedStreamVector) {
   // Encode a number of entries.
-  Leb128EncodingVector builder;
+  Leb128EncodingVector<> builder;
   for (size_t i = 0; i < arraysize(uleb128_tests); ++i) {
     builder.PushBackUnsigned(uleb128_tests[i].decoded);
   }
@@ -175,7 +175,7 @@ TEST(Leb128Test, UnsignedStream) {
 TEST(Leb128Test, SignedSinglesVector) {
   // Test individual encodings.
   for (size_t i = 0; i < arraysize(sleb128_tests); ++i) {
-    Leb128EncodingVector builder;
+    Leb128EncodingVector<> builder;
     builder.PushBackSigned(sleb128_tests[i].decoded);
     EXPECT_EQ(SignedLeb128Size(sleb128_tests[i].decoded), builder.GetData().size());
     const uint8_t* data_ptr = &sleb128_tests[i].leb128_data[0];
@@ -212,7 +212,7 @@ TEST(Leb128Test, SignedSingles) {
 
 TEST(Leb128Test, SignedStreamVector) {
   // Encode a number of entries.
-  Leb128EncodingVector builder;
+  Leb128EncodingVector<> builder;
   for (size_t i = 0; i < arraysize(sleb128_tests); ++i) {
     builder.PushBackSigned(sleb128_tests[i].decoded);
   }
@@ -275,7 +275,7 @@ TEST(Leb128Test, UnsignedUpdate) {
 TEST(Leb128Test, Speed) {
   std::unique_ptr<Histogram<uint64_t>> enc_hist(new Histogram<uint64_t>("Leb128EncodeSpeedTest", 5));
   std::unique_ptr<Histogram<uint64_t>> dec_hist(new Histogram<uint64_t>("Leb128DecodeSpeedTest", 5));
-  Leb128EncodingVector builder;
+  Leb128EncodingVector<> builder;
   // Push back 1024 chunks of 1024 values measuring encoding speed.
   uint64_t last_time = NanoTime();
   for (size_t i = 0; i < 1024; i++) {

@@ -294,9 +294,6 @@ void Push32(std::vector<uint8_t, Alloc>* buf, int32_t data) {
   buf->push_back((data >> 24) & 0xff);
 }
 
-void EncodeUnsignedLeb128(uint32_t data, std::vector<uint8_t>* buf);
-void EncodeSignedLeb128(int32_t data, std::vector<uint8_t>* buf);
-
 // Deleter using free() for use with std::unique_ptr<>. See also UniqueCPtr<> below.
 struct FreeDelete {
   // NOTE: Deleting a const object is valid but free() takes a non-const pointer.
