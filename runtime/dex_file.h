@@ -931,7 +931,7 @@ class DexFile {
       const SHARED_REQUIRES(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::Object>* GetAnnotationsForField(ArtField* field) const
       SHARED_REQUIRES(Locks::mutator_lock_);
-  mirror::ObjectArray<mirror::Object>* GetSignatureAnnotationForField(ArtField* field) const
+  mirror::ObjectArray<mirror::String>* GetSignatureAnnotationForField(ArtField* field) const
       SHARED_REQUIRES(Locks::mutator_lock_);
   bool IsFieldAnnotationPresent(ArtField* field, Handle<mirror::Class> annotation_class) const
       SHARED_REQUIRES(Locks::mutator_lock_);
@@ -946,7 +946,7 @@ class DexFile {
       const SHARED_REQUIRES(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::Object>* GetAnnotationsForMethod(ArtMethod* method) const
       SHARED_REQUIRES(Locks::mutator_lock_);
-  mirror::ObjectArray<mirror::Object>* GetExceptionTypesForMethod(ArtMethod* method) const
+  mirror::ObjectArray<mirror::Class>* GetExceptionTypesForMethod(ArtMethod* method) const
       SHARED_REQUIRES(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::Object>* GetParameterAnnotations(ArtMethod* method) const
       SHARED_REQUIRES(Locks::mutator_lock_);
@@ -959,6 +959,18 @@ class DexFile {
                                         Handle<mirror::Class> annotation_class) const
       SHARED_REQUIRES(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::Object>* GetAnnotationsForClass(Handle<mirror::Class> klass) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  mirror::ObjectArray<mirror::Class>* GetDeclaredClasses(Handle<mirror::Class> klass) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  mirror::Class* GetDeclaringClass(Handle<mirror::Class> klass) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  mirror::Class* GetEnclosingClass(Handle<mirror::Class> klass) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  mirror::Object* GetEnclosingMethod(Handle<mirror::Class> klass) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  bool GetInnerClass(Handle<mirror::Class> klass, mirror::String** name) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  bool GetInnerClassFlags(Handle<mirror::Class> klass, uint32_t* flags) const
       SHARED_REQUIRES(Locks::mutator_lock_);
   bool IsClassAnnotationPresent(Handle<mirror::Class> klass, Handle<mirror::Class> annotation_class)
       const SHARED_REQUIRES(Locks::mutator_lock_);
@@ -983,11 +995,11 @@ class DexFile {
                                      Handle<mirror::Class> array_class,
                                      uint32_t expected_type) const
       SHARED_REQUIRES(Locks::mutator_lock_);
-  mirror::ObjectArray<mirror::Object>* GetSignatureValue(Handle<mirror::Class> klass,
+  mirror::ObjectArray<mirror::String>* GetSignatureValue(Handle<mirror::Class> klass,
                                                          const AnnotationSetItem* annotation_set)
       const SHARED_REQUIRES(Locks::mutator_lock_);
-  mirror::ObjectArray<mirror::Object>* GetThrowsValue(Handle<mirror::Class> klass,
-                                                      const AnnotationSetItem* annotation_set) const
+  mirror::ObjectArray<mirror::Class>* GetThrowsValue(Handle<mirror::Class> klass,
+                                                     const AnnotationSetItem* annotation_set) const
       SHARED_REQUIRES(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::Object>* ProcessAnnotationSet(Handle<mirror::Class> klass,
                                                             const AnnotationSetItem* annotation_set,
