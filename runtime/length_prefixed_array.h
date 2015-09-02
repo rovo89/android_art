@@ -19,7 +19,6 @@
 
 #include <stddef.h>  // for offsetof()
 
-#include "linear_alloc.h"
 #include "stride_iterator.h"
 #include "base/bit_utils.h"
 #include "base/casts.h"
