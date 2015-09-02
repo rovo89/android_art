@@ -2543,15 +2543,12 @@ mirror::DexCache* ClassLinker::FindDexCacheLocked(Thread* self,
                                                   bool allow_failure) {
   // Search assuming unique-ness of dex file.
   JavaVMExt* const vm = self->GetJniEnv()->vm;
-  {
-    MutexLock mu(self, vm->WeakGlobalsLock());
-    for (jobject weak_root : dex_caches_) {
-      DCHECK_EQ(GetIndirectRefKind(weak_root), kWeakGlobal);
-      mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(
-          vm->DecodeWeakGlobalLocked(self, weak_root));
-      if (dex_cache != nullptr && dex_cache->GetDexFile() == &dex_file) {
-        return dex_cache;
-      }
+  for (jobject weak_root : dex_caches_) {
+    DCHECK_EQ(GetIndirectRefKind(weak_root), kWeakGlobal);
+    mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(
+        vm->DecodeWeakGlobal(self, weak_root));
+    if (dex_cache != nullptr && dex_cache->GetDexFile() == &dex_file) {
+      return dex_cache;
     }
   }
   if (allow_failure) {
