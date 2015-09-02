@@ -101,3 +101,10 @@ Package annotations:
 Package declared annotations:
       @android.test.anno.AnnoSimplePackage()
         interface android.test.anno.AnnoSimplePackage
+
+Inner Classes:
+Canonical:android.test.anno.ClassWithInnerClasses.InnerClass Simple:InnerClass
+Canonical:null Simple:
+
+Get annotation with missing class should not throw
+Got expected TypeNotPresentException
