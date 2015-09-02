@@ -82,15 +82,18 @@ static jobjectArray Method_getExceptionTypes(JNIEnv* env, jobject javaMethod) {
     mirror::ObjectArray<mirror::Class>* declared_exceptions = klass->GetThrows()->Get(throws_index);
     return soa.AddLocalReference<jobjectArray>(declared_exceptions->Clone(soa.Self()));
   } else {
-    mirror::ObjectArray<mirror::Object>* result_array =
+    mirror::ObjectArray<mirror::Class>* result_array =
         method->GetDexFile()->GetExceptionTypesForMethod(method);
     if (result_array == nullptr) {
       // Return an empty array instead of a null pointer
       mirror::Class* class_class = mirror::Class::GetJavaLangClass();
       mirror::Class* class_array_class =
           Runtime::Current()->GetClassLinker()->FindArrayClass(soa.Self(), &class_class);
-      mirror::ObjectArray<mirror::Object>* empty_array =
-          mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(), class_array_class, 0);
+      if (class_array_class == nullptr) {
+        return nullptr;
+      }
+      mirror::ObjectArray<mirror::Class>* empty_array =
+          mirror::ObjectArray<mirror::Class>::Alloc(soa.Self(), class_array_class, 0);
       return soa.AddLocalReference<jobjectArray>(empty_array);
     } else {
       return soa.AddLocalReference<jobjectArray>(result_array);
