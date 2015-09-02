@@ -585,7 +585,7 @@ CodeGenerator* CodeGenerator::Create(HGraph* graph,
 }
 
 void CodeGenerator::BuildNativeGCMap(
-    std::vector<uint8_t>* data, const DexCompilationUnit& dex_compilation_unit) const {
+    ArenaVector<uint8_t>* data, const DexCompilationUnit& dex_compilation_unit) const {
   const std::vector<uint8_t>& gc_map_raw =
       dex_compilation_unit.GetVerifiedMethod()->GetDexGcMap();
   verifier::DexPcToReferenceMap dex_gc_map(&(gc_map_raw)[0]);
@@ -613,7 +613,7 @@ void CodeGenerator::BuildSourceMap(DefaultSrcMap* src_map) const {
   }
 }
 
-void CodeGenerator::BuildMappingTable(std::vector<uint8_t>* data) const {
+void CodeGenerator::BuildMappingTable(ArenaVector<uint8_t>* data) const {
   uint32_t pc2dex_data_size = 0u;
   uint32_t pc2dex_entries = stack_map_stream_.GetNumberOfStackMaps();
   uint32_t pc2dex_offset = 0u;
@@ -712,18 +712,16 @@ void CodeGenerator::BuildMappingTable(std::vector<uint8_t>* data) const {
   }
 }
 
-void CodeGenerator::BuildVMapTable(std::vector<uint8_t>* data) const {
-  Leb128EncodingVector vmap_encoder;
+void CodeGenerator::BuildVMapTable(ArenaVector<uint8_t>* data) const {
+  Leb128Encoder<ArenaAllocatorAdapter<uint8_t>> vmap_encoder(data);
   // We currently don't use callee-saved registers.
   size_t size = 0 + 1 /* marker */ + 0;
   vmap_encoder.Reserve(size + 1u);  // All values are likely to be one byte in ULEB128 (<128).
   vmap_encoder.PushBackUnsigned(size);
   vmap_encoder.PushBackUnsigned(VmapTable::kAdjustedFpMarker);
-
-  *data = vmap_encoder.GetData();
 }
 
-void CodeGenerator::BuildStackMaps(std::vector<uint8_t>* data) {
+void CodeGenerator::BuildStackMaps(ArenaVector<uint8_t>* data) {
   uint32_t size = stack_map_stream_.PrepareForFillIn();
   data->resize(size);
   MemoryRegion region(data->data(), size);

@@ -108,8 +108,8 @@ class ExceptionTest : public CommonRuntimeTest {
   const DexFile* dex_;
 
   std::vector<uint8_t> fake_code_;
-  Leb128EncodingVector fake_mapping_data_;
-  Leb128EncodingVector fake_vmap_table_data_;
+  Leb128EncodingVector<> fake_mapping_data_;
+  Leb128EncodingVector<> fake_vmap_table_data_;
   std::vector<uint8_t> fake_gc_map_;
   std::vector<uint8_t> fake_header_code_and_maps_;
 

@@ -43,7 +43,6 @@ static constexpr bool kArenaAllocatorCountAllocations = false;
 // Type of allocation for memory tuning.
 enum ArenaAllocKind {
   kArenaAllocMisc,
-  kArenaAllocBB,
   kArenaAllocBBList,
   kArenaAllocBBPredecessors,
   kArenaAllocDfsPreOrder,
@@ -68,6 +67,18 @@ enum ArenaAllocKind {
   kArenaAllocData,
   kArenaAllocPredecessors,
   kArenaAllocSTL,
+  kArenaAllocGraph,
+  kArenaAllocBasicBlock,
+  kArenaAllocInstruction,
+  kArenaAllocLoopInfo,
+  kArenaAllocTryCatchInfo,
+  kArenaAllocUseListNode,
+  kArenaAllocEnvironment,
+  kArenaAllocMoveOperands,
+  kArenaAllocCodeBuffer,
+  kArenaAllocStackMaps,
+  kArenaAllocBaselineMaps,
+  kArenaAllocOptimization,
   kNumArenaAllocKinds
 };
 

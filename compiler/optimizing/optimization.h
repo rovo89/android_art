@@ -26,7 +26,7 @@ namespace art {
 /**
  * Abstraction to implement an optimization pass.
  */
-class HOptimization : public ArenaObject<kArenaAllocMisc> {
+class HOptimization : public ArenaObject<kArenaAllocOptimization> {
  public:
   HOptimization(HGraph* graph,
                 const char* pass_name,

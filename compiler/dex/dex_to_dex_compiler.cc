@@ -335,7 +335,7 @@ CompiledMethod* ArtCompileDEX(
     }
 
     // Create a `CompiledMethod`, with the quickened information in the vmap table.
-    Leb128EncodingVector builder;
+    Leb128EncodingVector<> builder;
     for (QuickenedInfo info : dex_compiler.GetQuickenedInfo()) {
       builder.PushBackUnsigned(info.dex_pc);
       builder.PushBackUnsigned(info.dex_member_index);
