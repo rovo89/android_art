@@ -67,8 +67,8 @@ class BoxTable FINAL {
   void AllowNewWeakBoxedLambdas()
       REQUIRES(!Locks::lambda_table_lock_);
 
-  // GC callback: Verify that the state is now blocking anyone from touching the map.
-  void EnsureNewWeakBoxedLambdasDisallowed()
+  // GC callback: Unblock any readers who have been queued waiting to touch the map.
+  void BroadcastForNewWeakBoxedLambdas()
       REQUIRES(!Locks::lambda_table_lock_);
 
   BoxTable();

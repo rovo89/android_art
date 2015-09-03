@@ -295,7 +295,6 @@ class MonitorList {
       REQUIRES(!monitor_list_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
   void DisallowNewMonitors() REQUIRES(!monitor_list_lock_);
   void AllowNewMonitors() REQUIRES(!monitor_list_lock_);
-  void EnsureNewMonitorsDisallowed() REQUIRES(!monitor_list_lock_);
   void BroadcastForNewMonitors() REQUIRES(!monitor_list_lock_);
   // Returns how many monitors were deflated.
   size_t DeflateMonitors() REQUIRES(!monitor_list_lock_) REQUIRES(Locks::mutator_lock_);
