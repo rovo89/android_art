@@ -36,7 +36,7 @@ static void TestCode(const uint16_t* data) {
   bool graph_built = builder.BuildGraph(*item);
   ASSERT_TRUE(graph_built);
 
-  HBasicBlock* first_block = graph->GetEntryBlock()->GetSuccessors().Get(0);
+  HBasicBlock* first_block = graph->GetEntryBlock()->GetSuccessor(0);
   HInstruction* first_instruction = first_block->GetFirstInstruction();
   // Account for some tests having a store local as first instruction.
   ASSERT_TRUE(first_instruction->IsSuspendCheck()

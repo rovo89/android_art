@@ -29,19 +29,16 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
   current_block_ = block;
 
   // Check consistency with respect to predecessors of `block`.
-  const GrowableArray<HBasicBlock*>& predecessors = block->GetPredecessors();
   std::map<HBasicBlock*, size_t> predecessors_count;
-  for (size_t i = 0, e = predecessors.Size(); i < e; ++i) {
-    HBasicBlock* p = predecessors.Get(i);
+  for (HBasicBlock* p : block->GetPredecessors()) {
     ++predecessors_count[p];
   }
   for (auto& pc : predecessors_count) {
     HBasicBlock* p = pc.first;
     size_t p_count_in_block_predecessors = pc.second;
-    const GrowableArray<HBasicBlock*>& p_successors = p->GetSuccessors();
     size_t block_count_in_p_successors = 0;
-    for (size_t j = 0, f = p_successors.Size(); j < f; ++j) {
-      if (p_successors.Get(j) == block) {
+    for (HBasicBlock* p_successor : p->GetSuccessors()) {
+      if (p_successor == block) {
         ++block_count_in_p_successors;
       }
     }
@@ -55,19 +52,16 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
   }
 
   // Check consistency with respect to successors of `block`.
-  const GrowableArray<HBasicBlock*>& successors = block->GetSuccessors();
   std::map<HBasicBlock*, size_t> successors_count;
-  for (size_t i = 0, e = successors.Size(); i < e; ++i) {
-    HBasicBlock* s = successors.Get(i);
+  for (HBasicBlock* s : block->GetSuccessors()) {
     ++successors_count[s];
   }
   for (auto& sc : successors_count) {
     HBasicBlock* s = sc.first;
     size_t s_count_in_block_successors = sc.second;
-    const GrowableArray<HBasicBlock*>& s_predecessors = s->GetPredecessors();
     size_t block_count_in_s_predecessors = 0;
-    for (size_t j = 0, f = s_predecessors.Size(); j < f; ++j) {
-      if (s_predecessors.Get(j) == block) {
+    for (HBasicBlock* s_predecessor : s->GetPredecessors()) {
+      if (s_predecessor == block) {
         ++block_count_in_s_predecessors;
       }
     }
@@ -92,8 +86,7 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
   // Ensure that only Return(Void) and Throw jump to Exit. An exiting
   // TryBoundary may be between a Throw and the Exit if the Throw is in a try.
   if (block->IsExitBlock()) {
-    for (size_t i = 0, e = block->GetPredecessors().Size(); i < e; ++i) {
-      HBasicBlock* predecessor = block->GetPredecessors().Get(i);
+    for (HBasicBlock* predecessor : block->GetPredecessors()) {
       if (predecessor->IsSingleTryBoundary()
           && !predecessor->GetLastInstruction()->AsTryBoundary()->IsEntry()) {
         HBasicBlock* real_predecessor = predecessor->GetSinglePredecessor();
@@ -178,8 +171,7 @@ void GraphChecker::VisitTryBoundary(HTryBoundary* try_boundary) {
                             try_boundary->GetId(),
                             handler->GetBlockId()));
     }
-    if (current_block_->GetSuccessors().Contains(
-            handler, /* start_from */ it.CurrentSuccessorIndex() + 1)) {
+    if (current_block_->HasSuccessor(handler, it.CurrentSuccessorIndex() + 1)) {
       AddError(StringPrintf("Exception handler block %d of %s:%d is listed multiple times.",
                             handler->GetBlockId(),
                             try_boundary->DebugName(),
@@ -359,15 +351,15 @@ void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
   // never exceptional successors.
   const size_t num_normal_successors = block->NumberOfNormalSuccessors();
   for (size_t j = 0; j < num_normal_successors; ++j) {
-    HBasicBlock* successor = block->GetSuccessors().Get(j);
+    HBasicBlock* successor = block->GetSuccessor(j);
     if (successor->IsCatchBlock()) {
       AddError(StringPrintf("Catch block %d is a normal successor of block %d.",
                             successor->GetBlockId(),
                             block->GetBlockId()));
     }
   }
-  for (size_t j = num_normal_successors, e = block->GetSuccessors().Size(); j < e; ++j) {
-    HBasicBlock* successor = block->GetSuccessors().Get(j);
+  for (size_t j = num_normal_successors, e = block->GetSuccessors().size(); j < e; ++j) {
+    HBasicBlock* successor = block->GetSuccessor(j);
     if (!successor->IsCatchBlock()) {
       AddError(StringPrintf("Normal block %d is an exceptional successor of block %d.",
                             successor->GetBlockId(),
@@ -381,8 +373,8 @@ void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
   // not accounted for.
   if (block->NumberOfNormalSuccessors() > 1) {
     for (size_t j = 0, e = block->NumberOfNormalSuccessors(); j < e; ++j) {
-      HBasicBlock* successor = block->GetSuccessors().Get(j);
-      if (successor->GetPredecessors().Size() > 1) {
+      HBasicBlock* successor = block->GetSuccessor(j);
+      if (successor->GetPredecessors().size() > 1) {
         AddError(StringPrintf("Critical edge between blocks %d and %d.",
                               block->GetBlockId(),
                               successor->GetBlockId()));
@@ -417,8 +409,7 @@ void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
                             block->GetBlockId()));
     }
   } else {
-    for (size_t i = 0; i < block->GetPredecessors().Size(); ++i) {
-      HBasicBlock* predecessor = block->GetPredecessors().Get(i);
+    for (HBasicBlock* predecessor : block->GetPredecessors()) {
       const HTryBoundary* incoming_try_entry = predecessor->ComputeTryEntryOfSuccessors();
       if (block->IsTryBlock()) {
         const HTryBoundary& stored_try_entry = block->GetTryCatchInformation()->GetTryEntry();
@@ -469,21 +460,21 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
 
   // Ensure the loop header has only one incoming branch and the remaining
   // predecessors are back edges.
-  size_t num_preds = loop_header->GetPredecessors().Size();
+  size_t num_preds = loop_header->GetPredecessors().size();
   if (num_preds < 2) {
     AddError(StringPrintf(
         "Loop header %d has less than two predecessors: %zu.",
         id,
         num_preds));
   } else {
-    HBasicBlock* first_predecessor = loop_header->GetPredecessors().Get(0);
+    HBasicBlock* first_predecessor = loop_header->GetPredecessor(0);
     if (loop_information->IsBackEdge(*first_predecessor)) {
       AddError(StringPrintf(
           "First predecessor of loop header %d is a back edge.",
           id));
     }
-    for (size_t i = 1, e = loop_header->GetPredecessors().Size(); i < e; ++i) {
-      HBasicBlock* predecessor = loop_header->GetPredecessors().Get(i);
+    for (size_t i = 1, e = loop_header->GetPredecessors().size(); i < e; ++i) {
+      HBasicBlock* predecessor = loop_header->GetPredecessor(i);
       if (!loop_information->IsBackEdge(*predecessor)) {
         AddError(StringPrintf(
             "Loop header %d has multiple incoming (non back edge) blocks.",
@@ -621,20 +612,19 @@ void SSAChecker::VisitPhi(HPhi* phi) {
   } else {
     // Ensure the number of inputs of a non-catch phi is the same as the number
     // of its predecessors.
-    const GrowableArray<HBasicBlock*>& predecessors =
-        phi->GetBlock()->GetPredecessors();
-    if (phi->InputCount() != predecessors.Size()) {
+    const ArenaVector<HBasicBlock*>& predecessors = phi->GetBlock()->GetPredecessors();
+    if (phi->InputCount() != predecessors.size()) {
       AddError(StringPrintf(
           "Phi %d in block %d has %zu inputs, "
           "but block %d has %zu predecessors.",
           phi->GetId(), phi->GetBlock()->GetBlockId(), phi->InputCount(),
-          phi->GetBlock()->GetBlockId(), predecessors.Size()));
+          phi->GetBlock()->GetBlockId(), predecessors.size()));
     } else {
       // Ensure phi input at index I either comes from the Ith
       // predecessor or from a block that dominates this predecessor.
       for (size_t i = 0, e = phi->InputCount(); i < e; ++i) {
         HInstruction* input = phi->InputAt(i);
-        HBasicBlock* predecessor = predecessors.Get(i);
+        HBasicBlock* predecessor = predecessors[i];
         if (!(input->GetBlock() == predecessor
               || input->GetBlock()->Dominates(predecessor))) {
           AddError(StringPrintf(
