@@ -699,16 +699,17 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
 /* Parse a Dex method and insert it into the MIRGraph at the current insert point. */
 void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
                            InvokeType invoke_type ATTRIBUTE_UNUSED, uint16_t class_def_idx,
-                           uint32_t method_idx, jobject class_loader, const DexFile& dex_file) {
+                           uint32_t method_idx, jobject class_loader, const DexFile& dex_file,
+                           Handle<mirror::DexCache> dex_cache) {
   current_code_item_ = code_item;
   method_stack_.push_back(std::make_pair(current_method_, current_offset_));
   current_method_ = m_units_.size();
   current_offset_ = 0;
   // TODO: will need to snapshot stack image and use that as the mir context identification.
   m_units_.push_back(new (arena_) DexCompilationUnit(
-      cu_, class_loader, Runtime::Current()->GetClassLinker(), dex_file,
-      current_code_item_, class_def_idx, method_idx, access_flags,
-      cu_->compiler_driver->GetVerifiedMethod(&dex_file, method_idx)));
+      cu_, class_loader, Runtime::Current()->GetClassLinker(), dex_file, current_code_item_,
+      class_def_idx, method_idx, access_flags,
+      cu_->compiler_driver->GetVerifiedMethod(&dex_file, method_idx), dex_cache));
   const uint16_t* code_ptr = current_code_item_->insns_;
   const uint16_t* code_end =
       current_code_item_->insns_ + current_code_item_->insns_size_in_code_units_;

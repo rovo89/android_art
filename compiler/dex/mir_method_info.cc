@@ -112,7 +112,8 @@ void MirMethodLoweringInfo::Resolve(CompilerDriver* compiler_driver,
           mUnit->GetCompilationUnit(), mUnit->GetClassLoader(), mUnit->GetClassLinker(),
           *it->target_dex_file_, nullptr /* code_item not used */, 0u /* class_def_idx not used */,
           it->target_method_idx_, 0u /* access_flags not used */,
-          nullptr /* verified_method not used */);
+          nullptr /* verified_method not used */,
+          current_dex_cache);
       resolved_method = compiler_driver->ResolveMethod(soa, current_dex_cache, class_loader, &cu,
                                                        it->target_method_idx_, invoke_type, false);
       if (resolved_method == nullptr) {
