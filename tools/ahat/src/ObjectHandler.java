@@ -39,7 +39,7 @@ class ObjectHandler extends AhatHandler {
     long id = query.getLong("id", 0);
     Instance inst = mSnapshot.findInstance(id);
     if (inst == null) {
-      doc.println(DocString.text("No object with id %08xl", id));
+      doc.println(DocString.format("No object with id %08xl", id));
       return;
     }
 
@@ -53,10 +53,10 @@ class ObjectHandler extends AhatHandler {
     ClassObj cls = inst.getClassObj();
     doc.descriptions();
     doc.description(DocString.text("Class"), Value.render(cls));
-    doc.description(DocString.text("Size"), DocString.text("%d", inst.getSize()));
+    doc.description(DocString.text("Size"), DocString.format("%d", inst.getSize()));
     doc.description(
         DocString.text("Retained Size"),
-        DocString.text("%d", inst.getTotalRetainedSize()));
+        DocString.format("%d", inst.getTotalRetainedSize()));
     doc.description(DocString.text("Heap"), DocString.text(inst.getHeap().getName()));
     doc.end();
 
@@ -89,7 +89,7 @@ class ObjectHandler extends AhatHandler {
     doc.table(new Column("Index", Column.Align.RIGHT), new Column("Value"));
     Object[] elements = array.getValues();
     for (int i = 0; i < elements.length; i++) {
-      doc.row(DocString.text("%d", i), Value.render(elements[i]));
+      doc.row(DocString.format("%d", i), Value.render(elements[i]));
     }
     doc.end();
   }
@@ -146,7 +146,7 @@ class ObjectHandler extends AhatHandler {
     if (bitmap != null) {
       doc.section("Bitmap Image");
       doc.println(DocString.image(
-            DocString.uri("bitmap?id=%d", bitmap.getId()), "bitmap image"));
+            DocString.formattedUri("bitmap?id=%d", bitmap.getId()), "bitmap image"));
     }
   }
 
