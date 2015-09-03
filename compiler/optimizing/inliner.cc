@@ -417,8 +417,8 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
   }
 
   bool has_throw_predecessor = false;
-  for (size_t i = 0, e = exit_block->GetPredecessors().Size(); i < e; ++i) {
-    if (exit_block->GetPredecessors().Get(i)->GetLastInstruction()->IsThrow()) {
+  for (HBasicBlock* predecessor : exit_block->GetPredecessors()) {
+    if (predecessor->GetLastInstruction()->IsThrow()) {
       has_throw_predecessor = true;
       break;
     }
