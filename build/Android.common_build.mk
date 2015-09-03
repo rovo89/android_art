@@ -333,7 +333,7 @@ ifeq ($(HOST_OS),linux)
     ifneq ($(NATIVE_COVERAGE),true)
       art_host_non_debug_cflags += -Wframe-larger-than=2700
       ifdef SANITIZE_TARGET
-        art_target_non_debug_cflags += -Wframe-larger-than=5450
+        art_target_non_debug_cflags += -Wframe-larger-than=6400
       else
         art_target_non_debug_cflags += -Wframe-larger-than=1728
       endif
