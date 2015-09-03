@@ -68,8 +68,8 @@ void HGraph::RemoveDeadBlocks(const ArenaBitVector& visited) {
     if (!visited.IsBitSet(i)) {
       HBasicBlock* block = blocks_.Get(i);
       // We only need to update the successor, which might be live.
-      for (HBasicBlock* successor : block->GetSuccessors()) {
-        successor->RemovePredecessor(block);
+      for (size_t j = 0; j < block->GetSuccessors().Size(); ++j) {
+        block->GetSuccessors().Get(j)->RemovePredecessor(block);
       }
       // Remove the block from the list of blocks, so that further analyses
       // never see it.
@@ -86,7 +86,8 @@ void HGraph::VisitBlockForBackEdges(HBasicBlock* block,
 
   visited->SetBit(id);
   visiting->SetBit(id);
-  for (HBasicBlock* successor : block->GetSuccessors()) {
+  for (size_t i = 0; i < block->GetSuccessors().Size(); i++) {
+    HBasicBlock* successor = block->GetSuccessors().Get(i);
     if (visiting->IsBitSet(successor->GetBlockId())) {
       successor->AddBackEdge(block);
     } else {
@@ -133,7 +134,7 @@ void HGraph::ClearDominanceInformation() {
 }
 
 void HBasicBlock::ClearDominanceInformation() {
-  dominated_blocks_.clear();
+  dominated_blocks_.Reset();
   dominator_ = nullptr;
 }
 
@@ -142,8 +143,8 @@ void HGraph::ComputeDominanceInformation() {
   GrowableArray<size_t> visits(arena_, blocks_.Size());
   visits.SetSize(blocks_.Size());
   reverse_post_order_.Add(entry_block_);
-  for (HBasicBlock* successor : entry_block_->GetSuccessors()) {
-    VisitBlockForDominatorTree(successor, entry_block_, &visits);
+  for (size_t i = 0; i < entry_block_->GetSuccessors().Size(); i++) {
+    VisitBlockForDominatorTree(entry_block_->GetSuccessors().Get(i), entry_block_, &visits);
   }
 }
 
@@ -178,11 +179,11 @@ void HGraph::VisitBlockForDominatorTree(HBasicBlock* block,
   // Once all the forward edges have been visited, we know the immediate
   // dominator of the block. We can then start visiting its successors.
   if (visits->Get(block->GetBlockId()) ==
-      block->GetPredecessors().size() - block->NumberOfBackEdges()) {
+      block->GetPredecessors().Size() - block->NumberOfBackEdges()) {
     block->GetDominator()->AddDominatedBlock(block);
     reverse_post_order_.Add(block);
-    for (HBasicBlock* successor : block->GetSuccessors()) {
-      VisitBlockForDominatorTree(successor, block, visits);
+    for (size_t i = 0; i < block->GetSuccessors().Size(); i++) {
+      VisitBlockForDominatorTree(block->GetSuccessors().Get(i), block, visits);
     }
   }
 }
@@ -223,14 +224,14 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
   // Make sure the loop has only one pre header. This simplifies SSA building by having
   // to just look at the pre header to know which locals are initialized at entry of the
   // loop.
-  size_t number_of_incomings = header->GetPredecessors().size() - info->NumberOfBackEdges();
+  size_t number_of_incomings = header->GetPredecessors().Size() - info->NumberOfBackEdges();
   if (number_of_incomings != 1) {
     HBasicBlock* pre_header = new (arena_) HBasicBlock(this, header->GetDexPc());
     AddBlock(pre_header);
     pre_header->AddInstruction(new (arena_) HGoto());
 
-    for (size_t pred = 0; pred < header->GetPredecessors().size(); ++pred) {
-      HBasicBlock* predecessor = header->GetPredecessor(pred);
+    for (size_t pred = 0; pred < header->GetPredecessors().Size(); ++pred) {
+      HBasicBlock* predecessor = header->GetPredecessors().Get(pred);
       if (!info->IsBackEdge(*predecessor)) {
         predecessor->ReplaceSuccessor(header, pre_header);
         pred--;
@@ -240,13 +241,13 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
   }
 
   // Make sure the first predecessor of a loop header is the incoming block.
-  if (info->IsBackEdge(*header->GetPredecessor(0))) {
-    HBasicBlock* to_swap = header->GetPredecessor(0);
-    for (size_t pred = 1, e = header->GetPredecessors().size(); pred < e; ++pred) {
-      HBasicBlock* predecessor = header->GetPredecessor(pred);
+  if (info->IsBackEdge(*header->GetPredecessors().Get(0))) {
+    HBasicBlock* to_swap = header->GetPredecessors().Get(0);
+    for (size_t pred = 1, e = header->GetPredecessors().Size(); pred < e; ++pred) {
+      HBasicBlock* predecessor = header->GetPredecessors().Get(pred);
       if (!info->IsBackEdge(*predecessor)) {
-        header->predecessors_[pred] = to_swap;
-        header->predecessors_[0] = predecessor;
+        header->predecessors_.Put(pred, to_swap);
+        header->predecessors_.Put(0, predecessor);
         break;
       }
     }
@@ -266,7 +267,7 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
 }
 
 static bool CheckIfPredecessorAtIsExceptional(const HBasicBlock& block, size_t pred_idx) {
-  HBasicBlock* predecessor = block.GetPredecessor(pred_idx);
+  HBasicBlock* predecessor = block.GetPredecessors().Get(pred_idx);
   if (!predecessor->EndsWithTryBoundary()) {
     // Only edges from HTryBoundary can be exceptional.
     return false;
@@ -295,7 +296,7 @@ void HGraph::SimplifyCatchBlocks() {
     }
 
     bool exceptional_predecessors_only = true;
-    for (size_t j = 0; j < catch_block->GetPredecessors().size(); ++j) {
+    for (size_t j = 0; j < catch_block->GetPredecessors().Size(); ++j) {
       if (!CheckIfPredecessorAtIsExceptional(*catch_block, j)) {
         exceptional_predecessors_only = false;
         break;
@@ -312,9 +313,9 @@ void HGraph::SimplifyCatchBlocks() {
       // a MOVE_EXCEPTION instruction, as guaranteed by the verifier.
       DCHECK(!catch_block->GetFirstInstruction()->IsLoadException());
       HBasicBlock* normal_block = catch_block->SplitBefore(catch_block->GetFirstInstruction());
-      for (size_t j = 0; j < catch_block->GetPredecessors().size(); ++j) {
+      for (size_t j = 0; j < catch_block->GetPredecessors().Size(); ++j) {
         if (!CheckIfPredecessorAtIsExceptional(*catch_block, j)) {
-          catch_block->GetPredecessor(j)->ReplaceSuccessor(catch_block, normal_block);
+          catch_block->GetPredecessors().Get(j)->ReplaceSuccessor(catch_block, normal_block);
           --j;
         }
       }
@@ -336,7 +337,7 @@ void HGraph::ComputeTryBlockInformation() {
     // Infer try membership from the first predecessor. Having simplified loops,
     // the first predecessor can never be a back edge and therefore it must have
     // been visited already and had its try membership set.
-    HBasicBlock* first_predecessor = block->GetPredecessor(0);
+    HBasicBlock* first_predecessor = block->GetPredecessors().Get(0);
     DCHECK(!block->IsLoopHeader() || !block->GetLoopInformation()->IsBackEdge(*first_predecessor));
     const HTryBoundary* try_entry = first_predecessor->ComputeTryEntryOfSuccessors();
     if (try_entry != nullptr) {
@@ -363,10 +364,10 @@ void HGraph::SimplifyCFG() {
     HBasicBlock* block = blocks_.Get(i);
     if (block == nullptr) continue;
     if (block->NumberOfNormalSuccessors() > 1) {
-      for (size_t j = 0; j < block->GetSuccessors().size(); ++j) {
-        HBasicBlock* successor = block->GetSuccessor(j);
+      for (size_t j = 0; j < block->GetSuccessors().Size(); ++j) {
+        HBasicBlock* successor = block->GetSuccessors().Get(j);
         DCHECK(!successor->IsCatchBlock());
-        if (successor->GetPredecessors().size() > 1) {
+        if (successor->GetPredecessors().Size() > 1) {
           SplitCriticalEdge(block, successor);
           --j;
         }
@@ -484,8 +485,8 @@ void HLoopInformation::PopulateRecursive(HBasicBlock* block) {
 
   blocks_.SetBit(block->GetBlockId());
   block->SetInLoop(this);
-  for (HBasicBlock* predecessor : block->GetPredecessors()) {
-    PopulateRecursive(predecessor);
+  for (size_t i = 0, e = block->GetPredecessors().Size(); i < e; ++i) {
+    PopulateRecursive(block->GetPredecessors().Get(i));
   }
 }
 
@@ -1135,11 +1136,12 @@ HBasicBlock* HBasicBlock::SplitBefore(HInstruction* cursor) {
   new_block->instructions_.SetBlockOfInstructions(new_block);
   AddInstruction(new (GetGraph()->GetArena()) HGoto());
 
-  for (HBasicBlock* successor : GetSuccessors()) {
-    new_block->successors_.push_back(successor);
-    successor->predecessors_[successor->GetPredecessorIndexOf(this)] = new_block;
+  for (size_t i = 0, e = GetSuccessors().Size(); i < e; ++i) {
+    HBasicBlock* successor = GetSuccessors().Get(i);
+    new_block->successors_.Add(successor);
+    successor->predecessors_.Put(successor->GetPredecessorIndexOf(this), new_block);
   }
-  successors_.clear();
+  successors_.Reset();
   AddSuccessor(new_block);
 
   GetGraph()->AddBlock(new_block);
@@ -1159,17 +1161,19 @@ HBasicBlock* HBasicBlock::SplitAfter(HInstruction* cursor) {
   instructions_.last_instruction_ = cursor;
 
   new_block->instructions_.SetBlockOfInstructions(new_block);
-  for (HBasicBlock* successor : GetSuccessors()) {
-    new_block->successors_.push_back(successor);
-    successor->predecessors_[successor->GetPredecessorIndexOf(this)] = new_block;
+  for (size_t i = 0, e = GetSuccessors().Size(); i < e; ++i) {
+    HBasicBlock* successor = GetSuccessors().Get(i);
+    new_block->successors_.Add(successor);
+    successor->predecessors_.Put(successor->GetPredecessorIndexOf(this), new_block);
   }
-  successors_.clear();
+  successors_.Reset();
 
-  for (HBasicBlock* dominated : GetDominatedBlocks()) {
+  for (size_t i = 0, e = GetDominatedBlocks().Size(); i < e; ++i) {
+    HBasicBlock* dominated = GetDominatedBlocks().Get(i);
     dominated->dominator_ = new_block;
-    new_block->dominated_blocks_.push_back(dominated);
+    new_block->dominated_blocks_.Add(dominated);
   }
-  dominated_blocks_.clear();
+  dominated_blocks_.Reset();
   return new_block;
 }
 
@@ -1222,7 +1226,7 @@ bool HBasicBlock::HasSinglePhi() const {
 }
 
 bool HTryBoundary::HasSameExceptionHandlersAs(const HTryBoundary& other) const {
-  if (GetBlock()->GetSuccessors().size() != other.GetBlock()->GetSuccessors().size()) {
+  if (GetBlock()->GetSuccessors().Size() != other.GetBlock()->GetSuccessors().Size()) {
     return false;
   }
 
@@ -1282,7 +1286,7 @@ void HBasicBlock::DisconnectAndDelete() {
   // Dominators must be removed after all the blocks they dominate. This way
   // a loop header is removed last, a requirement for correct loop information
   // iteration.
-  DCHECK(dominated_blocks_.empty());
+  DCHECK(dominated_blocks_.IsEmpty());
 
   // Remove the block from all loops it is included in.
   for (HLoopInformationOutwardIterator it(*this); !it.Done(); it.Advance()) {
@@ -1298,34 +1302,36 @@ void HBasicBlock::DisconnectAndDelete() {
 
   // Disconnect the block from its predecessors and update their control-flow
   // instructions.
-  for (HBasicBlock* predecessor : predecessors_) {
+  for (size_t i = 0, e = predecessors_.Size(); i < e; ++i) {
+    HBasicBlock* predecessor = predecessors_.Get(i);
     HInstruction* last_instruction = predecessor->GetLastInstruction();
     predecessor->RemoveInstruction(last_instruction);
     predecessor->RemoveSuccessor(this);
-    if (predecessor->GetSuccessors().size() == 1u) {
+    if (predecessor->GetSuccessors().Size() == 1u) {
       DCHECK(last_instruction->IsIf());
       predecessor->AddInstruction(new (graph_->GetArena()) HGoto());
     } else {
       // The predecessor has no remaining successors and therefore must be dead.
       // We deliberately leave it without a control-flow instruction so that the
       // SSAChecker fails unless it is not removed during the pass too.
-      DCHECK_EQ(predecessor->GetSuccessors().size(), 0u);
+      DCHECK_EQ(predecessor->GetSuccessors().Size(), 0u);
     }
   }
-  predecessors_.clear();
+  predecessors_.Reset();
 
   // Disconnect the block from its successors and update their phis.
-  for (HBasicBlock* successor : successors_) {
+  for (size_t i = 0, e = successors_.Size(); i < e; ++i) {
+    HBasicBlock* successor = successors_.Get(i);
     // Delete this block from the list of predecessors.
     size_t this_index = successor->GetPredecessorIndexOf(this);
-    successor->predecessors_.erase(successor->predecessors_.begin() + this_index);
+    successor->predecessors_.DeleteAt(this_index);
 
     // Check that `successor` has other predecessors, otherwise `this` is the
     // dominator of `successor` which violates the order DCHECKed at the top.
-    DCHECK(!successor->predecessors_.empty());
+    DCHECK(!successor->predecessors_.IsEmpty());
 
     // Remove this block's entries in the successor's phis.
-    if (successor->predecessors_.size() == 1u) {
+    if (successor->predecessors_.Size() == 1u) {
       // The successor has just one predecessor left. Replace phis with the only
       // remaining input.
       for (HInstructionIterator phi_it(successor->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
@@ -1339,7 +1345,7 @@ void HBasicBlock::DisconnectAndDelete() {
       }
     }
   }
-  successors_.clear();
+  successors_.Reset();
 
   // Disconnect from the dominator.
   dominator_->RemoveDominatedBlock(this);
@@ -1353,10 +1359,11 @@ void HBasicBlock::DisconnectAndDelete() {
 
 void HBasicBlock::MergeWith(HBasicBlock* other) {
   DCHECK_EQ(GetGraph(), other->GetGraph());
-  DCHECK(std::find(dominated_blocks_.begin(), dominated_blocks_.end(), other) !=
-      dominated_blocks_.end());
-  DCHECK_EQ(GetSingleSuccessor(), other);
-  DCHECK_EQ(other->GetSinglePredecessor(), this);
+  DCHECK(GetDominatedBlocks().Contains(other));
+  DCHECK_EQ(GetSuccessors().Size(), 1u);
+  DCHECK_EQ(GetSuccessors().Get(0), other);
+  DCHECK_EQ(other->GetPredecessors().Size(), 1u);
+  DCHECK_EQ(other->GetPredecessors().Get(0), this);
   DCHECK(other->GetPhis().IsEmpty());
 
   // Move instructions from `other` to `this`.
@@ -1376,23 +1383,24 @@ void HBasicBlock::MergeWith(HBasicBlock* other) {
   }
 
   // Update links to the successors of `other`.
-  successors_.clear();
-  while (!other->successors_.empty()) {
-    HBasicBlock* successor = other->GetSuccessor(0);
+  successors_.Reset();
+  while (!other->successors_.IsEmpty()) {
+    HBasicBlock* successor = other->successors_.Get(0);
     successor->ReplacePredecessor(other, this);
   }
 
   // Update the dominator tree.
-  RemoveDominatedBlock(other);
-  for (HBasicBlock* dominated : other->GetDominatedBlocks()) {
-    dominated_blocks_.push_back(dominated);
+  dominated_blocks_.Delete(other);
+  for (size_t i = 0, e = other->GetDominatedBlocks().Size(); i < e; ++i) {
+    HBasicBlock* dominated = other->GetDominatedBlocks().Get(i);
+    dominated_blocks_.Add(dominated);
     dominated->SetDominator(this);
   }
-  other->dominated_blocks_.clear();
+  other->dominated_blocks_.Reset();
   other->dominator_ = nullptr;
 
   // Clear the list of predecessors of `other` in preparation of deleting it.
-  other->predecessors_.clear();
+  other->predecessors_.Reset();
 
   // Delete `other` from the graph. The function updates reverse post order.
   graph_->DeleteDeadBlock(other);
@@ -1401,10 +1409,11 @@ void HBasicBlock::MergeWith(HBasicBlock* other) {
 
 void HBasicBlock::MergeWithInlined(HBasicBlock* other) {
   DCHECK_NE(GetGraph(), other->GetGraph());
-  DCHECK(GetDominatedBlocks().empty());
-  DCHECK(GetSuccessors().empty());
+  DCHECK(GetDominatedBlocks().IsEmpty());
+  DCHECK(GetSuccessors().IsEmpty());
   DCHECK(!EndsWithControlFlowInstruction());
-  DCHECK(other->GetSinglePredecessor()->IsEntryBlock());
+  DCHECK_EQ(other->GetPredecessors().Size(), 1u);
+  DCHECK(other->GetPredecessors().Get(0)->IsEntryBlock());
   DCHECK(other->GetPhis().IsEmpty());
   DCHECK(!other->IsInLoop());
 
@@ -1413,33 +1422,34 @@ void HBasicBlock::MergeWithInlined(HBasicBlock* other) {
   other->instructions_.SetBlockOfInstructions(this);
 
   // Update links to the successors of `other`.
-  successors_.clear();
-  while (!other->successors_.empty()) {
-    HBasicBlock* successor = other->GetSuccessor(0);
+  successors_.Reset();
+  while (!other->successors_.IsEmpty()) {
+    HBasicBlock* successor = other->successors_.Get(0);
     successor->ReplacePredecessor(other, this);
   }
 
   // Update the dominator tree.
-  for (HBasicBlock* dominated : other->GetDominatedBlocks()) {
-    dominated_blocks_.push_back(dominated);
+  for (size_t i = 0, e = other->GetDominatedBlocks().Size(); i < e; ++i) {
+    HBasicBlock* dominated = other->GetDominatedBlocks().Get(i);
+    dominated_blocks_.Add(dominated);
     dominated->SetDominator(this);
   }
-  other->dominated_blocks_.clear();
+  other->dominated_blocks_.Reset();
   other->dominator_ = nullptr;
   other->graph_ = nullptr;
 }
 
 void HBasicBlock::ReplaceWith(HBasicBlock* other) {
-  while (!GetPredecessors().empty()) {
-    HBasicBlock* predecessor = GetPredecessor(0);
+  while (!GetPredecessors().IsEmpty()) {
+    HBasicBlock* predecessor = GetPredecessors().Get(0);
     predecessor->ReplaceSuccessor(this, other);
   }
-  while (!GetSuccessors().empty()) {
-    HBasicBlock* successor = GetSuccessor(0);
+  while (!GetSuccessors().IsEmpty()) {
+    HBasicBlock* successor = GetSuccessors().Get(0);
     successor->ReplacePredecessor(this, other);
   }
-  for (HBasicBlock* dominated : GetDominatedBlocks()) {
-    other->AddDominatedBlock(dominated);
+  for (size_t i = 0; i < dominated_blocks_.Size(); ++i) {
+    other->AddDominatedBlock(dominated_blocks_.Get(i));
   }
   GetDominator()->ReplaceDominatedBlock(this, other);
   other->SetDominator(GetDominator());
@@ -1462,9 +1472,9 @@ static void MakeRoomFor(GrowableArray<HBasicBlock*>* blocks,
 
 void HGraph::DeleteDeadBlock(HBasicBlock* block) {
   DCHECK_EQ(block->GetGraph(), this);
-  DCHECK(block->GetSuccessors().empty());
-  DCHECK(block->GetPredecessors().empty());
-  DCHECK(block->GetDominatedBlocks().empty());
+  DCHECK(block->GetSuccessors().IsEmpty());
+  DCHECK(block->GetPredecessors().IsEmpty());
+  DCHECK(block->GetDominatedBlocks().IsEmpty());
   DCHECK(block->GetDominator() == nullptr);
 
   for (HBackwardInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
@@ -1538,16 +1548,16 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     HBasicBlock* at = invoke->GetBlock();
     HBasicBlock* to = at->SplitAfter(invoke);
 
-    HBasicBlock* first = entry_block_->GetSuccessor(0);
+    HBasicBlock* first = entry_block_->GetSuccessors().Get(0);
     DCHECK(!first->IsInLoop());
     at->MergeWithInlined(first);
     exit_block_->ReplaceWith(to);
 
     // Update all predecessors of the exit block (now the `to` block)
     // to not `HReturn` but `HGoto` instead.
-    bool returns_void = to->GetPredecessor(0)->GetLastInstruction()->IsReturnVoid();
-    if (to->GetPredecessors().size() == 1) {
-      HBasicBlock* predecessor = to->GetPredecessor(0);
+    bool returns_void = to->GetPredecessors().Get(0)->GetLastInstruction()->IsReturnVoid();
+    if (to->GetPredecessors().Size() == 1) {
+      HBasicBlock* predecessor = to->GetPredecessors().Get(0);
       HInstruction* last = predecessor->GetLastInstruction();
       if (!returns_void) {
         return_value = last->InputAt(0);
@@ -1561,7 +1571,8 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
             allocator, kNoRegNumber, 0, HPhi::ToPhiType(invoke->GetType()));
         to->AddPhi(return_value->AsPhi());
       }
-      for (HBasicBlock* predecessor : to->GetPredecessors()) {
+      for (size_t i = 0, e = to->GetPredecessors().Size(); i < e; ++i) {
+        HBasicBlock* predecessor = to->GetPredecessors().Get(i);
         HInstruction* last = predecessor->GetLastInstruction();
         if (!returns_void) {
           return_value->AsPhi()->AddInput(last->InputAt(0));
@@ -1709,8 +1720,8 @@ void HGraph::TransformLoopHeaderForBCE(HBasicBlock* header) {
   AddBlock(new_pre_header);
 
   header->ReplacePredecessor(pre_header, new_pre_header);
-  pre_header->successors_.clear();
-  pre_header->dominated_blocks_.clear();
+  pre_header->successors_.Reset();
+  pre_header->dominated_blocks_.Reset();
 
   pre_header->AddSuccessor(if_block);
   if_block->AddSuccessor(dummy_block);  // True successor
@@ -1718,15 +1729,15 @@ void HGraph::TransformLoopHeaderForBCE(HBasicBlock* header) {
   dummy_block->AddSuccessor(new_pre_header);
   deopt_block->AddSuccessor(new_pre_header);
 
-  pre_header->dominated_blocks_.push_back(if_block);
+  pre_header->dominated_blocks_.Add(if_block);
   if_block->SetDominator(pre_header);
-  if_block->dominated_blocks_.push_back(dummy_block);
+  if_block->dominated_blocks_.Add(dummy_block);
   dummy_block->SetDominator(if_block);
-  if_block->dominated_blocks_.push_back(deopt_block);
+  if_block->dominated_blocks_.Add(deopt_block);
   deopt_block->SetDominator(if_block);
-  if_block->dominated_blocks_.push_back(new_pre_header);
+  if_block->dominated_blocks_.Add(new_pre_header);
   new_pre_header->SetDominator(if_block);
-  new_pre_header->dominated_blocks_.push_back(header);
+  new_pre_header->dominated_blocks_.Add(header);
   header->SetDominator(new_pre_header);
 
   size_t index_of_header = 0;

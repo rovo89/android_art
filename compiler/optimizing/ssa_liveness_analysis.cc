@@ -73,7 +73,7 @@ void SsaLivenessAnalysis::LinearizeGraph() {
   forward_predecessors.SetSize(graph_->GetBlocks().Size());
   for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
-    size_t number_of_forward_predecessors = block->GetPredecessors().size();
+    size_t number_of_forward_predecessors = block->GetPredecessors().Size();
     if (block->IsLoopHeader()) {
       number_of_forward_predecessors -= block->GetLoopInformation()->NumberOfBackEdges();
     }
@@ -89,7 +89,8 @@ void SsaLivenessAnalysis::LinearizeGraph() {
   do {
     HBasicBlock* current = worklist.Pop();
     graph_->linear_order_.Add(current);
-    for (HBasicBlock* successor : current->GetSuccessors()) {
+    for (size_t i = 0, e = current->GetSuccessors().Size(); i < e; ++i) {
+      HBasicBlock* successor = current->GetSuccessors().Get(i);
       int block_id = successor->GetBlockId();
       size_t number_of_remaining_predecessors = forward_predecessors.Get(block_id);
       if (number_of_remaining_predecessors == 1) {
@@ -184,7 +185,8 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
 
     // Set phi inputs of successors of this block corresponding to this block
     // as live_in.
-    for (HBasicBlock* successor : block->GetSuccessors()) {
+    for (size_t i = 0, e = block->GetSuccessors().Size(); i < e; ++i) {
+      HBasicBlock* successor = block->GetSuccessors().Get(i);
       live_in->Union(GetLiveInSet(*successor));
       size_t phi_input_index = successor->GetPredecessorIndexOf(block);
       for (HInstructionIterator inst_it(successor->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
@@ -294,7 +296,8 @@ bool SsaLivenessAnalysis::UpdateLiveOut(const HBasicBlock& block) {
   BitVector* live_out = GetLiveOutSet(block);
   bool changed = false;
   // The live_out set of a block is the union of live_in sets of its successors.
-  for (HBasicBlock* successor : block.GetSuccessors()) {
+  for (size_t i = 0, e = block.GetSuccessors().Size(); i < e; ++i) {
+    HBasicBlock* successor = block.GetSuccessors().Get(i);
     if (live_out->Union(GetLiveInSet(*successor))) {
       changed = true;
     }
@@ -339,8 +342,8 @@ int LiveInterval::FindFirstRegisterHint(size_t* free_until,
     // will avoid a move between the two blocks.
     HBasicBlock* block = liveness.GetBlockFromPosition(GetStart() / 2);
     size_t next_register_use = FirstRegisterUse();
-    for (HBasicBlock* predecessor : block->GetPredecessors()) {
-      size_t position = predecessor->GetLifetimeEnd() - 1;
+    for (size_t i = 0; i < block->GetPredecessors().Size(); ++i) {
+      size_t position = block->GetPredecessors().Get(i)->GetLifetimeEnd() - 1;
       // We know positions above GetStart() do not have a location yet.
       if (position < GetStart()) {
         LiveInterval* existing = GetParent()->GetSiblingAt(position);
@@ -373,16 +376,17 @@ int LiveInterval::FindFirstRegisterHint(size_t* free_until,
             return reg;
           }
         }
+        const GrowableArray<HBasicBlock*>& predecessors = user->GetBlock()->GetPredecessors();
         // If the instruction dies at the phi assignment, we can try having the
         // same register.
-        if (end == user->GetBlock()->GetPredecessor(input_index)->GetLifetimeEnd()) {
+        if (end == predecessors.Get(input_index)->GetLifetimeEnd()) {
           for (size_t i = 0, e = user->InputCount(); i < e; ++i) {
             if (i == input_index) {
               continue;
             }
             HInstruction* input = user->InputAt(i);
             Location location = input->GetLiveInterval()->GetLocationAt(
-                user->GetBlock()->GetPredecessor(i)->GetLifetimeEnd() - 1);
+                predecessors.Get(i)->GetLifetimeEnd() - 1);
             if (location.IsRegisterKind()) {
               int reg = RegisterOrLowRegister(location);
               if (free_until[reg] >= use_position) {
@@ -416,11 +420,10 @@ int LiveInterval::FindFirstRegisterHint(size_t* free_until,
 int LiveInterval::FindHintAtDefinition() const {
   if (defined_by_->IsPhi()) {
     // Try to use the same register as one of the inputs.
-    const ArenaVector<HBasicBlock*>& predecessors = defined_by_->GetBlock()->GetPredecessors();
+    const GrowableArray<HBasicBlock*>& predecessors = defined_by_->GetBlock()->GetPredecessors();
     for (size_t i = 0, e = defined_by_->InputCount(); i < e; ++i) {
       HInstruction* input = defined_by_->InputAt(i);
-      DCHECK_LT(i, predecessors.size());
-      size_t end = predecessors[i]->GetLifetimeEnd();
+      size_t end = predecessors.Get(i)->GetLifetimeEnd();
       LiveInterval* input_interval = input->GetLiveInterval()->GetSiblingAt(end - 1);
       if (input_interval->GetEnd() == end) {
         // If the input dies at the end of the predecessor, we know its register can
