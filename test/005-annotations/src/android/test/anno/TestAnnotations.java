@@ -180,5 +180,24 @@ public class TestAnnotations {
         printAnnotationArray("    ", TestAnnotations.class.getPackage().getAnnotations());
         System.out.println("Package declared annotations:");
         printAnnotationArray("    ", TestAnnotations.class.getPackage().getDeclaredAnnotations());
+
+        System.out.println();
+
+        // Test inner classes.
+        System.out.println("Inner Classes:");
+        new ClassWithInnerClasses().print();
+
+        System.out.println();
+
+        // Test TypeNotPresentException.
+        try {
+            AnnoMissingClass missingAnno =
+                ClassWithMissingAnnotation.class.getAnnotation(AnnoMissingClass.class);
+            System.out.println("Get annotation with missing class should not throw");
+            System.out.println(missingAnno.value());
+            System.out.println("Getting value of missing annotaton should have thrown");
+        } catch (TypeNotPresentException expected) {
+            System.out.println("Got expected TypeNotPresentException");
+        }
     }
 }
