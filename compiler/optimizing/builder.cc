@@ -396,8 +396,8 @@ void HGraphBuilder::InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item) 
 
     // Find predecessors which are not covered by the same TryItem range. Such
     // edges enter the try block and will have a TryBoundary inserted.
-    for (size_t i = 0; i < try_block->GetPredecessors().Size(); ++i) {
-      HBasicBlock* predecessor = try_block->GetPredecessors().Get(i);
+    for (size_t i = 0; i < try_block->GetPredecessors().size(); ++i) {
+      HBasicBlock* predecessor = try_block->GetPredecessor(i);
       if (predecessor->IsSingleTryBoundary()) {
         // The edge was already split because of an exit from a neighbouring
         // TryItem. We split it again and insert an entry point.
@@ -424,8 +424,7 @@ void HGraphBuilder::InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item) 
 
     // Find successors which are not covered by the same TryItem range. Such
     // edges exit the try block and will have a TryBoundary inserted.
-    for (size_t i = 0; i < try_block->GetSuccessors().Size(); ++i) {
-      HBasicBlock* successor = try_block->GetSuccessors().Get(i);
+    for (HBasicBlock* successor : try_block->GetSuccessors()) {
       if (successor->IsCatchBlock()) {
         // A catch block is always considered an entry point into its TryItem.
         // We therefore assume this is an exit point, regardless of whether

@@ -71,23 +71,23 @@ class HPrettyPrinter : public HGraphVisitor {
   void VisitBasicBlock(HBasicBlock* block) OVERRIDE {
     PrintString("BasicBlock ");
     PrintInt(block->GetBlockId());
-    const GrowableArray<HBasicBlock*>& predecessors = block->GetPredecessors();
-    if (!predecessors.IsEmpty()) {
+    const ArenaVector<HBasicBlock*>& predecessors = block->GetPredecessors();
+    if (!predecessors.empty()) {
       PrintString(", pred: ");
-      for (size_t i = 0; i < predecessors.Size() -1; i++) {
-        PrintInt(predecessors.Get(i)->GetBlockId());
+      for (size_t i = 0; i < predecessors.size() -1; i++) {
+        PrintInt(predecessors[i]->GetBlockId());
         PrintString(", ");
       }
-      PrintInt(predecessors.Peek()->GetBlockId());
+      PrintInt(predecessors.back()->GetBlockId());
     }
-    const GrowableArray<HBasicBlock*>& successors = block->GetSuccessors();
-    if (!successors.IsEmpty()) {
+    const ArenaVector<HBasicBlock*>& successors = block->GetSuccessors();
+    if (!successors.empty()) {
       PrintString(", succ: ");
-      for (size_t i = 0; i < successors.Size() - 1; i++) {
-        PrintInt(successors.Get(i)->GetBlockId());
+      for (size_t i = 0; i < successors.size() - 1; i++) {
+        PrintInt(successors[i]->GetBlockId());
         PrintString(", ");
       }
-      PrintInt(successors.Peek()->GetBlockId());
+      PrintInt(successors.back()->GetBlockId());
     }
     PrintNewLine();
     HGraphVisitor::VisitBasicBlock(block);
@@ -131,7 +131,7 @@ class StringPrettyPrinter : public HPrettyPrinter {
     PrintString("  ");
     PrintInt(gota->GetId());
     PrintString(": Goto ");
-    PrintInt(current_block_->GetSuccessors().Get(0)->GetBlockId());
+    PrintInt(current_block_->GetSuccessor(0)->GetBlockId());
     PrintNewLine();
   }
 
