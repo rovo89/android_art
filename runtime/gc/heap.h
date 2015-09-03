@@ -753,6 +753,10 @@ class Heap {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!Locks::alloc_tracker_lock_);
 
+  void BroadcastForNewAllocationRecords() const
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!Locks::alloc_tracker_lock_);
+
   void DisableGCForShutdown() REQUIRES(!*gc_complete_lock_);
 
   // Create a new alloc space and compact default alloc space to it.

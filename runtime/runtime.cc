@@ -1515,6 +1515,7 @@ ArtMethod* Runtime::CreateCalleeSaveMethod() {
 }
 
 void Runtime::DisallowNewSystemWeaks() {
+  CHECK(!kUseReadBarrier);
   monitor_list_->DisallowNewMonitors();
   intern_table_->ChangeWeakRootState(gc::kWeakRootStateNoReadsOrWrites);
   java_vm_->DisallowNewWeakGlobals();
@@ -1523,6 +1524,7 @@ void Runtime::DisallowNewSystemWeaks() {
 }
 
 void Runtime::AllowNewSystemWeaks() {
+  CHECK(!kUseReadBarrier);
   monitor_list_->AllowNewMonitors();
   intern_table_->ChangeWeakRootState(gc::kWeakRootStateNormal);  // TODO: Do this in the sweeping.
   java_vm_->AllowNewWeakGlobals();
@@ -1530,20 +1532,15 @@ void Runtime::AllowNewSystemWeaks() {
   lambda_box_table_->AllowNewWeakBoxedLambdas();
 }
 
-void Runtime::EnsureNewSystemWeaksDisallowed() {
-  // Lock and unlock the system weak locks once to ensure that no
-  // threads are still in the middle of adding new system weaks.
-  monitor_list_->EnsureNewMonitorsDisallowed();
-  intern_table_->EnsureNewWeakInternsDisallowed();
-  java_vm_->EnsureNewWeakGlobalsDisallowed();
-  lambda_box_table_->EnsureNewWeakBoxedLambdasDisallowed();
-}
-
 void Runtime::BroadcastForNewSystemWeaks() {
+  // This is used for the read barrier case that uses the thread-local
+  // Thread::GetWeakRefAccessEnabled() flag.
   CHECK(kUseReadBarrier);
   monitor_list_->BroadcastForNewMonitors();
   intern_table_->BroadcastForNewInterns();
   java_vm_->BroadcastForNewWeakGlobals();
+  heap_->BroadcastForNewAllocationRecords();
+  lambda_box_table_->BroadcastForNewWeakBoxedLambdas();
 }
 
 void Runtime::SetInstructionSet(InstructionSet instruction_set) {

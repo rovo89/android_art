@@ -499,7 +499,8 @@ class DisableMarkingCheckpoint : public Closure {
     DCHECK(thread == self || thread->IsSuspended() || thread->GetState() == kWaitingPerformingGc)
         << thread->GetState() << " thread " << thread << " self " << self;
     // Disable the thread-local is_gc_marking flag.
-    DCHECK(thread->GetIsGcMarking());
+    // Note a thread that has just started right before this checkpoint may have already this flag
+    // set to false, which is ok.
     thread->SetIsGcMarking(false);
     // If thread is a running mutator, then act on behalf of the garbage collector.
     // See the code in ThreadList::RunCheckpoint.

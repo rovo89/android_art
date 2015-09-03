@@ -212,13 +212,6 @@ mirror::String* InternTable::LookupStringFromImage(mirror::String* s) {
   return nullptr;
 }
 
-void InternTable::EnsureNewWeakInternsDisallowed() {
-  // Lock and unlock once to ensure that no threads are still in the
-  // middle of adding new interns.
-  MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
-  CHECK_EQ(weak_root_state_, gc::kWeakRootStateNoReadsOrWrites);
-}
-
 void InternTable::BroadcastForNewInterns() {
   CHECK(kUseReadBarrier);
   Thread* self = Thread::Current();
@@ -460,6 +453,7 @@ void InternTable::ChangeWeakRootState(gc::WeakRootState new_state) {
 }
 
 void InternTable::ChangeWeakRootStateLocked(gc::WeakRootState new_state) {
+  CHECK(!kUseReadBarrier);
   weak_root_state_ = new_state;
   if (new_state != gc::kWeakRootStateNoReadsOrWrites) {
     weak_intern_condition_.Broadcast(Thread::Current());
