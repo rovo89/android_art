@@ -340,8 +340,8 @@ void GlobalValueNumberer::Run() {
 
 void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
   ValueSet* set = nullptr;
-  const GrowableArray<HBasicBlock*>& predecessors = block->GetPredecessors();
-  if (predecessors.Size() == 0 || predecessors.Get(0)->IsEntryBlock()) {
+  const ArenaVector<HBasicBlock*>& predecessors = block->GetPredecessors();
+  if (predecessors.size() == 0 || predecessors[0]->IsEntryBlock()) {
     // The entry block should only accumulate constant instructions, and
     // the builder puts constants only in the entry block.
     // Therefore, there is no need to propagate the value set to the next block.
@@ -349,8 +349,8 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
   } else {
     HBasicBlock* dominator = block->GetDominator();
     ValueSet* dominator_set = sets_.Get(dominator->GetBlockId());
-    if (dominator->GetSuccessors().Size() == 1) {
-      DCHECK_EQ(dominator->GetSuccessors().Get(0), block);
+    if (dominator->GetSuccessors().size() == 1) {
+      DCHECK_EQ(dominator->GetSuccessor(0), block);
       set = dominator_set;
     } else {
       // We have to copy if the dominator has other successors, or `block` is not a successor
@@ -361,9 +361,9 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
       if (block->IsLoopHeader()) {
         DCHECK_EQ(block->GetDominator(), block->GetLoopInformation()->GetPreHeader());
         set->Kill(side_effects_.GetLoopEffects(block));
-      } else if (predecessors.Size() > 1) {
-        for (size_t i = 0, e = predecessors.Size(); i < e; ++i) {
-          set->IntersectWith(sets_.Get(predecessors.Get(i)->GetBlockId()));
+      } else if (predecessors.size() > 1) {
+        for (HBasicBlock* predecessor : predecessors) {
+          set->IntersectWith(sets_.Get(predecessor->GetBlockId()));
           if (set->IsEmpty()) {
             break;
           }

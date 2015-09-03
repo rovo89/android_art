@@ -240,8 +240,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
   void PrintPredecessors(HBasicBlock* block) {
     AddIndent();
     output_ << "predecessors";
-    for (size_t i = 0, e = block->GetPredecessors().Size(); i < e; ++i) {
-      HBasicBlock* predecessor = block->GetPredecessors().Get(i);
+    for (HBasicBlock* predecessor : block->GetPredecessors()) {
       output_ << " \"B" << predecessor->GetBlockId() << "\" ";
     }
     if (block->IsEntryBlock() && (disasm_info_ != nullptr)) {
@@ -254,7 +253,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
     AddIndent();
     output_ << "successors";
     for (size_t i = 0; i < block->NumberOfNormalSuccessors(); ++i) {
-      HBasicBlock* successor = block->GetSuccessors().Get(i);
+      HBasicBlock* successor = block->GetSuccessor(i);
       output_ << " \"B" << successor->GetBlockId() << "\" ";
     }
     output_<< std::endl;
@@ -263,8 +262,8 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
   void PrintExceptionHandlers(HBasicBlock* block) {
     AddIndent();
     output_ << "xhandlers";
-    for (size_t i = block->NumberOfNormalSuccessors(); i < block->GetSuccessors().Size(); ++i) {
-      HBasicBlock* handler = block->GetSuccessors().Get(i);
+    for (size_t i = block->NumberOfNormalSuccessors(); i < block->GetSuccessors().size(); ++i) {
+      HBasicBlock* handler = block->GetSuccessor(i);
       output_ << " \"B" << handler->GetBlockId() << "\" ";
     }
     if (block->IsExitBlock() &&

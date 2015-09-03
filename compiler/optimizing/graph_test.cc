@@ -99,7 +99,7 @@ TEST(GraphTest, IfSuccessorSimpleJoinBlock1) {
   ASSERT_NE(false_block, return_block);
 
   // Ensure the new block branches to the join block.
-  ASSERT_EQ(false_block->GetSuccessors().Get(0), return_block);
+  ASSERT_EQ(false_block->GetSuccessor(0), return_block);
 }
 
 // Test that the successors of an if block stay consistent after a SimplifyCFG.
@@ -134,7 +134,7 @@ TEST(GraphTest, IfSuccessorSimpleJoinBlock2) {
   ASSERT_NE(true_block, return_block);
 
   // Ensure the new block branches to the join block.
-  ASSERT_EQ(true_block->GetSuccessors().Get(0), return_block);
+  ASSERT_EQ(true_block->GetSuccessor(0), return_block);
 }
 
 // Test that the successors of an if block stay consistent after a SimplifyCFG.
@@ -163,12 +163,12 @@ TEST(GraphTest, IfSuccessorMultipleBackEdges1) {
   ASSERT_EQ(if_block->GetLastInstruction()->AsIf()->IfFalseSuccessor(), return_block);
 
   // Ensure there is only one back edge.
-  ASSERT_EQ(if_block->GetPredecessors().Size(), 2u);
-  ASSERT_EQ(if_block->GetPredecessors().Get(0), entry_block);
-  ASSERT_NE(if_block->GetPredecessors().Get(1), if_block);
+  ASSERT_EQ(if_block->GetPredecessors().size(), 2u);
+  ASSERT_EQ(if_block->GetPredecessor(0), entry_block);
+  ASSERT_NE(if_block->GetPredecessor(1), if_block);
 
   // Ensure the new block is the back edge.
-  ASSERT_EQ(if_block->GetPredecessors().Get(1),
+  ASSERT_EQ(if_block->GetPredecessor(1),
             if_block->GetLastInstruction()->AsIf()->IfTrueSuccessor());
 }
 
@@ -198,12 +198,12 @@ TEST(GraphTest, IfSuccessorMultipleBackEdges2) {
   ASSERT_EQ(if_block->GetLastInstruction()->AsIf()->IfTrueSuccessor(), return_block);
 
   // Ensure there is only one back edge.
-  ASSERT_EQ(if_block->GetPredecessors().Size(), 2u);
-  ASSERT_EQ(if_block->GetPredecessors().Get(0), entry_block);
-  ASSERT_NE(if_block->GetPredecessors().Get(1), if_block);
+  ASSERT_EQ(if_block->GetPredecessors().size(), 2u);
+  ASSERT_EQ(if_block->GetPredecessor(0), entry_block);
+  ASSERT_NE(if_block->GetPredecessor(1), if_block);
 
   // Ensure the new block is the back edge.
-  ASSERT_EQ(if_block->GetPredecessors().Get(1),
+  ASSERT_EQ(if_block->GetPredecessor(1),
             if_block->GetLastInstruction()->AsIf()->IfFalseSuccessor());
 }
 
@@ -238,11 +238,11 @@ TEST(GraphTest, IfSuccessorMultiplePreHeaders1) {
   ASSERT_EQ(if_instr->IfFalseSuccessor(), return_block);
 
   // Ensure there is only one pre header..
-  ASSERT_EQ(loop_block->GetPredecessors().Size(), 2u);
+  ASSERT_EQ(loop_block->GetPredecessors().size(), 2u);
 
   // Ensure the new block is the successor of the true block.
-  ASSERT_EQ(if_instr->IfTrueSuccessor()->GetSuccessors().Size(), 1u);
-  ASSERT_EQ(if_instr->IfTrueSuccessor()->GetSuccessors().Get(0),
+  ASSERT_EQ(if_instr->IfTrueSuccessor()->GetSuccessors().size(), 1u);
+  ASSERT_EQ(if_instr->IfTrueSuccessor()->GetSuccessor(0),
             loop_block->GetLoopInformation()->GetPreHeader());
 }
 
@@ -276,11 +276,11 @@ TEST(GraphTest, IfSuccessorMultiplePreHeaders2) {
   ASSERT_EQ(if_instr->IfTrueSuccessor(), return_block);
 
   // Ensure there is only one pre header..
-  ASSERT_EQ(loop_block->GetPredecessors().Size(), 2u);
+  ASSERT_EQ(loop_block->GetPredecessors().size(), 2u);
 
   // Ensure the new block is the successor of the false block.
-  ASSERT_EQ(if_instr->IfFalseSuccessor()->GetSuccessors().Size(), 1u);
-  ASSERT_EQ(if_instr->IfFalseSuccessor()->GetSuccessors().Get(0),
+  ASSERT_EQ(if_instr->IfFalseSuccessor()->GetSuccessors().size(), 1u);
+  ASSERT_EQ(if_instr->IfFalseSuccessor()->GetSuccessor(0),
             loop_block->GetLoopInformation()->GetPreHeader());
 }
 

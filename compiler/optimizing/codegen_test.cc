@@ -561,7 +561,7 @@ TEST(CodegenTest, NonMaterializedCondition) {
   ASSERT_FALSE(equal->NeedsMaterialization());
 
   auto hook_before_codegen = [](HGraph* graph_in) {
-    HBasicBlock* block = graph_in->GetEntryBlock()->GetSuccessors().Get(0);
+    HBasicBlock* block = graph_in->GetEntryBlock()->GetSuccessor(0);
     HParallelMove* move = new (graph_in->GetArena()) HParallelMove(graph_in->GetArena());
     block->InsertInstructionBefore(move, block->GetLastInstruction());
   };
@@ -667,7 +667,7 @@ TEST(CodegenTest, MaterializedCondition1) {
     code_block->AddInstruction(&ret);
 
     auto hook_before_codegen = [](HGraph* graph_in) {
-      HBasicBlock* block = graph_in->GetEntryBlock()->GetSuccessors().Get(0);
+      HBasicBlock* block = graph_in->GetEntryBlock()->GetSuccessor(0);
       HParallelMove* move = new (graph_in->GetArena()) HParallelMove(graph_in->GetArena());
       block->InsertInstructionBefore(move, block->GetLastInstruction());
     };
@@ -733,7 +733,7 @@ TEST(CodegenTest, MaterializedCondition2) {
     if_false_block->AddInstruction(&ret_ge);
 
     auto hook_before_codegen = [](HGraph* graph_in) {
-      HBasicBlock* block = graph_in->GetEntryBlock()->GetSuccessors().Get(0);
+      HBasicBlock* block = graph_in->GetEntryBlock()->GetSuccessor(0);
       HParallelMove* move = new (graph_in->GetArena()) HParallelMove(graph_in->GetArena());
       block->InsertInstructionBefore(move, block->GetLastInstruction());
     };

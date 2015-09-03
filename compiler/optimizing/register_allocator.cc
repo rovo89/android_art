@@ -1212,14 +1212,13 @@ LiveInterval* RegisterAllocator::SplitBetween(LiveInterval* interval, size_t fro
    * moves in B3.
    */
   if (block_from->GetDominator() != nullptr) {
-    const GrowableArray<HBasicBlock*>& dominated = block_from->GetDominator()->GetDominatedBlocks();
-    for (size_t i = 0; i < dominated.Size(); ++i) {
-      size_t position = dominated.Get(i)->GetLifetimeStart();
+    for (HBasicBlock* dominated : block_from->GetDominator()->GetDominatedBlocks()) {
+      size_t position = dominated->GetLifetimeStart();
       if ((position > from) && (block_to->GetLifetimeStart() > position)) {
         // Even if we found a better block, we continue iterating in case
         // a dominated block is closer.
         // Note that dominated blocks are not sorted in liveness order.
-        block_to = dominated.Get(i);
+        block_to = dominated;
         DCHECK_NE(block_to, block_from);
       }
     }
@@ -1498,7 +1497,7 @@ void RegisterAllocator::InsertParallelMoveAtExitOf(HBasicBlock* block,
   DCHECK(IsValidDestination(destination)) << destination;
   if (source.Equals(destination)) return;
 
-  DCHECK_EQ(block->GetSuccessors().Size(), 1u);
+  DCHECK_EQ(block->GetSuccessors().size(), 1u);
   HInstruction* last = block->GetLastInstruction();
   // We insert moves at exit for phi predecessors and connecting blocks.
   // A block ending with an if cannot branch to a block with phis because
@@ -1725,13 +1724,13 @@ void RegisterAllocator::ConnectSplitSiblings(LiveInterval* interval,
 
   // If `from` has only one successor, we can put the moves at the exit of it. Otherwise
   // we need to put the moves at the entry of `to`.
-  if (from->GetSuccessors().Size() == 1) {
+  if (from->GetSuccessors().size() == 1) {
     InsertParallelMoveAtExitOf(from,
                                interval->GetParent()->GetDefinedBy(),
                                source->ToLocation(),
                                destination->ToLocation());
   } else {
-    DCHECK_EQ(to->GetPredecessors().Size(), 1u);
+    DCHECK_EQ(to->GetPredecessors().size(), 1u);
     InsertParallelMoveAtEntryOf(to,
                                 interval->GetParent()->GetDefinedBy(),
                                 source->ToLocation(),
@@ -1833,8 +1832,8 @@ void RegisterAllocator::Resolve() {
     for (uint32_t idx : live->Indexes()) {
       HInstruction* current = liveness_.GetInstructionFromSsaIndex(idx);
       LiveInterval* interval = current->GetLiveInterval();
-      for (size_t i = 0, e = block->GetPredecessors().Size(); i < e; ++i) {
-        ConnectSplitSiblings(interval, block->GetPredecessors().Get(i), block);
+      for (HBasicBlock* predecessor : block->GetPredecessors()) {
+        ConnectSplitSiblings(interval, predecessor, block);
       }
     }
   }
@@ -1844,9 +1843,9 @@ void RegisterAllocator::Resolve() {
     HBasicBlock* current = it.Current();
     for (HInstructionIterator inst_it(current->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
       HInstruction* phi = inst_it.Current();
-      for (size_t i = 0, e = current->GetPredecessors().Size(); i < e; ++i) {
-        HBasicBlock* predecessor = current->GetPredecessors().Get(i);
-        DCHECK_EQ(predecessor->GetSuccessors().Size(), 1u);
+      for (size_t i = 0, e = current->GetPredecessors().size(); i < e; ++i) {
+        HBasicBlock* predecessor = current->GetPredecessor(i);
+        DCHECK_EQ(predecessor->GetSuccessors().size(), 1u);
         HInstruction* input = phi->InputAt(i);
         Location source = input->GetLiveInterval()->GetLocationAt(
             predecessor->GetLifetimeEnd() - 1);

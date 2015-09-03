@@ -379,7 +379,7 @@ class BasicBlock : public DeletableArenaObject<kArenaAllocBasicBlock> {
         terminated_by_return(), dominates_return(), use_lvn(), first_mir_insn(),
         last_mir_insn(), data_flow_info(), dominators(), i_dominated(), dom_frontier(),
         predecessors(allocator->Adapter(kArenaAllocBBPredecessors)),
-        successor_blocks(allocator->Adapter(kArenaAllocSuccessor)) {
+        successor_blocks(allocator->Adapter(kArenaAllocSuccessors)) {
   }
   BasicBlockId id;
   BasicBlockId dfs_id;
