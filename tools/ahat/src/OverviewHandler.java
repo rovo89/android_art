@@ -38,7 +38,7 @@ class OverviewHandler extends AhatHandler {
     doc.descriptions();
     doc.description(
         DocString.text("ahat version"),
-        DocString.text("ahat-%s", OverviewHandler.class.getPackage().getImplementationVersion()));
+        DocString.format("ahat-%s", OverviewHandler.class.getPackage().getImplementationVersion()));
     doc.description(DocString.text("hprof file"), DocString.text(mHprof.toString()));
     doc.end();
 

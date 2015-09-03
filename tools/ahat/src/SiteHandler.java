@@ -61,7 +61,7 @@ class SiteHandler extends AhatHandler {
 
             public DocString render(Site element) {
               return DocString.link(
-                  DocString.uri("site?stack=%d&depth=%d",
+                  DocString.formattedUri("site?stack=%d&depth=%d",
                     element.getStackId(), element.getStackDepth()),
                   DocString.text(element.getName()));
             }
@@ -87,11 +87,11 @@ class SiteHandler extends AhatHandler {
     for (Site.ObjectsInfo info : infos) {
       String className = AhatSnapshot.getClassName(info.classObj);
       doc.row(
-          DocString.text("%,14d", info.numBytes),
+          DocString.format("%,14d", info.numBytes),
           DocString.link(
-            DocString.uri("objects?stack=%d&depth=%d&heap=%s&class=%s",
+            DocString.formattedUri("objects?stack=%d&depth=%d&heap=%s&class=%s",
                 site.getStackId(), site.getStackDepth(), info.heap.getName(), className),
-            DocString.text("%,14d", info.numInstances)),
+            DocString.format("%,14d", info.numInstances)),
           DocString.text(info.heap.getName()),
           Value.render(info.classObj));
     }
