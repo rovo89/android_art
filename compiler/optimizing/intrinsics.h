@@ -30,8 +30,8 @@ class DexFile;
 // Recognize intrinsics from HInvoke nodes.
 class IntrinsicsRecognizer : public HOptimization {
  public:
-  IntrinsicsRecognizer(HGraph* graph, CompilerDriver* driver)
-      : HOptimization(graph, kIntrinsicsRecognizerPassName),
+  IntrinsicsRecognizer(HGraph* graph, CompilerDriver* driver, OptimizingCompilerStats* stats)
+      : HOptimization(graph, kIntrinsicsRecognizerPassName, stats),
         driver_(driver) {}
 
   void Run() OVERRIDE;
