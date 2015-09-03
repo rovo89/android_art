@@ -61,6 +61,7 @@ enum GpuRegister {
   RA   = 31,  // Return address.
   TR   = S1,  // ART Thread Register
   TMP  = T8,  // scratch register (in addition to AT)
+  TMP2 = T3,  // scratch register (in addition to AT, reserved for assembler)
   kNumberOfGpuRegisters = 32,
   kNoGpuRegister = -1  // Signals an illegal register.
 };

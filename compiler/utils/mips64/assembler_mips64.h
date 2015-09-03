@@ -31,7 +31,8 @@
 namespace art {
 namespace mips64 {
 
-static constexpr size_t kMipsDoublewordSize = 8;
+static constexpr size_t kMips64WordSize = 4;
+static constexpr size_t kMips64DoublewordSize = 8;
 
 enum LoadOperandType {
   kLoadSignedByte,
@@ -151,7 +152,8 @@ class Mips64Assembler FINAL : public Assembler {
   void Seh(GpuRegister rd, GpuRegister rt);
   void Dsbh(GpuRegister rd, GpuRegister rt);
   void Dshd(GpuRegister rd, GpuRegister rt);
-  void Dext(GpuRegister rs, GpuRegister rt, int pos, int size_less_one);  // MIPS64
+  void Dext(GpuRegister rs, GpuRegister rt, int pos, int size);  // MIPS64
+  void Dinsu(GpuRegister rt, GpuRegister rs, int pos, int size);  // MIPS64
   void Wsbh(GpuRegister rd, GpuRegister rt);
   void Sc(GpuRegister rt, GpuRegister base, int16_t imm9 = 0);
   void Scd(GpuRegister rt, GpuRegister base, int16_t imm9 = 0);
@@ -301,7 +303,9 @@ class Mips64Assembler FINAL : public Assembler {
   void Cvtdl(FpuRegister fd, FpuRegister fs);
 
   void Mfc1(GpuRegister rt, FpuRegister fs);
+  void Mfhc1(GpuRegister rt, FpuRegister fs);
   void Mtc1(GpuRegister rt, FpuRegister fs);
+  void Mthc1(GpuRegister rt, FpuRegister fs);
   void Dmfc1(GpuRegister rt, FpuRegister fs);  // MIPS64
   void Dmtc1(GpuRegister rt, FpuRegister fs);  // MIPS64
   void Lwc1(FpuRegister ft, GpuRegister rs, uint16_t imm16);
@@ -378,10 +382,10 @@ class Mips64Assembler FINAL : public Assembler {
 
   void StoreImmediateToFrame(FrameOffset dest, uint32_t imm, ManagedRegister mscratch) OVERRIDE;
 
-  void StoreStackOffsetToThread64(ThreadOffset<kMipsDoublewordSize> thr_offs, FrameOffset fr_offs,
+  void StoreStackOffsetToThread64(ThreadOffset<kMips64DoublewordSize> thr_offs, FrameOffset fr_offs,
                                   ManagedRegister mscratch) OVERRIDE;
 
-  void StoreStackPointerToThread64(ThreadOffset<kMipsDoublewordSize> thr_offs) OVERRIDE;
+  void StoreStackPointerToThread64(ThreadOffset<kMips64DoublewordSize> thr_offs) OVERRIDE;
 
   void StoreSpanning(FrameOffset dest, ManagedRegister msrc, FrameOffset in_off,
                      ManagedRegister mscratch) OVERRIDE;
@@ -390,7 +394,7 @@ class Mips64Assembler FINAL : public Assembler {
   void Load(ManagedRegister mdest, FrameOffset src, size_t size) OVERRIDE;
 
   void LoadFromThread64(ManagedRegister mdest,
-                        ThreadOffset<kMipsDoublewordSize> src,
+                        ThreadOffset<kMips64DoublewordSize> src,
                         size_t size) OVERRIDE;
 
   void LoadRef(ManagedRegister dest, FrameOffset src) OVERRIDE;
@@ -401,15 +405,15 @@ class Mips64Assembler FINAL : public Assembler {
   void LoadRawPtr(ManagedRegister mdest, ManagedRegister base, Offset offs) OVERRIDE;
 
   void LoadRawPtrFromThread64(ManagedRegister mdest,
-                              ThreadOffset<kMipsDoublewordSize> offs) OVERRIDE;
+                              ThreadOffset<kMips64DoublewordSize> offs) OVERRIDE;
 
   // Copying routines.
   void Move(ManagedRegister mdest, ManagedRegister msrc, size_t size) OVERRIDE;
 
-  void CopyRawPtrFromThread64(FrameOffset fr_offs, ThreadOffset<kMipsDoublewordSize> thr_offs,
+  void CopyRawPtrFromThread64(FrameOffset fr_offs, ThreadOffset<kMips64DoublewordSize> thr_offs,
                               ManagedRegister mscratch) OVERRIDE;
 
-  void CopyRawPtrToThread64(ThreadOffset<kMipsDoublewordSize> thr_offs, FrameOffset fr_offs,
+  void CopyRawPtrToThread64(ThreadOffset<kMips64DoublewordSize> thr_offs, FrameOffset fr_offs,
                             ManagedRegister mscratch) OVERRIDE;
 
   void CopyRef(FrameOffset dest, FrameOffset src, ManagedRegister mscratch) OVERRIDE;
@@ -466,7 +470,7 @@ class Mips64Assembler FINAL : public Assembler {
   // Call to address held at [base+offset].
   void Call(ManagedRegister base, Offset offset, ManagedRegister mscratch) OVERRIDE;
   void Call(FrameOffset base, Offset offset, ManagedRegister mscratch) OVERRIDE;
-  void CallFromThread64(ThreadOffset<kMipsDoublewordSize> offset,
+  void CallFromThread64(ThreadOffset<kMips64DoublewordSize> offset,
                         ManagedRegister mscratch) OVERRIDE;
 
   // Generate code to check if Thread::Current()->exception_ is non-null

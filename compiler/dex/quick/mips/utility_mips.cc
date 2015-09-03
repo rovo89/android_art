@@ -28,6 +28,8 @@
 
 namespace art {
 
+static constexpr size_t kMips64DoublewordSize = 8;
+
 /* This file contains codegen for the Mips ISA */
 LIR* MipsMir2Lir::OpFpRegCopy(RegStorage r_dest, RegStorage r_src) {
   int opcode;
@@ -760,7 +762,25 @@ LIR* MipsMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStora
 
   if (cu_->target64) {
     if (short_form) {
-      load = res = NewLIR3(opcode, r_dest.GetReg(), displacement, r_base.GetReg());
+      if (!IsAligned<kMips64DoublewordSize>(displacement) && opcode == kMips64Ld) {
+        RegStorage r_tmp = AllocTemp();
+        load = res = NewLIR3(kMips64Lwu, r_dest.GetReg(), displacement + LOWORD_OFFSET,
+                             r_base.GetReg());
+        load2 = NewLIR3(kMips64Lwu, r_tmp.GetReg(), displacement + HIWORD_OFFSET, r_base.GetReg());
+        NewLIR3(kMips64Dsll32, r_tmp.GetReg(), r_tmp.GetReg(), 0x0);
+        NewLIR3(kMipsOr, r_dest.GetReg(), r_dest.GetReg(), r_tmp.GetReg());
+        FreeTemp(r_tmp);
+      } else if (!IsAligned<kMips64DoublewordSize>(displacement) && opcode == kMipsFldc1) {
+        RegStorage r_tmp = AllocTemp();
+        r_dest = Fp64ToSolo32(r_dest);
+        load = res = NewLIR3(kMipsFlwc1, r_dest.GetReg(), displacement + LOWORD_OFFSET,
+                             r_base.GetReg());
+        load2 = NewLIR3(kMipsLw, r_tmp.GetReg(), displacement + HIWORD_OFFSET, r_base.GetReg());
+        NewLIR2(kMipsMthc1, r_tmp.GetReg(), r_dest.GetReg());
+        FreeTemp(r_tmp);
+      } else {
+        load = res = NewLIR3(opcode, r_dest.GetReg(), displacement, r_base.GetReg());
+      }
     } else {
       RegStorage r_tmp = (r_base == r_dest) ? AllocTemp() : r_dest;
       res = OpRegRegImm(kOpAdd, r_tmp, r_base, displacement);
@@ -771,7 +791,12 @@ LIR* MipsMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStora
 
     if (mem_ref_type_ == ResourceMask::kDalvikReg) {
       DCHECK_EQ(r_base, TargetPtrReg(kSp));
-      AnnotateDalvikRegAccess(load, displacement >> 2, true /* is_load */, r_dest.Is64Bit());
+      AnnotateDalvikRegAccess(load, (displacement + LOWORD_OFFSET) >> 2,
+                              true /* is_load */, r_dest.Is64Bit() /* is64bit */);
+      if (load2 != nullptr) {
+        AnnotateDalvikRegAccess(load2, (displacement + HIWORD_OFFSET) >> 2,
+                                true /* is_load */, r_dest.Is64Bit() /* is64bit */);
+      }
     }
     return res;
   }
@@ -932,7 +957,24 @@ LIR* MipsMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStor
 
   if (cu_->target64) {
     if (short_form) {
-      store = res = NewLIR3(opcode, r_src.GetReg(), displacement, r_base.GetReg());
+      if (!IsAligned<kMips64DoublewordSize>(displacement) && opcode == kMips64Sd) {
+        RegStorage r_tmp = AllocTemp();
+        res = NewLIR2(kMipsMove, r_tmp.GetReg(), r_src.GetReg());
+        store = NewLIR3(kMipsSw, r_tmp.GetReg(), displacement + LOWORD_OFFSET, r_base.GetReg());
+        NewLIR3(kMips64Dsrl32, r_tmp.GetReg(), r_tmp.GetReg(), 0x0);
+        store2 = NewLIR3(kMipsSw, r_tmp.GetReg(), displacement + HIWORD_OFFSET, r_base.GetReg());
+        FreeTemp(r_tmp);
+      } else if (!IsAligned<kMips64DoublewordSize>(displacement) && opcode == kMipsFsdc1) {
+        RegStorage r_tmp = AllocTemp();
+        r_src = Fp64ToSolo32(r_src);
+        store = res = NewLIR3(kMipsFswc1, r_src.GetReg(), displacement + LOWORD_OFFSET,
+                              r_base.GetReg());
+        NewLIR2(kMipsMfhc1, r_tmp.GetReg(), r_src.GetReg());
+        store2 = NewLIR3(kMipsSw, r_tmp.GetReg(), displacement + HIWORD_OFFSET, r_base.GetReg());
+        FreeTemp(r_tmp);
+      } else {
+        store = res = NewLIR3(opcode, r_src.GetReg(), displacement, r_base.GetReg());
+      }
     } else {
       RegStorage r_scratch = AllocTemp();
       res = OpRegRegImm(kOpAdd, r_scratch, r_base, displacement);
@@ -942,7 +984,12 @@ LIR* MipsMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStor
 
     if (mem_ref_type_ == ResourceMask::kDalvikReg) {
       DCHECK_EQ(r_base, TargetPtrReg(kSp));
-      AnnotateDalvikRegAccess(store, displacement >> 2, false /* is_load */, r_src.Is64Bit());
+      AnnotateDalvikRegAccess(store, (displacement + LOWORD_OFFSET) >> 2,
+                              false /* is_load */, r_src.Is64Bit() /* is64bit */);
+      if (store2 != nullptr) {
+        AnnotateDalvikRegAccess(store2, (displacement + HIWORD_OFFSET) >> 2,
+                                false /* is_load */, r_src.Is64Bit() /* is64bit */);
+      }
     }
     return res;
   }
