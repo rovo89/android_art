@@ -167,12 +167,19 @@ void AllocRecordObjectMap::SweepAllocationRecords(IsMarkedVisitor* visitor) {
 }
 
 void AllocRecordObjectMap::AllowNewAllocationRecords() {
+  CHECK(!kUseReadBarrier);
   allow_new_record_ = true;
   new_record_condition_.Broadcast(Thread::Current());
 }
 
 void AllocRecordObjectMap::DisallowNewAllocationRecords() {
+  CHECK(!kUseReadBarrier);
   allow_new_record_ = false;
+}
+
+void AllocRecordObjectMap::BroadcastForNewAllocationRecords() {
+  CHECK(kUseReadBarrier);
+  new_record_condition_.Broadcast(Thread::Current());
 }
 
 struct AllocRecordStackVisitor : public StackVisitor {

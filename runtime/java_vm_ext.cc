@@ -541,6 +541,7 @@ void JavaVMExt::DumpForSigQuit(std::ostream& os) {
 }
 
 void JavaVMExt::DisallowNewWeakGlobals() {
+  CHECK(!kUseReadBarrier);
   Thread* const self = Thread::Current();
   MutexLock mu(self, weak_globals_lock_);
   // DisallowNewWeakGlobals is only called by CMS during the pause. It is required to have the
@@ -551,17 +552,11 @@ void JavaVMExt::DisallowNewWeakGlobals() {
 }
 
 void JavaVMExt::AllowNewWeakGlobals() {
+  CHECK(!kUseReadBarrier);
   Thread* self = Thread::Current();
   MutexLock mu(self, weak_globals_lock_);
   allow_accessing_weak_globals_.StoreSequentiallyConsistent(true);
   weak_globals_add_condition_.Broadcast(self);
-}
-
-void JavaVMExt::EnsureNewWeakGlobalsDisallowed() {
-  // Lock and unlock once to ensure that no threads are still in the
-  // middle of adding new weak globals.
-  MutexLock mu(Thread::Current(), weak_globals_lock_);
-  CHECK(!allow_accessing_weak_globals_.LoadSequentiallyConsistent());
 }
 
 void JavaVMExt::BroadcastForNewWeakGlobals() {
