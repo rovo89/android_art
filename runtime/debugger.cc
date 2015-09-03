@@ -736,14 +736,14 @@ JDWP::JdwpError Dbg::GetMonitorInfo(JDWP::ObjectId object_id, JDWP::ExpandBuf* r
   // Ensure all threads are suspended while we read objects' lock words.
   Thread* self = Thread::Current();
   CHECK_EQ(self->GetState(), kRunnable);
-  self->TransitionFromRunnableToSuspended(kSuspended);
-  Runtime::Current()->GetThreadList()->SuspendAll(__FUNCTION__);
 
-  MonitorInfo monitor_info(o);
-
-  Runtime::Current()->GetThreadList()->ResumeAll();
-  self->TransitionFromSuspendedToRunnable();
-
+  MonitorInfo monitor_info;
+  {
+    ScopedThreadSuspension sts(self, kSuspended);
+    Runtime::Current()->GetThreadList()->SuspendAll(__FUNCTION__);
+    monitor_info = MonitorInfo(o);
+    Runtime::Current()->GetThreadList()->ResumeAll();
+  }
   if (monitor_info.owner_ != nullptr) {
     expandBufAddObjectId(reply, gRegistry->Add(monitor_info.owner_->GetPeer()));
   } else {
@@ -3148,7 +3148,7 @@ void Dbg::ManageDeoptimization() {
     }
   }
   CHECK_EQ(self->GetState(), kRunnable);
-  self->TransitionFromRunnableToSuspended(kWaitingForDeoptimization);
+  ScopedThreadSuspension sts(self, kWaitingForDeoptimization);
   // We need to suspend mutator threads first.
   Runtime* const runtime = Runtime::Current();
   runtime->GetThreadList()->SuspendAll(__FUNCTION__);
@@ -3164,7 +3164,6 @@ void Dbg::ManageDeoptimization() {
   }
   CHECK_EQ(self->SetStateUnsafe(old_state), kRunnable);
   runtime->GetThreadList()->ResumeAll();
-  self->TransitionFromSuspendedToRunnable();
 }
 
 static bool IsMethodPossiblyInlined(Thread* self, ArtMethod* m)
@@ -3493,9 +3492,9 @@ bool Dbg::IsForcedInterpreterNeededForUpcallImpl(Thread* thread, ArtMethod* m) {
 
 // Scoped utility class to suspend a thread so that we may do tasks such as walk its stack. Doesn't
 // cause suspension if the thread is the current thread.
-class ScopedThreadSuspension {
+class ScopedDebuggerThreadSuspension {
  public:
-  ScopedThreadSuspension(Thread* self, JDWP::ObjectId thread_id)
+  ScopedDebuggerThreadSuspension(Thread* self, JDWP::ObjectId thread_id)
       REQUIRES(!Locks::thread_list_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_) :
       thread_(nullptr),
@@ -3508,13 +3507,14 @@ class ScopedThreadSuspension {
       if (thread_ == soa.Self()) {
         self_suspend_ = true;
       } else {
-        soa.Self()->TransitionFromRunnableToSuspended(kWaitingForDebuggerSuspension);
-        jobject thread_peer = Dbg::GetObjectRegistry()->GetJObject(thread_id);
-        bool timed_out;
-        ThreadList* thread_list = Runtime::Current()->GetThreadList();
-        Thread* suspended_thread = thread_list->SuspendThreadByPeer(thread_peer, true, true,
-                                                                    &timed_out);
-        CHECK_EQ(soa.Self()->TransitionFromSuspendedToRunnable(), kWaitingForDebuggerSuspension);
+        Thread* suspended_thread;
+        {
+          ScopedThreadSuspension sts(self, kWaitingForDebuggerSuspension);
+          jobject thread_peer = Dbg::GetObjectRegistry()->GetJObject(thread_id);
+          bool timed_out;
+          ThreadList* const thread_list = Runtime::Current()->GetThreadList();
+          suspended_thread = thread_list->SuspendThreadByPeer(thread_peer, true, true, &timed_out);
+        }
         if (suspended_thread == nullptr) {
           // Thread terminated from under us while suspending.
           error_ = JDWP::ERR_INVALID_THREAD;
@@ -3534,7 +3534,7 @@ class ScopedThreadSuspension {
     return error_;
   }
 
-  ~ScopedThreadSuspension() {
+  ~ScopedDebuggerThreadSuspension() {
     if (other_suspend_) {
       Runtime::Current()->GetThreadList()->Resume(thread_, true);
     }
@@ -3550,7 +3550,7 @@ class ScopedThreadSuspension {
 JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize step_size,
                                    JDWP::JdwpStepDepth step_depth) {
   Thread* self = Thread::Current();
-  ScopedThreadSuspension sts(self, thread_id);
+  ScopedDebuggerThreadSuspension sts(self, thread_id);
   if (sts.GetError() != JDWP::ERR_NONE) {
     return sts.GetError();
   }
@@ -3986,10 +3986,9 @@ void Dbg::ExecuteMethodWithoutPendingException(ScopedObjectAccess& soa, DebugInv
 
   // Suspend other threads if the invoke is not single-threaded.
   if ((pReq->options & JDWP::INVOKE_SINGLE_THREADED) == 0) {
-    soa.Self()->TransitionFromRunnableToSuspended(kWaitingForDebuggerSuspension);
+    ScopedThreadSuspension sts(soa.Self(), kWaitingForDebuggerSuspension);
     VLOG(jdwp) << "      Suspending all threads";
     Runtime::Current()->GetThreadList()->SuspendAllForDebugger();
-    soa.Self()->TransitionFromSuspendedToRunnable();
   }
 
   VLOG(jdwp) << "  --> returned " << result_tag
@@ -4655,7 +4654,7 @@ void Dbg::DdmSendHeapSegments(bool native) {
         context.SetChunkOverhead(0);
         // Need to acquire the mutator lock before the heap bitmap lock with exclusive access since
         // RosAlloc's internal logic doesn't know to release and reacquire the heap bitmap lock.
-        self->TransitionFromRunnableToSuspended(kSuspended);
+        ScopedThreadSuspension sts(self, kSuspended);
         ThreadList* tl = Runtime::Current()->GetThreadList();
         tl->SuspendAll(__FUNCTION__);
         {
@@ -4663,7 +4662,6 @@ void Dbg::DdmSendHeapSegments(bool native) {
           space->AsRosAllocSpace()->Walk(HeapChunkContext::HeapChunkJavaCallback, &context);
         }
         tl->ResumeAll();
-        self->TransitionFromSuspendedToRunnable();
       } else if (space->IsBumpPointerSpace()) {
         ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
         context.SetChunkOverhead(0);
@@ -4671,15 +4669,16 @@ void Dbg::DdmSendHeapSegments(bool native) {
         HeapChunkContext::HeapChunkJavaCallback(nullptr, nullptr, 0, &context);
       } else if (space->IsRegionSpace()) {
         heap->IncrementDisableMovingGC(self);
-        self->TransitionFromRunnableToSuspended(kSuspended);
-        ThreadList* tl = Runtime::Current()->GetThreadList();
-        tl->SuspendAll(__FUNCTION__);
-        ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-        context.SetChunkOverhead(0);
-        space->AsRegionSpace()->Walk(BumpPointerSpaceCallback, &context);
-        HeapChunkContext::HeapChunkJavaCallback(nullptr, nullptr, 0, &context);
-        tl->ResumeAll();
-        self->TransitionFromSuspendedToRunnable();
+        {
+          ScopedThreadSuspension sts(self, kSuspended);
+          ThreadList* tl = Runtime::Current()->GetThreadList();
+          tl->SuspendAll(__FUNCTION__);
+          ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
+          context.SetChunkOverhead(0);
+          space->AsRegionSpace()->Walk(BumpPointerSpaceCallback, &context);
+          HeapChunkContext::HeapChunkJavaCallback(nullptr, nullptr, 0, &context);
+          tl->ResumeAll();
+        }
         heap->DecrementDisableMovingGC(self);
       } else {
         UNIMPLEMENTED(WARNING) << "Not counting objects in space " << *space;

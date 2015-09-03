@@ -36,13 +36,12 @@ class QuickTrampolineEntrypointsTest : public CommonRuntimeTest {
     Runtime* r = Runtime::Current();
 
     Thread* t = Thread::Current();
-    t->TransitionFromSuspendedToRunnable();  // So we can create callee-save methods.
+
+    ScopedObjectAccess soa(t);
 
     r->SetInstructionSet(isa);
     ArtMethod* save_method = r->CreateCalleeSaveMethod();
     r->SetCalleeSaveMethod(save_method, type);
-
-    t->TransitionFromRunnableToSuspended(ThreadState::kNative);  // So we can shut down.
 
     return save_method;
   }
