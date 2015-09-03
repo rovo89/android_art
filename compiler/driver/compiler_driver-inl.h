@@ -34,7 +34,7 @@ inline mirror::DexCache* CompilerDriver::GetDexCache(const DexCompilationUnit* m
   return mUnit->GetClassLinker()->FindDexCache(Thread::Current(), *mUnit->GetDexFile(), false);
 }
 
-inline mirror::ClassLoader* CompilerDriver::GetClassLoader(ScopedObjectAccess& soa,
+inline mirror::ClassLoader* CompilerDriver::GetClassLoader(const ScopedObjectAccess& soa,
                                                            const DexCompilationUnit* mUnit) {
   return soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader());
 }

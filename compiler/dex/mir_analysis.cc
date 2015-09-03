@@ -30,6 +30,7 @@
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
 #include "driver/dex_compilation_unit.h"
+#include "scoped_thread_state_change.h"
 #include "utils.h"
 
 namespace art {
@@ -1283,8 +1284,12 @@ void MIRGraph::DoCacheFieldLoweringInfo() {
       ifield_lowering_infos_.push_back(
           MirIFieldLoweringInfo(masked_field_idx, field_types[pos], is_quickened));
     }
-    MirIFieldLoweringInfo::Resolve(cu_->compiler_driver, GetCurrentDexCompilationUnit(),
-                                   ifield_lowering_infos_.data(), ifield_pos);
+    ScopedObjectAccess soa(Thread::Current());
+    MirIFieldLoweringInfo::Resolve(soa,
+                                   cu_->compiler_driver,
+                                   GetCurrentDexCompilationUnit(),
+                                   ifield_lowering_infos_.data(),
+                                   ifield_pos);
   }
 
   if (sfield_pos != max_refs) {

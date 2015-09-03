@@ -472,6 +472,7 @@ static HGraph* BuildIfElseWithPhi(ArenaAllocator* allocator,
                                   HInstruction** input2) {
   HGraph* graph = CreateGraph(allocator);
   HBasicBlock* entry = new (allocator) HBasicBlock(graph);
+  NullHandle<mirror::DexCache> dex_cache;
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
   HInstruction* parameter = new (allocator) HParameterValue(0, Primitive::kPrimNot);
@@ -486,7 +487,8 @@ static HGraph* BuildIfElseWithPhi(ArenaAllocator* allocator,
                                                          MemberOffset(22),
                                                          false,
                                                          kUnknownFieldIndex,
-                                                         graph->GetDexFile());
+                                                         graph->GetDexFile(),
+                                                         dex_cache);
   block->AddInstruction(test);
   block->AddInstruction(new (allocator) HIf(test));
   HBasicBlock* then = new (allocator) HBasicBlock(graph);
@@ -510,13 +512,15 @@ static HGraph* BuildIfElseWithPhi(ArenaAllocator* allocator,
                                               MemberOffset(42),
                                               false,
                                               kUnknownFieldIndex,
-                                              graph->GetDexFile());
+                                              graph->GetDexFile(),
+                                              dex_cache);
 *input2 = new (allocator) HInstanceFieldGet(parameter,
                                             Primitive::kPrimInt,
                                             MemberOffset(42),
                                             false,
                                             kUnknownFieldIndex,
-                                            graph->GetDexFile());
+                                            graph->GetDexFile(),
+                                            dex_cache);
   then->AddInstruction(*input1);
   else_->AddInstruction(*input2);
   join->AddInstruction(new (allocator) HExit());
@@ -613,6 +617,7 @@ static HGraph* BuildFieldReturn(ArenaAllocator* allocator,
                                 HInstruction** field,
                                 HInstruction** ret) {
   HGraph* graph = CreateGraph(allocator);
+  NullHandle<mirror::DexCache> dex_cache;
   HBasicBlock* entry = new (allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
@@ -628,7 +633,8 @@ static HGraph* BuildFieldReturn(ArenaAllocator* allocator,
                                              MemberOffset(42),
                                              false,
                                              kUnknownFieldIndex,
-                                             graph->GetDexFile());
+                                             graph->GetDexFile(),
+                                             dex_cache);
   block->AddInstruction(*field);
   *ret = new (allocator) HReturn(*field);
   block->AddInstruction(*ret);
