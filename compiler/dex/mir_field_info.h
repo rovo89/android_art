@@ -26,6 +26,7 @@ namespace art {
 
 class CompilerDriver;
 class DexCompilationUnit;
+class ScopedObjectAccess;
 
 /*
  * Field info is calculated from the perspective of the compilation unit that accesses
@@ -133,9 +134,12 @@ class MirIFieldLoweringInfo : public MirFieldInfo {
   // For each requested instance field retrieve the field's declaring location (dex file, class
   // index and field index) and volatility and compute whether we can fast path the access
   // with IGET/IPUT. For fast path fields, retrieve the field offset.
-  static void Resolve(CompilerDriver* compiler_driver, const DexCompilationUnit* mUnit,
-                      MirIFieldLoweringInfo* field_infos, size_t count)
-      REQUIRES(!Locks::mutator_lock_);
+  static void Resolve(const ScopedObjectAccess& soa,
+                      CompilerDriver* compiler_driver,
+                      const DexCompilationUnit* mUnit,
+                      MirIFieldLoweringInfo* field_infos,
+                      size_t count)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Construct an unresolved instance field lowering info.
   MirIFieldLoweringInfo(uint16_t field_idx, DexMemAccessType type, bool is_quickened)

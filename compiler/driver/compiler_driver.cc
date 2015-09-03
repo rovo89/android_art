@@ -571,7 +571,8 @@ static void CompileMethod(Thread* self,
                           jobject class_loader,
                           const DexFile& dex_file,
                           optimizer::DexToDexCompilationLevel dex_to_dex_compilation_level,
-                          bool compilation_enabled)
+                          bool compilation_enabled,
+                          Handle<mirror::DexCache> dex_cache)
     REQUIRES(!driver->compiled_methods_lock_) {
   DCHECK(driver != nullptr);
   CompiledMethod* compiled_method = nullptr;
@@ -608,7 +609,7 @@ static void CompileMethod(Thread* self,
       // NOTE: if compiler declines to compile this method, it will return null.
       compiled_method = driver->GetCompiler()->Compile(code_item, access_flags, invoke_type,
                                                        class_def_idx, method_idx, class_loader,
-                                                       dex_file);
+                                                       dex_file, dex_cache);
     }
     if (compiled_method == nullptr &&
         dex_to_dex_compilation_level != optimizer::DexToDexCompilationLevel::kDontDexToDexCompile) {
@@ -673,6 +674,8 @@ void CompilerDriver::CompileOne(Thread* self, ArtMethod* method, TimingLogger* t
   uint32_t method_idx = method->GetDexMethodIndex();
   uint32_t access_flags = method->GetAccessFlags();
   InvokeType invoke_type = method->GetInvokeType();
+  StackHandleScope<1> hs(self);
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(method->GetDexCache()));
   {
     ScopedObjectAccessUnchecked soa(self);
     ScopedLocalRef<jobject> local_class_loader(
@@ -683,6 +686,8 @@ void CompilerDriver::CompileOne(Thread* self, ArtMethod* method, TimingLogger* t
     class_def_idx = method->GetClassDefIndex();
   }
   const DexFile::CodeItem* code_item = dex_file->GetCodeItem(method->GetCodeItemOffset());
+
+  // Go to native so that we don't block GC during compilation.
   self->TransitionFromRunnableToSuspended(kNative);
 
   std::vector<const DexFile*> dex_files;
@@ -709,7 +714,8 @@ void CompilerDriver::CompileOne(Thread* self, ArtMethod* method, TimingLogger* t
                 jclass_loader,
                 *dex_file,
                 dex_to_dex_compilation_level,
-                true);
+                true,
+                dex_cache);
 
   self->GetJniEnv()->DeleteGlobalRef(jclass_loader);
   self->TransitionFromSuspendedToRunnable();
@@ -719,9 +725,10 @@ CompiledMethod* CompilerDriver::CompileArtMethod(Thread* self, ArtMethod* method
   const uint32_t method_idx = method->GetDexMethodIndex();
   const uint32_t access_flags = method->GetAccessFlags();
   const InvokeType invoke_type = method->GetInvokeType();
-  StackHandleScope<1> hs(self);
+  StackHandleScope<2> hs(self);
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
       method->GetDeclaringClass()->GetClassLoader()));
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(method->GetDexCache()));
   jobject jclass_loader = class_loader.ToJObject();
   const DexFile* dex_file = method->GetDexFile();
   const uint16_t class_def_idx = method->GetClassDefIndex();
@@ -729,6 +736,7 @@ CompiledMethod* CompilerDriver::CompileArtMethod(Thread* self, ArtMethod* method
   optimizer::DexToDexCompilationLevel dex_to_dex_compilation_level =
       GetDexToDexCompilationLevel(self, *this, class_loader, *dex_file, class_def);
   const DexFile::CodeItem* code_item = dex_file->GetCodeItem(method->GetCodeItemOffset());
+  // Go to native so that we don't block GC during compilation.
   self->TransitionFromRunnableToSuspended(kNative);
   CompileMethod(self,
                 this,
@@ -740,7 +748,8 @@ CompiledMethod* CompilerDriver::CompileArtMethod(Thread* self, ArtMethod* method
                 jclass_loader,
                 *dex_file,
                 dex_to_dex_compilation_level,
-                true);
+                true,
+                dex_cache);
   auto* compiled_method = GetCompiledMethod(MethodReference(dex_file, method_idx));
   self->TransitionFromSuspendedToRunnable();
   return compiled_method;
@@ -1422,24 +1431,19 @@ ArtField* CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx,
   // Try to resolve the field and compiling method's class.
   ArtField* resolved_field;
   mirror::Class* referrer_class;
-  mirror::DexCache* dex_cache;
+  Handle<mirror::DexCache> dex_cache(mUnit->GetDexCache());
   {
-    StackHandleScope<2> hs(soa.Self());
-    Handle<mirror::DexCache> dex_cache_handle(
-        hs.NewHandle(mUnit->GetClassLinker()->FindDexCache(
-            soa.Self(), *mUnit->GetDexFile(), false)));
+    StackHandleScope<1> hs(soa.Self());
     Handle<mirror::ClassLoader> class_loader_handle(
         hs.NewHandle(soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader())));
-    resolved_field =
-        ResolveField(soa, dex_cache_handle, class_loader_handle, mUnit, field_idx, false);
+    resolved_field = ResolveField(soa, dex_cache, class_loader_handle, mUnit, field_idx, false);
     referrer_class = resolved_field != nullptr
-        ? ResolveCompilingMethodsClass(soa, dex_cache_handle, class_loader_handle, mUnit) : nullptr;
-    dex_cache = dex_cache_handle.Get();
+        ? ResolveCompilingMethodsClass(soa, dex_cache, class_loader_handle, mUnit) : nullptr;
   }
   bool can_link = false;
   if (resolved_field != nullptr && referrer_class != nullptr) {
     std::pair<bool, bool> fast_path = IsFastInstanceField(
-        dex_cache, referrer_class, resolved_field, field_idx);
+        dex_cache.Get(), referrer_class, resolved_field, field_idx);
     can_link = is_put ? fast_path.second : fast_path.first;
   }
   ProcessedInstanceField(can_link);
@@ -1473,25 +1477,21 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
   // Try to resolve the field and compiling method's class.
   ArtField* resolved_field;
   mirror::Class* referrer_class;
-  mirror::DexCache* dex_cache;
+  Handle<mirror::DexCache> dex_cache(mUnit->GetDexCache());
   {
-    StackHandleScope<2> hs(soa.Self());
-    Handle<mirror::DexCache> dex_cache_handle(
-        hs.NewHandle(mUnit->GetClassLinker()->FindDexCache(
-            soa.Self(), *mUnit->GetDexFile(), false)));
+    StackHandleScope<1> hs(soa.Self());
     Handle<mirror::ClassLoader> class_loader_handle(
         hs.NewHandle(soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader())));
     resolved_field =
-        ResolveField(soa, dex_cache_handle, class_loader_handle, mUnit, field_idx, true);
+        ResolveField(soa, dex_cache, class_loader_handle, mUnit, field_idx, true);
     referrer_class = resolved_field != nullptr
-        ? ResolveCompilingMethodsClass(soa, dex_cache_handle, class_loader_handle, mUnit) : nullptr;
-    dex_cache = dex_cache_handle.Get();
+        ? ResolveCompilingMethodsClass(soa, dex_cache, class_loader_handle, mUnit) : nullptr;
   }
   bool result = false;
   if (resolved_field != nullptr && referrer_class != nullptr) {
     *is_volatile = IsFieldVolatile(resolved_field);
     std::pair<bool, bool> fast_path = IsFastStaticField(
-        dex_cache, referrer_class, resolved_field, field_idx, storage_index);
+        dex_cache.Get(), referrer_class, resolved_field, field_idx, storage_index);
     result = is_put ? fast_path.second : fast_path.first;
   }
   if (result) {
@@ -1662,10 +1662,8 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
   int stats_flags = 0;
   ScopedObjectAccess soa(Thread::Current());
   // Try to resolve the method and compiling method's class.
-  StackHandleScope<3> hs(soa.Self());
-  Handle<mirror::DexCache> dex_cache(
-      hs.NewHandle(mUnit->GetClassLinker()->FindDexCache(
-          soa.Self(), *mUnit->GetDexFile(), false)));
+  StackHandleScope<2> hs(soa.Self());
+  Handle<mirror::DexCache> dex_cache(mUnit->GetDexCache());
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
       soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader())));
   uint32_t method_idx = target_method->dex_method_index;
@@ -2353,39 +2351,44 @@ class CompileClassVisitor : public CompilationVisitor {
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
     ClassLinker* class_linker = manager_->GetClassLinker();
     jobject jclass_loader = manager_->GetClassLoader();
-    Thread* self = Thread::Current();
-    {
-      // Use a scoped object access to perform to the quick SkipClass check.
-      const char* descriptor = dex_file.GetClassDescriptor(class_def);
-      ScopedObjectAccess soa(self);
-      StackHandleScope<3> hs(soa.Self());
-      Handle<mirror::ClassLoader> class_loader(
-          hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
-      Handle<mirror::Class> klass(
-          hs.NewHandle(class_linker->FindClass(soa.Self(), descriptor, class_loader)));
-      if (klass.Get() == nullptr) {
-        CHECK(soa.Self()->IsExceptionPending());
-        soa.Self()->ClearException();
-      } else if (SkipClass(jclass_loader, dex_file, klass.Get())) {
-        return;
-      }
-    }
     ClassReference ref(&dex_file, class_def_index);
     // Skip compiling classes with generic verifier failures since they will still fail at runtime
     if (manager_->GetCompiler()->verification_results_->IsClassRejected(ref)) {
       return;
     }
+    // Use a scoped object access to perform to the quick SkipClass check.
+    const char* descriptor = dex_file.GetClassDescriptor(class_def);
+    ScopedObjectAccess soa(Thread::Current());
+    StackHandleScope<3> hs(soa.Self());
+    Handle<mirror::ClassLoader> class_loader(
+        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+    Handle<mirror::Class> klass(
+        hs.NewHandle(class_linker->FindClass(soa.Self(), descriptor, class_loader)));
+    Handle<mirror::DexCache> dex_cache;
+    if (klass.Get() == nullptr) {
+      soa.Self()->AssertPendingException();
+      soa.Self()->ClearException();
+      dex_cache = hs.NewHandle(class_linker->FindDexCache(soa.Self(), dex_file));
+    } else if (SkipClass(jclass_loader, dex_file, klass.Get())) {
+      return;
+    } else {
+      dex_cache = hs.NewHandle(klass->GetDexCache());
+    }
+
     const uint8_t* class_data = dex_file.GetClassData(class_def);
     if (class_data == nullptr) {
       // empty class, probably a marker interface
       return;
     }
 
+    // Go to native so that we don't block GC during compilation.
+    soa.Self()->TransitionFromRunnableToSuspended(kNative);
+
     CompilerDriver* const driver = manager_->GetCompiler();
 
     // Can we run DEX-to-DEX compiler on this class ?
     optimizer::DexToDexCompilationLevel dex_to_dex_compilation_level =
-        GetDexToDexCompilationLevel(self, *driver, jclass_loader, dex_file, class_def);
+        GetDexToDexCompilationLevel(soa.Self(), *driver, jclass_loader, dex_file, class_def);
 
     ClassDataItemIterator it(dex_file, class_data);
     // Skip fields
@@ -2410,10 +2413,10 @@ class CompileClassVisitor : public CompilationVisitor {
         continue;
       }
       previous_direct_method_idx = method_idx;
-      CompileMethod(self, driver, it.GetMethodCodeItem(), it.GetMethodAccessFlags(),
+      CompileMethod(soa.Self(), driver, it.GetMethodCodeItem(), it.GetMethodAccessFlags(),
                     it.GetMethodInvokeType(class_def), class_def_index,
                     method_idx, jclass_loader, dex_file, dex_to_dex_compilation_level,
-                    compilation_enabled);
+                    compilation_enabled, dex_cache);
       it.Next();
     }
     // Compile virtual methods
@@ -2427,13 +2430,15 @@ class CompileClassVisitor : public CompilationVisitor {
         continue;
       }
       previous_virtual_method_idx = method_idx;
-      CompileMethod(self, driver, it.GetMethodCodeItem(), it.GetMethodAccessFlags(),
+      CompileMethod(soa.Self(), driver, it.GetMethodCodeItem(), it.GetMethodAccessFlags(),
                     it.GetMethodInvokeType(class_def), class_def_index,
                     method_idx, jclass_loader, dex_file, dex_to_dex_compilation_level,
-                    compilation_enabled);
+                    compilation_enabled, dex_cache);
       it.Next();
     }
     DCHECK(!it.HasNext());
+
+    soa.Self()->TransitionFromSuspendedToRunnable();
   }
 
  private:

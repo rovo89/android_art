@@ -17,6 +17,7 @@
 #include "base/bit_vector-inl.h"
 #include "base/logging.h"
 #include "base/scoped_arena_containers.h"
+#include "class_linker-inl.h"
 #include "dataflow_iterator-inl.h"
 #include "dex/verified_method.h"
 #include "dex_flags.h"
@@ -30,6 +31,7 @@
 #include "quick/dex_file_method_inliner.h"
 #include "quick/dex_file_to_method_inliner_map.h"
 #include "stack.h"
+#include "thread-inl.h"
 #include "type_inference.h"
 #include "utils.h"
 
@@ -1469,13 +1471,23 @@ void MIRGraph::ComputeInlineIFieldLoweringInfo(uint16_t field_idx, MIR* invoke, 
 
   const MirMethodLoweringInfo& method_info = GetMethodLoweringInfo(invoke);
   MethodReference target = method_info.GetTargetMethod();
-  DexCompilationUnit inlined_unit(
-      cu_, cu_->class_loader, cu_->class_linker, *target.dex_file,
-      nullptr /* code_item not used */, 0u /* class_def_idx not used */, target.dex_method_index,
-      0u /* access_flags not used */, nullptr /* verified_method not used */);
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::DexCache> dex_cache(
+      hs.NewHandle(cu_->class_linker->FindDexCache(hs.Self(), *target.dex_file)));
+  DexCompilationUnit inlined_unit(cu_,
+                                  cu_->class_loader,
+                                  cu_->class_linker,
+                                  *target.dex_file,
+                                  nullptr /* code_item not used */,
+                                  0u /* class_def_idx not used */,
+                                  target.dex_method_index,
+                                  0u /* access_flags not used */,
+                                  nullptr /* verified_method not used */,
+                                  dex_cache);
   DexMemAccessType type = IGetOrIPutMemAccessType(iget_or_iput->dalvikInsn.opcode);
   MirIFieldLoweringInfo inlined_field_info(field_idx, type, false);
-  MirIFieldLoweringInfo::Resolve(cu_->compiler_driver, &inlined_unit, &inlined_field_info, 1u);
+  MirIFieldLoweringInfo::Resolve(soa, cu_->compiler_driver, &inlined_unit, &inlined_field_info, 1u);
   DCHECK(inlined_field_info.IsResolved());
 
   uint32_t field_info_index = ifield_lowering_infos_.size();

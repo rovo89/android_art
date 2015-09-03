@@ -663,7 +663,8 @@ CompiledMethod* QuickCompiler::Compile(const DexFile::CodeItem* code_item,
                                        uint16_t class_def_idx,
                                        uint32_t method_idx,
                                        jobject class_loader,
-                                       const DexFile& dex_file) const {
+                                       const DexFile& dex_file,
+                                       Handle<mirror::DexCache> dex_cache) const {
   if (kPoisonHeapReferences) {
     VLOG(compiler) << "Skipping method : " << PrettyMethod(method_idx, dex_file)
                    << "  Reason = Quick does not support heap poisoning.";
@@ -749,7 +750,7 @@ CompiledMethod* QuickCompiler::Compile(const DexFile::CodeItem* code_item,
 
   /* Build the raw MIR graph */
   cu.mir_graph->InlineMethod(code_item, access_flags, invoke_type, class_def_idx, method_idx,
-                             class_loader, dex_file);
+                             class_loader, dex_file, dex_cache);
 
   if (!CanCompileMethod(method_idx, dex_file, &cu)) {
     VLOG(compiler)  << cu.instruction_set << ": Cannot compile method : "
