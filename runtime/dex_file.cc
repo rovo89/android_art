@@ -1787,8 +1787,15 @@ bool DexFile::ProcessAnnotationValue(Handle<mirror::Class> klass, const uint8_t*
             klass->GetDexFile(), index, klass.Get());
         set_object = true;
         if (element_object == nullptr) {
-          // TODO: Put a TypeNotFoundExceptionProxy instead of throwing here.
-          return false;
+          CHECK(self->IsExceptionPending());
+          if (result_style == kAllObjects) {
+            const char* msg = StringByTypeIdx(index);
+            self->ThrowNewWrappedException("Ljava/lang/TypeNotPresentException;", msg);
+            element_object = self->GetException();
+            self->ClearException();
+          } else {
+            return false;
+          }
         }
       }
       break;
