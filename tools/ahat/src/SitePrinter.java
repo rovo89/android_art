@@ -51,7 +51,7 @@ class SitePrinter {
               str.append("→ ");
             }
             str.appendLink(
-                DocString.uri("site?stack=%d&depth=%d",
+                DocString.formattedUri("site?stack=%d&depth=%d",
                     element.getStackId(), element.getStackDepth()),
                 DocString.text(element.getName()));
             return str;

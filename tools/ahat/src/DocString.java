@@ -33,11 +33,18 @@ class DocString {
 
   /**
    * Construct a new DocString, initialized with the given text.
-   * Format arguments are supported.
    */
-  public static DocString text(String format, Object... args) {
+  public static DocString text(String str) {
     DocString doc = new DocString();
-    return doc.append(format, args);
+    return doc.append(str);
+  }
+
+  /**
+   * Construct a new DocString, initialized with the given formatted text.
+   */
+  public static DocString format(String format, Object... args) {
+    DocString doc = new DocString();
+    return doc.appendFormat(format, args);
   }
 
   /**
@@ -58,12 +65,19 @@ class DocString {
 
   /**
    * Append literal text to the given doc string.
-   * Format arguments are supported.
    * Returns this object.
    */
-  public DocString append(String format, Object... args) {
-    String text = String.format(format, args);
+  public DocString append(String text) {
     mStringBuilder.append(HtmlEscapers.htmlEscaper().escape(text));
+    return this;
+  }
+
+  /**
+   * Append formatted text to the given doc string.
+   * Returns this object.
+   */
+  public DocString appendFormat(String format, Object... args) {
+    append(String.format(format, args));
     return this;
   }
 
@@ -101,15 +115,22 @@ class DocString {
 
   /**
    * Convenience function for constructing a URI from a string with a uri
-   * known to be valid. Format arguments are supported.
+   * known to be valid.
    */
-  public static URI uri(String format, Object... args) {
-    String uriString = String.format(format, args);
+  public static URI uri(String uriString) {
     try {
       return new URI(uriString);
     } catch (URISyntaxException e) {
       throw new IllegalStateException("Known good uri has syntax error: " + uriString, e);
     }
+  }
+
+  /**
+   * Convenience function for constructing a URI from a formatted string with
+   * a uri known to be valid.
+   */
+  public static URI formattedUri(String format, Object... args) {
+    return uri(String.format(format, args));
   }
 
   /**

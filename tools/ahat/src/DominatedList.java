@@ -140,7 +140,7 @@ class DominatedList {
   //  (showing X of Y objects - show none - show less - show more - show all)
   private static void printMenu(Doc doc, Query query, int shown, int all) {
     DocString menu = new DocString();
-    menu.append("(%d of %d objects shown - ", shown, all);
+    menu.appendFormat("(%d of %d objects shown - ", shown, all);
     if (shown > 0) {
       int less = Math.max(0, shown - kIncrAmount);
       menu.appendLink(query.with("dominated", 0), DocString.text("show none"));
