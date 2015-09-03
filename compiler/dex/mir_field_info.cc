@@ -29,7 +29,8 @@
 
 namespace art {
 
-void MirIFieldLoweringInfo::Resolve(CompilerDriver* compiler_driver,
+void MirIFieldLoweringInfo::Resolve(const ScopedObjectAccess& soa,
+                                    CompilerDriver* compiler_driver,
                                     const DexCompilationUnit* mUnit,
                                     MirIFieldLoweringInfo* field_infos, size_t count) {
   if (kIsDebugBuild) {
@@ -44,7 +45,6 @@ void MirIFieldLoweringInfo::Resolve(CompilerDriver* compiler_driver,
 
   // We're going to resolve fields and check access in a tight loop. It's better to hold
   // the lock and needed references once than re-acquiring them again and again.
-  ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<3> hs(soa.Self());
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(compiler_driver->GetDexCache(mUnit)));
   Handle<mirror::ClassLoader> class_loader(

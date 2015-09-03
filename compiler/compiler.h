@@ -51,7 +51,8 @@ class Compiler {
                                   uint16_t class_def_idx,
                                   uint32_t method_idx,
                                   jobject class_loader,
-                                  const DexFile& dex_file) const = 0;
+                                  const DexFile& dex_file,
+                                  Handle<mirror::DexCache> dex_cache) const = 0;
 
   virtual CompiledMethod* JniCompile(uint32_t access_flags,
                                      uint32_t method_idx,

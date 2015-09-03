@@ -182,10 +182,13 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
   ArtMethod* resolved_method;
   if (invoke_instruction->IsInvokeStaticOrDirect()) {
     MethodReference ref = invoke_instruction->AsInvokeStaticOrDirect()->GetTargetMethod();
-    resolved_method = class_linker->FindDexCache(soa.Self(), *ref.dex_file)->GetResolvedMethod(
+    mirror::DexCache* const dex_cache = (&caller_dex_file == ref.dex_file)
+        ? caller_compilation_unit_.GetDexCache().Get()
+        : class_linker->FindDexCache(soa.Self(), *ref.dex_file);
+    resolved_method = dex_cache->GetResolvedMethod(
         ref.dex_method_index, class_linker->GetImagePointerSize());
   } else {
-    resolved_method = class_linker->FindDexCache(soa.Self(), caller_dex_file)->GetResolvedMethod(
+    resolved_method = caller_compilation_unit_.GetDexCache().Get()->GetResolvedMethod(
         method_index, class_linker->GetImagePointerSize());
   }
 
@@ -273,6 +276,7 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
   const DexFile& callee_dex_file = *resolved_method->GetDexFile();
   uint32_t method_index = resolved_method->GetDexMethodIndex();
   ClassLinker* class_linker = caller_compilation_unit_.GetClassLinker();
+  Handle<mirror::DexCache> dex_cache(handles_->NewHandle(resolved_method->GetDexCache()));
   DexCompilationUnit dex_compilation_unit(
     nullptr,
     caller_compilation_unit_.GetClassLoader(),
@@ -282,7 +286,8 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
     resolved_method->GetDeclaringClass()->GetDexClassDefIndex(),
     method_index,
     resolved_method->GetAccessFlags(),
-    compiler_driver_->GetVerifiedMethod(&callee_dex_file, method_index));
+    compiler_driver_->GetVerifiedMethod(&callee_dex_file, method_index),
+    dex_cache);
 
   bool requires_ctor_barrier = false;
 
@@ -326,7 +331,8 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
                         resolved_method->GetDexFile(),
                         compiler_driver_,
                         &inline_stats,
-                        resolved_method->GetQuickenedInfo());
+                        resolved_method->GetQuickenedInfo(),
+                        dex_cache);
 
   if (!builder.BuildGraph(*code_item)) {
     VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
