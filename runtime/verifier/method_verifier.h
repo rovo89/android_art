@@ -18,6 +18,7 @@
 #define ART_RUNTIME_VERIFIER_METHOD_VERIFIER_H_
 
 #include <memory>
+#include <sstream>
 #include <vector>
 
 #include "base/macros.h"
