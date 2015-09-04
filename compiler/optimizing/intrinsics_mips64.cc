@@ -251,6 +251,118 @@ void IntrinsicCodeGeneratorMIPS64::VisitLongReverse(HInvoke* invoke) {
   GenReverse(invoke->GetLocations(), Primitive::kPrimLong, GetAssembler());
 }
 
+// byte libcore.io.Memory.peekByte(long address)
+void IntrinsicLocationsBuilderMIPS64::VisitMemoryPeekByte(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitMemoryPeekByte(HInvoke* invoke) {
+  Mips64Assembler* assembler = GetAssembler();
+  GpuRegister adr = invoke->GetLocations()->InAt(0).AsRegister<GpuRegister>();
+  GpuRegister out = invoke->GetLocations()->Out().AsRegister<GpuRegister>();
+
+  __ Lb(out, adr, 0);
+}
+
+// short libcore.io.Memory.peekShort(long address)
+void IntrinsicLocationsBuilderMIPS64::VisitMemoryPeekShortNative(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitMemoryPeekShortNative(HInvoke* invoke) {
+  Mips64Assembler* assembler = GetAssembler();
+  GpuRegister adr = invoke->GetLocations()->InAt(0).AsRegister<GpuRegister>();
+  GpuRegister out = invoke->GetLocations()->Out().AsRegister<GpuRegister>();
+
+  __ Lh(out, adr, 0);
+}
+
+// int libcore.io.Memory.peekInt(long address)
+void IntrinsicLocationsBuilderMIPS64::VisitMemoryPeekIntNative(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitMemoryPeekIntNative(HInvoke* invoke) {
+  Mips64Assembler* assembler = GetAssembler();
+  GpuRegister adr = invoke->GetLocations()->InAt(0).AsRegister<GpuRegister>();
+  GpuRegister out = invoke->GetLocations()->Out().AsRegister<GpuRegister>();
+
+  __ Lw(out, adr, 0);
+}
+
+// long libcore.io.Memory.peekLong(long address)
+void IntrinsicLocationsBuilderMIPS64::VisitMemoryPeekLongNative(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitMemoryPeekLongNative(HInvoke* invoke) {
+  Mips64Assembler* assembler = GetAssembler();
+  GpuRegister adr = invoke->GetLocations()->InAt(0).AsRegister<GpuRegister>();
+  GpuRegister out = invoke->GetLocations()->Out().AsRegister<GpuRegister>();
+
+  __ Ld(out, adr, 0);
+}
+
+static void CreateIntIntToVoidLocations(ArenaAllocator* arena, HInvoke* invoke) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+}
+
+// void libcore.io.Memory.pokeByte(long address, byte value)
+void IntrinsicLocationsBuilderMIPS64::VisitMemoryPokeByte(HInvoke* invoke) {
+  CreateIntIntToVoidLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitMemoryPokeByte(HInvoke* invoke) {
+  Mips64Assembler* assembler = GetAssembler();
+  GpuRegister adr = invoke->GetLocations()->InAt(0).AsRegister<GpuRegister>();
+  GpuRegister val = invoke->GetLocations()->InAt(1).AsRegister<GpuRegister>();
+
+  __ Sb(val, adr, 0);
+}
+
+// void libcore.io.Memory.pokeShort(long address, short value)
+void IntrinsicLocationsBuilderMIPS64::VisitMemoryPokeShortNative(HInvoke* invoke) {
+  CreateIntIntToVoidLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitMemoryPokeShortNative(HInvoke* invoke) {
+  Mips64Assembler* assembler = GetAssembler();
+  GpuRegister adr = invoke->GetLocations()->InAt(0).AsRegister<GpuRegister>();
+  GpuRegister val = invoke->GetLocations()->InAt(1).AsRegister<GpuRegister>();
+
+  __ Sh(val, adr, 0);
+}
+
+// void libcore.io.Memory.pokeInt(long address, int value)
+void IntrinsicLocationsBuilderMIPS64::VisitMemoryPokeIntNative(HInvoke* invoke) {
+  CreateIntIntToVoidLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitMemoryPokeIntNative(HInvoke* invoke) {
+  Mips64Assembler* assembler = GetAssembler();
+  GpuRegister adr = invoke->GetLocations()->InAt(0).AsRegister<GpuRegister>();
+  GpuRegister val = invoke->GetLocations()->InAt(1).AsRegister<GpuRegister>();
+
+  __ Sw(val, adr, 00);
+}
+
+// void libcore.io.Memory.pokeLong(long address, long value)
+void IntrinsicLocationsBuilderMIPS64::VisitMemoryPokeLongNative(HInvoke* invoke) {
+  CreateIntIntToVoidLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitMemoryPokeLongNative(HInvoke* invoke) {
+  Mips64Assembler* assembler = GetAssembler();
+  GpuRegister adr = invoke->GetLocations()->InAt(0).AsRegister<GpuRegister>();
+  GpuRegister val = invoke->GetLocations()->InAt(1).AsRegister<GpuRegister>();
+
+  __ Sd(val, adr, 0);
+}
+
 // Unimplemented intrinsics.
 
 #define UNIMPLEMENTED_INTRINSIC(Name)                                                  \
@@ -277,14 +389,6 @@ UNIMPLEMENTED_INTRINSIC(MathFloor)
 UNIMPLEMENTED_INTRINSIC(MathRint)
 UNIMPLEMENTED_INTRINSIC(MathRoundDouble)
 UNIMPLEMENTED_INTRINSIC(MathRoundFloat)
-UNIMPLEMENTED_INTRINSIC(MemoryPeekByte)
-UNIMPLEMENTED_INTRINSIC(MemoryPeekIntNative)
-UNIMPLEMENTED_INTRINSIC(MemoryPeekLongNative)
-UNIMPLEMENTED_INTRINSIC(MemoryPeekShortNative)
-UNIMPLEMENTED_INTRINSIC(MemoryPokeByte)
-UNIMPLEMENTED_INTRINSIC(MemoryPokeIntNative)
-UNIMPLEMENTED_INTRINSIC(MemoryPokeLongNative)
-UNIMPLEMENTED_INTRINSIC(MemoryPokeShortNative)
 UNIMPLEMENTED_INTRINSIC(ThreadCurrentThread)
 UNIMPLEMENTED_INTRINSIC(UnsafeGet)
 UNIMPLEMENTED_INTRINSIC(UnsafeGetVolatile)
