@@ -163,7 +163,9 @@ class SwapAllocator {
   pointer allocate(size_type n, SwapAllocator<void>::pointer hint ATTRIBUTE_UNUSED = nullptr) {
     DCHECK_LE(n, max_size());
     if (swap_space_ == nullptr) {
-      return reinterpret_cast<T*>(malloc(n * sizeof(T)));
+      T* result = reinterpret_cast<T*>(malloc(n * sizeof(T)));
+      CHECK(result != nullptr || n == 0u);  // Abort if malloc() fails.
+      return result;
     } else {
       return reinterpret_cast<T*>(swap_space_->Alloc(n * sizeof(T)));
     }
