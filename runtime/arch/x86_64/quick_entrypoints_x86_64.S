@@ -926,13 +926,11 @@ DEFINE_FUNCTION art_quick_alloc_object_tlab
     int3
 #endif
     // Might need a special macro since rsi and edx is 32b/64b mismatched.
-    movl ART_METHOD_DEX_CACHE_TYPES_OFFSET_64(%rsi), %edx  // Load dex cache resolved types array
-    UNPOISON_HEAP_REF edx
+    movq ART_METHOD_DEX_CACHE_TYPES_OFFSET_64(%rsi), %rdx  // Load dex cache resolved types array
     // TODO: Add read barrier when this function is used.
     // Might need to break down into multiple instructions to get the base address in a register.
                                                                // Load the class
-    movl MIRROR_OBJECT_ARRAY_DATA_OFFSET(%rdx, %rdi, MIRROR_OBJECT_ARRAY_COMPONENT_SIZE), %edx
-    UNPOISON_HEAP_REF edx
+    movl 0(%rdx, %rdi, COMPRESSED_REFERENCE_SIZE), %edx
     testl %edx, %edx                                           // Check null class
     jz   .Lart_quick_alloc_object_tlab_slow_path
                                                                // Check class status.
