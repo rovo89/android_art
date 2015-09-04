@@ -580,8 +580,9 @@ inline bool JavaVMExt::MayAccessWeakGlobals(Thread* self) const {
 }
 
 inline bool JavaVMExt::MayAccessWeakGlobalsUnlocked(Thread* self) const {
-  return kUseReadBarrier ? self->GetWeakRefAccessEnabled() :
-      allow_accessing_weak_globals_.LoadSequentiallyConsistent();
+  return kUseReadBarrier
+      ? self->GetWeakRefAccessEnabled()
+      : allow_accessing_weak_globals_.LoadSequentiallyConsistent();
 }
 
 mirror::Object* JavaVMExt::DecodeWeakGlobal(Thread* self, IndirectRef ref) {
