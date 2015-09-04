@@ -85,11 +85,9 @@ static void CheckNoDexObjects() {
 bool ImageWriter::PrepareImageAddressSpace() {
   target_ptr_size_ = InstructionSetPointerSize(compiler_driver_.GetInstructionSet());
   {
-    Thread::Current()->TransitionFromSuspendedToRunnable();
+    ScopedObjectAccess soa(Thread::Current());
     PruneNonImageClasses();  // Remove junk
     ComputeLazyFieldsForImageClasses();  // Add useful information
-
-    Thread::Current()->TransitionFromRunnableToSuspended(kNative);
   }
   gc::Heap* heap = Runtime::Current()->GetHeap();
   heap->CollectGarbage(false);  // Remove garbage.
@@ -109,9 +107,10 @@ bool ImageWriter::PrepareImageAddressSpace() {
     CheckNonImageClassesRemoved();
   }
 
-  Thread::Current()->TransitionFromSuspendedToRunnable();
-  CalculateNewObjectOffsets();
-  Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    CalculateNewObjectOffsets();
+  }
 
   // This needs to happen after CalculateNewObjectOffsets since it relies on intern_table_bytes_ and
   // bin size sums being calculated.
@@ -164,14 +163,14 @@ bool ImageWriter::Write(const std::string& image_filename,
   size_t oat_data_offset = 0;
   ElfWriter::GetOatElfInformation(oat_file.get(), &oat_loaded_size, &oat_data_offset);
 
-  Thread::Current()->TransitionFromSuspendedToRunnable();
-
-  CreateHeader(oat_loaded_size, oat_data_offset);
-  CopyAndFixupNativeData();
-  // TODO: heap validation can't handle these fix up passes.
-  Runtime::Current()->GetHeap()->DisableObjectValidation();
-  CopyAndFixupObjects();
-  Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    CreateHeader(oat_loaded_size, oat_data_offset);
+    CopyAndFixupNativeData();
+    // TODO: heap validation can't handle these fix up passes.
+    Runtime::Current()->GetHeap()->DisableObjectValidation();
+    CopyAndFixupObjects();
+  }
 
   SetOatChecksumFromElfFile(oat_file.get());
 

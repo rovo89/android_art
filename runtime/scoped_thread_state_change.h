@@ -31,7 +31,7 @@ namespace art {
 // more complicated suspension checking. The subclasses ScopedObjectAccessUnchecked and
 // ScopedObjectAccess are used to handle the change into Runnable to Get direct access to objects,
 // the unchecked variant doesn't aid annotalysis.
-class ScopedThreadStateChange {
+class ScopedThreadStateChange : public ValueObject {
  public:
   ScopedThreadStateChange(Thread* self, ThreadState new_thread_state)
       REQUIRES(!Locks::thread_suspend_count_lock_) ALWAYS_INLINE
@@ -102,7 +102,7 @@ class ScopedThreadStateChange {
 };
 
 // Assumes we are already runnable.
-class ScopedObjectAccessAlreadyRunnable {
+class ScopedObjectAccessAlreadyRunnable : public ValueObject {
  public:
   Thread* Self() const {
     return self_;
@@ -276,6 +276,30 @@ class ScopedObjectAccess : public ScopedObjectAccessUnchecked {
   friend class ScopedCheck;
   DISALLOW_COPY_AND_ASSIGN(ScopedObjectAccess);
 };
+
+// Annotalysis helper for going to a suspended state from runnable.
+class ScopedThreadSuspension : public ValueObject {
+ public:
+  explicit ScopedThreadSuspension(Thread* self, ThreadState suspended_state)
+      REQUIRES(!Locks::thread_suspend_count_lock_, !Roles::uninterruptible_)
+      UNLOCK_FUNCTION(Locks::mutator_lock_)
+      ALWAYS_INLINE
+      : self_(self), suspended_state_(suspended_state) {
+    DCHECK(self_ != nullptr);
+    self_->TransitionFromRunnableToSuspended(suspended_state);
+  }
+
+  ~ScopedThreadSuspension() SHARED_LOCK_FUNCTION(Locks::mutator_lock_) ALWAYS_INLINE {
+    DCHECK_EQ(self_->GetState(), suspended_state_);
+    self_->TransitionFromSuspendedToRunnable();
+  }
+
+ private:
+  Thread* const self_;
+  const ThreadState suspended_state_;
+  DISALLOW_COPY_AND_ASSIGN(ScopedThreadSuspension);
+};
+
 
 }  // namespace art
 

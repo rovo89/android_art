@@ -454,15 +454,13 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns,
   uintptr_t saved_dex_pc = locking_dex_pc_;
   locking_dex_pc_ = 0;
 
-  /*
-   * Update thread state. If the GC wakes up, it'll ignore us, knowing
-   * that we won't touch any references in this state, and we'll check
-   * our suspend mode before we transition out.
-   */
-  self->TransitionFromRunnableToSuspended(why);
-
   bool was_interrupted = false;
   {
+    // Update thread state. If the GC wakes up, it'll ignore us, knowing
+    // that we won't touch any references in this state, and we'll check
+    // our suspend mode before we transition out.
+    ScopedThreadSuspension sts(self, why);
+
     // Pseudo-atomically wait on self's wait_cond_ and release the monitor lock.
     MutexLock mu(self, *self->GetWaitMutex());
 
@@ -493,9 +491,6 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns,
       self->SetInterruptedLocked(false);
     }
   }
-
-  // Set self->status back to kRunnable, and self-suspend if needed.
-  self->TransitionFromSuspendedToRunnable();
 
   {
     // We reset the thread's wait_monitor_ field after transitioning back to runnable so
@@ -667,9 +662,11 @@ void Monitor::InflateThinLocked(Thread* self, Handle<mirror::Object> obj, LockWo
     // Suspend the owner, inflate. First change to blocked and give up mutator_lock_.
     self->SetMonitorEnterObject(obj.Get());
     bool timed_out;
-    self->TransitionFromRunnableToSuspended(kBlocked);
-    Thread* owner = thread_list->SuspendThreadByThreadId(owner_thread_id, false, &timed_out);
-    self->TransitionFromSuspendedToRunnable();
+    Thread* owner;
+    {
+      ScopedThreadSuspension sts(self, kBlocked);
+      owner = thread_list->SuspendThreadByThreadId(owner_thread_id, false, &timed_out);
+    }
     if (owner != nullptr) {
       // We succeeded in suspending the thread, check the lock's status didn't change.
       lock_word = obj->GetLockWord(true);
