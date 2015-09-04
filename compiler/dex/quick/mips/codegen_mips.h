@@ -269,6 +269,11 @@ class MipsMir2Lir FINAL : public Mir2Lir {
   const bool fpuIs32Bit_;
 
  private:
+  static int MipsNextSDCallInsn(CompilationUnit* cu, CallInfo* info, int state,
+                                const MethodReference& target_method, uint32_t,
+                                uintptr_t direct_code, uintptr_t direct_method,
+                                InvokeType type);
+
   void GenNegLong(RegLocation rl_dest, RegLocation rl_src);
   void GenAddLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
   void GenSubLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);

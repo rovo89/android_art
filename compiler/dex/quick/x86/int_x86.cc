@@ -3031,31 +3031,12 @@ void X86Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx,
   // The LoadRefDisp(s) below will work normally, even in 64 bit mode.
   RegStorage check_class = AllocTemp();
 
-  // If Method* is already in a register, we can save a copy.
-  RegLocation rl_method = mir_graph_->GetMethodLoc();
-  int32_t offset_of_type = mirror::Array::DataOffset(
-      sizeof(mirror::HeapReference<mirror::Class*>)).Int32Value() +
-      (sizeof(mirror::HeapReference<mirror::Class*>) * type_idx);
-
-  if (rl_method.location == kLocPhysReg) {
-    if (use_declaring_class) {
-      LoadRefDisp(rl_method.reg, ArtMethod::DeclaringClassOffset().Int32Value(),
-                  check_class, kNotVolatile);
-    } else {
-      LoadRefDisp(rl_method.reg, ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
-                  check_class, kNotVolatile);
-      LoadRefDisp(check_class, offset_of_type, check_class, kNotVolatile);
-    }
+  if (use_declaring_class) {
+    RegStorage r_method = LoadCurrMethodWithHint(check_class);
+    LoadRefDisp(r_method, ArtMethod::DeclaringClassOffset().Int32Value(),
+                check_class, kNotVolatile);
   } else {
-    LoadCurrMethodDirect(check_class);
-    if (use_declaring_class) {
-      LoadRefDisp(check_class, ArtMethod::DeclaringClassOffset().Int32Value(),
-                  check_class, kNotVolatile);
-    } else {
-      LoadRefDisp(check_class, ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
-                  check_class, kNotVolatile);
-      LoadRefDisp(check_class, offset_of_type, check_class, kNotVolatile);
-    }
+    LoadTypeFromCache(type_idx, check_class);
   }
 
   // Compare the computed class to the class in the object.

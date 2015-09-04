@@ -165,12 +165,14 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_TRUE(method->GetName() != nullptr);
     EXPECT_TRUE(method->GetSignature() != Signature::NoSignature());
 
-    EXPECT_TRUE(method->HasDexCacheResolvedMethods());
-    EXPECT_TRUE(method->HasDexCacheResolvedTypes());
+    EXPECT_TRUE(method->HasDexCacheResolvedMethods(sizeof(void*)));
+    EXPECT_TRUE(method->HasDexCacheResolvedTypes(sizeof(void*)));
     EXPECT_TRUE(method->HasSameDexCacheResolvedMethods(
-        method->GetDeclaringClass()->GetDexCache()->GetResolvedMethods()));
+        method->GetDeclaringClass()->GetDexCache()->GetResolvedMethods(),
+        sizeof(void*)));
     EXPECT_TRUE(method->HasSameDexCacheResolvedTypes(
-        method->GetDeclaringClass()->GetDexCache()->GetResolvedTypes()));
+        method->GetDeclaringClass()->GetDexCache()->GetResolvedTypes(),
+        sizeof(void*)));
   }
 
   void AssertField(mirror::Class* klass, ArtField* field)
@@ -357,8 +359,9 @@ class ClassLinkerTest : public CommonRuntimeTest {
     // Verify the dex cache has resolution methods in all resolved method slots
     mirror::DexCache* dex_cache = class_linker_->FindDexCache(Thread::Current(), dex);
     auto* resolved_methods = dex_cache->GetResolvedMethods();
-    for (size_t i = 0; i < static_cast<size_t>(resolved_methods->GetLength()); i++) {
-      EXPECT_TRUE(resolved_methods->GetElementPtrSize<ArtMethod*>(i, sizeof(void*)) != nullptr)
+    for (size_t i = 0, num_methods = dex_cache->NumResolvedMethods(); i != num_methods; ++i) {
+      EXPECT_TRUE(
+          mirror::DexCache::GetElementPtrSize(resolved_methods, i, sizeof(void*)) != nullptr)
           << dex.GetLocation() << " i=" << i;
     }
   }
@@ -565,6 +568,10 @@ struct DexCacheOffsets : public CheckOffsets<mirror::DexCache> {
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, dex_), "dex");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, dex_file_), "dexFile");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, location_), "location");
+    addOffset(OFFSETOF_MEMBER(mirror::DexCache, num_resolved_fields_), "numResolvedFields");
+    addOffset(OFFSETOF_MEMBER(mirror::DexCache, num_resolved_methods_), "numResolvedMethods");
+    addOffset(OFFSETOF_MEMBER(mirror::DexCache, num_resolved_types_), "numResolvedTypes");
+    addOffset(OFFSETOF_MEMBER(mirror::DexCache, num_strings_), "numStrings");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_fields_), "resolvedFields");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_methods_), "resolvedMethods");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_types_), "resolvedTypes");

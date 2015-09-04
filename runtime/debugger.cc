@@ -3821,7 +3821,9 @@ JDWP::JdwpError Dbg::PrepareInvokeMethod(uint32_t request_id, JDWP::ObjectId thr
         if (shorty[i + 1] == 'L') {
           // Did we really get an argument of an appropriate reference type?
           mirror::Class* parameter_type =
-              m->GetClassFromTypeIndex(types->GetTypeItem(i).type_idx_, true);
+              m->GetClassFromTypeIndex(types->GetTypeItem(i).type_idx_,
+                                       true /* resolve */,
+                                       sizeof(void*));
           mirror::Object* argument = gRegistry->Get<mirror::Object*>(arg_values[i], &error);
           if (error != JDWP::ERR_NONE) {
             return JDWP::ERR_INVALID_OBJECT;

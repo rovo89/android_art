@@ -394,18 +394,19 @@ int X86Mir2Lir::X86NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       cg->LoadCurrMethodDirect(arg0_ref);
       break;
     case 1:  // Get method->dex_cache_resolved_methods_
-      cg->LoadRefDisp(arg0_ref,
-                      ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(),
-                      arg0_ref,
-                      kNotVolatile);
+      cg->LoadBaseDisp(arg0_ref,
+                       ArtMethod::DexCacheResolvedMethodsOffset(
+                           cu->target64 ? kX86_64PointerSize : kX86PointerSize).Int32Value(),
+                       arg0_ref,
+                       cu->target64 ? k64 : k32,
+                       kNotVolatile);
       break;
     case 2: {
       // Grab target method*
       CHECK_EQ(cu->dex_file, target_method.dex_file);
       const size_t pointer_size = GetInstructionSetPointerSize(cu->instruction_set);
       cg->LoadWordDisp(arg0_ref,
-                       mirror::Array::DataOffset(pointer_size).Uint32Value() +
-                       target_method.dex_method_index * pointer_size,
+                       cg->GetCachePointerOffset(target_method.dex_method_index, pointer_size),
                        arg0_ref);
       break;
     }

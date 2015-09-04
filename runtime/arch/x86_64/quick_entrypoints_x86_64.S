@@ -926,7 +926,7 @@ DEFINE_FUNCTION art_quick_alloc_object_tlab
     int3
 #endif
     // Might need a special macro since rsi and edx is 32b/64b mismatched.
-    movl ART_METHOD_DEX_CACHE_TYPES_OFFSET(%rsi), %edx  // Load dex cache resolved types array
+    movl ART_METHOD_DEX_CACHE_TYPES_OFFSET_64(%rsi), %edx  // Load dex cache resolved types array
     UNPOISON_HEAP_REF edx
     // TODO: Add read barrier when this function is used.
     // Might need to break down into multiple instructions to get the base address in a register.

@@ -817,12 +817,12 @@ inline uint32_t Class::NumDirectInterfaces() {
   }
 }
 
-inline void Class::SetDexCacheStrings(ObjectArray<String>* new_dex_cache_strings) {
-  SetFieldObject<false>(DexCacheStringsOffset(), new_dex_cache_strings);
+inline void Class::SetDexCacheStrings(GcRoot<String>* new_dex_cache_strings) {
+  SetFieldPtr<false>(DexCacheStringsOffset(), new_dex_cache_strings);
 }
 
-inline ObjectArray<String>* Class::GetDexCacheStrings() {
-  return GetFieldObject<ObjectArray<String>>(DexCacheStringsOffset());
+inline GcRoot<String>* Class::GetDexCacheStrings() {
+  return GetFieldPtr<GcRoot<String>*>(DexCacheStringsOffset());
 }
 
 template<class Visitor>

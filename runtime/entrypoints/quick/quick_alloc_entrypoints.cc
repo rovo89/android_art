@@ -33,7 +33,7 @@ extern "C" mirror::Object* artAllocObjectFromCode ##suffix##suffix2( \
     SHARED_REQUIRES(Locks::mutator_lock_) { \
   ScopedQuickEntrypointChecks sqec(self); \
   if (kUseTlabFastPath && !instrumented_bool && allocator_type == gc::kAllocatorTypeTLAB) { \
-    mirror::Class* klass = method->GetDexCacheResolvedType<false>(type_idx); \
+    mirror::Class* klass = method->GetDexCacheResolvedType<false>(type_idx, sizeof(void*)); \
     if (LIKELY(klass != nullptr && klass->IsInitialized() && !klass->IsFinalizable())) { \
       size_t byte_count = klass->GetObjectSize(); \
       byte_count = RoundUp(byte_count, gc::space::BumpPointerSpace::kAlignment); \

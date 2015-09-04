@@ -677,10 +677,11 @@ int ArmMir2Lir::ArmNextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       FALLTHROUGH_INTENDED;
     case 1:  // Get method->dex_cache_resolved_methods_
       if (!use_pc_rel) {
-        cg->LoadRefDisp(arg0_ref,
-                        ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(),
-                        arg0_ref,
-                        kNotVolatile);
+        cg->LoadBaseDisp(arg0_ref,
+                         ArtMethod::DexCacheResolvedMethodsOffset(kArmPointerSize).Int32Value(),
+                         arg0_ref,
+                         k32,
+                         kNotVolatile);
       }
       // Set up direct code if known.
       if (direct_code != 0) {
@@ -702,8 +703,8 @@ int ArmMir2Lir::ArmNextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       CHECK_EQ(cu->dex_file, target_method.dex_file);
       if (!use_pc_rel) {
         cg->LoadRefDisp(arg0_ref,
-                        mirror::ObjectArray<mirror::Object>::OffsetOfElement(
-                            target_method.dex_method_index).Int32Value(),
+                        cg->GetCachePointerOffset(target_method.dex_method_index,
+                                                  kArmPointerSize),
                         arg0_ref,
                         kNotVolatile);
       } else {
