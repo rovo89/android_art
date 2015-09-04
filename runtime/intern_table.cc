@@ -221,13 +221,13 @@ void InternTable::BroadcastForNewInterns() {
 
 void InternTable::WaitUntilAccessible(Thread* self) {
   Locks::intern_table_lock_->ExclusiveUnlock(self);
-  self->TransitionFromRunnableToSuspended(kWaitingWeakGcRootRead);
-  Locks::intern_table_lock_->ExclusiveLock(self);
-  while (weak_root_state_ == gc::kWeakRootStateNoReadsOrWrites) {
-    weak_intern_condition_.Wait(self);
+  {
+    ScopedThreadSuspension sts(self, kWaitingWeakGcRootRead);
+    MutexLock mu(self, *Locks::intern_table_lock_);
+    while (weak_root_state_ == gc::kWeakRootStateNoReadsOrWrites) {
+      weak_intern_condition_.Wait(self);
+    }
   }
-  Locks::intern_table_lock_->ExclusiveUnlock(self);
-  self->TransitionFromSuspendedToRunnable();
   Locks::intern_table_lock_->ExclusiveLock(self);
 }
 

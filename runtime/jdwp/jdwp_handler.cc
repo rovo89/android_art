@@ -31,6 +31,7 @@
 #include "jdwp/jdwp_expand_buf.h"
 #include "jdwp/jdwp_priv.h"
 #include "runtime.h"
+#include "scoped_thread_state_change.h"
 #include "thread-inl.h"
 #include "utils.h"
 
@@ -238,9 +239,8 @@ static JdwpError VM_Dispose(JdwpState*, Request*, ExpandBuf*)
 static JdwpError VM_Suspend(JdwpState*, Request*, ExpandBuf*)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   Thread* self = Thread::Current();
-  self->TransitionFromRunnableToSuspended(kWaitingForDebuggerSuspension);
+  ScopedThreadSuspension sts(self, kWaitingForDebuggerSuspension);
   Dbg::SuspendVM();
-  self->TransitionFromSuspendedToRunnable();
   return ERR_NONE;
 }
 
@@ -922,9 +922,8 @@ static JdwpError TR_Suspend(JdwpState*, Request* request, ExpandBuf*)
   }
 
   Thread* self = Thread::Current();
-  self->TransitionFromRunnableToSuspended(kWaitingForDebuggerSend);
+  ScopedThreadSuspension sts(self, kWaitingForDebuggerSend);
   JdwpError result = Dbg::SuspendThread(thread_id);
-  self->TransitionFromSuspendedToRunnable();
   return result;
 }
 
@@ -1609,7 +1608,7 @@ size_t JdwpState::ProcessRequest(Request* request, ExpandBuf* pReply, bool* skip
    * Do this after anything that can stall indefinitely.
    */
   Thread* self = Thread::Current();
-  ThreadState old_state = self->TransitionFromSuspendedToRunnable();
+  ScopedObjectAccess soa(self);
 
   expandBufAddSpace(pReply, kJDWPHeaderLen);
 
@@ -1669,9 +1668,6 @@ size_t JdwpState::ProcessRequest(Request* request, ExpandBuf* pReply, bool* skip
   if (request->GetCommandSet() != kJDWPDdmCmdSet) {
     last_activity_time_ms_.StoreSequentiallyConsistent(MilliTime());
   }
-
-  /* tell the VM that GC is okay again */
-  self->TransitionFromRunnableToSuspended(old_state);
 
   return replyLength;
 }

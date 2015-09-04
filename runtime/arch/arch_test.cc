@@ -32,20 +32,17 @@ class ArchTest : public CommonRuntimeTest {
 
   static void CheckFrameSize(InstructionSet isa, Runtime::CalleeSaveType type, uint32_t save_size)
       NO_THREAD_SAFETY_ANALYSIS {
-    Runtime* r = Runtime::Current();
+    Runtime* const runtime = Runtime::Current();
+    Thread* const self = Thread::Current();
+    ScopedObjectAccess soa(self);  // So we can create callee-save methods.
 
-    Thread* t = Thread::Current();
-    t->TransitionFromSuspendedToRunnable();  // So we can create callee-save methods.
-
-    r->SetInstructionSet(isa);
-    ArtMethod* save_method = r->CreateCalleeSaveMethod();
-    r->SetCalleeSaveMethod(save_method, type);
+    runtime->SetInstructionSet(isa);
+    ArtMethod* save_method = runtime->CreateCalleeSaveMethod();
+    runtime->SetCalleeSaveMethod(save_method, type);
     QuickMethodFrameInfo frame_info = save_method->GetQuickFrameInfo();
     EXPECT_EQ(frame_info.FrameSizeInBytes(), save_size) << "Expected and real size differs for "
         << type << " core spills=" << std::hex << frame_info.CoreSpillMask() << " fp spills="
         << frame_info.FpSpillMask() << std::dec;
-
-    t->TransitionFromRunnableToSuspended(ThreadState::kNative);  // So we can shut down.
   }
 };
 

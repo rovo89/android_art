@@ -536,9 +536,8 @@ void JdwpState::Run() {
       ddm_is_active_ = false;
 
       /* broadcast the disconnect; must be in RUNNING state */
-      thread_->TransitionFromSuspendedToRunnable();
+      ScopedObjectAccess soa(thread_);
       Dbg::DdmDisconnected();
-      thread_->TransitionFromRunnableToSuspended(kWaitingInMainDebuggerLoop);
     }
 
     {
