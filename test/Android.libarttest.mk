@@ -38,6 +38,7 @@ LIBARTTEST_COMMON_SRC_FILES := \
   461-get-reference-vreg/get_reference_vreg_jni.cc \
   466-get-live-vreg/get_live_vreg_jni.cc \
   497-inlining-and-class-loader/clear_dex_cache.cc \
+  998-scoped-primitive-array/scoped_primitive_array.cc \
   999-jni-perf/perf-jni.cc
 
 ART_TARGET_LIBARTTEST_$(ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_TARGET_TEST_OUT)/$(TARGET_ARCH)/libarttest.so
@@ -72,7 +73,7 @@ define build-libarttest
     LOCAL_MODULE_TAGS := tests
   endif
   LOCAL_SRC_FILES := $(LIBARTTEST_COMMON_SRC_FILES)
-  LOCAL_SHARED_LIBRARIES += libart$$(suffix) libbacktrace
+  LOCAL_SHARED_LIBRARIES += libart$$(suffix) libbacktrace libnativehelper
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.libarttest.mk
