@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_ART_METHOD_H_
 #define ART_RUNTIME_ART_METHOD_H_
 
+#include "base/casts.h"
 #include "dex_file.h"
 #include "gc_root.h"
 #include "invoke_type.h"
@@ -212,41 +213,35 @@ class ArtMethod FINAL {
     dex_method_index_ = new_idx;
   }
 
-  static MemberOffset DexCacheResolvedMethodsOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_methods_);
-  }
-
-  static MemberOffset DexCacheResolvedTypesOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_types_);
-  }
-
-  ALWAYS_INLINE mirror::PointerArray* GetDexCacheResolvedMethods()
+  ALWAYS_INLINE ArtMethod** GetDexCacheResolvedMethods(size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
-  ALWAYS_INLINE ArtMethod* GetDexCacheResolvedMethod(uint16_t method_idx, size_t ptr_size)
+  ALWAYS_INLINE ArtMethod* GetDexCacheResolvedMethod(uint16_t method_index, size_t ptr_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
-  ALWAYS_INLINE void SetDexCacheResolvedMethod(uint16_t method_idx, ArtMethod* new_method,
+  ALWAYS_INLINE void SetDexCacheResolvedMethod(uint16_t method_index,
+                                               ArtMethod* new_method,
                                                size_t ptr_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
-  ALWAYS_INLINE void SetDexCacheResolvedMethods(mirror::PointerArray* new_dex_cache_methods)
+  ALWAYS_INLINE void SetDexCacheResolvedMethods(ArtMethod** new_dex_cache_methods, size_t ptr_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
-  bool HasDexCacheResolvedMethods() SHARED_REQUIRES(Locks::mutator_lock_);
-  bool HasSameDexCacheResolvedMethods(ArtMethod* other)
+  bool HasDexCacheResolvedMethods(size_t pointer_size) SHARED_REQUIRES(Locks::mutator_lock_);
+  bool HasSameDexCacheResolvedMethods(ArtMethod* other, size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
-  bool HasSameDexCacheResolvedMethods(mirror::PointerArray* other_cache)
+  bool HasSameDexCacheResolvedMethods(ArtMethod** other_cache, size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   template <bool kWithCheck = true>
-  mirror::Class* GetDexCacheResolvedType(uint32_t type_idx)
+  mirror::Class* GetDexCacheResolvedType(uint32_t type_idx, size_t ptr_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
-  void SetDexCacheResolvedTypes(mirror::ObjectArray<mirror::Class>* new_dex_cache_types)
+  void SetDexCacheResolvedTypes(GcRoot<mirror::Class>* new_dex_cache_types, size_t ptr_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
-  bool HasDexCacheResolvedTypes() SHARED_REQUIRES(Locks::mutator_lock_);
-  bool HasSameDexCacheResolvedTypes(ArtMethod* other) SHARED_REQUIRES(Locks::mutator_lock_);
-  bool HasSameDexCacheResolvedTypes(mirror::ObjectArray<mirror::Class>* other_cache)
+  bool HasDexCacheResolvedTypes(size_t pointer_size) SHARED_REQUIRES(Locks::mutator_lock_);
+  bool HasSameDexCacheResolvedTypes(ArtMethod* other, size_t pointer_size)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  bool HasSameDexCacheResolvedTypes(GcRoot<mirror::Class>* other_cache, size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Get the Class* from the type index into this method's dex cache.
-  mirror::Class* GetClassFromTypeIndex(uint16_t type_idx, bool resolve)
+  mirror::Class* GetClassFromTypeIndex(uint16_t type_idx, bool resolve, size_t ptr_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Find the method that this method overrides.
@@ -267,7 +262,7 @@ class ArtMethod FINAL {
     return GetEntryPointFromQuickCompiledCodePtrSize(sizeof(void*));
   }
   ALWAYS_INLINE const void* GetEntryPointFromQuickCompiledCodePtrSize(size_t pointer_size) {
-    return GetEntryPoint<const void*>(
+    return GetNativePointer<const void*>(
         EntryPointFromQuickCompiledCodeOffset(pointer_size), pointer_size);
   }
 
@@ -277,8 +272,8 @@ class ArtMethod FINAL {
   }
   ALWAYS_INLINE void SetEntryPointFromQuickCompiledCodePtrSize(
       const void* entry_point_from_quick_compiled_code, size_t pointer_size) {
-    SetEntryPoint(EntryPointFromQuickCompiledCodeOffset(pointer_size),
-                  entry_point_from_quick_compiled_code, pointer_size);
+    SetNativePointer(EntryPointFromQuickCompiledCodeOffset(pointer_size),
+                     entry_point_from_quick_compiled_code, pointer_size);
   }
 
   uint32_t GetCodeSize() SHARED_REQUIRES(Locks::mutator_lock_);
@@ -374,6 +369,16 @@ class ArtMethod FINAL {
 
   void UnregisterNative() SHARED_REQUIRES(Locks::mutator_lock_);
 
+  static MemberOffset DexCacheResolvedMethodsOffset(size_t pointer_size) {
+    return MemberOffset(PtrSizedFieldsOffset(pointer_size) + OFFSETOF_MEMBER(
+        PtrSizedFields, dex_cache_resolved_methods_) / sizeof(void*) * pointer_size);
+  }
+
+  static MemberOffset DexCacheResolvedTypesOffset(size_t pointer_size) {
+    return MemberOffset(PtrSizedFieldsOffset(pointer_size) + OFFSETOF_MEMBER(
+        PtrSizedFields, dex_cache_resolved_types_) / sizeof(void*) * pointer_size);
+  }
+
   static MemberOffset EntryPointFromJniOffset(size_t pointer_size) {
     return MemberOffset(PtrSizedFieldsOffset(pointer_size) + OFFSETOF_MEMBER(
         PtrSizedFields, entry_point_from_jni_) / sizeof(void*) * pointer_size);
@@ -388,14 +393,14 @@ class ArtMethod FINAL {
     return GetEntryPointFromJniPtrSize(sizeof(void*));
   }
   ALWAYS_INLINE void* GetEntryPointFromJniPtrSize(size_t pointer_size) {
-    return GetEntryPoint<void*>(EntryPointFromJniOffset(pointer_size), pointer_size);
+    return GetNativePointer<void*>(EntryPointFromJniOffset(pointer_size), pointer_size);
   }
 
   void SetEntryPointFromJni(const void* entrypoint) SHARED_REQUIRES(Locks::mutator_lock_) {
     SetEntryPointFromJniPtrSize(entrypoint, sizeof(void*));
   }
   ALWAYS_INLINE void SetEntryPointFromJniPtrSize(const void* entrypoint, size_t pointer_size) {
-    SetEntryPoint(EntryPointFromJniOffset(pointer_size), entrypoint, pointer_size);
+    SetNativePointer(EntryPointFromJniOffset(pointer_size), entrypoint, pointer_size);
   }
 
   // Is this a CalleSaveMethod or ResolutionMethod and therefore doesn't adhere to normal
@@ -464,7 +469,7 @@ class ArtMethod FINAL {
 
   const DexFile::CodeItem* GetCodeItem() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  bool IsResolvedTypeIdx(uint16_t type_idx) SHARED_REQUIRES(Locks::mutator_lock_);
+  bool IsResolvedTypeIdx(uint16_t type_idx, size_t ptr_size) SHARED_REQUIRES(Locks::mutator_lock_);
 
   int32_t GetLineNumFromDexPC(uint32_t dex_pc) SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -485,7 +490,8 @@ class ArtMethod FINAL {
 
   // May cause thread suspension due to GetClassFromTypeIdx calling ResolveType this caused a large
   // number of bugs at call sites.
-  mirror::Class* GetReturnType(bool resolve = true) SHARED_REQUIRES(Locks::mutator_lock_);
+  mirror::Class* GetReturnType(bool resolve, size_t ptr_size)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   mirror::ClassLoader* GetClassLoader() SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -514,19 +520,13 @@ class ArtMethod FINAL {
   void CopyFrom(const ArtMethod* src, size_t image_pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ALWAYS_INLINE mirror::ObjectArray<mirror::Class>* GetDexCacheResolvedTypes()
+  ALWAYS_INLINE GcRoot<mirror::Class>* GetDexCacheResolvedTypes(size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
  protected:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   // The class we are a part of.
   GcRoot<mirror::Class> declaring_class_;
-
-  // Short cuts to declaring_class_->dex_cache_ member for fast compiled code access.
-  GcRoot<mirror::PointerArray> dex_cache_resolved_methods_;
-
-  // Short cuts to declaring_class_->dex_cache_ member for fast compiled code access.
-  GcRoot<mirror::ObjectArray<mirror::Class>> dex_cache_resolved_types_;
 
   // Access flags; low 16 bits are defined by spec.
   uint32_t access_flags_;
@@ -552,6 +552,12 @@ class ArtMethod FINAL {
   // PACKED(4) is necessary for the correctness of
   // RoundUp(OFFSETOF_MEMBER(ArtMethod, ptr_sized_fields_), pointer_size).
   struct PACKED(4) PtrSizedFields {
+    // Short cuts to declaring_class_->dex_cache_ member for fast compiled code access.
+    ArtMethod** dex_cache_resolved_methods_;
+
+    // Short cuts to declaring_class_->dex_cache_ member for fast compiled code access.
+    GcRoot<mirror::Class>* dex_cache_resolved_types_;
+
     // Pointer to JNI function registered to this method, or a function to resolve the JNI function.
     void* entry_point_from_jni_;
 
@@ -567,26 +573,26 @@ class ArtMethod FINAL {
   }
 
   template<typename T>
-  ALWAYS_INLINE T GetEntryPoint(MemberOffset offset, size_t pointer_size) const {
+  ALWAYS_INLINE T GetNativePointer(MemberOffset offset, size_t pointer_size) const {
+    static_assert(std::is_pointer<T>::value, "T must be a pointer type");
     DCHECK(ValidPointerSize(pointer_size)) << pointer_size;
     const auto addr = reinterpret_cast<uintptr_t>(this) + offset.Uint32Value();
     if (pointer_size == sizeof(uint32_t)) {
       return reinterpret_cast<T>(*reinterpret_cast<const uint32_t*>(addr));
     } else {
       auto v = *reinterpret_cast<const uint64_t*>(addr);
-      DCHECK_EQ(reinterpret_cast<uint64_t>(reinterpret_cast<T>(v)), v) << "Conversion lost bits";
-      return reinterpret_cast<T>(v);
+      return reinterpret_cast<T>(dchecked_integral_cast<uintptr_t>(v));
     }
   }
 
   template<typename T>
-  ALWAYS_INLINE void SetEntryPoint(MemberOffset offset, T new_value, size_t pointer_size) {
+  ALWAYS_INLINE void SetNativePointer(MemberOffset offset, T new_value, size_t pointer_size) {
+    static_assert(std::is_pointer<T>::value, "T must be a pointer type");
     DCHECK(ValidPointerSize(pointer_size)) << pointer_size;
     const auto addr = reinterpret_cast<uintptr_t>(this) + offset.Uint32Value();
     if (pointer_size == sizeof(uint32_t)) {
       uintptr_t ptr = reinterpret_cast<uintptr_t>(new_value);
-      DCHECK_EQ(static_cast<uint32_t>(ptr), ptr) << "Conversion lost bits";
-      *reinterpret_cast<uint32_t*>(addr) = static_cast<uint32_t>(ptr);
+      *reinterpret_cast<uint32_t*>(addr) = dchecked_integral_cast<uint32_t>(ptr);
     } else {
       *reinterpret_cast<uint64_t*>(addr) = reinterpret_cast<uintptr_t>(new_value);
     }

@@ -344,7 +344,9 @@ static inline String* ResolveString(Thread* self, ShadowFrame& shadow_frame, uin
   }
   ArtMethod* method = shadow_frame.GetMethod();
   mirror::Class* declaring_class = method->GetDeclaringClass();
-  mirror::String* s = declaring_class->GetDexCacheStrings()->Get(string_idx);
+  // MethodVerifier refuses methods with string_idx out of bounds.
+  DCHECK_LT(string_idx, declaring_class->GetDexCache()->NumStrings());
+  mirror::String* s = declaring_class->GetDexCacheStrings()[string_idx].Read();
   if (UNLIKELY(s == nullptr)) {
     StackHandleScope<1> hs(self);
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));

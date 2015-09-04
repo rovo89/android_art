@@ -27,6 +27,7 @@
 #include "class_flags.h"
 #include "class_linker.h"
 #include "class_loader-inl.h"
+#include "dex_cache-inl.h"
 #include "lock_word-inl.h"
 #include "monitor.h"
 #include "object_array-inl.h"
@@ -1006,6 +1007,17 @@ inline mirror::ClassLoader* Object::AsClassLoader() {
   return down_cast<mirror::ClassLoader*>(this);
 }
 
+template<VerifyObjectFlags kVerifyFlags>
+inline bool Object::IsDexCache() {
+  return GetClass<kVerifyFlags>()->IsDexCacheClass();
+}
+
+template<VerifyObjectFlags kVerifyFlags>
+inline mirror::DexCache* Object::AsDexCache() {
+  DCHECK(IsDexCache<kVerifyFlags>());
+  return down_cast<mirror::DexCache*>(this);
+}
+
 template <VerifyObjectFlags kVerifyFlags, typename Visitor, typename JavaLangRefVisitor>
 inline void Object::VisitReferences(const Visitor& visitor,
                                     const JavaLangRefVisitor& ref_visitor) {
@@ -1031,6 +1043,9 @@ inline void Object::VisitReferences(const Visitor& visitor,
       } else if ((class_flags & kClassFlagReference) != 0) {
         VisitInstanceFieldsReferences(klass, visitor);
         ref_visitor(klass, AsReference());
+      } else if (class_flags == kClassFlagDexCache) {
+        mirror::DexCache* const dex_cache = AsDexCache<kVerifyFlags>();
+        dex_cache->VisitReferences<kVerifyFlags>(klass, visitor);
       } else {
         mirror::ClassLoader* const class_loader = AsClassLoader<kVerifyFlags>();
         class_loader->VisitReferences<kVerifyFlags>(klass, visitor);

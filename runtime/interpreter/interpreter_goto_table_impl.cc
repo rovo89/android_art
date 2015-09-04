@@ -327,7 +327,9 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
     const uint8_t vreg_index = inst->VRegA_11x(inst_data);
     Object* obj_result = shadow_frame.GetVRegReference(vreg_index);
     if (do_assignability_check && obj_result != nullptr) {
-      Class* return_type = shadow_frame.GetMethod()->GetReturnType();
+      size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+      Class* return_type = shadow_frame.GetMethod()->GetReturnType(true /* resolve */,
+                                                                   pointer_size);
       obj_result = shadow_frame.GetVRegReference(vreg_index);
       if (return_type == nullptr) {
         // Return the pending exception.

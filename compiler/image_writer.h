@@ -78,12 +78,13 @@ class ImageWriter FINAL {
 
   ArtMethod* GetImageMethodAddress(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  mirror::HeapReference<mirror::Object>* GetDexCacheArrayElementImageAddress(
-      const DexFile* dex_file, uint32_t offset) const SHARED_REQUIRES(Locks::mutator_lock_) {
+  template <typename PtrType>
+  PtrType GetDexCacheArrayElementImageAddress(const DexFile* dex_file, uint32_t offset)
+      const SHARED_REQUIRES(Locks::mutator_lock_) {
     auto it = dex_cache_array_starts_.find(dex_file);
     DCHECK(it != dex_cache_array_starts_.end());
-    return reinterpret_cast<mirror::HeapReference<mirror::Object>*>(
-        image_begin_ + RoundUp(sizeof(ImageHeader), kObjectAlignment) + it->second + offset);
+    return reinterpret_cast<PtrType>(
+        image_begin_ + bin_slot_offsets_[kBinDexCacheArray] + it->second + offset);
   }
 
   uint8_t* GetOatFileBegin() const;
@@ -104,13 +105,8 @@ class ImageWriter FINAL {
 
   // Classify different kinds of bins that objects end up getting packed into during image writing.
   enum Bin {
-    // Dex cache arrays have a special slot for PC-relative addressing. Since they are
-    // huge, and as such their dirtiness is not important for the clean/dirty separation,
-    // we arbitrarily keep them at the beginning.
-    kBinDexCacheArray,            // Object arrays belonging to dex cache.
     // Likely-clean:
     kBinString,                        // [String] Almost always immutable (except for obj header).
-    kBinArtMethodsManagedInitialized,  // [ArtMethod] Not-native, and initialized. Unlikely to dirty
     // Unknown mix of clean/dirty:
     kBinRegular,
     // Likely-dirty:
@@ -127,6 +123,10 @@ class ImageWriter FINAL {
     // ArtMethods may be dirty if the class has native methods or a declaring class that isn't
     // initialized.
     kBinArtMethodDirty,
+    // Dex cache arrays have a special slot for PC-relative addressing. Since they are
+    // huge, and as such their dirtiness is not important for the clean/dirty separation,
+    // we arbitrarily keep them at the end of the native data.
+    kBinDexCacheArray,            // Arrays belonging to dex cache.
     kBinSize,
     // Number of bins which are for mirror objects.
     kBinMirrorCount = kBinArtField,
@@ -140,6 +140,7 @@ class ImageWriter FINAL {
     kNativeObjectRelocationTypeArtMethodArrayClean,
     kNativeObjectRelocationTypeArtMethodDirty,
     kNativeObjectRelocationTypeArtMethodArrayDirty,
+    kNativeObjectRelocationTypeDexCacheArray,
   };
   friend std::ostream& operator<<(std::ostream& stream, const NativeObjectRelocationType& type);
 
@@ -193,6 +194,7 @@ class ImageWriter FINAL {
       SHARED_REQUIRES(Locks::mutator_lock_);
   BinSlot GetImageBinSlot(mirror::Object* object) const SHARED_REQUIRES(Locks::mutator_lock_);
 
+  void AddDexCacheArrayRelocation(void* array, size_t offset) SHARED_REQUIRES(Locks::mutator_lock_);
   void AddMethodPointerArray(mirror::PointerArray* arr) SHARED_REQUIRES(Locks::mutator_lock_);
 
   static void* GetImageAddressCallback(void* writer, mirror::Object* obj)
@@ -266,6 +268,8 @@ class ImageWriter FINAL {
       SHARED_REQUIRES(Locks::mutator_lock_);
   void FixupObject(mirror::Object* orig, mirror::Object* copy)
       SHARED_REQUIRES(Locks::mutator_lock_);
+  void FixupDexCache(mirror::DexCache* orig_dex_cache, mirror::DexCache* copy_dex_cache)
+      SHARED_REQUIRES(Locks::mutator_lock_);
   void FixupPointerArray(mirror::Object* dst, mirror::PointerArray* arr, mirror::Class* klass,
                          Bin array_type) SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -291,7 +295,10 @@ class ImageWriter FINAL {
 
   static Bin BinTypeForNativeRelocationType(NativeObjectRelocationType type);
 
-  void* NativeLocationInImage(void* obj);
+  uintptr_t NativeOffsetInImage(void* obj);
+
+  template <typename T>
+  T* NativeLocationInImage(T* obj);
 
   const CompilerDriver& compiler_driver_;
 
@@ -312,15 +319,6 @@ class ImageWriter FINAL {
 
   // Memory mapped for generating the image.
   std::unique_ptr<MemMap> image_;
-
-  // Indexes, lengths for dex cache arrays (objects are inside of the image so that they don't
-  // move).
-  struct DexCacheArrayLocation {
-    size_t offset_;
-    size_t length_;
-    Bin bin_type_;
-  };
-  SafeMap<mirror::Object*, DexCacheArrayLocation> dex_cache_array_indexes_;
 
   // Pointer arrays that need to be updated. Since these are only some int and long arrays, we need
   // to keep track. These include vtable arrays, iftable arrays, and dex caches.

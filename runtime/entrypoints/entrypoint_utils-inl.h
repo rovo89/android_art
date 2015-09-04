@@ -120,9 +120,11 @@ ALWAYS_INLINE
 inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
                                        ArtMethod* method,
                                        Thread* self, bool* slow_path) {
-  mirror::Class* klass = method->GetDexCacheResolvedType<false>(type_idx);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  size_t pointer_size = class_linker->GetImagePointerSize();
+  mirror::Class* klass = method->GetDexCacheResolvedType<false>(type_idx, pointer_size);
   if (UNLIKELY(klass == nullptr)) {
-    klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
+    klass = class_linker->ResolveType(type_idx, method);
     *slow_path = true;
     if (klass == nullptr) {
       DCHECK(self->IsExceptionPending());
@@ -258,9 +260,11 @@ inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
     *slow_path = true;
     return nullptr;  // Failure
   }
-  mirror::Class* klass = method->GetDexCacheResolvedType<false>(type_idx);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  size_t pointer_size = class_linker->GetImagePointerSize();
+  mirror::Class* klass = method->GetDexCacheResolvedType<false>(type_idx, pointer_size);
   if (UNLIKELY(klass == nullptr)) {  // Not in dex cache so try to resolve
-    klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
+    klass = class_linker->ResolveType(type_idx, method);
     *slow_path = true;
     if (klass == nullptr) {  // Error
       DCHECK(Thread::Current()->IsExceptionPending());
