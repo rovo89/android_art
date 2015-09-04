@@ -54,14 +54,16 @@ define build-libarttest
       $$(error expected target or host for argument 1, received $(1))
     endif
   endif
-  ifneq ($(2),d)
+  ifneq ($(2),debug)
     ifneq ($(2),)
       $$(error d or empty for argument 2, received $(2))
     endif
+    suffix := d
+  else
+    suffix :=
   endif
 
   art_target_or_host := $(1)
-  suffix := $(2)
 
   include $(CLEAR_VARS)
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
@@ -100,11 +102,11 @@ endef
 
 ifeq ($(ART_BUILD_TARGET),true)
   $(eval $(call build-libarttest,target,))
-  $(eval $(call build-libarttest,target,d))
+  $(eval $(call build-libarttest,target,debug))
 endif
 ifeq ($(ART_BUILD_HOST),true)
   $(eval $(call build-libarttest,host,))
-  $(eval $(call build-libarttest,host,d))
+  $(eval $(call build-libarttest,host,debug))
 endif
 
 # Clear locally used variables.
