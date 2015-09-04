@@ -35,15 +35,16 @@ static jobject GetThreadStack(const ScopedFastNativeObjectAccess& soa, jobject p
     trace = soa.Self()->CreateInternalStackTrace<false>(soa);
   } else {
     // Suspend thread to build stack trace.
-    soa.Self()->TransitionFromRunnableToSuspended(kNative);
+    ScopedThreadSuspension sts(soa.Self(), kSuspended);
     ThreadList* thread_list = Runtime::Current()->GetThreadList();
     bool timed_out;
     Thread* thread = thread_list->SuspendThreadByPeer(peer, true, false, &timed_out);
     if (thread != nullptr) {
       // Must be runnable to create returned array.
-      CHECK_EQ(soa.Self()->TransitionFromSuspendedToRunnable(), kNative);
-      trace = thread->CreateInternalStackTrace<false>(soa);
-      soa.Self()->TransitionFromRunnableToSuspended(kNative);
+      {
+        ScopedObjectAccess soa2(soa.Self());
+        trace = thread->CreateInternalStackTrace<false>(soa);
+      }
       // Restart suspended thread.
       thread_list->Resume(thread, false);
     } else {
@@ -52,7 +53,6 @@ static jobject GetThreadStack(const ScopedFastNativeObjectAccess& soa, jobject p
             "generous timeout.";
       }
     }
-    CHECK_EQ(soa.Self()->TransitionFromSuspendedToRunnable(), kNative);
   }
   return trace;
 }

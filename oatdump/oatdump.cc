@@ -1604,14 +1604,11 @@ class ImageDumper {
       // Since FlushAllocStack() above resets the (active) allocation
       // stack. Need to revoke the thread-local allocation stacks that
       // point into it.
-      {
-        self->TransitionFromRunnableToSuspended(kNative);
-        ThreadList* thread_list = Runtime::Current()->GetThreadList();
-        thread_list->SuspendAll(__FUNCTION__);
-        heap->RevokeAllThreadLocalAllocationStacks(self);
-        thread_list->ResumeAll();
-        self->TransitionFromSuspendedToRunnable();
-      }
+      ScopedThreadSuspension sts(self, kNative);
+      ThreadList* thread_list = Runtime::Current()->GetThreadList();
+      thread_list->SuspendAll(__FUNCTION__);
+      heap->RevokeAllThreadLocalAllocationStacks(self);
+      thread_list->ResumeAll();
     }
     {
       // Mark dex caches.
