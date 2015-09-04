@@ -58,10 +58,10 @@ class ClassTable {
       REQUIRES(Locks::classlinker_classes_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Returns the number of classes in previous snapshots.
-  size_t NumZygoteClasses() const REQUIRES(Locks::classlinker_classes_lock_);
+  size_t NumZygoteClasses() const SHARED_REQUIRES(Locks::classlinker_classes_lock_);
 
   // Returns all off the classes in the lastest snapshot.
-  size_t NumNonZygoteClasses() const REQUIRES(Locks::classlinker_classes_lock_);
+  size_t NumNonZygoteClasses() const SHARED_REQUIRES(Locks::classlinker_classes_lock_);
 
   // Update a class in the table with the new class. Returns the existing class which was replaced.
   mirror::Class* UpdateClass(const char* descriptor, mirror::Class* new_klass, size_t hash)
@@ -79,7 +79,7 @@ class ClassTable {
 
   // Return false if the callback told us to exit.
   bool Visit(ClassVisitor* visitor)
-      REQUIRES(Locks::classlinker_classes_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
+      SHARED_REQUIRES(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
 
   mirror::Class* Lookup(const char* descriptor, size_t hash)
       SHARED_REQUIRES(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
