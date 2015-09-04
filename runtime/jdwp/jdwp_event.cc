@@ -623,7 +623,7 @@ void JdwpState::SendRequestAndPossiblySuspend(ExpandBuf* pReq, JdwpSuspendPolicy
   CHECK(pReq != nullptr);
   /* send request and possibly suspend ourselves */
   JDWP::ObjectId thread_self_id = Dbg::GetThreadSelfId();
-  self->TransitionFromRunnableToSuspended(kWaitingForDebuggerSend);
+  ScopedThreadSuspension sts(self, kWaitingForDebuggerSend);
   if (suspend_policy != SP_NONE) {
     AcquireJdwpTokenForEvent(threadId);
   }
@@ -633,7 +633,6 @@ void JdwpState::SendRequestAndPossiblySuspend(ExpandBuf* pReq, JdwpSuspendPolicy
     ScopedThreadStateChange stsc(self, kSuspended);
     SuspendByPolicy(suspend_policy, thread_self_id);
   }
-  self->TransitionFromSuspendedToRunnable();
 }
 
 /*
@@ -1323,9 +1322,8 @@ void JdwpState::DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count) {
   }
   if (safe_to_release_mutator_lock_over_send) {
     // Change state to waiting to allow GC, ... while we're sending.
-    self->TransitionFromRunnableToSuspended(kWaitingForDebuggerSend);
+    ScopedThreadSuspension sts(self, kWaitingForDebuggerSend);
     SendBufferedRequest(type, wrapiov);
-    self->TransitionFromSuspendedToRunnable();
   } else {
     // Send and possibly block GC...
     SendBufferedRequest(type, wrapiov);

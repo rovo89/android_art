@@ -316,7 +316,7 @@ static void CommonWaitSetup(MonitorTest* test, ClassLinker* class_linker, uint64
   }
 
   // Need to drop the mutator lock to allow barriers.
-  soa.Self()->TransitionFromRunnableToSuspended(kNative);
+  ScopedThreadSuspension sts(soa.Self(), kNative);
   ThreadPool thread_pool(pool_name, 3);
   thread_pool.AddTask(self, new CreateTask(test, create_sleep, c_millis, c_expected));
   if (interrupt) {
@@ -340,7 +340,6 @@ static void CommonWaitSetup(MonitorTest* test, ClassLinker* class_linker, uint64
   }
 
   thread_pool.StopWorkers(self);
-  soa.Self()->TransitionFromSuspendedToRunnable();
 }
 
 

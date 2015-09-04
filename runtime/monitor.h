@@ -320,14 +320,14 @@ class MonitorList {
 // For use only by the JDWP implementation.
 class MonitorInfo {
  public:
+  MonitorInfo() = default;
+  MonitorInfo(const MonitorInfo&) = default;
+  MonitorInfo& operator=(const MonitorInfo&) = default;
   explicit MonitorInfo(mirror::Object* o) REQUIRES(Locks::mutator_lock_);
 
   Thread* owner_;
   size_t entry_count_;
   std::vector<Thread*> waiters_;
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(MonitorInfo);
 };
 
 }  // namespace art

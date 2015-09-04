@@ -688,7 +688,7 @@ void CompilerDriver::CompileOne(Thread* self, ArtMethod* method, TimingLogger* t
   const DexFile::CodeItem* code_item = dex_file->GetCodeItem(method->GetCodeItemOffset());
 
   // Go to native so that we don't block GC during compilation.
-  self->TransitionFromRunnableToSuspended(kNative);
+  ScopedThreadSuspension sts(self, kNative);
 
   std::vector<const DexFile*> dex_files;
   dex_files.push_back(dex_file);
@@ -718,7 +718,6 @@ void CompilerDriver::CompileOne(Thread* self, ArtMethod* method, TimingLogger* t
                 dex_cache);
 
   self->GetJniEnv()->DeleteGlobalRef(jclass_loader);
-  self->TransitionFromSuspendedToRunnable();
 }
 
 CompiledMethod* CompilerDriver::CompileArtMethod(Thread* self, ArtMethod* method) {
@@ -737,7 +736,7 @@ CompiledMethod* CompilerDriver::CompileArtMethod(Thread* self, ArtMethod* method
       GetDexToDexCompilationLevel(self, *this, class_loader, *dex_file, class_def);
   const DexFile::CodeItem* code_item = dex_file->GetCodeItem(method->GetCodeItemOffset());
   // Go to native so that we don't block GC during compilation.
-  self->TransitionFromRunnableToSuspended(kNative);
+  ScopedThreadSuspension sts(self, kNative);
   CompileMethod(self,
                 this,
                 code_item,
@@ -751,7 +750,6 @@ CompiledMethod* CompilerDriver::CompileArtMethod(Thread* self, ArtMethod* method
                 true,
                 dex_cache);
   auto* compiled_method = GetCompiledMethod(MethodReference(dex_file, method_idx));
-  self->TransitionFromSuspendedToRunnable();
   return compiled_method;
 }
 
@@ -2382,7 +2380,7 @@ class CompileClassVisitor : public CompilationVisitor {
     }
 
     // Go to native so that we don't block GC during compilation.
-    soa.Self()->TransitionFromRunnableToSuspended(kNative);
+    ScopedThreadSuspension sts(soa.Self(), kNative);
 
     CompilerDriver* const driver = manager_->GetCompiler();
 
@@ -2437,8 +2435,6 @@ class CompileClassVisitor : public CompilationVisitor {
       it.Next();
     }
     DCHECK(!it.HasNext());
-
-    soa.Self()->TransitionFromSuspendedToRunnable();
   }
 
  private:

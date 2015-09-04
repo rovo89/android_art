@@ -406,9 +406,9 @@ void JavaVMExt::JniAbort(const char* jni_function_name, const char* msg) {
     check_jni_abort_hook_(check_jni_abort_hook_data_, os.str());
   } else {
     // Ensure that we get a native stack trace for this thread.
-    self->TransitionFromRunnableToSuspended(kNative);
+    ScopedThreadSuspension sts(self, kNative);
     LOG(FATAL) << os.str();
-    self->TransitionFromSuspendedToRunnable();  // Unreachable, keep annotalysis happy.
+    UNREACHABLE();
   }
 }
 

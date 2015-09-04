@@ -1035,9 +1035,8 @@ void Thread::FullSuspendCheck() {
   ATRACE_BEGIN("Full suspend check");
   // Make thread appear suspended to other threads, release mutator_lock_.
   tls32_.suspended_at_suspend_check = true;
-  TransitionFromRunnableToSuspended(kSuspended);
-  // Transition back to runnable noting requests to suspend, re-acquire share on mutator_lock_.
-  TransitionFromSuspendedToRunnable();
+  // Transition to suspended and back to runnable, re-acquire share on mutator_lock_.
+  ScopedThreadSuspension(this, kSuspended);
   tls32_.suspended_at_suspend_check = false;
   ATRACE_END();
   VLOG(threads) << this << " self-reviving";

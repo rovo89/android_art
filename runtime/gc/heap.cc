@@ -887,13 +887,14 @@ void Heap::VisitObjects(ObjectCallback callback, void* arg) {
     // easily broken. Visit objects while GC isn't running by using
     // IncrementDisableMovingGC() and threads are suspended.
     IncrementDisableMovingGC(self);
-    self->TransitionFromRunnableToSuspended(kWaitingForVisitObjects);
-    ThreadList* tl = Runtime::Current()->GetThreadList();
-    tl->SuspendAll(__FUNCTION__);
-    VisitObjectsInternalRegionSpace(callback, arg);
-    VisitObjectsInternal(callback, arg);
-    tl->ResumeAll();
-    self->TransitionFromSuspendedToRunnable();
+    {
+      ScopedThreadSuspension sts(self, kWaitingForVisitObjects);
+      ThreadList* tl = Runtime::Current()->GetThreadList();
+      tl->SuspendAll(__FUNCTION__);
+      VisitObjectsInternalRegionSpace(callback, arg);
+      VisitObjectsInternal(callback, arg);
+      tl->ResumeAll();
+    }
     DecrementDisableMovingGC(self);
   } else {
     // GCs can move objects, so don't allow this.
