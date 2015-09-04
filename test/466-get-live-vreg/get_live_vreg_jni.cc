@@ -42,7 +42,7 @@ class TestVisitor : public StackVisitor {
     } else if (m_name.compare("testIntervalHole") == 0) {
       found_method_ = true;
       uint32_t value = 0;
-      if (m->IsOptimized(sizeof(void*))) {
+      if (GetCurrentQuickFrame() != nullptr && m->IsOptimized(sizeof(void*))) {
         CHECK_EQ(GetVReg(m, 0, kIntVReg, &value), false);
       } else {
         CHECK(GetVReg(m, 0, kIntVReg, &value));
