@@ -43,19 +43,6 @@ TEST_F(DexCacheTest, Open) {
   EXPECT_EQ(java_lang_dex_file_->NumTypeIds(),   dex_cache->NumResolvedTypes());
   EXPECT_EQ(java_lang_dex_file_->NumMethodIds(), dex_cache->NumResolvedMethods());
   EXPECT_EQ(java_lang_dex_file_->NumFieldIds(),  dex_cache->NumResolvedFields());
-
-  EXPECT_LE(0, dex_cache->GetStrings()->GetLength());
-  EXPECT_LE(0, dex_cache->GetResolvedTypes()->GetLength());
-  EXPECT_LE(0, dex_cache->GetResolvedMethods()->GetLength());
-  EXPECT_LE(0u, dex_cache->NumResolvedFields());
-
-  EXPECT_EQ(java_lang_dex_file_->NumStringIds(),
-            static_cast<uint32_t>(dex_cache->GetStrings()->GetLength()));
-  EXPECT_EQ(java_lang_dex_file_->NumTypeIds(),
-            static_cast<uint32_t>(dex_cache->GetResolvedTypes()->GetLength()));
-  EXPECT_EQ(java_lang_dex_file_->NumMethodIds(),
-            static_cast<uint32_t>(dex_cache->GetResolvedMethods()->GetLength()));
-  EXPECT_EQ(java_lang_dex_file_->NumFieldIds(), dex_cache->NumResolvedFields());
 }
 
 }  // namespace mirror

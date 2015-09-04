@@ -225,7 +225,9 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         const size_t ref_idx = inst->VRegA_11x(inst_data);
         Object* obj_result = shadow_frame.GetVRegReference(ref_idx);
         if (do_assignability_check && obj_result != nullptr) {
-          Class* return_type = shadow_frame.GetMethod()->GetReturnType();
+          size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+          Class* return_type = shadow_frame.GetMethod()->GetReturnType(true /* resolve */,
+                                                                       pointer_size);
           // Re-load since it might have moved.
           obj_result = shadow_frame.GetVRegReference(ref_idx);
           if (return_type == nullptr) {

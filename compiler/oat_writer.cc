@@ -842,10 +842,10 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
 
   uint32_t GetDexCacheOffset(const LinkerPatch& patch) SHARED_REQUIRES(Locks::mutator_lock_) {
     if (writer_->image_writer_ != nullptr) {
-      auto* element = writer_->image_writer_->GetDexCacheArrayElementImageAddress(
+      auto* element = writer_->image_writer_->GetDexCacheArrayElementImageAddress<const uint8_t*>(
               patch.TargetDexCacheDexFile(), patch.TargetDexCacheElementOffset());
       const uint8_t* oat_data = writer_->image_writer_->GetOatFileBegin() + file_offset_;
-      return reinterpret_cast<const uint8_t*>(element) - oat_data;
+      return element - oat_data;
     } else {
       LOG(FATAL) << "Unimplemented.";
       UNREACHABLE();

@@ -46,8 +46,16 @@ class MANAGED DexCache FINAL : public Object {
     return sizeof(DexCache);
   }
 
-  void Init(const DexFile* dex_file, String* location, ObjectArray<String>* strings,
-            ObjectArray<Class>* types, PointerArray* methods, PointerArray* fields,
+  void Init(const DexFile* dex_file,
+            String* location,
+            GcRoot<String>* strings,
+            uint32_t num_strings,
+            GcRoot<Class>* resolved_types,
+            uint32_t num_resolved_types,
+            ArtMethod** resolved_methods,
+            uint32_t num_resolved_methods,
+            ArtField** resolved_fields,
+            uint32_t num_resolved_fields,
             size_t pointer_size) SHARED_REQUIRES(Locks::mutator_lock_);
 
   void Fixup(ArtMethod* trampoline, size_t pointer_size)
@@ -65,6 +73,10 @@ class MANAGED DexCache FINAL : public Object {
     return OFFSET_OF_OBJECT_MEMBER(DexCache, strings_);
   }
 
+  static MemberOffset ResolvedTypesOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_types_);
+  }
+
   static MemberOffset ResolvedFieldsOffset() {
     return OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_fields_);
   }
@@ -73,39 +85,31 @@ class MANAGED DexCache FINAL : public Object {
     return OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_methods_);
   }
 
-  size_t NumStrings() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return GetStrings()->GetLength();
+  static MemberOffset NumStringsOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(DexCache, num_strings_);
   }
 
-  size_t NumResolvedTypes() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return GetResolvedTypes()->GetLength();
+  static MemberOffset NumResolvedTypesOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(DexCache, num_resolved_types_);
   }
 
-  size_t NumResolvedMethods() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return GetResolvedMethods()->GetLength();
+  static MemberOffset NumResolvedFieldsOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(DexCache, num_resolved_fields_);
   }
 
-  size_t NumResolvedFields() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return GetResolvedFields()->GetLength();
+  static MemberOffset NumResolvedMethodsOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(DexCache, num_resolved_methods_);
   }
 
-  String* GetResolvedString(uint32_t string_idx) SHARED_REQUIRES(Locks::mutator_lock_) {
-    return GetStrings()->Get(string_idx);
-  }
+  String* GetResolvedString(uint32_t string_idx) ALWAYS_INLINE
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   void SetResolvedString(uint32_t string_idx, String* resolved) ALWAYS_INLINE
-      SHARED_REQUIRES(Locks::mutator_lock_) {
-    // TODO default transaction support.
-    GetStrings()->Set(string_idx, resolved);
-  }
-
-  Class* GetResolvedType(uint32_t type_idx) ALWAYS_INLINE
-      SHARED_REQUIRES(Locks::mutator_lock_) {
-    return GetResolvedTypes()->Get(type_idx);
-  }
-
-  void SetResolvedType(uint32_t type_idx, Class* resolved)
       SHARED_REQUIRES(Locks::mutator_lock_);
+
+  Class* GetResolvedType(uint32_t type_idx) SHARED_REQUIRES(Locks::mutator_lock_);
+
+  void SetResolvedType(uint32_t type_idx, Class* resolved) SHARED_REQUIRES(Locks::mutator_lock_);
 
   ALWAYS_INLINE ArtMethod* GetResolvedMethod(uint32_t method_idx, size_t ptr_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
@@ -121,21 +125,36 @@ class MANAGED DexCache FINAL : public Object {
   ALWAYS_INLINE void SetResolvedField(uint32_t idx, ArtField* field, size_t ptr_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ObjectArray<String>* GetStrings() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
-    return GetFieldObject<ObjectArray<String>>(StringsOffset());
+  GcRoot<String>* GetStrings() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
+    return GetFieldPtr<GcRoot<String>*>(StringsOffset());
   }
 
-  ObjectArray<Class>* GetResolvedTypes() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
-    return GetFieldObject<ObjectArray<Class>>(
-        OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_types_));
+  GcRoot<Class>* GetResolvedTypes() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
+    return GetFieldPtr<GcRoot<Class>*>(ResolvedTypesOffset());
   }
 
-  PointerArray* GetResolvedMethods() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
-    return GetFieldObject<PointerArray>(ResolvedMethodsOffset());
+  ArtMethod** GetResolvedMethods() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
+    return GetFieldPtr<ArtMethod**>(ResolvedMethodsOffset());
   }
 
-  PointerArray* GetResolvedFields() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
-    return GetFieldObject<PointerArray>(ResolvedFieldsOffset());
+  ArtField** GetResolvedFields() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
+    return GetFieldPtr<ArtField**>(ResolvedFieldsOffset());
+  }
+
+  size_t NumStrings() SHARED_REQUIRES(Locks::mutator_lock_) {
+    return GetField32(NumStringsOffset());
+  }
+
+  size_t NumResolvedTypes() SHARED_REQUIRES(Locks::mutator_lock_) {
+    return GetField32(NumResolvedTypesOffset());
+  }
+
+  size_t NumResolvedMethods() SHARED_REQUIRES(Locks::mutator_lock_) {
+    return GetField32(NumResolvedMethodsOffset());
+  }
+
+  size_t NumResolvedFields() SHARED_REQUIRES(Locks::mutator_lock_) {
+    return GetField32(NumResolvedFieldsOffset());
   }
 
   const DexFile* GetDexFile() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
@@ -147,17 +166,36 @@ class MANAGED DexCache FINAL : public Object {
     return SetFieldPtr<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, dex_file_), dex_file);
   }
 
+  // NOTE: Get/SetElementPtrSize() are intended for working with ArtMethod** and ArtField**
+  // provided by GetResolvedMethods/Fields() and ArtMethod::GetDexCacheResolvedMethods(),
+  // so they need to be public.
+
+  template <typename PtrType>
+  static PtrType GetElementPtrSize(PtrType* ptr_array, size_t idx, size_t ptr_size);
+
+  template <typename PtrType>
+  static void SetElementPtrSize(PtrType* ptr_array, size_t idx, PtrType ptr, size_t ptr_size);
+
  private:
+  // Visit instance fields of the dex cache as well as its associated arrays.
+  template <VerifyObjectFlags kVerifyFlags, typename Visitor>
+  void VisitReferences(mirror::Class* klass, const Visitor& visitor)
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_);
+
   HeapReference<Object> dex_;
   HeapReference<String> location_;
-  // Either an int array or long array based on runtime ISA since these arrays hold pointers.
-  HeapReference<PointerArray> resolved_fields_;
-  HeapReference<PointerArray> resolved_methods_;
-  HeapReference<ObjectArray<Class>> resolved_types_;
-  HeapReference<ObjectArray<String>> strings_;
-  uint64_t dex_file_;
+  uint64_t dex_file_;           // const DexFile*
+  uint64_t resolved_fields_;    // ArtField*, array with num_resolved_fields_ elements.
+  uint64_t resolved_methods_;   // ArtMethod*, array with num_resolved_methods_ elements.
+  uint64_t resolved_types_;     // GcRoot<Class>*, array with num_resolved_types_ elements.
+  uint64_t strings_;            // GcRoot<String>*, array with num_strings_ elements.
+  uint32_t num_resolved_fields_;    // Number of elements in the resolved_fields_ array.
+  uint32_t num_resolved_methods_;   // Number of elements in the resolved_methods_ array.
+  uint32_t num_resolved_types_;     // Number of elements in the resolved_types_ array.
+  uint32_t num_strings_;            // Number of elements in the strings_ array.
 
   friend struct art::DexCacheOffsets;  // for verifying offset information
+  friend class Object;  // For VisitReferences
   DISALLOW_IMPLICIT_CONSTRUCTORS(DexCache);
 };
 

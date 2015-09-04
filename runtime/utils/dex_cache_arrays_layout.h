@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_UTILS_DEX_CACHE_ARRAYS_LAYOUT_H_
-#define ART_COMPILER_UTILS_DEX_CACHE_ARRAYS_LAYOUT_H_
+#ifndef ART_RUNTIME_UTILS_DEX_CACHE_ARRAYS_LAYOUT_H_
+#define ART_RUNTIME_UTILS_DEX_CACHE_ARRAYS_LAYOUT_H_
 
 namespace art {
 
@@ -47,6 +47,8 @@ class DexCacheArraysLayout {
     return size_;
   }
 
+  size_t Alignment() const;
+
   size_t TypesOffset() const {
     return types_offset_;
   }
@@ -54,6 +56,8 @@ class DexCacheArraysLayout {
   size_t TypeOffset(uint32_t type_idx) const;
 
   size_t TypesSize(size_t num_elements) const;
+
+  size_t TypesAlignment() const;
 
   size_t MethodsOffset() const {
     return methods_offset_;
@@ -63,6 +67,8 @@ class DexCacheArraysLayout {
 
   size_t MethodsSize(size_t num_elements) const;
 
+  size_t MethodsAlignment() const;
+
   size_t StringsOffset() const {
     return strings_offset_;
   }
@@ -70,6 +76,8 @@ class DexCacheArraysLayout {
   size_t StringOffset(uint32_t string_idx) const;
 
   size_t StringsSize(size_t num_elements) const;
+
+  size_t StringsAlignment() const;
 
   size_t FieldsOffset() const {
     return fields_offset_;
@@ -79,6 +87,8 @@ class DexCacheArraysLayout {
 
   size_t FieldsSize(size_t num_elements) const;
 
+  size_t FieldsAlignment() const;
+
  private:
   static constexpr size_t types_offset_ = 0u;
   const size_t pointer_size_;  // Must be first for construction initialization order.
@@ -87,6 +97,8 @@ class DexCacheArraysLayout {
   const size_t fields_offset_;
   const size_t size_;
 
+  static size_t Alignment(size_t pointer_size);
+
   static size_t ElementOffset(size_t element_size, uint32_t idx);
 
   static size_t ArraySize(size_t element_size, uint32_t num_elements);
@@ -94,4 +106,4 @@ class DexCacheArraysLayout {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_UTILS_DEX_CACHE_ARRAYS_LAYOUT_H_
+#endif  // ART_RUNTIME_UTILS_DEX_CACHE_ARRAYS_LAYOUT_H_

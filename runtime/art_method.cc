@@ -125,8 +125,9 @@ ArtMethod* ArtMethod::FindOverriddenMethod(size_t pointer_size) {
   } else {
     // Method didn't override superclass method so search interfaces
     if (IsProxyMethod()) {
-      result = GetDexCacheResolvedMethods()->GetElementPtrSize<ArtMethod*>(
-          GetDexMethodIndex(), pointer_size);
+      result = mirror::DexCache::GetElementPtrSize(GetDexCacheResolvedMethods(pointer_size),
+                                                   GetDexMethodIndex(),
+                                                   pointer_size);
       CHECK_EQ(result,
                Runtime::Current()->GetClassLinker()->FindMethodForProxy(GetDeclaringClass(), this));
     } else {
@@ -261,6 +262,7 @@ uint32_t ArtMethod::FindCatchBlock(Handle<mirror::Class> exception_type,
   // Default to handler not found.
   uint32_t found_dex_pc = DexFile::kDexNoIndex;
   // Iterate over the catch handlers associated with dex_pc.
+  size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   for (CatchHandlerIterator it(*code_item, dex_pc); it.HasNext(); it.Next()) {
     uint16_t iter_type_idx = it.GetHandlerTypeIndex();
     // Catch all case
@@ -269,7 +271,9 @@ uint32_t ArtMethod::FindCatchBlock(Handle<mirror::Class> exception_type,
       break;
     }
     // Does this catch exception type apply?
-    mirror::Class* iter_exception_type = GetClassFromTypeIndex(iter_type_idx, true);
+    mirror::Class* iter_exception_type = GetClassFromTypeIndex(iter_type_idx,
+                                                               true /* resolve */,
+                                                               pointer_size);
     if (UNLIKELY(iter_exception_type == nullptr)) {
       // Now have a NoClassDefFoundError as exception. Ignore in case the exception class was
       // removed by a pro-guard like tool.

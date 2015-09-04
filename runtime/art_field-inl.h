@@ -24,7 +24,7 @@
 #include "gc_root-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "jvalue.h"
-#include "mirror/dex_cache.h"
+#include "mirror/dex_cache-inl.h"
 #include "mirror/object-inl.h"
 #include "primitive.h"
 #include "thread-inl.h"

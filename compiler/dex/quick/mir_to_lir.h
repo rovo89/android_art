@@ -1771,6 +1771,11 @@ class Mir2Lir {
       return (core_spill_mask_ & (1u << reg)) != 0;
     }
 
+    size_t GetCacheOffset(uint32_t index);
+    size_t GetCachePointerOffset(uint32_t index, size_t pointer_size);
+
+    void LoadTypeFromCache(uint32_t type_index, RegStorage class_reg);
+
   public:
     // TODO: add accessors for these.
     LIR* literal_list_;                        // Constants.

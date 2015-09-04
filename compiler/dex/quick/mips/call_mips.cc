@@ -415,10 +415,11 @@ void MipsMir2Lir::GenSpecialExitForSuspend() {
  * Bit of a hack here - in the absence of a real scheduling pass,
  * emit the next instruction in static & direct invoke sequences.
  */
-static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info, int state,
-                          const MethodReference& target_method, uint32_t, uintptr_t direct_code,
-                          uintptr_t direct_method, InvokeType type) {
-  Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
+int MipsMir2Lir::MipsNextSDCallInsn(CompilationUnit* cu, CallInfo* info, int state,
+                                    const MethodReference& target_method, uint32_t,
+                                    uintptr_t direct_code, uintptr_t direct_method,
+                                    InvokeType type) {
+  MipsMir2Lir* cg = static_cast<MipsMir2Lir*>(cu->cg.get());
   if (info->string_init_offset != 0) {
     RegStorage arg0_ref = cg->TargetReg(kArg0, kRef);
     switch (state) {
@@ -469,10 +470,12 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info, int state,
         cg->LoadCurrMethodDirect(arg0_ref);
         break;
       case 1:  // Get method->dex_cache_resolved_methods_
-        cg->LoadRefDisp(arg0_ref,
-                        ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(),
-                        arg0_ref,
-                        kNotVolatile);
+        cg->LoadBaseDisp(arg0_ref,
+                         ArtMethod::DexCacheResolvedMethodsOffset(
+                             cu->target64 ? kMips64PointerSize : kMipsPointerSize).Int32Value(),
+                         arg0_ref,
+                         cu->target64 ? k64 : k32,
+                         kNotVolatile);
         // Set up direct code if known.
         if (direct_code != 0) {
           if (direct_code != static_cast<uintptr_t>(-1)) {
@@ -492,8 +495,9 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info, int state,
         CHECK_EQ(cu->dex_file, target_method.dex_file);
         const size_t pointer_size = GetInstructionSetPointerSize(cu->instruction_set);
         cg->LoadWordDisp(arg0_ref,
-                         mirror::Array::DataOffset(pointer_size).Uint32Value() +
-                         target_method.dex_method_index * pointer_size, arg0_ref);
+                         cg->GetCachePointerOffset(target_method.dex_method_index,
+                                                   pointer_size),
+                         arg0_ref);
         break;
       }
       case 3:  // Grab the code from the method*
@@ -512,7 +516,7 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info, int state,
 }
 
 NextCallInsn MipsMir2Lir::GetNextSDCallInsn() {
-  return NextSDCallInsn;
+  return MipsNextSDCallInsn;
 }
 
 LIR* MipsMir2Lir::GenCallInsn(const MirMethodLoweringInfo& method_info ATTRIBUTE_UNUSED) {

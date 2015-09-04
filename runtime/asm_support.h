@@ -138,13 +138,13 @@ ADD_TEST_EQ(size_t(MIRROR_OBJECT_HEADER_SIZE), sizeof(art::mirror::Object))
 #define MIRROR_CLASS_COMPONENT_TYPE_OFFSET (4 + MIRROR_OBJECT_HEADER_SIZE)
 ADD_TEST_EQ(MIRROR_CLASS_COMPONENT_TYPE_OFFSET,
             art::mirror::Class::ComponentTypeOffset().Int32Value())
-#define MIRROR_CLASS_ACCESS_FLAGS_OFFSET (36 + MIRROR_OBJECT_HEADER_SIZE)
+#define MIRROR_CLASS_ACCESS_FLAGS_OFFSET (72 + MIRROR_OBJECT_HEADER_SIZE)
 ADD_TEST_EQ(MIRROR_CLASS_ACCESS_FLAGS_OFFSET,
             art::mirror::Class::AccessFlagsOffset().Int32Value())
-#define MIRROR_CLASS_OBJECT_SIZE_OFFSET (100 + MIRROR_OBJECT_HEADER_SIZE)
+#define MIRROR_CLASS_OBJECT_SIZE_OFFSET (104 + MIRROR_OBJECT_HEADER_SIZE)
 ADD_TEST_EQ(MIRROR_CLASS_OBJECT_SIZE_OFFSET,
             art::mirror::Class::ObjectSizeOffset().Int32Value())
-#define MIRROR_CLASS_STATUS_OFFSET (112 + MIRROR_OBJECT_HEADER_SIZE)
+#define MIRROR_CLASS_STATUS_OFFSET (116 + MIRROR_OBJECT_HEADER_SIZE)
 ADD_TEST_EQ(MIRROR_CLASS_STATUS_OFFSET,
             art::mirror::Class::StatusOffset().Int32Value())
 
@@ -184,19 +184,27 @@ ADD_TEST_EQ(MIRROR_STRING_COUNT_OFFSET, art::mirror::String::CountOffset().Int32
 ADD_TEST_EQ(MIRROR_STRING_VALUE_OFFSET, art::mirror::String::ValueOffset().Int32Value())
 
 // Offsets within java.lang.reflect.ArtMethod.
-#define ART_METHOD_DEX_CACHE_METHODS_OFFSET 4
-ADD_TEST_EQ(ART_METHOD_DEX_CACHE_METHODS_OFFSET,
-            art::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value())
+#define ART_METHOD_DEX_CACHE_METHODS_OFFSET_32 20
+ADD_TEST_EQ(ART_METHOD_DEX_CACHE_METHODS_OFFSET_32,
+            art::ArtMethod::DexCacheResolvedMethodsOffset(4).Int32Value())
 
-#define ART_METHOD_DEX_CACHE_TYPES_OFFSET 8
-ADD_TEST_EQ(ART_METHOD_DEX_CACHE_TYPES_OFFSET,
-            art::ArtMethod::DexCacheResolvedTypesOffset().Int32Value())
+#define ART_METHOD_DEX_CACHE_METHODS_OFFSET_64 24
+ADD_TEST_EQ(ART_METHOD_DEX_CACHE_METHODS_OFFSET_64,
+            art::ArtMethod::DexCacheResolvedMethodsOffset(8).Int32Value())
+
+#define ART_METHOD_DEX_CACHE_TYPES_OFFSET_32 24
+ADD_TEST_EQ(ART_METHOD_DEX_CACHE_TYPES_OFFSET_32,
+            art::ArtMethod::DexCacheResolvedTypesOffset(4).Int32Value())
+
+#define ART_METHOD_DEX_CACHE_TYPES_OFFSET_64 32
+ADD_TEST_EQ(ART_METHOD_DEX_CACHE_TYPES_OFFSET_64,
+            art::ArtMethod::DexCacheResolvedTypesOffset(8).Int32Value())
 
 #define ART_METHOD_QUICK_CODE_OFFSET_32 32
 ADD_TEST_EQ(ART_METHOD_QUICK_CODE_OFFSET_32,
             art::ArtMethod::EntryPointFromQuickCompiledCodeOffset(4).Int32Value())
 
-#define ART_METHOD_QUICK_CODE_OFFSET_64 40
+#define ART_METHOD_QUICK_CODE_OFFSET_64 48
 ADD_TEST_EQ(ART_METHOD_QUICK_CODE_OFFSET_64,
             art::ArtMethod::EntryPointFromQuickCompiledCodeOffset(8).Int32Value())
 

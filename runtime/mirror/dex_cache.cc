@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "dex_cache.h"
+#include "dex_cache-inl.h"
 
 #include "art_method-inl.h"
 #include "base/logging.h"
@@ -31,22 +31,34 @@
 namespace art {
 namespace mirror {
 
-void DexCache::Init(const DexFile* dex_file, String* location, ObjectArray<String>* strings,
-                    ObjectArray<Class>* resolved_types, PointerArray* resolved_methods,
-                    PointerArray* resolved_fields, size_t pointer_size) {
+void DexCache::Init(const DexFile* dex_file,
+                    String* location,
+                    GcRoot<String>* strings,
+                    uint32_t num_strings,
+                    GcRoot<Class>* resolved_types,
+                    uint32_t num_resolved_types,
+                    ArtMethod** resolved_methods,
+                    uint32_t num_resolved_methods,
+                    ArtField** resolved_fields,
+                    uint32_t num_resolved_fields,
+                    size_t pointer_size) {
   CHECK(dex_file != nullptr);
   CHECK(location != nullptr);
-  CHECK(strings != nullptr);
-  CHECK(resolved_types != nullptr);
-  CHECK(resolved_methods != nullptr);
-  CHECK(resolved_fields != nullptr);
+  CHECK_EQ(num_strings != 0u, strings != nullptr);
+  CHECK_EQ(num_resolved_types != 0u, resolved_types != nullptr);
+  CHECK_EQ(num_resolved_methods != 0u, resolved_methods != nullptr);
+  CHECK_EQ(num_resolved_fields != 0u, resolved_fields != nullptr);
 
   SetDexFile(dex_file);
   SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, location_), location);
-  SetFieldObject<false>(StringsOffset(), strings);
-  SetFieldObject<false>(ResolvedFieldsOffset(), resolved_fields);
-  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_types_), resolved_types);
-  SetFieldObject<false>(ResolvedMethodsOffset(), resolved_methods);
+  SetField64<false>(StringsOffset(), reinterpret_cast<uintptr_t>(strings));
+  SetField64<false>(ResolvedTypesOffset(), reinterpret_cast<uintptr_t>(resolved_types));
+  SetField64<false>(ResolvedMethodsOffset(), reinterpret_cast<uintptr_t>(resolved_methods));
+  SetField64<false>(ResolvedFieldsOffset(), reinterpret_cast<uintptr_t>(resolved_fields));
+  SetField32<false>(NumStringsOffset(), num_strings);
+  SetField32<false>(NumResolvedTypesOffset(), num_resolved_types);
+  SetField32<false>(NumResolvedMethodsOffset(), num_resolved_methods);
+  SetField32<false>(NumResolvedFieldsOffset(), num_resolved_fields);
 
   Runtime* const runtime = Runtime::Current();
   if (runtime->HasResolutionMethod()) {
@@ -60,9 +72,9 @@ void DexCache::Fixup(ArtMethod* trampoline, size_t pointer_size) {
   CHECK(trampoline != nullptr);
   CHECK(trampoline->IsRuntimeMethod());
   auto* resolved_methods = GetResolvedMethods();
-  for (size_t i = 0, length = resolved_methods->GetLength(); i < length; i++) {
-    if (resolved_methods->GetElementPtrSize<ArtMethod*>(i, pointer_size) == nullptr) {
-      resolved_methods->SetElementPtrSize(i, trampoline, pointer_size);
+  for (size_t i = 0, length = NumResolvedMethods(); i < length; i++) {
+    if (GetElementPtrSize<ArtMethod*>(resolved_methods, i, pointer_size) == nullptr) {
+      SetElementPtrSize(resolved_methods, i, trampoline, pointer_size);
     }
   }
 }
