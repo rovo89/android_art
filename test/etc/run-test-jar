@@ -67,7 +67,7 @@ while true; do
             echo "$0 missing argument to --testlib" 1>&2
             exit 1
         fi
-       	ARGS="${ARGS} $1"
+        ARGS="${ARGS} $1"
         shift
     elif [ "x$1" = "x-Xcompiler-option" ]; then
         shift
