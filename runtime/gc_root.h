@@ -90,16 +90,16 @@ class RootVisitor {
   virtual ~RootVisitor() { }
 
   // Single root version, not overridable.
-  ALWAYS_INLINE void VisitRoot(mirror::Object** roots, const RootInfo& info)
+  ALWAYS_INLINE void VisitRoot(mirror::Object** root, const RootInfo& info)
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    VisitRoots(&roots, 1, info);
+    VisitRoots(&root, 1, info);
   }
 
   // Single root version, not overridable.
-  ALWAYS_INLINE void VisitRootIfNonNull(mirror::Object** roots, const RootInfo& info)
+  ALWAYS_INLINE void VisitRootIfNonNull(mirror::Object** root, const RootInfo& info)
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    if (*roots != nullptr) {
-      VisitRoot(roots, info);
+    if (*root != nullptr) {
+      VisitRoot(root, info);
     }
   }
 
