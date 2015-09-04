@@ -511,10 +511,11 @@ int Arm64Mir2Lir::Arm64NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       FALLTHROUGH_INTENDED;
     case 1:  // Get method->dex_cache_resolved_methods_
       if (!use_pc_rel) {
-        cg->LoadRefDisp(arg0_ref,
-                        ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(),
-                        arg0_ref,
-                        kNotVolatile);
+        cg->LoadBaseDisp(arg0_ref,
+                         ArtMethod::DexCacheResolvedMethodsOffset(kArm64PointerSize).Int32Value(),
+                         arg0_ref,
+                         k64,
+                         kNotVolatile);
       }
       // Set up direct code if known.
       if (direct_code != 0) {
@@ -536,8 +537,9 @@ int Arm64Mir2Lir::Arm64NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       CHECK_EQ(cu->dex_file, target_method.dex_file);
       if (!use_pc_rel) {
         cg->LoadWordDisp(arg0_ref,
-                         mirror::Array::DataOffset(kArm64PointerSize).Uint32Value() +
-                         target_method.dex_method_index * kArm64PointerSize, arg0_ref);
+                         cg->GetCachePointerOffset(target_method.dex_method_index,
+                                                   kArm64PointerSize),
+                         arg0_ref);
       } else {
         size_t offset = cg->dex_cache_arrays_layout_.MethodOffset(target_method.dex_method_index);
         cg->OpPcRelDexCacheArrayLoad(cu->dex_file, offset, arg0_ref, true);

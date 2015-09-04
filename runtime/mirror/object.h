@@ -38,6 +38,7 @@ namespace mirror {
 class Array;
 class Class;
 class ClassLoader;
+class DexCache;
 class FinalizerReference;
 template<class T> class ObjectArray;
 template<class T> class PrimitiveArray;
@@ -161,6 +162,11 @@ class MANAGED LOCKABLE Object {
   bool IsClassLoader() SHARED_REQUIRES(Locks::mutator_lock_);
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   ClassLoader* AsClassLoader() SHARED_REQUIRES(Locks::mutator_lock_);
+
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  bool IsDexCache() SHARED_REQUIRES(Locks::mutator_lock_);
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  DexCache* AsDexCache() SHARED_REQUIRES(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>

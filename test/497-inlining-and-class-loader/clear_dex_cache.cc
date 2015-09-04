@@ -24,20 +24,45 @@ namespace art {
 
 namespace {
 
-extern "C" JNIEXPORT jobject JNICALL Java_Main_cloneResolvedMethods(JNIEnv*, jclass, jclass cls) {
+extern "C" JNIEXPORT jobject JNICALL Java_Main_cloneResolvedMethods(JNIEnv* env,
+                                                                    jclass,
+                                                                    jclass cls) {
   ScopedObjectAccess soa(Thread::Current());
-  return soa.Vm()->AddGlobalRef(
-      soa.Self(),
-      soa.Decode<mirror::Class*>(cls)->GetDexCache()->GetResolvedMethods()->Clone(soa.Self()));
+  mirror::DexCache* dex_cache = soa.Decode<mirror::Class*>(cls)->GetDexCache();
+  size_t num_methods = dex_cache->NumResolvedMethods();
+  ArtMethod** methods = dex_cache->GetResolvedMethods();
+  CHECK_EQ(num_methods != 0u, methods != nullptr);
+  if (num_methods == 0u) {
+    return nullptr;
+  }
+  jarray array;
+  if (sizeof(void*) == 4) {
+    array = env->NewIntArray(num_methods);
+  } else {
+    array = env->NewLongArray(num_methods);
+  }
+  CHECK(array != nullptr);
+  mirror::PointerArray* pointer_array = soa.Decode<mirror::PointerArray*>(array);
+  for (size_t i = 0; i != num_methods; ++i) {
+    ArtMethod* method = mirror::DexCache::GetElementPtrSize(methods, i, sizeof(void*));
+    pointer_array->SetElementPtrSize(i, method, sizeof(void*));
+  }
+  return array;
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_restoreResolvedMethods(
     JNIEnv*, jclass, jclass cls, jobject old_cache) {
   ScopedObjectAccess soa(Thread::Current());
-  mirror::PointerArray* now = soa.Decode<mirror::Class*>(cls)->GetDexCache()->GetResolvedMethods();
+  mirror::DexCache* dex_cache = soa.Decode<mirror::Class*>(cls)->GetDexCache();
+  size_t num_methods = dex_cache->NumResolvedMethods();
+  ArtMethod** methods = soa.Decode<mirror::Class*>(cls)->GetDexCache()->GetResolvedMethods();
+  CHECK_EQ(num_methods != 0u, methods != nullptr);
   mirror::PointerArray* old = soa.Decode<mirror::PointerArray*>(old_cache);
-  for (size_t i = 0, e = old->GetLength(); i < e; ++i) {
-    now->SetElementPtrSize(i, old->GetElementPtrSize<void*>(i, sizeof(void*)), sizeof(void*));
+  CHECK_EQ(methods != nullptr, old != nullptr);
+  CHECK_EQ(num_methods, static_cast<size_t>(old->GetLength()));
+  for (size_t i = 0; i != num_methods; ++i) {
+    ArtMethod* method = old->GetElementPtrSize<ArtMethod*>(i, sizeof(void*));
+    mirror::DexCache::SetElementPtrSize(methods, i, method, sizeof(void*));
   }
 }
 
