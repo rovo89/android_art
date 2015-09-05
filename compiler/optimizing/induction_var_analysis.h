@@ -100,17 +100,17 @@ class HInductionVarAnalysis : public HOptimization {
     return map_.find(instruction) != map_.end();
   }
 
-  InductionInfo* NewInvariantOp(InductionOp op, InductionInfo* a, InductionInfo* b) {
+  InductionInfo* CreateInvariantOp(InductionOp op, InductionInfo* a, InductionInfo* b) {
     DCHECK(((op != kNeg && a != nullptr) || (op == kNeg && a == nullptr)) && b != nullptr);
-    return new (graph_->GetArena()) InductionInfo(kInvariant, op, a, b, nullptr);
+    return CreateSimplifiedInvariant(op, a, b);
   }
 
-  InductionInfo* NewInvariantFetch(HInstruction* f) {
+  InductionInfo* CreateInvariantFetch(HInstruction* f) {
     DCHECK(f != nullptr);
     return new (graph_->GetArena()) InductionInfo(kInvariant, kFetch, nullptr, nullptr, f);
   }
 
-  InductionInfo* NewInduction(InductionClass ic, InductionInfo* a, InductionInfo* b) {
+  InductionInfo* CreateInduction(InductionClass ic, InductionInfo* a, InductionInfo* b) {
     DCHECK(a != nullptr && b != nullptr);
     return new (graph_->GetArena()) InductionInfo(ic, kNop, a, b, nullptr);
   }
@@ -145,9 +145,11 @@ class HInductionVarAnalysis : public HOptimization {
   // Assign and lookup.
   void AssignInfo(HLoopInformation* loop, HInstruction* instruction, InductionInfo* info);
   InductionInfo* LookupInfo(HLoopInformation* loop, HInstruction* instruction);
+  InductionInfo* CreateSimplifiedInvariant(InductionOp op, InductionInfo* a, InductionInfo* b);
 
   // Helpers.
   static bool InductionEqual(InductionInfo* info1, InductionInfo* info2);
+  static bool IsIntAndGet(InductionInfo* info, int64_t* value);
   static std::string InductionToString(InductionInfo* info);
 
   // TODO: fine tune the following data structures, only keep relevant data.
