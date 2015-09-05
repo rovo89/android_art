@@ -50,6 +50,7 @@ define build-art-executable
   art_target_or_host := $(5)
   art_ndebug_or_debug := $(6)
   art_multilib := $(7)
+  art_static_libraries := $(8)
 
   include $(CLEAR_VARS)
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
@@ -57,6 +58,7 @@ define build-art-executable
   LOCAL_SRC_FILES := $$(art_source)
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime $$(art_c_includes)
   LOCAL_SHARED_LIBRARIES += $$(art_shared_libraries)
+  LOCAL_STATIC_LIBRARIES += $$(art_static_libraries)
   LOCAL_WHOLE_STATIC_LIBRARIES += libsigchain
 
   ifeq ($$(art_ndebug_or_debug),ndebug)
