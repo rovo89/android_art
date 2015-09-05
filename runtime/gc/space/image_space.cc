@@ -228,6 +228,7 @@ static bool ReadSpecificImageHeader(const char* filename, ImageHeader* image_hea
     return true;
 }
 
+/*
 // Relocate the image at image_location to dest_filename and relocate it by a random amount.
 static bool RelocateImage(const char* image_location, const char* dest_filename,
                                InstructionSet isa, std::string* error_msg) {
@@ -274,6 +275,7 @@ static bool RelocateImage(const char* image_location, const char* dest_filename,
   LOG(INFO) << "RelocateImage: " << command_line;
   return Exec(argv, error_msg);
 }
+*/
 
 static ImageHeader* ReadSpecificImageHeader(const char* filename, std::string* error_msg) {
   std::unique_ptr<ImageHeader> hdr(new ImageHeader);
@@ -369,12 +371,14 @@ ImageHeader* ImageSpace::ReadImageHeader(const char* image_location,
   return nullptr;
 }
 
+/*
 static bool ChecksumsMatch(const char* image_a, const char* image_b) {
   ImageHeader hdr_a;
   ImageHeader hdr_b;
   return ReadSpecificImageHeader(image_a, &hdr_a) && ReadSpecificImageHeader(image_b, &hdr_b)
       && hdr_a.GetOatChecksum() == hdr_b.GetOatChecksum();
 }
+*/
 
 static bool ImageCreationAllowed(bool is_global_cache, std::string* error_msg) {
   // Anyone can write into a "local" cache.
@@ -400,12 +404,11 @@ ImageSpace* ImageSpace::Create(const char* image_location,
   bool has_cache = false;
   bool dalvik_cache_exists = false;
   bool is_global_cache = true;
-  const bool found_image = FindImageFilename(image_location, image_isa, &system_filename,
-                                             &has_system, &cache_filename, &dalvik_cache_exists,
-                                             &has_cache, &is_global_cache);
+  FindImageFilename(image_location, image_isa, &system_filename,
+                    &has_system, &cache_filename, &dalvik_cache_exists,
+                    &has_cache, &is_global_cache);
 
   ImageSpace* space;
-  bool relocate = Runtime::Current()->ShouldRelocate();
   bool can_compile = Runtime::Current()->IsImageDex2OatEnabled();
 
   const std::string* image_filename = nullptr;

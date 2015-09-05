@@ -25,6 +25,7 @@
 #include "object_callbacks.h"
 #include "quick/quick_method_frame_info.h"
 #include "read_barrier_option.h"
+#include "runtime.h"
 
 namespace art {
 
@@ -32,6 +33,7 @@ struct ArtMethodOffsets;
 struct ConstructorMethodOffsets;
 union JValue;
 class MethodHelper;
+class ScopedObjectAccess;
 class ScopedObjectAccessAlreadyRunnable;
 class StringPiece;
 class ShadowFrame;
@@ -298,7 +300,7 @@ class MANAGED ArtMethod FINAL : public Object {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   void SetEntryPointFromQuickCompiledCode(const void* entry_point_from_quick_compiled_code)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(!IsXposedHookedMethod());
+    DCHECK(Runtime::Current()->IsCompiler() || !IsXposedHookedMethod());
     SetFieldPtr<false, true, kVerifyFlags>(
         EntryPointFromQuickCompiledCodeOffset(), entry_point_from_quick_compiled_code);
   }
@@ -496,10 +498,10 @@ class MANAGED ArtMethod FINAL : public Object {
   }
 
   bool IsXposedOriginalMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-      return (GetAccessFlags() & kAccXposedOriginalMethod) != 0;
+    return (GetAccessFlags() & kAccXposedOriginalMethod) != 0;
   }
 
-  void EnableXposedHook(JNIEnv* env, jobject additional_info) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void EnableXposedHook(ScopedObjectAccess& soa, jobject additional_info) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const XposedHookInfo* GetXposedHookInfo() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(IsXposedHookedMethod());
