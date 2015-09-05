@@ -377,7 +377,7 @@ void ArtMethod::UnregisterNative(Thread* self) {
   RegisterNative(self, GetJniDlsymLookupStub(), false);
 }
 
-void ArtMethod::EnableXposedHook(JNIEnv* env, jobject additional_info) {
+void ArtMethod::EnableXposedHook(ScopedObjectAccess& soa, jobject additional_info) {
   if (UNLIKELY(IsXposedHookedMethod())) {
     // Already hooked
     return;
@@ -387,7 +387,7 @@ void ArtMethod::EnableXposedHook(JNIEnv* env, jobject additional_info) {
     return;
   }
 
-  ScopedObjectAccess soa(env);
+  JNIEnv* env = soa.Env();
 
   // Create a backup of the ArtMethod object
   ArtMethod* backup_method = down_cast<ArtMethod*>(Clone(soa.Self()));

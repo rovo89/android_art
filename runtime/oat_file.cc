@@ -55,7 +55,7 @@ OatFile* OatFile::OpenWithElfFile(ElfFile* elf_file,
   if (UNLIKELY(LGAlmond::IsEncryptedOat(oat_file->begin_))) {
     LOG(INFO) << "LG Almond Protected OAT";
     if (!LGAlmond::DecryptOat(const_cast<byte*>(oat_file->begin_), elf_file->GetFile(), error_msg)) {
-      return false;
+      return nullptr;
     }
   }
 

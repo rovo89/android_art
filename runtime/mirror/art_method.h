@@ -25,6 +25,7 @@
 #include "object_callbacks.h"
 #include "quick/quick_method_frame_info.h"
 #include "read_barrier_option.h"
+#include "runtime.h"
 #include "stack.h"
 
 namespace art {
@@ -333,7 +334,7 @@ class MANAGED ArtMethod FINAL : public Object {
   ALWAYS_INLINE void SetEntryPointFromQuickCompiledCodePtrSize(
       const void* entry_point_from_quick_compiled_code, size_t pointer_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(!IsXposedHookedMethod());
+    DCHECK(Runtime::Current()->IsCompiler() || !IsXposedHookedMethod());
     SetFieldPtrWithSize<false, true, kVerifyFlags>(
         EntryPointFromQuickCompiledCodeOffset(pointer_size), entry_point_from_quick_compiled_code,
         pointer_size);
@@ -574,10 +575,10 @@ class MANAGED ArtMethod FINAL : public Object {
   }
 
   bool IsXposedOriginalMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-      return (GetAccessFlags() & kAccXposedOriginalMethod) != 0;
+    return (GetAccessFlags() & kAccXposedOriginalMethod) != 0;
   }
 
-  void EnableXposedHook(JNIEnv* env, jobject additional_info) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void EnableXposedHook(ScopedObjectAccess& soa, jobject additional_info) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const XposedHookInfo* GetXposedHookInfo() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(IsXposedHookedMethod());
