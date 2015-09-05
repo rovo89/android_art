@@ -471,12 +471,10 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   art_ndebug_or_debug :=
 endef
 
-# We always build dex2oat and dependencies, even if the host build is otherwise disabled, since
-# they are used to cross compile for the target.
-ifeq ($(ART_BUILD_NDEBUG),true)
+ifeq ($(ART_BUILD_HOST_NDEBUG),true)
   $(eval $(call build-libart,host,ndebug))
 endif
-ifeq ($(ART_BUILD_DEBUG),true)
+ifeq ($(ART_BUILD_HOST_DEBUG),true)
   $(eval $(call build-libart,host,debug))
 endif
 
