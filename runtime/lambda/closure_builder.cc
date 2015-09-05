@@ -62,7 +62,6 @@ void ClosureBuilder::CaptureVariableObject(mirror::Object* object) {
   if (kIsDebugBuild) {
     if (kUseReadBarrier) {
       UNIMPLEMENTED(FATAL) << "can't yet safely capture objects with read barrier";
-      UNREACHABLE();
     }
   }
 }
