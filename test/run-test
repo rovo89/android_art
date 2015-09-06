@@ -786,11 +786,11 @@ fi
         echo '#################### info'
         cat "${td_info}" | sed 's/^/# /g'
         echo '#################### diffs'
-        diff --strip-trailing-cr -u "$expected" "$output" | tail -n 2000
+        diff --strip-trailing-cr -u "$expected" "$output" | tail -n 3000
         echo '####################'
         if [ "$strace" = "yes" ]; then
             echo '#################### strace output'
-            tail -n 2000 "$tmp_dir/$strace_output"
+            tail -n 3000 "$tmp_dir/$strace_output"
             echo '####################'
         fi
         echo ' '
