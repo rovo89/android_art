@@ -31,5 +31,5 @@ adb shell ifconfig
 echo -e "${green}List properties${nc}"
 adb shell getprop
 
-echo -e "${green}Stopping framework${nc}"
-adb shell stop
+echo -e "${green}Starting framework${nc}"
+adb shell start
