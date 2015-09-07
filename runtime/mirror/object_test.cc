@@ -444,7 +444,6 @@ TEST_F(ObjectTest, StringLength) {
   Handle<String> string(hs.NewHandle(String::AllocFromModifiedUtf8(soa.Self(), "android")));
   EXPECT_EQ(string->GetLength(), 7);
   EXPECT_EQ(string->GetUtfLength(), 7);
-
 }
 
 TEST_F(ObjectTest, DescriptorCompare) {

@@ -34,7 +34,7 @@
 #include "verify_object-inl.h"
 #include "base/logging.h"
 #include "base/macros.h"
-#include "../../libcore/ojluni/src/main/native/jvm.h" // TODO(haaawk): fix it
+#include "../../libcore/ojluni/src/main/native/jvm.h"  // TODO(narayan): fix it
 #include "jni_internal.h"
 #include "mirror/string-inl.h"
 #include "scoped_fast_native_object_access.h"
@@ -47,8 +47,7 @@
 #define LOG_TAG "artopenjdx"
 
 /* posix open() with extensions; used by e.g. ZipFile */
-JNIEXPORT jint JVM_Open(const char* fname, jint flags, jint mode)
-{
+JNIEXPORT jint JVM_Open(const char* fname, jint flags, jint mode) {
     LOG(DEBUG) << "JVM_Open fname='" << fname << "', flags=" << flags << ", mode=" << mode;
 
     /*
@@ -81,73 +80,63 @@ JNIEXPORT jint JVM_Open(const char* fname, jint flags, jint mode)
 }
 
 /* posix close() */
-JNIEXPORT jint JVM_Close(jint fd)
-{
+JNIEXPORT jint JVM_Close(jint fd) {
     LOG(DEBUG) << "JVM_Close fd=" << fd;
     // don't want TEMP_FAILURE_RETRY here -- file is closed even if EINTR
     return close(fd);
 }
 
 /* posix read() */
-JNIEXPORT jint JVM_Read(jint fd, char* buf, jint nbytes)
-{
+JNIEXPORT jint JVM_Read(jint fd, char* buf, jint nbytes) {
     LOG(DEBUG) << "JVM_Read fd=" << fd << ", buf='" << buf << "', nbytes=" << nbytes;
     return TEMP_FAILURE_RETRY(read(fd, buf, nbytes));
 }
 
 /* posix write(); is used to write messages to stderr */
-JNIEXPORT jint JVM_Write(jint fd, char* buf, jint nbytes)
-{
+JNIEXPORT jint JVM_Write(jint fd, char* buf, jint nbytes) {
     LOG(DEBUG) << "JVM_Write fd=" << fd << ", buf='" << buf << "', nbytes=" << nbytes;
     return TEMP_FAILURE_RETRY(write(fd, buf, nbytes));
 }
 
 /* posix lseek() */
-JNIEXPORT jlong JVM_Lseek(jint fd, jlong offset, jint whence)
-{
+JNIEXPORT jlong JVM_Lseek(jint fd, jlong offset, jint whence) {
     LOG(DEBUG) << "JVM_Lseek fd=" << fd << ", offset=" << offset << ", whence=" << whence;
     return TEMP_FAILURE_RETRY(lseek(fd, offset, whence));
 }
+
 /*
  * "raw monitors" seem to be expected to behave like non-recursive pthread
  * mutexes.  They're used by ZipFile.
  */
-
-JNIEXPORT void* JVM_RawMonitorCreate(void)
-{
+JNIEXPORT void* JVM_RawMonitorCreate(void) {
     LOG(DEBUG) << "JVM_RawMonitorCreate";
     pthread_mutex_t* newMutex =
-        (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
+        reinterpret_cast<pthread_mutex_t*>(malloc(sizeof(pthread_mutex_t)));
     pthread_mutex_init(newMutex, NULL);
     return newMutex;
 }
 
-JNIEXPORT void JVM_RawMonitorDestroy(void* mon)
-{
+JNIEXPORT void JVM_RawMonitorDestroy(void* mon) {
     LOG(DEBUG) << "JVM_RawMonitorDestroy mon=" << mon;
-    pthread_mutex_destroy((pthread_mutex_t*) mon);
+    pthread_mutex_destroy(reinterpret_cast<pthread_mutex_t*>(mon));
 }
 
-JNIEXPORT jint JVM_RawMonitorEnter(void* mon)
-{
+JNIEXPORT jint JVM_RawMonitorEnter(void* mon) {
     LOG(DEBUG) << "JVM_RawMonitorEnter mon=" << mon;
-    return pthread_mutex_lock((pthread_mutex_t*) mon);
+    return pthread_mutex_lock(reinterpret_cast<pthread_mutex_t*>(mon));
 }
 
-JNIEXPORT void JVM_RawMonitorExit(void* mon)
-{
+JNIEXPORT void JVM_RawMonitorExit(void* mon) {
     LOG(DEBUG) << "JVM_RawMonitorExit mon=" << mon;
-    pthread_mutex_unlock((pthread_mutex_t*) mon);
+    pthread_mutex_unlock(reinterpret_cast<pthread_mutex_t*>(mon));
 }
 
-JNIEXPORT char* JVM_NativePath(char* path)
-{
+JNIEXPORT char* JVM_NativePath(char* path) {
     LOG(DEBUG) << "JVM_NativePath path='" << path << "'";
     return path;
 }
 
-JNIEXPORT jint JVM_GetLastErrorString(char* buf, int len)
-{
+JNIEXPORT jint JVM_GetLastErrorString(char* buf, int len) {
     int err = errno;    // grab before JVM_TRACE can trash it
     LOG(DEBUG) << "JVM_GetLastErrorString buf=" << buf << ", len=" << len;
 
@@ -166,8 +155,7 @@ JNIEXPORT jint JVM_GetLastErrorString(char* buf, int len)
 #endif
 }
 
-JNIEXPORT int jio_fprintf(FILE* fp, const char* fmt, ...)
-{
+JNIEXPORT int jio_fprintf(FILE* fp, const char* fmt, ...) {
     va_list args;
 
     va_start(args, fmt);
@@ -177,27 +165,23 @@ JNIEXPORT int jio_fprintf(FILE* fp, const char* fmt, ...)
     return len;
 }
 
-JNIEXPORT int jio_vfprintf(FILE* fp, const char* fmt, va_list args)
-{
+JNIEXPORT int jio_vfprintf(FILE* fp, const char* fmt, va_list args) {
     assert(fp != NULL);
     return vfprintf(fp, fmt, args);
 }
 
 /* posix fsync() */
-JNIEXPORT jint JVM_Sync(jint fd)
-{
+JNIEXPORT jint JVM_Sync(jint fd) {
     LOG(DEBUG) << "JVM_Sync fd=" << fd;
     return TEMP_FAILURE_RETRY(fsync(fd));
 }
 
-JNIEXPORT void* JVM_FindLibraryEntry(void* handle, const char* name)
-{
+JNIEXPORT void* JVM_FindLibraryEntry(void* handle, const char* name) {
     LOG(DEBUG) << "JVM_FindLibraryEntry handle=" << handle << " name=" << name;
     return dlsym(handle, name);
 }
 
-JNIEXPORT jlong JVM_CurrentTimeMillis(JNIEnv* env, jclass unused)
-{
+JNIEXPORT jlong JVM_CurrentTimeMillis(JNIEnv* env, jclass unused) {
     LOG(DEBUG) << "JVM_CurrentTimeMillis env=" << env;
     struct timeval tv;
 
@@ -206,8 +190,7 @@ JNIEXPORT jlong JVM_CurrentTimeMillis(JNIEnv* env, jclass unused)
     return when;
 }
 
-JNIEXPORT jint JVM_Socket(jint domain, jint type, jint protocol)
-{
+JNIEXPORT jint JVM_Socket(jint domain, jint type, jint protocol) {
     LOG(DEBUG) << "JVM_Socket domain=" << domain << ", type=" << type << ", protocol=" << protocol;
 
     return TEMP_FAILURE_RETRY(socket(domain, type, protocol));
@@ -218,131 +201,120 @@ JNIEXPORT jint JVM_InitializeSocketLibrary() {
 }
 
 int jio_vsnprintf(char *str, size_t count, const char *fmt, va_list args) {
-   if ((intptr_t)count <= 0) return -1;
-   return vsnprintf(str, count, fmt, args);
+  if ((intptr_t)count <= 0) return -1;
+  return vsnprintf(str, count, fmt, args);
 }
 
 int jio_snprintf(char *str, size_t count, const char *fmt, ...) {
-   va_list args;
-   int len;
-   va_start(args, fmt);
-   len = jio_vsnprintf(str, count, fmt, args);
-   va_end(args);
-   return len;
+  va_list args;
+  int len;
+  va_start(args, fmt);
+  len = jio_vsnprintf(str, count, fmt, args);
+  va_end(args);
+  return len;
 }
 
 JNIEXPORT jint JVM_SetSockOpt(jint fd, int level, int optname,
-    const char* optval, int optlen)
-{
-    LOG(DEBUG) << "JVM_SetSockOpt fd=" << fd << ", level=" << level << ", optname=" << optname
-               << ", optval=" << optval << ", optlen=" << optlen;
-    return TEMP_FAILURE_RETRY(setsockopt(fd, level, optname, optval, optlen));
+    const char* optval, int optlen) {
+  LOG(DEBUG) << "JVM_SetSockOpt fd=" << fd << ", level=" << level << ", optname=" << optname
+             << ", optval=" << optval << ", optlen=" << optlen;
+  return TEMP_FAILURE_RETRY(setsockopt(fd, level, optname, optval, optlen));
 }
 
-JNIEXPORT jint JVM_SocketShutdown(jint fd, jint howto)
-{
-    LOG(DEBUG) << "JVM_SocketShutdown fd=" << fd << ", howto=" << howto;
-    return TEMP_FAILURE_RETRY(shutdown(fd, howto));
+JNIEXPORT jint JVM_SocketShutdown(jint fd, jint howto) {
+  LOG(DEBUG) << "JVM_SocketShutdown fd=" << fd << ", howto=" << howto;
+  return TEMP_FAILURE_RETRY(shutdown(fd, howto));
 }
 
 JNIEXPORT jint JVM_GetSockOpt(jint fd, int level, int optname, char* optval,
-    int* optlen)
-{
-    LOG(DEBUG) << "JVM_GetSockOpt fd=" << fd << ", level=" << level << ", optname=" << optname
-               << ", optval=" << optval << ", optlen=" << optlen;
+  int* optlen) {
+  LOG(DEBUG) << "JVM_GetSockOpt fd=" << fd << ", level=" << level << ", optname=" << optname
+             << ", optval=" << optval << ", optlen=" << optlen;
 
-    socklen_t len = *optlen;
-    int cc = TEMP_FAILURE_RETRY(getsockopt(fd, level, optname, optval, &len));
-    *optlen = len;
-    return cc;
+  socklen_t len = *optlen;
+  int cc = TEMP_FAILURE_RETRY(getsockopt(fd, level, optname, optval, &len));
+  *optlen = len;
+  return cc;
 }
 
-JNIEXPORT jint JVM_GetSockName(jint fd, struct sockaddr* addr, int* addrlen)
-{
-    LOG(DEBUG) << "JVM_GetSockName fd=" << fd << ", addr=" << addr << ", addrlen=" << addrlen;
+JNIEXPORT jint JVM_GetSockName(jint fd, struct sockaddr* addr, int* addrlen) {
+  LOG(DEBUG) << "JVM_GetSockName fd=" << fd << ", addr=" << addr << ", addrlen=" << addrlen;
 
-    socklen_t len = *addrlen;
-    int cc = TEMP_FAILURE_RETRY(getsockname(fd, addr, &len));
-    *addrlen = len;
-    return cc;
+  socklen_t len = *addrlen;
+  int cc = TEMP_FAILURE_RETRY(getsockname(fd, addr, &len));
+  *addrlen = len;
+  return cc;
 }
 
-JNIEXPORT jint JVM_SocketAvailable(jint fd, jint* result)
-{
-    LOG(DEBUG) << "JVM_SocketAvailable fd=" << fd << ", result=" << result;
+JNIEXPORT jint JVM_SocketAvailable(jint fd, jint* result) {
+  LOG(DEBUG) << "JVM_SocketAvailable fd=" << fd << ", result=" << result;
 
-    if (TEMP_FAILURE_RETRY(ioctl(fd, FIONREAD, result)) < 0) {
-        LOG(DEBUG) << "ioctl(" << fd << ", FIONREAD) failed: " << strerror(errno);
-        return JNI_FALSE;
-    }
+  if (TEMP_FAILURE_RETRY(ioctl(fd, FIONREAD, result)) < 0) {
+      LOG(DEBUG) << "ioctl(" << fd << ", FIONREAD) failed: " << strerror(errno);
+      return JNI_FALSE;
+  }
 
-    return JNI_TRUE;
+  return JNI_TRUE;
 }
 
-JNIEXPORT jint JVM_Send(jint fd, char* buf, jint nBytes, jint flags)
-{
-    LOG(DEBUG) << "JVM_Send fd=" << fd << ", buf=" << buf << ", nBytes=" << nBytes << ", flags="
-               << flags;
+JNIEXPORT jint JVM_Send(jint fd, char* buf, jint nBytes, jint flags) {
+  LOG(DEBUG) << "JVM_Send fd=" << fd << ", buf=" << buf << ", nBytes="
+             << nBytes << ", flags=" << flags;
 
-    return TEMP_FAILURE_RETRY(send(fd, buf, nBytes, flags));
+  return TEMP_FAILURE_RETRY(send(fd, buf, nBytes, flags));
 }
 
-JNIEXPORT jint JVM_SocketClose(jint fd)
-{
-    LOG(DEBUG) << "JVM_SocketClose fd=" << fd;
+JNIEXPORT jint JVM_SocketClose(jint fd) {
+  LOG(DEBUG) << "JVM_SocketClose fd=" << fd;
 
     // don't want TEMP_FAILURE_RETRY here -- file is closed even if EINTR
-    return close(fd);
+  return close(fd);
 }
 
-JNIEXPORT jint JVM_Listen(jint fd, jint count)
-{
-    LOG(DEBUG) << "JVM_Listen fd=" << fd << ", count=" << count;
+JNIEXPORT jint JVM_Listen(jint fd, jint count) {
+  LOG(DEBUG) << "JVM_Listen fd=" << fd << ", count=" << count;
 
-    return TEMP_FAILURE_RETRY(listen(fd, count));
+  return TEMP_FAILURE_RETRY(listen(fd, count));
 }
 
-JNIEXPORT jint JVM_Connect(jint fd, struct sockaddr* addr, jint addrlen)
-{
-    LOG(DEBUG) << "JVM_Connect fd=" << fd << ", addr=" << addr << ", addrlen=" << addrlen;
+JNIEXPORT jint JVM_Connect(jint fd, struct sockaddr* addr, jint addrlen) {
+  LOG(DEBUG) << "JVM_Connect fd=" << fd << ", addr=" << addr << ", addrlen=" << addrlen;
 
-    return TEMP_FAILURE_RETRY(connect(fd, addr, addrlen));
+  return TEMP_FAILURE_RETRY(connect(fd, addr, addrlen));
 }
 
-JNIEXPORT int JVM_GetHostName(char* name, int namelen)
-{
-    LOG(DEBUG) << "JVM_GetHostName name=" << name << ", namelen=" << namelen;
+JNIEXPORT int JVM_GetHostName(char* name, int namelen) {
+  LOG(DEBUG) << "JVM_GetHostName name=" << name << ", namelen=" << namelen;
 
-    return TEMP_FAILURE_RETRY(gethostname(name, namelen));
+  return TEMP_FAILURE_RETRY(gethostname(name, namelen));
 }
 
-JNIEXPORT jstring JVM_InternString(JNIEnv* env, jstring jstr)
-{
-    LOG(DEBUG) << "JVM_InternString env=" << env << ", jstr=" << jstr;
-    art::ScopedFastNativeObjectAccess soa(env);
-    art::mirror::String* s = soa.Decode<art::mirror::String*>(jstr);
-    art::mirror::String* result = s->Intern();
-    return soa.AddLocalReference<jstring>(result);
+JNIEXPORT jstring JVM_InternString(JNIEnv* env, jstring jstr) {
+  LOG(DEBUG) << "JVM_InternString env=" << env << ", jstr=" << jstr;
+  art::ScopedFastNativeObjectAccess soa(env);
+  art::mirror::String* s = soa.Decode<art::mirror::String*>(jstr);
+  art::mirror::String* result = s->Intern();
+  return soa.AddLocalReference<jstring>(result);
 }
 
 JNIEXPORT jlong JVM_FreeMemory(void) {
-    return art::Runtime::Current()->GetHeap()->GetFreeMemory();
+  return art::Runtime::Current()->GetHeap()->GetFreeMemory();
 }
 
 JNIEXPORT jlong JVM_TotalMemory(void) {
-    return art::Runtime::Current()->GetHeap()->GetTotalMemory();
+  return art::Runtime::Current()->GetHeap()->GetTotalMemory();
 }
 
 JNIEXPORT jlong JVM_MaxMemory(void) {
-    return art::Runtime::Current()->GetHeap()->GetMaxMemory();
+  return art::Runtime::Current()->GetHeap()->GetMaxMemory();
 }
 
 JNIEXPORT void JVM_GC(void) {
-    if (art::Runtime::Current()->IsExplicitGcDisabled()) {
-        LOG(INFO) << "Explicit GC skipped.";
-        return;
-    }
-    art::Runtime::Current()->GetHeap()->CollectGarbage(false);
+  if (art::Runtime::Current()->IsExplicitGcDisabled()) {
+      LOG(INFO) << "Explicit GC skipped.";
+      return;
+  }
+  art::Runtime::Current()->GetHeap()->CollectGarbage(false);
 }
 
 JNIEXPORT void JVM_Exit(jint status) {

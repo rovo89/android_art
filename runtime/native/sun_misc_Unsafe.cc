@@ -212,11 +212,11 @@ static jlong Unsafe_allocateMemory(JNIEnv* env, jobject, jlong bytes) {
 }
 
 static void Unsafe_freeMemory(JNIEnv* env, jobject, jlong address) {
-  free((void*)(uintptr_t)address);
+  free(reinterpret_cast<void*>(static_cast<uintptr_t>(address)));
 }
 
 static void Unsafe_setMemory(JNIEnv* env, jobject, jlong address, jlong bytes, jbyte value) {
-  memset((void*)(uintptr_t)address, value, bytes);
+  memset(reinterpret_cast<void*>(static_cast<uintptr_t>(address)), value, bytes);
 }
 
 static jbyte Unsafe_getByte$(JNIEnv* env, jobject, jlong address) {
@@ -275,8 +275,8 @@ static void Unsafe_putDouble$(JNIEnv* env, jobject, jlong address, jdouble value
 }
 
 static jlong Unsafe_getAddress(JNIEnv* env, jobject, jlong address) {
-  void* p = (void*)(uintptr_t)address;
-  return (uintptr_t)(*(void**)p);
+  void* p = reinterpret_cast<void*>(static_cast<uintptr_t>(address));
+  return reinterpret_cast<uintptr_t>(*static_cast<void**>(p));
 }
 
 static void Unsafe_copyMemory(JNIEnv *env, jobject unsafe, jlong src, jlong dst, jlong size) {
@@ -309,7 +309,7 @@ template<typename T>
 static void copyFromArray(jlong dstAddr, mirror::PrimitiveArray<T>* array,
                           size_t array_offset,
                           size_t size)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_){
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     T* dst = reinterpret_cast<T*>(dstAddr);
     size_t sz = size / sizeof(T);
     size_t of = array_offset / sizeof(T);
