@@ -1225,6 +1225,12 @@ void HGraphBuilder::PotentiallySimplifyFakeString(uint16_t original_dex_register
   }
 }
 
+static Primitive::Type GetFieldAccessType(const DexFile& dex_file, uint16_t field_index) {
+  const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
+  const char* type = dex_file.GetFieldTypeDescriptor(field_id);
+  return Primitive::GetType(type[0]);
+}
+
 bool HGraphBuilder::BuildInstanceFieldAccess(const Instruction& instruction,
                                              uint32_t dex_pc,
                                              bool is_put) {
@@ -1244,44 +1250,61 @@ bool HGraphBuilder::BuildInstanceFieldAccess(const Instruction& instruction,
   ArtField* resolved_field =
       compiler_driver_->ComputeInstanceFieldInfo(field_index, dex_compilation_unit_, is_put, soa);
 
-  if (resolved_field == nullptr) {
-    MaybeRecordStat(MethodCompilationStat::kNotCompiledUnresolvedField);
-    return false;
-  }
-
-  Primitive::Type field_type = resolved_field->GetTypeAsPrimitiveType();
 
   HInstruction* object = LoadLocal(obj_reg, Primitive::kPrimNot, dex_pc);
-  current_block_->AddInstruction(new (arena_) HNullCheck(object, dex_pc));
+  HInstruction* null_check = new (arena_) HNullCheck(object, dex_pc);
+  current_block_->AddInstruction(null_check);
+
+  Primitive::Type field_type = (resolved_field == nullptr)
+      ? GetFieldAccessType(*dex_file_, field_index)
+      : resolved_field->GetTypeAsPrimitiveType();
   if (is_put) {
     Temporaries temps(graph_);
-    HInstruction* null_check = current_block_->GetLastInstruction();
     // We need one temporary for the null check.
     temps.Add(null_check);
     HInstruction* value = LoadLocal(source_or_dest_reg, field_type, dex_pc);
-    current_block_->AddInstruction(new (arena_) HInstanceFieldSet(
-        null_check,
-        value,
-        field_type,
-        resolved_field->GetOffset(),
-        resolved_field->IsVolatile(),
-        field_index,
-        *dex_file_,
-        dex_compilation_unit_->GetDexCache(),
-        dex_pc));
+    HInstruction* field_set = nullptr;
+    if (resolved_field == nullptr) {
+      MaybeRecordStat(MethodCompilationStat::kUnresolvedField);
+      field_set = new (arena_) HUnresolvedInstanceFieldSet(null_check,
+                                                           value,
+                                                           field_type,
+                                                           field_index,
+                                                           dex_pc);
+    } else {
+      field_set = new (arena_) HInstanceFieldSet(null_check,
+                                                 value,
+                                                 field_type,
+                                                 resolved_field->GetOffset(),
+                                                 resolved_field->IsVolatile(),
+                                                 field_index,
+                                                 *dex_file_,
+                                                 dex_compilation_unit_->GetDexCache(),
+                                                 dex_pc);
+    }
+    current_block_->AddInstruction(field_set);
   } else {
-    current_block_->AddInstruction(new (arena_) HInstanceFieldGet(
-        current_block_->GetLastInstruction(),
-        field_type,
-        resolved_field->GetOffset(),
-        resolved_field->IsVolatile(),
-        field_index,
-        *dex_file_,
-        dex_compilation_unit_->GetDexCache(),
-        dex_pc));
-
-    UpdateLocal(source_or_dest_reg, current_block_->GetLastInstruction(), dex_pc);
+    HInstruction* field_get = nullptr;
+    if (resolved_field == nullptr) {
+      MaybeRecordStat(MethodCompilationStat::kUnresolvedField);
+      field_get = new (arena_) HUnresolvedInstanceFieldGet(null_check,
+                                                           field_type,
+                                                           field_index,
+                                                           dex_pc);
+    } else {
+      field_get = new (arena_) HInstanceFieldGet(null_check,
+                                                 field_type,
+                                                 resolved_field->GetOffset(),
+                                                 resolved_field->IsVolatile(),
+                                                 field_index,
+                                                 *dex_file_,
+                                                 dex_compilation_unit_->GetDexCache(),
+                                                 dex_pc);
+    }
+    current_block_->AddInstruction(field_get);
+    UpdateLocal(source_or_dest_reg, field_get, dex_pc);
   }
+
   return true;
 }
 
@@ -1338,8 +1361,18 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
       soa, dex_cache, class_loader, dex_compilation_unit_, field_index, true);
 
   if (resolved_field == nullptr) {
-    MaybeRecordStat(MethodCompilationStat::kNotCompiledUnresolvedField);
-    return false;
+    MaybeRecordStat(MethodCompilationStat::kUnresolvedField);
+    Primitive::Type field_type = GetFieldAccessType(*dex_file_, field_index);
+    if (is_put) {
+      HInstruction* value = LoadLocal(source_or_dest_reg, field_type, dex_pc);
+      current_block_->AddInstruction(
+          new (arena_) HUnresolvedStaticFieldSet(value, field_type, field_index, dex_pc));
+    } else {
+      current_block_->AddInstruction(
+          new (arena_) HUnresolvedStaticFieldGet(field_type, field_index, dex_pc));
+      UpdateLocal(source_or_dest_reg, current_block_->GetLastInstruction(), dex_pc);
+    }
+    return true;
   }
 
   const DexFile& outer_dex_file = *outer_compilation_unit_->GetDexFile();

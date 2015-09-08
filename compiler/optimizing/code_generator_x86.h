@@ -92,6 +92,38 @@ class InvokeDexCallingConventionVisitorX86 : public InvokeDexCallingConventionVi
   DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitorX86);
 };
 
+class FieldAccessCallingConvetionX86 : public FieldAccessCallingConvetion {
+ public:
+  FieldAccessCallingConvetionX86() {}
+
+  Location GetObjectLocation() const OVERRIDE {
+    return Location::RegisterLocation(ECX);
+  }
+  Location GetFieldIndexLocation() const OVERRIDE {
+    return Location::RegisterLocation(EAX);
+  }
+  Location GetReturnLocation(Primitive::Type type) const OVERRIDE {
+    return Primitive::Is64BitType(type)
+        ? Location::RegisterPairLocation(EAX, EDX)
+        : Location::RegisterLocation(EAX);
+  }
+  Location GetSetValueLocation(Primitive::Type type, bool is_instance) const OVERRIDE {
+    return Primitive::Is64BitType(type)
+        ? (is_instance
+            ? Location::RegisterPairLocation(EDX, EBX)
+            : Location::RegisterPairLocation(ECX, EDX))
+        : (is_instance
+            ? Location::RegisterLocation(EDX)
+            : Location::RegisterLocation(ECX));
+  }
+  Location GetFpuLocation(Primitive::Type type ATTRIBUTE_UNUSED) const OVERRIDE {
+    return Location::FpuRegisterLocation(XMM0);
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FieldAccessCallingConvetionX86);
+};
+
 class ParallelMoveResolverX86 : public ParallelMoveResolverWithSwap {
  public:
   ParallelMoveResolverX86(ArenaAllocator* allocator, CodeGeneratorX86* codegen)
@@ -229,6 +261,17 @@ class CodeGeneratorX86 : public CodeGenerator {
   void Bind(HBasicBlock* block) OVERRIDE;
   void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
   void MoveConstant(Location destination, int32_t value) OVERRIDE;
+
+  void AddLocationAsTemp(Location location, LocationSummary* locations) OVERRIDE;
+  void MoveLocationToTemp(Location source,
+                          const LocationSummary& locations,
+                          int temp_index,
+                          Primitive::Type type) OVERRIDE;
+  void MoveTempToLocation(const LocationSummary& locations,
+                          int temp_index,
+                          Location destination,
+                          Primitive::Type type) OVERRIDE;
+
   size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
   size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
   size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
