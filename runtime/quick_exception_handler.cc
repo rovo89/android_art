@@ -40,7 +40,7 @@ QuickExceptionHandler::QuickExceptionHandler(Thread* self, bool is_deoptimizatio
     handler_dex_pc_(0), clear_exception_(false), handler_frame_depth_(kInvalidFrameDepth) {
 }
 
-// Finds catch handler or prepares for deoptimization.
+// Finds catch handler.
 class CatchBlockStackVisitor FINAL : public StackVisitor {
  public:
   CatchBlockStackVisitor(Thread* self, Context* context, Handle<mirror::Throwable>* exception,
@@ -125,7 +125,7 @@ void QuickExceptionHandler::FindCatch(mirror::Throwable* exception) {
   StackHandleScope<1> hs(self_);
   Handle<mirror::Throwable> exception_ref(hs.NewHandle(exception));
 
-  // Walk the stack to find catch handler or prepare for deoptimization.
+  // Walk the stack to find catch handler.
   CatchBlockStackVisitor visitor(self_, context_, &exception_ref, this);
   visitor.WalkStack(true);
 
@@ -145,16 +145,6 @@ void QuickExceptionHandler::FindCatch(mirror::Throwable* exception) {
   } else {
     // Put exception back in root set with clear throw location.
     self_->SetException(exception_ref.Get());
-  }
-  // The debugger may suspend this thread and walk its stack. Let's do this before popping
-  // instrumentation frames.
-  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
-  if (instrumentation->HasExceptionCaughtListeners()
-      && self_->IsExceptionThrownByCurrentMethod(exception)) {
-    instrumentation->ExceptionCaughtEvent(self_, exception_ref.Get());
-    // Instrumentation may have been updated.
-    method_tracing_active_ = is_deoptimization_ ||
-        Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled();
   }
 }
 
@@ -189,6 +179,12 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
       // Ignore callee save method.
       DCHECK(method->IsCalleeSaveMethod());
       return true;
+    } else if (method->IsNative()) {
+      // If we return from JNI with a pending exception and want to deoptimize, we need to skip
+      // the native method.
+      // The top method is a runtime method, the native method comes next.
+      CHECK_EQ(GetFrameDepth(), 1U);
+      return true;
     } else {
       return HandleDeoptimization(method);
     }
@@ -201,7 +197,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
 
   bool HandleDeoptimization(ArtMethod* m) SHARED_REQUIRES(Locks::mutator_lock_) {
     const DexFile::CodeItem* code_item = m->GetCodeItem();
-    CHECK(code_item != nullptr);
+    CHECK(code_item != nullptr) << "No code item for " << PrettyMethod(m);
     uint16_t num_regs = code_item->registers_size_;
     uint32_t dex_pc = GetDexPc();
     StackHandleScope<2> hs(self_);  // Dex cache, class loader and method.

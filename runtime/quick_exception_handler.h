@@ -43,9 +43,18 @@ class QuickExceptionHandler {
     UNREACHABLE();
   }
 
+  // Find the catch handler for the given exception.
   void FindCatch(mirror::Throwable* exception) SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Deoptimize the stack to the upcall. For every compiled frame, we create a "copy"
+  // shadow frame that will be executed with the interpreter.
   void DeoptimizeStack() SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Update the instrumentation stack by removing all methods that will be unwound
+  // by the exception being thrown.
   void UpdateInstrumentationStack() SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Long jump either to a catch handler or to the upcall.
   NO_RETURN void DoLongJump() SHARED_REQUIRES(Locks::mutator_lock_);
 
   void SetHandlerQuickFrame(ArtMethod** handler_quick_frame) {
@@ -83,9 +92,10 @@ class QuickExceptionHandler {
  private:
   Thread* const self_;
   Context* const context_;
+  // Should we deoptimize the stack?
   const bool is_deoptimization_;
   // Is method tracing active?
-  bool method_tracing_active_;
+  const bool method_tracing_active_;
   // Quick frame with found handler or last frame if no handler found.
   ArtMethod** handler_quick_frame_;
   // PC to branch to for the handler.

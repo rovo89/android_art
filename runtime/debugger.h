@@ -576,6 +576,19 @@ class Dbg {
     return IsForcedInterpreterNeededForUpcallImpl(thread, m);
   }
 
+  // Indicates whether we need to force the use of interpreter when handling an
+  // exception. This allows to deoptimize the stack and continue execution with
+  // the interpreter.
+  // Note: the interpreter will start by handling the exception when executing
+  // the deoptimized frames.
+  static bool IsForcedInterpreterNeededForException(Thread* thread)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    if (!IsDebuggerActive()) {
+      return false;
+    }
+    return IsForcedInterpreterNeededForExceptionImpl(thread);
+  }
+
   // Single-stepping.
   static JDWP::JdwpError ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize size,
                                        JDWP::JdwpStepDepth depth)
@@ -732,6 +745,9 @@ class Dbg {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   static bool IsForcedInterpreterNeededForUpcallImpl(Thread* thread, ArtMethod* m)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
+  static bool IsForcedInterpreterNeededForExceptionImpl(Thread* thread)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Indicates whether the debugger is making requests.
