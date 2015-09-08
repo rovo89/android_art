@@ -230,7 +230,7 @@ TEST_F(InductionVarAnalysisTest, FindBasicInduction) {
   PerformInductionVarAnalysis();
 
   EXPECT_STREQ("((1) * i + (0))", GetInductionInfo(store->InputAt(1), 0).c_str());
-  EXPECT_STREQ("((1) * i + ((0) + (1)))", GetInductionInfo(increment_[0], 0).c_str());
+  EXPECT_STREQ("((1) * i + (1))", GetInductionInfo(increment_[0], 0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, FindDerivedInduction) {
@@ -260,11 +260,11 @@ TEST_F(InductionVarAnalysisTest, FindDerivedInduction) {
   InsertLocalStore(induc_, neg, 0);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("((1) * i + ((100) + (0)))", GetInductionInfo(add, 0).c_str());
-  EXPECT_STREQ("(( - (1)) * i + ((100) - (0)))", GetInductionInfo(sub, 0).c_str());
-  EXPECT_STREQ("(((100) * (1)) * i + ((100) * (0)))", GetInductionInfo(mul, 0).c_str());
-  EXPECT_STREQ("(((1) * (2)) * i + ((0) * (2)))", GetInductionInfo(shl, 0).c_str());
-  EXPECT_STREQ("(( - (1)) * i + ( - (0)))", GetInductionInfo(neg, 0).c_str());
+  EXPECT_STREQ("((1) * i + (100))", GetInductionInfo(add, 0).c_str());
+  EXPECT_STREQ("(( - (1)) * i + (100))", GetInductionInfo(sub, 0).c_str());
+  EXPECT_STREQ("((100) * i + (0))", GetInductionInfo(mul, 0).c_str());
+  EXPECT_STREQ("((2) * i + (0))", GetInductionInfo(shl, 0).c_str());
+  EXPECT_STREQ("(( - (1)) * i + (0))", GetInductionInfo(neg, 0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, FindChainInduction) {
@@ -287,9 +287,9 @@ TEST_F(InductionVarAnalysisTest, FindChainInduction) {
   HInstruction* store2 = InsertArrayStore(induc_, 0);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("(((100) - (1)) * i + ((0) + (100)))",
+  EXPECT_STREQ("(((100) - (1)) * i + (100))",
                GetInductionInfo(store1->InputAt(1), 0).c_str());
-  EXPECT_STREQ("(((100) - (1)) * i + (((0) + (100)) - (1)))",
+  EXPECT_STREQ("(((100) - (1)) * i + ((100) - (1)))",
                GetInductionInfo(store2->InputAt(1), 0).c_str());
 }
 
@@ -321,7 +321,7 @@ TEST_F(InductionVarAnalysisTest, FindTwoWayBasicInduction) {
   HInstruction* store = InsertArrayStore(induc_, 0);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("((1) * i + ((0) + (1)))", GetInductionInfo(store->InputAt(1), 0).c_str());
+  EXPECT_STREQ("((1) * i + (1))", GetInductionInfo(store->InputAt(1), 0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, FindTwoWayDerivedInduction) {
@@ -351,7 +351,7 @@ TEST_F(InductionVarAnalysisTest, FindTwoWayDerivedInduction) {
   HInstruction* store = InsertArrayStore(induc_, 0);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("((1) * i + ((0) + (1)))", GetInductionInfo(store->InputAt(1), 0).c_str());
+  EXPECT_STREQ("((1) * i + (1))", GetInductionInfo(store->InputAt(1), 0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, FindFirstOrderWrapAroundInduction) {
@@ -368,7 +368,7 @@ TEST_F(InductionVarAnalysisTest, FindFirstOrderWrapAroundInduction) {
   InsertLocalStore(induc_, sub, 0);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("wrap((0), (( - (1)) * i + ((100) - (0))))",
+  EXPECT_STREQ("wrap((0), (( - (1)) * i + (100)))",
                GetInductionInfo(store->InputAt(1), 0).c_str());
 }
 
@@ -389,7 +389,7 @@ TEST_F(InductionVarAnalysisTest, FindSecondOrderWrapAroundInduction) {
   InsertLocalStore(tmp_, sub, 0);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("wrap((0), wrap((100), (( - (1)) * i + ((100) - (0)))))",
+  EXPECT_STREQ("wrap((0), wrap((100), (( - (1)) * i + (100))))",
                GetInductionInfo(store->InputAt(1), 0).c_str());
 }
 
@@ -427,16 +427,11 @@ TEST_F(InductionVarAnalysisTest, FindWrapAroundDerivedInduction) {
           HShl(Primitive::kPrimInt, InsertLocalLoad(basic_[0], 0), constant1_), 0), 0);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("wrap(((0) + (100)), (((1) * (2)) * i + (((0) * (2)) + (100))))",
-               GetInductionInfo(add, 0).c_str());
-  EXPECT_STREQ("wrap(((0) - (100)), (((1) * (2)) * i + (((0) * (2)) - (100))))",
-               GetInductionInfo(sub, 0).c_str());
-  EXPECT_STREQ("wrap(((0) * (100)), ((((1) * (2)) * (100)) * i + (((0) * (2)) * (100))))",
-               GetInductionInfo(mul, 0).c_str());
-  EXPECT_STREQ("wrap(((0) * (2)), ((((1) * (2)) * (2)) * i + (((0) * (2)) * (2))))",
-               GetInductionInfo(shl, 0).c_str());
-  EXPECT_STREQ("wrap(( - (0)), (( - ((1) * (2))) * i + ( - ((0) * (2)))))",
-               GetInductionInfo(neg, 0).c_str());
+  EXPECT_STREQ("wrap((100), ((2) * i + (100)))", GetInductionInfo(add, 0).c_str());
+  EXPECT_STREQ("wrap(((0) - (100)), ((2) * i + ((0) - (100))))", GetInductionInfo(sub, 0).c_str());
+  EXPECT_STREQ("wrap((0), (((2) * (100)) * i + (0)))", GetInductionInfo(mul, 0).c_str());
+  EXPECT_STREQ("wrap((0), (((2) * (2)) * i + (0)))", GetInductionInfo(shl, 0).c_str());
+  EXPECT_STREQ("wrap((0), (( - (2)) * i + (0)))", GetInductionInfo(neg, 0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, FindPeriodicInduction) {
@@ -477,8 +472,8 @@ TEST_F(InductionVarAnalysisTest, FindIdiomaticPeriodicInduction) {
   InsertLocalStore(induc_, sub, 0);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("periodic((0), ((1) - (0)))", GetInductionInfo(store->InputAt(1), 0).c_str());
-  EXPECT_STREQ("periodic(((1) - (0)), (0))", GetInductionInfo(sub, 0).c_str());
+  EXPECT_STREQ("periodic((0), (1))", GetInductionInfo(store->InputAt(1), 0).c_str());
+  EXPECT_STREQ("periodic((1), (0))", GetInductionInfo(sub, 0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, FindDerivedPeriodicInduction) {
@@ -515,11 +510,11 @@ TEST_F(InductionVarAnalysisTest, FindDerivedPeriodicInduction) {
   InsertLocalStore(tmp_, neg, 0);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("periodic((((1) - (0)) + (100)), ((0) + (100)))", GetInductionInfo(add, 0).c_str());
-  EXPECT_STREQ("periodic((((1) - (0)) - (100)), ((0) - (100)))", GetInductionInfo(sub, 0).c_str());
-  EXPECT_STREQ("periodic((((1) - (0)) * (100)), ((0) * (100)))", GetInductionInfo(mul, 0).c_str());
-  EXPECT_STREQ("periodic((((1) - (0)) * (2)), ((0) * (2)))", GetInductionInfo(shl, 0).c_str());
-  EXPECT_STREQ("periodic(( - ((1) - (0))), ( - (0)))", GetInductionInfo(neg, 0).c_str());
+  EXPECT_STREQ("periodic(((1) + (100)), (100))", GetInductionInfo(add, 0).c_str());
+  EXPECT_STREQ("periodic(((1) - (100)), ((0) - (100)))", GetInductionInfo(sub, 0).c_str());
+  EXPECT_STREQ("periodic((100), (0))", GetInductionInfo(mul, 0).c_str());
+  EXPECT_STREQ("periodic((2), (0))", GetInductionInfo(shl, 0).c_str());
+  EXPECT_STREQ("periodic(( - (1)), (0))", GetInductionInfo(neg, 0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, FindDeepLoopInduction) {
@@ -550,7 +545,7 @@ TEST_F(InductionVarAnalysisTest, FindDeepLoopInduction) {
     } else {
       EXPECT_STREQ("", GetInductionInfo(store->InputAt(1), d).c_str());
     }
-    EXPECT_STREQ("((1) * i + ((0) + (1)))", GetInductionInfo(increment_[d], d).c_str());
+    EXPECT_STREQ("((1) * i + (1))", GetInductionInfo(increment_[d], d).c_str());
   }
 }
 
