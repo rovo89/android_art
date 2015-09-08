@@ -1204,7 +1204,10 @@ mirror::DexCache* ClassLinker::AllocDexCache(Thread* self, const DexFile& dex_fi
   }
   DexCacheArraysLayout layout(image_pointer_size_, &dex_file);
   uint8_t* raw_arrays = nullptr;
-  if (dex_file.NumStringIds() != 0u || dex_file.NumTypeIds() != 0u ||
+  if (dex_file.GetOatDexFile() != nullptr &&
+      dex_file.GetOatDexFile()->GetDexCacheArrays() != nullptr) {
+    raw_arrays = const_cast<uint8_t*>(dex_file.GetOatDexFile()->GetDexCacheArrays());
+  } else if (dex_file.NumStringIds() != 0u || dex_file.NumTypeIds() != 0u ||
       dex_file.NumMethodIds() != 0u || dex_file.NumFieldIds() != 0u) {
     // NOTE: We "leak" the raw_arrays because we never destroy the dex cache.
     DCHECK(image_pointer_size_ == 4u || image_pointer_size_ == 8u);

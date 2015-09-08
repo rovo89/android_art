@@ -107,6 +107,22 @@ static inline size_t GetInstructionSetPointerSize(InstructionSet isa) {
   }
 }
 
+static inline bool IsValidInstructionSet(InstructionSet isa) {
+  switch (isa) {
+    case kArm:
+    case kThumb2:
+    case kArm64:
+    case kX86:
+    case kX86_64:
+    case kMips:
+    case kMips64:
+      return true;
+    case kNone:
+    default:
+      return false;
+  }
+}
+
 size_t GetInstructionSetAlignment(InstructionSet isa);
 
 static inline bool Is64BitInstructionSet(InstructionSet isa) {
