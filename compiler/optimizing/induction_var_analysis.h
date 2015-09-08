@@ -126,7 +126,7 @@ class HInductionVarAnalysis : public HOptimization {
   InductionInfo* TransferPhi(InductionInfo* a, InductionInfo* b);
   InductionInfo* TransferAddSub(InductionInfo* a, InductionInfo* b, InductionOp op);
   InductionInfo* TransferMul(InductionInfo* a, InductionInfo* b);
-  InductionInfo* TransferShl(InductionInfo* a, InductionInfo* b, Primitive::Type t);
+  InductionInfo* TransferShl(InductionInfo* a, InductionInfo* b, Primitive::Type type);
   InductionInfo* TransferNeg(InductionInfo* a);
 
   // Solvers.
@@ -142,9 +142,25 @@ class HInductionVarAnalysis : public HOptimization {
                              bool is_first_call);
   InductionInfo* RotatePeriodicInduction(InductionInfo* induction, InductionInfo* last);
 
+  // Trip count information.
+  void VisitControl(HLoopInformation* loop);
+  void VisitCondition(HLoopInformation* loop,
+                      InductionInfo* a,
+                      InductionInfo* b,
+                      Primitive::Type type,
+                      IfCondition cmp);
+  void VisitTripCount(HLoopInformation* loop,
+                      InductionInfo* lo_val,
+                      InductionInfo* hi_val,
+                      InductionInfo* stride,
+                      int32_t stride_value,
+                      Primitive::Type type,
+                      bool is_strict);
+
   // Assign and lookup.
   void AssignInfo(HLoopInformation* loop, HInstruction* instruction, InductionInfo* info);
   InductionInfo* LookupInfo(HLoopInformation* loop, HInstruction* instruction);
+  InductionInfo* CreateConstant(int64_t value, Primitive::Type type);
   InductionInfo* CreateSimplifiedInvariant(InductionOp op, InductionInfo* a, InductionInfo* b);
 
   // Helpers.
@@ -168,6 +184,8 @@ class HInductionVarAnalysis : public HOptimization {
   ArenaSafeMap<HLoopInformation*, ArenaSafeMap<HInstruction*, InductionInfo*>> induction_;
 
   friend class InductionVarAnalysisTest;
+  friend class InductionVarRange;
+  friend class InductionVarRangeTest;
 
   DISALLOW_COPY_AND_ASSIGN(HInductionVarAnalysis);
 };

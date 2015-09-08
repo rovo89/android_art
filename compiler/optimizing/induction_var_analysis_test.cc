@@ -99,7 +99,7 @@ class InductionVarAnalysisTest : public testing::Test {
       loop_preheader_[d]->AddInstruction(new (&allocator_) HStoreLocal(basic_[d], constant0_));
       HInstruction* load = new (&allocator_) HLoadLocal(basic_[d], Primitive::kPrimInt);
       loop_header_[d]->AddInstruction(load);
-      HInstruction* compare = new (&allocator_) HGreaterThanOrEqual(load, constant100_);
+      HInstruction* compare = new (&allocator_) HLessThan(load, constant100_);
       loop_header_[d]->AddInstruction(compare);
       loop_header_[d]->AddInstruction(new (&allocator_) HIf(compare));
       load = new (&allocator_) HLoadLocal(basic_[d], Primitive::kPrimInt);
@@ -231,6 +231,9 @@ TEST_F(InductionVarAnalysisTest, FindBasicInduction) {
 
   EXPECT_STREQ("((1) * i + (0))", GetInductionInfo(store->InputAt(1), 0).c_str());
   EXPECT_STREQ("((1) * i + (1))", GetInductionInfo(increment_[0], 0).c_str());
+
+  // Trip-count.
+  EXPECT_STREQ("(100)", GetInductionInfo(loop_header_[0]->GetLastInstruction(), 0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, FindDerivedInduction) {
@@ -546,6 +549,8 @@ TEST_F(InductionVarAnalysisTest, FindDeepLoopInduction) {
       EXPECT_STREQ("", GetInductionInfo(store->InputAt(1), d).c_str());
     }
     EXPECT_STREQ("((1) * i + (1))", GetInductionInfo(increment_[d], d).c_str());
+    // Trip-count.
+    EXPECT_STREQ("(100)", GetInductionInfo(loop_header_[d]->GetLastInstruction(), d).c_str());
   }
 }
 
