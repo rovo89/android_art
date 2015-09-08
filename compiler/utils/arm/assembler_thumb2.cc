@@ -3192,14 +3192,10 @@ void Thumb2Assembler::LoadLiteral(DRegister dd, Literal* literal) {
   DCHECK_EQ(location + GetFixup(fixup_id)->GetSizeInBytes(), buffer_.Size());
 }
 
-void Thumb2Assembler::AddConstant(Register rd, int32_t value, Condition cond) {
-  AddConstant(rd, rd, value, cond);
-}
-
 
 void Thumb2Assembler::AddConstant(Register rd, Register rn, int32_t value,
-                                  Condition cond) {
-  if (value == 0) {
+                                  Condition cond, SetCc set_cc) {
+  if (value == 0 && set_cc != kCcSet) {
     if (rd != rn) {
       mov(rd, ShifterOperand(rn), cond);
     }
@@ -3210,51 +3206,24 @@ void Thumb2Assembler::AddConstant(Register rd, Register rn, int32_t value,
   // the readability of generated code for some constants.
   ShifterOperand shifter_op;
   if (ShifterOperandCanHold(rd, rn, ADD, value, &shifter_op)) {
-    add(rd, rn, shifter_op, cond);
+    add(rd, rn, shifter_op, cond, set_cc);
   } else if (ShifterOperandCanHold(rd, rn, SUB, -value, &shifter_op)) {
-    sub(rd, rn, shifter_op, cond);
+    sub(rd, rn, shifter_op, cond, set_cc);
   } else {
     CHECK(rn != IP);
     if (ShifterOperandCanHold(rd, rn, MVN, ~value, &shifter_op)) {
-      mvn(IP, shifter_op, cond);
-      add(rd, rn, ShifterOperand(IP), cond);
+      mvn(IP, shifter_op, cond, kCcKeep);
+      add(rd, rn, ShifterOperand(IP), cond, set_cc);
     } else if (ShifterOperandCanHold(rd, rn, MVN, ~(-value), &shifter_op)) {
-      mvn(IP, shifter_op, cond);
-      sub(rd, rn, ShifterOperand(IP), cond);
+      mvn(IP, shifter_op, cond, kCcKeep);
+      sub(rd, rn, ShifterOperand(IP), cond, set_cc);
     } else {
       movw(IP, Low16Bits(value), cond);
       uint16_t value_high = High16Bits(value);
       if (value_high != 0) {
         movt(IP, value_high, cond);
       }
-      add(rd, rn, ShifterOperand(IP), cond);
-    }
-  }
-}
-
-
-void Thumb2Assembler::AddConstantSetFlags(Register rd, Register rn, int32_t value,
-                                          Condition cond) {
-  ShifterOperand shifter_op;
-  if (ShifterOperandCanHold(rd, rn, ADD, value, &shifter_op)) {
-    add(rd, rn, shifter_op, cond, kCcSet);
-  } else if (ShifterOperandCanHold(rd, rn, ADD, -value, &shifter_op)) {
-    sub(rd, rn, shifter_op, cond, kCcSet);
-  } else {
-    CHECK(rn != IP);
-    if (ShifterOperandCanHold(rd, rn, MVN, ~value, &shifter_op)) {
-      mvn(IP, shifter_op, cond);
-      add(rd, rn, ShifterOperand(IP), cond, kCcSet);
-    } else if (ShifterOperandCanHold(rd, rn, MVN, ~(-value), &shifter_op)) {
-      mvn(IP, shifter_op, cond);
-      sub(rd, rn, ShifterOperand(IP), cond, kCcSet);
-    } else {
-      movw(IP, Low16Bits(value), cond);
-      uint16_t value_high = High16Bits(value);
-      if (value_high != 0) {
-        movt(IP, value_high, cond);
-      }
-      add(rd, rn, ShifterOperand(IP), cond, kCcSet);
+      add(rd, rn, ShifterOperand(IP), cond, set_cc);
     }
   }
 }
