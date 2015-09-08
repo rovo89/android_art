@@ -297,11 +297,8 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   void LoadLiteral(DRegister dd, Literal* literal) OVERRIDE;
 
   // Add signed constant value to rd. May clobber IP.
-  void AddConstant(Register rd, int32_t value, Condition cond = AL) OVERRIDE;
   void AddConstant(Register rd, Register rn, int32_t value,
-                   Condition cond = AL) OVERRIDE;
-  void AddConstantSetFlags(Register rd, Register rn, int32_t value,
-                           Condition cond = AL) OVERRIDE;
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
   // Load and Store. May clobber IP.
   void LoadImmediate(Register rd, int32_t value, Condition cond = AL) OVERRIDE;
