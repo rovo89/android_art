@@ -668,11 +668,14 @@ class ArmAssembler : public Assembler {
   virtual void LoadLiteral(DRegister dd, Literal* literal) = 0;
 
   // Add signed constant value to rd. May clobber IP.
-  virtual void AddConstant(Register rd, int32_t value, Condition cond = AL) = 0;
   virtual void AddConstant(Register rd, Register rn, int32_t value,
-                           Condition cond = AL) = 0;
-  virtual void AddConstantSetFlags(Register rd, Register rn, int32_t value,
-                                   Condition cond = AL) = 0;
+                           Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
+  void AddConstantSetFlags(Register rd, Register rn, int32_t value, Condition cond = AL) {
+    AddConstant(rd, rn, value, cond, kCcSet);
+  }
+  void AddConstant(Register rd, int32_t value, Condition cond = AL, SetCc set_cc = kCcDontCare) {
+    AddConstant(rd, rd, value, cond, set_cc);
+  }
 
   // Load and Store. May clobber IP.
   virtual void LoadImmediate(Register rd, int32_t value, Condition cond = AL) = 0;
