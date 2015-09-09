@@ -131,23 +131,20 @@ class HGraphBuilder : public ValueObject {
 
   void InitializeLocals(uint16_t count);
   HLocal* GetLocalAt(int register_index) const;
-  void UpdateLocal(int register_index, HInstruction* instruction) const;
-  HInstruction* LoadLocal(int register_index, Primitive::Type type) const;
+  void UpdateLocal(int register_index, HInstruction* instruction, uint32_t dex_pc) const;
+  HInstruction* LoadLocal(int register_index, Primitive::Type type, uint32_t dex_pc) const;
   void PotentiallyAddSuspendCheck(HBasicBlock* target, uint32_t dex_pc);
   void InitializeParameters(uint16_t number_of_parameters);
   bool NeedsAccessCheck(uint32_t type_index) const;
 
   template<typename T>
-  void Unop_12x(const Instruction& instruction, Primitive::Type type);
-
-  template<typename T>
-  void Binop_23x(const Instruction& instruction, Primitive::Type type);
+  void Unop_12x(const Instruction& instruction, Primitive::Type type, uint32_t dex_pc);
 
   template<typename T>
   void Binop_23x(const Instruction& instruction, Primitive::Type type, uint32_t dex_pc);
 
   template<typename T>
-  void Binop_23x_shift(const Instruction& instruction, Primitive::Type type);
+  void Binop_23x_shift(const Instruction& instruction, Primitive::Type type, uint32_t dex_pc);
 
   void Binop_23x_cmp(const Instruction& instruction,
                      Primitive::Type type,
@@ -155,19 +152,16 @@ class HGraphBuilder : public ValueObject {
                      uint32_t dex_pc);
 
   template<typename T>
-  void Binop_12x(const Instruction& instruction, Primitive::Type type);
-
-  template<typename T>
   void Binop_12x(const Instruction& instruction, Primitive::Type type, uint32_t dex_pc);
 
   template<typename T>
-  void Binop_12x_shift(const Instruction& instruction, Primitive::Type type);
+  void Binop_12x_shift(const Instruction& instruction, Primitive::Type type, uint32_t dex_pc);
 
   template<typename T>
-  void Binop_22b(const Instruction& instruction, bool reverse);
+  void Binop_22b(const Instruction& instruction, bool reverse, uint32_t dex_pc);
 
   template<typename T>
-  void Binop_22s(const Instruction& instruction, bool reverse);
+  void Binop_22s(const Instruction& instruction, bool reverse, uint32_t dex_pc);
 
   template<typename T> void If_21t(const Instruction& instruction, uint32_t dex_pc);
   template<typename T> void If_22t(const Instruction& instruction, uint32_t dex_pc);
@@ -185,7 +179,7 @@ class HGraphBuilder : public ValueObject {
                           bool second_is_lit,
                           bool is_div);
 
-  void BuildReturn(const Instruction& instruction, Primitive::Type type);
+  void BuildReturn(const Instruction& instruction, Primitive::Type type, uint32_t dex_pc);
 
   // Builds an instance field access node and returns whether the instruction is supported.
   bool BuildInstanceFieldAccess(const Instruction& instruction, uint32_t dex_pc, bool is_put);
