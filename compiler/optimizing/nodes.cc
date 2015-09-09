@@ -207,7 +207,7 @@ void HGraph::SplitCriticalEdge(HBasicBlock* block, HBasicBlock* successor) {
   // Insert a new node between `block` and `successor` to split the
   // critical edge.
   HBasicBlock* new_block = SplitEdge(block, successor);
-  new_block->AddInstruction(new (arena_) HGoto());
+  new_block->AddInstruction(new (arena_) HGoto(successor->GetDexPc()));
   if (successor->IsLoopHeader()) {
     // If we split at a back edge boundary, make the new block the back edge.
     HLoopInformation* info = successor->GetLoopInformation();
@@ -228,7 +228,7 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
   if (number_of_incomings != 1) {
     HBasicBlock* pre_header = new (arena_) HBasicBlock(this, header->GetDexPc());
     AddBlock(pre_header);
-    pre_header->AddInstruction(new (arena_) HGoto());
+    pre_header->AddInstruction(new (arena_) HGoto(header->GetDexPc()));
 
     for (size_t pred = 0; pred < header->GetPredecessors().Size(); ++pred) {
       HBasicBlock* predecessor = header->GetPredecessors().Get(pred);
@@ -409,12 +409,12 @@ void HGraph::InsertConstant(HConstant* constant) {
   }
 }
 
-HNullConstant* HGraph::GetNullConstant() {
+HNullConstant* HGraph::GetNullConstant(uint32_t dex_pc) {
   // For simplicity, don't bother reviving the cached null constant if it is
   // not null and not in a block. Otherwise, we need to clear the instruction
   // id and/or any invariants the graph is assuming when adding new instructions.
   if ((cached_null_constant_ == nullptr) || (cached_null_constant_->GetBlock() == nullptr)) {
-    cached_null_constant_ = new (arena_) HNullConstant();
+    cached_null_constant_ = new (arena_) HNullConstant(dex_pc);
     InsertConstant(cached_null_constant_);
   }
   return cached_null_constant_;
@@ -426,7 +426,8 @@ HCurrentMethod* HGraph::GetCurrentMethod() {
   // id and/or any invariants the graph is assuming when adding new instructions.
   if ((cached_current_method_ == nullptr) || (cached_current_method_->GetBlock() == nullptr)) {
     cached_current_method_ = new (arena_) HCurrentMethod(
-        Is64BitInstructionSet(instruction_set_) ? Primitive::kPrimLong : Primitive::kPrimInt);
+        Is64BitInstructionSet(instruction_set_) ? Primitive::kPrimLong : Primitive::kPrimInt,
+        entry_block_->GetDexPc());
     if (entry_block_->GetFirstInstruction() == nullptr) {
       entry_block_->AddInstruction(cached_current_method_);
     } else {
@@ -437,7 +438,7 @@ HCurrentMethod* HGraph::GetCurrentMethod() {
   return cached_current_method_;
 }
 
-HConstant* HGraph::GetConstant(Primitive::Type type, int64_t value) {
+HConstant* HGraph::GetConstant(Primitive::Type type, int64_t value, uint32_t dex_pc) {
   switch (type) {
     case Primitive::Type::kPrimBoolean:
       DCHECK(IsUint<1>(value));
@@ -447,10 +448,10 @@ HConstant* HGraph::GetConstant(Primitive::Type type, int64_t value) {
     case Primitive::Type::kPrimShort:
     case Primitive::Type::kPrimInt:
       DCHECK(IsInt(Primitive::ComponentSize(type) * kBitsPerByte, value));
-      return GetIntConstant(static_cast<int32_t>(value));
+      return GetIntConstant(static_cast<int32_t>(value), dex_pc);
 
     case Primitive::Type::kPrimLong:
-      return GetLongConstant(value);
+      return GetLongConstant(value, dex_pc);
 
     default:
       LOG(FATAL) << "Unsupported constant type";
@@ -944,11 +945,11 @@ HConstant* HTypeConversion::TryStaticEvaluation() const {
     int32_t value = GetInput()->AsIntConstant()->GetValue();
     switch (GetResultType()) {
       case Primitive::kPrimLong:
-        return graph->GetLongConstant(static_cast<int64_t>(value));
+        return graph->GetLongConstant(static_cast<int64_t>(value), GetDexPc());
       case Primitive::kPrimFloat:
-        return graph->GetFloatConstant(static_cast<float>(value));
+        return graph->GetFloatConstant(static_cast<float>(value), GetDexPc());
       case Primitive::kPrimDouble:
-        return graph->GetDoubleConstant(static_cast<double>(value));
+        return graph->GetDoubleConstant(static_cast<double>(value), GetDexPc());
       default:
         return nullptr;
     }
@@ -956,11 +957,11 @@ HConstant* HTypeConversion::TryStaticEvaluation() const {
     int64_t value = GetInput()->AsLongConstant()->GetValue();
     switch (GetResultType()) {
       case Primitive::kPrimInt:
-        return graph->GetIntConstant(static_cast<int32_t>(value));
+        return graph->GetIntConstant(static_cast<int32_t>(value), GetDexPc());
       case Primitive::kPrimFloat:
-        return graph->GetFloatConstant(static_cast<float>(value));
+        return graph->GetFloatConstant(static_cast<float>(value), GetDexPc());
       case Primitive::kPrimDouble:
-        return graph->GetDoubleConstant(static_cast<double>(value));
+        return graph->GetDoubleConstant(static_cast<double>(value), GetDexPc());
       default:
         return nullptr;
     }
@@ -969,22 +970,22 @@ HConstant* HTypeConversion::TryStaticEvaluation() const {
     switch (GetResultType()) {
       case Primitive::kPrimInt:
         if (std::isnan(value))
-          return graph->GetIntConstant(0);
+          return graph->GetIntConstant(0, GetDexPc());
         if (value >= kPrimIntMax)
-          return graph->GetIntConstant(kPrimIntMax);
+          return graph->GetIntConstant(kPrimIntMax, GetDexPc());
         if (value <= kPrimIntMin)
-          return graph->GetIntConstant(kPrimIntMin);
-        return graph->GetIntConstant(static_cast<int32_t>(value));
+          return graph->GetIntConstant(kPrimIntMin, GetDexPc());
+        return graph->GetIntConstant(static_cast<int32_t>(value), GetDexPc());
       case Primitive::kPrimLong:
         if (std::isnan(value))
-          return graph->GetLongConstant(0);
+          return graph->GetLongConstant(0, GetDexPc());
         if (value >= kPrimLongMax)
-          return graph->GetLongConstant(kPrimLongMax);
+          return graph->GetLongConstant(kPrimLongMax, GetDexPc());
         if (value <= kPrimLongMin)
-          return graph->GetLongConstant(kPrimLongMin);
-        return graph->GetLongConstant(static_cast<int64_t>(value));
+          return graph->GetLongConstant(kPrimLongMin, GetDexPc());
+        return graph->GetLongConstant(static_cast<int64_t>(value), GetDexPc());
       case Primitive::kPrimDouble:
-        return graph->GetDoubleConstant(static_cast<double>(value));
+        return graph->GetDoubleConstant(static_cast<double>(value), GetDexPc());
       default:
         return nullptr;
     }
@@ -993,22 +994,22 @@ HConstant* HTypeConversion::TryStaticEvaluation() const {
     switch (GetResultType()) {
       case Primitive::kPrimInt:
         if (std::isnan(value))
-          return graph->GetIntConstant(0);
+          return graph->GetIntConstant(0, GetDexPc());
         if (value >= kPrimIntMax)
-          return graph->GetIntConstant(kPrimIntMax);
+          return graph->GetIntConstant(kPrimIntMax, GetDexPc());
         if (value <= kPrimLongMin)
-          return graph->GetIntConstant(kPrimIntMin);
-        return graph->GetIntConstant(static_cast<int32_t>(value));
+          return graph->GetIntConstant(kPrimIntMin, GetDexPc());
+        return graph->GetIntConstant(static_cast<int32_t>(value), GetDexPc());
       case Primitive::kPrimLong:
         if (std::isnan(value))
-          return graph->GetLongConstant(0);
+          return graph->GetLongConstant(0, GetDexPc());
         if (value >= kPrimLongMax)
-          return graph->GetLongConstant(kPrimLongMax);
+          return graph->GetLongConstant(kPrimLongMax, GetDexPc());
         if (value <= kPrimLongMin)
-          return graph->GetLongConstant(kPrimLongMin);
-        return graph->GetLongConstant(static_cast<int64_t>(value));
+          return graph->GetLongConstant(kPrimLongMin, GetDexPc());
+        return graph->GetLongConstant(static_cast<int64_t>(value), GetDexPc());
       case Primitive::kPrimFloat:
-        return graph->GetFloatConstant(static_cast<float>(value));
+        return graph->GetFloatConstant(static_cast<float>(value), GetDexPc());
       default:
         return nullptr;
     }
@@ -1122,7 +1123,8 @@ HBasicBlock* HBasicBlock::SplitBefore(HInstruction* cursor) {
   DCHECK(!graph_->IsInSsaForm()) << "Support for SSA form not implemented";
   DCHECK_EQ(cursor->GetBlock(), this);
 
-  HBasicBlock* new_block = new (GetGraph()->GetArena()) HBasicBlock(GetGraph(), GetDexPc());
+  HBasicBlock* new_block = new (GetGraph()->GetArena()) HBasicBlock(GetGraph(),
+                                                                    cursor->GetDexPc());
   new_block->instructions_.first_instruction_ = cursor;
   new_block->instructions_.last_instruction_ = instructions_.last_instruction_;
   instructions_.last_instruction_ = cursor->previous_;
@@ -1134,7 +1136,7 @@ HBasicBlock* HBasicBlock::SplitBefore(HInstruction* cursor) {
   }
 
   new_block->instructions_.SetBlockOfInstructions(new_block);
-  AddInstruction(new (GetGraph()->GetArena()) HGoto());
+  AddInstruction(new (GetGraph()->GetArena()) HGoto(new_block->GetDexPc()));
 
   for (size_t i = 0, e = GetSuccessors().Size(); i < e; ++i) {
     HBasicBlock* successor = GetSuccessors().Get(i);
@@ -1309,7 +1311,7 @@ void HBasicBlock::DisconnectAndDelete() {
     predecessor->RemoveSuccessor(this);
     if (predecessor->GetSuccessors().Size() == 1u) {
       DCHECK(last_instruction->IsIf());
-      predecessor->AddInstruction(new (graph_->GetArena()) HGoto());
+      predecessor->AddInstruction(new (graph_->GetArena()) HGoto(last_instruction->GetDexPc()));
     } else {
       // The predecessor has no remaining successors and therefore must be dead.
       // We deliberately leave it without a control-flow instruction so that the
@@ -1562,13 +1564,13 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
       if (!returns_void) {
         return_value = last->InputAt(0);
       }
-      predecessor->AddInstruction(new (allocator) HGoto());
+      predecessor->AddInstruction(new (allocator) HGoto(last->GetDexPc()));
       predecessor->RemoveInstruction(last);
     } else {
       if (!returns_void) {
         // There will be multiple returns.
         return_value = new (allocator) HPhi(
-            allocator, kNoRegNumber, 0, HPhi::ToPhiType(invoke->GetType()));
+            allocator, kNoRegNumber, 0, HPhi::ToPhiType(invoke->GetType()), to->GetDexPc());
         to->AddPhi(return_value->AsPhi());
       }
       for (size_t i = 0, e = to->GetPredecessors().Size(); i < e; ++i) {
@@ -1577,7 +1579,7 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
         if (!returns_void) {
           return_value->AsPhi()->AddInput(last->InputAt(0));
         }
-        predecessor->AddInstruction(new (allocator) HGoto());
+        predecessor->AddInstruction(new (allocator) HGoto(last->GetDexPc()));
         predecessor->RemoveInstruction(last);
       }
     }
@@ -1659,15 +1661,19 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
   for (HInstructionIterator it(entry_block_->GetInstructions()); !it.Done(); it.Advance()) {
     HInstruction* current = it.Current();
     if (current->IsNullConstant()) {
-      current->ReplaceWith(outer_graph->GetNullConstant());
+      current->ReplaceWith(outer_graph->GetNullConstant(current->GetDexPc()));
     } else if (current->IsIntConstant()) {
-      current->ReplaceWith(outer_graph->GetIntConstant(current->AsIntConstant()->GetValue()));
+      current->ReplaceWith(outer_graph->GetIntConstant(
+          current->AsIntConstant()->GetValue(), current->GetDexPc()));
     } else if (current->IsLongConstant()) {
-      current->ReplaceWith(outer_graph->GetLongConstant(current->AsLongConstant()->GetValue()));
+      current->ReplaceWith(outer_graph->GetLongConstant(
+          current->AsLongConstant()->GetValue(), current->GetDexPc()));
     } else if (current->IsFloatConstant()) {
-      current->ReplaceWith(outer_graph->GetFloatConstant(current->AsFloatConstant()->GetValue()));
+      current->ReplaceWith(outer_graph->GetFloatConstant(
+          current->AsFloatConstant()->GetValue(), current->GetDexPc()));
     } else if (current->IsDoubleConstant()) {
-      current->ReplaceWith(outer_graph->GetDoubleConstant(current->AsDoubleConstant()->GetValue()));
+      current->ReplaceWith(outer_graph->GetDoubleConstant(
+          current->AsDoubleConstant()->GetValue(), current->GetDexPc()));
     } else if (current->IsParameterValue()) {
       if (kIsDebugBuild
           && invoke->IsInvokeStaticOrDirect()
