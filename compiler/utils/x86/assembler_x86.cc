@@ -1750,6 +1750,10 @@ void X86Assembler::EmitOperand(int reg_or_opcode, const Operand& operand) {
   for (int i = 1; i < length; i++) {
     EmitUint8(operand.encoding_[i]);
   }
+  AssemblerFixup* fixup = operand.GetFixup();
+  if (fixup != nullptr) {
+    EmitFixup(fixup);
+  }
 }
 
 
@@ -2320,6 +2324,57 @@ void X86ExceptionSlowPath::Emit(Assembler *sasm) {
   // this call should never return
   __ int3();
 #undef __
+}
+
+void X86Assembler::AddConstantArea() {
+  const std::vector<int32_t>& area = constant_area_.GetBuffer();
+  // Generate the data for the literal area.
+  for (size_t i = 0, e = area.size(); i < e; i++) {
+    AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+    EmitInt32(area[i]);
+  }
+}
+
+int ConstantArea::AddInt32(int32_t v) {
+  for (size_t i = 0, e = buffer_.size(); i < e; i++) {
+    if (v == buffer_[i]) {
+      return i * kEntrySize;
+    }
+  }
+
+  // Didn't match anything.
+  int result = buffer_.size() * kEntrySize;
+  buffer_.push_back(v);
+  return result;
+}
+
+int ConstantArea::AddInt64(int64_t v) {
+  int32_t v_low = Low32Bits(v);
+  int32_t v_high = High32Bits(v);
+  if (buffer_.size() > 1) {
+    // Ensure we don't pass the end of the buffer.
+    for (size_t i = 0, e = buffer_.size() - 1; i < e; i++) {
+      if (v_low == buffer_[i] && v_high == buffer_[i + 1]) {
+        return i * kEntrySize;
+      }
+    }
+  }
+
+  // Didn't match anything.
+  int result = buffer_.size() * kEntrySize;
+  buffer_.push_back(v_low);
+  buffer_.push_back(v_high);
+  return result;
+}
+
+int ConstantArea::AddDouble(double v) {
+  // Treat the value as a 64-bit integer value.
+  return AddInt64(bit_cast<int64_t, double>(v));
+}
+
+int ConstantArea::AddFloat(float v) {
+  // Treat the value as a 32-bit integer value.
+  return AddInt32(bit_cast<int32_t, float>(v));
 }
 
 }  // namespace x86
