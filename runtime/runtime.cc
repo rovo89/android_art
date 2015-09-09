@@ -937,7 +937,7 @@ void Runtime::InitNativeMethods() {
   // Then set up openjdk libcore, which is just a regular JNI library with a
   // regular JNI_OnLoad.
   {
-    std::string mapped_name(StringPrintf(OS_SHARED_LIB_FORMAT_STR, "openjdkjavacore"));
+    std::string mapped_name(StringPrintf(OS_SHARED_LIB_FORMAT_STR, "xxavacore"));
     std::string reason;
     self->TransitionFromSuspendedToRunnable();
     StackHandleScope<1> hs(self);
