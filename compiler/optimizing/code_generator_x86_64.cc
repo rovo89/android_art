@@ -475,6 +475,25 @@ void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
   DCHECK(!IsLeafMethod());
 }
 
+void CodeGeneratorX86_64::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp_in) {
+  CpuRegister temp = temp_in.AsRegister<CpuRegister>();
+  size_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
+      invoke->GetVTableIndex(), kX86_64PointerSize).SizeValue();
+  LocationSummary* locations = invoke->GetLocations();
+  Location receiver = locations->InAt(0);
+  size_t class_offset = mirror::Object::ClassOffset().SizeValue();
+  // temp = object->GetClass();
+  DCHECK(receiver.IsRegister());
+  __ movl(temp, Address(receiver.AsRegister<CpuRegister>(), class_offset));
+  MaybeRecordImplicitNullCheck(invoke);
+  __ MaybeUnpoisonHeapReference(temp);
+  // temp = temp->GetMethodAt(method_offset);
+  __ movq(temp, Address(temp, method_offset));
+  // call temp->GetEntryPoint();
+  __ call(Address(temp, ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+      kX86_64WordSize).SizeValue()));
+}
+
 void CodeGeneratorX86_64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) {
   DCHECK(linker_patches->empty());
   size_t size =
@@ -1709,22 +1728,7 @@ void InstructionCodeGeneratorX86_64::VisitInvokeVirtual(HInvokeVirtual* invoke) 
     return;
   }
 
-  CpuRegister temp = invoke->GetLocations()->GetTemp(0).AsRegister<CpuRegister>();
-  size_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
-      invoke->GetVTableIndex(), kX86_64PointerSize).SizeValue();
-  LocationSummary* locations = invoke->GetLocations();
-  Location receiver = locations->InAt(0);
-  size_t class_offset = mirror::Object::ClassOffset().SizeValue();
-  // temp = object->GetClass();
-  DCHECK(receiver.IsRegister());
-  __ movl(temp, Address(receiver.AsRegister<CpuRegister>(), class_offset));
-  codegen_->MaybeRecordImplicitNullCheck(invoke);
-  __ MaybeUnpoisonHeapReference(temp);
-  // temp = temp->GetMethodAt(method_offset);
-  __ movq(temp, Address(temp, method_offset));
-  // call temp->GetEntryPoint();
-  __ call(Address(temp, ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-      kX86_64WordSize).SizeValue()));
+  codegen_->GenerateVirtualCall(invoke, invoke->GetLocations()->GetTemp(0));
 
   DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());

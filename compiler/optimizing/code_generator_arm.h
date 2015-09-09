@@ -327,6 +327,7 @@ class CodeGeneratorARM : public CodeGenerator {
   Label* GetFrameEntryLabel() { return &frame_entry_label_; }
 
   void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp);
+  void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp);
 
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
 
