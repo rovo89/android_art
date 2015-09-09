@@ -325,6 +325,25 @@ class CodeGeneratorX86 : public CodeGenerator {
     return isa_features_;
   }
 
+  void SetMethodAddressOffset(int32_t offset) {
+    method_address_offset_ = offset;
+  }
+
+  int32_t GetMethodAddressOffset() const {
+    return method_address_offset_;
+  }
+
+  int32_t ConstantAreaStart() const {
+    return constant_area_start_;
+  }
+
+  Address LiteralDoubleAddress(double v, Register reg);
+  Address LiteralFloatAddress(float v, Register reg);
+  Address LiteralInt32Address(int32_t v, Register reg);
+  Address LiteralInt64Address(int64_t v, Register reg);
+
+  void Finalize(CodeAllocator* allocator) OVERRIDE;
+
  private:
   // Labels for each block that will be compiled.
   GrowableArray<Label> block_labels_;
@@ -338,6 +357,20 @@ class CodeGeneratorX86 : public CodeGenerator {
   // Method patch info. Using ArenaDeque<> which retains element addresses on push/emplace_back().
   ArenaDeque<MethodPatchInfo<Label>> method_patches_;
   ArenaDeque<MethodPatchInfo<Label>> relative_call_patches_;
+
+  // Offset to the start of the constant area in the assembled code.
+  // Used for fixups to the constant area.
+  int32_t constant_area_start_;
+
+  // If there is a HX86ComputeBaseMethodAddress instruction in the graph
+  // (which shall be the sole instruction of this kind), subtracting this offset
+  // from the value contained in the out register of this HX86ComputeBaseMethodAddress
+  // instruction gives the address of the start of this method.
+  int32_t method_address_offset_;
+
+  // When we don't know the proper offset for the value, we use kDummy32BitOffset.
+  // The correct value will be inserted when processing Assembler fixups.
+  static constexpr int32_t kDummy32BitOffset = 256;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorX86);
 };

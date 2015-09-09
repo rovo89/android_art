@@ -23,6 +23,10 @@
 #include "instruction_simplifier_arm64.h"
 #endif
 
+#ifdef ART_ENABLE_CODEGEN_x86
+#include "constant_area_fixups_x86.h"
+#endif
+
 #include "art_method-inl.h"
 #include "base/arena_allocator.h"
 #include "base/arena_containers.h"
@@ -421,6 +425,17 @@ static void RunArchOptimizations(InstructionSet instruction_set,
         gvn
       };
       RunOptimizations(arm64_optimizations, arraysize(arm64_optimizations), pass_observer);
+      break;
+    }
+#endif
+#ifdef ART_ENABLE_CODEGEN_x86
+    case kX86: {
+      x86::ConstantAreaFixups* constant_area_fixups =
+          new (arena) x86::ConstantAreaFixups(graph, stats);
+      HOptimization* x86_optimizations[] = {
+        constant_area_fixups
+      };
+      RunOptimizations(x86_optimizations, arraysize(x86_optimizations), pass_observer);
       break;
     }
 #endif
