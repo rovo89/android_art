@@ -240,7 +240,10 @@ class Mips64Assembler FINAL : public Assembler {
   void Addiu32(GpuRegister rt, GpuRegister rs, int32_t value, GpuRegister rtmp = AT);
   void Daddiu64(GpuRegister rt, GpuRegister rs, int64_t value, GpuRegister rtmp = AT);  // MIPS64
 
-  void Bind(Label* label);  // R6
+  void Bind(Label* label) OVERRIDE;  // R6
+  void Jump(Label* label) OVERRIDE {
+    B(label);
+  }
   void B(Label* label);  // R6
   void Jalr(Label* label, GpuRegister indirect_reg = RA);  // R6
   // TODO: implement common for R6 and non-R6 interface for conditional branches?

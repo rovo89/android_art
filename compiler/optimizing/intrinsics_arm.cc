@@ -21,6 +21,7 @@
 #include "code_generator_arm.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "intrinsics.h"
+#include "intrinsics_utils.h"
 #include "mirror/array-inl.h"
 #include "mirror/string.h"
 #include "thread.h"
@@ -38,99 +39,7 @@ ArenaAllocator* IntrinsicCodeGeneratorARM::GetAllocator() {
   return codegen_->GetGraph()->GetArena();
 }
 
-#define __ codegen->GetAssembler()->
-
-static void MoveFromReturnRegister(Location trg, Primitive::Type type, CodeGeneratorARM* codegen) {
-  if (!trg.IsValid()) {
-    DCHECK(type == Primitive::kPrimVoid);
-    return;
-  }
-
-  DCHECK_NE(type, Primitive::kPrimVoid);
-
-  if (Primitive::IsIntegralType(type) || type == Primitive::kPrimNot) {
-    if (type == Primitive::kPrimLong) {
-      Register trg_reg_lo = trg.AsRegisterPairLow<Register>();
-      Register trg_reg_hi = trg.AsRegisterPairHigh<Register>();
-      Register res_reg_lo = R0;
-      Register res_reg_hi = R1;
-      if (trg_reg_lo != res_reg_hi) {
-        if (trg_reg_lo != res_reg_lo) {
-          __ mov(trg_reg_lo, ShifterOperand(res_reg_lo));
-          __ mov(trg_reg_hi, ShifterOperand(res_reg_hi));
-        } else {
-          DCHECK_EQ(trg_reg_lo + 1, trg_reg_hi);
-        }
-      } else {
-        __ mov(trg_reg_hi, ShifterOperand(res_reg_hi));
-        __ mov(trg_reg_lo, ShifterOperand(res_reg_lo));
-      }
-    } else {
-      Register trg_reg = trg.AsRegister<Register>();
-      Register res_reg = R0;
-      if (trg_reg != res_reg) {
-        __ mov(trg_reg, ShifterOperand(res_reg));
-      }
-    }
-  } else {
-    UNIMPLEMENTED(FATAL) << "Floating-point return.";
-  }
-}
-
-static void MoveArguments(HInvoke* invoke, CodeGeneratorARM* codegen) {
-  InvokeDexCallingConventionVisitorARM calling_convention_visitor;
-  IntrinsicVisitor::MoveArguments(invoke, codegen, &calling_convention_visitor);
-}
-
-// Slow-path for fallback (calling the managed code to handle the intrinsic) in an intrinsified
-// call. This will copy the arguments into the positions for a regular call.
-//
-// Note: The actual parameters are required to be in the locations given by the invoke's location
-//       summary. If an intrinsic modifies those locations before a slowpath call, they must be
-//       restored!
-class IntrinsicSlowPathARM : public SlowPathCodeARM {
- public:
-  explicit IntrinsicSlowPathARM(HInvoke* invoke) : invoke_(invoke) { }
-
-  void EmitNativeCode(CodeGenerator* codegen_in) OVERRIDE {
-    CodeGeneratorARM* codegen = down_cast<CodeGeneratorARM*>(codegen_in);
-    __ Bind(GetEntryLabel());
-
-    SaveLiveRegisters(codegen, invoke_->GetLocations());
-
-    MoveArguments(invoke_, codegen);
-
-    if (invoke_->IsInvokeStaticOrDirect()) {
-      codegen->GenerateStaticOrDirectCall(invoke_->AsInvokeStaticOrDirect(),
-                                          Location::RegisterLocation(kArtMethodRegister));
-    } else {
-      codegen->GenerateVirtualCall(invoke_->AsInvokeVirtual(),
-                                   Location::RegisterLocation(kArtMethodRegister));
-    }
-    codegen->RecordPcInfo(invoke_, invoke_->GetDexPc(), this);
-
-    // Copy the result back to the expected output.
-    Location out = invoke_->GetLocations()->Out();
-    if (out.IsValid()) {
-      DCHECK(out.IsRegister());  // TODO: Replace this when we support output in memory.
-      DCHECK(!invoke_->GetLocations()->GetLiveRegisters()->ContainsCoreRegister(out.reg()));
-      MoveFromReturnRegister(out, invoke_->GetType(), codegen);
-    }
-
-    RestoreLiveRegisters(codegen, invoke_->GetLocations());
-    __ b(GetExitLabel());
-  }
-
-  const char* GetDescription() const OVERRIDE { return "IntrinsicSlowPathARM"; }
-
- private:
-  // The instruction where this slow path is happening.
-  HInvoke* const invoke_;
-
-  DISALLOW_COPY_AND_ASSIGN(IntrinsicSlowPathARM);
-};
-
-#undef __
+using IntrinsicSlowPathARM = IntrinsicSlowPath<InvokeDexCallingConventionVisitorARM>;
 
 bool IntrinsicLocationsBuilderARM::TryDispatch(HInvoke* invoke) {
   Dispatch(invoke);
@@ -1094,7 +1003,7 @@ void IntrinsicCodeGeneratorARM::VisitStringCharAt(HInvoke* invoke) {
   // TODO: For simplicity, the index parameter is requested in a register, so different from Quick
   //       we will not optimize the code for constants (which would save a register).
 
-  SlowPathCodeARM* slow_path = new (GetAllocator()) IntrinsicSlowPathARM(invoke);
+  SlowPathCode* slow_path = new (GetAllocator()) IntrinsicSlowPathARM(invoke);
   codegen_->AddSlowPath(slow_path);
 
   __ ldr(temp, Address(obj, count_offset.Int32Value()));          // temp = str.length.
@@ -1130,7 +1039,7 @@ void IntrinsicCodeGeneratorARM::VisitStringCompareTo(HInvoke* invoke) {
 
   Register argument = locations->InAt(1).AsRegister<Register>();
   __ cmp(argument, ShifterOperand(0));
-  SlowPathCodeARM* slow_path = new (GetAllocator()) IntrinsicSlowPathARM(invoke);
+  SlowPathCode* slow_path = new (GetAllocator()) IntrinsicSlowPathARM(invoke);
   codegen_->AddSlowPath(slow_path);
   __ b(slow_path->GetEntryLabel(), EQ);
 
@@ -1248,7 +1157,7 @@ static void GenerateVisitStringIndexOf(HInvoke* invoke,
 
   // Check for code points > 0xFFFF. Either a slow-path check when we don't know statically,
   // or directly dispatch if we have a constant.
-  SlowPathCodeARM* slow_path = nullptr;
+  SlowPathCode* slow_path = nullptr;
   if (invoke->InputAt(1)->IsIntConstant()) {
     if (static_cast<uint32_t>(invoke->InputAt(1)->AsIntConstant()->GetValue()) >
         std::numeric_limits<uint16_t>::max()) {
@@ -1341,7 +1250,7 @@ void IntrinsicCodeGeneratorARM::VisitStringNewStringFromBytes(HInvoke* invoke) {
 
   Register byte_array = locations->InAt(0).AsRegister<Register>();
   __ cmp(byte_array, ShifterOperand(0));
-  SlowPathCodeARM* slow_path = new (GetAllocator()) IntrinsicSlowPathARM(invoke);
+  SlowPathCode* slow_path = new (GetAllocator()) IntrinsicSlowPathARM(invoke);
   codegen_->AddSlowPath(slow_path);
   __ b(slow_path->GetEntryLabel(), EQ);
 
@@ -1387,7 +1296,7 @@ void IntrinsicCodeGeneratorARM::VisitStringNewStringFromString(HInvoke* invoke) 
 
   Register string_to_copy = locations->InAt(0).AsRegister<Register>();
   __ cmp(string_to_copy, ShifterOperand(0));
-  SlowPathCodeARM* slow_path = new (GetAllocator()) IntrinsicSlowPathARM(invoke);
+  SlowPathCode* slow_path = new (GetAllocator()) IntrinsicSlowPathARM(invoke);
   codegen_->AddSlowPath(slow_path);
   __ b(slow_path->GetEntryLabel(), EQ);
 

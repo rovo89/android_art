@@ -150,6 +150,13 @@ class MipsAssembler FINAL : public Assembler {
   void EmitJump(Label* label, bool link);
   void Bind(Label* label, bool is_jump);
 
+  void Bind(Label* label) OVERRIDE {
+    Bind(label, false);
+  }
+  void Jump(Label* label) OVERRIDE {
+    EmitJump(label, false);
+  }
+
   //
   // Overridden common assembler high-level functionality
   //
