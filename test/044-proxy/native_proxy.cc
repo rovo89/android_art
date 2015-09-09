@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 The Android Open Source Project
+ * Copyright (C) 2015 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,19 @@
  * limitations under the License.
  */
 
-/**
- * Test java.lang.reflect.Proxy
- */
-public class Main {
-    public static void main(String[] args) {
-        ReturnsAndArgPassing.main(null);
-        BasicTest.main(null);
-        Clash.main(null);
-        Clash2.main(null);
-        Clash3.main(null);
-        Clash4.main(null);
-        WrappedThrow.main(null);
-        NarrowingTest.main(null);
-        FloatSelect.main(null);
-        NativeProxy.main(null);
-    }
+#include "jni.h"
+
+#include "base/logging.h"
+
+namespace art {
+
+extern "C" JNIEXPORT void JNICALL Java_NativeProxy_nativeCall(
+    JNIEnv* env, jclass clazz ATTRIBUTE_UNUSED, jobject inf_ref) {
+  jclass native_inf_class = env->FindClass("NativeInterface");
+  CHECK(native_inf_class != nullptr);
+  jmethodID mid = env->GetMethodID(native_inf_class, "callback", "()V");
+  CHECK(mid != nullptr);
+  env->CallVoidMethod(inf_ref, mid);
 }
+
+}  // namespace art

@@ -93,3 +93,4 @@ Invocation of public abstract java.lang.String NarrowingTest$I2.foo()
 Got expected exception
 Proxy narrowed invocation return type passed
 5.8
+callback
