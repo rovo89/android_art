@@ -1560,25 +1560,7 @@ void InstructionCodeGeneratorARM::VisitInvokeVirtual(HInvokeVirtual* invoke) {
     return;
   }
 
-  Register temp = invoke->GetLocations()->GetTemp(0).AsRegister<Register>();
-  uint32_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
-      invoke->GetVTableIndex(), kArmPointerSize).Uint32Value();
-  LocationSummary* locations = invoke->GetLocations();
-  Location receiver = locations->InAt(0);
-  uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
-  // temp = object->GetClass();
-  DCHECK(receiver.IsRegister());
-  __ LoadFromOffset(kLoadWord, temp, receiver.AsRegister<Register>(), class_offset);
-  codegen_->MaybeRecordImplicitNullCheck(invoke);
-  __ MaybeUnpoisonHeapReference(temp);
-  // temp = temp->GetMethodAt(method_offset);
-  uint32_t entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-      kArmWordSize).Int32Value();
-  __ LoadFromOffset(kLoadWord, temp, temp, method_offset);
-  // LR = temp->GetEntryPoint();
-  __ LoadFromOffset(kLoadWord, LR, temp, entry_point);
-  // LR();
-  __ blx(LR);
+  codegen_->GenerateVirtualCall(invoke, invoke->GetLocations()->GetTemp(0));
   DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
@@ -4605,6 +4587,28 @@ void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
   }
 
   DCHECK(!IsLeafMethod());
+}
+
+void CodeGeneratorARM::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp_location) {
+  Register temp = temp_location.AsRegister<Register>();
+  uint32_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
+      invoke->GetVTableIndex(), kArmPointerSize).Uint32Value();
+  LocationSummary* locations = invoke->GetLocations();
+  Location receiver = locations->InAt(0);
+  uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+  // temp = object->GetClass();
+  DCHECK(receiver.IsRegister());
+  __ LoadFromOffset(kLoadWord, temp, receiver.AsRegister<Register>(), class_offset);
+  MaybeRecordImplicitNullCheck(invoke);
+  __ MaybeUnpoisonHeapReference(temp);
+  // temp = temp->GetMethodAt(method_offset);
+  uint32_t entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+      kArmWordSize).Int32Value();
+  __ LoadFromOffset(kLoadWord, temp, temp, method_offset);
+  // LR = temp->GetEntryPoint();
+  __ LoadFromOffset(kLoadWord, LR, temp, entry_point);
+  // LR();
+  __ blx(LR);
 }
 
 void CodeGeneratorARM::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) {

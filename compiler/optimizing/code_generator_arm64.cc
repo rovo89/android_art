@@ -2474,6 +2474,29 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
   DCHECK(!IsLeafMethod());
 }
 
+void CodeGeneratorARM64::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp_in) {
+  LocationSummary* locations = invoke->GetLocations();
+  Location receiver = locations->InAt(0);
+  Register temp = XRegisterFrom(temp_in);
+  size_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
+      invoke->GetVTableIndex(), kArm64PointerSize).SizeValue();
+  Offset class_offset = mirror::Object::ClassOffset();
+  Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64WordSize);
+
+  BlockPoolsScope block_pools(GetVIXLAssembler());
+
+  DCHECK(receiver.IsRegister());
+  __ Ldr(temp.W(), HeapOperandFrom(receiver, class_offset));
+  MaybeRecordImplicitNullCheck(invoke);
+  GetAssembler()->MaybeUnpoisonHeapReference(temp.W());
+  // temp = temp->GetMethodAt(method_offset);
+  __ Ldr(temp, MemOperand(temp, method_offset));
+  // lr = temp->GetEntryPoint();
+  __ Ldr(lr, MemOperand(temp, entry_point.SizeValue()));
+  // lr();
+  __ Blr(lr);
+}
+
 void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) {
   DCHECK(linker_patches->empty());
   size_t size =
@@ -2567,26 +2590,7 @@ void InstructionCodeGeneratorARM64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
     return;
   }
 
-  LocationSummary* locations = invoke->GetLocations();
-  Location receiver = locations->InAt(0);
-  Register temp = XRegisterFrom(invoke->GetLocations()->GetTemp(0));
-  size_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
-      invoke->GetVTableIndex(), kArm64PointerSize).SizeValue();
-  Offset class_offset = mirror::Object::ClassOffset();
-  Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64WordSize);
-
-  BlockPoolsScope block_pools(GetVIXLAssembler());
-
-  DCHECK(receiver.IsRegister());
-  __ Ldr(temp.W(), HeapOperandFrom(receiver, class_offset));
-  codegen_->MaybeRecordImplicitNullCheck(invoke);
-  GetAssembler()->MaybeUnpoisonHeapReference(temp.W());
-  // temp = temp->GetMethodAt(method_offset);
-  __ Ldr(temp, MemOperand(temp, method_offset));
-  // lr = temp->GetEntryPoint();
-  __ Ldr(lr, MemOperand(temp, entry_point.SizeValue()));
-  // lr();
-  __ Blr(lr);
+  codegen_->GenerateVirtualCall(invoke, invoke->GetLocations()->GetTemp(0));
   DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
