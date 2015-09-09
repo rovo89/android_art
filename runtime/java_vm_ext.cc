@@ -580,9 +580,12 @@ inline bool JavaVMExt::MayAccessWeakGlobals(Thread* self) const {
 }
 
 inline bool JavaVMExt::MayAccessWeakGlobalsUnlocked(Thread* self) const {
-  return kUseReadBarrier
-      ? self->GetWeakRefAccessEnabled()
-      : allow_accessing_weak_globals_.LoadSequentiallyConsistent();
+  if (kUseReadBarrier) {
+    // self can be null during a runtime shutdown. ~Runtime()->~ClassLinker()->DecodeWeakGlobal().
+    return self != nullptr ? self->GetWeakRefAccessEnabled() : true;
+  } else {
+    return allow_accessing_weak_globals_.LoadSequentiallyConsistent();
+  }
 }
 
 mirror::Object* JavaVMExt::DecodeWeakGlobal(Thread* self, IndirectRef ref) {
