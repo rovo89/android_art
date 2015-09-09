@@ -294,6 +294,8 @@ class CodeGeneratorX86 : public CodeGenerator {
 
   // Generate a call to a static or direct method.
   void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp);
+  // Generate a call to a virtual method.
+  void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp);
 
   // Emit linker patches.
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
