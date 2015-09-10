@@ -624,9 +624,16 @@ bool ClassLinker::GenerateOatFile(const char* dex_filename,
   }
   boot_image_option += heap->GetImageSpace()->GetImageLocation();
 
-  std::string odex_filename(DexFilenameToOdexFilename(dex_filename, kRuntimeISA));
+  const char* android_data = GetAndroidData();
+  const std::string dalvik_cache_root(StringPrintf("%s/dalvik-cache/", android_data));
+
   std::string dex_file_option("--dex-file=");
-  dex_file_option += OS::FileExists(odex_filename.c_str()) ? odex_filename : dex_filename;
+  if (StartsWith(oat_cache_filename, dalvik_cache_root.c_str())) {
+    std::string odex_filename(DexFilenameToOdexFilename(dex_filename, kRuntimeISA));
+    dex_file_option += OS::FileExists(odex_filename.c_str()) ? odex_filename : dex_filename;
+  } else {
+    dex_file_option += dex_filename;
+  }
 
   std::string oat_fd_option("--oat-fd=");
   StringAppendF(&oat_fd_option, "%d", oat_fd);
