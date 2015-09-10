@@ -376,8 +376,8 @@ const uint32_t MIRGraph::analysis_attributes_[kMirOpLast] = {
   // 72 INVOKE_INTERFACE {vD, vE, vF, vG, vA}
   AN_INVOKE | AN_HEAVYWEIGHT,
 
-  // 73 UNUSED_73
-  AN_NONE,
+  // 73 RETURN_VOID_BARRIER:
+  AN_BRANCH,
 
   // 74 INVOKE_VIRTUAL_RANGE {vCCCC .. vNNNN}
   AN_INVOKE | AN_HEAVYWEIGHT,

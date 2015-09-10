@@ -442,6 +442,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       GenMoveException(rl_dest);
       break;
 
+    case Instruction::RETURN_VOID_BARRIER:
     case Instruction::RETURN_VOID:
       if (((cu_->access_flags & kAccConstructor) != 0) &&
           cu_->compiler_driver->RequiresConstructorBarrier(Thread::Current(), cu_->dex_file,
