@@ -547,27 +547,28 @@ void ArmMir2Lir::GenExitSequence() {
     cfi_.RestoreMany(DwarfFpReg(0), fp_spill_mask_);
   }
   bool unspill_LR_to_PC = (core_spill_mask_ & (1 << rs_rARM_LR.GetRegNum())) != 0;
+  uint32_t core_unspill_mask = core_spill_mask_;
   if (unspill_LR_to_PC) {
-    core_spill_mask_ &= ~(1 << rs_rARM_LR.GetRegNum());
-    core_spill_mask_ |= (1 << rs_rARM_PC.GetRegNum());
+    core_unspill_mask &= ~(1 << rs_rARM_LR.GetRegNum());
+    core_unspill_mask |= (1 << rs_rARM_PC.GetRegNum());
   }
-  if (core_spill_mask_ != 0u) {
-    if ((core_spill_mask_ & ~(0xffu | (1u << rs_rARM_PC.GetRegNum()))) == 0u) {
+  if (core_unspill_mask != 0u) {
+    if ((core_unspill_mask & ~(0xffu | (1u << rs_rARM_PC.GetRegNum()))) == 0u) {
       // Unspilling only low regs and/or PC, use 16-bit POP.
       constexpr int pc_bit_shift = rs_rARM_PC.GetRegNum() - 8;
       NewLIR1(kThumbPop,
-              (core_spill_mask_ & ~(1u << rs_rARM_PC.GetRegNum())) |
-              ((core_spill_mask_ & (1u << rs_rARM_PC.GetRegNum())) >> pc_bit_shift));
-    } else if (IsPowerOfTwo(core_spill_mask_)) {
+              (core_unspill_mask & ~(1u << rs_rARM_PC.GetRegNum())) |
+              ((core_unspill_mask & (1u << rs_rARM_PC.GetRegNum())) >> pc_bit_shift));
+    } else if (IsPowerOfTwo(core_unspill_mask)) {
       // kThumb2Pop cannot be used to unspill a single register.
-      NewLIR1(kThumb2Pop1, CTZ(core_spill_mask_));
+      NewLIR1(kThumb2Pop1, CTZ(core_unspill_mask));
     } else {
-      NewLIR1(kThumb2Pop, core_spill_mask_);
+      NewLIR1(kThumb2Pop, core_unspill_mask);
     }
     // If we pop to PC, there is no further epilogue code.
     if (!unspill_LR_to_PC) {
       cfi_.AdjustCFAOffset(-num_core_spills_ * kArmPointerSize);
-      cfi_.RestoreMany(DwarfCoreReg(0), core_spill_mask_);
+      cfi_.RestoreMany(DwarfCoreReg(0), core_unspill_mask);
       DCHECK_EQ(cfi_.GetCurrentCFAOffset(), 0);  // empty stack.
     }
   }
