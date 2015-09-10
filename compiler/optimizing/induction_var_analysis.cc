@@ -98,6 +98,9 @@ void HInductionVarAnalysis::VisitLoop(HLoopInformation* loop) {
 
   DCHECK(stack_.empty());
   map_.clear();
+
+  // Determine the loop's trip count.
+  VisitControl(loop);
 }
 
 void HInductionVarAnalysis::VisitNode(HLoopInformation* loop, HInstruction* instruction) {
@@ -346,7 +349,7 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferMul(Inducti
 
 HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferShl(InductionInfo* a,
                                                                          InductionInfo* b,
-                                                                         Primitive::Type t) {
+                                                                         Primitive::Type type) {
   // Transfer over a shift left: treat shift by restricted constant as equivalent multiplication.
   int64_t value = -1;
   if (a != nullptr && IsIntAndGet(b, &value)) {
@@ -355,10 +358,9 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferShl(Inducti
     // The restriction on the shift factor avoids generating a negative constant
     // (viz. 1 << 31 and 1L << 63 set the sign bit). The code assumes that generalization
     // for shift factors outside [0,32) and [0,64) ranges is done by earlier simplification.
-    if (t == Primitive::kPrimInt && 0 <= value && value < 31) {
-      return TransferMul(a, CreateInvariantFetch(graph_->GetIntConstant(1 << value)));
-    } else if (t == Primitive::kPrimLong && 0 <= value && value < 63) {
-      return TransferMul(a, CreateInvariantFetch(graph_->GetLongConstant(1L << value)));
+    if ((type == Primitive::kPrimInt  && 0 <= value && value < 31) ||
+        (type == Primitive::kPrimLong && 0 <= value && value < 63)) {
+      return TransferMul(a, CreateConstant(1 << value, type));
     }
   }
   return nullptr;
@@ -458,6 +460,111 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolveAddSub(HLoopIn
   return nullptr;
 }
 
+void HInductionVarAnalysis::VisitControl(HLoopInformation* loop) {
+  HInstruction* control = loop->GetHeader()->GetLastInstruction();
+  if (control->IsIf()) {
+    HIf* ifs = control->AsIf();
+    HBasicBlock* if_true = ifs->IfTrueSuccessor();
+    HBasicBlock* if_false = ifs->IfFalseSuccessor();
+    HInstruction* if_expr = ifs->InputAt(0);
+    // Determine if loop has following structure in header.
+    // loop-header: ....
+    //              if (condition) goto X
+    if (if_expr->IsCondition()) {
+      HCondition* condition = if_expr->AsCondition();
+      InductionInfo* a = LookupInfo(loop, condition->InputAt(0));
+      InductionInfo* b = LookupInfo(loop, condition->InputAt(1));
+      Primitive::Type type = condition->InputAt(0)->GetType();
+      // Determine if the loop control uses integral arithmetic and an if-exit (X outside) or an
+      // if-iterate (X inside), always expressed as if-iterate when passing into VisitCondition().
+      if (type != Primitive::kPrimInt && type != Primitive::kPrimLong) {
+        // Loop control is not 32/64-bit integral.
+      } else if (a == nullptr || b == nullptr) {
+        // Loop control is not a sequence.
+      } else if (if_true->GetLoopInformation() != loop && if_false->GetLoopInformation() == loop) {
+        VisitCondition(loop, a, b, type, condition->GetOppositeCondition());
+      } else if (if_true->GetLoopInformation() == loop && if_false->GetLoopInformation() != loop) {
+        VisitCondition(loop, a, b, type, condition->GetCondition());
+      }
+    }
+  }
+}
+
+void HInductionVarAnalysis::VisitCondition(HLoopInformation* loop,
+                                           InductionInfo* a,
+                                           InductionInfo* b,
+                                           Primitive::Type type,
+                                           IfCondition cmp) {
+  if (a->induction_class == kInvariant && b->induction_class == kLinear) {
+    // Swap conditions (e.g. U > i is same as i < U).
+    switch (cmp) {
+      case kCondLT: VisitCondition(loop, b, a, type, kCondGT); break;
+      case kCondLE: VisitCondition(loop, b, a, type, kCondGE); break;
+      case kCondGT: VisitCondition(loop, b, a, type, kCondLT); break;
+      case kCondGE: VisitCondition(loop, b, a, type, kCondLE); break;
+      default: break;
+    }
+  } else if (a->induction_class == kLinear && b->induction_class == kInvariant) {
+    // Normalize a linear loop control with a constant, nonzero stride:
+    //   stride > 0, either i < U or i <= U
+    //   stride < 0, either i > U or i >= U
+    InductionInfo* stride = a->op_a;
+    InductionInfo* lo_val = a->op_b;
+    InductionInfo* hi_val = b;
+    int64_t value = -1;
+    if (IsIntAndGet(stride, &value)) {
+      if ((value > 0 && (cmp == kCondLT || cmp == kCondLE)) ||
+          (value < 0 && (cmp == kCondGT || cmp == kCondGE))) {
+        bool is_strict = cmp == kCondLT || cmp == kCondGT;
+        VisitTripCount(loop, lo_val, hi_val, stride, value, type, is_strict);
+      }
+    }
+  }
+}
+
+void HInductionVarAnalysis::VisitTripCount(HLoopInformation* loop,
+                                           InductionInfo* lo_val,
+                                           InductionInfo* hi_val,
+                                           InductionInfo* stride,
+                                           int32_t stride_value,
+                                           Primitive::Type type,
+                                           bool is_strict) {
+  // Any loop of the general form:
+  //
+  //    for (i = L; i <= U; i += S) // S > 0
+  // or for (i = L; i >= U; i += S) // S < 0
+  //      .. i ..
+  //
+  // can be normalized into:
+  //
+  //    for (n = 0; n < TC; n++) // where TC = (U + S - L) / S
+  //      .. L + S * n ..
+  //
+  // NOTE: The TC (trip-count) expression is only valid if the top-test path is taken at
+  //       least once. Otherwise TC is 0. Also, the expression assumes the loop does not
+  //       have any early-exits. Otherwise, TC is an upper bound.
+  //
+  bool cancels = is_strict && abs(stride_value) == 1;  // compensation cancels conversion?
+  if (!cancels) {
+    // Convert exclusive integral inequality into inclusive integral inequality,
+    // viz. condition i < U is i <= U - 1 and condition i > U is i >= U + 1.
+    if (is_strict) {
+      const InductionOp op = stride_value > 0 ? kSub : kAdd;
+      hi_val = CreateInvariantOp(op, hi_val, CreateConstant(1, type));
+    }
+    // Compensate for stride.
+    hi_val = CreateInvariantOp(kAdd, hi_val, stride);
+  }
+
+  // Assign the trip-count expression to the loop control. Clients that use the information
+  // should be aware that due to the L <= U assumption, the expression is only valid in the
+  // loop-body proper, and not yet in the loop-header. If the loop has any early exits, the
+  // trip-count forms a conservative upper bound on the number of loop iterations.
+  InductionInfo* trip_count =
+      CreateInvariantOp(kDiv, CreateInvariantOp(kSub, hi_val, lo_val), stride);
+  AssignInfo(loop, loop->GetHeader()->GetLastInstruction(), trip_count);
+}
+
 void HInductionVarAnalysis::AssignInfo(HLoopInformation* loop,
                                        HInstruction* instruction,
                                        InductionInfo* info) {
@@ -487,6 +594,15 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::LookupInfo(HLoopInf
   return nullptr;
 }
 
+HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::CreateConstant(int64_t value,
+                                                                            Primitive::Type type) {
+  if (type == Primitive::kPrimInt) {
+    return CreateInvariantFetch(graph_->GetIntConstant(value));
+  }
+  DCHECK_EQ(type, Primitive::kPrimLong);
+  return CreateInvariantFetch(graph_->GetLongConstant(value));
+}
+
 HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::CreateSimplifiedInvariant(
     InductionOp op,
     InductionInfo* a,
@@ -504,30 +620,44 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::CreateSimplifiedInv
       } else if (op == kMul) {
         return a;
       }
-    } else if (value == 1 && op == kMul) {
-      // Simplify 1 * b = b.
-      return b;
+    } else if (op == kMul) {
+      // Simplify 1 * b = b, -1 * b = -b
+      if (value == 1) {
+        return b;
+      } else if (value == -1) {
+        op = kNeg;
+        a = nullptr;
+      }
     }
   }
   if (IsIntAndGet(b, &value)) {
     if (value == 0) {
-      // Simplify a + 0 = a, a - 0 = a, a * 0 = 0, - 0 = 0.
+      // Simplify a + 0 = a, a - 0 = a, a * 0 = 0, -0 = 0.
       if (op == kAdd || op == kSub) {
         return a;
       } else if (op == kMul || op == kNeg) {
         return b;
       }
-    } else if (value == 1 && (op == kMul || op == kDiv)) {
-      // Simplify a * 1 = a, a / 1 = a.
-      return a;
+    } else if (op == kMul || op == kDiv) {
+      // Simplify a * 1 = a, a / 1 = a, a * -1 = -a, a / -1 = -a
+      if (value == 1) {
+        return a;
+      } else if (value == -1) {
+        op = kNeg;
+        b = a;
+        a = nullptr;
+      }
     }
   } else if (b->operation == kNeg) {
-    // Simplify a + (-b) = a - b, a - (-b) = a + b, - (-b) = b.
-    switch (op) {
-      case kAdd: op = kSub; b = b->op_b; break;
-      case kSub: op = kAdd; b = b->op_b; break;
-      case kNeg: return b->op_b;
-      default:   break;
+    // Simplify a + (-b) = a - b, a - (-b) = a + b, -(-b) = b.
+    if (op == kAdd) {
+      op = kSub;
+      b = b->op_b;
+    } else if (op == kSub) {
+      op = kAdd;
+      b = b->op_b;
+    } else if (op == kNeg) {
+      return b->op_b;
     }
   }
   return new (graph_->GetArena()) InductionInfo(kInvariant, op, a, b, nullptr);
