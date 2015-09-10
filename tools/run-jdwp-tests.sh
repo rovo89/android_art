@@ -40,6 +40,9 @@ device_dir="--device-dir=/data/local/tmp"
 vm_command="--vm-command=$art"
 image_compiler_option=""
 debug="no"
+verbose="no"
+# By default, we run the whole JDWP test suite.
+test="org.apache.harmony.jpda.tests.share.AllTests"
 
 while true; do
   if [[ "$1" == "--mode=host" ]]; then
@@ -65,6 +68,19 @@ while true; do
     # Remove the --debug from the arguments.
     args=${args/$1}
     shift
+  elif [[ $1 == "--verbose" ]]; then
+    verbose="yes"
+    # Remove the --verbose from the arguments.
+    args=${args/$1}
+    shift
+  elif [[ $1 == "--test" ]]; then
+    # Remove the --test from the arguments.
+    args=${args/$1}
+    shift
+    test=$1
+    # Remove the test from the arguments.
+    args=${args/$1}
+    shift
   elif [[ "$1" == "" ]]; then
     break
   else
@@ -77,6 +93,10 @@ if [[ $debug == "yes" ]]; then
   art="$art -d"
   art_debugee="$art_debugee -d"
   vm_args="$vm_args --vm-arg -XXlib:libartd.so"
+fi
+if [[ $verbose == "yes" ]]; then
+  # Enable JDWP logs in the debuggee.
+  art_debugee="$art_debugee -verbose:jdwp"
 fi
 
 # Run the tests using vogar.
@@ -93,4 +113,4 @@ vogar $vm_command \
       --vm-arg -Djpda.settings.debuggeeJavaPath="\"$art_debugee $image $debuggee_args\"" \
       --classpath $test_jar \
       --vm-arg -Xcompiler-option --vm-arg --debuggable \
-      org.apache.harmony.jpda.tests.share.AllTests
+      $test
