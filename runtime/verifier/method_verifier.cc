@@ -3334,11 +3334,59 @@ mirror::ArtMethod* MethodVerifier::VerifyInvocationArgs(const Instruction* inst,
                                                                              is_range, res_method);
 }
 
+RegType& MethodVerifier::FallbackToDebugInfo(RegType& type, RegisterLine* reg_line, uint16_t slot) {
+  if (LIKELY(!type.IsZero())) {
+    return type;
+  }
+
+  struct RegTypeFromDebugInfoContext {
+    uint16_t slot;
+    uint32_t insn_idx;
+    RegTypeCache* reg_types;
+    Handle<mirror::ClassLoader>* class_loader;
+    RegType* result;
+
+    static void Callback(void* context, uint16_t slot, uint32_t startAddress, uint32_t endAddress,
+                         const char* name, const char* descriptor, const char* signature)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      RegTypeFromDebugInfoContext* pContext = reinterpret_cast<RegTypeFromDebugInfoContext*>(context);
+
+      if (slot != pContext->slot)
+        return;
+
+      if (startAddress <= pContext->insn_idx && pContext->insn_idx < endAddress) {
+        pContext->result = &pContext->reg_types->FromDescriptor(pContext->class_loader->Get(), descriptor, false);
+      }
+    }
+  };
+
+  RegTypeFromDebugInfoContext context;
+  context.slot = slot;
+  context.insn_idx = work_insn_idx_;
+  context.reg_types = &reg_types_;
+  context.class_loader = class_loader_;
+  context.result = nullptr;
+  dex_file_->DecodeDebugInfo(code_item_, IsStatic(), dex_method_idx_,
+      nullptr, RegTypeFromDebugInfoContext::Callback, &context);
+
+  std::string location(StringPrintf("%s: [0x%X] ", PrettyMethod(dex_method_idx_, *dex_file_).c_str(), work_insn_idx_));
+  if (context.result != nullptr) {
+    RegType& actual_type = *context.result;
+    LOG(WARNING) << location << "Using type '" << actual_type << "' from debug information for v" << slot;
+    reg_line->SetRegisterType(slot, actual_type);
+    return actual_type;
+  } else {
+    LOG(ERROR) << location << "Could not get type for v" << slot << " from debug information";
+    return type;
+  }
+}
+
 mirror::ArtMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction* inst,
                                                          RegisterLine* reg_line, bool is_range) {
   DCHECK(inst->Opcode() == Instruction::INVOKE_VIRTUAL_QUICK ||
          inst->Opcode() == Instruction::INVOKE_VIRTUAL_RANGE_QUICK);
-  RegType& actual_arg_type = reg_line->GetInvocationThis(inst, is_range);
+  uint16_t this_reg = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
+  RegType& actual_arg_type = FallbackToDebugInfo(reg_line->GetInvocationThis(inst, is_range), reg_line, this_reg);
   if (!actual_arg_type.HasClass()) {
     VLOG(verifier) << "Failed to get mirror::Class* from '" << actual_arg_type << "'";
     return nullptr;

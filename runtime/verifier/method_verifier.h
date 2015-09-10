@@ -631,6 +631,9 @@ class MethodVerifier {
   RegType& DetermineCat1Constant(int32_t value, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  RegType& FallbackToDebugInfo(RegType& type, RegisterLine* reg_line, uint16_t slot)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   RegTypeCache reg_types_;
 
   PcToRegisterLineTable reg_table_;
