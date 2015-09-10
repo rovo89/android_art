@@ -39,7 +39,11 @@ RELOCATE="y"
 SECONDARY_DEX=""
 TIME_OUT="gdb"  # "n" (disabled), "timeout" (use timeout), "gdb" (use gdb)
 # Value in seconds
-TIME_OUT_VALUE=600  # 10 minutes.
+if [ "$ART_USE_READ_BARRIER" = "true" ]; then
+  TIME_OUT_VALUE=900  # 15 minutes.
+else
+  TIME_OUT_VALUE=600  # 10 minutes.
+fi
 USE_GDB="n"
 USE_JVM="n"
 VERIFY="y" # y=yes,n=no,s=softfail
