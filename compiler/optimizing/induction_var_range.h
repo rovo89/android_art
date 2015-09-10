@@ -27,7 +27,7 @@ namespace art {
  * API to obtain a conservative lower and upper bound value on each instruction in the HIR.
  *
  * For example, given a linear induction 2 * i + x where 0 <= i <= 10, range analysis yields lower
- * bound value x and upper bound value x + 20 for the expression, thus, the range [0, x + 20].
+ * bound value x and upper bound value x + 20 for the expression, thus, the range [x, x + 20].
  */
 class InductionVarRange {
  public:
@@ -39,7 +39,7 @@ class InductionVarRange {
    */
   struct Value {
     Value(HInstruction* i, int32_t a, int32_t b)
-        : instruction(a ? i : nullptr),
+        : instruction(a != 0 ? i : nullptr),
           a_constant(a),
           b_constant(b) {}
     explicit Value(int32_t b) : Value(nullptr, 0, b) {}
@@ -70,7 +70,9 @@ class InductionVarRange {
   HInductionVarAnalysis::InductionInfo* GetTripCount(HLoopInformation* loop,
                                                      HInstruction* context);
 
-  static Value GetFetch(HInstruction* instruction, int32_t fail_value);
+  static Value GetFetch(HInstruction* instruction,
+                        HInductionVarAnalysis::InductionInfo* trip,
+                        int32_t fail_value);
 
   static Value GetMin(HInductionVarAnalysis::InductionInfo* info,
                       HInductionVarAnalysis::InductionInfo* trip);
@@ -78,10 +80,12 @@ class InductionVarRange {
                       HInductionVarAnalysis::InductionInfo* trip);
   static Value GetMul(HInductionVarAnalysis::InductionInfo* info1,
                       HInductionVarAnalysis::InductionInfo* info2,
-                      HInductionVarAnalysis::InductionInfo* trip, int32_t fail_value);
+                      HInductionVarAnalysis::InductionInfo* trip,
+                      int32_t fail_value);
   static Value GetDiv(HInductionVarAnalysis::InductionInfo* info1,
                       HInductionVarAnalysis::InductionInfo* info2,
-                      HInductionVarAnalysis::InductionInfo* trip, int32_t fail_value);
+                      HInductionVarAnalysis::InductionInfo* trip,
+                      int32_t fail_value);
 
   static Value AddValue(Value v1, Value v2, int32_t fail_value);
   static Value SubValue(Value v1, Value v2, int32_t fail_value);
@@ -93,6 +97,7 @@ class InductionVarRange {
   /** Results of prior induction variable analysis. */
   HInductionVarAnalysis *induction_analysis_;
 
+  friend class HInductionVarAnalysis;
   friend class InductionVarRangeTest;
 
   DISALLOW_COPY_AND_ASSIGN(InductionVarRange);
