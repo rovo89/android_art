@@ -639,10 +639,9 @@ void Heap::DisableMovingGc() {
     background_collector_type_ = foreground_collector_type_;
   }
   TransitionCollector(foreground_collector_type_);
-  ThreadList* tl = Runtime::Current()->GetThreadList();
-  Thread* self = Thread::Current();
+  Thread* const self = Thread::Current();
   ScopedThreadStateChange tsc(self, kSuspended);
-  tl->SuspendAll(__FUNCTION__);
+  ScopedSuspendAll ssa(__FUNCTION__);
   // Something may have caused the transition to fail.
   if (!IsMovingGc(collector_type_) && non_moving_space_ != main_space_) {
     CHECK(main_space_ != nullptr);
@@ -657,7 +656,6 @@ void Heap::DisableMovingGc() {
     non_moving_space_ = main_space_;
     CHECK(!non_moving_space_->CanMoveObjects());
   }
-  tl->ResumeAll();
 }
 
 std::string Heap::SafeGetClassDescriptor(mirror::Class* klass) {
@@ -889,11 +887,9 @@ void Heap::VisitObjects(ObjectCallback callback, void* arg) {
     IncrementDisableMovingGC(self);
     {
       ScopedThreadSuspension sts(self, kWaitingForVisitObjects);
-      ThreadList* tl = Runtime::Current()->GetThreadList();
-      tl->SuspendAll(__FUNCTION__);
+      ScopedSuspendAll ssa(__FUNCTION__);
       VisitObjectsInternalRegionSpace(callback, arg);
       VisitObjectsInternal(callback, arg);
-      tl->ResumeAll();
     }
     DecrementDisableMovingGC(self);
   } else {
@@ -1267,12 +1263,13 @@ void Heap::Trim(Thread* self) {
     // Deflate the monitors, this can cause a pause but shouldn't matter since we don't care
     // about pauses.
     Runtime* runtime = Runtime::Current();
-    runtime->GetThreadList()->SuspendAll(__FUNCTION__);
-    uint64_t start_time = NanoTime();
-    size_t count = runtime->GetMonitorList()->DeflateMonitors();
-    VLOG(heap) << "Deflating " << count << " monitors took "
-        << PrettyDuration(NanoTime() - start_time);
-    runtime->GetThreadList()->ResumeAll();
+    {
+      ScopedSuspendAll ssa(__FUNCTION__);
+      uint64_t start_time = NanoTime();
+      size_t count = runtime->GetMonitorList()->DeflateMonitors();
+      VLOG(heap) << "Deflating " << count << " monitors took "
+          << PrettyDuration(NanoTime() - start_time);
+    }
     ATRACE_END();
   }
   TrimIndirectReferenceTables(self);
@@ -1749,19 +1746,15 @@ void Heap::SetTargetHeapUtilization(float target) {
 }
 
 size_t Heap::GetObjectsAllocated() const {
-  Thread* self = Thread::Current();
+  Thread* const self = Thread::Current();
   ScopedThreadStateChange tsc(self, kWaitingForGetObjectsAllocated);
-  auto* tl = Runtime::Current()->GetThreadList();
   // Need SuspendAll here to prevent lock violation if RosAlloc does it during InspectAll.
-  tl->SuspendAll(__FUNCTION__);
+  ScopedSuspendAll ssa(__FUNCTION__);
+  ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
   size_t total = 0;
-  {
-    ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-    for (space::AllocSpace* space : alloc_spaces_) {
-      total += space->GetObjectsAllocated();
-    }
+  for (space::AllocSpace* space : alloc_spaces_) {
+    total += space->GetObjectsAllocated();
   }
-  tl->ResumeAll();
   return total;
 }
 
@@ -1911,7 +1904,6 @@ HomogeneousSpaceCompactResult Heap::PerformHomogeneousSpaceCompact() {
   // Inc requested homogeneous space compaction.
   count_requested_homogeneous_space_compaction_++;
   // Store performed homogeneous space compaction at a new request arrival.
-  ThreadList* tl = Runtime::Current()->GetThreadList();
   ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
   Locks::mutator_lock_->AssertNotHeld(self);
   {
@@ -1938,34 +1930,34 @@ HomogeneousSpaceCompactResult Heap::PerformHomogeneousSpaceCompact() {
     FinishGC(self, collector::kGcTypeNone);
     return HomogeneousSpaceCompactResult::kErrorVMShuttingDown;
   }
-  // Suspend all threads.
-  tl->SuspendAll(__FUNCTION__);
-  uint64_t start_time = NanoTime();
-  // Launch compaction.
-  space::MallocSpace* to_space = main_space_backup_.release();
-  space::MallocSpace* from_space = main_space_;
-  to_space->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
-  const uint64_t space_size_before_compaction = from_space->Size();
-  AddSpace(to_space);
-  // Make sure that we will have enough room to copy.
-  CHECK_GE(to_space->GetFootprintLimit(), from_space->GetFootprintLimit());
-  collector::GarbageCollector* collector = Compact(to_space, from_space,
-                                                   kGcCauseHomogeneousSpaceCompact);
-  const uint64_t space_size_after_compaction = to_space->Size();
-  main_space_ = to_space;
-  main_space_backup_.reset(from_space);
-  RemoveSpace(from_space);
-  SetSpaceAsDefault(main_space_);  // Set as default to reset the proper dlmalloc space.
-  // Update performed homogeneous space compaction count.
-  count_performed_homogeneous_space_compaction_++;
-  // Print statics log and resume all threads.
-  uint64_t duration = NanoTime() - start_time;
-  VLOG(heap) << "Heap homogeneous space compaction took " << PrettyDuration(duration) << " size: "
-             << PrettySize(space_size_before_compaction) << " -> "
-             << PrettySize(space_size_after_compaction) << " compact-ratio: "
-             << std::fixed << static_cast<double>(space_size_after_compaction) /
-             static_cast<double>(space_size_before_compaction);
-  tl->ResumeAll();
+  collector::GarbageCollector* collector;
+  {
+    ScopedSuspendAll ssa(__FUNCTION__);
+    uint64_t start_time = NanoTime();
+    // Launch compaction.
+    space::MallocSpace* to_space = main_space_backup_.release();
+    space::MallocSpace* from_space = main_space_;
+    to_space->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
+    const uint64_t space_size_before_compaction = from_space->Size();
+    AddSpace(to_space);
+    // Make sure that we will have enough room to copy.
+    CHECK_GE(to_space->GetFootprintLimit(), from_space->GetFootprintLimit());
+    collector = Compact(to_space, from_space, kGcCauseHomogeneousSpaceCompact);
+    const uint64_t space_size_after_compaction = to_space->Size();
+    main_space_ = to_space;
+    main_space_backup_.reset(from_space);
+    RemoveSpace(from_space);
+    SetSpaceAsDefault(main_space_);  // Set as default to reset the proper dlmalloc space.
+    // Update performed homogeneous space compaction count.
+    count_performed_homogeneous_space_compaction_++;
+    // Print statics log and resume all threads.
+    uint64_t duration = NanoTime() - start_time;
+    VLOG(heap) << "Heap homogeneous space compaction took " << PrettyDuration(duration) << " size: "
+               << PrettySize(space_size_before_compaction) << " -> "
+               << PrettySize(space_size_after_compaction) << " compact-ratio: "
+               << std::fixed << static_cast<double>(space_size_after_compaction) /
+               static_cast<double>(space_size_before_compaction);
+  }
   // Finish GC.
   reference_processor_->EnqueueClearedReferences(self);
   GrowForUtilization(semi_space_collector_);
@@ -1983,7 +1975,6 @@ void Heap::TransitionCollector(CollectorType collector_type) {
   uint64_t start_time = NanoTime();
   uint32_t before_allocated = num_bytes_allocated_.LoadSequentiallyConsistent();
   Runtime* const runtime = Runtime::Current();
-  ThreadList* const tl = runtime->GetThreadList();
   Thread* const self = Thread::Current();
   ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
   Locks::mutator_lock_->AssertNotHeld(self);
@@ -2021,84 +2012,91 @@ void Heap::TransitionCollector(CollectorType collector_type) {
     return;
   }
   collector::GarbageCollector* collector = nullptr;
-  tl->SuspendAll(__FUNCTION__);
-  switch (collector_type) {
-    case kCollectorTypeSS: {
-      if (!IsMovingGc(collector_type_)) {
-        // Create the bump pointer space from the backup space.
-        CHECK(main_space_backup_ != nullptr);
-        std::unique_ptr<MemMap> mem_map(main_space_backup_->ReleaseMemMap());
-        // We are transitioning from non moving GC -> moving GC, since we copied from the bump
-        // pointer space last transition it will be protected.
-        CHECK(mem_map != nullptr);
-        mem_map->Protect(PROT_READ | PROT_WRITE);
-        bump_pointer_space_ = space::BumpPointerSpace::CreateFromMemMap("Bump pointer space",
-                                                                        mem_map.release());
-        AddSpace(bump_pointer_space_);
-        collector = Compact(bump_pointer_space_, main_space_, kGcCauseCollectorTransition);
-        // Use the now empty main space mem map for the bump pointer temp space.
-        mem_map.reset(main_space_->ReleaseMemMap());
-        // Unset the pointers just in case.
-        if (dlmalloc_space_ == main_space_) {
-          dlmalloc_space_ = nullptr;
-        } else if (rosalloc_space_ == main_space_) {
-          rosalloc_space_ = nullptr;
-        }
-        // Remove the main space so that we don't try to trim it, this doens't work for debug
-        // builds since RosAlloc attempts to read the magic number from a protected page.
-        RemoveSpace(main_space_);
-        RemoveRememberedSet(main_space_);
-        delete main_space_;  // Delete the space since it has been removed.
-        main_space_ = nullptr;
-        RemoveRememberedSet(main_space_backup_.get());
-        main_space_backup_.reset(nullptr);  // Deletes the space.
-        temp_space_ = space::BumpPointerSpace::CreateFromMemMap("Bump pointer space 2",
-                                                                mem_map.release());
-        AddSpace(temp_space_);
-      }
-      break;
-    }
-    case kCollectorTypeMS:
-      // Fall through.
-    case kCollectorTypeCMS: {
-      if (IsMovingGc(collector_type_)) {
-        CHECK(temp_space_ != nullptr);
-        std::unique_ptr<MemMap> mem_map(temp_space_->ReleaseMemMap());
-        RemoveSpace(temp_space_);
-        temp_space_ = nullptr;
-        mem_map->Protect(PROT_READ | PROT_WRITE);
-        CreateMainMallocSpace(mem_map.get(), kDefaultInitialSize,
-                              std::min(mem_map->Size(), growth_limit_), mem_map->Size());
-        mem_map.release();
-        // Compact to the main space from the bump pointer space, don't need to swap semispaces.
-        AddSpace(main_space_);
-        collector = Compact(main_space_, bump_pointer_space_, kGcCauseCollectorTransition);
-        mem_map.reset(bump_pointer_space_->ReleaseMemMap());
-        RemoveSpace(bump_pointer_space_);
-        bump_pointer_space_ = nullptr;
-        const char* name = kUseRosAlloc ? kRosAllocSpaceName[1] : kDlMallocSpaceName[1];
-        // Temporarily unprotect the backup mem map so rosalloc can write the debug magic number.
-        if (kIsDebugBuild && kUseRosAlloc) {
+  {
+    ScopedSuspendAll ssa(__FUNCTION__);
+    switch (collector_type) {
+      case kCollectorTypeSS: {
+        if (!IsMovingGc(collector_type_)) {
+          // Create the bump pointer space from the backup space.
+          CHECK(main_space_backup_ != nullptr);
+          std::unique_ptr<MemMap> mem_map(main_space_backup_->ReleaseMemMap());
+          // We are transitioning from non moving GC -> moving GC, since we copied from the bump
+          // pointer space last transition it will be protected.
+          CHECK(mem_map != nullptr);
           mem_map->Protect(PROT_READ | PROT_WRITE);
+          bump_pointer_space_ = space::BumpPointerSpace::CreateFromMemMap("Bump pointer space",
+                                                                          mem_map.release());
+          AddSpace(bump_pointer_space_);
+          collector = Compact(bump_pointer_space_, main_space_, kGcCauseCollectorTransition);
+          // Use the now empty main space mem map for the bump pointer temp space.
+          mem_map.reset(main_space_->ReleaseMemMap());
+          // Unset the pointers just in case.
+          if (dlmalloc_space_ == main_space_) {
+            dlmalloc_space_ = nullptr;
+          } else if (rosalloc_space_ == main_space_) {
+            rosalloc_space_ = nullptr;
+          }
+          // Remove the main space so that we don't try to trim it, this doens't work for debug
+          // builds since RosAlloc attempts to read the magic number from a protected page.
+          RemoveSpace(main_space_);
+          RemoveRememberedSet(main_space_);
+          delete main_space_;  // Delete the space since it has been removed.
+          main_space_ = nullptr;
+          RemoveRememberedSet(main_space_backup_.get());
+          main_space_backup_.reset(nullptr);  // Deletes the space.
+          temp_space_ = space::BumpPointerSpace::CreateFromMemMap("Bump pointer space 2",
+                                                                  mem_map.release());
+          AddSpace(temp_space_);
         }
-        main_space_backup_.reset(CreateMallocSpaceFromMemMap(
-            mem_map.get(), kDefaultInitialSize, std::min(mem_map->Size(), growth_limit_),
-            mem_map->Size(), name, true));
-        if (kIsDebugBuild && kUseRosAlloc) {
-          mem_map->Protect(PROT_NONE);
-        }
-        mem_map.release();
+        break;
       }
-      break;
+      case kCollectorTypeMS:
+        // Fall through.
+      case kCollectorTypeCMS: {
+        if (IsMovingGc(collector_type_)) {
+          CHECK(temp_space_ != nullptr);
+          std::unique_ptr<MemMap> mem_map(temp_space_->ReleaseMemMap());
+          RemoveSpace(temp_space_);
+          temp_space_ = nullptr;
+          mem_map->Protect(PROT_READ | PROT_WRITE);
+          CreateMainMallocSpace(mem_map.get(),
+                                kDefaultInitialSize,
+                                std::min(mem_map->Size(), growth_limit_),
+                                mem_map->Size());
+          mem_map.release();
+          // Compact to the main space from the bump pointer space, don't need to swap semispaces.
+          AddSpace(main_space_);
+          collector = Compact(main_space_, bump_pointer_space_, kGcCauseCollectorTransition);
+          mem_map.reset(bump_pointer_space_->ReleaseMemMap());
+          RemoveSpace(bump_pointer_space_);
+          bump_pointer_space_ = nullptr;
+          const char* name = kUseRosAlloc ? kRosAllocSpaceName[1] : kDlMallocSpaceName[1];
+          // Temporarily unprotect the backup mem map so rosalloc can write the debug magic number.
+          if (kIsDebugBuild && kUseRosAlloc) {
+            mem_map->Protect(PROT_READ | PROT_WRITE);
+          }
+          main_space_backup_.reset(CreateMallocSpaceFromMemMap(
+              mem_map.get(),
+              kDefaultInitialSize,
+              std::min(mem_map->Size(), growth_limit_),
+              mem_map->Size(),
+              name,
+              true));
+          if (kIsDebugBuild && kUseRosAlloc) {
+            mem_map->Protect(PROT_NONE);
+          }
+          mem_map.release();
+        }
+        break;
+      }
+      default: {
+        LOG(FATAL) << "Attempted to transition to invalid collector type "
+                   << static_cast<size_t>(collector_type);
+        break;
+      }
     }
-    default: {
-      LOG(FATAL) << "Attempted to transition to invalid collector type "
-                 << static_cast<size_t>(collector_type);
-      break;
-    }
+    ChangeCollector(collector_type);
   }
-  ChangeCollector(collector_type);
-  tl->ResumeAll();
   // Can't call into java code with all threads suspended.
   reference_processor_->EnqueueClearedReferences(self);
   uint64_t duration = NanoTime() - start_time;

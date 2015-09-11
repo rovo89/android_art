@@ -293,13 +293,11 @@ void* Trace::RunSamplingThread(void* arg) {
         break;
       }
     }
-
-    runtime->GetThreadList()->SuspendAll(__FUNCTION__);
     {
+      ScopedSuspendAll ssa(__FUNCTION__);
       MutexLock mu(self, *Locks::thread_list_lock_);
       runtime->GetThreadList()->ForEach(GetSample, the_trace);
     }
-    runtime->GetThreadList()->ResumeAll();
     ATRACE_END();
   }
 
@@ -348,10 +346,9 @@ void Trace::Start(const char* trace_filename, int trace_fd, size_t buffer_size, 
   // Enable count of allocs if specified in the flags.
   bool enable_stats = false;
 
-  runtime->GetThreadList()->SuspendAll(__FUNCTION__);
-
   // Create Trace object.
   {
+    ScopedSuspendAll ssa(__FUNCTION__);
     MutexLock mu(self, *Locks::trace_lock_);
     if (the_trace_ != nullptr) {
       LOG(ERROR) << "Trace already in progress, ignoring this request";
@@ -374,8 +371,6 @@ void Trace::Start(const char* trace_filename, int trace_fd, size_t buffer_size, 
       }
     }
   }
-
-  runtime->GetThreadList()->ResumeAll();
 
   // Can't call this when holding the mutator lock.
   if (enable_stats) {
@@ -405,40 +400,41 @@ void Trace::StopTracing(bool finish_tracing, bool flush_file) {
     CHECK_PTHREAD_CALL(pthread_join, (sampling_pthread, nullptr), "sampling thread shutdown");
     sampling_pthread_ = 0U;
   }
-  runtime->GetThreadList()->SuspendAll(__FUNCTION__);
 
-  if (the_trace != nullptr) {
-    stop_alloc_counting = (the_trace->flags_ & Trace::kTraceCountAllocs) != 0;
-    if (finish_tracing) {
-      the_trace->FinishTracing();
-    }
+  {
+    ScopedSuspendAll ssa(__FUNCTION__);
+    if (the_trace != nullptr) {
+      stop_alloc_counting = (the_trace->flags_ & Trace::kTraceCountAllocs) != 0;
+      if (finish_tracing) {
+        the_trace->FinishTracing();
+      }
 
-    if (the_trace->trace_mode_ == TraceMode::kSampling) {
-      MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
-      runtime->GetThreadList()->ForEach(ClearThreadStackTraceAndClockBase, nullptr);
-    } else {
-      runtime->GetInstrumentation()->DisableMethodTracing(kTracerInstrumentationKey);
-      runtime->GetInstrumentation()->RemoveListener(
-          the_trace, instrumentation::Instrumentation::kMethodEntered |
-          instrumentation::Instrumentation::kMethodExited |
-          instrumentation::Instrumentation::kMethodUnwind);
-    }
-    if (the_trace->trace_file_.get() != nullptr) {
-      // Do not try to erase, so flush and close explicitly.
-      if (flush_file) {
-        if (the_trace->trace_file_->Flush() != 0) {
-          PLOG(WARNING) << "Could not flush trace file.";
-        }
+      if (the_trace->trace_mode_ == TraceMode::kSampling) {
+        MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
+        runtime->GetThreadList()->ForEach(ClearThreadStackTraceAndClockBase, nullptr);
       } else {
-        the_trace->trace_file_->MarkUnchecked();  // Do not trigger guard.
+        runtime->GetInstrumentation()->DisableMethodTracing(kTracerInstrumentationKey);
+        runtime->GetInstrumentation()->RemoveListener(
+            the_trace, instrumentation::Instrumentation::kMethodEntered |
+            instrumentation::Instrumentation::kMethodExited |
+            instrumentation::Instrumentation::kMethodUnwind);
       }
-      if (the_trace->trace_file_->Close() != 0) {
-        PLOG(ERROR) << "Could not close trace file.";
+      if (the_trace->trace_file_.get() != nullptr) {
+        // Do not try to erase, so flush and close explicitly.
+        if (flush_file) {
+          if (the_trace->trace_file_->Flush() != 0) {
+            PLOG(WARNING) << "Could not flush trace file.";
+          }
+        } else {
+          the_trace->trace_file_->MarkUnchecked();  // Do not trigger guard.
+        }
+        if (the_trace->trace_file_->Close() != 0) {
+          PLOG(ERROR) << "Could not close trace file.";
+        }
       }
+      delete the_trace;
     }
-    delete the_trace;
   }
-  runtime->GetThreadList()->ResumeAll();
   if (stop_alloc_counting) {
     // Can be racy since SetStatsEnabled is not guarded by any locks.
     runtime->SetStatsEnabled(false);
@@ -492,7 +488,7 @@ void Trace::Pause() {
   }
 
   if (the_trace != nullptr) {
-    runtime->GetThreadList()->SuspendAll(__FUNCTION__);
+    ScopedSuspendAll ssa(__FUNCTION__);
     stop_alloc_counting = (the_trace->flags_ & Trace::kTraceCountAllocs) != 0;
 
     if (the_trace->trace_mode_ == TraceMode::kSampling) {
@@ -500,12 +496,12 @@ void Trace::Pause() {
       runtime->GetThreadList()->ForEach(ClearThreadStackTraceAndClockBase, nullptr);
     } else {
       runtime->GetInstrumentation()->DisableMethodTracing(kTracerInstrumentationKey);
-      runtime->GetInstrumentation()->RemoveListener(the_trace,
-                                                    instrumentation::Instrumentation::kMethodEntered |
-                                                    instrumentation::Instrumentation::kMethodExited |
-                                                    instrumentation::Instrumentation::kMethodUnwind);
+      runtime->GetInstrumentation()->RemoveListener(
+          the_trace,
+          instrumentation::Instrumentation::kMethodEntered |
+          instrumentation::Instrumentation::kMethodExited |
+          instrumentation::Instrumentation::kMethodUnwind);
     }
-    runtime->GetThreadList()->ResumeAll();
   }
 
   if (stop_alloc_counting) {
@@ -531,22 +527,22 @@ void Trace::Resume() {
   // Enable count of allocs if specified in the flags.
   bool enable_stats = (the_trace->flags_ && kTraceCountAllocs) != 0;
 
-  runtime->GetThreadList()->SuspendAll(__FUNCTION__);
+  {
+    ScopedSuspendAll ssa(__FUNCTION__);
 
-  // Reenable.
-  if (the_trace->trace_mode_ == TraceMode::kSampling) {
-    CHECK_PTHREAD_CALL(pthread_create, (&sampling_pthread_, nullptr, &RunSamplingThread,
-        reinterpret_cast<void*>(the_trace->interval_us_)), "Sampling profiler thread");
-  } else {
-    runtime->GetInstrumentation()->AddListener(the_trace,
-                                               instrumentation::Instrumentation::kMethodEntered |
-                                               instrumentation::Instrumentation::kMethodExited |
-                                               instrumentation::Instrumentation::kMethodUnwind);
-    // TODO: In full-PIC mode, we don't need to fully deopt.
-    runtime->GetInstrumentation()->EnableMethodTracing(kTracerInstrumentationKey);
+    // Reenable.
+    if (the_trace->trace_mode_ == TraceMode::kSampling) {
+      CHECK_PTHREAD_CALL(pthread_create, (&sampling_pthread_, nullptr, &RunSamplingThread,
+          reinterpret_cast<void*>(the_trace->interval_us_)), "Sampling profiler thread");
+    } else {
+      runtime->GetInstrumentation()->AddListener(the_trace,
+                                                 instrumentation::Instrumentation::kMethodEntered |
+                                                 instrumentation::Instrumentation::kMethodExited |
+                                                 instrumentation::Instrumentation::kMethodUnwind);
+      // TODO: In full-PIC mode, we don't need to fully deopt.
+      runtime->GetInstrumentation()->EnableMethodTracing(kTracerInstrumentationKey);
+    }
   }
-
-  runtime->GetThreadList()->ResumeAll();
 
   // Can't call this when holding the mutator lock.
   if (enable_stats) {

@@ -610,19 +610,17 @@ static void ResetQuickAllocEntryPointsForThread(Thread* thread, void* arg ATTRIB
 void Instrumentation::SetEntrypointsInstrumented(bool instrumented) {
   Thread* self = Thread::Current();
   Runtime* runtime = Runtime::Current();
-  ThreadList* tl = runtime->GetThreadList();
   Locks::mutator_lock_->AssertNotHeld(self);
   Locks::instrument_entrypoints_lock_->AssertHeld(self);
   if (runtime->IsStarted()) {
-    tl->SuspendAll(__FUNCTION__);
-  }
-  {
+    ScopedSuspendAll ssa(__FUNCTION__);
     MutexLock mu(self, *Locks::runtime_shutdown_lock_);
     SetQuickAllocEntryPointsInstrumented(instrumented);
     ResetQuickAllocEntryPoints();
-  }
-  if (runtime->IsStarted()) {
-    tl->ResumeAll();
+  } else {
+    MutexLock mu(self, *Locks::runtime_shutdown_lock_);
+    SetQuickAllocEntryPointsInstrumented(instrumented);
+    ResetQuickAllocEntryPoints();
   }
 }
 
