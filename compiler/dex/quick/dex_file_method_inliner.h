@@ -208,6 +208,9 @@ class DexFileMethodInliner {
       kNameCachePutOrderedObject,
       kNameCacheArrayCopy,
       kNameCacheNumberOfLeadingZeros,
+      kNameCacheNumberOfTrailingZeros,
+      kNameCacheRotateRight,
+      kNameCacheRotateLeft,
       kNameCacheLast
     };
 
@@ -245,6 +248,7 @@ class DexFileMethodInliner {
       kProtoCacheJJ_V,
       kProtoCacheJS_V,
       kProtoCacheObject_Z,
+      kProtoCacheJI_J,
       kProtoCacheObjectJII_Z,
       kProtoCacheObjectJJJ_Z,
       kProtoCacheObjectJObjectObject_Z,

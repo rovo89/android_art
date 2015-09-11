@@ -39,6 +39,9 @@ static constexpr bool kIntrinsicIsStatic[] = {
     true,   // kIntrinsicReverseBits
     true,   // kIntrinsicReverseBytes
     true,   // kIntrinsicNumberOfLeadingZeros
+    true,   // kIntrinsicNumberOfTrailingZeros
+    true,   // kIntrinsicRotateRight
+    true,   // kIntrinsicRotateLeft
     true,   // kIntrinsicAbsInt
     true,   // kIntrinsicAbsLong
     true,   // kIntrinsicAbsFloat
@@ -79,6 +82,10 @@ static_assert(kIntrinsicIsStatic[kIntrinsicReverseBits], "ReverseBits must be st
 static_assert(kIntrinsicIsStatic[kIntrinsicReverseBytes], "ReverseBytes must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicNumberOfLeadingZeros],
               "NumberOfLeadingZeros must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicNumberOfTrailingZeros],
+              "NumberOfTrailingZeros must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicRotateRight], "RotateRight must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicRotateLeft], "RotateLeft must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicAbsInt], "AbsInt must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicAbsLong], "AbsLong must be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicAbsFloat], "AbsFloat must be static");
@@ -232,6 +239,9 @@ const char* const DexFileMethodInliner::kNameCacheNames[] = {
     "putOrderedObject",      // kNameCachePutOrderedObject
     "arraycopy",             // kNameCacheArrayCopy
     "numberOfLeadingZeros",  // kNameCacheNumberOfLeadingZeros
+    "numberOfTrailingZeros",  // kNameCacheNumberOfTrailingZeros
+    "rotateRight",           // kNameCacheRotateRight
+    "rotateLeft",            // kNameCacheRotateLeft
 };
 
 const DexFileMethodInliner::ProtoDef DexFileMethodInliner::kProtoCacheDefs[] = {
@@ -289,6 +299,8 @@ const DexFileMethodInliner::ProtoDef DexFileMethodInliner::kProtoCacheDefs[] = {
     { kClassCacheVoid, 2, { kClassCacheLong, kClassCacheShort } },
     // kProtoCacheObject_Z
     { kClassCacheBoolean, 1, { kClassCacheJavaLangObject } },
+    // kProtoCacheJI_J
+    { kClassCacheLong, 2, { kClassCacheLong, kClassCacheInt } },
     // kProtoCacheObjectJII_Z
     { kClassCacheBoolean, 4, { kClassCacheJavaLangObject, kClassCacheLong,
         kClassCacheInt, kClassCacheInt } },
@@ -379,6 +391,8 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
 
     INTRINSIC(JavaLangInteger, NumberOfLeadingZeros, I_I, kIntrinsicNumberOfLeadingZeros, k32),
     INTRINSIC(JavaLangLong, NumberOfLeadingZeros, J_I, kIntrinsicNumberOfLeadingZeros, k64),
+    INTRINSIC(JavaLangInteger, NumberOfTrailingZeros, I_I, kIntrinsicNumberOfTrailingZeros, k32),
+    INTRINSIC(JavaLangLong, NumberOfTrailingZeros, J_I, kIntrinsicNumberOfTrailingZeros, k64),
 
     INTRINSIC(JavaLangMath,       Abs, I_I, kIntrinsicAbsInt, 0),
     INTRINSIC(JavaLangStrictMath, Abs, I_I, kIntrinsicAbsInt, 0),
@@ -467,6 +481,11 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
 
     INTRINSIC(JavaLangSystem, ArrayCopy, CharArrayICharArrayII_V , kIntrinsicSystemArrayCopyCharArray,
               0),
+
+    INTRINSIC(JavaLangInteger, RotateRight, II_I, kIntrinsicRotateRight, k32),
+    INTRINSIC(JavaLangLong, RotateRight, JI_J, kIntrinsicRotateRight, k64),
+    INTRINSIC(JavaLangInteger, RotateLeft, II_I, kIntrinsicRotateLeft, k32),
+    INTRINSIC(JavaLangLong, RotateLeft, JI_J, kIntrinsicRotateLeft, k64),
 
 #undef INTRINSIC
 
@@ -631,7 +650,10 @@ bool DexFileMethodInliner::GenIntrinsic(Mir2Lir* backend, CallInfo* info) {
     case kIntrinsicSystemArrayCopyCharArray:
       return backend->GenInlinedArrayCopyCharArray(info);
     case kIntrinsicNumberOfLeadingZeros:
-      return false;  // not implemented in quick
+    case kIntrinsicNumberOfTrailingZeros:
+    case kIntrinsicRotateRight:
+    case kIntrinsicRotateLeft:
+      return false;   // not implemented in quick.
     default:
       LOG(FATAL) << "Unexpected intrinsic opcode: " << intrinsic.opcode;
       return false;  // avoid warning "control reaches end of non-void function"
