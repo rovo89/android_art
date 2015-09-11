@@ -48,7 +48,7 @@ static constexpr Register kMethodRegisterArgument = R0;
 // with baseline.
 static constexpr Register kCoreSavedRegisterForBaseline = R5;
 static constexpr Register kCoreCalleeSaves[] =
-    { R5, R6, R7, R8, R10, R11, PC };
+    { R5, R6, R7, R8, R10, R11, LR };
 static constexpr SRegister kFpuCalleeSaves[] =
     { S16, S17, S18, S19, S20, S21, S22, S23, S24, S25, S26, S27, S28, S29, S30, S31 };
 
@@ -409,8 +409,8 @@ CodeGeneratorARM::CodeGeneratorARM(HGraph* graph,
       method_patches_(MethodReferenceComparator(), graph->GetArena()->Adapter()),
       call_patches_(MethodReferenceComparator(), graph->GetArena()->Adapter()),
       relative_call_patches_(graph->GetArena()->Adapter()) {
-  // Save the PC register to mimic Quick.
-  AddAllocatedRegister(Location::RegisterLocation(PC));
+  // Always save the LR register to mimic Quick.
+  AddAllocatedRegister(Location::RegisterLocation(LR));
 }
 
 void CodeGeneratorARM::Finalize(CodeAllocator* allocator) {
@@ -599,12 +599,9 @@ void CodeGeneratorARM::GenerateFrameEntry() {
     RecordPcInfo(nullptr, 0);
   }
 
-  // PC is in the list of callee-save to mimic Quick, but we need to push
-  // LR at entry instead.
-  uint32_t push_mask = (core_spill_mask_ & (~(1 << PC))) | 1 << LR;
-  __ PushList(push_mask);
-  __ cfi().AdjustCFAOffset(kArmWordSize * POPCOUNT(push_mask));
-  __ cfi().RelOffsetForMany(DWARFReg(kMethodRegisterArgument), 0, push_mask, kArmWordSize);
+  __ PushList(core_spill_mask_);
+  __ cfi().AdjustCFAOffset(kArmWordSize * POPCOUNT(core_spill_mask_));
+  __ cfi().RelOffsetForMany(DWARFReg(kMethodRegisterArgument), 0, core_spill_mask_, kArmWordSize);
   if (fpu_spill_mask_ != 0) {
     SRegister start_register = SRegister(LeastSignificantBit(fpu_spill_mask_));
     __ vpushs(start_register, POPCOUNT(fpu_spill_mask_));
@@ -632,7 +629,10 @@ void CodeGeneratorARM::GenerateFrameExit() {
     __ cfi().AdjustCFAOffset(-kArmPointerSize * POPCOUNT(fpu_spill_mask_));
     __ cfi().RestoreMany(DWARFReg(SRegister(0)), fpu_spill_mask_);
   }
-  __ PopList(core_spill_mask_);
+  // Pop LR into PC to return.
+  DCHECK_NE(core_spill_mask_ & (1 << LR), 0U);
+  uint32_t pop_mask = (core_spill_mask_ & (~(1 << LR))) | 1 << PC;
+  __ PopList(pop_mask);
   __ cfi().RestoreState();
   __ cfi().DefCFAOffset(GetFrameSize());
 }
