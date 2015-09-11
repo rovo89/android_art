@@ -806,6 +806,15 @@ void Trace::BackwardBranch(Thread* /*thread*/, ArtMethod* method,
   LOG(ERROR) << "Unexpected backward branch event in tracing" << PrettyMethod(method);
 }
 
+void Trace::InvokeVirtualOrInterface(Thread*,
+                                     mirror::Object*,
+                                     ArtMethod* method,
+                                     uint32_t dex_pc,
+                                     ArtMethod*) {
+  LOG(ERROR) << "Unexpected invoke event in tracing" << PrettyMethod(method)
+             << " " << dex_pc;
+}
+
 void Trace::ReadClocks(Thread* thread, uint32_t* thread_clock_diff, uint32_t* wall_clock_diff) {
   if (UseThreadCpuClock()) {
     uint64_t clock_base = thread->GetTraceClockBase();

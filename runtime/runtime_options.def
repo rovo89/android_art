@@ -68,6 +68,7 @@ RUNTIME_OPTIONS_KEY (bool,                UseTLAB,                        (kUseT
 RUNTIME_OPTIONS_KEY (bool,                EnableHSpaceCompactForOOM,      true)
 RUNTIME_OPTIONS_KEY (bool,                UseJIT,                         false)
 RUNTIME_OPTIONS_KEY (unsigned int,        JITCompileThreshold,            jit::Jit::kDefaultCompileThreshold)
+RUNTIME_OPTIONS_KEY (unsigned int,        JITWarmupThreshold,             jit::Jit::kDefaultWarmupThreshold)
 RUNTIME_OPTIONS_KEY (MemoryKiB,           JITCodeCacheCapacity,           jit::JitCodeCache::kDefaultCapacity)
 RUNTIME_OPTIONS_KEY (MillisecondsToNanoseconds, \
                                           HSpaceCompactForOOMMinIntervalsMs,\

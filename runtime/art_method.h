@@ -33,6 +33,7 @@
 namespace art {
 
 union JValue;
+class ProfilingInfo;
 class ScopedObjectAccessAlreadyRunnable;
 class StringPiece;
 class ShadowFrame;
@@ -389,16 +390,25 @@ class ArtMethod FINAL {
         PtrSizedFields, entry_point_from_quick_compiled_code_) / sizeof(void*) * pointer_size);
   }
 
+  ProfilingInfo* CreateProfilingInfo() SHARED_REQUIRES(Locks::mutator_lock_);
+
+  ProfilingInfo* GetProfilingInfo() {
+    return reinterpret_cast<ProfilingInfo*>(GetEntryPointFromJni());
+  }
+
   void* GetEntryPointFromJni() {
     return GetEntryPointFromJniPtrSize(sizeof(void*));
   }
+
   ALWAYS_INLINE void* GetEntryPointFromJniPtrSize(size_t pointer_size) {
     return GetNativePointer<void*>(EntryPointFromJniOffset(pointer_size), pointer_size);
   }
 
   void SetEntryPointFromJni(const void* entrypoint) SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(IsNative());
     SetEntryPointFromJniPtrSize(entrypoint, sizeof(void*));
   }
+
   ALWAYS_INLINE void SetEntryPointFromJniPtrSize(const void* entrypoint, size_t pointer_size) {
     SetNativePointer(EntryPointFromJniOffset(pointer_size), entrypoint, pointer_size);
   }
@@ -523,6 +533,10 @@ class ArtMethod FINAL {
   ALWAYS_INLINE GcRoot<mirror::Class>* GetDexCacheResolvedTypes(size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  uint16_t IncrementCounter() {
+    return ++hotness_count_;
+  }
+
  protected:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   // The class we are a part of.
@@ -544,7 +558,11 @@ class ArtMethod FINAL {
   // Entry within a dispatch table for this method. For static/direct methods the index is into
   // the declaringClass.directMethods, for virtual methods the vtable and for interface methods the
   // ifTable.
-  uint32_t method_index_;
+  uint16_t method_index_;
+
+  // The hotness we measure for this method. Incremented by the interpreter. Not atomic, as we allow
+  // missing increments: if the method is hot, we will see it eventually.
+  uint16_t hotness_count_;
 
   // Fake padding field gets inserted here.
 
@@ -558,7 +576,8 @@ class ArtMethod FINAL {
     // Short cuts to declaring_class_->dex_cache_ member for fast compiled code access.
     GcRoot<mirror::Class>* dex_cache_resolved_types_;
 
-    // Pointer to JNI function registered to this method, or a function to resolve the JNI function.
+    // Pointer to JNI function registered to this method, or a function to resolve the JNI function,
+    // or the profiling data for non-native methods.
     void* entry_point_from_jni_;
 
     // Method dispatch from quick compiled code invokes this pointer which may cause bridging into
