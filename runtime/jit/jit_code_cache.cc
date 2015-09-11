@@ -82,9 +82,19 @@ uint8_t* JitCodeCache::ReserveCode(Thread* self, size_t size) {
   return code_cache_ptr_ - size;
 }
 
+uint8_t* JitCodeCache::ReserveData(Thread* self, size_t size) {
+  MutexLock mu(self, lock_);
+  size = RoundUp(size, sizeof(void*));
+  if (size > DataCacheRemain()) {
+    return nullptr;
+  }
+  data_cache_ptr_ += size;
+  return data_cache_ptr_ - size;
+}
+
 uint8_t* JitCodeCache::AddDataArray(Thread* self, const uint8_t* begin, const uint8_t* end) {
   MutexLock mu(self, lock_);
-  const size_t size = end - begin;
+  const size_t size = RoundUp(end - begin, sizeof(void*));
   if (size > DataCacheRemain()) {
     return nullptr;  // Out of space in the data cache.
   }
