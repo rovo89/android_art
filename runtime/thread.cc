@@ -2344,10 +2344,31 @@ void Thread::QuickDeliverException() {
   // Get exception from thread.
   mirror::Throwable* exception = GetException();
   CHECK(exception != nullptr);
+  bool is_deoptimization = (exception == GetDeoptimizationException());
+  if (!is_deoptimization) {
+    // This is a real exception: let the instrumentation know about it.
+    instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+    if (instrumentation->HasExceptionCaughtListeners() &&
+        IsExceptionThrownByCurrentMethod(exception)) {
+      // Instrumentation may cause GC so keep the exception object safe.
+      StackHandleScope<1> hs(this);
+      HandleWrapper<mirror::Throwable> h_exception(hs.NewHandleWrapper(&exception));
+      instrumentation->ExceptionCaughtEvent(this, exception);
+    }
+    // Does instrumentation need to deoptimize the stack?
+    // Note: we do this *after* reporting the exception to instrumentation in case it
+    // now requires deoptimization. It may happen if a debugger is attached and requests
+    // new events (single-step, breakpoint, ...) when the exception is reported.
+    is_deoptimization = Dbg::IsForcedInterpreterNeededForException(this);
+    if (is_deoptimization) {
+      // Save the exception into the deoptimization context so it can be restored
+      // before entering the interpreter.
+      PushDeoptimizationContext(JValue(), false, exception);
+    }
+  }
   // Don't leave exception visible while we try to find the handler, which may cause class
   // resolution.
   ClearException();
-  bool is_deoptimization = (exception == GetDeoptimizationException());
   QuickExceptionHandler exception_handler(this, is_deoptimization);
   if (is_deoptimization) {
     exception_handler.DeoptimizeStack();
