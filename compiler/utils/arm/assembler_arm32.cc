@@ -735,6 +735,20 @@ void Arm32Assembler::movt(Register rd, uint16_t imm16, Condition cond) {
 }
 
 
+void Arm32Assembler::rbit(Register rd, Register rm, Condition cond) {
+  CHECK_NE(rd, kNoRegister);
+  CHECK_NE(rm, kNoRegister);
+  CHECK_NE(cond, kNoCondition);
+  CHECK_NE(rd, PC);
+  CHECK_NE(rm, PC);
+  int32_t encoding = (static_cast<int32_t>(cond) << kConditionShift) |
+                     B26 | B25 | B23 | B22 | B21 | B20 | (0xf << 16) |
+                     (static_cast<int32_t>(rd) << kRdShift) |
+                     (0xf << 8) | B5 | B4 | static_cast<int32_t>(rm);
+  Emit(encoding);
+}
+
+
 void Arm32Assembler::EmitMulOp(Condition cond, int32_t opcode,
                                Register rd, Register rn,
                                Register rm, Register rs) {
