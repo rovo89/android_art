@@ -1282,4 +1282,12 @@ void ThreadList::ReleaseThreadId(Thread* self, uint32_t id) {
   allocated_ids_.reset(id);
 }
 
+ScopedSuspendAll::ScopedSuspendAll(const char* cause, bool long_suspend) {
+  Runtime::Current()->GetThreadList()->SuspendAll(cause, long_suspend);
+}
+
+ScopedSuspendAll::~ScopedSuspendAll() {
+  Runtime::Current()->GetThreadList()->ResumeAll();
+}
+
 }  // namespace art

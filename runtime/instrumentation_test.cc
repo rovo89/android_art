@@ -150,13 +150,9 @@ class InstrumentationTest : public CommonRuntimeTest {
   void CheckConfigureStubs(const char* key, Instrumentation::InstrumentationLevel level) {
     ScopedObjectAccess soa(Thread::Current());
     instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();
-    {
-      ScopedThreadSuspension sts(soa.Self(), kSuspended);
-      Runtime* runtime = Runtime::Current();
-      runtime->GetThreadList()->SuspendAll("Instrumentation::ConfigureStubs");
-      instr->ConfigureStubs(key, level);
-      runtime->GetThreadList()->ResumeAll();
-    }
+    ScopedThreadSuspension sts(soa.Self(), kSuspended);
+    ScopedSuspendAll ssa("Instrumentation::ConfigureStubs");
+    instr->ConfigureStubs(key, level);
   }
 
   Instrumentation::InstrumentationLevel GetCurrentInstrumentationLevel() {
@@ -174,10 +170,8 @@ class InstrumentationTest : public CommonRuntimeTest {
     TestInstrumentationListener listener;
     {
       ScopedThreadSuspension sts(soa.Self(), kSuspended);
-      Runtime* runtime = Runtime::Current();
-      runtime->GetThreadList()->SuspendAll("Add instrumentation listener");
+      ScopedSuspendAll ssa("Add instrumentation listener");
       instr->AddListener(&listener, instrumentation_event);
-      runtime->GetThreadList()->ResumeAll();
     }
 
     ArtMethod* const event_method = nullptr;
@@ -193,10 +187,8 @@ class InstrumentationTest : public CommonRuntimeTest {
     listener.Reset();
     {
       ScopedThreadSuspension sts(soa.Self(), kSuspended);
-      Runtime* runtime = Runtime::Current();
-      runtime->GetThreadList()->SuspendAll("Remove instrumentation listener");
+      ScopedSuspendAll ssa("Remove instrumentation listener");
       instr->RemoveListener(&listener, instrumentation_event);
-      runtime->GetThreadList()->ResumeAll();
     }
 
     // Check the listener is not registered and is not notified of the event.
@@ -211,12 +203,11 @@ class InstrumentationTest : public CommonRuntimeTest {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
     ScopedThreadSuspension sts(self, kSuspended);
-    runtime->GetThreadList()->SuspendAll("Single method deoptimization");
+    ScopedSuspendAll ssa("Single method deoptimization");
     if (enable_deoptimization) {
       instrumentation->EnableDeoptimization();
     }
     instrumentation->Deoptimize(method);
-    runtime->GetThreadList()->ResumeAll();
   }
 
   void UndeoptimizeMethod(Thread* self, ArtMethod* method,
@@ -225,12 +216,11 @@ class InstrumentationTest : public CommonRuntimeTest {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
     ScopedThreadSuspension sts(self, kSuspended);
-    runtime->GetThreadList()->SuspendAll("Single method undeoptimization");
+    ScopedSuspendAll ssa("Single method undeoptimization");
     instrumentation->Undeoptimize(method);
     if (disable_deoptimization) {
       instrumentation->DisableDeoptimization(key);
     }
-    runtime->GetThreadList()->ResumeAll();
   }
 
   void DeoptimizeEverything(Thread* self, const char* key, bool enable_deoptimization)
@@ -238,12 +228,11 @@ class InstrumentationTest : public CommonRuntimeTest {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
     ScopedThreadSuspension sts(self, kSuspended);
-    runtime->GetThreadList()->SuspendAll("Full deoptimization");
+    ScopedSuspendAll ssa("Full deoptimization");
     if (enable_deoptimization) {
       instrumentation->EnableDeoptimization();
     }
     instrumentation->DeoptimizeEverything(key);
-    runtime->GetThreadList()->ResumeAll();
   }
 
   void UndeoptimizeEverything(Thread* self, const char* key, bool disable_deoptimization)
@@ -251,12 +240,11 @@ class InstrumentationTest : public CommonRuntimeTest {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
     ScopedThreadSuspension sts(self, kSuspended);
-    runtime->GetThreadList()->SuspendAll("Full undeoptimization");
+    ScopedSuspendAll ssa("Full undeoptimization");
     instrumentation->UndeoptimizeEverything(key);
     if (disable_deoptimization) {
       instrumentation->DisableDeoptimization(key);
     }
-    runtime->GetThreadList()->ResumeAll();
   }
 
   void EnableMethodTracing(Thread* self, const char* key, bool needs_interpreter)
@@ -264,9 +252,8 @@ class InstrumentationTest : public CommonRuntimeTest {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
     ScopedThreadSuspension sts(self, kSuspended);
-    runtime->GetThreadList()->SuspendAll("EnableMethodTracing");
+    ScopedSuspendAll ssa("EnableMethodTracing");
     instrumentation->EnableMethodTracing(key, needs_interpreter);
-    runtime->GetThreadList()->ResumeAll();
   }
 
   void DisableMethodTracing(Thread* self, const char* key)
@@ -274,9 +261,8 @@ class InstrumentationTest : public CommonRuntimeTest {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
     ScopedThreadSuspension sts(self, kSuspended);
-    runtime->GetThreadList()->SuspendAll("EnableMethodTracing");
+    ScopedSuspendAll ssa("EnableMethodTracing");
     instrumentation->DisableMethodTracing(key);
-    runtime->GetThreadList()->ResumeAll();
   }
 
  private:
