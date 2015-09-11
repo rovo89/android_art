@@ -421,12 +421,11 @@ class MarkSweepMarkObjectSlowPath {
           if (heap_bitmap_exclusive_locked) {
             Locks::heap_bitmap_lock_->ExclusiveUnlock(self);
           }
-          Locks::mutator_lock_->SharedUnlock(self);
-          ThreadList* tl = Runtime::Current()->GetThreadList();
-          tl->SuspendAll(__FUNCTION__);
-          mark_sweep_->VerifyRoots();
-          tl->ResumeAll();
-          Locks::mutator_lock_->SharedLock(self);
+          {
+            ScopedThreadSuspension(self, kSuspended);
+            ScopedSuspendAll ssa(__FUNCTION__);
+            mark_sweep_->VerifyRoots();
+          }
           if (heap_bitmap_exclusive_locked) {
             Locks::heap_bitmap_lock_->ExclusiveLock(self);
           }

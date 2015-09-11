@@ -1140,23 +1140,20 @@ void CompilerDriver::UpdateImageClasses(TimingLogger* timings) {
   if (IsImage()) {
     TimingLogger::ScopedTiming t("UpdateImageClasses", timings);
 
-    Runtime* current = Runtime::Current();
+    Runtime* runtime = Runtime::Current();
 
     // Suspend all threads.
-    current->GetThreadList()->SuspendAll(__FUNCTION__);
+    ScopedSuspendAll ssa(__FUNCTION__);
 
     std::string error_msg;
     std::unique_ptr<ClinitImageUpdate> update(ClinitImageUpdate::Create(image_classes_.get(),
                                                                         Thread::Current(),
-                                                                        current->GetClassLinker(),
+                                                                        runtime->GetClassLinker(),
                                                                         &error_msg));
     CHECK(update.get() != nullptr) << error_msg;  // TODO: Soft failure?
 
     // Do the marking.
     update->Walk();
-
-    // Resume threads.
-    current->GetThreadList()->ResumeAll();
   }
 }
 

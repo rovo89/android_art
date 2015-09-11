@@ -578,7 +578,7 @@ void Dbg::GoActive() {
   }
 
   Runtime* runtime = Runtime::Current();
-  runtime->GetThreadList()->SuspendAll(__FUNCTION__);
+  ScopedSuspendAll ssa(__FUNCTION__);
   Thread* self = Thread::Current();
   ThreadState old_state = self->SetStateUnsafe(kRunnable);
   CHECK_NE(old_state, kRunnable);
@@ -588,8 +588,6 @@ void Dbg::GoActive() {
   instrumentation_events_ = 0;
   gDebuggerActive = true;
   CHECK_EQ(self->SetStateUnsafe(old_state), kRunnable);
-  runtime->GetThreadList()->ResumeAll();
-
   LOG(INFO) << "Debugger is active";
 }
 
@@ -602,32 +600,32 @@ void Dbg::Disconnected() {
   // to kRunnable to avoid scoped object access transitions. Remove the debugger as a listener
   // and clear the object registry.
   Runtime* runtime = Runtime::Current();
-  runtime->GetThreadList()->SuspendAll(__FUNCTION__);
   Thread* self = Thread::Current();
-  ThreadState old_state = self->SetStateUnsafe(kRunnable);
-
-  // Debugger may not be active at this point.
-  if (IsDebuggerActive()) {
-    {
-      // Since we're going to disable deoptimization, we clear the deoptimization requests queue.
-      // This prevents us from having any pending deoptimization request when the debugger attaches
-      // to us again while no event has been requested yet.
-      MutexLock mu(Thread::Current(), *Locks::deoptimization_lock_);
-      deoptimization_requests_.clear();
-      full_deoptimization_event_count_ = 0U;
+  {
+    ScopedSuspendAll ssa(__FUNCTION__);
+    ThreadState old_state = self->SetStateUnsafe(kRunnable);
+    // Debugger may not be active at this point.
+    if (IsDebuggerActive()) {
+      {
+        // Since we're going to disable deoptimization, we clear the deoptimization requests queue.
+        // This prevents us from having any pending deoptimization request when the debugger attaches
+        // to us again while no event has been requested yet.
+        MutexLock mu(Thread::Current(), *Locks::deoptimization_lock_);
+        deoptimization_requests_.clear();
+        full_deoptimization_event_count_ = 0U;
+      }
+      if (instrumentation_events_ != 0) {
+        runtime->GetInstrumentation()->RemoveListener(&gDebugInstrumentationListener,
+                                                      instrumentation_events_);
+        instrumentation_events_ = 0;
+      }
+      if (RequiresDeoptimization()) {
+        runtime->GetInstrumentation()->DisableDeoptimization(kDbgInstrumentationKey);
+      }
+      gDebuggerActive = false;
     }
-    if (instrumentation_events_ != 0) {
-      runtime->GetInstrumentation()->RemoveListener(&gDebugInstrumentationListener,
-                                                    instrumentation_events_);
-      instrumentation_events_ = 0;
-    }
-    if (RequiresDeoptimization()) {
-      runtime->GetInstrumentation()->DisableDeoptimization(kDbgInstrumentationKey);
-    }
-    gDebuggerActive = false;
+    CHECK_EQ(self->SetStateUnsafe(old_state), kRunnable);
   }
-  CHECK_EQ(self->SetStateUnsafe(old_state), kRunnable);
-  runtime->GetThreadList()->ResumeAll();
 
   {
     ScopedObjectAccess soa(self);
@@ -751,9 +749,8 @@ JDWP::JdwpError Dbg::GetMonitorInfo(JDWP::ObjectId object_id, JDWP::ExpandBuf* r
   MonitorInfo monitor_info;
   {
     ScopedThreadSuspension sts(self, kSuspended);
-    Runtime::Current()->GetThreadList()->SuspendAll(__FUNCTION__);
+    ScopedSuspendAll ssa(__FUNCTION__);
     monitor_info = MonitorInfo(o);
-    Runtime::Current()->GetThreadList()->ResumeAll();
   }
   if (monitor_info.owner_ != nullptr) {
     expandBufAddObjectId(reply, gRegistry->Add(monitor_info.owner_->GetPeer()));
@@ -3161,8 +3158,7 @@ void Dbg::ManageDeoptimization() {
   CHECK_EQ(self->GetState(), kRunnable);
   ScopedThreadSuspension sts(self, kWaitingForDeoptimization);
   // We need to suspend mutator threads first.
-  Runtime* const runtime = Runtime::Current();
-  runtime->GetThreadList()->SuspendAll(__FUNCTION__);
+  ScopedSuspendAll ssa(__FUNCTION__);
   const ThreadState old_state = self->SetStateUnsafe(kRunnable);
   {
     MutexLock mu(self, *Locks::deoptimization_lock_);
@@ -3174,7 +3170,6 @@ void Dbg::ManageDeoptimization() {
     deoptimization_requests_.clear();
   }
   CHECK_EQ(self->SetStateUnsafe(old_state), kRunnable);
-  runtime->GetThreadList()->ResumeAll();
 }
 
 static bool IsMethodPossiblyInlined(Thread* self, ArtMethod* m)
@@ -4724,13 +4719,9 @@ void Dbg::DdmSendHeapSegments(bool native) {
         // Need to acquire the mutator lock before the heap bitmap lock with exclusive access since
         // RosAlloc's internal logic doesn't know to release and reacquire the heap bitmap lock.
         ScopedThreadSuspension sts(self, kSuspended);
-        ThreadList* tl = Runtime::Current()->GetThreadList();
-        tl->SuspendAll(__FUNCTION__);
-        {
-          ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-          space->AsRosAllocSpace()->Walk(HeapChunkContext::HeapChunkJavaCallback, &context);
-        }
-        tl->ResumeAll();
+        ScopedSuspendAll ssa(__FUNCTION__);
+        ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
+        space->AsRosAllocSpace()->Walk(HeapChunkContext::HeapChunkJavaCallback, &context);
       } else if (space->IsBumpPointerSpace()) {
         ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
         context.SetChunkOverhead(0);
@@ -4740,13 +4731,11 @@ void Dbg::DdmSendHeapSegments(bool native) {
         heap->IncrementDisableMovingGC(self);
         {
           ScopedThreadSuspension sts(self, kSuspended);
-          ThreadList* tl = Runtime::Current()->GetThreadList();
-          tl->SuspendAll(__FUNCTION__);
+          ScopedSuspendAll ssa(__FUNCTION__);
           ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
           context.SetChunkOverhead(0);
           space->AsRegionSpace()->Walk(BumpPointerSpaceCallback, &context);
           HeapChunkContext::HeapChunkJavaCallback(nullptr, nullptr, 0, &context);
-          tl->ResumeAll();
         }
         heap->DecrementDisableMovingGC(self);
       } else {

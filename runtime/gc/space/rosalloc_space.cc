@@ -303,17 +303,13 @@ void RosAllocSpace::InspectAllRosAllocWithSuspendAll(
     void* arg, bool do_null_callback_at_end) NO_THREAD_SAFETY_ANALYSIS {
   // TODO: NO_THREAD_SAFETY_ANALYSIS.
   Thread* self = Thread::Current();
-  ThreadList* tl = Runtime::Current()->GetThreadList();
-  tl->SuspendAll(__FUNCTION__);
-  {
-    MutexLock mu(self, *Locks::runtime_shutdown_lock_);
-    MutexLock mu2(self, *Locks::thread_list_lock_);
-    rosalloc_->InspectAll(callback, arg);
-    if (do_null_callback_at_end) {
-      callback(nullptr, nullptr, 0, arg);  // Indicate end of a space.
-    }
+  ScopedSuspendAll ssa(__FUNCTION__);
+  MutexLock mu(self, *Locks::runtime_shutdown_lock_);
+  MutexLock mu2(self, *Locks::thread_list_lock_);
+  rosalloc_->InspectAll(callback, arg);
+  if (do_null_callback_at_end) {
+    callback(nullptr, nullptr, 0, arg);  // Indicate end of a space.
   }
-  tl->ResumeAll();
 }
 
 void RosAllocSpace::InspectAllRosAlloc(void (*callback)(void *start, void *end, size_t num_bytes, void* callback_arg),
