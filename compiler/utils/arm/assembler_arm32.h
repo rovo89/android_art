@@ -87,6 +87,7 @@ class Arm32Assembler FINAL : public ArmAssembler {
   void clz(Register rd, Register rm, Condition cond = AL) OVERRIDE;
   void movw(Register rd, uint16_t imm16, Condition cond = AL) OVERRIDE;
   void movt(Register rd, uint16_t imm16, Condition cond = AL) OVERRIDE;
+  void rbit(Register rd, Register rm, Condition cond = AL) OVERRIDE;
 
   // Multiply instructions.
   void mul(Register rd, Register rn, Register rm, Condition cond = AL) OVERRIDE;

@@ -29,9 +29,15 @@
   V(IntegerReverse, kStatic, kNeedsEnvironmentOrCache) \
   V(IntegerReverseBytes, kStatic, kNeedsEnvironmentOrCache) \
   V(IntegerNumberOfLeadingZeros, kStatic, kNeedsEnvironmentOrCache) \
+  V(IntegerNumberOfTrailingZeros, kStatic, kNeedsEnvironmentOrCache) \
+  V(IntegerRotateRight, kStatic, kNeedsEnvironmentOrCache) \
+  V(IntegerRotateLeft, kStatic, kNeedsEnvironmentOrCache) \
   V(LongReverse, kStatic, kNeedsEnvironmentOrCache) \
   V(LongReverseBytes, kStatic, kNeedsEnvironmentOrCache) \
   V(LongNumberOfLeadingZeros, kStatic, kNeedsEnvironmentOrCache) \
+  V(LongNumberOfTrailingZeros, kStatic, kNeedsEnvironmentOrCache) \
+  V(LongRotateRight, kStatic, kNeedsEnvironmentOrCache) \
+  V(LongRotateLeft, kStatic, kNeedsEnvironmentOrCache) \
   V(ShortReverseBytes, kStatic, kNeedsEnvironmentOrCache) \
   V(MathAbsDouble, kStatic, kNeedsEnvironmentOrCache) \
   V(MathAbsFloat, kStatic, kNeedsEnvironmentOrCache) \
