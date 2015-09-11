@@ -1019,4 +1019,12 @@ TEST_F(AssemblerThumb2Test, Clz) {
   DriverStr(expected, "clz");
 }
 
+TEST_F(AssemblerThumb2Test, rbit) {
+  __ rbit(arm::R1, arm::R0);
+
+  const char* expected = "rbit r1, r0\n";
+
+  DriverStr(expected, "rbit");
+}
+
 }  // namespace art
