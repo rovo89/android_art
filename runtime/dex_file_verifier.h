@@ -57,16 +57,48 @@ class DexFileVerifier {
   uint32_t ReadUnsignedLittleEndian(uint32_t size);
   bool CheckAndGetHandlerOffsets(const DexFile::CodeItem* code_item,
                                  uint32_t* handler_offsets, uint32_t handlers_size);
-  bool CheckClassDataItemField(uint32_t idx, uint32_t access_flags, bool expect_static);
-  bool CheckClassDataItemMethod(uint32_t idx, uint32_t access_flags, uint32_t code_offset,
-                                std::unordered_set<uint32_t>& direct_method_indexes,
+  bool CheckClassDataItemField(uint32_t idx,
+                               uint32_t access_flags,
+                               uint32_t class_access_flags,
+                               uint32_t class_type_index,
+                               bool expect_static);
+  bool CheckClassDataItemMethod(uint32_t idx,
+                                uint32_t access_flags,
+                                uint32_t class_access_flags,
+                                uint32_t class_type_index,
+                                uint32_t code_offset,
+                                std::unordered_set<uint32_t>* direct_method_indexes,
                                 bool expect_direct);
+  bool CheckOrderAndGetClassFlags(bool is_field,
+                                  const char* type_descr,
+                                  uint32_t curr_index,
+                                  uint32_t prev_index,
+                                  bool* have_class,
+                                  uint16_t* class_type_index,
+                                  uint32_t* class_access_flags);
+
   bool CheckPadding(size_t offset, uint32_t aligned_offset);
   bool CheckEncodedValue();
   bool CheckEncodedArray();
   bool CheckEncodedAnnotation();
 
   bool CheckIntraClassDataItem();
+  // Check all fields of the given type from the given iterator. Load the class data from the first
+  // field, if necessary (and return it), or use the given values.
+  template <bool kStatic>
+  bool CheckIntraClassDataItemFields(ClassDataItemIterator* it,
+                                     bool* have_class,
+                                     uint16_t* class_type_index,
+                                     uint32_t* class_access_flags);
+  // Check all methods of the given type from the given iterator. Load the class data from the first
+  // method, if necessary (and return it), or use the given values.
+  template <bool kDirect>
+  bool CheckIntraClassDataItemMethods(ClassDataItemIterator* it,
+                                      std::unordered_set<uint32_t>* direct_method_indexes,
+                                      bool* have_class,
+                                      uint16_t* class_type_index,
+                                      uint32_t* class_access_flags);
+
   bool CheckIntraCodeItem();
   bool CheckIntraStringDataItem();
   bool CheckIntraDebugInfoItem();
@@ -111,6 +143,31 @@ class DexFileVerifier {
 
   void ErrorStringPrintf(const char* fmt, ...)
       __attribute__((__format__(__printf__, 2, 3))) COLD_ATTR;
+
+  // Retrieve class index and class access flag from the given member. index is the member index,
+  // which is taken as either a field or a method index (as designated by is_field). The result,
+  // if the member and declaring class could be found, is stored in class_type_index and
+  // class_access_flags.
+  // This is an expensive lookup, as we have to find the class-def by type index, which is a
+  // linear search. The output values should thus be cached by the caller.
+  bool FindClassFlags(uint32_t index,
+                      bool is_field,
+                      uint16_t* class_type_index,
+                      uint32_t* class_access_flags);
+
+  // Check validity of the given access flags, interpreted for a field in the context of a class
+  // with the given second access flags.
+  static bool CheckFieldAccessFlags(uint32_t field_access_flags,
+                                    uint32_t class_access_flags,
+                                    std::string* error_msg);
+  // Check validity of the given method and access flags, in the context of a class with the given
+  // second access flags.
+  bool CheckMethodAccessFlags(uint32_t method_index,
+                              uint32_t method_access_flags,
+                              uint32_t class_access_flags,
+                              bool has_code,
+                              bool expect_direct,
+                              std::string* error_msg);
 
   const DexFile* const dex_file_;
   const uint8_t* const begin_;
