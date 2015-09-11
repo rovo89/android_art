@@ -424,6 +424,7 @@ MethodVerifier::MethodVerifier(Thread* self,
       has_virtual_or_interface_invokes_(false),
       verify_to_dump_(verify_to_dump),
       allow_thread_suspension_(allow_thread_suspension),
+      is_constructor_(false),
       link_(nullptr) {
   self->PushVerifier(this);
   DCHECK(class_def != nullptr);
@@ -555,15 +556,124 @@ SafeMap<uint32_t, std::set<uint32_t>>& MethodVerifier::FindStringInitMap() {
 }
 
 bool MethodVerifier::Verify() {
-  // If there aren't any instructions, make sure that's expected, then exit successfully.
-  if (code_item_ == nullptr) {
-    if ((method_access_flags_ & (kAccNative | kAccAbstract)) == 0) {
-      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "zero-length code in concrete non-native method";
+  // Some older code doesn't correctly mark constructors as such. Test for this case by looking at
+  // the name.
+  const DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx_);
+  const char* method_name = dex_file_->StringDataByIdx(method_id.name_idx_);
+  bool instance_constructor_by_name = strcmp("<init>", method_name) == 0;
+  bool static_constructor_by_name = strcmp("<clinit>", method_name) == 0;
+  bool constructor_by_name = instance_constructor_by_name || static_constructor_by_name;
+  // Check that only constructors are tagged, and check for bad code that doesn't tag constructors.
+  if ((method_access_flags_ & kAccConstructor) != 0) {
+    if (!constructor_by_name) {
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+            << "method is marked as constructor, but not named accordingly";
       return false;
-    } else {
-      return true;
+    }
+    is_constructor_ = true;
+  } else if (constructor_by_name) {
+    LOG(WARNING) << "Method " << PrettyMethod(dex_method_idx_, *dex_file_)
+                 << " not marked as constructor.";
+    is_constructor_ = true;
+  }
+  // If it's a constructor, check whether IsStatic() matches the name.
+  // This should have been rejected by the dex file verifier. Only do in debug build.
+  if (kIsDebugBuild) {
+    if (IsConstructor()) {
+      if (IsStatic() ^ static_constructor_by_name) {
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+              << "constructor name doesn't match static flag";
+        return false;
+      }
     }
   }
+
+  // Methods may only have one of public/protected/private.
+  // This should have been rejected by the dex file verifier. Only do in debug build.
+  if (kIsDebugBuild) {
+    size_t access_mod_count =
+        (((method_access_flags_ & kAccPublic) == 0) ? 0 : 1) +
+        (((method_access_flags_ & kAccProtected) == 0) ? 0 : 1) +
+        (((method_access_flags_ & kAccPrivate) == 0) ? 0 : 1);
+    if (access_mod_count > 1) {
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "method has more than one of public/protected/private";
+      return false;
+    }
+  }
+
+  // If there aren't any instructions, make sure that's expected, then exit successfully.
+  if (code_item_ == nullptr) {
+    // This should have been rejected by the dex file verifier. Only do in debug build.
+    if (kIsDebugBuild) {
+      // Only native or abstract methods may not have code.
+      if ((method_access_flags_ & (kAccNative | kAccAbstract)) == 0) {
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "zero-length code in concrete non-native method";
+        return false;
+      }
+      if ((method_access_flags_ & kAccAbstract) != 0) {
+        // Abstract methods are not allowed to have the following flags.
+        static constexpr uint32_t kForbidden =
+            kAccPrivate |
+            kAccStatic |
+            kAccFinal |
+            kAccNative |
+            kAccStrict |
+            kAccSynchronized;
+        if ((method_access_flags_ & kForbidden) != 0) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+                << "method can't be abstract and private/static/final/native/strict/synchronized";
+          return false;
+        }
+      }
+      if ((class_def_->GetJavaAccessFlags() & kAccInterface) != 0) {
+        // Interface methods must be public and abstract.
+        if ((method_access_flags_ & (kAccPublic | kAccAbstract)) != (kAccPublic | kAccAbstract)) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interface methods must be public and abstract";
+          return false;
+        }
+        // In addition to the above, interface methods must not be protected.
+        static constexpr uint32_t kForbidden = kAccProtected;
+        if ((method_access_flags_ & kForbidden) != 0) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interface methods can't be protected";
+          return false;
+        }
+      }
+      // We also don't allow constructors to be abstract or native.
+      if (IsConstructor()) {
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "constructors can't be abstract or native";
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // This should have been rejected by the dex file verifier. Only do in debug build.
+  if (kIsDebugBuild) {
+    // When there's code, the method must not be native or abstract.
+    if ((method_access_flags_ & (kAccNative | kAccAbstract)) != 0) {
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "non-zero-length code in abstract or native method";
+      return false;
+    }
+
+    // Only the static initializer may have code in an interface.
+    if ((class_def_->GetJavaAccessFlags() & kAccInterface) != 0) {
+      // Interfaces may have static initializers for their fields.
+      if (!IsConstructor() || !IsStatic()) {
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interface methods must be abstract";
+        return false;
+      }
+    }
+
+    // Instance constructors must not be synchronized.
+    if (IsInstanceConstructor()) {
+      static constexpr uint32_t kForbidden = kAccSynchronized;
+      if ((method_access_flags_ & kForbidden) != 0) {
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "constructors can't be synchronized";
+        return false;
+      }
+    }
+  }
+
   // Sanity-check the register counts. ins + locals = registers, so make sure that ins <= registers.
   if (code_item_->ins_size_ > code_item_->registers_size_) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad register counts (ins=" << code_item_->ins_size_
