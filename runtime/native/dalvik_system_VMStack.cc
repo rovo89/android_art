@@ -35,7 +35,7 @@ static jobject GetThreadStack(const ScopedFastNativeObjectAccess& soa, jobject p
     trace = soa.Self()->CreateInternalStackTrace<false>(soa);
   } else {
     // Suspend thread to build stack trace.
-    ScopedThreadSuspension sts(soa.Self(), kSuspended);
+    ScopedThreadSuspension sts(soa.Self(), kNative);
     ThreadList* thread_list = Runtime::Current()->GetThreadList();
     bool timed_out;
     Thread* thread = thread_list->SuspendThreadByPeer(peer, true, false, &timed_out);
@@ -47,11 +47,9 @@ static jobject GetThreadStack(const ScopedFastNativeObjectAccess& soa, jobject p
       }
       // Restart suspended thread.
       thread_list->Resume(thread, false);
-    } else {
-      if (timed_out) {
-        LOG(ERROR) << "Trying to get thread's stack failed as the thread failed to suspend within a "
-            "generous timeout.";
-      }
+    } else if (timed_out) {
+      LOG(ERROR) << "Trying to get thread's stack failed as the thread failed to suspend within a "
+          "generous timeout.";
     }
   }
   return trace;

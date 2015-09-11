@@ -1606,10 +1606,8 @@ class ImageDumper {
       // stack. Need to revoke the thread-local allocation stacks that
       // point into it.
       ScopedThreadSuspension sts(self, kNative);
-      ThreadList* thread_list = Runtime::Current()->GetThreadList();
-      thread_list->SuspendAll(__FUNCTION__);
+      ScopedSuspendAll ssa(__FUNCTION__);
       heap->RevokeAllThreadLocalAllocationStacks(self);
-      thread_list->ResumeAll();
     }
     {
       // Mark dex caches.
