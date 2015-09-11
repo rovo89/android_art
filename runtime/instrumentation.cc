@@ -407,6 +407,10 @@ void Instrumentation::AddListener(InstrumentationListener* listener, uint32_t ev
     backward_branch_listeners_.push_back(listener);
     have_backward_branch_listeners_ = true;
   }
+  if (HasEvent(kInvokeVirtualOrInterface, events)) {
+    invoke_virtual_or_interface_listeners_.push_back(listener);
+    have_invoke_virtual_or_interface_listeners_ = true;
+  }
   if (HasEvent(kDexPcMoved, events)) {
     std::list<InstrumentationListener*>* modified;
     if (have_dex_pc_listeners_) {
@@ -466,13 +470,17 @@ void Instrumentation::RemoveListener(InstrumentationListener* listener, uint32_t
     have_method_exit_listeners_ = !method_exit_listeners_.empty();
   }
   if (HasEvent(kMethodUnwind, events) && have_method_unwind_listeners_) {
-      method_unwind_listeners_.remove(listener);
-      have_method_unwind_listeners_ = !method_unwind_listeners_.empty();
+    method_unwind_listeners_.remove(listener);
+    have_method_unwind_listeners_ = !method_unwind_listeners_.empty();
   }
   if (HasEvent(kBackwardBranch, events) && have_backward_branch_listeners_) {
-      backward_branch_listeners_.remove(listener);
-      have_backward_branch_listeners_ = !backward_branch_listeners_.empty();
-    }
+    backward_branch_listeners_.remove(listener);
+    have_backward_branch_listeners_ = !backward_branch_listeners_.empty();
+  }
+  if (HasEvent(kInvokeVirtualOrInterface, events) && have_invoke_virtual_or_interface_listeners_) {
+    invoke_virtual_or_interface_listeners_.remove(listener);
+    have_invoke_virtual_or_interface_listeners_ = !invoke_virtual_or_interface_listeners_.empty();
+  }
   if (HasEvent(kDexPcMoved, events) && have_dex_pc_listeners_) {
     std::list<InstrumentationListener*>* modified =
         new std::list<InstrumentationListener*>(*dex_pc_listeners_.get());
@@ -905,6 +913,16 @@ void Instrumentation::BackwardBranchImpl(Thread* thread, ArtMethod* method,
                                          int32_t offset) const {
   for (InstrumentationListener* listener : backward_branch_listeners_) {
     listener->BackwardBranch(thread, method, offset);
+  }
+}
+
+void Instrumentation::InvokeVirtualOrInterfaceImpl(Thread* thread,
+                                                   mirror::Object* this_object,
+                                                   ArtMethod* caller,
+                                                   uint32_t dex_pc,
+                                                   ArtMethod* callee) const {
+  for (InstrumentationListener* listener : invoke_virtual_or_interface_listeners_) {
+    listener->InvokeVirtualOrInterface(thread, this_object, caller, dex_pc, callee);
   }
 }
 

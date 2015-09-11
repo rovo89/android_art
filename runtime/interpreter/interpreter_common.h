@@ -265,6 +265,13 @@ static inline bool DoInvoke(Thread* self, ShadowFrame& shadow_frame, const Instr
     result->SetJ(0);
     return false;
   } else {
+    if (type == kVirtual || type == kInterface) {
+      instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+      if (UNLIKELY(instrumentation->HasInvokeVirtualOrInterfaceListeners())) {
+        instrumentation->InvokeVirtualOrInterface(
+            self, receiver, sf_method, shadow_frame.GetDexPC(), called_method);
+      }
+    }
     return DoCall<is_range, do_access_check>(called_method, self, shadow_frame, inst, inst_data,
                                              result);
   }
@@ -297,6 +304,11 @@ static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
     result->SetJ(0);
     return false;
   } else {
+    instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+    if (UNLIKELY(instrumentation->HasInvokeVirtualOrInterfaceListeners())) {
+      instrumentation->InvokeVirtualOrInterface(
+          self, receiver, shadow_frame.GetMethod(), shadow_frame.GetDexPC(), called_method);
+    }
     // No need to check since we've been quickened.
     return DoCall<is_range, false>(called_method, self, shadow_frame, inst, inst_data, result);
   }

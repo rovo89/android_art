@@ -43,13 +43,14 @@ class JitOptions;
 class Jit {
  public:
   static constexpr bool kStressMode = kIsDebugBuild;
-  static constexpr size_t kDefaultCompileThreshold = kStressMode ? 1 : 1000;
+  static constexpr size_t kDefaultCompileThreshold = kStressMode ? 2 : 1000;
+  static constexpr size_t kDefaultWarmupThreshold = kDefaultCompileThreshold / 2;
 
   virtual ~Jit();
   static Jit* Create(JitOptions* options, std::string* error_msg);
   bool CompileMethod(ArtMethod* method, Thread* self)
       SHARED_REQUIRES(Locks::mutator_lock_);
-  void CreateInstrumentationCache(size_t compile_threshold);
+  void CreateInstrumentationCache(size_t compile_threshold, size_t warmup_threshold);
   void CreateThreadPool();
   CompilerCallbacks* GetCompilerCallbacks() {
     return compiler_callbacks_;
@@ -95,6 +96,9 @@ class JitOptions {
   size_t GetCompileThreshold() const {
     return compile_threshold_;
   }
+  size_t GetWarmupThreshold() const {
+    return warmup_threshold_;
+  }
   size_t GetCodeCacheCapacity() const {
     return code_cache_capacity_;
   }
@@ -112,6 +116,7 @@ class JitOptions {
   bool use_jit_;
   size_t code_cache_capacity_;
   size_t compile_threshold_;
+  size_t warmup_threshold_;
   bool dump_info_on_shutdown_;
 
   JitOptions() : use_jit_(false), code_cache_capacity_(0), compile_threshold_(0),

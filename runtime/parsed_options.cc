@@ -158,6 +158,9 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
       .Define("-Xjitthreshold:_")
           .WithType<unsigned int>()
           .IntoKey(M::JITCompileThreshold)
+      .Define("-Xjitwarmupthreshold:_")
+          .WithType<unsigned int>()
+          .IntoKey(M::JITWarmupThreshold)
       .Define("-XX:HspaceCompactForOOMMinIntervalMs=_")  // in ms
           .WithType<MillisecondsToNanoseconds>()  // store as ns
           .IntoKey(M::HSpaceCompactForOOMMinIntervalsMs)

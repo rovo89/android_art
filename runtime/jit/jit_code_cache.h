@@ -86,6 +86,9 @@ class JitCodeCache {
   // Reserve a region of code of size at least "size". Returns null if there is no more room.
   uint8_t* ReserveCode(Thread* self, size_t size) REQUIRES(!lock_);
 
+  // Reserve a region of data of size at least "size". Returns null if there is no more room.
+  uint8_t* ReserveData(Thread* self, size_t size) REQUIRES(!lock_);
+
   // Add a data array of size (end - begin) with the associated contents, returns null if there
   // is no more room.
   uint8_t* AddDataArray(Thread* self, const uint8_t* begin, const uint8_t* end)

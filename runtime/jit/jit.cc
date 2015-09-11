@@ -39,6 +39,8 @@ JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& opt
       options.GetOrDefault(RuntimeArgumentMap::JITCodeCacheCapacity);
   jit_options->compile_threshold_ =
       options.GetOrDefault(RuntimeArgumentMap::JITCompileThreshold);
+  jit_options->warmup_threshold_ =
+      options.GetOrDefault(RuntimeArgumentMap::JITWarmupThreshold);
   jit_options->dump_info_on_shutdown_ =
       options.Exists(RuntimeArgumentMap::DumpJITInfoOnShutdown);
   return jit_options;
@@ -160,17 +162,19 @@ Jit::~Jit() {
   }
 }
 
-void Jit::CreateInstrumentationCache(size_t compile_threshold) {
+void Jit::CreateInstrumentationCache(size_t compile_threshold, size_t warmup_threshold) {
   CHECK_GT(compile_threshold, 0U);
   Runtime* const runtime = Runtime::Current();
   runtime->GetThreadList()->SuspendAll(__FUNCTION__);
   // Add Jit interpreter instrumentation, tells the interpreter when to notify the jit to compile
   // something.
-  instrumentation_cache_.reset(new jit::JitInstrumentationCache(compile_threshold));
+  instrumentation_cache_.reset(
+      new jit::JitInstrumentationCache(compile_threshold, warmup_threshold));
   runtime->GetInstrumentation()->AddListener(
       new jit::JitInstrumentationListener(instrumentation_cache_.get()),
       instrumentation::Instrumentation::kMethodEntered |
-      instrumentation::Instrumentation::kBackwardBranch);
+      instrumentation::Instrumentation::kBackwardBranch |
+      instrumentation::Instrumentation::kInvokeVirtualOrInterface);
   runtime->GetThreadList()->ResumeAll();
 }
 

@@ -218,6 +218,17 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
                << " " << dex_pc_offset;
   }
 
+  // We only care about invokes in the Jit.
+  void InvokeVirtualOrInterface(Thread* thread ATTRIBUTE_UNUSED,
+                                mirror::Object*,
+                                ArtMethod* method,
+                                uint32_t dex_pc,
+                                ArtMethod*)
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    LOG(ERROR) << "Unexpected invoke event in debugger " << PrettyMethod(method)
+               << " " << dex_pc;
+  }
+
  private:
   static bool IsReturn(ArtMethod* method, uint32_t dex_pc)
       SHARED_REQUIRES(Locks::mutator_lock_) {
