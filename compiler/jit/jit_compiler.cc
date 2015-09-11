@@ -231,39 +231,39 @@ bool JitCompiler::AddToCodeCache(ArtMethod* method,
                                  OatFile::OatMethod* out_method) {
   Runtime* runtime = Runtime::Current();
   JitCodeCache* const code_cache = runtime->GetJit()->GetCodeCache();
-  const auto* quick_code = compiled_method->GetQuickCode();
-  if (quick_code == nullptr) {
+  auto const quick_code = compiled_method->GetQuickCode();
+  if (quick_code.empty()) {
     return false;
   }
-  const auto code_size = quick_code->size();
+  const auto code_size = quick_code.size();
   Thread* const self = Thread::Current();
-  auto* const mapping_table = compiled_method->GetMappingTable();
-  auto* const vmap_table = compiled_method->GetVmapTable();
-  auto* const gc_map = compiled_method->GetGcMap();
+  auto const mapping_table = compiled_method->GetMappingTable();
+  auto const vmap_table = compiled_method->GetVmapTable();
+  auto const gc_map = compiled_method->GetGcMap();
   uint8_t* mapping_table_ptr = nullptr;
   uint8_t* vmap_table_ptr = nullptr;
   uint8_t* gc_map_ptr = nullptr;
 
-  if (mapping_table != nullptr) {
+  if (!mapping_table.empty()) {
     // Write out pre-header stuff.
     mapping_table_ptr = code_cache->AddDataArray(
-        self, mapping_table->data(), mapping_table->data() + mapping_table->size());
+        self, mapping_table.data(), mapping_table.data() + mapping_table.size());
     if (mapping_table_ptr == nullptr) {
       return false;  // Out of data cache.
     }
   }
 
-  if (vmap_table != nullptr) {
+  if (!vmap_table.empty()) {
     vmap_table_ptr = code_cache->AddDataArray(
-        self, vmap_table->data(), vmap_table->data() + vmap_table->size());
+        self, vmap_table.data(), vmap_table.data() + vmap_table.size());
     if (vmap_table_ptr == nullptr) {
       return false;  // Out of data cache.
     }
   }
 
-  if (gc_map != nullptr) {
+  if (!gc_map.empty()) {
     gc_map_ptr = code_cache->AddDataArray(
-        self, gc_map->data(), gc_map->data() + gc_map->size());
+        self, gc_map.data(), gc_map.data() + gc_map.size());
     if (gc_map_ptr == nullptr) {
       return false;  // Out of data cache.
     }
@@ -276,8 +276,8 @@ bool JitCompiler::AddToCodeCache(ArtMethod* method,
                                                compiled_method->GetFrameSizeInBytes(),
                                                compiled_method->GetCoreSpillMask(),
                                                compiled_method->GetFpSpillMask(),
-                                               compiled_method->GetQuickCode()->data(),
-                                               compiled_method->GetQuickCode()->size());
+                                               compiled_method->GetQuickCode().data(),
+                                               compiled_method->GetQuickCode().size());
 
   if (code == nullptr) {
     return false;

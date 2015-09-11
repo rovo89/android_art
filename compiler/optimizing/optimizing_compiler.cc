@@ -607,7 +607,7 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
       codegen->HasEmptyFrame() ? 0 : codegen->GetFrameSize(),
       codegen->GetCoreSpillMask(),
       codegen->GetFpuSpillMask(),
-      &src_mapping_table,
+      ArrayRef<const SrcMapElem>(src_mapping_table),
       ArrayRef<const uint8_t>(),  // mapping_table.
       ArrayRef<const uint8_t>(stack_map),
       ArrayRef<const uint8_t>(),  // native_gc_map.
@@ -652,7 +652,7 @@ CompiledMethod* OptimizingCompiler::CompileBaseline(
       codegen->HasEmptyFrame() ? 0 : codegen->GetFrameSize(),
       codegen->GetCoreSpillMask(),
       codegen->GetFpuSpillMask(),
-      &src_mapping_table,
+      ArrayRef<const SrcMapElem>(src_mapping_table),
       AlignVectorSize(mapping_table),
       AlignVectorSize(vmap_table),
       AlignVectorSize(gc_map),
