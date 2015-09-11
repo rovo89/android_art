@@ -414,20 +414,21 @@ EXPLICIT_DO_IPUT_QUICK_ALL_TEMPLATE_DECL(Primitive::kPrimNot)      // iput-objec
 #undef EXPLICIT_DO_IPUT_QUICK_ALL_TEMPLATE_DECL
 #undef EXPLICIT_DO_IPUT_QUICK_TEMPLATE_DECL
 
+// We accept a null Instrumentation* meaning we must not report anything to the instrumentation.
 uint32_t FindNextInstructionFollowingException(
     Thread* self, ShadowFrame& shadow_frame, uint32_t dex_pc,
     const instrumentation::Instrumentation* instrumentation) {
   self->VerifyStack();
   StackHandleScope<2> hs(self);
   Handle<mirror::Throwable> exception(hs.NewHandle(self->GetException()));
-  if (instrumentation->HasExceptionCaughtListeners()
+  if (instrumentation != nullptr && instrumentation->HasExceptionCaughtListeners()
       && self->IsExceptionThrownByCurrentMethod(exception.Get())) {
     instrumentation->ExceptionCaughtEvent(self, exception.Get());
   }
   bool clear_exception = false;
   uint32_t found_dex_pc = shadow_frame.GetMethod()->FindCatchBlock(
       hs.NewHandle(exception->GetClass()), dex_pc, &clear_exception);
-  if (found_dex_pc == DexFile::kDexNoIndex) {
+  if (found_dex_pc == DexFile::kDexNoIndex && instrumentation != nullptr) {
     // Exception is not caught by the current method. We will unwind to the
     // caller. Notify any instrumentation listener.
     instrumentation->MethodUnwindEvent(self, shadow_frame.GetThisObject(),

@@ -399,14 +399,19 @@ void EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame* shadow_frame, JVa
   JValue value;
   // Set value to last known result in case the shadow frame chain is empty.
   value.SetJ(ret_val->GetJ());
+  // Are we executing the first shadow frame?
+  bool first = true;
   while (shadow_frame != nullptr) {
     self->SetTopOfShadowStack(shadow_frame);
     const DexFile::CodeItem* code_item = shadow_frame->GetMethod()->GetCodeItem();
     const uint32_t dex_pc = shadow_frame->GetDexPC();
     uint32_t new_dex_pc;
     if (UNLIKELY(self->IsExceptionPending())) {
+      // If we deoptimize from the QuickExceptionHandler, we already reported the exception to
+      // the instrumentation. To prevent from reporting it a second time, we simply pass a
+      // null Instrumentation*.
       const instrumentation::Instrumentation* const instrumentation =
-          Runtime::Current()->GetInstrumentation();
+          first ? nullptr : Runtime::Current()->GetInstrumentation();
       uint32_t found_dex_pc = FindNextInstructionFollowingException(self, *shadow_frame, dex_pc,
                                                                     instrumentation);
       new_dex_pc = found_dex_pc;  // the dex pc of a matching catch handler
@@ -424,6 +429,7 @@ void EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame* shadow_frame, JVa
     ShadowFrame* old_frame = shadow_frame;
     shadow_frame = shadow_frame->GetLink();
     ShadowFrame::DeleteDeoptimizedFrame(old_frame);
+    first = false;
   }
   ret_val->SetJ(value.GetJ());
 }
