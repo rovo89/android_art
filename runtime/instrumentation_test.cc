@@ -36,7 +36,8 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
     : received_method_enter_event(false), received_method_exit_event(false),
       received_method_unwind_event(false), received_dex_pc_moved_event(false),
       received_field_read_event(false), received_field_written_event(false),
-      received_exception_caught_event(false), received_backward_branch_event(false) {}
+      received_exception_caught_event(false), received_backward_branch_event(false),
+      received_invoke_virtual_or_interface_event(false) {}
 
   virtual ~TestInstrumentationListener() {}
 
@@ -105,6 +106,15 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
     received_backward_branch_event = true;
   }
 
+  void InvokeVirtualOrInterface(Thread* thread ATTRIBUTE_UNUSED,
+                                mirror::Object* this_object ATTRIBUTE_UNUSED,
+                                ArtMethod* caller ATTRIBUTE_UNUSED,
+                                uint32_t dex_pc ATTRIBUTE_UNUSED,
+                                ArtMethod* callee ATTRIBUTE_UNUSED)
+      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    received_invoke_virtual_or_interface_event = true;
+  }
+
   void Reset() {
     received_method_enter_event = false;
     received_method_exit_event = false;
@@ -114,6 +124,7 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
     received_field_written_event = false;
     received_exception_caught_event = false;
     received_backward_branch_event = false;
+    received_invoke_virtual_or_interface_event = false;
   }
 
   bool received_method_enter_event;
@@ -124,6 +135,7 @@ class TestInstrumentationListener FINAL : public instrumentation::Instrumentatio
   bool received_field_written_event;
   bool received_exception_caught_event;
   bool received_backward_branch_event;
+  bool received_invoke_virtual_or_interface_event;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(TestInstrumentationListener);
@@ -287,6 +299,8 @@ class InstrumentationTest : public CommonRuntimeTest {
         return instr->HasExceptionCaughtListeners();
       case instrumentation::Instrumentation::kBackwardBranch:
         return instr->HasBackwardBranchListeners();
+      case instrumentation::Instrumentation::kInvokeVirtualOrInterface:
+        return instr->HasInvokeVirtualOrInterfaceListeners();
       default:
         LOG(FATAL) << "Unknown instrumentation event " << event_type;
         UNREACHABLE();
@@ -330,6 +344,9 @@ class InstrumentationTest : public CommonRuntimeTest {
       case instrumentation::Instrumentation::kBackwardBranch:
         instr->BackwardBranch(self, method, dex_pc);
         break;
+      case instrumentation::Instrumentation::kInvokeVirtualOrInterface:
+        instr->InvokeVirtualOrInterface(self, obj, method, dex_pc, method);
+        break;
       default:
         LOG(FATAL) << "Unknown instrumentation event " << event_type;
         UNREACHABLE();
@@ -355,6 +372,8 @@ class InstrumentationTest : public CommonRuntimeTest {
         return listener.received_exception_caught_event;
       case instrumentation::Instrumentation::kBackwardBranch:
         return listener.received_backward_branch_event;
+      case instrumentation::Instrumentation::kInvokeVirtualOrInterface:
+        return listener.received_invoke_virtual_or_interface_event;
       default:
         LOG(FATAL) << "Unknown instrumentation event " << event_type;
         UNREACHABLE();
@@ -416,6 +435,10 @@ TEST_F(InstrumentationTest, ExceptionCaughtEvent) {
 
 TEST_F(InstrumentationTest, BackwardBranchEvent) {
   TestEvent(instrumentation::Instrumentation::kBackwardBranch);
+}
+
+TEST_F(InstrumentationTest, InvokeVirtualOrInterfaceEvent) {
+  TestEvent(instrumentation::Instrumentation::kInvokeVirtualOrInterface);
 }
 
 TEST_F(InstrumentationTest, DeoptimizeDirectMethod) {

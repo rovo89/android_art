@@ -26,6 +26,7 @@
 #include "dex_file.h"
 #include "dex_file-inl.h"
 #include "gc_root-inl.h"
+#include "jit/profiling_info.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
 #include "mirror/object-inl.h"
@@ -545,6 +546,10 @@ void ArtMethod::VisitRoots(RootVisitorType& visitor) {
   }
 
   visitor.VisitRootIfNonNull(declaring_class_.AddressWithoutBarrier());
+  ProfilingInfo* profiling_info = GetProfilingInfo();
+  if (hotness_count_ != 0 && !IsNative() && profiling_info != nullptr) {
+    profiling_info->VisitRoots(visitor);
+  }
 }
 
 inline void ArtMethod::CopyFrom(const ArtMethod* src, size_t image_pointer_size) {
