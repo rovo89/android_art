@@ -60,12 +60,12 @@ class DexFileVerifier {
   bool CheckClassDataItemField(uint32_t idx,
                                uint32_t access_flags,
                                uint32_t class_access_flags,
-                               uint32_t class_type_index,
+                               uint16_t class_type_index,
                                bool expect_static);
   bool CheckClassDataItemMethod(uint32_t idx,
                                 uint32_t access_flags,
                                 uint32_t class_access_flags,
-                                uint32_t class_type_index,
+                                uint16_t class_type_index,
                                 uint32_t code_offset,
                                 std::unordered_set<uint32_t>* direct_method_indexes,
                                 bool expect_direct);
