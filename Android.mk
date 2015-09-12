@@ -119,6 +119,7 @@ TEST_ART_TARGET_SYNC_DEPS :=
 include $(art_path)/build/Android.common_test.mk
 include $(art_path)/build/Android.gtest.mk
 include $(art_path)/test/Android.run-test.mk
+include $(art_path)/benchmark/Android.mk
 
 # Sync test files to the target, depends upon all things that must be pushed to the target.
 .PHONY: test-art-target-sync
