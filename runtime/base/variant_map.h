@@ -257,8 +257,7 @@ struct VariantMap {
     if (ptr != nullptr) {
       return std::move(*ptr);
     } else {
-      TValue default_value = key.CreateDefaultValue();
-      return std::move(default_value);
+      return key.CreateDefaultValue();
     }
   }
 
