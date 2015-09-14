@@ -19,7 +19,6 @@
 
 #include "base/casts.h"
 #include "base/macros.h"
-#include "base/stl_util.h"
 #include "object_callbacks.h"
 #include "reg_type.h"
 #include "runtime.h"
