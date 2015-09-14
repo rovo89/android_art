@@ -382,17 +382,6 @@ void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
     }
   }
 
-  // Check Phi uniqueness (no two Phis with the same type refer to the same register).
-  for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
-    HPhi* phi = it.Current()->AsPhi();
-    if (phi->GetNextEquivalentPhiWithSameType() != nullptr) {
-      std::stringstream type_str;
-      type_str << phi->GetType();
-      AddError(StringPrintf("Equivalent phi (%d) found for VReg %d with type: %s",
-          phi->GetId(), phi->GetRegNumber(), type_str.str().c_str()));
-    }
-  }
-
   // Ensure try membership information is consistent.
   if (block->IsCatchBlock()) {
     if (block->IsTryBlock()) {
@@ -577,6 +566,35 @@ static Primitive::Type PrimitiveKind(Primitive::Type type) {
   }
 }
 
+static bool IsSameSizeConstant(HInstruction* insn1, HInstruction* insn2) {
+  return insn1->IsConstant()
+      && insn2->IsConstant()
+      && Primitive::Is64BitType(insn1->GetType()) == Primitive::Is64BitType(insn2->GetType());
+}
+
+static bool IsConstantEquivalent(HInstruction* insn1, HInstruction* insn2, BitVector* visited) {
+  if (insn1->IsPhi() &&
+      insn1->AsPhi()->IsVRegEquivalentOf(insn2) &&
+      insn1->InputCount() == insn2->InputCount()) {
+    // Testing only one of the two inputs for recursion is sufficient.
+    if (visited->IsBitSet(insn1->GetId())) {
+      return true;
+    }
+    visited->SetBit(insn1->GetId());
+
+    for (size_t i = 0, e = insn1->InputCount(); i < e; ++i) {
+      if (!IsConstantEquivalent(insn1->InputAt(i), insn2->InputAt(i), visited)) {
+        return false;
+      }
+    }
+    return true;
+  } else if (IsSameSizeConstant(insn1, insn2)) {
+    return insn1->AsConstant()->GetValueAsUint64() == insn2->AsConstant()->GetValueAsUint64();
+  } else {
+    return false;
+  }
+}
+
 void SSAChecker::VisitPhi(HPhi* phi) {
   VisitInstruction(phi);
 
@@ -632,6 +650,45 @@ void SSAChecker::VisitPhi(HPhi* phi) {
               "predecessor number %zu nor in a block dominating it.",
               input->GetId(), i, phi->GetId(), phi->GetBlock()->GetBlockId(),
               i));
+        }
+      }
+    }
+  }
+
+  // Ensure that catch phis are sorted by their vreg number, as required by
+  // the register allocator and code generator. This does not apply to normal
+  // phis which can be constructed artifically.
+  if (phi->IsCatchPhi()) {
+    HInstruction* next_phi = phi->GetNext();
+    if (next_phi != nullptr && phi->GetRegNumber() > next_phi->AsPhi()->GetRegNumber()) {
+      AddError(StringPrintf("Catch phis %d and %d in block %d are not sorted by their "
+                            "vreg numbers.",
+                            phi->GetId(),
+                            next_phi->GetId(),
+                            phi->GetBlock()->GetBlockId()));
+    }
+  }
+
+  // Test phi equivalents. There should not be two of the same type and they
+  // should only be created for constants which were untyped in DEX.
+  for (HInstructionIterator phi_it(phi->GetBlock()->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+    HPhi* other_phi = phi_it.Current()->AsPhi();
+    if (phi != other_phi && phi->GetRegNumber() == other_phi->GetRegNumber()) {
+      if (phi->GetType() == other_phi->GetType()) {
+        std::stringstream type_str;
+        type_str << phi->GetType();
+        AddError(StringPrintf("Equivalent phi (%d) found for VReg %d with type: %s.",
+                              phi->GetId(),
+                              phi->GetRegNumber(),
+                              type_str.str().c_str()));
+      } else {
+        ArenaBitVector visited(GetGraph()->GetArena(), 0, /* expandable */ true);
+        if (!IsConstantEquivalent(phi, other_phi, &visited)) {
+          AddError(StringPrintf("Two phis (%d and %d) found for VReg %d but they "
+                                "are not equivalents of constants.",
+                                phi->GetId(),
+                                other_phi->GetId(),
+                                phi->GetRegNumber()));
         }
       }
     }

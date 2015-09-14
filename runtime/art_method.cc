@@ -225,26 +225,41 @@ uint32_t ArtMethod::ToDexPc(const uintptr_t pc, bool abort_on_failure) {
 
 uintptr_t ArtMethod::ToNativeQuickPc(const uint32_t dex_pc, bool abort_on_failure) {
   const void* entry_point = GetQuickOatEntryPoint(sizeof(void*));
-  MappingTable table(entry_point != nullptr ?
-      GetMappingTable(EntryPointToCodePointer(entry_point), sizeof(void*)) : nullptr);
-  if (table.TotalSize() == 0) {
-    DCHECK_EQ(dex_pc, 0U);
-    return 0;   // Special no mapping/pc == 0 case
-  }
-  // Assume the caller wants a dex-to-pc mapping so check here first.
-  typedef MappingTable::DexToPcIterator It;
-  for (It cur = table.DexToPcBegin(), end = table.DexToPcEnd(); cur != end; ++cur) {
-    if (cur.DexPc() == dex_pc) {
-      return reinterpret_cast<uintptr_t>(entry_point) + cur.NativePcOffset();
+  if (IsOptimized(sizeof(void*))) {
+    // Optimized code does not have a mapping table. Search for the dex-to-pc
+    // mapping in stack maps.
+    CodeInfo code_info = GetOptimizedCodeInfo();
+    StackMapEncoding encoding = code_info.ExtractEncoding();
+
+    // Assume the caller needs the mapping for a catch handler. If there are
+    // multiple stack maps for this dex_pc, it will hit the catch stack map first.
+    StackMap stack_map = code_info.GetCatchStackMapForDexPc(dex_pc, encoding);
+    if (stack_map.IsValid()) {
+      return reinterpret_cast<uintptr_t>(entry_point) + stack_map.GetNativePcOffset(encoding);
+    }
+  } else {
+    MappingTable table(entry_point != nullptr ?
+        GetMappingTable(EntryPointToCodePointer(entry_point), sizeof(void*)) : nullptr);
+    if (table.TotalSize() == 0) {
+      DCHECK_EQ(dex_pc, 0U);
+      return 0;   // Special no mapping/pc == 0 case
+    }
+    // Assume the caller wants a dex-to-pc mapping so check here first.
+    typedef MappingTable::DexToPcIterator It;
+    for (It cur = table.DexToPcBegin(), end = table.DexToPcEnd(); cur != end; ++cur) {
+      if (cur.DexPc() == dex_pc) {
+        return reinterpret_cast<uintptr_t>(entry_point) + cur.NativePcOffset();
+      }
+    }
+    // Now check pc-to-dex mappings.
+    typedef MappingTable::PcToDexIterator It2;
+    for (It2 cur = table.PcToDexBegin(), end = table.PcToDexEnd(); cur != end; ++cur) {
+      if (cur.DexPc() == dex_pc) {
+        return reinterpret_cast<uintptr_t>(entry_point) + cur.NativePcOffset();
+      }
     }
   }
-  // Now check pc-to-dex mappings.
-  typedef MappingTable::PcToDexIterator It2;
-  for (It2 cur = table.PcToDexBegin(), end = table.PcToDexEnd(); cur != end; ++cur) {
-    if (cur.DexPc() == dex_pc) {
-      return reinterpret_cast<uintptr_t>(entry_point) + cur.NativePcOffset();
-    }
-  }
+
   if (abort_on_failure) {
     LOG(FATAL) << "Failed to find native offset for dex pc 0x" << std::hex << dex_pc
                << " in " << PrettyMethod(this);
