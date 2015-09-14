@@ -235,6 +235,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_unwindOtherProcess(JNIEnv*, jobj
 
   return result ? JNI_TRUE : JNI_FALSE;
 #else
+  UNUSED(pid_int);
   return JNI_FALSE;
 #endif
 }
