@@ -79,7 +79,7 @@ class TopologicalSortOrderTest : public testing::Test {
         for (size_t j = 0u; j != def->num_successors; ++j) {
           SuccessorBlockInfo* successor_block_info =
               static_cast<SuccessorBlockInfo*>(cu_.arena.Alloc(sizeof(SuccessorBlockInfo),
-                                                               kArenaAllocSuccessor));
+                                                               kArenaAllocSuccessors));
           successor_block_info->block = j;
           successor_block_info->key = 0u;  // Not used by class init check elimination.
           bb->successor_blocks.push_back(successor_block_info);

@@ -118,7 +118,7 @@ class MirOptimizationTest : public testing::Test {
         for (size_t j = 0u; j != def->num_successors; ++j) {
           SuccessorBlockInfo* successor_block_info =
               static_cast<SuccessorBlockInfo*>(cu_.arena.Alloc(sizeof(SuccessorBlockInfo),
-                                                               kArenaAllocSuccessor));
+                                                               kArenaAllocSuccessors));
           successor_block_info->block = j;
           successor_block_info->key = 0u;  // Not used by class init check elimination.
           bb->successor_blocks.push_back(successor_block_info);
@@ -244,7 +244,7 @@ class MirOptimizationTest : public testing::Test {
     BasicBlock* check_bb = cu_.mir_graph->GetBasicBlock(3u);
     check_bb->successor_block_list_type = kCatch;
     SuccessorBlockInfo* successor_block_info = reinterpret_cast<SuccessorBlockInfo*>
-        (cu_.arena.Alloc(sizeof(SuccessorBlockInfo), kArenaAllocSuccessor));
+        (cu_.arena.Alloc(sizeof(SuccessorBlockInfo), kArenaAllocSuccessors));
     successor_block_info->block = catch_handler->id;
     check_bb->successor_blocks.push_back(successor_block_info);
   }

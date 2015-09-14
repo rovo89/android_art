@@ -572,7 +572,7 @@ BasicBlock* MIRGraph::ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, DexOffs
     DCHECK(case_block != nullptr);
     SuccessorBlockInfo* successor_block_info =
         static_cast<SuccessorBlockInfo*>(arena_->Alloc(sizeof(SuccessorBlockInfo),
-                                                       kArenaAllocSuccessor));
+                                                       kArenaAllocSuccessors));
     successor_block_info->block = case_block->id;
     successor_block_info->key =
         (insn->dalvikInsn.opcode == Instruction::PACKED_SWITCH) ?
@@ -627,7 +627,7 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
         catches_.insert(catch_block->start_offset);
       }
       SuccessorBlockInfo* successor_block_info = reinterpret_cast<SuccessorBlockInfo*>
-          (arena_->Alloc(sizeof(SuccessorBlockInfo), kArenaAllocSuccessor));
+          (arena_->Alloc(sizeof(SuccessorBlockInfo), kArenaAllocSuccessors));
       successor_block_info->block = catch_block->id;
       successor_block_info->key = iterator.GetHandlerTypeIndex();
       cur_block->successor_blocks.push_back(successor_block_info);
@@ -2178,7 +2178,7 @@ BasicBlock* BasicBlock::Copy(MIRGraph* mir_graph) {
     result_bb->successor_blocks.reserve(successor_blocks.size());
     for (SuccessorBlockInfo* sbi_old : successor_blocks) {
       SuccessorBlockInfo* sbi_new = static_cast<SuccessorBlockInfo*>(
-          arena->Alloc(sizeof(SuccessorBlockInfo), kArenaAllocSuccessor));
+          arena->Alloc(sizeof(SuccessorBlockInfo), kArenaAllocSuccessors));
       memcpy(sbi_new, sbi_old, sizeof(SuccessorBlockInfo));
       result_bb->successor_blocks.push_back(sbi_new);
     }
