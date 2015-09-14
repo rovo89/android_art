@@ -17,6 +17,7 @@
 #include "reg_type_cache-inl.h"
 
 #include "base/casts.h"
+#include "base/stl_util.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "mirror/class-inl.h"
