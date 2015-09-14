@@ -169,10 +169,14 @@ class LocationsBuilderARM : public HGraphVisitor {
 
  private:
   void HandleInvoke(HInvoke* invoke);
-  void HandleBitwiseOperation(HBinaryOperation* operation);
+  void HandleBitwiseOperation(HBinaryOperation* operation, Opcode opcode);
   void HandleShift(HBinaryOperation* operation);
   void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
+
+  Location ArmEncodableConstantOrRegister(HInstruction* constant, Opcode opcode);
+  bool CanEncodeConstantAsImmediate(HConstant* input_cst, Opcode opcode);
+  bool CanEncodeConstantAsImmediate(uint32_t value, Opcode opcode);
 
   CodeGeneratorARM* const codegen_;
   InvokeDexCallingConventionVisitorARM parameter_visitor_;
@@ -205,6 +209,9 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
   // the suspend call.
   void GenerateSuspendCheck(HSuspendCheck* check, HBasicBlock* successor);
   void GenerateClassInitializationCheck(SlowPathCode* slow_path, Register class_reg);
+  void GenerateAndConst(Register out, Register first, uint32_t value);
+  void GenerateOrrConst(Register out, Register first, uint32_t value);
+  void GenerateEorConst(Register out, Register first, uint32_t value);
   void HandleBitwiseOperation(HBinaryOperation* operation);
   void HandleShift(HBinaryOperation* operation);
   void GenerateMemoryBarrier(MemBarrierKind kind);

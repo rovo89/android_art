@@ -3512,6 +3512,47 @@ void LocationsBuilderARM::HandleFieldGet(HInstruction* instruction, const FieldI
   }
 }
 
+Location LocationsBuilderARM::ArmEncodableConstantOrRegister(HInstruction* constant,
+                                                             Opcode opcode) {
+  DCHECK(!Primitive::IsFloatingPointType(constant->GetType()));
+  if (constant->IsConstant() &&
+      CanEncodeConstantAsImmediate(constant->AsConstant(), opcode)) {
+    return Location::ConstantLocation(constant->AsConstant());
+  }
+  return Location::RequiresRegister();
+}
+
+bool LocationsBuilderARM::CanEncodeConstantAsImmediate(HConstant* input_cst,
+                                                       Opcode opcode) {
+  uint64_t value = static_cast<uint64_t>(Int64FromConstant(input_cst));
+  if (Primitive::Is64BitType(input_cst->GetType())) {
+    return CanEncodeConstantAsImmediate(Low32Bits(value), opcode) &&
+        CanEncodeConstantAsImmediate(High32Bits(value), opcode);
+  } else {
+    return CanEncodeConstantAsImmediate(Low32Bits(value), opcode);
+  }
+}
+
+bool LocationsBuilderARM::CanEncodeConstantAsImmediate(uint32_t value, Opcode opcode) {
+  ShifterOperand so;
+  ArmAssembler* assembler = codegen_->GetAssembler();
+  if (assembler->ShifterOperandCanHold(kNoRegister, kNoRegister, opcode, value, &so)) {
+    return true;
+  }
+  Opcode neg_opcode = kNoOperand;
+  switch (opcode) {
+    case AND:
+      neg_opcode = BIC;
+      break;
+    case ORR:
+      neg_opcode = ORN;
+      break;
+    default:
+      return false;
+  }
+  return assembler->ShifterOperandCanHold(kNoRegister, kNoRegister, neg_opcode, ~value, &so);
+}
+
 void InstructionCodeGeneratorARM::HandleFieldGet(HInstruction* instruction,
                                                  const FieldInfo& field_info) {
   DCHECK(instruction->IsInstanceFieldGet() || instruction->IsStaticFieldGet());
@@ -4912,17 +4953,18 @@ void InstructionCodeGeneratorARM::VisitMonitorOperation(HMonitorOperation* instr
       nullptr);
 }
 
-void LocationsBuilderARM::VisitAnd(HAnd* instruction) { HandleBitwiseOperation(instruction); }
-void LocationsBuilderARM::VisitOr(HOr* instruction) { HandleBitwiseOperation(instruction); }
-void LocationsBuilderARM::VisitXor(HXor* instruction) { HandleBitwiseOperation(instruction); }
+void LocationsBuilderARM::VisitAnd(HAnd* instruction) { HandleBitwiseOperation(instruction, AND); }
+void LocationsBuilderARM::VisitOr(HOr* instruction) { HandleBitwiseOperation(instruction, ORR); }
+void LocationsBuilderARM::VisitXor(HXor* instruction) { HandleBitwiseOperation(instruction, EOR); }
 
-void LocationsBuilderARM::HandleBitwiseOperation(HBinaryOperation* instruction) {
+void LocationsBuilderARM::HandleBitwiseOperation(HBinaryOperation* instruction, Opcode opcode) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
   DCHECK(instruction->GetResultType() == Primitive::kPrimInt
          || instruction->GetResultType() == Primitive::kPrimLong);
+  // Note: GVN reorders commutative operations to have the constant on the right hand side.
   locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(1, ArmEncodableConstantOrRegister(instruction->InputAt(1), opcode));
   locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
 
@@ -4938,48 +4980,131 @@ void InstructionCodeGeneratorARM::VisitXor(HXor* instruction) {
   HandleBitwiseOperation(instruction);
 }
 
+void InstructionCodeGeneratorARM::GenerateAndConst(Register out, Register first, uint32_t value) {
+  // Optimize special cases for individual halfs of `and-long` (`and` is simplified earlier).
+  if (value == 0xffffffffu) {
+    if (out != first) {
+      __ mov(out, ShifterOperand(first));
+    }
+    return;
+  }
+  if (value == 0u) {
+    __ mov(out, ShifterOperand(0));
+    return;
+  }
+  ShifterOperand so;
+  if (__ ShifterOperandCanHold(kNoRegister, kNoRegister, AND, value, &so)) {
+    __ and_(out, first, so);
+  } else {
+    DCHECK(__ ShifterOperandCanHold(kNoRegister, kNoRegister, BIC, ~value, &so));
+    __ bic(out, first, ShifterOperand(~value));
+  }
+}
+
+void InstructionCodeGeneratorARM::GenerateOrrConst(Register out, Register first, uint32_t value) {
+  // Optimize special cases for individual halfs of `or-long` (`or` is simplified earlier).
+  if (value == 0u) {
+    if (out != first) {
+      __ mov(out, ShifterOperand(first));
+    }
+    return;
+  }
+  if (value == 0xffffffffu) {
+    __ mvn(out, ShifterOperand(0));
+    return;
+  }
+  ShifterOperand so;
+  if (__ ShifterOperandCanHold(kNoRegister, kNoRegister, ORR, value, &so)) {
+    __ orr(out, first, so);
+  } else {
+    DCHECK(__ ShifterOperandCanHold(kNoRegister, kNoRegister, ORN, ~value, &so));
+    __ orn(out, first, ShifterOperand(~value));
+  }
+}
+
+void InstructionCodeGeneratorARM::GenerateEorConst(Register out, Register first, uint32_t value) {
+  // Optimize special case for individual halfs of `xor-long` (`xor` is simplified earlier).
+  if (value == 0u) {
+    if (out != first) {
+      __ mov(out, ShifterOperand(first));
+    }
+    return;
+  }
+  __ eor(out, first, ShifterOperand(value));
+}
+
 void InstructionCodeGeneratorARM::HandleBitwiseOperation(HBinaryOperation* instruction) {
   LocationSummary* locations = instruction->GetLocations();
+  Location first = locations->InAt(0);
+  Location second = locations->InAt(1);
+  Location out = locations->Out();
+
+  if (second.IsConstant()) {
+    uint64_t value = static_cast<uint64_t>(Int64FromConstant(second.GetConstant()));
+    uint32_t value_low = Low32Bits(value);
+    if (instruction->GetResultType() == Primitive::kPrimInt) {
+      Register first_reg = first.AsRegister<Register>();
+      Register out_reg = out.AsRegister<Register>();
+      if (instruction->IsAnd()) {
+        GenerateAndConst(out_reg, first_reg, value_low);
+      } else if (instruction->IsOr()) {
+        GenerateOrrConst(out_reg, first_reg, value_low);
+      } else {
+        DCHECK(instruction->IsXor());
+        GenerateEorConst(out_reg, first_reg, value_low);
+      }
+    } else {
+      DCHECK_EQ(instruction->GetResultType(), Primitive::kPrimLong);
+      uint32_t value_high = High32Bits(value);
+      Register first_low = first.AsRegisterPairLow<Register>();
+      Register first_high = first.AsRegisterPairHigh<Register>();
+      Register out_low = out.AsRegisterPairLow<Register>();
+      Register out_high = out.AsRegisterPairHigh<Register>();
+      if (instruction->IsAnd()) {
+        GenerateAndConst(out_low, first_low, value_low);
+        GenerateAndConst(out_high, first_high, value_high);
+      } else if (instruction->IsOr()) {
+        GenerateOrrConst(out_low, first_low, value_low);
+        GenerateOrrConst(out_high, first_high, value_high);
+      } else {
+        DCHECK(instruction->IsXor());
+        GenerateEorConst(out_low, first_low, value_low);
+        GenerateEorConst(out_high, first_high, value_high);
+      }
+    }
+    return;
+  }
 
   if (instruction->GetResultType() == Primitive::kPrimInt) {
-    Register first = locations->InAt(0).AsRegister<Register>();
-    Register second = locations->InAt(1).AsRegister<Register>();
-    Register out = locations->Out().AsRegister<Register>();
+    Register first_reg = first.AsRegister<Register>();
+    ShifterOperand second_reg(second.AsRegister<Register>());
+    Register out_reg = out.AsRegister<Register>();
     if (instruction->IsAnd()) {
-      __ and_(out, first, ShifterOperand(second));
+      __ and_(out_reg, first_reg, second_reg);
     } else if (instruction->IsOr()) {
-      __ orr(out, first, ShifterOperand(second));
+      __ orr(out_reg, first_reg, second_reg);
     } else {
       DCHECK(instruction->IsXor());
-      __ eor(out, first, ShifterOperand(second));
+      __ eor(out_reg, first_reg, second_reg);
     }
   } else {
     DCHECK_EQ(instruction->GetResultType(), Primitive::kPrimLong);
-    Location first = locations->InAt(0);
-    Location second = locations->InAt(1);
-    Location out = locations->Out();
+    Register first_low = first.AsRegisterPairLow<Register>();
+    Register first_high = first.AsRegisterPairHigh<Register>();
+    ShifterOperand second_low(second.AsRegisterPairLow<Register>());
+    ShifterOperand second_high(second.AsRegisterPairHigh<Register>());
+    Register out_low = out.AsRegisterPairLow<Register>();
+    Register out_high = out.AsRegisterPairHigh<Register>();
     if (instruction->IsAnd()) {
-      __ and_(out.AsRegisterPairLow<Register>(),
-              first.AsRegisterPairLow<Register>(),
-              ShifterOperand(second.AsRegisterPairLow<Register>()));
-      __ and_(out.AsRegisterPairHigh<Register>(),
-              first.AsRegisterPairHigh<Register>(),
-              ShifterOperand(second.AsRegisterPairHigh<Register>()));
+      __ and_(out_low, first_low, second_low);
+      __ and_(out_high, first_high, second_high);
     } else if (instruction->IsOr()) {
-      __ orr(out.AsRegisterPairLow<Register>(),
-             first.AsRegisterPairLow<Register>(),
-             ShifterOperand(second.AsRegisterPairLow<Register>()));
-      __ orr(out.AsRegisterPairHigh<Register>(),
-             first.AsRegisterPairHigh<Register>(),
-             ShifterOperand(second.AsRegisterPairHigh<Register>()));
+      __ orr(out_low, first_low, second_low);
+      __ orr(out_high, first_high, second_high);
     } else {
       DCHECK(instruction->IsXor());
-      __ eor(out.AsRegisterPairLow<Register>(),
-             first.AsRegisterPairLow<Register>(),
-             ShifterOperand(second.AsRegisterPairLow<Register>()));
-      __ eor(out.AsRegisterPairHigh<Register>(),
-             first.AsRegisterPairHigh<Register>(),
-             ShifterOperand(second.AsRegisterPairHigh<Register>()));
+      __ eor(out_low, first_low, second_low);
+      __ eor(out_high, first_high, second_high);
     }
   }
 }

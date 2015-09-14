@@ -410,6 +410,7 @@ bool Thumb2Assembler::ShifterOperandCanHold(Register rd ATTRIBUTE_UNUSED,
     case MOV:
       // TODO: Support less than or equal to 12bits.
       return ArmAssembler::ModifiedImmediate(immediate) != kInvalidModifiedImmediate;
+
     case MVN:
     default:
       return ArmAssembler::ModifiedImmediate(immediate) != kInvalidModifiedImmediate;
@@ -489,6 +490,12 @@ void Thumb2Assembler::cmn(Register rn, const ShifterOperand& so, Condition cond)
 void Thumb2Assembler::orr(Register rd, Register rn, const ShifterOperand& so,
                           Condition cond, SetCc set_cc) {
   EmitDataProcessing(cond, ORR, set_cc, rn, rd, so);
+}
+
+
+void Thumb2Assembler::orn(Register rd, Register rn, const ShifterOperand& so,
+                          Condition cond, SetCc set_cc) {
+  EmitDataProcessing(cond, ORN, set_cc, rn, rd, so);
 }
 
 
@@ -1105,6 +1112,7 @@ bool Thumb2Assembler::Is32BitDataProcessing(Condition cond,
       rn_is_valid = false;      // There is no Rn for these instructions.
       break;
     case TEQ:
+    case ORN:
       return true;
     case ADD:
     case SUB:
@@ -1222,6 +1230,7 @@ void Thumb2Assembler::Emit32BitDataProcessing(Condition cond ATTRIBUTE_UNUSED,
     case MOV: thumb_opcode =  2U /* 0b0010 */; rn = PC; break;
     case BIC: thumb_opcode =  1U /* 0b0001 */; break;
     case MVN: thumb_opcode =  3U /* 0b0011 */; rn = PC; break;
+    case ORN: thumb_opcode =  3U /* 0b0011 */; break;
     default:
       break;
   }

@@ -130,6 +130,15 @@ void Arm32Assembler::orr(Register rd, Register rn, const ShifterOperand& so,
 }
 
 
+void Arm32Assembler::orn(Register rd ATTRIBUTE_UNUSED,
+                         Register rn ATTRIBUTE_UNUSED,
+                         const ShifterOperand& so ATTRIBUTE_UNUSED,
+                         Condition cond ATTRIBUTE_UNUSED,
+                         SetCc set_cc ATTRIBUTE_UNUSED) {
+  LOG(FATAL) << "orn is not supported on ARM32";
+}
+
+
 void Arm32Assembler::mov(Register rd, const ShifterOperand& so,
                          Condition cond, SetCc set_cc) {
   EmitType01(cond, so.type(), MOV, set_cc, R0, rd, so);
