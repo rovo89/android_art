@@ -32,6 +32,11 @@ if [ ! -f $test_jar ]; then
   exit 1
 fi
 
+emulator="no"
+if [ "$ANDROID_SERIAL" = "emulator-5554" ]; then
+  emulator="yes"
+fi
+
 # Packages that currently work correctly with the expectation files.
 working_packages=("dalvik.system"
                   "libcore.icu"
@@ -81,10 +86,12 @@ while true; do
     # Remove the --debug from the arguments.
     vogar_args=${vogar_args/$1}
     vogar_args="$vogar_args --vm-arg -XXlib:libartd.so"
-    # Increase the timeout, as vogar cannot set individual test
-    # timeout when being asked to run packages, and some tests go above
-    # the default timeout.
-    vogar_args="$vogar_args --timeout 240"
+    if [ "$emulator" = "no" ]; then
+      # Increase the timeout, as vogar cannot set individual test
+      # timeout when being asked to run packages, and some tests go above
+      # the default timeout.
+      vogar_args="$vogar_args --timeout 240"
+    fi
     shift
   elif [[ "$1" == "" ]]; then
     break
@@ -92,6 +99,11 @@ while true; do
     shift
   fi
 done
+
+if [ "$emulator" = "yes" ]; then
+  # Be very patient with the emulator.
+  vogar_args="$vogar_args --timeout 480"
+fi
 
 # Run the tests using vogar.
 echo "Running tests for the following test packages:"
