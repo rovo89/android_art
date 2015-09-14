@@ -22,6 +22,7 @@
 #include "art_method-inl.h"
 #include "base/logging.h"
 #include "base/mutex-inl.h"
+#include "base/stl_util.h"
 #include "base/time_utils.h"
 #include "class_linker.h"
 #include "compiler_callbacks.h"

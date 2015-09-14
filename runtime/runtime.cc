@@ -57,6 +57,7 @@
 #include "atomic.h"
 #include "base/arena_allocator.h"
 #include "base/dumpable.h"
+#include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker-inl.h"
 #include "compiler_callbacks.h"
@@ -129,6 +130,7 @@
 #include "thread_list.h"
 #include "trace.h"
 #include "transaction.h"
+#include "utils.h"
 #include "verifier/method_verifier.h"
 #include "well_known_classes.h"
 

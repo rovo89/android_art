@@ -20,6 +20,8 @@
 #include <algorithm>
 #include <sstream>
 
+#include "base/logging.h"
+
 namespace art {
 
 // Sort and remove duplicates of an STL vector or deque.
@@ -92,6 +94,59 @@ std::string ToString(const T& v) {
   }
   os << "]";
   return os.str();
+}
+
+// Deleter using free() for use with std::unique_ptr<>. See also UniqueCPtr<> below.
+struct FreeDelete {
+  // NOTE: Deleting a const object is valid but free() takes a non-const pointer.
+  void operator()(const void* ptr) const {
+    free(const_cast<void*>(ptr));
+  }
+};
+
+// Alias for std::unique_ptr<> that uses the C function free() to delete objects.
+template <typename T>
+using UniqueCPtr = std::unique_ptr<T, FreeDelete>;
+
+// C++14 from-the-future import (std::make_unique)
+// Invoke the constructor of 'T' with the provided args, and wrap the result in a unique ptr.
+template <typename T, typename ... Args>
+std::unique_ptr<T> MakeUnique(Args&& ... args) {
+  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+}
+
+// Find index of the first element with the specified value known to be in the container.
+template <typename Container, typename T>
+size_t IndexOfElement(const Container& container, const T& value) {
+  auto it = std::find(container.begin(), container.end(), value);
+  DCHECK(it != container.end());  // Must exist.
+  return std::distance(container.begin(), it);
+}
+
+// Remove the first element with the specified value known to be in the container.
+template <typename Container, typename T>
+void RemoveElement(Container& container, const T& value) {
+  auto it = std::find(container.begin(), container.end(), value);
+  DCHECK(it != container.end());  // Must exist.
+  container.erase(it);
+}
+
+// Replace the first element with the specified old_value known to be in the container.
+template <typename Container, typename T>
+void ReplaceElement(Container& container, const T& old_value, const T& new_value) {
+  auto it = std::find(container.begin(), container.end(), old_value);
+  DCHECK(it != container.end());  // Must exist.
+  *it = new_value;
+}
+
+// Search for an element with the specified value and return true if it was found, false otherwise.
+template <typename Container, typename T>
+bool ContainsElement(const Container& container, const T& value, size_t start_pos = 0u) {
+  DCHECK_LE(start_pos, container.size());
+  auto start = container.begin();
+  std::advance(start, start_pos);
+  auto it = std::find(start, container.end(), value);
+  return it != container.end();
 }
 
 }  // namespace art
