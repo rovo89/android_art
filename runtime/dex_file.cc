@@ -31,6 +31,7 @@
 #include "art_method-inl.h"
 #include "base/hash_map.h"
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "base/stringprintf.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"

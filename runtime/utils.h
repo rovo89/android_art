@@ -294,25 +294,6 @@ void Push32(std::vector<uint8_t, Alloc>* buf, int32_t data) {
   buf->push_back((data >> 24) & 0xff);
 }
 
-// Deleter using free() for use with std::unique_ptr<>. See also UniqueCPtr<> below.
-struct FreeDelete {
-  // NOTE: Deleting a const object is valid but free() takes a non-const pointer.
-  void operator()(const void* ptr) const {
-    free(const_cast<void*>(ptr));
-  }
-};
-
-// Alias for std::unique_ptr<> that uses the C function free() to delete objects.
-template <typename T>
-using UniqueCPtr = std::unique_ptr<T, FreeDelete>;
-
-// C++14 from-the-future import (std::make_unique)
-// Invoke the constructor of 'T' with the provided args, and wrap the result in a unique ptr.
-template <typename T, typename ... Args>
-std::unique_ptr<T> MakeUnique(Args&& ... args) {
-  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
-}
-
 inline bool TestBitmap(size_t idx, const uint8_t* bitmap) {
   return ((bitmap[idx / kBitsPerByte] >> (idx % kBitsPerByte)) & 0x01) != 0;
 }
