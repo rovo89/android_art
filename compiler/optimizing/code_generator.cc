@@ -171,7 +171,7 @@ HBasicBlock* CodeGenerator::GetNextBlockToEmit() const {
 
 HBasicBlock* CodeGenerator::FirstNonEmptyBlock(HBasicBlock* block) const {
   while (block->IsSingleJump()) {
-    block = block->GetSuccessors().Get(0);
+    block = block->GetSuccessor(0);
   }
   return block;
 }

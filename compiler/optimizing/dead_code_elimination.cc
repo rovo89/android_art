@@ -42,8 +42,8 @@ static void MarkReachableBlocks(HBasicBlock* block, ArenaBitVector* visited) {
       MarkReachableBlocks(if_instruction->IfFalseSuccessor(), visited);
     }
   } else {
-    for (size_t i = 0, e = block->GetSuccessors().Size(); i < e; ++i) {
-      MarkReachableBlocks(block->GetSuccessors().Get(i), visited);
+    for (HBasicBlock* successor : block->GetSuccessors()) {
+      MarkReachableBlocks(successor, visited);
     }
   }
 }
@@ -99,12 +99,12 @@ void HDeadCodeElimination::RemoveDeadBlocks() {
   // Connect successive blocks created by dead branches. Order does not matter.
   for (HReversePostOrderIterator it(*graph_); !it.Done();) {
     HBasicBlock* block  = it.Current();
-    if (block->IsEntryBlock() || block->GetSuccessors().Size() != 1u) {
+    if (block->IsEntryBlock() || block->GetSuccessors().size() != 1u) {
       it.Advance();
       continue;
     }
-    HBasicBlock* successor = block->GetSuccessors().Get(0);
-    if (successor->IsExitBlock() || successor->GetPredecessors().Size() != 1u) {
+    HBasicBlock* successor = block->GetSuccessor(0);
+    if (successor->IsExitBlock() || successor->GetPredecessors().size() != 1u) {
       it.Advance();
       continue;
     }
