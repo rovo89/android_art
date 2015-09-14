@@ -271,7 +271,8 @@ class LoadStringSlowPathARM : public SlowPathCodeARM {
 
 class TypeCheckSlowPathARM : public SlowPathCodeARM {
  public:
-  explicit TypeCheckSlowPathARM(HInstruction* instruction) : instruction_(instruction) {}
+  TypeCheckSlowPathARM(HInstruction* instruction, bool is_fatal)
+      : instruction_(instruction), is_fatal_(is_fatal) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
@@ -282,7 +283,19 @@ class TypeCheckSlowPathARM : public SlowPathCodeARM {
 
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
     __ Bind(GetEntryLabel());
-    SaveLiveRegisters(codegen, locations);
+
+    if (instruction_->IsCheckCast()) {
+      // The codegen for the instruction overwrites `temp`, so put it back in place.
+      Register obj = locations->InAt(0).AsRegister<Register>();
+      Register temp = locations->GetTemp(0).AsRegister<Register>();
+      uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+      __ LoadFromOffset(kLoadWord, temp, obj, class_offset);
+      __ MaybeUnpoisonHeapReference(temp);
+    }
+
+    if (!is_fatal_) {
+      SaveLiveRegisters(codegen, locations);
+    }
 
     // We're moving two locations to locations that could overlap, so we need a parallel
     // move resolver.
@@ -309,14 +322,19 @@ class TypeCheckSlowPathARM : public SlowPathCodeARM {
                                  this);
     }
 
-    RestoreLiveRegisters(codegen, locations);
-    __ b(GetExitLabel());
+    if (!is_fatal_) {
+      RestoreLiveRegisters(codegen, locations);
+      __ b(GetExitLabel());
+    }
   }
 
   const char* GetDescription() const OVERRIDE { return "TypeCheckSlowPathARM"; }
 
+  bool IsFatal() const OVERRIDE { return is_fatal_; }
+
  private:
   HInstruction* const instruction_;
+  const bool is_fatal_;
 
   DISALLOW_COPY_AND_ASSIGN(TypeCheckSlowPathARM);
 };
@@ -4470,15 +4488,34 @@ void InstructionCodeGeneratorARM::VisitThrow(HThrow* instruction) {
 }
 
 void LocationsBuilderARM::VisitInstanceOf(HInstanceOf* instruction) {
-  LocationSummary::CallKind call_kind = instruction->IsClassFinal()
-      ? LocationSummary::kNoCall
-      : LocationSummary::kCallOnSlowPath;
+  LocationSummary::CallKind call_kind = LocationSummary::kNoCall;
+  switch (instruction->GetTypeCheckKind()) {
+    case TypeCheckKind::kExactCheck:
+    case TypeCheckKind::kAbstractClassCheck:
+    case TypeCheckKind::kClassHierarchyCheck:
+    case TypeCheckKind::kArrayObjectCheck:
+      call_kind = LocationSummary::kNoCall;
+      break;
+    case TypeCheckKind::kInterfaceCheck:
+      call_kind = LocationSummary::kCall;
+      break;
+    case TypeCheckKind::kArrayCheck:
+      call_kind = LocationSummary::kCallOnSlowPath;
+      break;
+  }
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
-  // The out register is used as a temporary, so it overlaps with the inputs.
-  // Note that TypeCheckSlowPathARM uses this register too.
-  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+  if (call_kind != LocationSummary::kCall) {
+    locations->SetInAt(0, Location::RequiresRegister());
+    locations->SetInAt(1, Location::RequiresRegister());
+    // The out register is used as a temporary, so it overlaps with the inputs.
+    // Note that TypeCheckSlowPathARM uses this register too.
+    locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+  } else {
+    InvokeRuntimeCallingConvention calling_convention;
+    locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+    locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+    locations->SetOut(Location::RegisterLocation(R0));
+  }
 }
 
 void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
@@ -4487,6 +4524,9 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
   Register cls = locations->InAt(1).AsRegister<Register>();
   Register out = locations->Out().AsRegister<Register>();
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+  uint32_t super_offset = mirror::Class::SuperClassOffset().Int32Value();
+  uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
+  uint32_t primitive_offset = mirror::Class::PrimitiveTypeOffset().Int32Value();
   Label done, zero;
   SlowPathCodeARM* slow_path = nullptr;
 
@@ -4495,68 +4535,242 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
   if (instruction->MustDoNullCheck()) {
     __ CompareAndBranchIfZero(obj, &zero);
   }
-  // Compare the class of `obj` with `cls`.
-  __ LoadFromOffset(kLoadWord, out, obj, class_offset);
-  __ MaybeUnpoisonHeapReference(out);
-  __ cmp(out, ShifterOperand(cls));
-  if (instruction->IsClassFinal()) {
-    // Classes must be equal for the instanceof to succeed.
-    __ b(&zero, NE);
-    __ LoadImmediate(out, 1);
-    __ b(&done);
-  } else {
-    // If the classes are not equal, we go into a slow path.
-    DCHECK(locations->OnlyCallsOnSlowPath());
-    slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathARM(instruction);
-    codegen_->AddSlowPath(slow_path);
-    __ b(slow_path->GetEntryLabel(), NE);
-    __ LoadImmediate(out, 1);
-    __ b(&done);
+
+  // In case of an interface check, we put the object class into the object register.
+  // This is safe, as the register is caller-save, and the object must be in another
+  // register if it survives the runtime call.
+  Register target = (instruction->GetTypeCheckKind() == TypeCheckKind::kInterfaceCheck)
+      ? obj
+      : out;
+  __ LoadFromOffset(kLoadWord, target, obj, class_offset);
+  __ MaybeUnpoisonHeapReference(target);
+
+  switch (instruction->GetTypeCheckKind()) {
+    case TypeCheckKind::kExactCheck: {
+      __ cmp(out, ShifterOperand(cls));
+      // Classes must be equal for the instanceof to succeed.
+      __ b(&zero, NE);
+      __ LoadImmediate(out, 1);
+      __ b(&done);
+      break;
+    }
+    case TypeCheckKind::kAbstractClassCheck: {
+      // If the class is abstract, we eagerly fetch the super class of the
+      // object to avoid doing a comparison we know will fail.
+      Label loop;
+      __ Bind(&loop);
+      __ LoadFromOffset(kLoadWord, out, out, super_offset);
+      __ MaybeUnpoisonHeapReference(out);
+      // If `out` is null, we use it for the result, and jump to `done`.
+      __ CompareAndBranchIfZero(out, &done);
+      __ cmp(out, ShifterOperand(cls));
+      __ b(&loop, NE);
+      __ LoadImmediate(out, 1);
+      if (zero.IsLinked()) {
+        __ b(&done);
+      }
+      break;
+    }
+    case TypeCheckKind::kClassHierarchyCheck: {
+      // Walk over the class hierarchy to find a match.
+      Label loop, success;
+      __ Bind(&loop);
+      __ cmp(out, ShifterOperand(cls));
+      __ b(&success, EQ);
+      __ LoadFromOffset(kLoadWord, out, out, super_offset);
+      __ MaybeUnpoisonHeapReference(out);
+      __ CompareAndBranchIfNonZero(out, &loop);
+      // If `out` is null, we use it for the result, and jump to `done`.
+      __ b(&done);
+      __ Bind(&success);
+      __ LoadImmediate(out, 1);
+      if (zero.IsLinked()) {
+        __ b(&done);
+      }
+      break;
+    }
+    case TypeCheckKind::kArrayObjectCheck: {
+      // Just need to check that the object's class is a non primitive array.
+      __ LoadFromOffset(kLoadWord, out, out, component_offset);
+      __ MaybeUnpoisonHeapReference(out);
+      // If `out` is null, we use it for the result, and jump to `done`.
+      __ CompareAndBranchIfZero(out, &done);
+      __ LoadFromOffset(kLoadUnsignedHalfword, out, out, primitive_offset);
+      static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
+      __ CompareAndBranchIfNonZero(out, &zero);
+      __ LoadImmediate(out, 1);
+      __ b(&done);
+      break;
+    }
+    case TypeCheckKind::kArrayCheck: {
+      __ cmp(out, ShifterOperand(cls));
+      DCHECK(locations->OnlyCallsOnSlowPath());
+      slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathARM(
+          instruction, /* is_fatal */ false);
+      codegen_->AddSlowPath(slow_path);
+      __ b(slow_path->GetEntryLabel(), NE);
+      __ LoadImmediate(out, 1);
+      if (zero.IsLinked()) {
+        __ b(&done);
+      }
+      break;
+    }
+
+    case TypeCheckKind::kInterfaceCheck:
+    default: {
+      codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pInstanceofNonTrivial),
+                              instruction,
+                              instruction->GetDexPc(),
+                              nullptr);
+      if (zero.IsLinked()) {
+        __ b(&done);
+      }
+      break;
+    }
   }
 
-  if (instruction->MustDoNullCheck() || instruction->IsClassFinal()) {
+  if (zero.IsLinked()) {
     __ Bind(&zero);
     __ LoadImmediate(out, 0);
+  }
+
+  if (done.IsLinked()) {
+    __ Bind(&done);
   }
 
   if (slow_path != nullptr) {
     __ Bind(slow_path->GetExitLabel());
   }
-  __ Bind(&done);
 }
 
 void LocationsBuilderARM::VisitCheckCast(HCheckCast* instruction) {
+  LocationSummary::CallKind call_kind = LocationSummary::kNoCall;
+  bool throws_into_catch = instruction->CanThrowIntoCatchBlock();
+
+  switch (instruction->GetTypeCheckKind()) {
+    case TypeCheckKind::kExactCheck:
+    case TypeCheckKind::kAbstractClassCheck:
+    case TypeCheckKind::kClassHierarchyCheck:
+    case TypeCheckKind::kArrayObjectCheck:
+      call_kind = throws_into_catch
+          ? LocationSummary::kCallOnSlowPath
+          : LocationSummary::kNoCall;
+      break;
+    case TypeCheckKind::kInterfaceCheck:
+      call_kind = LocationSummary::kCall;
+      break;
+    case TypeCheckKind::kArrayCheck:
+      call_kind = LocationSummary::kCallOnSlowPath;
+      break;
+  }
+
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(
-      instruction, LocationSummary::kCallOnSlowPath);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
-  // Note that TypeCheckSlowPathARM uses this register too.
-  locations->AddTemp(Location::RequiresRegister());
+      instruction, call_kind);
+  if (call_kind != LocationSummary::kCall) {
+    locations->SetInAt(0, Location::RequiresRegister());
+    locations->SetInAt(1, Location::RequiresRegister());
+    // Note that TypeCheckSlowPathARM uses this register too.
+    locations->AddTemp(Location::RequiresRegister());
+  } else {
+    InvokeRuntimeCallingConvention calling_convention;
+    locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+    locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  }
 }
 
 void InstructionCodeGeneratorARM::VisitCheckCast(HCheckCast* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   Register obj = locations->InAt(0).AsRegister<Register>();
   Register cls = locations->InAt(1).AsRegister<Register>();
-  Register temp = locations->GetTemp(0).AsRegister<Register>();
+  Register temp = locations->WillCall()
+      ? Register(kNoRegister)
+      : locations->GetTemp(0).AsRegister<Register>();
+
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+  uint32_t super_offset = mirror::Class::SuperClassOffset().Int32Value();
+  uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
+  uint32_t primitive_offset = mirror::Class::PrimitiveTypeOffset().Int32Value();
+  SlowPathCodeARM* slow_path = nullptr;
 
-  SlowPathCodeARM* slow_path =
-      new (GetGraph()->GetArena()) TypeCheckSlowPathARM(instruction);
-  codegen_->AddSlowPath(slow_path);
-
-  // avoid null check if we know obj is not null.
-  if (instruction->MustDoNullCheck()) {
-    __ CompareAndBranchIfZero(obj, slow_path->GetExitLabel());
+  if (!locations->WillCall()) {
+    slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathARM(
+        instruction, !locations->CanCall());
+    codegen_->AddSlowPath(slow_path);
   }
-  // Compare the class of `obj` with `cls`.
-  __ LoadFromOffset(kLoadWord, temp, obj, class_offset);
-  __ MaybeUnpoisonHeapReference(temp);
-  __ cmp(temp, ShifterOperand(cls));
-  // The checkcast succeeds if the classes are equal (fast path).
-  // Otherwise, we need to go into the slow path to check the types.
-  __ b(slow_path->GetEntryLabel(), NE);
-  __ Bind(slow_path->GetExitLabel());
+
+  Label done;
+  // Avoid null check if we know obj is not null.
+  if (instruction->MustDoNullCheck()) {
+    __ CompareAndBranchIfZero(obj, &done);
+  }
+
+  if (locations->WillCall()) {
+    __ LoadFromOffset(kLoadWord, obj, obj, class_offset);
+    __ MaybeUnpoisonHeapReference(obj);
+  } else {
+    __ LoadFromOffset(kLoadWord, temp, obj, class_offset);
+    __ MaybeUnpoisonHeapReference(temp);
+  }
+
+  switch (instruction->GetTypeCheckKind()) {
+    case TypeCheckKind::kExactCheck:
+    case TypeCheckKind::kArrayCheck: {
+      __ cmp(temp, ShifterOperand(cls));
+      // Jump to slow path for throwing the exception or doing a
+      // more involved array check.
+      __ b(slow_path->GetEntryLabel(), NE);
+      break;
+    }
+    case TypeCheckKind::kAbstractClassCheck: {
+      // If the class is abstract, we eagerly fetch the super class of the
+      // object to avoid doing a comparison we know will fail.
+      Label loop;
+      __ Bind(&loop);
+      __ LoadFromOffset(kLoadWord, temp, temp, super_offset);
+      __ MaybeUnpoisonHeapReference(temp);
+      // Jump to the slow path to throw the exception.
+      __ CompareAndBranchIfZero(temp, slow_path->GetEntryLabel());
+      __ cmp(temp, ShifterOperand(cls));
+      __ b(&loop, NE);
+      break;
+    }
+    case TypeCheckKind::kClassHierarchyCheck: {
+      // Walk over the class hierarchy to find a match.
+      Label loop, success;
+      __ Bind(&loop);
+      __ cmp(temp, ShifterOperand(cls));
+      __ b(&success, EQ);
+      __ LoadFromOffset(kLoadWord, temp, temp, super_offset);
+      __ MaybeUnpoisonHeapReference(temp);
+      __ CompareAndBranchIfNonZero(temp, &loop);
+      // Jump to the slow path to throw the exception.
+      __ b(slow_path->GetEntryLabel());
+      __ Bind(&success);
+      break;
+    }
+    case TypeCheckKind::kArrayObjectCheck: {
+      // Just need to check that the object's class is a non primitive array.
+      __ LoadFromOffset(kLoadWord, temp, temp, component_offset);
+      __ MaybeUnpoisonHeapReference(temp);
+      __ CompareAndBranchIfZero(temp, slow_path->GetEntryLabel());
+      __ LoadFromOffset(kLoadUnsignedHalfword, temp, temp, primitive_offset);
+      static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
+      __ CompareAndBranchIfNonZero(temp, slow_path->GetEntryLabel());
+      break;
+    }
+    case TypeCheckKind::kInterfaceCheck:
+    default:
+      codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pCheckCast),
+                              instruction,
+                              instruction->GetDexPc(),
+                              nullptr);
+      break;
+  }
+  __ Bind(&done);
+
+  if (slow_path != nullptr) {
+    __ Bind(slow_path->GetExitLabel());
+  }
 }
 
 void LocationsBuilderARM::VisitMonitorOperation(HMonitorOperation* instruction) {
