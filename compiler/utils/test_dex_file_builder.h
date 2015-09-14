@@ -216,7 +216,7 @@ class TestDexFileBuilder {
     std::unique_ptr<const DexFile> dex_file(DexFile::Open(
         &dex_file_data_[0], dex_file_data_.size(), dex_location, 0u, nullptr, &error_msg));
     CHECK(dex_file != nullptr) << error_msg;
-    return std::move(dex_file);
+    return dex_file;
   }
 
   uint32_t GetStringIdx(const std::string& type) {
