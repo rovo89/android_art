@@ -1073,9 +1073,14 @@ void ConcurrentCopying::ProcessMarkStackRef(mirror::Object* to_ref) {
   if (to_ref->GetClass<kVerifyNone, kWithoutReadBarrier>()->IsTypeOfReferenceClass() &&
       to_ref->AsReference()->GetReferent<kWithoutReadBarrier>() != nullptr &&
       !IsInToSpace(to_ref->AsReference()->GetReferent<kWithoutReadBarrier>())) {
-    // Leave References gray so that GetReferent() will trigger RB.
+    // Leave this Reference gray in the queue so that GetReferent() will trigger a read barrier. We
+    // will change it to black or white later in ReferenceQueue::DequeuePendingReference().
     CHECK(to_ref->AsReference()->IsEnqueued()) << "Left unenqueued ref gray " << to_ref;
   } else {
+    // We may occasionally leave a Reference black or white in the queue if its referent happens to
+    // be concurrently marked after the Scan() call above has enqueued the Reference, in which case
+    // the above IsInToSpace() evaluates to true and we change the color from gray to black or white
+    // here in this else block.
 #ifdef USE_BAKER_OR_BROOKS_READ_BARRIER
     if (kUseBakerReadBarrier) {
       if (region_space_->IsInToSpace(to_ref)) {
