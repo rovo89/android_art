@@ -437,8 +437,10 @@ class WatchDog {
   // Debug builds are slower so they have larger timeouts.
   static constexpr int64_t kSlowdownFactor = kIsDebugBuild ? 5U : 1U;
 
-  // 10 minutes scaled by kSlowdownFactor.
-  static constexpr int64_t kWatchDogTimeoutSeconds = kSlowdownFactor * 10 * 60;
+  // 9.5 minutes scaled by kSlowdownFactor. This is slightly smaller than the Package Manager
+  // watchdog (PackageManagerService.WATCHDOG_TIMEOUT, 10 minutes), so that dex2oat will abort
+  // itself before that watchdog would take down the system server.
+  static constexpr int64_t kWatchDogTimeoutSeconds = kSlowdownFactor * (9 * 60 + 30);
 
   bool is_watch_dog_enabled_;
   bool shutting_down_;
