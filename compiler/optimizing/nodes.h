@@ -157,7 +157,6 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
         number_of_in_vregs_(0),
         temporaries_vreg_slots_(0),
         has_bounds_checks_(false),
-        has_try_catch_(false),
         debuggable_(debuggable),
         current_instruction_id_(start_instruction_id),
         dex_file_(dex_file),
@@ -283,6 +282,7 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   }
 
   uint16_t GetNumberOfVRegs() const {
+    DCHECK(!in_ssa_form_);
     return number_of_vregs_;
   }
 
@@ -360,8 +360,8 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
     return instruction_set_;
   }
 
-  bool HasTryCatch() const { return has_try_catch_; }
-  void SetHasTryCatch(bool value) { has_try_catch_ = value; }
+  // TODO: Remove once the full compilation pipeline is enabled for try/catch.
+  bool HasTryCatch() const;
 
  private:
   void VisitBlockForDominatorTree(HBasicBlock* block,
@@ -432,10 +432,6 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
 
   // Has bounds checks. We can totally skip BCE if it's false.
   bool has_bounds_checks_;
-
-  // Flag whether there are any try/catch blocks in the graph. We will skip
-  // try/catch-related passes if false.
-  bool has_try_catch_;
 
   // Indicates whether the graph should be compiled in a way that
   // ensures full debuggability. If false, we can apply more
@@ -2191,8 +2187,6 @@ class HConstant : public HExpression<0> {
   virtual bool IsZero() const { return false; }
   virtual bool IsOne() const { return false; }
 
-  virtual uint64_t GetValueAsUint64() const = 0;
-
   DECLARE_INSTRUCTION(Constant);
 
  private:
@@ -2204,8 +2198,6 @@ class HNullConstant : public HConstant {
   bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
     return true;
   }
-
-  uint64_t GetValueAsUint64() const OVERRIDE { return 0; }
 
   size_t ComputeHashCode() const OVERRIDE { return 0; }
 
@@ -2223,8 +2215,6 @@ class HNullConstant : public HConstant {
 class HIntConstant : public HConstant {
  public:
   int32_t GetValue() const { return value_; }
-
-  uint64_t GetValueAsUint64() const OVERRIDE { return static_cast<uint64_t>(value_); }
 
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
     DCHECK(other->IsIntConstant());
@@ -2256,8 +2246,6 @@ class HIntConstant : public HConstant {
 class HLongConstant : public HConstant {
  public:
   int64_t GetValue() const { return value_; }
-
-  uint64_t GetValueAsUint64() const OVERRIDE { return value_; }
 
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
     DCHECK(other->IsLongConstant());
@@ -2878,13 +2866,10 @@ class HFloatConstant : public HConstant {
  public:
   float GetValue() const { return value_; }
 
-  uint64_t GetValueAsUint64() const OVERRIDE {
-    return static_cast<uint64_t>(bit_cast<uint32_t, float>(value_));
-  }
-
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
     DCHECK(other->IsFloatConstant());
-    return other->AsFloatConstant()->GetValueAsUint64() == GetValueAsUint64();
+    return bit_cast<uint32_t, float>(other->AsFloatConstant()->value_) ==
+        bit_cast<uint32_t, float>(value_);
   }
 
   size_t ComputeHashCode() const OVERRIDE { return static_cast<size_t>(GetValue()); }
@@ -2922,11 +2907,10 @@ class HDoubleConstant : public HConstant {
  public:
   double GetValue() const { return value_; }
 
-  uint64_t GetValueAsUint64() const OVERRIDE { return bit_cast<uint64_t, double>(value_); }
-
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
     DCHECK(other->IsDoubleConstant());
-    return other->AsDoubleConstant()->GetValueAsUint64() == GetValueAsUint64();
+    return bit_cast<uint64_t, double>(other->AsDoubleConstant()->value_) ==
+        bit_cast<uint64_t, double>(value_);
   }
 
   size_t ComputeHashCode() const OVERRIDE { return static_cast<size_t>(GetValue()); }
@@ -4018,13 +4002,6 @@ class HPhi : public HInstruction {
   void SetLive() { is_live_ = true; }
   bool IsDead() const { return !is_live_; }
   bool IsLive() const { return is_live_; }
-
-  bool IsVRegEquivalentOf(HInstruction* other) const {
-    return other != nullptr
-        && other->IsPhi()
-        && other->AsPhi()->GetBlock() == GetBlock()
-        && other->AsPhi()->GetRegNumber() == GetRegNumber();
-  }
 
   // Returns the next equivalent phi (starting from the current one) or null if there is none.
   // An equivalent phi is a phi having the same dex register and type.
