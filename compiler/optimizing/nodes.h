@@ -17,11 +17,13 @@
 #ifndef ART_COMPILER_OPTIMIZING_NODES_H_
 #define ART_COMPILER_OPTIMIZING_NODES_H_
 
+#include <algorithm>
 #include <array>
 #include <type_traits>
 
 #include "base/arena_containers.h"
 #include "base/arena_object.h"
+#include "base/stl_util.h"
 #include "dex/compiler_enums.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "handle.h"
@@ -630,26 +632,44 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
  public:
   HBasicBlock(HGraph* graph, uint32_t dex_pc = kNoDexPc)
       : graph_(graph),
-        predecessors_(graph->GetArena(), kDefaultNumberOfPredecessors),
-        successors_(graph->GetArena(), kDefaultNumberOfSuccessors),
+        predecessors_(graph->GetArena()->Adapter(kArenaAllocPredecessors)),
+        successors_(graph->GetArena()->Adapter(kArenaAllocSuccessors)),
         loop_information_(nullptr),
         dominator_(nullptr),
-        dominated_blocks_(graph->GetArena(), kDefaultNumberOfDominatedBlocks),
+        dominated_blocks_(graph->GetArena()->Adapter(kArenaAllocDominated)),
         block_id_(-1),
         dex_pc_(dex_pc),
         lifetime_start_(kNoLifetime),
         lifetime_end_(kNoLifetime),
-        try_catch_information_(nullptr) {}
+        try_catch_information_(nullptr) {
+    predecessors_.reserve(kDefaultNumberOfPredecessors);
+    successors_.reserve(kDefaultNumberOfSuccessors);
+    dominated_blocks_.reserve(kDefaultNumberOfDominatedBlocks);
+  }
 
-  const GrowableArray<HBasicBlock*>& GetPredecessors() const {
+  const ArenaVector<HBasicBlock*>& GetPredecessors() const {
     return predecessors_;
   }
 
-  const GrowableArray<HBasicBlock*>& GetSuccessors() const {
+  HBasicBlock* GetPredecessor(size_t pred_idx) const {
+    DCHECK_LT(pred_idx, predecessors_.size());
+    return predecessors_[pred_idx];
+  }
+
+  const ArenaVector<HBasicBlock*>& GetSuccessors() const {
     return successors_;
   }
 
-  const GrowableArray<HBasicBlock*>& GetDominatedBlocks() const {
+  HBasicBlock* GetSuccessor(size_t succ_idx) const {
+    DCHECK_LT(succ_idx, successors_.size());
+    return successors_[succ_idx];
+  }
+
+  bool HasSuccessor(const HBasicBlock* block, size_t start_from = 0u) {
+    return ContainsElement(successors_, block, start_from);
+  }
+
+  const ArenaVector<HBasicBlock*>& GetDominatedBlocks() const {
     return dominated_blocks_;
   }
 
@@ -689,18 +709,16 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
 
   HBasicBlock* GetDominator() const { return dominator_; }
   void SetDominator(HBasicBlock* dominator) { dominator_ = dominator; }
-  void AddDominatedBlock(HBasicBlock* block) { dominated_blocks_.Add(block); }
-  void RemoveDominatedBlock(HBasicBlock* block) { dominated_blocks_.Delete(block); }
-  void ReplaceDominatedBlock(HBasicBlock* existing, HBasicBlock* new_block) {
-    for (size_t i = 0, e = dominated_blocks_.Size(); i < e; ++i) {
-      if (dominated_blocks_.Get(i) == existing) {
-        dominated_blocks_.Put(i, new_block);
-        return;
-      }
-    }
-    LOG(FATAL) << "Unreachable";
-    UNREACHABLE();
+  void AddDominatedBlock(HBasicBlock* block) { dominated_blocks_.push_back(block); }
+
+  void RemoveDominatedBlock(HBasicBlock* block) {
+    RemoveElement(dominated_blocks_, block);
   }
+
+  void ReplaceDominatedBlock(HBasicBlock* existing, HBasicBlock* new_block) {
+    ReplaceElement(dominated_blocks_, existing, new_block);
+  }
+
   void ClearDominanceInformation();
 
   int NumberOfBackEdges() const {
@@ -715,24 +733,22 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
   const HInstructionList& GetPhis() const { return phis_; }
 
   void AddSuccessor(HBasicBlock* block) {
-    successors_.Add(block);
-    block->predecessors_.Add(this);
+    successors_.push_back(block);
+    block->predecessors_.push_back(this);
   }
 
   void ReplaceSuccessor(HBasicBlock* existing, HBasicBlock* new_block) {
     size_t successor_index = GetSuccessorIndexOf(existing);
-    DCHECK_NE(successor_index, static_cast<size_t>(-1));
     existing->RemovePredecessor(this);
-    new_block->predecessors_.Add(this);
-    successors_.Put(successor_index, new_block);
+    new_block->predecessors_.push_back(this);
+    successors_[successor_index] = new_block;
   }
 
   void ReplacePredecessor(HBasicBlock* existing, HBasicBlock* new_block) {
     size_t predecessor_index = GetPredecessorIndexOf(existing);
-    DCHECK_NE(predecessor_index, static_cast<size_t>(-1));
     existing->RemoveSuccessor(this);
-    new_block->successors_.Add(this);
-    predecessors_.Put(predecessor_index, new_block);
+    new_block->successors_.push_back(this);
+    predecessors_[predecessor_index] = new_block;
   }
 
   // Insert `this` between `predecessor` and `successor. This method
@@ -740,85 +756,69 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
   // `predecessor` and `successor`.
   void InsertBetween(HBasicBlock* predecessor, HBasicBlock* successor) {
     size_t predecessor_index = successor->GetPredecessorIndexOf(predecessor);
-    DCHECK_NE(predecessor_index, static_cast<size_t>(-1));
     size_t successor_index = predecessor->GetSuccessorIndexOf(successor);
-    DCHECK_NE(successor_index, static_cast<size_t>(-1));
-    successor->predecessors_.Put(predecessor_index, this);
-    predecessor->successors_.Put(successor_index, this);
-    successors_.Add(successor);
-    predecessors_.Add(predecessor);
+    successor->predecessors_[predecessor_index] = this;
+    predecessor->successors_[successor_index] = this;
+    successors_.push_back(successor);
+    predecessors_.push_back(predecessor);
   }
 
   void RemovePredecessor(HBasicBlock* block) {
-    predecessors_.Delete(block);
+    predecessors_.erase(predecessors_.begin() + GetPredecessorIndexOf(block));
   }
 
   void RemoveSuccessor(HBasicBlock* block) {
-    successors_.Delete(block);
+    successors_.erase(successors_.begin() + GetSuccessorIndexOf(block));
   }
 
   void ClearAllPredecessors() {
-    predecessors_.Reset();
+    predecessors_.clear();
   }
 
   void AddPredecessor(HBasicBlock* block) {
-    predecessors_.Add(block);
-    block->successors_.Add(this);
+    predecessors_.push_back(block);
+    block->successors_.push_back(this);
   }
 
   void SwapPredecessors() {
-    DCHECK_EQ(predecessors_.Size(), 2u);
-    HBasicBlock* temp = predecessors_.Get(0);
-    predecessors_.Put(0, predecessors_.Get(1));
-    predecessors_.Put(1, temp);
+    DCHECK_EQ(predecessors_.size(), 2u);
+    std::swap(predecessors_[0], predecessors_[1]);
   }
 
   void SwapSuccessors() {
-    DCHECK_EQ(successors_.Size(), 2u);
-    HBasicBlock* temp = successors_.Get(0);
-    successors_.Put(0, successors_.Get(1));
-    successors_.Put(1, temp);
+    DCHECK_EQ(successors_.size(), 2u);
+    std::swap(successors_[0], successors_[1]);
   }
 
   size_t GetPredecessorIndexOf(HBasicBlock* predecessor) const {
-    for (size_t i = 0, e = predecessors_.Size(); i < e; ++i) {
-      if (predecessors_.Get(i) == predecessor) {
-        return i;
-      }
-    }
-    return -1;
+    return IndexOfElement(predecessors_, predecessor);
   }
 
   size_t GetSuccessorIndexOf(HBasicBlock* successor) const {
-    for (size_t i = 0, e = successors_.Size(); i < e; ++i) {
-      if (successors_.Get(i) == successor) {
-        return i;
-      }
-    }
-    return -1;
+    return IndexOfElement(successors_, successor);
   }
 
   HBasicBlock* GetSinglePredecessor() const {
-    DCHECK_EQ(GetPredecessors().Size(), 1u);
-    return GetPredecessors().Get(0);
+    DCHECK_EQ(GetPredecessors().size(), 1u);
+    return GetPredecessor(0);
   }
 
   HBasicBlock* GetSingleSuccessor() const {
-    DCHECK_EQ(GetSuccessors().Size(), 1u);
-    return GetSuccessors().Get(0);
+    DCHECK_EQ(GetSuccessors().size(), 1u);
+    return GetSuccessor(0);
   }
 
   // Returns whether the first occurrence of `predecessor` in the list of
   // predecessors is at index `idx`.
   bool IsFirstIndexOfPredecessor(HBasicBlock* predecessor, size_t idx) const {
-    DCHECK_EQ(GetPredecessors().Get(idx), predecessor);
+    DCHECK_EQ(GetPredecessor(idx), predecessor);
     return GetPredecessorIndexOf(predecessor) == idx;
   }
 
   // Returns the number of non-exceptional successors. SsaChecker ensures that
   // these are stored at the beginning of the successor list.
   size_t NumberOfNormalSuccessors() const {
-    return EndsWithTryBoundary() ? 1 : GetSuccessors().Size();
+    return EndsWithTryBoundary() ? 1 : GetSuccessors().size();
   }
 
   // Split the block into two blocks just before `cursor`. Returns the newly
@@ -883,8 +883,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
 
   bool IsLoopPreHeaderFirstPredecessor() const {
     DCHECK(IsLoopHeader());
-    DCHECK(!GetPredecessors().IsEmpty());
-    return GetPredecessors().Get(0) == GetLoopInformation()->GetPreHeader();
+    return GetPredecessor(0) == GetLoopInformation()->GetPreHeader();
   }
 
   HLoopInformation* GetLoopInformation() const {
@@ -954,13 +953,13 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
 
  private:
   HGraph* graph_;
-  GrowableArray<HBasicBlock*> predecessors_;
-  GrowableArray<HBasicBlock*> successors_;
+  ArenaVector<HBasicBlock*> predecessors_;
+  ArenaVector<HBasicBlock*> successors_;
   HInstructionList instructions_;
   HInstructionList phis_;
   HLoopInformation* loop_information_;
   HBasicBlock* dominator_;
-  GrowableArray<HBasicBlock*> dominated_blocks_;
+  ArenaVector<HBasicBlock*> dominated_blocks_;
   int block_id_;
   // The dex program counter of the first instruction of this block.
   const uint32_t dex_pc_;
@@ -2283,11 +2282,11 @@ class HIf : public HTemplateInstruction<1> {
   bool IsControlFlow() const OVERRIDE { return true; }
 
   HBasicBlock* IfTrueSuccessor() const {
-    return GetBlock()->GetSuccessors().Get(0);
+    return GetBlock()->GetSuccessor(0);
   }
 
   HBasicBlock* IfFalseSuccessor() const {
-    return GetBlock()->GetSuccessors().Get(1);
+    return GetBlock()->GetSuccessor(1);
   }
 
   DECLARE_INSTRUCTION(If);
@@ -2315,14 +2314,13 @@ class HTryBoundary : public HTemplateInstruction<0> {
   bool IsControlFlow() const OVERRIDE { return true; }
 
   // Returns the block's non-exceptional successor (index zero).
-  HBasicBlock* GetNormalFlowSuccessor() const { return GetBlock()->GetSuccessors().Get(0); }
+  HBasicBlock* GetNormalFlowSuccessor() const { return GetBlock()->GetSuccessor(0); }
 
   // Returns whether `handler` is among its exception handlers (non-zero index
   // successors).
   bool HasExceptionHandler(const HBasicBlock& handler) const {
     DCHECK(handler.IsCatchBlock());
-    return GetBlock()->GetSuccessors().Contains(
-        const_cast<HBasicBlock*>(&handler), /* start_from */ 1);
+    return GetBlock()->HasSuccessor(&handler, 1u /* Skip first successor. */);
   }
 
   // If not present already, adds `handler` to its block's list of exception
@@ -2352,8 +2350,8 @@ class HExceptionHandlerIterator : public ValueObject {
   explicit HExceptionHandlerIterator(const HTryBoundary& try_boundary)
     : block_(*try_boundary.GetBlock()), index_(block_.NumberOfNormalSuccessors()) {}
 
-  bool Done() const { return index_ == block_.GetSuccessors().Size(); }
-  HBasicBlock* Current() const { return block_.GetSuccessors().Get(index_); }
+  bool Done() const { return index_ == block_.GetSuccessors().size(); }
+  HBasicBlock* Current() const { return block_.GetSuccessor(index_); }
   size_t CurrentSuccessorIndex() const { return index_; }
   void Advance() { ++index_; }
 

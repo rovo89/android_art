@@ -241,8 +241,8 @@ void SsaBuilder::BuildSsa() {
     HBasicBlock* block = loop_headers_.Get(i);
     for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
       HPhi* phi = it.Current()->AsPhi();
-      for (size_t pred = 0; pred < block->GetPredecessors().Size(); pred++) {
-        HInstruction* input = ValueOfLocal(block->GetPredecessors().Get(pred), phi->GetRegNumber());
+      for (HBasicBlock* predecessor : block->GetPredecessors()) {
+        HInstruction* input = ValueOfLocal(predecessor, phi->GetRegNumber());
         phi->AddInput(input);
       }
     }
@@ -369,16 +369,16 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
     // Save the loop header so that the last phase of the analysis knows which
     // blocks need to be updated.
     loop_headers_.Add(block);
-  } else if (block->GetPredecessors().Size() > 0) {
+  } else if (block->GetPredecessors().size() > 0) {
     // All predecessors have already been visited because we are visiting in reverse post order.
     // We merge the values of all locals, creating phis if those values differ.
     for (size_t local = 0; local < current_locals_->Size(); local++) {
       bool one_predecessor_has_no_value = false;
       bool is_different = false;
-      HInstruction* value = ValueOfLocal(block->GetPredecessors().Get(0), local);
+      HInstruction* value = ValueOfLocal(block->GetPredecessor(0), local);
 
-      for (size_t i = 0, e = block->GetPredecessors().Size(); i < e; ++i) {
-        HInstruction* current = ValueOfLocal(block->GetPredecessors().Get(i), local);
+      for (HBasicBlock* predecessor : block->GetPredecessors()) {
+        HInstruction* current = ValueOfLocal(predecessor, local);
         if (current == nullptr) {
           one_predecessor_has_no_value = true;
           break;
@@ -395,9 +395,9 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
 
       if (is_different) {
         HPhi* phi = new (GetGraph()->GetArena()) HPhi(
-            GetGraph()->GetArena(), local, block->GetPredecessors().Size(), Primitive::kPrimVoid);
-        for (size_t i = 0; i < block->GetPredecessors().Size(); i++) {
-          HInstruction* pred_value = ValueOfLocal(block->GetPredecessors().Get(i), local);
+            GetGraph()->GetArena(), local, block->GetPredecessors().size(), Primitive::kPrimVoid);
+        for (size_t i = 0; i < block->GetPredecessors().size(); i++) {
+          HInstruction* pred_value = ValueOfLocal(block->GetPredecessor(i), local);
           phi->SetRawInputAt(i, pred_value);
         }
         block->AddPhi(phi);
