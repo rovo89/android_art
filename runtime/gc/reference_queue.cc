@@ -89,19 +89,36 @@ mirror::Reference* ReferenceQueue::DequeuePendingReference() {
   Heap* heap = Runtime::Current()->GetHeap();
   if (kUseBakerOrBrooksReadBarrier && heap->CurrentCollectorType() == kCollectorTypeCC &&
       heap->ConcurrentCopyingCollector()->IsActive()) {
-    // Clear the gray ptr we left in ConcurrentCopying::ProcessMarkStack().
-    // We don't want to do this when the zygote compaction collector (SemiSpace) is running.
+    // Change the gray ptr we left in ConcurrentCopying::ProcessMarkStackRef() to black or white.
+    // We check IsActive() above because we don't want to do this when the zygote compaction
+    // collector (SemiSpace) is running.
     CHECK(ref != nullptr);
-    CHECK_EQ(ref->GetReadBarrierPointer(), ReadBarrier::GrayPtr())
-        << "ref=" << ref << " rb_ptr=" << ref->GetReadBarrierPointer();
-    if (heap->ConcurrentCopyingCollector()->RegionSpace()->IsInToSpace(ref)) {
-      // Moving objects.
-      ref->AtomicSetReadBarrierPointer(ReadBarrier::GrayPtr(), ReadBarrier::WhitePtr());
-      CHECK_EQ(ref->GetReadBarrierPointer(), ReadBarrier::WhitePtr());
+    collector::ConcurrentCopying* concurrent_copying = heap->ConcurrentCopyingCollector();
+    const bool is_moving = concurrent_copying->RegionSpace()->IsInToSpace(ref);
+    if (ref->GetReadBarrierPointer() == ReadBarrier::GrayPtr()) {
+      if (is_moving) {
+        ref->AtomicSetReadBarrierPointer(ReadBarrier::GrayPtr(), ReadBarrier::WhitePtr());
+        CHECK_EQ(ref->GetReadBarrierPointer(), ReadBarrier::WhitePtr());
+      } else {
+        ref->AtomicSetReadBarrierPointer(ReadBarrier::GrayPtr(), ReadBarrier::BlackPtr());
+        CHECK_EQ(ref->GetReadBarrierPointer(), ReadBarrier::BlackPtr());
+      }
     } else {
-      // Non-moving objects.
-      ref->AtomicSetReadBarrierPointer(ReadBarrier::GrayPtr(), ReadBarrier::BlackPtr());
-      CHECK_EQ(ref->GetReadBarrierPointer(), ReadBarrier::BlackPtr());
+      // In ConcurrentCopying::ProcessMarkStackRef() we may leave a black or white Reference in the
+      // queue and find it here, which is OK. Check that the color makes sense depending on whether
+      // the Reference is moving or not and that the referent has been marked.
+      if (is_moving) {
+        CHECK_EQ(ref->GetReadBarrierPointer(), ReadBarrier::WhitePtr())
+            << "ref=" << ref << " rb_ptr=" << ref->GetReadBarrierPointer();
+      } else {
+        CHECK_EQ(ref->GetReadBarrierPointer(), ReadBarrier::BlackPtr())
+            << "ref=" << ref << " rb_ptr=" << ref->GetReadBarrierPointer();
+      }
+      mirror::Object* referent = ref->GetReferent<kWithoutReadBarrier>();
+      CHECK(referent != nullptr) << "Reference should not have been enqueued if referent is null";
+      CHECK(concurrent_copying->IsInToSpace(referent))
+          << "ref=" << ref << " rb_ptr=" << ref->GetReadBarrierPointer()
+          << " referent=" << referent;
     }
   }
   return ref;
