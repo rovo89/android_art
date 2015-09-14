@@ -237,6 +237,17 @@ class CodeGenerator {
   bool CanMoveNullCheckToUser(HNullCheck* null_check);
   void MaybeRecordImplicitNullCheck(HInstruction* instruction);
 
+  // Records a stack map which the runtime might use to set catch phi values
+  // during exception delivery.
+  // TODO: Replace with a catch-entering instruction that records the environment.
+  void RecordCatchBlockInfo();
+
+  // Returns true if implicit null checks are allowed in the compiler options
+  // and if the null check is not inside a try block. We currently cannot do
+  // implicit null checks in that case because we need the NullCheckSlowPath to
+  // save live registers, which may be needed by the runtime to set catch phis.
+  bool IsImplicitNullCheckAllowed(HNullCheck* null_check) const;
+
   void AddSlowPath(SlowPathCode* slow_path) {
     slow_paths_.Add(slow_path);
   }
