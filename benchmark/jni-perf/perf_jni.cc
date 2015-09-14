@@ -24,18 +24,14 @@ namespace art {
 
 namespace {
 
-extern "C" JNIEXPORT jint JNICALL Java_Main_perfJniEmptyCall(JNIEnv*, jobject) {
-  return 0;
+extern "C" JNIEXPORT void JNICALL Java_JniPerfBenchmark_perfJniEmptyCall(JNIEnv*, jobject) {}
+
+extern "C" JNIEXPORT void JNICALL Java_JniPerfBenchmark_perfSOACall(JNIEnv* env, jobject) {
+  ScopedObjectAccess soa(env);
 }
 
-extern "C" JNIEXPORT jint JNICALL Java_Main_perfSOACall(JNIEnv*, jobject) {
-  ScopedObjectAccess soa(Thread::Current());
-  return 0;
-}
-
-extern "C" JNIEXPORT jint JNICALL Java_Main_perfSOAUncheckedCall(JNIEnv*, jobject) {
+extern "C" JNIEXPORT void JNICALL Java_JniPerfBenchmark_perfSOAUncheckedCall(JNIEnv*, jobject) {
   ScopedObjectAccessUnchecked soa(Thread::Current());
-  return 0;
 }
 
 }  // namespace
