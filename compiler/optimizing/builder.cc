@@ -478,6 +478,8 @@ bool HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
   graph_->SetEntryBlock(entry_block_);
   graph_->SetExitBlock(exit_block_);
 
+  graph_->SetHasTryCatch(code_item.tries_size_ != 0);
+
   InitializeLocals(code_item.registers_size_);
   graph_->SetMaximumNumberOfOutVRegs(code_item.outs_size_);
 
