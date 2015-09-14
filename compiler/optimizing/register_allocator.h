@@ -29,7 +29,6 @@ class HBasicBlock;
 class HGraph;
 class HInstruction;
 class HParallelMove;
-class HPhi;
 class LiveInterval;
 class Location;
 class SsaLivenessAnalysis;
@@ -73,8 +72,7 @@ class RegisterAllocator {
     return int_spill_slots_.Size()
         + long_spill_slots_.Size()
         + float_spill_slots_.Size()
-        + double_spill_slots_.Size()
-        + catch_phi_spill_slots_;
+        + double_spill_slots_.Size();
   }
 
   static constexpr const char* kRegisterAllocatorPassName = "register";
@@ -101,16 +99,9 @@ class RegisterAllocator {
 
   // Update the interval for the register in `location` to cover [start, end).
   void BlockRegister(Location location, size_t start, size_t end);
-  void BlockRegisters(size_t start, size_t end, bool caller_save_only = false);
 
-  // Allocate a spill slot for the given interval. Should be called in linear
-  // order of interval starting positions.
+  // Allocate a spill slot for the given interval.
   void AllocateSpillSlotFor(LiveInterval* interval);
-
-  // Allocate a spill slot for the given catch phi. Will allocate the same slot
-  // for phis which share the same vreg. Must be called in reverse linear order
-  // of lifetime positions and ascending vreg numbers for correctness.
-  void AllocateSpillSlotForCatchPhi(HPhi* phi);
 
   // Connect adjacent siblings within blocks.
   void ConnectSiblings(LiveInterval* interval);
@@ -210,11 +201,6 @@ class RegisterAllocator {
   GrowableArray<size_t> long_spill_slots_;
   GrowableArray<size_t> float_spill_slots_;
   GrowableArray<size_t> double_spill_slots_;
-
-  // Spill slots allocated to catch phis. This category is special-cased because
-  // (1) slots are allocated prior to linear scan and in reverse linear order,
-  // (2) equivalent phis need to share slots despite having different types.
-  size_t catch_phi_spill_slots_;
 
   // Instructions that need a safepoint.
   GrowableArray<HInstruction*> safepoints_;
