@@ -33,7 +33,7 @@ endif
 
 # Don't bother with tests unless there is a test-art*, build-art*, or related target.
 art_test_bother := false
-ifneq (,$(filter %tests test-art% valgrind-test-art% build-art%,$(MAKECMDGOALS)))
+ifneq (,$(filter tests test-art% valgrind-test-art% build-art% checkbuild,$(MAKECMDGOALS)))
   art_test_bother := true
 endif
 
