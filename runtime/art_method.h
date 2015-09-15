@@ -442,7 +442,9 @@ class ArtMethod FINAL {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Converts a dex PC to a native PC.
-  uintptr_t ToNativeQuickPc(const uint32_t dex_pc, bool abort_on_failure = true)
+  uintptr_t ToNativeQuickPc(const uint32_t dex_pc,
+                            bool is_catch_handler,
+                            bool abort_on_failure = true)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   MethodReference ToMethodReference() SHARED_REQUIRES(Locks::mutator_lock_) {
