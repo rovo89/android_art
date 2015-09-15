@@ -20,6 +20,7 @@
 #include "ssa_builder.h"
 #include "base/bit_vector-inl.h"
 #include "base/bit_utils.h"
+#include "mirror/class-inl.h"
 #include "utils/growable_array.h"
 #include "scoped_thread_state_change.h"
 
@@ -1773,7 +1774,7 @@ void HInstruction::SetReferenceTypeInfo(ReferenceTypeInfo rti) {
       DCHECK(upper_bound_rti.IsSupertypeOf(rti))
           << " upper_bound_rti: " << upper_bound_rti
           << " rti: " << rti;
-      DCHECK(!upper_bound_rti.GetTypeHandle()->IsFinal() || rti.IsExact());
+      DCHECK(!upper_bound_rti.GetTypeHandle()->CannotBeAssignedFromOtherTypes() || rti.IsExact());
     }
   }
   reference_type_info_ = rti;
