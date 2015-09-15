@@ -56,6 +56,7 @@ RegisterAllocator::RegisterAllocator(ArenaAllocator* allocator,
         long_spill_slots_(allocator, kDefaultNumberOfSpillSlots),
         float_spill_slots_(allocator, kDefaultNumberOfSpillSlots),
         double_spill_slots_(allocator, kDefaultNumberOfSpillSlots),
+        catch_phi_spill_slots_(0),
         safepoints_(allocator, 0),
         processing_core_registers_(false),
         number_of_registers_(-1),
@@ -124,9 +125,7 @@ void RegisterAllocator::AllocateRegisters() {
   }
 }
 
-void RegisterAllocator::BlockRegister(Location location,
-                                      size_t start,
-                                      size_t end) {
+void RegisterAllocator::BlockRegister(Location location, size_t start, size_t end) {
   int reg = location.reg();
   DCHECK(location.IsRegister() || location.IsFpuRegister());
   LiveInterval* interval = location.IsRegister()
@@ -147,6 +146,19 @@ void RegisterAllocator::BlockRegister(Location location,
   interval->AddRange(start, end);
 }
 
+void RegisterAllocator::BlockRegisters(size_t start, size_t end, bool caller_save_only) {
+  for (size_t i = 0; i < codegen_->GetNumberOfCoreRegisters(); ++i) {
+    if (!caller_save_only || !codegen_->IsCoreCalleeSaveRegister(i)) {
+      BlockRegister(Location::RegisterLocation(i), start, end);
+    }
+  }
+  for (size_t i = 0; i < codegen_->GetNumberOfFloatingPointRegisters(); ++i) {
+    if (!caller_save_only || !codegen_->IsFloatingPointCalleeSaveRegister(i)) {
+      BlockRegister(Location::FpuRegisterLocation(i), start, end);
+    }
+  }
+}
+
 void RegisterAllocator::AllocateRegistersInternal() {
   // Iterate post-order, to ensure the list is sorted, and the last added interval
   // is the one with the lowest start position.
@@ -158,6 +170,13 @@ void RegisterAllocator::AllocateRegistersInternal() {
     }
     for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
       ProcessInstruction(inst_it.Current());
+    }
+
+    if (block->IsCatchBlock()) {
+      // By blocking all registers at the top of each catch block, we force
+      // intervals used after catch to spill.
+      size_t position = block->GetLifetimeStart();
+      BlockRegisters(position, position + 1);
     }
   }
 
@@ -275,21 +294,7 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
   }
 
   if (locations->WillCall()) {
-    // Block all registers.
-    for (size_t i = 0; i < codegen_->GetNumberOfCoreRegisters(); ++i) {
-      if (!codegen_->IsCoreCalleeSaveRegister(i)) {
-        BlockRegister(Location::RegisterLocation(i),
-                      position,
-                      position + 1);
-      }
-    }
-    for (size_t i = 0; i < codegen_->GetNumberOfFloatingPointRegisters(); ++i) {
-      if (!codegen_->IsFloatingPointCalleeSaveRegister(i)) {
-        BlockRegister(Location::FpuRegisterLocation(i),
-                      position,
-                      position + 1);
-      }
-    }
+    BlockRegisters(position, position + 1, /* caller_save_only */ true);
   }
 
   for (size_t i = 0; i < instruction->InputCount(); ++i) {
@@ -376,6 +381,10 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
     current->SetSpillSlot(output.GetStackIndex());
   } else {
     DCHECK(output.IsUnallocated() || output.IsConstant());
+  }
+
+  if (instruction->IsPhi() && instruction->AsPhi()->IsCatchPhi()) {
+    AllocateSpillSlotForCatchPhi(instruction->AsPhi());
   }
 
   // If needed, add interval to the list of unhandled intervals.
@@ -1282,6 +1291,8 @@ void RegisterAllocator::AllocateSpillSlotFor(LiveInterval* interval) {
   }
 
   HInstruction* defined_by = parent->GetDefinedBy();
+  DCHECK(!defined_by->IsPhi() || !defined_by->AsPhi()->IsCatchPhi());
+
   if (defined_by->IsParameterValue()) {
     // Parameters have their own stack slot.
     parent->SetSpillSlot(codegen_->GetStackSlotOfParameter(defined_by->AsParameterValue()));
@@ -1297,12 +1308,6 @@ void RegisterAllocator::AllocateSpillSlotFor(LiveInterval* interval) {
     // Constants don't need a spill slot.
     return;
   }
-
-  LiveInterval* last_sibling = interval;
-  while (last_sibling->GetNextSibling() != nullptr) {
-    last_sibling = last_sibling->GetNextSibling();
-  }
-  size_t end = last_sibling->GetEnd();
 
   GrowableArray<size_t>* spill_slots = nullptr;
   switch (interval->GetType()) {
@@ -1336,6 +1341,7 @@ void RegisterAllocator::AllocateSpillSlotFor(LiveInterval* interval) {
     }
   }
 
+  size_t end = interval->GetLastSibling()->GetEnd();
   if (parent->NeedsTwoSpillSlots()) {
     if (slot == spill_slots->Size()) {
       // We need a new spill slot.
@@ -1369,6 +1375,28 @@ static bool IsValidDestination(Location destination) {
       || destination.IsFpuRegisterPair()
       || destination.IsStackSlot()
       || destination.IsDoubleStackSlot();
+}
+
+void RegisterAllocator::AllocateSpillSlotForCatchPhi(HPhi* phi) {
+  LiveInterval* interval = phi->GetLiveInterval();
+
+  HInstruction* previous_phi = phi->GetPrevious();
+  DCHECK(previous_phi == nullptr ||
+         previous_phi->AsPhi()->GetRegNumber() <= phi->GetRegNumber())
+      << "Phis expected to be sorted by vreg number, so that equivalent phis are adjacent.";
+
+  if (phi->IsVRegEquivalentOf(previous_phi)) {
+    // This is an equivalent of the previous phi. We need to assign the same
+    // catch phi slot.
+    DCHECK(previous_phi->GetLiveInterval()->HasSpillSlot());
+    interval->SetSpillSlot(previous_phi->GetLiveInterval()->GetSpillSlot());
+  } else {
+    // Allocate a new spill slot for this catch phi.
+    // TODO: Reuse spill slots when intervals of phis from different catch
+    //       blocks do not overlap.
+    interval->SetSpillSlot(catch_phi_spill_slots_);
+    catch_phi_spill_slots_ += interval->NeedsTwoSpillSlots() ? 2 : 1;
+  }
 }
 
 void RegisterAllocator::AddMove(HParallelMove* move,
@@ -1497,7 +1525,7 @@ void RegisterAllocator::InsertParallelMoveAtExitOf(HBasicBlock* block,
   DCHECK(IsValidDestination(destination)) << destination;
   if (source.Equals(destination)) return;
 
-  DCHECK_EQ(block->GetSuccessors().size(), 1u);
+  DCHECK_EQ(block->NumberOfNormalSuccessors(), 1u);
   HInstruction* last = block->GetLastInstruction();
   // We insert moves at exit for phi predecessors and connecting blocks.
   // A block ending with an if cannot branch to a block with phis because
@@ -1724,7 +1752,7 @@ void RegisterAllocator::ConnectSplitSiblings(LiveInterval* interval,
 
   // If `from` has only one successor, we can put the moves at the exit of it. Otherwise
   // we need to put the moves at the entry of `to`.
-  if (from->GetSuccessors().size() == 1) {
+  if (from->NumberOfNormalSuccessors() == 1) {
     InsertParallelMoveAtExitOf(from,
                                interval->GetParent()->GetDefinedBy(),
                                source->ToLocation(),
@@ -1768,17 +1796,25 @@ void RegisterAllocator::Resolve() {
     } else if (instruction->IsCurrentMethod()) {
       // The current method is always at offset 0.
       DCHECK(!current->HasSpillSlot() || (current->GetSpillSlot() == 0));
+    } else if (instruction->IsPhi() && instruction->AsPhi()->IsCatchPhi()) {
+      DCHECK(current->HasSpillSlot());
+      size_t slot = current->GetSpillSlot()
+                    + GetNumberOfSpillSlots()
+                    + reserved_out_slots_
+                    - catch_phi_spill_slots_;
+      current->SetSpillSlot(slot * kVRegSize);
     } else if (current->HasSpillSlot()) {
       // Adjust the stack slot, now that we know the number of them for each type.
       // The way this implementation lays out the stack is the following:
-      // [parameter slots     ]
-      // [double spill slots  ]
-      // [long spill slots    ]
-      // [float spill slots   ]
-      // [int/ref values      ]
-      // [maximum out values  ] (number of arguments for calls)
-      // [art method          ].
-      uint32_t slot = current->GetSpillSlot();
+      // [parameter slots       ]
+      // [catch phi spill slots ]
+      // [double spill slots    ]
+      // [long spill slots      ]
+      // [float spill slots     ]
+      // [int/ref values        ]
+      // [maximum out values    ] (number of arguments for calls)
+      // [art method            ].
+      size_t slot = current->GetSpillSlot();
       switch (current->GetType()) {
         case Primitive::kPrimDouble:
           slot += long_spill_slots_.Size();
@@ -1828,12 +1864,22 @@ void RegisterAllocator::Resolve() {
   // Resolve non-linear control flow across branches. Order does not matter.
   for (HLinearOrderIterator it(*codegen_->GetGraph()); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
-    BitVector* live = liveness_.GetLiveInSet(*block);
-    for (uint32_t idx : live->Indexes()) {
-      HInstruction* current = liveness_.GetInstructionFromSsaIndex(idx);
-      LiveInterval* interval = current->GetLiveInterval();
-      for (HBasicBlock* predecessor : block->GetPredecessors()) {
-        ConnectSplitSiblings(interval, predecessor, block);
+    if (block->IsCatchBlock()) {
+      // Instructions live at the top of catch blocks were forced to spill.
+      if (kIsDebugBuild) {
+        BitVector* live = liveness_.GetLiveInSet(*block);
+        for (uint32_t idx : live->Indexes()) {
+          LiveInterval* interval = liveness_.GetInstructionFromSsaIndex(idx)->GetLiveInterval();
+          DCHECK(!interval->GetSiblingAt(block->GetLifetimeStart())->HasRegister());
+        }
+      }
+    } else {
+      BitVector* live = liveness_.GetLiveInSet(*block);
+      for (uint32_t idx : live->Indexes()) {
+        LiveInterval* interval = liveness_.GetInstructionFromSsaIndex(idx)->GetLiveInterval();
+        for (HBasicBlock* predecessor : block->GetPredecessors()) {
+          ConnectSplitSiblings(interval, predecessor, block);
+        }
       }
     }
   }
@@ -1841,16 +1887,20 @@ void RegisterAllocator::Resolve() {
   // Resolve phi inputs. Order does not matter.
   for (HLinearOrderIterator it(*codegen_->GetGraph()); !it.Done(); it.Advance()) {
     HBasicBlock* current = it.Current();
-    for (HInstructionIterator inst_it(current->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
-      HInstruction* phi = inst_it.Current();
-      for (size_t i = 0, e = current->GetPredecessors().size(); i < e; ++i) {
-        HBasicBlock* predecessor = current->GetPredecessor(i);
-        DCHECK_EQ(predecessor->GetSuccessors().size(), 1u);
-        HInstruction* input = phi->InputAt(i);
-        Location source = input->GetLiveInterval()->GetLocationAt(
-            predecessor->GetLifetimeEnd() - 1);
-        Location destination = phi->GetLiveInterval()->ToLocation();
-        InsertParallelMoveAtExitOf(predecessor, phi, source, destination);
+    if (current->IsCatchBlock()) {
+      // Catch phi values are set at runtime by the exception delivery mechanism.
+    } else {
+      for (HInstructionIterator inst_it(current->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
+        HInstruction* phi = inst_it.Current();
+        for (size_t i = 0, e = current->GetPredecessors().size(); i < e; ++i) {
+          HBasicBlock* predecessor = current->GetPredecessor(i);
+          DCHECK_EQ(predecessor->NumberOfNormalSuccessors(), 1u);
+          HInstruction* input = phi->InputAt(i);
+          Location source = input->GetLiveInterval()->GetLocationAt(
+              predecessor->GetLifetimeEnd() - 1);
+          Location destination = phi->GetLiveInterval()->ToLocation();
+          InsertParallelMoveAtExitOf(predecessor, phi, source, destination);
+        }
       }
     }
   }

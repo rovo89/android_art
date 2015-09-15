@@ -146,6 +146,107 @@ void QuickExceptionHandler::FindCatch(mirror::Throwable* exception) {
     // Put exception back in root set with clear throw location.
     self_->SetException(exception_ref.Get());
   }
+  // If the handler is in optimized code, we need to set the catch environment.
+  if (*handler_quick_frame_ != nullptr &&
+      handler_method_ != nullptr &&
+      handler_method_->IsOptimized(sizeof(void*))) {
+    SetCatchEnvironmentForOptimizedHandler(&visitor);
+  }
+}
+
+static VRegKind ToVRegKind(DexRegisterLocation::Kind kind) {
+  // Slightly hacky since we cannot map DexRegisterLocationKind and VRegKind
+  // one to one. However, StackVisitor::GetVRegFromOptimizedCode only needs to
+  // distinguish between core/FPU registers and low/high bits on 64-bit.
+  switch (kind) {
+    case DexRegisterLocation::Kind::kConstant:
+    case DexRegisterLocation::Kind::kInStack:
+      // VRegKind is ignored.
+      return VRegKind::kUndefined;
+
+    case DexRegisterLocation::Kind::kInRegister:
+      // Selects core register. For 64-bit registers, selects low 32 bits.
+      return VRegKind::kLongLoVReg;
+
+    case DexRegisterLocation::Kind::kInRegisterHigh:
+      // Selects core register. For 64-bit registers, selects high 32 bits.
+      return VRegKind::kLongHiVReg;
+
+    case DexRegisterLocation::Kind::kInFpuRegister:
+      // Selects FPU register. For 64-bit registers, selects low 32 bits.
+      return VRegKind::kDoubleLoVReg;
+
+    case DexRegisterLocation::Kind::kInFpuRegisterHigh:
+      // Selects FPU register. For 64-bit registers, selects high 32 bits.
+      return VRegKind::kDoubleHiVReg;
+
+    default:
+      LOG(FATAL) << "Unexpected vreg location "
+                 << DexRegisterLocation::PrettyDescriptor(kind);
+      UNREACHABLE();
+  }
+}
+
+void QuickExceptionHandler::SetCatchEnvironmentForOptimizedHandler(StackVisitor* stack_visitor) {
+  DCHECK(!is_deoptimization_);
+  DCHECK(*handler_quick_frame_ != nullptr) << "Method should not be called on upcall exceptions";
+  DCHECK(handler_method_ != nullptr && handler_method_->IsOptimized(sizeof(void*)));
+
+  if (kDebugExceptionDelivery) {
+    self_->DumpStack(LOG(INFO) << "Setting catch phis: ");
+  }
+
+  const size_t number_of_vregs = handler_method_->GetCodeItem()->registers_size_;
+  CodeInfo code_info = handler_method_->GetOptimizedCodeInfo();
+  StackMapEncoding encoding = code_info.ExtractEncoding();
+
+  // Find stack map of the throwing instruction.
+  StackMap throw_stack_map =
+      code_info.GetStackMapForNativePcOffset(stack_visitor->GetNativePcOffset(), encoding);
+  DCHECK(throw_stack_map.IsValid());
+  DexRegisterMap throw_vreg_map =
+      code_info.GetDexRegisterMapOf(throw_stack_map, encoding, number_of_vregs);
+
+  // Find stack map of the catch block.
+  StackMap catch_stack_map = code_info.GetCatchStackMapForDexPc(GetHandlerDexPc(), encoding);
+  DCHECK(catch_stack_map.IsValid());
+  DexRegisterMap catch_vreg_map =
+      code_info.GetDexRegisterMapOf(catch_stack_map, encoding, number_of_vregs);
+
+  // Copy values between them.
+  for (uint16_t vreg = 0; vreg < number_of_vregs; ++vreg) {
+    DexRegisterLocation::Kind catch_location =
+        catch_vreg_map.GetLocationKind(vreg, number_of_vregs, code_info, encoding);
+    if (catch_location == DexRegisterLocation::Kind::kNone) {
+      continue;
+    }
+    DCHECK(catch_location == DexRegisterLocation::Kind::kInStack);
+
+    // Get vreg value from its current location.
+    uint32_t vreg_value;
+    VRegKind vreg_kind = ToVRegKind(throw_vreg_map.GetLocationKind(vreg,
+                                                                   number_of_vregs,
+                                                                   code_info,
+                                                                   encoding));
+    bool get_vreg_success = stack_visitor->GetVReg(stack_visitor->GetMethod(),
+                                                   vreg,
+                                                   vreg_kind,
+                                                   &vreg_value);
+    CHECK(get_vreg_success) << "VReg " << vreg << " was optimized out ("
+                            << "method=" << PrettyMethod(stack_visitor->GetMethod()) << ", "
+                            << "dex_pc=" << stack_visitor->GetDexPc() << ", "
+                            << "native_pc_offset=" << stack_visitor->GetNativePcOffset() << ")";
+
+    // Copy value to the catch phi's stack slot.
+    int32_t slot_offset = catch_vreg_map.GetStackOffsetInBytes(vreg,
+                                                               number_of_vregs,
+                                                               code_info,
+                                                               encoding);
+    ArtMethod** frame_top = stack_visitor->GetCurrentQuickFrame();
+    uint8_t* slot_address = reinterpret_cast<uint8_t*>(frame_top) + slot_offset;
+    uint32_t* slot_ptr = reinterpret_cast<uint32_t*>(slot_address);
+    *slot_ptr = vreg_value;
+  }
 }
 
 // Prepares deoptimization.

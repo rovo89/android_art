@@ -286,7 +286,7 @@ void StackMapStream::FillIn(MemoryRegion region) {
         stack_map.SetDexRegisterMapOffset(
             stack_map_encoding_,
             code_info.GetStackMapAt(entry.same_dex_register_map_as_, stack_map_encoding_)
-                     .GetDexRegisterMapOffset(stack_map_encoding_));
+                .GetDexRegisterMapOffset(stack_map_encoding_));
       } else {
         // New dex registers maps should be added to the stack map.
         MemoryRegion register_region = dex_register_locations_region.Subregion(
