@@ -506,7 +506,7 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
       ReferenceTypeInfo::TypeHandle return_handle =
         handles_->NewHandle(resolved_method->GetReturnType(true /* resolve */, pointer_size));
       return_replacement->SetReferenceTypeInfo(ReferenceTypeInfo::Create(
-         return_handle, return_handle->IsFinal() /* is_exact */));
+         return_handle, return_handle->CannotBeAssignedFromOtherTypes() /* is_exact */));
     }
   }
 
