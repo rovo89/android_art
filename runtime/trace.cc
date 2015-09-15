@@ -73,6 +73,8 @@ class BuildStackTraceVisitor : public StackVisitor {
 
  private:
   std::vector<ArtMethod*>* const method_trace_;
+
+  DISALLOW_COPY_AND_ASSIGN(BuildStackTraceVisitor);
 };
 
 static const char     kTraceTokenChar             = '*';

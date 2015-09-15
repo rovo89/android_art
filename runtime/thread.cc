@@ -1185,7 +1185,6 @@ struct StackDumpVisitor : public StackVisitor {
       SHARED_REQUIRES(Locks::mutator_lock_)
       : StackVisitor(thread_in, context, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         os(os_in),
-        thread(thread_in),
         can_allocate(can_allocate_in),
         last_method(nullptr),
         last_line_number(0),
@@ -1233,7 +1232,7 @@ struct StackDumpVisitor : public StackVisitor {
       }
       os << "\n";
       if (frame_count == 0) {
-        Monitor::DescribeWait(os, thread);
+        Monitor::DescribeWait(os, GetThread());
       }
       if (can_allocate) {
         // Visit locks, but do not abort on errors. This would trigger a nested abort.
@@ -1269,7 +1268,6 @@ struct StackDumpVisitor : public StackVisitor {
   }
 
   std::ostream& os;
-  const Thread* thread;
   const bool can_allocate;
   ArtMethod* last_method;
   int last_line_number;
@@ -1825,6 +1823,8 @@ class CountStackDepthVisitor : public StackVisitor {
   uint32_t depth_;
   uint32_t skip_depth_;
   bool skipping_;
+
+  DISALLOW_COPY_AND_ASSIGN(CountStackDepthVisitor);
 };
 
 template<bool kTransactionActive>
@@ -1891,7 +1891,9 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
   // An array of the methods on the stack, the last entries are the dex PCs.
   mirror::PointerArray* trace_;
   // For cross compilation.
-  size_t pointer_size_;
+  const size_t pointer_size_;
+
+  DISALLOW_COPY_AND_ASSIGN(BuildInternalStackTraceVisitor);
 };
 
 template<bool kTransactionActive>

@@ -441,6 +441,10 @@ class StackVisitor {
   void WalkStack(bool include_transitions = false)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  Thread* GetThread() const {
+    return thread_;
+  }
+
   ArtMethod* GetMethod() const SHARED_REQUIRES(Locks::mutator_lock_);
 
   bool IsShadowFrame() const {
