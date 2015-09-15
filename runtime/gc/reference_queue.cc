@@ -115,10 +115,12 @@ mirror::Reference* ReferenceQueue::DequeuePendingReference() {
             << "ref=" << ref << " rb_ptr=" << ref->GetReadBarrierPointer();
       }
       mirror::Object* referent = ref->GetReferent<kWithoutReadBarrier>();
-      CHECK(referent != nullptr) << "Reference should not have been enqueued if referent is null";
-      CHECK(concurrent_copying->IsInToSpace(referent))
-          << "ref=" << ref << " rb_ptr=" << ref->GetReadBarrierPointer()
-          << " referent=" << referent;
+      // The referent could be null if it's cleared by a mutator (Reference.clear()).
+      if (referent != nullptr) {
+        CHECK(concurrent_copying->IsInToSpace(referent))
+            << "ref=" << ref << " rb_ptr=" << ref->GetReadBarrierPointer()
+            << " referent=" << referent;
+      }
     }
   }
   return ref;
