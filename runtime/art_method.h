@@ -443,7 +443,7 @@ class ArtMethod FINAL {
 
   // Converts a dex PC to a native PC.
   uintptr_t ToNativeQuickPc(const uint32_t dex_pc,
-                            bool is_catch_handler,
+                            bool is_for_catch_handler,
                             bool abort_on_failure = true)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
