@@ -528,13 +528,12 @@ inline mirror::Class* ArtMethod::GetReturnType(bool resolve, size_t ptr_size) {
 }
 
 template<typename RootVisitorType>
-void ArtMethod::VisitRoots(RootVisitorType& visitor) {
+void ArtMethod::VisitRoots(RootVisitorType& visitor, size_t pointer_size) {
   ArtMethod* interface_method = nullptr;
   mirror::Class* klass = declaring_class_.Read();
   if (UNLIKELY(klass != nullptr && klass->IsProxyClass())) {
     // For normal methods, dex cache shortcuts will be visited through the declaring class.
     // However, for proxies we need to keep the interface method alive, so we visit its roots.
-    size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
     interface_method = mirror::DexCache::GetElementPtrSize(
         GetDexCacheResolvedMethods(pointer_size),
         GetDexMethodIndex(),
@@ -542,11 +541,11 @@ void ArtMethod::VisitRoots(RootVisitorType& visitor) {
     DCHECK(interface_method != nullptr);
     DCHECK_EQ(interface_method,
               Runtime::Current()->GetClassLinker()->FindMethodForProxy(klass, this));
-    interface_method->VisitRoots(visitor);
+    interface_method->VisitRoots(visitor, pointer_size);
   }
 
   visitor.VisitRootIfNonNull(declaring_class_.AddressWithoutBarrier());
-  ProfilingInfo* profiling_info = GetProfilingInfo();
+  ProfilingInfo* profiling_info = GetProfilingInfo(pointer_size);
   if (hotness_count_ != 0 && !IsNative() && profiling_info != nullptr) {
     profiling_info->VisitRoots(visitor);
   }

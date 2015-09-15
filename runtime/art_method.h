@@ -392,8 +392,8 @@ class ArtMethod FINAL {
 
   ProfilingInfo* CreateProfilingInfo() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ProfilingInfo* GetProfilingInfo() {
-    return reinterpret_cast<ProfilingInfo*>(GetEntryPointFromJni());
+  ProfilingInfo* GetProfilingInfo(size_t pointer_size) {
+    return reinterpret_cast<ProfilingInfo*>(GetEntryPointFromJniPtrSize(pointer_size));
   }
 
   void* GetEntryPointFromJni() {
@@ -458,7 +458,7 @@ class ArtMethod FINAL {
 
   // NO_THREAD_SAFETY_ANALYSIS since we don't know what the callback requires.
   template<typename RootVisitorType>
-  void VisitRoots(RootVisitorType& visitor) NO_THREAD_SAFETY_ANALYSIS;
+  void VisitRoots(RootVisitorType& visitor, size_t pointer_size) NO_THREAD_SAFETY_ANALYSIS;
 
   const DexFile* GetDexFile() SHARED_REQUIRES(Locks::mutator_lock_);
 

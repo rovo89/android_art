@@ -842,10 +842,10 @@ void mirror::Class::VisitNativeRoots(Visitor& visitor, size_t pointer_size) {
     }
   }
   for (ArtMethod& method : GetDirectMethods(pointer_size)) {
-    method.VisitRoots(visitor);
+    method.VisitRoots(visitor, pointer_size);
   }
   for (ArtMethod& method : GetVirtualMethods(pointer_size)) {
-    method.VisitRoots(visitor);
+    method.VisitRoots(visitor, pointer_size);
   }
 }
 
