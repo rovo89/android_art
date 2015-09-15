@@ -63,8 +63,8 @@ class LICMTest : public testing::Test {
     // Provide boiler-plate instructions.
     parameter_ = new (&allocator_) HParameterValue(0, Primitive::kPrimNot);
     entry_->AddInstruction(parameter_);
-    constant_ = new (&allocator_) HConstant(Primitive::kPrimInt);
-    loop_preheader_->AddInstruction(constant_);
+    constant_ = graph_->GetIntConstant(42);
+    loop_preheader_->AddInstruction(new (&allocator_) HGoto());
     loop_header_->AddInstruction(new (&allocator_) HIf(parameter_));
     loop_body_->AddInstruction(new (&allocator_) HGoto());
     exit_->AddInstruction(new (&allocator_) HExit());
@@ -98,23 +98,6 @@ class LICMTest : public testing::Test {
 //
 // The actual LICM tests.
 //
-
-TEST_F(LICMTest, ConstantHoisting) {
-  BuildLoop();
-
-  // Populate the loop with instructions: set array to constant.
-  HInstruction* constant = new (&allocator_) HConstant(Primitive::kPrimDouble);
-  loop_body_->InsertInstructionBefore(constant, loop_body_->GetLastInstruction());
-  HInstruction* set_array = new (&allocator_) HArraySet(
-      parameter_, constant_, constant, Primitive::kPrimDouble, 0);
-  loop_body_->InsertInstructionBefore(set_array, loop_body_->GetLastInstruction());
-
-  EXPECT_EQ(constant->GetBlock(), loop_body_);
-  EXPECT_EQ(set_array->GetBlock(), loop_body_);
-  PerformLICM();
-  EXPECT_EQ(constant->GetBlock(), loop_preheader_);
-  EXPECT_EQ(set_array->GetBlock(), loop_body_);
-}
 
 TEST_F(LICMTest, FieldHoisting) {
   BuildLoop();
