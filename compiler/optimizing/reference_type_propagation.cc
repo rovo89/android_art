@@ -167,7 +167,7 @@ static HBoundType* CreateBoundType(ArenaAllocator* arena,
   ReferenceTypeInfo class_rti = load_class->GetLoadedClassRTI();
   HBoundType* bound_type = new (arena) HBoundType(obj, class_rti, upper_can_be_null);
   // Narrow the type as much as possible.
-  if (class_rti.GetTypeHandle()->IsFinal()) {
+  if (class_rti.GetTypeHandle()->CannotBeAssignedFromOtherTypes()) {
     bound_type->SetReferenceTypeInfo(
         ReferenceTypeInfo::Create(class_rti.GetTypeHandle(), /* is_exact */ true));
   } else if (obj_rti.IsValid() && class_rti.IsSupertypeOf(obj_rti)) {
@@ -380,7 +380,7 @@ void RTPVisitor::SetClassAsTypeInfo(HInstruction* instr,
   } else if (klass != nullptr) {
     ScopedObjectAccess soa(Thread::Current());
     ReferenceTypeInfo::TypeHandle handle = handles_->NewHandle(klass);
-    is_exact = is_exact || klass->IsFinal();
+    is_exact = is_exact || klass->CannotBeAssignedFromOtherTypes();
     instr->SetReferenceTypeInfo(ReferenceTypeInfo::Create(handle, is_exact));
   } else {
     instr->SetReferenceTypeInfo(
