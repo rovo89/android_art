@@ -223,7 +223,9 @@ uint32_t ArtMethod::ToDexPc(const uintptr_t pc, bool abort_on_failure) {
   return DexFile::kDexNoIndex;
 }
 
-uintptr_t ArtMethod::ToNativeQuickPc(const uint32_t dex_pc, bool abort_on_failure) {
+uintptr_t ArtMethod::ToNativeQuickPc(const uint32_t dex_pc,
+                                     bool is_catch_handler,
+                                     bool abort_on_failure) {
   const void* entry_point = GetQuickOatEntryPoint(sizeof(void*));
   if (IsOptimized(sizeof(void*))) {
     // Optimized code does not have a mapping table. Search for the dex-to-pc
@@ -231,9 +233,12 @@ uintptr_t ArtMethod::ToNativeQuickPc(const uint32_t dex_pc, bool abort_on_failur
     CodeInfo code_info = GetOptimizedCodeInfo();
     StackMapEncoding encoding = code_info.ExtractEncoding();
 
-    // Assume the caller needs the mapping for a catch handler. If there are
-    // multiple stack maps for this dex_pc, it will hit the catch stack map first.
-    StackMap stack_map = code_info.GetCatchStackMapForDexPc(dex_pc, encoding);
+    // All stack maps are stored in the same CodeItem section, safepoint stack
+    // maps first, then catch stack maps. We use `is_catch_dex_pc` to select the
+    // order of iteration.
+    StackMap stack_map =
+        LIKELY(is_catch_handler) ? code_info.GetCatchStackMapForDexPc(dex_pc, encoding)
+                                 : code_info.GetStackMapForDexPc(dex_pc, encoding);
     if (stack_map.IsValid()) {
       return reinterpret_cast<uintptr_t>(entry_point) + stack_map.GetNativePcOffset(encoding);
     }

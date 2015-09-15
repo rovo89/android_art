@@ -22,7 +22,9 @@ namespace art {
 #define CHECK_REGS_CONTAIN_REFS(dex_pc, abort_if_not_found, ...) do { \
   int t[] = {__VA_ARGS__}; \
   int t_size = sizeof(t) / sizeof(*t); \
-  uintptr_t native_quick_pc = m->ToNativeQuickPc(dex_pc, abort_if_not_found); \
+  uintptr_t native_quick_pc = m->ToNativeQuickPc(dex_pc, \
+                                                 /* is_catch_handler */ false, \
+                                                 abort_if_not_found); \
   if (native_quick_pc != UINTPTR_MAX) { \
     CheckReferences(t, t_size, m->NativeQuickPcOffset(native_quick_pc)); \
   } \
