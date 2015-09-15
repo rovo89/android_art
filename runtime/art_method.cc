@@ -601,12 +601,13 @@ const uint8_t* ArtMethod::GetQuickenedInfo() {
 }
 
 ProfilingInfo* ArtMethod::CreateProfilingInfo() {
+  DCHECK(!Runtime::Current()->IsAotCompiler());
   ProfilingInfo* info = ProfilingInfo::Create(this);
   MemberOffset offset = ArtMethod::EntryPointFromJniOffset(sizeof(void*));
   uintptr_t pointer = reinterpret_cast<uintptr_t>(this) + offset.Uint32Value();
   if (!reinterpret_cast<Atomic<ProfilingInfo*>*>(pointer)->
           CompareExchangeStrongSequentiallyConsistent(nullptr, info)) {
-    return GetProfilingInfo();
+    return GetProfilingInfo(sizeof(void*));
   } else {
     return info;
   }

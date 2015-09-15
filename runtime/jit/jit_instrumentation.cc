@@ -98,7 +98,7 @@ void JitInstrumentationListener::InvokeVirtualOrInterface(Thread* thread,
                                                           uint32_t dex_pc,
                                                           ArtMethod* callee ATTRIBUTE_UNUSED) {
   DCHECK(this_object != nullptr);
-  ProfilingInfo* info = caller->GetProfilingInfo();
+  ProfilingInfo* info = caller->GetProfilingInfo(sizeof(void*));
   if (info != nullptr) {
     info->AddInvokeInfo(thread, dex_pc, this_object->GetClass());
   }
