@@ -560,6 +560,12 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
                                                      CompilerDriver* compiler_driver,
                                                      const DexCompilationUnit& dex_compilation_unit,
                                                      PassObserver* pass_observer) const {
+  if (graph->HasTryCatch() && graph->IsDebuggable()) {
+    // TODO: b/24054676, stop creating catch phis eagerly to avoid special cases like phis without
+    // inputs.
+    return nullptr;
+  }
+
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScopeCollection handles(soa.Self());
   soa.Self()->TransitionFromRunnableToSuspended(kNative);
