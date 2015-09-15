@@ -1472,7 +1472,7 @@ void ConcurrentCopying::AssertToSpaceInvariant(GcRootSource* gc_root_source,
         ArtMethod* method = gc_root_source->GetArtMethod();
         LOG(INTERNAL_FATAL) << "gc root in method " << method << " " << PrettyMethod(method);
         RootPrinter root_printer;
-        method->VisitRoots(root_printer);
+        method->VisitRoots(root_printer, sizeof(void*));
       }
       ref->GetLockWord(false).Dump(LOG(INTERNAL_FATAL));
       region_space_->DumpNonFreeRegions(LOG(INTERNAL_FATAL));

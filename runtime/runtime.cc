@@ -1399,19 +1399,20 @@ void Runtime::VisitConstantRoots(RootVisitor* visitor) {
   // Visiting the roots of these ArtMethods is not currently required since all the GcRoots are
   // null.
   BufferedRootVisitor<16> buffered_visitor(visitor, RootInfo(kRootVMInternal));
+  const size_t pointer_size = GetClassLinker()->GetImagePointerSize();
   if (HasResolutionMethod()) {
-    resolution_method_->VisitRoots(buffered_visitor);
+    resolution_method_->VisitRoots(buffered_visitor, pointer_size);
   }
   if (HasImtConflictMethod()) {
-    imt_conflict_method_->VisitRoots(buffered_visitor);
+    imt_conflict_method_->VisitRoots(buffered_visitor, pointer_size);
   }
   if (imt_unimplemented_method_ != nullptr) {
-    imt_unimplemented_method_->VisitRoots(buffered_visitor);
+    imt_unimplemented_method_->VisitRoots(buffered_visitor, pointer_size);
   }
   for (size_t i = 0; i < kLastCalleeSaveType; ++i) {
     auto* m = reinterpret_cast<ArtMethod*>(callee_save_methods_[i]);
     if (m != nullptr) {
-      m->VisitRoots(buffered_visitor);
+      m->VisitRoots(buffered_visitor, pointer_size);
     }
   }
 }
