@@ -224,7 +224,7 @@ uint32_t ArtMethod::ToDexPc(const uintptr_t pc, bool abort_on_failure) {
 }
 
 uintptr_t ArtMethod::ToNativeQuickPc(const uint32_t dex_pc,
-                                     bool is_catch_handler,
+                                     bool is_for_catch_handler,
                                      bool abort_on_failure) {
   const void* entry_point = GetQuickOatEntryPoint(sizeof(void*));
   if (IsOptimized(sizeof(void*))) {
@@ -234,11 +234,11 @@ uintptr_t ArtMethod::ToNativeQuickPc(const uint32_t dex_pc,
     StackMapEncoding encoding = code_info.ExtractEncoding();
 
     // All stack maps are stored in the same CodeItem section, safepoint stack
-    // maps first, then catch stack maps. We use `is_catch_dex_pc` to select the
-    // order of iteration.
+    // maps first, then catch stack maps. We use `is_for_catch_handler` to select
+    // the order of iteration.
     StackMap stack_map =
-        LIKELY(is_catch_handler) ? code_info.GetCatchStackMapForDexPc(dex_pc, encoding)
-                                 : code_info.GetStackMapForDexPc(dex_pc, encoding);
+        LIKELY(is_for_catch_handler) ? code_info.GetCatchStackMapForDexPc(dex_pc, encoding)
+                                     : code_info.GetStackMapForDexPc(dex_pc, encoding);
     if (stack_map.IsValid()) {
       return reinterpret_cast<uintptr_t>(entry_point) + stack_map.GetNativePcOffset(encoding);
     }
