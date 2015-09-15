@@ -2443,6 +2443,8 @@ class FindFrameVisitor FINAL : public StackVisitor {
  private:
   const JDWP::FrameId frame_id_;
   JDWP::JdwpError error_;
+
+  DISALLOW_COPY_AND_ASSIGN(FindFrameVisitor);
 };
 
 JDWP::JdwpError Dbg::GetLocalValues(JDWP::Request* request, JDWP::ExpandBuf* pReply) {
@@ -2822,7 +2824,6 @@ class CatchLocationFinder : public StackVisitor {
   CatchLocationFinder(Thread* self, const Handle<mirror::Throwable>& exception, Context* context)
       SHARED_REQUIRES(Locks::mutator_lock_)
     : StackVisitor(self, context, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
-      self_(self),
       exception_(exception),
       handle_scope_(self),
       this_at_throw_(handle_scope_.NewHandle<mirror::Object>(nullptr)),
@@ -2852,7 +2853,7 @@ class CatchLocationFinder : public StackVisitor {
     }
 
     if (dex_pc != DexFile::kDexNoIndex) {
-      StackHandleScope<1> hs(self_);
+      StackHandleScope<1> hs(GetThread());
       uint32_t found_dex_pc;
       Handle<mirror::Class> exception_class(hs.NewHandle(exception_->GetClass()));
       bool unused_clear_exception;
@@ -2887,7 +2888,6 @@ class CatchLocationFinder : public StackVisitor {
   }
 
  private:
-  Thread* const self_;
   const Handle<mirror::Throwable>& exception_;
   StackHandleScope<1> handle_scope_;
   MutableHandle<mirror::Object> this_at_throw_;
