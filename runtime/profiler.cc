@@ -57,7 +57,8 @@ volatile bool BackgroundMethodSamplingProfiler::shutting_down_ = false;
 class BoundedStackVisitor : public StackVisitor {
  public:
   BoundedStackVisitor(std::vector<std::pair<ArtMethod*, uint32_t>>* stack,
-      Thread* thread, uint32_t max_depth)
+                      Thread* thread,
+                      uint32_t max_depth)
       SHARED_REQUIRES(Locks::mutator_lock_)
       : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         stack_(stack),
@@ -80,9 +81,11 @@ class BoundedStackVisitor : public StackVisitor {
   }
 
  private:
-  std::vector<std::pair<ArtMethod*, uint32_t>>* stack_;
+  std::vector<std::pair<ArtMethod*, uint32_t>>* const stack_;
   const uint32_t max_depth_;
   uint32_t depth_;
+
+  DISALLOW_COPY_AND_ASSIGN(BoundedStackVisitor);
 };
 
 // This is called from either a thread list traversal or from a checkpoint.  Regardless

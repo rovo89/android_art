@@ -47,7 +47,6 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
                          QuickExceptionHandler* exception_handler)
       SHARED_REQUIRES(Locks::mutator_lock_)
       : StackVisitor(self, context, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
-        self_(self),
         exception_(exception),
         exception_handler_(exception_handler) {
   }
@@ -90,14 +89,15 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
     }
     if (dex_pc != DexFile::kDexNoIndex) {
       bool clear_exception = false;
-      StackHandleScope<1> hs(self_);
+      StackHandleScope<1> hs(GetThread());
       Handle<mirror::Class> to_find(hs.NewHandle((*exception_)->GetClass()));
       uint32_t found_dex_pc = method->FindCatchBlock(to_find, dex_pc, &clear_exception);
       exception_handler_->SetClearException(clear_exception);
       if (found_dex_pc != DexFile::kDexNoIndex) {
         exception_handler_->SetHandlerMethod(method);
         exception_handler_->SetHandlerDexPc(found_dex_pc);
-        exception_handler_->SetHandlerQuickFramePc(method->ToNativeQuickPc(found_dex_pc));
+        exception_handler_->SetHandlerQuickFramePc(
+            method->ToNativeQuickPc(found_dex_pc, /* is_catch_handler */ true));
         exception_handler_->SetHandlerQuickFrame(GetCurrentQuickFrame());
         return false;  // End stack walk.
       }
@@ -105,7 +105,6 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
     return true;  // Continue stack walk.
   }
 
-  Thread* const self_;
   // The exception we're looking for the catch block of.
   Handle<mirror::Throwable>* exception_;
   // The quick exception handler we're visiting for.
@@ -255,7 +254,6 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
   DeoptimizeStackVisitor(Thread* self, Context* context, QuickExceptionHandler* exception_handler)
       SHARED_REQUIRES(Locks::mutator_lock_)
       : StackVisitor(self, context, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
-        self_(self),
         exception_handler_(exception_handler),
         prev_shadow_frame_(nullptr),
         stacked_shadow_frame_pushed_(false) {
@@ -272,7 +270,8 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
         // In case there is no deoptimized shadow frame for this upcall, we still
         // need to push a nullptr to the stack since there is always a matching pop after
         // the long jump.
-        self_->PushStackedShadowFrame(nullptr, StackedShadowFrameType::kDeoptimizationShadowFrame);
+        GetThread()->PushStackedShadowFrame(nullptr,
+                                            StackedShadowFrameType::kDeoptimizationShadowFrame);
         stacked_shadow_frame_pushed_ = true;
       }
       return false;  // End stack walk.
@@ -301,18 +300,19 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
     CHECK(code_item != nullptr) << "No code item for " << PrettyMethod(m);
     uint16_t num_regs = code_item->registers_size_;
     uint32_t dex_pc = GetDexPc();
-    StackHandleScope<2> hs(self_);  // Dex cache, class loader and method.
+    StackHandleScope<2> hs(GetThread());  // Dex cache, class loader and method.
     mirror::Class* declaring_class = m->GetDeclaringClass();
     Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
     Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
-    verifier::MethodVerifier verifier(self_, h_dex_cache->GetDexFile(), h_dex_cache, h_class_loader,
-                                      &m->GetClassDef(), code_item, m->GetDexMethodIndex(),
-                                      m, m->GetAccessFlags(), true, true, true, true);
+    verifier::MethodVerifier verifier(GetThread(), h_dex_cache->GetDexFile(), h_dex_cache,
+                                      h_class_loader, &m->GetClassDef(), code_item,
+                                      m->GetDexMethodIndex(), m, m->GetAccessFlags(), true, true,
+                                      true, true);
     bool verifier_success = verifier.Verify();
     CHECK(verifier_success) << PrettyMethod(m);
     ShadowFrame* new_frame = ShadowFrame::CreateDeoptimizedFrame(num_regs, nullptr, m, dex_pc);
     {
-      ScopedStackedShadowFramePusher pusher(self_, new_frame,
+      ScopedStackedShadowFramePusher pusher(GetThread(), new_frame,
                                             StackedShadowFrameType::kShadowFrameUnderConstruction);
       const std::vector<int32_t> kinds(verifier.DescribeVRegs(dex_pc));
 
@@ -419,13 +419,13 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
       // Will be popped after the long jump after DeoptimizeStack(),
       // right before interpreter::EnterInterpreterFromDeoptimize().
       stacked_shadow_frame_pushed_ = true;
-      self_->PushStackedShadowFrame(new_frame, StackedShadowFrameType::kDeoptimizationShadowFrame);
+      GetThread()->PushStackedShadowFrame(new_frame,
+                                          StackedShadowFrameType::kDeoptimizationShadowFrame);
     }
     prev_shadow_frame_ = new_frame;
     return true;
   }
 
-  Thread* const self_;
   QuickExceptionHandler* const exception_handler_;
   ShadowFrame* prev_shadow_frame_;
   bool stacked_shadow_frame_pushed_;
