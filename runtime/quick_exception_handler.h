@@ -49,10 +49,13 @@ class QuickExceptionHandler {
   // Deoptimize the stack to the upcall. For every compiled frame, we create a "copy"
   // shadow frame that will be executed with the interpreter.
   void DeoptimizeStack() SHARED_REQUIRES(Locks::mutator_lock_);
-
   // Update the instrumentation stack by removing all methods that will be unwound
   // by the exception being thrown.
   void UpdateInstrumentationStack() SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Set up environment before delivering an exception to optimized code.
+  void SetCatchEnvironmentForOptimizedHandler(StackVisitor* stack_visitor)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Long jump either to a catch handler or to the upcall.
   NO_RETURN void DoLongJump() SHARED_REQUIRES(Locks::mutator_lock_);

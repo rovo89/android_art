@@ -118,6 +118,10 @@ class BoundsCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
     LocationSummary* locations = instruction_->GetLocations();
     CodeGeneratorMIPS64* mips64_codegen = down_cast<CodeGeneratorMIPS64*>(codegen);
     __ Bind(GetEntryLabel());
+    if (instruction_->CanThrowIntoCatchBlock()) {
+      // Live registers will be restored in the catch block if caught.
+      SaveLiveRegisters(codegen, instruction_->GetLocations());
+    }
     // We're moving two locations to locations that could overlap, so we need a parallel
     // move resolver.
     InvokeRuntimeCallingConvention calling_convention;
@@ -151,6 +155,10 @@ class DivZeroCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorMIPS64* mips64_codegen = down_cast<CodeGeneratorMIPS64*>(codegen);
     __ Bind(GetEntryLabel());
+    if (instruction_->CanThrowIntoCatchBlock()) {
+      // Live registers will be restored in the catch block if caught.
+      SaveLiveRegisters(codegen, instruction_->GetLocations());
+    }
     mips64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pThrowDivZero),
                                   instruction_,
                                   instruction_->GetDexPc(),
@@ -269,6 +277,10 @@ class NullCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorMIPS64* mips64_codegen = down_cast<CodeGeneratorMIPS64*>(codegen);
     __ Bind(GetEntryLabel());
+    if (instruction_->CanThrowIntoCatchBlock()) {
+      // Live registers will be restored in the catch block if caught.
+      SaveLiveRegisters(codegen, instruction_->GetLocations());
+    }
     mips64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pThrowNullPointer),
                                   instruction_,
                                   instruction_->GetDexPc(),
@@ -1566,8 +1578,10 @@ void InstructionCodeGeneratorMIPS64::VisitArraySet(HArraySet* instruction) {
 }
 
 void LocationsBuilderMIPS64::VisitBoundsCheck(HBoundsCheck* instruction) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  LocationSummary::CallKind call_kind = instruction->CanThrowIntoCatchBlock()
+      ? LocationSummary::kCallOnSlowPath
+      : LocationSummary::kNoCall;
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
   if (instruction->HasUses()) {
@@ -1862,8 +1876,10 @@ void InstructionCodeGeneratorMIPS64::VisitDiv(HDiv* instruction) {
 }
 
 void LocationsBuilderMIPS64::VisitDivZeroCheck(HDivZeroCheck* instruction) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  LocationSummary::CallKind call_kind = instruction->CanThrowIntoCatchBlock()
+      ? LocationSummary::kCallOnSlowPath
+      : LocationSummary::kNoCall;
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
   locations->SetInAt(0, Location::RegisterOrConstant(instruction->InputAt(0)));
   if (instruction->HasUses()) {
     locations->SetOut(Location::SameAsFirstInput());
@@ -2824,8 +2840,10 @@ void InstructionCodeGeneratorMIPS64::VisitBooleanNot(HBooleanNot* instruction) {
 }
 
 void LocationsBuilderMIPS64::VisitNullCheck(HNullCheck* instruction) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  LocationSummary::CallKind call_kind = instruction->CanThrowIntoCatchBlock()
+      ? LocationSummary::kCallOnSlowPath
+      : LocationSummary::kNoCall;
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
   locations->SetInAt(0, Location::RequiresRegister());
   if (instruction->HasUses()) {
     locations->SetOut(Location::SameAsFirstInput());
@@ -2852,7 +2870,7 @@ void InstructionCodeGeneratorMIPS64::GenerateExplicitNullCheck(HNullCheck* instr
 }
 
 void InstructionCodeGeneratorMIPS64::VisitNullCheck(HNullCheck* instruction) {
-  if (codegen_->GetCompilerOptions().GetImplicitNullChecks()) {
+  if (codegen_->IsImplicitNullCheckAllowed(instruction)) {
     GenerateImplicitNullCheck(instruction);
   } else {
     GenerateExplicitNullCheck(instruction);
