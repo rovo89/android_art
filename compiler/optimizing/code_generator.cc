@@ -248,6 +248,12 @@ void CodeGenerator::CompileInternal(CodeAllocator* allocator, bool is_baseline) 
 
   GenerateSlowPaths();
 
+  // Emit catch stack maps at the end of the stack map stream as expected by the
+  // runtime exception handler.
+  if (!is_baseline && graph_->HasTryCatch()) {
+    RecordCatchBlockInfo();
+  }
+
   // Finalize instructions in assember;
   Finalize(allocator);
 }
@@ -805,6 +811,73 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
   stack_map_stream_.EndStackMapEntry();
 }
 
+void CodeGenerator::RecordCatchBlockInfo() {
+  ArenaAllocator* arena = graph_->GetArena();
+
+  for (size_t i = 0, e = block_order_->Size(); i < e; ++i) {
+    HBasicBlock* block = block_order_->Get(i);
+    if (!block->IsCatchBlock()) {
+      continue;
+    }
+
+    uint32_t dex_pc = block->GetDexPc();
+    uint32_t num_vregs = graph_->GetNumberOfVRegs();
+    uint32_t inlining_depth = 0;  // Inlining of catch blocks is not supported at the moment.
+    uint32_t native_pc = GetAddressOf(block);
+    uint32_t register_mask = 0;   // Not used.
+
+    // The stack mask is not used, so we leave it empty.
+    ArenaBitVector* stack_mask = new (arena) ArenaBitVector(arena, 0, /* expandable */ true);
+
+    stack_map_stream_.BeginStackMapEntry(dex_pc,
+                                         native_pc,
+                                         register_mask,
+                                         stack_mask,
+                                         num_vregs,
+                                         inlining_depth);
+
+    HInstruction* current_phi = block->GetFirstPhi();
+    for (size_t vreg = 0; vreg < num_vregs; ++vreg) {
+    while (current_phi != nullptr && current_phi->AsPhi()->GetRegNumber() < vreg) {
+      HInstruction* next_phi = current_phi->GetNext();
+      DCHECK(next_phi == nullptr ||
+             current_phi->AsPhi()->GetRegNumber() <= next_phi->AsPhi()->GetRegNumber())
+          << "Phis need to be sorted by vreg number to keep this a linear-time loop.";
+      current_phi = next_phi;
+    }
+
+      if (current_phi == nullptr || current_phi->AsPhi()->GetRegNumber() != vreg) {
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kNone, 0);
+      } else {
+        Location location = current_phi->GetLiveInterval()->ToLocation();
+        switch (location.GetKind()) {
+          case Location::kStackSlot: {
+            stack_map_stream_.AddDexRegisterEntry(
+                DexRegisterLocation::Kind::kInStack, location.GetStackIndex());
+            break;
+          }
+          case Location::kDoubleStackSlot: {
+            stack_map_stream_.AddDexRegisterEntry(
+                DexRegisterLocation::Kind::kInStack, location.GetStackIndex());
+            stack_map_stream_.AddDexRegisterEntry(
+                DexRegisterLocation::Kind::kInStack, location.GetHighStackIndex(kVRegSize));
+            ++vreg;
+            DCHECK_LT(vreg, num_vregs);
+            break;
+          }
+          default: {
+            // All catch phis must be allocated to a stack slot.
+            LOG(FATAL) << "Unexpected kind " << location.GetKind();
+            UNREACHABLE();
+          }
+        }
+      }
+    }
+
+    stack_map_stream_.EndStackMapEntry();
+  }
+}
+
 void CodeGenerator::EmitEnvironment(HEnvironment* environment, SlowPathCode* slow_path) {
   if (environment == nullptr) return;
 
@@ -975,6 +1048,13 @@ void CodeGenerator::EmitEnvironment(HEnvironment* environment, SlowPathCode* slo
   }
 }
 
+bool CodeGenerator::IsImplicitNullCheckAllowed(HNullCheck* null_check) const {
+  return compiler_options_.GetImplicitNullChecks() &&
+         // Null checks which might throw into a catch block need to save live
+         // registers and therefore cannot be done implicitly.
+         !null_check->CanThrowIntoCatchBlock();
+}
+
 bool CodeGenerator::CanMoveNullCheckToUser(HNullCheck* null_check) {
   HInstruction* first_next_not_move = null_check->GetNextDisregardingMoves();
 
@@ -990,10 +1070,6 @@ void CodeGenerator::MaybeRecordImplicitNullCheck(HInstruction* instr) {
     return;
   }
 
-  if (!compiler_options_.GetImplicitNullChecks()) {
-    return;
-  }
-
   if (!instr->CanDoImplicitNullCheckOn(instr->InputAt(0))) {
     return;
   }
@@ -1005,9 +1081,11 @@ void CodeGenerator::MaybeRecordImplicitNullCheck(HInstruction* instr) {
   // and needs to record the pc.
   if (first_prev_not_move != nullptr && first_prev_not_move->IsNullCheck()) {
     HNullCheck* null_check = first_prev_not_move->AsNullCheck();
-    // TODO: The parallel moves modify the environment. Their changes need to be reverted
-    // otherwise the stack maps at the throw point will not be correct.
-    RecordPcInfo(null_check, null_check->GetDexPc());
+    if (IsImplicitNullCheckAllowed(null_check)) {
+      // TODO: The parallel moves modify the environment. Their changes need to be
+      // reverted otherwise the stack maps at the throw point will not be correct.
+      RecordPcInfo(null_check, null_check->GetDexPc());
+    }
   }
 }
 
