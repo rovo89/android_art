@@ -186,13 +186,15 @@ TEST_F(ExceptionTest, StackTraceElement) {
     fake_stack.push_back(0);
   }
 
-  fake_stack.push_back(method_g_->ToNativeQuickPc(dex_pc));  // return pc
+  fake_stack.push_back(
+      method_g_->ToNativeQuickPc(dex_pc, /* is_catch_handler */ false));  // return pc
 
   // Create/push fake 16byte stack frame for method g
   fake_stack.push_back(reinterpret_cast<uintptr_t>(method_g_));
   fake_stack.push_back(0);
   fake_stack.push_back(0);
-  fake_stack.push_back(method_f_->ToNativeQuickPc(dex_pc));  // return pc
+  fake_stack.push_back(
+      method_g_->ToNativeQuickPc(dex_pc, /* is_catch_handler */ false));  // return pc
 
   // Create/push fake 16byte stack frame for method f
   fake_stack.push_back(reinterpret_cast<uintptr_t>(method_f_));

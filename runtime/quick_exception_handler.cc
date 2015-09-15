@@ -97,7 +97,8 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
       if (found_dex_pc != DexFile::kDexNoIndex) {
         exception_handler_->SetHandlerMethod(method);
         exception_handler_->SetHandlerDexPc(found_dex_pc);
-        exception_handler_->SetHandlerQuickFramePc(method->ToNativeQuickPc(found_dex_pc));
+        exception_handler_->SetHandlerQuickFramePc(
+            method->ToNativeQuickPc(found_dex_pc, /* is_catch_handler */ true));
         exception_handler_->SetHandlerQuickFrame(GetCurrentQuickFrame());
         return false;  // End stack walk.
       }
