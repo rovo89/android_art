@@ -306,7 +306,7 @@ class GlobalValueNumberer : public ValueObject {
       : graph_(graph),
         allocator_(allocator),
         side_effects_(side_effects),
-        sets_(allocator, graph->GetBlocks().Size(), nullptr) {}
+        sets_(allocator, graph->GetBlocks().size(), nullptr) {}
 
   void Run();
 

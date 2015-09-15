@@ -71,7 +71,7 @@ class OptimizingCFITest : public CFITest {
         }
       }
     }
-    GrowableArray<HBasicBlock*> blocks(&allocator, 0);
+    ArenaVector<HBasicBlock*> blocks(allocator.Adapter());
     code_gen->block_order_ = &blocks;
     code_gen->ComputeSpillMask();
     code_gen->SetFrameSize(frame_size);
