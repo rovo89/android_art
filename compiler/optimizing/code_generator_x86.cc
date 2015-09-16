@@ -1312,7 +1312,7 @@ void InstructionCodeGeneratorX86::VisitCondition(HCondition* cond) {
   }
 
   // Convert the jumps into the result.
-  Label done_label;
+  NearLabel done_label;
 
   // False case: result = 0.
   __ Bind(&false_label);
@@ -1968,7 +1968,7 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
           XmmRegister input = in.AsFpuRegister<XmmRegister>();
           Register output = out.AsRegister<Register>();
           XmmRegister temp = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
-          Label done, nan;
+          NearLabel done, nan;
 
           __ movl(output, Immediate(kPrimIntMax));
           // temp = int-to-float(output)
@@ -1993,7 +1993,7 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
           XmmRegister input = in.AsFpuRegister<XmmRegister>();
           Register output = out.AsRegister<Register>();
           XmmRegister temp = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
-          Label done, nan;
+          NearLabel done, nan;
 
           __ movl(output, Immediate(kPrimIntMax));
           // temp = int-to-double(output)
@@ -2652,7 +2652,7 @@ void InstructionCodeGeneratorX86::GenerateRemFP(HRem *rem) {
   PushOntoFPStack(first, 0, 2 * elem_size, /* is_fp */ true, is_wide);
 
   // Loop doing FPREM until we stabilize.
-  Label retry;
+  NearLabel retry;
   __ Bind(&retry);
   __ fprem();
 
@@ -2766,8 +2766,8 @@ void InstructionCodeGeneratorX86::GenerateDivRemWithAnyConstant(HBinaryOperation
   int shift;
   CalculateMagicAndShiftForDivRem(imm, false /* is_long */, &magic, &shift);
 
-  Label ndiv;
-  Label end;
+  NearLabel ndiv;
+  NearLabel end;
   // If numerator is 0, the result is 0, no computation needed.
   __ testl(eax, eax);
   __ j(kNotEqual, &ndiv);
@@ -3243,7 +3243,7 @@ void InstructionCodeGeneratorX86::GenerateShlLong(const Location& loc, int shift
 }
 
 void InstructionCodeGeneratorX86::GenerateShlLong(const Location& loc, Register shifter) {
-  Label done;
+  NearLabel done;
   __ shld(loc.AsRegisterPairHigh<Register>(), loc.AsRegisterPairLow<Register>(), shifter);
   __ shll(loc.AsRegisterPairLow<Register>(), shifter);
   __ testl(shifter, Immediate(32));
@@ -3275,7 +3275,7 @@ void InstructionCodeGeneratorX86::GenerateShrLong(const Location& loc, int shift
 }
 
 void InstructionCodeGeneratorX86::GenerateShrLong(const Location& loc, Register shifter) {
-  Label done;
+  NearLabel done;
   __ shrd(loc.AsRegisterPairLow<Register>(), loc.AsRegisterPairHigh<Register>(), shifter);
   __ sarl(loc.AsRegisterPairHigh<Register>(), shifter);
   __ testl(shifter, Immediate(32));
@@ -3310,7 +3310,7 @@ void InstructionCodeGeneratorX86::GenerateUShrLong(const Location& loc, int shif
 }
 
 void InstructionCodeGeneratorX86::GenerateUShrLong(const Location& loc, Register shifter) {
-  Label done;
+  NearLabel done;
   __ shrd(loc.AsRegisterPairLow<Register>(), loc.AsRegisterPairHigh<Register>(), shifter);
   __ shrl(loc.AsRegisterPairHigh<Register>(), shifter);
   __ testl(shifter, Immediate(32));
@@ -3485,7 +3485,7 @@ void InstructionCodeGeneratorX86::VisitCompare(HCompare* compare) {
   Location left = locations->InAt(0);
   Location right = locations->InAt(1);
 
-  Label less, greater, done;
+  NearLabel less, greater, done;
   switch (compare->InputAt(0)->GetType()) {
     case Primitive::kPrimLong: {
       Register left_low = left.AsRegisterPairLow<Register>();
@@ -3709,7 +3709,7 @@ void CodeGeneratorX86::MarkGCCard(Register temp,
                                   Register object,
                                   Register value,
                                   bool value_can_be_null) {
-  Label is_null;
+  NearLabel is_null;
   if (value_can_be_null) {
     __ testl(value, value);
     __ j(kEqual, &is_null);
@@ -4946,7 +4946,7 @@ void InstructionCodeGeneratorX86::VisitInstanceOf(HInstanceOf* instruction) {
   Location cls = locations->InAt(1);
   Register out = locations->Out().AsRegister<Register>();
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
-  Label done, zero;
+  NearLabel done, zero;
   SlowPathCodeX86* slow_path = nullptr;
 
   // Return 0 if `obj` is null.
