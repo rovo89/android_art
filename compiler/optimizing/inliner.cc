@@ -48,16 +48,17 @@ void HInliner::Run() {
     // doing some logic in the runtime to discover if a method could have been inlined.
     return;
   }
-  const GrowableArray<HBasicBlock*>& blocks = graph_->GetReversePostOrder();
-  HBasicBlock* next_block = blocks.Get(0);
-  for (size_t i = 0; i < blocks.Size(); ++i) {
+  const ArenaVector<HBasicBlock*>& blocks = graph_->GetReversePostOrder();
+  DCHECK(!blocks.empty());
+  HBasicBlock* next_block = blocks[0];
+  for (size_t i = 0; i < blocks.size(); ++i) {
     // Because we are changing the graph when inlining, we need to remember the next block.
     // This avoids doing the inlining work again on the inlined blocks.
-    if (blocks.Get(i) != next_block) {
+    if (blocks[i] != next_block) {
       continue;
     }
     HBasicBlock* block = next_block;
-    next_block = (i == blocks.Size() - 1) ? nullptr : blocks.Get(i + 1);
+    next_block = (i == blocks.size() - 1) ? nullptr : blocks[i + 1];
     for (HInstruction* instruction = block->GetFirstInstruction(); instruction != nullptr;) {
       HInstruction* next = instruction->GetNext();
       HInvoke* call = instruction->AsInvoke();

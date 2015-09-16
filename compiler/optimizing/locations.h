@@ -35,7 +35,7 @@ std::ostream& operator<<(std::ostream& os, const Location& location);
  * A Location is an abstraction over the potential location
  * of an instruction. It could be in register or stack.
  */
-class Location : public ValueObject {
+class Location {
  public:
   enum OutputOverlap {
     kOutputOverlap,
@@ -84,7 +84,7 @@ class Location : public ValueObject {
     DCHECK(!IsValid());
   }
 
-  Location(const Location& other) : ValueObject(), value_(other.value_) {}
+  Location(const Location& other) : value_(other.value_) {}
 
   Location& operator=(const Location& other) {
     value_ = other.value_;

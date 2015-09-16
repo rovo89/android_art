@@ -77,7 +77,7 @@ TEST(LiveRangesTest, CFG1) {
   ASSERT_EQ(2u, range->GetStart());
   // Last use is the return instruction.
   ASSERT_EQ(8u, range->GetEnd());
-  HBasicBlock* block = graph->GetBlocks().Get(1);
+  HBasicBlock* block = graph->GetBlock(1);
   ASSERT_TRUE(block->GetLastInstruction()->IsReturn());
   ASSERT_EQ(8u, block->GetLastInstruction()->GetLifetimePosition());
   ASSERT_TRUE(range->GetNext() == nullptr);
@@ -125,7 +125,7 @@ TEST(LiveRangesTest, CFG2) {
   ASSERT_EQ(2u, range->GetStart());
   // Last use is the return instruction.
   ASSERT_EQ(22u, range->GetEnd());
-  HBasicBlock* block = graph->GetBlocks().Get(3);
+  HBasicBlock* block = graph->GetBlock(3);
   ASSERT_TRUE(block->GetLastInstruction()->IsReturn());
   ASSERT_EQ(22u, block->GetLastInstruction()->GetLifetimePosition());
   ASSERT_TRUE(range->GetNext() == nullptr);

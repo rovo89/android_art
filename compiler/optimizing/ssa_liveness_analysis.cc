@@ -69,8 +69,8 @@ void SsaLivenessAnalysis::LinearizeGraph() {
   //      current reverse post order in the graph, but it would require making
   //      order queries to a GrowableArray, which is not the best data structure
   //      for it.
-  GrowableArray<uint32_t> forward_predecessors(graph_->GetArena(), graph_->GetBlocks().Size());
-  forward_predecessors.SetSize(graph_->GetBlocks().Size());
+  GrowableArray<uint32_t> forward_predecessors(graph_->GetArena(), graph_->GetBlocks().size());
+  forward_predecessors.SetSize(graph_->GetBlocks().size());
   for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     size_t number_of_forward_predecessors = block->GetPredecessors().size();
@@ -84,11 +84,12 @@ void SsaLivenessAnalysis::LinearizeGraph() {
   //      iterate over the successors. When all non-back edge predecessors of a
   //      successor block are visited, the successor block is added in the worklist
   //      following an order that satisfies the requirements to build our linear graph.
+  graph_->linear_order_.reserve(graph_->GetReversePostOrder().size());
   GrowableArray<HBasicBlock*> worklist(graph_->GetArena(), 1);
   worklist.Add(graph_->GetEntryBlock());
   do {
     HBasicBlock* current = worklist.Pop();
-    graph_->linear_order_.Add(current);
+    graph_->linear_order_.push_back(current);
     for (HBasicBlock* successor : current->GetSuccessors()) {
       int block_id = successor->GetBlockId();
       size_t number_of_remaining_predecessors = forward_predecessors.Get(block_id);

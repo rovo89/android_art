@@ -312,7 +312,7 @@ class CodeGeneratorX86 : public CodeGenerator {
   }
 
   void Initialize() OVERRIDE {
-    block_labels_.SetSize(GetGraph()->GetBlocks().Size());
+    block_labels_.SetSize(GetGraph()->GetBlocks().size());
   }
 
   bool NeedsTwoRegisters(Primitive::Type type) const OVERRIDE {

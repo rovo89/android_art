@@ -193,7 +193,7 @@ static void RunCodeOptimized(CodeGenerator* codegen,
                              bool has_result,
                              Expected expected) {
   // Tests may have already computed it.
-  if (graph->GetReversePostOrder().IsEmpty()) {
+  if (graph->GetReversePostOrder().empty()) {
     graph->BuildDominatorTree();
   }
   SsaLivenessAnalysis liveness(graph, codegen);

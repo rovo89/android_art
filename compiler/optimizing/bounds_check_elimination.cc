@@ -284,8 +284,7 @@ class ArrayAccessInsideLoopFinder : public ValueObject {
   }
 
   static bool DominatesAllBackEdges(HBasicBlock* block, HLoopInformation* loop_info) {
-    for (size_t i = 0, e = loop_info->GetBackEdges().Size(); i < e; ++i) {
-      HBasicBlock* back_edge = loop_info->GetBackEdges().Get(i);
+    for (HBasicBlock* back_edge : loop_info->GetBackEdges()) {
       if (!block->Dominates(back_edge)) {
         return false;
       }
@@ -1109,9 +1108,9 @@ class BCEVisitor : public HGraphVisitor {
 
   BCEVisitor(HGraph* graph, HInductionVarAnalysis* induction_analysis)
       : HGraphVisitor(graph),
-        maps_(graph->GetBlocks().Size()),
+        maps_(graph->GetBlocks().size()),
         need_to_revisit_block_(false),
-        initial_block_size_(graph->GetBlocks().Size()),
+        initial_block_size_(graph->GetBlocks().size()),
         induction_range_(induction_analysis) {}
 
   void VisitBasicBlock(HBasicBlock* block) OVERRIDE {
@@ -1852,7 +1851,7 @@ class BCEVisitor : public HGraphVisitor {
   bool need_to_revisit_block_;
 
   // Initial number of blocks.
-  int32_t initial_block_size_;
+  uint32_t initial_block_size_;
 
   // Range analysis based on induction variables.
   InductionVarRange induction_range_;
