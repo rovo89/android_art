@@ -492,8 +492,18 @@ void CompilerDriver::CompileAll(jobject class_loader,
   std::unique_ptr<ThreadPool> thread_pool(
       new ThreadPool("Compiler driver thread pool", thread_count_ - 1));
   VLOG(compiler) << "Before precompile " << GetMemoryUsageString(false);
+  // Precompile:
+  // 1) Load image classes
+  // 2) Resolve all classes
+  // 3) Attempt to verify all classes
+  // 4) Attempt to initialize image classes, and trivially initialized classes
   PreCompile(class_loader, dex_files, thread_pool.get(), timings);
-  Compile(class_loader, dex_files, thread_pool.get(), timings);
+  // Compile:
+  // 1) Compile all classes and methods enabled for compilation. May fall back to dex-to-dex
+  //    compilation.
+  if (!GetCompilerOptions().VerifyAtRuntime()) {
+    Compile(class_loader, dex_files, thread_pool.get(), timings);
+  }
   if (dump_stats_) {
     stats_->Dump();
   }
