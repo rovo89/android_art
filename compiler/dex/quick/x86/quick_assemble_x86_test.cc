@@ -70,6 +70,7 @@ class QuickAssembleX86TestBase : public testing::Test {
         false,
         false,
         "",
+        false,
         0,
         -1,
         ""));
