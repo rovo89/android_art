@@ -431,7 +431,8 @@ void CodeGeneratorX86::InvokeRuntime(Address entry_point,
 
 CodeGeneratorX86::CodeGeneratorX86(HGraph* graph,
                    const X86InstructionSetFeatures& isa_features,
-                   const CompilerOptions& compiler_options)
+                   const CompilerOptions& compiler_options,
+                   OptimizingCompilerStats* stats)
     : CodeGenerator(graph,
                     kNumberOfCpuRegisters,
                     kNumberOfXmmRegisters,
@@ -439,8 +440,9 @@ CodeGeneratorX86::CodeGeneratorX86(HGraph* graph,
                     ComputeRegisterMask(reinterpret_cast<const int*>(kCoreCalleeSaves),
                                         arraysize(kCoreCalleeSaves))
                         | (1 << kFakeReturnRegister),
-                        0,
-                        compiler_options),
+                    0,
+                    compiler_options,
+                    stats),
       block_labels_(graph->GetArena(), 0),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
