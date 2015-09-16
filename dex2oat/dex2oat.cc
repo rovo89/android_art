@@ -1261,8 +1261,11 @@ class Dex2Oat FINAL {
     // from getting a statically linked version of dex2oat (because of dlsym and RTLD_NEXT).
     runtime_options.push_back(std::make_pair("-Xno-sig-chain", nullptr));
 
-    if (!CreateRuntime(runtime_options)) {
-      return false;
+    {
+      TimingLogger::ScopedTiming t_runtime("Create runtime", timings_);
+      if (!CreateRuntime(runtime_options)) {
+        return false;
+      }
     }
 
     // Runtime::Create acquired the mutator_lock_ that is normally given away when we
@@ -1337,6 +1340,7 @@ class Dex2Oat FINAL {
     if (boot_image_option_.empty()) {
       dex_files_ = class_linker->GetBootClassPath();
     } else {
+      TimingLogger::ScopedTiming t_dex("Opening dex files", timings_);
       if (dex_filenames_.empty()) {
         ATRACE_BEGIN("Opening zip archive from file descriptor");
         std::string error_msg;
