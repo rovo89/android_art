@@ -71,6 +71,11 @@ elif [[ $mode == "target" ]]; then
   # We need to provide our own linker in case the linker on the device
   # is out of date.
   env="TARGET_GLOBAL_LDFLAGS=-Wl,-dynamic-linker=$android_root/bin/$linker"
+  # gcc gives a linker error, so compile with clang.
+  # TODO: investigate and fix?
+  if [[ $TARGET_PRODUCT == "mips32r2_fp" ]]; then
+    env="$env USE_CLANG_PLATFORM_BUILD=true"
+  fi
   # Use '-e' to force the override of TARGET_GLOBAL_LDFLAGS.
   # Also, we build extra tools that will be used by tests, so that
   # they are compiled with our own linker.
