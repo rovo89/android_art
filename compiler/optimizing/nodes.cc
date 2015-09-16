@@ -668,9 +668,9 @@ void HBasicBlock::RemoveInstructionOrPhi(HInstruction* instruction, bool ensure_
   }
 }
 
-void HEnvironment::CopyFrom(const GrowableArray<HInstruction*>& locals) {
-  for (size_t i = 0; i < locals.Size(); i++) {
-    HInstruction* instruction = locals.Get(i);
+void HEnvironment::CopyFrom(const ArenaVector<HInstruction*>& locals) {
+  for (size_t i = 0; i < locals.size(); i++) {
+    HInstruction* instruction = locals[i];
     SetRawEnvAt(i, instruction);
     if (instruction != nullptr) {
       instruction->AddEnvUseAt(this, i);
