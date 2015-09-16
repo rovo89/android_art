@@ -28,7 +28,8 @@ namespace accounting {
 // A mod-union table to record image references to the Zygote and alloc space.
 class ModUnionTableToZygoteAllocspace : public ModUnionTableReferenceCache {
  public:
-  explicit ModUnionTableToZygoteAllocspace(const std::string& name, Heap* heap,
+  explicit ModUnionTableToZygoteAllocspace(const std::string& name,
+                                           Heap* heap,
                                            space::ContinuousSpace* space)
       : ModUnionTableReferenceCache(name, heap, space) {}
 

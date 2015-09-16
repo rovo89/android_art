@@ -29,25 +29,16 @@
 
 namespace art {
 namespace mirror {
-  class Object;
+class Object;
 }  // namespace mirror
 
 namespace gc {
-
-namespace collector {
-  class MarkSweep;
-}  // namespace collector
 namespace space {
   class ContinuousSpace;
-  class Space;
 }  // namespace space
-
 class Heap;
 
 namespace accounting {
-
-class Bitmap;
-class HeapBitmap;
 
 // The mod-union table is the union of modified cards. It is used to allow the card table to be
 // cleared between GC phases, reducing the number of dirty cards that need to be scanned.
@@ -60,8 +51,7 @@ class ModUnionTable {
   explicit ModUnionTable(const std::string& name, Heap* heap, space::ContinuousSpace* space)
       : name_(name),
         heap_(heap),
-        space_(space) {
-  }
+        space_(space) {}
 
   virtual ~ModUnionTable() {}
 
@@ -89,12 +79,15 @@ class ModUnionTable {
   virtual bool ContainsCardFor(uintptr_t addr) = 0;
 
   virtual void Dump(std::ostream& os) = 0;
+
   space::ContinuousSpace* GetSpace() {
     return space_;
   }
+
   Heap* GetHeap() const {
     return heap_;
   }
+
   const std::string& GetName() const {
     return name_;
   }
@@ -111,6 +104,7 @@ class ModUnionTableReferenceCache : public ModUnionTable {
   explicit ModUnionTableReferenceCache(const std::string& name, Heap* heap,
                                        space::ContinuousSpace* space)
       : ModUnionTable(name, heap, space) {}
+
   virtual ~ModUnionTableReferenceCache() {}
 
   // Clear and store cards for a space.
@@ -151,6 +145,7 @@ class ModUnionTableCardCache : public ModUnionTable {
   // Note: There is assumption that the space End() doesn't change.
   explicit ModUnionTableCardCache(const std::string& name, Heap* heap,
                                   space::ContinuousSpace* space);
+
   virtual ~ModUnionTableCardCache() {}
 
   // Clear and store cards for a space.
