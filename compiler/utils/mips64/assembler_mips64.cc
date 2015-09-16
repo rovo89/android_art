@@ -44,6 +44,32 @@ void Mips64Assembler::EmitR(int opcode, GpuRegister rs, GpuRegister rt, GpuRegis
   Emit(encoding);
 }
 
+void Mips64Assembler::EmitRsd(int opcode, GpuRegister rs, GpuRegister rd,
+                              int shamt, int funct) {
+  CHECK_NE(rs, kNoGpuRegister);
+  CHECK_NE(rd, kNoGpuRegister);
+  uint32_t encoding = static_cast<uint32_t>(opcode) << kOpcodeShift |
+                      static_cast<uint32_t>(rs) << kRsShift |
+                      static_cast<uint32_t>(ZERO) << kRtShift |
+                      static_cast<uint32_t>(rd) << kRdShift |
+                      shamt << kShamtShift |
+                      funct;
+  Emit(encoding);
+}
+
+void Mips64Assembler::EmitRtd(int opcode, GpuRegister rt, GpuRegister rd,
+                              int shamt, int funct) {
+  CHECK_NE(rt, kNoGpuRegister);
+  CHECK_NE(rd, kNoGpuRegister);
+  uint32_t encoding = static_cast<uint32_t>(opcode) << kOpcodeShift |
+                      static_cast<uint32_t>(ZERO) << kRsShift |
+                      static_cast<uint32_t>(rt) << kRtShift |
+                      static_cast<uint32_t>(rd) << kRdShift |
+                      shamt << kShamtShift |
+                      funct;
+  Emit(encoding);
+}
+
 void Mips64Assembler::EmitI(int opcode, GpuRegister rs, GpuRegister rt, uint16_t imm) {
   CHECK_NE(rs, kNoGpuRegister);
   CHECK_NE(rt, kNoGpuRegister);
@@ -235,6 +261,14 @@ void Mips64Assembler::Nor(GpuRegister rd, GpuRegister rs, GpuRegister rt) {
   EmitR(0, rs, rt, rd, 0, 0x27);
 }
 
+void Mips64Assembler::Bitswap(GpuRegister rd, GpuRegister rt) {
+  EmitRtd(0x1f, rt, rd, 0x0, 0x20);
+}
+
+void Mips64Assembler::Dbitswap(GpuRegister rd, GpuRegister rt) {
+  EmitRtd(0x1f, rt, rd, 0x0, 0x24);
+}
+
 void Mips64Assembler::Seb(GpuRegister rd, GpuRegister rt) {
   EmitR(0x1f, static_cast<GpuRegister>(0), rt, rd, 0x10, 0x20);
 }
@@ -243,10 +277,42 @@ void Mips64Assembler::Seh(GpuRegister rd, GpuRegister rt) {
   EmitR(0x1f, static_cast<GpuRegister>(0), rt, rd, 0x18, 0x20);
 }
 
+void Mips64Assembler::Dsbh(GpuRegister rd, GpuRegister rt) {
+  EmitRtd(0x1f, rt, rd, 0x2, 0x24);
+}
+
+void Mips64Assembler::Dshd(GpuRegister rd, GpuRegister rt) {
+  EmitRtd(0x1f, rt, rd, 0x5, 0x24);
+}
+
 void Mips64Assembler::Dext(GpuRegister rt, GpuRegister rs, int pos, int size_less_one) {
   DCHECK(0 <= pos && pos < 32) << pos;
   DCHECK(0 <= size_less_one && size_less_one < 32) << size_less_one;
   EmitR(0x1f, rs, rt, static_cast<GpuRegister>(size_less_one), pos, 3);
+}
+
+void Mips64Assembler::Wsbh(GpuRegister rd, GpuRegister rt) {
+  EmitRtd(0x1f, rt, rd, 2, 0x20);
+}
+
+void Mips64Assembler::Sc(GpuRegister rt, GpuRegister base, int16_t imm9) {
+  DCHECK((-256 <= imm9) && (imm9 < 256));
+  EmitI(0x1f, base, rt, ((imm9 & 0x1FF) << 7) | 0x26);
+}
+
+void Mips64Assembler::Scd(GpuRegister rt, GpuRegister base, int16_t imm9) {
+  DCHECK((-256 <= imm9) && (imm9 < 256));
+  EmitI(0x1f, base, rt, ((imm9 & 0x1FF) << 7) | 0x27);
+}
+
+void Mips64Assembler::Ll(GpuRegister rt, GpuRegister base, int16_t imm9) {
+  DCHECK((-256 <= imm9) && (imm9 < 256));
+  EmitI(0x1f, base, rt, ((imm9 & 0x1FF) << 7) | 0x36);
+}
+
+void Mips64Assembler::Lld(GpuRegister rt, GpuRegister base, int16_t imm9) {
+  DCHECK((-256 <= imm9) && (imm9 < 256));
+  EmitI(0x1f, base, rt, ((imm9 & 0x1FF) << 7) | 0x37);
 }
 
 void Mips64Assembler::Sll(GpuRegister rd, GpuRegister rt, int shamt) {
@@ -255,6 +321,10 @@ void Mips64Assembler::Sll(GpuRegister rd, GpuRegister rt, int shamt) {
 
 void Mips64Assembler::Srl(GpuRegister rd, GpuRegister rt, int shamt) {
   EmitR(0, static_cast<GpuRegister>(0), rt, rd, shamt, 0x02);
+}
+
+void Mips64Assembler::Rotr(GpuRegister rd, GpuRegister rt, int shamt) {
+  EmitR(0, static_cast<GpuRegister>(1), rt, rd, shamt, 0x02);
 }
 
 void Mips64Assembler::Sra(GpuRegister rd, GpuRegister rt, int shamt) {
@@ -414,6 +484,30 @@ void Mips64Assembler::Jal(uint32_t addr26) {
   Nop();
 }
 
+void Mips64Assembler::Seleqz(GpuRegister rd, GpuRegister rs, GpuRegister rt) {
+  EmitR(0, rs, rt, rd, 0, 0x35);
+}
+
+void Mips64Assembler::Selnez(GpuRegister rd, GpuRegister rs, GpuRegister rt) {
+  EmitR(0, rs, rt, rd, 0, 0x37);
+}
+
+void Mips64Assembler::Clz(GpuRegister rd, GpuRegister rs) {
+  EmitRsd(0, rs, rd, 0x01, 0x10);
+}
+
+void Mips64Assembler::Clo(GpuRegister rd, GpuRegister rs) {
+  EmitRsd(0, rs, rd, 0x01, 0x11);
+}
+
+void Mips64Assembler::Dclz(GpuRegister rd, GpuRegister rs) {
+  EmitRsd(0, rs, rd, 0x01, 0x12);
+}
+
+void Mips64Assembler::Dclo(GpuRegister rd, GpuRegister rs) {
+  EmitRsd(0, rs, rd, 0x01, 0x13);
+}
+
 void Mips64Assembler::Jalr(GpuRegister rd, GpuRegister rs) {
   EmitR(0, rs, static_cast<GpuRegister>(0), rd, 0, 0x09);
   Nop();
@@ -543,6 +637,22 @@ void Mips64Assembler::DivD(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
   EmitFR(0x11, 0x11, ft, fs, fd, 0x3);
 }
 
+void Mips64Assembler::SqrtS(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x10, static_cast<FpuRegister>(0), fs, fd, 0x4);
+}
+
+void Mips64Assembler::SqrtD(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x11, static_cast<FpuRegister>(0), fs, fd, 0x4);
+}
+
+void Mips64Assembler::AbsS(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x10, static_cast<FpuRegister>(0), fs, fd, 0x5);
+}
+
+void Mips64Assembler::AbsD(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x11, static_cast<FpuRegister>(0), fs, fd, 0x5);
+}
+
 void Mips64Assembler::MovS(FpuRegister fd, FpuRegister fs) {
   EmitFR(0x11, 0x10, static_cast<FpuRegister>(0), fs, fd, 0x6);
 }
@@ -559,6 +669,94 @@ void Mips64Assembler::NegD(FpuRegister fd, FpuRegister fs) {
   EmitFR(0x11, 0x11, static_cast<FpuRegister>(0), fs, fd, 0x7);
 }
 
+void Mips64Assembler::RoundLS(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x10, static_cast<FpuRegister>(0), fs, fd, 0x8);
+}
+
+void Mips64Assembler::RoundLD(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x11, static_cast<FpuRegister>(0), fs, fd, 0x8);
+}
+
+void Mips64Assembler::RoundWS(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x10, static_cast<FpuRegister>(0), fs, fd, 0xc);
+}
+
+void Mips64Assembler::RoundWD(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x11, static_cast<FpuRegister>(0), fs, fd, 0xc);
+}
+
+void Mips64Assembler::CeilLS(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x10, static_cast<FpuRegister>(0), fs, fd, 0xa);
+}
+
+void Mips64Assembler::CeilLD(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x11, static_cast<FpuRegister>(0), fs, fd, 0xa);
+}
+
+void Mips64Assembler::CeilWS(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x10, static_cast<FpuRegister>(0), fs, fd, 0xe);
+}
+
+void Mips64Assembler::CeilWD(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x11, static_cast<FpuRegister>(0), fs, fd, 0xe);
+}
+
+void Mips64Assembler::FloorLS(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x10, static_cast<FpuRegister>(0), fs, fd, 0xb);
+}
+
+void Mips64Assembler::FloorLD(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x11, static_cast<FpuRegister>(0), fs, fd, 0xb);
+}
+
+void Mips64Assembler::FloorWS(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x10, static_cast<FpuRegister>(0), fs, fd, 0xf);
+}
+
+void Mips64Assembler::FloorWD(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x11, static_cast<FpuRegister>(0), fs, fd, 0xf);
+}
+
+void Mips64Assembler::SelS(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x10, ft, fs, fd, 0x10);
+}
+
+void Mips64Assembler::SelD(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x11, ft, fs, fd, 0x10);
+}
+
+void Mips64Assembler::RintS(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x10, static_cast<FpuRegister>(0), fs, fd, 0x1a);
+}
+
+void Mips64Assembler::RintD(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x11, static_cast<FpuRegister>(0), fs, fd, 0x1a);
+}
+
+void Mips64Assembler::ClassS(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x10, static_cast<FpuRegister>(0), fs, fd, 0x1b);
+}
+
+void Mips64Assembler::ClassD(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x11, static_cast<FpuRegister>(0), fs, fd, 0x1b);
+}
+
+void Mips64Assembler::MinS(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x10, ft, fs, fd, 0x1c);
+}
+
+void Mips64Assembler::MinD(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x11, ft, fs, fd, 0x1c);
+}
+
+void Mips64Assembler::MaxS(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x10, ft, fs, fd, 0x1e);
+}
+
+void Mips64Assembler::MaxD(FpuRegister fd, FpuRegister fs, FpuRegister ft) {
+  EmitFR(0x11, 0x11, ft, fs, fd, 0x1e);
+}
+
 void Mips64Assembler::Cvtsw(FpuRegister fd, FpuRegister fs) {
   EmitFR(0x11, 0x14, static_cast<FpuRegister>(0), fs, fd, 0x20);
 }
@@ -573,6 +771,10 @@ void Mips64Assembler::Cvtsd(FpuRegister fd, FpuRegister fs) {
 
 void Mips64Assembler::Cvtds(FpuRegister fd, FpuRegister fs) {
   EmitFR(0x11, 0x10, static_cast<FpuRegister>(0), fs, fd, 0x21);
+}
+
+void Mips64Assembler::Cvtdl(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x15, static_cast<FpuRegister>(0), fs, fd, 0x21);
 }
 
 void Mips64Assembler::Mfc1(GpuRegister rt, FpuRegister fs) {
