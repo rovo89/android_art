@@ -158,6 +158,20 @@ void X86Assembler::bswapl(Register dst) {
   EmitUint8(0xC8 + dst);
 }
 
+void X86Assembler::bsfl(Register dst, Register src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x0F);
+  EmitUint8(0xBC);
+  EmitRegisterOperand(dst, src);
+}
+
+void X86Assembler::bsfl(Register dst, const Address& src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x0F);
+  EmitUint8(0xBC);
+  EmitOperand(dst, src);
+}
+
 void X86Assembler::bsrl(Register dst, Register src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x0F);
@@ -1420,6 +1434,26 @@ void X86Assembler::shrd(Register dst, Register src, const Immediate& imm) {
   EmitUint8(0xAC);
   EmitRegisterOperand(src, dst);
   EmitUint8(imm.value() & 0xFF);
+}
+
+
+void X86Assembler::roll(Register reg, const Immediate& imm) {
+  EmitGenericShift(0, Operand(reg), imm);
+}
+
+
+void X86Assembler::roll(Register operand, Register shifter) {
+  EmitGenericShift(0, Operand(operand), shifter);
+}
+
+
+void X86Assembler::rorl(Register reg, const Immediate& imm) {
+  EmitGenericShift(1, Operand(reg), imm);
+}
+
+
+void X86Assembler::rorl(Register operand, Register shifter) {
+  EmitGenericShift(1, Operand(operand), shifter);
 }
 
 

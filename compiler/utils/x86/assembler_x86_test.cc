@@ -32,6 +32,10 @@ TEST(AssemblerX86, CreateBuffer) {
 
 class AssemblerX86Test : public AssemblerTest<x86::X86Assembler, x86::Register,
                                               x86::XmmRegister, x86::Immediate> {
+ public:
+  typedef AssemblerTest<x86::X86Assembler, x86::Register,
+                         x86::XmmRegister, x86::Immediate> Base;
+
  protected:
   std::string GetArchitectureString() OVERRIDE {
     return "x86";
@@ -230,6 +234,19 @@ TEST_F(AssemblerX86Test, RepMovsw) {
   DriverStr(expected, "rep_movsw");
 }
 
+TEST_F(AssemblerX86Test, Bsfl) {
+  DriverStr(RepeatRR(&x86::X86Assembler::bsfl, "bsfl %{reg2}, %{reg1}"), "bsfl");
+}
+
+TEST_F(AssemblerX86Test, BsflAddress) {
+  GetAssembler()->bsfl(x86::Register(x86::EDI), x86::Address(
+      x86::Register(x86::EDI), x86::Register(x86::EBX), x86::TIMES_4, 12));
+  const char* expected =
+    "bsfl 0xc(%EDI,%EBX,4), %EDI\n";
+
+  DriverStr(expected, "bsfl_address");
+}
+
 TEST_F(AssemblerX86Test, Bsrl) {
   DriverStr(RepeatRR(&x86::X86Assembler::bsrl, "bsrl %{reg2}, %{reg1}"), "bsrl");
 }
@@ -241,6 +258,52 @@ TEST_F(AssemblerX86Test, BsrlAddress) {
     "bsrl 0xc(%EDI,%EBX,4), %EDI\n";
 
   DriverStr(expected, "bsrl_address");
+}
+
+// Rorl only allows CL as the shift count.
+std::string rorl_fn(AssemblerX86Test::Base* assembler_test, x86::X86Assembler* assembler) {
+  std::ostringstream str;
+
+  std::vector<x86::Register*> registers = assembler_test->GetRegisters();
+
+  x86::Register shifter(x86::ECX);
+  for (auto reg : registers) {
+    assembler->rorl(*reg, shifter);
+    str << "rorl %cl, %" << assembler_test->GetRegisterName(*reg) << "\n";
+  }
+
+  return str.str();
+}
+
+TEST_F(AssemblerX86Test, RorlReg) {
+  DriverFn(&rorl_fn, "rorl");
+}
+
+TEST_F(AssemblerX86Test, RorlImm) {
+  DriverStr(RepeatRI(&x86::X86Assembler::rorl, 1U, "rorl ${imm}, %{reg}"), "rorli");
+}
+
+// Roll only allows CL as the shift count.
+std::string roll_fn(AssemblerX86Test::Base* assembler_test, x86::X86Assembler* assembler) {
+  std::ostringstream str;
+
+  std::vector<x86::Register*> registers = assembler_test->GetRegisters();
+
+  x86::Register shifter(x86::ECX);
+  for (auto reg : registers) {
+    assembler->roll(*reg, shifter);
+    str << "roll %cl, %" << assembler_test->GetRegisterName(*reg) << "\n";
+  }
+
+  return str.str();
+}
+
+TEST_F(AssemblerX86Test, RollReg) {
+  DriverFn(&roll_fn, "roll");
+}
+
+TEST_F(AssemblerX86Test, RollImm) {
+  DriverStr(RepeatRI(&x86::X86Assembler::roll, 1U, "roll ${imm}, %{reg}"), "rolli");
 }
 
 /////////////////
