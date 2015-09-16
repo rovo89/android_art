@@ -126,6 +126,7 @@ HInductionVarAnalysis::InductionInfo* InductionVarRange::GetTripCount(HLoopInfor
 }
 
 InductionVarRange::Value InductionVarRange::GetFetch(HInstruction* instruction,
+                                                     HInductionVarAnalysis::InductionInfo* trip,
                                                      int32_t fail_value) {
   // Detect constants and chase the fetch a bit deeper into the HIR tree, so that it becomes
   // more likely range analysis will compare the same instructions as terminal nodes.
@@ -134,9 +135,16 @@ InductionVarRange::Value InductionVarRange::GetFetch(HInstruction* instruction,
     return Value(value);
   } else if (instruction->IsAdd()) {
     if (IsIntAndGet(instruction->InputAt(0), &value)) {
-      return AddValue(Value(value), GetFetch(instruction->InputAt(1), fail_value), fail_value);
+      return AddValue(Value(value),
+                      GetFetch(instruction->InputAt(1), trip, fail_value), fail_value);
     } else if (IsIntAndGet(instruction->InputAt(1), &value)) {
-      return AddValue(GetFetch(instruction->InputAt(0), fail_value), Value(value), fail_value);
+      return AddValue(GetFetch(instruction->InputAt(0), trip, fail_value),
+                      Value(value), fail_value);
+    }
+  } else if (fail_value < 0) {
+    // Special case: within the loop-body, minimum of trip-count is 1.
+    if (trip != nullptr && instruction == trip->op_b->fetch) {
+      return Value(1);
     }
   }
   return Value(instruction, 1, 0);
@@ -163,7 +171,7 @@ InductionVarRange::Value InductionVarRange::GetMin(HInductionVarAnalysis::Induct
           case HInductionVarAnalysis::kDiv:
             return GetDiv(info->op_a, info->op_b, trip, INT_MIN);
           case HInductionVarAnalysis::kFetch:
-            return GetFetch(info->fetch, INT_MIN);
+            return GetFetch(info->fetch, trip, INT_MIN);
         }
         break;
       case HInductionVarAnalysis::kLinear:
@@ -200,7 +208,7 @@ InductionVarRange::Value InductionVarRange::GetMax(HInductionVarAnalysis::Induct
           case HInductionVarAnalysis::kDiv:
             return GetDiv(info->op_a, info->op_b, trip, INT_MAX);
           case HInductionVarAnalysis::kFetch:
-            return GetFetch(info->fetch, INT_MAX);
+            return GetFetch(info->fetch, trip, INT_MAX);
         }
         break;
       case HInductionVarAnalysis::kLinear:

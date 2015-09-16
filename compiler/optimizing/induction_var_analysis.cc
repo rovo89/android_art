@@ -15,6 +15,7 @@
  */
 
 #include "induction_var_analysis.h"
+#include "induction_var_range.h"
 
 namespace art {
 
@@ -40,6 +41,40 @@ static bool IsEntryPhi(HLoopInformation* loop, HInstruction* instruction) {
       instruction->IsPhi() &&
       instruction->InputCount() == 2 &&
       instruction->GetBlock() == loop->GetHeader();
+}
+
+/**
+ * Since graph traversal may enter a SCC at any position, an initial representation may be rotated,
+ * along dependences, viz. any of (a, b, c, d), (d, a, b, c)  (c, d, a, b), (b, c, d, a) assuming
+ * a chain of dependences (mutual independent items may occur in arbitrary order). For proper
+ * classification, the lexicographically first entry-phi is rotated to the front.
+ */
+static void RotateEntryPhiFirst(HLoopInformation* loop,
+                                ArenaVector<HInstruction*>* scc,
+                                ArenaVector<HInstruction*>* new_scc) {
+  // Find very first entry-phi.
+  const HInstructionList& phis = loop->GetHeader()->GetPhis();
+  HInstruction* phi = nullptr;
+  size_t phi_pos = -1;
+  const size_t size = scc->size();
+  for (size_t i = 0; i < size; i++) {
+    if (IsEntryPhi(loop, scc->at(i)) && (phi == nullptr || phis.FoundBefore(scc->at(i), phi))) {
+      phi = scc->at(i);
+      phi_pos = i;
+    }
+  }
+
+  // If found, bring that entry-phi to front.
+  if (phi != nullptr) {
+    new_scc->clear();
+    for (size_t i = 0; i < size; i++) {
+      DCHECK_LT(phi_pos, size);
+      new_scc->push_back(scc->at(phi_pos));
+      if (++phi_pos >= size) phi_pos = 0;
+    }
+    DCHECK_EQ(size, new_scc->size());
+    scc->swap(*new_scc);
+  }
 }
 
 //
@@ -203,7 +238,15 @@ void HInductionVarAnalysis::ClassifyTrivial(HLoopInformation* loop, HInstruction
 void HInductionVarAnalysis::ClassifyNonTrivial(HLoopInformation* loop) {
   const size_t size = scc_.size();
   DCHECK_GE(size, 1u);
-  HInstruction* phi = scc_[size - 1];
+
+  // Rotate proper entry-phi to front.
+  if (size > 1) {
+    ArenaVector<HInstruction*> other(graph_->GetArena()->Adapter());
+    RotateEntryPhiFirst(loop, &scc_, &other);
+  }
+
+  // Analyze from phi onwards.
+  HInstruction* phi = scc_[0];
   if (!IsEntryPhi(loop, phi)) {
     return;
   }
@@ -225,7 +268,7 @@ void HInductionVarAnalysis::ClassifyNonTrivial(HLoopInformation* loop) {
 
   // Inspect remainder of the cycle that resides in scc_. The cycle_ mapping assigns
   // temporary meaning to its nodes, seeded from the phi instruction and back.
-  for (size_t i = 0; i < size - 1; i++) {
+  for (size_t i = 1; i < size; i++) {
     HInstruction* instruction = scc_[i];
     InductionInfo* update = nullptr;
     if (instruction->IsPhi()) {
@@ -249,19 +292,19 @@ void HInductionVarAnalysis::ClassifyNonTrivial(HLoopInformation* loop) {
     InductionInfo* induction = it->second;
     switch (induction->induction_class) {
       case kInvariant:
-        // Classify phi (last element in scc_) and then the rest of the cycle "on-demand".
-        // Statements are scanned in the Tarjan SCC order, with phi first.
+        // Classify first phi and then the rest of the cycle "on-demand".
+        // Statements are scanned in order.
         AssignInfo(loop, phi, CreateInduction(kLinear, induction, initial));
-        for (size_t i = 0; i < size - 1; i++) {
+        for (size_t i = 1; i < size; i++) {
           ClassifyTrivial(loop, scc_[i]);
         }
         break;
       case kPeriodic:
-        // Classify all elements in the cycle with the found periodic induction while rotating
-        // each first element to the end. Lastly, phi (last element in scc_) is classified.
-        // Statements are scanned in the reverse Tarjan SCC order, with phi last.
-        for (size_t i = 2; i <= size; i++) {
-          AssignInfo(loop, scc_[size - i], induction);
+        // Classify all elements in the cycle with the found periodic induction while
+        // rotating each first element to the end. Lastly, phi is classified.
+        // Statements are scanned in reverse order.
+        for (size_t i = size - 1; i >= 1; i--) {
+          AssignInfo(loop, scc_[i], induction);
           induction = RotatePeriodicInduction(induction->op_b, induction->op_a);
         }
         AssignInfo(loop, phi, induction);
@@ -511,12 +554,15 @@ void HInductionVarAnalysis::VisitCondition(HLoopInformation* loop,
     InductionInfo* stride = a->op_a;
     InductionInfo* lo_val = a->op_b;
     InductionInfo* hi_val = b;
-    int64_t value = -1;
-    if (IsIntAndGet(stride, &value)) {
-      if ((value > 0 && (cmp == kCondLT || cmp == kCondLE)) ||
-          (value < 0 && (cmp == kCondGT || cmp == kCondGE))) {
+    // Analyze the stride thoroughly, since its representation may be compound at this point.
+    InductionVarRange::Value v1 = InductionVarRange::GetMin(stride, nullptr);
+    InductionVarRange::Value v2 = InductionVarRange::GetMax(stride, nullptr);
+    if (v1.a_constant == 0 && v2.a_constant == 0 && v1.b_constant == v2.b_constant) {
+      const int32_t stride_value = v1.b_constant;
+      if ((stride_value > 0 && (cmp == kCondLT || cmp == kCondLE)) ||
+          (stride_value < 0 && (cmp == kCondGT || cmp == kCondGE))) {
         bool is_strict = cmp == kCondLT || cmp == kCondGT;
-        VisitTripCount(loop, lo_val, hi_val, stride, value, type, is_strict);
+        VisitTripCount(loop, lo_val, hi_val, stride, stride_value, type, is_strict);
       }
     }
   }
@@ -544,7 +590,7 @@ void HInductionVarAnalysis::VisitTripCount(HLoopInformation* loop,
   //       least once. Otherwise TC is 0. Also, the expression assumes the loop does not
   //       have any early-exits. Otherwise, TC is an upper bound.
   //
-  bool cancels = is_strict && abs(stride_value) == 1;  // compensation cancels conversion?
+  bool cancels = is_strict && std::abs(stride_value) == 1;  // compensation cancels conversion?
   if (!cancels) {
     // Convert exclusive integral inequality into inclusive integral inequality,
     // viz. condition i < U is i <= U - 1 and condition i > U is i >= U + 1.
@@ -557,7 +603,7 @@ void HInductionVarAnalysis::VisitTripCount(HLoopInformation* loop,
   }
 
   // Assign the trip-count expression to the loop control. Clients that use the information
-  // should be aware that due to the L <= U assumption, the expression is only valid in the
+  // should be aware that due to the top-test assumption, the expression is only valid in the
   // loop-body proper, and not yet in the loop-header. If the loop has any early exits, the
   // trip-count forms a conservative upper bound on the number of loop iterations.
   InductionInfo* trip_count =
