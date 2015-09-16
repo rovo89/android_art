@@ -510,14 +510,16 @@ Location InvokeDexCallingConventionVisitorARM64::GetMethodLocation() const {
 
 CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph,
                                        const Arm64InstructionSetFeatures& isa_features,
-                                       const CompilerOptions& compiler_options)
+                                       const CompilerOptions& compiler_options,
+                                       OptimizingCompilerStats* stats)
     : CodeGenerator(graph,
                     kNumberOfAllocatableRegisters,
                     kNumberOfAllocatableFPRegisters,
                     kNumberOfAllocatableRegisterPairs,
                     callee_saved_core_registers.list(),
                     callee_saved_fp_registers.list(),
-                    compiler_options),
+                    compiler_options,
+                    stats),
       block_labels_(nullptr),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
