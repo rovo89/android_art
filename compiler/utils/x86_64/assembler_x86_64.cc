@@ -1866,6 +1866,46 @@ void X86_64Assembler::sarq(CpuRegister operand, CpuRegister shifter) {
 }
 
 
+void X86_64Assembler::roll(CpuRegister reg, const Immediate& imm) {
+  EmitGenericShift(false, 0, reg, imm);
+}
+
+
+void X86_64Assembler::roll(CpuRegister operand, CpuRegister shifter) {
+  EmitGenericShift(false, 0, operand, shifter);
+}
+
+
+void X86_64Assembler::rorl(CpuRegister reg, const Immediate& imm) {
+  EmitGenericShift(false, 1, reg, imm);
+}
+
+
+void X86_64Assembler::rorl(CpuRegister operand, CpuRegister shifter) {
+  EmitGenericShift(false, 1, operand, shifter);
+}
+
+
+void X86_64Assembler::rolq(CpuRegister reg, const Immediate& imm) {
+  EmitGenericShift(true, 0, reg, imm);
+}
+
+
+void X86_64Assembler::rolq(CpuRegister operand, CpuRegister shifter) {
+  EmitGenericShift(true, 0, operand, shifter);
+}
+
+
+void X86_64Assembler::rorq(CpuRegister reg, const Immediate& imm) {
+  EmitGenericShift(true, 1, reg, imm);
+}
+
+
+void X86_64Assembler::rorq(CpuRegister operand, CpuRegister shifter) {
+  EmitGenericShift(true, 1, operand, shifter);
+}
+
+
 void X86_64Assembler::negl(CpuRegister reg) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(reg);
@@ -2138,6 +2178,38 @@ void X86_64Assembler::bswapq(CpuRegister dst) {
   EmitOptionalRex(false, true, false, false, dst.NeedsRex());
   EmitUint8(0x0F);
   EmitUint8(0xC8 + dst.LowBits());
+}
+
+void X86_64Assembler::bsfl(CpuRegister dst, CpuRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOptionalRex32(dst, src);
+  EmitUint8(0x0F);
+  EmitUint8(0xBC);
+  EmitRegisterOperand(dst.LowBits(), src.LowBits());
+}
+
+void X86_64Assembler::bsfl(CpuRegister dst, const Address& src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOptionalRex32(dst, src);
+  EmitUint8(0x0F);
+  EmitUint8(0xBC);
+  EmitOperand(dst.LowBits(), src);
+}
+
+void X86_64Assembler::bsfq(CpuRegister dst, CpuRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(dst, src);
+  EmitUint8(0x0F);
+  EmitUint8(0xBC);
+  EmitRegisterOperand(dst.LowBits(), src.LowBits());
+}
+
+void X86_64Assembler::bsfq(CpuRegister dst, const Address& src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(dst, src);
+  EmitUint8(0x0F);
+  EmitUint8(0xBC);
+  EmitOperand(dst.LowBits(), src);
 }
 
 void X86_64Assembler::bsrl(CpuRegister dst, CpuRegister src) {

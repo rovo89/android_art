@@ -495,6 +495,98 @@ TEST_F(AssemblerX86_64Test, SarqImm) {
   DriverStr(RepeatRI(&x86_64::X86_64Assembler::sarq, 1U, "sarq ${imm}, %{reg}"), "sarqi");
 }
 
+// Rorl only allows CL as the shift count.
+std::string rorl_fn(AssemblerX86_64Test::Base* assembler_test, x86_64::X86_64Assembler* assembler) {
+  std::ostringstream str;
+
+  std::vector<x86_64::CpuRegister*> registers = assembler_test->GetRegisters();
+
+  x86_64::CpuRegister shifter(x86_64::RCX);
+  for (auto reg : registers) {
+    assembler->rorl(*reg, shifter);
+    str << "rorl %cl, %" << assembler_test->GetSecondaryRegisterName(*reg) << "\n";
+  }
+
+  return str.str();
+}
+
+TEST_F(AssemblerX86_64Test, RorlReg) {
+  DriverFn(&rorl_fn, "rorl");
+}
+
+TEST_F(AssemblerX86_64Test, RorlImm) {
+  DriverStr(Repeatri(&x86_64::X86_64Assembler::rorl, 1U, "rorl ${imm}, %{reg}"), "rorli");
+}
+
+// Roll only allows CL as the shift count.
+std::string roll_fn(AssemblerX86_64Test::Base* assembler_test, x86_64::X86_64Assembler* assembler) {
+  std::ostringstream str;
+
+  std::vector<x86_64::CpuRegister*> registers = assembler_test->GetRegisters();
+
+  x86_64::CpuRegister shifter(x86_64::RCX);
+  for (auto reg : registers) {
+    assembler->roll(*reg, shifter);
+    str << "roll %cl, %" << assembler_test->GetSecondaryRegisterName(*reg) << "\n";
+  }
+
+  return str.str();
+}
+
+TEST_F(AssemblerX86_64Test, RollReg) {
+  DriverFn(&roll_fn, "roll");
+}
+
+TEST_F(AssemblerX86_64Test, RollImm) {
+  DriverStr(Repeatri(&x86_64::X86_64Assembler::roll, 1U, "roll ${imm}, %{reg}"), "rolli");
+}
+
+// Rorq only allows CL as the shift count.
+std::string rorq_fn(AssemblerX86_64Test::Base* assembler_test, x86_64::X86_64Assembler* assembler) {
+  std::ostringstream str;
+
+  std::vector<x86_64::CpuRegister*> registers = assembler_test->GetRegisters();
+
+  x86_64::CpuRegister shifter(x86_64::RCX);
+  for (auto reg : registers) {
+    assembler->rorq(*reg, shifter);
+    str << "rorq %cl, %" << assembler_test->GetRegisterName(*reg) << "\n";
+  }
+
+  return str.str();
+}
+
+TEST_F(AssemblerX86_64Test, RorqReg) {
+  DriverFn(&rorq_fn, "rorq");
+}
+
+TEST_F(AssemblerX86_64Test, RorqImm) {
+  DriverStr(RepeatRI(&x86_64::X86_64Assembler::rorq, 1U, "rorq ${imm}, %{reg}"), "rorqi");
+}
+
+// Rolq only allows CL as the shift count.
+std::string rolq_fn(AssemblerX86_64Test::Base* assembler_test, x86_64::X86_64Assembler* assembler) {
+  std::ostringstream str;
+
+  std::vector<x86_64::CpuRegister*> registers = assembler_test->GetRegisters();
+
+  x86_64::CpuRegister shifter(x86_64::RCX);
+  for (auto reg : registers) {
+    assembler->rolq(*reg, shifter);
+    str << "rolq %cl, %" << assembler_test->GetRegisterName(*reg) << "\n";
+  }
+
+  return str.str();
+}
+
+TEST_F(AssemblerX86_64Test, RolqReg) {
+  DriverFn(&rolq_fn, "rolq");
+}
+
+TEST_F(AssemblerX86_64Test, RolqImm) {
+  DriverStr(RepeatRI(&x86_64::X86_64Assembler::rolq, 1U, "rolq ${imm}, %{reg}"), "rolqi");
+}
+
 TEST_F(AssemblerX86_64Test, CmpqRegs) {
   DriverStr(RepeatRR(&x86_64::X86_64Assembler::cmpq, "cmpq %{reg2}, %{reg1}"), "cmpq");
 }
@@ -1139,6 +1231,44 @@ TEST_F(AssemblerX86_64Test, Bswapl) {
 
 TEST_F(AssemblerX86_64Test, Bswapq) {
   DriverStr(RepeatR(&x86_64::X86_64Assembler::bswapq, "bswap %{reg}"), "bswapq");
+}
+
+TEST_F(AssemblerX86_64Test, Bsfl) {
+  DriverStr(Repeatrr(&x86_64::X86_64Assembler::bsfl, "bsfl %{reg2}, %{reg1}"), "bsfl");
+}
+
+TEST_F(AssemblerX86_64Test, BsflAddress) {
+  GetAssembler()->bsfl(x86_64::CpuRegister(x86_64::R10), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12));
+  GetAssembler()->bsfl(x86_64::CpuRegister(x86_64::RDI), x86_64::Address(
+      x86_64::CpuRegister(x86_64::R10), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12));
+  GetAssembler()->bsfl(x86_64::CpuRegister(x86_64::RDI), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_4, 12));
+  const char* expected =
+    "bsfl 0xc(%RDI,%RBX,4), %R10d\n"
+    "bsfl 0xc(%R10,%RBX,4), %edi\n"
+    "bsfl 0xc(%RDI,%R9,4), %edi\n";
+
+  DriverStr(expected, "bsfl_address");
+}
+
+TEST_F(AssemblerX86_64Test, Bsfq) {
+  DriverStr(RepeatRR(&x86_64::X86_64Assembler::bsfq, "bsfq %{reg2}, %{reg1}"), "bsfq");
+}
+
+TEST_F(AssemblerX86_64Test, BsfqAddress) {
+  GetAssembler()->bsfq(x86_64::CpuRegister(x86_64::R10), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12));
+  GetAssembler()->bsfq(x86_64::CpuRegister(x86_64::RDI), x86_64::Address(
+      x86_64::CpuRegister(x86_64::R10), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12));
+  GetAssembler()->bsfq(x86_64::CpuRegister(x86_64::RDI), x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_4, 12));
+  const char* expected =
+    "bsfq 0xc(%RDI,%RBX,4), %R10\n"
+    "bsfq 0xc(%R10,%RBX,4), %RDI\n"
+    "bsfq 0xc(%RDI,%R9,4), %RDI\n";
+
+  DriverStr(expected, "bsfq_address");
 }
 
 TEST_F(AssemblerX86_64Test, Bsrl) {
