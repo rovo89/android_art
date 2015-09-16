@@ -248,7 +248,8 @@ class CodeGeneratorARM64 : public CodeGenerator {
  public:
   CodeGeneratorARM64(HGraph* graph,
                      const Arm64InstructionSetFeatures& isa_features,
-                     const CompilerOptions& compiler_options);
+                     const CompilerOptions& compiler_options,
+                     OptimizingCompilerStats* stats = nullptr);
   virtual ~CodeGeneratorARM64() {}
 
   void GenerateFrameEntry() OVERRIDE;

@@ -220,7 +220,8 @@ class CodeGeneratorX86 : public CodeGenerator {
  public:
   CodeGeneratorX86(HGraph* graph,
                    const X86InstructionSetFeatures& isa_features,
-                   const CompilerOptions& compiler_options);
+                   const CompilerOptions& compiler_options,
+                   OptimizingCompilerStats* stats = nullptr);
   virtual ~CodeGeneratorX86() {}
 
   void GenerateFrameEntry() OVERRIDE;
