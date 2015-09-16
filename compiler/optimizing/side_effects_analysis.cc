@@ -21,8 +21,8 @@ namespace art {
 void SideEffectsAnalysis::Run() {
   // Inlining might have created more blocks, so we need to increase the size
   // if needed.
-  block_effects_.SetSize(graph_->GetBlocks().Size());
-  loop_effects_.SetSize(graph_->GetBlocks().Size());
+  block_effects_.SetSize(graph_->GetBlocks().size());
+  loop_effects_.SetSize(graph_->GetBlocks().size());
 
   // In DEBUG mode, ensure side effects are properly initialized to empty.
   if (kIsDebugBuild) {

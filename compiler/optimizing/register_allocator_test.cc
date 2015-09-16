@@ -312,7 +312,7 @@ TEST(RegisterAllocatorTest, Loop3) {
   register_allocator.AllocateRegisters();
   ASSERT_TRUE(register_allocator.Validate(false));
 
-  HBasicBlock* loop_header = graph->GetBlocks().Get(2);
+  HBasicBlock* loop_header = graph->GetBlock(2);
   HPhi* phi = loop_header->GetFirstPhi()->AsPhi();
 
   LiveInterval* phi_interval = phi->GetLiveInterval();
@@ -321,7 +321,7 @@ TEST(RegisterAllocatorTest, Loop3) {
   ASSERT_TRUE(loop_update->HasRegister());
   ASSERT_NE(phi_interval->GetRegister(), loop_update->GetRegister());
 
-  HBasicBlock* return_block = graph->GetBlocks().Get(3);
+  HBasicBlock* return_block = graph->GetBlock(3);
   HReturn* ret = return_block->GetLastInstruction()->AsReturn();
   ASSERT_EQ(phi_interval->GetRegister(), ret->InputAt(0)->GetLiveInterval()->GetRegister());
 }
@@ -343,8 +343,8 @@ TEST(RegisterAllocatorTest, FirstRegisterUse) {
   SsaLivenessAnalysis liveness(graph, &codegen);
   liveness.Analyze();
 
-  HXor* first_xor = graph->GetBlocks().Get(1)->GetFirstInstruction()->AsXor();
-  HXor* last_xor = graph->GetBlocks().Get(1)->GetLastInstruction()->GetPrevious()->AsXor();
+  HXor* first_xor = graph->GetBlock(1)->GetFirstInstruction()->AsXor();
+  HXor* last_xor = graph->GetBlock(1)->GetLastInstruction()->GetPrevious()->AsXor();
   ASSERT_EQ(last_xor->InputAt(0), first_xor);
   LiveInterval* interval = first_xor->GetLiveInterval();
   ASSERT_EQ(interval->GetEnd(), last_xor->GetLifetimePosition());

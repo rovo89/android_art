@@ -64,8 +64,8 @@ void HDeadCodeElimination::MaybeRecordDeadBlock(HBasicBlock* block) {
 void HDeadCodeElimination::RemoveDeadBlocks() {
   // Classify blocks as reachable/unreachable.
   ArenaAllocator* allocator = graph_->GetArena();
-  ArenaBitVector live_blocks(allocator, graph_->GetBlocks().Size(), false);
-  ArenaBitVector affected_loops(allocator, graph_->GetBlocks().Size(), false);
+  ArenaBitVector live_blocks(allocator, graph_->GetBlocks().size(), false);
+  ArenaBitVector affected_loops(allocator, graph_->GetBlocks().size(), false);
 
   MarkReachableBlocks(graph_->GetEntryBlock(), &live_blocks);
   bool removed_one_or_more_blocks = false;

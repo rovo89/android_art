@@ -436,8 +436,7 @@ void CodeGeneratorARM::Finalize(CodeAllocator* allocator) {
     stack_map_stream_.SetStackMapNativePcOffset(i, new_position);
   }
   // Adjust native pc offsets of block labels.
-  for (size_t block_idx = 0u, end = block_order_->Size(); block_idx != end; ++block_idx) {
-    HBasicBlock* block = block_order_->Get(block_idx);
+  for (HBasicBlock* block : *block_order_) {
     // Get the label directly from block_labels_ rather than through GetLabelOf() to avoid
     // FirstNonEmptyBlock() which could lead to adjusting a label more than once.
     DCHECK_LT(static_cast<size_t>(block->GetBlockId()), block_labels_.Size());

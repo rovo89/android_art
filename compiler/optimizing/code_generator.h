@@ -176,7 +176,7 @@ class CodeGenerator {
                                 size_t maximum_number_of_live_core_registers,
                                 size_t maximum_number_of_live_fp_registers,
                                 size_t number_of_out_slots,
-                                const GrowableArray<HBasicBlock*>& block_order);
+                                const ArenaVector<HBasicBlock*>& block_order);
   int32_t GetStackSlot(HLocal* local) const;
   Location GetTemporaryLocation(HTemporary* temp) const;
 
@@ -488,7 +488,7 @@ class CodeGenerator {
   StackMapStream stack_map_stream_;
 
   // The order to use for code generation.
-  const GrowableArray<HBasicBlock*>* block_order_;
+  const ArenaVector<HBasicBlock*>* block_order_;
 
   // Whether we are using baseline.
   bool is_baseline_;

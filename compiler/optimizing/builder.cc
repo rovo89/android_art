@@ -339,11 +339,10 @@ void HGraphBuilder::InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item) 
 
   // Bit vector stores information on which blocks contain throwing instructions.
   // Must be expandable because catch blocks may be split into two.
-  ArenaBitVector can_block_throw(arena_, graph_->GetBlocks().Size(), /* expandable */ true);
+  ArenaBitVector can_block_throw(arena_, graph_->GetBlocks().size(), /* expandable */ true);
 
   // Scan blocks and mark those which contain throwing instructions.
-  for (size_t block_id = 0, e = graph_->GetBlocks().Size(); block_id < e; ++block_id) {
-    HBasicBlock* block = graph_->GetBlocks().Get(block_id);
+  for (HBasicBlock* block : graph_->GetBlocks()) {
     bool can_throw = false;
     for (HInstructionIterator insn(block->GetInstructions()); !insn.Done(); insn.Advance()) {
       if (insn.Current()->CanThrow()) {
@@ -381,9 +380,7 @@ void HGraphBuilder::InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item) 
   //   (c) link the new blocks to corresponding exception handlers.
   // We cannot iterate only over blocks in `branch_targets_` because switch-case
   // blocks share the same dex_pc.
-  for (size_t block_id = 0, e = graph_->GetBlocks().Size(); block_id < e; ++block_id) {
-    HBasicBlock* try_block = graph_->GetBlocks().Get(block_id);
-
+  for (HBasicBlock* try_block : graph_->GetBlocks()) {
     // TryBoundary blocks are added at the end of the list and not iterated over.
     DCHECK(!try_block->IsSingleTryBoundary());
 
@@ -465,7 +462,7 @@ void HGraphBuilder::InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item) 
 }
 
 bool HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
-  DCHECK(graph_->GetBlocks().IsEmpty());
+  DCHECK(graph_->GetBlocks().empty());
 
   const uint16_t* code_ptr = code_item.insns_;
   const uint16_t* code_end = code_item.insns_ + code_item.insns_size_in_code_units_;

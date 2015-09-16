@@ -475,14 +475,13 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
   const ArenaBitVector& loop_blocks = loop_information->GetBlocks();
 
   // Ensure back edges belong to the loop.
-  size_t num_back_edges = loop_information->GetBackEdges().Size();
-  if (num_back_edges == 0) {
+  if (loop_information->NumberOfBackEdges() == 0) {
     AddError(StringPrintf(
         "Loop defined by header %d has no back edge.",
         id));
   } else {
-    for (size_t i = 0; i < num_back_edges; ++i) {
-      int back_edge_id = loop_information->GetBackEdges().Get(i)->GetBlockId();
+    for (HBasicBlock* back_edge : loop_information->GetBackEdges()) {
+      int back_edge_id = back_edge->GetBlockId();
       if (!loop_blocks.IsBitSet(back_edge_id)) {
         AddError(StringPrintf(
             "Loop defined by header %d has an invalid back edge %d.",
@@ -494,7 +493,7 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
 
   // Ensure all blocks in the loop are live and dominated by the loop header.
   for (uint32_t i : loop_blocks.Indexes()) {
-    HBasicBlock* loop_block = GetGraph()->GetBlocks().Get(i);
+    HBasicBlock* loop_block = GetGraph()->GetBlock(i);
     if (loop_block == nullptr) {
       AddError(StringPrintf("Loop defined by header %d contains a previously removed block %d.",
                             id,

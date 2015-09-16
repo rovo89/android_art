@@ -64,8 +64,7 @@ class SsaPrettyPrinter : public HPrettyPrinter {
 
 static void ReNumberInstructions(HGraph* graph) {
   int id = 0;
-  for (size_t i = 0, e = graph->GetBlocks().Size(); i < e; ++i) {
-    HBasicBlock* block = graph->GetBlocks().Get(i);
+  for (HBasicBlock* block : graph->GetBlocks()) {
     for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
       it.Current()->SetId(id++);
     }
@@ -92,8 +91,8 @@ static void TestCode(const uint16_t* data, const char* expected) {
   ReNumberInstructions(graph);
 
   // Test that phis had their type set.
-  for (size_t i = 0, e = graph->GetBlocks().Size(); i < e; ++i) {
-    for (HInstructionIterator it(graph->GetBlocks().Get(i)->GetPhis()); !it.Done(); it.Advance()) {
+  for (HBasicBlock* block : graph->GetBlocks()) {
+    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
       ASSERT_NE(it.Current()->GetType(), Primitive::kPrimVoid);
     }
   }

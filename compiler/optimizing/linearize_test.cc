@@ -36,7 +36,8 @@
 
 namespace art {
 
-static void TestCode(const uint16_t* data, const int* expected_order, size_t number_of_blocks) {
+template <size_t number_of_blocks>
+static void TestCode(const uint16_t* data, const uint32_t (&expected_order)[number_of_blocks]) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = CreateGraph(&allocator);
@@ -53,9 +54,9 @@ static void TestCode(const uint16_t* data, const int* expected_order, size_t num
   SsaLivenessAnalysis liveness(graph, &codegen);
   liveness.Analyze();
 
-  ASSERT_EQ(graph->GetLinearOrder().Size(), number_of_blocks);
+  ASSERT_EQ(graph->GetLinearOrder().size(), number_of_blocks);
   for (size_t i = 0; i < number_of_blocks; ++i) {
-    ASSERT_EQ(graph->GetLinearOrder().Get(i)->GetBlockId(), expected_order[i]);
+    ASSERT_EQ(graph->GetLinearOrder()[i]->GetBlockId(), expected_order[i]);
   }
 }
 
@@ -80,8 +81,8 @@ TEST(LinearizeTest, CFG1) {
     Instruction::GOTO | 0xFE00,
     Instruction::RETURN_VOID);
 
-  const int blocks[] = {0, 1, 2, 7, 3, 4, 8, 5, 6};
-  TestCode(data, blocks, 9);
+  const uint32_t blocks[] = {0, 1, 2, 7, 3, 4, 8, 5, 6};
+  TestCode(data, blocks);
 }
 
 TEST(LinearizeTest, CFG2) {
@@ -105,8 +106,8 @@ TEST(LinearizeTest, CFG2) {
     Instruction::IF_EQ, 0xFFFD,
     Instruction::GOTO | 0xFE00);
 
-  const int blocks[] = {0, 1, 2, 7, 4, 5, 8, 3, 6};
-  TestCode(data, blocks, 9);
+  const uint32_t blocks[] = {0, 1, 2, 7, 4, 5, 8, 3, 6};
+  TestCode(data, blocks);
 }
 
 TEST(LinearizeTest, CFG3) {
@@ -132,8 +133,8 @@ TEST(LinearizeTest, CFG3) {
     Instruction::IF_EQ, 0xFFFC,
     Instruction::GOTO | 0xFD00);
 
-  const int blocks[] = {0, 1, 2, 8, 5, 6, 4, 9, 3, 7};
-  TestCode(data, blocks, 10);
+  const uint32_t blocks[] = {0, 1, 2, 8, 5, 6, 4, 9, 3, 7};
+  TestCode(data, blocks);
 }
 
 TEST(LinearizeTest, CFG4) {
@@ -162,8 +163,8 @@ TEST(LinearizeTest, CFG4) {
     Instruction::GOTO | 0xFE00,
     Instruction::RETURN_VOID);
 
-  const int blocks[] = {0, 1, 2, 8, 3, 10, 4, 5, 11, 9, 6, 7};
-  TestCode(data, blocks, 12);
+  const uint32_t blocks[] = {0, 1, 2, 8, 3, 10, 4, 5, 11, 9, 6, 7};
+  TestCode(data, blocks);
 }
 
 TEST(LinearizeTest, CFG5) {
@@ -192,8 +193,8 @@ TEST(LinearizeTest, CFG5) {
     Instruction::IF_EQ, 0xFFFE,
     Instruction::GOTO | 0xFE00);
 
-  const int blocks[] = {0, 1, 2, 8, 4, 10, 5, 6, 11, 9, 3, 7};
-  TestCode(data, blocks, 12);
+  const uint32_t blocks[] = {0, 1, 2, 8, 4, 10, 5, 6, 11, 9, 3, 7};
+  TestCode(data, blocks);
 }
 
 TEST(LinearizeTest, CFG6) {
@@ -218,8 +219,8 @@ TEST(LinearizeTest, CFG6) {
     Instruction::RETURN_VOID,
     Instruction::GOTO | 0xFA00);
 
-  const int blocks[] = {0, 1, 2, 3, 4, 6, 9, 8, 5, 7};
-  TestCode(data, blocks, arraysize(blocks));
+  const uint32_t blocks[] = {0, 1, 2, 3, 4, 6, 9, 8, 5, 7};
+  TestCode(data, blocks);
 }
 
 TEST(LinearizeTest, CFG7) {
@@ -246,8 +247,8 @@ TEST(LinearizeTest, CFG7) {
     Instruction::RETURN_VOID,
     Instruction::GOTO | 0xFA00);
 
-  const int blocks[] = {0, 1, 2, 3, 4, 9, 8, 6, 5, 7};
-  TestCode(data, blocks, arraysize(blocks));
+  const uint32_t blocks[] = {0, 1, 2, 3, 4, 9, 8, 6, 5, 7};
+  TestCode(data, blocks);
 }
 
 }  // namespace art

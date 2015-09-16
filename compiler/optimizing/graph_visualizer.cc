@@ -679,7 +679,7 @@ void HGraphVisualizer::DumpGraph(const char* pass_name,
                                  bool is_after_pass,
                                  bool graph_in_bad_state) const {
   DCHECK(output_ != nullptr);
-  if (!graph_->GetBlocks().IsEmpty()) {
+  if (!graph_->GetBlocks().empty()) {
     HGraphVisualizerPrinter printer(graph_,
                                     *output_,
                                     pass_name,
@@ -692,7 +692,7 @@ void HGraphVisualizer::DumpGraph(const char* pass_name,
 
 void HGraphVisualizer::DumpGraphWithDisassembly() const {
   DCHECK(output_ != nullptr);
-  if (!graph_->GetBlocks().IsEmpty()) {
+  if (!graph_->GetBlocks().empty()) {
     HGraphVisualizerPrinter printer(graph_,
                                     *output_,
                                     "disassembly",
