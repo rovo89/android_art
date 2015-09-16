@@ -19,14 +19,10 @@
 #include "base/memory_tool.h"
 #include <backtrace/BacktraceMap.h>
 #include <inttypes.h>
+#include <stdlib.h>
 
 #include <memory>
 #include <sstream>
-
-// See CreateStartPos below.
-#ifdef __BIONIC__
-#include <sys/auxv.h>
-#endif
 
 #include "base/stringprintf.h"
 
@@ -103,7 +99,7 @@ static constexpr uintptr_t LOW_MEM_START = 64 * KB;
 // --------------------------------------
 // start
 //
-// getauxval as an entropy source is exposed in Bionic, but not in glibc before 2.16. When we
+// arc4random as an entropy source is exposed in Bionic, but not in glibc. When we
 // do not have Bionic, simply start with LOW_MEM_START.
 
 // Function is standalone so it can be tested somewhat in mem_map_test.cc.
@@ -125,11 +121,11 @@ uintptr_t CreateStartPos(uint64_t input) {
 
 static uintptr_t GenerateNextMemPos() {
 #ifdef __BIONIC__
-  uint8_t* random_data = reinterpret_cast<uint8_t*>(getauxval(AT_RANDOM));
-  // The lower 8B are taken for the stack guard. Use the upper 8B (with mask).
-  return CreateStartPos(*reinterpret_cast<uintptr_t*>(random_data + 8));
+  uint64_t random_data;
+  arc4random_buf(&random_data, sizeof(random_data));
+  return CreateStartPos(random_data);
 #else
-  // No auxv on host, see above.
+  // No arc4random on host, see above.
   return LOW_MEM_START;
 #endif
 }
