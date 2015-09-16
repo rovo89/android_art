@@ -147,9 +147,9 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
          bool debuggable = false,
          int start_instruction_id = 0)
       : arena_(arena),
-        blocks_(arena, kDefaultNumberOfBlocks),
-        reverse_post_order_(arena, kDefaultNumberOfBlocks),
-        linear_order_(arena, kDefaultNumberOfBlocks),
+        blocks_(arena->Adapter(kArenaAllocBlockList)),
+        reverse_post_order_(arena->Adapter(kArenaAllocReversePostOrder)),
+        linear_order_(arena->Adapter(kArenaAllocLinearOrder)),
         entry_block_(nullptr),
         exit_block_(nullptr),
         maximum_number_of_out_vregs_(0),
@@ -167,15 +167,21 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
         should_generate_constructor_barrier_(should_generate_constructor_barrier),
         instruction_set_(instruction_set),
         cached_null_constant_(nullptr),
-        cached_int_constants_(std::less<int32_t>(), arena->Adapter()),
-        cached_float_constants_(std::less<int32_t>(), arena->Adapter()),
-        cached_long_constants_(std::less<int64_t>(), arena->Adapter()),
-        cached_double_constants_(std::less<int64_t>(), arena->Adapter()),
-        cached_current_method_(nullptr) {}
+        cached_int_constants_(std::less<int32_t>(), arena->Adapter(kArenaAllocConstantsMap)),
+        cached_float_constants_(std::less<int32_t>(), arena->Adapter(kArenaAllocConstantsMap)),
+        cached_long_constants_(std::less<int64_t>(), arena->Adapter(kArenaAllocConstantsMap)),
+        cached_double_constants_(std::less<int64_t>(), arena->Adapter(kArenaAllocConstantsMap)),
+        cached_current_method_(nullptr) {
+    blocks_.reserve(kDefaultNumberOfBlocks);
+  }
 
   ArenaAllocator* GetArena() const { return arena_; }
-  const GrowableArray<HBasicBlock*>& GetBlocks() const { return blocks_; }
-  HBasicBlock* GetBlock(size_t id) const { return blocks_.Get(id); }
+  const ArenaVector<HBasicBlock*>& GetBlocks() const { return blocks_; }
+
+  HBasicBlock* GetBlock(size_t id) const {
+    DCHECK_LT(id, blocks_.size());
+    return blocks_[id];
+  }
 
   bool IsInSsaForm() const { return in_ssa_form_; }
 
@@ -295,11 +301,11 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
     return number_of_vregs_ - number_of_in_vregs_;
   }
 
-  const GrowableArray<HBasicBlock*>& GetReversePostOrder() const {
+  const ArenaVector<HBasicBlock*>& GetReversePostOrder() const {
     return reverse_post_order_;
   }
 
-  const GrowableArray<HBasicBlock*>& GetLinearOrder() const {
+  const ArenaVector<HBasicBlock*>& GetLinearOrder() const {
     return linear_order_;
   }
 
@@ -366,7 +372,7 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
  private:
   void VisitBlockForDominatorTree(HBasicBlock* block,
                                   HBasicBlock* predecessor,
-                                  GrowableArray<size_t>* visits);
+                                  ArenaVector<size_t>* visits);
   void FindBackEdges(ArenaBitVector* visited);
   void VisitBlockForBackEdges(HBasicBlock* block,
                               ArenaBitVector* visited,
@@ -407,13 +413,13 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   ArenaAllocator* const arena_;
 
   // List of blocks in insertion order.
-  GrowableArray<HBasicBlock*> blocks_;
+  ArenaVector<HBasicBlock*> blocks_;
 
   // List of blocks to perform a reverse post order tree traversal.
-  GrowableArray<HBasicBlock*> reverse_post_order_;
+  ArenaVector<HBasicBlock*> reverse_post_order_;
 
   // List of blocks to perform a linear order tree traversal.
-  GrowableArray<HBasicBlock*> linear_order_;
+  ArenaVector<HBasicBlock*> linear_order_;
 
   HBasicBlock* entry_block_;
   HBasicBlock* exit_block_;
@@ -483,9 +489,11 @@ class HLoopInformation : public ArenaObject<kArenaAllocLoopInfo> {
   HLoopInformation(HBasicBlock* header, HGraph* graph)
       : header_(header),
         suspend_check_(nullptr),
-        back_edges_(graph->GetArena(), kDefaultNumberOfBackEdges),
+        back_edges_(graph->GetArena()->Adapter(kArenaAllocLoopInfoBackEdges)),
         // Make bit vector growable, as the number of blocks may change.
-        blocks_(graph->GetArena(), graph->GetBlocks().Size(), true) {}
+        blocks_(graph->GetArena(), graph->GetBlocks().size(), true) {
+    back_edges_.reserve(kDefaultNumberOfBackEdges);
+  }
 
   HBasicBlock* GetHeader() const {
     return header_;
@@ -500,27 +508,24 @@ class HLoopInformation : public ArenaObject<kArenaAllocLoopInfo> {
   bool HasSuspendCheck() const { return suspend_check_ != nullptr; }
 
   void AddBackEdge(HBasicBlock* back_edge) {
-    back_edges_.Add(back_edge);
+    back_edges_.push_back(back_edge);
   }
 
   void RemoveBackEdge(HBasicBlock* back_edge) {
-    back_edges_.Delete(back_edge);
+    RemoveElement(back_edges_, back_edge);
   }
 
   bool IsBackEdge(const HBasicBlock& block) const {
-    for (size_t i = 0, e = back_edges_.Size(); i < e; ++i) {
-      if (back_edges_.Get(i) == &block) return true;
-    }
-    return false;
+    return ContainsElement(back_edges_, &block);
   }
 
   size_t NumberOfBackEdges() const {
-    return back_edges_.Size();
+    return back_edges_.size();
   }
 
   HBasicBlock* GetPreHeader() const;
 
-  const GrowableArray<HBasicBlock*>& GetBackEdges() const {
+  const ArenaVector<HBasicBlock*>& GetBackEdges() const {
     return back_edges_;
   }
 
@@ -529,13 +534,7 @@ class HLoopInformation : public ArenaObject<kArenaAllocLoopInfo> {
   size_t GetLifetimeEnd() const;
 
   void ReplaceBackEdge(HBasicBlock* existing, HBasicBlock* new_back_edge) {
-    for (size_t i = 0, e = back_edges_.Size(); i < e; ++i) {
-      if (back_edges_.Get(i) == existing) {
-        back_edges_.Put(i, new_back_edge);
-        return;
-      }
-    }
-    UNREACHABLE();
+    ReplaceElement(back_edges_, existing, new_back_edge);
   }
 
   // Finds blocks that are part of this loop. Returns whether the loop is a natural loop,
@@ -567,7 +566,7 @@ class HLoopInformation : public ArenaObject<kArenaAllocLoopInfo> {
 
   HBasicBlock* header_;
   HSuspendCheck* suspend_check_;
-  GrowableArray<HBasicBlock*> back_edges_;
+  ArenaVector<HBasicBlock*> back_edges_;
   ArenaBitVector blocks_;
 
   DISALLOW_COPY_AND_ASSIGN(HLoopInformation);
@@ -627,6 +626,7 @@ class TryCatchInformation : public ArenaObject<kArenaAllocTryCatchInfo> {
 };
 
 static constexpr size_t kNoLifetime = -1;
+static constexpr uint32_t kInvalidBlockId = static_cast<uint32_t>(-1);
 
 // A block in a method. Contains the list of instructions represented
 // as a double linked list. Each block knows its predecessors and
@@ -641,7 +641,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
         loop_information_(nullptr),
         dominator_(nullptr),
         dominated_blocks_(graph->GetArena()->Adapter(kArenaAllocDominated)),
-        block_id_(-1),
+        block_id_(kInvalidBlockId),
         dex_pc_(dex_pc),
         lifetime_start_(kNoLifetime),
         lifetime_end_(kNoLifetime),
@@ -707,7 +707,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
   HGraph* GetGraph() const { return graph_; }
   void SetGraph(HGraph* graph) { graph_ = graph; }
 
-  int GetBlockId() const { return block_id_; }
+  uint32_t GetBlockId() const { return block_id_; }
   void SetBlockId(int id) { block_id_ = id; }
   uint32_t GetDexPc() const { return dex_pc_; }
 
@@ -964,7 +964,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
   HLoopInformation* loop_information_;
   HBasicBlock* dominator_;
   ArenaVector<HBasicBlock*> dominated_blocks_;
-  int block_id_;
+  uint32_t block_id_;
   // The dex program counter of the first instruction of this block.
   const uint32_t dex_pc_;
   size_t lifetime_start_;
@@ -1242,7 +1242,7 @@ class HUseIterator : public ValueObject {
 // instructions they use and pointers to the corresponding HUseListNodes kept
 // by the used instructions.
 template <typename T>
-class HUserRecord : public ValueObject {
+class HUserRecord {
  public:
   HUserRecord() : instruction_(nullptr), use_node_(nullptr) {}
   explicit HUserRecord(HInstruction* instruction) : instruction_(instruction), use_node_(nullptr) {}
@@ -1513,23 +1513,14 @@ class HEnvironment : public ArenaObject<kArenaAllocEnvironment> {
                uint32_t dex_pc,
                InvokeType invoke_type,
                HInstruction* holder)
-     : vregs_(arena, number_of_vregs),
-       locations_(arena, number_of_vregs),
+     : vregs_(number_of_vregs, arena->Adapter(kArenaAllocEnvironmentVRegs)),
+       locations_(number_of_vregs, arena->Adapter(kArenaAllocEnvironmentLocations)),
        parent_(nullptr),
        dex_file_(dex_file),
        method_idx_(method_idx),
        dex_pc_(dex_pc),
        invoke_type_(invoke_type),
        holder_(holder) {
-    vregs_.SetSize(number_of_vregs);
-    for (size_t i = 0; i < number_of_vregs; i++) {
-      vregs_.Put(i, HUserRecord<HEnvironment*>());
-    }
-
-    locations_.SetSize(number_of_vregs);
-    for (size_t i = 0; i < number_of_vregs; ++i) {
-      locations_.Put(i, Location());
-    }
   }
 
   HEnvironment(ArenaAllocator* arena, const HEnvironment& to_copy, HInstruction* holder)
@@ -1562,25 +1553,29 @@ class HEnvironment : public ArenaObject<kArenaAllocEnvironment> {
   void CopyFromWithLoopPhiAdjustment(HEnvironment* env, HBasicBlock* loop_header);
 
   void SetRawEnvAt(size_t index, HInstruction* instruction) {
-    vregs_.Put(index, HUserRecord<HEnvironment*>(instruction));
+    DCHECK_LT(index, Size());
+    vregs_[index] = HUserRecord<HEnvironment*>(instruction);
   }
 
   HInstruction* GetInstructionAt(size_t index) const {
-    return vregs_.Get(index).GetInstruction();
+    DCHECK_LT(index, Size());
+    return vregs_[index].GetInstruction();
   }
 
   void RemoveAsUserOfInput(size_t index) const;
 
-  size_t Size() const { return vregs_.Size(); }
+  size_t Size() const { return vregs_.size(); }
 
   HEnvironment* GetParent() const { return parent_; }
 
   void SetLocationAt(size_t index, Location location) {
-    locations_.Put(index, location);
+    DCHECK_LT(index, Size());
+    locations_[index] = location;
   }
 
   Location GetLocationAt(size_t index) const {
-    return locations_.Get(index);
+    DCHECK_LT(index, Size());
+    return locations_[index];
   }
 
   uint32_t GetDexPc() const {
@@ -1609,11 +1604,12 @@ class HEnvironment : public ArenaObject<kArenaAllocEnvironment> {
   void RecordEnvUse(HUseListNode<HEnvironment*>* env_use) {
     DCHECK(env_use->GetUser() == this);
     size_t index = env_use->GetIndex();
-    vregs_.Put(index, HUserRecord<HEnvironment*>(vregs_.Get(index), env_use));
+    DCHECK_LT(index, Size());
+    vregs_[index] = HUserRecord<HEnvironment*>(vregs_[index], env_use);
   }
 
-  GrowableArray<HUserRecord<HEnvironment*> > vregs_;
-  GrowableArray<Location> locations_;
+  ArenaVector<HUserRecord<HEnvironment*>> vregs_;
+  ArenaVector<Location> locations_;
   HEnvironment* parent_;
   const DexFile& dex_file_;
   const uint32_t method_idx_;
@@ -2977,7 +2973,7 @@ enum IntrinsicNeedsEnvironmentOrCache {
 
 class HInvoke : public HInstruction {
  public:
-  size_t InputCount() const OVERRIDE { return inputs_.Size(); }
+  size_t InputCount() const OVERRIDE { return inputs_.size(); }
 
   // Runtime needs to walk the stack, so Dex -> Dex calls need to
   // know their environment.
@@ -3031,23 +3027,26 @@ class HInvoke : public HInstruction {
     : HInstruction(
           SideEffects::AllExceptGCDependency(), dex_pc),  // Assume write/read on all fields/arrays.
       number_of_arguments_(number_of_arguments),
-      inputs_(arena, number_of_arguments),
+      inputs_(number_of_arguments + number_of_other_inputs, arena->Adapter(kArenaAllocInvokeInputs)),
       return_type_(return_type),
       dex_method_index_(dex_method_index),
       original_invoke_type_(original_invoke_type),
       intrinsic_(Intrinsics::kNone),
       needs_environment_or_cache_(kNeedsEnvironmentOrCache) {
-    uint32_t number_of_inputs = number_of_arguments + number_of_other_inputs;
-    inputs_.SetSize(number_of_inputs);
   }
 
-  const HUserRecord<HInstruction*> InputRecordAt(size_t i) const OVERRIDE { return inputs_.Get(i); }
+  const HUserRecord<HInstruction*> InputRecordAt(size_t index) const OVERRIDE {
+    DCHECK_LT(index, InputCount());
+    return inputs_[index];
+  }
+
   void SetRawInputRecordAt(size_t index, const HUserRecord<HInstruction*>& input) OVERRIDE {
-    inputs_.Put(index, input);
+    DCHECK_LT(index, InputCount());
+    inputs_[index] = input;
   }
 
   uint32_t number_of_arguments_;
-  GrowableArray<HUserRecord<HInstruction*> > inputs_;
+  ArenaVector<HUserRecord<HInstruction*>> inputs_;
   const Primitive::Type return_type_;
   const uint32_t dex_method_index_;
   const InvokeType original_invoke_type_;
@@ -3226,7 +3225,7 @@ class HInvokeStaticOrDirect : public HInvoke {
     DCHECK(last_input != nullptr);
     DCHECK(last_input->IsLoadClass()) << last_input->DebugName();
     RemoveAsUserOfInput(last_input_index);
-    inputs_.DeleteAt(last_input_index);
+    inputs_.pop_back();
     clinit_check_requirement_ = ClinitCheckRequirement::kImplicit;
     DCHECK(IsStaticWithImplicitClinitCheck());
   }
@@ -3245,7 +3244,7 @@ class HInvokeStaticOrDirect : public HInvoke {
     DCHECK(last_input != nullptr);
     DCHECK(last_input->IsFakeString()) << last_input->DebugName();
     RemoveAsUserOfInput(last_input_index);
-    inputs_.DeleteAt(last_input_index);
+    inputs_.pop_back();
   }
 
   // Is this a call to a static method whose declaring class has an
@@ -3978,12 +3977,11 @@ class HPhi : public HInstruction {
        Primitive::Type type,
        uint32_t dex_pc = kNoDexPc)
       : HInstruction(SideEffects::None(), dex_pc),
-        inputs_(arena, number_of_inputs),
+        inputs_(number_of_inputs, arena->Adapter(kArenaAllocPhiInputs)),
         reg_number_(reg_number),
         type_(type),
         is_live_(false),
         can_be_null_(true) {
-    inputs_.SetSize(number_of_inputs);
   }
 
   // Returns a type equivalent to the given `type`, but that a `HPhi` can hold.
@@ -4001,7 +3999,7 @@ class HPhi : public HInstruction {
 
   bool IsCatchPhi() const { return GetBlock()->IsCatchBlock(); }
 
-  size_t InputCount() const OVERRIDE { return inputs_.Size(); }
+  size_t InputCount() const OVERRIDE { return inputs_.size(); }
 
   void AddInput(HInstruction* input);
   void RemoveInputAt(size_t index);
@@ -4043,14 +4041,18 @@ class HPhi : public HInstruction {
   DECLARE_INSTRUCTION(Phi);
 
  protected:
-  const HUserRecord<HInstruction*> InputRecordAt(size_t i) const OVERRIDE { return inputs_.Get(i); }
+  const HUserRecord<HInstruction*> InputRecordAt(size_t index) const OVERRIDE {
+    DCHECK_LE(index, InputCount());
+    return inputs_[index];
+  }
 
   void SetRawInputRecordAt(size_t index, const HUserRecord<HInstruction*>& input) OVERRIDE {
-    inputs_.Put(index, input);
+    DCHECK_LE(index, InputCount());
+    inputs_[index] = input;
   }
 
  private:
-  GrowableArray<HUserRecord<HInstruction*> > inputs_;
+  ArenaVector<HUserRecord<HInstruction*> > inputs_;
   const uint32_t reg_number_;
   Primitive::Type type_;
   bool is_live_;
@@ -5084,8 +5086,8 @@ class HInsertionOrderIterator : public ValueObject {
  public:
   explicit HInsertionOrderIterator(const HGraph& graph) : graph_(graph), index_(0) {}
 
-  bool Done() const { return index_ == graph_.GetBlocks().Size(); }
-  HBasicBlock* Current() const { return graph_.GetBlocks().Get(index_); }
+  bool Done() const { return index_ == graph_.GetBlocks().size(); }
+  HBasicBlock* Current() const { return graph_.GetBlock(index_); }
   void Advance() { ++index_; }
 
  private:
@@ -5099,11 +5101,11 @@ class HReversePostOrderIterator : public ValueObject {
  public:
   explicit HReversePostOrderIterator(const HGraph& graph) : graph_(graph), index_(0) {
     // Check that reverse post order of the graph has been built.
-    DCHECK(!graph.GetReversePostOrder().IsEmpty());
+    DCHECK(!graph.GetReversePostOrder().empty());
   }
 
-  bool Done() const { return index_ == graph_.GetReversePostOrder().Size(); }
-  HBasicBlock* Current() const { return graph_.GetReversePostOrder().Get(index_); }
+  bool Done() const { return index_ == graph_.GetReversePostOrder().size(); }
+  HBasicBlock* Current() const { return graph_.GetReversePostOrder()[index_]; }
   void Advance() { ++index_; }
 
  private:
@@ -5116,13 +5118,13 @@ class HReversePostOrderIterator : public ValueObject {
 class HPostOrderIterator : public ValueObject {
  public:
   explicit HPostOrderIterator(const HGraph& graph)
-      : graph_(graph), index_(graph_.GetReversePostOrder().Size()) {
+      : graph_(graph), index_(graph_.GetReversePostOrder().size()) {
     // Check that reverse post order of the graph has been built.
-    DCHECK(!graph.GetReversePostOrder().IsEmpty());
+    DCHECK(!graph.GetReversePostOrder().empty());
   }
 
   bool Done() const { return index_ == 0; }
-  HBasicBlock* Current() const { return graph_.GetReversePostOrder().Get(index_ - 1); }
+  HBasicBlock* Current() const { return graph_.GetReversePostOrder()[index_ - 1u]; }
   void Advance() { --index_; }
 
  private:
@@ -5135,11 +5137,11 @@ class HPostOrderIterator : public ValueObject {
 class HLinearPostOrderIterator : public ValueObject {
  public:
   explicit HLinearPostOrderIterator(const HGraph& graph)
-      : order_(graph.GetLinearOrder()), index_(graph.GetLinearOrder().Size()) {}
+      : order_(graph.GetLinearOrder()), index_(graph.GetLinearOrder().size()) {}
 
   bool Done() const { return index_ == 0; }
 
-  HBasicBlock* Current() const { return order_.Get(index_ -1); }
+  HBasicBlock* Current() const { return order_[index_ - 1u]; }
 
   void Advance() {
     --index_;
@@ -5147,7 +5149,7 @@ class HLinearPostOrderIterator : public ValueObject {
   }
 
  private:
-  const GrowableArray<HBasicBlock*>& order_;
+  const ArenaVector<HBasicBlock*>& order_;
   size_t index_;
 
   DISALLOW_COPY_AND_ASSIGN(HLinearPostOrderIterator);
@@ -5158,12 +5160,12 @@ class HLinearOrderIterator : public ValueObject {
   explicit HLinearOrderIterator(const HGraph& graph)
       : order_(graph.GetLinearOrder()), index_(0) {}
 
-  bool Done() const { return index_ == order_.Size(); }
-  HBasicBlock* Current() const { return order_.Get(index_); }
+  bool Done() const { return index_ == order_.size(); }
+  HBasicBlock* Current() const { return order_[index_]; }
   void Advance() { ++index_; }
 
  private:
-  const GrowableArray<HBasicBlock*>& order_;
+  const ArenaVector<HBasicBlock*>& order_;
   size_t index_;
 
   DISALLOW_COPY_AND_ASSIGN(HLinearOrderIterator);
@@ -5183,11 +5185,11 @@ class HBlocksInLoopIterator : public ValueObject {
     }
   }
 
-  bool Done() const { return index_ == blocks_.Size(); }
-  HBasicBlock* Current() const { return blocks_.Get(index_); }
+  bool Done() const { return index_ == blocks_.size(); }
+  HBasicBlock* Current() const { return blocks_[index_]; }
   void Advance() {
     ++index_;
-    for (size_t e = blocks_.Size(); index_ < e; ++index_) {
+    for (size_t e = blocks_.size(); index_ < e; ++index_) {
       if (blocks_in_loop_.IsBitSet(index_)) {
         break;
       }
@@ -5196,7 +5198,7 @@ class HBlocksInLoopIterator : public ValueObject {
 
  private:
   const BitVector& blocks_in_loop_;
-  const GrowableArray<HBasicBlock*>& blocks_;
+  const ArenaVector<HBasicBlock*>& blocks_;
   size_t index_;
 
   DISALLOW_COPY_AND_ASSIGN(HBlocksInLoopIterator);
@@ -5211,17 +5213,18 @@ class HBlocksInLoopReversePostOrderIterator : public ValueObject {
       : blocks_in_loop_(info.GetBlocks()),
         blocks_(info.GetHeader()->GetGraph()->GetReversePostOrder()),
         index_(0) {
-    if (!blocks_in_loop_.IsBitSet(blocks_.Get(index_)->GetBlockId())) {
+    DCHECK(!blocks_.empty());
+    if (!blocks_in_loop_.IsBitSet(blocks_[index_]->GetBlockId())) {
       Advance();
     }
   }
 
-  bool Done() const { return index_ == blocks_.Size(); }
-  HBasicBlock* Current() const { return blocks_.Get(index_); }
+  bool Done() const { return index_ == blocks_.size(); }
+  HBasicBlock* Current() const { return blocks_[index_]; }
   void Advance() {
     ++index_;
-    for (size_t e = blocks_.Size(); index_ < e; ++index_) {
-      if (blocks_in_loop_.IsBitSet(blocks_.Get(index_)->GetBlockId())) {
+    for (size_t e = blocks_.size(); index_ < e; ++index_) {
+      if (blocks_in_loop_.IsBitSet(blocks_[index_]->GetBlockId())) {
         break;
       }
     }
@@ -5229,7 +5232,7 @@ class HBlocksInLoopReversePostOrderIterator : public ValueObject {
 
  private:
   const BitVector& blocks_in_loop_;
-  const GrowableArray<HBasicBlock*>& blocks_;
+  const ArenaVector<HBasicBlock*>& blocks_;
   size_t index_;
 
   DISALLOW_COPY_AND_ASSIGN(HBlocksInLoopReversePostOrderIterator);

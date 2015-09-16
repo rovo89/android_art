@@ -27,8 +27,8 @@ class SideEffectsAnalysis : public HOptimization {
   explicit SideEffectsAnalysis(HGraph* graph)
       : HOptimization(graph, kSideEffectsAnalysisPassName),
         graph_(graph),
-        block_effects_(graph->GetArena(), graph->GetBlocks().Size(), SideEffects::None()),
-        loop_effects_(graph->GetArena(), graph->GetBlocks().Size(), SideEffects::None()) {}
+        block_effects_(graph->GetArena(), graph->GetBlocks().size(), SideEffects::None()),
+        loop_effects_(graph->GetArena(), graph->GetBlocks().size(), SideEffects::None()) {}
 
   SideEffects GetLoopEffects(HBasicBlock* block) const;
   SideEffects GetBlockEffects(HBasicBlock* block) const;

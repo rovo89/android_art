@@ -46,8 +46,8 @@ TEST(FindLoopsTest, CFG1) {
   ArenaPool arena;
   ArenaAllocator allocator(&arena);
   HGraph* graph = TestCode(data, &allocator);
-  for (size_t i = 0, e = graph->GetBlocks().Size(); i < e; ++i) {
-    ASSERT_EQ(graph->GetBlocks().Get(i)->GetLoopInformation(), nullptr);
+  for (HBasicBlock* block : graph->GetBlocks()) {
+    ASSERT_EQ(block->GetLoopInformation(), nullptr);
   }
 }
 
@@ -59,8 +59,8 @@ TEST(FindLoopsTest, CFG2) {
   ArenaPool arena;
   ArenaAllocator allocator(&arena);
   HGraph* graph = TestCode(data, &allocator);
-  for (size_t i = 0, e = graph->GetBlocks().Size(); i < e; ++i) {
-    ASSERT_EQ(graph->GetBlocks().Get(i)->GetLoopInformation(), nullptr);
+  for (HBasicBlock* block : graph->GetBlocks()) {
+    ASSERT_EQ(block->GetLoopInformation(), nullptr);
   }
 }
 
@@ -75,8 +75,8 @@ TEST(FindLoopsTest, CFG3) {
   ArenaPool arena;
   ArenaAllocator allocator(&arena);
   HGraph* graph = TestCode(data, &allocator);
-  for (size_t i = 0, e = graph->GetBlocks().Size(); i < e; ++i) {
-    ASSERT_EQ(graph->GetBlocks().Get(i)->GetLoopInformation(), nullptr);
+  for (HBasicBlock* block : graph->GetBlocks()) {
+    ASSERT_EQ(block->GetLoopInformation(), nullptr);
   }
 }
 
@@ -92,8 +92,8 @@ TEST(FindLoopsTest, CFG4) {
   ArenaPool arena;
   ArenaAllocator allocator(&arena);
   HGraph* graph = TestCode(data, &allocator);
-  for (size_t i = 0, e = graph->GetBlocks().Size(); i < e; ++i) {
-    ASSERT_EQ(graph->GetBlocks().Get(i)->GetLoopInformation(), nullptr);
+  for (HBasicBlock* block : graph->GetBlocks()) {
+    ASSERT_EQ(block->GetLoopInformation(), nullptr);
   }
 }
 
@@ -107,20 +107,20 @@ TEST(FindLoopsTest, CFG5) {
   ArenaPool arena;
   ArenaAllocator allocator(&arena);
   HGraph* graph = TestCode(data, &allocator);
-  for (size_t i = 0, e = graph->GetBlocks().Size(); i < e; ++i) {
-    ASSERT_EQ(graph->GetBlocks().Get(i)->GetLoopInformation(), nullptr);
+  for (HBasicBlock* block : graph->GetBlocks()) {
+    ASSERT_EQ(block->GetLoopInformation(), nullptr);
   }
 }
 
 static void TestBlock(HGraph* graph,
-                      int block_id,
+                      uint32_t block_id,
                       bool is_loop_header,
-                      int parent_loop_header_id,
+                      uint32_t parent_loop_header_id,
                       const int* blocks_in_loop = nullptr,
                       size_t number_of_blocks = 0) {
-  HBasicBlock* block = graph->GetBlocks().Get(block_id);
+  HBasicBlock* block = graph->GetBlock(block_id);
   ASSERT_EQ(block->IsLoopHeader(), is_loop_header);
-  if (parent_loop_header_id == -1) {
+  if (parent_loop_header_id == kInvalidBlockId) {
     ASSERT_EQ(block->GetLoopInformation(), nullptr);
   } else {
     ASSERT_EQ(block->GetLoopInformation()->GetHeader()->GetBlockId(), parent_loop_header_id);
@@ -154,13 +154,13 @@ TEST(FindLoopsTest, Loop1) {
   ArenaAllocator allocator(&arena);
   HGraph* graph = TestCode(data, &allocator);
 
-  TestBlock(graph, 0, false, -1);            // entry block
-  TestBlock(graph, 1, false, -1);            // pre header
+  TestBlock(graph, 0, false, kInvalidBlockId);  // entry block
+  TestBlock(graph, 1, false, kInvalidBlockId);  // pre header
   const int blocks2[] = {2, 3};
-  TestBlock(graph, 2, true, 2, blocks2, 2);  // loop header
-  TestBlock(graph, 3, false, 2);             // block in loop
-  TestBlock(graph, 4, false, -1);            // return block
-  TestBlock(graph, 5, false, -1);            // exit block
+  TestBlock(graph, 2, true, 2, blocks2, 2);     // loop header
+  TestBlock(graph, 3, false, 2);                // block in loop
+  TestBlock(graph, 4, false, kInvalidBlockId);  // return block
+  TestBlock(graph, 5, false, kInvalidBlockId);  // exit block
 }
 
 TEST(FindLoopsTest, Loop2) {
@@ -182,14 +182,14 @@ TEST(FindLoopsTest, Loop2) {
   ArenaAllocator allocator(&arena);
   HGraph* graph = TestCode(data, &allocator);
 
-  TestBlock(graph, 0, false, -1);            // entry block
-  TestBlock(graph, 1, false, -1);            // goto block
+  TestBlock(graph, 0, false, kInvalidBlockId);  // entry block
+  TestBlock(graph, 1, false, kInvalidBlockId);  // goto block
   const int blocks2[] = {2, 3};
-  TestBlock(graph, 2, true, 2, blocks2, 2);  // loop header
-  TestBlock(graph, 3, false, 2);             // block in loop
-  TestBlock(graph, 4, false, -1);            // pre header
-  TestBlock(graph, 5, false, -1);            // return block
-  TestBlock(graph, 6, false, -1);            // exit block
+  TestBlock(graph, 2, true, 2, blocks2, 2);     // loop header
+  TestBlock(graph, 3, false, 2);                // block in loop
+  TestBlock(graph, 4, false, kInvalidBlockId);  // pre header
+  TestBlock(graph, 5, false, kInvalidBlockId);  // return block
+  TestBlock(graph, 6, false, kInvalidBlockId);  // exit block
 }
 
 TEST(FindLoopsTest, Loop3) {
@@ -207,16 +207,16 @@ TEST(FindLoopsTest, Loop3) {
   ArenaAllocator allocator(&arena);
   HGraph* graph = TestCode(data, &allocator);
 
-  TestBlock(graph, 0, false, -1);            // entry block
-  TestBlock(graph, 1, false, -1);            // goto block
-  TestBlock(graph, 2, false, -1);
+  TestBlock(graph, 0, false, kInvalidBlockId);  // entry block
+  TestBlock(graph, 1, false, kInvalidBlockId);  // goto block
+  TestBlock(graph, 2, false, kInvalidBlockId);
   const int blocks2[] = {3, 4};
-  TestBlock(graph, 3, true, 3, blocks2, 2);  // loop header
-  TestBlock(graph, 4, false, 3);             // block in loop
-  TestBlock(graph, 5, false, -1);            // pre header
-  TestBlock(graph, 6, false, -1);            // return block
-  TestBlock(graph, 7, false, -1);            // exit block
-  TestBlock(graph, 8, false, -1);            // synthesized pre header
+  TestBlock(graph, 3, true, 3, blocks2, 2);     // loop header
+  TestBlock(graph, 4, false, 3);                // block in loop
+  TestBlock(graph, 5, false, kInvalidBlockId);  // pre header
+  TestBlock(graph, 6, false, kInvalidBlockId);  // return block
+  TestBlock(graph, 7, false, kInvalidBlockId);  // exit block
+  TestBlock(graph, 8, false, kInvalidBlockId);  // synthesized pre header
 }
 
 TEST(FindLoopsTest, Loop4) {
@@ -233,15 +233,15 @@ TEST(FindLoopsTest, Loop4) {
   ArenaAllocator allocator(&arena);
   HGraph* graph = TestCode(data, &allocator);
 
-  TestBlock(graph, 0, false, -1);            // entry block
-  TestBlock(graph, 1, false, -1);            // pre header
+  TestBlock(graph, 0, false, kInvalidBlockId);  // entry block
+  TestBlock(graph, 1, false, kInvalidBlockId);  // pre header
   const int blocks2[] = {2, 3, 4, 5};
   TestBlock(graph, 2, true, 2, blocks2, arraysize(blocks2));  // loop header
-  TestBlock(graph, 3, false, 2);             // block in loop
-  TestBlock(graph, 4, false, 2);             // back edge
-  TestBlock(graph, 5, false, 2);             // back edge
-  TestBlock(graph, 6, false, -1);            // return block
-  TestBlock(graph, 7, false, -1);            // exit block
+  TestBlock(graph, 3, false, 2);                // block in loop
+  TestBlock(graph, 4, false, 2);                // back edge
+  TestBlock(graph, 5, false, 2);                // back edge
+  TestBlock(graph, 6, false, kInvalidBlockId);  // return block
+  TestBlock(graph, 7, false, kInvalidBlockId);  // exit block
 }
 
 
@@ -259,16 +259,16 @@ TEST(FindLoopsTest, Loop5) {
   ArenaAllocator allocator(&arena);
   HGraph* graph = TestCode(data, &allocator);
 
-  TestBlock(graph, 0, false, -1);            // entry block
-  TestBlock(graph, 1, false, -1);            // pre header
+  TestBlock(graph, 0, false, kInvalidBlockId);  // entry block
+  TestBlock(graph, 1, false, kInvalidBlockId);  // pre header
   const int blocks2[] = {2, 3, 5};
-  TestBlock(graph, 2, true, 2, blocks2, 3);  // loop header
-  TestBlock(graph, 3, false, 2);             // block in loop
-  TestBlock(graph, 4, false, -1);            // loop exit
-  TestBlock(graph, 5, false, 2);             // back edge
-  TestBlock(graph, 6, false, -1);            // return block
-  TestBlock(graph, 7, false, -1);            // exit block
-  TestBlock(graph, 8, false, -1);            // synthesized block at the loop exit
+  TestBlock(graph, 2, true, 2, blocks2, 3);     // loop header
+  TestBlock(graph, 3, false, 2);                // block in loop
+  TestBlock(graph, 4, false, kInvalidBlockId);  // loop exit
+  TestBlock(graph, 5, false, 2);                // back edge
+  TestBlock(graph, 6, false, kInvalidBlockId);  // return block
+  TestBlock(graph, 7, false, kInvalidBlockId);  // exit block
+  TestBlock(graph, 8, false, kInvalidBlockId);  // synthesized block at the loop exit
 }
 
 TEST(FindLoopsTest, InnerLoop) {
@@ -284,22 +284,22 @@ TEST(FindLoopsTest, InnerLoop) {
   ArenaAllocator allocator(&arena);
   HGraph* graph = TestCode(data, &allocator);
 
-  TestBlock(graph, 0, false, -1);            // entry block
-  TestBlock(graph, 1, false, -1);            // pre header of outer loop
+  TestBlock(graph, 0, false, kInvalidBlockId);  // entry block
+  TestBlock(graph, 1, false, kInvalidBlockId);  // pre header of outer loop
   const int blocks2[] = {2, 3, 4, 5, 8};
-  TestBlock(graph, 2, true, 2, blocks2, 5);  // outer loop header
+  TestBlock(graph, 2, true, 2, blocks2, 5);     // outer loop header
   const int blocks3[] = {3, 4};
-  TestBlock(graph, 3, true, 3, blocks3, 2);  // inner loop header
-  TestBlock(graph, 4, false, 3);             // back edge on inner loop
-  TestBlock(graph, 5, false, 2);             // back edge on outer loop
-  TestBlock(graph, 6, false, -1);            // return block
-  TestBlock(graph, 7, false, -1);            // exit block
-  TestBlock(graph, 8, false, 2);             // synthesized block as pre header of inner loop
+  TestBlock(graph, 3, true, 3, blocks3, 2);     // inner loop header
+  TestBlock(graph, 4, false, 3);                // back edge on inner loop
+  TestBlock(graph, 5, false, 2);                // back edge on outer loop
+  TestBlock(graph, 6, false, kInvalidBlockId);  // return block
+  TestBlock(graph, 7, false, kInvalidBlockId);  // exit block
+  TestBlock(graph, 8, false, 2);                // synthesized block as pre header of inner loop
 
-  ASSERT_TRUE(graph->GetBlocks().Get(3)->GetLoopInformation()->IsIn(
-                    *graph->GetBlocks().Get(2)->GetLoopInformation()));
-  ASSERT_FALSE(graph->GetBlocks().Get(2)->GetLoopInformation()->IsIn(
-                    *graph->GetBlocks().Get(3)->GetLoopInformation()));
+  ASSERT_TRUE(graph->GetBlock(3)->GetLoopInformation()->IsIn(
+                    *graph->GetBlock(2)->GetLoopInformation()));
+  ASSERT_FALSE(graph->GetBlock(2)->GetLoopInformation()->IsIn(
+                    *graph->GetBlock(3)->GetLoopInformation()));
 }
 
 TEST(FindLoopsTest, TwoLoops) {
@@ -315,21 +315,21 @@ TEST(FindLoopsTest, TwoLoops) {
   ArenaAllocator allocator(&arena);
   HGraph* graph = TestCode(data, &allocator);
 
-  TestBlock(graph, 0, false, -1);            // entry block
-  TestBlock(graph, 1, false, -1);            // pre header of first loop
+  TestBlock(graph, 0, false, kInvalidBlockId);  // entry block
+  TestBlock(graph, 1, false, kInvalidBlockId);  // pre header of first loop
   const int blocks2[] = {2, 3};
-  TestBlock(graph, 2, true, 2, blocks2, 2);  // first loop header
-  TestBlock(graph, 3, false, 2);             // back edge of first loop
+  TestBlock(graph, 2, true, 2, blocks2, 2);     // first loop header
+  TestBlock(graph, 3, false, 2);                // back edge of first loop
   const int blocks4[] = {4, 5};
-  TestBlock(graph, 4, true, 4, blocks4, 2);  // second loop header
-  TestBlock(graph, 5, false, 4);             // back edge of second loop
-  TestBlock(graph, 6, false, -1);            // return block
-  TestBlock(graph, 7, false, -1);            // exit block
+  TestBlock(graph, 4, true, 4, blocks4, 2);     // second loop header
+  TestBlock(graph, 5, false, 4);                // back edge of second loop
+  TestBlock(graph, 6, false, kInvalidBlockId);  // return block
+  TestBlock(graph, 7, false, kInvalidBlockId);  // exit block
 
-  ASSERT_FALSE(graph->GetBlocks().Get(4)->GetLoopInformation()->IsIn(
-                    *graph->GetBlocks().Get(2)->GetLoopInformation()));
-  ASSERT_FALSE(graph->GetBlocks().Get(2)->GetLoopInformation()->IsIn(
-                    *graph->GetBlocks().Get(4)->GetLoopInformation()));
+  ASSERT_FALSE(graph->GetBlock(4)->GetLoopInformation()->IsIn(
+                    *graph->GetBlock(2)->GetLoopInformation()));
+  ASSERT_FALSE(graph->GetBlock(2)->GetLoopInformation()->IsIn(
+                    *graph->GetBlock(4)->GetLoopInformation()));
 }
 
 TEST(FindLoopsTest, NonNaturalLoop) {
@@ -344,9 +344,10 @@ TEST(FindLoopsTest, NonNaturalLoop) {
   ArenaPool arena;
   ArenaAllocator allocator(&arena);
   HGraph* graph = TestCode(data, &allocator);
-  ASSERT_TRUE(graph->GetBlocks().Get(3)->IsLoopHeader());
-  HLoopInformation* info = graph->GetBlocks().Get(3)->GetLoopInformation();
-  ASSERT_FALSE(info->GetHeader()->Dominates(info->GetBackEdges().Get(0)));
+  ASSERT_TRUE(graph->GetBlock(3)->IsLoopHeader());
+  HLoopInformation* info = graph->GetBlock(3)->GetLoopInformation();
+  ASSERT_EQ(1u, info->NumberOfBackEdges());
+  ASSERT_FALSE(info->GetHeader()->Dominates(info->GetBackEdges()[0]));
 }
 
 TEST(FindLoopsTest, DoWhileLoop) {
@@ -360,14 +361,14 @@ TEST(FindLoopsTest, DoWhileLoop) {
   ArenaAllocator allocator(&arena);
   HGraph* graph = TestCode(data, &allocator);
 
-  TestBlock(graph, 0, false, -1);            // entry block
-  TestBlock(graph, 1, false, -1);            // pre header of first loop
+  TestBlock(graph, 0, false, kInvalidBlockId);  // entry block
+  TestBlock(graph, 1, false, kInvalidBlockId);  // pre header of first loop
   const int blocks2[] = {2, 3, 6};
-  TestBlock(graph, 2, true, 2, blocks2, 3);  // loop header
-  TestBlock(graph, 3, false, 2);             // back edge of first loop
-  TestBlock(graph, 4, false, -1);            // return block
-  TestBlock(graph, 5, false, -1);            // exit block
-  TestBlock(graph, 6, false, 2);             // synthesized block to avoid a critical edge
+  TestBlock(graph, 2, true, 2, blocks2, 3);     // loop header
+  TestBlock(graph, 3, false, 2);                // back edge of first loop
+  TestBlock(graph, 4, false, kInvalidBlockId);  // return block
+  TestBlock(graph, 5, false, kInvalidBlockId);  // exit block
+  TestBlock(graph, 6, false, 2);                // synthesized block to avoid a critical edge
 }
 
 }  // namespace art
