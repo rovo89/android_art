@@ -231,7 +231,8 @@ class CodeGeneratorARM : public CodeGenerator {
  public:
   CodeGeneratorARM(HGraph* graph,
                    const ArmInstructionSetFeatures& isa_features,
-                   const CompilerOptions& compiler_options);
+                   const CompilerOptions& compiler_options,
+                   OptimizingCompilerStats* stats = nullptr);
   virtual ~CodeGeneratorARM() {}
 
   void GenerateFrameEntry() OVERRIDE;
