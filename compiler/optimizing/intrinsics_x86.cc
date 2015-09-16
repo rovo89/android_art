@@ -2118,6 +2118,152 @@ void IntrinsicCodeGeneratorX86::VisitLongNumberOfLeadingZeros(HInvoke* invoke) {
   GenLeadingZeros(assembler, invoke, /* is_long */ true);
 }
 
+static void CreateTrailingZeroLocations(ArenaAllocator* arena, HInvoke* invoke, bool is_long) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  if (is_long) {
+    locations->SetInAt(0, Location::RequiresRegister());
+  } else {
+    locations->SetInAt(0, Location::Any());
+  }
+  locations->SetOut(Location::RequiresRegister());
+}
+
+static void GenTrailingZeros(X86Assembler* assembler, HInvoke* invoke, bool is_long) {
+  LocationSummary* locations = invoke->GetLocations();
+  Location src = locations->InAt(0);
+  Register out = locations->Out().AsRegister<Register>();
+
+  if (invoke->InputAt(0)->IsConstant()) {
+    // Evaluate this at compile time.
+    int64_t value = Int64FromConstant(invoke->InputAt(0)->AsConstant());
+    if (value == 0) {
+      value = is_long ? 64 : 32;
+    } else {
+      value = is_long ? CTZ(static_cast<uint64_t>(value)) : CTZ(static_cast<uint32_t>(value));
+    }
+    if (value == 0) {
+      __ xorl(out, out);
+    } else {
+      __ movl(out, Immediate(value));
+    }
+    return;
+  }
+
+  // Handle the non-constant cases.
+  if (!is_long) {
+    if (src.IsRegister()) {
+      __ bsfl(out, src.AsRegister<Register>());
+    } else {
+      DCHECK(src.IsStackSlot());
+      __ bsfl(out, Address(ESP, src.GetStackIndex()));
+    }
+
+    // BSF sets ZF if the input was zero, and the output is undefined.
+    NearLabel done;
+    __ j(kNotEqual, &done);
+
+    // Fix the zero case with the expected result.
+    __ movl(out, Immediate(32));
+
+    __ Bind(&done);
+    return;
+  }
+
+  // 64 bit case needs to worry about both parts of the register.
+  DCHECK(src.IsRegisterPair());
+  Register src_lo = src.AsRegisterPairLow<Register>();
+  Register src_hi = src.AsRegisterPairHigh<Register>();
+  NearLabel done, all_zeroes;
+
+  // If the low word is zero, then ZF will be set.  If not, we have the answer.
+  __ bsfl(out, src_lo);
+  __ j(kNotEqual, &done);
+
+  // Low word was zero.  We have to compute the high word count and add 32.
+  __ bsfl(out, src_hi);
+  __ j(kEqual, &all_zeroes);
+
+  // We had a valid result.  Add 32 to account for the low word being zero.
+  __ addl(out, Immediate(32));
+  __ jmp(&done);
+
+  // All zero case.
+  __ Bind(&all_zeroes);
+  __ movl(out, Immediate(64));
+
+  __ Bind(&done);
+}
+
+void IntrinsicLocationsBuilderX86::VisitIntegerNumberOfTrailingZeros(HInvoke* invoke) {
+  CreateTrailingZeroLocations(arena_, invoke, /* is_long */ false);
+}
+
+void IntrinsicCodeGeneratorX86::VisitIntegerNumberOfTrailingZeros(HInvoke* invoke) {
+  X86Assembler* assembler = down_cast<X86Assembler*>(codegen_->GetAssembler());
+  GenTrailingZeros(assembler, invoke, /* is_long */ false);
+}
+
+void IntrinsicLocationsBuilderX86::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
+  CreateTrailingZeroLocations(arena_, invoke, /* is_long */ true);
+}
+
+void IntrinsicCodeGeneratorX86::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
+  X86Assembler* assembler = down_cast<X86Assembler*>(codegen_->GetAssembler());
+  GenTrailingZeros(assembler, invoke, /* is_long */ true);
+}
+
+static void CreateRotateLocations(ArenaAllocator* arena, HInvoke* invoke) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  // The shift count needs to be in CL or a constant.
+  locations->SetInAt(1, Location::ByteRegisterOrConstant(ECX, invoke->InputAt(1)));
+  locations->SetOut(Location::SameAsFirstInput());
+}
+
+static void GenRotate(X86Assembler* assembler, HInvoke* invoke, bool is_left) {
+  LocationSummary* locations = invoke->GetLocations();
+  Register first_reg = locations->InAt(0).AsRegister<Register>();
+  Location second = locations->InAt(1);
+
+  if (second.IsRegister()) {
+    Register second_reg = second.AsRegister<Register>();
+    if (is_left) {
+      __ roll(first_reg, second_reg);
+    } else {
+      __ rorl(first_reg, second_reg);
+    }
+  } else {
+    Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxIntShiftValue);
+    if (is_left) {
+      __ roll(first_reg, imm);
+    } else {
+      __ rorl(first_reg, imm);
+    }
+  }
+}
+
+void IntrinsicLocationsBuilderX86::VisitIntegerRotateLeft(HInvoke* invoke) {
+  CreateRotateLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitIntegerRotateLeft(HInvoke* invoke) {
+  X86Assembler* assembler = down_cast<X86Assembler*>(codegen_->GetAssembler());
+  GenRotate(assembler, invoke, /* is_left */ true);
+}
+
+void IntrinsicLocationsBuilderX86::VisitIntegerRotateRight(HInvoke* invoke) {
+  CreateRotateLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitIntegerRotateRight(HInvoke* invoke) {
+  X86Assembler* assembler = down_cast<X86Assembler*>(codegen_->GetAssembler());
+  GenRotate(assembler, invoke, /* is_left */ false);
+}
+
 // Unimplemented intrinsics.
 
 #define UNIMPLEMENTED_INTRINSIC(Name)                                                   \
@@ -2129,11 +2275,7 @@ void IntrinsicCodeGeneratorX86::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) 
 UNIMPLEMENTED_INTRINSIC(MathRoundDouble)
 UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
-UNIMPLEMENTED_INTRINSIC(IntegerNumberOfTrailingZeros)
-UNIMPLEMENTED_INTRINSIC(LongNumberOfTrailingZeros)
-UNIMPLEMENTED_INTRINSIC(IntegerRotateRight)
 UNIMPLEMENTED_INTRINSIC(LongRotateRight)
-UNIMPLEMENTED_INTRINSIC(IntegerRotateLeft)
 UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
 
 #undef UNIMPLEMENTED_INTRINSIC
