@@ -633,10 +633,25 @@ class X86_64Assembler FINAL : public Assembler {
   void bswapl(CpuRegister dst);
   void bswapq(CpuRegister dst);
 
+  void bsfl(CpuRegister dst, CpuRegister src);
+  void bsfl(CpuRegister dst, const Address& src);
+  void bsfq(CpuRegister dst, CpuRegister src);
+  void bsfq(CpuRegister dst, const Address& src);
+
   void bsrl(CpuRegister dst, CpuRegister src);
   void bsrl(CpuRegister dst, const Address& src);
   void bsrq(CpuRegister dst, CpuRegister src);
   void bsrq(CpuRegister dst, const Address& src);
+
+  void rorl(CpuRegister reg, const Immediate& imm);
+  void rorl(CpuRegister operand, CpuRegister shifter);
+  void roll(CpuRegister reg, const Immediate& imm);
+  void roll(CpuRegister operand, CpuRegister shifter);
+
+  void rorq(CpuRegister reg, const Immediate& imm);
+  void rorq(CpuRegister operand, CpuRegister shifter);
+  void rolq(CpuRegister reg, const Immediate& imm);
+  void rolq(CpuRegister operand, CpuRegister shifter);
 
   void repne_scasw();
   void repe_cmpsw();
