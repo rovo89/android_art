@@ -273,7 +273,7 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
   }
 
   void Initialize() OVERRIDE {
-    block_labels_.SetSize(GetGraph()->GetBlocks().Size());
+    block_labels_.SetSize(GetGraph()->GetBlocks().size());
   }
 
   void Finalize(CodeAllocator* allocator) OVERRIDE;

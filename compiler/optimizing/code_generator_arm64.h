@@ -326,7 +326,7 @@ class CodeGeneratorARM64 : public CodeGenerator {
 
   void Initialize() OVERRIDE {
     HGraph* graph = GetGraph();
-    int length = graph->GetBlocks().Size();
+    int length = graph->GetBlocks().size();
     block_labels_ = graph->GetArena()->AllocArray<vixl::Label>(length);
     for (int i = 0; i < length; ++i) {
       new(block_labels_ + i) vixl::Label();

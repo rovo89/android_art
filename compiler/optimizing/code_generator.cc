@@ -155,13 +155,14 @@ void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {
 }
 
 bool CodeGenerator::GoesToNextBlock(HBasicBlock* current, HBasicBlock* next) const {
-  DCHECK_EQ(block_order_->Get(current_block_index_), current);
+  DCHECK_LT(current_block_index_, block_order_->size());
+  DCHECK_EQ((*block_order_)[current_block_index_], current);
   return GetNextBlockToEmit() == FirstNonEmptyBlock(next);
 }
 
 HBasicBlock* CodeGenerator::GetNextBlockToEmit() const {
-  for (size_t i = current_block_index_ + 1; i < block_order_->Size(); ++i) {
-    HBasicBlock* block = block_order_->Get(i);
+  for (size_t i = current_block_index_ + 1; i < block_order_->size(); ++i) {
+    HBasicBlock* block = (*block_order_)[i];
     if (!block->IsSingleJump()) {
       return block;
     }
@@ -225,8 +226,8 @@ void CodeGenerator::CompileInternal(CodeAllocator* allocator, bool is_baseline) 
     disasm_info_->SetFrameEntryInterval(frame_start, GetAssembler()->CodeSize());
   }
 
-  for (size_t e = block_order_->Size(); current_block_index_ < e; ++current_block_index_) {
-    HBasicBlock* block = block_order_->Get(current_block_index_);
+  for (size_t e = block_order_->size(); current_block_index_ < e; ++current_block_index_) {
+    HBasicBlock* block = (*block_order_)[current_block_index_];
     // Don't generate code for an empty block. Its predecessors will branch to its successor
     // directly. Also, the label of that block will not be emitted, so this helps catch
     // errors where we reference that label.
@@ -305,9 +306,10 @@ void CodeGenerator::InitializeCodeGeneration(size_t number_of_spill_slots,
                                              size_t maximum_number_of_live_core_registers,
                                              size_t maximum_number_of_live_fp_registers,
                                              size_t number_of_out_slots,
-                                             const GrowableArray<HBasicBlock*>& block_order) {
+                                             const ArenaVector<HBasicBlock*>& block_order) {
   block_order_ = &block_order;
-  DCHECK(block_order_->Get(0) == GetGraph()->GetEntryBlock());
+  DCHECK(!block_order.empty());
+  DCHECK(block_order[0] == GetGraph()->GetEntryBlock());
   ComputeSpillMask();
   first_register_slot_in_slow_path_ = (number_of_out_slots + number_of_spill_slots) * kVRegSize;
 
@@ -632,8 +634,7 @@ void CodeGenerator::BuildMappingTable(ArenaVector<uint8_t>* data) const {
   }
 
   // Walk over the blocks and find which ones correspond to catch block entries.
-  for (size_t i = 0; i < graph_->GetBlocks().Size(); ++i) {
-    HBasicBlock* block = graph_->GetBlocks().Get(i);
+  for (HBasicBlock* block : graph_->GetBlocks()) {
     if (block->IsCatchBlock()) {
       intptr_t native_pc = GetAddressOf(block);
       ++dex2pc_entries;
@@ -671,8 +672,7 @@ void CodeGenerator::BuildMappingTable(ArenaVector<uint8_t>* data) const {
     pc2dex_dalvik_offset = stack_map_entry.dex_pc;
   }
 
-  for (size_t i = 0; i < graph_->GetBlocks().Size(); ++i) {
-    HBasicBlock* block = graph_->GetBlocks().Get(i);
+  for (HBasicBlock* block : graph_->GetBlocks()) {
     if (block->IsCatchBlock()) {
       intptr_t native_pc = GetAddressOf(block);
       write_pos2 = EncodeUnsignedLeb128(write_pos2, native_pc - dex2pc_offset);
@@ -699,8 +699,7 @@ void CodeGenerator::BuildMappingTable(ArenaVector<uint8_t>* data) const {
       CHECK_EQ(stack_map_entry.dex_pc, it.DexPc());
       ++it;
     }
-    for (size_t i = 0; i < graph_->GetBlocks().Size(); ++i) {
-      HBasicBlock* block = graph_->GetBlocks().Get(i);
+    for (HBasicBlock* block : graph_->GetBlocks()) {
       if (block->IsCatchBlock()) {
         CHECK_EQ(GetAddressOf(block), it2.NativePcOffset());
         CHECK_EQ(block->GetDexPc(), it2.DexPc());
@@ -814,8 +813,7 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
 void CodeGenerator::RecordCatchBlockInfo() {
   ArenaAllocator* arena = graph_->GetArena();
 
-  for (size_t i = 0, e = block_order_->Size(); i < e; ++i) {
-    HBasicBlock* block = block_order_->Get(i);
+  for (HBasicBlock* block : *block_order_) {
     if (!block->IsCatchBlock()) {
       continue;
     }

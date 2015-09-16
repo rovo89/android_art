@@ -1106,11 +1106,11 @@ class SsaLivenessAnalysis : public ValueObject {
   SsaLivenessAnalysis(HGraph* graph, CodeGenerator* codegen)
       : graph_(graph),
         codegen_(codegen),
-        block_infos_(graph->GetArena(), graph->GetBlocks().Size()),
+        block_infos_(graph->GetArena(), graph->GetBlocks().size()),
         instructions_from_ssa_index_(graph->GetArena(), 0),
         instructions_from_lifetime_position_(graph->GetArena(), 0),
         number_of_ssa_values_(0) {
-    block_infos_.SetSize(graph->GetBlocks().Size());
+    block_infos_.SetSize(graph->GetBlocks().size());
   }
 
   void Analyze();
