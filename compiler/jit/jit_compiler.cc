@@ -108,6 +108,7 @@ JitCompiler::JitCompiler() : total_time_(0) {
       /* dump_stats */ false,
       /* dump_passes */ false,
       /* dump_cfg_file_name */ "",
+      /* dump_cfg_append */ false,
       cumulative_logger_.get(),
       /* swap_fd */ -1,
       /* profile_file */ ""));

@@ -192,7 +192,7 @@ void CommonCompilerTest::SetUp() {
                                               GetImageClasses(),
                                               GetCompiledClasses(),
                                               GetCompiledMethods(),
-                                              2, true, true, "", timer_.get(), -1, ""));
+                                              2, true, true, "", false, timer_.get(), -1, ""));
   }
   // We typically don't generate an image in unit tests, disable this optimization by default.
   compiler_driver_->SetSupportBootImageFixup(false);
