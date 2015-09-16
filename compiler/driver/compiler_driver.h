@@ -99,7 +99,7 @@ class CompilerDriver {
                  std::unordered_set<std::string>* compiled_classes,
                  std::unordered_set<std::string>* compiled_methods,
                  size_t thread_count, bool dump_stats, bool dump_passes,
-                 const std::string& dump_cfg_file_name,
+                 const std::string& dump_cfg_file_name, bool dump_cfg_append,
                  CumulativeLogger* timer, int swap_fd,
                  const std::string& profile_file);
 
@@ -426,6 +426,10 @@ class CompilerDriver {
     return dump_cfg_file_name_;
   }
 
+  bool GetDumpCfgAppend() const {
+    return dump_cfg_append_;
+  }
+
   CumulativeLogger* GetTimingsLogger() const {
     return timings_logger_;
   }
@@ -667,6 +671,7 @@ class CompilerDriver {
   bool dump_stats_;
   const bool dump_passes_;
   const std::string dump_cfg_file_name_;
+  const bool dump_cfg_append_;
 
   CumulativeLogger* const timings_logger_;
 
