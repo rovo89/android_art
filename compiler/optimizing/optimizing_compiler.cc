@@ -51,6 +51,7 @@
 #include "graph_checker.h"
 #include "graph_visualizer.h"
 #include "gvn.h"
+#include "induction_var_analysis.h"
 #include "inliner.h"
 #include "instruction_simplifier.h"
 #include "intrinsics.h"
@@ -462,7 +463,8 @@ static void RunOptimizations(HGraph* graph,
   SideEffectsAnalysis* side_effects = new (arena) SideEffectsAnalysis(graph);
   GVNOptimization* gvn = new (arena) GVNOptimization(graph, *side_effects);
   LICM* licm = new (arena) LICM(graph, *side_effects);
-  BoundsCheckElimination* bce = new (arena) BoundsCheckElimination(graph);
+  HInductionVarAnalysis* induction = new (arena) HInductionVarAnalysis(graph);
+  BoundsCheckElimination* bce = new (arena) BoundsCheckElimination(graph, induction);
   ReferenceTypePropagation* type_propagation =
       new (arena) ReferenceTypePropagation(graph, handles);
   InstructionSimplifier* simplify2 = new (arena) InstructionSimplifier(
@@ -510,6 +512,7 @@ static void RunOptimizations(HGraph* graph,
       side_effects,
       gvn,
       licm,
+      induction,
       bce,
       simplify3,
       dce2,
