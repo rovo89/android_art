@@ -84,6 +84,7 @@ enum ArenaAllocKind {
   kArenaAllocEnvironment,
   kArenaAllocEnvironmentVRegs,
   kArenaAllocEnvironmentLocations,
+  kArenaAllocSsaBuilder,
   kArenaAllocMoveOperands,
   kArenaAllocCodeBuffer,
   kArenaAllocStackMaps,
