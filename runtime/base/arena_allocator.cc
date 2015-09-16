@@ -74,6 +74,7 @@ const char* const ArenaAllocatorStatsImpl<kCount>::kAllocNames[] = {
   "Environment  ",
   "EnvVRegs     ",
   "EnvLocations ",
+  "SsaBuilder   ",
   "MoveOperands ",
   "CodeBuffer   ",
   "StackMaps    ",

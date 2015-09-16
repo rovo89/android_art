@@ -1544,7 +1544,7 @@ class HEnvironment : public ArenaObject<kArenaAllocEnvironment> {
     }
   }
 
-  void CopyFrom(const GrowableArray<HInstruction*>& locals);
+  void CopyFrom(const ArenaVector<HInstruction*>& locals);
   void CopyFrom(HEnvironment* environment);
 
   // Copy from `env`. If it's a loop phi for `loop_header`, copy the first

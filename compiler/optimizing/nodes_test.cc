@@ -133,8 +133,8 @@ TEST(Node, ParentEnvironment) {
 
   HEnvironment* environment = new (&allocator) HEnvironment(
       &allocator, 1, graph->GetDexFile(), graph->GetMethodIdx(), 0, kStatic, with_environment);
-  GrowableArray<HInstruction*> array(&allocator, 1);
-  array.Add(parameter1);
+  ArenaVector<HInstruction*> array(allocator.Adapter());
+  array.push_back(parameter1);
 
   environment->CopyFrom(array);
   with_environment->SetRawEnvironment(environment);
