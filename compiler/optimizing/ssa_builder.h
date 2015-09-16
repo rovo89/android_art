@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_SSA_BUILDER_H_
 #define ART_COMPILER_OPTIMIZING_SSA_BUILDER_H_
 
+#include "base/arena_containers.h"
 #include "nodes.h"
 #include "optimization.h"
 
@@ -51,33 +52,33 @@ class SsaBuilder : public HGraphVisitor {
   explicit SsaBuilder(HGraph* graph)
       : HGraphVisitor(graph),
         current_locals_(nullptr),
-        loop_headers_(graph->GetArena(), kDefaultNumberOfLoops),
-        locals_for_(graph->GetArena(), graph->GetBlocks().size()) {
-    locals_for_.SetSize(graph->GetBlocks().size());
+        loop_headers_(graph->GetArena()->Adapter(kArenaAllocSsaBuilder)),
+        locals_for_(graph->GetBlocks().size(),
+                    ArenaVector<HInstruction*>(graph->GetArena()->Adapter(kArenaAllocSsaBuilder)),
+                    graph->GetArena()->Adapter(kArenaAllocSsaBuilder)) {
+    loop_headers_.reserve(kDefaultNumberOfLoops);
   }
 
   void BuildSsa();
 
-  GrowableArray<HInstruction*>* GetLocalsFor(HBasicBlock* block) {
-    GrowableArray<HInstruction*>* locals = locals_for_.Get(block->GetBlockId());
-    if (locals == nullptr) {
+  ArenaVector<HInstruction*>* GetLocalsFor(HBasicBlock* block) {
+    DCHECK_LT(block->GetBlockId(), locals_for_.size());
+    ArenaVector<HInstruction*>* locals = &locals_for_[block->GetBlockId()];
+    if (locals->empty() && GetGraph()->GetNumberOfVRegs() != 0u) {
       const size_t vregs = GetGraph()->GetNumberOfVRegs();
-      ArenaAllocator* arena = GetGraph()->GetArena();
-      locals = new (arena) GrowableArray<HInstruction*>(arena, vregs);
-      locals->SetSize(vregs);
+      locals->resize(vregs, nullptr);
 
       if (block->IsCatchBlock()) {
         // We record incoming inputs of catch phis at throwing instructions and
         // must therefore eagerly create the phis. Unused phis will be removed
         // in the dead phi analysis.
+        ArenaAllocator* arena = GetGraph()->GetArena();
         for (size_t i = 0; i < vregs; ++i) {
           HPhi* phi = new (arena) HPhi(arena, i, 0, Primitive::kPrimVoid);
           block->AddPhi(phi);
-          locals->Put(i, phi);
+          (*locals)[i] = phi;
         }
       }
-
-      locals_for_.Put(block->GetBlockId(), locals);
     }
     return locals;
   }
@@ -107,14 +108,14 @@ class SsaBuilder : public HGraphVisitor {
   static HPhi* GetFloatDoubleOrReferenceEquivalentOfPhi(HPhi* phi, Primitive::Type type);
 
   // Locals for the current block being visited.
-  GrowableArray<HInstruction*>* current_locals_;
+  ArenaVector<HInstruction*>* current_locals_;
 
   // Keep track of loop headers found. The last phase of the analysis iterates
   // over these blocks to set the inputs of their phis.
-  GrowableArray<HBasicBlock*> loop_headers_;
+  ArenaVector<HBasicBlock*> loop_headers_;
 
   // HEnvironment for each block.
-  GrowableArray<GrowableArray<HInstruction*>*> locals_for_;
+  ArenaVector<ArenaVector<HInstruction*>> locals_for_;
 
   DISALLOW_COPY_AND_ASSIGN(SsaBuilder);
 };

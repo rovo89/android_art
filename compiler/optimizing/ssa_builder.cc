@@ -35,7 +35,9 @@ namespace art {
 class DeadPhiHandling : public ValueObject {
  public:
   explicit DeadPhiHandling(HGraph* graph)
-      : graph_(graph), worklist_(graph->GetArena(), kDefaultWorklistSize) {}
+      : graph_(graph), worklist_(graph->GetArena()->Adapter(kArenaAllocSsaBuilder)) {
+    worklist_.reserve(kDefaultWorklistSize);
+  }
 
   void Run();
 
@@ -47,7 +49,7 @@ class DeadPhiHandling : public ValueObject {
   bool UpdateType(HPhi* phi);
 
   HGraph* const graph_;
-  GrowableArray<HPhi*> worklist_;
+  ArenaVector<HPhi*> worklist_;
 
   static constexpr size_t kDefaultWorklistSize = 8;
 
@@ -136,8 +138,9 @@ void DeadPhiHandling::VisitBasicBlock(HBasicBlock* block) {
 }
 
 void DeadPhiHandling::ProcessWorklist() {
-  while (!worklist_.IsEmpty()) {
-    HPhi* instruction = worklist_.Pop();
+  while (!worklist_.empty()) {
+    HPhi* instruction = worklist_.back();
+    worklist_.pop_back();
     // Note that the same equivalent phi can be added multiple times in the work list, if
     // used by multiple phis. The first call to `UpdateType` will know whether the phi is
     // dead or live.
@@ -149,7 +152,7 @@ void DeadPhiHandling::ProcessWorklist() {
 
 void DeadPhiHandling::AddToWorklist(HPhi* instruction) {
   DCHECK(instruction->IsLive());
-  worklist_.Add(instruction);
+  worklist_.push_back(instruction);
 }
 
 void DeadPhiHandling::AddDependentInstructionsToWorklist(HPhi* instruction) {
@@ -237,8 +240,7 @@ void SsaBuilder::BuildSsa() {
   }
 
   // 2) Set inputs of loop phis.
-  for (size_t i = 0; i < loop_headers_.Size(); i++) {
-    HBasicBlock* block = loop_headers_.Get(i);
+  for (HBasicBlock* block : loop_headers_) {
     for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
       HPhi* phi = it.Current()->AsPhi();
       for (HBasicBlock* predecessor : block->GetPredecessors()) {
@@ -344,7 +346,9 @@ void SsaBuilder::BuildSsa() {
 }
 
 HInstruction* SsaBuilder::ValueOfLocal(HBasicBlock* block, size_t local) {
-  return GetLocalsFor(block)->Get(local);
+  ArenaVector<HInstruction*>* locals = GetLocalsFor(block);
+  DCHECK_LT(local, locals->size());
+  return (*locals)[local];
 }
 
 void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
@@ -357,22 +361,22 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
     // because we are visiting in reverse post order. We create phis for all initialized
     // locals from the pre header. Their inputs will be populated at the end of
     // the analysis.
-    for (size_t local = 0; local < current_locals_->Size(); local++) {
+    for (size_t local = 0; local < current_locals_->size(); ++local) {
       HInstruction* incoming = ValueOfLocal(block->GetLoopInformation()->GetPreHeader(), local);
       if (incoming != nullptr) {
         HPhi* phi = new (GetGraph()->GetArena()) HPhi(
             GetGraph()->GetArena(), local, 0, Primitive::kPrimVoid);
         block->AddPhi(phi);
-        current_locals_->Put(local, phi);
+        (*current_locals_)[local] = phi;
       }
     }
     // Save the loop header so that the last phase of the analysis knows which
     // blocks need to be updated.
-    loop_headers_.Add(block);
+    loop_headers_.push_back(block);
   } else if (block->GetPredecessors().size() > 0) {
     // All predecessors have already been visited because we are visiting in reverse post order.
     // We merge the values of all locals, creating phis if those values differ.
-    for (size_t local = 0; local < current_locals_->Size(); local++) {
+    for (size_t local = 0; local < current_locals_->size(); ++local) {
       bool one_predecessor_has_no_value = false;
       bool is_different = false;
       HInstruction* value = ValueOfLocal(block->GetPredecessor(0), local);
@@ -403,7 +407,7 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
         block->AddPhi(phi);
         value = phi;
       }
-      current_locals_->Put(local, value);
+      (*current_locals_)[local] = value;
     }
   }
 
@@ -534,7 +538,8 @@ HInstruction* SsaBuilder::GetReferenceTypeEquivalent(HInstruction* value) {
 }
 
 void SsaBuilder::VisitLoadLocal(HLoadLocal* load) {
-  HInstruction* value = current_locals_->Get(load->GetLocal()->GetRegNumber());
+  DCHECK_LT(load->GetLocal()->GetRegNumber(), current_locals_->size());
+  HInstruction* value = (*current_locals_)[load->GetLocal()->GetRegNumber()];
   // If the operation requests a specific type, we make sure its input is of that type.
   if (load->GetType() != value->GetType()) {
     if (load->GetType() == Primitive::kPrimFloat || load->GetType() == Primitive::kPrimDouble) {
@@ -548,7 +553,8 @@ void SsaBuilder::VisitLoadLocal(HLoadLocal* load) {
 }
 
 void SsaBuilder::VisitStoreLocal(HStoreLocal* store) {
-  current_locals_->Put(store->GetLocal()->GetRegNumber(), store->InputAt(1));
+  DCHECK_LT(store->GetLocal()->GetRegNumber(), current_locals_->size());
+  (*current_locals_)[store->GetLocal()->GetRegNumber()] = store->InputAt(1);
   store->GetBlock()->RemoveInstruction(store);
 }
 
@@ -556,7 +562,7 @@ void SsaBuilder::VisitInstruction(HInstruction* instruction) {
   if (instruction->NeedsEnvironment()) {
     HEnvironment* environment = new (GetGraph()->GetArena()) HEnvironment(
         GetGraph()->GetArena(),
-        current_locals_->Size(),
+        current_locals_->size(),
         GetGraph()->GetDexFile(),
         GetGraph()->GetMethodIdx(),
         instruction->GetDexPc(),
@@ -571,11 +577,12 @@ void SsaBuilder::VisitInstruction(HInstruction* instruction) {
     const HTryBoundary& try_entry =
         instruction->GetBlock()->GetTryCatchInformation()->GetTryEntry();
     for (HExceptionHandlerIterator it(try_entry); !it.Done(); it.Advance()) {
-      GrowableArray<HInstruction*>* handler_locals = GetLocalsFor(it.Current());
-      for (size_t i = 0, e = current_locals_->Size(); i < e; ++i) {
-        HInstruction* local_value = current_locals_->Get(i);
+      ArenaVector<HInstruction*>* handler_locals = GetLocalsFor(it.Current());
+      DCHECK_EQ(handler_locals->size(), current_locals_->size());
+      for (size_t i = 0, e = current_locals_->size(); i < e; ++i) {
+        HInstruction* local_value = (*current_locals_)[i];
         if (local_value != nullptr) {
-          handler_locals->Get(i)->AsPhi()->AddInput(local_value);
+          (*handler_locals)[i]->AsPhi()->AddInput(local_value);
         }
       }
     }
