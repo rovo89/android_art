@@ -90,12 +90,22 @@ class Mips64Assembler FINAL : public Assembler {
   void Xori(GpuRegister rt, GpuRegister rs, uint16_t imm16);
   void Nor(GpuRegister rd, GpuRegister rs, GpuRegister rt);
 
+  void Bitswap(GpuRegister rd, GpuRegister rt);  // R6
+  void Dbitswap(GpuRegister rd, GpuRegister rt);  // R6
   void Seb(GpuRegister rd, GpuRegister rt);  // R2+
   void Seh(GpuRegister rd, GpuRegister rt);  // R2+
+  void Dsbh(GpuRegister rd, GpuRegister rt);  // R2+
+  void Dshd(GpuRegister rd, GpuRegister rt);  // R2+
   void Dext(GpuRegister rs, GpuRegister rt, int pos, int size_less_one);  // MIPS64
+  void Wsbh(GpuRegister rd, GpuRegister rt);
+  void Sc(GpuRegister rt, GpuRegister base, int16_t imm9 = 0);
+  void Scd(GpuRegister rt, GpuRegister base, int16_t imm9 = 0);
+  void Ll(GpuRegister rt, GpuRegister base, int16_t imm9 = 0);
+  void Lld(GpuRegister rt, GpuRegister base, int16_t imm9 = 0);
 
   void Sll(GpuRegister rd, GpuRegister rt, int shamt);
   void Srl(GpuRegister rd, GpuRegister rt, int shamt);
+  void Rotr(GpuRegister rd, GpuRegister rt, int shamt);
   void Sra(GpuRegister rd, GpuRegister rt, int shamt);
   void Sllv(GpuRegister rd, GpuRegister rt, GpuRegister rs);
   void Srlv(GpuRegister rd, GpuRegister rt, GpuRegister rs);
@@ -133,6 +143,12 @@ class Mips64Assembler FINAL : public Assembler {
   void Sltu(GpuRegister rd, GpuRegister rs, GpuRegister rt);
   void Slti(GpuRegister rt, GpuRegister rs, uint16_t imm16);
   void Sltiu(GpuRegister rt, GpuRegister rs, uint16_t imm16);
+  void Seleqz(GpuRegister rd, GpuRegister rs, GpuRegister rt);
+  void Selnez(GpuRegister rd, GpuRegister rs, GpuRegister rt);
+  void Clz(GpuRegister rd, GpuRegister rs);
+  void Clo(GpuRegister rd, GpuRegister rs);
+  void Dclz(GpuRegister rd, GpuRegister rs);
+  void Dclo(GpuRegister rd, GpuRegister rs);
 
   void Beq(GpuRegister rs, GpuRegister rt, uint16_t imm16);
   void Bne(GpuRegister rs, GpuRegister rt, uint16_t imm16);
@@ -165,15 +181,42 @@ class Mips64Assembler FINAL : public Assembler {
   void SubD(FpuRegister fd, FpuRegister fs, FpuRegister ft);
   void MulD(FpuRegister fd, FpuRegister fs, FpuRegister ft);
   void DivD(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void SqrtS(FpuRegister fd, FpuRegister fs);
+  void SqrtD(FpuRegister fd, FpuRegister fs);
+  void AbsS(FpuRegister fd, FpuRegister fs);
+  void AbsD(FpuRegister fd, FpuRegister fs);
   void MovS(FpuRegister fd, FpuRegister fs);
   void MovD(FpuRegister fd, FpuRegister fs);
   void NegS(FpuRegister fd, FpuRegister fs);
   void NegD(FpuRegister fd, FpuRegister fs);
+  void RoundLS(FpuRegister fd, FpuRegister fs);
+  void RoundLD(FpuRegister fd, FpuRegister fs);
+  void RoundWS(FpuRegister fd, FpuRegister fs);
+  void RoundWD(FpuRegister fd, FpuRegister fs);
+  void CeilLS(FpuRegister fd, FpuRegister fs);
+  void CeilLD(FpuRegister fd, FpuRegister fs);
+  void CeilWS(FpuRegister fd, FpuRegister fs);
+  void CeilWD(FpuRegister fd, FpuRegister fs);
+  void FloorLS(FpuRegister fd, FpuRegister fs);
+  void FloorLD(FpuRegister fd, FpuRegister fs);
+  void FloorWS(FpuRegister fd, FpuRegister fs);
+  void FloorWD(FpuRegister fd, FpuRegister fs);
+  void SelS(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void SelD(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void RintS(FpuRegister fd, FpuRegister fs);
+  void RintD(FpuRegister fd, FpuRegister fs);
+  void ClassS(FpuRegister fd, FpuRegister fs);
+  void ClassD(FpuRegister fd, FpuRegister fs);
+  void MinS(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void MinD(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void MaxS(FpuRegister fd, FpuRegister fs, FpuRegister ft);
+  void MaxD(FpuRegister fd, FpuRegister fs, FpuRegister ft);
 
   void Cvtsw(FpuRegister fd, FpuRegister fs);
   void Cvtdw(FpuRegister fd, FpuRegister fs);
   void Cvtsd(FpuRegister fd, FpuRegister fs);
   void Cvtds(FpuRegister fd, FpuRegister fs);
+  void Cvtdl(FpuRegister fd, FpuRegister fs);
 
   void Mfc1(GpuRegister rt, FpuRegister fs);
   void Mtc1(GpuRegister rt, FpuRegister fs);
@@ -342,6 +385,8 @@ class Mips64Assembler FINAL : public Assembler {
 
  private:
   void EmitR(int opcode, GpuRegister rs, GpuRegister rt, GpuRegister rd, int shamt, int funct);
+  void EmitRsd(int opcode, GpuRegister rs, GpuRegister rd, int shamt, int funct);
+  void EmitRtd(int opcode, GpuRegister rt, GpuRegister rd, int shamt, int funct);
   void EmitI(int opcode, GpuRegister rs, GpuRegister rt, uint16_t imm);
   void EmitI21(int opcode, GpuRegister rs, uint32_t imm21);
   void EmitJ(int opcode, uint32_t addr26);
