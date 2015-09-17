@@ -834,8 +834,6 @@ class ArmAssembler : public Assembler {
 
   static bool IsInstructionForExceptionHandling(uintptr_t pc);
 
-  virtual void Bind(Label* label) = 0;
-
   virtual void CompareAndBranchIfZero(Register r, Label* label) = 0;
   virtual void CompareAndBranchIfNonZero(Register r, Label* label) = 0;
 
@@ -983,6 +981,10 @@ class ArmAssembler : public Assembler {
     if (kPoisonHeapReferences) {
       UnpoisonHeapReference(reg);
     }
+  }
+
+  void Jump(Label* label) OVERRIDE {
+    b(label);
   }
 
  protected:

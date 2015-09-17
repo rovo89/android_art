@@ -50,7 +50,7 @@ static constexpr int kC2ConditionMask = 0x400;
 #define __ down_cast<X86_64Assembler*>(codegen->GetAssembler())->
 #define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, x).Int32Value()
 
-class NullCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
+class NullCheckSlowPathX86_64 : public SlowPathCode {
  public:
   explicit NullCheckSlowPathX86_64(HNullCheck* instruction) : instruction_(instruction) {}
 
@@ -76,7 +76,7 @@ class NullCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
   DISALLOW_COPY_AND_ASSIGN(NullCheckSlowPathX86_64);
 };
 
-class DivZeroCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
+class DivZeroCheckSlowPathX86_64 : public SlowPathCode {
  public:
   explicit DivZeroCheckSlowPathX86_64(HDivZeroCheck* instruction) : instruction_(instruction) {}
 
@@ -102,7 +102,7 @@ class DivZeroCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
   DISALLOW_COPY_AND_ASSIGN(DivZeroCheckSlowPathX86_64);
 };
 
-class DivRemMinusOneSlowPathX86_64 : public SlowPathCodeX86_64 {
+class DivRemMinusOneSlowPathX86_64 : public SlowPathCode {
  public:
   DivRemMinusOneSlowPathX86_64(Register reg, Primitive::Type type, bool is_div)
       : cpu_reg_(CpuRegister(reg)), type_(type), is_div_(is_div) {}
@@ -136,7 +136,7 @@ class DivRemMinusOneSlowPathX86_64 : public SlowPathCodeX86_64 {
   DISALLOW_COPY_AND_ASSIGN(DivRemMinusOneSlowPathX86_64);
 };
 
-class SuspendCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
+class SuspendCheckSlowPathX86_64 : public SlowPathCode {
  public:
   SuspendCheckSlowPathX86_64(HSuspendCheck* instruction, HBasicBlock* successor)
       : instruction_(instruction), successor_(successor) {}
@@ -176,7 +176,7 @@ class SuspendCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
   DISALLOW_COPY_AND_ASSIGN(SuspendCheckSlowPathX86_64);
 };
 
-class BoundsCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
+class BoundsCheckSlowPathX86_64 : public SlowPathCode {
  public:
   explicit BoundsCheckSlowPathX86_64(HBoundsCheck* instruction)
     : instruction_(instruction) {}
@@ -213,7 +213,7 @@ class BoundsCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
   DISALLOW_COPY_AND_ASSIGN(BoundsCheckSlowPathX86_64);
 };
 
-class LoadClassSlowPathX86_64 : public SlowPathCodeX86_64 {
+class LoadClassSlowPathX86_64 : public SlowPathCode {
  public:
   LoadClassSlowPathX86_64(HLoadClass* cls,
                           HInstruction* at,
@@ -266,7 +266,7 @@ class LoadClassSlowPathX86_64 : public SlowPathCodeX86_64 {
   DISALLOW_COPY_AND_ASSIGN(LoadClassSlowPathX86_64);
 };
 
-class LoadStringSlowPathX86_64 : public SlowPathCodeX86_64 {
+class LoadStringSlowPathX86_64 : public SlowPathCode {
  public:
   explicit LoadStringSlowPathX86_64(HLoadString* instruction) : instruction_(instruction) {}
 
@@ -298,7 +298,7 @@ class LoadStringSlowPathX86_64 : public SlowPathCodeX86_64 {
   DISALLOW_COPY_AND_ASSIGN(LoadStringSlowPathX86_64);
 };
 
-class TypeCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
+class TypeCheckSlowPathX86_64 : public SlowPathCode {
  public:
   explicit TypeCheckSlowPathX86_64(HInstruction* instruction)
       : instruction_(instruction) {}
@@ -355,7 +355,7 @@ class TypeCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
   DISALLOW_COPY_AND_ASSIGN(TypeCheckSlowPathX86_64);
 };
 
-class DeoptimizationSlowPathX86_64 : public SlowPathCodeX86_64 {
+class DeoptimizationSlowPathX86_64 : public SlowPathCode {
  public:
   explicit DeoptimizationSlowPathX86_64(HInstruction* instruction)
       : instruction_(instruction) {}
@@ -1181,7 +1181,7 @@ void LocationsBuilderX86_64::VisitDeoptimize(HDeoptimize* deoptimize) {
 }
 
 void InstructionCodeGeneratorX86_64::VisitDeoptimize(HDeoptimize* deoptimize) {
-  SlowPathCodeX86_64* slow_path = new (GetGraph()->GetArena())
+  SlowPathCode* slow_path = new (GetGraph()->GetArena())
       DeoptimizationSlowPathX86_64(deoptimize);
   codegen_->AddSlowPath(slow_path);
   Label* slow_path_entry = slow_path->GetEntryLabel();
@@ -3072,7 +3072,7 @@ void InstructionCodeGeneratorX86_64::GenerateDivRemIntegral(HBinaryOperation* in
       GenerateDivRemWithAnyConstant(instruction);
     }
   } else {
-    SlowPathCodeX86_64* slow_path =
+    SlowPathCode* slow_path =
         new (GetGraph()->GetArena()) DivRemMinusOneSlowPathX86_64(
             out.AsRegister(), type, is_div);
     codegen_->AddSlowPath(slow_path);
@@ -3245,7 +3245,7 @@ void LocationsBuilderX86_64::VisitDivZeroCheck(HDivZeroCheck* instruction) {
 }
 
 void InstructionCodeGeneratorX86_64::VisitDivZeroCheck(HDivZeroCheck* instruction) {
-  SlowPathCodeX86_64* slow_path =
+  SlowPathCode* slow_path =
       new (GetGraph()->GetArena()) DivZeroCheckSlowPathX86_64(instruction);
   codegen_->AddSlowPath(slow_path);
 
@@ -3813,7 +3813,7 @@ void InstructionCodeGeneratorX86_64::GenerateImplicitNullCheck(HNullCheck* instr
 }
 
 void InstructionCodeGeneratorX86_64::GenerateExplicitNullCheck(HNullCheck* instruction) {
-  SlowPathCodeX86_64* slow_path = new (GetGraph()->GetArena()) NullCheckSlowPathX86_64(instruction);
+  SlowPathCode* slow_path = new (GetGraph()->GetArena()) NullCheckSlowPathX86_64(instruction);
   codegen_->AddSlowPath(slow_path);
 
   LocationSummary* locations = instruction->GetLocations();
@@ -4232,7 +4232,7 @@ void InstructionCodeGeneratorX86_64::VisitBoundsCheck(HBoundsCheck* instruction)
   LocationSummary* locations = instruction->GetLocations();
   Location index_loc = locations->InAt(0);
   Location length_loc = locations->InAt(1);
-  SlowPathCodeX86_64* slow_path =
+  SlowPathCode* slow_path =
     new (GetGraph()->GetArena()) BoundsCheckSlowPathX86_64(instruction);
 
   if (length_loc.IsConstant()) {
@@ -4560,7 +4560,7 @@ void ParallelMoveResolverX86_64::RestoreScratch(int reg) {
 }
 
 void InstructionCodeGeneratorX86_64::GenerateClassInitializationCheck(
-    SlowPathCodeX86_64* slow_path, CpuRegister class_reg) {
+    SlowPathCode* slow_path, CpuRegister class_reg) {
   __ cmpl(Address(class_reg,  mirror::Class::StatusOffset().Int32Value()),
           Immediate(mirror::Class::kStatusInitialized));
   __ j(kLess, slow_path->GetEntryLabel());
@@ -4593,7 +4593,7 @@ void InstructionCodeGeneratorX86_64::VisitLoadClass(HLoadClass* cls) {
     __ movl(out, Address(out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex())));
     // TODO: We will need a read barrier here.
 
-    SlowPathCodeX86_64* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathX86_64(
+    SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathX86_64(
         cls, cls, cls->GetDexPc(), cls->MustGenerateClinitCheck());
     codegen_->AddSlowPath(slow_path);
     __ testl(out, out);
@@ -4617,7 +4617,7 @@ void LocationsBuilderX86_64::VisitClinitCheck(HClinitCheck* check) {
 
 void InstructionCodeGeneratorX86_64::VisitClinitCheck(HClinitCheck* check) {
   // We assume the class to not be null.
-  SlowPathCodeX86_64* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathX86_64(
+  SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathX86_64(
       check->GetLoadClass(), check, check->GetDexPc(), true);
   codegen_->AddSlowPath(slow_path);
   GenerateClassInitializationCheck(slow_path,
@@ -4632,7 +4632,7 @@ void LocationsBuilderX86_64::VisitLoadString(HLoadString* load) {
 }
 
 void InstructionCodeGeneratorX86_64::VisitLoadString(HLoadString* load) {
-  SlowPathCodeX86_64* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathX86_64(load);
+  SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathX86_64(load);
   codegen_->AddSlowPath(slow_path);
 
   LocationSummary* locations = load->GetLocations();
@@ -4701,7 +4701,7 @@ void InstructionCodeGeneratorX86_64::VisitInstanceOf(HInstanceOf* instruction) {
   CpuRegister out = locations->Out().AsRegister<CpuRegister>();
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
   NearLabel done, zero;
-  SlowPathCodeX86_64* slow_path = nullptr;
+  SlowPathCode* slow_path = nullptr;
 
   // Return 0 if `obj` is null.
   // Avoid null check if we know obj is not null.
@@ -4759,8 +4759,7 @@ void InstructionCodeGeneratorX86_64::VisitCheckCast(HCheckCast* instruction) {
   Location cls = locations->InAt(1);
   CpuRegister temp = locations->GetTemp(0).AsRegister<CpuRegister>();
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
-  SlowPathCodeX86_64* slow_path =
-      new (GetGraph()->GetArena()) TypeCheckSlowPathX86_64(instruction);
+  SlowPathCode* slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathX86_64(instruction);
   codegen_->AddSlowPath(slow_path);
 
   // Avoid null check if we know obj is not null.
@@ -5019,6 +5018,26 @@ Address CodeGeneratorX86_64::LiteralInt32Address(int32_t v) {
 Address CodeGeneratorX86_64::LiteralInt64Address(int64_t v) {
   AssemblerFixup* fixup = new (GetGraph()->GetArena()) RIPFixup(*this, __ AddInt64(v));
   return Address::RIP(fixup);
+}
+
+// TODO: trg as memory.
+void CodeGeneratorX86_64::MoveFromReturnRegister(Location trg, Primitive::Type type) {
+  if (!trg.IsValid()) {
+    DCHECK(type == Primitive::kPrimVoid);
+    return;
+  }
+
+  DCHECK_NE(type, Primitive::kPrimVoid);
+
+  Location return_loc = InvokeDexCallingConventionVisitorX86_64().GetReturnLocation(type);
+  if (trg.Equals(return_loc)) {
+    return;
+  }
+
+  // Let the parallel move resolver take care of all of this.
+  HParallelMove parallel_move(GetGraph()->GetArena());
+  parallel_move.AddMove(return_loc, trg, type, nullptr);
+  GetMoveResolver()->EmitNativeCode(&parallel_move);
 }
 
 #undef __

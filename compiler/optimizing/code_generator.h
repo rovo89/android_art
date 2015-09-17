@@ -30,6 +30,7 @@
 #include "nodes.h"
 #include "optimizing_compiler_stats.h"
 #include "stack_map_stream.h"
+#include "utils/label.h"
 
 namespace art {
 
@@ -105,6 +106,9 @@ class SlowPathCode : public ArenaObject<kArenaAllocSlowPaths> {
 
   virtual const char* GetDescription() const = 0;
 
+  Label* GetEntryLabel() { return &entry_label_; }
+  Label* GetExitLabel() { return &exit_label_; }
+
  protected:
   static constexpr size_t kMaximumNumberOfExpectedRegisters = 32;
   static constexpr uint32_t kRegisterNotSaved = -1;
@@ -112,6 +116,9 @@ class SlowPathCode : public ArenaObject<kArenaAllocSlowPaths> {
   uint32_t saved_fpu_stack_offsets_[kMaximumNumberOfExpectedRegisters];
 
  private:
+  Label entry_label_;
+  Label exit_label_;
+
   DISALLOW_COPY_AND_ASSIGN(SlowPathCode);
 };
 
@@ -385,6 +392,14 @@ class CodeGenerator {
                              HInstruction* instruction,
                              uint32_t dex_pc,
                              SlowPathCode* slow_path) = 0;
+
+  // Generate a call to a static or direct method.
+  virtual void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) = 0;
+  // Generate a call to a virtual method.
+  virtual void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp) = 0;
+
+  // Copy the result of a call into the given target.
+  virtual void MoveFromReturnRegister(Location trg, Primitive::Type type) = 0;
 
  protected:
   // Method patch info used for recording locations of required linker patches and
