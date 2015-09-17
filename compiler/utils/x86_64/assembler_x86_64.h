@@ -680,7 +680,10 @@ class X86_64Assembler FINAL : public Assembler {
   //
   int PreferredLoopAlignment() { return 16; }
   void Align(int alignment, int offset);
-  void Bind(Label* label);
+  void Bind(Label* label) OVERRIDE;
+  void Jump(Label* label) OVERRIDE {
+    jmp(label);
+  }
   void Bind(NearLabel* label);
 
   //

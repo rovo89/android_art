@@ -28,7 +28,6 @@ namespace art {
 namespace arm {
 
 class CodeGeneratorARM;
-class SlowPathCodeARM;
 
 // Use a local definition to prevent copying mistakes.
 static constexpr size_t kArmWordSize = kArmPointerSize;
@@ -118,20 +117,6 @@ class ParallelMoveResolverARM : public ParallelMoveResolverWithSwap {
   DISALLOW_COPY_AND_ASSIGN(ParallelMoveResolverARM);
 };
 
-class SlowPathCodeARM : public SlowPathCode {
- public:
-  SlowPathCodeARM() : entry_label_(), exit_label_() {}
-
-  Label* GetEntryLabel() { return &entry_label_; }
-  Label* GetExitLabel() { return &exit_label_; }
-
- private:
-  Label entry_label_;
-  Label exit_label_;
-
-  DISALLOW_COPY_AND_ASSIGN(SlowPathCodeARM);
-};
-
 class LocationsBuilderARM : public HGraphVisitor {
  public:
   LocationsBuilderARM(HGraph* graph, CodeGeneratorARM* codegen)
@@ -187,7 +172,7 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
   // is the block to branch to if the suspend check is not needed, and after
   // the suspend call.
   void GenerateSuspendCheck(HSuspendCheck* check, HBasicBlock* successor);
-  void GenerateClassInitializationCheck(SlowPathCodeARM* slow_path, Register class_reg);
+  void GenerateClassInitializationCheck(SlowPathCode* slow_path, Register class_reg);
   void HandleBitwiseOperation(HBinaryOperation* operation);
   void HandleShift(HBinaryOperation* operation);
   void GenerateMemoryBarrier(MemBarrierKind kind);
@@ -335,8 +320,10 @@ class CodeGeneratorARM : public CodeGenerator {
 
   Label* GetFrameEntryLabel() { return &frame_entry_label_; }
 
-  void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp);
-  void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp);
+  void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) OVERRIDE;
+  void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp) OVERRIDE;
+
+  void MoveFromReturnRegister(Location trg, Primitive::Type type) OVERRIDE;
 
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
 

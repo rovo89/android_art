@@ -31,7 +31,6 @@ namespace x86 {
 static constexpr size_t kX86WordSize = kX86PointerSize;
 
 class CodeGeneratorX86;
-class SlowPathCodeX86;
 
 static constexpr Register kParameterCoreRegisters[] = { ECX, EDX, EBX };
 static constexpr RegisterPair kParameterCorePairRegisters[] = { ECX_EDX, EDX_EBX };
@@ -171,7 +170,7 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
   // is the block to branch to if the suspend check is not needed, and after
   // the suspend call.
   void GenerateSuspendCheck(HSuspendCheck* check, HBasicBlock* successor);
-  void GenerateClassInitializationCheck(SlowPathCodeX86* slow_path, Register class_reg);
+  void GenerateClassInitializationCheck(SlowPathCode* slow_path, Register class_reg);
   void HandleBitwiseOperation(HBinaryOperation* instruction);
   void GenerateDivRemIntegral(HBinaryOperation* instruction);
   void DivRemOneOrMinusOne(HBinaryOperation* instruction);
@@ -300,9 +299,11 @@ class CodeGeneratorX86 : public CodeGenerator {
   void Move64(Location destination, Location source);
 
   // Generate a call to a static or direct method.
-  void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp);
+  void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) OVERRIDE;
   // Generate a call to a virtual method.
-  void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp);
+  void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp) OVERRIDE;
+
+  void MoveFromReturnRegister(Location trg, Primitive::Type type) OVERRIDE;
 
   // Emit linker patches.
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
@@ -382,20 +383,6 @@ class CodeGeneratorX86 : public CodeGenerator {
   static constexpr int32_t kDummy32BitOffset = 256;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorX86);
-};
-
-class SlowPathCodeX86 : public SlowPathCode {
- public:
-  SlowPathCodeX86() : entry_label_(), exit_label_() {}
-
-  Label* GetEntryLabel() { return &entry_label_; }
-  Label* GetExitLabel() { return &exit_label_; }
-
- private:
-  Label entry_label_;
-  Label exit_label_;
-
-  DISALLOW_COPY_AND_ASSIGN(SlowPathCodeX86);
 };
 
 }  // namespace x86

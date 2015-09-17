@@ -193,6 +193,13 @@ class Arm64Assembler FINAL : public Assembler {
   // Unpoison a heap reference contained in `reg` if heap poisoning is enabled.
   void MaybeUnpoisonHeapReference(vixl::Register reg);
 
+  void Bind(Label* label ATTRIBUTE_UNUSED) OVERRIDE {
+    UNIMPLEMENTED(FATAL) << "Do not use Bind for ARM64";
+  }
+  void Jump(Label* label ATTRIBUTE_UNUSED) OVERRIDE {
+    UNIMPLEMENTED(FATAL) << "Do not use Jump for ARM64";
+  }
+
  private:
   static vixl::Register reg_x(int code) {
     CHECK(code < kNumberOfXRegisters) << code;
