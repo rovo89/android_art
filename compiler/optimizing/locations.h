@@ -35,7 +35,7 @@ std::ostream& operator<<(std::ostream& os, const Location& location);
  * A Location is an abstraction over the potential location
  * of an instruction. It could be in register or stack.
  */
-class Location {
+class Location : public ValueObject {
  public:
   enum OutputOverlap {
     kOutputOverlap,
@@ -69,7 +69,7 @@ class Location {
     kUnallocated = 10,
   };
 
-  Location() : value_(kInvalid) {
+  Location() : ValueObject(), value_(kInvalid) {
     // Verify that non-constant location kinds do not interfere with kConstant.
     static_assert((kInvalid & kLocationConstantMask) != kConstant, "TagError");
     static_assert((kUnallocated & kLocationConstantMask) != kConstant, "TagError");
