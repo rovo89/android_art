@@ -57,8 +57,13 @@ class DeadPhiHandling : public ValueObject {
 };
 
 bool DeadPhiHandling::UpdateType(HPhi* phi) {
+  if (phi->IsDead()) {
+    // Phi was rendered dead while waiting in the worklist because it was replaced
+    // with an equivalent.
+    return false;
+  }
+
   Primitive::Type existing = phi->GetType();
-  DCHECK(phi->IsLive());
 
   bool conflict = false;
   Primitive::Type new_type = existing;
@@ -112,11 +117,26 @@ bool DeadPhiHandling::UpdateType(HPhi* phi) {
     phi->SetType(Primitive::kPrimVoid);
     phi->SetDead();
     return true;
-  } else {
-    DCHECK(phi->IsLive());
-    phi->SetType(new_type);
-    return existing != new_type;
+  } else if (existing == new_type) {
+    return false;
   }
+
+  DCHECK(phi->IsLive());
+  phi->SetType(new_type);
+
+  // There might exist a `new_type` equivalent of `phi` already. In that case,
+  // we replace the equivalent with the, now live, `phi`.
+  HPhi* equivalent = phi->GetNextEquivalentPhiWithSameType();
+  if (equivalent != nullptr) {
+    // There cannot be more than two equivalents with the same type.
+    DCHECK(equivalent->GetNextEquivalentPhiWithSameType() == nullptr);
+    // If doing fix-point iteration, the equivalent might be in `worklist_`.
+    // Setting it dead will make UpdateType skip it.
+    equivalent->SetDead();
+    equivalent->ReplaceWith(phi);
+  }
+
+  return true;
 }
 
 void DeadPhiHandling::VisitBasicBlock(HBasicBlock* block) {
