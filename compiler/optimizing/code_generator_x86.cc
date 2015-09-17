@@ -47,7 +47,7 @@ static constexpr int kC2ConditionMask = 0x400;
 static constexpr int kFakeReturnRegister = Register(8);
 
 #define __ down_cast<X86Assembler*>(codegen->GetAssembler())->
-#define QUICK_ENTRY_POINT(x) Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, x))
+#define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kX86WordSize, x).Int32Value()
 
 class NullCheckSlowPathX86 : public SlowPathCodeX86 {
  public:
@@ -420,12 +420,22 @@ size_t CodeGeneratorX86::RestoreFloatingPointRegister(size_t stack_index, uint32
   return GetFloatingPointSpillSlotSize();
 }
 
-void CodeGeneratorX86::InvokeRuntime(Address entry_point,
+void CodeGeneratorX86::InvokeRuntime(QuickEntrypointEnum entrypoint,
+                                     HInstruction* instruction,
+                                     uint32_t dex_pc,
+                                     SlowPathCode* slow_path) {
+  InvokeRuntime(GetThreadOffset<kX86WordSize>(entrypoint).Int32Value(),
+                instruction,
+                dex_pc,
+                slow_path);
+}
+
+void CodeGeneratorX86::InvokeRuntime(int32_t entry_point_offset,
                                      HInstruction* instruction,
                                      uint32_t dex_pc,
                                      SlowPathCode* slow_path) {
   ValidateInvokeRuntime(instruction, slow_path);
-  __ fs()->call(entry_point);
+  __ fs()->call(Address::Absolute(entry_point_offset));
   RecordPcInfo(instruction, dex_pc, slow_path);
 }
 
@@ -887,6 +897,11 @@ void CodeGeneratorX86::Move(HInstruction* instruction, Location location, HInstr
         LOG(FATAL) << "Unexpected type " << instruction->GetType();
     }
   }
+}
+
+void CodeGeneratorX86::MoveConstant(Location location, int32_t value) {
+  DCHECK(location.IsRegister());
+  __ movl(location.AsRegister<Register>(), Immediate(value));
 }
 
 void InstructionCodeGeneratorX86::HandleGoto(HInstruction* got, HBasicBlock* successor) {
@@ -1503,6 +1518,17 @@ void InstructionCodeGeneratorX86::VisitReturn(HReturn* ret) {
     }
   }
   codegen_->GenerateFrameExit();
+}
+
+void LocationsBuilderX86::VisitInvokeUnresolved(HInvokeUnresolved* invoke) {
+  // The trampoline uses the same calling convention as dex calling conventions,
+  // except instead of loading arg0/r0 with the target Method*, arg0/r0 will contain
+  // the method_idx.
+  HandleInvoke(invoke);
+}
+
+void InstructionCodeGeneratorX86::VisitInvokeUnresolved(HInvokeUnresolved* invoke) {
+  codegen_->GenerateInvokeUnresolvedRuntimeCall(invoke);
 }
 
 void LocationsBuilderX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
@@ -3360,11 +3386,10 @@ void InstructionCodeGeneratorX86::VisitNewInstance(HNewInstance* instruction) {
   __ movl(calling_convention.GetRegisterAt(0), Immediate(instruction->GetTypeIndex()));
   // Note: if heap poisoning is enabled, the entry point takes cares
   // of poisoning the reference.
-  codegen_->InvokeRuntime(
-      Address::Absolute(GetThreadOffset<kX86WordSize>(instruction->GetEntrypoint())),
-      instruction,
-      instruction->GetDexPc(),
-      nullptr);
+  codegen_->InvokeRuntime(instruction->GetEntrypoint(),
+                          instruction,
+                          instruction->GetDexPc(),
+                          nullptr);
   DCHECK(!codegen_->IsLeafMethod());
 }
 
@@ -3384,11 +3409,10 @@ void InstructionCodeGeneratorX86::VisitNewArray(HNewArray* instruction) {
 
   // Note: if heap poisoning is enabled, the entry point takes cares
   // of poisoning the reference.
-  codegen_->InvokeRuntime(
-      Address::Absolute(GetThreadOffset<kX86WordSize>(instruction->GetEntrypoint())),
-      instruction,
-      instruction->GetDexPc(),
-      nullptr);
+  codegen_->InvokeRuntime(instruction->GetEntrypoint(),
+                          instruction,
+                          instruction->GetDexPc(),
+                          nullptr);
   DCHECK(!codegen_->IsLeafMethod());
 }
 

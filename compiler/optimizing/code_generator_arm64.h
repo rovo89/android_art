@@ -338,6 +338,7 @@ class CodeGeneratorARM64 : public CodeGenerator {
 
   // Code generation helpers.
   void MoveConstant(vixl::CPURegister destination, HConstant* constant);
+  void MoveConstant(Location destination, int32_t value) OVERRIDE;
   // The type is optional. When specified it must be coherent with the
   // locations, and is used for optimisation and debugging.
   void MoveLocation(Location destination, Location source,
@@ -348,6 +349,11 @@ class CodeGeneratorARM64 : public CodeGenerator {
   void StoreRelease(Primitive::Type type, vixl::CPURegister rt, const vixl::MemOperand& dst);
 
   // Generate code to invoke a runtime entry point.
+  void InvokeRuntime(QuickEntrypointEnum entrypoint,
+                     HInstruction* instruction,
+                     uint32_t dex_pc,
+                     SlowPathCode* slow_path) OVERRIDE;
+
   void InvokeRuntime(int32_t offset,
                      HInstruction* instruction,
                      uint32_t dex_pc,

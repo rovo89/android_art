@@ -388,6 +388,31 @@ void CodeGenerator::CreateCommonInvokeLocationSummary(
   }
 }
 
+void CodeGenerator::GenerateInvokeUnresolvedRuntimeCall(HInvokeUnresolved* invoke) {
+  MoveConstant(invoke->GetLocations()->GetTemp(0), invoke->GetDexMethodIndex());
+
+  // Initialize to anything to silent compiler warnings.
+  QuickEntrypointEnum entrypoint = kQuickInvokeStaticTrampolineWithAccessCheck;
+  switch (invoke->GetOriginalInvokeType()) {
+    case kStatic:
+      entrypoint = kQuickInvokeStaticTrampolineWithAccessCheck;
+      break;
+    case kDirect:
+      entrypoint = kQuickInvokeDirectTrampolineWithAccessCheck;
+      break;
+    case kVirtual:
+      entrypoint = kQuickInvokeVirtualTrampolineWithAccessCheck;
+      break;
+    case kSuper:
+      entrypoint = kQuickInvokeSuperTrampolineWithAccessCheck;
+      break;
+    case kInterface:
+      entrypoint = kQuickInvokeInterfaceTrampolineWithAccessCheck;
+      break;
+  }
+  InvokeRuntime(entrypoint, invoke, invoke->GetDexPc(), nullptr);
+}
+
 void CodeGenerator::BlockIfInRegister(Location location, bool is_out) const {
   // The DCHECKS below check that a register is not specified twice in
   // the summary. The out location can overlap with an input, so we need

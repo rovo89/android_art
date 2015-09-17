@@ -169,6 +169,7 @@ class CodeGenerator {
   virtual void GenerateFrameExit() = 0;
   virtual void Bind(HBasicBlock* block) = 0;
   virtual void Move(HInstruction* instruction, Location location, HInstruction* move_for) = 0;
+  virtual void MoveConstant(Location destination, int32_t value) = 0;
   virtual Assembler* GetAssembler() = 0;
   virtual const Assembler& GetAssembler() const = 0;
   virtual size_t GetWordSize() const = 0;
@@ -375,8 +376,15 @@ class CodeGenerator {
   static void CreateCommonInvokeLocationSummary(
       HInvoke* invoke, InvokeDexCallingConventionVisitor* visitor);
 
+  void GenerateInvokeUnresolvedRuntimeCall(HInvokeUnresolved* invoke);
+
   void SetDisassemblyInformation(DisassemblyInformation* info) { disasm_info_ = info; }
   DisassemblyInformation* GetDisassemblyInformation() const { return disasm_info_; }
+
+  virtual void InvokeRuntime(QuickEntrypointEnum entrypoint,
+                             HInstruction* instruction,
+                             uint32_t dex_pc,
+                             SlowPathCode* slow_path) = 0;
 
  protected:
   // Method patch info used for recording locations of required linker patches and
