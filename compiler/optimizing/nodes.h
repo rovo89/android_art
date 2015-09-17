@@ -3028,7 +3028,8 @@ class HInvoke : public HInstruction {
     : HInstruction(
           SideEffects::AllExceptGCDependency(), dex_pc),  // Assume write/read on all fields/arrays.
       number_of_arguments_(number_of_arguments),
-      inputs_(number_of_arguments + number_of_other_inputs, arena->Adapter(kArenaAllocInvokeInputs)),
+      inputs_(number_of_arguments + number_of_other_inputs,
+              arena->Adapter(kArenaAllocInvokeInputs)),
       return_type_(return_type),
       dex_method_index_(dex_method_index),
       original_invoke_type_(original_invoke_type),
