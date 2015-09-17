@@ -66,6 +66,7 @@
 #include "ssa_phi_elimination.h"
 #include "ssa_liveness_analysis.h"
 #include "utils/assembler.h"
+#include "verifier/method_verifier.h"
 
 namespace art {
 
@@ -835,6 +836,11 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   return compiled_method;
 }
 
+static bool HasOnlyUnresolvedFailures(const VerifiedMethod* verified_method) {
+  uint32_t unresolved_mask = verifier::VerifyError::VERIFY_ERROR_NO_CLASS;
+  return (verified_method->GetEncounteredVerificationFailures() & (~unresolved_mask)) == 0;
+}
+
 CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                                             uint32_t access_flags,
                                             InvokeType invoke_type,
@@ -845,8 +851,10 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                                             Handle<mirror::DexCache> dex_cache) const {
   CompilerDriver* compiler_driver = GetCompilerDriver();
   CompiledMethod* method = nullptr;
-  DCHECK(!compiler_driver->GetVerifiedMethod(&dex_file, method_idx)->HasRuntimeThrow());
-  if (compiler_driver->IsMethodVerifiedWithoutFailures(method_idx, class_def_idx, dex_file)) {
+  const VerifiedMethod* verified_method = compiler_driver->GetVerifiedMethod(&dex_file, method_idx);
+  DCHECK(!verified_method->HasRuntimeThrow());
+  if (compiler_driver->IsMethodVerifiedWithoutFailures(method_idx, class_def_idx, dex_file)
+      || HasOnlyUnresolvedFailures(verified_method)) {
      method = TryCompile(code_item, access_flags, invoke_type, class_def_idx,
                          method_idx, jclass_loader, dex_file, dex_cache);
   } else {

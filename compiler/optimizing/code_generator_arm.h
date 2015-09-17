@@ -239,6 +239,7 @@ class CodeGeneratorARM : public CodeGenerator {
   void GenerateFrameExit() OVERRIDE;
   void Bind(HBasicBlock* block) OVERRIDE;
   void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
+  void MoveConstant(Location destination, int32_t value) OVERRIDE;
   size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
   size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
   size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
@@ -299,8 +300,15 @@ class CodeGeneratorARM : public CodeGenerator {
   void Move64(Location destination, Location source);
 
   // Generate code to invoke a runtime entry point.
-  void InvokeRuntime(
-      int32_t offset, HInstruction* instruction, uint32_t dex_pc, SlowPathCode* slow_path);
+  void InvokeRuntime(QuickEntrypointEnum entrypoint,
+                     HInstruction* instruction,
+                     uint32_t dex_pc,
+                     SlowPathCode* slow_path) OVERRIDE;
+
+  void InvokeRuntime(int32_t offset,
+                     HInstruction* instruction,
+                     uint32_t dex_pc,
+                     SlowPathCode* slow_path);
 
   // Emit a write barrier.
   void MarkGCCard(Register temp, Register card, Register object, Register value, bool can_be_null);
