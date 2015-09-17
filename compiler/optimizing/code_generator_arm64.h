@@ -365,8 +365,13 @@ class CodeGeneratorARM64 : public CodeGenerator {
     return false;
   }
 
-  void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp);
-  void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp);
+  void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) OVERRIDE;
+  void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp) OVERRIDE;
+
+  void MoveFromReturnRegister(Location trg ATTRIBUTE_UNUSED,
+                              Primitive::Type type ATTRIBUTE_UNUSED) OVERRIDE {
+    UNIMPLEMENTED(FATAL);
+  }
 
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
 

@@ -24,6 +24,7 @@
 #include "code_generator_x86_64.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "intrinsics.h"
+#include "intrinsics_utils.h"
 #include "mirror/array-inl.h"
 #include "mirror/string.h"
 #include "thread.h"
@@ -53,112 +54,13 @@ bool IntrinsicLocationsBuilderX86_64::TryDispatch(HInvoke* invoke) {
   return res != nullptr && res->Intrinsified();
 }
 
-#define __ reinterpret_cast<X86_64Assembler*>(codegen->GetAssembler())->
-
-// TODO: trg as memory.
-static void MoveFromReturnRegister(Location trg,
-                                   Primitive::Type type,
-                                   CodeGeneratorX86_64* codegen) {
-  if (!trg.IsValid()) {
-    DCHECK(type == Primitive::kPrimVoid);
-    return;
-  }
-
-  switch (type) {
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-    case Primitive::kPrimInt:
-    case Primitive::kPrimNot: {
-      CpuRegister trg_reg = trg.AsRegister<CpuRegister>();
-      if (trg_reg.AsRegister() != RAX) {
-        __ movl(trg_reg, CpuRegister(RAX));
-      }
-      break;
-    }
-    case Primitive::kPrimLong: {
-      CpuRegister trg_reg = trg.AsRegister<CpuRegister>();
-      if (trg_reg.AsRegister() != RAX) {
-        __ movq(trg_reg, CpuRegister(RAX));
-      }
-      break;
-    }
-
-    case Primitive::kPrimVoid:
-      LOG(FATAL) << "Unexpected void type for valid location " << trg;
-      UNREACHABLE();
-
-    case Primitive::kPrimDouble: {
-      XmmRegister trg_reg = trg.AsFpuRegister<XmmRegister>();
-      if (trg_reg.AsFloatRegister() != XMM0) {
-        __ movsd(trg_reg, XmmRegister(XMM0));
-      }
-      break;
-    }
-    case Primitive::kPrimFloat: {
-      XmmRegister trg_reg = trg.AsFpuRegister<XmmRegister>();
-      if (trg_reg.AsFloatRegister() != XMM0) {
-        __ movss(trg_reg, XmmRegister(XMM0));
-      }
-      break;
-    }
-  }
-}
-
 static void MoveArguments(HInvoke* invoke, CodeGeneratorX86_64* codegen) {
   InvokeDexCallingConventionVisitorX86_64 calling_convention_visitor;
   IntrinsicVisitor::MoveArguments(invoke, codegen, &calling_convention_visitor);
 }
 
-// Slow-path for fallback (calling the managed code to handle the intrinsic) in an intrinsified
-// call. This will copy the arguments into the positions for a regular call.
-//
-// Note: The actual parameters are required to be in the locations given by the invoke's location
-//       summary. If an intrinsic modifies those locations before a slowpath call, they must be
-//       restored!
-class IntrinsicSlowPathX86_64 : public SlowPathCodeX86_64 {
- public:
-  explicit IntrinsicSlowPathX86_64(HInvoke* invoke) : invoke_(invoke) { }
+using IntrinsicSlowPathX86_64 = IntrinsicSlowPath<InvokeDexCallingConventionVisitorX86_64>;
 
-  void EmitNativeCode(CodeGenerator* codegen_in) OVERRIDE {
-    CodeGeneratorX86_64* codegen = down_cast<CodeGeneratorX86_64*>(codegen_in);
-    __ Bind(GetEntryLabel());
-
-    SaveLiveRegisters(codegen, invoke_->GetLocations());
-
-    MoveArguments(invoke_, codegen);
-
-    if (invoke_->IsInvokeStaticOrDirect()) {
-      codegen->GenerateStaticOrDirectCall(
-          invoke_->AsInvokeStaticOrDirect(), Location::RegisterLocation(RDI));
-    } else {
-      codegen->GenerateVirtualCall(invoke_->AsInvokeVirtual(), Location::RegisterLocation(RDI));
-    }
-    codegen->RecordPcInfo(invoke_, invoke_->GetDexPc(), this);
-
-    // Copy the result back to the expected output.
-    Location out = invoke_->GetLocations()->Out();
-    if (out.IsValid()) {
-      DCHECK(out.IsRegister());  // TODO: Replace this when we support output in memory.
-      DCHECK(!invoke_->GetLocations()->GetLiveRegisters()->ContainsCoreRegister(out.reg()));
-      MoveFromReturnRegister(out, invoke_->GetType(), codegen);
-    }
-
-    RestoreLiveRegisters(codegen, invoke_->GetLocations());
-    __ jmp(GetExitLabel());
-  }
-
-  const char* GetDescription() const OVERRIDE { return "IntrinsicSlowPathX86_64"; }
-
- private:
-  // The instruction where this slow path is happening.
-  HInvoke* const invoke_;
-
-  DISALLOW_COPY_AND_ASSIGN(IntrinsicSlowPathX86_64);
-};
-
-#undef __
 #define __ assembler->
 
 static void CreateFPToIntLocations(ArenaAllocator* arena, HInvoke* invoke) {
@@ -602,7 +504,7 @@ static void InvokeOutOfLineIntrinsic(CodeGeneratorX86_64* codegen, HInvoke* invo
   Location out = invoke->GetLocations()->Out();
   if (out.IsValid()) {
     DCHECK(out.IsRegister());
-    MoveFromReturnRegister(out, invoke->GetType(), codegen);
+    codegen->MoveFromReturnRegister(out, invoke->GetType());
   }
 }
 
@@ -811,7 +713,7 @@ void IntrinsicCodeGeneratorX86_64::VisitStringCharAt(HInvoke* invoke) {
   // TODO: For simplicity, the index parameter is requested in a register, so different from Quick
   //       we will not optimize the code for constants (which would save a register).
 
-  SlowPathCodeX86_64* slow_path = new (GetAllocator()) IntrinsicSlowPathX86_64(invoke);
+  SlowPathCode* slow_path = new (GetAllocator()) IntrinsicSlowPathX86_64(invoke);
   codegen_->AddSlowPath(slow_path);
 
   X86_64Assembler* assembler = GetAssembler();
@@ -869,7 +771,7 @@ static void CheckPosition(X86_64Assembler* assembler,
                           Location pos,
                           CpuRegister input,
                           CpuRegister length,
-                          SlowPathCodeX86_64* slow_path,
+                          SlowPathCode* slow_path,
                           CpuRegister input_len,
                           CpuRegister temp) {
   // Where is the length in the String?
@@ -928,7 +830,7 @@ void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopyChar(HInvoke* invoke) {
   CpuRegister count = locations->GetTemp(2).AsRegister<CpuRegister>();
   DCHECK_EQ(count.AsRegister(), RCX);
 
-  SlowPathCodeX86_64* slow_path = new (GetAllocator()) IntrinsicSlowPathX86_64(invoke);
+  SlowPathCode* slow_path = new (GetAllocator()) IntrinsicSlowPathX86_64(invoke);
   codegen_->AddSlowPath(slow_path);
 
   // Bail out if the source and destination are the same.
@@ -1010,7 +912,7 @@ void IntrinsicCodeGeneratorX86_64::VisitStringCompareTo(HInvoke* invoke) {
 
   CpuRegister argument = locations->InAt(1).AsRegister<CpuRegister>();
   __ testl(argument, argument);
-  SlowPathCodeX86_64* slow_path = new (GetAllocator()) IntrinsicSlowPathX86_64(invoke);
+  SlowPathCode* slow_path = new (GetAllocator()) IntrinsicSlowPathX86_64(invoke);
   codegen_->AddSlowPath(slow_path);
   __ j(kEqual, slow_path->GetEntryLabel());
 
@@ -1156,7 +1058,7 @@ static void GenerateStringIndexOf(HInvoke* invoke,
 
   // Check for code points > 0xFFFF. Either a slow-path check when we don't know statically,
   // or directly dispatch if we have a constant.
-  SlowPathCodeX86_64* slow_path = nullptr;
+  SlowPathCode* slow_path = nullptr;
   if (invoke->InputAt(1)->IsIntConstant()) {
     if (static_cast<uint32_t>(invoke->InputAt(1)->AsIntConstant()->GetValue()) >
     std::numeric_limits<uint16_t>::max()) {
@@ -1276,7 +1178,7 @@ void IntrinsicCodeGeneratorX86_64::VisitStringNewStringFromBytes(HInvoke* invoke
 
   CpuRegister byte_array = locations->InAt(0).AsRegister<CpuRegister>();
   __ testl(byte_array, byte_array);
-  SlowPathCodeX86_64* slow_path = new (GetAllocator()) IntrinsicSlowPathX86_64(invoke);
+  SlowPathCode* slow_path = new (GetAllocator()) IntrinsicSlowPathX86_64(invoke);
   codegen_->AddSlowPath(slow_path);
   __ j(kEqual, slow_path->GetEntryLabel());
 
@@ -1320,7 +1222,7 @@ void IntrinsicCodeGeneratorX86_64::VisitStringNewStringFromString(HInvoke* invok
 
   CpuRegister string_to_copy = locations->InAt(0).AsRegister<CpuRegister>();
   __ testl(string_to_copy, string_to_copy);
-  SlowPathCodeX86_64* slow_path = new (GetAllocator()) IntrinsicSlowPathX86_64(invoke);
+  SlowPathCode* slow_path = new (GetAllocator()) IntrinsicSlowPathX86_64(invoke);
   codegen_->AddSlowPath(slow_path);
   __ j(kEqual, slow_path->GetEntryLabel());
 

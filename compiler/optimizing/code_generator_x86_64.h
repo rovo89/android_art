@@ -87,20 +87,6 @@ class InvokeDexCallingConventionVisitorX86_64 : public InvokeDexCallingConventio
 
 class CodeGeneratorX86_64;
 
-class SlowPathCodeX86_64 : public SlowPathCode {
- public:
-  SlowPathCodeX86_64() : entry_label_(), exit_label_() {}
-
-  Label* GetEntryLabel() { return &entry_label_; }
-  Label* GetExitLabel() { return &exit_label_; }
-
- private:
-  Label entry_label_;
-  Label exit_label_;
-
-  DISALLOW_COPY_AND_ASSIGN(SlowPathCodeX86_64);
-};
-
 class ParallelMoveResolverX86_64 : public ParallelMoveResolverWithSwap {
  public:
   ParallelMoveResolverX86_64(ArenaAllocator* allocator, CodeGeneratorX86_64* codegen)
@@ -181,7 +167,7 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
   // is the block to branch to if the suspend check is not needed, and after
   // the suspend call.
   void GenerateSuspendCheck(HSuspendCheck* instruction, HBasicBlock* successor);
-  void GenerateClassInitializationCheck(SlowPathCodeX86_64* slow_path, CpuRegister class_reg);
+  void GenerateClassInitializationCheck(SlowPathCode* slow_path, CpuRegister class_reg);
   void HandleBitwiseOperation(HBinaryOperation* operation);
   void GenerateRemFP(HRem* rem);
   void DivRemOneOrMinusOne(HBinaryOperation* instruction);
@@ -311,8 +297,10 @@ class CodeGeneratorX86_64 : public CodeGenerator {
     return false;
   }
 
-  void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp);
-  void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp);
+  void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) OVERRIDE;
+  void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp) OVERRIDE;
+
+  void MoveFromReturnRegister(Location trg, Primitive::Type type) OVERRIDE;
 
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
 
