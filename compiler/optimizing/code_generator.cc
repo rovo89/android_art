@@ -413,6 +413,120 @@ void CodeGenerator::GenerateInvokeUnresolvedRuntimeCall(HInvokeUnresolved* invok
   InvokeRuntime(entrypoint, invoke, invoke->GetDexPc(), nullptr);
 }
 
+void CodeGenerator::CreateUnresolvedFieldLocationSummary(
+    HInstruction* field_access,
+    Primitive::Type field_type,
+    const FieldAccessCallingConvetion& calling_convention) {
+  bool is_instance = field_access->IsUnresolvedInstanceFieldGet()
+      || field_access->IsUnresolvedInstanceFieldSet();
+  bool is_get = field_access->IsUnresolvedInstanceFieldGet()
+      || field_access->IsUnresolvedStaticFieldGet();
+
+  ArenaAllocator* allocator = field_access->GetBlock()->GetGraph()->GetArena();
+  LocationSummary* locations =
+      new (allocator) LocationSummary(field_access, LocationSummary::kCall);
+
+  locations->AddTemp(calling_convention.GetFieldIndexLocation());
+
+  if (is_instance) {
+    // Add the `this` object for instance field accesses.
+    locations->SetInAt(0, calling_convention.GetObjectLocation());
+  }
+
+  // Note that pSetXXStatic/pGetXXStatic always takes/returns an int or int64
+  // regardless of the the type. Because of that we forced to special case
+  // the access to floating point values.
+  if (is_get) {
+    if (Primitive::IsFloatingPointType(field_type)) {
+      // The return value will be stored in regular registers while register
+      // allocator expects it in a floating point register. Allocate a temp for
+      // it and make the transfer at codegen.
+      AddLocationAsTemp(calling_convention.GetReturnLocation(field_type), locations);
+      locations->SetOut(calling_convention.GetFpuLocation(field_type));
+    } else {
+      locations->SetOut(calling_convention.GetReturnLocation(field_type));
+    }
+  } else {
+     size_t set_index = is_instance ? 1 : 0;
+     if (Primitive::IsFloatingPointType(field_type)) {
+      // The set value comes from a float location while the calling convention
+      // expects it in a regular register location. Allocate a temp for it and
+      // make the transfer at codegen.
+      AddLocationAsTemp(calling_convention.GetSetValueLocation(field_type, is_instance), locations);
+      locations->SetInAt(set_index, calling_convention.GetFpuLocation(field_type));
+    } else {
+      locations->SetInAt(set_index,
+          calling_convention.GetSetValueLocation(field_type, is_instance));
+    }
+  }
+}
+
+void CodeGenerator::GenerateUnresolvedFieldAccess(HInstruction* field_access,
+                                                  Primitive::Type field_type,
+                                                  uint32_t field_index,
+                                                  uint32_t dex_pc) {
+  LocationSummary* locations = field_access->GetLocations();
+
+  MoveConstant(locations->GetTemp(0), field_index);
+
+  bool is_instance = field_access->IsUnresolvedInstanceFieldGet()
+      || field_access->IsUnresolvedInstanceFieldSet();
+  bool is_get = field_access->IsUnresolvedInstanceFieldGet()
+      || field_access->IsUnresolvedStaticFieldGet();
+
+  if (!is_get && Primitive::IsFloatingPointType(field_type)) {
+    MoveLocationToTemp(locations->InAt(is_instance ? 1 : 0), *locations, 1, field_type);
+  }
+
+  QuickEntrypointEnum entrypoint = kQuickSet8Static;  // Initialize to anything to avoid warnings.
+  switch (field_type) {
+    case Primitive::kPrimBoolean:
+      entrypoint = is_instance
+          ? (is_get ? kQuickGetBooleanInstance : kQuickSet8Instance)
+          : (is_get ? kQuickGetBooleanStatic : kQuickSet8Static);
+      break;
+    case Primitive::kPrimByte:
+      entrypoint = is_instance
+          ? (is_get ? kQuickGetByteInstance : kQuickSet8Instance)
+          : (is_get ? kQuickGetByteStatic : kQuickSet8Static);
+      break;
+    case Primitive::kPrimShort:
+      entrypoint = is_instance
+          ? (is_get ? kQuickGetShortInstance : kQuickSet16Instance)
+          : (is_get ? kQuickGetShortStatic : kQuickSet16Static);
+      break;
+    case Primitive::kPrimChar:
+      entrypoint = is_instance
+          ? (is_get ? kQuickGetCharInstance : kQuickSet16Instance)
+          : (is_get ? kQuickGetCharStatic : kQuickSet16Static);
+      break;
+    case Primitive::kPrimInt:
+    case Primitive::kPrimFloat:
+      entrypoint = is_instance
+          ? (is_get ? kQuickGet32Instance : kQuickSet32Instance)
+          : (is_get ? kQuickGet32Static : kQuickSet32Static);
+      break;
+    case Primitive::kPrimNot:
+      entrypoint = is_instance
+          ? (is_get ? kQuickGetObjInstance : kQuickSetObjInstance)
+          : (is_get ? kQuickGetObjStatic : kQuickSetObjStatic);
+      break;
+    case Primitive::kPrimLong:
+    case Primitive::kPrimDouble:
+      entrypoint = is_instance
+          ? (is_get ? kQuickGet64Instance : kQuickSet64Instance)
+          : (is_get ? kQuickGet64Static : kQuickSet64Static);
+      break;
+    default:
+      LOG(FATAL) << "Invalid type " << field_type;
+  }
+  InvokeRuntime(entrypoint, field_access, dex_pc, nullptr);
+
+  if (is_get && Primitive::IsFloatingPointType(field_type)) {
+    MoveTempToLocation(*locations, 1, locations->Out(), field_type);
+  }
+}
+
 void CodeGenerator::BlockIfInRegister(Location location, bool is_out) const {
   // The DCHECKS below check that a register is not specified twice in
   // the summary. The out location can overlap with an input, so we need

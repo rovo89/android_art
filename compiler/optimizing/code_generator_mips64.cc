@@ -861,6 +861,52 @@ void CodeGeneratorMIPS64::MoveConstant(Location location, int32_t value) {
   __ LoadConst32(location.AsRegister<GpuRegister>(), value);
 }
 
+void CodeGeneratorMIPS64::AddLocationAsTemp(Location location, LocationSummary* locations) {
+  if (location.IsRegister()) {
+    locations->AddTemp(location);
+  } else {
+    UNIMPLEMENTED(FATAL) << "AddLocationAsTemp not implemented for location " << location;
+  }
+}
+
+void CodeGeneratorMIPS64::MoveLocationToTemp(Location source,
+                                          const LocationSummary& locations,
+                                          int temp_index,
+                                          Primitive::Type type) {
+  if (!Primitive::IsFloatingPointType(type)) {
+    UNIMPLEMENTED(FATAL) << "MoveLocationToTemp not implemented for type " << type;
+  }
+
+  DCHECK(source.IsFpuRegister()) << source;
+  if (type == Primitive::kPrimFloat) {
+    __ Mfc1(locations.GetTemp(temp_index).AsRegister<GpuRegister>(),
+            source.AsFpuRegister<FpuRegister>());
+  } else {
+    DCHECK_EQ(type, Primitive::kPrimDouble);
+    __ Dmfc1(locations.GetTemp(temp_index).AsRegister<GpuRegister>(),
+             source.AsFpuRegister<FpuRegister>());
+  }
+}
+
+void CodeGeneratorMIPS64::MoveTempToLocation(const LocationSummary& locations,
+                                          int temp_index,
+                                          Location destination,
+                                          Primitive::Type type) {
+  if (!Primitive::IsFloatingPointType(type)) {
+    UNIMPLEMENTED(FATAL) << "MoveLocationToTemp not implemented for type " << type;
+  }
+
+  DCHECK(destination.IsFpuRegister()) << destination;
+  if (type == Primitive::kPrimFloat) {
+    __ Mtc1(locations.GetTemp(temp_index).AsRegister<GpuRegister>(),
+            destination.AsFpuRegister<FpuRegister>());
+  } else {
+    DCHECK_EQ(type, Primitive::kPrimDouble);
+    __ Dmtc1(locations.GetTemp(temp_index).AsRegister<GpuRegister>(),
+             destination.AsFpuRegister<FpuRegister>());
+  }
+}
+
 Location CodeGeneratorMIPS64::GetStackLocation(HLoadLocal* load) const {
   Primitive::Type type = load->GetType();
 
@@ -3106,6 +3152,66 @@ void LocationsBuilderMIPS64::VisitStaticFieldSet(HStaticFieldSet* instruction) {
 
 void InstructionCodeGeneratorMIPS64::VisitStaticFieldSet(HStaticFieldSet* instruction) {
   HandleFieldSet(instruction, instruction->GetFieldInfo());
+}
+
+void LocationsBuilderMIPS64::VisitUnresolvedInstanceFieldGet(
+    HUnresolvedInstanceFieldGet* instruction) {
+  FieldAccessCallingConvetionMIPS64 calling_convention;
+  codegen_->CreateUnresolvedFieldLocationSummary(
+      instruction, instruction->GetFieldType(), calling_convention);
+}
+
+void InstructionCodeGeneratorMIPS64::VisitUnresolvedInstanceFieldGet(
+    HUnresolvedInstanceFieldGet* instruction) {
+  codegen_->GenerateUnresolvedFieldAccess(instruction,
+                                          instruction->GetFieldType(),
+                                          instruction->GetFieldIndex(),
+                                          instruction->GetDexPc());
+}
+
+void LocationsBuilderMIPS64::VisitUnresolvedInstanceFieldSet(
+    HUnresolvedInstanceFieldSet* instruction) {
+  FieldAccessCallingConvetionMIPS64 calling_convention;
+  codegen_->CreateUnresolvedFieldLocationSummary(
+      instruction, instruction->GetFieldType(), calling_convention);
+}
+
+void InstructionCodeGeneratorMIPS64::VisitUnresolvedInstanceFieldSet(
+    HUnresolvedInstanceFieldSet* instruction) {
+  codegen_->GenerateUnresolvedFieldAccess(instruction,
+                                          instruction->GetFieldType(),
+                                          instruction->GetFieldIndex(),
+                                          instruction->GetDexPc());
+}
+
+void LocationsBuilderMIPS64::VisitUnresolvedStaticFieldGet(
+    HUnresolvedStaticFieldGet* instruction) {
+  FieldAccessCallingConvetionMIPS64 calling_convention;
+  codegen_->CreateUnresolvedFieldLocationSummary(
+      instruction, instruction->GetFieldType(), calling_convention);
+}
+
+void InstructionCodeGeneratorMIPS64::VisitUnresolvedStaticFieldGet(
+    HUnresolvedStaticFieldGet* instruction) {
+  codegen_->GenerateUnresolvedFieldAccess(instruction,
+                                          instruction->GetFieldType(),
+                                          instruction->GetFieldIndex(),
+                                          instruction->GetDexPc());
+}
+
+void LocationsBuilderMIPS64::VisitUnresolvedStaticFieldSet(
+    HUnresolvedStaticFieldSet* instruction) {
+  FieldAccessCallingConvetionMIPS64 calling_convention;
+  codegen_->CreateUnresolvedFieldLocationSummary(
+      instruction, instruction->GetFieldType(), calling_convention);
+}
+
+void InstructionCodeGeneratorMIPS64::VisitUnresolvedStaticFieldSet(
+    HUnresolvedStaticFieldSet* instruction) {
+  codegen_->GenerateUnresolvedFieldAccess(instruction,
+                                          instruction->GetFieldType(),
+                                          instruction->GetFieldIndex(),
+                                          instruction->GetDexPc());
 }
 
 void LocationsBuilderMIPS64::VisitSuspendCheck(HSuspendCheck* instruction) {

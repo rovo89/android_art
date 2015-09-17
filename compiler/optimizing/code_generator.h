@@ -136,6 +136,22 @@ class InvokeDexCallingConventionVisitor {
   DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitor);
 };
 
+class FieldAccessCallingConvetion {
+ public:
+  virtual Location GetObjectLocation() const = 0;
+  virtual Location GetFieldIndexLocation() const = 0;
+  virtual Location GetReturnLocation(Primitive::Type type) const = 0;
+  virtual Location GetSetValueLocation(Primitive::Type type, bool is_instance) const = 0;
+  virtual Location GetFpuLocation(Primitive::Type type) const = 0;
+  virtual ~FieldAccessCallingConvetion() {}
+
+ protected:
+  FieldAccessCallingConvetion() {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FieldAccessCallingConvetion);
+};
+
 class CodeGenerator {
  public:
   // Compiles the graph to executable instructions. Returns whether the compilation
@@ -170,6 +186,16 @@ class CodeGenerator {
   virtual void Bind(HBasicBlock* block) = 0;
   virtual void Move(HInstruction* instruction, Location location, HInstruction* move_for) = 0;
   virtual void MoveConstant(Location destination, int32_t value) = 0;
+  virtual void AddLocationAsTemp(Location location, LocationSummary* locations) = 0;
+  virtual void MoveLocationToTemp(Location source,
+                                  const LocationSummary& locations,
+                                  int temp_index,
+                                  Primitive::Type type) = 0;
+  virtual void MoveTempToLocation(const LocationSummary& locations,
+                                  int temp_index,
+                                  Location destination,
+                                  Primitive::Type type) = 0;
+
   virtual Assembler* GetAssembler() = 0;
   virtual const Assembler& GetAssembler() const = 0;
   virtual size_t GetWordSize() const = 0;
@@ -377,6 +403,16 @@ class CodeGenerator {
       HInvoke* invoke, InvokeDexCallingConventionVisitor* visitor);
 
   void GenerateInvokeUnresolvedRuntimeCall(HInvokeUnresolved* invoke);
+
+  void CreateUnresolvedFieldLocationSummary(
+      HInstruction* field_access,
+      Primitive::Type field_type,
+      const FieldAccessCallingConvetion& calling_convention);
+
+  void GenerateUnresolvedFieldAccess(HInstruction* field_access,
+                                     Primitive::Type field_type,
+                                     uint32_t field_index,
+                                     uint32_t dex_pc);
 
   void SetDisassemblyInformation(DisassemblyInformation* info) { disasm_info_ = info; }
   DisassemblyInformation* GetDisassemblyInformation() const { return disasm_info_; }

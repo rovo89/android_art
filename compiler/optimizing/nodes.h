@@ -1066,6 +1066,10 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(Shr, BinaryOperation)                                               \
   M(StaticFieldGet, Instruction)                                        \
   M(StaticFieldSet, Instruction)                                        \
+  M(UnresolvedInstanceFieldGet, Instruction)                            \
+  M(UnresolvedInstanceFieldSet, Instruction)                            \
+  M(UnresolvedStaticFieldGet, Instruction)                              \
+  M(UnresolvedStaticFieldSet, Instruction)                              \
   M(StoreLocal, Instruction)                                            \
   M(Sub, BinaryOperation)                                               \
   M(SuspendCheck, Instruction)                                          \
@@ -4669,6 +4673,124 @@ class HStaticFieldSet : public HTemplateInstruction<2> {
   bool value_can_be_null_;
 
   DISALLOW_COPY_AND_ASSIGN(HStaticFieldSet);
+};
+
+class HUnresolvedInstanceFieldGet : public HExpression<1> {
+ public:
+  HUnresolvedInstanceFieldGet(HInstruction* obj,
+                              Primitive::Type field_type,
+                              uint32_t field_index,
+                              uint32_t dex_pc)
+      : HExpression(field_type, SideEffects::AllExceptGCDependency()),
+        field_index_(field_index),
+        dex_pc_(dex_pc) {
+    SetRawInputAt(0, obj);
+  }
+
+  bool NeedsEnvironment() const OVERRIDE { return true; }
+  bool CanThrow() const OVERRIDE { return true; }
+
+  Primitive::Type GetFieldType() const { return GetType(); }
+  uint32_t GetFieldIndex() const { return field_index_; }
+  uint32_t GetDexPc() const { return dex_pc_; }
+
+  DECLARE_INSTRUCTION(UnresolvedInstanceFieldGet);
+
+ private:
+  const uint32_t field_index_;
+  const uint32_t dex_pc_;
+
+  DISALLOW_COPY_AND_ASSIGN(HUnresolvedInstanceFieldGet);
+};
+
+class HUnresolvedInstanceFieldSet : public HTemplateInstruction<2> {
+ public:
+  HUnresolvedInstanceFieldSet(HInstruction* obj,
+                              HInstruction* value,
+                              Primitive::Type field_type,
+                              uint32_t field_index,
+                              uint32_t dex_pc)
+      : HTemplateInstruction(SideEffects::AllExceptGCDependency()),
+        field_type_(field_type),
+        field_index_(field_index),
+        dex_pc_(dex_pc) {
+    DCHECK_EQ(field_type, value->GetType());
+    SetRawInputAt(0, obj);
+    SetRawInputAt(1, value);
+  }
+
+  bool NeedsEnvironment() const OVERRIDE { return true; }
+  bool CanThrow() const OVERRIDE { return true; }
+
+  Primitive::Type GetFieldType() const { return field_type_; }
+  uint32_t GetFieldIndex() const { return field_index_; }
+  uint32_t GetDexPc() const { return dex_pc_; }
+
+  DECLARE_INSTRUCTION(UnresolvedInstanceFieldSet);
+
+ private:
+  const Primitive::Type field_type_;
+  const uint32_t field_index_;
+  const uint32_t dex_pc_;
+
+  DISALLOW_COPY_AND_ASSIGN(HUnresolvedInstanceFieldSet);
+};
+
+class HUnresolvedStaticFieldGet : public HExpression<0> {
+ public:
+  HUnresolvedStaticFieldGet(Primitive::Type field_type,
+                            uint32_t field_index,
+                            uint32_t dex_pc)
+      : HExpression(field_type, SideEffects::AllExceptGCDependency()),
+        field_index_(field_index),
+        dex_pc_(dex_pc) {
+  }
+
+  bool NeedsEnvironment() const OVERRIDE { return true; }
+  bool CanThrow() const OVERRIDE { return true; }
+
+  Primitive::Type GetFieldType() const { return GetType(); }
+  uint32_t GetFieldIndex() const { return field_index_; }
+  uint32_t GetDexPc() const { return dex_pc_; }
+
+  DECLARE_INSTRUCTION(UnresolvedStaticFieldGet);
+
+ private:
+  const uint32_t field_index_;
+  const uint32_t dex_pc_;
+
+  DISALLOW_COPY_AND_ASSIGN(HUnresolvedStaticFieldGet);
+};
+
+class HUnresolvedStaticFieldSet : public HTemplateInstruction<1> {
+ public:
+  HUnresolvedStaticFieldSet(HInstruction* value,
+                            Primitive::Type field_type,
+                            uint32_t field_index,
+                            uint32_t dex_pc)
+      : HTemplateInstruction(SideEffects::AllExceptGCDependency()),
+        field_type_(field_type),
+        field_index_(field_index),
+        dex_pc_(dex_pc) {
+    DCHECK_EQ(field_type, value->GetType());
+    SetRawInputAt(0, value);
+  }
+
+  bool NeedsEnvironment() const OVERRIDE { return true; }
+  bool CanThrow() const OVERRIDE { return true; }
+
+  Primitive::Type GetFieldType() const { return field_type_; }
+  uint32_t GetFieldIndex() const { return field_index_; }
+  uint32_t GetDexPc() const { return dex_pc_; }
+
+  DECLARE_INSTRUCTION(UnresolvedStaticFieldSet);
+
+ private:
+  const Primitive::Type field_type_;
+  const uint32_t field_index_;
+  const uint32_t dex_pc_;
+
+  DISALLOW_COPY_AND_ASSIGN(HUnresolvedStaticFieldSet);
 };
 
 // Implement the move-exception DEX instruction.
