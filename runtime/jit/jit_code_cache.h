@@ -66,6 +66,14 @@ class JitCodeCache {
   // of methods that got JIT compiled, as we might have collected some.
   size_t NumberOfCompiledCode() REQUIRES(!lock_);
 
+  bool NotifyCompilationOf(ArtMethod* method, Thread* self)
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!lock_);
+
+  void DoneCompiling(ArtMethod* method, Thread* self)
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!lock_);
+
   // Allocate and write code and its metadata to the code cache.
   uint8_t* CommitCode(Thread* self,
                       ArtMethod* method,
