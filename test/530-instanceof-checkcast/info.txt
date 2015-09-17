@@ -1,1 +1,0 @@
-Tests compiler optimizations on instanceof and checkcast.
