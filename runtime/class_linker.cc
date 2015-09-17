@@ -1505,7 +1505,7 @@ ClassLinker::~ClassLinker() {
   JavaVMExt* const vm = Runtime::Current()->GetJavaVM();
   for (jweak weak_root : class_loaders_) {
     auto* const class_loader = down_cast<mirror::ClassLoader*>(
-        vm->DecodeWeakGlobal(self, weak_root));
+        vm->DecodeWeakGlobalDuringShutdown(self, weak_root));
     if (class_loader != nullptr) {
       delete class_loader->GetClassTable();
     }

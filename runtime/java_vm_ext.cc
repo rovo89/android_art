@@ -580,12 +580,10 @@ inline bool JavaVMExt::MayAccessWeakGlobals(Thread* self) const {
 }
 
 inline bool JavaVMExt::MayAccessWeakGlobalsUnlocked(Thread* self) const {
-  if (kUseReadBarrier) {
-    // self can be null during a runtime shutdown. ~Runtime()->~ClassLinker()->DecodeWeakGlobal().
-    return self != nullptr ? self->GetWeakRefAccessEnabled() : true;
-  } else {
-    return allow_accessing_weak_globals_.LoadSequentiallyConsistent();
-  }
+  DCHECK(self != nullptr);
+  return kUseReadBarrier ?
+      self->GetWeakRefAccessEnabled() :
+      allow_accessing_weak_globals_.LoadSequentiallyConsistent();
 }
 
 mirror::Object* JavaVMExt::DecodeWeakGlobal(Thread* self, IndirectRef ref) {
@@ -611,6 +609,19 @@ mirror::Object* JavaVMExt::DecodeWeakGlobalLocked(Thread* self, IndirectRef ref)
     weak_globals_add_condition_.WaitHoldingLocks(self);
   }
   return weak_globals_.Get(ref);
+}
+
+mirror::Object* JavaVMExt::DecodeWeakGlobalDuringShutdown(Thread* self, IndirectRef ref) {
+  DCHECK_EQ(GetIndirectRefKind(ref), kWeakGlobal);
+  DCHECK(Runtime::Current()->IsShuttingDown(self));
+  if (self != nullptr) {
+    return DecodeWeakGlobal(self, ref);
+  }
+  // self can be null during a runtime shutdown. ~Runtime()->~ClassLinker()->DecodeWeakGlobal().
+  if (!kUseReadBarrier) {
+    DCHECK(allow_accessing_weak_globals_.LoadSequentiallyConsistent());
+  }
+  return weak_globals_.SynchronizedGet(ref);
 }
 
 void JavaVMExt::UpdateWeakGlobal(Thread* self, IndirectRef ref, mirror::Object* result) {
