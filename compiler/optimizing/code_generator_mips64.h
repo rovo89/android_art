@@ -106,6 +106,31 @@ class InvokeRuntimeCallingConvention : public CallingConvention<GpuRegister, Fpu
   DISALLOW_COPY_AND_ASSIGN(InvokeRuntimeCallingConvention);
 };
 
+class FieldAccessCallingConvetionMIPS64 : public FieldAccessCallingConvetion {
+ public:
+  FieldAccessCallingConvetionMIPS64() {}
+
+  Location GetObjectLocation() const OVERRIDE {
+    return Location::RegisterLocation(A1);
+  }
+  Location GetFieldIndexLocation() const OVERRIDE {
+    return Location::RegisterLocation(A0);
+  }
+  Location GetReturnLocation(Primitive::Type type ATTRIBUTE_UNUSED) const OVERRIDE {
+    return Location::RegisterLocation(A0);
+  }
+  Location GetSetValueLocation(
+      Primitive::Type type ATTRIBUTE_UNUSED, bool is_instance) const OVERRIDE {
+    return is_instance ? Location::RegisterLocation(A2) : Location::RegisterLocation(A1);
+  }
+  Location GetFpuLocation(Primitive::Type type ATTRIBUTE_UNUSED) const OVERRIDE {
+    return Location::FpuRegisterLocation(F0);
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FieldAccessCallingConvetionMIPS64);
+};
+
 class ParallelMoveResolverMIPS64 : public ParallelMoveResolverWithSwap {
  public:
   ParallelMoveResolverMIPS64(ArenaAllocator* allocator, CodeGeneratorMIPS64* codegen)
@@ -284,6 +309,17 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
   void MoveLocation(Location destination, Location source, Primitive::Type type);
 
   void MoveConstant(Location destination, int32_t value) OVERRIDE;
+
+  void AddLocationAsTemp(Location location, LocationSummary* locations) OVERRIDE;
+  void MoveLocationToTemp(Location source,
+                          const LocationSummary& locations,
+                          int temp_index,
+                          Primitive::Type type) OVERRIDE;
+  void MoveTempToLocation(const LocationSummary& locations,
+                          int temp_index,
+                          Location destination,
+                          Primitive::Type type) OVERRIDE;
+
 
   void SwapLocations(Location loc1, Location loc2, Primitive::Type type);
 

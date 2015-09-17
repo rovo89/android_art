@@ -70,6 +70,32 @@ class InvokeDexCallingConvention : public CallingConvention<Register, FloatRegis
   DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConvention);
 };
 
+class FieldAccessCallingConvetionX86_64 : public FieldAccessCallingConvetion {
+ public:
+  FieldAccessCallingConvetionX86_64() {}
+
+  Location GetObjectLocation() const OVERRIDE {
+    return Location::RegisterLocation(RSI);
+  }
+  Location GetFieldIndexLocation() const OVERRIDE {
+    return Location::RegisterLocation(RDI);
+  }
+  Location GetReturnLocation(Primitive::Type type ATTRIBUTE_UNUSED) const OVERRIDE {
+    return Location::RegisterLocation(RAX);
+  }
+  Location GetSetValueLocation(
+      Primitive::Type type ATTRIBUTE_UNUSED, bool is_instance) const OVERRIDE {
+    return Location::RegisterLocation(is_instance ? RDX : RSI);
+  }
+  Location GetFpuLocation(Primitive::Type type ATTRIBUTE_UNUSED) const OVERRIDE {
+    return Location::FpuRegisterLocation(XMM0);
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FieldAccessCallingConvetionX86_64);
+};
+
+
 class InvokeDexCallingConventionVisitorX86_64 : public InvokeDexCallingConventionVisitor {
  public:
   InvokeDexCallingConventionVisitorX86_64() {}
@@ -229,6 +255,15 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   void Bind(HBasicBlock* block) OVERRIDE;
   void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
   void MoveConstant(Location destination, int32_t value) OVERRIDE;
+  void AddLocationAsTemp(Location location, LocationSummary* locations) OVERRIDE;
+  void MoveLocationToTemp(Location source,
+                          const LocationSummary& locations,
+                          int temp_index,
+                          Primitive::Type type) OVERRIDE;
+  void MoveTempToLocation(const LocationSummary& locations,
+                          int temp_index,
+                          Location destination,
+                          Primitive::Type type) OVERRIDE;
   size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
   size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
   size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
