@@ -302,7 +302,16 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
 
   bool NeedsTwoRegisters(Primitive::Type type ATTRIBUTE_UNUSED) const { return false; }
 
-  void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp);
+  void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) OVERRIDE;
+  void GenerateVirtualCall(HInvokeVirtual* invoke ATTRIBUTE_UNUSED,
+                           Location temp ATTRIBUTE_UNUSED) OVERRIDE {
+    UNIMPLEMENTED(FATAL);
+  }
+
+  void MoveFromReturnRegister(Location trg ATTRIBUTE_UNUSED,
+                              Primitive::Type type ATTRIBUTE_UNUSED) OVERRIDE {
+    UNIMPLEMENTED(FATAL);
+  }
 
  private:
   // Labels for each block that will be compiled.

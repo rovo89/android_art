@@ -23,6 +23,7 @@
 #include "base/logging.h"
 #include "base/macros.h"
 #include "arm/constants_arm.h"
+#include "label.h"
 #include "managed_register.h"
 #include "memory_region.h"
 #include "mips/constants_mips.h"
@@ -35,106 +36,6 @@ namespace art {
 
 class Assembler;
 class AssemblerBuffer;
-class AssemblerFixup;
-
-namespace arm {
-  class ArmAssembler;
-  class Arm32Assembler;
-  class Thumb2Assembler;
-}
-namespace arm64 {
-  class Arm64Assembler;
-}
-namespace mips {
-  class MipsAssembler;
-}
-namespace mips64 {
-  class Mips64Assembler;
-}
-namespace x86 {
-  class X86Assembler;
-  class NearLabel;
-}
-namespace x86_64 {
-  class X86_64Assembler;
-  class NearLabel;
-}
-
-class ExternalLabel {
- public:
-  ExternalLabel(const char* name_in, uintptr_t address_in)
-      : name_(name_in), address_(address_in) {
-    DCHECK(name_in != nullptr);
-  }
-
-  const char* name() const { return name_; }
-  uintptr_t address() const {
-    return address_;
-  }
-
- private:
-  const char* name_;
-  const uintptr_t address_;
-};
-
-class Label {
- public:
-  Label() : position_(0) {}
-
-  ~Label() {
-    // Assert if label is being destroyed with unresolved branches pending.
-    CHECK(!IsLinked());
-  }
-
-  // Returns the position for bound and linked labels. Cannot be used
-  // for unused labels.
-  int Position() const {
-    CHECK(!IsUnused());
-    return IsBound() ? -position_ - sizeof(void*) : position_ - sizeof(void*);
-  }
-
-  int LinkPosition() const {
-    CHECK(IsLinked());
-    return position_ - sizeof(void*);
-  }
-
-  bool IsBound() const { return position_ < 0; }
-  bool IsUnused() const { return position_ == 0; }
-  bool IsLinked() const { return position_ > 0; }
-
- private:
-  int position_;
-
-  void Reinitialize() {
-    position_ = 0;
-  }
-
-  void BindTo(int position) {
-    CHECK(!IsBound());
-    position_ = -position - sizeof(void*);
-    CHECK(IsBound());
-  }
-
-  void LinkTo(int position) {
-    CHECK(!IsBound());
-    position_ = position + sizeof(void*);
-    CHECK(IsLinked());
-  }
-
-  friend class arm::ArmAssembler;
-  friend class arm::Arm32Assembler;
-  friend class arm::Thumb2Assembler;
-  friend class arm64::Arm64Assembler;
-  friend class mips::MipsAssembler;
-  friend class mips64::Mips64Assembler;
-  friend class x86::X86Assembler;
-  friend class x86::NearLabel;
-  friend class x86_64::X86_64Assembler;
-  friend class x86_64::NearLabel;
-
-  DISALLOW_COPY_AND_ASSIGN(Label);
-};
-
 
 // Assembler fixups are positions in generated code that require processing
 // after the code has been copied to executable memory. This includes building
@@ -533,6 +434,9 @@ class Assembler {
   // Generate code to check if Thread::Current()->exception_ is non-null
   // and branch to a ExceptionSlowPath if it is.
   virtual void ExceptionPoll(ManagedRegister scratch, size_t stack_adjust) = 0;
+
+  virtual void Bind(Label* label) = 0;
+  virtual void Jump(Label* label) = 0;
 
   virtual ~Assembler() {}
 
