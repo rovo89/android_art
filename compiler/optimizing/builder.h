@@ -270,13 +270,29 @@ class HGraphBuilder : public ValueObject {
                                                           uintptr_t direct_method,
                                                           uintptr_t direct_code);
 
-  bool SetupArgumentsAndAddInvoke(HInvoke* invoke,
-                                  uint32_t number_of_vreg_arguments,
-                                  uint32_t* args,
-                                  uint32_t register_index,
-                                  bool is_range,
-                                  const char* descriptor,
-                                  HClinitCheck* clinit_check);
+  bool SetupInvokeArguments(HInvoke* invoke,
+                            uint32_t number_of_vreg_arguments,
+                            uint32_t* args,
+                            uint32_t register_index,
+                            bool is_range,
+                            const char* descriptor,
+                            size_t start_index,
+                            size_t* argument_index);
+
+  bool HandleInvoke(HInvoke* invoke,
+                    uint32_t number_of_vreg_arguments,
+                    uint32_t* args,
+                    uint32_t register_index,
+                    bool is_range,
+                    const char* descriptor,
+                    HClinitCheck* clinit_check);
+
+  bool HandleStringInit(HInvoke* invoke,
+                        uint32_t number_of_vreg_arguments,
+                        uint32_t* args,
+                        uint32_t register_index,
+                        bool is_range,
+                        const char* descriptor);
 
   HClinitCheck* ProcessClinitCheckForInvoke(
       uint32_t dex_pc,
