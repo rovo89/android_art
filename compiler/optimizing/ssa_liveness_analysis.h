@@ -206,7 +206,7 @@ class SafepointPosition : public ArenaObject<kArenaAllocMisc> {
  * An interval is a list of disjoint live ranges where an instruction is live.
  * Each instruction that has uses gets an interval.
  */
-class LiveInterval : public ArenaObject<kArenaAllocMisc> {
+class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
  public:
   static LiveInterval* MakeInterval(ArenaAllocator* allocator,
                                     Primitive::Type type,
@@ -1106,33 +1106,39 @@ class SsaLivenessAnalysis : public ValueObject {
   SsaLivenessAnalysis(HGraph* graph, CodeGenerator* codegen)
       : graph_(graph),
         codegen_(codegen),
-        block_infos_(graph->GetArena(), graph->GetBlocks().size()),
-        instructions_from_ssa_index_(graph->GetArena(), 0),
-        instructions_from_lifetime_position_(graph->GetArena(), 0),
+        block_infos_(graph->GetBlocks().size(),
+                     nullptr,
+                     graph->GetArena()->Adapter(kArenaAllocSsaLiveness)),
+        instructions_from_ssa_index_(graph->GetArena()->Adapter(kArenaAllocSsaLiveness)),
+        instructions_from_lifetime_position_(graph->GetArena()->Adapter(kArenaAllocSsaLiveness)),
         number_of_ssa_values_(0) {
-    block_infos_.SetSize(graph->GetBlocks().size());
   }
 
   void Analyze();
 
   BitVector* GetLiveInSet(const HBasicBlock& block) const {
-    return &block_infos_.Get(block.GetBlockId())->live_in_;
+    DCHECK_LT(block.GetBlockId(), block_infos_.size());
+    return &block_infos_[block.GetBlockId()]->live_in_;
   }
 
   BitVector* GetLiveOutSet(const HBasicBlock& block) const {
-    return &block_infos_.Get(block.GetBlockId())->live_out_;
+    DCHECK_LT(block.GetBlockId(), block_infos_.size());
+    return &block_infos_[block.GetBlockId()]->live_out_;
   }
 
   BitVector* GetKillSet(const HBasicBlock& block) const {
-    return &block_infos_.Get(block.GetBlockId())->kill_;
+    DCHECK_LT(block.GetBlockId(), block_infos_.size());
+    return &block_infos_[block.GetBlockId()]->kill_;
   }
 
   HInstruction* GetInstructionFromSsaIndex(size_t index) const {
-    return instructions_from_ssa_index_.Get(index);
+    DCHECK_LT(index, instructions_from_ssa_index_.size());
+    return instructions_from_ssa_index_[index];
   }
 
   HInstruction* GetInstructionFromPosition(size_t index) const {
-    return instructions_from_lifetime_position_.Get(index);
+    DCHECK_LT(index, instructions_from_lifetime_position_.size());
+    return instructions_from_lifetime_position_[index];
   }
 
   HBasicBlock* GetBlockFromPosition(size_t index) const {
@@ -1163,7 +1169,7 @@ class SsaLivenessAnalysis : public ValueObject {
   }
 
   size_t GetMaxLifetimePosition() const {
-    return instructions_from_lifetime_position_.Size() * 2 - 1;
+    return instructions_from_lifetime_position_.size() * 2 - 1;
   }
 
   size_t GetNumberOfSsaValues() const {
@@ -1218,13 +1224,13 @@ class SsaLivenessAnalysis : public ValueObject {
 
   HGraph* const graph_;
   CodeGenerator* const codegen_;
-  GrowableArray<BlockInfo*> block_infos_;
+  ArenaVector<BlockInfo*> block_infos_;
 
   // Temporary array used when computing live_in, live_out, and kill sets.
-  GrowableArray<HInstruction*> instructions_from_ssa_index_;
+  ArenaVector<HInstruction*> instructions_from_ssa_index_;
 
   // Temporary array used when inserting moves in the graph.
-  GrowableArray<HInstruction*> instructions_from_lifetime_position_;
+  ArenaVector<HInstruction*> instructions_from_lifetime_position_;
   size_t number_of_ssa_values_;
 
   ART_FRIEND_TEST(RegisterAllocatorTest, SpillInactive);

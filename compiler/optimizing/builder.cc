@@ -140,11 +140,11 @@ class SwitchTable : public ValueObject {
 
 void HGraphBuilder::InitializeLocals(uint16_t count) {
   graph_->SetNumberOfVRegs(count);
-  locals_.SetSize(count);
+  locals_.resize(count);
   for (int i = 0; i < count; i++) {
     HLocal* local = new (arena_) HLocal(i);
     entry_block_->AddInstruction(local);
-    locals_.Put(i, local);
+    locals_[i] = local;
   }
 }
 
@@ -156,7 +156,7 @@ void HGraphBuilder::InitializeParameters(uint16_t number_of_parameters) {
 
   graph_->SetNumberOfInVRegs(number_of_parameters);
   const char* shorty = dex_compilation_unit_->GetShorty();
-  int locals_index = locals_.Size() - number_of_parameters;
+  int locals_index = locals_.size() - number_of_parameters;
   int parameter_index = 0;
 
   if (!dex_compilation_unit_->IsStatic()) {
@@ -554,11 +554,11 @@ void HGraphBuilder::MaybeUpdateCurrentBlock(size_t dex_pc) {
 bool HGraphBuilder::ComputeBranchTargets(const uint16_t* code_ptr,
                                          const uint16_t* code_end,
                                          size_t* number_of_branches) {
-  branch_targets_.SetSize(code_end - code_ptr);
+  branch_targets_.resize(code_end - code_ptr, nullptr);
 
   // Create the first block for the dex instructions, single successor of the entry block.
   HBasicBlock* block = new (arena_) HBasicBlock(graph_, 0);
-  branch_targets_.Put(0, block);
+  branch_targets_[0] = block;
   entry_block_->AddSuccessor(block);
 
   // Iterate over all instructions and find branching instructions. Create blocks for
@@ -602,7 +602,7 @@ bool HGraphBuilder::ComputeBranchTargets(const uint16_t* code_ptr,
         // Create a block for the switch-case logic. The block gets the dex_pc
         // of the SWITCH instruction because it is part of its semantics.
         block = new (arena_) HBasicBlock(graph_, dex_pc);
-        branch_targets_.Put(table.GetDexPcForIndex(i), block);
+        branch_targets_[table.GetDexPcForIndex(i)] = block;
       }
 
       // Fall-through. Add a block if there is more code afterwards.
@@ -626,15 +626,15 @@ bool HGraphBuilder::ComputeBranchTargets(const uint16_t* code_ptr,
 
 HBasicBlock* HGraphBuilder::FindBlockStartingAt(int32_t dex_pc) const {
   DCHECK_GE(dex_pc, 0);
-  DCHECK_LT(static_cast<size_t>(dex_pc), branch_targets_.Size());
-  return branch_targets_.Get(dex_pc);
+  DCHECK_LT(static_cast<size_t>(dex_pc), branch_targets_.size());
+  return branch_targets_[dex_pc];
 }
 
 HBasicBlock* HGraphBuilder::FindOrCreateBlockStartingAt(int32_t dex_pc) {
   HBasicBlock* block = FindBlockStartingAt(dex_pc);
   if (block == nullptr) {
     block = new (arena_) HBasicBlock(graph_, dex_pc);
-    branch_targets_.Put(dex_pc, block);
+    branch_targets_[dex_pc] = block;
   }
   return block;
 }
@@ -2840,18 +2840,19 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
   return true;
 }  // NOLINT(readability/fn_size)
 
-HLocal* HGraphBuilder::GetLocalAt(int register_index) const {
-  return locals_.Get(register_index);
+HLocal* HGraphBuilder::GetLocalAt(uint32_t register_index) const {
+  DCHECK_LT(register_index, locals_.size());
+  return locals_[register_index];
 }
 
-void HGraphBuilder::UpdateLocal(int register_index,
+void HGraphBuilder::UpdateLocal(uint32_t register_index,
                                 HInstruction* instruction,
                                 uint32_t dex_pc) const {
   HLocal* local = GetLocalAt(register_index);
   current_block_->AddInstruction(new (arena_) HStoreLocal(local, instruction, dex_pc));
 }
 
-HInstruction* HGraphBuilder::LoadLocal(int register_index,
+HInstruction* HGraphBuilder::LoadLocal(uint32_t register_index,
                                        Primitive::Type type,
                                        uint32_t dex_pc) const {
   HLocal* local = GetLocalAt(register_index);

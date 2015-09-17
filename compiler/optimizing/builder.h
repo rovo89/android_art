@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_BUILDER_H_
 #define ART_COMPILER_OPTIMIZING_BUILDER_H_
 
+#include "base/arena_containers.h"
 #include "base/arena_object.h"
 #include "dex_file.h"
 #include "dex_file-inl.h"
@@ -24,7 +25,6 @@
 #include "driver/dex_compilation_unit.h"
 #include "optimizing_compiler_stats.h"
 #include "primitive.h"
-#include "utils/growable_array.h"
 #include "nodes.h"
 
 namespace art {
@@ -43,8 +43,8 @@ class HGraphBuilder : public ValueObject {
                 const uint8_t* interpreter_metadata,
                 Handle<mirror::DexCache> dex_cache)
       : arena_(graph->GetArena()),
-        branch_targets_(graph->GetArena(), 0),
-        locals_(graph->GetArena(), 0),
+        branch_targets_(graph->GetArena()->Adapter(kArenaAllocGraphBuilder)),
+        locals_(graph->GetArena()->Adapter(kArenaAllocGraphBuilder)),
         entry_block_(nullptr),
         exit_block_(nullptr),
         current_block_(nullptr),
@@ -64,8 +64,8 @@ class HGraphBuilder : public ValueObject {
   // Only for unit testing.
   HGraphBuilder(HGraph* graph, Primitive::Type return_type = Primitive::kPrimInt)
       : arena_(graph->GetArena()),
-        branch_targets_(graph->GetArena(), 0),
-        locals_(graph->GetArena(), 0),
+        branch_targets_(graph->GetArena()->Adapter(kArenaAllocGraphBuilder)),
+        locals_(graph->GetArena()->Adapter(kArenaAllocGraphBuilder)),
         entry_block_(nullptr),
         exit_block_(nullptr),
         current_block_(nullptr),
@@ -130,9 +130,9 @@ class HGraphBuilder : public ValueObject {
   uint16_t LookupQuickenedInfo(uint32_t dex_pc);
 
   void InitializeLocals(uint16_t count);
-  HLocal* GetLocalAt(int register_index) const;
-  void UpdateLocal(int register_index, HInstruction* instruction, uint32_t dex_pc) const;
-  HInstruction* LoadLocal(int register_index, Primitive::Type type, uint32_t dex_pc) const;
+  HLocal* GetLocalAt(uint32_t register_index) const;
+  void UpdateLocal(uint32_t register_index, HInstruction* instruction, uint32_t dex_pc) const;
+  HInstruction* LoadLocal(uint32_t register_index, Primitive::Type type, uint32_t dex_pc) const;
   void PotentiallyAddSuspendCheck(HBasicBlock* target, uint32_t dex_pc);
   void InitializeParameters(uint16_t number_of_parameters);
   bool NeedsAccessCheck(uint32_t type_index) const;
@@ -304,9 +304,9 @@ class HGraphBuilder : public ValueObject {
   // A list of the size of the dex code holding block information for
   // the method. If an entry contains a block, then the dex instruction
   // starting at that entry is the first instruction of a new block.
-  GrowableArray<HBasicBlock*> branch_targets_;
+  ArenaVector<HBasicBlock*> branch_targets_;
 
-  GrowableArray<HLocal*> locals_;
+  ArenaVector<HLocal*> locals_;
 
   HBasicBlock* entry_block_;
   HBasicBlock* exit_block_;

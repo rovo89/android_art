@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_LOCATIONS_H_
 #define ART_COMPILER_OPTIMIZING_LOCATIONS_H_
 
+#include "base/arena_containers.h"
 #include "base/arena_object.h"
 #include "base/bit_field.h"
 #include "base/bit_vector.h"
@@ -481,15 +482,17 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
                   bool intrinsified = false);
 
   void SetInAt(uint32_t at, Location location) {
-    inputs_.Put(at, location);
+    DCHECK_LT(at, GetInputCount());
+    inputs_[at] = location;
   }
 
   Location InAt(uint32_t at) const {
-    return inputs_.Get(at);
+    DCHECK_LT(at, GetInputCount());
+    return inputs_[at];
   }
 
   size_t GetInputCount() const {
-    return inputs_.Size();
+    return inputs_.size();
   }
 
   void SetOut(Location location, Location::OutputOverlap overlaps = Location::kOutputOverlap) {
@@ -508,23 +511,25 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
   }
 
   void AddTemp(Location location) {
-    temps_.Add(location);
+    temps_.push_back(location);
   }
 
   Location GetTemp(uint32_t at) const {
-    return temps_.Get(at);
+    DCHECK_LT(at, GetTempCount());
+    return temps_[at];
   }
 
   void SetTempAt(uint32_t at, Location location) {
-    DCHECK(temps_.Get(at).IsUnallocated() || temps_.Get(at).IsInvalid());
-    temps_.Put(at, location);
+    DCHECK_LT(at, GetTempCount());
+    DCHECK(temps_[at].IsUnallocated() || temps_[at].IsInvalid());
+    temps_[at] = location;
   }
 
   size_t GetTempCount() const {
-    return temps_.Size();
+    return temps_.size();
   }
 
-  bool HasTemps() const { return !temps_.IsEmpty(); }
+  bool HasTemps() const { return !temps_.empty(); }
 
   Location Out() const { return output_; }
 
@@ -576,7 +581,7 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
   }
 
   bool IsFixedInput(uint32_t input_index) const {
-    Location input = inputs_.Get(input_index);
+    Location input = inputs_[input_index];
     return input.IsRegister()
         || input.IsFpuRegister()
         || input.IsPair()
@@ -593,8 +598,8 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
   }
 
  private:
-  GrowableArray<Location> inputs_;
-  GrowableArray<Location> temps_;
+  ArenaVector<Location> inputs_;
+  ArenaVector<Location> temps_;
   // Whether the output overlaps with any of the inputs. If it overlaps, then it cannot
   // share the same register as the inputs.
   Location::OutputOverlap output_overlaps_;

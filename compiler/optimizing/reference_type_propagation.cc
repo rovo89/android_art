@@ -27,7 +27,7 @@ class RTPVisitor : public HGraphDelegateVisitor {
  public:
   RTPVisitor(HGraph* graph,
              StackHandleScopeCollection* handles,
-             GrowableArray<HInstruction*>* worklist,
+             ArenaVector<HInstruction*>* worklist,
              ReferenceTypeInfo::TypeHandle object_class_handle,
              ReferenceTypeInfo::TypeHandle class_class_handle,
              ReferenceTypeInfo::TypeHandle string_class_handle,
@@ -68,7 +68,7 @@ class RTPVisitor : public HGraphDelegateVisitor {
   ReferenceTypeInfo::TypeHandle class_class_handle_;
   ReferenceTypeInfo::TypeHandle string_class_handle_;
   ReferenceTypeInfo::TypeHandle throwable_class_handle_;
-  GrowableArray<HInstruction*>* worklist_;
+  ArenaVector<HInstruction*>* worklist_;
 
   static constexpr size_t kDefaultWorklistSize = 8;
 };
@@ -78,7 +78,8 @@ ReferenceTypePropagation::ReferenceTypePropagation(HGraph* graph,
                                                    const char* name)
     : HOptimization(graph, name),
       handles_(handles),
-      worklist_(graph->GetArena(), kDefaultWorklistSize) {
+      worklist_(graph->GetArena()->Adapter(kArenaAllocReferenceTypePropagation)) {
+  worklist_.reserve(kDefaultWorklistSize);
   // Mutator lock is required for NewHandle, but annotalysis ignores constructors.
   ScopedObjectAccess soa(Thread::Current());
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
@@ -649,7 +650,7 @@ void RTPVisitor::VisitArrayGet(HArrayGet* instr) {
   ScopedObjectAccess soa(Thread::Current());
   UpdateArrayGet(instr, handles_, object_class_handle_);
   if (!instr->GetReferenceTypeInfo().IsValid()) {
-    worklist_->Add(instr);
+    worklist_->push_back(instr);
   }
 }
 
@@ -718,8 +719,9 @@ bool ReferenceTypePropagation::UpdateNullability(HInstruction* instr) {
 }
 
 void ReferenceTypePropagation::ProcessWorklist() {
-  while (!worklist_.IsEmpty()) {
-    HInstruction* instruction = worklist_.Pop();
+  while (!worklist_.empty()) {
+    HInstruction* instruction = worklist_.back();
+    worklist_.pop_back();
     if (UpdateNullability(instruction) || UpdateReferenceTypeInfo(instruction)) {
       AddDependentInstructionsToWorklist(instruction);
     }
@@ -729,7 +731,7 @@ void ReferenceTypePropagation::ProcessWorklist() {
 void ReferenceTypePropagation::AddToWorklist(HInstruction* instruction) {
   DCHECK_EQ(instruction->GetType(), Primitive::kPrimNot)
       << instruction->DebugName() << ":" << instruction->GetType();
-  worklist_.Add(instruction);
+  worklist_.push_back(instruction);
 }
 
 void ReferenceTypePropagation::AddDependentInstructionsToWorklist(HInstruction* instruction) {

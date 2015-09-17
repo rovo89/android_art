@@ -65,6 +65,7 @@ enum ArenaAllocKind {
   kArenaAllocRegAlloc,
   kArenaAllocData,
   kArenaAllocSTL,
+  kArenaAllocGraphBuilder,
   kArenaAllocGraph,
   kArenaAllocBasicBlock,
   kArenaAllocBlockList,
@@ -84,12 +85,20 @@ enum ArenaAllocKind {
   kArenaAllocEnvironment,
   kArenaAllocEnvironmentVRegs,
   kArenaAllocEnvironmentLocations,
+  kArenaAllocLocationSummary,
   kArenaAllocSsaBuilder,
   kArenaAllocMoveOperands,
   kArenaAllocCodeBuffer,
   kArenaAllocStackMaps,
   kArenaAllocBaselineMaps,
   kArenaAllocOptimization,
+  kArenaAllocGvn,
+  kArenaAllocSsaLiveness,
+  kArenaAllocSsaPhiElimination,
+  kArenaAllocReferenceTypePropagation,
+  kArenaAllocPrimitiveTypePropagation,
+  kArenaAllocSideEffectsAnalysis,
+  kArenaAllocRegisterAllocator,
   kNumArenaAllocKinds
 };
 
