@@ -35,6 +35,7 @@ enum MethodCompilationStat {
   kInstructionSimplificationsArch,
   kUnresolvedMethod,
   kUnresolvedField,
+  kUnresolvedFieldNotAFastAccess,
   kNotCompiledBranchOutsideMethodCode,
   kNotCompiledCannotBuildSSA,
   kNotCompiledCantAccesType,
@@ -105,6 +106,7 @@ class OptimizingCompilerStats {
       case kInstructionSimplificationsArch: return "kInstructionSimplificationsArch";
       case kUnresolvedMethod : return "kUnresolvedMethod";
       case kUnresolvedField : return "kUnresolvedField";
+      case kUnresolvedFieldNotAFastAccess : return "kUnresolvedFieldNotAFastAccess";
       case kNotCompiledBranchOutsideMethodCode: return "kNotCompiledBranchOutsideMethodCode";
       case kNotCompiledCannotBuildSSA : return "kNotCompiledCannotBuildSSA";
       case kNotCompiledCantAccesType : return "kNotCompiledCantAccesType";
