@@ -289,7 +289,10 @@ static bool CheckIfPredecessorAtIsExceptional(const HBasicBlock& block, size_t p
 }
 
 void HGraph::SimplifyCatchBlocks() {
-  for (HBasicBlock* catch_block : blocks_) {
+  // NOTE: We're appending new blocks inside the loop, so we need to use index because iterators
+  // can be invalidated. We remember the initial size to avoid iterating over the new blocks.
+  for (size_t block_id = 0u, end = blocks_.size(); block_id != end; ++block_id) {
+    HBasicBlock* catch_block = blocks_[block_id];
     if (!catch_block->IsCatchBlock()) {
       continue;
     }
@@ -349,7 +352,10 @@ void HGraph::SimplifyCFG() {
   // Simplify the CFG for future analysis, and code generation:
   // (1): Split critical edges.
   // (2): Simplify loops by having only one back edge, and one preheader.
-  for (HBasicBlock* block : blocks_) {
+  // NOTE: We're appending new blocks inside the loop, so we need to use index because iterators
+  // can be invalidated. We remember the initial size to avoid iterating over the new blocks.
+  for (size_t block_id = 0u, end = blocks_.size(); block_id != end; ++block_id) {
+    HBasicBlock* block = blocks_[block_id];
     if (block == nullptr) continue;
     if (block->NumberOfNormalSuccessors() > 1) {
       for (size_t j = 0; j < block->GetSuccessors().size(); ++j) {
