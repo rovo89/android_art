@@ -839,11 +839,20 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
                                            &table_index,
                                            &direct_code,
                                            &direct_method)) {
-    VLOG(compiler) << "Did not compile "
-                   << PrettyMethod(dex_compilation_unit_->GetDexMethodIndex(), *dex_file_)
-                   << " because a method call could not be resolved";
-    MaybeRecordStat(MethodCompilationStat::kNotCompiledUnresolvedMethod);
-    return false;
+    MaybeRecordStat(MethodCompilationStat::kUnresolvedMethod);
+    HInvoke* invoke = new (arena_) HInvokeUnresolved(arena_,
+                                                     number_of_arguments,
+                                                     return_type,
+                                                     dex_pc,
+                                                     method_idx,
+                                                     original_invoke_type);
+    return HandleInvoke(invoke,
+                        number_of_vreg_arguments,
+                        args,
+                        register_index,
+                        is_range,
+                        descriptor,
+                        nullptr /* clinit_check */);
   }
 
   // Handle resolved methods (non string init).

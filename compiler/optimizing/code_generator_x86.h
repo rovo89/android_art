@@ -228,13 +228,19 @@ class CodeGeneratorX86 : public CodeGenerator {
   void GenerateFrameExit() OVERRIDE;
   void Bind(HBasicBlock* block) OVERRIDE;
   void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
+  void MoveConstant(Location destination, int32_t value) OVERRIDE;
   size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
   size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
   size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
   size_t RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
 
   // Generate code to invoke a runtime entry point.
-  void InvokeRuntime(Address entry_point,
+  void InvokeRuntime(QuickEntrypointEnum entrypoint,
+                     HInstruction* instruction,
+                     uint32_t dex_pc,
+                     SlowPathCode* slow_path) OVERRIDE;
+
+  void InvokeRuntime(int32_t entry_point_offset,
                      HInstruction* instruction,
                      uint32_t dex_pc,
                      SlowPathCode* slow_path);

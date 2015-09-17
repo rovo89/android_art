@@ -1033,6 +1033,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(InstanceFieldSet, Instruction)                                      \
   M(InstanceOf, Instruction)                                            \
   M(IntConstant, Constant)                                              \
+  M(InvokeUnresolved, Invoke)                                           \
   M(InvokeInterface, Invoke)                                            \
   M(InvokeStaticOrDirect, Invoke)                                       \
   M(InvokeVirtual, Invoke)                                              \
@@ -3055,6 +3056,29 @@ class HInvoke : public HInstruction {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HInvoke);
+};
+
+class HInvokeUnresolved : public HInvoke {
+ public:
+  HInvokeUnresolved(ArenaAllocator* arena,
+                    uint32_t number_of_arguments,
+                    Primitive::Type return_type,
+                    uint32_t dex_pc,
+                    uint32_t dex_method_index,
+                    InvokeType invoke_type)
+      : HInvoke(arena,
+                number_of_arguments,
+                0u /* number_of_other_inputs */,
+                return_type,
+                dex_pc,
+                dex_method_index,
+                invoke_type) {
+  }
+
+  DECLARE_INSTRUCTION(InvokeUnresolved);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HInvokeUnresolved);
 };
 
 class HInvokeStaticOrDirect : public HInvoke {

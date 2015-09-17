@@ -283,9 +283,16 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
 
   void MoveLocation(Location destination, Location source, Primitive::Type type);
 
+  void MoveConstant(Location destination, int32_t value) OVERRIDE;
+
   void SwapLocations(Location loc1, Location loc2, Primitive::Type type);
 
   // Generate code to invoke a runtime entry point.
+  void InvokeRuntime(QuickEntrypointEnum entrypoint,
+                     HInstruction* instruction,
+                     uint32_t dex_pc,
+                     SlowPathCode* slow_path) OVERRIDE;
+
   void InvokeRuntime(int32_t offset,
                      HInstruction* instruction,
                      uint32_t dex_pc,
