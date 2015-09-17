@@ -716,6 +716,11 @@ void CodeGeneratorARM64::Move(HInstruction* instruction,
   }
 }
 
+void CodeGeneratorARM64::MoveConstant(Location location, int32_t value) {
+  DCHECK(location.IsRegister());
+  __ Mov(RegisterFrom(location, Primitive::kPrimInt), value);
+}
+
 Location CodeGeneratorARM64::GetStackLocation(HLoadLocal* load) const {
   Primitive::Type type = load->GetType();
 
@@ -1105,6 +1110,16 @@ void CodeGeneratorARM64::StoreRelease(Primitive::Type type,
     case Primitive::kPrimVoid:
       LOG(FATAL) << "Unreachable type " << type;
   }
+}
+
+void CodeGeneratorARM64::InvokeRuntime(QuickEntrypointEnum entrypoint,
+                                       HInstruction* instruction,
+                                       uint32_t dex_pc,
+                                       SlowPathCode* slow_path) {
+  InvokeRuntime(GetThreadOffset<kArm64WordSize>(entrypoint).Int32Value(),
+                instruction,
+                dex_pc,
+                slow_path);
 }
 
 void CodeGeneratorARM64::InvokeRuntime(int32_t entry_point_offset,
@@ -2305,6 +2320,17 @@ void InstructionCodeGeneratorARM64::VisitNullConstant(HNullConstant* constant) {
   UNUSED(constant);
 }
 
+void LocationsBuilderARM64::VisitInvokeUnresolved(HInvokeUnresolved* invoke) {
+  // The trampoline uses the same calling convention as dex calling conventions,
+  // except instead of loading arg0/r0 with the target Method*, arg0/r0 will contain
+  // the method_idx.
+  HandleInvoke(invoke);
+}
+
+void InstructionCodeGeneratorARM64::VisitInvokeUnresolved(HInvokeUnresolved* invoke) {
+  codegen_->GenerateInvokeUnresolvedRuntimeCall(invoke);
+}
+
 void LocationsBuilderARM64::HandleInvoke(HInvoke* invoke) {
   InvokeDexCallingConventionVisitorARM64 calling_convention_visitor;
   CodeGenerator::CreateCommonInvokeLocationSummary(invoke, &calling_convention_visitor);
@@ -2831,11 +2857,10 @@ void InstructionCodeGeneratorARM64::VisitNewArray(HNewArray* instruction) {
   __ Mov(type_index, instruction->GetTypeIndex());
   // Note: if heap poisoning is enabled, the entry point takes cares
   // of poisoning the reference.
-  codegen_->InvokeRuntime(
-      GetThreadOffset<kArm64WordSize>(instruction->GetEntrypoint()).Int32Value(),
-      instruction,
-      instruction->GetDexPc(),
-      nullptr);
+  codegen_->InvokeRuntime(instruction->GetEntrypoint(),
+                          instruction,
+                          instruction->GetDexPc(),
+                          nullptr);
   CheckEntrypointTypes<kQuickAllocArrayWithAccessCheck, void*, uint32_t, int32_t, ArtMethod*>();
 }
 
@@ -2856,11 +2881,10 @@ void InstructionCodeGeneratorARM64::VisitNewInstance(HNewInstance* instruction) 
   __ Mov(type_index, instruction->GetTypeIndex());
   // Note: if heap poisoning is enabled, the entry point takes cares
   // of poisoning the reference.
-  codegen_->InvokeRuntime(
-      GetThreadOffset<kArm64WordSize>(instruction->GetEntrypoint()).Int32Value(),
-      instruction,
-      instruction->GetDexPc(),
-      nullptr);
+  codegen_->InvokeRuntime(instruction->GetEntrypoint(),
+                          instruction,
+                          instruction->GetDexPc(),
+                          nullptr);
   CheckEntrypointTypes<kQuickAllocObjectWithAccessCheck, void*, uint32_t, ArtMethod*>();
 }
 
