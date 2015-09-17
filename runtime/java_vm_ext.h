@@ -138,6 +138,12 @@ class JavaVMExt : public JavaVM {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(weak_globals_lock_);
 
+  // Like DecodeWeakGlobal() but to be used only during a runtime shutdown where self may be
+  // null.
+  mirror::Object* DecodeWeakGlobalDuringShutdown(Thread* self, IndirectRef ref)
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!weak_globals_lock_);
+
   Mutex& WeakGlobalsLock() RETURN_CAPABILITY(weak_globals_lock_) {
     return weak_globals_lock_;
   }
