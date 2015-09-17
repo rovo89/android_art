@@ -1243,7 +1243,7 @@ class HUseIterator : public ValueObject {
 // instructions they use and pointers to the corresponding HUseListNodes kept
 // by the used instructions.
 template <typename T>
-class HUserRecord {
+class HUserRecord : public ValueObject {
  public:
   HUserRecord() : instruction_(nullptr), use_node_(nullptr) {}
   explicit HUserRecord(HInstruction* instruction) : instruction_(instruction), use_node_(nullptr) {}
