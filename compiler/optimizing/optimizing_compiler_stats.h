@@ -34,7 +34,6 @@ enum MethodCompilationStat {
   kInstructionSimplifications,
   kInstructionSimplificationsArch,
   kUnresolvedMethod,
-  kUnresolvedField,
   kNotCompiledBranchOutsideMethodCode,
   kNotCompiledCannotBuildSSA,
   kNotCompiledCantAccesType,
@@ -46,6 +45,7 @@ enum MethodCompilationStat {
   kNotCompiledPathological,
   kNotCompiledSpaceFilter,
   kNotCompiledUnhandledInstruction,
+  kNotCompiledUnresolvedField,
   kNotCompiledUnsupportedIsa,
   kNotCompiledVerifyAtRuntime,
   kNotOptimizedDisabled,
@@ -104,7 +104,6 @@ class OptimizingCompilerStats {
       case kInstructionSimplifications: return "kInstructionSimplifications";
       case kInstructionSimplificationsArch: return "kInstructionSimplificationsArch";
       case kUnresolvedMethod : return "kUnresolvedMethod";
-      case kUnresolvedField : return "kUnresolvedField";
       case kNotCompiledBranchOutsideMethodCode: return "kNotCompiledBranchOutsideMethodCode";
       case kNotCompiledCannotBuildSSA : return "kNotCompiledCannotBuildSSA";
       case kNotCompiledCantAccesType : return "kNotCompiledCantAccesType";
@@ -116,6 +115,7 @@ class OptimizingCompilerStats {
       case kNotCompiledPathological : return "kNotCompiledPathological";
       case kNotCompiledSpaceFilter : return "kNotCompiledSpaceFilter";
       case kNotCompiledUnhandledInstruction : return "kNotCompiledUnhandledInstruction";
+      case kNotCompiledUnresolvedField : return "kNotCompiledUnresolvedField";
       case kNotCompiledUnsupportedIsa : return "kNotCompiledUnsupportedIsa";
       case kNotCompiledVerifyAtRuntime : return "kNotCompiledVerifyAtRuntime";
       case kNotOptimizedDisabled : return "kNotOptimizedDisabled";
