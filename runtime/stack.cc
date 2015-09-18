@@ -220,10 +220,37 @@ bool StackVisitor::IsReferenceVReg(ArtMethod* m, uint16_t vreg) {
   return vreg < num_regs && TestBitmap(vreg, reg_bitmap);
 }
 
+bool StackVisitor::GetVRegFromDebuggerShadowFrame(uint16_t vreg,
+                                                  VRegKind kind,
+                                                  uint32_t* val) const {
+  size_t frame_id = const_cast<StackVisitor*>(this)->GetFrameId();
+  ShadowFrame* shadow_frame = thread_->FindDebuggerShadowFrame(frame_id);
+  if (shadow_frame != nullptr) {
+    bool* updated_vreg_flags = thread_->GetUpdatedVRegFlags(frame_id);
+    DCHECK(updated_vreg_flags != nullptr);
+    if (updated_vreg_flags[vreg]) {
+      // Value is set by the debugger.
+      if (kind == kReferenceVReg) {
+        *val = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(
+            shadow_frame->GetVRegReference(vreg)));
+      } else {
+        *val = shadow_frame->GetVReg(vreg);
+      }
+      return true;
+    }
+  }
+  // No value is set by the debugger.
+  return false;
+}
+
 bool StackVisitor::GetVReg(ArtMethod* m, uint16_t vreg, VRegKind kind, uint32_t* val) const {
   if (cur_quick_frame_ != nullptr) {
     DCHECK(context_ != nullptr);  // You can't reliably read registers without a context.
     DCHECK(m == GetMethod());
+    // Check if there is value set by the debugger.
+    if (GetVRegFromDebuggerShadowFrame(vreg, kind, val)) {
+      return true;
+    }
     if (m->IsOptimized(sizeof(void*))) {
       return GetVRegFromOptimizedCode(m, vreg, kind, val);
     } else {
@@ -267,7 +294,6 @@ bool StackVisitor::GetVRegFromOptimizedCode(ArtMethod* m, uint16_t vreg, VRegKin
                                                     // its instructions?
   uint16_t number_of_dex_registers = code_item->registers_size_;
   DCHECK_LT(vreg, code_item->registers_size_);
-
   ArtMethod* outer_method = *GetCurrentQuickFrame();
   const void* code_pointer = outer_method->GetQuickOatCodePointer(sizeof(void*));
   DCHECK(code_pointer != nullptr);
@@ -348,6 +374,20 @@ bool StackVisitor::GetRegisterIfAccessible(uint32_t reg, VRegKind kind, uint32_t
   return true;
 }
 
+bool StackVisitor::GetVRegPairFromDebuggerShadowFrame(uint16_t vreg,
+                                                      VRegKind kind_lo,
+                                                      VRegKind kind_hi,
+                                                      uint64_t* val) const {
+  uint32_t low_32bits;
+  uint32_t high_32bits;
+  bool success = GetVRegFromDebuggerShadowFrame(vreg, kind_lo, &low_32bits);
+  success &= GetVRegFromDebuggerShadowFrame(vreg + 1, kind_hi, &high_32bits);
+  if (success) {
+    *val = (static_cast<uint64_t>(high_32bits) << 32) | static_cast<uint64_t>(low_32bits);
+  }
+  return success;
+}
+
 bool StackVisitor::GetVRegPair(ArtMethod* m, uint16_t vreg, VRegKind kind_lo,
                                VRegKind kind_hi, uint64_t* val) const {
   if (kind_lo == kLongLoVReg) {
@@ -357,6 +397,10 @@ bool StackVisitor::GetVRegPair(ArtMethod* m, uint16_t vreg, VRegKind kind_lo,
   } else {
     LOG(FATAL) << "Expected long or double: kind_lo=" << kind_lo << ", kind_hi=" << kind_hi;
     UNREACHABLE();
+  }
+  // Check if there is value set by the debugger.
+  if (GetVRegPairFromDebuggerShadowFrame(vreg, kind_lo, kind_hi, val)) {
+    return true;
   }
   if (cur_quick_frame_ != nullptr) {
     DCHECK(context_ != nullptr);  // You can't reliably read registers without a context.
@@ -435,17 +479,17 @@ bool StackVisitor::GetRegisterPairIfAccessible(uint32_t reg_lo, uint32_t reg_hi,
 bool StackVisitor::SetVReg(ArtMethod* m, uint16_t vreg, uint32_t new_value,
                            VRegKind kind) {
   if (cur_quick_frame_ != nullptr) {
-      DCHECK(context_ != nullptr);  // You can't reliably write registers without a context.
-      DCHECK(m == GetMethod());
-      if (m->IsOptimized(sizeof(void*))) {
-        return false;
-      } else {
-        return SetVRegFromQuickCode(m, vreg, new_value, kind);
-      }
+    DCHECK(context_ != nullptr);  // You can't reliably write registers without a context.
+    DCHECK(m == GetMethod());
+    if (m->IsOptimized(sizeof(void*))) {
+      return false;
     } else {
-      cur_shadow_frame_->SetVReg(vreg, new_value);
-      return true;
+      return SetVRegFromQuickCode(m, vreg, new_value, kind);
     }
+  } else {
+    cur_shadow_frame_->SetVReg(vreg, new_value);
+    return true;
+  }
 }
 
 bool StackVisitor::SetVRegFromQuickCode(ArtMethod* m, uint16_t vreg, uint32_t new_value,
@@ -473,6 +517,34 @@ bool StackVisitor::SetVRegFromQuickCode(ArtMethod* m, uint16_t vreg, uint32_t ne
     *addr = new_value;
     return true;
   }
+}
+
+bool StackVisitor::SetVRegFromDebugger(ArtMethod* m,
+                                       uint16_t vreg,
+                                       uint32_t new_value,
+                                       VRegKind kind) {
+  const DexFile::CodeItem* code_item = m->GetCodeItem();
+  if (code_item == nullptr) {
+    return false;
+  }
+  ShadowFrame* shadow_frame = GetCurrentShadowFrame();
+  if (shadow_frame == nullptr) {
+    // This is a compiled frame: we must prepare and update a shadow frame that will
+    // be executed by the interpreter after deoptimization of the stack.
+    const size_t frame_id = GetFrameId();
+    const uint16_t num_regs = code_item->registers_size_;
+    shadow_frame = thread_->FindOrCreateDebuggerShadowFrame(frame_id, num_regs, m, GetDexPc());
+    CHECK(shadow_frame != nullptr);
+    // Remember the vreg has been set for debugging and must not be overwritten by the
+    // original value during deoptimization of the stack.
+    thread_->GetUpdatedVRegFlags(frame_id)[vreg] = true;
+  }
+  if (kind == kReferenceVReg) {
+    shadow_frame->SetVRegReference(vreg, reinterpret_cast<mirror::Object*>(new_value));
+  } else {
+    shadow_frame->SetVReg(vreg, new_value);
+  }
+  return true;
 }
 
 bool StackVisitor::SetRegisterIfAccessible(uint32_t reg, uint32_t new_value, VRegKind kind) {
@@ -555,6 +627,39 @@ bool StackVisitor::SetVRegPairFromQuickCode(
     *reinterpret_cast<uint64_t*>(addr) = new_value;
     return true;
   }
+}
+
+bool StackVisitor::SetVRegPairFromDebugger(ArtMethod* m,
+                                           uint16_t vreg,
+                                           uint64_t new_value,
+                                           VRegKind kind_lo,
+                                           VRegKind kind_hi) {
+  if (kind_lo == kLongLoVReg) {
+    DCHECK_EQ(kind_hi, kLongHiVReg);
+  } else if (kind_lo == kDoubleLoVReg) {
+    DCHECK_EQ(kind_hi, kDoubleHiVReg);
+  } else {
+    LOG(FATAL) << "Expected long or double: kind_lo=" << kind_lo << ", kind_hi=" << kind_hi;
+    UNREACHABLE();
+  }
+  const DexFile::CodeItem* code_item = m->GetCodeItem();
+  if (code_item == nullptr) {
+    return false;
+  }
+  ShadowFrame* shadow_frame = GetCurrentShadowFrame();
+  if (shadow_frame == nullptr) {
+    // This is a compiled frame: we must prepare for deoptimization (see SetVRegFromDebugger).
+    const size_t frame_id = GetFrameId();
+    const uint16_t num_regs = code_item->registers_size_;
+    shadow_frame = thread_->FindOrCreateDebuggerShadowFrame(frame_id, num_regs, m, GetDexPc());
+    CHECK(shadow_frame != nullptr);
+    // Remember the vreg pair has been set for debugging and must not be overwritten by the
+    // original value during deoptimization of the stack.
+    thread_->GetUpdatedVRegFlags(frame_id)[vreg] = true;
+    thread_->GetUpdatedVRegFlags(frame_id)[vreg + 1] = true;
+  }
+  shadow_frame->SetVRegLong(vreg, new_value);
+  return true;
 }
 
 bool StackVisitor::SetRegisterPairIfAccessible(uint32_t reg_lo, uint32_t reg_hi,

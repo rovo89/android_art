@@ -100,6 +100,15 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
             method->ToNativeQuickPc(found_dex_pc, /* is_catch_handler */ true));
         exception_handler_->SetHandlerQuickFrame(GetCurrentQuickFrame());
         return false;  // End stack walk.
+      } else if (UNLIKELY(GetThread()->HasDebuggerShadowFrames())) {
+        // We are going to unwind this frame. Did we prepare a shadow frame for debugging?
+        size_t frame_id = GetFrameId();
+        ShadowFrame* frame = GetThread()->FindDebuggerShadowFrame(frame_id);
+        if (frame != nullptr) {
+          // We will not execute this shadow frame so we can safely deallocate it.
+          GetThread()->RemoveDebuggerShadowFrameMapping(frame_id);
+          ShadowFrame::DeleteDeoptimizedFrame(frame);
+        }
       }
     }
     return true;  // Continue stack walk.
@@ -310,7 +319,17 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
                                       true, true);
     bool verifier_success = verifier.Verify();
     CHECK(verifier_success) << PrettyMethod(m);
-    ShadowFrame* new_frame = ShadowFrame::CreateDeoptimizedFrame(num_regs, nullptr, m, dex_pc);
+    // Check if a shadow frame already exists for debugger's set-local-value purpose.
+    const size_t frame_id = GetFrameId();
+    ShadowFrame* new_frame = GetThread()->FindDebuggerShadowFrame(frame_id);
+    const bool* updated_vregs;
+    if (new_frame == nullptr) {
+      new_frame = ShadowFrame::CreateDeoptimizedFrame(num_regs, nullptr, m, dex_pc);
+      updated_vregs = nullptr;
+    } else {
+      updated_vregs = GetThread()->GetUpdatedVRegFlags(frame_id);
+      DCHECK(updated_vregs != nullptr);
+    }
     {
       ScopedStackedShadowFramePusher pusher(GetThread(), new_frame,
                                             StackedShadowFrameType::kShadowFrameUnderConstruction);
@@ -322,6 +341,10 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
       static constexpr uint32_t kDeadValue = 0xEBADDE09;
       static constexpr uint64_t kLongDeadValue = 0xEBADDE09EBADDE09;
       for (uint16_t reg = 0; reg < num_regs; ++reg) {
+        if (updated_vregs != nullptr && updated_vregs[reg]) {
+          // Keep the value set by debugger.
+          continue;
+        }
         VRegKind kind = GetVRegKind(reg, kinds);
         switch (kind) {
           case kUndefined:
@@ -412,6 +435,12 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
             break;
         }
       }
+    }
+    if (updated_vregs != nullptr) {
+      // Calling Thread::RemoveDebuggerShadowFrameMapping will also delete the updated_vregs
+      // array so this must come after we processed the frame.
+      GetThread()->RemoveDebuggerShadowFrameMapping(frame_id);
+      DCHECK(GetThread()->FindDebuggerShadowFrame(frame_id) == nullptr);
     }
     if (prev_shadow_frame_ != nullptr) {
       prev_shadow_frame_->SetLink(new_frame);

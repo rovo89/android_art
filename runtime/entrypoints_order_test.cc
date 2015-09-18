@@ -106,7 +106,9 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
                         sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, stacked_shadow_frame_record,
                         deoptimization_context_stack, sizeof(void*));
-    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, deoptimization_context_stack, name, sizeof(void*));
+    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, deoptimization_context_stack,
+                        frame_id_to_shadow_frame, sizeof(void*));
+    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, frame_id_to_shadow_frame, name, sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, name, pthread_self, sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, pthread_self, last_no_thread_suspension_cause,
                         sizeof(void*));
