@@ -1232,6 +1232,74 @@ void IntrinsicCodeGeneratorX86_64::VisitStringNewStringFromString(HInvoke* invok
   __ Bind(slow_path->GetExitLabel());
 }
 
+void IntrinsicLocationsBuilderX86_64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
+  // public void getChars(int srcBegin, int srcEnd, char[] dst, int dstBegin);
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kNoCall,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
+  locations->SetInAt(2, Location::RequiresRegister());
+  locations->SetInAt(3, Location::RequiresRegister());
+  locations->SetInAt(4, Location::RequiresRegister());
+
+  // And we need some temporaries.  We will use REP MOVSW, so we need fixed registers.
+  locations->AddTemp(Location::RegisterLocation(RSI));
+  locations->AddTemp(Location::RegisterLocation(RDI));
+  locations->AddTemp(Location::RegisterLocation(RCX));
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
+  X86_64Assembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  size_t char_component_size = Primitive::ComponentSize(Primitive::kPrimChar);
+  // Location of data in char array buffer.
+  const uint32_t data_offset = mirror::Array::DataOffset(char_component_size).Uint32Value();
+  // Location of char array data in string.
+  const uint32_t value_offset = mirror::String::ValueOffset().Uint32Value();
+
+  // public void getChars(int srcBegin, int srcEnd, char[] dst, int dstBegin);
+  CpuRegister obj = locations->InAt(0).AsRegister<CpuRegister>();
+  Location srcBegin = locations->InAt(1);
+  int srcBegin_value =
+    srcBegin.IsConstant() ? srcBegin.GetConstant()->AsIntConstant()->GetValue() : 0;
+  CpuRegister srcEnd = locations->InAt(2).AsRegister<CpuRegister>();
+  CpuRegister dst = locations->InAt(3).AsRegister<CpuRegister>();
+  CpuRegister dstBegin = locations->InAt(4).AsRegister<CpuRegister>();
+
+  // Check assumption that sizeof(Char) is 2 (used in scaling below).
+  const size_t char_size = Primitive::ComponentSize(Primitive::kPrimChar);
+  DCHECK_EQ(char_size, 2u);
+
+  // Compute the address of the destination buffer.
+  __ leaq(CpuRegister(RDI), Address(dst, dstBegin, ScaleFactor::TIMES_2, data_offset));
+
+  // Compute the address of the source string.
+  if (srcBegin.IsConstant()) {
+    // Compute the address of the source string by adding the number of chars from
+    // the source beginning to the value offset of a string.
+    __ leaq(CpuRegister(RSI), Address(obj, srcBegin_value * char_size + value_offset));
+  } else {
+    __ leaq(CpuRegister(RSI), Address(obj, srcBegin.AsRegister<CpuRegister>(),
+                                      ScaleFactor::TIMES_2, value_offset));
+  }
+
+  // Compute the number of chars (words) to move.
+  __ movl(CpuRegister(RCX), srcEnd);
+  if (srcBegin.IsConstant()) {
+    if (srcBegin_value != 0) {
+      __ subl(CpuRegister(RCX), Immediate(srcBegin_value));
+    }
+  } else {
+    DCHECK(srcBegin.IsRegister());
+    __ subl(CpuRegister(RCX), srcBegin.AsRegister<CpuRegister>());
+  }
+
+  // Do the move.
+  __ rep_movsw();
+}
+
 static void GenPeek(LocationSummary* locations, Primitive::Type size, X86_64Assembler* assembler) {
   CpuRegister address = locations->InAt(0).AsRegister<CpuRegister>();
   CpuRegister out = locations->Out().AsRegister<CpuRegister>();  // == address, here for clarity.
@@ -1994,7 +2062,6 @@ void IntrinsicLocationsBuilderX86_64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UN
 void IntrinsicCodeGeneratorX86_64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) {    \
 }
 
-UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
 
 #undef UNIMPLEMENTED_INTRINSIC
