@@ -696,22 +696,20 @@ static inline bool DoCallCommon(ArtMethod* called_method,
     // new result of the StringFactory. Use the verifier to find this set of registers.
     ArtMethod* method = shadow_frame.GetMethod();
     MethodReference method_ref = method->ToMethodReference();
-    SafeMap<uint32_t, std::set<uint32_t>> string_init_map;
-    SafeMap<uint32_t, std::set<uint32_t>>* string_init_map_ptr;
+    SafeMap<uint32_t, std::set<uint32_t>>* string_init_map_ptr = nullptr;
     MethodRefToStringInitRegMap& method_to_string_init_map = Runtime::Current()->GetStringInitMap();
-    MethodRefToStringInitRegMap::iterator it;
     {
       MutexLock mu(self, *Locks::interpreter_string_init_map_lock_);
-      it = method_to_string_init_map.find(method_ref);
-    }
-    if (it == method_to_string_init_map.end()) {
-      string_init_map = std::move(verifier::MethodVerifier::FindStringInitMap(method));
-      {
-        MutexLock mu(self, *Locks::interpreter_string_init_map_lock_);
-        method_to_string_init_map.Overwrite(method_ref, string_init_map);
+      auto it = method_to_string_init_map.find(method_ref);
+      if (it != method_to_string_init_map.end()) {
+        string_init_map_ptr = &it->second;
       }
-      string_init_map_ptr = &string_init_map;
-    } else {
+    }
+    if (string_init_map_ptr == nullptr) {
+      SafeMap<uint32_t, std::set<uint32_t>> string_init_map =
+          verifier::MethodVerifier::FindStringInitMap(method);
+      MutexLock mu(self, *Locks::interpreter_string_init_map_lock_);
+      auto it = method_to_string_init_map.Overwrite(method_ref, string_init_map);
       string_init_map_ptr = &it->second;
     }
     if (string_init_map_ptr->size() != 0) {
