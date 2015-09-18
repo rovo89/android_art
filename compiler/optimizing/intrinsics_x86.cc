@@ -1328,6 +1328,83 @@ void IntrinsicCodeGeneratorX86::VisitStringNewStringFromString(HInvoke* invoke) 
   __ Bind(slow_path->GetExitLabel());
 }
 
+void IntrinsicLocationsBuilderX86::VisitStringGetCharsNoCheck(HInvoke* invoke) {
+  // public void getChars(int srcBegin, int srcEnd, char[] dst, int dstBegin);
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kNoCall,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
+  // Place srcEnd in ECX to save a move below.
+  locations->SetInAt(2, Location::RegisterLocation(ECX));
+  locations->SetInAt(3, Location::RequiresRegister());
+  locations->SetInAt(4, Location::RequiresRegister());
+
+  // And we need some temporaries.  We will use REP MOVSW, so we need fixed registers.
+  // We don't have enough registers to also grab ECX, so handle below.
+  locations->AddTemp(Location::RegisterLocation(ESI));
+  locations->AddTemp(Location::RegisterLocation(EDI));
+}
+
+void IntrinsicCodeGeneratorX86::VisitStringGetCharsNoCheck(HInvoke* invoke) {
+  X86Assembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  size_t char_component_size = Primitive::ComponentSize(Primitive::kPrimChar);
+  // Location of data in char array buffer.
+  const uint32_t data_offset = mirror::Array::DataOffset(char_component_size).Uint32Value();
+  // Location of char array data in string.
+  const uint32_t value_offset = mirror::String::ValueOffset().Uint32Value();
+
+  // public void getChars(int srcBegin, int srcEnd, char[] dst, int dstBegin);
+  Register obj = locations->InAt(0).AsRegister<Register>();
+  Location srcBegin = locations->InAt(1);
+  int srcBegin_value =
+    srcBegin.IsConstant() ? srcBegin.GetConstant()->AsIntConstant()->GetValue() : 0;
+  Register srcEnd = locations->InAt(2).AsRegister<Register>();
+  Register dst = locations->InAt(3).AsRegister<Register>();
+  Register dstBegin = locations->InAt(4).AsRegister<Register>();
+
+  // Check assumption that sizeof(Char) is 2 (used in scaling below).
+  const size_t char_size = Primitive::ComponentSize(Primitive::kPrimChar);
+  DCHECK_EQ(char_size, 2u);
+
+  // Compute the address of the destination buffer.
+  __ leal(EDI, Address(dst, dstBegin, ScaleFactor::TIMES_2, data_offset));
+
+  // Compute the address of the source string.
+  if (srcBegin.IsConstant()) {
+    // Compute the address of the source string by adding the number of chars from
+    // the source beginning to the value offset of a string.
+    __ leal(ESI, Address(obj, srcBegin_value * char_size + value_offset));
+  } else {
+    __ leal(ESI, Address(obj, srcBegin.AsRegister<Register>(),
+                         ScaleFactor::TIMES_2, value_offset));
+  }
+
+  // Compute the number of chars (words) to move.
+  // Now is the time to save ECX, since we don't know if it will be used later.
+  __ pushl(ECX);
+  int stack_adjust = kX86WordSize;
+  __ cfi().AdjustCFAOffset(stack_adjust);
+  DCHECK_EQ(srcEnd, ECX);
+  if (srcBegin.IsConstant()) {
+    if (srcBegin_value != 0) {
+      __ subl(ECX, Immediate(srcBegin_value));
+    }
+  } else {
+    DCHECK(srcBegin.IsRegister());
+    __ subl(ECX, srcBegin.AsRegister<Register>());
+  }
+
+  // Do the move.
+  __ rep_movsw();
+
+  // And restore ECX.
+  __ popl(ECX);
+  __ cfi().AdjustCFAOffset(-stack_adjust);
+}
+
 static void GenPeek(LocationSummary* locations, Primitive::Type size, X86Assembler* assembler) {
   Register address = locations->InAt(0).AsRegisterPairLow<Register>();
   Location out_loc = locations->Out();
@@ -2170,7 +2247,6 @@ void IntrinsicCodeGeneratorX86::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) 
 }
 
 UNIMPLEMENTED_INTRINSIC(MathRoundDouble)
-UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
 UNIMPLEMENTED_INTRINSIC(LongRotateRight)
 UNIMPLEMENTED_INTRINSIC(LongRotateLeft)
