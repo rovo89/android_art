@@ -79,6 +79,7 @@ class Context;
 struct DebugInvokeReq;
 class DeoptimizationContextRecord;
 class DexFile;
+class FrameIdToShadowFrame;
 class JavaVMExt;
 struct JNIEnvExt;
 class Monitor;
@@ -516,6 +517,10 @@ class Thread {
       jobjectArray output_array = nullptr, int* stack_depth = nullptr)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  bool HasDebuggerShadowFrames() const {
+    return tlsPtr_.frame_id_to_shadow_frame != nullptr;
+  }
+
   void VisitRoots(RootVisitor* visitor) SHARED_REQUIRES(Locks::mutator_lock_);
 
   ALWAYS_INLINE void VerifyStack() SHARED_REQUIRES(Locks::mutator_lock_);
@@ -839,6 +844,25 @@ class Thread {
       SHARED_REQUIRES(Locks::mutator_lock_);
   void PushStackedShadowFrame(ShadowFrame* sf, StackedShadowFrameType type);
   ShadowFrame* PopStackedShadowFrame(StackedShadowFrameType type);
+
+  // For debugger, find the shadow frame that corresponds to a frame id.
+  // Or return null if there is none.
+  ShadowFrame* FindDebuggerShadowFrame(size_t frame_id)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  // For debugger, find the bool array that keeps track of the updated vreg set
+  // for a frame id.
+  bool* GetUpdatedVRegFlags(size_t frame_id) SHARED_REQUIRES(Locks::mutator_lock_);
+  // For debugger, find the shadow frame that corresponds to a frame id. If
+  // one doesn't exist yet, create one and track it in frame_id_to_shadow_frame.
+  ShadowFrame* FindOrCreateDebuggerShadowFrame(size_t frame_id,
+                                               uint32_t num_vregs,
+                                               ArtMethod* method,
+                                               uint32_t dex_pc)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Delete the entry that maps from frame_id to shadow_frame.
+  void RemoveDebuggerShadowFrameMapping(size_t frame_id)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   std::deque<instrumentation::InstrumentationStackFrame>* GetInstrumentationStack() {
     return tlsPtr_.instrumentation_stack;
@@ -1184,7 +1208,7 @@ class Thread {
       top_handle_scope(nullptr), class_loader_override(nullptr), long_jump_context(nullptr),
       instrumentation_stack(nullptr), debug_invoke_req(nullptr), single_step_control(nullptr),
       stacked_shadow_frame_record(nullptr), deoptimization_context_stack(nullptr),
-      name(nullptr), pthread_self(0),
+      frame_id_to_shadow_frame(nullptr), name(nullptr), pthread_self(0),
       last_no_thread_suspension_cause(nullptr), thread_local_start(nullptr),
       thread_local_pos(nullptr), thread_local_end(nullptr), thread_local_objects(0),
       thread_local_alloc_stack_top(nullptr), thread_local_alloc_stack_end(nullptr),
@@ -1269,6 +1293,11 @@ class Thread {
 
     // Deoptimization return value record stack.
     DeoptimizationContextRecord* deoptimization_context_stack;
+
+    // For debugger, a linked list that keeps the mapping from frame_id to shadow frame.
+    // Shadow frames may be created before deoptimization happens so that the debugger can
+    // set local values there first.
+    FrameIdToShadowFrame* frame_id_to_shadow_frame;
 
     // A cached copy of the java.lang.Thread's name.
     std::string* name;

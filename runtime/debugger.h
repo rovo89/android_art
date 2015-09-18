@@ -31,6 +31,7 @@
 #include "jdwp/jdwp.h"
 #include "jni.h"
 #include "jvalue.h"
+#include "thread.h"
 #include "thread_state.h"
 
 namespace art {
@@ -570,7 +571,7 @@ class Dbg {
   // execution with interpreter for debugging.
   static bool IsForcedInterpreterNeededForUpcall(Thread* thread, ArtMethod* m)
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    if (!IsDebuggerActive()) {
+    if (!IsDebuggerActive() && !thread->HasDebuggerShadowFrames()) {
       return false;
     }
     return IsForcedInterpreterNeededForUpcallImpl(thread, m);
@@ -583,7 +584,7 @@ class Dbg {
   // the deoptimized frames.
   static bool IsForcedInterpreterNeededForException(Thread* thread)
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    if (!IsDebuggerActive()) {
+    if (!IsDebuggerActive() && !thread->HasDebuggerShadowFrames()) {
       return false;
     }
     return IsForcedInterpreterNeededForExceptionImpl(thread);
@@ -716,8 +717,8 @@ class Dbg {
                                        ScopedObjectAccessUnchecked& soa, int slot,
                                        JDWP::JdwpTag tag, uint8_t* buf, size_t width)
       REQUIRES(!Locks::thread_list_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
-  static JDWP::JdwpError SetLocalValue(StackVisitor& visitor, int slot, JDWP::JdwpTag tag,
-                                       uint64_t value, size_t width)
+  static JDWP::JdwpError SetLocalValue(Thread* thread, StackVisitor& visitor, int slot,
+                                       JDWP::JdwpTag tag, uint64_t value, size_t width)
       REQUIRES(!Locks::thread_list_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
 
   static void DdmBroadcast(bool connect) SHARED_REQUIRES(Locks::mutator_lock_);
