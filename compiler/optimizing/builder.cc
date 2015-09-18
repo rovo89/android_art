@@ -1614,25 +1614,48 @@ void HGraphBuilder::BuildFillWideArrayData(HInstruction* object,
   }
 }
 
+static TypeCheckKind ComputeTypeCheckKind(Handle<mirror::Class> cls)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  if (cls->IsInterface()) {
+    return TypeCheckKind::kInterfaceCheck;
+  } else if (cls->IsArrayClass()) {
+    if (cls->GetComponentType()->IsObjectClass()) {
+      return TypeCheckKind::kArrayObjectCheck;
+    } else if (cls->CannotBeAssignedFromOtherTypes()) {
+      return TypeCheckKind::kExactCheck;
+    } else {
+      return TypeCheckKind::kArrayCheck;
+    }
+  } else if (cls->IsFinal()) {
+    return TypeCheckKind::kExactCheck;
+  } else if (cls->IsAbstract()) {
+    return TypeCheckKind::kAbstractClassCheck;
+  } else {
+    return TypeCheckKind::kClassHierarchyCheck;
+  }
+}
+
 bool HGraphBuilder::BuildTypeCheck(const Instruction& instruction,
                                    uint8_t destination,
                                    uint8_t reference,
                                    uint16_t type_index,
                                    uint32_t dex_pc) {
-  bool type_known_final;
-  bool type_known_abstract;
-  // `CanAccessTypeWithoutChecks` will tell whether the method being
-  // built is trying to access its own class, so that the generated
-  // code can optimize for this case. However, the optimization does not
-  // work for inlining, so we use `IsOutermostCompilingClass` instead.
-  bool dont_use_is_referrers_class;
-  bool can_access = compiler_driver_->CanAccessTypeWithoutChecks(
-      dex_compilation_unit_->GetDexMethodIndex(), *dex_file_, type_index,
-      &type_known_final, &type_known_abstract, &dont_use_is_referrers_class);
-  if (!can_access) {
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScope<2> hs(soa.Self());
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(
+      dex_compilation_unit_->GetClassLinker()->FindDexCache(
+          soa.Self(), *dex_compilation_unit_->GetDexFile())));
+  Handle<mirror::Class> resolved_class(hs.NewHandle(dex_cache->GetResolvedType(type_index)));
+
+  if ((resolved_class.Get() == nullptr) ||
+       // TODO: Remove this check once the compiler actually knows which
+       // ArtMethod it is compiling.
+      (GetCompilingClass() == nullptr) ||
+      !GetCompilingClass()->CanAccess(resolved_class.Get())) {
     MaybeRecordStat(MethodCompilationStat::kNotCompiledCantAccesType);
     return false;
   }
+
   HInstruction* object = LoadLocal(reference, Primitive::kPrimNot, dex_pc);
   HLoadClass* cls = new (arena_) HLoadClass(
       graph_->GetCurrentMethod(),
@@ -1641,17 +1664,18 @@ bool HGraphBuilder::BuildTypeCheck(const Instruction& instruction,
       IsOutermostCompilingClass(type_index),
       dex_pc);
   current_block_->AddInstruction(cls);
+
   // The class needs a temporary before being used by the type check.
   Temporaries temps(graph_);
   temps.Add(cls);
+
+  TypeCheckKind check_kind = ComputeTypeCheckKind(resolved_class);
   if (instruction.Opcode() == Instruction::INSTANCE_OF) {
-    current_block_->AddInstruction(
-        new (arena_) HInstanceOf(object, cls, type_known_final, dex_pc));
+    current_block_->AddInstruction(new (arena_) HInstanceOf(object, cls, check_kind, dex_pc));
     UpdateLocal(destination, current_block_->GetLastInstruction(), dex_pc);
   } else {
     DCHECK_EQ(instruction.Opcode(), Instruction::CHECK_CAST);
-    current_block_->AddInstruction(
-        new (arena_) HCheckCast(object, cls, type_known_final, dex_pc));
+    current_block_->AddInstruction(new (arena_) HCheckCast(object, cls, check_kind, dex_pc));
   }
   return true;
 }
