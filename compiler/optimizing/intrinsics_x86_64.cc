@@ -620,7 +620,6 @@ void IntrinsicCodeGeneratorX86_64::VisitMathRoundFloat(HInvoke* invoke) {
   codegen_->Load64BitValue(out, kPrimIntMax);
 
   // if inPlusPointFive >= maxInt goto done
-  __ movl(out, Immediate(kPrimIntMax));
   __ comiss(inPlusPointFive, codegen_->LiteralFloatAddress(static_cast<float>(kPrimIntMax)));
   __ j(kAboveEqual, &done);
 
@@ -668,7 +667,6 @@ void IntrinsicCodeGeneratorX86_64::VisitMathRoundDouble(HInvoke* invoke) {
   codegen_->Load64BitValue(out, kPrimLongMax);
 
   // if inPlusPointFive >= maxLong goto done
-  __ movq(out, Immediate(kPrimLongMax));
   __ comisd(inPlusPointFive, codegen_->LiteralDoubleAddress(static_cast<double>(kPrimLongMax)));
   __ j(kAboveEqual, &done);
 
