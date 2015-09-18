@@ -2281,7 +2281,7 @@ void InstructionCodeGeneratorMIPS64::VisitInstanceFieldSet(HInstanceFieldSet* in
 
 void LocationsBuilderMIPS64::VisitInstanceOf(HInstanceOf* instruction) {
   LocationSummary::CallKind call_kind =
-      instruction->IsClassFinal() ? LocationSummary::kNoCall : LocationSummary::kCallOnSlowPath;
+      instruction->IsExactCheck() ? LocationSummary::kNoCall : LocationSummary::kCallOnSlowPath;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
@@ -2305,7 +2305,7 @@ void InstructionCodeGeneratorMIPS64::VisitInstanceOf(HInstanceOf* instruction) {
 
   // Compare the class of `obj` with `cls`.
   __ LoadFromOffset(kLoadUnsignedWord, out, obj, mirror::Object::ClassOffset().Int32Value());
-  if (instruction->IsClassFinal()) {
+  if (instruction->IsExactCheck()) {
     // Classes must be equal for the instanceof to succeed.
     __ Xor(out, out, cls);
     __ Sltiu(out, out, 1);
