@@ -1213,8 +1213,8 @@ void X86_64Assembler::xchgl(CpuRegister reg, const Address& address) {
 
 void X86_64Assembler::cmpw(const Address& address, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOperandSizeOverride();
   EmitOptionalRex32(address);
-  EmitUint8(0x66);
   EmitComplex(7, address, imm);
 }
 
