@@ -2648,7 +2648,7 @@ JDWP::JdwpError Dbg::SetLocalValues(JDWP::Request* request) {
     uint64_t value = request->ReadValue(width);
 
     VLOG(jdwp) << "    --> slot " << slot << " " << sigByte << " " << value;
-    error = Dbg::SetLocalValue(visitor, slot, sigByte, value, width);
+    error = Dbg::SetLocalValue(thread, visitor, slot, sigByte, value, width);
     if (error != JDWP::ERR_NONE) {
       return error;
     }
@@ -2666,8 +2666,8 @@ static JDWP::JdwpError FailSetLocalValue(const StackVisitor& visitor, uint16_t v
   return kStackFrameLocalAccessError;
 }
 
-JDWP::JdwpError Dbg::SetLocalValue(StackVisitor& visitor, int slot, JDWP::JdwpTag tag,
-                                   uint64_t value, size_t width) {
+JDWP::JdwpError Dbg::SetLocalValue(Thread* thread, StackVisitor& visitor, int slot,
+                                   JDWP::JdwpTag tag, uint64_t value, size_t width) {
   ArtMethod* m = visitor.GetMethod();
   JDWP::JdwpError error = JDWP::ERR_NONE;
   uint16_t vreg = DemangleSlot(slot, m, &error);
@@ -2679,26 +2679,26 @@ JDWP::JdwpError Dbg::SetLocalValue(StackVisitor& visitor, int slot, JDWP::JdwpTa
     case JDWP::JT_BOOLEAN:
     case JDWP::JT_BYTE:
       CHECK_EQ(width, 1U);
-      if (!visitor.SetVReg(m, vreg, static_cast<uint32_t>(value), kIntVReg)) {
+      if (!visitor.SetVRegFromDebugger(m, vreg, static_cast<uint32_t>(value), kIntVReg)) {
         return FailSetLocalValue(visitor, vreg, tag, static_cast<uint32_t>(value));
       }
       break;
     case JDWP::JT_SHORT:
     case JDWP::JT_CHAR:
       CHECK_EQ(width, 2U);
-      if (!visitor.SetVReg(m, vreg, static_cast<uint32_t>(value), kIntVReg)) {
+      if (!visitor.SetVRegFromDebugger(m, vreg, static_cast<uint32_t>(value), kIntVReg)) {
         return FailSetLocalValue(visitor, vreg, tag, static_cast<uint32_t>(value));
       }
       break;
     case JDWP::JT_INT:
       CHECK_EQ(width, 4U);
-      if (!visitor.SetVReg(m, vreg, static_cast<uint32_t>(value), kIntVReg)) {
+      if (!visitor.SetVRegFromDebugger(m, vreg, static_cast<uint32_t>(value), kIntVReg)) {
         return FailSetLocalValue(visitor, vreg, tag, static_cast<uint32_t>(value));
       }
       break;
     case JDWP::JT_FLOAT:
       CHECK_EQ(width, 4U);
-      if (!visitor.SetVReg(m, vreg, static_cast<uint32_t>(value), kFloatVReg)) {
+      if (!visitor.SetVRegFromDebugger(m, vreg, static_cast<uint32_t>(value), kFloatVReg)) {
         return FailSetLocalValue(visitor, vreg, tag, static_cast<uint32_t>(value));
       }
       break;
@@ -2716,7 +2716,7 @@ JDWP::JdwpError Dbg::SetLocalValue(StackVisitor& visitor, int slot, JDWP::JdwpTa
         VLOG(jdwp) << tag << " object " << o << " is an invalid object";
         return JDWP::ERR_INVALID_OBJECT;
       }
-      if (!visitor.SetVReg(m, vreg, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(o)),
+      if (!visitor.SetVRegFromDebugger(m, vreg, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(o)),
                                  kReferenceVReg)) {
         return FailSetLocalValue(visitor, vreg, tag, reinterpret_cast<uintptr_t>(o));
       }
@@ -2724,14 +2724,14 @@ JDWP::JdwpError Dbg::SetLocalValue(StackVisitor& visitor, int slot, JDWP::JdwpTa
     }
     case JDWP::JT_DOUBLE: {
       CHECK_EQ(width, 8U);
-      if (!visitor.SetVRegPair(m, vreg, value, kDoubleLoVReg, kDoubleHiVReg)) {
+      if (!visitor.SetVRegPairFromDebugger(m, vreg, value, kDoubleLoVReg, kDoubleHiVReg)) {
         return FailSetLocalValue(visitor, vreg, tag, value);
       }
       break;
     }
     case JDWP::JT_LONG: {
       CHECK_EQ(width, 8U);
-      if (!visitor.SetVRegPair(m, vreg, value, kLongLoVReg, kLongHiVReg)) {
+      if (!visitor.SetVRegPairFromDebugger(m, vreg, value, kLongLoVReg, kLongHiVReg)) {
         return FailSetLocalValue(visitor, vreg, tag, value);
       }
       break;
@@ -2740,6 +2740,15 @@ JDWP::JdwpError Dbg::SetLocalValue(StackVisitor& visitor, int slot, JDWP::JdwpTa
       LOG(FATAL) << "Unknown tag " << tag;
       UNREACHABLE();
   }
+
+  // If we set the local variable in a compiled frame, we need to trigger a deoptimization of
+  // the stack so we continue execution with the interpreter using the new value(s) of the updated
+  // local variable(s). To achieve this, we install instrumentation exit stub on each method of the
+  // thread's stack. The stub will cause the deoptimization to happen.
+  if (!visitor.IsShadowFrame() && thread->HasDebuggerShadowFrames()) {
+    Runtime::Current()->GetInstrumentation()->InstrumentThreadStack(thread);
+  }
+
   return JDWP::ERR_NONE;
 }
 
@@ -3492,11 +3501,17 @@ bool Dbg::IsForcedInterpreterNeededForUpcallImpl(Thread* thread, ArtMethod* m) {
       return true;
     }
   }
+  if (thread->HasDebuggerShadowFrames()) {
+    // We need to deoptimize the stack for the exception handling flow so that
+    // we don't miss any deoptimization that should be done when there are
+    // debugger shadow frames.
+    return true;
+  }
   // We have to require stack deoptimization if the upcall is deoptimized.
   return instrumentation->IsDeoptimized(m);
 }
 
-struct NeedsDeoptimizationVisitor : public StackVisitor {
+class NeedsDeoptimizationVisitor : public StackVisitor {
  public:
   explicit NeedsDeoptimizationVisitor(Thread* self)
       SHARED_REQUIRES(Locks::mutator_lock_)
@@ -3521,6 +3536,13 @@ struct NeedsDeoptimizationVisitor : public StackVisitor {
     }
     if (Runtime::Current()->GetInstrumentation()->IsDeoptimized(method)) {
       // We found a deoptimized method in the stack.
+      needs_deoptimization_ = true;
+      return false;
+    }
+    ShadowFrame* frame = GetThread()->FindDebuggerShadowFrame(GetFrameId());
+    if (frame != nullptr) {
+      // The debugger allocated a ShadowFrame to update a variable in the stack: we need to
+      // deoptimize the stack to execute (and deallocate) this frame.
       needs_deoptimization_ = true;
       return false;
     }

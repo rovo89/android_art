@@ -507,8 +507,19 @@ class StackVisitor {
   bool SetVReg(ArtMethod* m, uint16_t vreg, uint32_t new_value, VRegKind kind)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Values will be set in debugger shadow frames. Debugger will make sure deoptimization
+  // is triggered to make the values effective.
+  bool SetVRegFromDebugger(ArtMethod* m, uint16_t vreg, uint32_t new_value, VRegKind kind)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   bool SetVRegPair(ArtMethod* m, uint16_t vreg, uint64_t new_value,
                    VRegKind kind_lo, VRegKind kind_hi)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Values will be set in debugger shadow frames. Debugger will make sure deoptimization
+  // is triggered to make the values effective.
+  bool SetVRegPairFromDebugger(ArtMethod* m, uint16_t vreg, uint64_t new_value,
+                               VRegKind kind_lo, VRegKind kind_hi)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   uintptr_t* GetGPRAddress(uint32_t reg) const;
@@ -645,6 +656,8 @@ class StackVisitor {
   uintptr_t GetFPR(uint32_t reg) const;
   void SetFPR(uint32_t reg, uintptr_t value);
 
+  bool GetVRegFromDebuggerShadowFrame(uint16_t vreg, VRegKind kind, uint32_t* val) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
   bool GetVRegFromQuickCode(ArtMethod* m, uint16_t vreg, VRegKind kind,
                             uint32_t* val) const
       SHARED_REQUIRES(Locks::mutator_lock_);
@@ -654,6 +667,9 @@ class StackVisitor {
   bool GetRegisterIfAccessible(uint32_t reg, VRegKind kind, uint32_t* val) const
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  bool GetVRegPairFromDebuggerShadowFrame(uint16_t vreg, VRegKind kind_lo, VRegKind kind_hi,
+                                          uint64_t* val) const
+      SHARED_REQUIRES(Locks::mutator_lock_);
   bool GetVRegPairFromQuickCode(ArtMethod* m, uint16_t vreg, VRegKind kind_lo,
                                 VRegKind kind_hi, uint64_t* val) const
       SHARED_REQUIRES(Locks::mutator_lock_);

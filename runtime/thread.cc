@@ -260,6 +260,125 @@ ShadowFrame* Thread::PopStackedShadowFrame(StackedShadowFrameType type) {
   return shadow_frame;
 }
 
+class FrameIdToShadowFrame {
+ public:
+  static FrameIdToShadowFrame* Create(size_t frame_id,
+                                      ShadowFrame* shadow_frame,
+                                      FrameIdToShadowFrame* next,
+                                      size_t num_vregs) {
+    // Append a bool array at the end to keep track of what vregs are updated by the debugger.
+    uint8_t* memory = new uint8_t[sizeof(FrameIdToShadowFrame) + sizeof(bool) * num_vregs];
+    return new (memory) FrameIdToShadowFrame(frame_id, shadow_frame, next);
+  }
+
+  static void Delete(FrameIdToShadowFrame* f) {
+    uint8_t* memory = reinterpret_cast<uint8_t*>(f);
+    delete[] memory;
+  }
+
+  size_t GetFrameId() const { return frame_id_; }
+  ShadowFrame* GetShadowFrame() const { return shadow_frame_; }
+  FrameIdToShadowFrame* GetNext() const { return next_; }
+  void SetNext(FrameIdToShadowFrame* next) { next_ = next; }
+  bool* GetUpdatedVRegFlags() {
+    return updated_vreg_flags_;
+  }
+
+ private:
+  FrameIdToShadowFrame(size_t frame_id,
+                       ShadowFrame* shadow_frame,
+                       FrameIdToShadowFrame* next)
+      : frame_id_(frame_id),
+        shadow_frame_(shadow_frame),
+        next_(next) {}
+
+  const size_t frame_id_;
+  ShadowFrame* const shadow_frame_;
+  FrameIdToShadowFrame* next_;
+  bool updated_vreg_flags_[0];
+
+  DISALLOW_COPY_AND_ASSIGN(FrameIdToShadowFrame);
+};
+
+static FrameIdToShadowFrame* FindFrameIdToShadowFrame(FrameIdToShadowFrame* head,
+                                                      size_t frame_id) {
+  FrameIdToShadowFrame* found = nullptr;
+  for (FrameIdToShadowFrame* record = head; record != nullptr; record = record->GetNext()) {
+    if (record->GetFrameId() == frame_id) {
+      if (kIsDebugBuild) {
+        // Sanity check we have at most one record for this frame.
+        CHECK(found == nullptr) << "Multiple records for the frame " << frame_id;
+        found = record;
+      } else {
+        return record;
+      }
+    }
+  }
+  return found;
+}
+
+ShadowFrame* Thread::FindDebuggerShadowFrame(size_t frame_id) {
+  FrameIdToShadowFrame* record = FindFrameIdToShadowFrame(
+      tlsPtr_.frame_id_to_shadow_frame, frame_id);
+  if (record != nullptr) {
+    return record->GetShadowFrame();
+  }
+  return nullptr;
+}
+
+// Must only be called when FindDebuggerShadowFrame(frame_id) returns non-nullptr.
+bool* Thread::GetUpdatedVRegFlags(size_t frame_id) {
+  FrameIdToShadowFrame* record = FindFrameIdToShadowFrame(
+      tlsPtr_.frame_id_to_shadow_frame, frame_id);
+  CHECK(record != nullptr);
+  return record->GetUpdatedVRegFlags();
+}
+
+ShadowFrame* Thread::FindOrCreateDebuggerShadowFrame(size_t frame_id,
+                                                     uint32_t num_vregs,
+                                                     ArtMethod* method,
+                                                     uint32_t dex_pc) {
+  ShadowFrame* shadow_frame = FindDebuggerShadowFrame(frame_id);
+  if (shadow_frame != nullptr) {
+    return shadow_frame;
+  }
+  VLOG(deopt) << "Create pre-deopted ShadowFrame for " << PrettyMethod(method);
+  shadow_frame = ShadowFrame::CreateDeoptimizedFrame(num_vregs, nullptr, method, dex_pc);
+  FrameIdToShadowFrame* record = FrameIdToShadowFrame::Create(frame_id,
+                                                              shadow_frame,
+                                                              tlsPtr_.frame_id_to_shadow_frame,
+                                                              num_vregs);
+  for (uint32_t i = 0; i < num_vregs; i++) {
+    // Do this to clear all references for root visitors.
+    shadow_frame->SetVRegReference(i, nullptr);
+    // This flag will be changed to true if the debugger modifies the value.
+    record->GetUpdatedVRegFlags()[i] = false;
+  }
+  tlsPtr_.frame_id_to_shadow_frame = record;
+  return shadow_frame;
+}
+
+void Thread::RemoveDebuggerShadowFrameMapping(size_t frame_id) {
+  FrameIdToShadowFrame* head = tlsPtr_.frame_id_to_shadow_frame;
+  if (head->GetFrameId() == frame_id) {
+    tlsPtr_.frame_id_to_shadow_frame = head->GetNext();
+    FrameIdToShadowFrame::Delete(head);
+    return;
+  }
+  FrameIdToShadowFrame* prev = head;
+  for (FrameIdToShadowFrame* record = head->GetNext();
+       record != nullptr;
+       prev = record, record = record->GetNext()) {
+    if (record->GetFrameId() == frame_id) {
+      prev->SetNext(record->GetNext());
+      FrameIdToShadowFrame::Delete(record);
+      return;
+    }
+  }
+  LOG(FATAL) << "No shadow frame for frame " << frame_id;
+  UNREACHABLE();
+}
+
 void Thread::InitTid() {
   tls32_.tid = ::art::GetTid();
 }
@@ -1594,6 +1713,8 @@ Thread::~Thread() {
 
   // Make sure we processed all deoptimization requests.
   CHECK(tlsPtr_.deoptimization_context_stack == nullptr) << "Missed deoptimization";
+  CHECK(tlsPtr_.frame_id_to_shadow_frame == nullptr) <<
+      "Not all deoptimized frames have been consumed by the debugger.";
 
   // We may be deleting a still born thread.
   SetStateUnsafe(kTerminated);
@@ -2661,16 +2782,23 @@ void Thread::VisitRoots(RootVisitor* visitor) {
       }
     }
   }
-  if (tlsPtr_.deoptimization_context_stack != nullptr) {
-    for (DeoptimizationContextRecord* record = tlsPtr_.deoptimization_context_stack;
-         record != nullptr;
-         record = record->GetLink()) {
-      if (record->IsReference()) {
-        visitor->VisitRootIfNonNull(record->GetReturnValueAsGCRoot(),
-                                    RootInfo(kRootThreadObject, thread_id));
-      }
-      visitor->VisitRootIfNonNull(record->GetPendingExceptionAsGCRoot(),
+  for (DeoptimizationContextRecord* record = tlsPtr_.deoptimization_context_stack;
+       record != nullptr;
+       record = record->GetLink()) {
+    if (record->IsReference()) {
+      visitor->VisitRootIfNonNull(record->GetReturnValueAsGCRoot(),
                                   RootInfo(kRootThreadObject, thread_id));
+    }
+    visitor->VisitRootIfNonNull(record->GetPendingExceptionAsGCRoot(),
+                                RootInfo(kRootThreadObject, thread_id));
+  }
+  if (tlsPtr_.frame_id_to_shadow_frame != nullptr) {
+    RootCallbackVisitor visitor_to_callback(visitor, thread_id);
+    ReferenceMapVisitor<RootCallbackVisitor> mapper(this, nullptr, visitor_to_callback);
+    for (FrameIdToShadowFrame* record = tlsPtr_.frame_id_to_shadow_frame;
+         record != nullptr;
+         record = record->GetNext()) {
+      mapper.VisitShadowFrame(record->GetShadowFrame());
     }
   }
   for (auto* verifier = tlsPtr_.method_verifier; verifier != nullptr; verifier = verifier->link_) {
