@@ -699,10 +699,17 @@ static inline bool DoCallCommon(ArtMethod* called_method,
     SafeMap<uint32_t, std::set<uint32_t>> string_init_map;
     SafeMap<uint32_t, std::set<uint32_t>>* string_init_map_ptr;
     MethodRefToStringInitRegMap& method_to_string_init_map = Runtime::Current()->GetStringInitMap();
-    auto it = method_to_string_init_map.find(method_ref);
+    MethodRefToStringInitRegMap::iterator it;
+    {
+      MutexLock mu(self, *Locks::interpreter_string_init_map_lock_);
+      it = method_to_string_init_map.find(method_ref);
+    }
     if (it == method_to_string_init_map.end()) {
       string_init_map = std::move(verifier::MethodVerifier::FindStringInitMap(method));
-      method_to_string_init_map.Overwrite(method_ref, string_init_map);
+      {
+        MutexLock mu(self, *Locks::interpreter_string_init_map_lock_);
+        method_to_string_init_map.Overwrite(method_ref, string_init_map);
+      }
       string_init_map_ptr = &string_init_map;
     } else {
       string_init_map_ptr = &it->second;
