@@ -755,8 +755,32 @@ TEST_F(AssemblerX86_64Test, Movl) {
 TEST_F(AssemblerX86_64Test, Movw) {
   GetAssembler()->movw(x86_64::Address(x86_64::CpuRegister(x86_64::RAX), 0),
                        x86_64::CpuRegister(x86_64::R9));
-  const char* expected = "movw %R9w, 0(%RAX)\n";
+  GetAssembler()->movw(x86_64::Address(x86_64::CpuRegister(x86_64::RAX), 0),
+                       x86_64::Immediate(0));
+  GetAssembler()->movw(x86_64::Address(x86_64::CpuRegister(x86_64::R9), 0),
+                       x86_64::Immediate(0));
+  GetAssembler()->movw(x86_64::Address(x86_64::CpuRegister(x86_64::R14), 0),
+                       x86_64::Immediate(0));
+  const char* expected =
+      "movw %R9w, 0(%RAX)\n"
+      "movw $0, 0(%RAX)\n"
+      "movw $0, 0(%R9)\n"
+      "movw $0, 0(%R14)\n";
   DriverStr(expected, "movw");
+}
+
+TEST_F(AssemblerX86_64Test, Cmpw) {
+  GetAssembler()->cmpw(x86_64::Address(x86_64::CpuRegister(x86_64::RAX), 0),
+                       x86_64::Immediate(0));
+  GetAssembler()->cmpw(x86_64::Address(x86_64::CpuRegister(x86_64::R9), 0),
+                       x86_64::Immediate(0));
+  GetAssembler()->cmpw(x86_64::Address(x86_64::CpuRegister(x86_64::R14), 0),
+                       x86_64::Immediate(0));
+  const char* expected =
+      "cmpw $0, 0(%RAX)\n"
+      "cmpw $0, 0(%R9)\n"
+      "cmpw $0, 0(%R14)\n";
+  DriverStr(expected, "cmpw");
 }
 
 TEST_F(AssemblerX86_64Test, MovqAddrImm) {
