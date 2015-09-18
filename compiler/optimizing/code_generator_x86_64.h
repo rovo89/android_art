@@ -234,6 +234,9 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
   DISALLOW_COPY_AND_ASSIGN(InstructionCodeGeneratorX86_64);
 };
 
+// Class for fixups to jump tables.
+class JumpTableRIPFixup;
+
 class CodeGeneratorX86_64 : public CodeGenerator {
  public:
   CodeGeneratorX86_64(HGraph* graph,
@@ -354,6 +357,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
 
   // Load a 64 bit value into a register in the most efficient manner.
   void Load64BitValue(CpuRegister dest, int64_t value);
+  Address LiteralCaseTable(HPackedSwitch* switch_instr);
 
   // Store a 64 bit value into a DoubleStackSlot in the most efficient manner.
   void Store64BitValueToStack(Location dest, int64_t value);
@@ -390,6 +394,9 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   // When we don't know the proper offset for the value, we use kDummy32BitOffset.
   // We will fix this up in the linker later to have the right value.
   static constexpr int32_t kDummy32BitOffset = 256;
+
+  // Fixups for jump tables need to be handled specially.
+  ArenaVector<JumpTableRIPFixup*> fixups_to_jump_tables_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorX86_64);
 };
