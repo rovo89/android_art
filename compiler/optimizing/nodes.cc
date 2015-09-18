@@ -606,8 +606,23 @@ static void UpdateInputsUsers(HInstruction* instruction) {
 void HBasicBlock::ReplaceAndRemoveInstructionWith(HInstruction* initial,
                                                   HInstruction* replacement) {
   DCHECK(initial->GetBlock() == this);
-  InsertInstructionBefore(replacement, initial);
-  initial->ReplaceWith(replacement);
+  if (initial->IsControlFlow()) {
+    // We can only replace a control flow instruction with another control flow instruction.
+    DCHECK(replacement->IsControlFlow());
+    DCHECK_EQ(replacement->GetId(), -1);
+    DCHECK_EQ(replacement->GetType(), Primitive::kPrimVoid);
+    DCHECK_EQ(initial->GetBlock(), this);
+    DCHECK_EQ(initial->GetType(), Primitive::kPrimVoid);
+    DCHECK(initial->GetUses().IsEmpty());
+    DCHECK(initial->GetEnvUses().IsEmpty());
+    replacement->SetBlock(this);
+    replacement->SetId(GetGraph()->GetNextInstructionId());
+    instructions_.InsertInstructionBefore(replacement, initial);
+    UpdateInputsUsers(replacement);
+  } else {
+    InsertInstructionBefore(replacement, initial);
+    initial->ReplaceWith(replacement);
+  }
   RemoveInstruction(initial);
 }
 

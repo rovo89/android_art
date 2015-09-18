@@ -166,21 +166,6 @@ class Address : public Operand {
     Init(base_in, disp.Int32Value());
   }
 
-  void Init(Register base_in, int32_t disp) {
-    if (disp == 0 && base_in != EBP) {
-      SetModRM(0, base_in);
-      if (base_in == ESP) SetSIB(TIMES_1, ESP, base_in);
-    } else if (disp >= -128 && disp <= 127) {
-      SetModRM(1, base_in);
-      if (base_in == ESP) SetSIB(TIMES_1, ESP, base_in);
-      SetDisp8(disp);
-    } else {
-      SetModRM(2, base_in);
-      if (base_in == ESP) SetSIB(TIMES_1, ESP, base_in);
-      SetDisp32(disp);
-    }
-  }
-
   Address(Register index_in, ScaleFactor scale_in, int32_t disp) {
     CHECK_NE(index_in, ESP);  // Illegal addressing mode.
     SetModRM(0, ESP);
@@ -189,19 +174,15 @@ class Address : public Operand {
   }
 
   Address(Register base_in, Register index_in, ScaleFactor scale_in, int32_t disp) {
-    CHECK_NE(index_in, ESP);  // Illegal addressing mode.
-    if (disp == 0 && base_in != EBP) {
-      SetModRM(0, ESP);
-      SetSIB(scale_in, index_in, base_in);
-    } else if (disp >= -128 && disp <= 127) {
-      SetModRM(1, ESP);
-      SetSIB(scale_in, index_in, base_in);
-      SetDisp8(disp);
-    } else {
-      SetModRM(2, ESP);
-      SetSIB(scale_in, index_in, base_in);
-      SetDisp32(disp);
-    }
+    Init(base_in, index_in, scale_in, disp);
+  }
+
+  Address(Register base_in,
+          Register index_in,
+          ScaleFactor scale_in,
+          int32_t disp, AssemblerFixup *fixup) {
+    Init(base_in, index_in, scale_in, disp);
+    SetFixup(fixup);
   }
 
   static Address Absolute(uintptr_t addr) {
@@ -217,6 +198,37 @@ class Address : public Operand {
 
  private:
   Address() {}
+
+  void Init(Register base_in, int32_t disp) {
+    if (disp == 0 && base_in != EBP) {
+      SetModRM(0, base_in);
+      if (base_in == ESP) SetSIB(TIMES_1, ESP, base_in);
+    } else if (disp >= -128 && disp <= 127) {
+      SetModRM(1, base_in);
+      if (base_in == ESP) SetSIB(TIMES_1, ESP, base_in);
+      SetDisp8(disp);
+    } else {
+      SetModRM(2, base_in);
+      if (base_in == ESP) SetSIB(TIMES_1, ESP, base_in);
+      SetDisp32(disp);
+    }
+  }
+
+  void Init(Register base_in, Register index_in, ScaleFactor scale_in, int32_t disp) {
+    CHECK_NE(index_in, ESP);  // Illegal addressing mode.
+    if (disp == 0 && base_in != EBP) {
+      SetModRM(0, ESP);
+      SetSIB(scale_in, index_in, base_in);
+    } else if (disp >= -128 && disp <= 127) {
+      SetModRM(1, ESP);
+      SetSIB(scale_in, index_in, base_in);
+      SetDisp8(disp);
+    } else {
+      SetModRM(2, ESP);
+      SetSIB(scale_in, index_in, base_in);
+      SetDisp32(disp);
+    }
+  }
 };
 
 
@@ -252,40 +264,39 @@ class ConstantArea {
 
   // Add a double to the constant area, returning the offset into
   // the constant area where the literal resides.
-  int AddDouble(double v);
+  size_t AddDouble(double v);
 
   // Add a float to the constant area, returning the offset into
   // the constant area where the literal resides.
-  int AddFloat(float v);
+  size_t AddFloat(float v);
 
   // Add an int32_t to the constant area, returning the offset into
   // the constant area where the literal resides.
-  int AddInt32(int32_t v);
+  size_t AddInt32(int32_t v);
+
+  // Add an int32_t to the end of the constant area, returning the offset into
+  // the constant area where the literal resides.
+  size_t AppendInt32(int32_t v);
 
   // Add an int64_t to the constant area, returning the offset into
   // the constant area where the literal resides.
-  int AddInt64(int64_t v);
+  size_t AddInt64(int64_t v);
 
   bool IsEmpty() const {
     return buffer_.size() == 0;
+  }
+
+  size_t GetSize() const {
+    return buffer_.size() * elem_size_;
   }
 
   const std::vector<int32_t>& GetBuffer() const {
     return buffer_;
   }
 
-  void AddFixup(AssemblerFixup* fixup) {
-    fixups_.push_back(fixup);
-  }
-
-  const std::vector<AssemblerFixup*>& GetFixups() const {
-    return fixups_;
-  }
-
  private:
-  static constexpr size_t kEntrySize = sizeof(int32_t);
+  static constexpr size_t elem_size_ = sizeof(int32_t);
   std::vector<int32_t> buffer_;
-  std::vector<AssemblerFixup*> fixups_;
 };
 
 class X86Assembler FINAL : public Assembler {
@@ -740,26 +751,36 @@ class X86Assembler FINAL : public Assembler {
 
   // Add a double to the constant area, returning the offset into
   // the constant area where the literal resides.
-  int AddDouble(double v) { return constant_area_.AddDouble(v); }
+  size_t AddDouble(double v) { return constant_area_.AddDouble(v); }
 
   // Add a float to the constant area, returning the offset into
   // the constant area where the literal resides.
-  int AddFloat(float v)   { return constant_area_.AddFloat(v); }
+  size_t AddFloat(float v)   { return constant_area_.AddFloat(v); }
 
   // Add an int32_t to the constant area, returning the offset into
   // the constant area where the literal resides.
-  int AddInt32(int32_t v) { return constant_area_.AddInt32(v); }
+  size_t AddInt32(int32_t v) {
+    return constant_area_.AddInt32(v);
+  }
+
+  // Add an int32_t to the end of the constant area, returning the offset into
+  // the constant area where the literal resides.
+  size_t AppendInt32(int32_t v) {
+    return constant_area_.AppendInt32(v);
+  }
 
   // Add an int64_t to the constant area, returning the offset into
   // the constant area where the literal resides.
-  int AddInt64(int64_t v) { return constant_area_.AddInt64(v); }
+  size_t AddInt64(int64_t v) { return constant_area_.AddInt64(v); }
 
   // Add the contents of the constant area to the assembler buffer.
   void AddConstantArea();
 
   // Is the constant area empty? Return true if there are no literals in the constant area.
   bool IsConstantAreaEmpty() const { return constant_area_.IsEmpty(); }
-  void AddConstantAreaFixup(AssemblerFixup* fixup) { constant_area_.AddFixup(fixup); }
+
+  // Return the current size of the constant area.
+  size_t ConstantAreaSize() const { return constant_area_.GetSize(); }
 
  private:
   inline void EmitUint8(uint8_t value);
