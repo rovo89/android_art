@@ -224,18 +224,20 @@ bool OatFile::Dlopen(const std::string& elf_filename, uint8_t* requested_base,
   UNUSED(error_msg);
   return false;
 #else
-  std::unique_ptr<char> absolute_path(realpath(elf_filename.c_str(), nullptr));
-  if (absolute_path == nullptr) {
-    *error_msg = StringPrintf("Failed to find absolute path for '%s'", elf_filename.c_str());
-    return false;
-  }
+  {
+    UniqueCPtr<char> absolute_path(realpath(elf_filename.c_str(), nullptr));
+    if (absolute_path == nullptr) {
+      *error_msg = StringPrintf("Failed to find absolute path for '%s'", elf_filename.c_str());
+      return false;
+    }
 #ifdef __ANDROID__
-  android_dlextinfo extinfo;
-  extinfo.flags = ANDROID_DLEXT_FORCE_LOAD | ANDROID_DLEXT_FORCE_FIXED_VADDR;
-  dlopen_handle_ = android_dlopen_ext(absolute_path.get(), RTLD_NOW, &extinfo);
+    android_dlextinfo extinfo;
+    extinfo.flags = ANDROID_DLEXT_FORCE_LOAD | ANDROID_DLEXT_FORCE_FIXED_VADDR;
+    dlopen_handle_ = android_dlopen_ext(absolute_path.get(), RTLD_NOW, &extinfo);
 #else
-  dlopen_handle_ = dlopen(absolute_path.get(), RTLD_NOW);
+    dlopen_handle_ = dlopen(absolute_path.get(), RTLD_NOW);
 #endif
+  }
   if (dlopen_handle_ == nullptr) {
     *error_msg = StringPrintf("Failed to dlopen '%s': %s", elf_filename.c_str(), dlerror());
     return false;
