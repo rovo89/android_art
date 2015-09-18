@@ -348,6 +348,10 @@ class MANAGED Class FINAL : public Object {
     return (access_flags & kAccClassIsProxy) != 0;
   }
 
+  static MemberOffset PrimitiveTypeOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Class, primitive_type_);
+  }
+
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   Primitive::Type GetPrimitiveType() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_);
 
