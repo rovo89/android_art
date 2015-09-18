@@ -3365,5 +3365,38 @@ void InstructionCodeGeneratorMIPS64::VisitFakeString(HFakeString* instruction AT
   // Will be generated at use site.
 }
 
+// Simple implementation of packed switch - generate cascaded compare/jumps.
+void LocationsBuilderMIPS64::VisitPackedSwitch(HPackedSwitch* switch_instr) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(switch_instr, LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+}
+
+void InstructionCodeGeneratorMIPS64::VisitPackedSwitch(HPackedSwitch* switch_instr) {
+  int32_t lower_bound = switch_instr->GetStartValue();
+  int32_t num_entries = switch_instr->GetNumEntries();
+  LocationSummary* locations = switch_instr->GetLocations();
+  GpuRegister value_reg = locations->InAt(0).AsRegister<GpuRegister>();
+  HBasicBlock* default_block = switch_instr->GetDefaultBlock();
+
+  // Create a series of compare/jumps.
+  const ArenaVector<HBasicBlock*>& successors = switch_instr->GetBlock()->GetSuccessors();
+  for (int32_t i = 0; i < num_entries; i++) {
+    int32_t case_value = lower_bound + i;
+    Label* succ = codegen_->GetLabelOf(successors.at(i));
+    if (case_value == 0) {
+      __ Beqzc(value_reg, succ);
+    } else {
+      __ LoadConst32(TMP, case_value);
+      __ Beqc(value_reg, TMP, succ);
+    }
+  }
+
+  // And the default for any other value.
+  if (!codegen_->GoesToNextBlock(switch_instr->GetBlock(), default_block)) {
+    __ B(codegen_->GetLabelOf(default_block));
+  }
+}
+
 }  // namespace mips64
 }  // namespace art

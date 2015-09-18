@@ -1685,6 +1685,34 @@ bool HGraphBuilder::NeedsAccessCheck(uint32_t type_index) const {
       dex_compilation_unit_->GetDexMethodIndex(), *dex_file_, type_index);
 }
 
+void HGraphBuilder::BuildSwitchJumpTable(const SwitchTable& table,
+                                         const Instruction& instruction,
+                                         HInstruction* value,
+                                         uint32_t dex_pc) {
+  // Add the successor blocks to the current block.
+  uint16_t num_entries = table.GetNumEntries();
+  for (size_t i = 1; i <= num_entries; i++) {
+    int32_t target_offset = table.GetEntryAt(i);
+    HBasicBlock* case_target = FindBlockStartingAt(dex_pc + target_offset);
+    DCHECK(case_target != nullptr);
+
+    // Add the target block as a successor.
+    current_block_->AddSuccessor(case_target);
+  }
+
+  // Add the default target block as the last successor.
+  HBasicBlock* default_target = FindBlockStartingAt(dex_pc + instruction.SizeInCodeUnits());
+  DCHECK(default_target != nullptr);
+  current_block_->AddSuccessor(default_target);
+
+  // Now add the Switch instruction.
+  int32_t starting_key = table.GetEntryAt(0);
+  current_block_->AddInstruction(
+      new (arena_) HPackedSwitch(starting_key, num_entries, value, dex_pc));
+  // This block ends with control flow.
+  current_block_ = nullptr;
+}
+
 void HGraphBuilder::BuildPackedSwitch(const Instruction& instruction, uint32_t dex_pc) {
   // Verifier guarantees that the payload for PackedSwitch contains:
   //   (a) number of entries (may be zero)
@@ -1695,18 +1723,24 @@ void HGraphBuilder::BuildPackedSwitch(const Instruction& instruction, uint32_t d
   // Value to test against.
   HInstruction* value = LoadLocal(instruction.VRegA(), Primitive::kPrimInt, dex_pc);
 
+  // Starting key value.
+  int32_t starting_key = table.GetEntryAt(0);
+
   // Retrieve number of entries.
   uint16_t num_entries = table.GetNumEntries();
   if (num_entries == 0) {
     return;
   }
 
-  // Chained cmp-and-branch, starting from starting_key.
-  int32_t starting_key = table.GetEntryAt(0);
-
-  for (size_t i = 1; i <= num_entries; i++) {
-    BuildSwitchCaseHelper(instruction, i, i == num_entries, table, value, starting_key + i - 1,
-                          table.GetEntryAt(i), dex_pc);
+  // Don't use a packed switch if there are very few entries.
+  if (num_entries > kSmallSwitchThreshold) {
+    BuildSwitchJumpTable(table, instruction, value, dex_pc);
+  } else {
+    // Chained cmp-and-branch, starting from starting_key.
+    for (size_t i = 1; i <= num_entries; i++) {
+      BuildSwitchCaseHelper(instruction, i, i == num_entries, table, value,
+                            starting_key + i - 1, table.GetEntryAt(i), dex_pc);
+    }
   }
 }
 

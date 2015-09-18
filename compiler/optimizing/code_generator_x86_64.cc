@@ -5180,6 +5180,38 @@ void InstructionCodeGeneratorX86_64::VisitFakeString(HFakeString* instruction AT
   // Will be generated at use site.
 }
 
+// Simple implementation of packed switch - generate cascaded compare/jumps.
+void LocationsBuilderX86_64::VisitPackedSwitch(HPackedSwitch* switch_instr) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(switch_instr, LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+}
+
+void InstructionCodeGeneratorX86_64::VisitPackedSwitch(HPackedSwitch* switch_instr) {
+  int32_t lower_bound = switch_instr->GetStartValue();
+  int32_t num_entries = switch_instr->GetNumEntries();
+  LocationSummary* locations = switch_instr->GetLocations();
+  CpuRegister value_reg = locations->InAt(0).AsRegister<CpuRegister>();
+  HBasicBlock* default_block = switch_instr->GetDefaultBlock();
+
+  // Create a series of compare/jumps.
+  const ArenaVector<HBasicBlock*>& successors = switch_instr->GetBlock()->GetSuccessors();
+  for (int i = 0; i < num_entries; i++) {
+    int32_t case_value = lower_bound + i;
+    if (case_value == 0) {
+      __ testl(value_reg, value_reg);
+    } else {
+      __ cmpl(value_reg, Immediate(case_value));
+    }
+    __ j(kEqual, codegen_->GetLabelOf(successors.at(i)));
+  }
+
+  // And the default for any other value.
+  if (!codegen_->GoesToNextBlock(switch_instr->GetBlock(), default_block)) {
+      __ jmp(codegen_->GetLabelOf(default_block));
+  }
+}
+
 void CodeGeneratorX86_64::Load64BitValue(CpuRegister dest, int64_t value) {
   if (value == 0) {
     __ xorl(dest, dest);

@@ -3533,6 +3533,38 @@ void InstructionCodeGeneratorARM64::VisitFakeString(HFakeString* instruction ATT
   // Will be generated at use site.
 }
 
+// Simple implementation of packed switch - generate cascaded compare/jumps.
+void LocationsBuilderARM64::VisitPackedSwitch(HPackedSwitch* switch_instr) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(switch_instr, LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+}
+
+void InstructionCodeGeneratorARM64::VisitPackedSwitch(HPackedSwitch* switch_instr) {
+  int32_t lower_bound = switch_instr->GetStartValue();
+  int32_t num_entries = switch_instr->GetNumEntries();
+  Register value_reg = InputRegisterAt(switch_instr, 0);
+  HBasicBlock* default_block = switch_instr->GetDefaultBlock();
+
+  // Create a series of compare/jumps.
+  const ArenaVector<HBasicBlock*>& successors = switch_instr->GetBlock()->GetSuccessors();
+  for (int32_t i = 0; i < num_entries; i++) {
+    int32_t case_value = lower_bound + i;
+    vixl::Label* succ = codegen_->GetLabelOf(successors.at(i));
+    if (case_value == 0) {
+      __ Cbz(value_reg, succ);
+    } else {
+      __ Cmp(value_reg, vixl::Operand(case_value));
+      __ B(eq, succ);
+    }
+  }
+
+  // And the default for any other value.
+  if (!codegen_->GoesToNextBlock(switch_instr->GetBlock(), default_block)) {
+    __ B(codegen_->GetLabelOf(default_block));
+  }
+}
+
 #undef __
 #undef QUICK_ENTRY_POINT
 
