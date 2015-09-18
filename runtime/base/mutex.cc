@@ -43,6 +43,7 @@ Mutex* Locks::deoptimization_lock_ = nullptr;
 ReaderWriterMutex* Locks::heap_bitmap_lock_ = nullptr;
 Mutex* Locks::instrument_entrypoints_lock_ = nullptr;
 Mutex* Locks::intern_table_lock_ = nullptr;
+Mutex* Locks::interpreter_string_init_map_lock_ = nullptr;
 Mutex* Locks::jni_libraries_lock_ = nullptr;
 Mutex* Locks::logging_lock_ = nullptr;
 Mutex* Locks::mem_maps_lock_ = nullptr;
@@ -991,6 +992,10 @@ void Locks::Init() {
     UPDATE_CURRENT_LOCK_LEVEL(kAllocTrackerLock);
     DCHECK(alloc_tracker_lock_ == nullptr);
     alloc_tracker_lock_ = new Mutex("AllocTracker lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kInterpreterStringInitMapLock);
+    DCHECK(interpreter_string_init_map_lock_ == nullptr);
+    interpreter_string_init_map_lock_ = new Mutex("Interpreter String initializer reference map lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kThreadListLock);
     DCHECK(thread_list_lock_ == nullptr);
