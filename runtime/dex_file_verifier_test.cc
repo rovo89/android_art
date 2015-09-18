@@ -117,7 +117,7 @@ static void FixUpChecksum(uint8_t* dex_file) {
 struct DexFileDeleter {
   void operator()(DexFile* in) {
     if (in != nullptr) {
-      delete in->Begin();
+      delete[] in->Begin();
       delete in;
     }
   }
