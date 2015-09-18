@@ -345,6 +345,33 @@ void SsaBuilder::BuildSsa() {
   }
 }
 
+ArenaVector<HInstruction*>* SsaBuilder::GetLocalsFor(HBasicBlock* block) {
+  DCHECK_LT(block->GetBlockId(), locals_for_.size());
+  ArenaVector<HInstruction*>* locals = &locals_for_[block->GetBlockId()];
+  const size_t vregs = GetGraph()->GetNumberOfVRegs();
+  if (locals->empty() && vregs != 0u) {
+    locals->resize(vregs, nullptr);
+
+    if (block->IsCatchBlock()) {
+      ArenaAllocator* arena = GetGraph()->GetArena();
+      // We record incoming inputs of catch phis at throwing instructions and
+      // must therefore eagerly create the phis. Phis for undefined vregs will
+      // be deleted when the first throwing instruction with the vreg undefined
+      // is encountered. Unused phis will be removed by dead phi analysis.
+      for (size_t i = 0; i < vregs; ++i) {
+        // No point in creating the catch phi if it is already undefined at
+        // the first throwing instruction.
+        if ((*current_locals_)[i] != nullptr) {
+          HPhi* phi = new (arena) HPhi(arena, i, 0, Primitive::kPrimVoid);
+          block->AddPhi(phi);
+          (*locals)[i] = phi;
+        }
+      }
+    }
+  }
+  return locals;
+}
+
 HInstruction* SsaBuilder::ValueOfLocal(HBasicBlock* block, size_t local) {
   ArenaVector<HInstruction*>* locals = GetLocalsFor(block);
   DCHECK_LT(local, locals->size());

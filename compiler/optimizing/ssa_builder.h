@@ -61,28 +61,9 @@ class SsaBuilder : public HGraphVisitor {
 
   void BuildSsa();
 
-  ArenaVector<HInstruction*>* GetLocalsFor(HBasicBlock* block) {
-    DCHECK_LT(block->GetBlockId(), locals_for_.size());
-    ArenaVector<HInstruction*>* locals = &locals_for_[block->GetBlockId()];
-    if (locals->empty() && GetGraph()->GetNumberOfVRegs() != 0u) {
-      const size_t vregs = GetGraph()->GetNumberOfVRegs();
-      locals->resize(vregs, nullptr);
-
-      if (block->IsCatchBlock()) {
-        // We record incoming inputs of catch phis at throwing instructions and
-        // must therefore eagerly create the phis. Unused phis will be removed
-        // in the dead phi analysis.
-        ArenaAllocator* arena = GetGraph()->GetArena();
-        for (size_t i = 0; i < vregs; ++i) {
-          HPhi* phi = new (arena) HPhi(arena, i, 0, Primitive::kPrimVoid);
-          block->AddPhi(phi);
-          (*locals)[i] = phi;
-        }
-      }
-    }
-    return locals;
-  }
-
+  // Returns locals vector for `block`. If it is a catch block, the vector will be
+  // prepopulated with catch phis for vregs which are defined in `current_locals_`.
+  ArenaVector<HInstruction*>* GetLocalsFor(HBasicBlock* block);
   HInstruction* ValueOfLocal(HBasicBlock* block, size_t local);
 
   void VisitBasicBlock(HBasicBlock* block);
