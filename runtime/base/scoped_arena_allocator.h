@@ -32,10 +32,15 @@ template <typename T>
 class ScopedArenaAllocatorAdapter;
 
 // Holds a list of Arenas for use by ScopedArenaAllocator stack.
-class ArenaStack : private DebugStackRefCounter {
+class ArenaStack : private DebugStackRefCounter, private ArenaAllocatorMemoryTool {
  public:
   explicit ArenaStack(ArenaPool* arena_pool);
   ~ArenaStack();
+
+  using ArenaAllocatorMemoryTool::IsRunningOnMemoryTool;
+  using ArenaAllocatorMemoryTool::MakeDefined;
+  using ArenaAllocatorMemoryTool::MakeUndefined;
+  using ArenaAllocatorMemoryTool::MakeInaccessible;
 
   void Reset();
 
@@ -64,8 +69,8 @@ class ArenaStack : private DebugStackRefCounter {
 
   // Private - access via ScopedArenaAllocator or ScopedArenaAllocatorAdapter.
   void* Alloc(size_t bytes, ArenaAllocKind kind) ALWAYS_INLINE {
-    if (UNLIKELY(is_running_on_memory_tool_)) {
-      return AllocValgrind(bytes, kind);
+    if (UNLIKELY(IsRunningOnMemoryTool())) {
+      return AllocWithMemoryTool(bytes, kind);
     }
     size_t rounded_bytes = RoundUp(bytes, 8);
     uint8_t* ptr = top_ptr_;
@@ -80,15 +85,13 @@ class ArenaStack : private DebugStackRefCounter {
   uint8_t* AllocateFromNextArena(size_t rounded_bytes);
   void UpdatePeakStatsAndRestore(const ArenaAllocatorStats& restore_stats);
   void UpdateBytesAllocated();
-  void* AllocValgrind(size_t bytes, ArenaAllocKind kind);
+  void* AllocWithMemoryTool(size_t bytes, ArenaAllocKind kind);
 
   StatsAndPool stats_and_pool_;
   Arena* bottom_arena_;
   Arena* top_arena_;
   uint8_t* top_ptr_;
   uint8_t* top_end_;
-
-  const bool is_running_on_memory_tool_;
 
   friend class ScopedArenaAllocator;
   template <typename T>

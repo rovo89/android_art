@@ -21,6 +21,7 @@
 #include <stddef.h>
 
 #include "base/bit_utils.h"
+#include "base/memory_tool.h"
 #include "debug_stack.h"
 #include "macros.h"
 #include "mutex.h"
@@ -135,6 +136,52 @@ class ArenaAllocatorStatsImpl {
 
 typedef ArenaAllocatorStatsImpl<kArenaAllocatorCountAllocations> ArenaAllocatorStats;
 
+template <bool kAvailable, bool kValgrind>
+class ArenaAllocatorMemoryToolCheckImpl {
+  // This is the generic template but since there is a partial specialization
+  // for kValgrind == false, this can be instantiated only for kValgrind == true.
+  static_assert(kValgrind, "This template can be instantiated only for Valgrind.");
+  static_assert(kAvailable, "Valgrind implies memory tool availability.");
+
+ public:
+  ArenaAllocatorMemoryToolCheckImpl() : is_running_on_valgrind_(RUNNING_ON_MEMORY_TOOL) { }
+  bool IsRunningOnMemoryTool() { return is_running_on_valgrind_; }
+
+ private:
+  const bool is_running_on_valgrind_;
+};
+
+template <bool kAvailable>
+class ArenaAllocatorMemoryToolCheckImpl<kAvailable, false> {
+ public:
+  ArenaAllocatorMemoryToolCheckImpl() { }
+  bool IsRunningOnMemoryTool() { return kAvailable; }
+};
+
+typedef ArenaAllocatorMemoryToolCheckImpl<kMemoryToolIsAvailable, kMemoryToolIsValgrind>
+    ArenaAllocatorMemoryToolCheck;
+
+class ArenaAllocatorMemoryTool : private ArenaAllocatorMemoryToolCheck {
+ public:
+  using ArenaAllocatorMemoryToolCheck::IsRunningOnMemoryTool;
+
+  void MakeDefined(void* ptr, size_t size) {
+    if (IsRunningOnMemoryTool()) {
+      MEMORY_TOOL_MAKE_DEFINED(ptr, size);
+    }
+  }
+  void MakeUndefined(void* ptr, size_t size) {
+    if (IsRunningOnMemoryTool()) {
+      MEMORY_TOOL_MAKE_UNDEFINED(ptr, size);
+    }
+  }
+  void MakeInaccessible(void* ptr, size_t size) {
+    if (IsRunningOnMemoryTool()) {
+      MEMORY_TOOL_MAKE_NOACCESS(ptr, size);
+    }
+  }
+};
+
 class Arena {
  public:
   static constexpr size_t kDefaultSize = 128 * KB;
@@ -219,18 +266,24 @@ class ArenaPool {
   DISALLOW_COPY_AND_ASSIGN(ArenaPool);
 };
 
-class ArenaAllocator : private DebugStackRefCounter, private ArenaAllocatorStats {
+class ArenaAllocator
+    : private DebugStackRefCounter, private ArenaAllocatorStats, private ArenaAllocatorMemoryTool {
  public:
   explicit ArenaAllocator(ArenaPool* pool);
   ~ArenaAllocator();
+
+  using ArenaAllocatorMemoryTool::IsRunningOnMemoryTool;
+  using ArenaAllocatorMemoryTool::MakeDefined;
+  using ArenaAllocatorMemoryTool::MakeUndefined;
+  using ArenaAllocatorMemoryTool::MakeInaccessible;
 
   // Get adapter for use in STL containers. See arena_containers.h .
   ArenaAllocatorAdapter<void> Adapter(ArenaAllocKind kind = kArenaAllocSTL);
 
   // Returns zeroed memory.
   void* Alloc(size_t bytes, ArenaAllocKind kind = kArenaAllocMisc) ALWAYS_INLINE {
-    if (UNLIKELY(is_running_on_memory_tool_)) {
-      return AllocValgrind(bytes, kind);
+    if (UNLIKELY(IsRunningOnMemoryTool())) {
+      return AllocWithMemoryTool(bytes, kind);
     }
     bytes = RoundUp(bytes, kAlignment);
     if (UNLIKELY(ptr_ + bytes > end_)) {
@@ -254,6 +307,7 @@ class ArenaAllocator : private DebugStackRefCounter, private ArenaAllocatorStats
     auto* end = reinterpret_cast<uint8_t*>(ptr) + ptr_size;
     // If we haven't allocated anything else, we can safely extend.
     if (end == ptr_) {
+      DCHECK(!IsRunningOnMemoryTool());  // Red zone prevents end == ptr_.
       const size_t size_delta = new_size - ptr_size;
       // Check remain space.
       const size_t remain = end_ - ptr_;
@@ -274,7 +328,7 @@ class ArenaAllocator : private DebugStackRefCounter, private ArenaAllocatorStats
     return static_cast<T*>(Alloc(length * sizeof(T), kind));
   }
 
-  void* AllocValgrind(size_t bytes, ArenaAllocKind kind);
+  void* AllocWithMemoryTool(size_t bytes, ArenaAllocKind kind);
 
   void ObtainNewArenaForAllocation(size_t allocation_size);
 
@@ -302,7 +356,6 @@ class ArenaAllocator : private DebugStackRefCounter, private ArenaAllocatorStats
   uint8_t* end_;
   uint8_t* ptr_;
   Arena* arena_head_;
-  bool is_running_on_memory_tool_;
 
   template <typename U>
   friend class ArenaAllocatorAdapter;
