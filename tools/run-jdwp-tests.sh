@@ -20,7 +20,7 @@ if [ ! -d libcore ]; then
 fi
 
 # Jar containing all the tests.
-test_jar=out/host/linux-x86/framework/apache-harmony-jdwp-tests-hostdex.jar
+test_jar=${OUT_DIR-out}/host/linux-x86/framework/apache-harmony-jdwp-tests-hostdex.jar
 
 if [ ! -f $test_jar ]; then
   echo "Before running, you must build jdwp tests and vogar:" \
@@ -48,8 +48,8 @@ while true; do
   if [[ "$1" == "--mode=host" ]]; then
     # Specify bash explicitly since the art script cannot, since it has to run on the device
     # with mksh.
-    art="bash out/host/linux-x86/bin/art"
-    art_debugee="bash out/host/linux-x86/bin/art"
+    art="bash ${OUT_DIR-out}/host/linux-x86/bin/art"
+    art_debugee="bash ${OUT_DIR-out}/host/linux-x86/bin/art"
     # We force generation of a new image to avoid build-time and run-time classpath differences.
     image="-Ximage:/system/non/existent"
     # We do not need a device directory on host.
