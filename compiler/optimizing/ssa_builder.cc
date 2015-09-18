@@ -577,12 +577,28 @@ void SsaBuilder::VisitInstruction(HInstruction* instruction) {
     const HTryBoundary& try_entry =
         instruction->GetBlock()->GetTryCatchInformation()->GetTryEntry();
     for (HExceptionHandlerIterator it(try_entry); !it.Done(); it.Advance()) {
-      ArenaVector<HInstruction*>* handler_locals = GetLocalsFor(it.Current());
+      HBasicBlock* catch_block = it.Current();
+      ArenaVector<HInstruction*>* handler_locals = GetLocalsFor(catch_block);
       DCHECK_EQ(handler_locals->size(), current_locals_->size());
-      for (size_t i = 0, e = current_locals_->size(); i < e; ++i) {
-        HInstruction* local_value = (*current_locals_)[i];
-        if (local_value != nullptr) {
-          (*handler_locals)[i]->AsPhi()->AddInput(local_value);
+      for (size_t vreg = 0, e = current_locals_->size(); vreg < e; ++vreg) {
+        HInstruction* handler_value = (*handler_locals)[vreg];
+        if (handler_value == nullptr) {
+          // Vreg was undefined at a previously encountered throwing instruction
+          // and the catch phi was deleted. Do not record the local value.
+          continue;
+        }
+        DCHECK(handler_value->IsPhi());
+
+        HInstruction* local_value = (*current_locals_)[vreg];
+        if (local_value == nullptr) {
+          // This is the first instruction throwing into `catch_block` where
+          // `vreg` is undefined. Delete the catch phi.
+          catch_block->RemovePhi(handler_value->AsPhi());
+          (*handler_locals)[vreg] = nullptr;
+        } else {
+          // Vreg has been defined at all instructions throwing into `catch_block`
+          // encountered so far. Record the local value in the catch phi.
+          handler_value->AsPhi()->AddInput(local_value);
         }
       }
     }

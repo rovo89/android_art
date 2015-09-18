@@ -624,8 +624,31 @@ void SSAChecker::VisitPhi(HPhi* phi) {
   }
 
   if (phi->IsCatchPhi()) {
-    // The number of inputs of a catch phi corresponds to the total number of
-    // throwing instructions caught by this catch block.
+    // The number of inputs of a catch phi should be the total number of throwing
+    // instructions caught by this catch block. We do not enforce this, however,
+    // because we do not remove the corresponding inputs when we prove that an
+    // instruction cannot throw. Instead, we at least test that all phis have the
+    // same, non-zero number of inputs (b/24054676).
+    size_t input_count_this = phi->InputCount();
+    if (input_count_this == 0u) {
+      AddError(StringPrintf("Phi %d in catch block %d has zero inputs.",
+                            phi->GetId(),
+                            phi->GetBlock()->GetBlockId()));
+    } else {
+      HInstruction* next_phi = phi->GetNext();
+      if (next_phi != nullptr) {
+        size_t input_count_next = next_phi->InputCount();
+        if (input_count_this != input_count_next) {
+          AddError(StringPrintf("Phi %d in catch block %d has %zu inputs, "
+                                "but phi %d has %zu inputs.",
+                                phi->GetId(),
+                                phi->GetBlock()->GetBlockId(),
+                                input_count_this,
+                                next_phi->GetId(),
+                                input_count_next));
+        }
+      }
+    }
   } else {
     // Ensure the number of inputs of a non-catch phi is the same as the number
     // of its predecessors.
