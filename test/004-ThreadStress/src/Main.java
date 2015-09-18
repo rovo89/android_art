@@ -443,13 +443,14 @@ public class Main implements Runnable {
                     int id = threadStress.id;
                     System.out.println("Starting worker for " + id);
                     while (threadStress.nextOperation < operationsPerThread) {
-                        Thread thread = new Thread(ts, "Worker thread " + id);
-                        thread.start();
                         try {
-                            thread.join();
-                        } catch (InterruptedException e) {
-                        }
-                        try {
+                            Thread thread = new Thread(ts, "Worker thread " + id);
+                            thread.start();
+                            try {
+                                thread.join();
+                            } catch (InterruptedException e) {
+                            }
+
                             System.out.println("Thread exited for " + id + " with "
                                                + (operationsPerThread - threadStress.nextOperation)
                                                + " operations remaining.");
@@ -458,7 +459,14 @@ public class Main implements Runnable {
                             // to pass.
                         }
                     }
-                    System.out.println("Finishing worker");
+                    // Keep trying to print "Finishing worker" until it succeeds.
+                    while (true) {
+                        try {
+                            System.out.println("Finishing worker");
+                            break;
+                        } catch (OutOfMemoryError e) {
+                        }
+                    }
                 }
             };
         }
