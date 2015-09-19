@@ -36,8 +36,6 @@ fi
 
 # Make sure we can run without relocation
 echo "Run without dex2oat/patchoat"
-# /bin/false is actually not even there for either, so the exec will fail.
-# Unfortunately there is no equivalent to /bin/false in android.
 ${RUN} ${flags} --runtime-option -Xnodex2oat
 
 # Make sure we can run with the oat file.
