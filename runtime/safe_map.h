@@ -104,12 +104,13 @@ class SafeMap {
   // Used to insert a new mapping or overwrite an existing mapping. Note that if the value type
   // of this container is a pointer, any overwritten pointer will be lost and if this container
   // was the owner, you have a leak.
-  void Overwrite(const K& k, const V& v) {
+  iterator Overwrite(const K& k, const V& v) {
     std::pair<iterator, bool> result = map_.insert(std::make_pair(k, v));
     if (!result.second) {
       // Already there - update the value for the existing key
       result.first->second = v;
     }
+    return result.first;
   }
 
   bool Equals(const Self& rhs) const {
