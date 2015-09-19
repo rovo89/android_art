@@ -1316,13 +1316,6 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
     // Need to make sure to not copy ArtMethods without doing read barriers since the roots are
     // marked concurrently and we don't hold the classlinker_classes_lock_ when we do the copy.
     boot_class_table_.VisitRoots(buffered_visitor);
-    // TODO: Avoid marking these to enable class unloading.
-    JavaVMExt* const vm = Runtime::Current()->GetJavaVM();
-    for (const ClassLoaderData& data : class_loaders_) {
-      mirror::Object* class_loader = vm->DecodeWeakGlobal(self, data.weak_root);
-      // Don't need to update anything since the class loaders will be updated by SweepSystemWeaks.
-      visitor->VisitRootIfNonNull(&class_loader, RootInfo(kRootVMInternal));
-    }
   } else if ((flags & kVisitRootFlagNewRoots) != 0) {
     for (auto& root : new_class_roots_) {
       mirror::Class* old_ref = root.Read<kWithoutReadBarrier>();
@@ -4266,6 +4259,11 @@ bool ClassLinker::LinkClass(Thread* self,
       ClassTable* const table = InsertClassTableForClassLoader(class_loader);
       mirror::Class* existing = table->UpdateClass(descriptor, h_new_class.Get(),
                                                    ComputeModifiedUtf8Hash(descriptor));
+      if (class_loader != nullptr) {
+        // We updated the class in the class table, perform the write barrier so that the GC knows
+        // about the change.
+        Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader);
+      }
       CHECK_EQ(existing, klass.Get());
       if (kIsDebugBuild && class_loader == nullptr && dex_cache_image_class_lookup_required_) {
         // Check a class loaded with the system class loader matches one in the image if the class
