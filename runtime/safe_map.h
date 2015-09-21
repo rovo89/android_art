@@ -92,6 +92,11 @@ class SafeMap {
     DCHECK(result.second);  // Check we didn't accidentally overwrite an existing value.
     return result.first;
   }
+  iterator Put(const K& k, const V&& v) {
+    std::pair<iterator, bool> result = map_.emplace(k, std::move(v));
+    DCHECK(result.second);  // Check we didn't accidentally overwrite an existing value.
+    return result.first;
+  }
 
   // Used to insert a new mapping at a known position for better performance.
   iterator PutBefore(iterator pos, const K& k, const V& v) {
@@ -100,10 +105,16 @@ class SafeMap {
     DCHECK(pos == map_.begin() || map_.key_comp()((--iterator(pos))->first, k));
     return map_.emplace_hint(pos, k, v);
   }
+  iterator PutBefore(iterator pos, const K& k, const V&& v) {
+    // Check that we're using the correct position and the key is not in the map.
+    DCHECK(pos == map_.end() || map_.key_comp()(k, pos->first));
+    DCHECK(pos == map_.begin() || map_.key_comp()((--iterator(pos))->first, k));
+    return map_.emplace_hint(pos, k, std::move(v));
+  }
 
   // Used to insert a new mapping or overwrite an existing mapping. Note that if the value type
   // of this container is a pointer, any overwritten pointer will be lost and if this container
-  // was the owner, you have a leak.
+  // was the owner, you have a leak. Returns iterator pointing to the new or overwritten entry.
   iterator Overwrite(const K& k, const V& v) {
     std::pair<iterator, bool> result = map_.insert(std::make_pair(k, v));
     if (!result.second) {
