@@ -283,11 +283,15 @@ void MarkSweep::MarkReachableObjects() {
 
 void MarkSweep::ReclaimPhase() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
-  Thread* self = Thread::Current();
+  Thread* const self = Thread::Current();
   // Process the references concurrently.
   ProcessReferences(self);
   SweepSystemWeaks(self);
-  Runtime::Current()->AllowNewSystemWeaks();
+  Runtime* const runtime = Runtime::Current();
+  runtime->AllowNewSystemWeaks();
+  // Clean up class loaders after system weaks are swept since that is how we know if class
+  // unloading occurred.
+  runtime->GetClassLinker()->CleanupClassLoaders();
   {
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
     GetHeap()->RecordFreeRevoke();
