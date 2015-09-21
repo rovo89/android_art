@@ -239,7 +239,7 @@ while true; do
         shift
     elif [ "x$1" = "x--jit" ]; then
         run_args="${run_args} --jit"
-        image_suffix="-interpreter"
+        image_suffix="-jit"
         shift
     elif [ "x$1" = "x--optimizing" ]; then
         run_args="${run_args} -Xcompiler-option --compiler-backend=Optimizing"
