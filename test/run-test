@@ -732,7 +732,7 @@ fi
 # To cause tests to fail fast, limit the file sizes created by dx, dex2oat and ART output to 2MB.
 build_file_size_limit=2048
 run_file_size_limit=2048
-if echo "$test_dir" | grep -Eq "(083|089|964)" > /dev/null; then
+if echo "$test_dir" | grep -Eq "(083|089|964|971)" > /dev/null; then
   build_file_size_limit=5120
   run_file_size_limit=5120
 fi

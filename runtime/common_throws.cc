@@ -84,6 +84,14 @@ void ThrowAbstractMethodError(ArtMethod* method) {
                               PrettyMethod(method).c_str()).c_str());
 }
 
+void ThrowAbstractMethodError(uint32_t method_idx, const DexFile& dex_file) {
+  ThrowException("Ljava/lang/AbstractMethodError;", /* referrer */ nullptr,
+                 StringPrintf("abstract method \"%s\"",
+                              PrettyMethod(method_idx,
+                                           dex_file,
+                                           /* with_signature */ true).c_str()).c_str());
+}
+
 // ArithmeticException
 
 void ThrowArithmeticExceptionDivideByZero() {
@@ -204,6 +212,22 @@ void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType foun
   std::ostringstream msg;
   msg << "The method '" << PrettyMethod(method) << "' was expected to be of type "
       << expected_type << " but instead was found to be of type " << found_type;
+  ThrowException("Ljava/lang/IncompatibleClassChangeError;",
+                 referrer != nullptr ? referrer->GetDeclaringClass() : nullptr,
+                 msg.str().c_str());
+}
+
+void ThrowIncompatibleClassChangeErrorClassForInterfaceSuper(ArtMethod* method,
+                                                             mirror::Class* target_class,
+                                                             mirror::Object* this_object,
+                                                             ArtMethod* referrer) {
+  // Referrer is calling interface_method on this_object, however, the interface_method isn't
+  // implemented by this_object.
+  CHECK(this_object != nullptr);
+  std::ostringstream msg;
+  msg << "Class '" << PrettyDescriptor(this_object->GetClass())
+      << "' does not implement interface '" << PrettyDescriptor(target_class) << "' in call to '"
+      << PrettyMethod(method) << "'";
   ThrowException("Ljava/lang/IncompatibleClassChangeError;",
                  referrer != nullptr ? referrer->GetDeclaringClass() : nullptr,
                  msg.str().c_str());

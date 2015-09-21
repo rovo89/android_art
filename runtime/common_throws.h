@@ -27,12 +27,16 @@ namespace mirror {
 }  // namespace mirror
 class ArtField;
 class ArtMethod;
+class DexFile;
 class Signature;
 class StringPiece;
 
 // AbstractMethodError
 
 void ThrowAbstractMethodError(ArtMethod* method)
+    SHARED_REQUIRES(Locks::mutator_lock_) COLD_ATTR;
+
+void ThrowAbstractMethodError(uint32_t method_idx, const DexFile& dex_file)
     SHARED_REQUIRES(Locks::mutator_lock_) COLD_ATTR;
 
 // ArithmeticException
@@ -105,6 +109,12 @@ void ThrowIllegalArgumentException(const char* msg)
 
 void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType found_type,
                                        ArtMethod* method, ArtMethod* referrer)
+    SHARED_REQUIRES(Locks::mutator_lock_) COLD_ATTR;
+
+void ThrowIncompatibleClassChangeErrorClassForInterfaceSuper(ArtMethod* method,
+                                                             mirror::Class* target_class,
+                                                             mirror::Object* this_object,
+                                                             ArtMethod* referrer)
     SHARED_REQUIRES(Locks::mutator_lock_) COLD_ATTR;
 
 void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(ArtMethod* interface_method,
