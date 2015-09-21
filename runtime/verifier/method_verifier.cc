@@ -548,7 +548,8 @@ SafeMap<uint32_t, std::set<uint32_t>> MethodVerifier::FindStringInitMap(ArtMetho
   MethodVerifier verifier(self, m->GetDexFile(), dex_cache, class_loader, &m->GetClassDef(),
                           m->GetCodeItem(), m->GetDexMethodIndex(), m, m->GetAccessFlags(),
                           true, true, false, true);
-  return verifier.FindStringInitMap();
+  // Avoid copying: The map is moved out of the verifier before the verifier is destroyed.
+  return std::move(verifier.FindStringInitMap());
 }
 
 SafeMap<uint32_t, std::set<uint32_t>>& MethodVerifier::FindStringInitMap() {
