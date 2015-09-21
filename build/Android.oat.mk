@@ -74,6 +74,10 @@ define create-core-oat-host-rules
     core_compile_options += --compiler-filter=verify-at-runtime --runtime-arg -Xverify:softfail
     core_infix := -interp-ac
   endif
+  ifeq ($(1),jit)
+    core_compile_options += --compiler-filter=verify-at-runtime
+    core_infix := -jit
+  endif
   ifeq ($(1),default)
     # Default has no infix, no compile options.
   endif
@@ -154,6 +158,7 @@ $(eval $(call create-core-oat-host-rule-combination,default,,))
 $(eval $(call create-core-oat-host-rule-combination,optimizing,,))
 $(eval $(call create-core-oat-host-rule-combination,interpreter,,))
 $(eval $(call create-core-oat-host-rule-combination,interp-ac,,))
+$(eval $(call create-core-oat-host-rule-combination,jit,,))
 
 valgrindHOST_CORE_IMG_OUTS :=
 valgrindHOST_CORE_OAT_OUTS :=
@@ -161,6 +166,7 @@ $(eval $(call create-core-oat-host-rule-combination,default,valgrind,32))
 $(eval $(call create-core-oat-host-rule-combination,optimizing,valgrind,32))
 $(eval $(call create-core-oat-host-rule-combination,interpreter,valgrind,32))
 $(eval $(call create-core-oat-host-rule-combination,interp-ac,valgrind,32))
+$(eval $(call create-core-oat-host-rule-combination,jit,valgrind,32))
 
 valgrind-test-art-host-dex2oat-host: $(valgrindHOST_CORE_IMG_OUTS)
 
@@ -193,6 +199,10 @@ define create-core-oat-target-rules
   ifeq ($(1),interp-ac)
     core_compile_options += --compiler-filter=verify-at-runtime --runtime-arg -Xverify:softfail
     core_infix := -interp-ac
+  endif
+  ifeq ($(1),jit)
+    core_compile_options += --compiler-filter=verify-at-runtime
+    core_infix := -jit
   endif
   ifeq ($(1),default)
     # Default has no infix, no compile options.
@@ -279,6 +289,7 @@ $(eval $(call create-core-oat-target-rule-combination,default,,))
 $(eval $(call create-core-oat-target-rule-combination,optimizing,,))
 $(eval $(call create-core-oat-target-rule-combination,interpreter,,))
 $(eval $(call create-core-oat-target-rule-combination,interp-ac,,))
+$(eval $(call create-core-oat-target-rule-combination,jit,,))
 
 valgrindTARGET_CORE_IMG_OUTS :=
 valgrindTARGET_CORE_OAT_OUTS :=
@@ -286,6 +297,7 @@ $(eval $(call create-core-oat-target-rule-combination,default,valgrind,32))
 $(eval $(call create-core-oat-target-rule-combination,optimizing,valgrind,32))
 $(eval $(call create-core-oat-target-rule-combination,interpreter,valgrind,32))
 $(eval $(call create-core-oat-target-rule-combination,interp-ac,valgrind,32))
+$(eval $(call create-core-oat-target-rule-combination,jit,valgrind,32))
 
 valgrind-test-art-host-dex2oat-target: $(valgrindTARGET_CORE_IMG_OUTS)
 
