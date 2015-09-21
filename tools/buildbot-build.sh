@@ -19,7 +19,7 @@ if [ ! -d art ]; then
   exit 1
 fi
 
-common_targets="vogar vogar.jar core-tests apache-harmony-jdwp-tests-hostdex out/host/linux-x86/bin/adb jsr166-tests"
+common_targets="vogar vogar.jar core-tests apache-harmony-jdwp-tests-hostdex jsr166-tests"
 android_root="/data/local/tmp/system"
 linker="linker"
 mode="target"
@@ -64,7 +64,7 @@ while true; do
 done
 
 if [[ $mode == "host" ]]; then
-  make_command="make $j_arg build-art-host-tests $common_targets out/host/linux-x86/lib/libjavacoretests.so out/host/linux-x86/lib64/libjavacoretests.so"
+  make_command="make $j_arg build-art-host-tests $common_targets out/host/linux-x86/lib/libjavacoretests.so out/host/linux-x86/lib64/libjavacoretests.so out/host/linux-x86/bin/adb"
   echo "Executing $make_command"
   $make_command
 elif [[ $mode == "target" ]]; then
