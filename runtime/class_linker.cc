@@ -128,7 +128,11 @@ void ClassLinker::ThrowEarlierClassFailure(mirror::Class* c) {
   // the previous error.
   Runtime* const runtime = Runtime::Current();
   if (!runtime->IsAotCompiler()) {  // Give info if this occurs at runtime.
-    LOG(INFO) << "Rejecting re-init on previously-failed class " << PrettyClass(c);
+    std::string extra;
+    if (c->GetVerifyErrorClass() != nullptr) {
+      extra = PrettyDescriptor(c->GetVerifyErrorClass());
+    }
+    LOG(INFO) << "Rejecting re-init on previously-failed class " << PrettyClass(c) << ": " << extra;
   }
 
   CHECK(c->IsErroneous()) << PrettyClass(c) << " " << c->GetStatus();
