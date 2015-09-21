@@ -1123,11 +1123,7 @@ size_t OatWriter::InitOatCodeDexFiles(size_t offset) {
     } while (false)
 
   VISIT(InitCodeMethodVisitor);
-  // InitImageMethodVisitor visits all methods, resolves them (failing if one cannot be resolved,
-  // which is a bad sign for a working boot image), and then install entrypoints.
-  // In case of VerifyAtRuntime, there won't be code, and we do not want to resolve the methods
-  // (this has been skipped in the driver for performance).
-  if (compiler_driver_->IsImage() && !compiler_driver_->GetCompilerOptions().VerifyAtRuntime()) {
+  if (compiler_driver_->IsImage()) {
     VISIT(InitImageMethodVisitor);
   }
 
