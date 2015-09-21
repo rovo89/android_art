@@ -403,9 +403,13 @@ class ClassLinker {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
-  LengthPrefixedArray<ArtField>* AllocArtFieldArray(Thread* self, size_t length);
+  LengthPrefixedArray<ArtField>* AllocArtFieldArray(Thread* self,
+                                                    LinearAlloc* allocator,
+                                                    size_t length);
 
-  LengthPrefixedArray<ArtMethod>* AllocArtMethodArray(Thread* self, size_t length);
+  LengthPrefixedArray<ArtMethod>* AllocArtMethodArray(Thread* self,
+                                                      LinearAlloc* allocator,
+                                                      size_t length);
 
   mirror::PointerArray* AllocPointerArray(Thread* self, size_t length)
       SHARED_REQUIRES(Locks::mutator_lock_)
@@ -546,16 +550,23 @@ class ClassLinker {
   // entries are roots, but potentially not image classes.
   void DropFindArrayClassCache() SHARED_REQUIRES(Locks::mutator_lock_);
 
- private:
-  // The RemoveClearedLoaders version removes cleared weak global class loaders and frees their
-  // class tables. This version can only be called with reader access to the
-  // classlinker_classes_lock_ since it modifies the class_loaders_ list.
-  void VisitClassLoadersAndRemoveClearedLoaders(ClassLoaderVisitor* visitor)
-      REQUIRES(Locks::classlinker_classes_lock_)
+  // Clean up class loaders, this needs to happen after JNI weak globals are cleared.
+  void CleanupClassLoaders()
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!Locks::classlinker_classes_lock_);
+
+  static LinearAlloc* GetAllocatorForClassLoader(mirror::ClassLoader* class_loader)
       SHARED_REQUIRES(Locks::mutator_lock_);
+
+ private:
+  struct ClassLoaderData {
+    jobject weak_root;  // Weak root to enable class unloading.
+    ClassTable* class_table;
+    LinearAlloc* allocator;
+  };
+
   void VisitClassLoaders(ClassLoaderVisitor* visitor) const
       SHARED_REQUIRES(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
-
 
   void VisitClassesInternal(ClassVisitor* visitor)
       SHARED_REQUIRES(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
@@ -826,8 +837,8 @@ class ClassLinker {
   std::vector<const OatFile*> oat_files_ GUARDED_BY(dex_lock_);
 
   // This contains the class loaders which have class tables. It is populated by
-  // InsertClassTableForClassLoader. Weak roots to enable class unloading.
-  std::list<jweak> class_loaders_
+  // InsertClassTableForClassLoader.
+  std::list<ClassLoaderData> class_loaders_
       GUARDED_BY(Locks::classlinker_classes_lock_);
 
   // Boot class path table. Since the class loader for this is null.
