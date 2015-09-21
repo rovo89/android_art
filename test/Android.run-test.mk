@@ -752,12 +752,7 @@ define define-test-art-run-test
       endif
     endif
   endif
-  ifeq ($(4),jit)
-    # Use interpreter image for JIT.
-    image_suffix := interpreter
-  else
-    image_suffix := $(4)
-  endif
+  image_suffix := $(4)
   ifeq ($(9),no-image)
     test_groups += ART_RUN_TEST_$$(uc_host_or_target)_NO_IMAGE_RULES
     run_test_options += --no-image
