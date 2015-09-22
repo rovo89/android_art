@@ -29,7 +29,8 @@ namespace gc {
 namespace collector {
 
 template<typename MarkVisitor, typename ReferenceVisitor>
-inline void MarkSweep::ScanObjectVisit(mirror::Object* obj, const MarkVisitor& visitor,
+inline void MarkSweep::ScanObjectVisit(mirror::Object* obj,
+                                       const MarkVisitor& visitor,
                                        const ReferenceVisitor& ref_visitor) {
   DCHECK(IsMarked(obj)) << "Scanning unmarked object " << obj << "\n" << heap_->DumpSpaces();
   obj->VisitReferences(visitor, ref_visitor);
