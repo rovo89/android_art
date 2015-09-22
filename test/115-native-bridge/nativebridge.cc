@@ -390,6 +390,20 @@ extern "C" bool nb_is_compatible(uint32_t bridge_version ATTRIBUTE_UNUSED) {
 #endif
 #endif
 
+static bool cannot_be_blocked(int signum) {
+  // These two sigs cannot be blocked anywhere.
+  if ((signum == SIGKILL) || (signum == SIGSTOP)) {
+      return true;
+  }
+
+  // The invalid rt_sig cannot be blocked.
+  if (((signum >= 32) && (signum < SIGRTMIN)) || (signum > SIGRTMAX)) {
+      return true;
+  }
+
+  return false;
+}
+
 // A dummy special handler, continueing after the faulting location. This code comes from
 // 004-SignalTest.
 static bool nb_signalhandler(int sig, siginfo_t* info ATTRIBUTE_UNUSED, void* context) {
@@ -413,6 +427,23 @@ static bool nb_signalhandler(int sig, siginfo_t* info ATTRIBUTE_UNUSED, void* co
     UNUSED(context);
 #endif
   }
+
+  // Before invoking this handler, all other unclaimed signals must be blocked.
+  // We're trying to check the signal mask to verify its status here.
+  sigset_t tmpset;
+  sigemptyset(&tmpset);
+  sigprocmask(SIG_SETMASK, nullptr, &tmpset);
+  int other_claimed = (sig == SIGSEGV) ? SIGILL : SIGSEGV;
+  for (int signum = 0; signum < NSIG; ++signum) {
+    if (cannot_be_blocked(signum)) {
+        continue;
+    } else if ((sigismember(&tmpset, signum)) && (signum == other_claimed)) {
+      printf("ERROR: The claimed signal %d is blocked\n", signum);
+    } else if ((!sigismember(&tmpset, signum)) && (signum != other_claimed)) {
+      printf("ERROR: The unclaimed signal %d is not blocked\n", signum);
+    }
+  }
+
   // We handled this...
   return true;
 }
