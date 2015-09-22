@@ -22,30 +22,36 @@
 namespace art {
 
 /**
- * This class implements induction variable based range analysis on expressions within loops.
- * It takes the results of induction variable analysis in the constructor and provides a public
- * API to obtain a conservative lower and upper bound value on each instruction in the HIR.
+ * This class implements range analysis on expressions within loops. It takes the results
+ * of induction variable analysis in the constructor and provides a public API to obtain
+ * a conservative lower and upper bound value on each instruction in the HIR.
  *
- * For example, given a linear induction 2 * i + x where 0 <= i <= 10, range analysis yields lower
- * bound value x and upper bound value x + 20 for the expression, thus, the range [x, x + 20].
+ * The range analysis is done with a combination of symbolic and partial integral evaluation
+ * of expressions. The analysis avoids complications with wrap-around arithmetic on the integral
+ * parts but all clients should be aware that wrap-around may occur on any of the symbolic parts.
+ * For example, given a known range for [0,100] for i, the evaluation yields range [-100,100]
+ * for expression -2*i+100, which is exact, and range [x,x+100] for expression i+x, which may
+ * wrap-around anywhere in the range depending on the actual value of x.
  */
 class InductionVarRange {
  public:
   /*
    * A value that can be represented as "a * instruction + b" for 32-bit constants, where
-   * Value(INT_MIN) and Value(INT_MAX) denote an unknown lower and upper bound, respectively.
-   * Although range analysis could yield more complex values, the format is sufficiently powerful
-   * to represent useful cases and feeds directly into optimizations like bounds check elimination.
+   * Value() denotes an unknown lower and upper bound. Although range analysis could yield
+   * more complex values, the format is sufficiently powerful to represent useful cases
+   * and feeds directly into optimizations like bounds check elimination.
    */
   struct Value {
+    Value() : instruction(nullptr), a_constant(0), b_constant(0), is_known(false) {}
     Value(HInstruction* i, int32_t a, int32_t b)
-        : instruction(a != 0 ? i : nullptr),
-          a_constant(a),
-          b_constant(b) {}
+        : instruction(a != 0 ? i : nullptr), a_constant(a), b_constant(b), is_known(true) {}
     explicit Value(int32_t b) : Value(nullptr, 0, b) {}
+    // Representation as: a_constant x instruction + b_constant.
     HInstruction* instruction;
     int32_t a_constant;
     int32_t b_constant;
+    // If true, represented by prior fields. Otherwise unknown value.
+    bool is_known;
   };
 
   explicit InductionVarRange(HInductionVarAnalysis* induction);
@@ -67,12 +73,11 @@ class InductionVarRange {
   // Private helper methods.
   //
 
-  HInductionVarAnalysis::InductionInfo* GetTripCount(HLoopInformation* loop,
-                                                     HInstruction* context);
+  HInductionVarAnalysis::InductionInfo* GetTripCount(HLoopInformation* loop, HInstruction* context);
 
   static Value GetFetch(HInstruction* instruction,
                         HInductionVarAnalysis::InductionInfo* trip,
-                        int32_t fail_value);
+                        bool is_min);
 
   static Value GetMin(HInductionVarAnalysis::InductionInfo* info,
                       HInductionVarAnalysis::InductionInfo* trip);
@@ -81,16 +86,16 @@ class InductionVarRange {
   static Value GetMul(HInductionVarAnalysis::InductionInfo* info1,
                       HInductionVarAnalysis::InductionInfo* info2,
                       HInductionVarAnalysis::InductionInfo* trip,
-                      int32_t fail_value);
+                      bool is_min);
   static Value GetDiv(HInductionVarAnalysis::InductionInfo* info1,
                       HInductionVarAnalysis::InductionInfo* info2,
                       HInductionVarAnalysis::InductionInfo* trip,
-                      int32_t fail_value);
+                      bool is_min);
 
-  static Value AddValue(Value v1, Value v2, int32_t fail_value);
-  static Value SubValue(Value v1, Value v2, int32_t fail_value);
-  static Value MulValue(Value v1, Value v2, int32_t fail_value);
-  static Value DivValue(Value v1, Value v2, int32_t fail_value);
+  static Value AddValue(Value v1, Value v2);
+  static Value SubValue(Value v1, Value v2);
+  static Value MulValue(Value v1, Value v2);
+  static Value DivValue(Value v1, Value v2);
   static Value MinValue(Value v1, Value v2);
   static Value MaxValue(Value v1, Value v2);
 
