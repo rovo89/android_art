@@ -570,6 +570,9 @@ class Runtime {
   // Called from class linker.
   void SetSentinel(mirror::Object* sentinel) SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Create a normal LinearAlloc or low 4gb version if we are 64 bit AOT compiler.
+  LinearAlloc* CreateLinearAlloc();
+
  private:
   static void InitPlatformSignalHandlers();
 
