@@ -743,6 +743,22 @@ void SSAChecker::HandleBooleanInput(HInstruction* instruction, size_t input_inde
   }
 }
 
+void SSAChecker::VisitPackedSwitch(HPackedSwitch* instruction) {
+  VisitInstruction(instruction);
+  // Check that the number of block successors matches the switch count plus
+  // one for the default block.
+  HBasicBlock* block = instruction->GetBlock();
+  if (instruction->GetNumEntries() + 1u != block->GetSuccessors().size()) {
+    AddError(StringPrintf(
+        "%s instruction %d in block %d expects %u successors to the block, but found: %zu.",
+        instruction->DebugName(),
+        instruction->GetId(),
+        block->GetBlockId(),
+        instruction->GetNumEntries() + 1u,
+        block->GetSuccessors().size()));
+  }
+}
+
 void SSAChecker::VisitIf(HIf* instruction) {
   VisitInstruction(instruction);
   HandleBooleanInput(instruction, 0);
