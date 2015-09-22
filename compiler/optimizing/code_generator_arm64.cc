@@ -2342,7 +2342,11 @@ void InstructionCodeGeneratorARM64::VisitInstanceOf(HInstanceOf* instruction) {
       break;
     }
     case TypeCheckKind::kArrayObjectCheck: {
-      // Just need to check that the object's class is a non primitive array.
+      // Do an exact check.
+      vixl::Label exact_check;
+      __ Cmp(out, cls);
+      __ B(eq, &exact_check);
+      // Otherwise, we need to check that the object's class is a non primitive array.
       __ Ldr(out, HeapOperand(out, component_offset));
       GetAssembler()->MaybeUnpoisonHeapReference(out);
       // If `out` is null, we use it for the result, and jump to `done`.
@@ -2350,6 +2354,7 @@ void InstructionCodeGeneratorARM64::VisitInstanceOf(HInstanceOf* instruction) {
       __ Ldrh(out, HeapOperand(out, primitive_offset));
       static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
       __ Cbnz(out, &zero);
+      __ Bind(&exact_check);
       __ Mov(out, 1);
       __ B(&done);
       break;
@@ -2489,20 +2494,22 @@ void InstructionCodeGeneratorARM64::VisitCheckCast(HCheckCast* instruction) {
     }
     case TypeCheckKind::kClassHierarchyCheck: {
       // Walk over the class hierarchy to find a match.
-      vixl::Label loop, success;
+      vixl::Label loop;
       __ Bind(&loop);
       __ Cmp(temp, cls);
-      __ B(eq, &success);
+      __ B(eq, &done);
       __ Ldr(temp, HeapOperand(temp, super_offset));
       GetAssembler()->MaybeUnpoisonHeapReference(temp);
       __ Cbnz(temp, &loop);
       // Jump to the slow path to throw the exception.
       __ B(slow_path->GetEntryLabel());
-      __ Bind(&success);
       break;
     }
     case TypeCheckKind::kArrayObjectCheck: {
-      // Just need to check that the object's class is a non primitive array.
+      // Do an exact check.
+      __ Cmp(temp, cls);
+      __ B(eq, &done);
+      // Otherwise, we need to check that the object's class is a non primitive array.
       __ Ldr(temp, HeapOperand(temp, component_offset));
       GetAssembler()->MaybeUnpoisonHeapReference(temp);
       __ Cbz(temp, slow_path->GetEntryLabel());
