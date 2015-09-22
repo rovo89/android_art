@@ -840,23 +840,30 @@ void StackVisitor::SanityCheckFrame() const {
     } else {
       CHECK(declaring_class == nullptr);
     }
-    auto* runtime = Runtime::Current();
-    auto* la = runtime->GetLinearAlloc();
-    if (!la->Contains(method)) {
-      // Check image space.
-      bool in_image = false;
-      for (auto& space : runtime->GetHeap()->GetContinuousSpaces()) {
-        if (space->IsImageSpace()) {
-          auto* image_space = space->AsImageSpace();
-          const auto& header = image_space->GetImageHeader();
-          const auto* methods = &header.GetMethodsSection();
-          if (methods->Contains(reinterpret_cast<const uint8_t*>(method) - image_space->Begin())) {
-            in_image = true;
-            break;
+    Runtime* const runtime = Runtime::Current();
+    LinearAlloc* const linear_alloc = runtime->GetLinearAlloc();
+    if (!linear_alloc->Contains(method)) {
+      // Check class linker linear allocs.
+      mirror::Class* klass = method->GetDeclaringClass();
+      LinearAlloc* const class_linear_alloc = (klass != nullptr)
+          ? ClassLinker::GetAllocatorForClassLoader(klass->GetClassLoader())
+          : linear_alloc;
+      if (!class_linear_alloc->Contains(method)) {
+        // Check image space.
+        bool in_image = false;
+        for (auto& space : runtime->GetHeap()->GetContinuousSpaces()) {
+          if (space->IsImageSpace()) {
+            auto* image_space = space->AsImageSpace();
+            const auto& header = image_space->GetImageHeader();
+            const auto* methods = &header.GetMethodsSection();
+            if (methods->Contains(reinterpret_cast<const uint8_t*>(method) - image_space->Begin())) {
+              in_image = true;
+              break;
+            }
           }
         }
+        CHECK(in_image) << PrettyMethod(method) << " not in linear alloc or image";
       }
-      CHECK(in_image) << PrettyMethod(method) << " not in linear alloc or image";
     }
     if (cur_quick_frame_ != nullptr) {
       method->AssertPcIsWithinQuickCode(cur_quick_frame_pc_);
