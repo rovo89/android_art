@@ -191,12 +191,6 @@ void DeadPhiHandling::Run() {
   ProcessWorklist();
 }
 
-static bool IsPhiEquivalentOf(HInstruction* instruction, HPhi* phi) {
-  return instruction != nullptr
-      && instruction->IsPhi()
-      && instruction->AsPhi()->GetRegNumber() == phi->GetRegNumber();
-}
-
 void SsaBuilder::FixNullConstantType() {
   // The order doesn't matter here.
   for (HReversePostOrderIterator itb(*GetGraph()); !itb.Done(); itb.Advance()) {
@@ -324,13 +318,13 @@ void SsaBuilder::BuildSsa() {
       // If the phi is not dead, or has no environment uses, there is nothing to do.
       if (!phi->IsDead() || !phi->HasEnvironmentUses()) continue;
       HInstruction* next = phi->GetNext();
-      if (!IsPhiEquivalentOf(next, phi)) continue;
+      if (!phi->IsVRegEquivalentOf(next)) continue;
       if (next->AsPhi()->IsDead()) {
         // If the phi equivalent is dead, check if there is another one.
         next = next->GetNext();
-        if (!IsPhiEquivalentOf(next, phi)) continue;
+        if (!phi->IsVRegEquivalentOf(next)) continue;
         // There can be at most two phi equivalents.
-        DCHECK(!IsPhiEquivalentOf(next->GetNext(), phi));
+        DCHECK(!phi->IsVRegEquivalentOf(next->GetNext()));
         if (next->AsPhi()->IsDead()) continue;
       }
       // We found a live phi equivalent. Update the environment uses of `phi` with it.
@@ -403,6 +397,24 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
 
   if (block->IsCatchBlock()) {
     // Catch phis were already created and inputs collected from throwing sites.
+    if (kIsDebugBuild) {
+      // Make sure there was at least one throwing instruction which initialized
+      // locals (guaranteed by HGraphBuilder) and that all try blocks have been
+      // visited already (from HTryBoundary scoping and reverse post order).
+      bool throwing_instruction_found = false;
+      bool catch_block_visited = false;
+      for (HReversePostOrderIterator it(*GetGraph()); !it.Done(); it.Advance()) {
+        HBasicBlock* current = it.Current();
+        if (current == block) {
+          catch_block_visited = true;
+        } else if (current->IsTryBlock() &&
+                   current->GetTryCatchInformation()->GetTryEntry().HasExceptionHandler(*block)) {
+          DCHECK(!catch_block_visited) << "Catch block visited before its try block.";
+          throwing_instruction_found |= current->HasThrowingInstructions();
+        }
+      }
+      DCHECK(throwing_instruction_found) << "No instructions throwing into a live catch block.";
+    }
   } else if (block->IsLoopHeader()) {
     // If the block is a loop header, we know we only have visited the pre header
     // because we are visiting in reverse post order. We create phis for all initialized
