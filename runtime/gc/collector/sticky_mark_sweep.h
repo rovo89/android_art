@@ -38,13 +38,15 @@ class StickyMarkSweep FINAL : public PartialMarkSweep {
   // alloc space will be marked as immune.
   void BindBitmaps() OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void MarkReachableObjects() OVERRIDE
-      SHARED_REQUIRES(Locks::mutator_lock_)
-      REQUIRES(Locks::heap_bitmap_lock_);
+  void MarkReachableObjects()
+      OVERRIDE
+      REQUIRES(Locks::heap_bitmap_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void Sweep(bool swap_bitmaps) OVERRIDE
-      SHARED_REQUIRES(Locks::mutator_lock_)
-      REQUIRES(Locks::heap_bitmap_lock_);
+  void Sweep(bool swap_bitmaps)
+      OVERRIDE
+      REQUIRES(Locks::heap_bitmap_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
   DISALLOW_IMPLICIT_CONSTRUCTORS(StickyMarkSweep);
