@@ -35,16 +35,29 @@ class MANAGED ClassLoader : public Object {
   static constexpr uint32_t InstanceSize() {
     return sizeof(ClassLoader);
   }
+
   ClassLoader* GetParent() SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetFieldObject<ClassLoader>(OFFSET_OF_OBJECT_MEMBER(ClassLoader, parent_));
   }
+
   ClassTable* GetClassTable() SHARED_REQUIRES(Locks::mutator_lock_) {
     return reinterpret_cast<ClassTable*>(
         GetField64(OFFSET_OF_OBJECT_MEMBER(ClassLoader, class_table_)));
   }
+
   void SetClassTable(ClassTable* class_table) SHARED_REQUIRES(Locks::mutator_lock_) {
     SetField64<false>(OFFSET_OF_OBJECT_MEMBER(ClassLoader, class_table_),
                       reinterpret_cast<uint64_t>(class_table));
+  }
+
+  LinearAlloc* GetAllocator() SHARED_REQUIRES(Locks::mutator_lock_) {
+    return reinterpret_cast<LinearAlloc*>(
+        GetField64(OFFSET_OF_OBJECT_MEMBER(ClassLoader, allocator_)));
+  }
+
+  void SetAllocator(LinearAlloc* allocator) SHARED_REQUIRES(Locks::mutator_lock_) {
+    SetField64<false>(OFFSET_OF_OBJECT_MEMBER(ClassLoader, allocator_),
+                      reinterpret_cast<uint64_t>(allocator));
   }
 
  private:
@@ -61,6 +74,7 @@ class MANAGED ClassLoader : public Object {
   HeapReference<Object> proxyCache_;
   // Native pointer to class table, need to zero this out when image writing.
   uint32_t padding_ ATTRIBUTE_UNUSED;
+  uint64_t allocator_;
   uint64_t class_table_;
 
   friend struct art::ClassLoaderOffsets;  // for verifying offset information
