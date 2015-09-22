@@ -1056,6 +1056,7 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(NullConstant, Instruction)                                          \
   M(NullCheck, Instruction)                                             \
   M(Or, BinaryOperation)                                                \
+  M(PackedSwitch, Instruction)                                          \
   M(ParallelMove, Instruction)                                          \
   M(ParameterValue, Instruction)                                        \
   M(Phi, Instruction)                                                   \
@@ -2400,6 +2401,38 @@ class HCurrentMethod : public HExpression<0> {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HCurrentMethod);
+};
+
+// PackedSwitch (jump table). A block ending with a PackedSwitch instruction will
+// have one successor for each entry in the switch table, and the final successor
+// will be the block containing the next Dex opcode.
+class HPackedSwitch : public HTemplateInstruction<1> {
+ public:
+  HPackedSwitch(int32_t start_value, int32_t num_entries, HInstruction* input,
+                uint32_t dex_pc = kNoDexPc)
+    : HTemplateInstruction(SideEffects::None(), dex_pc),
+      start_value_(start_value),
+      num_entries_(num_entries) {
+    SetRawInputAt(0, input);
+  }
+
+  bool IsControlFlow() const OVERRIDE { return true; }
+
+  int32_t GetStartValue() const { return start_value_; }
+
+  int32_t GetNumEntries() const { return num_entries_; }
+
+  HBasicBlock* GetDefaultBlock() const {
+    // Last entry is the default block.
+    return GetBlock()->GetSuccessor(num_entries_);
+  }
+  DECLARE_INSTRUCTION(PackedSwitch);
+
+ private:
+  int32_t start_value_;
+  int32_t num_entries_;
+
+  DISALLOW_COPY_AND_ASSIGN(HPackedSwitch);
 };
 
 class HUnaryOperation : public HExpression<1> {

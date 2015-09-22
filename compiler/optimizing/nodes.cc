@@ -1297,16 +1297,25 @@ void HBasicBlock::DisconnectAndDelete() {
   // instructions.
   for (HBasicBlock* predecessor : predecessors_) {
     HInstruction* last_instruction = predecessor->GetLastInstruction();
-    predecessor->RemoveInstruction(last_instruction);
     predecessor->RemoveSuccessor(this);
-    if (predecessor->GetSuccessors().size() == 1u) {
-      DCHECK(last_instruction->IsIf());
+    uint32_t num_pred_successors = predecessor->GetSuccessors().size();
+    if (num_pred_successors == 1u) {
+      // If we have one successor after removing one, then we must have
+      // had an HIf or HPackedSwitch, as they have more than one successor.
+      // Replace those with a HGoto.
+      DCHECK(last_instruction->IsIf() || last_instruction->IsPackedSwitch());
+      predecessor->RemoveInstruction(last_instruction);
       predecessor->AddInstruction(new (graph_->GetArena()) HGoto(last_instruction->GetDexPc()));
-    } else {
+    } else if (num_pred_successors == 0u) {
       // The predecessor has no remaining successors and therefore must be dead.
       // We deliberately leave it without a control-flow instruction so that the
       // SSAChecker fails unless it is not removed during the pass too.
-      DCHECK_EQ(predecessor->GetSuccessors().size(), 0u);
+      predecessor->RemoveInstruction(last_instruction);
+    } else {
+      // There are multiple successors left.  This must come from a HPackedSwitch
+      // and we are in the middle of removing the HPackedSwitch. Like above, leave
+      // this alone, and the SSAChecker will fail if it is not removed as well.
+      DCHECK(last_instruction->IsPackedSwitch());
     }
   }
   predecessors_.clear();
