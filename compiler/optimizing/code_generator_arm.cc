@@ -4477,7 +4477,11 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
       break;
     }
     case TypeCheckKind::kArrayObjectCheck: {
-      // Just need to check that the object's class is a non primitive array.
+      // Do an exact check.
+      Label exact_check;
+      __ cmp(out, ShifterOperand(cls));
+      __ b(&exact_check, EQ);
+      // Otherwise, we need to check that the object's class is a non primitive array.
       __ LoadFromOffset(kLoadWord, out, out, component_offset);
       __ MaybeUnpoisonHeapReference(out);
       // If `out` is null, we use it for the result, and jump to `done`.
@@ -4485,6 +4489,7 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
       __ LoadFromOffset(kLoadUnsignedHalfword, out, out, primitive_offset);
       static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
       __ CompareAndBranchIfNonZero(out, &zero);
+      __ Bind(&exact_check);
       __ LoadImmediate(out, 1);
       __ b(&done);
       break;
@@ -4623,20 +4628,22 @@ void InstructionCodeGeneratorARM::VisitCheckCast(HCheckCast* instruction) {
     }
     case TypeCheckKind::kClassHierarchyCheck: {
       // Walk over the class hierarchy to find a match.
-      Label loop, success;
+      Label loop;
       __ Bind(&loop);
       __ cmp(temp, ShifterOperand(cls));
-      __ b(&success, EQ);
+      __ b(&done, EQ);
       __ LoadFromOffset(kLoadWord, temp, temp, super_offset);
       __ MaybeUnpoisonHeapReference(temp);
       __ CompareAndBranchIfNonZero(temp, &loop);
       // Jump to the slow path to throw the exception.
       __ b(slow_path->GetEntryLabel());
-      __ Bind(&success);
       break;
     }
     case TypeCheckKind::kArrayObjectCheck: {
-      // Just need to check that the object's class is a non primitive array.
+      // Do an exact check.
+      __ cmp(temp, ShifterOperand(cls));
+      __ b(&done, EQ);
+      // Otherwise, we need to check that the object's class is a non primitive array.
       __ LoadFromOffset(kLoadWord, temp, temp, component_offset);
       __ MaybeUnpoisonHeapReference(temp);
       __ CompareAndBranchIfZero(temp, slow_path->GetEntryLabel());

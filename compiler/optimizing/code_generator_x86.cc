@@ -1314,7 +1314,7 @@ void InstructionCodeGeneratorX86::VisitCondition(HCondition* cond) {
     default: {
       // Integer case.
 
-      // Clear output register: setcc only sets the low byte.
+      // Clear output register: setb only sets the low byte.
       __ xorl(reg, reg);
 
       if (rhs.IsRegister()) {
@@ -5038,6 +5038,7 @@ void InstructionCodeGeneratorX86::VisitInstanceOf(HInstanceOf* instruction) {
         DCHECK(cls.IsStackSlot()) << cls;
         __ cmpl(out, Address(ESP, cls.GetStackIndex()));
       }
+
       // Classes must be equal for the instanceof to succeed.
       __ j(kNotEqual, &zero);
       __ movl(out, Immediate(1));
@@ -5092,7 +5093,16 @@ void InstructionCodeGeneratorX86::VisitInstanceOf(HInstanceOf* instruction) {
       break;
     }
     case TypeCheckKind::kArrayObjectCheck: {
-      // Just need to check that the object's class is a non primitive array.
+      // Do an exact check.
+      NearLabel exact_check;
+      if (cls.IsRegister()) {
+        __ cmpl(out, cls.AsRegister<Register>());
+      } else {
+        DCHECK(cls.IsStackSlot()) << cls;
+        __ cmpl(out, Address(ESP, cls.GetStackIndex()));
+      }
+      __ j(kEqual, &exact_check);
+      // Otherwise, we need to check that the object's class is a non primitive array.
       __ movl(out, Address(out, component_offset));
       __ MaybeUnpoisonHeapReference(out);
       __ testl(out, out);
@@ -5100,6 +5110,7 @@ void InstructionCodeGeneratorX86::VisitInstanceOf(HInstanceOf* instruction) {
       __ j(kEqual, &done);
       __ cmpw(Address(out, primitive_offset), Immediate(Primitive::kPrimNot));
       __ j(kNotEqual, &zero);
+      __ Bind(&exact_check);
       __ movl(out, Immediate(1));
       __ jmp(&done);
       break;
@@ -5255,7 +5266,7 @@ void InstructionCodeGeneratorX86::VisitCheckCast(HCheckCast* instruction) {
     }
     case TypeCheckKind::kClassHierarchyCheck: {
       // Walk over the class hierarchy to find a match.
-      NearLabel loop, success;
+      NearLabel loop;
       __ Bind(&loop);
       if (cls.IsRegister()) {
         __ cmpl(temp, cls.AsRegister<Register>());
@@ -5263,18 +5274,25 @@ void InstructionCodeGeneratorX86::VisitCheckCast(HCheckCast* instruction) {
         DCHECK(cls.IsStackSlot()) << cls;
         __ cmpl(temp, Address(ESP, cls.GetStackIndex()));
       }
-      __ j(kEqual, &success);
+      __ j(kEqual, &done);
       __ movl(temp, Address(temp, super_offset));
       __ MaybeUnpoisonHeapReference(temp);
       __ testl(temp, temp);
       __ j(kNotEqual, &loop);
       // Jump to the slow path to throw the exception.
       __ jmp(slow_path->GetEntryLabel());
-      __ Bind(&success);
       break;
     }
     case TypeCheckKind::kArrayObjectCheck: {
-      // Just need to check that the object's class is a non primitive array.
+      // Do an exact check.
+      if (cls.IsRegister()) {
+        __ cmpl(temp, cls.AsRegister<Register>());
+      } else {
+        DCHECK(cls.IsStackSlot()) << cls;
+        __ cmpl(temp, Address(ESP, cls.GetStackIndex()));
+      }
+      __ j(kEqual, &done);
+      // Otherwise, we need to check that the object's class is a non primitive array.
       __ movl(temp, Address(temp, component_offset));
       __ MaybeUnpoisonHeapReference(temp);
       __ testl(temp, temp);
