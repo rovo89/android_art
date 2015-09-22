@@ -947,10 +947,8 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   if (IsCompiler() && Is64BitInstructionSet(kRuntimeISA)) {
     // 4gb, no malloc. Explanation in header.
     low_4gb_arena_pool_.reset(new ArenaPool(false, true));
-    linear_alloc_.reset(new LinearAlloc(low_4gb_arena_pool_.get()));
-  } else {
-    linear_alloc_.reset(new LinearAlloc(arena_pool_.get()));
   }
+  linear_alloc_.reset(CreateLinearAlloc());
 
   BlockSignals();
   InitPlatformSignalHandlers();
@@ -1789,6 +1787,12 @@ bool Runtime::IsVerificationEnabled() const {
 
 bool Runtime::IsVerificationSoftFail() const {
   return verify_ == verifier::VerifyMode::kSoftFail;
+}
+
+LinearAlloc* Runtime::CreateLinearAlloc() {
+  return (IsCompiler() && Is64BitInstructionSet(kRuntimeISA))
+      ? new LinearAlloc(low_4gb_arena_pool_.get())
+      : new LinearAlloc(arena_pool_.get());
 }
 
 }  // namespace art

@@ -1318,9 +1318,8 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
     boot_class_table_.VisitRoots(buffered_visitor);
     // TODO: Avoid marking these to enable class unloading.
     JavaVMExt* const vm = Runtime::Current()->GetJavaVM();
-    for (jweak weak_root : class_loaders_) {
-      mirror::Object* class_loader =
-          down_cast<mirror::ClassLoader*>(vm->DecodeWeakGlobal(self, weak_root));
+    for (const ClassLoaderData& data : class_loaders_) {
+      mirror::Object* class_loader = vm->DecodeWeakGlobal(self, data.weak_root);
       // Don't need to update anything since the class loaders will be updated by SweepSystemWeaks.
       visitor->VisitRootIfNonNull(&class_loader, RootInfo(kRootVMInternal));
     }
@@ -1503,13 +1502,10 @@ ClassLinker::~ClassLinker() {
   STLDeleteElements(&oat_files_);
   Thread* const self = Thread::Current();
   JavaVMExt* const vm = Runtime::Current()->GetJavaVM();
-  for (jweak weak_root : class_loaders_) {
-    auto* const class_loader = down_cast<mirror::ClassLoader*>(
-        vm->DecodeWeakGlobalDuringShutdown(self, weak_root));
-    if (class_loader != nullptr) {
-      delete class_loader->GetClassTable();
-    }
-    vm->DeleteWeakGlobalRef(self, weak_root);
+  for (const ClassLoaderData& data : class_loaders_) {
+    vm->DecodeWeakGlobalDuringShutdown(self, data.weak_root);
+    delete data.allocator;
+    delete data.class_table;
   }
   class_loaders_.clear();
 }
@@ -2375,21 +2371,25 @@ void ClassLinker::LoadClass(Thread* self,
   }
 }
 
-LengthPrefixedArray<ArtField>* ClassLinker::AllocArtFieldArray(Thread* self, size_t length) {
+LengthPrefixedArray<ArtField>* ClassLinker::AllocArtFieldArray(Thread* self,
+                                                               LinearAlloc* allocator,
+                                                               size_t length) {
   if (length == 0) {
     return nullptr;
   }
   // If the ArtField alignment changes, review all uses of LengthPrefixedArray<ArtField>.
   static_assert(alignof(ArtField) == 4, "ArtField alignment is expected to be 4.");
   size_t storage_size = LengthPrefixedArray<ArtField>::ComputeSize(length);
-  void* array_storage = Runtime::Current()->GetLinearAlloc()->Alloc(self, storage_size);
+  void* array_storage = allocator->Alloc(self, storage_size);
   auto* ret = new(array_storage) LengthPrefixedArray<ArtField>(length);
   CHECK(ret != nullptr);
   std::uninitialized_fill_n(&ret->At(0), length, ArtField());
   return ret;
 }
 
-LengthPrefixedArray<ArtMethod>* ClassLinker::AllocArtMethodArray(Thread* self, size_t length) {
+LengthPrefixedArray<ArtMethod>* ClassLinker::AllocArtMethodArray(Thread* self,
+                                                                 LinearAlloc* allocator,
+                                                                 size_t length) {
   if (length == 0) {
     return nullptr;
   }
@@ -2397,13 +2397,22 @@ LengthPrefixedArray<ArtMethod>* ClassLinker::AllocArtMethodArray(Thread* self, s
   const size_t method_size = ArtMethod::Size(image_pointer_size_);
   const size_t storage_size =
       LengthPrefixedArray<ArtMethod>::ComputeSize(length, method_size, method_alignment);
-  void* array_storage = Runtime::Current()->GetLinearAlloc()->Alloc(self, storage_size);
+  void* array_storage = allocator->Alloc(self, storage_size);
   auto* ret = new (array_storage) LengthPrefixedArray<ArtMethod>(length);
   CHECK(ret != nullptr);
   for (size_t i = 0; i < length; ++i) {
     new(reinterpret_cast<void*>(&ret->At(i, method_size, method_alignment))) ArtMethod;
   }
   return ret;
+}
+
+LinearAlloc* ClassLinker::GetAllocatorForClassLoader(mirror::ClassLoader* class_loader) {
+  if (class_loader == nullptr) {
+    return Runtime::Current()->GetLinearAlloc();
+  }
+  LinearAlloc* allocator = class_loader->GetAllocator();
+  DCHECK(allocator != nullptr);
+  return allocator;
 }
 
 void ClassLinker::LoadClassMembers(Thread* self,
@@ -2418,8 +2427,11 @@ void ClassLinker::LoadClassMembers(Thread* self,
     // Load static fields.
     // We allow duplicate definitions of the same field in a class_data_item
     // but ignore the repeated indexes here, b/21868015.
+    LinearAlloc* const allocator = GetAllocatorForClassLoader(klass->GetClassLoader());
     ClassDataItemIterator it(dex_file, class_data);
-    LengthPrefixedArray<ArtField>* sfields = AllocArtFieldArray(self, it.NumStaticFields());
+    LengthPrefixedArray<ArtField>* sfields = AllocArtFieldArray(self,
+                                                                allocator,
+                                                                it.NumStaticFields());
     size_t num_sfields = 0;
     uint32_t last_field_idx = 0u;
     for (; it.HasNextStaticField(); it.Next()) {
@@ -2435,7 +2447,9 @@ void ClassLinker::LoadClassMembers(Thread* self,
     klass->SetSFieldsPtr(sfields);
     DCHECK_EQ(klass->NumStaticFields(), num_sfields);
     // Load instance fields.
-    LengthPrefixedArray<ArtField>* ifields = AllocArtFieldArray(self, it.NumInstanceFields());
+    LengthPrefixedArray<ArtField>* ifields = AllocArtFieldArray(self,
+                                                                allocator,
+                                                                it.NumInstanceFields());
     size_t num_ifields = 0u;
     last_field_idx = 0u;
     for (; it.HasNextInstanceField(); it.Next()) {
@@ -2458,8 +2472,8 @@ void ClassLinker::LoadClassMembers(Thread* self,
     klass->SetIFieldsPtr(ifields);
     DCHECK_EQ(klass->NumInstanceFields(), num_ifields);
     // Load methods.
-    klass->SetDirectMethodsPtr(AllocArtMethodArray(self, it.NumDirectMethods()));
-    klass->SetVirtualMethodsPtr(AllocArtMethodArray(self, it.NumVirtualMethods()));
+    klass->SetDirectMethodsPtr(AllocArtMethodArray(self, allocator, it.NumDirectMethods()));
+    klass->SetVirtualMethodsPtr(AllocArtMethodArray(self, allocator, it.NumVirtualMethods()));
     size_t class_def_method_index = 0;
     uint32_t last_dex_method_index = DexFile::kDexNoIndex;
     size_t last_class_def_method_index = 0;
@@ -3031,7 +3045,7 @@ void ClassLinker::MoveClassTableToPreZygote() {
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   boot_class_table_.FreezeSnapshot();
   MoveClassTableToPreZygoteVisitor visitor;
-  VisitClassLoadersAndRemoveClearedLoaders(&visitor);
+  VisitClassLoaders(&visitor);
 }
 
 mirror::Class* ClassLinker::LookupClassFromImage(const char* descriptor) {
@@ -3414,9 +3428,12 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   mirror::Class* existing = InsertClass(descriptor.c_str(), klass.Get(), hash);
   CHECK(existing == nullptr);
 
+  // Needs to be after we insert the class so that the allocator field is set.
+  LinearAlloc* const allocator = GetAllocatorForClassLoader(klass->GetClassLoader());
+
   // Instance fields are inherited, but we add a couple of static fields...
   const size_t num_fields = 2;
-  LengthPrefixedArray<ArtField>* sfields = AllocArtFieldArray(self, num_fields);
+  LengthPrefixedArray<ArtField>* sfields = AllocArtFieldArray(self, allocator, num_fields);
   klass->SetSFieldsPtr(sfields);
 
   // 1. Create a static field 'interfaces' that holds the _declared_ interfaces implemented by
@@ -3433,7 +3450,7 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   throws_sfield.SetAccessFlags(kAccStatic | kAccPublic | kAccFinal);
 
   // Proxies have 1 direct method, the constructor
-  LengthPrefixedArray<ArtMethod>* directs = AllocArtMethodArray(self, 1);
+  LengthPrefixedArray<ArtMethod>* directs = AllocArtMethodArray(self, allocator, 1);
   // Currently AllocArtMethodArray cannot return null, but the OOM logic is left there in case we
   // want to throw OOM in the future.
   if (UNLIKELY(directs == nullptr)) {
@@ -3448,7 +3465,7 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   DCHECK_EQ(h_methods->GetClass(), mirror::Method::ArrayClass())
       << PrettyClass(h_methods->GetClass());
   const size_t num_virtual_methods = h_methods->GetLength();
-  auto* virtuals = AllocArtMethodArray(self, num_virtual_methods);
+  auto* virtuals = AllocArtMethodArray(self, allocator, num_virtual_methods);
   // Currently AllocArtMethodArray cannot return null, but the OOM logic is left there in case we
   // want to throw OOM in the future.
   if (UNLIKELY(virtuals == nullptr)) {
@@ -4166,9 +4183,14 @@ ClassTable* ClassLinker::InsertClassTableForClassLoader(mirror::ClassLoader* cla
   if (class_table == nullptr) {
     class_table = new ClassTable;
     Thread* const self = Thread::Current();
-    class_loaders_.push_back(self->GetJniEnv()->vm->AddWeakGlobalRef(self, class_loader));
+    ClassLoaderData data;
+    data.weak_root = self->GetJniEnv()->vm->AddWeakGlobalRef(self, class_loader);
+    data.class_table = class_table;
+    data.allocator = Runtime::Current()->CreateLinearAlloc();
+    class_loaders_.push_back(data);
     // Don't already have a class table, add it to the class loader.
-    class_loader->SetClassTable(class_table);
+    class_loader->SetClassTable(data.class_table);
+    class_loader->SetAllocator(data.allocator);
   }
   return class_table;
 }
@@ -6158,7 +6180,10 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self, std::vector<const DexFi
 ArtMethod* ClassLinker::CreateRuntimeMethod() {
   const size_t method_alignment = ArtMethod::Alignment(image_pointer_size_);
   const size_t method_size = ArtMethod::Size(image_pointer_size_);
-  LengthPrefixedArray<ArtMethod>* method_array = AllocArtMethodArray(Thread::Current(), 1);
+  LengthPrefixedArray<ArtMethod>* method_array = AllocArtMethodArray(
+      Thread::Current(),
+      Runtime::Current()->GetLinearAlloc(),
+      1);
   ArtMethod* method = &method_array->At(0, method_size, method_alignment);
   CHECK(method != nullptr);
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
@@ -6171,33 +6196,34 @@ void ClassLinker::DropFindArrayClassCache() {
   find_array_class_cache_next_victim_ = 0;
 }
 
-void ClassLinker::VisitClassLoadersAndRemoveClearedLoaders(ClassLoaderVisitor* visitor) {
+void ClassLinker::VisitClassLoaders(ClassLoaderVisitor* visitor) const {
   Thread* const self = Thread::Current();
-  Locks::classlinker_classes_lock_->AssertExclusiveHeld(self);
   JavaVMExt* const vm = self->GetJniEnv()->vm;
-  for (auto it = class_loaders_.begin(); it != class_loaders_.end();) {
-    const jweak weak_root = *it;
-    mirror::ClassLoader* const class_loader = down_cast<mirror::ClassLoader*>(
-        vm->DecodeWeakGlobal(self, weak_root));
+  for (const ClassLoaderData& data : class_loaders_) {
+    auto* const class_loader = down_cast<mirror::ClassLoader*>(
+        vm->DecodeWeakGlobal(self, data.weak_root));
     if (class_loader != nullptr) {
       visitor->Visit(class_loader);
-      ++it;
-    } else {
-      // Remove the cleared weak reference from the array.
-      vm->DeleteWeakGlobalRef(self, weak_root);
-      it = class_loaders_.erase(it);
     }
   }
 }
 
-void ClassLinker::VisitClassLoaders(ClassLoaderVisitor* visitor) const {
+void ClassLinker::CleanupClassLoaders() {
   Thread* const self = Thread::Current();
-  JavaVMExt* const vm = self->GetJniEnv()->vm;
-  for (jweak weak_root : class_loaders_) {
-    mirror::ClassLoader* const class_loader = down_cast<mirror::ClassLoader*>(
-        vm->DecodeWeakGlobal(self, weak_root));
+  WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
+  JavaVMExt* const vm = Runtime::Current()->GetJavaVM();
+  for (auto it = class_loaders_.begin(); it != class_loaders_.end(); ) {
+    const ClassLoaderData& data = *it;
+    auto* const class_loader = down_cast<mirror::ClassLoader*>(
+        vm->DecodeWeakGlobal(self, data.weak_root));
     if (class_loader != nullptr) {
-      visitor->Visit(class_loader);
+      ++it;
+    } else {
+      // Weak reference was cleared, delete the data associated with this class loader.
+      delete data.class_table;
+      delete data.allocator;
+      vm->DeleteWeakGlobalRef(self, data.weak_root);
+      it = class_loaders_.erase(it);
     }
   }
 }
