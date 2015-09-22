@@ -457,8 +457,6 @@ void ConcurrentCopying::MarkingPhase() {
     CheckEmptyMarkStack();
     // Re-enable weak ref accesses.
     ReenableWeakRefAccess(self);
-    // Free data for class loaders that we unloaded.
-    Runtime::Current()->GetClassLinker()->CleanupClassLoaders();
     // Marking is done. Disable marking.
     DisableMarking();
     CheckEmptyMarkStack();

@@ -205,7 +205,6 @@ void MarkCompact::MarkingPhase() {
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     SweepSystemWeaks();
   }
-  Runtime::Current()->GetClassLinker()->CleanupClassLoaders();
   // Revoke buffers before measuring how many objects were moved since the TLABs need to be revoked
   // before they are properly counted.
   RevokeAllThreadLocalBuffers();
