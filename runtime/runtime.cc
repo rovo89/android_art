@@ -944,7 +944,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   // can't be trimmed as easily.
   const bool use_malloc = IsAotCompiler();
   arena_pool_.reset(new ArenaPool(use_malloc, false));
-  if (IsCompiler() && Is64BitInstructionSet(kRuntimeISA)) {
+  if (IsAotCompiler() && Is64BitInstructionSet(kRuntimeISA)) {
     // 4gb, no malloc. Explanation in header.
     low_4gb_arena_pool_.reset(new ArenaPool(false, true));
   }
@@ -1790,7 +1790,7 @@ bool Runtime::IsVerificationSoftFail() const {
 }
 
 LinearAlloc* Runtime::CreateLinearAlloc() {
-  return (IsCompiler() && Is64BitInstructionSet(kRuntimeISA))
+  return (IsAotCompiler() && Is64BitInstructionSet(kRuntimeISA))
       ? new LinearAlloc(low_4gb_arena_pool_.get())
       : new LinearAlloc(arena_pool_.get());
 }
