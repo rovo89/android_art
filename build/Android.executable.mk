@@ -101,7 +101,10 @@ define build-art-executable
       # TODO: Having this is not ideal as it might obscure errors. Try to get rid of it.
       LOCAL_LDFLAGS += -z muldefs
       ifeq ($$(HOST_OS),linux)
-        LOCAL_LDLIBS += -lrt
+        LOCAL_LDLIBS += -lrt -lncurses -ltinfo
+      endif
+      ifeq ($$(HOST_OS),darwin)
+        LOCAL_LDLIBS += -lncurses -ltinfo
       endif
     endif
 
