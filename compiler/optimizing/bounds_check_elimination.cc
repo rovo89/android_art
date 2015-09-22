@@ -1165,8 +1165,8 @@ class BCEVisitor : public HGraphVisitor {
   ValueRange* LookupInductionRange(HInstruction* context, HInstruction* instruction) {
     InductionVarRange::Value v1 = induction_range_.GetMinInduction(context, instruction);
     InductionVarRange::Value v2 = induction_range_.GetMaxInduction(context, instruction);
-    if ((v1.a_constant == 0 || v1.a_constant == 1) && v1.b_constant != INT_MIN &&
-        (v2.a_constant == 0 || v2.a_constant == 1) && v2.b_constant != INT_MAX) {
+    if (v1.is_known && (v1.a_constant == 0 || v1.a_constant == 1) &&
+        v2.is_known && (v2.a_constant == 0 || v2.a_constant == 1)) {
       DCHECK(v1.a_constant == 1 || v1.instruction == nullptr);
       DCHECK(v2.a_constant == 1 || v2.instruction == nullptr);
       ValueBound low = ValueBound(v1.instruction, v1.b_constant);
