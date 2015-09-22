@@ -274,9 +274,6 @@ Runtime::~Runtime() {
     VLOG(jit) << "Deleting jit";
     jit_.reset(nullptr);
   }
-  linear_alloc_.reset();
-  arena_pool_.reset();
-  low_4gb_arena_pool_.reset();
 
   // Shutdown the fault manager if it was initialized.
   fault_manager.Shutdown();
@@ -290,7 +287,13 @@ Runtime::~Runtime() {
   Thread::Shutdown();
   QuasiAtomic::Shutdown();
   verifier::MethodVerifier::Shutdown();
+
+  // Destroy allocators before shutting down the MemMap because they may use it.
+  linear_alloc_.reset();
+  low_4gb_arena_pool_.reset();
+  arena_pool_.reset();
   MemMap::Shutdown();
+
   // TODO: acquire a static mutex on Runtime to avoid racing.
   CHECK(instance_ == nullptr || instance_ == this);
   instance_ = nullptr;
