@@ -33,17 +33,6 @@ static bool IsLoopInvariant(HLoopInformation* loop, HInstruction* instruction) {
 }
 
 /**
- * Returns true if instruction is proper entry-phi-operation for given loop
- * (referred to as mu-operation in Gerlek's paper).
- */
-static bool IsEntryPhi(HLoopInformation* loop, HInstruction* instruction) {
-  return
-      instruction->IsPhi() &&
-      instruction->InputCount() == 2 &&
-      instruction->GetBlock() == loop->GetHeader();
-}
-
-/**
  * Since graph traversal may enter a SCC at any position, an initial representation may be rotated,
  * along dependences, viz. any of (a, b, c, d), (d, a, b, c)  (c, d, a, b), (b, c, d, a) assuming
  * a chain of dependences (mutual independent items may occur in arbitrary order). For proper
@@ -58,8 +47,9 @@ static void RotateEntryPhiFirst(HLoopInformation* loop,
   size_t phi_pos = -1;
   const size_t size = scc->size();
   for (size_t i = 0; i < size; i++) {
-    if (IsEntryPhi(loop, scc->at(i)) && (phi == nullptr || phis.FoundBefore(scc->at(i), phi))) {
-      phi = scc->at(i);
+    HInstruction* other = scc->at(i);
+    if (other->IsLoopHeaderPhi() && (phi == nullptr || phis.FoundBefore(other, phi))) {
+      phi = other;
       phi_pos = i;
     }
   }
@@ -168,7 +158,7 @@ void HInductionVarAnalysis::VisitNode(HLoopInformation* loop, HInstruction* inst
     }
 
     // Classify the SCC.
-    if (scc_.size() == 1 && !IsEntryPhi(loop, scc_[0])) {
+    if (scc_.size() == 1 && !scc_[0]->IsLoopHeaderPhi()) {
       ClassifyTrivial(loop, scc_[0]);
     } else {
       ClassifyNonTrivial(loop);
@@ -200,10 +190,7 @@ uint32_t HInductionVarAnalysis::VisitDescendant(HLoopInformation* loop, HInstruc
 void HInductionVarAnalysis::ClassifyTrivial(HLoopInformation* loop, HInstruction* instruction) {
   InductionInfo* info = nullptr;
   if (instruction->IsPhi()) {
-    for (size_t i = 1, count = instruction->InputCount(); i < count; i++) {
-      info = TransferPhi(LookupInfo(loop, instruction->InputAt(0)),
-                         LookupInfo(loop, instruction->InputAt(i)));
-    }
+    info = TransferPhi(loop, instruction, /* input_index */ 0);
   } else if (instruction->IsAdd()) {
     info = TransferAddSub(LookupInfo(loop, instruction->InputAt(0)),
                           LookupInfo(loop, instruction->InputAt(1)), kAdd);
@@ -245,21 +232,21 @@ void HInductionVarAnalysis::ClassifyNonTrivial(HLoopInformation* loop) {
     RotateEntryPhiFirst(loop, &scc_, &other);
   }
 
-  // Analyze from phi onwards.
+  // Analyze from entry-phi onwards.
   HInstruction* phi = scc_[0];
-  if (!IsEntryPhi(loop, phi)) {
+  if (!phi->IsLoopHeaderPhi()) {
     return;
   }
-  HInstruction* external = phi->InputAt(0);
-  HInstruction* internal = phi->InputAt(1);
-  InductionInfo* initial = LookupInfo(loop, external);
+
+  // External link should be loop invariant.
+  InductionInfo* initial = LookupInfo(loop, phi->InputAt(0));
   if (initial == nullptr || initial->induction_class != kInvariant) {
     return;
   }
 
-  // Singleton entry-phi-operation may be a wrap-around induction.
+  // Singleton is wrap-around induction if all internal links have the same meaning.
   if (size == 1) {
-    InductionInfo* update = LookupInfo(loop, internal);
+    InductionInfo* update = TransferPhi(loop, phi, /* input_index */ 1);
     if (update != nullptr) {
       AssignInfo(loop, phi, CreateInduction(kWrapAround, initial, update));
     }
@@ -272,7 +259,7 @@ void HInductionVarAnalysis::ClassifyNonTrivial(HLoopInformation* loop) {
     HInstruction* instruction = scc_[i];
     InductionInfo* update = nullptr;
     if (instruction->IsPhi()) {
-      update = SolvePhi(loop, phi, instruction);
+      update = SolvePhiAllInputs(loop, phi, instruction);
     } else if (instruction->IsAdd()) {
       update = SolveAddSub(
           loop, phi, instruction, instruction->InputAt(0), instruction->InputAt(1), kAdd, true);
@@ -286,10 +273,9 @@ void HInductionVarAnalysis::ClassifyNonTrivial(HLoopInformation* loop) {
     cycle_.Put(instruction, update);
   }
 
-  // Success if the internal link received a meaning.
-  auto it = cycle_.find(internal);
-  if (it != cycle_.end()) {
-    InductionInfo* induction = it->second;
+  // Success if all internal links received the same temporary meaning.
+  InductionInfo* induction = SolvePhi(phi, /* input_index */ 1);
+  if (induction != nullptr) {
     switch (induction->induction_class) {
       case kInvariant:
         // Classify first phi and then the rest of the cycle "on-demand".
@@ -329,13 +315,20 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::RotatePeriodicInduc
   return CreateInduction(kPeriodic, induction->op_a, RotatePeriodicInduction(induction->op_b, last));
 }
 
-HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferPhi(InductionInfo* a,
-                                                                         InductionInfo* b) {
-  // Transfer over a phi: if both inputs are identical, result is input.
-  if (InductionEqual(a, b)) {
-    return a;
+HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferPhi(HLoopInformation* loop,
+                                                                         HInstruction* phi,
+                                                                         size_t input_index) {
+  // Match all phi inputs from input_index onwards exactly.
+  const size_t count = phi->InputCount();
+  DCHECK_LT(input_index, count);
+  InductionInfo* a = LookupInfo(loop, phi->InputAt(input_index));
+  for (size_t i = input_index + 1; i < count; i++) {
+    InductionInfo* b = LookupInfo(loop, phi->InputAt(i));
+    if (!InductionEqual(a, b)) {
+      return nullptr;
+    }
   }
-  return nullptr;
+  return a;
 }
 
 HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferAddSub(InductionInfo* a,
@@ -421,47 +414,56 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferNeg(Inducti
   return nullptr;
 }
 
-HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolvePhi(HLoopInformation* loop,
-                                                                      HInstruction* phi,
-                                                                      HInstruction* instruction) {
-  // Solve within a cycle over a phi: identical inputs are combined into that input as result.
-  const size_t count = instruction->InputCount();
-  DCHECK_GT(count, 0u);
-  auto ita = cycle_.find(instruction->InputAt(0));
+HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolvePhi(HInstruction* phi,
+                                                                      size_t input_index) {
+  // Match all phi inputs from input_index onwards exactly.
+  const size_t count = phi->InputCount();
+  DCHECK_LT(input_index, count);
+  auto ita = cycle_.find(phi->InputAt(input_index));
   if (ita != cycle_.end()) {
-    InductionInfo* a = ita->second;
-    for (size_t i = 1; i < count; i++) {
-      auto itb = cycle_.find(instruction->InputAt(i));
-      if (itb == cycle_.end() || !HInductionVarAnalysis::InductionEqual(a, itb->second)) {
+    for (size_t i = input_index + 1; i < count; i++) {
+      auto itb = cycle_.find(phi->InputAt(i));
+      if (itb == cycle_.end() ||
+          !HInductionVarAnalysis::InductionEqual(ita->second, itb->second)) {
         return nullptr;
       }
     }
-    return a;
+    return ita->second;
+  }
+  return nullptr;
+}
+
+HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolvePhiAllInputs(
+    HLoopInformation* loop,
+    HInstruction* entry_phi,
+    HInstruction* phi) {
+  // Match all phi inputs.
+  InductionInfo* match = SolvePhi(phi, /* input_index */ 0);
+  if (match != nullptr) {
+    return match;
   }
 
-  // Solve within a cycle over another entry-phi: add invariants into a periodic.
-  if (IsEntryPhi(loop, instruction)) {
-    InductionInfo* a = LookupInfo(loop, instruction->InputAt(0));
+  // Otherwise, try to solve for a periodic seeded from phi onward.
+  // Only tight multi-statement cycles are considered in order to
+  // simplify rotating the periodic during the final classification.
+  if (phi->IsLoopHeaderPhi() && phi->InputCount() == 2) {
+    InductionInfo* a = LookupInfo(loop, phi->InputAt(0));
     if (a != nullptr && a->induction_class == kInvariant) {
-      if (instruction->InputAt(1) == phi) {
-        InductionInfo* initial = LookupInfo(loop, phi->InputAt(0));
+      if (phi->InputAt(1) == entry_phi) {
+        InductionInfo* initial = LookupInfo(loop, entry_phi->InputAt(0));
         return CreateInduction(kPeriodic, a, initial);
       }
-      auto it = cycle_.find(instruction->InputAt(1));
-      if (it != cycle_.end()) {
-        InductionInfo* b = it->second;
-        if (b->induction_class == kPeriodic) {
-          return CreateInduction(kPeriodic, a, b);
-        }
+      InductionInfo* b = SolvePhi(phi, /* input_index */ 1);
+      if (b != nullptr && b->induction_class == kPeriodic) {
+        return CreateInduction(kPeriodic, a, b);
       }
     }
   }
-
   return nullptr;
 }
 
 HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolveAddSub(HLoopInformation* loop,
-                                                                         HInstruction* phi,
+                                                                         HInstruction* entry_phi,
                                                                          HInstruction* instruction,
                                                                          HInstruction* x,
                                                                          HInstruction* y,
@@ -471,7 +473,7 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolveAddSub(HLoopIn
   // invariant value, seeded from phi, keeps adding to the stride of the induction.
   InductionInfo* b = LookupInfo(loop, y);
   if (b != nullptr && b->induction_class == kInvariant) {
-    if (x == phi) {
+    if (x == entry_phi) {
       return (op == kAdd) ? b : CreateInvariantOp(kNeg, nullptr, b);
     }
     auto it = cycle_.find(x);
@@ -487,14 +489,15 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolveAddSub(HLoopIn
   if (op == kAdd) {
     // Try the other way around for an addition if considered for first time.
     if (is_first_call) {
-      return SolveAddSub(loop, phi, instruction, y, x, op, false);
+      return SolveAddSub(loop, entry_phi, instruction, y, x, op, false);
     }
   } else if (op == kSub) {
-    // Solve within a tight cycle for a periodic idiom k = c - k;
-    if (y == phi && instruction == phi->InputAt(1)) {
+    // Solve within a tight cycle that is formed by exactly two instructions,
+    // one phi and one update, for a periodic idiom of the form k = c - k;
+    if (y == entry_phi && entry_phi->InputCount() == 2 && instruction == entry_phi->InputAt(1)) {
       InductionInfo* a = LookupInfo(loop, x);
       if (a != nullptr && a->induction_class == kInvariant) {
-        InductionInfo* initial = LookupInfo(loop, phi->InputAt(0));
+        InductionInfo* initial = LookupInfo(loop, entry_phi->InputAt(0));
         return CreateInduction(kPeriodic, CreateInvariantOp(kSub, a, initial), initial);
       }
     }
@@ -539,31 +542,46 @@ void HInductionVarAnalysis::VisitCondition(HLoopInformation* loop,
                                            Primitive::Type type,
                                            IfCondition cmp) {
   if (a->induction_class == kInvariant && b->induction_class == kLinear) {
-    // Swap conditions (e.g. U > i is same as i < U).
+    // Swap condition if induction is at right-hand-side (e.g. U > i is same as i < U).
     switch (cmp) {
       case kCondLT: VisitCondition(loop, b, a, type, kCondGT); break;
       case kCondLE: VisitCondition(loop, b, a, type, kCondGE); break;
       case kCondGT: VisitCondition(loop, b, a, type, kCondLT); break;
       case kCondGE: VisitCondition(loop, b, a, type, kCondLE); break;
+      case kCondNE: VisitCondition(loop, b, a, type, kCondNE); break;
       default: break;
     }
   } else if (a->induction_class == kLinear && b->induction_class == kInvariant) {
-    // Normalize a linear loop control with a constant, nonzero stride:
-    //   stride > 0, either i < U or i <= U
-    //   stride < 0, either i > U or i >= U
+    // Analyze condition with induction at left-hand-side (e.g. i < U).
     InductionInfo* stride = a->op_a;
     InductionInfo* lo_val = a->op_b;
     InductionInfo* hi_val = b;
-    // Analyze the stride thoroughly, since its representation may be compound at this point.
+    // Analyze stride (may be compound).
     InductionVarRange::Value v1 = InductionVarRange::GetMin(stride, nullptr);
     InductionVarRange::Value v2 = InductionVarRange::GetMax(stride, nullptr);
-    if (v1.a_constant == 0 && v2.a_constant == 0 && v1.b_constant == v2.b_constant) {
-      const int32_t stride_value = v1.b_constant;
-      if ((stride_value > 0 && (cmp == kCondLT || cmp == kCondLE)) ||
-          (stride_value < 0 && (cmp == kCondGT || cmp == kCondGE))) {
-        bool is_strict = cmp == kCondLT || cmp == kCondGT;
-        VisitTripCount(loop, lo_val, hi_val, stride, stride_value, type, is_strict);
+    if (v1.a_constant != 0 || v2.a_constant != 0 || v1.b_constant != v2.b_constant) {
+      return;
+    }
+    // Rewrite safe condition i != U with unit stride into i < U or i > U
+    // (unit stride guarantees that the end condition is always reached).
+    const int32_t stride_value = v1.b_constant;
+    int64_t lo_value = 0;
+    int64_t hi_value = 0;
+    if (cmp == kCondNE && IsIntAndGet(lo_val, &lo_value) && IsIntAndGet(hi_val, &hi_value)) {
+      if ((stride_value == +1 && lo_value < hi_value) ||
+          (stride_value == -1 && lo_value > hi_value)) {
+        cmp = stride_value > 0 ? kCondLT : kCondGT;
       }
+    }
+    // Normalize a linear loop control with a nonzero stride:
+    //   stride > 0, either i < U or i <= U
+    //   stride < 0, either i > U or i >= U
+    //
+    // TODO: construct conditions for constant/symbolic safety of trip-count
+    //
+    if ((stride_value > 0 && (cmp == kCondLT || cmp == kCondLE)) ||
+        (stride_value < 0 && (cmp == kCondGT || cmp == kCondGE))) {
+      VisitTripCount(loop, lo_val, hi_val, stride, stride_value, type, cmp);
     }
   }
 }
@@ -574,7 +592,7 @@ void HInductionVarAnalysis::VisitTripCount(HLoopInformation* loop,
                                            InductionInfo* stride,
                                            int32_t stride_value,
                                            Primitive::Type type,
-                                           bool is_strict) {
+                                           IfCondition cmp) {
   // Any loop of the general form:
   //
   //    for (i = L; i <= U; i += S) // S > 0
@@ -586,26 +604,27 @@ void HInductionVarAnalysis::VisitTripCount(HLoopInformation* loop,
   //    for (n = 0; n < TC; n++) // where TC = (U + S - L) / S
   //      .. L + S * n ..
   //
-  // NOTE: The TC (trip-count) expression is only valid if the top-test path is taken at
-  //       least once. Otherwise TC is 0. Also, the expression assumes the loop does not
-  //       have any early-exits. Otherwise, TC is an upper bound.
+  // NOTE: The TC (trip-count) expression is only valid when safe. Otherwise TC is 0
+  //       (or possibly infinite). Also, the expression assumes the loop does not have
+  //       early-exits. Otherwise, TC is an upper bound.
   //
-  bool cancels = is_strict && std::abs(stride_value) == 1;  // compensation cancels conversion?
+  bool cancels = (cmp == kCondLT || cmp == kCondGT) && std::abs(stride_value) == 1;
   if (!cancels) {
     // Convert exclusive integral inequality into inclusive integral inequality,
     // viz. condition i < U is i <= U - 1 and condition i > U is i >= U + 1.
-    if (is_strict) {
-      const InductionOp op = stride_value > 0 ? kSub : kAdd;
-      hi_val = CreateInvariantOp(op, hi_val, CreateConstant(1, type));
+    if (cmp == kCondLT) {
+      hi_val = CreateInvariantOp(kSub, hi_val, CreateConstant(1, type));
+    } else if (cmp == kCondGT) {
+      hi_val = CreateInvariantOp(kAdd, hi_val, CreateConstant(1, type));
     }
     // Compensate for stride.
     hi_val = CreateInvariantOp(kAdd, hi_val, stride);
   }
 
   // Assign the trip-count expression to the loop control. Clients that use the information
-  // should be aware that due to the top-test assumption, the expression is only valid in the
-  // loop-body proper, and not yet in the loop-header. If the loop has any early exits, the
-  // trip-count forms a conservative upper bound on the number of loop iterations.
+  // should be aware that the expression is only valid in the loop-body proper (when symbolically
+  // safe), and not yet in the loop-header (unless constant safe). If the loop has any early exits,
+  // the trip-count forms a conservative upper bound on the number of loop iterations.
   InductionInfo* trip_count =
       CreateInvariantOp(kDiv, CreateInvariantOp(kSub, hi_val, lo_val), stride);
   AssignInfo(loop, loop->GetHeader()->GetLastInstruction(), trip_count);
