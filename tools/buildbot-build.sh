@@ -76,6 +76,8 @@ elif [[ $mode == "target" ]]; then
   if [[ $TARGET_PRODUCT == "mips32r2_fp" ]]; then
     env="$env USE_CLANG_PLATFORM_BUILD=true"
   fi
+  # Disable NINJA for building on target, it does not support the -e option to Makefile.
+  env="$env USE_NINJA=false"
   # Use '-e' to force the override of TARGET_GLOBAL_LDFLAGS.
   # Also, we build extra tools that will be used by tests, so that
   # they are compiled with our own linker.
