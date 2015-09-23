@@ -16,13 +16,13 @@
 
 #include "code_generator_mips64.h"
 
+#include "art_method.h"
+#include "code_generator_utils.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "gc/accounting/card_table.h"
 #include "intrinsics.h"
 #include "intrinsics_mips64.h"
-#include "art_method.h"
-#include "code_generator_utils.h"
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
 #include "offsets.h"
@@ -1902,6 +1902,252 @@ void InstructionCodeGeneratorMIPS64::VisitCondition(HCondition* instruction) {
   }
 }
 
+void InstructionCodeGeneratorMIPS64::DivRemOneOrMinusOne(HBinaryOperation* instruction) {
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+  Primitive::Type type = instruction->GetResultType();
+
+  LocationSummary* locations = instruction->GetLocations();
+  Location second = locations->InAt(1);
+  DCHECK(second.IsConstant());
+
+  GpuRegister out = locations->Out().AsRegister<GpuRegister>();
+  GpuRegister dividend = locations->InAt(0).AsRegister<GpuRegister>();
+  int64_t imm = Int64FromConstant(second.GetConstant());
+  DCHECK(imm == 1 || imm == -1);
+
+  if (instruction->IsRem()) {
+    __ Move(out, ZERO);
+  } else {
+    if (imm == -1) {
+      if (type == Primitive::kPrimInt) {
+        __ Subu(out, ZERO, dividend);
+      } else {
+        DCHECK_EQ(type, Primitive::kPrimLong);
+        __ Dsubu(out, ZERO, dividend);
+      }
+    } else if (out != dividend) {
+      __ Move(out, dividend);
+    }
+  }
+}
+
+void InstructionCodeGeneratorMIPS64::DivRemByPowerOfTwo(HBinaryOperation* instruction) {
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+  Primitive::Type type = instruction->GetResultType();
+
+  LocationSummary* locations = instruction->GetLocations();
+  Location second = locations->InAt(1);
+  DCHECK(second.IsConstant());
+
+  GpuRegister out = locations->Out().AsRegister<GpuRegister>();
+  GpuRegister dividend = locations->InAt(0).AsRegister<GpuRegister>();
+  int64_t imm = Int64FromConstant(second.GetConstant());
+  uint64_t abs_imm = static_cast<uint64_t>(std::abs(imm));
+  DCHECK(IsPowerOfTwo(abs_imm));
+  int ctz_imm = CTZ(abs_imm);
+
+  if (instruction->IsDiv()) {
+    if (type == Primitive::kPrimInt) {
+      if (ctz_imm == 1) {
+        // Fast path for division by +/-2, which is very common.
+        __ Srl(TMP, dividend, 31);
+      } else {
+        __ Sra(TMP, dividend, 31);
+        __ Srl(TMP, TMP, 32 - ctz_imm);
+      }
+      __ Addu(out, dividend, TMP);
+      __ Sra(out, out, ctz_imm);
+      if (imm < 0) {
+        __ Subu(out, ZERO, out);
+      }
+    } else {
+      DCHECK_EQ(type, Primitive::kPrimLong);
+      if (ctz_imm == 1) {
+        // Fast path for division by +/-2, which is very common.
+        __ Dsrl32(TMP, dividend, 31);
+      } else {
+        __ Dsra32(TMP, dividend, 31);
+        if (ctz_imm > 32) {
+          __ Dsrl(TMP, TMP, 64 - ctz_imm);
+        } else {
+          __ Dsrl32(TMP, TMP, 32 - ctz_imm);
+        }
+      }
+      __ Daddu(out, dividend, TMP);
+      if (ctz_imm < 32) {
+        __ Dsra(out, out, ctz_imm);
+      } else {
+        __ Dsra32(out, out, ctz_imm - 32);
+      }
+      if (imm < 0) {
+        __ Dsubu(out, ZERO, out);
+      }
+    }
+  } else {
+    if (type == Primitive::kPrimInt) {
+      if (ctz_imm == 1) {
+        // Fast path for modulo +/-2, which is very common.
+        __ Sra(TMP, dividend, 31);
+        __ Subu(out, dividend, TMP);
+        __ Andi(out, out, 1);
+        __ Addu(out, out, TMP);
+      } else {
+        __ Sra(TMP, dividend, 31);
+        __ Srl(TMP, TMP, 32 - ctz_imm);
+        __ Addu(out, dividend, TMP);
+        if (IsUint<16>(abs_imm - 1)) {
+          __ Andi(out, out, abs_imm - 1);
+        } else {
+          __ Sll(out, out, 32 - ctz_imm);
+          __ Srl(out, out, 32 - ctz_imm);
+        }
+        __ Subu(out, out, TMP);
+      }
+    } else {
+      DCHECK_EQ(type, Primitive::kPrimLong);
+      if (ctz_imm == 1) {
+        // Fast path for modulo +/-2, which is very common.
+        __ Dsra32(TMP, dividend, 31);
+        __ Dsubu(out, dividend, TMP);
+        __ Andi(out, out, 1);
+        __ Daddu(out, out, TMP);
+      } else {
+        __ Dsra32(TMP, dividend, 31);
+        if (ctz_imm > 32) {
+          __ Dsrl(TMP, TMP, 64 - ctz_imm);
+        } else {
+          __ Dsrl32(TMP, TMP, 32 - ctz_imm);
+        }
+        __ Daddu(out, dividend, TMP);
+        if (IsUint<16>(abs_imm - 1)) {
+          __ Andi(out, out, abs_imm - 1);
+        } else {
+          if (ctz_imm > 32) {
+            __ Dsll(out, out, 64 - ctz_imm);
+            __ Dsrl(out, out, 64 - ctz_imm);
+          } else {
+            __ Dsll32(out, out, 32 - ctz_imm);
+            __ Dsrl32(out, out, 32 - ctz_imm);
+          }
+        }
+        __ Dsubu(out, out, TMP);
+      }
+    }
+  }
+}
+
+void InstructionCodeGeneratorMIPS64::GenerateDivRemWithAnyConstant(HBinaryOperation* instruction) {
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+
+  LocationSummary* locations = instruction->GetLocations();
+  Location second = locations->InAt(1);
+  DCHECK(second.IsConstant());
+
+  GpuRegister out = locations->Out().AsRegister<GpuRegister>();
+  GpuRegister dividend = locations->InAt(0).AsRegister<GpuRegister>();
+  int64_t imm = Int64FromConstant(second.GetConstant());
+
+  Primitive::Type type = instruction->GetResultType();
+  DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong) << type;
+
+  int64_t magic;
+  int shift;
+  CalculateMagicAndShiftForDivRem(imm,
+                                  (type == Primitive::kPrimLong),
+                                  &magic,
+                                  &shift);
+
+  if (type == Primitive::kPrimInt) {
+    __ LoadConst32(TMP, magic);
+    __ MuhR6(TMP, dividend, TMP);
+
+    if (imm > 0 && magic < 0) {
+      __ Addu(TMP, TMP, dividend);
+    } else if (imm < 0 && magic > 0) {
+      __ Subu(TMP, TMP, dividend);
+    }
+
+    if (shift != 0) {
+      __ Sra(TMP, TMP, shift);
+    }
+
+    if (instruction->IsDiv()) {
+      __ Sra(out, TMP, 31);
+      __ Subu(out, TMP, out);
+    } else {
+      __ Sra(AT, TMP, 31);
+      __ Subu(AT, TMP, AT);
+      __ LoadConst32(TMP, imm);
+      __ MulR6(TMP, AT, TMP);
+      __ Subu(out, dividend, TMP);
+    }
+  } else {
+    __ LoadConst64(TMP, magic);
+    __ Dmuh(TMP, dividend, TMP);
+
+    if (imm > 0 && magic < 0) {
+      __ Daddu(TMP, TMP, dividend);
+    } else if (imm < 0 && magic > 0) {
+      __ Dsubu(TMP, TMP, dividend);
+    }
+
+    if (shift >= 32) {
+      __ Dsra32(TMP, TMP, shift - 32);
+    } else if (shift > 0) {
+      __ Dsra(TMP, TMP, shift);
+    }
+
+    if (instruction->IsDiv()) {
+      __ Dsra32(out, TMP, 31);
+      __ Dsubu(out, TMP, out);
+    } else {
+      __ Dsra32(AT, TMP, 31);
+      __ Dsubu(AT, TMP, AT);
+      __ LoadConst64(TMP, imm);
+      __ Dmul(TMP, AT, TMP);
+      __ Dsubu(out, dividend, TMP);
+    }
+  }
+}
+
+void InstructionCodeGeneratorMIPS64::GenerateDivRemIntegral(HBinaryOperation* instruction) {
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+  Primitive::Type type = instruction->GetResultType();
+  DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong) << type;
+
+  LocationSummary* locations = instruction->GetLocations();
+  GpuRegister out = locations->Out().AsRegister<GpuRegister>();
+  Location second = locations->InAt(1);
+
+  if (second.IsConstant()) {
+    int64_t imm = Int64FromConstant(second.GetConstant());
+    if (imm == 0) {
+      // Do not generate anything. DivZeroCheck would prevent any code to be executed.
+    } else if (imm == 1 || imm == -1) {
+      DivRemOneOrMinusOne(instruction);
+    } else if (IsPowerOfTwo(std::abs(imm))) {
+      DivRemByPowerOfTwo(instruction);
+    } else {
+      DCHECK(imm <= -2 || imm >= 2);
+      GenerateDivRemWithAnyConstant(instruction);
+    }
+  } else {
+    GpuRegister dividend = locations->InAt(0).AsRegister<GpuRegister>();
+    GpuRegister divisor = second.AsRegister<GpuRegister>();
+    if (instruction->IsDiv()) {
+      if (type == Primitive::kPrimInt)
+        __ DivR6(out, dividend, divisor);
+      else
+        __ Ddiv(out, dividend, divisor);
+    } else {
+      if (type == Primitive::kPrimInt)
+        __ ModR6(out, dividend, divisor);
+      else
+        __ Dmod(out, dividend, divisor);
+    }
+  }
+}
+
 void LocationsBuilderMIPS64::VisitDiv(HDiv* div) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(div, LocationSummary::kNoCall);
@@ -1909,7 +2155,7 @@ void LocationsBuilderMIPS64::VisitDiv(HDiv* div) {
     case Primitive::kPrimInt:
     case Primitive::kPrimLong:
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(div->InputAt(1)));
       locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
 
@@ -1931,16 +2177,9 @@ void InstructionCodeGeneratorMIPS64::VisitDiv(HDiv* instruction) {
 
   switch (type) {
     case Primitive::kPrimInt:
-    case Primitive::kPrimLong: {
-      GpuRegister dst = locations->Out().AsRegister<GpuRegister>();
-      GpuRegister lhs = locations->InAt(0).AsRegister<GpuRegister>();
-      GpuRegister rhs = locations->InAt(1).AsRegister<GpuRegister>();
-      if (type == Primitive::kPrimInt)
-        __ DivR6(dst, lhs, rhs);
-      else
-        __ Ddiv(dst, lhs, rhs);
+    case Primitive::kPrimLong:
+      GenerateDivRemIntegral(instruction);
       break;
-    }
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       FpuRegister dst = locations->Out().AsFpuRegister<FpuRegister>();
@@ -3112,7 +3351,7 @@ void LocationsBuilderMIPS64::VisitRem(HRem* rem) {
     case Primitive::kPrimInt:
     case Primitive::kPrimLong:
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(rem->InputAt(1)));
       locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
 
@@ -3132,20 +3371,12 @@ void LocationsBuilderMIPS64::VisitRem(HRem* rem) {
 
 void InstructionCodeGeneratorMIPS64::VisitRem(HRem* instruction) {
   Primitive::Type type = instruction->GetType();
-  LocationSummary* locations = instruction->GetLocations();
 
   switch (type) {
     case Primitive::kPrimInt:
-    case Primitive::kPrimLong: {
-      GpuRegister dst = locations->Out().AsRegister<GpuRegister>();
-      GpuRegister lhs = locations->InAt(0).AsRegister<GpuRegister>();
-      GpuRegister rhs = locations->InAt(1).AsRegister<GpuRegister>();
-      if (type == Primitive::kPrimInt)
-        __ ModR6(dst, lhs, rhs);
-      else
-        __ Dmod(dst, lhs, rhs);
+    case Primitive::kPrimLong:
+      GenerateDivRemIntegral(instruction);
       break;
-    }
 
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
