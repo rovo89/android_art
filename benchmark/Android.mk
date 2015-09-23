@@ -19,6 +19,7 @@ LOCAL_PATH := $(call my-dir)
 include art/build/Android.common_build.mk
 
 LIBARTBENCHMARK_COMMON_SRC_FILES := \
+  jobject-benchmark/jobject_benchmark.cc \
   jni-perf/perf_jni.cc \
   scoped-primitive-array/scoped_primitive_array.cc
 
