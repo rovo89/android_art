@@ -16,7 +16,10 @@
 
 #include "class_linker.h"
 #include "dex_file-inl.h"
+#include "gc/heap.h"
+#include "gc/space/image_space.h"
 #include "mirror/class-inl.h"
+#include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
 
@@ -29,6 +32,11 @@ class NoPatchoatTest {
     mirror::Class* klass = soa.Decode<mirror::Class*>(cls);
     const DexFile& dex_file = klass->GetDexFile();
     return dex_file.GetOatDexFile();
+  }
+
+  static bool isRelocationDeltaZero() {
+    gc::space::ImageSpace* space = Runtime::Current()->GetHeap()->GetImageSpace();
+    return space != nullptr && space->GetImageHeader().GetPatchDelta() == 0;
   }
 
   static bool hasExecutableOat(jclass cls) {
@@ -48,6 +56,10 @@ class NoPatchoatTest {
     return oat_file->IsPic();
   }
 };
+
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_isRelocationDeltaZero(JNIEnv*, jclass) {
+  return NoPatchoatTest::isRelocationDeltaZero();
+}
 
 extern "C" JNIEXPORT jboolean JNICALL Java_Main_hasExecutableOat(JNIEnv*, jclass cls) {
   return NoPatchoatTest::hasExecutableOat(cls);
