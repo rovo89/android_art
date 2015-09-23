@@ -192,7 +192,7 @@ JNIEXPORT void* JVM_FindLibraryEntry(void* handle, const char* name) {
     return dlsym(handle, name);
 }
 
-JNIEXPORT jlong JVM_CurrentTimeMillis(JNIEnv* env, jclass unused) {
+JNIEXPORT jlong JVM_CurrentTimeMillis(JNIEnv* env, jclass clazz ATTRIBUTE_UNUSED) {
     LOG(DEBUG) << "JVM_CurrentTimeMillis env=" << env;
     struct timeval tv;
 
@@ -328,7 +328,7 @@ JNIEXPORT void JVM_GC(void) {
   art::Runtime::Current()->GetHeap()->CollectGarbage(false);
 }
 
-JNIEXPORT void JVM_Exit(jint status) {
+JNIEXPORT __attribute__((noreturn)) void JVM_Exit(jint status) {
   LOG(INFO) << "System.exit called, status: " << status;
   art::Runtime::Current()->CallExitHook(status);
   exit(status);
@@ -385,17 +385,18 @@ JNIEXPORT void JVM_SetThreadPriority(JNIEnv* env, jobject jthread, jint prio) {
   }
 }
 
-JNIEXPORT void JVM_Yield(JNIEnv* env, jclass threadClass) {
+JNIEXPORT void JVM_Yield(JNIEnv* env ATTRIBUTE_UNUSED, jclass threadClass ATTRIBUTE_UNUSED) {
   sched_yield();
 }
 
-JNIEXPORT void JVM_Sleep(JNIEnv* env, jclass threadClass, jobject java_lock, jlong millis) {
+JNIEXPORT void JVM_Sleep(JNIEnv* env, jclass threadClass ATTRIBUTE_UNUSED,
+                         jobject java_lock, jlong millis) {
   art::ScopedFastNativeObjectAccess soa(env);
   art::mirror::Object* lock = soa.Decode<art::mirror::Object*>(java_lock);
   art::Monitor::Wait(art::Thread::Current(), lock, millis, 0, true, art::kSleeping);
 }
 
-JNIEXPORT jobject JVM_CurrentThread(JNIEnv* env, jclass unused) {
+JNIEXPORT jobject JVM_CurrentThread(JNIEnv* env, jclass unused ATTRIBUTE_UNUSED) {
   art::ScopedFastNativeObjectAccess soa(env);
   return soa.AddLocalReference<jobject>(soa.Self()->GetPeer());
 }
@@ -420,7 +421,7 @@ JNIEXPORT jboolean JVM_IsInterrupted(JNIEnv* env, jobject jthread, jboolean clea
   }
 }
 
-JNIEXPORT jboolean JVM_HoldsLock(JNIEnv* env, jclass unused, jobject jobj) {
+JNIEXPORT jboolean JVM_HoldsLock(JNIEnv* env, jclass unused ATTRIBUTE_UNUSED, jobject jobj) {
   art::ScopedObjectAccess soa(env);
   art::mirror::Object* object = soa.Decode<art::mirror::Object*>(jobj);
   if (object == NULL) {
@@ -470,7 +471,7 @@ JNIEXPORT jint JVM_IHashCode(JNIEnv* env, jobject javaObject) {
   return static_cast<jint>(o->IdentityHashCode());
 }
 
-JNIEXPORT jlong JVM_NanoTime(JNIEnv* env, jclass unused) {
+JNIEXPORT jlong JVM_NanoTime(JNIEnv* env ATTRIBUTE_UNUSED, jclass unused ATTRIBUTE_UNUSED) {
 #if defined(HAVE_POSIX_CLOCKS)
     timespec now;
     clock_gettime(CLOCK_MONOTONIC, &now);
@@ -489,7 +490,7 @@ static void ThrowArrayStoreException_NotAnArray(const char* identifier, art::mir
                            "%s of type %s is not an array", identifier, actualType.c_str());
 }
 
-JNIEXPORT void JVM_ArrayCopy(JNIEnv* env, jclass unused, jobject javaSrc,
+JNIEXPORT void JVM_ArrayCopy(JNIEnv* env, jclass unused ATTRIBUTE_UNUSED, jobject javaSrc,
                              jint srcPos, jobject javaDst, jint dstPos, jint length) {
   // The API is defined in terms of length, but length is somewhat overloaded so we use count.
   const jint count = length;
@@ -592,22 +593,22 @@ JNIEXPORT void JVM_ArrayCopy(JNIEnv* env, jclass unused, jobject javaSrc,
   dstObjArray->AssignableCheckingMemcpy(dstPos, srcObjArray, srcPos, count, true);
 }
 
-JNIEXPORT jint JVM_FindSignal(const char* name) {
+JNIEXPORT jint JVM_FindSignal(const char* name ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "JVM_FindSignal is not implemented";
   return 0;
 }
 
-JNIEXPORT void* JVM_RegisterSignal(jint signum, void* handler) {
+JNIEXPORT void* JVM_RegisterSignal(jint signum ATTRIBUTE_UNUSED, void* handler ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "JVM_RegisterSignal is not implemented";
   return nullptr;
 }
 
-JNIEXPORT jboolean JVM_RaiseSignal(jint signum) {
+JNIEXPORT jboolean JVM_RaiseSignal(jint signum ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "JVM_RaiseSignal is not implemented";
   return JNI_FALSE;
 }
 
-JNIEXPORT void JVM_Halt(jint code) {
+JNIEXPORT __attribute__((noreturn))  void JVM_Halt(jint code) {
   exit(code);
 }
 

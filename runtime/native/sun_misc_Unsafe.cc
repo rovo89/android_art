@@ -189,11 +189,11 @@ static jint Unsafe_getArrayIndexScaleForComponentType(JNIEnv* env, jclass, jobje
   return Primitive::ComponentSize(primitive_type);
 }
 
-static jint Unsafe_addressSize(JNIEnv* env, jobject) {
+static jint Unsafe_addressSize(JNIEnv* env ATTRIBUTE_UNUSED, jobject ob ATTRIBUTE_UNUSED) {
   return sizeof(void*);
 }
 
-static jint Unsafe_pageSize(JNIEnv* env, jobject) {
+static jint Unsafe_pageSize(JNIEnv* env ATTRIBUTE_UNUSED, jobject ob ATTRIBUTE_UNUSED) {
   return sysconf(_SC_PAGESIZE);
 }
 
@@ -212,66 +212,66 @@ static jlong Unsafe_allocateMemory(JNIEnv* env, jobject, jlong bytes) {
   return (uintptr_t) mem;
 }
 
-static void Unsafe_freeMemory(JNIEnv* env, jobject, jlong address) {
+static void Unsafe_freeMemory(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
   free(reinterpret_cast<void*>(static_cast<uintptr_t>(address)));
 }
 
-static void Unsafe_setMemory(JNIEnv* env, jobject, jlong address, jlong bytes, jbyte value) {
+static void Unsafe_setMemory(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jlong bytes, jbyte value) {
   memset(reinterpret_cast<void*>(static_cast<uintptr_t>(address)), value, bytes);
 }
 
-static jbyte Unsafe_getByte$(JNIEnv* env, jobject, jlong address) {
+static jbyte Unsafe_getByte$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
   return *reinterpret_cast<jbyte*>(address);
 }
 
-static void Unsafe_putByte$(JNIEnv* env, jobject, jlong address, jbyte value) {
+static void Unsafe_putByte$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jbyte value) {
   *reinterpret_cast<jbyte*>(address) = value;
 }
 
-static jshort Unsafe_getShort$(JNIEnv* env, jobject, jlong address) {
+static jshort Unsafe_getShort$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
   return *reinterpret_cast<jshort*>(address);
 }
 
-static void Unsafe_putShort$(JNIEnv* env, jobject, jlong address, jshort value) {
+static void Unsafe_putShort$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jshort value) {
   *reinterpret_cast<jshort*>(address) = value;
 }
 
-static jchar Unsafe_getChar$(JNIEnv* env, jobject, jlong address) {
+static jchar Unsafe_getChar$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
   return *reinterpret_cast<jchar*>(address);
 }
 
-static void Unsafe_putChar$(JNIEnv* env, jobject, jlong address, jchar value) {
+static void Unsafe_putChar$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jchar value) {
   *reinterpret_cast<jchar*>(address) = value;
 }
 
-static jint Unsafe_getInt$(JNIEnv* env, jobject, jlong address) {
+static jint Unsafe_getInt$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
   return *reinterpret_cast<jint*>(address);
 }
 
-static void Unsafe_putInt$(JNIEnv* env, jobject, jlong address, jint value) {
+static void Unsafe_putInt$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jint value) {
   *reinterpret_cast<jint*>(address) = value;
 }
 
-static jlong Unsafe_getLong$(JNIEnv* env, jobject, jlong address) {
+static jlong Unsafe_getLong$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
   return *reinterpret_cast<jlong*>(address);
 }
 
-static void Unsafe_putLong$(JNIEnv* env, jobject, jlong address, jlong value) {
+static void Unsafe_putLong$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jlong value) {
   *reinterpret_cast<jlong*>(address) = value;
 }
 
-static jfloat Unsafe_getFloat$(JNIEnv* env, jobject, jlong address) {
+static jfloat Unsafe_getFloat$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
   return *reinterpret_cast<jfloat*>(address);
 }
 
-static void Unsafe_putFloat$(JNIEnv* env, jobject, jlong address, jfloat value) {
+static void Unsafe_putFloat$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jfloat value) {
   *reinterpret_cast<jfloat*>(address) = value;
 }
-static jdouble Unsafe_getDouble$(JNIEnv* env, jobject, jlong address) {
+static jdouble Unsafe_getDouble$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
   return *reinterpret_cast<jdouble*>(address);
 }
 
-static void Unsafe_putDouble$(JNIEnv* env, jobject, jlong address, jdouble value) {
+static void Unsafe_putDouble$(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address, jdouble value) {
   *reinterpret_cast<jdouble*>(address) = value;
 }
 
@@ -280,7 +280,8 @@ static jlong Unsafe_getAddress(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong addr
   return (uintptr_t)(*(void**)p);
 }
 
-static void Unsafe_copyMemory(JNIEnv *env, jobject unsafe, jlong src, jlong dst, jlong size) {
+static void Unsafe_copyMemory(JNIEnv *env, jobject unsafe ATTRIBUTE_UNUSED, jlong src,
+                              jlong dst, jlong size) {
     if (size == 0) {
         return;
     }
@@ -320,7 +321,7 @@ static void copyFromArray(jlong dstAddr, mirror::PrimitiveArray<T>* array,
 }
 
 static void Unsafe_copyMemoryToPrimitiveArray(JNIEnv *env,
-                                              jobject unsafe,
+                                              jobject unsafe ATTRIBUTE_UNUSED,
                                               jlong srcAddr,
                                               jobject dstObj,
                                               jlong dstOffset,
@@ -351,7 +352,7 @@ static void Unsafe_copyMemoryToPrimitiveArray(JNIEnv *env,
 }
 
 static void Unsafe_copyMemoryFromPrimitiveArray(JNIEnv *env,
-                                                jobject unsafe,
+                                                jobject unsafe ATTRIBUTE_UNUSED,
                                                 jobject srcObj,
                                                 jlong srcOffset,
                                                 jlong dstAddr,
