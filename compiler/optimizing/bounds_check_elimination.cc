@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
-#include "base/arena_containers.h"
 #include "bounds_check_elimination.h"
+
+#include <limits>
+
+#include "base/arena_containers.h"
 #include "induction_var_range.h"
 #include "nodes.h"
 
@@ -48,11 +51,11 @@ class ValueBound : public ValueObject {
     if (right == 0) {
       return false;
     }
-    if ((right > 0) && (left <= INT_MAX - right)) {
+    if ((right > 0) && (left <= (std::numeric_limits<int32_t>::max() - right))) {
       // No overflow.
       return false;
     }
-    if ((right < 0) && (left >= INT_MIN - right)) {
+    if ((right < 0) && (left >= (std::numeric_limits<int32_t>::min() - right))) {
       // No underflow.
       return false;
     }
@@ -120,8 +123,8 @@ class ValueBound : public ValueObject {
     return instruction_ == nullptr;
   }
 
-  static ValueBound Min() { return ValueBound(nullptr, INT_MIN); }
-  static ValueBound Max() { return ValueBound(nullptr, INT_MAX); }
+  static ValueBound Min() { return ValueBound(nullptr, std::numeric_limits<int32_t>::min()); }
+  static ValueBound Max() { return ValueBound(nullptr, std::numeric_limits<int32_t>::max()); }
 
   bool Equals(ValueBound bound) const {
     return instruction_ == bound.instruction_ && constant_ == bound.constant_;
@@ -213,7 +216,7 @@ class ValueBound : public ValueObject {
 
     int32_t new_constant;
     if (c > 0) {
-      if (constant_ > INT_MAX - c) {
+      if (constant_ > (std::numeric_limits<int32_t>::max() - c)) {
         *overflow = true;
         return Max();
       }
@@ -227,7 +230,7 @@ class ValueBound : public ValueObject {
       *overflow = true;
       return Max();
     } else {
-      if (constant_ < INT_MIN - c) {
+      if (constant_ < (std::numeric_limits<int32_t>::min() - c)) {
         *underflow = true;
         return Min();
       }
@@ -256,8 +259,8 @@ class ArrayAccessInsideLoopFinder : public ValueObject {
   explicit ArrayAccessInsideLoopFinder(HInstruction* induction_variable)
       : induction_variable_(induction_variable),
         found_array_length_(nullptr),
-        offset_low_(INT_MAX),
-        offset_high_(INT_MIN) {
+        offset_low_(std::numeric_limits<int32_t>::max()),
+        offset_high_(std::numeric_limits<int32_t>::min()) {
     Run();
   }
 
@@ -492,7 +495,7 @@ class MonotonicValueRange : public ValueRange {
                       HInstruction* initial,
                       int32_t increment,
                       ValueBound bound)
-      // To be conservative, give it full range [INT_MIN, INT_MAX] in case it's
+      // To be conservative, give it full range [Min(), Max()] in case it's
       // used as a regular value range, due to possible overflow/underflow.
       : ValueRange(allocator, ValueBound::Min(), ValueBound::Max()),
         induction_variable_(induction_variable),
@@ -554,19 +557,19 @@ class MonotonicValueRange : public ValueRange {
     if (increment_ > 0) {
       // Monotonically increasing.
       ValueBound lower = ValueBound::NarrowLowerBound(bound_, range->GetLower());
-      if (!lower.IsConstant() || lower.GetConstant() == INT_MIN) {
+      if (!lower.IsConstant() || lower.GetConstant() == std::numeric_limits<int32_t>::min()) {
         // Lower bound isn't useful. Leave it to deoptimization.
         return this;
       }
 
-      // We currently conservatively assume max array length is INT_MAX. If we can
-      // make assumptions about the max array length, e.g. due to the max heap size,
+      // We currently conservatively assume max array length is Max().
+      // If we can make assumptions about the max array length, e.g. due to the max heap size,
       // divided by the element size (such as 4 bytes for each integer array), we can
       // lower this number and rule out some possible overflows.
-      int32_t max_array_len = INT_MAX;
+      int32_t max_array_len = std::numeric_limits<int32_t>::max();
 
       // max possible integer value of range's upper value.
-      int32_t upper = INT_MAX;
+      int32_t upper = std::numeric_limits<int32_t>::max();
       // Try to lower upper.
       ValueBound upper_bound = range->GetUpper();
       if (upper_bound.IsConstant()) {
@@ -593,7 +596,7 @@ class MonotonicValueRange : public ValueRange {
               ((int64_t)upper - (int64_t)initial_constant) / increment_ * increment_;
         }
       }
-      if (last_num_in_sequence <= INT_MAX - increment_) {
+      if (last_num_in_sequence <= (std::numeric_limits<int32_t>::max() - increment_)) {
         // No overflow. The sequence will be stopped by the upper bound test as expected.
         return new (GetAllocator()) ValueRange(GetAllocator(), lower, range->GetUpper());
       }
@@ -604,7 +607,7 @@ class MonotonicValueRange : public ValueRange {
       DCHECK_NE(increment_, 0);
       // Monotonically decreasing.
       ValueBound upper = ValueBound::NarrowUpperBound(bound_, range->GetUpper());
-      if ((!upper.IsConstant() || upper.GetConstant() == INT_MAX) &&
+      if ((!upper.IsConstant() || upper.GetConstant() == std::numeric_limits<int32_t>::max()) &&
           !upper.IsRelatedToArrayLength()) {
         // Upper bound isn't useful. Leave it to deoptimization.
         return this;
@@ -614,7 +617,7 @@ class MonotonicValueRange : public ValueRange {
       // for common cases.
       if (range->GetLower().IsConstant()) {
         int32_t constant = range->GetLower().GetConstant();
-        if (constant >= INT_MIN - increment_) {
+        if (constant >= (std::numeric_limits<int32_t>::min() - increment_)) {
           return new (GetAllocator()) ValueRange(GetAllocator(), range->GetLower(), upper);
         }
       }
@@ -1099,7 +1102,8 @@ class BCEVisitor : public HGraphVisitor {
   // Very large constant index is considered as an anomaly. This is a threshold
   // beyond which we don't bother to apply the deoptimization technique since
   // it's likely some AIOOBE will be thrown.
-  static constexpr int32_t kMaxConstantForAddingDeoptimize = INT_MAX - 1024 * 1024;
+  static constexpr int32_t kMaxConstantForAddingDeoptimize =
+      std::numeric_limits<int32_t>::max() - 1024 * 1024;
 
   // Added blocks for loop body entry test.
   bool IsAddedBlock(HBasicBlock* block) const {
@@ -1467,8 +1471,8 @@ class BCEVisitor : public HGraphVisitor {
       // Once we have an array access like 'array[5] = 1', we record array.length >= 6.
       // We currently don't do it for non-constant index since a valid array[i] can't prove
       // a valid array[i-1] yet due to the lower bound side.
-      if (constant == INT_MAX) {
-        // INT_MAX as an index will definitely throw AIOOBE.
+      if (constant == std::numeric_limits<int32_t>::max()) {
+        // Max() as an index will definitely throw AIOOBE.
         return;
       }
       ValueBound lower = ValueBound(nullptr, constant + 1);
@@ -1690,8 +1694,8 @@ class BCEVisitor : public HGraphVisitor {
     // The value of left input of instruction equals (left + c).
 
     // (array_length + 1) or smaller divided by two or more
-    // always generate a value in [INT_MIN, array_length].
-    // This is true even if array_length is INT_MAX.
+    // always generate a value in [Min(), array_length].
+    // This is true even if array_length is Max().
     if (left->IsArrayLength() && c <= 1) {
       if (instruction->IsUShr() && c < 0) {
         // Make sure for unsigned shift, left side is not negative.
@@ -1701,7 +1705,7 @@ class BCEVisitor : public HGraphVisitor {
       }
       ValueRange* range = new (GetGraph()->GetArena()) ValueRange(
           GetGraph()->GetArena(),
-          ValueBound(nullptr, INT_MIN),
+          ValueBound(nullptr, std::numeric_limits<int32_t>::min()),
           ValueBound(left, 0));
       GetValueRangeMap(instruction->GetBlock())->Overwrite(instruction->GetId(), range);
     }
@@ -1811,7 +1815,7 @@ class BCEVisitor : public HGraphVisitor {
         continue;
       }
       HIntConstant* lower_bound_const_instr = nullptr;
-      int32_t lower_bound_const = INT_MIN;
+      int32_t lower_bound_const = std::numeric_limits<int32_t>::min();
       size_t counter = 0;
       // Count the constant indexing for which bounds checks haven't
       // been removed yet.
