@@ -33,6 +33,7 @@ LIBARTTEST_COMMON_SRC_FILES := \
   1337-gc-coverage/gc_coverage.cc \
   137-cfi/cfi.cc \
   139-register-natives/regnative.cc \
+  141-class-unload/jni_unload.cc \
   454-get-vreg/get_vreg_jni.cc \
   455-set-vreg/set_vreg_jni.cc \
   457-regs/regs_jni.cc \

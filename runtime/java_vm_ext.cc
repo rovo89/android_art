@@ -60,7 +60,7 @@ class SharedLibrary {
       : path_(path),
         handle_(handle),
         needs_native_bridge_(false),
-        class_loader_(env->NewGlobalRef(class_loader)),
+        class_loader_(env->NewWeakGlobalRef(class_loader)),
         jni_on_load_lock_("JNI_OnLoad lock"),
         jni_on_load_cond_("JNI_OnLoad condition variable", jni_on_load_lock_),
         jni_on_load_thread_id_(self->GetThreadId()),
@@ -70,11 +70,11 @@ class SharedLibrary {
   ~SharedLibrary() {
     Thread* self = Thread::Current();
     if (self != nullptr) {
-      self->GetJniEnv()->DeleteGlobalRef(class_loader_);
+      self->GetJniEnv()->DeleteWeakGlobalRef(class_loader_);
     }
   }
 
-  jobject GetClassLoader() const {
+  jweak GetClassLoader() const {
     return class_loader_;
   }
 
@@ -131,7 +131,13 @@ class SharedLibrary {
     return needs_native_bridge_;
   }
 
-  void* FindSymbol(const std::string& symbol_name) {
+  void* FindSymbol(const std::string& symbol_name, const char* shorty = nullptr) {
+    return NeedsNativeBridge()
+        ? FindSymbolWithNativeBridge(symbol_name.c_str(), shorty)
+        : FindSymbolWithoutNativeBridge(symbol_name.c_str());
+  }
+
+  void* FindSymbolWithoutNativeBridge(const std::string& symbol_name) {
     CHECK(!NeedsNativeBridge());
 
     return dlsym(handle_, symbol_name.c_str());
@@ -160,9 +166,9 @@ class SharedLibrary {
   // True if a native bridge is required.
   bool needs_native_bridge_;
 
-  // The ClassLoader this library is associated with, a global JNI reference that is
+  // The ClassLoader this library is associated with, a weak global JNI reference that is
   // created/deleted with the scope of the library.
-  const jobject class_loader_;
+  const jweak class_loader_;
 
   // Guards remaining items.
   Mutex jni_on_load_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
@@ -184,7 +190,10 @@ class Libraries {
     STLDeleteValues(&libraries_);
   }
 
-  void Dump(std::ostream& os) const {
+  // NO_THREAD_SAFETY_ANALYSIS since this may be called from Dumpable. Dumpable can't be annotated
+  // properly due to the template. The caller should be holding the jni_libraries_lock_.
+  void Dump(std::ostream& os) const NO_THREAD_SAFETY_ANALYSIS {
+    Locks::jni_libraries_lock_->AssertHeld(Thread::Current());
     bool first = true;
     for (const auto& library : libraries_) {
       if (!first) {
@@ -195,16 +204,17 @@ class Libraries {
     }
   }
 
-  size_t size() const {
+  size_t size() const REQUIRES(Locks::jni_libraries_lock_) {
     return libraries_.size();
   }
 
-  SharedLibrary* Get(const std::string& path) {
+  SharedLibrary* Get(const std::string& path) REQUIRES(Locks::jni_libraries_lock_) {
     auto it = libraries_.find(path);
     return (it == libraries_.end()) ? nullptr : it->second;
   }
 
-  void Put(const std::string& path, SharedLibrary* library) {
+  void Put(const std::string& path, SharedLibrary* library)
+      REQUIRES(Locks::jni_libraries_lock_) {
     libraries_.Put(path, library);
   }
 
@@ -217,24 +227,18 @@ class Libraries {
     const mirror::ClassLoader* declaring_class_loader = m->GetDeclaringClass()->GetClassLoader();
     ScopedObjectAccessUnchecked soa(Thread::Current());
     for (const auto& lib : libraries_) {
-      SharedLibrary* library = lib.second;
+      SharedLibrary* const library = lib.second;
       if (soa.Decode<mirror::ClassLoader*>(library->GetClassLoader()) != declaring_class_loader) {
         // We only search libraries loaded by the appropriate ClassLoader.
         continue;
       }
       // Try the short name then the long name...
-      void* fn;
-      if (library->NeedsNativeBridge()) {
-        const char* shorty = m->GetShorty();
-        fn = library->FindSymbolWithNativeBridge(jni_short_name, shorty);
-        if (fn == nullptr) {
-          fn = library->FindSymbolWithNativeBridge(jni_long_name, shorty);
-        }
-      } else {
-        fn = library->FindSymbol(jni_short_name);
-        if (fn == nullptr) {
-          fn = library->FindSymbol(jni_long_name);
-        }
+      const char* shorty = library->NeedsNativeBridge()
+          ? m->GetShorty()
+          : nullptr;
+      void* fn = library->FindSymbol(jni_short_name, shorty);
+      if (fn == nullptr) {
+        fn = library->FindSymbol(jni_long_name, shorty);
       }
       if (fn != nullptr) {
         VLOG(jni) << "[Found native code for " << PrettyMethod(m)
@@ -249,10 +253,45 @@ class Libraries {
     return nullptr;
   }
 
- private:
-  AllocationTrackingSafeMap<std::string, SharedLibrary*, kAllocatorTagJNILibraries> libraries_;
-};
+  // Unload native libraries with cleared class loaders.
+  void UnloadNativeLibraries()
+      REQUIRES(!Locks::jni_libraries_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    ScopedObjectAccessUnchecked soa(Thread::Current());
+    typedef void (*JNI_OnUnloadFn)(JavaVM*, void*);
+    std::vector<JNI_OnUnloadFn> unload_functions;
+    {
+      MutexLock mu(soa.Self(), *Locks::jni_libraries_lock_);
+      for (auto it = libraries_.begin(); it != libraries_.end(); ) {
+        SharedLibrary* const library = it->second;
+        // If class loader is null then it was unloaded, call JNI_OnUnload.
+        if (soa.Decode<mirror::ClassLoader*>(library->GetClassLoader()) == nullptr) {
+          void* const sym = library->FindSymbol("JNI_OnUnload", nullptr);
+          if (sym == nullptr) {
+            VLOG(jni) << "[No JNI_OnUnload found in \"" << library->GetPath() << "\"]";
+          } else {
+            VLOG(jni) << "[JNI_OnUnload found for \"" << library->GetPath() << "\"]";
+            JNI_OnUnloadFn jni_on_unload = reinterpret_cast<JNI_OnUnloadFn>(sym);
+            unload_functions.push_back(jni_on_unload);
+          }
+          delete library;
+          it = libraries_.erase(it);
+        } else {
+          ++it;
+        }
+      }
+    }
+    // Do this without holding the jni libraries lock to prevent possible deadlocks.
+    for (JNI_OnUnloadFn fn : unload_functions) {
+      VLOG(jni) << "Calling JNI_OnUnload";
+      (*fn)(soa.Vm(), nullptr);
+    }
+  }
 
+ private:
+  AllocationTrackingSafeMap<std::string, SharedLibrary*, kAllocatorTagJNILibraries> libraries_
+      GUARDED_BY(Locks::jni_libraries_lock_);
+};
 
 class JII {
  public:
@@ -641,6 +680,10 @@ void JavaVMExt::DumpReferenceTables(std::ostream& os) {
   }
 }
 
+void JavaVMExt::UnloadNativeLibraries() {
+  libraries_.get()->UnloadNativeLibraries();
+}
+
 bool JavaVMExt::LoadNativeLibrary(JNIEnv* env, const std::string& path, jobject class_loader,
                                   std::string* error_msg) {
   error_msg->clear();
@@ -738,10 +781,8 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env, const std::string& path, jobject 
   void* sym;
   if (needs_native_bridge) {
     library->SetNeedsNativeBridge();
-    sym = library->FindSymbolWithNativeBridge("JNI_OnLoad", nullptr);
-  } else {
-    sym = dlsym(handle, "JNI_OnLoad");
   }
+  sym = library->FindSymbol("JNI_OnLoad", nullptr);
   if (sym == nullptr) {
     VLOG(jni) << "[No JNI_OnLoad found in \"" << path << "\"]";
     was_successful = true;

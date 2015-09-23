@@ -1963,6 +1963,10 @@ HomogeneousSpaceCompactResult Heap::PerformHomogeneousSpaceCompact() {
   GrowForUtilization(semi_space_collector_);
   LogGC(kGcCauseHomogeneousSpaceCompact, collector);
   FinishGC(self, collector::kGcTypeFull);
+  {
+    ScopedObjectAccess soa(self);
+    soa.Vm()->UnloadNativeLibraries();
+  }
   return HomogeneousSpaceCompactResult::kSuccess;
 }
 
@@ -2104,6 +2108,10 @@ void Heap::TransitionCollector(CollectorType collector_type) {
   DCHECK(collector != nullptr);
   LogGC(kGcCauseCollectorTransition, collector);
   FinishGC(self, collector::kGcTypeFull);
+  {
+    ScopedObjectAccess soa(self);
+    soa.Vm()->UnloadNativeLibraries();
+  }
   int32_t after_allocated = num_bytes_allocated_.LoadSequentiallyConsistent();
   int32_t delta_allocated = before_allocated - after_allocated;
   std::string saved_str;
@@ -2588,6 +2596,12 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type,
   FinishGC(self, gc_type);
   // Inform DDMS that a GC completed.
   Dbg::GcDidFinish();
+  // Unload native libraries for class unloading. We do this after calling FinishGC to prevent
+  // deadlocks in case the JNI_OnUnload function does allocations.
+  {
+    ScopedObjectAccess soa(self);
+    soa.Vm()->UnloadNativeLibraries();
+  }
   return gc_type;
 }
 
