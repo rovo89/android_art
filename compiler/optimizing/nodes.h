@@ -371,9 +371,6 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
 
  private:
   void FindBackEdges(ArenaBitVector* visited);
-  void VisitBlockForBackEdges(HBasicBlock* block,
-                              ArenaBitVector* visited,
-                              ArenaBitVector* visiting);
   void RemoveInstructionsAsUsersFromDeadBlocks(const ArenaBitVector& visited) const;
   void RemoveDeadBlocks(const ArenaBitVector& visited);
 
