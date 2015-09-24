@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-#include <limits.h>
-
 #include "induction_var_range.h"
+
+#include <limits>
 
 namespace art {
 
 /** Returns true if 64-bit constant fits in 32-bit constant. */
 static bool CanLongValueFitIntoInt(int64_t c) {
-  return INT_MIN <= c && c <= INT_MAX;
+  return std::numeric_limits<int32_t>::min() <= c && c <= std::numeric_limits<int32_t>::max();
 }
 
 /** Returns true if 32-bit addition can be done safely. */
@@ -88,7 +88,8 @@ InductionVarRange::Value InductionVarRange::GetMinInduction(HInstruction* contex
                                                             HInstruction* instruction) {
   HLoopInformation* loop = context->GetBlock()->GetLoopInformation();
   if (loop != nullptr) {
-    return GetMin(induction_analysis_->LookupInfo(loop, instruction), GetTripCount(loop, context));
+    return GetVal(induction_analysis_->LookupInfo(loop, instruction),
+                  GetTripCount(loop, context), /* is_min */ true);
   }
   return Value();
 }
@@ -98,7 +99,8 @@ InductionVarRange::Value InductionVarRange::GetMaxInduction(HInstruction* contex
   HLoopInformation* loop = context->GetBlock()->GetLoopInformation();
   if (loop != nullptr) {
     return SimplifyMax(
-        GetMax(induction_analysis_->LookupInfo(loop, instruction), GetTripCount(loop, context)));
+        GetVal(induction_analysis_->LookupInfo(loop, instruction),
+               GetTripCount(loop, context), /* is_min */ false));
   }
   return Value();
 }
@@ -150,73 +152,44 @@ InductionVarRange::Value InductionVarRange::GetFetch(HInstruction* instruction,
   return Value(instruction, 1, 0);
 }
 
-InductionVarRange::Value InductionVarRange::GetMin(HInductionVarAnalysis::InductionInfo* info,
-                                                   HInductionVarAnalysis::InductionInfo* trip) {
+InductionVarRange::Value InductionVarRange::GetVal(HInductionVarAnalysis::InductionInfo* info,
+                                                   HInductionVarAnalysis::InductionInfo* trip,
+                                                   bool is_min) {
   if (info != nullptr) {
     switch (info->induction_class) {
       case HInductionVarAnalysis::kInvariant:
         // Invariants.
         switch (info->operation) {
-          case HInductionVarAnalysis::kNop:  // normalized: 0
+          case HInductionVarAnalysis::kNop:  // normalized: 0 or TC-1
             DCHECK_EQ(info->op_a, info->op_b);
-            return Value(0);
+            return is_min ? Value(0)
+                          : SubValue(GetVal(info->op_b, trip, is_min), Value(1));
           case HInductionVarAnalysis::kAdd:
-            return AddValue(GetMin(info->op_a, trip), GetMin(info->op_b, trip));
-          case HInductionVarAnalysis::kSub:  // second max!
-            return SubValue(GetMin(info->op_a, trip), GetMax(info->op_b, trip));
-          case HInductionVarAnalysis::kNeg:  // second max!
-            return SubValue(Value(0), GetMax(info->op_b, trip));
+            return AddValue(GetVal(info->op_a, trip, is_min),
+                            GetVal(info->op_b, trip, is_min));
+          case HInductionVarAnalysis::kSub:  // second reversed!
+            return SubValue(GetVal(info->op_a, trip, is_min),
+                            GetVal(info->op_b, trip, !is_min));
+          case HInductionVarAnalysis::kNeg:  // second reversed!
+            return SubValue(Value(0),
+                            GetVal(info->op_b, trip, !is_min));
           case HInductionVarAnalysis::kMul:
-            return GetMul(info->op_a, info->op_b, trip, true);
+            return GetMul(info->op_a, info->op_b, trip, is_min);
           case HInductionVarAnalysis::kDiv:
-            return GetDiv(info->op_a, info->op_b, trip, true);
+            return GetDiv(info->op_a, info->op_b, trip, is_min);
           case HInductionVarAnalysis::kFetch:
-            return GetFetch(info->fetch, trip, true);
+            return GetFetch(info->fetch, trip, is_min);
         }
         break;
       case HInductionVarAnalysis::kLinear:
-        // Minimum over linear induction a * i + b, for normalized 0 <= i < TC.
-        return AddValue(GetMul(info->op_a, trip, trip, true), GetMin(info->op_b, trip));
+        // Linear induction a * i + b, for normalized 0 <= i < TC.
+        return AddValue(GetMul(info->op_a, trip, trip, is_min),
+                        GetVal(info->op_b, trip, is_min));
       case HInductionVarAnalysis::kWrapAround:
       case HInductionVarAnalysis::kPeriodic:
-        // Minimum over all values in the wrap-around/periodic.
-        return MinValue(GetMin(info->op_a, trip), GetMin(info->op_b, trip));
-    }
-  }
-  return Value();
-}
-
-InductionVarRange::Value InductionVarRange::GetMax(HInductionVarAnalysis::InductionInfo* info,
-                                                   HInductionVarAnalysis::InductionInfo* trip) {
-  if (info != nullptr) {
-    switch (info->induction_class) {
-      case HInductionVarAnalysis::kInvariant:
-        // Invariants.
-        switch (info->operation) {
-          case HInductionVarAnalysis::kNop:    // normalized: TC - 1
-            DCHECK_EQ(info->op_a, info->op_b);
-            return SubValue(GetMax(info->op_b, trip), Value(1));
-          case HInductionVarAnalysis::kAdd:
-            return AddValue(GetMax(info->op_a, trip), GetMax(info->op_b, trip));
-          case HInductionVarAnalysis::kSub:  // second min!
-            return SubValue(GetMax(info->op_a, trip), GetMin(info->op_b, trip));
-          case HInductionVarAnalysis::kNeg:  // second min!
-            return SubValue(Value(0), GetMin(info->op_b, trip));
-          case HInductionVarAnalysis::kMul:
-            return GetMul(info->op_a, info->op_b, trip, false);
-          case HInductionVarAnalysis::kDiv:
-            return GetDiv(info->op_a, info->op_b, trip, false);
-          case HInductionVarAnalysis::kFetch:
-            return GetFetch(info->fetch, trip, false);
-        }
-        break;
-      case HInductionVarAnalysis::kLinear:
-        // Maximum over linear induction a * i + b, for normalized 0 <= i < TC.
-        return AddValue(GetMul(info->op_a, trip, trip, false), GetMax(info->op_b, trip));
-      case HInductionVarAnalysis::kWrapAround:
-      case HInductionVarAnalysis::kPeriodic:
-        // Maximum over all values in the wrap-around/periodic.
-        return MaxValue(GetMax(info->op_a, trip), GetMax(info->op_b, trip));
+        // Merge values in the wrap-around/periodic.
+        return MergeVal(GetVal(info->op_a, trip, is_min),
+                        GetVal(info->op_b, trip, is_min), is_min);
     }
   }
   return Value();
@@ -226,10 +199,10 @@ InductionVarRange::Value InductionVarRange::GetMul(HInductionVarAnalysis::Induct
                                                    HInductionVarAnalysis::InductionInfo* info2,
                                                    HInductionVarAnalysis::InductionInfo* trip,
                                                    bool is_min) {
-  Value v1_min = GetMin(info1, trip);
-  Value v1_max = GetMax(info1, trip);
-  Value v2_min = GetMin(info2, trip);
-  Value v2_max = GetMax(info2, trip);
+  Value v1_min = GetVal(info1, trip, /* is_min */ true);
+  Value v1_max = GetVal(info1, trip, /* is_min */ false);
+  Value v2_min = GetVal(info2, trip, /* is_min */ true);
+  Value v2_max = GetVal(info2, trip, /* is_min */ false);
   if (v1_min.is_known && v1_min.a_constant == 0 && v1_min.b_constant >= 0) {
     // Positive range vs. positive or negative range.
     if (v2_min.is_known && v2_min.a_constant == 0 && v2_min.b_constant >= 0) {
@@ -256,10 +229,10 @@ InductionVarRange::Value InductionVarRange::GetDiv(HInductionVarAnalysis::Induct
                                                    HInductionVarAnalysis::InductionInfo* info2,
                                                    HInductionVarAnalysis::InductionInfo* trip,
                                                    bool is_min) {
-  Value v1_min = GetMin(info1, trip);
-  Value v1_max = GetMax(info1, trip);
-  Value v2_min = GetMin(info2, trip);
-  Value v2_max = GetMax(info2, trip);
+  Value v1_min = GetVal(info1, trip, /* is_min */ true);
+  Value v1_max = GetVal(info1, trip, /* is_min */ false);
+  Value v2_min = GetVal(info2, trip, /* is_min */ true);
+  Value v2_max = GetVal(info2, trip, /* is_min */ false);
   if (v1_min.is_known && v1_min.a_constant == 0 && v1_min.b_constant >= 0) {
     // Positive range vs. positive or negative range.
     if (v2_min.is_known && v2_min.a_constant == 0 && v2_min.b_constant >= 0) {
@@ -334,19 +307,12 @@ InductionVarRange::Value InductionVarRange::DivValue(Value v1, Value v2) {
   return Value();
 }
 
-InductionVarRange::Value InductionVarRange::MinValue(Value v1, Value v2) {
+InductionVarRange::Value InductionVarRange::MergeVal(Value v1, Value v2, bool is_min) {
   if (v1.is_known && v2.is_known) {
     if (v1.instruction == v2.instruction && v1.a_constant == v2.a_constant) {
-      return Value(v1.instruction, v1.a_constant, std::min(v1.b_constant, v2.b_constant));
-    }
-  }
-  return Value();
-}
-
-InductionVarRange::Value InductionVarRange::MaxValue(Value v1, Value v2) {
-  if (v1.is_known && v2.is_known) {
-    if (v1.instruction == v2.instruction && v1.a_constant == v2.a_constant) {
-      return Value(v1.instruction, v1.a_constant, std::max(v1.b_constant, v2.b_constant));
+      return Value(v1.instruction, v1.a_constant,
+                   is_min ? std::min(v1.b_constant, v2.b_constant)
+                          : std::max(v1.b_constant, v2.b_constant));
     }
   }
   return Value();

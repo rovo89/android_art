@@ -557,8 +557,8 @@ void HInductionVarAnalysis::VisitCondition(HLoopInformation* loop,
     InductionInfo* lo_val = a->op_b;
     InductionInfo* hi_val = b;
     // Analyze stride (may be compound).
-    InductionVarRange::Value v1 = InductionVarRange::GetMin(stride, nullptr);
-    InductionVarRange::Value v2 = InductionVarRange::GetMax(stride, nullptr);
+    InductionVarRange::Value v1 = InductionVarRange::GetVal(stride, nullptr, /* is_min */ true);
+    InductionVarRange::Value v2 = InductionVarRange::GetVal(stride, nullptr, /* is_min */ false);
     if (v1.a_constant != 0 || v2.a_constant != 0 || v1.b_constant != v2.b_constant) {
       return;
     }
