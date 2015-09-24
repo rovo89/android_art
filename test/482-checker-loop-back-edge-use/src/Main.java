@@ -18,16 +18,27 @@
 public class Main {
 
   /// CHECK-START: void Main.loop1(boolean) liveness (after)
-  /// CHECK:         ParameterValue  liveness:2  ranges:{[2,22)} uses:[17,22]
-  /// CHECK:         Goto            liveness:20
+  /// CHECK:         <<Arg:z\d+>>  ParameterValue  liveness:<<ArgLiv:\d+>>  ranges:{[<<ArgLiv>>,<<ArgLoopUse:\d+>>)} uses:[<<ArgUse:\d+>>,<<ArgLoopUse>>]
+  /// CHECK:                       If [<<Arg>>]    liveness:<<IfLiv:\d+>>
+  /// CHECK:                       Goto            liveness:<<GotoLiv:\d+>>
+  /// CHECK:                       Exit
+  /// CHECK-EVAL:    <<IfLiv>> + 1 == <<ArgUse>>
+  /// CHECK-EVAL:    <<GotoLiv>> + 2 == <<ArgLoopUse>>
+
   public static void loop1(boolean incoming) {
     while (incoming) {}
   }
 
   /// CHECK-START: void Main.loop2(boolean) liveness (after)
-  /// CHECK:         ParameterValue  liveness:4  ranges:{[4,44)} uses:[35,40,44]
-  /// CHECK:         Goto            liveness:38
-  /// CHECK:         Goto            liveness:42
+  /// CHECK:         <<Arg:z\d+>>  ParameterValue  liveness:<<ArgLiv:\d+>> ranges:{[<<ArgLiv>>,<<ArgLoopUse2:\d+>>)} uses:[<<ArgUse:\d+>>,<<ArgLoopUse1:\d+>>,<<ArgLoopUse2>>]
+  /// CHECK:                       If [<<Arg>>]    liveness:<<IfLiv:\d+>>
+  /// CHECK:                       Goto            liveness:<<GotoLiv1:\d+>>
+  /// CHECK:                       Goto            liveness:<<GotoLiv2:\d+>>
+  /// CHECK-EVAL:    <<IfLiv>> + 1 == <<ArgUse>>
+  /// CHECK-EVAL:    <<GotoLiv1>> < <<GotoLiv2>>
+  /// CHECK-EVAL:    <<GotoLiv1>> + 2 == <<ArgLoopUse1>>
+  /// CHECK-EVAL:    <<GotoLiv2>> + 2 == <<ArgLoopUse2>>
+
   public static void loop2(boolean incoming) {
     while (true) {
       System.out.println("foo");
@@ -36,11 +47,14 @@ public class Main {
   }
 
   /// CHECK-START: void Main.loop3(boolean) liveness (after)
-  /// CHECK:         ParameterValue  liveness:4  ranges:{[4,60)} uses:[56,60]
-  /// CHECK:         Goto            liveness:58
+  /// CHECK:         <<Arg:z\d+>>  ParameterValue  liveness:<<ArgLiv:\d+>> ranges:{[<<ArgLiv>>,<<ArgLoopUse:\d+>>)} uses:[<<ArgUse:\d+>>,<<ArgLoopUse>>]
+  /// CHECK:                       Goto            liveness:<<GotoLiv1:\d+>>
+  /// CHECK:                       InvokeVirtual   [{{l\d+}},<<Arg>>] method_name:java.io.PrintStream.println liveness:<<InvokeLiv:\d+>>
+  /// CHECK:                       Goto            liveness:<<GotoLiv2:\d+>>
+  /// CHECK-EVAL:    <<InvokeLiv>> == <<ArgUse>>
+  /// CHECK-EVAL:    <<GotoLiv1>> < <<GotoLiv2>>
+  /// CHECK-EVAL:    <<GotoLiv2>> + 2 == <<ArgLoopUse>>
 
-  // CHECK-START: void Main.loop3(boolean) liveness (after)
-  // CHECK-NOT:     Goto liveness:50
   public static void loop3(boolean incoming) {
     // 'incoming' only needs a use at the outer loop's back edge.
     while (System.currentTimeMillis() != 42) {
@@ -49,11 +63,11 @@ public class Main {
     }
   }
 
-  // CHECK-START: void Main.loop4(boolean) liveness (after)
-  // CHECK:         ParameterValue  liveness:4  ranges:{[4,22)} uses:[22]
+  /// CHECK-START: void Main.loop4(boolean) liveness (after)
+  /// CHECK:         <<Arg:z\d+>> ParameterValue  liveness:<<ArgLiv:\d+>> ranges:{[<<ArgLiv>>,<<ArgUse:\d+>>)} uses:[<<ArgUse>>]
+  /// CHECK:                      InvokeVirtual   [{{l\d+}},<<Arg>>] method_name:java.io.PrintStream.println liveness:<<InvokeLiv:\d+>>
+  /// CHECK-EVAL:    <<InvokeLiv>> == <<ArgUse>>
 
-  // CHECK-START: void Main.loop4(boolean) liveness (after)
-  // CHECK-NOT:     Goto            liveness:18
   public static void loop4(boolean incoming) {
     // 'incoming' has no loop use, so should not have back edge uses.
     System.out.println(incoming);
@@ -63,59 +77,98 @@ public class Main {
   }
 
   /// CHECK-START: void Main.loop5(boolean) liveness (after)
-  /// CHECK:         ParameterValue  liveness:4  ranges:{[4,54)} uses:[37,46,50,54]
-  /// CHECK:         Goto            liveness:48
-  /// CHECK:         Goto            liveness:52
+  /// CHECK:         <<Arg:z\d+>>  ParameterValue  liveness:<<ArgLiv:\d+>> ranges:{[<<ArgLiv>>,<<ArgLoopUse2:\d+>>)} uses:[<<ArgUse:\d+>>,<<ArgLoopUse1:\d+>>,<<ArgLoopUse2>>]
+  /// CHECK:                       InvokeVirtual   [{{l\d+}},<<Arg>>] method_name:java.io.PrintStream.println liveness:<<InvokeLiv:\d+>>
+  /// CHECK:                       Goto            liveness:<<GotoLiv1:\d+>>
+  /// CHECK:                       Goto            liveness:<<GotoLiv2:\d+>>
+  /// CHECK:                       Exit
+  /// CHECK-EVAL:    <<InvokeLiv>> == <<ArgUse>>
+  /// CHECK-EVAL:    <<GotoLiv1>> < <<GotoLiv2>>
+  /// CHECK-EVAL:    <<GotoLiv1>> + 2 == <<ArgLoopUse1>>
+  /// CHECK-EVAL:    <<GotoLiv2>> + 2 == <<ArgLoopUse2>>
+
   public static void loop5(boolean incoming) {
     // 'incoming' must have a use at both back edges.
-    while (Runtime.getRuntime() != null) {
-      while (incoming) {
+    for (long i = System.nanoTime(); i < 42; ++i) {
+      for (long j = System.currentTimeMillis(); j != 42; ++j) {
         System.out.println(incoming);
       }
     }
   }
 
   /// CHECK-START: void Main.loop6(boolean) liveness (after)
-  /// CHECK:         ParameterValue  liveness:4  ranges:{[4,50)} uses:[26,50]
-  /// CHECK:         Goto            liveness:48
+  /// CHECK:         <<Arg:z\d+>>  ParameterValue  liveness:<<ArgLiv:\d+>> ranges:{[<<ArgLiv>>,<<ArgLoopUse:\d+>>)} uses:[<<ArgUse:\d+>>,<<ArgLoopUse>>]
+  /// CHECK:                       InvokeVirtual   [{{l\d+}},<<Arg>>] method_name:java.io.PrintStream.println liveness:<<InvokeLiv:\d+>>
+  /// CHECK:                       Add
+  /// CHECK:                       Goto            liveness:<<GotoLiv1:\d+>>
+  /// CHECK:                       Add
+  /// CHECK:                       Goto            liveness:<<GotoLiv2:\d+>>
+  /// CHECK:                       Exit
+  /// CHECK-EVAL:    <<InvokeLiv>> == <<ArgUse>>
+  /// CHECK-EVAL:    <<GotoLiv1>> < <<GotoLiv2>>
+  /// CHECK-EVAL:    <<GotoLiv2>> + 2 == <<ArgLoopUse>>
 
-  /// CHECK-START: void Main.loop6(boolean) liveness (after)
-  /// CHECK-NOT:     Goto            liveness:24
   public static void loop6(boolean incoming) {
     // 'incoming' must have a use only at the first loop's back edge.
-    while (true) {
+    for (long i = System.nanoTime(); i < 42; ++i) {
       System.out.println(incoming);
-      while (Runtime.getRuntime() != null) {}
+      for (long j = System.currentTimeMillis(); j != 42; ++j) {}
     }
   }
 
   /// CHECK-START: void Main.loop7(boolean) liveness (after)
-  /// CHECK:         ParameterValue  liveness:4  ranges:{[4,54)} uses:[36,45,50,54]
-  /// CHECK:         Goto            liveness:48
-  /// CHECK:         Goto            liveness:52
+  /// CHECK:         <<Arg:z\d+>>  ParameterValue  liveness:<<ArgLiv:\d+>> ranges:{[<<ArgLiv>>,<<ArgLoopUse2:\d+>>)} uses:[<<ArgUse1:\d+>>,<<ArgUse2:\d+>>,<<ArgLoopUse1:\d+>>,<<ArgLoopUse2>>]
+  /// CHECK:                       InvokeVirtual   [{{l\d+}},<<Arg>>] method_name:java.io.PrintStream.println liveness:<<InvokeLiv:\d+>>
+  /// CHECK:                       If              [<<Arg>>] liveness:<<IfLiv:\d+>>
+  /// CHECK:                       Goto            liveness:<<GotoLiv1:\d+>>
+  /// CHECK:                       Goto            liveness:<<GotoLiv2:\d+>>
+  /// CHECK:                       Exit
+  /// CHECK-EVAL:    <<InvokeLiv>> == <<ArgUse1>>
+  /// CHECK-EVAL:    <<IfLiv>> + 1 == <<ArgUse2>>
+  /// CHECK-EVAL:    <<GotoLiv1>> < <<GotoLiv2>>
+  /// CHECK-EVAL:    <<GotoLiv1>> + 2 == <<ArgLoopUse1>>
+  /// CHECK-EVAL:    <<GotoLiv2>> + 2 == <<ArgLoopUse2>>
+
   public static void loop7(boolean incoming) {
     // 'incoming' must have a use at both back edges.
     while (Runtime.getRuntime() != null) {
       System.out.println(incoming);
       while (incoming) {}
+      System.nanoTime();  // beat back edge splitting
     }
   }
 
   /// CHECK-START: void Main.loop8() liveness (after)
-  /// CHECK:         StaticFieldGet  liveness:14 ranges:{[14,48)} uses:[39,44,48]
-  /// CHECK:         Goto            liveness:42
-  /// CHECK:         Goto            liveness:46
+  /// CHECK:         <<Arg:z\d+>>  StaticFieldGet  liveness:<<ArgLiv:\d+>> ranges:{[<<ArgLiv>>,<<ArgLoopUse2:\d+>>)} uses:[<<ArgUse:\d+>>,<<ArgLoopUse1:\d+>>,<<ArgLoopUse2>>]
+  /// CHECK:                       If [<<Arg>>]    liveness:<<IfLiv:\d+>>
+  /// CHECK:                       Goto            liveness:<<GotoLiv1:\d+>>
+  /// CHECK:                       Goto            liveness:<<GotoLiv2:\d+>>
+  /// CHECK:                       Exit
+  /// CHECK-EVAL:    <<IfLiv>> + 1 == <<ArgUse>>
+  /// CHECK-EVAL:    <<GotoLiv1>> < <<GotoLiv2>>
+  /// CHECK-EVAL:    <<GotoLiv1>> + 2 == <<ArgLoopUse1>>
+  /// CHECK-EVAL:    <<GotoLiv2>> + 2 == <<ArgLoopUse2>>
+
   public static void loop8() {
     // 'incoming' must have a use at both back edges.
     boolean incoming = field;
     while (Runtime.getRuntime() != null) {
+      System.nanoTime();  // beat pre-header creation
       while (incoming) {}
+      System.nanoTime();  // beat back edge splitting
     }
   }
 
   /// CHECK-START: void Main.loop9() liveness (after)
-  /// CHECK:         StaticFieldGet  liveness:26 ranges:{[26,40)} uses:[35,40]
-  /// CHECK:         Goto            liveness:42
+  /// CHECK:         <<Arg:z\d+>>  StaticFieldGet  liveness:<<ArgLiv:\d+>> ranges:{[<<ArgLiv>>,<<ArgLoopUse:\d+>>)} uses:[<<ArgUse:\d+>>,<<ArgLoopUse>>]
+  /// CHECK:                       If [<<Arg>>]    liveness:<<IfLiv:\d+>>
+  /// CHECK:                       Goto            liveness:<<GotoLiv1:\d+>>
+  /// CHECK:                       Goto            liveness:<<GotoLiv2:\d+>>
+  /// CHECK:                       Exit
+  /// CHECK-EVAL:    <<IfLiv>> + 1 == <<ArgUse>>
+  /// CHECK-EVAL:    <<GotoLiv1>> < <<GotoLiv2>>
+  /// CHECK-EVAL:    <<GotoLiv1>> + 2 == <<ArgLoopUse>>
+
   public static void loop9() {
     while (Runtime.getRuntime() != null) {
       // 'incoming' must only have a use in the inner loop.
