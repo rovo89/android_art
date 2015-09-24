@@ -20,6 +20,7 @@
 #include "ssa_builder.h"
 #include "base/bit_vector-inl.h"
 #include "base/bit_utils.h"
+#include "base/stl_util.h"
 #include "mirror/class-inl.h"
 #include "utils/growable_array.h"
 #include "scoped_thread_state_change.h"
@@ -32,8 +33,41 @@ void HGraph::AddBlock(HBasicBlock* block) {
 }
 
 void HGraph::FindBackEdges(ArenaBitVector* visited) {
+  // "visited" must be empty on entry, it's an output argument for all visited (i.e. live) blocks.
+  DCHECK_EQ(visited->GetHighestBitSet(), -1);
+
+  // Nodes that we're currently visiting, indexed by block id.
   ArenaBitVector visiting(arena_, blocks_.size(), false);
-  VisitBlockForBackEdges(entry_block_, visited, &visiting);
+  // Number of successors visited from a given node, indexed by block id.
+  ArenaVector<size_t> successors_visited(blocks_.size(), 0u, arena_->Adapter());
+  // Stack of nodes that we're currently visiting (same as marked in "visiting" above).
+  ArenaVector<HBasicBlock*> worklist(arena_->Adapter());
+  constexpr size_t kDefaultWorklistSize = 8;
+  worklist.reserve(kDefaultWorklistSize);
+  visited->SetBit(entry_block_->GetBlockId());
+  visiting.SetBit(entry_block_->GetBlockId());
+  worklist.push_back(entry_block_);
+
+  while (!worklist.empty()) {
+    HBasicBlock* current = worklist.back();
+    uint32_t current_id = current->GetBlockId();
+    if (successors_visited[current_id] == current->GetSuccessors().size()) {
+      visiting.ClearBit(current_id);
+      worklist.pop_back();
+    } else {
+      DCHECK_LT(successors_visited[current_id], current->GetSuccessors().size());
+      HBasicBlock* successor = current->GetSuccessors()[successors_visited[current_id]++];
+      uint32_t successor_id = successor->GetBlockId();
+      if (visiting.IsBitSet(successor_id)) {
+        DCHECK(ContainsElement(worklist, successor));
+        successor->AddBackEdge(current);
+      } else if (!visited->IsBitSet(successor_id)) {
+        visited->SetBit(successor_id);
+        visiting.SetBit(successor_id);
+        worklist.push_back(successor);
+      }
+    }
+  }
 }
 
 static void RemoveAsUser(HInstruction* instruction) {
@@ -77,24 +111,6 @@ void HGraph::RemoveDeadBlocks(const ArenaBitVector& visited) {
       blocks_[i] = nullptr;
     }
   }
-}
-
-void HGraph::VisitBlockForBackEdges(HBasicBlock* block,
-                                    ArenaBitVector* visited,
-                                    ArenaBitVector* visiting) {
-  int id = block->GetBlockId();
-  if (visited->IsBitSet(id)) return;
-
-  visited->SetBit(id);
-  visiting->SetBit(id);
-  for (HBasicBlock* successor : block->GetSuccessors()) {
-    if (visiting->IsBitSet(successor->GetBlockId())) {
-      successor->AddBackEdge(block);
-    } else {
-      VisitBlockForBackEdges(successor, visited, visiting);
-    }
-  }
-  visiting->ClearBit(id);
 }
 
 void HGraph::BuildDominatorTree() {
