@@ -79,10 +79,9 @@ class InductionVarRange {
                         HInductionVarAnalysis::InductionInfo* trip,
                         bool is_min);
 
-  static Value GetMin(HInductionVarAnalysis::InductionInfo* info,
-                      HInductionVarAnalysis::InductionInfo* trip);
-  static Value GetMax(HInductionVarAnalysis::InductionInfo* info,
-                      HInductionVarAnalysis::InductionInfo* trip);
+  static Value GetVal(HInductionVarAnalysis::InductionInfo* info,
+                      HInductionVarAnalysis::InductionInfo* trip,
+                      bool is_min);
   static Value GetMul(HInductionVarAnalysis::InductionInfo* info1,
                       HInductionVarAnalysis::InductionInfo* info2,
                       HInductionVarAnalysis::InductionInfo* trip,
@@ -96,8 +95,7 @@ class InductionVarRange {
   static Value SubValue(Value v1, Value v2);
   static Value MulValue(Value v1, Value v2);
   static Value DivValue(Value v1, Value v2);
-  static Value MinValue(Value v1, Value v2);
-  static Value MaxValue(Value v1, Value v2);
+  static Value MergeVal(Value v1, Value v2, bool is_min);
 
   /** Results of prior induction variable analysis. */
   HInductionVarAnalysis *induction_analysis_;
