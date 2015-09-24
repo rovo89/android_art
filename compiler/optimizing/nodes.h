@@ -2409,7 +2409,9 @@ class HCurrentMethod : public HExpression<0> {
 // will be the block containing the next Dex opcode.
 class HPackedSwitch : public HTemplateInstruction<1> {
  public:
-  HPackedSwitch(int32_t start_value, uint32_t num_entries, HInstruction* input,
+  HPackedSwitch(int32_t start_value,
+                uint32_t num_entries,
+                HInstruction* input,
                 uint32_t dex_pc = kNoDexPc)
     : HTemplateInstruction(SideEffects::None(), dex_pc),
       start_value_(start_value),
@@ -2430,8 +2432,8 @@ class HPackedSwitch : public HTemplateInstruction<1> {
   DECLARE_INSTRUCTION(PackedSwitch);
 
  private:
-  int32_t start_value_;
-  uint32_t num_entries_;
+  const int32_t start_value_;
+  const uint32_t num_entries_;
 
   DISALLOW_COPY_AND_ASSIGN(HPackedSwitch);
 };
