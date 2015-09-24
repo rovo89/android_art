@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include <limits.h>
-
 #include "base/arena_allocator.h"
 #include "builder.h"
 #include "gtest/gtest.h"
@@ -114,12 +112,12 @@ class InductionVarRangeTest : public testing::Test {
 
   Value GetMin(HInductionVarAnalysis::InductionInfo* info,
                HInductionVarAnalysis::InductionInfo* induc) {
-    return InductionVarRange::GetMin(info, induc);
+    return InductionVarRange::GetVal(info, induc, /* is_min */ true);
   }
 
   Value GetMax(HInductionVarAnalysis::InductionInfo* info,
                HInductionVarAnalysis::InductionInfo* induc) {
-    return InductionVarRange::GetMax(info, induc);
+    return InductionVarRange::GetVal(info, induc, /* is_min */ false);
   }
 
   Value GetMul(HInductionVarAnalysis::InductionInfo* info1,
@@ -138,8 +136,8 @@ class InductionVarRangeTest : public testing::Test {
   Value SubValue(Value v1, Value v2) { return InductionVarRange::SubValue(v1, v2); }
   Value MulValue(Value v1, Value v2) { return InductionVarRange::MulValue(v1, v2); }
   Value DivValue(Value v1, Value v2) { return InductionVarRange::DivValue(v1, v2); }
-  Value MinValue(Value v1, Value v2) { return InductionVarRange::MinValue(v1, v2); }
-  Value MaxValue(Value v1, Value v2) { return InductionVarRange::MaxValue(v1, v2); }
+  Value MinValue(Value v1, Value v2) { return InductionVarRange::MergeVal(v1, v2, true); }
+  Value MaxValue(Value v1, Value v2) { return InductionVarRange::MergeVal(v1, v2, false); }
 
   // General building fields.
   ArenaPool pool_;
@@ -288,8 +286,9 @@ TEST_F(InductionVarRangeTest, AddValue) {
   ExpectEqual(Value(), AddValue(Value(&x_, 1, 5), Value(&y_, 1, -7)));
   ExpectEqual(Value(&x_, 1, 23), AddValue(Value(&x_, 1, 20), Value(3)));
   ExpectEqual(Value(&y_, 1, 5), AddValue(Value(55), Value(&y_, 1, -50)));
-  ExpectEqual(Value(INT_MAX), AddValue(Value(INT_MAX - 5), Value(5)));
-  ExpectEqual(Value(), AddValue(Value(INT_MAX - 5), Value(6)));  // unsafe
+  const int32_t max_value = std::numeric_limits<int32_t>::max();
+  ExpectEqual(Value(max_value), AddValue(Value(max_value - 5), Value(5)));
+  ExpectEqual(Value(), AddValue(Value(max_value - 5), Value(6)));  // unsafe
 }
 
 TEST_F(InductionVarRangeTest, SubValue) {
@@ -299,8 +298,9 @@ TEST_F(InductionVarRangeTest, SubValue) {
   ExpectEqual(Value(), SubValue(Value(&x_, 1, 5), Value(&y_, 1, -7)));
   ExpectEqual(Value(&x_, 1, 17), SubValue(Value(&x_, 1, 20), Value(3)));
   ExpectEqual(Value(&y_, -4, 105), SubValue(Value(55), Value(&y_, 4, -50)));
-  ExpectEqual(Value(INT_MIN), SubValue(Value(INT_MIN + 5), Value(5)));
-  ExpectEqual(Value(), SubValue(Value(INT_MIN + 5), Value(6)));  // unsafe
+  const int32_t min_value = std::numeric_limits<int32_t>::min();
+  ExpectEqual(Value(min_value), SubValue(Value(min_value + 5), Value(5)));
+  ExpectEqual(Value(), SubValue(Value(min_value + 5), Value(6)));  // unsafe
 }
 
 TEST_F(InductionVarRangeTest, MulValue) {
