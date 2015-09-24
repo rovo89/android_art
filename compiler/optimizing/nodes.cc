@@ -141,10 +141,43 @@ void HBasicBlock::ClearDominanceInformation() {
 void HGraph::ComputeDominanceInformation() {
   DCHECK(reverse_post_order_.empty());
   reverse_post_order_.reserve(blocks_.size());
-  ArenaVector<size_t> visits(blocks_.size(), 0u, arena_->Adapter());
   reverse_post_order_.push_back(entry_block_);
-  for (HBasicBlock* successor : entry_block_->GetSuccessors()) {
-    VisitBlockForDominatorTree(successor, entry_block_, &visits);
+
+  // Number of visits of a given node, indexed by block id.
+  ArenaVector<size_t> visits(blocks_.size(), 0u, arena_->Adapter());
+  // Number of successors visited from a given node, indexed by block id.
+  ArenaVector<size_t> successors_visited(blocks_.size(), 0u, arena_->Adapter());
+  // Nodes for which we need to visit successors.
+  ArenaVector<HBasicBlock*> worklist(arena_->Adapter());
+  constexpr size_t kDefaultWorklistSize = 8;
+  worklist.reserve(kDefaultWorklistSize);
+  worklist.push_back(entry_block_);
+
+  while (!worklist.empty()) {
+    HBasicBlock* current = worklist.back();
+    uint32_t current_id = current->GetBlockId();
+    if (successors_visited[current_id] == current->GetSuccessors().size()) {
+      worklist.pop_back();
+    } else {
+      DCHECK_LT(successors_visited[current_id], current->GetSuccessors().size());
+      HBasicBlock* successor = current->GetSuccessors()[successors_visited[current_id]++];
+
+      if (successor->GetDominator() == nullptr) {
+        successor->SetDominator(current);
+      } else {
+        successor->SetDominator(FindCommonDominator(successor->GetDominator(), current));
+      }
+
+      // Once all the forward edges have been visited, we know the immediate
+      // dominator of the block. We can then start visiting its successors.
+      DCHECK_LT(successor->GetBlockId(), visits.size());
+      if (++visits[successor->GetBlockId()] ==
+          successor->GetPredecessors().size() - successor->NumberOfBackEdges()) {
+        successor->GetDominator()->AddDominatedBlock(successor);
+        reverse_post_order_.push_back(successor);
+        worklist.push_back(successor);
+      }
+    }
   }
 }
 
@@ -164,28 +197,6 @@ HBasicBlock* HGraph::FindCommonDominator(HBasicBlock* first, HBasicBlock* second
   }
   LOG(ERROR) << "Could not find common dominator";
   return nullptr;
-}
-
-void HGraph::VisitBlockForDominatorTree(HBasicBlock* block,
-                                        HBasicBlock* predecessor,
-                                        ArenaVector<size_t>* visits) {
-  if (block->GetDominator() == nullptr) {
-    block->SetDominator(predecessor);
-  } else {
-    block->SetDominator(FindCommonDominator(block->GetDominator(), predecessor));
-  }
-
-  // Once all the forward edges have been visited, we know the immediate
-  // dominator of the block. We can then start visiting its successors.
-  DCHECK_LT(block->GetBlockId(), visits->size());
-  if (++(*visits)[block->GetBlockId()] ==
-      block->GetPredecessors().size() - block->NumberOfBackEdges()) {
-    block->GetDominator()->AddDominatedBlock(block);
-    reverse_post_order_.push_back(block);
-    for (HBasicBlock* successor : block->GetSuccessors()) {
-      VisitBlockForDominatorTree(successor, block, visits);
-    }
-  }
 }
 
 void HGraph::TransformToSsa() {
