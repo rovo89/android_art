@@ -34,8 +34,6 @@ LOCAL_C_INCLUDES := $(dexdump_c_includes)
 LOCAL_CFLAGS += -Wall
 LOCAL_SHARED_LIBRARIES += $(dexdump_libraries)
 LOCAL_MODULE := dexdump2
-LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE_PATH := $(TARGET_OUT_OPTIONAL_EXECUTABLES)
 include $(BUILD_EXECUTABLE)
 endif # !SDK_ONLY
 
