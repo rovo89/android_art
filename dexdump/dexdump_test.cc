@@ -43,12 +43,7 @@ class DexDumpTest : public CommonRuntimeTest {
   // Runs test with given arguments.
   bool Exec(const std::vector<std::string>& args, std::string* error_msg) {
     // TODO(ajcbik): dexdump2 -> dexdump
-    std::string file_path = GetTestAndroidRoot();
-    if (IsHost()) {
-      file_path += "/bin/dexdump2";
-    } else {
-      file_path += "/xbin/dexdump2";
-    }
+    std::string file_path = GetTestAndroidRoot() + "/bin/dexdump2";
     EXPECT_TRUE(OS::FileExists(file_path.c_str())) << file_path << " should be a valid file path";
     std::vector<std::string> exec_argv = { file_path };
     exec_argv.insert(exec_argv.end(), args.begin(), args.end());
