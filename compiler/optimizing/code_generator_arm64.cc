@@ -477,7 +477,7 @@ class TypeCheckSlowPathARM64 : public SlowPathCodeARM64 {
 class DeoptimizationSlowPathARM64 : public SlowPathCodeARM64 {
  public:
   explicit DeoptimizationSlowPathARM64(HInstruction* instruction)
-    : instruction_(instruction) {}
+      : instruction_(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     __ Bind(GetEntryLabel());
@@ -494,6 +494,52 @@ class DeoptimizationSlowPathARM64 : public SlowPathCodeARM64 {
  private:
   HInstruction* const instruction_;
   DISALLOW_COPY_AND_ASSIGN(DeoptimizationSlowPathARM64);
+};
+
+class ArraySetSlowPathARM64 : public SlowPathCodeARM64 {
+ public:
+  explicit ArraySetSlowPathARM64(HInstruction* instruction) : instruction_(instruction) {}
+
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    LocationSummary* locations = instruction_->GetLocations();
+    __ Bind(GetEntryLabel());
+    SaveLiveRegisters(codegen, locations);
+
+    InvokeRuntimeCallingConvention calling_convention;
+    HParallelMove parallel_move(codegen->GetGraph()->GetArena());
+    parallel_move.AddMove(
+        locations->InAt(0),
+        LocationFrom(calling_convention.GetRegisterAt(0)),
+        Primitive::kPrimNot,
+        nullptr);
+    parallel_move.AddMove(
+        locations->InAt(1),
+        LocationFrom(calling_convention.GetRegisterAt(1)),
+        Primitive::kPrimInt,
+        nullptr);
+    parallel_move.AddMove(
+        locations->InAt(2),
+        LocationFrom(calling_convention.GetRegisterAt(2)),
+        Primitive::kPrimNot,
+        nullptr);
+    codegen->GetMoveResolver()->EmitNativeCode(&parallel_move);
+
+    CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
+    arm64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pAputObject),
+                                 instruction_,
+                                 instruction_->GetDexPc(),
+                                 this);
+    CheckEntrypointTypes<kQuickAputObject, void, mirror::Array*, int32_t, mirror::Object*>();
+    RestoreLiveRegisters(codegen, locations);
+    __ B(GetExitLabel());
+  }
+
+  const char* GetDescription() const OVERRIDE { return "ArraySetSlowPathARM64"; }
+
+ private:
+  HInstruction* const instruction_;
+
+  DISALLOW_COPY_AND_ASSIGN(ArraySetSlowPathARM64);
 };
 
 #undef __
@@ -1552,76 +1598,134 @@ void InstructionCodeGeneratorARM64::VisitArrayLength(HArrayLength* instruction) 
 }
 
 void LocationsBuilderARM64::VisitArraySet(HArraySet* instruction) {
-  if (instruction->NeedsTypeCheck()) {
-    LocationSummary* locations =
-        new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
-    InvokeRuntimeCallingConvention calling_convention;
-    locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
-    locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
-    locations->SetInAt(2, LocationFrom(calling_convention.GetRegisterAt(2)));
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(
+      instruction,
+      instruction->NeedsTypeCheck() ? LocationSummary::kCallOnSlowPath : LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
+  if (Primitive::IsFloatingPointType(instruction->InputAt(2)->GetType())) {
+    locations->SetInAt(2, Location::RequiresFpuRegister());
   } else {
-    LocationSummary* locations =
-        new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-    locations->SetInAt(0, Location::RequiresRegister());
-    locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
-    if (Primitive::IsFloatingPointType(instruction->InputAt(2)->GetType())) {
-      locations->SetInAt(2, Location::RequiresFpuRegister());
-    } else {
-      locations->SetInAt(2, Location::RequiresRegister());
-    }
+    locations->SetInAt(2, Location::RequiresRegister());
   }
 }
 
 void InstructionCodeGeneratorARM64::VisitArraySet(HArraySet* instruction) {
   Primitive::Type value_type = instruction->GetComponentType();
   LocationSummary* locations = instruction->GetLocations();
-  bool needs_runtime_call = locations->WillCall();
+  bool may_need_runtime_call = locations->CanCall();
+  bool needs_write_barrier =
+      CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue());
 
-  if (needs_runtime_call) {
-    // Note: if heap poisoning is enabled, pAputObject takes cares
-    // of poisoning the reference.
-    codegen_->InvokeRuntime(
-        QUICK_ENTRY_POINT(pAputObject), instruction, instruction->GetDexPc(), nullptr);
-    CheckEntrypointTypes<kQuickAputObject, void, mirror::Array*, int32_t, mirror::Object*>();
+  Register array = InputRegisterAt(instruction, 0);
+  CPURegister value = InputCPURegisterAt(instruction, 2);
+  CPURegister source = value;
+  Location index = locations->InAt(1);
+  size_t offset = mirror::Array::DataOffset(Primitive::ComponentSize(value_type)).Uint32Value();
+  MemOperand destination = HeapOperand(array);
+  MacroAssembler* masm = GetVIXLAssembler();
+  BlockPoolsScope block_pools(masm);
+
+  if (!needs_write_barrier) {
+    DCHECK(!may_need_runtime_call);
+    if (index.IsConstant()) {
+      offset += Int64ConstantFrom(index) << Primitive::ComponentSizeShift(value_type);
+      destination = HeapOperand(array, offset);
+    } else {
+      UseScratchRegisterScope temps(masm);
+      Register temp = temps.AcquireSameSizeAs(array);
+      __ Add(temp, array, offset);
+      destination = HeapOperand(temp,
+                                XRegisterFrom(index),
+                                LSL,
+                                Primitive::ComponentSizeShift(value_type));
+    }
+    codegen_->Store(value_type, value, destination);
+    codegen_->MaybeRecordImplicitNullCheck(instruction);
   } else {
-    Register obj = InputRegisterAt(instruction, 0);
-    CPURegister value = InputCPURegisterAt(instruction, 2);
-    CPURegister source = value;
-    Location index = locations->InAt(1);
-    size_t offset = mirror::Array::DataOffset(Primitive::ComponentSize(value_type)).Uint32Value();
-    MemOperand destination = HeapOperand(obj);
-    MacroAssembler* masm = GetVIXLAssembler();
-    BlockPoolsScope block_pools(masm);
+    DCHECK(needs_write_barrier);
+    vixl::Label done;
+    SlowPathCodeARM64* slow_path = nullptr;
     {
       // We use a block to end the scratch scope before the write barrier, thus
       // freeing the temporary registers so they can be used in `MarkGCCard`.
       UseScratchRegisterScope temps(masm);
-
-      if (kPoisonHeapReferences && value_type == Primitive::kPrimNot) {
-        DCHECK(value.IsW());
-        Register temp = temps.AcquireW();
-        __ Mov(temp, value.W());
-        GetAssembler()->PoisonHeapReference(temp.W());
-        source = temp;
-      }
-
+      Register temp = temps.AcquireSameSizeAs(array);
       if (index.IsConstant()) {
         offset += Int64ConstantFrom(index) << Primitive::ComponentSizeShift(value_type);
-        destination = HeapOperand(obj, offset);
+        destination = HeapOperand(array, offset);
       } else {
-        Register temp = temps.AcquireSameSizeAs(obj);
-        __ Add(temp, obj, offset);
         destination = HeapOperand(temp,
                                   XRegisterFrom(index),
                                   LSL,
                                   Primitive::ComponentSizeShift(value_type));
       }
 
-      codegen_->Store(value_type, source, destination);
-      codegen_->MaybeRecordImplicitNullCheck(instruction);
+      uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+      uint32_t super_offset = mirror::Class::SuperClassOffset().Int32Value();
+      uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
+
+      if (may_need_runtime_call) {
+        slow_path = new (GetGraph()->GetArena()) ArraySetSlowPathARM64(instruction);
+        codegen_->AddSlowPath(slow_path);
+        if (instruction->GetValueCanBeNull()) {
+          vixl::Label non_zero;
+          __ Cbnz(Register(value), &non_zero);
+          if (!index.IsConstant()) {
+            __ Add(temp, array, offset);
+          }
+          __ Str(wzr, destination);
+          codegen_->MaybeRecordImplicitNullCheck(instruction);
+          __ B(&done);
+          __ Bind(&non_zero);
+        }
+
+        Register temp2 = temps.AcquireSameSizeAs(array);
+        __ Ldr(temp, HeapOperand(array, class_offset));
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
+        GetAssembler()->MaybeUnpoisonHeapReference(temp);
+        __ Ldr(temp, HeapOperand(temp, component_offset));
+        __ Ldr(temp2, HeapOperand(Register(value), class_offset));
+        // No need to poison/unpoison, we're comparing two poisoned references.
+        __ Cmp(temp, temp2);
+        if (instruction->StaticTypeOfArrayIsObjectArray()) {
+          vixl::Label do_put;
+          __ B(eq, &do_put);
+          GetAssembler()->MaybeUnpoisonHeapReference(temp);
+          __ Ldr(temp, HeapOperand(temp, super_offset));
+          // No need to unpoison, we're comparing against null.
+          __ Cbnz(temp, slow_path->GetEntryLabel());
+          __ Bind(&do_put);
+        } else {
+          __ B(ne, slow_path->GetEntryLabel());
+        }
+      }
+
+      if (kPoisonHeapReferences) {
+          DCHECK(value.IsW());
+        __ Mov(temp, value.W());
+        GetAssembler()->PoisonHeapReference(temp);
+        source = temp;
+      }
+
+      if (!index.IsConstant()) {
+        __ Add(temp, array, offset);
+      }
+      __ Str(value, destination);
+
+      if (!may_need_runtime_call) {
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
+      }
     }
-    if (CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue())) {
-      codegen_->MarkGCCard(obj, value.W(), instruction->GetValueCanBeNull());
+
+    codegen_->MarkGCCard(array, value.W(), instruction->GetValueCanBeNull());
+
+    if (done.IsLinked()) {
+      __ Bind(&done);
+    }
+
+    if (slow_path != nullptr) {
+      __ Bind(slow_path->GetExitLabel());
     }
   }
 }

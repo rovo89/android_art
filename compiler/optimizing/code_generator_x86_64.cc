@@ -396,6 +396,51 @@ class DeoptimizationSlowPathX86_64 : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(DeoptimizationSlowPathX86_64);
 };
 
+class ArraySetSlowPathX86_64 : public SlowPathCode {
+ public:
+  explicit ArraySetSlowPathX86_64(HInstruction* instruction) : instruction_(instruction) {}
+
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    LocationSummary* locations = instruction_->GetLocations();
+    __ Bind(GetEntryLabel());
+    SaveLiveRegisters(codegen, locations);
+
+    InvokeRuntimeCallingConvention calling_convention;
+    HParallelMove parallel_move(codegen->GetGraph()->GetArena());
+    parallel_move.AddMove(
+        locations->InAt(0),
+        Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
+        Primitive::kPrimNot,
+        nullptr);
+    parallel_move.AddMove(
+        locations->InAt(1),
+        Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
+        Primitive::kPrimInt,
+        nullptr);
+    parallel_move.AddMove(
+        locations->InAt(2),
+        Location::RegisterLocation(calling_convention.GetRegisterAt(2)),
+        Primitive::kPrimNot,
+        nullptr);
+    codegen->GetMoveResolver()->EmitNativeCode(&parallel_move);
+
+    CodeGeneratorX86_64* x64_codegen = down_cast<CodeGeneratorX86_64*>(codegen);
+    x64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pAputObject),
+                               instruction_,
+                               instruction_->GetDexPc(),
+                               this);
+    RestoreLiveRegisters(codegen, locations);
+    __ jmp(GetExitLabel());
+  }
+
+  const char* GetDescription() const OVERRIDE { return "ArraySetSlowPathX86_64"; }
+
+ private:
+  HInstruction* const instruction_;
+
+  DISALLOW_COPY_AND_ASSIGN(ArraySetSlowPathX86_64);
+};
+
 #undef __
 #define __ down_cast<X86_64Assembler*>(GetAssembler())->
 
@@ -3992,66 +4037,55 @@ void LocationsBuilderX86_64::VisitArraySet(HArraySet* instruction) {
 
   bool needs_write_barrier =
       CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue());
-  bool needs_runtime_call = instruction->NeedsTypeCheck();
+  bool may_need_runtime_call = instruction->NeedsTypeCheck();
 
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(
-      instruction, needs_runtime_call ? LocationSummary::kCall : LocationSummary::kNoCall);
-  if (needs_runtime_call) {
-    InvokeRuntimeCallingConvention calling_convention;
-    locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-    locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
-    locations->SetInAt(2, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
-  } else {
-    locations->SetInAt(0, Location::RequiresRegister());
-    locations->SetInAt(
-        1, Location::RegisterOrConstant(instruction->InputAt(1)));
-    locations->SetInAt(2, Location::RequiresRegister());
-    if (value_type == Primitive::kPrimLong) {
-      locations->SetInAt(2, Location::RegisterOrInt32LongConstant(instruction->InputAt(2)));
-    } else if (value_type == Primitive::kPrimFloat || value_type == Primitive::kPrimDouble) {
-      locations->SetInAt(2, Location::RequiresFpuRegister());
-    } else {
-      locations->SetInAt(2, Location::RegisterOrConstant(instruction->InputAt(2)));
-    }
+      instruction,
+      may_need_runtime_call ? LocationSummary::kCallOnSlowPath : LocationSummary::kNoCall);
 
-    if (needs_write_barrier) {
-      // Temporary registers for the write barrier.
-      locations->AddTemp(Location::RequiresRegister());  // Possibly used for ref. poisoning too.
-      locations->AddTemp(Location::RequiresRegister());
-    }
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(
+      1, Location::RegisterOrConstant(instruction->InputAt(1)));
+  locations->SetInAt(2, Location::RequiresRegister());
+  if (value_type == Primitive::kPrimLong) {
+    locations->SetInAt(2, Location::RegisterOrInt32LongConstant(instruction->InputAt(2)));
+  } else if (value_type == Primitive::kPrimFloat || value_type == Primitive::kPrimDouble) {
+    locations->SetInAt(2, Location::RequiresFpuRegister());
+  } else {
+    locations->SetInAt(2, Location::RegisterOrConstant(instruction->InputAt(2)));
+  }
+
+  if (needs_write_barrier) {
+    // Temporary registers for the write barrier.
+    locations->AddTemp(Location::RequiresRegister());  // Possibly used for ref. poisoning too.
+    locations->AddTemp(Location::RequiresRegister());
   }
 }
 
 void InstructionCodeGeneratorX86_64::VisitArraySet(HArraySet* instruction) {
   LocationSummary* locations = instruction->GetLocations();
-  CpuRegister obj = locations->InAt(0).AsRegister<CpuRegister>();
+  CpuRegister array = locations->InAt(0).AsRegister<CpuRegister>();
   Location index = locations->InAt(1);
   Location value = locations->InAt(2);
   Primitive::Type value_type = instruction->GetComponentType();
-  bool needs_runtime_call = locations->WillCall();
+  bool may_need_runtime_call = locations->CanCall();
   bool needs_write_barrier =
       CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue());
+  uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+  uint32_t super_offset = mirror::Class::SuperClassOffset().Int32Value();
+  uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
 
   switch (value_type) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(uint8_t)).Uint32Value();
-      if (index.IsConstant()) {
-        size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_1) + data_offset;
-        if (value.IsRegister()) {
-          __ movb(Address(obj, offset), value.AsRegister<CpuRegister>());
-        } else {
-          __ movb(Address(obj, offset),
-                  Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
-        }
+      uint32_t offset = mirror::Array::DataOffset(sizeof(uint8_t)).Uint32Value();
+      Address address = index.IsConstant()
+          ? Address(array, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_1) + offset)
+          : Address(array, index.AsRegister<CpuRegister>(), TIMES_1, offset);
+      if (value.IsRegister()) {
+        __ movb(address, value.AsRegister<CpuRegister>());
       } else {
-        if (value.IsRegister()) {
-          __ movb(Address(obj, index.AsRegister<CpuRegister>(), TIMES_1, data_offset),
-                  value.AsRegister<CpuRegister>());
-        } else {
-          __ movb(Address(obj, index.AsRegister<CpuRegister>(), TIMES_1, data_offset),
-                  Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
-        }
+        __ movb(address, Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
       }
       codegen_->MaybeRecordImplicitNullCheck(instruction);
       break;
@@ -4059,154 +4093,145 @@ void InstructionCodeGeneratorX86_64::VisitArraySet(HArraySet* instruction) {
 
     case Primitive::kPrimShort:
     case Primitive::kPrimChar: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(uint16_t)).Uint32Value();
-      if (index.IsConstant()) {
-        size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_2) + data_offset;
-        if (value.IsRegister()) {
-          __ movw(Address(obj, offset), value.AsRegister<CpuRegister>());
-        } else {
-          DCHECK(value.IsConstant()) << value;
-          __ movw(Address(obj, offset),
-                  Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
-        }
+      uint32_t offset = mirror::Array::DataOffset(sizeof(uint16_t)).Uint32Value();
+      Address address = index.IsConstant()
+          ? Address(array, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_2) + offset)
+          : Address(array, index.AsRegister<CpuRegister>(), TIMES_2, offset);
+      if (value.IsRegister()) {
+        __ movw(address, value.AsRegister<CpuRegister>());
       } else {
-        DCHECK(index.IsRegister()) << index;
-        if (value.IsRegister()) {
-          __ movw(Address(obj, index.AsRegister<CpuRegister>(), TIMES_2, data_offset),
-                  value.AsRegister<CpuRegister>());
-        } else {
-          DCHECK(value.IsConstant()) << value;
-          __ movw(Address(obj, index.AsRegister<CpuRegister>(), TIMES_2, data_offset),
-                  Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
-        }
+        DCHECK(value.IsConstant()) << value;
+        __ movw(address, Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
       }
       codegen_->MaybeRecordImplicitNullCheck(instruction);
       break;
     }
 
-    case Primitive::kPrimInt:
     case Primitive::kPrimNot: {
-      if (!needs_runtime_call) {
-        uint32_t data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
-        if (index.IsConstant()) {
-          size_t offset =
-              (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
-          if (value.IsRegister()) {
-            if (kPoisonHeapReferences && value_type == Primitive::kPrimNot) {
-              CpuRegister temp = locations->GetTemp(0).AsRegister<CpuRegister>();
-              __ movl(temp, value.AsRegister<CpuRegister>());
-              __ PoisonHeapReference(temp);
-              __ movl(Address(obj, offset), temp);
-            } else {
-              __ movl(Address(obj, offset), value.AsRegister<CpuRegister>());
-            }
-          } else {
-            DCHECK(value.IsConstant()) << value;
-            int32_t v = CodeGenerator::GetInt32ValueOf(value.GetConstant());
-            // `value_type == Primitive::kPrimNot` implies `v == 0`.
-            DCHECK((value_type != Primitive::kPrimNot) || (v == 0));
-            // Note: if heap poisoning is enabled, no need to poison
-            // (negate) `v` if it is a reference, as it would be null.
-            __ movl(Address(obj, offset), Immediate(v));
-          }
-        } else {
-          DCHECK(index.IsRegister()) << index;
-          if (value.IsRegister()) {
-            if (kPoisonHeapReferences && value_type == Primitive::kPrimNot) {
-              CpuRegister temp = locations->GetTemp(0).AsRegister<CpuRegister>();
-              __ movl(temp, value.AsRegister<CpuRegister>());
-              __ PoisonHeapReference(temp);
-              __ movl(Address(obj, index.AsRegister<CpuRegister>(), TIMES_4, data_offset), temp);
-            } else {
-              __ movl(Address(obj, index.AsRegister<CpuRegister>(), TIMES_4, data_offset),
-                      value.AsRegister<CpuRegister>());
-            }
-          } else {
-            DCHECK(value.IsConstant()) << value;
-            int32_t v = CodeGenerator::GetInt32ValueOf(value.GetConstant());
-            // `value_type == Primitive::kPrimNot` implies `v == 0`.
-            DCHECK((value_type != Primitive::kPrimNot) || (v == 0));
-            // Note: if heap poisoning is enabled, no need to poison
-            // (negate) `v` if it is a reference, as it would be null.
-            __ movl(Address(obj, index.AsRegister<CpuRegister>(), TIMES_4, data_offset),
-                    Immediate(v));
-          }
-        }
+      uint32_t offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
+      Address address = index.IsConstant()
+          ? Address(array, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + offset)
+          : Address(array, index.AsRegister<CpuRegister>(), TIMES_4, offset);
+      if (!value.IsRegister()) {
+        // Just setting null.
+        DCHECK(instruction->InputAt(2)->IsNullConstant());
+        DCHECK(value.IsConstant()) << value;
+        __ movl(address, Immediate(0));
         codegen_->MaybeRecordImplicitNullCheck(instruction);
-        if (needs_write_barrier) {
-          DCHECK_EQ(value_type, Primitive::kPrimNot);
-          CpuRegister temp = locations->GetTemp(0).AsRegister<CpuRegister>();
-          CpuRegister card = locations->GetTemp(1).AsRegister<CpuRegister>();
-          codegen_->MarkGCCard(
-              temp, card, obj, value.AsRegister<CpuRegister>(), instruction->GetValueCanBeNull());
-        }
-      } else {
-        DCHECK_EQ(value_type, Primitive::kPrimNot);
-        // Note: if heap poisoning is enabled, pAputObject takes cares
-        // of poisoning the reference.
-        codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pAputObject),
-                                instruction,
-                                instruction->GetDexPc(),
-                                nullptr);
-        DCHECK(!codegen_->IsLeafMethod());
+        DCHECK(!needs_write_barrier);
+        DCHECK(!may_need_runtime_call);
+        break;
       }
+
+      DCHECK(needs_write_barrier);
+      CpuRegister register_value = value.AsRegister<CpuRegister>();
+      NearLabel done, not_null, do_put;
+      SlowPathCode* slow_path = nullptr;
+      CpuRegister temp = locations->GetTemp(0).AsRegister<CpuRegister>();
+      if (may_need_runtime_call) {
+        slow_path = new (GetGraph()->GetArena()) ArraySetSlowPathX86_64(instruction);
+        codegen_->AddSlowPath(slow_path);
+        if (instruction->GetValueCanBeNull()) {
+          __ testl(register_value, register_value);
+          __ j(kNotEqual, &not_null);
+          __ movl(address, Immediate(0));
+          codegen_->MaybeRecordImplicitNullCheck(instruction);
+          __ jmp(&done);
+          __ Bind(&not_null);
+        }
+
+        __ movl(temp, Address(array, class_offset));
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
+        __ MaybeUnpoisonHeapReference(temp);
+        __ movl(temp, Address(temp, component_offset));
+        // No need to poison/unpoison, we're comparing two poisoned references.
+        __ cmpl(temp, Address(register_value, class_offset));
+        if (instruction->StaticTypeOfArrayIsObjectArray()) {
+          __ j(kEqual, &do_put);
+          __ MaybeUnpoisonHeapReference(temp);
+          __ movl(temp, Address(temp, super_offset));
+          // No need to unpoison the result, we're comparing against null.
+          __ testl(temp, temp);
+          __ j(kNotEqual, slow_path->GetEntryLabel());
+          __ Bind(&do_put);
+        } else {
+          __ j(kNotEqual, slow_path->GetEntryLabel());
+        }
+      }
+
+      if (kPoisonHeapReferences) {
+        __ movl(temp, register_value);
+        __ PoisonHeapReference(temp);
+        __ movl(address, temp);
+      } else {
+        __ movl(address, register_value);
+      }
+      if (!may_need_runtime_call) {
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
+      }
+
+      CpuRegister card = locations->GetTemp(1).AsRegister<CpuRegister>();
+      codegen_->MarkGCCard(
+          temp, card, array, value.AsRegister<CpuRegister>(), instruction->GetValueCanBeNull());
+      __ Bind(&done);
+
+      if (slow_path != nullptr) {
+        __ Bind(slow_path->GetExitLabel());
+      }
+
+      break;
+    }
+    case Primitive::kPrimInt: {
+      uint32_t offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
+      Address address = index.IsConstant()
+          ? Address(array, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + offset)
+          : Address(array, index.AsRegister<CpuRegister>(), TIMES_4, offset);
+      if (value.IsRegister()) {
+        __ movl(address, value.AsRegister<CpuRegister>());
+      } else {
+        DCHECK(value.IsConstant()) << value;
+        int32_t v = CodeGenerator::GetInt32ValueOf(value.GetConstant());
+        __ movl(address, Immediate(v));
+      }
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
       break;
     }
 
     case Primitive::kPrimLong: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(int64_t)).Uint32Value();
-      if (index.IsConstant()) {
-        size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + data_offset;
-        if (value.IsRegister()) {
-          __ movq(Address(obj, offset), value.AsRegister<CpuRegister>());
-        } else {
-          int64_t v = value.GetConstant()->AsLongConstant()->GetValue();
-          DCHECK(IsInt<32>(v));
-          int32_t v_32 = v;
-          __ movq(Address(obj, offset), Immediate(v_32));
-        }
+      uint32_t offset = mirror::Array::DataOffset(sizeof(int64_t)).Uint32Value();
+      Address address = index.IsConstant()
+          ? Address(array, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + offset)
+          : Address(array, index.AsRegister<CpuRegister>(), TIMES_8, offset);
+      if (value.IsRegister()) {
+        __ movq(address, value.AsRegister<CpuRegister>());
       } else {
-        if (value.IsRegister()) {
-          __ movq(Address(obj, index.AsRegister<CpuRegister>(), TIMES_8, data_offset),
-                  value.AsRegister<CpuRegister>());
-        } else {
-          int64_t v = value.GetConstant()->AsLongConstant()->GetValue();
-          DCHECK(IsInt<32>(v));
-          int32_t v_32 = v;
-          __ movq(Address(obj, index.AsRegister<CpuRegister>(), TIMES_8, data_offset),
-                  Immediate(v_32));
-        }
+        int64_t v = value.GetConstant()->AsLongConstant()->GetValue();
+        DCHECK(IsInt<32>(v));
+        int32_t v_32 = v;
+        __ movq(address, Immediate(v_32));
       }
       codegen_->MaybeRecordImplicitNullCheck(instruction);
       break;
     }
 
     case Primitive::kPrimFloat: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(float)).Uint32Value();
-      if (index.IsConstant()) {
-        size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
-        DCHECK(value.IsFpuRegister());
-        __ movss(Address(obj, offset), value.AsFpuRegister<XmmRegister>());
-      } else {
-        DCHECK(value.IsFpuRegister());
-        __ movss(Address(obj, index.AsRegister<CpuRegister>(), TIMES_4, data_offset),
-                value.AsFpuRegister<XmmRegister>());
-      }
+      uint32_t offset = mirror::Array::DataOffset(sizeof(float)).Uint32Value();
+      Address address = index.IsConstant()
+          ? Address(array, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + offset)
+          : Address(array, index.AsRegister<CpuRegister>(), TIMES_4, offset);
+      DCHECK(value.IsFpuRegister());
+      __ movss(address, value.AsFpuRegister<XmmRegister>());
       codegen_->MaybeRecordImplicitNullCheck(instruction);
       break;
     }
 
     case Primitive::kPrimDouble: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(double)).Uint32Value();
-      if (index.IsConstant()) {
-        size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + data_offset;
-        DCHECK(value.IsFpuRegister());
-        __ movsd(Address(obj, offset), value.AsFpuRegister<XmmRegister>());
-      } else {
-        DCHECK(value.IsFpuRegister());
-        __ movsd(Address(obj, index.AsRegister<CpuRegister>(), TIMES_8, data_offset),
-                value.AsFpuRegister<XmmRegister>());
-      }
+      uint32_t offset = mirror::Array::DataOffset(sizeof(double)).Uint32Value();
+      Address address = index.IsConstant()
+          ? Address(array, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + offset)
+          : Address(array, index.AsRegister<CpuRegister>(), TIMES_8, offset);
+      DCHECK(value.IsFpuRegister());
+      __ movsd(address, value.AsFpuRegister<XmmRegister>());
       codegen_->MaybeRecordImplicitNullCheck(instruction);
       break;
     }
@@ -4250,7 +4275,7 @@ void InstructionCodeGeneratorX86_64::VisitBoundsCheck(HBoundsCheck* instruction)
   Location index_loc = locations->InAt(0);
   Location length_loc = locations->InAt(1);
   SlowPathCode* slow_path =
-    new (GetGraph()->GetArena()) BoundsCheckSlowPathX86_64(instruction);
+      new (GetGraph()->GetArena()) BoundsCheckSlowPathX86_64(instruction);
 
   if (length_loc.IsConstant()) {
     int32_t length = CodeGenerator::GetInt32ValueOf(length_loc.GetConstant());

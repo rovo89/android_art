@@ -1644,15 +1644,32 @@ class ReferenceTypeInfo : ValueObject {
   bool IsValid() const SHARED_REQUIRES(Locks::mutator_lock_) {
     return IsValidHandle(type_handle_);
   }
+
   bool IsExact() const { return is_exact_; }
 
   bool IsObjectClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(IsValid());
     return GetTypeHandle()->IsObjectClass();
   }
+
+  bool IsObjectArray() const SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(IsValid());
+    return IsArrayClass() && GetTypeHandle()->GetComponentType()->IsObjectClass();
+  }
+
   bool IsInterface() const SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(IsValid());
     return GetTypeHandle()->IsInterface();
+  }
+
+  bool IsArrayClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
+    return GetTypeHandle()->IsArrayClass();
+  }
+
+  bool CanArrayHold(ReferenceTypeInfo rti)  const SHARED_REQUIRES(Locks::mutator_lock_) {
+    if (!IsExact()) return false;
+    if (!IsArrayClass()) return false;
+    return GetTypeHandle()->GetComponentType()->IsAssignableFrom(rti.GetTypeHandle().Get());
   }
 
   Handle<mirror::Class> GetTypeHandle() const { return type_handle_; }
@@ -4312,7 +4329,8 @@ class HArraySet : public HTemplateInstruction<3> {
                 SideEffectsForArchRuntimeCalls(value->GetType())), dex_pc),
         expected_component_type_(expected_component_type),
         needs_type_check_(value->GetType() == Primitive::kPrimNot),
-        value_can_be_null_(true) {
+        value_can_be_null_(true),
+        static_type_of_array_is_object_array_(false) {
     SetRawInputAt(0, array);
     SetRawInputAt(1, index);
     SetRawInputAt(2, value);
@@ -4341,8 +4359,13 @@ class HArraySet : public HTemplateInstruction<3> {
     value_can_be_null_ = false;
   }
 
+  void SetStaticTypeOfArrayIsObjectArray() {
+    static_type_of_array_is_object_array_ = true;
+  }
+
   bool GetValueCanBeNull() const { return value_can_be_null_; }
   bool NeedsTypeCheck() const { return needs_type_check_; }
+  bool StaticTypeOfArrayIsObjectArray() const { return static_type_of_array_is_object_array_; }
 
   HInstruction* GetArray() const { return InputAt(0); }
   HInstruction* GetIndex() const { return InputAt(1); }
@@ -4369,6 +4392,9 @@ class HArraySet : public HTemplateInstruction<3> {
   const Primitive::Type expected_component_type_;
   bool needs_type_check_;
   bool value_can_be_null_;
+  // Cached information for the reference_type_info_ so that codegen
+  // does not need to inspect the static type.
+  bool static_type_of_array_is_object_array_;
 
   DISALLOW_COPY_AND_ASSIGN(HArraySet);
 };
