@@ -43,11 +43,11 @@ static bool IsInnerLoop(HLoopInformation* outer, HLoopInformation* inner) {
       && inner->IsIn(*outer);
 }
 
-static void AddToListForLinearization(GrowableArray<HBasicBlock*>* worklist, HBasicBlock* block) {
-  size_t insert_at = worklist->Size();
+static void AddToListForLinearization(ArenaVector<HBasicBlock*>* worklist, HBasicBlock* block) {
   HLoopInformation* block_loop = block->GetLoopInformation();
-  for (; insert_at > 0; --insert_at) {
-    HBasicBlock* current = worklist->Get(insert_at - 1);
+  auto insert_pos = worklist->rbegin();  // insert_pos.base() will be the actual position.
+  for (auto end = worklist->rend(); insert_pos != end; ++insert_pos) {
+    HBasicBlock* current = *insert_pos;
     HLoopInformation* current_loop = current->GetLoopInformation();
     if (InSameLoop(block_loop, current_loop)
         || !IsLoop(current_loop)
@@ -56,7 +56,7 @@ static void AddToListForLinearization(GrowableArray<HBasicBlock*>* worklist, HBa
       break;
     }
   }
-  worklist->InsertAt(insert_at, block);
+  worklist->insert(insert_pos.base(), block);
 }
 
 void SsaLivenessAnalysis::LinearizeGraph() {
@@ -69,15 +69,15 @@ void SsaLivenessAnalysis::LinearizeGraph() {
   //      current reverse post order in the graph, but it would require making
   //      order queries to a GrowableArray, which is not the best data structure
   //      for it.
-  GrowableArray<uint32_t> forward_predecessors(graph_->GetArena(), graph_->GetBlocks().size());
-  forward_predecessors.SetSize(graph_->GetBlocks().size());
+  ArenaVector<uint32_t> forward_predecessors(graph_->GetBlocks().size(),
+                                             graph_->GetArena()->Adapter(kArenaAllocSsaLiveness));
   for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     size_t number_of_forward_predecessors = block->GetPredecessors().size();
     if (block->IsLoopHeader()) {
       number_of_forward_predecessors -= block->GetLoopInformation()->NumberOfBackEdges();
     }
-    forward_predecessors.Put(block->GetBlockId(), number_of_forward_predecessors);
+    forward_predecessors[block->GetBlockId()] = number_of_forward_predecessors;
   }
 
   // (2): Following a worklist approach, first start with the entry block, and
@@ -85,20 +85,21 @@ void SsaLivenessAnalysis::LinearizeGraph() {
   //      successor block are visited, the successor block is added in the worklist
   //      following an order that satisfies the requirements to build our linear graph.
   graph_->linear_order_.reserve(graph_->GetReversePostOrder().size());
-  GrowableArray<HBasicBlock*> worklist(graph_->GetArena(), 1);
-  worklist.Add(graph_->GetEntryBlock());
+  ArenaVector<HBasicBlock*> worklist(graph_->GetArena()->Adapter(kArenaAllocSsaLiveness));
+  worklist.push_back(graph_->GetEntryBlock());
   do {
-    HBasicBlock* current = worklist.Pop();
+    HBasicBlock* current = worklist.back();
+    worklist.pop_back();
     graph_->linear_order_.push_back(current);
     for (HBasicBlock* successor : current->GetSuccessors()) {
       int block_id = successor->GetBlockId();
-      size_t number_of_remaining_predecessors = forward_predecessors.Get(block_id);
+      size_t number_of_remaining_predecessors = forward_predecessors[block_id];
       if (number_of_remaining_predecessors == 1) {
         AddToListForLinearization(&worklist, successor);
       }
-      forward_predecessors.Put(block_id, number_of_remaining_predecessors - 1);
+      forward_predecessors[block_id] = number_of_remaining_predecessors - 1;
     }
-  } while (!worklist.IsEmpty());
+  } while (!worklist.empty());
 }
 
 void SsaLivenessAnalysis::NumberInstructions() {
@@ -122,7 +123,7 @@ void SsaLivenessAnalysis::NumberInstructions() {
       codegen_->AllocateLocations(current);
       LocationSummary* locations = current->GetLocations();
       if (locations != nullptr && locations->Out().IsValid()) {
-        instructions_from_ssa_index_.Add(current);
+        instructions_from_ssa_index_.push_back(current);
         current->SetSsaIndex(ssa_index++);
         current->SetLiveInterval(
             LiveInterval::MakeInterval(graph_->GetArena(), current->GetType(), current));
@@ -132,7 +133,7 @@ void SsaLivenessAnalysis::NumberInstructions() {
     lifetime_position += 2;
 
     // Add a null marker to notify we are starting a block.
-    instructions_from_lifetime_position_.Add(nullptr);
+    instructions_from_lifetime_position_.push_back(nullptr);
 
     for (HInstructionIterator inst_it(block->GetInstructions()); !inst_it.Done();
          inst_it.Advance()) {
@@ -140,12 +141,12 @@ void SsaLivenessAnalysis::NumberInstructions() {
       codegen_->AllocateLocations(current);
       LocationSummary* locations = current->GetLocations();
       if (locations != nullptr && locations->Out().IsValid()) {
-        instructions_from_ssa_index_.Add(current);
+        instructions_from_ssa_index_.push_back(current);
         current->SetSsaIndex(ssa_index++);
         current->SetLiveInterval(
             LiveInterval::MakeInterval(graph_->GetArena(), current->GetType(), current));
       }
-      instructions_from_lifetime_position_.Add(current);
+      instructions_from_lifetime_position_.push_back(current);
       current->SetLifetimePosition(lifetime_position);
       lifetime_position += 2;
     }
@@ -158,9 +159,9 @@ void SsaLivenessAnalysis::NumberInstructions() {
 void SsaLivenessAnalysis::ComputeLiveness() {
   for (HLinearOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
-    block_infos_.Put(
-        block->GetBlockId(),
-        new (graph_->GetArena()) BlockInfo(graph_->GetArena(), *block, number_of_ssa_values_));
+    DCHECK_LT(block->GetBlockId(), block_infos_.size());
+    block_infos_[block->GetBlockId()] =
+        new (graph_->GetArena()) BlockInfo(graph_->GetArena(), *block, number_of_ssa_values_);
   }
 
   // Compute the live ranges, as well as the initial live_in, live_out, and kill sets.
@@ -212,7 +213,7 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
     // Add a range that covers this block to all instructions live_in because of successors.
     // Instructions defined in this block will have their start of the range adjusted.
     for (uint32_t idx : live_in->Indexes()) {
-      HInstruction* current = instructions_from_ssa_index_.Get(idx);
+      HInstruction* current = GetInstructionFromSsaIndex(idx);
       current->GetLiveInterval()->AddRange(block->GetLifetimeStart(), block->GetLifetimeEnd());
     }
 
@@ -277,7 +278,7 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
       // For all live_in instructions at the loop header, we need to create a range
       // that covers the full loop.
       for (uint32_t idx : live_in->Indexes()) {
-        HInstruction* current = instructions_from_ssa_index_.Get(idx);
+        HInstruction* current = GetInstructionFromSsaIndex(idx);
         current->GetLiveInterval()->AddLoopRange(block->GetLifetimeStart(), last_position);
       }
     }

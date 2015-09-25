@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_REFERENCE_TYPE_PROPAGATION_H_
 #define ART_COMPILER_OPTIMIZING_REFERENCE_TYPE_PROPAGATION_H_
 
+#include "base/arena_containers.h"
 #include "driver/dex_compilation_unit.h"
 #include "handle_scope-inl.h"
 #include "nodes.h"
@@ -57,7 +58,7 @@ class ReferenceTypePropagation : public HOptimization {
 
   StackHandleScopeCollection* handles_;
 
-  GrowableArray<HInstruction*> worklist_;
+  ArenaVector<HInstruction*> worklist_;
 
   ReferenceTypeInfo::TypeHandle object_class_handle_;
   ReferenceTypeInfo::TypeHandle class_class_handle_;

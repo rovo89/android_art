@@ -108,8 +108,9 @@ void PrimitiveTypePropagation::VisitBasicBlock(HBasicBlock* block) {
 }
 
 void PrimitiveTypePropagation::ProcessWorklist() {
-  while (!worklist_.IsEmpty()) {
-    HPhi* instruction = worklist_.Pop();
+  while (!worklist_.empty()) {
+    HPhi* instruction = worklist_.back();
+    worklist_.pop_back();
     if (UpdateType(instruction)) {
       AddDependentInstructionsToWorklist(instruction);
     }
@@ -118,7 +119,7 @@ void PrimitiveTypePropagation::ProcessWorklist() {
 
 void PrimitiveTypePropagation::AddToWorklist(HPhi* instruction) {
   DCHECK(instruction->IsLive());
-  worklist_.Add(instruction);
+  worklist_.push_back(instruction);
 }
 
 void PrimitiveTypePropagation::AddDependentInstructionsToWorklist(HInstruction* instruction) {

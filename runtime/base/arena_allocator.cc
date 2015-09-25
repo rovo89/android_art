@@ -55,6 +55,7 @@ const char* const ArenaAllocatorStatsImpl<kCount>::kAllocNames[] = {
   "RegAlloc     ",
   "Data         ",
   "STL          ",
+  "GraphBuilder ",
   "Graph        ",
   "BasicBlock   ",
   "BlockList    ",
@@ -74,12 +75,20 @@ const char* const ArenaAllocatorStatsImpl<kCount>::kAllocNames[] = {
   "Environment  ",
   "EnvVRegs     ",
   "EnvLocations ",
+  "LocSummary   ",
   "SsaBuilder   ",
   "MoveOperands ",
   "CodeBuffer   ",
   "StackMaps    ",
   "BaselineMaps ",
   "Optimization ",
+  "GVN          ",
+  "SsaLiveness  ",
+  "SsaPhiElim   ",
+  "RefTypeProp  ",
+  "PrimTypeProp ",
+  "SideEffects  ",
+  "RegAllocator ",
 };
 
 template <bool kCount>
