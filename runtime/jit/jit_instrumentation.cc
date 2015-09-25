@@ -26,7 +26,17 @@ namespace jit {
 
 class JitCompileTask : public Task {
  public:
-  explicit JitCompileTask(ArtMethod* method) : method_(method) {}
+  explicit JitCompileTask(ArtMethod* method) : method_(method) {
+    ScopedObjectAccess soa(Thread::Current());
+    // Add a global ref to the class to prevent class unloading until compilation is done.
+    klass_ = soa.Vm()->AddGlobalRef(soa.Self(), method_->GetDeclaringClass());
+    CHECK(klass_ != nullptr);
+  }
+
+  ~JitCompileTask() {
+    ScopedObjectAccess soa(Thread::Current());
+    soa.Vm()->DeleteGlobalRef(soa.Self(), klass_);
+  }
 
   virtual void Run(Thread* self) OVERRIDE {
     ScopedObjectAccess soa(self);
@@ -42,6 +52,7 @@ class JitCompileTask : public Task {
 
  private:
   ArtMethod* const method_;
+  jobject klass_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(JitCompileTask);
 };
@@ -102,6 +113,29 @@ void JitInstrumentationListener::InvokeVirtualOrInterface(Thread* thread,
   if (info != nullptr) {
     info->AddInvokeInfo(thread, dex_pc, this_object->GetClass());
   }
+}
+
+class WaitForCompilationToFinishTask : public Task {
+ public:
+  WaitForCompilationToFinishTask() : barrier_(0) {}
+
+  void Wait(Thread* self) {
+    barrier_.Increment(self, 1);
+  }
+
+  virtual void Run(Thread* self) OVERRIDE {
+    barrier_.Pass(self);
+  }
+
+ private:
+  Barrier barrier_;
+  DISALLOW_COPY_AND_ASSIGN(WaitForCompilationToFinishTask);
+};
+
+void JitInstrumentationCache::WaitForCompilationToFinish(Thread* self) {
+  std::unique_ptr<WaitForCompilationToFinishTask> task(new WaitForCompilationToFinishTask);
+  thread_pool_->AddTask(self, task.get());
+  task->Wait(self);
 }
 
 }  // namespace jit

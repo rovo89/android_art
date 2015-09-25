@@ -28,12 +28,19 @@
 
 static JavaVM* jvm = nullptr;
 
-extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *) {
+extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void*) {
   assert(vm != nullptr);
   assert(jvm == nullptr);
   jvm = vm;
   std::cout << "JNI_OnLoad called" << std::endl;
   return JNI_VERSION_1_6;
+}
+
+extern "C" JNIEXPORT void JNI_OnUnload(JavaVM*, void*) {
+  // std::cout since LOG(INFO) adds extra stuff like pid.
+  std::cout << "JNI_OnUnload called" << std::endl;
+  // Clear jvm for assert in test 004-JniTest.
+  jvm = nullptr;
 }
 
 static void* AttachHelper(void* arg) {
