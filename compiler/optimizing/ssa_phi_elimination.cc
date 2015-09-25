@@ -35,7 +35,7 @@ void SsaDeadPhiElimination::MarkDeadPhis() {
         HUseListNode<HInstruction*>* current = use_it.Current();
         HInstruction* user = current->GetUser();
         if (!user->IsPhi()) {
-          worklist_.Add(phi);
+          worklist_.push_back(phi);
           phi->SetLive();
           break;
         }
@@ -44,12 +44,13 @@ void SsaDeadPhiElimination::MarkDeadPhis() {
   }
 
   // Process the worklist by propagating liveness to phi inputs.
-  while (!worklist_.IsEmpty()) {
-    HPhi* phi = worklist_.Pop();
+  while (!worklist_.empty()) {
+    HPhi* phi = worklist_.back();
+    worklist_.pop_back();
     for (HInputIterator it(phi); !it.Done(); it.Advance()) {
       HInstruction* input = it.Current();
       if (input->IsPhi() && input->AsPhi()->IsDead()) {
-        worklist_.Add(input->AsPhi());
+        worklist_.push_back(input->AsPhi());
         input->AsPhi()->SetLive();
       }
     }
@@ -103,12 +104,13 @@ void SsaRedundantPhiElimination::Run() {
   for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
-      worklist_.Add(inst_it.Current()->AsPhi());
+      worklist_.push_back(inst_it.Current()->AsPhi());
     }
   }
 
-  while (!worklist_.IsEmpty()) {
-    HPhi* phi = worklist_.Pop();
+  while (!worklist_.empty()) {
+    HPhi* phi = worklist_.back();
+    worklist_.pop_back();
 
     // If the phi has already been processed, continue.
     if (!phi->IsInBlock()) {
@@ -155,7 +157,7 @@ void SsaRedundantPhiElimination::Run() {
       HUseListNode<HInstruction*>* current = it.Current();
       HInstruction* user = current->GetUser();
       if (user->IsPhi()) {
-        worklist_.Add(user->AsPhi());
+        worklist_.push_back(user->AsPhi());
       }
     }
 
