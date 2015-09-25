@@ -262,22 +262,6 @@ bool HGraphBuilder::SkipCompilation(const DexFile::CodeItem& code_item,
   return false;
 }
 
-static const DexFile::TryItem* GetTryItem(HBasicBlock* block,
-                                          const DexFile::CodeItem& code_item,
-                                          const ArenaBitVector& can_block_throw) {
-  DCHECK(!block->IsSingleTryBoundary());
-
-  // Block does not contain throwing instructions. Even if it is covered by
-  // a TryItem, we will consider it not in a try block.
-  if (!can_block_throw.IsBitSet(block->GetBlockId())) {
-    return nullptr;
-  }
-
-  // Instructions in the block may throw. Find a TryItem covering this block.
-  int32_t try_item_idx = DexFile::FindTryItem(code_item, block->GetDexPc());
-  return (try_item_idx == -1) ? nullptr : DexFile::GetTryItems(code_item, try_item_idx);
-}
-
 void HGraphBuilder::CreateBlocksForTryCatch(const DexFile::CodeItem& code_item) {
   if (code_item.tries_size_ == 0) {
     return;
@@ -316,18 +300,18 @@ void HGraphBuilder::CreateBlocksForTryCatch(const DexFile::CodeItem& code_item) 
   }
 }
 
-void HGraphBuilder::SplitTryBoundaryEdge(HBasicBlock* predecessor,
-                                         HBasicBlock* successor,
-                                         HTryBoundary::BoundaryKind kind,
-                                         const DexFile::CodeItem& code_item,
-                                         const DexFile::TryItem& try_item) {
-  // Split the edge with a single TryBoundary instruction.
-  HTryBoundary* try_boundary = new (arena_) HTryBoundary(kind, successor->GetDexPc());
-  HBasicBlock* try_entry_block = graph_->SplitEdge(predecessor, successor);
-  try_entry_block->AddInstruction(try_boundary);
+// Returns the TryItem stored for `block` or nullptr if there is no info for it.
+static const DexFile::TryItem* GetTryItem(
+    HBasicBlock* block,
+    const ArenaSafeMap<uint32_t, const DexFile::TryItem*>& try_block_info) {
+  auto iterator = try_block_info.find(block->GetBlockId());
+  return (iterator == try_block_info.end()) ? nullptr : iterator->second;
+}
 
-  // Link the TryBoundary to the handlers of `try_item`.
-  for (CatchHandlerIterator it(code_item, try_item); it.HasNext(); it.Next()) {
+void HGraphBuilder::LinkToCatchBlocks(HTryBoundary* try_boundary,
+                                      const DexFile::CodeItem& code_item,
+                                      const DexFile::TryItem* try_item) {
+  for (CatchHandlerIterator it(code_item, *try_item); it.HasNext(); it.Next()) {
     try_boundary->AddExceptionHandler(FindBlockStartingAt(it.GetHandlerAddress()));
   }
 }
@@ -337,132 +321,103 @@ void HGraphBuilder::InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item) 
     return;
   }
 
-  // Bit vector stores information on which blocks contain throwing instructions.
-  // Must be expandable because catch blocks may be split into two.
-  ArenaBitVector can_block_throw(arena_, graph_->GetBlocks().size(), /* expandable */ true);
+  // Keep a map of all try blocks and their respective TryItems. We do not use
+  // the block's pointer but rather its id to ensure deterministic iteration.
+  ArenaSafeMap<uint32_t, const DexFile::TryItem*> try_block_info(
+      std::less<uint32_t>(), arena_->Adapter());
 
-  // Scan blocks and mark those which contain throwing instructions.
-  // NOTE: We're appending new blocks inside the loop, so we need to use index because iterators
-  // can be invalidated. We remember the initial size to avoid iterating over the new blocks.
-  for (size_t block_id = 0u, end = graph_->GetBlocks().size(); block_id != end; ++block_id) {
-    HBasicBlock* block = graph_->GetBlocks()[block_id];
-    bool can_throw = false;
-    for (HInstructionIterator insn(block->GetInstructions()); !insn.Done(); insn.Advance()) {
-      if (insn.Current()->CanThrow()) {
-        can_throw = true;
-        break;
-      }
-    }
+  // Obtain TryItem information for blocks with throwing instructions, and split
+  // blocks which are both try & catch to simplify the graph.
+  // NOTE: We are appending new blocks inside the loop, so we need to use index
+  // because iterators can be invalidated. We remember the initial size to avoid
+  // iterating over the new blocks which cannot throw.
+  for (size_t i = 0, e = graph_->GetBlocks().size(); i < e; ++i) {
+    HBasicBlock* block = graph_->GetBlocks()[i];
 
-    if (can_throw) {
-      if (block->IsCatchBlock()) {
-        // Catch blocks are always considered an entry point into the TryItem in
-        // order to avoid splitting exceptional edges. We split the block after
-        // the move-exception (if present) and mark the first part non-throwing.
-        // Later on, a TryBoundary will be inserted between the two blocks.
-        HInstruction* first_insn = block->GetFirstInstruction();
-        if (first_insn->IsLoadException()) {
-          // Catch block starts with a LoadException. Split the block after the
-          // StoreLocal and ClearException which must come after the load.
-          DCHECK(first_insn->GetNext()->IsStoreLocal());
-          DCHECK(first_insn->GetNext()->GetNext()->IsClearException());
-          block = block->SplitBefore(first_insn->GetNext()->GetNext()->GetNext());
-        } else {
-          // Catch block does not load the exception. Split at the beginning to
-          // create an empty catch block.
-          block = block->SplitBefore(first_insn);
+    // Do not bother creating exceptional edges for try blocks which have no
+    // throwing instructions. In that case we simply assume that the block is
+    // not covered by a TryItem. This prevents us from creating a throw-catch
+    // loop for synchronized blocks.
+    if (block->HasThrowingInstructions()) {
+      // Try to find a TryItem covering the block.
+      DCHECK_NE(block->GetDexPc(), kNoDexPc) << "Block must have a dec_pc to find its TryItem.";
+      const int32_t try_item_idx = DexFile::FindTryItem(code_item, block->GetDexPc());
+      if (try_item_idx != -1) {
+        // Block throwing and in a TryItem. Store the try block information.
+        HBasicBlock* throwing_block = block;
+        if (block->IsCatchBlock()) {
+          // Simplify blocks which are both try and catch, otherwise we would
+          // need a strategy for splitting exceptional edges. We split the block
+          // after the move-exception (if present) and mark the first part not
+          // throwing. The normal-flow edge between them will be split later.
+          HInstruction* first_insn = block->GetFirstInstruction();
+          if (first_insn->IsLoadException()) {
+            // Catch block starts with a LoadException. Split the block after
+            // the StoreLocal and ClearException which must come after the load.
+            DCHECK(first_insn->GetNext()->IsStoreLocal());
+            DCHECK(first_insn->GetNext()->GetNext()->IsClearException());
+            throwing_block = block->SplitBefore(first_insn->GetNext()->GetNext()->GetNext());
+          } else {
+            // Catch block does not load the exception. Split at the beginning
+            // to create an empty catch block.
+            throwing_block = block->SplitBefore(first_insn);
+          }
         }
+
+        try_block_info.Put(throwing_block->GetBlockId(),
+                           DexFile::GetTryItems(code_item, try_item_idx));
       }
-      can_block_throw.SetBit(block->GetBlockId());
     }
   }
 
-  // Iterate over all blocks, find those covered by some TryItem and:
-  //   (a) split edges which enter/exit the try range,
-  //   (b) create TryBoundary instructions in the new blocks,
-  //   (c) link the new blocks to corresponding exception handlers.
-  // We cannot iterate only over blocks in `branch_targets_` because switch-case
-  // blocks share the same dex_pc.
-  // NOTE: We're appending new blocks inside the loop, so we need to use index because iterators
-  // can be invalidated. We remember the initial size to avoid iterating over the new blocks.
-  for (size_t block_id = 0u, end = graph_->GetBlocks().size(); block_id != end; ++block_id) {
-    HBasicBlock* try_block = graph_->GetBlocks()[block_id];
-    // TryBoundary blocks are added at the end of the list and not iterated over.
-    DCHECK(!try_block->IsSingleTryBoundary());
-
-    // Find the TryItem for this block.
-    const DexFile::TryItem* try_item = GetTryItem(try_block, code_item, can_block_throw);
-    if (try_item == nullptr) {
-      continue;
+  // Do a pass over the try blocks and insert entering TryBoundaries where at
+  // least one predecessor is not covered by the same TryItem as the try block.
+  // We do not split each edge separately, but rather create one boundary block
+  // that all predecessors are relinked to. This preserves loop headers (b/23895756).
+  for (auto entry : try_block_info) {
+    HBasicBlock* try_block = graph_->GetBlock(entry.first);
+    for (HBasicBlock* predecessor : try_block->GetPredecessors()) {
+      if (GetTryItem(predecessor, try_block_info) != entry.second) {
+        // Found a predecessor not covered by the same TryItem. Insert entering
+        // boundary block.
+        HTryBoundary* try_entry =
+            new (arena_) HTryBoundary(HTryBoundary::kEntry, try_block->GetDexPc());
+        try_block->CreateImmediateDominator()->AddInstruction(try_entry);
+        LinkToCatchBlocks(try_entry, code_item, entry.second);
+        break;
+      }
     }
+  }
 
-    // Catch blocks were split earlier and cannot throw.
-    DCHECK(!try_block->IsCatchBlock());
+  // Do a second pass over the try blocks and insert exit TryBoundaries where
+  // the successor is not in the same TryItem.
+  for (auto entry : try_block_info) {
+    HBasicBlock* try_block = graph_->GetBlock(entry.first);
+    // NOTE: Do not use iterators because SplitEdge would invalidate them.
+    for (size_t i = 0, e = try_block->GetSuccessors().size(); i < e; ++i) {
+      HBasicBlock* successor = try_block->GetSuccessor(i);
 
-    // Find predecessors which are not covered by the same TryItem range. Such
-    // edges enter the try block and will have a TryBoundary inserted.
-    for (size_t i = 0; i < try_block->GetPredecessors().size(); ++i) {
-      HBasicBlock* predecessor = try_block->GetPredecessor(i);
-      if (predecessor->IsSingleTryBoundary()) {
-        // The edge was already split because of an exit from a neighbouring
-        // TryItem. We split it again and insert an entry point.
-        if (kIsDebugBuild) {
-          HTryBoundary* last_insn = predecessor->GetLastInstruction()->AsTryBoundary();
-          const DexFile::TryItem* predecessor_try_item =
-              GetTryItem(predecessor->GetSinglePredecessor(), code_item, can_block_throw);
-          DCHECK(!last_insn->IsEntry());
-          DCHECK_EQ(last_insn->GetNormalFlowSuccessor(), try_block);
-          DCHECK(try_block->IsFirstIndexOfPredecessor(predecessor, i));
-          DCHECK_NE(try_item, predecessor_try_item);
-        }
-      } else if (GetTryItem(predecessor, code_item, can_block_throw) != try_item) {
-        // This is an entry point into the TryItem and the edge has not been
-        // split yet. That means that `predecessor` is not in a TryItem, or
-        // it is in a different TryItem and we happened to iterate over this
-        // block first. We split the edge and insert an entry point.
-      } else {
-        // Not an edge on the boundary of the try block.
+      // If the successor is a try block, all of its predecessors must be
+      // covered by the same TryItem. Otherwise the previous pass would have
+      // created a non-throwing boundary block.
+      if (GetTryItem(successor, try_block_info) != nullptr) {
+        DCHECK_EQ(entry.second, GetTryItem(successor, try_block_info));
         continue;
       }
-      SplitTryBoundaryEdge(predecessor, try_block, HTryBoundary::kEntry, code_item, *try_item);
-    }
 
-    // Find successors which are not covered by the same TryItem range. Such
-    // edges exit the try block and will have a TryBoundary inserted.
-    for (HBasicBlock* successor : try_block->GetSuccessors()) {
-      if (successor->IsCatchBlock()) {
-        // A catch block is always considered an entry point into its TryItem.
-        // We therefore assume this is an exit point, regardless of whether
-        // the catch block is in a different TryItem or not.
-      } else if (successor->IsSingleTryBoundary()) {
-        // The edge was already split because of an entry into a neighbouring
-        // TryItem. We split it again and insert an exit.
-        if (kIsDebugBuild) {
-          HTryBoundary* last_insn = successor->GetLastInstruction()->AsTryBoundary();
-          const DexFile::TryItem* successor_try_item =
-              GetTryItem(last_insn->GetNormalFlowSuccessor(), code_item, can_block_throw);
-          DCHECK_EQ(try_block, successor->GetSinglePredecessor());
-          DCHECK(last_insn->IsEntry());
-          DCHECK_NE(try_item, successor_try_item);
-        }
-      } else if (GetTryItem(successor, code_item, can_block_throw) != try_item) {
-        // This is an exit out of the TryItem and the edge has not been split
-        // yet. That means that either `successor` is not in a TryItem, or it
-        // is in a different TryItem and we happened to iterate over this
-        // block first. We split the edge and insert an exit.
-        HInstruction* last_instruction = try_block->GetLastInstruction();
-        if (last_instruction->IsReturn() || last_instruction->IsReturnVoid()) {
-          DCHECK_EQ(successor, exit_block_);
-          // Control flow exits the try block with a Return(Void). Because
-          // splitting the edge would invalidate the invariant that Return
-          // always jumps to Exit, we move the Return outside the try block.
-          successor = try_block->SplitBefore(last_instruction);
-        }
-      } else {
-        // Not an edge on the boundary of the try block.
-        continue;
+      // Preserve the invariant that Return(Void) always jumps to Exit by moving
+      // it outside the try block if necessary.
+      HInstruction* last_instruction = try_block->GetLastInstruction();
+      if (last_instruction->IsReturn() || last_instruction->IsReturnVoid()) {
+        DCHECK_EQ(successor, exit_block_);
+        successor = try_block->SplitBefore(last_instruction);
       }
-      SplitTryBoundaryEdge(try_block, successor, HTryBoundary::kExit, code_item, *try_item);
+
+      // Insert TryBoundary and link to catch blocks.
+      HTryBoundary* try_exit =
+          new (arena_) HTryBoundary(HTryBoundary::kExit, successor->GetDexPc());
+      graph_->SplitEdge(try_block, successor)->AddInstruction(try_exit);
+      LinkToCatchBlocks(try_exit, code_item, entry.second);
     }
   }
 }
