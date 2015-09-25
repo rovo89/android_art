@@ -1300,17 +1300,17 @@ bool MethodVerifier::CheckSwitchTargets(uint32_t cur_offset) {
     return false;
   }
 
+  bool is_packed_switch = (*insns & 0xff) == Instruction::PACKED_SWITCH;
+
   uint32_t switch_count = switch_insns[1];
-  int32_t keys_offset, targets_offset;
+  int32_t targets_offset;
   uint16_t expected_signature;
-  if ((*insns & 0xff) == Instruction::PACKED_SWITCH) {
+  if (is_packed_switch) {
     /* 0=sig, 1=count, 2/3=firstKey */
     targets_offset = 4;
-    keys_offset = -1;
     expected_signature = Instruction::kPackedSwitchSignature;
   } else {
     /* 0=sig, 1=count, 2..count*2 = keys */
-    keys_offset = 2;
     targets_offset = 2 + 2 * switch_count;
     expected_signature = Instruction::kSparseSwitchSignature;
   }
@@ -1329,19 +1329,33 @@ bool MethodVerifier::CheckSwitchTargets(uint32_t cur_offset) {
                                       << ", count " << insn_count;
     return false;
   }
-  /* for a sparse switch, verify the keys are in ascending order */
-  if (keys_offset > 0 && switch_count > 1) {
-    int32_t last_key = switch_insns[keys_offset] | (switch_insns[keys_offset + 1] << 16);
-    for (uint32_t targ = 1; targ < switch_count; targ++) {
-      int32_t key =
-          static_cast<int32_t>(switch_insns[keys_offset + targ * 2]) |
-          static_cast<int32_t>(switch_insns[keys_offset + targ * 2 + 1] << 16);
-      if (key <= last_key) {
-        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid sparse switch: last key=" << last_key
-                                          << ", this=" << key;
+
+  constexpr int32_t keys_offset = 2;
+  if (switch_count > 1) {
+    if (is_packed_switch) {
+      /* for a packed switch, verify that keys do not overflow int32 */
+      int32_t first_key = switch_insns[keys_offset] | (switch_insns[keys_offset + 1] << 16);
+      int32_t max_first_key =
+          std::numeric_limits<int32_t>::max() - (static_cast<int32_t>(switch_count) - 1);
+      if (first_key > max_first_key) {
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid packed switch: first_key=" << first_key
+                                          << ", switch_count=" << switch_count;
         return false;
       }
-      last_key = key;
+    } else {
+      /* for a sparse switch, verify the keys are in ascending order */
+      int32_t last_key = switch_insns[keys_offset] | (switch_insns[keys_offset + 1] << 16);
+      for (uint32_t targ = 1; targ < switch_count; targ++) {
+        int32_t key =
+            static_cast<int32_t>(switch_insns[keys_offset + targ * 2]) |
+            static_cast<int32_t>(switch_insns[keys_offset + targ * 2 + 1] << 16);
+        if (key <= last_key) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid sparse switch: last key=" << last_key
+                                            << ", this=" << key;
+          return false;
+        }
+        last_key = key;
+      }
     }
   }
   /* verify each switch target */

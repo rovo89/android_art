@@ -51,6 +51,10 @@ public class Main {
         testCases = new LinkedList<TestCase>();
         testCases.add(new TestCase("PackedSwitch", "PackedSwitch", "packedSwitch",
                 new Object[]{123}, null, 123));
+        testCases.add(new TestCase("PackedSwitch key INT_MAX", "PackedSwitch",
+                "packedSwitch_INT_MAX", new Object[]{123}, null, 123));
+        testCases.add(new TestCase("PackedSwitch key overflow", "b_24399945",
+                "packedSwitch_overflow", new Object[]{123}, new VerifyError(), null));
 
         testCases.add(new TestCase("b/17790197", "B17790197", "getInt", null, null, 100));
         testCases.add(new TestCase("FloatBadArgReg", "FloatBadArgReg", "getInt",
