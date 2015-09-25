@@ -1007,6 +1007,9 @@ bool MethodVerifier::VerifyInstruction(const Instruction* inst, uint32_t code_of
     case Instruction::kVerifyRegCWide:
       result = result && CheckWideRegisterIndex(inst->VRegC());
       break;
+    case Instruction::kVerifyRegCString:
+      result = result && CheckStringIndex(inst->VRegC());
+      break;
   }
   switch (inst->GetVerifyExtraFlags()) {
     case Instruction::kVerifyArrayData:
@@ -3148,6 +3151,13 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       Fail(VERIFY_ERROR_FORCE_INTERPRETER);  // TODO(iam): implement invoke-lambda verification
       break;
     }
+    case Instruction::CAPTURE_VARIABLE: {
+      // Don't bother verifying, instead the interpreter will take the slow path with access checks.
+      // If the code would've normally hard-failed, then the interpreter will throw the
+      // appropriate verification errors at runtime.
+      Fail(VERIFY_ERROR_FORCE_INTERPRETER);  // TODO(iam): implement capture-variable verification
+      break;
+    }
     case Instruction::CREATE_LAMBDA: {
       // Don't bother verifying, instead the interpreter will take the slow path with access checks.
       // If the code would've normally hard-failed, then the interpreter will throw the
@@ -3155,10 +3165,15 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       Fail(VERIFY_ERROR_FORCE_INTERPRETER);  // TODO(iam): implement create-lambda verification
       break;
     }
+    case Instruction::LIBERATE_VARIABLE: {
+      // Don't bother verifying, instead the interpreter will take the slow path with access checks.
+      // If the code would've normally hard-failed, then the interpreter will throw the
+      // appropriate verification errors at runtime.
+      Fail(VERIFY_ERROR_FORCE_INTERPRETER);  // TODO(iam): implement liberate-variable verification
+      break;
+    }
 
-    case Instruction::UNUSED_F4:
-    case Instruction::UNUSED_F5:
-    case Instruction::UNUSED_F7: {
+    case Instruction::UNUSED_F4: {
       DCHECK(false);  // TODO(iam): Implement opcodes for lambdas
       // Conservatively fail verification on release builds.
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Unexpected opcode " << inst->DumpString(dex_file_);

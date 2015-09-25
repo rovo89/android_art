@@ -27,6 +27,9 @@
 namespace art {
 namespace interpreter {
 
+// All lambda closures have to be a consecutive pair of virtual registers.
+static constexpr size_t kLambdaVirtualRegisterWidth = 2;
+
 void ThrowNullPointerExceptionFromInterpreter() {
   ThrowNullPointerExceptionFromDexPC();
 }
@@ -483,13 +486,16 @@ void AbortTransactionV(Thread* self, const char* fmt, va_list args) {
 }
 
 // Separate declaration is required solely for the attributes.
-template<bool is_range, bool do_assignability_check> SHARED_REQUIRES(Locks::mutator_lock_)
+template <bool is_range,
+          bool do_assignability_check,
+          size_t kVarArgMax>
+    SHARED_REQUIRES(Locks::mutator_lock_)
 static inline bool DoCallCommon(ArtMethod* called_method,
                                 Thread* self,
                                 ShadowFrame& shadow_frame,
                                 JValue* result,
                                 uint16_t number_of_inputs,
-                                uint32_t arg[Instruction::kMaxVarArgRegs],
+                                uint32_t (&arg)[kVarArgMax],
                                 uint32_t vregC) ALWAYS_INLINE;
 
 SHARED_REQUIRES(Locks::mutator_lock_)
@@ -509,13 +515,15 @@ static inline bool NeedsInterpreter(Thread* self, ShadowFrame* new_shadow_frame)
         Dbg::IsForcedInterpreterNeededForCalling(self, target);
 }
 
-template<bool is_range, bool do_assignability_check>
+template <bool is_range,
+          bool do_assignability_check,
+          size_t kVarArgMax>
 static inline bool DoCallCommon(ArtMethod* called_method,
                                 Thread* self,
                                 ShadowFrame& shadow_frame,
                                 JValue* result,
                                 uint16_t number_of_inputs,
-                                uint32_t arg[Instruction::kMaxVarArgRegs],
+                                uint32_t (&arg)[kVarArgMax],
                                 uint32_t vregC) {
   bool string_init = false;
   // Replace calls to String.<init> with equivalent StringFactory call.
@@ -560,10 +568,10 @@ static inline bool DoCallCommon(ArtMethod* called_method,
     number_of_inputs--;
 
     // Rewrite the var-args, dropping the 0th argument ("this")
-    for (uint32_t i = 1; i < Instruction::kMaxVarArgRegs; ++i) {
+    for (uint32_t i = 1; i < arraysize(arg); ++i) {
       arg[i - 1] = arg[i];
     }
-    arg[Instruction::kMaxVarArgRegs - 1] = 0;
+    arg[arraysize(arg) - 1] = 0;
 
     // Rewrite the non-var-arg case
     vregC++;  // Skips the 0th vreg in the range ("this").
@@ -669,7 +677,7 @@ static inline bool DoCallCommon(ArtMethod* called_method,
         AssignRegister(new_shadow_frame, shadow_frame, dest_reg, src_reg);
       }
     } else {
-      DCHECK_LE(number_of_inputs, Instruction::kMaxVarArgRegs);
+      DCHECK_LE(number_of_inputs, arraysize(arg));
 
       for (; arg_index < number_of_inputs; ++arg_index) {
         AssignRegister(new_shadow_frame, shadow_frame, first_dest_reg + arg_index, arg[arg_index]);
@@ -732,12 +740,13 @@ bool DoLambdaCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_fr
                   const Instruction* inst, uint16_t inst_data, JValue* result) {
   const uint4_t num_additional_registers = inst->VRegB_25x();
   // Argument word count.
-  const uint16_t number_of_inputs = num_additional_registers + 1;
-  // The first input register is always present and is not encoded in the count.
+  const uint16_t number_of_inputs = num_additional_registers + kLambdaVirtualRegisterWidth;
+  // The lambda closure register is always present and is not encoded in the count.
+  // Furthermore, the lambda closure register is always wide, so it counts as 2 inputs.
 
   // TODO: find a cleaner way to separate non-range and range information without duplicating
   //       code.
-  uint32_t arg[Instruction::kMaxVarArgRegs];  // only used in invoke-XXX.
+  uint32_t arg[Instruction::kMaxVarArgRegs25x];  // only used in invoke-XXX.
   uint32_t vregC = 0;   // only used in invoke-XXX-range.
   if (is_range) {
     vregC = inst->VRegC_3rc();
@@ -763,7 +772,7 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
 
   // TODO: find a cleaner way to separate non-range and range information without duplicating
   //       code.
-  uint32_t arg[Instruction::kMaxVarArgRegs];  // only used in invoke-XXX.
+  uint32_t arg[Instruction::kMaxVarArgRegs] = {};  // only used in invoke-XXX.
   uint32_t vregC = 0;
   if (is_range) {
     vregC = inst->VRegC_3rc();
