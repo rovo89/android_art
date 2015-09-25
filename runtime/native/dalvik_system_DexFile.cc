@@ -192,28 +192,38 @@ static jobject DexFile_openDexFileNative(
   }
 }
 
-static void DexFile_closeDexFile(JNIEnv* env, jclass, jobject cookie) {
-  std::unique_ptr<std::vector<const DexFile*>> dex_files = ConvertJavaArrayToNative(env, cookie);
-  if (dex_files.get() == nullptr) {
-    DCHECK(env->ExceptionCheck());
-    return;
-  }
-
+static jboolean DexFile_closeDexFile(JNIEnv* env, jclass, jobject cookie) {
   ScopedObjectAccess soa(env);
+  mirror::Object* dex_files_object = soa.Decode<mirror::Object*>(cookie);
+  if (dex_files_object == nullptr) {
+    ThrowNullPointerException("cookie == null");
+    return JNI_FALSE;
+  }
+  mirror::LongArray* dex_files = dex_files_object->AsLongArray();
 
-  // The Runtime currently never unloads classes, which means any registered
-  // dex files must be kept around forever in case they are used. We
-  // accomplish this here by explicitly leaking those dex files that are
-  // registered.
-  //
-  // TODO: The Runtime should support unloading of classes and freeing of the
-  // dex files for those unloaded classes rather than leaking dex files here.
+  // Delete dex files associated with this dalvik.system.DexFile since there should not be running
+  // code using it. dex_files is a vector due to multidex.
   ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
-  for (const DexFile* dex_file : *dex_files) {
+  bool all_deleted = true;
+  for (int32_t i = 0, count = dex_files->GetLength(); i < count; ++i) {
+    auto* dex_file = reinterpret_cast<DexFile*>(dex_files->Get(i));
+    if (dex_file == nullptr) {
+      continue;
+    }
+    // Only delete the dex file if the dex cache is not found to prevent runtime crashes if there
+    // are calls to DexFile.close while the ART DexFile is still in use.
     if (class_linker->FindDexCache(soa.Self(), *dex_file, true) == nullptr) {
+      // Clear the element in the array so that we can call close again.
+      dex_files->Set(i, 0);
       delete dex_file;
+    } else {
+      all_deleted = false;
     }
   }
+
+  // TODO: Also unmap the OatFile for this dalvik.system.DexFile.
+
+  return all_deleted ? JNI_TRUE : JNI_FALSE;
 }
 
 static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, jobject javaLoader,
@@ -379,7 +389,7 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(DexFile, closeDexFile, "(Ljava/lang/Object;)V"),
+  NATIVE_METHOD(DexFile, closeDexFile, "(Ljava/lang/Object;)Z"),
   NATIVE_METHOD(DexFile, defineClassNative,
                 "(Ljava/lang/String;Ljava/lang/ClassLoader;Ljava/lang/Object;)Ljava/lang/Class;"),
   NATIVE_METHOD(DexFile, getClassNameList, "(Ljava/lang/Object;)[Ljava/lang/String;"),
