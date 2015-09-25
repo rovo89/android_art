@@ -67,6 +67,9 @@ class Jit {
   void DumpInfo(std::ostream& os);
   // Add a timing logger to cumulative_timings_.
   void AddTimingLogger(const TimingLogger& logger);
+  JitInstrumentationCache* GetInstrumentationCache() const {
+    return instrumentation_cache_.get();
+  }
 
  private:
   Jit();
