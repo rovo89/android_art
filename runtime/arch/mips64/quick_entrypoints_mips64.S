@@ -431,7 +431,7 @@ ENTRY_NO_GP art_quick_do_long_jump
     ld      $ra, 248($a0)
     ld      $a0, 32($a0)
     move    $v0, $zero          # clear result registers v0 and v1
-    jalr    $zero, $ra          # do long jump
+    jalr    $zero, $t9          # do long jump (do not use ra, it must not be clobbered)
     move    $v1, $zero
 END art_quick_do_long_jump
 
