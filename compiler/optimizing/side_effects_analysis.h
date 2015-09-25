@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_SIDE_EFFECTS_ANALYSIS_H_
 #define ART_COMPILER_OPTIMIZING_SIDE_EFFECTS_ANALYSIS_H_
 
+#include "base/arena_containers.h"
 #include "nodes.h"
 #include "optimization.h"
 
@@ -27,8 +28,10 @@ class SideEffectsAnalysis : public HOptimization {
   explicit SideEffectsAnalysis(HGraph* graph)
       : HOptimization(graph, kSideEffectsAnalysisPassName),
         graph_(graph),
-        block_effects_(graph->GetArena(), graph->GetBlocks().size(), SideEffects::None()),
-        loop_effects_(graph->GetArena(), graph->GetBlocks().size(), SideEffects::None()) {}
+        block_effects_(graph->GetBlocks().size(),
+                       graph->GetArena()->Adapter(kArenaAllocSideEffectsAnalysis)),
+        loop_effects_(graph->GetBlocks().size(),
+                      graph->GetArena()->Adapter(kArenaAllocSideEffectsAnalysis)) {}
 
   SideEffects GetLoopEffects(HBasicBlock* block) const;
   SideEffects GetBlockEffects(HBasicBlock* block) const;
@@ -51,11 +54,11 @@ class SideEffectsAnalysis : public HOptimization {
 
   // Side effects of individual blocks, that is the union of the side effects
   // of the instructions in the block.
-  GrowableArray<SideEffects> block_effects_;
+  ArenaVector<SideEffects> block_effects_;
 
   // Side effects of loops, that is the union of the side effects of the
   // blocks contained in that loop.
-  GrowableArray<SideEffects> loop_effects_;
+  ArenaVector<SideEffects> loop_effects_;
 
   ART_FRIEND_TEST(GVNTest, LoopSideEffects);
   DISALLOW_COPY_AND_ASSIGN(SideEffectsAnalysis);

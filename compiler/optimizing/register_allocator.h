@@ -18,9 +18,9 @@
 #define ART_COMPILER_OPTIMIZING_REGISTER_ALLOCATOR_H_
 
 #include "arch/instruction_set.h"
+#include "base/arena_containers.h"
 #include "base/macros.h"
 #include "primitive.h"
-#include "utils/growable_array.h"
 
 namespace art {
 
@@ -59,7 +59,7 @@ class RegisterAllocator {
   }
 
   // Helper method for validation. Used by unit testing.
-  static bool ValidateIntervals(const GrowableArray<LiveInterval*>& intervals,
+  static bool ValidateIntervals(const ArenaVector<LiveInterval*>& intervals,
                                 size_t number_of_spill_slots,
                                 size_t number_of_out_slots,
                                 const CodeGenerator& codegen,
@@ -70,10 +70,10 @@ class RegisterAllocator {
   static bool CanAllocateRegistersFor(const HGraph& graph, InstructionSet instruction_set);
 
   size_t GetNumberOfSpillSlots() const {
-    return int_spill_slots_.Size()
-        + long_spill_slots_.Size()
-        + float_spill_slots_.Size()
-        + double_spill_slots_.Size()
+    return int_spill_slots_.size()
+        + long_spill_slots_.size()
+        + float_spill_slots_.size()
+        + double_spill_slots_.size()
         + catch_phi_spill_slots_;
   }
 
@@ -87,7 +87,7 @@ class RegisterAllocator {
   void Resolve();
 
   // Add `interval` in the given sorted list.
-  static void AddSorted(GrowableArray<LiveInterval*>* array, LiveInterval* interval);
+  static void AddSorted(ArenaVector<LiveInterval*>* array, LiveInterval* interval);
 
   // Split `interval` at the position `position`. The new interval starts at `position`.
   LiveInterval* Split(LiveInterval* interval, size_t position);
@@ -159,13 +159,6 @@ class RegisterAllocator {
                                                 size_t first_register_use,
                                                 size_t* next_use);
 
-  // If `interval` has another half, remove it from the list of `intervals`.
-  // `index` holds the index at which `interval` is in `intervals`.
-  // Returns whether there is another half.
-  bool PotentiallyRemoveOtherHalf(LiveInterval* interval,
-                                  GrowableArray<LiveInterval*>* intervals,
-                                  size_t index);
-
   ArenaAllocator* const allocator_;
   CodeGenerator* const codegen_;
   const SsaLivenessAnalysis& liveness_;
@@ -173,43 +166,43 @@ class RegisterAllocator {
   // List of intervals for core registers that must be processed, ordered by start
   // position. Last entry is the interval that has the lowest start position.
   // This list is initially populated before doing the linear scan.
-  GrowableArray<LiveInterval*> unhandled_core_intervals_;
+  ArenaVector<LiveInterval*> unhandled_core_intervals_;
 
   // List of intervals for floating-point registers. Same comments as above.
-  GrowableArray<LiveInterval*> unhandled_fp_intervals_;
+  ArenaVector<LiveInterval*> unhandled_fp_intervals_;
 
   // Currently processed list of unhandled intervals. Either `unhandled_core_intervals_`
   // or `unhandled_fp_intervals_`.
-  GrowableArray<LiveInterval*>* unhandled_;
+  ArenaVector<LiveInterval*>* unhandled_;
 
   // List of intervals that have been processed.
-  GrowableArray<LiveInterval*> handled_;
+  ArenaVector<LiveInterval*> handled_;
 
   // List of intervals that are currently active when processing a new live interval.
   // That is, they have a live range that spans the start of the new interval.
-  GrowableArray<LiveInterval*> active_;
+  ArenaVector<LiveInterval*> active_;
 
   // List of intervals that are currently inactive when processing a new live interval.
   // That is, they have a lifetime hole that spans the start of the new interval.
-  GrowableArray<LiveInterval*> inactive_;
+  ArenaVector<LiveInterval*> inactive_;
 
   // Fixed intervals for physical registers. Such intervals cover the positions
   // where an instruction requires a specific register.
-  GrowableArray<LiveInterval*> physical_core_register_intervals_;
-  GrowableArray<LiveInterval*> physical_fp_register_intervals_;
+  ArenaVector<LiveInterval*> physical_core_register_intervals_;
+  ArenaVector<LiveInterval*> physical_fp_register_intervals_;
 
   // Intervals for temporaries. Such intervals cover the positions
   // where an instruction requires a temporary.
-  GrowableArray<LiveInterval*> temp_intervals_;
+  ArenaVector<LiveInterval*> temp_intervals_;
 
   // The spill slots allocated for live intervals. We ensure spill slots
   // are typed to avoid (1) doing moves and swaps between two different kinds
   // of registers, and (2) swapping between a single stack slot and a double
   // stack slot. This simplifies the parallel move resolver.
-  GrowableArray<size_t> int_spill_slots_;
-  GrowableArray<size_t> long_spill_slots_;
-  GrowableArray<size_t> float_spill_slots_;
-  GrowableArray<size_t> double_spill_slots_;
+  ArenaVector<size_t> int_spill_slots_;
+  ArenaVector<size_t> long_spill_slots_;
+  ArenaVector<size_t> float_spill_slots_;
+  ArenaVector<size_t> double_spill_slots_;
 
   // Spill slots allocated to catch phis. This category is special-cased because
   // (1) slots are allocated prior to linear scan and in reverse linear order,
@@ -217,7 +210,7 @@ class RegisterAllocator {
   size_t catch_phi_spill_slots_;
 
   // Instructions that need a safepoint.
-  GrowableArray<HInstruction*> safepoints_;
+  ArenaVector<HInstruction*> safepoints_;
 
   // True if processing core registers. False if processing floating
   // point registers.
