@@ -1,4 +1,6 @@
 PackedSwitch
+PackedSwitch key INT_MAX
+PackedSwitch key overflow
 b/17790197
 FloatBadArgReg
 negLong
