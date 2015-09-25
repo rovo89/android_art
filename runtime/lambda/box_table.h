@@ -34,6 +34,7 @@ class Object;  // forward declaration
 }  // namespace mirror
 
 namespace lambda {
+struct Closure;  // forward declaration
 
 /*
  * Store a table of boxed lambdas. This is required to maintain object referential equality
@@ -44,7 +45,7 @@ namespace lambda {
  */
 class BoxTable FINAL {
  public:
-  using ClosureType = art::ArtMethod*;
+  using ClosureType = art::lambda::Closure*;
 
   // Boxes a closure into an object. Returns null and throws an exception on failure.
   mirror::Object* BoxLambda(const ClosureType& closure)
@@ -72,10 +73,9 @@ class BoxTable FINAL {
       REQUIRES(!Locks::lambda_table_lock_);
 
   BoxTable();
-  ~BoxTable() = default;
+  ~BoxTable();
 
  private:
-  // FIXME: This needs to be a GcRoot.
   // Explanation:
   // - After all threads are suspended (exclusive mutator lock),
   //   the concurrent-copying GC can move objects from the "from" space to the "to" space.
@@ -97,30 +97,30 @@ class BoxTable FINAL {
   void BlockUntilWeaksAllowed()
       SHARED_REQUIRES(Locks::lambda_table_lock_);
 
+  // Wrap the Closure into a unique_ptr so that the HashMap can delete its memory automatically.
+  using UnorderedMapKeyType = ClosureType;
+
   // EmptyFn implementation for art::HashMap
   struct EmptyFn {
-    void MakeEmpty(std::pair<ClosureType, ValueType>& item) const {
-      item.first = nullptr;
-    }
-    bool IsEmpty(const std::pair<ClosureType, ValueType>& item) const {
-      return item.first == nullptr;
-    }
+    void MakeEmpty(std::pair<UnorderedMapKeyType, ValueType>& item) const
+        NO_THREAD_SAFETY_ANALYSIS;  // SHARED_REQUIRES(Locks::mutator_lock_)
+
+    bool IsEmpty(const std::pair<UnorderedMapKeyType, ValueType>& item) const;
   };
 
   // HashFn implementation for art::HashMap
   struct HashFn {
-    size_t operator()(const ClosureType& key) const {
-      // TODO(iam): Rewrite hash function when ClosureType is no longer an ArtMethod*
-      return static_cast<size_t>(reinterpret_cast<uintptr_t>(key));
-    }
+    size_t operator()(const UnorderedMapKeyType& key) const
+        NO_THREAD_SAFETY_ANALYSIS;  // SHARED_REQUIRES(Locks::mutator_lock_)
   };
 
   // EqualsFn implementation for art::HashMap
   struct EqualsFn {
-    bool operator()(const ClosureType& lhs, const ClosureType& rhs) const;
+    bool operator()(const UnorderedMapKeyType& lhs, const UnorderedMapKeyType& rhs) const
+        NO_THREAD_SAFETY_ANALYSIS;  // SHARED_REQUIRES(Locks::mutator_lock_)
   };
 
-  using UnorderedMap = art::HashMap<ClosureType,
+  using UnorderedMap = art::HashMap<UnorderedMapKeyType,
                                     ValueType,
                                     EmptyFn,
                                     HashFn,
