@@ -15,11 +15,12 @@
  */
 
 #include "gvn.h"
+
+#include "base/arena_containers.h"
+#include "base/bit_vector-inl.h"
 #include "side_effects_analysis.h"
 #include "utils.h"
-
 #include "utils/arena_bit_vector.h"
-#include "base/bit_vector-inl.h"
 
 namespace art {
 
@@ -32,7 +33,7 @@ namespace art {
  * if there is one in the set. In GVN, we would say those instructions have the
  * same "number".
  */
-class ValueSet : public ArenaObject<kArenaAllocMisc> {
+class ValueSet : public ArenaObject<kArenaAllocGvn> {
  public:
   // Constructs an empty ValueSet which owns all its buckets.
   explicit ValueSet(ArenaAllocator* allocator)
@@ -143,7 +144,7 @@ class ValueSet : public ArenaObject<kArenaAllocMisc> {
   size_t GetNumberOfEntries() const { return num_entries_; }
 
  private:
-  class Node : public ArenaObject<kArenaAllocMisc> {
+  class Node : public ArenaObject<kArenaAllocGvn> {
    public:
     Node(HInstruction* instruction, size_t hash_code, Node* next)
         : instruction_(instruction), hash_code_(hash_code), next_(next) {}
@@ -306,7 +307,7 @@ class GlobalValueNumberer : public ValueObject {
       : graph_(graph),
         allocator_(allocator),
         side_effects_(side_effects),
-        sets_(allocator, graph->GetBlocks().size(), nullptr) {}
+        sets_(graph->GetBlocks().size(), nullptr, allocator->Adapter(kArenaAllocGvn)) {}
 
   void Run();
 
@@ -322,14 +323,14 @@ class GlobalValueNumberer : public ValueObject {
   // ValueSet for blocks. Initially null, but for an individual block they
   // are allocated and populated by the dominator, and updated by all blocks
   // in the path from the dominator to the block.
-  GrowableArray<ValueSet*> sets_;
+  ArenaVector<ValueSet*> sets_;
 
   DISALLOW_COPY_AND_ASSIGN(GlobalValueNumberer);
 };
 
 void GlobalValueNumberer::Run() {
   DCHECK(side_effects_.HasRun());
-  sets_.Put(graph_->GetEntryBlock()->GetBlockId(), new (allocator_) ValueSet(allocator_));
+  sets_[graph_->GetEntryBlock()->GetBlockId()] = new (allocator_) ValueSet(allocator_);
 
   // Use the reverse post order to ensure the non back-edge predecessors of a block are
   // visited before the block itself.
@@ -348,7 +349,7 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
     set = new (allocator_) ValueSet(allocator_);
   } else {
     HBasicBlock* dominator = block->GetDominator();
-    ValueSet* dominator_set = sets_.Get(dominator->GetBlockId());
+    ValueSet* dominator_set = sets_[dominator->GetBlockId()];
     if (dominator->GetSuccessors().size() == 1) {
       DCHECK_EQ(dominator->GetSuccessor(0), block);
       set = dominator_set;
@@ -363,7 +364,7 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
         set->Kill(side_effects_.GetLoopEffects(block));
       } else if (predecessors.size() > 1) {
         for (HBasicBlock* predecessor : predecessors) {
-          set->IntersectWith(sets_.Get(predecessor->GetBlockId()));
+          set->IntersectWith(sets_[predecessor->GetBlockId()]);
           if (set->IsEmpty()) {
             break;
           }
@@ -372,7 +373,7 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
     }
   }
 
-  sets_.Put(block->GetBlockId(), set);
+  sets_[block->GetBlockId()] = set;
 
   HInstruction* current = block->GetFirstInstruction();
   while (current != nullptr) {

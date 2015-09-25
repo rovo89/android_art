@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_PRIMITIVE_TYPE_PROPAGATION_H_
 #define ART_COMPILER_OPTIMIZING_PRIMITIVE_TYPE_PROPAGATION_H_
 
+#include "base/arena_containers.h"
 #include "nodes.h"
 
 namespace art {
@@ -25,7 +26,9 @@ namespace art {
 class PrimitiveTypePropagation : public ValueObject {
  public:
   explicit PrimitiveTypePropagation(HGraph* graph)
-      : graph_(graph), worklist_(graph->GetArena(), kDefaultWorklistSize) {}
+      : graph_(graph), worklist_(graph->GetArena()->Adapter(kArenaAllocPrimitiveTypePropagation)) {
+    worklist_.reserve(kDefaultWorklistSize);
+  }
 
   void Run();
 
@@ -37,7 +40,7 @@ class PrimitiveTypePropagation : public ValueObject {
   bool UpdateType(HPhi* phi);
 
   HGraph* const graph_;
-  GrowableArray<HPhi*> worklist_;
+  ArenaVector<HPhi*> worklist_;
 
   static constexpr size_t kDefaultWorklistSize = 8;
 
