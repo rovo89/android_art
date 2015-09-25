@@ -29,10 +29,10 @@ void Mips64Context::Reset() {
   std::fill_n(gprs_, arraysize(gprs_), nullptr);
   std::fill_n(fprs_, arraysize(fprs_), nullptr);
   gprs_[SP] = &sp_;
-  gprs_[RA] = &ra_;
+  gprs_[T9] = &t9_;
   // Initialize registers with easy to spot debug values.
   sp_ = Mips64Context::kBadGprBase + SP;
-  ra_ = Mips64Context::kBadGprBase + RA;
+  t9_ = Mips64Context::kBadGprBase + T9;
 }
 
 void Mips64Context::FillCalleeSaves(const StackVisitor& fr) {
