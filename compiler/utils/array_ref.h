@@ -161,6 +161,15 @@ class ArrayRef {
   value_type* data() { return array_; }
   const value_type* data() const { return array_; }
 
+  ArrayRef SubArray(size_type pos) const {
+    return SubArray(pos, size_ - pos);
+  }
+  ArrayRef SubArray(size_type pos, size_type length) const {
+    DCHECK_LE(pos, size());
+    DCHECK_LE(length, size() - pos);
+    return ArrayRef(array_ + pos, length);
+  }
+
  private:
   T* array_;
   size_t size_;
