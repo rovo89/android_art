@@ -88,6 +88,11 @@ class JavaVMExt : public JavaVM {
   bool LoadNativeLibrary(JNIEnv* env, const std::string& path, jobject javaLoader,
                          std::string* error_msg);
 
+  // Unload native libraries with cleared class loaders.
+  void UnloadNativeLibraries()
+      REQUIRES(!Locks::jni_libraries_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   /**
    * Returns a pointer to the code for the native method 'm', found
    * using dlsym(3) on every native library that's been loaded so far.
@@ -184,7 +189,9 @@ class JavaVMExt : public JavaVM {
   // Not guarded by globals_lock since we sometimes use SynchronizedGet in Thread::DecodeJObject.
   IndirectReferenceTable globals_;
 
-  std::unique_ptr<Libraries> libraries_ GUARDED_BY(Locks::jni_libraries_lock_);
+  // No lock annotation since UnloadNativeLibraries is called on libraries_ but locks the
+  // jni_libraries_lock_ internally.
+  std::unique_ptr<Libraries> libraries_;
 
   // Used by -Xcheck:jni.
   const JNIInvokeInterface* const unchecked_functions_;

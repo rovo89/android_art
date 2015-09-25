@@ -1,3 +1,4 @@
+JNI_OnLoad called
 recursiveSync ok
 nestedMayThrow ok
 constantLock ok

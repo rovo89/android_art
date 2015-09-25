@@ -15,8 +15,9 @@
  */
 
 #include <assert.h>
-#include <stdio.h>
+#include <iostream>
 #include <pthread.h>
+#include <stdio.h>
 #include <vector>
 
 #include "jni.h"
@@ -31,6 +32,7 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *) {
   assert(vm != nullptr);
   assert(jvm == nullptr);
   jvm = vm;
+  std::cout << "JNI_OnLoad called" << std::endl;
   return JNI_VERSION_1_6;
 }
 
