@@ -90,7 +90,7 @@ static Primitive::Type GetType(uint64_t data, bool is_op_size) {
 }
 
 static Intrinsics GetIntrinsic(InlineMethod method, InstructionSet instruction_set) {
-  if (instruction_set == kMips || instruction_set == kMips64) {
+  if (instruction_set == kMips) {
     return Intrinsics::kNone;
   }
   switch (method.opcode) {
