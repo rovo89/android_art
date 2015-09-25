@@ -1337,7 +1337,7 @@ bool MethodVerifier::CheckSwitchTargets(uint32_t cur_offset) {
           static_cast<int32_t>(switch_insns[keys_offset + targ * 2]) |
           static_cast<int32_t>(switch_insns[keys_offset + targ * 2 + 1] << 16);
       if (key <= last_key) {
-        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid packed switch: last key=" << last_key
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid sparse switch: last key=" << last_key
                                           << ", this=" << key;
         return false;
       }
