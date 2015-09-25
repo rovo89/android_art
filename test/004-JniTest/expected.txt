@@ -1,3 +1,4 @@
+JNI_OnLoad called
 Super.<init>
 Super.<init>
 Subclass.<init>

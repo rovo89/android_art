@@ -20,8 +20,10 @@ import java.lang.reflect.Method;
 
 public class Main {
     static final String DEX_FILE = System.getenv("DEX_LOCATION") + "/141-class-unload-ex.jar";
+    static String nativeLibraryName;
 
     public static void main(String[] args) throws Exception {
+        nativeLibraryName = args[0];
         Class pathClassLoader = Class.forName("dalvik.system.PathClassLoader");
         if (pathClassLoader == null) {
             throw new AssertionError("Couldn't find path class loader class");
@@ -34,6 +36,8 @@ public class Main {
             testNoUnloadInvoke(constructor);
             // Test that we don't unload if we have an instance.
             testNoUnloadInstance(constructor);
+            // Test JNI_OnLoad and JNI_OnUnload.
+            testLoadAndUnloadLibrary(constructor);
             // Stress test to make sure we dont leak memory.
             stressTest(constructor);
         } catch (Exception e) {
@@ -60,6 +64,14 @@ public class Main {
         // If the weak reference is cleared, then it was unloaded.
         System.out.println(klass.get());
         System.out.println(klass2.get());
+        System.out.println(loader.get());
+    }
+
+    private static void testLoadAndUnloadLibrary(Constructor constructor) throws Exception {
+        WeakReference<ClassLoader> loader = setUpLoadLibrary(constructor);
+        // No strong refernces to class loader, should get unloaded.
+        Runtime.getRuntime().gc();
+        // If the weak reference is cleared, then it was unloaded.
         System.out.println(loader.get());
     }
 
@@ -109,4 +121,13 @@ public class Main {
         return new WeakReference(loader);
     }
 
+    private static WeakReference<ClassLoader> setUpLoadLibrary(Constructor constructor)
+        throws Exception {
+        ClassLoader loader = (ClassLoader) constructor.newInstance(
+            DEX_FILE, ClassLoader.getSystemClassLoader());
+        Class intHolder = loader.loadClass("IntHolder");
+        Method setValue = intHolder.getDeclaredMethod("loadLibrary", String.class);
+        setValue.invoke(intHolder, nativeLibraryName);
+        return new WeakReference(loader);
+    }
 }
