@@ -1,3 +1,4 @@
+JNI_OnLoad called
 java.lang.Exception
 	at Main.$noinline$bar(Main.java:124)
 	at Level2.$inline$bar(Level1.java:25)

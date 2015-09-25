@@ -14,24 +14,11 @@
  * limitations under the License.
  */
 
-// Simple class that holds a static int for testing that class unloading works
-// and re-runs the class initializer.
-public class IntHolder {
-    private static int value = 1;
+#include "jni.h"
 
-    public static void setValue(int newValue) {
-        value = newValue;
-    }
+#include <iostream>
 
-    public static int getValue() {
-        return value;
-    }
-
-    public static void runGC() {
-        Runtime.getRuntime().gc();
-    }
-
-    public static void loadLibrary(String name) {
-        System.loadLibrary(name);
-    }
+extern "C" JNIEXPORT void JNI_OnUnload(JavaVM*, void *) {
+  // std::cout since LOG(INFO) adds extra stuff like pid.
+  std::cout << "JNI_OnUnload called" << std::endl;
 }
