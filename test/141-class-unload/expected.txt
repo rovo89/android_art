@@ -1,9 +1,15 @@
 1
 2
+JNI_OnLoad called
+JNI_OnUnload called
 1
 2
+JNI_OnLoad called
+JNI_OnUnload called
 null
 null
+JNI_OnLoad called
+JNI_OnUnload called
 null
 loader null false
 loader null false

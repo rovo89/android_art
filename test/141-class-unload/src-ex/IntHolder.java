@@ -34,4 +34,6 @@ public class IntHolder {
     public static void loadLibrary(String name) {
         System.loadLibrary(name);
     }
+
+    public static native void waitForCompilation();
 }

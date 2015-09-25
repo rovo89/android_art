@@ -18,7 +18,20 @@
 
 #include <iostream>
 
-extern "C" JNIEXPORT void JNI_OnUnload(JavaVM*, void *) {
-  // std::cout since LOG(INFO) adds extra stuff like pid.
-  std::cout << "JNI_OnUnload called" << std::endl;
+#include "jit/jit.h"
+#include "jit/jit_instrumentation.h"
+#include "runtime.h"
+#include "thread-inl.h"
+
+namespace art {
+namespace {
+
+extern "C" JNIEXPORT void JNICALL Java_IntHolder_waitForCompilation(JNIEnv*, jclass) {
+  jit::Jit* jit = Runtime::Current()->GetJit();
+  if (jit != nullptr) {
+    jit->GetInstrumentationCache()->WaitForCompilationToFinish(Thread::Current());
+  }
 }
+
+}  // namespace
+}  // namespace art

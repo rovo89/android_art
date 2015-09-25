@@ -31,7 +31,8 @@ public class Main {
         Constructor constructor =
             pathClassLoader.getDeclaredConstructor(String.class, ClassLoader.class);
         try {
-            testUnloadClassAndLoader(constructor);
+            testUnloadClass(constructor);
+            testUnloadLoader(constructor);
             // Test that we don't unload if we have a Method keeping the class live.
             testNoUnloadInvoke(constructor);
             // Test that we don't unload if we have an instance.
@@ -47,15 +48,14 @@ public class Main {
 
     private static void stressTest(Constructor constructor) throws Exception {
         for (int i = 0; i <= 100; ++i) {
-            setUpUnloadLoader(constructor);
+            setUpUnloadLoader(constructor, false);
             if (i % 10 == 0) {
                 Runtime.getRuntime().gc();
             }
         }
     }
 
-    private static void testUnloadClassAndLoader(Constructor constructor) throws Exception {
-        WeakReference<ClassLoader> loader = setUpUnloadLoader(constructor);
+    private static void testUnloadClass(Constructor constructor) throws Exception {
         WeakReference<Class> klass = setUpUnloadClass(constructor);
         // No strong refernces to class loader, should get unloaded.
         Runtime.getRuntime().gc();
@@ -64,7 +64,15 @@ public class Main {
         // If the weak reference is cleared, then it was unloaded.
         System.out.println(klass.get());
         System.out.println(klass2.get());
-        System.out.println(loader.get());
+    }
+
+    private static void testUnloadLoader(Constructor constructor)
+        throws Exception {
+      WeakReference<ClassLoader> loader = setUpUnloadLoader(constructor, true);
+      // No strong refernces to class loader, should get unloaded.
+      Runtime.getRuntime().gc();
+      // If the weak reference is cleared, then it was unloaded.
+      System.out.println(loader.get());
     }
 
     private static void testLoadAndUnloadLibrary(Constructor constructor) throws Exception {
@@ -96,8 +104,7 @@ public class Main {
         System.out.println("loader null " + isNull);
     }
 
-    private static WeakReference<Class> setUpUnloadClass(Constructor constructor)
-        throws Exception {
+    private static WeakReference<Class> setUpUnloadClass(Constructor constructor) throws Exception {
         ClassLoader loader = (ClassLoader) constructor.newInstance(
             DEX_FILE, ClassLoader.getSystemClassLoader());
         Class intHolder = loader.loadClass("IntHolder");
@@ -108,17 +115,31 @@ public class Main {
         System.out.println((int) getValue.invoke(intHolder));
         setValue.invoke(intHolder, 2);
         System.out.println((int) getValue.invoke(intHolder));
+        waitForCompilation(intHolder);
         return new WeakReference(intHolder);
     }
 
-    private static WeakReference<ClassLoader> setUpUnloadLoader(Constructor constructor)
+    private static WeakReference<ClassLoader> setUpUnloadLoader(Constructor constructor,
+                                                                boolean waitForCompilation)
         throws Exception {
         ClassLoader loader = (ClassLoader) constructor.newInstance(
             DEX_FILE, ClassLoader.getSystemClassLoader());
         Class intHolder = loader.loadClass("IntHolder");
         Method setValue = intHolder.getDeclaredMethod("setValue", Integer.TYPE);
         setValue.invoke(intHolder, 2);
+        if (waitForCompilation) {
+            waitForCompilation(intHolder);
+        }
         return new WeakReference(loader);
+    }
+
+    private static void waitForCompilation(Class intHolder) throws Exception {
+      // Load the native library so that we can call waitForCompilation.
+      Method loadLibrary = intHolder.getDeclaredMethod("loadLibrary", String.class);
+      loadLibrary.invoke(intHolder, nativeLibraryName);
+      // Wait for JIT compilation to finish since the async threads may prevent unloading.
+      Method waitForCompilation = intHolder.getDeclaredMethod("waitForCompilation");
+      waitForCompilation.invoke(intHolder);
     }
 
     private static WeakReference<ClassLoader> setUpLoadLibrary(Constructor constructor)
@@ -126,8 +147,8 @@ public class Main {
         ClassLoader loader = (ClassLoader) constructor.newInstance(
             DEX_FILE, ClassLoader.getSystemClassLoader());
         Class intHolder = loader.loadClass("IntHolder");
-        Method setValue = intHolder.getDeclaredMethod("loadLibrary", String.class);
-        setValue.invoke(intHolder, nativeLibraryName);
+        Method loadLibrary = intHolder.getDeclaredMethod("loadLibrary", String.class);
+        loadLibrary.invoke(intHolder, nativeLibraryName);
         return new WeakReference(loader);
     }
 }
