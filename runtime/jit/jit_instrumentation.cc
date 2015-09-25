@@ -24,7 +24,7 @@
 namespace art {
 namespace jit {
 
-class JitCompileTask : public Task {
+class JitCompileTask FINAL : public Task {
  public:
   explicit JitCompileTask(ArtMethod* method) : method_(method) {
     ScopedObjectAccess soa(Thread::Current());
@@ -38,7 +38,7 @@ class JitCompileTask : public Task {
     soa.Vm()->DeleteGlobalRef(soa.Self(), klass_);
   }
 
-  virtual void Run(Thread* self) OVERRIDE {
+  void Run(Thread* self) OVERRIDE {
     ScopedObjectAccess soa(self);
     VLOG(jit) << "JitCompileTask compiling method " << PrettyMethod(method_);
     if (!Runtime::Current()->GetJit()->CompileMethod(method_, self)) {
@@ -46,7 +46,7 @@ class JitCompileTask : public Task {
     }
   }
 
-  virtual void Finalize() OVERRIDE {
+  void Finalize() OVERRIDE {
     delete this;
   }
 
@@ -115,7 +115,7 @@ void JitInstrumentationListener::InvokeVirtualOrInterface(Thread* thread,
   }
 }
 
-class WaitForCompilationToFinishTask : public Task {
+class WaitForCompilationToFinishTask FINAL : public Task {
  public:
   WaitForCompilationToFinishTask() : barrier_(0) {}
 
@@ -123,8 +123,11 @@ class WaitForCompilationToFinishTask : public Task {
     barrier_.Increment(self, 1);
   }
 
-  virtual void Run(Thread* self) OVERRIDE {
-    barrier_.Pass(self);
+  void Run(Thread* self ATTRIBUTE_UNUSED) OVERRIDE {}
+
+  void Finalize() OVERRIDE {
+    // Do this in Finalize since Finalize is called after Run by the thread pool.
+    barrier_.Pass(Thread::Current());
   }
 
  private:
