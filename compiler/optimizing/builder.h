@@ -121,13 +121,13 @@ class HGraphBuilder : public ValueObject {
   // instructions and links them to the corresponding catch blocks.
   void InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item);
 
-  // Splits a single edge, inserting a TryBoundary of given `kind` and linking
-  // it to exception handlers of `try_item`.
-  void SplitTryBoundaryEdge(HBasicBlock* predecessor,
-                            HBasicBlock* successor,
-                            HTryBoundary::BoundaryKind kind,
-                            const DexFile::CodeItem& code_item,
-                            const DexFile::TryItem& try_item);
+  // Iterates over the exception handlers of `try_item`, finds the corresponding
+  // catch blocks and makes them successors of `try_boundary`. The order of
+  // successors matches the order in which runtime exception delivery searches
+  // for a handler.
+  void LinkToCatchBlocks(HTryBoundary* try_boundary,
+                         const DexFile::CodeItem& code_item,
+                         const DexFile::TryItem* try_item);
 
   bool CanDecodeQuickenedInfo() const;
   uint16_t LookupQuickenedInfo(uint32_t dex_pc);

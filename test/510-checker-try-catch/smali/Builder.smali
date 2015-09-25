@@ -59,7 +59,7 @@
 ## CHECK:  StoreLocal       [v0,<<Minus2>>]
 
 ## CHECK:  name             "<<BCatch3>>"
-## CHECK:  predecessors     "<<BEnterTry1>>" "<<BExitTry1>>" "<<BEnterTry2>>" "<<BExitTry2>>"
+## CHECK:  predecessors     "<<BEnterTry1>>" "<<BEnterTry2>>" "<<BExitTry1>>" "<<BExitTry2>>"
 ## CHECK:  successors       "<<BReturn>>"
 ## CHECK:  flags            "catch_block"
 ## CHECK:  StoreLocal       [v0,<<Minus3>>]
@@ -70,17 +70,17 @@
 ## CHECK:  xhandlers        "<<BCatch1>>" "<<BCatch3>>"
 ## CHECK:  TryBoundary      kind:entry
 
-## CHECK:  name             "<<BExitTry1>>"
-## CHECK:  predecessors     "<<BTry1>>"
-## CHECK:  successors       "<<BAdd>>"
-## CHECK:  xhandlers        "<<BCatch1>>" "<<BCatch3>>"
-## CHECK:  TryBoundary      kind:exit
-
 ## CHECK:  name             "<<BEnterTry2>>"
 ## CHECK:  predecessors     "<<BAdd>>"
 ## CHECK:  successors       "<<BTry2>>"
 ## CHECK:  xhandlers        "<<BCatch2>>" "<<BCatch3>>"
 ## CHECK:  TryBoundary      kind:entry
+
+## CHECK:  name             "<<BExitTry1>>"
+## CHECK:  predecessors     "<<BTry1>>"
+## CHECK:  successors       "<<BAdd>>"
+## CHECK:  xhandlers        "<<BCatch1>>" "<<BCatch3>>"
+## CHECK:  TryBoundary      kind:exit
 
 ## CHECK:  name             "<<BExitTry2>>"
 ## CHECK:  predecessors     "<<BTry2>>"
@@ -121,8 +121,7 @@
     goto :return
 .end method
 
-# Test that multiple try-entry blocks are generated if there are multiple entry
-# points into the try block.
+# Tests try-entry block when there are multiple entry points into the try block.
 
 ## CHECK-START: int Builder.testMultipleEntries(int, int, int, int) builder (after)
 
@@ -142,20 +141,20 @@
 
 ## CHECK:  name             "<<BTry1:B\d+>>"
 ## CHECK:  predecessors     "<<BEnterTry1>>"
-## CHECK:  successors       "<<BTry2:B\d+>>"
+## CHECK:  successors       "<<BExitTry1:B\d+>>"
 ## CHECK:  Div
 
-## CHECK:  name             "<<BTry2>>"
-## CHECK:  predecessors     "<<BEnterTry2>>" "<<BTry1>>"
-## CHECK:  successors       "<<BExitTry:B\d+>>"
+## CHECK:  name             "<<BTry2:B\d+>>"
+## CHECK:  predecessors     "<<BEnterTry2>>"
+## CHECK:  successors       "<<BExitTry2:B\d+>>"
 ## CHECK:  Div
 
 ## CHECK:  name             "<<BReturn:B\d+>>"
-## CHECK:  predecessors     "<<BExitTry>>" "<<BCatch:B\d+>>"
+## CHECK:  predecessors     "<<BExitTry2>>" "<<BCatch:B\d+>>"
 ## CHECK:  Return
 
 ## CHECK:  name             "<<BCatch>>"
-## CHECK:  predecessors     "<<BEnterTry1>>" "<<BEnterTry2>>" "<<BExitTry>>"
+## CHECK:  predecessors     "<<BEnterTry1>>" "<<BEnterTry2>>" "<<BExitTry1>>" "<<BExitTry2>>"
 ## CHECK:  successors       "<<BReturn>>"
 ## CHECK:  flags            "catch_block"
 ## CHECK:  StoreLocal       [v0,<<Minus1>>]
@@ -167,12 +166,18 @@
 ## CHECK:  TryBoundary      kind:entry
 
 ## CHECK:  name             "<<BEnterTry2>>"
-## CHECK:  predecessors     "<<BIf>>"
+## CHECK:  predecessors     "<<BIf>>" "<<BExitTry1>>"
 ## CHECK:  successors       "<<BTry2>>"
 ## CHECK:  xhandlers        "<<BCatch>>"
 ## CHECK:  TryBoundary      kind:entry
 
-## CHECK:  name             "<<BExitTry>>"
+## CHECK:  name             "<<BExitTry1>>"
+## CHECK:  predecessors     "<<BTry1>>"
+## CHECK:  successors       "<<BEnterTry2>>"
+## CHECK:  xhandlers        "<<BCatch>>"
+## CHECK:  TryBoundary      kind:exit
+
+## CHECK:  name             "<<BExitTry2>>"
 ## CHECK:  predecessors     "<<BTry2>>"
 ## CHECK:  successors       "<<BReturn>>"
 ## CHECK:  xhandlers        "<<BCatch>>"
@@ -314,17 +319,17 @@
 ## CHECK:  xhandlers        "<<BCatch1>>"
 ## CHECK:  TryBoundary      kind:entry
 
-## CHECK:  name             "<<BExit1>>"
-## CHECK:  predecessors     "<<BTry1>>"
-## CHECK:  successors       "<<BEnter2>>"
-## CHECK:  xhandlers        "<<BCatch1>>"
-## CHECK:  TryBoundary      kind:exit
-
 ## CHECK:  name             "<<BEnter2>>"
 ## CHECK:  predecessors     "<<BExit1>>"
 ## CHECK:  successors       "<<BTry2>>"
 ## CHECK:  xhandlers        "<<BCatch2>>"
 ## CHECK:  TryBoundary      kind:entry
+
+## CHECK:  name             "<<BExit1>>"
+## CHECK:  predecessors     "<<BTry1>>"
+## CHECK:  successors       "<<BEnter2>>"
+## CHECK:  xhandlers        "<<BCatch1>>"
+## CHECK:  TryBoundary      kind:exit
 
 ## CHECK:  name             "<<BExit2>>"
 ## CHECK:  predecessors     "<<BTry2>>"
@@ -402,17 +407,17 @@
 ## CHECK:  xhandlers        "<<BCatch1>>"
 ## CHECK:  TryBoundary      kind:entry
 
-## CHECK:  name             "<<BExit1>>"
-## CHECK:  predecessors     "<<BTry1>>"
-## CHECK:  successors       "<<BReturn>>"
-## CHECK:  xhandlers        "<<BCatch1>>"
-## CHECK:  TryBoundary      kind:exit
-
 ## CHECK:  name             "<<BEnter2>>"
 ## CHECK:  predecessors     "<<BGoto>>"
 ## CHECK:  successors       "<<BTry2>>"
 ## CHECK:  xhandlers        "<<BCatch2>>"
 ## CHECK:  TryBoundary      kind:entry
+
+## CHECK:  name             "<<BExit1>>"
+## CHECK:  predecessors     "<<BTry1>>"
+## CHECK:  successors       "<<BReturn>>"
+## CHECK:  xhandlers        "<<BCatch1>>"
+## CHECK:  TryBoundary      kind:exit
 
 ## CHECK:  name             "<<BExit2>>"
 ## CHECK:  predecessors     "<<BTry2>>"
@@ -483,7 +488,7 @@
 ## CHECK:  StoreLocal       [v0,<<Minus1>>]
 
 ## CHECK:  name             "<<BCatchAll>>"
-## CHECK:  predecessors     "<<BEnter1>>" "<<BExit1>>" "<<BEnter2>>" "<<BExit2>>" "<<BEnter3>>" "<<BExit3>>"
+## CHECK:  predecessors     "<<BEnter1>>" "<<BEnter2>>" "<<BEnter3>>" "<<BExit1>>" "<<BExit2>>" "<<BExit3>>"
 ## CHECK:  successors       "<<BReturn>>"
 ## CHECK:  flags            "catch_block"
 ## CHECK:  StoreLocal       [v0,<<Minus2>>]
@@ -494,29 +499,29 @@
 ## CHECK:  xhandlers        "<<BCatchAll>>"
 ## CHECK:  TryBoundary      kind:entry
 
-## CHECK:  name             "<<BExit1>>"
-## CHECK:  predecessors     "<<BTry1>>"
-## CHECK:  successors       "<<BEnter2>>"
-## CHECK:  xhandlers        "<<BCatchAll>>"
-## CHECK:  TryBoundary      kind:exit
-
 ## CHECK:  name             "<<BEnter2>>"
 ## CHECK:  predecessors     "<<BExit1>>"
 ## CHECK:  successors       "<<BTry2>>"
 ## CHECK:  xhandlers        "<<BCatchArith>>" "<<BCatchAll>>"
 ## CHECK:  TryBoundary      kind:entry
 
-## CHECK:  name             "<<BExit2>>"
-## CHECK:  predecessors     "<<BTry2>>"
-## CHECK:  successors       "<<BEnter3>>"
-## CHECK:  xhandlers        "<<BCatchArith>>" "<<BCatchAll>>"
-## CHECK:  TryBoundary      kind:exit
-
 ## CHECK:  name             "<<BEnter3>>"
 ## CHECK:  predecessors     "<<BExit2>>"
 ## CHECK:  successors       "<<BTry3>>"
 ## CHECK:  xhandlers        "<<BCatchAll>>"
 ## CHECK:  TryBoundary      kind:entry
+
+## CHECK:  name             "<<BExit1>>"
+## CHECK:  predecessors     "<<BTry1>>"
+## CHECK:  successors       "<<BEnter2>>"
+## CHECK:  xhandlers        "<<BCatchAll>>"
+## CHECK:  TryBoundary      kind:exit
+
+## CHECK:  name             "<<BExit2>>"
+## CHECK:  predecessors     "<<BTry2>>"
+## CHECK:  successors       "<<BEnter3>>"
+## CHECK:  xhandlers        "<<BCatchArith>>" "<<BCatchAll>>"
+## CHECK:  TryBoundary      kind:exit
 
 ## CHECK:  name             "<<BExit3>>"
 ## CHECK:  predecessors     "<<BTry3>>"
@@ -577,7 +582,7 @@
 ## CHECK:  Div
 
 ## CHECK:  name             "<<BCatch>>"
-## CHECK:  predecessors     "<<BEnterTry1>>" "<<BExitTry1>>" "<<BEnterTry2>>" "<<BExitTry2>>"
+## CHECK:  predecessors     "<<BEnterTry1>>" "<<BEnterTry2>>" "<<BExitTry1>>" "<<BExitTry2>>"
 ## CHECK:  successors       "<<BReturn>>"
 ## CHECK:  flags            "catch_block"
 ## CHECK:  StoreLocal       [v0,<<Minus1>>]
@@ -588,17 +593,17 @@
 ## CHECK:  xhandlers        "<<BCatch>>"
 ## CHECK:  TryBoundary      kind:entry
 
-## CHECK:  name             "<<BExitTry1>>"
-## CHECK:  predecessors     "<<BTry1>>"
-## CHECK:  successors       "<<BOutside>>"
-## CHECK:  xhandlers        "<<BCatch>>"
-## CHECK:  TryBoundary      kind:exit
-
 ## CHECK:  name             "<<BEnterTry2>>"
 ## CHECK:  predecessors     "<<BOutside>>"
 ## CHECK:  successors       "<<BTry2>>"
 ## CHECK:  xhandlers        "<<BCatch>>"
 ## CHECK:  TryBoundary      kind:entry
+
+## CHECK:  name             "<<BExitTry1>>"
+## CHECK:  predecessors     "<<BTry1>>"
+## CHECK:  successors       "<<BOutside>>"
+## CHECK:  xhandlers        "<<BCatch>>"
+## CHECK:  TryBoundary      kind:exit
 
 ## CHECK:  name             "<<BExitTry2>>"
 ## CHECK:  predecessors     "<<BTry2>>"
@@ -647,21 +652,21 @@
 
 ## CHECK:  name             "<<BTry1:B\d+>>"
 ## CHECK:  predecessors     "<<BEnterTry1>>"
-## CHECK:  successors       "<<BTry2:B\d+>>"
+## CHECK:  successors       "<<BExitTry1:B\d+>>"
 ## CHECK:  Div
 
-## CHECK:  name             "<<BTry2>>"
-## CHECK:  predecessors     "<<BEnterTry2>>" "<<BTry1>>"
-## CHECK:  successors       "<<BExitTry:B\d+>>"
+## CHECK:  name             "<<BTry2:B\d+>>"
+## CHECK:  predecessors     "<<BEnterTry2>>"
+## CHECK:  successors       "<<BExitTry2:B\d+>>"
 ## CHECK:  Div
 
 ## CHECK:  name             "<<BOutside>>"
-## CHECK:  predecessors     "<<BPSwitch1>>" "<<BExitTry>>"
+## CHECK:  predecessors     "<<BPSwitch1>>" "<<BExitTry2>>"
 ## CHECK:  successors       "<<BCatchReturn:B\d+>>"
 ## CHECK:  Div
 
 ## CHECK:  name             "<<BCatchReturn>>"
-## CHECK:  predecessors     "<<BOutside>>" "<<BEnterTry1>>" "<<BEnterTry2>>" "<<BExitTry>>"
+## CHECK:  predecessors     "<<BOutside>>" "<<BEnterTry1>>" "<<BEnterTry2>>" "<<BExitTry1>>" "<<BExitTry2>>"
 ## CHECK:  flags            "catch_block"
 ## CHECK:  Return
 
@@ -677,7 +682,13 @@
 ## CHECK:  xhandlers        "<<BCatchReturn>>"
 ## CHECK:  TryBoundary      kind:entry
 
-## CHECK:  name             "<<BExitTry>>"
+## CHECK:  name             "<<BExitTry1>>"
+## CHECK:  predecessors     "<<BTry1>>"
+## CHECK:  successors       "<<BEnterTry2>>"
+## CHECK:  xhandlers        "<<BCatchReturn>>"
+## CHECK:  TryBoundary      kind:exit
+
+## CHECK:  name             "<<BExitTry2>>"
 ## CHECK:  predecessors     "<<BTry2>>"
 ## CHECK:  successors       "<<BOutside>>"
 ## CHECK:  xhandlers        "<<BCatchReturn>>"
@@ -741,7 +752,7 @@
 ## CHECK:  Div
 
 ## CHECK:  name             "<<BCatchReturn>>"
-## CHECK:  predecessors     "<<BOutside>>" "<<BEnterTry1>>" "<<BExitTry1>>" "<<BEnterTry2>>" "<<BExitTry2>>"
+## CHECK:  predecessors     "<<BOutside>>" "<<BEnterTry1>>" "<<BEnterTry2>>" "<<BExitTry1>>" "<<BExitTry2>>"
 ## CHECK:  flags            "catch_block"
 ## CHECK:  Return
 
@@ -751,17 +762,17 @@
 ## CHECK:  xhandlers        "<<BCatchReturn>>"
 ## CHECK:  TryBoundary      kind:entry
 
-## CHECK:  name             "<<BExitTry1>>"
-## CHECK:  predecessors     "<<BPSwitch0>>"
-## CHECK:  successors       "<<BPSwitch1>>"
-## CHECK:  xhandlers        "<<BCatchReturn>>"
-## CHECK:  TryBoundary      kind:exit
-
 ## CHECK:  name             "<<BEnterTry2>>"
 ## CHECK:  predecessors     "<<BPSwitch1>>"
 ## CHECK:  successors       "<<BTry1>>"
 ## CHECK:  xhandlers        "<<BCatchReturn>>"
 ## CHECK:  TryBoundary      kind:entry
+
+## CHECK:  name             "<<BExitTry1>>"
+## CHECK:  predecessors     "<<BPSwitch0>>"
+## CHECK:  successors       "<<BPSwitch1>>"
+## CHECK:  xhandlers        "<<BCatchReturn>>"
+## CHECK:  TryBoundary      kind:exit
 
 ## CHECK:  name             "<<BExitTry2>>"
 ## CHECK:  predecessors     "<<BTry2>>"
@@ -907,7 +918,7 @@
 ## CHECK:  Div
 
 ## CHECK:  name             "<<BCatch:B\d+>>"
-## CHECK:  predecessors     "<<BExitTry1>>" "<<BEnterTry1>>" "<<BExitTry1>>" "<<BEnterTry2:B\d+>>" "<<BExitTry2:B\d+>>"
+## CHECK:  predecessors     "<<BExitTry1>>" "<<BEnterTry1>>" "<<BEnterTry2:B\d+>>" "<<BExitTry1>>" "<<BExitTry2:B\d+>>"
 ## CHECK:  successors       "<<BEnterTry2>>"
 ## CHECK:  flags            "catch_block"
 
@@ -928,17 +939,17 @@
 ## CHECK:  xhandlers        "<<BCatch>>"
 ## CHECK:  TryBoundary      kind:entry
 
-## CHECK:  name             "<<BExitTry1>>"
-## CHECK:  predecessors     "<<BTry1>>"
-## CHECK:  successors       "<<BCatch>>"
-## CHECK:  xhandlers        "<<BCatch>>"
-## CHECK:  TryBoundary      kind:exit
-
 ## CHECK:  name             "<<BEnterTry2>>"
 ## CHECK:  predecessors     "<<BCatch>>"
 ## CHECK:  successors       "<<BTry2>>"
 ## CHECK:  xhandlers        "<<BCatch>>"
 ## CHECK:  TryBoundary      kind:entry
+
+## CHECK:  name             "<<BExitTry1>>"
+## CHECK:  predecessors     "<<BTry1>>"
+## CHECK:  successors       "<<BCatch>>"
+## CHECK:  xhandlers        "<<BCatch>>"
+## CHECK:  TryBoundary      kind:exit
 
 ## CHECK:  name             "<<BExitTry2>>"
 ## CHECK:  predecessors     "<<BTry2>>"
@@ -1001,17 +1012,17 @@
 ## CHECK:  xhandlers        "<<BCatch2>>"
 ## CHECK:  TryBoundary      kind:entry
 
-## CHECK:  name             "<<BExitTry1>>"
-## CHECK:  predecessors     "<<BTry1>>"
-## CHECK:  successors       "<<BCatch2>>"
-## CHECK:  xhandlers        "<<BCatch2>>"
-## CHECK:  TryBoundary      kind:exit
-
 ## CHECK:  name             "<<BEnterTry2>>"
 ## CHECK:  predecessors     "<<BCatch2>>"
 ## CHECK:  successors       "<<BTry2>>"
 ## CHECK:  xhandlers        "<<BCatch1>>"
 ## CHECK:  TryBoundary      kind:entry
+
+## CHECK:  name             "<<BExitTry1>>"
+## CHECK:  predecessors     "<<BTry1>>"
+## CHECK:  successors       "<<BCatch2>>"
+## CHECK:  xhandlers        "<<BCatch2>>"
+## CHECK:  TryBoundary      kind:exit
 
 ## CHECK:  name             "<<BExitTry2>>"
 ## CHECK:  predecessors     "<<BTry2>>"
@@ -1035,6 +1046,52 @@
     .catchall {:try_start_2 .. :try_end_2} :catch_all_1
 
     return p0
+.end method
+
+# Test graph with try/catch inside a loop.
+
+## CHECK-START: int Builder.testTryInLoop(int, int) builder (after)
+
+## CHECK:  name             "B0"
+## CHECK:  successors       "<<BEnterTry:B\d+>>"
+
+## CHECK:  name             "<<BTry:B\d+>>"
+## CHECK:  predecessors     "<<BEnterTry>>"
+## CHECK:  successors       "<<BExitTry:B\d+>>"
+## CHECK:  Div
+
+## CHECK:  name             "<<BCatch:B\d+>>"
+## CHECK:  predecessors     "<<BEnterTry>>" "<<BExitTry>>"
+## CHECK:  successors       "<<BEnterTry>>"
+## CHECK:  flags            "catch_block"
+
+## CHECK:  name             "<<BExit:B\d+>>"
+## CHECK-NOT: predecessors  "{{B\d+}}"
+## CHECK:  end_block
+
+## CHECK:  name             "<<BEnterTry>>"
+## CHECK:  predecessors     "B0"
+## CHECK:  successors       "<<BTry>>"
+## CHECK:  xhandlers        "<<BCatch>>"
+## CHECK:  TryBoundary      kind:entry
+
+## CHECK:  name             "<<BExitTry>>"
+## CHECK:  predecessors     "<<BTry>>"
+## CHECK:  successors       "<<BEnterTry>>"
+## CHECK:  xhandlers        "<<BCatch>>"
+## CHECK:  TryBoundary      kind:exit
+
+.method public static testTryInLoop(II)I
+    .registers 3
+
+    :try_start
+    div-int/2addr p0, p1
+    goto :try_start
+    :try_end
+    .catchall {:try_start .. :try_end} :catch_all
+
+    :catch_all
+    goto :try_start
 .end method
 
 # Test that a MOVE_RESULT instruction is placed into the same block as the
