@@ -158,6 +158,7 @@ LIBART_COMPILER_SRC_FILES_mips64 := \
     $(LIBART_COMPILER_SRC_FILES_mips) \
 	jni/quick/mips64/calling_convention_mips64.cc \
 	optimizing/code_generator_mips64.cc \
+	optimizing/intrinsics_mips64.cc \
 	utils/mips64/assembler_mips64.cc \
 	utils/mips64/managed_register_mips64.cc \
 
