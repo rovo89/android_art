@@ -56,7 +56,11 @@ static void MarkReachableBlocks(HGraph* graph, ArenaBitVector* visited) {
       if (switch_input->IsIntConstant()) {
         int32_t switch_value = switch_input->AsIntConstant()->GetValue();
         int32_t start_value = switch_instruction->GetStartValue();
-        uint32_t switch_index = static_cast<uint32_t>(switch_value - start_value);
+        // Note: Though the spec forbids packed-switch values to wrap around, we leave
+        // that task to the verifier and use unsigned arithmetic with it's "modulo 2^32"
+        // semantics to check if the value is in range, wrapped or not.
+        uint32_t switch_index =
+            static_cast<uint32_t>(switch_value) - static_cast<uint32_t>(start_value);
         if (switch_index < switch_instruction->GetNumEntries()) {
           live_successors = live_successors.SubArray(switch_index, 1u);
           DCHECK_EQ(live_successors[0], block->GetSuccessor(switch_index));
