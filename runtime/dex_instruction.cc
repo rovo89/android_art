@@ -322,10 +322,10 @@ std::string Instruction::DumpString(const DexFile* file) const {
     }
     case k25x: {
       if (Opcode() == INVOKE_LAMBDA) {
-        uint32_t arg[kMaxVarArgRegs];
+        uint32_t arg[kMaxVarArgRegs25x];
         GetAllArgs25x(arg);
         const size_t num_extra_var_args = VRegB_25x();
-        DCHECK_LE(num_extra_var_args + 1, kMaxVarArgRegs);
+        DCHECK_LE(num_extra_var_args + 2, arraysize(arg));
 
         // invoke-lambda vC, {vD, vE, vF, vG}
         os << opcode << " v" << arg[0] << ", {";
@@ -333,7 +333,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
           if (i != 0) {
             os << ", ";
           }
-          os << "v" << arg[i+1];
+          os << "v" << arg[i+2];  // Don't print the pair of vC registers. Pair is implicit.
         }
         os << "}";
         break;
