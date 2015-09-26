@@ -16,3 +16,13 @@ Caught NPE
 (MoveResult) testF success
 (MoveResult) testD success
 (MoveResult) testL success
+(CaptureVariables) (0-args, 1 captured variable 'Z'): value is true
+(CaptureVariables) (0-args, 1 captured variable 'B'): value is R
+(CaptureVariables) (0-args, 1 captured variable 'C'): value is ∂
+(CaptureVariables) (0-args, 1 captured variable 'S'): value is 1000
+(CaptureVariables) (0-args, 1 captured variable 'I'): value is 12345678
+(CaptureVariables) (0-args, 1 captured variable 'J'): value is 3287471278325742
+(CaptureVariables) (0-args, 1 captured variable 'F'): value is Infinity
+(CaptureVariables) (0-args, 1 captured variable 'D'): value is -Infinity
+(CaptureVariables) (0-args, 8 captured variable 'ZBCSIJFD'): value is true,R,∂,1000,12345678,3287471278325742,Infinity,-Infinity
+(CaptureVariables) Caught NPE
