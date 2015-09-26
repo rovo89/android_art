@@ -52,6 +52,7 @@ enum GpuRegister {
   S6   = 22,
   S7   = 23,
   T8   = 24,  // More temporaries.
+  TMP  = T8,  // scratch register (in addition to AT)
   T9   = 25,
   K0   = 26,  // Reserved for trap handler.
   K1   = 27,
