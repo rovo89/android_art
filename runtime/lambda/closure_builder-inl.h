@@ -35,8 +35,6 @@ void ClosureBuilder::CaptureVariablePrimitive(T value) {
 
   values_.push_back(value_storage);
   size_ += sizeof(T);
-
-  shorty_types_ += kShortyType;
 }
 
 }  // namespace lambda

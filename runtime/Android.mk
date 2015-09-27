@@ -104,7 +104,6 @@ LIBART_COMMON_SRC_FILES := \
   lambda/box_table.cc \
   lambda/closure.cc \
   lambda/closure_builder.cc \
-  lambda/leaking_allocator.cc \
   jni_internal.cc \
   jobject_comparator.cc \
   linear_alloc.cc \
