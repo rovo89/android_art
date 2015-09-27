@@ -40,12 +40,13 @@ class ArtLambdaMethod;  // forward declaration
 //
 // The mutator lock must be held for the duration of the lifetime of this object,
 // since it needs to temporarily store heap references into an internal list.
-class ClosureBuilder {
+class ClosureBuilder : ValueObject {
  public:
   using ShortyTypeEnum = decltype(ShortyFieldType::kByte);
 
+
   // Mark this primitive value to be captured as the specified type.
-  template <typename T, ShortyTypeEnum kShortyType = ShortyFieldTypeSelectEnum<T>::value>
+  template <typename T, ShortyTypeEnum kShortyType>
   void CaptureVariablePrimitive(T value);
 
   // Mark this object reference to be captured.
@@ -61,9 +62,6 @@ class ClosureBuilder {
 
   // Returns how many variables have been captured so far.
   size_t GetCaptureCount() const;
-
-  // Get the list of captured variables' shorty field types.
-  const std::string& GetCapturedVariableShortyTypes() const;
 
   // Creates a closure in-place and writes out the data into 'memory'.
   // Memory must be at least 'GetSize' bytes large.
@@ -95,7 +93,6 @@ class ClosureBuilder {
   size_t size_ = kInitialSize;
   bool is_dynamic_size_ = false;
   std::vector<ShortyFieldTypeTraits::MaxType> values_;
-  std::string shorty_types_;
 };
 
 }  // namespace lambda
