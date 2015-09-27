@@ -454,8 +454,8 @@ inline bool Instruction::HasVarArgs25x() const {
   return FormatOf(Opcode()) == k25x;
 }
 
-// Copies all of the parameter registers into the arg array. Check the length with VRegB_25x()+2.
-inline void Instruction::GetAllArgs25x(uint32_t (&arg)[kMaxVarArgRegs25x]) const {
+// Copies all of the parameter registers into the arg array. Check the length with VRegB_25x()+1.
+inline void Instruction::GetAllArgs25x(uint32_t arg[kMaxVarArgRegs]) const {
   DCHECK_EQ(FormatOf(Opcode()), k25x);
 
   /*
@@ -500,21 +500,19 @@ inline void Instruction::GetAllArgs25x(uint32_t (&arg)[kMaxVarArgRegs25x]) const
    */
   switch (count) {
     case 4:
-      arg[5] = (Fetch16(0) >> 8) & 0x0f;  // vG
+      arg[4] = (Fetch16(0) >> 8) & 0x0f;  // vG
       FALLTHROUGH_INTENDED;
     case 3:
-      arg[4] = (reg_list >> 12) & 0x0f;  // vF
+      arg[3] = (reg_list >> 12) & 0x0f;  // vF
       FALLTHROUGH_INTENDED;
     case 2:
-      arg[3] = (reg_list >> 8) & 0x0f;  // vE
+      arg[2] = (reg_list >> 8) & 0x0f;  // vE
       FALLTHROUGH_INTENDED;
     case 1:
-      arg[2] = (reg_list >> 4) & 0x0f;  // vD
+      arg[1] = (reg_list >> 4) & 0x0f;  // vD
       FALLTHROUGH_INTENDED;
     default:  // case 0
-      // The required lambda 'this' is actually a pair, but the pair is implicit.
       arg[0] = VRegC_25x();  // vC
-      arg[1] = arg[0] + 1;   // vC + 1
       break;
   }
 }
