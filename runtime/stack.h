@@ -62,6 +62,10 @@ template<class MirrorType>
 class MANAGED StackReference : public mirror::CompressedReference<MirrorType> {
 };
 
+// Forward declaration. Just calls the destructor.
+struct ShadowFrameDeleter;
+using ShadowFrameAllocaUniquePtr = std::unique_ptr<ShadowFrame, ShadowFrameDeleter>;
+
 // ShadowFrame has 2 possible layouts:
 //  - interpreter - separate VRegs and reference arrays. References are in the reference array.
 //  - JNI - just VRegs, but where every VReg holds a reference.
@@ -77,21 +81,26 @@ class ShadowFrame {
   static ShadowFrame* CreateDeoptimizedFrame(uint32_t num_vregs, ShadowFrame* link,
                                              ArtMethod* method, uint32_t dex_pc) {
     uint8_t* memory = new uint8_t[ComputeSize(num_vregs)];
-    return Create(num_vregs, link, method, dex_pc, memory);
+    return CreateShadowFrameImpl(num_vregs, link, method, dex_pc, memory);
   }
 
   // Delete a ShadowFrame allocated on the heap for deoptimization.
   static void DeleteDeoptimizedFrame(ShadowFrame* sf) {
+    sf->~ShadowFrame();  // Explicitly destruct.
     uint8_t* memory = reinterpret_cast<uint8_t*>(sf);
     delete[] memory;
   }
 
-  // Create ShadowFrame for interpreter using provided memory.
-  static ShadowFrame* Create(uint32_t num_vregs, ShadowFrame* link,
-                             ArtMethod* method, uint32_t dex_pc, void* memory) {
-    ShadowFrame* sf = new (memory) ShadowFrame(num_vregs, link, method, dex_pc, true);
-    return sf;
-  }
+  // Create a shadow frame in a fresh alloca. This needs to be in the context of the caller.
+  // Inlining doesn't work, the compiler will still undo the alloca. So this needs to be a macro.
+#define CREATE_SHADOW_FRAME(num_vregs, link, method, dex_pc) ({                              \
+    size_t frame_size = ShadowFrame::ComputeSize(num_vregs);                                 \
+    void* alloca_mem = alloca(frame_size);                                                   \
+    ShadowFrameAllocaUniquePtr(                                                              \
+        ShadowFrame::CreateShadowFrameImpl((num_vregs), (link), (method), (dex_pc),          \
+                                           (alloca_mem)));                                   \
+    })
+
   ~ShadowFrame() {}
 
   // TODO(iam): Clean references array up since they're always there,
@@ -283,6 +292,15 @@ class ShadowFrame {
     return OFFSETOF_MEMBER(ShadowFrame, vregs_);
   }
 
+  // Create ShadowFrame for interpreter using provided memory.
+  static ShadowFrame* CreateShadowFrameImpl(uint32_t num_vregs,
+                                            ShadowFrame* link,
+                                            ArtMethod* method,
+                                            uint32_t dex_pc,
+                                            void* memory) {
+    return new (memory) ShadowFrame(num_vregs, link, method, dex_pc, true);
+  }
+
  private:
   ShadowFrame(uint32_t num_vregs, ShadowFrame* link, ArtMethod* method,
               uint32_t dex_pc, bool has_reference_array)
@@ -324,6 +342,14 @@ class ShadowFrame {
   uint32_t vregs_[0];
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(ShadowFrame);
+};
+
+struct ShadowFrameDeleter {
+  inline void operator()(ShadowFrame* frame) {
+    if (frame != nullptr) {
+      frame->~ShadowFrame();
+    }
+  }
 };
 
 class JavaFrameRootInfo : public RootInfo {
