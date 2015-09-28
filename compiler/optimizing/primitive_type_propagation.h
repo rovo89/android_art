@@ -38,6 +38,8 @@ class PrimitiveTypePropagation : public ValueObject {
   void AddToWorklist(HPhi* phi);
   void AddDependentInstructionsToWorklist(HInstruction* instruction);
   bool UpdateType(HPhi* phi);
+  bool TypePhiFromInputs(HPhi* phi);
+  bool TypeInputsOfPhi(HPhi* phi);
 
   HGraph* const graph_;
   ArenaVector<HPhi*> worklist_;

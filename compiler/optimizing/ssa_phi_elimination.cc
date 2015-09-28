@@ -29,16 +29,27 @@ void SsaDeadPhiElimination::MarkDeadPhis() {
     HBasicBlock* block = it.Current();
     for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
       HPhi* phi = inst_it.Current()->AsPhi();
-      // Set dead ahead of running through uses. The phi may have no use.
-      phi->SetDead();
-      for (HUseIterator<HInstruction*> use_it(phi->GetUses()); !use_it.Done(); use_it.Advance()) {
-        HUseListNode<HInstruction*>* current = use_it.Current();
-        HInstruction* user = current->GetUser();
-        if (!user->IsPhi()) {
-          worklist_.push_back(phi);
-          phi->SetLive();
-          break;
+      if (phi->IsDead()) {
+        // Phis are constructed live so this one was proven conflicting.
+        continue;
+      }
+
+      bool is_live = false;
+      if (graph_->IsDebuggable() && phi->HasEnvironmentUses()) {
+        is_live = true;
+      } else {
+        for (HUseIterator<HInstruction*> use_it(phi->GetUses()); !use_it.Done(); use_it.Advance()) {
+          if (!use_it.Current()->GetUser()->IsPhi()) {
+            is_live = true;
+            break;
+          }
         }
+      }
+
+      if (is_live) {
+        worklist_.push_back(phi);
+      } else {
+        phi->SetDead();
       }
     }
   }
@@ -50,8 +61,10 @@ void SsaDeadPhiElimination::MarkDeadPhis() {
     for (HInputIterator it(phi); !it.Done(); it.Advance()) {
       HInstruction* input = it.Current();
       if (input->IsPhi() && input->AsPhi()->IsDead()) {
-        worklist_.push_back(input->AsPhi());
+        // If we revive a phi it must have been live at the beginning of
+        // the pass but had no non-phi uses of its own.
         input->AsPhi()->SetLive();
+        worklist_.push_back(input->AsPhi());
       }
     }
   }
@@ -75,8 +88,8 @@ void SsaDeadPhiElimination::EliminateDeadPhis() {
           for (HUseIterator<HInstruction*> use_it(phi->GetUses()); !use_it.Done();
                use_it.Advance()) {
             HInstruction* user = use_it.Current()->GetUser();
-            DCHECK(user->IsLoopHeaderPhi()) << user->GetId();
-            DCHECK(user->AsPhi()->IsDead()) << user->GetId();
+            DCHECK(user->IsPhi());
+            DCHECK(user->AsPhi()->IsDead());
           }
         }
         // Remove the phi from use lists of its inputs.
