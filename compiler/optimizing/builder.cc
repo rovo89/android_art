@@ -1693,8 +1693,14 @@ void HGraphBuilder::BuildPackedSwitch(const Instruction& instruction, uint32_t d
   } else {
     // Chained cmp-and-branch, starting from starting_key.
     for (size_t i = 1; i <= num_entries; i++) {
-      BuildSwitchCaseHelper(instruction, i, i == num_entries, table, value,
-                            starting_key + i - 1, table.GetEntryAt(i), dex_pc);
+      BuildSwitchCaseHelper(instruction,
+                            i,
+                            i == num_entries,
+                            table,
+                            value,
+                            starting_key + i - 1,
+                            table.GetEntryAt(i),
+                            dex_pc);
     }
   }
 }
