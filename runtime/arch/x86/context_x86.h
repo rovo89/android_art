@@ -44,6 +44,10 @@ class X86Context : public Context {
     eip_ = new_pc;
   }
 
+  void SetArg0(uintptr_t new_arg0_value) OVERRIDE {
+    SetGPR(EAX, new_arg0_value);
+  }
+
   bool IsAccessibleGPR(uint32_t reg) OVERRIDE {
     DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfCpuRegisters));
     return gprs_[reg] != nullptr;
@@ -95,10 +99,10 @@ class X86Context : public Context {
   // Pointers to register locations. Values are initialized to null or the special registers below.
   uintptr_t* gprs_[kNumberOfCpuRegisters];
   uint32_t* fprs_[kNumberOfFloatRegisters];
-  // Hold values for esp and eip if they are not located within a stack frame. EIP is somewhat
+  // Hold values for esp, eip and arg0 if they are not located within a stack frame. EIP is somewhat
   // special in that it cannot be encoded normally as a register operand to an instruction (except
   // in 64bit addressing modes).
-  uintptr_t esp_, eip_;
+  uintptr_t esp_, eip_, arg0_;
 };
 }  // namespace x86
 }  // namespace art

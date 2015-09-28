@@ -437,8 +437,8 @@ ARM_ENTRY art_quick_do_long_jump
     ldr  r14, [r0, #56]   @ (LR from gprs_ 56=4*14)
     add  r0, r0, #12      @ increment r0 to skip gprs_[0..2] 12=4*3
     ldm  r0, {r3-r13}     @ load remaining gprs from argument gprs_
-    mov  r0, #0           @ clear result registers r0 and r1
-    mov  r1, #0
+    ldr  r0, [r0, #-12]   @ load r0 value
+    mov  r1, #0           @ clear result register r1
     bx   r2               @ do long jump
 END art_quick_do_long_jump
 
@@ -1142,7 +1142,7 @@ END art_quick_deoptimize
 
     /*
      * Compiled code has requested that we deoptimize into the interpreter. The deoptimization
-     * will long jump to the upcall with a special exception of -1.
+     * will long jump to the interpreter bridge.
      */
     .extern artDeoptimizeFromCompiledCode
 ENTRY art_quick_deoptimize_from_compiled_code
