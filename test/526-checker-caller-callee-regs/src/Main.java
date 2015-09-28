@@ -36,6 +36,8 @@ public class Main {
   // ------------------------------|------------------------|-----------------
   // ARM64 callee-saved registers  | [x20-x29]              | x2[0-9]
   // ARM callee-saved registers    | [r5-r8,r10,r11]        | r([5-8]|10|11)
+  // X86 callee-saved registers    | [ebp,esi,edi]          | e(bp|si|di)
+  // X86_64 callee-saved registers | [rbx,rbp,r12-15]       | r(bx|bp|1[2-5])
 
   /**
    * Check that a value live across a function call is allocated in a callee
@@ -58,7 +60,21 @@ public class Main {
   /// CHECK:                        Sub [<<t1>>,<<t2>>]
   /// CHECK:                        Return
 
-  // TODO: Add tests for other architectures.
+  /// CHECK-START-X86: int Main.$opt$LiveInCall(int) register (after)
+  /// CHECK-DAG:   <<Arg:i\d+>>     ParameterValue
+  /// CHECK-DAG:   <<Const1:i\d+>>  IntConstant 1
+  /// CHECK:       <<t1:i\d+>>      Add [<<Arg>>,<<Const1>>] {{.*->e(bp|si|di)}}
+  /// CHECK:       <<t2:i\d+>>      InvokeStaticOrDirect
+  /// CHECK:                        Sub [<<t1>>,<<t2>>]
+  /// CHECK:                        Return
+
+  /// CHECK-START-X86_64: int Main.$opt$LiveInCall(int) register (after)
+  /// CHECK-DAG:   <<Arg:i\d+>>     ParameterValue
+  /// CHECK-DAG:   <<Const1:i\d+>>  IntConstant 1
+  /// CHECK:       <<t1:i\d+>>      Add [<<Arg>>,<<Const1>>] {{.*->r(bx|bp|1[2-5])}}
+  /// CHECK:       <<t2:i\d+>>      InvokeStaticOrDirect
+  /// CHECK:                        Sub [<<t1>>,<<t2>>]
+  /// CHECK:                        Return
 
   public static int $opt$LiveInCall(int arg) {
     int t1 = arg + 1;
