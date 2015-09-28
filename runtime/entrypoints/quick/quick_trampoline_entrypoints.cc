@@ -31,6 +31,7 @@
 #include "mirror/object_array-inl.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
+#include "stack.h"
 #include "debugger.h"
 
 namespace art {
@@ -653,9 +654,10 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
     const DexFile::CodeItem* code_item = method->GetCodeItem();
     DCHECK(code_item != nullptr) << PrettyMethod(method);
     uint16_t num_regs = code_item->registers_size_;
-    void* memory = alloca(ShadowFrame::ComputeSize(num_regs));
     // No last shadow coming from quick.
-    ShadowFrame* shadow_frame(ShadowFrame::Create(num_regs, nullptr, method, 0, memory));
+    ShadowFrameAllocaUniquePtr shadow_frame_unique_ptr =
+        CREATE_SHADOW_FRAME(num_regs, nullptr, method, 0);
+    ShadowFrame* shadow_frame = shadow_frame_unique_ptr.get();
     size_t first_arg_reg = code_item->registers_size_ - code_item->ins_size_;
     uint32_t shorty_len = 0;
     auto* non_proxy_method = method->GetInterfaceMethodIfProxy(sizeof(void*));
