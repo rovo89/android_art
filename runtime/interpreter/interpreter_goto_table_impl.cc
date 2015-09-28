@@ -17,8 +17,12 @@
 #if !defined(__clang__)
 // Clang 3.4 fails to build the goto interpreter implementation.
 
+
+#include "base/stl_util.h"  // MakeUnique
 #include "interpreter_common.h"
 #include "safe_math.h"
+
+#include <memory>  // std::unique_ptr
 
 namespace art {
 namespace interpreter {
@@ -178,6 +182,9 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
                                         shadow_frame.GetMethod(), 0);
     }
   }
+
+  std::unique_ptr<lambda::ClosureBuilder> lambda_closure_builder;
+  size_t lambda_captured_variable_index = 0;
 
   // Jump to first instruction.
   ADVANCE(0);
@@ -2412,7 +2419,20 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   HANDLE_INSTRUCTION_END();
 
   HANDLE_EXPERIMENTAL_INSTRUCTION_START(CREATE_LAMBDA) {
-    bool success = DoCreateLambda<true>(self, shadow_frame, inst);
+    if (lambda_closure_builder == nullptr) {
+      // DoCreateLambda always needs a ClosureBuilder, even if it has 0 captured variables.
+      lambda_closure_builder = MakeUnique<lambda::ClosureBuilder>();
+    }
+
+    // TODO: these allocations should not leak, and the lambda method should not be local.
+    lambda::Closure* lambda_closure =
+        reinterpret_cast<lambda::Closure*>(alloca(lambda_closure_builder->GetSize()));
+    bool success = DoCreateLambda<do_access_check>(self,
+                                                   inst,
+                                                   /*inout*/shadow_frame,
+                                                   /*inout*/lambda_closure_builder.get(),
+                                                   /*inout*/lambda_closure);
+    lambda_closure_builder.reset(nullptr);  // reset state of variables captured
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_EXPERIMENTAL_INSTRUCTION_END();
@@ -2425,6 +2445,31 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 
   HANDLE_EXPERIMENTAL_INSTRUCTION_START(UNBOX_LAMBDA) {
     bool success = DoUnboxLambda<do_access_check>(self, shadow_frame, inst, inst_data);
+    POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
+  }
+  HANDLE_EXPERIMENTAL_INSTRUCTION_END();
+
+  HANDLE_EXPERIMENTAL_INSTRUCTION_START(CAPTURE_VARIABLE) {
+    if (lambda_closure_builder == nullptr) {
+      lambda_closure_builder = MakeUnique<lambda::ClosureBuilder>();
+    }
+
+    bool success = DoCaptureVariable<do_access_check>(self,
+                                                      inst,
+                                                      /*inout*/shadow_frame,
+                                                      /*inout*/lambda_closure_builder.get());
+
+    POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
+  }
+  HANDLE_EXPERIMENTAL_INSTRUCTION_END();
+
+  HANDLE_EXPERIMENTAL_INSTRUCTION_START(LIBERATE_VARIABLE) {
+    bool success = DoLiberateVariable<do_access_check>(self,
+                                                           inst,
+                                                           lambda_captured_variable_index,
+                                                           /*inout*/shadow_frame);
+    // Temporarily only allow sequences of 'liberate-variable, liberate-variable, ...'
+    lambda_captured_variable_index++;
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
   }
   HANDLE_EXPERIMENTAL_INSTRUCTION_END();
@@ -2462,14 +2507,6 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_F4)
-    UnexpectedOpcode(inst, shadow_frame);
-  HANDLE_INSTRUCTION_END();
-
-  HANDLE_INSTRUCTION_START(UNUSED_F5)
-    UnexpectedOpcode(inst, shadow_frame);
-  HANDLE_INSTRUCTION_END();
-
-  HANDLE_INSTRUCTION_START(UNUSED_F7)
     UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
