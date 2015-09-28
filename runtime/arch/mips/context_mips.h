@@ -78,12 +78,17 @@ class MipsContext : public Context {
   void SmashCallerSaves() OVERRIDE;
   NO_RETURN void DoLongJump() OVERRIDE;
 
+  void SetArg0(uintptr_t new_arg0_value) OVERRIDE {
+    SetGPR(A0, new_arg0_value);
+  }
+
  private:
   // Pointers to registers in the stack, initialized to null except for the special cases below.
   uintptr_t* gprs_[kNumberOfCoreRegisters];
   uint32_t* fprs_[kNumberOfFRegisters];
-  // Hold values for sp and ra (return address) if they are not located within a stack frame.
-  uintptr_t sp_, ra_;
+  // Hold values for sp and ra (return address) if they are not located within a stack frame, as
+  // well as the first argument.
+  uintptr_t sp_, ra_, arg0_;
 };
 }  // namespace mips
 }  // namespace art

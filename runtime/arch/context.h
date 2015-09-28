@@ -50,6 +50,9 @@ class Context {
   // Sets the program counter value.
   virtual void SetPC(uintptr_t new_pc) = 0;
 
+  // Sets the first argument register.
+  virtual void SetArg0(uintptr_t new_arg0_value) = 0;
+
   // Returns whether the given GPR is accessible (read or write).
   virtual bool IsAccessibleGPR(uint32_t reg) = 0;
 
