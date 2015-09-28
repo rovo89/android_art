@@ -124,6 +124,55 @@ void Closure::CopyTo(void* target, size_t target_size) const {
   memcpy(target, this, GetSize());
 }
 
+ArtMethod* Closure::GetTargetMethod() const {
+  return const_cast<ArtMethod*>(lambda_info_->GetArtMethod());
+}
+
+uint32_t Closure::GetHashCode() const {
+  // Start with a non-zero constant, a prime number.
+  uint32_t result = 17;
+
+  // Include the hash with the ArtMethod.
+  {
+    uintptr_t method = reinterpret_cast<uintptr_t>(GetTargetMethod());
+    result = 31 * result + Low32Bits(method);
+    if (sizeof(method) == sizeof(uint64_t)) {
+      result = 31 * result + High32Bits(method);
+    }
+  }
+
+  // Include a hash for each captured variable.
+  for (size_t i = 0; i < GetCapturedVariablesSize(); ++i) {
+    // TODO: not safe for GC-able values since the address can move and the hash code would change.
+    uint8_t captured_variable_raw_value;
+    CopyUnsafeAtOffset<uint8_t>(i, /*out*/&captured_variable_raw_value);  // NOLINT: [whitespace/comma] [3]
+
+    result = 31 * result + captured_variable_raw_value;
+  }
+
+  // TODO: Fix above loop to work for objects and lambdas.
+  static_assert(kClosureSupportsGarbageCollection == false,
+               "Need to update above loop to read the hash code from the "
+                "objects and lambdas recursively");
+
+  return result;
+}
+
+bool Closure::ReferenceEquals(const Closure* other) const {
+  DCHECK(other != nullptr);
+
+  // TODO: Need rework to use read barriers once closures have references inside of them that can
+  // move. Until then, it's safe to just compare the data inside of it directly.
+  static_assert(kClosureSupportsReferences == false,
+                "Unsafe to use memcmp in read barrier collector");
+
+  if (GetSize() != other->GetSize()) {
+    return false;
+  }
+
+  return memcmp(this, other, GetSize());
+}
+
 size_t Closure::GetNumberOfCapturedVariables() const {
   // TODO: refactor into art_lambda_method.h. Parsing should only be required here as a DCHECK.
   VariableInfo variable_info =

@@ -1,4 +1,3 @@
-#
 #  Copyright (C) 2015 The Android Open Source Project
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,8 +35,8 @@
 .end method
 
 #TODO: should use a closure type instead of ArtMethod.
-.method public static doHelloWorld(Ljava/lang/reflect/ArtMethod;)V
-    .registers 3 # 1 parameters, 2 locals
+.method public static doHelloWorld(J)V
+    .registers 4 # 1 wide parameters, 2 locals
 
     const-string v0, "(BoxUnbox) Hello boxing world! (0-args, no closure)"
 
@@ -51,9 +50,9 @@
 .method private static testBox()V
     .registers 3
 
-    create-lambda v0, LBoxUnbox;->doHelloWorld(Ljava/lang/reflect/ArtMethod;)V
+    create-lambda v0, LBoxUnbox;->doHelloWorld(J)V
     box-lambda v2, v0 # v2 = box(v0)
-    unbox-lambda v0, v2, Ljava/lang/reflect/ArtMethod; # v0 = unbox(v2)
+    unbox-lambda v0, v2, J # v0 = unbox(v2)
     invoke-lambda v0, {}
 
     return-void
@@ -63,7 +62,7 @@
 .method private static testBoxEquality()V
    .registers 6 # 0 parameters, 6 locals
 
-    create-lambda v0, LBoxUnbox;->doHelloWorld(Ljava/lang/reflect/ArtMethod;)V
+    create-lambda v0, LBoxUnbox;->doHelloWorld(J)V
     box-lambda v2, v0 # v2 = box(v0)
     box-lambda v3, v0 # v3 = box(v0)
 
@@ -95,7 +94,7 @@
     const v0, 0  # v0 = null
     const v1, 0  # v1 = null
 :start
-    unbox-lambda v2, v0, Ljava/lang/reflect/ArtMethod;
+    unbox-lambda v2, v0, J
     # attempting to unbox a null lambda will throw NPE
 :end
     return-void
@@ -140,7 +139,7 @@
     const-string v0, "This is not a boxed lambda"
 :start
     # TODO: use \FunctionalType; here instead
-    unbox-lambda v2, v0, Ljava/lang/reflect/ArtMethod;
+    unbox-lambda v2, v0, J
     # can't use a string, expects a lambda object here. throws ClassCastException.
 :end
     return-void

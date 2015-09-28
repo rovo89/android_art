@@ -64,6 +64,8 @@ void ClosureBuilder::CaptureVariableObject(mirror::Object* object) {
       UNIMPLEMENTED(FATAL) << "can't yet safely capture objects with read barrier";
     }
   }
+
+  shorty_types_ += ShortyFieldType::kObject;
 }
 
 void ClosureBuilder::CaptureVariableLambda(Closure* closure) {
@@ -78,6 +80,8 @@ void ClosureBuilder::CaptureVariableLambda(Closure* closure) {
 
   // A closure may be sized dynamically, so always query it for the true size.
   size_ += closure->GetSize();
+
+  shorty_types_ += ShortyFieldType::kLambda;
 }
 
 size_t ClosureBuilder::GetSize() const {
@@ -85,7 +89,13 @@ size_t ClosureBuilder::GetSize() const {
 }
 
 size_t ClosureBuilder::GetCaptureCount() const {
+  DCHECK_EQ(values_.size(), shorty_types_.size());
   return values_.size();
+}
+
+const std::string& ClosureBuilder::GetCapturedVariableShortyTypes() const {
+  DCHECK_EQ(values_.size(), shorty_types_.size());
+  return shorty_types_;
 }
 
 Closure* ClosureBuilder::CreateInPlace(void* memory, ArtLambdaMethod* target_method) const {
@@ -138,11 +148,14 @@ size_t ClosureBuilder::WriteValues(ArtLambdaMethod* target_method,
                                    size_t variables_size) const {
   size_t total_size = header_size;
   const char* shorty_types = target_method->GetCapturedVariablesShortyTypeDescriptor();
+  DCHECK_STREQ(shorty_types, shorty_types_.c_str());
 
   size_t variables_offset = 0;
   size_t remaining_size = variables_size;
 
   const size_t shorty_count = target_method->GetNumberOfCapturedVariables();
+  DCHECK_EQ(shorty_count, GetCaptureCount());
+
   for (size_t i = 0; i < shorty_count; ++i) {
     ShortyFieldType shorty{shorty_types[i]};  // NOLINT [readability/braces] [4]
 

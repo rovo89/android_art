@@ -34,7 +34,12 @@
 #include "dex_instruction-inl.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "handle_scope-inl.h"
+#include "lambda/art_lambda_method.h"
 #include "lambda/box_table.h"
+#include "lambda/closure.h"
+#include "lambda/closure_builder-inl.h"
+#include "lambda/leaking_allocator.h"
+#include "lambda/shorty_field_type.h"
 #include "mirror/class-inl.h"
 #include "mirror/method.h"
 #include "mirror/object-inl.h"
@@ -133,32 +138,44 @@ static inline bool IsValidLambdaTargetOrThrow(ArtMethod* called_method)
   return success;
 }
 
-// Write out the 'ArtMethod*' into vreg and vreg+1
+// Write out the 'Closure*' into vreg and vreg+1, as if it was a jlong.
 static inline void WriteLambdaClosureIntoVRegs(ShadowFrame& shadow_frame,
-                                               const ArtMethod& called_method,
+                                               const lambda::Closure* lambda_closure,
                                                uint32_t vreg) {
   // Split the method into a lo and hi 32 bits so we can encode them into 2 virtual registers.
-  uint32_t called_method_lo = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&called_method));
-  uint32_t called_method_hi = static_cast<uint32_t>(reinterpret_cast<uint64_t>(&called_method)
+  uint32_t closure_lo = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(lambda_closure));
+  uint32_t closure_hi = static_cast<uint32_t>(reinterpret_cast<uint64_t>(lambda_closure)
                                                     >> BitSizeOf<uint32_t>());
   // Use uint64_t instead of uintptr_t to allow shifting past the max on 32-bit.
   static_assert(sizeof(uint64_t) >= sizeof(uintptr_t), "Impossible");
 
-  DCHECK_NE(called_method_lo | called_method_hi, 0u);
+  DCHECK_NE(closure_lo | closure_hi, 0u);
 
-  shadow_frame.SetVReg(vreg, called_method_lo);
-  shadow_frame.SetVReg(vreg + 1, called_method_hi);
+  shadow_frame.SetVReg(vreg, closure_lo);
+  shadow_frame.SetVReg(vreg + 1, closure_hi);
 }
 
 // Handles create-lambda instructions.
 // Returns true on success, otherwise throws an exception and returns false.
 // (Exceptions are thrown by creating a new exception and then being put in the thread TLS)
 //
+// The closure must be allocated big enough to hold the data, and should not be
+// pre-initialized. It is initialized with the actual captured variables as a side-effect,
+// although this should be unimportant to the caller since this function also handles storing it to
+// the ShadowFrame.
+//
 // As a work-in-progress implementation, this shoves the ArtMethod object corresponding
 // to the target dex method index into the target register vA and vA + 1.
 template<bool do_access_check>
-static inline bool DoCreateLambda(Thread* self, ShadowFrame& shadow_frame,
-                                  const Instruction* inst) {
+static inline bool DoCreateLambda(Thread* self,
+                                  const Instruction* inst,
+                                  /*inout*/ShadowFrame& shadow_frame,
+                                  /*inout*/lambda::ClosureBuilder* closure_builder,
+                                  /*inout*/lambda::Closure* uninitialized_closure) {
+  DCHECK(closure_builder != nullptr);
+  DCHECK(uninitialized_closure != nullptr);
+  DCHECK_ALIGNED(uninitialized_closure, alignof(lambda::Closure));
+
   /*
    * create-lambda is opcode 0x21c
    * - vA is the target register where the closure will be stored into
@@ -171,16 +188,69 @@ static inline bool DoCreateLambda(Thread* self, ShadowFrame& shadow_frame,
   ArtMethod* const called_method = FindMethodFromCode<kStatic, do_access_check>(
       method_idx, &receiver, sf_method, self);
 
-  uint32_t vregA = inst->VRegA_21c();
+  uint32_t vreg_dest_closure = inst->VRegA_21c();
 
   if (UNLIKELY(!IsValidLambdaTargetOrThrow(called_method))) {
     CHECK(self->IsExceptionPending());
-    shadow_frame.SetVReg(vregA, 0u);
-    shadow_frame.SetVReg(vregA + 1, 0u);
+    shadow_frame.SetVReg(vreg_dest_closure, 0u);
+    shadow_frame.SetVReg(vreg_dest_closure + 1, 0u);
     return false;
   }
 
-  WriteLambdaClosureIntoVRegs(shadow_frame, *called_method, vregA);
+  lambda::ArtLambdaMethod* initialized_lambda_method;
+  // Initialize the ArtLambdaMethod with the right data.
+  {
+    lambda::ArtLambdaMethod* uninitialized_lambda_method =
+        reinterpret_cast<lambda::ArtLambdaMethod*>(
+            lambda::LeakingAllocator::AllocateMemory(self, sizeof(lambda::ArtLambdaMethod)));
+
+    std::string captured_variables_shorty = closure_builder->GetCapturedVariableShortyTypes();
+    std::string captured_variables_long_type_desc;
+
+    // Synthesize a long type descriptor from the short one.
+    for (char shorty : captured_variables_shorty) {
+      lambda::ShortyFieldType shorty_field_type(shorty);
+      if (shorty_field_type.IsObject()) {
+        // Not the true type, but good enough until we implement verifier support.
+        captured_variables_long_type_desc += "Ljava/lang/Object;";
+        UNIMPLEMENTED(FATAL) << "create-lambda with an object captured variable";
+      } else if (shorty_field_type.IsLambda()) {
+        // Not the true type, but good enough until we implement verifier support.
+        captured_variables_long_type_desc += "Ljava/lang/Runnable;";
+        UNIMPLEMENTED(FATAL) << "create-lambda with a lambda captured variable";
+      } else {
+        // The primitive types have the same length shorty or not, so this is always correct.
+        DCHECK(shorty_field_type.IsPrimitive());
+        captured_variables_long_type_desc += shorty_field_type;
+      }
+    }
+
+    // Copy strings to dynamically allocated storage. This leaks, but that's ok. Fix it later.
+    // TODO: Strings need to come from the DexFile, so they won't need their own allocations.
+    char* captured_variables_type_desc = lambda::LeakingAllocator::MakeFlexibleInstance<char>(
+        self,
+        captured_variables_long_type_desc.size() + 1);
+    strcpy(captured_variables_type_desc, captured_variables_long_type_desc.c_str());
+    char* captured_variables_shorty_copy = lambda::LeakingAllocator::MakeFlexibleInstance<char>(
+        self,
+        captured_variables_shorty.size() + 1);
+    strcpy(captured_variables_shorty_copy, captured_variables_shorty.c_str());
+
+    new (uninitialized_lambda_method) lambda::ArtLambdaMethod(called_method,
+                                                              captured_variables_type_desc,
+                                                              captured_variables_shorty_copy,
+                                                              true);  // innate lambda
+    initialized_lambda_method = uninitialized_lambda_method;
+  }
+
+  // Write all the closure captured variables and the closure header into the closure.
+  lambda::Closure* initialized_closure;
+  {
+    initialized_closure =
+        closure_builder->CreateInPlace(uninitialized_closure, initialized_lambda_method);
+  }
+
+  WriteLambdaClosureIntoVRegs(/*inout*/shadow_frame, initialized_closure, vreg_dest_closure);
   return true;
 }
 
@@ -189,13 +259,11 @@ static inline bool DoCreateLambda(Thread* self, ShadowFrame& shadow_frame,
 // Validates that the art method points to a valid lambda function, otherwise throws
 // an exception and returns null.
 // (Exceptions are thrown by creating a new exception and then being put in the thread TLS)
-static inline ArtMethod* ReadLambdaClosureFromVRegsOrThrow(ShadowFrame& shadow_frame,
-                                                           uint32_t vreg)
+static inline lambda::Closure* ReadLambdaClosureFromVRegsOrThrow(ShadowFrame& shadow_frame,
+                                                                 uint32_t vreg)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-  // TODO(iam): Introduce a closure abstraction that will contain the captured variables
-  // instead of just an ArtMethod.
-  // This is temporarily using 2 vregs because a native ArtMethod can be up to 64-bit,
-  // but once proper variable capture is implemented it will only use 1 vreg.
+  // Lambda closures take up a consecutive pair of 2 virtual registers.
+  // On 32-bit the high bits are always 0.
   uint32_t vc_value_lo = shadow_frame.GetVReg(vreg);
   uint32_t vc_value_hi = shadow_frame.GetVReg(vreg + 1);
 
@@ -204,17 +272,285 @@ static inline ArtMethod* ReadLambdaClosureFromVRegsOrThrow(ShadowFrame& shadow_f
 
   // Use uint64_t instead of uintptr_t to allow left-shifting past the max on 32-bit.
   static_assert(sizeof(uint64_t) >= sizeof(uintptr_t), "Impossible");
-  ArtMethod* const called_method = reinterpret_cast<ArtMethod* const>(vc_value_ptr);
+  lambda::Closure* const lambda_closure = reinterpret_cast<lambda::Closure*>(vc_value_ptr);
+  DCHECK_ALIGNED(lambda_closure, alignof(lambda::Closure));
 
   // Guard against the user passing a null closure, which is odd but (sadly) semantically valid.
-  if (UNLIKELY(called_method == nullptr)) {
+  if (UNLIKELY(lambda_closure == nullptr)) {
     ThrowNullPointerExceptionFromInterpreter();
     return nullptr;
-  } else if (UNLIKELY(!IsValidLambdaTargetOrThrow(called_method))) {
+  } else if (UNLIKELY(!IsValidLambdaTargetOrThrow(lambda_closure->GetTargetMethod()))) {
+    // Sanity check against data corruption.
     return nullptr;
   }
 
-  return called_method;
+  return lambda_closure;
+}
+
+// Forward declaration for lock annotations. See below for documentation.
+template <bool do_access_check>
+static inline const char* GetStringDataByDexStringIndexOrThrow(ShadowFrame& shadow_frame,
+                                                               uint32_t string_idx)
+    SHARED_REQUIRES(Locks::mutator_lock_);
+
+// Find the c-string data corresponding to a dex file's string index.
+// Otherwise, returns null if not found and throws a VerifyError.
+//
+// Note that with do_access_check=false, we never return null because the verifier
+// must guard against invalid string indices.
+// (Exceptions are thrown by creating a new exception and then being put in the thread TLS)
+template <bool do_access_check>
+static inline const char* GetStringDataByDexStringIndexOrThrow(ShadowFrame& shadow_frame,
+                                                               uint32_t string_idx) {
+  ArtMethod* method = shadow_frame.GetMethod();
+  const DexFile* dex_file = method->GetDexFile();
+
+  mirror::Class* declaring_class = method->GetDeclaringClass();
+  if (!do_access_check) {
+    // MethodVerifier refuses methods with string_idx out of bounds.
+    DCHECK_LT(string_idx, declaring_class->GetDexCache()->NumStrings());
+  } else {
+    // Access checks enabled: perform string index bounds ourselves.
+    if (string_idx >= dex_file->GetHeader().string_ids_size_) {
+      ThrowVerifyError(declaring_class, "String index '%" PRIu32 "' out of bounds",
+                       string_idx);
+      return nullptr;
+    }
+  }
+
+  const char* type_string = dex_file->StringDataByIdx(string_idx);
+
+  if (UNLIKELY(type_string == nullptr)) {
+    CHECK_EQ(false, do_access_check)
+        << " verifier should've caught invalid string index " << string_idx;
+    CHECK_EQ(true, do_access_check)
+        << " string idx size check should've caught invalid string index " << string_idx;
+  }
+
+  return type_string;
+}
+
+// Handles capture-variable instructions.
+// Returns true on success, otherwise throws an exception and returns false.
+// (Exceptions are thrown by creating a new exception and then being put in the thread TLS)
+template<bool do_access_check>
+static inline bool DoCaptureVariable(Thread* self,
+                                     const Instruction* inst,
+                                     /*inout*/ShadowFrame& shadow_frame,
+                                     /*inout*/lambda::ClosureBuilder* closure_builder) {
+  DCHECK(closure_builder != nullptr);
+  using lambda::ShortyFieldType;
+  /*
+   * capture-variable is opcode 0xf6, fmt 0x21c
+   * - vA is the source register of the variable that will be captured
+   * - vB is the string ID of the variable's type that will be captured
+   */
+  const uint32_t source_vreg = inst->VRegA_21c();
+  const uint32_t string_idx = inst->VRegB_21c();
+  // TODO: this should be a proper [type id] instead of a [string ID] pointing to a type.
+
+  const char* type_string = GetStringDataByDexStringIndexOrThrow<do_access_check>(shadow_frame,
+                                                                                  string_idx);
+  if (UNLIKELY(type_string == nullptr)) {
+    CHECK(self->IsExceptionPending());
+    return false;
+  }
+
+  char type_first_letter = type_string[0];
+  ShortyFieldType shorty_type;
+  if (do_access_check &&
+      UNLIKELY(!ShortyFieldType::MaybeCreate(type_first_letter, /*out*/&shorty_type))) {  // NOLINT: [whitespace/comma] [3]
+    ThrowVerifyError(shadow_frame.GetMethod()->GetDeclaringClass(),
+                     "capture-variable vB must be a valid type");
+    return false;
+  } else {
+    // Already verified that the type is valid.
+    shorty_type = ShortyFieldType(type_first_letter);
+  }
+
+  const size_t captured_variable_count = closure_builder->GetCaptureCount();
+
+  // Note: types are specified explicitly so that the closure is packed tightly.
+  switch (shorty_type) {
+    case ShortyFieldType::kBoolean: {
+      uint32_t primitive_narrow_value = shadow_frame.GetVReg(source_vreg);
+      closure_builder->CaptureVariablePrimitive<bool>(primitive_narrow_value);
+      break;
+    }
+    case ShortyFieldType::kByte: {
+      uint32_t primitive_narrow_value = shadow_frame.GetVReg(source_vreg);
+      closure_builder->CaptureVariablePrimitive<int8_t>(primitive_narrow_value);
+      break;
+    }
+    case ShortyFieldType::kChar: {
+      uint32_t primitive_narrow_value = shadow_frame.GetVReg(source_vreg);
+      closure_builder->CaptureVariablePrimitive<uint16_t>(primitive_narrow_value);
+      break;
+    }
+    case ShortyFieldType::kShort: {
+      uint32_t primitive_narrow_value = shadow_frame.GetVReg(source_vreg);
+      closure_builder->CaptureVariablePrimitive<int16_t>(primitive_narrow_value);
+      break;
+    }
+    case ShortyFieldType::kInt: {
+      uint32_t primitive_narrow_value = shadow_frame.GetVReg(source_vreg);
+      closure_builder->CaptureVariablePrimitive<int32_t>(primitive_narrow_value);
+      break;
+    }
+    case ShortyFieldType::kDouble: {
+      closure_builder->CaptureVariablePrimitive(shadow_frame.GetVRegDouble(source_vreg));
+      break;
+    }
+    case ShortyFieldType::kFloat: {
+      closure_builder->CaptureVariablePrimitive(shadow_frame.GetVRegFloat(source_vreg));
+      break;
+    }
+    case ShortyFieldType::kLambda: {
+      UNIMPLEMENTED(FATAL) << " capture-variable with type kLambda";
+      // TODO: Capturing lambdas recursively will be done at a later time.
+      UNREACHABLE();
+    }
+    case ShortyFieldType::kLong: {
+      closure_builder->CaptureVariablePrimitive(shadow_frame.GetVRegLong(source_vreg));
+      break;
+    }
+    case ShortyFieldType::kObject: {
+      closure_builder->CaptureVariableObject(shadow_frame.GetVRegReference(source_vreg));
+      UNIMPLEMENTED(FATAL) << " capture-variable with type kObject";
+      // TODO: finish implementing this. disabled for now since we can't track lambda refs for GC.
+      UNREACHABLE();
+    }
+
+    default:
+      LOG(FATAL) << "Invalid shorty type value " << shorty_type;
+      UNREACHABLE();
+  }
+
+  DCHECK_EQ(captured_variable_count + 1, closure_builder->GetCaptureCount());
+
+  return true;
+}
+
+// Handles capture-variable instructions.
+// Returns true on success, otherwise throws an exception and returns false.
+// (Exceptions are thrown by creating a new exception and then being put in the thread TLS)
+template<bool do_access_check>
+static inline bool DoLiberateVariable(Thread* self,
+                                     const Instruction* inst,
+                                     size_t captured_variable_index,
+                                     /*inout*/ShadowFrame& shadow_frame) {
+  using lambda::ShortyFieldType;
+  /*
+   * liberate-variable is opcode 0xf7, fmt 0x22c
+   * - vA is the destination register
+   * - vB is the register with the lambda closure in it
+   * - vC is the string ID which needs to be a valid field type descriptor
+   */
+
+  const uint32_t dest_vreg = inst->VRegA_22c();
+  const uint32_t closure_vreg = inst->VRegB_22c();
+  const uint32_t string_idx = inst->VRegC_22c();
+  // TODO: this should be a proper [type id] instead of a [string ID] pointing to a type.
+
+
+  // Synthesize a long type descriptor from a shorty type descriptor list.
+  // TODO: Fix the dex encoding to contain the long and short type descriptors.
+  const char* type_string = GetStringDataByDexStringIndexOrThrow<do_access_check>(shadow_frame,
+                                                                                  string_idx);
+  if (UNLIKELY(do_access_check && type_string == nullptr)) {
+    CHECK(self->IsExceptionPending());
+    shadow_frame.SetVReg(dest_vreg, 0);
+    return false;
+  }
+
+  char type_first_letter = type_string[0];
+  ShortyFieldType shorty_type;
+  if (do_access_check &&
+      UNLIKELY(!ShortyFieldType::MaybeCreate(type_first_letter, /*out*/&shorty_type))) {  // NOLINT: [whitespace/comma] [3]
+    ThrowVerifyError(shadow_frame.GetMethod()->GetDeclaringClass(),
+                     "liberate-variable vC must be a valid type");
+    shadow_frame.SetVReg(dest_vreg, 0);
+    return false;
+  } else {
+    // Already verified that the type is valid.
+    shorty_type = ShortyFieldType(type_first_letter);
+  }
+
+  // Check for closure being null *after* the type check.
+  // This way we can access the type info in case we fail later, to know how many vregs to clear.
+  const lambda::Closure* lambda_closure =
+      ReadLambdaClosureFromVRegsOrThrow(/*inout*/shadow_frame, closure_vreg);
+
+  // Failed lambda target runtime check, an exception was raised.
+  if (UNLIKELY(lambda_closure == nullptr)) {
+    CHECK(self->IsExceptionPending());
+
+    // Clear the destination vreg(s) to be safe.
+    shadow_frame.SetVReg(dest_vreg, 0);
+    if (shorty_type.IsPrimitiveWide() || shorty_type.IsLambda()) {
+      shadow_frame.SetVReg(dest_vreg + 1, 0);
+    }
+    return false;
+  }
+
+  if (do_access_check &&
+      UNLIKELY(captured_variable_index >= lambda_closure->GetNumberOfCapturedVariables())) {
+    ThrowVerifyError(shadow_frame.GetMethod()->GetDeclaringClass(),
+                     "liberate-variable captured variable index %zu out of bounds",
+                     lambda_closure->GetNumberOfCapturedVariables());
+    // Clear the destination vreg(s) to be safe.
+    shadow_frame.SetVReg(dest_vreg, 0);
+    if (shorty_type.IsPrimitiveWide() || shorty_type.IsLambda()) {
+      shadow_frame.SetVReg(dest_vreg + 1, 0);
+    }
+    return false;
+  }
+
+  // Verify that the runtime type of the captured-variable matches the requested dex type.
+  if (do_access_check) {
+    ShortyFieldType actual_type = lambda_closure->GetCapturedShortyType(captured_variable_index);
+    if (actual_type != shorty_type) {
+      ThrowVerifyError(shadow_frame.GetMethod()->GetDeclaringClass(),
+                     "cannot liberate-variable of runtime type '%c' to dex type '%c'",
+                     static_cast<char>(actual_type),
+                     static_cast<char>(shorty_type));
+
+      shadow_frame.SetVReg(dest_vreg, 0);
+      if (shorty_type.IsPrimitiveWide() || shorty_type.IsLambda()) {
+        shadow_frame.SetVReg(dest_vreg + 1, 0);
+      }
+      return false;
+    }
+
+    if (actual_type.IsLambda() || actual_type.IsObject()) {
+      UNIMPLEMENTED(FATAL) << "liberate-variable type checks needs to "
+                           << "parse full type descriptor for objects and lambdas";
+    }
+  }
+
+  // Unpack the captured variable from the closure into the correct type, then save it to the vreg.
+  if (shorty_type.IsPrimitiveNarrow()) {
+    uint32_t primitive_narrow_value =
+        lambda_closure->GetCapturedPrimitiveNarrow(captured_variable_index);
+    shadow_frame.SetVReg(dest_vreg, primitive_narrow_value);
+  } else if (shorty_type.IsPrimitiveWide()) {
+      uint64_t primitive_wide_value =
+          lambda_closure->GetCapturedPrimitiveWide(captured_variable_index);
+      shadow_frame.SetVRegLong(dest_vreg, static_cast<int64_t>(primitive_wide_value));
+  } else if (shorty_type.IsObject()) {
+    mirror::Object* unpacked_object =
+        lambda_closure->GetCapturedObject(captured_variable_index);
+    shadow_frame.SetVRegReference(dest_vreg, unpacked_object);
+
+    UNIMPLEMENTED(FATAL) << "liberate-variable cannot unpack objects yet";
+  } else if (shorty_type.IsLambda()) {
+    UNIMPLEMENTED(FATAL) << "liberate-variable cannot unpack lambdas yet";
+  } else {
+    LOG(FATAL) << "unreachable";
+    UNREACHABLE();
+  }
+
+  return true;
 }
 
 template<bool do_access_check>
@@ -229,22 +565,24 @@ static inline bool DoInvokeLambda(Thread* self, ShadowFrame& shadow_frame, const
    *
    * - reading var-args for 0x25 gets us vD,vE,vF,vG (but not vB)
    */
-  uint32_t vC = inst->VRegC_25x();
-  ArtMethod* const called_method = ReadLambdaClosureFromVRegsOrThrow(shadow_frame, vC);
+  uint32_t vreg_closure = inst->VRegC_25x();
+  const lambda::Closure* lambda_closure =
+      ReadLambdaClosureFromVRegsOrThrow(shadow_frame, vreg_closure);
 
   // Failed lambda target runtime check, an exception was raised.
-  if (UNLIKELY(called_method == nullptr)) {
+  if (UNLIKELY(lambda_closure == nullptr)) {
     CHECK(self->IsExceptionPending());
     result->SetJ(0);
     return false;
   }
 
+  ArtMethod* const called_method = lambda_closure->GetTargetMethod();
   // Invoke a non-range lambda
   return DoLambdaCall<false, do_access_check>(called_method, self, shadow_frame, inst, inst_data,
                                               result);
 }
 
-// Handles invoke-XXX/range instructions.
+// Handles invoke-XXX/range instructions (other than invoke-lambda[-range]).
 // Returns true on success, otherwise throws an exception and returns false.
 template<InvokeType type, bool is_range, bool do_access_check>
 static inline bool DoInvoke(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst,
@@ -521,17 +859,17 @@ static inline bool DoBoxLambda(Thread* self, ShadowFrame& shadow_frame, const In
   uint32_t vreg_target_object = inst->VRegA_22x(inst_data);
   uint32_t vreg_source_closure = inst->VRegB_22x();
 
-  ArtMethod* closure_method = ReadLambdaClosureFromVRegsOrThrow(shadow_frame,
-                                                                vreg_source_closure);
+  lambda::Closure* lambda_closure = ReadLambdaClosureFromVRegsOrThrow(shadow_frame,
+                                                                      vreg_source_closure);
 
   // Failed lambda target runtime check, an exception was raised.
-  if (UNLIKELY(closure_method == nullptr)) {
+  if (UNLIKELY(lambda_closure == nullptr)) {
     CHECK(self->IsExceptionPending());
     return false;
   }
 
   mirror::Object* closure_as_object =
-      Runtime::Current()->GetLambdaBoxTable()->BoxLambda(closure_method);
+      Runtime::Current()->GetLambdaBoxTable()->BoxLambda(lambda_closure);
 
   // Failed to box the lambda, an exception was raised.
   if (UNLIKELY(closure_as_object == nullptr)) {
@@ -564,16 +902,16 @@ static inline bool DoUnboxLambda(Thread* self,
     return false;
   }
 
-  ArtMethod* unboxed_closure = nullptr;
+  lambda::Closure* unboxed_closure = nullptr;
   // Raise an exception if unboxing fails.
   if (!Runtime::Current()->GetLambdaBoxTable()->UnboxLambda(boxed_closure_object,
-                                                            &unboxed_closure)) {
+                                                            /*out*/&unboxed_closure)) {
     CHECK(self->IsExceptionPending());
     return false;
   }
 
   DCHECK(unboxed_closure != nullptr);
-  WriteLambdaClosureIntoVRegs(shadow_frame, *unboxed_closure, vreg_target_closure);
+  WriteLambdaClosureIntoVRegs(/*inout*/shadow_frame, unboxed_closure, vreg_target_closure);
   return true;
 }
 
@@ -650,10 +988,13 @@ EXPLICIT_DO_INVOKE_VIRTUAL_QUICK_TEMPLATE_DECL(true);   // invoke-virtual-quick-
 #undef EXPLICIT_INSTANTIATION_DO_INVOKE_VIRTUAL_QUICK
 
 // Explicitly instantiate all DoCreateLambda functions.
-#define EXPLICIT_DO_CREATE_LAMBDA_DECL(_do_check)                                    \
-template SHARED_REQUIRES(Locks::mutator_lock_)                                 \
-bool DoCreateLambda<_do_check>(Thread* self, ShadowFrame& shadow_frame,              \
-                        const Instruction* inst)
+#define EXPLICIT_DO_CREATE_LAMBDA_DECL(_do_check)                                                 \
+template SHARED_REQUIRES(Locks::mutator_lock_)                                                    \
+bool DoCreateLambda<_do_check>(Thread* self,                                                      \
+                               const Instruction* inst,                                           \
+                               /*inout*/ShadowFrame& shadow_frame,                                \
+                               /*inout*/lambda::ClosureBuilder* closure_builder,                  \
+                               /*inout*/lambda::Closure* uninitialized_closure);
 
 EXPLICIT_DO_CREATE_LAMBDA_DECL(false);  // create-lambda
 EXPLICIT_DO_CREATE_LAMBDA_DECL(true);   // create-lambda
@@ -689,7 +1030,29 @@ EXPLICIT_DO_UNBOX_LAMBDA_DECL(false);  // unbox-lambda
 EXPLICIT_DO_UNBOX_LAMBDA_DECL(true);   // unbox-lambda
 #undef EXPLICIT_DO_BOX_LAMBDA_DECL
 
+// Explicitly instantiate all DoCaptureVariable functions.
+#define EXPLICIT_DO_CAPTURE_VARIABLE_DECL(_do_check)                                    \
+template SHARED_REQUIRES(Locks::mutator_lock_)                                          \
+bool DoCaptureVariable<_do_check>(Thread* self,                                         \
+                                  const Instruction* inst,                              \
+                                  ShadowFrame& shadow_frame,                            \
+                                  lambda::ClosureBuilder* closure_builder);
 
+EXPLICIT_DO_CAPTURE_VARIABLE_DECL(false);  // capture-variable
+EXPLICIT_DO_CAPTURE_VARIABLE_DECL(true);   // capture-variable
+#undef EXPLICIT_DO_CREATE_LAMBDA_DECL
+
+// Explicitly instantiate all DoLiberateVariable functions.
+#define EXPLICIT_DO_LIBERATE_VARIABLE_DECL(_do_check)                                   \
+template SHARED_REQUIRES(Locks::mutator_lock_)                                          \
+bool DoLiberateVariable<_do_check>(Thread* self,                                        \
+                                   const Instruction* inst,                             \
+                                   size_t captured_variable_index,                      \
+                                   ShadowFrame& shadow_frame);                          \
+
+EXPLICIT_DO_LIBERATE_VARIABLE_DECL(false);  // liberate-variable
+EXPLICIT_DO_LIBERATE_VARIABLE_DECL(true);   // liberate-variable
+#undef EXPLICIT_DO_LIBERATE_LAMBDA_DECL
 }  // namespace interpreter
 }  // namespace art
 
