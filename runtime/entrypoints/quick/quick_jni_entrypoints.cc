@@ -65,6 +65,9 @@ static void GoToRunnable(Thread* self) NO_THREAD_SAFETY_ANALYSIS {
 static void PopLocalReferences(uint32_t saved_local_ref_cookie, Thread* self)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   JNIEnvExt* env = self->GetJniEnv();
+  if (UNLIKELY(env->check_jni)) {
+    env->CheckNoHeldMonitors();
+  }
   env->locals.SetSegmentState(env->local_ref_cookie);
   env->local_ref_cookie = saved_local_ref_cookie;
   self->PopHandleScope();
