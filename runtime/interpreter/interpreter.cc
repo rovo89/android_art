@@ -21,6 +21,7 @@
 #include "mirror/string-inl.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
+#include "stack.h"
 #include "unstarted_runtime.h"
 
 namespace art {
@@ -330,8 +331,9 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
   }
   // Set up shadow frame with matching number of reference slots to vregs.
   ShadowFrame* last_shadow_frame = self->GetManagedStack()->GetTopShadowFrame();
-  void* memory = alloca(ShadowFrame::ComputeSize(num_regs));
-  ShadowFrame* shadow_frame(ShadowFrame::Create(num_regs, last_shadow_frame, method, 0, memory));
+  ShadowFrameAllocaUniquePtr shadow_frame_unique_ptr =
+      CREATE_SHADOW_FRAME(num_regs, last_shadow_frame, method, 0);
+  ShadowFrame* shadow_frame = shadow_frame_unique_ptr.get();
   self->PushShadowFrame(shadow_frame);
 
   size_t cur_reg = num_regs - num_ins;
