@@ -265,7 +265,11 @@ class Libraries {
       for (auto it = libraries_.begin(); it != libraries_.end(); ) {
         SharedLibrary* const library = it->second;
         // If class loader is null then it was unloaded, call JNI_OnUnload.
-        if (soa.Decode<mirror::ClassLoader*>(library->GetClassLoader()) == nullptr) {
+        const jweak class_loader = library->GetClassLoader();
+        // If class_loader is a null jobject then it is the boot class loader. We should not unload
+        // the native libraries of the boot class loader.
+        if (class_loader != nullptr &&
+            soa.Decode<mirror::ClassLoader*>(class_loader) == nullptr) {
           void* const sym = library->FindSymbol("JNI_OnUnload", nullptr);
           if (sym == nullptr) {
             VLOG(jni) << "[No JNI_OnUnload found in \"" << library->GetPath() << "\"]";
