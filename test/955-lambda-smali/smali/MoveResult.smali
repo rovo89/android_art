@@ -41,7 +41,7 @@
 .method public static testZ()V
     .registers 6
 
-    create-lambda v0, LMoveResult;->lambdaZ(Ljava/lang/reflect/ArtMethod;)Z
+    create-lambda v0, LMoveResult;->lambdaZ(J)Z
     invoke-lambda v0, {}
     move-result v2
     const v3, 1
@@ -61,7 +61,7 @@
 .end method
 
 # Lambda target for testZ. Always returns "true".
-.method public static lambdaZ(Ljava/lang/reflect/ArtMethod;)Z
+.method public static lambdaZ(J)Z
     .registers 3
 
     const v0, 1
@@ -73,7 +73,7 @@
 .method public static testB()V
     .registers 6
 
-    create-lambda v0, LMoveResult;->lambdaB(Ljava/lang/reflect/ArtMethod;)B
+    create-lambda v0, LMoveResult;->lambdaB(J)B
     invoke-lambda v0, {}
     move-result v2
     const v3, 15
@@ -93,7 +93,7 @@
 .end method
 
 # Lambda target for testB. Always returns "15".
-.method public static lambdaB(Ljava/lang/reflect/ArtMethod;)B
+.method public static lambdaB(J)B
     .registers 3 # 1 parameters, 2 locals
 
     const v0, 15
@@ -105,7 +105,7 @@
 .method public static testS()V
     .registers 6
 
-    create-lambda v0, LMoveResult;->lambdaS(Ljava/lang/reflect/ArtMethod;)S
+    create-lambda v0, LMoveResult;->lambdaS(J)S
     invoke-lambda v0, {}
     move-result v2
     const/16 v3, 31000
@@ -125,7 +125,7 @@
 .end method
 
 # Lambda target for testS. Always returns "31000".
-.method public static lambdaS(Ljava/lang/reflect/ArtMethod;)S
+.method public static lambdaS(J)S
     .registers 3
 
     const/16 v0, 31000
@@ -137,7 +137,7 @@
 .method public static testI()V
     .registers 6
 
-    create-lambda v0, LMoveResult;->lambdaI(Ljava/lang/reflect/ArtMethod;)I
+    create-lambda v0, LMoveResult;->lambdaI(J)I
     invoke-lambda v0, {}
     move-result v2
     const v3, 128000
@@ -157,7 +157,7 @@
 .end method
 
 # Lambda target for testI. Always returns "128000".
-.method public static lambdaI(Ljava/lang/reflect/ArtMethod;)I
+.method public static lambdaI(J)I
     .registers 3
 
     const v0, 128000
@@ -167,9 +167,9 @@
 
 # Test that chars are returned correctly via move-result.
 .method public static testC()V
-    .registers 6
+    .registers 7
 
-    create-lambda v0, LMoveResult;->lambdaC(Ljava/lang/reflect/ArtMethod;)C
+    create-lambda v0, LMoveResult;->lambdaC(J)C
     invoke-lambda v0, {}
     move-result v2
     const v3, 65535
@@ -189,7 +189,7 @@
 .end method
 
 # Lambda target for testC. Always returns "65535".
-.method public static lambdaC(Ljava/lang/reflect/ArtMethod;)C
+.method public static lambdaC(J)C
     .registers 3
 
     const v0, 65535
@@ -199,12 +199,12 @@
 
 # Test that longs are returned correctly via move-result.
 .method public static testJ()V
-    .registers 8
+    .registers 9
 
-    create-lambda v0, LMoveResult;->lambdaJ(Ljava/lang/reflect/ArtMethod;)J
+    create-lambda v0, LMoveResult;->lambdaJ(J)J
     invoke-lambda v0, {}
     move-result v2
-    const-wide v4, 0xdeadf00dc0ffee
+    const-wide v4, 0xdeadf00dc0ffeeL
 
     if-ne v4, v2, :is_not_equal
     const-string v6, "(MoveResult) testJ success"
@@ -220,11 +220,11 @@
 
 .end method
 
-# Lambda target for testC. Always returns "0xdeadf00dc0ffee".
-.method public static lambdaJ(Ljava/lang/reflect/ArtMethod;)J
-    .registers 4
+# Lambda target for testC. Always returns "0xdeadf00dc0ffeeL".
+.method public static lambdaJ(J)J
+    .registers 5
 
-    const-wide v0, 0xdeadf00dc0ffee
+    const-wide v0, 0xdeadf00dc0ffeeL
     return-wide v0
 
 .end method
@@ -233,7 +233,7 @@
 .method public static testF()V
     .registers 6
 
-    create-lambda v0, LMoveResult;->lambdaF(Ljava/lang/reflect/ArtMethod;)F
+    create-lambda v0, LMoveResult;->lambdaF(J)F
     invoke-lambda v0, {}
     move-result v2
     const v3, infinityf
@@ -253,8 +253,8 @@
 .end method
 
 # Lambda target for testF. Always returns "infinityf".
-.method public static lambdaF(Ljava/lang/reflect/ArtMethod;)F
-    .registers 3
+.method public static lambdaF(J)F
+    .registers 4
 
     const v0, infinityf
     return v0
@@ -265,10 +265,10 @@
 .method public static testD()V
     .registers 8
 
-    create-lambda v0, LMoveResult;->lambdaD(Ljava/lang/reflect/ArtMethod;)D
+    create-lambda v0, LMoveResult;->lambdaD(J)D
     invoke-lambda v0, {}
     move-result-wide v2
-    const-wide v4, infinity
+    const-wide v4, -infinity
 
     if-ne v4, v2, :is_not_equal
     const-string v6, "(MoveResult) testD success"
@@ -285,10 +285,10 @@
 .end method
 
 # Lambda target for testD. Always returns "infinity".
-.method public static lambdaD(Ljava/lang/reflect/ArtMethod;)D
-    .registers 4
+.method public static lambdaD(J)D
+    .registers 5
 
-    const-wide v0, infinity # 123.456789
+    const-wide v0, -infinity
     return-wide v0
 
 .end method
@@ -298,7 +298,7 @@
 .method public static testL()V
     .registers 8
 
-    create-lambda v0, LMoveResult;->lambdaL(Ljava/lang/reflect/ArtMethod;)Ljava/lang/String;
+    create-lambda v0, LMoveResult;->lambdaL(J)Ljava/lang/String;
     invoke-lambda v0, {}
     move-result-object v2
     const-string v4, "Interned string"
@@ -319,8 +319,8 @@
 .end method
 
 # Lambda target for testL. Always returns "Interned string" (string).
-.method public static lambdaL(Ljava/lang/reflect/ArtMethod;)Ljava/lang/String;
-    .registers 4
+.method public static lambdaL(J)Ljava/lang/String;
+    .registers 5
 
     const-string v0, "Interned string"
     return-object v0

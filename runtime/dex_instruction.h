@@ -180,9 +180,11 @@ class Instruction {
     kVerifyVarArgRangeNonZero = 0x100000,
     kVerifyRuntimeOnly        = 0x200000,
     kVerifyError              = 0x400000,
+    kVerifyRegCString         = 0x800000,
   };
 
   static constexpr uint32_t kMaxVarArgRegs = 5;
+  static constexpr uint32_t kMaxVarArgRegs25x = 6;  // lambdas are 2 registers.
 
   // Returns the size (in 2 byte code units) of this instruction.
   size_t SizeInCodeUnits() const {
@@ -408,7 +410,7 @@ class Instruction {
   void GetVarArgs(uint32_t args[kMaxVarArgRegs]) const {
     return GetVarArgs(args, Fetch16(0));
   }
-  void GetAllArgs25x(uint32_t args[kMaxVarArgRegs]) const;
+  void GetAllArgs25x(uint32_t (&args)[kMaxVarArgRegs25x]) const;
 
   // Returns the opcode field of the instruction. The given "inst_data" parameter must be the first
   // 16 bits of instruction.
@@ -536,7 +538,7 @@ class Instruction {
 
   int GetVerifyTypeArgumentC() const {
     return (kInstructionVerifyFlags[Opcode()] & (kVerifyRegC | kVerifyRegCField |
-        kVerifyRegCNewArray | kVerifyRegCType | kVerifyRegCWide));
+        kVerifyRegCNewArray | kVerifyRegCType | kVerifyRegCWide | kVerifyRegCString));
   }
 
   int GetVerifyExtraFlags() const {

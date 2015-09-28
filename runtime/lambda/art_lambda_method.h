@@ -35,7 +35,7 @@ class ArtLambdaMethod {
   // (Ownership of strings is retained by the caller and the lifetime should exceed this class).
   ArtLambdaMethod(ArtMethod* target_method,
                   const char* captured_variables_type_descriptor,
-                  const char* captured_variables_shorty_,
+                  const char* captured_variables_shorty,
                   bool innate_lambda = true);
 
   // Get the target method for this lambda that would be used by the invoke-lambda dex instruction.
