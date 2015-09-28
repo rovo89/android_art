@@ -68,20 +68,14 @@ if [[ $mode == "host" ]]; then
   echo "Executing $make_command"
   $make_command
 elif [[ $mode == "target" ]]; then
+  # Disable NINJA for building on target, it does not support setting environment variables
+  # within the make command.
+  env="$env USE_NINJA=false"
+  # Build extra tools that will be used by tests, so that
+  # they are compiled with our own linker.
   # We need to provide our own linker in case the linker on the device
   # is out of date.
-  env="TARGET_GLOBAL_LDFLAGS=-Wl,-dynamic-linker=$android_root/bin/$linker"
-  # gcc gives a linker error, so compile with clang.
-  # TODO: investigate and fix?
-  if [[ $TARGET_PRODUCT == "mips32r2_fp" ]]; then
-    env="$env USE_CLANG_PLATFORM_BUILD=true"
-  fi
-  # Disable NINJA for building on target, it does not support the -e option to Makefile.
-  env="$env USE_NINJA=false"
-  # Use '-e' to force the override of TARGET_GLOBAL_LDFLAGS.
-  # Also, we build extra tools that will be used by tests, so that
-  # they are compiled with our own linker.
-  make_command="make -e $j_arg $showcommands build-art-target-tests $common_targets libjavacrypto libjavacoretests linker toybox toolbox sh out/host/linux-x86/bin/adb"
+  make_command="make TARGET_LINKER=$android_root/bin/$linker $j_arg $showcommands build-art-target-tests $common_targets libjavacrypto libjavacoretests linker toybox toolbox sh out/host/linux-x86/bin/adb"
   echo "Executing env $env $make_command"
   env $env $make_command
 fi
