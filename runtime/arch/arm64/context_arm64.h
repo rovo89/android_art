@@ -42,20 +42,25 @@ class Arm64Context : public Context {
   }
 
   void SetPC(uintptr_t new_lr) OVERRIDE {
-    SetGPR(LR, new_lr);
+    SetGPR(kPC, new_lr);
+  }
+
+  void SetArg0(uintptr_t new_arg0_value) OVERRIDE {
+    SetGPR(X0, new_arg0_value);
   }
 
   bool IsAccessibleGPR(uint32_t reg) OVERRIDE {
-    DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfXRegisters));
+    DCHECK_LT(reg, arraysize(gprs_));
     return gprs_[reg] != nullptr;
   }
 
   uintptr_t* GetGPRAddress(uint32_t reg) OVERRIDE {
-    DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfXRegisters));
+    DCHECK_LT(reg, arraysize(gprs_));
     return gprs_[reg];
   }
 
   uintptr_t GetGPR(uint32_t reg) OVERRIDE {
+    // Note: PC isn't an available GPR (outside of internals), so don't allow retrieving the value.
     DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfXRegisters));
     DCHECK(IsAccessibleGPR(reg));
     return *gprs_[reg];
@@ -79,12 +84,15 @@ class Arm64Context : public Context {
   void SmashCallerSaves() OVERRIDE;
   NO_RETURN void DoLongJump() OVERRIDE;
 
+  static constexpr size_t kPC = kNumberOfXRegisters;
+
  private:
-  // Pointers to register locations, initialized to null or the specific registers below.
-  uintptr_t* gprs_[kNumberOfXRegisters];
+  // Pointers to register locations, initialized to null or the specific registers below. We need
+  // an additional one for the PC.
+  uintptr_t* gprs_[kNumberOfXRegisters + 1];
   uint64_t * fprs_[kNumberOfDRegisters];
-  // Hold values for sp and pc if they are not located within a stack frame.
-  uintptr_t sp_, pc_;
+  // Hold values for sp, pc and arg0 if they are not located within a stack frame.
+  uintptr_t sp_, pc_, arg0_;
 };
 
 }  // namespace arm64

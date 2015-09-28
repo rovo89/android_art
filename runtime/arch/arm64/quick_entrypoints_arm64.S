@@ -941,7 +941,7 @@ ENTRY art_quick_do_long_jump
     // Load GPRs
     // TODO: lots of those are smashed, could optimize.
     add x0, x0, #30*8
-    ldp x30, x1, [x0], #-16
+    ldp x30, x1, [x0], #-16          // LR & SP
     ldp x28, x29, [x0], #-16
     ldp x26, x27, [x0], #-16
     ldp x24, x25, [x0], #-16
@@ -958,10 +958,12 @@ ENTRY art_quick_do_long_jump
     ldp x2, x3, [x0], #-16
     mov sp, x1
 
-    // TODO: Is it really OK to use LR for the target PC?
-    mov x0, #0
-    mov x1, #0
-    br  xLR
+    // Need to load PC, it's at the end (after the space for the unused XZR). Use x1.
+    ldr x1, [x0, #33*8]
+    // And the value of x0.
+    ldr x0, [x0]
+
+    br  x1
 END art_quick_do_long_jump
 
     /*
