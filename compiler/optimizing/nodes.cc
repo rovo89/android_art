@@ -22,7 +22,6 @@
 #include "base/bit_utils.h"
 #include "base/stl_util.h"
 #include "mirror/class-inl.h"
-#include "utils/growable_array.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {

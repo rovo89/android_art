@@ -40,6 +40,10 @@ class ArenaObject {
     LOG(FATAL) << "UNREACHABLE";
     UNREACHABLE();
   }
+
+  // NOTE: Providing placement new (and matching delete) for constructing container elements.
+  ALWAYS_INLINE void* operator new(size_t, void* ptr) noexcept { return ptr; }
+  ALWAYS_INLINE void operator delete(void*, void*) noexcept { }
 };
 
 

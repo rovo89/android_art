@@ -270,11 +270,11 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
   }
 
   Label* GetLabelOf(HBasicBlock* block) const {
-    return CommonGetLabelOf<Label>(block_labels_.GetRawStorage(), block);
+    return CommonGetLabelOf<Label>(block_labels_, block);
   }
 
   void Initialize() OVERRIDE {
-    block_labels_.SetSize(GetGraph()->GetBlocks().size());
+    block_labels_ = CommonInitializeLabels<Label>();
   }
 
   void Finalize(CodeAllocator* allocator) OVERRIDE;
@@ -315,7 +315,7 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
 
  private:
   // Labels for each block that will be compiled.
-  GrowableArray<Label> block_labels_;
+  Label* block_labels_;  // Indexed by block id.
   Label frame_entry_label_;
   LocationsBuilderMIPS64 location_builder_;
   InstructionCodeGeneratorMIPS64 instruction_visitor_;

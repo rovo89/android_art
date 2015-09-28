@@ -35,7 +35,6 @@
 #include "offsets.h"
 #include "primitive.h"
 #include "utils/arena_bit_vector.h"
-#include "utils/growable_array.h"
 
 namespace art {
 
@@ -5054,7 +5053,10 @@ static constexpr size_t kDefaultNumberOfMoves = 4;
 class HParallelMove : public HTemplateInstruction<0> {
  public:
   explicit HParallelMove(ArenaAllocator* arena, uint32_t dex_pc = kNoDexPc)
-      : HTemplateInstruction(SideEffects::None(), dex_pc), moves_(arena, kDefaultNumberOfMoves) {}
+      : HTemplateInstruction(SideEffects::None(), dex_pc),
+        moves_(arena->Adapter(kArenaAllocMoveOperands)) {
+    moves_.reserve(kDefaultNumberOfMoves);
+  }
 
   void AddMove(Location source,
                Location destination,
@@ -5064,15 +5066,15 @@ class HParallelMove : public HTemplateInstruction<0> {
     DCHECK(destination.IsValid());
     if (kIsDebugBuild) {
       if (instruction != nullptr) {
-        for (size_t i = 0, e = moves_.Size(); i < e; ++i) {
-          if (moves_.Get(i).GetInstruction() == instruction) {
+        for (const MoveOperands& move : moves_) {
+          if (move.GetInstruction() == instruction) {
             // Special case the situation where the move is for the spill slot
             // of the instruction.
             if ((GetPrevious() == instruction)
                 || ((GetPrevious() == nullptr)
                     && instruction->IsPhi()
                     && instruction->GetBlock() == GetBlock())) {
-              DCHECK_NE(destination.GetKind(), moves_.Get(i).GetDestination().GetKind())
+              DCHECK_NE(destination.GetKind(), move.GetDestination().GetKind())
                   << "Doing parallel moves for the same instruction.";
             } else {
               DCHECK(false) << "Doing parallel moves for the same instruction.";
@@ -5080,26 +5082,27 @@ class HParallelMove : public HTemplateInstruction<0> {
           }
         }
       }
-      for (size_t i = 0, e = moves_.Size(); i < e; ++i) {
-        DCHECK(!destination.OverlapsWith(moves_.Get(i).GetDestination()))
+      for (const MoveOperands& move : moves_) {
+        DCHECK(!destination.OverlapsWith(move.GetDestination()))
             << "Overlapped destination for two moves in a parallel move: "
-            << moves_.Get(i).GetSource() << " ==> " << moves_.Get(i).GetDestination() << " and "
+            << move.GetSource() << " ==> " << move.GetDestination() << " and "
             << source << " ==> " << destination;
       }
     }
-    moves_.Add(MoveOperands(source, destination, type, instruction));
+    moves_.emplace_back(source, destination, type, instruction);
   }
 
-  MoveOperands* MoveOperandsAt(size_t index) const {
-    return moves_.GetRawStorage() + index;
+  MoveOperands* MoveOperandsAt(size_t index) {
+    DCHECK_LT(index, moves_.size());
+    return &moves_[index];
   }
 
-  size_t NumMoves() const { return moves_.Size(); }
+  size_t NumMoves() const { return moves_.size(); }
 
   DECLARE_INSTRUCTION(ParallelMove);
 
  private:
-  GrowableArray<MoveOperands> moves_;
+  ArenaVector<MoveOperands> moves_;
 
   DISALLOW_COPY_AND_ASSIGN(HParallelMove);
 };

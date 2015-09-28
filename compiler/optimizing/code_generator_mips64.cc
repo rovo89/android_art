@@ -431,7 +431,7 @@ CodeGeneratorMIPS64::CodeGeneratorMIPS64(HGraph* graph,
                                         arraysize(kFpuCalleeSaves)),
                     compiler_options,
                     stats),
-      block_labels_(graph->GetArena(), 0),
+      block_labels_(nullptr),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetArena(), this),
@@ -453,12 +453,14 @@ Mips64Assembler* ParallelMoveResolverMIPS64::GetAssembler() const {
 }
 
 void ParallelMoveResolverMIPS64::EmitMove(size_t index) {
-  MoveOperands* move = moves_.Get(index);
+  DCHECK_LT(index, moves_.size());
+  MoveOperands* move = moves_[index];
   codegen_->MoveLocation(move->GetDestination(), move->GetSource(), move->GetType());
 }
 
 void ParallelMoveResolverMIPS64::EmitSwap(size_t index) {
-  MoveOperands* move = moves_.Get(index);
+  DCHECK_LT(index, moves_.size());
+  MoveOperands* move = moves_[index];
   codegen_->SwapLocations(move->GetDestination(), move->GetSource(), move->GetType());
 }
 
