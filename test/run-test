@@ -379,13 +379,21 @@ fi
 
 # Most interesting target architecture variables are Makefile variables, not environment variables.
 # Try to map the suffix64 flag and what we find in ${ANDROID_PRODUCT_OUT}/data/art-test to an architecture name.
-function guess_arch_name() {
+function guess_target_arch_name() {
     grep32bit=`ls ${ANDROID_PRODUCT_OUT}/data/art-test | grep -E '^(arm|x86|mips)$'`
     grep64bit=`ls ${ANDROID_PRODUCT_OUT}/data/art-test | grep -E '^(arm64|x86_64|mips64)$'`
     if [ "x${suffix64}" = "x64" ]; then
         target_arch_name=${grep64bit}
     else
         target_arch_name=${grep32bit}
+    fi
+}
+
+function guess_host_arch_name() {
+    if [ "x${suffix64}" = "x64" ]; then
+        host_arch_name="x86_64"
+    else
+        host_arch_name="x86"
     fi
 }
 
@@ -424,10 +432,11 @@ elif [ "$runtime" = "art" ]; then
         if [ -z "$ANDROID_HOST_OUT" ]; then
             export ANDROID_HOST_OUT=$ANDROID_BUILD_TOP/out/host/linux-x86
         fi
+        guess_host_arch_name
         run_args="${run_args} --boot ${ANDROID_HOST_OUT}/framework/core${image_suffix}${pic_image_suffix}.art"
         run_args="${run_args} --runtime-option -Djava.library.path=${ANDROID_HOST_OUT}/lib${suffix64}"
     else
-        guess_arch_name
+        guess_target_arch_name
         run_args="${run_args} --runtime-option -Djava.library.path=/data/art-test/${target_arch_name}"
         run_args="${run_args} --boot /data/art-test/core${image_suffix}${pic_image_suffix}.art"
     fi
@@ -622,7 +631,7 @@ if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]]; then
       run_checker="yes"
       if [ "$target_mode" = "no" ]; then
         cfg_output_dir="$tmp_dir"
-        checker_arch_option=
+        checker_arch_option="--arch=${host_arch_name^^}"
       else
         cfg_output_dir="$DEX_LOCATION"
         checker_arch_option="--arch=${target_arch_name^^}"
