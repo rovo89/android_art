@@ -145,8 +145,14 @@ void DeadPhiHandling::VisitBasicBlock(HBasicBlock* block) {
     if (phi->IsDead() && phi->HasEnvironmentUses()) {
       phi->SetLive();
       if (block->IsLoopHeader()) {
-        // Give a type to the loop phi, to guarantee convergence of the algorithm.
-        phi->SetType(phi->InputAt(0)->GetType());
+        // Give a type to the loop phi to guarantee convergence of the algorithm.
+        // Note that the dead phi may already have a type if it is an equivalent
+        // generated for a typed LoadLocal. In that case we do not change the
+        // type because it could lead to an unsupported PrimNot/Float/Double ->
+        // PrimInt/Long transition and create same type equivalents.
+        if (phi->GetType() == Primitive::kPrimVoid) {
+          phi->SetType(phi->InputAt(0)->GetType());
+        }
         AddToWorklist(phi);
       } else {
         // Because we are doing a reverse post order visit, all inputs of
