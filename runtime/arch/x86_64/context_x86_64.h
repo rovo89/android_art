@@ -44,6 +44,10 @@ class X86_64Context : public Context {
     rip_ = new_pc;
   }
 
+  void SetArg0(uintptr_t new_arg0_value) OVERRIDE {
+    SetGPR(RDI, new_arg0_value);
+  }
+
   bool IsAccessibleGPR(uint32_t reg) OVERRIDE {
     DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfCpuRegisters));
     return gprs_[reg] != nullptr;
@@ -82,10 +86,10 @@ class X86_64Context : public Context {
   // Pointers to register locations. Values are initialized to null or the special registers below.
   uintptr_t* gprs_[kNumberOfCpuRegisters];
   uint64_t* fprs_[kNumberOfFloatRegisters];
-  // Hold values for rsp and rip if they are not located within a stack frame. RIP is somewhat
+  // Hold values for rsp, rip and arg0 if they are not located within a stack frame. RIP is somewhat
   // special in that it cannot be encoded normally as a register operand to an instruction (except
   // in 64bit addressing modes).
-  uintptr_t rsp_, rip_;
+  uintptr_t rsp_, rip_, arg0_;
 };
 }  // namespace x86_64
 }  // namespace art

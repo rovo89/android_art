@@ -78,14 +78,20 @@ class Mips64Context : public Context {
   void SmashCallerSaves() OVERRIDE;
   NO_RETURN void DoLongJump() OVERRIDE;
 
+  void SetArg0(uintptr_t new_arg0_value) OVERRIDE {
+    SetGPR(A0, new_arg0_value);
+  }
+
  private:
   // Pointers to registers in the stack, initialized to null except for the special cases below.
   uintptr_t* gprs_[kNumberOfGpuRegisters];
   uint64_t* fprs_[kNumberOfFpuRegisters];
   // Hold values for sp and t9 if they are not located within a stack frame. We use t9 for the
-  // PC (as ra is required to be valid for single-frame deopt and must not be clobbered).
-  uintptr_t sp_, t9_;
+  // PC (as ra is required to be valid for single-frame deopt and must not be clobbered). We
+  // also need the first argument for single-frame deopt.
+  uintptr_t sp_, t9_, arg0_;
 };
+
 }  // namespace mips64
 }  // namespace art
 

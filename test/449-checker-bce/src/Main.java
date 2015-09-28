@@ -249,6 +249,25 @@ public class Main {
     array[Integer.MAX_VALUE - 998] = 1;
   }
 
+  /// CHECK-START: void Main.constantIndexing6(int[]) BCE (before)
+  /// CHECK: BoundsCheck
+  /// CHECK: ArraySet
+  /// CHECK: BoundsCheck
+  /// CHECK: ArraySet
+
+  /// CHECK-START: void Main.constantIndexing6(int[]) BCE (after)
+  /// CHECK: Deoptimize
+
+  static void constantIndexing6(int[] array) {
+    array[3] = 1;
+    array[4] = 1;
+  }
+
+  // A helper into which the actual throwing function should be inlined.
+  static void constantIndexingForward6(int[] array) {
+    constantIndexing6(array);
+  }
+
   /// CHECK-START: void Main.loopPattern1(int[]) BCE (before)
   /// CHECK: BoundsCheck
   /// CHECK: ArraySet
@@ -602,7 +621,12 @@ public class Main {
       // This will cause AIOOBE.
       constantIndexing2(new int[3]);
     } catch (ArrayIndexOutOfBoundsException e) {
-      return 99;
+      try {
+        // This will cause AIOOBE.
+        constantIndexingForward6(new int[3]);
+      } catch (ArrayIndexOutOfBoundsException e2) {
+        return 99;
+      }
     }
     return 0;
   }

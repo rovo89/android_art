@@ -1724,18 +1724,18 @@ END_FUNCTION art_quick_instrumentation_exit
      * will long jump to the upcall with a special exception of -1.
      */
 DEFINE_FUNCTION art_quick_deoptimize
-    pushq %rsi                     // Entry point for a jump. Fake that we were called.
-                                   // Use hidden arg.
+    pushq %rsi                         // Entry point for a jump. Fake that we were called.
+                                       // Use hidden arg.
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
-                                   // Stack should be aligned now.
-    movq %gs:THREAD_SELF_OFFSET, %rdi         // Pass Thread.
-    call SYMBOL(artDeoptimize) // artDeoptimize(Thread*)
+                                       // Stack should be aligned now.
+    movq %gs:THREAD_SELF_OFFSET, %rdi  // Pass Thread.
+    call SYMBOL(artDeoptimize)         // artDeoptimize(Thread*)
     UNREACHABLE
 END_FUNCTION art_quick_deoptimize
 
     /*
      * Compiled code has requested that we deoptimize into the interpreter. The deoptimization
-     * will long jump to the upcall with a special exception of -1.
+     * will long jump to the interpreter bridge.
      */
 DEFINE_FUNCTION art_quick_deoptimize_from_compiled_code
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
