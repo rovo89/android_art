@@ -25,12 +25,12 @@
 .method public static run()V
 .registers 8
     # Trivial 0-arg hello world
-    create-lambda v0, LTrivialHelloWorld;->doHelloWorld(Ljava/lang/reflect/ArtMethod;)V
+    create-lambda v0, LTrivialHelloWorld;->doHelloWorld(J)V
     # TODO: create-lambda should not write to both v0 and v1
     invoke-lambda v0, {}
 
     # Slightly more interesting 4-arg hello world
-    create-lambda v2, doHelloWorldArgs(Ljava/lang/reflect/ArtMethod;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+    create-lambda v2, doHelloWorldArgs(JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
     # TODO: create-lambda should not write to both v2 and v3
     const-string v4, "A"
     const-string v5, "B"
@@ -43,9 +43,9 @@
     return-void
 .end method
 
-#TODO: should use a closure type instead of ArtMethod.
-.method public static doHelloWorld(Ljava/lang/reflect/ArtMethod;)V
-    .registers 3 # 1 parameters, 2 locals
+#TODO: should use a closure type instead of jlong. 
+.method public static doHelloWorld(J)V
+    .registers 5 # 1 wide parameters, 3 locals
 
     const-string v0, "Hello world! (0-args, no closure)"
 
@@ -55,17 +55,17 @@
     return-void
 .end method
 
-#TODO: should use a closure type instead of ArtMethod.
-.method public static doHelloWorldArgs(Ljava/lang/reflect/ArtMethod;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
-    .registers 7 # 5 parameters, 2 locals
+#TODO: should use a closure type instead of jlong. 
+.method public static doHelloWorldArgs(JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+    .registers 9 # 1 wide parameter, 4 narrow parameters, 3 locals
 
     const-string v0, " Hello world! (4-args, no closure)"
     sget-object v1, Ljava/lang/System;->out:Ljava/io/PrintStream;
 
-    invoke-virtual {v1, p1}, Ljava/io/PrintStream;->print(Ljava/lang/String;)V
     invoke-virtual {v1, p2}, Ljava/io/PrintStream;->print(Ljava/lang/String;)V
     invoke-virtual {v1, p3}, Ljava/io/PrintStream;->print(Ljava/lang/String;)V
     invoke-virtual {v1, p4}, Ljava/io/PrintStream;->print(Ljava/lang/String;)V
+    invoke-virtual {v1, p5}, Ljava/io/PrintStream;->print(Ljava/lang/String;)V
 
     invoke-virtual {v1, v0}, Ljava/io/PrintStream;->println(Ljava/lang/String;)V
 
