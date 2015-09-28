@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
+#include "base/stl_util.h"  // MakeUnique
 #include "interpreter_common.h"
 #include "safe_math.h"
+
+#include <memory>  // std::unique_ptr
 
 namespace art {
 namespace interpreter {
@@ -82,6 +85,11 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
   const uint16_t* const insns = code_item->insns_;
   const Instruction* inst = Instruction::At(insns + dex_pc);
   uint16_t inst_data;
+
+  // TODO: collapse capture-variable+create-lambda into one opcode, then we won't need
+  // to keep this live for the scope of the entire function call.
+  std::unique_ptr<lambda::ClosureBuilder> lambda_closure_builder;
+  size_t lambda_captured_variable_index = 0;
   while (true) {
     dex_pc = inst->GetDexPc(insns);
     shadow_frame.SetDexPC(dex_pc);
@@ -2235,19 +2243,63 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
         break;
       }
+      case Instruction::CAPTURE_VARIABLE: {
+        if (!IsExperimentalInstructionEnabled(inst)) {
+          UnexpectedOpcode(inst, shadow_frame);
+        }
+
+        if (lambda_closure_builder == nullptr) {
+          lambda_closure_builder = MakeUnique<lambda::ClosureBuilder>();
+        }
+
+        PREAMBLE();
+        bool success = DoCaptureVariable<do_access_check>(self,
+                                                          inst,
+                                                          /*inout*/shadow_frame,
+                                                          /*inout*/lambda_closure_builder.get());
+        POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
+        break;
+      }
       case Instruction::CREATE_LAMBDA: {
         if (!IsExperimentalInstructionEnabled(inst)) {
           UnexpectedOpcode(inst, shadow_frame);
         }
 
         PREAMBLE();
-        bool success = DoCreateLambda<do_access_check>(self, shadow_frame, inst);
+
+        if (lambda_closure_builder == nullptr) {
+          // DoCreateLambda always needs a ClosureBuilder, even if it has 0 captured variables.
+          lambda_closure_builder = MakeUnique<lambda::ClosureBuilder>();
+        }
+
+        // TODO: these allocations should not leak, and the lambda method should not be local.
+        lambda::Closure* lambda_closure =
+            reinterpret_cast<lambda::Closure*>(alloca(lambda_closure_builder->GetSize()));
+        bool success = DoCreateLambda<do_access_check>(self,
+                                                       inst,
+                                                       /*inout*/shadow_frame,
+                                                       /*inout*/lambda_closure_builder.get(),
+                                                       /*inout*/lambda_closure);
+        lambda_closure_builder.reset(nullptr);  // reset state of variables captured
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
         break;
       }
-      case Instruction::UNUSED_F4:
-      case Instruction::UNUSED_F5:
-      case Instruction::UNUSED_F7: {
+      case Instruction::LIBERATE_VARIABLE: {
+        if (!IsExperimentalInstructionEnabled(inst)) {
+          UnexpectedOpcode(inst, shadow_frame);
+        }
+
+        PREAMBLE();
+        bool success = DoLiberateVariable<do_access_check>(self,
+                                                           inst,
+                                                           lambda_captured_variable_index,
+                                                           /*inout*/shadow_frame);
+        // Temporarily only allow sequences of 'liberate-variable, liberate-variable, ...'
+        lambda_captured_variable_index++;
+        POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
+        break;
+      }
+      case Instruction::UNUSED_F4: {
         if (!IsExperimentalInstructionEnabled(inst)) {
           UnexpectedOpcode(inst, shadow_frame);
         }

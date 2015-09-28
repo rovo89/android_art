@@ -263,10 +263,10 @@
   V(0xF2, IGET_SHORT_QUICK, "iget-short-quick", k22c, true, kIndexFieldOffset, kContinue | kThrow | kLoad | kRegCFieldOrConstant, kVerifyRegA | kVerifyRegB | kVerifyRuntimeOnly) \
   V(0xF3, INVOKE_LAMBDA, "invoke-lambda", k25x, false, kIndexNone, kContinue | kThrow | kInvoke | kExperimental, kVerifyRegC /*TODO: | kVerifyVarArg*/) \
   V(0xF4, UNUSED_F4, "unused-f4", k10x, false, kIndexUnknown, 0, kVerifyError) \
-  V(0xF5, UNUSED_F5, "unused-f5", k10x, false, kIndexUnknown, 0, kVerifyError) \
+  V(0xF5, CAPTURE_VARIABLE, "capture-variable", k21c, false, kIndexStringRef, kExperimental, kVerifyRegA | kVerifyRegBString) \
   /* TODO(iam): get rid of the unused 'false' column */ \
   V(0xF6, CREATE_LAMBDA, "create-lambda", k21c, false_UNUSED, kIndexMethodRef, kContinue | kThrow | kExperimental, kVerifyRegA | kVerifyRegBMethod) \
-  V(0xF7, UNUSED_F7, "unused-f7", k10x, false, kIndexUnknown, 0, kVerifyError) \
+  V(0xF7, LIBERATE_VARIABLE, "liberate-variable", k22c, false, kIndexStringRef, kExperimental, kVerifyRegA | kVerifyRegB | kVerifyRegCString) \
   V(0xF8, BOX_LAMBDA, "box-lambda", k22x, true, kIndexNone, kContinue | kExperimental, kVerifyRegA | kVerifyRegB) \
   V(0xF9, UNBOX_LAMBDA, "unbox-lambda", k22c, true, kIndexTypeRef, kContinue | kThrow | kExperimental, kVerifyRegA | kVerifyRegB | kVerifyRegCType) \
   V(0xFA, UNUSED_FA, "unused-fa", k10x, false, kIndexUnknown, 0, kVerifyError) \
