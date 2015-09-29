@@ -326,12 +326,7 @@ class CodeGeneratorARM64 : public CodeGenerator {
   }
 
   void Initialize() OVERRIDE {
-    HGraph* graph = GetGraph();
-    int length = graph->GetBlocks().size();
-    block_labels_ = graph->GetArena()->AllocArray<vixl::Label>(length);
-    for (int i = 0; i < length; ++i) {
-      new(block_labels_ + i) vixl::Label();
-    }
+    block_labels_ = CommonInitializeLabels<vixl::Label>();
   }
 
   void Finalize(CodeAllocator* allocator) OVERRIDE;
@@ -400,7 +395,7 @@ class CodeGeneratorARM64 : public CodeGenerator {
   };
 
   // Labels for each block that will be compiled.
-  vixl::Label* block_labels_;
+  vixl::Label* block_labels_;  // Indexed by block id.
   vixl::Label frame_entry_label_;
 
   LocationsBuilderARM64 location_builder_;
