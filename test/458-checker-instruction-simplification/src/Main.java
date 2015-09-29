@@ -84,6 +84,172 @@ public class Main {
     return arg & -1;
   }
 
+  /// CHECK-START: int Main.UShr28And15(int) instruction_simplifier (before)
+  /// CHECK-DAG:     <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:     <<Const28:i\d+>>  IntConstant 28
+  /// CHECK-DAG:     <<Const15:i\d+>>  IntConstant 15
+  /// CHECK-DAG:     <<UShr:i\d+>>     UShr [<<Arg>>,<<Const28>>]
+  /// CHECK-DAG:     <<And:i\d+>>      And [<<UShr>>,<<Const15>>]
+  /// CHECK-DAG:                       Return [<<And>>]
+
+  /// CHECK-START: int Main.UShr28And15(int) instruction_simplifier (after)
+  /// CHECK-DAG:     <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:     <<Const28:i\d+>>  IntConstant 28
+  /// CHECK-DAG:     <<UShr:i\d+>>     UShr [<<Arg>>,<<Const28>>]
+  /// CHECK-DAG:                       Return [<<UShr>>]
+
+  /// CHECK-START: int Main.UShr28And15(int) instruction_simplifier (after)
+  /// CHECK-NOT:                       And
+
+  public static int UShr28And15(int arg) {
+    return (arg >>> 28) & 15;
+  }
+
+  /// CHECK-START: long Main.UShr60And15(long) instruction_simplifier (before)
+  /// CHECK-DAG:     <<Arg:j\d+>>      ParameterValue
+  /// CHECK-DAG:     <<Const60:i\d+>>  IntConstant 60
+  /// CHECK-DAG:     <<Const15:j\d+>>  LongConstant 15
+  /// CHECK-DAG:     <<UShr:j\d+>>     UShr [<<Arg>>,<<Const60>>]
+  /// CHECK-DAG:     <<And:j\d+>>      And [<<UShr>>,<<Const15>>]
+  /// CHECK-DAG:                       Return [<<And>>]
+
+  /// CHECK-START: long Main.UShr60And15(long) instruction_simplifier (after)
+  /// CHECK-DAG:     <<Arg:j\d+>>      ParameterValue
+  /// CHECK-DAG:     <<Const60:i\d+>>  IntConstant 60
+  /// CHECK-DAG:     <<UShr:j\d+>>     UShr [<<Arg>>,<<Const60>>]
+  /// CHECK-DAG:                       Return [<<UShr>>]
+
+  /// CHECK-START: long Main.UShr60And15(long) instruction_simplifier (after)
+  /// CHECK-NOT:                       And
+
+  public static long UShr60And15(long arg) {
+    return (arg >>> 60) & 15;
+  }
+
+  /// CHECK-START: int Main.UShr28And7(int) instruction_simplifier (before)
+  /// CHECK-DAG:     <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:     <<Const28:i\d+>>  IntConstant 28
+  /// CHECK-DAG:     <<Const7:i\d+>>   IntConstant 7
+  /// CHECK-DAG:     <<UShr:i\d+>>     UShr [<<Arg>>,<<Const28>>]
+  /// CHECK-DAG:     <<And:i\d+>>      And [<<UShr>>,<<Const7>>]
+  /// CHECK-DAG:                       Return [<<And>>]
+
+  /// CHECK-START: int Main.UShr28And7(int) instruction_simplifier (after)
+  /// CHECK-DAG:     <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:     <<Const28:i\d+>>  IntConstant 28
+  /// CHECK-DAG:     <<Const7:i\d+>>   IntConstant 7
+  /// CHECK-DAG:     <<UShr:i\d+>>     UShr [<<Arg>>,<<Const28>>]
+  /// CHECK-DAG:     <<And:i\d+>>      And [<<UShr>>,<<Const7>>]
+  /// CHECK-DAG:                       Return [<<And>>]
+
+  public static int UShr28And7(int arg) {
+    return (arg >>> 28) & 7;
+  }
+
+  /// CHECK-START: long Main.UShr60And7(long) instruction_simplifier (before)
+  /// CHECK-DAG:     <<Arg:j\d+>>      ParameterValue
+  /// CHECK-DAG:     <<Const60:i\d+>>  IntConstant 60
+  /// CHECK-DAG:     <<Const7:j\d+>>   LongConstant 7
+  /// CHECK-DAG:     <<UShr:j\d+>>     UShr [<<Arg>>,<<Const60>>]
+  /// CHECK-DAG:     <<And:j\d+>>      And [<<UShr>>,<<Const7>>]
+  /// CHECK-DAG:                       Return [<<And>>]
+
+  /// CHECK-START: long Main.UShr60And7(long) instruction_simplifier (after)
+  /// CHECK-DAG:     <<Arg:j\d+>>      ParameterValue
+  /// CHECK-DAG:     <<Const60:i\d+>>  IntConstant 60
+  /// CHECK-DAG:     <<Const7:j\d+>>   LongConstant 7
+  /// CHECK-DAG:     <<UShr:j\d+>>     UShr [<<Arg>>,<<Const60>>]
+  /// CHECK-DAG:     <<And:j\d+>>      And [<<UShr>>,<<Const7>>]
+  /// CHECK-DAG:                       Return [<<And>>]
+
+  public static long UShr60And7(long arg) {
+    return (arg >>> 60) & 7;
+  }
+
+  /// CHECK-START: int Main.Shr24And255(int) instruction_simplifier (before)
+  /// CHECK-DAG:     <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:     <<Const24:i\d+>>  IntConstant 24
+  /// CHECK-DAG:     <<Const255:i\d+>> IntConstant 255
+  /// CHECK-DAG:     <<Shr:i\d+>>      Shr [<<Arg>>,<<Const24>>]
+  /// CHECK-DAG:     <<And:i\d+>>      And [<<Shr>>,<<Const255>>]
+  /// CHECK-DAG:                       Return [<<And>>]
+
+  /// CHECK-START: int Main.Shr24And255(int) instruction_simplifier (after)
+  /// CHECK-DAG:     <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:     <<Const24:i\d+>>  IntConstant 24
+  /// CHECK-DAG:     <<UShr:i\d+>>     UShr [<<Arg>>,<<Const24>>]
+  /// CHECK-DAG:                       Return [<<UShr>>]
+
+  /// CHECK-START: int Main.Shr24And255(int) instruction_simplifier (after)
+  /// CHECK-NOT:                       Shr
+  /// CHECK-NOT:                       And
+
+  public static int Shr24And255(int arg) {
+    return (arg >> 24) & 255;
+  }
+
+  /// CHECK-START: long Main.Shr56And255(long) instruction_simplifier (before)
+  /// CHECK-DAG:     <<Arg:j\d+>>      ParameterValue
+  /// CHECK-DAG:     <<Const56:i\d+>>  IntConstant 56
+  /// CHECK-DAG:     <<Const255:j\d+>> LongConstant 255
+  /// CHECK-DAG:     <<Shr:j\d+>>      Shr [<<Arg>>,<<Const56>>]
+  /// CHECK-DAG:     <<And:j\d+>>      And [<<Shr>>,<<Const255>>]
+  /// CHECK-DAG:                       Return [<<And>>]
+
+  /// CHECK-START: long Main.Shr56And255(long) instruction_simplifier (after)
+  /// CHECK-DAG:     <<Arg:j\d+>>      ParameterValue
+  /// CHECK-DAG:     <<Const56:i\d+>>  IntConstant 56
+  /// CHECK-DAG:     <<UShr:j\d+>>     UShr [<<Arg>>,<<Const56>>]
+  /// CHECK-DAG:                       Return [<<UShr>>]
+
+  /// CHECK-START: long Main.Shr56And255(long) instruction_simplifier (after)
+  /// CHECK-NOT:                       Shr
+  /// CHECK-NOT:                       And
+
+  public static long Shr56And255(long arg) {
+    return (arg >> 56) & 255;
+  }
+
+  /// CHECK-START: int Main.Shr24And127(int) instruction_simplifier (before)
+  /// CHECK-DAG:     <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:     <<Const24:i\d+>>  IntConstant 24
+  /// CHECK-DAG:     <<Const127:i\d+>> IntConstant 127
+  /// CHECK-DAG:     <<Shr:i\d+>>      Shr [<<Arg>>,<<Const24>>]
+  /// CHECK-DAG:     <<And:i\d+>>      And [<<Shr>>,<<Const127>>]
+  /// CHECK-DAG:                       Return [<<And>>]
+
+  /// CHECK-START: int Main.Shr24And127(int) instruction_simplifier (after)
+  /// CHECK-DAG:     <<Arg:i\d+>>      ParameterValue
+  /// CHECK-DAG:     <<Const24:i\d+>>  IntConstant 24
+  /// CHECK-DAG:     <<Const127:i\d+>> IntConstant 127
+  /// CHECK-DAG:     <<Shr:i\d+>>      Shr [<<Arg>>,<<Const24>>]
+  /// CHECK-DAG:     <<And:i\d+>>      And [<<Shr>>,<<Const127>>]
+  /// CHECK-DAG:                       Return [<<And>>]
+
+  public static int Shr24And127(int arg) {
+    return (arg >> 24) & 127;
+  }
+
+  /// CHECK-START: long Main.Shr56And127(long) instruction_simplifier (before)
+  /// CHECK-DAG:     <<Arg:j\d+>>      ParameterValue
+  /// CHECK-DAG:     <<Const56:i\d+>>  IntConstant 56
+  /// CHECK-DAG:     <<Const127:j\d+>> LongConstant 127
+  /// CHECK-DAG:     <<Shr:j\d+>>      Shr [<<Arg>>,<<Const56>>]
+  /// CHECK-DAG:     <<And:j\d+>>      And [<<Shr>>,<<Const127>>]
+  /// CHECK-DAG:                       Return [<<And>>]
+
+  /// CHECK-START: long Main.Shr56And127(long) instruction_simplifier (after)
+  /// CHECK-DAG:     <<Arg:j\d+>>      ParameterValue
+  /// CHECK-DAG:     <<Const56:i\d+>>  IntConstant 56
+  /// CHECK-DAG:     <<Const127:j\d+>> LongConstant 127
+  /// CHECK-DAG:     <<Shr:j\d+>>      Shr [<<Arg>>,<<Const56>>]
+  /// CHECK-DAG:     <<And:j\d+>>      And [<<Shr>>,<<Const127>>]
+  /// CHECK-DAG:                       Return [<<And>>]
+
+  public static long Shr56And127(long arg) {
+    return (arg >> 56) & 127;
+  }
+
   /// CHECK-START: long Main.Div1(long) instruction_simplifier (before)
   /// CHECK-DAG:     <<Arg:j\d+>>     ParameterValue
   /// CHECK-DAG:     <<Const1:j\d+>>  LongConstant 1
@@ -1109,5 +1275,13 @@ public class Main {
     assertFloatEquals(DivMP25(100.0f), -400.0f);
     assertDoubleEquals(DivMP25(150.0), -600.0);
     assertLongEquals(Shl1(100), 200);
+    assertIntEquals(UShr28And15(0xc1234567), 0xc);
+    assertLongEquals(UShr60And15(0xc123456787654321L), 0xcL);
+    assertIntEquals(UShr28And7(0xc1234567), 0x4);
+    assertLongEquals(UShr60And7(0xc123456787654321L), 0x4L);
+    assertIntEquals(Shr24And255(0xc1234567), 0xc1);
+    assertLongEquals(Shr56And255(0xc123456787654321L), 0xc1L);
+    assertIntEquals(Shr24And127(0xc1234567), 0x41);
+    assertLongEquals(Shr56And127(0xc123456787654321L), 0x41L);
   }
 }
