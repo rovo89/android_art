@@ -16,3 +16,8 @@ loader null false
 JNI_OnLoad called
 JNI_OnUnload called
 null
+1
+2
+JNI_OnLoad called
+class null false test
+JNI_OnUnload called

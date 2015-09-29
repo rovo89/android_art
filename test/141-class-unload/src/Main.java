@@ -39,6 +39,8 @@ public class Main {
             testNoUnloadInstance(constructor);
             // Test JNI_OnLoad and JNI_OnUnload.
             testLoadAndUnloadLibrary(constructor);
+            // Test that stack traces keep the classes live.
+            testStackTrace(constructor);
             // Stress test to make sure we dont leak memory.
             stressTest(constructor);
         } catch (Exception e) {
@@ -73,6 +75,16 @@ public class Main {
       Runtime.getRuntime().gc();
       // If the weak reference is cleared, then it was unloaded.
       System.out.println(loader.get());
+    }
+
+    private static void testStackTrace(Constructor constructor) throws Exception {
+        WeakReference<Class> klass = setUpUnloadClass(constructor);
+        Method stackTraceMethod = klass.get().getDeclaredMethod("generateStackTrace");
+        Throwable throwable = (Throwable) stackTraceMethod.invoke(klass.get());
+        stackTraceMethod = null;
+        Runtime.getRuntime().gc();
+        boolean isNull = klass.get() == null;
+        System.out.println("class null " + isNull + " " + throwable.getMessage());
     }
 
     private static void testLoadAndUnloadLibrary(Constructor constructor) throws Exception {

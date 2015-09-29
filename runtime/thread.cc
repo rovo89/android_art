@@ -1966,15 +1966,32 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
         pointer_size_(Runtime::Current()->GetClassLinker()->GetImagePointerSize()) {}
 
   bool Init(int depth) SHARED_REQUIRES(Locks::mutator_lock_) ACQUIRE(Roles::uninterruptible_) {
-    // Allocate method trace with format [method pointers][pcs].
-    auto* cl = Runtime::Current()->GetClassLinker();
-    trace_ = cl->AllocPointerArray(self_, depth * 2);
-    const char* last_no_suspend_cause =
-        self_->StartAssertNoThreadSuspension("Building internal stack trace");
-    if (trace_ == nullptr) {
+    // Allocate method trace as an object array where the first element is a pointer array that
+    // contains the ArtMethod pointers and dex PCs. The rest of the elements are the declaring
+    // class of the ArtMethod pointers.
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    StackHandleScope<1> hs(self_);
+    mirror::Class* array_class = class_linker->GetClassRoot(ClassLinker::kObjectArrayClass);
+    // The first element is the methods and dex pc array, the other elements are declaring classes
+    // for the methods to ensure classes in the stack trace don't get unloaded.
+    Handle<mirror::ObjectArray<mirror::Object>> trace(
+        hs.NewHandle(
+            mirror::ObjectArray<mirror::Object>::Alloc(hs.Self(), array_class, depth + 1)));
+    if (trace.Get() == nullptr) {
+      // Acquire uninterruptible_ in all paths.
+      self_->StartAssertNoThreadSuspension("Building internal stack trace");
       self_->AssertPendingOOMException();
       return false;
     }
+    mirror::PointerArray* methods_and_pcs = class_linker->AllocPointerArray(self_, depth * 2);
+    const char* last_no_suspend_cause =
+        self_->StartAssertNoThreadSuspension("Building internal stack trace");
+    if (methods_and_pcs == nullptr) {
+      self_->AssertPendingOOMException();
+      return false;
+    }
+    trace->Set(0, methods_and_pcs);
+    trace_ = trace.Get();
     // If We are called from native, use non-transactional mode.
     CHECK(last_no_suspend_cause == nullptr) << last_no_suspend_cause;
     return true;
@@ -1996,16 +2013,24 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
     if (m->IsRuntimeMethod()) {
       return true;  // Ignore runtime frames (in particular callee save).
     }
-    trace_->SetElementPtrSize<kTransactionActive>(
-        count_, m, pointer_size_);
-    trace_->SetElementPtrSize<kTransactionActive>(
-        trace_->GetLength() / 2 + count_, m->IsProxyMethod() ? DexFile::kDexNoIndex : GetDexPc(),
-            pointer_size_);
+    mirror::PointerArray* trace_methods_and_pcs = GetTraceMethodsAndPCs();
+    trace_methods_and_pcs->SetElementPtrSize<kTransactionActive>(count_, m, pointer_size_);
+    trace_methods_and_pcs->SetElementPtrSize<kTransactionActive>(
+        trace_methods_and_pcs->GetLength() / 2 + count_,
+        m->IsProxyMethod() ? DexFile::kDexNoIndex : GetDexPc(),
+        pointer_size_);
+    // Save the declaring class of the method to ensure that the declaring classes of the methods
+    // do not get unloaded while the stack trace is live.
+    trace_->Set(count_ + 1, m->GetDeclaringClass());
     ++count_;
     return true;
   }
 
-  mirror::PointerArray* GetInternalStackTrace() const {
+  mirror::PointerArray* GetTraceMethodsAndPCs() const SHARED_REQUIRES(Locks::mutator_lock_) {
+    return down_cast<mirror::PointerArray*>(trace_->Get(0));
+  }
+
+  mirror::ObjectArray<mirror::Object>* GetInternalStackTrace() const {
     return trace_;
   }
 
@@ -2015,8 +2040,11 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
   int32_t skip_depth_;
   // Current position down stack trace.
   uint32_t count_;
-  // An array of the methods on the stack, the last entries are the dex PCs.
-  mirror::PointerArray* trace_;
+  // An object array where the first element is a pointer array that contains the ArtMethod
+  // pointers on the stack and dex PCs. The rest of the elements are the declaring
+  // class of the ArtMethod pointers. trace_[i+1] contains the declaring class of the ArtMethod of
+  // the i'th frame.
+  mirror::ObjectArray<mirror::Object>* trace_;
   // For cross compilation.
   const size_t pointer_size_;
 
@@ -2039,11 +2067,12 @@ jobject Thread::CreateInternalStackTrace(const ScopedObjectAccessAlreadyRunnable
     return nullptr;  // Allocation failed.
   }
   build_trace_visitor.WalkStack();
-  mirror::PointerArray* trace = build_trace_visitor.GetInternalStackTrace();
+  mirror::ObjectArray<mirror::Object>* trace = build_trace_visitor.GetInternalStackTrace();
   if (kIsDebugBuild) {
-    // Second half is dex PCs.
-    for (uint32_t i = 0; i < static_cast<uint32_t>(trace->GetLength() / 2); ++i) {
-      auto* method = trace->GetElementPtrSize<ArtMethod*>(
+    mirror::PointerArray* trace_methods = build_trace_visitor.GetTraceMethodsAndPCs();
+    // Second half of trace_methods is dex PCs.
+    for (uint32_t i = 0; i < static_cast<uint32_t>(trace_methods->GetLength() / 2); ++i) {
+      auto* method = trace_methods->GetElementPtrSize<ArtMethod*>(
           i, Runtime::Current()->GetClassLinker()->GetImagePointerSize());
       CHECK(method != nullptr);
     }
@@ -2062,12 +2091,16 @@ bool Thread::IsExceptionThrownByCurrentMethod(mirror::Throwable* exception) cons
 }
 
 jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
-    const ScopedObjectAccessAlreadyRunnable& soa, jobject internal, jobjectArray output_array,
+    const ScopedObjectAccessAlreadyRunnable& soa,
+    jobject internal,
+    jobjectArray output_array,
     int* stack_depth) {
-  // Decode the internal stack trace into the depth, method trace and PC trace
-  int32_t depth = soa.Decode<mirror::PointerArray*>(internal)->GetLength() / 2;
+  // Decode the internal stack trace into the depth, method trace and PC trace.
+  // Subtract one for the methods and PC trace.
+  int32_t depth = soa.Decode<mirror::Array*>(internal)->GetLength() - 1;
+  DCHECK_GE(depth, 0);
 
-  auto* cl = Runtime::Current()->GetClassLinker();
+  ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
 
   jobjectArray result;
 
@@ -2081,7 +2114,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
   } else {
     // Create java_trace array and place in local reference table
     mirror::ObjectArray<mirror::StackTraceElement>* java_traces =
-        cl->AllocStackTraceElementArray(soa.Self(), depth);
+        class_linker->AllocStackTraceElementArray(soa.Self(), depth);
     if (java_traces == nullptr) {
       return nullptr;
     }
@@ -2093,7 +2126,12 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
   }
 
   for (int32_t i = 0; i < depth; ++i) {
-    auto* method_trace = soa.Decode<mirror::PointerArray*>(internal);
+    mirror::ObjectArray<mirror::Object>* decoded_traces =
+        soa.Decode<mirror::Object*>(internal)->AsObjectArray<mirror::Object>();
+    // Methods and dex PC trace is element 0.
+    DCHECK(decoded_traces->Get(0)->IsIntArray() || decoded_traces->Get(0)->IsLongArray());
+    mirror::PointerArray* const method_trace =
+        down_cast<mirror::PointerArray*>(decoded_traces->Get(0));
     // Prepare parameters for StackTraceElement(String cls, String method, String file, int line)
     ArtMethod* method = method_trace->GetElementPtrSize<ArtMethod*>(i, sizeof(void*));
     uint32_t dex_pc = method_trace->GetElementPtrSize<uint32_t>(
