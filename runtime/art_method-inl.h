@@ -35,6 +35,8 @@
 #include "quick/quick_method_frame_info.h"
 #include "read_barrier-inl.h"
 #include "runtime-inl.h"
+#include "scoped_thread_state_change.h"
+#include "thread-inl.h"
 #include "utils.h"
 
 namespace art {
@@ -76,8 +78,11 @@ inline bool ArtMethod::CASDeclaringClass(mirror::Class* expected_class,
 }
 
 inline uint32_t ArtMethod::GetAccessFlags() {
-  DCHECK(IsRuntimeMethod() || GetDeclaringClass()->IsIdxLoaded() ||
-         GetDeclaringClass()->IsErroneous());
+  if (kIsDebugBuild) {
+    ScopedObjectAccess soa(Thread::Current());
+    CHECK(IsRuntimeMethod() || GetDeclaringClass()->IsIdxLoaded() ||
+          GetDeclaringClass()->IsErroneous());
+  }
   return access_flags_;
 }
 
