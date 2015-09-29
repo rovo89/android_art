@@ -93,6 +93,8 @@ enum ArenaAllocKind {
   kArenaAllocBaselineMaps,
   kArenaAllocOptimization,
   kArenaAllocGvn,
+  kArenaAllocInductionVarAnalysis,
+  kArenaAllocBoundsCheckElimination,
   kArenaAllocSsaLiveness,
   kArenaAllocSsaPhiElimination,
   kArenaAllocReferenceTypePropagation,

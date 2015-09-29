@@ -187,7 +187,8 @@ void RegisterAllocator::AllocateRegistersInternal() {
   }
 
   number_of_registers_ = codegen_->GetNumberOfCoreRegisters();
-  registers_array_ = allocator_->AllocArray<size_t>(number_of_registers_);
+  registers_array_ = allocator_->AllocArray<size_t>(number_of_registers_,
+                                                    kArenaAllocRegisterAllocator);
   processing_core_registers_ = true;
   unhandled_ = &unhandled_core_intervals_;
   for (LiveInterval* fixed : physical_core_register_intervals_) {
@@ -206,7 +207,8 @@ void RegisterAllocator::AllocateRegistersInternal() {
   handled_.clear();
 
   number_of_registers_ = codegen_->GetNumberOfFloatingPointRegisters();
-  registers_array_ = allocator_->AllocArray<size_t>(number_of_registers_);
+  registers_array_ = allocator_->AllocArray<size_t>(number_of_registers_,
+                                                    kArenaAllocRegisterAllocator);
   processing_core_registers_ = false;
   unhandled_ = &unhandled_fp_intervals_;
   for (LiveInterval* fixed : physical_fp_register_intervals_) {

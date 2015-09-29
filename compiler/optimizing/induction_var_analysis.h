@@ -78,7 +78,7 @@ class HInductionVarAnalysis : public HOptimization {
    *   (4) periodic
    *         nop: a, then defined by b (repeated when exhausted)
    */
-  struct InductionInfo : public ArenaObject<kArenaAllocMisc> {
+  struct InductionInfo : public ArenaObject<kArenaAllocInductionVarAnalysis> {
     InductionInfo(InductionClass ic,
                   InductionOp op,
                   InductionInfo* a,

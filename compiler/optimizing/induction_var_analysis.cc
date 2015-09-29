@@ -74,11 +74,14 @@ static void RotateEntryPhiFirst(HLoopInformation* loop,
 HInductionVarAnalysis::HInductionVarAnalysis(HGraph* graph)
     : HOptimization(graph, kInductionPassName),
       global_depth_(0),
-      stack_(graph->GetArena()->Adapter()),
-      scc_(graph->GetArena()->Adapter()),
-      map_(std::less<HInstruction*>(), graph->GetArena()->Adapter()),
-      cycle_(std::less<HInstruction*>(), graph->GetArena()->Adapter()),
-      induction_(std::less<HLoopInformation*>(), graph->GetArena()->Adapter()) {
+      stack_(graph->GetArena()->Adapter(kArenaAllocInductionVarAnalysis)),
+      scc_(graph->GetArena()->Adapter(kArenaAllocInductionVarAnalysis)),
+      map_(std::less<HInstruction*>(),
+           graph->GetArena()->Adapter(kArenaAllocInductionVarAnalysis)),
+      cycle_(std::less<HInstruction*>(),
+             graph->GetArena()->Adapter(kArenaAllocInductionVarAnalysis)),
+      induction_(std::less<HLoopInformation*>(),
+                 graph->GetArena()->Adapter(kArenaAllocInductionVarAnalysis)) {
 }
 
 void HInductionVarAnalysis::Run() {
@@ -228,7 +231,7 @@ void HInductionVarAnalysis::ClassifyNonTrivial(HLoopInformation* loop) {
 
   // Rotate proper entry-phi to front.
   if (size > 1) {
-    ArenaVector<HInstruction*> other(graph_->GetArena()->Adapter());
+    ArenaVector<HInstruction*> other(graph_->GetArena()->Adapter(kArenaAllocInductionVarAnalysis));
     RotateEntryPhiFirst(loop, &scc_, &other);
   }
 
@@ -637,7 +640,8 @@ void HInductionVarAnalysis::AssignInfo(HLoopInformation* loop,
   if (it == induction_.end()) {
     it = induction_.Put(loop,
                         ArenaSafeMap<HInstruction*, InductionInfo*>(
-                            std::less<HInstruction*>(), graph_->GetArena()->Adapter()));
+                            std::less<HInstruction*>(),
+                            graph_->GetArena()->Adapter(kArenaAllocInductionVarAnalysis)));
   }
   it->second.Put(instruction, info);
 }
