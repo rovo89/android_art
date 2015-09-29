@@ -253,10 +253,16 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
         continue;
       }
 
+      // We only do this on the target. We still want deterministic inlining on the host.
+      constexpr bool kInliningMustBeDeterministic = !kIsTargetBuild;
+
       if (current->CanThrow()) {
         VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
                        << " could not be inlined because " << current->DebugName()
                        << " can throw";
+        if (!kInliningMustBeDeterministic) {
+          resolved_method->SetShouldNotInline();
+        }
         return false;
       }
 
@@ -264,6 +270,9 @@ bool HInliner::TryBuildAndInline(ArtMethod* resolved_method,
         VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
                        << " could not be inlined because " << current->DebugName()
                        << " needs an environment";
+        if (!kInliningMustBeDeterministic) {
+          resolved_method->SetShouldNotInline();
+        }
         return false;
       }
 
