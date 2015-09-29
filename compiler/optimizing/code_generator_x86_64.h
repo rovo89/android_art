@@ -70,6 +70,35 @@ class InvokeDexCallingConvention : public CallingConvention<Register, FloatRegis
   DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConvention);
 };
 
+class FieldAccessCallingConventionX86_64 : public FieldAccessCallingConvention {
+ public:
+  FieldAccessCallingConventionX86_64() {}
+
+  Location GetObjectLocation() const OVERRIDE {
+    return Location::RegisterLocation(RSI);
+  }
+  Location GetFieldIndexLocation() const OVERRIDE {
+    return Location::RegisterLocation(RDI);
+  }
+  Location GetReturnLocation(Primitive::Type type ATTRIBUTE_UNUSED) const OVERRIDE {
+    return Location::RegisterLocation(RAX);
+  }
+  Location GetSetValueLocation(Primitive::Type type, bool is_instance) const OVERRIDE {
+    return Primitive::Is64BitType(type)
+        ? Location::RegisterLocation(RDX)
+        : (is_instance
+            ? Location::RegisterLocation(RDX)
+            : Location::RegisterLocation(RSI));
+  }
+  Location GetFpuLocation(Primitive::Type type ATTRIBUTE_UNUSED) const OVERRIDE {
+    return Location::FpuRegisterLocation(XMM0);
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FieldAccessCallingConventionX86_64);
+};
+
+
 class InvokeDexCallingConventionVisitorX86_64 : public InvokeDexCallingConventionVisitor {
  public:
   InvokeDexCallingConventionVisitorX86_64() {}
@@ -215,6 +244,9 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   void Bind(HBasicBlock* block) OVERRIDE;
   void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
   void MoveConstant(Location destination, int32_t value) OVERRIDE;
+  void MoveLocation(Location dst, Location src, Primitive::Type dst_type) OVERRIDE;
+  void AddLocationAsTemp(Location location, LocationSummary* locations) OVERRIDE;
+
   size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
   size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
   size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;

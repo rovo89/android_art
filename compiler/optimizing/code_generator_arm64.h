@@ -18,6 +18,7 @@
 #define ART_COMPILER_OPTIMIZING_CODE_GENERATOR_ARM64_H_
 
 #include "code_generator.h"
+#include "common_arm64.h"
 #include "dex/compiler_enums.h"
 #include "driver/compiler_options.h"
 #include "nodes.h"
@@ -139,6 +140,34 @@ class InvokeDexCallingConventionVisitorARM64 : public InvokeDexCallingConvention
   InvokeDexCallingConvention calling_convention;
 
   DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitorARM64);
+};
+
+class FieldAccessCallingConventionARM64 : public FieldAccessCallingConvention {
+ public:
+  FieldAccessCallingConventionARM64() {}
+
+  Location GetObjectLocation() const OVERRIDE {
+    return helpers::LocationFrom(vixl::x1);
+  }
+  Location GetFieldIndexLocation() const OVERRIDE {
+    return helpers::LocationFrom(vixl::x0);
+  }
+  Location GetReturnLocation(Primitive::Type type ATTRIBUTE_UNUSED) const OVERRIDE {
+    return helpers::LocationFrom(vixl::x0);
+  }
+  Location GetSetValueLocation(Primitive::Type type, bool is_instance) const OVERRIDE {
+    return Primitive::Is64BitType(type)
+        ? helpers::LocationFrom(vixl::x2)
+        : (is_instance
+            ? helpers::LocationFrom(vixl::x2)
+            : helpers::LocationFrom(vixl::x1));
+  }
+  Location GetFpuLocation(Primitive::Type type ATTRIBUTE_UNUSED) const OVERRIDE {
+    return helpers::LocationFrom(vixl::d0);
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FieldAccessCallingConventionARM64);
 };
 
 class InstructionCodeGeneratorARM64 : public HGraphVisitor {
@@ -334,10 +363,9 @@ class CodeGeneratorARM64 : public CodeGenerator {
   // Code generation helpers.
   void MoveConstant(vixl::CPURegister destination, HConstant* constant);
   void MoveConstant(Location destination, int32_t value) OVERRIDE;
-  // The type is optional. When specified it must be coherent with the
-  // locations, and is used for optimisation and debugging.
-  void MoveLocation(Location destination, Location source,
-                    Primitive::Type type = Primitive::kPrimVoid);
+  void MoveLocation(Location dst, Location src, Primitive::Type dst_type) OVERRIDE;
+  void AddLocationAsTemp(Location location, LocationSummary* locations) OVERRIDE;
+
   void Load(Primitive::Type type, vixl::CPURegister dst, const vixl::MemOperand& src);
   void Store(Primitive::Type type, vixl::CPURegister rt, const vixl::MemOperand& dst);
   void LoadAcquire(HInstruction* instruction, vixl::CPURegister dst, const vixl::MemOperand& src);

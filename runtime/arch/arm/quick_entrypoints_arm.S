@@ -839,13 +839,12 @@ TWO_ARG_REF_DOWNCALL art_quick_set32_static, artSet32StaticFromCode, RETURN_IF_R
 TWO_ARG_REF_DOWNCALL art_quick_set_obj_static, artSetObjStaticFromCode, RETURN_IF_RESULT_IS_ZERO_OR_DELIVER
     /*
      * Called by managed code to resolve a static field and store a 64-bit primitive value.
-     * On entry r0 holds field index, r1:r2 hold new_val
+     * On entry r0 holds field index, r2:r3 hold new_val
      */
     .extern artSet64StaticFromCode
 ENTRY art_quick_set64_static
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME r3, r12   @ save callee saves in case of GC
-    mov    r3, r2                        @ pass one half of wide argument
-    mov    r2, r1                        @ pass other half of wide argument
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME r1, r12   @ save callee saves in case of GC
+                                         @ r2:r3 contain the wide argument
     ldr    r1, [sp, #FRAME_SIZE_REFS_ONLY_CALLEE_SAVE]  @ pass referrer
     str    r9, [sp, #-16]!               @ expand the frame and pass Thread::Current
     .cfi_adjust_cfa_offset 16
@@ -870,6 +869,7 @@ THREE_ARG_REF_DOWNCALL art_quick_set_obj_instance, artSetObjInstanceFromCode, RE
     .extern artSet64InstanceFromCode
 ENTRY art_quick_set64_instance
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME r12, lr  @ save callee saves in case of GC
+                                         @ r2:r3 contain the wide argument
     ldr    r12, [sp, #FRAME_SIZE_REFS_ONLY_CALLEE_SAVE]  @ pass referrer
     str    r9, [sp, #-12]!               @ expand the frame and pass Thread::Current
     .cfi_adjust_cfa_offset 12
