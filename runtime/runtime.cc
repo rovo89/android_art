@@ -1790,6 +1790,9 @@ bool Runtime::IsVerificationSoftFail() const {
 }
 
 LinearAlloc* Runtime::CreateLinearAlloc() {
+  // For 64 bit compilers, it needs to be in low 4GB in the case where we are cross compiling for a
+  // 32 bit target. In this case, we have 32 bit pointers in the dex cache arrays which can't hold
+  // when we have 64 bit ArtMethod pointers.
   return (IsAotCompiler() && Is64BitInstructionSet(kRuntimeISA))
       ? new LinearAlloc(low_4gb_arena_pool_.get())
       : new LinearAlloc(arena_pool_.get());

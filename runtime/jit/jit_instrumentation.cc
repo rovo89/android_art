@@ -115,30 +115,8 @@ void JitInstrumentationListener::InvokeVirtualOrInterface(Thread* thread,
   }
 }
 
-class WaitForCompilationToFinishTask FINAL : public Task {
- public:
-  WaitForCompilationToFinishTask() : barrier_(0) {}
-
-  void Wait(Thread* self) {
-    barrier_.Increment(self, 1);
-  }
-
-  void Run(Thread* self ATTRIBUTE_UNUSED) OVERRIDE {}
-
-  void Finalize() OVERRIDE {
-    // Do this in Finalize since Finalize is called after Run by the thread pool.
-    barrier_.Pass(Thread::Current());
-  }
-
- private:
-  Barrier barrier_;
-  DISALLOW_COPY_AND_ASSIGN(WaitForCompilationToFinishTask);
-};
-
 void JitInstrumentationCache::WaitForCompilationToFinish(Thread* self) {
-  std::unique_ptr<WaitForCompilationToFinishTask> task(new WaitForCompilationToFinishTask);
-  thread_pool_->AddTask(self, task.get());
-  task->Wait(self);
+  thread_pool_->Wait(self, false, false);
 }
 
 }  // namespace jit
