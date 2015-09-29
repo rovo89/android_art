@@ -99,6 +99,9 @@ enum ArenaAllocKind {
   kArenaAllocPrimitiveTypePropagation,
   kArenaAllocSideEffectsAnalysis,
   kArenaAllocRegisterAllocator,
+  kArenaAllocStackMapStream,
+  kArenaAllocCodeGenerator,
+  kArenaAllocParallelMoveResolver,
   kNumArenaAllocKinds
 };
 

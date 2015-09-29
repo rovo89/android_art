@@ -89,6 +89,9 @@ const char* const ArenaAllocatorStatsImpl<kCount>::kAllocNames[] = {
   "PrimTypeProp ",
   "SideEffects  ",
   "RegAllocator ",
+  "StackMapStm  ",
+  "CodeGen      ",
+  "ParallelMove ",
 };
 
 template <bool kCount>
