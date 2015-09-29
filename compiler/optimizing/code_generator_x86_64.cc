@@ -620,7 +620,7 @@ CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph,
                                           arraysize(kFpuCalleeSaves)),
                       compiler_options,
                       stats),
-        block_labels_(graph->GetArena(), 0),
+        block_labels_(nullptr),
         location_builder_(graph, this),
         instruction_visitor_(graph, this),
         move_resolver_(graph->GetArena(), this),
@@ -4373,7 +4373,8 @@ X86_64Assembler* ParallelMoveResolverX86_64::GetAssembler() const {
 }
 
 void ParallelMoveResolverX86_64::EmitMove(size_t index) {
-  MoveOperands* move = moves_.Get(index);
+  DCHECK_LT(index, moves_.size());
+  MoveOperands* move = moves_[index];
   Location source = move->GetSource();
   Location destination = move->GetDestination();
 
@@ -4531,7 +4532,8 @@ void ParallelMoveResolverX86_64::Exchange64(XmmRegister reg, int mem) {
 }
 
 void ParallelMoveResolverX86_64::EmitSwap(size_t index) {
-  MoveOperands* move = moves_.Get(index);
+  DCHECK_LT(index, moves_.size());
+  MoveOperands* move = moves_[index];
   Location source = move->GetSource();
   Location destination = move->GetDestination();
 

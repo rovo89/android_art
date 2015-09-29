@@ -17,8 +17,8 @@
 #ifndef ART_COMPILER_OPTIMIZING_PARALLEL_MOVE_RESOLVER_H_
 #define ART_COMPILER_OPTIMIZING_PARALLEL_MOVE_RESOLVER_H_
 
+#include "base/arena_containers.h"
 #include "base/value_object.h"
-#include "utils/growable_array.h"
 #include "locations.h"
 #include "primitive.h"
 
@@ -31,7 +31,10 @@ class MoveOperands;
 // have their own subclass that implements corresponding virtual functions.
 class ParallelMoveResolver : public ValueObject {
  public:
-  explicit ParallelMoveResolver(ArenaAllocator* allocator) : moves_(allocator, 32) {}
+  explicit ParallelMoveResolver(ArenaAllocator* allocator)
+      : moves_(allocator->Adapter(kArenaAllocParallelMoveResolver)) {
+    moves_.reserve(32);
+  }
   virtual ~ParallelMoveResolver() {}
 
   // Resolve a set of parallel moves, emitting assembler instructions.
@@ -41,7 +44,7 @@ class ParallelMoveResolver : public ValueObject {
   // Build the initial list of moves.
   void BuildInitialMoveList(HParallelMove* parallel_move);
 
-  GrowableArray<MoveOperands*> moves_;
+  ArenaVector<MoveOperands*> moves_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(ParallelMoveResolver);
@@ -120,8 +123,13 @@ class ParallelMoveResolverWithSwap : public ParallelMoveResolver {
 class ParallelMoveResolverNoSwap : public ParallelMoveResolver {
  public:
   explicit ParallelMoveResolverNoSwap(ArenaAllocator* allocator)
-      : ParallelMoveResolver(allocator), scratches_(allocator, 32),
-        pending_moves_(allocator, 8), allocator_(allocator) {}
+      : ParallelMoveResolver(allocator),
+        scratches_(allocator->Adapter(kArenaAllocParallelMoveResolver)),
+        pending_moves_(allocator->Adapter(kArenaAllocParallelMoveResolver)),
+        allocator_(allocator) {
+    scratches_.reserve(32);
+    pending_moves_.reserve(8);
+  }
   virtual ~ParallelMoveResolverNoSwap() {}
 
   // Resolve a set of parallel moves, emitting assembler instructions.
@@ -160,7 +168,7 @@ class ParallelMoveResolverNoSwap : public ParallelMoveResolver {
   void RemoveScratchLocation(Location loc);
 
   // List of scratch locations.
-  GrowableArray<Location> scratches_;
+  ArenaVector<Location> scratches_;
 
  private:
   // Perform the move at the given index in `moves_` (possibly requiring other moves to satisfy
@@ -183,7 +191,7 @@ class ParallelMoveResolverNoSwap : public ParallelMoveResolver {
   size_t GetNumberOfPendingMoves();
 
   // Additional pending moves which might be added to resolve dependency cycle.
-  GrowableArray<MoveOperands*> pending_moves_;
+  ArenaVector<MoveOperands*> pending_moves_;
 
   // Used to allocate pending MoveOperands.
   ArenaAllocator* const allocator_;

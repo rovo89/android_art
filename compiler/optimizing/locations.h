@@ -22,7 +22,6 @@
 #include "base/bit_field.h"
 #include "base/bit_vector.h"
 #include "base/value_object.h"
-#include "utils/growable_array.h"
 
 namespace art {
 

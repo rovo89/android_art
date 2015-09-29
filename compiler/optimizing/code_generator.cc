@@ -203,13 +203,13 @@ class DisassemblyScope {
 
 void CodeGenerator::GenerateSlowPaths() {
   size_t code_start = 0;
-  for (size_t i = 0, e = slow_paths_.Size(); i < e; ++i) {
+  for (SlowPathCode* slow_path : slow_paths_) {
     if (disasm_info_ != nullptr) {
       code_start = GetAssembler()->CodeSize();
     }
-    slow_paths_.Get(i)->EmitNativeCode(this);
+    slow_path->EmitNativeCode(this);
     if (disasm_info_ != nullptr) {
-      disasm_info_->AddSlowPathInterval(slow_paths_.Get(i), code_start, GetAssembler()->CodeSize());
+      disasm_info_->AddSlowPathInterval(slow_path, code_start, GetAssembler()->CodeSize());
     }
   }
 }

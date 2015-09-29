@@ -432,7 +432,7 @@ CodeGeneratorARM::CodeGeneratorARM(HGraph* graph,
                                         arraysize(kFpuCalleeSaves)),
                     compiler_options,
                     stats),
-      block_labels_(graph->GetArena(), 0),
+      block_labels_(nullptr),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetArena(), this),
@@ -459,8 +459,8 @@ void CodeGeneratorARM::Finalize(CodeAllocator* allocator) {
   for (HBasicBlock* block : *block_order_) {
     // Get the label directly from block_labels_ rather than through GetLabelOf() to avoid
     // FirstNonEmptyBlock() which could lead to adjusting a label more than once.
-    DCHECK_LT(static_cast<size_t>(block->GetBlockId()), block_labels_.Size());
-    Label* block_label = &block_labels_.GetRawStorage()[block->GetBlockId()];
+    DCHECK_LT(block->GetBlockId(), GetGraph()->GetBlocks().size());
+    Label* block_label = &block_labels_[block->GetBlockId()];
     DCHECK_EQ(block_label->IsBound(), !block->IsSingleJump());
     if (block_label->IsBound()) {
       __ AdjustLabelPosition(block_label);
@@ -4034,7 +4034,8 @@ ArmAssembler* ParallelMoveResolverARM::GetAssembler() const {
 }
 
 void ParallelMoveResolverARM::EmitMove(size_t index) {
-  MoveOperands* move = moves_.Get(index);
+  DCHECK_LT(index, moves_.size());
+  MoveOperands* move = moves_[index];
   Location source = move->GetSource();
   Location destination = move->GetDestination();
 
@@ -4166,7 +4167,8 @@ void ParallelMoveResolverARM::Exchange(int mem1, int mem2) {
 }
 
 void ParallelMoveResolverARM::EmitSwap(size_t index) {
-  MoveOperands* move = moves_.Get(index);
+  DCHECK_LT(index, moves_.size());
+  MoveOperands* move = moves_[index];
   Location source = move->GetSource();
   Location destination = move->GetDestination();
 

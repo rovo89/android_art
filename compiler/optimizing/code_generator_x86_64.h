@@ -286,11 +286,11 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   void Move(Location destination, Location source);
 
   Label* GetLabelOf(HBasicBlock* block) const {
-    return CommonGetLabelOf<Label>(block_labels_.GetRawStorage(), block);
+    return CommonGetLabelOf<Label>(block_labels_, block);
   }
 
   void Initialize() OVERRIDE {
-    block_labels_.SetSize(GetGraph()->GetBlocks().size());
+    block_labels_ = CommonInitializeLabels<Label>();
   }
 
   bool NeedsTwoRegisters(Primitive::Type type ATTRIBUTE_UNUSED) const OVERRIDE {
@@ -334,7 +334,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   };
 
   // Labels for each block that will be compiled.
-  GrowableArray<Label> block_labels_;
+  Label* block_labels_;  // Indexed by block id.
   Label frame_entry_label_;
   LocationsBuilderX86_64 location_builder_;
   InstructionCodeGeneratorX86_64 instruction_visitor_;

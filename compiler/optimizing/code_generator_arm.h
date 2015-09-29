@@ -299,11 +299,11 @@ class CodeGeneratorARM : public CodeGenerator {
   void MarkGCCard(Register temp, Register card, Register object, Register value, bool can_be_null);
 
   Label* GetLabelOf(HBasicBlock* block) const {
-    return CommonGetLabelOf<Label>(block_labels_.GetRawStorage(), block);
+    return CommonGetLabelOf<Label>(block_labels_, block);
   }
 
   void Initialize() OVERRIDE {
-    block_labels_.SetSize(GetGraph()->GetBlocks().size());
+    block_labels_ = CommonInitializeLabels<Label>();
   }
 
   void Finalize(CodeAllocator* allocator) OVERRIDE;
@@ -335,7 +335,7 @@ class CodeGeneratorARM : public CodeGenerator {
   Literal* DeduplicateMethodCodeLiteral(MethodReference target_method);
 
   // Labels for each block that will be compiled.
-  GrowableArray<Label> block_labels_;
+  Label* block_labels_;  // Indexed by block id.
   Label frame_entry_label_;
   LocationsBuilderARM location_builder_;
   InstructionCodeGeneratorARM instruction_visitor_;

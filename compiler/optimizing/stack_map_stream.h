@@ -24,7 +24,6 @@
 #include "memory_region.h"
 #include "nodes.h"
 #include "stack_map.h"
-#include "utils/growable_array.h"
 
 namespace art {
 
@@ -62,15 +61,16 @@ class StackMapStream : public ValueObject {
  public:
   explicit StackMapStream(ArenaAllocator* allocator)
       : allocator_(allocator),
-        stack_maps_(allocator, 10),
-        location_catalog_entries_(allocator, 4),
-        dex_register_locations_(allocator, 10 * 4),
-        inline_infos_(allocator, 2),
+        stack_maps_(allocator->Adapter(kArenaAllocStackMapStream)),
+        location_catalog_entries_(allocator->Adapter(kArenaAllocStackMapStream)),
+        dex_register_locations_(allocator->Adapter(kArenaAllocStackMapStream)),
+        inline_infos_(allocator->Adapter(kArenaAllocStackMapStream)),
         stack_mask_max_(-1),
         dex_pc_max_(0),
         register_mask_max_(0),
         number_of_stack_maps_with_inline_info_(0),
-        dex_map_hash_to_stack_map_indices_(std::less<uint32_t>(), allocator->Adapter()),
+        dex_map_hash_to_stack_map_indices_(std::less<uint32_t>(),
+                                           allocator->Adapter(kArenaAllocStackMapStream)),
         current_entry_(),
         current_inline_info_(),
         stack_mask_size_(0),
@@ -84,7 +84,12 @@ class StackMapStream : public ValueObject {
         inline_infos_start_(0),
         needed_size_(0),
         current_dex_register_(0),
-        in_inline_frame_(false) {}
+        in_inline_frame_(false) {
+    stack_maps_.reserve(10);
+    location_catalog_entries_.reserve(4);
+    dex_register_locations_.reserve(10 * 4);
+    inline_infos_.reserve(2);
+  }
 
   // See runtime/stack_map.h to know what these fields contain.
   struct StackMapEntry {
@@ -127,17 +132,17 @@ class StackMapStream : public ValueObject {
   void EndInlineInfoEntry();
 
   size_t GetNumberOfStackMaps() const {
-    return stack_maps_.Size();
+    return stack_maps_.size();
   }
 
   const StackMapEntry& GetStackMap(size_t i) const {
-    DCHECK_LT(i, stack_maps_.Size());
-    return stack_maps_.GetRawStorage()[i];
+    DCHECK_LT(i, stack_maps_.size());
+    return stack_maps_[i];
   }
 
   void SetStackMapNativePcOffset(size_t i, uint32_t native_pc_offset) {
-    DCHECK_LT(i, stack_maps_.Size());
-    stack_maps_.GetRawStorage()[i].native_pc_offset = native_pc_offset;
+    DCHECK_LT(i, stack_maps_.size());
+    stack_maps_[i].native_pc_offset = native_pc_offset;
   }
 
   uint32_t ComputeMaxNativePcOffset() const;
@@ -150,7 +155,7 @@ class StackMapStream : public ValueObject {
  private:
   size_t ComputeDexRegisterLocationCatalogSize() const;
   size_t ComputeDexRegisterMapSize(uint32_t num_dex_registers,
-                                   const BitVector& live_dex_registers_mask) const;
+                                   const BitVector* live_dex_registers_mask) const;
   size_t ComputeDexRegisterMapsSize() const;
   size_t ComputeInlineInfoSize() const;
 
@@ -164,10 +169,10 @@ class StackMapStream : public ValueObject {
                             uint32_t start_index_in_dex_register_locations) const;
 
   ArenaAllocator* allocator_;
-  GrowableArray<StackMapEntry> stack_maps_;
+  ArenaVector<StackMapEntry> stack_maps_;
 
   // A catalog of unique [location_kind, register_value] pairs (per method).
-  GrowableArray<DexRegisterLocation> location_catalog_entries_;
+  ArenaVector<DexRegisterLocation> location_catalog_entries_;
   // Map from Dex register location catalog entries to their indices in the
   // location catalog.
   typedef HashMap<DexRegisterLocation, size_t, LocationCatalogEntriesIndicesEmptyFn,
@@ -175,14 +180,14 @@ class StackMapStream : public ValueObject {
   LocationCatalogEntriesIndices location_catalog_entries_indices_;
 
   // A set of concatenated maps of Dex register locations indices to `location_catalog_entries_`.
-  GrowableArray<size_t> dex_register_locations_;
-  GrowableArray<InlineInfoEntry> inline_infos_;
+  ArenaVector<size_t> dex_register_locations_;
+  ArenaVector<InlineInfoEntry> inline_infos_;
   int stack_mask_max_;
   uint32_t dex_pc_max_;
   uint32_t register_mask_max_;
   size_t number_of_stack_maps_with_inline_info_;
 
-  ArenaSafeMap<uint32_t, GrowableArray<uint32_t>> dex_map_hash_to_stack_map_indices_;
+  ArenaSafeMap<uint32_t, ArenaVector<uint32_t>> dex_map_hash_to_stack_map_indices_;
 
   StackMapEntry current_entry_;
   InlineInfoEntry current_inline_info_;

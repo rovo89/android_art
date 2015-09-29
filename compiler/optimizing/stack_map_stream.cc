@@ -30,8 +30,8 @@ void StackMapStream::BeginStackMapEntry(uint32_t dex_pc,
   current_entry_.sp_mask = sp_mask;
   current_entry_.num_dex_registers = num_dex_registers;
   current_entry_.inlining_depth = inlining_depth;
-  current_entry_.dex_register_locations_start_index = dex_register_locations_.Size();
-  current_entry_.inline_infos_start_index = inline_infos_.Size();
+  current_entry_.dex_register_locations_start_index = dex_register_locations_.size();
+  current_entry_.inline_infos_start_index = inline_infos_.size();
   current_entry_.dex_register_map_hash = 0;
   current_entry_.same_dex_register_map_as_ = kNoSameDexMapFound;
   if (num_dex_registers != 0) {
@@ -55,7 +55,7 @@ void StackMapStream::BeginStackMapEntry(uint32_t dex_pc,
 
 void StackMapStream::EndStackMapEntry() {
   current_entry_.same_dex_register_map_as_ = FindEntryWithTheSameDexMap();
-  stack_maps_.Add(current_entry_);
+  stack_maps_.push_back(current_entry_);
   current_entry_ = StackMapEntry();
 }
 
@@ -73,12 +73,12 @@ void StackMapStream::AddDexRegisterEntry(DexRegisterLocation::Kind kind, int32_t
     auto it = location_catalog_entries_indices_.Find(location);
     if (it != location_catalog_entries_indices_.end()) {
       // Retrieve the index from the hash map.
-      dex_register_locations_.Add(it->second);
+      dex_register_locations_.push_back(it->second);
     } else {
       // Create a new entry in the location catalog and the hash map.
-      size_t index = location_catalog_entries_.Size();
-      location_catalog_entries_.Add(location);
-      dex_register_locations_.Add(index);
+      size_t index = location_catalog_entries_.size();
+      location_catalog_entries_.push_back(location);
+      dex_register_locations_.push_back(index);
       location_catalog_entries_indices_.Insert(std::make_pair(location, index));
     }
 
@@ -108,7 +108,7 @@ void StackMapStream::BeginInlineInfoEntry(uint32_t method_index,
   current_inline_info_.dex_pc = dex_pc;
   current_inline_info_.invoke_type = invoke_type;
   current_inline_info_.num_dex_registers = num_dex_registers;
-  current_inline_info_.dex_register_locations_start_index = dex_register_locations_.Size();
+  current_inline_info_.dex_register_locations_start_index = dex_register_locations_.size();
   if (num_dex_registers != 0) {
     current_inline_info_.live_dex_registers_mask =
         new (allocator_) ArenaBitVector(allocator_, num_dex_registers, true);
@@ -123,14 +123,14 @@ void StackMapStream::EndInlineInfoEntry() {
   DCHECK_EQ(current_dex_register_, current_inline_info_.num_dex_registers)
       << "Inline information contains less registers than expected";
   in_inline_frame_ = false;
-  inline_infos_.Add(current_inline_info_);
+  inline_infos_.push_back(current_inline_info_);
   current_inline_info_ = InlineInfoEntry();
 }
 
 uint32_t StackMapStream::ComputeMaxNativePcOffset() const {
   uint32_t max_native_pc_offset = 0u;
-  for (size_t i = 0, size = stack_maps_.Size(); i != size; ++i) {
-    max_native_pc_offset = std::max(max_native_pc_offset, stack_maps_.Get(i).native_pc_offset);
+  for (const StackMapEntry& entry : stack_maps_) {
+    max_native_pc_offset = std::max(max_native_pc_offset, entry.native_pc_offset);
   }
   return max_native_pc_offset;
 }
@@ -147,7 +147,7 @@ size_t StackMapStream::PrepareForFillIn() {
                                                           dex_pc_max_,
                                                           max_native_pc_offset,
                                                           register_mask_max_);
-  stack_maps_size_ = stack_maps_.Size() * stack_map_encoding_.ComputeStackMapSize();
+  stack_maps_size_ = stack_maps_.size() * stack_map_encoding_.ComputeStackMapSize();
   dex_register_location_catalog_size_ = ComputeDexRegisterLocationCatalogSize();
 
   // Note: use RoundUp to word-size here if you want CodeInfo objects to be word aligned.
@@ -170,33 +170,28 @@ size_t StackMapStream::PrepareForFillIn() {
 
 size_t StackMapStream::ComputeDexRegisterLocationCatalogSize() const {
   size_t size = DexRegisterLocationCatalog::kFixedSize;
-  for (size_t location_catalog_entry_index = 0;
-       location_catalog_entry_index < location_catalog_entries_.Size();
-       ++location_catalog_entry_index) {
-    DexRegisterLocation dex_register_location =
-        location_catalog_entries_.Get(location_catalog_entry_index);
+  for (const DexRegisterLocation& dex_register_location : location_catalog_entries_) {
     size += DexRegisterLocationCatalog::EntrySize(dex_register_location);
   }
   return size;
 }
 
 size_t StackMapStream::ComputeDexRegisterMapSize(uint32_t num_dex_registers,
-                                                 const BitVector& live_dex_registers_mask) const {
+                                                 const BitVector* live_dex_registers_mask) const {
+  // For num_dex_registers == 0u live_dex_registers_mask may be null.
+  if (num_dex_registers == 0u) {
+    return 0u;  // No register map will be emitted.
+  }
+  DCHECK(live_dex_registers_mask != nullptr);
+
   // Size of the map in bytes.
   size_t size = DexRegisterMap::kFixedSize;
   // Add the live bit mask for the Dex register liveness.
   size += DexRegisterMap::GetLiveBitMaskSize(num_dex_registers);
   // Compute the size of the set of live Dex register entries.
-  size_t number_of_live_dex_registers = 0;
-  for (size_t dex_register_number = 0;
-       dex_register_number < num_dex_registers;
-       ++dex_register_number) {
-    if (live_dex_registers_mask.IsBitSet(dex_register_number)) {
-      ++number_of_live_dex_registers;
-    }
-  }
+  size_t number_of_live_dex_registers = live_dex_registers_mask->NumSetBits();
   size_t map_entries_size_in_bits =
-      DexRegisterMap::SingleEntrySizeInBits(location_catalog_entries_.Size())
+      DexRegisterMap::SingleEntrySizeInBits(location_catalog_entries_.size())
       * number_of_live_dex_registers;
   size_t map_entries_size_in_bytes =
       RoundUp(map_entries_size_in_bits, kBitsPerByte) / kBitsPerByte;
@@ -207,24 +202,24 @@ size_t StackMapStream::ComputeDexRegisterMapSize(uint32_t num_dex_registers,
 size_t StackMapStream::ComputeDexRegisterMapsSize() const {
   size_t size = 0;
   size_t inline_info_index = 0;
-  for (size_t i = 0; i < stack_maps_.Size(); ++i) {
-    StackMapEntry entry = stack_maps_.Get(i);
+  for (const StackMapEntry& entry : stack_maps_) {
     if (entry.same_dex_register_map_as_ == kNoSameDexMapFound) {
-      size += ComputeDexRegisterMapSize(entry.num_dex_registers, *entry.live_dex_registers_mask);
+      size += ComputeDexRegisterMapSize(entry.num_dex_registers, entry.live_dex_registers_mask);
     } else {
       // Entries with the same dex map will have the same offset.
     }
     for (size_t j = 0; j < entry.inlining_depth; ++j) {
-      InlineInfoEntry inline_entry = inline_infos_.Get(inline_info_index++);
+      DCHECK_LT(inline_info_index, inline_infos_.size());
+      InlineInfoEntry inline_entry = inline_infos_[inline_info_index++];
       size += ComputeDexRegisterMapSize(inline_entry.num_dex_registers,
-                                        *inline_entry.live_dex_registers_mask);
+                                        inline_entry.live_dex_registers_mask);
     }
   }
   return size;
 }
 
 size_t StackMapStream::ComputeInlineInfoSize() const {
-  return inline_infos_.Size() * InlineInfo::SingleEntrySize()
+  return inline_infos_.size() * InlineInfo::SingleEntrySize()
     // For encoding the depth.
     + (number_of_stack_maps_with_inline_info_ * InlineInfo::kFixedSize);
 }
@@ -244,19 +239,18 @@ void StackMapStream::FillIn(MemoryRegion region) {
       inline_infos_start_, inline_info_size_);
 
   code_info.SetEncoding(stack_map_encoding_);
-  code_info.SetNumberOfStackMaps(stack_maps_.Size());
+  code_info.SetNumberOfStackMaps(stack_maps_.size());
   DCHECK_EQ(code_info.GetStackMapsSize(code_info.ExtractEncoding()), stack_maps_size_);
 
   // Set the Dex register location catalog.
-  code_info.SetNumberOfLocationCatalogEntries(location_catalog_entries_.Size());
+  code_info.SetNumberOfLocationCatalogEntries(location_catalog_entries_.size());
   MemoryRegion dex_register_location_catalog_region = region.Subregion(
       dex_register_location_catalog_start_, dex_register_location_catalog_size_);
   DexRegisterLocationCatalog dex_register_location_catalog(dex_register_location_catalog_region);
   // Offset in `dex_register_location_catalog` where to store the next
   // register location.
   size_t location_catalog_offset = DexRegisterLocationCatalog::kFixedSize;
-  for (size_t i = 0, e = location_catalog_entries_.Size(); i < e; ++i) {
-    DexRegisterLocation dex_register_location = location_catalog_entries_.Get(i);
+  for (DexRegisterLocation dex_register_location : location_catalog_entries_) {
     dex_register_location_catalog.SetRegisterInfo(location_catalog_offset, dex_register_location);
     location_catalog_offset += DexRegisterLocationCatalog::EntrySize(dex_register_location);
   }
@@ -265,9 +259,9 @@ void StackMapStream::FillIn(MemoryRegion region) {
 
   uintptr_t next_dex_register_map_offset = 0;
   uintptr_t next_inline_info_offset = 0;
-  for (size_t i = 0, e = stack_maps_.Size(); i < e; ++i) {
+  for (size_t i = 0, e = stack_maps_.size(); i < e; ++i) {
     StackMap stack_map = code_info.GetStackMapAt(i, stack_map_encoding_);
-    StackMapEntry entry = stack_maps_.Get(i);
+    StackMapEntry entry = stack_maps_[i];
 
     stack_map.SetDexPc(stack_map_encoding_, entry.dex_pc);
     stack_map.SetNativePcOffset(stack_map_encoding_, entry.native_pc_offset);
@@ -291,7 +285,7 @@ void StackMapStream::FillIn(MemoryRegion region) {
         // New dex registers maps should be added to the stack map.
         MemoryRegion register_region = dex_register_locations_region.Subregion(
             next_dex_register_map_offset,
-            ComputeDexRegisterMapSize(entry.num_dex_registers, *entry.live_dex_registers_mask));
+            ComputeDexRegisterMapSize(entry.num_dex_registers, entry.live_dex_registers_mask));
         next_dex_register_map_offset += register_region.size();
         DexRegisterMap dex_register_map(register_region);
         stack_map.SetDexRegisterMapOffset(
@@ -318,8 +312,9 @@ void StackMapStream::FillIn(MemoryRegion region) {
           stack_map_encoding_, inline_region.start() - dex_register_locations_region.start());
 
       inline_info.SetDepth(entry.inlining_depth);
+      DCHECK_LE(entry.inline_infos_start_index + entry.inlining_depth, inline_infos_.size());
       for (size_t depth = 0; depth < entry.inlining_depth; ++depth) {
-        InlineInfoEntry inline_entry = inline_infos_.Get(depth + entry.inline_infos_start_index);
+        InlineInfoEntry inline_entry = inline_infos_[depth + entry.inline_infos_start_index];
         inline_info.SetMethodIndexAtDepth(depth, inline_entry.method_index);
         inline_info.SetDexPcAtDepth(depth, inline_entry.dex_pc);
         inline_info.SetInvokeTypeAtDepth(depth, inline_entry.invoke_type);
@@ -331,7 +326,7 @@ void StackMapStream::FillIn(MemoryRegion region) {
           MemoryRegion register_region = dex_register_locations_region.Subregion(
               next_dex_register_map_offset,
               ComputeDexRegisterMapSize(inline_entry.num_dex_registers,
-                                        *inline_entry.live_dex_registers_mask));
+                                        inline_entry.live_dex_registers_mask));
           next_dex_register_map_offset += register_region.size();
           DexRegisterMap dex_register_map(register_region);
           inline_info.SetDexRegisterMapOffsetAtDepth(
@@ -357,42 +352,43 @@ void StackMapStream::FillInDexRegisterMap(DexRegisterMap dex_register_map,
                                           uint32_t start_index_in_dex_register_locations) const {
   dex_register_map.SetLiveBitMask(num_dex_registers, live_dex_registers_mask);
   // Set the dex register location mapping data.
-  for (size_t dex_register_number = 0, index_in_dex_register_locations = 0;
-       dex_register_number < num_dex_registers;
-       ++dex_register_number) {
-    if (live_dex_registers_mask.IsBitSet(dex_register_number)) {
-      size_t location_catalog_entry_index = dex_register_locations_.Get(
-          start_index_in_dex_register_locations + index_in_dex_register_locations);
-      dex_register_map.SetLocationCatalogEntryIndex(
-          index_in_dex_register_locations,
-          location_catalog_entry_index,
-          num_dex_registers,
-          location_catalog_entries_.Size());
-      ++index_in_dex_register_locations;
-    }
+  size_t number_of_live_dex_registers = live_dex_registers_mask.NumSetBits();
+  DCHECK_LE(number_of_live_dex_registers, dex_register_locations_.size());
+  DCHECK_LE(start_index_in_dex_register_locations,
+            dex_register_locations_.size() - number_of_live_dex_registers);
+  for (size_t index_in_dex_register_locations = 0;
+      index_in_dex_register_locations != number_of_live_dex_registers;
+       ++index_in_dex_register_locations) {
+    size_t location_catalog_entry_index = dex_register_locations_[
+        start_index_in_dex_register_locations + index_in_dex_register_locations];
+    dex_register_map.SetLocationCatalogEntryIndex(
+        index_in_dex_register_locations,
+        location_catalog_entry_index,
+        num_dex_registers,
+        location_catalog_entries_.size());
   }
 }
 
 size_t StackMapStream::FindEntryWithTheSameDexMap() {
-  size_t current_entry_index = stack_maps_.Size();
+  size_t current_entry_index = stack_maps_.size();
   auto entries_it = dex_map_hash_to_stack_map_indices_.find(current_entry_.dex_register_map_hash);
   if (entries_it == dex_map_hash_to_stack_map_indices_.end()) {
     // We don't have a perfect hash functions so we need a list to collect all stack maps
     // which might have the same dex register map.
-    GrowableArray<uint32_t> stack_map_indices(allocator_, 1);
-    stack_map_indices.Add(current_entry_index);
-    dex_map_hash_to_stack_map_indices_.Put(current_entry_.dex_register_map_hash, stack_map_indices);
+    ArenaVector<uint32_t> stack_map_indices(allocator_->Adapter(kArenaAllocStackMapStream));
+    stack_map_indices.push_back(current_entry_index);
+    dex_map_hash_to_stack_map_indices_.Put(current_entry_.dex_register_map_hash,
+                                           std::move(stack_map_indices));
     return kNoSameDexMapFound;
   }
 
   // We might have collisions, so we need to check whether or not we really have a match.
-  for (size_t i = 0; i < entries_it->second.Size(); i++) {
-    size_t test_entry_index = entries_it->second.Get(i);
-    if (HaveTheSameDexMaps(stack_maps_.Get(test_entry_index), current_entry_)) {
+  for (uint32_t test_entry_index : entries_it->second) {
+    if (HaveTheSameDexMaps(GetStackMap(test_entry_index), current_entry_)) {
       return test_entry_index;
     }
   }
-  entries_it->second.Add(current_entry_index);
+  entries_it->second.push_back(current_entry_index);
   return kNoSameDexMapFound;
 }
 
@@ -406,21 +402,22 @@ bool StackMapStream::HaveTheSameDexMaps(const StackMapEntry& a, const StackMapEn
   if (a.num_dex_registers != b.num_dex_registers) {
     return false;
   }
-
-  int index_in_dex_register_locations = 0;
-  for (uint32_t i = 0; i < a.num_dex_registers; i++) {
-    if (a.live_dex_registers_mask->IsBitSet(i) != b.live_dex_registers_mask->IsBitSet(i)) {
+  if (a.num_dex_registers != 0u) {
+    DCHECK(a.live_dex_registers_mask != nullptr);
+    DCHECK(b.live_dex_registers_mask != nullptr);
+    if (!a.live_dex_registers_mask->Equal(b.live_dex_registers_mask)) {
       return false;
     }
-    if (a.live_dex_registers_mask->IsBitSet(i)) {
-      size_t a_loc = dex_register_locations_.Get(
-          a.dex_register_locations_start_index + index_in_dex_register_locations);
-      size_t b_loc = dex_register_locations_.Get(
-          b.dex_register_locations_start_index + index_in_dex_register_locations);
-      if (a_loc != b_loc) {
-        return false;
-      }
-      ++index_in_dex_register_locations;
+    size_t number_of_live_dex_registers = a.live_dex_registers_mask->NumSetBits();
+    DCHECK_LE(number_of_live_dex_registers, dex_register_locations_.size());
+    DCHECK_LE(a.dex_register_locations_start_index,
+              dex_register_locations_.size() - number_of_live_dex_registers);
+    DCHECK_LE(b.dex_register_locations_start_index,
+              dex_register_locations_.size() - number_of_live_dex_registers);
+    auto a_begin = dex_register_locations_.begin() + a.dex_register_locations_start_index;
+    auto b_begin = dex_register_locations_.begin() + b.dex_register_locations_start_index;
+    if (!std::equal(a_begin, a_begin + number_of_live_dex_registers, b_begin)) {
+      return false;
     }
   }
   return true;

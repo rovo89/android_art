@@ -610,7 +610,8 @@ void ParallelMoveResolverARM64::FreeScratchLocation(Location loc) {
 }
 
 void ParallelMoveResolverARM64::EmitMove(size_t index) {
-  MoveOperands* move = moves_.Get(index);
+  DCHECK_LT(index, moves_.size());
+  MoveOperands* move = moves_[index];
   codegen_->MoveLocation(move->GetDestination(), move->GetSource());
 }
 
