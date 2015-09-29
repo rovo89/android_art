@@ -261,7 +261,7 @@ class CodeGenerator {
   bool IsImplicitNullCheckAllowed(HNullCheck* null_check) const;
 
   void AddSlowPath(SlowPathCode* slow_path) {
-    slow_paths_.Add(slow_path);
+    slow_paths_.push_back(slow_path);
   }
 
   void SetSrcMap(DefaultSrcMap* src_map) { src_map_ = src_map; }
@@ -441,10 +441,12 @@ class CodeGenerator {
         graph_(graph),
         compiler_options_(compiler_options),
         src_map_(nullptr),
-        slow_paths_(graph->GetArena(), 8),
+        slow_paths_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
         current_block_index_(0),
         is_leaf_(true),
-        requires_current_method_(false) {}
+        requires_current_method_(false) {
+    slow_paths_.reserve(8);
+  }
 
   // Register allocation logic.
   void AllocateRegistersLocally(HInstruction* instruction) const;
@@ -485,8 +487,20 @@ class CodeGenerator {
     return instruction_set == kX86 || instruction_set == kX86_64;
   }
 
-  // Arm64 has its own type for a label, so we need to templatize this method
+  // Arm64 has its own type for a label, so we need to templatize these methods
   // to share the logic.
+
+  template <typename LabelType>
+  LabelType* CommonInitializeLabels() {
+    size_t size = GetGraph()->GetBlocks().size();
+    LabelType* labels = GetGraph()->GetArena()->AllocArray<LabelType>(size,
+                                                                      kArenaAllocCodeGenerator);
+    for (size_t i = 0; i != size; ++i) {
+      new(labels + i) LabelType();
+    }
+    return labels;
+  }
+
   template <typename LabelType>
   LabelType* CommonGetLabelOf(LabelType* raw_pointer_to_labels_array, HBasicBlock* block) const {
     block = FirstNonEmptyBlock(block);
@@ -539,7 +553,7 @@ class CodeGenerator {
 
   // Native to dex_pc map used for native debugging/profiling tools.
   DefaultSrcMap* src_map_;
-  GrowableArray<SlowPathCode*> slow_paths_;
+  ArenaVector<SlowPathCode*> slow_paths_;
 
   // The current block index in `block_order_` of the block
   // we are generating code for.

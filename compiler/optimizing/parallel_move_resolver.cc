@@ -16,6 +16,8 @@
 #include <iostream>
 
 #include "parallel_move_resolver.h"
+
+#include "base/stl_util.h"
 #include "nodes.h"
 
 namespace art {
@@ -28,19 +30,19 @@ void ParallelMoveResolver::BuildInitialMoveList(HParallelMove* parallel_move) {
   for (size_t i = 0; i < parallel_move->NumMoves(); ++i) {
     MoveOperands* move = parallel_move->MoveOperandsAt(i);
     if (!move->IsRedundant()) {
-      moves_.Add(move);
+      moves_.push_back(move);
     }
   }
 }
 
 void ParallelMoveResolverWithSwap::EmitNativeCode(HParallelMove* parallel_move) {
-  DCHECK(moves_.IsEmpty());
+  DCHECK(moves_.empty());
   // Build up a worklist of moves.
   BuildInitialMoveList(parallel_move);
 
   // Move stack/stack slot to take advantage of a free register on constrained machines.
-  for (size_t i = 0; i < moves_.Size(); ++i) {
-    const MoveOperands& move = *moves_.Get(i);
+  for (size_t i = 0; i < moves_.size(); ++i) {
+    const MoveOperands& move = *moves_[i];
     // Ignore constants and moves already eliminated.
     if (move.IsEliminated() || move.GetSource().IsConstant()) {
       continue;
@@ -52,8 +54,8 @@ void ParallelMoveResolverWithSwap::EmitNativeCode(HParallelMove* parallel_move) 
     }
   }
 
-  for (size_t i = 0; i < moves_.Size(); ++i) {
-    const MoveOperands& move = *moves_.Get(i);
+  for (size_t i = 0; i < moves_.size(); ++i) {
+    const MoveOperands& move = *moves_[i];
     // Skip constants to perform them last.  They don't block other moves
     // and skipping such moves with register destinations keeps those
     // registers free for the whole algorithm.
@@ -63,8 +65,8 @@ void ParallelMoveResolverWithSwap::EmitNativeCode(HParallelMove* parallel_move) 
   }
 
   // Perform the moves with constant sources.
-  for (size_t i = 0; i < moves_.Size(); ++i) {
-    MoveOperands* move = moves_.Get(i);
+  for (size_t i = 0; i < moves_.size(); ++i) {
+    MoveOperands* move = moves_[i];
     if (!move->IsEliminated()) {
       DCHECK(move->GetSource().IsConstant());
       EmitMove(i);
@@ -73,7 +75,7 @@ void ParallelMoveResolverWithSwap::EmitNativeCode(HParallelMove* parallel_move) 
     }
   }
 
-  moves_.Reset();
+  moves_.clear();
 }
 
 Location LowOf(Location location) {
@@ -123,7 +125,8 @@ MoveOperands* ParallelMoveResolverWithSwap::PerformMove(size_t index) {
   // which means that a call to PerformMove could change any source operand
   // in the move graph.
 
-  MoveOperands* move = moves_.Get(index);
+  DCHECK_LT(index, moves_.size());
+  MoveOperands* move = moves_[index];
   DCHECK(!move->IsPending());
   if (move->IsRedundant()) {
     // Because we swap register pairs first, following, un-pending
@@ -143,8 +146,8 @@ MoveOperands* ParallelMoveResolverWithSwap::PerformMove(size_t index) {
   // as this one's destination blocks this one so recursively perform all
   // such moves.
   MoveOperands* required_swap = nullptr;
-  for (size_t i = 0; i < moves_.Size(); ++i) {
-    const MoveOperands& other_move = *moves_.Get(i);
+  for (size_t i = 0; i < moves_.size(); ++i) {
+    const MoveOperands& other_move = *moves_[i];
     if (other_move.Blocks(destination) && !other_move.IsPending()) {
       // Though PerformMove can change any source operand in the move graph,
       // calling `PerformMove` cannot create a blocking move via a swap
@@ -163,7 +166,7 @@ MoveOperands* ParallelMoveResolverWithSwap::PerformMove(size_t index) {
         // at the next moves. Swapping is not blocked by anything, it just
         // updates other moves's source.
         break;
-      } else if (required_swap == moves_.Get(i)) {
+      } else if (required_swap == moves_[i]) {
         // If `other_move` was swapped, we iterate again to find a new
         // potential cycle.
         required_swap = nullptr;
@@ -171,7 +174,7 @@ MoveOperands* ParallelMoveResolverWithSwap::PerformMove(size_t index) {
       } else if (required_swap != nullptr) {
         // A move is required to swap. We walk back the cycle to find the
         // move by just returning from this `PerforrmMove`.
-        moves_.Get(index)->ClearPending(destination);
+        moves_[index]->ClearPending(destination);
         return required_swap;
       }
     }
@@ -197,14 +200,13 @@ MoveOperands* ParallelMoveResolverWithSwap::PerformMove(size_t index) {
     DCHECK_EQ(required_swap, move);
     do_swap = true;
   } else {
-    for (size_t i = 0; i < moves_.Size(); ++i) {
-      const MoveOperands& other_move = *moves_.Get(i);
-      if (other_move.Blocks(destination)) {
-        DCHECK(other_move.IsPending());
-        if (!move->Is64BitMove() && other_move.Is64BitMove()) {
+    for (MoveOperands* other_move : moves_) {
+      if (other_move->Blocks(destination)) {
+        DCHECK(other_move->IsPending());
+        if (!move->Is64BitMove() && other_move->Is64BitMove()) {
           // We swap 64bits moves before swapping 32bits moves. Go back from the
           // cycle by returning the move that must be swapped.
-          return moves_.Get(i);
+          return other_move;
         }
         do_swap = true;
         break;
@@ -220,12 +222,11 @@ MoveOperands* ParallelMoveResolverWithSwap::PerformMove(size_t index) {
     Location source = move->GetSource();
     Location swap_destination = move->GetDestination();
     move->Eliminate();
-    for (size_t i = 0; i < moves_.Size(); ++i) {
-      const MoveOperands& other_move = *moves_.Get(i);
-      if (other_move.Blocks(source)) {
-        UpdateSourceOf(moves_.Get(i), source, swap_destination);
-      } else if (other_move.Blocks(swap_destination)) {
-        UpdateSourceOf(moves_.Get(i), swap_destination, source);
+    for (MoveOperands* other_move : moves_) {
+      if (other_move->Blocks(source)) {
+        UpdateSourceOf(other_move, source, swap_destination);
+      } else if (other_move->Blocks(swap_destination)) {
+        UpdateSourceOf(other_move, swap_destination, source);
       }
     }
     // If the swap was required because of a 64bits move in the middle of a cycle,
@@ -242,14 +243,14 @@ MoveOperands* ParallelMoveResolverWithSwap::PerformMove(size_t index) {
 }
 
 bool ParallelMoveResolverWithSwap::IsScratchLocation(Location loc) {
-  for (size_t i = 0; i < moves_.Size(); ++i) {
-    if (moves_.Get(i)->Blocks(loc)) {
+  for (MoveOperands* move : moves_) {
+    if (move->Blocks(loc)) {
       return false;
     }
   }
 
-  for (size_t i = 0; i < moves_.Size(); ++i) {
-    if (moves_.Get(i)->GetDestination().Equals(loc)) {
+  for (MoveOperands* move : moves_) {
+    if (move->GetDestination().Equals(loc)) {
       return true;
     }
   }
@@ -302,8 +303,8 @@ ParallelMoveResolverWithSwap::ScratchRegisterScope::~ScratchRegisterScope() {
 
 void ParallelMoveResolverNoSwap::EmitNativeCode(HParallelMove* parallel_move) {
   DCHECK_EQ(GetNumberOfPendingMoves(), 0u);
-  DCHECK(moves_.IsEmpty());
-  DCHECK(scratches_.IsEmpty());
+  DCHECK(moves_.empty());
+  DCHECK(scratches_.empty());
 
   // Backend dependent initialization.
   PrepareForEmitNativeCode();
@@ -311,8 +312,8 @@ void ParallelMoveResolverNoSwap::EmitNativeCode(HParallelMove* parallel_move) {
   // Build up a worklist of moves.
   BuildInitialMoveList(parallel_move);
 
-  for (size_t i = 0; i < moves_.Size(); ++i) {
-    const MoveOperands& move = *moves_.Get(i);
+  for (size_t i = 0; i < moves_.size(); ++i) {
+    const MoveOperands& move = *moves_[i];
     // Skip constants to perform them last. They don't block other moves and
     // skipping such moves with register destinations keeps those registers
     // free for the whole algorithm.
@@ -324,8 +325,8 @@ void ParallelMoveResolverNoSwap::EmitNativeCode(HParallelMove* parallel_move) {
   // Perform the moves with constant sources and register destinations with UpdateMoveSource()
   // to reduce the number of literal loads. Stack destinations are skipped since we won't be benefit
   // from changing the constant sources to stack locations.
-  for (size_t i = 0; i < moves_.Size(); ++i) {
-    MoveOperands* move = moves_.Get(i);
+  for (size_t i = 0; i < moves_.size(); ++i) {
+    MoveOperands* move = moves_[i];
     Location destination = move->GetDestination();
     if (!move->IsEliminated() && !destination.IsStackSlot() && !destination.IsDoubleStackSlot()) {
       Location source = move->GetSource();
@@ -344,8 +345,8 @@ void ParallelMoveResolverNoSwap::EmitNativeCode(HParallelMove* parallel_move) {
   }
 
   // Perform the rest of the moves.
-  for (size_t i = 0; i < moves_.Size(); ++i) {
-    MoveOperands* move = moves_.Get(i);
+  for (size_t i = 0; i < moves_.size(); ++i) {
+    MoveOperands* move = moves_[i];
     if (!move->IsEliminated()) {
       EmitMove(i);
       move->Eliminate();
@@ -358,19 +359,18 @@ void ParallelMoveResolverNoSwap::EmitNativeCode(HParallelMove* parallel_move) {
   // Backend dependent cleanup.
   FinishEmitNativeCode();
 
-  moves_.Reset();
-  scratches_.Reset();
+  moves_.clear();
+  scratches_.clear();
 }
 
 Location ParallelMoveResolverNoSwap::GetScratchLocation(Location::Kind kind) {
-  for (size_t i = 0; i < scratches_.Size(); ++i) {
-    Location loc = scratches_.Get(i);
+  for (Location loc : scratches_) {
     if (loc.GetKind() == kind && !IsBlockedByMoves(loc)) {
       return loc;
     }
   }
-  for (size_t i = 0; i < moves_.Size(); ++i) {
-    Location loc = moves_.Get(i)->GetDestination();
+  for (MoveOperands* move : moves_) {
+    Location loc = move->GetDestination();
     if (loc.GetKind() == kind && !IsBlockedByMoves(loc)) {
       return loc;
     }
@@ -380,18 +380,18 @@ Location ParallelMoveResolverNoSwap::GetScratchLocation(Location::Kind kind) {
 
 void ParallelMoveResolverNoSwap::AddScratchLocation(Location loc) {
   if (kIsDebugBuild) {
-    for (size_t i = 0; i < scratches_.Size(); ++i) {
-      DCHECK(!loc.Equals(scratches_.Get(i)));
+    for (Location scratch : scratches_) {
+      CHECK(!loc.Equals(scratch));
     }
   }
-  scratches_.Add(loc);
+  scratches_.push_back(loc);
 }
 
 void ParallelMoveResolverNoSwap::RemoveScratchLocation(Location loc) {
   DCHECK(!IsBlockedByMoves(loc));
-  for (size_t i = 0; i < scratches_.Size(); ++i) {
-    if (loc.Equals(scratches_.Get(i))) {
-      scratches_.DeleteAt(i);
+  for (auto it = scratches_.begin(), end = scratches_.end(); it != end; ++it) {
+    if (loc.Equals(*it)) {
+      scratches_.erase(it);
       break;
     }
   }
@@ -406,7 +406,8 @@ void ParallelMoveResolverNoSwap::PerformMove(size_t index) {
   // we will update source operand in the move graph to reduce dependencies in
   // the graph.
 
-  MoveOperands* move = moves_.Get(index);
+  DCHECK_LT(index, moves_.size());
+  MoveOperands* move = moves_[index];
   DCHECK(!move->IsPending());
   DCHECK(!move->IsEliminated());
   if (move->IsRedundant()) {
@@ -433,8 +434,8 @@ void ParallelMoveResolverNoSwap::PerformMove(size_t index) {
   // dependencies. Any unperformed, unpending move with a source the same
   // as this one's destination blocks this one so recursively perform all
   // such moves.
-  for (size_t i = 0; i < moves_.Size(); ++i) {
-    const MoveOperands& other_move = *moves_.Get(i);
+  for (size_t i = 0; i < moves_.size(); ++i) {
+    const MoveOperands& other_move = *moves_[i];
     if (other_move.Blocks(destination) && !other_move.IsPending()) {
       PerformMove(i);
     }
@@ -490,8 +491,11 @@ void ParallelMoveResolverNoSwap::PerformMove(size_t index) {
     move->Eliminate();
     UpdateMoveSource(pending_source, pending_destination);
     // Free any unblocked locations in the scratch location list.
-    for (size_t i = 0; i < scratches_.Size(); ++i) {
-      Location scratch = scratches_.Get(i);
+    // Note: Fetch size() on each iteration because scratches_ can be modified inside the loop.
+    // FIXME: If FreeScratchLocation() removes the location from scratches_,
+    // we skip the next location. This happens for arm64.
+    for (size_t i = 0; i < scratches_.size(); ++i) {
+      Location scratch = scratches_[i];
       // Only scratch overlapping with performed move source can be unblocked.
       if (scratch.OverlapsWith(pending_source) && !IsBlockedByMoves(scratch)) {
         FreeScratchLocation(pending_source);
@@ -512,8 +516,7 @@ void ParallelMoveResolverNoSwap::UpdateMoveSource(Location from, Location to) {
   // This is not something we must do, but we can use fewer scratch locations with
   // this trick. For example, we can avoid using additional scratch locations for
   // moves (0 -> 1), (1 -> 2), (1 -> 0).
-  for (size_t i = 0; i < moves_.Size(); ++i) {
-    MoveOperands* move = moves_.Get(i);
+  for (MoveOperands* move : moves_) {
     if (move->GetSource().Equals(from)) {
       move->SetSource(to);
     }
@@ -522,16 +525,15 @@ void ParallelMoveResolverNoSwap::UpdateMoveSource(Location from, Location to) {
 
 void ParallelMoveResolverNoSwap::AddPendingMove(Location source,
     Location destination, Primitive::Type type) {
-  pending_moves_.Add(new (allocator_) MoveOperands(source, destination, type, nullptr));
+  pending_moves_.push_back(new (allocator_) MoveOperands(source, destination, type, nullptr));
 }
 
 void ParallelMoveResolverNoSwap::DeletePendingMove(MoveOperands* move) {
-  pending_moves_.Delete(move);
+  RemoveElement(pending_moves_, move);
 }
 
 MoveOperands* ParallelMoveResolverNoSwap::GetUnblockedPendingMove(Location loc) {
-  for (size_t i = 0; i < pending_moves_.Size(); ++i) {
-    MoveOperands* move = pending_moves_.Get(i);
+  for (MoveOperands* move : pending_moves_) {
     Location destination = move->GetDestination();
     // Only moves with destination overlapping with input loc can be unblocked.
     if (destination.OverlapsWith(loc) && !IsBlockedByMoves(destination)) {
@@ -542,13 +544,13 @@ MoveOperands* ParallelMoveResolverNoSwap::GetUnblockedPendingMove(Location loc) 
 }
 
 bool ParallelMoveResolverNoSwap::IsBlockedByMoves(Location loc) {
-  for (size_t i = 0; i < pending_moves_.Size(); ++i) {
-    if (pending_moves_.Get(i)->Blocks(loc)) {
+  for (MoveOperands* move : pending_moves_) {
+    if (move->Blocks(loc)) {
       return true;
     }
   }
-  for (size_t i = 0; i < moves_.Size(); ++i) {
-    if (moves_.Get(i)->Blocks(loc)) {
+  for (MoveOperands* move : moves_) {
+    if (move->Blocks(loc)) {
       return true;
     }
   }
@@ -558,7 +560,7 @@ bool ParallelMoveResolverNoSwap::IsBlockedByMoves(Location loc) {
 // So far it is only used for debugging purposes to make sure all pending moves
 // have been performed.
 size_t ParallelMoveResolverNoSwap::GetNumberOfPendingMoves() {
-  return pending_moves_.Size();
+  return pending_moves_.size();
 }
 
 }  // namespace art

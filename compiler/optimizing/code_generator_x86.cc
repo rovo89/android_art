@@ -470,7 +470,7 @@ CodeGeneratorX86::CodeGeneratorX86(HGraph* graph,
                     0,
                     compiler_options,
                     stats),
-      block_labels_(graph->GetArena(), 0),
+      block_labels_(nullptr),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetArena(), this),
@@ -4630,7 +4630,8 @@ void ParallelMoveResolverX86::MoveMemoryToMemory64(int dst, int src) {
 }
 
 void ParallelMoveResolverX86::EmitMove(size_t index) {
-  MoveOperands* move = moves_.Get(index);
+  DCHECK_LT(index, moves_.size());
+  MoveOperands* move = moves_[index];
   Location source = move->GetSource();
   Location destination = move->GetDestination();
 
@@ -4782,7 +4783,8 @@ void ParallelMoveResolverX86::Exchange(int mem1, int mem2) {
 }
 
 void ParallelMoveResolverX86::EmitSwap(size_t index) {
-  MoveOperands* move = moves_.Get(index);
+  DCHECK_LT(index, moves_.size());
+  MoveOperands* move = moves_[index];
   Location source = move->GetSource();
   Location destination = move->GetDestination();
 
