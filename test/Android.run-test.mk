@@ -429,8 +429,7 @@ endif
 TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS :=
 
 # Known broken tests for the optimizing compiler.
-TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS := \
-  455-set-vreg \
+TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS :=
 
 ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
@@ -451,6 +450,7 @@ TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS :=
 # Tests that should fail when the optimizing compiler compiles them non-debuggable.
 TEST_ART_BROKEN_OPTIMIZING_NONDEBUGGABLE_RUN_TESTS := \
   454-get-vreg \
+  455-set-vreg \
   457-regs \
 
 ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
