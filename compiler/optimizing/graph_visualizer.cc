@@ -374,6 +374,11 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
         << instance_of->MustDoNullCheck() << std::noboolalpha;
   }
 
+  void VisitArraySet(HArraySet* array_set) OVERRIDE {
+    StartAttributeStream("value_can_be_null") << std::boolalpha
+        << array_set->GetValueCanBeNull() << std::noboolalpha;
+  }
+
   void VisitInvoke(HInvoke* invoke) OVERRIDE {
     StartAttributeStream("dex_file_index") << invoke->GetDexMethodIndex();
     StartAttributeStream("method_name") << PrettyMethod(
