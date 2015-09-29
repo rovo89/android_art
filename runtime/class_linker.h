@@ -560,7 +560,7 @@ class ClassLinker {
 
  private:
   struct ClassLoaderData {
-    jobject weak_root;  // Weak root to enable class unloading.
+    jweak weak_root;  // Weak root to enable class unloading.
     ClassTable* class_table;
     LinearAlloc* allocator;
   };

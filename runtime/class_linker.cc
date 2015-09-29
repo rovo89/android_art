@@ -1500,7 +1500,7 @@ ClassLinker::~ClassLinker() {
   Thread* const self = Thread::Current();
   JavaVMExt* const vm = Runtime::Current()->GetJavaVM();
   for (const ClassLoaderData& data : class_loaders_) {
-    vm->DecodeWeakGlobalDuringShutdown(self, data.weak_root);
+    vm->DeleteWeakGlobalRef(self, data.weak_root);
     delete data.allocator;
     delete data.class_table;
   }
@@ -4186,6 +4186,8 @@ ClassTable* ClassLinker::InsertClassTableForClassLoader(mirror::ClassLoader* cla
     data.allocator = Runtime::Current()->CreateLinearAlloc();
     class_loaders_.push_back(data);
     // Don't already have a class table, add it to the class loader.
+    CHECK(class_loader->GetClassTable() == nullptr);
+    CHECK(class_loader->GetAllocator() == nullptr);
     class_loader->SetClassTable(data.class_table);
     class_loader->SetAllocator(data.allocator);
   }
