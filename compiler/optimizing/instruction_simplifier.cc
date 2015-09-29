@@ -71,7 +71,8 @@ class InstructionSimplifierVisitor : public HGraphVisitor {
   void VisitXor(HXor* instruction) OVERRIDE;
   void VisitInstanceOf(HInstanceOf* instruction) OVERRIDE;
   void VisitFakeString(HFakeString* fake_string) OVERRIDE;
-  bool IsDominatedByInputNullCheck(HInstruction* instr);
+
+  bool CanEnsureNotNullAt(HInstruction* instr, HInstruction* at) const;
 
   OptimizingCompilerStats* stats_;
   bool simplification_occurred_ = false;
@@ -187,14 +188,18 @@ void InstructionSimplifierVisitor::VisitNullCheck(HNullCheck* null_check) {
   }
 }
 
-bool InstructionSimplifierVisitor::IsDominatedByInputNullCheck(HInstruction* instr) {
-  HInstruction* input = instr->InputAt(0);
+bool InstructionSimplifierVisitor::CanEnsureNotNullAt(HInstruction* input, HInstruction* at) const {
+  if (!input->CanBeNull()) {
+    return true;
+  }
+
   for (HUseIterator<HInstruction*> it(input->GetUses()); !it.Done(); it.Advance()) {
     HInstruction* use = it.Current()->GetUser();
-    if (use->IsNullCheck() && use->StrictlyDominates(instr)) {
+    if (use->IsNullCheck() && use->StrictlyDominates(at)) {
       return true;
     }
   }
+
   return false;
 }
 
@@ -231,7 +236,7 @@ static bool TypeCheckHasKnownOutcome(HLoadClass* klass, HInstruction* object, bo
 
 void InstructionSimplifierVisitor::VisitCheckCast(HCheckCast* check_cast) {
   HInstruction* object = check_cast->InputAt(0);
-  if (!object->CanBeNull() || IsDominatedByInputNullCheck(check_cast)) {
+  if (CanEnsureNotNullAt(object, check_cast)) {
     check_cast->ClearMustDoNullCheck();
   }
 
@@ -267,7 +272,7 @@ void InstructionSimplifierVisitor::VisitCheckCast(HCheckCast* check_cast) {
 void InstructionSimplifierVisitor::VisitInstanceOf(HInstanceOf* instruction) {
   HInstruction* object = instruction->InputAt(0);
   bool can_be_null = true;
-  if (!object->CanBeNull() || IsDominatedByInputNullCheck(instruction)) {
+  if (CanEnsureNotNullAt(object, instruction)) {
     can_be_null = false;
     instruction->ClearMustDoNullCheck();
   }
@@ -305,14 +310,14 @@ void InstructionSimplifierVisitor::VisitInstanceOf(HInstanceOf* instruction) {
 
 void InstructionSimplifierVisitor::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
   if ((instruction->GetValue()->GetType() == Primitive::kPrimNot)
-      && !instruction->GetValue()->CanBeNull()) {
+      && CanEnsureNotNullAt(instruction->GetValue(), instruction)) {
     instruction->ClearValueCanBeNull();
   }
 }
 
 void InstructionSimplifierVisitor::VisitStaticFieldSet(HStaticFieldSet* instruction) {
   if ((instruction->GetValue()->GetType() == Primitive::kPrimNot)
-      && !instruction->GetValue()->CanBeNull()) {
+      && CanEnsureNotNullAt(instruction->GetValue(), instruction)) {
     instruction->ClearValueCanBeNull();
   }
 }
@@ -437,7 +442,7 @@ void InstructionSimplifierVisitor::VisitArraySet(HArraySet* instruction) {
     instruction->ClearNeedsTypeCheck();
   }
 
-  if (!value->CanBeNull()) {
+  if (CanEnsureNotNullAt(value, instruction)) {
     instruction->ClearValueCanBeNull();
   }
 }
