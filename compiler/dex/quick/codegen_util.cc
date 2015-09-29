@@ -1126,7 +1126,7 @@ CompiledMethod* Mir2Lir::GetCompiledMethod() {
     for (size_t i = 0 ; i < core_vmap_table_.size(); ++i) {
       // Copy, stripping out the phys register sort key.
       vmap_encoder.PushBackUnsigned(
-          ~(-1 << VREG_NUM_WIDTH) & (core_vmap_table_[i] + VmapTable::kEntryAdjustment));
+          ~(~0u << VREG_NUM_WIDTH) & (core_vmap_table_[i] + VmapTable::kEntryAdjustment));
     }
     // Push a marker to take place of lr.
     vmap_encoder.PushBackUnsigned(VmapTable::kAdjustedFpMarker);
@@ -1141,7 +1141,7 @@ CompiledMethod* Mir2Lir::GetCompiledMethod() {
       for (size_t i = 0 ; i < fp_vmap_table_.size(); ++i) {
         // Copy, stripping out the phys register sort key.
         vmap_encoder.PushBackUnsigned(
-            ~(-1 << VREG_NUM_WIDTH) & (fp_vmap_table_[i] + VmapTable::kEntryAdjustment));
+            ~(~0u << VREG_NUM_WIDTH) & (fp_vmap_table_[i] + VmapTable::kEntryAdjustment));
       }
     }
   } else {
