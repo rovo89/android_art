@@ -75,9 +75,7 @@ class ArtMethod FINAL {
     return MemberOffset(OFFSETOF_MEMBER(ArtMethod, declaring_class_));
   }
 
-  // Note: GetAccessFlags acquires the mutator lock in debug mode to check that it is not called for
-  // a proxy method.
-  ALWAYS_INLINE uint32_t GetAccessFlags();
+  ALWAYS_INLINE uint32_t GetAccessFlags() SHARED_REQUIRES(Locks::mutator_lock_);
 
   void SetAccessFlags(uint32_t new_access_flags) {
     // Not called within a transaction.
@@ -88,78 +86,77 @@ class ArtMethod FINAL {
   InvokeType GetInvokeType() SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Returns true if the method is declared public.
-  bool IsPublic() {
+  bool IsPublic() SHARED_REQUIRES(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccPublic) != 0;
   }
 
   // Returns true if the method is declared private.
-  bool IsPrivate() {
+  bool IsPrivate() SHARED_REQUIRES(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccPrivate) != 0;
   }
 
   // Returns true if the method is declared static.
-  bool IsStatic() {
+  bool IsStatic() SHARED_REQUIRES(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccStatic) != 0;
   }
 
   // Returns true if the method is a constructor.
-  bool IsConstructor() {
+  bool IsConstructor() SHARED_REQUIRES(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccConstructor) != 0;
   }
 
   // Returns true if the method is a class initializer.
-  bool IsClassInitializer() {
+  bool IsClassInitializer() SHARED_REQUIRES(Locks::mutator_lock_) {
     return IsConstructor() && IsStatic();
   }
 
   // Returns true if the method is static, private, or a constructor.
-  bool IsDirect() {
+  bool IsDirect() SHARED_REQUIRES(Locks::mutator_lock_) {
     return IsDirect(GetAccessFlags());
   }
 
   static bool IsDirect(uint32_t access_flags) {
-    constexpr uint32_t direct = kAccStatic | kAccPrivate | kAccConstructor;
-    return (access_flags & direct) != 0;
+    return (access_flags & (kAccStatic | kAccPrivate | kAccConstructor)) != 0;
   }
 
   // Returns true if the method is declared synchronized.
-  bool IsSynchronized() {
-    constexpr uint32_t synchonized = kAccSynchronized | kAccDeclaredSynchronized;
+  bool IsSynchronized() SHARED_REQUIRES(Locks::mutator_lock_) {
+    uint32_t synchonized = kAccSynchronized | kAccDeclaredSynchronized;
     return (GetAccessFlags() & synchonized) != 0;
   }
 
-  bool IsFinal() {
+  bool IsFinal() SHARED_REQUIRES(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccFinal) != 0;
   }
 
-  bool IsMiranda() {
+  bool IsMiranda() SHARED_REQUIRES(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccMiranda) != 0;
   }
 
-  bool IsNative() {
+  bool IsNative() SHARED_REQUIRES(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccNative) != 0;
   }
 
-  bool IsFastNative() {
-    constexpr uint32_t mask = kAccFastNative | kAccNative;
+  bool IsFastNative() SHARED_REQUIRES(Locks::mutator_lock_) {
+    uint32_t mask = kAccFastNative | kAccNative;
     return (GetAccessFlags() & mask) == mask;
   }
 
-  bool IsAbstract() {
+  bool IsAbstract() SHARED_REQUIRES(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccAbstract) != 0;
   }
 
-  bool IsSynthetic() {
+  bool IsSynthetic() SHARED_REQUIRES(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccSynthetic) != 0;
   }
 
   bool IsProxyMethod() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  bool IsPreverified() {
+  bool IsPreverified() SHARED_REQUIRES(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccPreverified) != 0;
   }
 
-  void SetPreverified() {
+  void SetPreverified() SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(!IsPreverified());
     SetAccessFlags(GetAccessFlags() | kAccPreverified);
   }
@@ -407,7 +404,7 @@ class ArtMethod FINAL {
     return GetNativePointer<void*>(EntryPointFromJniOffset(pointer_size), pointer_size);
   }
 
-  void SetEntryPointFromJni(const void* entrypoint) {
+  void SetEntryPointFromJni(const void* entrypoint) SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(IsNative());
     SetEntryPointFromJniPtrSize(entrypoint, sizeof(void*));
   }
