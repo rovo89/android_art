@@ -1989,62 +1989,27 @@ extern "C" TwoWordReturn artQuickGenericJniTrampoline(Thread* self, ArtMethod** 
                                 reinterpret_cast<uintptr_t>(nativeCode));
 }
 
+// Defined in quick_jni_entrypoints.cc.
+extern uint64_t GenericJniMethodEnd(Thread* self, uint32_t saved_local_ref_cookie,
+                                    jvalue result, uint64_t result_f, ArtMethod* called,
+                                    HandleScope* handle_scope);
 /*
  * Is called after the native JNI code. Responsible for cleanup (handle scope, saved state) and
  * unlocking.
  */
-extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self, jvalue result, uint64_t result_f)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self,
+                                                    jvalue result,
+                                                    uint64_t result_f) {
+  // We're here just back from a native call. We don't have the shared mutator lock at this point
+  // yet until we call GoToRunnable() later in GenericJniMethodEnd(). Accessing objects or doing
+  // anything that requires a mutator lock before that would cause problems as GC may have the
+  // exclusive mutator lock and may be moving objects, etc.
   ArtMethod** sp = self->GetManagedStack()->GetTopQuickFrame();
   uint32_t* sp32 = reinterpret_cast<uint32_t*>(sp);
   ArtMethod* called = *sp;
   uint32_t cookie = *(sp32 - 1);
-
-  jobject lock = nullptr;
-  if (called->IsSynchronized()) {
-    HandleScope* table = reinterpret_cast<HandleScope*>(reinterpret_cast<uint8_t*>(sp)
-        + sizeof(*sp));
-    lock = table->GetHandle(0).ToJObject();
-  }
-
-  char return_shorty_char = called->GetShorty()[0];
-
-  if (return_shorty_char == 'L') {
-    return artQuickGenericJniEndJNIRef(self, cookie, result.l, lock);
-  } else {
-    artQuickGenericJniEndJNINonRef(self, cookie, lock);
-
-    switch (return_shorty_char) {
-      case 'F': {
-        if (kRuntimeISA == kX86) {
-          // Convert back the result to float.
-          double d = bit_cast<double, uint64_t>(result_f);
-          return bit_cast<uint32_t, float>(static_cast<float>(d));
-        } else {
-          return result_f;
-        }
-      }
-      case 'D':
-        return result_f;
-      case 'Z':
-        return result.z;
-      case 'B':
-        return result.b;
-      case 'C':
-        return result.c;
-      case 'S':
-        return result.s;
-      case 'I':
-        return result.i;
-      case 'J':
-        return result.j;
-      case 'V':
-        return 0;
-      default:
-        LOG(FATAL) << "Unexpected return shorty character " << return_shorty_char;
-        return 0;
-    }
-  }
+  HandleScope* table = reinterpret_cast<HandleScope*>(reinterpret_cast<uint8_t*>(sp) + sizeof(*sp));
+  return GenericJniMethodEnd(self, cookie, result, result_f, called, table);
 }
 
 // We use TwoWordReturn to optimize scalar returns. We use the hi value for code, and the lo value
