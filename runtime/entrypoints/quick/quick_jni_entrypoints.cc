@@ -112,4 +112,61 @@ extern mirror::Object* JniMethodEndWithReferenceSynchronized(jobject result,
   return JniMethodEndWithReferenceHandleResult(result, saved_local_ref_cookie, self);
 }
 
+extern uint64_t GenericJniMethodEnd(Thread* self,
+                                    uint32_t saved_local_ref_cookie,
+                                    jvalue result,
+                                    uint64_t result_f,
+                                    ArtMethod* called,
+                                    HandleScope* handle_scope)
+    // TODO: NO_THREAD_SAFETY_ANALYSIS as GoToRunnable() is NO_THREAD_SAFETY_ANALYSIS
+    NO_THREAD_SAFETY_ANALYSIS {
+  GoToRunnable(self);
+  // We need the mutator lock (i.e., calling GoToRunnable()) before accessing the shorty or the
+  // locked object.
+  jobject locked = called->IsSynchronized() ? handle_scope->GetHandle(0).ToJObject() : nullptr;
+  char return_shorty_char = called->GetShorty()[0];
+  if (return_shorty_char == 'L') {
+    if (locked != nullptr) {
+      UnlockJniSynchronizedMethod(locked, self);
+    }
+    return reinterpret_cast<uint64_t>(JniMethodEndWithReferenceHandleResult(
+        result.l, saved_local_ref_cookie, self));
+  } else {
+    if (locked != nullptr) {
+      UnlockJniSynchronizedMethod(locked, self);  // Must decode before pop.
+    }
+    PopLocalReferences(saved_local_ref_cookie, self);
+    switch (return_shorty_char) {
+      case 'F': {
+        if (kRuntimeISA == kX86) {
+          // Convert back the result to float.
+          double d = bit_cast<double, uint64_t>(result_f);
+          return bit_cast<uint32_t, float>(static_cast<float>(d));
+        } else {
+          return result_f;
+        }
+      }
+      case 'D':
+        return result_f;
+      case 'Z':
+        return result.z;
+      case 'B':
+        return result.b;
+      case 'C':
+        return result.c;
+      case 'S':
+        return result.s;
+      case 'I':
+        return result.i;
+      case 'J':
+        return result.j;
+      case 'V':
+        return 0;
+      default:
+        LOG(FATAL) << "Unexpected return shorty character " << return_shorty_char;
+        return 0;
+    }
+  }
+}
+
 }  // namespace art
