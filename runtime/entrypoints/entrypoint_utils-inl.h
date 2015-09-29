@@ -71,6 +71,8 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
       *outer_method->GetDexFile(), method_index, dex_cache, class_loader, nullptr, invoke_type);
 }
 
+extern "C" void art_quick_instrumentation_exit();
+
 inline ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp,
                                             Runtime::CalleeSaveType type,
                                             bool do_caller_check = false)
@@ -87,14 +89,23 @@ inline ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp,
     const size_t callee_return_pc_offset = GetCalleeSaveReturnPcOffset(kRuntimeISA, type);
     uintptr_t caller_pc = *reinterpret_cast<uintptr_t*>(
         (reinterpret_cast<uint8_t*>(sp) + callee_return_pc_offset));
-    uintptr_t native_pc_offset = outer_method->NativeQuickPcOffset(caller_pc);
-    CodeInfo code_info = outer_method->GetOptimizedCodeInfo();
-    StackMapEncoding encoding = code_info.ExtractEncoding();
-    StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
-    DCHECK(stack_map.IsValid());
-    if (stack_map.HasInlineInfo(encoding)) {
-      InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map, encoding);
-      caller = GetResolvedMethod(outer_method, inline_info, inline_info.GetDepth() - 1);
+    if (LIKELY(caller_pc != reinterpret_cast<uintptr_t>(art_quick_instrumentation_exit))) {
+      uintptr_t native_pc_offset = outer_method->NativeQuickPcOffset(caller_pc);
+      CodeInfo code_info = outer_method->GetOptimizedCodeInfo();
+      StackMapEncoding encoding = code_info.ExtractEncoding();
+      StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
+      DCHECK(stack_map.IsValid());
+      if (stack_map.HasInlineInfo(encoding)) {
+        InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map, encoding);
+        caller = GetResolvedMethod(outer_method, inline_info, inline_info.GetDepth() - 1);
+      }
+    } else {
+      // We're instrumenting, just use the StackVisitor which knows how to
+      // handle instrumented frames.
+      NthCallerVisitor visitor(Thread::Current(), 1, true);
+      visitor.WalkStack();
+      caller = visitor.caller;
+      do_caller_check = false;
     }
   }
 
