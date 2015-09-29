@@ -56,6 +56,24 @@ class DeadPhiHandling : public ValueObject {
   DISALLOW_COPY_AND_ASSIGN(DeadPhiHandling);
 };
 
+static bool HasConflictingEquivalent(HPhi* phi) {
+  if (phi->GetNext() == nullptr) {
+    return false;
+  }
+  HPhi* next = phi->GetNext()->AsPhi();
+  if (next->GetRegNumber() == phi->GetRegNumber()) {
+    if (next->GetType() == Primitive::kPrimVoid) {
+      // We only get a void type for an equivalent phi we processed and found out
+      // it was conflicting.
+      return true;
+    } else {
+      // Go to the next phi, in case it is also an equivalent.
+      return HasConflictingEquivalent(next);
+    }
+  }
+  return false;
+}
+
 bool DeadPhiHandling::UpdateType(HPhi* phi) {
   if (phi->IsDead()) {
     // Phi was rendered dead while waiting in the worklist because it was replaced
@@ -87,21 +105,26 @@ bool DeadPhiHandling::UpdateType(HPhi* phi) {
     if (new_type == Primitive::kPrimVoid) {
       new_type = input_type;
     } else if (new_type == Primitive::kPrimNot && input_type == Primitive::kPrimInt) {
+      if (input->IsPhi() && HasConflictingEquivalent(input->AsPhi())) {
+        // If we already asked for an equivalent of the input phi, but that equivalent
+        // ended up conflicting, make this phi conflicting too.
+        conflict = true;
+        break;
+      }
       HInstruction* equivalent = SsaBuilder::GetReferenceTypeEquivalent(input);
       if (equivalent == nullptr) {
         conflict = true;
         break;
-      } else {
-        phi->ReplaceInput(equivalent, i);
-        if (equivalent->IsPhi()) {
-          DCHECK_EQ(equivalent->GetType(), Primitive::kPrimNot);
-          // We created a new phi, but that phi has the same inputs as the old phi. We
-          // add it to the worklist to ensure its inputs can also be converted to reference.
-          // If not, it will remain dead, and the algorithm will make the current phi dead
-          // as well.
-          equivalent->AsPhi()->SetLive();
-          AddToWorklist(equivalent->AsPhi());
-        }
+      }
+      phi->ReplaceInput(equivalent, i);
+      if (equivalent->IsPhi()) {
+        DCHECK_EQ(equivalent->GetType(), Primitive::kPrimNot);
+        // We created a new phi, but that phi has the same inputs as the old phi. We
+        // add it to the worklist to ensure its inputs can also be converted to reference.
+        // If not, it will remain dead, and the algorithm will make the current phi dead
+        // as well.
+        equivalent->AsPhi()->SetLive();
+        AddToWorklist(equivalent->AsPhi());
       }
     } else if (new_type == Primitive::kPrimInt && input_type == Primitive::kPrimNot) {
       new_type = Primitive::kPrimNot;
