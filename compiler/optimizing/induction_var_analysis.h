@@ -56,13 +56,20 @@ class HInductionVarAnalysis : public HOptimization {
   };
 
   enum InductionOp {
-    kNop,  // no-operation: a true induction
+    // No-operation: a true induction.
+    kNop,
+    // Various invariant operations.
     kAdd,
     kSub,
     kNeg,
     kMul,
     kDiv,
-    kFetch
+    kFetch,
+    // Trip counts (valid in full loop or only body proper; unsafe implies loop may be infinite).
+    kTripCountInLoop,
+    kTripCountInBody,
+    kTripCountInLoopUnsafe,
+    kTripCountInBodyUnsafe
   };
 
   /**
@@ -77,6 +84,8 @@ class HInductionVarAnalysis : public HOptimization {
    *         nop: a, then defined by b
    *   (4) periodic
    *         nop: a, then defined by b (repeated when exhausted)
+   *   (5) trip-count:
+   *         tc: defined by b
    */
   struct InductionInfo : public ArenaObject<kArenaAllocMisc> {
     InductionInfo(InductionClass ic,
@@ -108,6 +117,10 @@ class HInductionVarAnalysis : public HOptimization {
   InductionInfo* CreateInvariantFetch(HInstruction* f) {
     DCHECK(f != nullptr);
     return new (graph_->GetArena()) InductionInfo(kInvariant, kFetch, nullptr, nullptr, f);
+  }
+
+  InductionInfo* CreateTripCount(InductionOp op, InductionInfo* b) {
+    return new (graph_->GetArena()) InductionInfo(kInvariant, op, nullptr, b, nullptr);
   }
 
   InductionInfo* CreateInduction(InductionClass ic, InductionInfo* a, InductionInfo* b) {
@@ -151,12 +164,17 @@ class HInductionVarAnalysis : public HOptimization {
                       Primitive::Type type,
                       IfCondition cmp);
   void VisitTripCount(HLoopInformation* loop,
-                      InductionInfo* lo_val,
-                      InductionInfo* hi_val,
+                      InductionInfo* lower_expr,
+                      InductionInfo* upper_expr,
                       InductionInfo* stride,
-                      int32_t stride_value,
+                      int64_t stride_value,
                       Primitive::Type type,
                       IfCondition cmp);
+  bool IsTaken(InductionInfo* lower_expr, InductionInfo* upper_expr, IfCondition cmp);
+  bool IsFinite(InductionInfo* upper_expr,
+                int64_t stride_value,
+                Primitive::Type type,
+                IfCondition cmp);
 
   // Assign and lookup.
   void AssignInfo(HLoopInformation* loop, HInstruction* instruction, InductionInfo* info);
