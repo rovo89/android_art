@@ -436,17 +436,26 @@ void CommonRuntimeTest::TearDown() {
   }
 }
 
-std::vector<std::string> CommonRuntimeTest::GetLibCoreDexFileNames() {
-  return std::vector<std::string>({GetDexFileName("core-oj"), GetDexFileName("core-libart")});
-}
-
-std::string CommonRuntimeTest::GetDexFileName(const std::string& jar_prefix) {
-  if (IsHost()) {
+static std::string GetDexFileName(const std::string& jar_prefix, bool host) {
+  std::string path;
+  if (host) {
     const char* host_dir = getenv("ANDROID_HOST_OUT");
     CHECK(host_dir != nullptr);
-    return StringPrintf("%s/framework/%s-hostdex.jar", host_dir, jar_prefix.c_str());
+    path = host_dir;
+  } else {
+    path = GetAndroidRoot();
   }
-  return StringPrintf("%s/framework/%s.jar", GetAndroidRoot(), jar_prefix.c_str());
+
+  std::string suffix = host
+      ? "-hostdex"                 // The host version.
+      : "-testdex";                // The unstripped target version.
+
+  return StringPrintf("%s/framework/%s%s.jar", path.c_str(), jar_prefix.c_str(), suffix.c_str());
+}
+
+std::vector<std::string> CommonRuntimeTest::GetLibCoreDexFileNames() {
+  return std::vector<std::string>({GetDexFileName("core-oj", IsHost()),
+                                   GetDexFileName("core-libart", IsHost())});
 }
 
 std::string CommonRuntimeTest::GetTestAndroidRoot() {
