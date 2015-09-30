@@ -19,6 +19,8 @@ LOCAL_PATH := $(call my-dir)
 include art/build/Android.common_build.mk
 
 LIBARTTEST_COMMON_SRC_FILES := \
+  common/runtime_state.cc \
+  common/stack_inspect.cc \
   004-JniTest/jni_test.cc \
   004-SignalTest/signaltest.cc \
   004-ReferenceMap/stack_walk_refmap_jni.cc \
@@ -26,10 +28,7 @@ LIBARTTEST_COMMON_SRC_FILES := \
   004-UnsafeTest/unsafe_test.cc \
   044-proxy/native_proxy.cc \
   051-thread/thread_test.cc \
-  088-monitor-verification/stack_inspect.cc \
-  116-nodex2oat/nodex2oat.cc \
   117-nopatchoat/nopatchoat.cc \
-  118-noimage-dex2oat/noimage-dex2oat.cc \
   1337-gc-coverage/gc_coverage.cc \
   137-cfi/cfi.cc \
   139-register-natives/regnative.cc \

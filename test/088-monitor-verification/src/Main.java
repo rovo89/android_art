@@ -220,6 +220,11 @@ public class Main {
 
     // Smali testing code.
     private static void runSmaliTests() {
+        if (!hasOatFile() || runtimeIsSoftFail() || isCallerInterpreted()) {
+            // Skip test, this seems to be a non-compiled code test configuration.
+            return;
+        }
+
         runTest("OK", new Object[] { new Object(), new Object() }, null);
         runTest("TooDeep", new Object[] { new Object() }, null);
         runTest("NotStructuredOverUnlock", new Object[] { new Object() },
@@ -231,7 +236,6 @@ public class Main {
     }
 
     private static void runTest(String className, Object[] parameters, Class<?> excType) {
-        System.out.println(className);
         try {
             Class<?> c = Class.forName(className);
 
@@ -275,4 +279,7 @@ public class Main {
     // Helpers for the smali code.
     public static native void assertCallerIsInterpreted();
     public static native void assertCallerIsManaged();
+    public static native boolean hasOatFile();
+    public static native boolean runtimeIsSoftFail();
+    public static native boolean isCallerInterpreted();
 }
