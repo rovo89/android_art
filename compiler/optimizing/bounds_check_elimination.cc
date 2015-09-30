@@ -410,7 +410,7 @@ class ArrayAccessInsideLoopFinder : public ValueObject {
  * of an existing value range, NewArray or a loop phi corresponding to an
  * incrementing/decrementing array index (MonotonicValueRange).
  */
-class ValueRange : public ArenaObject<kArenaAllocMisc> {
+class ValueRange : public ArenaObject<kArenaAllocBoundsCheckElimination> {
  public:
   ValueRange(ArenaAllocator* allocator, ValueBound lower, ValueBound upper)
       : allocator_(allocator), lower_(lower), upper_(upper) {}
@@ -1112,7 +1112,14 @@ class BCEVisitor : public HGraphVisitor {
 
   BCEVisitor(HGraph* graph, HInductionVarAnalysis* induction_analysis)
       : HGraphVisitor(graph),
-        maps_(graph->GetBlocks().size()),
+        maps_(graph->GetBlocks().size(),
+              ArenaSafeMap<int, ValueRange*>(
+                  std::less<int>(),
+                  graph->GetArena()->Adapter(kArenaAllocBoundsCheckElimination)),
+              graph->GetArena()->Adapter(kArenaAllocBoundsCheckElimination)),
+        first_constant_index_bounds_check_map_(
+            std::less<int>(),
+            graph->GetArena()->Adapter(kArenaAllocBoundsCheckElimination)),
         need_to_revisit_block_(false),
         initial_block_size_(graph->GetBlocks().size()),
         induction_range_(induction_analysis) {}
@@ -1137,14 +1144,9 @@ class BCEVisitor : public HGraphVisitor {
       // Added blocks don't keep value ranges.
       return nullptr;
     }
-    int block_id = basic_block->GetBlockId();
-    if (maps_.at(block_id) == nullptr) {
-      std::unique_ptr<ArenaSafeMap<int, ValueRange*>> map(
-          new ArenaSafeMap<int, ValueRange*>(
-              std::less<int>(), GetGraph()->GetArena()->Adapter()));
-      maps_.at(block_id) = std::move(map);
-    }
-    return maps_.at(block_id).get();
+    uint32_t block_id = basic_block->GetBlockId();
+    DCHECK_LT(block_id, maps_.size());
+    return &maps_[block_id];
   }
 
   // Traverse up the dominator tree to look for value range info.
@@ -1842,11 +1844,11 @@ class BCEVisitor : public HGraphVisitor {
     }
   }
 
-  std::vector<std::unique_ptr<ArenaSafeMap<int, ValueRange*>>> maps_;
+  ArenaVector<ArenaSafeMap<int, ValueRange*>> maps_;
 
   // Map an HArrayLength instruction's id to the first HBoundsCheck instruction in
   // a block that checks a constant index against that HArrayLength.
-  SafeMap<int, HBoundsCheck*> first_constant_index_bounds_check_map_;
+  ArenaSafeMap<int, HBoundsCheck*> first_constant_index_bounds_check_map_;
 
   // For the block, there is at least one HArrayLength instruction for which there
   // is more than one bounds check instruction with constant indexing. And it's

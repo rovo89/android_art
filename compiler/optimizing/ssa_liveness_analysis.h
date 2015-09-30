@@ -27,7 +27,7 @@ class SsaLivenessAnalysis;
 
 static constexpr int kNoRegister = -1;
 
-class BlockInfo : public ArenaObject<kArenaAllocMisc> {
+class BlockInfo : public ArenaObject<kArenaAllocSsaLiveness> {
  public:
   BlockInfo(ArenaAllocator* allocator, const HBasicBlock& block, size_t number_of_ssa_values)
       : block_(block),
@@ -55,7 +55,7 @@ class BlockInfo : public ArenaObject<kArenaAllocMisc> {
  * A live range contains the start and end of a range where an instruction or a temporary
  * is live.
  */
-class LiveRange FINAL : public ArenaObject<kArenaAllocMisc> {
+class LiveRange FINAL : public ArenaObject<kArenaAllocSsaLiveness> {
  public:
   LiveRange(size_t start, size_t end, LiveRange* next) : start_(start), end_(end), next_(next) {
     DCHECK_LT(start, end);
@@ -101,7 +101,7 @@ class LiveRange FINAL : public ArenaObject<kArenaAllocMisc> {
 /**
  * A use position represents a live interval use at a given position.
  */
-class UsePosition : public ArenaObject<kArenaAllocMisc> {
+class UsePosition : public ArenaObject<kArenaAllocSsaLiveness> {
  public:
   UsePosition(HInstruction* user,
               HEnvironment* environment,
@@ -169,7 +169,7 @@ class UsePosition : public ArenaObject<kArenaAllocMisc> {
   DISALLOW_COPY_AND_ASSIGN(UsePosition);
 };
 
-class SafepointPosition : public ArenaObject<kArenaAllocMisc> {
+class SafepointPosition : public ArenaObject<kArenaAllocSsaLiveness> {
  public:
   explicit SafepointPosition(HInstruction* instruction)
       : instruction_(instruction),

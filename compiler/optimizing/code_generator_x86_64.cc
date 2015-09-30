@@ -626,9 +626,9 @@ CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph,
         move_resolver_(graph->GetArena(), this),
         isa_features_(isa_features),
         constant_area_start_(0),
-        method_patches_(graph->GetArena()->Adapter()),
-        relative_call_patches_(graph->GetArena()->Adapter()),
-        pc_rel_dex_cache_patches_(graph->GetArena()->Adapter()) {
+        method_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+        relative_call_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+        pc_rel_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
   AddAllocatedRegister(Location::RegisterLocation(kFakeReturnRegister));
 }
 
@@ -5279,7 +5279,7 @@ void CodeGeneratorX86_64::Finalize(CodeAllocator* allocator) {
 /**
  * Class to handle late fixup of offsets into constant area.
  */
-class RIPFixup : public AssemblerFixup, public ArenaObject<kArenaAllocMisc> {
+class RIPFixup : public AssemblerFixup, public ArenaObject<kArenaAllocCodeGenerator> {
   public:
     RIPFixup(const CodeGeneratorX86_64& codegen, int offset)
       : codegen_(codegen), offset_into_constant_area_(offset) {}
