@@ -27,25 +27,26 @@
 
 namespace art {
 
-// public static native void assertCallerIsInterpreted();
+// public static native boolean isCallerInterpreted();
 
-extern "C" JNIEXPORT void JNICALL Java_Main_assertCallerIsInterpreted(JNIEnv* env, jclass) {
-  LOG(INFO) << "assertCallerIsInterpreted";
-
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_isCallerInterpreted(JNIEnv* env, jclass) {
   ScopedObjectAccess soa(env);
   NthCallerVisitor caller(soa.Self(), 1, false);
   caller.WalkStack();
   CHECK(caller.caller != nullptr);
-  LOG(INFO) << PrettyMethod(caller.caller);
-  CHECK(caller.GetCurrentShadowFrame() != nullptr);
+  return caller.GetCurrentShadowFrame() != nullptr ? JNI_TRUE : JNI_FALSE;
 }
 
-// public static native void assertCallerIsManaged();
+// public static native void assertCallerIsInterpreted();
 
-extern "C" JNIEXPORT void JNICALL Java_Main_assertCallerIsManaged(JNIEnv* env, jclass cls) {
-  // Note: needs some smarts to not fail if there is no managed code, at all.
-  LOG(INFO) << "assertCallerIsManaged";
+extern "C" JNIEXPORT void JNICALL Java_Main_assertCallerIsInterpreted(JNIEnv* env, jclass klass) {
+  CHECK(Java_Main_isCallerInterpreted(env, klass));
+}
 
+
+// public static native boolean isCallerManaged();
+
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_isCallerManaged(JNIEnv* env, jclass cls) {
   ScopedObjectAccess soa(env);
 
   mirror::Class* klass = soa.Decode<mirror::Class*>(cls);
@@ -54,28 +55,20 @@ extern "C" JNIEXPORT void JNICALL Java_Main_assertCallerIsManaged(JNIEnv* env, j
   if (oat_dex_file == nullptr) {
     // No oat file, this must be a test configuration that doesn't compile at all. Ignore that the
     // result will be that we're running the interpreter.
-    return;
+    return JNI_FALSE;
   }
 
   NthCallerVisitor caller(soa.Self(), 1, false);
   caller.WalkStack();
   CHECK(caller.caller != nullptr);
-  LOG(INFO) << PrettyMethod(caller.caller);
 
-  if (caller.GetCurrentShadowFrame() == nullptr) {
-    // Not a shadow frame, this looks good.
-    return;
-  }
+  return caller.GetCurrentShadowFrame() != nullptr ? JNI_FALSE : JNI_TRUE;
+}
 
-  // This could be an interpret-only or a verify-at-runtime compilation, or a read-barrier variant,
-  // or... It's not really safe to just reject now. Let's look at the access flags. If the method
-  // was successfully verified, its access flags should be set to mark it preverified, except when
-  // we're running soft-fail tests.
-  if (Runtime::Current()->IsVerificationSoftFail()) {
-    // Soft-fail config. Everything should be running with interpreter access checks, potentially.
-    return;
-  }
-  CHECK(caller.caller->IsPreverified());
+// public static native void assertCallerIsManaged();
+
+extern "C" JNIEXPORT void JNICALL Java_Main_assertCallerIsManaged(JNIEnv* env, jclass cls) {
+  CHECK(Java_Main_isCallerManaged(env, cls));
 }
 
 }  // namespace art
