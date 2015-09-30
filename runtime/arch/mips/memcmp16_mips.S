@@ -26,7 +26,7 @@ ENTRY_NO_GP __memcmp16
   beqz  $a2,done   /* 0 length string */
   beq $a0,$a1,done    /* strings are identical */
 
-  /* Unoptimised... */
+  /* Unoptimized... */
 1:  lhu $t0,0($a0)
   lhu $t1,0($a1)
   addu  $a1,2
