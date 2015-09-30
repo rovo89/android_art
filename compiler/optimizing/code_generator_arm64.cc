@@ -542,11 +542,14 @@ CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph,
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetArena(), this),
       isa_features_(isa_features),
-      uint64_literals_(std::less<uint64_t>(), graph->GetArena()->Adapter()),
-      method_patches_(MethodReferenceComparator(), graph->GetArena()->Adapter()),
-      call_patches_(MethodReferenceComparator(), graph->GetArena()->Adapter()),
-      relative_call_patches_(graph->GetArena()->Adapter()),
-      pc_rel_dex_cache_patches_(graph->GetArena()->Adapter()) {
+      uint64_literals_(std::less<uint64_t>(),
+                       graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      method_patches_(MethodReferenceComparator(),
+                      graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      call_patches_(MethodReferenceComparator(),
+                    graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      relative_call_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      pc_rel_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
   // Save the link register (containing the return address) to mimic Quick.
   AddAllocatedRegister(LocationFrom(lr));
 }

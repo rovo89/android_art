@@ -83,6 +83,8 @@ const char* const ArenaAllocatorStatsImpl<kCount>::kAllocNames[] = {
   "BaselineMaps ",
   "Optimization ",
   "GVN          ",
+  "InductionVar ",
+  "BCE          ",
   "SsaLiveness  ",
   "SsaPhiElim   ",
   "RefTypeProp  ",
