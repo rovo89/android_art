@@ -71,44 +71,6 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
       *outer_method->GetDexFile(), method_index, dex_cache, class_loader, nullptr, invoke_type);
 }
 
-inline ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp,
-                                            Runtime::CalleeSaveType type,
-                                            bool do_caller_check = false)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
-  DCHECK_EQ(*sp, Runtime::Current()->GetCalleeSaveMethod(type));
-
-  const size_t callee_frame_size = GetCalleeSaveFrameSize(kRuntimeISA, type);
-  auto** caller_sp = reinterpret_cast<ArtMethod**>(
-      reinterpret_cast<uintptr_t>(sp) + callee_frame_size);
-  ArtMethod* outer_method = *caller_sp;
-  ArtMethod* caller = outer_method;
-
-  if ((outer_method != nullptr) && outer_method->IsOptimized(sizeof(void*))) {
-    const size_t callee_return_pc_offset = GetCalleeSaveReturnPcOffset(kRuntimeISA, type);
-    uintptr_t caller_pc = *reinterpret_cast<uintptr_t*>(
-        (reinterpret_cast<uint8_t*>(sp) + callee_return_pc_offset));
-    uintptr_t native_pc_offset = outer_method->NativeQuickPcOffset(caller_pc);
-    CodeInfo code_info = outer_method->GetOptimizedCodeInfo();
-    StackMapEncoding encoding = code_info.ExtractEncoding();
-    StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
-    DCHECK(stack_map.IsValid());
-    if (stack_map.HasInlineInfo(encoding)) {
-      InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map, encoding);
-      caller = GetResolvedMethod(outer_method, inline_info, inline_info.GetDepth() - 1);
-    }
-  }
-
-  if (kIsDebugBuild && do_caller_check) {
-    // Note that do_caller_check is optional, as this method can be called by
-    // stubs, and tests without a proper call stack.
-    NthCallerVisitor visitor(Thread::Current(), 1, true);
-    visitor.WalkStack();
-    CHECK_EQ(caller, visitor.caller);
-  }
-
-  return caller;
-}
-
 inline ArtMethod* GetCalleeSaveMethodCaller(Thread* self, Runtime::CalleeSaveType type)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   return GetCalleeSaveMethodCaller(
