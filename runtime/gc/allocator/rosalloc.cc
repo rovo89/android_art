@@ -35,7 +35,7 @@ namespace art {
 namespace gc {
 namespace allocator {
 
-static constexpr bool kUsePrefetchDuringAllocRun = true;
+static constexpr bool kUsePrefetchDuringAllocRun = false;
 static constexpr bool kPrefetchNewRunDataByZeroing = false;
 static constexpr size_t kPrefetchStride = 64;
 
@@ -43,8 +43,6 @@ size_t RosAlloc::bracketSizes[kNumOfSizeBrackets];
 size_t RosAlloc::numOfPages[kNumOfSizeBrackets];
 size_t RosAlloc::numOfSlots[kNumOfSizeBrackets];
 size_t RosAlloc::headerSizes[kNumOfSizeBrackets];
-size_t RosAlloc::bulkFreeBitMapOffsets[kNumOfSizeBrackets];
-size_t RosAlloc::threadLocalFreeBitMapOffsets[kNumOfSizeBrackets];
 bool RosAlloc::initialized_ = false;
 size_t RosAlloc::dedicated_full_run_storage_[kPageSize / sizeof(size_t)] = { 0 };
 RosAlloc::Run* RosAlloc::dedicated_full_run_ =
@@ -556,9 +554,7 @@ RosAlloc::Run* RosAlloc::AllocRun(Thread* self, size_t idx) {
       new_run->magic_num_ = kMagicNum;
     }
     new_run->size_bracket_idx_ = idx;
-    new_run->SetAllocBitMapBitsForInvalidSlots();
     DCHECK(!new_run->IsThreadLocal());
-    DCHECK_EQ(new_run->first_search_vec_idx_, 0U);
     DCHECK(!new_run->to_be_bulk_freed_);
     if (kUsePrefetchDuringAllocRun && idx < kNumThreadLocalSizeBrackets) {
       // Take ownership of the cache lines if we are likely to be thread local run.
@@ -576,6 +572,7 @@ RosAlloc::Run* RosAlloc::AllocRun(Thread* self, size_t idx) {
         }
       }
     }
+    new_run->InitFreeList();
   }
   return new_run;
 }
@@ -695,15 +692,11 @@ void* RosAlloc::AllocFromRun(Thread* self, size_t size, size_t* bytes_allocated,
       MutexLock mu(self, *size_bracket_locks_[idx]);
       bool is_all_free_after_merge;
       // This is safe to do for the dedicated_full_run_ since the bitmaps are empty.
-      if (thread_local_run->MergeThreadLocalFreeBitMapToAllocBitMap(&is_all_free_after_merge)) {
+      if (thread_local_run->MergeThreadLocalFreeListToFreeList(&is_all_free_after_merge)) {
         DCHECK_NE(thread_local_run, dedicated_full_run_);
         // Some slot got freed. Keep it.
         DCHECK(!thread_local_run->IsFull());
         DCHECK_EQ(is_all_free_after_merge, thread_local_run->IsAllFree());
-        if (is_all_free_after_merge) {
-          // Check that the bitmap idx is back at 0 if it's all free.
-          DCHECK_EQ(thread_local_run->first_search_vec_idx_, 0U);
-        }
       } else {
         // No slots got freed. Try to refill the thread-local run.
         DCHECK(thread_local_run->IsFull());
@@ -792,7 +785,7 @@ size_t RosAlloc::FreeFromRun(Thread* self, void* ptr, Run* run) {
     DCHECK_LT(run->size_bracket_idx_, kNumThreadLocalSizeBrackets);
     DCHECK(non_full_runs_[idx].find(run) == non_full_runs_[idx].end());
     DCHECK(full_runs_[idx].find(run) == full_runs_[idx].end());
-    run->MarkThreadLocalFreeBitMap(ptr);
+    run->AddToThreadLocalFreeList(ptr);
     if (kTraceRosAlloc) {
       LOG(INFO) << "RosAlloc::FreeFromRun() : Freed a slot in a thread local run 0x" << std::hex
                 << reinterpret_cast<intptr_t>(run);
@@ -818,7 +811,7 @@ size_t RosAlloc::FreeFromRun(Thread* self, void* ptr, Run* run) {
     }
     DCHECK(non_full_runs_[idx].find(run) == non_full_runs_[idx].end());
     DCHECK(full_runs_[idx].find(run) == full_runs_[idx].end());
-    run->ZeroHeader();
+    run->ZeroHeaderAndSlotHeaders();
     {
       MutexLock lock_mu(self, lock_);
       FreePages(self, run, true);
@@ -853,269 +846,143 @@ size_t RosAlloc::FreeFromRun(Thread* self, void* ptr, Run* run) {
   return bracket_size;
 }
 
-std::string RosAlloc::Run::BitMapToStr(uint32_t* bit_map_base, size_t num_vec) {
-  std::string bit_map_str;
-  for (size_t v = 0; v < num_vec; v++) {
-    uint32_t vec = bit_map_base[v];
-    if (v != num_vec - 1) {
-      bit_map_str.append(StringPrintf("%x-", vec));
+template<bool kUseTail>
+std::string RosAlloc::Run::FreeListToStr(SlotFreeList<kUseTail>* free_list) {
+  std::string free_list_str;
+  const uint8_t idx = size_bracket_idx_;
+  const size_t bracket_size = bracketSizes[idx];
+  for (Slot* slot = free_list->Head(); slot != nullptr; slot = slot->Next()) {
+    bool is_last = slot->Next() == nullptr;
+    uintptr_t slot_offset = reinterpret_cast<uintptr_t>(slot) -
+        reinterpret_cast<uintptr_t>(FirstSlot());
+    DCHECK_EQ(slot_offset % bracket_size, 0U);
+    uintptr_t slot_idx = slot_offset / bracket_size;
+    if (!is_last) {
+      free_list_str.append(StringPrintf("%u-", static_cast<uint32_t>(slot_idx)));
     } else {
-      bit_map_str.append(StringPrintf("%x", vec));
+      free_list_str.append(StringPrintf("%u", static_cast<uint32_t>(slot_idx)));
     }
   }
-  return bit_map_str.c_str();
+  return free_list_str;
 }
 
 std::string RosAlloc::Run::Dump() {
   size_t idx = size_bracket_idx_;
-  size_t num_slots = numOfSlots[idx];
-  size_t num_vec = RoundUp(num_slots, 32) / 32;
   std::ostringstream stream;
   stream << "RosAlloc Run = " << reinterpret_cast<void*>(this)
          << "{ magic_num=" << static_cast<int>(magic_num_)
          << " size_bracket_idx=" << idx
          << " is_thread_local=" << static_cast<int>(is_thread_local_)
          << " to_be_bulk_freed=" << static_cast<int>(to_be_bulk_freed_)
-         << " first_search_vec_idx=" << first_search_vec_idx_
-         << " alloc_bit_map=" << BitMapToStr(alloc_bit_map_, num_vec)
-         << " bulk_free_bit_map=" << BitMapToStr(BulkFreeBitMap(), num_vec)
-         << " thread_local_bit_map=" << BitMapToStr(ThreadLocalFreeBitMap(), num_vec)
+         << " free_list=" << FreeListToStr(&free_list_)
+         << " bulk_free_list=" << FreeListToStr(&bulk_free_list_)
+         << " thread_local_list=" << FreeListToStr(&thread_local_free_list_)
          << " }" << std::endl;
   return stream.str();
+}
+
+inline size_t RosAlloc::Run::SlotIndex(Slot* slot) {
+  const uint8_t idx = size_bracket_idx_;
+  const size_t bracket_size = bracketSizes[idx];
+  const size_t offset_from_slot_base = reinterpret_cast<uint8_t*>(slot)
+      - reinterpret_cast<uint8_t*>(FirstSlot());
+  DCHECK_EQ(offset_from_slot_base % bracket_size, static_cast<size_t>(0));
+  size_t slot_idx = offset_from_slot_base / bracket_size;
+  DCHECK_LT(slot_idx, numOfSlots[idx]);
+  return slot_idx;
 }
 
 void RosAlloc::Run::FreeSlot(void* ptr) {
   DCHECK(!IsThreadLocal());
   const uint8_t idx = size_bracket_idx_;
   const size_t bracket_size = bracketSizes[idx];
-  const size_t offset_from_slot_base = reinterpret_cast<uint8_t*>(ptr)
-      - (reinterpret_cast<uint8_t*>(this) + headerSizes[idx]);
-  DCHECK_EQ(offset_from_slot_base % bracket_size, static_cast<size_t>(0));
-  size_t slot_idx = offset_from_slot_base / bracket_size;
-  DCHECK_LT(slot_idx, numOfSlots[idx]);
-  size_t vec_idx = slot_idx / 32;
-  if (kIsDebugBuild) {
-    size_t num_vec = RoundUp(numOfSlots[idx], 32) / 32;
-    DCHECK_LT(vec_idx, num_vec);
-  }
-  size_t vec_off = slot_idx % 32;
-  uint32_t* vec = &alloc_bit_map_[vec_idx];
-  first_search_vec_idx_ = std::min(first_search_vec_idx_, static_cast<uint32_t>(vec_idx));
-  const uint32_t mask = 1U << vec_off;
-  DCHECK_NE(*vec & mask, 0U);
-  *vec &= ~mask;
-  DCHECK_EQ(*vec & mask, 0U);
+  Slot* slot = ToSlot(ptr);
   // Zero out the memory.
   // TODO: Investigate alternate memset since ptr is guaranteed to be aligned to 16.
-  memset(ptr, 0, bracket_size);
+  memset(slot, 0, bracket_size);
+  free_list_.Add(slot);
   if (kTraceRosAlloc) {
-    LOG(INFO) << "RosAlloc::Run::FreeSlot() : 0x" << std::hex << reinterpret_cast<intptr_t>(ptr)
-              << ", bracket_size=" << std::dec << bracketSizes[idx] << ", slot_idx=" << slot_idx;
+    LOG(INFO) << "RosAlloc::Run::FreeSlot() : " << slot
+              << ", bracket_size=" << std::dec << bracket_size << ", slot_idx=" << SlotIndex(slot);
   }
 }
 
-size_t RosAlloc::Run::NumberOfFreeSlots() {
-  size_t num_alloc_slots = 0;
-  const size_t idx = size_bracket_idx_;
-  const size_t num_slots = numOfSlots[idx];
-  const size_t num_vec = RoundUp(num_slots, 32) / 32;
-  DCHECK_NE(num_vec, 0U);
-  for (size_t v = 0; v < num_vec - 1; v++) {
-    num_alloc_slots += POPCOUNT(alloc_bit_map_[v]);
-  }
-  // Don't count the invalid bits in the last vector.
-  uint32_t last_vec_masked = alloc_bit_map_[num_vec - 1] &
-      ~GetBitmapLastVectorMask(num_slots, num_vec);
-  num_alloc_slots += POPCOUNT(last_vec_masked);
-  size_t num_free_slots = num_slots - num_alloc_slots;
-  DCHECK_LE(num_alloc_slots, num_slots);
-  DCHECK_LE(num_free_slots, num_slots);
-  return num_free_slots;
-}
-
-inline bool RosAlloc::Run::MergeThreadLocalFreeBitMapToAllocBitMap(bool* is_all_free_after_out) {
+inline bool RosAlloc::Run::MergeThreadLocalFreeListToFreeList(bool* is_all_free_after_out) {
   DCHECK(IsThreadLocal());
-  // Free slots in the alloc bit map based on the thread local free bit map.
-  const size_t idx = size_bracket_idx_;
-  const size_t num_of_slots = numOfSlots[idx];
-  const size_t num_vec = RoundUp(num_of_slots, 32) / 32;
-  bool changed = false;
-  uint32_t* vecp = &alloc_bit_map_[0];
-  uint32_t* tl_free_vecp = &ThreadLocalFreeBitMap()[0];
-  bool is_all_free_after = true;
-  for (size_t v = 0; v < num_vec; v++, vecp++, tl_free_vecp++) {
-    uint32_t tl_free_vec = *tl_free_vecp;
-    uint32_t vec_before = *vecp;
-    uint32_t vec_after;
-    if (tl_free_vec != 0) {
-      first_search_vec_idx_ = std::min(first_search_vec_idx_, static_cast<uint32_t>(v));
-      vec_after = vec_before & ~tl_free_vec;
-      *vecp = vec_after;
-      changed = true;
-      *tl_free_vecp = 0;  // clear the thread local free bit map.
-    } else {
-      vec_after = vec_before;
-    }
-    if (vec_after != 0) {
-      if (v == num_vec - 1) {
-        // Only not all free if a bit other than the mask bits are set.
-        is_all_free_after =
-            is_all_free_after && GetBitmapLastVectorMask(num_of_slots, num_vec) == vec_after;
-      } else {
-        is_all_free_after = false;
-      }
-    }
-    DCHECK_EQ(*tl_free_vecp, static_cast<uint32_t>(0));
-  }
-  *is_all_free_after_out = is_all_free_after;
-  // Return true if there was at least a bit set in the thread-local
-  // free bit map and at least a bit in the alloc bit map changed.
-  return changed;
-}
-
-inline void RosAlloc::Run::MergeBulkFreeBitMapIntoAllocBitMap() {
-  DCHECK(!IsThreadLocal());
-  // Free slots in the alloc bit map based on the bulk free bit map.
-  const size_t num_vec = NumberOfBitmapVectors();
-  uint32_t* vecp = &alloc_bit_map_[0];
-  uint32_t* free_vecp = &BulkFreeBitMap()[0];
-  for (size_t v = 0; v < num_vec; v++, vecp++, free_vecp++) {
-    uint32_t free_vec = *free_vecp;
-    if (free_vec != 0) {
-      first_search_vec_idx_ = std::min(first_search_vec_idx_, static_cast<uint32_t>(v));
-      *vecp &= ~free_vec;
-      *free_vecp = 0;  // clear the bulk free bit map.
-    }
-    DCHECK_EQ(*free_vecp, static_cast<uint32_t>(0));
-  }
-}
-
-inline void RosAlloc::Run::UnionBulkFreeBitMapToThreadLocalFreeBitMap() {
-  DCHECK(IsThreadLocal());
-  // Union the thread local bit map with the bulk free bit map.
-  size_t num_vec = NumberOfBitmapVectors();
-  uint32_t* to_vecp = &ThreadLocalFreeBitMap()[0];
-  uint32_t* from_vecp = &BulkFreeBitMap()[0];
-  for (size_t v = 0; v < num_vec; v++, to_vecp++, from_vecp++) {
-    uint32_t from_vec = *from_vecp;
-    if (from_vec != 0) {
-      *to_vecp |= from_vec;
-      *from_vecp = 0;  // clear the bulk free bit map.
-    }
-    DCHECK_EQ(*from_vecp, static_cast<uint32_t>(0));
-  }
-}
-
-inline void RosAlloc::Run::MarkThreadLocalFreeBitMap(void* ptr) {
-  DCHECK(IsThreadLocal());
-  MarkFreeBitMapShared(ptr, ThreadLocalFreeBitMap(), "MarkThreadLocalFreeBitMap");
-}
-
-inline size_t RosAlloc::Run::MarkBulkFreeBitMap(void* ptr) {
-  return MarkFreeBitMapShared(ptr, BulkFreeBitMap(), "MarkFreeBitMap");
-}
-
-inline size_t RosAlloc::Run::MarkFreeBitMapShared(void* ptr, uint32_t* free_bit_map_base,
-                                                  const char* caller_name) {
+  // Merge the thread local free list into the free list and clear the thread local free list.
   const uint8_t idx = size_bracket_idx_;
-  const size_t offset_from_slot_base = reinterpret_cast<uint8_t*>(ptr)
-      - (reinterpret_cast<uint8_t*>(this) + headerSizes[idx]);
+  bool thread_local_free_list_size = thread_local_free_list_.Size();
+  const size_t size_before = free_list_.Size();
+  free_list_.Merge(&thread_local_free_list_);
+  const size_t size_after = free_list_.Size();
+  DCHECK_EQ(size_before < size_after, thread_local_free_list_size > 0);
+  DCHECK_LE(size_before, size_after);
+  *is_all_free_after_out = free_list_.Size() == numOfSlots[idx];
+  // Return true at least one slot was added to the free list.
+  return size_before < size_after;
+}
+
+inline void RosAlloc::Run::MergeBulkFreeListToFreeList() {
+  DCHECK(!IsThreadLocal());
+  // Merge the bulk free list into the free list and clear the bulk free list.
+  free_list_.Merge(&bulk_free_list_);
+}
+
+inline void RosAlloc::Run::MergeBulkFreeListToThreadLocalFreeList() {
+  DCHECK(IsThreadLocal());
+  // Merge the bulk free list into the thread local free list and clear the bulk free list.
+  thread_local_free_list_.Merge(&bulk_free_list_);
+}
+
+inline void RosAlloc::Run::AddToThreadLocalFreeList(void* ptr) {
+  DCHECK(IsThreadLocal());
+  AddToFreeListShared(ptr, &thread_local_free_list_, __FUNCTION__);
+}
+
+inline size_t RosAlloc::Run::AddToBulkFreeList(void* ptr) {
+  return AddToFreeListShared(ptr, &bulk_free_list_, __FUNCTION__);
+}
+
+inline size_t RosAlloc::Run::AddToFreeListShared(void* ptr,
+                                                 SlotFreeList<true>* free_list,
+                                                 const char* caller_name) {
+  const uint8_t idx = size_bracket_idx_;
   const size_t bracket_size = bracketSizes[idx];
-  memset(ptr, 0, bracket_size);
-  DCHECK_EQ(offset_from_slot_base % bracket_size, static_cast<size_t>(0));
-  size_t slot_idx = offset_from_slot_base / bracket_size;
-  DCHECK_LT(slot_idx, numOfSlots[idx]);
-  size_t vec_idx = slot_idx / 32;
-  if (kIsDebugBuild) {
-    size_t num_vec = NumberOfBitmapVectors();
-    DCHECK_LT(vec_idx, num_vec);
-  }
-  size_t vec_off = slot_idx % 32;
-  uint32_t* vec = &free_bit_map_base[vec_idx];
-  const uint32_t mask = 1U << vec_off;
-  DCHECK_EQ(*vec & mask, 0U);
-  *vec |= mask;
-  DCHECK_NE(*vec & mask, 0U);
+  Slot* slot = ToSlot(ptr);
+  memset(slot, 0, bracket_size);
+  free_list->Add(slot);
   if (kTraceRosAlloc) {
-    LOG(INFO) << "RosAlloc::Run::" << caller_name << "() : 0x" << std::hex
-              << reinterpret_cast<intptr_t>(ptr)
-              << ", bracket_size=" << std::dec << bracketSizes[idx] << ", slot_idx=" << slot_idx;
+    LOG(INFO) << "RosAlloc::Run::" << caller_name << "() : " << ptr
+              << ", bracket_size=" << std::dec << bracket_size << ", slot_idx=" << SlotIndex(slot);
   }
   return bracket_size;
 }
 
-inline uint32_t RosAlloc::Run::GetBitmapLastVectorMask(size_t num_slots, size_t num_vec) {
-  const size_t kBitsPerVec = 32;
-  DCHECK_GE(num_vec * kBitsPerVec, num_slots);
-  DCHECK_NE(num_vec, 0U);
-  size_t remain = num_vec * kBitsPerVec - num_slots;
-  DCHECK_LT(remain, kBitsPerVec);
-  return ((1U << remain) - 1) << ((kBitsPerVec - remain) & 0x1F);
-}
-
-inline bool RosAlloc::Run::IsAllFree() {
+inline void RosAlloc::Run::ZeroHeaderAndSlotHeaders() {
+  DCHECK(IsAllFree());
   const uint8_t idx = size_bracket_idx_;
-  const size_t num_slots = numOfSlots[idx];
-  const size_t num_vec = NumberOfBitmapVectors();
-  DCHECK_NE(num_vec, 0U);
-  // Check the last vector after the loop since it uses a special case for the masked bits.
-  for (size_t v = 0; v < num_vec - 1; v++) {
-    uint32_t vec = alloc_bit_map_[v];
-    if (vec != 0) {
-      return false;
-    }
+  // Zero the slot header (next pointers).
+  for (Slot* slot = free_list_.Head(); slot != nullptr; ) {
+    Slot* next_slot = slot->Next();
+    slot->Clear();
+    slot = next_slot;
   }
-  // Make sure the last word is equal to the mask, all other bits must be 0.
-  return alloc_bit_map_[num_vec - 1] == GetBitmapLastVectorMask(num_slots, num_vec);
-}
-
-inline bool RosAlloc::Run::IsBulkFreeBitmapClean() {
-  const size_t num_vec = NumberOfBitmapVectors();
-  for (size_t v = 0; v < num_vec; v++) {
-    uint32_t vec = BulkFreeBitMap()[v];
-    if (vec != 0) {
-      return false;
-    }
-  }
-  return true;
-}
-
-inline bool RosAlloc::Run::IsThreadLocalFreeBitmapClean() {
-  const size_t num_vec = NumberOfBitmapVectors();
-  for (size_t v = 0; v < num_vec; v++) {
-    uint32_t vec = ThreadLocalFreeBitMap()[v];
-    if (vec != 0) {
-      return false;
-    }
-  }
-  return true;
-}
-
-inline void RosAlloc::Run::SetAllocBitMapBitsForInvalidSlots() {
-  const size_t idx = size_bracket_idx_;
-  const size_t num_slots = numOfSlots[idx];
-  const size_t num_vec = RoundUp(num_slots, 32) / 32;
-  DCHECK_NE(num_vec, 0U);
-  // Make sure to set the bits at the end of the bitmap so that we don't allocate there since they
-  // don't represent valid slots.
-  alloc_bit_map_[num_vec - 1] |= GetBitmapLastVectorMask(num_slots, num_vec);
-}
-
-inline void RosAlloc::Run::ZeroHeader() {
-  const uint8_t idx = size_bracket_idx_;
+  // Zero the header.
   memset(this, 0, headerSizes[idx]);
+  // Check that the entire run is all zero.
+  if (kIsDebugBuild) {
+    const size_t size = numOfPages[idx] * kPageSize;
+    const uintptr_t* word_ptr = reinterpret_cast<uintptr_t*>(this);
+    for (size_t i = 0; i < size / sizeof(uintptr_t); ++i) {
+      CHECK_EQ(word_ptr[i], 0U) << "words don't match at index " << i;
+    }
+  }
 }
 
 inline void RosAlloc::Run::ZeroData() {
   const uint8_t idx = size_bracket_idx_;
-  uint8_t* slot_begin = reinterpret_cast<uint8_t*>(this) + headerSizes[idx];
+  uint8_t* slot_begin = reinterpret_cast<uint8_t*>(FirstSlot());
   memset(slot_begin, 0, numOfSlots[idx] * bracketSizes[idx]);
-}
-
-inline void RosAlloc::Run::FillAllocBitMap() {
-  size_t num_vec = NumberOfBitmapVectors();
-  memset(alloc_bit_map_, 0xFF, sizeof(uint32_t) * num_vec);
-  first_search_vec_idx_ = num_vec - 1;  // No free bits in any of the bitmap words.
 }
 
 void RosAlloc::Run::InspectAllSlots(void (*handler)(void* start, void* end, size_t used_bytes, void* callback_arg),
@@ -1126,26 +993,27 @@ void RosAlloc::Run::InspectAllSlots(void (*handler)(void* start, void* end, size
   size_t bracket_size = IndexToBracketSize(idx);
   DCHECK_EQ(slot_base + num_slots * bracket_size,
             reinterpret_cast<uint8_t*>(this) + numOfPages[idx] * kPageSize);
-  size_t num_vec = RoundUp(num_slots, 32) / 32;
-  size_t slots = 0;
-  const uint32_t* const tl_free_vecp = IsThreadLocal() ? ThreadLocalFreeBitMap() : nullptr;
-  for (size_t v = 0; v < num_vec; v++, slots += 32) {
-    DCHECK_GE(num_slots, slots);
-    uint32_t vec = alloc_bit_map_[v];
-    if (tl_free_vecp != nullptr) {
-      // Clear out the set bits in the thread local free bitmap since these aren't actually
-      // allocated.
-      vec &= ~tl_free_vecp[v];
+  // Free slots are on the free list and the allocated/used slots are not. We traverse the free list
+  // to find out and record which slots are free in the is_free array.
+  std::unique_ptr<bool[]> is_free(new bool[num_slots]());  // zero initialized
+  for (Slot* slot = free_list_.Head(); slot != nullptr; slot = slot->Next()) {
+    size_t slot_idx = SlotIndex(slot);
+    DCHECK_LT(slot_idx, num_slots);
+    is_free[slot_idx] = true;
+  }
+  if (IsThreadLocal()) {
+    for (Slot* slot = thread_local_free_list_.Head(); slot != nullptr; slot = slot->Next()) {
+      size_t slot_idx = SlotIndex(slot);
+      DCHECK_LT(slot_idx, num_slots);
+      is_free[slot_idx] = true;
     }
-    size_t end = std::min(num_slots - slots, static_cast<size_t>(32));
-    for (size_t i = 0; i < end; ++i) {
-      bool is_allocated = ((vec >> i) & 0x1) != 0;
-      uint8_t* slot_addr = slot_base + (slots + i) * bracket_size;
-      if (is_allocated) {
-        handler(slot_addr, slot_addr + bracket_size, bracket_size, arg);
-      } else {
-        handler(slot_addr, slot_addr + bracket_size, 0, arg);
-      }
+  }
+  for (size_t slot_idx = 0; slot_idx < num_slots; ++slot_idx) {
+    uint8_t* slot_addr = slot_base + slot_idx * bracket_size;
+    if (!is_free[slot_idx]) {
+      handler(slot_addr, slot_addr + bracket_size, bracket_size, arg);
+    } else {
+      handler(slot_addr, slot_addr + bracket_size, 0, arg);
     }
   }
 }
@@ -1236,7 +1104,7 @@ size_t RosAlloc::BulkFree(Thread* self, void** ptrs, size_t num_ptrs) {
     DCHECK(run != nullptr);
     DCHECK_EQ(run->magic_num_, kMagicNum);
     // Set the bit in the bulk free bit map.
-    freed_bytes += run->MarkBulkFreeBitMap(ptr);
+    freed_bytes += run->AddToBulkFreeList(ptr);
 #ifdef __ANDROID__
     if (!run->to_be_bulk_freed_) {
       run->to_be_bulk_freed_ = true;
@@ -1262,7 +1130,7 @@ size_t RosAlloc::BulkFree(Thread* self, void** ptrs, size_t num_ptrs) {
       DCHECK_LT(run->size_bracket_idx_, kNumThreadLocalSizeBrackets);
       DCHECK(non_full_runs_[idx].find(run) == non_full_runs_[idx].end());
       DCHECK(full_runs_[idx].find(run) == full_runs_[idx].end());
-      run->UnionBulkFreeBitMapToThreadLocalFreeBitMap();
+      run->MergeBulkFreeListToThreadLocalFreeList();
       if (kTraceRosAlloc) {
         LOG(INFO) << "RosAlloc::BulkFree() : Freed slot(s) in a thread local run 0x"
                   << std::hex << reinterpret_cast<intptr_t>(run);
@@ -1272,7 +1140,7 @@ size_t RosAlloc::BulkFree(Thread* self, void** ptrs, size_t num_ptrs) {
       // it's become all free.
     } else {
       bool run_was_full = run->IsFull();
-      run->MergeBulkFreeBitMapIntoAllocBitMap();
+      run->MergeBulkFreeListToFreeList();
       if (kTraceRosAlloc) {
         LOG(INFO) << "RosAlloc::BulkFree() : Freed slot(s) in a run 0x" << std::hex
                   << reinterpret_cast<intptr_t>(run);
@@ -1316,7 +1184,7 @@ size_t RosAlloc::BulkFree(Thread* self, void** ptrs, size_t num_ptrs) {
           DCHECK(non_full_runs->find(run) == non_full_runs->end());
         }
         if (!run_was_current) {
-          run->ZeroHeader();
+          run->ZeroHeaderAndSlotHeaders();
           MutexLock lock_mu(self, lock_);
           FreePages(self, run, true);
         }
@@ -1677,9 +1545,9 @@ size_t RosAlloc::RevokeThreadLocalRuns(Thread* thread) {
       size_t num_free_slots = thread_local_run->NumberOfFreeSlots();
       free_bytes += num_free_slots * bracketSizes[idx];
       bool dont_care;
-      thread_local_run->MergeThreadLocalFreeBitMapToAllocBitMap(&dont_care);
+      thread_local_run->MergeThreadLocalFreeListToFreeList(&dont_care);
       thread_local_run->SetIsThreadLocal(false);
-      thread_local_run->MergeBulkFreeBitMapIntoAllocBitMap();
+      thread_local_run->MergeBulkFreeListToFreeList();
       DCHECK(non_full_runs_[idx].find(thread_local_run) == non_full_runs_[idx].end());
       DCHECK(full_runs_[idx].find(thread_local_run) == full_runs_[idx].end());
       RevokeRun(self, idx, thread_local_run);
@@ -1702,7 +1570,7 @@ void RosAlloc::RevokeRun(Thread* self, size_t idx, Run* run) {
       }
     }
   } else if (run->IsAllFree()) {
-    run->ZeroHeader();
+    run->ZeroHeaderAndSlotHeaders();
     MutexLock mu(self, lock_);
     FreePages(self, run, true);
   } else {
@@ -1814,22 +1682,15 @@ void RosAlloc::Initialize() {
     size_t max_num_of_slots = run_size / bracket_size;
     // Compute the actual number of slots by taking the header and
     // alignment into account.
-    size_t fixed_header_size = RoundUp(Run::fixed_header_size(), sizeof(uint32_t));
-    DCHECK_EQ(fixed_header_size, static_cast<size_t>(8));
+    size_t fixed_header_size = RoundUp(Run::fixed_header_size(), sizeof(uint64_t));
+    DCHECK_EQ(fixed_header_size, 80U);
     size_t header_size = 0;
-    size_t bulk_free_bit_map_offset = 0;
-    size_t thread_local_free_bit_map_offset = 0;
     size_t num_of_slots = 0;
     // Search for the maximum number of slots that allows enough space
-    // for the header (including the bit maps.)
+    // for the header.
     for (int s = max_num_of_slots; s >= 0; s--) {
       size_t tmp_slots_size = bracket_size * s;
-      size_t tmp_bit_map_size = RoundUp(s, sizeof(uint32_t) * kBitsPerByte) / kBitsPerByte;
-      size_t tmp_bulk_free_bit_map_size = tmp_bit_map_size;
-      size_t tmp_bulk_free_bit_map_off = fixed_header_size + tmp_bit_map_size;
-      size_t tmp_thread_local_free_bit_map_size = tmp_bit_map_size;
-      size_t tmp_thread_local_free_bit_map_off = tmp_bulk_free_bit_map_off + tmp_bulk_free_bit_map_size;
-      size_t tmp_unaligned_header_size = tmp_thread_local_free_bit_map_off + tmp_thread_local_free_bit_map_size;
+      size_t tmp_unaligned_header_size = fixed_header_size;
       // Align up the unaligned header size. bracket_size may not be a power of two.
       size_t tmp_header_size = (tmp_unaligned_header_size % bracket_size == 0) ?
           tmp_unaligned_header_size :
@@ -1841,24 +1702,19 @@ void RosAlloc::Initialize() {
         // space for the header (including the bit maps.)
         num_of_slots = s;
         header_size = tmp_header_size;
-        bulk_free_bit_map_offset = tmp_bulk_free_bit_map_off;
-        thread_local_free_bit_map_offset = tmp_thread_local_free_bit_map_off;
         break;
       }
     }
-    DCHECK(num_of_slots > 0 && header_size > 0 && bulk_free_bit_map_offset > 0);
+    DCHECK_GT(num_of_slots, 0U);
+    DCHECK_GT(header_size, 0U);
     // Add the padding for the alignment remainder.
     header_size += run_size % bracket_size;
     DCHECK_EQ(header_size + num_of_slots * bracket_size, run_size);
     numOfSlots[i] = num_of_slots;
     headerSizes[i] = header_size;
-    bulkFreeBitMapOffsets[i] = bulk_free_bit_map_offset;
-    threadLocalFreeBitMapOffsets[i] = thread_local_free_bit_map_offset;
     if (kTraceRosAlloc) {
       LOG(INFO) << "numOfSlots[" << i << "]=" << numOfSlots[i]
-                << ", headerSizes[" << i << "]=" << headerSizes[i]
-                << ", bulkFreeBitMapOffsets[" << i << "]=" << bulkFreeBitMapOffsets[i]
-                << ", threadLocalFreeBitMapOffsets[" << i << "]=" << threadLocalFreeBitMapOffsets[i];;
+                << ", headerSizes[" << i << "]=" << headerSizes[i];
     }
   }
   // Fill the alloc bitmap so nobody can successfully allocate from it.
@@ -1868,8 +1724,11 @@ void RosAlloc::Initialize() {
   // It doesn't matter which size bracket we use since the main goal is to have the allocation
   // fail 100% of the time you attempt to allocate into the dedicated full run.
   dedicated_full_run_->size_bracket_idx_ = 0;
-  dedicated_full_run_->FillAllocBitMap();
+  DCHECK_EQ(dedicated_full_run_->FreeList()->Size(), 0U);  // It looks full.
   dedicated_full_run_->SetIsThreadLocal(true);
+
+  // The smallest bracket size must be at least as large as the sizeof(Slot).
+  DCHECK_LE(sizeof(Slot), bracketSizes[0]) << "sizeof(Slot) <= the smallest bracket size";
 }
 
 void RosAlloc::BytesAllocatedCallback(void* start ATTRIBUTE_UNUSED, void* end ATTRIBUTE_UNUSED,
@@ -2025,19 +1884,12 @@ void RosAlloc::Run::Verify(Thread* self, RosAlloc* rosalloc, bool running_on_mem
   CHECK_LT(idx, kNumOfSizeBrackets) << "Out of range size bracket index : " << Dump();
   uint8_t* slot_base = reinterpret_cast<uint8_t*>(this) + headerSizes[idx];
   const size_t num_slots = numOfSlots[idx];
-  const size_t num_vec = RoundUp(num_slots, 32) / 32;
-  CHECK_GT(num_vec, 0U);
   size_t bracket_size = IndexToBracketSize(idx);
   CHECK_EQ(slot_base + num_slots * bracket_size,
            reinterpret_cast<uint8_t*>(this) + numOfPages[idx] * kPageSize)
       << "Mismatch in the end address of the run " << Dump();
-  // Check that the bulk free bitmap is clean. It's only used during BulkFree().
-  CHECK(IsBulkFreeBitmapClean()) << "The bulk free bit map isn't clean " << Dump();
-  uint32_t last_word_mask = GetBitmapLastVectorMask(num_slots, num_vec);
-  // Make sure all the bits at the end of the run are set so that we don't allocate there.
-  CHECK_EQ(alloc_bit_map_[num_vec - 1] & last_word_mask, last_word_mask);
-  // Ensure that the first bitmap index is valid.
-  CHECK_LT(first_search_vec_idx_, num_vec);
+  // Check that the bulk free list is empty. It's only used during BulkFree().
+  CHECK(IsBulkFreeListEmpty()) << "The bulk free isn't empty " << Dump();
   // Check the thread local runs, the current runs, and the run sets.
   if (IsThreadLocal()) {
     // If it's a thread local run, then it must be pointed to by an owner thread.
@@ -2059,11 +1911,11 @@ void RosAlloc::Run::Verify(Thread* self, RosAlloc* rosalloc, bool running_on_mem
     }
     CHECK(owner_found) << "A thread local run has no owner thread " << Dump();
   } else {
-    // If it's not thread local, check that the thread local free bitmap is clean.
-    CHECK(IsThreadLocalFreeBitmapClean())
-        << "A non-thread-local run's thread local free bitmap isn't clean "
+    // If it's not thread local, check that the thread local free list is empty.
+    CHECK(IsThreadLocalFreeListEmpty())
+        << "A non-thread-local run's thread local free list isn't empty "
         << Dump();
-    // Check if it's a current run for the size bucket.
+    // Check if it's a current run for the size bracket.
     bool is_current_run = false;
     for (size_t i = 0; i < kNumOfSizeBrackets; i++) {
       MutexLock mu(self, *rosalloc->size_bracket_locks_[i]);
@@ -2101,34 +1953,39 @@ void RosAlloc::Run::Verify(Thread* self, RosAlloc* rosalloc, bool running_on_mem
     }
   }
   // Check each slot.
-  size_t slots = 0;
   size_t memory_tool_modifier = running_on_memory_tool ?
       2 * ::art::gc::space::kDefaultMemoryToolRedZoneBytes :
       0U;
-  for (size_t v = 0; v < num_vec; v++, slots += 32) {
-    DCHECK_GE(num_slots, slots) << "Out of bounds";
-    uint32_t vec = alloc_bit_map_[v];
-    uint32_t thread_local_free_vec = ThreadLocalFreeBitMap()[v];
-    size_t end = std::min(num_slots - slots, static_cast<size_t>(32));
-    for (size_t i = 0; i < end; ++i) {
-      bool is_allocated = ((vec >> i) & 0x1) != 0;
-      // If a thread local run, slots may be marked freed in the
-      // thread local free bitmap.
-      bool is_thread_local_freed = IsThreadLocal() && ((thread_local_free_vec >> i) & 0x1) != 0;
-      if (is_allocated && !is_thread_local_freed) {
-        uint8_t* slot_addr = slot_base + (slots + i) * bracket_size;
-        if (running_on_memory_tool) {
-          slot_addr += ::art::gc::space::kDefaultMemoryToolRedZoneBytes;
-        }
-        mirror::Object* obj = reinterpret_cast<mirror::Object*>(slot_addr);
-        size_t obj_size = obj->SizeOf();
-        CHECK_LE(obj_size + memory_tool_modifier, kLargeSizeThreshold)
-            << "A run slot contains a large object " << Dump();
-        CHECK_EQ(SizeToIndex(obj_size + memory_tool_modifier), idx)
-            << PrettyTypeOf(obj) << " "
-            << "obj_size=" << obj_size << "(" << obj_size + memory_tool_modifier << "), idx=" << idx
-            << " A run slot contains an object with wrong size " << Dump();
-      }
+  // TODO: reuse InspectAllSlots().
+  std::unique_ptr<bool[]> is_free(new bool[num_slots]());  // zero initialized
+  // Mark the free slots and the remaining ones are allocated.
+  for (Slot* slot = free_list_.Head(); slot != nullptr; slot = slot->Next()) {
+    size_t slot_idx = SlotIndex(slot);
+    DCHECK_LT(slot_idx, num_slots);
+    is_free[slot_idx] = true;
+  }
+  if (IsThreadLocal()) {
+    for (Slot* slot = thread_local_free_list_.Head(); slot != nullptr; slot = slot->Next()) {
+      size_t slot_idx = SlotIndex(slot);
+      DCHECK_LT(slot_idx, num_slots);
+      is_free[slot_idx] = true;
+    }
+  }
+  for (size_t slot_idx = 0; slot_idx < num_slots; ++slot_idx) {
+    uint8_t* slot_addr = slot_base + slot_idx * bracket_size;
+    if (running_on_memory_tool) {
+      slot_addr += ::art::gc::space::kDefaultMemoryToolRedZoneBytes;
+    }
+    if (!is_free[slot_idx]) {
+      // The slot is allocated
+      mirror::Object* obj = reinterpret_cast<mirror::Object*>(slot_addr);
+      size_t obj_size = obj->SizeOf();
+      CHECK_LE(obj_size + memory_tool_modifier, kLargeSizeThreshold)
+          << "A run slot contains a large object " << Dump();
+      CHECK_EQ(SizeToIndex(obj_size + memory_tool_modifier), idx)
+          << PrettyTypeOf(obj) << " "
+          << "obj_size=" << obj_size << "(" << obj_size + memory_tool_modifier << "), idx=" << idx
+          << " A run slot contains an object with wrong size " << Dump();
     }
   }
 }
