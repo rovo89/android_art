@@ -468,7 +468,7 @@ static constexpr bool kIntrinsified = true;
  * The intent is to have the code for generating the instruction independent of
  * register allocation. A register allocator just has to provide a LocationSummary.
  */
-class LocationSummary : public ArenaObject<kArenaAllocMisc> {
+class LocationSummary : public ArenaObject<kArenaAllocLocationSummary> {
  public:
   enum CallKind {
     kNoCall,

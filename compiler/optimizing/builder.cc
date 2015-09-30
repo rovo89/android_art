@@ -324,7 +324,7 @@ void HGraphBuilder::InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item) 
   // Keep a map of all try blocks and their respective TryItems. We do not use
   // the block's pointer but rather its id to ensure deterministic iteration.
   ArenaSafeMap<uint32_t, const DexFile::TryItem*> try_block_info(
-      std::less<uint32_t>(), arena_->Adapter());
+      std::less<uint32_t>(), arena_->Adapter(kArenaAllocGraphBuilder));
 
   // Obtain TryItem information for blocks with throwing instructions, and split
   // blocks which are both try & catch to simplify the graph.
