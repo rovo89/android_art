@@ -205,7 +205,7 @@ TEST_F(DexFileTest, GetChecksum) {
   uint32_t checksum;
   ScopedObjectAccess soa(Thread::Current());
   std::string error_msg;
-  EXPECT_TRUE(DexFile::GetChecksum(GetLibCoreDexFileName().c_str(), &checksum, &error_msg))
+  EXPECT_TRUE(DexFile::GetChecksum(GetLibCoreDexFileNames()[0].c_str(), &checksum, &error_msg))
       << error_msg;
   EXPECT_EQ(java_lang_dex_file_->GetLocationChecksum(), checksum);
 }

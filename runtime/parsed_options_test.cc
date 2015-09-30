@@ -30,18 +30,27 @@ TEST_F(ParsedOptionsTest, ParsedOptions) {
   void* test_exit = reinterpret_cast<void*>(0xc);
   void* null = reinterpret_cast<void*>(NULL);
 
-  std::string lib_core(GetLibCoreDexFileName());
-
   std::string boot_class_path;
+  std::string class_path;
   boot_class_path += "-Xbootclasspath:";
-  boot_class_path += lib_core;
+
+  bool first_dex_file = true;
+  for (const std::string &dex_file_name : GetLibCoreDexFileNames()) {
+    if (!first_dex_file) {
+      class_path += ":";
+    } else {
+      first_dex_file = false;
+    }
+    class_path += dex_file_name;
+  }
+  boot_class_path += class_path;
 
   RuntimeOptions options;
   options.push_back(std::make_pair(boot_class_path.c_str(), null));
   options.push_back(std::make_pair("-classpath", null));
-  options.push_back(std::make_pair(lib_core.c_str(), null));
+  options.push_back(std::make_pair(class_path.c_str(), null));
   options.push_back(std::make_pair("-cp", null));
-  options.push_back(std::make_pair(lib_core.c_str(), null));
+  options.push_back(std::make_pair(class_path.c_str(), null));
   options.push_back(std::make_pair("-Ximage:boot_image", null));
   options.push_back(std::make_pair("-Xcheck:jni", null));
   options.push_back(std::make_pair("-Xms2048", null));
@@ -57,8 +66,8 @@ TEST_F(ParsedOptionsTest, ParsedOptions) {
   std::unique_ptr<ParsedOptions> parsed(ParsedOptions::Create(options, false));
   ASSERT_TRUE(parsed.get() != NULL);
 
-  EXPECT_EQ(lib_core, parsed->boot_class_path_string_);
-  EXPECT_EQ(lib_core, parsed->class_path_string_);
+  EXPECT_EQ(class_path, parsed->boot_class_path_string_);
+  EXPECT_EQ(class_path, parsed->class_path_string_);
   EXPECT_EQ(std::string("boot_image"), parsed->image_);
   EXPECT_EQ(true, parsed->check_jni_);
   EXPECT_EQ(2048U, parsed->heap_initial_size_);

@@ -32,7 +32,7 @@ class ZipArchiveTest : public CommonRuntimeTest {};
 
 TEST_F(ZipArchiveTest, FindAndExtract) {
   std::string error_msg;
-  std::unique_ptr<ZipArchive> zip_archive(ZipArchive::Open(GetLibCoreDexFileName().c_str(), &error_msg));
+  std::unique_ptr<ZipArchive> zip_archive(ZipArchive::Open(GetLibCoreDexFileNames()[0].c_str(), &error_msg));
   ASSERT_TRUE(zip_archive.get() != nullptr) << error_msg;
   ASSERT_TRUE(error_msg.empty());
   std::unique_ptr<ZipEntry> zip_entry(zip_archive->Find("classes.dex", &error_msg));
