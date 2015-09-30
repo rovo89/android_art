@@ -71,18 +71,14 @@ bool Throwable::IsCheckedException() {
 
 int32_t Throwable::GetStackDepth() {
   Object* stack_state = GetStackState();
-  if (stack_state == nullptr) {
+  if (stack_state == nullptr || !stack_state->IsObjectArray()) {
     return -1;
   }
-  if (!stack_state->IsIntArray() && !stack_state->IsLongArray()) {
-    return -1;
-  }
-  mirror::PointerArray* method_trace = down_cast<mirror::PointerArray*>(stack_state->AsArray());
-  int32_t array_len = method_trace->GetLength();
-  // The format is [method pointers][pcs] so the depth is half the length (see method
-  // BuildInternalStackTraceVisitor::Init).
-  CHECK_EQ(array_len % 2, 0);
-  return array_len / 2;
+  mirror::ObjectArray<mirror::Object>* const trace = stack_state->AsObjectArray<mirror::Object>();
+  const int32_t array_len = trace->GetLength();
+  DCHECK_GT(array_len, 0);
+  // See method BuildInternalStackTraceVisitor::Init for the format.
+  return array_len - 1;
 }
 
 std::string Throwable::Dump() {
@@ -95,18 +91,22 @@ std::string Throwable::Dump() {
   result += "\n";
   Object* stack_state = GetStackState();
   // check stack state isn't missing or corrupt
-  if (stack_state != nullptr &&
-      (stack_state->IsIntArray() || stack_state->IsLongArray())) {
+  if (stack_state != nullptr && stack_state->IsObjectArray()) {
+    mirror::ObjectArray<mirror::Object>* object_array =
+        stack_state->AsObjectArray<mirror::Object>();
     // Decode the internal stack trace into the depth and method trace
-    // Format is [method pointers][pcs]
-    auto* method_trace = down_cast<mirror::PointerArray*>(stack_state->AsArray());
-    auto array_len = method_trace->GetLength();
+    // See method BuildInternalStackTraceVisitor::Init for the format.
+    DCHECK_GT(object_array->GetLength(), 0);
+    mirror::Object* methods_and_dex_pcs = object_array->Get(0);
+    DCHECK(methods_and_dex_pcs->IsIntArray() || methods_and_dex_pcs->IsLongArray());
+    mirror::PointerArray* method_trace = down_cast<mirror::PointerArray*>(methods_and_dex_pcs);
+    const int32_t array_len = method_trace->GetLength();
     CHECK_EQ(array_len % 2, 0);
     const auto depth = array_len / 2;
     if (depth == 0) {
       result += "(Throwable with empty stack trace)";
     } else {
-      auto ptr_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+      const size_t ptr_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
       for (int32_t i = 0; i < depth; ++i) {
         ArtMethod* method = method_trace->GetElementPtrSize<ArtMethod*>(i, ptr_size);
         uintptr_t dex_pc = method_trace->GetElementPtrSize<uintptr_t>(i + depth, ptr_size);
