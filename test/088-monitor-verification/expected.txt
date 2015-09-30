@@ -5,9 +5,3 @@ constantLock ok
 notNested ok
 twoPath ok
 triplet ok
-OK
-TooDeep
-NotStructuredOverUnlock
-NotStructuredUnderUnlock
-UnbalancedJoin
-UnbalancedStraight
