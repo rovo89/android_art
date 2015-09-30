@@ -86,12 +86,6 @@ while true; do
     # Remove the --debug from the arguments.
     vogar_args=${vogar_args/$1}
     vogar_args="$vogar_args --vm-arg -XXlib:libartd.so"
-    if [ "$emulator" = "no" ]; then
-      # Increase the timeout, as vogar cannot set individual test
-      # timeout when being asked to run packages, and some tests go above
-      # the default timeout.
-      vogar_args="$vogar_args --timeout 240"
-    fi
     shift
   elif [[ "$1" == "" ]]; then
     break
@@ -100,10 +94,10 @@ while true; do
   fi
 done
 
-if [ "$emulator" = "yes" ]; then
-  # Be very patient with the emulator.
-  vogar_args="$vogar_args --timeout 480"
-fi
+# Increase the timeout, as vogar cannot set individual test
+# timeout when being asked to run packages, and some tests go above
+# the default timeout.
+vogar_args="$vogar_args --timeout 480"
 
 # Run the tests using vogar.
 echo "Running tests for the following test packages:"
