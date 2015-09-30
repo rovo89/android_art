@@ -475,8 +475,8 @@ CodeGeneratorX86::CodeGeneratorX86(HGraph* graph,
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetArena(), this),
       isa_features_(isa_features),
-      method_patches_(graph->GetArena()->Adapter()),
-      relative_call_patches_(graph->GetArena()->Adapter()) {
+      method_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      relative_call_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
   // Use a fake return address register to mimic Quick.
   AddAllocatedRegister(Location::RegisterLocation(kFakeReturnRegister));
 }
@@ -5623,7 +5623,7 @@ void CodeGeneratorX86::Finalize(CodeAllocator* allocator) {
 /**
  * Class to handle late fixup of offsets into constant area.
  */
-class RIPFixup : public AssemblerFixup, public ArenaObject<kArenaAllocMisc> {
+class RIPFixup : public AssemblerFixup, public ArenaObject<kArenaAllocCodeGenerator> {
  public:
   RIPFixup(const CodeGeneratorX86& codegen, int offset)
       : codegen_(codegen), offset_into_constant_area_(offset) {}

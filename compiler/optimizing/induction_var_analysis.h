@@ -87,7 +87,7 @@ class HInductionVarAnalysis : public HOptimization {
    *   (5) trip-count:
    *         tc: defined by b
    */
-  struct InductionInfo : public ArenaObject<kArenaAllocMisc> {
+  struct InductionInfo : public ArenaObject<kArenaAllocInductionVarAnalysis> {
     InductionInfo(InductionClass ic,
                   InductionOp op,
                   InductionInfo* a,

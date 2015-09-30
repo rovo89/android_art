@@ -438,9 +438,11 @@ CodeGeneratorARM::CodeGeneratorARM(HGraph* graph,
       move_resolver_(graph->GetArena(), this),
       assembler_(),
       isa_features_(isa_features),
-      method_patches_(MethodReferenceComparator(), graph->GetArena()->Adapter()),
-      call_patches_(MethodReferenceComparator(), graph->GetArena()->Adapter()),
-      relative_call_patches_(graph->GetArena()->Adapter()) {
+      method_patches_(MethodReferenceComparator(),
+                      graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      call_patches_(MethodReferenceComparator(),
+                    graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      relative_call_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
   // Always save the LR register to mimic Quick.
   AddAllocatedRegister(Location::RegisterLocation(LR));
 }
