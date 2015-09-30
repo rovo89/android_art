@@ -26,6 +26,7 @@
 #include "gc/allocator_type.h"
 #include "invoke_type.h"
 #include "jvalue.h"
+#include "runtime.h"
 
 namespace art {
 
@@ -178,6 +179,10 @@ bool FillArrayData(mirror::Object* obj, const Instruction::ArrayDataPayload* pay
 
 template <typename INT_TYPE, typename FLOAT_TYPE>
 inline INT_TYPE art_float_to_integral(FLOAT_TYPE f);
+
+ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp,
+                                     Runtime::CalleeSaveType type,
+                                     bool do_caller_check = false);
 
 }  // namespace art
 
