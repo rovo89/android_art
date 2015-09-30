@@ -53,13 +53,7 @@ inline ALWAYS_INLINE void* RosAlloc::Alloc(Thread* self, size_t size, size_t* by
 }
 
 inline bool RosAlloc::Run::IsFull() {
-  const size_t num_vec = NumberOfBitmapVectors();
-  for (size_t v = 0; v < num_vec; ++v) {
-    if (~alloc_bit_map_[v] != 0) {
-      return false;
-    }
-  }
-  return true;
+  return free_list_.Size() == 0;
 }
 
 inline bool RosAlloc::CanAllocFromThreadLocalRun(Thread* self, size_t size) {
@@ -120,45 +114,14 @@ inline size_t RosAlloc::MaxBytesBulkAllocatedFor(size_t size) {
 }
 
 inline void* RosAlloc::Run::AllocSlot() {
-  const size_t idx = size_bracket_idx_;
-  while (true) {
-    if (kIsDebugBuild) {
-      // Make sure that no slots leaked, the bitmap should be full for all previous vectors.
-      for (size_t i = 0; i < first_search_vec_idx_; ++i) {
-        CHECK_EQ(~alloc_bit_map_[i], 0U);
-      }
-    }
-    uint32_t* const alloc_bitmap_ptr = &alloc_bit_map_[first_search_vec_idx_];
-    uint32_t ffz1 = __builtin_ffs(~*alloc_bitmap_ptr);
-    if (LIKELY(ffz1 != 0)) {
-      const uint32_t ffz = ffz1 - 1;
-      const uint32_t slot_idx = ffz +
-          first_search_vec_idx_ * sizeof(*alloc_bitmap_ptr) * kBitsPerByte;
-      const uint32_t mask = 1U << ffz;
-      DCHECK_LT(slot_idx, numOfSlots[idx]) << "out of range";
-      // Found an empty slot. Set the bit.
-      DCHECK_EQ(*alloc_bitmap_ptr & mask, 0U);
-      *alloc_bitmap_ptr |= mask;
-      DCHECK_NE(*alloc_bitmap_ptr & mask, 0U);
-      uint8_t* slot_addr = reinterpret_cast<uint8_t*>(this) +
-          headerSizes[idx] + slot_idx * bracketSizes[idx];
-      if (kTraceRosAlloc) {
-        LOG(INFO) << "RosAlloc::Run::AllocSlot() : 0x" << std::hex
-                  << reinterpret_cast<intptr_t>(slot_addr)
-                  << ", bracket_size=" << std::dec << bracketSizes[idx]
-                  << ", slot_idx=" << slot_idx;
-      }
-      return slot_addr;
-    }
-    const size_t num_words = RoundUp(numOfSlots[idx], 32) / 32;
-    if (first_search_vec_idx_ + 1 >= num_words) {
-      DCHECK(IsFull());
-      // Already at the last word, return null.
-      return nullptr;
-    }
-    // Increase the index to the next word and try again.
-    ++first_search_vec_idx_;
+  Slot* slot = free_list_.Remove();
+  if (kTraceRosAlloc && slot != nullptr) {
+    const uint8_t idx = size_bracket_idx_;
+    LOG(INFO) << "RosAlloc::Run::AllocSlot() : " << slot
+              << ", bracket_size=" << std::dec << bracketSizes[idx]
+              << ", slot_idx=" << SlotIndex(slot);
   }
+  return slot;
 }
 
 }  // namespace allocator
