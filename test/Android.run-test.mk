@@ -415,16 +415,66 @@ endif
 
 TEST_ART_BROKEN_DEFAULT_RUN_TESTS :=
 
-# Known broken tests for the arm64 optimizing compiler backend.
-TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS :=
+# Known broken tests for the mips32 optimizing compiler backend.
+TEST_ART_BROKEN_OPTIMIZING_MIPS_RUN_TESTS := \
+    441-checker-inliner \
+    442-checker-constant-folding \
+    444-checker-nce \
+    445-checker-licm \
+    446-checker-inliner2 \
+    447-checker-inliner3 \
+    449-checker-bce \
+    450-checker-types \
+    455-checker-gvn \
+    458-checker-instruction-simplification \
+    462-checker-inlining-across-dex-files \
+    463-checker-boolean-simplifier \
+    464-checker-inline-sharpen-calls \
+    465-checker-clinit-gvn \
+    468-checker-bool-simplifier-regression \
+    473-checker-inliner-constants \
+    474-checker-boolean-input \
+    476-checker-ctor-memory-barrier \
+    477-checker-bound-type \
+    478-checker-clinit-check-pruning \
+    478-checker-inliner-nested-loop \
+    480-checker-dead-blocks \
+    482-checker-loop-back-edge-use \
+    484-checker-register-hints \
+    485-checker-dce-loop-update \
+    485-checker-dce-switch \
+    486-checker-must-do-null-check \
+    487-checker-inline-calls \
+    488-checker-inline-recursive-calls \
+    490-checker-inline \
+    492-checker-inline-invoke-interface \
+    493-checker-inline-invoke-interface \
+    494-checker-instanceof-tests \
+    495-checker-checkcast-tests \
+    496-checker-inlining-and-class-loader \
+    508-checker-disassembly \
+    510-checker-try-catch \
+    517-checker-builder-fallthrough \
+    521-checker-array-set-null \
+    522-checker-regression-monitor-exit \
+    523-checker-can-throw-regression \
+    525-checker-arrays-and-fields \
+    526-checker-caller-callee-regs \
+    529-checker-unresolved \
+    530-checker-loops \
+    530-checker-regression-reftype-final \
+    532-checker-nonnull-arrayset \
 
-ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
-  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
-      optimizing,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-      $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES),$(TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS),64)
+ifeq (mips,$(TARGET_ARCH))
+  ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
+    ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
+        optimizing,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+        $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
+        $(TEST_ART_BROKEN_OPTIMIZING_MIPS_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+  endif
 endif
 
-TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS :=
+TEST_ART_BROKEN_OPTIMIZING_MIPS_RUN_TESTS :=
 
 # Known broken tests for the optimizing compiler.
 TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS := \
