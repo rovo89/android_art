@@ -690,7 +690,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
 
   compiler_callbacks_ = options->compiler_callbacks_;
   patchoat_executable_ = options->patchoat_executable_;
-  must_relocate_ = options->must_relocate_;
+  must_relocate_ = false;
   is_zygote_ = options->is_zygote_;
   is_explicit_gc_disabled_ = options->is_explicit_gc_disabled_;
   dex2oat_enabled_ = options->dex2oat_enabled_;
