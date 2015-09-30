@@ -92,8 +92,8 @@ class CommonRuntimeTest : public testing::Test {
 
   virtual void TearDown();
 
-  // Gets the path of the libcore dex file.
-  std::string GetLibCoreDexFileName();
+  // Gets the paths of the libcore dex files.
+  std::vector<std::string> GetLibCoreDexFileNames();
 
   // Gets the path of the specified dex file for host or target.
   std::string GetDexFileName(const std::string& jar_prefix);

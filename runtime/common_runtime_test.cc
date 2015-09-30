@@ -197,8 +197,11 @@ void CommonRuntimeTest::SetUp() {
   MemMap::Init();  // For LoadExpectSingleDexFile
 
   std::string error_msg;
-  java_lang_dex_file_ = LoadExpectSingleDexFile(GetLibCoreDexFileName().c_str());
-  boot_class_path_.push_back(java_lang_dex_file_);
+
+  for (const std::string &core_dex_file_name : GetLibCoreDexFileNames()) {
+    java_lang_dex_file_ = LoadExpectSingleDexFile(core_dex_file_name.c_str());
+    boot_class_path_.push_back(java_lang_dex_file_);
+  }
 
   std::string min_heap_string(StringPrintf("-Xms%zdm", gc::Heap::kDefaultInitialSize / MB));
   std::string max_heap_string(StringPrintf("-Xmx%zdm", gc::Heap::kDefaultMaximumSize / MB));
@@ -283,8 +286,8 @@ void CommonRuntimeTest::TearDown() {
   Runtime::Current()->GetHeap()->VerifyHeap();  // Check for heap corruption after the test
 }
 
-std::string CommonRuntimeTest::GetLibCoreDexFileName() {
-  return GetDexFileName("core-libart");
+std::vector<std::string> CommonRuntimeTest::GetLibCoreDexFileNames() {
+  return std::vector<std::string>({GetDexFileName("core-oj"), GetDexFileName("core-libart")});
 }
 
 std::string CommonRuntimeTest::GetDexFileName(const std::string& jar_prefix) {
