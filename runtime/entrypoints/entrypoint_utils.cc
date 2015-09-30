@@ -21,11 +21,15 @@
 #include "base/mutex.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
+#include "entrypoints/entrypoint_utils-inl.h"
+#include "entrypoints/quick/callee_save_frame.h"
+#include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc/accounting/card_table-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/method.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
+#include "nth_caller_visitor.h"
 #include "reflection.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
@@ -343,6 +347,56 @@ bool FillArrayData(mirror::Object* obj, const Instruction::ArrayDataPayload* pay
   uint32_t size_in_bytes = payload->element_count * payload->element_width;
   memcpy(array->GetRawData(payload->element_width, 0), payload->data, size_in_bytes);
   return true;
+}
+
+ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp,
+                                     Runtime::CalleeSaveType type,
+                                     bool do_caller_check)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  DCHECK_EQ(*sp, Runtime::Current()->GetCalleeSaveMethod(type));
+
+  const size_t callee_frame_size = GetCalleeSaveFrameSize(kRuntimeISA, type);
+  auto** caller_sp = reinterpret_cast<ArtMethod**>(
+      reinterpret_cast<uintptr_t>(sp) + callee_frame_size);
+  ArtMethod* outer_method = *caller_sp;
+  ArtMethod* caller = outer_method;
+
+  if ((outer_method != nullptr) && outer_method->IsOptimized(sizeof(void*))) {
+    const size_t callee_return_pc_offset = GetCalleeSaveReturnPcOffset(kRuntimeISA, type);
+    uintptr_t caller_pc = *reinterpret_cast<uintptr_t*>(
+        (reinterpret_cast<uint8_t*>(sp) + callee_return_pc_offset));
+    if (LIKELY(caller_pc != reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc()))) {
+      uintptr_t native_pc_offset = outer_method->NativeQuickPcOffset(caller_pc);
+      CodeInfo code_info = outer_method->GetOptimizedCodeInfo();
+      StackMapEncoding encoding = code_info.ExtractEncoding();
+      StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
+      DCHECK(stack_map.IsValid());
+      if (stack_map.HasInlineInfo(encoding)) {
+        InlineInfo inline_info = code_info.GetInlineInfoOf(stack_map, encoding);
+        caller = GetResolvedMethod(outer_method, inline_info, inline_info.GetDepth() - 1);
+      }
+    } else {
+      // We're instrumenting, just use the StackVisitor which knows how to
+      // handle instrumented frames.
+      NthCallerVisitor visitor(Thread::Current(), 1, true);
+      visitor.WalkStack();
+      caller = visitor.caller;
+      if (kIsDebugBuild) {
+        // Avoid doing the check below.
+        do_caller_check = false;
+      }
+    }
+  }
+
+  if (kIsDebugBuild && do_caller_check) {
+    // Note that do_caller_check is optional, as this method can be called by
+    // stubs, and tests without a proper call stack.
+    NthCallerVisitor visitor(Thread::Current(), 1, true);
+    visitor.WalkStack();
+    CHECK_EQ(caller, visitor.caller);
+  }
+
+  return caller;
 }
 
 }  // namespace art
