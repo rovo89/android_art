@@ -234,7 +234,8 @@ TEST_F(InductionVarAnalysisTest, FindBasicInduction) {
   EXPECT_STREQ("((1) * i + (1))", GetInductionInfo(increment_[0], 0).c_str());
 
   // Trip-count.
-  EXPECT_STREQ("(100)", GetInductionInfo(loop_header_[0]->GetLastInstruction(), 0).c_str());
+  EXPECT_STREQ("(TC-loop:(100))",
+               GetInductionInfo(loop_header_[0]->GetLastInstruction(), 0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, FindDerivedInduction) {
@@ -543,8 +544,10 @@ TEST_F(InductionVarAnalysisTest, FindRange) {
   InductionVarRange range(iva_);
   InductionVarRange::Value v_min = range.GetMinInduction(store, store->InputAt(1));
   InductionVarRange::Value v_max = range.GetMaxInduction(store, store->InputAt(1));
+  ASSERT_TRUE(v_min.is_known);
   EXPECT_EQ(0, v_min.a_constant);
   EXPECT_EQ(1, v_min.b_constant);
+  ASSERT_TRUE(v_max.is_known);
   EXPECT_EQ(0, v_max.a_constant);
   EXPECT_EQ(199, v_max.b_constant);
 }
@@ -579,7 +582,8 @@ TEST_F(InductionVarAnalysisTest, FindDeepLoopInduction) {
     }
     EXPECT_STREQ("((1) * i + (1))", GetInductionInfo(increment_[d], d).c_str());
     // Trip-count.
-    EXPECT_STREQ("(100)", GetInductionInfo(loop_header_[d]->GetLastInstruction(), d).c_str());
+    EXPECT_STREQ("(TC-loop:(100))",
+                 GetInductionInfo(loop_header_[d]->GetLastInstruction(), d).c_str());
   }
 }
 

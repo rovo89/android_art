@@ -85,8 +85,7 @@ class InductionVarRangeTest : public testing::Test {
 
   /** Constructs a trip-count. */
   HInductionVarAnalysis::InductionInfo* CreateTripCount(int32_t tc) {
-    HInductionVarAnalysis::InductionInfo* trip = CreateConst(tc);
-    return CreateInvariant('@', trip, trip);
+    return iva_->CreateTripCount(HInductionVarAnalysis::kTripCountInLoop, CreateConst(tc));
   }
 
   /** Constructs a linear a * i + b induction. */
@@ -112,24 +111,28 @@ class InductionVarRangeTest : public testing::Test {
 
   Value GetMin(HInductionVarAnalysis::InductionInfo* info,
                HInductionVarAnalysis::InductionInfo* induc) {
-    return InductionVarRange::GetVal(info, induc, /* is_min */ true);
+    return InductionVarRange::GetVal(info, induc, /* in_body */ true, /* is_min */ true);
   }
 
   Value GetMax(HInductionVarAnalysis::InductionInfo* info,
                HInductionVarAnalysis::InductionInfo* induc) {
-    return InductionVarRange::GetVal(info, induc, /* is_min */ false);
+    return InductionVarRange::GetVal(info, induc, /* in_body */ true, /* is_min */ false);
   }
 
   Value GetMul(HInductionVarAnalysis::InductionInfo* info1,
                HInductionVarAnalysis::InductionInfo* info2,
                bool is_min) {
-    return InductionVarRange::GetMul(info1, info2, nullptr, is_min);
+    return InductionVarRange::GetMul(info1, info2, nullptr, /* in_body */ true, is_min);
   }
 
   Value GetDiv(HInductionVarAnalysis::InductionInfo* info1,
                HInductionVarAnalysis::InductionInfo* info2,
                bool is_min) {
-    return InductionVarRange::GetDiv(info1, info2, nullptr, is_min);
+    return InductionVarRange::GetDiv(info1, info2, nullptr, /* in_body */ true, is_min);
+  }
+
+  bool GetConstant(HInductionVarAnalysis::InductionInfo* info, int32_t* value) {
+    return InductionVarRange::GetConstant(info, value);
   }
 
   Value AddValue(Value v1, Value v2) { return InductionVarRange::AddValue(v1, v2); }
@@ -277,6 +280,13 @@ TEST_F(InductionVarRangeTest, GetDivMax) {
   ExpectEqual(Value(-10), GetDiv(CreateRange(40, 1000), CreateRange(-4, -2), false));
   ExpectEqual(Value(-10), GetDiv(CreateRange(-1000, -40), CreateRange(2, 4), false));
   ExpectEqual(Value(500), GetDiv(CreateRange(-1000, -40), CreateRange(-4, -2), false));
+}
+
+TEST_F(InductionVarRangeTest, GetConstant) {
+  int32_t value;
+  ASSERT_TRUE(GetConstant(CreateConst(12345), &value));
+  EXPECT_EQ(12345, value);
+  EXPECT_FALSE(GetConstant(CreateRange(1, 2), &value));
 }
 
 TEST_F(InductionVarRangeTest, AddValue) {
