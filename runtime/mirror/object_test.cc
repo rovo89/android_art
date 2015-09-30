@@ -649,16 +649,16 @@ TEST_F(ObjectTest, FindInstanceField) {
   ASSERT_TRUE(c != NULL);
 
   // Wrong type.
-  EXPECT_TRUE(c->FindDeclaredInstanceField("count", "J") == NULL);
-  EXPECT_TRUE(c->FindInstanceField("count", "J") == NULL);
+  EXPECT_TRUE(c->FindDeclaredInstanceField("value", "J") == NULL);
+  EXPECT_TRUE(c->FindInstanceField("value", "J") == NULL);
 
   // Wrong name.
-  EXPECT_TRUE(c->FindDeclaredInstanceField("Count", "I") == NULL);
-  EXPECT_TRUE(c->FindInstanceField("Count", "I") == NULL);
+  EXPECT_TRUE(c->FindDeclaredInstanceField("Value", "[C") == NULL);
+  EXPECT_TRUE(c->FindInstanceField("Value", "[C") == NULL);
 
   // Right name and type.
-  ArtField* f1 = c->FindDeclaredInstanceField("count", "I");
-  ArtField* f2 = c->FindInstanceField("count", "I");
+  ArtField* f1 = c->FindDeclaredInstanceField("value", "[C");
+  ArtField* f2 = c->FindInstanceField("value", "[C");
   EXPECT_TRUE(f1 != NULL);
   EXPECT_TRUE(f2 != NULL);
   EXPECT_EQ(f1, f2);
