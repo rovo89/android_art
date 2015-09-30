@@ -119,8 +119,11 @@ static void SaveRestoreLiveRegistersHelper(CodeGenerator* codegen,
 
   CPURegList core_list = CPURegList(CPURegister::kRegister, kXRegSize,
       register_set->GetCoreRegisters() & (~callee_saved_core_registers.list()));
-  CPURegList fp_list = CPURegList(CPURegister::kFPRegister, kDRegSize,
-      register_set->GetFloatingPointRegisters() & (~callee_saved_fp_registers.list()));
+  CPURegList fp_list = CPURegList(
+      CPURegister::kFPRegister,
+      kDRegSize,
+      register_set->GetFloatingPointRegisters()
+          & (~(codegen->GetGraph()->IsDebuggable() ? 0 : callee_saved_fp_registers.list())));
 
   MacroAssembler* masm = down_cast<CodeGeneratorARM64*>(codegen)->GetVIXLAssembler();
   UseScratchRegisterScope temps(masm);
@@ -534,7 +537,9 @@ CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph,
                     kNumberOfAllocatableFPRegisters,
                     kNumberOfAllocatableRegisterPairs,
                     callee_saved_core_registers.list(),
-                    callee_saved_fp_registers.list(),
+                    // If the graph is debuggable, we need to save the fpu registers ourselves,
+                    // as the stubs do not do it.
+                    graph->IsDebuggable() ? 0 : callee_saved_fp_registers.list(),
                     compiler_options,
                     stats),
       block_labels_(nullptr),
