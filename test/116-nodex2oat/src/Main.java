@@ -18,16 +18,16 @@ public class Main {
   public static void main(String[] args) {
     System.loadLibrary(args[0]);
     System.out.println(
-        "Has oat is " + hasOat() + ", is dex2oat enabled is " + isDex2OatEnabled() + ".");
+        "Has oat is " + hasOatFile() + ", is dex2oat enabled is " + isDex2OatEnabled() + ".");
 
-    if (hasOat() && !isDex2OatEnabled()) {
+    if (hasOatFile() && !isDex2OatEnabled()) {
       throw new Error("Application with dex2oat disabled runs with an oat file");
-    } else if (!hasOat() && isDex2OatEnabled()) {
+    } else if (!hasOatFile() && isDex2OatEnabled()) {
       throw new Error("Application with dex2oat enabled runs without an oat file");
     }
   }
 
-  private native static boolean hasOat();
+  private native static boolean hasOatFile();
 
   private native static boolean isDex2OatEnabled();
 }
