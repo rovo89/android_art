@@ -226,14 +226,14 @@ void InstructionWithAbsorbingInputSimplifier::VisitSub(HSub* instruction) {
 
   // We assume that GVN has run before, so we only perform a pointer
   // comparison.  If for some reason the values are equal but the pointers are
-  // different, we are still correct and only miss an optimisation
+  // different, we are still correct and only miss an optimization
   // opportunity.
   if (instruction->GetLeft() == instruction->GetRight()) {
     // Replace code looking like
     //    SUB dst, src, src
     // with
     //    CONSTANT 0
-    // Note that we cannot optimise `x - x` to `0` for floating-point. It does
+    // Note that we cannot optimize `x - x` to `0` for floating-point. It does
     // not work when `x` is an infinity.
     instruction->ReplaceWith(GetGraph()->GetConstant(type, 0));
     block->RemoveInstruction(instruction);
