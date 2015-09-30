@@ -73,23 +73,28 @@ class InductionVarRange {
   // Private helper methods.
   //
 
-  HInductionVarAnalysis::InductionInfo* GetTripCount(HLoopInformation* loop, HInstruction* context);
+  Value GetInduction(HInstruction* context, HInstruction* instruction, bool is_min);
 
   static Value GetFetch(HInstruction* instruction,
                         HInductionVarAnalysis::InductionInfo* trip,
+                        bool in_body,
                         bool is_min);
-
   static Value GetVal(HInductionVarAnalysis::InductionInfo* info,
                       HInductionVarAnalysis::InductionInfo* trip,
+                      bool in_body,
                       bool is_min);
   static Value GetMul(HInductionVarAnalysis::InductionInfo* info1,
                       HInductionVarAnalysis::InductionInfo* info2,
                       HInductionVarAnalysis::InductionInfo* trip,
+                      bool in_body,
                       bool is_min);
   static Value GetDiv(HInductionVarAnalysis::InductionInfo* info1,
                       HInductionVarAnalysis::InductionInfo* info2,
                       HInductionVarAnalysis::InductionInfo* trip,
+                      bool in_body,
                       bool is_min);
+
+  static bool GetConstant(HInductionVarAnalysis::InductionInfo* info, int32_t *value);
 
   static Value AddValue(Value v1, Value v2);
   static Value SubValue(Value v1, Value v2);

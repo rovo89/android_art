@@ -22,7 +22,7 @@ public class Main {
   static int sResult;
 
   //
-  // Various sequence variables where bound checks can be removed from loop.
+  // Various sequence variables used in bound checks.
   //
 
   /// CHECK-START: int Main.linear(int[]) BCE (before)
@@ -262,11 +262,11 @@ public class Main {
     return result;
   }
 
-  /// CHECK-START: int Main.linearForNE() BCE (before)
+  /// CHECK-START: int Main.linearForNEUp() BCE (before)
   /// CHECK-DAG: BoundsCheck
-  /// CHECK-START: int Main.linearForNE() BCE (after)
+  /// CHECK-START: int Main.linearForNEUp() BCE (after)
   /// CHECK-NOT: BoundsCheck
-  private static int linearForNE() {
+  private static int linearForNEUp() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     int result = 0;
     for (int i = 0; i != 10; i++) {
@@ -275,18 +275,44 @@ public class Main {
     return result;
   }
 
-  /// CHECK-START: int Main.linearDoWhile() BCE (before)
+  /// CHECK-START: int Main.linearForNEDown() BCE (before)
   /// CHECK-DAG: BoundsCheck
-  /// CHECK-START: int Main.linearDoWhile() BCE (after)
+  /// CHECK-START: int Main.linearForNEDown() BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  private static int linearForNEDown() {
+    int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+    int result = 0;
+    for (int i = 9; i != -1; i--) {
+      result += x[i];
+    }
+    return result;
+  }
+
+  /// CHECK-START: int Main.linearDoWhileUp() BCE (before)
   /// CHECK-DAG: BoundsCheck
-  private static int linearDoWhile() {
+  /// CHECK-START: int Main.linearDoWhileUp() BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  private static int linearDoWhileUp() {
     int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     int result = 0;
     int i = 0;
-    // TODO: make this work
     do {
       result += x[i++];
     } while (i < 10);
+    return result;
+  }
+
+  /// CHECK-START: int Main.linearDoWhileDown() BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-START: int Main.linearDoWhileDown() BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  private static int linearDoWhileDown() {
+    int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+    int result = 0;
+    int i = 9;
+    do {
+      result += x[i--];
+    } while (0 <= i);
     return result;
   }
 
@@ -471,21 +497,48 @@ public class Main {
     return result;
   }
 
-  //
-  // Cases that actually go out of bounds. These test cases
-  // ensure the exceptions are thrown at the right places.
-  //
-
+  /// CHECK-START: void Main.lowerOOB(int[]) BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-START: void Main.lowerOOB(int[]) BCE (after)
+  /// CHECK-DAG: BoundsCheck
   private static void lowerOOB(int[] x) {
     for (int i = -1; i < x.length; i++) {
       sResult += x[i];
     }
   }
 
+  /// CHECK-START: void Main.upperOOB(int[]) BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-START: void Main.upperOOB(int[]) BCE (after)
+  /// CHECK-DAG: BoundsCheck
   private static void upperOOB(int[] x) {
     for (int i = 0; i <= x.length; i++) {
       sResult += x[i];
     }
+  }
+
+  /// CHECK-START: void Main.doWhileUpOOB() BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-START: void Main.doWhileUpOOB() BCE (after)
+  /// CHECK-DAG: BoundsCheck
+  private static void doWhileUpOOB() {
+    int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+    int i = 0;
+    do {
+      sResult += x[i++];
+    } while (i <= x.length);
+  }
+
+  /// CHECK-START: void Main.doWhileDownOOB() BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-START: void Main.doWhileDownOOB() BCE (after)
+  /// CHECK-DAG: BoundsCheck
+  private static void doWhileDownOOB() {
+    int[] x = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+    int i = x.length - 1;
+    do {
+      sResult += x[i--];
+    } while (-1 <= i);
   }
 
   //
@@ -550,8 +603,10 @@ public class Main {
     expectEquals(66, linearWithVeryLargeNegativeStride());
 
     // Special forms.
-    expectEquals(55, linearForNE());
-    expectEquals(55, linearDoWhile());
+    expectEquals(55, linearForNEUp());
+    expectEquals(55, linearForNEDown());
+    expectEquals(55, linearDoWhileUp());
+    expectEquals(55, linearDoWhileDown());
     expectEquals(55, linearShort());
 
     // Periodic adds (1, 3), one at the time.
@@ -618,6 +673,23 @@ public class Main {
     }
     expectEquals(1055, sResult);
 
+    // Do while up goes OOB.
+    sResult = 0;
+    try {
+      doWhileUpOOB();
+    } catch (ArrayIndexOutOfBoundsException e) {
+      sResult += 1000;
+    }
+    expectEquals(1055, sResult);
+
+    // Do while down goes OOB.
+    sResult = 0;
+    try {
+      doWhileDownOOB();
+    } catch (ArrayIndexOutOfBoundsException e) {
+      sResult += 1000;
+    }
+    expectEquals(1055, sResult);
   }
 
   private static void expectEquals(int expected, int result) {
