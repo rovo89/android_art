@@ -431,19 +431,41 @@ void InstructionSimplifierVisitor::VisitArraySet(HArraySet* instruction) {
   HInstruction* value = instruction->GetValue();
   if (value->GetType() != Primitive::kPrimNot) return;
 
+  if (CanEnsureNotNullAt(value, instruction)) {
+    instruction->ClearValueCanBeNull();
+  }
+
   if (value->IsArrayGet()) {
     if (value->AsArrayGet()->GetArray() == instruction->GetArray()) {
       // If the code is just swapping elements in the array, no need for a type check.
       instruction->ClearNeedsTypeCheck();
+      return;
     }
   }
 
   if (value->IsNullConstant()) {
     instruction->ClearNeedsTypeCheck();
+    return;
   }
 
-  if (CanEnsureNotNullAt(value, instruction)) {
-    instruction->ClearValueCanBeNull();
+  ScopedObjectAccess soa(Thread::Current());
+  ReferenceTypeInfo array_rti = instruction->GetArray()->GetReferenceTypeInfo();
+  ReferenceTypeInfo value_rti = value->GetReferenceTypeInfo();
+  if (!array_rti.IsValid()) {
+    return;
+  }
+
+  if (value_rti.IsValid() && array_rti.CanArrayHold(value_rti)) {
+    instruction->ClearNeedsTypeCheck();
+    return;
+  }
+
+  if (array_rti.IsObjectArray()) {
+    if (array_rti.IsExact()) {
+      instruction->ClearNeedsTypeCheck();
+      return;
+    }
+    instruction->SetStaticTypeOfArrayIsObjectArray();
   }
 }
 

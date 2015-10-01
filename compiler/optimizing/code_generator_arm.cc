@@ -361,6 +361,51 @@ class DeoptimizationSlowPathARM : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(DeoptimizationSlowPathARM);
 };
 
+class ArraySetSlowPathARM : public SlowPathCode {
+ public:
+  explicit ArraySetSlowPathARM(HInstruction* instruction) : instruction_(instruction) {}
+
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    LocationSummary* locations = instruction_->GetLocations();
+    __ Bind(GetEntryLabel());
+    SaveLiveRegisters(codegen, locations);
+
+    InvokeRuntimeCallingConvention calling_convention;
+    HParallelMove parallel_move(codegen->GetGraph()->GetArena());
+    parallel_move.AddMove(
+        locations->InAt(0),
+        Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
+        Primitive::kPrimNot,
+        nullptr);
+    parallel_move.AddMove(
+        locations->InAt(1),
+        Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
+        Primitive::kPrimInt,
+        nullptr);
+    parallel_move.AddMove(
+        locations->InAt(2),
+        Location::RegisterLocation(calling_convention.GetRegisterAt(2)),
+        Primitive::kPrimNot,
+        nullptr);
+    codegen->GetMoveResolver()->EmitNativeCode(&parallel_move);
+
+    CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
+    arm_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pAputObject),
+                               instruction_,
+                               instruction_->GetDexPc(),
+                               this);
+    RestoreLiveRegisters(codegen, locations);
+    __ b(GetExitLabel());
+  }
+
+  const char* GetDescription() const OVERRIDE { return "ArraySetSlowPathARM"; }
+
+ private:
+  HInstruction* const instruction_;
+
+  DISALLOW_COPY_AND_ASSIGN(ArraySetSlowPathARM);
+};
+
 #undef __
 #define __ down_cast<ArmAssembler*>(GetAssembler())->
 
@@ -3750,38 +3795,32 @@ void LocationsBuilderARM::VisitArraySet(HArraySet* instruction) {
 
   bool needs_write_barrier =
       CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue());
-  bool needs_runtime_call = instruction->NeedsTypeCheck();
+  bool may_need_runtime_call = instruction->NeedsTypeCheck();
 
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(
-      instruction, needs_runtime_call ? LocationSummary::kCall : LocationSummary::kNoCall);
-  if (needs_runtime_call) {
-    InvokeRuntimeCallingConvention calling_convention;
-    locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-    locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
-    locations->SetInAt(2, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
+      instruction,
+      may_need_runtime_call ? LocationSummary::kCallOnSlowPath : LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
+  if (Primitive::IsFloatingPointType(value_type)) {
+    locations->SetInAt(2, Location::RequiresFpuRegister());
   } else {
-    locations->SetInAt(0, Location::RequiresRegister());
-    locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
-    if (Primitive::IsFloatingPointType(value_type)) {
-      locations->SetInAt(2, Location::RequiresFpuRegister());
-    } else {
-      locations->SetInAt(2, Location::RequiresRegister());
-    }
+    locations->SetInAt(2, Location::RequiresRegister());
+  }
 
-    if (needs_write_barrier) {
-      // Temporary registers for the write barrier.
-      locations->AddTemp(Location::RequiresRegister());  // Possibly used for ref. poisoning too.
-      locations->AddTemp(Location::RequiresRegister());
-    }
+  if (needs_write_barrier) {
+    // Temporary registers for the write barrier.
+    locations->AddTemp(Location::RequiresRegister());  // Possibly used for ref. poisoning too.
+    locations->AddTemp(Location::RequiresRegister());
   }
 }
 
 void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
   LocationSummary* locations = instruction->GetLocations();
-  Register obj = locations->InAt(0).AsRegister<Register>();
+  Register array = locations->InAt(0).AsRegister<Register>();
   Location index = locations->InAt(1);
   Primitive::Type value_type = instruction->GetComponentType();
-  bool needs_runtime_call = locations->WillCall();
+  bool may_need_runtime_call = locations->CanCall();
   bool needs_write_barrier =
       CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue());
 
@@ -3793,9 +3832,9 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
       if (index.IsConstant()) {
         size_t offset =
             (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_1) + data_offset;
-        __ StoreToOffset(kStoreByte, value, obj, offset);
+        __ StoreToOffset(kStoreByte, value, array, offset);
       } else {
-        __ add(IP, obj, ShifterOperand(index.AsRegister<Register>()));
+        __ add(IP, array, ShifterOperand(index.AsRegister<Register>()));
         __ StoreToOffset(kStoreByte, value, IP, data_offset);
       }
       break;
@@ -3808,55 +3847,133 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
       if (index.IsConstant()) {
         size_t offset =
             (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_2) + data_offset;
-        __ StoreToOffset(kStoreHalfword, value, obj, offset);
+        __ StoreToOffset(kStoreHalfword, value, array, offset);
       } else {
-        __ add(IP, obj, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_2));
+        __ add(IP, array, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_2));
         __ StoreToOffset(kStoreHalfword, value, IP, data_offset);
       }
       break;
     }
 
-    case Primitive::kPrimInt:
     case Primitive::kPrimNot: {
-      if (!needs_runtime_call) {
-        uint32_t data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
-        Register value = locations->InAt(2).AsRegister<Register>();
-        Register source = value;
-        if (kPoisonHeapReferences && needs_write_barrier) {
-          // Note that in the case where `value` is a null reference,
-          // we do not enter this block, as a null reference does not
-          // need poisoning.
-          DCHECK_EQ(value_type, Primitive::kPrimNot);
-          Register temp = locations->GetTemp(0).AsRegister<Register>();
-          __ Mov(temp, value);
-          __ PoisonHeapReference(temp);
-          source = temp;
-        }
+      uint32_t data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
+      Register value = locations->InAt(2).AsRegister<Register>();
+      Register source = value;
+
+      if (instruction->InputAt(2)->IsNullConstant()) {
+        // Just setting null.
         if (index.IsConstant()) {
           size_t offset =
               (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
-          __ StoreToOffset(kStoreWord, source, obj, offset);
+          __ StoreToOffset(kStoreWord, source, array, offset);
         } else {
           DCHECK(index.IsRegister()) << index;
-          __ add(IP, obj, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_4));
+          __ add(IP, array, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_4));
           __ StoreToOffset(kStoreWord, source, IP, data_offset);
         }
-        codegen_->MaybeRecordImplicitNullCheck(instruction);
-        if (needs_write_barrier) {
-          DCHECK_EQ(value_type, Primitive::kPrimNot);
-          Register temp = locations->GetTemp(0).AsRegister<Register>();
-          Register card = locations->GetTemp(1).AsRegister<Register>();
-          codegen_->MarkGCCard(temp, card, obj, value, instruction->GetValueCanBeNull());
-        }
-      } else {
-        DCHECK_EQ(value_type, Primitive::kPrimNot);
-        // Note: if heap poisoning is enabled, pAputObject takes cares
-        // of poisoning the reference.
-        codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pAputObject),
-                                instruction,
-                                instruction->GetDexPc(),
-                                nullptr);
+        break;
       }
+
+      DCHECK(needs_write_barrier);
+      Register temp1 = locations->GetTemp(0).AsRegister<Register>();
+      Register temp2 = locations->GetTemp(1).AsRegister<Register>();
+      uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+      uint32_t super_offset = mirror::Class::SuperClassOffset().Int32Value();
+      uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
+      Label done;
+      SlowPathCode* slow_path = nullptr;
+
+      if (may_need_runtime_call) {
+        slow_path = new (GetGraph()->GetArena()) ArraySetSlowPathARM(instruction);
+        codegen_->AddSlowPath(slow_path);
+        if (instruction->GetValueCanBeNull()) {
+          Label non_zero;
+          __ CompareAndBranchIfNonZero(value, &non_zero);
+          if (index.IsConstant()) {
+            size_t offset =
+               (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
+            __ StoreToOffset(kStoreWord, value, array, offset);
+          } else {
+            DCHECK(index.IsRegister()) << index;
+            __ add(IP, array, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_4));
+            __ StoreToOffset(kStoreWord, value, IP, data_offset);
+          }
+          codegen_->MaybeRecordImplicitNullCheck(instruction);
+          __ b(&done);
+          __ Bind(&non_zero);
+        }
+
+        __ LoadFromOffset(kLoadWord, temp1, array, class_offset);
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
+        __ MaybeUnpoisonHeapReference(temp1);
+        __ LoadFromOffset(kLoadWord, temp1, temp1, component_offset);
+        __ LoadFromOffset(kLoadWord, temp2, value, class_offset);
+        // No need to poison/unpoison, we're comparing two poisoined references.
+        __ cmp(temp1, ShifterOperand(temp2));
+        if (instruction->StaticTypeOfArrayIsObjectArray()) {
+          Label do_put;
+          __ b(&do_put, EQ);
+          __ MaybeUnpoisonHeapReference(temp1);
+          __ LoadFromOffset(kLoadWord, temp1, temp1, super_offset);
+          // No need to poison/unpoison, we're comparing against null.
+          __ CompareAndBranchIfNonZero(temp1, slow_path->GetEntryLabel());
+          __ Bind(&do_put);
+        } else {
+          __ b(slow_path->GetEntryLabel(), NE);
+        }
+      }
+
+      if (kPoisonHeapReferences) {
+        // Note that in the case where `value` is a null reference,
+        // we do not enter this block, as a null reference does not
+        // need poisoning.
+        DCHECK_EQ(value_type, Primitive::kPrimNot);
+        __ Mov(temp1, value);
+        __ PoisonHeapReference(temp1);
+        source = temp1;
+      }
+
+      if (index.IsConstant()) {
+        size_t offset =
+            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
+        __ StoreToOffset(kStoreWord, source, array, offset);
+      } else {
+        DCHECK(index.IsRegister()) << index;
+        __ add(IP, array, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_4));
+        __ StoreToOffset(kStoreWord, source, IP, data_offset);
+      }
+
+      if (!may_need_runtime_call) {
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
+      }
+
+      codegen_->MarkGCCard(temp1, temp2, array, value, instruction->GetValueCanBeNull());
+
+      if (done.IsLinked()) {
+        __ Bind(&done);
+      }
+
+      if (slow_path != nullptr) {
+        __ Bind(slow_path->GetExitLabel());
+      }
+
+      break;
+    }
+
+    case Primitive::kPrimInt: {
+      uint32_t data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
+      Register value = locations->InAt(2).AsRegister<Register>();
+      if (index.IsConstant()) {
+        size_t offset =
+            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
+        __ StoreToOffset(kStoreWord, value, array, offset);
+      } else {
+        DCHECK(index.IsRegister()) << index;
+        __ add(IP, array, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_4));
+        __ StoreToOffset(kStoreWord, value, IP, data_offset);
+      }
+
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
       break;
     }
 
@@ -3866,9 +3983,9 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
       if (index.IsConstant()) {
         size_t offset =
             (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + data_offset;
-        __ StoreToOffset(kStoreWordPair, value.AsRegisterPairLow<Register>(), obj, offset);
+        __ StoreToOffset(kStoreWordPair, value.AsRegisterPairLow<Register>(), array, offset);
       } else {
-        __ add(IP, obj, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_8));
+        __ add(IP, array, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_8));
         __ StoreToOffset(kStoreWordPair, value.AsRegisterPairLow<Register>(), IP, data_offset);
       }
       break;
@@ -3880,9 +3997,9 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
       DCHECK(value.IsFpuRegister());
       if (index.IsConstant()) {
         size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
-        __ StoreSToOffset(value.AsFpuRegister<SRegister>(), obj, offset);
+        __ StoreSToOffset(value.AsFpuRegister<SRegister>(), array, offset);
       } else {
-        __ add(IP, obj, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_4));
+        __ add(IP, array, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_4));
         __ StoreSToOffset(value.AsFpuRegister<SRegister>(), IP, data_offset);
       }
       break;
@@ -3894,9 +4011,9 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
       DCHECK(value.IsFpuRegisterPair());
       if (index.IsConstant()) {
         size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + data_offset;
-        __ StoreDToOffset(FromLowSToD(value.AsFpuRegisterPairLow<SRegister>()), obj, offset);
+        __ StoreDToOffset(FromLowSToD(value.AsFpuRegisterPairLow<SRegister>()), array, offset);
       } else {
-        __ add(IP, obj, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_8));
+        __ add(IP, array, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_8));
         __ StoreDToOffset(FromLowSToD(value.AsFpuRegisterPairLow<SRegister>()), IP, data_offset);
       }
 
