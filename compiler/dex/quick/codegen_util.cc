@@ -16,6 +16,8 @@
 
 #include "mir_to_lir-inl.h"
 
+#include <endian.h>
+
 #include "base/bit_vector-inl.h"
 #include "dex/mir_graph.h"
 #include "driver/compiler_driver.h"
@@ -841,7 +843,7 @@ void Mir2Lir::CreateNativeGcMap() {
         references_buffer[i] = static_cast<uint8_t>(
             raw_storage[i / sizeof(raw_storage[0])] >> (8u * (i % sizeof(raw_storage[0]))));
       }
-      native_gc_map_builder.AddEntry(native_offset, &references_buffer[0]);
+      native_gc_map_builder.AddEntry(native_offset, references_buffer.data());
       prev_mir = mir;
     }
   }

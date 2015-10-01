@@ -210,7 +210,6 @@ size_t StackMapStream::ComputeDexRegisterMapsSize() const {
       // Entries with the same dex map will have the same offset.
     }
     for (size_t j = 0; j < entry.inlining_depth; ++j) {
-      DCHECK_LT(inline_info_index, inline_infos_.size());
       InlineInfoEntry inline_entry = inline_infos_[inline_info_index++];
       size += ComputeDexRegisterMapSize(inline_entry.num_dex_registers,
                                         inline_entry.live_dex_registers_mask);

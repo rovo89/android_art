@@ -1894,7 +1894,7 @@ void RegisterAllocator::Resolve() {
       for (HInstructionIterator inst_it(current->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
         HInstruction* phi = inst_it.Current();
         for (size_t i = 0, e = current->GetPredecessors().size(); i < e; ++i) {
-          HBasicBlock* predecessor = current->GetPredecessor(i);
+          HBasicBlock* predecessor = current->GetPredecessors()[i];
           DCHECK_EQ(predecessor->NumberOfNormalSuccessors(), 1u);
           HInstruction* input = phi->InputAt(i);
           Location source = input->GetLiveInterval()->GetLocationAt(

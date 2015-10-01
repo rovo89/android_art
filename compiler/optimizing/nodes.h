@@ -177,11 +177,6 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   ArenaAllocator* GetArena() const { return arena_; }
   const ArenaVector<HBasicBlock*>& GetBlocks() const { return blocks_; }
 
-  HBasicBlock* GetBlock(size_t id) const {
-    DCHECK_LT(id, blocks_.size());
-    return blocks_[id];
-  }
-
   bool IsInSsaForm() const { return in_ssa_form_; }
 
   HBasicBlock* GetEntryBlock() const { return entry_block_; }
@@ -648,18 +643,8 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
     return predecessors_;
   }
 
-  HBasicBlock* GetPredecessor(size_t pred_idx) const {
-    DCHECK_LT(pred_idx, predecessors_.size());
-    return predecessors_[pred_idx];
-  }
-
   const ArenaVector<HBasicBlock*>& GetSuccessors() const {
     return successors_;
-  }
-
-  HBasicBlock* GetSuccessor(size_t succ_idx) const {
-    DCHECK_LT(succ_idx, successors_.size());
-    return successors_[succ_idx];
   }
 
   bool HasSuccessor(const HBasicBlock* block, size_t start_from = 0u) {
@@ -797,18 +782,18 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
 
   HBasicBlock* GetSinglePredecessor() const {
     DCHECK_EQ(GetPredecessors().size(), 1u);
-    return GetPredecessor(0);
+    return GetPredecessors()[0];
   }
 
   HBasicBlock* GetSingleSuccessor() const {
     DCHECK_EQ(GetSuccessors().size(), 1u);
-    return GetSuccessor(0);
+    return GetSuccessors()[0];
   }
 
   // Returns whether the first occurrence of `predecessor` in the list of
   // predecessors is at index `idx`.
   bool IsFirstIndexOfPredecessor(HBasicBlock* predecessor, size_t idx) const {
-    DCHECK_EQ(GetPredecessor(idx), predecessor);
+    DCHECK_EQ(GetPredecessors()[idx], predecessor);
     return GetPredecessorIndexOf(predecessor) == idx;
   }
 
@@ -886,7 +871,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
 
   bool IsLoopPreHeaderFirstPredecessor() const {
     DCHECK(IsLoopHeader());
-    return GetPredecessor(0) == GetLoopInformation()->GetPreHeader();
+    return GetPredecessors()[0] == GetLoopInformation()->GetPreHeader();
   }
 
   HLoopInformation* GetLoopInformation() const {
@@ -1559,12 +1544,10 @@ class HEnvironment : public ArenaObject<kArenaAllocEnvironment> {
   void CopyFromWithLoopPhiAdjustment(HEnvironment* env, HBasicBlock* loop_header);
 
   void SetRawEnvAt(size_t index, HInstruction* instruction) {
-    DCHECK_LT(index, Size());
     vregs_[index] = HUserRecord<HEnvironment*>(instruction);
   }
 
   HInstruction* GetInstructionAt(size_t index) const {
-    DCHECK_LT(index, Size());
     return vregs_[index].GetInstruction();
   }
 
@@ -1575,12 +1558,10 @@ class HEnvironment : public ArenaObject<kArenaAllocEnvironment> {
   HEnvironment* GetParent() const { return parent_; }
 
   void SetLocationAt(size_t index, Location location) {
-    DCHECK_LT(index, Size());
     locations_[index] = location;
   }
 
   Location GetLocationAt(size_t index) const {
-    DCHECK_LT(index, Size());
     return locations_[index];
   }
 
@@ -1610,7 +1591,6 @@ class HEnvironment : public ArenaObject<kArenaAllocEnvironment> {
   void RecordEnvUse(HUseListNode<HEnvironment*>* env_use) {
     DCHECK(env_use->GetUser() == this);
     size_t index = env_use->GetIndex();
-    DCHECK_LT(index, Size());
     vregs_[index] = HUserRecord<HEnvironment*>(vregs_[index], env_use);
   }
 
@@ -2319,11 +2299,11 @@ class HIf : public HTemplateInstruction<1> {
   bool IsControlFlow() const OVERRIDE { return true; }
 
   HBasicBlock* IfTrueSuccessor() const {
-    return GetBlock()->GetSuccessor(0);
+    return GetBlock()->GetSuccessors()[0];
   }
 
   HBasicBlock* IfFalseSuccessor() const {
-    return GetBlock()->GetSuccessor(1);
+    return GetBlock()->GetSuccessors()[1];
   }
 
   DECLARE_INSTRUCTION(If);
@@ -2351,7 +2331,7 @@ class HTryBoundary : public HTemplateInstruction<0> {
   bool IsControlFlow() const OVERRIDE { return true; }
 
   // Returns the block's non-exceptional successor (index zero).
-  HBasicBlock* GetNormalFlowSuccessor() const { return GetBlock()->GetSuccessor(0); }
+  HBasicBlock* GetNormalFlowSuccessor() const { return GetBlock()->GetSuccessors()[0]; }
 
   // Returns whether `handler` is among its exception handlers (non-zero index
   // successors).
@@ -2388,7 +2368,7 @@ class HExceptionHandlerIterator : public ValueObject {
     : block_(*try_boundary.GetBlock()), index_(block_.NumberOfNormalSuccessors()) {}
 
   bool Done() const { return index_ == block_.GetSuccessors().size(); }
-  HBasicBlock* Current() const { return block_.GetSuccessor(index_); }
+  HBasicBlock* Current() const { return block_.GetSuccessors()[index_]; }
   size_t CurrentSuccessorIndex() const { return index_; }
   void Advance() { ++index_; }
 
@@ -2453,7 +2433,7 @@ class HPackedSwitch : public HTemplateInstruction<1> {
 
   HBasicBlock* GetDefaultBlock() const {
     // Last entry is the default block.
-    return GetBlock()->GetSuccessor(num_entries_);
+    return GetBlock()->GetSuccessors()[num_entries_];
   }
   DECLARE_INSTRUCTION(PackedSwitch);
 
@@ -3103,12 +3083,10 @@ class HInvoke : public HInstruction {
   }
 
   const HUserRecord<HInstruction*> InputRecordAt(size_t index) const OVERRIDE {
-    DCHECK_LT(index, InputCount());
     return inputs_[index];
   }
 
   void SetRawInputRecordAt(size_t index, const HUserRecord<HInstruction*>& input) OVERRIDE {
-    DCHECK_LT(index, InputCount());
     inputs_[index] = input;
   }
 
@@ -4131,12 +4109,10 @@ class HPhi : public HInstruction {
 
  protected:
   const HUserRecord<HInstruction*> InputRecordAt(size_t index) const OVERRIDE {
-    DCHECK_LE(index, InputCount());
     return inputs_[index];
   }
 
   void SetRawInputRecordAt(size_t index, const HUserRecord<HInstruction*>& input) OVERRIDE {
-    DCHECK_LE(index, InputCount());
     inputs_[index] = input;
   }
 
@@ -5246,7 +5222,6 @@ class HParallelMove : public HTemplateInstruction<0> {
   }
 
   MoveOperands* MoveOperandsAt(size_t index) {
-    DCHECK_LT(index, moves_.size());
     return &moves_[index];
   }
 
@@ -5320,7 +5295,7 @@ class HInsertionOrderIterator : public ValueObject {
   explicit HInsertionOrderIterator(const HGraph& graph) : graph_(graph), index_(0) {}
 
   bool Done() const { return index_ == graph_.GetBlocks().size(); }
-  HBasicBlock* Current() const { return graph_.GetBlock(index_); }
+  HBasicBlock* Current() const { return graph_.GetBlocks()[index_]; }
   void Advance() { ++index_; }
 
  private:
@@ -5446,7 +5421,6 @@ class HBlocksInLoopReversePostOrderIterator : public ValueObject {
       : blocks_in_loop_(info.GetBlocks()),
         blocks_(info.GetHeader()->GetGraph()->GetReversePostOrder()),
         index_(0) {
-    DCHECK(!blocks_.empty());
     if (!blocks_in_loop_.IsBitSet(blocks_[index_]->GetBlockId())) {
       Advance();
     }

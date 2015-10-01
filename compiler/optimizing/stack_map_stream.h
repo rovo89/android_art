@@ -136,12 +136,10 @@ class StackMapStream : public ValueObject {
   }
 
   const StackMapEntry& GetStackMap(size_t i) const {
-    DCHECK_LT(i, stack_maps_.size());
     return stack_maps_[i];
   }
 
   void SetStackMapNativePcOffset(size_t i, uint32_t native_pc_offset) {
-    DCHECK_LT(i, stack_maps_.size());
     stack_maps_[i].native_pc_offset = native_pc_offset;
   }
 

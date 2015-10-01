@@ -1117,27 +1117,22 @@ class SsaLivenessAnalysis : public ValueObject {
   void Analyze();
 
   BitVector* GetLiveInSet(const HBasicBlock& block) const {
-    DCHECK_LT(block.GetBlockId(), block_infos_.size());
     return &block_infos_[block.GetBlockId()]->live_in_;
   }
 
   BitVector* GetLiveOutSet(const HBasicBlock& block) const {
-    DCHECK_LT(block.GetBlockId(), block_infos_.size());
     return &block_infos_[block.GetBlockId()]->live_out_;
   }
 
   BitVector* GetKillSet(const HBasicBlock& block) const {
-    DCHECK_LT(block.GetBlockId(), block_infos_.size());
     return &block_infos_[block.GetBlockId()]->kill_;
   }
 
   HInstruction* GetInstructionFromSsaIndex(size_t index) const {
-    DCHECK_LT(index, instructions_from_ssa_index_.size());
     return instructions_from_ssa_index_[index];
   }
 
   HInstruction* GetInstructionFromPosition(size_t index) const {
-    DCHECK_LT(index, instructions_from_lifetime_position_.size());
     return instructions_from_lifetime_position_[index];
   }
 

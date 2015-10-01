@@ -658,7 +658,6 @@ void ParallelMoveResolverARM64::FreeScratchLocation(Location loc) {
 }
 
 void ParallelMoveResolverARM64::EmitMove(size_t index) {
-  DCHECK_LT(index, moves_.size());
   MoveOperands* move = moves_[index];
   codegen_->MoveLocation(move->GetDestination(), move->GetSource(), Primitive::kPrimVoid);
 }
@@ -3779,7 +3778,7 @@ void InstructionCodeGeneratorARM64::VisitPackedSwitch(HPackedSwitch* switch_inst
   const ArenaVector<HBasicBlock*>& successors = switch_instr->GetBlock()->GetSuccessors();
   for (int32_t i = 0; i < num_entries; i++) {
     int32_t case_value = lower_bound + i;
-    vixl::Label* succ = codegen_->GetLabelOf(successors.at(i));
+    vixl::Label* succ = codegen_->GetLabelOf(successors[i]);
     if (case_value == 0) {
       __ Cbz(value_reg, succ);
     } else {

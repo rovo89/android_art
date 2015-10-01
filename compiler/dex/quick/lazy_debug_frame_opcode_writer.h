@@ -28,8 +28,8 @@ namespace dwarf {
 // When we are generating the CFI code, we do not know the instuction offsets,
 // this class stores the LIR references and patches the instruction stream later.
 class LazyDebugFrameOpCodeWriter FINAL
-    : public DebugFrameOpCodeWriter<ArenaAllocatorAdapter<uint8_t>> {
-  typedef DebugFrameOpCodeWriter<ArenaAllocatorAdapter<uint8_t>> Base;
+    : public DebugFrameOpCodeWriter<ArenaVector<uint8_t>> {
+  typedef DebugFrameOpCodeWriter<ArenaVector<uint8_t>> Base;
  public:
   // This method is implicitely called the by opcode writers.
   virtual void ImplicitlyAdvancePC() OVERRIDE {

@@ -29,9 +29,11 @@ namespace dwarf {
 
 // 32-bit FNV-1a hash function which we use to find duplicate abbreviations.
 // See http://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
-template< typename Allocator >
+template <typename Vector>
 struct FNVHash {
-  size_t operator()(const std::vector<uint8_t, Allocator>& v) const {
+  static_assert(std::is_same<typename Vector::value_type, uint8_t>::value, "Invalid value type");
+
+  size_t operator()(const Vector& v) const {
     uint32_t hash = 2166136261u;
     for (size_t i = 0; i < v.size(); i++) {
       hash = (hash ^ v[i]) * 16777619u;
@@ -52,8 +54,10 @@ struct FNVHash {
  *     EndTag();
  *   EndTag();
  */
-template< typename Allocator = std::allocator<uint8_t> >
-class DebugInfoEntryWriter FINAL : private Writer<Allocator> {
+template <typename Vector = std::vector<uint8_t>>
+class DebugInfoEntryWriter FINAL : private Writer<Vector> {
+  static_assert(std::is_same<typename Vector::value_type, uint8_t>::value, "Invalid value type");
+
  public:
   // Start debugging information entry.
   void StartTag(Tag tag, Children children) {
@@ -176,12 +180,13 @@ class DebugInfoEntryWriter FINAL : private Writer<Allocator> {
     return patch_locations_;
   }
 
-  using Writer<Allocator>::data;
+  using Writer<Vector>::data;
 
   DebugInfoEntryWriter(bool is64bitArch,
-                       std::vector<uint8_t, Allocator>* debug_abbrev,
-                       const Allocator& alloc = Allocator())
-      : Writer<Allocator>(&entries_),
+                       Vector* debug_abbrev,
+                       const typename Vector::allocator_type& alloc =
+                           typename Vector::allocator_type())
+      : Writer<Vector>(&entries_),
         debug_abbrev_(debug_abbrev),
         current_abbrev_(alloc),
         abbrev_codes_(alloc),
@@ -221,7 +226,7 @@ class DebugInfoEntryWriter FINAL : private Writer<Allocator> {
                                                   NextAbbrevCode()));
     int abbrev_code = it.first->second;
     if (UNLIKELY(it.second)) {  // Inserted new entry.
-      const std::vector<uint8_t, Allocator>& abbrev = it.first->first;
+      const Vector& abbrev = it.first->first;
       debug_abbrev_.Pop();  // Remove abbrev table terminator.
       debug_abbrev_.PushUleb128(abbrev_code);
       debug_abbrev_.PushData(abbrev.data(), abbrev.size());
@@ -234,13 +239,13 @@ class DebugInfoEntryWriter FINAL : private Writer<Allocator> {
 
  private:
   // Fields for writing and deduplication of abbrevs.
-  Writer<Allocator> debug_abbrev_;
-  std::vector<uint8_t, Allocator> current_abbrev_;
-  std::unordered_map<std::vector<uint8_t, Allocator>, int,
-                     FNVHash<Allocator> > abbrev_codes_;
+  Writer<Vector> debug_abbrev_;
+  Vector current_abbrev_;
+  std::unordered_map<Vector, int,
+                     FNVHash<Vector> > abbrev_codes_;
 
   // Fields for writing of debugging information entries.
-  std::vector<uint8_t, Allocator> entries_;
+  Vector entries_;
   bool is64bit_;
   int depth_ = 0;
   size_t abbrev_code_offset_ = 0;  // Location to patch once we know the code.
