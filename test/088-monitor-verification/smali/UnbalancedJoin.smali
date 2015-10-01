@@ -5,7 +5,7 @@
 .method public static run(Ljava/lang/Object;Ljava/lang/Object;)V
    .registers 3
 
-   invoke-static {}, LMain;->assertCallerIsInterpreted()V
+   invoke-static {}, LMain;->assertIsInterpreted()V
 
    if-eqz v2, :Lnull
 
