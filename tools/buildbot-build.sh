@@ -20,20 +20,10 @@ if [ ! -d art ]; then
 fi
 
 common_targets="vogar vogar.jar core-tests apache-harmony-jdwp-tests-hostdex jsr166-tests"
-android_root="/data/local/tmp/system"
-linker="linker"
 mode="target"
 j_arg="-j$(nproc)"
 showcommands=
 make_command=
-
-case "$TARGET_PRODUCT" in
-  (armv8|mips64r6) linker="linker64";;
-esac
-
-if [[ "$ART_TEST_ANDROID_ROOT" != "" ]]; then
-  android_root="$ART_TEST_ANDROID_ROOT"
-fi
 
 while true; do
   if [[ "$1" == "--host" ]]; then
@@ -41,16 +31,6 @@ while true; do
     shift
   elif [[ "$1" == "--target" ]]; then
     mode="target"
-    shift
-  elif [[ "$1" == "--32" ]]; then
-    linker="linker"
-    shift
-  elif [[ "$1" == "--64" ]]; then
-    linker="linker64"
-    shift
-  elif [[ "$1" == "--android-root" ]]; then
-    shift
-    android_root=$1
     shift
   elif [[ "$1" == -j* ]]; then
     j_arg=$1
@@ -64,19 +44,10 @@ while true; do
 done
 
 if [[ $mode == "host" ]]; then
-  make_command="make $j_arg build-art-host-tests $common_targets out/host/linux-x86/lib/libjavacoretests.so out/host/linux-x86/lib64/libjavacoretests.so"
-  echo "Executing $make_command"
-  $make_command
+  make_command="make $j_arg $showcommands build-art-host-tests $common_targets out/host/linux-x86/lib/libjavacoretests.so out/host/linux-x86/lib64/libjavacoretests.so"
 elif [[ $mode == "target" ]]; then
-  # Disable NINJA for building on target, it does not support setting environment variables
-  # within the make command.
-  env="$env USE_NINJA=false"
-  # Build extra tools that will be used by tests, so that
-  # they are compiled with our own linker.
-  # We need to provide our own linker in case the linker on the device
-  # is out of date.
-  make_command="make TARGET_LINKER=$android_root/bin/$linker $j_arg $showcommands build-art-target-tests $common_targets libjavacrypto libjavacoretests linker toybox toolbox sh out/host/linux-x86/bin/adb"
-  echo "Executing env $env $make_command"
-  env $env $make_command
+  make_command="make $j_arg $showcommands build-art-target-tests $common_targets libjavacrypto libjavacoretests linker toybox toolbox sh out/host/linux-x86/bin/adb"
 fi
 
+echo "Executing $make_command"
+$make_command
