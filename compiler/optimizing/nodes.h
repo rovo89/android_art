@@ -2239,7 +2239,9 @@ class HIntConstant : public HConstant {
  public:
   int32_t GetValue() const { return value_; }
 
-  uint64_t GetValueAsUint64() const OVERRIDE { return static_cast<uint64_t>(value_); }
+  uint64_t GetValueAsUint64() const OVERRIDE {
+    return static_cast<uint64_t>(static_cast<uint32_t>(value_));
+  }
 
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
     DCHECK(other->IsIntConstant());
