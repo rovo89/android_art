@@ -1707,13 +1707,15 @@ void InstructionCodeGeneratorARM64::VisitArraySet(HArraySet* instruction) {
         } else {
           __ B(ne, slow_path->GetEntryLabel());
         }
+        temps.Release(temp2);
       }
 
       if (kPoisonHeapReferences) {
+        Register temp2 = temps.AcquireSameSizeAs(array);
           DCHECK(value.IsW());
-        __ Mov(temp, value.W());
-        GetAssembler()->PoisonHeapReference(temp);
-        source = temp;
+        __ Mov(temp2, value.W());
+        GetAssembler()->PoisonHeapReference(temp2);
+        source = temp2;
       }
 
       if (!index.IsConstant()) {
