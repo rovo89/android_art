@@ -191,7 +191,9 @@ inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
       PassActiveSuspendBarriers(this);
     } else if ((old_state_and_flags.as_struct.flags & kCheckpointRequest) != 0) {
       // Impossible
-      LOG(FATAL) << "Fatal, wrong checkpoint flag";
+      LOG(FATAL) << "Transitioning to runnable with checkpoint flag, "
+                 << " flags=" << old_state_and_flags.as_struct.flags
+                 << " state=" << old_state_and_flags.as_struct.state;
     } else if ((old_state_and_flags.as_struct.flags & kSuspendRequest) != 0) {
       // Wait while our suspend count is non-zero.
       MutexLock mu(this, *Locks::thread_suspend_count_lock_);
