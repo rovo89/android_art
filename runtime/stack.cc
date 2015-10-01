@@ -110,7 +110,7 @@ StackVisitor::StackVisitor(Thread* thread,
 }
 
 InlineInfo StackVisitor::GetCurrentInlineInfo() const {
-  ArtMethod* outer_method = *GetCurrentQuickFrame();
+  ArtMethod* outer_method = GetOuterMethod();
   uint32_t native_pc_offset = outer_method->NativeQuickPcOffset(cur_quick_frame_pc_);
   CodeInfo code_info = outer_method->GetOptimizedCodeInfo();
   StackMapEncoding encoding = code_info.ExtractEncoding();
@@ -194,11 +194,12 @@ size_t StackVisitor::GetNativePcOffset() const {
 }
 
 bool StackVisitor::IsReferenceVReg(ArtMethod* m, uint16_t vreg) {
+  DCHECK_EQ(m, GetMethod());
   // Process register map (which native and runtime methods don't have)
   if (m->IsNative() || m->IsRuntimeMethod() || m->IsProxyMethod()) {
     return false;
   }
-  if (m->IsOptimized(sizeof(void*))) {
+  if (GetOuterMethod()->IsOptimized(sizeof(void*))) {
     return true;  // TODO: Implement.
   }
   const uint8_t* native_gc_map = m->GetNativeGcMap(sizeof(void*));
@@ -251,7 +252,7 @@ bool StackVisitor::GetVReg(ArtMethod* m, uint16_t vreg, VRegKind kind, uint32_t*
     if (GetVRegFromDebuggerShadowFrame(vreg, kind, val)) {
       return true;
     }
-    if (m->IsOptimized(sizeof(void*))) {
+    if (GetOuterMethod()->IsOptimized(sizeof(void*))) {
       return GetVRegFromOptimizedCode(m, vreg, kind, val);
     } else {
       return GetVRegFromQuickCode(m, vreg, kind, val);
@@ -288,15 +289,15 @@ bool StackVisitor::GetVRegFromQuickCode(ArtMethod* m, uint16_t vreg, VRegKind ki
 
 bool StackVisitor::GetVRegFromOptimizedCode(ArtMethod* m, uint16_t vreg, VRegKind kind,
                                             uint32_t* val) const {
+  ArtMethod* outer_method = GetOuterMethod();
+  const void* code_pointer = outer_method->GetQuickOatCodePointer(sizeof(void*));
+  DCHECK(code_pointer != nullptr);
   DCHECK_EQ(m, GetMethod());
   const DexFile::CodeItem* code_item = m->GetCodeItem();
   DCHECK(code_item != nullptr) << PrettyMethod(m);  // Can't be null or how would we compile
                                                     // its instructions?
   uint16_t number_of_dex_registers = code_item->registers_size_;
   DCHECK_LT(vreg, code_item->registers_size_);
-  ArtMethod* outer_method = *GetCurrentQuickFrame();
-  const void* code_pointer = outer_method->GetQuickOatCodePointer(sizeof(void*));
-  DCHECK(code_pointer != nullptr);
   CodeInfo code_info = outer_method->GetOptimizedCodeInfo();
   StackMapEncoding encoding = code_info.ExtractEncoding();
 
@@ -405,7 +406,7 @@ bool StackVisitor::GetVRegPair(ArtMethod* m, uint16_t vreg, VRegKind kind_lo,
   if (cur_quick_frame_ != nullptr) {
     DCHECK(context_ != nullptr);  // You can't reliably read registers without a context.
     DCHECK(m == GetMethod());
-    if (m->IsOptimized(sizeof(void*))) {
+    if (GetOuterMethod()->IsOptimized(sizeof(void*))) {
       return GetVRegPairFromOptimizedCode(m, vreg, kind_lo, kind_hi, val);
     } else {
       return GetVRegPairFromQuickCode(m, vreg, kind_lo, kind_hi, val);
@@ -481,7 +482,7 @@ bool StackVisitor::SetVReg(ArtMethod* m, uint16_t vreg, uint32_t new_value,
   if (cur_quick_frame_ != nullptr) {
     DCHECK(context_ != nullptr);  // You can't reliably write registers without a context.
     DCHECK(m == GetMethod());
-    if (m->IsOptimized(sizeof(void*))) {
+    if (GetOuterMethod()->IsOptimized(sizeof(void*))) {
       return false;
     } else {
       return SetVRegFromQuickCode(m, vreg, new_value, kind);
@@ -590,7 +591,7 @@ bool StackVisitor::SetVRegPair(ArtMethod* m, uint16_t vreg, uint64_t new_value,
   if (cur_quick_frame_ != nullptr) {
     DCHECK(context_ != nullptr);  // You can't reliably write registers without a context.
     DCHECK(m == GetMethod());
-    if (m->IsOptimized(sizeof(void*))) {
+    if (GetOuterMethod()->IsOptimized(sizeof(void*))) {
       return false;
     } else {
       return SetVRegPairFromQuickCode(m, vreg, new_value, kind_lo, kind_hi);
@@ -724,14 +725,14 @@ void StackVisitor::SetFPR(uint32_t reg, uintptr_t value) {
 uintptr_t StackVisitor::GetReturnPc() const {
   uint8_t* sp = reinterpret_cast<uint8_t*>(GetCurrentQuickFrame());
   DCHECK(sp != nullptr);
-  uint8_t* pc_addr = sp + GetMethod()->GetReturnPcOffset().SizeValue();
+  uint8_t* pc_addr = sp + GetOuterMethod()->GetReturnPcOffset().SizeValue();
   return *reinterpret_cast<uintptr_t*>(pc_addr);
 }
 
 void StackVisitor::SetReturnPc(uintptr_t new_ret_pc) {
   uint8_t* sp = reinterpret_cast<uint8_t*>(GetCurrentQuickFrame());
   CHECK(sp != nullptr);
-  uint8_t* pc_addr = sp + GetMethod()->GetReturnPcOffset().SizeValue();
+  uint8_t* pc_addr = sp + GetOuterMethod()->GetReturnPcOffset().SizeValue();
   *reinterpret_cast<uintptr_t*>(pc_addr) = new_ret_pc;
 }
 
