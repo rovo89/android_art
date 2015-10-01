@@ -472,16 +472,11 @@ JNIEXPORT jint JVM_IHashCode(JNIEnv* env, jobject javaObject) {
 }
 
 JNIEXPORT jlong JVM_NanoTime(JNIEnv* env ATTRIBUTE_UNUSED, jclass unused ATTRIBUTE_UNUSED) {
-#if defined(HAVE_POSIX_CLOCKS)
-    timespec now;
-    clock_gettime(CLOCK_MONOTONIC, &now);
-    return now.tv_sec * 1000000000LL + now.tv_nsec;
-#else
-    timeval now;
-    gettimeofday(&now, NULL);
-    return static_cast<jlong>(now.tv_sec) * 1000000000LL + now.tv_usec * 1000LL;
-#endif
+  timespec now;
+  clock_gettime(CLOCK_MONOTONIC, &now);
+  return now.tv_sec * 1000000000LL + now.tv_nsec;
 }
+
 static void ThrowArrayStoreException_NotAnArray(const char* identifier, art::mirror::Object* array)
     SHARED_LOCKS_REQUIRED(art::Locks::mutator_lock_) {
   std::string actualType(art::PrettyTypeOf(array));
