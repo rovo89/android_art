@@ -92,7 +92,7 @@ class CommonCompilerTest : public CommonRuntimeTest {
 
   void UnreserveImageSpace();
 
-  Compiler::Kind compiler_kind_ = kUseOptimizingCompiler ? Compiler::kOptimizing : Compiler::kQuick;
+  Compiler::Kind compiler_kind_ = Compiler::kOptimizing;
   std::unique_ptr<CompilerOptions> compiler_options_;
   std::unique_ptr<VerificationResults> verification_results_;
   std::unique_ptr<DexFileToMethodInlinerMap> method_inliner_map_;
