@@ -35,6 +35,8 @@
 #include "quick/quick_method_frame_info.h"
 #include "read_barrier-inl.h"
 #include "runtime-inl.h"
+#include "scoped_thread_state_change.h"
+#include "thread-inl.h"
 #include "utils.h"
 
 namespace art {
@@ -75,9 +77,28 @@ inline bool ArtMethod::CASDeclaringClass(mirror::Class* expected_class,
           expected_root, desired_root);
 }
 
+// AssertSharedHeld doesn't work in GetAccessFlags, so use a NO_THREAD_SAFETY_ANALYSIS helper.
+// TODO: Figure out why ASSERT_SHARED_CAPABILITY doesn't work.
+ALWAYS_INLINE
+static inline void DoGetAccessFlagsHelper(ArtMethod* method) NO_THREAD_SAFETY_ANALYSIS {
+  CHECK(method->IsRuntimeMethod() || method->GetDeclaringClass()->IsIdxLoaded() ||
+        method->GetDeclaringClass()->IsErroneous());
+}
+
 inline uint32_t ArtMethod::GetAccessFlags() {
-  DCHECK(IsRuntimeMethod() || GetDeclaringClass()->IsIdxLoaded() ||
-         GetDeclaringClass()->IsErroneous());
+  if (kIsDebugBuild) {
+    Thread* self = Thread::Current();
+    if (!Locks::mutator_lock_->IsSharedHeld(self)) {
+      ScopedObjectAccess soa(self);
+      CHECK(IsRuntimeMethod() || GetDeclaringClass()->IsIdxLoaded() ||
+            GetDeclaringClass()->IsErroneous());
+    } else {
+      // We cannot use SOA in this case. We might be holding the lock, but may not be in the
+      // runnable state (e.g., during GC).
+      Locks::mutator_lock_->AssertSharedHeld(self);
+      DoGetAccessFlagsHelper(this);
+    }
+  }
   return access_flags_;
 }
 
