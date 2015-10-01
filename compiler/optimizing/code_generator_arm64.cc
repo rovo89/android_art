@@ -1719,7 +1719,7 @@ void InstructionCodeGeneratorARM64::VisitArraySet(HArraySet* instruction) {
       if (!index.IsConstant()) {
         __ Add(temp, array, offset);
       }
-      __ Str(value, destination);
+      __ Str(source, destination);
 
       if (!may_need_runtime_call) {
         codegen_->MaybeRecordImplicitNullCheck(instruction);
