@@ -404,6 +404,29 @@ static void GenMinMax(LocationSummary* locations,
   GpuRegister rhs = locations->InAt(1).AsRegister<GpuRegister>();
   GpuRegister out = locations->Out().AsRegister<GpuRegister>();
 
+  // Some architectures, such as ARM and MIPS (prior to r6), have a
+  // conditional move instruction which only changes the target
+  // (output) register if the condition is true (MIPS prior to r6 had
+  // MOVF, MOVT, and MOVZ). The SELEQZ and SELNEZ instructions always
+  // change the target (output) register.  If the condition is true the
+  // output register gets the contents of the "rs" register; otherwise,
+  // the output register is set to zero. One consequence of this is
+  // that to implement something like "rd = c==0 ? rs : rt" MIPS64r6
+  // needs to use a pair of SELEQZ/SELNEZ instructions.  After
+  // executing this pair of instructions one of the output registers
+  // from the pair will necessarily contain zero. Then the code ORs the
+  // output registers from the SELEQZ/SELNEZ instructions to get the
+  // final result.
+  //
+  // The initial test to see if the output register is same as the
+  // first input register is needed to make sure that value in the
+  // first input register isn't clobbered before we've finished
+  // computing the output value. The logic in the corresponding else
+  // clause performs the same task but makes sure the second input
+  // register isn't clobbered in the event that it's the same register
+  // as the output register; the else clause also handles the case
+  // where the output register is distinct from both the first, and the
+  // second input registers.
   if (out == lhs) {
     __ Slt(AT, rhs, lhs);
     if (is_min) {
@@ -512,13 +535,12 @@ void IntrinsicLocationsBuilderMIPS64::VisitMathFloor(HInvoke* invoke) {
   CreateFPToFP(arena_, invoke);
 }
 
-// 0x200 - +zero
-// 0x040 - +infinity
-// 0x020 - -zero
-// 0x004 - -infinity
-// 0x002 - quiet NaN
-// 0x001 - signaling NaN
-const constexpr uint16_t CLASS_MASK = 0x267;
+const constexpr uint16_t kFPLeaveUnchanged = kPositiveZero |
+                                             kPositiveInfinity |
+                                             kNegativeZero |
+                                             kNegativeInfinity |
+                                             kQuietNaN |
+                                             kSignalingNaN;
 
 void IntrinsicCodeGeneratorMIPS64::VisitMathFloor(HInvoke* invoke) {
   LocationSummary* locations = invoke->GetLocations();
@@ -534,7 +556,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitMathFloor(HInvoke* invoke) {
   //     }
   __ ClassD(out, in);
   __ Dmfc1(AT, out);
-  __ Andi(AT, AT, CLASS_MASK);       // +0.0 | +Inf | -0.0 | -Inf | qNaN | sNaN
+  __ Andi(AT, AT, kFPLeaveUnchanged);   // +0.0 | +Inf | -0.0 | -Inf | qNaN | sNaN
   __ MovD(out, in);
   __ Bnezc(AT, &done);
 
@@ -583,7 +605,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitMathCeil(HInvoke* invoke) {
   //     }
   __ ClassD(out, in);
   __ Dmfc1(AT, out);
-  __ Andi(AT, AT, CLASS_MASK);       // +0.0 | +Inf | -0.0 | -Inf | qNaN | sNaN
+  __ Andi(AT, AT, kFPLeaveUnchanged);   // +0.0 | +Inf | -0.0 | -Inf | qNaN | sNaN
   __ MovD(out, in);
   __ Bnezc(AT, &done);
 
