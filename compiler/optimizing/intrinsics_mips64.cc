@@ -725,6 +725,24 @@ void IntrinsicCodeGeneratorMIPS64::VisitMemoryPokeLongNative(HInvoke* invoke) {
   __ Sd(val, adr, 0);
 }
 
+// Thread java.lang.Thread.currentThread()
+void IntrinsicLocationsBuilderMIPS64::VisitThreadCurrentThread(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kNoCall,
+                                                            kIntrinsified);
+  locations->SetOut(Location::RequiresRegister());
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitThreadCurrentThread(HInvoke* invoke) {
+  Mips64Assembler* assembler = GetAssembler();
+  GpuRegister out = invoke->GetLocations()->Out().AsRegister<GpuRegister>();
+
+  __ LoadFromOffset(kLoadUnsignedWord,
+                    out,
+                    TR,
+                    Thread::PeerOffset<kMips64PointerSize>().Int32Value());
+}
+
 // Unimplemented intrinsics.
 
 #define UNIMPLEMENTED_INTRINSIC(Name)                                                  \
@@ -736,7 +754,6 @@ void IntrinsicCodeGeneratorMIPS64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSE
 UNIMPLEMENTED_INTRINSIC(MathRoundDouble)
 UNIMPLEMENTED_INTRINSIC(MathRoundFloat)
 
-UNIMPLEMENTED_INTRINSIC(ThreadCurrentThread)
 UNIMPLEMENTED_INTRINSIC(UnsafeGet)
 UNIMPLEMENTED_INTRINSIC(UnsafeGetVolatile)
 UNIMPLEMENTED_INTRINSIC(UnsafeGetLong)
