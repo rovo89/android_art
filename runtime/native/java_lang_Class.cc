@@ -229,6 +229,65 @@ ALWAYS_INLINE static inline mirror::Field* GetDeclaredField(
   return nullptr;
 }
 
+static mirror::Field* GetPublicFieldRecursive(
+    Thread* self, mirror::Class* clazz, mirror::String* name)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  DCHECK(clazz != nullptr);
+  DCHECK(name != nullptr);
+  DCHECK(self != nullptr);
+
+  StackHandleScope<1> hs(self);
+  MutableHandle<mirror::Class> h_clazz(hs.NewHandle(clazz));
+
+  // We search the current class, its direct interfaces then its superclass.
+  while (h_clazz.Get() != nullptr) {
+    mirror::Field* result = GetDeclaredField(self, h_clazz.Get(), name);
+    if ((result != nullptr) && (result->GetAccessFlags() & kAccPublic)) {
+      return result;
+    } else if (UNLIKELY(self->IsExceptionPending())) {
+      // Something went wrong. Bail out.
+      return nullptr;
+    }
+
+    uint32_t num_direct_interfaces = h_clazz->NumDirectInterfaces();
+    for (uint32_t i = 0; i < num_direct_interfaces; i++) {
+      mirror::Class *iface = mirror::Class::GetDirectInterface(self, h_clazz, i);
+      if (UNLIKELY(iface == nullptr)) {
+        self->AssertPendingException();
+        return nullptr;
+      }
+      result = GetPublicFieldRecursive(self, iface, name);
+      if (result != nullptr) {
+        DCHECK(result->GetAccessFlags() & kAccPublic);
+        return result;
+      } else if (UNLIKELY(self->IsExceptionPending())) {
+        // Something went wrong. Bail out.
+        return nullptr;
+      }
+    }
+
+    // We don't try the superclass if we are an interface.
+    if (h_clazz->IsInterface()) {
+      break;
+    }
+
+    // Get the next class.
+    h_clazz.Assign(h_clazz->GetSuperClass());
+  }
+  return nullptr;
+}
+
+static jobject Class_getPublicFieldRecursive(JNIEnv* env, jobject javaThis, jstring name) {
+  ScopedFastNativeObjectAccess soa(env);
+  auto* name_string = soa.Decode<mirror::String*>(name);
+  if (UNLIKELY(name_string == nullptr)) {
+    ThrowNullPointerException("name == null");
+    return nullptr;
+  }
+  return soa.AddLocalReference<jobject>(
+      GetPublicFieldRecursive(soa.Self(), DecodeClass(soa, javaThis), name_string));
+}
+
 static jobject Class_getDeclaredFieldInternal(JNIEnv* env, jobject javaThis, jstring name) {
   ScopedFastNativeObjectAccess soa(env);
   auto* name_string = soa.Decode<mirror::String*>(name);
@@ -678,6 +737,7 @@ static JNINativeMethod gMethods[] = {
                 "!([Ljava/lang/Class;)Ljava/lang/reflect/Constructor;"),
   NATIVE_METHOD(Class, getDeclaredConstructorsInternal, "!(Z)[Ljava/lang/reflect/Constructor;"),
   NATIVE_METHOD(Class, getDeclaredField, "!(Ljava/lang/String;)Ljava/lang/reflect/Field;"),
+  NATIVE_METHOD(Class, getPublicFieldRecursive, "!(Ljava/lang/String;)Ljava/lang/reflect/Field;"),
   NATIVE_METHOD(Class, getDeclaredFieldInternal, "!(Ljava/lang/String;)Ljava/lang/reflect/Field;"),
   NATIVE_METHOD(Class, getDeclaredFields, "!()[Ljava/lang/reflect/Field;"),
   NATIVE_METHOD(Class, getDeclaredFieldsUnchecked, "!(Z)[Ljava/lang/reflect/Field;"),
