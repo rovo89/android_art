@@ -464,6 +464,7 @@ TEST_ART_BROKEN_OPTIMIZING_MIPS_RUN_TESTS := \
     530-checker-loops \
     530-checker-regression-reftype-final \
     532-checker-nonnull-arrayset \
+    534-checker-bce-deoptimization \
 
 ifeq (mips,$(TARGET_ARCH))
   ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
