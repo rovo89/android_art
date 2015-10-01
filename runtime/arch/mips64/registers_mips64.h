@@ -52,7 +52,6 @@ enum GpuRegister {
   S6   = 22,
   S7   = 23,
   T8   = 24,  // More temporaries.
-  TMP  = T8,  // scratch register (in addition to AT)
   T9   = 25,
   K0   = 26,  // Reserved for trap handler.
   K1   = 27,
@@ -60,6 +59,8 @@ enum GpuRegister {
   SP   = 29,  // Stack pointer.
   S8   = 30,  // Saved value/frame pointer.
   RA   = 31,  // Return address.
+  TR   = S1,  // ART Thread Register
+  TMP  = T8,  // scratch register (in addition to AT)
   kNumberOfGpuRegisters = 32,
   kNoGpuRegister = -1  // Signals an illegal register.
 };
