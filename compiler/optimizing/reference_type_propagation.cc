@@ -52,6 +52,8 @@ class RTPVisitor : public HGraphDelegateVisitor {
   void SetClassAsTypeInfo(HInstruction* instr, mirror::Class* klass, bool is_exact);
   void VisitInstanceFieldGet(HInstanceFieldGet* instr) OVERRIDE;
   void VisitStaticFieldGet(HStaticFieldGet* instr) OVERRIDE;
+  void VisitUnresolvedInstanceFieldGet(HUnresolvedInstanceFieldGet* instr) OVERRIDE;
+  void VisitUnresolvedStaticFieldGet(HUnresolvedStaticFieldGet* instr) OVERRIDE;
   void VisitInvoke(HInvoke* instr) OVERRIDE;
   void VisitArrayGet(HArrayGet* instr) OVERRIDE;
   void VisitCheckCast(HCheckCast* instr) OVERRIDE;
@@ -448,6 +450,22 @@ void RTPVisitor::VisitInstanceFieldGet(HInstanceFieldGet* instr) {
 
 void RTPVisitor::VisitStaticFieldGet(HStaticFieldGet* instr) {
   UpdateFieldAccessTypeInfo(instr, instr->GetFieldInfo());
+}
+
+void RTPVisitor::VisitUnresolvedInstanceFieldGet(HUnresolvedInstanceFieldGet* instr) {
+  // TODO: Use descriptor to get the actual type.
+  if (instr->GetFieldType() == Primitive::kPrimNot) {
+    instr->SetReferenceTypeInfo(
+      ReferenceTypeInfo::Create(object_class_handle_, /* is_exact */ false));
+  }
+}
+
+void RTPVisitor::VisitUnresolvedStaticFieldGet(HUnresolvedStaticFieldGet* instr) {
+  // TODO: Use descriptor to get the actual type.
+  if (instr->GetFieldType() == Primitive::kPrimNot) {
+    instr->SetReferenceTypeInfo(
+      ReferenceTypeInfo::Create(object_class_handle_, /* is_exact */ false));
+  }
 }
 
 void RTPVisitor::VisitLoadClass(HLoadClass* instr) {
