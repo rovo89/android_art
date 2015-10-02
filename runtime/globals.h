@@ -58,12 +58,6 @@ static constexpr bool kIsTargetBuild = true;
 static constexpr bool kIsTargetBuild = false;
 #endif
 
-#if defined(ART_USE_OPTIMIZING_COMPILER)
-static constexpr bool kUseOptimizingCompiler = true;
-#else
-static constexpr bool kUseOptimizingCompiler = false;
-#endif
-
 // Garbage collector constants.
 static constexpr bool kMovingCollector = true;
 static constexpr bool kMarkCompactSupport = false && kMovingCollector;
