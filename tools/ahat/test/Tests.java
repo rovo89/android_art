@@ -22,6 +22,7 @@ public class Tests {
   public static void main(String[] args) {
     if (args.length == 0) {
       args = new String[]{
+        "com.android.ahat.InstanceUtilsTest",
         "com.android.ahat.QueryTest",
         "com.android.ahat.SortTest"
       };

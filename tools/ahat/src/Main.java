@@ -16,10 +16,6 @@
 
 package com.android.ahat;
 
-import com.android.tools.perflib.heap.HprofParser;
-import com.android.tools.perflib.heap.Snapshot;
-import com.android.tools.perflib.heap.io.HprofBuffer;
-import com.android.tools.perflib.heap.io.MemoryMappedFileBuffer;
 import com.sun.net.httpserver.HttpServer;
 import java.io.File;
 import java.io.IOException;
@@ -71,15 +67,8 @@ public class Main {
       return;
     }
 
-    System.out.println("Reading hprof file...");
-    HprofBuffer buffer = new MemoryMappedFileBuffer(hprof);
-    Snapshot snapshot = (new HprofParser(buffer)).parse();
-
-    System.out.println("Computing Dominators...");
-    snapshot.computeDominators();
-
-    System.out.println("Processing snapshot for ahat...");
-    AhatSnapshot ahat = new AhatSnapshot(snapshot);
+    System.out.println("Processing hprof file...");
+    AhatSnapshot ahat = AhatSnapshot.fromHprof(hprof);
 
     InetAddress loopback = InetAddress.getLoopbackAddress();
     InetSocketAddress addr = new InetSocketAddress(loopback, port);

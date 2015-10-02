@@ -32,7 +32,7 @@ class InstanceUtils {
    * given name.
    */
   public static boolean isInstanceOfClass(Instance inst, String className) {
-    ClassObj cls = inst.getClassObj();
+    ClassObj cls = (inst == null) ? null : inst.getClassObj();
     return (cls != null && className.equals(cls.getClassName()));
   }
 
@@ -132,7 +132,7 @@ class InstanceUtils {
    * Read a field of an instance.
    * Returns null if the field value is null or if the field couldn't be read.
    */
-  private static Object getField(Instance inst, String fieldName) {
+  public static Object getField(Instance inst, String fieldName) {
     if (!(inst instanceof ClassInstance)) {
       return null;
     }
