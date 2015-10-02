@@ -247,17 +247,15 @@ class Thread {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Transition from non-runnable to runnable state acquiring share on mutator_lock_.
-  ThreadState TransitionFromSuspendedToRunnable()
+  ALWAYS_INLINE ThreadState TransitionFromSuspendedToRunnable()
       REQUIRES(!Locks::thread_suspend_count_lock_)
-      SHARED_LOCK_FUNCTION(Locks::mutator_lock_)
-      ALWAYS_INLINE;
+      SHARED_LOCK_FUNCTION(Locks::mutator_lock_);
 
   // Transition from runnable into a state where mutator privileges are denied. Releases share of
   // mutator lock.
-  void TransitionFromRunnableToSuspended(ThreadState new_state)
+  ALWAYS_INLINE void TransitionFromRunnableToSuspended(ThreadState new_state)
       REQUIRES(!Locks::thread_suspend_count_lock_, !Roles::uninterruptible_)
-      UNLOCK_FUNCTION(Locks::mutator_lock_)
-      ALWAYS_INLINE;
+      UNLOCK_FUNCTION(Locks::mutator_lock_);
 
   // Once called thread suspension will cause an assertion failure.
   const char* StartAssertNoThreadSuspension(const char* cause) ACQUIRE(Roles::uninterruptible_) {
@@ -1017,11 +1015,15 @@ class Thread {
   // Dbg::Disconnected.
   ThreadState SetStateUnsafe(ThreadState new_state) {
     ThreadState old_state = GetState();
-    tls32_.state_and_flags.as_struct.state = new_state;
-    // if transit to a suspended state, check the pass barrier request.
-    if (UNLIKELY((new_state != kRunnable) &&
-                 (tls32_.state_and_flags.as_struct.flags & kActiveSuspendBarrier))) {
-      PassActiveSuspendBarriers(this);
+    if (old_state == kRunnable && new_state != kRunnable) {
+      // Need to run pending checkpoint and suspend barriers. Run checkpoints in runnable state in
+      // case they need to use a ScopedObjectAccess. If we are holding the mutator lock and a SOA
+      // attempts to TransitionFromSuspendedToRunnable, it results in a deadlock.
+      TransitionToSuspendedAndRunCheckpoints(new_state);
+      // Since we transitioned to a suspended state, check the pass barrier requests.
+      PassActiveSuspendBarriers();
+    } else {
+      tls32_.state_and_flags.as_struct.state = new_state;
     }
     return old_state;
   }
@@ -1063,6 +1065,12 @@ class Thread {
 
   void SetUpAlternateSignalStack();
   void TearDownAlternateSignalStack();
+
+  ALWAYS_INLINE void TransitionToSuspendedAndRunCheckpoints(ThreadState new_state)
+      REQUIRES(!Locks::thread_suspend_count_lock_, !Roles::uninterruptible_);
+
+  ALWAYS_INLINE void PassActiveSuspendBarriers()
+      REQUIRES(!Locks::thread_suspend_count_lock_, !Roles::uninterruptible_);
 
   // 32 bits of atomically changed state and flags. Keeping as 32 bits allows and atomic CAS to
   // change from being Suspended to Runnable without a suspend request occurring.
