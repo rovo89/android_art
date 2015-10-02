@@ -62,8 +62,10 @@ inline MirrorType* ReadBarrier::Barrier(
     if (heap != nullptr && heap->GetReadBarrierTable()->IsSet(old_ref)) {
       ref = reinterpret_cast<MirrorType*>(Mark(old_ref));
       // Update the field atomically. This may fail if mutator updates before us, but it's ok.
-      obj->CasFieldStrongSequentiallyConsistentObjectWithoutWriteBarrier<false, false>(
-          offset, old_ref, ref);
+      if (ref != old_ref) {
+        obj->CasFieldStrongSequentiallyConsistentObjectWithoutWriteBarrier<false, false>(
+            offset, old_ref, ref);
+      }
     }
     AssertToSpaceInvariant(obj, offset, ref);
     return ref;
@@ -90,17 +92,17 @@ inline MirrorType* ReadBarrier::BarrierForRoot(MirrorType** root,
     // To be implemented.
     return ref;
   } else if (with_read_barrier && kUseTableLookupReadBarrier) {
-    if (kMaybeDuringStartup && IsDuringStartup()) {
-      // During startup, the heap may not be initialized yet. Just
-      // return the given ref.
-      return ref;
-    }
-    if (Runtime::Current()->GetHeap()->GetReadBarrierTable()->IsSet(ref)) {
+    Thread* self = Thread::Current();
+    if (self != nullptr &&
+        self->GetIsGcMarking() &&
+        Runtime::Current()->GetHeap()->GetReadBarrierTable()->IsSet(ref)) {
       MirrorType* old_ref = ref;
       ref = reinterpret_cast<MirrorType*>(Mark(old_ref));
       // Update the field atomically. This may fail if mutator updates before us, but it's ok.
-      Atomic<mirror::Object*>* atomic_root = reinterpret_cast<Atomic<mirror::Object*>*>(root);
-      atomic_root->CompareExchangeStrongSequentiallyConsistent(old_ref, ref);
+      if (ref != old_ref) {
+        Atomic<mirror::Object*>* atomic_root = reinterpret_cast<Atomic<mirror::Object*>*>(root);
+        atomic_root->CompareExchangeStrongSequentiallyConsistent(old_ref, ref);
+      }
     }
     AssertToSpaceInvariant(gc_root_source, ref);
     return ref;
@@ -127,19 +129,19 @@ inline MirrorType* ReadBarrier::BarrierForRoot(mirror::CompressedReference<Mirro
     // To be implemented.
     return ref;
   } else if (with_read_barrier && kUseTableLookupReadBarrier) {
-    if (kMaybeDuringStartup && IsDuringStartup()) {
-      // During startup, the heap may not be initialized yet. Just
-      // return the given ref.
-      return ref;
-    }
-    if (Runtime::Current()->GetHeap()->GetReadBarrierTable()->IsSet(ref)) {
+    Thread* self = Thread::Current();
+    if (self != nullptr &&
+        self->GetIsGcMarking() &&
+        Runtime::Current()->GetHeap()->GetReadBarrierTable()->IsSet(ref)) {
       auto old_ref = mirror::CompressedReference<MirrorType>::FromMirrorPtr(ref);
       ref = reinterpret_cast<MirrorType*>(Mark(ref));
       auto new_ref = mirror::CompressedReference<MirrorType>::FromMirrorPtr(ref);
       // Update the field atomically. This may fail if mutator updates before us, but it's ok.
-      auto* atomic_root =
-          reinterpret_cast<Atomic<mirror::CompressedReference<MirrorType>>*>(root);
-      atomic_root->CompareExchangeStrongSequentiallyConsistent(old_ref, new_ref);
+      if (new_ref.AsMirrorPtr() != old_ref.AsMirrorPtr()) {
+        auto* atomic_root =
+            reinterpret_cast<Atomic<mirror::CompressedReference<MirrorType>>*>(root);
+        atomic_root->CompareExchangeStrongSequentiallyConsistent(old_ref, new_ref);
+      }
     }
     AssertToSpaceInvariant(gc_root_source, ref);
     return ref;
