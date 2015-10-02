@@ -2650,10 +2650,8 @@ mirror::DexCache* ClassLinker::FindDexCacheLocked(Thread* self,
                                                   const DexFile& dex_file,
                                                   bool allow_failure) {
   // Search assuming unique-ness of dex file.
-  JavaVMExt* const vm = self->GetJniEnv()->vm;
   for (jweak weak_root : dex_caches_) {
-    mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(
-        vm->DecodeWeakGlobal(self, weak_root));
+    mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(self->DecodeJObject(weak_root));
     if (dex_cache != nullptr && dex_cache->GetDexFile() == &dex_file) {
       return dex_cache;
     }
@@ -6202,10 +6200,9 @@ void ClassLinker::DropFindArrayClassCache() {
 
 void ClassLinker::VisitClassLoaders(ClassLoaderVisitor* visitor) const {
   Thread* const self = Thread::Current();
-  JavaVMExt* const vm = self->GetJniEnv()->vm;
   for (const ClassLoaderData& data : class_loaders_) {
-    auto* const class_loader = down_cast<mirror::ClassLoader*>(
-        vm->DecodeWeakGlobal(self, data.weak_root));
+    // Need to use DecodeJObject so that we get null for cleared JNI weak globals.
+    auto* const class_loader = down_cast<mirror::ClassLoader*>(self->DecodeJObject(data.weak_root));
     if (class_loader != nullptr) {
       visitor->Visit(class_loader);
     }
@@ -6218,8 +6215,8 @@ void ClassLinker::CleanupClassLoaders() {
   JavaVMExt* const vm = Runtime::Current()->GetJavaVM();
   for (auto it = class_loaders_.begin(); it != class_loaders_.end(); ) {
     const ClassLoaderData& data = *it;
-    auto* const class_loader = down_cast<mirror::ClassLoader*>(
-        vm->DecodeWeakGlobal(self, data.weak_root));
+    // Need to use DecodeJObject so that we get null for cleared JNI weak globals.
+    auto* const class_loader = down_cast<mirror::ClassLoader*>(self->DecodeJObject(data.weak_root));
     if (class_loader != nullptr) {
       ++it;
     } else {
