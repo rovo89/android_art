@@ -620,7 +620,10 @@ void ConcurrentCopying::PushOntoMarkStack(mirror::Object* to_ref) {
     gc_mark_stack_->PushBack(to_ref);
   } else {
     CHECK_EQ(static_cast<uint32_t>(mark_stack_mode),
-             static_cast<uint32_t>(kMarkStackModeGcExclusive));
+             static_cast<uint32_t>(kMarkStackModeGcExclusive))
+        << "ref=" << to_ref
+        << " self->gc_marking=" << self->GetIsGcMarking()
+        << " cc->is_marking=" << is_marking_;
     CHECK(self == thread_running_gc_)
         << "Only GC-running thread should access the mark stack "
         << "in the GC exclusive mark stack mode";
