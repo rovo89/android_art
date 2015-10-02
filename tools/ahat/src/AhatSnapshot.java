@@ -18,13 +18,18 @@ package com.android.ahat;
 
 import com.android.tools.perflib.heap.ClassObj;
 import com.android.tools.perflib.heap.Heap;
+import com.android.tools.perflib.heap.HprofParser;
 import com.android.tools.perflib.heap.Instance;
 import com.android.tools.perflib.heap.RootObj;
 import com.android.tools.perflib.heap.Snapshot;
 import com.android.tools.perflib.heap.StackFrame;
 import com.android.tools.perflib.heap.StackTrace;
+import com.android.tools.perflib.heap.io.HprofBuffer;
+import com.android.tools.perflib.heap.io.MemoryMappedFileBuffer;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -47,7 +52,22 @@ class AhatSnapshot {
   private Site mRootSite;
   private Map<Heap, Long> mHeapSizes;
 
-  public AhatSnapshot(Snapshot snapshot) {
+  /**
+   * Create an AhatSnapshot from an hprof file.
+   */
+  public static AhatSnapshot fromHprof(File hprof) throws IOException {
+    HprofBuffer buffer = new MemoryMappedFileBuffer(hprof);
+    Snapshot snapshot = (new HprofParser(buffer)).parse();
+    snapshot.computeDominators();
+    return new AhatSnapshot(snapshot);
+  }
+
+  /**
+   * Construct an AhatSnapshot for the given perflib snapshot.
+   * Ther user is responsible for calling snapshot.computeDominators before
+   * calling this AhatSnapshot constructor.
+   */
+  private AhatSnapshot(Snapshot snapshot) {
     mSnapshot = snapshot;
     mHeaps = new ArrayList<Heap>(mSnapshot.getHeaps());
     mDominated = new HashMap<Instance, List<Instance>>();
@@ -90,6 +110,11 @@ class AhatSnapshot {
       }
       mHeapSizes.put(heap, total);
     }
+  }
+
+  // Note: This method is exposed for testing purposes.
+  public ClassObj findClass(String name) {
+    return mSnapshot.findClass(name);
   }
 
   public Instance findInstance(long id) {
