@@ -418,6 +418,48 @@ class StubTest : public CommonRuntimeTest {
     return result;
   }
 
+  // 64bit static field set use a slightly different register order than Invoke3WithReferrer.
+  // TODO: implement for other architectures
+  // TODO: try merge with Invoke3WithReferrer
+  size_t Invoke64StaticSet(size_t arg0, size_t arg1, size_t arg2, uintptr_t code, Thread* self,
+                           ArtMethod* referrer) {
+    // Push a transition back into managed code onto the linked list in thread.
+    ManagedStack fragment;
+    self->PushManagedStackFragment(&fragment);
+
+    size_t result;
+    size_t fpr_result = 0;
+#if defined(__x86_64__) && !defined(__APPLE__) && defined(__clang__)
+    // Note: Uses the native convention
+    // TODO: Set the thread?
+    __asm__ __volatile__(
+        "pushq %[referrer]\n\t"        // Push referrer
+        "pushq (%%rsp)\n\t"             // & 16B alignment padding
+        ".cfi_adjust_cfa_offset 16\n\t"
+        "call *%%rax\n\t"              // Call the stub
+        "addq $16, %%rsp\n\t"          // Pop null and padding
+        ".cfi_adjust_cfa_offset -16\n\t"
+        : "=a" (result)
+          // Use the result from rax
+        : "D"(arg0), "d"(arg1), "S"(arg2), "a"(code), [referrer] "c"(referrer)
+          // This places arg0 into rdi, arg1 into rdx, arg2 into rsi, and code into rax
+        : "rbx", "rbp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
+          "memory");  // clobber all
+    // TODO: Should we clobber the other registers?
+#else
+    UNUSED(arg0, arg1, arg2, code, referrer);
+    LOG(WARNING) << "Was asked to invoke for an architecture I do not understand.";
+    result = 0;
+#endif
+    // Pop transition.
+    self->PopManagedStackFragment(fragment);
+
+    fp_result = fpr_result;
+    EXPECT_EQ(0U, fp_result);
+
+    return result;
+  }
+
   // TODO: Set up a frame according to referrer's specs.
   size_t Invoke3WithReferrerAndHidden(size_t arg0, size_t arg1, size_t arg2, uintptr_t code,
                                       Thread* self, ArtMethod* referrer, size_t hidden) {
@@ -772,22 +814,6 @@ class StubTest : public CommonRuntimeTest {
     EXPECT_EQ(0U, fp_result);
 
     return result;
-  }
-
-  // Method with 32b arg0, 64b arg1
-  size_t Invoke3UWithReferrer(size_t arg0, uint64_t arg1, uintptr_t code, Thread* self,
-                              ArtMethod* referrer) {
-#if (defined(__x86_64__) && !defined(__APPLE__)) || (defined(__mips__) && defined(__LP64__)) || \
-    defined(__aarch64__)
-    // Just pass through.
-    return Invoke3WithReferrer(arg0, arg1, 0U, code, self, referrer);
-#else
-    // Need to split up arguments.
-    uint32_t lower = static_cast<uint32_t>(arg1 & 0xFFFFFFFF);
-    uint32_t upper = static_cast<uint32_t>((arg1 >> 32) & 0xFFFFFFFF);
-
-    return Invoke3WithReferrer(arg0, lower, upper, code, self, referrer);
-#endif
   }
 
   static uintptr_t GetEntrypoint(Thread* self, QuickEntrypointEnum entrypoint) {
@@ -1974,21 +2000,22 @@ static void GetSetObjInstance(Handle<mirror::Object>* obj, ArtField* f,
 }
 
 
-// TODO: Complete these tests for 32b architectures.
+// TODO: Complete these tests for 32b architectures
 
 static void GetSet64Static(ArtField* f, Thread* self, ArtMethod* referrer,
                            StubTest* test)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-#if (defined(__x86_64__) && !defined(__APPLE__)) || (defined(__mips__) && defined(__LP64__)) || \
-    defined(__aarch64__)
+// TODO: (defined(__mips__) && defined(__LP64__)) || defined(__aarch64__)
+#if (defined(__x86_64__) && !defined(__APPLE__))
   uint64_t values[] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF, 0xFFFFFFFFFFFF };
 
   for (size_t i = 0; i < arraysize(values); ++i) {
-    test->Invoke3UWithReferrer(static_cast<size_t>(f->GetDexFieldIndex()),
-                               values[i],
-                               StubTest::GetEntrypoint(self, kQuickSet64Static),
-                               self,
-                               referrer);
+    test->Invoke64StaticSet(static_cast<size_t>(f->GetDexFieldIndex()),
+                            values[i],
+                            0U,
+                            StubTest::GetEntrypoint(self, kQuickSet64Static),
+                            self,
+                            referrer);
 
     size_t res = test->Invoke3WithReferrer(static_cast<size_t>(f->GetDexFieldIndex()),
                                            0U, 0U,
