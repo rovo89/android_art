@@ -827,7 +827,10 @@ void CodeGeneratorX86::Move64(Location destination, Location source) {
           Location::RegisterLocation(destination.AsRegisterPairLow<Register>()),
           Primitive::kPrimInt);
     } else if (source.IsFpuRegister()) {
-      LOG(FATAL) << "Unimplemented";
+      XmmRegister src_reg = source.AsFpuRegister<XmmRegister>();
+      __ movd(destination.AsRegisterPairLow<Register>(), src_reg);
+      __ psrlq(src_reg, Immediate(32));
+      __ movd(destination.AsRegisterPairHigh<Register>(), src_reg);
     } else {
       // No conflict possible, so just do the moves.
       DCHECK(source.IsDoubleStackSlot());
@@ -840,6 +843,15 @@ void CodeGeneratorX86::Move64(Location destination, Location source) {
       __ movaps(destination.AsFpuRegister<XmmRegister>(), source.AsFpuRegister<XmmRegister>());
     } else if (source.IsDoubleStackSlot()) {
       __ movsd(destination.AsFpuRegister<XmmRegister>(), Address(ESP, source.GetStackIndex()));
+    } else if (source.IsRegisterPair()) {
+      size_t elem_size = Primitive::ComponentSize(Primitive::kPrimInt);
+      // Create stack space for 2 elements.
+      __ subl(ESP, Immediate(2 * elem_size));
+      __ movl(Address(ESP, 0), source.AsRegisterPairLow<Register>());
+      __ movl(Address(ESP, elem_size), source.AsRegisterPairHigh<Register>());
+      __ movsd(destination.AsFpuRegister<XmmRegister>(), Address(ESP, 0));
+      // And remove the temporary stack space we allocated.
+      __ addl(ESP, Immediate(2 * elem_size));
     } else {
       LOG(FATAL) << "Unimplemented";
     }
@@ -964,6 +976,25 @@ void CodeGeneratorX86::Move(HInstruction* instruction, Location location, HInstr
 void CodeGeneratorX86::MoveConstant(Location location, int32_t value) {
   DCHECK(location.IsRegister());
   __ movl(location.AsRegister<Register>(), Immediate(value));
+}
+
+void CodeGeneratorX86::MoveLocation(Location dst, Location src, Primitive::Type dst_type) {
+  if (Primitive::Is64BitType(dst_type)) {
+    Move64(dst, src);
+  } else {
+    Move32(dst, src);
+  }
+}
+
+void CodeGeneratorX86::AddLocationAsTemp(Location location, LocationSummary* locations) {
+  if (location.IsRegister()) {
+    locations->AddTemp(location);
+  } else if (location.IsRegisterPair()) {
+    locations->AddTemp(Location::RegisterLocation(location.AsRegisterPairLow<Register>()));
+    locations->AddTemp(Location::RegisterLocation(location.AsRegisterPairHigh<Register>()));
+  } else {
+    UNIMPLEMENTED(FATAL) << "AddLocationAsTemp not implemented for location " << location;
+  }
 }
 
 void InstructionCodeGeneratorX86::HandleGoto(HInstruction* got, HBasicBlock* successor) {
@@ -4083,6 +4114,74 @@ void LocationsBuilderX86::VisitInstanceFieldGet(HInstanceFieldGet* instruction) 
 
 void InstructionCodeGeneratorX86::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
   HandleFieldGet(instruction, instruction->GetFieldInfo());
+}
+
+void LocationsBuilderX86::VisitUnresolvedInstanceFieldGet(
+    HUnresolvedInstanceFieldGet* instruction) {
+  FieldAccessCallingConventionX86 calling_convention;
+  codegen_->CreateUnresolvedFieldLocationSummary(
+      instruction, instruction->GetFieldType(), calling_convention);
+}
+
+void InstructionCodeGeneratorX86::VisitUnresolvedInstanceFieldGet(
+    HUnresolvedInstanceFieldGet* instruction) {
+  FieldAccessCallingConventionX86 calling_convention;
+  codegen_->GenerateUnresolvedFieldAccess(instruction,
+                                          instruction->GetFieldType(),
+                                          instruction->GetFieldIndex(),
+                                          instruction->GetDexPc(),
+                                          calling_convention);
+}
+
+void LocationsBuilderX86::VisitUnresolvedInstanceFieldSet(
+    HUnresolvedInstanceFieldSet* instruction) {
+  FieldAccessCallingConventionX86 calling_convention;
+  codegen_->CreateUnresolvedFieldLocationSummary(
+      instruction, instruction->GetFieldType(), calling_convention);
+}
+
+void InstructionCodeGeneratorX86::VisitUnresolvedInstanceFieldSet(
+    HUnresolvedInstanceFieldSet* instruction) {
+  FieldAccessCallingConventionX86 calling_convention;
+  codegen_->GenerateUnresolvedFieldAccess(instruction,
+                                          instruction->GetFieldType(),
+                                          instruction->GetFieldIndex(),
+                                          instruction->GetDexPc(),
+                                          calling_convention);
+}
+
+void LocationsBuilderX86::VisitUnresolvedStaticFieldGet(
+    HUnresolvedStaticFieldGet* instruction) {
+  FieldAccessCallingConventionX86 calling_convention;
+  codegen_->CreateUnresolvedFieldLocationSummary(
+      instruction, instruction->GetFieldType(), calling_convention);
+}
+
+void InstructionCodeGeneratorX86::VisitUnresolvedStaticFieldGet(
+    HUnresolvedStaticFieldGet* instruction) {
+  FieldAccessCallingConventionX86 calling_convention;
+  codegen_->GenerateUnresolvedFieldAccess(instruction,
+                                          instruction->GetFieldType(),
+                                          instruction->GetFieldIndex(),
+                                          instruction->GetDexPc(),
+                                          calling_convention);
+}
+
+void LocationsBuilderX86::VisitUnresolvedStaticFieldSet(
+    HUnresolvedStaticFieldSet* instruction) {
+  FieldAccessCallingConventionX86 calling_convention;
+  codegen_->CreateUnresolvedFieldLocationSummary(
+      instruction, instruction->GetFieldType(), calling_convention);
+}
+
+void InstructionCodeGeneratorX86::VisitUnresolvedStaticFieldSet(
+    HUnresolvedStaticFieldSet* instruction) {
+  FieldAccessCallingConventionX86 calling_convention;
+  codegen_->GenerateUnresolvedFieldAccess(instruction,
+                                          instruction->GetFieldType(),
+                                          instruction->GetFieldIndex(),
+                                          instruction->GetDexPc(),
+                                          calling_convention);
 }
 
 void LocationsBuilderX86::VisitNullCheck(HNullCheck* instruction) {

@@ -40,6 +40,22 @@ class UnresolvedClass extends UnresolvedSuperClass implements UnresolvedInterfac
   public void interfaceMethod() {
     System.out.println("UnresolvedClass.interfaceMethod()");
   }
+
+  public static byte staticByte;
+  public static char staticChar;
+  public static int staticInt;
+  public static long staticLong;
+  public static float staticFloat;
+  public static double staticDouble;
+  public static Object staticObject;
+
+  public byte instanceByte;
+  public char instanceChar;
+  public int instanceInt;
+  public long instanceLong;
+  public float instanceFloat;
+  public double instanceDouble;
+  public Object instanceObject;
 }
 
 final class UnresolvedFinalClass {

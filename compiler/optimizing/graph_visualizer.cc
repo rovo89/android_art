@@ -398,6 +398,22 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
     StartAttributeStream("intrinsic") << invoke->GetIntrinsic();
   }
 
+  void VisitUnresolvedInstanceFieldGet(HUnresolvedInstanceFieldGet* field_access) OVERRIDE {
+    StartAttributeStream("field_type") << field_access->GetFieldType();
+  }
+
+  void VisitUnresolvedInstanceFieldSet(HUnresolvedInstanceFieldSet* field_access) OVERRIDE {
+    StartAttributeStream("field_type") << field_access->GetFieldType();
+  }
+
+  void VisitUnresolvedStaticFieldGet(HUnresolvedStaticFieldGet* field_access) OVERRIDE {
+    StartAttributeStream("field_type") << field_access->GetFieldType();
+  }
+
+  void VisitUnresolvedStaticFieldSet(HUnresolvedStaticFieldSet* field_access) OVERRIDE {
+    StartAttributeStream("field_type") << field_access->GetFieldType();
+  }
+
   void VisitTryBoundary(HTryBoundary* try_boundary) OVERRIDE {
     StartAttributeStream("kind") << (try_boundary->IsEntry() ? "entry" : "exit");
   }
