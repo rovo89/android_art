@@ -1305,6 +1305,23 @@ bool HGraphBuilder::IsOutermostCompilingClass(uint16_t type_index) const {
   return outer_class.Get() == cls.Get();
 }
 
+void HGraphBuilder::BuildUnresolvedStaticFieldAccess(const Instruction& instruction,
+                                                     uint32_t dex_pc,
+                                                     bool is_put,
+                                                     Primitive::Type field_type) {
+  uint32_t source_or_dest_reg = instruction.VRegA_21c();
+  uint16_t field_index = instruction.VRegB_21c();
+
+  if (is_put) {
+    HInstruction* value = LoadLocal(source_or_dest_reg, field_type, dex_pc);
+    current_block_->AddInstruction(
+        new (arena_) HUnresolvedStaticFieldSet(value, field_type, field_index, dex_pc));
+  } else {
+    current_block_->AddInstruction(
+        new (arena_) HUnresolvedStaticFieldGet(field_type, field_index, dex_pc));
+    UpdateLocal(source_or_dest_reg, current_block_->GetLastInstruction(), dex_pc);
+  }
+}
 bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
                                            uint32_t dex_pc,
                                            bool is_put) {
@@ -1324,18 +1341,11 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
   if (resolved_field == nullptr) {
     MaybeRecordStat(MethodCompilationStat::kUnresolvedField);
     Primitive::Type field_type = GetFieldAccessType(*dex_file_, field_index);
-    if (is_put) {
-      HInstruction* value = LoadLocal(source_or_dest_reg, field_type, dex_pc);
-      current_block_->AddInstruction(
-          new (arena_) HUnresolvedStaticFieldSet(value, field_type, field_index, dex_pc));
-    } else {
-      current_block_->AddInstruction(
-          new (arena_) HUnresolvedStaticFieldGet(field_type, field_index, dex_pc));
-      UpdateLocal(source_or_dest_reg, current_block_->GetLastInstruction(), dex_pc);
-    }
+    BuildUnresolvedStaticFieldAccess(instruction, dex_pc, is_put, field_type);
     return true;
   }
 
+  Primitive::Type field_type = resolved_field->GetTypeAsPrimitiveType();
   const DexFile& outer_dex_file = *outer_compilation_unit_->GetDexFile();
   Handle<mirror::DexCache> outer_dex_cache(hs.NewHandle(
       outer_compilation_unit_->GetClassLinker()->FindDexCache(soa.Self(), outer_dex_file)));
@@ -1350,6 +1360,7 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
     // The compiler driver cannot currently understand multiple dex caches involved. Just bailout.
     return false;
   } else {
+    // TODO: This is rather expensive. Perf it and cache the results if needed.
     std::pair<bool, bool> pair = compiler_driver_->IsFastStaticField(
         outer_dex_cache.Get(),
         GetCompilingClass(),
@@ -1358,7 +1369,9 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
         &storage_index);
     bool can_easily_access = is_put ? pair.second : pair.first;
     if (!can_easily_access) {
-      return false;
+      MaybeRecordStat(MethodCompilationStat::kUnresolvedFieldNotAFastAccess);
+      BuildUnresolvedStaticFieldAccess(instruction, dex_pc, is_put, field_type);
+      return true;
     }
   }
 
@@ -1379,8 +1392,6 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
     cls = new (arena_) HClinitCheck(constant, dex_pc);
     current_block_->AddInstruction(cls);
   }
-
-  Primitive::Type field_type = resolved_field->GetTypeAsPrimitiveType();
   if (is_put) {
     // We need to keep the class alive before loading the value.
     Temporaries temps(graph_);
