@@ -579,15 +579,11 @@ void Dbg::GoActive() {
 
   Runtime* runtime = Runtime::Current();
   ScopedSuspendAll ssa(__FUNCTION__);
-  Thread* self = Thread::Current();
-  ThreadState old_state = self->SetStateUnsafe(kRunnable);
-  CHECK_NE(old_state, kRunnable);
   if (RequiresDeoptimization()) {
     runtime->GetInstrumentation()->EnableDeoptimization();
   }
   instrumentation_events_ = 0;
   gDebuggerActive = true;
-  CHECK_EQ(self->SetStateUnsafe(old_state), kRunnable);
   LOG(INFO) << "Debugger is active";
 }
 
