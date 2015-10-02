@@ -1434,15 +1434,18 @@ END_FUNCTION art_quick_set64_instance
 // Call artSet64StaticFromCode with 3 word size arguments plus with the referrer in the 2nd position
 // so that new_val is aligned on even registers were we passing arguments in registers.
 DEFINE_FUNCTION art_quick_set64_static
+    // TODO: Implement SETUP_GOT_NOSAVE for got_reg = ecx to avoid moving around the registers.
+    movd %ebx, %xmm0
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  ebx, ebx  // save ref containing registers for GC
-    mov FRAME_SIZE_REFS_ONLY_CALLEE_SAVE(%esp), %ebx  // get referrer
+    movd %xmm0, %ebx
+    mov FRAME_SIZE_REFS_ONLY_CALLEE_SAVE(%esp), %ecx  // get referrer
     subl LITERAL(12), %esp        // alignment padding
     CFI_ADJUST_CFA_OFFSET(12)
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
-    PUSH edx                      // pass high half of new_val
-    PUSH ecx                      // pass low half of new_val
-    PUSH ebx                      // pass referrer
+    PUSH ebx                      // pass high half of new_val
+    PUSH edx                      // pass low half of new_val
+    PUSH ecx                      // pass referrer
     PUSH eax                      // pass field_idx
     call SYMBOL(artSet64StaticFromCode)  // (field_idx, referrer, new_val, Thread*)
     addl LITERAL(32), %esp        // pop arguments

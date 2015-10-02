@@ -617,7 +617,7 @@ void CodeGeneratorMIPS64::Bind(HBasicBlock* block) {
 
 void CodeGeneratorMIPS64::MoveLocation(Location destination,
                                        Location source,
-                                       Primitive::Type type) {
+                                       Primitive::Type dst_type) {
   if (source.Equals(destination)) {
     return;
   }
@@ -625,7 +625,7 @@ void CodeGeneratorMIPS64::MoveLocation(Location destination,
   // A valid move can always be inferred from the destination and source
   // locations. When moving from and to a register, the argument type can be
   // used to generate 32bit instead of 64bit moves.
-  bool unspecified_type = (type == Primitive::kPrimVoid);
+  bool unspecified_type = (dst_type == Primitive::kPrimVoid);
   DCHECK_EQ(unspecified_type, false);
 
   if (destination.IsRegister() || destination.IsFpuRegister()) {
@@ -636,21 +636,21 @@ void CodeGeneratorMIPS64::MoveLocation(Location destination,
                                   || src_cst->IsFloatConstant()
                                   || src_cst->IsNullConstant()))) {
         // For stack slots and 32bit constants, a 64bit type is appropriate.
-        type = destination.IsRegister() ? Primitive::kPrimInt : Primitive::kPrimFloat;
+        dst_type = destination.IsRegister() ? Primitive::kPrimInt : Primitive::kPrimFloat;
       } else {
         // If the source is a double stack slot or a 64bit constant, a 64bit
         // type is appropriate. Else the source is a register, and since the
         // type has not been specified, we chose a 64bit type to force a 64bit
         // move.
-        type = destination.IsRegister() ? Primitive::kPrimLong : Primitive::kPrimDouble;
+        dst_type = destination.IsRegister() ? Primitive::kPrimLong : Primitive::kPrimDouble;
       }
     }
-    DCHECK((destination.IsFpuRegister() && Primitive::IsFloatingPointType(type)) ||
-           (destination.IsRegister() && !Primitive::IsFloatingPointType(type)));
+    DCHECK((destination.IsFpuRegister() && Primitive::IsFloatingPointType(dst_type)) ||
+           (destination.IsRegister() && !Primitive::IsFloatingPointType(dst_type)));
     if (source.IsStackSlot() || source.IsDoubleStackSlot()) {
       // Move to GPR/FPR from stack
       LoadOperandType load_type = source.IsStackSlot() ? kLoadWord : kLoadDoubleword;
-      if (Primitive::IsFloatingPointType(type)) {
+      if (Primitive::IsFloatingPointType(dst_type)) {
         __ LoadFpuFromOffset(load_type,
                              destination.AsFpuRegister<FpuRegister>(),
                              SP,
@@ -665,30 +665,46 @@ void CodeGeneratorMIPS64::MoveLocation(Location destination,
     } else if (source.IsConstant()) {
       // Move to GPR/FPR from constant
       GpuRegister gpr = AT;
-      if (!Primitive::IsFloatingPointType(type)) {
+      if (!Primitive::IsFloatingPointType(dst_type)) {
         gpr = destination.AsRegister<GpuRegister>();
       }
-      if (type == Primitive::kPrimInt || type == Primitive::kPrimFloat) {
+      if (dst_type == Primitive::kPrimInt || dst_type == Primitive::kPrimFloat) {
         __ LoadConst32(gpr, GetInt32ValueOf(source.GetConstant()->AsConstant()));
       } else {
         __ LoadConst64(gpr, GetInt64ValueOf(source.GetConstant()->AsConstant()));
       }
-      if (type == Primitive::kPrimFloat) {
+      if (dst_type == Primitive::kPrimFloat) {
         __ Mtc1(gpr, destination.AsFpuRegister<FpuRegister>());
-      } else if (type == Primitive::kPrimDouble) {
+      } else if (dst_type == Primitive::kPrimDouble) {
         __ Dmtc1(gpr, destination.AsFpuRegister<FpuRegister>());
       }
-    } else {
+    } else if (source.IsRegister()) {
       if (destination.IsRegister()) {
         // Move to GPR from GPR
         __ Move(destination.AsRegister<GpuRegister>(), source.AsRegister<GpuRegister>());
       } else {
+        DCHECK(destination.IsFpuRegister());
+        if (Primitive::Is64BitType(dst_type)) {
+          __ Dmtc1(source.AsRegister<GpuRegister>(), destination.AsFpuRegister<FpuRegister>());
+        } else {
+          __ Mtc1(source.AsRegister<GpuRegister>(), destination.AsFpuRegister<FpuRegister>());
+        }
+      }
+    } else if (source.IsFpuRegister()) {
+      if (destination.IsFpuRegister()) {
         // Move to FPR from FPR
-        if (type == Primitive::kPrimFloat) {
+        if (dst_type == Primitive::kPrimFloat) {
           __ MovS(destination.AsFpuRegister<FpuRegister>(), source.AsFpuRegister<FpuRegister>());
         } else {
-          DCHECK_EQ(type, Primitive::kPrimDouble);
+          DCHECK_EQ(dst_type, Primitive::kPrimDouble);
           __ MovD(destination.AsFpuRegister<FpuRegister>(), source.AsFpuRegister<FpuRegister>());
+        }
+      } else {
+        DCHECK(destination.IsRegister());
+        if (Primitive::Is64BitType(dst_type)) {
+          __ Dmfc1(destination.AsRegister<GpuRegister>(), source.AsFpuRegister<FpuRegister>());
+        } else {
+          __ Mfc1(destination.AsRegister<GpuRegister>(), source.AsFpuRegister<FpuRegister>());
         }
       }
     }
@@ -697,13 +713,13 @@ void CodeGeneratorMIPS64::MoveLocation(Location destination,
     if (source.IsRegister() || source.IsFpuRegister()) {
       if (unspecified_type) {
         if (source.IsRegister()) {
-          type = destination.IsStackSlot() ? Primitive::kPrimInt : Primitive::kPrimLong;
+          dst_type = destination.IsStackSlot() ? Primitive::kPrimInt : Primitive::kPrimLong;
         } else {
-          type = destination.IsStackSlot() ? Primitive::kPrimFloat : Primitive::kPrimDouble;
+          dst_type = destination.IsStackSlot() ? Primitive::kPrimFloat : Primitive::kPrimDouble;
         }
       }
-      DCHECK((destination.IsDoubleStackSlot() == Primitive::Is64BitType(type)) &&
-             (source.IsFpuRegister() == Primitive::IsFloatingPointType(type)));
+      DCHECK((destination.IsDoubleStackSlot() == Primitive::Is64BitType(dst_type)) &&
+             (source.IsFpuRegister() == Primitive::IsFloatingPointType(dst_type)));
       // Move to stack from GPR/FPR
       StoreOperandType store_type = destination.IsStackSlot() ? kStoreWord : kStoreDoubleword;
       if (source.IsRegister()) {
@@ -859,6 +875,14 @@ void CodeGeneratorMIPS64::Move(HInstruction* instruction,
 void CodeGeneratorMIPS64::MoveConstant(Location location, int32_t value) {
   DCHECK(location.IsRegister());
   __ LoadConst32(location.AsRegister<GpuRegister>(), value);
+}
+
+void CodeGeneratorMIPS64::AddLocationAsTemp(Location location, LocationSummary* locations) {
+  if (location.IsRegister()) {
+    locations->AddTemp(location);
+  } else {
+    UNIMPLEMENTED(FATAL) << "AddLocationAsTemp not implemented for location " << location;
+  }
 }
 
 Location CodeGeneratorMIPS64::GetStackLocation(HLoadLocal* load) const {
@@ -3116,6 +3140,74 @@ void LocationsBuilderMIPS64::VisitStaticFieldSet(HStaticFieldSet* instruction) {
 
 void InstructionCodeGeneratorMIPS64::VisitStaticFieldSet(HStaticFieldSet* instruction) {
   HandleFieldSet(instruction, instruction->GetFieldInfo());
+}
+
+void LocationsBuilderMIPS64::VisitUnresolvedInstanceFieldGet(
+    HUnresolvedInstanceFieldGet* instruction) {
+  FieldAccessCallingConventionMIPS64 calling_convention;
+  codegen_->CreateUnresolvedFieldLocationSummary(
+      instruction, instruction->GetFieldType(), calling_convention);
+}
+
+void InstructionCodeGeneratorMIPS64::VisitUnresolvedInstanceFieldGet(
+    HUnresolvedInstanceFieldGet* instruction) {
+  FieldAccessCallingConventionMIPS64 calling_convention;
+  codegen_->GenerateUnresolvedFieldAccess(instruction,
+                                          instruction->GetFieldType(),
+                                          instruction->GetFieldIndex(),
+                                          instruction->GetDexPc(),
+                                          calling_convention);
+}
+
+void LocationsBuilderMIPS64::VisitUnresolvedInstanceFieldSet(
+    HUnresolvedInstanceFieldSet* instruction) {
+  FieldAccessCallingConventionMIPS64 calling_convention;
+  codegen_->CreateUnresolvedFieldLocationSummary(
+      instruction, instruction->GetFieldType(), calling_convention);
+}
+
+void InstructionCodeGeneratorMIPS64::VisitUnresolvedInstanceFieldSet(
+    HUnresolvedInstanceFieldSet* instruction) {
+  FieldAccessCallingConventionMIPS64 calling_convention;
+  codegen_->GenerateUnresolvedFieldAccess(instruction,
+                                          instruction->GetFieldType(),
+                                          instruction->GetFieldIndex(),
+                                          instruction->GetDexPc(),
+                                          calling_convention);
+}
+
+void LocationsBuilderMIPS64::VisitUnresolvedStaticFieldGet(
+    HUnresolvedStaticFieldGet* instruction) {
+  FieldAccessCallingConventionMIPS64 calling_convention;
+  codegen_->CreateUnresolvedFieldLocationSummary(
+      instruction, instruction->GetFieldType(), calling_convention);
+}
+
+void InstructionCodeGeneratorMIPS64::VisitUnresolvedStaticFieldGet(
+    HUnresolvedStaticFieldGet* instruction) {
+  FieldAccessCallingConventionMIPS64 calling_convention;
+  codegen_->GenerateUnresolvedFieldAccess(instruction,
+                                          instruction->GetFieldType(),
+                                          instruction->GetFieldIndex(),
+                                          instruction->GetDexPc(),
+                                          calling_convention);
+}
+
+void LocationsBuilderMIPS64::VisitUnresolvedStaticFieldSet(
+    HUnresolvedStaticFieldSet* instruction) {
+  FieldAccessCallingConventionMIPS64 calling_convention;
+  codegen_->CreateUnresolvedFieldLocationSummary(
+      instruction, instruction->GetFieldType(), calling_convention);
+}
+
+void InstructionCodeGeneratorMIPS64::VisitUnresolvedStaticFieldSet(
+    HUnresolvedStaticFieldSet* instruction) {
+  FieldAccessCallingConventionMIPS64 calling_convention;
+  codegen_->GenerateUnresolvedFieldAccess(instruction,
+                                          instruction->GetFieldType(),
+                                          instruction->GetFieldIndex(),
+                                          instruction->GetDexPc(),
+                                          calling_convention);
 }
 
 void LocationsBuilderMIPS64::VisitSuspendCheck(HSuspendCheck* instruction) {

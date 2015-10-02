@@ -1383,7 +1383,7 @@ ONE_ARG_REF_DOWNCALL art_quick_get_obj_static, artGetObjStaticFromCode, RETURN_O
 
 // This is singled out as the argument order is different.
 DEFINE_FUNCTION art_quick_set64_static
-    movq %rsi, %rdx                      // pass new_val
+                                         // new_val is already in %rdx
     movq 8(%rsp), %rsi                   // pass referrer
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
                                          // field_idx is in rdi

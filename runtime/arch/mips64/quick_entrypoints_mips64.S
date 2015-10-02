@@ -1244,7 +1244,7 @@ END art_quick_set32_static
     .extern artSet64StaticFromCode
 ENTRY art_quick_set64_static
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
-    move   $a2, $a1                      # pass new_val
+                                         # a2 contains the new val
     ld     $a1, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
     jal    artSet64StaticFromCode        # (field_idx, referrer, new_val, Thread*)
     move   $a3, rSELF                    # pass Thread::Current
