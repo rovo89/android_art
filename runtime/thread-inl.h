@@ -118,11 +118,8 @@ inline void Thread::AssertThreadSuspensionIsAllowable(bool check_locks) const {
   }
 }
 
-inline void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
-  AssertThreadSuspensionIsAllowable();
+inline void Thread::TransitionToSuspendedAndRunCheckpoints(ThreadState new_state) {
   DCHECK_NE(new_state, kRunnable);
-  DCHECK_EQ(this, Thread::Current());
-  // Change to non-runnable state, thereby appearing suspended to the system.
   DCHECK_EQ(GetState(), kRunnable);
   union StateAndFlags old_state_and_flags;
   union StateAndFlags new_state_and_flags;
@@ -145,12 +142,9 @@ inline void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
       break;
     }
   }
+}
 
-  // Change to non-runnable state, thereby appearing suspended to the system.
-  // Mark the release of the share of the mutator_lock_.
-  Locks::mutator_lock_->TransitionFromRunnableToSuspended(this);
-
-  // Once suspended - check the active suspend barrier flag
+inline void Thread::PassActiveSuspendBarriers() {
   while (true) {
     uint16_t current_flags = tls32_.state_and_flags.as_struct.flags;
     if (LIKELY((current_flags & (kCheckpointRequest | kActiveSuspendBarrier)) == 0)) {
@@ -159,9 +153,20 @@ inline void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
       PassActiveSuspendBarriers(this);
     } else {
       // Impossible
-      LOG(FATAL) << "Fatal, thread transited into suspended without running the checkpoint";
+      LOG(FATAL) << "Fatal, thread transitioned into suspended without running the checkpoint";
     }
   }
+}
+
+inline void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
+  AssertThreadSuspensionIsAllowable();
+  DCHECK_EQ(this, Thread::Current());
+  // Change to non-runnable state, thereby appearing suspended to the system.
+  TransitionToSuspendedAndRunCheckpoints(new_state);
+  // Mark the release of the share of the mutator_lock_.
+  Locks::mutator_lock_->TransitionFromRunnableToSuspended(this);
+  // Once suspended - check the active suspend barrier flag
+  PassActiveSuspendBarriers();
 }
 
 inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
