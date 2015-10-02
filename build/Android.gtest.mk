@@ -697,11 +697,6 @@ $(eval $(call define-test-art-gtest-combination,host,HOST,,$(2ND_ART_PHONY_TEST_
 $(eval $(call define-test-art-gtest-combination,host,HOST,valgrind-,$(2ND_ART_PHONY_TEST_HOST_SUFFIX)))
 endif
 
-ifeq (mips,$(TARGET_ARCH))
-  # b/24596015
-  ART_TEST_KNOWN_BROKEN += test-art-target-gtest-imgdiag_test32
-endif
-
 # Clear locally defined variables.
 define-art-gtest-rule-target :=
 define-art-gtest-rule-host :=
