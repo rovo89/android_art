@@ -109,11 +109,12 @@ class ImgDiagTest : public CommonRuntimeTest {
   std::string boot_image_location_;
 };
 
-#if defined (ART_TARGET)
+#if defined (ART_TARGET) && !defined(__mips__)
 TEST_F(ImgDiagTest, ImageDiffPidSelf) {
 #else
 // Can't run this test on the host, it will fail when trying to open /proc/kpagestats
 // because it's root read-only.
+// Also test fails on mips. b/24596015.
 TEST_F(ImgDiagTest, DISABLED_ImageDiffPidSelf) {
 #endif
   // Invoke 'img_diag' against the current process.
