@@ -39,6 +39,8 @@ enum GcCause {
   kGcCauseDisableMovingGc,
   // Not a real GC cause, used when we trim the heap.
   kGcCauseTrim,
+  // Not a real GC cause, used to implement exclusion between GC and instrumentation.
+  kGcCauseInstrumentation,
   // GC triggered for background transition when both foreground and background collector are CMS.
   kGcCauseHomogeneousSpaceCompact,
 };

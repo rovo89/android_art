@@ -33,6 +33,7 @@ const char* PrettyCause(GcCause cause) {
     case kGcCauseDisableMovingGc: return "DisableMovingGc";
     case kGcCauseHomogeneousSpaceCompact: return "HomogeneousSpaceCompact";
     case kGcCauseTrim: return "HeapTrim";
+    case kGcCauseInstrumentation: return "Instrumentation";
     default:
       LOG(FATAL) << "Unreachable";
       UNREACHABLE();

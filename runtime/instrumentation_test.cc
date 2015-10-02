@@ -20,6 +20,7 @@
 #include "common_throws.h"
 #include "class_linker-inl.h"
 #include "dex_file.h"
+#include "gc/scoped_gc_critical_section.h"
 #include "handle_scope-inl.h"
 #include "jvalue.h"
 #include "runtime.h"
@@ -151,6 +152,9 @@ class InstrumentationTest : public CommonRuntimeTest {
     ScopedObjectAccess soa(Thread::Current());
     instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();
     ScopedThreadSuspension sts(soa.Self(), kSuspended);
+    gc::ScopedGCCriticalSection gcs(soa.Self(),
+                                    gc::kGcCauseInstrumentation,
+                                    gc::kCollectorTypeInstrumentation);
     ScopedSuspendAll ssa("Instrumentation::ConfigureStubs");
     instr->ConfigureStubs(key, level);
   }
@@ -203,6 +207,9 @@ class InstrumentationTest : public CommonRuntimeTest {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
     ScopedThreadSuspension sts(self, kSuspended);
+    gc::ScopedGCCriticalSection gcs(self,
+                                    gc::kGcCauseInstrumentation,
+                                    gc::kCollectorTypeInstrumentation);
     ScopedSuspendAll ssa("Single method deoptimization");
     if (enable_deoptimization) {
       instrumentation->EnableDeoptimization();
@@ -216,6 +223,9 @@ class InstrumentationTest : public CommonRuntimeTest {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
     ScopedThreadSuspension sts(self, kSuspended);
+    gc::ScopedGCCriticalSection gcs(self,
+                                    gc::kGcCauseInstrumentation,
+                                    gc::kCollectorTypeInstrumentation);
     ScopedSuspendAll ssa("Single method undeoptimization");
     instrumentation->Undeoptimize(method);
     if (disable_deoptimization) {
@@ -228,6 +238,9 @@ class InstrumentationTest : public CommonRuntimeTest {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
     ScopedThreadSuspension sts(self, kSuspended);
+    gc::ScopedGCCriticalSection gcs(self,
+                                    gc::kGcCauseInstrumentation,
+                                    gc::kCollectorTypeInstrumentation);
     ScopedSuspendAll ssa("Full deoptimization");
     if (enable_deoptimization) {
       instrumentation->EnableDeoptimization();
@@ -240,6 +253,9 @@ class InstrumentationTest : public CommonRuntimeTest {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
     ScopedThreadSuspension sts(self, kSuspended);
+    gc::ScopedGCCriticalSection gcs(self,
+                                    gc::kGcCauseInstrumentation,
+                                    gc::kCollectorTypeInstrumentation);
     ScopedSuspendAll ssa("Full undeoptimization");
     instrumentation->UndeoptimizeEverything(key);
     if (disable_deoptimization) {
@@ -252,6 +268,9 @@ class InstrumentationTest : public CommonRuntimeTest {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
     ScopedThreadSuspension sts(self, kSuspended);
+    gc::ScopedGCCriticalSection gcs(self,
+                                    gc::kGcCauseInstrumentation,
+                                    gc::kCollectorTypeInstrumentation);
     ScopedSuspendAll ssa("EnableMethodTracing");
     instrumentation->EnableMethodTracing(key, needs_interpreter);
   }
@@ -261,6 +280,9 @@ class InstrumentationTest : public CommonRuntimeTest {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
     ScopedThreadSuspension sts(self, kSuspended);
+    gc::ScopedGCCriticalSection gcs(self,
+                                    gc::kGcCauseInstrumentation,
+                                    gc::kCollectorTypeInstrumentation);
     ScopedSuspendAll ssa("EnableMethodTracing");
     instrumentation->DisableMethodTracing(key);
   }
