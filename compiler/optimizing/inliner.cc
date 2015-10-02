@@ -247,12 +247,14 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
     return false;
   }
 
-  uint16_t class_def_idx = resolved_method->GetDeclaringClass()->GetDexClassDefIndex();
-  if (!compiler_driver_->IsMethodVerifiedWithoutFailures(
-        resolved_method->GetDexMethodIndex(), class_def_idx, *resolved_method->GetDexFile())) {
-    VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
-                   << " couldn't be verified, so it cannot be inlined";
-    return false;
+  if (!resolved_method->GetDeclaringClass()->IsVerified()) {  
+    uint16_t class_def_idx = resolved_method->GetDeclaringClass()->GetDexClassDefIndex();
+    if (!compiler_driver_->IsMethodVerifiedWithoutFailures(
+          resolved_method->GetDexMethodIndex(), class_def_idx, *resolved_method->GetDexFile())) {
+      VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
+                     << " couldn't be verified, so it cannot be inlined";
+      return false;
+    }
   }
 
   if (invoke_instruction->IsInvokeStaticOrDirect() &&
