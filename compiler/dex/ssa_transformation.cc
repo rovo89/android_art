@@ -535,37 +535,76 @@ void MIRGraph::DoDFSPreOrderSSARename(BasicBlock* block) {
   if (block->visited || block->hidden) {
     return;
   }
-  block->visited = true;
 
-  /* Process this block */
-  DoSSAConversion(block);
+  typedef struct {
+    BasicBlock* bb;
+    int32_t* ssa_map;
+  } BasicBlockInfo;
+  BasicBlockInfo temp;
 
-  /* Save SSA map snapshot */
   ScopedArenaAllocator allocator(&cu_->arena_stack);
-  uint32_t num_vregs = GetNumOfCodeAndTempVRs();
-  int32_t* saved_ssa_map = allocator.AllocArray<int32_t>(num_vregs, kArenaAllocDalvikToSSAMap);
-  size_t map_size = sizeof(saved_ssa_map[0]) * num_vregs;
-  memcpy(saved_ssa_map, vreg_to_ssa_map_, map_size);
+  ScopedArenaVector<BasicBlockInfo> bi_stack(allocator.Adapter());
+  ScopedArenaVector<BasicBlock*> succ_stack(allocator.Adapter());
 
-  if (block->fall_through != NullBasicBlockId) {
-    DoDFSPreOrderSSARename(GetBasicBlock(block->fall_through));
-    /* Restore SSA map snapshot */
-    memcpy(vreg_to_ssa_map_, saved_ssa_map, map_size);
-  }
-  if (block->taken != NullBasicBlockId) {
-    DoDFSPreOrderSSARename(GetBasicBlock(block->taken));
-    /* Restore SSA map snapshot */
-    memcpy(vreg_to_ssa_map_, saved_ssa_map, map_size);
-  }
-  if (block->successor_block_list_type != kNotUsed) {
-    for (SuccessorBlockInfo* successor_block_info : block->successor_blocks) {
-      BasicBlock* succ_bb = GetBasicBlock(successor_block_info->block);
-      DoDFSPreOrderSSARename(succ_bb);
-      /* Restore SSA map snapshot */
-      memcpy(vreg_to_ssa_map_, saved_ssa_map, map_size);
+  uint32_t num_vregs = GetNumOfCodeAndTempVRs();
+  size_t map_size = sizeof(int32_t) * num_vregs;
+  temp.bb = block;
+  temp.ssa_map = vreg_to_ssa_map_;
+  bi_stack.push_back(temp);
+
+  while (!bi_stack.empty()) {
+    temp = bi_stack.back();
+    bi_stack.pop_back();
+    BasicBlock* b = temp.bb;
+
+    if (b->visited || b->hidden) {
+      continue;
+    }
+    b->visited = true;
+
+    /* Restore SSA map snapshot, except for the first block */
+    if (b != block) {
+      memcpy(vreg_to_ssa_map_, temp.ssa_map, map_size);
+    }
+
+    /* Process this block */
+    DoSSAConversion(b);
+
+    /* If there are no successor, taken, and fall through blocks, continue */
+    if (b->successor_block_list_type == kNotUsed &&
+        b->taken == NullBasicBlockId &&
+        b->fall_through == NullBasicBlockId) {
+      continue;
+    }
+
+    /* Save SSA map snapshot */
+    int32_t* saved_ssa_map =
+      allocator.AllocArray<int32_t>(num_vregs, kArenaAllocDalvikToSSAMap);
+    memcpy(saved_ssa_map, vreg_to_ssa_map_, map_size);
+
+    if (b->successor_block_list_type != kNotUsed) {
+      for (SuccessorBlockInfo* successor_block_info : b->successor_blocks) {
+        BasicBlock* succ_bb = GetBasicBlock(successor_block_info->block);
+        succ_stack.push_back(succ_bb);
+      }
+      while (!succ_stack.empty()) {
+        temp.bb = succ_stack.back();
+        succ_stack.pop_back();
+        temp.ssa_map = saved_ssa_map;
+        bi_stack.push_back(temp);
+      }
+    }
+    if (b->taken != NullBasicBlockId) {
+      temp.bb = GetBasicBlock(b->taken);
+      temp.ssa_map = saved_ssa_map;
+      bi_stack.push_back(temp);
+    }
+    if (b->fall_through != NullBasicBlockId) {
+      temp.bb = GetBasicBlock(b->fall_through);
+      temp.ssa_map = saved_ssa_map;
+      bi_stack.push_back(temp);
     }
   }
-  return;
 }
 
 }  // namespace art
