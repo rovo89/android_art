@@ -58,13 +58,3 @@ class UnresolvedClass extends UnresolvedSuperClass implements UnresolvedInterfac
   public Object instanceObject;
 }
 
-final class UnresolvedFinalClass {
-  public void directMethod() {
-    System.out.println("UnresolvedFinalClass.directMethod()");
-  }
-}
-
-class UnresolvedAtRuntime {
-  public void unresolvedAtRuntime() { }
-}
-

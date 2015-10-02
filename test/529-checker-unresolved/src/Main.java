@@ -114,16 +114,30 @@ public class Main extends UnresolvedSuperClass {
     expectEquals(o, c.instanceObject);
   }
 
+  static public void testInstanceOf(Object o) {
+    if (o instanceof UnresolvedSuperClass) {
+      System.out.println("instanceof ok");
+    }
+  }
+
+  static public UnresolvedSuperClass testCheckCast(Object o) {
+    UnresolvedSuperClass c = (UnresolvedSuperClass) o;
+    System.out.println("checkcast ok");
+    return c;
+  }
   /// CHECK-START: void Main.main(java.lang.String[]) register (before)
   /// CHECK:        InvokeUnresolved invoke_type:direct
   static public void main(String[] args) {
     UnresolvedClass c = new UnresolvedClass();
+    Main m = new Main();
     callInvokeUnresolvedStatic();
     callInvokeUnresolvedVirtual(c);
     callInvokeUnresolvedInterface(c);
-    callInvokeUnresolvedSuper(new Main());
+    callInvokeUnresolvedSuper(m);
     callUnresolvedStaticFieldAccess();
     callUnresolvedInstanceFieldAccess(c);
+    testInstanceOf(m);
+    testCheckCast(m);
   }
 
   public static void expectEquals(byte expected, byte result) {
