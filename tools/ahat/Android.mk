@@ -16,6 +16,8 @@
 
 LOCAL_PATH := $(call my-dir)
 
+include art/build/Android.common_test.mk
+
 # --- ahat.jar ----------------
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(call all-java-files-under, src)
@@ -44,7 +46,7 @@ $(LOCAL_BUILT_MODULE): $(LOCAL_PATH)/ahat $(ACP)
 
 ahat: $(LOCAL_BUILT_MODULE)
 
-# --- ahat-test.jar --------------
+# --- ahat-tests.jar --------------
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(call all-java-files-under, test)
 LOCAL_JAR_MANIFEST := test/manifest.txt
@@ -53,6 +55,42 @@ LOCAL_IS_HOST_MODULE := true
 LOCAL_MODULE_TAGS := tests
 LOCAL_MODULE := ahat-tests
 include $(BUILD_HOST_JAVA_LIBRARY)
+AHAT_TEST_JAR := $(LOCAL_BUILT_MODULE)
 
-ahat-test: $(LOCAL_BUILT_MODULE)
-	java -jar $<
+# --- ahat-test-dump.jar --------------
+include $(CLEAR_VARS)
+LOCAL_MODULE := ahat-test-dump
+LOCAL_MODULE_TAGS := tests
+LOCAL_SRC_FILES := $(call all-java-files-under, test-dump)
+include $(BUILD_HOST_DALVIK_JAVA_LIBRARY)
+
+# Determine the location of the test-dump.jar and test-dump.hprof files.
+# These use variables set implicitly by the include of
+# BUILD_HOST_DALVIK_JAVA_LIBRARY above.
+AHAT_TEST_DUMP_JAR := $(LOCAL_BUILT_MODULE)
+AHAT_TEST_DUMP_HPROF := $(intermediates.COMMON)/test-dump.hprof
+
+# Run ahat-test-dump.jar to generate test-dump.hprof
+AHAT_TEST_DUMP_DEPENDENCIES := \
+	$(ART_HOST_EXECUTABLES) \
+	$(HOST_OUT_EXECUTABLES)/art \
+	$(HOST_CORE_IMG_OUT_BASE)$(CORE_IMG_SUFFIX)
+
+$(AHAT_TEST_DUMP_HPROF): PRIVATE_AHAT_TEST_ART := $(HOST_OUT_EXECUTABLES)/art
+$(AHAT_TEST_DUMP_HPROF): PRIVATE_AHAT_TEST_DUMP_JAR := $(AHAT_TEST_DUMP_JAR)
+$(AHAT_TEST_DUMP_HPROF): PRIVATE_AHAT_TEST_DUMP_DEPENDENCIES := $(AHAT_TEST_DUMP_DEPENDENCIES)
+$(AHAT_TEST_DUMP_HPROF): $(AHAT_TEST_DUMP_JAR) $(AHAT_TEST_DUMP_DEPENDENCIES)
+	$(PRIVATE_AHAT_TEST_ART) -cp $(PRIVATE_AHAT_TEST_DUMP_JAR) Main $@
+
+.PHONY: ahat-test
+ahat-test: PRIVATE_AHAT_TEST_DUMP_HPROF := $(AHAT_TEST_DUMP_HPROF)
+ahat-test: PRIVATE_AHAT_TEST_JAR := $(AHAT_TEST_JAR)
+ahat-test: $(AHAT_TEST_JAR) $(AHAT_TEST_DUMP_HPROF)
+	java -Dahat.test.dump.hprof=$(PRIVATE_AHAT_TEST_DUMP_HPROF) -jar $(PRIVATE_AHAT_TEST_JAR)
+
+# Clean up local variables.
+AHAT_TEST_DUMP_DEPENDENCIES :=
+AHAT_TEST_DUMP_HPROF :=
+AHAT_TEST_DUMP_JAR :=
+AHAT_TEST_JAR :=
+
