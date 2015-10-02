@@ -473,6 +473,10 @@ class StackVisitor {
 
   ArtMethod* GetMethod() const SHARED_REQUIRES(Locks::mutator_lock_);
 
+  ArtMethod* GetOuterMethod() const {
+    return *GetCurrentQuickFrame();
+  }
+
   bool IsShadowFrame() const {
     return cur_shadow_frame_ != nullptr;
   }
