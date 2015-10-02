@@ -18,8 +18,20 @@
  * Some stuff for access checks.
  */
 public class PublicAccess {
-    public static void main() {
-        String shouldFail = SemiPrivate.mPrivvy;
+    public static void accessStaticField() {
+        String shouldFail = SemiPrivate.mStaticPrivvy;
+        System.out.println("Got " + shouldFail);
+    }
+    public static void accessStaticMethod() {
+        String shouldFail = SemiPrivate.privvyStaticMethod();
+        System.out.println("Got " + shouldFail);
+    }
+    public static void accessInstanceField() {
+        String shouldFail = new SemiPrivate().mInstancePrivvy;
+        System.out.println("Got " + shouldFail);
+    }
+    public static void accessInstanceMethod() {
+        String shouldFail = new SemiPrivate().privvyInstanceMethod();
         System.out.println("Got " + shouldFail);
     }
 }

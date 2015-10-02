@@ -18,5 +18,15 @@
  * Version with private access.
  */
 public class SemiPrivate {
-    private static String mPrivvy = "stuff";
+    private static String mStaticPrivvy = "stuff";
+
+    private static String privvyStaticMethod() {
+      return "stuff";
+    }
+
+    private String mInstancePrivvy = "stuff";
+
+    private String privvyInstanceMethod() {
+      return "stuff";
+    }
 }

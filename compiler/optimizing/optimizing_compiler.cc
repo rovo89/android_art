@@ -829,8 +829,12 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   return compiled_method;
 }
 
-static bool HasOnlyUnresolvedFailures(const VerifiedMethod* verified_method) {
-  uint32_t unresolved_mask = verifier::VerifyError::VERIFY_ERROR_NO_CLASS;
+static bool CanHandleVerificationFailure(const VerifiedMethod* verified_method) {
+  // For access errors the compiler will use the unresolved helpers (e.g. HInvokeUnresolved).
+  uint32_t unresolved_mask = verifier::VerifyError::VERIFY_ERROR_NO_CLASS
+      | verifier::VerifyError::VERIFY_ERROR_ACCESS_CLASS
+      | verifier::VerifyError::VERIFY_ERROR_ACCESS_FIELD
+      | verifier::VerifyError::VERIFY_ERROR_ACCESS_METHOD;
   return (verified_method->GetEncounteredVerificationFailures() & (~unresolved_mask)) == 0;
 }
 
@@ -847,7 +851,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
   const VerifiedMethod* verified_method = compiler_driver->GetVerifiedMethod(&dex_file, method_idx);
   DCHECK(!verified_method->HasRuntimeThrow());
   if (compiler_driver->IsMethodVerifiedWithoutFailures(method_idx, class_def_idx, dex_file)
-      || HasOnlyUnresolvedFailures(verified_method)) {
+      || CanHandleVerificationFailure(verified_method)) {
      method = TryCompile(code_item, access_flags, invoke_type, class_def_idx,
                          method_idx, jclass_loader, dex_file, dex_cache);
   } else {
