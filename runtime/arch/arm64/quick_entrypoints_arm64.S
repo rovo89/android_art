@@ -1421,9 +1421,8 @@ THREE_ARG_REF_DOWNCALL art_quick_set_obj_instance, artSetObjInstanceFromCode, RE
     .extern artSet64StaticFromCode
 ENTRY art_quick_set64_static
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  // save callee saves in case of GC
-    mov    x3, x1                     // Store value
     ldr    x1, [sp, #FRAME_SIZE_REFS_ONLY_CALLEE_SAVE] // Load referrer
-    mov    x2, x3                     // Put value param
+                                      // x2 contains the parameter
     mov    x3, xSELF                  // pass Thread::Current
     bl     artSet64StaticFromCode
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME

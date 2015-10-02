@@ -19,7 +19,6 @@
 #include "arch/arm64/instruction_set_features_arm64.h"
 #include "art_method.h"
 #include "code_generator_utils.h"
-#include "common_arm64.h"
 #include "compiled_method.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
@@ -666,7 +665,7 @@ void ParallelMoveResolverARM64::FreeScratchLocation(Location loc) {
 void ParallelMoveResolverARM64::EmitMove(size_t index) {
   DCHECK_LT(index, moves_.size());
   MoveOperands* move = moves_[index];
-  codegen_->MoveLocation(move->GetDestination(), move->GetSource());
+  codegen_->MoveLocation(move->GetDestination(), move->GetSource(), Primitive::kPrimVoid);
 }
 
 void CodeGeneratorARM64::GenerateFrameEntry() {
@@ -750,7 +749,9 @@ void CodeGeneratorARM64::Move(HInstruction* instruction,
   }
 
   if (instruction->IsCurrentMethod()) {
-    MoveLocation(location, Location::DoubleStackSlot(kCurrentMethodStackOffset));
+    MoveLocation(location,
+                 Location::DoubleStackSlot(kCurrentMethodStackOffset),
+                 Primitive::kPrimVoid);
   } else if (locations != nullptr && locations->Out().Equals(location)) {
     return;
   } else if (instruction->IsIntConstant()
@@ -791,6 +792,14 @@ void CodeGeneratorARM64::Move(HInstruction* instruction,
 void CodeGeneratorARM64::MoveConstant(Location location, int32_t value) {
   DCHECK(location.IsRegister());
   __ Mov(RegisterFrom(location, Primitive::kPrimInt), value);
+}
+
+void CodeGeneratorARM64::AddLocationAsTemp(Location location, LocationSummary* locations) {
+  if (location.IsRegister()) {
+    locations->AddTemp(location);
+  } else {
+    UNIMPLEMENTED(FATAL) << "AddLocationAsTemp not implemented for location " << location;
+  }
 }
 
 Location CodeGeneratorARM64::GetStackLocation(HLoadLocal* load) const {
@@ -943,7 +952,9 @@ static bool CoherentConstantAndType(Location constant, Primitive::Type type) {
          (cst->IsDoubleConstant() && type == Primitive::kPrimDouble);
 }
 
-void CodeGeneratorARM64::MoveLocation(Location destination, Location source, Primitive::Type type) {
+void CodeGeneratorARM64::MoveLocation(Location destination,
+                                      Location source,
+                                      Primitive::Type dst_type) {
   if (source.Equals(destination)) {
     return;
   }
@@ -952,7 +963,7 @@ void CodeGeneratorARM64::MoveLocation(Location destination, Location source, Pri
   // locations. When moving from and to a register, the argument type can be
   // used to generate 32bit instead of 64bit moves. In debug mode we also
   // checks the coherency of the locations and the type.
-  bool unspecified_type = (type == Primitive::kPrimVoid);
+  bool unspecified_type = (dst_type == Primitive::kPrimVoid);
 
   if (destination.IsRegister() || destination.IsFpuRegister()) {
     if (unspecified_type) {
@@ -962,30 +973,44 @@ void CodeGeneratorARM64::MoveLocation(Location destination, Location source, Pri
                                   || src_cst->IsFloatConstant()
                                   || src_cst->IsNullConstant()))) {
         // For stack slots and 32bit constants, a 64bit type is appropriate.
-        type = destination.IsRegister() ? Primitive::kPrimInt : Primitive::kPrimFloat;
+        dst_type = destination.IsRegister() ? Primitive::kPrimInt : Primitive::kPrimFloat;
       } else {
         // If the source is a double stack slot or a 64bit constant, a 64bit
         // type is appropriate. Else the source is a register, and since the
         // type has not been specified, we chose a 64bit type to force a 64bit
         // move.
-        type = destination.IsRegister() ? Primitive::kPrimLong : Primitive::kPrimDouble;
+        dst_type = destination.IsRegister() ? Primitive::kPrimLong : Primitive::kPrimDouble;
       }
     }
-    DCHECK((destination.IsFpuRegister() && Primitive::IsFloatingPointType(type)) ||
-           (destination.IsRegister() && !Primitive::IsFloatingPointType(type)));
-    CPURegister dst = CPURegisterFrom(destination, type);
+    DCHECK((destination.IsFpuRegister() && Primitive::IsFloatingPointType(dst_type)) ||
+           (destination.IsRegister() && !Primitive::IsFloatingPointType(dst_type)));
+    CPURegister dst = CPURegisterFrom(destination, dst_type);
     if (source.IsStackSlot() || source.IsDoubleStackSlot()) {
       DCHECK(dst.Is64Bits() == source.IsDoubleStackSlot());
       __ Ldr(dst, StackOperandFrom(source));
     } else if (source.IsConstant()) {
-      DCHECK(CoherentConstantAndType(source, type));
+      DCHECK(CoherentConstantAndType(source, dst_type));
       MoveConstant(dst, source.GetConstant());
-    } else {
+    } else if (source.IsRegister()) {
       if (destination.IsRegister()) {
-        __ Mov(Register(dst), RegisterFrom(source, type));
+        __ Mov(Register(dst), RegisterFrom(source, dst_type));
       } else {
         DCHECK(destination.IsFpuRegister());
-        __ Fmov(FPRegister(dst), FPRegisterFrom(source, type));
+        Primitive::Type source_type = Primitive::Is64BitType(dst_type)
+            ? Primitive::kPrimLong
+            : Primitive::kPrimInt;
+        __ Fmov(FPRegisterFrom(destination, dst_type), RegisterFrom(source, source_type));
+      }
+    } else {
+      DCHECK(source.IsFpuRegister());
+      if (destination.IsRegister()) {
+        Primitive::Type source_type = Primitive::Is64BitType(dst_type)
+            ? Primitive::kPrimDouble
+            : Primitive::kPrimFloat;
+        __ Fmov(RegisterFrom(destination, dst_type), FPRegisterFrom(source, source_type));
+      } else {
+        DCHECK(destination.IsFpuRegister());
+        __ Fmov(FPRegister(dst), FPRegisterFrom(source, dst_type));
       }
     }
   } else {  // The destination is not a register. It must be a stack slot.
@@ -993,16 +1018,17 @@ void CodeGeneratorARM64::MoveLocation(Location destination, Location source, Pri
     if (source.IsRegister() || source.IsFpuRegister()) {
       if (unspecified_type) {
         if (source.IsRegister()) {
-          type = destination.IsStackSlot() ? Primitive::kPrimInt : Primitive::kPrimLong;
+          dst_type = destination.IsStackSlot() ? Primitive::kPrimInt : Primitive::kPrimLong;
         } else {
-          type = destination.IsStackSlot() ? Primitive::kPrimFloat : Primitive::kPrimDouble;
+          dst_type = destination.IsStackSlot() ? Primitive::kPrimFloat : Primitive::kPrimDouble;
         }
       }
-      DCHECK((destination.IsDoubleStackSlot() == Primitive::Is64BitType(type)) &&
-             (source.IsFpuRegister() == Primitive::IsFloatingPointType(type)));
-      __ Str(CPURegisterFrom(source, type), StackOperandFrom(destination));
+      DCHECK((destination.IsDoubleStackSlot() == Primitive::Is64BitType(dst_type)) &&
+             (source.IsFpuRegister() == Primitive::IsFloatingPointType(dst_type)));
+      __ Str(CPURegisterFrom(source, dst_type), StackOperandFrom(destination));
     } else if (source.IsConstant()) {
-      DCHECK(unspecified_type || CoherentConstantAndType(source, type)) << source << " " << type;
+      DCHECK(unspecified_type || CoherentConstantAndType(source, dst_type))
+          << source << " " << dst_type;
       UseScratchRegisterScope temps(GetVIXLAssembler());
       HConstant* src_cst = source.GetConstant();
       CPURegister temp;
@@ -3506,6 +3532,74 @@ void LocationsBuilderARM64::VisitStaticFieldSet(HStaticFieldSet* instruction) {
 
 void InstructionCodeGeneratorARM64::VisitStaticFieldSet(HStaticFieldSet* instruction) {
   HandleFieldSet(instruction, instruction->GetFieldInfo(), instruction->GetValueCanBeNull());
+}
+
+void LocationsBuilderARM64::VisitUnresolvedInstanceFieldGet(
+    HUnresolvedInstanceFieldGet* instruction) {
+  FieldAccessCallingConventionARM64 calling_convention;
+  codegen_->CreateUnresolvedFieldLocationSummary(
+      instruction, instruction->GetFieldType(), calling_convention);
+}
+
+void InstructionCodeGeneratorARM64::VisitUnresolvedInstanceFieldGet(
+    HUnresolvedInstanceFieldGet* instruction) {
+  FieldAccessCallingConventionARM64 calling_convention;
+  codegen_->GenerateUnresolvedFieldAccess(instruction,
+                                          instruction->GetFieldType(),
+                                          instruction->GetFieldIndex(),
+                                          instruction->GetDexPc(),
+                                          calling_convention);
+}
+
+void LocationsBuilderARM64::VisitUnresolvedInstanceFieldSet(
+    HUnresolvedInstanceFieldSet* instruction) {
+  FieldAccessCallingConventionARM64 calling_convention;
+  codegen_->CreateUnresolvedFieldLocationSummary(
+      instruction, instruction->GetFieldType(), calling_convention);
+}
+
+void InstructionCodeGeneratorARM64::VisitUnresolvedInstanceFieldSet(
+    HUnresolvedInstanceFieldSet* instruction) {
+  FieldAccessCallingConventionARM64 calling_convention;
+  codegen_->GenerateUnresolvedFieldAccess(instruction,
+                                          instruction->GetFieldType(),
+                                          instruction->GetFieldIndex(),
+                                          instruction->GetDexPc(),
+                                          calling_convention);
+}
+
+void LocationsBuilderARM64::VisitUnresolvedStaticFieldGet(
+    HUnresolvedStaticFieldGet* instruction) {
+  FieldAccessCallingConventionARM64 calling_convention;
+  codegen_->CreateUnresolvedFieldLocationSummary(
+      instruction, instruction->GetFieldType(), calling_convention);
+}
+
+void InstructionCodeGeneratorARM64::VisitUnresolvedStaticFieldGet(
+    HUnresolvedStaticFieldGet* instruction) {
+  FieldAccessCallingConventionARM64 calling_convention;
+  codegen_->GenerateUnresolvedFieldAccess(instruction,
+                                          instruction->GetFieldType(),
+                                          instruction->GetFieldIndex(),
+                                          instruction->GetDexPc(),
+                                          calling_convention);
+}
+
+void LocationsBuilderARM64::VisitUnresolvedStaticFieldSet(
+    HUnresolvedStaticFieldSet* instruction) {
+  FieldAccessCallingConventionARM64 calling_convention;
+  codegen_->CreateUnresolvedFieldLocationSummary(
+      instruction, instruction->GetFieldType(), calling_convention);
+}
+
+void InstructionCodeGeneratorARM64::VisitUnresolvedStaticFieldSet(
+    HUnresolvedStaticFieldSet* instruction) {
+  FieldAccessCallingConventionARM64 calling_convention;
+  codegen_->GenerateUnresolvedFieldAccess(instruction,
+                                          instruction->GetFieldType(),
+                                          instruction->GetFieldIndex(),
+                                          instruction->GetDexPc(),
+                                          calling_convention);
 }
 
 void LocationsBuilderARM64::VisitSuspendCheck(HSuspendCheck* instruction) {

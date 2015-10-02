@@ -143,6 +143,22 @@ class InvokeDexCallingConventionVisitor {
   DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitor);
 };
 
+class FieldAccessCallingConvention {
+ public:
+  virtual Location GetObjectLocation() const = 0;
+  virtual Location GetFieldIndexLocation() const = 0;
+  virtual Location GetReturnLocation(Primitive::Type type) const = 0;
+  virtual Location GetSetValueLocation(Primitive::Type type, bool is_instance) const = 0;
+  virtual Location GetFpuLocation(Primitive::Type type) const = 0;
+  virtual ~FieldAccessCallingConvention() {}
+
+ protected:
+  FieldAccessCallingConvention() {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FieldAccessCallingConvention);
+};
+
 class CodeGenerator {
  public:
   // Compiles the graph to executable instructions. Returns whether the compilation
@@ -177,6 +193,9 @@ class CodeGenerator {
   virtual void Bind(HBasicBlock* block) = 0;
   virtual void Move(HInstruction* instruction, Location location, HInstruction* move_for) = 0;
   virtual void MoveConstant(Location destination, int32_t value) = 0;
+  virtual void MoveLocation(Location dst, Location src, Primitive::Type dst_type) = 0;
+  virtual void AddLocationAsTemp(Location location, LocationSummary* locations) = 0;
+
   virtual Assembler* GetAssembler() = 0;
   virtual const Assembler& GetAssembler() const = 0;
   virtual size_t GetWordSize() const = 0;
@@ -384,6 +403,18 @@ class CodeGenerator {
       HInvoke* invoke, InvokeDexCallingConventionVisitor* visitor);
 
   void GenerateInvokeUnresolvedRuntimeCall(HInvokeUnresolved* invoke);
+
+  void CreateUnresolvedFieldLocationSummary(
+      HInstruction* field_access,
+      Primitive::Type field_type,
+      const FieldAccessCallingConvention& calling_convention);
+
+  void GenerateUnresolvedFieldAccess(
+      HInstruction* field_access,
+      Primitive::Type field_type,
+      uint32_t field_index,
+      uint32_t dex_pc,
+      const FieldAccessCallingConvention& calling_convention);
 
   void SetDisassemblyInformation(DisassemblyInformation* info) { disasm_info_ = info; }
   DisassemblyInformation* GetDisassemblyInformation() const { return disasm_info_; }

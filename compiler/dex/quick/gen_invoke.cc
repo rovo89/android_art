@@ -148,7 +148,7 @@ void Mir2Lir::CallRuntimeHelperImmRegLocation(QuickEntrypointEnum trampoline, in
   if (arg1.wide == 0) {
     LoadValueDirectFixed(arg1, TargetReg(kArg1, arg1));
   } else {
-    RegStorage r_tmp = TargetReg(cu_->instruction_set == kMips ? kArg2 : kArg1, kWide);
+    RegStorage r_tmp = TargetReg(kArg2, kWide);
     LoadValueDirectWideFixed(arg1, r_tmp);
   }
   LoadConstant(TargetReg(kArg0, kNotWide), arg0);
