@@ -111,6 +111,9 @@ void JitInstrumentationListener::InvokeVirtualOrInterface(Thread* thread,
   DCHECK(this_object != nullptr);
   ProfilingInfo* info = caller->GetProfilingInfo(sizeof(void*));
   if (info != nullptr) {
+    // Since the instrumentation is marked from the declaring class we need to mark the card so
+    // that mod-union tables and card rescanning know about the update.
+    Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(caller->GetDeclaringClass());
     info->AddInvokeInfo(thread, dex_pc, this_object->GetClass());
   }
 }
