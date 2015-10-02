@@ -52,18 +52,12 @@ define create-core-oat-host-rules
   core_pic_infix :=
   core_dex2oat_dependency := $(DEX2OAT_DEPENDENCY)
 
-  # With the optimizing compiler, we want to rerun dex2oat whenever there is
-  # a dex2oat change to catch regressions early.
-  ifeq ($(ART_USE_OPTIMIZING_COMPILER), true)
-    core_dex2oat_dependency := $(DEX2OAT)
-  endif
-
   ifeq ($(1),default)
     core_compile_options += --compiler-backend=Quick
   endif
   ifeq ($(1),optimizing)
     core_compile_options += --compiler-backend=Optimizing
-    core_dex2oat_dependency := $(DEX2OAT)
+    core_dex2oat_dependency += $(DEX2OAT)
     core_infix := -optimizing
   endif
   ifeq ($(1),interpreter)
@@ -178,18 +172,12 @@ define create-core-oat-target-rules
   core_pic_infix :=
   core_dex2oat_dependency := $(DEX2OAT_DEPENDENCY)
 
-  # With the optimizing compiler, we want to rerun dex2oat whenever there is
-  # a dex2oat change to catch regressions early.
-  ifeq ($(ART_USE_OPTIMIZING_COMPILER), true)
-    core_dex2oat_dependency := $(DEX2OAT)
-  endif
-
   ifeq ($(1),default)
     core_compile_options += --compiler-backend=Quick
   endif
   ifeq ($(1),optimizing)
     core_compile_options += --compiler-backend=Optimizing
-    core_dex2oat_dependency := $(DEX2OAT)
+    core_dex2oat_dependency += $(DEX2OAT)
     core_infix := -optimizing
   endif
   ifeq ($(1),interpreter)

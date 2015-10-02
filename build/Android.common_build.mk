@@ -295,10 +295,6 @@ else
   art_cflags += -DIMT_SIZE=64
 endif
 
-ifeq ($(ART_USE_OPTIMIZING_COMPILER),true)
-  art_cflags += -DART_USE_OPTIMIZING_COMPILER=1
-endif
-
 ifeq ($(ART_HEAP_POISONING),true)
   art_cflags += -DART_HEAP_POISONING=1
   art_asflags += -DART_HEAP_POISONING=1
