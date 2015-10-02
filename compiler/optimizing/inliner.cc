@@ -252,7 +252,7 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
     return false;
   }
 
-  if (!resolved_method->GetDeclaringClass()->IsVerified()) {  
+  if (!resolved_method->GetDeclaringClass()->IsVerified()) {
     uint16_t class_def_idx = resolved_method->GetDeclaringClass()->GetDexClassDefIndex();
     if (!compiler_driver_->IsMethodVerifiedWithoutFailures(
           resolved_method->GetDexMethodIndex(), class_def_idx, *resolved_method->GetDexFile())) {
