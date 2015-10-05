@@ -155,6 +155,12 @@ public class Main {
      * See if we can GC after a failed load.
      */
     static void testFailLoadAndGc() throws TestFailed {
+        processFailLoadAndGc();
+        Runtime.getRuntime().gc();
+        System.out.println("GC complete.");
+    }
+
+    private static void processFailLoadAndGc() throws TestFailed {
         try {
             BrokenDexLoader loader;
 
@@ -170,7 +176,5 @@ public class Main {
                 ite.printStackTrace();
             }
         }
-        Runtime.getRuntime().gc();
-        System.out.println("GC complete.");
     }
 }
