@@ -2463,6 +2463,9 @@ class CheckJNI {
     ScopedCheck sc(kFlag_Default, __FUNCTION__);
     JniValueType args[2] = {{.E = env}, {.L = obj}};
     if (sc.Check(soa, true, "EL", args)) {
+      if (obj != nullptr) {
+        down_cast<JNIEnvExt*>(env)->RecordMonitorEnter(obj);
+      }
       JniValueType result;
       result.i = baseEnv(env)->MonitorEnter(env, obj);
       if (sc.Check(soa, false, "i", &result)) {
@@ -2477,6 +2480,9 @@ class CheckJNI {
     ScopedCheck sc(kFlag_ExcepOkay, __FUNCTION__);
     JniValueType args[2] = {{.E = env}, {.L = obj}};
     if (sc.Check(soa, true, "EL", args)) {
+      if (obj != nullptr) {
+        down_cast<JNIEnvExt*>(env)->CheckMonitorRelease(obj);
+      }
       JniValueType result;
       result.i = baseEnv(env)->MonitorExit(env, obj);
       if (sc.Check(soa, false, "i", &result)) {
