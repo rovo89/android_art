@@ -607,11 +607,64 @@ class JniInternalTest : public CommonCompilerTest {
     EXPECT_EQ(check_jni, vm_->SetCheckJniEnabled(old_check_jni));
   }
 
+  void SetUpForTest(bool direct, const char* method_name, const char* method_sig,
+                    void* native_fnptr) {
+    // Initialize class loader and set generic JNI entrypoint.
+    // Note: this code is adapted from the jni_compiler_test, and taken with minimal modifications.
+    if (!runtime_->IsStarted()) {
+      {
+        ScopedObjectAccess soa(Thread::Current());
+        class_loader_ = LoadDex("MyClassNatives");
+        StackHandleScope<1> hs(soa.Self());
+        Handle<mirror::ClassLoader> loader(
+            hs.NewHandle(soa.Decode<mirror::ClassLoader*>(class_loader_)));
+        mirror::Class* c = class_linker_->FindClass(soa.Self(), "LMyClassNatives;", loader);
+        const auto pointer_size = class_linker_->GetImagePointerSize();
+        ArtMethod* method = direct ? c->FindDirectMethod(method_name, method_sig, pointer_size) :
+            c->FindVirtualMethod(method_name, method_sig, pointer_size);
+        ASSERT_TRUE(method != nullptr) << method_name << " " << method_sig;
+        method->SetEntryPointFromQuickCompiledCode(class_linker_->GetRuntimeQuickGenericJniStub());
+      }
+      // Start runtime.
+      Thread::Current()->TransitionFromSuspendedToRunnable();
+      bool started = runtime_->Start();
+      CHECK(started);
+    }
+    // JNI operations after runtime start.
+    env_ = Thread::Current()->GetJniEnv();
+    jklass_ = env_->FindClass("MyClassNatives");
+    ASSERT_TRUE(jklass_ != nullptr) << method_name << " " << method_sig;
+
+    if (direct) {
+      jmethod_ = env_->GetStaticMethodID(jklass_, method_name, method_sig);
+    } else {
+      jmethod_ = env_->GetMethodID(jklass_, method_name, method_sig);
+    }
+    ASSERT_TRUE(jmethod_ != nullptr) << method_name << " " << method_sig;
+
+    if (native_fnptr != nullptr) {
+      JNINativeMethod methods[] = { { method_name, method_sig, native_fnptr } };
+      ASSERT_EQ(JNI_OK, env_->RegisterNatives(jklass_, methods, 1))
+          << method_name << " " << method_sig;
+    } else {
+      env_->UnregisterNatives(jklass_);
+    }
+
+    jmethodID constructor = env_->GetMethodID(jklass_, "<init>", "()V");
+    jobj_ = env_->NewObject(jklass_, constructor);
+    ASSERT_TRUE(jobj_ != nullptr) << method_name << " " << method_sig;
+  }
+
   JavaVMExt* vm_;
   JNIEnv* env_;
   jclass aioobe_;
   jclass ase_;
   jclass sioobe_;
+
+  jclass jklass_;
+  jobject jobj_;
+  jobject class_loader_;
+  jmethodID jmethod_;
 };
 
 TEST_F(JniInternalTest, AllocObject) {
@@ -2109,6 +2162,40 @@ TEST_F(JniInternalTest, MonitorEnterExit) {
     env_->MonitorExit(nullptr);
     check_jni_abort_catcher.Check("in call to MonitorExit");
   }
+}
+
+void Java_MyClassNatives_foo_exit(JNIEnv* env, jobject thisObj) {
+  // Release the monitor on self. This should trigger an abort.
+  env->MonitorExit(thisObj);
+}
+
+TEST_F(JniInternalTest, MonitorExitLockedInDifferentCall) {
+  SetUpForTest(false, "foo", "()V", reinterpret_cast<void*>(&Java_MyClassNatives_foo_exit));
+  ASSERT_NE(jobj_, nullptr);
+
+  env_->MonitorEnter(jobj_);
+  EXPECT_FALSE(env_->ExceptionCheck());
+
+  CheckJniAbortCatcher check_jni_abort_catcher;
+  env_->CallNonvirtualVoidMethod(jobj_, jklass_, jmethod_);
+  check_jni_abort_catcher.Check("Unlocking monitor that wasn't locked here");
+}
+
+void Java_MyClassNatives_foo_enter_no_exit(JNIEnv* env, jobject thisObj) {
+  // Acquire but don't release the monitor on self. This should trigger an abort on return.
+  env->MonitorEnter(thisObj);
+}
+
+TEST_F(JniInternalTest, MonitorExitNotAllUnlocked) {
+  SetUpForTest(false,
+               "foo",
+               "()V",
+               reinterpret_cast<void*>(&Java_MyClassNatives_foo_enter_no_exit));
+  ASSERT_NE(jobj_, nullptr);
+
+  CheckJniAbortCatcher check_jni_abort_catcher;
+  env_->CallNonvirtualVoidMethod(jobj_, jklass_, jmethod_);
+  check_jni_abort_catcher.Check("Still holding a locked object on JNI end");
 }
 
 }  // namespace art
