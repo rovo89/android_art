@@ -66,4 +66,54 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isImageDex2OatEnabled(JNIEnv* en
   return Runtime::Current()->IsImageDex2OatEnabled();
 }
 
+// public static native boolean compiledWithOptimizing();
+// Did we use the optimizing compiler to compile this?
+
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_compiledWithOptimizing(JNIEnv* env, jclass cls) {
+  ScopedObjectAccess soa(env);
+
+  mirror::Class* klass = soa.Decode<mirror::Class*>(cls);
+  const DexFile& dex_file = klass->GetDexFile();
+  const OatFile::OatDexFile* oat_dex_file = dex_file.GetOatDexFile();
+  if (oat_dex_file == nullptr) {
+    // Could be JIT, which also uses optimizing, but conservatively say no.
+    return JNI_FALSE;
+  }
+  const OatFile* oat_file = oat_dex_file->GetOatFile();
+  CHECK(oat_file != nullptr);
+
+  const char* cmd_line = oat_file->GetOatHeader().GetStoreValueByKey(OatHeader::kDex2OatCmdLineKey);
+  CHECK(cmd_line != nullptr);  // Huh? This should not happen.
+
+  // Check the backend.
+  constexpr const char* kCompilerBackend = "--compiler-backend=";
+  const char* backend = strstr(cmd_line, kCompilerBackend);
+  if (backend != nullptr) {
+    // If it's set, make sure it's optimizing.
+    backend += strlen(kCompilerBackend);
+    if (strncmp(backend, "Optimizing", strlen("Optimizing")) != 0) {
+      return JNI_FALSE;
+    }
+  }
+
+  // Check the filter.
+  constexpr const char* kCompilerFilter = "--compiler-filter=";
+  const char* filter = strstr(cmd_line, kCompilerFilter);
+  if (filter != nullptr) {
+    // If it's set, make sure it's not interpret-only|verify-none|verify-at-runtime.
+    // Note: The space filter might have an impact on the test, but ignore that for now.
+    filter += strlen(kCompilerFilter);
+    constexpr const char* kInterpretOnly = "interpret-only";
+    constexpr const char* kVerifyNone = "verify-none";
+    constexpr const char* kVerifyAtRuntime = "verify-at-runtime";
+    if (strncmp(filter, kInterpretOnly, strlen(kInterpretOnly)) == 0 ||
+        strncmp(filter, kVerifyNone, strlen(kVerifyNone)) == 0 ||
+        strncmp(filter, kVerifyAtRuntime, strlen(kVerifyAtRuntime)) == 0) {
+      return JNI_FALSE;
+    }
+  }
+
+  return JNI_TRUE;
+}
+
 }  // namespace art

@@ -220,7 +220,7 @@ public class Main {
 
     // Smali testing code.
     private static void runSmaliTests() {
-        if (!hasOatFile() || runtimeIsSoftFail() || isCallerInterpreted()) {
+        if (!hasOatFile() || runtimeIsSoftFail() || isInterpreted()) {
             // Skip test, this seems to be a non-compiled code test configuration.
             return;
         }
@@ -277,9 +277,9 @@ public class Main {
     }
 
     // Helpers for the smali code.
-    public static native void assertCallerIsInterpreted();
-    public static native void assertCallerIsManaged();
+    public static native void assertIsInterpreted();
+    public static native void assertIsManaged();
     public static native boolean hasOatFile();
     public static native boolean runtimeIsSoftFail();
-    public static native boolean isCallerInterpreted();
+    public static native boolean isInterpreted();
 }

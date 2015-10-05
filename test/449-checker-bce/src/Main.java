@@ -265,6 +265,7 @@ public class Main {
 
   // A helper into which the actual throwing function should be inlined.
   static void constantIndexingForward6(int[] array) {
+    assertIsManaged();
     constantIndexing6(array);
   }
 
@@ -618,13 +619,17 @@ public class Main {
 
   static int foo() {
     try {
+      assertIsManaged();
       // This will cause AIOOBE.
       constantIndexing2(new int[3]);
     } catch (ArrayIndexOutOfBoundsException e) {
+      assertIsManaged();  // This is to ensure that single-frame deoptimization works.
+                                // Will need to be updated if constantIndexing2 is inlined.
       try {
         // This will cause AIOOBE.
         constantIndexingForward6(new int[3]);
       } catch (ArrayIndexOutOfBoundsException e2) {
+        assertIsManaged();
         return 99;
       }
     }
@@ -634,13 +639,13 @@ public class Main {
 
   int sum;
 
-  /// CHECK-START: void Main.foo1(int[], int, int) BCE (before)
+  /// CHECK-START: void Main.foo1(int[], int, int, boolean) BCE (before)
   /// CHECK: BoundsCheck
   /// CHECK: ArraySet
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArrayGet
 
-  /// CHECK-START: void Main.foo1(int[], int, int) BCE (after)
+  /// CHECK-START: void Main.foo1(int[], int, int, boolean) BCE (after)
   /// CHECK: Phi
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArraySet
@@ -657,25 +662,30 @@ public class Main {
   /// CHECK: Phi
   /// CHECK: Goto
 
-  void foo1(int[] array, int start, int end) {
+  void foo1(int[] array, int start, int end, boolean expectInterpreter) {
     // Three HDeoptimize will be added. One for
     // start >= 0, one for end <= array.length,
     // and one for null check on array (to hoist null
     // check and array.length out of loop).
     for (int i = start ; i < end; i++) {
+      if (expectInterpreter) {
+        assertIsInterpreted();
+      } else {
+        assertIsManaged();
+      }
       array[i] = 1;
       sum += array[i];
     }
   }
 
 
-  /// CHECK-START: void Main.foo2(int[], int, int) BCE (before)
+  /// CHECK-START: void Main.foo2(int[], int, int, boolean) BCE (before)
   /// CHECK: BoundsCheck
   /// CHECK: ArraySet
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArrayGet
 
-  /// CHECK-START: void Main.foo2(int[], int, int) BCE (after)
+  /// CHECK-START: void Main.foo2(int[], int, int, boolean) BCE (after)
   /// CHECK: Phi
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArraySet
@@ -692,25 +702,30 @@ public class Main {
   /// CHECK: Phi
   /// CHECK: Goto
 
-  void foo2(int[] array, int start, int end) {
+  void foo2(int[] array, int start, int end, boolean expectInterpreter) {
     // Three HDeoptimize will be added. One for
     // start >= 0, one for end <= array.length,
     // and one for null check on array (to hoist null
     // check and array.length out of loop).
     for (int i = start ; i <= end; i++) {
+      if (expectInterpreter) {
+        assertIsInterpreted();
+      } else {
+        assertIsManaged();
+      }
       array[i] = 1;
       sum += array[i];
     }
   }
 
 
-  /// CHECK-START: void Main.foo3(int[], int) BCE (before)
+  /// CHECK-START: void Main.foo3(int[], int, boolean) BCE (before)
   /// CHECK: BoundsCheck
   /// CHECK: ArraySet
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArrayGet
 
-  /// CHECK-START: void Main.foo3(int[], int) BCE (after)
+  /// CHECK-START: void Main.foo3(int[], int, boolean) BCE (after)
   /// CHECK: Phi
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArraySet
@@ -726,24 +741,29 @@ public class Main {
   /// CHECK: Phi
   /// CHECK: Goto
 
-  void foo3(int[] array, int end) {
+  void foo3(int[] array, int end, boolean expectInterpreter) {
     // Two HDeoptimize will be added. One for end < array.length,
     // and one for null check on array (to hoist null check
     // and array.length out of loop).
     for (int i = 3 ; i <= end; i++) {
+      if (expectInterpreter) {
+        assertIsInterpreted();
+      } else {
+        assertIsManaged();
+      }
       array[i] = 1;
       sum += array[i];
     }
   }
 
 
-  /// CHECK-START: void Main.foo4(int[], int) BCE (before)
+  /// CHECK-START: void Main.foo4(int[], int, boolean) BCE (before)
   /// CHECK: BoundsCheck
   /// CHECK: ArraySet
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArrayGet
 
-  /// CHECK-START: void Main.foo4(int[], int) BCE (after)
+  /// CHECK-START: void Main.foo4(int[], int, boolean) BCE (after)
   /// CHECK: Phi
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArraySet
@@ -759,18 +779,23 @@ public class Main {
   /// CHECK: Phi
   /// CHECK: Goto
 
-  void foo4(int[] array, int end) {
+  void foo4(int[] array, int end, boolean expectInterpreter) {
     // Two HDeoptimize will be added. One for end <= array.length,
     // and one for null check on array (to hoist null check
     // and array.length out of loop).
     for (int i = end ; i > 0; i--) {
+      if (expectInterpreter) {
+        assertIsInterpreted();
+      } else {
+        assertIsManaged();
+      }
       array[i - 1] = 1;
       sum += array[i - 1];
     }
   }
 
 
-  /// CHECK-START: void Main.foo5(int[], int) BCE (before)
+  /// CHECK-START: void Main.foo5(int[], int, boolean) BCE (before)
   /// CHECK: BoundsCheck
   /// CHECK: ArraySet
   /// CHECK: BoundsCheck
@@ -780,7 +805,7 @@ public class Main {
   /// CHECK: BoundsCheck
   /// CHECK: ArrayGet
 
-  /// CHECK-START: void Main.foo5(int[], int) BCE (after)
+  /// CHECK-START: void Main.foo5(int[], int, boolean) BCE (after)
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArraySet
   /// CHECK: Phi
@@ -800,7 +825,7 @@ public class Main {
   /// CHECK-NOT: Phi
   /// CHECK: Goto
 
-  void foo5(int[] array, int end) {
+  void foo5(int[] array, int end, boolean expectInterpreter) {
     // Bounds check in this loop can be eliminated without deoptimization.
     for (int i = array.length - 1 ; i >= 0; i--) {
       array[i] = 1;
@@ -808,6 +833,11 @@ public class Main {
     // One HDeoptimize will be added.
     // It's for (end - 2 <= array.length - 2).
     for (int i = end - 2 ; i > 0; i--) {
+      if (expectInterpreter) {
+        assertIsInterpreted();
+      } else {
+        assertIsManaged();
+      }
       sum += array[i - 1];
       sum += array[i];
       sum += array[i + 1];
@@ -815,7 +845,7 @@ public class Main {
   }
 
 
-  /// CHECK-START: void Main.foo6(int[], int, int) BCE (before)
+  /// CHECK-START: void Main.foo6(int[], int, int, boolean) BCE (before)
   /// CHECK: BoundsCheck
   /// CHECK: ArrayGet
   /// CHECK: BoundsCheck
@@ -829,7 +859,7 @@ public class Main {
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArraySet
 
-  /// CHECK-START: void Main.foo6(int[], int, int) BCE (after)
+  /// CHECK-START: void Main.foo6(int[], int, int, boolean) BCE (after)
   /// CHECK: Phi
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArrayGet
@@ -855,12 +885,17 @@ public class Main {
   /// CHECK: Goto
   /// CHECK-NOT: Deoptimize
 
-  void foo6(int[] array, int start, int end) {
+  void foo6(int[] array, int start, int end, boolean expectInterpreter) {
     // Three HDeoptimize will be added. One for
     // start >= 2, one for end <= array.length - 3,
     // and one for null check on array (to hoist null
     // check and array.length out of loop).
     for (int i = end; i >= start; i--) {
+      if (expectInterpreter) {
+        assertIsInterpreted();
+      } else {
+        assertIsManaged();
+      }
       array[i] = (array[i-2] + array[i-1] + array[i] + array[i+1] + array[i+2]) / 5;
     }
   }
@@ -948,12 +983,12 @@ public class Main {
   }
 
 
-  /// CHECK-START: void Main.foo9(int[]) BCE (before)
+  /// CHECK-START: void Main.foo9(int[], boolean) BCE (before)
   /// CHECK: NullCheck
   /// CHECK: BoundsCheck
   /// CHECK: ArrayGet
 
-  /// CHECK-START: void Main.foo9(int[]) BCE (after)
+  /// CHECK-START: void Main.foo9(int[], boolean) BCE (after)
   //  The loop is guaranteed to be entered. No need to transform the
   //  loop for loop body entry test.
   /// CHECK: Deoptimize
@@ -964,10 +999,15 @@ public class Main {
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArrayGet
 
-  void foo9(int[] array) {
+  void foo9(int[] array, boolean expectInterpreter) {
     // Two HDeoptimize will be added. One for
     // 10 <= array.length, and one for null check on array.
     for (int i = 0 ; i < 10; i++) {
+      if (expectInterpreter) {
+        assertIsInterpreted();
+      } else {
+        assertIsManaged();
+      }
       sum += array[i];
     }
   }
@@ -999,7 +1039,7 @@ public class Main {
   static void testUnknownBounds() {
     boolean caught = false;
     Main main = new Main();
-    main.foo1(new int[10], 0, 10);
+    main.foo1(new int[10], 0, 10, false);
     if (main.sum != 10) {
       System.out.println("foo1 failed!");
     }
@@ -1007,7 +1047,7 @@ public class Main {
     caught = false;
     main = new Main();
     try {
-      main.foo1(new int[10], 0, 11);
+      main.foo1(new int[10], 0, 11, true);
     } catch (ArrayIndexOutOfBoundsException e) {
       caught = true;
     }
@@ -1016,7 +1056,7 @@ public class Main {
     }
 
     main = new Main();
-    main.foo2(new int[10], 0, 9);
+    main.foo2(new int[10], 0, 9, false);
     if (main.sum != 10) {
       System.out.println("foo2 failed!");
     }
@@ -1024,7 +1064,7 @@ public class Main {
     caught = false;
     main = new Main();
     try {
-      main.foo2(new int[10], 0, 10);
+      main.foo2(new int[10], 0, 10, true);
     } catch (ArrayIndexOutOfBoundsException e) {
       caught = true;
     }
@@ -1033,7 +1073,7 @@ public class Main {
     }
 
     main = new Main();
-    main.foo3(new int[10], 9);
+    main.foo3(new int[10], 9, false);
     if (main.sum != 7) {
       System.out.println("foo3 failed!");
     }
@@ -1041,7 +1081,7 @@ public class Main {
     caught = false;
     main = new Main();
     try {
-      main.foo3(new int[10], 10);
+      main.foo3(new int[10], 10, true);
     } catch (ArrayIndexOutOfBoundsException e) {
       caught = true;
     }
@@ -1050,7 +1090,7 @@ public class Main {
     }
 
     main = new Main();
-    main.foo4(new int[10], 10);
+    main.foo4(new int[10], 10, false);
     if (main.sum != 10) {
       System.out.println("foo4 failed!");
     }
@@ -1058,7 +1098,7 @@ public class Main {
     caught = false;
     main = new Main();
     try {
-      main.foo4(new int[10], 11);
+      main.foo4(new int[10], 11, true);
     } catch (ArrayIndexOutOfBoundsException e) {
       caught = true;
     }
@@ -1067,7 +1107,7 @@ public class Main {
     }
 
     main = new Main();
-    main.foo5(new int[10], 10);
+    main.foo5(new int[10], 10, false);
     if (main.sum != 24) {
       System.out.println("foo5 failed!");
     }
@@ -1075,7 +1115,7 @@ public class Main {
     caught = false;
     main = new Main();
     try {
-      main.foo5(new int[10], 11);
+      main.foo5(new int[10], 11, true);
     } catch (ArrayIndexOutOfBoundsException e) {
       caught = true;
     }
@@ -1084,11 +1124,11 @@ public class Main {
     }
 
     main = new Main();
-    main.foo6(new int[10], 2, 7);
+    main.foo6(new int[10], 2, 7, false);
 
     main = new Main();
     int[] array9 = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-    main.foo9(array9);
+    main.foo9(array9, false);
     if (main.sum != 45) {
       System.out.println("foo9 failed!");
     }
@@ -1104,7 +1144,7 @@ public class Main {
     caught = false;
     main = new Main();
     try {
-      main.foo6(new int[10], 2, 8);
+      main.foo6(new int[10], 2, 8, true);
     } catch (ArrayIndexOutOfBoundsException e) {
       caught = true;
     }
@@ -1115,7 +1155,7 @@ public class Main {
     caught = false;
     main = new Main();
     try {
-      main.foo6(new int[10], 1, 7);
+      main.foo6(new int[10], 1, 7, true);
     } catch (ArrayIndexOutOfBoundsException e) {
       caught = true;
     }
@@ -1152,6 +1192,15 @@ public class Main {
   /// CHECK: ParallelMove
 
   public static void main(String[] args) {
+    System.loadLibrary(args[0]);
+
+    if (!compiledWithOptimizing() ||
+        !hasOatFile() ||
+        runtimeIsSoftFail() ||
+        isInterpreted()) {
+      disableStackFrameAsserts();
+    }
+
     sieve(20);
 
     int[] array = {5, 2, 3, 7, 0, 1, 6, 4};
@@ -1190,4 +1239,11 @@ public class Main {
     new Main().testExceptionMessage();
   }
 
+  public static native boolean compiledWithOptimizing();
+  public static native void disableStackFrameAsserts();
+  public static native void assertIsManaged();
+  public static native void assertIsInterpreted();
+  public static native boolean hasOatFile();
+  public static native boolean runtimeIsSoftFail();
+  public static native boolean isInterpreted();
 }
