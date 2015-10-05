@@ -300,9 +300,17 @@ ifeq ($(ART_HEAP_POISONING),true)
   art_asflags += -DART_HEAP_POISONING=1
 endif
 
+#
+# Used to change the read barrier type. Valid values are BAKER, BROOKS, TABLELOOKUP.
+# The default is BAKER.
+#
+ART_READ_BARRIER_TYPE ?= BAKER
+
 ifeq ($(ART_USE_READ_BARRIER),true)
   art_cflags += -DART_USE_READ_BARRIER=1
+  art_cflags += -DART_READ_BARRIER_TYPE_IS_$(ART_READ_BARRIER_TYPE)=1
   art_asflags += -DART_USE_READ_BARRIER=1
+  art_asflags += -DART_READ_BARRIER_TYPE_IS_$(ART_READ_BARRIER_TYPE)=1
 endif
 
 ifeq ($(ART_USE_TLAB),true)
@@ -392,7 +400,6 @@ art_debug_cflags :=
 art_non_debug_cflags :=
 art_host_non_debug_cflags :=
 art_target_non_debug_cflags :=
-art_default_gc_type :=
 art_default_gc_type_cflags :=
 
 ART_HOST_LDLIBS :=
