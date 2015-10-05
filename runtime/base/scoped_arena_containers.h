@@ -21,6 +21,7 @@
 #include <queue>
 #include <set>
 #include <unordered_map>
+#include <utility>
 
 #include "arena_containers.h"  // For ArenaAllocatorAdapterKind.
 #include "base/dchecked_vector.h"
@@ -157,13 +158,15 @@ class ScopedArenaAllocatorAdapter
     arena_stack_->MakeInaccessible(p, sizeof(T) * n);
   }
 
-  void construct(pointer p, const_reference val) {
+  template <typename U, typename... Args>
+  void construct(U* p, Args&&... args) {
     // Don't CheckTop(), allow reusing existing capacity of a vector/deque below the top.
-    new (static_cast<void*>(p)) value_type(val);
+    ::new (static_cast<void*>(p)) U(std::forward<Args>(args)...);
   }
-  void destroy(pointer p) {
+  template <typename U>
+  void destroy(U* p) {
     // Don't CheckTop(), allow reusing existing capacity of a vector/deque below the top.
-    p->~value_type();
+    p->~U();
   }
 
  private:
