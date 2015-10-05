@@ -31,6 +31,7 @@
 #include "common_throws.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
+#include "gc/scoped_gc_critical_section.h"
 #include "instrumentation.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
@@ -350,6 +351,10 @@ void Trace::Start(const char* trace_filename, int trace_fd, size_t buffer_size, 
 
   // Create Trace object.
   {
+    // Required since EnableMethodTracing calls ConfigureStubs which visits class linker classes.
+    gc::ScopedGCCriticalSection gcs(self,
+                                    gc::kGcCauseInstrumentation,
+                                    gc::kCollectorTypeInstrumentation);
     ScopedSuspendAll ssa(__FUNCTION__);
     MutexLock mu(self, *Locks::trace_lock_);
     if (the_trace_ != nullptr) {
@@ -464,9 +469,10 @@ void Trace::Pause() {
   Runtime* runtime = Runtime::Current();
   Trace* the_trace = nullptr;
 
+  Thread* const self = Thread::Current();
   pthread_t sampling_pthread = 0U;
   {
-    MutexLock mu(Thread::Current(), *Locks::trace_lock_);
+    MutexLock mu(self, *Locks::trace_lock_);
     if (the_trace_ == nullptr) {
       LOG(ERROR) << "Trace pause requested, but no trace currently running";
       return;
@@ -478,23 +484,26 @@ void Trace::Pause() {
 
   if (sampling_pthread != 0U) {
     {
-      MutexLock mu(Thread::Current(), *Locks::trace_lock_);
+      MutexLock mu(self, *Locks::trace_lock_);
       the_trace_ = nullptr;
     }
     CHECK_PTHREAD_CALL(pthread_join, (sampling_pthread, nullptr), "sampling thread shutdown");
     sampling_pthread_ = 0U;
     {
-      MutexLock mu(Thread::Current(), *Locks::trace_lock_);
+      MutexLock mu(self, *Locks::trace_lock_);
       the_trace_ = the_trace;
     }
   }
 
   if (the_trace != nullptr) {
+    gc::ScopedGCCriticalSection gcs(self,
+                                    gc::kGcCauseInstrumentation,
+                                    gc::kCollectorTypeInstrumentation);
     ScopedSuspendAll ssa(__FUNCTION__);
     stop_alloc_counting = (the_trace->flags_ & Trace::kTraceCountAllocs) != 0;
 
     if (the_trace->trace_mode_ == TraceMode::kSampling) {
-      MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
+      MutexLock mu(self, *Locks::thread_list_lock_);
       runtime->GetThreadList()->ForEach(ClearThreadStackTraceAndClockBase, nullptr);
     } else {
       runtime->GetInstrumentation()->DisableMethodTracing(kTracerInstrumentationKey);
@@ -530,6 +539,9 @@ void Trace::Resume() {
   bool enable_stats = (the_trace->flags_ && kTraceCountAllocs) != 0;
 
   {
+    gc::ScopedGCCriticalSection gcs(self,
+                                    gc::kGcCauseInstrumentation,
+                                    gc::kCollectorTypeInstrumentation);
     ScopedSuspendAll ssa(__FUNCTION__);
 
     // Reenable.
