@@ -46,6 +46,20 @@ enum StoreOperandType {
   kStoreDoubleword
 };
 
+// Used to test the values returned by ClassS/ClassD.
+enum FPClassMaskType {
+  kSignalingNaN      = 0x001,
+  kQuietNaN          = 0x002,
+  kNegativeInfinity  = 0x004,
+  kNegativeNormal    = 0x008,
+  kNegativeSubnormal = 0x010,
+  kNegativeZero      = 0x020,
+  kPositiveInfinity  = 0x040,
+  kPositiveNormal    = 0x080,
+  kPositiveSubnormal = 0x100,
+  kPositiveZero      = 0x200,
+};
+
 class Mips64Assembler FINAL : public Assembler {
  public:
   Mips64Assembler() {}
