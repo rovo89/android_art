@@ -7,7 +7,7 @@
 
    # Lock depth is 33, which is more than the verifier supports. This should have been punted to
    # the interpreter.
-   invoke-static {}, LMain;->assertCallerIsInterpreted()V
+   invoke-static {}, LMain;->assertIsInterpreted()V
 
    monitor-enter v2        #  1
    monitor-enter v2        #  2
