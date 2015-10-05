@@ -411,12 +411,6 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object** this_
     ThrowNullPointerExceptionForMethodAccess(method_idx, type);
     return nullptr;  // Failure.
   } else if (access_check) {
-    // Incompatible class change should have been handled in resolve method.
-    if (UNLIKELY(resolved_method->CheckIncompatibleClassChange(type))) {
-      ThrowIncompatibleClassChangeError(type, resolved_method->GetInvokeType(), resolved_method,
-                                        referrer);
-      return nullptr;  // Failure.
-    }
     mirror::Class* methods_class = resolved_method->GetDeclaringClass();
     mirror::Class* referring_class = referrer->GetDeclaringClass();
     bool can_access_resolved_method =
@@ -424,6 +418,12 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object** this_
                                                          method_idx);
     if (UNLIKELY(!can_access_resolved_method)) {
       DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
+      return nullptr;  // Failure.
+    }
+    // Incompatible class change should have been handled in resolve method.
+    if (UNLIKELY(resolved_method->CheckIncompatibleClassChange(type))) {
+      ThrowIncompatibleClassChangeError(type, resolved_method->GetInvokeType(), resolved_method,
+                                        referrer);
       return nullptr;  // Failure.
     }
   }
