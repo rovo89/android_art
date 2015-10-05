@@ -428,12 +428,8 @@ CodeGeneratorARM::CodeGeneratorARM(HGraph* graph,
                     kNumberOfRegisterPairs,
                     ComputeRegisterMask(reinterpret_cast<const int*>(kCoreCalleeSaves),
                                         arraysize(kCoreCalleeSaves)),
-                    graph->IsDebuggable()
-                        // If the graph is debuggable, we need to save the fpu registers ourselves,
-                        // as the stubs do not do it.
-                        ? 0
-                        : ComputeRegisterMask(reinterpret_cast<const int*>(kFpuCalleeSaves),
-                                              arraysize(kFpuCalleeSaves)),
+                    ComputeRegisterMask(reinterpret_cast<const int*>(kFpuCalleeSaves),
+                                        arraysize(kFpuCalleeSaves)),
                     compiler_options,
                     stats),
       block_labels_(nullptr),
