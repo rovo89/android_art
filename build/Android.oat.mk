@@ -177,7 +177,9 @@ define create-core-oat-target-rules
   endif
   ifeq ($(1),optimizing)
     core_compile_options += --compiler-backend=Optimizing
-    core_dex2oat_dependency += $(DEX2OAT)
+    # With the optimizing compiler, we want to rerun dex2oat whenever there is
+    # a dex2oat change to catch regressions early.
+    core_dex2oat_dependency := $(DEX2OAT)
     core_infix := -optimizing
   endif
   ifeq ($(1),interpreter)
