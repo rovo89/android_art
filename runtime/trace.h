@@ -183,6 +183,9 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
   static TraceMode GetMode() REQUIRES(!Locks::trace_lock_);
   static size_t GetBufferSize() REQUIRES(!Locks::trace_lock_);
 
+  // Used by class linker to prevent class unloading.
+  static bool IsTracingEnabled() REQUIRES(!Locks::trace_lock_);
+
  private:
   Trace(File* trace_file, const char* trace_name, size_t buffer_size, int flags,
         TraceOutputMode output_mode, TraceMode trace_mode);

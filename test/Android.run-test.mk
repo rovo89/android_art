@@ -369,6 +369,7 @@ TEST_ART_BROKEN_FALLBACK_RUN_TESTS :=
 # This test dynamically enables tracing to force a deoptimization. This makes the test meaningless
 # when already tracing, and writes an error message that we do not want to check for.
 TEST_ART_BROKEN_TRACING_RUN_TESTS := \
+  087-gc-after-link \
   137-cfi \
   141-class-unload \
   802-deoptimization
