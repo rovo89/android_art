@@ -40,6 +40,8 @@ enum CollectorType {
   kCollectorTypeHeapTrim,
   // A (mostly) concurrent copying collector.
   kCollectorTypeCC,
+  // Instrumentation critical section fake collector.
+  kCollectorTypeInstrumentation,
   // A homogeneous space compaction collector used in background transition
   // when both foreground and background collector are CMS.
   kCollectorTypeHomogeneousSpaceCompact,

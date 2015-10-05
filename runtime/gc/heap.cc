@@ -1312,6 +1312,13 @@ void Heap::TrimIndirectReferenceTables(Thread* self) {
   ATRACE_END();
 }
 
+void Heap::StartGC(Thread* self, GcCause cause, CollectorType collector_type) {
+  MutexLock mu(self, *gc_complete_lock_);
+  // Ensure there is only one GC at a time.
+  WaitForGcToCompleteLocked(cause, self);
+  collector_type_running_ = collector_type;
+}
+
 void Heap::TrimSpaces(Thread* self) {
   {
     // Need to do this before acquiring the locks since we don't want to get suspended while
@@ -1319,10 +1326,7 @@ void Heap::TrimSpaces(Thread* self) {
     ScopedThreadStateChange tsc(self, kWaitingForGcToComplete);
     // Pretend we are doing a GC to prevent background compaction from deleting the space we are
     // trimming.
-    MutexLock mu(self, *gc_complete_lock_);
-    // Ensure there is only one GC at a time.
-    WaitForGcToCompleteLocked(kGcCauseTrim, self);
-    collector_type_running_ = kCollectorTypeHeapTrim;
+    StartGC(self, kGcCauseTrim, kCollectorTypeHeapTrim);
   }
   ATRACE_BEGIN(__FUNCTION__);
   const uint64_t start_ns = NanoTime();

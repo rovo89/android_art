@@ -67,6 +67,7 @@ LIBART_COMMON_SRC_FILES := \
   gc/heap.cc \
   gc/reference_processor.cc \
   gc/reference_queue.cc \
+  gc/scoped_gc_critical_section.cc \
   gc/space/bump_pointer_space.cc \
   gc/space/dlmalloc_space.cc \
   gc/space/image_space.cc \
