@@ -146,9 +146,13 @@ class Instrumentation {
 
   // Deoptimization.
   void EnableDeoptimization()
-      REQUIRES(Locks::mutator_lock_, !deoptimized_methods_lock_);
+      REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!deoptimized_methods_lock_);
+  // Calls UndeoptimizeEverything which may visit class linker classes through ConfigureStubs.
   void DisableDeoptimization(const char* key)
-      REQUIRES(Locks::mutator_lock_, !deoptimized_methods_lock_);
+      REQUIRES(Locks::mutator_lock_, Roles::uninterruptible_)
+      REQUIRES(!deoptimized_methods_lock_);
+
   bool AreAllMethodsDeoptimized() const {
     return interpreter_stubs_installed_;
   }
@@ -156,12 +160,17 @@ class Instrumentation {
 
   // Executes everything with interpreter.
   void DeoptimizeEverything(const char* key)
-      REQUIRES(Locks::mutator_lock_, !Locks::thread_list_lock_, !Locks::classlinker_classes_lock_,
+      REQUIRES(Locks::mutator_lock_, Roles::uninterruptible_)
+      REQUIRES(!Locks::thread_list_lock_,
+               !Locks::classlinker_classes_lock_,
                !deoptimized_methods_lock_);
 
-  // Executes everything with compiled code (or interpreter if there is no code).
+  // Executes everything with compiled code (or interpreter if there is no code). May visit class
+  // linker classes through ConfigureStubs.
   void UndeoptimizeEverything(const char* key)
-      REQUIRES(Locks::mutator_lock_, !Locks::thread_list_lock_, !Locks::classlinker_classes_lock_,
+      REQUIRES(Locks::mutator_lock_, Roles::uninterruptible_)
+      REQUIRES(!Locks::thread_list_lock_,
+               !Locks::classlinker_classes_lock_,
                !deoptimized_methods_lock_);
 
   // Deoptimize a method by forcing its execution with the interpreter. Nevertheless, a static
@@ -183,12 +192,16 @@ class Instrumentation {
   // Enable method tracing by installing instrumentation entry/exit stubs or interpreter.
   void EnableMethodTracing(const char* key,
                            bool needs_interpreter = kDeoptimizeForAccurateMethodEntryExitListeners)
-      REQUIRES(Locks::mutator_lock_, !Locks::thread_list_lock_, !Locks::classlinker_classes_lock_,
+      REQUIRES(Locks::mutator_lock_, Roles::uninterruptible_)
+      REQUIRES(!Locks::thread_list_lock_,
+               !Locks::classlinker_classes_lock_,
                !deoptimized_methods_lock_);
 
   // Disable method tracing by uninstalling instrumentation entry/exit stubs or interpreter.
   void DisableMethodTracing(const char* key)
-      REQUIRES(Locks::mutator_lock_, !Locks::thread_list_lock_, !Locks::classlinker_classes_lock_,
+      REQUIRES(Locks::mutator_lock_, Roles::uninterruptible_)
+      REQUIRES(!Locks::thread_list_lock_,
+               !Locks::classlinker_classes_lock_,
                !deoptimized_methods_lock_);
 
   InterpreterHandlerTable GetInterpreterHandlerTable() const
@@ -393,7 +406,9 @@ class Instrumentation {
   // instrumentation level it needs. Therefore the current instrumentation level
   // becomes the highest instrumentation level required by a client.
   void ConfigureStubs(const char* key, InstrumentationLevel desired_instrumentation_level)
-      REQUIRES(Locks::mutator_lock_, !deoptimized_methods_lock_, !Locks::thread_list_lock_,
+      REQUIRES(Locks::mutator_lock_, Roles::uninterruptible_)
+      REQUIRES(!deoptimized_methods_lock_,
+               !Locks::thread_list_lock_,
                !Locks::classlinker_classes_lock_);
 
   void UpdateInterpreterHandlerTable() REQUIRES(Locks::mutator_lock_) {
