@@ -731,7 +731,7 @@ class Dbg {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   static void ProcessDeoptimizationRequest(const DeoptimizationRequest& request)
-      REQUIRES(Locks::mutator_lock_);
+      REQUIRES(Locks::mutator_lock_, Roles::uninterruptible_);
 
   static void RequestDeoptimizationLocked(const DeoptimizationRequest& req)
       REQUIRES(Locks::deoptimization_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
