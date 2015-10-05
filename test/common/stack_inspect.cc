@@ -27,9 +27,20 @@
 
 namespace art {
 
-// public static native boolean isCallerInterpreted();
+static bool asserts_enabled = true;
 
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_isCallerInterpreted(JNIEnv* env, jclass) {
+// public static native void disableStackFrameAsserts();
+// Note: to globally disable asserts in unsupported configurations.
+
+extern "C" JNIEXPORT void JNICALL Java_Main_disableStackFrameAsserts(JNIEnv* env ATTRIBUTE_UNUSED,
+                                                                     jclass cls ATTRIBUTE_UNUSED) {
+  asserts_enabled = false;
+}
+
+
+// public static native boolean isInterpreted();
+
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_isInterpreted(JNIEnv* env, jclass) {
   ScopedObjectAccess soa(env);
   NthCallerVisitor caller(soa.Self(), 1, false);
   caller.WalkStack();
@@ -37,16 +48,18 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isCallerInterpreted(JNIEnv* env,
   return caller.GetCurrentShadowFrame() != nullptr ? JNI_TRUE : JNI_FALSE;
 }
 
-// public static native void assertCallerIsInterpreted();
+// public static native void assertIsInterpreted();
 
-extern "C" JNIEXPORT void JNICALL Java_Main_assertCallerIsInterpreted(JNIEnv* env, jclass klass) {
-  CHECK(Java_Main_isCallerInterpreted(env, klass));
+extern "C" JNIEXPORT void JNICALL Java_Main_assertIsInterpreted(JNIEnv* env, jclass klass) {
+  if (asserts_enabled) {
+    CHECK(Java_Main_isInterpreted(env, klass));
+  }
 }
 
 
-// public static native boolean isCallerManaged();
+// public static native boolean isManaged();
 
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_isCallerManaged(JNIEnv* env, jclass cls) {
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_isManaged(JNIEnv* env, jclass cls) {
   ScopedObjectAccess soa(env);
 
   mirror::Class* klass = soa.Decode<mirror::Class*>(cls);
@@ -65,10 +78,12 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isCallerManaged(JNIEnv* env, jcl
   return caller.GetCurrentShadowFrame() != nullptr ? JNI_FALSE : JNI_TRUE;
 }
 
-// public static native void assertCallerIsManaged();
+// public static native void assertIsManaged();
 
-extern "C" JNIEXPORT void JNICALL Java_Main_assertCallerIsManaged(JNIEnv* env, jclass cls) {
-  CHECK(Java_Main_isCallerManaged(env, cls));
+extern "C" JNIEXPORT void JNICALL Java_Main_assertIsManaged(JNIEnv* env, jclass cls) {
+  if (asserts_enabled) {
+    CHECK(Java_Main_isManaged(env, cls));
+  }
 }
 
 }  // namespace art

@@ -20,7 +20,7 @@
 .method public static runNoMonitors(Ljava/lang/Object;Ljava/lang/Object;)V
    .registers 3
 
-   invoke-static {}, LMain;->assertCallerIsManaged()V
+   invoke-static {}, LMain;->assertIsManaged()V
 
    return-void
 
@@ -29,7 +29,7 @@
 .method public static runStraightLine(Ljava/lang/Object;Ljava/lang/Object;)V
    .registers 3
 
-   invoke-static {}, LMain;->assertCallerIsManaged()V
+   invoke-static {}, LMain;->assertIsManaged()V
 
    monitor-enter v1      # 1
    monitor-enter v2      # 2
@@ -44,7 +44,7 @@
 .method public static runBalancedJoin(Ljava/lang/Object;Ljava/lang/Object;)V
    .registers 3
 
-   invoke-static {}, LMain;->assertCallerIsManaged()V
+   invoke-static {}, LMain;->assertIsManaged()V
 
    monitor-enter v1      # 1
 
