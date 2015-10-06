@@ -24,6 +24,7 @@ void StackMapStream::BeginStackMapEntry(uint32_t dex_pc,
                                         uint32_t num_dex_registers,
                                         uint8_t inlining_depth) {
   DCHECK_EQ(0u, current_entry_.dex_pc) << "EndStackMapEntry not called after BeginStackMapEntry";
+  DCHECK_NE(dex_pc, static_cast<uint32_t>(-1)) << "invalid dex_pc";
   current_entry_.dex_pc = dex_pc;
   current_entry_.native_pc_offset = native_pc_offset;
   current_entry_.register_mask = register_mask;
