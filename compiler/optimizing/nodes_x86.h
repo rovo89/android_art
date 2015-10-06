@@ -23,7 +23,8 @@ namespace art {
 class HX86ComputeBaseMethodAddress : public HExpression<0> {
  public:
   // Treat the value as an int32_t, but it is really a 32 bit native pointer.
-  HX86ComputeBaseMethodAddress() : HExpression(Primitive::kPrimInt, SideEffects::None()) {}
+  HX86ComputeBaseMethodAddress()
+      : HExpression(Primitive::kPrimInt, SideEffects::None(), kNoDexPc) {}
 
   DECLARE_INSTRUCTION(X86ComputeBaseMethodAddress);
 
@@ -37,7 +38,7 @@ class HX86LoadFromConstantTable : public HExpression<2> {
   HX86LoadFromConstantTable(HX86ComputeBaseMethodAddress* method_base,
                             HConstant* constant,
                             bool needs_materialization = true)
-      : HExpression(constant->GetType(), SideEffects::None()),
+      : HExpression(constant->GetType(), SideEffects::None(), kNoDexPc),
         needs_materialization_(needs_materialization) {
     SetRawInputAt(0, method_base);
     SetRawInputAt(1, constant);
