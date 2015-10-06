@@ -1333,6 +1333,7 @@ UNIMPLEMENTED_INTRINSIC(MathRoundDouble)   // Could be done by changing rounding
 UNIMPLEMENTED_INTRINSIC(MathRoundFloat)    // Could be done by changing rounding mode, maybe?
 UNIMPLEMENTED_INTRINSIC(UnsafeCASLong)     // High register pressure.
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
+UNIMPLEMENTED_INTRINSIC(SystemArrayCopy)
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
 UNIMPLEMENTED_INTRINSIC(StringGetCharsNoCheck)
 

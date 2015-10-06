@@ -76,6 +76,9 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
 
   bool CanEnsureNotNullAt(HInstruction* instr, HInstruction* at) const;
 
+  void SimplifySystemArrayCopy(HInvoke* invoke);
+  void SimplifyStringEquals(HInvoke* invoke);
+
   OptimizingCompilerStats* stats_;
   bool simplification_occurred_ = false;
   int simplifications_at_current_position_ = 0;
@@ -1039,28 +1042,100 @@ void InstructionSimplifierVisitor::VisitFakeString(HFakeString* instruction) {
   instruction->GetBlock()->RemoveInstruction(instruction);
 }
 
-void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
-  if (instruction->GetIntrinsic() == Intrinsics::kStringEquals) {
-    HInstruction* argument = instruction->InputAt(1);
-    HInstruction* receiver = instruction->InputAt(0);
-    if (receiver == argument) {
-      // Because String.equals is an instance call, the receiver is
-      // a null check if we don't know it's null. The argument however, will
-      // be the actual object. So we cannot end up in a situation where both
-      // are equal but could be null.
-      DCHECK(CanEnsureNotNullAt(argument, instruction));
-      instruction->ReplaceWith(GetGraph()->GetIntConstant(1));
-      instruction->GetBlock()->RemoveInstruction(instruction);
-    } else {
-      StringEqualsOptimizations optimizations(instruction);
-      if (CanEnsureNotNullAt(argument, instruction)) {
-        optimizations.SetArgumentNotNull();
+void InstructionSimplifierVisitor::SimplifyStringEquals(HInvoke* instruction) {
+  HInstruction* argument = instruction->InputAt(1);
+  HInstruction* receiver = instruction->InputAt(0);
+  if (receiver == argument) {
+    // Because String.equals is an instance call, the receiver is
+    // a null check if we don't know it's null. The argument however, will
+    // be the actual object. So we cannot end up in a situation where both
+    // are equal but could be null.
+    DCHECK(CanEnsureNotNullAt(argument, instruction));
+    instruction->ReplaceWith(GetGraph()->GetIntConstant(1));
+    instruction->GetBlock()->RemoveInstruction(instruction);
+  } else {
+    StringEqualsOptimizations optimizations(instruction);
+    if (CanEnsureNotNullAt(argument, instruction)) {
+      optimizations.SetArgumentNotNull();
+    }
+    ScopedObjectAccess soa(Thread::Current());
+    ReferenceTypeInfo argument_rti = argument->GetReferenceTypeInfo();
+    if (argument_rti.IsValid() && argument_rti.IsStringClass()) {
+      optimizations.SetArgumentIsString();
+    }
+  }
+}
+
+static bool IsArrayLengthOf(HInstruction* potential_length, HInstruction* potential_array) {
+  if (potential_length->IsArrayLength()) {
+    return potential_length->InputAt(0) == potential_array;
+  }
+
+  if (potential_array->IsNewArray()) {
+    return potential_array->InputAt(0) == potential_length;
+  }
+
+  return false;
+}
+
+void InstructionSimplifierVisitor::SimplifySystemArrayCopy(HInvoke* instruction) {
+  HInstruction* source = instruction->InputAt(0);
+  HInstruction* destination = instruction->InputAt(2);
+  HInstruction* count = instruction->InputAt(4);
+  SystemArrayCopyOptimizations optimizations(instruction);
+  if (CanEnsureNotNullAt(source, instruction)) {
+    optimizations.SetSourceIsNotNull();
+  }
+  if (CanEnsureNotNullAt(destination, instruction)) {
+    optimizations.SetDestinationIsNotNull();
+  }
+  if (destination == source) {
+    optimizations.SetDestinationIsSource();
+  }
+
+  if (IsArrayLengthOf(count, source)) {
+    optimizations.SetCountIsSourceLength();
+  }
+
+  if (IsArrayLengthOf(count, destination)) {
+    optimizations.SetCountIsDestinationLength();
+  }
+
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    ReferenceTypeInfo destination_rti = destination->GetReferenceTypeInfo();
+    if (destination_rti.IsValid()) {
+      if (destination_rti.IsObjectArray()) {
+        if (destination_rti.IsExact()) {
+          optimizations.SetDoesNotNeedTypeCheck();
+        }
+        optimizations.SetDestinationIsTypedObjectArray();
       }
-      ScopedObjectAccess soa(Thread::Current());
-      if (argument->GetReferenceTypeInfo().IsStringClass()) {
-        optimizations.SetArgumentIsString();
+      if (destination_rti.IsPrimitiveArrayClass()) {
+        optimizations.SetDestinationIsPrimitiveArray();
+      } else if (destination_rti.IsNonPrimitiveArrayClass()) {
+        optimizations.SetDestinationIsNonPrimitiveArray();
       }
     }
+    ReferenceTypeInfo source_rti = source->GetReferenceTypeInfo();
+    if (source_rti.IsValid()) {
+      if (destination_rti.IsValid() && destination_rti.CanArrayHoldValuesOf(source_rti)) {
+        optimizations.SetDoesNotNeedTypeCheck();
+      }
+      if (source_rti.IsPrimitiveArrayClass()) {
+        optimizations.SetSourceIsPrimitiveArray();
+      } else if (source_rti.IsNonPrimitiveArrayClass()) {
+        optimizations.SetSourceIsNonPrimitiveArray();
+      }
+    }
+  }
+}
+
+void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
+  if (instruction->GetIntrinsic() == Intrinsics::kStringEquals) {
+    SimplifyStringEquals(instruction);
+  } else if (instruction->GetIntrinsic() == Intrinsics::kSystemArrayCopy) {
+    SimplifySystemArrayCopy(instruction);
   }
 }
 

@@ -1657,7 +1657,8 @@ class ReferenceTypeInfo : ValueObject {
   }
 
   bool IsStringClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
-    return IsValid() && GetTypeHandle()->IsStringClass();
+    DCHECK(IsValid());
+    return GetTypeHandle()->IsStringClass();
   }
 
   bool IsObjectArray() const SHARED_REQUIRES(Locks::mutator_lock_) {
@@ -1671,13 +1672,34 @@ class ReferenceTypeInfo : ValueObject {
   }
 
   bool IsArrayClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(IsValid());
     return GetTypeHandle()->IsArrayClass();
   }
 
+  bool IsPrimitiveArrayClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(IsValid());
+    return GetTypeHandle()->IsPrimitiveArray();
+  }
+
+  bool IsNonPrimitiveArrayClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(IsValid());
+    return GetTypeHandle()->IsArrayClass() && !GetTypeHandle()->IsPrimitiveArray();
+  }
+
   bool CanArrayHold(ReferenceTypeInfo rti)  const SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(IsValid());
     if (!IsExact()) return false;
     if (!IsArrayClass()) return false;
     return GetTypeHandle()->GetComponentType()->IsAssignableFrom(rti.GetTypeHandle().Get());
+  }
+
+  bool CanArrayHoldValuesOf(ReferenceTypeInfo rti)  const SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(IsValid());
+    if (!IsExact()) return false;
+    if (!IsArrayClass()) return false;
+    if (!rti.IsArrayClass()) return false;
+    return GetTypeHandle()->GetComponentType()->IsAssignableFrom(
+        rti.GetTypeHandle()->GetComponentType());
   }
 
   Handle<mirror::Class> GetTypeHandle() const { return type_handle_; }
@@ -4413,7 +4435,7 @@ class HArraySet : public HTemplateInstruction<3> {
 
 class HArrayLength : public HExpression<1> {
  public:
-  explicit HArrayLength(HInstruction* array, uint32_t dex_pc)
+  HArrayLength(HInstruction* array, uint32_t dex_pc)
       : HExpression(Primitive::kPrimInt, SideEffects::None(), dex_pc) {
     // Note that arrays do not change length, so the instruction does not
     // depend on any write.
