@@ -17,6 +17,7 @@
 #include "indirect_reference_table-inl.h"
 
 #include "jni_internal.h"
+#include "nth_caller_visitor.h"
 #include "reference_table.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
