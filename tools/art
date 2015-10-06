@@ -89,6 +89,7 @@ if [ z"$PERF" != z ]; then
   invoke_with="perf record -o $ANDROID_DATA/perf.data -e cycles:u $invoke_with"
 fi
 
+# We use the PIC core image to work with perf.
 ANDROID_DATA=$ANDROID_DATA \
   ANDROID_ROOT=$ANDROID_ROOT \
   LD_LIBRARY_PATH=$LD_LIBRARY_PATH \
@@ -97,7 +98,7 @@ ANDROID_DATA=$ANDROID_DATA \
   $invoke_with $ANDROID_ROOT/bin/$DALVIKVM $lib \
     -XXlib:$LIBART \
     -Xnorelocate \
-    -Ximage:$ANDROID_ROOT/framework/core.art \
+    -Ximage:$ANDROID_ROOT/framework/core-optimizing-pic.art \
     -Xcompiler-option --generate-debug-info \
     "$@"
 
