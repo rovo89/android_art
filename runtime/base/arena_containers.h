@@ -161,7 +161,7 @@ class ArenaAllocatorAdapter : private ArenaAllocatorAdapterKind {
     return arena_allocator_->AllocArray<T>(n, ArenaAllocatorAdapterKind::Kind());
   }
   void deallocate(pointer p, size_type n) {
-    UNUSED(p, n);
+    arena_allocator_->MakeInaccessible(p, sizeof(T) * n);
   }
 
   void construct(pointer p, const_reference val) {
