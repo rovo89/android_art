@@ -287,7 +287,7 @@ class AssemblerArm32Test : public AssemblerArmTest<arm::Arm32Assembler,
       case 1:
         return Base::REG2_TOKEN;
       case 2:
-        return REG3_TOKEN;
+        return Base::REG3_TOKEN;
       case 3:
         return REG4_TOKEN;
       default:
