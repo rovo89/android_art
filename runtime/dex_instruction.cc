@@ -333,7 +333,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
           if (i != 0) {
             os << ", ";
           }
-          os << "v" << arg[i+2];  // Don't print the pair of vC registers. Pair is implicit.
+          os << "v" << arg[i + 2];  // Don't print the pair of vC registers. Pair is implicit.
         }
         os << "}";
         break;
