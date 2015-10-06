@@ -67,12 +67,20 @@ class AssemblerTestInfrastructure {
 
   // This is intended to be run as a test.
   bool CheckTools() {
-    if (!FileExists(FindTool(assembler_cmd_name_))) {
+    std::string asm_tool = FindTool(assembler_cmd_name_);
+    if (!FileExists(asm_tool)) {
+      LOG(ERROR) << "Could not find assembler from " << assembler_cmd_name_;
+      LOG(ERROR) << "FindTool returned " << asm_tool;
+      FindToolDump(assembler_cmd_name_);
       return false;
     }
     LOG(INFO) << "Chosen assembler command: " << GetAssemblerCommand();
 
-    if (!FileExists(FindTool(objdump_cmd_name_))) {
+    std::string objdump_tool = FindTool(objdump_cmd_name_);
+    if (!FileExists(objdump_tool)) {
+      LOG(ERROR) << "Could not find objdump from " << objdump_cmd_name_;
+      LOG(ERROR) << "FindTool returned " << objdump_tool;
+      FindToolDump(objdump_cmd_name_);
       return false;
     }
     LOG(INFO) << "Chosen objdump command: " << GetObjdumpCommand();
@@ -80,7 +88,11 @@ class AssemblerTestInfrastructure {
     // Disassembly is optional.
     std::string disassembler = GetDisassembleCommand();
     if (disassembler.length() != 0) {
-      if (!FileExists(FindTool(disassembler_cmd_name_))) {
+      std::string disassembler_tool = FindTool(disassembler_cmd_name_);
+      if (!FileExists(disassembler_tool)) {
+        LOG(ERROR) << "Could not find disassembler from " << disassembler_cmd_name_;
+        LOG(ERROR) << "FindTool returned " << disassembler_tool;
+        FindToolDump(disassembler_cmd_name_);
         return false;
       }
       LOG(INFO) << "Chosen disassemble command: " << GetDisassembleCommand();
@@ -493,7 +505,7 @@ class AssemblerTestInfrastructure {
     std::string error_msg;
     if (!Exec(args, &error_msg)) {
       EXPECT_TRUE(false) << error_msg;
-      return "";
+      UNREACHABLE();
     }
 
     std::ifstream in(tmp_file.c_str());
@@ -506,6 +518,39 @@ class AssemblerTestInfrastructure {
     in.close();
     std::remove(tmp_file.c_str());
     return line;
+  }
+
+  // For debug purposes.
+  void FindToolDump(std::string tool_name) {
+    // Find the current tool. Wild-card pattern is "arch-string*tool-name".
+    std::string gcc_path = GetRootPath() + GetGCCRootPath();
+    std::vector<std::string> args;
+    args.push_back("find");
+    args.push_back(gcc_path);
+    args.push_back("-name");
+    args.push_back(architecture_string_ + "*" + tool_name);
+    args.push_back("|");
+    args.push_back("sort");
+    std::string tmp_file = GetTmpnam();
+    args.push_back(">");
+    args.push_back(tmp_file);
+    std::string sh_args = Join(args, ' ');
+
+    args.clear();
+    args.push_back("/bin/sh");
+    args.push_back("-c");
+    args.push_back(sh_args);
+
+    std::string error_msg;
+    if (!Exec(args, &error_msg)) {
+      EXPECT_TRUE(false) << error_msg;
+      UNREACHABLE();
+    }
+
+    std::ifstream in(tmp_file.c_str());
+    if (in) {
+      LOG(ERROR) << in.rdbuf();
+    }
   }
 
   // Use a consistent tmpnam, so store it.
