@@ -121,8 +121,9 @@ void ReferenceTypePropagation::Run() {
           if (instr->IsBoundType()) {
             DCHECK(instr->AsBoundType()->GetUpperBound().IsValid());
           } else if (instr->IsLoadClass()) {
-            DCHECK(instr->AsLoadClass()->GetReferenceTypeInfo().IsExact());
-            DCHECK(instr->AsLoadClass()->GetLoadedClassRTI().IsValid());
+            HLoadClass* cls = instr->AsLoadClass();
+            DCHECK(cls->GetReferenceTypeInfo().IsExact());
+            DCHECK(!cls->GetLoadedClassRTI().IsValid() || cls->GetLoadedClassRTI().IsExact());
           } else if (instr->IsNullCheck()) {
             DCHECK(instr->GetReferenceTypeInfo().IsEqual(instr->InputAt(0)->GetReferenceTypeInfo()))
                 << "NullCheck " << instr->GetReferenceTypeInfo()
@@ -168,6 +169,7 @@ static HBoundType* CreateBoundType(ArenaAllocator* arena,
       SHARED_REQUIRES(Locks::mutator_lock_) {
   ReferenceTypeInfo obj_rti = obj->GetReferenceTypeInfo();
   ReferenceTypeInfo class_rti = load_class->GetLoadedClassRTI();
+  DCHECK(class_rti.IsValid());
   HBoundType* bound_type = new (arena) HBoundType(obj, class_rti, upper_can_be_null);
   // Narrow the type as much as possible.
   if (class_rti.GetTypeHandle()->CannotBeAssignedFromOtherTypes()) {
@@ -316,6 +318,15 @@ void ReferenceTypePropagation::BoundTypeForIfInstanceOf(HBasicBlock* block) {
     return;
   }
 
+  HLoadClass* load_class = instanceOf->InputAt(1)->AsLoadClass();
+  ReferenceTypeInfo class_rti = load_class->GetLoadedClassRTI();
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    if (!class_rti.IsValid()) {
+      // He have loaded an unresolved class. Don't bother bounding the type.
+      return;
+    }
+  }
   // We only need to bound the type if we have uses in the relevant block.
   // So start with null and create the HBoundType lazily, only if it's needed.
   HBoundType* bound_type = nullptr;
@@ -336,8 +347,6 @@ void ReferenceTypePropagation::BoundTypeForIfInstanceOf(HBasicBlock* block) {
     if (instanceOfTrueBlock->Dominates(user->GetBlock())) {
       if (bound_type == nullptr) {
         ScopedObjectAccess soa(Thread::Current());
-        HLoadClass* load_class = instanceOf->InputAt(1)->AsLoadClass();
-        ReferenceTypeInfo class_rti = load_class->GetLoadedClassRTI();
         HInstruction* insert_point = instanceOfTrueBlock->GetFirstInstruction();
         if (ShouldCreateBoundType(insert_point, obj, class_rti, nullptr, instanceOfTrueBlock)) {
           bound_type = CreateBoundType(
@@ -475,10 +484,10 @@ void RTPVisitor::VisitLoadClass(HLoadClass* instr) {
   // Get type from dex cache assuming it was populated by the verifier.
   mirror::Class* resolved_class = dex_cache->GetResolvedType(instr->GetTypeIndex());
   // TODO: investigating why we are still getting unresolved classes: b/22821472.
-  ReferenceTypeInfo::TypeHandle handle = (resolved_class != nullptr)
-    ? handles_->NewHandle(resolved_class)
-    : object_class_handle_;
-  instr->SetLoadedClassRTI(ReferenceTypeInfo::Create(handle, /* is_exact */ true));
+  if (resolved_class != nullptr) {
+    instr->SetLoadedClassRTI(ReferenceTypeInfo::Create(
+        handles_->NewHandle(resolved_class), /* is_exact */ true));
+  }
   instr->SetReferenceTypeInfo(ReferenceTypeInfo::Create(class_class_handle_, /* is_exact */ true));
 }
 
@@ -517,6 +526,15 @@ void RTPVisitor::VisitFakeString(HFakeString* instr) {
 }
 
 void RTPVisitor::VisitCheckCast(HCheckCast* check_cast) {
+  HLoadClass* load_class = check_cast->InputAt(1)->AsLoadClass();
+  ReferenceTypeInfo class_rti = load_class->GetLoadedClassRTI();
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    if (!class_rti.IsValid()) {
+      // He have loaded an unresolved class. Don't bother bounding the type.
+      return;
+    }
+  }
   HInstruction* obj = check_cast->InputAt(0);
   HBoundType* bound_type = nullptr;
   for (HUseIterator<HInstruction*> it(obj->GetUses()); !it.Done(); it.Advance()) {
@@ -524,8 +542,6 @@ void RTPVisitor::VisitCheckCast(HCheckCast* check_cast) {
     if (check_cast->StrictlyDominates(user)) {
       if (bound_type == nullptr) {
         ScopedObjectAccess soa(Thread::Current());
-        HLoadClass* load_class = check_cast->InputAt(1)->AsLoadClass();
-        ReferenceTypeInfo class_rti = load_class->GetLoadedClassRTI();
         if (ShouldCreateBoundType(check_cast->GetNext(), obj, class_rti, check_cast, nullptr)) {
           bound_type = CreateBoundType(
               GetGraph()->GetArena(),

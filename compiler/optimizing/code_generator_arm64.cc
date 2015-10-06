@@ -2388,6 +2388,7 @@ void LocationsBuilderARM64::VisitInstanceOf(HInstanceOf* instruction) {
     case TypeCheckKind::kArrayObjectCheck:
       call_kind = LocationSummary::kNoCall;
       break;
+    case TypeCheckKind::kUnresolvedCheck:
     case TypeCheckKind::kInterfaceCheck:
       call_kind = LocationSummary::kCall;
       break;
@@ -2429,10 +2430,11 @@ void InstructionCodeGeneratorARM64::VisitInstanceOf(HInstanceOf* instruction) {
     __ Cbz(obj, &zero);
   }
 
-  // In case of an interface check, we put the object class into the object register.
+  // In case of an interface/unresolved check, we put the object class into the object register.
   // This is safe, as the register is caller-save, and the object must be in another
   // register if it survives the runtime call.
-  Register target = (instruction->GetTypeCheckKind() == TypeCheckKind::kInterfaceCheck)
+  Register target = (instruction->GetTypeCheckKind() == TypeCheckKind::kInterfaceCheck) ||
+      (instruction->GetTypeCheckKind() == TypeCheckKind::kUnresolvedCheck)
       ? obj
       : out;
   __ Ldr(target, HeapOperand(obj.W(), class_offset));
@@ -2513,7 +2515,7 @@ void InstructionCodeGeneratorARM64::VisitInstanceOf(HInstanceOf* instruction) {
       }
       break;
     }
-
+    case TypeCheckKind::kUnresolvedCheck:
     case TypeCheckKind::kInterfaceCheck:
     default: {
       codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pInstanceofNonTrivial),
@@ -2554,6 +2556,7 @@ void LocationsBuilderARM64::VisitCheckCast(HCheckCast* instruction) {
           ? LocationSummary::kCallOnSlowPath
           : LocationSummary::kNoCall;
       break;
+    case TypeCheckKind::kUnresolvedCheck:
     case TypeCheckKind::kInterfaceCheck:
       call_kind = LocationSummary::kCall;
       break;
@@ -2659,6 +2662,7 @@ void InstructionCodeGeneratorARM64::VisitCheckCast(HCheckCast* instruction) {
       __ Cbnz(temp, slow_path->GetEntryLabel());
       break;
     }
+    case TypeCheckKind::kUnresolvedCheck:
     case TypeCheckKind::kInterfaceCheck:
     default:
       codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pCheckCast),
@@ -3014,17 +3018,23 @@ void InstructionCodeGeneratorARM64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
 }
 
 void LocationsBuilderARM64::VisitLoadClass(HLoadClass* cls) {
-  LocationSummary::CallKind call_kind = cls->CanCallRuntime() ? LocationSummary::kCallOnSlowPath
-                                                              : LocationSummary::kNoCall;
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(cls, call_kind);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetOut(Location::RequiresRegister());
+  InvokeRuntimeCallingConvention calling_convention;
+  CodeGenerator::CreateLoadClassLocationSummary(
+      cls,
+      LocationFrom(calling_convention.GetRegisterAt(0)),
+      LocationFrom(vixl::x0));
 }
 
 void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
   Register out = OutputRegister(cls);
   Register current_method = InputRegisterAt(cls, 0);
-  if (cls->IsReferrersClass()) {
+  if (cls->NeedsAccessCheck()) {
+    codegen_->MoveConstant(cls->GetLocations()->GetTemp(0), cls->GetTypeIndex());
+    codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pInitializeTypeAndVerifyAccess),
+                            cls,
+                            cls->GetDexPc(),
+                            nullptr);
+  } else if (cls->IsReferrersClass()) {
     DCHECK(!cls->CanCallRuntime());
     DCHECK(!cls->MustGenerateClinitCheck());
     __ Ldr(out, MemOperand(current_method, ArtMethod::DeclaringClassOffset().Int32Value()));

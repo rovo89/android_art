@@ -537,6 +537,26 @@ void CodeGenerator::GenerateUnresolvedFieldAccess(
   }
 }
 
+void CodeGenerator::CreateLoadClassLocationSummary(HLoadClass* cls,
+                                                   Location runtime_type_index_location,
+                                                   Location runtime_return_location) {
+  ArenaAllocator* allocator = cls->GetBlock()->GetGraph()->GetArena();
+  LocationSummary::CallKind call_kind = cls->NeedsAccessCheck()
+      ? LocationSummary::kCall
+      : (cls->CanCallRuntime()
+          ? LocationSummary::kCallOnSlowPath
+          : LocationSummary::kNoCall);
+  LocationSummary* locations = new (allocator) LocationSummary(cls, call_kind);
+  locations->SetInAt(0, Location::RequiresRegister());
+  if (cls->NeedsAccessCheck()) {
+    locations->AddTemp(runtime_type_index_location);
+    locations->SetOut(runtime_return_location);
+  } else {
+    locations->SetOut(Location::RequiresRegister());
+  }
+}
+
+
 void CodeGenerator::BlockIfInRegister(Location location, bool is_out) const {
   // The DCHECKS below check that a register is not specified twice in
   // the summary. The out location can overlap with an input, so we need
