@@ -153,9 +153,8 @@ class ScopedArenaAllocatorAdapter
                                                     ArenaAllocatorAdapterKind::Kind()));
   }
   void deallocate(pointer p, size_type n) {
-    UNUSED(p);
-    UNUSED(n);
     DebugStackIndirectTopRef::CheckTop();
+    arena_stack_->MakeInaccessible(p, sizeof(T) * n);
   }
 
   void construct(pointer p, const_reference val) {
