@@ -1970,11 +1970,11 @@ static void GetSet64Static(ArtField* f, Thread* self, ArtMethod* referrer,
   for (size_t i = 0; i < arraysize(values); ++i) {
     // 64 bit FieldSet stores the set value in the second register.
     test->Invoke3WithReferrer(static_cast<size_t>(f->GetDexFieldIndex()),
-                            0U,
-                            values[i],
-                            StubTest::GetEntrypoint(self, kQuickSet64Static),
-                            self,
-                            referrer);
+                              0U,
+                              values[i],
+                              StubTest::GetEntrypoint(self, kQuickSet64Static),
+                              self,
+                              referrer);
 
     size_t res = test->Invoke3WithReferrer(static_cast<size_t>(f->GetDexFieldIndex()),
                                            0U, 0U,
