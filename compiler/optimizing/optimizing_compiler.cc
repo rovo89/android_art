@@ -562,6 +562,9 @@ static ArenaVector<LinkerPatch> EmitAndSortLinkerPatches(CodeGenerator* codegen)
   return linker_patches;
 }
 
+// TODO: The function below uses too much stack space. Bug: 24698147
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wframe-larger-than="
 CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
                                                      CodeGenerator* codegen,
                                                      CompilerDriver* compiler_driver,
@@ -611,6 +614,7 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
   soa.Self()->TransitionFromSuspendedToRunnable();
   return compiled_method;
 }
+#pragma GCC diagnostic pop
 
 CompiledMethod* OptimizingCompiler::CompileBaseline(
     CodeGenerator* codegen,
