@@ -106,11 +106,11 @@ TEST_F(LICMTest, FieldHoisting) {
   NullHandle<mirror::DexCache> dex_cache;
   HInstruction* get_field = new (&allocator_) HInstanceFieldGet(
       parameter_, Primitive::kPrimLong, MemberOffset(10),
-      false, kUnknownFieldIndex, graph_->GetDexFile(), dex_cache);
+      false, kUnknownFieldIndex, graph_->GetDexFile(), dex_cache, 0);
   loop_body_->InsertInstructionBefore(get_field, loop_body_->GetLastInstruction());
   HInstruction* set_field = new (&allocator_) HInstanceFieldSet(
       parameter_, constant_, Primitive::kPrimInt, MemberOffset(20),
-      false, kUnknownFieldIndex, graph_->GetDexFile(), dex_cache);
+      false, kUnknownFieldIndex, graph_->GetDexFile(), dex_cache, 0);
   loop_body_->InsertInstructionBefore(set_field, loop_body_->GetLastInstruction());
 
   EXPECT_EQ(get_field->GetBlock(), loop_body_);
@@ -127,11 +127,11 @@ TEST_F(LICMTest, NoFieldHoisting) {
   NullHandle<mirror::DexCache> dex_cache;
   HInstruction* get_field = new (&allocator_) HInstanceFieldGet(
       parameter_, Primitive::kPrimLong, MemberOffset(10),
-      false, kUnknownFieldIndex, graph_->GetDexFile(), dex_cache);
+      false, kUnknownFieldIndex, graph_->GetDexFile(), dex_cache, 0);
   loop_body_->InsertInstructionBefore(get_field, loop_body_->GetLastInstruction());
   HInstruction* set_field = new (&allocator_) HInstanceFieldSet(
       parameter_, get_field, Primitive::kPrimLong, MemberOffset(10),
-      false, kUnknownFieldIndex, graph_->GetDexFile(), dex_cache);
+      false, kUnknownFieldIndex, graph_->GetDexFile(), dex_cache, 0);
   loop_body_->InsertInstructionBefore(set_field, loop_body_->GetLastInstruction());
 
   EXPECT_EQ(get_field->GetBlock(), loop_body_);
@@ -146,7 +146,7 @@ TEST_F(LICMTest, ArrayHoisting) {
 
   // Populate the loop with instructions: set/get array with different types.
   HInstruction* get_array = new (&allocator_) HArrayGet(
-      parameter_, constant_, Primitive::kPrimLong);
+      parameter_, constant_, Primitive::kPrimLong, 0);
   loop_body_->InsertInstructionBefore(get_array, loop_body_->GetLastInstruction());
   HInstruction* set_array = new (&allocator_) HArraySet(
       parameter_, constant_, constant_, Primitive::kPrimInt, 0);
@@ -164,7 +164,7 @@ TEST_F(LICMTest, NoArrayHoisting) {
 
   // Populate the loop with instructions: set/get array with same types.
   HInstruction* get_array = new (&allocator_) HArrayGet(
-      parameter_, constant_, Primitive::kPrimLong);
+      parameter_, constant_, Primitive::kPrimLong, 0);
   loop_body_->InsertInstructionBefore(get_array, loop_body_->GetLastInstruction());
   HInstruction* set_array = new (&allocator_) HArraySet(
       parameter_, get_array, constant_, Primitive::kPrimLong, 0);
