@@ -2599,15 +2599,18 @@ void LocationsBuilderMIPS64::VisitLoadClass(HLoadClass* cls) {
 
 void InstructionCodeGeneratorMIPS64::VisitLoadClass(HLoadClass* cls) {
   LocationSummary* locations = cls->GetLocations();
-  GpuRegister out = locations->Out().AsRegister<GpuRegister>();
-  GpuRegister current_method = locations->InAt(0).AsRegister<GpuRegister>();
   if (cls->NeedsAccessCheck()) {
     codegen_->MoveConstant(locations->GetTemp(0), cls->GetTypeIndex());
     codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pInitializeTypeAndVerifyAccess),
                             cls,
                             cls->GetDexPc(),
                             nullptr);
-  } else if (cls->IsReferrersClass()) {
+    return;
+  }
+
+  GpuRegister out = locations->Out().AsRegister<GpuRegister>();
+  GpuRegister current_method = locations->InAt(0).AsRegister<GpuRegister>();
+  if (cls->IsReferrersClass()) {
     DCHECK(!cls->CanCallRuntime());
     DCHECK(!cls->MustGenerateClinitCheck());
     __ LoadFromOffset(kLoadUnsignedWord, out, current_method,

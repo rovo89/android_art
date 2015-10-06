@@ -547,11 +547,12 @@ void CodeGenerator::CreateLoadClassLocationSummary(HLoadClass* cls,
           ? LocationSummary::kCallOnSlowPath
           : LocationSummary::kNoCall);
   LocationSummary* locations = new (allocator) LocationSummary(cls, call_kind);
-  locations->SetInAt(0, Location::RequiresRegister());
   if (cls->NeedsAccessCheck()) {
+    locations->SetInAt(0, Location::NoLocation());
     locations->AddTemp(runtime_type_index_location);
     locations->SetOut(runtime_return_location);
   } else {
+    locations->SetInAt(0, Location::RequiresRegister());
     locations->SetOut(Location::RequiresRegister());
   }
 }
