@@ -3026,15 +3026,18 @@ void LocationsBuilderARM64::VisitLoadClass(HLoadClass* cls) {
 }
 
 void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
-  Register out = OutputRegister(cls);
-  Register current_method = InputRegisterAt(cls, 0);
   if (cls->NeedsAccessCheck()) {
     codegen_->MoveConstant(cls->GetLocations()->GetTemp(0), cls->GetTypeIndex());
     codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pInitializeTypeAndVerifyAccess),
                             cls,
                             cls->GetDexPc(),
                             nullptr);
-  } else if (cls->IsReferrersClass()) {
+    return;
+  }
+
+  Register out = OutputRegister(cls);
+  Register current_method = InputRegisterAt(cls, 0);
+  if (cls->IsReferrersClass()) {
     DCHECK(!cls->CanCallRuntime());
     DCHECK(!cls->MustGenerateClinitCheck());
     __ Ldr(out, MemOperand(current_method, ArtMethod::DeclaringClassOffset().Int32Value()));

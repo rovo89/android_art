@@ -4477,15 +4477,18 @@ void LocationsBuilderARM::VisitLoadClass(HLoadClass* cls) {
 
 void InstructionCodeGeneratorARM::VisitLoadClass(HLoadClass* cls) {
   LocationSummary* locations = cls->GetLocations();
-  Register out = locations->Out().AsRegister<Register>();
-  Register current_method = locations->InAt(0).AsRegister<Register>();
   if (cls->NeedsAccessCheck()) {
     codegen_->MoveConstant(locations->GetTemp(0), cls->GetTypeIndex());
     codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pInitializeTypeAndVerifyAccess),
                             cls,
                             cls->GetDexPc(),
                             nullptr);
-  } else if (cls->IsReferrersClass()) {
+    return;
+  }
+
+  Register out = locations->Out().AsRegister<Register>();
+  Register current_method = locations->InAt(0).AsRegister<Register>();
+  if (cls->IsReferrersClass()) {
     DCHECK(!cls->CanCallRuntime());
     DCHECK(!cls->MustGenerateClinitCheck());
     __ LoadFromOffset(
