@@ -23,7 +23,6 @@
 #include "mem_map.h"
 #include "mutex.h"
 #include "thread-inl.h"
-#include "base/memory_tool.h"
 
 namespace art {
 
@@ -290,8 +289,7 @@ ArenaAllocator::ArenaAllocator(ArenaPool* pool)
     begin_(nullptr),
     end_(nullptr),
     ptr_(nullptr),
-    arena_head_(nullptr),
-    is_running_on_memory_tool_(RUNNING_ON_MEMORY_TOOL) {
+    arena_head_(nullptr) {
 }
 
 void ArenaAllocator::UpdateBytesAllocated() {
@@ -302,14 +300,13 @@ void ArenaAllocator::UpdateBytesAllocated() {
   }
 }
 
-void* ArenaAllocator::AllocValgrind(size_t bytes, ArenaAllocKind kind) {
+void* ArenaAllocator::AllocWithMemoryTool(size_t bytes, ArenaAllocKind kind) {
   size_t rounded_bytes = RoundUp(bytes + kMemoryToolRedZoneBytes, 8);
   if (UNLIKELY(ptr_ + rounded_bytes > end_)) {
     // Obtain a new block.
     ObtainNewArenaForAllocation(rounded_bytes);
-    if (UNLIKELY(ptr_ == nullptr)) {
-      return nullptr;
-    }
+    CHECK(ptr_ != nullptr);
+    MEMORY_TOOL_MAKE_UNDEFINED(ptr_, end_ - ptr_);
   }
   ArenaAllocatorStats::RecordAlloc(rounded_bytes, kind);
   uint8_t* ret = ptr_;
@@ -318,6 +315,7 @@ void* ArenaAllocator::AllocValgrind(size_t bytes, ArenaAllocKind kind) {
   for (uint8_t* ptr = ret; ptr < ptr_; ++ptr) {
     CHECK_EQ(*ptr, 0U);
   }
+  MEMORY_TOOL_MAKE_DEFINED(ret, bytes);
   MEMORY_TOOL_MAKE_NOACCESS(ret + bytes, rounded_bytes - bytes);
   return ret;
 }

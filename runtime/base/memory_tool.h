@@ -32,10 +32,12 @@
 #define MEMORY_TOOL_MAKE_NOACCESS(p, s) __asan_poison_memory_region(p, s)
 #define MEMORY_TOOL_MAKE_UNDEFINED(p, s) __asan_unpoison_memory_region(p, s)
 #define MEMORY_TOOL_MAKE_DEFINED(p, s) __asan_unpoison_memory_region(p, s)
+constexpr bool kMemoryToolIsAvailable = true;
 #else
 #define MEMORY_TOOL_MAKE_NOACCESS(p, s) do { (void)(p); (void)(s); } while (0)
 #define MEMORY_TOOL_MAKE_UNDEFINED(p, s) do { (void)(p); (void)(s); } while (0)
 #define MEMORY_TOOL_MAKE_DEFINED(p, s) do { (void)(p); (void)(s); } while (0)
+constexpr bool kMemoryToolIsAvailable = false;
 #endif
 
 #define ATTRIBUTE_NO_SANITIZE_ADDRESS __attribute__((no_sanitize_address))
@@ -54,6 +56,7 @@ constexpr size_t kMemoryToolStackGuardSizeScale = 2;
 #define MEMORY_TOOL_MAKE_DEFINED(p, s) VALGRIND_MAKE_MEM_DEFINED(p, s)
 #define ATTRIBUTE_NO_SANITIZE_ADDRESS
 #define RUNNING_ON_MEMORY_TOOL RUNNING_ON_VALGRIND
+constexpr bool kMemoryToolIsAvailable = true;
 constexpr bool kMemoryToolIsValgrind = true;
 constexpr bool kMemoryToolDetectsLeaks = true;
 constexpr bool kMemoryToolAddsRedzones = true;
