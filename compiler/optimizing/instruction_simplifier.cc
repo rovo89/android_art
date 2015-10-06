@@ -216,7 +216,11 @@ static bool TypeCheckHasKnownOutcome(HLoadClass* klass, HInstruction* object, bo
   }
 
   ReferenceTypeInfo class_rti = klass->GetLoadedClassRTI();
-  DCHECK(class_rti.IsValid() && class_rti.IsExact());
+  if (!class_rti.IsValid()) {
+    // Happens when the loaded class is unresolved.
+    return false;
+  }
+  DCHECK(class_rti.IsExact());
   if (class_rti.IsSupertypeOf(obj_rti)) {
     *outcome = true;
     return true;

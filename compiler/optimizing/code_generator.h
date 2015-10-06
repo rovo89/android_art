@@ -416,6 +416,11 @@ class CodeGenerator {
       uint32_t dex_pc,
       const FieldAccessCallingConvention& calling_convention);
 
+  // TODO: This overlaps a bit with MoveFromReturnRegister. Refactor for a better design.
+  static void CreateLoadClassLocationSummary(HLoadClass* cls,
+                                             Location runtime_type_index_location,
+                                             Location runtime_return_location);
+
   void SetDisassemblyInformation(DisassemblyInformation* info) { disasm_info_ = info; }
   DisassemblyInformation* GetDisassemblyInformation() const { return disasm_info_; }
 
