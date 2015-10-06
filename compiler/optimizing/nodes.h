@@ -1715,7 +1715,7 @@ std::ostream& operator<<(std::ostream& os, const ReferenceTypeInfo& rhs);
 
 class HInstruction : public ArenaObject<kArenaAllocInstruction> {
  public:
-  HInstruction(SideEffects side_effects, uint32_t dex_pc = kNoDexPc)
+  HInstruction(SideEffects side_effects, uint32_t dex_pc)
       : previous_(nullptr),
         next_(nullptr),
         block_(nullptr),
@@ -2072,7 +2072,7 @@ class HBackwardInstructionIterator : public ValueObject {
 template<size_t N>
 class HTemplateInstruction: public HInstruction {
  public:
-  HTemplateInstruction<N>(SideEffects side_effects, uint32_t dex_pc = kNoDexPc)
+  HTemplateInstruction<N>(SideEffects side_effects, uint32_t dex_pc)
       : HInstruction(side_effects, dex_pc), inputs_() {}
   virtual ~HTemplateInstruction() {}
 
@@ -2099,7 +2099,7 @@ class HTemplateInstruction: public HInstruction {
 template<>
 class HTemplateInstruction<0>: public HInstruction {
  public:
-  explicit HTemplateInstruction<0>(SideEffects side_effects, uint32_t dex_pc = kNoDexPc)
+  explicit HTemplateInstruction<0>(SideEffects side_effects, uint32_t dex_pc)
       : HInstruction(side_effects, dex_pc) {}
 
   virtual ~HTemplateInstruction() {}
@@ -2125,7 +2125,7 @@ class HTemplateInstruction<0>: public HInstruction {
 template<intptr_t N>
 class HExpression : public HTemplateInstruction<N> {
  public:
-  HExpression<N>(Primitive::Type type, SideEffects side_effects, uint32_t dex_pc = kNoDexPc)
+  HExpression<N>(Primitive::Type type, SideEffects side_effects, uint32_t dex_pc)
       : HTemplateInstruction<N>(side_effects, dex_pc), type_(type) {}
   virtual ~HExpression() {}
 
@@ -4210,7 +4210,7 @@ class HInstanceFieldGet : public HExpression<1> {
                     uint32_t field_idx,
                     const DexFile& dex_file,
                     Handle<mirror::DexCache> dex_cache,
-                    uint32_t dex_pc = kNoDexPc)
+                    uint32_t dex_pc)
       : HExpression(
             field_type,
             SideEffects::FieldReadOfType(field_type, is_volatile), dex_pc),
@@ -4256,7 +4256,7 @@ class HInstanceFieldSet : public HTemplateInstruction<2> {
                     uint32_t field_idx,
                     const DexFile& dex_file,
                     Handle<mirror::DexCache> dex_cache,
-                    uint32_t dex_pc = kNoDexPc)
+                    uint32_t dex_pc)
       : HTemplateInstruction(
           SideEffects::FieldWriteOfType(field_type, is_volatile), dex_pc),
         field_info_(field_offset, field_type, is_volatile, field_idx, dex_file, dex_cache),
@@ -4291,7 +4291,7 @@ class HArrayGet : public HExpression<2> {
   HArrayGet(HInstruction* array,
             HInstruction* index,
             Primitive::Type type,
-            uint32_t dex_pc = kNoDexPc)
+            uint32_t dex_pc)
       : HExpression(type, SideEffects::ArrayReadOfType(type), dex_pc) {
     SetRawInputAt(0, array);
     SetRawInputAt(1, index);
@@ -4407,7 +4407,7 @@ class HArraySet : public HTemplateInstruction<3> {
 
 class HArrayLength : public HExpression<1> {
  public:
-  explicit HArrayLength(HInstruction* array, uint32_t dex_pc = kNoDexPc)
+  explicit HArrayLength(HInstruction* array, uint32_t dex_pc)
       : HExpression(Primitive::kPrimInt, SideEffects::None(), dex_pc) {
     // Note that arrays do not change length, so the instruction does not
     // depend on any write.
@@ -4675,7 +4675,7 @@ class HStaticFieldGet : public HExpression<1> {
                   uint32_t field_idx,
                   const DexFile& dex_file,
                   Handle<mirror::DexCache> dex_cache,
-                  uint32_t dex_pc = kNoDexPc)
+                  uint32_t dex_pc)
       : HExpression(
             field_type,
             SideEffects::FieldReadOfType(field_type, is_volatile), dex_pc),
@@ -4718,7 +4718,7 @@ class HStaticFieldSet : public HTemplateInstruction<2> {
                   uint32_t field_idx,
                   const DexFile& dex_file,
                   Handle<mirror::DexCache> dex_cache,
-                  uint32_t dex_pc = kNoDexPc)
+                  uint32_t dex_pc)
       : HTemplateInstruction(
           SideEffects::FieldWriteOfType(field_type, is_volatile), dex_pc),
         field_info_(field_offset, field_type, is_volatile, field_idx, dex_file, dex_cache),

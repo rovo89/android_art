@@ -488,7 +488,8 @@ static HGraph* BuildIfElseWithPhi(ArenaAllocator* allocator,
                                                          false,
                                                          kUnknownFieldIndex,
                                                          graph->GetDexFile(),
-                                                         dex_cache);
+                                                         dex_cache,
+                                                         0);
   block->AddInstruction(test);
   block->AddInstruction(new (allocator) HIf(test));
   HBasicBlock* then = new (allocator) HBasicBlock(graph);
@@ -513,14 +514,16 @@ static HGraph* BuildIfElseWithPhi(ArenaAllocator* allocator,
                                               false,
                                               kUnknownFieldIndex,
                                               graph->GetDexFile(),
-                                              dex_cache);
+                                              dex_cache,
+                                              0);
 *input2 = new (allocator) HInstanceFieldGet(parameter,
                                             Primitive::kPrimInt,
                                             MemberOffset(42),
                                             false,
                                             kUnknownFieldIndex,
                                             graph->GetDexFile(),
-                                            dex_cache);
+                                            dex_cache,
+                                            0);
   then->AddInstruction(*input1);
   else_->AddInstruction(*input2);
   join->AddInstruction(new (allocator) HExit());
@@ -634,7 +637,8 @@ static HGraph* BuildFieldReturn(ArenaAllocator* allocator,
                                              false,
                                              kUnknownFieldIndex,
                                              graph->GetDexFile(),
-                                             dex_cache);
+                                             dex_cache,
+                                             0);
   block->AddInstruction(*field);
   *ret = new (allocator) HReturn(*field);
   block->AddInstruction(*ret);
