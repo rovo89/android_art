@@ -29,8 +29,7 @@ ArenaStack::ArenaStack(ArenaPool* arena_pool)
     bottom_arena_(nullptr),
     top_arena_(nullptr),
     top_ptr_(nullptr),
-    top_end_(nullptr),
-    is_running_on_memory_tool_(RUNNING_ON_MEMORY_TOOL > 0) {
+    top_end_(nullptr) {
 }
 
 ArenaStack::~ArenaStack() {
@@ -91,7 +90,7 @@ void ArenaStack::UpdateBytesAllocated() {
   }
 }
 
-void* ArenaStack::AllocValgrind(size_t bytes, ArenaAllocKind kind) {
+void* ArenaStack::AllocWithMemoryTool(size_t bytes, ArenaAllocKind kind) {
   size_t rounded_bytes = RoundUp(bytes + kMemoryToolRedZoneBytes, 8);
   uint8_t* ptr = top_ptr_;
   if (UNLIKELY(static_cast<size_t>(top_end_ - ptr) < rounded_bytes)) {
