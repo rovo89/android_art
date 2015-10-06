@@ -57,7 +57,7 @@ define create-core-oat-host-rules
   endif
   ifeq ($(1),optimizing)
     core_compile_options += --compiler-backend=Optimizing
-    core_dex2oat_dependency += $(DEX2OAT)
+    core_dex2oat_dependency := $(DEX2OAT)
     core_infix := -optimizing
   endif
   ifeq ($(1),interpreter)
