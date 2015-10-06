@@ -310,9 +310,6 @@ class OptimizingCompiler FINAL : public Compiler {
 
   std::unique_ptr<std::ostream> visualizer_output_;
 
-  // Delegate to Quick in case the optimizing compiler cannot compile a method.
-  std::unique_ptr<Compiler> delegate_;
-
   DISALLOW_COPY_AND_ASSIGN(OptimizingCompiler);
 };
 
@@ -321,11 +318,9 @@ static const int kMaximumCompilationTimeBeforeWarning = 100; /* ms */
 OptimizingCompiler::OptimizingCompiler(CompilerDriver* driver)
     : Compiler(driver, kMaximumCompilationTimeBeforeWarning),
       run_optimizations_(
-          driver->GetCompilerOptions().GetCompilerFilter() != CompilerOptions::kTime),
-      delegate_(Create(driver, Compiler::Kind::kQuick)) {}
+          driver->GetCompilerOptions().GetCompilerFilter() != CompilerOptions::kTime) {}
 
 void OptimizingCompiler::Init() {
-  delegate_->Init();
   // Enable C1visualizer output. Must be done in Init() because the compiler
   // driver is not fully initialized when passed to the compiler's constructor.
   CompilerDriver* driver = GetCompilerDriver();
@@ -344,7 +339,6 @@ void OptimizingCompiler::Init() {
 }
 
 void OptimizingCompiler::UnInit() const {
-  delegate_->UnInit();
 }
 
 OptimizingCompiler::~OptimizingCompiler() {
@@ -353,8 +347,7 @@ OptimizingCompiler::~OptimizingCompiler() {
   }
 }
 
-void OptimizingCompiler::InitCompilationUnit(CompilationUnit& cu) const {
-  delegate_->InitCompilationUnit(cu);
+void OptimizingCompiler::InitCompilationUnit(CompilationUnit& cu ATTRIBUTE_UNUSED) const {
 }
 
 bool OptimizingCompiler::CanCompileMethod(uint32_t method_idx ATTRIBUTE_UNUSED,
@@ -862,15 +855,6 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     }
   }
 
-  if (method != nullptr) {
-    return method;
-  }
-  method = delegate_->Compile(code_item, access_flags, invoke_type, class_def_idx, method_idx,
-                              jclass_loader, dex_file, dex_cache);
-
-  if (method != nullptr) {
-    MaybeRecordStat(MethodCompilationStat::kCompiledQuick);
-  }
   return method;
 }
 
