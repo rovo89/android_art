@@ -4703,15 +4703,18 @@ void LocationsBuilderX86_64::VisitLoadClass(HLoadClass* cls) {
 
 void InstructionCodeGeneratorX86_64::VisitLoadClass(HLoadClass* cls) {
   LocationSummary* locations = cls->GetLocations();
-  CpuRegister out = locations->Out().AsRegister<CpuRegister>();
-  CpuRegister current_method = locations->InAt(0).AsRegister<CpuRegister>();
   if (cls->NeedsAccessCheck()) {
     codegen_->MoveConstant(locations->GetTemp(0), cls->GetTypeIndex());
     codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pInitializeTypeAndVerifyAccess),
                             cls,
                             cls->GetDexPc(),
                             nullptr);
-  } else if (cls->IsReferrersClass()) {
+    return;
+  }
+
+  CpuRegister out = locations->Out().AsRegister<CpuRegister>();
+  CpuRegister current_method = locations->InAt(0).AsRegister<CpuRegister>();
+  if (cls->IsReferrersClass()) {
     DCHECK(!cls->CanCallRuntime());
     DCHECK(!cls->MustGenerateClinitCheck());
     __ movl(out, Address(current_method, ArtMethod::DeclaringClassOffset().Int32Value()));
