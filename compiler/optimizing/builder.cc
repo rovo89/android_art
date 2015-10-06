@@ -940,7 +940,8 @@ HClinitCheck* HGraphBuilder::ProcessClinitCheckForInvoke(
           storage_index,
           *dex_compilation_unit_->GetDexFile(),
           is_outer_class,
-          dex_pc);
+          dex_pc,
+          /*needs_access_check*/ false);
       current_block_->AddInstruction(load_class);
       clinit_check = new (arena_) HClinitCheck(load_class, dex_pc);
       current_block_->AddInstruction(clinit_check);
@@ -1384,7 +1385,8 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
                                                  storage_index,
                                                  *dex_compilation_unit_->GetDexFile(),
                                                  is_outer_class,
-                                                 dex_pc);
+                                                 dex_pc,
+                                                 /*needs_access_check*/ false);
   current_block_->AddInstruction(constant);
 
   HInstruction* cls = constant;
@@ -1615,7 +1617,9 @@ void HGraphBuilder::BuildFillWideArrayData(HInstruction* object,
 
 static TypeCheckKind ComputeTypeCheckKind(Handle<mirror::Class> cls)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-  if (cls->IsInterface()) {
+  if (cls.Get() == nullptr) {
+    return TypeCheckKind::kUnresolvedCheck;
+  } else if (cls->IsInterface()) {
     return TypeCheckKind::kInterfaceCheck;
   } else if (cls->IsArrayClass()) {
     if (cls->GetComponentType()->IsObjectClass()) {
@@ -1634,11 +1638,20 @@ static TypeCheckKind ComputeTypeCheckKind(Handle<mirror::Class> cls)
   }
 }
 
-bool HGraphBuilder::BuildTypeCheck(const Instruction& instruction,
+void HGraphBuilder::BuildTypeCheck(const Instruction& instruction,
                                    uint8_t destination,
                                    uint8_t reference,
                                    uint16_t type_index,
                                    uint32_t dex_pc) {
+  bool type_known_final, type_known_abstract, use_declaring_class;
+  bool can_access = compiler_driver_->CanAccessTypeWithoutChecks(
+      dex_compilation_unit_->GetDexMethodIndex(),
+      *dex_compilation_unit_->GetDexFile(),
+      type_index,
+      &type_known_final,
+      &type_known_abstract,
+      &use_declaring_class);
+
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<2> hs(soa.Self());
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(
@@ -1646,22 +1659,14 @@ bool HGraphBuilder::BuildTypeCheck(const Instruction& instruction,
           soa.Self(), *dex_compilation_unit_->GetDexFile())));
   Handle<mirror::Class> resolved_class(hs.NewHandle(dex_cache->GetResolvedType(type_index)));
 
-  if ((resolved_class.Get() == nullptr) ||
-       // TODO: Remove this check once the compiler actually knows which
-       // ArtMethod it is compiling.
-      (GetCompilingClass() == nullptr) ||
-      !GetCompilingClass()->CanAccess(resolved_class.Get())) {
-    MaybeRecordStat(MethodCompilationStat::kNotCompiledCantAccesType);
-    return false;
-  }
-
   HInstruction* object = LoadLocal(reference, Primitive::kPrimNot, dex_pc);
   HLoadClass* cls = new (arena_) HLoadClass(
       graph_->GetCurrentMethod(),
       type_index,
       *dex_compilation_unit_->GetDexFile(),
       IsOutermostCompilingClass(type_index),
-      dex_pc);
+      dex_pc,
+      !can_access);
   current_block_->AddInstruction(cls);
 
   // The class needs a temporary before being used by the type check.
@@ -1676,7 +1681,6 @@ bool HGraphBuilder::BuildTypeCheck(const Instruction& instruction,
     DCHECK_EQ(instruction.Opcode(), Instruction::CHECK_CAST);
     current_block_->AddInstruction(new (arena_) HCheckCast(object, cls, check_kind, dex_pc));
   }
-  return true;
 }
 
 bool HGraphBuilder::NeedsAccessCheck(uint32_t type_index) const {
@@ -2791,16 +2795,13 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       bool can_access = compiler_driver_->CanAccessTypeWithoutChecks(
           dex_compilation_unit_->GetDexMethodIndex(), *dex_file_, type_index,
           &type_known_final, &type_known_abstract, &dont_use_is_referrers_class);
-      if (!can_access) {
-        MaybeRecordStat(MethodCompilationStat::kNotCompiledCantAccesType);
-        return false;
-      }
       current_block_->AddInstruction(new (arena_) HLoadClass(
           graph_->GetCurrentMethod(),
           type_index,
           *dex_compilation_unit_->GetDexFile(),
           IsOutermostCompilingClass(type_index),
-          dex_pc));
+          dex_pc,
+          !can_access));
       UpdateLocal(instruction.VRegA_21c(), current_block_->GetLastInstruction(), dex_pc);
       break;
     }
@@ -2827,18 +2828,14 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       uint8_t destination = instruction.VRegA_22c();
       uint8_t reference = instruction.VRegB_22c();
       uint16_t type_index = instruction.VRegC_22c();
-      if (!BuildTypeCheck(instruction, destination, reference, type_index, dex_pc)) {
-        return false;
-      }
+      BuildTypeCheck(instruction, destination, reference, type_index, dex_pc);
       break;
     }
 
     case Instruction::CHECK_CAST: {
       uint8_t reference = instruction.VRegA_21c();
       uint16_t type_index = instruction.VRegB_21c();
-      if (!BuildTypeCheck(instruction, -1, reference, type_index, dex_pc)) {
-        return false;
-      }
+      BuildTypeCheck(instruction, -1, reference, type_index, dex_pc);
       break;
     }
 

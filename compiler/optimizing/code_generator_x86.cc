@@ -4989,20 +4989,24 @@ void ParallelMoveResolverX86::RestoreScratch(int reg) {
 }
 
 void LocationsBuilderX86::VisitLoadClass(HLoadClass* cls) {
-  LocationSummary::CallKind call_kind = cls->CanCallRuntime()
-      ? LocationSummary::kCallOnSlowPath
-      : LocationSummary::kNoCall;
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(cls, call_kind);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetOut(Location::RequiresRegister());
+  InvokeRuntimeCallingConvention calling_convention;
+  CodeGenerator::CreateLoadClassLocationSummary(
+      cls,
+      Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
+      Location::RegisterLocation(EAX));
 }
 
 void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) {
   LocationSummary* locations = cls->GetLocations();
   Register out = locations->Out().AsRegister<Register>();
   Register current_method = locations->InAt(0).AsRegister<Register>();
-  if (cls->IsReferrersClass()) {
+  if (cls->NeedsAccessCheck()) {
+    codegen_->MoveConstant(locations->GetTemp(0), cls->GetTypeIndex());
+    codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pInitializeTypeAndVerifyAccess),
+                            cls,
+                            cls->GetDexPc(),
+                            nullptr);
+  } else if (cls->IsReferrersClass()) {
     DCHECK(!cls->CanCallRuntime());
     DCHECK(!cls->MustGenerateClinitCheck());
     __ movl(out, Address(current_method, ArtMethod::DeclaringClassOffset().Int32Value()));
@@ -5121,6 +5125,7 @@ void LocationsBuilderX86::VisitInstanceOf(HInstanceOf* instruction) {
     case TypeCheckKind::kArrayObjectCheck:
       call_kind = LocationSummary::kNoCall;
       break;
+    case TypeCheckKind::kUnresolvedCheck:
     case TypeCheckKind::kInterfaceCheck:
       call_kind = LocationSummary::kCall;
       break;
@@ -5161,10 +5166,11 @@ void InstructionCodeGeneratorX86::VisitInstanceOf(HInstanceOf* instruction) {
     __ j(kEqual, &zero);
   }
 
-  // In case of an interface check, we put the object class into the object register.
+  // In case of an interface/unresolved check, we put the object class into the object register.
   // This is safe, as the register is caller-save, and the object must be in another
   // register if it survives the runtime call.
-  Register target = (instruction->GetTypeCheckKind() == TypeCheckKind::kInterfaceCheck)
+  Register target = (instruction->GetTypeCheckKind() == TypeCheckKind::kInterfaceCheck) ||
+      (instruction->GetTypeCheckKind() == TypeCheckKind::kUnresolvedCheck)
       ? obj
       : out;
   __ movl(target, Address(obj, class_offset));
@@ -5273,7 +5279,7 @@ void InstructionCodeGeneratorX86::VisitInstanceOf(HInstanceOf* instruction) {
       }
       break;
     }
-
+    case TypeCheckKind::kUnresolvedCheck:
     case TypeCheckKind::kInterfaceCheck:
     default: {
       codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pInstanceofNonTrivial),
@@ -5315,6 +5321,7 @@ void LocationsBuilderX86::VisitCheckCast(HCheckCast* instruction) {
           : LocationSummary::kNoCall;
       break;
     case TypeCheckKind::kInterfaceCheck:
+    case TypeCheckKind::kUnresolvedCheck:
       call_kind = LocationSummary::kCall;
       break;
     case TypeCheckKind::kArrayCheck:
@@ -5441,6 +5448,7 @@ void InstructionCodeGeneratorX86::VisitCheckCast(HCheckCast* instruction) {
       __ j(kNotEqual, slow_path->GetEntryLabel());
       break;
     }
+    case TypeCheckKind::kUnresolvedCheck:
     case TypeCheckKind::kInterfaceCheck:
     default:
       codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pCheckCast),

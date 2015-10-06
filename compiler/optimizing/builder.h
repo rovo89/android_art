@@ -236,8 +236,7 @@ class HGraphBuilder : public ValueObject {
                               uint32_t dex_pc);
 
   // Builds a `HInstanceOf`, or a `HCheckCast` instruction.
-  // Returns whether we succeeded in building the instruction.
-  bool BuildTypeCheck(const Instruction& instruction,
+  void BuildTypeCheck(const Instruction& instruction,
                       uint8_t destination,
                       uint8_t reference,
                       uint16_t type_index,
