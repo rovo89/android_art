@@ -79,6 +79,7 @@
 #include "scoped_thread_state_change.h"
 #include "handle_scope-inl.h"
 #include "thread-inl.h"
+#include "trace.h"
 #include "utils.h"
 #include "utils/dex_cache_arrays_layout-inl.h"
 #include "verifier/method_verifier.h"
@@ -1299,6 +1300,9 @@ bool ClassLinker::ClassInClassTable(mirror::Class* klass) {
 }
 
 void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
+  // Acquire tracing_enabled before locking class linker lock to prevent lock order violation. Since
+  // enabling tracing requires the mutator lock, there are no race conditions here.
+  const bool tracing_enabled = Trace::IsTracingEnabled();
   Thread* const self = Thread::Current();
   WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
   BufferedRootVisitor<kDefaultBufferedRootCount> buffered_visitor(
@@ -1320,6 +1324,14 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
     // Need to make sure to not copy ArtMethods without doing read barriers since the roots are
     // marked concurrently and we don't hold the classlinker_classes_lock_ when we do the copy.
     boot_class_table_.VisitRoots(buffered_visitor);
+
+    // If tracing is enabled, then mark all the class loaders to prevent unloading.
+    if (tracing_enabled) {
+      for (const ClassLoaderData& data : class_loaders_) {
+        GcRoot<mirror::Object> root(GcRoot<mirror::Object>(self->DecodeJObject(data.weak_root)));
+        root.VisitRoot(visitor, RootInfo(kRootVMInternal));
+      }
+    }
   } else if ((flags & kVisitRootFlagNewRoots) != 0) {
     for (auto& root : new_class_roots_) {
       mirror::Class* old_ref = root.Read<kWithoutReadBarrier>();
