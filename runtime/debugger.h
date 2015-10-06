@@ -646,6 +646,7 @@ class Dbg {
   static void DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Visit breakpoint roots, used to prevent unloading of methods with breakpoints.
   static void VisitRoots(RootVisitor* visitor)
       SHARED_REQUIRES(Locks::mutator_lock_);
 

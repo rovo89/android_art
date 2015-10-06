@@ -612,7 +612,7 @@ void Dbg::Disconnected() {
         // Since we're going to disable deoptimization, we clear the deoptimization requests queue.
         // This prevents us from having any pending deoptimization request when the debugger attaches
         // to us again while no event has been requested yet.
-        MutexLock mu(Thread::Current(), *Locks::deoptimization_lock_);
+        MutexLock mu(self, *Locks::deoptimization_lock_);
         deoptimization_requests_.clear();
         full_deoptimization_event_count_ = 0U;
       }
@@ -5041,6 +5041,15 @@ ArtMethod* DeoptimizationRequest::Method() const {
 void DeoptimizationRequest::SetMethod(ArtMethod* m) {
   ScopedObjectAccessUnchecked soa(Thread::Current());
   method_ = soa.EncodeMethod(m);
+}
+
+void Dbg::VisitRoots(RootVisitor* visitor) {
+  // Visit breakpoint roots, used to prevent unloading of methods with breakpoints.
+  ReaderMutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
+  BufferedRootVisitor<128> root_visitor(visitor, RootInfo(kRootVMInternal));
+  for (Breakpoint& breakpoint : gBreakpoints) {
+    breakpoint.Method()->VisitRoots(root_visitor, sizeof(void*));
+  }
 }
 
 }  // namespace art
