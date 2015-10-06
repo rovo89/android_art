@@ -1058,4 +1058,9 @@ size_t Trace::GetBufferSize() {
   return the_trace_->buffer_size_;
 }
 
+bool Trace::IsTracingEnabled() {
+  MutexLock mu(Thread::Current(), *Locks::trace_lock_);
+  return the_trace_ != nullptr;
+}
+
 }  // namespace art
