@@ -965,7 +965,8 @@ class MonotonicValueRange : public ValueRange {
             suspend_check->GetEnvironment(), header);
       }
 
-      HArrayLength* new_array_length = new (graph->GetArena()) HArrayLength(array);
+      HArrayLength* new_array_length
+          = new (graph->GetArena()) HArrayLength(array, array->GetDexPc());
       deopt_block->InsertInstructionBefore(new_array_length, deopt_block->GetLastInstruction());
 
       if (loop_entry_test_block_added) {
