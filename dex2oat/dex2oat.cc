@@ -996,7 +996,7 @@ static int dex2oat(int argc, char** argv) {
   bool include_patch_information = CompilerOptions::kDefaultIncludePatchInformation;
   bool include_debug_symbols = kIsDebugBuild;
   bool dump_slow_timing = kIsDebugBuild;
-  bool watch_dog_enabled = true;
+  bool watch_dog_enabled = !kIsTargetBuild;
   bool generate_gdb_information = kIsDebugBuild;
 
   // Checks are all explicit until we know the architecture.
