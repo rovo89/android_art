@@ -1656,6 +1656,10 @@ class ReferenceTypeInfo : ValueObject {
     return GetTypeHandle()->IsObjectClass();
   }
 
+  bool IsStringClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
+    return IsValid() && GetTypeHandle()->IsStringClass();
+  }
+
   bool IsObjectArray() const SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(IsValid());
     return IsArrayClass() && GetTypeHandle()->GetComponentType()->IsObjectClass();
@@ -3034,11 +3038,7 @@ class HInvoke : public HInstruction {
  public:
   size_t InputCount() const OVERRIDE { return inputs_.size(); }
 
-  // Runtime needs to walk the stack, so Dex -> Dex calls need to
-  // know their environment.
-  bool NeedsEnvironment() const OVERRIDE {
-    return needs_environment_or_cache_ == kNeedsEnvironmentOrCache;
-  }
+  bool NeedsEnvironment() const OVERRIDE;
 
   void SetArgumentAt(size_t index, HInstruction* argument) {
     SetRawInputAt(index, argument);
@@ -3062,16 +3062,23 @@ class HInvoke : public HInstruction {
     return intrinsic_;
   }
 
-  void SetIntrinsic(Intrinsics intrinsic, IntrinsicNeedsEnvironmentOrCache needs_env_or_cache) {
-    intrinsic_ = intrinsic;
-    needs_environment_or_cache_ = needs_env_or_cache;
-  }
+  void SetIntrinsic(Intrinsics intrinsic, IntrinsicNeedsEnvironmentOrCache needs_env_or_cache);
 
   bool IsFromInlinedInvoke() const {
     return GetEnvironment()->GetParent() != nullptr;
   }
 
   bool CanThrow() const OVERRIDE { return true; }
+
+  uint32_t* GetIntrinsicOptimizations() {
+    return &intrinsic_optimizations_;
+  }
+
+  const uint32_t* GetIntrinsicOptimizations() const {
+    return &intrinsic_optimizations_;
+  }
+
+  bool IsIntrinsic() const { return intrinsic_ != Intrinsics::kNone; }
 
   DECLARE_INSTRUCTION(Invoke);
 
@@ -3092,7 +3099,7 @@ class HInvoke : public HInstruction {
       dex_method_index_(dex_method_index),
       original_invoke_type_(original_invoke_type),
       intrinsic_(Intrinsics::kNone),
-      needs_environment_or_cache_(kNeedsEnvironmentOrCache) {
+      intrinsic_optimizations_(0) {
   }
 
   const HUserRecord<HInstruction*> InputRecordAt(size_t index) const OVERRIDE {
@@ -3111,7 +3118,9 @@ class HInvoke : public HInstruction {
   const uint32_t dex_method_index_;
   const InvokeType original_invoke_type_;
   Intrinsics intrinsic_;
-  IntrinsicNeedsEnvironmentOrCache needs_environment_or_cache_;
+
+  // A magic word holding optimizations for intrinsics. See intrinsics.h.
+  uint32_t intrinsic_optimizations_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HInvoke);
@@ -3259,10 +3268,7 @@ class HInvokeStaticOrDirect : public HInvoke {
   MethodLoadKind GetMethodLoadKind() const { return dispatch_info_.method_load_kind; }
   CodePtrLocation GetCodePtrLocation() const { return dispatch_info_.code_ptr_location; }
   bool IsRecursive() const { return GetMethodLoadKind() == MethodLoadKind::kRecursive; }
-  bool NeedsDexCache() const OVERRIDE {
-    if (intrinsic_ != Intrinsics::kNone) { return needs_environment_or_cache_; }
-    return !IsRecursive() && !IsStringInit();
-  }
+  bool NeedsDexCache() const OVERRIDE;
   bool IsStringInit() const { return GetMethodLoadKind() == MethodLoadKind::kStringInit; }
   uint32_t GetCurrentMethodInputIndex() const { return GetNumberOfArguments(); }
   bool HasMethodAddress() const { return GetMethodLoadKind() == MethodLoadKind::kDirectAddress; }

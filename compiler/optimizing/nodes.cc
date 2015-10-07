@@ -21,6 +21,7 @@
 #include "base/bit_vector-inl.h"
 #include "base/bit_utils.h"
 #include "base/stl_util.h"
+#include "intrinsics.h"
 #include "mirror/class-inl.h"
 #include "scoped_thread_state_change.h"
 
@@ -1871,6 +1872,35 @@ bool HInstruction::HasAnyEnvironmentUseBefore(HInstruction* other) {
   // Just confirm this.
   DCHECK(current != nullptr);
   return false;
+}
+
+void HInvoke::SetIntrinsic(Intrinsics intrinsic,
+                           IntrinsicNeedsEnvironmentOrCache needs_env_or_cache) {
+  intrinsic_ = intrinsic;
+  IntrinsicOptimizations opt(this);
+  if (needs_env_or_cache == kNoEnvironmentOrCache) {
+    opt.SetDoesNotNeedDexCache();
+    opt.SetDoesNotNeedEnvironment();
+  }
+}
+
+bool HInvoke::NeedsEnvironment() const {
+  if (!IsIntrinsic()) {
+    return true;
+  }
+  IntrinsicOptimizations opt(*this);
+  return !opt.GetDoesNotNeedEnvironment();
+}
+
+bool HInvokeStaticOrDirect::NeedsDexCache() const {
+  if (IsRecursive() || IsStringInit()) {
+    return false;
+  }
+  if (!IsIntrinsic()) {
+    return true;
+  }
+  IntrinsicOptimizations opt(*this);
+  return !opt.GetDoesNotNeedDexCache();
 }
 
 void HInstruction::RemoveEnvironmentUsers() {
