@@ -31,6 +31,7 @@
 #include "base/arena_allocator.h"
 #include "base/arena_containers.h"
 #include "base/dumpable.h"
+#include "base/macros.h"
 #include "base/timing_logger.h"
 #include "boolean_simplifier.h"
 #include "bounds_check_elimination.h"
@@ -534,6 +535,7 @@ static ArrayRef<const uint8_t> AlignVectorSize(ArenaVector<uint8_t>& vector) {
   return ArrayRef<const uint8_t>(vector);
 }
 
+NO_INLINE  // Avoid increasing caller's frame size by large stack-allocated objects.
 static void AllocateRegisters(HGraph* graph,
                               CodeGenerator* codegen,
                               PassObserver* pass_observer) {
@@ -562,9 +564,6 @@ static ArenaVector<LinkerPatch> EmitAndSortLinkerPatches(CodeGenerator* codegen)
   return linker_patches;
 }
 
-// TODO: The function below uses too much stack space. Bug: 24698147
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wframe-larger-than="
 CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
                                                      CodeGenerator* codegen,
                                                      CompilerDriver* compiler_driver,
@@ -614,7 +613,6 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
   soa.Self()->TransitionFromSuspendedToRunnable();
   return compiled_method;
 }
-#pragma GCC diagnostic pop
 
 CompiledMethod* OptimizingCompiler::CompileBaseline(
     CodeGenerator* codegen,
