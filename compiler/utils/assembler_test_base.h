@@ -520,18 +520,19 @@ class AssemblerTestInfrastructure {
     return line;
   }
 
-  // For debug purposes.
-  void FindToolDump(std::string tool_name) {
-    // Find the current tool. Wild-card pattern is "arch-string*tool-name".
+  // Helper for below. If name_predicate is empty, search for all files, otherwise use it for the
+  // "-name" option.
+  static void FindToolDumpPrintout(std::string name_predicate, std::string tmp_file) {
     std::string gcc_path = GetRootPath() + GetGCCRootPath();
     std::vector<std::string> args;
     args.push_back("find");
     args.push_back(gcc_path);
-    args.push_back("-name");
-    args.push_back(architecture_string_ + "*" + tool_name);
+    if (!name_predicate.empty()) {
+      args.push_back("-name");
+      args.push_back(name_predicate);
+    }
     args.push_back("|");
     args.push_back("sort");
-    std::string tmp_file = GetTmpnam();
     args.push_back(">");
     args.push_back(tmp_file);
     std::string sh_args = Join(args, ' ');
@@ -547,10 +548,24 @@ class AssemblerTestInfrastructure {
       UNREACHABLE();
     }
 
+    LOG(ERROR) << "FindToolDump: gcc_path=" << gcc_path
+               << " cmd=" << sh_args;
     std::ifstream in(tmp_file.c_str());
     if (in) {
-      LOG(ERROR) << in.rdbuf();
+      std::string line;
+      while (std::getline(in, line)) {
+        LOG(ERROR) << line;
+      }
     }
+    in.close();
+    std::remove(tmp_file.c_str());
+  }
+
+  // For debug purposes.
+  void FindToolDump(std::string tool_name) {
+    // Check with the tool name.
+    FindToolDumpPrintout(architecture_string_ + "*" + tool_name, GetTmpnam());
+    FindToolDumpPrintout("", GetTmpnam());
   }
 
   // Use a consistent tmpnam, so store it.
