@@ -2789,6 +2789,48 @@ void ClassLinker::LookupClasses(const char* descriptor, std::vector<mirror::Clas
   VisitClassLoaders(&visitor);
 }
 
+bool ClassLinker::AttemptSupertypeVerification(Thread* self,
+                                               Handle<mirror::Class> klass,
+                                               Handle<mirror::Class> supertype) {
+  DCHECK(self != nullptr);
+  DCHECK(klass.Get() != nullptr);
+  DCHECK(supertype.Get() != nullptr);
+
+  StackHandleScope<1> hs(self);
+  // Acquire lock to prevent races on verifying the super class.
+  ObjectLock<mirror::Class> super_lock(self, supertype);
+
+  if (!supertype->IsVerified() && !supertype->IsErroneous()) {
+    VerifyClass(self, supertype);
+  }
+  if (supertype->IsCompileTimeVerified()) {
+    // Either we are verified or we soft failed and need to retry at runtime.
+    return true;
+  }
+  // If we got this far then we have a hard failure.
+  std::string error_msg =
+      StringPrintf("Rejecting class %s that attempts to sub-type erroneous class %s",
+                   PrettyDescriptor(klass.Get()).c_str(),
+                   PrettyDescriptor(supertype.Get()).c_str());
+  LOG(WARNING) << error_msg  << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
+  Handle<mirror::Throwable> cause(hs.NewHandle(self->GetException()));
+  if (cause.Get() != nullptr) {
+    // Set during VerifyClass call (if at all).
+    self->ClearException();
+  }
+  // Change into a verify error.
+  ThrowVerifyError(klass.Get(), "%s", error_msg.c_str());
+  if (cause.Get() != nullptr) {
+    self->GetException()->SetCause(cause.Get());
+  }
+  ClassReference ref(klass->GetDexCache()->GetDexFile(), klass->GetDexClassDefIndex());
+  if (Runtime::Current()->IsAotCompiler()) {
+    Runtime::Current()->GetCompilerCallbacks()->ClassRejected(ref);
+  }
+  mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
+  return false;
+}
+
 void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
   // TODO: assert that the monitor on the Class is held
   ObjectLock<mirror::Class> lock(self, klass);
@@ -2839,36 +2881,53 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
 
   // Verify super class.
   StackHandleScope<2> hs(self);
-  Handle<mirror::Class> super(hs.NewHandle(klass->GetSuperClass()));
-  if (super.Get() != nullptr) {
-    // Acquire lock to prevent races on verifying the super class.
-    ObjectLock<mirror::Class> super_lock(self, super);
+  MutableHandle<mirror::Class> supertype(hs.NewHandle(klass->GetSuperClass()));
+  // If we have a superclass and we get a hard verification failure we can return immediately.
+  if (supertype.Get() != nullptr && !AttemptSupertypeVerification(self, klass, supertype)) {
+    CHECK(self->IsExceptionPending()) << "Verification error should be pending.";
+    return;
+  }
 
-    if (!super->IsVerified() && !super->IsErroneous()) {
-      VerifyClass(self, super);
-    }
-    if (!super->IsCompileTimeVerified()) {
-      std::string error_msg(
-          StringPrintf("Rejecting class %s that attempts to sub-class erroneous class %s",
-                       PrettyDescriptor(klass.Get()).c_str(),
-                       PrettyDescriptor(super.Get()).c_str()));
-      LOG(WARNING) << error_msg  << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
-      Handle<mirror::Throwable> cause(hs.NewHandle(self->GetException()));
-      if (cause.Get() != nullptr) {
-        self->ClearException();
+  // Verify all default super-interfaces.
+  //
+  // (1) Don't bother if the superclass has already had a soft verification failure.
+  //
+  // (2) Interfaces shouldn't bother to do this recursive verification because they cannot cause
+  //     recursive initialization by themselves. This is because when an interface is initialized
+  //     directly it must not initialize its superinterfaces. We are allowed to verify regardless
+  //     but choose not to for an optimization. If the interfaces is being verified due to a class
+  //     initialization (which would need all the default interfaces to be verified) the class code
+  //     will trigger the recursive verification anyway.
+  if ((supertype.Get() == nullptr || supertype->IsVerified())  // See (1)
+      && !klass->IsInterface()) {                              // See (2)
+    int32_t iftable_count = klass->GetIfTableCount();
+    MutableHandle<mirror::Class> iface(hs.NewHandle<mirror::Class>(nullptr));
+    // Loop through all interfaces this class has defined. It doesn't matter the order.
+    for (int32_t i = 0; i < iftable_count; i++) {
+      iface.Assign(klass->GetIfTable()->GetInterface(i));
+      DCHECK(iface.Get() != nullptr);
+      // We only care if we have default interfaces and can skip if we are already verified...
+      if (LIKELY(!iface->HasDefaultMethods() || iface->IsVerified())) {
+        continue;
+      } else if (UNLIKELY(!AttemptSupertypeVerification(self, klass, iface))) {
+        // We had a hard failure while verifying this interface. Just return immediately.
+        CHECK(self->IsExceptionPending()) << "Verification error should be pending.";
+        return;
+      } else if (UNLIKELY(!iface->IsVerified())) {
+        // We softly failed to verify the iface. Stop checking and clean up.
+        // Put the iface into the supertype handle so we know what caused us to fail.
+        supertype.Assign(iface.Get());
+        break;
       }
-      ThrowVerifyError(klass.Get(), "%s", error_msg.c_str());
-      if (cause.Get() != nullptr) {
-        self->GetException()->SetCause(cause.Get());
-      }
-      ClassReference ref(klass->GetDexCache()->GetDexFile(), klass->GetDexClassDefIndex());
-      if (Runtime::Current()->IsAotCompiler()) {
-        Runtime::Current()->GetCompilerCallbacks()->ClassRejected(ref);
-      }
-      mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
-      return;
     }
   }
+
+  // At this point if verification failed, then supertype is the "first" supertype that failed
+  // verification (without a specific order). If verification succeeded, then supertype is either
+  // null or the original superclass of klass and is verified.
+  DCHECK(supertype.Get() == nullptr ||
+         supertype.Get() == klass->GetSuperClass() ||
+         !supertype->IsVerified());
 
   // Try to use verification information from the oat file, otherwise do runtime verification.
   const DexFile& dex_file = *klass->GetDexCache()->GetDexFile();
@@ -2901,14 +2960,14 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
     // Make sure all classes referenced by catch blocks are resolved.
     ResolveClassExceptionHandlerTypes(dex_file, klass);
     if (verifier_failure == verifier::MethodVerifier::kNoFailure) {
-      // Even though there were no verifier failures we need to respect whether the super-class
-      // was verified or requiring runtime reverification.
-      if (super.Get() == nullptr || super->IsVerified()) {
+      // Even though there were no verifier failures we need to respect whether the super-class and
+      // super-default-interfaces were verified or requiring runtime reverification.
+      if (supertype.Get() == nullptr || supertype->IsVerified()) {
         mirror::Class::SetStatus(klass, mirror::Class::kStatusVerified, self);
       } else {
-        CHECK_EQ(super->GetStatus(), mirror::Class::kStatusRetryVerificationAtRuntime);
+        CHECK_EQ(supertype->GetStatus(), mirror::Class::kStatusRetryVerificationAtRuntime);
         mirror::Class::SetStatus(klass, mirror::Class::kStatusRetryVerificationAtRuntime, self);
-        // Pretend a soft failure occured so that we don't consider the class verified below.
+        // Pretend a soft failure occurred so that we don't consider the class verified below.
         verifier_failure = verifier::MethodVerifier::kSoftFailure;
       }
     } else {
