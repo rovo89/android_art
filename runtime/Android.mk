@@ -203,7 +203,6 @@ LIBART_COMMON_SRC_FILES += \
   arch/x86/registers_x86.cc \
   arch/x86_64/registers_x86_64.cc \
   entrypoints/entrypoint_utils.cc \
-  entrypoints/interpreter/interpreter_entrypoints.cc \
   entrypoints/jni/jni_entrypoints.cc \
   entrypoints/math_entrypoints.cc \
   entrypoints/quick/quick_alloc_entrypoints.cc \
