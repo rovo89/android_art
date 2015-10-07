@@ -789,10 +789,13 @@ OatFile* ImageSpace::OpenOatFile(const char* image_path, std::string* error_msg)
 
   CHECK(image_header.GetOatDataBegin() != nullptr);
 
-  OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, image_header.GetOatDataBegin(),
+  OatFile* oat_file = OatFile::Open(oat_filename,
+                                    oat_filename,
+                                    image_header.GetOatDataBegin(),
                                     image_header.GetOatFileBegin(),
                                     !Runtime::Current()->IsAotCompiler(),
-                                    nullptr, error_msg);
+                                    nullptr,
+                                    error_msg);
   if (oat_file == nullptr) {
     *error_msg = StringPrintf("Failed to open oat file '%s' referenced from image %s: %s",
                               oat_filename.c_str(), GetName(), error_msg->c_str());
@@ -839,15 +842,13 @@ bool ImageSpace::ValidateOatFile(std::string* error_msg) const {
   return true;
 }
 
-
 const OatFile* ImageSpace::GetOatFile() const {
   return oat_file_non_owned_;
 }
 
-
-OatFile* ImageSpace::ReleaseOatFile() {
-  CHECK(oat_file_.get() != nullptr);
-  return oat_file_.release();
+std::unique_ptr<const OatFile> ImageSpace::ReleaseOatFile() {
+  CHECK(oat_file_ != nullptr);
+  return std::move(oat_file_);
 }
 
 void ImageSpace::Dump(std::ostream& os) const {

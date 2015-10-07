@@ -325,16 +325,9 @@ class ClassLinker {
       REQUIRES(!dex_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  const OatFile* RegisterOatFile(const OatFile* oat_file)
-      REQUIRES(!dex_lock_);
-
   const std::vector<const DexFile*>& GetBootClassPath() {
     return boot_class_path_;
   }
-
-  // Returns the first non-image oat file in the class path.
-  const OatFile* GetPrimaryOatFile()
-      REQUIRES(!dex_lock_);
 
   void VisitClasses(ClassVisitor* visitor)
       REQUIRES(!Locks::classlinker_classes_lock_)
@@ -363,26 +356,6 @@ class ClassLinker {
   void FixupDexCaches(ArtMethod* resolution_method)
       REQUIRES(!dex_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
-
-  // Finds or creates the oat file holding dex_location. Then loads and returns
-  // all corresponding dex files (there may be more than one dex file loaded
-  // in the case of multidex).
-  // This may return the original, unquickened dex files if the oat file could
-  // not be generated.
-  //
-  // Returns an empty vector if the dex files could not be loaded. In this
-  // case, there will be at least one error message returned describing why no
-  // dex files could not be loaded. The 'error_msgs' argument must not be
-  // null, regardless of whether there is an error or not.
-  //
-  // This method should not be called with the mutator_lock_ held, because it
-  // could end up starving GC if we need to generate or relocate any oat
-  // files.
-  std::vector<std::unique_ptr<const DexFile>> OpenDexFilesFromOat(
-      const char* dex_location,
-      const char* oat_location,
-      std::vector<std::string>* error_msgs)
-      REQUIRES(!dex_lock_, !Locks::mutator_lock_);
 
   // Allocate an instance of a java.lang.Object.
   mirror::Object* AllocObject(Thread* self)
@@ -581,10 +554,6 @@ class ClassLinker {
       REQUIRES(Locks::classlinker_classes_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  OatFile& GetImageOatFile(gc::space::ImageSpace* space)
-      REQUIRES(!dex_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
   void FinishInit(Thread* self)
   SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!dex_lock_, !Roles::uninterruptible_);
@@ -758,12 +727,6 @@ class ClassLinker {
     return dex_caches_;
   }
 
-  const OatFile* FindOpenedOatFileFromOatLocation(const std::string& oat_location)
-      REQUIRES(!dex_lock_);
-
-  // Returns the boot image oat file.
-  const OatFile* GetBootOatFile() SHARED_REQUIRES(dex_lock_);
-
   void CreateProxyConstructor(Handle<mirror::Class> klass, ArtMethod* out)
       SHARED_REQUIRES(Locks::mutator_lock_);
   void CreateProxyMethod(Handle<mirror::Class> klass, ArtMethod* prototype, ArtMethod* out)
@@ -813,9 +776,6 @@ class ClassLinker {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
 
-  // Check for duplicate class definitions of the given oat file against all open oat files.
-  bool HasCollisions(const OatFile* oat_file, std::string* error_msg) REQUIRES(!dex_lock_);
-
   bool HasInitWithString(Thread* self, const char* descriptor)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!dex_lock_);
 
@@ -834,7 +794,6 @@ class ClassLinker {
   // JNI weak globals to allow dex caches to get unloaded. We lazily delete weak globals when we
   // register new dex files.
   std::list<jweak> dex_caches_ GUARDED_BY(dex_lock_);
-  std::vector<const OatFile*> oat_files_ GUARDED_BY(dex_lock_);
 
   // This contains the class loaders which have class tables. It is populated by
   // InsertClassTableForClassLoader.
@@ -880,8 +839,8 @@ class ClassLinker {
   // Image pointer size.
   size_t image_pointer_size_;
 
+  friend class ImageDumper;  // for DexLock
   friend class ImageWriter;  // for GetClassRoots
-  friend class ImageDumper;  // for FindOpenedOatFileFromOatLocation
   friend class JniCompilerTest;  // for GetRuntimeQuickGenericJniStub
   friend class JniInternalTest;  // for GetRuntimeQuickGenericJniStub
   ART_FRIEND_TEST(mirror::DexCacheTest, Open);  // for AllocDexCache
