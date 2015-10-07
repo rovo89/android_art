@@ -1099,7 +1099,7 @@ void UnstartedRuntime::Invoke(Thread* self, const DexFile::CodeItem* code_item,
     (*iter->second)(self, shadow_frame, result, arg_offset);
   } else {
     // Not special, continue with regular interpreter execution.
-    artInterpreterToInterpreterBridge(self, code_item, shadow_frame, result);
+    ArtInterpreterToInterpreterBridge(self, code_item, shadow_frame, result);
   }
 }
 

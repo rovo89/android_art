@@ -106,19 +106,17 @@ static void UnimplementedEntryPoint() {
   UNIMPLEMENTED(FATAL);
 }
 
-void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
-                     QuickEntryPoints* qpoints);
+void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints);
 
 void Thread::InitTlsEntryPoints() {
   // Insert a placeholder so we can easily tell if we call an unimplemented entry point.
-  uintptr_t* begin = reinterpret_cast<uintptr_t*>(&tlsPtr_.interpreter_entrypoints);
+  uintptr_t* begin = reinterpret_cast<uintptr_t*>(&tlsPtr_.jni_entrypoints);
   uintptr_t* end = reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(&tlsPtr_.quick_entrypoints) +
       sizeof(tlsPtr_.quick_entrypoints));
   for (uintptr_t* it = begin; it != end; ++it) {
     *it = reinterpret_cast<uintptr_t>(UnimplementedEntryPoint);
   }
-  InitEntryPoints(&tlsPtr_.interpreter_entrypoints, &tlsPtr_.jni_entrypoints,
-                  &tlsPtr_.quick_entrypoints);
+  InitEntryPoints(&tlsPtr_.jni_entrypoints, &tlsPtr_.quick_entrypoints);
 }
 
 void Thread::InitStringEntryPoints() {
@@ -2366,15 +2364,6 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset) {
   DO_THREAD_OFFSET(TopHandleScopeOffset<ptr_size>(), "top_handle_scope")
   DO_THREAD_OFFSET(ThreadSuspendTriggerOffset<ptr_size>(), "suspend_trigger")
 #undef DO_THREAD_OFFSET
-
-#define INTERPRETER_ENTRY_POINT_INFO(x) \
-    if (INTERPRETER_ENTRYPOINT_OFFSET(ptr_size, x).Uint32Value() == offset) { \
-      os << #x; \
-      return; \
-    }
-  INTERPRETER_ENTRY_POINT_INFO(pInterpreterToInterpreterBridge)
-  INTERPRETER_ENTRY_POINT_INFO(pInterpreterToCompiledCodeBridge)
-#undef INTERPRETER_ENTRY_POINT_INFO
 
 #define JNI_ENTRY_POINT_INFO(x) \
     if (JNI_ENTRYPOINT_OFFSET(ptr_size, x).Uint32Value() == offset) { \

@@ -516,6 +516,39 @@ static inline bool NeedsInterpreter(Thread* self, ShadowFrame* new_shadow_frame)
         Dbg::IsForcedInterpreterNeededForCalling(self, target);
 }
 
+static void ArtInterpreterToCompiledCodeBridge(Thread* self,
+                                               const DexFile::CodeItem* code_item,
+                                               ShadowFrame* shadow_frame,
+                                               JValue* result)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  ArtMethod* method = shadow_frame->GetMethod();
+  // Ensure static methods are initialized.
+  if (method->IsStatic()) {
+    mirror::Class* declaringClass = method->GetDeclaringClass();
+    if (UNLIKELY(!declaringClass->IsInitialized())) {
+      self->PushShadowFrame(shadow_frame);
+      StackHandleScope<1> hs(self);
+      Handle<mirror::Class> h_class(hs.NewHandle(declaringClass));
+      if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(self, h_class, true,
+                                                                            true))) {
+        self->PopShadowFrame();
+        DCHECK(self->IsExceptionPending());
+        return;
+      }
+      self->PopShadowFrame();
+      CHECK(h_class->IsInitializing());
+      // Reload from shadow frame in case the method moved, this is faster than adding a handle.
+      method = shadow_frame->GetMethod();
+    }
+  }
+  uint16_t arg_offset = (code_item == nullptr)
+                            ? 0
+                            : code_item->registers_size_ - code_item->ins_size_;
+  method->Invoke(self, shadow_frame->GetVRegArgs(arg_offset),
+                 (shadow_frame->NumberOfVRegs() - arg_offset) * sizeof(uint32_t),
+                 result, method->GetInterfaceMethodIfProxy(sizeof(void*))->GetShorty());
+}
+
 template <bool is_range,
           bool do_assignability_check,
           size_t kVarArgMax>
@@ -690,9 +723,9 @@ static inline bool DoCallCommon(ArtMethod* called_method,
   // Do the call now.
   if (LIKELY(Runtime::Current()->IsStarted())) {
     if (NeedsInterpreter(self, new_shadow_frame)) {
-      artInterpreterToInterpreterBridge(self, code_item, new_shadow_frame, result);
+      ArtInterpreterToInterpreterBridge(self, code_item, new_shadow_frame, result);
     } else {
-      artInterpreterToCompiledCodeBridge(self, code_item, new_shadow_frame, result);
+      ArtInterpreterToCompiledCodeBridge(self, code_item, new_shadow_frame, result);
     }
   } else {
     UnstartedRuntime::Invoke(self, code_item, new_shadow_frame, result, first_dest_reg);

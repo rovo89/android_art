@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "entrypoints/interpreter/interpreter_entrypoints.h"
 #include "entrypoints/jni/jni_entrypoints.h"
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "entrypoints/quick/quick_default_externs.h"
@@ -47,12 +46,7 @@ extern "C" int __aeabi_idivmod(int32_t, int32_t);  // [DIV|REM]_INT[_2ADDR|_LIT8
 // Long long arithmetics - REM_LONG[_2ADDR] and DIV_LONG[_2ADDR]
 extern "C" int64_t __aeabi_ldivmod(int64_t, int64_t);
 
-void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
-                     QuickEntryPoints* qpoints) {
-  // Interpreter
-  ipoints->pInterpreterToInterpreterBridge = artInterpreterToInterpreterBridge;
-  ipoints->pInterpreterToCompiledCodeBridge = artInterpreterToCompiledCodeBridge;
-
+void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   // JNI
   jpoints->pDlsymLookup = art_jni_dlsym_lookup_stub;
 

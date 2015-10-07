@@ -1091,8 +1091,6 @@ size_t OatWriter::InitOatCode(size_t offset) {
       field.reset(compiler_driver_->Create ## fn_name()); \
       offset += field->size();
 
-    DO_TRAMPOLINE(interpreter_to_interpreter_bridge_, InterpreterToInterpreterBridge);
-    DO_TRAMPOLINE(interpreter_to_compiled_code_bridge_, InterpreterToCompiledCodeBridge);
     DO_TRAMPOLINE(jni_dlsym_lookup_, JniDlsymLookup);
     DO_TRAMPOLINE(quick_generic_jni_trampoline_, QuickGenericJniTrampoline);
     DO_TRAMPOLINE(quick_imt_conflict_trampoline_, QuickImtConflictTrampoline);
@@ -1350,8 +1348,6 @@ size_t OatWriter::WriteCode(OutputStream* out, const size_t file_offset, size_t 
         DCHECK_OFFSET(); \
       } while (false)
 
-    DO_TRAMPOLINE(interpreter_to_interpreter_bridge_);
-    DO_TRAMPOLINE(interpreter_to_compiled_code_bridge_);
     DO_TRAMPOLINE(jni_dlsym_lookup_);
     DO_TRAMPOLINE(quick_generic_jni_trampoline_);
     DO_TRAMPOLINE(quick_imt_conflict_trampoline_);

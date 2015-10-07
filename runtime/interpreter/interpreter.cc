@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include "interpreter_common.h"
+#include "interpreter.h"
 
 #include <limits>
 
+#include "interpreter_common.h"
 #include "mirror/string-inl.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
@@ -448,8 +449,8 @@ JValue EnterInterpreterFromEntryPoint(Thread* self, const DexFile::CodeItem* cod
   return Execute(self, code_item, *shadow_frame, JValue());
 }
 
-extern "C" void artInterpreterToInterpreterBridge(Thread* self, const DexFile::CodeItem* code_item,
-                                                  ShadowFrame* shadow_frame, JValue* result) {
+void ArtInterpreterToInterpreterBridge(Thread* self, const DexFile::CodeItem* code_item,
+                                       ShadowFrame* shadow_frame, JValue* result) {
   bool implicit_check = !Runtime::Current()->ExplicitStackOverflowChecks();
   if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEndForInterpreter(implicit_check))) {
     ThrowStackOverflowError(self);
