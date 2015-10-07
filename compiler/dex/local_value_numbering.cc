@@ -347,6 +347,10 @@ LocalValueNumbering::LocalValueNumbering(GlobalValueNumbering* gvn, uint16_t id,
   std::fill_n(unresolved_ifield_version_, arraysize(unresolved_ifield_version_), 0u);
 }
 
+LocalValueNumbering::~LocalValueNumbering() {
+  // All done by member destructors.
+}
+
 bool LocalValueNumbering::Equals(const LocalValueNumbering& other) const {
   DCHECK(gvn_ == other.gvn_);
   // Compare the maps/sets and memory versions.
