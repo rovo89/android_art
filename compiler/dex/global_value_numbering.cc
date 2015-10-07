@@ -41,13 +41,9 @@ GlobalValueNumbering::GlobalValueNumbering(CompilationUnit* cu, ScopedArenaAlloc
       merge_lvns_(allocator->Adapter()) {
 }
 
-// FIXME: Large frame size for x86_64 target. Bug: 24729377.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wframe-larger-than="
 GlobalValueNumbering::~GlobalValueNumbering() {
   STLDeleteElements(&lvns_);
 }
-#pragma GCC diagnostic pop
 
 LocalValueNumbering* GlobalValueNumbering::PrepareBasicBlock(BasicBlock* bb,
                                                              ScopedArenaAllocator* allocator) {
