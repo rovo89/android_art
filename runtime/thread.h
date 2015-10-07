@@ -30,7 +30,6 @@
 #include "atomic.h"
 #include "base/macros.h"
 #include "base/mutex.h"
-#include "entrypoints/interpreter/interpreter_entrypoints.h"
 #include "entrypoints/jni/jni_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "globals.h"
@@ -577,12 +576,6 @@ class Thread {
   static ThreadOffset<pointer_size> QuickEntryPointOffset(size_t quick_entrypoint_offset) {
     return ThreadOffsetFromTlsPtr<pointer_size>(
         OFFSETOF_MEMBER(tls_ptr_sized_values, quick_entrypoints) + quick_entrypoint_offset);
-  }
-
-  template<size_t pointer_size>
-  static ThreadOffset<pointer_size> InterpreterEntryPointOffset(size_t interp_entrypoint_offset) {
-    return ThreadOffsetFromTlsPtr<pointer_size>(
-        OFFSETOF_MEMBER(tls_ptr_sized_values, interpreter_entrypoints) + interp_entrypoint_offset);
   }
 
   template<size_t pointer_size>
@@ -1329,7 +1322,6 @@ class Thread {
 
     // Entrypoint function pointers.
     // TODO: move this to more of a global offset table model to avoid per-thread duplication.
-    InterpreterEntryPoints interpreter_entrypoints;
     JniEntryPoints jni_entrypoints;
     QuickEntryPoints quick_entrypoints;
 

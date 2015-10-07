@@ -114,7 +114,7 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
                         sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, last_no_thread_suspension_cause, checkpoint_functions,
                         sizeof(void*));
-    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, checkpoint_functions, interpreter_entrypoints,
+    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, checkpoint_functions, jni_entrypoints,
                         sizeof(void*) * 6);
 
     // Skip across the entrypoints structures.
@@ -135,15 +135,6 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, method_verifier, thread_local_mark_stack, sizeof(void*));
     EXPECT_OFFSET_DIFF(Thread, tlsPtr_.thread_local_mark_stack, Thread, wait_mutex_, sizeof(void*),
                        thread_tlsptr_end);
-  }
-
-  void CheckInterpreterEntryPoints() {
-    CHECKED(OFFSETOF_MEMBER(InterpreterEntryPoints, pInterpreterToInterpreterBridge) == 0,
-            InterpreterEntryPoints_start_with_i2i);
-    EXPECT_OFFSET_DIFFNP(InterpreterEntryPoints, pInterpreterToInterpreterBridge,
-                         pInterpreterToCompiledCodeBridge, sizeof(void*));
-    CHECKED(OFFSETOF_MEMBER(InterpreterEntryPoints, pInterpreterToCompiledCodeBridge)
-            + sizeof(void*) == sizeof(InterpreterEntryPoints), InterpreterEntryPoints_all);
   }
 
   void CheckJniEntryPoints() {
@@ -319,10 +310,6 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
 
 TEST_F(EntrypointsOrderTest, ThreadOffsets) {
   CheckThreadOffsets();
-}
-
-TEST_F(EntrypointsOrderTest, InterpreterEntryPoints) {
-  CheckInterpreterEntryPoints();
 }
 
 TEST_F(EntrypointsOrderTest, JniEntryPoints) {
