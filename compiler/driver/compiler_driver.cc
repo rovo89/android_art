@@ -456,14 +456,6 @@ CompilerDriver::~CompilerDriver() {
                                 type ## _ENTRYPOINT_OFFSET(4, offset)); \
     }
 
-const std::vector<uint8_t>* CompilerDriver::CreateInterpreterToInterpreterBridge() const {
-  CREATE_TRAMPOLINE(INTERPRETER, kInterpreterAbi, pInterpreterToInterpreterBridge)
-}
-
-const std::vector<uint8_t>* CompilerDriver::CreateInterpreterToCompiledCodeBridge() const {
-  CREATE_TRAMPOLINE(INTERPRETER, kInterpreterAbi, pInterpreterToCompiledCodeBridge)
-}
-
 const std::vector<uint8_t>* CompilerDriver::CreateJniDlsymLookup() const {
   CREATE_TRAMPOLINE(JNI, kJniAbi, pDlsymLookup)
 }

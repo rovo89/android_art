@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "entrypoints/interpreter/interpreter_entrypoints.h"
 #include "entrypoints/jni/jni_entrypoints.h"
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "entrypoints/quick/quick_default_externs.h"
@@ -30,12 +29,7 @@ namespace art {
 extern "C" uint32_t artIsAssignableFromCode(const mirror::Class* klass,
                                             const mirror::Class* ref_class);
 
-void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
-                     QuickEntryPoints* qpoints) {
-  // Interpreter
-  ipoints->pInterpreterToInterpreterBridge = artInterpreterToInterpreterBridge;
-  ipoints->pInterpreterToCompiledCodeBridge = artInterpreterToCompiledCodeBridge;
-
+void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   // JNI
   jpoints->pDlsymLookup = art_jni_dlsym_lookup_stub;
 

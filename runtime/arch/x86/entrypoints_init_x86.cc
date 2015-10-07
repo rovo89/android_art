@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "entrypoints/interpreter/interpreter_entrypoints.h"
 #include "entrypoints/jni/jni_entrypoints.h"
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "entrypoints/quick/quick_default_externs.h"
@@ -31,12 +30,7 @@ extern "C" uint32_t art_quick_is_assignable(const mirror::Class* klass,
 // Read barrier entrypoints.
 extern "C" mirror::Object* art_quick_read_barrier_slow(mirror::Object*, mirror::Object*, uint32_t);
 
-void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
-                     QuickEntryPoints* qpoints) {
-  // Interpreter
-  ipoints->pInterpreterToInterpreterBridge = artInterpreterToInterpreterBridge;
-  ipoints->pInterpreterToCompiledCodeBridge = artInterpreterToCompiledCodeBridge;
-
+void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   // JNI
   jpoints->pDlsymLookup = art_jni_dlsym_lookup_stub;
 
