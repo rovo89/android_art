@@ -1426,6 +1426,7 @@ void Runtime::VisitConcurrentRoots(RootVisitor* visitor, VisitRootFlags flags) {
     // Guaranteed to have no new roots in the constant roots.
     VisitConstantRoots(visitor);
   }
+  Dbg::VisitRoots(visitor);
 }
 
 void Runtime::VisitTransactionRoots(RootVisitor* visitor) {

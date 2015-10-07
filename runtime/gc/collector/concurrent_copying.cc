@@ -18,6 +18,7 @@
 
 #include "art_field-inl.h"
 #include "base/stl_util.h"
+#include "debugger.h"
 #include "gc/accounting/heap_bitmap-inl.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/reference_processor.h"
@@ -385,6 +386,10 @@ void ConcurrentCopying::MarkingPhase() {
     TimingLogger::ScopedTiming split5("VisitNonThreadRoots", GetTimings());
     Runtime::Current()->VisitNonThreadRoots(this);
   }
+  {
+    TimingLogger::ScopedTiming split6("Dbg::VisitRoots", GetTimings());
+    Dbg::VisitRoots(this);
+  }
   Runtime::Current()->GetHeap()->VisitAllocationRecords(this);
 
   // Immune spaces.
@@ -401,7 +406,7 @@ void ConcurrentCopying::MarkingPhase() {
 
   Thread* self = Thread::Current();
   {
-    TimingLogger::ScopedTiming split6("ProcessMarkStack", GetTimings());
+    TimingLogger::ScopedTiming split7("ProcessMarkStack", GetTimings());
     // We transition through three mark stack modes (thread-local, shared, GC-exclusive). The
     // primary reasons are the fact that we need to use a checkpoint to process thread-local mark
     // stacks, but after we disable weak refs accesses, we can't use a checkpoint due to a deadlock
