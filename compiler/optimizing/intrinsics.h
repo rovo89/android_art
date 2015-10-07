@@ -116,6 +116,59 @@ INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
   DISALLOW_COPY_AND_ASSIGN(IntrinsicVisitor);
 };
 
+#define GENERIC_OPTIMIZATION(name, bit)                \
+ public:                                               \
+  void Set##name() { SetBit(k##name); }                \
+  bool Get##name() const { return IsBitSet(k##name); } \
+ private:                                              \
+  static constexpr int k##name = bit
+
+class IntrinsicOptimizations : public ValueObject {
+ public:
+  IntrinsicOptimizations(HInvoke* invoke) : value_(invoke->GetIntrinsicOptimizations()) {}
+  IntrinsicOptimizations(const HInvoke& invoke) : value_(invoke.GetIntrinsicOptimizations()) {}
+
+  static constexpr int kNumberOfGenericOptimizations = 2;
+  GENERIC_OPTIMIZATION(DoesNotNeedDexCache, 0);
+  GENERIC_OPTIMIZATION(DoesNotNeedEnvironment, 1);
+
+ protected:
+  bool IsBitSet(uint32_t bit) const {
+    return (*value_ & (1 << bit)) != 0u;
+  }
+
+  void SetBit(uint32_t bit) {
+    *(const_cast<uint32_t*>(value_)) |= (1 << bit);
+  }
+
+ private:
+  const uint32_t *value_;
+
+  DISALLOW_COPY_AND_ASSIGN(IntrinsicOptimizations);
+};
+
+#undef GENERIC_OPTIMIZATION
+
+#define INTRINSIC_OPTIMIZATION(name, bit)                             \
+ public:                                                              \
+  void Set##name() { SetBit(k##name); }                               \
+  bool Get##name() const { return IsBitSet(k##name); }                \
+ private:                                                             \
+  static constexpr int k##name = bit + kNumberOfGenericOptimizations
+
+class StringEqualsOptimizations : public IntrinsicOptimizations {
+ public:
+  StringEqualsOptimizations(HInvoke* invoke) : IntrinsicOptimizations(invoke) {}
+
+  INTRINSIC_OPTIMIZATION(ArgumentNotNull, 0);
+  INTRINSIC_OPTIMIZATION(ArgumentIsString, 1);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(StringEqualsOptimizations);
+};
+
+#undef INTRISIC_OPTIMIZATION
+
 }  // namespace art
 
 #endif  // ART_COMPILER_OPTIMIZING_INTRINSICS_H_
