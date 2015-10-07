@@ -1054,17 +1054,22 @@ void IntrinsicCodeGeneratorX86::VisitStringEquals(HInvoke* invoke) {
   // Note that the null check must have been done earlier.
   DCHECK(!invoke->CanDoImplicitNullCheckOn(invoke->InputAt(0)));
 
-  // Check if input is null, return false if it is.
-  __ testl(arg, arg);
-  __ j(kEqual, &return_false);
+  StringEqualsOptimizations optimizations(invoke);
+  if (!optimizations.GetArgumentNotNull()) {
+    // Check if input is null, return false if it is.
+    __ testl(arg, arg);
+    __ j(kEqual, &return_false);
+  }
 
   // Instanceof check for the argument by comparing class fields.
   // All string objects must have the same type since String cannot be subclassed.
   // Receiver must be a string object, so its class field is equal to all strings' class fields.
   // If the argument is a string object, its class field must be equal to receiver's class field.
-  __ movl(ecx, Address(str, class_offset));
-  __ cmpl(ecx, Address(arg, class_offset));
-  __ j(kNotEqual, &return_false);
+  if (!optimizations.GetArgumentIsString()) {
+    __ movl(ecx, Address(str, class_offset));
+    __ cmpl(ecx, Address(arg, class_offset));
+    __ j(kNotEqual, &return_false);
+  }
 
   // Reference equality check, return true if same reference.
   __ cmpl(str, arg);
