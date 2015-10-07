@@ -1305,9 +1305,6 @@ void MIRGraph::DoCacheFieldLoweringInfo() {
   }
 }
 
-// FIXME: Large frame size for x86_64 target. Bug: 24729377.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wframe-larger-than="
 void MIRGraph::DoCacheMethodLoweringInfo() {
   static constexpr uint16_t invoke_types[] = { kVirtual, kSuper, kDirect, kStatic, kInterface };
   static constexpr uint32_t kMethodIdxFlagQuickened = 0x80000000;
@@ -1432,7 +1429,6 @@ void MIRGraph::DoCacheMethodLoweringInfo() {
   MirMethodLoweringInfo::Resolve(cu_->compiler_driver, GetCurrentDexCompilationUnit(),
                                  method_lowering_infos_.data(), count);
 }
-#pragma GCC diagnostic pop
 
 bool MIRGraph::SkipCompilationByName(const std::string& methodname) {
   return cu_->compiler_driver->SkipCompilation(methodname);
