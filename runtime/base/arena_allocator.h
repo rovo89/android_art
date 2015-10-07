@@ -180,20 +180,25 @@ class ArenaAllocatorMemoryTool : private ArenaAllocatorMemoryToolCheck {
   using ArenaAllocatorMemoryToolCheck::IsRunningOnMemoryTool;
 
   void MakeDefined(void* ptr, size_t size) {
-    if (IsRunningOnMemoryTool()) {
-      MEMORY_TOOL_MAKE_DEFINED(ptr, size);
+    if (UNLIKELY(IsRunningOnMemoryTool())) {
+      DoMakeDefined(ptr, size);
     }
   }
   void MakeUndefined(void* ptr, size_t size) {
-    if (IsRunningOnMemoryTool()) {
-      MEMORY_TOOL_MAKE_UNDEFINED(ptr, size);
+    if (UNLIKELY(IsRunningOnMemoryTool())) {
+      DoMakeUndefined(ptr, size);
     }
   }
   void MakeInaccessible(void* ptr, size_t size) {
-    if (IsRunningOnMemoryTool()) {
-      MEMORY_TOOL_MAKE_NOACCESS(ptr, size);
+    if (UNLIKELY(IsRunningOnMemoryTool())) {
+      DoMakeInaccessible(ptr, size);
     }
   }
+
+ private:
+  void DoMakeDefined(void* ptr, size_t size);
+  void DoMakeUndefined(void* ptr, size_t size);
+  void DoMakeInaccessible(void* ptr, size_t size);
 };
 
 class Arena {

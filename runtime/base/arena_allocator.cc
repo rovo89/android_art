@@ -156,6 +156,18 @@ void ArenaAllocatorStatsImpl<kCount>::Dump(std::ostream& os, const Arena* first,
 // Explicitly instantiate the used implementation.
 template class ArenaAllocatorStatsImpl<kArenaAllocatorCountAllocations>;
 
+void ArenaAllocatorMemoryTool::DoMakeDefined(void* ptr, size_t size) {
+  MEMORY_TOOL_MAKE_DEFINED(ptr, size);
+}
+
+void ArenaAllocatorMemoryTool::DoMakeUndefined(void* ptr, size_t size) {
+  MEMORY_TOOL_MAKE_UNDEFINED(ptr, size);
+}
+
+void ArenaAllocatorMemoryTool::DoMakeInaccessible(void* ptr, size_t size) {
+  MEMORY_TOOL_MAKE_NOACCESS(ptr, size);
+}
+
 Arena::Arena() : bytes_allocated_(0), next_(nullptr) {
 }
 
