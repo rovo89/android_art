@@ -242,6 +242,12 @@ static bool TypeCheckHasKnownOutcome(HLoadClass* klass, HInstruction* object, bo
 
 void InstructionSimplifierVisitor::VisitCheckCast(HCheckCast* check_cast) {
   HInstruction* object = check_cast->InputAt(0);
+  HLoadClass* load_class = check_cast->InputAt(1)->AsLoadClass();
+  if (load_class->NeedsAccessCheck()) {
+    // If we need to perform an access check we cannot remove the instruction.
+    return;
+  }
+
   if (CanEnsureNotNullAt(object, check_cast)) {
     check_cast->ClearMustDoNullCheck();
   }
@@ -255,7 +261,6 @@ void InstructionSimplifierVisitor::VisitCheckCast(HCheckCast* check_cast) {
   }
 
   bool outcome;
-  HLoadClass* load_class = check_cast->InputAt(1)->AsLoadClass();
   if (TypeCheckHasKnownOutcome(load_class, object, &outcome)) {
     if (outcome) {
       check_cast->GetBlock()->RemoveInstruction(check_cast);
@@ -277,6 +282,12 @@ void InstructionSimplifierVisitor::VisitCheckCast(HCheckCast* check_cast) {
 
 void InstructionSimplifierVisitor::VisitInstanceOf(HInstanceOf* instruction) {
   HInstruction* object = instruction->InputAt(0);
+  HLoadClass* load_class = instruction->InputAt(1)->AsLoadClass();
+  if (load_class->NeedsAccessCheck()) {
+    // If we need to perform an access check we cannot remove the instruction.
+    return;
+  }
+
   bool can_be_null = true;
   if (CanEnsureNotNullAt(object, instruction)) {
     can_be_null = false;
@@ -292,7 +303,6 @@ void InstructionSimplifierVisitor::VisitInstanceOf(HInstanceOf* instruction) {
   }
 
   bool outcome;
-  HLoadClass* load_class = instruction->InputAt(1)->AsLoadClass();
   if (TypeCheckHasKnownOutcome(load_class, object, &outcome)) {
     if (outcome && can_be_null) {
       // Type test will succeed, we just need a null test.
