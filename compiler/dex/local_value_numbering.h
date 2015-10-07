@@ -37,7 +37,6 @@ class LocalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
 
  public:
   LocalValueNumbering(GlobalValueNumbering* gvn, BasicBlockId id, ScopedArenaAllocator* allocator);
-  ~LocalValueNumbering();
 
   BasicBlockId Id() const {
     return id_;
