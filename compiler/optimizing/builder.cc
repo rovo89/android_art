@@ -1302,7 +1302,13 @@ bool HGraphBuilder::IsOutermostCompilingClass(uint16_t type_index) const {
       soa, dex_cache, class_loader, type_index, dex_compilation_unit_)));
   Handle<mirror::Class> outer_class(hs.NewHandle(GetOutermostCompilingClass()));
 
-  return outer_class.Get() == cls.Get();
+  // GetOutermostCompilingClass returns null when the class is unresolved
+  // (e.g. if it derives from an unresolved class). This is bogus knowing that
+  // we are compiling it.
+  // When this happens we cannot establish a direct relation between the current
+  // class and the outer class, so we return false.
+  // (Note that this is only used for optimizing invokes and field accesses)
+  return (cls.Get() != nullptr) && (outer_class.Get() == cls.Get());
 }
 
 void HGraphBuilder::BuildUnresolvedStaticFieldAccess(const Instruction& instruction,
