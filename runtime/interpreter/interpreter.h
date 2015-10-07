@@ -45,16 +45,11 @@ extern JValue EnterInterpreterFromEntryPoint(Thread* self, const DexFile::CodeIt
                                              ShadowFrame* shadow_frame)
     SHARED_REQUIRES(Locks::mutator_lock_);
 
+void ArtInterpreterToInterpreterBridge(Thread* self, const DexFile::CodeItem* code_item,
+                                       ShadowFrame* shadow_frame, JValue* result)
+    SHARED_REQUIRES(Locks::mutator_lock_);
 
 }  // namespace interpreter
-
-extern "C" void artInterpreterToInterpreterBridge(Thread* self, const DexFile::CodeItem* code_item,
-                                                  ShadowFrame* shadow_frame, JValue* result)
-    SHARED_REQUIRES(Locks::mutator_lock_);
-
-extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, const DexFile::CodeItem* code_item,
-                                                   ShadowFrame* shadow_frame, JValue* result)
-    SHARED_REQUIRES(Locks::mutator_lock_);
 
 }  // namespace art
 

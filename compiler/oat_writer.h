@@ -285,8 +285,6 @@ class OatWriter {
   OatHeader* oat_header_;
   std::vector<OatDexFile*> oat_dex_files_;
   std::vector<OatClass*> oat_classes_;
-  std::unique_ptr<const std::vector<uint8_t>> interpreter_to_interpreter_bridge_;
-  std::unique_ptr<const std::vector<uint8_t>> interpreter_to_compiled_code_bridge_;
   std::unique_ptr<const std::vector<uint8_t>> jni_dlsym_lookup_;
   std::unique_ptr<const std::vector<uint8_t>> quick_generic_jni_trampoline_;
   std::unique_ptr<const std::vector<uint8_t>> quick_imt_conflict_trampoline_;

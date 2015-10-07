@@ -155,10 +155,6 @@ class CompilerDriver {
   }
 
   // Generate the trampolines that are invoked by unresolved direct methods.
-  const std::vector<uint8_t>* CreateInterpreterToInterpreterBridge() const
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  const std::vector<uint8_t>* CreateInterpreterToCompiledCodeBridge() const
-      SHARED_REQUIRES(Locks::mutator_lock_);
   const std::vector<uint8_t>* CreateJniDlsymLookup() const
       SHARED_REQUIRES(Locks::mutator_lock_);
   const std::vector<uint8_t>* CreateQuickGenericJniTrampoline() const

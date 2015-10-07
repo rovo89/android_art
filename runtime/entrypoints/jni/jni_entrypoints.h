@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_ENTRYPOINTS_JNI_JNI_ENTRYPOINTS_H_
 #define ART_RUNTIME_ENTRYPOINTS_JNI_JNI_ENTRYPOINTS_H_
 
+#include "jni.h"
+
 #include "base/macros.h"
 #include "offsets.h"
 
