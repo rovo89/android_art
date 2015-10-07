@@ -19,7 +19,9 @@ if [ ! -d art ]; then
   exit 1
 fi
 
-common_targets="vogar vogar.jar core-tests apache-harmony-jdwp-tests-hostdex jsr166-tests"
+out_dir=${OUT_DIR-out}
+java_libraries_dir=${out_dir}/target/common/obj/JAVA_LIBRARIES
+common_targets="vogar vogar.jar ${java_libraries_dir}/core-tests_intermediates/javalib.jar apache-harmony-jdwp-tests-hostdex ${java_libraries_dir}/jsr166-tests_intermediates/javalib.jar"
 mode="target"
 j_arg="-j$(nproc)"
 showcommands=
@@ -44,9 +46,9 @@ while true; do
 done
 
 if [[ $mode == "host" ]]; then
-  make_command="make $j_arg $showcommands build-art-host-tests $common_targets out/host/linux-x86/lib/libjavacoretests.so out/host/linux-x86/lib64/libjavacoretests.so"
+  make_command="make $j_arg $showcommands build-art-host-tests $common_targets ${out_dir}/host/linux-x86/lib/libjavacoretests.so ${out_dir}/host/linux-x86/lib64/libjavacoretests.so"
 elif [[ $mode == "target" ]]; then
-  make_command="make $j_arg $showcommands build-art-target-tests $common_targets libjavacrypto libjavacoretests linker toybox toolbox sh out/host/linux-x86/bin/adb"
+  make_command="make $j_arg $showcommands build-art-target-tests $common_targets libjavacrypto libjavacoretests linker toybox toolbox sh ${out_dir}/host/linux-x86/bin/adb"
 fi
 
 echo "Executing $make_command"
