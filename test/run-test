@@ -637,18 +637,24 @@ if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]]; then
   # on a particular DEX output, keep building them with dx for now (b/19467889).
   USE_JACK="false"
 
-  if [ "$runtime" = "art" -a "$image_suffix" = "-optimizing" -a "$debuggable" = "no" ]; then
+  if [ "$runtime" = "art" -a "$image_suffix" = "-optimizing" ]; then
     # In no-prebuild mode, the compiler is only invoked if both dex2oat and
     # patchoat are available. Disable Checker otherwise (b/22552692).
     if [ "$prebuild_mode" = "yes" ] || [ "$have_patchoat" = "yes" -a "$have_dex2oat" = "yes" ]; then
       run_checker="yes"
+
       if [ "$target_mode" = "no" ]; then
         cfg_output_dir="$tmp_dir"
-        checker_arch_option="--arch=${host_arch_name^^}"
+        checker_args="--arch=${host_arch_name^^}"
       else
         cfg_output_dir="$DEX_LOCATION"
-        checker_arch_option="--arch=${target_arch_name^^}"
+        checker_args="--arch=${target_arch_name^^}"
       fi
+
+      if [ "$debuggable" = "yes" ]; then
+        checker_args="$checker_args --debuggable"
+      fi
+
       run_args="${run_args} -Xcompiler-option --dump-cfg=$cfg_output_dir/$cfg_output \
                             -Xcompiler-option -j1"
     fi
@@ -702,7 +708,7 @@ if [ "$dev_mode" = "yes" ]; then
                 if [ "$target_mode" = "yes" ]; then
                   adb pull $cfg_output_dir/$cfg_output &> /dev/null
                 fi
-                "$checker" $checker_arch_option "$cfg_output" "$tmp_dir" 2>&1
+                "$checker" $checker_args "$cfg_output" "$tmp_dir" 2>&1
                 checker_exit="$?"
                 if [ "$checker_exit" = "0" ]; then
                     good="yes"
@@ -727,7 +733,7 @@ elif [ "$update_mode" = "yes" ]; then
           if [ "$target_mode" = "yes" ]; then
             adb pull $cfg_output_dir/$cfg_output &> /dev/null
           fi
-          "$checker" -q $checker_arch_option "$cfg_output" "$tmp_dir" >> "$output" 2>&1
+          "$checker" -q $checker_args "$cfg_output" "$tmp_dir" >> "$output" 2>&1
         fi
         sed -e 's/[[:cntrl:]]$//g' < "$output" >"${td_expected}"
         good="yes"
@@ -768,7 +774,7 @@ else
             if [ "$target_mode" = "yes" ]; then
               adb pull $cfg_output_dir/$cfg_output &> /dev/null
             fi
-            "$checker" -q $checker_arch_option "$cfg_output" "$tmp_dir" >> "$output" 2>&1
+            "$checker" -q $checker_args "$cfg_output" "$tmp_dir" >> "$output" 2>&1
             checker_exit="$?"
             if [ "$checker_exit" != "0" ]; then
                 echo "checker exit status: $checker_exit" 1>&2

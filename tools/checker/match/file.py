@@ -159,10 +159,13 @@ def MatchTestCase(testCase, c1Pass):
     matchFrom = match.scope.end + 1
     variables = match.variables
 
-def MatchFiles(checkerFile, c1File, targetArch):
+def MatchFiles(checkerFile, c1File, targetArch, debuggableMode):
   for testCase in checkerFile.testCases:
     if testCase.testArch not in [None, targetArch]:
       continue
+    if testCase.forDebuggable != debuggableMode:
+      continue
+
     # TODO: Currently does not handle multiple occurrences of the same group
     # name, e.g. when a pass is run multiple times. It will always try to
     # match a check group against the first output group of the same name.
