@@ -290,7 +290,7 @@ class CheckerParser_FileLayoutTest(unittest.TestCase):
           /// CHECK-NEXT: bar
         """)
 
-class CheckerParser_ArchTests(unittest.TestCase):
+class CheckerParser_SuffixTests(unittest.TestCase):
 
   noarch_block = """
                   /// CHECK-START: Group
@@ -308,11 +308,12 @@ class CheckerParser_ArchTests(unittest.TestCase):
                   /// CHECK-DAG:   yoyo
                 """
 
+  def parse(self, checkerText):
+    return ParseCheckerStream("<test_file>", "CHECK", io.StringIO(ToUnicode(checkerText)))
+
   def test_NonArchTests(self):
     for arch in [None] + archs_list:
-      checkerFile = ParseCheckerStream("<test-file>",
-                                       "CHECK",
-                                       io.StringIO(ToUnicode(self.noarch_block)))
+      checkerFile = self.parse(self.noarch_block)
       self.assertEqual(len(checkerFile.testCases), 1)
       self.assertEqual(len(checkerFile.testCases[0].assertions), 4)
 
@@ -320,9 +321,7 @@ class CheckerParser_ArchTests(unittest.TestCase):
     for targetArch in archs_list:
       for testArch in [a for a in archs_list if a != targetArch]:
         checkerText = self.arch_block.format(test_arch = testArch)
-        checkerFile = ParseCheckerStream("<test-file>",
-                                         "CHECK",
-                                         io.StringIO(ToUnicode(checkerText)))
+        checkerFile = self.parse(checkerText)
         self.assertEqual(len(checkerFile.testCases), 1)
         self.assertEqual(len(checkerFile.testCasesForArch(testArch)), 1)
         self.assertEqual(len(checkerFile.testCasesForArch(targetArch)), 0)
@@ -330,13 +329,42 @@ class CheckerParser_ArchTests(unittest.TestCase):
   def test_Arch(self):
     for arch in archs_list:
       checkerText = self.arch_block.format(test_arch = arch)
-      checkerFile = ParseCheckerStream("<test-file>",
-                                       "CHECK",
-                                       io.StringIO(ToUnicode(checkerText)))
+      checkerFile = self.parse(checkerText)
       self.assertEqual(len(checkerFile.testCases), 1)
       self.assertEqual(len(checkerFile.testCasesForArch(arch)), 1)
       self.assertEqual(len(checkerFile.testCases[0].assertions), 4)
 
+  def test_NoDebugAndArch(self):
+    testCase = self.parse("""
+        /// CHECK-START: Group
+        /// CHECK: foo
+        """).testCases[0]
+    self.assertFalse(testCase.forDebuggable)
+    self.assertEqual(testCase.testArch, None)
+
+  def test_SetDebugNoArch(self):
+    testCase = self.parse("""
+        /// CHECK-START-DEBUGGABLE: Group
+        /// CHECK: foo
+        """).testCases[0]
+    self.assertTrue(testCase.forDebuggable)
+    self.assertEqual(testCase.testArch, None)
+
+  def test_NoDebugSetArch(self):
+    testCase = self.parse("""
+        /// CHECK-START-ARM: Group
+        /// CHECK: foo
+        """).testCases[0]
+    self.assertFalse(testCase.forDebuggable)
+    self.assertEqual(testCase.testArch, "ARM")
+
+  def test_SetDebugAndArch(self):
+    testCase = self.parse("""
+        /// CHECK-START-ARM-DEBUGGABLE: Group
+        /// CHECK: foo
+        """).testCases[0]
+    self.assertTrue(testCase.forDebuggable)
+    self.assertEqual(testCase.testArch, "ARM")
 
 class CheckerParser_EvalTests(unittest.TestCase):
   def parseTestCase(self, string):
