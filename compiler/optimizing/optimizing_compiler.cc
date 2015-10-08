@@ -711,9 +711,6 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
       &arena, dex_file, method_idx, requires_barrier, compiler_driver->GetInstructionSet(),
       kInvalidInvokeType, compiler_driver->GetCompilerOptions().GetDebuggable());
 
-  // For testing purposes, we put a special marker on method names that should be compiled
-  // with this compiler. This makes sure we're not regressing.
-  bool shouldCompile = method_name.find("$opt$") != std::string::npos;
   bool shouldOptimize = method_name.find("$opt$reg$") != std::string::npos && run_optimizations_;
 
   std::unique_ptr<CodeGenerator> codegen(
@@ -722,7 +719,6 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
                             *compiler_driver->GetInstructionSetFeatures(),
                             compiler_driver->GetCompilerOptions()));
   if (codegen.get() == nullptr) {
-    CHECK(!shouldCompile) << "Could not find code generator for optimizing compiler";
     MaybeRecordStat(MethodCompilationStat::kNotCompiledNoCodegen);
     return nullptr;
   }
@@ -763,8 +759,6 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   {
     PassScope scope(HGraphBuilder::kBuilderPassName, &pass_observer);
     if (!builder.BuildGraph(*code_item)) {
-      DCHECK(!(IsCompilingWithCoreImage() && shouldCompile))
-          << "Could not build graph in optimizing compiler";
       pass_observer.SetGraphInBadState();
       return nullptr;
     }
@@ -855,6 +849,14 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     } else {
       MaybeRecordStat(MethodCompilationStat::kNotCompiledClassNotVerified);
     }
+  }
+
+  if (kIsDebugBuild && IsCompilingWithCoreImage()) {
+    // For testing purposes, we put a special marker on method names that should be compiled
+    // with this compiler. This makes sure we're not regressing.
+    std::string method_name = PrettyMethod(method_idx, dex_file);
+    bool shouldCompile = method_name.find("$opt$") != std::string::npos;
+    DCHECK((method != nullptr) || !shouldCompile) << "Didn't compile " << method_name;
   }
 
   return method;
