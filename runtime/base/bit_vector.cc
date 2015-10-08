@@ -312,10 +312,6 @@ void BitVector::Copy(const BitVector *src) {
   }
 }
 
-#if defined(__clang__) && defined(__ARM_64BIT_STATE)
-// b/19180814 When POPCOUNT is inlined, boot up failed on arm64 devices.
-__attribute__((optnone))
-#endif
 uint32_t BitVector::NumSetBits(const uint32_t* storage, uint32_t end) {
   uint32_t word_end = WordIndex(end);
   uint32_t partial_word_bits = end & 0x1f;
