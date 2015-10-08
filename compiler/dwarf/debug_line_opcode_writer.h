@@ -30,8 +30,10 @@ namespace dwarf {
 //  * Choose the most compact encoding of a given opcode.
 //  * Keep track of current state and convert absolute values to deltas.
 //  * Divide by header-defined factors as appropriate.
-template<typename Allocator = std::allocator<uint8_t>>
-class DebugLineOpCodeWriter FINAL : private Writer<Allocator> {
+template<typename Vector = std::vector<uint8_t>>
+class DebugLineOpCodeWriter FINAL : private Writer<Vector> {
+  static_assert(std::is_same<typename Vector::value_type, uint8_t>::value, "Invalid value type");
+
  public:
   static constexpr int kOpcodeBase = 13;
   static constexpr bool kDefaultIsStmt = true;
@@ -212,12 +214,13 @@ class DebugLineOpCodeWriter FINAL : private Writer<Allocator> {
     return patch_locations_;
   }
 
-  using Writer<Allocator>::data;
+  using Writer<Vector>::data;
 
   DebugLineOpCodeWriter(bool use64bitAddress,
                         int codeFactorBits,
-                        const Allocator& alloc = Allocator())
-      : Writer<Allocator>(&opcodes_),
+                        const typename Vector::allocator_type& alloc =
+                            typename Vector::allocator_type())
+      : Writer<Vector>(&opcodes_),
         opcodes_(alloc),
         uses_dwarf3_features_(false),
         use_64bit_address_(use64bitAddress),
@@ -234,7 +237,7 @@ class DebugLineOpCodeWriter FINAL : private Writer<Allocator> {
     return offset >> code_factor_bits_;
   }
 
-  std::vector<uint8_t, Allocator> opcodes_;
+  Vector opcodes_;
   bool uses_dwarf3_features_;
   bool use_64bit_address_;
   int code_factor_bits_;
