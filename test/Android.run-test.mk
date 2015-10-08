@@ -470,6 +470,7 @@ TEST_ART_BROKEN_OPTIMIZING_MIPS_RUN_TESTS := \
     532-checker-nonnull-arrayset \
     534-checker-bce-deoptimization \
     536-checker-intrinsic-optimization \
+    537-checker-debuggable \
 
 ifeq (mips,$(TARGET_ARCH))
   ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
