@@ -22,7 +22,7 @@ import re
 def __isCheckerLine(line):
   return line.startswith("///") or line.startswith("##")
 
-def __extractLine(prefix, line, arch = None):
+def __extractLine(prefix, line, arch = None, debuggable = False):
   """ Attempts to parse a check line. The regex searches for a comment symbol
       followed by the CHECK keyword, given attribute and a colon at the very
       beginning of the line. Whitespaces are ignored.
@@ -30,10 +30,11 @@ def __extractLine(prefix, line, arch = None):
   rIgnoreWhitespace = r"\s*"
   rCommentSymbols = [r"///", r"##"]
   arch_specifier = r"-%s" % arch if arch is not None else r""
+  dbg_specifier = r"-DEBUGGABLE" if debuggable else r""
   regexPrefix = rIgnoreWhitespace + \
                 r"(" + r"|".join(rCommentSymbols) + r")" + \
                 rIgnoreWhitespace + \
-                prefix + arch_specifier + r":"
+                prefix + arch_specifier + dbg_specifier + r":"
 
   # The 'match' function succeeds only if the pattern is matched at the
   # beginning of the line.
@@ -56,10 +57,11 @@ def __processLine(line, lineNo, prefix, fileName):
 
   # Lines beginning with 'CHECK-START' start a new test case.
   # We currently only consider the architecture suffix in "CHECK-START" lines.
-  for arch in [None] + archs_list:
-    startLine = __extractLine(prefix + "-START", line, arch)
-    if startLine is not None:
-      return None, startLine, arch
+  for debuggable in [True, False]:
+    for arch in [None] + archs_list:
+      startLine = __extractLine(prefix + "-START", line, arch, debuggable)
+      if startLine is not None:
+        return None, startLine, (arch, debuggable)
 
   # Lines starting only with 'CHECK' are matched in order.
   plainLine = __extractLine(prefix, line)
@@ -167,9 +169,11 @@ def ParseCheckerStream(fileName, prefix, stream):
   fnProcessLine = lambda line, lineNo: __processLine(line, lineNo, prefix, fileName)
   fnLineOutsideChunk = lambda line, lineNo: \
       Logger.fail("Checker line not inside a group", fileName, lineNo)
-  for caseName, caseLines, startLineNo, testArch in \
+  for caseName, caseLines, startLineNo, testData in \
       SplitStream(stream, fnProcessLine, fnLineOutsideChunk):
-    testCase = TestCase(checkerFile, caseName, startLineNo, testArch)
+    testArch = testData[0]
+    forDebuggable = testData[1]
+    testCase = TestCase(checkerFile, caseName, startLineNo, testArch, forDebuggable)
     for caseLine in caseLines:
       ParseCheckerAssertion(testCase, caseLine[0], caseLine[1], caseLine[2])
   return checkerFile
