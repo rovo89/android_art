@@ -531,6 +531,8 @@ class CodeGenerator {
 
   template <typename LabelType>
   LabelType* CommonInitializeLabels() {
+    // We use raw array allocations instead of ArenaVector<> because Labels are
+    // non-constructible and non-movable and as such cannot be held in a vector.
     size_t size = GetGraph()->GetBlocks().size();
     LabelType* labels = GetGraph()->GetArena()->AllocArray<LabelType>(size,
                                                                       kArenaAllocCodeGenerator);
