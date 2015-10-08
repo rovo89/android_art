@@ -4534,7 +4534,8 @@ class HLoadClass : public HExpression<1> {
   bool CanBeMoved() const OVERRIDE { return true; }
 
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
-    return other->AsLoadClass()->type_index_ == type_index_;
+    return other->AsLoadClass()->type_index_ == type_index_ &&
+        other->AsLoadClass()->needs_access_check_ == needs_access_check_;
   }
 
   size_t ComputeHashCode() const OVERRIDE { return type_index_; }

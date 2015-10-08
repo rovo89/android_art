@@ -16,5 +16,8 @@
 
 package other;
 
-/*package*/ class InaccessibleClass {
+public class InaccessibleClassProxy {
+  public static boolean test(Object o) {
+    return o instanceof InaccessibleClass;
+  }
 }
