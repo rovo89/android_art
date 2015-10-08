@@ -118,7 +118,7 @@ static void TestBlock(HGraph* graph,
                       uint32_t parent_loop_header_id,
                       const int* blocks_in_loop = nullptr,
                       size_t number_of_blocks = 0) {
-  HBasicBlock* block = graph->GetBlock(block_id);
+  HBasicBlock* block = graph->GetBlocks()[block_id];
   ASSERT_EQ(block->IsLoopHeader(), is_loop_header);
   if (parent_loop_header_id == kInvalidBlockId) {
     ASSERT_EQ(block->GetLoopInformation(), nullptr);
@@ -296,10 +296,10 @@ TEST(FindLoopsTest, InnerLoop) {
   TestBlock(graph, 7, false, kInvalidBlockId);  // exit block
   TestBlock(graph, 8, false, 2);                // synthesized block as pre header of inner loop
 
-  ASSERT_TRUE(graph->GetBlock(3)->GetLoopInformation()->IsIn(
-                    *graph->GetBlock(2)->GetLoopInformation()));
-  ASSERT_FALSE(graph->GetBlock(2)->GetLoopInformation()->IsIn(
-                    *graph->GetBlock(3)->GetLoopInformation()));
+  ASSERT_TRUE(graph->GetBlocks()[3]->GetLoopInformation()->IsIn(
+                    *graph->GetBlocks()[2]->GetLoopInformation()));
+  ASSERT_FALSE(graph->GetBlocks()[2]->GetLoopInformation()->IsIn(
+                    *graph->GetBlocks()[3]->GetLoopInformation()));
 }
 
 TEST(FindLoopsTest, TwoLoops) {
@@ -326,10 +326,10 @@ TEST(FindLoopsTest, TwoLoops) {
   TestBlock(graph, 6, false, kInvalidBlockId);  // return block
   TestBlock(graph, 7, false, kInvalidBlockId);  // exit block
 
-  ASSERT_FALSE(graph->GetBlock(4)->GetLoopInformation()->IsIn(
-                    *graph->GetBlock(2)->GetLoopInformation()));
-  ASSERT_FALSE(graph->GetBlock(2)->GetLoopInformation()->IsIn(
-                    *graph->GetBlock(4)->GetLoopInformation()));
+  ASSERT_FALSE(graph->GetBlocks()[4]->GetLoopInformation()->IsIn(
+                    *graph->GetBlocks()[2]->GetLoopInformation()));
+  ASSERT_FALSE(graph->GetBlocks()[2]->GetLoopInformation()->IsIn(
+                    *graph->GetBlocks()[4]->GetLoopInformation()));
 }
 
 TEST(FindLoopsTest, NonNaturalLoop) {
@@ -344,8 +344,8 @@ TEST(FindLoopsTest, NonNaturalLoop) {
   ArenaPool arena;
   ArenaAllocator allocator(&arena);
   HGraph* graph = TestCode(data, &allocator);
-  ASSERT_TRUE(graph->GetBlock(3)->IsLoopHeader());
-  HLoopInformation* info = graph->GetBlock(3)->GetLoopInformation();
+  ASSERT_TRUE(graph->GetBlocks()[3]->IsLoopHeader());
+  HLoopInformation* info = graph->GetBlocks()[3]->GetLoopInformation();
   ASSERT_EQ(1u, info->NumberOfBackEdges());
   ASSERT_FALSE(info->GetHeader()->Dominates(info->GetBackEdges()[0]));
 }

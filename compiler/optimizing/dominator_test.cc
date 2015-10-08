@@ -36,16 +36,16 @@ static void TestCode(const uint16_t* data, const uint32_t* blocks, size_t blocks
   ASSERT_EQ(graph->GetBlocks().size(), blocks_length);
   for (size_t i = 0, e = blocks_length; i < e; ++i) {
     if (blocks[i] == kInvalidBlockId) {
-      if (graph->GetBlock(i) == nullptr) {
+      if (graph->GetBlocks()[i] == nullptr) {
         // Dead block.
       } else {
         // Only the entry block has no dominator.
-        ASSERT_EQ(nullptr, graph->GetBlock(i)->GetDominator());
-        ASSERT_TRUE(graph->GetBlock(i)->IsEntryBlock());
+        ASSERT_EQ(nullptr, graph->GetBlocks()[i]->GetDominator());
+        ASSERT_TRUE(graph->GetBlocks()[i]->IsEntryBlock());
       }
     } else {
-      ASSERT_NE(nullptr, graph->GetBlock(i)->GetDominator());
-      ASSERT_EQ(blocks[i], graph->GetBlock(i)->GetDominator()->GetBlockId());
+      ASSERT_NE(nullptr, graph->GetBlocks()[i]->GetDominator());
+      ASSERT_EQ(blocks[i], graph->GetBlocks()[i]->GetDominator()->GetBlockId());
     }
   }
 }

@@ -26,8 +26,10 @@ namespace art {
 namespace dwarf {
 
 // The base class for all DWARF writers.
-template<typename Allocator = std::allocator<uint8_t>>
+template <typename Vector = std::vector<uint8_t>>
 class Writer {
+  static_assert(std::is_same<typename Vector::value_type, uint8_t>::value, "Invalid value type");
+
  public:
   void PushUint8(int value) {
     DCHECK_GE(value, 0);
@@ -116,8 +118,9 @@ class Writer {
     data_->insert(data_->end(), p, p + size);
   }
 
-  template<typename Allocator2>
-  void PushData(const std::vector<uint8_t, Allocator2>* buffer) {
+  template<typename Vector2>
+  void PushData(const Vector2* buffer) {
+    static_assert(std::is_same<typename Vector2::value_type, uint8_t>::value, "Invalid value type");
     data_->insert(data_->end(), buffer->begin(), buffer->end());
   }
 
@@ -155,14 +158,14 @@ class Writer {
     data_->resize(RoundUp(data_->size(), alignment), 0);
   }
 
-  const std::vector<uint8_t, Allocator>* data() const {
+  const Vector* data() const {
     return data_;
   }
 
-  explicit Writer(std::vector<uint8_t, Allocator>* buffer) : data_(buffer) { }
+  explicit Writer(Vector* buffer) : data_(buffer) { }
 
  private:
-  std::vector<uint8_t, Allocator>* data_;
+  Vector* const data_;
 
   DISALLOW_COPY_AND_ASSIGN(Writer);
 };

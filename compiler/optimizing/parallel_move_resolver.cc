@@ -125,7 +125,6 @@ MoveOperands* ParallelMoveResolverWithSwap::PerformMove(size_t index) {
   // which means that a call to PerformMove could change any source operand
   // in the move graph.
 
-  DCHECK_LT(index, moves_.size());
   MoveOperands* move = moves_[index];
   DCHECK(!move->IsPending());
   if (move->IsRedundant()) {
@@ -406,7 +405,6 @@ void ParallelMoveResolverNoSwap::PerformMove(size_t index) {
   // we will update source operand in the move graph to reduce dependencies in
   // the graph.
 
-  DCHECK_LT(index, moves_.size());
   MoveOperands* move = moves_[index];
   DCHECK(!move->IsPending());
   DCHECK(!move->IsEliminated());

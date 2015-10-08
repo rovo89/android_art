@@ -351,7 +351,7 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
     HBasicBlock* dominator = block->GetDominator();
     ValueSet* dominator_set = sets_[dominator->GetBlockId()];
     if (dominator->GetSuccessors().size() == 1) {
-      DCHECK_EQ(dominator->GetSuccessor(0), block);
+      DCHECK_EQ(dominator->GetSuccessors()[0], block);
       set = dominator_set;
     } else {
       // We have to copy if the dominator has other successors, or `block` is not a successor

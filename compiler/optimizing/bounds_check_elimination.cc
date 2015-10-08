@@ -797,8 +797,8 @@ class MonotonicValueRange : public ValueRange {
     HBasicBlock* new_pre_header = header->GetDominator();
     DCHECK(new_pre_header == header->GetLoopInformation()->GetPreHeader());
     HBasicBlock* if_block = new_pre_header->GetDominator();
-    HBasicBlock* dummy_block = if_block->GetSuccessor(0);  // True successor.
-    HBasicBlock* deopt_block = if_block->GetSuccessor(1);  // False successor.
+    HBasicBlock* dummy_block = if_block->GetSuccessors()[0];  // True successor.
+    HBasicBlock* deopt_block = if_block->GetSuccessors()[1];  // False successor.
 
     dummy_block->AddInstruction(new (graph->GetArena()) HGoto());
     deopt_block->AddInstruction(new (graph->GetArena()) HGoto());
@@ -845,14 +845,14 @@ class MonotonicValueRange : public ValueRange {
     DCHECK(header->IsLoopHeader());
     HBasicBlock* pre_header = header->GetDominator();
     if (loop_entry_test_block_added) {
-      DCHECK(deopt_block->GetSuccessor(0) == pre_header);
+      DCHECK(deopt_block->GetSuccessors()[0] == pre_header);
     } else {
       DCHECK(deopt_block == pre_header);
     }
     HGraph* graph = header->GetGraph();
     HSuspendCheck* suspend_check = header->GetLoopInformation()->GetSuspendCheck();
     if (loop_entry_test_block_added) {
-      DCHECK_EQ(deopt_block, header->GetDominator()->GetDominator()->GetSuccessor(1));
+      DCHECK_EQ(deopt_block, header->GetDominator()->GetDominator()->GetSuccessors()[1]);
     }
 
     HIntConstant* const_instr = graph->GetIntConstant(constant);
@@ -926,7 +926,7 @@ class MonotonicValueRange : public ValueRange {
     DCHECK(header->IsLoopHeader());
     HBasicBlock* pre_header = header->GetDominator();
     if (loop_entry_test_block_added) {
-      DCHECK(deopt_block->GetSuccessor(0) == pre_header);
+      DCHECK(deopt_block->GetSuccessors()[0] == pre_header);
     } else {
       DCHECK(deopt_block == pre_header);
     }
@@ -1146,7 +1146,6 @@ class BCEVisitor : public HGraphVisitor {
       return nullptr;
     }
     uint32_t block_id = basic_block->GetBlockId();
-    DCHECK_LT(block_id, maps_.size());
     return &maps_[block_id];
   }
 
@@ -1496,10 +1495,10 @@ class BCEVisitor : public HGraphVisitor {
     // Start with input 1. Input 0 is from the incoming block.
     HInstruction* input1 = phi->InputAt(1);
     DCHECK(phi->GetBlock()->GetLoopInformation()->IsBackEdge(
-        *phi->GetBlock()->GetPredecessor(1)));
+        *phi->GetBlock()->GetPredecessors()[1]));
     for (size_t i = 2, e = phi->InputCount(); i < e; ++i) {
       DCHECK(phi->GetBlock()->GetLoopInformation()->IsBackEdge(
-          *phi->GetBlock()->GetPredecessor(i)));
+          *phi->GetBlock()->GetPredecessors()[i]));
       if (input1 != phi->InputAt(i)) {
         return false;
       }

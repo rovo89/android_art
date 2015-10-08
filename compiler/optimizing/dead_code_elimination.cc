@@ -63,7 +63,7 @@ static void MarkReachableBlocks(HGraph* graph, ArenaBitVector* visited) {
             static_cast<uint32_t>(switch_value) - static_cast<uint32_t>(start_value);
         if (switch_index < switch_instruction->GetNumEntries()) {
           live_successors = live_successors.SubArray(switch_index, 1u);
-          DCHECK_EQ(live_successors[0], block->GetSuccessor(switch_index));
+          DCHECK_EQ(live_successors[0], block->GetSuccessors()[switch_index]);
         } else {
           live_successors = live_successors.SubArray(switch_instruction->GetNumEntries(), 1u);
           DCHECK_EQ(live_successors[0], switch_instruction->GetDefaultBlock());
@@ -136,7 +136,7 @@ void HDeadCodeElimination::RemoveDeadBlocks() {
       it.Advance();
       continue;
     }
-    HBasicBlock* successor = block->GetSuccessor(0);
+    HBasicBlock* successor = block->GetSuccessors()[0];
     if (successor->IsExitBlock() || successor->GetPredecessors().size() != 1u) {
       it.Advance();
       continue;
