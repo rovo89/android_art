@@ -16,7 +16,10 @@
 
 #include "mir_to_lir-inl.h"
 
+// Mac does not provide endian.h, so we'll use byte order agnostic code.
+#ifndef __APPLE__
 #include <endian.h>
+#endif
 
 #include "base/bit_vector-inl.h"
 #include "dex/mir_graph.h"
