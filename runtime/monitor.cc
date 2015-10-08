@@ -274,7 +274,7 @@ void Monitor::Lock(Thread* self) {
           }
           if (sample_percent != 0 && (static_cast<uint32_t>(rand() % 100) < sample_percent)) {
             const char* owners_filename;
-            uint32_t owners_line_number;
+            int32_t owners_line_number;
             TranslateLocation(owners_method, owners_dex_pc, &owners_filename, &owners_line_number);
             if (wait_ms > kLongWaitMs && owners_method != nullptr) {
               LOG(WARNING) << "Long monitor contention event with owner method="
@@ -1084,7 +1084,7 @@ bool Monitor::IsLocked() SHARED_REQUIRES(Locks::mutator_lock_) {
 }
 
 void Monitor::TranslateLocation(ArtMethod* method, uint32_t dex_pc,
-                                const char** source_file, uint32_t* line_number) const {
+                                const char** source_file, int32_t* line_number) const {
   // If method is null, location is unknown
   if (method == nullptr) {
     *source_file = "";

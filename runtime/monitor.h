@@ -179,7 +179,7 @@ class Monitor {
       NO_THREAD_SAFETY_ANALYSIS;  // For m->Install(self)
 
   void LogContentionEvent(Thread* self, uint32_t wait_ms, uint32_t sample_percent,
-                          const char* owner_filename, uint32_t owner_line_number)
+                          const char* owner_filename, int32_t owner_line_number)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   static void FailedUnlock(mirror::Object* obj, Thread* expected_owner, Thread* found_owner,
@@ -231,7 +231,7 @@ class Monitor {
 
   // Translates the provided method and pc into its declaring class' source file and line number.
   void TranslateLocation(ArtMethod* method, uint32_t pc,
-                         const char** source_file, uint32_t* line_number) const
+                         const char** source_file, int32_t* line_number) const
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   uint32_t GetOwnerThreadId() REQUIRES(!monitor_lock_);
