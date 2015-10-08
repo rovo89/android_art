@@ -31,8 +31,10 @@ namespace dwarf {
 //  * Choose the most compact encoding of a given opcode.
 //  * Keep track of current state and convert absolute values to deltas.
 //  * Divide by header-defined factors as appropriate.
-template<typename Allocator = std::allocator<uint8_t> >
-class DebugFrameOpCodeWriter : private Writer<Allocator> {
+template<typename Vector = std::vector<uint8_t> >
+class DebugFrameOpCodeWriter : private Writer<Vector> {
+  static_assert(std::is_same<typename Vector::value_type, uint8_t>::value, "Invalid value type");
+
  public:
   // To save space, DWARF divides most offsets by header-defined factors.
   // They are used in integer divisions, so we make them constants.
@@ -288,11 +290,12 @@ class DebugFrameOpCodeWriter : private Writer<Allocator> {
 
   void SetCurrentCFAOffset(int offset) { current_cfa_offset_ = offset; }
 
-  using Writer<Allocator>::data;
+  using Writer<Vector>::data;
 
   DebugFrameOpCodeWriter(bool enabled = true,
-                         const Allocator& alloc = Allocator())
-      : Writer<Allocator>(&opcodes_),
+                         const typename Vector::allocator_type& alloc =
+                             typename Vector::allocator_type())
+      : Writer<Vector>(&opcodes_),
         enabled_(enabled),
         opcodes_(alloc),
         current_cfa_offset_(0),
@@ -318,7 +321,7 @@ class DebugFrameOpCodeWriter : private Writer<Allocator> {
   }
 
   bool enabled_;  // If disabled all writes are no-ops.
-  std::vector<uint8_t, Allocator> opcodes_;
+  Vector opcodes_;
   int current_cfa_offset_;
   int current_pc_;
   bool uses_dwarf3_features_;

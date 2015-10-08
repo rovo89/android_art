@@ -42,8 +42,8 @@ void HBooleanSimplifier::TryRemovingNegatedCondition(HBasicBlock* block) {
 // successor and the successor can only be reached from them.
 static bool BlocksDoMergeTogether(HBasicBlock* block1, HBasicBlock* block2) {
   if (!block1->IsSingleGoto() || !block2->IsSingleGoto()) return false;
-  HBasicBlock* succ1 = block1->GetSuccessor(0);
-  HBasicBlock* succ2 = block2->GetSuccessor(0);
+  HBasicBlock* succ1 = block1->GetSuccessors()[0];
+  HBasicBlock* succ2 = block2->GetSuccessors()[0];
   return succ1 == succ2 && succ1->GetPredecessors().size() == 2u;
 }
 
@@ -108,7 +108,7 @@ void HBooleanSimplifier::TryRemovingBooleanSelection(HBasicBlock* block) {
   if (!BlocksDoMergeTogether(true_block, false_block)) {
     return;
   }
-  HBasicBlock* merge_block = true_block->GetSuccessor(0);
+  HBasicBlock* merge_block = true_block->GetSuccessors()[0];
   if (!merge_block->HasSinglePhi()) {
     return;
   }

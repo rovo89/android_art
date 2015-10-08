@@ -351,7 +351,7 @@ void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
   // never exceptional successors.
   const size_t num_normal_successors = block->NumberOfNormalSuccessors();
   for (size_t j = 0; j < num_normal_successors; ++j) {
-    HBasicBlock* successor = block->GetSuccessor(j);
+    HBasicBlock* successor = block->GetSuccessors()[j];
     if (successor->IsCatchBlock()) {
       AddError(StringPrintf("Catch block %d is a normal successor of block %d.",
                             successor->GetBlockId(),
@@ -359,7 +359,7 @@ void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
     }
   }
   for (size_t j = num_normal_successors, e = block->GetSuccessors().size(); j < e; ++j) {
-    HBasicBlock* successor = block->GetSuccessor(j);
+    HBasicBlock* successor = block->GetSuccessors()[j];
     if (!successor->IsCatchBlock()) {
       AddError(StringPrintf("Normal block %d is an exceptional successor of block %d.",
                             successor->GetBlockId(),
@@ -373,7 +373,7 @@ void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
   // not accounted for.
   if (block->NumberOfNormalSuccessors() > 1) {
     for (size_t j = 0, e = block->NumberOfNormalSuccessors(); j < e; ++j) {
-      HBasicBlock* successor = block->GetSuccessor(j);
+      HBasicBlock* successor = block->GetSuccessors()[j];
       if (successor->GetPredecessors().size() > 1) {
         AddError(StringPrintf("Critical edge between blocks %d and %d.",
                               block->GetBlockId(),
@@ -456,14 +456,14 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
         id,
         num_preds));
   } else {
-    HBasicBlock* first_predecessor = loop_header->GetPredecessor(0);
+    HBasicBlock* first_predecessor = loop_header->GetPredecessors()[0];
     if (loop_information->IsBackEdge(*first_predecessor)) {
       AddError(StringPrintf(
           "First predecessor of loop header %d is a back edge.",
           id));
     }
     for (size_t i = 1, e = loop_header->GetPredecessors().size(); i < e; ++i) {
-      HBasicBlock* predecessor = loop_header->GetPredecessor(i);
+      HBasicBlock* predecessor = loop_header->GetPredecessors()[i];
       if (!loop_information->IsBackEdge(*predecessor)) {
         AddError(StringPrintf(
             "Loop header %d has multiple incoming (non back edge) blocks.",
@@ -493,7 +493,7 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
 
   // Ensure all blocks in the loop are live and dominated by the loop header.
   for (uint32_t i : loop_blocks.Indexes()) {
-    HBasicBlock* loop_block = GetGraph()->GetBlock(i);
+    HBasicBlock* loop_block = GetGraph()->GetBlocks()[i];
     if (loop_block == nullptr) {
       AddError(StringPrintf("Loop defined by header %d contains a previously removed block %d.",
                             id,

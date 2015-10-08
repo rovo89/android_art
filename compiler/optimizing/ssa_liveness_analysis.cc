@@ -159,7 +159,6 @@ void SsaLivenessAnalysis::NumberInstructions() {
 void SsaLivenessAnalysis::ComputeLiveness() {
   for (HLinearOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
-    DCHECK_LT(block->GetBlockId(), block_infos_.size());
     block_infos_[block->GetBlockId()] =
         new (graph_->GetArena()) BlockInfo(graph_->GetArena(), *block, number_of_ssa_values_);
   }
@@ -388,14 +387,14 @@ int LiveInterval::FindFirstRegisterHint(size_t* free_until,
         }
         // If the instruction dies at the phi assignment, we can try having the
         // same register.
-        if (end == user->GetBlock()->GetPredecessor(input_index)->GetLifetimeEnd()) {
+        if (end == user->GetBlock()->GetPredecessors()[input_index]->GetLifetimeEnd()) {
           for (size_t i = 0, e = user->InputCount(); i < e; ++i) {
             if (i == input_index) {
               continue;
             }
             HInstruction* input = user->InputAt(i);
             Location location = input->GetLiveInterval()->GetLocationAt(
-                user->GetBlock()->GetPredecessor(i)->GetLifetimeEnd() - 1);
+                user->GetBlock()->GetPredecessors()[i]->GetLifetimeEnd() - 1);
             if (location.IsRegisterKind()) {
               int reg = RegisterOrLowRegister(location);
               if (free_until[reg] >= use_position) {
@@ -432,7 +431,6 @@ int LiveInterval::FindHintAtDefinition() const {
     const ArenaVector<HBasicBlock*>& predecessors = defined_by_->GetBlock()->GetPredecessors();
     for (size_t i = 0, e = defined_by_->InputCount(); i < e; ++i) {
       HInstruction* input = defined_by_->InputAt(i);
-      DCHECK_LT(i, predecessors.size());
       size_t end = predecessors[i]->GetLifetimeEnd();
       LiveInterval* input_interval = input->GetLiveInterval()->GetSiblingAt(end - 1);
       if (input_interval->GetEnd() == end) {

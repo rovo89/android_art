@@ -21,9 +21,9 @@
 #include <queue>
 #include <set>
 #include <unordered_map>
-#include <vector>
 
 #include "arena_containers.h"  // For ArenaAllocatorAdapterKind.
+#include "base/dchecked_vector.h"
 #include "scoped_arena_allocator.h"
 #include "safe_map.h"
 
@@ -47,7 +47,7 @@ template <typename T>
 using ScopedArenaQueue = std::queue<T, ScopedArenaDeque<T>>;
 
 template <typename T>
-using ScopedArenaVector = std::vector<T, ScopedArenaAllocatorAdapter<T>>;
+using ScopedArenaVector = dchecked_vector<T, ScopedArenaAllocatorAdapter<T>>;
 
 template <typename T, typename Comparator = std::less<T>>
 using ScopedArenaSet = std::set<T, Comparator, ScopedArenaAllocatorAdapter<T>>;

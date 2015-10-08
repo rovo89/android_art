@@ -450,13 +450,11 @@ Mips64Assembler* ParallelMoveResolverMIPS64::GetAssembler() const {
 }
 
 void ParallelMoveResolverMIPS64::EmitMove(size_t index) {
-  DCHECK_LT(index, moves_.size());
   MoveOperands* move = moves_[index];
   codegen_->MoveLocation(move->GetDestination(), move->GetSource(), move->GetType());
 }
 
 void ParallelMoveResolverMIPS64::EmitSwap(size_t index) {
-  DCHECK_LT(index, moves_.size());
   MoveOperands* move = moves_[index];
   codegen_->SwapLocations(move->GetDestination(), move->GetSource(), move->GetType());
 }
@@ -3494,7 +3492,7 @@ void InstructionCodeGeneratorMIPS64::VisitPackedSwitch(HPackedSwitch* switch_ins
   const ArenaVector<HBasicBlock*>& successors = switch_instr->GetBlock()->GetSuccessors();
   for (int32_t i = 0; i < num_entries; i++) {
     int32_t case_value = lower_bound + i;
-    Label* succ = codegen_->GetLabelOf(successors.at(i));
+    Label* succ = codegen_->GetLabelOf(successors[i]);
     if (case_value == 0) {
       __ Beqzc(value_reg, succ);
     } else {

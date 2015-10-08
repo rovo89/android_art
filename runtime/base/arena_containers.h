@@ -20,9 +20,9 @@
 #include <deque>
 #include <queue>
 #include <set>
-#include <vector>
 
 #include "arena_allocator.h"
+#include "base/dchecked_vector.h"
 #include "safe_map.h"
 
 namespace art {
@@ -48,7 +48,7 @@ template <typename T>
 using ArenaQueue = std::queue<T, ArenaDeque<T>>;
 
 template <typename T>
-using ArenaVector = std::vector<T, ArenaAllocatorAdapter<T>>;
+using ArenaVector = dchecked_vector<T, ArenaAllocatorAdapter<T>>;
 
 template <typename T, typename Comparator = std::less<T>>
 using ArenaSet = std::set<T, Comparator, ArenaAllocatorAdapter<T>>;

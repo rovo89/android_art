@@ -155,7 +155,6 @@ void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {
 }
 
 bool CodeGenerator::GoesToNextBlock(HBasicBlock* current, HBasicBlock* next) const {
-  DCHECK_LT(current_block_index_, block_order_->size());
   DCHECK_EQ((*block_order_)[current_block_index_], current);
   return GetNextBlockToEmit() == FirstNonEmptyBlock(next);
 }
@@ -172,7 +171,7 @@ HBasicBlock* CodeGenerator::GetNextBlockToEmit() const {
 
 HBasicBlock* CodeGenerator::FirstNonEmptyBlock(HBasicBlock* block) const {
   while (block->IsSingleJump()) {
-    block = block->GetSuccessor(0);
+    block = block->GetSuccessors()[0];
   }
   return block;
 }
@@ -894,7 +893,7 @@ void CodeGenerator::BuildMappingTable(ArenaVector<uint8_t>* data) const {
 }
 
 void CodeGenerator::BuildVMapTable(ArenaVector<uint8_t>* data) const {
-  Leb128Encoder<ArenaAllocatorAdapter<uint8_t>> vmap_encoder(data);
+  Leb128Encoder<ArenaVector<uint8_t>> vmap_encoder(data);
   // We currently don't use callee-saved registers.
   size_t size = 0 + 1 /* marker */ + 0;
   vmap_encoder.Reserve(size + 1u);  // All values are likely to be one byte in ULEB128 (<128).
