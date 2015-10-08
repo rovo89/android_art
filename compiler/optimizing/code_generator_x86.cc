@@ -4768,7 +4768,6 @@ void ParallelMoveResolverX86::MoveMemoryToMemory64(int dst, int src) {
 }
 
 void ParallelMoveResolverX86::EmitMove(size_t index) {
-  DCHECK_LT(index, moves_.size());
   MoveOperands* move = moves_[index];
   Location source = move->GetSource();
   Location destination = move->GetDestination();
@@ -4921,7 +4920,6 @@ void ParallelMoveResolverX86::Exchange(int mem1, int mem2) {
 }
 
 void ParallelMoveResolverX86::EmitSwap(size_t index) {
-  DCHECK_LT(index, moves_.size());
   MoveOperands* move = moves_[index];
   Location source = move->GetSource();
   Location destination = move->GetDestination();
@@ -5662,7 +5660,7 @@ void InstructionCodeGeneratorX86::VisitPackedSwitch(HPackedSwitch* switch_instr)
     } else {
       __ cmpl(value_reg, Immediate(case_value));
     }
-    __ j(kEqual, codegen_->GetLabelOf(successors.at(i)));
+    __ j(kEqual, codegen_->GetLabelOf(successors[i]));
   }
 
   // And the default for any other value.

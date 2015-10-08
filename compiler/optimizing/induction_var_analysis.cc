@@ -47,7 +47,7 @@ static void RotateEntryPhiFirst(HLoopInformation* loop,
   size_t phi_pos = -1;
   const size_t size = scc->size();
   for (size_t i = 0; i < size; i++) {
-    HInstruction* other = scc->at(i);
+    HInstruction* other = (*scc)[i];
     if (other->IsLoopHeaderPhi() && (phi == nullptr || phis.FoundBefore(other, phi))) {
       phi = other;
       phi_pos = i;
@@ -58,8 +58,7 @@ static void RotateEntryPhiFirst(HLoopInformation* loop,
   if (phi != nullptr) {
     new_scc->clear();
     for (size_t i = 0; i < size; i++) {
-      DCHECK_LT(phi_pos, size);
-      new_scc->push_back(scc->at(phi_pos));
+      new_scc->push_back((*scc)[phi_pos]);
       if (++phi_pos >= size) phi_pos = 0;
     }
     DCHECK_EQ(size, new_scc->size());

@@ -76,18 +76,15 @@ void SideEffectsAnalysis::Run() {
 
 SideEffects SideEffectsAnalysis::GetLoopEffects(HBasicBlock* block) const {
   DCHECK(block->IsLoopHeader());
-  DCHECK_LT(block->GetBlockId(), loop_effects_.size());
   return loop_effects_[block->GetBlockId()];
 }
 
 SideEffects SideEffectsAnalysis::GetBlockEffects(HBasicBlock* block) const {
-  DCHECK_LT(block->GetBlockId(), block_effects_.size());
   return block_effects_[block->GetBlockId()];
 }
 
 void SideEffectsAnalysis::UpdateLoopEffects(HLoopInformation* info, SideEffects effects) {
   uint32_t id = info->GetHeader()->GetBlockId();
-  DCHECK_LT(id, loop_effects_.size());
   loop_effects_[id] = loop_effects_[id].Union(effects);
 }
 

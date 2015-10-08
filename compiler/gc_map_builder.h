@@ -26,14 +26,16 @@ namespace art {
 
 class GcMapBuilder {
  public:
-  template <typename Alloc>
-  GcMapBuilder(std::vector<uint8_t, Alloc>* table, size_t entries, uint32_t max_native_offset,
+  template <typename Vector>
+  GcMapBuilder(Vector* table, size_t entries, uint32_t max_native_offset,
                size_t references_width)
       : entries_(entries), references_width_(entries != 0u ? references_width : 0u),
         native_offset_width_(entries != 0 && max_native_offset != 0
                              ? sizeof(max_native_offset) - CLZ(max_native_offset) / 8u
                              : 0u),
         in_use_(entries) {
+    static_assert(std::is_same<typename Vector::value_type, uint8_t>::value, "Invalid value type");
+
     // Resize table and set up header.
     table->resize((EntryWidth() * entries) + sizeof(uint32_t));
     table_ = table->data();

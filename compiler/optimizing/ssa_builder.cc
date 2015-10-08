@@ -389,7 +389,6 @@ void SsaBuilder::BuildSsa() {
 }
 
 ArenaVector<HInstruction*>* SsaBuilder::GetLocalsFor(HBasicBlock* block) {
-  DCHECK_LT(block->GetBlockId(), locals_for_.size());
   ArenaVector<HInstruction*>* locals = &locals_for_[block->GetBlockId()];
   const size_t vregs = GetGraph()->GetNumberOfVRegs();
   if (locals->empty() && vregs != 0u) {
@@ -417,7 +416,6 @@ ArenaVector<HInstruction*>* SsaBuilder::GetLocalsFor(HBasicBlock* block) {
 
 HInstruction* SsaBuilder::ValueOfLocal(HBasicBlock* block, size_t local) {
   ArenaVector<HInstruction*>* locals = GetLocalsFor(block);
-  DCHECK_LT(local, locals->size());
   return (*locals)[local];
 }
 
@@ -467,7 +465,7 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
     for (size_t local = 0; local < current_locals_->size(); ++local) {
       bool one_predecessor_has_no_value = false;
       bool is_different = false;
-      HInstruction* value = ValueOfLocal(block->GetPredecessor(0), local);
+      HInstruction* value = ValueOfLocal(block->GetPredecessors()[0], local);
 
       for (HBasicBlock* predecessor : block->GetPredecessors()) {
         HInstruction* current = ValueOfLocal(predecessor, local);
@@ -489,7 +487,7 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
         HPhi* phi = new (GetGraph()->GetArena()) HPhi(
             GetGraph()->GetArena(), local, block->GetPredecessors().size(), Primitive::kPrimVoid);
         for (size_t i = 0; i < block->GetPredecessors().size(); i++) {
-          HInstruction* pred_value = ValueOfLocal(block->GetPredecessor(i), local);
+          HInstruction* pred_value = ValueOfLocal(block->GetPredecessors()[i], local);
           phi->SetRawInputAt(i, pred_value);
         }
         block->AddPhi(phi);
@@ -626,7 +624,6 @@ HInstruction* SsaBuilder::GetReferenceTypeEquivalent(HInstruction* value) {
 }
 
 void SsaBuilder::VisitLoadLocal(HLoadLocal* load) {
-  DCHECK_LT(load->GetLocal()->GetRegNumber(), current_locals_->size());
   HInstruction* value = (*current_locals_)[load->GetLocal()->GetRegNumber()];
   // If the operation requests a specific type, we make sure its input is of that type.
   if (load->GetType() != value->GetType()) {
@@ -641,7 +638,6 @@ void SsaBuilder::VisitLoadLocal(HLoadLocal* load) {
 }
 
 void SsaBuilder::VisitStoreLocal(HStoreLocal* store) {
-  DCHECK_LT(store->GetLocal()->GetRegNumber(), current_locals_->size());
   (*current_locals_)[store->GetLocal()->GetRegNumber()] = store->InputAt(1);
   store->GetBlock()->RemoveInstruction(store);
 }

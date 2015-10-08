@@ -375,7 +375,7 @@ void HGraphBuilder::InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item) 
   // We do not split each edge separately, but rather create one boundary block
   // that all predecessors are relinked to. This preserves loop headers (b/23895756).
   for (auto entry : try_block_info) {
-    HBasicBlock* try_block = graph_->GetBlock(entry.first);
+    HBasicBlock* try_block = graph_->GetBlocks()[entry.first];
     for (HBasicBlock* predecessor : try_block->GetPredecessors()) {
       if (GetTryItem(predecessor, try_block_info) != entry.second) {
         // Found a predecessor not covered by the same TryItem. Insert entering
@@ -392,10 +392,10 @@ void HGraphBuilder::InsertTryBoundaryBlocks(const DexFile::CodeItem& code_item) 
   // Do a second pass over the try blocks and insert exit TryBoundaries where
   // the successor is not in the same TryItem.
   for (auto entry : try_block_info) {
-    HBasicBlock* try_block = graph_->GetBlock(entry.first);
+    HBasicBlock* try_block = graph_->GetBlocks()[entry.first];
     // NOTE: Do not use iterators because SplitEdge would invalidate them.
     for (size_t i = 0, e = try_block->GetSuccessors().size(); i < e; ++i) {
-      HBasicBlock* successor = try_block->GetSuccessor(i);
+      HBasicBlock* successor = try_block->GetSuccessors()[i];
 
       // If the successor is a try block, all of its predecessors must be
       // covered by the same TryItem. Otherwise the previous pass would have
@@ -581,7 +581,6 @@ bool HGraphBuilder::ComputeBranchTargets(const uint16_t* code_ptr,
 
 HBasicBlock* HGraphBuilder::FindBlockStartingAt(int32_t dex_pc) const {
   DCHECK_GE(dex_pc, 0);
-  DCHECK_LT(static_cast<size_t>(dex_pc), branch_targets_.size());
   return branch_targets_[dex_pc];
 }
 
@@ -2877,7 +2876,6 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
 }  // NOLINT(readability/fn_size)
 
 HLocal* HGraphBuilder::GetLocalAt(uint32_t register_index) const {
-  DCHECK_LT(register_index, locals_.size());
   return locals_[register_index];
 }
 

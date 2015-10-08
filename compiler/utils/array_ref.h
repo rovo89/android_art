@@ -77,15 +77,19 @@ class ArrayRef {
       : array_(array_in), size_(size_in) {
   }
 
-  template <typename Alloc>
-  explicit ArrayRef(std::vector<T, Alloc>& v)
+  template <typename Vector,
+            typename = typename std::enable_if<
+                std::is_same<typename Vector::value_type, value_type>::value>::type>
+  explicit ArrayRef(Vector& v)
       : array_(v.data()), size_(v.size()) {
   }
 
-  template <typename U, typename Alloc>
-  explicit ArrayRef(const std::vector<U, Alloc>& v,
-                    typename std::enable_if<std::is_same<T, const U>::value, tag>::type
-                        t ATTRIBUTE_UNUSED = tag())
+  template <typename Vector,
+            typename = typename std::enable_if<
+                std::is_same<
+                    typename std::add_const<typename Vector::value_type>::type,
+                    value_type>::value>::type>
+  explicit ArrayRef(const Vector& v)
       : array_(v.data()), size_(v.size()) {
   }
 

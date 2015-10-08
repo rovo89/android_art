@@ -55,7 +55,6 @@ void HGraph::FindBackEdges(ArenaBitVector* visited) {
       visiting.ClearBit(current_id);
       worklist.pop_back();
     } else {
-      DCHECK_LT(successors_visited[current_id], current->GetSuccessors().size());
       HBasicBlock* successor = current->GetSuccessors()[successors_visited[current_id]++];
       uint32_t successor_id = successor->GetBlockId();
       if (visiting.IsBitSet(successor_id)) {
@@ -89,7 +88,7 @@ static void RemoveAsUser(HInstruction* instruction) {
 void HGraph::RemoveInstructionsAsUsersFromDeadBlocks(const ArenaBitVector& visited) const {
   for (size_t i = 0; i < blocks_.size(); ++i) {
     if (!visited.IsBitSet(i)) {
-      HBasicBlock* block = GetBlock(i);
+      HBasicBlock* block = blocks_[i];
       DCHECK(block->GetPhis().IsEmpty()) << "Phis are not inserted at this stage";
       for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
         RemoveAsUser(it.Current());
@@ -101,7 +100,7 @@ void HGraph::RemoveInstructionsAsUsersFromDeadBlocks(const ArenaBitVector& visit
 void HGraph::RemoveDeadBlocks(const ArenaBitVector& visited) {
   for (size_t i = 0; i < blocks_.size(); ++i) {
     if (!visited.IsBitSet(i)) {
-      HBasicBlock* block = GetBlock(i);
+      HBasicBlock* block = blocks_[i];
       // We only need to update the successor, which might be live.
       for (HBasicBlock* successor : block->GetSuccessors()) {
         successor->RemovePredecessor(block);
@@ -175,7 +174,6 @@ void HGraph::ComputeDominanceInformation() {
     if (successors_visited[current_id] == current->GetSuccessors().size()) {
       worklist.pop_back();
     } else {
-      DCHECK_LT(successors_visited[current_id], current->GetSuccessors().size());
       HBasicBlock* successor = current->GetSuccessors()[successors_visited[current_id]++];
 
       if (successor->GetDominator() == nullptr) {
@@ -186,7 +184,6 @@ void HGraph::ComputeDominanceInformation() {
 
       // Once all the forward edges have been visited, we know the immediate
       // dominator of the block. We can then start visiting its successors.
-      DCHECK_LT(successor->GetBlockId(), visits.size());
       if (++visits[successor->GetBlockId()] ==
           successor->GetPredecessors().size() - successor->NumberOfBackEdges()) {
         successor->GetDominator()->AddDominatedBlock(successor);
@@ -258,7 +255,7 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
     pre_header->AddInstruction(new (arena_) HGoto(header->GetDexPc()));
 
     for (size_t pred = 0; pred < header->GetPredecessors().size(); ++pred) {
-      HBasicBlock* predecessor = header->GetPredecessor(pred);
+      HBasicBlock* predecessor = header->GetPredecessors()[pred];
       if (!info->IsBackEdge(*predecessor)) {
         predecessor->ReplaceSuccessor(header, pre_header);
         pred--;
@@ -268,10 +265,10 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
   }
 
   // Make sure the first predecessor of a loop header is the incoming block.
-  if (info->IsBackEdge(*header->GetPredecessor(0))) {
-    HBasicBlock* to_swap = header->GetPredecessor(0);
+  if (info->IsBackEdge(*header->GetPredecessors()[0])) {
+    HBasicBlock* to_swap = header->GetPredecessors()[0];
     for (size_t pred = 1, e = header->GetPredecessors().size(); pred < e; ++pred) {
-      HBasicBlock* predecessor = header->GetPredecessor(pred);
+      HBasicBlock* predecessor = header->GetPredecessors()[pred];
       if (!info->IsBackEdge(*predecessor)) {
         header->predecessors_[pred] = to_swap;
         header->predecessors_[0] = predecessor;
@@ -294,7 +291,7 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
 }
 
 static bool CheckIfPredecessorAtIsExceptional(const HBasicBlock& block, size_t pred_idx) {
-  HBasicBlock* predecessor = block.GetPredecessor(pred_idx);
+  HBasicBlock* predecessor = block.GetPredecessors()[pred_idx];
   if (!predecessor->EndsWithTryBoundary()) {
     // Only edges from HTryBoundary can be exceptional.
     return false;
@@ -344,7 +341,7 @@ void HGraph::SimplifyCatchBlocks() {
       HBasicBlock* normal_block = catch_block->SplitBefore(catch_block->GetFirstInstruction());
       for (size_t j = 0; j < catch_block->GetPredecessors().size(); ++j) {
         if (!CheckIfPredecessorAtIsExceptional(*catch_block, j)) {
-          catch_block->GetPredecessor(j)->ReplaceSuccessor(catch_block, normal_block);
+          catch_block->GetPredecessors()[j]->ReplaceSuccessor(catch_block, normal_block);
           --j;
         }
       }
@@ -366,7 +363,7 @@ void HGraph::ComputeTryBlockInformation() {
     // Infer try membership from the first predecessor. Having simplified loops,
     // the first predecessor can never be a back edge and therefore it must have
     // been visited already and had its try membership set.
-    HBasicBlock* first_predecessor = block->GetPredecessor(0);
+    HBasicBlock* first_predecessor = block->GetPredecessors()[0];
     DCHECK(!block->IsLoopHeader() || !block->GetLoopInformation()->IsBackEdge(*first_predecessor));
     const HTryBoundary* try_entry = first_predecessor->ComputeTryEntryOfSuccessors();
     if (try_entry != nullptr) {
@@ -386,7 +383,7 @@ void HGraph::SimplifyCFG() {
     if (block == nullptr) continue;
     if (block->NumberOfNormalSuccessors() > 1) {
       for (size_t j = 0; j < block->GetSuccessors().size(); ++j) {
-        HBasicBlock* successor = block->GetSuccessor(j);
+        HBasicBlock* successor = block->GetSuccessors()[j];
         DCHECK(!successor->IsCatchBlock());
         if (successor->GetPredecessors().size() > 1) {
           SplitCriticalEdge(block, successor);
@@ -535,7 +532,7 @@ bool HLoopInformation::Populate() {
 void HLoopInformation::Update() {
   HGraph* graph = header_->GetGraph();
   for (uint32_t id : blocks_.Indexes()) {
-    HBasicBlock* block = graph->GetBlock(id);
+    HBasicBlock* block = graph->GetBlocks()[id];
     // Reset loop information of non-header blocks inside the loop, except
     // members of inner nested loops because those should already have been
     // updated by their own LoopInformation.
@@ -744,7 +741,6 @@ void HEnvironment::CopyFromWithLoopPhiAdjustment(HEnvironment* env,
 }
 
 void HEnvironment::RemoveAsUserOfInput(size_t index) const {
-  DCHECK_LT(index, Size());
   const HUserRecord<HEnvironment*>& user_record = vregs_[index];
   user_record.GetInstruction()->RemoveEnvironmentUser(user_record.GetUseNode());
 }
@@ -1436,7 +1432,7 @@ void HBasicBlock::MergeWith(HBasicBlock* other) {
   // Update links to the successors of `other`.
   successors_.clear();
   while (!other->successors_.empty()) {
-    HBasicBlock* successor = other->GetSuccessor(0);
+    HBasicBlock* successor = other->GetSuccessors()[0];
     successor->ReplacePredecessor(other, this);
   }
 
@@ -1473,7 +1469,7 @@ void HBasicBlock::MergeWithInlined(HBasicBlock* other) {
   // Update links to the successors of `other`.
   successors_.clear();
   while (!other->successors_.empty()) {
-    HBasicBlock* successor = other->GetSuccessor(0);
+    HBasicBlock* successor = other->GetSuccessors()[0];
     successor->ReplacePredecessor(other, this);
   }
 
@@ -1489,11 +1485,11 @@ void HBasicBlock::MergeWithInlined(HBasicBlock* other) {
 
 void HBasicBlock::ReplaceWith(HBasicBlock* other) {
   while (!GetPredecessors().empty()) {
-    HBasicBlock* predecessor = GetPredecessor(0);
+    HBasicBlock* predecessor = GetPredecessors()[0];
     predecessor->ReplaceSuccessor(this, other);
   }
   while (!GetSuccessors().empty()) {
-    HBasicBlock* successor = GetSuccessor(0);
+    HBasicBlock* successor = GetSuccessors()[0];
     successor->ReplacePredecessor(this, other);
   }
   for (HBasicBlock* dominated : GetDominatedBlocks()) {
@@ -1568,9 +1564,9 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
   if (GetBlocks().size() == 3) {
     // Simple case of an entry block, a body block, and an exit block.
     // Put the body block's instruction into `invoke`'s block.
-    HBasicBlock* body = GetBlock(1);
-    DCHECK(GetBlock(0)->IsEntryBlock());
-    DCHECK(GetBlock(2)->IsExitBlock());
+    HBasicBlock* body = GetBlocks()[1];
+    DCHECK(GetBlocks()[0]->IsEntryBlock());
+    DCHECK(GetBlocks()[2]->IsExitBlock());
     DCHECK(!body->IsExitBlock());
     HInstruction* last = body->GetLastInstruction();
 
@@ -1595,16 +1591,16 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     HBasicBlock* at = invoke->GetBlock();
     HBasicBlock* to = at->SplitAfter(invoke);
 
-    HBasicBlock* first = entry_block_->GetSuccessor(0);
+    HBasicBlock* first = entry_block_->GetSuccessors()[0];
     DCHECK(!first->IsInLoop());
     at->MergeWithInlined(first);
     exit_block_->ReplaceWith(to);
 
     // Update all predecessors of the exit block (now the `to` block)
     // to not `HReturn` but `HGoto` instead.
-    bool returns_void = to->GetPredecessor(0)->GetLastInstruction()->IsReturnVoid();
+    bool returns_void = to->GetPredecessors()[0]->GetLastInstruction()->IsReturnVoid();
     if (to->GetPredecessors().size() == 1) {
-      HBasicBlock* predecessor = to->GetPredecessor(0);
+      HBasicBlock* predecessor = to->GetPredecessors()[0];
       HInstruction* last = predecessor->GetLastInstruction();
       if (!returns_void) {
         return_value = last->InputAt(0);

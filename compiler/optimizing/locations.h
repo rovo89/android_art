@@ -481,12 +481,10 @@ class LocationSummary : public ArenaObject<kArenaAllocLocationSummary> {
                   bool intrinsified = false);
 
   void SetInAt(uint32_t at, Location location) {
-    DCHECK_LT(at, GetInputCount());
     inputs_[at] = location;
   }
 
   Location InAt(uint32_t at) const {
-    DCHECK_LT(at, GetInputCount());
     return inputs_[at];
   }
 
@@ -514,12 +512,10 @@ class LocationSummary : public ArenaObject<kArenaAllocLocationSummary> {
   }
 
   Location GetTemp(uint32_t at) const {
-    DCHECK_LT(at, GetTempCount());
     return temps_[at];
   }
 
   void SetTempAt(uint32_t at, Location location) {
-    DCHECK_LT(at, GetTempCount());
     DCHECK(temps_[at].IsUnallocated() || temps_[at].IsInvalid());
     temps_[at] = location;
   }
