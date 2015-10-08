@@ -362,6 +362,8 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
   void VisitLoadClass(HLoadClass* load_class) OVERRIDE {
     StartAttributeStream("gen_clinit_check") << std::boolalpha
         << load_class->MustGenerateClinitCheck() << std::noboolalpha;
+    StartAttributeStream("needs_access_check") << std::boolalpha
+        << load_class->NeedsAccessCheck() << std::noboolalpha;
   }
 
   void VisitCheckCast(HCheckCast* check_cast) OVERRIDE {
