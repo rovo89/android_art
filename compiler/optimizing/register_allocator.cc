@@ -617,42 +617,40 @@ void RegisterAllocator::LinearScan() {
     // (2) Remove currently active intervals that are dead at this position.
     //     Move active intervals that have a lifetime hole at this position
     //     to inactive.
-    // Note: Copy elements we keep to the beginning, just like
-    //     v.erase(std::remove(v.begin(), v.end(), value), v.end());
-    auto active_kept_end = active_.begin();
-    for (auto it = active_.begin(), end = active_.end(); it != end; ++it) {
-      LiveInterval* interval = *it;
-      if (interval->IsDeadAt(position)) {
-        handled_.push_back(interval);
-      } else if (!interval->Covers(position)) {
-        inactive_.push_back(interval);
-      } else {
-        *active_kept_end++ = interval;  // Keep this interval.
-      }
-    }
-    // We have copied what we want to keep to [active_.begin(), active_kept_end),
-    // the rest of the data in active_ is junk - drop it.
+    auto active_kept_end = std::remove_if(
+        active_.begin(),
+        active_.end(),
+        [this, position](LiveInterval* interval) {
+          if (interval->IsDeadAt(position)) {
+            handled_.push_back(interval);
+            return true;
+          } else if (!interval->Covers(position)) {
+            inactive_.push_back(interval);
+            return true;
+          } else {
+            return false;  // Keep this interval.
+          }
+        });
     active_.erase(active_kept_end, active_.end());
 
     // (3) Remove currently inactive intervals that are dead at this position.
     //     Move inactive intervals that cover this position to active.
-    // Note: Copy elements we keep to the beginning, just like
-    //     v.erase(std::remove(v.begin(), v.begin() + num, value), v.begin() + num);
-    auto inactive_kept_end = inactive_.begin();
     auto inactive_to_handle_end = inactive_.begin() + inactive_intervals_to_handle;
-    for (auto it = inactive_.begin(); it != inactive_to_handle_end; ++it) {
-      LiveInterval* interval = *it;
-      DCHECK(interval->GetStart() < position || interval->IsFixed());
-      if (interval->IsDeadAt(position)) {
-        handled_.push_back(interval);
-      } else if (interval->Covers(position)) {
-        active_.push_back(interval);
-      } else {
-        *inactive_kept_end++ = interval;  // Keep this interval.
-      }
-    }
-    // We have copied what we want to keep to [inactive_.begin(), inactive_kept_end),
-    // the rest of the data in the processed interval is junk - drop it.
+    auto inactive_kept_end = std::remove_if(
+        inactive_.begin(),
+        inactive_to_handle_end,
+        [this, position](LiveInterval* interval) {
+          DCHECK(interval->GetStart() < position || interval->IsFixed());
+          if (interval->IsDeadAt(position)) {
+            handled_.push_back(interval);
+            return true;
+          } else if (interval->Covers(position)) {
+            active_.push_back(interval);
+            return true;
+          } else {
+            return false;  // Keep this interval.
+          }
+        });
     inactive_.erase(inactive_kept_end, inactive_to_handle_end);
 
     if (current->IsSlowPathSafepoint()) {
