@@ -36,7 +36,9 @@ def ParseArguments():
   parser.add_argument("--dump-pass", dest="dump_pass", metavar="PASS",
                       help="print a compiler pass dump")
   parser.add_argument("--arch", dest="arch", choices=archs_list,
-                      help="Run the tests for the specified target architecture.")
+                      help="Run tests for the specified target architecture.")
+  parser.add_argument("--debuggable", action="store_true",
+                      help="Run tests for debuggable code.")
   parser.add_argument("-q", "--quiet", action="store_true",
                       help="print only errors")
   return parser.parse_args()
@@ -83,13 +85,13 @@ def FindCheckerFiles(path):
     Logger.fail("Source path \"" + path + "\" not found")
 
 
-def RunTests(checkPrefix, checkPath, outputFilename, targetArch):
+def RunTests(checkPrefix, checkPath, outputFilename, targetArch, debuggableMode):
   c1File = ParseC1visualizerStream(os.path.basename(outputFilename), open(outputFilename, "r"))
   for checkFilename in FindCheckerFiles(checkPath):
     checkerFile = ParseCheckerStream(os.path.basename(checkFilename),
                                      checkPrefix,
                                      open(checkFilename, "r"))
-    MatchFiles(checkerFile, c1File, targetArch)
+    MatchFiles(checkerFile, c1File, targetArch, debuggableMode)
 
 
 if __name__ == "__main__":
@@ -103,4 +105,4 @@ if __name__ == "__main__":
   elif args.dump_pass:
     DumpPass(args.tested_file, args.dump_pass)
   else:
-    RunTests(args.check_prefix, args.source_path, args.tested_file, args.arch)
+    RunTests(args.check_prefix, args.source_path, args.tested_file, args.arch, args.debuggable)
