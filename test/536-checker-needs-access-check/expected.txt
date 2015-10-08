@@ -1,0 +1,3 @@
+Got expected error instanceof
+Got expected error instanceof null
+Got expected error checkcast null
