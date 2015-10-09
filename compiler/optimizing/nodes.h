@@ -4510,6 +4510,9 @@ class HLoadClass : public HExpression<1> {
   bool CanBeMoved() const OVERRIDE { return true; }
 
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+    // Note that we don't need to test for generate_clinit_check_.
+    // Whether or not we need to generate the clinit check is processed in
+    // prepare_for_register_allocator based on existing HInvokes and HClinitChecks.
     return other->AsLoadClass()->type_index_ == type_index_ &&
         other->AsLoadClass()->needs_access_check_ == needs_access_check_;
   }
