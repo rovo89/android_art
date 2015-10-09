@@ -18,6 +18,7 @@
 #define ART_RUNTIME_BASE_HASH_SET_H_
 
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <stdint.h>
 #include <utility>
@@ -45,7 +46,7 @@ class DefaultEmptyFn<T*> {
   void MakeEmpty(T*& item) const {
     item = nullptr;
   }
-  bool IsEmpty(const T*& item) const {
+  bool IsEmpty(T* const& item) const {
     return item == nullptr;
   }
 };
@@ -59,7 +60,7 @@ template <class T, class EmptyFn = DefaultEmptyFn<T>, class HashFn = std::hash<T
     class Pred = std::equal_to<T>, class Alloc = std::allocator<T>>
 class HashSet {
   template <class Elem, class HashSetType>
-  class BaseIterator {
+  class BaseIterator : std::iterator<std::forward_iterator_tag, Elem> {
    public:
     BaseIterator(const BaseIterator&) = default;
     BaseIterator(BaseIterator&&) = default;
@@ -82,7 +83,7 @@ class HashSet {
     }
 
     BaseIterator operator++(int) {
-      Iterator temp = *this;
+      BaseIterator temp = *this;
       this->index_ = this->NextNonEmptySlot(this->index_, hash_set_);
       return temp;
     }
@@ -96,7 +97,7 @@ class HashSet {
       return &**this;
     }
 
-    // TODO: Operator -- --(int)
+    // TODO: Operator -- --(int)  (and use std::bidirectional_iterator_tag)
 
    private:
     size_t index_;
@@ -115,34 +116,87 @@ class HashSet {
   };
 
  public:
+  using value_type = T;
+  using allocator_type = Alloc;
+  using reference = T&;
+  using const_reference = const T&;
+  using pointer = T*;
+  using const_pointer = const T*;
+  using iterator = BaseIterator<T, HashSet>;
+  using const_iterator = BaseIterator<const T, const HashSet>;
+  using size_type = size_t;
+  using difference_type = ptrdiff_t;
+
   static constexpr double kDefaultMinLoadFactor = 0.5;
   static constexpr double kDefaultMaxLoadFactor = 0.9;
   static constexpr size_t kMinBuckets = 1000;
 
-  typedef BaseIterator<T, HashSet> Iterator;
-  typedef BaseIterator<const T, const HashSet> ConstIterator;
-
   // If we don't own the data, this will create a new array which owns the data.
   void Clear() {
     DeallocateStorage();
-    AllocateStorage(1);
     num_elements_ = 0;
     elements_until_expand_ = 0;
   }
 
-  HashSet() : num_elements_(0), num_buckets_(0), owns_data_(false), data_(nullptr),
-      min_load_factor_(kDefaultMinLoadFactor), max_load_factor_(kDefaultMaxLoadFactor) {
-    Clear();
+  HashSet()
+      : num_elements_(0u),
+        num_buckets_(0u),
+        elements_until_expand_(0u),
+        owns_data_(false),
+        data_(nullptr),
+        min_load_factor_(kDefaultMinLoadFactor),
+        max_load_factor_(kDefaultMaxLoadFactor) {
   }
 
-  HashSet(const HashSet& other) : num_elements_(0), num_buckets_(0), owns_data_(false),
-      data_(nullptr) {
-    *this = other;
+  explicit HashSet(const allocator_type& alloc)
+      : allocfn_(alloc),
+        hashfn_(),
+        emptyfn_(),
+        pred_(),
+        num_elements_(0u),
+        num_buckets_(0u),
+        elements_until_expand_(0u),
+        owns_data_(false),
+        data_(nullptr),
+        min_load_factor_(kDefaultMinLoadFactor),
+        max_load_factor_(kDefaultMaxLoadFactor) {
   }
 
-  HashSet(HashSet&& other) : num_elements_(0), num_buckets_(0), owns_data_(false),
-      data_(nullptr) {
-    *this = std::move(other);
+  HashSet(const HashSet& other)
+      : allocfn_(other.allocfn_),
+        hashfn_(other.hashfn_),
+        emptyfn_(other.emptyfn_),
+        pred_(other.pred_),
+        num_elements_(other.num_elements_),
+        num_buckets_(0),
+        elements_until_expand_(other.elements_until_expand_),
+        owns_data_(false),
+        data_(nullptr),
+        min_load_factor_(other.min_load_factor_),
+        max_load_factor_(other.max_load_factor_) {
+    AllocateStorage(other.NumBuckets());
+    for (size_t i = 0; i < num_buckets_; ++i) {
+      ElementForIndex(i) = other.data_[i];
+    }
+  }
+
+  HashSet(HashSet&& other)
+      : allocfn_(std::move(other.allocfn_)),
+        hashfn_(std::move(other.hashfn_)),
+        emptyfn_(std::move(other.emptyfn_)),
+        pred_(std::move(other.pred_)),
+        num_elements_(other.num_elements_),
+        num_buckets_(other.num_buckets_),
+        elements_until_expand_(other.elements_until_expand_),
+        owns_data_(other.owns_data_),
+        data_(other.data_),
+        min_load_factor_(other.min_load_factor_),
+        max_load_factor_(other.max_load_factor_) {
+    other.num_elements_ = 0u;
+    other.num_buckets_ = 0u;
+    other.elements_until_expand_ = 0u;
+    other.owns_data_ = false;
+    other.data_ = nullptr;
   }
 
   // Construct from existing data.
@@ -199,32 +253,18 @@ class HashSet {
   }
 
   HashSet& operator=(HashSet&& other) {
-    std::swap(data_, other.data_);
-    std::swap(num_buckets_, other.num_buckets_);
-    std::swap(num_elements_, other.num_elements_);
-    std::swap(elements_until_expand_, other.elements_until_expand_);
-    std::swap(min_load_factor_, other.min_load_factor_);
-    std::swap(max_load_factor_, other.max_load_factor_);
-    std::swap(owns_data_, other.owns_data_);
+    HashSet(std::move(other)).swap(*this);
     return *this;
   }
 
   HashSet& operator=(const HashSet& other) {
-    DeallocateStorage();
-    AllocateStorage(other.NumBuckets());
-    for (size_t i = 0; i < num_buckets_; ++i) {
-      ElementForIndex(i) = other.data_[i];
-    }
-    num_elements_ = other.num_elements_;
-    elements_until_expand_ = other.elements_until_expand_;
-    min_load_factor_ = other.min_load_factor_;
-    max_load_factor_ = other.max_load_factor_;
+    HashSet(other).swap(*this);  // NOLINT(runtime/explicit) - a case of lint gone mad.
     return *this;
   }
 
   // Lower case for c++11 for each.
-  Iterator begin() {
-    Iterator ret(this, 0);
+  iterator begin() {
+    iterator ret(this, 0);
     if (num_buckets_ != 0 && IsFreeSlot(ret.index_)) {
       ++ret;  // Skip all the empty slots.
     }
@@ -232,8 +272,8 @@ class HashSet {
   }
 
   // Lower case for c++11 for each. const version.
-  ConstIterator begin() const {
-    ConstIterator ret(this, 0);
+  const_iterator begin() const {
+    const_iterator ret(this, 0);
     if (num_buckets_ != 0 && IsFreeSlot(ret.index_)) {
       ++ret;  // Skip all the empty slots.
     }
@@ -241,13 +281,13 @@ class HashSet {
   }
 
   // Lower case for c++11 for each.
-  Iterator end() {
-    return Iterator(this, NumBuckets());
+  iterator end() {
+    return iterator(this, NumBuckets());
   }
 
   // Lower case for c++11 for each. const version.
-  ConstIterator end() const {
-    return ConstIterator(this, NumBuckets());
+  const_iterator end() const {
+    return const_iterator(this, NumBuckets());
   }
 
   bool Empty() {
@@ -262,7 +302,7 @@ class HashSet {
   // and set the empty slot to be the location we just moved from.
   // Relies on maintaining the invariant that there's no empty slots from the 'ideal' index of an
   // element to its actual location/index.
-  Iterator Erase(Iterator it) {
+  iterator Erase(iterator it) {
     // empty_index is the index that will become empty.
     size_t empty_index = it.index_;
     DCHECK(!IsFreeSlot(empty_index));
@@ -313,23 +353,23 @@ class HashSet {
   // Set of Class* sorted by name, want to find a class with a name but can't allocate a dummy
   // object in the heap for performance solution.
   template <typename K>
-  Iterator Find(const K& key) {
+  iterator Find(const K& key) {
     return FindWithHash(key, hashfn_(key));
   }
 
   template <typename K>
-  ConstIterator Find(const K& key) const {
+  const_iterator Find(const K& key) const {
     return FindWithHash(key, hashfn_(key));
   }
 
   template <typename K>
-  Iterator FindWithHash(const K& key, size_t hash) {
-    return Iterator(this, FindIndex(key, hash));
+  iterator FindWithHash(const K& key, size_t hash) {
+    return iterator(this, FindIndex(key, hash));
   }
 
   template <typename K>
-  ConstIterator FindWithHash(const K& key, size_t hash) const {
-    return ConstIterator(this, FindIndex(key, hash));
+  const_iterator FindWithHash(const K& key, size_t hash) const {
+    return const_iterator(this, FindIndex(key, hash));
   }
 
   // Insert an element, allows duplicates.
@@ -350,6 +390,26 @@ class HashSet {
 
   size_t Size() const {
     return num_elements_;
+  }
+
+  void swap(HashSet& other) {
+    // Use argument-dependent lookup with fall-back to std::swap() for function objects.
+    using std::swap;
+    swap(allocfn_, other.allocfn_);
+    swap(hashfn_, other.hashfn_);
+    swap(emptyfn_, other.emptyfn_);
+    swap(pred_, other.pred_);
+    std::swap(data_, other.data_);
+    std::swap(num_buckets_, other.num_buckets_);
+    std::swap(num_elements_, other.num_elements_);
+    std::swap(elements_until_expand_, other.elements_until_expand_);
+    std::swap(min_load_factor_, other.min_load_factor_);
+    std::swap(max_load_factor_, other.max_load_factor_);
+    std::swap(owns_data_, other.owns_data_);
+  }
+
+  allocator_type get_allocator() const {
+    return allocfn_;
   }
 
   void ShrinkToMaximumLoad() {
@@ -429,7 +489,7 @@ class HashSet {
   }
 
   // Find the hash table slot for an element, or return NumBuckets() if not found.
-  // This value for not found is important so that Iterator(this, FindIndex(...)) == end().
+  // This value for not found is important so that iterator(this, FindIndex(...)) == end().
   template <typename K>
   size_t FindIndex(const K& element, size_t hash) const {
     // Guard against failing to get an element for a non-existing index.
@@ -559,6 +619,12 @@ class HashSet {
   double min_load_factor_;
   double max_load_factor_;
 };
+
+template <class T, class EmptyFn, class HashFn, class Pred, class Alloc>
+void swap(HashSet<T, EmptyFn, HashFn, Pred, Alloc>& lhs,
+          HashSet<T, EmptyFn, HashFn, Pred, Alloc>& rhs) {
+  lhs.swap(rhs);
+}
 
 }  // namespace art
 

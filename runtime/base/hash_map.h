@@ -51,8 +51,22 @@ class HashMapWrapper {
 template <class Key, class Value, class EmptyFn,
     class HashFn = std::hash<Key>, class Pred = std::equal_to<Key>,
     class Alloc = std::allocator<std::pair<Key, Value>>>
-class HashMap : public HashSet<std::pair<Key, Value>, EmptyFn, HashMapWrapper<HashFn>,
-                               HashMapWrapper<Pred>, Alloc> {
+class HashMap : public HashSet<std::pair<Key, Value>,
+                               EmptyFn,
+                               HashMapWrapper<HashFn>,
+                               HashMapWrapper<Pred>,
+                               Alloc> {
+ private:
+  using Base = HashSet<std::pair<Key, Value>,
+                       EmptyFn,
+                       HashMapWrapper<HashFn>,
+                       HashMapWrapper<Pred>,
+                       Alloc>;
+
+ public:
+  HashMap() : Base() { }
+  explicit HashMap(const Alloc& alloc)
+      : Base(alloc) { }
 };
 
 }  // namespace art

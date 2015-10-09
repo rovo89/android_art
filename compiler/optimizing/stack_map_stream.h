@@ -63,6 +63,7 @@ class StackMapStream : public ValueObject {
       : allocator_(allocator),
         stack_maps_(allocator->Adapter(kArenaAllocStackMapStream)),
         location_catalog_entries_(allocator->Adapter(kArenaAllocStackMapStream)),
+        location_catalog_entries_indices_(allocator->Adapter(kArenaAllocStackMapStream)),
         dex_register_locations_(allocator->Adapter(kArenaAllocStackMapStream)),
         inline_infos_(allocator->Adapter(kArenaAllocStackMapStream)),
         stack_mask_max_(-1),
@@ -173,8 +174,10 @@ class StackMapStream : public ValueObject {
   ArenaVector<DexRegisterLocation> location_catalog_entries_;
   // Map from Dex register location catalog entries to their indices in the
   // location catalog.
-  typedef HashMap<DexRegisterLocation, size_t, LocationCatalogEntriesIndicesEmptyFn,
-                  DexRegisterLocationHashFn> LocationCatalogEntriesIndices;
+  using LocationCatalogEntriesIndices = ArenaHashMap<DexRegisterLocation,
+                                                     size_t,
+                                                     LocationCatalogEntriesIndicesEmptyFn,
+                                                     DexRegisterLocationHashFn>;
   LocationCatalogEntriesIndices location_catalog_entries_indices_;
 
   // A set of concatenated maps of Dex register locations indices to `location_catalog_entries_`.
