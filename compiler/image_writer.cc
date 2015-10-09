@@ -55,6 +55,7 @@
 #include "mirror/string-inl.h"
 #include "oat.h"
 #include "oat_file.h"
+#include "oat_file_manager.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "handle_scope-inl.h"
@@ -126,8 +127,6 @@ bool ImageWriter::Write(const std::string& image_filename,
                         const std::string& oat_location) {
   CHECK(!image_filename.empty());
 
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-
   std::unique_ptr<File> oat_file(OS::OpenFileReadWrite(oat_filename.c_str()));
   if (oat_file.get() == nullptr) {
     PLOG(ERROR) << "Failed to open oat file " << oat_filename << " for " << oat_location;
@@ -141,7 +140,8 @@ bool ImageWriter::Write(const std::string& image_filename,
     oat_file->Erase();
     return false;
   }
-  CHECK_EQ(class_linker->RegisterOatFile(oat_file_), oat_file_);
+  Runtime::Current()->GetOatFileManager().RegisterOatFile(
+      std::unique_ptr<const OatFile>(oat_file_));
 
   interpreter_to_interpreter_bridge_offset_ =
       oat_file_->GetOatHeader().GetInterpreterToInterpreterBridgeOffset();

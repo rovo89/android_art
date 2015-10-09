@@ -154,6 +154,7 @@ LIBART_COMMON_SRC_FILES := \
   oat.cc \
   oat_file.cc \
   oat_file_assistant.cc \
+  oat_file_manager.cc \
   object_lock.cc \
   offsets.cc \
   os_linux.cc \

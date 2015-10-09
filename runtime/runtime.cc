@@ -115,6 +115,7 @@
 #include "native/sun_misc_Unsafe.h"
 #include "native_bridge_art_interface.h"
 #include "oat_file.h"
+#include "oat_file_manager.h"
 #include "os.h"
 #include "parsed_options.h"
 #include "profiler.h"
@@ -281,6 +282,7 @@ Runtime::~Runtime() {
   delete monitor_list_;
   delete monitor_pool_;
   delete class_linker_;
+  oat_file_manager_.reset();
   delete heap_;
   delete intern_table_;
   delete java_vm_;
@@ -698,7 +700,7 @@ bool Runtime::IsShuttingDown(Thread* self) {
 }
 
 bool Runtime::IsDebuggable() const {
-  const OatFile* oat_file = GetClassLinker()->GetPrimaryOatFile();
+  const OatFile* oat_file = GetOatFileManager().GetPrimaryOatFile();
   return oat_file != nullptr && oat_file->IsDebuggable();
 }
 
@@ -756,9 +758,9 @@ static bool OpenDexFilesFromImage(const std::string& image_location,
   if (elf_file.get() == nullptr) {
     return false;
   }
-  std::unique_ptr<OatFile> oat_file(OatFile::OpenWithElfFile(elf_file.release(), oat_location,
-                                                             nullptr, &error_msg));
-  if (oat_file.get() == nullptr) {
+  std::unique_ptr<const OatFile> oat_file(
+      OatFile::OpenWithElfFile(elf_file.release(), oat_location, nullptr, &error_msg));
+  if (oat_file == nullptr) {
     LOG(INFO) << "Unable to use '" << oat_filename << "' because " << error_msg;
     return false;
   }
@@ -775,7 +777,7 @@ static bool OpenDexFilesFromImage(const std::string& image_location,
       dex_files->push_back(std::move(dex_file));
     }
   }
-  Runtime::Current()->GetClassLinker()->RegisterOatFile(oat_file.release());
+  Runtime::Current()->GetOatFileManager().RegisterOatFile(std::move(oat_file));
   return true;
 }
 
@@ -830,6 +832,8 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   VLOG(startup) << "Runtime::Init -verbose:startup enabled";
 
   QuasiAtomic::Startup();
+
+  oat_file_manager_.reset(new OatFileManager);
 
   Monitor::Init(runtime_options.GetOrDefault(Opt::LockProfThreshold),
                 runtime_options.GetOrDefault(Opt::HookIsSensitiveThread));
