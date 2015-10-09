@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
@@ -43,9 +46,26 @@ public class Main {
             testStackTrace(constructor);
             // Stress test to make sure we dont leak memory.
             stressTest(constructor);
+            // Test that the oat files are unloaded.
+            testOatFilesUnloaded(getPid());
         } catch (Exception e) {
             System.out.println(e);
         }
+    }
+
+    private static void testOatFilesUnloaded(int pid) throws Exception {
+        BufferedReader reader = new BufferedReader(new FileReader ("/proc/" + pid + "/maps"));
+        String line;
+        int count = 0;
+        Runtime.getRuntime().gc();
+        System.runFinalization();
+        while ((line = reader.readLine()) != null) {
+            if (line.contains("@141-class-unload-ex.jar")) {
+                System.out.println(line);
+                ++count;
+            }
+        }
+        System.out.println("Number of loaded unload-ex maps " + count);
     }
 
     private static void stressTest(Constructor constructor) throws Exception {
@@ -162,5 +182,9 @@ public class Main {
         Method loadLibrary = intHolder.getDeclaredMethod("loadLibrary", String.class);
         loadLibrary.invoke(intHolder, nativeLibraryName);
         return new WeakReference(loader);
+    }
+
+    private static int getPid() throws Exception {
+      return Integer.parseInt(new File("/proc/self").getCanonicalFile().getName());
     }
 }
