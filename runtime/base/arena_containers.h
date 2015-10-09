@@ -20,9 +20,12 @@
 #include <deque>
 #include <queue>
 #include <set>
+#include <utility>
 
 #include "arena_allocator.h"
 #include "base/dchecked_vector.h"
+#include "hash_map.h"
+#include "hash_set.h"
 #include "safe_map.h"
 
 namespace art {
@@ -56,6 +59,24 @@ using ArenaSet = std::set<T, Comparator, ArenaAllocatorAdapter<T>>;
 template <typename K, typename V, typename Comparator = std::less<K>>
 using ArenaSafeMap =
     SafeMap<K, V, Comparator, ArenaAllocatorAdapter<std::pair<const K, V>>>;
+
+template <typename T,
+          typename EmptyFn = DefaultEmptyFn<T>,
+          typename HashFn = std::hash<T>,
+          typename Pred = std::equal_to<T>>
+using ArenaHashSet = HashSet<T, EmptyFn, HashFn, Pred, ArenaAllocatorAdapter<T>>;
+
+template <typename Key,
+          typename Value,
+          typename EmptyFn = DefaultEmptyFn<std::pair<Key, Value>>,
+          typename HashFn = std::hash<Key>,
+          typename Pred = std::equal_to<Key>>
+using ArenaHashMap = HashMap<Key,
+                             Value,
+                             EmptyFn,
+                             HashFn,
+                             Pred,
+                             ArenaAllocatorAdapter<std::pair<Key, Value>>>;
 
 // Implementation details below.
 
@@ -164,11 +185,13 @@ class ArenaAllocatorAdapter : private ArenaAllocatorAdapterKind {
     arena_allocator_->MakeInaccessible(p, sizeof(T) * n);
   }
 
-  void construct(pointer p, const_reference val) {
-    new (static_cast<void*>(p)) value_type(val);
+  template <typename U, typename... Args>
+  void construct(U* p, Args&&... args) {
+    ::new (static_cast<void*>(p)) U(std::forward<Args>(args)...);
   }
-  void destroy(pointer p) {
-    p->~value_type();
+  template <typename U>
+  void destroy(U* p) {
+    p->~U();
   }
 
  private:
