@@ -452,11 +452,16 @@ inline Condition X86_64IntegerCondition(IfCondition cond) {
     case kCondLE: return kLessEqual;
     case kCondGT: return kGreater;
     case kCondGE: return kGreaterEqual;
+    case kCondB:  return kBelow;
+    case kCondBE: return kBelowEqual;
+    case kCondA:  return kAbove;
+    case kCondAE: return kAboveEqual;
   }
   LOG(FATAL) << "Unreachable";
   UNREACHABLE();
 }
 
+// Maps FP condition to x86_64 name.
 inline Condition X86_64FPCondition(IfCondition cond) {
   switch (cond) {
     case kCondEQ: return kEqual;
@@ -465,6 +470,7 @@ inline Condition X86_64FPCondition(IfCondition cond) {
     case kCondLE: return kBelowEqual;
     case kCondGT: return kAbove;
     case kCondGE: return kAboveEqual;
+    default:      break;  // should not happen
   };
   LOG(FATAL) << "Unreachable";
   UNREACHABLE();
@@ -1474,6 +1480,38 @@ void LocationsBuilderX86_64::VisitGreaterThanOrEqual(HGreaterThanOrEqual* comp) 
 }
 
 void InstructionCodeGeneratorX86_64::VisitGreaterThanOrEqual(HGreaterThanOrEqual* comp) {
+  VisitCondition(comp);
+}
+
+void LocationsBuilderX86_64::VisitBelow(HBelow* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorX86_64::VisitBelow(HBelow* comp) {
+  VisitCondition(comp);
+}
+
+void LocationsBuilderX86_64::VisitBelowOrEqual(HBelowOrEqual* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorX86_64::VisitBelowOrEqual(HBelowOrEqual* comp) {
+  VisitCondition(comp);
+}
+
+void LocationsBuilderX86_64::VisitAbove(HAbove* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorX86_64::VisitAbove(HAbove* comp) {
+  VisitCondition(comp);
+}
+
+void LocationsBuilderX86_64::VisitAboveOrEqual(HAboveOrEqual* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorX86_64::VisitAboveOrEqual(HAboveOrEqual* comp) {
   VisitCondition(comp);
 }
 

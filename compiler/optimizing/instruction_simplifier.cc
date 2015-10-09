@@ -615,6 +615,8 @@ void InstructionSimplifierVisitor::VisitLessThanOrEqual(HLessThanOrEqual* condit
   VisitCondition(condition);
 }
 
+// TODO: unsigned comparisons too?
+
 void InstructionSimplifierVisitor::VisitCondition(HCondition* condition) {
   // Try to fold an HCompare into this HCondition.
 

@@ -761,4 +761,130 @@ TEST(CodegenTest, ReturnDivInt2Addr) {
   TestCode(data, true, 2);
 }
 
+// Helper method.
+static void TestComparison(IfCondition condition, int64_t i, int64_t j, Primitive::Type type) {
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+  HGraph* graph = CreateGraph(&allocator);
+
+  HBasicBlock* entry_block = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(entry_block);
+  graph->SetEntryBlock(entry_block);
+  entry_block->AddInstruction(new (&allocator) HGoto());
+
+  HBasicBlock* block = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(block);
+
+  HBasicBlock* exit_block = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(exit_block);
+  graph->SetExitBlock(exit_block);
+  exit_block->AddInstruction(new (&allocator) HExit());
+
+  entry_block->AddSuccessor(block);
+  block->AddSuccessor(exit_block);
+
+  HInstruction* op1;
+  HInstruction* op2;
+  if (type == Primitive::kPrimInt) {
+    op1 = graph->GetIntConstant(i);
+    op2 = graph->GetIntConstant(j);
+  } else {
+    DCHECK_EQ(type, Primitive::kPrimLong);
+    op1 = graph->GetLongConstant(i);
+    op2 = graph->GetLongConstant(j);
+  }
+
+  HInstruction* comparison = nullptr;
+  bool expected_result = false;
+  const uint64_t x = i;
+  const uint64_t y = j;
+  switch (condition) {
+    case kCondEQ:
+      comparison = new (&allocator) HEqual(op1, op2);
+      expected_result = (i == j);
+      break;
+    case kCondNE:
+      comparison = new (&allocator) HNotEqual(op1, op2);
+      expected_result = (i != j);
+      break;
+    case kCondLT:
+      comparison = new (&allocator) HLessThan(op1, op2);
+      expected_result = (i < j);
+      break;
+    case kCondLE:
+      comparison = new (&allocator) HLessThanOrEqual(op1, op2);
+      expected_result = (i <= j);
+      break;
+    case kCondGT:
+      comparison = new (&allocator) HGreaterThan(op1, op2);
+      expected_result = (i > j);
+      break;
+    case kCondGE:
+      comparison = new (&allocator) HGreaterThanOrEqual(op1, op2);
+      expected_result = (i >= j);
+      break;
+    case kCondB:
+      comparison = new (&allocator) HBelow(op1, op2);
+      expected_result = (x < y);
+      break;
+    case kCondBE:
+      comparison = new (&allocator) HBelowOrEqual(op1, op2);
+      expected_result = (x <= y);
+      break;
+    case kCondA:
+      comparison = new (&allocator) HAbove(op1, op2);
+      expected_result = (x > y);
+      break;
+    case kCondAE:
+      comparison = new (&allocator) HAboveOrEqual(op1, op2);
+      expected_result = (x >= y);
+      break;
+  }
+  block->AddInstruction(comparison);
+  block->AddInstruction(new (&allocator) HReturn(comparison));
+
+  auto hook_before_codegen = [](HGraph*) {
+  };
+  RunCodeOptimized(graph, hook_before_codegen, true, expected_result);
+}
+
+TEST(CodegenTest, ComparisonsInt) {
+  for (int64_t i = -1; i <= 1; i++) {
+    for (int64_t j = -1; j <= 1; j++) {
+      TestComparison(kCondEQ, i, j, Primitive::kPrimInt);
+      TestComparison(kCondNE, i, j, Primitive::kPrimInt);
+      TestComparison(kCondLT, i, j, Primitive::kPrimInt);
+      TestComparison(kCondLE, i, j, Primitive::kPrimInt);
+      TestComparison(kCondGT, i, j, Primitive::kPrimInt);
+      TestComparison(kCondGE, i, j, Primitive::kPrimInt);
+      TestComparison(kCondB,  i, j, Primitive::kPrimInt);
+      TestComparison(kCondBE, i, j, Primitive::kPrimInt);
+      TestComparison(kCondA,  i, j, Primitive::kPrimInt);
+      TestComparison(kCondAE, i, j, Primitive::kPrimInt);
+    }
+  }
+}
+
+TEST(CodegenTest, ComparisonsLong) {
+  // TODO: make MIPS work for long
+  if (kRuntimeISA == kMips || kRuntimeISA == kMips64) {
+    return;
+  }
+
+  for (int64_t i = -1; i <= 1; i++) {
+    for (int64_t j = -1; j <= 1; j++) {
+      TestComparison(kCondEQ, i, j, Primitive::kPrimLong);
+      TestComparison(kCondNE, i, j, Primitive::kPrimLong);
+      TestComparison(kCondLT, i, j, Primitive::kPrimLong);
+      TestComparison(kCondLE, i, j, Primitive::kPrimLong);
+      TestComparison(kCondGT, i, j, Primitive::kPrimLong);
+      TestComparison(kCondGE, i, j, Primitive::kPrimLong);
+      TestComparison(kCondB,  i, j, Primitive::kPrimLong);
+      TestComparison(kCondBE, i, j, Primitive::kPrimLong);
+      TestComparison(kCondA,  i, j, Primitive::kPrimLong);
+      TestComparison(kCondAE, i, j, Primitive::kPrimLong);
+    }
+  }
+}
+
 }  // namespace art

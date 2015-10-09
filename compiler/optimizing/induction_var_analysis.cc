@@ -650,8 +650,7 @@ bool HInductionVarAnalysis::IsTaken(InductionInfo* lower_expr,
       case kCondLE: return lower_value <= upper_value;
       case kCondGT: return lower_value >  upper_value;
       case kCondGE: return lower_value >= upper_value;
-      case kCondEQ:
-      case kCondNE: LOG(FATAL) << "CONDITION UNREACHABLE";
+      default:      LOG(FATAL) << "CONDITION UNREACHABLE";
     }
   }
   return false;  // not certain, may be untaken
@@ -680,8 +679,8 @@ bool HInductionVarAnalysis::IsFinite(InductionInfo* upper_expr,
           (IsIntAndGet(upper_expr, &value) && value >= (min - stride_value - 1));
     case kCondGE:
       return (IsIntAndGet(upper_expr, &value) && value >= (min - stride_value));
-    case kCondEQ:
-    case kCondNE: LOG(FATAL) << "CONDITION UNREACHABLE";
+    default:
+      LOG(FATAL) << "CONDITION UNREACHABLE";
   }
   return false;  // not certain, may be infinite
 }

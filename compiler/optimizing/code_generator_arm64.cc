@@ -77,6 +77,10 @@ inline Condition ARM64Condition(IfCondition cond) {
     case kCondLE: return le;
     case kCondGT: return gt;
     case kCondGE: return ge;
+    case kCondB:  return lo;
+    case kCondBE: return ls;
+    case kCondA:  return hi;
+    case kCondAE: return hs;
   }
   LOG(FATAL) << "Unreachable";
   UNREACHABLE();
@@ -1937,7 +1941,11 @@ void InstructionCodeGeneratorARM64::VisitCondition(HCondition* instruction) {
   M(LessThan)                                                                            \
   M(LessThanOrEqual)                                                                     \
   M(GreaterThan)                                                                         \
-  M(GreaterThanOrEqual)
+  M(GreaterThanOrEqual)                                                                  \
+  M(Below)                                                                               \
+  M(BelowOrEqual)                                                                        \
+  M(Above)                                                                               \
+  M(AboveOrEqual)
 #define DEFINE_CONDITION_VISITORS(Name)                                                  \
 void LocationsBuilderARM64::Visit##Name(H##Name* comp) { VisitCondition(comp); }         \
 void InstructionCodeGeneratorARM64::Visit##Name(H##Name* comp) { VisitCondition(comp); }

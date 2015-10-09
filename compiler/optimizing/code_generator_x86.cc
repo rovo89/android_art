@@ -428,7 +428,7 @@ class ArraySetSlowPathX86 : public SlowPathCode {
 #undef __
 #define __ down_cast<X86Assembler*>(GetAssembler())->
 
-inline Condition X86SignedCondition(IfCondition cond) {
+inline Condition X86Condition(IfCondition cond) {
   switch (cond) {
     case kCondEQ: return kEqual;
     case kCondNE: return kNotEqual;
@@ -436,19 +436,30 @@ inline Condition X86SignedCondition(IfCondition cond) {
     case kCondLE: return kLessEqual;
     case kCondGT: return kGreater;
     case kCondGE: return kGreaterEqual;
+    case kCondB:  return kBelow;
+    case kCondBE: return kBelowEqual;
+    case kCondA:  return kAbove;
+    case kCondAE: return kAboveEqual;
   }
   LOG(FATAL) << "Unreachable";
   UNREACHABLE();
 }
 
+// Maps signed condition to unsigned condition and FP condition to x86 name.
 inline Condition X86UnsignedOrFPCondition(IfCondition cond) {
   switch (cond) {
     case kCondEQ: return kEqual;
     case kCondNE: return kNotEqual;
+    // Signed to unsigned, and FP to x86 name.
     case kCondLT: return kBelow;
     case kCondLE: return kBelowEqual;
     case kCondGT: return kAbove;
     case kCondGE: return kAboveEqual;
+    // Unsigned remain unchanged.
+    case kCondB:  return kBelow;
+    case kCondBE: return kBelowEqual;
+    case kCondA:  return kAbove;
+    case kCondAE: return kAboveEqual;
   }
   LOG(FATAL) << "Unreachable";
   UNREACHABLE();
@@ -1067,7 +1078,7 @@ void InstructionCodeGeneratorX86::GenerateLongComparesAndJumps(HCondition* cond,
   Register left_low = left.AsRegisterPairLow<Register>();
   IfCondition true_high_cond = if_cond;
   IfCondition false_high_cond = cond->GetOppositeCondition();
-  Condition final_condition = X86UnsignedOrFPCondition(if_cond);
+  Condition final_condition = X86UnsignedOrFPCondition(if_cond);  // unsigned on lower part
 
   // Set the conditions for the test, remembering that == needs to be
   // decided using the low words.
@@ -1088,6 +1099,18 @@ void InstructionCodeGeneratorX86::GenerateLongComparesAndJumps(HCondition* cond,
     case kCondGE:
       true_high_cond = kCondGT;
       break;
+    case kCondB:
+      false_high_cond = kCondA;
+      break;
+    case kCondBE:
+      true_high_cond = kCondB;
+      break;
+    case kCondA:
+      false_high_cond = kCondB;
+      break;
+    case kCondAE:
+      true_high_cond = kCondA;
+      break;
   }
 
   if (right.IsConstant()) {
@@ -1101,12 +1124,12 @@ void InstructionCodeGeneratorX86::GenerateLongComparesAndJumps(HCondition* cond,
       __ cmpl(left_high, Immediate(val_high));
     }
     if (if_cond == kCondNE) {
-      __ j(X86SignedCondition(true_high_cond), true_label);
+      __ j(X86Condition(true_high_cond), true_label);
     } else if (if_cond == kCondEQ) {
-      __ j(X86SignedCondition(false_high_cond), false_label);
+      __ j(X86Condition(false_high_cond), false_label);
     } else {
-      __ j(X86SignedCondition(true_high_cond), true_label);
-      __ j(X86SignedCondition(false_high_cond), false_label);
+      __ j(X86Condition(true_high_cond), true_label);
+      __ j(X86Condition(false_high_cond), false_label);
     }
     // Must be equal high, so compare the lows.
     if (val_low == 0) {
@@ -1120,12 +1143,12 @@ void InstructionCodeGeneratorX86::GenerateLongComparesAndJumps(HCondition* cond,
 
     __ cmpl(left_high, right_high);
     if (if_cond == kCondNE) {
-      __ j(X86SignedCondition(true_high_cond), true_label);
+      __ j(X86Condition(true_high_cond), true_label);
     } else if (if_cond == kCondEQ) {
-      __ j(X86SignedCondition(false_high_cond), false_label);
+      __ j(X86Condition(false_high_cond), false_label);
     } else {
-      __ j(X86SignedCondition(true_high_cond), true_label);
-      __ j(X86SignedCondition(false_high_cond), false_label);
+      __ j(X86Condition(true_high_cond), true_label);
+      __ j(X86Condition(false_high_cond), false_label);
     }
     // Must be equal high, so compare the lows.
     __ cmpl(left_low, right_low);
@@ -1214,7 +1237,7 @@ void InstructionCodeGeneratorX86::GenerateTestAndBranch(HInstruction* instructio
         }
         __ j(kNotEqual, true_target);
       } else {
-        __ j(X86SignedCondition(cond->AsCondition()->GetCondition()), true_target);
+        __ j(X86Condition(cond->AsCondition()->GetCondition()), true_target);
       }
     } else {
       // Condition has not been materialized, use its inputs as the
@@ -1247,7 +1270,7 @@ void InstructionCodeGeneratorX86::GenerateTestAndBranch(HInstruction* instructio
       } else {
         __ cmpl(lhs.AsRegister<Register>(), Address(ESP, rhs.GetStackIndex()));
       }
-      __ j(X86SignedCondition(cond->AsCondition()->GetCondition()), true_target);
+      __ j(X86Condition(cond->AsCondition()->GetCondition()), true_target);
     }
   }
   if (false_target != nullptr) {
@@ -1405,7 +1428,7 @@ void InstructionCodeGeneratorX86::VisitCondition(HCondition* cond) {
       } else {
         __ cmpl(lhs.AsRegister<Register>(), Address(ESP, rhs.GetStackIndex()));
       }
-      __ setb(X86SignedCondition(cond->GetCondition()), reg);
+      __ setb(X86Condition(cond->GetCondition()), reg);
       return;
     }
     case Primitive::kPrimLong:
@@ -1480,6 +1503,38 @@ void LocationsBuilderX86::VisitGreaterThanOrEqual(HGreaterThanOrEqual* comp) {
 }
 
 void InstructionCodeGeneratorX86::VisitGreaterThanOrEqual(HGreaterThanOrEqual* comp) {
+  VisitCondition(comp);
+}
+
+void LocationsBuilderX86::VisitBelow(HBelow* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorX86::VisitBelow(HBelow* comp) {
+  VisitCondition(comp);
+}
+
+void LocationsBuilderX86::VisitBelowOrEqual(HBelowOrEqual* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorX86::VisitBelowOrEqual(HBelowOrEqual* comp) {
+  VisitCondition(comp);
+}
+
+void LocationsBuilderX86::VisitAbove(HAbove* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorX86::VisitAbove(HAbove* comp) {
+  VisitCondition(comp);
+}
+
+void LocationsBuilderX86::VisitAboveOrEqual(HAboveOrEqual* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorX86::VisitAboveOrEqual(HAboveOrEqual* comp) {
   VisitCondition(comp);
 }
 
