@@ -2334,15 +2334,22 @@ void ClassLinker::LoadClassMembers(Thread* self, const DexFile& dex_file,
     klass->SetIFields(ifields);
     klass->SetNumInstanceFields(num_ifields);
     DCHECK_EQ(klass->NumInstanceFields(), num_ifields);
-    // Load methods.
-    if (it.NumDirectMethods() != 0) {
-      klass->SetDirectMethodsPtr(AllocArtMethodArray(self, it.NumDirectMethods()));
+    ArtMethod* const direct_methods = (it.NumDirectMethods() != 0)
+        ? AllocArtMethodArray(self, it.NumDirectMethods())
+        : nullptr;
+    ArtMethod* const virtual_methods = (it.NumVirtualMethods() != 0)
+        ? AllocArtMethodArray(self, it.NumVirtualMethods())
+        : nullptr;
+    {
+      // Used to get exclusion between with VisitNativeRoots so that no thread sees a length for
+      // one array with a pointer for a different array.
+      WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
+      // Load methods.
+      klass->SetDirectMethodsPtr(direct_methods);
+      klass->SetNumDirectMethods(it.NumDirectMethods());
+      klass->SetVirtualMethodsPtr(virtual_methods);
+      klass->SetNumVirtualMethods(it.NumVirtualMethods());
     }
-    klass->SetNumDirectMethods(it.NumDirectMethods());
-    if (it.NumVirtualMethods() != 0) {
-      klass->SetVirtualMethodsPtr(AllocArtMethodArray(self, it.NumVirtualMethods()));
-    }
-    klass->SetNumVirtualMethods(it.NumVirtualMethods());
     size_t class_def_method_index = 0;
     uint32_t last_dex_method_index = DexFile::kDexNoIndex;
     size_t last_class_def_method_index = 0;
@@ -3321,8 +3328,11 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
     self->AssertPendingOOMException();
     return nullptr;
   }
-  klass->SetDirectMethodsPtr(directs);
-  klass->SetNumDirectMethods(1u);
+  {
+    WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
+    klass->SetDirectMethodsPtr(directs);
+    klass->SetNumDirectMethods(1u);
+  }
   CreateProxyConstructor(klass, klass->GetDirectMethodUnchecked(0, image_pointer_size_));
 
   // Create virtual method using specified prototypes.
@@ -3337,8 +3347,11 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
     self->AssertPendingOOMException();
     return nullptr;
   }
-  klass->SetVirtualMethodsPtr(virtuals);
-  klass->SetNumVirtualMethods(num_virtual_methods);
+  {
+    WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
+    klass->SetVirtualMethodsPtr(virtuals);
+    klass->SetNumVirtualMethods(num_virtual_methods);
+  }
   for (size_t i = 0; i < num_virtual_methods; ++i) {
     auto* virtual_method = klass->GetVirtualMethodUnchecked(i, image_pointer_size_);
     auto* prototype = h_methods->Get(i)->GetArtMethod();
