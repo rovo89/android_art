@@ -358,7 +358,8 @@ bool OptimizingCompiler::CanCompileMethod(uint32_t method_idx ATTRIBUTE_UNUSED,
 }
 
 static bool IsInstructionSetSupported(InstructionSet instruction_set) {
-  return instruction_set == kArm64
+  return (instruction_set == kArm && !kArm32QuickCodeUseSoftFloat)
+      || instruction_set == kArm64
       || (instruction_set == kThumb2 && !kArm32QuickCodeUseSoftFloat)
       || instruction_set == kMips64
       || instruction_set == kX86
@@ -670,6 +671,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   MaybeRecordStat(MethodCompilationStat::kAttemptCompilation);
   CompilerDriver* compiler_driver = GetCompilerDriver();
   InstructionSet instruction_set = compiler_driver->GetInstructionSet();
+
   // Always use the thumb2 assembler: some runtime functionality (like implicit stack
   // overflow checks) assume thumb2.
   if (instruction_set == kArm) {
@@ -851,7 +853,9 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     }
   }
 
-  if (kIsDebugBuild && IsCompilingWithCoreImage()) {
+  if (kIsDebugBuild &&
+      IsCompilingWithCoreImage() &&
+      IsInstructionSetSupported(compiler_driver->GetInstructionSet())) {
     // For testing purposes, we put a special marker on method names that should be compiled
     // with this compiler. This makes sure we're not regressing.
     std::string method_name = PrettyMethod(method_idx, dex_file);
