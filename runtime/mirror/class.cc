@@ -726,12 +726,12 @@ ArtField* Class::FindField(Thread* self, Handle<Class> klass, const StringPiece&
 void Class::SetPreverifiedFlagOnAllMethods(size_t pointer_size) {
   DCHECK(IsVerified());
   for (auto& m : GetDirectMethods(pointer_size)) {
-    if (!m.IsNative() && !m.IsAbstract()) {
+    if (!m.IsNative() && m.IsInvokable()) {
       m.SetPreverified();
     }
   }
   for (auto& m : GetVirtualMethods(pointer_size)) {
-    if (!m.IsNative() && !m.IsAbstract()) {
+    if (!m.IsNative() && m.IsInvokable()) {
       m.SetPreverified();
     }
   }

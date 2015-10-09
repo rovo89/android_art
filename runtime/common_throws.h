@@ -120,6 +120,9 @@ void ThrowIncompatibleClassChangeError(mirror::Class* referrer, const char* fmt,
     __attribute__((__format__(__printf__, 2, 3)))
     SHARED_REQUIRES(Locks::mutator_lock_) COLD_ATTR;
 
+void ThrowIncompatibleClassChangeErrorForMethodConflict(ArtMethod* method)
+    SHARED_REQUIRES(Locks::mutator_lock_) COLD_ATTR;
+
 // IOException
 
 void ThrowIOException(const char* fmt, ...) __attribute__((__format__(__printf__, 1, 2)))

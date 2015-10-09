@@ -329,7 +329,7 @@ inline int CompilerDriver::IsFastInvoke(
       resolved_method->GetMethodIndex() < methods_class->GetVTableLength() &&
       (methods_class->GetVTableEntry(
           resolved_method->GetMethodIndex(), pointer_size) == resolved_method) &&
-      !resolved_method->IsAbstract();
+      resolved_method->IsInvokable();
 
   if (can_sharpen_virtual_based_on_type || can_sharpen_super_based_on_type) {
     // Sharpen a virtual call into a direct call. The method_idx is into referrer's
@@ -374,7 +374,7 @@ inline int CompilerDriver::IsFastInvoke(
           class_loader, nullptr, kVirtual);
     }
     CHECK(called_method != nullptr);
-    CHECK(!called_method->IsAbstract());
+    CHECK(called_method->IsInvokable());
     int stats_flags = kFlagMethodResolved;
     GetCodeAndMethodForDirectCall(/*out*/invoke_type,
                                   kDirect,  // Sharp type
