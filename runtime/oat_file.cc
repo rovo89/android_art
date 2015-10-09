@@ -42,6 +42,7 @@
 #include "mirror/class.h"
 #include "mirror/object-inl.h"
 #include "oat_file-inl.h"
+#include "oat_file_manager.h"
 #include "os.h"
 #include "runtime.h"
 #include "utils.h"
@@ -115,7 +116,19 @@ OatFile* OatFile::Open(const std::string& filename,
   // TODO: Also try when not executable? The issue here could be re-mapping as writable (as
   //       !executable is a sign that we may want to patch), which may not be allowed for
   //       various reasons.
-  if (kUseDlopen && (kIsTargetBuild || kUseDlopenOnHost) && executable) {
+  // dlopen always returns the same library if it is already opened on the host. For this reason
+  // we only use dlopen if we are the target or we do not already have the dex file opened. Having
+  // the same library loaded multiple times at different addresses is required for class unloading
+  // and for having dex caches arrays in the .bss section.
+  Runtime* const runtime = Runtime::Current();
+  OatFileManager* const manager = (runtime != nullptr) ? &runtime->GetOatFileManager() : nullptr;
+  if (kUseDlopen &&
+      (kIsTargetBuild ||
+          (kUseDlopenOnHost &&
+           // Manager may be null if we are running without a runtime.
+           manager != nullptr &&
+           manager->FindOpenedOatFileFromOatLocation(location) == nullptr)) &&
+      executable) {
     // Try to use dlopen. This may fail for various reasons, outlined below. We try dlopen, as
     // this will register the oat file with the linker and allows libunwind to find our info.
     ret.reset(OpenDlopen(filename, location, requested_base, abs_dex_location, error_msg));
