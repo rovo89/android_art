@@ -31,8 +31,19 @@ enum LogSeverity {
   WARNING,
   ERROR,
   FATAL,
+  XPOSED_VERBOSE,
+  XPOSED_DEBUG,
+  XPOSED_INFO,
+  XPOSED_WARNING,
+  XPOSED_ERROR,
+  XPOSED_FATAL,
   INTERNAL_FATAL,  // For Runtime::Abort.
 };
+
+const bool LOG_XPOSED = true;
+inline LogSeverity operator|(LogSeverity a, bool log_xposed) {
+  return log_xposed ? static_cast<LogSeverity>(static_cast<size_t>(a) - VERBOSE + XPOSED_VERBOSE) : a;
+}
 
 // The members of this struct are the valid arguments to VLOG and VLOG_IS_ON in code,
 // and the "-verbose:" command line argument.
@@ -87,6 +98,9 @@ extern const char* ProgramInvocationShortName();
 // Logs a message to logcat on Android otherwise to stderr. If the severity is FATAL it also causes
 // an abort. For example: LOG(FATAL) << "We didn't expect to reach here";
 #define LOG(severity) ::art::LogMessage(__FILE__, __LINE__, severity, -1).stream()
+
+// Same as LOG(severity), but override the log tag to be "Xposed".
+#define XLOG(severity) ::art::LogMessage(__FILE__, __LINE__, severity|LOG_XPOSED, -1).stream()
 
 // A variant of LOG that also logs the current errno value. To be used when library calls fail.
 #define PLOG(severity) ::art::LogMessage(__FILE__, __LINE__, severity, errno).stream()
