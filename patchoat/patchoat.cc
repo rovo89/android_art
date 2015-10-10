@@ -1083,7 +1083,7 @@ static int patchoat(int argc, char **argv) {
     } else if (option == "--no-dump-timings") {
       dump_timings = false;
     } else {
-      Usage("Unknown argument %s", option.data());
+      LOG(WARNING) << StringPrintf("Unknown argument %s", option.data());
     }
   }
 

@@ -837,7 +837,7 @@ class Dex2Oat FINAL {
       } else if (option == "--abort-on-hard-verifier-error") {
         abort_on_hard_verifier_error = true;
       } else {
-        Usage("Unknown argument %s", option.data());
+        LOG(WARNING) << StringPrintf("Unknown argument %s", option.data());
       }
     }
 
@@ -996,7 +996,7 @@ class Dex2Oat FINAL {
     } else if (strcmp(compiler_filter_string, "time") == 0) {
       compiler_filter = CompilerOptions::kTime;
     } else {
-      Usage("Unknown --compiler-filter value %s", compiler_filter_string);
+      LOG(WARNING) << StringPrintf("Unknown --compiler-filter value %s", compiler_filter_string);
     }
 
     // It they are not set, use default values for inlining settings.

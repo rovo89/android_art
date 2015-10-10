@@ -141,7 +141,7 @@ const InstructionSetFeatures* Arm64InstructionSetFeatures::AddFeaturesFromSplitS
       is_a53 = false;
     } else {
       *error_msg = StringPrintf("Unknown instruction set feature: '%s'", feature.c_str());
-      return nullptr;
+      LOG(WARNING) << *error_msg;
     }
   }
   return new Arm64InstructionSetFeatures(smp, is_a53, is_a53);

@@ -283,7 +283,7 @@ const InstructionSetFeatures* X86InstructionSetFeatures::AddFeaturesFromSplitStr
       has_AVX2 = false;
     } else {
       *error_msg = StringPrintf("Unknown instruction set feature: '%s'", feature.c_str());
-      return nullptr;
+      LOG(WARNING) << *error_msg;
     }
   }
   if (x86_64) {

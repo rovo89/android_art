@@ -163,6 +163,7 @@ struct CmdlineArgs {
 
         if (parse_status == kParseUnknownArgument) {
           fprintf(stderr, "Unknown argument %s\n", option.data());
+          parse_status = kParseOk;
         }
 
         if (parse_status != kParseOk) {

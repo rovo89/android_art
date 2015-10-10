@@ -280,7 +280,7 @@ const InstructionSetFeatures* ArmInstructionSetFeatures::AddFeaturesFromSplitStr
       has_atomic_ldrd_strd = false;
     } else {
       *error_msg = StringPrintf("Unknown instruction set feature: '%s'", feature.c_str());
-      return nullptr;
+      LOG(WARNING) << *error_msg;
     }
   }
   return new ArmInstructionSetFeatures(smp, has_div, has_atomic_ldrd_strd);
