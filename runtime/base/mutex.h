@@ -83,6 +83,7 @@ enum LockLevel {
   kDexFileToMethodInlinerMapLock,
   kInternTableLock,
   kOatFileSecondaryLookupLock,
+  kOatFileManagerLock,
   kTracingUniqueMethodsLock,
   kTracingStreamingLock,
   kDefaultMutexLevel,
@@ -644,8 +645,11 @@ class Locks {
   // Guards modification of the LDT on x86.
   static Mutex* modify_ldt_lock_ ACQUIRED_AFTER(allocated_thread_ids_lock_);
 
+  // Guards opened oat files in OatFileManager.
+  static ReaderWriterMutex* oat_file_manager_lock_ ACQUIRED_AFTER(modify_ldt_lock_);
+
   // Guards intern table.
-  static Mutex* intern_table_lock_ ACQUIRED_AFTER(modify_ldt_lock_);
+  static Mutex* intern_table_lock_ ACQUIRED_AFTER(oat_file_manager_lock_);
 
   // Guards reference processor.
   static Mutex* reference_processor_lock_ ACQUIRED_AFTER(intern_table_lock_);

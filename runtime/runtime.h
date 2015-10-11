@@ -82,6 +82,7 @@ class LinearAlloc;
 class MonitorList;
 class MonitorPool;
 class NullPointerHandler;
+class OatFileManager;
 class SignalCatcher;
 class StackOverflowHandler;
 class SuspensionHandler;
@@ -573,6 +574,11 @@ class Runtime {
   // Create a normal LinearAlloc or low 4gb version if we are 64 bit AOT compiler.
   LinearAlloc* CreateLinearAlloc();
 
+  OatFileManager& GetOatFileManager() const {
+    DCHECK(oat_file_manager_ != nullptr);
+    return *oat_file_manager_.get();
+  }
+
  private:
   static void InitPlatformSignalHandlers();
 
@@ -769,6 +775,9 @@ class Runtime {
 
   // Contains the build fingerprint, if given as a parameter.
   std::string fingerprint_;
+
+  // Oat file manager, keeps track of what oat files are open.
+  std::unique_ptr<OatFileManager> oat_file_manager_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };

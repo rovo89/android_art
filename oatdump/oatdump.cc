@@ -49,6 +49,7 @@
 #include "mirror/object_array-inl.h"
 #include "oat.h"
 #include "oat_file-inl.h"
+#include "oat_file_manager.h"
 #include "os.h"
 #include "output_stream.h"
 #include "safe_map.h"
@@ -1563,13 +1564,15 @@ class ImageDumper {
     }
     os << "\n";
 
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    Runtime* const runtime = Runtime::Current();
+    ClassLinker* class_linker = runtime->GetClassLinker();
     std::string image_filename = image_space_.GetImageFilename();
     std::string oat_location = ImageHeader::GetOatLocationFromImageLocation(image_filename);
     os << "OAT LOCATION: " << oat_location;
     os << "\n";
     std::string error_msg;
-    const OatFile* oat_file = class_linker->FindOpenedOatFileFromOatLocation(oat_location);
+    const OatFile* oat_file = runtime->GetOatFileManager().FindOpenedOatFileFromOatLocation(
+        oat_location);
     if (oat_file == nullptr) {
       oat_file = OatFile::Open(oat_location, oat_location,
                                nullptr, nullptr, false, nullptr,
@@ -1594,7 +1597,7 @@ class ImageDumper {
     os << "OBJECTS:\n" << std::flush;
 
     // Loop through all the image spaces and dump their objects.
-    gc::Heap* heap = Runtime::Current()->GetHeap();
+    gc::Heap* heap = runtime->GetHeap();
     const std::vector<gc::space::ContinuousSpace*>& spaces = heap->GetContinuousSpaces();
     Thread* self = Thread::Current();
     {
@@ -2394,7 +2397,8 @@ static int DumpOatWithRuntime(Runtime* runtime, OatFile* oat_file, OatDumperOpti
   // Need to register dex files to get a working dex cache.
   ScopedObjectAccess soa(self);
   ClassLinker* class_linker = runtime->GetClassLinker();
-  class_linker->RegisterOatFile(oat_file);
+  Runtime::Current()->GetOatFileManager().RegisterOatFile(
+      std::unique_ptr<const OatFile>(oat_file));
   std::vector<const DexFile*> class_path;
   for (const OatFile::OatDexFile* odf : oat_file->GetOatDexFiles()) {
     std::string error_msg;

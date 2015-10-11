@@ -27,6 +27,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/string.h"
 #include "oat_file_assistant.h"
+#include "oat_file_manager.h"
 #include "os.h"
 #include "profiler.h"
 #include "runtime.h"
@@ -160,11 +161,14 @@ static jobject DexFile_openDexFileNative(
     return 0;
   }
 
-  ClassLinker* linker = Runtime::Current()->GetClassLinker();
+  Runtime* const runtime = Runtime::Current();
+  ClassLinker* linker = runtime->GetClassLinker();
   std::vector<std::unique_ptr<const DexFile>> dex_files;
   std::vector<std::string> error_msgs;
 
-  dex_files = linker->OpenDexFilesFromOat(sourceName.c_str(), outputName.c_str(), &error_msgs);
+  dex_files = runtime->GetOatFileManager().OpenDexFilesFromOat(sourceName.c_str(),
+                                                               outputName.c_str(),
+                                                               &error_msgs);
 
   if (!dex_files.empty()) {
     jlongArray array = ConvertNativeToJavaArray(env, dex_files);
