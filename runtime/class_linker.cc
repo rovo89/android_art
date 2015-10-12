@@ -41,25 +41,20 @@
 #include "compiler_callbacks.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
+#include "entrypoints/entrypoint_utils.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc_root-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/heap_bitmap.h"
 #include "gc/heap.h"
 #include "gc/space/image_space.h"
-#include "handle_scope.h"
+#include "handle_scope-inl.h"
 #include "intern_table.h"
 #include "interpreter/interpreter.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
 #include "leb128.h"
 #include "linear_alloc.h"
-#include "oat.h"
-#include "oat_file.h"
-#include "oat_file-inl.h"
-#include "oat_file_assistant.h"
-#include "oat_file_manager.h"
-#include "object_lock.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
@@ -73,12 +68,17 @@
 #include "mirror/reference-inl.h"
 #include "mirror/stack_trace_element.h"
 #include "mirror/string-inl.h"
+#include "native/dalvik_system_DexFile.h"
+#include "oat.h"
+#include "oat_file.h"
+#include "oat_file-inl.h"
+#include "oat_file_assistant.h"
+#include "oat_file_manager.h"
+#include "object_lock.h"
 #include "os.h"
 #include "runtime.h"
-#include "entrypoints/entrypoint_utils.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
-#include "handle_scope-inl.h"
 #include "thread-inl.h"
 #include "trace.h"
 #include "utils.h"
@@ -1429,13 +1429,18 @@ bool ClassLinker::FindClassInPathClassLoader(ScopedObjectAccessAlreadyRunnable& 
             break;
           }
           int32_t long_array_size = long_array->GetLength();
-          for (int32_t j = 0; j < long_array_size; ++j) {
+          // First element is the oat file.
+          for (int32_t j = kDexFileIndexStart; j < long_array_size; ++j) {
             const DexFile* cp_dex_file = reinterpret_cast<const DexFile*>(static_cast<uintptr_t>(
                 long_array->GetWithoutChecks(j)));
             const DexFile::ClassDef* dex_class_def = cp_dex_file->FindClassDef(descriptor, hash);
             if (dex_class_def != nullptr) {
-              mirror::Class* klass = DefineClass(self, descriptor, hash, class_loader,
-                                                 *cp_dex_file, *dex_class_def);
+              mirror::Class* klass = DefineClass(self,
+                                                 descriptor,
+                                                 hash,
+                                                 class_loader,
+                                                 *cp_dex_file,
+                                                 *dex_class_def);
               if (klass == nullptr) {
                 CHECK(self->IsExceptionPending()) << descriptor;
                 self->ClearException();
@@ -5794,9 +5799,13 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self, std::vector<const DexFi
   for (const DexFile* dex_file : dex_files) {
     StackHandleScope<3> hs2(self);
 
-    Handle<mirror::LongArray> h_long_array = hs2.NewHandle(mirror::LongArray::Alloc(self, 1));
+    // CreatePathClassLoader is only used by gtests. Index 0 of h_long_array is supposed to be the
+    // oat file but we can leave it null.
+    Handle<mirror::LongArray> h_long_array = hs2.NewHandle(mirror::LongArray::Alloc(
+        self,
+        kDexFileIndexStart + 1));
     DCHECK(h_long_array.Get() != nullptr);
-    h_long_array->Set(0, reinterpret_cast<intptr_t>(dex_file));
+    h_long_array->Set(kDexFileIndexStart, reinterpret_cast<intptr_t>(dex_file));
 
     Handle<mirror::Object> h_dex_file = hs2.NewHandle(
         cookie_field->GetDeclaringClass()->AllocObject(self));
