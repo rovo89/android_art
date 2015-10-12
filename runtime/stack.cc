@@ -1051,4 +1051,87 @@ int StackVisitor::GetVRegOffsetFromQuickCode(const DexFile::CodeItem* code_item,
   }
 }
 
+void LockCountData::AddMonitorInternal(Thread* self, mirror::Object* obj) {
+  if (obj == nullptr) {
+    return;
+  }
+
+  // If there's an error during enter, we won't have locked the monitor. So check there's no
+  // exception.
+  if (self->IsExceptionPending()) {
+    return;
+  }
+
+  if (monitors_ == nullptr) {
+    monitors_.reset(new std::vector<mirror::Object*>());
+  }
+  monitors_->push_back(obj);
+}
+
+void LockCountData::RemoveMonitorInternal(Thread* self, const mirror::Object* obj) {
+  if (obj == nullptr) {
+    return;
+  }
+  bool found_object = false;
+  if (monitors_ != nullptr) {
+    // We need to remove one pointer to ref, as duplicates are used for counting recursive locks.
+    // We arbitrarily choose the first one.
+    auto it = std::find(monitors_->begin(), monitors_->end(), obj);
+    if (it != monitors_->end()) {
+      monitors_->erase(it);
+      found_object = true;
+    }
+  }
+  if (!found_object) {
+    // The object wasn't found. Time for an IllegalMonitorStateException.
+    // The order here isn't fully clear. Assume that any other pending exception is swallowed.
+    // TODO: Maybe make already pending exception a suppressed exception.
+    self->ClearException();
+    self->ThrowNewExceptionF("Ljava/lang/IllegalMonitorStateException;",
+                             "did not lock monitor on object of type '%s' before unlocking",
+                             PrettyTypeOf(const_cast<mirror::Object*>(obj)).c_str());
+  }
+}
+
+// Helper to unlock a monitor. Must be NO_THREAD_SAFETY_ANALYSIS, as we can't statically show
+// that the object was locked.
+void MonitorExitHelper(Thread* self, mirror::Object* obj) NO_THREAD_SAFETY_ANALYSIS {
+  DCHECK(self != nullptr);
+  DCHECK(obj != nullptr);
+  obj->MonitorExit(self);
+}
+
+bool LockCountData::CheckAllMonitorsReleasedInternal(Thread* self) {
+  DCHECK(self != nullptr);
+  if (monitors_ != nullptr) {
+    if (!monitors_->empty()) {
+      // There may be an exception pending, if the method is terminating abruptly. Clear it.
+      // TODO: Should we add this as a suppressed exception?
+      self->ClearException();
+
+      // OK, there are monitors that are still locked. To enforce structured locking (and avoid
+      // deadlocks) we unlock all of them before we raise the IllegalMonitorState exception.
+      for (mirror::Object* obj : *monitors_) {
+        MonitorExitHelper(self, obj);
+        // If this raised an exception, ignore. TODO: Should we add this as suppressed
+        // exceptions?
+        if (self->IsExceptionPending()) {
+          self->ClearException();
+        }
+      }
+      // Raise an exception, just give the first object as the sample.
+      mirror::Object* first = (*monitors_)[0];
+      self->ThrowNewExceptionF("Ljava/lang/IllegalMonitorStateException;",
+                               "did not unlock monitor on object of type '%s'",
+                               PrettyTypeOf(first).c_str());
+
+      // To make sure this path is not triggered again, clean out the monitors.
+      monitors_->clear();
+
+      return false;
+    }
+  }
+  return true;
+}
+
 }  // namespace art
