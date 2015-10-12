@@ -105,6 +105,7 @@ enum ArenaAllocKind {
   kArenaAllocStackMapStream,
   kArenaAllocCodeGenerator,
   kArenaAllocParallelMoveResolver,
+  kArenaAllocGraphChecker,
   kNumArenaAllocKinds
 };
 
