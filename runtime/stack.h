@@ -21,6 +21,8 @@
 #include <string>
 
 #include "arch/instruction_set.h"
+#include "base/macros.h"
+#include "base/mutex.h"
 #include "dex_file.h"
 #include "gc_root.h"
 #include "mirror/object_reference.h"
@@ -65,6 +67,72 @@ class MANAGED StackReference : public mirror::CompressedReference<MirrorType> {
 // Forward declaration. Just calls the destructor.
 struct ShadowFrameDeleter;
 using ShadowFrameAllocaUniquePtr = std::unique_ptr<ShadowFrame, ShadowFrameDeleter>;
+
+// Counting locks by storing object pointers into a vector. Duplicate entries mark recursive locks.
+// The vector will be visited with the ShadowFrame during GC (so all the locked-on objects are
+// thread roots).
+// Note: implementation is split so that the call sites may be optimized to no-ops in case no
+//       lock counting is necessary. The actual implementation is in the cc file to avoid
+//       dependencies.
+class LockCountData {
+ public:
+  // Add the given object to the list of monitors, that is, objects that have been locked. This
+  // will not throw (but be skipped if there is an exception pending on entry).
+  template <bool kLockCounting>
+  void AddMonitor(Thread* self, mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(self != nullptr);
+    if (!kLockCounting) {
+      return;
+    }
+    AddMonitorInternal(self, obj);
+  }
+
+  // Try to remove the given object from the monitor list, indicating an unlock operation.
+  // This will throw an IllegalMonitorStateException (clearing any already pending exception), in
+  // case that there wasn't a lock recorded for the object.
+  template <bool kLockCounting>
+  void RemoveMonitorOrThrow(Thread* self,
+                            const mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(self != nullptr);
+    if (!kLockCounting) {
+      return;
+    }
+    RemoveMonitorInternal(self, obj);
+  }
+
+  // Check whether all acquired monitors have been released. This will potentially throw an
+  // IllegalMonitorStateException, clearing any already pending exception. Returns true if the
+  // check shows that everything is OK wrt/ lock counting, false otherwise.
+  template <bool kLockCounting>
+  bool CheckAllMonitorsReleasedOrThrow(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_) {
+    DCHECK(self != nullptr);
+    if (!kLockCounting) {
+      return true;
+    }
+    return CheckAllMonitorsReleasedInternal(self);
+  }
+
+  template <typename T, typename... Args>
+  void VisitMonitors(T visitor, Args&&... args) SHARED_REQUIRES(Locks::mutator_lock_) {
+    if (monitors_ != nullptr) {
+      // Visitors may change the Object*. Be careful with the foreach loop.
+      for (mirror::Object*& obj : *monitors_) {
+        visitor(/* inout */ &obj, std::forward<Args>(args)...);
+      }
+    }
+  }
+
+ private:
+  // Internal implementations.
+  void AddMonitorInternal(Thread* self, mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_);
+  void RemoveMonitorInternal(Thread* self, const mirror::Object* obj)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  bool CheckAllMonitorsReleasedInternal(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Stores references to the locked-on objects. As noted, this should be visited during thread
+  // marking.
+  std::unique_ptr<std::vector<mirror::Object*>> monitors_;
+};
 
 // ShadowFrame has 2 possible layouts:
 //  - interpreter - separate VRegs and reference arrays. References are in the reference array.
@@ -272,6 +340,10 @@ class ShadowFrame {
     }
   }
 
+  LockCountData& GetLockCountData() {
+    return lock_count_data_;
+  }
+
   static size_t LinkOffset() {
     return OFFSETOF_MEMBER(ShadowFrame, link_);
   }
@@ -330,6 +402,7 @@ class ShadowFrame {
   ShadowFrame* link_;
   ArtMethod* method_;
   uint32_t dex_pc_;
+  LockCountData lock_count_data_;  // This may contain GC roots when lock counting is active.
 
   // This is a two-part array:
   //  - [0..number_of_vregs) holds the raw virtual registers, and each element here is always 4
