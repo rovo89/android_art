@@ -93,6 +93,7 @@ const char* const ArenaAllocatorStatsImpl<kCount>::kAllocNames[] = {
   "StackMapStm  ",
   "CodeGen      ",
   "ParallelMove ",
+  "GraphChecker ",
 };
 
 template <bool kCount>

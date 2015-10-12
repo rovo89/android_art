@@ -16,10 +16,12 @@
 
 #include "graph_checker.h"
 
+#include <algorithm>
 #include <map>
 #include <string>
 #include <sstream>
 
+#include "base/arena_containers.h"
 #include "base/bit_vector-inl.h"
 #include "base/stringprintf.h"
 
@@ -29,19 +31,21 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
   current_block_ = block;
 
   // Check consistency with respect to predecessors of `block`.
-  std::map<HBasicBlock*, size_t> predecessors_count;
+  ArenaSafeMap<HBasicBlock*, size_t> predecessors_count(
+      std::less<HBasicBlock*>(), GetGraph()->GetArena()->Adapter(kArenaAllocGraphChecker));
   for (HBasicBlock* p : block->GetPredecessors()) {
-    ++predecessors_count[p];
+    auto it = predecessors_count.find(p);
+    if (it != predecessors_count.end()) {
+      ++it->second;
+    } else {
+      predecessors_count.Put(p, 1u);
+    }
   }
   for (auto& pc : predecessors_count) {
     HBasicBlock* p = pc.first;
     size_t p_count_in_block_predecessors = pc.second;
-    size_t block_count_in_p_successors = 0;
-    for (HBasicBlock* p_successor : p->GetSuccessors()) {
-      if (p_successor == block) {
-        ++block_count_in_p_successors;
-      }
-    }
+    size_t block_count_in_p_successors =
+        std::count(p->GetSuccessors().begin(), p->GetSuccessors().end(), block);
     if (p_count_in_block_predecessors != block_count_in_p_successors) {
       AddError(StringPrintf(
           "Block %d lists %zu occurrences of block %d in its predecessors, whereas "
@@ -52,19 +56,21 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
   }
 
   // Check consistency with respect to successors of `block`.
-  std::map<HBasicBlock*, size_t> successors_count;
+  ArenaSafeMap<HBasicBlock*, size_t> successors_count(
+      std::less<HBasicBlock*>(), GetGraph()->GetArena()->Adapter(kArenaAllocGraphChecker));
   for (HBasicBlock* s : block->GetSuccessors()) {
-    ++successors_count[s];
+    auto it = successors_count.find(s);
+    if (it != successors_count.end()) {
+      ++it->second;
+    } else {
+      successors_count.Put(s, 1u);
+    }
   }
   for (auto& sc : successors_count) {
     HBasicBlock* s = sc.first;
     size_t s_count_in_block_successors = sc.second;
-    size_t block_count_in_s_predecessors = 0;
-    for (HBasicBlock* s_predecessor : s->GetPredecessors()) {
-      if (s_predecessor == block) {
-        ++block_count_in_s_predecessors;
-      }
-    }
+    size_t block_count_in_s_predecessors =
+        std::count(s->GetPredecessors().begin(), s->GetPredecessors().end(), block);
     if (s_count_in_block_successors != block_count_in_s_predecessors) {
       AddError(StringPrintf(
           "Block %d lists %zu occurrences of block %d in its successors, whereas "
