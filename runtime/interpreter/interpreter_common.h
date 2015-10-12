@@ -45,6 +45,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
+#include "stack.h"
 #include "thread.h"
 #include "well_known_classes.h"
 
@@ -79,12 +80,20 @@ extern JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item,
 void ThrowNullPointerExceptionFromInterpreter()
     SHARED_REQUIRES(Locks::mutator_lock_);
 
-static inline void DoMonitorEnter(Thread* self, Object* ref) NO_THREAD_SAFETY_ANALYSIS {
+template <bool kMonitorCounting>
+static inline void DoMonitorEnter(Thread* self,
+                                  ShadowFrame* frame,
+                                  Object* ref) NO_THREAD_SAFETY_ANALYSIS {
   ref->MonitorEnter(self);
+  frame->GetLockCountData().AddMonitor<kMonitorCounting>(self, ref);
 }
 
-static inline void DoMonitorExit(Thread* self, Object* ref) NO_THREAD_SAFETY_ANALYSIS {
+template <bool kMonitorCounting>
+static inline void DoMonitorExit(Thread* self,
+                                 ShadowFrame* frame,
+                                 Object* ref) NO_THREAD_SAFETY_ANALYSIS {
   ref->MonitorExit(self);
+  frame->GetLockCountData().RemoveMonitorOrThrow<kMonitorCounting>(self, ref);
 }
 
 void AbortTransactionF(Thread* self, const char* fmt, ...)

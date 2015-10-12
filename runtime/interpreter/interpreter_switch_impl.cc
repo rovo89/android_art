@@ -31,6 +31,9 @@ namespace interpreter {
                                                                   inst->GetDexPc(insns),        \
                                                                   instrumentation);             \
     if (found_dex_pc == DexFile::kDexNoIndex) {                                                 \
+      /* Structured locking is to be enforced for abnormal termination, too. */                 \
+      shadow_frame.GetLockCountData().                                                          \
+          CheckAllMonitorsReleasedOrThrow<do_assignability_check>(self);                        \
       return JValue(); /* Handled in caller. */                                                 \
     } else {                                                                                    \
       int32_t displacement = static_cast<int32_t>(found_dex_pc) - static_cast<int32_t>(dex_pc); \
@@ -46,6 +49,12 @@ namespace interpreter {
       inst = inst->_next_function();                                              \
     }                                                                             \
   } while (false)
+
+#define HANDLE_MONITOR_CHECKS()                                                                   \
+  if (!shadow_frame.GetLockCountData().                                                           \
+          CheckAllMonitorsReleasedOrThrow<do_assignability_check>(self)) {                        \
+    HANDLE_PENDING_EXCEPTION();                                                                   \
+  }
 
 // Code to run before each dex instruction.
 #define PREAMBLE()                                                                              \
@@ -182,6 +191,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         PREAMBLE();
         JValue result;
         self->AllowThreadSuspension();
+        HANDLE_MONITOR_CHECKS();
         if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
           instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
@@ -194,6 +204,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         QuasiAtomic::ThreadFenceForConstructor();
         JValue result;
         self->AllowThreadSuspension();
+        HANDLE_MONITOR_CHECKS();
         if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
           instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
@@ -207,6 +218,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         result.SetJ(0);
         result.SetI(shadow_frame.GetVReg(inst->VRegA_11x(inst_data)));
         self->AllowThreadSuspension();
+        HANDLE_MONITOR_CHECKS();
         if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
           instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
@@ -219,6 +231,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         JValue result;
         result.SetJ(shadow_frame.GetVRegLong(inst->VRegA_11x(inst_data)));
         self->AllowThreadSuspension();
+        HANDLE_MONITOR_CHECKS();
         if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
           instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
@@ -230,6 +243,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         PREAMBLE();
         JValue result;
         self->AllowThreadSuspension();
+        HANDLE_MONITOR_CHECKS();
         const size_t ref_idx = inst->VRegA_11x(inst_data);
         Object* obj_result = shadow_frame.GetVRegReference(ref_idx);
         if (do_assignability_check && obj_result != nullptr) {
@@ -366,7 +380,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           ThrowNullPointerExceptionFromInterpreter();
           HANDLE_PENDING_EXCEPTION();
         } else {
-          DoMonitorEnter(self, obj);
+          DoMonitorEnter<do_assignability_check>(self, &shadow_frame, obj);
           POSSIBLY_HANDLE_PENDING_EXCEPTION(self->IsExceptionPending(), Next_1xx);
         }
         break;
@@ -378,7 +392,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           ThrowNullPointerExceptionFromInterpreter();
           HANDLE_PENDING_EXCEPTION();
         } else {
-          DoMonitorExit(self, obj);
+          DoMonitorExit<do_assignability_check>(self, &shadow_frame, obj);
           POSSIBLY_HANDLE_PENDING_EXCEPTION(self->IsExceptionPending(), Next_1xx);
         }
         break;
