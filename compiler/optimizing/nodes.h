@@ -4504,6 +4504,9 @@ class HLoadClass : public HExpression<1> {
         generate_clinit_check_(false),
         needs_access_check_(needs_access_check),
         loaded_class_rti_(ReferenceTypeInfo::CreateInvalid()) {
+    // Referrers class should not need access check. We never inline unverified
+    // methods so we can't possibly end up in this situation.
+    DCHECK(!is_referrers_class_ || !needs_access_check_);
     SetRawInputAt(0, current_method);
   }
 
@@ -4526,7 +4529,7 @@ class HLoadClass : public HExpression<1> {
   bool NeedsEnvironment() const OVERRIDE {
     // Will call runtime and load the class if the class is not loaded yet.
     // TODO: finer grain decision.
-    return !is_referrers_class_ || needs_access_check_;
+    return !is_referrers_class_;
   }
 
   bool MustGenerateClinitCheck() const {
