@@ -26,12 +26,11 @@ namespace art {
 // A control-flow graph visitor performing various checks.
 class GraphChecker : public HGraphDelegateVisitor {
  public:
-  GraphChecker(ArenaAllocator* allocator, HGraph* graph,
-               const char* dump_prefix = "art::GraphChecker: ")
+  explicit GraphChecker(HGraph* graph, const char* dump_prefix = "art::GraphChecker: ")
     : HGraphDelegateVisitor(graph),
-      allocator_(allocator),
+      errors_(graph->GetArena()->Adapter(kArenaAllocGraphChecker)),
       dump_prefix_(dump_prefix),
-      seen_ids_(allocator, graph->GetCurrentInstructionId(), false) {}
+      seen_ids_(graph->GetArena(), graph->GetCurrentInstructionId(), false) {}
 
   // Check the whole graph (in insertion order).
   virtual void Run() { VisitInsertionOrder(); }
@@ -65,7 +64,7 @@ class GraphChecker : public HGraphDelegateVisitor {
   }
 
   // Get the list of detected errors.
-  const std::vector<std::string>& GetErrors() const {
+  const ArenaVector<std::string>& GetErrors() const {
     return errors_;
   }
 
@@ -82,11 +81,10 @@ class GraphChecker : public HGraphDelegateVisitor {
     errors_.push_back(error);
   }
 
-  ArenaAllocator* const allocator_;
   // The block currently visited.
   HBasicBlock* current_block_ = nullptr;
   // Errors encountered while checking the graph.
-  std::vector<std::string> errors_;
+  ArenaVector<std::string> errors_;
 
  private:
   // String displayed before dumped errors.
@@ -102,9 +100,8 @@ class SSAChecker : public GraphChecker {
  public:
   typedef GraphChecker super_type;
 
-  // TODO: There's no need to pass a separate allocator as we could get it from the graph.
-  SSAChecker(ArenaAllocator* allocator, HGraph* graph)
-    : GraphChecker(allocator, graph, "art::SSAChecker: ") {}
+  explicit SSAChecker(HGraph* graph)
+    : GraphChecker(graph, "art::SSAChecker: ") {}
 
   // Check the whole graph (in reverse post-order).
   void Run() OVERRIDE {

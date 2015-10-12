@@ -51,7 +51,7 @@ static void TestCode(const uint16_t* data,
       X86InstructionSetFeatures::FromCppDefines());
   x86::CodeGeneratorX86 codegenX86(graph, *features_x86.get(), CompilerOptions());
   HConstantFolding(graph).Run();
-  SSAChecker ssa_checker_cf(&allocator, graph);
+  SSAChecker ssa_checker_cf(graph);
   ssa_checker_cf.Run();
   ASSERT_TRUE(ssa_checker_cf.IsValid());
 
@@ -63,7 +63,7 @@ static void TestCode(const uint16_t* data,
   check_after_cf(graph);
 
   HDeadCodeElimination(graph).Run();
-  SSAChecker ssa_checker_dce(&allocator, graph);
+  SSAChecker ssa_checker_dce(graph);
   ssa_checker_dce.Run();
   ASSERT_TRUE(ssa_checker_dce.IsValid());
 

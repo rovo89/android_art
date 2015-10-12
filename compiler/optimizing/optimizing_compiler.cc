@@ -169,13 +169,13 @@ class PassObserver : public ValueObject {
     if (kIsDebugBuild) {
       if (!graph_in_bad_state_) {
         if (graph_->IsInSsaForm()) {
-          SSAChecker checker(graph_->GetArena(), graph_);
+          SSAChecker checker(graph_);
           checker.Run();
           if (!checker.IsValid()) {
             LOG(FATAL) << "Error after " << pass_name << ": " << Dumpable<SSAChecker>(checker);
           }
         } else {
-          GraphChecker checker(graph_->GetArena(), graph_);
+          GraphChecker checker(graph_);
           checker.Run();
           if (!checker.IsValid()) {
             LOG(FATAL) << "Error after " << pass_name << ": " << Dumpable<GraphChecker>(checker);
