@@ -71,9 +71,9 @@ TEST_F(BoundsCheckEliminationTest, NarrowingRangeArrayBoundsElimination) {
   graph_->AddBlock(entry);
   graph_->SetEntryBlock(entry);
   HInstruction* parameter1 = new (&allocator_)
-      HParameterValue(0, Primitive::kPrimNot);  // array
+      HParameterValue(graph_->GetDexFile(), 0, 0, Primitive::kPrimNot);  // array
   HInstruction* parameter2 = new (&allocator_)
-      HParameterValue(0, Primitive::kPrimInt);  // i
+      HParameterValue(graph_->GetDexFile(), 0, 0, Primitive::kPrimInt);  // i
   entry->AddInstruction(parameter1);
   entry->AddInstruction(parameter2);
 
@@ -168,9 +168,9 @@ TEST_F(BoundsCheckEliminationTest, OverflowArrayBoundsElimination) {
   graph_->AddBlock(entry);
   graph_->SetEntryBlock(entry);
   HInstruction* parameter1 = new (&allocator_)
-      HParameterValue(0, Primitive::kPrimNot);  // array
+      HParameterValue(graph_->GetDexFile(), 0, 0, Primitive::kPrimNot);  // array
   HInstruction* parameter2 = new (&allocator_)
-      HParameterValue(0, Primitive::kPrimInt);  // i
+      HParameterValue(graph_->GetDexFile(), 0, 0, Primitive::kPrimInt);  // i
   entry->AddInstruction(parameter1);
   entry->AddInstruction(parameter2);
 
@@ -232,9 +232,9 @@ TEST_F(BoundsCheckEliminationTest, UnderflowArrayBoundsElimination) {
   graph_->AddBlock(entry);
   graph_->SetEntryBlock(entry);
   HInstruction* parameter1 = new (&allocator_)
-      HParameterValue(0, Primitive::kPrimNot);  // array
+      HParameterValue(graph_->GetDexFile(), 0, 0, Primitive::kPrimNot);  // array
   HInstruction* parameter2 = new (&allocator_)
-      HParameterValue(0, Primitive::kPrimInt);  // i
+      HParameterValue(graph_->GetDexFile(), 0, 0, Primitive::kPrimInt);  // i
   entry->AddInstruction(parameter1);
   entry->AddInstruction(parameter2);
 
@@ -295,7 +295,8 @@ TEST_F(BoundsCheckEliminationTest, ConstantArrayBoundsElimination) {
   HBasicBlock* entry = new (&allocator_) HBasicBlock(graph_);
   graph_->AddBlock(entry);
   graph_->SetEntryBlock(entry);
-  HInstruction* parameter = new (&allocator_) HParameterValue(0, Primitive::kPrimNot);
+  HInstruction* parameter = new (&allocator_) HParameterValue(
+      graph_->GetDexFile(), 0, 0, Primitive::kPrimNot);
   entry->AddInstruction(parameter);
 
   HInstruction* constant_5 = graph_->GetIntConstant(5);
@@ -363,7 +364,8 @@ static HInstruction* BuildSSAGraph1(HGraph* graph,
   HBasicBlock* entry = new (allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
-  HInstruction* parameter = new (allocator) HParameterValue(0, Primitive::kPrimNot);
+  HInstruction* parameter = new (allocator) HParameterValue(
+      graph->GetDexFile(), 0, 0, Primitive::kPrimNot);
   entry->AddInstruction(parameter);
 
   HInstruction* constant_initial = graph->GetIntConstant(initial);
@@ -477,7 +479,8 @@ static HInstruction* BuildSSAGraph2(HGraph *graph,
   HBasicBlock* entry = new (allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
-  HInstruction* parameter = new (allocator) HParameterValue(0, Primitive::kPrimNot);
+  HInstruction* parameter = new (allocator) HParameterValue(
+      graph->GetDexFile(), 0, 0, Primitive::kPrimNot);
   entry->AddInstruction(parameter);
 
   HInstruction* constant_initial = graph->GetIntConstant(initial);
@@ -689,7 +692,8 @@ static HInstruction* BuildSSAGraph4(HGraph* graph,
   HBasicBlock* entry = new (allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
-  HInstruction* parameter = new (allocator) HParameterValue(0, Primitive::kPrimNot);
+  HInstruction* parameter = new (allocator) HParameterValue(
+      graph->GetDexFile(), 0, 0, Primitive::kPrimNot);
   entry->AddInstruction(parameter);
 
   HInstruction* constant_initial = graph->GetIntConstant(initial);
@@ -791,7 +795,8 @@ TEST_F(BoundsCheckEliminationTest, BubbleSortArrayBoundsElimination) {
   HBasicBlock* entry = new (&allocator_) HBasicBlock(graph_);
   graph_->AddBlock(entry);
   graph_->SetEntryBlock(entry);
-  HInstruction* parameter = new (&allocator_) HParameterValue(0, Primitive::kPrimNot);
+  HInstruction* parameter = new (&allocator_) HParameterValue(
+      graph_->GetDexFile(), 0, 0, Primitive::kPrimNot);
   entry->AddInstruction(parameter);
 
   HInstruction* constant_0 = graph_->GetIntConstant(0);
