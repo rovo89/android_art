@@ -960,6 +960,15 @@ void Instrumentation::ExceptionCaughtEvent(Thread* thread,
   }
 }
 
+// Computes a frame ID by ignoring inlined frames.
+size_t Instrumentation::ComputeFrameId(Thread* self,
+                                       size_t frame_depth,
+                                       size_t inlined_frames_before_frame) {
+  CHECK_GT(frame_depth, inlined_frames_before_frame);
+  size_t no_inline_depth = frame_depth - inlined_frames_before_frame;
+  return StackVisitor::ComputeNumFrames(self, kInstrumentationStackWalk) - no_inline_depth;
+}
+
 static void CheckStackDepth(Thread* self, const InstrumentationStackFrame& instrumentation_frame,
                             int delta)
     SHARED_REQUIRES(Locks::mutator_lock_) {
