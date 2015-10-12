@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <string>
 
+#include "art_code.h"
 #include "arch/instruction_set.h"
 #include "base/macros.h"
 #include "base/mutex.h"
@@ -717,6 +718,10 @@ class StackVisitor {
     return cur_shadow_frame_;
   }
 
+  bool IsCurrentFrameInInterpreter() const {
+    return cur_shadow_frame_ != nullptr;
+  }
+
   HandleScope* GetCurrentHandleScope(size_t pointer_size) const {
     ArtMethod** sp = GetCurrentQuickFrame();
     // Skip ArtMethod*; handle scope comes next;
@@ -729,6 +734,8 @@ class StackVisitor {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   static void DescribeStack(Thread* thread) SHARED_REQUIRES(Locks::mutator_lock_);
+
+  ArtCode GetCurrentCode() const { return ArtCode(cur_quick_frame_); }
 
  private:
   // Private constructor known in the case that num_frames_ has already been computed.

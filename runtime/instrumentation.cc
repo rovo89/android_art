@@ -19,6 +19,7 @@
 #include <sstream>
 
 #include "arch/context.h"
+#include "art_code.h"
 #include "art_method-inl.h"
 #include "atomic.h"
 #include "class_linker.h"
@@ -251,7 +252,7 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
         instrumentation_stack_->insert(it, instrumentation_frame);
         SetReturnPc(instrumentation_exit_pc_);
       }
-      dex_pcs_.push_back(m->ToDexPc(last_return_pc_));
+      dex_pcs_.push_back(GetCurrentCode().ToDexPc(last_return_pc_));
       last_return_pc_ = return_pc;
       ++instrumentation_stack_depth_;
       return true;  // Continue.

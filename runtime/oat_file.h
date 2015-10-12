@@ -29,6 +29,7 @@
 #include "mirror/class.h"
 #include "oat.h"
 #include "os.h"
+#include "utils.h"
 
 namespace art {
 
