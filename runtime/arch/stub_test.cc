@@ -71,351 +71,7 @@ class StubTest : public CommonRuntimeTest {
   // TODO: Set up a frame according to referrer's specs.
   size_t Invoke3WithReferrer(size_t arg0, size_t arg1, size_t arg2, uintptr_t code, Thread* self,
                              ArtMethod* referrer) {
-    // Push a transition back into managed code onto the linked list in thread.
-    ManagedStack fragment;
-    self->PushManagedStackFragment(&fragment);
-
-    size_t result;
-    size_t fpr_result = 0;
-#if defined(__i386__)
-    // TODO: Set the thread?
-    __asm__ __volatile__(
-        "subl $12, %%esp\n\t"       // Align stack.
-        "pushl %[referrer]\n\t"     // Store referrer.
-        "call *%%edi\n\t"           // Call the stub
-        "addl $16, %%esp"           // Pop referrer
-        : "=a" (result)
-          // Use the result from eax
-        : "a"(arg0), "c"(arg1), "d"(arg2), "D"(code), [referrer]"r"(referrer)
-          // This places code into edi, arg0 into eax, arg1 into ecx, and arg2 into edx
-        : "memory");  // clobber.
-    // TODO: Should we clobber the other registers? EBX gets clobbered by some of the stubs,
-    //       but compilation fails when declaring that.
-#elif defined(__arm__)
-    __asm__ __volatile__(
-        "push {r1-r12, lr}\n\t"     // Save state, 13*4B = 52B
-        ".cfi_adjust_cfa_offset 52\n\t"
-        "push {r9}\n\t"
-        ".cfi_adjust_cfa_offset 4\n\t"
-        "mov r9, %[referrer]\n\n"
-        "str r9, [sp, #-8]!\n\t"   // Push referrer, +8B padding so 16B aligned
-        ".cfi_adjust_cfa_offset 8\n\t"
-        "ldr r9, [sp, #8]\n\t"
-
-        // Push everything on the stack, so we don't rely on the order. What a mess. :-(
-        "sub sp, sp, #20\n\t"
-        "str %[arg0], [sp]\n\t"
-        "str %[arg1], [sp, #4]\n\t"
-        "str %[arg2], [sp, #8]\n\t"
-        "str %[code], [sp, #12]\n\t"
-        "str %[self], [sp, #16]\n\t"
-        "ldr r0, [sp]\n\t"
-        "ldr r1, [sp, #4]\n\t"
-        "ldr r2, [sp, #8]\n\t"
-        "ldr r3, [sp, #12]\n\t"
-        "ldr r9, [sp, #16]\n\t"
-        "add sp, sp, #20\n\t"
-
-        "blx r3\n\t"                // Call the stub
-        "add sp, sp, #12\n\t"       // Pop null and padding
-        ".cfi_adjust_cfa_offset -12\n\t"
-        "pop {r1-r12, lr}\n\t"      // Restore state
-        ".cfi_adjust_cfa_offset -52\n\t"
-        "mov %[result], r0\n\t"     // Save the result
-        : [result] "=r" (result)
-          // Use the result from r0
-        : [arg0] "r"(arg0), [arg1] "r"(arg1), [arg2] "r"(arg2), [code] "r"(code), [self] "r"(self),
-          [referrer] "r"(referrer)
-        : "r0", "memory");  // clobber.
-#elif defined(__aarch64__)
-    __asm__ __volatile__(
-        // Spill x0-x7 which we say we don't clobber. May contain args.
-        "sub sp, sp, #64\n\t"
-        ".cfi_adjust_cfa_offset 64\n\t"
-        "stp x0, x1, [sp]\n\t"
-        "stp x2, x3, [sp, #16]\n\t"
-        "stp x4, x5, [sp, #32]\n\t"
-        "stp x6, x7, [sp, #48]\n\t"
-
-        "sub sp, sp, #16\n\t"          // Reserve stack space, 16B aligned
-        ".cfi_adjust_cfa_offset 16\n\t"
-        "str %[referrer], [sp]\n\t"    // referrer
-
-        // Push everything on the stack, so we don't rely on the order. What a mess. :-(
-        "sub sp, sp, #48\n\t"
-        ".cfi_adjust_cfa_offset 48\n\t"
-        // All things are "r" constraints, so direct str/stp should work.
-        "stp %[arg0], %[arg1], [sp]\n\t"
-        "stp %[arg2], %[code], [sp, #16]\n\t"
-        "str %[self], [sp, #32]\n\t"
-
-        // Now we definitely have x0-x3 free, use it to garble d8 - d15
-        "movk x0, #0xfad0\n\t"
-        "movk x0, #0xebad, lsl #16\n\t"
-        "movk x0, #0xfad0, lsl #32\n\t"
-        "movk x0, #0xebad, lsl #48\n\t"
-        "fmov d8, x0\n\t"
-        "add x0, x0, 1\n\t"
-        "fmov d9, x0\n\t"
-        "add x0, x0, 1\n\t"
-        "fmov d10, x0\n\t"
-        "add x0, x0, 1\n\t"
-        "fmov d11, x0\n\t"
-        "add x0, x0, 1\n\t"
-        "fmov d12, x0\n\t"
-        "add x0, x0, 1\n\t"
-        "fmov d13, x0\n\t"
-        "add x0, x0, 1\n\t"
-        "fmov d14, x0\n\t"
-        "add x0, x0, 1\n\t"
-        "fmov d15, x0\n\t"
-
-        // Load call params into the right registers.
-        "ldp x0, x1, [sp]\n\t"
-        "ldp x2, x3, [sp, #16]\n\t"
-        "ldr x19, [sp, #32]\n\t"
-        "add sp, sp, #48\n\t"
-        ".cfi_adjust_cfa_offset -48\n\t"
-
-
-        "blr x3\n\t"              // Call the stub
-        "mov x8, x0\n\t"          // Store result
-        "add sp, sp, #16\n\t"     // Drop the quick "frame"
-        ".cfi_adjust_cfa_offset -16\n\t"
-
-        // Test d8 - d15. We can use x1 and x2.
-        "movk x1, #0xfad0\n\t"
-        "movk x1, #0xebad, lsl #16\n\t"
-        "movk x1, #0xfad0, lsl #32\n\t"
-        "movk x1, #0xebad, lsl #48\n\t"
-        "fmov x2, d8\n\t"
-        "cmp x1, x2\n\t"
-        "b.ne 1f\n\t"
-        "add x1, x1, 1\n\t"
-
-        "fmov x2, d9\n\t"
-        "cmp x1, x2\n\t"
-        "b.ne 1f\n\t"
-        "add x1, x1, 1\n\t"
-
-        "fmov x2, d10\n\t"
-        "cmp x1, x2\n\t"
-        "b.ne 1f\n\t"
-        "add x1, x1, 1\n\t"
-
-        "fmov x2, d11\n\t"
-        "cmp x1, x2\n\t"
-        "b.ne 1f\n\t"
-        "add x1, x1, 1\n\t"
-
-        "fmov x2, d12\n\t"
-        "cmp x1, x2\n\t"
-        "b.ne 1f\n\t"
-        "add x1, x1, 1\n\t"
-
-        "fmov x2, d13\n\t"
-        "cmp x1, x2\n\t"
-        "b.ne 1f\n\t"
-        "add x1, x1, 1\n\t"
-
-        "fmov x2, d14\n\t"
-        "cmp x1, x2\n\t"
-        "b.ne 1f\n\t"
-        "add x1, x1, 1\n\t"
-
-        "fmov x2, d15\n\t"
-        "cmp x1, x2\n\t"
-        "b.ne 1f\n\t"
-
-        "mov x9, #0\n\t"              // Use x9 as flag, in clobber list
-
-        // Finish up.
-        "2:\n\t"
-        "ldp x0, x1, [sp]\n\t"        // Restore stuff not named clobbered, may contain fpr_result
-        "ldp x2, x3, [sp, #16]\n\t"
-        "ldp x4, x5, [sp, #32]\n\t"
-        "ldp x6, x7, [sp, #48]\n\t"
-        "add sp, sp, #64\n\t"         // Free stack space, now sp as on entry
-        ".cfi_adjust_cfa_offset -64\n\t"
-
-        "str x9, %[fpr_result]\n\t"   // Store the FPR comparison result
-        "mov %[result], x8\n\t"              // Store the call result
-
-        "b 3f\n\t"                     // Goto end
-
-        // Failed fpr verification.
-        "1:\n\t"
-        "mov x9, #1\n\t"
-        "b 2b\n\t"                     // Goto finish-up
-
-        // End
-        "3:\n\t"
-        : [result] "=r" (result)
-          // Use the result from r0
-        : [arg0] "0"(arg0), [arg1] "r"(arg1), [arg2] "r"(arg2), [code] "r"(code), [self] "r"(self),
-          [referrer] "r"(referrer), [fpr_result] "m" (fpr_result)
-        : "x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15", "x16", "x17", "x18", "x19", "x20",
-          "x21", "x22", "x23", "x24", "x25", "x26", "x27", "x28", "x30",
-          "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7",
-          "d8", "d9", "d10", "d11", "d12", "d13", "d14", "d15",
-          "d16", "d17", "d18", "d19", "d20", "d21", "d22", "d23",
-          "d24", "d25", "d26", "d27", "d28", "d29", "d30", "d31",
-          "memory");  // clobber.
-#elif defined(__mips__) && !defined(__LP64__)
-    __asm__ __volatile__ (
-        // Spill a0-a3 and t0-t7 which we say we don't clobber. May contain args.
-        "addiu $sp, $sp, -64\n\t"
-        "sw $a0, 0($sp)\n\t"
-        "sw $a1, 4($sp)\n\t"
-        "sw $a2, 8($sp)\n\t"
-        "sw $a3, 12($sp)\n\t"
-        "sw $t0, 16($sp)\n\t"
-        "sw $t1, 20($sp)\n\t"
-        "sw $t2, 24($sp)\n\t"
-        "sw $t3, 28($sp)\n\t"
-        "sw $t4, 32($sp)\n\t"
-        "sw $t5, 36($sp)\n\t"
-        "sw $t6, 40($sp)\n\t"
-        "sw $t7, 44($sp)\n\t"
-        // Spill gp register since it is caller save.
-        "sw $gp, 52($sp)\n\t"
-
-        "addiu $sp, $sp, -16\n\t"  // Reserve stack space, 16B aligned.
-        "sw %[referrer], 0($sp)\n\t"
-
-        // Push everything on the stack, so we don't rely on the order.
-        "addiu $sp, $sp, -20\n\t"
-        "sw %[arg0], 0($sp)\n\t"
-        "sw %[arg1], 4($sp)\n\t"
-        "sw %[arg2], 8($sp)\n\t"
-        "sw %[code], 12($sp)\n\t"
-        "sw %[self], 16($sp)\n\t"
-
-        // Load call params into the right registers.
-        "lw $a0, 0($sp)\n\t"
-        "lw $a1, 4($sp)\n\t"
-        "lw $a2, 8($sp)\n\t"
-        "lw $t9, 12($sp)\n\t"
-        "lw $s1, 16($sp)\n\t"
-        "addiu $sp, $sp, 20\n\t"
-
-        "jalr $t9\n\t"             // Call the stub.
-        "nop\n\t"
-        "addiu $sp, $sp, 16\n\t"   // Drop the quick "frame".
-
-        // Restore stuff not named clobbered.
-        "lw $a0, 0($sp)\n\t"
-        "lw $a1, 4($sp)\n\t"
-        "lw $a2, 8($sp)\n\t"
-        "lw $a3, 12($sp)\n\t"
-        "lw $t0, 16($sp)\n\t"
-        "lw $t1, 20($sp)\n\t"
-        "lw $t2, 24($sp)\n\t"
-        "lw $t3, 28($sp)\n\t"
-        "lw $t4, 32($sp)\n\t"
-        "lw $t5, 36($sp)\n\t"
-        "lw $t6, 40($sp)\n\t"
-        "lw $t7, 44($sp)\n\t"
-        // Restore gp.
-        "lw $gp, 52($sp)\n\t"
-        "addiu $sp, $sp, 64\n\t"   // Free stack space, now sp as on entry.
-
-        "move %[result], $v0\n\t"  // Store the call result.
-        : [result] "=r" (result)
-        : [arg0] "r"(arg0), [arg1] "r"(arg1), [arg2] "r"(arg2), [code] "r"(code), [self] "r"(self),
-          [referrer] "r"(referrer)
-        : "at", "v0", "v1", "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "t8", "t9", "k0", "k1",
-          "fp", "ra",
-          "$f0", "$f1", "$f2", "$f3", "$f4", "$f5", "$f6", "$f7", "$f8", "$f9", "$f10", "$f11",
-          "$f12", "$f13", "$f14", "$f15", "$f16", "$f17", "$f18", "$f19", "$f20", "$f21", "$f22",
-          "$f23", "$f24", "$f25", "$f26", "$f27", "$f28", "$f29", "$f30", "$f31",
-          "memory");  // clobber.
-#elif defined(__mips__) && defined(__LP64__)
-    __asm__ __volatile__ (
-        // Spill a0-a7 which we say we don't clobber. May contain args.
-        "daddiu $sp, $sp, -64\n\t"
-        "sd $a0, 0($sp)\n\t"
-        "sd $a1, 8($sp)\n\t"
-        "sd $a2, 16($sp)\n\t"
-        "sd $a3, 24($sp)\n\t"
-        "sd $a4, 32($sp)\n\t"
-        "sd $a5, 40($sp)\n\t"
-        "sd $a6, 48($sp)\n\t"
-        "sd $a7, 56($sp)\n\t"
-
-        "daddiu $sp, $sp, -16\n\t"  // Reserve stack space, 16B aligned.
-        "sd %[referrer], 0($sp)\n\t"
-
-        // Push everything on the stack, so we don't rely on the order.
-        "daddiu $sp, $sp, -40\n\t"
-        "sd %[arg0], 0($sp)\n\t"
-        "sd %[arg1], 8($sp)\n\t"
-        "sd %[arg2], 16($sp)\n\t"
-        "sd %[code], 24($sp)\n\t"
-        "sd %[self], 32($sp)\n\t"
-
-        // Load call params into the right registers.
-        "ld $a0, 0($sp)\n\t"
-        "ld $a1, 8($sp)\n\t"
-        "ld $a2, 16($sp)\n\t"
-        "ld $t9, 24($sp)\n\t"
-        "ld $s1, 32($sp)\n\t"
-        "daddiu $sp, $sp, 40\n\t"
-
-        "jalr $t9\n\t"              // Call the stub.
-        "nop\n\t"
-        "daddiu $sp, $sp, 16\n\t"   // Drop the quick "frame".
-
-        // Restore stuff not named clobbered.
-        "ld $a0, 0($sp)\n\t"
-        "ld $a1, 8($sp)\n\t"
-        "ld $a2, 16($sp)\n\t"
-        "ld $a3, 24($sp)\n\t"
-        "ld $a4, 32($sp)\n\t"
-        "ld $a5, 40($sp)\n\t"
-        "ld $a6, 48($sp)\n\t"
-        "ld $a7, 56($sp)\n\t"
-        "daddiu $sp, $sp, 64\n\t"
-
-        "move %[result], $v0\n\t"   // Store the call result.
-        : [result] "=r" (result)
-        : [arg0] "r"(arg0), [arg1] "r"(arg1), [arg2] "r"(arg2), [code] "r"(code), [self] "r"(self),
-          [referrer] "r"(referrer)
-        : "at", "v0", "v1", "t0", "t1", "t2", "t3", "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",
-          "t8", "t9", "k0", "k1", "fp", "ra",
-          "f0", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12", "f13",
-          "f14", "f15", "f16", "f17", "f18", "f19", "f20", "f21", "f22", "f23", "f24", "f25", "f26",
-          "f27", "f28", "f29", "f30", "f31",
-          "memory");  // clobber.
-#elif defined(__x86_64__) && !defined(__APPLE__) && defined(__clang__)
-    // Note: Uses the native convention
-    // TODO: Set the thread?
-    __asm__ __volatile__(
-        "pushq %[referrer]\n\t"        // Push referrer
-        "pushq (%%rsp)\n\t"             // & 16B alignment padding
-        ".cfi_adjust_cfa_offset 16\n\t"
-        "call *%%rax\n\t"              // Call the stub
-        "addq $16, %%rsp\n\t"          // Pop null and padding
-        ".cfi_adjust_cfa_offset -16\n\t"
-        : "=a" (result)
-          // Use the result from rax
-        : "D"(arg0), "S"(arg1), "d"(arg2), "a"(code), [referrer] "c"(referrer)
-          // This places arg0 into rdi, arg1 into rsi, arg2 into rdx, and code into rax
-        : "rbx", "rbp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
-          "memory");  // clobber all
-    // TODO: Should we clobber the other registers?
-#else
-    UNUSED(arg0, arg1, arg2, code, referrer);
-    LOG(WARNING) << "Was asked to invoke for an architecture I do not understand.";
-    result = 0;
-#endif
-    // Pop transition.
-    self->PopManagedStackFragment(fragment);
-
-    fp_result = fpr_result;
-    EXPECT_EQ(0U, fp_result);
-
-    return result;
+    return Invoke3WithReferrerAndHidden(arg0, arg1, arg2, code, self, referrer, 0);
   }
 
   // TODO: Set up a frame according to referrer's specs.
@@ -429,19 +85,55 @@ class StubTest : public CommonRuntimeTest {
     size_t fpr_result = 0;
 #if defined(__i386__)
     // TODO: Set the thread?
+#define PUSH(reg) "push " # reg "\n\t .cfi_adjust_cfa_offset 4\n\t"
+#define POP(reg) "pop " # reg "\n\t .cfi_adjust_cfa_offset -4\n\t"
     __asm__ __volatile__(
-        "movd %[hidden], %%xmm7\n\t"
-        "subl $12, %%esp\n\t"       // Align stack.
-        "pushl %[referrer]\n\t"     // Store referrer
+        "movd %[hidden], %%xmm7\n\t"  // This is a memory op, so do this early. If it is off of
+                                      // esp, then we won't be able to access it after spilling.
+
+        // Spill 6 registers.
+        PUSH(%%ebx)
+        PUSH(%%ecx)
+        PUSH(%%edx)
+        PUSH(%%esi)
+        PUSH(%%edi)
+        PUSH(%%ebp)
+
+        // Store the inputs to the stack, but keep the referrer up top, less work.
+        PUSH(%[referrer])           // Align stack.
+        PUSH(%[referrer])           // Store referrer
+
+        PUSH(%[arg0])
+        PUSH(%[arg1])
+        PUSH(%[arg2])
+        PUSH(%[code])
+        // Now read them back into the required registers.
+        POP(%%edi)
+        POP(%%edx)
+        POP(%%ecx)
+        POP(%%eax)
+        // Call is prepared now.
+
         "call *%%edi\n\t"           // Call the stub
-        "addl $16, %%esp"           // Pop referrer
+        "addl $8, %%esp\n\t"        // Pop referrer and padding.
+        ".cfi_adjust_cfa_offset -8\n\t"
+
+        // Restore 6 registers.
+        POP(%%ebp)
+        POP(%%edi)
+        POP(%%esi)
+        POP(%%edx)
+        POP(%%ecx)
+        POP(%%ebx)
+
         : "=a" (result)
           // Use the result from eax
-        : "a"(arg0), "c"(arg1), "d"(arg2), "D"(code), [referrer]"r"(referrer), [hidden]"m"(hidden)
+        : [arg0] "r"(arg0), [arg1] "r"(arg1), [arg2] "r"(arg2), [code] "r"(code),
+          [referrer]"r"(referrer), [hidden]"m"(hidden)
           // This places code into edi, arg0 into eax, arg1 into ecx, and arg2 into edx
-        : "memory");  // clobber.
-    // TODO: Should we clobber the other registers? EBX gets clobbered by some of the stubs,
-    //       but compilation fails when declaring that.
+        : "memory", "xmm7");  // clobber.
+#undef PUSH
+#undef POP
 #elif defined(__arm__)
     __asm__ __volatile__(
         "push {r1-r12, lr}\n\t"     // Save state, 13*4B = 52B
@@ -743,23 +435,72 @@ class StubTest : public CommonRuntimeTest {
           "f14", "f15", "f16", "f17", "f18", "f19", "f20", "f21", "f22", "f23", "f24", "f25", "f26",
           "f27", "f28", "f29", "f30", "f31",
           "memory");  // clobber.
-#elif defined(__x86_64__) && !defined(__APPLE__) && defined(__clang__)
-    // Note: Uses the native convention
+#elif defined(__x86_64__) && !defined(__APPLE__)
+#define PUSH(reg) "pushq " # reg "\n\t .cfi_adjust_cfa_offset 8\n\t"
+#define POP(reg) "popq " # reg "\n\t .cfi_adjust_cfa_offset -8\n\t"
+    // Note: Uses the native convention. We do a callee-save regimen by manually spilling and
+    //       restoring almost all registers.
     // TODO: Set the thread?
     __asm__ __volatile__(
-        "pushq %[referrer]\n\t"        // Push referrer
-        "pushq (%%rsp)\n\t"            // & 16B alignment padding
-        ".cfi_adjust_cfa_offset 16\n\t"
-        "call *%%rbx\n\t"              // Call the stub
-        "addq $16, %%rsp\n\t"          // Pop null and padding
+        // Spill almost everything (except rax, rsp). 14 registers.
+        PUSH(%%rbx)
+        PUSH(%%rcx)
+        PUSH(%%rdx)
+        PUSH(%%rsi)
+        PUSH(%%rdi)
+        PUSH(%%rbp)
+        PUSH(%%r8)
+        PUSH(%%r9)
+        PUSH(%%r10)
+        PUSH(%%r11)
+        PUSH(%%r12)
+        PUSH(%%r13)
+        PUSH(%%r14)
+        PUSH(%%r15)
+
+        PUSH(%[referrer])              // Push referrer & 16B alignment padding
+        PUSH(%[referrer])
+
+        // Now juggle the input registers.
+        PUSH(%[arg0])
+        PUSH(%[arg1])
+        PUSH(%[arg2])
+        PUSH(%[hidden])
+        PUSH(%[code])
+        POP(%%r8)
+        POP(%%rax)
+        POP(%%rdx)
+        POP(%%rsi)
+        POP(%%rdi)
+
+        "call *%%r8\n\t"                  // Call the stub
+        "addq $16, %%rsp\n\t"             // Pop null and padding
         ".cfi_adjust_cfa_offset -16\n\t"
+
+        POP(%%r15)
+        POP(%%r14)
+        POP(%%r13)
+        POP(%%r12)
+        POP(%%r11)
+        POP(%%r10)
+        POP(%%r9)
+        POP(%%r8)
+        POP(%%rbp)
+        POP(%%rdi)
+        POP(%%rsi)
+        POP(%%rdx)
+        POP(%%rcx)
+        POP(%%rbx)
+
         : "=a" (result)
         // Use the result from rax
-        : "D"(arg0), "S"(arg1), "d"(arg2), "b"(code), [referrer] "c"(referrer), [hidden] "a"(hidden)
-        // This places arg0 into rdi, arg1 into rsi, arg2 into rdx, and code into rax
-        : "rbp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
-          "memory");  // clobber all
-    // TODO: Should we clobber the other registers?
+        : [arg0] "r"(arg0), [arg1] "r"(arg1), [arg2] "r"(arg2), [code] "r"(code),
+          [referrer] "r"(referrer), [hidden] "r"(hidden)
+        // This places arg0 into rdi, arg1 into rsi, arg2 into rdx, and code into some other
+        // register. We can't use "b" (rbx), as ASAN uses this for the frame pointer.
+        : "memory");  // We spill and restore (almost) all registers, so only mention memory here.
+#undef PUSH
+#undef POP
 #else
     UNUSED(arg0, arg1, arg2, code, referrer, hidden);
     LOG(WARNING) << "Was asked to invoke for an architecture I do not understand.";
