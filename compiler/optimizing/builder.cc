@@ -1175,10 +1175,9 @@ void HGraphBuilder::PotentiallySimplifyFakeString(uint16_t original_dex_register
         verified_method->GetStringInitPcRegMap();
     auto map_it = string_init_map.find(dex_pc);
     if (map_it != string_init_map.end()) {
-      std::set<uint32_t> reg_set = map_it->second;
-      for (auto set_it = reg_set.begin(); set_it != reg_set.end(); ++set_it) {
+      for (uint32_t reg : map_it->second) {
         HInstruction* load_local = LoadLocal(original_dex_register, Primitive::kPrimNot, dex_pc);
-        UpdateLocal(*set_it, load_local, dex_pc);
+        UpdateLocal(reg, load_local, dex_pc);
       }
     }
   } else {
