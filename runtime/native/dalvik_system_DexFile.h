@@ -18,8 +18,12 @@
 #define ART_RUNTIME_NATIVE_DALVIK_SYSTEM_DEXFILE_H_
 
 #include <jni.h>
+#include <unistd.h>
 
 namespace art {
+
+constexpr size_t kOatFileIndex = 0;
+constexpr size_t kDexFileIndexStart = 1;
 
 class DexFile;
 
