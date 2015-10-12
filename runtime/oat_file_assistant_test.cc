@@ -961,13 +961,16 @@ class RaceGenerateTask : public Task {
     // we can verify only one oat file was loaded for the dex location.
     std::vector<std::unique_ptr<const DexFile>> dex_files;
     std::vector<std::string> error_msgs;
+    const OatFile* oat_file = nullptr;
     dex_files = Runtime::Current()->GetOatFileManager().OpenDexFilesFromOat(
         dex_location_.c_str(),
         oat_location_.c_str(),
+        &oat_file,
         &error_msgs);
     CHECK(!dex_files.empty()) << Join(error_msgs, '\n');
     CHECK(dex_files[0]->GetOatDexFile() != nullptr) << dex_files[0]->GetLocation();
     loaded_oat_file_ = dex_files[0]->GetOatDexFile()->GetOatFile();
+    CHECK_EQ(loaded_oat_file_, oat_file);
   }
 
   const OatFile* GetLoadedOatFile() const {
