@@ -210,6 +210,9 @@ static Intrinsics GetIntrinsic(InlineMethod method, InstructionSet instruction_s
     case kIntrinsicSystemArrayCopyCharArray:
       return Intrinsics::kSystemArrayCopyChar;
 
+    case kIntrinsicSystemArrayCopy:
+      return Intrinsics::kSystemArrayCopy;
+
     // Thread.currentThread.
     case kIntrinsicCurrentThread:
       return  Intrinsics::kThreadCurrentThread;

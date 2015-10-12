@@ -36,9 +36,6 @@ namespace art {
 
 namespace x86_64 {
 
-// Some x86_64 instructions require a register to be available as temp.
-static constexpr Register TMP = R11;
-
 static constexpr int kCurrentMethodStackOffset = 0;
 static constexpr Register kMethodRegisterArgument = RDI;
 

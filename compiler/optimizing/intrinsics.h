@@ -168,6 +168,26 @@ class StringEqualsOptimizations : public IntrinsicOptimizations {
   DISALLOW_COPY_AND_ASSIGN(StringEqualsOptimizations);
 };
 
+class SystemArrayCopyOptimizations : public IntrinsicOptimizations {
+ public:
+  explicit SystemArrayCopyOptimizations(HInvoke* invoke) : IntrinsicOptimizations(invoke) {}
+
+  INTRINSIC_OPTIMIZATION(SourceIsNotNull, 0);
+  INTRINSIC_OPTIMIZATION(DestinationIsNotNull, 1);
+  INTRINSIC_OPTIMIZATION(DestinationIsSource, 2);
+  INTRINSIC_OPTIMIZATION(CountIsSourceLength, 3);
+  INTRINSIC_OPTIMIZATION(CountIsDestinationLength, 4);
+  INTRINSIC_OPTIMIZATION(DoesNotNeedTypeCheck, 5);
+  INTRINSIC_OPTIMIZATION(DestinationIsTypedObjectArray, 6);
+  INTRINSIC_OPTIMIZATION(DestinationIsNonPrimitiveArray, 7);
+  INTRINSIC_OPTIMIZATION(DestinationIsPrimitiveArray, 8);
+  INTRINSIC_OPTIMIZATION(SourceIsNonPrimitiveArray, 9);
+  INTRINSIC_OPTIMIZATION(SourceIsPrimitiveArray, 10);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SystemArrayCopyOptimizations);
+};
+
 #undef INTRISIC_OPTIMIZATION
 
 }  // namespace art
