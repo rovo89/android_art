@@ -522,6 +522,10 @@ static jobjectArray Class_getDeclaredClasses(JNIEnv* env, jobject javaThis) {
   }
   if (classes == nullptr) {
     // Return an empty array instead of a null pointer.
+    if (soa.Self()->IsExceptionPending()) {
+      // Pending exception from GetDeclaredClasses.
+      return nullptr;
+    }
     mirror::Class* class_class = mirror::Class::GetJavaLangClass();
     mirror::Class* class_array_class =
         Runtime::Current()->GetClassLinker()->FindArrayClass(soa.Self(), &class_class);
