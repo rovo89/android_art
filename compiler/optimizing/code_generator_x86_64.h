@@ -30,6 +30,9 @@ namespace x86_64 {
 // Use a local definition to prevent copying mistakes.
 static constexpr size_t kX86_64WordSize = kX86_64PointerSize;
 
+// Some x86_64 instructions require a register to be available as temp.
+static constexpr Register TMP = R11;
+
 static constexpr Register kParameterCoreRegisters[] = { RSI, RDX, RCX, R8, R9 };
 static constexpr FloatRegister kParameterFloatRegisters[] =
     { XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7 };
