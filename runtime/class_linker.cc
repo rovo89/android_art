@@ -5216,7 +5216,7 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
       ArtField* field = &fields[i];
       VLOG(class_linker) << "LinkFields: " << (is_static ? "static" : "instance")
           << " class=" << PrettyClass(klass.Get()) << " field=" << PrettyField(field) << " offset="
-          << field->GetOffset();
+          << field->GetOffsetDuringLinking();
       if (i != 0) {
         ArtField* const prev_field = &fields[i - 1];
         // NOTE: The field names can be the same. This is not possible in the Java language
