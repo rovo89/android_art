@@ -58,6 +58,7 @@
   V(MathRoundDouble, kStatic, kNeedsEnvironmentOrCache) \
   V(MathRoundFloat, kStatic, kNeedsEnvironmentOrCache) \
   V(SystemArrayCopyChar, kStatic, kNeedsEnvironmentOrCache) \
+  V(SystemArrayCopy, kStatic, kNeedsEnvironmentOrCache) \
   V(ThreadCurrentThread, kStatic, kNeedsEnvironmentOrCache) \
   V(MemoryPeekByte, kStatic, kNeedsEnvironmentOrCache) \
   V(MemoryPeekIntNative, kStatic, kNeedsEnvironmentOrCache) \

@@ -73,6 +73,7 @@ static constexpr bool kIntrinsicIsStatic[] = {
     false,  // kIntrinsicUnsafeGet
     false,  // kIntrinsicUnsafePut
     true,   // kIntrinsicSystemArrayCopyCharArray
+    true,   // kIntrinsicSystemArrayCopy
 };
 static_assert(arraysize(kIntrinsicIsStatic) == kInlineOpNop,
               "arraysize of kIntrinsicIsStatic unexpected");
@@ -121,6 +122,8 @@ static_assert(!kIntrinsicIsStatic[kIntrinsicUnsafeGet], "UnsafeGet_must_not_be_s
 static_assert(!kIntrinsicIsStatic[kIntrinsicUnsafePut], "UnsafePut must not be static");
 static_assert(kIntrinsicIsStatic[kIntrinsicSystemArrayCopyCharArray],
               "SystemArrayCopyCharArray must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicSystemArrayCopy],
+              "SystemArrayCopy must be static");
 
 MIR* AllocReplacementMIR(MIRGraph* mir_graph, MIR* invoke) {
   MIR* insn = mir_graph->NewMIR();
@@ -326,6 +329,9 @@ const DexFileMethodInliner::ProtoDef DexFileMethodInliner::kProtoCacheDefs[] = {
     // kProtoCacheCharArrayICharArrayII_V
     { kClassCacheVoid, 5, {kClassCacheJavaLangCharArray, kClassCacheInt,
         kClassCacheJavaLangCharArray, kClassCacheInt, kClassCacheInt} },
+    // kProtoCacheObjectIObjectII_V
+    { kClassCacheVoid, 5, {kClassCacheJavaLangObject, kClassCacheInt,
+        kClassCacheJavaLangObject, kClassCacheInt, kClassCacheInt} },
     // kProtoCacheIICharArrayI_V
     { kClassCacheVoid, 4, { kClassCacheInt, kClassCacheInt, kClassCacheJavaLangCharArray,
         kClassCacheInt } },
@@ -480,6 +486,8 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
 #undef UNSAFE_GET_PUT
 
     INTRINSIC(JavaLangSystem, ArrayCopy, CharArrayICharArrayII_V , kIntrinsicSystemArrayCopyCharArray,
+              0),
+    INTRINSIC(JavaLangSystem, ArrayCopy, ObjectIObjectII_V , kIntrinsicSystemArrayCopy,
               0),
 
     INTRINSIC(JavaLangInteger, RotateRight, II_I, kIntrinsicRotateRight, k32),
@@ -653,6 +661,7 @@ bool DexFileMethodInliner::GenIntrinsic(Mir2Lir* backend, CallInfo* info) {
     case kIntrinsicNumberOfTrailingZeros:
     case kIntrinsicRotateRight:
     case kIntrinsicRotateLeft:
+    case kIntrinsicSystemArrayCopy:
       return false;   // not implemented in quick.
     default:
       LOG(FATAL) << "Unexpected intrinsic opcode: " << intrinsic.opcode;

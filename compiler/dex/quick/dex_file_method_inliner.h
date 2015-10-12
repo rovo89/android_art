@@ -259,6 +259,7 @@ class DexFileMethodInliner {
       kProtoCacheObjectJ_Object,
       kProtoCacheObjectJObject_V,
       kProtoCacheCharArrayICharArrayII_V,
+      kProtoCacheObjectIObjectII_V,
       kProtoCacheIICharArrayI_V,
       kProtoCacheByteArrayIII_String,
       kProtoCacheIICharArray_String,

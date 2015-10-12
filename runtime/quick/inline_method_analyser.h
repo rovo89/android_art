@@ -74,6 +74,7 @@ enum InlineMethodOpcode : uint16_t {
   kIntrinsicUnsafeGet,
   kIntrinsicUnsafePut,
   kIntrinsicSystemArrayCopyCharArray,
+  kIntrinsicSystemArrayCopy,
 
   kInlineOpNop,
   kInlineOpReturnArg,
