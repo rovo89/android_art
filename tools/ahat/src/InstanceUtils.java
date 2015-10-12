@@ -37,22 +37,6 @@ class InstanceUtils {
   }
 
   /**
-   * Read the char[] value from an hprof Instance.
-   * Returns null if the object can't be interpreted as a char[].
-   */
-  private static char[] asCharArray(Instance inst) {
-    if (! (inst instanceof ArrayInstance)) {
-      return null;
-    }
-
-    ArrayInstance array = (ArrayInstance) inst;
-    if (array.getArrayType() != Type.CHAR) {
-      return null;
-    }
-    return array.asCharArray(0, array.getValues().length);
-  }
-
-  /**
    * Read the byte[] value from an hprof Instance.
    * Returns null if the instance is not a byte array.
    */
@@ -82,8 +66,32 @@ class InstanceUtils {
     if (!isInstanceOfClass(inst, "java.lang.String")) {
       return null;
     }
-    char[] value = getCharArrayField(inst, "value");
-    return (value == null) ? null : new String(value);
+
+    Object value = getField(inst, "value");
+    if (!(value instanceof ArrayInstance)) {
+      return null;
+    }
+
+    ArrayInstance chars = (ArrayInstance) value;
+    if (chars.getArrayType() != Type.CHAR) {
+      return null;
+    }
+
+    // TODO: When perflib provides a better way to get the length of the
+    // array, we should use that here.
+    int numChars = chars.getValues().length;
+    int count = getIntField(inst, "count", numChars);
+    int offset = getIntField(inst, "offset", 0);
+    int end = offset + count - 1;
+
+    if (count == 0) {
+      return "";
+    }
+
+    if (offset >= 0 && offset < numChars && end >= 0 && end < numChars) {
+      return new String(chars.asCharArray(offset, count));
+    }
+    return null;
   }
 
   /**
@@ -175,6 +183,15 @@ class InstanceUtils {
   }
 
   /**
+   * Read an int field of an instance, returning a default value if the field
+   * was not an int or could not be read.
+   */
+  private static int getIntField(Instance inst, String fieldName, int def) {
+    Integer value = getIntField(inst, fieldName);
+    return value == null ? def : value;
+  }
+
+  /**
    * Read the given field from the given instance.
    * The field is assumed to be a byte[] field.
    * Returns null if the field value is null, not a byte[] or could not be read.
@@ -185,14 +202,6 @@ class InstanceUtils {
       return null;
     }
     return asByteArray((Instance)value);
-  }
-
-  private static char[] getCharArrayField(Instance inst, String fieldName) {
-    Object value = getField(inst, fieldName);
-    if (!(value instanceof Instance)) {
-      return null;
-    }
-    return asCharArray((Instance)value);
   }
 
   // Return the bitmap instance associated with this object, or null if there
