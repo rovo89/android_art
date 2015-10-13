@@ -65,12 +65,16 @@ class Monitor {
   // NO_THREAD_SAFETY_ANALYSIS for mon->Lock.
   static mirror::Object* MonitorEnter(Thread* thread, mirror::Object* obj)
       EXCLUSIVE_LOCK_FUNCTION(obj)
-      SHARED_REQUIRES(Locks::mutator_lock_) NO_THREAD_SAFETY_ANALYSIS;
+      NO_THREAD_SAFETY_ANALYSIS
+      REQUIRES(!Roles::uninterruptible_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // NO_THREAD_SAFETY_ANALYSIS for mon->Unlock.
   static bool MonitorExit(Thread* thread, mirror::Object* obj)
+      NO_THREAD_SAFETY_ANALYSIS
+      REQUIRES(!Roles::uninterruptible_)
       SHARED_REQUIRES(Locks::mutator_lock_)
-      UNLOCK_FUNCTION(obj) NO_THREAD_SAFETY_ANALYSIS;
+      UNLOCK_FUNCTION(obj);
 
   static void Notify(Thread* self, mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_) {
     DoNotify(self, obj, false);
