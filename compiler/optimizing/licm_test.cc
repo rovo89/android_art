@@ -61,7 +61,7 @@ class LICMTest : public testing::Test {
     loop_body_->AddSuccessor(loop_header_);
 
     // Provide boiler-plate instructions.
-    parameter_ = new (&allocator_) HParameterValue(graph_->GetDexFile(), 0, 0, Primitive::kPrimNot);
+    parameter_ = new (&allocator_) HParameterValue(0, Primitive::kPrimNot);
     entry_->AddInstruction(parameter_);
     constant_ = graph_->GetIntConstant(42);
     loop_preheader_->AddInstruction(new (&allocator_) HGoto());

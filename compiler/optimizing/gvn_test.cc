@@ -34,10 +34,7 @@ TEST(GVNTest, LocalFieldElimination) {
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
-  HInstruction* parameter = new (&allocator) HParameterValue(graph->GetDexFile(),
-                                                             0,
-                                                             0,
-                                                             Primitive::kPrimNot);
+  HInstruction* parameter = new (&allocator) HParameterValue(0, Primitive::kPrimNot);
   entry->AddInstruction(parameter);
 
   HBasicBlock* block = new (&allocator) HBasicBlock(graph);
@@ -114,10 +111,7 @@ TEST(GVNTest, GlobalFieldElimination) {
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
-  HInstruction* parameter = new (&allocator) HParameterValue(graph->GetDexFile(),
-                                                             0,
-                                                             0,
-                                                             Primitive::kPrimNot);
+  HInstruction* parameter = new (&allocator) HParameterValue(0, Primitive::kPrimNot);
   entry->AddInstruction(parameter);
 
   HBasicBlock* block = new (&allocator) HBasicBlock(graph);
@@ -194,10 +188,7 @@ TEST(GVNTest, LoopFieldElimination) {
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
 
-  HInstruction* parameter = new (&allocator) HParameterValue(graph->GetDexFile(),
-                                                             0,
-                                                             0,
-                                                             Primitive::kPrimNot);
+  HInstruction* parameter = new (&allocator) HParameterValue(0, Primitive::kPrimNot);
   entry->AddInstruction(parameter);
 
   HBasicBlock* block = new (&allocator) HBasicBlock(graph);
@@ -337,10 +328,7 @@ TEST(GVNTest, LoopSideEffects) {
   inner_loop_body->AddSuccessor(inner_loop_header);
   inner_loop_exit->AddSuccessor(outer_loop_header);
 
-  HInstruction* parameter = new (&allocator) HParameterValue(graph->GetDexFile(),
-                                                             0,
-                                                             0,
-                                                             Primitive::kPrimBoolean);
+  HInstruction* parameter = new (&allocator) HParameterValue(0, Primitive::kPrimBoolean);
   entry->AddInstruction(parameter);
   entry->AddInstruction(new (&allocator) HGoto());
   outer_loop_header->AddInstruction(new (&allocator) HIf(parameter));
