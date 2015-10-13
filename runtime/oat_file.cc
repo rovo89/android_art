@@ -127,7 +127,7 @@ OatFile* OatFile::Open(const std::string& filename,
     bool reserved_location = false;
       // Manager may be null if we are running without a runtime.
     if (!success && kUseDlopenOnHost && manager != nullptr) {
-      // ReserveOatFileLocation returns false if we are not the first caller to register that
+      // RegisterOatFileLocation returns false if we are not the first caller to register that
       // location.
       reserved_location = manager->RegisterOatFileLocation(location);
       success = reserved_location;
