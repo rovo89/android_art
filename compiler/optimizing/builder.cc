@@ -805,7 +805,7 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
     const VerifiedMethod* verified_method =
         compiler_driver_->GetVerifiedMethod(dex_file_, dex_compilation_unit_->GetDexMethodIndex());
     if (verified_method == nullptr) {
-      LOG(WARNING) << "No verified method for method calling String.<init>: "
+      LOG(DEBUG) << "No verified method for method calling String.<init>: "
                    << PrettyMethod(dex_compilation_unit_->GetDexMethodIndex(), *dex_file_);
       return false;
     }
