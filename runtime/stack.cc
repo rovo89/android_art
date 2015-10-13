@@ -891,6 +891,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
   CHECK_EQ(cur_depth_, 0U);
   bool exit_stubs_installed = Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled();
   uint32_t instrumentation_stack_depth = 0;
+  size_t inlined_frames_count = 0;
 
   for (const ManagedStack* current_fragment = thread_->GetManagedStack();
        current_fragment != nullptr; current_fragment = current_fragment->GetLink()) {
@@ -922,6 +923,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
                 return;
               }
               cur_depth_++;
+              inlined_frames_count++;
             }
           }
         }
@@ -952,16 +954,19 @@ void StackVisitor::WalkStack(bool include_transitions) {
               ArtMethod* callee = Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs);
               CHECK_EQ(GetMethod(), callee) << "Expected: " << PrettyMethod(callee) << " Found: "
                                             << PrettyMethod(GetMethod());
-            } else if (instrumentation_frame.method_ != GetMethod()) {
-              LOG(FATAL)  << "Expected: " << PrettyMethod(instrumentation_frame.method_)
-                          << " Found: " << PrettyMethod(GetMethod());
+            } else {
+              CHECK_EQ(instrumentation_frame.method_, GetMethod())
+                  << "Expected: " << PrettyMethod(instrumentation_frame.method_)
+                  << " Found: " << PrettyMethod(GetMethod());
             }
             if (num_frames_ != 0) {
               // Check agreement of frame Ids only if num_frames_ is computed to avoid infinite
               // recursion.
-              CHECK(instrumentation_frame.frame_id_ == GetFrameId())
-                    << "Expected: " << instrumentation_frame.frame_id_
-                    << " Found: " << GetFrameId();
+              size_t frame_id = instrumentation::Instrumentation::ComputeFrameId(
+                  thread_,
+                  cur_depth_,
+                  inlined_frames_count);
+              CHECK_EQ(instrumentation_frame.frame_id_, frame_id);
             }
             return_pc = instrumentation_frame.return_pc_;
           }

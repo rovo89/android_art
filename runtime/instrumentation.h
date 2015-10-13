@@ -397,6 +397,11 @@ class Instrumentation {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!Locks::thread_list_lock_);
 
+  static size_t ComputeFrameId(Thread* self,
+                               size_t frame_depth,
+                               size_t inlined_frames_before_frame)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
  private:
   InstrumentationLevel GetCurrentInstrumentationLevel() const;
 
