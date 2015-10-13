@@ -212,18 +212,6 @@ inline mirror::Class* ArtMethod::GetClassFromTypeIndex(uint16_t type_idx,
   return type;
 }
 
-inline uint32_t ArtMethod::GetCodeSize() {
-  DCHECK(!IsRuntimeMethod() && !IsProxyMethod()) << PrettyMethod(this);
-  return GetCodeSize(EntryPointToCodePointer(GetEntryPointFromQuickCompiledCode()));
-}
-
-inline uint32_t ArtMethod::GetCodeSize(const void* code) {
-  if (code == nullptr) {
-    return 0u;
-  }
-  return reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].code_size_;
-}
-
 inline bool ArtMethod::CheckIncompatibleClassChange(InvokeType type) {
   switch (type) {
     case kStatic:
@@ -246,85 +234,6 @@ inline bool ArtMethod::CheckIncompatibleClassChange(InvokeType type) {
       LOG(FATAL) << "Unreachable - invocation type: " << type;
       UNREACHABLE();
   }
-}
-
-inline uint32_t ArtMethod::GetQuickOatCodeOffset() {
-  DCHECK(!Runtime::Current()->IsStarted());
-  return PointerToLowMemUInt32(GetEntryPointFromQuickCompiledCode());
-}
-
-inline void ArtMethod::SetQuickOatCodeOffset(uint32_t code_offset) {
-  DCHECK(!Runtime::Current()->IsStarted());
-  SetEntryPointFromQuickCompiledCode(reinterpret_cast<void*>(code_offset));
-}
-
-inline const uint8_t* ArtMethod::GetMappingTable(size_t pointer_size) {
-  const void* code_pointer = GetQuickOatCodePointer(pointer_size);
-  if (code_pointer == nullptr) {
-    return nullptr;
-  }
-  return GetMappingTable(code_pointer, pointer_size);
-}
-
-inline const uint8_t* ArtMethod::GetMappingTable(const void* code_pointer, size_t pointer_size) {
-  DCHECK(code_pointer != nullptr);
-  DCHECK_EQ(code_pointer, GetQuickOatCodePointer(pointer_size));
-  uint32_t offset =
-      reinterpret_cast<const OatQuickMethodHeader*>(code_pointer)[-1].mapping_table_offset_;
-  if (UNLIKELY(offset == 0u)) {
-    return nullptr;
-  }
-  return reinterpret_cast<const uint8_t*>(code_pointer) - offset;
-}
-
-inline const uint8_t* ArtMethod::GetVmapTable(size_t pointer_size) {
-  const void* code_pointer = GetQuickOatCodePointer(pointer_size);
-  if (code_pointer == nullptr) {
-    return nullptr;
-  }
-  return GetVmapTable(code_pointer, pointer_size);
-}
-
-inline const uint8_t* ArtMethod::GetVmapTable(const void* code_pointer, size_t pointer_size) {
-  CHECK(!IsOptimized(pointer_size)) << "Unimplemented vmap table for optimized compiler";
-  DCHECK(code_pointer != nullptr);
-  DCHECK_EQ(code_pointer, GetQuickOatCodePointer(pointer_size));
-  uint32_t offset =
-      reinterpret_cast<const OatQuickMethodHeader*>(code_pointer)[-1].vmap_table_offset_;
-  if (UNLIKELY(offset == 0u)) {
-    return nullptr;
-  }
-  return reinterpret_cast<const uint8_t*>(code_pointer) - offset;
-}
-
-inline CodeInfo ArtMethod::GetOptimizedCodeInfo() {
-  DCHECK(IsOptimized(sizeof(void*)));
-  const void* code_pointer = GetQuickOatCodePointer(sizeof(void*));
-  DCHECK(code_pointer != nullptr);
-  uint32_t offset =
-      reinterpret_cast<const OatQuickMethodHeader*>(code_pointer)[-1].vmap_table_offset_;
-  const void* data =
-      reinterpret_cast<const void*>(reinterpret_cast<const uint8_t*>(code_pointer) - offset);
-  return CodeInfo(data);
-}
-
-inline const uint8_t* ArtMethod::GetNativeGcMap(size_t pointer_size) {
-  const void* code_pointer = GetQuickOatCodePointer(pointer_size);
-  if (code_pointer == nullptr) {
-    return nullptr;
-  }
-  return GetNativeGcMap(code_pointer, pointer_size);
-}
-
-inline const uint8_t* ArtMethod::GetNativeGcMap(const void* code_pointer, size_t pointer_size) {
-  DCHECK(code_pointer != nullptr);
-  DCHECK_EQ(code_pointer, GetQuickOatCodePointer(pointer_size));
-  uint32_t offset =
-      reinterpret_cast<const OatQuickMethodHeader*>(code_pointer)[-1].gc_map_offset_;
-  if (UNLIKELY(offset == 0u)) {
-    return nullptr;
-  }
-  return reinterpret_cast<const uint8_t*>(code_pointer) - offset;
 }
 
 inline bool ArtMethod::IsRuntimeMethod() {
@@ -365,20 +274,6 @@ inline bool ArtMethod::IsImtUnimplementedMethod() {
   // Check that if we do think it is phony it looks like the imt unimplemented method.
   DCHECK(!result || IsRuntimeMethod());
   return result;
-}
-
-inline uintptr_t ArtMethod::NativeQuickPcOffset(const uintptr_t pc) {
-  const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(
-      this, sizeof(void*));
-  return pc - reinterpret_cast<uintptr_t>(code);
-}
-
-inline QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo(const void* code_pointer) {
-  DCHECK(code_pointer != nullptr);
-  if (kIsDebugBuild && !IsProxyMethod()) {
-    CHECK_EQ(code_pointer, GetQuickOatCodePointer(sizeof(void*)));
-  }
-  return reinterpret_cast<const OatQuickMethodHeader*>(code_pointer)[-1].frame_info_;
 }
 
 inline const DexFile* ArtMethod::GetDexFile() {

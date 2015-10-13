@@ -32,6 +32,7 @@
 #include <sstream>
 
 #include "arch/context.h"
+#include "art_code.h"
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/bit_utils.h"
@@ -66,6 +67,7 @@
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
 #include "stack.h"
+#include "stack_map.h"
 #include "thread_list.h"
 #include "thread-inl.h"
 #include "utils.h"
@@ -1493,7 +1495,9 @@ void Thread::DumpStack(std::ostream& os) const {
     // If we're currently in native code, dump that stack before dumping the managed stack.
     if (dump_for_abort || ShouldShowNativeStack(this)) {
       DumpKernelStack(os, GetTid(), "  kernel: ", false);
-      DumpNativeStack(os, GetTid(), "  native: ", GetCurrentMethod(nullptr, !dump_for_abort));
+      ArtMethod* method = GetCurrentMethod(nullptr, !dump_for_abort);
+      ArtCode art_code(method);
+      DumpNativeStack(os, GetTid(), "  native: ", method, &art_code);
     }
     DumpJavaStack(os);
   } else {
@@ -2651,7 +2655,7 @@ class ReferenceMapVisitor : public StackVisitor {
     } else {
       // Java method.
       // Portable path use DexGcMap and store in Method.native_gc_map_.
-      const uint8_t* gc_map = m->GetNativeGcMap(sizeof(void*));
+      const uint8_t* gc_map = GetCurrentCode().GetNativeGcMap(sizeof(void*));
       CHECK(gc_map != nullptr) << PrettyMethod(m);
       verifier::DexPcToReferenceMap dex_gc_map(gc_map);
       uint32_t dex_pc = shadow_frame->GetDexPC();
@@ -2698,13 +2702,11 @@ class ReferenceMapVisitor : public StackVisitor {
 
     // Process register map (which native and runtime methods don't have)
     if (!m->IsNative() && !m->IsRuntimeMethod() && !m->IsProxyMethod()) {
-      if (m->IsOptimized(sizeof(void*))) {
+      if (GetCurrentCode().IsOptimized(sizeof(void*))) {
         auto* vreg_base = reinterpret_cast<StackReference<mirror::Object>*>(
             reinterpret_cast<uintptr_t>(cur_quick_frame));
-        Runtime* runtime = Runtime::Current();
-        const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(m, sizeof(void*));
-        uintptr_t native_pc_offset = m->NativeQuickPcOffset(GetCurrentQuickFramePc(), entry_point);
-        CodeInfo code_info = m->GetOptimizedCodeInfo();
+        uintptr_t native_pc_offset = GetCurrentCode().NativeQuickPcOffset(GetCurrentQuickFramePc());
+        CodeInfo code_info = GetCurrentCode().GetOptimizedCodeInfo();
         StackMapEncoding encoding = code_info.ExtractEncoding();
         StackMap map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
         DCHECK(map.IsValid());
@@ -2734,7 +2736,7 @@ class ReferenceMapVisitor : public StackVisitor {
           }
         }
       } else {
-        const uint8_t* native_gc_map = m->GetNativeGcMap(sizeof(void*));
+        const uint8_t* native_gc_map = GetCurrentCode().GetNativeGcMap(sizeof(void*));
         CHECK(native_gc_map != nullptr) << PrettyMethod(m);
         const DexFile::CodeItem* code_item = m->GetCodeItem();
         // Can't be null or how would we compile its instructions?
@@ -2742,14 +2744,12 @@ class ReferenceMapVisitor : public StackVisitor {
         NativePcOffsetToReferenceMap map(native_gc_map);
         size_t num_regs = map.RegWidth() * 8;
         if (num_regs > 0) {
-          Runtime* runtime = Runtime::Current();
-          const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(m, sizeof(void*));
-          uintptr_t native_pc_offset = m->NativeQuickPcOffset(GetCurrentQuickFramePc(), entry_point);
+          uintptr_t native_pc_offset =
+              GetCurrentCode().NativeQuickPcOffset(GetCurrentQuickFramePc());
           const uint8_t* reg_bitmap = map.FindBitMap(native_pc_offset);
           DCHECK(reg_bitmap != nullptr);
-          const void* code_pointer = ArtMethod::EntryPointToCodePointer(entry_point);
-          const VmapTable vmap_table(m->GetVmapTable(code_pointer, sizeof(void*)));
-          QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo(code_pointer);
+          const VmapTable vmap_table(GetCurrentCode().GetVmapTable(sizeof(void*)));
+          QuickMethodFrameInfo frame_info = GetCurrentCode().GetQuickFrameInfo();
           // For all dex registers in the bitmap
           DCHECK(cur_quick_frame != nullptr);
           for (size_t reg = 0; reg < num_regs; ++reg) {

@@ -38,8 +38,8 @@ void MipsContext::Reset() {
 }
 
 void MipsContext::FillCalleeSaves(const StackVisitor& fr) {
-  ArtMethod* method = fr.GetMethod();
-  const QuickMethodFrameInfo frame_info = method->GetQuickFrameInfo();
+  ArtCode code = fr.GetCurrentCode();
+  const QuickMethodFrameInfo frame_info = code.GetQuickFrameInfo();
   int spill_pos = 0;
 
   // Core registers come first, from the highest down to the lowest.

@@ -15,6 +15,7 @@
  */
 
 #include "arch/context.h"
+#include "art_code.h"
 #include "art_method-inl.h"
 #include "jni.h"
 #include "scoped_thread_state_change.h"
@@ -45,10 +46,14 @@ class TestVisitor : public StackVisitor {
       CHECK_EQ(value, 42u);
 
       bool success = GetVReg(m, 1, kIntVReg, &value);
-      if (m->IsOptimized(sizeof(void*))) CHECK(!success);
+      if (!IsCurrentFrameInInterpreter() && GetCurrentCode().IsOptimized(sizeof(void*))) {
+        CHECK(!success);
+      }
 
       success = GetVReg(m, 2, kIntVReg, &value);
-      if (m->IsOptimized(sizeof(void*))) CHECK(!success);
+      if (!IsCurrentFrameInInterpreter() && GetCurrentCode().IsOptimized(sizeof(void*))) {
+        CHECK(!success);
+      }
 
       CHECK(GetVReg(m, 3, kReferenceVReg, &value));
       CHECK_EQ(reinterpret_cast<mirror::Object*>(value), this_value_);
@@ -78,10 +83,14 @@ class TestVisitor : public StackVisitor {
       CHECK_EQ(value, 42u);
 
       bool success = GetVRegPair(m, 2, kLongLoVReg, kLongHiVReg, &value);
-      if (m->IsOptimized(sizeof(void*))) CHECK(!success);
+      if (!IsCurrentFrameInInterpreter() && GetCurrentCode().IsOptimized(sizeof(void*))) {
+        CHECK(!success);
+      }
 
       success = GetVRegPair(m, 4, kLongLoVReg, kLongHiVReg, &value);
-      if (m->IsOptimized(sizeof(void*))) CHECK(!success);
+      if (!IsCurrentFrameInInterpreter() && GetCurrentCode().IsOptimized(sizeof(void*))) {
+        CHECK(!success);
+      }
 
       uint32_t value32 = 0;
       CHECK(GetVReg(m, 6, kReferenceVReg, &value32));

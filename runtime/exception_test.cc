@@ -169,7 +169,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
   r->SetInstructionSet(kRuntimeISA);
   ArtMethod* save_method = r->CreateCalleeSaveMethod();
   r->SetCalleeSaveMethod(save_method, Runtime::kSaveAll);
-  QuickMethodFrameInfo frame_info = save_method->GetQuickFrameInfo();
+  QuickMethodFrameInfo frame_info = ArtCode(save_method).GetQuickFrameInfo();
 
   ASSERT_EQ(kStackAlignment, 16U);
   // ASSERT_EQ(sizeof(uintptr_t), sizeof(uint32_t));
@@ -187,14 +187,14 @@ TEST_F(ExceptionTest, StackTraceElement) {
   }
 
   fake_stack.push_back(
-      method_g_->ToNativeQuickPc(dex_pc, /* is_catch_handler */ false));  // return pc
+      ArtCode(method_g_).ToNativeQuickPc(dex_pc, /* is_catch_handler */ false));  // return pc
 
   // Create/push fake 16byte stack frame for method g
   fake_stack.push_back(reinterpret_cast<uintptr_t>(method_g_));
   fake_stack.push_back(0);
   fake_stack.push_back(0);
   fake_stack.push_back(
-      method_g_->ToNativeQuickPc(dex_pc, /* is_catch_handler */ false));  // return pc
+      ArtCode(method_g_).ToNativeQuickPc(dex_pc, /* is_catch_handler */ false));  // return pc
 
   // Create/push fake 16byte stack frame for method f
   fake_stack.push_back(reinterpret_cast<uintptr_t>(method_f_));

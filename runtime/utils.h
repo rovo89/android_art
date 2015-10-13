@@ -33,6 +33,7 @@
 
 namespace art {
 
+class ArtCode;
 class ArtField;
 class ArtMethod;
 class DexFile;
@@ -221,7 +222,7 @@ void SetThreadName(const char* thread_name);
 
 // Dumps the native stack for thread 'tid' to 'os'.
 void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix = "",
-    ArtMethod* current_method = nullptr, void* ucontext = nullptr)
+    ArtMethod* current_method = nullptr, ArtCode* current_code = nullptr, void* ucontext = nullptr)
     NO_THREAD_SAFETY_ANALYSIS;
 
 // Dumps the kernel stack for thread 'tid' to 'os'. Note that this is only available on linux-x86.
@@ -305,6 +306,14 @@ static inline constexpr bool ValidPointerSize(size_t pointer_size) {
 
 void DumpMethodCFG(ArtMethod* method, std::ostream& os) SHARED_REQUIRES(Locks::mutator_lock_);
 void DumpMethodCFG(const DexFile* dex_file, uint32_t dex_method_idx, std::ostream& os);
+
+static inline const void* EntryPointToCodePointer(const void* entry_point) {
+  uintptr_t code = reinterpret_cast<uintptr_t>(entry_point);
+  // TODO: Make this Thumb2 specific. It is benign on other architectures as code is always at
+  //       least 2 byte aligned.
+  code &= ~0x1;
+  return reinterpret_cast<const void*>(code);
+}
 
 }  // namespace art
 

@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "arch/instruction_set_features.h"
+#include "art_code.h"
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/unix_file/fd_file.h"
@@ -54,6 +55,7 @@
 #include "output_stream.h"
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"
+#include "stack_map.h"
 #include "ScopedLocalRef.h"
 #include "thread_list.h"
 #include "verifier/dex_gc_map.h"
@@ -1961,24 +1963,27 @@ class ImageDumper {
     DCHECK(method != nullptr);
     const auto image_pointer_size =
         InstructionSetPointerSize(state->oat_dumper_->GetOatInstructionSet());
+    const void* quick_oat_code_begin = state->GetQuickOatCodeBegin(method);
+    const void* quick_oat_code_end = state->GetQuickOatCodeEnd(method);
+    ArtCode art_code(method);
     if (method->IsNative()) {
-      DCHECK(method->GetNativeGcMap(image_pointer_size) == nullptr) << PrettyMethod(method);
-      DCHECK(method->GetMappingTable(image_pointer_size) == nullptr) << PrettyMethod(method);
+      DCHECK(art_code.GetNativeGcMap(image_pointer_size) == nullptr) << PrettyMethod(method);
+      DCHECK(art_code.GetMappingTable(image_pointer_size) == nullptr) << PrettyMethod(method);
       bool first_occurrence;
-      const void* quick_oat_code = state->GetQuickOatCodeBegin(method);
       uint32_t quick_oat_code_size = state->GetQuickOatCodeSize(method);
-      state->ComputeOatSize(quick_oat_code, &first_occurrence);
+      state->ComputeOatSize(quick_oat_code_begin, &first_occurrence);
       if (first_occurrence) {
         state->stats_.native_to_managed_code_bytes += quick_oat_code_size;
       }
-      if (quick_oat_code != method->GetEntryPointFromQuickCompiledCodePtrSize(image_pointer_size)) {
-        indent_os << StringPrintf("OAT CODE: %p\n", quick_oat_code);
+      if (quick_oat_code_begin !=
+            method->GetEntryPointFromQuickCompiledCodePtrSize(image_pointer_size)) {
+        indent_os << StringPrintf("OAT CODE: %p\n", quick_oat_code_begin);
       }
     } else if (method->IsAbstract() || method->IsCalleeSaveMethod() ||
       method->IsResolutionMethod() || method->IsImtConflictMethod() ||
       method->IsImtUnimplementedMethod() || method->IsClassInitializer()) {
-      DCHECK(method->GetNativeGcMap(image_pointer_size) == nullptr) << PrettyMethod(method);
-      DCHECK(method->GetMappingTable(image_pointer_size) == nullptr) << PrettyMethod(method);
+      DCHECK(art_code.GetNativeGcMap(image_pointer_size) == nullptr) << PrettyMethod(method);
+      DCHECK(art_code.GetMappingTable(image_pointer_size) == nullptr) << PrettyMethod(method);
     } else {
       const DexFile::CodeItem* code_item = method->GetCodeItem();
       size_t dex_instruction_bytes = code_item->insns_size_in_code_units_ * 2;
@@ -1986,29 +1991,27 @@ class ImageDumper {
 
       bool first_occurrence;
       size_t gc_map_bytes = state->ComputeOatSize(
-          method->GetNativeGcMap(image_pointer_size), &first_occurrence);
+          art_code.GetNativeGcMap(image_pointer_size), &first_occurrence);
       if (first_occurrence) {
         state->stats_.gc_map_bytes += gc_map_bytes;
       }
 
       size_t pc_mapping_table_bytes = state->ComputeOatSize(
-          method->GetMappingTable(image_pointer_size), &first_occurrence);
+          art_code.GetMappingTable(image_pointer_size), &first_occurrence);
       if (first_occurrence) {
         state->stats_.pc_mapping_table_bytes += pc_mapping_table_bytes;
       }
 
       size_t vmap_table_bytes = 0u;
-      if (!method->IsOptimized(image_pointer_size)) {
+      if (!art_code.IsOptimized(image_pointer_size)) {
         // Method compiled with the optimizing compiler have no vmap table.
         vmap_table_bytes = state->ComputeOatSize(
-            method->GetVmapTable(image_pointer_size), &first_occurrence);
+            art_code.GetVmapTable(image_pointer_size), &first_occurrence);
         if (first_occurrence) {
           state->stats_.vmap_table_bytes += vmap_table_bytes;
         }
       }
 
-      const void* quick_oat_code_begin = state->GetQuickOatCodeBegin(method);
-      const void* quick_oat_code_end = state->GetQuickOatCodeEnd(method);
       uint32_t quick_oat_code_size = state->GetQuickOatCodeSize(method);
       state->ComputeOatSize(quick_oat_code_begin, &first_occurrence);
       if (first_occurrence) {
