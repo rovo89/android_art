@@ -66,6 +66,7 @@
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
+#include "oat_file_assistant.h"
 #include "oat_writer.h"
 #include "os.h"
 #include "runtime.h"
@@ -1147,6 +1148,18 @@ class Dex2Oat FINAL {
     oat_file_.reset();
   }
 
+  static std::string PathFromFd(int fd) {
+    std::string fdpath(StringPrintf("/proc/self/fd/%d", fd));
+    std::unique_ptr<char[]> buf(new char[PATH_MAX]);
+    ssize_t len = readlink(fdpath.c_str(), buf.get(), PATH_MAX - 1);
+    if (len >= 0) {
+      return std::string(buf.get(), len);
+    } else {
+      LOG(WARNING) << StringPrintf("Could not resolve file descriptor %d: %s", fd, strerror(errno));
+      return nullptr;
+    }
+  }
+
   // Set up the environment for compilation. Includes starting the runtime and loading/opening the
   // boot class path.
   bool Setup() {
@@ -1187,6 +1200,15 @@ class Dex2Oat FINAL {
 
     if (!CreateRuntime(runtime_options)) {
       return false;
+    }
+
+    if (!image_ && zip_fd_ > 0 && (zip_location_from_fd_ = PathFromFd(zip_fd_)) != nullptr) {
+      oat_file_assistant_ = new OatFileAssistant(zip_location_from_fd_.c_str(), instruction_set_, false);
+      if (oat_file_assistant_->OdexFileExists()) {
+        LOG(INFO) << "Using '" << *oat_file_assistant_->OdexFileName() << "' instead of file descriptor";
+        dex_filenames_.push_back(oat_file_assistant_->OdexFileName()->c_str());
+        dex_locations_.push_back(zip_location_from_fd_.c_str());
+      }
     }
 
     // Runtime::Create acquired the mutator_lock_ that is normally given away when we
@@ -1313,7 +1335,7 @@ class Dex2Oat FINAL {
     }
     // Ensure opened dex files are writable for dex-to-dex transformations.
     for (const auto& dex_file : dex_files_) {
-      if (!dex_file->EnableWrite()) {
+      if (dex_file->GetOatDexFile() == nullptr && !dex_file->EnableWrite()) {
         PLOG(ERROR) << "Failed to make .dex file writeable '" << dex_file->GetLocation() << "'\n";
       }
     }
@@ -1876,6 +1898,8 @@ class Dex2Oat FINAL {
   std::vector<const char*> dex_locations_;
   int zip_fd_;
   std::string zip_location_;
+  std::string zip_location_from_fd_;
+  OatFileAssistant* oat_file_assistant_;
   std::string boot_image_option_;
   std::vector<const char*> runtime_args_;
   std::string image_filename_;

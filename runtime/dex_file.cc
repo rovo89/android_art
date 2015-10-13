@@ -31,9 +31,11 @@
 #include "art_method-inl.h"
 #include "base/logging.h"
 #include "base/stringprintf.h"
+#include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "dex_file-inl.h"
 #include "dex_file_verifier.h"
+#include "elf_file.h"
 #include "globals.h"
 #include "leb128.h"
 #include "mirror/string.h"
@@ -148,6 +150,32 @@ bool DexFile::Open(const char* filename, const char* location, std::string* erro
     } else {
       return false;
     }
+  }
+  if (Runtime::Current()->IsAotCompiler() && (EndsWith(filename, ".oat") || EndsWith(filename, ".odex"))) {
+    std::unique_ptr<File> file(new File(fd.release(), filename, true));
+    std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file.release(), PROT_READ | PROT_WRITE, MAP_PRIVATE, error_msg));
+    if (elf_file.get() == nullptr) {
+      *error_msg = StringPrintf("Failed to open ELF file from '%s': %s", location, error_msg->c_str());
+      return false;
+    }
+    const OatFile* oat_file = OatFile::OpenWithElfFile(elf_file.release(), location, nullptr, error_msg);
+    if (oat_file == nullptr) {
+      *error_msg = StringPrintf("Failed to open oat file from '%s': %s", location, error_msg->c_str());
+      return false;
+    } else {
+      for (const OatFile::OatDexFile* oat_dex_file : oat_file->GetOatDexFiles()) {
+        CHECK(oat_dex_file != nullptr);
+        std::unique_ptr<const DexFile> dex_file(oat_dex_file->OpenDexFile(error_msg));
+        if (dex_file.get() != nullptr) {
+          dex_files->push_back(std::move(dex_file));
+        } else {
+          *error_msg = StringPrintf("Failed to open dex file '%s' from file '%s': %s",
+              oat_dex_file->GetDexFileLocation().c_str(), location, error_msg->c_str());
+          return false;
+        }
+      }
+    }
+    return true;
   }
   *error_msg = StringPrintf("Expected valid zip or dex file: '%s'", filename);
   return false;
