@@ -286,8 +286,10 @@ void ArtCode::AssertPcIsWithinQuickCode(uintptr_t pc) {
     return;
   }
 
-  uint32_t code_size = reinterpret_cast<const OatQuickMethodHeader*>(code)[-1].code_size_;
-  CHECK(PcIsWithinQuickCode(pc))
+  uint32_t code_size = reinterpret_cast<const OatQuickMethodHeader*>(
+      EntryPointToCodePointer(code))[-1].code_size_;
+  uintptr_t code_start = reinterpret_cast<uintptr_t>(code);
+  CHECK(code_start <= pc && pc <= (code_start + code_size))
       << PrettyMethod(method_)
       << " pc=" << std::hex << pc
       << " code=" << code
