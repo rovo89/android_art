@@ -30,6 +30,7 @@
 #include "dex_instruction-inl.h"
 #include "dex_instruction_utils.h"
 #include "dex_instruction_visitor.h"
+#include "experimental_flags.h"
 #include "gc/accounting/card_table-inl.h"
 #include "indenter.h"
 #include "intern_table.h"
@@ -560,6 +561,7 @@ SafeMap<uint32_t, std::set<uint32_t>>& MethodVerifier::FindStringInitMap() {
 bool MethodVerifier::Verify() {
   // Some older code doesn't correctly mark constructors as such. Test for this case by looking at
   // the name.
+  Runtime* runtime = Runtime::Current();
   const DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx_);
   const char* method_name = dex_file_->StringDataByIdx(method_id.name_idx_);
   bool instance_constructor_by_name = strcmp("<init>", method_name) == 0;
@@ -628,9 +630,13 @@ bool MethodVerifier::Verify() {
         }
       }
       if ((class_def_->GetJavaAccessFlags() & kAccInterface) != 0) {
-        // Interface methods must be public and abstract.
-        if ((method_access_flags_ & (kAccPublic | kAccAbstract)) != (kAccPublic | kAccAbstract)) {
-          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interface methods must be public and abstract";
+        // Interface methods must be public and abstract (if default methods are disabled).
+        bool default_methods_supported =
+            runtime->AreExperimentalFlagsEnabled(ExperimentalFlags::kDefaultMethods);
+        uint32_t kRequired = kAccPublic | (default_methods_supported ? 0 : kAccAbstract);
+        if ((method_access_flags_ & kRequired) != kRequired) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interface methods must be public"
+                                            << (default_methods_supported ? "" : " and abstract");
           return false;
         }
         // In addition to the above, interface methods must not be protected.
@@ -657,10 +663,22 @@ bool MethodVerifier::Verify() {
       return false;
     }
 
-    // Only the static initializer may have code in an interface.
     if ((class_def_->GetJavaAccessFlags() & kAccInterface) != 0) {
-      // Interfaces may have static initializers for their fields.
-      if (!IsConstructor() || !IsStatic()) {
+      // Interfaces may always have static initializers for their fields. If we are running with
+      // default methods enabled we also allow other public, static, non-final methods to have code.
+      // Otherwise that is the only type of method allowed.
+      if (runtime->AreExperimentalFlagsEnabled(ExperimentalFlags::kDefaultMethods)) {
+        if (IsInstanceConstructor()) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interfaces may not have non-static constructor";
+          return false;
+        } else if (method_access_flags_ & kAccFinal) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interfaces may not have final methods";
+          return false;
+        } else if (!(method_access_flags_ & kAccPublic)) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interfaces may not have non-public members";
+          return false;
+        }
+      } else if (!IsConstructor() || !IsStatic()) {
         Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interface methods must be abstract";
         return false;
       }
@@ -682,6 +700,7 @@ bool MethodVerifier::Verify() {
                                       << " regs=" << code_item_->registers_size_;
     return false;
   }
+
   // Allocate and initialize an array to hold instruction data.
   insn_flags_.reset(new InstructionFlags[code_item_->insns_size_in_code_units_]());
   // Run through the instructions and see if the width checks out.
@@ -693,8 +712,8 @@ bool MethodVerifier::Verify() {
   // Perform code-flow analysis and return.
   result = result && VerifyCodeFlow();
   // Compute information for compiler.
-  if (result && Runtime::Current()->IsCompiler()) {
-    result = Runtime::Current()->GetCompilerCallbacks()->MethodVerified(this);
+  if (result && runtime->IsCompiler()) {
+    result = runtime->GetCompilerCallbacks()->MethodVerified(this);
   }
   return result;
 }
