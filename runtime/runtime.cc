@@ -282,10 +282,10 @@ Runtime::~Runtime() {
   delete monitor_list_;
   delete monitor_pool_;
   delete class_linker_;
-  oat_file_manager_.reset();
   delete heap_;
   delete intern_table_;
   delete java_vm_;
+  delete oat_file_manager_;
   Thread::Shutdown();
   QuasiAtomic::Shutdown();
   verifier::MethodVerifier::Shutdown();
@@ -833,7 +833,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
 
   QuasiAtomic::Startup();
 
-  oat_file_manager_.reset(new OatFileManager);
+  oat_file_manager_ = new OatFileManager;
 
   Monitor::Init(runtime_options.GetOrDefault(Opt::LockProfThreshold),
                 runtime_options.GetOrDefault(Opt::HookIsSensitiveThread));

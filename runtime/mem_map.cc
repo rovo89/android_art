@@ -135,10 +135,21 @@ uintptr_t MemMap::next_mem_pos_ = GenerateNextMemPos();
 #endif
 
 // Return true if the address range is contained in a single /proc/self/map entry.
-static bool ContainedWithinExistingMap(uint8_t* ptr, size_t size,
-                                       std::string* error_msg) {
+bool MemMap::ContainedWithinExistingMap(uint8_t* ptr, size_t size, std::string* error_msg) {
   uintptr_t begin = reinterpret_cast<uintptr_t>(ptr);
   uintptr_t end = begin + size;
+
+  {
+    MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
+    for (auto& pair : *MemMap::maps_) {
+      MemMap* const map = pair.second;
+      if (begin >= reinterpret_cast<uintptr_t>(map->Begin()) &&
+          end <= reinterpret_cast<uintptr_t>(map->End())) {
+        return true;
+      }
+    }
+  }
+
   std::unique_ptr<BacktraceMap> map(BacktraceMap::Create(getpid(), true));
   if (map.get() == nullptr) {
     *error_msg = StringPrintf("Failed to build process map");
