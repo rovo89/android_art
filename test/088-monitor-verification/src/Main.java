@@ -27,6 +27,13 @@ public class Main {
      */
     public static void main(String[] args) {
         System.loadLibrary(args[0]);
+        if (!hasOatFile() || runtimeIsSoftFail() || isInterpreted()) {
+            // Some tests ensure that the verifier was able to guarantee balanced locking by
+            // asserting that the test function is running as compiled code. But skip this now,
+            // as this seems to be a non-compiled code test configuration.
+            disableStackFrameAsserts();
+        }
+
         Main m = new Main();
 
         m.recursiveSync(0);
@@ -49,7 +56,7 @@ public class Main {
         Object obj1 = new Object();
         Object obj2 = new Object();
 
-        m.twoPath(obj1, obj2, 0);
+        TwoPath.twoPath(obj1, obj2, 0);
         System.out.println("twoPath ok");
 
         m.triplet(obj1, obj2, 0);
@@ -62,6 +69,7 @@ public class Main {
      * Recursive synchronized method.
      */
     synchronized void recursiveSync(int iter) {
+        assertIsManaged();
         if (iter < 40) {
             recursiveSync(iter+1);
         } else {
@@ -73,6 +81,7 @@ public class Main {
      * Tests simple nesting, with and without a throw.
      */
     void nestedMayThrow(boolean doThrow) {
+        assertIsManaged();
         synchronized (this) {
             synchronized (Main.class) {
                 synchronized (new Object()) {
@@ -90,6 +99,7 @@ public class Main {
      * Exercises bug 3215458.
      */
     void constantLock() {
+        assertIsManaged();
         Class thing = Thread.class;
         synchronized (Thread.class) {}
     }
@@ -98,6 +108,7 @@ public class Main {
      * Confirms that we can have 32 nested monitors on one method.
      */
     void notExcessiveNesting() {
+        assertIsManaged();
         synchronized (this) {   // 1
         synchronized (this) {   // 2
         synchronized (this) {   // 3
@@ -138,6 +149,7 @@ public class Main {
      * method.
      */
     void notNested() {
+        assertIsManaged();
         synchronized (this) {}  // 1
         synchronized (this) {}  // 2
         synchronized (this) {}  // 3
@@ -178,25 +190,6 @@ public class Main {
     private void doNothing(Object obj) {}
 
     /**
-     * Conditionally uses one of the synchronized objects.
-     */
-    public void twoPath(Object obj1, Object obj2, int x) {
-        Object localObj;
-
-        synchronized (obj1) {
-            synchronized(obj2) {
-                if (x == 0) {
-                    localObj = obj2;
-                } else {
-                    localObj = obj1;
-                }
-            }
-        }
-
-        doNothing(localObj);
-    }
-
-    /**
      * Lock the monitor two or three times, and make use of the locked or
      * unlocked object.
      */
@@ -220,17 +213,12 @@ public class Main {
 
     // Smali testing code.
     private static void runSmaliTests() {
-        if (!hasOatFile() || runtimeIsSoftFail() || isInterpreted()) {
-            // Skip test, this seems to be a non-compiled code test configuration.
-            return;
-        }
-
         runTest("OK", new Object[] { new Object(), new Object() }, null);
         runTest("TooDeep", new Object[] { new Object() }, null);
         runTest("NotStructuredOverUnlock", new Object[] { new Object() },
                 IllegalMonitorStateException.class);
-        runTest("NotStructuredUnderUnlock", new Object[] { new Object() }, null);
-                // TODO: new IllegalMonitorStateException());
+        runTest("NotStructuredUnderUnlock", new Object[] { new Object() },
+                IllegalMonitorStateException.class);
         runTest("UnbalancedJoin", new Object[] { new Object(), new Object() }, null);
         runTest("UnbalancedStraight", new Object[] { new Object(), new Object() }, null);
     }
@@ -282,4 +270,5 @@ public class Main {
     public static native boolean hasOatFile();
     public static native boolean runtimeIsSoftFail();
     public static native boolean isInterpreted();
+    public static native void disableStackFrameAsserts();
 }
