@@ -42,6 +42,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mem_map.h"
+#include "native/dalvik_system_DexFile.h"
 #include "noop_compiler_callbacks.h"
 #include "os.h"
 #include "primitive.h"
@@ -516,7 +517,7 @@ std::vector<const DexFile*> CommonRuntimeTest::GetDexFiles(jobject jclass_loader
           mirror::LongArray* long_array = cookie_field->GetObject(dex_file)->AsLongArray();
           DCHECK(long_array != nullptr);
           int32_t long_array_size = long_array->GetLength();
-          for (int32_t j = 0; j < long_array_size; ++j) {
+          for (int32_t j = kDexFileIndexStart; j < long_array_size; ++j) {
             const DexFile* cp_dex_file = reinterpret_cast<const DexFile*>(static_cast<uintptr_t>(
                 long_array->GetWithoutChecks(j)));
             if (cp_dex_file == nullptr) {

@@ -576,7 +576,7 @@ class Runtime {
 
   OatFileManager& GetOatFileManager() const {
     DCHECK(oat_file_manager_ != nullptr);
-    return *oat_file_manager_.get();
+    return *oat_file_manager_;
   }
 
  private:
@@ -777,7 +777,7 @@ class Runtime {
   std::string fingerprint_;
 
   // Oat file manager, keeps track of what oat files are open.
-  std::unique_ptr<OatFileManager> oat_file_manager_;
+  OatFileManager* oat_file_manager_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
