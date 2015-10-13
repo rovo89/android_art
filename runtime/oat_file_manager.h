@@ -18,7 +18,9 @@
 #define ART_RUNTIME_OAT_FILE_MANAGER_H_
 
 #include <memory>
+#include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "base/macros.h"
@@ -49,9 +51,22 @@ class OatFileManager {
   const OatFile* RegisterOatFile(std::unique_ptr<const OatFile> oat_file)
       REQUIRES(!Locks::oat_file_manager_lock_);
 
+  void UnRegisterAndDeleteOatFile(const OatFile* oat_file)
+      REQUIRES(!Locks::oat_file_manager_lock_);
+
   // Find the first opened oat file with the same location, returns null if there are none.
   const OatFile* FindOpenedOatFileFromOatLocation(const std::string& oat_location) const
       REQUIRES(!Locks::oat_file_manager_lock_);
+
+  // Attempt to reserve a location, returns false if it is already reserved or already in used by
+  // an oat file.
+  bool RegisterOatFileLocation(const std::string& oat_location)
+      REQUIRES(!Locks::oat_file_count_lock_);
+
+  // Unreserve oat file location, should only be used for error cases since RegisterOatFile will
+  // remove the reserved location.
+  void UnRegisterOatFileLocation(const std::string& oat_location)
+      REQUIRES(!Locks::oat_file_count_lock_);
 
   // Returns true if we have a non pic oat file.
   bool HaveNonPicOatFile() const {
@@ -86,7 +101,8 @@ class OatFileManager {
   std::vector<std::unique_ptr<const DexFile>> OpenDexFilesFromOat(
       const char* dex_location,
       const char* oat_location,
-      /*out*/std::vector<std::string>* error_msgs)
+      /*out*/ const OatFile** out_oat_file,
+      /*out*/ std::vector<std::string>* error_msgs)
       REQUIRES(!Locks::oat_file_manager_lock_, !Locks::mutator_lock_);
 
  private:
@@ -95,7 +111,11 @@ class OatFileManager {
   bool HasCollisions(const OatFile* oat_file, /*out*/std::string* error_msg) const
       REQUIRES(!Locks::oat_file_manager_lock_);
 
-  std::vector<std::unique_ptr<const OatFile>> oat_files_ GUARDED_BY(Locks::oat_file_manager_lock_);
+  const OatFile* FindOpenedOatFileFromOatLocationLocked(const std::string& oat_location) const
+      REQUIRES(Locks::oat_file_manager_lock_);
+
+  std::set<std::unique_ptr<const OatFile>> oat_files_ GUARDED_BY(Locks::oat_file_manager_lock_);
+  std::unordered_map<std::string, size_t> oat_file_count_ GUARDED_BY(Locks::oat_file_count_lock_);
   bool have_non_pic_oat_file_;
   DISALLOW_COPY_AND_ASSIGN(OatFileManager);
 };
