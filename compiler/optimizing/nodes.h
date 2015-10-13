@@ -3905,31 +3905,24 @@ class HXor : public HBinaryOperation {
 // the calling convention.
 class HParameterValue : public HExpression<0> {
  public:
-  HParameterValue(const DexFile& dex_file,
-                  uint16_t type_index,
-                  uint8_t index,
+  HParameterValue(uint8_t index,
                   Primitive::Type parameter_type,
                   bool is_this = false)
       : HExpression(parameter_type, SideEffects::None(), kNoDexPc),
-        dex_file_(dex_file),
-        type_index_(type_index),
         index_(index),
         is_this_(is_this),
         can_be_null_(!is_this) {}
 
-  const DexFile& GetDexFile() const { return dex_file_; }
-  uint16_t GetTypeIndex() const { return type_index_; }
   uint8_t GetIndex() const { return index_; }
-  bool IsThis() const { return is_this_; }
 
   bool CanBeNull() const OVERRIDE { return can_be_null_; }
   void SetCanBeNull(bool can_be_null) { can_be_null_ = can_be_null; }
 
+  bool IsThis() const { return is_this_; }
+
   DECLARE_INSTRUCTION(ParameterValue);
 
  private:
-  const DexFile& dex_file_;
-  const uint16_t type_index_;
   // The index of this parameter in the parameters list. Must be less
   // than HGraph::number_of_in_vregs_.
   const uint8_t index_;
