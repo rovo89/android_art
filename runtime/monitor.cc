@@ -696,6 +696,7 @@ static mirror::Object* FakeUnlock(mirror::Object* obj)
 mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
   DCHECK(self != nullptr);
   DCHECK(obj != nullptr);
+  self->AssertThreadSuspensionIsAllowable();
   obj = FakeLock(obj);
   uint32_t thread_id = self->GetThreadId();
   size_t contention_count = 0;
@@ -771,6 +772,7 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
 bool Monitor::MonitorExit(Thread* self, mirror::Object* obj) {
   DCHECK(self != nullptr);
   DCHECK(obj != nullptr);
+  self->AssertThreadSuspensionIsAllowable();
   obj = FakeUnlock(obj);
   StackHandleScope<1> hs(self);
   Handle<mirror::Object> h_obj(hs.NewHandle(obj));
