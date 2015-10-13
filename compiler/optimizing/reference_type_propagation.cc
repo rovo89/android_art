@@ -428,21 +428,12 @@ void RTPVisitor::VisitNewArray(HNewArray* instr) {
   UpdateReferenceTypeInfo(instr, instr->GetTypeIndex(), instr->GetDexFile(), /* is_exact */ true);
 }
 
-static mirror::Class* GetClassFromDexCache(Thread* self, const DexFile& dex_file, uint16_t type_idx)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
-  mirror::DexCache* dex_cache =
-      Runtime::Current()->GetClassLinker()->FindDexCache(self, dex_file, false);
-  // Get type from dex cache assuming it was populated by the verifier.
-  return dex_cache->GetResolvedType(type_idx);
-}
-
 void RTPVisitor::VisitParameterValue(HParameterValue* instr) {
   ScopedObjectAccess soa(Thread::Current());
   // We check if the existing type is valid: the inliner may have set it.
   if (instr->GetType() == Primitive::kPrimNot && !instr->GetReferenceTypeInfo().IsValid()) {
-    mirror::Class* resolved_class =
-        GetClassFromDexCache(soa.Self(), instr->GetDexFile(), instr->GetTypeIndex());
-    SetClassAsTypeInfo(instr, resolved_class, /* is_exact */ false);
+    // TODO: parse the signature and add precise types for the parameters.
+    SetClassAsTypeInfo(instr, nullptr, /* is_exact */ false);
   }
 }
 
@@ -488,9 +479,11 @@ void RTPVisitor::VisitUnresolvedStaticFieldGet(HUnresolvedStaticFieldGet* instr)
 
 void RTPVisitor::VisitLoadClass(HLoadClass* instr) {
   ScopedObjectAccess soa(Thread::Current());
+  mirror::DexCache* dex_cache =
+      Runtime::Current()->GetClassLinker()->FindDexCache(soa.Self(), instr->GetDexFile(), false);
   // Get type from dex cache assuming it was populated by the verifier.
-  mirror::Class* resolved_class =
-      GetClassFromDexCache(soa.Self(), instr->GetDexFile(), instr->GetTypeIndex());
+  mirror::Class* resolved_class = dex_cache->GetResolvedType(instr->GetTypeIndex());
+  // TODO: investigating why we are still getting unresolved classes: b/22821472.
   if (resolved_class != nullptr) {
     instr->SetLoadedClassRTI(ReferenceTypeInfo::Create(
         handles_->NewHandle(resolved_class), /* is_exact */ true));
