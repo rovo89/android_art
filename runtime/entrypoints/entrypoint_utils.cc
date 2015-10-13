@@ -16,6 +16,7 @@
 
 #include "entrypoints/entrypoint_utils.h"
 
+#include "art_code.h"
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/mutex.h"
@@ -358,16 +359,17 @@ ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp,
   const size_t callee_frame_size = GetCalleeSaveFrameSize(kRuntimeISA, type);
   auto** caller_sp = reinterpret_cast<ArtMethod**>(
       reinterpret_cast<uintptr_t>(sp) + callee_frame_size);
+  ArtCode current_code = GetCallingCodeFrom(caller_sp);
   ArtMethod* outer_method = *caller_sp;
   ArtMethod* caller = outer_method;
 
-  if ((outer_method != nullptr) && outer_method->IsOptimized(sizeof(void*))) {
+  if ((outer_method != nullptr) && current_code.IsOptimized(sizeof(void*))) {
     const size_t callee_return_pc_offset = GetCalleeSaveReturnPcOffset(kRuntimeISA, type);
     uintptr_t caller_pc = *reinterpret_cast<uintptr_t*>(
         (reinterpret_cast<uint8_t*>(sp) + callee_return_pc_offset));
     if (LIKELY(caller_pc != reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc()))) {
-      uintptr_t native_pc_offset = outer_method->NativeQuickPcOffset(caller_pc);
-      CodeInfo code_info = outer_method->GetOptimizedCodeInfo();
+      uintptr_t native_pc_offset = current_code.NativeQuickPcOffset(caller_pc);
+      CodeInfo code_info = current_code.GetOptimizedCodeInfo();
       StackMapEncoding encoding = code_info.ExtractEncoding();
       StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset, encoding);
       DCHECK(stack_map.IsValid());

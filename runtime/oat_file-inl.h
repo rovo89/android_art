@@ -22,7 +22,7 @@
 namespace art {
 
 inline const OatQuickMethodHeader* OatFile::OatMethod::GetOatQuickMethodHeader() const {
-  const void* code = ArtMethod::EntryPointToCodePointer(GetOatPointer<const void*>(code_offset_));
+  const void* code = EntryPointToCodePointer(GetOatPointer<const void*>(code_offset_));
   if (code == nullptr) {
     return nullptr;
   }
@@ -47,7 +47,7 @@ inline uint32_t OatFile::OatMethod::GetQuickCodeSizeOffset() const {
 }
 
 inline size_t OatFile::OatMethod::GetFrameSizeInBytes() const {
-  const void* code = ArtMethod::EntryPointToCodePointer(GetQuickCode());
+  const void* code = EntryPointToCodePointer(GetQuickCode());
   if (code == nullptr) {
     return 0u;
   }
@@ -55,7 +55,7 @@ inline size_t OatFile::OatMethod::GetFrameSizeInBytes() const {
 }
 
 inline uint32_t OatFile::OatMethod::GetCoreSpillMask() const {
-  const void* code = ArtMethod::EntryPointToCodePointer(GetQuickCode());
+  const void* code = EntryPointToCodePointer(GetQuickCode());
   if (code == nullptr) {
     return 0u;
   }
@@ -63,7 +63,7 @@ inline uint32_t OatFile::OatMethod::GetCoreSpillMask() const {
 }
 
 inline uint32_t OatFile::OatMethod::GetFpSpillMask() const {
-  const void* code = ArtMethod::EntryPointToCodePointer(GetQuickCode());
+  const void* code = EntryPointToCodePointer(GetQuickCode());
   if (code == nullptr) {
     return 0u;
   }
@@ -71,7 +71,7 @@ inline uint32_t OatFile::OatMethod::GetFpSpillMask() const {
 }
 
 inline const uint8_t* OatFile::OatMethod::GetGcMap() const {
-  const void* code = ArtMethod::EntryPointToCodePointer(GetOatPointer<const void*>(code_offset_));
+  const void* code = EntryPointToCodePointer(GetOatPointer<const void*>(code_offset_));
   if (code == nullptr) {
     return nullptr;
   }
@@ -122,7 +122,7 @@ inline uint32_t OatFile::OatMethod::GetVmapTableOffsetOffset() const {
 }
 
 inline const uint8_t* OatFile::OatMethod::GetMappingTable() const {
-  const void* code = ArtMethod::EntryPointToCodePointer(GetOatPointer<const void*>(code_offset_));
+  const void* code = EntryPointToCodePointer(GetOatPointer<const void*>(code_offset_));
   if (code == nullptr) {
     return nullptr;
   }
@@ -134,7 +134,7 @@ inline const uint8_t* OatFile::OatMethod::GetMappingTable() const {
 }
 
 inline const uint8_t* OatFile::OatMethod::GetVmapTable() const {
-  const void* code = ArtMethod::EntryPointToCodePointer(GetOatPointer<const void*>(code_offset_));
+  const void* code = EntryPointToCodePointer(GetOatPointer<const void*>(code_offset_));
   if (code == nullptr) {
     return nullptr;
   }
@@ -146,7 +146,7 @@ inline const uint8_t* OatFile::OatMethod::GetVmapTable() const {
 }
 
 inline uint32_t OatFile::OatMethod::GetQuickCodeSize() const {
-  const void* code = ArtMethod::EntryPointToCodePointer(GetOatPointer<const void*>(code_offset_));
+  const void* code = EntryPointToCodePointer(GetOatPointer<const void*>(code_offset_));
   if (code == nullptr) {
     return 0u;
   }

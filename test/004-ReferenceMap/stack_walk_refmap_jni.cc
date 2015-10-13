@@ -22,11 +22,11 @@ namespace art {
 #define CHECK_REGS_CONTAIN_REFS(dex_pc, abort_if_not_found, ...) do { \
   int t[] = {__VA_ARGS__}; \
   int t_size = sizeof(t) / sizeof(*t); \
-  uintptr_t native_quick_pc = m->ToNativeQuickPc(dex_pc, \
+  uintptr_t native_quick_pc = GetCurrentCode().ToNativeQuickPc(dex_pc, \
                                                  /* is_catch_handler */ false, \
                                                  abort_if_not_found); \
   if (native_quick_pc != UINTPTR_MAX) { \
-    CheckReferences(t, t_size, m->NativeQuickPcOffset(native_quick_pc)); \
+    CheckReferences(t, t_size, GetCurrentCode().NativeQuickPcOffset(native_quick_pc)); \
   } \
 } while (false);
 
@@ -49,7 +49,7 @@ struct ReferenceMap2Visitor : public CheckReferenceMapVisitor {
       CHECK_REGS_CONTAIN_REFS(0x06U, true, 8, 1);  // v8: this, v1: x
       CHECK_REGS_CONTAIN_REFS(0x08U, true, 8, 3, 1);  // v8: this, v3: y, v1: x
       CHECK_REGS_CONTAIN_REFS(0x0cU, true, 8, 3, 1);  // v8: this, v3: y, v1: x
-      if (!m->IsOptimized(sizeof(void*))) {
+      if (!GetCurrentCode().IsOptimized(sizeof(void*))) {
         CHECK_REGS_CONTAIN_REFS(0x0eU, true, 8, 3, 1);  // v8: this, v3: y, v1: x
       }
       CHECK_REGS_CONTAIN_REFS(0x10U, true, 8, 3, 1);  // v8: this, v3: y, v1: x
@@ -65,7 +65,7 @@ struct ReferenceMap2Visitor : public CheckReferenceMapVisitor {
       // Note that v0: ex can be eliminated because it's a dead merge of two different exceptions.
       CHECK_REGS_CONTAIN_REFS(0x18U, true, 8, 2, 1);  // v8: this, v2: y, v1: x (dead v0: ex)
       CHECK_REGS_CONTAIN_REFS(0x1aU, true, 8, 5, 2, 1);  // v8: this, v5: x[1], v2: y, v1: x (dead v0: ex)
-      if (!m->IsOptimized(sizeof(void*))) {
+      if (!GetCurrentCode().IsOptimized(sizeof(void*))) {
         // v8: this, v5: x[1], v2: y, v1: x (dead v0: ex)
         CHECK_REGS_CONTAIN_REFS(0x1dU, true, 8, 5, 2, 1);
         // v5 is removed from the root set because there is a "merge" operation.
@@ -74,7 +74,7 @@ struct ReferenceMap2Visitor : public CheckReferenceMapVisitor {
       }
       CHECK_REGS_CONTAIN_REFS(0x21U, true, 8, 2, 1);  // v8: this, v2: y, v1: x (dead v0: ex)
 
-      if (!m->IsOptimized(sizeof(void*))) {
+      if (!GetCurrentCode().IsOptimized(sizeof(void*))) {
         CHECK_REGS_CONTAIN_REFS(0x27U, true, 8, 4, 2, 1);  // v8: this, v4: ex, v2: y, v1: x
       }
       CHECK_REGS_CONTAIN_REFS(0x29U, true, 8, 4, 2, 1);  // v8: this, v4: ex, v2: y, v1: x

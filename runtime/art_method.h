@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_ART_METHOD_H_
 #define ART_RUNTIME_ART_METHOD_H_
 
+#include "base/bit_utils.h"
 #include "base/casts.h"
 #include "dex_file.h"
 #include "gc_root.h"
@@ -24,10 +25,8 @@
 #include "method_reference.h"
 #include "modifiers.h"
 #include "mirror/object.h"
-#include "quick/quick_method_frame_info.h"
 #include "read_barrier_option.h"
 #include "stack.h"
-#include "stack_map.h"
 #include "utils.h"
 
 namespace art {
@@ -164,16 +163,6 @@ class ArtMethod FINAL {
     SetAccessFlags(GetAccessFlags() | kAccPreverified);
   }
 
-  bool IsOptimized(size_t pointer_size) SHARED_REQUIRES(Locks::mutator_lock_) {
-    // Temporary solution for detecting if a method has been optimized: the compiler
-    // does not create a GC map. Instead, the vmap table contains the stack map
-    // (as in stack_map.h).
-    return !IsNative()
-        && GetEntryPointFromQuickCompiledCodePtrSize(pointer_size) != nullptr
-        && GetQuickOatCodePointer(pointer_size) != nullptr
-        && GetNativeGcMap(pointer_size) == nullptr;
-  }
-
   bool CheckIncompatibleClassChange(InvokeType type) SHARED_REQUIRES(Locks::mutator_lock_);
 
   uint16_t GetMethodIndex() SHARED_REQUIRES(Locks::mutator_lock_);
@@ -280,94 +269,6 @@ class ArtMethod FINAL {
                      entry_point_from_quick_compiled_code, pointer_size);
   }
 
-  uint32_t GetCodeSize() SHARED_REQUIRES(Locks::mutator_lock_);
-
-  // Check whether the given PC is within the quick compiled code associated with this method's
-  // quick entrypoint. This code isn't robust for instrumentation, etc. and is only used for
-  // debug purposes.
-  bool PcIsWithinQuickCode(uintptr_t pc) {
-    return PcIsWithinQuickCode(
-        reinterpret_cast<uintptr_t>(GetEntryPointFromQuickCompiledCode()), pc);
-  }
-
-  void AssertPcIsWithinQuickCode(uintptr_t pc) SHARED_REQUIRES(Locks::mutator_lock_);
-
-  // Returns true if the entrypoint points to the interpreter, as
-  // opposed to the compiled code, that is, this method will be
-  // interpretered on invocation.
-  bool IsEntrypointInterpreter() SHARED_REQUIRES(Locks::mutator_lock_);
-
-  uint32_t GetQuickOatCodeOffset();
-  void SetQuickOatCodeOffset(uint32_t code_offset);
-
-  ALWAYS_INLINE static const void* EntryPointToCodePointer(const void* entry_point) {
-    uintptr_t code = reinterpret_cast<uintptr_t>(entry_point);
-    // TODO: Make this Thumb2 specific. It is benign on other architectures as code is always at
-    //       least 2 byte aligned.
-    code &= ~0x1;
-    return reinterpret_cast<const void*>(code);
-  }
-
-  // Actual entry point pointer to compiled oat code or null.
-  const void* GetQuickOatEntryPoint(size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  // Actual pointer to compiled oat code or null.
-  const void* GetQuickOatCodePointer(size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
-    return EntryPointToCodePointer(GetQuickOatEntryPoint(pointer_size));
-  }
-
-  // Callers should wrap the uint8_t* in a MappingTable instance for convenient access.
-  const uint8_t* GetMappingTable(size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  const uint8_t* GetMappingTable(const void* code_pointer, size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  // Callers should wrap the uint8_t* in a VmapTable instance for convenient access.
-  const uint8_t* GetVmapTable(size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  const uint8_t* GetVmapTable(const void* code_pointer, size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  const uint8_t* GetQuickenedInfo() SHARED_REQUIRES(Locks::mutator_lock_);
-
-  CodeInfo GetOptimizedCodeInfo() SHARED_REQUIRES(Locks::mutator_lock_);
-
-  // Callers should wrap the uint8_t* in a GcMap instance for convenient access.
-  const uint8_t* GetNativeGcMap(size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  const uint8_t* GetNativeGcMap(const void* code_pointer, size_t pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  template <bool kCheckFrameSize = true>
-  uint32_t GetFrameSizeInBytes() SHARED_REQUIRES(Locks::mutator_lock_) {
-    uint32_t result = GetQuickFrameInfo().FrameSizeInBytes();
-    if (kCheckFrameSize) {
-      DCHECK_LE(static_cast<size_t>(kStackAlignment), result);
-    }
-    return result;
-  }
-
-  QuickMethodFrameInfo GetQuickFrameInfo() SHARED_REQUIRES(Locks::mutator_lock_);
-  QuickMethodFrameInfo GetQuickFrameInfo(const void* code_pointer)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  FrameOffset GetReturnPcOffset() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return GetReturnPcOffset(GetFrameSizeInBytes());
-  }
-
-  FrameOffset GetReturnPcOffset(uint32_t frame_size_in_bytes)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK_EQ(frame_size_in_bytes, GetFrameSizeInBytes());
-    return FrameOffset(frame_size_in_bytes - sizeof(void*));
-  }
-
-  FrameOffset GetHandleScopeOffset() SHARED_REQUIRES(Locks::mutator_lock_) {
-    constexpr size_t handle_scope_offset = sizeof(ArtMethod*);
-    DCHECK_LT(handle_scope_offset, GetFrameSizeInBytes());
-    return FrameOffset(handle_scope_offset);
-  }
-
   void RegisterNative(const void* native_method, bool is_fast)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -428,27 +329,6 @@ class ArtMethod FINAL {
   bool IsImtConflictMethod() SHARED_REQUIRES(Locks::mutator_lock_);
 
   bool IsImtUnimplementedMethod() SHARED_REQUIRES(Locks::mutator_lock_);
-
-  uintptr_t NativeQuickPcOffset(const uintptr_t pc) SHARED_REQUIRES(Locks::mutator_lock_);
-#ifdef NDEBUG
-  uintptr_t NativeQuickPcOffset(const uintptr_t pc, const void* quick_entry_point)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
-    return pc - reinterpret_cast<uintptr_t>(quick_entry_point);
-  }
-#else
-  uintptr_t NativeQuickPcOffset(const uintptr_t pc, const void* quick_entry_point)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-#endif
-
-  // Converts a native PC to a dex PC.
-  uint32_t ToDexPc(const uintptr_t pc, bool abort_on_failure = true)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  // Converts a dex PC to a native PC.
-  uintptr_t ToNativeQuickPc(const uint32_t dex_pc,
-                            bool is_for_catch_handler,
-                            bool abort_on_failure = true)
-      SHARED_REQUIRES(Locks::mutator_lock_);
 
   MethodReference ToMethodReference() SHARED_REQUIRES(Locks::mutator_lock_) {
     return MethodReference(GetDexFile(), GetDexMethodIndex());
@@ -542,6 +422,8 @@ class ArtMethod FINAL {
     return ++hotness_count_;
   }
 
+  const uint8_t* GetQuickenedInfo() SHARED_REQUIRES(Locks::mutator_lock_);
+
  protected:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   // The class we are a part of.
@@ -620,24 +502,6 @@ class ArtMethod FINAL {
     } else {
       *reinterpret_cast<uint64_t*>(addr) = reinterpret_cast<uintptr_t>(new_value);
     }
-  }
-
-  // Code points to the start of the quick code.
-  static uint32_t GetCodeSize(const void* code);
-
-  static bool PcIsWithinQuickCode(uintptr_t code, uintptr_t pc) {
-    if (code == 0) {
-      return pc == 0;
-    }
-    /*
-     * During a stack walk, a return PC may point past-the-end of the code
-     * in the case that the last instruction is a call that isn't expected to
-     * return.  Thus, we check <= code + GetCodeSize().
-     *
-     * NOTE: For Thumb both pc and code are offset by 1 indicating the Thumb state.
-     */
-    return code <= pc && pc <= code + GetCodeSize(
-        EntryPointToCodePointer(reinterpret_cast<const void*>(code)));
   }
 
   DISALLOW_COPY_AND_ASSIGN(ArtMethod);  // Need to use CopyFrom to deal with 32 vs 64 bits.
