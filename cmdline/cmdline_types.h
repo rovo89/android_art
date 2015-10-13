@@ -28,6 +28,7 @@
 #include "jdwp/jdwp.h"
 #include "runtime/base/logging.h"
 #include "runtime/base/time_utils.h"
+#include "runtime/experimental_flags.h"
 #include "gc/collector_type.h"
 #include "gc/space/large_object_space.h"
 #include "profiler_options.h"
@@ -838,6 +839,23 @@ struct CmdlineType<TestProfilerOptions> : CmdlineTypeParser<TestProfilerOptions>
   static constexpr bool kCanParseBlankless = true;
 };
 
+template<>
+struct CmdlineType<ExperimentalFlags> : CmdlineTypeParser<ExperimentalFlags> {
+  Result ParseAndAppend(const std::string& option, ExperimentalFlags& existing) {
+    if (option == "none") {
+      existing = existing | ExperimentalFlags::kNone;
+    } else if (option == "lambdas") {
+      existing = existing | ExperimentalFlags::kLambdas;
+    } else if (option == "default-methods") {
+      existing = existing | ExperimentalFlags::kDefaultMethods;
+    } else {
+      return Result::Failure(std::string("Unknown option '") + option + "'");
+    }
+    return Result::SuccessNoValue();
+  }
+
+  static const char* Name() { return "ExperimentalFlags"; }
+};
 
 }  // namespace art
 #endif  // ART_CMDLINE_CMDLINE_TYPES_H_
