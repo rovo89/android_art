@@ -38,7 +38,7 @@ void Mips64Context::Reset() {
 }
 
 void Mips64Context::FillCalleeSaves(const StackVisitor& fr) {
-  ArtCode code fr.GetCurrentCode();
+  ArtCode code = fr.GetCurrentCode();
   const QuickMethodFrameInfo frame_info = code.GetQuickFrameInfo();
   int spill_pos = 0;
 
