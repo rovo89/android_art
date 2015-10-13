@@ -280,6 +280,7 @@ static const MipsInstruction gMipsInstructions[] = {
   { kITypeMask, 41u << kOpcodeShift, "sh", "TO", },
   { kITypeMask, 43u << kOpcodeShift, "sw", "TO", },
   { kITypeMask, 49u << kOpcodeShift, "lwc1", "tO", },
+  { kJTypeMask, 50u << kOpcodeShift, "bc", "P" },
   { kITypeMask, 53u << kOpcodeShift, "ldc1", "tO", },
   { kITypeMask | (0x1f << 21), 54u << kOpcodeShift, "jic", "Ti" },
   { kITypeMask | (1 << 21), (54u << kOpcodeShift) | (1 << 21), "beqzc", "Sb" },  // TODO: de-dup?
@@ -290,6 +291,7 @@ static const MipsInstruction gMipsInstructions[] = {
   { kITypeMask, 55u << kOpcodeShift, "ld", "TO", },
   { kITypeMask, 57u << kOpcodeShift, "swc1", "tO", },
   { kITypeMask | (0x1f << 16), (59u << kOpcodeShift) | (30 << 16), "auipc", "Si" },
+  { kITypeMask | (0x3 << 19), (59u << kOpcodeShift) | (0 << 19), "addiupc", "Sp" },
   { kITypeMask, 61u << kOpcodeShift, "sdc1", "tO", },
   { kITypeMask | (0x1f << 21), 62u << kOpcodeShift, "jialc", "Ti" },
   { kITypeMask | (1 << 21), (62u << kOpcodeShift) | (1 << 21), "bnezc", "Sb" },  // TODO: de-dup?
@@ -430,6 +432,22 @@ size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* instr_ptr) {
                   Thread::DumpThreadOffset<4>(args, offset);
                 }
               }
+            }
+            break;
+          case 'P':  // 26-bit offset in bc.
+            {
+              int32_t offset = (instruction & 0x3ffffff) - ((instruction & 0x2000000) << 1);
+              offset <<= 2;
+              offset += 4;
+              args << FormatInstructionPointer(instr_ptr + offset);
+              args << StringPrintf("  ; %+d", offset);
+            }
+            break;
+          case 'p':  // 19-bit offset in addiupc.
+            {
+              int32_t offset = (instruction & 0x7ffff) - ((instruction & 0x40000) << 1);
+              args << offset << "  ; move r" << rs << ", ";
+              args << FormatInstructionPointer(instr_ptr + (offset << 2));
             }
             break;
           case 'S': args << 'r' << rs; break;

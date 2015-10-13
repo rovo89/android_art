@@ -210,7 +210,8 @@ LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES_arm64 := \
   dex/quick/arm64/arm64_lir.h
 
 LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES_mips := \
-  dex/quick/mips/mips_lir.h
+  dex/quick/mips/mips_lir.h \
+  utils/mips/assembler_mips.h
 
 LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES_mips64 := \
   $(LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES_mips)

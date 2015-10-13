@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "arch/instruction_set.h"
+#include "arch/instruction_set_features.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "arm/constants_arm.h"
@@ -284,7 +285,8 @@ class DebugFrameOpCodeWriterForAssembler FINAL
 
 class Assembler {
  public:
-  static Assembler* Create(InstructionSet instruction_set);
+  static Assembler* Create(InstructionSet instruction_set,
+                           const InstructionSetFeatures* instruction_set_features = nullptr);
 
   // Finalize the code; emit slow paths, fixup branches, add literal pool, etc.
   virtual void FinalizeCode() { buffer_.EmitSlowPaths(this); }
