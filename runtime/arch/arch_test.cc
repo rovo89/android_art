@@ -39,7 +39,7 @@ class ArchTest : public CommonRuntimeTest {
     runtime->SetInstructionSet(isa);
     ArtMethod* save_method = runtime->CreateCalleeSaveMethod();
     runtime->SetCalleeSaveMethod(save_method, type);
-    QuickMethodFrameInfo frame_info = save_method->GetQuickFrameInfo();
+    QuickMethodFrameInfo frame_info = ArtCode(save_method).GetQuickFrameInfo();
     EXPECT_EQ(frame_info.FrameSizeInBytes(), save_size) << "Expected and real size differs for "
         << type << " core spills=" << std::hex << frame_info.CoreSpillMask() << " fp spills="
         << frame_info.FpSpillMask() << std::dec;

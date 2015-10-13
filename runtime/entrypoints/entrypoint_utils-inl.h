@@ -34,6 +34,7 @@
 #include "mirror/throwable.h"
 #include "nth_caller_visitor.h"
 #include "runtime.h"
+#include "stack_map.h"
 #include "thread.h"
 
 namespace art {

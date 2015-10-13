@@ -20,6 +20,7 @@
 #include <sys/mman.h>
 #include <sys/ucontext.h>
 
+#include "art_code.h"
 #include "art_method-inl.h"
 #include "base/stl_util.h"
 #include "mirror/class.h"
@@ -359,16 +360,17 @@ bool FaultManager::IsInGeneratedCode(siginfo_t* siginfo, void* context, bool che
     return false;
   }
 
+  ArtCode art_code(method_obj);
+
   // We can be certain that this is a method now.  Check if we have a GC map
   // at the return PC address.
   if (true || kIsDebugBuild) {
     VLOG(signals) << "looking for dex pc for return pc " << std::hex << return_pc;
-    const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(method_obj,
-                                                                                 sizeof(void*));
-    uint32_t sought_offset = return_pc - reinterpret_cast<uintptr_t>(code);
+    uint32_t sought_offset = return_pc -
+        reinterpret_cast<uintptr_t>(art_code.GetQuickOatEntryPoint(sizeof(void*)));
     VLOG(signals) << "pc offset: " << std::hex << sought_offset;
   }
-  uint32_t dexpc = method_obj->ToDexPc(return_pc, false);
+  uint32_t dexpc = art_code.ToDexPc(return_pc, false);
   VLOG(signals) << "dexpc: " << dexpc;
   return !check_dex_pc || dexpc != DexFile::kDexNoIndex;
 }
