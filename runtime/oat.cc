@@ -22,6 +22,10 @@
 #include "arch/instruction_set_features.h"
 #include "base/bit_utils.h"
 #include "base/stringprintf.h"
+#include "base/unix_file/fd_file.h"
+#include "elf_file.h"
+#include "oat_file.h"
+#include "os.h"
 
 namespace art {
 
@@ -62,6 +66,29 @@ OatHeader* OatHeader::Create(InstructionSet instruction_set,
                                 image_file_location_oat_checksum,
                                 image_file_location_oat_data_begin,
                                 variable_data);
+}
+
+OatHeader* OatHeader::FromFile(const std::string& filename, std::string* error_msg) {
+  std::unique_ptr<File> file(OS::OpenFileForReading(filename.c_str()));
+  if (file.get() == nullptr) {
+    *error_msg = StringPrintf("Could not get oat header because file could not be opened: %s", filename.c_str());
+    return nullptr;
+  }
+  std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file.get(), false, false, error_msg));
+  if (elf_file.get() == nullptr) {
+    return nullptr;
+  }
+  std::unique_ptr<OatFile> oat_file(OatFile::OpenWithElfFile(elf_file.release(), filename, nullptr, error_msg));
+  if (oat_file.get() == nullptr) {
+    return nullptr;
+  }
+
+  const OatHeader& oat_header = oat_file->GetOatHeader();
+  size_t header_size = oat_header.GetHeaderSize();
+  void* memory = operator new (header_size);
+  std::unique_ptr<OatHeader> hdr(new (memory) OatHeader());
+  memcpy(hdr.get(), &oat_header, header_size);
+  return hdr.release();
 }
 
 OatHeader::OatHeader(InstructionSet instruction_set,
@@ -159,6 +186,12 @@ std::string OatHeader::GetValidationErrorMessage() const {
   return "";
 }
 
+bool OatHeader::IsXposedOatVersionValid() const {
+  CHECK(IsValid());
+  const char* version = GetStoreValueByKey(OatHeader::kXposedOatVersionKey);
+  return version != nullptr && strcmp(version, kXposedOatCurrentVersion) == 0;
+}
+
 const char* OatHeader::GetMagic() const {
   CHECK(IsValid());
   return reinterpret_cast<const char*>(magic_);
@@ -167,6 +200,18 @@ const char* OatHeader::GetMagic() const {
 uint32_t OatHeader::GetChecksum() const {
   CHECK(IsValid());
   return adler32_checksum_;
+}
+
+uint32_t OatHeader::GetOriginalChecksum(bool fallback) const {
+  CHECK(IsValid());
+  const char* value = GetStoreValueByKey(OatHeader::kXposedOriginalChecksumKey);
+  if (value != nullptr) {
+    uint32_t checksum = strtoul(value, nullptr, 0);
+    if (checksum != 0) {
+      return checksum;
+    }
+  }
+  return fallback ? adler32_checksum_ : 0;
 }
 
 void OatHeader::UpdateChecksum(const void* data, size_t length) {
