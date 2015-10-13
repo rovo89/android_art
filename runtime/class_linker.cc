@@ -1023,9 +1023,9 @@ void ClassLinker::VisitRoots(RootVisitor* visitor, VisitRootFlags flags) {
   class_roots_.VisitRootIfNonNull(visitor, RootInfo(kRootVMInternal));
   VisitClassRoots(visitor, flags);
   array_iftable_.VisitRootIfNonNull(visitor, RootInfo(kRootVMInternal));
-  for (GcRoot<mirror::Class>& root : find_array_class_cache_) {
-    root.VisitRootIfNonNull(visitor, RootInfo(kRootVMInternal));
-  }
+  // Instead of visiting the find_array_class_cache_ drop it so that it doesn't prevent class
+  // unloading if we are marking roots.
+  DropFindArrayClassCache();
 }
 
 class VisitClassLoaderClassesVisitor : public ClassLoaderVisitor {
