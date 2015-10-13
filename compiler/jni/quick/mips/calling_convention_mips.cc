@@ -162,22 +162,19 @@ MipsJniCallingConvention::MipsJniCallingConvention(bool is_static, bool is_synch
   }
   padding_ = padding;
 
-  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(T0));
-  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(T1));
-  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(T2));
-  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(T3));
-  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(T4));
-  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(T5));
-  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(T6));
-  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(T7));
-  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(T8));
+  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(S2));
+  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(S3));
+  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(S4));
+  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(S5));
+  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(S6));
+  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(S7));
+  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(FP));
 }
 
 uint32_t MipsJniCallingConvention::CoreSpillMask() const {
   // Compute spill mask to agree with callee saves initialized in the constructor
   uint32_t result = 0;
-  result = 1 << T0 | 1 << T1 | 1 << T2 | 1 << T3 | 1 << T4 | 1 << T5 | 1 << T6 |
-           1 << T7 | 1 << T8 | 1 << RA;
+  result = 1 << S2 | 1 << S3 | 1 << S4 | 1 << S5 | 1 << S6 | 1 << S7 | 1 << FP | 1 << RA;
   return result;
 }
 
