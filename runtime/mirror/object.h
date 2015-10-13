@@ -137,9 +137,13 @@ class MANAGED LOCKABLE Object {
       SHARED_REQUIRES(Locks::mutator_lock_);
   uint32_t GetLockOwnerThreadId();
 
-  mirror::Object* MonitorEnter(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_)
-      EXCLUSIVE_LOCK_FUNCTION();
-  bool MonitorExit(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_)
+  mirror::Object* MonitorEnter(Thread* self)
+      EXCLUSIVE_LOCK_FUNCTION()
+      REQUIRES(!Roles::uninterruptible_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  bool MonitorExit(Thread* self)
+      REQUIRES(!Roles::uninterruptible_)
+      SHARED_REQUIRES(Locks::mutator_lock_)
       UNLOCK_FUNCTION();
   void Notify(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_);
   void NotifyAll(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_);
