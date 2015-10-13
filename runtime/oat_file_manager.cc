@@ -33,10 +33,9 @@ namespace art {
 static constexpr bool kDuplicateClassesCheck = false;
 
 const OatFile* OatFileManager::RegisterOatFile(std::unique_ptr<const OatFile> oat_file) {
-  WriterMutexLock mu(Thread::Current(), *Locks::oat_file_manager_lock_);
+  ReaderMutexLock mu(Thread::Current(), *Locks::oat_file_manager_lock_);
   DCHECK(oat_file != nullptr);
   if (kIsDebugBuild) {
-    CHECK(oat_files_.find(oat_file) == oat_files_.end());
     for (const std::unique_ptr<const OatFile>& existing : oat_files_) {
       CHECK_NE(oat_file.get(), existing.get()) << oat_file->GetLocation();
       // Check that we don't have an oat file with the same address. Copies of the same oat file
@@ -45,19 +44,8 @@ const OatFile* OatFileManager::RegisterOatFile(std::unique_ptr<const OatFile> oa
     }
   }
   have_non_pic_oat_file_ = have_non_pic_oat_file_ || !oat_file->IsPic();
-  const OatFile* ret = oat_file.get();
-  oat_files_.insert(std::move(oat_file));
-  return ret;
-}
-
-void OatFileManager::UnRegisterAndDeleteOatFile(const OatFile* oat_file) {
-  WriterMutexLock mu(Thread::Current(), *Locks::oat_file_manager_lock_);
-  DCHECK(oat_file != nullptr);
-  std::unique_ptr<const OatFile> compare(oat_file);
-  auto it = oat_files_.find(compare);
-  CHECK(it != oat_files_.end());
-  oat_files_.erase(it);
-  compare.release();
+  oat_files_.push_back(std::move(oat_file));
+  return oat_files_.back().get();
 }
 
 const OatFile* OatFileManager::FindOpenedOatFileFromOatLocation(const std::string& oat_location)
@@ -107,9 +95,17 @@ class DexFileAndClassPair : ValueObject {
        current_class_index_(current_class_index),
        from_loaded_oat_(from_loaded_oat) {}
 
-  DexFileAndClassPair(DexFileAndClassPair&& rhs) = default;
+  DexFileAndClassPair(DexFileAndClassPair&& rhs) {
+    *this = std::move(rhs);
+  }
 
-  DexFileAndClassPair& operator=(DexFileAndClassPair&& rhs) = default;
+  DexFileAndClassPair& operator=(DexFileAndClassPair&& rhs) {
+    cached_descriptor_ = rhs.cached_descriptor_;
+    dex_file_ = std::move(rhs.dex_file_);
+    current_class_index_ = rhs.current_class_index_;
+    from_loaded_oat_ = rhs.from_loaded_oat_;
+    return *this;
+  }
 
   const char* GetCachedDescriptor() const {
     return cached_descriptor_;
@@ -131,7 +127,6 @@ class DexFileAndClassPair : ValueObject {
 
   void Next() {
     ++current_class_index_;
-    cached_descriptor_ = nullptr;
   }
 
   size_t GetCurrentClassIndex() const {
@@ -258,7 +253,6 @@ bool OatFileManager::HasCollisions(const OatFile* oat_file,
 std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
     const char* dex_location,
     const char* oat_location,
-    const OatFile** out_oat_file,
     std::vector<std::string>* error_msgs) {
   CHECK(dex_location != nullptr);
   CHECK(error_msgs != nullptr);
@@ -317,7 +311,6 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
     if (accept_oat_file) {
       VLOG(class_linker) << "Registering " << oat_file->GetLocation();
       source_oat_file = RegisterOatFile(std::move(oat_file));
-      *out_oat_file = source_oat_file;
     }
   }
 

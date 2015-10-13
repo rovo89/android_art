@@ -18,7 +18,6 @@
 #define ART_RUNTIME_OAT_FILE_MANAGER_H_
 
 #include <memory>
-#include <set>
 #include <string>
 #include <vector>
 
@@ -48,9 +47,6 @@ class OatFileManager {
   // Add an oat file to the internal accounting, std::aborts if there already exists an oat file
   // with the same base address. Returns the oat file pointer from oat_file.
   const OatFile* RegisterOatFile(std::unique_ptr<const OatFile> oat_file)
-      REQUIRES(!Locks::oat_file_manager_lock_);
-
-  void UnRegisterAndDeleteOatFile(const OatFile* oat_file)
       REQUIRES(!Locks::oat_file_manager_lock_);
 
   // Find the first opened oat file with the same location, returns null if there are none.
@@ -90,8 +86,7 @@ class OatFileManager {
   std::vector<std::unique_ptr<const DexFile>> OpenDexFilesFromOat(
       const char* dex_location,
       const char* oat_location,
-      /*out*/ const OatFile** out_oat_file,
-      /*out*/ std::vector<std::string>* error_msgs)
+      /*out*/std::vector<std::string>* error_msgs)
       REQUIRES(!Locks::oat_file_manager_lock_, !Locks::mutator_lock_);
 
  private:
@@ -100,7 +95,7 @@ class OatFileManager {
   bool HasCollisions(const OatFile* oat_file, /*out*/std::string* error_msg) const
       REQUIRES(!Locks::oat_file_manager_lock_);
 
-  std::set<std::unique_ptr<const OatFile>> oat_files_ GUARDED_BY(Locks::oat_file_manager_lock_);
+  std::vector<std::unique_ptr<const OatFile>> oat_files_ GUARDED_BY(Locks::oat_file_manager_lock_);
   bool have_non_pic_oat_file_;
   DISALLOW_COPY_AND_ASSIGN(OatFileManager);
 };
