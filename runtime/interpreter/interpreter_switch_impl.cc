@@ -15,6 +15,7 @@
  */
 
 #include "base/stl_util.h"  // MakeUnique
+#include "experimental_flags.h"
 #include "interpreter_common.h"
 #include "safe_math.h"
 
@@ -67,7 +68,7 @@ namespace interpreter {
 
 static bool IsExperimentalInstructionEnabled(const Instruction *inst) {
   DCHECK(inst->IsExperimental());
-  return Runtime::Current()->AreExperimentalLambdasEnabled();
+  return Runtime::Current()->AreExperimentalFlagsEnabled(ExperimentalFlags::kLambdas);
 }
 
 template<bool do_access_check, bool transaction_active>

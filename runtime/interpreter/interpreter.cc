@@ -458,10 +458,11 @@ void ArtInterpreterToInterpreterBridge(Thread* self, const DexFile::CodeItem* co
   }
 
   self->PushShadowFrame(shadow_frame);
+  ArtMethod* method = shadow_frame->GetMethod();
   // Ensure static methods are initialized.
-  const bool is_static = shadow_frame->GetMethod()->IsStatic();
+  const bool is_static = method->IsStatic();
   if (is_static) {
-    mirror::Class* declaring_class = shadow_frame->GetMethod()->GetDeclaringClass();
+    mirror::Class* declaring_class = method->GetDeclaringClass();
     if (UNLIKELY(!declaring_class->IsInitialized())) {
       StackHandleScope<1> hs(self);
       HandleWrapper<Class> h_declaring_class(hs.NewHandleWrapper(&declaring_class));

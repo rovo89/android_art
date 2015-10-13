@@ -23,7 +23,9 @@
 
 #include "base/stringprintf.h"
 #include "dex_file-inl.h"
+#include "experimental_flags.h"
 #include "leb128.h"
+#include "runtime.h"
 #include "safe_map.h"
 #include "utf-inl.h"
 #include "utils.h"
@@ -2530,7 +2532,14 @@ bool DexFileVerifier::CheckMethodAccessFlags(uint32_t method_index,
   }
 
   // Only the static initializer may have code in an interface.
-  if (((class_access_flags & kAccInterface) != 0) && !is_clinit_by_name) {
+  // TODO We should have some way determine whether to allow this experimental flag without the
+  // runtime being started.
+  // We assume experimental flags are enabled when running without a runtime to enable tools like
+  // dexdump to handle dex files with these features.
+  if (((class_access_flags & kAccInterface) != 0)
+      && !is_clinit_by_name
+      && Runtime::Current() != nullptr
+      && !Runtime::Current()->AreExperimentalFlagsEnabled(ExperimentalFlags::kDefaultMethods)) {
     *error_msg = StringPrintf("Non-clinit interface method %" PRIu32 " should not have code",
                               method_index);
     return false;

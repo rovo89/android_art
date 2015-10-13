@@ -64,6 +64,7 @@
 #include "debugger.h"
 #include "elf_file.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
+#include "experimental_flags.h"
 #include "fault_handler.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/heap.h"
@@ -199,7 +200,7 @@ Runtime::Runtime()
       no_sig_chain_(false),
       is_native_bridge_loaded_(false),
       zygote_max_failed_boots_(0),
-      experimental_lambdas_(false) {
+      experimental_flags_(ExperimentalFlags::kNone) {
   CheckAsmSupportOffsetsAndSizes();
   std::fill(callee_save_methods_, callee_save_methods_ + arraysize(callee_save_methods_), 0u);
 }
@@ -884,7 +885,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   }
 
   zygote_max_failed_boots_ = runtime_options.GetOrDefault(Opt::ZygoteMaxFailedBoots);
-  experimental_lambdas_ = runtime_options.GetOrDefault(Opt::ExperimentalLambdas);
+  experimental_flags_ = runtime_options.GetOrDefault(Opt::Experimental);
 
   XGcOption xgc_option = runtime_options.GetOrDefault(Opt::GcOption);
   ATRACE_BEGIN("CreateHeap");

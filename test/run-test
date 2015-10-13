@@ -40,7 +40,6 @@ else
   tmp_dir="${TMPDIR}/$USER/${test_dir}"
 fi
 checker="${progdir}/../tools/checker/checker.py"
-
 export JAVA="java"
 export JAVAC="javac -g"
 export RUN="${progdir}/etc/run-test-jar"
@@ -155,6 +154,15 @@ while true; do
         DEX_LOCATION=$tmp_dir
         run_args="${run_args} --host"
         shift
+    elif [ "x$1" = "x--use-java-home" ]; then
+        if [ -n "${JAVA_HOME}" ]; then
+          export JAVA="${JAVA_HOME}/bin/java"
+          export JAVAC="${JAVA_HOME}/bin/javac -g"
+        else
+          echo "Passed --use-java-home without JAVA_HOME variable set!"
+          usage="yes"
+        fi
+        shift
     elif [ "x$1" = "x--jvm" ]; then
         target_mode="no"
         runtime="jvm"
@@ -162,6 +170,7 @@ while true; do
         NEED_DEX="false"
         USE_JACK="false"
         run_args="${run_args} --jvm"
+        build_args="${build_args} --jvm"
         shift
     elif [ "x$1" = "x-O" ]; then
         lib="libart.so"
@@ -560,6 +569,9 @@ if [ "$usage" = "yes" ]; then
         echo "    --invoke-with         Pass --invoke-with option to runtime."
         echo "    --dalvik              Use Dalvik (off by default)."
         echo "    --jvm                 Use a host-local RI virtual machine."
+        echo "    --use-java-home       Use the JAVA_HOME environment variable"
+        echo "                          to find the java compiler and runtime"
+        echo "                          (if applicable) to run the test with."
         echo "    --output-path [path]  Location where to store the build" \
              "files."
         echo "    --64                  Run the test in 64-bit mode"

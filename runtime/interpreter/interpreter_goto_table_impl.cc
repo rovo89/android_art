@@ -19,6 +19,7 @@
 
 
 #include "base/stl_util.h"  // MakeUnique
+#include "experimental_flags.h"
 #include "interpreter_common.h"
 #include "safe_math.h"
 
@@ -83,7 +84,7 @@ namespace interpreter {
 #define HANDLE_EXPERIMENTAL_INSTRUCTION_START(opcode)                                             \
   HANDLE_INSTRUCTION_START(opcode);                                                               \
   DCHECK(inst->IsExperimental());                                                                 \
-  if (Runtime::Current()->AreExperimentalLambdasEnabled()) {
+  if (Runtime::Current()->AreExperimentalFlagsEnabled(ExperimentalFlags::kLambdas)) {
 #define HANDLE_EXPERIMENTAL_INSTRUCTION_END()                                                     \
   } else {                                                                                        \
       UnexpectedOpcode(inst, shadow_frame);                                                       \

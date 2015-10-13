@@ -49,8 +49,13 @@ static constexpr uint32_t kAccPreverified =          0x00080000;  // class (runt
                                                                   // method (dex only)
 static constexpr uint32_t kAccFastNative =           0x00080000;  // method (dex only)
 static constexpr uint32_t kAccMiranda =              0x00200000;  // method (dex only)
+static constexpr uint32_t kAccDefault =              0x00400000;  // method (runtime)
 
 // Special runtime-only flags.
+// Interface and all its super-interfaces with default methods have been recursively initialized.
+static constexpr uint32_t kAccRecursivelyInitialized    = 0x20000000;
+// Interface declares some default method.
+static constexpr uint32_t kAccHasDefaultMethod          = 0x40000000;
 // class/ancestor overrides finalize()
 static constexpr uint32_t kAccClassIsFinalizable        = 0x80000000;
 

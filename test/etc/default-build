@@ -26,6 +26,8 @@ while true; do
     option="$1"
     DX_FLAGS="${DX_FLAGS} $option"
     shift
+  elif [ "x$1" = "x--jvm" ]; then
+    shift
   elif expr "x$1" : "x--" >/dev/null 2>&1; then
     echo "unknown $0 option: $1" 1>&2
     exit 1
