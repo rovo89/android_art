@@ -161,6 +161,8 @@ class MemMap {
       REQUIRES(Locks::mem_maps_lock_);
   static MemMap* GetLargestMemMapAt(void* address)
       REQUIRES(Locks::mem_maps_lock_);
+  static bool ContainedWithinExistingMap(uint8_t* ptr, size_t size, std::string* error_msg)
+      REQUIRES(!Locks::mem_maps_lock_);
 
   const std::string name_;
   uint8_t* const begin_;  // Start of data.

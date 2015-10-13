@@ -122,21 +122,29 @@ OatFile* OatFile::Open(const std::string& filename,
   // and for having dex caches arrays in the .bss section.
   Runtime* const runtime = Runtime::Current();
   OatFileManager* const manager = (runtime != nullptr) ? &runtime->GetOatFileManager() : nullptr;
-  if (kUseDlopen &&
-      (kIsTargetBuild ||
-          (kUseDlopenOnHost &&
-           // Manager may be null if we are running without a runtime.
-           manager != nullptr &&
-           manager->FindOpenedOatFileFromOatLocation(location) == nullptr)) &&
-      executable) {
-    // Try to use dlopen. This may fail for various reasons, outlined below. We try dlopen, as
-    // this will register the oat file with the linker and allows libunwind to find our info.
-    ret.reset(OpenDlopen(filename, location, requested_base, abs_dex_location, error_msg));
-    if (ret.get() != nullptr) {
-      return ret.release();
+  if (kUseDlopen && executable) {
+    bool success = kIsTargetBuild;
+    bool reserved_location = false;
+      // Manager may be null if we are running without a runtime.
+    if (!success && kUseDlopenOnHost && manager != nullptr) {
+      // ReserveOatFileLocation returns false if we are not the first caller to register that
+      // location.
+      reserved_location = manager->RegisterOatFileLocation(location);
+      success = reserved_location;
     }
-    if (kPrintDlOpenErrorMessage) {
-      LOG(ERROR) << "Failed to dlopen: " << *error_msg;
+    if (success) {
+      // Try to use dlopen. This may fail for various reasons, outlined below. We try dlopen, as
+      // this will register the oat file with the linker and allows libunwind to find our info.
+      ret.reset(OpenDlopen(filename, location, requested_base, abs_dex_location, error_msg));
+      if (reserved_location) {
+        manager->UnRegisterOatFileLocation(location);
+      }
+      if (ret != nullptr) {
+        return ret.release();
+      }
+      if (kPrintDlOpenErrorMessage) {
+        LOG(ERROR) << "Failed to dlopen: " << *error_msg;
+      }
     }
   }
 
@@ -217,12 +225,20 @@ OatFile::OatFile(const std::string& location, bool is_executable)
       is_executable_(is_executable), dlopen_handle_(nullptr),
       secondary_lookup_lock_("OatFile secondary lookup lock", kOatFileSecondaryLookupLock) {
   CHECK(!location_.empty());
+  Runtime* const runtime = Runtime::Current();
+  if (runtime != nullptr && !runtime->IsAotCompiler()) {
+    runtime->GetOatFileManager().RegisterOatFileLocation(location);
+  }
 }
 
 OatFile::~OatFile() {
   STLDeleteElements(&oat_dex_files_storage_);
   if (dlopen_handle_ != nullptr) {
     dlclose(dlopen_handle_);
+  }
+  Runtime* const runtime = Runtime::Current();
+  if (runtime != nullptr && !runtime->IsAotCompiler()) {
+    runtime->GetOatFileManager().UnRegisterOatFileLocation(location_);
   }
 }
 
