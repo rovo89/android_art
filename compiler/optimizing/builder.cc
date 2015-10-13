@@ -159,9 +159,13 @@ void HGraphBuilder::InitializeParameters(uint16_t number_of_parameters) {
   int locals_index = locals_.size() - number_of_parameters;
   int parameter_index = 0;
 
+  const DexFile::MethodId& referrer_method_id =
+      dex_file_->GetMethodId(dex_compilation_unit_->GetDexMethodIndex());
   if (!dex_compilation_unit_->IsStatic()) {
     // Add the implicit 'this' argument, not expressed in the signature.
-    HParameterValue* parameter = new (arena_) HParameterValue(parameter_index++,
+    HParameterValue* parameter = new (arena_) HParameterValue(*dex_file_,
+                                                              referrer_method_id.class_idx_,
+                                                              parameter_index++,
                                                               Primitive::kPrimNot,
                                                               true);
     entry_block_->AddInstruction(parameter);
@@ -170,11 +174,16 @@ void HGraphBuilder::InitializeParameters(uint16_t number_of_parameters) {
     number_of_parameters--;
   }
 
-  uint32_t pos = 1;
-  for (int i = 0; i < number_of_parameters; i++) {
-    HParameterValue* parameter = new (arena_) HParameterValue(parameter_index++,
-                                                              Primitive::GetType(shorty[pos++]),
-                                                              false);
+  const DexFile::ProtoId& proto = dex_file_->GetMethodPrototype(referrer_method_id);
+  const DexFile::TypeList* arg_types = dex_file_->GetProtoParameters(proto);
+  for (int i = 0, shorty_pos = 1; i < number_of_parameters; i++) {
+    HParameterValue* parameter = new (arena_) HParameterValue(
+        *dex_file_,
+        arg_types->GetTypeItem(shorty_pos - 1).type_idx_,
+        parameter_index++,
+        Primitive::GetType(shorty[shorty_pos]),
+        false);
+    ++shorty_pos;
     entry_block_->AddInstruction(parameter);
     HLocal* local = GetLocalAt(locals_index++);
     // Store the parameter value in the local that the dex code will use
