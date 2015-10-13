@@ -67,6 +67,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   const bool is_synchronized = (access_flags & kAccSynchronized) != 0;
   const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
   InstructionSet instruction_set = driver->GetInstructionSet();
+  const InstructionSetFeatures* instruction_set_features = driver->GetInstructionSetFeatures();
   const bool is_64_bit_target = Is64BitInstructionSet(instruction_set);
   // Calling conventions used to iterate over parameters to method
   std::unique_ptr<JniCallingConvention> main_jni_conv(
@@ -93,7 +94,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
       JniCallingConvention::Create(is_static, is_synchronized, jni_end_shorty, instruction_set));
 
   // Assembler that holds generated instructions
-  std::unique_ptr<Assembler> jni_asm(Assembler::Create(instruction_set));
+  std::unique_ptr<Assembler> jni_asm(Assembler::Create(instruction_set, instruction_set_features));
   jni_asm->cfi().SetEnabled(driver->GetCompilerOptions().GetGenerateDebugInfo());
 
   // Offsets into data structures
