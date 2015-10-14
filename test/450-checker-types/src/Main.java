@@ -537,6 +537,17 @@ public class Main {
     return ((SubclassA)a).toString();
   }
 
+
+  /// CHECK-START: void Main.argumentCheck(Super, double, SubclassA, Final) reference_type_propagation (after)
+  /// CHECK:      ParameterValue klass:Main can_be_null:false exact:false
+  /// CHECK:      ParameterValue klass:Super can_be_null:true exact:false
+  /// CHECK:      ParameterValue
+  /// CHECK:      ParameterValue klass:SubclassA can_be_null:true exact:false
+  /// CHECK:      ParameterValue klass:Final can_be_null:true exact:true
+  /// CHECK-NOT:  ParameterValue
+  private void argumentCheck(Super s, double d, SubclassA a, Final f) {
+  }
+
   public static void main(String[] args) {
   }
 }
