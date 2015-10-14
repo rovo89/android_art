@@ -470,6 +470,13 @@ class ArmAssembler : public Assembler {
     orr(rd, rn, so, cond, kCcSet);
   }
 
+  virtual void orn(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
+
+  virtual void orns(Register rd, Register rn, const ShifterOperand& so, Condition cond = AL) {
+    orn(rd, rn, so, cond, kCcSet);
+  }
+
   virtual void mov(Register rd, const ShifterOperand& so,
                    Condition cond = AL, SetCc set_cc = kCcDontCare) = 0;
 
