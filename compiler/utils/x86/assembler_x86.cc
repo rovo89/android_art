@@ -2369,44 +2369,48 @@ void X86Assembler::AddConstantArea() {
   }
 }
 
-int ConstantArea::AddInt32(int32_t v) {
-  for (size_t i = 0, e = buffer_.size(); i < e; i++) {
-    if (v == buffer_[i]) {
-      return i * kEntrySize;
-    }
-  }
-
-  // Didn't match anything.
-  int result = buffer_.size() * kEntrySize;
+size_t ConstantArea::AppendInt32(int32_t v) {
+  size_t result = buffer_.size() * elem_size_;
   buffer_.push_back(v);
   return result;
 }
 
-int ConstantArea::AddInt64(int64_t v) {
+size_t ConstantArea::AddInt32(int32_t v) {
+  for (size_t i = 0, e = buffer_.size(); i < e; i++) {
+    if (v == buffer_[i]) {
+      return i * elem_size_;
+    }
+  }
+
+  // Didn't match anything.
+  return AppendInt32(v);
+}
+
+size_t ConstantArea::AddInt64(int64_t v) {
   int32_t v_low = Low32Bits(v);
   int32_t v_high = High32Bits(v);
   if (buffer_.size() > 1) {
     // Ensure we don't pass the end of the buffer.
     for (size_t i = 0, e = buffer_.size() - 1; i < e; i++) {
       if (v_low == buffer_[i] && v_high == buffer_[i + 1]) {
-        return i * kEntrySize;
+        return i * elem_size_;
       }
     }
   }
 
   // Didn't match anything.
-  int result = buffer_.size() * kEntrySize;
+  size_t result = buffer_.size() * elem_size_;
   buffer_.push_back(v_low);
   buffer_.push_back(v_high);
   return result;
 }
 
-int ConstantArea::AddDouble(double v) {
+size_t ConstantArea::AddDouble(double v) {
   // Treat the value as a 64-bit integer value.
   return AddInt64(bit_cast<int64_t, double>(v));
 }
 
-int ConstantArea::AddFloat(float v) {
+size_t ConstantArea::AddFloat(float v) {
   // Treat the value as a 32-bit integer value.
   return AddInt32(bit_cast<int32_t, float>(v));
 }

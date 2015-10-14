@@ -62,6 +62,45 @@ class HX86LoadFromConstantTable : public HExpression<2> {
   DISALLOW_COPY_AND_ASSIGN(HX86LoadFromConstantTable);
 };
 
+// X86 version of HPackedSwitch that holds a pointer to the base method address.
+class HX86PackedSwitch : public HTemplateInstruction<2> {
+ public:
+  HX86PackedSwitch(int32_t start_value,
+                   int32_t num_entries,
+                   HInstruction* input,
+                   HX86ComputeBaseMethodAddress* method_base,
+                   uint32_t dex_pc)
+    : HTemplateInstruction(SideEffects::None(), dex_pc),
+      start_value_(start_value),
+      num_entries_(num_entries) {
+    SetRawInputAt(0, input);
+    SetRawInputAt(1, method_base);
+  }
+
+  bool IsControlFlow() const OVERRIDE { return true; }
+
+  int32_t GetStartValue() const { return start_value_; }
+
+  int32_t GetNumEntries() const { return num_entries_; }
+
+  HX86ComputeBaseMethodAddress* GetBaseMethodAddress() const {
+    return InputAt(1)->AsX86ComputeBaseMethodAddress();
+  }
+
+  HBasicBlock* GetDefaultBlock() const {
+    // Last entry is the default block.
+    return GetBlock()->GetSuccessors()[num_entries_];
+  }
+
+  DECLARE_INSTRUCTION(X86PackedSwitch);
+
+ private:
+  const int32_t start_value_;
+  const int32_t num_entries_;
+
+  DISALLOW_COPY_AND_ASSIGN(HX86PackedSwitch);
+};
+
 }  // namespace art
 
 #endif  // ART_COMPILER_OPTIMIZING_NODES_X86_H_
