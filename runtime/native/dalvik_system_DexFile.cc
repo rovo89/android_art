@@ -230,7 +230,8 @@ static jboolean DexFile_closeDexFile(JNIEnv* env, jclass, jobject cookie) {
     }
   }
 
-  if (all_deleted) {
+  // oat_file can be null if we are running without dex2oat.
+  if (all_deleted && oat_file != nullptr) {
     // If all of the dex files are no longer in use we can unmap the corresponding oat file.
     VLOG(class_linker) << "Unregistering " << oat_file;
     runtime->GetOatFileManager().UnRegisterAndDeleteOatFile(oat_file);
