@@ -269,36 +269,40 @@ class Address : public Operand {
  * Class to handle constant area values.
  */
 class ConstantArea {
-  public:
-    ConstantArea() {}
+ public:
+  ConstantArea() {}
 
-    // Add a double to the constant area, returning the offset into
-    // the constant area where the literal resides.
-    int AddDouble(double v);
+  // Add a double to the constant area, returning the offset into
+  // the constant area where the literal resides.
+  size_t AddDouble(double v);
 
-    // Add a float to the constant area, returning the offset into
-    // the constant area where the literal resides.
-    int AddFloat(float v);
+  // Add a float to the constant area, returning the offset into
+  // the constant area where the literal resides.
+  size_t AddFloat(float v);
 
-    // Add an int32_t to the constant area, returning the offset into
-    // the constant area where the literal resides.
-    int AddInt32(int32_t v);
+  // Add an int32_t to the constant area, returning the offset into
+  // the constant area where the literal resides.
+  size_t AddInt32(int32_t v);
 
-    // Add an int64_t to the constant area, returning the offset into
-    // the constant area where the literal resides.
-    int AddInt64(int64_t v);
+  // Add an int32_t to the end of the constant area, returning the offset into
+  // the constant area where the literal resides.
+  size_t AppendInt32(int32_t v);
 
-    int GetSize() const {
-      return buffer_.size() * elem_size_;
-    }
+  // Add an int64_t to the constant area, returning the offset into
+  // the constant area where the literal resides.
+  size_t AddInt64(int64_t v);
 
-    const std::vector<int32_t>& GetBuffer() const {
-      return buffer_;
-    }
+  size_t GetSize() const {
+    return buffer_.size() * elem_size_;
+  }
 
-  private:
-    static constexpr size_t elem_size_ = sizeof(int32_t);
-    std::vector<int32_t> buffer_;
+  const std::vector<int32_t>& GetBuffer() const {
+    return buffer_;
+  }
+
+ private:
+  static constexpr size_t elem_size_ = sizeof(int32_t);
+  std::vector<int32_t> buffer_;
 };
 
 
@@ -806,25 +810,36 @@ class X86_64Assembler FINAL : public Assembler {
 
   // Add a double to the constant area, returning the offset into
   // the constant area where the literal resides.
-  int AddDouble(double v) { return constant_area_.AddDouble(v); }
+  size_t AddDouble(double v) { return constant_area_.AddDouble(v); }
 
   // Add a float to the constant area, returning the offset into
   // the constant area where the literal resides.
-  int AddFloat(float v)   { return constant_area_.AddFloat(v); }
+  size_t AddFloat(float v)   { return constant_area_.AddFloat(v); }
 
   // Add an int32_t to the constant area, returning the offset into
   // the constant area where the literal resides.
-  int AddInt32(int32_t v) { return constant_area_.AddInt32(v); }
+  size_t AddInt32(int32_t v) {
+    return constant_area_.AddInt32(v);
+  }
+
+  // Add an int32_t to the end of the constant area, returning the offset into
+  // the constant area where the literal resides.
+  size_t AppendInt32(int32_t v) {
+    return constant_area_.AppendInt32(v);
+  }
 
   // Add an int64_t to the constant area, returning the offset into
   // the constant area where the literal resides.
-  int AddInt64(int64_t v) { return constant_area_.AddInt64(v); }
+  size_t AddInt64(int64_t v) { return constant_area_.AddInt64(v); }
 
   // Add the contents of the constant area to the assembler buffer.
   void AddConstantArea();
 
   // Is the constant area empty? Return true if there are no literals in the constant area.
   bool IsConstantAreaEmpty() const { return constant_area_.GetSize() == 0; }
+
+  // Return the current size of the constant area.
+  size_t ConstantAreaSize() const { return constant_area_.GetSize(); }
 
   //
   // Heap poisoning.
