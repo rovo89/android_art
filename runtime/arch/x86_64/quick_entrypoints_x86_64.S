@@ -809,6 +809,7 @@ END_MACRO
 
 // Generate the allocation entrypoints for each allocator.
 GENERATE_ALLOC_ENTRYPOINTS_FOR_EACH_ALLOCATOR
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_rosalloc, RosAlloc)
 // A handle-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_tlab, TLAB).
 DEFINE_FUNCTION art_quick_alloc_object_tlab
     // Fast path tlab allocation.
