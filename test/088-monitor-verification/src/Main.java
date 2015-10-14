@@ -221,6 +221,8 @@ public class Main {
                 IllegalMonitorStateException.class);
         runTest("UnbalancedJoin", new Object[] { new Object(), new Object() }, null);
         runTest("UnbalancedStraight", new Object[] { new Object(), new Object() }, null);
+        runTest("NullLocks", new Object[] { false }, null);
+        runTest("NullLocks", new Object[] { true }, NullPointerException.class);
     }
 
     private static void runTest(String className, Object[] parameters, Class<?> excType) {
