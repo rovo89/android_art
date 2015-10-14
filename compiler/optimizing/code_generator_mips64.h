@@ -117,7 +117,7 @@ class FieldAccessCallingConventionMIPS64 : public FieldAccessCallingConvention {
     return Location::RegisterLocation(A0);
   }
   Location GetReturnLocation(Primitive::Type type ATTRIBUTE_UNUSED) const OVERRIDE {
-    return Location::RegisterLocation(A0);
+    return Location::RegisterLocation(V0);
   }
   Location GetSetValueLocation(
       Primitive::Type type ATTRIBUTE_UNUSED, bool is_instance) const OVERRIDE {
