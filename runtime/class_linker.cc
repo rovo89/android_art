@@ -3486,28 +3486,31 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
   if (!klass->IsInterface()) {
     // Initialize interfaces with default methods for the JLS.
     size_t num_direct_interfaces = klass->NumDirectInterfaces();
-    for (size_t i = 0; i < num_direct_interfaces; i++) {
+    // Only setup the (expensive) handle scope if we actually need to.
+    if (UNLIKELY(num_direct_interfaces > 0)) {
       StackHandleScope<1> hs_iface(self);
-      Handle<mirror::Class> handle_scope_iface(
-          hs_iface.NewHandle(mirror::Class::GetDirectInterface(self, klass, i)));
-      CHECK(handle_scope_iface.Get() != nullptr);
-      CHECK(handle_scope_iface->IsInterface());
-      if (handle_scope_iface->HasBeenRecursivelyInitialized()) {
-        // We have already done this once for this interface. Skip it.
-        continue;
-      }
-      // We cannot just call initialize class directly because we need to ensure that ALL interfaces
-      // with default methods are initialized. Non-default interface initialization will not affect
-      // other non-default super-interfaces.
-      bool iface_initialized = InitializeDefaultInterfaceRecursive(self,
-                                                                   handle_scope_iface,
-                                                                   can_init_statics,
-                                                                   can_init_parents);
-      if (!iface_initialized) {
-        ObjectLock<mirror::Class> lock(self, klass);
-        // Initialization failed because one of our interfaces with default methods is erroneous.
-        mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
-        return false;
+      MutableHandle<mirror::Class> handle_scope_iface(hs_iface.NewHandle<mirror::Class>(nullptr));
+      for (size_t i = 0; i < num_direct_interfaces; i++) {
+        handle_scope_iface.Assign(mirror::Class::GetDirectInterface(self, klass, i));
+        CHECK(handle_scope_iface.Get() != nullptr);
+        CHECK(handle_scope_iface->IsInterface());
+        if (handle_scope_iface->HasBeenRecursivelyInitialized()) {
+          // We have already done this for this interface. Skip it.
+          continue;
+        }
+        // We cannot just call initialize class directly because we need to ensure that ALL
+        // interfaces with default methods are initialized. Non-default interface initialization
+        // will not affect other non-default super-interfaces.
+        bool iface_initialized = InitializeDefaultInterfaceRecursive(self,
+                                                                     handle_scope_iface,
+                                                                     can_init_statics,
+                                                                     can_init_parents);
+        if (!iface_initialized) {
+          ObjectLock<mirror::Class> lock(self, klass);
+          // Initialization failed because one of our interfaces with default methods is erroneous.
+          mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
+          return false;
+        }
       }
     }
   }
@@ -3609,18 +3612,22 @@ bool ClassLinker::InitializeDefaultInterfaceRecursive(Thread* self,
                                                       bool can_init_parents) {
   CHECK(iface->IsInterface());
   size_t num_direct_ifaces = iface->NumDirectInterfaces();
-  // First we initialize all of iface's super-interfaces recursively.
-  for (size_t i = 0; i < num_direct_ifaces; i++) {
-    mirror::Class* super_iface = mirror::Class::GetDirectInterface(self, iface, i);
-    if (!super_iface->HasBeenRecursivelyInitialized()) {
-      // Recursive step
-      StackHandleScope<1> hs(self);
-      Handle<mirror::Class> handle_super_iface(hs.NewHandle(super_iface));
-      if (!InitializeDefaultInterfaceRecursive(self,
-                                               handle_super_iface,
-                                               can_init_statics,
-                                               can_init_parents)) {
-        return false;
+  // Only create the (expensive) handle scope if we need it.
+  if (UNLIKELY(num_direct_ifaces > 0)) {
+    StackHandleScope<1> hs(self);
+    MutableHandle<mirror::Class> handle_super_iface(hs.NewHandle<mirror::Class>(nullptr));
+    // First we initialize all of iface's super-interfaces recursively.
+    for (size_t i = 0; i < num_direct_ifaces; i++) {
+      mirror::Class* super_iface = mirror::Class::GetDirectInterface(self, iface, i);
+      if (!super_iface->HasBeenRecursivelyInitialized()) {
+        // Recursive step
+        handle_super_iface.Assign(super_iface);
+        if (!InitializeDefaultInterfaceRecursive(self,
+                                                 handle_super_iface,
+                                                 can_init_statics,
+                                                 can_init_parents)) {
+          return false;
+        }
       }
     }
   }
