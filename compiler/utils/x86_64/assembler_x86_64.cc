@@ -3122,7 +3122,14 @@ void X86_64Assembler::AddConstantArea() {
   }
 }
 
-int ConstantArea::AddInt32(int32_t v) {
+size_t ConstantArea::AppendInt32(int32_t v) {
+  size_t result = buffer_.size() * elem_size_;
+  buffer_.push_back(v);
+  return result;
+}
+
+size_t ConstantArea::AddInt32(int32_t v) {
+  // Look for an existing match.
   for (size_t i = 0, e = buffer_.size(); i < e; i++) {
     if (v == buffer_[i]) {
       return i * elem_size_;
@@ -3130,12 +3137,10 @@ int ConstantArea::AddInt32(int32_t v) {
   }
 
   // Didn't match anything.
-  int result = buffer_.size() * elem_size_;
-  buffer_.push_back(v);
-  return result;
+  return AppendInt32(v);
 }
 
-int ConstantArea::AddInt64(int64_t v) {
+size_t ConstantArea::AddInt64(int64_t v) {
   int32_t v_low = v;
   int32_t v_high = v >> 32;
   if (buffer_.size() > 1) {
@@ -3148,18 +3153,18 @@ int ConstantArea::AddInt64(int64_t v) {
   }
 
   // Didn't match anything.
-  int result = buffer_.size() * elem_size_;
+  size_t result = buffer_.size() * elem_size_;
   buffer_.push_back(v_low);
   buffer_.push_back(v_high);
   return result;
 }
 
-int ConstantArea::AddDouble(double v) {
+size_t ConstantArea::AddDouble(double v) {
   // Treat the value as a 64-bit integer value.
   return AddInt64(bit_cast<int64_t, double>(v));
 }
 
-int ConstantArea::AddFloat(float v) {
+size_t ConstantArea::AddFloat(float v) {
   // Treat the value as a 32-bit integer value.
   return AddInt32(bit_cast<int32_t, float>(v));
 }
