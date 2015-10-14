@@ -807,7 +807,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
 
   compiler_callbacks_ = runtime_options.GetOrDefault(Opt::CompilerCallbacksPtr);
   patchoat_executable_ = runtime_options.ReleaseOrDefault(Opt::PatchOat);
-  must_relocate_ = runtime_options.GetOrDefault(Opt::Relocate);
+  must_relocate_ = false;
   is_zygote_ = runtime_options.Exists(Opt::Zygote);
   is_explicit_gc_disabled_ = runtime_options.Exists(Opt::DisableExplicitGC);
   dex2oat_enabled_ = runtime_options.GetOrDefault(Opt::Dex2Oat);

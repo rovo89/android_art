@@ -173,7 +173,7 @@ static void MarkZygoteStart(const InstructionSet isa, const uint32_t max_failed_
 }
 
 static bool GenerateImage(const std::string& image_filename, InstructionSet image_isa,
-                          std::string* error_msg) {
+                          const std::string& system_filename, std::string* error_msg) {
   const std::string boot_class_path_string(Runtime::Current()->GetBootClassPathString());
   std::vector<std::string> boot_class_path;
   Split(boot_class_path_string, ':', &boot_class_path);
@@ -196,8 +196,14 @@ static bool GenerateImage(const std::string& image_filename, InstructionSet imag
   image_option_string += image_filename;
   arg_vector.push_back(image_option_string);
 
-  for (size_t i = 0; i < boot_class_path.size(); i++) {
-    arg_vector.push_back(std::string("--dex-file=") + boot_class_path[i]);
+  if (system_filename == nullptr) {
+    for (size_t i = 0; i < boot_class_path.size(); i++) {
+      arg_vector.push_back(std::string("--dex-file=") + boot_class_path[i]);
+    }
+  } else {
+    std::string dex_file_option_string("--dex-file=");
+    dex_file_option_string += ImageHeader::GetOatLocationFromImageLocation(system_filename);
+    arg_vector.push_back(dex_file_option_string);
   }
 
   std::string oat_file_option_string("--oat-file=");
@@ -283,6 +289,7 @@ static bool ReadSpecificImageHeader(const char* filename, ImageHeader* image_hea
     return true;
 }
 
+/*
 // Relocate the image at image_location to dest_filename and relocate it by a random amount.
 static bool RelocateImage(const char* image_location, const char* dest_filename,
                                InstructionSet isa, std::string* error_msg) {
@@ -329,6 +336,7 @@ static bool RelocateImage(const char* image_location, const char* dest_filename,
   LOG(INFO) << "RelocateImage: " << command_line;
   return Exec(argv, error_msg);
 }
+*/
 
 static ImageHeader* ReadSpecificImageHeader(const char* filename, std::string* error_msg) {
   std::unique_ptr<ImageHeader> hdr(new ImageHeader);
@@ -374,7 +382,14 @@ ImageHeader* ImageSpace::ReadImageHeader(const char* image_location,
                                     image_location, cache_filename.c_str());
           return nullptr;
         }
-        if (sys_hdr->GetOatChecksum() != cache_hdr->GetOatChecksum()) {
+        std::string cache_oat_filename = ImageHeader::GetOatLocationFromImageLocation(cache_filename);
+        std::unique_ptr<OatHeader> cache_oat_hdr(OatHeader::FromFile(cache_oat_filename, error_msg));
+        if (cache_oat_hdr.get() == nullptr) {
+          *error_msg = StringPrintf("Unable to read oat file header for %s at %s: %s",
+                                    image_location, cache_oat_filename.c_str(), error_msg->c_str());
+          return nullptr;
+        }
+        if (sys_hdr->GetOatChecksum() != cache_oat_hdr->GetOriginalChecksum(true)) {
           *error_msg = StringPrintf("Unable to find a relocated version of image file %s",
                                     image_location);
           return nullptr;
@@ -396,8 +411,11 @@ ImageHeader* ImageSpace::ReadImageHeader(const char* image_location,
                                                                     error_msg));
         std::unique_ptr<ImageHeader> cache(ReadSpecificImageHeader(cache_filename.c_str(),
                                                                    error_msg));
+        std::string cache_oat_filename = ImageHeader::GetOatLocationFromImageLocation(cache_filename);
+        std::unique_ptr<OatHeader> cache_oat_hdr(OatHeader::FromFile(cache_oat_filename, error_msg));
         if (system.get() == nullptr ||
-            (cache.get() != nullptr && cache->GetOatChecksum() == system->GetOatChecksum())) {
+            (cache.get() != nullptr && cache_oat_hdr.get() != nullptr &&
+              cache_oat_hdr->GetOriginalChecksum(true) == system->GetOatChecksum())) {
           return cache.release();
         } else {
           return system.release();
@@ -414,12 +432,14 @@ ImageHeader* ImageSpace::ReadImageHeader(const char* image_location,
   return nullptr;
 }
 
+/*
 static bool ChecksumsMatch(const char* image_a, const char* image_b) {
   ImageHeader hdr_a;
   ImageHeader hdr_b;
   return ReadSpecificImageHeader(image_a, &hdr_a) && ReadSpecificImageHeader(image_b, &hdr_b)
       && hdr_a.GetOatChecksum() == hdr_b.GetOatChecksum();
 }
+*/
 
 static bool ImageCreationAllowed(bool is_global_cache, std::string* error_msg) {
   // Anyone can write into a "local" cache.
@@ -480,17 +500,47 @@ ImageSpace* ImageSpace::Create(const char* image_location,
   bool has_cache = false;
   bool dalvik_cache_exists = false;
   bool is_global_cache = true;
-  const bool found_image = FindImageFilename(image_location, image_isa, &system_filename,
-                                             &has_system, &cache_filename, &dalvik_cache_exists,
-                                             &has_cache, &is_global_cache);
+  FindImageFilename(image_location, image_isa, &system_filename,
+                    &has_system, &cache_filename, &dalvik_cache_exists,
+                    &has_cache, &is_global_cache);
 
   if (Runtime::Current()->IsZygote()) {
     MarkZygoteStart(image_isa, Runtime::Current()->GetZygoteMaxFailedBoots());
   }
 
   ImageSpace* space;
-  bool relocate = Runtime::Current()->ShouldRelocate();
   bool can_compile = Runtime::Current()->IsImageDex2OatEnabled();
+
+  const std::string* image_filename = nullptr;
+  bool is_system = false;
+  bool relocated_version_used = false;
+  if (has_cache) {
+    std::string cache_oat_filename = ImageHeader::GetOatLocationFromImageLocation(cache_filename);
+    std::unique_ptr<OatHeader> cache_oat_hdr(OatHeader::FromFile(cache_oat_filename, error_msg));
+    if (cache_oat_hdr.get() == nullptr) {
+      LOG(INFO) << "Forcing image recompilation because " << cache_oat_filename
+          << " could not be opened: " << *error_msg;
+    } else if (!cache_oat_hdr->IsXposedOatVersionValid()) {
+      XLOG(INFO) << "Forcing image recompilation because " << cache_filename
+          << " is not compiled for the current Xposed version";
+    } else {
+      std::unique_ptr<ImageHeader> system_hdr(new ImageHeader);
+      if (has_system && ReadSpecificImageHeader(system_filename.c_str(), system_hdr.get())) {
+        if (system_hdr->GetOatChecksum() == cache_oat_hdr->GetOriginalChecksum(true)) {
+          image_filename = &cache_filename;
+          is_system = true;
+        }
+      } else {
+        image_filename = &cache_filename;
+        is_system = has_system;
+      }
+    }
+  }
+  // TODO: Consider relocating in the rare case that the system image is already prepared for Xposed
+
+  if (image_filename != nullptr) {
+/*
+
   if (found_image) {
     const std::string* image_filename;
     bool is_system = false;
@@ -563,6 +613,7 @@ ImageSpace* ImageSpace::Create(const char* image_location,
         image_filename = &cache_filename;
       }
     }
+*/
     {
       // Note that we must not use the file descriptor associated with
       // ScopedFlock::GetFile to Init the image file. We want the file
@@ -612,7 +663,7 @@ ImageSpace* ImageSpace::Create(const char* image_location,
     return nullptr;
   } else if (!ImageCreationAllowed(is_global_cache, error_msg)) {
     return nullptr;
-  } else if (!GenerateImage(cache_filename, image_isa, error_msg)) {
+  } else if (!GenerateImage(cache_filename, image_isa, system_filename, error_msg)) {
     *error_msg = StringPrintf("Failed to generate image '%s': %s",
                               cache_filename.c_str(), error_msg->c_str());
     // We failed to create files, remove any possibly garbage output.
@@ -635,7 +686,7 @@ ImageSpace* ImageSpace::Create(const char* image_location,
     // we leave Create.
     ScopedFlock image_lock;
     image_lock.Init(cache_filename.c_str(), error_msg);
-    space = ImageSpace::Init(cache_filename.c_str(), image_location, true, error_msg);
+    space = ImageSpace::Init(cache_filename.c_str(), image_location, !has_system, error_msg);
     if (space == nullptr) {
       *error_msg = StringPrintf("Failed to load generated image '%s': %s",
                                 cache_filename.c_str(), error_msg->c_str());
