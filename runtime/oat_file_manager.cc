@@ -22,7 +22,7 @@
 
 #include "base/logging.h"
 #include "base/stl_util.h"
-#include "dex_file.h"
+#include "dex_file-inl.h"
 #include "gc/space/image_space.h"
 #include "oat_file_assistant.h"
 #include "thread-inl.h"
@@ -30,7 +30,9 @@
 namespace art {
 
 // For b/21333911.
-static constexpr bool kDuplicateClassesCheck = false;
+// Only enabled for debug builds to prevent bit rot. There are too many performance regressions for
+// normal builds.
+static constexpr bool kDuplicateClassesCheck = kIsDebugBuild;
 
 const OatFile* OatFileManager::RegisterOatFile(std::unique_ptr<const OatFile> oat_file) {
   WriterMutexLock mu(Thread::Current(), *Locks::oat_file_manager_lock_);
@@ -115,9 +117,9 @@ class DexFileAndClassPair : ValueObject {
        current_class_index_(current_class_index),
        from_loaded_oat_(from_loaded_oat) {}
 
-  DexFileAndClassPair(DexFileAndClassPair&& rhs) = default;
+  DexFileAndClassPair(const DexFileAndClassPair& rhs) = default;
 
-  DexFileAndClassPair& operator=(DexFileAndClassPair&& rhs) = default;
+  DexFileAndClassPair& operator=(const DexFileAndClassPair& rhs) = default;
 
   const char* GetCachedDescriptor() const {
     return cached_descriptor_;
@@ -139,7 +141,7 @@ class DexFileAndClassPair : ValueObject {
 
   void Next() {
     ++current_class_index_;
-    cached_descriptor_ = nullptr;
+    cached_descriptor_ = GetClassDescriptor(dex_file_.get(), current_class_index_);
   }
 
   size_t GetCurrentClassIndex() const {
@@ -162,7 +164,7 @@ class DexFileAndClassPair : ValueObject {
   }
 
   const char* cached_descriptor_;
-  std::unique_ptr<const DexFile> dex_file_;
+  std::shared_ptr<const DexFile> dex_file_;
   size_t current_class_index_;
   bool from_loaded_oat_;  // We only need to compare mismatches between what we load now
                           // and what was loaded before. Any old duplicates must have been
@@ -215,8 +217,17 @@ bool OatFileManager::HasCollisions(const OatFile* oat_file,
 
   // Add dex files from already loaded oat files, but skip boot.
   const OatFile* boot_oat = GetBootOatFile();
+  // The same OatFile can be loaded multiple times at different addresses. In this case, we don't
+  // need to check both against each other since they would have resolved the same way at compile
+  // time.
+  std::unordered_set<std::string> unique_locations;
   for (const std::unique_ptr<const OatFile>& loaded_oat_file : oat_files_) {
-    if (loaded_oat_file.get() != boot_oat) {
+    DCHECK_NE(loaded_oat_file.get(), oat_file);
+    const std::string& location = loaded_oat_file->GetLocation();
+    if (loaded_oat_file.get() != boot_oat &&
+        location != oat_file->GetLocation() &&
+        unique_locations.find(location) == unique_locations.end()) {
+      unique_locations.insert(location);
       AddDexFilesFromOat(loaded_oat_file.get(), /*already_loaded*/true, &queue);
     }
   }
@@ -232,12 +243,12 @@ bool OatFileManager::HasCollisions(const OatFile* oat_file,
   // Now drain the queue.
   while (!queue.empty()) {
     // Modifying the top element is only safe if we pop right after.
-    DexFileAndClassPair compare_pop(std::move(const_cast<DexFileAndClassPair&>(queue.top())));
+    DexFileAndClassPair compare_pop(queue.top());
     queue.pop();
 
     // Compare against the following elements.
     while (!queue.empty()) {
-      DexFileAndClassPair top(std::move(const_cast<DexFileAndClassPair&>(queue.top())));
+      DexFileAndClassPair top(queue.top());
 
       if (strcmp(compare_pop.GetCachedDescriptor(), top.GetCachedDescriptor()) == 0) {
         // Same descriptor. Check whether it's crossing old-oat-files to new-oat-files.
@@ -249,7 +260,6 @@ bool OatFileManager::HasCollisions(const OatFile* oat_file,
                            top.GetDexFile()->GetLocation().c_str());
           return true;
         }
-        // Pop it.
         queue.pop();
         AddNext(&top, &queue);
       } else {
