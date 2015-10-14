@@ -1645,6 +1645,7 @@ void LocationsBuilderARM::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invok
   DCHECK(codegen_->IsBaseline() || !invoke->IsStaticWithExplicitClinitCheck());
 
   IntrinsicLocationsBuilderARM intrinsic(GetGraph()->GetArena(),
+                                         codegen_->GetAssembler(),
                                          codegen_->GetInstructionSetFeatures());
   if (intrinsic.TryDispatch(invoke)) {
     return;
@@ -1684,6 +1685,7 @@ void LocationsBuilderARM::HandleInvoke(HInvoke* invoke) {
 
 void LocationsBuilderARM::VisitInvokeVirtual(HInvokeVirtual* invoke) {
   IntrinsicLocationsBuilderARM intrinsic(GetGraph()->GetArena(),
+                                         codegen_->GetAssembler(),
                                          codegen_->GetInstructionSetFeatures());
   if (intrinsic.TryDispatch(invoke)) {
     return;

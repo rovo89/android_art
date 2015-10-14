@@ -41,6 +41,7 @@
 #include "driver/dex_compilation_unit.h"
 #include "gc_map_builder.h"
 #include "graph_visualizer.h"
+#include "intrinsics.h"
 #include "leb128.h"
 #include "mapping_table.h"
 #include "mirror/array-inl.h"
@@ -1379,6 +1380,59 @@ void SlowPathCode::RestoreLiveRegisters(CodeGenerator* codegen, LocationSummary*
       }
     }
   }
+}
+
+void CodeGenerator::CreateSystemArrayCopyLocationSummary(HInvoke* invoke) {
+  // Check to see if we have known failures that will cause us to have to bail out
+  // to the runtime, and just generate the runtime call directly.
+  HIntConstant* src_pos = invoke->InputAt(1)->AsIntConstant();
+  HIntConstant* dest_pos = invoke->InputAt(3)->AsIntConstant();
+
+  // The positions must be non-negative.
+  if ((src_pos != nullptr && src_pos->GetValue() < 0) ||
+      (dest_pos != nullptr && dest_pos->GetValue() < 0)) {
+    // We will have to fail anyways.
+    return;
+  }
+
+  // The length must be >= 0.
+  HIntConstant* length = invoke->InputAt(4)->AsIntConstant();
+  if (length != nullptr) {
+    int32_t len = length->GetValue();
+    if (len < 0) {
+      // Just call as normal.
+      return;
+    }
+  }
+
+  SystemArrayCopyOptimizations optimizations(invoke);
+
+  if (optimizations.GetDestinationIsSource()) {
+    if (src_pos != nullptr && dest_pos != nullptr && src_pos->GetValue() < dest_pos->GetValue()) {
+      // We only support backward copying if source and destination are the same.
+      return;
+    }
+  }
+
+  if (optimizations.GetDestinationIsPrimitiveArray() || optimizations.GetSourceIsPrimitiveArray()) {
+    // We currently don't intrinsify primitive copying.
+    return;
+  }
+
+  ArenaAllocator* allocator = invoke->GetBlock()->GetGraph()->GetArena();
+  LocationSummary* locations = new (allocator) LocationSummary(invoke,
+                                                               LocationSummary::kCallOnSlowPath,
+                                                               kIntrinsified);
+  // arraycopy(Object src, int src_pos, Object dest, int dest_pos, int length).
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));
+  locations->SetInAt(2, Location::RequiresRegister());
+  locations->SetInAt(3, Location::RegisterOrConstant(invoke->InputAt(3)));
+  locations->SetInAt(4, Location::RegisterOrConstant(invoke->InputAt(4)));
+
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
 }
 
 }  // namespace art

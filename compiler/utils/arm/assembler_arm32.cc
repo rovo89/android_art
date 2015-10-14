@@ -48,6 +48,11 @@ bool Arm32Assembler::ShifterOperandCanHoldArm32(uint32_t immediate, ShifterOpera
   return false;
 }
 
+bool Arm32Assembler::ShifterOperandCanAlwaysHold(uint32_t immediate) {
+  ShifterOperand shifter_op;
+  return ShifterOperandCanHoldArm32(immediate, &shifter_op);
+}
+
 bool Arm32Assembler::ShifterOperandCanHold(Register rd ATTRIBUTE_UNUSED,
                                            Register rn ATTRIBUTE_UNUSED,
                                            Opcode opcode ATTRIBUTE_UNUSED,
