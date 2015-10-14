@@ -33,8 +33,10 @@ class CodeGeneratorARM;
 
 class IntrinsicLocationsBuilderARM FINAL : public IntrinsicVisitor {
  public:
-  IntrinsicLocationsBuilderARM(ArenaAllocator* arena, const ArmInstructionSetFeatures& features)
-      : arena_(arena), features_(features) {}
+  IntrinsicLocationsBuilderARM(ArenaAllocator* arena,
+                               ArmAssembler* assembler,
+                               const ArmInstructionSetFeatures& features)
+      : arena_(arena), assembler_(assembler), features_(features) {}
 
   // Define visitor methods.
 
@@ -52,6 +54,7 @@ INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 
  private:
   ArenaAllocator* arena_;
+  ArmAssembler* assembler_;
 
   const ArmInstructionSetFeatures& features_;
 
