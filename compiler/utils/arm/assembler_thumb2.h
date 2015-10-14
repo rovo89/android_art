@@ -337,6 +337,8 @@ class Thumb2Assembler FINAL : public ArmAssembler {
                              uint32_t immediate,
                              ShifterOperand* shifter_op) OVERRIDE;
 
+  bool ShifterOperandCanAlwaysHold(uint32_t immediate) OVERRIDE;
+
 
   static bool IsInstructionForExceptionHandling(uintptr_t pc);
 

@@ -390,6 +390,10 @@ void Thumb2Assembler::FinalizeCode() {
   EmitLiterals();
 }
 
+bool Thumb2Assembler::ShifterOperandCanAlwaysHold(uint32_t immediate) {
+  return ArmAssembler::ModifiedImmediate(immediate) != kInvalidModifiedImmediate;
+}
+
 bool Thumb2Assembler::ShifterOperandCanHold(Register rd ATTRIBUTE_UNUSED,
                                             Register rn ATTRIBUTE_UNUSED,
                                             Opcode opcode,
