@@ -134,14 +134,17 @@ static uintptr_t GenerateNextMemPos() {
 uintptr_t MemMap::next_mem_pos_ = GenerateNextMemPos();
 #endif
 
-// Return true if the address range is contained in a single /proc/self/map entry.
+// Return true if the address range is contained in a single memory map by either reading
+// the maps_ variable or the /proc/self/map entry.
 bool MemMap::ContainedWithinExistingMap(uint8_t* ptr, size_t size, std::string* error_msg) {
   uintptr_t begin = reinterpret_cast<uintptr_t>(ptr);
   uintptr_t end = begin + size;
 
+  // There is a suspicion that BacktraceMap::Create is occasionally missing maps. TODO: Investigate
+  // further.
   {
     MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
-    for (auto& pair : *MemMap::maps_) {
+    for (auto& pair : *maps_) {
       MemMap* const map = pair.second;
       if (begin >= reinterpret_cast<uintptr_t>(map->Begin()) &&
           end <= reinterpret_cast<uintptr_t>(map->End())) {
