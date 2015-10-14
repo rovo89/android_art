@@ -98,6 +98,9 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   virtual void orr(Register rd, Register rn, const ShifterOperand& so,
                    Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
+  virtual void orn(Register rd, Register rn, const ShifterOperand& so,
+                   Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
+
   virtual void mov(Register rd, const ShifterOperand& so,
                    Condition cond = AL, SetCc set_cc = kCcDontCare) OVERRIDE;
 
