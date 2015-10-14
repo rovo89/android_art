@@ -148,7 +148,8 @@ enum Opcode {
   MOV = 13,  // Move
   BIC = 14,  // Bit Clear
   MVN = 15,  // Move Not
-  kMaxOperand = 16
+  ORN = 16,  // Logical OR NOT.
+  kMaxOperand = 17
 };
 std::ostream& operator<<(std::ostream& os, const Opcode& rhs);
 

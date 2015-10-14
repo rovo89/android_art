@@ -238,6 +238,7 @@ TEST(Thumb2AssemblerTest, DataProcessingRegister) {
   __ sub(R0, R1, ShifterOperand(R2), AL, kCcKeep);
   __ and_(R0, R1, ShifterOperand(R2), AL, kCcKeep);
   __ orr(R0, R1, ShifterOperand(R2), AL, kCcKeep);
+  __ orn(R0, R1, ShifterOperand(R2), AL, kCcKeep);
   __ eor(R0, R1, ShifterOperand(R2), AL, kCcKeep);
   __ bic(R0, R1, ShifterOperand(R2), AL, kCcKeep);
   __ adc(R0, R1, ShifterOperand(R2), AL, kCcKeep);
@@ -371,6 +372,7 @@ TEST(Thumb2AssemblerTest, DataProcessingImmediate) {
   __ sub(R0, R1, ShifterOperand(0x55));
   __ and_(R0, R1, ShifterOperand(0x55));
   __ orr(R0, R1, ShifterOperand(0x55));
+  __ orn(R0, R1, ShifterOperand(0x55));
   __ eor(R0, R1, ShifterOperand(0x55));
   __ bic(R0, R1, ShifterOperand(0x55));
   __ adc(R0, R1, ShifterOperand(0x55));
@@ -403,6 +405,7 @@ TEST(Thumb2AssemblerTest, DataProcessingModifiedImmediate) {
   __ sub(R0, R1, ShifterOperand(0x550055));
   __ and_(R0, R1, ShifterOperand(0x550055));
   __ orr(R0, R1, ShifterOperand(0x550055));
+  __ orn(R0, R1, ShifterOperand(0x550055));
   __ eor(R0, R1, ShifterOperand(0x550055));
   __ bic(R0, R1, ShifterOperand(0x550055));
   __ adc(R0, R1, ShifterOperand(0x550055));
