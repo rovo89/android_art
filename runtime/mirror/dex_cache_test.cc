@@ -20,9 +20,8 @@
 
 #include "class_linker.h"
 #include "common_runtime_test.h"
-#include "gc/heap.h"
-#include "mirror/object_array-inl.h"
-#include "mirror/object-inl.h"
+#include "linear_alloc.h"
+#include "mirror/class_loader-inl.h"
 #include "handle_scope-inl.h"
 #include "scoped_thread_state_change.h"
 
@@ -36,13 +35,31 @@ TEST_F(DexCacheTest, Open) {
   StackHandleScope<1> hs(soa.Self());
   ASSERT_TRUE(java_lang_dex_file_ != nullptr);
   Handle<DexCache> dex_cache(
-      hs.NewHandle(class_linker_->AllocDexCache(soa.Self(), *java_lang_dex_file_)));
+      hs.NewHandle(class_linker_->AllocDexCache(soa.Self(),
+                                                *java_lang_dex_file_,
+                                                Runtime::Current()->GetLinearAlloc())));
   ASSERT_TRUE(dex_cache.Get() != nullptr);
 
   EXPECT_EQ(java_lang_dex_file_->NumStringIds(), dex_cache->NumStrings());
   EXPECT_EQ(java_lang_dex_file_->NumTypeIds(),   dex_cache->NumResolvedTypes());
   EXPECT_EQ(java_lang_dex_file_->NumMethodIds(), dex_cache->NumResolvedMethods());
   EXPECT_EQ(java_lang_dex_file_->NumFieldIds(),  dex_cache->NumResolvedFields());
+}
+
+TEST_F(DexCacheTest, LinearAlloc) {
+  ScopedObjectAccess soa(Thread::Current());
+  jobject jclass_loader(LoadDex("Main"));
+  ASSERT_TRUE(jclass_loader != nullptr);
+  Runtime* const runtime = Runtime::Current();
+  ClassLinker* const class_linker = runtime->GetClassLinker();
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
+      soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+  mirror::Class* klass = class_linker->FindClass(soa.Self(), "LMain;", class_loader);
+  ASSERT_TRUE(klass != nullptr);
+  LinearAlloc* const linear_alloc = klass->GetClassLoader()->GetAllocator();
+  EXPECT_NE(linear_alloc, runtime->GetLinearAlloc());
+  EXPECT_TRUE(linear_alloc->Contains(klass->GetDexCache()->GetResolvedMethods()));
 }
 
 }  // namespace mirror

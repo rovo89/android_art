@@ -370,7 +370,9 @@ inline int CompilerDriver::IsFastInvoke(
           nullptr, kVirtual);
     } else {
       StackHandleScope<1> hs(soa.Self());
-      auto target_dex_cache(hs.NewHandle(class_linker->RegisterDexFile(*devirt_target->dex_file)));
+      auto target_dex_cache(hs.NewHandle(class_linker->RegisterDexFile(
+          *devirt_target->dex_file,
+          class_linker->GetOrCreateAllocatorForClassLoader(class_loader.Get()))));
       called_method = class_linker->ResolveMethod(
           *devirt_target->dex_file, devirt_target->dex_method_index, target_dex_cache,
           class_loader, nullptr, kVirtual);

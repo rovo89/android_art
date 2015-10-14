@@ -264,10 +264,12 @@ static jclass DexFile_defineClassNative(JNIEnv* env,
     if (dex_class_def != nullptr) {
       ScopedObjectAccess soa(env);
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-      class_linker->RegisterDexFile(*dex_file);
       StackHandleScope<1> hs(soa.Self());
       Handle<mirror::ClassLoader> class_loader(
           hs.NewHandle(soa.Decode<mirror::ClassLoader*>(javaLoader)));
+      class_linker->RegisterDexFile(
+          *dex_file,
+          class_linker->GetOrCreateAllocatorForClassLoader(class_loader.Get()));
       mirror::Class* result = class_linker->DefineClass(soa.Self(),
                                                         descriptor.c_str(),
                                                         hash,
