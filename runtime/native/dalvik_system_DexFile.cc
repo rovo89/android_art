@@ -74,7 +74,7 @@ static jlongArray ConvertDexFilesToJavaArray(JNIEnv* env,
                                              const OatFile* oat_file,
                                              std::vector<std::unique_ptr<const DexFile>>& vec) {
   // Add one for the oat file.
-  jlongArray long_array = env->NewLongArray(static_cast<jsize>(1u + vec.size()));
+  jlongArray long_array = env->NewLongArray(static_cast<jsize>(kDexFileIndexStart + vec.size()));
   if (env->ExceptionCheck() == JNI_TRUE) {
     return nullptr;
   }
