@@ -31,6 +31,8 @@ public class TwoPath {
      * Conditionally uses one of the synchronized objects.
      */
     public static void twoPath(Object obj1, Object obj2, int x) {
+        Main.assertIsManaged();
+
         Object localObj;
 
         synchronized (obj1) {
