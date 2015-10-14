@@ -832,7 +832,7 @@ class ArmAssembler : public Assembler {
                                      uint32_t immediate,
                                      ShifterOperand* shifter_op) = 0;
 
-  virtual bool ShifterOperandCanAlwaysHold(uint32_t immediate);
+  virtual bool ShifterOperandCanAlwaysHold(uint32_t immediate) = 0;
 
   static bool IsInstructionForExceptionHandling(uintptr_t pc);
 
