@@ -34,6 +34,10 @@ ART_BUILD_TARGET_DEBUG ?= true
 ART_BUILD_HOST_NDEBUG ?= true
 ART_BUILD_HOST_DEBUG ?= true
 
+# Set this to change what opt level Art is built at.
+ART_DEBUG_OPT_FLAG ?= -O2
+ART_NDEBUG_OPT_FLAG ?= -O3
+
 # Enable the static builds only for checkbuilds.
 ifneq (,$(filter checkbuild,$(MAKECMDGOALS)))
   ART_BUILD_HOST_STATIC ?= true
@@ -319,11 +323,11 @@ endif
 
 # Cflags for non-debug ART and ART tools.
 art_non_debug_cflags := \
-  -O3
+  $(ART_NDEBUG_OPT_FLAG)
 
 # Cflags for debug ART and ART tools.
 art_debug_cflags := \
-  -O2 \
+  $(ART_DEBUG_OPT_FLAG) \
   -DDYNAMIC_ANNOTATIONS_ENABLED=1 \
   -DVIXL_DEBUG \
   -UNDEBUG
