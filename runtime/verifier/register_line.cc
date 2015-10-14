@@ -455,9 +455,9 @@ bool RegisterLine::MergeRegisters(MethodVerifier* verifier, const RegisterLine* 
           // Example (lock status in curly braces as pair of register and lock leels):
           //
           //                            lock v1 {v1=1}
-          //                        /                    \
+          //                        |                    |
           //              v0 = v1 {v0=1, v1=1}       v0 = v2 {v1=1}
-          //                        \                    /
+          //                        |                    |
           //                                 {v1=1}
           //                                         // Dropping v0, as the status can't be merged
           //                                         // but the lock info ("locked at depth 1" and)
@@ -495,9 +495,9 @@ bool RegisterLine::MergeRegisters(MethodVerifier* verifier, const RegisterLine* 
             //
             //                          lock v1 {v1=1}
             //                          lock v2 {v1=1, v2=2}
-            //                        /                      \
+            //                        |                      |
             //         v0 = v1 {v0=1, v1=1, v2=2}  v0 = v2 {v0=2, v1=1, v2=2}
-            //                        \                     /
+            //                        |                      |
             //                             {v1=1, v2=2}
             //                                           // Dropping v0, as the status can't be
             //                                           // merged but the lock info ("locked at
