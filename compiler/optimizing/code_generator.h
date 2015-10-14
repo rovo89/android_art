@@ -421,6 +421,8 @@ class CodeGenerator {
                                              Location runtime_type_index_location,
                                              Location runtime_return_location);
 
+  static void CreateSystemArrayCopyLocationSummary(HInvoke* invoke);
+
   void SetDisassemblyInformation(DisassemblyInformation* info) { disasm_info_ = info; }
   DisassemblyInformation* GetDisassemblyInformation() const { return disasm_info_; }
 
