@@ -391,6 +391,34 @@ void RegisterLine::PopMonitor(MethodVerifier* verifier, uint32_t reg_idx) {
   }
 }
 
+// Check whether there is another register in the search map that is locked the same way as the
+// register in the src map. This establishes an alias.
+static bool FindLockAliasedRegister(
+    uint32_t src,
+    const AllocationTrackingSafeMap<uint32_t, uint32_t, kAllocatorTagVerifier>& src_map,
+    const AllocationTrackingSafeMap<uint32_t, uint32_t, kAllocatorTagVerifier>& search_map) {
+  auto it = src_map.find(src);
+  if (it == src_map.end()) {
+    // "Not locked" is trivially aliased.
+    return true;
+  }
+  uint32_t src_lock_levels = it->second;
+  if (src_lock_levels == 0) {
+    // "Not locked" is trivially aliased.
+    return true;
+  }
+
+  // Scan the map for the same value.
+  for (const std::pair<uint32_t, uint32_t>& pair : search_map) {
+    if (pair.first != src && pair.second == src_lock_levels) {
+      return true;
+    }
+  }
+
+  // Nothing found, no alias.
+  return false;
+}
+
 bool RegisterLine::MergeRegisters(MethodVerifier* verifier, const RegisterLine* incoming_line) {
   bool changed = false;
   DCHECK(incoming_line != nullptr);
@@ -417,9 +445,29 @@ bool RegisterLine::MergeRegisters(MethodVerifier* verifier, const RegisterLine* 
         size_t depths = reg_to_lock_depths_.count(idx);
         size_t incoming_depths = incoming_line->reg_to_lock_depths_.count(idx);
         if (depths != incoming_depths) {
-          if (depths == 0 || incoming_depths == 0) {
-            reg_to_lock_depths_.erase(idx);
-          } else {
+          // Stack levels aren't matching. This is potentially bad, as we don't do a
+          // flow-sensitive analysis.
+          // However, this could be an alias of something locked in one path, and the alias was
+          // destroyed in another path. It is fine to drop this as long as there's another alias
+          // for the lock around. The last vanishing alias will then report that things would be
+          // left unlocked. We need to check for aliases for both lock levels.
+          //
+          // Example (lock status in curly braces as pair of register and lock leels):
+          //
+          //                            lock v1 {v1=1}
+          //                        /                    \
+          //              v0 = v1 {v0=1, v1=1}       v0 = v2 {v1=1}
+          //                        \                    /
+          //                                 {v1=1}
+          //                                         // Dropping v0, as the status can't be merged
+          //                                         // but the lock info ("locked at depth 1" and)
+          //                                         // "not locked at all") is available.
+          if (!FindLockAliasedRegister(idx,
+                                       reg_to_lock_depths_,
+                                       reg_to_lock_depths_) ||
+              !FindLockAliasedRegister(idx,
+                                       incoming_line->reg_to_lock_depths_,
+                                       reg_to_lock_depths_)) {
             verifier->Fail(VERIFY_ERROR_LOCKING);
             if (kDumpLockFailures) {
               LOG(WARNING) << "mismatched stack depths for register v" << idx
@@ -429,20 +477,51 @@ bool RegisterLine::MergeRegisters(MethodVerifier* verifier, const RegisterLine* 
             }
             break;
           }
+          // We found aliases, set this to zero.
+          reg_to_lock_depths_.erase(idx);
         } else if (depths > 0) {
           // Check whether they're actually the same levels.
           uint32_t locked_levels = reg_to_lock_depths_.find(idx)->second;
           uint32_t incoming_locked_levels = incoming_line->reg_to_lock_depths_.find(idx)->second;
           if (locked_levels != incoming_locked_levels) {
-            verifier->Fail(VERIFY_ERROR_LOCKING);
-            if (kDumpLockFailures) {
-              LOG(WARNING) << "mismatched lock levels for register v" << idx << ": "
-                  << std::hex << locked_levels << std::dec  << " != "
-                  << std::hex << incoming_locked_levels << std::dec << " in "
-                  << PrettyMethod(verifier->GetMethodReference().dex_method_index,
-                                  *verifier->GetMethodReference().dex_file);
+            // Lock levels aren't matching. This is potentially bad, as we don't do a
+            // flow-sensitive analysis.
+            // However, this could be an alias of something locked in one path, and the alias was
+            // destroyed in another path. It is fine to drop this as long as there's another alias
+            // for the lock around. The last vanishing alias will then report that things would be
+            // left unlocked. We need to check for aliases for both lock levels.
+            //
+            // Example (lock status in curly braces as pair of register and lock leels):
+            //
+            //                          lock v1 {v1=1}
+            //                          lock v2 {v1=1, v2=2}
+            //                        /                      \
+            //         v0 = v1 {v0=1, v1=1, v2=2}  v0 = v2 {v0=2, v1=1, v2=2}
+            //                        \                     /
+            //                             {v1=1, v2=2}
+            //                                           // Dropping v0, as the status can't be
+            //                                           // merged but the lock info ("locked at
+            //                                           // depth 1" and "locked at depth 2") is
+            //                                           // available.
+            if (!FindLockAliasedRegister(idx,
+                                         reg_to_lock_depths_,
+                                         reg_to_lock_depths_) ||
+                !FindLockAliasedRegister(idx,
+                                         incoming_line->reg_to_lock_depths_,
+                                         reg_to_lock_depths_)) {
+              // No aliases for both current and incoming, we'll lose information.
+              verifier->Fail(VERIFY_ERROR_LOCKING);
+              if (kDumpLockFailures) {
+                LOG(WARNING) << "mismatched lock levels for register v" << idx << ": "
+                    << std::hex << locked_levels << std::dec  << " != "
+                    << std::hex << incoming_locked_levels << std::dec << " in "
+                    << PrettyMethod(verifier->GetMethodReference().dex_method_index,
+                                    *verifier->GetMethodReference().dex_file);
+              }
+              break;
             }
-            break;
+            // We found aliases, set this to zero.
+            reg_to_lock_depths_.erase(idx);
           }
         }
       }
