@@ -18,7 +18,7 @@
 
 namespace art {
 
-void Monitor::LogContentionEvent(Thread*, uint32_t, uint32_t, const char*, uint32_t) {
+void Monitor::LogContentionEvent(Thread*, uint32_t, uint32_t, const char*, int32_t) {
 }
 
 }  // namespace art
