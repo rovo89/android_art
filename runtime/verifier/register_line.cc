@@ -338,6 +338,8 @@ void RegisterLine::CheckLiteralOp(MethodVerifier* verifier, const Instruction* i
   }
 }
 
+static constexpr uint32_t kVirtualNullRegister = std::numeric_limits<uint32_t>::max();
+
 void RegisterLine::PushMonitor(MethodVerifier* verifier, uint32_t reg_idx, int32_t insn_idx) {
   const RegType& reg_type = GetRegisterType(verifier, reg_idx);
   if (!reg_type.IsReferenceTypes()) {
@@ -352,6 +354,12 @@ void RegisterLine::PushMonitor(MethodVerifier* verifier, uint32_t reg_idx, int32
     }
   } else {
     if (SetRegToLockDepth(reg_idx, monitors_.size())) {
+      // Null literals can establish aliases that we can't easily track. As such, handle the zero
+      // case as the 2^32-1 register (which isn't available in dex bytecode).
+      if (reg_type.IsZero()) {
+        SetRegToLockDepth(kVirtualNullRegister, monitors_.size());
+      }
+
       monitors_.push_back(insn_idx);
     } else {
       verifier->Fail(VERIFY_ERROR_LOCKING);
@@ -377,7 +385,19 @@ void RegisterLine::PopMonitor(MethodVerifier* verifier, uint32_t reg_idx) {
     }
   } else {
     monitors_.pop_back();
-    if (!IsSetLockDepth(reg_idx, monitors_.size())) {
+
+    bool success = IsSetLockDepth(reg_idx, monitors_.size());
+
+    if (!success && reg_type.IsZero()) {
+      // Null literals can establish aliases that we can't easily track. As such, handle the zero
+      // case as the 2^32-1 register (which isn't available in dex bytecode).
+      success = IsSetLockDepth(kVirtualNullRegister, monitors_.size());
+      if (success) {
+        reg_idx = kVirtualNullRegister;
+      }
+    }
+
+    if (!success) {
       verifier->Fail(VERIFY_ERROR_LOCKING);
       if (kDumpLockFailures) {
         LOG(WARNING) << "monitor-exit not unlocking the top of the monitor stack while verifying "
@@ -385,7 +405,8 @@ void RegisterLine::PopMonitor(MethodVerifier* verifier, uint32_t reg_idx) {
                                      *verifier->GetMethodReference().dex_file);
       }
     } else {
-      // Record the register was unlocked
+      // Record the register was unlocked. This clears all aliases, thus it will also clear the
+      // null lock, if necessary.
       ClearRegToLockDepth(reg_idx, monitors_.size());
     }
   }
