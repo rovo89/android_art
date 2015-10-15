@@ -126,61 +126,66 @@ bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method) {
   StackHandleScope<2> hs(self);
   self->AssertNoPendingException();
   Runtime* runtime = Runtime::Current();
+
+  // Check if the method is already compiled.
   if (runtime->GetJit()->GetCodeCache()->ContainsMethod(method)) {
     VLOG(jit) << "Already compiled " << PrettyMethod(method);
-    return true;  // Already compiled
+    return true;
   }
+
+  // Don't compile the method if we are supposed to be deoptimized.
+  if (runtime->GetInstrumentation()->AreAllMethodsDeoptimized()) {
+    return false;
+  }
+
+  // Ensure the class is initialized.
   Handle<mirror::Class> h_class(hs.NewHandle(method->GetDeclaringClass()));
-  {
-    TimingLogger::ScopedTiming t2("Initializing", &logger);
-    if (!runtime->GetClassLinker()->EnsureInitialized(self, h_class, true, true)) {
-      VLOG(jit) << "JIT failed to initialize " << PrettyMethod(method);
-      return false;
-    }
+  if (!runtime->GetClassLinker()->EnsureInitialized(self, h_class, true, true)) {
+    VLOG(jit) << "JIT failed to initialize " << PrettyMethod(method);
+    return false;
   }
-  const DexFile* dex_file = h_class->GetDexCache()->GetDexFile();
-  MethodReference method_ref(dex_file, method->GetDexMethodIndex());
-  // Only verify if we don't already have verification results.
-  if (verification_results_->GetVerifiedMethod(method_ref) == nullptr) {
-    TimingLogger::ScopedTiming t2("Verifying", &logger);
-    std::string error;
-    if (verifier::MethodVerifier::VerifyMethod(method, true, &error) ==
-        verifier::MethodVerifier::kHardFailure) {
-      VLOG(jit) << "Not compile method " << PrettyMethod(method)
-          << " due to verification failure " << error;
-      return false;
-    }
-  }
+
+  // Do the compilation.
   CompiledMethod* compiled_method = nullptr;
   {
     TimingLogger::ScopedTiming t2("Compiling", &logger);
     compiled_method = compiler_driver_->CompileArtMethod(self, method);
   }
+
+  // Trim maps to reduce memory usage.
+  // TODO: measure how much this increases compile time.
   {
     TimingLogger::ScopedTiming t2("TrimMaps", &logger);
-    // Trim maps to reduce memory usage, TODO: measure how much this increases compile time.
     runtime->GetArenaPool()->TrimMaps();
   }
+
+  // Check if we failed compiling.
   if (compiled_method == nullptr) {
     return false;
   }
+
   total_time_ += NanoTime() - start_time;
-  // Don't add the method if we are supposed to be deoptimized.
   bool result = false;
-  if (!runtime->GetInstrumentation()->AreAllMethodsDeoptimized()) {
-    const void* code = runtime->GetClassLinker()->GetOatMethodQuickCodeFor(method);
-    if (code != nullptr) {
-      // Already have some compiled code, just use this instead of linking.
-      // TODO: Fix recompilation.
-      method->SetEntryPointFromQuickCompiledCode(code);
+  const void* code = runtime->GetClassLinker()->GetOatMethodQuickCodeFor(method);
+
+  if (code != nullptr) {
+    // Already have some compiled code, just use this instead of linking.
+    // TODO: Fix recompilation.
+    method->SetEntryPointFromQuickCompiledCode(code);
+    result = true;
+  } else {
+    TimingLogger::ScopedTiming t2("LinkCode", &logger);
+    OatFile::OatMethod oat_method(nullptr, 0);
+    if (AddToCodeCache(method, compiled_method, &oat_method)) {
+      oat_method.LinkMethod(method);
+      CHECK(runtime->GetJit()->GetCodeCache()->ContainsMethod(method)) << PrettyMethod(method);
       result = true;
-    } else {
-      TimingLogger::ScopedTiming t2("MakeExecutable", &logger);
-      result = MakeExecutable(compiled_method, method);
     }
   }
+
   // Remove the compiled method to save memory.
-  compiler_driver_->RemoveCompiledMethod(method_ref);
+  compiler_driver_->RemoveCompiledMethod(
+      MethodReference(h_class->GetDexCache()->GetDexFile(), method->GetDexMethodIndex()));
   runtime->GetJit()->AddTimingLogger(logger);
   return result;
 }
@@ -189,41 +194,8 @@ CompilerCallbacks* JitCompiler::GetCompilerCallbacks() const {
   return callbacks_.get();
 }
 
-uint8_t* JitCompiler::WriteMethodHeaderAndCode(const CompiledMethod* compiled_method,
-                                               uint8_t* reserve_begin, uint8_t* reserve_end,
-                                               const uint8_t* mapping_table,
-                                               const uint8_t* vmap_table,
-                                               const uint8_t* gc_map) {
-  reserve_begin += sizeof(OatQuickMethodHeader);
-  reserve_begin = reinterpret_cast<uint8_t*>(
-      compiled_method->AlignCode(reinterpret_cast<uintptr_t>(reserve_begin)));
-  const auto* quick_code = compiled_method->GetQuickCode();
-  CHECK_LE(reserve_begin, reserve_end);
-  CHECK_LE(quick_code->size(), static_cast<size_t>(reserve_end - reserve_begin));
-  auto* code_ptr = reserve_begin;
-  OatQuickMethodHeader* method_header = reinterpret_cast<OatQuickMethodHeader*>(code_ptr) - 1;
-  // Construct the header last.
-  const auto frame_size_in_bytes = compiled_method->GetFrameSizeInBytes();
-  const auto core_spill_mask = compiled_method->GetCoreSpillMask();
-  const auto fp_spill_mask = compiled_method->GetFpSpillMask();
-  const auto code_size = quick_code->size();
-  CHECK_NE(code_size, 0U);
-  std::copy(quick_code->data(), quick_code->data() + code_size, code_ptr);
-  // After we are done writing we need to update the method header.
-  // Write out the method header last.
-  method_header = new(method_header) OatQuickMethodHeader(
-      (mapping_table == nullptr) ? 0 : code_ptr - mapping_table,
-      (vmap_table == nullptr) ? 0 : code_ptr - vmap_table,
-      (gc_map == nullptr) ? 0 : code_ptr - gc_map,
-      frame_size_in_bytes,
-      core_spill_mask,
-      fp_spill_mask,
-      code_size);
-  // Return the code ptr.
-  return code_ptr;
-}
-
-bool JitCompiler::AddToCodeCache(ArtMethod* method, const CompiledMethod* compiled_method,
+bool JitCompiler::AddToCodeCache(ArtMethod* method,
+                                 const CompiledMethod* compiled_method,
                                  OatFile::OatMethod* out_method) {
   Runtime* runtime = Runtime::Current();
   JitCodeCache* const code_cache = runtime->GetJit()->GetCodeCache();
@@ -233,7 +205,6 @@ bool JitCompiler::AddToCodeCache(ArtMethod* method, const CompiledMethod* compil
   }
   const auto code_size = quick_code->size();
   Thread* const self = Thread::Current();
-  const uint8_t* base = code_cache->CodeCachePtr();
   auto* const mapping_table = compiled_method->GetMappingTable();
   auto* const vmap_table = compiled_method->GetVmapTable();
   auto* const gc_map = compiled_method->GetGcMap();
@@ -266,45 +237,35 @@ bool JitCompiler::AddToCodeCache(ArtMethod* method, const CompiledMethod* compil
     }
   }
 
-  // Don't touch this until you protect / unprotect the code.
-  const size_t reserve_size = sizeof(OatQuickMethodHeader) + quick_code->size() + 32;
-  uint8_t* const code_reserve = code_cache->ReserveCode(self, reserve_size);
-  if (code_reserve == nullptr) {
+  uint8_t* const code = code_cache->CommitCode(self,
+                                               mapping_table_ptr,
+                                               vmap_table_ptr,
+                                               gc_map_ptr,
+                                               compiled_method->GetFrameSizeInBytes(),
+                                               compiled_method->GetCoreSpillMask(),
+                                               compiled_method->GetFpSpillMask(),
+                                               compiled_method->GetQuickCode()->data(),
+                                               compiled_method->GetQuickCode()->size());
+
+  if (code == nullptr) {
     return false;
   }
-  auto* code_ptr = WriteMethodHeaderAndCode(
-      compiled_method, code_reserve, code_reserve + reserve_size, mapping_table_ptr,
-      vmap_table_ptr, gc_map_ptr);
-
-  __builtin___clear_cache(reinterpret_cast<char*>(code_ptr),
-                          reinterpret_cast<char*>(code_ptr + quick_code->size()));
 
   const size_t thumb_offset = compiled_method->CodeDelta();
-  const uint32_t code_offset = code_ptr - base + thumb_offset;
-  *out_method = OatFile::OatMethod(base, code_offset);
+  const uint32_t code_offset = sizeof(OatQuickMethodHeader) + thumb_offset;
+  *out_method = OatFile::OatMethod(code, code_offset);
   DCHECK_EQ(out_method->GetGcMap(), gc_map_ptr);
   DCHECK_EQ(out_method->GetMappingTable(), mapping_table_ptr);
   DCHECK_EQ(out_method->GetVmapTable(), vmap_table_ptr);
   DCHECK_EQ(out_method->GetFrameSizeInBytes(), compiled_method->GetFrameSizeInBytes());
   DCHECK_EQ(out_method->GetCoreSpillMask(), compiled_method->GetCoreSpillMask());
   DCHECK_EQ(out_method->GetFpSpillMask(), compiled_method->GetFpSpillMask());
-  VLOG(jit)  << "JIT added " << PrettyMethod(method) << "@" << method << " ccache_size="
-      << PrettySize(code_cache->CodeCacheSize()) << ": " << reinterpret_cast<void*>(code_ptr)
-      << "," << reinterpret_cast<void*>(code_ptr + code_size);
-  return true;
-}
-
-bool JitCompiler::MakeExecutable(CompiledMethod* compiled_method, ArtMethod* method) {
-  CHECK(method != nullptr);
-  CHECK(compiled_method != nullptr);
-  OatFile::OatMethod oat_method(nullptr, 0);
-  if (!AddToCodeCache(method, compiled_method, &oat_method)) {
-    return false;
-  }
-  // TODO: Flush instruction cache.
-  oat_method.LinkMethod(method);
-  CHECK(Runtime::Current()->GetJit()->GetCodeCache()->ContainsMethod(method))
-      << PrettyMethod(method);
+  VLOG(jit)
+      << "JIT added "
+      << PrettyMethod(method) << "@" << method
+      << " ccache_size=" << PrettySize(code_cache->CodeCacheSize()) << ": "
+      << reinterpret_cast<void*>(code + code_offset)
+      << "," << reinterpret_cast<void*>(code + code_offset + code_size);
   return true;
 }
 

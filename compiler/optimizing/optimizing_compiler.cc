@@ -839,18 +839,26 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                                             Handle<mirror::DexCache> dex_cache) const {
   CompilerDriver* compiler_driver = GetCompilerDriver();
   CompiledMethod* method = nullptr;
-  const VerifiedMethod* verified_method = compiler_driver->GetVerifiedMethod(&dex_file, method_idx);
-  DCHECK(!verified_method->HasRuntimeThrow());
-  if (compiler_driver->IsMethodVerifiedWithoutFailures(method_idx, class_def_idx, dex_file)
-      || CanHandleVerificationFailure(verified_method)) {
-     method = TryCompile(code_item, access_flags, invoke_type, class_def_idx,
-                         method_idx, jclass_loader, dex_file, dex_cache);
-  } else {
-    if (compiler_driver->GetCompilerOptions().VerifyAtRuntime()) {
-      MaybeRecordStat(MethodCompilationStat::kNotCompiledVerifyAtRuntime);
+  if (Runtime::Current()->IsAotCompiler()) {
+    const VerifiedMethod* verified_method = compiler_driver->GetVerifiedMethod(&dex_file, method_idx);
+    DCHECK(!verified_method->HasRuntimeThrow());
+    if (compiler_driver->IsMethodVerifiedWithoutFailures(method_idx, class_def_idx, dex_file)
+        || CanHandleVerificationFailure(verified_method)) {
+       method = TryCompile(code_item, access_flags, invoke_type, class_def_idx,
+                           method_idx, jclass_loader, dex_file, dex_cache);
     } else {
-      MaybeRecordStat(MethodCompilationStat::kNotCompiledClassNotVerified);
+      if (compiler_driver->GetCompilerOptions().VerifyAtRuntime()) {
+        MaybeRecordStat(MethodCompilationStat::kNotCompiledVerifyAtRuntime);
+      } else {
+        MaybeRecordStat(MethodCompilationStat::kNotCompiledClassNotVerified);
+      }
     }
+  } else {
+    // This is for the JIT compiler, which has already ensured the class is verified.
+    // We can go straight to compiling.
+    DCHECK(Runtime::Current()->UseJit());
+    method = TryCompile(code_item, access_flags, invoke_type, class_def_idx,
+                        method_idx, jclass_loader, dex_file, dex_cache);
   }
 
   if (kIsDebugBuild &&
