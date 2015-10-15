@@ -211,19 +211,24 @@ TEST_ART_TIMING_SENSITIVE_RUN_TESTS := \
   055-enum-performance \
   133-static-invoke-super
 
+# disable timing sensitive tests on "dist" builds.
+ifdef dist_goal
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
+        $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+        $(IMAGE_TYPES), $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(TEST_ART_TIMING_SENSITIVE_RUN_TESTS), $(ALL_ADDRESS_SIZES))
+endif
+
 # Tests that require python3.
 TEST_ART_PYTHON3_DEPENDENCY_RUN_TESTS := \
   960-default-smali \
   961-default-iface-resolution-generated \
   964-default-iface-init-generated \
 
-# disable timing sensitive tests on "dist" builds.
-ifdef dist_goal
-  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
-        $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-        $(IMAGE_TYPES), $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(TEST_ART_TIMING_SENSITIVE_RUN_TESTS), $(ALL_ADDRESS_SIZES))
+# Check if we have python3 to run our tests.
+ifeq ($(wildcard /usr/bin/python3),)
+  $(warning "No python3 found. Disabling tests: $(TEST_ART_PYTHON3_DEPENDENCY_RUN_TESTS)")
 
-  # Currently disable tsts requiring python3.
+  # Currently disable tests requiring python3 when it is not installed.
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
         $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
         $(IMAGE_TYPES), $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(TEST_ART_PYTHON3_DEPENDENCY_RUN_TESTS), $(ALL_ADDRESS_SIZES))
