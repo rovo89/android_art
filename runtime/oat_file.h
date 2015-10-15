@@ -396,6 +396,10 @@ class OatDexFile FINAL {
   // Returns the offset to the OatClass information. Most callers should use GetOatClass.
   uint32_t GetOatClassOffset(uint16_t class_def_index) const;
 
+  const uint8_t* GetDexCacheArrays() const {
+    return dex_cache_arrays_;
+  }
+
   ~OatDexFile();
 
  private:
@@ -404,7 +408,8 @@ class OatDexFile FINAL {
              const std::string& canonical_dex_file_location,
              uint32_t dex_file_checksum,
              const uint8_t* dex_file_pointer,
-             const uint32_t* oat_class_offsets_pointer);
+             const uint32_t* oat_class_offsets_pointer,
+             const uint8_t* dex_cache_arrays);
 
   const OatFile* const oat_file_;
   const std::string dex_file_location_;
@@ -412,6 +417,7 @@ class OatDexFile FINAL {
   const uint32_t dex_file_location_checksum_;
   const uint8_t* const dex_file_pointer_;
   const uint32_t* const oat_class_offsets_pointer_;
+  const uint8_t* const dex_cache_arrays_;
 
   friend class OatFile;
   DISALLOW_COPY_AND_ASSIGN(OatDexFile);
