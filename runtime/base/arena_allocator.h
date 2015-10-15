@@ -106,7 +106,6 @@ enum ArenaAllocKind {
   kArenaAllocCodeGenerator,
   kArenaAllocParallelMoveResolver,
   kArenaAllocGraphChecker,
-  kArenaAllocLSE,
   kNumArenaAllocKinds
 };
 

@@ -58,7 +58,6 @@
 #include "intrinsics.h"
 #include "licm.h"
 #include "jni/quick/jni_compiler.h"
-#include "load_store_elimination.h"
 #include "nodes.h"
 #include "prepare_for_register_allocation.h"
 #include "reference_type_propagation.h"
@@ -461,7 +460,6 @@ static void RunOptimizations(HGraph* graph,
   SideEffectsAnalysis* side_effects = new (arena) SideEffectsAnalysis(graph);
   GVNOptimization* gvn = new (arena) GVNOptimization(graph, *side_effects);
   LICM* licm = new (arena) LICM(graph, *side_effects);
-  LoadStoreElimination* lse = new (arena) LoadStoreElimination(graph, *side_effects);
   HInductionVarAnalysis* induction = new (arena) HInductionVarAnalysis(graph);
   BoundsCheckElimination* bce = new (arena) BoundsCheckElimination(graph, induction);
   ReferenceTypePropagation* type_propagation =
@@ -514,7 +512,6 @@ static void RunOptimizations(HGraph* graph,
       induction,
       bce,
       simplify3,
-      lse,
       dce2,
       // The codegen has a few assumptions that only the instruction simplifier
       // can satisfy. For example, the code generator does not expect to see a

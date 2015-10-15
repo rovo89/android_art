@@ -29,10 +29,10 @@ public class Main {
   /// CHECK-NOT:      test
   /// CHECK:          ReturnVoid
   public static void test() {
-    Object[] array = new Object[2];
+    Object[] array = new Object[1];
     Object nonNull = array[0];
     nonNull.getClass(); // Ensure nonNull has an implicit null check.
-    array[1] = nonNull;
+    array[0] = nonNull;
   }
 
   public static void main(String[] args) {}
