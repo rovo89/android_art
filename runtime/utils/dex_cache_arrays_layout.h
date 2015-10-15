@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_UTILS_DEX_CACHE_ARRAYS_LAYOUT_H_
 #define ART_RUNTIME_UTILS_DEX_CACHE_ARRAYS_LAYOUT_H_
 
+#include "dex_file.h"
+
 namespace art {
 
 /**
@@ -35,6 +37,9 @@ class DexCacheArraysLayout {
         fields_offset_(0u),
         size_(0u) {
   }
+
+  // Construct a layout for a particular dex file header.
+  DexCacheArraysLayout(size_t pointer_size, const DexFile::Header& header);
 
   // Construct a layout for a particular dex file.
   DexCacheArraysLayout(size_t pointer_size, const DexFile* dex_file);
