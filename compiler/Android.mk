@@ -66,6 +66,7 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/builder.cc \
 	optimizing/code_generator.cc \
 	optimizing/code_generator_utils.cc \
+	optimizing/constant_area_fixups_x86.cc \
 	optimizing/constant_folding.cc \
 	optimizing/dead_code_elimination.cc \
 	optimizing/graph_checker.cc \
