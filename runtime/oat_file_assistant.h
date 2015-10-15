@@ -369,9 +369,7 @@ class OatFileAssistant {
   // remaining lifetime of the OatFileAssistant object.
   ScopedFlock flock_;
 
-  // In a properly constructed OatFileAssistant object, dex_location_ should
-  // never be null.
-  const char* dex_location_ = nullptr;
+  std::string dex_location_;
 
   // In a properly constructed OatFileAssistant object, isa_ should be either
   // the 32 or 64 bit variant for the current device.
