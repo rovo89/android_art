@@ -774,11 +774,12 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
                                                        &string_init_offset);
   // Replace calls to String.<init> with StringFactory.
   if (is_string_init) {
-    HInvokeStaticOrDirect::DispatchInfo dispatch_info = ComputeDispatchInfo(is_string_init,
-                                                                            string_init_offset,
-                                                                            target_method,
-                                                                            direct_method,
-                                                                            direct_code);
+    HInvokeStaticOrDirect::DispatchInfo dispatch_info = {
+        HInvokeStaticOrDirect::MethodLoadKind::kStringInit,
+        HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod,
+        dchecked_integral_cast<uint64_t>(string_init_offset),
+        0U
+    };
     HInvoke* invoke = new (arena_) HInvokeStaticOrDirect(
         arena_,
         number_of_arguments - 1,
@@ -841,11 +842,12 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
       clinit_check = ProcessClinitCheckForInvoke(dex_pc, method_idx, &clinit_check_requirement);
     }
 
-    HInvokeStaticOrDirect::DispatchInfo dispatch_info = ComputeDispatchInfo(is_string_init,
-                                                                            string_init_offset,
-                                                                            target_method,
-                                                                            direct_method,
-                                                                            direct_code);
+    HInvokeStaticOrDirect::DispatchInfo dispatch_info = {
+        HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod,
+        HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod,
+        0u,
+        0U
+    };
     invoke = new (arena_) HInvokeStaticOrDirect(arena_,
                                                 number_of_arguments,
                                                 return_type,
@@ -956,77 +958,6 @@ HClinitCheck* HGraphBuilder::ProcessClinitCheckForInvoke(
     }
   }
   return clinit_check;
-}
-
-HInvokeStaticOrDirect::DispatchInfo HGraphBuilder::ComputeDispatchInfo(
-    bool is_string_init,
-    int32_t string_init_offset,
-    MethodReference target_method,
-    uintptr_t direct_method,
-    uintptr_t direct_code) {
-  HInvokeStaticOrDirect::MethodLoadKind method_load_kind;
-  HInvokeStaticOrDirect::CodePtrLocation code_ptr_location;
-  uint64_t method_load_data = 0u;
-  uint64_t direct_code_ptr = 0u;
-
-  if (is_string_init) {
-    // TODO: Use direct_method and direct_code for the appropriate StringFactory method.
-    method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kStringInit;
-    code_ptr_location = HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod;
-    method_load_data = string_init_offset;
-  } else if (target_method.dex_file == outer_compilation_unit_->GetDexFile() &&
-      target_method.dex_method_index == outer_compilation_unit_->GetDexMethodIndex()) {
-    method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kRecursive;
-    code_ptr_location = HInvokeStaticOrDirect::CodePtrLocation::kCallSelf;
-  } else {
-    if (direct_method != 0u) {  // Should we use a direct pointer to the method?
-      if (direct_method != static_cast<uintptr_t>(-1)) {  // Is the method pointer known now?
-        method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress;
-        method_load_data = direct_method;
-      } else {  // The direct pointer will be known at link time.
-        method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kDirectAddressWithFixup;
-      }
-    } else {  // Use dex cache.
-      DCHECK(target_method.dex_file == dex_compilation_unit_->GetDexFile());
-      DexCacheArraysLayout layout =
-          compiler_driver_->GetDexCacheArraysLayout(target_method.dex_file);
-      if (layout.Valid()) {  // Can we use PC-relative access to the dex cache arrays?
-        method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative;
-        method_load_data = layout.MethodOffset(target_method.dex_method_index);
-      } else {  // We must go through the ArtMethod's pointer to resolved methods.
-        method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod;
-      }
-    }
-    if (direct_code != 0u) {  // Should we use a direct pointer to the code?
-      if (direct_code != static_cast<uintptr_t>(-1)) {  // Is the code pointer known now?
-        code_ptr_location = HInvokeStaticOrDirect::CodePtrLocation::kCallDirect;
-        direct_code_ptr = direct_code;
-      } else if (compiler_driver_->IsImage() ||
-          target_method.dex_file == dex_compilation_unit_->GetDexFile()) {
-        // Use PC-relative calls for invokes within a multi-dex oat file.
-        // TODO: Recognize when the target dex file is within the current oat file for
-        // app compilation. At the moment we recognize only the boot image as multi-dex.
-        // NOTE: This will require changing the ARM backend which currently falls
-        // through from kCallPCRelative to kDirectCodeFixup for different dex files.
-        code_ptr_location = HInvokeStaticOrDirect::CodePtrLocation::kCallPCRelative;
-      } else {  // The direct pointer will be known at link time.
-        // NOTE: This is used for app->boot calls when compiling an app against
-        // a relocatable but not yet relocated image.
-        code_ptr_location = HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup;
-      }
-    } else {  // We must use the code pointer from the ArtMethod.
-      code_ptr_location = HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod;
-    }
-  }
-
-  if (graph_->IsDebuggable()) {
-    // For debuggable apps always use the code pointer from ArtMethod
-    // so that we don't circumvent instrumentation stubs if installed.
-    code_ptr_location = HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod;
-  }
-
-  return HInvokeStaticOrDirect::DispatchInfo {
-    method_load_kind, code_ptr_location, method_load_data, direct_code_ptr };
 }
 
 bool HGraphBuilder::SetupInvokeArguments(HInvoke* invoke,

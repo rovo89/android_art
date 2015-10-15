@@ -2786,6 +2786,13 @@ static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorARM64* codege
   return false;
 }
 
+HInvokeStaticOrDirect::DispatchInfo CodeGeneratorARM64::GetSupportedInvokeStaticOrDirectDispatch(
+      const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
+      MethodReference target_method ATTRIBUTE_UNUSED) {
+  // On arm64 we support all dispatch types.
+  return desired_dispatch_info;
+}
+
 void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) {
   // For better instruction scheduling we load the direct code pointer before the method pointer.
   bool direct_code_loaded = false;

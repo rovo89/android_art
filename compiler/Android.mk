@@ -87,6 +87,7 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/primitive_type_propagation.cc \
 	optimizing/reference_type_propagation.cc \
 	optimizing/register_allocator.cc \
+	optimizing/sharpening.cc \
 	optimizing/side_effects_analysis.cc \
 	optimizing/ssa_builder.cc \
 	optimizing/ssa_liveness_analysis.cc \
