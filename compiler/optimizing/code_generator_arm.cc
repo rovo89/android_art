@@ -409,7 +409,7 @@ class ArraySetSlowPathARM : public SlowPathCode {
 #undef __
 #define __ down_cast<ArmAssembler*>(GetAssembler())->
 
-inline Condition ARMSignedOrFPCondition(IfCondition cond) {
+inline Condition ARMCondition(IfCondition cond) {
   switch (cond) {
     case kCondEQ: return EQ;
     case kCondNE: return NE;
@@ -417,19 +417,30 @@ inline Condition ARMSignedOrFPCondition(IfCondition cond) {
     case kCondLE: return LE;
     case kCondGT: return GT;
     case kCondGE: return GE;
+    case kCondB:  return LO;
+    case kCondBE: return LS;
+    case kCondA:  return HI;
+    case kCondAE: return HS;
   }
   LOG(FATAL) << "Unreachable";
   UNREACHABLE();
 }
 
+// Maps signed condition to unsigned condition.
 inline Condition ARMUnsignedCondition(IfCondition cond) {
   switch (cond) {
     case kCondEQ: return EQ;
     case kCondNE: return NE;
+    // Signed to unsigned.
     case kCondLT: return LO;
     case kCondLE: return LS;
     case kCondGT: return HI;
     case kCondGE: return HS;
+    // Unsigned remain unchanged.
+    case kCondB:  return LO;
+    case kCondBE: return LS;
+    case kCondA:  return HI;
+    case kCondAE: return HS;
   }
   LOG(FATAL) << "Unreachable";
   UNREACHABLE();
@@ -1149,12 +1160,13 @@ void InstructionCodeGeneratorARM::GenerateFPJumps(HCondition* cond,
                                                   Label* true_label,
                                                   Label* false_label) {
   __ vmstat();  // transfer FP status register to ARM APSR.
+  // TODO: merge into a single branch (except "equal or unordered" and "not equal")
   if (cond->IsFPConditionTrueIfNaN()) {
     __ b(true_label, VS);  // VS for unordered.
   } else if (cond->IsFPConditionFalseIfNaN()) {
     __ b(false_label, VS);  // VS for unordered.
   }
-  __ b(true_label, ARMSignedOrFPCondition(cond->GetCondition()));
+  __ b(true_label, ARMCondition(cond->GetCondition()));
 }
 
 void InstructionCodeGeneratorARM::GenerateLongComparesAndJumps(HCondition* cond,
@@ -1169,10 +1181,11 @@ void InstructionCodeGeneratorARM::GenerateLongComparesAndJumps(HCondition* cond,
   Register left_low = left.AsRegisterPairLow<Register>();
   IfCondition true_high_cond = if_cond;
   IfCondition false_high_cond = cond->GetOppositeCondition();
-  Condition final_condition = ARMUnsignedCondition(if_cond);
+  Condition final_condition = ARMUnsignedCondition(if_cond);  // unsigned on lower part
 
   // Set the conditions for the test, remembering that == needs to be
   // decided using the low words.
+  // TODO: consider avoiding jumps with temporary and CMP low+SBC high
   switch (if_cond) {
     case kCondEQ:
     case kCondNE:
@@ -1190,6 +1203,18 @@ void InstructionCodeGeneratorARM::GenerateLongComparesAndJumps(HCondition* cond,
     case kCondGE:
       true_high_cond = kCondGT;
       break;
+    case kCondB:
+      false_high_cond = kCondA;
+      break;
+    case kCondBE:
+      true_high_cond = kCondB;
+      break;
+    case kCondA:
+      false_high_cond = kCondB;
+      break;
+    case kCondAE:
+      true_high_cond = kCondA;
+      break;
   }
   if (right.IsConstant()) {
     int64_t value = right.GetConstant()->AsLongConstant()->GetValue();
@@ -1198,12 +1223,12 @@ void InstructionCodeGeneratorARM::GenerateLongComparesAndJumps(HCondition* cond,
 
     GenerateCompareWithImmediate(left_high, val_high);
     if (if_cond == kCondNE) {
-      __ b(true_label, ARMSignedOrFPCondition(true_high_cond));
+      __ b(true_label, ARMCondition(true_high_cond));
     } else if (if_cond == kCondEQ) {
-      __ b(false_label, ARMSignedOrFPCondition(false_high_cond));
+      __ b(false_label, ARMCondition(false_high_cond));
     } else {
-      __ b(true_label, ARMSignedOrFPCondition(true_high_cond));
-      __ b(false_label, ARMSignedOrFPCondition(false_high_cond));
+      __ b(true_label, ARMCondition(true_high_cond));
+      __ b(false_label, ARMCondition(false_high_cond));
     }
     // Must be equal high, so compare the lows.
     GenerateCompareWithImmediate(left_low, val_low);
@@ -1213,17 +1238,18 @@ void InstructionCodeGeneratorARM::GenerateLongComparesAndJumps(HCondition* cond,
 
     __ cmp(left_high, ShifterOperand(right_high));
     if (if_cond == kCondNE) {
-      __ b(true_label, ARMSignedOrFPCondition(true_high_cond));
+      __ b(true_label, ARMCondition(true_high_cond));
     } else if (if_cond == kCondEQ) {
-      __ b(false_label, ARMSignedOrFPCondition(false_high_cond));
+      __ b(false_label, ARMCondition(false_high_cond));
     } else {
-      __ b(true_label, ARMSignedOrFPCondition(true_high_cond));
-      __ b(false_label, ARMSignedOrFPCondition(false_high_cond));
+      __ b(true_label, ARMCondition(true_high_cond));
+      __ b(false_label, ARMCondition(false_high_cond));
     }
     // Must be equal high, so compare the lows.
     __ cmp(left_low, ShifterOperand(right_low));
   }
   // The last comparison might be unsigned.
+  // TODO: optimize cases where this is always true/false
   __ b(true_label, final_condition);
 }
 
@@ -1315,7 +1341,7 @@ void InstructionCodeGeneratorARM::GenerateTestAndBranch(HInstruction* instructio
         DCHECK(right.IsConstant());
         GenerateCompareWithImmediate(left, CodeGenerator::GetInt32ValueOf(right.GetConstant()));
       }
-      __ b(true_target, ARMSignedOrFPCondition(cond->AsCondition()->GetCondition()));
+      __ b(true_target, ARMCondition(cond->AsCondition()->GetCondition()));
     }
   }
   if (false_target != nullptr) {
@@ -1417,11 +1443,11 @@ void InstructionCodeGeneratorARM::VisitCondition(HCondition* cond) {
         GenerateCompareWithImmediate(left.AsRegister<Register>(),
                                      CodeGenerator::GetInt32ValueOf(right.GetConstant()));
       }
-      __ it(ARMSignedOrFPCondition(cond->GetCondition()), kItElse);
+      __ it(ARMCondition(cond->GetCondition()), kItElse);
       __ mov(locations->Out().AsRegister<Register>(), ShifterOperand(1),
-             ARMSignedOrFPCondition(cond->GetCondition()));
+             ARMCondition(cond->GetCondition()));
       __ mov(locations->Out().AsRegister<Register>(), ShifterOperand(0),
-             ARMSignedOrFPCondition(cond->GetOppositeCondition()));
+             ARMCondition(cond->GetOppositeCondition()));
       return;
     }
     case Primitive::kPrimLong:
@@ -1497,6 +1523,38 @@ void LocationsBuilderARM::VisitGreaterThanOrEqual(HGreaterThanOrEqual* comp) {
 }
 
 void InstructionCodeGeneratorARM::VisitGreaterThanOrEqual(HGreaterThanOrEqual* comp) {
+  VisitCondition(comp);
+}
+
+void LocationsBuilderARM::VisitBelow(HBelow* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorARM::VisitBelow(HBelow* comp) {
+  VisitCondition(comp);
+}
+
+void LocationsBuilderARM::VisitBelowOrEqual(HBelowOrEqual* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorARM::VisitBelowOrEqual(HBelowOrEqual* comp) {
+  VisitCondition(comp);
+}
+
+void LocationsBuilderARM::VisitAbove(HAbove* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorARM::VisitAbove(HAbove* comp) {
+  VisitCondition(comp);
+}
+
+void LocationsBuilderARM::VisitAboveOrEqual(HAboveOrEqual* comp) {
+  VisitCondition(comp);
+}
+
+void InstructionCodeGeneratorARM::VisitAboveOrEqual(HAboveOrEqual* comp) {
   VisitCondition(comp);
 }
 

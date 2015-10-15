@@ -69,19 +69,17 @@ static HInstruction* GetOppositeCondition(HInstruction* cond) {
   if (cond->IsCondition()) {
     HInstruction* lhs = cond->InputAt(0);
     HInstruction* rhs = cond->InputAt(1);
-    if (cond->IsEqual()) {
-      return new (allocator) HNotEqual(lhs, rhs);
-    } else if (cond->IsNotEqual()) {
-      return new (allocator) HEqual(lhs, rhs);
-    } else if (cond->IsLessThan()) {
-      return new (allocator) HGreaterThanOrEqual(lhs, rhs);
-    } else if (cond->IsLessThanOrEqual()) {
-      return new (allocator) HGreaterThan(lhs, rhs);
-    } else if (cond->IsGreaterThan()) {
-      return new (allocator) HLessThanOrEqual(lhs, rhs);
-    } else {
-      DCHECK(cond->IsGreaterThanOrEqual());
-      return new (allocator) HLessThan(lhs, rhs);
+    switch (cond->AsCondition()->GetOppositeCondition()) {  // get *opposite*
+      case kCondEQ: return new (allocator) HEqual(lhs, rhs);
+      case kCondNE: return new (allocator) HNotEqual(lhs, rhs);
+      case kCondLT: return new (allocator) HLessThan(lhs, rhs);
+      case kCondLE: return new (allocator) HLessThanOrEqual(lhs, rhs);
+      case kCondGT: return new (allocator) HGreaterThan(lhs, rhs);
+      case kCondGE: return new (allocator) HGreaterThanOrEqual(lhs, rhs);
+      case kCondB:  return new (allocator) HBelow(lhs, rhs);
+      case kCondBE: return new (allocator) HBelowOrEqual(lhs, rhs);
+      case kCondA:  return new (allocator) HAbove(lhs, rhs);
+      case kCondAE: return new (allocator) HAboveOrEqual(lhs, rhs);
     }
   } else if (cond->IsIntConstant()) {
     HIntConstant* int_const = cond->AsIntConstant();
@@ -91,11 +89,10 @@ static HInstruction* GetOppositeCondition(HInstruction* cond) {
       DCHECK(int_const->IsOne());
       return graph->GetIntConstant(0);
     }
-  } else {
-    // General case when 'cond' is another instruction of type boolean,
-    // as verified by SSAChecker.
-    return new (allocator) HBooleanNot(cond);
   }
+  // General case when 'cond' is another instruction of type boolean,
+  // as verified by SSAChecker.
+  return new (allocator) HBooleanNot(cond);
 }
 
 void HBooleanSimplifier::TryRemovingBooleanSelection(HBasicBlock* block) {
