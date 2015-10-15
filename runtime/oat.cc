@@ -134,6 +134,9 @@ bool OatHeader::IsValid() const {
   if (!IsAligned<kPageSize>(image_patch_delta_)) {
     return false;
   }
+  if (!IsValidInstructionSet(instruction_set_)) {
+    return false;
+  }
   return true;
 }
 
@@ -155,6 +158,9 @@ std::string OatHeader::GetValidationErrorMessage() const {
   }
   if (!IsAligned<kPageSize>(image_patch_delta_)) {
     return "Image patch delta not page-aligned.";
+  }
+  if (!IsValidInstructionSet(instruction_set_)) {
+    return StringPrintf("Invalid instruction set, %d.", static_cast<int>(instruction_set_));
   }
   return "";
 }

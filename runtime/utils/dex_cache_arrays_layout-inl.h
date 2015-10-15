@@ -27,18 +27,23 @@
 
 namespace art {
 
-inline DexCacheArraysLayout::DexCacheArraysLayout(size_t pointer_size, const DexFile* dex_file)
+inline DexCacheArraysLayout::DexCacheArraysLayout(size_t pointer_size,
+                                                  const DexFile::Header& header)
     : pointer_size_(pointer_size),
       /* types_offset_ is always 0u, so it's constexpr */
       methods_offset_(types_offset_ +
-                      RoundUp(TypesSize(dex_file->NumTypeIds()), MethodsAlignment())),
+                      RoundUp(TypesSize(header.type_ids_size_), MethodsAlignment())),
       strings_offset_(methods_offset_ +
-                      RoundUp(MethodsSize(dex_file->NumMethodIds()), StringsAlignment())),
+                      RoundUp(MethodsSize(header.method_ids_size_), StringsAlignment())),
       fields_offset_(strings_offset_ +
-                     RoundUp(StringsSize(dex_file->NumStringIds()), FieldsAlignment())),
+                     RoundUp(StringsSize(header.string_ids_size_), FieldsAlignment())),
       size_(fields_offset_ +
-            RoundUp(FieldsSize(dex_file->NumFieldIds()), Alignment())) {
+            RoundUp(FieldsSize(header.field_ids_size_), Alignment())) {
   DCHECK(ValidPointerSize(pointer_size)) << pointer_size;
+}
+
+inline DexCacheArraysLayout::DexCacheArraysLayout(size_t pointer_size, const DexFile* dex_file)
+    : DexCacheArraysLayout(pointer_size, dex_file->GetHeader()) {
 }
 
 inline size_t DexCacheArraysLayout::Alignment() const {
