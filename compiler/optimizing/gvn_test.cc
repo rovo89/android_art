@@ -46,7 +46,6 @@ TEST(GVNTest, LocalFieldElimination) {
                                                            MemberOffset(42),
                                                            false,
                                                            kUnknownFieldIndex,
-                                                           kUnknownClassDefIndex,
                                                            graph->GetDexFile(),
                                                            dex_cache,
                                                            0));
@@ -55,7 +54,6 @@ TEST(GVNTest, LocalFieldElimination) {
                                                            MemberOffset(42),
                                                            false,
                                                            kUnknownFieldIndex,
-                                                           kUnknownClassDefIndex,
                                                            graph->GetDexFile(),
                                                            dex_cache,
                                                            0));
@@ -65,7 +63,6 @@ TEST(GVNTest, LocalFieldElimination) {
                                                            MemberOffset(43),
                                                            false,
                                                            kUnknownFieldIndex,
-                                                           kUnknownClassDefIndex,
                                                            graph->GetDexFile(),
                                                            dex_cache,
                                                            0));
@@ -77,7 +74,6 @@ TEST(GVNTest, LocalFieldElimination) {
                                                            MemberOffset(42),
                                                            false,
                                                            kUnknownFieldIndex,
-                                                           kUnknownClassDefIndex,
                                                            graph->GetDexFile(),
                                                            dex_cache,
                                                            0));
@@ -86,7 +82,6 @@ TEST(GVNTest, LocalFieldElimination) {
                                                            MemberOffset(42),
                                                            false,
                                                            kUnknownFieldIndex,
-                                                           kUnknownClassDefIndex,
                                                            graph->GetDexFile(),
                                                            dex_cache,
                                                            0));
@@ -127,7 +122,6 @@ TEST(GVNTest, GlobalFieldElimination) {
                                                            MemberOffset(42),
                                                            false,
                                                            kUnknownFieldIndex,
-                                                           kUnknownClassDefIndex,
                                                            graph->GetDexFile(),
                                                            dex_cache,
                                                            0));
@@ -150,7 +144,6 @@ TEST(GVNTest, GlobalFieldElimination) {
                                                           MemberOffset(42),
                                                           false,
                                                           kUnknownFieldIndex,
-                                                          kUnknownClassDefIndex,
                                                           graph->GetDexFile(),
                                                           dex_cache,
                                                           0));
@@ -160,7 +153,6 @@ TEST(GVNTest, GlobalFieldElimination) {
                                                            MemberOffset(42),
                                                            false,
                                                            kUnknownFieldIndex,
-                                                           kUnknownClassDefIndex,
                                                            graph->GetDexFile(),
                                                            dex_cache,
                                                            0));
@@ -170,7 +162,6 @@ TEST(GVNTest, GlobalFieldElimination) {
                                                           MemberOffset(42),
                                                           false,
                                                           kUnknownFieldIndex,
-                                                          kUnknownClassDefIndex,
                                                           graph->GetDexFile(),
                                                           dex_cache,
                                                           0));
@@ -208,7 +199,6 @@ TEST(GVNTest, LoopFieldElimination) {
                                                            MemberOffset(42),
                                                            false,
                                                            kUnknownFieldIndex,
-                                                           kUnknownClassDefIndex,
                                                            graph->GetDexFile(),
                                                            dex_cache,
                                                            0));
@@ -231,7 +221,6 @@ TEST(GVNTest, LoopFieldElimination) {
                                                                  MemberOffset(42),
                                                                  false,
                                                                  kUnknownFieldIndex,
-                                                                 kUnknownClassDefIndex,
                                                                  graph->GetDexFile(),
                                                                  dex_cache,
                                                                  0));
@@ -246,7 +235,6 @@ TEST(GVNTest, LoopFieldElimination) {
                                                                MemberOffset(42),
                                                                false,
                                                                kUnknownFieldIndex,
-                                                               kUnknownClassDefIndex,
                                                                graph->GetDexFile(),
                                                                dex_cache,
                                                                0));
@@ -256,7 +244,6 @@ TEST(GVNTest, LoopFieldElimination) {
                                                                MemberOffset(42),
                                                                false,
                                                                kUnknownFieldIndex,
-                                                               kUnknownClassDefIndex,
                                                                graph->GetDexFile(),
                                                                dex_cache,
                                                                0));
@@ -268,7 +255,6 @@ TEST(GVNTest, LoopFieldElimination) {
                                                           MemberOffset(42),
                                                           false,
                                                           kUnknownFieldIndex,
-                                                          kUnknownClassDefIndex,
                                                           graph->GetDexFile(),
                                                           dex_cache,
                                                           0));
@@ -366,7 +352,6 @@ TEST(GVNTest, LoopSideEffects) {
                                                              MemberOffset(42),
                                                              false,
                                                              kUnknownFieldIndex,
-                                                             kUnknownClassDefIndex,
                                                              graph->GetDexFile(),
                                                              dex_cache,
                                                              0));
@@ -391,7 +376,6 @@ TEST(GVNTest, LoopSideEffects) {
                                            MemberOffset(42),
                                            false,
                                            kUnknownFieldIndex,
-                                           kUnknownClassDefIndex,
                                            graph->GetDexFile(),
                                            dex_cache,
                                            0),
@@ -417,7 +401,6 @@ TEST(GVNTest, LoopSideEffects) {
                                            MemberOffset(42),
                                            false,
                                            kUnknownFieldIndex,
-                                           kUnknownClassDefIndex,
                                            graph->GetDexFile(),
                                            dex_cache,
                                            0),
