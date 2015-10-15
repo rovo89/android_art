@@ -46,6 +46,7 @@
 #include "os.h"
 #include "runtime.h"
 #include "utils.h"
+#include "utils/dex_cache_arrays_layout-inl.h"
 #include "vmap_table.h"
 
 namespace art {
@@ -432,6 +433,8 @@ bool OatFile::Setup(const char* abs_dex_location, std::string* error_msg) {
     return false;
   }
 
+  size_t pointer_size = GetInstructionSetPointerSize(GetOatHeader().GetInstructionSet());
+  const uint8_t* dex_cache_arrays = bss_begin_;
   uint32_t dex_file_count = GetOatHeader().GetDexFileCount();
   oat_dex_files_storage_.reserve(dex_file_count);
   for (size_t i = 0; i < dex_file_count; i++) {
@@ -513,6 +516,22 @@ bool OatFile::Setup(const char* abs_dex_location, std::string* error_msg) {
       return false;
     }
 
+    const uint8_t* current_dex_cache_arrays = nullptr;
+    if (dex_cache_arrays != nullptr) {
+      DexCacheArraysLayout layout(pointer_size, *header);
+      if (layout.Size() != 0u) {
+        if (static_cast<size_t>(bss_end_ - dex_cache_arrays) < layout.Size()) {
+          *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd for '%s' with "
+                                    "truncated dex cache arrays, %zd < %zd.",
+                                    GetLocation().c_str(), i, dex_file_location.c_str(),
+                                    static_cast<size_t>(bss_end_ - dex_cache_arrays), layout.Size());
+          return false;
+        }
+        current_dex_cache_arrays = dex_cache_arrays;
+        dex_cache_arrays += layout.Size();
+      }
+    }
+
     std::string canonical_location = DexFile::GetDexCanonicalLocation(dex_file_location.c_str());
 
     // Create the OatDexFile and add it to the owning container.
@@ -521,7 +540,8 @@ bool OatFile::Setup(const char* abs_dex_location, std::string* error_msg) {
                                               canonical_location,
                                               dex_file_checksum,
                                               dex_file_pointer,
-                                              methods_offsets_pointer);
+                                              methods_offsets_pointer,
+                                              current_dex_cache_arrays);
     oat_dex_files_storage_.push_back(oat_dex_file);
 
     // Add the location and canonical location (if different) to the oat_dex_files_ table.
@@ -531,6 +551,15 @@ bool OatFile::Setup(const char* abs_dex_location, std::string* error_msg) {
       StringPiece canonical_key(oat_dex_file->GetCanonicalDexFileLocation());
       oat_dex_files_.Put(canonical_key, oat_dex_file);
     }
+  }
+
+  if (dex_cache_arrays != bss_end_) {
+    // We expect the bss section to be either empty (dex_cache_arrays and bss_end_
+    // both null) or contain just the dex cache arrays and nothing else.
+    *error_msg = StringPrintf("In oat file '%s' found unexpected bss size bigger by %zd bytes.",
+                              GetLocation().c_str(),
+                              static_cast<size_t>(bss_end_ - dex_cache_arrays));
+    return false;
   }
   return true;
 }
@@ -634,13 +663,15 @@ OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
                                 const std::string& canonical_dex_file_location,
                                 uint32_t dex_file_location_checksum,
                                 const uint8_t* dex_file_pointer,
-                                const uint32_t* oat_class_offsets_pointer)
+                                const uint32_t* oat_class_offsets_pointer,
+                                const uint8_t* dex_cache_arrays)
     : oat_file_(oat_file),
       dex_file_location_(dex_file_location),
       canonical_dex_file_location_(canonical_dex_file_location),
       dex_file_location_checksum_(dex_file_location_checksum),
       dex_file_pointer_(dex_file_pointer),
-      oat_class_offsets_pointer_(oat_class_offsets_pointer) {}
+      oat_class_offsets_pointer_(oat_class_offsets_pointer),
+      dex_cache_arrays_(dex_cache_arrays) {}
 
 OatFile::OatDexFile::~OatDexFile() {}
 
