@@ -131,6 +131,7 @@ class RosAlloc {
 
    private:
     Slot* next_;  // Next slot in the list.
+    friend class RosAlloc;
   };
 
   // We use the tail (kUseTail == true) for the bulk or thread-local free lists to avoid the need to
@@ -302,6 +303,7 @@ class RosAlloc {
     // free without traversing the whole free list.
     uint32_t size_;
     uint32_t padding_ ATTRIBUTE_UNUSED;
+    friend class RosAlloc;
   };
 
   // Represents a run of memory slots of the same size.
@@ -482,7 +484,7 @@ class RosAlloc {
   static constexpr uint8_t kMagicNumFree = 43;
   // The number of size brackets. Sync this with the length of Thread::rosalloc_runs_.
   static constexpr size_t kNumOfSizeBrackets = kNumRosAllocThreadLocalSizeBrackets;
-  // The number of smaller size brackets that are 16 bytes apart.
+  // The number of smaller size brackets that are the quantum size apart.
   static constexpr size_t kNumOfQuantumSizeBrackets = 32;
   // The sizes (the slot sizes, in bytes) of the size brackets.
   static size_t bracketSizes[kNumOfSizeBrackets];
@@ -520,9 +522,7 @@ class RosAlloc {
   }
   // Returns true if the given allocation size is for a thread local allocation.
   static bool IsSizeForThreadLocal(size_t size) {
-    DCHECK_GT(kNumThreadLocalSizeBrackets, 0U);
-    size_t max_thread_local_bracket_idx = kNumThreadLocalSizeBrackets - 1;
-    bool is_size_for_thread_local = size <= bracketSizes[max_thread_local_bracket_idx];
+    bool is_size_for_thread_local = size <= kMaxThreadLocalBracketSize;
     DCHECK(size > kLargeSizeThreshold ||
            (is_size_for_thread_local == (SizeToIndex(size) < kNumThreadLocalSizeBrackets)));
     return is_size_for_thread_local;
@@ -633,6 +633,16 @@ class RosAlloc {
   // We use thread-local runs for the size Brackets whose indexes
   // are less than this index. We use shared (current) runs for the rest.
   static const size_t kNumThreadLocalSizeBrackets = 8;
+
+  // The size of the largest bracket we use thread-local runs for.
+  // This should be equal to bracketSizes[kNumThreadLocalSizeBrackets - 1].
+  static const size_t kMaxThreadLocalBracketSize = 128;
+
+  // The bracket size increment for the brackets of size <= 512 bytes.
+  static constexpr size_t kBracketQuantumSize = 16;
+
+  // Equal to Log2(kQuantumBracketSizeIncrement).
+  static constexpr size_t kBracketQuantumSizeShift = 4;
 
  private:
   // The base address of the memory region that's managed by this allocator.
@@ -769,6 +779,19 @@ class RosAlloc {
            bool running_on_memory_tool,
            size_t page_release_size_threshold = kDefaultPageReleaseSizeThreshold);
   ~RosAlloc();
+
+  static size_t RunFreeListOffset() {
+    return OFFSETOF_MEMBER(Run, free_list_);
+  }
+  static size_t RunFreeListHeadOffset() {
+    return OFFSETOF_MEMBER(SlotFreeList<false>, head_);
+  }
+  static size_t RunFreeListSizeOffset() {
+    return OFFSETOF_MEMBER(SlotFreeList<false>, size_);
+  }
+  static size_t RunSlotNextOffset() {
+    return OFFSETOF_MEMBER(Slot, next_);
+  }
 
   // If kThreadUnsafe is true then the allocator may avoid acquiring some locks as an optimization.
   // If used, this may cause race conditions if multiple threads are allocating at the same time.

@@ -19,6 +19,7 @@
 
 #if defined(__cplusplus)
 #include "art_method.h"
+#include "gc/allocator/rosalloc.h"
 #include "lock_word.h"
 #include "mirror/class.h"
 #include "mirror/string.h"
@@ -53,6 +54,14 @@ static inline void CheckAsmSupportOffsetsAndSizes() {
 #define ADD_TEST_EQ(x, y)
 #endif
 
+#if defined(__LP64__)
+#define POINTER_SIZE_SHIFT 3
+#else
+#define POINTER_SIZE_SHIFT 2
+#endif
+ADD_TEST_EQ(static_cast<size_t>(1U << POINTER_SIZE_SHIFT),
+            static_cast<size_t>(__SIZEOF_POINTER__))
+
 // Size of references to the heap on the stack.
 #define STACK_REFERENCE_SIZE 4
 ADD_TEST_EQ(static_cast<size_t>(STACK_REFERENCE_SIZE), sizeof(art::StackReference<art::mirror::Object>))
@@ -61,6 +70,10 @@ ADD_TEST_EQ(static_cast<size_t>(STACK_REFERENCE_SIZE), sizeof(art::StackReferenc
 #define COMPRESSED_REFERENCE_SIZE 4
 ADD_TEST_EQ(static_cast<size_t>(COMPRESSED_REFERENCE_SIZE),
             sizeof(art::mirror::CompressedReference<art::mirror::Object>))
+
+#define COMPRESSED_REFERENCE_SIZE_SHIFT 2
+ADD_TEST_EQ(static_cast<size_t>(1U << COMPRESSED_REFERENCE_SIZE_SHIFT),
+            static_cast<size_t>(COMPRESSED_REFERENCE_SIZE))
 
 // Note: these callee save methods loads require read barriers.
 // Offset of field Runtime::callee_save_methods_[kSaveAll]
@@ -120,6 +133,18 @@ ADD_TEST_EQ(THREAD_LOCAL_END_OFFSET,
 #define THREAD_LOCAL_OBJECTS_OFFSET (THREAD_LOCAL_POS_OFFSET + 2 * __SIZEOF_POINTER__)
 ADD_TEST_EQ(THREAD_LOCAL_OBJECTS_OFFSET,
             art::Thread::ThreadLocalObjectsOffset<__SIZEOF_POINTER__>().Int32Value())
+// Offset of field Thread::tlsPtr_.rosalloc_runs.
+#define THREAD_ROSALLOC_RUNS_OFFSET (THREAD_LOCAL_POS_OFFSET + 3 * __SIZEOF_POINTER__)
+ADD_TEST_EQ(THREAD_ROSALLOC_RUNS_OFFSET,
+            art::Thread::RosAllocRunsOffset<__SIZEOF_POINTER__>().Int32Value())
+// Offset of field Thread::tlsPtr_.thread_local_alloc_stack_top.
+#define THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET (THREAD_ROSALLOC_RUNS_OFFSET + 34 * __SIZEOF_POINTER__)
+ADD_TEST_EQ(THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET,
+            art::Thread::ThreadLocalAllocStackTopOffset<__SIZEOF_POINTER__>().Int32Value())
+// Offset of field Thread::tlsPtr_.thread_local_alloc_stack_end.
+#define THREAD_LOCAL_ALLOC_STACK_END_OFFSET (THREAD_ROSALLOC_RUNS_OFFSET + 35 * __SIZEOF_POINTER__)
+ADD_TEST_EQ(THREAD_LOCAL_ALLOC_STACK_END_OFFSET,
+            art::Thread::ThreadLocalAllocStackEndOffset<__SIZEOF_POINTER__>().Int32Value())
 
 // Offsets within java.lang.Object.
 #define MIRROR_OBJECT_CLASS_OFFSET 0
@@ -235,6 +260,44 @@ ADD_TEST_EQ(static_cast<size_t>(OBJECT_ALIGNMENT_MASK), art::kObjectAlignment - 
 #define OBJECT_ALIGNMENT_MASK_TOGGLED 0xFFFFFFF8
 ADD_TEST_EQ(static_cast<uint32_t>(OBJECT_ALIGNMENT_MASK_TOGGLED),
             ~static_cast<uint32_t>(art::kObjectAlignment - 1))
+
+#define ROSALLOC_MAX_THREAD_LOCAL_BRACKET_SIZE 128
+ADD_TEST_EQ(ROSALLOC_MAX_THREAD_LOCAL_BRACKET_SIZE,
+            static_cast<int32_t>(art::gc::allocator::RosAlloc::kMaxThreadLocalBracketSize))
+
+#define ROSALLOC_BRACKET_QUANTUM_SIZE_SHIFT 4
+ADD_TEST_EQ(ROSALLOC_BRACKET_QUANTUM_SIZE_SHIFT,
+            static_cast<int32_t>(art::gc::allocator::RosAlloc::kBracketQuantumSizeShift))
+
+#define ROSALLOC_BRACKET_QUANTUM_SIZE_MASK 15
+ADD_TEST_EQ(ROSALLOC_BRACKET_QUANTUM_SIZE_MASK,
+            static_cast<int32_t>(art::gc::allocator::RosAlloc::kBracketQuantumSize - 1))
+
+#define ROSALLOC_BRACKET_QUANTUM_SIZE_MASK_TOGGLED32 0xfffffff0
+ADD_TEST_EQ(static_cast<uint32_t>(ROSALLOC_BRACKET_QUANTUM_SIZE_MASK_TOGGLED32),
+            ~static_cast<uint32_t>(art::gc::allocator::RosAlloc::kBracketQuantumSize - 1))
+
+#define ROSALLOC_BRACKET_QUANTUM_SIZE_MASK_TOGGLED64 0xfffffffffffffff0
+ADD_TEST_EQ(static_cast<uint64_t>(ROSALLOC_BRACKET_QUANTUM_SIZE_MASK_TOGGLED64),
+            ~static_cast<uint64_t>(art::gc::allocator::RosAlloc::kBracketQuantumSize - 1))
+
+#define ROSALLOC_RUN_FREE_LIST_OFFSET 8
+ADD_TEST_EQ(ROSALLOC_RUN_FREE_LIST_OFFSET,
+            static_cast<int32_t>(art::gc::allocator::RosAlloc::RunFreeListOffset()))
+
+#define ROSALLOC_RUN_FREE_LIST_HEAD_OFFSET 0
+ADD_TEST_EQ(ROSALLOC_RUN_FREE_LIST_HEAD_OFFSET,
+            static_cast<int32_t>(art::gc::allocator::RosAlloc::RunFreeListHeadOffset()))
+
+#define ROSALLOC_RUN_FREE_LIST_SIZE_OFFSET 16
+ADD_TEST_EQ(ROSALLOC_RUN_FREE_LIST_SIZE_OFFSET,
+            static_cast<int32_t>(art::gc::allocator::RosAlloc::RunFreeListSizeOffset()))
+
+#define ROSALLOC_SLOT_NEXT_OFFSET 0
+ADD_TEST_EQ(ROSALLOC_SLOT_NEXT_OFFSET,
+            static_cast<int32_t>(art::gc::allocator::RosAlloc::RunSlotNextOffset()))
+// Assert this so that we can avoid zeroing the next field by installing the class pointer.
+ADD_TEST_EQ(ROSALLOC_SLOT_NEXT_OFFSET, MIRROR_OBJECT_CLASS_OFFSET)
 
 #if defined(__cplusplus)
 }  // End of CheckAsmSupportOffsets.
