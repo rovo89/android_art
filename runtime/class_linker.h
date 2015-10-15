@@ -319,7 +319,7 @@ class ClassLinker {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
-  mirror::DexCache* RegisterDexFile(const DexFile& dex_file)
+  mirror::DexCache* RegisterDexFile(const DexFile& dex_file, LinearAlloc* linear_alloc)
       REQUIRES(!dex_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
   void RegisterDexFile(const DexFile& dex_file, Handle<mirror::DexCache> dex_cache)
@@ -532,6 +532,12 @@ class ClassLinker {
   static LinearAlloc* GetAllocatorForClassLoader(mirror::ClassLoader* class_loader)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Return the linear alloc for a class loader if it is already allocated, otherwise allocate and
+  // set it. TODO: Consider using a lock other than classlinker_classes_lock_.
+  static LinearAlloc* GetOrCreateAllocatorForClassLoader(mirror::ClassLoader* class_loader)
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!Locks::classlinker_classes_lock_);
+
  private:
   struct ClassLoaderData {
     jweak weak_root;  // Weak root to enable class unloading.
@@ -570,7 +576,9 @@ class ClassLinker {
   mirror::Class* AllocClass(Thread* self, uint32_t class_size)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
-  mirror::DexCache* AllocDexCache(Thread* self, const DexFile& dex_file)
+  mirror::DexCache* AllocDexCache(Thread* self,
+                                  const DexFile& dex_file,
+                                  LinearAlloc* linear_alloc)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 

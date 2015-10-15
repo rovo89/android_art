@@ -1420,8 +1420,10 @@ class OatDumper {
                                          uint32_t method_access_flags) {
     if ((method_access_flags & kAccNative) == 0) {
       ScopedObjectAccess soa(Thread::Current());
+      Runtime* const runtime = Runtime::Current();
       Handle<mirror::DexCache> dex_cache(
-          hs->NewHandle(Runtime::Current()->GetClassLinker()->RegisterDexFile(*dex_file)));
+          hs->NewHandle(runtime->GetClassLinker()->RegisterDexFile(*dex_file,
+                                                                   runtime->GetLinearAlloc())));
       DCHECK(options_.class_loader_ != nullptr);
       return verifier::MethodVerifier::VerifyMethodAndDump(
           soa.Self(), vios, dex_method_idx, dex_file, dex_cache, *options_.class_loader_,
@@ -2400,14 +2402,13 @@ static int DumpOatWithRuntime(Runtime* runtime, OatFile* oat_file, OatDumperOpti
   // Need to register dex files to get a working dex cache.
   ScopedObjectAccess soa(self);
   ClassLinker* class_linker = runtime->GetClassLinker();
-  Runtime::Current()->GetOatFileManager().RegisterOatFile(
-      std::unique_ptr<const OatFile>(oat_file));
+  runtime->GetOatFileManager().RegisterOatFile(std::unique_ptr<const OatFile>(oat_file));
   std::vector<const DexFile*> class_path;
   for (const OatFile::OatDexFile* odf : oat_file->GetOatDexFiles()) {
     std::string error_msg;
     const DexFile* const dex_file = OpenDexFile(odf, &error_msg);
     CHECK(dex_file != nullptr) << error_msg;
-    class_linker->RegisterDexFile(*dex_file);
+    class_linker->RegisterDexFile(*dex_file, runtime->GetLinearAlloc());
     class_path.push_back(dex_file);
   }
 
