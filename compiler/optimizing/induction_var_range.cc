@@ -75,6 +75,13 @@ static InductionVarRange::Value SimplifyMax(InductionVarRange::Value v) {
   return v;
 }
 
+static HInstruction* Insert(HBasicBlock* preheader, HInstruction* instruction) {
+  DCHECK(preheader != nullptr);
+  DCHECK(instruction != nullptr);
+  preheader->InsertInstructionBefore(instruction, preheader->GetLastInstruction());
+  return instruction;
+}
+
 //
 // Public class methods.
 //
@@ -92,6 +99,21 @@ InductionVarRange::Value InductionVarRange::GetMinInduction(HInstruction* contex
 InductionVarRange::Value InductionVarRange::GetMaxInduction(HInstruction* context,
                                                             HInstruction* instruction) {
   return SimplifyMax(GetInduction(context, instruction, /* is_min */ false));
+}
+
+bool InductionVarRange::CanGenerateCode(HInstruction* context,
+                                        HInstruction* instruction,
+                                        /*out*/bool* top_test) {
+  return GenerateCode(context, instruction, nullptr, nullptr, nullptr, nullptr, top_test);
+}
+
+bool InductionVarRange::GenerateCode(HInstruction* context,
+                                     HInstruction* instruction,
+                                     HGraph* graph,
+                                     HBasicBlock* block,
+                                     /*out*/HInstruction** lower,
+                                     /*out*/HInstruction** upper) {
+  return GenerateCode(context, instruction, graph, block, lower, upper, nullptr);
 }
 
 //
@@ -162,15 +184,15 @@ InductionVarRange::Value InductionVarRange::GetVal(HInductionVarAnalysis::Induct
           case HInductionVarAnalysis::kFetch:
             return GetFetch(info->fetch, trip, in_body, is_min);
           case HInductionVarAnalysis::kTripCountInLoop:
-            if (!in_body) {
-              return is_min ? Value(0)
-                            : GetVal(info->op_b, trip, in_body, is_min);   // one extra!
+            if (!in_body && !is_min) {  // one extra!
+              return GetVal(info->op_b, trip, in_body, is_min);
             }
             FALLTHROUGH_INTENDED;
           case HInductionVarAnalysis::kTripCountInBody:
-            if (in_body) {
-              return is_min ? Value(0)
-                            : SubValue(GetVal(info->op_b, trip, in_body, is_min), Value(1));
+            if (is_min) {
+              return Value(0);
+            } else if (in_body) {
+              return SubValue(GetVal(info->op_b, trip, in_body, is_min), Value(1));
             }
             break;
           default:
@@ -256,9 +278,11 @@ InductionVarRange::Value InductionVarRange::GetDiv(HInductionVarAnalysis::Induct
 bool InductionVarRange::GetConstant(HInductionVarAnalysis::InductionInfo* info, int32_t *value) {
   Value v_min = GetVal(info, nullptr, false, /* is_min */ true);
   Value v_max = GetVal(info, nullptr, false, /* is_min */ false);
-  if (v_min.a_constant == 0 && v_max.a_constant == 0 && v_min.b_constant == v_max.b_constant) {
-    *value = v_min.b_constant;
-    return true;
+  if (v_min.is_known && v_max.is_known) {
+    if (v_min.a_constant == 0 && v_max.a_constant == 0 && v_min.b_constant == v_max.b_constant) {
+      *value = v_min.b_constant;
+      return true;
+    }
   }
   return false;
 }
@@ -324,6 +348,131 @@ InductionVarRange::Value InductionVarRange::MergeVal(Value v1, Value v2, bool is
     }
   }
   return Value();
+}
+
+bool InductionVarRange::GenerateCode(HInstruction* context,
+                                     HInstruction* instruction,
+                                     HGraph* graph,
+                                     HBasicBlock* block,
+                                     /*out*/HInstruction** lower,
+                                     /*out*/HInstruction** upper,
+                                     /*out*/bool* top_test) {
+  HLoopInformation* loop = context->GetBlock()->GetLoopInformation();  // closest enveloping loop
+  if (loop != nullptr) {
+    HBasicBlock* header = loop->GetHeader();
+    bool in_body = context->GetBlock() != header;
+    HInductionVarAnalysis::InductionInfo* info = induction_analysis_->LookupInfo(loop, instruction);
+    HInductionVarAnalysis::InductionInfo* trip =
+        induction_analysis_->LookupInfo(loop, header->GetLastInstruction());
+    if (info != nullptr && trip != nullptr) {
+      if (top_test != nullptr) {
+        *top_test = trip->operation != HInductionVarAnalysis::kTripCountInLoop;
+      }
+      return
+        // Success on lower if invariant (not set), or code can be generated.
+        ((info->induction_class == HInductionVarAnalysis::kInvariant) ||
+            GenerateCode(info, trip, graph, block, lower, in_body, /* is_min */ true)) &&
+        // And success on upper.
+        GenerateCode(info, trip, graph, block, upper, in_body, /* is_min */ false);
+    }
+  }
+  return false;
+}
+
+bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
+                                     HInductionVarAnalysis::InductionInfo* trip,
+                                     HGraph* graph,  // when set, code is generated
+                                     HBasicBlock* block,
+                                     /*out*/HInstruction** result,
+                                     bool in_body,
+                                     bool is_min) {
+  if (info != nullptr) {
+    Primitive::Type type = Primitive::kPrimInt;
+    HInstruction* opa = nullptr;
+    HInstruction* opb = nullptr;
+    int32_t value = 0;
+    switch (info->induction_class) {
+      case HInductionVarAnalysis::kInvariant:
+        // Invariants.
+        switch (info->operation) {
+          case HInductionVarAnalysis::kAdd:
+            if (GenerateCode(info->op_a, trip, graph, block, &opa, in_body, is_min) &&
+                GenerateCode(info->op_b, trip, graph, block, &opb, in_body, is_min)) {
+              if (graph != nullptr) {
+                *result = Insert(block, new (graph->GetArena()) HAdd(type, opa, opb));
+              }
+              return true;
+            }
+            break;
+          case HInductionVarAnalysis::kSub:  // second reversed!
+            if (GenerateCode(info->op_a, trip, graph, block, &opa, in_body, is_min) &&
+                GenerateCode(info->op_b, trip, graph, block, &opb, in_body, !is_min)) {
+              if (graph != nullptr) {
+                *result = Insert(block, new (graph->GetArena()) HSub(type, opa, opb));
+              }
+              return true;
+            }
+            break;
+          case HInductionVarAnalysis::kNeg:  // reversed!
+            if (GenerateCode(info->op_b, trip, graph, block, &opb, in_body, !is_min)) {
+              if (graph != nullptr) {
+                *result = Insert(block, new (graph->GetArena()) HNeg(type, opb));
+              }
+              return true;
+            }
+            break;
+          case HInductionVarAnalysis::kFetch:
+            if (graph != nullptr) {
+              *result = info->fetch;  // already in HIR
+            }
+            return true;
+          case HInductionVarAnalysis::kTripCountInLoop:
+            if (!in_body && !is_min) {  // one extra!
+              return GenerateCode(info->op_b, trip, graph, block, result, in_body, is_min);
+            }
+            FALLTHROUGH_INTENDED;
+          case HInductionVarAnalysis::kTripCountInBody:
+            if (is_min) {
+              if (graph != nullptr) {
+                *result = graph->GetIntConstant(0);
+              }
+              return true;
+            } else if (in_body) {
+              if (GenerateCode(info->op_b, trip, graph, block, &opb, in_body, is_min)) {
+                if (graph != nullptr) {
+                  *result = Insert(block,
+                                   new (graph->GetArena())
+                                       HSub(type, opb, graph->GetIntConstant(1)));
+                }
+                return true;
+              }
+            }
+            break;
+          default:
+            break;
+        }
+        break;
+      case HInductionVarAnalysis::kLinear:
+        // Linear induction a * i + b, for normalized 0 <= i < TC. Restrict to unit stride only
+        // to avoid arithmetic wrap-around situations that are hard to guard against.
+        if (GetConstant(info->op_a, &value)) {
+          if (value == 1 || value == -1) {
+            const bool is_min_a = value == 1 ? is_min : !is_min;
+            if (GenerateCode(trip,       trip, graph, block, &opa, in_body, is_min_a) &&
+                GenerateCode(info->op_b, trip, graph, block, &opb, in_body, is_min)) {
+              if (graph != nullptr) {
+                *result = Insert(block, new (graph->GetArena()) HAdd(type, opa, opb));
+              }
+              return true;
+            }
+          }
+        }
+        break;
+      default:  // TODO(ajcbik): add more cases
+        break;
+    }
+  }
+  return false;
 }
 
 }  // namespace art
