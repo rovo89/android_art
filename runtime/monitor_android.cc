@@ -50,7 +50,7 @@ static char* EventLogWriteString(char* dst, const char* value, size_t len) {
 }
 
 void Monitor::LogContentionEvent(Thread* self, uint32_t wait_ms, uint32_t sample_percent,
-                                 const char* owner_filename, uint32_t owner_line_number) {
+                                 const char* owner_filename, int32_t owner_line_number) {
   // Emit the event list length, 1 byte.
   char eventBuffer[174];
   char* cp = eventBuffer;
@@ -80,7 +80,7 @@ void Monitor::LogContentionEvent(Thread* self, uint32_t wait_ms, uint32_t sample
   uint32_t pc;
   ArtMethod* m = self->GetCurrentMethod(&pc);
   const char* filename;
-  uint32_t line_number;
+  int32_t line_number;
   TranslateLocation(m, pc, &filename, &line_number);
   cp = EventLogWriteString(cp, filename, strlen(filename));
 
