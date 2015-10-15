@@ -459,4 +459,12 @@ void InternTable::ChangeWeakRootStateLocked(gc::WeakRootState new_state) {
   }
 }
 
+InternTable::Table::Table() {
+  Runtime* const runtime = Runtime::Current();
+  pre_zygote_table_.SetLoadFactor(runtime->GetHashTableMinLoadFactor(),
+                                  runtime->GetHashTableMaxLoadFactor());
+  post_zygote_table_.SetLoadFactor(runtime->GetHashTableMinLoadFactor(),
+                                   runtime->GetHashTableMaxLoadFactor());
+}
+
 }  // namespace art
