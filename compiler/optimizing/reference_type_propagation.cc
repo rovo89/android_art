@@ -316,7 +316,9 @@ bool ReferenceTypePropagation::UpdateNullability(HInstruction* instr) {
 void ReferenceTypePropagation::ProcessWorklist() {
   while (!worklist_.IsEmpty()) {
     HInstruction* instruction = worklist_.Pop();
-    if (UpdateNullability(instruction) || UpdateReferenceTypeInfo(instruction)) {
+    bool updated_nullability = UpdateNullability(instruction);
+    bool updated_reference_type = UpdateReferenceTypeInfo(instruction);
+    if (updated_nullability || updated_reference_type) {
       AddDependentInstructionsToWorklist(instruction);
     }
   }
