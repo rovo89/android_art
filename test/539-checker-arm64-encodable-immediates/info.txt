@@ -1,0 +1,2 @@
+Basic tests that check the compiler recognizes when constant values can be
+encoded in the immediate field of instructions.
