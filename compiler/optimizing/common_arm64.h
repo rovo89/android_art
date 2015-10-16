@@ -206,7 +206,9 @@ static bool CanEncodeConstantAsImmediate(HConstant* constant, HInstruction* inst
   if (instr->IsAdd() || instr->IsSub() || instr->IsCondition() ||
       instr->IsCompare() || instr->IsBoundsCheck()) {
     // Uses aliases of ADD/SUB instructions.
-    return vixl::Assembler::IsImmAddSub(value);
+    // If `value` does not fit but `-value` does, VIXL will automatically use
+    // the 'opposite' instruction.
+    return vixl::Assembler::IsImmAddSub(value) || vixl::Assembler::IsImmAddSub(-value);
   } else if (instr->IsAnd() || instr->IsOr() || instr->IsXor()) {
     // Uses logical operations.
     return vixl::Assembler::IsImmLogical(value, vixl::kXRegSize);
