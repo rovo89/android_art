@@ -127,8 +127,8 @@ class HashSet {
   using size_type = size_t;
   using difference_type = ptrdiff_t;
 
-  static constexpr double kDefaultMinLoadFactor = 0.5;
-  static constexpr double kDefaultMaxLoadFactor = 0.9;
+  static constexpr double kDefaultMinLoadFactor = 0.4;
+  static constexpr double kDefaultMaxLoadFactor = 0.7;
   static constexpr size_t kMinBuckets = 1000;
 
   // If we don't own the data, this will create a new array which owns the data.
@@ -138,14 +138,18 @@ class HashSet {
     elements_until_expand_ = 0;
   }
 
-  HashSet()
+  HashSet() : HashSet(kDefaultMinLoadFactor, kDefaultMaxLoadFactor) {}
+
+  HashSet(double min_load_factor, double max_load_factor)
       : num_elements_(0u),
         num_buckets_(0u),
         elements_until_expand_(0u),
         owns_data_(false),
         data_(nullptr),
-        min_load_factor_(kDefaultMinLoadFactor),
-        max_load_factor_(kDefaultMaxLoadFactor) {
+        min_load_factor_(min_load_factor),
+        max_load_factor_(max_load_factor) {
+    DCHECK_GT(min_load_factor, 0.0);
+    DCHECK_LT(max_load_factor, 1.0);
   }
 
   explicit HashSet(const allocator_type& alloc)
@@ -457,6 +461,31 @@ class HashSet {
       }
     }
     return errors;
+  }
+
+  double GetMinLoadFactor() const {
+    return min_load_factor_;
+  }
+
+  double GetMaxLoadFactor() const {
+    return max_load_factor_;
+  }
+
+  // Change the load factor of the hash set. If the current load factor is greater than the max
+  // specified, then we resize the hash table storage.
+  void SetLoadFactor(double min_load_factor, double max_load_factor) {
+    DCHECK_LT(min_load_factor, max_load_factor);
+    DCHECK_GT(min_load_factor, 0.0);
+    DCHECK_LT(max_load_factor, 1.0);
+    min_load_factor_ = min_load_factor;
+    max_load_factor_ = max_load_factor;
+    elements_until_expand_ = NumBuckets() * max_load_factor_;
+    // If the current load factor isn't in the range, then resize to the mean of the minimum and
+    // maximum load factor.
+    const double load_factor = CalculateLoadFactor();
+    if (load_factor > max_load_factor_) {
+      Resize(Size() / ((min_load_factor_ + max_load_factor_) * 0.5));
+    }
   }
 
  private:
