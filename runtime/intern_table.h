@@ -146,6 +146,7 @@ class InternTable {
   // weak interns and strong interns.
   class Table {
    public:
+    Table();
     mirror::String* Find(mirror::String* s) SHARED_REQUIRES(Locks::mutator_lock_)
         REQUIRES(Locks::intern_table_lock_);
     void Insert(mirror::String* s) SHARED_REQUIRES(Locks::mutator_lock_)
