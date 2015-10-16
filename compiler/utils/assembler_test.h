@@ -83,6 +83,15 @@ class AssemblerTest : public testing::Test {
         fmt);
   }
 
+  std::string RepeatRRNoDupes(void (Ass::*f)(Reg, Reg), std::string fmt) {
+    return RepeatTemplatedRegistersNoDupes<Reg, Reg>(f,
+        GetRegisters(),
+        GetRegisters(),
+        &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
+        &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
+        fmt);
+  }
+
   std::string Repeatrr(void (Ass::*f)(Reg, Reg), std::string fmt) {
     return RepeatTemplatedRegisters<Reg, Reg>(f,
         GetRegisters(),
@@ -582,6 +591,45 @@ class AssemblerTest : public testing::Test {
     std::string str;
     for (auto reg1 : reg1_registers) {
       for (auto reg2 : reg2_registers) {
+        (assembler_.get()->*f)(*reg1, *reg2);
+        std::string base = fmt;
+
+        std::string reg1_string = (this->*GetName1)(*reg1);
+        size_t reg1_index;
+        while ((reg1_index = base.find(REG1_TOKEN)) != std::string::npos) {
+          base.replace(reg1_index, ConstexprStrLen(REG1_TOKEN), reg1_string);
+        }
+
+        std::string reg2_string = (this->*GetName2)(*reg2);
+        size_t reg2_index;
+        while ((reg2_index = base.find(REG2_TOKEN)) != std::string::npos) {
+          base.replace(reg2_index, ConstexprStrLen(REG2_TOKEN), reg2_string);
+        }
+
+        if (str.size() > 0) {
+          str += "\n";
+        }
+        str += base;
+      }
+    }
+    // Add a newline at the end.
+    str += "\n";
+    return str;
+  }
+
+  template <typename Reg1, typename Reg2>
+  std::string RepeatTemplatedRegistersNoDupes(void (Ass::*f)(Reg1, Reg2),
+                                              const std::vector<Reg1*> reg1_registers,
+                                              const std::vector<Reg2*> reg2_registers,
+                                              std::string (AssemblerTest::*GetName1)(const Reg1&),
+                                              std::string (AssemblerTest::*GetName2)(const Reg2&),
+                                              std::string fmt) {
+    WarnOnCombinations(reg1_registers.size() * reg2_registers.size());
+
+    std::string str;
+    for (auto reg1 : reg1_registers) {
+      for (auto reg2 : reg2_registers) {
+        if (reg1 == reg2) continue;
         (assembler_.get()->*f)(*reg1, *reg2);
         std::string base = fmt;
 

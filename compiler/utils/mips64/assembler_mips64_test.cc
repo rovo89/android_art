@@ -215,6 +215,22 @@ TEST_F(AssemblerMIPS64Test, AbsD) {
   DriverStr(RepeatFF(&mips64::Mips64Assembler::AbsD, "abs.d ${reg1}, ${reg2}"), "abs.d");
 }
 
+TEST_F(AssemblerMIPS64Test, MovS) {
+  DriverStr(RepeatFF(&mips64::Mips64Assembler::MovS, "mov.s ${reg1}, ${reg2}"), "mov.s");
+}
+
+TEST_F(AssemblerMIPS64Test, MovD) {
+  DriverStr(RepeatFF(&mips64::Mips64Assembler::MovD, "mov.d ${reg1}, ${reg2}"), "mov.d");
+}
+
+TEST_F(AssemblerMIPS64Test, NegS) {
+  DriverStr(RepeatFF(&mips64::Mips64Assembler::NegS, "neg.s ${reg1}, ${reg2}"), "neg.s");
+}
+
+TEST_F(AssemblerMIPS64Test, NegD) {
+  DriverStr(RepeatFF(&mips64::Mips64Assembler::NegD, "neg.d ${reg1}, ${reg2}"), "neg.d");
+}
+
 TEST_F(AssemblerMIPS64Test, RoundLS) {
   DriverStr(RepeatFF(&mips64::Mips64Assembler::RoundLS, "round.l.s ${reg1}, ${reg2}"), "round.l.s");
 }
@@ -307,6 +323,34 @@ TEST_F(AssemblerMIPS64Test, CvtDL) {
   DriverStr(RepeatFF(&mips64::Mips64Assembler::Cvtdl, "cvt.d.l ${reg1}, ${reg2}"), "cvt.d.l");
 }
 
+TEST_F(AssemblerMIPS64Test, CvtDS) {
+  DriverStr(RepeatFF(&mips64::Mips64Assembler::Cvtds, "cvt.d.s ${reg1}, ${reg2}"), "cvt.d.s");
+}
+
+TEST_F(AssemblerMIPS64Test, CvtDW) {
+  DriverStr(RepeatFF(&mips64::Mips64Assembler::Cvtdw, "cvt.d.w ${reg1}, ${reg2}"), "cvt.d.w");
+}
+
+TEST_F(AssemblerMIPS64Test, CvtSL) {
+  DriverStr(RepeatFF(&mips64::Mips64Assembler::Cvtsl, "cvt.s.l ${reg1}, ${reg2}"), "cvt.s.l");
+}
+
+TEST_F(AssemblerMIPS64Test, CvtSD) {
+  DriverStr(RepeatFF(&mips64::Mips64Assembler::Cvtsd, "cvt.s.d ${reg1}, ${reg2}"), "cvt.s.d");
+}
+
+TEST_F(AssemblerMIPS64Test, CvtSW) {
+  DriverStr(RepeatFF(&mips64::Mips64Assembler::Cvtsw, "cvt.s.w ${reg1}, ${reg2}"), "cvt.s.w");
+}
+
+////////////////
+// CALL / JMP //
+////////////////
+
+TEST_F(AssemblerMIPS64Test, Jalr) {
+  DriverStr(RepeatRRNoDupes(&mips64::Mips64Assembler::Jalr, "jalr ${reg1}, ${reg2}"), "jalr");
+}
+
 //////////
 // MISC //
 //////////
@@ -319,6 +363,14 @@ TEST_F(AssemblerMIPS64Test, Dbitswap) {
   DriverStr(RepeatRR(&mips64::Mips64Assembler::Dbitswap, "dbitswap ${reg1}, ${reg2}"), "dbitswap");
 }
 
+TEST_F(AssemblerMIPS64Test, Seb) {
+  DriverStr(RepeatRR(&mips64::Mips64Assembler::Seb, "seb ${reg1}, ${reg2}"), "seb");
+}
+
+TEST_F(AssemblerMIPS64Test, Seh) {
+  DriverStr(RepeatRR(&mips64::Mips64Assembler::Seh, "seh ${reg1}, ${reg2}"), "seh");
+}
+
 TEST_F(AssemblerMIPS64Test, Dsbh) {
   DriverStr(RepeatRR(&mips64::Mips64Assembler::Dsbh, "dsbh ${reg1}, ${reg2}"), "dsbh");
 }
@@ -329,6 +381,42 @@ TEST_F(AssemblerMIPS64Test, Dshd) {
 
 TEST_F(AssemblerMIPS64Test, Wsbh) {
   DriverStr(RepeatRR(&mips64::Mips64Assembler::Wsbh, "wsbh ${reg1}, ${reg2}"), "wsbh");
+}
+
+TEST_F(AssemblerMIPS64Test, Sll) {
+  DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Sll, 5, "sll ${reg1}, ${reg2}, {imm}"), "sll");
+}
+
+TEST_F(AssemblerMIPS64Test, Srl) {
+  DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Srl, 5, "srl ${reg1}, ${reg2}, {imm}"), "srl");
+}
+
+TEST_F(AssemblerMIPS64Test, Sra) {
+  DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Sra, 5, "sra ${reg1}, ${reg2}, {imm}"), "sra");
+}
+
+TEST_F(AssemblerMIPS64Test, Dsll) {
+  DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Dsll, 5, "dsll ${reg1}, ${reg2}, {imm}"), "dsll");
+}
+
+TEST_F(AssemblerMIPS64Test, Dsrl) {
+  DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Dsrl, 5, "dsrl ${reg1}, ${reg2}, {imm}"), "dsrl");
+}
+
+TEST_F(AssemblerMIPS64Test, Dsra) {
+  DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Dsra, 5, "dsra ${reg1}, ${reg2}, {imm}"), "dsra");
+}
+
+TEST_F(AssemblerMIPS64Test, Dsll32) {
+  DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Dsll32, 5, "dsll32 ${reg1}, ${reg2}, {imm}"), "dsll32");
+}
+
+TEST_F(AssemblerMIPS64Test, Dsrl32) {
+  DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Dsrl32, 5, "dsrl32 ${reg1}, ${reg2}, {imm}"), "dsrl32");
+}
+
+TEST_F(AssemblerMIPS64Test, Dsra32) {
+  DriverStr(RepeatRRIb(&mips64::Mips64Assembler::Dsra32, 5, "dsra32 ${reg1}, ${reg2}, {imm}"), "dsra32");
 }
 
 TEST_F(AssemblerMIPS64Test, Sc) {
