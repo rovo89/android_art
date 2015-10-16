@@ -140,6 +140,7 @@ uint32_t Mips64JniCallingConvention::CoreSpillMask() const {
   // Compute spill mask to agree with callee saves initialized in the constructor
   uint32_t result = 0;
   result = 1 << S2 | 1 << S3 | 1 << S4 | 1 << S5 | 1 << S6 | 1 << S7 | 1 << GP | 1 << S8 | 1 << RA;
+  DCHECK_EQ(static_cast<size_t>(POPCOUNT(result)), callee_save_regs_.size() + 1);
   return result;
 }
 
@@ -148,9 +149,9 @@ ManagedRegister Mips64JniCallingConvention::ReturnScratchRegister() const {
 }
 
 size_t Mips64JniCallingConvention::FrameSize() {
-  // Mehtod* and callee save area size, local reference segment state
+  // ArtMethod*, RA and callee save area size, local reference segment state
   size_t frame_data_size = kFramePointerSize +
-      CalleeSaveRegisters().size() * kFramePointerSize + sizeof(uint32_t);
+      (CalleeSaveRegisters().size() + 1) * kFramePointerSize + sizeof(uint32_t);
   // References plus 2 words for HandleScope header
   size_t handle_scope_size = HandleScope::SizeOf(kFramePointerSize, ReferenceCount());
   // Plus return value spill area size
