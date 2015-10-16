@@ -19,6 +19,7 @@
 
 #include <map>
 #include <set>
+#include <unordered_map>
 
 #include "atomic.h"
 #include "base/macros.h"
@@ -150,19 +151,24 @@ class TrackingAllocatorImpl : public std::allocator<T> {
 template<class T, AllocatorTag kTag>
 // C++ doesn't allow template typedefs. This is a workaround template typedef which is
 // TrackingAllocatorImpl<T> if kEnableTrackingAllocator is true, std::allocator<T> otherwise.
-class TrackingAllocator : public TypeStaticIf<kEnableTrackingAllocator,
-                                              TrackingAllocatorImpl<T, kTag>,
-                                              std::allocator<T>>::type {
-};
+using TrackingAllocator = typename TypeStaticIf<kEnableTrackingAllocator,
+                                                TrackingAllocatorImpl<T, kTag>,
+                                                std::allocator<T>>::type;
 
 template<class Key, class T, AllocatorTag kTag, class Compare = std::less<Key>>
-class AllocationTrackingMultiMap : public std::multimap<
-    Key, T, Compare, TrackingAllocator<std::pair<Key, T>, kTag>> {
-};
+using AllocationTrackingMultiMap = std::multimap<
+    Key, T, Compare, TrackingAllocator<std::pair<Key, T>, kTag>>;
 
 template<class Key, AllocatorTag kTag, class Compare = std::less<Key>>
-class AllocationTrackingSet : public std::set<Key, Compare, TrackingAllocator<Key, kTag>> {
-};
+using AllocationTrackingSet = std::set<Key, Compare, TrackingAllocator<Key, kTag>>;
+
+template<class Key,
+         class T,
+         AllocatorTag kTag,
+         class Hash = std::hash<Key>,
+         class Pred = std::equal_to<Key>>
+using AllocationTrackingUnorderedMap = std::unordered_map<
+    Key, T, Hash, Pred, TrackingAllocator<std::pair<const Key, T>, kTag>>;
 
 }  // namespace art
 
