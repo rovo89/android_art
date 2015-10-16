@@ -19,6 +19,7 @@
 #include "art_method-inl.h"
 #include "arch/instruction_set.h"
 #include "arch/instruction_set_features.h"
+#include "base/stringpiece.h"
 #include "base/time_utils.h"
 #include "base/timing_logger.h"
 #include "compiler_callbacks.h"
@@ -86,7 +87,37 @@ JitCompiler::JitCompiler() : total_time_(0) {
       nullptr,
       false));
   const InstructionSet instruction_set = kRuntimeISA;
-  instruction_set_features_.reset(InstructionSetFeatures::FromCppDefines());
+  for (const StringPiece option : Runtime::Current()->GetCompilerOptions()) {
+    VLOG(compiler) << "JIT compiler option " << option;
+    std::string error_msg;
+    if (option.starts_with("--instruction-set-variant=")) {
+      StringPiece str = option.substr(strlen("--instruction-set-variant=")).data();
+      VLOG(compiler) << "JIT instruction set variant " << str;
+      instruction_set_features_.reset(InstructionSetFeatures::FromVariant(
+          instruction_set, str.as_string(), &error_msg));
+      if (instruction_set_features_ == nullptr) {
+        LOG(WARNING) << "Error parsing " << option << " message=" << error_msg;
+      }
+    } else if (option.starts_with("--instruction-set-features=")) {
+      StringPiece str = option.substr(strlen("--instruction-set-features=")).data();
+      VLOG(compiler) << "JIT instruction set features " << str;
+      if (instruction_set_features_.get() == nullptr) {
+        instruction_set_features_.reset(InstructionSetFeatures::FromVariant(
+            instruction_set, "default", &error_msg));
+        if (instruction_set_features_ == nullptr) {
+          LOG(WARNING) << "Error parsing " << option << " message=" << error_msg;
+        }
+      }
+      instruction_set_features_.reset(
+          instruction_set_features_->AddFeaturesFromString(str.as_string(), &error_msg));
+      if (instruction_set_features_ == nullptr) {
+        LOG(WARNING) << "Error parsing " << option << " message=" << error_msg;
+      }
+    }
+  }
+  if (instruction_set_features_ == nullptr) {
+    instruction_set_features_.reset(InstructionSetFeatures::FromCppDefines());
+  }
   cumulative_logger_.reset(new CumulativeLogger("jit times"));
   verification_results_.reset(new VerificationResults(compiler_options_.get()));
   method_inliner_map_.reset(new DexFileToMethodInlinerMap);
