@@ -20,6 +20,7 @@
 
 #include "base/bit_vector.h"
 #include "base/casts.h"
+#include "base/scoped_arena_allocator.h"
 #include "common_runtime_test.h"
 #include "reg_type_cache-inl.h"
 #include "reg_type-inl.h"
@@ -29,12 +30,23 @@
 namespace art {
 namespace verifier {
 
-class RegTypeTest : public CommonRuntimeTest {};
+class BaseRegTypeTest : public CommonRuntimeTest {
+ public:
+  void PostRuntimeCreate() OVERRIDE {
+    stack.reset(new ArenaStack(Runtime::Current()->GetArenaPool()));
+    allocator.reset(new ScopedArenaAllocator(stack.get()));
+  }
+
+  std::unique_ptr<ArenaStack> stack;
+  std::unique_ptr<ScopedArenaAllocator> allocator;
+};
+
+class RegTypeTest : public BaseRegTypeTest {};
 
 TEST_F(RegTypeTest, ConstLoHi) {
   // Tests creating primitive types types.
   ScopedObjectAccess soa(Thread::Current());
-  RegTypeCache cache(true);
+  RegTypeCache cache(true, *allocator);
   const RegType& ref_type_const_0 = cache.FromCat1Const(10, true);
   const RegType& ref_type_const_1 = cache.FromCat1Const(10, true);
   const RegType& ref_type_const_2 = cache.FromCat1Const(30, true);
@@ -56,7 +68,7 @@ TEST_F(RegTypeTest, ConstLoHi) {
 
 TEST_F(RegTypeTest, Pairs) {
   ScopedObjectAccess soa(Thread::Current());
-  RegTypeCache cache(true);
+  RegTypeCache cache(true, *allocator);
   int64_t val = static_cast<int32_t>(1234);
   const RegType& precise_lo = cache.FromCat2ConstLo(static_cast<int32_t>(val), true);
   const RegType& precise_hi = cache.FromCat2ConstHi(static_cast<int32_t>(val >> 32), true);
@@ -80,7 +92,7 @@ TEST_F(RegTypeTest, Pairs) {
 
 TEST_F(RegTypeTest, Primitives) {
   ScopedObjectAccess soa(Thread::Current());
-  RegTypeCache cache(true);
+  RegTypeCache cache(true, *allocator);
 
   const RegType& bool_reg_type = cache.Boolean();
   EXPECT_FALSE(bool_reg_type.IsUndefined());
@@ -347,13 +359,13 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_TRUE(double_reg_type.HasClass());
 }
 
-class RegTypeReferenceTest : public CommonRuntimeTest {};
+class RegTypeReferenceTest : public BaseRegTypeTest {};
 
 TEST_F(RegTypeReferenceTest, JavalangObjectImprecise) {
   // Tests matching precisions. A reference type that was created precise doesn't
   // match the one that is imprecise.
   ScopedObjectAccess soa(Thread::Current());
-  RegTypeCache cache(true);
+  RegTypeCache cache(true, *allocator);
   const RegType& imprecise_obj = cache.JavaLangObject(false);
   const RegType& precise_obj = cache.JavaLangObject(true);
   const RegType& precise_obj_2 = cache.FromDescriptor(nullptr, "Ljava/lang/Object;", true);
@@ -368,7 +380,7 @@ TEST_F(RegTypeReferenceTest, UnresolvedType) {
   // Tests creating unresolved types. Miss for the first time asking the cache and
   // a hit second time.
   ScopedObjectAccess soa(Thread::Current());
-  RegTypeCache cache(true);
+  RegTypeCache cache(true, *allocator);
   const RegType& ref_type_0 = cache.FromDescriptor(nullptr, "Ljava/lang/DoesNotExist;", true);
   EXPECT_TRUE(ref_type_0.IsUnresolvedReference());
   EXPECT_TRUE(ref_type_0.IsNonZeroReferenceTypes());
@@ -384,7 +396,7 @@ TEST_F(RegTypeReferenceTest, UnresolvedType) {
 TEST_F(RegTypeReferenceTest, UnresolvedUnintializedType) {
   // Tests creating types uninitialized types from unresolved types.
   ScopedObjectAccess soa(Thread::Current());
-  RegTypeCache cache(true);
+  RegTypeCache cache(true, *allocator);
   const RegType& ref_type_0 = cache.FromDescriptor(nullptr, "Ljava/lang/DoesNotExist;", true);
   EXPECT_TRUE(ref_type_0.IsUnresolvedReference());
   const RegType& ref_type = cache.FromDescriptor(nullptr, "Ljava/lang/DoesNotExist;", true);
@@ -406,7 +418,7 @@ TEST_F(RegTypeReferenceTest, UnresolvedUnintializedType) {
 TEST_F(RegTypeReferenceTest, Dump) {
   // Tests types for proper Dump messages.
   ScopedObjectAccess soa(Thread::Current());
-  RegTypeCache cache(true);
+  RegTypeCache cache(true, *allocator);
   const RegType& unresolved_ref = cache.FromDescriptor(nullptr, "Ljava/lang/DoesNotExist;", true);
   const RegType& unresolved_ref_another = cache.FromDescriptor(nullptr, "Ljava/lang/DoesNotExistEither;", true);
   const RegType& resolved_ref = cache.JavaLangString();
@@ -431,7 +443,7 @@ TEST_F(RegTypeReferenceTest, JavalangString) {
   // Hit the second time. Then check for the same effect when using
   // The JavaLangObject method instead of FromDescriptor. String class is final.
   ScopedObjectAccess soa(Thread::Current());
-  RegTypeCache cache(true);
+  RegTypeCache cache(true, *allocator);
   const RegType& ref_type = cache.JavaLangString();
   const RegType& ref_type_2 = cache.JavaLangString();
   const RegType& ref_type_3 = cache.FromDescriptor(nullptr, "Ljava/lang/String;", true);
@@ -451,7 +463,7 @@ TEST_F(RegTypeReferenceTest, JavalangObject) {
   // Hit the second time. Then I am checking for the same effect when using
   // The JavaLangObject method instead of FromDescriptor. Object Class in not final.
   ScopedObjectAccess soa(Thread::Current());
-  RegTypeCache cache(true);
+  RegTypeCache cache(true, *allocator);
   const RegType& ref_type = cache.JavaLangObject(true);
   const RegType& ref_type_2 = cache.JavaLangObject(true);
   const RegType& ref_type_3 = cache.FromDescriptor(nullptr, "Ljava/lang/Object;", true);
@@ -464,7 +476,7 @@ TEST_F(RegTypeReferenceTest, Merging) {
   // Tests merging logic
   // String and object , LUB is object.
   ScopedObjectAccess soa(Thread::Current());
-  RegTypeCache cache_new(true);
+  RegTypeCache cache_new(true, *allocator);
   const RegType& string = cache_new.JavaLangString();
   const RegType& Object = cache_new.JavaLangObject(true);
   EXPECT_TRUE(string.Merge(Object, &cache_new).IsJavaLangObject());
@@ -487,7 +499,7 @@ TEST_F(RegTypeReferenceTest, Merging) {
 TEST_F(RegTypeTest, MergingFloat) {
   // Testing merging logic with float and float constants.
   ScopedObjectAccess soa(Thread::Current());
-  RegTypeCache cache_new(true);
+  RegTypeCache cache_new(true, *allocator);
 
   constexpr int32_t kTestConstantValue = 10;
   const RegType& float_type = cache_new.Float();
@@ -518,7 +530,7 @@ TEST_F(RegTypeTest, MergingFloat) {
 TEST_F(RegTypeTest, MergingLong) {
   // Testing merging logic with long and long constants.
   ScopedObjectAccess soa(Thread::Current());
-  RegTypeCache cache_new(true);
+  RegTypeCache cache_new(true, *allocator);
 
   constexpr int32_t kTestConstantValue = 10;
   const RegType& long_lo_type = cache_new.LongLo();
@@ -572,7 +584,7 @@ TEST_F(RegTypeTest, MergingLong) {
 TEST_F(RegTypeTest, MergingDouble) {
   // Testing merging logic with double and double constants.
   ScopedObjectAccess soa(Thread::Current());
-  RegTypeCache cache_new(true);
+  RegTypeCache cache_new(true, *allocator);
 
   constexpr int32_t kTestConstantValue = 10;
   const RegType& double_lo_type = cache_new.DoubleLo();
@@ -626,7 +638,7 @@ TEST_F(RegTypeTest, MergingDouble) {
 TEST_F(RegTypeTest, ConstPrecision) {
   // Tests creating primitive types types.
   ScopedObjectAccess soa(Thread::Current());
-  RegTypeCache cache_new(true);
+  RegTypeCache cache_new(true, *allocator);
   const RegType& imprecise_const = cache_new.FromCat1Const(10, false);
   const RegType& precise_const = cache_new.FromCat1Const(10, true);
 

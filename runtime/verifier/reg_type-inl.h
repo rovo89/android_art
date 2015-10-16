@@ -20,6 +20,7 @@
 #include "reg_type.h"
 
 #include "base/casts.h"
+#include "base/scoped_arena_allocator.h"
 #include "mirror/class.h"
 
 namespace art {
@@ -178,6 +179,10 @@ inline const ConflictType* ConflictType::GetInstance() {
 inline const UndefinedType* UndefinedType::GetInstance() {
   DCHECK(instance_ != nullptr);
   return instance_;
+}
+
+inline void* RegType::operator new(size_t size, ScopedArenaAllocator* arena) {
+  return arena->Alloc(size, kArenaAllocMisc);
 }
 
 }  // namespace verifier
