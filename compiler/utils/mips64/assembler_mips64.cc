@@ -773,6 +773,10 @@ void Mips64Assembler::Cvtds(FpuRegister fd, FpuRegister fs) {
   EmitFR(0x11, 0x10, static_cast<FpuRegister>(0), fs, fd, 0x21);
 }
 
+void Mips64Assembler::Cvtsl(FpuRegister fd, FpuRegister fs) {
+  EmitFR(0x11, 0x15, static_cast<FpuRegister>(0), fs, fd, 0x20);
+}
+
 void Mips64Assembler::Cvtdl(FpuRegister fd, FpuRegister fs) {
   EmitFR(0x11, 0x15, static_cast<FpuRegister>(0), fs, fd, 0x21);
 }
