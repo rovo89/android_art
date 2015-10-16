@@ -272,18 +272,15 @@ bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg);
 class VoidFunctor {
  public:
   template <typename A>
-  inline void operator() (A a) const {
-    UNUSED(a);
+  inline void operator() (A a ATTRIBUTE_UNUSED) const {
   }
 
   template <typename A, typename B>
-  inline void operator() (A a, B b) const {
-    UNUSED(a, b);
+  inline void operator() (A a ATTRIBUTE_UNUSED, B b ATTRIBUTE_UNUSED) const {
   }
 
   template <typename A, typename B, typename C>
-  inline void operator() (A a, B b, C c) const {
-    UNUSED(a, b, c);
+  inline void operator() (A a ATTRIBUTE_UNUSED, B b ATTRIBUTE_UNUSED, C c ATTRIBUTE_UNUSED) const {
   }
 };
 

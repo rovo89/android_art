@@ -40,8 +40,9 @@ bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst
                 uint16_t inst_data) {
   const bool is_static = (find_type == StaticObjectRead) || (find_type == StaticPrimitiveRead);
   const uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
-  ArtField* f = FindFieldFromCode<find_type, do_access_check>(field_idx, shadow_frame.GetMethod(), self,
-                                                              Primitive::ComponentSize(field_type));
+  ArtField* f =
+      FindFieldFromCode<find_type, do_access_check>(field_idx, shadow_frame.GetMethod(), self,
+                                                    Primitive::ComponentSize(field_type));
   if (UNLIKELY(f == nullptr)) {
     CHECK(self->IsExceptionPending());
     return false;
@@ -234,8 +235,9 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
   bool do_assignability_check = do_access_check;
   bool is_static = (find_type == StaticObjectWrite) || (find_type == StaticPrimitiveWrite);
   uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
-  ArtField* f = FindFieldFromCode<find_type, do_access_check>(field_idx, shadow_frame.GetMethod(), self,
-                                                              Primitive::ComponentSize(field_type));
+  ArtField* f =
+      FindFieldFromCode<find_type, do_access_check>(field_idx, shadow_frame.GetMethod(), self,
+                                                    Primitive::ComponentSize(field_type));
   if (UNLIKELY(f == nullptr)) {
     CHECK(self->IsExceptionPending());
     return false;
@@ -775,7 +777,7 @@ static inline bool DoCallCommon(ArtMethod* called_method,
 
 template<bool is_range, bool do_assignability_check>
 bool DoLambdaCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
-                  const Instruction* inst, uint16_t inst_data, JValue* result) {
+                  const Instruction* inst, uint16_t inst_data ATTRIBUTE_UNUSED, JValue* result) {
   const uint4_t num_additional_registers = inst->VRegB_25x();
   // Argument word count.
   const uint16_t number_of_inputs = num_additional_registers + kLambdaVirtualRegisterWidth;
@@ -790,7 +792,6 @@ bool DoLambdaCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_fr
     vregC = inst->VRegC_3rc();
   } else {
     // TODO(iam): See if it's possible to remove inst_data dependency from 35x to avoid this path
-    UNUSED(inst_data);
     inst->GetAllArgs25x(arg);
   }
 
@@ -806,7 +807,8 @@ template<bool is_range, bool do_assignability_check>
 bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
             const Instruction* inst, uint16_t inst_data, JValue* result) {
   // Argument word count.
-  const uint16_t number_of_inputs = (is_range) ? inst->VRegA_3rc(inst_data) : inst->VRegA_35c(inst_data);
+  const uint16_t number_of_inputs =
+      (is_range) ? inst->VRegA_3rc(inst_data) : inst->VRegA_35c(inst_data);
 
   // TODO: find a cleaner way to separate non-range and range information without duplicating
   //       code.

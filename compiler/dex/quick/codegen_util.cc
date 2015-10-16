@@ -992,8 +992,7 @@ void Mir2Lir::DumpPackedSwitchTable(const uint16_t* table) {
 }
 
 /* Set up special LIR to mark a Dalvik byte-code instruction start for pretty printing */
-void Mir2Lir::MarkBoundary(DexOffset offset, const char* inst_str) {
-  UNUSED(offset);
+void Mir2Lir::MarkBoundary(DexOffset offset ATTRIBUTE_UNUSED, const char* inst_str) {
   // NOTE: only used for debug listings.
   NewLIR1(kPseudoDalvikByteCodeBoundary, WrapPointer(ArenaStrdup(inst_str)));
 }
@@ -1358,8 +1357,8 @@ RegLocation Mir2Lir::NarrowRegLoc(RegLocation loc) {
   return loc;
 }
 
-void Mir2Lir::GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir) {
-  UNUSED(bb, mir);
+void Mir2Lir::GenMachineSpecificExtendedMethodMIR(BasicBlock* bb ATTRIBUTE_UNUSED,
+                                                  MIR* mir ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unknown MIR opcode not supported on this architecture";
   UNREACHABLE();
 }

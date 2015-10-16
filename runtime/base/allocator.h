@@ -115,9 +115,7 @@ class TrackingAllocatorImpl : public std::allocator<T> {
 
   // Used internally by STL data structures.
   template <class U>
-  TrackingAllocatorImpl(const TrackingAllocatorImpl<U, kTag>& alloc) noexcept {
-    UNUSED(alloc);
-  }
+  TrackingAllocatorImpl(const TrackingAllocatorImpl<U, kTag>& alloc ATTRIBUTE_UNUSED) noexcept {}
 
   // Used internally by STL data structures.
   TrackingAllocatorImpl() noexcept {
@@ -131,8 +129,7 @@ class TrackingAllocatorImpl : public std::allocator<T> {
     typedef TrackingAllocatorImpl<U, kTag> other;
   };
 
-  pointer allocate(size_type n, const_pointer hint = 0) {
-    UNUSED(hint);
+  pointer allocate(size_type n, const_pointer hint ATTRIBUTE_UNUSED = 0) {
     const size_t size = n * sizeof(T);
     TrackedAllocators::RegisterAllocation(GetTag(), size);
     return reinterpret_cast<pointer>(malloc(size));

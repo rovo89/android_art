@@ -406,9 +406,8 @@ JavaStackTraceHandler::JavaStackTraceHandler(FaultManager* manager) : FaultHandl
   manager_->AddHandler(this, false);
 }
 
-bool JavaStackTraceHandler::Action(int sig, siginfo_t* siginfo, void* context) {
+bool JavaStackTraceHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* siginfo, void* context) {
   // Make sure that we are in the generated code, but we may not have a dex pc.
-  UNUSED(sig);
 #ifdef TEST_NESTED_SIGNAL
   bool in_generated_code = true;
 #else
