@@ -851,8 +851,8 @@ uintptr_t QuickCompiler::GetEntryPointOf(ArtMethod* method) const {
       InstructionSetPointerSize(GetCompilerDriver()->GetInstructionSet())));
 }
 
-Mir2Lir* QuickCompiler::GetCodeGenerator(CompilationUnit* cu, void* compilation_unit) {
-  UNUSED(compilation_unit);
+Mir2Lir* QuickCompiler::GetCodeGenerator(CompilationUnit* cu,
+                                         void* compilation_unit ATTRIBUTE_UNUSED) {
   Mir2Lir* mir_to_lir = nullptr;
   switch (cu->instruction_set) {
 #ifdef ART_ENABLE_CODEGEN_arm

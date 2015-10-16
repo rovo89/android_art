@@ -103,18 +103,15 @@ bool MipsMir2Lir::InexpensiveConstantInt(int32_t value) {
   return ((value == 0) || IsUint<16>(value) || IsInt<16>(value));
 }
 
-bool MipsMir2Lir::InexpensiveConstantFloat(int32_t value) {
-  UNUSED(value);
+bool MipsMir2Lir::InexpensiveConstantFloat(int32_t value ATTRIBUTE_UNUSED) {
   return false;  // TUNING
 }
 
-bool MipsMir2Lir::InexpensiveConstantLong(int64_t value) {
-  UNUSED(value);
+bool MipsMir2Lir::InexpensiveConstantLong(int64_t value ATTRIBUTE_UNUSED) {
   return false;  // TUNING
 }
 
-bool MipsMir2Lir::InexpensiveConstantDouble(int64_t value) {
-  UNUSED(value);
+bool MipsMir2Lir::InexpensiveConstantDouble(int64_t value ATTRIBUTE_UNUSED) {
   return false;  // TUNING
 }
 
@@ -520,21 +517,26 @@ LIR* MipsMir2Lir::OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2)
   return NewLIR2(opcode, r_dest_src1.GetReg(), r_src2.GetReg());
 }
 
-LIR* MipsMir2Lir::OpMovRegMem(RegStorage r_dest, RegStorage r_base, int offset,
-                              MoveType move_type) {
-  UNUSED(r_dest, r_base, offset, move_type);
+LIR* MipsMir2Lir::OpMovRegMem(RegStorage r_dest ATTRIBUTE_UNUSED,
+                              RegStorage r_base ATTRIBUTE_UNUSED,
+                              int offset ATTRIBUTE_UNUSED,
+                              MoveType move_type ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL);
   UNREACHABLE();
 }
 
-LIR* MipsMir2Lir::OpMovMemReg(RegStorage r_base, int offset, RegStorage r_src, MoveType move_type) {
-  UNUSED(r_base, offset, r_src, move_type);
+LIR* MipsMir2Lir::OpMovMemReg(RegStorage r_base ATTRIBUTE_UNUSED,
+                              int offset ATTRIBUTE_UNUSED,
+                              RegStorage r_src ATTRIBUTE_UNUSED,
+                              MoveType move_type ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL);
   UNREACHABLE();
 }
 
-LIR* MipsMir2Lir::OpCondRegReg(OpKind op, ConditionCode cc, RegStorage r_dest, RegStorage r_src) {
-  UNUSED(op, cc, r_dest, r_src);
+LIR* MipsMir2Lir::OpCondRegReg(OpKind op ATTRIBUTE_UNUSED,
+                               ConditionCode cc ATTRIBUTE_UNUSED,
+                               RegStorage r_dest ATTRIBUTE_UNUSED,
+                               RegStorage r_src ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of OpCondRegReg for MIPS";
   UNREACHABLE();
 }
@@ -1031,14 +1033,14 @@ LIR* MipsMir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage 
   return store;
 }
 
-LIR* MipsMir2Lir::OpMem(OpKind op, RegStorage r_base, int disp) {
-  UNUSED(op, r_base, disp);
+LIR* MipsMir2Lir::OpMem(OpKind op ATTRIBUTE_UNUSED,
+                        RegStorage r_base ATTRIBUTE_UNUSED,
+                        int disp ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of OpMem for MIPS";
   UNREACHABLE();
 }
 
-LIR* MipsMir2Lir::OpCondBranch(ConditionCode cc, LIR* target) {
-  UNUSED(cc, target);
+LIR* MipsMir2Lir::OpCondBranch(ConditionCode cc ATTRIBUTE_UNUSED, LIR* target ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of OpCondBranch for MIPS";
   UNREACHABLE();
 }

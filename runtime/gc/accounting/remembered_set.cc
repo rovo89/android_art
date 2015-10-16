@@ -41,8 +41,7 @@ class RememberedSetCardVisitor {
   explicit RememberedSetCardVisitor(RememberedSet::CardSet* const dirty_cards)
       : dirty_cards_(dirty_cards) {}
 
-  void operator()(uint8_t* card, uint8_t expected_value, uint8_t new_value) const {
-    UNUSED(new_value);
+  void operator()(uint8_t* card, uint8_t expected_value, uint8_t new_value ATTRIBUTE_UNUSED) const {
     if (expected_value == CardTable::kCardDirty) {
       dirty_cards_->insert(card);
     }

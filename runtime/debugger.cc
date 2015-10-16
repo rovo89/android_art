@@ -1903,8 +1903,7 @@ void Dbg::OutputJValue(JDWP::JdwpTag tag, const JValue* return_value, JDWP::Expa
 JDWP::JdwpError Dbg::GetThreadName(JDWP::ObjectId thread_id, std::string* name) {
   ScopedObjectAccessUnchecked soa(Thread::Current());
   JDWP::JdwpError error;
-  Thread* thread = DecodeThread(soa, thread_id, &error);
-  UNUSED(thread);
+  DecodeThread(soa, thread_id, &error);
   if (error != JDWP::ERR_NONE && error != JDWP::ERR_THREAD_NOT_ALIVE) {
     return error;
   }
@@ -1931,8 +1930,7 @@ JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* p
   }
   ScopedAssertNoThreadSuspension ants(soa.Self(), "Debugger: GetThreadGroup");
   // Okay, so it's an object, but is it actually a thread?
-  Thread* thread = DecodeThread(soa, thread_id, &error);
-  UNUSED(thread);
+  DecodeThread(soa, thread_id, &error);
   if (error == JDWP::ERR_THREAD_NOT_ALIVE) {
     // Zombie threads are in the null group.
     expandBufAddObjectId(pReply, JDWP::ObjectId(0));

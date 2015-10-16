@@ -56,9 +56,8 @@ extern "C" mirror::Object* artAllocObjectFromCode ##suffix##suffix2( \
   return AllocObjectFromCode<false, instrumented_bool>(type_idx, method, self, allocator_type); \
 } \
 extern "C" mirror::Object* artAllocObjectFromCodeResolved##suffix##suffix2( \
-    mirror::Class* klass, ArtMethod* method, Thread* self) \
+    mirror::Class* klass, ArtMethod* method ATTRIBUTE_UNUSED, Thread* self) \
     SHARED_REQUIRES(Locks::mutator_lock_) { \
-  UNUSED(method); \
   ScopedQuickEntrypointChecks sqec(self); \
   if (kUseTlabFastPath && !instrumented_bool && allocator_type == gc::kAllocatorTypeTLAB) { \
     if (LIKELY(klass->IsInitialized())) { \
@@ -83,9 +82,8 @@ extern "C" mirror::Object* artAllocObjectFromCodeResolved##suffix##suffix2( \
   return AllocObjectFromCodeResolved<instrumented_bool>(klass, self, allocator_type); \
 } \
 extern "C" mirror::Object* artAllocObjectFromCodeInitialized##suffix##suffix2( \
-    mirror::Class* klass, ArtMethod* method, Thread* self) \
+    mirror::Class* klass, ArtMethod* method ATTRIBUTE_UNUSED, Thread* self) \
     SHARED_REQUIRES(Locks::mutator_lock_) { \
-  UNUSED(method); \
   ScopedQuickEntrypointChecks sqec(self); \
   if (kUseTlabFastPath && !instrumented_bool && allocator_type == gc::kAllocatorTypeTLAB) { \
     size_t byte_count = klass->GetObjectSize(); \

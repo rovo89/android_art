@@ -1072,9 +1072,8 @@ static JdwpError TR_CurrentContendedMonitor(JdwpState*, Request* request, Expand
   return WriteTaggedObject(reply, contended_monitor);
 }
 
-static JdwpError TR_Interrupt(JdwpState*, Request* request, ExpandBuf* reply)
+static JdwpError TR_Interrupt(JdwpState*, Request* request, ExpandBuf* reply ATTRIBUTE_UNUSED)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-  UNUSED(reply);
   ObjectId thread_id = request->ReadThreadId();
   return Dbg::Interrupt(thread_id);
 }

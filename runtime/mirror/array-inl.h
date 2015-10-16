@@ -100,9 +100,8 @@ class SetLengthVisitor {
   explicit SetLengthVisitor(int32_t length) : length_(length) {
   }
 
-  void operator()(Object* obj, size_t usable_size) const
+  void operator()(Object* obj, size_t usable_size ATTRIBUTE_UNUSED) const
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    UNUSED(usable_size);
     // Avoid AsArray as object is not yet in live bitmap or allocation stack.
     Array* array = down_cast<Array*>(obj);
     // DCHECK(array->IsArrayInstance());

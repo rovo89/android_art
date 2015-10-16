@@ -124,17 +124,17 @@ void X86Mir2Lir::GenArithOpDouble(Instruction::Code opcode,
   StoreValueWide(rl_dest, rl_result);
 }
 
-void X86Mir2Lir::GenMultiplyByConstantFloat(RegLocation rl_dest, RegLocation rl_src1,
-                                            int32_t constant) {
+void X86Mir2Lir::GenMultiplyByConstantFloat(RegLocation rl_dest ATTRIBUTE_UNUSED,
+                                            RegLocation rl_src1 ATTRIBUTE_UNUSED,
+                                            int32_t constant ATTRIBUTE_UNUSED) {
   // TODO: need x86 implementation.
-  UNUSED(rl_dest, rl_src1, constant);
   LOG(FATAL) << "Unimplemented GenMultiplyByConstantFloat in x86";
 }
 
-void X86Mir2Lir::GenMultiplyByConstantDouble(RegLocation rl_dest, RegLocation rl_src1,
-                                             int64_t constant) {
+void X86Mir2Lir::GenMultiplyByConstantDouble(RegLocation rl_dest ATTRIBUTE_UNUSED,
+                                             RegLocation rl_src1 ATTRIBUTE_UNUSED,
+                                             int64_t constant ATTRIBUTE_UNUSED) {
   // TODO: need x86 implementation.
-  UNUSED(rl_dest, rl_src1, constant);
   LOG(FATAL) << "Unimplemented GenMultiplyByConstantDouble in x86";
 }
 

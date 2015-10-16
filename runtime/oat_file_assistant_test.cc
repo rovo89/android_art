@@ -954,9 +954,7 @@ class RaceGenerateTask : public Task {
       loaded_oat_file_(nullptr)
   {}
 
-  void Run(Thread* self) {
-    UNUSED(self);
-
+  void Run(Thread* self ATTRIBUTE_UNUSED) {
     // Load the dex files, and save a pointer to the loaded oat file, so that
     // we can verify only one oat file was loaded for the dex location.
     std::vector<std::unique_ptr<const DexFile>> dex_files;

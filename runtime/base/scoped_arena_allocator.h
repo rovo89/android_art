@@ -132,7 +132,7 @@ class ScopedArenaAllocator
   ScopedArenaAllocatorAdapter<void> Adapter(ArenaAllocKind kind = kArenaAllocSTL);
 
   // Allow a delete-expression to destroy but not deallocate allocators created by Create().
-  static void operator delete(void* ptr) { UNUSED(ptr); }
+  static void operator delete(void* ptr ATTRIBUTE_UNUSED) {}
 
  private:
   ArenaStack* const arena_stack_;

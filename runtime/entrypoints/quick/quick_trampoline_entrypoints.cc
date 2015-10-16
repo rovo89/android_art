@@ -1524,9 +1524,9 @@ class ComputeNativeCallFrameSize {
     return sp8;
   }
 
-  virtual void WalkHeader(BuildNativeCallFrameStateMachine<ComputeNativeCallFrameSize>* sm)
+  virtual void WalkHeader(
+      BuildNativeCallFrameStateMachine<ComputeNativeCallFrameSize>* sm ATTRIBUTE_UNUSED)
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    UNUSED(sm);
   }
 
   void Walk(const char* shorty, uint32_t shorty_len) SHARED_REQUIRES(Locks::mutator_lock_) {

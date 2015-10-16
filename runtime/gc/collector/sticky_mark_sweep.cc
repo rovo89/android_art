@@ -56,8 +56,7 @@ void StickyMarkSweep::MarkReachableObjects() {
   RecursiveMarkDirtyObjects(false, accounting::CardTable::kCardDirty - 1);
 }
 
-void StickyMarkSweep::Sweep(bool swap_bitmaps) {
-  UNUSED(swap_bitmaps);
+void StickyMarkSweep::Sweep(bool swap_bitmaps ATTRIBUTE_UNUSED) {
   SweepArray(GetHeap()->GetLiveStack(), false);
 }
 

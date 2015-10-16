@@ -752,26 +752,31 @@ void Trace::FinishTracing() {
   }
 }
 
-void Trace::DexPcMoved(Thread* thread, mirror::Object* this_object,
-                       ArtMethod* method, uint32_t new_dex_pc) {
-  UNUSED(thread, this_object, method, new_dex_pc);
+void Trace::DexPcMoved(Thread* thread ATTRIBUTE_UNUSED,
+                       mirror::Object* this_object ATTRIBUTE_UNUSED,
+                       ArtMethod* method,
+                       uint32_t new_dex_pc) {
   // We're not recorded to listen to this kind of event, so complain.
   LOG(ERROR) << "Unexpected dex PC event in tracing " << PrettyMethod(method) << " " << new_dex_pc;
 }
 
-void Trace::FieldRead(Thread* thread, mirror::Object* this_object,
-                       ArtMethod* method, uint32_t dex_pc, ArtField* field)
+void Trace::FieldRead(Thread* thread ATTRIBUTE_UNUSED,
+                      mirror::Object* this_object ATTRIBUTE_UNUSED,
+                      ArtMethod* method,
+                      uint32_t dex_pc,
+                      ArtField* field ATTRIBUTE_UNUSED)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-  UNUSED(thread, this_object, method, dex_pc, field);
   // We're not recorded to listen to this kind of event, so complain.
   LOG(ERROR) << "Unexpected field read event in tracing " << PrettyMethod(method) << " " << dex_pc;
 }
 
-void Trace::FieldWritten(Thread* thread, mirror::Object* this_object,
-                          ArtMethod* method, uint32_t dex_pc, ArtField* field,
-                          const JValue& field_value)
+void Trace::FieldWritten(Thread* thread ATTRIBUTE_UNUSED,
+                         mirror::Object* this_object ATTRIBUTE_UNUSED,
+                         ArtMethod* method,
+                         uint32_t dex_pc,
+                         ArtField* field ATTRIBUTE_UNUSED,
+                         const JValue& field_value ATTRIBUTE_UNUSED)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-  UNUSED(thread, this_object, method, dex_pc, field, field_value);
   // We're not recorded to listen to this kind of event, so complain.
   LOG(ERROR) << "Unexpected field write event in tracing " << PrettyMethod(method) << " " << dex_pc;
 }
@@ -804,9 +809,9 @@ void Trace::MethodUnwind(Thread* thread, mirror::Object* this_object ATTRIBUTE_U
                       thread_clock_diff, wall_clock_diff);
 }
 
-void Trace::ExceptionCaught(Thread* thread, mirror::Throwable* exception_object)
+void Trace::ExceptionCaught(Thread* thread ATTRIBUTE_UNUSED,
+                            mirror::Throwable* exception_object ATTRIBUTE_UNUSED)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-  UNUSED(thread, exception_object);
   LOG(ERROR) << "Unexpected exception caught event in tracing";
 }
 

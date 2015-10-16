@@ -666,7 +666,6 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
                                                jobject class_loader,
                                                const DexFile& dex_file,
                                                Handle<mirror::DexCache> dex_cache) const {
-  UNUSED(invoke_type);
   std::string method_name = PrettyMethod(method_idx, dex_file);
   MaybeRecordStat(MethodCompilationStat::kAttemptCompilation);
   CompilerDriver* compiler_driver = GetCompilerDriver();

@@ -419,20 +419,26 @@ LIR* ArmMir2Lir::OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2) 
   return OpRegRegShift(op, r_dest_src1, r_src2, 0);
 }
 
-LIR* ArmMir2Lir::OpMovRegMem(RegStorage r_dest, RegStorage r_base, int offset, MoveType move_type) {
-  UNUSED(r_dest, r_base, offset, move_type);
+LIR* ArmMir2Lir::OpMovRegMem(RegStorage r_dest ATTRIBUTE_UNUSED,
+                             RegStorage r_base ATTRIBUTE_UNUSED,
+                             int offset ATTRIBUTE_UNUSED,
+                             MoveType move_type ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL);
   UNREACHABLE();
 }
 
-LIR* ArmMir2Lir::OpMovMemReg(RegStorage r_base, int offset, RegStorage r_src, MoveType move_type) {
-  UNUSED(r_base, offset, r_src, move_type);
+LIR* ArmMir2Lir::OpMovMemReg(RegStorage r_base ATTRIBUTE_UNUSED,
+                             int offset ATTRIBUTE_UNUSED,
+                             RegStorage r_src ATTRIBUTE_UNUSED,
+                             MoveType move_type ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL);
   UNREACHABLE();
 }
 
-LIR* ArmMir2Lir::OpCondRegReg(OpKind op, ConditionCode cc, RegStorage r_dest, RegStorage r_src) {
-  UNUSED(op, cc, r_dest, r_src);
+LIR* ArmMir2Lir::OpCondRegReg(OpKind op ATTRIBUTE_UNUSED,
+                              ConditionCode cc ATTRIBUTE_UNUSED,
+                              RegStorage r_dest ATTRIBUTE_UNUSED,
+                              RegStorage r_src ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of OpCondRegReg for Arm";
   UNREACHABLE();
 }
@@ -1243,14 +1249,17 @@ LIR* ArmMir2Lir::OpFpRegCopy(RegStorage r_dest, RegStorage r_src) {
   return res;
 }
 
-LIR* ArmMir2Lir::OpMem(OpKind op, RegStorage r_base, int disp) {
-  UNUSED(op, r_base, disp);
+LIR* ArmMir2Lir::OpMem(OpKind op ATTRIBUTE_UNUSED,
+                       RegStorage r_base ATTRIBUTE_UNUSED,
+                       int disp ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of OpMem for Arm";
   UNREACHABLE();
 }
 
-LIR* ArmMir2Lir::InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) {
-  UNUSED(trampoline);  // The address of the trampoline is already loaded into r_tgt.
+LIR* ArmMir2Lir::InvokeTrampoline(OpKind op,
+                                  RegStorage r_tgt,
+                                  // The address of the trampoline is already loaded into r_tgt.
+                                  QuickEntrypointEnum trampoline ATTRIBUTE_UNUSED) {
   return OpReg(op, r_tgt);
 }
 
