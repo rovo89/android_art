@@ -18,6 +18,7 @@
 
 #include "gvn_dead_code_elimination.h"
 
+#include "base/arena_bit_vector.h"
 #include "base/bit_vector-inl.h"
 #include "base/macros.h"
 #include "base/allocator.h"
@@ -26,7 +27,6 @@
 #include "dex_instruction.h"
 #include "dex/mir_graph.h"
 #include "local_value_numbering.h"
-#include "utils/arena_bit_vector.h"
 
 namespace art {
 
